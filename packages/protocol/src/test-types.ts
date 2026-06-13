@@ -1,34 +1,84 @@
-// Wire types streamed over /__pw/test/stream and returned by the run/status/list routes.
-// Mirrored verbatim by the widget's test card — never guessed there. `parseFailure` is the
-// one pure bit worth unit-testing: it maps a Vitest v4 TestCase (shape below) to our flat
-// TestError. NO runner name appears in any type below — these are the runner-blind wrapper
-// contract every runner adapter translates its native output into.
+import {z} from 'zod'
 
-export type TestState = 'pass' | 'fail' | 'skip'
+// Wire types streamed over the test stream and returned by the run/status/list routes.
+// Mirrored verbatim by the widget's test card — never guessed there. The Zod schemas ARE the
+// contract: the runner child emits these as NDJSON and the manager validates them with
+// TestEventSchema. TS types are inferred (z.infer) — one source of truth. NO runner name
+// appears in any type below — these are the runner-blind wrapper contract every runner adapter
+// translates its native output into.
 
-export type TestError = {file: string; name: string; message: string; stack: string; line?: number}
+export const TestStateSchema = z.enum(['pass', 'fail', 'skip'])
+export type TestState = z.infer<typeof TestStateSchema>
 
-export type Summary = {passed: number; failed: number; skipped: number; durationMs: number}
+export const TestErrorSchema = z.object({
+  file: z.string(),
+  name: z.string(),
+  message: z.string(),
+  stack: z.string(),
+  line: z.number().optional(),
+})
+export type TestError = z.infer<typeof TestErrorSchema>
 
-export type FileState = {file: string; state: TestState | 'running'; durationMs?: number}
+export const SummarySchema = z.object({
+  passed: z.number(),
+  failed: z.number(),
+  skipped: z.number(),
+  durationMs: z.number(),
+})
+export type Summary = z.infer<typeof SummarySchema>
+
+export const FileStateSchema = z.object({
+  file: z.string(),
+  state: z.enum(['pass', 'fail', 'skip', 'running']),
+  durationMs: z.number().optional(),
+})
+export type FileState = z.infer<typeof FileStateSchema>
 
 // One completed test. `run-end` carries the FULL list (every pass/fail/skip) so a card
 // rendered from a stored tool-result on reload can rebuild the whole tree — not just the
 // failures. `error` is present only for failures.
-export type TestRow = {file: string; name: string; state: TestState; durationMs: number; error?: TestError}
+export const TestRowSchema = z.object({
+  file: z.string(),
+  name: z.string(),
+  state: TestStateSchema,
+  durationMs: z.number(),
+  error: TestErrorSchema.optional(),
+})
+export type TestRow = z.infer<typeof TestRowSchema>
 
 // The result returned by `devgent tools test run` (printed as the tool-result the widget
 // renders as a card) and by the run route. Carries the full tree so it's self-contained.
-export type TestRunResult = {summary: Summary; failures: TestError[]; tests: TestRow[]}
+export const TestRunResultSchema = z.object({
+  summary: SummarySchema,
+  failures: z.array(TestErrorSchema),
+  tests: z.array(TestRowSchema),
+})
+export type TestRunResult = z.infer<typeof TestRunResultSchema>
 
-export type TestEvent =
-  | {type: 'snapshot'; files: FileState[]; summary: Summary; watching: boolean}
-  | {type: 'run-start'; runId: string; files: string[]}
-  | {type: 'test'; file: string; name: string; state: TestState; durationMs: number; error?: TestError}
-  | {type: 'file-end'; file: string; ok: boolean; durationMs: number}
-  | {type: 'run-end'; runId: string; summary: Summary; failures: TestError[]; tests: TestRow[]}
+export const TestEventSchema = z.discriminatedUnion('type', [
+  z.object({type: z.literal('snapshot'), files: z.array(FileStateSchema), summary: SummarySchema, watching: z.boolean()}),
+  z.object({type: z.literal('run-start'), runId: z.string(), files: z.array(z.string())}),
+  z.object({
+    type: z.literal('test'),
+    file: z.string(),
+    name: z.string(),
+    state: TestStateSchema,
+    durationMs: z.number(),
+    error: TestErrorSchema.optional(),
+  }),
+  z.object({type: z.literal('file-end'), file: z.string(), ok: z.boolean(), durationMs: z.number()}),
+  z.object({
+    type: z.literal('run-end'),
+    runId: z.string(),
+    summary: SummarySchema,
+    failures: z.array(TestErrorSchema),
+    tests: z.array(TestRowSchema),
+  }),
+])
+export type TestEvent = z.infer<typeof TestEventSchema>
 
-// Structural subset of a Vitest v4 TestCase — only what parseFailure reads.
+// Structural subset of a Vitest v4 TestCase — only what parseFailure reads. This is NOT parsed
+// wire data (it's an in-process object the runner child inspects), so it stays a TS type.
 export type TestCaseLike = {
   name: string
   module: {moduleId: string}

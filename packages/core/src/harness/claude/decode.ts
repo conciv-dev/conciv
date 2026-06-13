@@ -1,13 +1,16 @@
+import {z} from 'zod'
 import {EventType, type StreamChunk} from '@tanstack/ai'
+import {TextBlock, ThinkingBlock, ToolUseBlock, ToolResultBlock} from './blocks.js'
 
 // Translate Claude's `--output-format stream-json` NDJSON into a TanStack AI AG-UI event
 // stream (`StreamChunk`s). We emit the protocol the library + widget already speak —
 // RUN_STARTED → (TEXT_MESSAGE_* | THINKING_* | TOOL_CALL_*)* → RUN_FINISHED — so the
 // widget's `fetchServerSentEvents` consumes it with zero custom glue.
 //
-// We deliberately do NOT route this through `chat()`'s agent loop: Claude runs its own
-// tool loop (it edits files itself), so TanStack AI here is purely the transport/UI
-// protocol, and Claude is the agent.
+// Claude's stream-json shapes are validated with Zod (no hand-rolled guards / casts): the
+// event envelope + each assistant content block + the tool_result block. Unknown blocks are
+// skipped (safeParse fails → no emit). We deliberately do NOT route this through `chat()`'s
+// agent loop: Claude runs its own tool loop, so TanStack AI here is purely transport/UI.
 
 export type AguiStreamOpts = {
   // Called with Claude's session id when its init/result event carries one, so the route
@@ -15,43 +18,51 @@ export type AguiStreamOpts = {
   onSessionId?: (id: string) => void
 }
 
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null
-}
+const ClaudeEventSchema = z
+  .object({
+    type: z.string(),
+    session_id: z.string().optional(),
+    message: z.object({content: z.array(z.unknown()).optional()}).loose().optional(),
+  })
+  .loose()
+type ClaudeEvent = z.infer<typeof ClaudeEventSchema>
 
-function parseLine(line: string): Record<string, unknown> | null {
+function parseEvent(line: string): ClaudeEvent | null {
   const trimmed = line.trim()
   if (!trimmed) return null
   try {
-    const v: unknown = JSON.parse(trimmed)
-    return isRecord(v) ? v : null
+    const result = ClaudeEventSchema.safeParse(JSON.parse(trimmed))
+    return result.success ? result.data : null
   } catch {
     return null
   }
 }
 
-// Emit the AG-UI events for one Claude assistant content block.
-function* blockChunks(part: Record<string, unknown>, ids: {n: number}): Generator<StreamChunk> {
-  if (part.type === 'text' && typeof part.text === 'string') {
+// Emit the AG-UI events for one Claude assistant content block (validated per-block).
+function* blockChunks(part: unknown, ids: {n: number}): Generator<StreamChunk> {
+  const text = TextBlock.safeParse(part)
+  if (text.success) {
     ids.n += 1
     const messageId = `m${ids.n}`
     yield {type: EventType.TEXT_MESSAGE_START, messageId, role: 'assistant'}
-    yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId, delta: part.text}
+    yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId, delta: text.data.text}
     yield {type: EventType.TEXT_MESSAGE_END, messageId}
     return
   }
-  if (part.type === 'thinking' && typeof part.thinking === 'string') {
+  const thinking = ThinkingBlock.safeParse(part)
+  if (thinking.success) {
     ids.n += 1
     const messageId = `t${ids.n}`
     yield {type: EventType.REASONING_MESSAGE_START, messageId, role: 'reasoning'}
-    yield {type: EventType.REASONING_MESSAGE_CONTENT, messageId, delta: part.thinking}
+    yield {type: EventType.REASONING_MESSAGE_CONTENT, messageId, delta: thinking.data.thinking}
     yield {type: EventType.REASONING_MESSAGE_END, messageId}
     return
   }
-  if (part.type === 'tool_use' && typeof part.id === 'string' && typeof part.name === 'string') {
-    yield {type: EventType.TOOL_CALL_START, toolCallId: part.id, toolCallName: part.name, toolName: part.name}
-    yield {type: EventType.TOOL_CALL_ARGS, toolCallId: part.id, delta: JSON.stringify(part.input ?? {})}
-    yield {type: EventType.TOOL_CALL_END, toolCallId: part.id}
+  const tool = ToolUseBlock.safeParse(part)
+  if (tool.success) {
+    yield {type: EventType.TOOL_CALL_START, toolCallId: tool.data.id, toolCallName: tool.data.name, toolName: tool.data.name}
+    yield {type: EventType.TOOL_CALL_ARGS, toolCallId: tool.data.id, delta: JSON.stringify(tool.data.input ?? {})}
+    yield {type: EventType.TOOL_CALL_END, toolCallId: tool.data.id}
   }
 }
 
@@ -59,17 +70,12 @@ function* blockChunks(part: Record<string, unknown>, ids: {n: number}): Generato
 function* toolResultChunks(content: unknown, ids: {n: number}): Generator<StreamChunk> {
   if (!Array.isArray(content)) return
   for (const part of content) {
-    if (!isRecord(part)) continue
-    if (part.type === 'tool_result' && typeof part.tool_use_id === 'string') {
-      ids.n += 1
-      const text = typeof part.content === 'string' ? part.content : JSON.stringify(part.content ?? '')
-      yield {
-        type: EventType.TOOL_CALL_RESULT,
-        messageId: `r${ids.n}`,
-        toolCallId: part.tool_use_id,
-        content: text,
-      }
-    }
+    const result = ToolResultBlock.safeParse(part)
+    if (!result.success) continue
+    ids.n += 1
+    const raw = result.data.content
+    const text = typeof raw === 'string' ? raw : JSON.stringify(raw ?? '')
+    yield {type: EventType.TOOL_CALL_RESULT, messageId: `r${ids.n}`, toolCallId: result.data.tool_use_id, content: text}
   }
 }
 
@@ -82,21 +88,13 @@ export async function* claudeToAguiEvents(
   const ids = {n: 0}
   yield {type: EventType.RUN_STARTED, threadId, runId}
   for await (const line of lines) {
-    const e = parseLine(line)
+    const e = parseEvent(line)
     if (!e) continue
-    if ((e.type === 'system' || e.type === 'result') && typeof e.session_id === 'string') {
-      opts.onSessionId?.(e.session_id)
+    if ((e.type === 'system' || e.type === 'result') && e.session_id) opts.onSessionId?.(e.session_id)
+    if (e.type === 'assistant' && Array.isArray(e.message?.content)) {
+      for (const part of e.message.content) yield* blockChunks(part, ids)
     }
-    if (e.type === 'assistant' && isRecord(e.message)) {
-      // isRecord narrowed e.message to Record<string, unknown>, so .content reads as unknown — no cast.
-      const content = e.message.content
-      if (Array.isArray(content)) {
-        for (const part of content) {
-          if (isRecord(part)) yield* blockChunks(part, ids)
-        }
-      }
-    }
-    if (e.type === 'user' && isRecord(e.message)) {
+    if (e.type === 'user' && e.message) {
       yield* toolResultChunks(e.message.content, ids)
     }
   }

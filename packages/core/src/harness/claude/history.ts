@@ -1,7 +1,9 @@
 import {homedir} from 'node:os'
 import {join} from 'node:path'
+import {z} from 'zod'
 import type {MessagePart, UIMessage} from '@devgent/protocol/chat-types'
 import {defineHarnessHistory} from '@devgent/protocol/harness-types'
+import {TextBlock, ThinkingBlock, ToolUseBlock} from './blocks.js'
 
 // Claude transcript location + history parsing. Both live here so the claude adapter has a
 // single history module. transcriptPath says WHERE claude persists a session's JSONL;
@@ -22,24 +24,34 @@ export function transcriptPath(cwd: string, sessionId: string, home: string = ho
 // NEEDS_INFO sentinels, and system-reminder wrappers that the agent's iterate loop adds.
 const INTERNAL_MARKERS = ['VIBE_PROGRESS_TICK', 'NEEDS_INFO:', '<system-reminder>']
 
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null
-}
+const TranscriptRecordSchema = z
+  .object({
+    type: z.string(),
+    message: z.object({content: z.array(z.unknown()).optional()}).loose().optional(),
+  })
+  .loose()
 
 function partsFrom(content: unknown): MessagePart[] {
   if (!Array.isArray(content)) return []
   const out: MessagePart[] = []
   for (const part of content) {
-    if (!isRecord(part)) continue
-    if (part.type === 'text' && typeof part.text === 'string') out.push({type: 'text', content: part.text})
-    if (part.type === 'thinking' && typeof part.thinking === 'string')
-      out.push({type: 'thinking', content: part.thinking})
-    if (part.type === 'tool_use' && typeof part.id === 'string' && typeof part.name === 'string') {
+    const text = TextBlock.safeParse(part)
+    if (text.success) {
+      out.push({type: 'text', content: text.data.text})
+      continue
+    }
+    const thinking = ThinkingBlock.safeParse(part)
+    if (thinking.success) {
+      out.push({type: 'thinking', content: thinking.data.thinking})
+      continue
+    }
+    const tool = ToolUseBlock.safeParse(part)
+    if (tool.success) {
       out.push({
         type: 'tool-call',
-        id: part.id,
-        name: part.name,
-        arguments: JSON.stringify(part.input ?? {}),
+        id: tool.data.id,
+        name: tool.data.name,
+        arguments: JSON.stringify(tool.data.input ?? {}),
         state: 'input-complete',
       })
     }
@@ -55,17 +67,13 @@ function isInternal(parts: MessagePart[]): boolean {
   return INTERNAL_MARKERS.some((m) => text.includes(m))
 }
 
-// Parse one JSONL line to unknown, narrowing via guard (no cast, no IIFE).
-function parseJsonLine(line: string): unknown {
+function parseRecord(line: string): z.infer<typeof TranscriptRecordSchema> | null {
   try {
-    return JSON.parse(line)
+    const result = TranscriptRecordSchema.safeParse(JSON.parse(line))
+    return result.success ? result.data : null
   } catch {
     return null
   }
-}
-
-function contentOf(message: Record<string, unknown>): unknown {
-  return message.content
 }
 
 // Parse a Claude session JSONL transcript into filtered, human-readable UIMessages. Drops
@@ -77,11 +85,10 @@ export function parseHistory(jsonl: string): UIMessage[] {
   for (const line of jsonl.split('\n')) {
     const trimmed = line.trim()
     if (!trimmed) continue
-    const e: unknown = parseJsonLine(trimmed)
-    if (!isRecord(e)) continue
+    const e = parseRecord(trimmed)
+    if (!e) continue
     if (e.type !== 'user' && e.type !== 'assistant') continue
-    if (!isRecord(e.message)) continue
-    const parts = partsFrom(contentOf(e.message))
+    const parts = partsFrom(e.message?.content)
     if (parts.length === 0 || isInternal(parts)) continue
     idState.n += 1
     out.push({id: `h${idState.n}`, role: e.type, parts})

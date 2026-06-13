@@ -2,9 +2,10 @@ import {spawn, type ChildProcess} from 'node:child_process'
 import {createInterface} from 'node:readline'
 import {fileURLToPath} from 'node:url'
 import {Readable} from 'node:stream'
+import {z} from 'zod'
 import type {Summary, TestError, TestRunResult, TestEvent, FileState} from '@devgent/protocol/test-types'
 import type {RunArgs, ListResult, UiServerInfo, TestRunnerManager} from '@devgent/protocol/runner-types'
-import type {ChildMessage} from './child.js'
+import {ChildMessageSchema, type ChildMessage} from './child.js'
 
 // Drives the previewed app's vitest OUT OF PROCESS. the devgent dev server runs under an
 // import-in-the-middle preload (how the plugin is injected); embedding vitest in that same
@@ -35,12 +36,10 @@ export function vitestUnavailableError(reason: string): VitestUnavailableError {
   })
 }
 
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null
-}
+const UnavailableTagSchema = z.object({[VITEST_UNAVAILABLE_TAG]: z.literal(true)})
 
 export function isVitestUnavailable(e: unknown): e is VitestUnavailableError {
-  return e instanceof Error && isRecord(e) && e[VITEST_UNAVAILABLE_TAG] === true
+  return e instanceof Error && UnavailableTagSchema.safeParse(e).success
 }
 
 // build output runner/child.js sits next to this module at runtime.
@@ -77,11 +76,6 @@ function isRunEnd(msg: ChildMessage): msg is Extract<TestEvent, {type: 'run-end'
 }
 function isListMessage(msg: ChildMessage): msg is Extract<ChildMessage, {type: 'list'}> {
   return msg.type === 'list'
-}
-
-// Guard a parsed NDJSON value into a ChildMessage (discriminated on a string `type`) — no cast.
-function isChildMessage(v: unknown): v is ChildMessage {
-  return isRecord(v) && typeof v.type === 'string'
 }
 
 const EMPTY_SUMMARY: Summary = {passed: 0, failed: 0, skipped: 0, durationMs: 0}
@@ -163,8 +157,8 @@ export function makeVitestManager(cwd: string, options: MakeVitestManagerOptions
 
   function parseMessage(line: string): ChildMessage | null {
     try {
-      const v: unknown = JSON.parse(line)
-      return isChildMessage(v) ? v : null
+      const result = ChildMessageSchema.safeParse(JSON.parse(line))
+      return result.success ? result.data : null
     } catch {
       return null
     }

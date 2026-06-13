@@ -2,14 +2,8 @@ import {createRequire} from 'node:module'
 import {pathToFileURL} from 'node:url'
 import {join, relative} from 'node:path'
 import {writeSync} from 'node:fs'
-import {
-  parseFailure,
-  type Summary,
-  type TestError,
-  type TestRow,
-  type TestEvent,
-  type TestCaseLike,
-} from '@devgent/protocol/test-types'
+import {z} from 'zod'
+import {parseFailure, TestEventSchema, type Summary, type TestError, type TestRow, type TestCaseLike} from '@devgent/protocol/test-types'
 
 // The OUT-OF-PROCESS vitest runner. the devgent dev server runs with an import-in-the-middle
 // preload (how the plugin is injected); running vitest IN that process corrupts the live
@@ -19,8 +13,14 @@ import {
 // forwards them to the SSE bus. One child per request (on-demand); the child exits when
 // done. Child messages are TestEvent plus a `list` and an `error` control message.
 
-type ListFile = {file: string; relPath: string; lastState?: string}
-export type ChildMessage = TestEvent | {type: 'list'; files: ListFile[]} | {type: 'error'; reason: string}
+// Control messages the child sends alongside TestEvents. Zod-validated by the manager.
+const ListFileSchema = z.object({file: z.string(), relPath: z.string(), lastState: z.string().optional()})
+export const ListMessageSchema = z.object({type: z.literal('list'), files: z.array(ListFileSchema)})
+export const ErrorMessageSchema = z.object({type: z.literal('error'), reason: z.string()})
+
+// The child→manager NDJSON message contract: a TestEvent or a list/error control message.
+export const ChildMessageSchema = z.union([TestEventSchema, ListMessageSchema, ErrorMessageSchema])
+export type ChildMessage = z.infer<typeof ChildMessageSchema>
 
 type TestModuleLike = {
   moduleId: string
@@ -61,30 +61,17 @@ function toState(s: string): 'pass' | 'fail' | 'skip' {
   return 'skip'
 }
 
-type VitestNodeModule = {createVitest: (mode: string, opts: object, vite?: object) => Promise<VitestLike>}
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null
-}
-
-// Narrow the runtime dynamic import to the slice we use — a guard, not an assertion.
-function hasCreateVitest(v: unknown): v is VitestNodeModule {
-  return isRecord(v) && typeof v.createVitest === 'function'
-}
+type CreateVitest = (mode: string, opts: object, vite?: object) => Promise<VitestLike>
+const VitestNodeModuleSchema = z.object({createVitest: z.custom<CreateVitest>((v) => typeof v === 'function')})
 
 async function loadVitest(cwd: string, reporter: object): Promise<VitestLike> {
   const req = createRequire(join(cwd, 'noop.js'))
-  // Runtime dynamic import — vitest is the previewed app's dependency, resolved at runtime
-  // from its cwd (versions differ per app). The deliberate, documented exception to the
-  // repo's static-imports-only rule.
-  const mod: unknown = await import(pathToFileURL(req.resolve('vitest/node')).href)
-  if (!hasCreateVitest(mod)) throw new Error('vitest/node did not expose createVitest')
-  // watch:true matches the proven init path (standalone() initializes reporters/coverage,
-  // then runTestSpecifications drives the run); the child exits explicitly after one run so
-  // staying "resident" is moot. Reporter goes through config.reporters (2nd arg) — vitest
-  // 4's 4th VitestOptions arg has no `reporters` field. No `config:false` — the app's own
-  // vitest config (env/setup/aliases) must be honoured.
-  return mod.createVitest('test', {watch: true, run: false, root: cwd, dir: cwd, reporters: [reporter]})
+  // vitest is the previewed app's dependency, resolved at runtime from its cwd (versions
+  // differ per app) — the deliberate exception to the repo's static-imports-only rule.
+  const mod = await import(pathToFileURL(req.resolve('vitest/node')).href)
+  const parsed = VitestNodeModuleSchema.safeParse(mod)
+  if (!parsed.success) throw new Error('vitest/node did not expose createVitest')
+  return parsed.data.createVitest('test', {watch: true, run: false, root: cwd, dir: cwd, reporters: [reporter]})
 }
 
 type TestCaseWithDiagnostic = TestCaseLike & {diagnostic?: () => {duration?: number} | undefined}

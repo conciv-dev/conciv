@@ -1,5 +1,6 @@
 import {mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
+import {z} from 'zod'
 
 // The shared `<lockDir>/.devgent/agent.lock` that serializes the chat agent and the agent's
 // `iterate`: two processes appending to one agent session id at once corrupt its transcript,
@@ -8,6 +9,9 @@ import {join} from 'node:path'
 
 export type LockRole = 'iterate' | 'chat'
 export type LockState = {held: boolean; role: LockRole | null; pid: number | null}
+
+// The on-disk lock-file shape. Validated with Zod (tolerant of extra/missing keys).
+const LockFileSchema = z.object({role: z.enum(['iterate', 'chat']).optional(), pid: z.number().optional()}).loose()
 
 function lockPath(lockDir: string): string {
   return join(lockDir, '.devgent', 'agent.lock')
@@ -22,10 +26,6 @@ function pidAlive(pid: number): boolean {
   }
 }
 
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null
-}
-
 function readFileOrEmpty(path: string): string {
   try {
     return readFileSync(path, 'utf8')
@@ -34,14 +34,11 @@ function readFileOrEmpty(path: string): string {
   }
 }
 
-// Parse the lock file into a narrowed shape via guards — no cast, no IIFE.
-function parseLockFile(raw: string): {role: LockRole | undefined; pid: number | undefined} | null {
+// Parse + validate the lock file with Zod — no hand-rolled guards.
+function parseLockFile(raw: string): {role?: LockRole; pid?: number} | null {
   try {
-    const v: unknown = JSON.parse(raw)
-    if (!isRecord(v)) return null
-    const role = v.role === 'iterate' || v.role === 'chat' ? v.role : undefined
-    const pid = typeof v.pid === 'number' ? v.pid : undefined
-    return {role, pid}
+    const result = LockFileSchema.safeParse(JSON.parse(raw))
+    return result.success ? result.data : null
   } catch {
     return null
   }

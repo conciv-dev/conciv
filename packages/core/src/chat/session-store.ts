@@ -1,14 +1,14 @@
 import {mkdirSync, readFileSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
+import {z} from 'zod'
 
 // Persists the chat's agent session id keyed by previewId, so the SAME chat thread reopens
 // every time the dev server starts — not just across page reloads (which the
 // dev server's in-memory state already covered) but across dev-server restarts too. Lives
 // next to the lock + system prompt in `<lockDir>/.devgent/chat-sessions.json`.
 
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null
-}
+// previewId → sessionId. Validated with Zod; a malformed file reads as empty.
+const SessionMapSchema = z.record(z.string(), z.string())
 
 function storePath(lockDir: string): string {
   return join(lockDir, '.devgent', 'chat-sessions.json')
@@ -22,12 +22,12 @@ function readFileOrEmpty(path: string): string {
   }
 }
 
-function readMap(lockDir: string): Record<string, unknown> {
+function readMap(lockDir: string): Record<string, string> {
   const raw = readFileOrEmpty(storePath(lockDir))
   if (!raw) return {}
   try {
-    const parsed: unknown = JSON.parse(raw)
-    return isRecord(parsed) ? parsed : {}
+    const result = SessionMapSchema.safeParse(JSON.parse(raw))
+    return result.success ? result.data : {}
   } catch {
     return {}
   }
