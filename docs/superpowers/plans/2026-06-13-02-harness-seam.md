@@ -4,6 +4,18 @@
 >
 > **HARD RULES (see the spec's "Coding conventions" — non-negotiable):** No casts (`as` except `as const`), no `!`, no IIFEs, no `index.ts`. **Zod for all parsed data** — h3 `readValidatedBody`/`getValidatedQuery` for HTTP, `Schema.safeParse(JSON.parse(...))` for NDJSON/stream-json/JSON; NEVER hand-roll `isRecord`/`typeof` data guards. Every interface ships a generic `defineX<T extends X>`; author through it (harness members `buildArgs`/`decode`/`history` are each their own interface + `defineHarnessArgs`/`...Decoder`/`...History`). Adapters in subfolders (`<id>/<id>.ts`), no `index.ts`. Pin **h3 2.0.1-rc.22**. Terse comments. Commit to `main`. **Verify each CLI's API (codex/gemini/opencode/pi) against real online docs, not guessing.**
 
+> **REALIZED CORE LAYOUT (Plan 1, supersedes any flat name below).** All HTTP routes live under
+> `@devgent/core/src/api/<domain>/` with paths `/api/<domain>/…` and the entry file named after its
+> folder (no `-route`/`-gate` suffix). The chat surface is **split**, not a monolith:
+> `api/chat/{chat,turn,session,permission,messages}.ts`, wired by `registerChatRoutes(app, opts)`
+> (there is no `chat-route.ts` / `makeChatRoute`). Capability degradation is already distributed:
+> `api/chat/permission.ts` wires the gate only when `permissionGate==='hook'`; `api/chat/session.ts`
+> returns `[]`/404 for `/api/chat/history` when `!transcriptHistory`; `api/chat/turn.ts` sets
+> `resumeSessionId`/`systemPrompt`/`permissionUrl` by capability. Claude harness logic lives under
+> `src/harness/claude/{adapter,args,decode,history,system-prompt,blocks}.ts`; chat domain logic
+> (no HTTP) under `src/chat/{ui-bus,lock,risk,session-store}.ts`. **Where this plan says
+> `chat-route.ts`/`makeChatRoute`, read the realized `api/chat/*` files + `registerChatRoutes`.**
+
 **Goal:** Extract the inline claude harness (currently wired inside `@devgent/core` per Plan 1) into a dedicated `@devgent/harness` package behind the capability-declaring `HarnessAdapter` interface, add a real **codex** proof adapter, ship **gemini-cli / opencode / pi** as capability-only stubs, and make `@devgent/core` feature-detect by capability (degrade gracefully when `permissionGate`, `transcriptHistory`, `resume`, or file `systemPrompt` are absent).
 
 **Architecture:** Adapter registry (`registerHarness` / `getHarness` / `listHarnesses`) over the `HarnessAdapter` contract from `@devgent/protocol/harness-types`. Each adapter is a subfolder of named files (`<id>.ts` declares the adapter + capabilities; `args.ts`/`decode.ts`/`history.ts`/`system-prompt.ts` hold the ported behaviour). Adapters depend only on `@devgent/protocol` and `@tanstack/ai` — never on the engine. `@devgent/core` resolves `getHarness(config.harness ?? 'claude')` and wires routes conditionally on the adapter's `capabilities`.
@@ -390,7 +402,7 @@ Steps:
     })
 
     it('adds the PreToolUse Bash http hook via --settings only when permissionUrl is given', () => {
-      const args = buildArgs({...base, permissionUrl: 'http://h/__pw/chat/permission'})
+      const args = buildArgs({...base, permissionUrl: 'http://h/api/chat/permission'})
       const i = args.indexOf('--settings')
       expect(i).toBeGreaterThan(-1)
       // No casts: index returns `string | undefined`, JSON.parse returns `unknown`, then narrow
@@ -410,7 +422,7 @@ Steps:
       expect(hook?.matcher).toBe('Bash')
       expect(Array.isArray(hook?.hooks) ? hook?.hooks[0] : undefined).toEqual({
         type: 'http',
-        url: 'http://h/__pw/chat/permission',
+        url: 'http://h/api/chat/permission',
         timeout: 600,
       })
     })
@@ -443,7 +455,7 @@ Steps:
   import type {HarnessTurn} from '@devgent/protocol/harness-types'
 
   // The PreToolUse hook settings injected via --settings: an http hook on Bash that defers the
-  // decision to the engine's /__pw/chat/permission route. 600s timeout (the route auto-denies
+  // decision to the engine's /api/chat/permission route. 600s timeout (the route auto-denies
   // sooner) so a real user approval has time to land. Wired only when the route supplies a
   // permissionUrl — i.e. only for permissionGate:'hook' harnesses.
   function hookSettings(permissionUrl: string): string {
@@ -1043,7 +1055,7 @@ Steps:
     })
 
     it('never adds a --settings/permission hook (permissionGate is none)', () => {
-      const args = buildArgs({...base, permissionUrl: 'http://h/__pw/chat/permission'})
+      const args = buildArgs({...base, permissionUrl: 'http://h/api/chat/permission'})
       expect(args).not.toContain('--settings')
       expect(args.join(' ')).not.toContain('permission')
     })
@@ -1361,7 +1373,7 @@ Steps:
         cwd: '/r',
         resumeSessionId: null,
         systemPrompt: '',
-        permissionUrl: 'http://h/__pw/chat/permission',
+        permissionUrl: 'http://h/api/chat/permission',
       })
       expect(args).not.toContain('--settings')
       expect(args.join(' ')).not.toContain('permission')
@@ -1607,7 +1619,7 @@ Steps:
 
 Steps:
 
-- [ ] Write the **failing test** — extend `packages/core/test/chat-route.it.test.ts` with a fixture that drives the route with a synthetic **`permissionGate:'none'`** adapter and asserts the gate is fully skipped: no `--settings` in argv, `permissionUrl` never set on the turn, and `POST /__pw/chat/permission` returns **404** (route not wired). Also assert that with a `transcriptHistory:false` adapter, `GET /__pw/chat/history` returns 404. Sketch:
+- [ ] Write the **failing test** — extend `packages/core/test/chat-route.it.test.ts` with a fixture that drives the route with a synthetic **`permissionGate:'none'`** adapter and asserts the gate is fully skipped: no `--settings` in argv, `permissionUrl` never set on the turn, and `POST /api/chat/permission` returns **404** (route not wired). Also assert that with a `transcriptHistory:false` adapter, `GET /api/chat/history` returns 404. Sketch:
 
   ```ts
   import {describe, it, expect, afterEach} from 'vitest'
@@ -1646,20 +1658,20 @@ Steps:
       const {server, base} = await startServer({adapter: noGateAdapter(captured)})
       // drive a turn
       await (
-        await postJson(`${base}/__pw/chat`, {messages: [{role: 'user', parts: [{type: 'text', content: 'hi'}]}]})
+        await postJson(`${base}/api/chat`, {messages: [{role: 'user', parts: [{type: 'text', content: 'hi'}]}]})
       ).text()
       expect(captured.args).not.toContain('--settings')
       expect(captured.args?.join(' ')).not.toContain('permission')
-      const perm = await postJson(`${base}/__pw/chat/permission`, {
+      const perm = await postJson(`${base}/api/chat/permission`, {
         tool_name: 'Bash',
         tool_input: {command: 'rm -rf x'},
       })
       expect(perm.status).toBe(404) // route not wired for a no-gate harness
     })
 
-    it('transcriptHistory:false — GET /__pw/chat/history is not wired (404)', async () => {
+    it('transcriptHistory:false — GET /api/chat/history is not wired (404)', async () => {
       const {server, base} = await startServer({adapter: noGateAdapter({})})
-      const res = await fetch(`${base}/__pw/chat/history?sessionId=s`)
+      const res = await fetch(`${base}/api/chat/history?sessionId=s`)
       expect(res.status).toBe(404)
     })
   })
@@ -1680,24 +1692,24 @@ Steps:
      ```
   2. Guard the `/permission` + `/permission-decision` handlers behind the hook capability — early-return `next()` so the route 404s when not hook-capable:
      ```ts
-     if (url === '/__pw/chat/permission' && req.method === 'POST') {
+     if (url === '/api/chat/permission' && req.method === 'POST') {
        if (cap.permissionGate !== 'hook') return next()
        // ... existing decidePermission handling ...
      }
-     if (url === '/__pw/chat/permission-decision' && req.method === 'POST') {
+     if (url === '/api/chat/permission-decision' && req.method === 'POST') {
        if (cap.permissionGate !== 'hook') return next()
        // ... existing handling ...
      }
      ```
   3. Guard the `/history` handler behind `transcriptHistory` AND the adapter actually exposing the methods:
      ```ts
-     if (url.startsWith('/__pw/chat/history') && req.method === 'GET') {
+     if (url.startsWith('/api/chat/history') && req.method === 'GET') {
        if (!cap.transcriptHistory || !opts.adapter.transcriptPath || !opts.adapter.parseHistory) return next()
        const sessionId = new URL(url, 'http://x').searchParams.get('sessionId') ?? ''
        // ... use opts.adapter.transcriptPath(opts.cwd, sessionId) + opts.adapter.parseHistory(jsonl) ...
      }
      ```
-  4. In the `POST /__pw/chat` turn assembly, build the `HarnessTurn` with capability-driven fields:
+  4. In the `POST /api/chat` turn assembly, build the `HarnessTurn` with capability-driven fields:
      ```ts
      const resumeSessionId = cap.resume ? body.sessionId || state.sessionId || null : null
      const origin = `http://${req.headers?.host ?? '127.0.0.1:3000'}`
@@ -1717,7 +1729,7 @@ Steps:
        cwd: opts.cwd,
        resumeSessionId,
        systemPrompt,
-       ...(cap.permissionGate === 'hook' ? {permissionUrl: `${origin}/__pw/chat/permission`} : {}),
+       ...(cap.permissionGate === 'hook' ? {permissionUrl: `${origin}/api/chat/permission`} : {}),
      }
      const child = opts.spawn(opts.adapter.buildArgs(turn), opts.cwd)
      ```

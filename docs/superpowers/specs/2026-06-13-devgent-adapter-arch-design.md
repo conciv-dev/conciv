@@ -52,7 +52,7 @@ The current codebase hard-wires three concrete tools into one Vite plugin:
 - **Harness = Claude.** `claude` is woven through ~8 files: argv builder (`claude-args.ts`),
   stream-json→AG-UI decoder (`claude-agui-stream.ts`), lock, `--resume` session tracking,
   JSONL transcript history (`history-parser.ts` + `transcript-path.ts`), and the risky-Bash
-  permission gate (Claude's `--settings` PreToolUse HTTP hook → `/__pw/chat/permission`).
+  permission gate (Claude's `--settings` PreToolUse HTTP hook → `/api/chat/permission`).
 - **Test runner = Vitest.** `vitest-manager.ts`, `vitest-runner-child.ts`, `vitest-route.ts`,
   `vitest-types.ts`, the CLI `vitest` subcommand, and the widget `vitest-card.tsx`.
 - **Bundler = Vite.** The whole `@devgent/vite-plugin` package _is_ a Vite `Plugin`
@@ -93,7 +93,7 @@ without touching the others.
 - **Standalone engine server** (option A): `@devgent/core` boots its own h3 server in dev; each
   bundler entry only injects HTML + boots it. Writes the server _once_ for all bundlers. Cost:
   cross-origin → set the existing `pw-api-base` meta to the core port + CORS (the chat stream
-  already sends `access-control-allow-origin: *`). Vite may optionally proxy `/__pw` same-origin
+  already sends `access-control-allow-origin: *`). Vite may optionally proxy `/api` same-origin
   later as an optimization, but is not required.
 
 ## Architecture — three orthogonal seams
@@ -102,7 +102,7 @@ without touching the others.
 
 ```
 @devgent/protocol      types only: HarnessAdapter, TestRunnerManager, BundlerBridge, TestEvent, chat/ui/page
-@devgent/core          h3 + srvx engine — /__pw routes, lock, session, uiBus, registry wiring
+@devgent/core          h3 + srvx engine — /api routes, lock, session, uiBus, registry wiring
 @devgent/harness       claude, codex (+ gemini-cli/opencode/pi stubs) via subpaths
 @devgent/runner        vitest, jest, node-test, playwright via subpaths
 @devgent/plugin-core   unplugin factory; boots @devgent/core + injects the widget HTML tags
@@ -325,41 +325,47 @@ export function defineBundlerBridge<T extends BundlerBridge>(b: T): T { return b
 
 - The Vite implementation (today's `tools-layer.ts`) lives in `@devgent/plugin-vite`
   (`@devgent/vite-plugin` until Plan 4) as `viteBridge` — **never in core**.
-- Core's `server/server-route.ts` calls `bridge.*` only. The CLI surface is `devgent tools
+- Core's `api/server/server.ts` calls `bridge.*` only. The CLI surface is `devgent tools
   server …` (generic), replacing the old `devgent tools vite …`.
-- A bridge is optional: `engine.start()` without one simply doesn't mount `/__pw/tools/server/*`
+- A bridge is optional: `engine.start()` without one simply doesn't mount `/api/server/*`
   (a build-only bundler like rollup/esbuild has no live dev server to inspect).
 
 ### `@devgent/core` internal layout (domain-grouped, mirrors the seam packages)
 
-Core's `src/` is grouped by domain — **not flat** — and the `harness/` and `runner/` subfolders
-mirror the future `@devgent/harness` / `@devgent/runner` packages so Plans 2 & 3 are near-straight
-moves:
+Core's `src/` is grouped by domain — **not flat**. **All HTTP routes live under `src/api/`**
+(HARD RULE 4); each route entry file is named after its folder (no `-route`/`-gate` suffix), and
+non-route domain logic lives under `src/<domain>/`. The `harness/` and `runner/` subfolders mirror
+the future `@devgent/harness` / `@devgent/runner` packages so Plans 2 & 3 are near-straight moves:
 
 ```
 core/src/
   engine.ts            start() + htmlTags() — composition root
   app.ts               makeApp(): h3 wiring
   config.ts
-  chat/    chat-route.ts  session-store.ts  lock.ts  risk.ts  ui-bus.ts
-  harness/ registry.ts  claude/{adapter,args,decode,history,system-prompt}.ts   → @devgent/harness
-  runner/  registry.ts  manager.ts  child.ts  test-route.ts                       → @devgent/runner
-  page/    page-route.ts  journal.ts          (page-bus — agnostic)
-  server/  server-route.ts                    (consumes BundlerBridge — agnostic)
-  editor/  open.ts                            (makeEditorOpener — agnostic)
+  api/                                              ← ALL HTTP routes; paths are /api/<domain>/…
+    chat/    chat.ts  turn.ts  session.ts  permission.ts  messages.ts   (/api/chat*)
+    page/    page.ts                                (/api/page/*  — page-bus, agnostic)
+    server/  server.ts                              (/api/server/* — consumes BundlerBridge, agnostic; mounted iff a bridge is provided)
+    test-runner/  test-runner.ts                    (/api/test-runner/* — consumes TestRunnerManager)
+    editor/  editor.ts                              (/api/editor/open)
+  chat/    ui-bus.ts  lock.ts  risk.ts  session-store.ts        (chat domain logic, no HTTP)
+  harness/ registry.ts  claude/{adapter,args,decode,history,system-prompt,blocks}.ts   → @devgent/harness
+  runner/  registry.ts  vitest/{adapter,manager,child}.ts                              → @devgent/runner
+  page/    journal.ts                               (page domain logic)
+  editor/  open.ts                                  (makeEditorOpener — agnostic)
 ```
 
 ## Data flow (unchanged in shape, now adapter-driven)
 
 ```
-page  ──widget──>  /__pw/chat (h3 SSE)  ──>  core resolves HarnessAdapter
+page  ──widget──>  /api/chat (h3 SSE)  ──>  core resolves HarnessAdapter
                                               ├─ buildArgs(turn) → spawn harness child
                                               ├─ decode(stdout) → AG-UI StreamChunk stream
                                               ├─ uiBus merges generative-UI CUSTOM events
-                                              └─ createEventStream → web ReadableStream → SSE
-agent ──Bash──>  devgent tools test run  ──>  /__pw/test  ──>  core resolves TestRunnerAdapter
+                                              └─ web ReadableStream → new Response(stream) → SSE
+agent ──Bash──>  devgent tools test run  ──>  /api/test-runner  ──>  core resolves TestRunnerAdapter
                                               └─ driver spawns clean child → TestEvent NDJSON
-                                                 → SSE /__pw/test/stream  → widget test-card
+                                                 → SSE /api/test-runner/stream  → widget test-card
 ```
 
 ## Configuration
