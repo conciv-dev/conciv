@@ -105,6 +105,19 @@ importers:
         specifier: 4.1.8
         version: 4.1.8(@types/node@22.19.7)(vite@7.0.0(@types/node@22.19.7)(lightningcss@1.32.0)(tsx@4.21.0))
 
+  packages/widget:
+    dependencies:
+      '@devgent/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@tanstack/ai-client':
+        specifier: 0.16.3
+        version: 0.16.3
+    devDependencies:
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
 packages:
 
   '@ag-ui/core@0.0.52':
@@ -1074,6 +1087,9 @@ packages:
 
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
+
+  '@tanstack/ai-client@0.16.3':
+    resolution: {integrity: sha512-BOKFTPWFVt39zeNrDl8m+/7ADjW5E4k4Hs2/SlfbuwWhDEIJzd4p0wgnWV+6SvRWshDTsmc7x1c6Zk2qsQSCxQ==}
 
   '@tanstack/ai-event-client@0.5.4':
     resolution: {integrity: sha512-DoF6LKkGCVeF0N6Vky3DdhYxseTZfvTpOkhEQud/Za/GLQ+5p1xH4egQX8oZJkx1S6HZEZTQA1hKSGFYGULtFw==}
@@ -2252,6 +2268,13 @@ snapshots:
     optional: true
 
   '@standard-schema/spec@1.1.0': {}
+
+  '@tanstack/ai-client@0.16.3':
+    dependencies:
+      '@tanstack/ai': 0.28.0
+      '@tanstack/ai-event-client': 0.5.4(@tanstack/ai@0.28.0)
+    transitivePeerDependencies:
+      - '@opentelemetry/api'
 
   '@tanstack/ai-event-client@0.5.4(@tanstack/ai@0.28.0)':
     dependencies:

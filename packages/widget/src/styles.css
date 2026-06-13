@@ -1,0 +1,1339 @@
+/* preview-widget styles, injected into the Shadow DOM root. Mirrors react-grab's
+   design language (dark panel, magenta brand accent) so the comment UI reads as
+   native alongside react-grab. All colors/radii/motion flow from the tokens below
+   — change a token, not a literal.
+
+   Palette philosophy: a single brand hue (--pw-hue, the react-grab magenta) tints
+   every neutral, surface and shadow toward it, so the whole overlay feels cut from
+   one material rather than "neutral gray + a neon accent". Colors are OKLCH so the
+   text ramp is perceptually even; accent states are mixed off the one literal brand
+   hex (kept exact so it matches react-grab). No pure #000/#fff anywhere — both are
+   tinted toward the hue. The dark surface is a hard constraint (the widget overlays
+   arbitrary, often light, preview pages and must read as a distinct tool layer next
+   to react-grab), so depth comes from hue-tinted shadow, not from glow. */
+
+:host {
+  all: initial;
+
+  --pw-hue: 328; /* react-grab brand magenta — every neutral is tinted toward it */
+
+  /* ── Accent: exact brand hex kept literal (matches react-grab); states mixed off it */
+  --pw-accent: #ff40e0;
+  --pw-accent-hi: color-mix(in oklch, var(--pw-accent), white 14%); /* hover */
+  --pw-accent-link: color-mix(in oklch, var(--pw-accent), white 34%); /* links */
+  --pw-accent-08: color-mix(in oklch, var(--pw-accent) 10%, transparent);
+  --pw-accent-20: color-mix(in oklch, var(--pw-accent) 22%, transparent);
+  --pw-accent-line: color-mix(in oklch, var(--pw-accent) 42%, transparent);
+
+  /* ── Surfaces: near-black tinted toward the hue, never pure #000 */
+  --pw-panel: oklch(0.2 0.012 var(--pw-hue)); /* opaque dark panel (≈ warm #161616) */
+  --pw-panel-sunk: oklch(0.16 0.012 var(--pw-hue)); /* deepest field bg */
+  --pw-glass: oklch(0.21 0.014 var(--pw-hue) / 0.97); /* chat panel */
+  --pw-fill: oklch(1 0 0 / 0.05); /* input / elevated fill */
+  --pw-fill-soft: oklch(1 0 0 / 0.04);
+  --pw-fill-strong: oklch(1 0 0 / 0.1);
+  --pw-sunken: oklch(0.12 0.01 var(--pw-hue) / 0.5); /* code / pre blocks */
+
+  /* ── Text ramp: tinted whites/grays (no pure #fff), perceptually even in OKLCH */
+  --pw-text: oklch(0.93 0.006 var(--pw-hue)); /* primary body (≈ #ececec, faintly warm) */
+  --pw-text-hi: oklch(0.98 0.008 var(--pw-hue)); /* emphasis / near-white */
+  --pw-text-2: oklch(0.74 0.012 var(--pw-hue)); /* secondary / muted */
+  --pw-text-3: oklch(0.64 0.012 var(--pw-hue)); /* faint / metadata */
+  --pw-on-accent: oklch(0.22 0.03 var(--pw-hue)); /* text on a magenta fill — ~7:1 */
+
+  /* ── Status */
+  --pw-agent: oklch(0.79 0.13 188); /* fixed agent hue (teal ≈ #19d6c4) */
+  --pw-danger: oklch(0.72 0.15 25); /* error text on dark (≈ #ff8a8a) */
+  --pw-danger-line: oklch(0.72 0.15 25 / 0.42);
+  --pw-success: oklch(0.82 0.16 162); /* ≈ #6ee7a8 */
+
+  /* ── Lines */
+  --pw-line: oklch(1 0 0 / 0.1);
+  --pw-line-2: oklch(1 0 0 / 0.18);
+  --pw-line-soft: oklch(1 0 0 / 0.06);
+
+  /* ── Radii */
+  --pw-r-sm: 8px;
+  --pw-r-md: 12px;
+  --pw-r-lg: 18px;
+  --pw-r-pill: 999px;
+
+  /* ── Elevation: shadow tinted toward the hue (depth, not flat black or neon glow) */
+  --pw-shadow: 0 8px 28px oklch(0.12 0.02 var(--pw-hue) / 0.45);
+  --pw-shadow-lg: 0 16px 44px oklch(0.1 0.03 var(--pw-hue) / 0.55);
+
+  /* ── Motion: expo for entrances (long, refined deceleration), quart for micro-interactions */
+  --pw-ease: cubic-bezier(0.22, 1, 0.36, 1); /* ease-out-quart */
+  --pw-ease-expo: cubic-bezier(0.16, 1, 0.3, 1); /* ease-out-expo */
+
+  --pw-font: system-ui, -apple-system, sans-serif;
+  --pw-mono: ui-monospace, monospace;
+}
+* {
+  box-sizing: border-box;
+}
+
+/* A single focus-visible treatment for every interactive control — a magenta ring
+   floated off the panel so it reads on any surface. (Inputs that already shift
+   their border opt out via :focus styles below.) */
+:where(button, [role='button']):focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--pw-panel),
+    0 0 0 4px var(--pw-accent);
+}
+
+/* Figma-style numbered marker pinned to the commented element's corner. */
+.pw-pin {
+  position: fixed;
+  /* Override the UA popover defaults so our JS left/top wins in the top layer. */
+  inset: auto;
+  margin: 0;
+  transform: translate(-50%, -50%);
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--pw-accent);
+  color: var(--pw-on-accent);
+  border: 2px solid var(--pw-text-hi);
+  border-radius: 999px 999px 999px 4px;
+  font: 600 12px/1 var(--pw-font);
+  box-shadow: 0 2px 8px oklch(0.12 0.02 var(--pw-hue) / 0.35);
+  cursor: pointer;
+  pointer-events: auto;
+  transition: transform 120ms var(--pw-ease);
+  animation: pw-pin-in 320ms var(--pw-ease-expo) both;
+}
+.pw-pin:hover {
+  transform: translate(-50%, -50%) scale(1.12);
+}
+.pw-pin:active {
+  transform: translate(-50%, -50%) scale(0.96);
+}
+@keyframes pw-pin-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.3);
+  }
+}
+
+/* Dark floating panel for the composer and thread. */
+.pw-popover {
+  position: fixed;
+  /* Override the UA popover defaults (inset:0; margin:auto) so our JS left/top
+     positioning wins while still rendering in the top layer. */
+  inset: auto;
+  margin: 0;
+  pointer-events: auto;
+  width: 264px;
+  background: var(--pw-panel);
+  color: var(--pw-text-hi);
+  border: 1px solid var(--pw-line);
+  border-radius: 14px;
+  box-shadow: var(--pw-shadow);
+  padding: 12px;
+  font: 14px/1.45 var(--pw-font);
+  /* Floating UI caps max-height to the viewport; scroll the overflow rather than
+     clip or run off-screen. */
+  box-sizing: border-box;
+  overflow: auto;
+  transform-origin: top left;
+  animation: pw-pop-in 200ms var(--pw-ease-expo);
+}
+@keyframes pw-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+.pw-textarea {
+  width: 100%;
+  background: var(--pw-fill-soft);
+  color: var(--pw-text-hi);
+  border: 1px solid var(--pw-line);
+  border-radius: 10px;
+  padding: 8px 10px;
+  font: inherit;
+  resize: vertical;
+  min-height: 60px;
+  outline: none;
+  transition: border-color 120ms var(--pw-ease);
+}
+.pw-textarea:focus {
+  border-color: var(--pw-accent);
+}
+.pw-textarea::placeholder {
+  color: var(--pw-text-2);
+}
+
+.pw-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+.pw-btn {
+  border: 0;
+  border-radius: 999px;
+  padding: 9px 16px;
+  min-height: 36px;
+  font: 600 13px/1 var(--pw-font);
+  cursor: pointer;
+  transition:
+    transform 100ms var(--pw-ease),
+    background-color 120ms var(--pw-ease),
+    color 120ms var(--pw-ease);
+}
+.pw-btn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+.pw-btn-primary {
+  background: var(--pw-text-hi);
+  color: var(--pw-panel);
+}
+.pw-btn-primary:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.pw-btn-ghost {
+  background: transparent;
+  color: var(--pw-text-2);
+}
+.pw-btn-ghost:hover {
+  color: var(--pw-text-hi);
+}
+
+/* Centered first-time name capture. */
+.pw-modal {
+  left: 50%;
+  top: 42%;
+  transform: translate(-50%, -50%);
+  width: 280px;
+}
+.pw-label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--pw-text-hi);
+  font-weight: 600;
+}
+.pw-input {
+  width: 100%;
+  background: var(--pw-fill-soft);
+  color: var(--pw-text-hi);
+  border: 1px solid var(--pw-line);
+  border-radius: 10px;
+  padding: 9px 10px;
+  font: inherit;
+  outline: none;
+  transition: border-color 120ms var(--pw-ease);
+}
+.pw-input:focus {
+  border-color: var(--pw-accent);
+}
+
+/* Thread (existing comment) messages. Each carries a left rail colored per author
+   (set inline by authorColor); replies nest one level under the root. */
+.pw-msg {
+  margin: 0 0 8px;
+  border-left: 2px solid transparent;
+  padding-left: 8px;
+}
+.pw-msg:last-of-type {
+  margin-bottom: 0;
+}
+/* A reply (anything after the root message) nests one level in. */
+.pw-msg-reply {
+  margin-left: 16px;
+}
+.pw-msg-author {
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+/* Robot mark before the agent's name; inherits the agent hue via currentColor. */
+.pw-msg-bot {
+  width: 14px;
+  height: 14px;
+  margin-right: 4px;
+  vertical-align: -2px;
+}
+
+/* Agent replies carry the fixed agent rail/hue; the teal badge marks them as the
+   agent (matches AGENT_COLOR in author-color.ts). */
+.pw-msg-badge {
+  margin: 0 6px;
+  padding: 0 6px;
+  border-radius: 8px;
+  font-size: 10px;
+  text-transform: uppercase;
+  background: var(--pw-agent);
+  color: var(--pw-panel);
+}
+
+/* "(edited)" marker on a message whose text was updated in place (live progress). */
+.pw-msg-edited {
+  font-size: 10px;
+  font-style: italic;
+  opacity: 0.6;
+}
+
+/* Reply box inside an open thread. */
+.pw-reply-row {
+  margin-top: 8px;
+}
+
+/* "Connect agent" affordance — opens the token mint page. */
+.pw-connect-agent {
+  /* Bottom-LEFT so it never collides with the chat FAB (bottom-right). The pill is in the
+     top layer (HTML Popover API), so it would otherwise sit on top of the FAB. */
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  inset: auto auto 16px 16px;
+  margin: 0;
+  pointer-events: auto;
+  background: var(--pw-panel);
+  color: var(--pw-text-hi);
+  border: 1px solid var(--pw-line-2);
+  border-radius: 999px;
+  padding: 9px 14px;
+  min-height: 38px;
+  font: 600 13px/1 var(--pw-font);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  transition: border-color 120ms var(--pw-ease);
+}
+.pw-connect-agent:hover {
+  border-color: var(--pw-accent);
+}
+
+/* Shown in the corner pill while the first /__pw/me check is in flight, so we
+   never flash the sign-in form before we know the auth state. */
+.pw-connect-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: default;
+  color: var(--pw-text-2);
+}
+.pw-connect-loading:hover {
+  border-color: var(--pw-line-2);
+}
+
+/* Sign-in: a compact login CARD (not the single-line stadium pill — a form needs to
+   stack, and a wrapped row inside a 999px pill balloons into a blob). Controls go
+   full-width, the error sits underneath. Overrides the .pw-connect-agent pill shape. */
+.pw-signin {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  cursor: default;
+  width: 248px;
+  max-width: calc(100vw - 32px);
+  border-radius: var(--pw-r-lg);
+  padding: 12px;
+}
+.pw-signin-email {
+  width: 100%;
+  background: var(--pw-panel-sunk);
+  color: var(--pw-text-hi);
+  border: 1px solid var(--pw-line-2);
+  border-radius: var(--pw-r-sm);
+  padding: 9px 11px;
+  font: 400 13px/1 var(--pw-font);
+  outline: none;
+  transition: border-color 120ms var(--pw-ease);
+}
+.pw-signin-email:focus {
+  border-color: var(--pw-accent);
+}
+.pw-signin button {
+  pointer-events: auto;
+  width: 100%;
+  background: var(--pw-text-hi);
+  color: var(--pw-panel);
+  border: 0;
+  border-radius: 999px;
+  padding: 9px 14px;
+  min-height: 36px;
+  font: 600 13px/1 var(--pw-font);
+  cursor: pointer;
+  transition: transform 100ms var(--pw-ease);
+}
+.pw-signin button:active:not(:disabled) {
+  transform: scale(0.96);
+}
+.pw-signin-error {
+  color: var(--pw-danger);
+  font: 400 12px/1.3 var(--pw-font);
+}
+
+/* Inline error inside the composer / thread popovers. */
+.pw-error {
+  display: block;
+  margin: 6px 0 0;
+  color: var(--pw-danger);
+  font: 400 12px/1.3 var(--pw-font);
+}
+
+/* Loading spinner shown inside buttons while an action is in flight. Inherits the
+   button's text color so it works on both the dark and white buttons. */
+.pw-spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 6px;
+  vertical-align: -1px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: pw-spin 0.6s linear infinite;
+}
+@keyframes pw-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── Vibe chat agent: bottom-right FAB → corner popover (assistant-modal). Matches the
+   react-grab palette so it reads native alongside the comment UI. The host is
+   pointer-events:none, so interactive bits opt back in. */
+.pw-chat-fab {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  width: 52px;
+  height: 52px;
+  border-radius: 999px;
+  border: 1px solid var(--pw-line);
+  background: var(--pw-panel);
+  color: var(--pw-accent);
+  font-size: 22px;
+  cursor: pointer;
+  pointer-events: auto;
+  box-shadow: var(--pw-shadow-lg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    transform 140ms var(--pw-ease),
+    box-shadow 140ms var(--pw-ease);
+  animation: pw-fab-in 360ms var(--pw-ease-expo) both;
+}
+.pw-chat-fab:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.5);
+}
+.pw-chat-fab:active {
+  transform: translateY(0) scale(0.94);
+}
+@keyframes pw-fab-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6) translateY(8px);
+  }
+}
+/* The FAB icon pops as it swaps between ✦ (closed) and the chevron (open). */
+.pw-fab-icon {
+  display: inline-flex;
+  animation: pw-fab-icon-in 220ms var(--pw-ease);
+}
+@keyframes pw-fab-icon-in {
+  from {
+    opacity: 0;
+    transform: scale(0.4) rotate(-30deg);
+  }
+}
+/* A magenta halo that pulses when the agent replies while the panel is closed. */
+.pw-chat-fab-attn::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 999px;
+  border: 2px solid var(--pw-accent);
+  animation: pw-fab-ring 1.6s var(--pw-ease) infinite;
+}
+@keyframes pw-fab-ring {
+  0% {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+.pw-chat-panel {
+  position: fixed;
+  right: 20px;
+  bottom: 84px;
+  width: 380px;
+  max-width: calc(100vw - 40px);
+  height: 560px;
+  max-height: calc(100vh - 120px);
+  display: flex;
+  flex-direction: column;
+  background: var(--pw-glass);
+  border: 1px solid var(--pw-line-soft);
+  border-radius: var(--pw-r-lg);
+  box-shadow: var(--pw-shadow-lg);
+  color: var(--pw-text);
+  font: 400 14px/1.45 var(--pw-font);
+  pointer-events: auto;
+  overflow: hidden;
+  transform-origin: bottom right;
+  animation: pw-chat-in 240ms var(--pw-ease-expo);
+}
+@keyframes pw-chat-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+}
+.pw-chat-closing {
+  animation: pw-chat-out 160ms var(--pw-ease) forwards;
+}
+@keyframes pw-chat-out {
+  to {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+}
+.pw-chat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--pw-line-soft);
+}
+.pw-chat-title {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.pw-chat-close {
+  background: none;
+  border: none;
+  color: var(--pw-text-2);
+  font-size: 18px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  transition:
+    color 120ms var(--pw-ease),
+    background-color 120ms var(--pw-ease);
+}
+.pw-chat-close:hover {
+  color: var(--pw-text);
+  background: var(--pw-fill-strong);
+}
+/* SVG chevron sized to the button's font-size; centered by the flex parent. */
+.pw-chevron {
+  width: 1em;
+  height: 1em;
+  display: block;
+}
+.pw-chat-log {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.pw-chat-empty {
+  margin: auto;
+  text-align: center;
+}
+.pw-chat-greeting {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  margin: 0 0 14px;
+  animation: pw-chat-msg-in 320ms var(--pw-ease-expo) both;
+}
+.pw-chat-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pw-chat-chip {
+  padding: 10px 14px;
+  min-height: 38px;
+  border-radius: 999px;
+  border: 1px solid var(--pw-line);
+  background: transparent;
+  color: var(--pw-text);
+  cursor: pointer;
+  font-size: 13px;
+  transition:
+    border-color 120ms var(--pw-ease),
+    background-color 120ms var(--pw-ease),
+    transform 100ms var(--pw-ease);
+  animation: pw-chat-msg-in 320ms var(--pw-ease-expo) both;
+}
+/* Stagger the greeting + chips so the empty state assembles rather than snaps in. */
+.pw-chat-greeting {
+  animation-delay: 40ms;
+}
+.pw-chat-chip:nth-child(1) {
+  animation-delay: 100ms;
+}
+.pw-chat-chip:nth-child(2) {
+  animation-delay: 160ms;
+}
+.pw-chat-chip:nth-child(3) {
+  animation-delay: 220ms;
+}
+.pw-chat-chip:hover {
+  border-color: var(--pw-accent);
+  background: var(--pw-accent-08);
+}
+.pw-chat-chip:active {
+  transform: scale(0.97);
+}
+.pw-chat-msg {
+  padding: 8px 11px;
+  border-radius: 12px;
+  max-width: 90%;
+  animation: pw-chat-msg-in 160ms var(--pw-ease);
+}
+@keyframes pw-chat-msg-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.pw-chat-msg-user {
+  align-self: flex-end;
+  background: var(--pw-accent);
+  color: var(--pw-on-accent);
+}
+.pw-chat-msg-assistant {
+  align-self: flex-start;
+  background: rgba(255, 255, 255, 0.06);
+}
+.pw-chat-text {
+  margin: 0;
+}
+/* Streaming markdown (marked + Shiki). Shiki emits inline-styled <pre class="shiki">. */
+.pw-md {
+  display: inline;
+}
+.pw-md > *:first-child {
+  margin-top: 0;
+}
+.pw-md > *:last-child {
+  margin-bottom: 0;
+}
+.pw-md p {
+  margin: 0 0 8px;
+}
+.pw-md ul,
+.pw-md ol {
+  margin: 0 0 8px;
+  padding-left: 20px;
+}
+.pw-md li {
+  margin: 2px 0;
+}
+.pw-md a {
+  color: var(--pw-accent-link);
+  text-decoration: underline;
+}
+.pw-md h1,
+.pw-md h2,
+.pw-md h3 {
+  margin: 12px 0 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.pw-md code {
+  font-family: var(--pw-mono);
+  font-size: 0.88em;
+  background: var(--pw-fill-strong);
+  padding: 1px 5px;
+  border-radius: 5px;
+}
+.pw-md pre,
+.pw-md pre.shiki,
+.pw-md-pre {
+  margin: 8px 0;
+  padding: 10px 12px;
+  border-radius: 9px;
+  overflow-x: auto;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.pw-md pre code,
+.pw-md-pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+}
+.pw-md blockquote {
+  margin: 0 0 8px;
+  padding-left: 10px;
+  border-left: 2px solid var(--pw-line-2);
+  color: var(--pw-text-2);
+}
+.pw-chat-thinking {
+  color: var(--pw-text-2);
+  font-size: 12px;
+}
+/* While the agent is actively reasoning, sweep a shimmer across the "Thinking" label. */
+.pw-chat-thinking-live > summary {
+  background: linear-gradient(90deg, #6b6b6b 0%, #6b6b6b 35%, var(--pw-text) 50%, #6b6b6b 65%, #6b6b6b 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: pw-chat-shimmer 1.4s linear infinite;
+}
+@keyframes pw-chat-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+.pw-chat-tool {
+  font-size: 12px;
+  color: var(--pw-text-2);
+  font-family: var(--pw-mono);
+  border: 1px solid var(--pw-line-soft);
+  border-radius: 10px;
+  padding: 7px 9px;
+  background: var(--pw-fill-soft);
+  animation: pw-chat-msg-in 160ms var(--pw-ease);
+}
+.pw-chat-tool-approval-requested {
+  border-color: var(--pw-accent-line);
+  background: var(--pw-accent-08);
+}
+.pw-chat-tool-head {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+}
+.pw-chat-tool-name {
+  font-weight: 600;
+  color: var(--pw-text);
+}
+.pw-chat-tool-state {
+  margin-left: auto;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--pw-text-3);
+}
+.pw-chat-tool-glyph {
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+  display: inline-block;
+  border-radius: 50%;
+}
+.pw-chat-glyph-spin {
+  border: 1.5px solid var(--pw-accent-line);
+  border-top-color: var(--pw-accent);
+  border-radius: 50%;
+  animation: pw-chat-spin 700ms linear infinite;
+}
+.pw-chat-glyph-done {
+  background: var(--pw-success);
+}
+.pw-chat-glyph-ask {
+  background: var(--pw-accent);
+  animation: pw-chat-pulse 1.1s ease-in-out infinite;
+}
+.pw-chat-glyph-error {
+  background: var(--pw-danger);
+}
+@keyframes pw-chat-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes pw-chat-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+.pw-chat-tool-args,
+.pw-chat-tool-result {
+  margin-top: 6px;
+  color: var(--pw-text-2);
+}
+.pw-chat-tool-args summary,
+.pw-chat-tool-result summary {
+  cursor: pointer;
+  user-select: none;
+  font-size: 11px;
+}
+.pw-chat-tool-args pre,
+.pw-chat-tool-result pre {
+  margin: 6px 0 0;
+  padding: 7px 8px;
+  background: var(--pw-sunken);
+  border-radius: 7px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 11px;
+  line-height: 1.4;
+}
+.pw-chat-tool-error {
+  margin-top: 6px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--pw-danger);
+  font-size: 11px;
+}
+.pw-chat-approval {
+  margin-top: 8px;
+}
+.pw-chat-approval-q {
+  margin: 0 0 7px;
+  font-family: var(--pw-font);
+  color: var(--pw-text);
+}
+.pw-chat-approval-btns {
+  display: flex;
+  gap: 8px;
+}
+.pw-chat-approve,
+.pw-chat-deny {
+  flex: 1;
+  padding: 8px 10px;
+  min-height: 36px;
+  border-radius: 8px;
+  font: 600 12px/1 var(--pw-font);
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition:
+    transform 100ms var(--pw-ease),
+    background-color 120ms var(--pw-ease),
+    border-color 120ms var(--pw-ease),
+    color 120ms var(--pw-ease);
+}
+.pw-chat-approve:active:not(:disabled),
+.pw-chat-deny:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.pw-chat-approve {
+  background: var(--pw-accent);
+  color: var(--pw-on-accent);
+}
+.pw-chat-approve:hover {
+  background: var(--pw-accent-hi);
+}
+.pw-chat-deny {
+  background: transparent;
+  border-color: var(--pw-line-2);
+  color: var(--pw-text);
+}
+.pw-chat-deny:hover {
+  border-color: var(--pw-danger);
+  color: var(--pw-danger);
+}
+.pw-chat-approve:disabled,
+.pw-chat-deny:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.pw-chat-caret {
+  display: inline-block;
+  width: 7px;
+  height: 1.05em;
+  margin-left: 1px;
+  vertical-align: text-bottom;
+  background: var(--pw-accent);
+  animation: pw-chat-blink 1s step-end infinite;
+}
+@keyframes pw-chat-blink {
+  50% {
+    opacity: 0;
+  }
+}
+.pw-chat-typing {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  padding: 11px;
+}
+.pw-chat-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--pw-text-2);
+  animation: pw-chat-bounce 1.2s ease-in-out infinite;
+}
+.pw-chat-dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.pw-chat-dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@keyframes pw-chat-bounce {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.5;
+  }
+  30% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+.pw-chat-error {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--pw-danger);
+  font-size: 12px;
+}
+.pw-chat-error-msg {
+  flex: 1;
+}
+.pw-chat-retry {
+  padding: 6px 10px;
+  min-height: 32px;
+  border-radius: 7px;
+  border: 1px solid var(--pw-danger-line);
+  background: transparent;
+  color: var(--pw-danger);
+  cursor: pointer;
+  font: 600 12px/1 var(--pw-font);
+  flex-shrink: 0;
+  transition: background-color 120ms var(--pw-ease);
+}
+.pw-chat-retry:hover {
+  background: rgba(255, 138, 138, 0.12);
+}
+.pw-chat-composer {
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+  border-top: 1px solid var(--pw-line-soft);
+  align-items: flex-end;
+}
+.pw-chat-input {
+  flex: 1;
+  resize: none;
+  background: var(--pw-fill);
+  border: 1px solid var(--pw-line);
+  border-radius: 12px;
+  color: var(--pw-text);
+  padding: 9px 11px;
+  font: inherit;
+  max-height: 120px;
+  transition: border-color 120ms var(--pw-ease);
+}
+.pw-chat-input:focus {
+  outline: none;
+  border-color: var(--pw-accent);
+}
+.pw-chat-send {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: none;
+  background: var(--pw-accent);
+  color: var(--pw-on-accent);
+  cursor: pointer;
+  font-size: 16px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    transform 100ms var(--pw-ease),
+    background-color 120ms var(--pw-ease);
+}
+.pw-chat-send:hover:not(:disabled) {
+  background: var(--pw-accent-hi);
+}
+.pw-chat-send:active:not(:disabled) {
+  transform: scale(0.92);
+}
+.pw-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+.pw-chat-send:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.pw-chat-stop {
+  background: var(--pw-text-3);
+  color: var(--pw-panel);
+}
+.pw-chat-stop:hover:not(:disabled) {
+  background: var(--pw-text-2);
+}
+/* Agent-generated UI rendered inline in the thread (vibe ui …). */
+.pw-genui {
+  align-self: stretch;
+  border: 1px solid var(--pw-line);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--pw-fill-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: pw-chat-msg-in 180ms var(--pw-ease);
+}
+.pw-genui-approval {
+  border-color: var(--pw-accent-line);
+  background: var(--pw-accent-08);
+}
+.pw-genui-q {
+  margin: 0;
+  font-weight: 600;
+  color: var(--pw-text);
+}
+.pw-genui-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.pw-genui-choice {
+  padding: 9px 13px;
+  min-height: 36px;
+  border-radius: 999px;
+  border: 1px solid var(--pw-accent-line);
+  background: var(--pw-accent-08);
+  color: var(--pw-text);
+  cursor: pointer;
+  font: 500 13px/1 var(--pw-font);
+  transition:
+    background-color 120ms var(--pw-ease),
+    transform 100ms var(--pw-ease);
+}
+.pw-genui-choice:hover {
+  background: var(--pw-accent-20);
+}
+.pw-genui-choice:active {
+  transform: scale(0.97);
+}
+.pw-genui-detail {
+  margin: 0;
+  padding: 8px;
+  background: var(--pw-sunken);
+  border-radius: 7px;
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--pw-text-2);
+}
+.pw-genui-actions {
+  display: flex;
+  gap: 8px;
+}
+.pw-genui-primary,
+.pw-genui-ghost {
+  flex: 1;
+  padding: 9px 12px;
+  min-height: 38px;
+  border-radius: 9px;
+  cursor: pointer;
+  font: 600 13px/1 var(--pw-font);
+  border: 1px solid transparent;
+  transition:
+    transform 100ms var(--pw-ease),
+    background-color 120ms var(--pw-ease),
+    border-color 120ms var(--pw-ease),
+    color 120ms var(--pw-ease);
+}
+.pw-genui-primary:active,
+.pw-genui-ghost:active {
+  transform: scale(0.97);
+}
+.pw-genui-primary {
+  background: var(--pw-accent);
+  color: var(--pw-on-accent);
+}
+.pw-genui-primary:hover {
+  background: var(--pw-accent-hi);
+}
+.pw-genui-ghost {
+  background: transparent;
+  border-color: var(--pw-line-2);
+  color: var(--pw-text);
+}
+.pw-genui-ghost:hover {
+  border-color: var(--pw-danger);
+  color: var(--pw-danger);
+}
+.pw-genui-diff-file {
+  font-family: var(--pw-mono);
+  font-size: 12px;
+  color: var(--pw-text-2);
+}
+.pw-genui-diff-body {
+  font-family: var(--pw-mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+  background: var(--pw-sunken);
+  border-radius: 7px;
+  padding: 8px;
+  overflow-x: auto;
+}
+.pw-genui-diff-del {
+  color: var(--pw-danger);
+  white-space: pre;
+}
+.pw-genui-diff-add {
+  color: var(--pw-success);
+  white-space: pre;
+}
+.pw-genui-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pw-genui-label {
+  font-size: 12px;
+  color: var(--pw-text-2);
+}
+.pw-genui-input {
+  background: var(--pw-fill);
+  border: 1px solid var(--pw-line);
+  border-radius: 8px;
+  color: var(--pw-text);
+  padding: 8px 10px;
+  font: inherit;
+  transition: border-color 120ms var(--pw-ease);
+}
+.pw-genui-input:focus {
+  outline: none;
+  border-color: var(--pw-accent);
+}
+/* Live vitest results card (VitestPanel). Streams /__pw/vitest/stream into a file→test
+   tree: summary pills, a watching indicator, a Re-run button, and per-test rows that
+   expand a failure's error block (left red border) with Open + Fix this actions. */
+.pw-vitest {
+  align-self: stretch;
+  border: 1px solid var(--pw-line);
+  border-radius: var(--pw-r-md);
+  background: var(--pw-fill-soft);
+  overflow: hidden;
+  font-family: var(--pw-mono);
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--pw-text);
+  /* The host is pointer-events:none; inside the chat panel the card inherits auto, but
+     when mounted standalone (its own top-level node) it must opt back in itself. */
+  pointer-events: auto;
+  animation: pw-chat-msg-in 180ms var(--pw-ease);
+}
+.pw-vitest-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  background: var(--pw-fill);
+  border-bottom: 1px solid var(--pw-line);
+  font-size: 12px;
+}
+.pw-vitest-pill {
+  padding: 1px 8px;
+  border-radius: var(--pw-r-pill);
+  font-weight: 600;
+  font-size: 11px;
+}
+.pw-vitest-pass {
+  background: color-mix(in oklch, var(--pw-success) 18%, transparent);
+  color: var(--pw-success);
+}
+.pw-vitest-fail {
+  background: color-mix(in oklch, var(--pw-danger) 18%, transparent);
+  color: var(--pw-danger);
+}
+.pw-vitest-skip {
+  background: color-mix(in oklch, #d6c84a 20%, transparent);
+  color: #d6c84a;
+}
+.pw-vitest-watch,
+.pw-vitest-running-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--pw-text-3);
+  font-size: 11px;
+}
+.pw-vitest-watch-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--pw-success);
+  animation: pw-vitest-pulse 2s infinite;
+}
+@keyframes pw-vitest-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in oklch, var(--pw-success) 40%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 6px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+.pw-vitest-ui {
+  margin-left: auto;
+  color: var(--pw-accent-link);
+  font-size: 11px;
+  text-decoration: none;
+}
+.pw-vitest-ui:hover {
+  text-decoration: underline;
+}
+.pw-vitest-run {
+  margin-left: auto;
+  background: var(--pw-accent);
+  color: var(--pw-on-accent);
+  border: 0;
+  border-radius: var(--pw-r-sm);
+  padding: 4px 11px;
+  font: 600 11px/1 var(--pw-mono);
+  cursor: pointer;
+  transition: background-color 120ms var(--pw-ease);
+}
+.pw-vitest-ui + .pw-vitest-run {
+  margin-left: 0;
+}
+.pw-vitest-run:hover {
+  background: var(--pw-accent-hi);
+}
+.pw-vitest-file {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 12px;
+  font-weight: 600;
+}
+.pw-vitest-fname {
+  color: var(--pw-text);
+}
+.pw-vitest-test {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 12px 5px 24px;
+  color: var(--pw-text-2);
+  cursor: pointer;
+}
+.pw-vitest-test:hover {
+  background: var(--pw-fill);
+}
+.pw-vitest-test-fail {
+  background: color-mix(in oklch, var(--pw-danger) 10%, transparent);
+}
+.pw-vitest-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+.pw-vitest-dot.pw-vitest-pass {
+  background: var(--pw-success);
+}
+.pw-vitest-dot.pw-vitest-fail {
+  background: var(--pw-danger);
+}
+.pw-vitest-dot.pw-vitest-skip {
+  background: #d6c84a;
+}
+.pw-vitest-dot.pw-vitest-running {
+  width: 11px;
+  height: 11px;
+  background: transparent;
+  border: 2px solid var(--pw-accent);
+  border-top-color: transparent;
+  animation: pw-vitest-rot 0.7s linear infinite;
+}
+@keyframes pw-vitest-rot {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.pw-vitest-err {
+  margin: 0 12px 8px 36px;
+  padding: 8px 10px;
+  background: var(--pw-sunken);
+  border-left: 2px solid var(--pw-danger);
+  border-radius: 4px;
+  color: var(--pw-danger);
+  font-size: 11.5px;
+}
+.pw-vitest-err pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font: inherit;
+}
+.pw-vitest-actions {
+  display: flex;
+  gap: 7px;
+  margin-top: 8px;
+}
+.pw-vitest-act {
+  font: 11px/1 var(--pw-mono);
+  padding: 4px 9px;
+  border-radius: 5px;
+  cursor: pointer;
+  border: 1px solid var(--pw-line-2);
+  background: var(--pw-fill);
+  color: var(--pw-text);
+  transition: background-color 120ms var(--pw-ease);
+}
+.pw-vitest-act:hover {
+  background: var(--pw-fill-strong);
+}
+.pw-vitest-fix {
+  background: var(--pw-accent-08);
+  border-color: var(--pw-accent-line);
+  color: var(--pw-accent-link);
+}
+.pw-vitest-fix:hover {
+  background: var(--pw-accent-20);
+}
+@media (prefers-reduced-motion: reduce) {
+  .pw-pin,
+  .pw-popover,
+  .pw-chat-fab,
+  .pw-fab-icon,
+  .pw-chat-fab-attn::after,
+  .pw-chat-panel,
+  .pw-chat-closing,
+  .pw-chat-greeting,
+  .pw-chat-chip,
+  .pw-chat-msg,
+  .pw-chat-tool,
+  .pw-genui,
+  .pw-vitest,
+  .pw-vitest-watch-dot,
+  .pw-vitest-dot.pw-vitest-running,
+  .pw-chat-glyph-spin,
+  .pw-chat-glyph-ask,
+  .pw-chat-caret,
+  .pw-chat-dot,
+  .pw-chat-thinking-live > summary {
+    animation: none;
+  }
+}

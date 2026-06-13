@@ -1,0 +1,34 @@
+// Widget side of the page-bus: pure SSE transport. The dev server pushes PageQuery events
+// over /__pw/tools/page-stream; we hand each to the PageDriver and POST the result back to
+// /__pw/tools/page-reply. All page knowledge lives in the driver — swap it to change the
+// execution backend without touching transport.
+import {makeDomPageDriver, type PageDriver} from './page-driver.js'
+import type {PageQuery} from '@devgent/protocol/page-protocol'
+
+function parseQuery(raw: string): PageQuery | null {
+  try {
+    return JSON.parse(raw) as PageQuery
+  } catch {
+    return null
+  }
+}
+
+export function initPageBus(deps: {apiBase?: string; driver?: PageDriver} = {}): void {
+  const base = (deps.apiBase ?? '').replace(/\/+$/, '')
+  const driver = deps.driver ?? makeDomPageDriver()
+  const source = new EventSource(`${base}/__pw/tools/page-stream`, {withCredentials: true})
+
+  source.addEventListener('message', (ev) => {
+    const query = parseQuery(ev.data)
+    if (!query?.requestId) return
+    void (async () => {
+      const data = await driver.execute(query)
+      void fetch(`${base}/__pw/tools/page-reply`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({requestId: query.requestId, data}),
+      })
+    })()
+  })
+}
