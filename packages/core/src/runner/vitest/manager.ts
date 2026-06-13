@@ -11,7 +11,7 @@ import {
   type UiServerInfo,
   type TestRunnerManager,
 } from '@devgent/protocol/runner-types'
-import {ChildMessageSchema, type ChildMessage} from './child.js'
+import {ChildMessageSchema, type ChildMessage} from './child-protocol.js'
 
 // Runs vitest in a CLEAN child (NODE_OPTIONS + VIBE_* stripped) — running it in the dev
 // server's IITM-preloaded process corrupts the live app. Child streams TestEvents as NDJSON

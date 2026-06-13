@@ -1,22 +1,31 @@
 import {createRequire} from 'node:module'
-import {pathToFileURL} from 'node:url'
+import {pathToFileURL, fileURLToPath} from 'node:url'
 import {join, relative} from 'node:path'
-import {writeSync} from 'node:fs'
+import {writeSync, realpathSync} from 'node:fs'
+import {argv} from 'node:process'
 import {z} from 'zod'
-import {parseFailure, TestEventSchema, type Summary, type TestError, type TestRow, type TestCaseLike} from '@devgent/protocol/test-types'
+import {parseFailure, type Summary, type TestError, type TestRow, type TestCaseLike} from '@devgent/protocol/test-types'
+import {type ChildMessage} from './child-protocol.js'
+
+// ┌──────────────────────────────────────────────────────────────────────────────────────────┐
+// │ ⚠️  TECH DEBT — THIS WHOLE FILE IS A FOOTGUN. REPLACE IT.                                   │
+// │                                                                                            │
+// │ This is BOTH a spawned process entry (runs main() at the bottom) AND a TypeScript module.  │
+// │ That dual role already caused a fork-bomb: manager.ts imported a value from here, which    │
+// │ ran main() on import, which booted another vitest, which re-ran the suite, which imported  │
+// │ here again… recursing until the machine died (CPU + memory). It is held together by two    │
+// │ band-aids: the schema was moved to child-protocol.ts (so nobody imports this for a value)  │
+// │ and main() is gated behind an isLaunchedDirectly() realpath check (so a stray import is    │
+// │ inert). Both are fragile — the guard depends on argv[1]/symlink/tsx behavior.              │
+// │                                                                                            │
+// │ FIND A BETTER WAY. Likely: make the runner a real, dependency-bundled bin entry that is    │
+// │ ONLY ever spawned by path and is physically impossible to import (or shell out to the      │
+// │ app's vitest CLI with a custom reporter). Do NOT add more imports against this file.        │
+// └──────────────────────────────────────────────────────────────────────────────────────────┘
 
 // The out-of-process vitest runner: a clean child (spawned by the manager with NODE_OPTIONS
 // stripped) that embeds the app's own vitest and streams TestEvents as NDJSON on fd 3. Running
 // vitest in the dev server's preloaded process would corrupt the live app. One child per run.
-
-// Control messages the child sends alongside TestEvents. Zod-validated by the manager.
-const ListFileSchema = z.object({file: z.string(), relPath: z.string(), lastState: z.string().optional()})
-export const ListMessageSchema = z.object({type: z.literal('list'), files: z.array(ListFileSchema)})
-export const ErrorMessageSchema = z.object({type: z.literal('error'), reason: z.string()})
-
-// The child→manager NDJSON message contract: a TestEvent or a list/error control message.
-export const ChildMessageSchema = z.union([TestEventSchema, ListMessageSchema, ErrorMessageSchema])
-export type ChildMessage = z.infer<typeof ChildMessageSchema>
 
 type TestModuleLike = {
   moduleId: string
@@ -162,7 +171,20 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((e: unknown) => {
-  send({type: 'error', reason: e instanceof Error ? e.message : String(e)})
-  process.exit(1)
-})
+// Run ONLY when launched directly as a spawned subprocess — never on import (see the warning at
+// the top of this file). realpath both sides: pnpm + tsx + the macOS /tmp→/private/tmp symlink
+// mean the raw URLs differ even on a legitimate direct run, so a naive === check breaks the runner.
+function isLaunchedDirectly(): boolean {
+  try {
+    return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(argv[1] ?? '')
+  } catch {
+    return false
+  }
+}
+
+if (isLaunchedDirectly()) {
+  main().catch((e: unknown) => {
+    send({type: 'error', reason: e instanceof Error ? e.message : String(e)})
+    process.exit(1)
+  })
+}

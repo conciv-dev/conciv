@@ -1,18 +1,22 @@
 import {describe, it, expect, afterEach} from 'vitest'
-import {createServer, type Server} from 'node:http'
+import {z} from 'zod'
+import {H3} from 'h3'
+import {serve, type Server} from 'srvx'
 import {spawn} from 'node:child_process'
 import {mkdtempSync, readFileSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
-import {makeChatRoute} from '../src/chat-route.js'
-import {acquireLock} from '../src/claude-lock.js'
+import {registerChatRoutes} from '../../../src/api/chat/chat.js'
+import {claudeAdapter} from '../../../src/harness/claude/adapter.js'
+import {acquireLock} from '../../../src/chat/lock.js'
+import {makeUiBus} from '../../../src/chat/ui-bus.js'
 
-// Real process-boundary IT: makeChatRoute spawns a real child (the fake-claude executable),
-// pipes its stdout through the REAL transcoder + TanStack SSE encoder, over a real HTTP
-// server. Proves the spawn → AG-UI SSE → --resume path, not a bypass.
+// Real process-boundary IT: the chat routes spawn a real child (fake-claude), pipe its stdout
+// through the real decoder + TanStack SSE encoder, over a real srvx server. Proves the
+// spawn → AG-UI SSE → --resume path on the h3 app.
 
-const fakeClaude = fileURLToPath(new URL('fixtures/fake-claude.ts', import.meta.url))
+const fakeClaude = fileURLToPath(new URL('../../fixtures/fake-claude.ts', import.meta.url))
 const dirs: string[] = []
 
 function tmp(): string {
@@ -25,43 +29,39 @@ async function postJson(url: string, body: unknown): Promise<Response> {
   return fetch(url, {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify(body)})
 }
 
-function startServer(over: {argvFile?: string; lockDir?: string} = {}): Promise<{server: Server; base: string}> {
+async function startServer(over: {argvFile?: string; lockDir?: string} = {}): Promise<{server: Server; base: string}> {
   const lockDir = over.lockDir ?? tmp()
-  const route = makeChatRoute({
+  const app = new H3()
+  registerChatRoutes(app, {
     cwd: lockDir,
     lockDir,
     previewId: 'it-preview',
     initialSessionId: '',
-    spawnClaude: (args, cwd) => {
+    harness: claudeAdapter,
+    spawnHarness: (args, cwd) => {
       const child = spawn(process.execPath, [fakeClaude, ...args], {
         cwd,
         stdio: ['ignore', 'pipe', 'pipe'],
         env: {...process.env, ...(over.argvFile ? {DEVGENT_TEST_ARGV_FILE: over.argvFile} : {})},
       })
-      return {pid: child.pid ?? -1, stdout: child.stdout!, stderr: child.stderr!, kill: () => child.kill('SIGTERM')}
+      const {stdout, stderr} = child
+      if (!stdout || !stderr) throw new Error('fake-claude did not expose stdout/stderr')
+      return {pid: child.pid ?? -1, stdout, stderr, kill: () => child.kill('SIGTERM')}
     },
+    systemPromptText: '',
+    uiBus: makeUiBus(),
   })
-  const server = createServer((req, res) => {
-    void route(req, res, () => {
-      res.statusCode = 404
-      res.end('next')
-    })
-  })
-  return new Promise((resolve) => {
-    server.listen(0, '127.0.0.1', () => {
-      const addr = server.address()
-      const port = typeof addr === 'object' && addr ? addr.port : 0
-      resolve({server, base: `http://127.0.0.1:${port}`})
-    })
-  })
+  const server = serve({fetch: app.fetch, port: 0, hostname: '127.0.0.1'})
+  await server.ready()
+  return {server, base: new URL(server.url ?? '').origin}
 }
 
 const turn = (text: string) => ({messages: [{id: 'm', role: 'user', parts: [{type: 'text', content: text}]}]})
 
-describe('chat-route (IT, real spawn)', () => {
+describe('chat routes (IT, real spawn over h3)', () => {
   const state = {server: undefined as Server | undefined}
   afterEach(async () => {
-    await new Promise<void>((r) => (state.server ? state.server.close(() => r()) : r()))
+    if (state.server) await state.server.close()
     state.server = undefined
     for (const d of dirs.splice(0)) rmSync(d, {recursive: true, force: true})
   })
@@ -69,7 +69,7 @@ describe('chat-route (IT, real spawn)', () => {
   it('streams TanStack AG-UI SSE from a real claude child', async () => {
     const {server, base} = await startServer()
     state.server = server
-    const res = await postJson(`${base}/__pw/chat`, turn('hi'))
+    const res = await postJson(`${base}/api/chat`, turn('hi'))
     const body = await res.text()
     expect(res.headers.get('content-type')).toContain('text/event-stream')
     expect(body).toContain('RUN_STARTED')
@@ -81,28 +81,29 @@ describe('chat-route (IT, real spawn)', () => {
     const argvFile = join(tmp(), 'argv.json')
     const {server, base} = await startServer({argvFile})
     state.server = server
-    await (await postJson(`${base}/__pw/chat`, turn('hi'))).text()
-    await (await postJson(`${base}/__pw/chat`, turn('more'))).text()
-    const argv = JSON.parse(readFileSync(argvFile, 'utf8')) as string[]
+    await (await postJson(`${base}/api/chat`, turn('hi'))).text()
+    await (await postJson(`${base}/api/chat`, turn('more'))).text()
+    const argv = z.array(z.string()).parse(JSON.parse(readFileSync(argvFile, 'utf8')))
     expect(argv).toContain('--resume')
     expect(argv[argv.indexOf('--resume') + 1]).toBe('sess-fake')
   })
 
-  it('POST /__pw/chat/ui 400s on a malformed spec, reports injected:false with no active turn', async () => {
+  it('POST /api/chat/ui 400s on a malformed spec, reports injected:false with no active turn', async () => {
     const {server, base} = await startServer()
     state.server = server
-    const bad = await postJson(`${base}/__pw/chat/ui`, {spec: {kind: 'choices'}})
+    const bad = await postJson(`${base}/api/chat/ui`, {spec: {kind: 'choices'}})
     expect(bad.status).toBe(400)
-    const ok = await postJson(`${base}/__pw/chat/ui`, {spec: {kind: 'confirm', renderId: 'r9', question: 'OK?'}})
+    const ok = await postJson(`${base}/api/chat/ui`, {kind: 'confirm', renderId: 'r9', question: 'OK?'})
     expect(await ok.json()).toEqual({renderId: 'r9', injected: false})
   })
 
   it('PreToolUse gate allows non-Bash + safe Bash, denies risky Bash with no widget to ask', async () => {
     const {server, base} = await startServer()
     state.server = server
+    const DecisionSchema = z.object({hookSpecificOutput: z.object({permissionDecision: z.string()})})
     const decisionFor = async (body: unknown): Promise<string> => {
-      const res = await postJson(`${base}/__pw/chat/permission`, body)
-      const json = (await res.json()) as {hookSpecificOutput: {permissionDecision: string}}
+      const res = await postJson(`${base}/api/chat/permission`, body)
+      const json = DecisionSchema.parse(await res.json())
       return json.hookSpecificOutput.permissionDecision
     }
     expect(await decisionFor({tool_name: 'Edit', tool_input: {file_path: 'a.ts'}})).toBe('allow')
@@ -115,7 +116,7 @@ describe('chat-route (IT, real spawn)', () => {
     const {server, base} = await startServer({lockDir})
     state.server = server
     acquireLock(lockDir, 'iterate', process.pid)
-    const res = await postJson(`${base}/__pw/chat`, {messages: []})
+    const res = await postJson(`${base}/api/chat`, {messages: []})
     expect(res.status).toBe(409)
   })
 })
