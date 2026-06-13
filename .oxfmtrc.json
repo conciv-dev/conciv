@@ -1,0 +1,9 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "semi": false,
+  "singleQuote": true,
+  "bracketSpacing": false,
+  "printWidth": 120,
+  "trailingComma": "all",
+  "ignorePatterns": ["dist", "build", ".turbo"]
+}
