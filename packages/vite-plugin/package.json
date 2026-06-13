@@ -1,0 +1,43 @@
+{
+  "name": "@devgent/vite-plugin",
+  "version": "0.0.0",
+  "description": "The devgent dev agent as a vite plugin: HTTP routes, claude -p spawn, out-of-process vitest runner, and the page-control bus.",
+  "license": "MIT",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/plugin.d.ts",
+      "import": "./dist/plugin.js"
+    },
+    "./config": {
+      "types": "./dist/config.d.ts",
+      "import": "./dist/config.js"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@devgent/cli": "workspace:*",
+    "@devgent/protocol": "workspace:*",
+    "@tanstack/ai": "0.28.0",
+    "launch-editor": "2.14.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.7",
+    "tsdown": "0.22.2",
+    "tsx": "4.21.0",
+    "typescript": "5.9.3",
+    "vite": "7.0.0",
+    "vitest": "4.1.8"
+  },
+  "peerDependencies": {
+    "vite": ">=7"
+  }
+}
