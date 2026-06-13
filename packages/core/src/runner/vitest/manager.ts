@@ -1,28 +1,20 @@
 import {spawn, type ChildProcess} from 'node:child_process'
 import {createInterface} from 'node:readline'
 import {fileURLToPath} from 'node:url'
-import type {Readable} from 'node:stream'
-import {
-  type Summary,
-  type TestError,
-  type RunResult,
-  type VitestEvent,
-  type FileState,
-} from '@devgent/protocol/vitest-types'
-import type {ChildMessage} from './vitest-runner-child.js'
+import {Readable} from 'node:stream'
+import type {Summary, TestError, TestRunResult, TestEvent, FileState} from '@devgent/protocol/test-types'
+import type {RunArgs, ListResult, UiServerInfo, TestRunnerManager} from '@devgent/protocol/runner-types'
+import type {ChildMessage} from './child.js'
 
 // Drives the previewed app's vitest OUT OF PROCESS. the devgent dev server runs under an
 // import-in-the-middle preload (how the plugin is injected); embedding vitest in that same
 // process corrupts the live app's vite transforms (the app starts 500ing). So each request
-// spawns vitest-runner-child.js as a CLEAN child (NODE_OPTIONS + VIBE_* stripped), which
-// streams VitestEvents as NDJSON on fd 3. The manager forwards them to the SSE bus as they
-// arrive and resolves run()/list() on the child's terminal message. On-demand (one child
-// per run); watch-on-save auto-rerun is a deferred follow-up (needs a persistent child).
+// spawns runner/child.js as a CLEAN child (NODE_OPTIONS + VIBE_* stripped), which streams
+// TestEvents as NDJSON on fd 3. The manager forwards them to the SSE bus as they arrive and
+// resolves run()/list() on the child's terminal message. On-demand (one child per run);
+// watch-on-save auto-rerun is a deferred follow-up (needs a persistent child).
 
-export type RunArgs = {patterns?: string[]; testNamePattern?: string; failedOnly?: boolean}
-export type {RunResult}
-export type ListResult = {files: {file: string; relPath: string; lastState?: string}[]}
-export type UiServerInfo = {available: boolean; url?: string}
+export type {RunArgs, ListResult, UiServerInfo, TestRunnerManager} from '@devgent/protocol/runner-types'
 
 // Injectable spawn seam: production runs `node <built child.js>`; tests run the child via
 // tsx on the .ts source (no build needed). Returns a ChildProcess whose stdio[3] is the
@@ -30,33 +22,30 @@ export type UiServerInfo = {available: boolean; url?: string}
 export type SpawnRunner = (args: string[], cwd: string) => ChildProcess
 export type MakeVitestManagerOptions = {spawnRunner?: SpawnRunner}
 
-export type VitestManager = {
-  list: (failedOnly?: boolean) => Promise<ListResult>
-  run: (args: RunArgs) => Promise<RunResult>
-  status: () => RunResult
-  subscribeRaw: (cb: (e: VitestEvent) => void) => () => void
-  emitSnapshot: () => VitestEvent
-  openUiServer: () => Promise<UiServerInfo>
-  stop: () => Promise<void>
-}
-
 // Tagged error so the route can translate a missing/unsupported vitest (or a runner crash)
 // into a typed 422 instead of an opaque 500. Factory, not a class (functions-not-classes).
 const VITEST_UNAVAILABLE_TAG = 'devgent:vitest-unavailable'
 export type VitestUnavailableError = Error & {[VITEST_UNAVAILABLE_TAG]: true; available: false}
 
 export function vitestUnavailableError(reason: string): VitestUnavailableError {
-  const err = new Error(`vitest unavailable: ${reason}`) as VitestUnavailableError
-  return Object.assign(err, {[VITEST_UNAVAILABLE_TAG]: true as const, available: false as const})
+  // Built whole via Object.assign — its result type is exactly VitestUnavailableError, no cast.
+  return Object.assign(new Error(`vitest unavailable: ${reason}`), {
+    [VITEST_UNAVAILABLE_TAG]: true as const,
+    available: false as const,
+  })
+}
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null
 }
 
 export function isVitestUnavailable(e: unknown): e is VitestUnavailableError {
-  return e instanceof Error && (e as Partial<VitestUnavailableError>)[VITEST_UNAVAILABLE_TAG] === true
+  return e instanceof Error && isRecord(e) && e[VITEST_UNAVAILABLE_TAG] === true
 }
 
-// build/chat/vitest-runner-child.js sits next to this module at runtime.
+// build output runner/child.js sits next to this module at runtime.
 function defaultRunnerScript(): string {
-  return fileURLToPath(new URL('./vitest-runner-child.js', import.meta.url))
+  return fileURLToPath(new URL('./child.js', import.meta.url))
 }
 
 // A clean child env: strip the dev server's IITM preload (NODE_OPTIONS=`… --import preload`)
@@ -79,34 +68,45 @@ function defaultSpawnRunner(args: string[], cwd: string): ChildProcess {
   })
 }
 
-const VITEST_EVENT_KINDS = new Set(['snapshot', 'run-start', 'test', 'file-end', 'run-end'])
-function isVitestEvent(msg: ChildMessage): msg is VitestEvent {
-  return VITEST_EVENT_KINDS.has(msg.type)
+const TEST_EVENT_KINDS = new Set(['snapshot', 'run-start', 'test', 'file-end', 'run-end'])
+function isTestEvent(msg: ChildMessage): msg is TestEvent {
+  return TEST_EVENT_KINDS.has(msg.type)
+}
+function isRunEnd(msg: ChildMessage): msg is Extract<TestEvent, {type: 'run-end'}> {
+  return msg.type === 'run-end'
+}
+function isListMessage(msg: ChildMessage): msg is Extract<ChildMessage, {type: 'list'}> {
+  return msg.type === 'list'
+}
+
+// Guard a parsed NDJSON value into a ChildMessage (discriminated on a string `type`) — no cast.
+function isChildMessage(v: unknown): v is ChildMessage {
+  return isRecord(v) && typeof v.type === 'string'
 }
 
 const EMPTY_SUMMARY: Summary = {passed: 0, failed: 0, skipped: 0, durationMs: 0}
 
-export function makeVitestManager(cwd: string, options: MakeVitestManagerOptions = {}): VitestManager {
+export function makeVitestManager(cwd: string, options: MakeVitestManagerOptions = {}): TestRunnerManager {
   const spawnRunner = options.spawnRunner ?? defaultSpawnRunner
-  const subscribers = new Set<(e: VitestEvent) => void>()
+  const subscribers = new Set<(e: TestEvent) => void>()
   // Last-run cache so status()/emitSnapshot() can answer between runs (a reconnecting
   // widget recovers the latest tree + summary). files keyed by path → last state.
-  const cache = {
-    last: {summary: EMPTY_SUMMARY, failures: [] as TestError[], tests: []} as RunResult,
-    files: new Map<string, FileState>(),
+  const cache: {last: TestRunResult; files: Map<string, FileState>} = {
+    last: {summary: EMPTY_SUMMARY, failures: [], tests: []},
+    files: new Map(),
   }
   // The most recent run's full event sequence (run-start → … → run-end), kept so a widget
   // that subscribes mid-run OR after it (e.g. the card is injected only once the run is
   // already underway) is replayed the whole run and rebuilds the per-test tree — not just
   // the file-level snapshot. Cleared at each run-start.
-  const runBuffer: VitestEvent[] = []
-  const lifecycle = {child: null as ChildProcess | null}
+  const runBuffer: TestEvent[] = []
+  const lifecycle: {child: ChildProcess | null} = {child: null}
 
-  function emit(e: VitestEvent): void {
+  function emit(e: TestEvent): void {
     for (const cb of subscribers) cb(e)
   }
 
-  function updateCache(e: VitestEvent): void {
+  function updateCache(e: TestEvent): void {
     if (e.type === 'run-start') {
       cache.files.clear()
       runBuffer.length = 0
@@ -117,19 +117,19 @@ export function makeVitestManager(cwd: string, options: MakeVitestManagerOptions
     runBuffer.push(e)
   }
 
-  // Spawn a runner child, forward its VitestEvents to the bus as they arrive, and resolve
-  // with all messages once it exits. Rejects with a typed error if the child reports one.
+  // Spawn a runner child, forward its TestEvents to the bus as they arrive, and resolve with
+  // all messages once it exits. Rejects with a typed error if the child reports one.
   function driveChild(args: string[], forward: boolean): Promise<ChildMessage[]> {
     return new Promise((resolve, reject) => {
       const child = spawnRunner(args, cwd)
       lifecycle.child = child
-      const channel = child.stdio[3] as Readable | null | undefined
-      if (!channel) {
+      const channel = child.stdio[3]
+      if (!(channel instanceof Readable)) {
         reject(vitestUnavailableError('runner did not expose its event channel (fd 3)'))
         return
       }
       const messages: ChildMessage[] = []
-      const errState = {reason: null as string | null}
+      const errState: {reason: string | null} = {reason: null}
       const rl = createInterface({input: channel})
       rl.on('line', (line) => {
         const trimmed = line.trim()
@@ -141,7 +141,7 @@ export function makeVitestManager(cwd: string, options: MakeVitestManagerOptions
           return
         }
         messages.push(msg)
-        if (forward && isVitestEvent(msg)) {
+        if (forward && isTestEvent(msg)) {
           updateCache(msg)
           emit(msg)
         }
@@ -163,20 +163,21 @@ export function makeVitestManager(cwd: string, options: MakeVitestManagerOptions
 
   function parseMessage(line: string): ChildMessage | null {
     try {
-      return JSON.parse(line) as ChildMessage
+      const v: unknown = JSON.parse(line)
+      return isChildMessage(v) ? v : null
     } catch {
       return null
     }
   }
 
-  async function run(args: RunArgs): Promise<RunResult> {
+  async function run(args: RunArgs): Promise<TestRunResult> {
     const patternArgs = (args.patterns ?? []).flatMap((p) => ['--pattern', p])
     const nameArgs = args.testNamePattern ? ['--name', args.testNamePattern] : []
     const failedArgs = args.failedOnly ? ['--failed'] : []
     const runnerArgs = ['--mode', 'run', '--cwd', cwd, ...patternArgs, ...nameArgs, ...failedArgs]
     const messages = await driveChild(runnerArgs, true)
-    const runEnd = messages.filter((m): m is Extract<VitestEvent, {type: 'run-end'}> => m.type === 'run-end').at(-1)
-    const result: RunResult = runEnd
+    const runEnd = messages.filter(isRunEnd).at(-1)
+    const result: TestRunResult = runEnd
       ? {summary: runEnd.summary, failures: runEnd.failures, tests: runEnd.tests}
       : cache.last
     cache.last = result
@@ -186,15 +187,15 @@ export function makeVitestManager(cwd: string, options: MakeVitestManagerOptions
   async function list(failedOnly = false): Promise<ListResult> {
     const runnerArgs = ['--mode', 'list', '--cwd', cwd, ...(failedOnly ? ['--failed'] : [])]
     const messages = await driveChild(runnerArgs, false)
-    const listMsg = messages.filter((m): m is Extract<ChildMessage, {type: 'list'}> => m.type === 'list').at(-1)
+    const listMsg = messages.filter(isListMessage).at(-1)
     return {files: listMsg?.files ?? []}
   }
 
-  function status(): RunResult {
+  function status(): TestRunResult {
     return cache.last
   }
 
-  function emitSnapshot(): VitestEvent {
+  function emitSnapshot(): TestEvent {
     // watching:false — on-demand runs only (no persistent watcher yet).
     return {type: 'snapshot', files: [...cache.files.values()], summary: cache.last.summary, watching: false}
   }
@@ -206,7 +207,7 @@ export function makeVitestManager(cwd: string, options: MakeVitestManagerOptions
     return {available: false}
   }
 
-  function subscribeRaw(cb: (e: VitestEvent) => void): () => void {
+  function subscribeRaw(cb: (e: TestEvent) => void): () => void {
     subscribers.add(cb)
     // Replay the latest run so a late subscriber rebuilds the full per-test tree (the
     // snapshot the route sends first only carries file-level state). Harmless when empty.

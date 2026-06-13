@@ -1,14 +1,14 @@
 import {spawn, type ChildProcess} from 'node:child_process'
 import {createRequire} from 'node:module'
 import {fileURLToPath, pathToFileURL} from 'node:url'
-import type {SpawnRunner} from '../src/vitest-manager.js'
+import type {SpawnRunner} from '../src/runner/vitest/manager.js'
 
 // Spawn seams for the out-of-process vitest runner in ITs. These run the REAL
 // vitest-runner-child — just launched via tsx (no build step) — so the tests exercise the
 // true child-process path, not a mock.
 const require = createRequire(import.meta.url)
 const tsxEntry = pathToFileURL(require.resolve('tsx')).href
-const childTs = fileURLToPath(new URL('../src/vitest-runner-child.ts', import.meta.url))
+const childTs = fileURLToPath(new URL('../src/runner/vitest/child.ts', import.meta.url))
 
 export function tsxSpawnRunner(args: string[], cwd: string): ChildProcess {
   const env: NodeJS.ProcessEnv = {...process.env}

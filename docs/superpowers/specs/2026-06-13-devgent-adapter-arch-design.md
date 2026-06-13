@@ -103,14 +103,20 @@ type HarnessTurn = {
 
 type HarnessChild = {pid: number; stdout: Readable; stderr: Readable; kill(): void}
 
+// Each harness member is its OWN named interface with its OWN generic define* factory — never a
+// bare function/object literal. The adapter composes them.
+type HarnessArgsBuilder = (turn: HarnessTurn) => string[]
+type HarnessDecoder = (lines: AsyncIterable<string>, opts: {onSessionId(id: string): void}) => AsyncGenerator<StreamChunk>
+type HarnessHistory = {transcriptPath(cwd: string, sessionId: string): string; parse(raw: string): UIMessage[]}
+// + defineHarnessArgs / defineHarnessDecoder / defineHarnessHistory (all generic <T extends …>)
+
 type HarnessAdapter = {
   id: string // 'claude' | 'codex' | …
   binName: string // default binary on PATH
   capabilities: HarnessCapabilities
-  buildArgs(turn: HarnessTurn): string[]
-  decode(lines: AsyncIterable<string>, opts: {onSessionId(id: string): void}): AsyncGenerator<StreamChunk>
-  transcriptPath?(cwd: string, sessionId: string): string // present iff transcriptHistory
-  parseHistory?(raw: string): UIMessage[] // present iff transcriptHistory
+  buildArgs: HarnessArgsBuilder
+  decode: HarnessDecoder
+  history?: HarnessHistory // present iff capabilities.transcriptHistory
 }
 ```
 

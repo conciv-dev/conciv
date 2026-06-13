@@ -32,7 +32,8 @@ function makeChannel(): Channel {
   function close(): void {
     state.closed = true
     const waiter = waiters.shift()
-    if (waiter) waiter({value: undefined as unknown as StreamChunk, done: true})
+    // IteratorResult's done-variant value type is TReturn (default any), so undefined needs no cast.
+    if (waiter) waiter({value: undefined, done: true})
   }
 
   async function* iterate(): AsyncGenerator<StreamChunk> {
@@ -60,7 +61,7 @@ export type UiBus = {
 }
 
 export function makeUiBus(): UiBus {
-  const state = {channel: null as Channel | null}
+  const state: {channel: Channel | null} = {channel: null}
 
   function inject(spec: UiSpec): boolean {
     if (!state.channel) return false
@@ -71,13 +72,15 @@ export function makeUiBus(): UiBus {
   async function* run(claudeEvents: AsyncIterable<StreamChunk>): AsyncGenerator<StreamChunk> {
     const channel = makeChannel()
     state.channel = channel
-    const pump = (async () => {
+    // Named async fn rather than an IIFE (project rule: no IIFEs); start it without awaiting.
+    async function pumpEvents(): Promise<void> {
       try {
         for await (const chunk of claudeEvents) channel.push(chunk)
       } finally {
         channel.close()
       }
-    })()
+    }
+    const pump = pumpEvents()
     try {
       for await (const chunk of channel.iterate()) yield chunk
     } finally {

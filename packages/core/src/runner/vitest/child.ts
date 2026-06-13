@@ -7,20 +7,20 @@ import {
   type Summary,
   type TestError,
   type TestRow,
-  type VitestEvent,
+  type TestEvent,
   type TestCaseLike,
-} from '@devgent/protocol/vitest-types'
+} from '@devgent/protocol/test-types'
 
 // The OUT-OF-PROCESS vitest runner. the devgent dev server runs with an import-in-the-middle
 // preload (how the plugin is injected); running vitest IN that process corrupts the live
 // app's module transforms (app starts 500ing). So the manager spawns THIS script as a
 // child with NODE_OPTIONS stripped — a clean process that embeds the previewed app's own
-// vitest, runs it, and streams VitestEvents as NDJSON on fd 3 back to the manager, which
+// vitest, runs it, and streams TestEvents as NDJSON on fd 3 back to the manager, which
 // forwards them to the SSE bus. One child per request (on-demand); the child exits when
-// done. Child messages are VitestEvent plus a `list` and an `error` control message.
+// done. Child messages are TestEvent plus a `list` and an `error` control message.
 
 type ListFile = {file: string; relPath: string; lastState?: string}
-export type ChildMessage = VitestEvent | {type: 'list'; files: ListFile[]} | {type: 'error'; reason: string}
+export type ChildMessage = TestEvent | {type: 'list'; files: ListFile[]} | {type: 'error'; reason: string}
 
 type TestModuleLike = {
   moduleId: string
@@ -61,14 +61,24 @@ function toState(s: string): 'pass' | 'fail' | 'skip' {
   return 'skip'
 }
 
+type VitestNodeModule = {createVitest: (mode: string, opts: object, vite?: object) => Promise<VitestLike>}
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null
+}
+
+// Narrow the runtime dynamic import to the slice we use — a guard, not an assertion.
+function hasCreateVitest(v: unknown): v is VitestNodeModule {
+  return isRecord(v) && typeof v.createVitest === 'function'
+}
+
 async function loadVitest(cwd: string, reporter: object): Promise<VitestLike> {
   const req = createRequire(join(cwd, 'noop.js'))
   // Runtime dynamic import — vitest is the previewed app's dependency, resolved at runtime
   // from its cwd (versions differ per app). The deliberate, documented exception to the
   // repo's static-imports-only rule.
-  const mod = (await import(pathToFileURL(req.resolve('vitest/node')).href)) as {
-    createVitest: (mode: string, opts: object, vite?: object) => Promise<VitestLike>
-  }
+  const mod: unknown = await import(pathToFileURL(req.resolve('vitest/node')).href)
+  if (!hasCreateVitest(mod)) throw new Error('vitest/node did not expose createVitest')
   // watch:true matches the proven init path (standalone() initializes reporters/coverage,
   // then runTestSpecifications drives the run); the child exits explicitly after one run so
   // staying "resident" is moot. Reporter goes through config.reporters (2nd arg) — vitest
@@ -154,12 +164,13 @@ async function main(): Promise<void> {
   const argv = process.argv.slice(2)
   const mode = flagValue(argv, '--mode') ?? 'run'
   const cwd = flagValue(argv, '--cwd') ?? process.cwd()
-  const state = {vitest: null as VitestLike | null}
+  const state: {vitest: VitestLike | null} = {vitest: null}
+  const currentVitest = (): VitestLike => {
+    if (!state.vitest) throw new Error('vitest not initialized')
+    return state.vitest
+  }
   try {
-    const vitest = await loadVitest(
-      cwd,
-      makeReporter(() => state.vitest!),
-    )
+    const vitest = await loadVitest(cwd, makeReporter(currentVitest))
     state.vitest = vitest
     await vitest.standalone()
     const job = mode === 'list' ? runList(vitest, cwd, argv.includes('--failed')) : runTests(vitest, argv)

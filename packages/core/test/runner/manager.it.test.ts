@@ -1,16 +1,22 @@
 import {describe, it, expect, afterAll} from 'vitest'
 import {fileURLToPath} from 'node:url'
 import {dirname, join} from 'node:path'
-import {makeVitestManager, isVitestUnavailable, type VitestManager} from '../src/vitest-manager.js'
-import {tsxSpawnRunner, errorSpawnRunner} from './helpers.js'
+import type {TestRunnerManager} from '@devgent/protocol/runner-types'
+import {makeVitestManager, isVitestUnavailable} from '../../src/runner/vitest/manager.js'
+import {tsxSpawnRunner, errorSpawnRunner} from '../helpers.js'
 
-// Real out-of-process IT: makeVitestManager spawns the actual vitest-runner-child (via tsx),
+// Real out-of-process IT: makeVitestManager spawns the actual vitest runner child (via tsx),
 // which embeds the fixture app's real vitest, runs it, and streams events back over fd 3.
 
-const fixture = join(dirname(fileURLToPath(import.meta.url)), 'fixtures/vitest-app')
+const fixture = join(dirname(fileURLToPath(import.meta.url)), '../fixtures/vitest-app')
 
 describe('vitest-manager against a real fixture app (IT)', () => {
-  const state = {mgr: undefined as VitestManager | undefined}
+  const state: {mgr: TestRunnerManager | undefined} = {mgr: undefined}
+  // No non-null assertions (spec "Typing discipline"): a small accessor throws if unset.
+  const requireMgr = (): TestRunnerManager => {
+    if (!state.mgr) throw new Error('manager not initialized — the list test runs first')
+    return state.mgr
+  }
   afterAll(async () => {
     await state.mgr?.stop()
   })
@@ -23,7 +29,7 @@ describe('vitest-manager against a real fixture app (IT)', () => {
   })
 
   it('runs all tests and returns a summary with the one real failure', async () => {
-    const mgr = state.mgr!
+    const mgr = requireMgr()
     const result = await mgr.run({})
     expect(result.summary.passed).toBe(1)
     expect(result.summary.failed).toBe(1)
@@ -34,7 +40,7 @@ describe('vitest-manager against a real fixture app (IT)', () => {
   })
 
   it('streams run-start / test / run-end events to a subscriber', async () => {
-    const mgr = state.mgr!
+    const mgr = requireMgr()
     const events: string[] = []
     const unsub = mgr.subscribeRaw((e) => events.push(e.type))
     await mgr.run({patterns: ['pass']})
@@ -51,7 +57,8 @@ describe('vitest-manager against a real fixture app (IT)', () => {
       (e: unknown) => e,
     )
     expect(isVitestUnavailable(runErr)).toBe(true)
-    expect((runErr as Error).message).toContain('vitest unavailable')
+    // narrow via instanceof rather than asserting (spec "Typing discipline").
+    expect(runErr instanceof Error ? runErr.message : '').toContain('vitest unavailable')
     // emitSnapshot is pure and must stay safe even when vitest can't init.
     expect(mgr.emitSnapshot()).toMatchObject({type: 'snapshot', watching: false})
   })

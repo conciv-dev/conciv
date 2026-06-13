@@ -22,22 +22,35 @@ function pidAlive(pid: number): boolean {
   }
 }
 
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null
+}
+
+function readFileOrEmpty(path: string): string {
+  try {
+    return readFileSync(path, 'utf8')
+  } catch {
+    return ''
+  }
+}
+
+// Parse the lock file into a narrowed shape via guards — no cast, no IIFE.
+function parseLockFile(raw: string): {role: LockRole | undefined; pid: number | undefined} | null {
+  try {
+    const v: unknown = JSON.parse(raw)
+    if (!isRecord(v)) return null
+    const role = v.role === 'iterate' || v.role === 'chat' ? v.role : undefined
+    const pid = typeof v.pid === 'number' ? v.pid : undefined
+    return {role, pid}
+  } catch {
+    return null
+  }
+}
+
 export function readLock(lockDir: string): LockState {
-  const raw = ((): string => {
-    try {
-      return readFileSync(lockPath(lockDir), 'utf8')
-    } catch {
-      return ''
-    }
-  })()
+  const raw = readFileOrEmpty(lockPath(lockDir))
   if (!raw) return {held: false, role: null, pid: null}
-  const parsed = ((): {role?: LockRole; pid?: number} | null => {
-    try {
-      return JSON.parse(raw) as {role?: LockRole; pid?: number}
-    } catch {
-      return null
-    }
-  })()
+  const parsed = parseLockFile(raw)
   if (!parsed || typeof parsed.pid !== 'number' || !pidAlive(parsed.pid)) {
     return {held: false, role: null, pid: null}
   }

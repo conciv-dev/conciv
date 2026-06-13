@@ -1,29 +1,33 @@
 import {mkdirSync, readFileSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 
-// Persists the chat's claude session id keyed by previewId, so the SAME chat thread reopens
+// Persists the chat's agent session id keyed by previewId, so the SAME chat thread reopens
 // every time the dev server starts — not just across page reloads (which the
 // dev server's in-memory state already covered) but across dev-server restarts too. Lives
 // next to the lock + system prompt in `<lockDir>/.devgent/chat-sessions.json`.
 
-type SessionMap = Record<string, string>
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null
+}
 
 function storePath(lockDir: string): string {
   return join(lockDir, '.devgent', 'chat-sessions.json')
 }
 
-function readMap(lockDir: string): SessionMap {
-  const raw = ((): string => {
-    try {
-      return readFileSync(storePath(lockDir), 'utf8')
-    } catch {
-      return ''
-    }
-  })()
+function readFileOrEmpty(path: string): string {
+  try {
+    return readFileSync(path, 'utf8')
+  } catch {
+    return ''
+  }
+}
+
+function readMap(lockDir: string): Record<string, unknown> {
+  const raw = readFileOrEmpty(storePath(lockDir))
   if (!raw) return {}
   try {
     const parsed: unknown = JSON.parse(raw)
-    return typeof parsed === 'object' && parsed !== null ? (parsed as SessionMap) : {}
+    return isRecord(parsed) ? parsed : {}
   } catch {
     return {}
   }
