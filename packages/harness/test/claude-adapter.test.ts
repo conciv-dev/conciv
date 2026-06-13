@@ -1,12 +1,12 @@
 import {describe, it, expect} from 'vitest'
-import {claudeAdapter} from '../../src/harness/claude/adapter.js'
-import {getHarness} from '../../src/harness/registry.js'
+import {claude} from '../src/claude/claude.js'
+import {getHarness} from '../src/registry.js'
 
 describe('claude harness adapter', () => {
   it('declares the claude capability set', () => {
-    expect(claudeAdapter.id).toBe('claude')
-    expect(claudeAdapter.binName).toBe('claude')
-    expect(claudeAdapter.capabilities).toEqual({
+    expect(claude.id).toBe('claude')
+    expect(claude.binName).toBe('claude')
+    expect(claude.capabilities).toEqual({
       resume: true,
       permissionGate: 'hook',
       transcriptHistory: true,
@@ -15,19 +15,19 @@ describe('claude harness adapter', () => {
   })
 
   it('capability presence matches members (transcriptHistory ⇒ history interface)', () => {
-    if (claudeAdapter.capabilities.transcriptHistory) {
-      expect(typeof claudeAdapter.history?.transcriptPath).toBe('function')
-      expect(typeof claudeAdapter.history?.parse).toBe('function')
+    if (claude.capabilities.transcriptHistory) {
+      expect(typeof claude.history?.transcriptPath).toBe('function')
+      expect(typeof claude.history?.parse).toBe('function')
     }
   })
 
   it('buildArgs honours resume + permission hook + append-system-prompt-file', () => {
-    const args = claudeAdapter.buildArgs({
+    const args = claude.buildArgs({
       prompt: 'hi',
       cwd: '/w',
       resumeSessionId: 'sess-1',
       systemPrompt: '/state/chat-system-prompt.txt',
-      permissionUrl: 'http://x/__pw/chat/permission',
+      permissionUrl: 'http://x/api/chat/permission',
     })
     expect(args).toContain('--resume')
     expect(args[args.indexOf('--resume') + 1]).toBe('sess-1')
@@ -36,6 +36,6 @@ describe('claude harness adapter', () => {
   })
 
   it('is pre-registered in the harness registry', () => {
-    expect(getHarness('claude')).toBe(claudeAdapter)
+    expect(getHarness('claude')).toBe(claude)
   })
 })

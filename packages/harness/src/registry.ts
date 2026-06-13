@@ -1,7 +1,10 @@
 import type {HarnessAdapter} from '@devgent/protocol/harness-types'
-import {claudeAdapter} from './claude/adapter.js'
+import {claude} from './claude/claude.js'
+import {codex} from './codex/codex.js'
+import {geminiCli} from './gemini-cli/gemini-cli.js'
+import {opencode} from './opencode/opencode.js'
+import {pi} from './pi/pi.js'
 
-// Holds the inline claude adapter; Plan 2 moves adapters into @devgent/harness.
 const registry = new Map<string, HarnessAdapter>()
 
 export function registerHarness(adapter: HarnessAdapter): void {
@@ -16,4 +19,5 @@ export function listHarnesses(): HarnessAdapter[] {
   return [...registry.values()]
 }
 
-registerHarness(claudeAdapter)
+// Bundled adapters self-register on import of the package entry.
+for (const adapter of [claude, codex, geminiCli, opencode, pi]) registerHarness(adapter)

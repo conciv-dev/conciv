@@ -1,0 +1,34 @@
+{
+  "name": "@devgent/harness",
+  "version": "0.0.0",
+  "description": "Harness adapters (claude, codex, + stubs) behind the @devgent/protocol HarnessAdapter contract.",
+  "license": "MIT",
+  "files": ["dist"],
+  "type": "module",
+  "exports": {
+    ".": {"types": "./dist/registry.d.ts", "import": "./dist/registry.js"},
+    "./claude": {"types": "./dist/claude/claude.d.ts", "import": "./dist/claude/claude.js"},
+    "./codex": {"types": "./dist/codex/codex.d.ts", "import": "./dist/codex/codex.js"},
+    "./gemini-cli": {"types": "./dist/gemini-cli/gemini-cli.d.ts", "import": "./dist/gemini-cli/gemini-cli.js"},
+    "./opencode": {"types": "./dist/opencode/opencode.d.ts", "import": "./dist/opencode/opencode.js"},
+    "./pi": {"types": "./dist/pi/pi.d.ts", "import": "./dist/pi/pi.js"}
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@devgent/protocol": "workspace:*",
+    "@tanstack/ai": "^0.28.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.21",
+    "tsdown": "^0.22.2",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  }
+}

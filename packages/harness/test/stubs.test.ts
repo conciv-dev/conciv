@@ -1,0 +1,21 @@
+import {describe, it, expect} from 'vitest'
+import {geminiCli} from '../src/gemini-cli/gemini-cli.js'
+import {opencode} from '../src/opencode/opencode.js'
+import {pi} from '../src/pi/pi.js'
+import type {HarnessTurn} from '@devgent/protocol/harness-types'
+
+const turn: HarnessTurn = {prompt: 'x', cwd: '/r', resumeSessionId: null, systemPrompt: ''}
+
+describe.each([
+  ['gemini-cli', geminiCli],
+  ['opencode', opencode],
+  ['pi', pi],
+])('%s stub', (id, adapter) => {
+  it('declares its id and capabilities', () => {
+    expect(adapter.id).toBe(id)
+    expect(adapter.capabilities).toBeDefined()
+  })
+  it('throws "not implemented" from buildArgs', () => {
+    expect(() => adapter.buildArgs(turn)).toThrow(/not implemented/)
+  })
+})
