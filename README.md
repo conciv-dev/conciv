@@ -22,11 +22,15 @@ you're building.
 
 ## Packages
 
-| Package                                          | What it is                                                                                                                                                                                  |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`@devgent/protocol`](./packages/protocol)       | Shared wire types (chat, generative UI, vitest, page control). Zero runtime deps beyond `@tanstack/ai`.                                                                                     |
-| [`@devgent/vite-plugin`](./packages/vite-plugin) | The server half: `/__pw/*` routes, the `claude -p` spawn + AG-UI transcode, session/lock store, risk gate, out-of-process vitest runner, page-bus. Ships the `devgent` CLI the agent calls. |
-| [`@devgent/widget`](./packages/widget)           | The browser half: a React chat UI mounted into an open Shadow DOM, plus the page-control driver the agent drives.                                                                           |
+| Package                                          | What it is                                                                                                                           |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| [`@devgent/protocol`](./packages/protocol)       | Shared wire types + `define*` factories (chat, generative UI, test, page, harness/runner/bundler, config). Zero-runtime.             |
+| [`@devgent/core`](./packages/core)               | The framework-free h3 + srvx engine: all `/api/*` routes, lock, session, uiBus, harness + test-runner registries, the BundlerBridge. |
+| [`@devgent/harness`](./packages/harness)         | Harness adapters behind a capability interface: claude + codex, plus gemini-cli/opencode/pi stubs.                                   |
+| [`@devgent/test-runner`](./packages/test-runner) | Test-runner adapters over a clean-child fd3 driver: vitest (full), jest/node-test/playwright (stubs).                                |
+| [`@devgent/plugin`](./packages/plugin)           | The dev agent as an unplugin: `@devgent/plugin/vite` (full), webpack/rspack/rollup/esbuild entries. Boots core + injects the widget. |
+| [`@devgent/widget`](./packages/widget)           | The browser half: a React chat UI in an open Shadow DOM, the test card, and the page-control driver.                                 |
+| [`@devgent/cli`](./packages/cli)                 | The `devgent` CLI the agent calls from Bash: `tools server / page / test / open` + `ui`, against core's `/api/*` surface.            |
 
 ## Quickstart
 
@@ -34,22 +38,18 @@ Add the plugin to your app's `vite.config.ts` and serve the widget bundle:
 
 ```ts
 import {defineConfig} from 'vite'
-import {devgent} from '@devgent/vite-plugin'
+import devgent from '@devgent/plugin/vite'
 
 export default defineConfig({
-  plugins: [
-    devgent({
-      enabled: process.env.NODE_ENV === 'development',
-      widgetUrl: '/@devgent/widget.js', // where you serve @devgent/widget/global
-    }),
-  ],
+  plugins: [devgent()],
 })
 ```
 
-The plugin injects the widget `<script>` into your HTML for you. Point `widgetUrl` at the
-prebuilt global bundle (`@devgent/widget/global`) — serve it from your dev server, `public/`,
-or a CDN. The widget probes `/__pw/chat/session` on load and only shows the ✦ FAB when the
-dev-server routes are live, so it's inert on a plain preview.
+`@devgent/core` boots its own dev engine (the `/api/*` surface + the bundled widget) and the
+plugin injects the widget `<script>` into your HTML. Override defaults via
+`devgent({harness, testRunner, previewId, widgetUrl, …})`. The widget probes `/api/chat/session`
+on load and only shows the ✦ FAB when the dev-server routes are live, so it's inert on a plain
+preview.
 
 `claude` (the Claude Code CLI) must be on your `PATH` for the chat to answer.
 

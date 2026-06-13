@@ -2,10 +2,10 @@
 // http server serves an HTML page that embeds the vite-built global bundle, and answers the
 // /api/* routes the widget speaks: the chat-availability probe, a scripted AG-UI chat stream
 // (encoded with TanStack AI's own toServerSentEventsStream — the exact encoder the dev server
-// uses, so the widget's fetchServerSentEvents consumes it natively), a scripted vitest stream,
-// and the page-bus (push a PageQuery, resolve from the widget's reply). Real transport, real
-// browser, real bundle, real driver — scripted fixtures, not mocks. The authoritative
-// claude→SSE and vitest→SSE backends are proven by @devgent/vite-plugin's route ITs.
+// uses, so the widget's fetchServerSentEvents consumes it natively), a scripted test-runner
+// stream, and the page-bus (push a PageQuery, resolve from the widget's reply). Real transport,
+// real browser, real bundle, real driver — scripted fixtures, not mocks. The authoritative
+// harness→SSE and test-runner→SSE backends are proven by @devgent/core's route ITs.
 import fs from 'node:fs'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'

@@ -6,7 +6,7 @@ import {uiCommand} from '../src/ui.js'
 
 // Real end-to-end IT for the CLI: the actual citty commands parse argv, zod validates, the
 // builders produce a request, and native fetch sends it to a REAL http server that records
-// what arrived. No mocks — proves the full argv → zod → fetch → /__pw/* wire.
+// what arrived. No mocks — proves the full argv → zod → fetch → /api/* wire.
 
 type Captured = {method: string; url: string; body: unknown}
 const state = {server: undefined as Server | undefined, last: undefined as Captured | undefined}
@@ -34,16 +34,16 @@ afterAll(async () => {
 })
 
 describe('devgent CLI (IT, real server)', () => {
-  it('tools vite graph → GET with the file in the query string', async () => {
-    await runCommand(toolsCommand, {rawArgs: ['vite', 'graph', '/x.ts']})
-    expect(state.last).toMatchObject({method: 'GET', url: '/__pw/tools/vite/graph?file=%2Fx.ts'})
+  it('tools server graph → GET /api/server/graph with the file in the query string', async () => {
+    await runCommand(toolsCommand, {rawArgs: ['server', 'graph', '/x.ts']})
+    expect(state.last).toMatchObject({method: 'GET', url: '/api/server/graph?file=%2Fx.ts'})
   })
 
-  it('tools page fill → POST with selector + value in the body', async () => {
+  it('tools page fill → POST /api/page/fill with selector + value in the body', async () => {
     await runCommand(toolsCommand, {rawArgs: ['page', 'fill', '#email', '--value', 'a@b.c']})
     expect(state.last).toMatchObject({
       method: 'POST',
-      url: '/__pw/tools/page/fill',
+      url: '/api/page/fill',
       body: {selector: '#email', value: 'a@b.c'},
     })
   })
@@ -63,16 +63,10 @@ describe('devgent CLI (IT, real server)', () => {
     })
   })
 
-  it('tools vitest run → same as test run (deprecated alias)', async () => {
-    state.last = undefined
-    await runCommand(toolsCommand, {rawArgs: ['vitest', 'run', 'auth']})
-    expect(state.last).toMatchObject({method: 'POST', url: '/api/test-runner/run', body: {patterns: ['auth']}})
-  })
-
-  it('ui confirm → POST a confirm spec to /__pw/chat/ui', async () => {
+  it('ui confirm → POST a confirm spec to /api/chat/ui', async () => {
     await runCommand(uiCommand, {rawArgs: ['confirm', '--question', 'OK?']})
     expect(state.last?.method).toBe('POST')
-    expect(state.last?.url).toBe('/__pw/chat/ui')
+    expect(state.last?.url).toBe('/api/chat/ui')
     expect(state.last?.body).toMatchObject({spec: {kind: 'confirm', question: 'OK?'}})
   })
 })

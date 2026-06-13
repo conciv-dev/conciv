@@ -64,10 +64,13 @@ const FIELD = {
 
 type FieldName = keyof typeof FIELD
 
+function isFieldName(f: string): f is FieldName {
+  return f in FIELD
+}
 function allowedFields(verb: PageQueryKind): FieldName[] {
   const spec = PAGE_VERBS[verb]
   const target: FieldName[] = spec.targetsElement ? ['selector', 'ref'] : []
-  return [...target, ...(spec.flags as FieldName[])]
+  return [...target, ...spec.flags.filter(isFieldName)]
 }
 
 function schemaFor(verb: PageQueryKind): z.ZodType<Record<string, unknown>> {
@@ -75,15 +78,13 @@ function schemaFor(verb: PageQueryKind): z.ZodType<Record<string, unknown>> {
   return z.object(shape)
 }
 
-// Pure: validated args (the verb's allowed fields) → the HTTP request the server expects.
-// GET verbs carry params in the query string; POST verbs in a compact JSON body.
-export function pageRequest(verb: PageQueryKind, raw: Record<string, unknown>): CliRequest {
-  const fields = allowedFields(verb)
-  const picked = Object.fromEntries(fields.map((f) => [f, raw[f]]).filter(([, v]) => v !== undefined))
-  const params = schemaFor(verb).parse(picked)
+// Pure: raw args → the HTTP request. The verb's zod schema validates + strips to its allowed
+// fields. GET verbs carry params in the query string; POST verbs in a compact JSON body.
+export function pageRequest(verb: PageQueryKind, raw: unknown): CliRequest {
+  const params = schemaFor(verb).parse(raw)
   const spec = PAGE_VERBS[verb]
-  if (spec.method === 'GET') return {method: 'GET', path: `/__pw/tools/page/${verb}${qs(params)}`}
-  return {method: 'POST', path: `/__pw/tools/page/${verb}`, body: compact(params)}
+  if (spec.method === 'GET') return {method: 'GET', path: `/api/page/${verb}${qs(params)}`}
+  return {method: 'POST', path: `/api/page/${verb}`, body: compact(params)}
 }
 
 function flagArg(flag: string): ArgDef {
@@ -116,7 +117,7 @@ export function pageCommands(): SubCommandsDef {
         meta: {name: verb, description: `page ${verb}`},
         args: argsFor(verb),
         run: async ({args}) => {
-          process.stdout.write((await runRequest(pageRequest(verb, args as Record<string, unknown>))) + '\n')
+          process.stdout.write((await runRequest(pageRequest(verb, args))) + '\n')
         },
       }),
     ]),
@@ -126,8 +127,8 @@ export function pageCommands(): SubCommandsDef {
     args: {clear: {type: 'boolean', description: 'reset the journal after listing'}},
     run: async ({args}) => {
       const req: CliRequest = args.clear
-        ? {method: 'POST', path: '/__pw/tools/page/changes/clear'}
-        : {method: 'GET', path: '/__pw/tools/page/changes'}
+        ? {method: 'POST', path: '/api/page/changes/clear'}
+        : {method: 'GET', path: '/api/page/changes'}
       process.stdout.write((await runRequest(req)) + '\n')
     },
   })

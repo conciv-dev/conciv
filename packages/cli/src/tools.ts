@@ -1,12 +1,11 @@
 import {defineCommand} from 'citty'
-import {viteCommand} from './vite.js'
+import {serverCommand} from './server.js'
 import {pageCommand} from './page.js'
 import {testCommand} from './test.js'
 import {openCommand} from './open.js'
 
-// `devgent tools` — the agent's surface for the live dev server. `vitest` is kept as a
-// deprecated alias of `test` for one release cycle.
+// `devgent tools` — the agent's surface for the live dev server.
 export const toolsCommand = defineCommand({
-  meta: {name: 'tools', description: 'inspect & drive the live dev server — page, vite, tests'},
-  subCommands: {vite: viteCommand, page: pageCommand, test: testCommand, vitest: testCommand, open: openCommand},
+  meta: {name: 'tools', description: 'inspect & drive the live dev server — page, server, tests'},
+  subCommands: {server: serverCommand, page: pageCommand, test: testCommand, open: openCommand},
 })

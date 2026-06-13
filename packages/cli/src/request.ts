@@ -1,7 +1,7 @@
 import {defaultOrigin, sendJson} from './cli-http.js'
 
 // Every CLI command reduces to one of these — a method + path (+ JSON body for POST) against
-// the dev server's /__pw/* surface. citty parses argv, zod validates it, and a builder
+// the dev server's /api/* surface. citty parses argv, zod validates it, and a builder
 // produces this; runRequest sends it.
 export type CliRequest = {method: 'GET' | 'POST'; path: string; body?: Record<string, unknown>}
 

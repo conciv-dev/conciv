@@ -30,7 +30,7 @@ function parseField(raw: string): UiFormField | null {
 }
 
 // Pure: validated args + a caller-supplied renderId → a typed UiSpec. Throws on invalid input.
-export function buildUiSpec(kind: string, raw: Record<string, unknown>, renderId: string): UiSpec {
+export function buildUiSpec(kind: string, raw: unknown, renderId: string): UiSpec {
   if (kind === 'choices') {
     const p = ChoicesIn.parse(raw)
     if (p.option.length === 0) throw new Error('choices needs at least one --option')
@@ -54,10 +54,10 @@ export function buildUiSpec(kind: string, raw: Record<string, unknown>, renderId
 }
 
 export function uiRequest(spec: UiSpec): CliRequest {
-  return {method: 'POST', path: '/__pw/chat/ui', body: {spec}}
+  return {method: 'POST', path: '/api/chat/ui', body: {spec}}
 }
 
-async function submit(kind: string, raw: Record<string, unknown>): Promise<void> {
+async function submit(kind: string, raw: unknown): Promise<void> {
   const spec = buildUiSpec(kind, raw, randomUUID())
   await runRequest(uiRequest(spec))
   process.stdout.write(`Rendered ${spec.kind} in the chat. Waiting for the user's reply as their next message.\n`)
@@ -72,7 +72,7 @@ export const uiCommand = defineCommand({
         question: {type: 'string', required: true, description: 'the question to ask'},
         option: {type: 'string', description: 'an option (repeat for each)'},
       },
-      run: ({args}) => submit('choices', args as Record<string, unknown>),
+      run: ({args}) => submit('choices', args),
     }),
     confirm: defineCommand({
       meta: {name: 'confirm', description: 'ask a yes/no'},
@@ -80,7 +80,7 @@ export const uiCommand = defineCommand({
         question: {type: 'string', required: true, description: 'the question to ask'},
         detail: {type: 'string', description: 'extra detail (e.g. the command to run)'},
       },
-      run: ({args}) => submit('confirm', args as Record<string, unknown>),
+      run: ({args}) => submit('confirm', args),
     }),
     diff: defineCommand({
       meta: {name: 'diff', description: 'show a proposed change with Apply / Reject'},
@@ -89,7 +89,7 @@ export const uiCommand = defineCommand({
         before: {type: 'string', required: true, description: 'current text'},
         after: {type: 'string', required: true, description: 'proposed text'},
       },
-      run: ({args}) => submit('diff', args as Record<string, unknown>),
+      run: ({args}) => submit('diff', args),
     }),
     form: defineCommand({
       meta: {name: 'form', description: 'collect structured input'},
@@ -97,7 +97,7 @@ export const uiCommand = defineCommand({
         field: {type: 'string', description: 'name:label:text | name:label:select:opt1,opt2 (repeat)'},
         title: {type: 'string', description: 'form title'},
       },
-      run: ({args}) => submit('form', args as Record<string, unknown>),
+      run: ({args}) => submit('form', args),
     }),
   },
 })
