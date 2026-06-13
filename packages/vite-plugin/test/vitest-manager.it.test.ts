@@ -28,8 +28,9 @@ describe('vitest-manager against a real fixture app (IT)', () => {
     expect(result.summary.passed).toBe(1)
     expect(result.summary.failed).toBe(1)
     expect(result.failures).toHaveLength(1)
-    expect(result.failures[0].name).toBe('this fails on purpose')
-    expect(result.failures[0].file).toContain('fail.test.ts')
+    const [failure] = result.failures
+    expect(failure?.name).toBe('this fails on purpose')
+    expect(failure?.file).toContain('fail.test.ts')
   })
 
   it('streams run-start / test / run-end events to a subscriber', async () => {
