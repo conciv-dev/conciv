@@ -6,7 +6,8 @@
     "suspicious": "warn"
   },
   "rules": {
-    "unicorn/consistent-function-scoping": "off"
+    "unicorn/consistent-function-scoping": "off",
+    "react/react-in-jsx-scope": "off"
   },
   "env": {
     "browser": true,
