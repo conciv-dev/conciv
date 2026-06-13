@@ -1,19 +1,9 @@
-// The /__pw/tools/* operations over the live ViteDevServer handle. Structural `ViteLike`
-// type covers only the members we use (no `any`, no full vite type import needed). These
-// power the `devgent tools` CLI the chat agent calls via Bash.
+// The dev-server accessors backing the BundlerBridge (and the `devgent tools server …` CLI).
+// Typed against vite's real ViteDevServer — this is the vite plugin, so the coupling is fine
+// and it lets the plugin pass the live server straight through with no cast.
+import type {ViteDevServer} from 'vite'
 
-type Alias = {find: string | RegExp; replacement: string}
-type ModuleLike = {url: string; importers: Set<{url: string}>; importedModules: Set<{url: string}>}
-
-export type ViteLike = {
-  config: {root: string; base: string; mode: string; resolve: {alias: Alias[]}; plugins: {name: string}[]}
-  pluginContainer: {resolveId: (id: string, importer?: string) => Promise<{id: string} | null>}
-  moduleGraph: {getModulesByFile: (file: string) => Set<ModuleLike> | undefined}
-  transformRequest?: (url: string) => Promise<{code: string} | null>
-  reloadModule?: (m: ModuleLike) => Promise<void>
-  restart?: (force?: boolean) => Promise<void>
-  resolvedUrls?: {local: string[]; network: string[]} | null
-}
+export type ViteLike = ViteDevServer
 
 export function viteConfig(server: ViteLike) {
   return {

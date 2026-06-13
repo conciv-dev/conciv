@@ -186,15 +186,15 @@ importers:
       '@devgent/cli':
         specifier: workspace:*
         version: link:../cli
+      '@devgent/core':
+        specifier: workspace:*
+        version: link:../core
       '@devgent/protocol':
         specifier: workspace:*
         version: link:../protocol
       '@devgent/widget':
         specifier: workspace:*
         version: link:../widget
-      '@tanstack/ai':
-        specifier: ^0.28.0
-        version: 0.28.0
       launch-editor:
         specifier: ^2.14.1
         version: 2.14.1
