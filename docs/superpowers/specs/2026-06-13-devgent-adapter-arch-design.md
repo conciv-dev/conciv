@@ -164,6 +164,24 @@ packages/runner/src/
 Each runner declares `capabilities: { watch, uiServer, filterByName, failedOnly }`. The
 `@devgent/core` test route + widget card consume `TestEvent` only — runner-blind.
 
+**Wrapper types are the contract.** The word "vitest" must not appear in any `@devgent/protocol`
+type name, in `@devgent/core`'s test route, or in `@devgent/widget`. `vitest-types.ts` is renamed
+`test-types.ts` and its types lose the runner prefix: `VitestEvent → TestEvent`,
+`RunResult → TestRunResult`, etc. Each runner adapter owns the dirty translation from its native
+output into these wrapper types and emits **only** wrapper types across the fd3/NDJSON channel:
+
+```
+runner native output        adapter (runner pkg)        wrapper types (protocol)        consumer
+────────────────────        ────────────────────        ────────────────────────        ────────
+vitest reporter events  ─┐
+jest reporter events    ─┼─►  map → TestEvent /     ─►   TestEvent, TestRow,        ─►   widget test-card
+node:test events        ─┤     TestRunResult             FileState, Summary,             + core test route
+playwright JSON report  ─┘                               TestError                       (these types only)
+```
+
+This mirrors the harness side exactly: the widget speaks AG-UI `StreamChunk`, never Claude's
+stream-json. Consumers depend on `@devgent/protocol` wrapper types only — zero runner imports.
+
 ### Seam 3 — Bundler via unplugin
 
 `@devgent/plugin-core` exports a `createUnplugin((opts) => ({ name: 'devgent', vite: {...},
