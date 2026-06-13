@@ -36,6 +36,10 @@
       "types": "./dist/bundler-types.d.ts",
       "import": "./dist/bundler-types.js"
     },
+    "./config-types": {
+      "types": "./dist/config-types.d.ts",
+      "import": "./dist/config-types.js"
+    },
     "./page-protocol": {
       "types": "./dist/page-protocol.d.ts",
       "import": "./dist/page-protocol.js"

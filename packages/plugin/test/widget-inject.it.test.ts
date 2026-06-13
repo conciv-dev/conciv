@@ -3,7 +3,12 @@ import {createServer, type Server, type ServerResponse} from 'node:http'
 import {mkdtempSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {DEFAULT_WIDGET_ROUTE, type Middleware, makeWidgetInject, makeWidgetServe} from '../src/widget-middleware.js'
+import {
+  DEFAULT_WIDGET_ROUTE,
+  type Middleware,
+  makeWidgetInject,
+  makeWidgetServe,
+} from '../src/core/widget-middleware.js'
 
 // Real HTTP round-trip for the widget middlewares. The inject middleware must rewrite the
 // FINAL html response (the path SSR frameworks like TanStack Start exercise, where there's no

@@ -1,18 +1,9 @@
 import {CHAT_SYSTEM_PROMPT} from '@devgent/harness/claude'
+import type {DevgentConfig} from '@devgent/protocol/config-types'
 
-export interface DevgentConfig {
-  enabled?: boolean
-  widgetUrl?: string
-  previewId?: string
-  lockDir?: string
-  harness?: string
-  harnessBin?: string
-  sessionId?: string
-  testRunner?: string
-  systemPrompt?: string
-  /** @deprecated use harnessBin */ claudePath?: string
-  /** @deprecated use sessionId */ claudeSessionId?: string
-}
+// The public config contract lives in @devgent/protocol; core owns only resolution.
+export type {DevgentConfig} from '@devgent/protocol/config-types'
+export {defineConfig} from '@devgent/protocol/config-types'
 
 export interface ResolvedDevgentConfig {
   enabled: boolean
@@ -24,11 +15,6 @@ export interface ResolvedDevgentConfig {
   sessionId: string
   testRunner: string
   systemPrompt: string
-}
-
-// Generic typed factory mirroring defineHarness/defineRunner; identity at runtime.
-export function defineConfig<T extends DevgentConfig>(config: T): T {
-  return config
 }
 
 export function resolveConfig(options: DevgentConfig, root: string): ResolvedDevgentConfig {

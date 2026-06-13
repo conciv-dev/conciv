@@ -32,9 +32,12 @@ importers:
       '@devgent/cli':
         specifier: workspace:*
         version: link:../../../packages/cli
-      '@devgent/vite-plugin':
+      '@devgent/plugin':
         specifier: workspace:*
-        version: link:../../../packages/vite-plugin
+        version: link:../../../packages/plugin
+      '@devgent/protocol':
+        specifier: workspace:*
+        version: link:../../../packages/protocol
       '@devgent/widget':
         specifier: workspace:*
         version: link:../../../packages/widget
@@ -193,6 +196,43 @@ importers:
         specifier: ^4.1.8
         version: 4.1.8(@types/node@22.19.21)(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4))
 
+  packages/plugin:
+    dependencies:
+      '@devgent/cli':
+        specifier: workspace:*
+        version: link:../cli
+      '@devgent/core':
+        specifier: workspace:*
+        version: link:../core
+      '@devgent/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@devgent/widget':
+        specifier: workspace:*
+        version: link:../widget
+      launch-editor:
+        specifier: ^2.14.1
+        version: 2.14.1
+      unplugin:
+        specifier: ^3.0.0
+        version: 3.0.0
+    devDependencies:
+      '@types/node':
+        specifier: ^22.19.21
+        version: 22.19.21
+      tsdown:
+        specifier: ^0.22.2
+        version: 0.22.2(tsx@4.22.4)(typescript@6.0.3)
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vite:
+        specifier: ^8.0.16
+        version: 8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)
+      vitest:
+        specifier: ^4.1.8
+        version: 4.1.8(@types/node@22.19.21)(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4))
+
   packages/protocol:
     dependencies:
       '@tanstack/ai':
@@ -242,21 +282,12 @@ importers:
 
   packages/vite-plugin:
     dependencies:
-      '@devgent/cli':
-        specifier: workspace:*
-        version: link:../cli
       '@devgent/core':
         specifier: workspace:*
         version: link:../core
-      '@devgent/protocol':
+      '@devgent/plugin':
         specifier: workspace:*
-        version: link:../protocol
-      '@devgent/widget':
-        specifier: workspace:*
-        version: link:../widget
-      launch-editor:
-        specifier: ^2.14.1
-        version: 2.14.1
+        version: link:../plugin
     devDependencies:
       '@types/node':
         specifier: ^22.19.21
@@ -264,18 +295,12 @@ importers:
       tsdown:
         specifier: ^0.22.2
         version: 0.22.2(tsx@4.22.4)(typescript@6.0.3)
-      tsx:
-        specifier: ^4.22.4
-        version: 4.22.4
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
       vite:
         specifier: ^8.0.16
         version: 8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)
-      vitest:
-        specifier: ^4.1.8
-        version: 4.1.8(@types/node@22.19.21)(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4))
 
   packages/widget:
     dependencies:

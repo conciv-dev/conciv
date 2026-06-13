@@ -1,7 +1,7 @@
 {
   "name": "@devgent/vite-plugin",
   "version": "0.0.0",
-  "description": "The devgent dev agent as a vite plugin: HTTP routes, claude -p spawn, out-of-process vitest runner, and the page-control bus.",
+  "description": "DEPRECATED alias of @devgent/plugin (use @devgent/plugin/vite). Re-exports for one cycle.",
   "license": "MIT",
   "files": [
     "dist"
@@ -21,24 +21,17 @@
     "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vitest run"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@devgent/cli": "workspace:*",
     "@devgent/core": "workspace:*",
-    "@devgent/protocol": "workspace:*",
-    "@devgent/widget": "workspace:*",
-    "launch-editor": "^2.14.1"
+    "@devgent/plugin": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.19.21",
     "tsdown": "^0.22.2",
-    "tsx": "^4.22.4",
     "typescript": "^6.0.3",
-    "vite": "^8.0.16",
-    "vitest": "^4.1.8"
+    "vite": "^8.0.16"
   },
-  "peerDependencies": {
-    "vite": "^6.0.0 || ^7.0.0 || ^8.0.0"
-  }
+  "deprecated": "Use @devgent/plugin/vite instead."
 }
