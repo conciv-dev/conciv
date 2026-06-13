@@ -1,3 +1,4 @@
+import {z} from 'zod'
 import type {TestEvent, TestRunResult} from './test-types.js'
 
 // Runner-neutral test-runner contract. Core's test route + the widget card consume
@@ -31,6 +32,24 @@ export type TestRunnerAdapter = {
   id: string
   capabilities: TestRunnerCapabilities
   create: (cwd: string) => TestRunnerManager
+}
+
+// A runner has nothing to run (no runner installed in the app, or an unsupported API shape).
+// Adapters throw this; the test route renders it as a 422 instead of a 500.
+const RUNNER_UNAVAILABLE_TAG = 'devgent:runner-unavailable'
+export type RunnerUnavailableError = Error & {[RUNNER_UNAVAILABLE_TAG]: true; available: false}
+
+export function runnerUnavailableError(runnerId: string, reason: string): RunnerUnavailableError {
+  return Object.assign(new Error(`${runnerId} unavailable: ${reason}`), {
+    [RUNNER_UNAVAILABLE_TAG]: true as const,
+    available: false as const,
+  })
+}
+
+const UnavailableTagSchema = z.object({[RUNNER_UNAVAILABLE_TAG]: z.literal(true)})
+
+export function isRunnerUnavailable(e: unknown): e is RunnerUnavailableError {
+  return e instanceof Error && UnavailableTagSchema.safeParse(e).success
 }
 
 export function defineRunner<T extends TestRunnerAdapter>(adapter: T): T {

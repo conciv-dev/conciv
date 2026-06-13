@@ -2,9 +2,15 @@ import {spawn, type ChildProcess} from 'node:child_process'
 import {createInterface} from 'node:readline'
 import {fileURLToPath} from 'node:url'
 import {Readable} from 'node:stream'
-import {z} from 'zod'
-import type {Summary, TestError, TestRunResult, TestEvent, FileState} from '@devgent/protocol/test-types'
-import type {RunArgs, ListResult, UiServerInfo, TestRunnerManager} from '@devgent/protocol/runner-types'
+import type {Summary, TestRunResult, TestEvent, FileState} from '@devgent/protocol/test-types'
+import {
+  isRunnerUnavailable,
+  runnerUnavailableError,
+  type RunArgs,
+  type ListResult,
+  type UiServerInfo,
+  type TestRunnerManager,
+} from '@devgent/protocol/runner-types'
 import {ChildMessageSchema, type ChildMessage} from './child.js'
 
 // Runs vitest in a CLEAN child (NODE_OPTIONS + VIBE_* stripped) — running it in the dev
@@ -17,21 +23,8 @@ export type {RunArgs, ListResult, UiServerInfo, TestRunnerManager} from '@devgen
 export type SpawnRunner = (args: string[], cwd: string) => ChildProcess
 export type MakeVitestManagerOptions = {spawnRunner?: SpawnRunner}
 
-const VITEST_UNAVAILABLE_TAG = 'devgent:vitest-unavailable'
-export type VitestUnavailableError = Error & {[VITEST_UNAVAILABLE_TAG]: true; available: false}
-
-export function vitestUnavailableError(reason: string): VitestUnavailableError {
-  return Object.assign(new Error(`vitest unavailable: ${reason}`), {
-    [VITEST_UNAVAILABLE_TAG]: true as const,
-    available: false as const,
-  })
-}
-
-const UnavailableTagSchema = z.object({[VITEST_UNAVAILABLE_TAG]: z.literal(true)})
-
-export function isVitestUnavailable(e: unknown): e is VitestUnavailableError {
-  return e instanceof Error && UnavailableTagSchema.safeParse(e).success
-}
+const vitestUnavailableError = (reason: string) => runnerUnavailableError('vitest', reason)
+export const isVitestUnavailable = isRunnerUnavailable
 
 function defaultRunnerScript(): string {
   return fileURLToPath(new URL('./child.js', import.meta.url))
