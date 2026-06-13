@@ -10,6 +10,9 @@ import react from '@vitejs/plugin-react'
 // is no separate CSS asset to serve.
 export default defineConfig({
   plugins: [react()],
+  // React (and other deps) branch on process.env.NODE_ENV; vite's lib build doesn't replace
+  // it, so a bare `process` would throw in the host page. Pin it to production at bundle time.
+  define: {'process.env.NODE_ENV': JSON.stringify('production')},
   build: {
     lib: {
       entry: fileURLToPath(new URL('src/mount.tsx', import.meta.url)),
