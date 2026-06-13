@@ -1,6 +1,8 @@
 # Harness Seam Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+>
+> **HARD RULES (see the spec's "Coding conventions" — non-negotiable):** No casts (`as` except `as const`), no `!`, no IIFEs, no `index.ts`. **Zod for all parsed data** — h3 `readValidatedBody`/`getValidatedQuery` for HTTP, `Schema.safeParse(JSON.parse(...))` for NDJSON/stream-json/JSON; NEVER hand-roll `isRecord`/`typeof` data guards. Every interface ships a generic `defineX<T extends X>`; author through it (harness members `buildArgs`/`decode`/`history` are each their own interface + `defineHarnessArgs`/`...Decoder`/`...History`). Adapters in subfolders (`<id>/<id>.ts`), no `index.ts`. Pin **h3 2.0.1-rc.22**. Terse comments. Commit to `main`. **Verify each CLI's API (codex/gemini/opencode/pi) against real online docs, not guessing.**
 
 **Goal:** Extract the inline claude harness (currently wired inside `@devgent/core` per Plan 1) into a dedicated `@devgent/harness` package behind the capability-declaring `HarnessAdapter` interface, add a real **codex** proof adapter, ship **gemini-cli / opencode / pi** as capability-only stubs, and make `@devgent/core` feature-detect by capability (degrade gracefully when `permissionGate`, `transcriptHistory`, `resume`, or file `systemPrompt` are absent).
 

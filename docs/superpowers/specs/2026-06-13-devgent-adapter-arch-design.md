@@ -3,6 +3,48 @@
 **Date:** 2026-06-13
 **Status:** approved (design); implementation plan to follow
 
+## Coding conventions (HARD RULES — read first, non-negotiable)
+
+These were learned painfully. Follow them from the first line of code; do not wait to be told.
+
+1. **No type casts.** `as` is banned except `as const`. No angle-bracket casts. No `!` non-null
+   assertions. No IIFEs. No `index.ts` barrels (name files after contents; subpath exports point
+   at named files). Reach correctness via generics, discriminated unions, `satisfies`, and Zod.
+2. **Zod for ALL parsed/untrusted data — never hand-roll guards.** Do NOT write `isRecord` /
+   `JSON.parse(x) as T` / manual `typeof` field-poking to validate data.
+   - HTTP request bodies → h3 `readValidatedBody(event, Schema)` (auto-400) or
+     `readValidatedBody(event, Schema.safeParse)` when a malformed body must stay lenient.
+     Query → `getValidatedQuery(event, Schema)`.
+   - NDJSON / stream-json / on-disk JSON → `Schema.safeParse(JSON.parse(line))`.
+   - Wire-type schemas live in `@devgent/protocol`; TS types are **inferred** (`z.infer`) — one
+     source of truth. Route-local body schemas sit next to the route.
+   - The ONLY guards allowed are non-data ones: narrowing a caught `Error`, or a
+     dynamically-imported module's function surface (`z.custom`/`instanceof`). Everything that
+     parses data uses Zod.
+3. **`define*` factories for every interface/seam.** Each is generic: `defineX<T extends X>(x: T): T`.
+   Every implementation is authored through its `define*` — never a bare object/function literal.
+   Composed members are each their own named interface + factory (harness has
+   `HarnessArgsBuilder`/`HarnessDecoder`/`HarnessHistory`, each with `defineHarnessArgs`/`...Decoder`/`...History`).
+4. **All HTTP routes under `api/`**, grouped by domain. Route paths are `/api/...` (core is a
+   standalone backend on its own port — `/api` self-documents that). One naming convention: the
+   folder signals the layer, the entry file is named after its folder (`api/chat/chat.ts`), NO
+   mixed `-route`/`-gate` suffixes.
+5. **`@devgent/core` is bundler-agnostic.** It must not import vite/webpack/etc. Dev-server
+   inspection goes through the `BundlerBridge` interface (protocol), implemented in the plugin
+   packages. Group `core/src` by domain (chat/, harness/, runner/, page/, server/, editor/), not flat.
+6. **Verify library APIs against real docs (online), not `.d.ts` grepping or memory.** For h3
+   especially: pin **h3 2.0.1-rc.22** (2.0.0 is a broken publish). h3 v2 facts: `new H3()`;
+   `app.get/post(path, handler)`; handler gets `event`; **`event.req`** is the web `Request`
+   (`.json()`, `.method`, `.signal`, `.headers`) — NOT `event.request`; `event.url` is a URL;
+   set status with `event.res.status = N`; return a plain object → JSON; return
+   `new Response(readableStream, {headers})` for SSE (works with `text/event-stream`). Listener:
+   srvx `serve({fetch: app.fetch, port})`, then `server.url` (there is no `server.port` — parse it).
+7. **Terse comments.** No multi-line explanatory essays. One line where it earns its place.
+8. **DRY.** Extract shared schemas/helpers (e.g. claude content blocks → `claude/blocks.ts`).
+9. **Workflow.** Commit straight to `main` (no feature branches). Deliver the whole requested
+   scope in one pass (don't gate phase-by-phase). Verify with typecheck (fast); for the slow
+   vitest IT, verify the underlying path directly rather than blocking on cold-start.
+
 ## Problem
 
 The current codebase hard-wires three concrete tools into one Vite plugin:
