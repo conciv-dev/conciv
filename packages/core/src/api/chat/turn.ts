@@ -59,13 +59,16 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
     const chat = await readValidatedBody(event, ChatRequestSchema)
     const resumeSessionId = harness.capabilities.resume ? chat.sessionId || state.sessionId || null : null
     const origin = `http://${event.req.headers.get('host') ?? '127.0.0.1:3000'}`
-    const systemPrompt =
-      harness.capabilities.systemPrompt === 'file' ? (deps.systemPromptFile ?? '') : (deps.systemPromptText ?? '')
+    // systemPrompt delivery by capability: 'file' → the written path; 'flag' → raw text passed to
+    // buildArgs; 'none' → no channel, so prepend it to the first prompt instead.
+    const mode = harness.capabilities.systemPrompt
+    const sysText = mode === 'file' ? (deps.systemPromptFile ?? '') : (deps.systemPromptText ?? '')
+    const userText = lastUserText(chat)
     const args = harness.buildArgs({
-      prompt: lastUserText(chat),
+      prompt: mode === 'none' && sysText ? `${sysText}\n\n${userText}` : userText,
       cwd: deps.cwd,
       resumeSessionId,
-      systemPrompt,
+      systemPrompt: mode === 'none' ? '' : sysText,
       permissionUrl: harness.capabilities.permissionGate === 'hook' ? `${origin}/api/chat/permission` : undefined,
     })
     const child = deps.spawnHarness(args, deps.cwd)

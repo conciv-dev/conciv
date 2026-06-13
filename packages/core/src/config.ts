@@ -1,4 +1,4 @@
-import {CHAT_SYSTEM_PROMPT} from './harness/claude/system-prompt.js'
+import {CHAT_SYSTEM_PROMPT} from '@devgent/harness/claude'
 
 export interface DevgentConfig {
   enabled?: boolean

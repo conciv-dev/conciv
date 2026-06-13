@@ -3,7 +3,7 @@ import type {HarnessAdapter, HarnessChild} from '@devgent/protocol/harness-types
 import type {TestRunnerAdapter} from '@devgent/protocol/runner-types'
 import type {BundlerBridge} from '@devgent/protocol/bundler-types'
 import type {ResolvedDevgentConfig} from './config.js'
-import {getHarness} from './harness/registry.js'
+import {getHarness} from '@devgent/harness'
 import {getRunner} from './runner/registry.js'
 import {registerChatRoutes} from './api/chat/chat.js'
 import {registerPageRoutes} from './api/page/page.js'

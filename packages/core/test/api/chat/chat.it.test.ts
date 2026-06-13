@@ -8,7 +8,7 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {registerChatRoutes} from '../../../src/api/chat/chat.js'
-import {claudeAdapter} from '../../../src/harness/claude/adapter.js'
+import {claude} from '@devgent/harness/claude'
 import {acquireLock} from '../../../src/chat/lock.js'
 import {makeUiBus} from '../../../src/chat/ui-bus.js'
 
@@ -37,7 +37,7 @@ async function startServer(over: {argvFile?: string; lockDir?: string} = {}): Pr
     lockDir,
     previewId: 'it-preview',
     initialSessionId: '',
-    harness: claudeAdapter,
+    harness: claude,
     spawnHarness: (args, cwd) => {
       const child = spawn(process.execPath, [fakeClaude, ...args], {
         cwd,
