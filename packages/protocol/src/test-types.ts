@@ -49,7 +49,12 @@ export const TestRunResultSchema = z.object({
 export type TestRunResult = z.infer<typeof TestRunResultSchema>
 
 export const TestEventSchema = z.discriminatedUnion('type', [
-  z.object({type: z.literal('snapshot'), files: z.array(FileStateSchema), summary: SummarySchema, watching: z.boolean()}),
+  z.object({
+    type: z.literal('snapshot'),
+    files: z.array(FileStateSchema),
+    summary: SummarySchema,
+    watching: z.boolean(),
+  }),
   z.object({type: z.literal('run-start'), runId: z.string(), files: z.array(z.string())}),
   z.object({
     type: z.literal('test'),

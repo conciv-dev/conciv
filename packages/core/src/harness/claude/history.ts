@@ -24,7 +24,10 @@ const INTERNAL_MARKERS = ['VIBE_PROGRESS_TICK', 'NEEDS_INFO:', '<system-reminder
 const TranscriptRecordSchema = z
   .object({
     type: z.string(),
-    message: z.object({content: z.array(z.unknown()).optional()}).loose().optional(),
+    message: z
+      .object({content: z.array(z.unknown()).optional()})
+      .loose()
+      .optional(),
   })
   .loose()
 

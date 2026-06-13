@@ -148,7 +148,10 @@ type HarnessChild = {pid: number; stdout: Readable; stderr: Readable; kill(): vo
 // Each harness member is its OWN named interface with its OWN generic define* factory — never a
 // bare function/object literal. The adapter composes them.
 type HarnessArgsBuilder = (turn: HarnessTurn) => string[]
-type HarnessDecoder = (lines: AsyncIterable<string>, opts: {onSessionId(id: string): void}) => AsyncGenerator<StreamChunk>
+type HarnessDecoder = (
+  lines: AsyncIterable<string>,
+  opts: {onSessionId(id: string): void},
+) => AsyncGenerator<StreamChunk>
 type HarnessHistory = {transcriptPath(cwd: string, sessionId: string): string; parse(raw: string): UIMessage[]}
 // + defineHarnessArgs / defineHarnessDecoder / defineHarnessHistory (all generic <T extends …>)
 
@@ -311,8 +314,14 @@ package and passes it to `engine.start({bridge})`:
 ```ts
 // @devgent/protocol/bundler-types
 export type BundlerBridge = {
-  id: string                                            // 'vite' | 'webpack' | …
-  config(): {root: string; base: string; mode: string; aliases: {find: string; replacement: string}[]; plugins: string[]}
+  id: string // 'vite' | 'webpack' | …
+  config(): {
+    root: string
+    base: string
+    mode: string
+    aliases: {find: string; replacement: string}[]
+    plugins: string[]
+  }
   resolve(spec: string, importer?: string): Promise<{id: string | null}>
   moduleGraph(file: string): {url: string; importers: string[]; importedModules: string[]}[]
   transform(url: string): Promise<{code: string | null}>
@@ -320,13 +329,15 @@ export type BundlerBridge = {
   reload(file: string): Promise<void>
   restart(force?: boolean): Promise<void>
 }
-export function defineBundlerBridge<T extends BundlerBridge>(b: T): T { return b }
+export function defineBundlerBridge<T extends BundlerBridge>(b: T): T {
+  return b
+}
 ```
 
 - The Vite implementation (today's `tools-layer.ts`) lives in `@devgent/plugin-vite`
   (`@devgent/vite-plugin` until Plan 4) as `viteBridge` — **never in core**.
 - Core's `api/server/server.ts` calls `bridge.*` only. The CLI surface is `devgent tools
-  server …` (generic), replacing the old `devgent tools vite …`.
+server …` (generic), replacing the old `devgent tools vite …`.
 - A bridge is optional: `engine.start()` without one simply doesn't mount `/api/server/*`
   (a build-only bundler like rollup/esbuild has no live dev server to inspect).
 

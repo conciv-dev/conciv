@@ -22,7 +22,11 @@ async function getJson(url: string): Promise<unknown> {
 }
 
 async function postJson(url: string, body: unknown): Promise<unknown> {
-  const res = await fetch(url, {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify(body)})
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {'content-type': 'application/json'},
+    body: JSON.stringify(body),
+  })
   return res.json()
 }
 
@@ -33,31 +37,36 @@ const ChangesSchema = z.array(
 
 // Subscribe to /api/page/stream as the widget would, answering each query by POSTing back.
 // Resolves once the stream is open; the returned handle ends the connection.
+async function pumpStream(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  base: string,
+  answerFor: (kind: string) => unknown,
+): Promise<void> {
+  const decoder = new TextDecoder()
+  try {
+    for (;;) {
+      const {done, value} = await reader.read()
+      if (done) break
+      for (const line of decoder.decode(value).split('\n')) {
+        if (!line.startsWith('data:')) continue
+        const payload = line.slice('data:'.length).trim()
+        if (!payload) continue
+        const query: {requestId?: string; kind?: string} = JSON.parse(payload)
+        if (!query.requestId) continue
+        void postJson(`${base}/api/page/reply`, {requestId: query.requestId, data: answerFor(query.kind ?? '')})
+      }
+    }
+  } catch {
+    // aborted on teardown
+  }
+}
+
 async function connectWidget(base: string, answerFor: (kind: string) => unknown): Promise<{end: () => void}> {
   const ctrl = new AbortController()
   const res = await fetch(`${base}/api/page/stream`, {signal: ctrl.signal})
   const body = res.body
   if (!body) throw new Error('page-stream had no body')
-  const reader = body.getReader()
-  const decoder = new TextDecoder()
-  void (async () => {
-    try {
-      for (;;) {
-        const {done, value} = await reader.read()
-        if (done) break
-        for (const line of decoder.decode(value).split('\n')) {
-          if (!line.startsWith('data:')) continue
-          const payload = line.slice('data:'.length).trim()
-          if (!payload) continue
-          const query: {requestId?: string; kind?: string} = JSON.parse(payload)
-          if (!query.requestId) continue
-          void postJson(`${base}/api/page/reply`, {requestId: query.requestId, data: answerFor(query.kind ?? '')})
-        }
-      }
-    } catch {
-      // aborted on teardown
-    }
-  })()
+  void pumpStream(body.getReader(), base, answerFor)
   return {end: () => ctrl.abort()}
 }
 

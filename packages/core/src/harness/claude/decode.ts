@@ -14,7 +14,10 @@ const ClaudeEventSchema = z
   .object({
     type: z.string(),
     session_id: z.string().optional(),
-    message: z.object({content: z.array(z.unknown()).optional()}).loose().optional(),
+    message: z
+      .object({content: z.array(z.unknown()).optional()})
+      .loose()
+      .optional(),
   })
   .loose()
 type ClaudeEvent = z.infer<typeof ClaudeEventSchema>
@@ -52,7 +55,12 @@ function* blockChunks(part: unknown, ids: {n: number}): Generator<StreamChunk> {
   }
   const tool = ToolUseBlock.safeParse(part)
   if (tool.success) {
-    yield {type: EventType.TOOL_CALL_START, toolCallId: tool.data.id, toolCallName: tool.data.name, toolName: tool.data.name}
+    yield {
+      type: EventType.TOOL_CALL_START,
+      toolCallId: tool.data.id,
+      toolCallName: tool.data.name,
+      toolName: tool.data.name,
+    }
     yield {type: EventType.TOOL_CALL_ARGS, toolCallId: tool.data.id, delta: JSON.stringify(tool.data.input ?? {})}
     yield {type: EventType.TOOL_CALL_END, toolCallId: tool.data.id}
   }

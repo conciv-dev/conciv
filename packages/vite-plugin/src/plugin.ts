@@ -39,14 +39,57 @@ function makeViteBridge(server: ViteLike): BundlerBridge {
   })
 }
 
+type WidgetSetup = {url: string | undefined; serveBundled: boolean; file: string | null}
+
+function resolveWidgetSetup(options: DevgentConfig): WidgetSetup {
+  const file = resolveWidgetFile()
+  return {
+    url: options.widgetUrl ?? (file ? DEFAULT_WIDGET_ROUTE : undefined),
+    serveBundled: !options.widgetUrl && file !== null,
+    file,
+  }
+}
+
+function mountWidget(server: ViteDevServer, widget: WidgetSetup, previewId: string): void {
+  if (widget.url) server.middlewares.stack.unshift({route: '', handle: makeWidgetInject(widget.url, previewId)})
+  if (widget.serveBundled && widget.file) server.middlewares.use(makeWidgetServe(widget.file))
+}
+
+// Drop a `devgent` shim on the spawned agent's PATH → @devgent/cli, so its `devgent tools` Bash
+// calls resolve. Returns the augmented PATH; best-effort (falls back to PATH's `devgent`).
+function installCliShim(lockDir: string): string {
+  const binDir = join(lockDir, '.devgent', 'bin')
+  mkdirSync(binDir, {recursive: true})
+  try {
+    const shim = join(binDir, 'devgent')
+    rmSync(shim, {force: true})
+    symlinkSync(require.resolve('@devgent/cli/bin'), shim)
+  } catch {
+    // best effort
+  }
+  return `${binDir}${delimiter}${process.env.PATH ?? ''}`
+}
+
+function openInEditor(file: string, line: number): void {
+  launchEditor(`${file}:${line}`)
+}
+
+function bootEngine(server: ViteDevServer, options: DevgentConfig, agentPath: string): Promise<Engine> {
+  return start({
+    options,
+    root: server.config.root,
+    bridge: makeViteBridge(server),
+    launchEditor: openInEditor,
+    childEnv: (corePort) => ({...process.env, PATH: agentPath, DEVGENT_PORT: String(corePort)}),
+  })
+}
+
 // The devgent dev agent as a vite plugin. Boots @devgent/core (its own port) and injects the
-// widget head tags. Only applies in `serve` (dev); a no-op for production builds.
+// widget head tags. Only applies in `serve` (dev); a no-op for production builds. The two hooks
+// share `options` (the plugin's input) and `engine` (booted in configureServer, read in
+// transformIndexHtml) — the only state a vite plugin intrinsically carries.
 export function devgent(options: DevgentConfig = {}): Plugin {
-  const widgetFile = resolveWidgetFile()
-  const effectiveWidgetUrl = options.widgetUrl ?? (widgetFile ? DEFAULT_WIDGET_ROUTE : undefined)
-  const serveBundledWidget = !options.widgetUrl && widgetFile !== null
-  // configureServer boots the engine and learns its port; transformIndexHtml injects that port
-  // into the page. Two vite hooks, one value — shared over this closure.
+  const widget = resolveWidgetSetup(options)
   let engine: Engine | null = null
   return {
     name: 'devgent',
@@ -56,39 +99,14 @@ export function devgent(options: DevgentConfig = {}): Plugin {
       handler(_html, ctx) {
         const cfg = resolveConfig(options, ctx.server?.config.root ?? process.cwd())
         if (!cfg.enabled || !engine) return []
-        return htmlTags(engine.port, {previewId: cfg.previewId, widgetUrl: effectiveWidgetUrl})
+        return htmlTags(engine.port, {previewId: cfg.previewId, widgetUrl: widget.url})
       },
     },
     async configureServer(server: ViteDevServer) {
-      const root = server.config.root
-      const cfg = resolveConfig(options, root)
+      const cfg = resolveConfig(options, server.config.root)
       if (!cfg.enabled) return
-
-      if (effectiveWidgetUrl) {
-        server.middlewares.stack.unshift({route: '', handle: makeWidgetInject(effectiveWidgetUrl, cfg.previewId)})
-      }
-      if (serveBundledWidget && widgetFile) server.middlewares.use(makeWidgetServe(widgetFile))
-
-      // CLI shim on the spawned agent's PATH so `devgent tools` resolves to @devgent/cli.
-      const binDir = join(cfg.lockDir, '.devgent', 'bin')
-      mkdirSync(binDir, {recursive: true})
-      const shim = join(binDir, 'devgent')
-      try {
-        const binPath = require.resolve('@devgent/cli/bin')
-        rmSync(shim, {force: true})
-        symlinkSync(binPath, shim)
-      } catch {
-        // best effort — fall back to whatever `devgent` is on PATH.
-      }
-      const agentPath = `${binDir}${delimiter}${process.env.PATH ?? ''}`
-
-      engine = await start({
-        options,
-        root,
-        bridge: makeViteBridge(server),
-        launchEditor: (file, line) => launchEditor(`${file}:${line}`),
-        childEnv: (corePort) => ({...process.env, PATH: agentPath, DEVGENT_PORT: String(corePort)}),
-      })
+      mountWidget(server, widget, cfg.previewId)
+      engine = await bootEngine(server, options, installCliShim(cfg.lockDir))
       const booted = engine
       server.httpServer?.on('close', () => void booted.stop())
     },
