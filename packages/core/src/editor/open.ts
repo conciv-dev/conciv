@@ -1,8 +1,5 @@
-// The agnostic editor-opener used by /__pw/tools/open. The actual launch (e.g. via
-// `launch-editor`) is injected by the host — core never depends on a specific launcher — and
-// this wrapper debounces repeat opens of the same file:line within windowMs so the agent
-// can't spam editor tabs. (Extracted from the old vite-coupled tools-layer; this part is
-// bundler-agnostic.)
+// Debounced editor-opener for /api/open. The launcher is injected by the host (core depends on
+// none); the debounce stops the agent spamming editor tabs for the same file:line.
 
 export type LaunchFn = (file: string, line: number) => void
 

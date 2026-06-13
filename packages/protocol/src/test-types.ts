@@ -1,11 +1,7 @@
 import {z} from 'zod'
 
-// Wire types streamed over the test stream and returned by the run/status/list routes.
-// Mirrored verbatim by the widget's test card — never guessed there. The Zod schemas ARE the
-// contract: the runner child emits these as NDJSON and the manager validates them with
-// TestEventSchema. TS types are inferred (z.infer) — one source of truth. NO runner name
-// appears in any type below — these are the runner-blind wrapper contract every runner adapter
-// translates its native output into.
+// Runner-neutral wire types: the runner child emits these as NDJSON, the manager validates
+// with TestEventSchema, the widget card renders them. Schemas are the contract; types inferred.
 
 export const TestStateSchema = z.enum(['pass', 'fail', 'skip'])
 export type TestState = z.infer<typeof TestStateSchema>
@@ -34,9 +30,7 @@ export const FileStateSchema = z.object({
 })
 export type FileState = z.infer<typeof FileStateSchema>
 
-// One completed test. `run-end` carries the FULL list (every pass/fail/skip) so a card
-// rendered from a stored tool-result on reload can rebuild the whole tree — not just the
-// failures. `error` is present only for failures.
+// One completed test; `run-end` carries the full list so a reloaded card rebuilds the tree.
 export const TestRowSchema = z.object({
   file: z.string(),
   name: z.string(),
@@ -46,8 +40,7 @@ export const TestRowSchema = z.object({
 })
 export type TestRow = z.infer<typeof TestRowSchema>
 
-// The result returned by `devgent tools test run` (printed as the tool-result the widget
-// renders as a card) and by the run route. Carries the full tree so it's self-contained.
+// The result of `devgent tools test run` and the run route — the full self-contained tree.
 export const TestRunResultSchema = z.object({
   summary: SummarySchema,
   failures: z.array(TestErrorSchema),
@@ -77,8 +70,7 @@ export const TestEventSchema = z.discriminatedUnion('type', [
 ])
 export type TestEvent = z.infer<typeof TestEventSchema>
 
-// Structural subset of a Vitest v4 TestCase — only what parseFailure reads. This is NOT parsed
-// wire data (it's an in-process object the runner child inspects), so it stays a TS type.
+// Structural subset of a Vitest v4 TestCase — in-process (not parsed wire data), so a TS type.
 export type TestCaseLike = {
   name: string
   module: {moduleId: string}

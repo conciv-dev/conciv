@@ -1,12 +1,9 @@
 import type {StreamChunk} from '@tanstack/ai'
 import {aguiCustomFor, type UiSpec} from '@devgent/protocol/ui-types'
 
-// The UI bus injects agent-emitted generative-UI specs (from `devgent ui …` → POST
-// /__pw/chat/ui) onto the LIVE chat stream as AG-UI CUSTOM events. A chat turn runs through
-// `bus.run(claudeEvents)`, which merges Claude's transcoded events with any injected UI
-// events into one ordered stream (the lock guarantees a single active turn, so there is at
-// most one active channel). When the turn ends (Claude's stream completes), the merged
-// stream ends too, even if no UI was injected.
+// Merges agent-emitted generative-UI specs (POST /api/chat/ui) onto the live chat stream as
+// AG-UI CUSTOM events. `run(events)` interleaves the turn's events with injected UI; the lock
+// guarantees one active turn, so one active channel at a time.
 
 type Channel = {
   push: (chunk: StreamChunk) => void

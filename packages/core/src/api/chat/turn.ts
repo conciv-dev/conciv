@@ -47,7 +47,6 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
   const {harness, uiBus, state} = deps
 
   app.post('/api/chat/ui', async (event) => {
-    // readValidatedBody auto-400s on an invalid spec — no manual guard, no cast.
     const spec = await readValidatedBody(event, UiSpecSchema)
     return {renderId: spec.renderId, injected: uiBus.inject(spec)}
   })
@@ -76,8 +75,7 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
       abort.abort()
       child.kill()
     })
-    // harness.decode → AG-UI events → uiBus merge → TanStack's web ReadableStream SSE encoder.
-    // The handler RETURNS the web stream directly — no Readable.fromWeb, no pipeline, no cast.
+    // harness.decode → uiBus merge → web ReadableStream SSE, returned directly.
     const events = harness.decode(linesOf(child.stdout), {
       onSessionId: (id) => {
         state.sessionId = id

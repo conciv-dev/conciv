@@ -1,15 +1,9 @@
 import {z} from 'zod'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 
-// Generative-UI specs the chat agent emits via `devgent ui …`. Each spec is rendered as a
-// real component in the chat thread (a React island in the widget). The agent does NOT block
-// waiting for the answer — interactive components send the user's response as the next chat
-// message, so the normal `--resume` turn cycle is the return path. Specs are carried to the
-// widget as an AG-UI CUSTOM event (`devgent-ui`).
-//
-// The Zod schemas below ARE the contract: the `devgent ui` POST body is validated with
-// UiSpecSchema (h3 readValidatedBody), and the TypeScript types are inferred from the schemas —
-// one source of truth, no hand-rolled guards, no casts.
+// Generative-UI specs the chat agent emits via `devgent ui …`, rendered as components in the
+// chat thread and carried to the widget as an AG-UI CUSTOM event. The schemas are the contract;
+// types are inferred from them.
 
 const renderId = z.string().min(1)
 
@@ -45,18 +39,14 @@ export const UiFormSchema = z.object({
   title: z.string().optional(),
   fields: z.array(UiFormFieldSchema).min(1),
 })
-// Emitted internally by the risky-Bash gate (NOT by the `devgent ui` CLI). The widget answers
-// it via POST /api/chat/permission-decision (a blocking allow/deny that unblocks the PreToolUse
-// hook), unlike the other kinds whose answer is the user's next chat message.
+// Emitted by the risky-Bash gate; answered via POST /api/chat/permission-decision (blocking).
 export const UiApprovalSchema = z.object({
   kind: z.literal('approval'),
   renderId,
   question: z.string(),
   detail: z.string().optional(),
 })
-// A persistent test-results card, injected by the test route (NOT the `devgent ui` CLI). The
-// widget subscribes to the test stream for live deltas keyed by renderId. (Kind kept as
-// 'vitest' until Plan 3 generalizes the widget card to all runners.)
+// Test-results card injected by the test route. (Kind stays 'vitest' until Plan 3.)
 export const UiVitestSchema = z.object({kind: z.literal('vitest'), renderId})
 
 export const UiSpecSchema = z.discriminatedUnion('kind', [
@@ -86,8 +76,7 @@ export function aguiCustomFor(spec: UiSpec): StreamChunk {
   return {type: EventType.CUSTOM, name: DEVGENT_UI_EVENT, value: spec}
 }
 
-// Validate an untrusted spec (e.g. a non-h3 caller). Returns the typed spec or null. Route
-// handlers should prefer h3's readValidatedBody(event, UiSpecSchema) for the auto-400.
+// For non-h3 callers; route handlers use readValidatedBody(event, UiSpecSchema) directly.
 export function parseUiSpec(input: unknown): UiSpec | null {
   const result = UiSpecSchema.safeParse(input)
   return result.success ? result.data : null

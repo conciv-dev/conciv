@@ -2,19 +2,11 @@ import {z} from 'zod'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 import {TextBlock, ThinkingBlock, ToolUseBlock, ToolResultBlock} from './blocks.js'
 
-// Translate Claude's `--output-format stream-json` NDJSON into a TanStack AI AG-UI event
-// stream (`StreamChunk`s). We emit the protocol the library + widget already speak —
-// RUN_STARTED → (TEXT_MESSAGE_* | THINKING_* | TOOL_CALL_*)* → RUN_FINISHED — so the
-// widget's `fetchServerSentEvents` consumes it with zero custom glue.
-//
-// Claude's stream-json shapes are validated with Zod (no hand-rolled guards / casts): the
-// event envelope + each assistant content block + the tool_result block. Unknown blocks are
-// skipped (safeParse fails → no emit). We deliberately do NOT route this through `chat()`'s
-// agent loop: Claude runs its own tool loop, so TanStack AI here is purely transport/UI.
+// Translate Claude's `--output-format stream-json` NDJSON into the AG-UI StreamChunk stream the
+// widget speaks: RUN_STARTED → (TEXT | THINKING | TOOL_CALL)* → RUN_FINISHED. Shapes are
+// Zod-validated; unknown blocks are skipped.
 
 export type AguiStreamOpts = {
-  // Called with Claude's session id when its init/result event carries one, so the route
-  // can track which session to --resume next turn.
   onSessionId?: (id: string) => void
 }
 

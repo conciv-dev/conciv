@@ -1,14 +1,9 @@
-// Chat contracts for the devgent chat agent. The streaming protocol + message model are
-// TanStack AI's own types (AG-UI `StreamChunk`, `UIMessage`) — we do NOT invent a wire
-// format: the backend emits TanStack `StreamChunk`s via `toServerSentEventsStream` and the
-// widget consumes them with `fetchServerSentEvents` natively. Only the request/session
-// envelopes below are ours.
+// Chat contracts. The streaming protocol is TanStack AI's own (AG-UI StreamChunk) — only the
+// request/session envelopes below are ours.
 import {z} from 'zod'
 export type {StreamChunk, UIMessage, MessagePart} from '@tanstack/ai'
 
-// One posted chat message. The transport may send either a parts-based UIMessage or a plain
-// {role, content} model message, so both content and parts are optional; unknown extra keys
-// pass through (.loose) to stay tolerant of transport drift.
+// A posted message: parts-based UIMessage OR plain {role, content}; .loose tolerates drift.
 export const ChatMessageSchema = z
   .object({
     role: z.string(),
@@ -17,8 +12,7 @@ export const ChatMessageSchema = z
   })
   .loose()
 
-// POST /api/chat body (what the widget's fetchServerSentEvents transport sends). The Zod schema
-// is the contract — validated server-side via h3 readValidatedBody; the type is inferred.
+// POST /api/chat body.
 export const ChatRequestSchema = z.object({
   messages: z.array(ChatMessageSchema),
   sessionId: z.string().optional(),

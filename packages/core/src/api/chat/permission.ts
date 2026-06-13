@@ -4,24 +4,17 @@ import {z} from 'zod'
 import {bashDecision} from '../../chat/risk.js'
 import type {UiBus} from '../../chat/ui-bus.js'
 
-// PreToolUse hook payload (claude posts this) + the widget's allow/deny. safeParse-validated
-// so a malformed hook still gets a safe response rather than a 400 it can't handle.
 const HookBodySchema = z.object({tool_name: z.string().default(''), tool_input: z.unknown().optional()})
 const DecisionBodySchema = z.object({renderId: z.string().optional(), approved: z.boolean().default(false)})
-// The Bash tool's input shape we care about — the command string to risk-classify.
 const BashInputSchema = z.object({command: z.string()})
 
-// The risky-Bash approval gate. Safe commands run; risky ones surface a confirm card in the
-// chat (injected onto the live stream) and block until the user answers or we time out — fail
-// closed. The gate owns the pending-decisions map; the widget POSTs the answer to unblock it.
+// The risky-Bash approval gate: safe commands run; risky ones surface a confirm card and block
+// until the user answers or the timeout fires (fail closed).
 
 const APPROVAL_TIMEOUT_MS = 120_000
 
 export type PermissionGate = {
-  // Decide a PreToolUse Bash permission. Non-Bash tools are always allowed (edits run under
-  // acceptEdits). Blocks on a risky Bash command until the user answers or the timeout fires.
   decide(toolName: string, toolInput: unknown): Promise<'allow' | 'deny'>
-  // Resolve a pending decision with the user's answer (called by the widget's POST).
   resolve(renderId: string, approved: boolean): void
 }
 

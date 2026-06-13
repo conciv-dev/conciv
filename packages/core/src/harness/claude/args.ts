@@ -3,14 +3,10 @@ export type ClaudeArgsOptions = {
   cwd: string
   resumeSessionId: string | null
   appendSystemPromptFile?: string
-  // When set, register a PreToolUse http hook (via --settings) that POSTs each Bash tool to
-  // this URL for an allow/deny decision — the risky-op gate. Omitted → no gate.
-  permissionUrl?: string
+  permissionUrl?: string // when set, a PreToolUse http hook gates risky Bash to this URL
 }
 
-// The PreToolUse hook settings injected via --settings: an http hook on Bash that defers the
-// decision to the dev server's /__pw/chat/permission route. 600s timeout (the route itself
-// auto-denies sooner) so a real user approval has time to land.
+// PreToolUse http hook on Bash → the dev server's permission route. 600s (route denies sooner).
 function hookSettings(permissionUrl: string): string {
   return JSON.stringify({
     hooks: {
@@ -19,9 +15,7 @@ function hookSettings(permissionUrl: string): string {
   })
 }
 
-// Build the headless `claude -p` argv for a chat turn: streaming JSON, auto-accept edits
-// (git is the undo net), and the working tree as an allowed dir. --resume continues a
-// prior session when one is supplied (the agent's or the chat's own).
+// The headless `claude -p` argv: stream-json, acceptEdits (git is the undo net), cwd allowed.
 export function buildClaudeArgs(o: ClaudeArgsOptions): string[] {
   const args = [
     '-p',
@@ -31,10 +25,7 @@ export function buildClaudeArgs(o: ClaudeArgsOptions): string[] {
     '--verbose',
     '--permission-mode',
     'acceptEdits',
-    // acceptEdits auto-accepts file edits but Bash still prompts — and there's no one to
-    // approve in headless -p. Allow the agent's own `devgent tools` (page/vite access) and
-    // `devgent ui` (render generative UI in the chat) CLIs to run without approval; everything
-    // else still gates.
+    // Let the agent's own CLIs run unprompted; all other Bash still gates.
     '--allowedTools',
     'Bash(devgent tools:*)',
     'Bash(devgent ui:*)',

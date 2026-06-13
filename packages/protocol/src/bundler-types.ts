@@ -1,8 +1,6 @@
-// Bundler bridge contract. The agent can inspect + drive the live dev server via
-// `devgent tools server …` (config / resolve / module-graph / transform / urls / reload /
-// restart). Those operations are bundler-specific (Vite's module graph + HMR are nothing like
-// webpack's), so @devgent/core never imports a bundler — it consumes this interface, and each
-// bundler implements it in its own plugin package (e.g. viteBridge in @devgent/plugin-vite).
+// How the agent inspects + drives the live dev server (`devgent tools server …`). These ops
+// are bundler-specific, so core consumes this interface and each bundler implements it in its
+// own plugin package (e.g. viteBridge in @devgent/plugin-vite) — core never imports a bundler.
 
 export type BundlerConfig = {
   root: string
@@ -25,9 +23,6 @@ export type BundlerBridge = {
   restart(force?: boolean): Promise<void>
 }
 
-// Generic typed factory: every bundler bridge is authored through this helper (never a bare
-// object literal), mirroring defineHarness/defineRunner. <T extends BundlerBridge> preserves
-// the implementation's exact literal type.
 export function defineBundlerBridge<T extends BundlerBridge>(bridge: T): T {
   if (!bridge.id) throw new Error('bundler bridge: id is required')
   return bridge

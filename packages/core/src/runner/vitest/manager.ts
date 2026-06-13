@@ -7,29 +7,20 @@ import type {Summary, TestError, TestRunResult, TestEvent, FileState} from '@dev
 import type {RunArgs, ListResult, UiServerInfo, TestRunnerManager} from '@devgent/protocol/runner-types'
 import {ChildMessageSchema, type ChildMessage} from './child.js'
 
-// Drives the previewed app's vitest OUT OF PROCESS. the devgent dev server runs under an
-// import-in-the-middle preload (how the plugin is injected); embedding vitest in that same
-// process corrupts the live app's vite transforms (the app starts 500ing). So each request
-// spawns runner/child.js as a CLEAN child (NODE_OPTIONS + VIBE_* stripped), which streams
-// TestEvents as NDJSON on fd 3. The manager forwards them to the SSE bus as they arrive and
-// resolves run()/list() on the child's terminal message. On-demand (one child per run);
-// watch-on-save auto-rerun is a deferred follow-up (needs a persistent child).
+// Runs vitest in a CLEAN child (NODE_OPTIONS + VIBE_* stripped) — running it in the dev
+// server's IITM-preloaded process corrupts the live app. Child streams TestEvents as NDJSON
+// on fd 3; one child per run.
 
 export type {RunArgs, ListResult, UiServerInfo, TestRunnerManager} from '@devgent/protocol/runner-types'
 
-// Injectable spawn seam: production runs `node <built child.js>`; tests run the child via
-// tsx on the .ts source (no build needed). Returns a ChildProcess whose stdio[3] is the
-// NDJSON channel.
+// Production spawns the built child; tests inject a tsx-based spawn. stdio[3] is the NDJSON channel.
 export type SpawnRunner = (args: string[], cwd: string) => ChildProcess
 export type MakeVitestManagerOptions = {spawnRunner?: SpawnRunner}
 
-// Tagged error so the route can translate a missing/unsupported vitest (or a runner crash)
-// into a typed 422 instead of an opaque 500. Factory, not a class (functions-not-classes).
 const VITEST_UNAVAILABLE_TAG = 'devgent:vitest-unavailable'
 export type VitestUnavailableError = Error & {[VITEST_UNAVAILABLE_TAG]: true; available: false}
 
 export function vitestUnavailableError(reason: string): VitestUnavailableError {
-  // Built whole via Object.assign — its result type is exactly VitestUnavailableError, no cast.
   return Object.assign(new Error(`vitest unavailable: ${reason}`), {
     [VITEST_UNAVAILABLE_TAG]: true as const,
     available: false as const,
@@ -42,14 +33,10 @@ export function isVitestUnavailable(e: unknown): e is VitestUnavailableError {
   return e instanceof Error && UnavailableTagSchema.safeParse(e).success
 }
 
-// build output runner/child.js sits next to this module at runtime.
 function defaultRunnerScript(): string {
   return fileURLToPath(new URL('./child.js', import.meta.url))
 }
 
-// A clean child env: strip the dev server's IITM preload (NODE_OPTIONS=`… --import preload`)
-// and every VIBE_* so the runner is an ordinary process. Running vitest WITH the preload is
-// exactly what corrupts the dev server, so this stripping is the crux of the fix.
 function cleanEnv(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {...base}
   delete env.NODE_OPTIONS
@@ -83,16 +70,12 @@ const EMPTY_SUMMARY: Summary = {passed: 0, failed: 0, skipped: 0, durationMs: 0}
 export function makeVitestManager(cwd: string, options: MakeVitestManagerOptions = {}): TestRunnerManager {
   const spawnRunner = options.spawnRunner ?? defaultSpawnRunner
   const subscribers = new Set<(e: TestEvent) => void>()
-  // Last-run cache so status()/emitSnapshot() can answer between runs (a reconnecting
-  // widget recovers the latest tree + summary). files keyed by path → last state.
+  // status()/emitSnapshot() answer from this between runs.
   const cache: {last: TestRunResult; files: Map<string, FileState>} = {
     last: {summary: EMPTY_SUMMARY, failures: [], tests: []},
     files: new Map(),
   }
-  // The most recent run's full event sequence (run-start → … → run-end), kept so a widget
-  // that subscribes mid-run OR after it (e.g. the card is injected only once the run is
-  // already underway) is replayed the whole run and rebuilds the per-test tree — not just
-  // the file-level snapshot. Cleared at each run-start.
+  // Full event sequence of the last run, replayed to late subscribers. Cleared at run-start.
   const runBuffer: TestEvent[] = []
   const lifecycle: {child: ChildProcess | null} = {child: null}
 
@@ -111,8 +94,6 @@ export function makeVitestManager(cwd: string, options: MakeVitestManagerOptions
     runBuffer.push(e)
   }
 
-  // Spawn a runner child, forward its TestEvents to the bus as they arrive, and resolve with
-  // all messages once it exits. Rejects with a typed error if the child reports one.
   function driveChild(args: string[], forward: boolean): Promise<ChildMessage[]> {
     return new Promise((resolve, reject) => {
       const child = spawnRunner(args, cwd)
@@ -190,21 +171,16 @@ export function makeVitestManager(cwd: string, options: MakeVitestManagerOptions
   }
 
   function emitSnapshot(): TestEvent {
-    // watching:false — on-demand runs only (no persistent watcher yet).
     return {type: 'snapshot', files: [...cache.files.values()], summary: cache.last.summary, watching: false}
   }
 
-  // Deferred: serving @vitest/ui requires a resident vitest API server, which the
-  // out-of-process on-demand model doesn't keep. Always reports unavailable so the widget
-  // hides the link; never throws. (Revisit alongside the persistent-watch follow-up.)
+  // Deferred: @vitest/ui needs a resident vitest server the on-demand model doesn't keep.
   async function openUiServer(): Promise<UiServerInfo> {
     return {available: false}
   }
 
   function subscribeRaw(cb: (e: TestEvent) => void): () => void {
     subscribers.add(cb)
-    // Replay the latest run so a late subscriber rebuilds the full per-test tree (the
-    // snapshot the route sends first only carries file-level state). Harmless when empty.
     for (const e of runBuffer) cb(e)
     return () => subscribers.delete(cb)
   }

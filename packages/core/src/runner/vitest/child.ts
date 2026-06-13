@@ -5,13 +5,9 @@ import {writeSync} from 'node:fs'
 import {z} from 'zod'
 import {parseFailure, TestEventSchema, type Summary, type TestError, type TestRow, type TestCaseLike} from '@devgent/protocol/test-types'
 
-// The OUT-OF-PROCESS vitest runner. the devgent dev server runs with an import-in-the-middle
-// preload (how the plugin is injected); running vitest IN that process corrupts the live
-// app's module transforms (app starts 500ing). So the manager spawns THIS script as a
-// child with NODE_OPTIONS stripped — a clean process that embeds the previewed app's own
-// vitest, runs it, and streams TestEvents as NDJSON on fd 3 back to the manager, which
-// forwards them to the SSE bus. One child per request (on-demand); the child exits when
-// done. Child messages are TestEvent plus a `list` and an `error` control message.
+// The out-of-process vitest runner: a clean child (spawned by the manager with NODE_OPTIONS
+// stripped) that embeds the app's own vitest and streams TestEvents as NDJSON on fd 3. Running
+// vitest in the dev server's preloaded process would corrupt the live app. One child per run.
 
 // Control messages the child sends alongside TestEvents. Zod-validated by the manager.
 const ListFileSchema = z.object({file: z.string(), relPath: z.string(), lastState: z.string().optional()})
@@ -38,8 +34,7 @@ type VitestLike = {
   close: () => Promise<void>
 }
 
-// fd 3 is the dedicated NDJSON channel to the manager (stdout/stderr carry vitest's own
-// noise). writeSync keeps ordering deterministic and survives process teardown.
+// fd 3 is the NDJSON channel (stdout/stderr carry vitest's noise); writeSync keeps order.
 function send(msg: ChildMessage): void {
   writeSync(3, JSON.stringify(msg) + '\n')
 }
@@ -138,10 +133,7 @@ async function runTests(vitest: VitestLike, argv: string[]): Promise<void> {
   const failedOnly = argv.includes('--failed')
   if (testNamePattern) vitest.setGlobalTestNamePattern(testNamePattern)
   const specs = await vitest.globTestSpecifications(patterns.length > 0 ? patterns : undefined)
-  // `--failed` on a fresh child has no prior failures to narrow to, so it runs everything
-  // (the intuitive meaning of "re-run failing tests" when nothing is known-failing) rather
-  // than running zero and reporting a misleading all-pass. `failedOnly` is therefore a
-  // no-op here today; once a persistent runner caches failures it can narrow the set.
+  // A fresh child has no prior failures to narrow to, so --failed runs everything (no-op today).
   void failedOnly
   await vitest.runTestSpecifications(specs, patterns.length === 0)
   if (testNamePattern) vitest.resetGlobalTestNamePattern()

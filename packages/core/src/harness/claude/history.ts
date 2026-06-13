@@ -5,9 +5,7 @@ import type {MessagePart, UIMessage} from '@devgent/protocol/chat-types'
 import {defineHarnessHistory} from '@devgent/protocol/harness-types'
 import {TextBlock, ThinkingBlock, ToolUseBlock} from './blocks.js'
 
-// Claude transcript location + history parsing. Both live here so the claude adapter has a
-// single history module. transcriptPath says WHERE claude persists a session's JSONL;
-// parseHistory turns that JSONL into filtered, human-readable UIMessages.
+// Where claude persists a session's JSONL transcript, and how to parse it into UIMessages.
 
 // Claude encodes the project dir by replacing every non-alphanumeric path char with '-'.
 export function encodeProjectDir(cwd: string): string {
@@ -20,8 +18,7 @@ export function transcriptPath(cwd: string, sessionId: string, home: string = ho
   return join(home, '.claude', 'projects', encodeProjectDir(cwd), `${sessionId}.jsonl`)
 }
 
-// Internal turns we hide from the human-readable chat history: the injected progress ticks,
-// NEEDS_INFO sentinels, and system-reminder wrappers that the agent's iterate loop adds.
+// Internal turns hidden from human-readable history (progress ticks, sentinels, reminders).
 const INTERNAL_MARKERS = ['VIBE_PROGRESS_TICK', 'NEEDS_INFO:', '<system-reminder>']
 
 const TranscriptRecordSchema = z
@@ -76,9 +73,7 @@ function parseRecord(line: string): z.infer<typeof TranscriptRecordSchema> | nul
   }
 }
 
-// Parse a Claude session JSONL transcript into filtered, human-readable UIMessages. Drops
-// system/meta records and internal iterate/progress prompts. Skips bad lines (tolerant of
-// transcript-format drift).
+// Parse a claude JSONL transcript into filtered, human-readable UIMessages.
 export function parseHistory(jsonl: string): UIMessage[] {
   const out: UIMessage[] = []
   const idState = {n: 0}
