@@ -5,6 +5,8 @@ import {defineConfig} from 'tsdown'
 // spawns it as a fresh process via new URL('./child.js', import.meta.url), so it cannot be
 // bundled into its adapter. @devgent/protocol + zod stay external; the runner libs (vitest/
 // jest/playwright/node:test) are the previewed app's deps, resolved at runtime — never bundled.
+// vitest is fully implemented; jest/node-test/playwright are capability-only stubs (their
+// adapters throw on create, their child.ts are pre-wired placeholders) pending implementation.
 export default defineConfig({
   entry: [
     'src/registry.ts',
