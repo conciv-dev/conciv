@@ -1,0 +1,5 @@
+{
+  "name": "devgent-vitest-fixture-app",
+  "private": true,
+  "type": "module"
+}
