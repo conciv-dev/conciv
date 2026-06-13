@@ -1,10 +1,17 @@
 import {type JSX, useEffect, useRef, useState} from 'react'
-import type {RunResult, Summary, TestError, TestState, VitestEvent} from '@devgent/protocol/vitest-types'
+import {
+  TestEventSchema,
+  type TestRunResult,
+  type Summary,
+  type TestError,
+  type TestState,
+  type TestEvent,
+} from '@devgent/protocol/test-types'
 
-// The vitest results card, rendered in the chat thread AT the agent's `devgent tools vitest
-// run` tool-call. Two modes, one component:
+// The test-runner results card, rendered in the chat thread AT the agent's `devgent tools test
+// run` tool-call. Runner-blind: speaks TestEvent / TestRunResult only. Two modes, one component:
 //   - result === null  → the run is still active (tool-call present, no tool-result yet):
-//                         subscribe to /__pw/vitest/stream and build the tree live.
+//                         subscribe to /api/test-runner/stream and build the tree live.
 //   - result !== null  → the run finished (or we reloaded): render the full tree from the
 //                         tool-result JSON in the transcript. No SSE, fully persistent.
 // So results live in history at the right place AND stream live while running.
@@ -19,8 +26,8 @@ function relName(file: string): string {
 }
 
 function dotClass(state: TestState | 'running'): string {
-  if (state === 'running') return 'pw-vitest-dot pw-vitest-running'
-  return `pw-vitest-dot pw-vitest-${state}`
+  if (state === 'running') return 'pw-test-dot pw-test-running'
+  return `pw-test-dot pw-test-${state}`
 }
 
 function openLabel(error: TestError): string {
@@ -49,25 +56,35 @@ function groupByFile(tests: ReadonlyArray<Row & {file: string}>): FileGroup[] {
 }
 
 function testRowClass(state: Row['state']): string {
-  if (state === 'fail') return 'pw-vitest-test pw-vitest-test-fail'
-  return 'pw-vitest-test'
+  if (state === 'fail') return 'pw-test-test pw-test-test-fail'
+  return 'pw-test-test'
+}
+
+// SSE frames are untrusted — parse to unknown, validate with the protocol schema (no `as`).
+function parseTestEvent(raw: string): TestEvent | null {
+  try {
+    const result = TestEventSchema.safeParse(JSON.parse(raw))
+    return result.success ? result.data : null
+  } catch {
+    return null
+  }
 }
 
 function TestErrorBlock(props: {error: TestError; apiBase: string; onFix: (text: string) => void}): JSX.Element {
   const openInEditor = () =>
-    void fetch(`${props.apiBase}/__pw/tools/open`, {
+    void fetch(`${props.apiBase}/api/editor/open`, {
       method: 'POST',
       headers: {'content-type': 'application/json'},
       body: JSON.stringify({file: props.error.file, line: props.error.line}),
     })
   return (
-    <div className="pw-vitest-err">
+    <div className="pw-test-err">
       <pre>{props.error.message}</pre>
-      <div className="pw-vitest-actions">
-        <button className="pw-vitest-act" onClick={openInEditor}>
+      <div className="pw-test-actions">
+        <button className="pw-test-act" onClick={openInEditor}>
           ↗ Open {openLabel(props.error)}
         </button>
-        <button className="pw-vitest-act pw-vitest-fix" onClick={() => props.onFix(fixMessage(props.error))}>
+        <button className="pw-test-act pw-test-fix" onClick={() => props.onFix(fixMessage(props.error))}>
           ✦ Fix this
         </button>
       </div>
@@ -75,10 +92,10 @@ function TestErrorBlock(props: {error: TestError; apiBase: string; onFix: (text:
   )
 }
 
-export function VitestCard(props: {
+export function TestCard(props: {
   apiBase: string
   onFix: (text: string) => void
-  result: RunResult | null
+  result: TestRunResult | null
 }): JSX.Element {
   const [groups, setGroups] = useState<FileGroup[]>([])
   const [summary, setSummary] = useState<Summary>(EMPTY_SUMMARY)
@@ -99,7 +116,7 @@ export function VitestCard(props: {
     }
     setRunning(true)
     const map = live.current
-    const applyLive = (ev: VitestEvent) => {
+    const applyLive = (ev: TestEvent) => {
       if (ev.type === 'snapshot') {
         setSummary(ev.summary)
         return
@@ -123,30 +140,33 @@ export function VitestCard(props: {
         source.close()
       }
     }
-    const source = new EventSource(`${props.apiBase}/__pw/vitest/stream`)
-    source.addEventListener('message', (e) => applyLive(JSON.parse(e.data) as VitestEvent))
+    const source = new EventSource(`${props.apiBase}/api/test-runner/stream`)
+    source.addEventListener('message', (e) => {
+      const ev = parseTestEvent(e.data)
+      if (ev) applyLive(ev)
+    })
     return () => source.close()
   }, [props.result, props.apiBase])
 
   const toggleTest = (key: string) => setOpenTest((current) => (current === key ? null : key))
 
   return (
-    <div className="pw-vitest">
-      <div className="pw-vitest-bar">
+    <div className="pw-test">
+      <div className="pw-test-bar">
         {running ? (
-          <span className="pw-vitest-running-label">
-            <span className="pw-vitest-dot pw-vitest-running" aria-hidden="true" />
+          <span className="pw-test-running-label">
+            <span className="pw-test-dot pw-test-running" aria-hidden="true" />
             running
           </span>
         ) : null}
-        <span className="pw-vitest-pill pw-vitest-pass">{summary.passed} passed</span>
-        {summary.failed > 0 ? <span className="pw-vitest-pill pw-vitest-fail">{summary.failed} failed</span> : null}
-        {summary.skipped > 0 ? <span className="pw-vitest-pill pw-vitest-skip">{summary.skipped} skipped</span> : null}
+        <span className="pw-test-pill pw-test-pass">{summary.passed} passed</span>
+        {summary.failed > 0 ? <span className="pw-test-pill pw-test-fail">{summary.failed} failed</span> : null}
+        {summary.skipped > 0 ? <span className="pw-test-pill pw-test-skip">{summary.skipped} skipped</span> : null}
       </div>
       {groups.map((group) => (
         <div key={group.file}>
-          <div className="pw-vitest-file">
-            <span className="pw-vitest-fname">{relName(group.file)}</span>
+          <div className="pw-test-file">
+            <span className="pw-test-fname">{relName(group.file)}</span>
           </div>
           {group.tests.map((test) => {
             const key = `${group.file}::${test.name}`

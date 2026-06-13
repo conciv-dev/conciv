@@ -1,6 +1,6 @@
 // The devgent widget driven in a REAL browser against a REAL local SSE server. A tiny Node
 // http server serves an HTML page that embeds the vite-built global bundle, and answers the
-// /__pw/* routes the widget speaks: the chat-availability probe, a scripted AG-UI chat stream
+// /api/* routes the widget speaks: the chat-availability probe, a scripted AG-UI chat stream
 // (encoded with TanStack AI's own toServerSentEventsStream — the exact encoder the dev server
 // uses, so the widget's fetchServerSentEvents consumes it natively), a scripted vitest stream,
 // and the page-bus (push a PageQuery, resolve from the widget's reply). Real transport, real
@@ -103,17 +103,17 @@ describe('devgent widget (it) — real browser, real SSE', () => {
     server = createServer((req: IncomingMessage, res: ServerResponse) => {
       const url = req.url ?? ''
       // Probe → present, so the widget mounts the chat FAB + page-bus (production boot path).
-      if (url.startsWith('/__pw/chat/session')) {
+      if (url.startsWith('/api/chat/session')) {
         return writeJson(res, {sessionId: null, source: 'new', cwd: '/app', lock: {held: false, role: null}})
       }
-      if (url.startsWith('/__pw/chat/history')) return writeJson(res, [])
-      if (url === '/__pw/chat' && req.method === 'POST') return writeChatStream(res)
-      if (url === '/__pw/chat/permission-decision') return writeJson(res, {ok: true})
-      if (url === '/__pw/vitest/stream') return writeVitestStream(res)
-      if (url === '/__pw/tools/open') return writeJson(res, {ok: true})
-      if (url === '/__pw/tools/page-reply') return writeJson(res, {ok: true})
+      if (url.startsWith('/api/chat/history')) return writeJson(res, [])
+      if (url === '/api/chat' && req.method === 'POST') return writeChatStream(res)
+      if (url === '/api/chat/permission-decision') return writeJson(res, {ok: true})
+      if (url === '/api/test-runner/stream') return writeVitestStream(res)
+      if (url === '/api/editor/open') return writeJson(res, {ok: true})
+      if (url === '/api/page/reply') return writeJson(res, {ok: true})
       // Page-bus: as soon as the widget subscribes, push one query and keep the stream open.
-      if (url === '/__pw/tools/page-stream') {
+      if (url === '/api/page/stream') {
         res.writeHead(200, {
           'content-type': 'text/event-stream',
           'cache-control': 'no-cache',
@@ -158,7 +158,7 @@ describe('devgent widget (it) — real browser, real SSE', () => {
     await page.getByText(APPROVAL_QUESTION).waitFor({state: 'visible'})
 
     // Approving posts the blocking allow/deny decision back to the dev server.
-    const decision = page.waitForRequest((r) => r.url().includes('/__pw/chat/permission-decision'))
+    const decision = page.waitForRequest((r) => r.url().includes('/api/chat/permission-decision'))
     await page.getByRole('button', {name: 'Approve'}).click()
     const body = (await decision).postDataJSON() as {renderId: string; approved: boolean}
     expect(body.renderId).toBe('a1')
@@ -170,10 +170,10 @@ describe('devgent widget (it) — real browser, real SSE', () => {
     const page = await browser.newContext().then((c) => c.newPage())
     await page.goto(state.base)
     // The test-only seam mounts a standalone live card (result=null → subscribes to the stream).
-    await page.waitForFunction(() => '__DEVGENT_RENDER_VITEST_CARD__' in window)
+    await page.waitForFunction(() => '__DEVGENT_RENDER_TEST_CARD__' in window)
     await page.evaluate(() => {
-      const w = window as unknown as {__DEVGENT_RENDER_VITEST_CARD__?: () => void}
-      w.__DEVGENT_RENDER_VITEST_CARD__?.()
+      const w = window as unknown as {__DEVGENT_RENDER_TEST_CARD__?: () => void}
+      w.__DEVGENT_RENDER_TEST_CARD__?.()
     })
 
     await page.getByText('1 failed').waitFor({state: 'visible'})
@@ -186,7 +186,7 @@ describe('devgent widget (it) — real browser, real SSE', () => {
 
   it('answers a page-bus query against the live DOM and posts the reply', async () => {
     const page = await browser.newContext().then((c) => c.newPage())
-    const reply = page.waitForRequest((r) => r.url().includes('/__pw/tools/page-reply'))
+    const reply = page.waitForRequest((r) => r.url().includes('/api/page/reply'))
     await page.goto(state.base)
     const body = (await reply).postDataJSON() as {requestId: string; data: {text?: string}}
     expect(body.requestId).toBe('pb1')

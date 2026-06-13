@@ -1,7 +1,7 @@
 import {createRoot} from 'react-dom/client'
 import {createShadowRoot} from './shadow.js'
 import {ChatFeature} from './chat-shell.js'
-import {VitestCard} from './vitest-card.js'
+import {TestCard} from './test-card.js'
 import {initPageBus} from './page-bus.js'
 import {probeChatAvailable} from './chat-api.js'
 
@@ -14,16 +14,16 @@ function metaContent(name: string): string {
   return document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content ?? ''
 }
 
-type TestSeam = {__DEVGENT_RENDER_VITEST_CARD__?: () => void}
+type TestSeam = {__DEVGENT_RENDER_TEST_CARD__?: () => void}
 
-// Test-only seam (browser IT): render a standalone VitestCard in LIVE mode (result=null →
-// subscribes to /__pw/vitest/stream) into the widget's shadow root, so the IT exercises the
+// Test-only seam (browser IT): render a standalone TestCard in LIVE mode (result=null →
+// subscribes to /api/test-runner/stream) into the widget's shadow root, so the IT exercises the
 // card's real SSE → tree → expand-failure path without booting the full chat stack. The page
 // explicitly calls it; production pages never invoke it, so the card never appears otherwise.
-function mountVitestCardForTest(root: ShadowRoot, apiBase: string): void {
+function mountTestCardForTest(root: ShadowRoot, apiBase: string): void {
   const container = document.createElement('div')
   root.appendChild(container)
-  createRoot(container).render(<VitestCard apiBase={apiBase} onFix={() => {}} result={null} />)
+  createRoot(container).render(<TestCard apiBase={apiBase} onFix={() => {}} result={null} />)
 }
 
 export function mountWidget(): void {
@@ -31,7 +31,7 @@ export function mountWidget(): void {
   const {root} = createShadowRoot()
   const apiBase = metaContent('pw-api-base')
   const w = window as unknown as TestSeam
-  w.__DEVGENT_RENDER_VITEST_CARD__ = () => mountVitestCardForTest(root, apiBase)
+  w.__DEVGENT_RENDER_TEST_CARD__ = () => mountTestCardForTest(root, apiBase)
   // Chat + page-bus only exist on the devgent dev server. Probe first so a plain app (no
   // chat route) shows nothing instead of a dead FAB and a retrying EventSource.
   void probeChatAvailable(apiBase).then((available) => {

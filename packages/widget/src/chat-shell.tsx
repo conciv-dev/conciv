@@ -3,10 +3,10 @@ import {useChat, fetchServerSentEvents, createChatClientOptions} from '@tanstack
 import type {MessagePart, ToolCallPart, ToolCallState, ToolResultPart} from '@tanstack/ai-client'
 import {createChatApi} from './chat-api.js'
 import {GenUi} from './gen-ui.js'
-import {VitestCard} from './vitest-card.js'
+import {TestCard} from './test-card.js'
 import {Markdown} from './markdown.js'
 import {DEVGENT_UI_EVENT, type UiSpec} from '@devgent/protocol/ui-types'
-import type {RunResult} from '@devgent/protocol/vitest-types'
+import {TestRunResultSchema, type TestRunResult} from '@devgent/protocol/test-types'
 
 // Pull the Bash command out of a tool-call part (input.command, or parsed from arguments).
 function toolCommand(part: {input?: unknown; arguments?: string}): string {
@@ -29,23 +29,30 @@ function toolCommand(part: {input?: unknown; arguments?: string}): string {
   return ''
 }
 
-function parseRunResult(raw: string): RunResult | null {
+function parseRunResult(raw: string): TestRunResult | null {
   try {
-    const value: unknown = JSON.parse(raw)
-    if (value && typeof value === 'object' && 'summary' in value && 'tests' in value) return value as RunResult
-    return null
+    const result = TestRunResultSchema.safeParse(JSON.parse(raw))
+    return result.success ? result.data : null
   } catch {
     return null
   }
 }
 
-type VitestAnalysis = {
-  // tool-call id of a `vitest run` → its parsed result (null while the run is still active)
-  runResult: Map<string, RunResult | null>
-  // tool-call / tool-result ids belonging to ANY `vitest …` call — hidden from the thread
+type TestAnalysis = {
+  // tool-call id of a `test run` → its parsed result (null while the run is still active)
+  runResult: Map<string, TestRunResult | null>
+  // tool-call / tool-result ids belonging to ANY `tools test …` call — hidden from the thread
   // (the run renders as a card; list/status/stop are internal plumbing noise).
   hiddenCallIds: Set<string>
   hiddenResultIds: Set<string>
+}
+
+// The agent drives the runner via `devgent tools test …` (legacy alias: `tools vitest …`).
+function isTestCommand(command: string): boolean {
+  return command.includes('tools test') || command.includes('tools vitest')
+}
+function isRunCommand(command: string): boolean {
+  return command.includes('tools test run') || command.includes('tools vitest run')
 }
 
 function resultContent(part: MessagePart): string {
@@ -53,23 +60,23 @@ function resultContent(part: MessagePart): string {
   return typeof part.content === 'string' ? part.content : ''
 }
 
-// Decide, for one assistant message's parts, which vitest tool-calls become cards and which
+// Decide, for one assistant message's parts, which test-runner tool-calls become cards and which
 // raw tool blocks to hide. Results live in history as the run's tool-call/result.
-function analyzeVitest(parts: ReadonlyArray<MessagePart>): VitestAnalysis {
+function analyzeTests(parts: ReadonlyArray<MessagePart>): TestAnalysis {
   const resultByCallId = new Map<string, string>()
   for (const p of parts) {
     if (p.type === 'tool-result' && p.toolCallId) resultByCallId.set(p.toolCallId, resultContent(p))
   }
-  const runResult = new Map<string, RunResult | null>()
+  const runResult = new Map<string, TestRunResult | null>()
   const hiddenCallIds = new Set<string>()
   const hiddenResultIds = new Set<string>()
   for (const p of parts) {
     if (p.type !== 'tool-call' || !p.id) continue
     const command = toolCommand(p)
-    if (!command.includes('vitest')) continue
+    if (!isTestCommand(command)) continue
     hiddenCallIds.add(p.id)
     hiddenResultIds.add(p.id)
-    if (command.includes('vitest run')) {
+    if (isRunCommand(command)) {
       const raw = resultByCallId.get(p.id)
       runResult.set(p.id, raw ? parseRunResult(raw) : null)
     }
@@ -178,15 +185,15 @@ function PartView(props: {
   parts: ReadonlyArray<MessagePart>
   streaming: boolean
   apiBase: string
-  vitest: VitestAnalysis
+  tests: TestAnalysis
   onFix: (text: string) => void
 }): JSX.Element | null {
-  const {part, parts, index, vitest} = props
+  const {part, parts, index, tests} = props
   const lastTextIndex = parts.map((p) => p.type).lastIndexOf('text')
-  const isRunCard = part.type === 'tool-call' && part.id !== undefined && vitest.runResult.has(part.id)
+  const isRunCard = part.type === 'tool-call' && part.id !== undefined && tests.runResult.has(part.id)
 
-  if (part.type === 'tool-call' && part.id !== undefined && vitest.runResult.has(part.id)) {
-    return <VitestCard apiBase={props.apiBase} onFix={props.onFix} result={vitest.runResult.get(part.id) ?? null} />
+  if (part.type === 'tool-call' && part.id !== undefined && tests.runResult.has(part.id)) {
+    return <TestCard apiBase={props.apiBase} onFix={props.onFix} result={tests.runResult.get(part.id) ?? null} />
   }
   if (part.type === 'text') {
     return <TextPartView content={part.content} showCaret={props.streaming && index === lastTextIndex} />
@@ -200,10 +207,10 @@ function PartView(props: {
       </details>
     )
   }
-  if (part.type === 'tool-call' && !isRunCard && !vitest.hiddenCallIds.has(part.id)) {
+  if (part.type === 'tool-call' && !isRunCard && !tests.hiddenCallIds.has(part.id)) {
     return <ToolCall part={part} active={props.streaming} />
   }
-  if (part.type === 'tool-result' && !vitest.hiddenResultIds.has(part.toolCallId)) {
+  if (part.type === 'tool-result' && !tests.hiddenResultIds.has(part.toolCallId)) {
     return <ToolResult part={part} />
   }
   return null
@@ -215,8 +222,8 @@ function MessageParts(props: {
   apiBase: string
   onFix: (text: string) => void
 }): JSX.Element {
-  // Which tool-calls are vitest runs (→ card) and which vitest tool blocks to hide.
-  const vitest = useMemo(() => analyzeVitest(props.parts), [props.parts])
+  // Which tool-calls are test-runner runs (→ card) and which test tool blocks to hide.
+  const tests = useMemo(() => analyzeTests(props.parts), [props.parts])
   return (
     <>
       {props.parts.map((part, index) => (
@@ -227,7 +234,7 @@ function MessageParts(props: {
           parts={props.parts}
           streaming={props.streaming}
           apiBase={props.apiBase}
-          vitest={vitest}
+          tests={tests}
           onFix={props.onFix}
         />
       ))}

@@ -1123,10 +1123,10 @@
   outline: none;
   border-color: var(--pw-accent);
 }
-/* Live vitest results card (VitestPanel). Streams /__pw/vitest/stream into a file→test
+/* Live test-runner results card. Streams /api/test-runner/stream into a file→test
    tree: summary pills, a watching indicator, a Re-run button, and per-test rows that
    expand a failure's error block (left red border) with Open + Fix this actions. */
-.pw-vitest {
+.pw-test {
   align-self: stretch;
   border: 1px solid var(--pw-line);
   border-radius: var(--pw-r-md);
@@ -1141,7 +1141,7 @@
   pointer-events: auto;
   animation: pw-chat-msg-in 180ms var(--pw-ease);
 }
-.pw-vitest-bar {
+.pw-test-bar {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1150,40 +1150,40 @@
   border-bottom: 1px solid var(--pw-line);
   font-size: 12px;
 }
-.pw-vitest-pill {
+.pw-test-pill {
   padding: 1px 8px;
   border-radius: var(--pw-r-pill);
   font-weight: 600;
   font-size: 11px;
 }
-.pw-vitest-pass {
+.pw-test-pass {
   background: color-mix(in oklch, var(--pw-success) 18%, transparent);
   color: var(--pw-success);
 }
-.pw-vitest-fail {
+.pw-test-fail {
   background: color-mix(in oklch, var(--pw-danger) 18%, transparent);
   color: var(--pw-danger);
 }
-.pw-vitest-skip {
+.pw-test-skip {
   background: color-mix(in oklch, #d6c84a 20%, transparent);
   color: #d6c84a;
 }
-.pw-vitest-watch,
-.pw-vitest-running-label {
+.pw-test-watch,
+.pw-test-running-label {
   display: flex;
   align-items: center;
   gap: 5px;
   color: var(--pw-text-3);
   font-size: 11px;
 }
-.pw-vitest-watch-dot {
+.pw-test-watch-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
   background: var(--pw-success);
-  animation: pw-vitest-pulse 2s infinite;
+  animation: pw-test-pulse 2s infinite;
 }
-@keyframes pw-vitest-pulse {
+@keyframes pw-test-pulse {
   0% {
     box-shadow: 0 0 0 0 color-mix(in oklch, var(--pw-success) 40%, transparent);
   }
@@ -1194,16 +1194,16 @@
     box-shadow: 0 0 0 0 transparent;
   }
 }
-.pw-vitest-ui {
+.pw-test-ui {
   margin-left: auto;
   color: var(--pw-accent-link);
   font-size: 11px;
   text-decoration: none;
 }
-.pw-vitest-ui:hover {
+.pw-test-ui:hover {
   text-decoration: underline;
 }
-.pw-vitest-run {
+.pw-test-run {
   margin-left: auto;
   background: var(--pw-accent);
   color: var(--pw-on-accent);
@@ -1214,23 +1214,23 @@
   cursor: pointer;
   transition: background-color 120ms var(--pw-ease);
 }
-.pw-vitest-ui + .pw-vitest-run {
+.pw-test-ui + .pw-test-run {
   margin-left: 0;
 }
-.pw-vitest-run:hover {
+.pw-test-run:hover {
   background: var(--pw-accent-hi);
 }
-.pw-vitest-file {
+.pw-test-file {
   display: flex;
   align-items: center;
   gap: 9px;
   padding: 5px 12px;
   font-weight: 600;
 }
-.pw-vitest-fname {
+.pw-test-fname {
   color: var(--pw-text);
 }
-.pw-vitest-test {
+.pw-test-test {
   display: flex;
   align-items: center;
   gap: 9px;
@@ -1238,41 +1238,41 @@
   color: var(--pw-text-2);
   cursor: pointer;
 }
-.pw-vitest-test:hover {
+.pw-test-test:hover {
   background: var(--pw-fill);
 }
-.pw-vitest-test-fail {
+.pw-test-test-fail {
   background: color-mix(in oklch, var(--pw-danger) 10%, transparent);
 }
-.pw-vitest-dot {
+.pw-test-dot {
   width: 9px;
   height: 9px;
   border-radius: 50%;
   flex: 0 0 auto;
 }
-.pw-vitest-dot.pw-vitest-pass {
+.pw-test-dot.pw-test-pass {
   background: var(--pw-success);
 }
-.pw-vitest-dot.pw-vitest-fail {
+.pw-test-dot.pw-test-fail {
   background: var(--pw-danger);
 }
-.pw-vitest-dot.pw-vitest-skip {
+.pw-test-dot.pw-test-skip {
   background: #d6c84a;
 }
-.pw-vitest-dot.pw-vitest-running {
+.pw-test-dot.pw-test-running {
   width: 11px;
   height: 11px;
   background: transparent;
   border: 2px solid var(--pw-accent);
   border-top-color: transparent;
-  animation: pw-vitest-rot 0.7s linear infinite;
+  animation: pw-test-rot 0.7s linear infinite;
 }
-@keyframes pw-vitest-rot {
+@keyframes pw-test-rot {
   to {
     transform: rotate(360deg);
   }
 }
-.pw-vitest-err {
+.pw-test-err {
   margin: 0 12px 8px 36px;
   padding: 8px 10px;
   background: var(--pw-sunken);
@@ -1281,18 +1281,18 @@
   color: var(--pw-danger);
   font-size: 11.5px;
 }
-.pw-vitest-err pre {
+.pw-test-err pre {
   margin: 0;
   white-space: pre-wrap;
   word-break: break-word;
   font: inherit;
 }
-.pw-vitest-actions {
+.pw-test-actions {
   display: flex;
   gap: 7px;
   margin-top: 8px;
 }
-.pw-vitest-act {
+.pw-test-act {
   font: 11px/1 var(--pw-mono);
   padding: 4px 9px;
   border-radius: 5px;
@@ -1302,15 +1302,15 @@
   color: var(--pw-text);
   transition: background-color 120ms var(--pw-ease);
 }
-.pw-vitest-act:hover {
+.pw-test-act:hover {
   background: var(--pw-fill-strong);
 }
-.pw-vitest-fix {
+.pw-test-fix {
   background: var(--pw-accent-08);
   border-color: var(--pw-accent-line);
   color: var(--pw-accent-link);
 }
-.pw-vitest-fix:hover {
+.pw-test-fix:hover {
   background: var(--pw-accent-20);
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1326,9 +1326,9 @@
   .pw-chat-msg,
   .pw-chat-tool,
   .pw-genui,
-  .pw-vitest,
-  .pw-vitest-watch-dot,
-  .pw-vitest-dot.pw-vitest-running,
+  .pw-test,
+  .pw-test-watch-dot,
+  .pw-test-dot.pw-test-running,
   .pw-chat-glyph-spin,
   .pw-chat-glyph-ask,
   .pw-chat-caret,
