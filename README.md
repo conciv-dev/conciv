@@ -3,19 +3,20 @@
 An embeddable AI dev agent for your running app — **chat, page control, and live tests,
 injected into the page via a Vite plugin**.
 
-devgent spawns a headless `claude -p` loop behind a small set of `/__pw/*` HTTP routes on
-your dev server, and injects a React widget into the previewed page. From the widget you can
-chat with the agent, watch it think and call tools, approve risky commands, answer
-agent-generated UI prompts, and see live `vitest` result cards — all without leaving the app
-you're building.
+devgent boots a framework-free h3 engine (`@devgent/core`) behind a set of `/api/*` HTTP routes
+on its own dev port, spawns a headless harness (default `claude -p`), and injects a React widget
+into the previewed page. From the widget you can chat with the agent, watch it think and call
+tools, approve risky commands, answer agent-generated UI prompts, and see live test result cards
+— all without leaving the app you're building.
 
 ```
- ┌─────────────┐      /__pw/* (SSE + JSON)      ┌──────────────────┐
- │  browser    │ ◀──────────────────────────▶  │  vite dev server │
- │  widget     │   chat stream · page-bus ·     │  (@devgent/      │
- │ (React,     │   vitest stream · approvals    │   vite-plugin)   │
- │  shadow DOM)│                                │   → claude -p     │
+ ┌─────────────┐      /api/* (SSE + JSON)       ┌──────────────────┐
+ │  browser    │ ◀──────────────────────────▶  │  @devgent/core   │
+ │  widget     │   chat stream · page-bus ·     │  (h3 + srvx)     │
+ │ (React,     │   test stream · approvals      │   → harness      │
+ │  shadow DOM)│                                │   (claude/codex) │
  └─────────────┘                                └──────────────────┘
+   injected by @devgent/plugin (vite/webpack/…)
 ```
 
 > Status: early. Extracted from an internal preview tool and being generalized for any app.
@@ -53,12 +54,12 @@ preview.
 
 `claude` (the Claude Code CLI) must be on your `PATH` for the chat to answer.
 
-See [`apps/examples/kitchen-sink`](./apps/examples/kitchen-sink) for a complete, runnable host
-app (it serves the widget bundle from the `@devgent/widget` package via a tiny middleware):
+See [`apps/examples/tanstack-start`](./apps/examples/tanstack-start) for a complete, runnable
+host app:
 
 ```sh
 pnpm install
-pnpm --filter kitchen-sink dev
+pnpm --filter tanstack-start-example dev
 # open the printed URL, click the ✦ button
 ```
 
@@ -66,33 +67,35 @@ pnpm --filter kitchen-sink dev
 
 `devgent(options)` — every field is optional:
 
-| Option            | Default                  | Purpose                                                                |
-| ----------------- | ------------------------ | ---------------------------------------------------------------------- |
-| `enabled`         | `true`                   | Mount the agent. Gate it on dev mode in real apps.                     |
-| `widgetUrl`       | `DEVGENT_WIDGET_URL` env | `<script src>` for the injected widget bundle. Omit to skip injection. |
-| `claudePath`      | `"claude"`               | Path to the Claude Code CLI binary.                                    |
-| `lockDir`         | `process.cwd()`          | Holds `.devgent/{lock,sessions,bin}`.                                  |
-| `systemPrompt`    | built-in                 | Appended to each agent turn.                                           |
-| `previewId`       | `"local"`                | Correlates a resumable session.                                        |
-| `claudeSessionId` | –                        | Resume an existing thread.                                             |
+| Option         | Default                  | Purpose                                                                |
+| -------------- | ------------------------ | ---------------------------------------------------------------------- |
+| `enabled`      | `true`                   | Mount the agent. Gate it on dev mode in real apps.                     |
+| `harness`      | `"claude"`               | Harness adapter id (`claude`, `codex`, …).                             |
+| `harnessBin`   | adapter `binName`        | Override the harness binary on `PATH`.                                 |
+| `testRunner`   | `"vitest"`               | Test-runner adapter id.                                                |
+| `widgetUrl`    | `DEVGENT_WIDGET_URL` env | `<script src>` for the injected widget bundle. Omit to skip injection. |
+| `lockDir`      | `process.cwd()`          | Holds `.devgent/{agent.lock,sessions,bin}`.                            |
+| `systemPrompt` | built-in                 | Appended to each agent turn.                                           |
+| `previewId`    | `"local"`                | Correlates a resumable session.                                        |
+| `sessionId`    | –                        | Resume an existing thread.                                             |
 
 ## Routes (the wire contract)
 
-All under the `/__pw` prefix:
+All under the `/api` prefix on the core dev port:
 
-| Route                                                     | Method           | Purpose                                                   |
-| --------------------------------------------------------- | ---------------- | --------------------------------------------------------- |
-| `/__pw/chat`                                              | POST (SSE)       | The chat turn — AG-UI event stream.                       |
-| `/__pw/chat/session`                                      | GET              | Current session + lock; the widget's availability probe.  |
-| `/__pw/chat/history`                                      | GET              | Hydrate a resumed thread.                                 |
-| `/__pw/chat/permission`, `/__pw/chat/permission-decision` | POST             | Risky-command gate (PreToolUse hook ⇄ widget allow/deny). |
-| `/__pw/chat/ui`                                           | POST             | Inject agent-generated UI (`devgent ui …`).               |
-| `/__pw/chat/stop`                                         | POST             | Cancel the active turn.                                   |
-| `/__pw/tools/vitest/{list,run,status,stop}`               | POST/GET         | Drive the out-of-process vitest runner.                   |
-| `/__pw/vitest/stream`                                     | GET (SSE)        | Live test results.                                        |
-| `/__pw/tools/vite/*`                                      | –                | Vite graph / resolve / transform / reload / restart.      |
-| `/__pw/tools/page-stream`, `/__pw/tools/page-reply`       | GET (SSE) / POST | Page-bus: the agent reads and drives the live DOM.        |
-| `/__pw/tools/open`                                        | POST             | Open a file in the editor.                                |
+| Route                                                   | Method           | Purpose                                                                 |
+| ------------------------------------------------------- | ---------------- | ----------------------------------------------------------------------- |
+| `/api/chat`                                             | POST (SSE)       | The chat turn — AG-UI event stream.                                     |
+| `/api/chat/session`                                     | GET              | Current session + lock; the widget's availability probe.                |
+| `/api/chat/history`                                     | GET              | Hydrate a resumed thread.                                               |
+| `/api/chat/permission`, `/api/chat/permission-decision` | POST             | Risky-command gate (PreToolUse hook ⇄ widget allow/deny).               |
+| `/api/chat/ui`                                          | POST             | Inject agent-generated UI (`devgent ui …`).                             |
+| `/api/chat/stop`                                        | POST             | Cancel the active turn.                                                 |
+| `/api/test-runner/{list,run,status,stop,ui}`            | POST/GET         | Drive the out-of-process test runner.                                   |
+| `/api/test-runner/stream`                               | GET (SSE)        | Live test results.                                                      |
+| `/api/server/*`                                         | GET/POST         | BundlerBridge: config / resolve / graph / transform / reload / restart. |
+| `/api/page/*`                                           | GET (SSE) / POST | Page-bus: the agent reads and drives the live DOM.                      |
+| `/api/editor/open`                                      | POST             | Open a file in the editor.                                              |
 
 ## Develop
 
