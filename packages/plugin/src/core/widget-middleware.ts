@@ -53,18 +53,26 @@ function toBuffer(chunk: unknown): Buffer | null {
   return null
 }
 
+// Coerce an unknown header value to OutgoingHttpHeader (string | number | string[]).
+function toHeaderValue(v: unknown): OutgoingHttpHeader {
+  if (typeof v === 'string' || typeof v === 'number') return v
+  if (Array.isArray(v) && v.every((x): x is string => typeof x === 'string')) return v
+  return String(v)
+}
+
 // writeHead headers come in two shapes: an OutgoingHttpHeaders object, or a flat
 // [k, v, k, v, …] array (srvx / TanStack Start's runtime uses the array form). Normalize both
 // to [name, value] pairs.
 function headerPairs(headers: unknown): Array<[string, OutgoingHttpHeader]> {
   if (Array.isArray(headers)) {
-    return headers.reduce<Array<[string, OutgoingHttpHeader]>>((pairs, _x, i, arr) => {
-      if (i % 2 === 0 && i + 1 < arr.length) pairs.push([String(arr[i]), arr[i + 1] as OutgoingHttpHeader])
-      return pairs
-    }, [])
+    const pairs: Array<[string, OutgoingHttpHeader]> = []
+    for (let i = 0; i + 1 < headers.length; i += 2) pairs.push([String(headers[i]), toHeaderValue(headers[i + 1])])
+    return pairs
   }
   if (headers && typeof headers === 'object') {
-    return Object.entries(headers).filter(([, v]) => v !== undefined) as Array<[string, OutgoingHttpHeader]>
+    return Object.entries(headers)
+      .filter(([, v]) => v !== undefined)
+      .map(([k, v]): [string, OutgoingHttpHeader] => [k, toHeaderValue(v)])
   }
   return []
 }
@@ -80,7 +88,7 @@ function contentTypeFromPairs(pairs: Array<[string, OutgoingHttpHeader]>): strin
 
 function trailingCallback(args: ReadonlyArray<unknown>): (() => void) | undefined {
   const last = args[args.length - 1]
-  return typeof last === 'function' ? (last as () => void) : undefined
+  return typeof last === 'function' ? () => void last() : undefined
 }
 
 // Inject the widget into every text/html response by buffering the body and inserting the tags
@@ -94,9 +102,12 @@ export function makeWidgetInject(widgetUrl: string, previewId: string): Middlewa
   const tags = widgetTags(widgetUrl, previewId)
   return (_req, res, next) => {
     const chunks: Buffer[] = []
-    const realWrite = res.write.bind(res)
-    const realEnd = res.end.bind(res)
-    const realWriteHead = res.writeHead.bind(res)
+    const realWrite = res.write
+    const realEnd = res.end
+    const realWriteHead = res.writeHead
+    // Forward to an original overloaded method without re-spreading into its overloads (which
+    // can't be typed without a cast) — Reflect.apply dispatches dynamically; R is inferred per call.
+    const forward = <R>(fn: (...a: never[]) => R, args: unknown[]): R => Reflect.apply(fn, res, args)
     // 'passthrough' once we know it's non-html (stream as-is); 'buffer' otherwise (html or still
     // unknown — capture the body, decide at end). Latched on the first writeHead/write/end.
     const state: {mode: 'undecided' | 'buffer' | 'passthrough'} = {mode: 'undecided'}
@@ -107,33 +118,34 @@ export function makeWidgetInject(widgetUrl: string, previewId: string): Middlewa
       state.mode = isNonHtml(ct) ? 'passthrough' : 'buffer'
     }
 
-    res.writeHead = function patchedWriteHead(
-      this: ServerResponse,
-      ...args: Parameters<ServerResponse['writeHead']>
-    ): ServerResponse {
+    // Patched methods typed via their own property type (contextual typing → no cast); passthrough
+    // forwards to the captured original via forward(). Restoring them in end() is assignment-compatible.
+    const patchedWriteHead = (...args: unknown[]): ServerResponse => {
       const status = typeof args[0] === 'number' ? args[0] : res.statusCode
       const pairs = headerPairs(args.find((x, i) => i > 0 && x !== null && typeof x === 'object'))
       ensureMode(contentTypeFromPairs(pairs))
-      if (state.mode === 'passthrough') return realWriteHead(...args)
+      if (state.mode === 'passthrough') return forward(realWriteHead, args)
       // Buffer/defer: record status + headers so end() can flush them with the injected length.
       res.statusCode = status
       for (const [k, v] of pairs) res.setHeader(k, v)
       return res
-    } as ServerResponse['writeHead']
+    }
+    res.writeHead = patchedWriteHead
 
-    res.write = function patchedWrite(this: ServerResponse, ...args: Parameters<ServerResponse['write']>): boolean {
+    const patchedWrite = (...args: unknown[]): boolean => {
       ensureMode('')
-      if (state.mode === 'passthrough') return realWrite(...args)
+      if (state.mode === 'passthrough') return forward(realWrite, args)
       const buf = toBuffer(args[0])
       if (buf) chunks.push(buf)
       const cb = trailingCallback(args)
       if (cb) cb()
       return true
-    } as ServerResponse['write']
+    }
+    res.write = patchedWrite
 
-    res.end = function patchedEnd(this: ServerResponse, ...args: Parameters<ServerResponse['end']>): ServerResponse {
+    const patchedEnd = (...args: unknown[]): ServerResponse => {
       ensureMode('')
-      if (state.mode === 'passthrough') return realEnd(...args)
+      if (state.mode === 'passthrough') return forward(realEnd, args)
       const tail = toBuffer(args[0])
       if (tail) chunks.push(tail)
       const cb = trailingCallback(args)
@@ -149,8 +161,9 @@ export function makeWidgetInject(widgetUrl: string, previewId: string): Middlewa
       res.writeHead = realWriteHead
       res.removeHeader('transfer-encoding')
       res.setHeader('content-length', Buffer.byteLength(out))
-      return cb ? realEnd(out, cb) : realEnd(out)
-    } as ServerResponse['end']
+      return cb ? forward(realEnd, [out, cb]) : forward(realEnd, [out])
+    }
+    res.end = patchedEnd
 
     next()
   }
