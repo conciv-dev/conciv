@@ -2,22 +2,55 @@ import {describe, it, expect, afterAll} from 'vitest'
 import {z} from 'zod'
 import {H3} from 'h3'
 import {serve, type Server} from 'srvx'
-import {fileURLToPath} from 'node:url'
-import {dirname, join} from 'node:path'
-import {makeVitestManager} from '../../../src/test-runner/vitest/manager.js'
+import {runnerUnavailableError, type TestRunnerManager, type ListResult} from '@devgent/protocol/runner-types'
+import type {TestEvent, TestRunResult} from '@devgent/protocol/test-types'
 import {registerTestRunnerRoutes} from '../../../src/api/test-runner/test-runner.js'
-import {tsxSpawnRunner, errorSpawnRunner} from '../../helpers.js'
 
-// Real srvx server hosting the test-runner routes over the real manager + fixture. Proves the
-// JSON routes and the 422 "runner unavailable" translation end-to-end.
+// Route IT over a real srvx server. The runner is faked at the TestRunnerManager seam so this
+// proves the HTTP layer (JSON routes + the 422 "runner unavailable" translation) in isolation;
+// the real vitest execution is covered by @devgent/test-runner's own vitest IT.
 
-const fixture = join(dirname(fileURLToPath(import.meta.url)), '../../fixtures/vitest-app')
+const FILES: ListResult = {
+  files: [
+    {file: '/app/fail.test.ts', relPath: 'fail.test.ts'},
+    {file: '/app/pass.test.ts', relPath: 'pass.test.ts'},
+  ],
+}
+const RESULT: TestRunResult = {
+  summary: {passed: 1, failed: 1, skipped: 0, durationMs: 3},
+  failures: [{file: '/app/fail.test.ts', name: 'fails', message: 'boom', stack: 'boom'}],
+  tests: [],
+}
+const EMPTY: TestRunResult = {summary: {passed: 0, failed: 0, skipped: 0, durationMs: 0}, failures: [], tests: []}
+const SNAPSHOT: TestEvent = {type: 'snapshot', files: [], summary: EMPTY.summary, watching: false}
 
-const ListSchema = z.object({files: z.array(z.object({relPath: z.string()}))})
-const RunSchema = z.object({summary: z.object({failed: z.number()})})
-const UnavailableSchema = z.object({available: z.boolean(), error: z.string().default('')})
+// A working fake manager + one that fails the typed "unavailable" way. Plain objects against the
+// TestRunnerManager interface — the route's only contract.
+function fakeManager(): TestRunnerManager {
+  return {
+    list: async () => FILES,
+    run: async () => RESULT,
+    status: () => RESULT,
+    subscribeRaw: () => () => {},
+    emitSnapshot: () => SNAPSHOT,
+    openUiServer: async () => ({available: false}),
+    stop: async () => {},
+  }
+}
+function unavailableManager(): TestRunnerManager {
+  const fail = () => Promise.reject(runnerUnavailableError('vitest', "Cannot find module 'vitest/node'"))
+  return {
+    list: fail,
+    run: fail,
+    status: () => EMPTY,
+    subscribeRaw: () => () => {},
+    emitSnapshot: () => SNAPSHOT,
+    openUiServer: async () => ({available: false}),
+    stop: async () => {},
+  }
+}
 
-async function startServer(mgr: ReturnType<typeof makeVitestManager>): Promise<{server: Server; base: string}> {
+async function startServer(mgr: TestRunnerManager): Promise<{server: Server; base: string}> {
   const app = new H3()
   registerTestRunnerRoutes(app, mgr)
   const server = serve({fetch: app.fetch, port: 0, hostname: '127.0.0.1'})
@@ -25,15 +58,17 @@ async function startServer(mgr: ReturnType<typeof makeVitestManager>): Promise<{
   return {server, base: new URL(server.url ?? '').origin}
 }
 
-describe('test-runner routes over a real srvx server + real fixture (IT)', () => {
-  const mgr = makeVitestManager(fixture, {spawnRunner: tsxSpawnRunner})
-  const ready = startServer(mgr)
+const ListSchema = z.object({files: z.array(z.object({relPath: z.string()}))})
+const RunSchema = z.object({summary: z.object({failed: z.number()})})
+const UnavailableSchema = z.object({available: z.boolean(), error: z.string().default('')})
+
+describe('test-runner routes over a real srvx server (IT)', () => {
+  const ready = startServer(fakeManager())
   afterAll(async () => {
-    await mgr.stop()
     await (await ready).server.close()
   })
 
-  it('GET /api/test-runner/list returns the fixture files', async () => {
+  it('GET /api/test-runner/list returns the runner files', async () => {
     const {base} = await ready
     const body = ListSchema.parse(await (await fetch(`${base}/api/test-runner/list`)).json())
     expect(body.files.map((f) => f.relPath).toSorted()).toEqual(['fail.test.ts', 'pass.test.ts'])
@@ -52,10 +87,8 @@ describe('test-runner routes over a real srvx server + real fixture (IT)', () =>
 })
 
 describe('test-runner routes when the runner can not init (IT) — graceful 422, not 500', () => {
-  const mgr = makeVitestManager(fixture, {spawnRunner: errorSpawnRunner("Cannot find module 'vitest/node'")})
-  const ready = startServer(mgr)
+  const ready = startServer(unavailableManager())
   afterAll(async () => {
-    await mgr.stop()
     await (await ready).server.close()
   })
 
