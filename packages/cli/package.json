@@ -1,0 +1,35 @@
+{
+  "name": "@devgent/cli",
+  "version": "0.0.0",
+  "description": "The devgent agent-facing CLI: `devgent tools` (drive the live page/vite/tests) and `devgent ui` (render interactive UI in the chat). citty command tree, zod-validated args.",
+  "license": "MIT",
+  "bin": {
+    "devgent": "./dist/bin.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    "./bin": "./dist/bin.js"
+  },
+  "scripts": {
+    "build": "tsdown && chmod +x dist/bin.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@clack/prompts": "1.5.1",
+    "@devgent/protocol": "workspace:*",
+    "citty": "0.2.2",
+    "consola": "3.4.2",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.7",
+    "tsdown": "0.22.2",
+    "typescript": "5.9.3",
+    "vitest": "4.1.8"
+  }
+}
