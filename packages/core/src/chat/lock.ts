@@ -1,16 +1,16 @@
 import {mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 
-// The shared `<lockDir>/.devgent/claude.lock` that serializes the chat agent and the agent's
-// `iterate`: two processes appending to one claude session id at once corrupt its JSONL,
-// so only one may hold a claude run at a time. The file records the live holder's role +
-// pid; a lock whose pid is dead is treated as free (crash recovery).
+// The shared `<lockDir>/.devgent/agent.lock` that serializes the chat agent and the agent's
+// `iterate`: two processes appending to one agent session id at once corrupt its transcript,
+// so only one may hold an agent run at a time. The file records the live holder's role +
+// pid; a lock whose pid is dead is treated as free (crash recovery). Harness-agnostic.
 
 export type LockRole = 'iterate' | 'chat'
 export type LockState = {held: boolean; role: LockRole | null; pid: number | null}
 
 function lockPath(lockDir: string): string {
-  return join(lockDir, '.devgent', 'claude.lock')
+  return join(lockDir, '.devgent', 'agent.lock')
 }
 
 function pidAlive(pid: number): boolean {

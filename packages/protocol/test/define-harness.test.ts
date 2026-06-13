@@ -10,32 +10,31 @@ const base = {
 }
 
 describe('defineHarness (generic typed factory + dev invariant)', () => {
-  it('returns the adapter unchanged when capabilities match methods', () => {
+  it('returns the adapter unchanged when capabilities match members', () => {
     const adapter = defineHarness({
       ...base,
       capabilities: {resume: false, permissionGate: 'none', transcriptHistory: false, systemPrompt: 'none'},
     })
     expect(adapter.id).toBe('x')
     // `in` checks key absence against the generic-preserved literal type — no widening, no cast.
-    expect('transcriptPath' in adapter).toBe(false)
+    expect('history' in adapter).toBe(false)
   })
 
-  it('throws when transcriptHistory is true but transcriptPath/parseHistory are missing', () => {
+  it('throws when transcriptHistory is true but no history implementation is provided', () => {
     expect(() =>
       defineHarness({
         ...base,
         capabilities: {resume: false, permissionGate: 'none', transcriptHistory: true, systemPrompt: 'none'},
       }),
-    ).toThrow(/transcriptHistory requires transcriptPath \+ parseHistory/)
+    ).toThrow(/transcriptHistory requires a history implementation/)
   })
 
-  it('accepts a transcriptHistory harness that provides both methods', () => {
+  it('accepts a transcriptHistory harness that provides a history implementation', () => {
     const adapter = defineHarness({
       ...base,
       capabilities: {resume: false, permissionGate: 'none', transcriptHistory: true, systemPrompt: 'none'},
-      transcriptPath: () => '/p',
-      parseHistory: () => [],
+      history: {transcriptPath: () => '/p', parse: () => []},
     })
-    expect(typeof adapter.transcriptPath).toBe('function')
+    expect(typeof adapter.history?.transcriptPath).toBe('function')
   })
 })

@@ -1,4 +1,4 @@
-export type ChatClaudeOptions = {
+export type ClaudeArgsOptions = {
   prompt: string
   cwd: string
   resumeSessionId: string | null
@@ -22,7 +22,7 @@ function hookSettings(permissionUrl: string): string {
 // Build the headless `claude -p` argv for a chat turn: streaming JSON, auto-accept edits
 // (git is the undo net), and the working tree as an allowed dir. --resume continues a
 // prior session when one is supplied (the agent's or the chat's own).
-export function buildChatClaudeArgs(o: ChatClaudeOptions): string[] {
+export function buildClaudeArgs(o: ClaudeArgsOptions): string[] {
   const args = [
     '-p',
     o.prompt,

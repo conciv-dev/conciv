@@ -23,7 +23,7 @@ function parseLine(line: string): Record<string, unknown> | null {
   const trimmed = line.trim()
   if (!trimmed) return null
   try {
-    const v = JSON.parse(trimmed) as unknown
+    const v: unknown = JSON.parse(trimmed)
     return isRecord(v) ? v : null
   } catch {
     return null
@@ -88,7 +88,8 @@ export async function* claudeToAguiEvents(
       opts.onSessionId?.(e.session_id)
     }
     if (e.type === 'assistant' && isRecord(e.message)) {
-      const content = (e.message as {content?: unknown}).content
+      // isRecord narrowed e.message to Record<string, unknown>, so .content reads as unknown — no cast.
+      const content = e.message.content
       if (Array.isArray(content)) {
         for (const part of content) {
           if (isRecord(part)) yield* blockChunks(part, ids)
@@ -96,7 +97,7 @@ export async function* claudeToAguiEvents(
       }
     }
     if (e.type === 'user' && isRecord(e.message)) {
-      yield* toolResultChunks((e.message as {content?: unknown}).content, ids)
+      yield* toolResultChunks(e.message.content, ids)
     }
   }
   yield {type: EventType.RUN_FINISHED, threadId, runId, finishReason: 'stop'}
