@@ -48,18 +48,3 @@ export async function viteTransform(server: ViteLike, url: string) {
 export function viteUrls(server: ViteLike) {
   return server.resolvedUrls ?? {local: [], network: []}
 }
-
-export type LaunchFn = (file: string, line: number) => void
-
-// Returns an opener that suppresses a repeat open of the same file:line within windowMs,
-// so the agent can't spam editor tabs.
-export function makeEditorOpener(launch: LaunchFn, windowMs: number, now: () => number) {
-  const seen = new Map<string, number>()
-  return (file: string, line = 1): void => {
-    const key = `${file}:${line}`
-    const last = seen.get(key) ?? -Infinity
-    if (now() - last < windowMs) return
-    seen.set(key, now())
-    launch(file, line)
-  }
-}

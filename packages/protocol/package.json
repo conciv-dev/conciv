@@ -32,6 +32,10 @@
       "types": "./dist/runner-types.d.ts",
       "import": "./dist/runner-types.js"
     },
+    "./bundler-types": {
+      "types": "./dist/bundler-types.d.ts",
+      "import": "./dist/bundler-types.js"
+    },
     "./page-protocol": {
       "types": "./dist/page-protocol.d.ts",
       "import": "./dist/page-protocol.js"

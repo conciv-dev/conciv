@@ -10,6 +10,7 @@ export default defineConfig({
     'src/vitest-types.ts',
     'src/harness-types.ts',
     'src/runner-types.ts',
+    'src/bundler-types.ts',
     'src/page-protocol.ts',
   ],
   format: 'esm',

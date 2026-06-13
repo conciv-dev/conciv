@@ -59,7 +59,7 @@ without touching the others.
 ### Package layout (~12 packages)
 
 ```
-@devgent/protocol      types only: HarnessAdapter, TestRunnerManager, TestEvent, chat/ui/page
+@devgent/protocol      types only: HarnessAdapter, TestRunnerManager, BundlerBridge, TestEvent, chat/ui/page
 @devgent/core          h3 + srvx engine — /__pw routes, lock, session, uiBus, registry wiring
 @devgent/harness       claude, codex (+ gemini-cli/opencode/pi stubs) via subpaths
 @devgent/runner        vitest, jest, node-test, playwright via subpaths
@@ -250,6 +250,56 @@ Each bundler package (`@devgent/plugin-vite`, `-webpack`, `-rspack`, `-rollup`, 
 single named file re-exporting the matching unplugin entry, e.g. `vite.ts`:
 `export {default} from '@devgent/plugin-core/vite'` (i.e. `unplugin.vite`). Adding a bundler =
 one new 1-file package once `plugin-core` declares that hook.
+
+### Seam 3b — Bundler bridge (`@devgent/core` stays bundler-agnostic)
+
+Beyond boot + HTML injection, the agent can **inspect and drive the live dev server** via
+`devgent tools server …` (config, resolve, module-graph, transform, urls, reload, restart).
+Those operations are bundler-specific — Vite's module graph + HMR are nothing like webpack's.
+So **`@devgent/core` must not import Vite**. The dev-server operations are abstracted behind a
+`BundlerBridge` interface in `@devgent/protocol`; each bundler implements it in its own plugin
+package and passes it to `engine.start({bridge})`:
+
+```ts
+// @devgent/protocol/bundler-types
+export type BundlerBridge = {
+  id: string                                            // 'vite' | 'webpack' | …
+  config(): {root: string; base: string; mode: string; aliases: {find: string; replacement: string}[]; plugins: string[]}
+  resolve(spec: string, importer?: string): Promise<{id: string | null}>
+  moduleGraph(file: string): {url: string; importers: string[]; importedModules: string[]}[]
+  transform(url: string): Promise<{code: string | null}>
+  urls(): {local: string[]; network: string[]}
+  reload(file: string): Promise<void>
+  restart(force?: boolean): Promise<void>
+}
+export function defineBundlerBridge<T extends BundlerBridge>(b: T): T { return b }
+```
+
+- The Vite implementation (today's `tools-layer.ts`) lives in `@devgent/plugin-vite`
+  (`@devgent/vite-plugin` until Plan 4) as `viteBridge` — **never in core**.
+- Core's `server/server-route.ts` calls `bridge.*` only. The CLI surface is `devgent tools
+  server …` (generic), replacing the old `devgent tools vite …`.
+- A bridge is optional: `engine.start()` without one simply doesn't mount `/__pw/tools/server/*`
+  (a build-only bundler like rollup/esbuild has no live dev server to inspect).
+
+### `@devgent/core` internal layout (domain-grouped, mirrors the seam packages)
+
+Core's `src/` is grouped by domain — **not flat** — and the `harness/` and `runner/` subfolders
+mirror the future `@devgent/harness` / `@devgent/runner` packages so Plans 2 & 3 are near-straight
+moves:
+
+```
+core/src/
+  engine.ts            start() + htmlTags() — composition root
+  app.ts               makeApp(): h3 wiring
+  config.ts
+  chat/    chat-route.ts  session-store.ts  lock.ts  risk.ts  ui-bus.ts
+  harness/ registry.ts  claude/{adapter,args,decode,history,system-prompt}.ts   → @devgent/harness
+  runner/  registry.ts  manager.ts  child.ts  test-route.ts                       → @devgent/runner
+  page/    page-route.ts  journal.ts          (page-bus — agnostic)
+  server/  server-route.ts                    (consumes BundlerBridge — agnostic)
+  editor/  open.ts                            (makeEditorOpener — agnostic)
+```
 
 ## Data flow (unchanged in shape, now adapter-driven)
 
