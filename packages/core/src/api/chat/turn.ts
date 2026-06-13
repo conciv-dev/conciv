@@ -5,11 +5,11 @@ import {toServerSentEventsStream, type StreamChunk} from '@tanstack/ai'
 import type {HarnessAdapter, HarnessChild} from '@devgent/protocol/harness-types'
 import {UiSpecSchema} from '@devgent/protocol/ui-types'
 import {ChatRequestSchema} from '@devgent/protocol/chat-types'
-import {acquireLock, readLock, releaseLock} from './lock.js'
-import {writeSession} from './session-store.js'
-import type {UiBus} from './ui-bus.js'
+import {acquireLock, readLock, releaseLock} from '../../chat/lock.js'
+import {writeSession} from '../../chat/session-store.js'
+import type {UiBus} from '../../chat/ui-bus.js'
 import {lastUserText} from './messages.js'
-import type {SessionState} from './session-route.js'
+import type {SessionState} from './session.js'
 
 export type SpawnHarness = (args: string[], cwd: string) => HarnessChild
 

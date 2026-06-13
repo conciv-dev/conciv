@@ -1,8 +1,8 @@
 import {randomUUID} from 'node:crypto'
 import {type H3, readValidatedBody} from 'h3'
 import {z} from 'zod'
-import {bashDecision} from './risk.js'
-import type {UiBus} from './ui-bus.js'
+import {bashDecision} from '../../chat/risk.js'
+import type {UiBus} from '../../chat/ui-bus.js'
 
 // PreToolUse hook payload (claude posts this) + the widget's allow/deny. safeParse-validated
 // so a malformed hook still gets a safe response rather than a 400 it can't handle.

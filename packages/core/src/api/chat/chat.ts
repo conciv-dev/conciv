@@ -1,9 +1,9 @@
 import type {H3} from 'h3'
 import type {HarnessAdapter} from '@devgent/protocol/harness-types'
-import {makeUiBus, type UiBus} from './ui-bus.js'
-import {readSession} from './session-store.js'
-import {makePermissionGate, registerPermissionRoutes} from './permission-gate.js'
-import {registerSessionRoutes, type SessionState} from './session-route.js'
+import {makeUiBus, type UiBus} from '../../chat/ui-bus.js'
+import {readSession} from '../../chat/session-store.js'
+import {makePermissionGate, registerPermissionRoutes} from './permission.js'
+import {registerSessionRoutes, type SessionState} from './session.js'
 import {registerTurnRoutes, type SpawnHarness} from './turn.js'
 
 export type {SpawnHarness} from './turn.js'

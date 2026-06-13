@@ -3,7 +3,7 @@ import {type H3, getValidatedQuery} from 'h3'
 import {z} from 'zod'
 import type {HarnessAdapter} from '@devgent/protocol/harness-types'
 import type {ChatSession} from '@devgent/protocol/chat-types'
-import {readLock} from './lock.js'
+import {readLock} from '../../chat/lock.js'
 
 const HistoryQuerySchema = z.object({sessionId: z.string().optional()})
 
