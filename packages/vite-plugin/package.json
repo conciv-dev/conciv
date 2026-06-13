@@ -26,18 +26,19 @@
   "dependencies": {
     "@devgent/cli": "workspace:*",
     "@devgent/protocol": "workspace:*",
-    "@tanstack/ai": "0.28.0",
-    "launch-editor": "2.14.1"
+    "@devgent/widget": "workspace:*",
+    "@tanstack/ai": "^0.28.0",
+    "launch-editor": "^2.14.1"
   },
   "devDependencies": {
-    "@types/node": "22.19.7",
-    "tsdown": "0.22.2",
-    "tsx": "4.21.0",
-    "typescript": "5.9.3",
-    "vite": "7.0.0",
-    "vitest": "4.1.8"
+    "@types/node": "^22.19.21",
+    "tsdown": "^0.22.2",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vitest": "^4.1.8"
   },
   "peerDependencies": {
-    "vite": ">=7"
+    "vite": "^6.0.0 || ^7.0.0 || ^8.0.0"
   }
 }

@@ -31,7 +31,6 @@ export function mountWidget(): void {
   const {root} = createShadowRoot()
   const apiBase = metaContent('pw-api-base')
   const w = window as unknown as TestSeam
-  // oxlint-disable-next-line no-underscore-dangle -- contract name for the browser-IT seam
   w.__DEVGENT_RENDER_VITEST_CARD__ = () => mountVitestCardForTest(root, apiBase)
   // Chat + page-bus only exist on the devgent dev server. Probe first so a plain app (no
   // chat route) shows nothing instead of a dead FAB and a retrying EventSource.

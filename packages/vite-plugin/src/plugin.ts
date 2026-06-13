@@ -12,6 +12,7 @@ import {makeUiBus} from './ui-bus.js'
 import {makeVitestManager} from './vitest-manager.js'
 import {makeVitestRoute} from './vitest-route.js'
 import {resolveConfig, type DevgentConfig} from './config.js'
+import {DEFAULT_WIDGET_ROUTE, makeWidgetInject, makeWidgetServe} from './widget-middleware.js'
 
 const require = createRequire(import.meta.url)
 
@@ -28,6 +29,17 @@ function headTags(previewId: string, widgetUrl: string | undefined): HtmlTagDesc
   return tags
 }
 
+// Resolve the bundled @devgent/widget global so the plugin can serve it itself — a host app
+// then needs only the plugin (no widgetUrl, no static-serve wiring). Returns null if the
+// widget isn't installed; callers fall back to an explicit config.widgetUrl (e.g. a CDN).
+function resolveWidgetFile(): string | null {
+  try {
+    return require.resolve('@devgent/widget/global')
+  } catch {
+    return null
+  }
+}
+
 function serverPort(server: ViteDevServer): number {
   const addr = server.httpServer?.address() as AddressInfo | string | null | undefined
   if (addr && typeof addr === 'object') return addr.port
@@ -38,6 +50,12 @@ function serverPort(server: ViteDevServer): number {
 // /__pw/* HTTP surface and (optionally) injects the widget into the page. Only applies in
 // `serve` (dev); it is a no-op for production builds.
 export function devgent(options: DevgentConfig = {}): Plugin {
+  const widgetFile = resolveWidgetFile()
+  // What we inject + serve. An explicit config.widgetUrl (e.g. a CDN) wins and is injected
+  // as-is; otherwise we serve the bundled widget ourselves at DEFAULT_WIDGET_ROUTE. If neither
+  // is available, no UI is injected (the /__pw surface still works headless).
+  const effectiveWidgetUrl = options.widgetUrl ?? (widgetFile ? DEFAULT_WIDGET_ROUTE : undefined)
+  const serveBundledWidget = !options.widgetUrl && widgetFile !== null
   return {
     name: 'devgent',
     apply: 'serve',
@@ -46,13 +64,23 @@ export function devgent(options: DevgentConfig = {}): Plugin {
       handler(_html, ctx) {
         const cfg = resolveConfig(options, ctx.server?.config.root ?? process.cwd())
         if (!cfg.enabled) return []
-        return headTags(cfg.previewId, cfg.widgetUrl)
+        return headTags(cfg.previewId, effectiveWidgetUrl)
       },
     },
     configureServer(server) {
       const root = server.config.root
       const cfg = resolveConfig(options, root)
       if (!cfg.enabled) return
+
+      // Inject the widget into every html response — works for SSR frameworks (TanStack Start,
+      // no static index.html) AND plain index.html (where transformIndexHtml already injected,
+      // so the inject middleware sees the marker and skips). Unshifted onto the connect stack so
+      // it wraps the response BEFORE the framework's html middleware writes it, regardless of
+      // plugin order. Serve the bundled widget too, so the host app needs only the plugin.
+      if (effectiveWidgetUrl) {
+        server.middlewares.stack.unshift({route: '', handle: makeWidgetInject(effectiveWidgetUrl, cfg.previewId)})
+      }
+      if (serveBundledWidget && widgetFile) server.middlewares.use(makeWidgetServe(widgetFile))
 
       // Write the agent system prompt once; the chat route appends it to each turn.
       const stateDir = join(cfg.lockDir, '.devgent')
