@@ -125,6 +125,37 @@ importers:
         specifier: ^4.1.8
         version: 4.1.8(@types/node@22.19.21)(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4))
 
+  packages/core:
+    dependencies:
+      '@devgent/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@tanstack/ai':
+        specifier: ^0.28.0
+        version: 0.28.0
+      h3:
+        specifier: 2.0.1-rc.22
+        version: 2.0.1-rc.22
+      srvx:
+        specifier: ^0.11.16
+        version: 0.11.16
+    devDependencies:
+      '@types/node':
+        specifier: ^22.19.21
+        version: 22.19.21
+      tsdown:
+        specifier: ^0.22.2
+        version: 0.22.2(tsx@4.22.4)(typescript@6.0.3)
+      tsx:
+        specifier: ^4.22.4
+        version: 4.22.4
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.8
+        version: 4.1.8(@types/node@22.19.21)(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4))
+
   packages/protocol:
     dependencies:
       '@tanstack/ai':
@@ -1859,6 +1890,16 @@ packages:
 
   h3@2.0.1-rc.20:
     resolution: {integrity: sha512-28ljodXuUp0fZovdiSRq4G9OgrxCztrJe5VdYzXAB7ueRvI7pIUqLU14Xi3XqdYJ/khXjfpUOOD2EQa6CmBgsg==}
+    engines: {node: '>=20.11.1'}
+    hasBin: true
+    peerDependencies:
+      crossws: ^0.4.1
+    peerDependenciesMeta:
+      crossws:
+        optional: true
+
+  h3@2.0.1-rc.22:
+    resolution: {integrity: sha512-Esv0DMIuPkCTSWCA0vO73vcTqwzH1wjSrAO1TXNu/K3up1sZHa9EKMapbmxCDYBeymC3fVTk4qxp7ogQWQ+KgA==}
     engines: {node: '>=20.11.1'}
     hasBin: true
     peerDependencies:
@@ -3880,6 +3921,11 @@ snapshots:
   graceful-fs@4.2.11: {}
 
   h3@2.0.1-rc.20:
+    dependencies:
+      rou3: 0.8.1
+      srvx: 0.11.16
+
+  h3@2.0.1-rc.22:
     dependencies:
       rou3: 0.8.1
       srvx: 0.11.16

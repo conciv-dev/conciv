@@ -1,0 +1,43 @@
+{
+  "name": "@devgent/core",
+  "version": "0.0.0",
+  "description": "The devgent engine: a framework-free h3 + srvx server exposing the /__pw HTTP surface, with harness + test-runner registry seams.",
+  "license": "MIT",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/engine.d.ts",
+      "import": "./dist/engine.js"
+    },
+    "./engine": {
+      "types": "./dist/engine.d.ts",
+      "import": "./dist/engine.js"
+    },
+    "./config": {
+      "types": "./dist/config.d.ts",
+      "import": "./dist/config.js"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@devgent/protocol": "workspace:*",
+    "@tanstack/ai": "^0.28.0",
+    "h3": "2.0.1-rc.22",
+    "srvx": "^0.11.16"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.21",
+    "tsdown": "^0.22.2",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  }
+}
