@@ -31,10 +31,10 @@
     "lint": "oxlint"
   },
   "dependencies": {
-    "@tanstack/ai": "0.28.0"
+    "@tanstack/ai": "^0.28.0"
   },
   "devDependencies": {
-    "tsdown": "0.22.2",
-    "typescript": "5.9.3"
+    "tsdown": "^0.22.2",
+    "typescript": "^6.0.3"
   }
 }

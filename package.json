@@ -14,15 +14,21 @@
     "format:check": "oxfmt --check ."
   },
   "devDependencies": {
-    "@types/node": "22.19.7",
-    "oxfmt": "0.54.0",
-    "oxlint": "1.69.0",
-    "turbo": "2.9.18",
-    "typescript": "5.9.3",
-    "vitest": "4.1.8"
+    "@types/node": "^22.19.21",
+    "oxfmt": "^0.54.0",
+    "oxlint": "^1.69.0",
+    "turbo": "^2.9.18",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
   },
   "engines": {
     "node": ">=22"
   },
-  "packageManager": "pnpm@10.33.2"
+  "packageManager": "pnpm@10.33.2",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "lightningcss"
+    ]
+  }
 }
