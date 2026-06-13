@@ -131,12 +131,18 @@ importers:
         specifier: ^0.28.0
         version: 0.28.0
     devDependencies:
+      '@types/node':
+        specifier: ^22.19.21
+        version: 22.19.21
       tsdown:
         specifier: ^0.22.2
         version: 0.22.2(tsx@4.22.4)(typescript@6.0.3)
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
+      vitest:
+        specifier: ^4.1.8
+        version: 4.1.8(@types/node@22.19.21)(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4))
 
   packages/vite-plugin:
     dependencies:

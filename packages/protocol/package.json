@@ -16,9 +16,21 @@
       "types": "./dist/ui-types.d.ts",
       "import": "./dist/ui-types.js"
     },
+    "./test-types": {
+      "types": "./dist/test-types.d.ts",
+      "import": "./dist/test-types.js"
+    },
     "./vitest-types": {
       "types": "./dist/vitest-types.d.ts",
       "import": "./dist/vitest-types.js"
+    },
+    "./harness-types": {
+      "types": "./dist/harness-types.d.ts",
+      "import": "./dist/harness-types.js"
+    },
+    "./runner-types": {
+      "types": "./dist/runner-types.d.ts",
+      "import": "./dist/runner-types.js"
     },
     "./page-protocol": {
       "types": "./dist/page-protocol.d.ts",
@@ -28,13 +40,16 @@
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "oxlint"
+    "lint": "oxlint",
+    "test": "vitest run"
   },
   "dependencies": {
     "@tanstack/ai": "^0.28.0"
   },
   "devDependencies": {
+    "@types/node": "^22.19.21",
     "tsdown": "^0.22.2",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
   }
 }
