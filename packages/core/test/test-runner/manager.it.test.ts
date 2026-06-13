@@ -2,7 +2,7 @@ import {describe, it, expect, afterAll} from 'vitest'
 import {fileURLToPath} from 'node:url'
 import {dirname, join} from 'node:path'
 import type {TestRunnerManager} from '@devgent/protocol/runner-types'
-import {makeVitestManager, isVitestUnavailable} from '../../src/runner/vitest/manager.js'
+import {makeVitestManager, isVitestUnavailable} from '../../src/test-runner/vitest/manager.js'
 import {tsxSpawnRunner, errorSpawnRunner} from '../helpers.js'
 
 // Real out-of-process IT: makeVitestManager spawns the actual vitest runner child (via tsx),

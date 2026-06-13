@@ -4,7 +4,7 @@ import {H3} from 'h3'
 import {serve, type Server} from 'srvx'
 import {fileURLToPath} from 'node:url'
 import {dirname, join} from 'node:path'
-import {makeVitestManager} from '../../../src/runner/vitest/manager.js'
+import {makeVitestManager} from '../../../src/test-runner/vitest/manager.js'
 import {registerTestRunnerRoutes} from '../../../src/api/test-runner/test-runner.js'
 import {tsxSpawnRunner, errorSpawnRunner} from '../../helpers.js'
 
