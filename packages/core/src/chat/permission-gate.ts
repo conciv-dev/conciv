@@ -1,8 +1,15 @@
 import {randomUUID} from 'node:crypto'
-import type {H3} from 'h3'
+import {type H3, readValidatedBody} from 'h3'
+import {z} from 'zod'
 import {bashDecision} from './risk.js'
-import {isRecord, readJsonBody} from './http.js'
 import type {UiBus} from './ui-bus.js'
+
+// PreToolUse hook payload (claude posts this) + the widget's allow/deny. safeParse-validated
+// so a malformed hook still gets a safe response rather than a 400 it can't handle.
+const HookBodySchema = z.object({tool_name: z.string().default(''), tool_input: z.unknown().optional()})
+const DecisionBodySchema = z.object({renderId: z.string().optional(), approved: z.boolean().default(false)})
+// The Bash tool's input shape we care about — the command string to risk-classify.
+const BashInputSchema = z.object({command: z.string()})
 
 // The risky-Bash approval gate. Safe commands run; risky ones surface a confirm card in the
 // chat (injected onto the live stream) and block until the user answers or we time out — fail
@@ -23,7 +30,8 @@ export function makePermissionGate(uiBus: UiBus, timeoutMs = APPROVAL_TIMEOUT_MS
 
   async function decide(toolName: string, toolInput: unknown): Promise<'allow' | 'deny'> {
     if (toolName !== 'Bash') return 'allow'
-    const command = isRecord(toolInput) && typeof toolInput.command === 'string' ? toolInput.command : ''
+    const parsed = BashInputSchema.safeParse(toolInput)
+    const command = parsed.success ? parsed.data.command : ''
     if (bashDecision(command) === 'allow') return 'allow'
     const renderId = randomUUID()
     const injected = uiBus.inject({kind: 'approval', renderId, question: 'Run this command?', detail: command})
@@ -53,13 +61,13 @@ export function makePermissionGate(uiBus: UiBus, timeoutMs = APPROVAL_TIMEOUT_MS
 
 // Mount the gate routes. `gated` is false for harnesses whose capabilities.permissionGate is
 // 'none' — then /permission always allows (no card), but the route stays mounted to fail safe.
-//   POST /__pw/chat/permission          → PreToolUse hook decision
-//   POST /__pw/chat/permission-decision → the widget's allow/deny, unblocking the gate
+//   POST /api/chat/permission          → PreToolUse hook decision
+//   POST /api/chat/permission-decision → the widget's allow/deny, unblocking the gate
 export function registerPermissionRoutes(app: H3, gate: PermissionGate, gated: boolean): void {
-  app.post('/__pw/chat/permission', async (event) => {
-    const body = await readJsonBody(event)
-    const toolName = isRecord(body) && typeof body.tool_name === 'string' ? body.tool_name : ''
-    const toolInput = isRecord(body) ? body.tool_input : undefined
+  app.post('/api/chat/permission', async (event) => {
+    const parsed = await readValidatedBody(event, HookBodySchema.safeParse)
+    const toolName = parsed.success ? parsed.data.tool_name : ''
+    const toolInput = parsed.success ? parsed.data.tool_input : undefined
     const decision = gated ? await gate.decide(toolName, toolInput) : 'allow'
     return {
       hookSpecificOutput: {
@@ -70,11 +78,9 @@ export function registerPermissionRoutes(app: H3, gate: PermissionGate, gated: b
     }
   })
 
-  app.post('/__pw/chat/permission-decision', async (event) => {
-    const body = await readJsonBody(event)
-    const renderId = isRecord(body) && typeof body.renderId === 'string' ? body.renderId : undefined
-    const approved = isRecord(body) && body.approved === true
-    if (renderId) gate.resolve(renderId, approved)
+  app.post('/api/chat/permission-decision', async (event) => {
+    const parsed = await readValidatedBody(event, DecisionBodySchema.safeParse)
+    if (parsed.success && parsed.data.renderId) gate.resolve(parsed.data.renderId, parsed.data.approved)
     return {ok: true}
   })
 }

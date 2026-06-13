@@ -1,15 +1,14 @@
 import {createInterface} from 'node:readline'
 import type {Readable} from 'node:stream'
-import type {H3} from 'h3'
+import {type H3, readValidatedBody} from 'h3'
 import {toServerSentEventsStream, type StreamChunk} from '@tanstack/ai'
 import type {HarnessAdapter, HarnessChild} from '@devgent/protocol/harness-types'
-import {parseUiSpec} from '@devgent/protocol/ui-types'
-import type {ChatRequest} from '@devgent/protocol/chat-types'
+import {UiSpecSchema} from '@devgent/protocol/ui-types'
+import {ChatRequestSchema} from '@devgent/protocol/chat-types'
 import {acquireLock, readLock, releaseLock} from './lock.js'
 import {writeSession} from './session-store.js'
 import type {UiBus} from './ui-bus.js'
-import {isRecord, readJsonBody} from './http.js'
-import {lastUserText, isChatRequest} from './messages.js'
+import {lastUserText} from './messages.js'
 import type {SessionState} from './session-route.js'
 
 export type SpawnHarness = (args: string[], cwd: string) => HarnessChild
@@ -42,30 +41,24 @@ async function* withLockRelease(src: AsyncIterable<StreamChunk>, lockDir: string
 }
 
 // The live-turn routes, both uiBus consumers:
-//   POST /__pw/chat/ui → inject agent generative UI onto the live turn (non-blocking)
-//   POST /__pw/chat    → stream a turn (409 if the lock is held)
+//   POST /api/chat/ui → inject agent generative UI onto the live turn (non-blocking)
+//   POST /api/chat    → stream a turn (409 if the lock is held)
 export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
   const {harness, uiBus, state} = deps
 
-  app.post('/__pw/chat/ui', async (event) => {
-    const body = await readJsonBody(event)
-    const spec = parseUiSpec(isRecord(body) ? body.spec : undefined)
-    if (!spec) {
-      event.res.status = 400
-      return {error: 'invalid ui spec'}
-    }
+  app.post('/api/chat/ui', async (event) => {
+    // readValidatedBody auto-400s on an invalid spec — no manual guard, no cast.
+    const spec = await readValidatedBody(event, UiSpecSchema)
     return {renderId: spec.renderId, injected: uiBus.inject(spec)}
   })
 
-  app.post('/__pw/chat', async (event) => {
+  app.post('/api/chat', async (event) => {
     if (readLock(deps.lockDir).held) {
       event.res.status = 409
       return {error: 'agent busy'}
     }
-    const body = await readJsonBody(event)
-    const chat: ChatRequest = isChatRequest(body) ? body : {messages: []}
-    const bodySessionId = isRecord(body) && typeof body.sessionId === 'string' ? body.sessionId : ''
-    const resumeSessionId = harness.capabilities.resume ? bodySessionId || state.sessionId || null : null
+    const chat = await readValidatedBody(event, ChatRequestSchema)
+    const resumeSessionId = harness.capabilities.resume ? chat.sessionId || state.sessionId || null : null
     const origin = `http://${event.req.headers.get('host') ?? '127.0.0.1:3000'}`
     const systemPrompt =
       harness.capabilities.systemPrompt === 'file' ? (deps.systemPromptFile ?? '') : (deps.systemPromptText ?? '')
@@ -74,7 +67,7 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
       cwd: deps.cwd,
       resumeSessionId,
       systemPrompt,
-      permissionUrl: harness.capabilities.permissionGate === 'hook' ? `${origin}/__pw/chat/permission` : undefined,
+      permissionUrl: harness.capabilities.permissionGate === 'hook' ? `${origin}/api/chat/permission` : undefined,
     })
     const child = deps.spawnHarness(args, deps.cwd)
     acquireLock(deps.lockDir, 'chat', child.pid)

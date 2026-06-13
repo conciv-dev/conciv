@@ -1,8 +1,11 @@
 import {readFileSync} from 'node:fs'
-import {type H3, getQuery} from 'h3'
+import {type H3, getValidatedQuery} from 'h3'
+import {z} from 'zod'
 import type {HarnessAdapter} from '@devgent/protocol/harness-types'
 import type {ChatSession} from '@devgent/protocol/chat-types'
 import {readLock} from './lock.js'
+
+const HistoryQuerySchema = z.object({sessionId: z.string().optional()})
 
 // The session/history/stop routes — pure reads + a kill. History only exists for
 // transcript-capable harnesses (via harness.history); others hydrate from the live thread.
@@ -26,11 +29,11 @@ function readFileOrEmpty(path: string): string {
   }
 }
 
-//   GET  /__pw/chat/session            → which session + lock state
-//   GET  /__pw/chat/history?sessionId  → filtered prior turns (transcript harnesses)
-//   POST /__pw/chat/stop               → SIGTERM the current lock holder
+//   GET  /api/chat/session            → which session + lock state
+//   GET  /api/chat/history?sessionId  → filtered prior turns (transcript harnesses)
+//   POST /api/chat/stop               → SIGTERM the current lock holder
 export function registerSessionRoutes(app: H3, deps: SessionRouteDeps): void {
-  app.get('/__pw/chat/session', () => {
+  app.get('/api/chat/session', () => {
     const lock = readLock(deps.lockDir)
     const sessionId = deps.state.sessionId || null
     const source: ChatSession['source'] = deps.state.sessionId ? (deps.initialSessionId ? 'agent' : 'chat') : 'new'
@@ -38,16 +41,15 @@ export function registerSessionRoutes(app: H3, deps: SessionRouteDeps): void {
     return body
   })
 
-  app.get('/__pw/chat/history', (event) => {
+  app.get('/api/chat/history', async (event) => {
     if (!deps.harness.capabilities.transcriptHistory || !deps.harness.history) return []
-    const query = getQuery(event)
-    const sessionId = typeof query.sessionId === 'string' ? query.sessionId : ''
+    const {sessionId} = await getValidatedQuery(event, HistoryQuerySchema)
     if (!sessionId) return []
     const jsonl = readFileOrEmpty(deps.harness.history.transcriptPath(deps.cwd, sessionId))
     return jsonl ? deps.harness.history.parse(jsonl) : []
   })
 
-  app.post('/__pw/chat/stop', () => {
+  app.post('/api/chat/stop', () => {
     const lock = readLock(deps.lockDir)
     if (lock.pid) {
       try {

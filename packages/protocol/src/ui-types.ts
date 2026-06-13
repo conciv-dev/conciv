@@ -1,34 +1,82 @@
+import {z} from 'zod'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 
 // Generative-UI specs the chat agent emits via `devgent ui …`. Each spec is rendered as a
-// real component in the chat thread (a React island in the widget). The agent does NOT
-// block waiting for the answer — interactive components send the user's response as the
-// next chat message, so the normal `claude --resume` turn cycle is the return path. Specs
-// are carried to the widget as an AG-UI CUSTOM event (`devgent-ui`), the documented
-// mechanism for client-driven UI — no invented wire format.
+// real component in the chat thread (a React island in the widget). The agent does NOT block
+// waiting for the answer — interactive components send the user's response as the next chat
+// message, so the normal `--resume` turn cycle is the return path. Specs are carried to the
+// widget as an AG-UI CUSTOM event (`devgent-ui`).
+//
+// The Zod schemas below ARE the contract: the `devgent ui` POST body is validated with
+// UiSpecSchema (h3 readValidatedBody), and the TypeScript types are inferred from the schemas —
+// one source of truth, no hand-rolled guards, no casts.
 
-export type UiFieldType = 'text' | 'select'
+const renderId = z.string().min(1)
 
-export type UiFormField = {
-  name: string
-  label: string
-  type: UiFieldType
-  options?: string[]
-}
+export const UiFormFieldSchema = z.object({
+  name: z.string(),
+  label: z.string(),
+  type: z.enum(['text', 'select']),
+  options: z.array(z.string()).optional(),
+})
 
-export type UiChoices = {kind: 'choices'; renderId: string; question: string; options: string[]}
-export type UiConfirm = {kind: 'confirm'; renderId: string; question: string; detail?: string}
-export type UiDiff = {kind: 'diff'; renderId: string; file: string; before: string; after: string}
-export type UiForm = {kind: 'form'; renderId: string; title?: string; fields: UiFormField[]}
-// Emitted internally by the risky-Bash gate (NOT by the `devgent ui` CLI). The widget
-// answers it via POST /__pw/chat/permission-decision (a blocking allow/deny that unblocks
-// the PreToolUse hook), unlike the other kinds whose answer is the user's next chat message.
-export type UiApproval = {kind: 'approval'; renderId: string; question: string; detail?: string}
-// A persistent vitest results card, injected by the vitest route (NOT the `devgent ui` CLI).
-// The widget subscribes to /__pw/vitest/stream for live deltas keyed by renderId.
-export type UiVitest = {kind: 'vitest'; renderId: string}
+export const UiChoicesSchema = z.object({
+  kind: z.literal('choices'),
+  renderId,
+  question: z.string(),
+  options: z.array(z.string()).min(1),
+})
+export const UiConfirmSchema = z.object({
+  kind: z.literal('confirm'),
+  renderId,
+  question: z.string(),
+  detail: z.string().optional(),
+})
+export const UiDiffSchema = z.object({
+  kind: z.literal('diff'),
+  renderId,
+  file: z.string(),
+  before: z.string(),
+  after: z.string(),
+})
+export const UiFormSchema = z.object({
+  kind: z.literal('form'),
+  renderId,
+  title: z.string().optional(),
+  fields: z.array(UiFormFieldSchema).min(1),
+})
+// Emitted internally by the risky-Bash gate (NOT by the `devgent ui` CLI). The widget answers
+// it via POST /api/chat/permission-decision (a blocking allow/deny that unblocks the PreToolUse
+// hook), unlike the other kinds whose answer is the user's next chat message.
+export const UiApprovalSchema = z.object({
+  kind: z.literal('approval'),
+  renderId,
+  question: z.string(),
+  detail: z.string().optional(),
+})
+// A persistent test-results card, injected by the test route (NOT the `devgent ui` CLI). The
+// widget subscribes to the test stream for live deltas keyed by renderId. (Kind kept as
+// 'vitest' until Plan 3 generalizes the widget card to all runners.)
+export const UiVitestSchema = z.object({kind: z.literal('vitest'), renderId})
 
-export type UiSpec = UiChoices | UiConfirm | UiDiff | UiForm | UiApproval | UiVitest
+export const UiSpecSchema = z.discriminatedUnion('kind', [
+  UiChoicesSchema,
+  UiConfirmSchema,
+  UiDiffSchema,
+  UiFormSchema,
+  UiApprovalSchema,
+  UiVitestSchema,
+])
+
+export type UiFormField = z.infer<typeof UiFormFieldSchema>
+export type UiFieldType = UiFormField['type']
+export type UiSpec = z.infer<typeof UiSpecSchema>
+export type UiChoices = z.infer<typeof UiChoicesSchema>
+export type UiConfirm = z.infer<typeof UiConfirmSchema>
+export type UiDiff = z.infer<typeof UiDiffSchema>
+export type UiForm = z.infer<typeof UiFormSchema>
+export type UiApproval = z.infer<typeof UiApprovalSchema>
+export type UiVitest = z.infer<typeof UiVitestSchema>
 
 // The CUSTOM event name the widget listens for via useChat({onCustomEvent}).
 export const DEVGENT_UI_EVENT = 'devgent-ui'
@@ -38,42 +86,9 @@ export function aguiCustomFor(spec: UiSpec): StreamChunk {
   return {type: EventType.CUSTOM, name: DEVGENT_UI_EVENT, value: spec}
 }
 
-function isStringArray(v: unknown): v is string[] {
-  return Array.isArray(v) && v.every((x) => typeof x === 'string')
-}
-
-function isFormField(v: unknown): v is UiFormField {
-  if (typeof v !== 'object' || v === null) return false
-  const f = v as Record<string, unknown>
-  if (typeof f.name !== 'string' || typeof f.label !== 'string') return false
-  if (f.type !== 'text' && f.type !== 'select') return false
-  return f.options === undefined || isStringArray(f.options)
-}
-
-// Validate an untrusted spec (from the `devgent ui` POST body). Returns the typed spec or
-// null — the route 400s on null rather than injecting a malformed component.
+// Validate an untrusted spec (e.g. a non-h3 caller). Returns the typed spec or null. Route
+// handlers should prefer h3's readValidatedBody(event, UiSpecSchema) for the auto-400.
 export function parseUiSpec(input: unknown): UiSpec | null {
-  if (typeof input !== 'object' || input === null) return null
-  const s = input as Record<string, unknown>
-  if (typeof s.renderId !== 'string' || s.renderId === '') return null
-  if (s.kind === 'choices') {
-    if (typeof s.question !== 'string' || !isStringArray(s.options) || s.options.length === 0) return null
-    return {kind: 'choices', renderId: s.renderId, question: s.question, options: s.options}
-  }
-  if (s.kind === 'confirm') {
-    if (typeof s.question !== 'string') return null
-    const detail = typeof s.detail === 'string' ? s.detail : undefined
-    return {kind: 'confirm', renderId: s.renderId, question: s.question, detail}
-  }
-  if (s.kind === 'diff') {
-    if (typeof s.file !== 'string' || typeof s.before !== 'string' || typeof s.after !== 'string') return null
-    return {kind: 'diff', renderId: s.renderId, file: s.file, before: s.before, after: s.after}
-  }
-  if (s.kind === 'form') {
-    if (!Array.isArray(s.fields) || !s.fields.every(isFormField) || s.fields.length === 0) return null
-    const title = typeof s.title === 'string' ? s.title : undefined
-    return {kind: 'form', renderId: s.renderId, title, fields: s.fields}
-  }
-  if (s.kind === 'vitest') return {kind: 'vitest', renderId: s.renderId}
-  return null
+  const result = UiSpecSchema.safeParse(input)
+  return result.success ? result.data : null
 }
