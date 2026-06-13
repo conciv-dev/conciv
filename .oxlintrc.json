@@ -5,6 +5,9 @@
     "correctness": "error",
     "suspicious": "warn"
   },
+  "rules": {
+    "unicorn/consistent-function-scoping": "off"
+  },
   "env": {
     "browser": true,
     "node": true,

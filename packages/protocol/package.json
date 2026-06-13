@@ -8,21 +8,33 @@
   ],
   "type": "module",
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+    "./chat-types": {
+      "types": "./dist/chat-types.d.ts",
+      "import": "./dist/chat-types.js"
+    },
+    "./ui-types": {
+      "types": "./dist/ui-types.d.ts",
+      "import": "./dist/ui-types.js"
+    },
+    "./vitest-types": {
+      "types": "./dist/vitest-types.d.ts",
+      "import": "./dist/vitest-types.js"
+    },
+    "./page-protocol": {
+      "types": "./dist/page-protocol.d.ts",
+      "import": "./dist/page-protocol.js"
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "lint": "oxlint"
   },
   "dependencies": {
     "@tanstack/ai": "0.28.0"
   },
   "devDependencies": {
-    "typescript": "5.9.3",
-    "vitest": "4.1.8"
+    "tsdown": "0.22.2",
+    "typescript": "5.9.3"
   }
 }
