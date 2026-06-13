@@ -54,13 +54,19 @@ describe('devgent CLI (IT, real server)', () => {
     expect(state.last).toBeUndefined()
   })
 
-  it('tools vitest run → POST with patterns + testNamePattern', async () => {
-    await runCommand(toolsCommand, {rawArgs: ['vitest', 'run', 'auth', '-t', 'expired']})
+  it('tools test run → POST /api/test-runner/run with patterns + testNamePattern', async () => {
+    await runCommand(toolsCommand, {rawArgs: ['test', 'run', 'auth', '-t', 'expired']})
     expect(state.last).toMatchObject({
       method: 'POST',
-      url: '/__pw/tools/vitest/run',
+      url: '/api/test-runner/run',
       body: {patterns: ['auth'], testNamePattern: 'expired'},
     })
+  })
+
+  it('tools vitest run → same as test run (deprecated alias)', async () => {
+    state.last = undefined
+    await runCommand(toolsCommand, {rawArgs: ['vitest', 'run', 'auth']})
+    expect(state.last).toMatchObject({method: 'POST', url: '/api/test-runner/run', body: {patterns: ['auth']}})
   })
 
   it('ui confirm → POST a confirm spec to /__pw/chat/ui', async () => {
