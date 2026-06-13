@@ -55,7 +55,12 @@ function* commandChunks(cmd: z.infer<typeof CommandItem>, ids: {n: number}): Gen
   yield {type: EventType.TOOL_CALL_ARGS, toolCallId: cmd.id, delta: JSON.stringify({command: cmd.command})}
   yield {type: EventType.TOOL_CALL_END, toolCallId: cmd.id}
   ids.n += 1
-  yield {type: EventType.TOOL_CALL_RESULT, messageId: `r${ids.n}`, toolCallId: cmd.id, content: cmd.aggregated_output ?? ''}
+  yield {
+    type: EventType.TOOL_CALL_RESULT,
+    messageId: `r${ids.n}`,
+    toolCallId: cmd.id,
+    content: cmd.aggregated_output ?? '',
+  }
 }
 
 function* itemChunks(item: unknown, ids: {n: number}): Generator<StreamChunk> {

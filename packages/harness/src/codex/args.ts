@@ -6,8 +6,6 @@ import type {HarnessTurn} from '@devgent/protocol/harness-types'
 // system prompt is prepended to the prompt upstream (systemPrompt:'none'); permissionUrl is
 // ignored. A prior session resumes via the `exec resume <id>` subcommand.
 export function buildCodexArgs(turn: HarnessTurn): string[] {
-  const head = turn.resumeSessionId
-    ? ['exec', 'resume', turn.resumeSessionId, turn.prompt]
-    : ['exec', turn.prompt]
+  const head = turn.resumeSessionId ? ['exec', 'resume', turn.resumeSessionId, turn.prompt] : ['exec', turn.prompt]
   return [...head, '--json', '--sandbox', 'workspace-write']
 }

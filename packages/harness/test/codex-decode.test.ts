@@ -21,10 +21,20 @@ function strField(chunk: StreamChunk | undefined, key: string): string | undefin
 
 // Verbatim codex exec --json event lines (verified against the codex CLI docs).
 const THREAD = JSON.stringify({type: 'thread.started', thread_id: 'th-1'})
-const AGENT = JSON.stringify({type: 'item.completed', item: {id: 'item_3', type: 'agent_message', text: 'hello from codex'}})
+const AGENT = JSON.stringify({
+  type: 'item.completed',
+  item: {id: 'item_3', type: 'agent_message', text: 'hello from codex'},
+})
 const COMMAND = JSON.stringify({
   type: 'item.completed',
-  item: {id: 'item_1', type: 'command_execution', command: 'bash -lc ls', aggregated_output: 'docs\nsrc\n', exit_code: 0, status: 'completed'},
+  item: {
+    id: 'item_1',
+    type: 'command_execution',
+    command: 'bash -lc ls',
+    aggregated_output: 'docs\nsrc\n',
+    exit_code: 0,
+    status: 'completed',
+  },
 })
 const DONE = JSON.stringify({type: 'turn.completed', usage: {input_tokens: 1, output_tokens: 2}})
 

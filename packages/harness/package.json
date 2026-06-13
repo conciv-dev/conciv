@@ -3,15 +3,35 @@
   "version": "0.0.0",
   "description": "Harness adapters (claude, codex, + stubs) behind the @devgent/protocol HarnessAdapter contract.",
   "license": "MIT",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "type": "module",
   "exports": {
-    ".": {"types": "./dist/registry.d.ts", "import": "./dist/registry.js"},
-    "./claude": {"types": "./dist/claude/claude.d.ts", "import": "./dist/claude/claude.js"},
-    "./codex": {"types": "./dist/codex/codex.d.ts", "import": "./dist/codex/codex.js"},
-    "./gemini-cli": {"types": "./dist/gemini-cli/gemini-cli.d.ts", "import": "./dist/gemini-cli/gemini-cli.js"},
-    "./opencode": {"types": "./dist/opencode/opencode.d.ts", "import": "./dist/opencode/opencode.js"},
-    "./pi": {"types": "./dist/pi/pi.d.ts", "import": "./dist/pi/pi.js"}
+    ".": {
+      "types": "./dist/registry.d.ts",
+      "import": "./dist/registry.js"
+    },
+    "./claude": {
+      "types": "./dist/claude/claude.d.ts",
+      "import": "./dist/claude/claude.js"
+    },
+    "./codex": {
+      "types": "./dist/codex/codex.d.ts",
+      "import": "./dist/codex/codex.js"
+    },
+    "./gemini-cli": {
+      "types": "./dist/gemini-cli/gemini-cli.d.ts",
+      "import": "./dist/gemini-cli/gemini-cli.js"
+    },
+    "./opencode": {
+      "types": "./dist/opencode/opencode.d.ts",
+      "import": "./dist/opencode/opencode.js"
+    },
+    "./pi": {
+      "types": "./dist/pi/pi.d.ts",
+      "import": "./dist/pi/pi.js"
+    }
   },
   "scripts": {
     "build": "tsdown",
