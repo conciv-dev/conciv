@@ -13,7 +13,7 @@ The current codebase hard-wires three concrete tools into one Vite plugin:
   permission gate (Claude's `--settings` PreToolUse HTTP hook → `/__pw/chat/permission`).
 - **Test runner = Vitest.** `vitest-manager.ts`, `vitest-runner-child.ts`, `vitest-route.ts`,
   `vitest-types.ts`, the CLI `vitest` subcommand, and the widget `vitest-card.tsx`.
-- **Bundler = Vite.** The whole `@devgent/vite-plugin` package *is* a Vite `Plugin`
+- **Bundler = Vite.** The whole `@devgent/vite-plugin` package _is_ a Vite `Plugin`
   (`transformIndexHtml`, `configureServer`, connect `server.middlewares`, `ViteDevServer`).
 
 We want to swap each of these independently: add harnesses (codex, gemini-cli, opencode, pi),
@@ -49,7 +49,7 @@ without touching the others.
   (file routing, server bundling, deploy presets) — dead weight for a dev-only embedded sidecar.
   h3→Nitro stays an open upgrade path if devgent core ever becomes a standalone daemon.
 - **Standalone engine server** (option A): `@devgent/core` boots its own h3 server in dev; each
-  bundler entry only injects HTML + boots it. Writes the server *once* for all bundlers. Cost:
+  bundler entry only injects HTML + boots it. Writes the server _once_ for all bundlers. Cost:
   cross-origin → set the existing `pw-api-base` meta to the core port + CORS (the chat stream
   already sends `access-control-allow-origin: *`). Vite may optionally proxy `/__pw` same-origin
   later as an optimization, but is not required.
@@ -74,6 +74,7 @@ without touching the others.
 ```
 
 **Conventions**
+
 - **No `index.ts` barrels** anywhere. Each file is named after its contents; package `exports`
   subpaths point at named files.
 - Adapter **interfaces/types live in `@devgent/protocol`** (zero-runtime, already a universal
@@ -86,9 +87,9 @@ without touching the others.
 ```ts
 // @devgent/protocol/harness-types
 type HarnessCapabilities = {
-  resume: boolean                    // can --resume a prior session
-  permissionGate: 'hook' | 'none'    // can call back mid-turn for tool approval
-  transcriptHistory: boolean         // can hydrate prior turns from disk
+  resume: boolean // can --resume a prior session
+  permissionGate: 'hook' | 'none' // can call back mid-turn for tool approval
+  transcriptHistory: boolean // can hydrate prior turns from disk
   systemPrompt: 'file' | 'flag' | 'none'
 }
 
@@ -97,33 +98,34 @@ type HarnessTurn = {
   cwd: string
   resumeSessionId: string | null
   systemPrompt: string
-  permissionUrl?: string             // provided by core iff permissionGate === 'hook'
+  permissionUrl?: string // provided by core iff permissionGate === 'hook'
 }
 
-type HarnessChild = { pid: number; stdout: Readable; stderr: Readable; kill(): void }
+type HarnessChild = {pid: number; stdout: Readable; stderr: Readable; kill(): void}
 
 type HarnessAdapter = {
-  id: string                         // 'claude' | 'codex' | …
-  binName: string                    // default binary on PATH
+  id: string // 'claude' | 'codex' | …
+  binName: string // default binary on PATH
   capabilities: HarnessCapabilities
   buildArgs(turn: HarnessTurn): string[]
   decode(lines: AsyncIterable<string>, opts: {onSessionId(id: string): void}): AsyncGenerator<StreamChunk>
-  transcriptPath?(cwd: string, sessionId: string): string   // present iff transcriptHistory
-  parseHistory?(raw: string): UIMessage[]                    // present iff transcriptHistory
+  transcriptPath?(cwd: string, sessionId: string): string // present iff transcriptHistory
+  parseHistory?(raw: string): UIMessage[] // present iff transcriptHistory
 }
 ```
 
 `@devgent/core`'s chat route becomes harness-agnostic: it takes a resolved `HarnessAdapter` + a
 spawn seam, and **feature-detects by capability**:
 
-| Capability absent | Core behavior (graceful degradation) |
-|---|---|
-| `permissionGate: 'none'` | No `/permission` route wired; risky-Bash relies on the harness's own sandbox/approval. No mid-turn approval card. |
-| `transcriptHistory: false` | No `/history` route; widget hydrates from the live thread only. |
-| `resume: false` | Each turn starts fresh; session store still tracks the latest id for display. |
-| `systemPrompt: 'none'` | System prompt prepended to the first turn's prompt instead of via flag/file. |
+| Capability absent          | Core behavior (graceful degradation)                                                                              |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `permissionGate: 'none'`   | No `/permission` route wired; risky-Bash relies on the harness's own sandbox/approval. No mid-turn approval card. |
+| `transcriptHistory: false` | No `/history` route; widget hydrates from the live thread only.                                                   |
+| `resume: false`            | Each turn starts fresh; session store still tracks the latest id for display.                                     |
+| `systemPrompt: 'none'`     | System prompt prepended to the first turn's prompt instead of via flag/file.                                      |
 
 **File mapping (current → harness package):**
+
 - `claude-args.ts` → `harness/src/claude/args.ts` (`buildArgs`)
 - `claude-agui-stream.ts` → `harness/src/claude/decode.ts` (`decode`)
 - `transcript-path.ts` + `history-parser.ts` → `harness/src/claude/history.ts`
@@ -136,6 +138,57 @@ codex capabilities (proof): research `codex exec` JSON event output + sandbox mo
 
 Registry (`harness/src/registry.ts`): `registerHarness`, `getHarness(id)`, `listHarnesses`.
 External adapters call `registerHarness` at runtime; they need only `@devgent/protocol`.
+
+### Authoring adapters — `define*` typed factories
+
+Every seam ships a typed factory helper from `@devgent/protocol` so adapters self-define with
+full inference, autocomplete, and capability validation — the `defineConfig`/unplugin idiom.
+A `define*` helper is a typed function (not a bare identity): it locks the type, applies
+defaults, and dev-asserts capability/method consistency at definition time.
+
+The helpers are **generic** so they preserve each adapter's exact literal type (no widening):
+
+```ts
+// @devgent/protocol/harness-types
+export function defineHarness<T extends HarnessAdapter>(adapter: T): T {
+  // dev-time invariant: declared capabilities must match provided methods
+  if (adapter.capabilities.transcriptHistory && !(adapter.transcriptPath && adapter.parseHistory))
+    throw new Error(`harness "${adapter.id}": transcriptHistory requires transcriptPath + parseHistory`)
+  return adapter
+}
+
+// @devgent/protocol/runner-types
+export function defineRunner<T extends TestRunnerAdapter>(adapter: T): T {
+  /* + invariants */ return adapter
+}
+
+// @devgent/protocol/config
+export function defineConfig<T extends DevgentConfig>(config: T): T {
+  return config
+}
+```
+
+Each adapter is written as `export const claude = defineHarness({ … })`, `export const vitest =
+defineRunner({ … })`. The bundler seam uses unplugin's own `createUnplugin` factory as its
+`define*` equivalent. Rule: **no adapter is defined as a bare object literal** — always through
+its `define*` helper, so the contract is enforced and inferred, not hand-typed.
+
+### Typing discipline (hard rule)
+
+**No type casting anywhere — `as` (except `as const`) and angle-bracket casts are banned.**
+Reach correctness through **generics, type guards, discriminated unions, and `satisfies`** —
+never assertions. Concretely:
+
+- Parsing untrusted input (JSON lines, child messages, request bodies) goes through **type-guard
+  functions** (`isRecord`, `isTestEvent`, `isChatRequest`) that narrow, not `JSON.parse(...) as T`.
+- The harness `decode` and runner child message streams use **discriminated unions** keyed on
+  `type`, narrowed by `switch`/guards — the existing `as Extract<…>` filters get rewritten as guards.
+- Generic seams (`defineHarness<T>`, `getHarness<…>`, the driver's message reader) carry the type
+  through parameters instead of casting the result.
+- Web/Node stream bridging that today casts (`Readable.fromWeb(x as …)`) is replaced by h3's
+  native web-stream return path, eliminating the cast.
+
+This applies to all ported code, not just new code: porting a file is also de-casting it.
 
 ### Seam 2 — Test-runner adapters
 
@@ -221,10 +274,10 @@ interface DevgentConfig {
   widgetUrl?: string
   previewId?: string
   lockDir?: string
-  harness?: string        // adapter id, default 'claude'   (was claudePath/claudeSessionId)
-  harnessBin?: string     // override the binary on PATH
-  sessionId?: string      // resume a prior session (was claudeSessionId)
-  testRunner?: string     // adapter id, default 'vitest'
+  harness?: string // adapter id, default 'claude'   (was claudePath/claudeSessionId)
+  harnessBin?: string // override the binary on PATH
+  sessionId?: string // resume a prior session (was claudeSessionId)
+  testRunner?: string // adapter id, default 'vitest'
   systemPrompt?: string
 }
 ```
@@ -236,7 +289,7 @@ Env fallbacks generalize `DEVGENT_CLAUDE_*` → `DEVGENT_HARNESS`, `DEVGENT_HARN
 
 - **Harness seam:** the existing `fake-claude.ts` fixture becomes a generic fake-harness; an
   IT asserts the chat stream, the approval gate (hook-capable harness), and a `permissionGate:
-  'none'` harness skips the gate cleanly.
+'none'` harness skips the gate cleanly.
 - **Runner seam:** existing vitest IT fixtures stay; add a minimal jest + node:test fixture and
   assert identical `TestEvent` sequences through the shared driver. One playwright smoke fixture.
 - **Plugin seam:** unplugin's test harness + the existing Playwright browser IT against the
@@ -256,4 +309,7 @@ Env fallbacks generalize `DEVGENT_CLAUDE_*` → `DEVGENT_HARNESS`, `DEVGENT_HARN
 - **Large blast radius** — nearly every `vite-plugin` file moves/renames. Done directly on main
   (no feature branch per project workflow); land in dependency order (protocol → core → harness/
   runner → plugin-core → bundler entries → cli/widget) keeping the suite green at each step.
+
+```
+
 ```
