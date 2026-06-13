@@ -1,0 +1,22 @@
+// A real executable standing in for the `claude` CLI in chat-route ITs — NOT a JS mock:
+// it's spawned as a child process and exercises the true spawn → stdout-pipe → SSE path.
+// It echoes its argv (so the test can assert --resume on the 2nd turn) and replays a
+// stream-json transcript. With DEVGENT_FAKE_HANG it sleeps until SIGTERM to exercise Stop.
+import {writeFileSync} from 'node:fs'
+
+const argv = process.argv.slice(2)
+const argvFile = process.env.DEVGENT_TEST_ARGV_FILE
+if (argvFile) writeFileSync(argvFile, JSON.stringify(argv))
+
+if (process.env.DEVGENT_FAKE_HANG) {
+  process.on('SIGTERM', () => process.exit(143))
+  setInterval(() => {}, 1000) // stay alive until signalled
+} else {
+  const lines = [
+    {type: 'system', subtype: 'init', session_id: 'sess-fake'},
+    {type: 'assistant', message: {content: [{type: 'text', text: 'hello from fake'}]}},
+    {type: 'result', session_id: 'sess-fake', num_turns: 1, total_cost_usd: 0.001},
+  ]
+  for (const line of lines) process.stdout.write(JSON.stringify(line) + '\n')
+  process.exit(0)
+}
