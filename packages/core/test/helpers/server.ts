@@ -2,27 +2,24 @@ import {spawn} from 'node:child_process'
 import {mkdtempSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {H3} from 'h3'
 import {serve, type Server} from 'srvx'
 import {getHarness} from '@aidx/harness'
 import type {HarnessChild} from '@aidx/protocol/harness-types'
-import {registerChatRoutes} from '../../src/api/chat/chat.js'
-import {registerMcpRoutes} from '../../src/api/mcp/mcp.js'
-import {makeUiBus, type UiBus} from '../../src/runtime/ui-bus.js'
+import {makeApp} from '../../src/app.js'
+import type {ResolvedAidxConfig} from '../../src/config.js'
 
 export type TestServerOpts = {
   harness?: string
-  onInjectUi?: (spec: unknown) => boolean
 }
 
 export type TestServer = {
-  url: string
   base: string
   postChat: (message: unknown) => Promise<string>
   close: () => Promise<void>
 }
 
-// Real harness spawn with all three stdio piped (stdin lets the adapter deliver stream-json input).
+// Real harness spawn with all three stdio piped (stdin lets the adapter deliver input). Mirrors
+// engine.ts's spawn — the only test-injected seam, exactly as production injects it into makeApp.
 function realSpawn(bin: string): (args: string[], cwd: string) => HarnessChild {
   return (args, cwd) => {
     const child = spawn(bin, args, {cwd, stdio: ['pipe', 'pipe', 'pipe']})
@@ -32,45 +29,26 @@ function realSpawn(bin: string): (args: string[], cwd: string) => HarnessChild {
   }
 }
 
-// Boot a real srvx server with the chat routes wired to a real harness spawn. Integration only.
+// Boot the REAL app (makeApp — the same factory production uses) over a real srvx server, with a
+// real harness spawn injected. No bespoke route wiring: tests exercise the production composition.
 export async function startTestServer(opts: TestServerOpts = {}): Promise<TestServer> {
   const stateRoot = mkdtempSync(join(tmpdir(), 'aidx-it-'))
   const harnessId = opts.harness ?? 'claude'
   const harness = getHarness(harnessId)
   if (!harness) throw new Error(`harness '${harnessId}' not registered`)
 
-  const baseBus = makeUiBus()
-  const onInjectUi = opts.onInjectUi
-  const uiBus: UiBus = onInjectUi
-    ? {
-        inject: (spec) => {
-          onInjectUi(spec)
-          return baseBus.inject(spec)
-        },
-        run: baseBus.run,
-      }
-    : baseBus
-
-  const app = new H3()
-  registerChatRoutes(app, {
-    cwd: stateRoot,
-    stateRoot,
+  const cfg: ResolvedAidxConfig = {
+    enabled: true,
+    widgetUrl: undefined,
     previewId: 'it-preview',
-    initialSessionId: '',
-    harness,
-    spawnHarness: realSpawn(harness.binName),
-    systemPromptText: '',
-    uiBus,
-  })
-  registerMcpRoutes(app, {
-    injectUi: (spec) => uiBus.inject(spec),
-    page: async () => {
-      throw new Error('aidx_page not wired in test helper')
-    },
-    test: async () => {
-      throw new Error('aidx_test not wired in test helper')
-    },
-  })
+    stateRoot,
+    harness: harnessId,
+    harnessBin: undefined,
+    sessionId: '',
+    testRunner: 'vitest',
+    systemPrompt: '',
+  }
+  const app = makeApp({cfg, cwd: stateRoot, openInEditor: () => {}, spawnHarness: realSpawn(harness.binName)})
 
   const server: Server = serve({fetch: app.fetch, port: 0, hostname: '127.0.0.1'})
   await server.ready()
@@ -88,5 +66,5 @@ export async function startTestServer(opts: TestServerOpts = {}): Promise<TestSe
     await server.close()
     rmSync(stateRoot, {recursive: true, force: true})
   }
-  return {url: base, base, postChat, close}
+  return {base, postChat, close}
 }
