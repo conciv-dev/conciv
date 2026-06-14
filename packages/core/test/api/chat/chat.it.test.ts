@@ -9,8 +9,8 @@ import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {registerChatRoutes} from '../../../src/api/chat/chat.js'
 import {claude} from '@aidx/harness/claude'
-import {acquireLock} from '../../../src/chat/lock.js'
-import {makeUiBus} from '../../../src/chat/ui-bus.js'
+import {acquireLock} from '../../../src/store/lock.js'
+import {makeUiBus} from '../../../src/runtime/ui-bus.js'
 
 // Real process-boundary IT: the chat routes spawn a real child (fake-claude), pipe its stdout
 // through the real decoder + TanStack SSE encoder, over a real srvx server. Proves the

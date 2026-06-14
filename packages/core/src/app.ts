@@ -12,8 +12,8 @@ import {registerPageRoutes} from './api/page/page.js'
 import {registerServerRoutes} from './api/server/server.js'
 import {registerEditorRoutes} from './api/editor/editor.js'
 import {registerTestRunnerRoutes} from './api/test-runner/test-runner.js'
-import {makeUiBus} from './chat/ui-bus.js'
-import {makeJournal} from './page/journal.js'
+import {makeUiBus} from './runtime/ui-bus.js'
+import {makeJournal} from './runtime/journal.js'
 import type {OpenInEditor} from './editor/open.js'
 
 export type MakeAppOpts = {

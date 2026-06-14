@@ -1,8 +1,8 @@
 import {randomUUID} from 'node:crypto'
 import {type H3, readValidatedBody} from 'h3'
 import {z} from 'zod'
-import {bashDecision} from '../../chat/risk.js'
-import type {UiBus} from '../../chat/ui-bus.js'
+import {classifyCommand} from '../../policy/command-policy.js'
+import type {UiBus} from '../../runtime/ui-bus.js'
 import {makePending} from '../../pending.js'
 
 // The risky-Bash approval gate: safe commands run; risky ones surface a confirm card and block
@@ -22,7 +22,7 @@ export function makePermissionGate(uiBus: UiBus, timeoutMs = APPROVAL_TIMEOUT_MS
     if (toolName !== 'Bash') return 'allow'
     const parsed = BashInputSchema.safeParse(toolInput)
     const command = parsed.success ? parsed.data.command : ''
-    if (bashDecision(command) === 'allow') return 'allow'
+    if (classifyCommand(command) === 'allow') return 'allow'
     const renderId = randomUUID()
     const injected = uiBus.inject({kind: 'approval', renderId, question: 'Run this command?', detail: command})
     if (!injected) return 'deny' // no live chat stream to ask on → fail closed

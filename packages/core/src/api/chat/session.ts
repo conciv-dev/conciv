@@ -2,7 +2,7 @@ import {type H3, getValidatedQuery} from 'h3'
 import {z} from 'zod'
 import type {HarnessAdapter} from '@aidx/protocol/harness-types'
 import type {ChatSession} from '@aidx/protocol/chat-types'
-import {readLock} from '../../chat/lock.js'
+import {readLock} from '../../store/lock.js'
 import {readFileOrEmpty} from '../../fs.js'
 
 // The session/history/stop routes — pure reads + a kill. History only exists for

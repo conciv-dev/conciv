@@ -1,5 +1,3 @@
-import {writeFileSync, mkdirSync} from 'node:fs'
-import {join} from 'node:path'
 import {spawn} from 'node:child_process'
 import {serve} from 'srvx'
 import type {HarnessChild} from '@aidx/protocol/harness-types'
@@ -7,18 +5,8 @@ import type {BundlerBridge} from '@aidx/protocol/bundler-types'
 import {makeApp, type MakeAppOpts} from './app.js'
 import {makeEditorOpener} from './editor/open.js'
 import {resolveConfig, type AidxConfig, type ResolvedAidxConfig} from './config.js'
-
-export type HtmlTag = {tag: string; attrs: Record<string, string | boolean>; injectTo: 'head'}
-
-// <head> tags the widget needs. pw-api-base points at the standalone core server (cross-origin).
-export function htmlTags(corePort: number, opts: {previewId: string; widgetUrl?: string}): HtmlTag[] {
-  const tags: HtmlTag[] = [
-    {tag: 'meta', attrs: {name: 'pw-api-base', content: `http://127.0.0.1:${corePort}`}, injectTo: 'head'},
-    {tag: 'meta', attrs: {name: 'pw-preview-id', content: opts.previewId}, injectTo: 'head'},
-  ]
-  if (opts.widgetUrl) tags.push({tag: 'script', attrs: {src: opts.widgetUrl, defer: true}, injectTo: 'head'})
-  return tags
-}
+import {statePaths} from './state-paths.js'
+import {writeText} from './fs.js'
 
 export type StartOpts = {
   options: AidxConfig
@@ -30,17 +18,10 @@ export type StartOpts = {
 
 export type Engine = {port: number; stop: () => Promise<void>; cfg: ResolvedAidxConfig}
 
-// srvx exposes server.url, not server.port (HARD RULE 6) — parse it.
-function portOf(url: string | undefined): number {
-  return Number(new URL(url ?? 'http://127.0.0.1:0').port)
-}
-
 export async function start(opts: StartOpts): Promise<Engine> {
   const cfg = resolveConfig(opts.options, opts.root)
-  const stateDir = join(cfg.stateRoot, '.aidx')
-  mkdirSync(stateDir, {recursive: true})
-  const systemPromptFile = join(stateDir, 'chat-system-prompt.txt')
-  writeFileSync(systemPromptFile, cfg.systemPrompt)
+  const paths = statePaths(cfg.stateRoot)
+  writeText(paths.systemPrompt, cfg.systemPrompt)
 
   const openInEditor = makeEditorOpener(
     (file, line) => opts.launchEditor(file, line),
@@ -64,7 +45,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     cwd: opts.root,
     bridge: opts.bridge,
     openInEditor,
-    systemPromptFile,
+    systemPromptFile: paths.systemPrompt,
     spawnHarness,
   }
   const app = makeApp(appOpts)
@@ -79,4 +60,9 @@ export async function start(opts: StartOpts): Promise<Engine> {
       await server.close(true)
     },
   }
+}
+
+// srvx exposes server.url, not server.port (HARD RULE 6) — parse it.
+function portOf(url: string | undefined): number {
+  return Number(new URL(url ?? 'http://127.0.0.1:0').port)
 }

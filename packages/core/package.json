@@ -19,6 +19,10 @@
     "./config": {
       "types": "./dist/config.d.ts",
       "import": "./dist/config.js"
+    },
+    "./widget-tags": {
+      "types": "./dist/widget-tags.d.ts",
+      "import": "./dist/widget-tags.js"
     }
   },
   "scripts": {

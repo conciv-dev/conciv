@@ -3,7 +3,7 @@ import {z} from 'zod'
 import {H3} from 'h3'
 import {serve, type Server} from 'srvx'
 import {registerPageRoutes} from '../../../src/api/page/page.js'
-import {makeJournal} from '../../../src/page/journal.js'
+import {makeJournal} from '../../../src/runtime/journal.js'
 
 // Real HTTP round-trip for the page-bus over the h3 app: a fetch-based SSE reader stands in
 // for the browser widget, answering each query by POSTing back. Exercises the true

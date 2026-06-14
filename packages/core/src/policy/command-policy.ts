@@ -1,7 +1,7 @@
-// Risk classifier for the PreToolUse gate: read-only commands run; anything else asks. Errs
+// Command policy for the PreToolUse gate: read-only commands run; anything else asks. Errs
 // toward asking (shell composition or non-allowlisted commands need approval).
 
-export type BashDecision = 'allow' | 'ask'
+export type CommandPolicy = 'allow' | 'ask'
 
 const READ_ONLY = new Set([
   'ls',
@@ -23,7 +23,7 @@ const READ_ONLY = new Set([
 // git subcommands that don't mutate the repo.
 const GIT_READ_ONLY = new Set(['status', 'diff', 'log', 'show', 'branch'])
 
-export function bashDecision(command: string): BashDecision {
+export function classifyCommand(command: string): CommandPolicy {
   const c = command.trim()
   if (c === '') return 'ask'
   if (c.startsWith('aidx tools') || c.startsWith('aidx ui')) return 'allow'

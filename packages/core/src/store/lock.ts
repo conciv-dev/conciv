@@ -1,7 +1,7 @@
-import {mkdirSync, rmSync, writeFileSync} from 'node:fs'
-import {join} from 'node:path'
+import {rmSync} from 'node:fs'
 import {z} from 'zod'
-import {readFileOrEmpty} from '../fs.js'
+import {readJson, writeJson} from '../fs.js'
+import {statePaths} from '../state-paths.js'
 
 // The shared `<stateRoot>/.aidx/agent.lock` that serializes the chat agent and the agent's
 // `iterate`: two processes appending to one agent session id at once corrupt its transcript,
@@ -14,8 +14,25 @@ export type LockState = {held: boolean; role: LockRole | null; pid: number | nul
 // The on-disk lock-file shape. Validated with Zod (tolerant of extra/missing keys).
 const LockFileSchema = z.object({role: z.enum(['iterate', 'chat']).optional(), pid: z.number().optional()}).loose()
 
-function lockPath(stateRoot: string): string {
-  return join(stateRoot, '.aidx', 'agent.lock')
+export function readLock(stateRoot: string): LockState {
+  const parsed = readJson(statePaths(stateRoot).lock, LockFileSchema, {})
+  if (typeof parsed.pid !== 'number' || !pidAlive(parsed.pid)) return {held: false, role: null, pid: null}
+  return {held: true, role: parsed.role ?? null, pid: parsed.pid}
+}
+
+// Acquire if free or stale. Returns false if a live holder already owns it.
+export function acquireLock(stateRoot: string, role: LockRole, pid: number): boolean {
+  if (readLock(stateRoot).held) return false
+  writeJson(statePaths(stateRoot).lock, {role, pid, startedTs: Date.now()})
+  return true
+}
+
+export function releaseLock(stateRoot: string): void {
+  try {
+    rmSync(statePaths(stateRoot).lock)
+  } catch {
+    // already gone
+  }
 }
 
 function pidAlive(pid: number): boolean {
@@ -24,41 +41,5 @@ function pidAlive(pid: number): boolean {
     return true
   } catch {
     return false
-  }
-}
-
-// Parse + validate the lock file with Zod — no hand-rolled guards.
-function parseLockFile(raw: string): {role?: LockRole; pid?: number} | null {
-  try {
-    const result = LockFileSchema.safeParse(JSON.parse(raw))
-    return result.success ? result.data : null
-  } catch {
-    return null
-  }
-}
-
-export function readLock(stateRoot: string): LockState {
-  const raw = readFileOrEmpty(lockPath(stateRoot))
-  if (!raw) return {held: false, role: null, pid: null}
-  const parsed = parseLockFile(raw)
-  if (!parsed || typeof parsed.pid !== 'number' || !pidAlive(parsed.pid)) {
-    return {held: false, role: null, pid: null}
-  }
-  return {held: true, role: parsed.role ?? null, pid: parsed.pid}
-}
-
-// Acquire if free or stale. Returns false if a live holder already owns it.
-export function acquireLock(stateRoot: string, role: LockRole, pid: number): boolean {
-  if (readLock(stateRoot).held) return false
-  mkdirSync(join(stateRoot, '.aidx'), {recursive: true})
-  writeFileSync(lockPath(stateRoot), JSON.stringify({role, pid, startedTs: Date.now()}))
-  return true
-}
-
-export function releaseLock(stateRoot: string): void {
-  try {
-    rmSync(lockPath(stateRoot))
-  } catch {
-    // already gone
   }
 }
