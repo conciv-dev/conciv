@@ -51,9 +51,12 @@ export function buildClaudeArgs(turn: HarnessTurn): string[] {
     turn.cwd,
   ]
   // aidx tools (ui/page/test) reach the agent via MCP-over-HTTP, not Bash: point claude at our
-  // in-process server and allow the MCP tools so they run unprompted.
+  // in-process server and allow the MCP tools so they run unprompted. --strict-mcp-config makes
+  // claude use ONLY our server, ignoring the user's own MCP servers — without it that tool flood
+  // buries aidx_* behind claude's deferred-tool search and the agent can't find them reliably.
   if (turn.mcpUrl) {
     args.push('--mcp-config', JSON.stringify({mcpServers: {aidx: {type: 'http', url: turn.mcpUrl}}}))
+    args.push('--strict-mcp-config')
     args.push('--allowedTools', 'mcp__aidx__aidx_ui', 'mcp__aidx__aidx_page', 'mcp__aidx__aidx_test')
   }
   // Bundled aidx-tools plugin: its react-introspection skill teaches the agent the page
