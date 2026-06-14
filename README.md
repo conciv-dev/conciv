@@ -4,7 +4,7 @@ An embeddable AI dev agent for your running app — **chat, page control, and li
 injected into the page via a Vite plugin**.
 
 aidx boots a framework-free h3 engine (`@aidx/core`) behind a set of `/api/*` HTTP routes
-on its own dev port, spawns a headless harness (default `claude -p`), and injects a React widget
+on its own dev port, spawns a headless harness (default `claude -p`), and injects a Solid widget
 into the previewed page. From the widget you can chat with the agent, watch it think and call
 tools, approve risky commands, answer agent-generated UI prompts, and see live test result cards
 — all without leaving the app you're building.
@@ -13,7 +13,7 @@ tools, approve risky commands, answer agent-generated UI prompts, and see live t
  ┌─────────────┐      /api/* (SSE + JSON)       ┌──────────────────┐
  │  browser    │ ◀──────────────────────────▶  │  @aidx/core   │
  │  widget     │   chat stream · page-bus ·     │  (h3 + srvx)     │
- │ (React,     │   test stream · approvals      │   → harness      │
+ │ (Solid,     │   test stream · approvals      │   → harness      │
  │  shadow DOM)│                                │   (claude/codex) │
  └─────────────┘                                └──────────────────┘
    injected by @aidx/plugin (vite/webpack/…)
@@ -30,7 +30,7 @@ tools, approve risky commands, answer agent-generated UI prompts, and see live t
 | [`@aidx/harness`](./packages/harness)         | Harness adapters behind a capability interface: claude + codex, plus gemini-cli/opencode/pi stubs.                                   |
 | [`@aidx/test-runner`](./packages/test-runner) | Test-runner adapters over a clean-child fd3 driver: vitest (full), jest/node-test/playwright (stubs).                                |
 | [`@aidx/plugin`](./packages/plugin)           | The dev agent as an unplugin: `@aidx/plugin/vite` (full), webpack/rspack/rollup/esbuild entries. Boots core + injects the widget. |
-| [`@aidx/widget`](./packages/widget)           | The browser half: a React chat UI in an open Shadow DOM, the test card, and the page-control driver.                                 |
+| [`@aidx/widget`](./packages/widget)           | The browser half: a Solid chat UI in an open Shadow DOM, the test card, and the page-control driver.                                 |
 | [`@aidx/cli`](./packages/cli)                 | The `aidx` CLI the agent calls from Bash: `tools server / page / test / open` + `ui`, against core's `/api/*` surface.            |
 
 ## Quickstart
