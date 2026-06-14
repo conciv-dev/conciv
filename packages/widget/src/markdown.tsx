@@ -24,7 +24,11 @@ const THEME = 'github-dark'
 // components can subscribe to its readiness via useSyncExternalStore (an external-sync
 // primitive, not useEffect). Until it resolves, code renders as plain <pre>; the store
 // notifies when it's ready so in-flight messages re-render highlighted.
-const store = {highlighter: null as HighlighterCore | null, started: false, listeners: new Set<() => void>()}
+const store: {highlighter: HighlighterCore | null; started: boolean; listeners: Set<() => void>} = {
+  highlighter: null,
+  started: false,
+  listeners: new Set(),
+}
 
 function subscribe(onChange: () => void): () => void {
   store.listeners.add(onChange)

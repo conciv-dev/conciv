@@ -14,7 +14,11 @@ function metaContent(name: string): string {
   return document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content ?? ''
 }
 
-type TestSeam = {__DEVGENT_RENDER_TEST_CARD__?: () => void}
+declare global {
+  interface Window {
+    __DEVGENT_RENDER_TEST_CARD__?: () => void
+  }
+}
 
 // Test-only seam (browser IT): render a standalone TestCard in LIVE mode (result=null →
 // subscribes to /api/test-runner/stream) into the widget's shadow root, so the IT exercises the
@@ -30,8 +34,7 @@ export function mountWidget(): void {
   if (document.querySelector('[data-devgent-root]')) return
   const {root} = createShadowRoot()
   const apiBase = metaContent('pw-api-base')
-  const w = window as unknown as TestSeam
-  w.__DEVGENT_RENDER_TEST_CARD__ = () => mountTestCardForTest(root, apiBase)
+  window.__DEVGENT_RENDER_TEST_CARD__ = () => mountTestCardForTest(root, apiBase)
   // Chat + page-bus only exist on the devgent dev server. Probe first so a plain app (no
   // chat route) shows nothing instead of a dead FAB and a retrying EventSource.
   void probeChatAvailable(apiBase).then((available) => {

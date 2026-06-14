@@ -1,8 +1,7 @@
-// Chat session + history client. The chat backend is on the SAME origin as the page (the
-// devgent dev server's /api/chat*), so plain same-origin fetch with credentials — no
-// cross-host auth. On resume the widget hydrates the thread from the prior session.
+// Chat session + history client against @devgent/core's /api/chat* routes. On resume the
+// widget hydrates the thread from the prior session.
 import type {UIMessage} from '@tanstack/ai-client'
-import type {ChatSession} from '@devgent/protocol/chat-types'
+import {ChatSessionSchema, ChatHistorySchema, type ChatSession} from '@devgent/protocol/chat-types'
 
 function metaContent(name: string): string {
   return document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content ?? ''
@@ -38,14 +37,16 @@ export function createChatApi(deps: {apiBase?: string} = {}): ChatApi {
   return {
     base,
     chatUrl: `${base}/api/chat`,
-    session: async () =>
-      (await fetch(`${base}/api/chat/session`, {credentials: 'include'})).json() as Promise<ChatSession>,
-    history: async (sessionId: string) =>
-      (
-        await fetch(`${base}/api/chat/history?sessionId=${encodeURIComponent(sessionId)}`, {
-          credentials: 'include',
-        })
-      ).json() as Promise<UIMessage[]>,
+    session: async () => {
+      const res = await fetch(`${base}/api/chat/session`, {credentials: 'include'})
+      return ChatSessionSchema.parse(await res.json())
+    },
+    history: async (sessionId: string) => {
+      const res = await fetch(`${base}/api/chat/history?sessionId=${encodeURIComponent(sessionId)}`, {
+        credentials: 'include',
+      })
+      return ChatHistorySchema.parse(await res.json())
+    },
     // Answer the risky-Bash gate's blocking confirm (unblocks the PreToolUse hook).
     permissionDecision: (renderId: string, approved: boolean) =>
       fetch(`${base}/api/chat/permission-decision`, {

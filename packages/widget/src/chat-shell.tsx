@@ -5,7 +5,7 @@ import {createChatApi} from './chat-api.js'
 import {GenUi} from './gen-ui.js'
 import {TestCard} from './test-card.js'
 import {Markdown} from './markdown.js'
-import {DEVGENT_UI_EVENT, type UiSpec} from '@devgent/protocol/ui-types'
+import {DEVGENT_UI_EVENT, UiSpecSchema, type UiSpec} from '@devgent/protocol/ui-types'
 import {TestRunResultSchema, type TestRunResult} from '@devgent/protocol/test-types'
 
 // Pull the Bash command out of a tool-call part (input.command, or parsed from arguments).
@@ -319,9 +319,9 @@ export function ChatFeature(props: {apiBase: string}): JSX.Element {
   // each as a live component in the thread; the user's answer is sent as their next message.
   const onDevgentUi = (eventType: string, data: unknown) => {
     if (eventType !== DEVGENT_UI_EVENT) return
-    if (!data || typeof data !== 'object' || !('renderId' in data)) return
-    const spec = data as UiSpec
-    if (!spec.renderId) return
+    const parsed = UiSpecSchema.safeParse(data)
+    if (!parsed.success) return
+    const spec = parsed.data
     setGenUi((prev) => {
       const existing = prev.find((g) => g.renderId === spec.renderId)
       // The vitest card is persistent and self-updating; a duplicate inject for an existing
@@ -457,7 +457,8 @@ export function ChatFeature(props: {apiBase: string}): JSX.Element {
     if (items.length === 0) return
     const first = items[0]
     const last = items[items.length - 1]
-    const active = (panelEl.current.getRootNode() as ShadowRoot).activeElement
+    const root = panelEl.current.getRootNode()
+    const active = root instanceof ShadowRoot ? root.activeElement : null
     if (e.shiftKey && active === first) {
       e.preventDefault()
       last?.focus()

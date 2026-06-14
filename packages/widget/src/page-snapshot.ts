@@ -46,11 +46,10 @@ function roleOf(el: Element): string {
   const explicit = el.getAttribute('role')
   if (explicit) return explicit
   const tag = el.tagName.toLowerCase()
-  if (tag === 'input') {
-    const type = (el as HTMLInputElement).type
-    if (type === 'checkbox') return 'checkbox'
-    if (type === 'radio') return 'radio'
-    if (type === 'button' || type === 'submit') return 'button'
+  if (el instanceof HTMLInputElement) {
+    if (el.type === 'checkbox') return 'checkbox'
+    if (el.type === 'radio') return 'radio'
+    if (el.type === 'button' || el.type === 'submit') return 'button'
     return 'textbox'
   }
   return ROLE_BY_TAG[tag] ?? tag
@@ -70,8 +69,9 @@ function nodeState(el: Element): string[] {
   const state: string[] = []
   if (el instanceof HTMLInputElement && (el.type === 'checkbox' || el.type === 'radio') && el.checked)
     state.push('checked')
-  if ('disabled' in el && (el as HTMLInputElement).disabled) state.push('disabled')
-  if ((el as HTMLElement).offsetParent === null && getComputedStyle(el).position !== 'fixed') state.push('hidden')
+  if ('disabled' in el && el.disabled) state.push('disabled')
+  if (el instanceof HTMLElement && el.offsetParent === null && getComputedStyle(el).position !== 'fixed')
+    state.push('hidden')
   return state
 }
 

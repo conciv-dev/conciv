@@ -33,7 +33,7 @@ export function startConsoleBuffer(): ConsoleEntry[] {
     }
   }
   window.addEventListener('error', (e) => push('error', [e.message]))
-  window.addEventListener('unhandledrejection', (e) => push('error', [String((e as PromiseRejectionEvent).reason)]))
+  window.addEventListener('unhandledrejection', (e) => push('error', [String(e.reason)]))
   return buf
 }
 
@@ -48,9 +48,8 @@ export function resolveTarget(query: PageQuery, refs: Refs): Element | null {
 export function serialize(value: unknown): unknown {
   if (value === null || value === undefined) return value
   if (value instanceof Element) return describeElement(value)
-  const t = typeof value
-  if (t === 'string') return (value as string).slice(0, DOM_CAP)
-  if (t === 'number' || t === 'boolean') return value
+  if (typeof value === 'string') return value.slice(0, DOM_CAP)
+  if (typeof value === 'number' || typeof value === 'boolean') return value
   try {
     const json = JSON.stringify(value)
     return json.length > DOM_CAP ? json.slice(0, DOM_CAP) : JSON.parse(json)
@@ -64,7 +63,7 @@ function waitFor(selector: string, state: 'visible' | 'hidden', timeout: number)
   return new Promise((resolve) => {
     const tick = (): void => {
       const el = document.querySelector(selector)
-      const visible = !!el && (el as HTMLElement).offsetParent !== null
+      const visible = el instanceof HTMLElement && el.offsetParent !== null
       if (state === 'visible' ? visible : !visible) return resolve(ok({state}))
       if (Date.now() > deadline) return resolve(err(`wait timed out for ${selector} (${state})`))
       setTimeout(tick, 100)
@@ -79,6 +78,11 @@ function fireInput(el: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElemen
 }
 function isField(el: Element): el is HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement {
   return el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement
+}
+// Wrap an element verb so its handler gets a guaranteed-non-null Element (the driver already
+// short-circuits null for ELEMENT_KINDS) — no `!` assertions in the handlers.
+function onEl(fn: (el: Element, query: PageQuery) => PageResult): PageHandler {
+  return ({el, query}) => (el ? fn(el, query) : err('no target element'))
 }
 const INSERT_POS: Record<string, InsertPosition> = {
   before: 'beforebegin',
@@ -143,96 +147,98 @@ export const DOM_HANDLERS: Record<PageQueryKind, PageHandler> = {
       ? waitFor(query.selector, query.state ?? 'visible', query.timeout ?? 5000)
       : err('wait requires a selector'),
   // element reads
-  text: ({el}) => ({text: (el!.textContent ?? '').slice(0, DOM_CAP)}),
-  value: ({el}) => ({value: (el as HTMLInputElement).value ?? null}),
-  attr: ({el, query}) => ({value: el!.getAttribute(query.name ?? '')}),
+  text: onEl((el) => ({text: (el.textContent ?? '').slice(0, DOM_CAP)})),
+  value: onEl((el) => ({value: isField(el) ? el.value : null})),
+  attr: onEl((el, query) => ({value: el.getAttribute(query.name ?? '')})),
   // actions
-  click: ({el}) => {
-    ;(el as HTMLElement).click()
+  click: onEl((el) => {
+    if (!(el instanceof HTMLElement)) return err('click target is not an HTMLElement')
+    el.click()
     return ok()
-  },
-  hover: ({el}) => {
-    el!.dispatchEvent(new MouseEvent('mouseover', {bubbles: true}))
-    el!.dispatchEvent(new MouseEvent('mouseenter', {bubbles: true}))
+  }),
+  hover: onEl((el) => {
+    el.dispatchEvent(new MouseEvent('mouseover', {bubbles: true}))
+    el.dispatchEvent(new MouseEvent('mouseenter', {bubbles: true}))
     return ok()
-  },
-  scroll: ({el}) => {
-    el!.scrollIntoView({block: 'center'})
+  }),
+  scroll: onEl((el) => {
+    el.scrollIntoView({block: 'center'})
     return ok()
-  },
-  submit: ({el}) => {
-    const form = el instanceof HTMLFormElement ? el : el!.closest('form')
+  }),
+  submit: onEl((el) => {
+    const form = el instanceof HTMLFormElement ? el : el.closest('form')
     if (!form) return err('no form to submit')
     form.requestSubmit()
     return ok()
-  },
-  fill: ({el, query}) => {
-    if (!isField(el!)) return err('fill target is not an input/textarea/select')
+  }),
+  fill: onEl((el, query) => {
+    if (!isField(el)) return err('fill target is not an input/textarea/select')
     el.value = query.value ?? ''
     fireInput(el)
     return ok({value: el.value})
-  },
-  select: ({el, query}) => {
+  }),
+  select: onEl((el, query) => {
     if (!(el instanceof HTMLSelectElement)) return err('select target is not a <select>')
     el.value = query.value ?? ''
     fireInput(el)
     return ok({value: el.value})
-  },
-  check: ({el}) => {
+  }),
+  check: onEl((el) => {
     if (!(el instanceof HTMLInputElement)) return err('check target is not an input')
     el.checked = true
     fireInput(el)
     return ok({checked: true})
-  },
-  uncheck: ({el}) => {
+  }),
+  uncheck: onEl((el) => {
     if (!(el instanceof HTMLInputElement)) return err('uncheck target is not an input')
     el.checked = false
     fireInput(el)
     return ok({checked: false})
-  },
-  press: ({el, query}) => {
+  }),
+  press: onEl((el, query) => {
     const key = query.key ?? ''
-    el!.dispatchEvent(new KeyboardEvent('keydown', {key, bubbles: true}))
-    el!.dispatchEvent(new KeyboardEvent('keyup', {key, bubbles: true}))
+    el.dispatchEvent(new KeyboardEvent('keydown', {key, bubbles: true}))
+    el.dispatchEvent(new KeyboardEvent('keyup', {key, bubbles: true}))
     return ok()
-  },
+  }),
   // edits
-  setattr: ({el, query}) => {
-    el!.setAttribute(query.name ?? '', query.value ?? '')
+  setattr: onEl((el, query) => {
+    el.setAttribute(query.name ?? '', query.value ?? '')
     return ok()
-  },
-  removeattr: ({el, query}) => {
-    el!.removeAttribute(query.name ?? '')
+  }),
+  removeattr: onEl((el, query) => {
+    el.removeAttribute(query.name ?? '')
     return ok()
-  },
-  addclass: ({el, query}) => {
-    el!.classList.add(query.class ?? '')
+  }),
+  addclass: onEl((el, query) => {
+    el.classList.add(query.class ?? '')
     return ok()
-  },
-  removeclass: ({el, query}) => {
-    el!.classList.remove(query.class ?? '')
+  }),
+  removeclass: onEl((el, query) => {
+    el.classList.remove(query.class ?? '')
     return ok()
-  },
-  setstyle: ({el, query}) => {
-    ;(el as HTMLElement).style.setProperty(query.prop ?? '', query.value ?? '')
+  }),
+  setstyle: onEl((el, query) => {
+    if (!(el instanceof HTMLElement)) return err('setstyle target is not an HTMLElement')
+    el.style.setProperty(query.prop ?? '', query.value ?? '')
     return ok()
-  },
-  settext: ({el, query}) => {
-    el!.textContent = query.text ?? ''
+  }),
+  settext: onEl((el, query) => {
+    el.textContent = query.text ?? ''
     return ok()
-  },
-  sethtml: ({el, query}) => {
-    el!.innerHTML = query.html ?? ''
+  }),
+  sethtml: onEl((el, query) => {
+    el.innerHTML = query.html ?? ''
     return ok()
-  },
-  remove: ({el}) => {
-    el!.remove()
+  }),
+  remove: onEl((el) => {
+    el.remove()
     return ok()
-  },
-  insert: ({el, query}) => {
-    el!.insertAdjacentHTML(INSERT_POS[query.position ?? 'append'] ?? 'beforeend', query.html ?? '')
+  }),
+  insert: onEl((el, query) => {
+    el.insertAdjacentHTML(INSERT_POS[query.position ?? 'append'] ?? 'beforeend', query.html ?? '')
     return ok()
-  },
+  }),
   // targetless mutations
   css: ({query}) => {
     const style = document.createElement('style')
@@ -242,7 +248,8 @@ export const DOM_HANDLERS: Record<PageQueryKind, PageHandler> = {
     return ok()
   },
   eval: async ({query}) => {
-    const fn = new Function(`return (async () => { ${query.code ?? ''} })()`) as () => Promise<unknown>
-    return {result: serialize(await fn())}
+    const fn = new Function(`return (async () => { ${query.code ?? ''} })()`)
+    const result: unknown = await fn()
+    return {result: serialize(result)}
   },
 }
