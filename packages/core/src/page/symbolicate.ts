@@ -10,7 +10,7 @@ const SERVER_PREFIX = /^about:\/\/React\/Server\//
 
 // Strip React's synthetic server-chunk prefix and any ?query so the URL is fetchable.
 function normalizeUrl(url: string): string {
-  return url.replace(SERVER_PREFIX, '').split('?')[0]
+  return url.replace(SERVER_PREFIX, '').split('?')[0] ?? url
 }
 
 // Read a chunk or map by URL scheme: file:// off disk, http over fetch, bare path off disk.
@@ -27,7 +27,7 @@ async function loadSourceMap(chunkUrl: string, fetchImpl: typeof fetch): Promise
   const js = await readUrl(chunkUrl, fetchImpl)
   const m = js.match(/\/\/[#@]\s*sourceMappingURL=([^\s'"]+)\s*$/m)
   if (m) {
-    const u = m[1].trim()
+    const u = (m[1] ?? '').trim()
     if (u.startsWith('data:')) return JSON.parse(Buffer.from(u.slice(u.indexOf('base64,') + 7), 'base64').toString('utf8'))
     return JSON.parse(await readUrl(new URL(u, clean).href, fetchImpl))
   }
