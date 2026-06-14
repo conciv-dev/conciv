@@ -1,12 +1,9 @@
 import type {ZodType} from 'zod'
 import {EventType, type StreamChunk} from '@tanstack/ai'
+import type {HarnessDecodeOpts} from '@aidx/protocol/harness-types'
 
 // Shared decoder spine: run lifecycle, line loop, parse, id minter, AG-UI chunk emitters.
 // An adapter supplies only its Zod event schema and a pure event→chunks `step`.
-const THREAD_ID = 'aidx-chat'
-const RUN_ID = 'aidx-run'
-
-export type SessionSink = {onSessionId(id: string): void}
 
 // Mints monotonic message ids (`m1`, `t2`, `r3`, …) shared across a turn's messages.
 export type Mint = (prefix: string) => string
@@ -28,13 +25,13 @@ export function parseJsonLine<T>(line: string, schema: ZodType<T>): T | null {
 
 export function* textMessage(id: string, text: string): Generator<StreamChunk> {
   yield {type: EventType.TEXT_MESSAGE_START, messageId: id, role: 'assistant'}
-  yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId: id, delta: text}
+  if (text) yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId: id, delta: text}
   yield {type: EventType.TEXT_MESSAGE_END, messageId: id}
 }
 
 export function* reasoningMessage(id: string, text: string): Generator<StreamChunk> {
   yield {type: EventType.REASONING_MESSAGE_START, messageId: id, role: 'reasoning'}
-  yield {type: EventType.REASONING_MESSAGE_CONTENT, messageId: id, delta: text}
+  if (text) yield {type: EventType.REASONING_MESSAGE_CONTENT, messageId: id, delta: text}
   yield {type: EventType.REASONING_MESSAGE_END, messageId: id}
 }
 
@@ -51,19 +48,22 @@ export function* toolResult(messageId: string, toolCallId: string, content: stri
 export async function* runAgui<E>(
   lines: AsyncIterable<string>,
   schema: ZodType<E>,
-  opts: SessionSink,
+  opts: HarnessDecodeOpts,
   step: Step<E>,
 ): AsyncGenerator<StreamChunk> {
+  const runId = opts.runId ?? 'aidx-run'
+  const threadId = opts.threadId ?? 'aidx-chat'
   const counter = {n: 0}
   const mint: Mint = (prefix) => {
     counter.n += 1
     return `${prefix}${counter.n}`
   }
-  yield {type: EventType.RUN_STARTED, threadId: THREAD_ID, runId: RUN_ID}
+  yield {type: EventType.RUN_STARTED, threadId, runId}
   for await (const line of lines) {
+    opts.logger?.provider('harness-line', {line})
     const event = parseJsonLine(line, schema)
     if (event === null) continue
     yield* step(event, {mint, onSessionId: opts.onSessionId})
   }
-  yield {type: EventType.RUN_FINISHED, threadId: THREAD_ID, runId: RUN_ID, finishReason: 'stop'}
+  yield {type: EventType.RUN_FINISHED, threadId, runId, finishReason: 'stop'}
 }

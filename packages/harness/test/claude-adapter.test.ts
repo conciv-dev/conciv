@@ -11,6 +11,8 @@ describe('claude harness adapter', () => {
       permissionGate: 'hook',
       transcriptHistory: true,
       systemPrompt: 'file',
+      mcp: 'http',
+      imageInput: 'native',
     })
   })
 
