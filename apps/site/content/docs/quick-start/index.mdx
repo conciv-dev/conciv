@@ -1,0 +1,27 @@
+---
+title: Quick start
+description: Add aidx to your app. Pick your bundler and follow the steps.
+icon: Zap
+---
+
+## Prerequisites
+
+<Callout>
+  You need a dev build of your app, Node 22 or newer, and the `claude` CLI on your `PATH`. The
+  chat uses `claude` to answer. See [Harnesses](/docs/harnesses) to use a different agent.
+</Callout>
+
+aidx mounts in dev only. The ✦ button shows once the engine routes are live, so it stays inert on
+a plain production preview.
+
+## Pick your framework
+
+<Cards>
+  <Card title="Vite" href="/docs/quick-start/vite" icon={<img src="/icons/vite.svg" alt="" className="size-4" />} description="Full integration. Live page bridge and widget injection." />
+  <Card title="Next.js" href="/docs/quick-start/nextjs" icon={<img src="/icons/nextjs.svg" alt="" className="size-4" />} description="withAidx plus the client widget." />
+  <Card title="webpack" href="/docs/quick-start/webpack" icon={<img src="/icons/webpack.svg" alt="" className="size-4" />} description="Bridge-less engine. Inject the widget yourself." />
+  <Card title="Rspack" href="/docs/quick-start/rspack" icon={<img src="/icons/rspack.svg" alt="" className="size-4" />} description="Bridge-less engine. Inject the widget yourself." />
+</Cards>
+
+Using Rollup or esbuild? See the [Rollup](/docs/quick-start/rollup) and
+[esbuild](/docs/quick-start/esbuild) notes.

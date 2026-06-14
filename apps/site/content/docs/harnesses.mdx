@@ -1,0 +1,44 @@
+---
+title: Harnesses
+description: The agent behind the chat, and how to pick one.
+icon: Bot
+---
+
+A harness is the headless agent process that powers the chat. Claude is the default.
+
+## Select a harness
+
+```ts title="vite.config.ts"
+aidx({
+  harness: 'codex',
+  harnessBin: '/usr/local/bin/codex',
+})
+```
+
+`harness` picks the adapter. `harnessBin` overrides the binary on your `PATH`. See
+[Configuration](/docs/configuration).
+
+## Available
+
+### Claude
+
+Default. Full support. Needs the `claude` CLI on your `PATH`.
+
+```ts
+aidx({ harness: 'claude' })
+```
+
+### Codex
+
+Full support.
+
+```ts
+aidx({ harness: 'codex' })
+```
+
+## Planned
+
+<Callout type="warn">
+  `gemini-cli`, `opencode`, and `pi` are stubs today. The ids exist but the adapters are not
+  implemented yet.
+</Callout>

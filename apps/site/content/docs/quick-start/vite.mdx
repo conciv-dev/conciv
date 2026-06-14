@@ -1,0 +1,75 @@
+---
+title: Vite
+description: Add aidx to a Vite app.
+---
+
+Vite is the full integration. The plugin boots the engine, bridges the live page, and injects the
+widget for you.
+
+<Steps>
+<Step>
+
+### Install
+
+<Tabs items={['pnpm', 'npm', 'yarn']}>
+
+<Tab value="pnpm">
+
+```bash
+pnpm add -D @aidx/plugin
+```
+
+</Tab>
+
+<Tab value="npm">
+
+```bash
+npm install -D @aidx/plugin
+```
+
+</Tab>
+
+<Tab value="yarn">
+
+```bash
+yarn add -D @aidx/plugin
+```
+
+</Tab>
+
+</Tabs>
+
+</Step>
+<Step>
+
+### Add the plugin
+
+```ts title="vite.config.ts"
+import { defineConfig } from 'vite'
+import aidx from '@aidx/plugin/vite'
+
+export default defineConfig({
+  plugins: [aidx()],
+})
+```
+
+</Step>
+<Step>
+
+### Run and open
+
+Start your dev server, open the app, and click the ✦ button.
+
+```bash
+vite dev
+```
+
+</Step>
+</Steps>
+
+<Callout type="warn">
+  Keep aidx out of production. Gate it on the dev command, or set `enabled`. See
+  [Configuration](/docs/configuration).
+</Callout>
+
+Next: [Usage](/docs/usage) to see what the agent can do.

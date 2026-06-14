@@ -1,0 +1,45 @@
+---
+title: Troubleshooting
+description: Common problems and fixes.
+icon: LifeBuoy
+---
+
+<Accordions type="single">
+
+<Accordion title="The ✦ button never appears">
+
+The widget probes the engine on load and only shows when the dev routes are live. Check that:
+
+- the dev server is running, not a production build
+- `enabled` is not set to `false`
+- the engine port is reachable (set a fixed `port` if something else grabbed it)
+
+On webpack and Rspack the widget is not injected for you. Set `widgetUrl`. See
+[Configuration](/docs/configuration#widgeturl).
+
+</Accordion>
+
+<Accordion title="The chat does not answer, claude not found">
+
+The default harness shells out to the `claude` CLI. Install Claude Code and make sure `claude` is
+on your `PATH`, or point at it directly:
+
+```ts
+aidx({ harnessBin: '/usr/local/bin/claude' })
+```
+
+See [Harnesses](/docs/harnesses).
+
+</Accordion>
+
+<Accordion title="Port conflicts">
+
+Pin the engine port so server boot and the client widget agree:
+
+```ts
+aidx({ port: 7378 })
+```
+
+</Accordion>
+
+</Accordions>

@@ -1,0 +1,74 @@
+---
+title: Configuration
+description: The aidx() options and the common ways to set them.
+icon: Settings
+---
+
+Pass options to the plugin. Every field is optional.
+
+```ts title="vite.config.ts"
+import aidx from '@aidx/plugin/vite'
+
+aidx({
+  harness: 'claude',
+  enabled: process.env.NODE_ENV !== 'production',
+})
+```
+
+## Options
+
+<TypeTable
+  type={{
+    enabled: { type: 'boolean', default: 'true', description: 'Mount the agent. Gate it on dev mode in real apps.' },
+    harness: { type: 'string', default: '"claude"', description: 'Harness adapter id, such as claude or codex.' },
+    harnessBin: { type: 'string', default: 'adapter default', description: 'Override the harness binary on PATH.' },
+    testRunner: { type: 'string', default: '"vitest"', description: 'Test runner adapter id.' },
+    widgetUrl: { type: 'string', default: 'AIDX_WIDGET_URL', description: 'Script src for the injected widget. Omit to skip injection.' },
+    systemPrompt: { type: 'string', default: 'built-in', description: 'Appended to each agent turn.' },
+    previewId: { type: 'string', default: '"local"', description: 'Correlates a resumable session.' },
+    sessionId: { type: 'string', default: 'none', description: 'Resume an existing thread.' },
+    port: { type: 'number', default: 'auto', description: 'Fixed engine port. Used by the Next.js integration.' },
+    stateRoot: { type: 'string', default: 'process.cwd()', description: 'Root holding the .aidx state directory.' },
+  }}
+/>
+
+<Callout>
+  `claudePath` and `claudeSessionId` are deprecated. Use `harnessBin` and `sessionId`.
+</Callout>
+
+## Common tasks
+
+### Gate to dev only
+
+```ts
+aidx({ enabled: process.env.NODE_ENV !== 'production' })
+```
+
+### Switch harness
+
+```ts
+aidx({ harness: 'codex' })
+```
+
+See [Harnesses](/docs/harnesses) for the full list.
+
+### Override the binary
+
+```ts
+aidx({ harnessBin: '/usr/local/bin/claude' })
+```
+
+### Custom system prompt
+
+```ts
+aidx({ systemPrompt: 'Prefer Tailwind classes over inline styles.' })
+```
+
+### widgetUrl
+
+On webpack and Rspack the plugin does not inject the widget. Set `widgetUrl` to the served widget
+bundle so the script lands on your page.
+
+```ts
+aidx({ widgetUrl: '/aidx-widget.js' })
+```

@@ -1,0 +1,91 @@
+---
+title: Next.js
+description: Add aidx to a Next.js app.
+---
+
+Next.js needs three small wires: the config wrapper, the server register hook, and the client
+widget.
+
+<Steps>
+<Step>
+
+### Install
+
+<Tabs items={['pnpm', 'npm', 'yarn']}>
+
+<Tab value="pnpm">
+
+```bash
+pnpm add -D @aidx/plugin
+```
+
+</Tab>
+
+<Tab value="npm">
+
+```bash
+npm install -D @aidx/plugin
+```
+
+</Tab>
+
+<Tab value="yarn">
+
+```bash
+yarn add -D @aidx/plugin
+```
+
+</Tab>
+
+</Tabs>
+
+</Step>
+<Step>
+
+### Wrap your config
+
+```ts title="next.config.ts"
+import type { NextConfig } from 'next'
+import { withAidx } from '@aidx/plugin/nextjs'
+
+const nextConfig: NextConfig = {}
+
+export default withAidx(nextConfig)
+```
+
+</Step>
+<Step>
+
+### Add the instrumentation files
+
+```ts title="instrumentation.ts"
+export { register } from '@aidx/plugin/nextjs'
+```
+
+```ts title="instrumentation-client.ts"
+import '@aidx/plugin/nextjs/widget'
+```
+
+</Step>
+<Step>
+
+### Run and open
+
+```bash
+next dev
+```
+
+Open the app and click the ✦ button.
+
+</Step>
+</Steps>
+
+These three files sit at your project root next to `next.config.ts`:
+
+<Files>
+  <File name="next.config.ts" />
+  <File name="instrumentation.ts" />
+  <File name="instrumentation-client.ts" />
+</Files>
+
+Next: [Usage](/docs/usage) to see what the agent can do.

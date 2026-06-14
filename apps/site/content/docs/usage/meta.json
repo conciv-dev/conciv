@@ -1,0 +1,5 @@
+{
+  "title": "Usage",
+  "icon": "MousePointerClick",
+  "pages": ["index", "chat", "page-control", "live-tests", "approvals"]
+}

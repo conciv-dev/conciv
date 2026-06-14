@@ -1,0 +1,20 @@
+---
+title: Live tests
+description: Run your tests and watch results stream into a card.
+---
+
+Ask the agent to run your tests. Results stream into a test card in the widget, with pass and fail
+state per test as they come in.
+
+<ImageZoom src="/screenshots/test-card.png" alt="A test result card streaming pass and fail state" width={760} height={1120} />
+
+A vague request like "run the tests" makes the agent list your test files first, and it may ask
+which to run. Name a target to skip that step.
+
+On a failure, it summarizes what broke and asks before changing anything. It does not edit your
+code unprompted.
+
+<Callout>
+  Vitest is the default runner. Playwright is also supported. See
+  [Test runners](/docs/test-runners).
+</Callout>

@@ -1,0 +1,5 @@
+{
+  "title": "Quick start",
+  "icon": "Zap",
+  "pages": ["index", "vite", "nextjs", "webpack", "rspack", "rollup", "esbuild"]
+}

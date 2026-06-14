@@ -1,0 +1,26 @@
+---
+title: Chat
+description: Talk to the agent about the page you are looking at.
+---
+
+The chat thread talks to an agent embedded in your live app. When you say "this" or "here", it
+reads the rendered page first, so it answers about what you actually see.
+
+<ImageZoom src="/screenshots/chat-thread.png" alt="A chat thread with the agent thinking and calling tools" width={760} height={1120} />
+
+You watch it think and call tools inline. Stop a turn at any time with the stop button.
+
+## Generative UI
+
+When the agent needs a decision or input, it renders real controls in the thread instead of
+asking in plain text. You respond by interacting, and your answer becomes the next message.
+
+- **Choices**: tappable options for a quick pick.
+- **Confirm**: a yes or no question, often before a risky change.
+- **Diff**: a proposed change with Apply or Reject.
+- **Form**: structured fields when the agent needs more than one value.
+
+## Sessions
+
+A thread is resumable. Set `previewId` to correlate a session, or `sessionId` to resume a specific
+thread. See [Configuration](/docs/configuration).

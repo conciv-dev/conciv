@@ -1,0 +1,45 @@
+---
+title: webpack
+description: Add aidx to a webpack app.
+---
+
+The webpack entry boots the engine, but it does not inject the widget for you. You add the widget
+script yourself and point `widgetUrl` at the bundle.
+
+<Steps>
+<Step>
+
+### Install
+
+```bash
+npm install -D @aidx/plugin
+```
+
+</Step>
+<Step>
+
+### Add the plugin
+
+```js title="webpack.config.js"
+const aidx = require('@aidx/plugin/webpack')
+
+module.exports = {
+  plugins: [aidx.default()],
+}
+```
+
+</Step>
+<Step>
+
+### Inject the widget
+
+The widget bundle ships as `@aidx/widget/global`. Serve it and set `widgetUrl` so the script is
+added to your page. See [Configuration](/docs/configuration#widgeturl).
+
+</Step>
+</Steps>
+
+<Callout>
+  webpack is less complete than [Vite](/docs/quick-start/vite). The live page bridge is Vite only.
+  Chat, tests, and approvals work once the engine is booted and the widget is on the page.
+</Callout>
