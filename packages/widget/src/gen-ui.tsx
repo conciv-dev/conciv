@@ -1,21 +1,21 @@
-import {type FormEvent, type JSX, useState} from 'react'
+import {createSignal, For, Show, type JSX} from 'solid-js'
 import type {UiApproval, UiChoices, UiConfirm, UiDiff, UiForm, UiSpec} from '@aidx/protocol/ui-types'
 
-// Agent-generated UI rendered inline in the chat thread. The dev server emits these specs
-// as AG-UI CUSTOM events (`aidx-ui`); the widget renders a real component and sends the
-// user's answer as the next chat message (the `claude --resume` turn cycle is the
-// round-trip — no blocking, no separate result channel). Types come from @aidx/protocol.
+// Agent-generated UI rendered inline in the chat thread; the user's answer becomes the next
+// chat message (the resume turn cycle is the round-trip). Types come from @aidx/protocol.
 
 function Choices(props: {spec: UiChoices; onAnswer: (text: string) => void}): JSX.Element {
   return (
-    <div className="pw-genui">
-      <p className="pw-genui-q">{props.spec.question}</p>
-      <div className="pw-genui-choices">
-        {props.spec.options.map((option) => (
-          <button key={option} className="pw-genui-choice" onClick={() => props.onAnswer(option)}>
-            {option}
-          </button>
-        ))}
+    <div class="pw-genui">
+      <p class="pw-genui-q">{props.spec.question}</p>
+      <div class="pw-genui-choices">
+        <For each={props.spec.options}>
+          {(option) => (
+            <button class="pw-genui-choice" onClick={() => props.onAnswer(option)}>
+              {option}
+            </button>
+          )}
+        </For>
       </div>
     </div>
   )
@@ -23,14 +23,14 @@ function Choices(props: {spec: UiChoices; onAnswer: (text: string) => void}): JS
 
 function Confirm(props: {spec: UiConfirm; onAnswer: (text: string) => void}): JSX.Element {
   return (
-    <div className="pw-genui pw-genui-confirm">
-      <p className="pw-genui-q">{props.spec.question}</p>
-      {props.spec.detail ? <pre className="pw-genui-detail">{props.spec.detail}</pre> : null}
-      <div className="pw-genui-actions">
-        <button className="pw-genui-primary" onClick={() => props.onAnswer('Yes, go ahead.')}>
+    <div class="pw-genui pw-genui-confirm">
+      <p class="pw-genui-q">{props.spec.question}</p>
+      <Show when={props.spec.detail}>{(detail) => <pre class="pw-genui-detail">{detail()}</pre>}</Show>
+      <div class="pw-genui-actions">
+        <button class="pw-genui-primary" onClick={() => props.onAnswer('Yes, go ahead.')}>
           Approve
         </button>
-        <button className="pw-genui-ghost" onClick={() => props.onAnswer("No, don't.")}>
+        <button class="pw-genui-ghost" onClick={() => props.onAnswer("No, don't.")}>
           Deny
         </button>
       </div>
@@ -40,14 +40,14 @@ function Confirm(props: {spec: UiConfirm; onAnswer: (text: string) => void}): JS
 
 function Approval(props: {spec: UiApproval; onDecide: (approved: boolean) => void}): JSX.Element {
   return (
-    <div className="pw-genui pw-genui-approval">
-      <p className="pw-genui-q">{props.spec.question}</p>
-      {props.spec.detail ? <pre className="pw-genui-detail">{props.spec.detail}</pre> : null}
-      <div className="pw-genui-actions">
-        <button className="pw-genui-primary" onClick={() => props.onDecide(true)}>
+    <div class="pw-genui pw-genui-approval">
+      <p class="pw-genui-q">{props.spec.question}</p>
+      <Show when={props.spec.detail}>{(detail) => <pre class="pw-genui-detail">{detail()}</pre>}</Show>
+      <div class="pw-genui-actions">
+        <button class="pw-genui-primary" onClick={() => props.onDecide(true)}>
           Approve
         </button>
-        <button className="pw-genui-ghost" onClick={() => props.onDecide(false)}>
+        <button class="pw-genui-ghost" onClick={() => props.onDecide(false)}>
           Deny
         </button>
       </div>
@@ -61,25 +61,17 @@ function splitLines(text: string): string[] {
 
 function Diff(props: {spec: UiDiff; onAnswer: (text: string) => void}): JSX.Element {
   return (
-    <div className="pw-genui pw-genui-diff">
-      <div className="pw-genui-diff-file">{props.spec.file}</div>
-      <div className="pw-genui-diff-body">
-        {splitLines(props.spec.before).map((line, i) => (
-          <div key={`del-${i}`} className="pw-genui-diff-del">
-            - {line}
-          </div>
-        ))}
-        {splitLines(props.spec.after).map((line, i) => (
-          <div key={`add-${i}`} className="pw-genui-diff-add">
-            + {line}
-          </div>
-        ))}
+    <div class="pw-genui pw-genui-diff">
+      <div class="pw-genui-diff-file">{props.spec.file}</div>
+      <div class="pw-genui-diff-body">
+        <For each={splitLines(props.spec.before)}>{(line) => <div class="pw-genui-diff-del">- {line}</div>}</For>
+        <For each={splitLines(props.spec.after)}>{(line) => <div class="pw-genui-diff-add">+ {line}</div>}</For>
       </div>
-      <div className="pw-genui-actions">
-        <button className="pw-genui-primary" onClick={() => props.onAnswer(`Apply the change to ${props.spec.file}.`)}>
+      <div class="pw-genui-actions">
+        <button class="pw-genui-primary" onClick={() => props.onAnswer(`Apply the change to ${props.spec.file}.`)}>
           Apply
         </button>
-        <button className="pw-genui-ghost" onClick={() => props.onAnswer('Reject that change.')}>
+        <button class="pw-genui-ghost" onClick={() => props.onAnswer('Reject that change.')}>
           Reject
         </button>
       </div>
@@ -95,43 +87,44 @@ function fieldValue(values: Record<string, string>, field: UiForm['fields'][numb
 }
 
 function Form(props: {spec: UiForm; onAnswer: (text: string) => void}): JSX.Element {
-  const [values, setValues] = useState<Record<string, string>>({})
+  const [values, setValues] = createSignal<Record<string, string>>({})
   const set = (name: string, value: string) => setValues((prev) => ({...prev, [name]: value}))
-  const submit = (e: FormEvent) => {
+  const submit = (e: Event) => {
     e.preventDefault()
-    const summary = props.spec.fields.map((f) => `${f.label}: ${fieldValue(values, f)}`).join(', ')
+    const summary = props.spec.fields.map((f) => `${f.label}: ${fieldValue(values(), f)}`).join(', ')
     props.onAnswer(summary)
   }
   return (
-    <form className="pw-genui pw-genui-form" onSubmit={submit}>
-      {props.spec.title ? <p className="pw-genui-q">{props.spec.title}</p> : null}
-      {props.spec.fields.map((field) => (
-        <label key={field.name} className="pw-genui-field">
-          <span className="pw-genui-label">{field.label}</span>
-          {field.type === 'select' ? (
-            <select
-              className="pw-genui-input"
-              value={fieldValue(values, field)}
-              onChange={(e) => set(field.name, e.currentTarget.value)}
+    <form class="pw-genui pw-genui-form" onSubmit={submit}>
+      <Show when={props.spec.title}>{(title) => <p class="pw-genui-q">{title()}</p>}</Show>
+      <For each={props.spec.fields}>
+        {(field) => (
+          <label class="pw-genui-field">
+            <span class="pw-genui-label">{field.label}</span>
+            <Show
+              when={field.type === 'select'}
+              fallback={
+                <input
+                  class="pw-genui-input"
+                  type="text"
+                  value={values()[field.name] ?? ''}
+                  onInput={(e) => set(field.name, e.currentTarget.value)}
+                />
+              }
             >
-              {(field.options ?? []).map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <input
-              className="pw-genui-input"
-              type="text"
-              value={values[field.name] ?? ''}
-              onChange={(e) => set(field.name, e.currentTarget.value)}
-            />
-          )}
-        </label>
-      ))}
-      <div className="pw-genui-actions">
-        <button type="submit" className="pw-genui-primary">
+              <select
+                class="pw-genui-input"
+                value={fieldValue(values(), field)}
+                onChange={(e) => set(field.name, e.currentTarget.value)}
+              >
+                <For each={field.options ?? []}>{(option) => <option value={option}>{option}</option>}</For>
+              </select>
+            </Show>
+          </label>
+        )}
+      </For>
+      <div class="pw-genui-actions">
+        <button type="submit" class="pw-genui-primary">
           Submit
         </button>
       </div>
@@ -139,10 +132,7 @@ function Form(props: {spec: UiForm; onAnswer: (text: string) => void}): JSX.Elem
   )
 }
 
-// Dispatch a spec to its component. onAnswer sends the user's response as the next message;
-// onDecide answers the risky-Bash gate's blocking allow/deny. Each branch narrows the
-// discriminated union by `kind`, so the child receives a precisely-typed spec — no casts.
-// The `vitest` kind renders nothing here (its card lives in the transcript, see chat-shell).
+// Dispatch a spec to its component; the if-chain narrows the discriminated union by `kind`.
 export function GenUi(props: {
   spec: UiSpec
   onAnswer: (text: string) => void
