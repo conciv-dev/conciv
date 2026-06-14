@@ -24,3 +24,8 @@ export function qs(params: Record<string, unknown>): string {
 export async function runRequest(req: CliRequest): Promise<string> {
   return sendJson(req.method, `${defaultOrigin()}${req.path}`, req.body)
 }
+
+// Send a request and print the server's response — the common tail of every command's run().
+export async function runAndPrint(req: CliRequest): Promise<void> {
+  process.stdout.write((await runRequest(req)) + '\n')
+}

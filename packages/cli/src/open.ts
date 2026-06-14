@@ -1,6 +1,6 @@
 import {z} from 'zod'
 import {defineCommand} from 'citty'
-import {runRequest, type CliRequest} from './request.js'
+import {runAndPrint, type CliRequest} from './request.js'
 
 // `aidx tools open <file> [--line n]` — open a source file in the user's editor.
 const OpenArgs = z.object({file: z.string(), line: z.coerce.number().optional()})
@@ -16,7 +16,5 @@ export const openCommand = defineCommand({
     file: {type: 'positional', required: true, description: 'the file to open'},
     line: {type: 'string', description: 'line number to jump to'},
   },
-  run: async ({args}) => {
-    process.stdout.write((await runRequest(openRequest(args))) + '\n')
-  },
+  run: ({args}) => runAndPrint(openRequest(args)),
 })

@@ -1,7 +1,7 @@
 import {z} from 'zod'
 import {defineCommand, type ArgDef, type ArgsDef, type SubCommandsDef} from 'citty'
 import {PAGE_QUERY_KINDS, type PageQueryKind} from '@aidx/protocol/page-protocol'
-import {compact, qs, runRequest, type CliRequest} from './request.js'
+import {compact, qs, runAndPrint, type CliRequest} from './request.js'
 
 // `aidx tools page <verb>` — read and drive the live page. Each verb declares its HTTP
 // method, whether it targets an element (positional <selector> or --ref), and which extra
@@ -116,20 +116,18 @@ export function pageCommands(): SubCommandsDef {
       defineCommand({
         meta: {name: verb, description: `page ${verb}`},
         args: argsFor(verb),
-        run: async ({args}) => {
-          process.stdout.write((await runRequest(pageRequest(verb, args))) + '\n')
-        },
+        run: ({args}) => runAndPrint(pageRequest(verb, args)),
       }),
     ]),
   )
   const changes = defineCommand({
     meta: {name: 'changes', description: 'list (or --clear) the live-edit journal'},
     args: {clear: {type: 'boolean', description: 'reset the journal after listing'}},
-    run: async ({args}) => {
+    run: ({args}) => {
       const req: CliRequest = args.clear
         ? {method: 'POST', path: '/api/page/changes/clear'}
         : {method: 'GET', path: '/api/page/changes'}
-      process.stdout.write((await runRequest(req)) + '\n')
+      return runAndPrint(req)
     },
   })
   return {...verbs, changes}
