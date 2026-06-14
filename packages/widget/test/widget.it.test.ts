@@ -63,13 +63,56 @@ async function* chatScript(): AsyncGenerator<StreamChunk> {
   yield {type: EventType.RUN_FINISHED, threadId: 't', runId: 'r', finishReason: 'stop'}
 }
 
+const MCP_REPLY = 'MCP reply is visible'
+
+// The exact shape @tanstack/ai's chat() now streams: a generated threadId, an empty reasoning
+// block (START/END, no content — the empty-delta guard), text, MCP tool calls + results, then a
+// second text message. Reproduces "the bot replied but the chat shows nothing".
+async function* mcpAccessScript(): AsyncGenerator<StreamChunk> {
+  const threadId = 'thread-1781448888530-xl65usg'
+  yield {type: EventType.RUN_STARTED, threadId, runId: 'aidx-run'}
+  yield {type: EventType.REASONING_MESSAGE_START, messageId: 't1', role: 'reasoning'}
+  yield {type: EventType.REASONING_MESSAGE_END, messageId: 't1'}
+  yield {type: EventType.TEXT_MESSAGE_START, messageId: 'm2', role: 'assistant'}
+  yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'm2', delta: 'Proving it. Loading schema + test call.'}
+  yield {type: EventType.TEXT_MESSAGE_END, messageId: 'm2'}
+  yield {type: EventType.TOOL_CALL_START, toolCallId: 'tc1', toolCallName: 'aidx_page', toolName: 'aidx_page'}
+  yield {type: EventType.TOOL_CALL_ARGS, toolCallId: 'tc1', delta: '{"verb":"route"}'}
+  yield {type: EventType.TOOL_CALL_END, toolCallId: 'tc1'}
+  yield {type: EventType.TOOL_CALL_RESULT, messageId: 'r4', toolCallId: 'tc1', content: '[{"type":"text","text":"{\\"pathname\\":\\"/\\"}"}]'}
+  yield {type: EventType.TEXT_MESSAGE_START, messageId: 'm5', role: 'assistant'}
+  yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'm5', delta: MCP_REPLY}
+  yield {type: EventType.TEXT_MESSAGE_END, messageId: 'm5'}
+  yield {type: EventType.RUN_FINISHED, threadId, runId: 'aidx-run', finishReason: 'stop'}
+}
+
+// Two turns that REUSE the same message ids (t1/m2) across turns — exactly what runAgui's
+// per-turn id counter produces. The second turn's text must still appear as its own reply.
+const collisionState = {n: 0}
+async function* collisionScript(): AsyncGenerator<StreamChunk> {
+  collisionState.n += 1
+  const text = `Reply turn ${collisionState.n}`
+  // Exactly what chat() produces: a FRESH threadId every turn, constant runId, reused message ids.
+  const threadId = `thread-${collisionState.n}-generated`
+  yield {type: EventType.RUN_STARTED, threadId, runId: 'aidx-run'}
+  yield {type: EventType.REASONING_MESSAGE_START, messageId: 't1', role: 'reasoning'}
+  yield {type: EventType.REASONING_MESSAGE_END, messageId: 't1'}
+  yield {type: EventType.TEXT_MESSAGE_START, messageId: 'm2', role: 'assistant'}
+  yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'm2', delta: text}
+  yield {type: EventType.TEXT_MESSAGE_END, messageId: 'm2'}
+  yield {type: EventType.RUN_FINISHED, threadId, runId: 'aidx-run', finishReason: 'stop'}
+}
+
+// Which script the next POST /api/chat serves; tests set it before sending.
+const chatState = {script: chatScript as () => AsyncGenerator<StreamChunk>}
+
 function writeChatStream(res: ServerResponse): void {
   res.writeHead(200, {
     'content-type': 'text/event-stream',
     'cache-control': 'no-cache',
     'access-control-allow-origin': '*',
   })
-  const sse = toServerSentEventsStream(chatScript(), new AbortController())
+  const sse = toServerSentEventsStream(chatState.script(), new AbortController())
   Readable.fromWeb(sse as Parameters<typeof Readable.fromWeb>[0]).pipe(res)
 }
 
@@ -182,6 +225,48 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     expect(body.renderId).toBe('a1')
     expect(body.approved).toBe(true)
     await page.close()
+  })
+
+  it('renders the assistant reply for a chat() stream (generated threadId, empty reasoning, MCP tools)', async () => {
+    chatState.script = mcpAccessScript
+    try {
+      const page = await browser.newContext().then((c) => c.newPage())
+      await page.goto(state.base)
+      const fab = page.getByRole('button', {name: 'Open aidx chat'})
+      await fab.waitFor({state: 'visible'})
+      await fab.click()
+      await page.getByText('How can I help you today?').waitFor({state: 'visible'})
+      const composer = page.getByLabel('Message the aidx agent')
+      await composer.fill('do you have access to aidx mcp?')
+      await composer.press('Enter')
+      await page.getByText(MCP_REPLY).waitFor({state: 'visible', timeout: 10_000})
+      await page.close()
+    } finally {
+      chatState.script = chatScript
+    }
+  })
+
+  it('renders a SECOND turn whose message ids collide with the first turn (runAgui resets ids)', async () => {
+    chatState.script = collisionScript
+    collisionState.n = 0
+    try {
+      const page = await browser.newContext().then((c) => c.newPage())
+      await page.goto(state.base)
+      const fab = page.getByRole('button', {name: 'Open aidx chat'})
+      await fab.waitFor({state: 'visible'})
+      await fab.click()
+      await page.getByText('How can I help you today?').waitFor({state: 'visible'})
+      const composer = page.getByLabel('Message the aidx agent')
+      await composer.fill('first question')
+      await composer.press('Enter')
+      await page.getByText('Reply turn 1').waitFor({state: 'visible', timeout: 10_000})
+      await composer.fill('second question')
+      await composer.press('Enter')
+      await page.getByText('Reply turn 2').waitFor({state: 'visible', timeout: 10_000})
+      await page.close()
+    } finally {
+      chatState.script = chatScript
+    }
   })
 
   it('renders the live vitest card: pass/fail tree, expands the failure with actions', async () => {

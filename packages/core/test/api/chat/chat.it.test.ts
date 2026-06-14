@@ -21,13 +21,18 @@ function tmp(): string {
   return d
 }
 
-// A fake-claude spawn (optionally capturing argv to a file for the --resume assertion).
-function fakeSpawn(argvFile?: string): SpawnHarness {
+// A fake-claude spawn (optionally capturing argv to a file for the --resume assertion, or emitting
+// the rich multi-block transcript via AIDX_FAKE_RICH).
+function fakeSpawn(opts: {argvFile?: string; rich?: boolean} = {}): SpawnHarness {
   return (args, cwd) => {
     const child = spawn(process.execPath, [fakeClaude, ...args], {
       cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: {...process.env, ...(argvFile ? {AIDX_TEST_ARGV_FILE: argvFile} : {})},
+      env: {
+        ...process.env,
+        ...(opts.argvFile ? {AIDX_TEST_ARGV_FILE: opts.argvFile} : {}),
+        ...(opts.rich ? {AIDX_FAKE_RICH: '1'} : {}),
+      },
     })
     const {stdin, stdout, stderr} = child
     if (!stdout || !stderr) throw new Error('fake-claude did not expose stdout/stderr')
@@ -63,9 +68,19 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     expect(count('RUN_FINISHED')).toBe(1)
   })
 
+  it('streams a multi-block turn (empty thinking + text + tool call + text) without dropping text', async () => {
+    const server = await startTestServer({spawnHarness: fakeSpawn({rich: true})})
+    state.server = server
+    const body = await server.postChat(turn('hi'))
+    expect(body.split('RUN_STARTED').length - 1).toBe(1)
+    expect(body.split('RUN_FINISHED').length - 1).toBe(1)
+    expect(body).toContain('Proving it.')
+    expect(body).toContain('RICH_REPLY_VISIBLE')
+  })
+
   it('passes --resume <captured session id> on the second turn', async () => {
     const argvFile = join(tmp(), 'argv.json')
-    const server = await startTestServer({spawnHarness: fakeSpawn(argvFile)})
+    const server = await startTestServer({spawnHarness: fakeSpawn({argvFile})})
     state.server = server
     await server.postChat(turn('hi'))
     await server.postChat(turn('more'))
