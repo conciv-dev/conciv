@@ -13,24 +13,24 @@
       "import": "./dist/registry.js"
     },
     "./claude": {
-      "types": "./dist/claude/claude.d.ts",
-      "import": "./dist/claude/claude.js"
+      "types": "./dist/claude/index.d.ts",
+      "import": "./dist/claude/index.js"
     },
     "./codex": {
-      "types": "./dist/codex/codex.d.ts",
-      "import": "./dist/codex/codex.js"
+      "types": "./dist/codex/index.d.ts",
+      "import": "./dist/codex/index.js"
     },
     "./gemini-cli": {
-      "types": "./dist/gemini-cli/gemini-cli.d.ts",
-      "import": "./dist/gemini-cli/gemini-cli.js"
+      "types": "./dist/gemini-cli/index.d.ts",
+      "import": "./dist/gemini-cli/index.js"
     },
     "./opencode": {
-      "types": "./dist/opencode/opencode.d.ts",
-      "import": "./dist/opencode/opencode.js"
+      "types": "./dist/opencode/index.d.ts",
+      "import": "./dist/opencode/index.js"
     },
     "./pi": {
-      "types": "./dist/pi/pi.d.ts",
-      "import": "./dist/pi/pi.js"
+      "types": "./dist/pi/index.d.ts",
+      "import": "./dist/pi/index.js"
     }
   },
   "scripts": {

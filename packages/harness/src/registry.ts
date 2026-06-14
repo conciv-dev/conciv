@@ -1,9 +1,9 @@
 import type {HarnessAdapter} from '@aidx/protocol/harness-types'
-import {claude} from './claude/claude.js'
-import {codex} from './codex/codex.js'
-import {geminiCli} from './gemini-cli/gemini-cli.js'
-import {opencode} from './opencode/opencode.js'
-import {pi} from './pi/pi.js'
+import {claude} from './claude/index.js'
+import {codex} from './codex/index.js'
+import {geminiCli} from './gemini-cli/index.js'
+import {opencode} from './opencode/index.js'
+import {pi} from './pi/index.js'
 
 const registry = new Map<string, HarnessAdapter>()
 

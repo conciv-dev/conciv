@@ -5,8 +5,8 @@ import {createRequire} from 'node:module'
 import {fileURLToPath, pathToFileURL} from 'node:url'
 import type {Readable} from 'node:stream'
 import {EventType, type StreamChunk} from '@tanstack/ai'
-import {codex} from '../src/codex/codex.js'
-import {claude} from '../src/claude/claude.js'
+import {codex} from '../src/codex/index.js'
+import {claude} from '../src/claude/index.js'
 
 // Real spawn: run fake-harness via tsx so the test exercises the true stdout-pipe → decode path.
 const require = createRequire(import.meta.url)

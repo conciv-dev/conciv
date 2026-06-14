@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest'
-import {claude} from '../src/claude/claude.js'
+import {claude} from '../src/claude/index.js'
 import {getHarness} from '../src/registry.js'
 
 describe('claude harness adapter', () => {

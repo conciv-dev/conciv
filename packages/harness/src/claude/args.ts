@@ -1,10 +1,4 @@
-export type ClaudeArgsOptions = {
-  prompt: string
-  cwd: string
-  resumeSessionId: string | null
-  appendSystemPromptFile?: string
-  permissionUrl?: string // when set, a PreToolUse http hook gates risky Bash to this URL
-}
+import type {HarnessTurn} from '@aidx/protocol/harness-types'
 
 // PreToolUse http hook on Bash → the dev server's permission route. 600s (route denies sooner).
 function hookSettings(permissionUrl: string): string {
@@ -16,10 +10,11 @@ function hookSettings(permissionUrl: string): string {
 }
 
 // The headless `claude -p` argv: stream-json, acceptEdits (git is the undo net), cwd allowed.
-export function buildClaudeArgs(o: ClaudeArgsOptions): string[] {
+// systemPrompt is delivered as a file — turn.systemPrompt is the path the chat route wrote.
+export function buildClaudeArgs(turn: HarnessTurn): string[] {
   const args = [
     '-p',
-    o.prompt,
+    turn.prompt,
     '--output-format',
     'stream-json',
     '--verbose',
@@ -30,10 +25,10 @@ export function buildClaudeArgs(o: ClaudeArgsOptions): string[] {
     'Bash(aidx tools:*)',
     'Bash(aidx ui:*)',
     '--add-dir',
-    o.cwd,
+    turn.cwd,
   ]
-  if (o.permissionUrl) args.push('--settings', hookSettings(o.permissionUrl))
-  if (o.appendSystemPromptFile) args.push('--append-system-prompt-file', o.appendSystemPromptFile)
-  if (o.resumeSessionId) args.push('--resume', o.resumeSessionId)
+  if (turn.permissionUrl) args.push('--settings', hookSettings(turn.permissionUrl))
+  if (turn.systemPrompt) args.push('--append-system-prompt-file', turn.systemPrompt)
+  if (turn.resumeSessionId) args.push('--resume', turn.resumeSessionId)
   return args
 }

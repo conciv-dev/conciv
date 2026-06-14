@@ -1,9 +1,19 @@
 import {z} from 'zod'
-import {EventType, type StreamChunk} from '@tanstack/ai'
+import type {StreamChunk} from '@tanstack/ai'
+import {
+  runAgui,
+  textMessage,
+  reasoningMessage,
+  toolCall,
+  toolResult,
+  type Mint,
+  type SessionSink,
+  type StepContext,
+} from '../_shared/agui.js'
 
-// Translate `codex exec --json` JSONL events into the AG-UI StreamChunk stream the widget
-// speaks: RUN_STARTED → (TEXT | REASONING | TOOL_CALL)* → RUN_FINISHED. Event shapes verified
-// against the codex CLI docs; unknown events are skipped. thread_id surfaces the session id.
+// Translate `codex exec --json` JSONL events into the AG-UI StreamChunk stream. Only the event
+// schema + the event→chunks mapping are codex-specific; the run lifecycle, line loop, and chunk
+// emitters live in ../_shared/agui.ts. thread_id surfaces the session id.
 
 const AgentMessageItem = z.object({type: z.literal('agent_message'), id: z.string(), text: z.string()})
 const ReasoningItem = z.object({type: z.literal('reasoning'), id: z.string(), text: z.string()})
@@ -15,83 +25,31 @@ const CommandItem = z.object({
 })
 
 const CodexEventSchema = z
-  .object({
-    type: z.string(),
-    thread_id: z.string().optional(),
-    item: z.unknown().optional(),
-  })
+  .object({type: z.string(), thread_id: z.string().optional(), item: z.unknown().optional()})
   .loose()
-
-function parseEvent(line: string): z.infer<typeof CodexEventSchema> | null {
-  const trimmed = line.trim()
-  if (!trimmed) return null
-  try {
-    const result = CodexEventSchema.safeParse(JSON.parse(trimmed))
-    return result.success ? result.data : null
-  } catch {
-    return null
-  }
-}
-
-function* textChunks(text: string, ids: {n: number}): Generator<StreamChunk> {
-  ids.n += 1
-  const messageId = `m${ids.n}`
-  yield {type: EventType.TEXT_MESSAGE_START, messageId, role: 'assistant'}
-  yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId, delta: text}
-  yield {type: EventType.TEXT_MESSAGE_END, messageId}
-}
-
-function* reasoningChunks(text: string, ids: {n: number}): Generator<StreamChunk> {
-  ids.n += 1
-  const messageId = `t${ids.n}`
-  yield {type: EventType.REASONING_MESSAGE_START, messageId, role: 'reasoning'}
-  yield {type: EventType.REASONING_MESSAGE_CONTENT, messageId, delta: text}
-  yield {type: EventType.REASONING_MESSAGE_END, messageId}
-}
+type CodexEvent = z.infer<typeof CodexEventSchema>
 
 // A completed command_execution maps to a full tool-call lifecycle plus its captured output.
-function* commandChunks(cmd: z.infer<typeof CommandItem>, ids: {n: number}): Generator<StreamChunk> {
-  yield {type: EventType.TOOL_CALL_START, toolCallId: cmd.id, toolCallName: 'shell', toolName: 'shell'}
-  yield {type: EventType.TOOL_CALL_ARGS, toolCallId: cmd.id, delta: JSON.stringify({command: cmd.command})}
-  yield {type: EventType.TOOL_CALL_END, toolCallId: cmd.id}
-  ids.n += 1
-  yield {
-    type: EventType.TOOL_CALL_RESULT,
-    messageId: `r${ids.n}`,
-    toolCallId: cmd.id,
-    content: cmd.aggregated_output ?? '',
-  }
+function* commandChunks(cmd: z.infer<typeof CommandItem>, mint: Mint): Generator<StreamChunk> {
+  yield* toolCall(cmd.id, 'shell', {command: cmd.command})
+  yield* toolResult(mint('r'), cmd.id, cmd.aggregated_output ?? '')
 }
 
-function* itemChunks(item: unknown, ids: {n: number}): Generator<StreamChunk> {
+function* itemChunks(item: unknown, mint: Mint): Generator<StreamChunk> {
   const message = AgentMessageItem.safeParse(item)
-  if (message.success) {
-    yield* textChunks(message.data.text, ids)
-    return
-  }
+  if (message.success) return yield* textMessage(mint('m'), message.data.text)
   const reasoning = ReasoningItem.safeParse(item)
-  if (reasoning.success) {
-    yield* reasoningChunks(reasoning.data.text, ids)
-    return
-  }
+  if (reasoning.success) return yield* reasoningMessage(mint('t'), reasoning.data.text)
   const command = CommandItem.safeParse(item)
-  if (command.success) yield* commandChunks(command.data, ids)
+  if (command.success) yield* commandChunks(command.data, mint)
 }
 
-export async function* codexToAguiEvents(
-  lines: AsyncIterable<string>,
-  opts: {onSessionId(id: string): void},
-): AsyncGenerator<StreamChunk> {
-  const threadId = 'aidx-chat'
-  const runId = 'aidx-run'
-  const ids = {n: 0}
-  yield {type: EventType.RUN_STARTED, threadId, runId}
-  for await (const line of lines) {
-    const e = parseEvent(line)
-    if (!e) continue
-    if (e.type === 'thread.started' && e.thread_id) opts.onSessionId(e.thread_id)
-    // Emit on completion so partial item.started/updated deltas don't double-render.
-    if (e.type === 'item.completed') yield* itemChunks(e.item, ids)
-  }
-  yield {type: EventType.RUN_FINISHED, threadId, runId, finishReason: 'stop'}
+function* codexStep(e: CodexEvent, ctx: StepContext): Generator<StreamChunk> {
+  if (e.type === 'thread.started' && e.thread_id) ctx.onSessionId(e.thread_id)
+  // Emit on completion so partial item.started/updated deltas don't double-render.
+  if (e.type === 'item.completed') yield* itemChunks(e.item, ctx.mint)
+}
+
+export function codexToAguiEvents(lines: AsyncIterable<string>, opts: SessionSink): AsyncGenerator<StreamChunk> {
+  return runAgui(lines, CodexEventSchema, opts, codexStep)
 }

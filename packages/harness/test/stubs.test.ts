@@ -1,7 +1,7 @@
 import {describe, it, expect} from 'vitest'
-import {geminiCli} from '../src/gemini-cli/gemini-cli.js'
-import {opencode} from '../src/opencode/opencode.js'
-import {pi} from '../src/pi/pi.js'
+import {geminiCli} from '../src/gemini-cli/index.js'
+import {opencode} from '../src/opencode/index.js'
+import {pi} from '../src/pi/index.js'
 import type {HarnessTurn} from '@aidx/protocol/harness-types'
 
 const turn: HarnessTurn = {prompt: 'x', cwd: '/r', resumeSessionId: null, systemPrompt: ''}
