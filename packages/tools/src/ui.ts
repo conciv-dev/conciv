@@ -14,7 +14,14 @@ export const UiInput = z.object({
   after: z.string().optional(),
   title: z.string().optional(),
   fields: z
-    .array(z.object({name: z.string(), label: z.string(), type: z.enum(['text', 'select']), options: z.array(z.string()).optional()}))
+    .array(
+      z.object({
+        name: z.string(),
+        label: z.string(),
+        type: z.enum(['text', 'select']),
+        options: z.array(z.string()).optional(),
+      }),
+    )
     .optional(),
 })
 

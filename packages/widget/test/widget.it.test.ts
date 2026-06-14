@@ -79,7 +79,12 @@ async function* mcpAccessScript(): AsyncGenerator<StreamChunk> {
   yield {type: EventType.TOOL_CALL_START, toolCallId: 'tc1', toolCallName: 'aidx_page', toolName: 'aidx_page'}
   yield {type: EventType.TOOL_CALL_ARGS, toolCallId: 'tc1', delta: '{"verb":"route"}'}
   yield {type: EventType.TOOL_CALL_END, toolCallId: 'tc1'}
-  yield {type: EventType.TOOL_CALL_RESULT, messageId: 'r4', toolCallId: 'tc1', content: '[{"type":"text","text":"{\\"pathname\\":\\"/\\"}"}]'}
+  yield {
+    type: EventType.TOOL_CALL_RESULT,
+    messageId: 'r4',
+    toolCallId: 'tc1',
+    content: '[{"type":"text","text":"{\\"pathname\\":\\"/\\"}"}]',
+  }
   yield {type: EventType.TEXT_MESSAGE_START, messageId: 'm5', role: 'assistant'}
   yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'm5', delta: MCP_REPLY}
   yield {type: EventType.TEXT_MESSAGE_END, messageId: 'm5'}

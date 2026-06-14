@@ -23,7 +23,10 @@ function buildServer(ctx: AidxToolContext): McpServer {
 // node-object bridge, no separate server.
 export function registerMcpRoutes(app: H3, ctx: AidxToolContext): void {
   app.post('/api/mcp', async (event) => {
-    const transport = new WebStandardStreamableHTTPServerTransport({sessionIdGenerator: undefined, enableJsonResponse: true})
+    const transport = new WebStandardStreamableHTTPServerTransport({
+      sessionIdGenerator: undefined,
+      enableJsonResponse: true,
+    })
     await buildServer(ctx).connect(transport)
     return transport.handleRequest(event.req)
   })

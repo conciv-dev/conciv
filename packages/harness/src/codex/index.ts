@@ -9,7 +9,14 @@ import {codexToAguiEvents} from './decode.js'
 export const codex = defineHarness({
   id: 'codex',
   binName: 'codex',
-  capabilities: {resume: true, permissionGate: 'none', transcriptHistory: false, systemPrompt: 'none', mcp: 'http', imageInput: false},
+  capabilities: {
+    resume: true,
+    permissionGate: 'none',
+    transcriptHistory: false,
+    systemPrompt: 'none',
+    mcp: 'http',
+    imageInput: false,
+  },
   buildArgs: buildCodexArgs,
   decode: codexToAguiEvents,
 })

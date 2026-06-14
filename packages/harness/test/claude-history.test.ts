@@ -8,7 +8,10 @@ describe('parseHistory', () => {
   it('keeps user messages whose content is a plain string', () => {
     const jsonl = [
       JSON.stringify({type: 'user', message: {role: 'user', content: 'what else can you do?'}}),
-      JSON.stringify({type: 'assistant', message: {role: 'assistant', content: [{type: 'text', text: 'Lots of things.'}]}}),
+      JSON.stringify({
+        type: 'assistant',
+        message: {role: 'assistant', content: [{type: 'text', text: 'Lots of things.'}]},
+      }),
     ].join('\n')
 
     const msgs = parseHistory(jsonl)

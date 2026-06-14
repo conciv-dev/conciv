@@ -13,7 +13,14 @@ describe('defineHarness (generic typed factory; history↔transcriptHistory enfo
   it('returns the adapter unchanged when capabilities match members', () => {
     const adapter = defineHarness({
       ...base,
-      capabilities: {resume: false, permissionGate: 'none', transcriptHistory: false, systemPrompt: 'none', mcp: 'none', imageInput: false},
+      capabilities: {
+        resume: false,
+        permissionGate: 'none',
+        transcriptHistory: false,
+        systemPrompt: 'none',
+        mcp: 'none',
+        imageInput: false,
+      },
     })
     expect(adapter.id).toBe('x')
     // `in` checks key absence against the generic-preserved literal type — no widening, no cast.
@@ -26,7 +33,14 @@ describe('defineHarness (generic typed factory; history↔transcriptHistory enfo
   it('accepts a transcriptHistory harness that provides a history implementation', () => {
     const adapter = defineHarness({
       ...base,
-      capabilities: {resume: false, permissionGate: 'none', transcriptHistory: true, systemPrompt: 'none', mcp: 'none', imageInput: false},
+      capabilities: {
+        resume: false,
+        permissionGate: 'none',
+        transcriptHistory: true,
+        systemPrompt: 'none',
+        mcp: 'none',
+        imageInput: false,
+      },
       history: {transcriptPath: () => '/p', parse: () => []},
     })
     expect(typeof adapter.history?.transcriptPath).toBe('function')

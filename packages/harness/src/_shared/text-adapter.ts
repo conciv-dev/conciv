@@ -101,7 +101,9 @@ export class HarnessTextAdapter extends BaseTextAdapter<string, Record<string, n
 
   structuredOutput(_options: StructuredOutputOptions<Record<string, never>>): Promise<StructuredOutputResult<unknown>> {
     return Promise.reject(
-      new Error(`harness '${this.harness.id}' does not support structured output (coding CLIs have no native schema mode)`),
+      new Error(
+        `harness '${this.harness.id}' does not support structured output (coding CLIs have no native schema mode)`,
+      ),
     )
   }
 }

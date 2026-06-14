@@ -1,7 +1,15 @@
 import {z} from 'zod'
 import type {StreamChunk} from '@tanstack/ai'
 import type {HarnessDecodeOpts} from '@aidx/protocol/harness-types'
-import {runAgui, textMessage, reasoningMessage, toolCall, toolResult, type Mint, type StepContext} from '../_shared/agui.js'
+import {
+  runAgui,
+  textMessage,
+  reasoningMessage,
+  toolCall,
+  toolResult,
+  type Mint,
+  type StepContext,
+} from '../_shared/agui.js'
 
 // Translate `codex exec --json` JSONL events into the AG-UI StreamChunk stream. Only the event
 // schema + the event→chunks mapping are codex-specific; the run lifecycle, line loop, and chunk

@@ -3,10 +3,15 @@
   "version": "0.0.0",
   "description": "aidx agent tools as @tanstack/ai toolDefinition().server() functions: ui, page, test.",
   "license": "MIT",
+  "files": [
+    "dist"
+  ],
   "type": "module",
-  "files": ["dist"],
   "exports": {
-    ".": {"types": "./dist/tools.d.ts", "import": "./dist/tools.js"}
+    ".": {
+      "types": "./dist/tools.d.ts",
+      "import": "./dist/tools.js"
+    }
   },
   "scripts": {
     "build": "tsdown",

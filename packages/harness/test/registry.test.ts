@@ -7,7 +7,14 @@ function stub(id: string): HarnessAdapter {
   return defineHarness({
     id,
     binName: id,
-    capabilities: {resume: false, permissionGate: 'none', transcriptHistory: false, systemPrompt: 'none', mcp: 'none', imageInput: false},
+    capabilities: {
+      resume: false,
+      permissionGate: 'none',
+      transcriptHistory: false,
+      systemPrompt: 'none',
+      mcp: 'none',
+      imageInput: false,
+    },
     buildArgs: () => [],
     // eslint-disable-next-line require-yield
     async *decode() {},

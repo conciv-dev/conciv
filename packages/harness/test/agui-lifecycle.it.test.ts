@@ -12,8 +12,11 @@ const looseSchema = z.object({type: z.string()}).loose()
 // Message ids minted by one turn, given its threadId.
 async function turnMessageIds(threadId: string): Promise<string[]> {
   const out: StreamChunk[] = []
-  const gen = runAgui(lines('{"type":"x"}'), looseSchema, {onSessionId() {}, threadId, runId: 'aidx-run'}, (_e, {mint}) =>
-    textMessage(mint('m'), 'hi'),
+  const gen = runAgui(
+    lines('{"type":"x"}'),
+    looseSchema,
+    {onSessionId() {}, threadId, runId: 'aidx-run'},
+    (_e, {mint}) => textMessage(mint('m'), 'hi'),
   )
   for await (const c of gen) out.push(c)
   return out.flatMap((c) => ('messageId' in c && typeof c.messageId === 'string' ? [c.messageId] : []))
