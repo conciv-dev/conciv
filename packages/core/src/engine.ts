@@ -37,10 +37,10 @@ export async function start(opts: StartOpts): Promise<Engine> {
   const spawnHarness = (args: string[], cwd: string): HarnessChild => {
     const harnessBin = cfg.harnessBin ?? 'claude'
     const env = opts.childEnv ? opts.childEnv(portRef.port) : process.env
-    const child = spawn(harnessBin, args, {cwd, stdio: ['ignore', 'pipe', 'pipe'], env})
-    const {stdout, stderr} = child
-    if (!stdout || !stderr) throw new Error(`harness "${harnessBin}" did not expose stdout/stderr pipes`)
-    return {pid: child.pid ?? -1, stdout, stderr, kill: () => void child.kill('SIGTERM')}
+    const child = spawn(harnessBin, args, {cwd, stdio: ['pipe', 'pipe', 'pipe'], env})
+    const {stdin, stdout, stderr} = child
+    if (!stdin || !stdout || !stderr) throw new Error(`harness "${harnessBin}" did not expose stdio pipes`)
+    return {pid: child.pid ?? -1, stdin, stdout, stderr, kill: () => void child.kill('SIGTERM')}
   }
 
   const appOpts: MakeAppOpts = {

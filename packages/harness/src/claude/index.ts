@@ -11,7 +11,7 @@ export {CHAT_SYSTEM_PROMPT} from './system-prompt.js'
 export const claude = defineHarness({
   id: 'claude',
   binName: 'claude',
-  capabilities: {resume: true, permissionGate: 'hook', transcriptHistory: true, systemPrompt: 'file', mcp: 'http', imageInput: 'native'},
+  capabilities: {resume: true, permissionGate: 'hook', transcriptHistory: true, systemPrompt: 'file', mcp: 'http', imageInput: 'fileRef'},
   buildArgs: buildClaudeArgs,
   decode: claudeToAguiEvents,
   history: claudeHistory,

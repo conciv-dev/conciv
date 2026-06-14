@@ -1,4 +1,7 @@
-import type {HarnessTurn} from '@aidx/protocol/harness-types'
+import {randomUUID} from 'node:crypto'
+import {writeFileSync} from 'node:fs'
+import {join} from 'node:path'
+import type {HarnessImage, HarnessTurn} from '@aidx/protocol/harness-types'
 import {AIDX_PLUGIN_DIR} from './plugin-dir.js'
 
 // PreToolUse http hook on Bash → the dev server's permission route. 600s (route denies sooner).
@@ -10,12 +13,35 @@ function hookSettings(permissionUrl: string): string {
   })
 }
 
+const IMAGE_EXT: Record<string, string> = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+}
+
+// claude ingests images via `@<path>` file references in the prompt (inline base64 over stream-json
+// is rejected by the CLI). Write each image under cwd (an allowed dir via --add-dir, so claude can
+// read it) and return the space-joined refs.
+function imageRefs(images: HarnessImage[], cwd: string): string {
+  return images
+    .map((img) => {
+      const ext = IMAGE_EXT[img.mediaType] ?? 'png'
+      const path = join(cwd, `.aidx-img-${randomUUID()}.${ext}`)
+      writeFileSync(path, Buffer.from(img.dataBase64, 'base64'))
+      return `@${path}`
+    })
+    .join(' ')
+}
+
 // The headless `claude -p` argv: stream-json, acceptEdits (git is the undo net), cwd allowed.
 // systemPrompt is delivered as a file — turn.systemPrompt is the path the chat route wrote.
+// Images are appended to the prompt as `@<temp-path>` file references (claude loads them).
 export function buildClaudeArgs(turn: HarnessTurn): string[] {
+  const prompt = turn.images?.length ? `${turn.prompt}\n\n${imageRefs(turn.images, turn.cwd)}` : turn.prompt
   const args = [
     '-p',
-    turn.prompt,
+    prompt,
     '--output-format',
     'stream-json',
     '--verbose',

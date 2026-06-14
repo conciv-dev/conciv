@@ -4,11 +4,22 @@ import {z} from 'zod'
 import type {UIMessage} from '@tanstack/ai'
 export type {StreamChunk, UIMessage, MessagePart} from '@tanstack/ai'
 
-// A posted message: parts-based UIMessage OR plain {role, content}; .loose tolerates drift.
+// An inline content part on a posted message. Text carries `content`; image carries a base64
+// data `source` (mimeType matches @tanstack/ai's ContentPartDataSource field name).
+export const ChatContentPartSchema = z
+  .object({
+    type: z.string(),
+    content: z.string().optional(),
+    source: z.object({type: z.string(), mimeType: z.string().optional(), value: z.string()}).loose().optional(),
+  })
+  .loose()
+
+// A posted message: parts-based UIMessage OR plain {role, content}. `content` is a string or an
+// array of content parts (text + image). .loose tolerates drift.
 export const ChatMessageSchema = z
   .object({
     role: z.string(),
-    content: z.string().optional(),
+    content: z.union([z.string(), z.array(ChatContentPartSchema)]).optional(),
     parts: z.array(z.object({type: z.string(), content: z.string().optional()}).loose()).optional(),
   })
   .loose()

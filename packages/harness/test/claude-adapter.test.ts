@@ -12,7 +12,7 @@ describe('claude harness adapter', () => {
       transcriptHistory: true,
       systemPrompt: 'file',
       mcp: 'http',
-      imageInput: 'native',
+      imageInput: 'fileRef',
     })
   })
 
