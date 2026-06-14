@@ -14,6 +14,7 @@ export type StartOpts = {
   bridge?: BundlerBridge
   launchEditor: (file: string, line: number) => void
   childEnv?: (corePort: number) => NodeJS.ProcessEnv
+  port?: number
 }
 
 export type Engine = {port: number; stop: () => Promise<void>; cfg: ResolvedAidxConfig}
@@ -49,7 +50,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     spawnHarness,
   }
   const app = makeApp(appOpts)
-  const server = serve({fetch: app.fetch, port: 0, hostname: '127.0.0.1'})
+  const server = serve({fetch: app.fetch, port: opts.port ?? 0, hostname: '127.0.0.1'})
   await server.ready()
   const port = portOf(server.url)
   portRef.port = port
