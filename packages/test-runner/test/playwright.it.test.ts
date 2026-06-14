@@ -8,7 +8,7 @@ import {tsxSpawnFor, errorSpawnRunner} from './helpers.js'
 
 // Real out-of-process IT: makeChildManager spawns the actual playwright child (via tsx), which
 // runs the fixture's real `playwright test --reporter=json` and streams events back over fd 3.
-// The fixture tests never request `page`, so playwright runs them without launching a browser.
+// The fixture includes a real-browser spec (launches chromium) alongside browser-free ones.
 
 const fixture = join(dirname(fileURLToPath(import.meta.url)), 'fixtures/playwright-app')
 const childTs = new URL('../src/playwright/child.ts', import.meta.url)
@@ -41,14 +41,19 @@ describe('playwright adapter against a real fixture (IT)', () => {
     const mgr = makeChildManager(playwrightSpec, fixture, {spawnRunner: tsxSpawnFor(childTs)})
     state.mgr = mgr
     const {files} = await mgr.list()
-    expect(files.map((f) => f.relPath).toSorted()).toEqual(['fail.spec.ts', 'pass.spec.ts'])
+    expect(files.map((f) => f.relPath).toSorted()).toEqual(['browser.spec.ts', 'fail.spec.ts', 'pass.spec.ts'])
   })
 
-  it('runs all tests (incl. a nested describe) and returns the one real failure', async () => {
+  it('runs all tests (real browser + nested describe) and returns the one real failure', async () => {
     const result = await requireMgr().run({})
-    expect(result.summary.passed).toBe(2) // top-level + nested describe in pass.spec.ts
+    expect(result.summary.passed).toBe(3) // pass.spec ×2 (incl. nested) + the real-browser spec
     expect(result.summary.failed).toBe(1)
-    expect(result.tests.map((t) => t.name).toSorted()).toEqual(['one plus one', 'this fails on purpose', 'two plus two'])
+    expect(result.tests.map((t) => t.name).toSorted()).toEqual([
+      'one plus one',
+      'renders content in a real browser',
+      'this fails on purpose',
+      'two plus two',
+    ])
     const [failure] = result.failures
     expect(failure?.name).toBe('this fails on purpose')
     expect(failure?.file).toContain('fail.spec.ts')
