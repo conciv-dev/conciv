@@ -61,7 +61,15 @@ export async function inspect(el: Element): Promise<InspectResult | null> {
   if (!fiber) return null
   const composite = isCompositeFiber(fiber) ? fiber : getFiberStack(fiber).find((f: Fiber) => isCompositeFiber(f))
   if (!composite) return null
-  return {component: getDisplayName(composite) || null, props: composite.memoizedProps, hooks: getFiberHooks(composite)}
+  // Hook inspection needs bippy's RDT hook installed (a renderer interface); without early
+  // install it throws — props are always readable off the fiber, hooks are best-effort.
+  let hooks: unknown = null
+  try {
+    hooks = getFiberHooks(composite)
+  } catch {
+    hooks = null
+  }
+  return {component: getDisplayName(composite) || null, props: composite.memoizedProps, hooks}
 }
 
 // Build a component tree from the root host element's fiber subtree, assigning a ref per component
