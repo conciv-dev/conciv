@@ -25,13 +25,15 @@ const TranscriptRecordSchema = z
   .object({
     type: z.string(),
     message: z
-      .object({content: z.array(z.unknown()).optional()})
+      .object({content: z.union([z.string(), z.array(z.unknown())]).optional()})
       .loose()
       .optional(),
   })
   .loose()
 
 function partsFrom(content: unknown): MessagePart[] {
+  // claude stores user turns as a plain string and assistant turns as a content-block array.
+  if (typeof content === 'string') return content ? [{type: 'text', content}] : []
   if (!Array.isArray(content)) return []
   const out: MessagePart[] = []
   for (const part of content) {
