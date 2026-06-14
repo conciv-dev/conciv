@@ -1,12 +1,12 @@
 import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
 import {defineCommand} from 'citty'
-import type {UiFormField, UiSpec} from '@aidx/protocol/ui-types'
+import {buildUiSpec, parseField, type UiBuildInput, type UiFormField, type UiSpec} from '@aidx/protocol/ui-types'
 import {runRequest, type CliRequest} from './request.js'
 
 // `aidx ui <kind>` — render real interactive UI in the chat thread. The agent does NOT
 // block; the user's answer arrives as their next chat message. citty parses argv, zod
-// validates, buildUiSpec produces the typed UiSpec the server injects as an AG-UI event.
+// validates, the shared buildUiSpec (also used by the aidx_ui tool) produces the typed UiSpec.
 
 // Repeated flags (--option / --field) arrive as a string or string[]; normalise to a list.
 const list = z.preprocess((v) => (Array.isArray(v) ? v : v === undefined ? [] : [v]), z.array(z.string()))
@@ -16,39 +16,26 @@ const ConfirmIn = z.object({question: z.string(), detail: z.string().optional()}
 const DiffIn = z.object({file: z.string(), before: z.string(), after: z.string()})
 const FormIn = z.object({field: list, title: z.string().optional()})
 
-// Parse `name:label:type[:opt1,opt2]` into a form field. Returns null on a malformed spec.
-function parseField(raw: string): UiFormField | null {
-  const [name, label, type, opts] = raw.split(':')
-  if (!name || !label) return null
-  if (type !== 'text' && type !== 'select') return null
-  if (type === 'select') {
-    const options = (opts ?? '').split(',').filter(Boolean)
-    if (options.length === 0) return null
-    return {name, label, type, options}
-  }
-  return {name, label, type}
-}
-
-// Pure: validated args + a caller-supplied renderId → a typed UiSpec. Throws on invalid input.
-export function buildUiSpec(kind: string, raw: unknown, renderId: string): UiSpec {
+// Map citty-shaped CLI args to the shared builder's normalized input.
+function cliUiInput(kind: string, raw: unknown): UiBuildInput {
   if (kind === 'choices') {
     const p = ChoicesIn.parse(raw)
-    if (p.option.length === 0) throw new Error('choices needs at least one --option')
-    return {kind: 'choices', renderId, question: p.question, options: p.option}
+    return {kind, question: p.question, options: p.option}
   }
   if (kind === 'confirm') {
     const p = ConfirmIn.parse(raw)
-    return {kind: 'confirm', renderId, question: p.question, detail: p.detail}
+    return {kind, question: p.question, detail: p.detail}
   }
   if (kind === 'diff') {
     const p = DiffIn.parse(raw)
-    return {kind: 'diff', renderId, file: p.file, before: p.before, after: p.after}
+    return {kind, file: p.file, before: p.before, after: p.after}
   }
   if (kind === 'form') {
     const p = FormIn.parse(raw)
-    const fields = p.field.map(parseField)
-    if (fields.length === 0 || fields.some((f) => f === null)) throw new Error('form needs valid --field specs')
-    return {kind: 'form', renderId, title: p.title, fields: fields.filter((f): f is UiFormField => f !== null)}
+    const parsed = p.field.map(parseField)
+    if (parsed.length === 0 || parsed.some((f) => f === null)) throw new Error('form needs valid --field specs')
+    const fields = parsed.filter((f): f is UiFormField => f !== null)
+    return {kind, title: p.title, fields}
   }
   throw new Error(`unknown ui kind: ${kind}`)
 }
@@ -58,7 +45,7 @@ export function uiRequest(spec: UiSpec): CliRequest {
 }
 
 async function submit(kind: string, raw: unknown): Promise<void> {
-  const spec = buildUiSpec(kind, raw, randomUUID())
+  const spec = buildUiSpec(cliUiInput(kind, raw), randomUUID())
   await runRequest(uiRequest(spec))
   process.stdout.write(`Rendered ${spec.kind} in the chat. Waiting for the user's reply as their next message.\n`)
 }

@@ -1,0 +1,28 @@
+{
+  "name": "@aidx/tools",
+  "version": "0.0.0",
+  "description": "aidx agent tools as @tanstack/ai toolDefinition().server() functions: ui, page, test.",
+  "license": "MIT",
+  "type": "module",
+  "files": ["dist"],
+  "exports": {
+    ".": {"types": "./dist/tools.d.ts", "import": "./dist/tools.js"}
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@aidx/protocol": "workspace:*",
+    "@tanstack/ai": "^0.28.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.21",
+    "tsdown": "^0.22.2",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  }
+}
