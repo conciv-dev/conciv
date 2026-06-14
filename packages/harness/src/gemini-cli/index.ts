@@ -4,5 +4,5 @@ import {defineStubHarness} from '../_shared/stub.js'
 export const geminiCli = defineStubHarness({
   id: 'gemini-cli',
   binName: 'gemini',
-  capabilities: {resume: false, permissionGate: 'none', transcriptHistory: false, systemPrompt: 'flag'},
+  capabilities: {resume: false, permissionGate: 'none', transcriptHistory: false, systemPrompt: 'flag', mcp: 'none', imageInput: false},
 })
