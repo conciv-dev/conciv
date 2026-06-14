@@ -5,7 +5,7 @@ export interface AidxConfig {
   enabled?: boolean
   widgetUrl?: string
   previewId?: string
-  lockDir?: string
+  stateRoot?: string
   harness?: string
   harnessBin?: string
   sessionId?: string

@@ -74,7 +74,7 @@ pnpm --filter tanstack-start-example dev
 | `harnessBin`   | adapter `binName`        | Override the harness binary on `PATH`.                                 |
 | `testRunner`   | `"vitest"`               | Test-runner adapter id.                                                |
 | `widgetUrl`    | `AIDX_WIDGET_URL` env | `<script src>` for the injected widget bundle. Omit to skip injection. |
-| `lockDir`      | `process.cwd()`          | Holds `.aidx/{agent.lock,sessions,bin}`.                            |
+| `stateRoot`    | `process.cwd()`          | Root holding `.aidx/{agent.lock,sessions,bin}`.                        |
 | `systemPrompt` | built-in                 | Appended to each agent turn.                                           |
 | `previewId`    | `"local"`                | Correlates a resumable session.                                        |
 | `sessionId`    | –                        | Resume an existing thread.                                             |

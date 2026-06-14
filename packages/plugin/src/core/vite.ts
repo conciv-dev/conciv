@@ -91,7 +91,7 @@ export function makeViteHook(options: AidxConfig = {}): Plugin {
     async configureServer(server: ViteDevServer) {
       const cfg = resolveConfig(options, server.config.root)
       if (!cfg.enabled) return
-      engine = await bootEngine(server, options, installAidxBinShim(join(cfg.lockDir, '.aidx')))
+      engine = await bootEngine(server, options, installAidxBinShim(join(cfg.stateRoot, '.aidx')))
       const booted = engine
       mountWidget(server, widget, cfg.previewId, `http://127.0.0.1:${booted.port}`)
       server.httpServer?.on('close', () => void booted.stop())

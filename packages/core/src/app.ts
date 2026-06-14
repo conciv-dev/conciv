@@ -48,7 +48,7 @@ export function makeApp(opts: MakeAppOpts): H3 {
   registerCors(app)
   registerChatRoutes(app, {
     cwd: opts.cwd,
-    lockDir: opts.cfg.lockDir,
+    stateRoot: opts.cfg.stateRoot,
     previewId: opts.cfg.previewId,
     initialSessionId: opts.cfg.sessionId,
     harness,

@@ -6,17 +6,17 @@ import {readFileOrEmpty} from '../fs.js'
 // Persists the chat's agent session id keyed by previewId, so the SAME chat thread reopens
 // every time the dev server starts — not just across page reloads (which the
 // dev server's in-memory state already covered) but across dev-server restarts too. Lives
-// next to the lock + system prompt in `<lockDir>/.aidx/chat-sessions.json`.
+// next to the lock + system prompt in `<stateRoot>/.aidx/chat-sessions.json`.
 
 // previewId → sessionId. Validated with Zod; a malformed file reads as empty.
 const SessionMapSchema = z.record(z.string(), z.string())
 
-function storePath(lockDir: string): string {
-  return join(lockDir, '.aidx', 'chat-sessions.json')
+function storePath(stateRoot: string): string {
+  return join(stateRoot, '.aidx', 'chat-sessions.json')
 }
 
-function readMap(lockDir: string): Record<string, string> {
-  const raw = readFileOrEmpty(storePath(lockDir))
+function readMap(stateRoot: string): Record<string, string> {
+  const raw = readFileOrEmpty(storePath(stateRoot))
   if (!raw) return {}
   try {
     const result = SessionMapSchema.safeParse(JSON.parse(raw))
@@ -27,16 +27,16 @@ function readMap(lockDir: string): Record<string, string> {
 }
 
 // The persisted session id for this preview, or null if none recorded yet.
-export function readSession(lockDir: string, previewId: string): string | null {
+export function readSession(stateRoot: string, previewId: string): string | null {
   if (!previewId) return null
-  const id = readMap(lockDir)[previewId]
+  const id = readMap(stateRoot)[previewId]
   return typeof id === 'string' && id ? id : null
 }
 
 // Record (or update) the live session id for this preview. No-op without a previewId.
-export function writeSession(lockDir: string, previewId: string, sessionId: string): void {
+export function writeSession(stateRoot: string, previewId: string, sessionId: string): void {
   if (!previewId || !sessionId) return
-  mkdirSync(join(lockDir, '.aidx'), {recursive: true})
-  const next = {...readMap(lockDir), [previewId]: sessionId}
-  writeFileSync(storePath(lockDir), JSON.stringify(next))
+  mkdirSync(join(stateRoot, '.aidx'), {recursive: true})
+  const next = {...readMap(stateRoot), [previewId]: sessionId}
+  writeFileSync(storePath(stateRoot), JSON.stringify(next))
 }

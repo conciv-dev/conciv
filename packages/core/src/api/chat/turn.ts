@@ -16,7 +16,7 @@ export type SpawnHarness = (args: string[], cwd: string) => HarnessChild
 
 export type TurnDeps = {
   cwd: string
-  lockDir: string
+  stateRoot: string
   previewId: string
   harness: HarnessAdapter
   spawnHarness: SpawnHarness
@@ -38,7 +38,7 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
   })
 
   app.post('/api/chat', async (event) => {
-    if (readLock(deps.lockDir).held) throw new HTTPError({status: 409, message: 'agent busy'})
+    if (readLock(deps.stateRoot).held) throw new HTTPError({status: 409, message: 'agent busy'})
     const chat = await readValidatedBody(event, ChatRequestSchema)
     const resumeSessionId = harness.capabilities.resume ? chat.sessionId || state.sessionId || null : null
     const origin = `http://${event.req.headers.get('host') ?? '127.0.0.1:3000'}`
@@ -55,7 +55,7 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
       permissionUrl: harness.capabilities.permissionGate === 'hook' ? `${origin}/api/chat/permission` : undefined,
     })
     const child = deps.spawnHarness(args, deps.cwd)
-    acquireLock(deps.lockDir, 'chat', child.pid)
+    acquireLock(deps.stateRoot, 'chat', child.pid)
     const abort = new AbortController()
     event.req.signal.addEventListener('abort', () => {
       abort.abort()
@@ -65,11 +65,11 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
     const events = harness.decode(linesOf(child.stdout), {
       onSessionId: (id) => {
         state.sessionId = id
-        writeSession(deps.lockDir, deps.previewId, id)
+        writeSession(deps.stateRoot, deps.previewId, id)
       },
     })
     const merged = uiBus.run(events)
-    const sse = toServerSentEventsStream(withLockRelease(merged, deps.lockDir), abort)
+    const sse = toServerSentEventsStream(withLockRelease(merged, deps.stateRoot), abort)
     return new Response(sse, {status: 200, headers: sseHeaders(event)})
   })
 }
@@ -81,10 +81,10 @@ async function* linesOf(stream: Readable): AsyncGenerator<string> {
 }
 
 // Release the lock when the turn's merged stream finishes OR the client disconnects.
-async function* withLockRelease(src: AsyncIterable<StreamChunk>, lockDir: string): AsyncGenerator<StreamChunk> {
+async function* withLockRelease(src: AsyncIterable<StreamChunk>, stateRoot: string): AsyncGenerator<StreamChunk> {
   try {
     for await (const c of src) yield c
   } finally {
-    releaseLock(lockDir)
+    releaseLock(stateRoot)
   }
 }

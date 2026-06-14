@@ -29,12 +29,12 @@ async function postJson(url: string, body: unknown): Promise<Response> {
   return fetch(url, {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify(body)})
 }
 
-async function startServer(over: {argvFile?: string; lockDir?: string} = {}): Promise<{server: Server; base: string}> {
-  const lockDir = over.lockDir ?? tmp()
+async function startServer(over: {argvFile?: string; stateRoot?: string} = {}): Promise<{server: Server; base: string}> {
+  const stateRoot = over.stateRoot ?? tmp()
   const app = new H3()
   registerChatRoutes(app, {
-    cwd: lockDir,
-    lockDir,
+    cwd: stateRoot,
+    stateRoot,
     previewId: 'it-preview',
     initialSessionId: '',
     harness: claude,
@@ -112,10 +112,10 @@ describe('chat routes (IT, real spawn over h3)', () => {
   })
 
   it('refuses with 409 while the lock is held by iterate', async () => {
-    const lockDir = tmp()
-    const {server, base} = await startServer({lockDir})
+    const stateRoot = tmp()
+    const {server, base} = await startServer({stateRoot})
     state.server = server
-    acquireLock(lockDir, 'iterate', process.pid)
+    acquireLock(stateRoot, 'iterate', process.pid)
     const res = await postJson(`${base}/api/chat`, {messages: []})
     expect(res.status).toBe(409)
   })

@@ -9,7 +9,7 @@ export interface ResolvedAidxConfig {
   enabled: boolean
   widgetUrl: string | undefined
   previewId: string
-  lockDir: string
+  stateRoot: string
   harness: string
   harnessBin: string | undefined
   sessionId: string
@@ -23,7 +23,7 @@ export function resolveConfig(options: AidxConfig, root: string): ResolvedAidxCo
     enabled: options.enabled ?? true,
     widgetUrl: options.widgetUrl ?? env.AIDX_WIDGET_URL,
     previewId: options.previewId ?? env.AIDX_PREVIEW_ID ?? 'local',
-    lockDir: options.lockDir ?? env.AIDX_LOCK_DIR ?? root,
+    stateRoot: options.stateRoot ?? env.AIDX_STATE_ROOT ?? root,
     harness: options.harness ?? env.AIDX_HARNESS ?? 'claude',
     harnessBin:
       options.harnessBin ?? options.claudePath ?? env.AIDX_HARNESS_BIN ?? env.AIDX_CLAUDE_PATH ?? undefined,

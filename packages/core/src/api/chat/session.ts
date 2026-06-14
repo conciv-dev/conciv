@@ -13,7 +13,7 @@ export type SessionState = {sessionId: string}
 
 export type SessionRouteDeps = {
   cwd: string
-  lockDir: string
+  stateRoot: string
   initialSessionId: string
   harness: HarnessAdapter
   state: SessionState
@@ -24,7 +24,7 @@ export type SessionRouteDeps = {
 //   POST /api/chat/stop               → SIGTERM the current lock holder
 export function registerSessionRoutes(app: H3, deps: SessionRouteDeps): void {
   app.get('/api/chat/session', () => {
-    const lock = readLock(deps.lockDir)
+    const lock = readLock(deps.stateRoot)
     const sessionId = deps.state.sessionId || null
     const source: ChatSession['source'] = deps.state.sessionId ? (deps.initialSessionId ? 'agent' : 'chat') : 'new'
     const body: ChatSession = {sessionId, source, cwd: deps.cwd, lock: {held: lock.held, role: lock.role}}
@@ -40,7 +40,7 @@ export function registerSessionRoutes(app: H3, deps: SessionRouteDeps): void {
   })
 
   app.post('/api/chat/stop', () => {
-    const lock = readLock(deps.lockDir)
+    const lock = readLock(deps.stateRoot)
     if (lock.pid) {
       try {
         process.kill(lock.pid, 'SIGTERM')

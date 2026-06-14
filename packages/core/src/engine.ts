@@ -37,7 +37,7 @@ function portOf(url: string | undefined): number {
 
 export async function start(opts: StartOpts): Promise<Engine> {
   const cfg = resolveConfig(opts.options, opts.root)
-  const stateDir = join(cfg.lockDir, '.aidx')
+  const stateDir = join(cfg.stateRoot, '.aidx')
   mkdirSync(stateDir, {recursive: true})
   const systemPromptFile = join(stateDir, 'chat-system-prompt.txt')
   writeFileSync(systemPromptFile, cfg.systemPrompt)

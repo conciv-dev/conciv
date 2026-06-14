@@ -16,8 +16,8 @@ export function makeEngineBooter(options: AidxConfig, root: string): () => Promi
   let booting: Promise<Engine> | null = null
   return () => {
     if (booting) return booting
-    const lockDir = options.lockDir ?? root
-    const agentPath = installAidxBinShim(join(lockDir, '.aidx'))
+    const stateRoot = options.stateRoot ?? root
+    const agentPath = installAidxBinShim(join(stateRoot, '.aidx'))
     booting = start({
       options,
       root,

@@ -19,7 +19,7 @@ describe('resolveConfig (generalized)', () => {
     expect(cfg.harness).toBe('claude')
     expect(cfg.testRunner).toBe('vitest')
     expect(cfg.previewId).toBe('local')
-    expect(cfg.lockDir).toBe('/root')
+    expect(cfg.stateRoot).toBe('/root')
     expect(typeof cfg.systemPrompt).toBe('string')
   })
 

@@ -10,7 +10,7 @@ export type {SpawnHarness} from './turn.js'
 
 export type ChatRouteOpts = {
   cwd: string
-  lockDir: string
+  stateRoot: string
   previewId: string // ties the persisted chat session to this preview (same preview → same chat)
   initialSessionId: string // the agent's session id, '' if none
   harness: HarnessAdapter
@@ -25,19 +25,19 @@ export function registerChatRoutes(app: H3, opts: ChatRouteOpts): void {
   const uiBus = opts.uiBus
   const gate = makePermissionGate(uiBus)
   // The agent's session wins (hand-off from iterate); else resume the preview's persisted one.
-  const state: SessionState = {sessionId: opts.initialSessionId || readSession(opts.lockDir, opts.previewId) || ''}
+  const state: SessionState = {sessionId: opts.initialSessionId || readSession(opts.stateRoot, opts.previewId) || ''}
 
   registerPermissionRoutes(app, gate, opts.harness.capabilities.permissionGate === 'hook')
   registerSessionRoutes(app, {
     cwd: opts.cwd,
-    lockDir: opts.lockDir,
+    stateRoot: opts.stateRoot,
     initialSessionId: opts.initialSessionId,
     harness: opts.harness,
     state,
   })
   registerTurnRoutes(app, {
     cwd: opts.cwd,
-    lockDir: opts.lockDir,
+    stateRoot: opts.stateRoot,
     previewId: opts.previewId,
     harness: opts.harness,
     spawnHarness: opts.spawnHarness,
