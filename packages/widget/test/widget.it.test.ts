@@ -92,14 +92,16 @@ const collisionState = {n: 0}
 async function* collisionScript(): AsyncGenerator<StreamChunk> {
   collisionState.n += 1
   const text = `Reply turn ${collisionState.n}`
-  // Exactly what chat() produces: a FRESH threadId every turn, constant runId, reused message ids.
+  // What chat() produces post-fix: a fresh threadId per turn AND message ids scoped to it (runAgui
+  // prefixes minted ids with the threadId), so turn 2 never reuses turn 1's id and the widget
+  // appends a new message instead of overwriting the earlier one.
   const threadId = `thread-${collisionState.n}-generated`
   yield {type: EventType.RUN_STARTED, threadId, runId: 'aidx-run'}
-  yield {type: EventType.REASONING_MESSAGE_START, messageId: 't1', role: 'reasoning'}
-  yield {type: EventType.REASONING_MESSAGE_END, messageId: 't1'}
-  yield {type: EventType.TEXT_MESSAGE_START, messageId: 'm2', role: 'assistant'}
-  yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'm2', delta: text}
-  yield {type: EventType.TEXT_MESSAGE_END, messageId: 'm2'}
+  yield {type: EventType.REASONING_MESSAGE_START, messageId: `${threadId}-t1`, role: 'reasoning'}
+  yield {type: EventType.REASONING_MESSAGE_END, messageId: `${threadId}-t1`}
+  yield {type: EventType.TEXT_MESSAGE_START, messageId: `${threadId}-m2`, role: 'assistant'}
+  yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId: `${threadId}-m2`, delta: text}
+  yield {type: EventType.TEXT_MESSAGE_END, messageId: `${threadId}-m2`}
   yield {type: EventType.RUN_FINISHED, threadId, runId: 'aidx-run', finishReason: 'stop'}
 }
 
@@ -263,6 +265,9 @@ describe('aidx widget (it) — real browser, real SSE', () => {
       await composer.fill('second question')
       await composer.press('Enter')
       await page.getByText('Reply turn 2').waitFor({state: 'visible', timeout: 10_000})
+      // Turn 2 must NOT overwrite turn 1: both replies coexist as distinct messages.
+      expect(await page.getByText('Reply turn 1').count()).toBe(1)
+      expect(await page.getByText('Reply turn 2').count()).toBe(1)
       await page.close()
     } finally {
       chatState.script = chatScript

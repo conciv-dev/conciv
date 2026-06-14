@@ -53,10 +53,13 @@ export async function* runAgui<E>(
 ): AsyncGenerator<StreamChunk> {
   const runId = opts.runId ?? 'aidx-run'
   const threadId = opts.threadId ?? 'aidx-chat'
+  // Scope minted ids to this turn (threadId is fresh per turn) so a later turn never reuses an
+  // earlier turn's message id — a collision makes the widget update the old message in place
+  // (reply renders above the question, or not at all) instead of appending a new one.
   const counter = {n: 0}
   const mint: Mint = (prefix) => {
     counter.n += 1
-    return `${prefix}${counter.n}`
+    return `${threadId}-${prefix}${counter.n}`
   }
   yield {type: EventType.RUN_STARTED, threadId, runId}
   for await (const line of lines) {
