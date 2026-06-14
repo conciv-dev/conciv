@@ -54,6 +54,26 @@ describe('aidx CLI (IT, real server)', () => {
     expect(state.last).toBeUndefined()
   })
 
+  it('tools page locate → GET /api/page/locate with the selector', async () => {
+    await runCommand(toolsCommand, {rawArgs: ['page', 'locate', 'h1']})
+    expect(state.last).toMatchObject({method: 'GET', url: '/api/page/locate?selector=h1'})
+  })
+
+  it('tools page inspect → GET /api/page/inspect with --ref', async () => {
+    await runCommand(toolsCommand, {rawArgs: ['page', 'inspect', '--ref', 'v3']})
+    expect(state.last).toMatchObject({method: 'GET', url: '/api/page/inspect?ref=v3'})
+  })
+
+  it('tools page tree → GET /api/page/tree with the root selector', async () => {
+    await runCommand(toolsCommand, {rawArgs: ['page', 'tree', 'main']})
+    expect(state.last).toMatchObject({method: 'GET', url: '/api/page/tree?selector=main'})
+  })
+
+  it('tools page find → GET /api/page/find with --name', async () => {
+    await runCommand(toolsCommand, {rawArgs: ['page', 'find', '--name', 'LoginForm']})
+    expect(state.last).toMatchObject({method: 'GET', url: '/api/page/find?name=LoginForm'})
+  })
+
   it('tools test run → POST /api/test-runner/run with patterns + testNamePattern', async () => {
     await runCommand(toolsCommand, {rawArgs: ['test', 'run', 'auth', '-t', 'expired']})
     expect(state.last).toMatchObject({

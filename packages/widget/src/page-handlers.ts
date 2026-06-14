@@ -1,5 +1,6 @@
 import {ok, err, type PageQuery, type PageQueryKind, type PageResult} from '@aidx/protocol/page-types'
 import {buildSnapshot, describeElement, DOM_CAP, type Refs} from './page-snapshot.js'
+import * as react from './react-bridge.js'
 
 export type ConsoleEntry = {level: string; ts: number; text: string}
 
@@ -96,6 +97,8 @@ export const ELEMENT_KINDS = new Set<PageQueryKind>([
   'text',
   'value',
   'attr',
+  'locate',
+  'inspect',
   'click',
   'fill',
   'select',
@@ -142,6 +145,22 @@ export const DOM_HANDLERS: Record<PageQueryKind, PageHandler> = {
     const root = query.selector ? document.querySelector(query.selector) : document.body
     return {nodes: root ? buildSnapshot(root, refs) : []}
   },
+  // react reads — fiber introspection via bippy (raw frames; the engine symbolicates locate)
+  locate: async ({el}: PageContext) => {
+    const result = el ? await react.locate(el) : null
+    return result ?? err('no React fiber — element may be outside a React tree or not hydrated yet')
+  },
+  inspect: async ({el}: PageContext) => {
+    const result = el ? await react.inspect(el) : null
+    if (!result) return err('no React fiber for element')
+    return {component: result.component, props: serialize(result.props), hooks: serialize(result.hooks)}
+  },
+  tree: async ({query, refs}: PageContext) => {
+    const root = query.selector ? document.querySelector(query.selector) : document.body
+    return root ? {nodes: await react.tree(root, refs)} : err('no root element')
+  },
+  find: ({query, refs}: PageContext) =>
+    query.name ? {matches: react.find(query.name, refs)} : err('find requires a component name (--name)'),
   wait: ({query}) =>
     query.selector
       ? waitFor(query.selector, query.state ?? 'visible', query.timeout ?? 5000)

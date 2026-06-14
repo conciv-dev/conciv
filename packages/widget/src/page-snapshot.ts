@@ -112,4 +112,13 @@ export function buildSnapshot(root: Element, refs: Refs): SnapNode[] {
   return out
 }
 
+// Register a single element in the ref registry without resetting it (used by react verbs,
+// which coexist with the last DOM snapshot's refs).
+export function addRef(el: Element, refs: Refs): string {
+  refs.n += 1
+  const ref = `v${refs.n}`
+  refs.map.set(ref, new WeakRef(el))
+  return ref
+}
+
 export {DOM_CAP}

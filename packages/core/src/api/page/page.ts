@@ -10,6 +10,7 @@ import {
 import type {Journal} from '../../runtime/journal.js'
 import {makePending} from '../../pending.js'
 import {sseStream} from '../sse.js'
+import {symbolicateFrames, type RawFrame} from '../../page/symbolicate.js'
 
 export function registerPageRoutes(app: H3, deps: {journal: Journal}): void {
   const bus = makePageBus()
@@ -37,6 +38,10 @@ export function registerPageRoutes(app: H3, deps: {journal: Journal}): void {
     const data = await bus.ask({kind: verb, ...input})
     if (isMutating(verb)) {
       deps.journal.append({verb, ref: input.ref, selector: input.selector, args: pageArgs(input)}, Date.now())
+    }
+    // locate ships raw stack frames; resolve them to original source server-side (fs + http).
+    if (verb === 'locate' && Array.isArray(data.frames)) {
+      return {...data, source: await symbolicateFrames(data.frames as RawFrame[])}
     }
     return data
   }
