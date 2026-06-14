@@ -1,6 +1,6 @@
 import {spawn} from 'node:child_process'
 import {createRequire} from 'node:module'
-import {join, relative} from 'node:path'
+import {join} from 'node:path'
 import {writeSync} from 'node:fs'
 import type {Summary, TestError, TestRow} from '@aidx/protocol/test-types'
 import type {ChildMessage} from '../child-protocol.js'
@@ -78,8 +78,9 @@ async function runTests(cwd: string, argv: string[]): Promise<void> {
 async function runList(cwd: string): Promise<void> {
   const {report, stderr} = await runCli(cwd, ['--list'])
   if (!report.trim().startsWith('{')) throw new Error(stderr.trim() || 'playwright produced no JSON report')
+  // Report paths are already rootDir-relative, so they are the relPath; absolutize for `file`.
   const files = [...new Set(parsePlaywrightReport(report).map((r) => r.file))]
-  send({type: 'list', files: files.map((f) => ({file: f, relPath: relative(cwd, f)}))})
+  send({type: 'list', files: files.map((f) => ({file: join(cwd, f), relPath: f}))})
 }
 
 export async function runChild(): Promise<void> {

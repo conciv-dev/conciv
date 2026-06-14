@@ -57,8 +57,3 @@ export function parsePlaywrightReport(raw: string): TestRow[] {
   for (const suite of report.suites ?? []) for (const {file, spec} of walkSpecs(suite, '')) rows.push(rowFor(file, spec))
   return rows
 }
-
-// Unique test files in a report (for `--list`).
-export function reportFiles(raw: string): string[] {
-  return [...new Set(parsePlaywrightReport(raw).map((r) => r.file))]
-}
