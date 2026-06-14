@@ -1,14 +1,12 @@
-import {createRoot} from 'react-dom/client'
+import {render} from 'solid-js/web'
 import {createShadowRoot} from './shadow.js'
 import {ChatFeature} from './chat-shell.js'
 import {TestCard} from './test-card.js'
 import {initPageBus} from './page-bus.js'
 import {probeChatAvailable} from './chat-api.js'
 
-// Entry point: create the open Shadow DOM, probe the dev server, and mount the React chat
-// agent + page-bus when the aidx routes are live. Replaces the solid chat-feature.ts +
-// bootstrap.ts. The widget auto-mounts on load (the global bundle is a plain <script>), and
-// also exports mountWidget for programmatic embedding.
+// Entry: create the open Shadow DOM, probe the dev server, and mount the Solid chat agent +
+// page-bus when the aidx routes are live. Auto-mounts on load; also exports mountWidget.
 
 function metaContent(name: string): string {
   return document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content ?? ''
@@ -20,14 +18,11 @@ declare global {
   }
 }
 
-// Test-only seam (browser IT): render a standalone TestCard in LIVE mode (result=null →
-// subscribes to /api/test-runner/stream) into the widget's shadow root, so the IT exercises the
-// card's real SSE → tree → expand-failure path without booting the full chat stack. The page
-// explicitly calls it; production pages never invoke it, so the card never appears otherwise.
+// Test-only seam (browser IT): render a standalone live TestCard into the widget's shadow root.
 function mountTestCardForTest(root: ShadowRoot, apiBase: string): void {
   const container = document.createElement('div')
   root.appendChild(container)
-  createRoot(container).render(<TestCard apiBase={apiBase} onFix={() => {}} result={null} />)
+  render(() => <TestCard apiBase={apiBase} onFix={() => {}} result={null} />, container)
 }
 
 export function mountWidget(): void {
@@ -35,13 +30,12 @@ export function mountWidget(): void {
   const {root} = createShadowRoot()
   const apiBase = metaContent('pw-api-base')
   window.__AIDX_RENDER_TEST_CARD__ = () => mountTestCardForTest(root, apiBase)
-  // Chat + page-bus only exist on the aidx dev server. Probe first so a plain app (no
-  // chat route) shows nothing instead of a dead FAB and a retrying EventSource.
+  // Chat + page-bus only exist on the aidx dev server; probe first so a plain app shows nothing.
   void probeChatAvailable(apiBase).then((available) => {
     if (!available) return
     const container = document.createElement('div')
     root.appendChild(container)
-    createRoot(container).render(<ChatFeature apiBase={apiBase} />)
+    render(() => <ChatFeature apiBase={apiBase} />, container)
     initPageBus({apiBase})
   })
 }
