@@ -77,6 +77,15 @@ describe('chat routes (IT, real spawn over h3)', () => {
     expect(body).toContain('RUN_FINISHED')
   })
 
+  it('streams exactly one run lifecycle pair through chat()', async () => {
+    const {server, base} = await startServer()
+    state.server = server
+    const body = await (await postJson(`${base}/api/chat`, turn('hi'))).text()
+    const count = (needle: string) => body.split(needle).length - 1
+    expect(count('RUN_STARTED')).toBe(1)
+    expect(count('RUN_FINISHED')).toBe(1)
+  })
+
   it('passes --resume <captured session id> on the second turn', async () => {
     const argvFile = join(tmp(), 'argv.json')
     const {server, base} = await startServer({argvFile})
