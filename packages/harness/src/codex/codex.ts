@@ -1,4 +1,4 @@
-import {defineHarness, defineHarnessArgs, defineHarnessDecoder} from '@devgent/protocol/harness-types'
+import {defineHarness, defineHarnessArgs, defineHarnessDecoder} from '@aidx/protocol/harness-types'
 import {buildCodexArgs} from './args.js'
 import {codexToAguiEvents} from './decode.js'
 

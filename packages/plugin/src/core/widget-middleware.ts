@@ -8,8 +8,8 @@ import {createReadStream} from 'node:fs'
 
 export type Middleware = (req: IncomingMessage, res: ServerResponse, next: (err?: unknown) => void) => void
 
-// Where the plugin serves the bundled @devgent/widget global by default.
-export const DEFAULT_WIDGET_ROUTE = '/@devgent/widget.js'
+// Where the plugin serves the bundled @aidx/widget global by default.
+export const DEFAULT_WIDGET_ROUTE = '/@aidx/widget.js'
 
 function escapeAttr(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;')

@@ -1,6 +1,6 @@
 import {describe, it, expect} from 'vitest'
 import {buildCodexArgs} from '../src/codex/args.js'
-import type {HarnessTurn} from '@devgent/protocol/harness-types'
+import type {HarnessTurn} from '@aidx/protocol/harness-types'
 
 const base: HarnessTurn = {prompt: 'fix the bug', cwd: '/repo', resumeSessionId: null, systemPrompt: ''}
 

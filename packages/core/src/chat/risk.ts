@@ -26,7 +26,7 @@ const GIT_READ_ONLY = new Set(['status', 'diff', 'log', 'show', 'branch'])
 export function bashDecision(command: string): BashDecision {
   const c = command.trim()
   if (c === '') return 'ask'
-  if (c.startsWith('devgent tools') || c.startsWith('devgent ui')) return 'allow'
+  if (c.startsWith('aidx tools') || c.startsWith('aidx ui')) return 'allow'
   // Shell composition (pipes, redirects, chaining, subshells) → ask.
   if (/[;&|`$><\n]/.test(c)) return 'ask'
   const tokens = c.split(/\s+/)

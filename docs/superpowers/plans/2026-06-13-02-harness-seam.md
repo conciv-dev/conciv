@@ -5,7 +5,7 @@
 > **HARD RULES (see the spec's "Coding conventions" — non-negotiable):** No casts (`as` except `as const`), no `!`, no IIFEs, no `index.ts`. **Zod for all parsed data** — h3 `readValidatedBody`/`getValidatedQuery` for HTTP, `Schema.safeParse(JSON.parse(...))` for NDJSON/stream-json/JSON; NEVER hand-roll `isRecord`/`typeof` data guards. Every interface ships a generic `defineX<T extends X>`; author through it (harness members `buildArgs`/`decode`/`history` are each their own interface + `defineHarnessArgs`/`...Decoder`/`...History`). Adapters in subfolders (`<id>/<id>.ts`), no `index.ts`. Pin **h3 2.0.1-rc.22**. Terse comments. Commit to `main`. **Verify each CLI's API (codex/gemini/opencode/pi) against real online docs, not guessing.**
 
 > **REALIZED CORE LAYOUT (Plan 1, supersedes any flat name below).** All HTTP routes live under
-> `@devgent/core/src/api/<domain>/` with paths `/api/<domain>/…` and the entry file named after its
+> `@aidx/core/src/api/<domain>/` with paths `/api/<domain>/…` and the entry file named after its
 > folder (no `-route`/`-gate` suffix). The chat surface is **split**, not a monolith:
 > `api/chat/{chat,turn,session,permission,messages}.ts`, wired by `registerChatRoutes(app, opts)`
 > (there is no `chat-route.ts` / `makeChatRoute`). Capability degradation is already distributed:
@@ -16,9 +16,9 @@
 > (no HTTP) under `src/chat/{ui-bus,lock,risk,session-store}.ts`. **Where this plan says
 > `chat-route.ts`/`makeChatRoute`, read the realized `api/chat/*` files + `registerChatRoutes`.**
 
-**Goal:** Extract the inline claude harness (currently wired inside `@devgent/core` per Plan 1) into a dedicated `@devgent/harness` package behind the capability-declaring `HarnessAdapter` interface, add a real **codex** proof adapter, ship **gemini-cli / opencode / pi** as capability-only stubs, and make `@devgent/core` feature-detect by capability (degrade gracefully when `permissionGate`, `transcriptHistory`, `resume`, or file `systemPrompt` are absent).
+**Goal:** Extract the inline claude harness (currently wired inside `@aidx/core` per Plan 1) into a dedicated `@aidx/harness` package behind the capability-declaring `HarnessAdapter` interface, add a real **codex** proof adapter, ship **gemini-cli / opencode / pi** as capability-only stubs, and make `@aidx/core` feature-detect by capability (degrade gracefully when `permissionGate`, `transcriptHistory`, `resume`, or file `systemPrompt` are absent).
 
-**Architecture:** Adapter registry (`registerHarness` / `getHarness` / `listHarnesses`) over the `HarnessAdapter` contract from `@devgent/protocol/harness-types`. Each adapter is a subfolder of named files (`<id>.ts` declares the adapter + capabilities; `args.ts`/`decode.ts`/`history.ts`/`system-prompt.ts` hold the ported behaviour). Adapters depend only on `@devgent/protocol` and `@tanstack/ai` — never on the engine. `@devgent/core` resolves `getHarness(config.harness ?? 'claude')` and wires routes conditionally on the adapter's `capabilities`.
+**Architecture:** Adapter registry (`registerHarness` / `getHarness` / `listHarnesses`) over the `HarnessAdapter` contract from `@aidx/protocol/harness-types`. Each adapter is a subfolder of named files (`<id>.ts` declares the adapter + capabilities; `args.ts`/`decode.ts`/`history.ts`/`system-prompt.ts` hold the ported behaviour). Adapters depend only on `@aidx/protocol` and `@tanstack/ai` — never on the engine. `@aidx/core` resolves `getHarness(config.harness ?? 'claude')` and wires routes conditionally on the adapter's `capabilities`.
 
 **Tech Stack:** TypeScript (ESM, `verbatimModuleSyntax`, `isolatedModules`), Node 22 (`node:` builtins, `Readable`), pnpm workspaces + turbo, tsdown (per-module entries, no barrels), vitest. `@tanstack/ai` for `StreamChunk` / `EventType`. Functions-not-classes, no IIFEs, no `index.ts`.
 
@@ -26,10 +26,10 @@
 
 ## Preconditions (assumes Plan 1 complete)
 
-- `@devgent/protocol/harness-types` **exists** and exports `HarnessCapabilities`, `HarnessTurn`, `HarnessChild`, `HarnessAdapter` exactly as specified in the design's "Seam 1":
+- `@aidx/protocol/harness-types` **exists** and exports `HarnessCapabilities`, `HarnessTurn`, `HarnessChild`, `HarnessAdapter` exactly as specified in the design's "Seam 1":
 
   ```ts
-  // @devgent/protocol/harness-types (created by Plan 1)
+  // @aidx/protocol/harness-types (created by Plan 1)
   import type {Readable} from 'node:stream'
   import type {StreamChunk, UIMessage} from '@tanstack/ai'
 
@@ -63,9 +63,9 @@
   }
   ```
 
-- `@devgent/core` **exists** (h3 engine) and currently wires claude **inline** via a harness registry that lives inside core. The claude behaviour at this point is a verbatim move of the old `packages/vite-plugin/src/{claude-args,claude-agui-stream,transcript-path,history-parser,chat-system-prompt}.ts` files. Plan 1 left the chat route reading a resolved `HarnessAdapter` (so `buildArgs` / `decode` / `transcriptPath` / `parseHistory` are already the seam — the route no longer imports `buildChatClaudeArgs` / `claudeToAguiEvents` directly).
-- `claude-lock.ts` already lives in `@devgent/core` (renamed `claude.lock` → `agent.lock`) and stays there — it is harness-agnostic and out of this plan's scope.
-- The chat-route IT fixture exists at `@devgent/core`'s test tree as `fixtures/fake-claude.ts` (the real-executable stand-in moved from the vite-plugin).
+- `@aidx/core` **exists** (h3 engine) and currently wires claude **inline** via a harness registry that lives inside core. The claude behaviour at this point is a verbatim move of the old `packages/vite-plugin/src/{claude-args,claude-agui-stream,transcript-path,history-parser,chat-system-prompt}.ts` files. Plan 1 left the chat route reading a resolved `HarnessAdapter` (so `buildArgs` / `decode` / `transcriptPath` / `parseHistory` are already the seam — the route no longer imports `buildChatClaudeArgs` / `claudeToAguiEvents` directly).
+- `claude-lock.ts` already lives in `@aidx/core` (renamed `claude.lock` → `agent.lock`) and stays there — it is harness-agnostic and out of this plan's scope.
+- The chat-route IT fixture exists at `@aidx/core`'s test tree as `fixtures/fake-claude.ts` (the real-executable stand-in moved from the vite-plugin).
 
 > If any precondition is false, STOP and finish Plan 1 first.
 
@@ -76,7 +76,7 @@
 ```
 packages/harness/
   package.json                exports "." -> dist/registry.js, "./claude","./codex","./gemini-cli","./opencode","./pi"
-  tsdown.config.ts            per-module entries; @tanstack/ai + @devgent/protocol external
+  tsdown.config.ts            per-module entries; @tanstack/ai + @aidx/protocol external
   tsconfig.json               extends ../../tsconfig.base.json
   src/
     registry.ts               registerHarness / getHarness(id) / listHarnesses (+ self-registers bundled adapters)
@@ -109,7 +109,7 @@ packages/harness/
     harness.it.test.ts        IT: drive an adapter end-to-end via fake-harness; permissionGate:'none' skips the gate
 
 packages/core/                (edited — feature-detection wiring)
-  package.json                + dependency "@devgent/harness": "workspace:*"
+  package.json                + dependency "@aidx/harness": "workspace:*"
   src/
     chat-route.ts             resolve getHarness; conditional /permission, /history, prepend-systemPrompt
     server.ts (or engine.ts)  resolve adapter once at boot; pass to chat route
@@ -123,7 +123,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
 
 ---
 
-## Task 1 — Scaffold `@devgent/harness` + register in the workspace
+## Task 1 — Scaffold `@aidx/harness` + register in the workspace
 
 **Files:**
 
@@ -139,7 +139,7 @@ Steps:
 
   ```ts
   import {describe, it, expect} from 'vitest'
-  import {defineHarness, type HarnessAdapter} from '@devgent/protocol/harness-types'
+  import {defineHarness, type HarnessAdapter} from '@aidx/protocol/harness-types'
   import {registerHarness, getHarness, listHarnesses} from '../src/registry.js'
 
   // Even the registry's throwaway test adapter goes through defineHarness (Constraint A).
@@ -176,18 +176,18 @@ Steps:
 - [ ] **Run** (expect FAIL — package + module do not exist yet):
 
   ```
-  pnpm --filter @devgent/harness test
+  pnpm --filter @aidx/harness test
   ```
 
-  Expected: command errors with `No projects matched the filters "@devgent/harness"` (package not yet in the workspace). That counts as RED for this task — the package must exist before the test can even run.
+  Expected: command errors with `No projects matched the filters "@aidx/harness"` (package not yet in the workspace). That counts as RED for this task — the package must exist before the test can even run.
 
 - [ ] **Minimal impl** — create `packages/harness/package.json`:
 
   ```json
   {
-    "name": "@devgent/harness",
+    "name": "@aidx/harness",
     "version": "0.0.0",
-    "description": "Harness adapters (claude, codex, + stubs) behind the @devgent/protocol HarnessAdapter contract.",
+    "description": "Harness adapters (claude, codex, + stubs) behind the @aidx/protocol HarnessAdapter contract.",
     "license": "MIT",
     "files": ["dist"],
     "type": "module",
@@ -224,7 +224,7 @@ Steps:
       "test": "vitest run"
     },
     "dependencies": {
-      "@devgent/protocol": "workspace:*",
+      "@aidx/protocol": "workspace:*",
       "@tanstack/ai": "^0.28.0"
     },
     "devDependencies": {
@@ -251,13 +251,13 @@ Steps:
   }
   ```
 
-- [ ] Create `packages/harness/tsdown.config.ts` (each adapter is its own entry so the subpath exports resolve to named files; `@tanstack/ai` + `@devgent/protocol` stay external):
+- [ ] Create `packages/harness/tsdown.config.ts` (each adapter is its own entry so the subpath exports resolve to named files; `@tanstack/ai` + `@aidx/protocol` stay external):
 
   ```ts
   import {defineConfig} from 'tsdown'
 
   // Per-module entries (no barrel). registry.ts is the package entry ("."); each adapter's
-  // <id>.ts is a subpath export. @tanstack/ai + @devgent/protocol stay external.
+  // <id>.ts is a subpath export. @tanstack/ai + @aidx/protocol stay external.
   export default defineConfig({
     entry: [
       'src/registry.ts',
@@ -276,7 +276,7 @@ Steps:
 - [ ] Create `packages/harness/src/registry.ts` (registry + self-registration of bundled adapters; uses a module-level `Map`, functions-not-classes, no IIFE). The adapter imports are added as each adapter is built — start with `claude` + `codex` (Tasks 2-3) and the three stubs (Task placeholder; created in Task 7-ish but referenced here from the start so `listHarnesses` includes them). For Task 1 RED→GREEN, create the registry referencing only the bundled adapters that will exist; if an adapter file is not yet created, comment its import + register line and uncomment it in the task that creates it.
 
   ```ts
-  import type {HarnessAdapter} from '@devgent/protocol/harness-types'
+  import type {HarnessAdapter} from '@aidx/protocol/harness-types'
   import {claude} from './claude/claude.js'
   import {codex} from './codex/codex.js'
   import {geminiCli} from './gemini-cli/gemini-cli.js'
@@ -313,7 +313,7 @@ Steps:
   > NOTE: This final form references all five adapters. To keep Task 1 self-contained and green, create thin placeholder adapter files now (each exporting a minimal `HarnessAdapter` matching the `stub()` shape) and flesh them out in their own tasks. Concretely, for Task 1 create `src/claude/claude.ts`, `src/codex/codex.ts`, `src/gemini-cli/gemini-cli.ts`, `src/opencode/opencode.ts`, `src/pi/pi.ts` each as a `defineHarness(...)` call (Constraint A — never a bare object literal, even for placeholders):
 
   ```ts
-  import {defineHarness} from '@devgent/protocol/harness-types'
+  import {defineHarness} from '@aidx/protocol/harness-types'
 
   // PLACEHOLDER — fleshed out in its own task. Capabilities/behaviour are corrected there.
   // Wrapped in defineHarness so the contract is enforced + inferred from day one.
@@ -327,7 +327,7 @@ Steps:
   })
   ```
 
-  (substitute `codex`/`geminiCli`/`opencode`/`pi` + their ids accordingly). `defineHarness` (from Plan 1, `@devgent/protocol/harness-types`) returns its argument typed as the exact literal `T extends HarnessAdapter`, so each export stays assignable to `HarnessAdapter` in the registry. The placeholder declares `transcriptHistory: false` with no `transcriptPath`/`parseHistory`, satisfying `defineHarness`'s dev-time invariant. This makes the registry compile and `listHarnesses()` return all five immediately; later tasks replace each placeholder body.
+  (substitute `codex`/`geminiCli`/`opencode`/`pi` + their ids accordingly). `defineHarness` (from Plan 1, `@aidx/protocol/harness-types`) returns its argument typed as the exact literal `T extends HarnessAdapter`, so each export stays assignable to `HarnessAdapter` in the registry. The placeholder declares `transcriptHistory: false` with no `transcriptPath`/`parseHistory`, satisfying `defineHarness`'s dev-time invariant. This makes the registry compile and `listHarnesses()` return all five immediately; later tasks replace each placeholder body.
 
 - [ ] Confirm the workspace already globs `packages/*` (it does — `pnpm-workspace.yaml` has `packages/*`), then install so the new package is linked:
 
@@ -338,7 +338,7 @@ Steps:
 - [ ] **Run PASS**:
 
   ```
-  pnpm --filter @devgent/harness test
+  pnpm --filter @aidx/harness test
   ```
 
   Expected: 3 passed (registry resolves `test-x`, lists `claude`+`codex`, throws on unknown).
@@ -346,7 +346,7 @@ Steps:
 - [ ] **Run** the build + typecheck to confirm scaffolding is sound:
 
   ```
-  pnpm --filter @devgent/harness build && pnpm --filter @devgent/harness typecheck
+  pnpm --filter @aidx/harness build && pnpm --filter @aidx/harness typecheck
   ```
 
   Expected: clean.
@@ -355,7 +355,7 @@ Steps:
 
   ```
   git add packages/harness pnpm-lock.yaml
-  git commit -m "feat(harness): scaffold @devgent/harness package + registry
+  git commit -m "feat(harness): scaffold @aidx/harness package + registry
 
   Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
   ```
@@ -377,20 +377,20 @@ Steps:
   ```ts
   import {describe, it, expect} from 'vitest'
   import {buildArgs} from '../src/claude/args.js'
-  import type {HarnessTurn} from '@devgent/protocol/harness-types'
+  import type {HarnessTurn} from '@aidx/protocol/harness-types'
 
   const base: HarnessTurn = {prompt: 'hello', cwd: '/repo', resumeSessionId: null, systemPrompt: ''}
 
   describe('claude buildArgs', () => {
-    it('builds the headless stream-json argv with acceptEdits + allowed devgent tools + add-dir', () => {
+    it('builds the headless stream-json argv with acceptEdits + allowed aidx tools + add-dir', () => {
       const args = buildArgs(base)
       expect(args.slice(0, 2)).toEqual(['-p', 'hello'])
       expect(args).toContain('--output-format')
       expect(args[args.indexOf('--output-format') + 1]).toBe('stream-json')
       expect(args).toContain('--verbose')
       expect(args[args.indexOf('--permission-mode') + 1]).toBe('acceptEdits')
-      expect(args).toContain('Bash(devgent tools:*)')
-      expect(args).toContain('Bash(devgent ui:*)')
+      expect(args).toContain('Bash(aidx tools:*)')
+      expect(args).toContain('Bash(aidx ui:*)')
       expect(args[args.indexOf('--add-dir') + 1]).toBe('/repo')
     })
 
@@ -444,7 +444,7 @@ Steps:
 - [ ] **Run** (expect FAIL — `args.ts` exports nothing yet):
 
   ```
-  pnpm --filter @devgent/harness test claude-args
+  pnpm --filter @aidx/harness test claude-args
   ```
 
   Expected: FAIL — `buildArgs is not a function` / module `../src/claude/args.js` not found.
@@ -452,7 +452,7 @@ Steps:
 - [ ] **Minimal impl** — create `packages/harness/src/claude/args.ts` (ported verbatim from `claude-args.ts`, retyped onto `HarnessTurn`; `appendSystemPromptFile` → `systemPrompt`):
 
   ```ts
-  import type {HarnessTurn} from '@devgent/protocol/harness-types'
+  import type {HarnessTurn} from '@aidx/protocol/harness-types'
 
   // The PreToolUse hook settings injected via --settings: an http hook on Bash that defers the
   // decision to the engine's /api/chat/permission route. 600s timeout (the route auto-denies
@@ -468,7 +468,7 @@ Steps:
 
   // Build the headless `claude -p` argv for a chat turn: streaming JSON, auto-accept edits
   // (git is the undo net), and the working tree as an allowed dir. --resume continues a prior
-  // session when one is supplied. The agent's own `devgent tools`/`devgent ui` CLIs are
+  // session when one is supplied. The agent's own `aidx tools`/`aidx ui` CLIs are
   // pre-allowed; every other Bash still gates through the PreToolUse hook.
   export function buildArgs(turn: HarnessTurn): string[] {
     const args = [
@@ -480,8 +480,8 @@ Steps:
       '--permission-mode',
       'acceptEdits',
       '--allowedTools',
-      'Bash(devgent tools:*)',
-      'Bash(devgent ui:*)',
+      'Bash(aidx tools:*)',
+      'Bash(aidx ui:*)',
       '--add-dir',
       turn.cwd,
     ]
@@ -495,7 +495,7 @@ Steps:
 - [ ] Update `packages/harness/src/claude/claude.ts` to the **real** capabilities + wire `buildArgs` (leave `decode` / `transcriptPath` / `parseHistory` as placeholders until Tasks 3-4):
 
   ```ts
-  import {defineHarness} from '@devgent/protocol/harness-types'
+  import {defineHarness} from '@aidx/protocol/harness-types'
   import {buildArgs} from './args.js'
 
   export const claude = defineHarness({
@@ -515,7 +515,7 @@ Steps:
 - [ ] **Run PASS**:
 
   ```
-  pnpm --filter @devgent/harness test claude-args
+  pnpm --filter @aidx/harness test claude-args
   ```
 
   Expected: 4 passed.
@@ -627,7 +627,7 @@ Steps:
 - [ ] **Run** (expect FAIL):
 
   ```
-  pnpm --filter @devgent/harness test claude-decode
+  pnpm --filter @aidx/harness test claude-decode
   ```
 
   Expected: FAIL — module `../src/claude/decode.js` not found.
@@ -636,7 +636,7 @@ Steps:
 
   ```ts
   import {EventType, type StreamChunk} from '@tanstack/ai'
-  import type {HarnessDecodeOpts} from '@devgent/protocol/harness-types'
+  import type {HarnessDecodeOpts} from '@aidx/protocol/harness-types'
 
   // Translate claude's `--output-format stream-json` NDJSON into a TanStack AI AG-UI event
   // stream (`StreamChunk`s): RUN_STARTED -> (TEXT_MESSAGE_* | REASONING_* | TOOL_CALL_*)* ->
@@ -704,8 +704,8 @@ Steps:
   }
 
   export async function* decode(lines: AsyncIterable<string>, opts: HarnessDecodeOpts): AsyncGenerator<StreamChunk> {
-    const threadId = 'devgent-chat'
-    const runId = 'devgent-run'
+    const threadId = 'aidx-chat'
+    const runId = 'aidx-run'
     const ids = {n: 0}
     yield {type: EventType.RUN_STARTED, threadId, runId}
     for await (const line of lines) {
@@ -733,7 +733,7 @@ Steps:
 - [ ] Wire `decode` into `packages/harness/src/claude/claude.ts` (replace the placeholder `decode`):
 
   ```ts
-  import {defineHarness} from '@devgent/protocol/harness-types'
+  import {defineHarness} from '@aidx/protocol/harness-types'
   import {buildArgs} from './args.js'
   import {decode} from './decode.js'
 
@@ -751,7 +751,7 @@ Steps:
 - [ ] **Run PASS**:
 
   ```
-  pnpm --filter @devgent/harness test claude-decode
+  pnpm --filter @aidx/harness test claude-decode
   ```
 
   Expected: 4 passed.
@@ -829,7 +829,7 @@ Steps:
 - [ ] **Run** (expect FAIL):
 
   ```
-  pnpm --filter @devgent/harness test claude-history
+  pnpm --filter @aidx/harness test claude-history
   ```
 
   Expected: FAIL — module `../src/claude/history.js` not found.
@@ -839,7 +839,7 @@ Steps:
   ```ts
   import {homedir} from 'node:os'
   import {join} from 'node:path'
-  import type {MessagePart, UIMessage} from '@devgent/protocol/chat-types'
+  import type {MessagePart, UIMessage} from '@aidx/protocol/chat-types'
 
   // --- transcript path (ported from transcript-path.ts) ---
 
@@ -932,7 +932,7 @@ Steps:
 - [ ] Wire into `packages/harness/src/claude/claude.ts` (final form):
 
   ```ts
-  import {defineHarness} from '@devgent/protocol/harness-types'
+  import {defineHarness} from '@aidx/protocol/harness-types'
   import {buildArgs} from './args.js'
   import {decode} from './decode.js'
   import {transcriptPath, parseHistory} from './history.js'
@@ -954,7 +954,7 @@ Steps:
 - [ ] **Run PASS**:
 
   ```
-  pnpm --filter @devgent/harness test claude-history
+  pnpm --filter @aidx/harness test claude-history
   ```
 
   Expected: 3 passed.
@@ -964,7 +964,7 @@ Steps:
 - [ ] **Run** the whole package suite + typecheck to confirm claude is fully ported:
 
   ```
-  pnpm --filter @devgent/harness test && pnpm --filter @devgent/harness typecheck
+  pnpm --filter @aidx/harness test && pnpm --filter @aidx/harness typecheck
   ```
 
   Expected: all claude + registry tests pass; typecheck clean.
@@ -1034,7 +1034,7 @@ Steps:
   ```ts
   import {describe, it, expect} from 'vitest'
   import {buildArgs} from '../src/codex/args.js'
-  import type {HarnessTurn} from '@devgent/protocol/harness-types'
+  import type {HarnessTurn} from '@aidx/protocol/harness-types'
 
   const base: HarnessTurn = {prompt: 'fix the bug', cwd: '/repo', resumeSessionId: null, systemPrompt: ''}
 
@@ -1048,10 +1048,10 @@ Steps:
     })
 
     it('passes the system prompt via the instructions flag when provided (systemPrompt:flag)', () => {
-      const args = buildArgs({...base, systemPrompt: 'you are devgent'})
+      const args = buildArgs({...base, systemPrompt: 'you are aidx'})
       const i = args.indexOf('--instructions') // VERIFY exact flag in Task 5
       expect(i).toBeGreaterThan(-1)
-      expect(args[i + 1]).toBe('you are devgent')
+      expect(args[i + 1]).toBe('you are aidx')
     })
 
     it('never adds a --settings/permission hook (permissionGate is none)', () => {
@@ -1065,7 +1065,7 @@ Steps:
 - [ ] **Run** (expect FAIL):
 
   ```
-  pnpm --filter @devgent/harness test codex-args
+  pnpm --filter @aidx/harness test codex-args
   ```
 
   Expected: FAIL — module `../src/codex/args.js` not found.
@@ -1073,11 +1073,11 @@ Steps:
 - [ ] **Minimal impl** — `packages/harness/src/codex/args.ts` (replace `// VERIFY` literals with the Task-5 confirmed names). Note: `systemPrompt:'flag'` means core passes the prompt **text** (not a file path) as `turn.systemPrompt`:
 
   ```ts
-  import type {HarnessTurn} from '@devgent/protocol/harness-types'
+  import type {HarnessTurn} from '@aidx/protocol/harness-types'
 
   // Build the non-interactive `codex exec` argv for a chat turn: stream machine-readable JSON
   // events to stdout, run in a non-interactive sandbox (no mid-turn approval — codex governs
-  // risky ops via its own sandbox, so devgent registers no permission gate for it). System
+  // risky ops via its own sandbox, so aidx registers no permission gate for it). System
   // instructions go via a flag (systemPrompt:'flag'); permissionUrl is ignored.
   export function buildArgs(turn: HarnessTurn): string[] {
     const args = ['exec', turn.prompt, '--json', '--sandbox'] // VERIFY flag names in Task 5
@@ -1139,7 +1139,7 @@ Steps:
 
   ```ts
   import {EventType, type StreamChunk} from '@tanstack/ai'
-  import type {HarnessDecodeOpts} from '@devgent/protocol/harness-types'
+  import type {HarnessDecodeOpts} from '@aidx/protocol/harness-types'
 
   function isRecord(v: unknown): v is Record<string, unknown> {
     return typeof v === 'object' && v !== null
@@ -1159,8 +1159,8 @@ Steps:
   // Translate `codex exec --json` events into the same AG-UI StreamChunk envelope the widget
   // already speaks. Event field names are VERIFIED against the current codex CLI in Task 5.
   export async function* decode(lines: AsyncIterable<string>, opts: HarnessDecodeOpts): AsyncGenerator<StreamChunk> {
-    const threadId = 'devgent-chat'
-    const runId = 'devgent-run'
+    const threadId = 'aidx-chat'
+    const runId = 'aidx-run'
     const ids = {n: 0}
     yield {type: EventType.RUN_STARTED, threadId, runId}
     for await (const line of lines) {
@@ -1194,13 +1194,13 @@ Steps:
 - [ ] Replace the placeholder `packages/harness/src/codex/codex.ts` with the verified capabilities:
 
   ```ts
-  import {defineHarness} from '@devgent/protocol/harness-types'
+  import {defineHarness} from '@aidx/protocol/harness-types'
   import {buildArgs} from './args.js'
   import {decode} from './decode.js'
 
   // Capability shape CONFIRMED in Task 5. resume/transcriptHistory default to false unless the
   // codex `exec` mode is verified to support them. permissionGate:'none' — codex governs risky
-  // ops via its own sandbox, so devgent wires no /permission route for it. systemPrompt:'flag'.
+  // ops via its own sandbox, so aidx wires no /permission route for it. systemPrompt:'flag'.
   // Constraint A: defined through defineHarness, never a bare literal.
   export const codex = defineHarness({
     id: 'codex',
@@ -1216,7 +1216,7 @@ Steps:
 - [ ] **Run PASS** + typecheck:
 
   ```
-  pnpm --filter @devgent/harness test codex && pnpm --filter @devgent/harness typecheck
+  pnpm --filter @aidx/harness test codex && pnpm --filter @aidx/harness typecheck
   ```
 
   Expected: codex-args + codex-decode green; typecheck clean.
@@ -1250,7 +1250,7 @@ Steps:
   import {geminiCli} from '../src/gemini-cli/gemini-cli.js'
   import {opencode} from '../src/opencode/opencode.js'
   import {pi} from '../src/pi/pi.js'
-  import type {HarnessTurn} from '@devgent/protocol/harness-types'
+  import type {HarnessTurn} from '@aidx/protocol/harness-types'
 
   const turn: HarnessTurn = {prompt: 'x', cwd: '/r', resumeSessionId: null, systemPrompt: ''}
 
@@ -1272,7 +1272,7 @@ Steps:
 - [ ] **Run** (expect FAIL — placeholders return `[]` from `buildArgs`, don't throw):
 
   ```
-  pnpm --filter @devgent/harness test stubs
+  pnpm --filter @aidx/harness test stubs
   ```
 
   Expected: FAIL — `buildArgs` does not throw.
@@ -1280,7 +1280,7 @@ Steps:
 - [ ] **Minimal impl** — each stub declares its best-guess capabilities (research-confirmed later) and throws from the not-yet-supported methods. Example `packages/harness/src/gemini-cli/gemini-cli.ts`:
 
   ```ts
-  import {defineHarness} from '@devgent/protocol/harness-types'
+  import {defineHarness} from '@aidx/protocol/harness-types'
 
   // Capability-only stub. Capabilities are a placeholder pending CLI research; buildArgs/decode
   // throw until the adapter is implemented. Registered so listHarnesses() advertises it and the
@@ -1305,7 +1305,7 @@ Steps:
 - [ ] **Run PASS**:
 
   ```
-  pnpm --filter @devgent/harness test stubs
+  pnpm --filter @aidx/harness test stubs
   ```
 
   Expected: 6 passed (3 adapters × 2 cases).
@@ -1352,7 +1352,7 @@ Steps:
   function spawnFake(format: 'claude' | 'codex'): Readable {
     const child = spawn(process.execPath, [fakeHarness], {
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: {...process.env, DEVGENT_FAKE_FORMAT: format},
+      env: {...process.env, AIDX_FAKE_FORMAT: format},
     })
     return child.stdout!
   }
@@ -1391,18 +1391,18 @@ Steps:
 - [ ] **Run** (expect FAIL — fixture missing):
 
   ```
-  pnpm --filter @devgent/harness test harness.it
+  pnpm --filter @aidx/harness test harness.it
   ```
 
   Expected: FAIL — `fixtures/fake-harness.ts` not found / spawn error.
 
-- [ ] **Minimal impl** — `packages/harness/test/fixtures/fake-harness.ts`. A real executable (NOT a JS mock — spawned as a child to exercise the true stdout-pipe path), generalizing `fake-claude.ts`: it picks the output transcript by `DEVGENT_FAKE_FORMAT` (`claude` | `codex`), echoes argv to `DEVGENT_TEST_ARGV_FILE` when set, and hangs until SIGTERM under `DEVGENT_FAKE_HANG`. Use **named functions**, no IIFE. The `codex` lines must match the verified Task-5 event shape:
+- [ ] **Minimal impl** — `packages/harness/test/fixtures/fake-harness.ts`. A real executable (NOT a JS mock — spawned as a child to exercise the true stdout-pipe path), generalizing `fake-claude.ts`: it picks the output transcript by `AIDX_FAKE_FORMAT` (`claude` | `codex`), echoes argv to `AIDX_TEST_ARGV_FILE` when set, and hangs until SIGTERM under `AIDX_FAKE_HANG`. Use **named functions**, no IIFE. The `codex` lines must match the verified Task-5 event shape:
 
   ```ts
   // Real executable standing in for a harness CLI in harness ITs — spawned as a child to
   // exercise the true spawn -> stdout-pipe -> decode path. Replays a format-specific transcript
-  // selected by DEVGENT_FAKE_FORMAT. Echoes argv (DEVGENT_TEST_ARGV_FILE) so a test can assert
-  // --resume; hangs until SIGTERM under DEVGENT_FAKE_HANG to exercise Stop.
+  // selected by AIDX_FAKE_FORMAT. Echoes argv (AIDX_TEST_ARGV_FILE) so a test can assert
+  // --resume; hangs until SIGTERM under AIDX_FAKE_HANG to exercise Stop.
   import {writeFileSync} from 'node:fs'
 
   function claudeLines(): unknown[] {
@@ -1434,15 +1434,15 @@ Steps:
 
   function main(): void {
     const argv = process.argv.slice(2)
-    const argvFile = process.env.DEVGENT_TEST_ARGV_FILE
+    const argvFile = process.env.AIDX_TEST_ARGV_FILE
     if (argvFile) writeFileSync(argvFile, JSON.stringify(argv))
 
-    if (process.env.DEVGENT_FAKE_HANG) {
+    if (process.env.AIDX_FAKE_HANG) {
       process.on('SIGTERM', () => process.exit(143))
       setInterval(() => {}, 1000)
       return
     }
-    for (const line of transcript(process.env.DEVGENT_FAKE_FORMAT ?? 'claude')) {
+    for (const line of transcript(process.env.AIDX_FAKE_FORMAT ?? 'claude')) {
       process.stdout.write(JSON.stringify(line) + '\n')
     }
     process.exit(0)
@@ -1456,7 +1456,7 @@ Steps:
 - [ ] **Run PASS**:
 
   ```
-  pnpm --filter @devgent/harness test harness.it
+  pnpm --filter @aidx/harness test harness.it
   ```
 
   Expected: 3 passed.
@@ -1519,7 +1519,7 @@ Steps:
 - [ ] **Run** (expect FAIL only if an adapter violates the invariant; otherwise it passes immediately — in which case temporarily break claude's `claude.ts` by removing `parseHistory` to SEE it go RED, then restore). Standard cmd:
 
   ```
-  pnpm --filter @devgent/harness test capability-matrix
+  pnpm --filter @aidx/harness test capability-matrix
   ```
 
   Expected first run: PASS (claude: transcriptHistory true + both methods; codex: transcriptHistory false + both undefined). Demonstrate RED by deleting `parseHistory` from `claude.ts` → re-run → FAIL `claude > transcriptHistory <=> ...` → restore → PASS. This proves the test bites.
@@ -1527,7 +1527,7 @@ Steps:
 - [ ] **Run PASS** (after restore) the whole suite + typecheck + lint:
 
   ```
-  pnpm --filter @devgent/harness test && pnpm --filter @devgent/harness typecheck && pnpm --filter @devgent/harness lint
+  pnpm --filter @aidx/harness test && pnpm --filter @aidx/harness typecheck && pnpm --filter @aidx/harness lint
   ```
 
   Expected: all green.
@@ -1543,11 +1543,11 @@ Steps:
 
 ---
 
-## Task 10 — Extract claude OUT of `@devgent/core`; depend on `@devgent/harness`
+## Task 10 — Extract claude OUT of `@aidx/core`; depend on `@aidx/harness`
 
 **Files:**
 
-- `packages/core/package.json` (add `@devgent/harness` dependency)
+- `packages/core/package.json` (add `@aidx/harness` dependency)
 - `packages/core/src/` — delete the inline claude files Plan 1 left in core (`claude/args.ts`, `claude/decode.ts`, `claude/history.ts`, `claude/system-prompt.ts`, and the inline `registry.ts` if core had its own) — wherever Plan 1 placed them. Confirm exact paths with `git grep -l buildArgs packages/core/src` before deleting.
 - `packages/core/tsdown.config.ts` (drop any now-deleted entries)
 
@@ -1556,7 +1556,7 @@ Steps:
 - [ ] Add the dependency to `packages/core/package.json`:
 
   ```json
-  "@devgent/harness": "workspace:*"
+  "@aidx/harness": "workspace:*"
   ```
 
   then:
@@ -1576,22 +1576,22 @@ Steps:
 - [ ] **Run** the core suite to capture the GREEN baseline before the move:
 
   ```
-  pnpm --filter @devgent/core test
+  pnpm --filter @aidx/core test
   ```
 
   Expected: PASS (Plan 1 left it green). This is the regression guard for the extraction.
 
-- [ ] Repoint core's imports from its inline claude modules to `@devgent/harness`:
-  - `import {getHarness, listHarnesses} from '@devgent/harness'` (the registry — package entry `.`)
+- [ ] Repoint core's imports from its inline claude modules to `@aidx/harness`:
+  - `import {getHarness, listHarnesses} from '@aidx/harness'` (the registry — package entry `.`)
   - The default-resolution helper now calls `getHarness(config.harness ?? 'claude')`.
-  - The claude default system prompt: `import {CHAT_SYSTEM_PROMPT} from '@devgent/harness/claude'`? — NO: keep core's `systemPrompt` resolution generic. If core needs a fallback prompt only when none is configured, read it from the resolved adapter's package via `@devgent/harness/claude` **only inside the claude-specific default path**, or (preferred) keep core's existing generic default prompt and let the adapter's `systemPrompt` capability decide delivery. Choose the generic path to avoid coupling core to claude.
+  - The claude default system prompt: `import {CHAT_SYSTEM_PROMPT} from '@aidx/harness/claude'`? — NO: keep core's `systemPrompt` resolution generic. If core needs a fallback prompt only when none is configured, read it from the resolved adapter's package via `@aidx/harness/claude` **only inside the claude-specific default path**, or (preferred) keep core's existing generic default prompt and let the adapter's `systemPrompt` capability decide delivery. Choose the generic path to avoid coupling core to claude.
 
 - [ ] Delete the now-duplicated inline claude files from `packages/core/src` (the harness package owns them now) and remove their entries from `packages/core/tsdown.config.ts`.
 
-- [ ] **Run PASS** (no behaviour change — core now resolves claude from `@devgent/harness`):
+- [ ] **Run PASS** (no behaviour change — core now resolves claude from `@aidx/harness`):
 
   ```
-  pnpm --filter @devgent/core test && pnpm --filter @devgent/core typecheck
+  pnpm --filter @aidx/core test && pnpm --filter @aidx/core typecheck
   ```
 
   Expected: the same green suite; zero new failures.
@@ -1600,7 +1600,7 @@ Steps:
 
   ```
   git add packages/core packages/harness pnpm-lock.yaml
-  git commit -m "refactor(core): resolve claude from @devgent/harness; drop inline copy
+  git commit -m "refactor(core): resolve claude from @aidx/harness; drop inline copy
 
   Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
   ```
@@ -1625,7 +1625,7 @@ Steps:
   import {describe, it, expect, afterEach} from 'vitest'
   import {createServer, type Server} from 'node:http'
   import {EventType, type StreamChunk} from '@tanstack/ai'
-  import {defineHarness, type HarnessAdapter} from '@devgent/protocol/harness-types'
+  import {defineHarness, type HarnessAdapter} from '@aidx/protocol/harness-types'
   import {makeChatRoute} from '../src/chat-route.js'
   // ... existing tmp()/postJson()/startServer() helpers, generalized to accept an adapter ...
 
@@ -1680,7 +1680,7 @@ Steps:
 - [ ] **Run** (expect FAIL — the route currently wires `/permission` + `/history` unconditionally and always sets `permissionUrl`):
 
   ```
-  pnpm --filter @devgent/core test chat-route
+  pnpm --filter @aidx/core test chat-route
   ```
 
   Expected: FAIL — `permission` returns 200 not 404; `--settings`/permissionUrl present.
@@ -1733,7 +1733,7 @@ Steps:
      }
      const child = opts.spawn(opts.adapter.buildArgs(turn), opts.cwd)
      ```
-     where `writeSystemPromptFile(lockDir, text)` writes the prompt to `<lockDir>/.devgent/system-prompt.txt` and returns the path (move the existing claude temp-file write here if Plan 1 had it inline; it is now claude-capability-gated, not claude-specific). `opts.spawn` is the generalized `SpawnHarness` seam (rename from `SpawnClaude`):
+     where `writeSystemPromptFile(lockDir, text)` writes the prompt to `<lockDir>/.aidx/system-prompt.txt` and returns the path (move the existing claude temp-file write here if Plan 1 had it inline; it is now claude-capability-gated, not claude-specific). `opts.spawn` is the generalized `SpawnHarness` seam (rename from `SpawnClaude`):
      ```ts
      export type HarnessChildProc = {pid: number; stdout: Readable; stderr: Readable; kill: () => void}
      export type SpawnHarness = (args: string[], cwd: string) => HarnessChildProc
@@ -1751,19 +1751,19 @@ Steps:
 - [ ] In the engine boot file, resolve the adapter once and pass it + the resolved system-prompt text into `makeChatRoute`:
 
   ```ts
-  import {getHarness} from '@devgent/harness'
+  import {getHarness} from '@aidx/harness'
   // ...
   const adapter = getHarness(config.harness ?? 'claude')
   const systemPromptText = config.systemPrompt ?? defaultSystemPromptFor(adapter)
   const chat = makeChatRoute({cwd, lockDir, previewId, initialSessionId, spawn, adapter, systemPromptText, uiBus})
   ```
 
-  `defaultSystemPromptFor(adapter)` returns `CHAT_SYSTEM_PROMPT` for claude (import from `@devgent/harness/claude`) and `''` otherwise — keep this the ONLY claude-name reference in core, isolated in one helper.
+  `defaultSystemPromptFor(adapter)` returns `CHAT_SYSTEM_PROMPT` for claude (import from `@aidx/harness/claude`) and `''` otherwise — keep this the ONLY claude-name reference in core, isolated in one helper.
 
 - [ ] **Run PASS**:
 
   ```
-  pnpm --filter @devgent/core test chat-route
+  pnpm --filter @aidx/core test chat-route
   ```
 
   Expected: the new degradation cases pass AND the existing claude (hook) cases still pass — `/permission` allow/deny + `--resume` on turn 2 unchanged for claude.
@@ -1771,7 +1771,7 @@ Steps:
 - [ ] **Run PASS** the full core suite + typecheck:
 
   ```
-  pnpm --filter @devgent/core test && pnpm --filter @devgent/core typecheck
+  pnpm --filter @aidx/core test && pnpm --filter @aidx/core typecheck
   ```
 
   Expected: green.
@@ -1799,7 +1799,7 @@ Steps:
   pnpm build && pnpm typecheck && pnpm test && pnpm lint
   ```
 
-  Expected: all packages green. Pay attention to `@devgent/widget` browser ITs and `@devgent/cli` — they consume core's routes and must be unaffected (claude path unchanged in behaviour).
+  Expected: all packages green. Pay attention to `@aidx/widget` browser ITs and `@aidx/cli` — they consume core's routes and must be unaffected (claude path unchanged in behaviour).
 
 - [ ] Grep for stragglers — the word "claude" must not appear in core outside the single `defaultSystemPromptFor` helper:
 
@@ -1831,8 +1831,8 @@ Steps:
 
 Run before declaring the plan complete (executor checklist):
 
-- [ ] **Scope match** — `@devgent/harness` exists with NO `index.ts`; subpath exports `.` (registry), `./claude`, `./codex`, `./gemini-cli`, `./opencode`, `./pi` all resolve to named files; registered in the pnpm workspace (`packages/*` glob) and installed.
-- [ ] **Claude ported file-by-file** — `args.ts` (buildArgs), `decode.ts` (decode), `history.ts` (transcriptPath + parseHistory), `system-prompt.ts` (CHAT_SYSTEM_PROMPT) each have a test; the old inline copies in `@devgent/core` are deleted (no duplication). Capabilities `{resume:true, permissionGate:'hook', transcriptHistory:true, systemPrompt:'file'}`.
+- [ ] **Scope match** — `@aidx/harness` exists with NO `index.ts`; subpath exports `.` (registry), `./claude`, `./codex`, `./gemini-cli`, `./opencode`, `./pi` all resolve to named files; registered in the pnpm workspace (`packages/*` glob) and installed.
+- [ ] **Claude ported file-by-file** — `args.ts` (buildArgs), `decode.ts` (decode), `history.ts` (transcriptPath + parseHistory), `system-prompt.ts` (CHAT_SYSTEM_PROMPT) each have a test; the old inline copies in `@aidx/core` are deleted (no duplication). Capabilities `{resume:true, permissionGate:'hook', transcriptHistory:true, systemPrompt:'file'}`.
 - [ ] **buildArgs gate test** — asserts the PreToolUse `--settings` hook is present **only** when `permissionUrl` is supplied (which core supplies only for `permissionGate:'hook'`), and absent otherwise.
 - [ ] **decode test** — sample claude stream-json NDJSON → correct RUN_STARTED → TEXT/REASONING/TOOL_CALL → RUN_FINISHED sequence; `onSessionId` fires; bad lines skipped.
 - [ ] **parseHistory test** — internal markers (`VIBE_PROGRESS_TICK`, `NEEDS_INFO:`, `<system-reminder>`) filtered; tool_use → tool-call parts.
@@ -1841,7 +1841,7 @@ Run before declaring the plan complete (executor checklist):
 - [ ] **Core feature-detection** — `getHarness(config.harness ?? 'claude')`; `/permission` wired only when `permissionGate==='hook'`; `permissionUrl` set on the turn only then; `/history` wired only when `transcriptHistory` && both methods present; `systemPrompt==='none'` prepends to the first prompt, `'file'` writes a temp file, `'flag'` passes raw text. The claude (hook) IT still passes unchanged.
 - [ ] **Generic fixture + IT** — `fake-harness.ts` replaces `fake-claude.ts`, format-selectable; an IT proves a `permissionGate:'none'` harness skips the approval gate cleanly (no `--settings`, `/permission` 404).
 - [ ] **Capability matrix** — asserts `transcriptHistory ⇒ transcriptPath && parseHistory` defined (and absent when false) for every non-stub adapter; demonstrated RED by removing claude's `parseHistory`. Note this invariant is enforced TWICE: at definition time by `defineHarness` (throws on import) and at test time by the matrix.
-- [ ] **Constraint A — every adapter via `defineHarness`** — `claude`, `codex`, and the `gemini-cli`/`opencode`/`pi` stubs are each `export const x = defineHarness({…})`, never a bare object literal; the in-test synthetic adapters (`stub()` in registry.test, `noGateAdapter()` in chat-route.it) also go through `defineHarness`. Every adapter file imports `defineHarness` from `@devgent/protocol/harness-types`. claude's `transcriptHistory` stays `false` in the intermediate Task 2/3 forms and flips to `true` only in Task 4 alongside `transcriptPath`+`parseHistory`, so `defineHarness`'s module-load invariant never throws mid-port.
+- [ ] **Constraint A — every adapter via `defineHarness`** — `claude`, `codex`, and the `gemini-cli`/`opencode`/`pi` stubs are each `export const x = defineHarness({…})`, never a bare object literal; the in-test synthetic adapters (`stub()` in registry.test, `noGateAdapter()` in chat-route.it) also go through `defineHarness`. Every adapter file imports `defineHarness` from `@aidx/protocol/harness-types`. claude's `transcriptHistory` stays `false` in the intermediate Task 2/3 forms and flips to `true` only in Task 4 alongside `transcriptPath`+`parseHistory`, so `defineHarness`'s module-load invariant never throws mid-port.
 - [ ] **Constraint B — zero type casting** — no `as` (except `as const`) and no angle-bracket casts in ANY code sample. Untrusted JSON is parsed into an annotated `const v: unknown = JSON.parse(...)` and narrowed via `isRecord`; `e.message.content` is read through a guarded `messageContent()` helper, not `(e.message as {content?: unknown})`; claude/codex `decode` and `parseHistory` narrow by discriminated `type` switch + `typeof` guards; test field reads use `isRecord`/`strField` guards instead of `as {delta: string}`. Verify with `grep -nE '\) as [A-Za-z{]|as \{|as string|as Record|as unknown' <plan>` returning nothing (allowing `as const`).
 - [ ] **Conventions** — ESM, Node22, `verbatimModuleSyntax` (`import type` everywhere types are imported), functions-not-classes, no IIFEs (old inline-IIFE JSON parsers converted to named `parseLine`), no `index.ts`.
 - [ ] **Hygiene** — each task RED→GREEN→commit; committed straight to `main`; every commit message ends with `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`; repo-wide `pnpm build && typecheck && test && lint` green.

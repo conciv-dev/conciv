@@ -2,7 +2,7 @@ import {z} from 'zod'
 import {defineCommand} from 'citty'
 import {qs, runRequest, type CliRequest} from './request.js'
 
-// `devgent tools server <action>` — inspect & nudge the live dev server via the BundlerBridge.
+// `aidx tools server <action>` — inspect & nudge the live dev server via the BundlerBridge.
 const ResolveArgs = z.object({spec: z.string(), importer: z.string().optional()})
 const FileArg = z.object({file: z.string()})
 const UrlArg = z.object({url: z.string()})

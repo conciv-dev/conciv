@@ -1,7 +1,7 @@
 import {z} from 'zod'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 
-// Generative-UI specs the chat agent emits via `devgent ui …`, rendered as components in the
+// Generative-UI specs the chat agent emits via `aidx ui …`, rendered as components in the
 // chat thread and carried to the widget as an AG-UI CUSTOM event. The schemas are the contract;
 // types are inferred from them.
 
@@ -69,11 +69,11 @@ export type UiApproval = z.infer<typeof UiApprovalSchema>
 export type UiVitest = z.infer<typeof UiVitestSchema>
 
 // The CUSTOM event name the widget listens for via useChat({onCustomEvent}).
-export const DEVGENT_UI_EVENT = 'devgent-ui'
+export const AIDX_UI_EVENT = 'aidx-ui'
 
 // Wrap a spec as the AG-UI CUSTOM StreamChunk injected into the live chat stream.
 export function aguiCustomFor(spec: UiSpec): StreamChunk {
-  return {type: EventType.CUSTOM, name: DEVGENT_UI_EVENT, value: spec}
+  return {type: EventType.CUSTOM, name: AIDX_UI_EVENT, value: spec}
 }
 
 // For non-h3 callers; route handlers use readValidatedBody(event, UiSpecSchema) directly.

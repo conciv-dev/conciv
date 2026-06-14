@@ -1,7 +1,7 @@
 {
-  "name": "@devgent/core",
+  "name": "@aidx/core",
   "version": "0.0.0",
-  "description": "The devgent engine: a framework-free h3 + srvx server exposing the /__pw HTTP surface, with harness + test-runner registry seams.",
+  "description": "The aidx engine: a framework-free h3 + srvx server exposing the /__pw HTTP surface, with harness + test-runner registry seams.",
   "license": "MIT",
   "files": [
     "dist"
@@ -28,9 +28,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@devgent/harness": "workspace:*",
-    "@devgent/protocol": "workspace:*",
-    "@devgent/test-runner": "workspace:*",
+    "@aidx/harness": "workspace:*",
+    "@aidx/protocol": "workspace:*",
+    "@aidx/test-runner": "workspace:*",
     "@tanstack/ai": "^0.28.0",
     "h3": "2.0.1-rc.22",
     "srvx": "^0.11.16",

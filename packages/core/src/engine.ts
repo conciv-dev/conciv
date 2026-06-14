@@ -2,11 +2,11 @@ import {writeFileSync, mkdirSync} from 'node:fs'
 import {join} from 'node:path'
 import {spawn} from 'node:child_process'
 import {serve} from 'srvx'
-import type {HarnessChild} from '@devgent/protocol/harness-types'
-import type {BundlerBridge} from '@devgent/protocol/bundler-types'
+import type {HarnessChild} from '@aidx/protocol/harness-types'
+import type {BundlerBridge} from '@aidx/protocol/bundler-types'
 import {makeApp, type MakeAppOpts} from './app.js'
 import {makeEditorOpener} from './editor/open.js'
-import {resolveConfig, type DevgentConfig, type ResolvedDevgentConfig} from './config.js'
+import {resolveConfig, type AidxConfig, type ResolvedAidxConfig} from './config.js'
 
 export type HtmlTag = {tag: string; attrs: Record<string, string | boolean>; injectTo: 'head'}
 
@@ -21,14 +21,14 @@ export function htmlTags(corePort: number, opts: {previewId: string; widgetUrl?:
 }
 
 export type StartOpts = {
-  options: DevgentConfig
+  options: AidxConfig
   root: string
   bridge?: BundlerBridge
   launchEditor: (file: string, line: number) => void
   childEnv?: (corePort: number) => NodeJS.ProcessEnv
 }
 
-export type Engine = {port: number; stop: () => Promise<void>; cfg: ResolvedDevgentConfig}
+export type Engine = {port: number; stop: () => Promise<void>; cfg: ResolvedAidxConfig}
 
 // srvx exposes server.url, not server.port (HARD RULE 6) — parse it.
 function portOf(url: string | undefined): number {
@@ -37,7 +37,7 @@ function portOf(url: string | undefined): number {
 
 export async function start(opts: StartOpts): Promise<Engine> {
   const cfg = resolveConfig(opts.options, opts.root)
-  const stateDir = join(cfg.lockDir, '.devgent')
+  const stateDir = join(cfg.lockDir, '.aidx')
   mkdirSync(stateDir, {recursive: true})
   const systemPromptFile = join(stateDir, 'chat-system-prompt.txt')
   writeFileSync(systemPromptFile, cfg.systemPrompt)

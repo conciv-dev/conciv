@@ -1,4 +1,4 @@
-import {defineRunner} from '@devgent/protocol/runner-types'
+import {defineRunner} from '@aidx/protocol/runner-types'
 
 // Capability-only stub. Registered so listRunners() advertises it; create() throws until the
 // node:test child lands. When implemented, switch to defineChildRunner and fill in

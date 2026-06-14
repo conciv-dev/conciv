@@ -1,6 +1,6 @@
 // Append-only log of mutating page actions, living in the dev-server process so it
 // outlives page reloads (unlike the live DOM edits). The agent reads it via
-// `devgent tools page changes` and maps each entry to a real source edit. ts is injected to
+// `aidx tools page changes` and maps each entry to a real source edit. ts is injected to
 // keep this pure/testable.
 export type ChangeEntry = {
   seq: number

@@ -1,4 +1,4 @@
-import {err, type PageQuery, type PageQueryKind, type PageResult} from '@devgent/protocol/page-protocol'
+import {err, type PageQuery, type PageQueryKind, type PageResult} from '@aidx/protocol/page-protocol'
 import {
   DOM_HANDLERS,
   ELEMENT_KINDS,

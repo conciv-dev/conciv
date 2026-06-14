@@ -1,11 +1,11 @@
-// The devgent widget driven in a REAL browser against a REAL local SSE server. A tiny Node
+// The aidx widget driven in a REAL browser against a REAL local SSE server. A tiny Node
 // http server serves an HTML page that embeds the vite-built global bundle, and answers the
 // /api/* routes the widget speaks: the chat-availability probe, a scripted AG-UI chat stream
 // (encoded with TanStack AI's own toServerSentEventsStream — the exact encoder the dev server
 // uses, so the widget's fetchServerSentEvents consumes it natively), a scripted test-runner
 // stream, and the page-bus (push a PageQuery, resolve from the widget's reply). Real transport,
 // real browser, real bundle, real driver — scripted fixtures, not mocks. The authoritative
-// harness→SSE and test-runner→SSE backends are proven by @devgent/core's route ITs.
+// harness→SSE and test-runner→SSE backends are proven by @aidx/core's route ITs.
 import fs from 'node:fs'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
@@ -15,12 +15,12 @@ import type {AddressInfo} from 'node:net'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {chromium, type Browser} from 'playwright'
 import {EventType, type StreamChunk, toServerSentEventsStream} from '@tanstack/ai'
-import {aguiCustomFor} from '@devgent/protocol/ui-types'
+import {aguiCustomFor} from '@aidx/protocol/ui-types'
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
-const widgetBundle = fs.readFileSync(path.join(dirname, '../dist/devgent-widget.global.js'), 'utf8')
+const widgetBundle = fs.readFileSync(path.join(dirname, '../dist/aidx-widget.global.js'), 'utf8')
 
-const ASSISTANT_TEXT = 'Hello from devgent'
+const ASSISTANT_TEXT = 'Hello from aidx'
 const APPROVAL_QUESTION = 'Run a risky command?'
 const FAILING_TEST = 'rejects an expired token'
 const FAILURE_MESSAGE = 'expected 200 to be 401'
@@ -94,7 +94,7 @@ function writeJson(res: ServerResponse, body: unknown): void {
   res.end(JSON.stringify(body))
 }
 
-describe('devgent widget (it) — real browser, real SSE', () => {
+describe('aidx widget (it) — real browser, real SSE', () => {
   let browser: Browser
   let server: Server
   const state = {base: ''}
@@ -141,7 +141,7 @@ describe('devgent widget (it) — real browser, real SSE', () => {
     await page.goto(state.base)
 
     // The FAB mounts only after the chat-availability probe resolves (production boot path).
-    const fab = page.getByRole('button', {name: 'Open devgent chat'})
+    const fab = page.getByRole('button', {name: 'Open aidx chat'})
     await fab.waitFor({state: 'visible'})
     await fab.click()
 
@@ -149,12 +149,12 @@ describe('devgent widget (it) — real browser, real SSE', () => {
     await page.getByText('How can I help you today?').waitFor({state: 'visible'})
 
     // Send a message; the scripted AG-UI stream renders the assistant text.
-    const composer = page.getByLabel('Message the devgent agent')
+    const composer = page.getByLabel('Message the aidx agent')
     await composer.fill('do something')
     await composer.press('Enter')
     await page.getByText(ASSISTANT_TEXT).waitFor({state: 'visible'})
 
-    // The same turn emits a CUSTOM devgent-ui approval spec → the gate card renders.
+    // The same turn emits a CUSTOM aidx-ui approval spec → the gate card renders.
     await page.getByText(APPROVAL_QUESTION).waitFor({state: 'visible'})
 
     // Approving posts the blocking allow/deny decision back to the dev server.
@@ -170,10 +170,10 @@ describe('devgent widget (it) — real browser, real SSE', () => {
     const page = await browser.newContext().then((c) => c.newPage())
     await page.goto(state.base)
     // The test-only seam mounts a standalone live card (result=null → subscribes to the stream).
-    await page.waitForFunction(() => '__DEVGENT_RENDER_TEST_CARD__' in window)
+    await page.waitForFunction(() => '__AIDX_RENDER_TEST_CARD__' in window)
     await page.evaluate(() => {
-      const w = window as unknown as {__DEVGENT_RENDER_TEST_CARD__?: () => void}
-      w.__DEVGENT_RENDER_TEST_CARD__?.()
+      const w = window as unknown as {__AIDX_RENDER_TEST_CARD__?: () => void}
+      w.__AIDX_RENDER_TEST_CARD__?.()
     })
 
     await page.getByText('1 failed').waitFor({state: 'visible'})

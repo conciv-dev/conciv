@@ -1,7 +1,7 @@
 {
-  "name": "@devgent/plugin",
+  "name": "@aidx/plugin",
   "version": "0.0.0",
-  "description": "The devgent dev agent as an unplugin: vite (full — viteBridge + widget middleware + boot), webpack/rspack (boot the engine), rollup/esbuild (build-only no-ops). One factory, per-bundler subpath entries.",
+  "description": "The aidx dev agent as an unplugin: vite (full — viteBridge + widget middleware + boot), webpack/rspack (boot the engine), rollup/esbuild (build-only no-ops). One factory, per-bundler subpath entries.",
   "license": "MIT",
   "files": [
     "dist"
@@ -40,10 +40,10 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@devgent/cli": "workspace:*",
-    "@devgent/core": "workspace:*",
-    "@devgent/protocol": "workspace:*",
-    "@devgent/widget": "workspace:*",
+    "@aidx/cli": "workspace:*",
+    "@aidx/core": "workspace:*",
+    "@aidx/protocol": "workspace:*",
+    "@aidx/widget": "workspace:*",
     "launch-editor": "^2.14.1",
     "unplugin": "^3.0.0"
   },

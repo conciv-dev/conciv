@@ -6,7 +6,7 @@ import {initPageBus} from './page-bus.js'
 import {probeChatAvailable} from './chat-api.js'
 
 // Entry point: create the open Shadow DOM, probe the dev server, and mount the React chat
-// agent + page-bus when the devgent routes are live. Replaces the solid chat-feature.ts +
+// agent + page-bus when the aidx routes are live. Replaces the solid chat-feature.ts +
 // bootstrap.ts. The widget auto-mounts on load (the global bundle is a plain <script>), and
 // also exports mountWidget for programmatic embedding.
 
@@ -16,7 +16,7 @@ function metaContent(name: string): string {
 
 declare global {
   interface Window {
-    __DEVGENT_RENDER_TEST_CARD__?: () => void
+    __AIDX_RENDER_TEST_CARD__?: () => void
   }
 }
 
@@ -31,11 +31,11 @@ function mountTestCardForTest(root: ShadowRoot, apiBase: string): void {
 }
 
 export function mountWidget(): void {
-  if (document.querySelector('[data-devgent-root]')) return
+  if (document.querySelector('[data-aidx-root]')) return
   const {root} = createShadowRoot()
   const apiBase = metaContent('pw-api-base')
-  window.__DEVGENT_RENDER_TEST_CARD__ = () => mountTestCardForTest(root, apiBase)
-  // Chat + page-bus only exist on the devgent dev server. Probe first so a plain app (no
+  window.__AIDX_RENDER_TEST_CARD__ = () => mountTestCardForTest(root, apiBase)
+  // Chat + page-bus only exist on the aidx dev server. Probe first so a plain app (no
   // chat route) shows nothing instead of a dead FAB and a retrying EventSource.
   void probeChatAvailable(apiBase).then((available) => {
     if (!available) return

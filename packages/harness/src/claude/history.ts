@@ -1,8 +1,8 @@
 import {homedir} from 'node:os'
 import {join} from 'node:path'
 import {z} from 'zod'
-import type {MessagePart, UIMessage} from '@devgent/protocol/chat-types'
-import {defineHarnessHistory} from '@devgent/protocol/harness-types'
+import type {MessagePart, UIMessage} from '@aidx/protocol/chat-types'
+import {defineHarnessHistory} from '@aidx/protocol/harness-types'
 import {TextBlock, ThinkingBlock, ToolUseBlock} from './blocks.js'
 
 // Where claude persists a session's JSONL transcript, and how to parse it into UIMessages.

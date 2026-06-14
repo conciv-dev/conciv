@@ -24,16 +24,16 @@ beforeAll(async () => {
   })
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
   const addr = server.address()
-  process.env.DEVGENT_PORT = String(typeof addr === 'object' && addr ? addr.port : 0)
+  process.env.AIDX_PORT = String(typeof addr === 'object' && addr ? addr.port : 0)
   state.server = server
 })
 
 afterAll(async () => {
   await new Promise<void>((r) => (state.server ? state.server.close(() => r()) : r()))
-  delete process.env.DEVGENT_PORT
+  delete process.env.AIDX_PORT
 })
 
-describe('devgent CLI (IT, real server)', () => {
+describe('aidx CLI (IT, real server)', () => {
   it('tools server graph → GET /api/server/graph with the file in the query string', async () => {
     await runCommand(toolsCommand, {rawArgs: ['server', 'graph', '/x.ts']})
     expect(state.last).toMatchObject({method: 'GET', url: '/api/server/graph?file=%2Fx.ts'})

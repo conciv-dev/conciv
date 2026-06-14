@@ -2,7 +2,7 @@ import {fileURLToPath} from 'node:url'
 import {defineConfig} from 'vite'
 import react from '@vitejs/plugin-react'
 
-// The widget ships two ways from one entry (mount.tsx): an ESM module (`@devgent/widget`)
+// The widget ships two ways from one entry (mount.tsx): an ESM module (`@aidx/widget`)
 // for programmatic embedding, and a self-contained IIFE global the vite-plugin injects as a
 // plain <script> into the host page. React + react-dom are bundled in — the widget runs in
 // an arbitrary host page and can't assume a React global. styles.css is imported `?inline`
@@ -17,8 +17,8 @@ export default defineConfig({
     lib: {
       entry: fileURLToPath(new URL('src/mount.tsx', import.meta.url)),
       formats: ['es', 'iife'],
-      name: 'DevgentWidget',
-      fileName: (format) => (format === 'iife' ? 'devgent-widget.global.js' : 'mount.js'),
+      name: 'AidxWidget',
+      fileName: (format) => (format === 'iife' ? 'aidx-widget.global.js' : 'mount.js'),
     },
     cssCodeSplit: false,
     emptyOutDir: true,

@@ -1,4 +1,4 @@
-import type {HarnessAdapter} from '@devgent/protocol/harness-types'
+import type {HarnessAdapter} from '@aidx/protocol/harness-types'
 import {claude} from './claude/claude.js'
 import {codex} from './codex/codex.js'
 import {geminiCli} from './gemini-cli/gemini-cli.js'

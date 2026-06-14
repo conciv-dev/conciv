@@ -1,6 +1,6 @@
 import {type H3, getValidatedQuery, readValidatedBody} from 'h3'
 import {z} from 'zod'
-import type {BundlerBridge} from '@devgent/protocol/bundler-types'
+import type {BundlerBridge} from '@aidx/protocol/bundler-types'
 
 const ResolveQuerySchema = z.object({spec: z.string(), importer: z.string().optional()})
 const FileQuerySchema = z.object({file: z.string()})

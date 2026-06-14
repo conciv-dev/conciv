@@ -1,5 +1,5 @@
 import type {StreamChunk} from '@tanstack/ai'
-import {aguiCustomFor, type UiSpec} from '@devgent/protocol/ui-types'
+import {aguiCustomFor, type UiSpec} from '@aidx/protocol/ui-types'
 
 // Merges agent-emitted generative-UI specs (POST /api/chat/ui) onto the live chat stream as
 // AG-UI CUSTOM events. `run(events)` interleaves the turn's events with injected UI; the lock

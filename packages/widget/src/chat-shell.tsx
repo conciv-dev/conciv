@@ -5,8 +5,8 @@ import {createChatApi} from './chat-api.js'
 import {GenUi} from './gen-ui.js'
 import {TestCard} from './test-card.js'
 import {Markdown} from './markdown.js'
-import {DEVGENT_UI_EVENT, UiSpecSchema, type UiSpec} from '@devgent/protocol/ui-types'
-import {TestRunResultSchema, type TestRunResult} from '@devgent/protocol/test-types'
+import {AIDX_UI_EVENT, UiSpecSchema, type UiSpec} from '@aidx/protocol/ui-types'
+import {TestRunResultSchema, type TestRunResult} from '@aidx/protocol/test-types'
 
 // Pull the Bash command out of a tool-call part (input.command, or parsed from arguments).
 function toolCommand(part: {input?: unknown; arguments?: string}): string {
@@ -47,7 +47,7 @@ type TestAnalysis = {
   hiddenResultIds: Set<string>
 }
 
-// The agent drives the runner via `devgent tools test …` (legacy alias: `tools vitest …`).
+// The agent drives the runner via `aidx tools test …` (legacy alias: `tools vitest …`).
 function isTestCommand(command: string): boolean {
   return command.includes('tools test') || command.includes('tools vitest')
 }
@@ -84,7 +84,7 @@ function analyzeTests(parts: ReadonlyArray<MessagePart>): TestAnalysis {
   return {runResult, hiddenCallIds, hiddenResultIds}
 }
 
-// The devgent chat agent — an assistant-modal (bottom-right FAB → corner popover) rendered
+// The aidx chat agent — an assistant-modal (bottom-right FAB → corner popover) rendered
 // in the widget Shadow DOM. Streaming is fully TanStack-native: useChat consumes the dev
 // server's AG-UI SSE via fetchServerSentEvents. On first open it hydrates the thread from
 // the resumed session's transcript (the agent's session, or the chat's own).
@@ -315,10 +315,10 @@ function fabClass(pulsing: boolean): string {
 export function ChatFeature(props: {apiBase: string}): JSX.Element {
   const api = useMemo(() => createChatApi({apiBase: props.apiBase}), [props.apiBase])
   const [genUi, setGenUi] = useState<UiSpec[]>([])
-  // The agent's `devgent ui …` calls arrive as AG-UI CUSTOM events (`devgent-ui`). Render
+  // The agent's `aidx ui …` calls arrive as AG-UI CUSTOM events (`aidx-ui`). Render
   // each as a live component in the thread; the user's answer is sent as their next message.
-  const onDevgentUi = (eventType: string, data: unknown) => {
-    if (eventType !== DEVGENT_UI_EVENT) return
+  const onAidxUi = (eventType: string, data: unknown) => {
+    if (eventType !== AIDX_UI_EVENT) return
     const parsed = UiSpecSchema.safeParse(data)
     if (!parsed.success) return
     const spec = parsed.data
@@ -333,7 +333,7 @@ export function ChatFeature(props: {apiBase: string}): JSX.Element {
   }
   const chat = useChat({
     ...createChatClientOptions({connection: fetchServerSentEvents(api.chatUrl)}),
-    onCustomEvent: onDevgentUi,
+    onCustomEvent: onAidxUi,
   })
   const [open, setOpen] = useState(false)
   const [closing, setClosing] = useState(false)
@@ -480,12 +480,12 @@ export function ChatFeature(props: {apiBase: string}): JSX.Element {
           className={panelClass(closing)}
           role="dialog"
           aria-modal="true"
-          aria-label="devgent chat agent"
+          aria-label="aidx chat agent"
           id="pw-chat-panel"
           onKeyDown={onPanelKeyDown}
         >
           <header className="pw-chat-head">
-            <span className="pw-chat-title">devgent</span>
+            <span className="pw-chat-title">aidx</span>
             <button className="pw-chat-close" aria-label="Close chat" onClick={closePanel}>
               <ChevronDown />
             </button>
@@ -537,7 +537,7 @@ export function ChatFeature(props: {apiBase: string}): JSX.Element {
               className="pw-chat-input"
               rows={1}
               placeholder="Ask a question…"
-              aria-label="Message the devgent agent"
+              aria-label="Message the aidx agent"
               value={input}
               onChange={(e) => setInput(e.currentTarget.value)}
               onKeyDown={onKeyDown}
@@ -558,7 +558,7 @@ export function ChatFeature(props: {apiBase: string}): JSX.Element {
       <button
         ref={fabEl}
         className={fabClass(fabPulsing)}
-        aria-label="Open devgent chat"
+        aria-label="Open aidx chat"
         aria-expanded={open}
         aria-controls="pw-chat-panel"
         onClick={toggle}

@@ -6,7 +6,7 @@ import {
   PageQueryKindSchema,
   type PageQuery,
   type PageQueryInput,
-} from '@devgent/protocol/page-protocol'
+} from '@aidx/protocol/page-protocol'
 import type {Journal} from '../../page/journal.js'
 import {corsHeadersFor} from '../cors.js'
 

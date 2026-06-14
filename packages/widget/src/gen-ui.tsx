@@ -1,10 +1,10 @@
 import {type FormEvent, type JSX, useState} from 'react'
-import type {UiApproval, UiChoices, UiConfirm, UiDiff, UiForm, UiSpec} from '@devgent/protocol/ui-types'
+import type {UiApproval, UiChoices, UiConfirm, UiDiff, UiForm, UiSpec} from '@aidx/protocol/ui-types'
 
 // Agent-generated UI rendered inline in the chat thread. The dev server emits these specs
-// as AG-UI CUSTOM events (`devgent-ui`); the widget renders a real component and sends the
+// as AG-UI CUSTOM events (`aidx-ui`); the widget renders a real component and sends the
 // user's answer as the next chat message (the `claude --resume` turn cycle is the
-// round-trip — no blocking, no separate result channel). Types come from @devgent/protocol.
+// round-trip — no blocking, no separate result channel). Types come from @aidx/protocol.
 
 function Choices(props: {spec: UiChoices; onAnswer: (text: string) => void}): JSX.Element {
   return (

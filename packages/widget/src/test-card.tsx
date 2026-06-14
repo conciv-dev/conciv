@@ -6,9 +6,9 @@ import {
   type TestError,
   type TestState,
   type TestEvent,
-} from '@devgent/protocol/test-types'
+} from '@aidx/protocol/test-types'
 
-// The test-runner results card, rendered in the chat thread AT the agent's `devgent tools test
+// The test-runner results card, rendered in the chat thread AT the agent's `aidx tools test
 // run` tool-call. Runner-blind: speaks TestEvent / TestRunResult only. Two modes, one component:
 //   - result === null  → the run is still active (tool-call present, no tool-result yet):
 //                         subscribe to /api/test-runner/stream and build the tree live.

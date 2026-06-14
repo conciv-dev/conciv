@@ -1,4 +1,4 @@
-import {defineHarness, defineHarnessArgs, defineHarnessDecoder, type HarnessTurn} from '@devgent/protocol/harness-types'
+import {defineHarness, defineHarnessArgs, defineHarnessDecoder, type HarnessTurn} from '@aidx/protocol/harness-types'
 import {buildClaudeArgs} from './args.js'
 import {claudeToAguiEvents} from './decode.js'
 import {claudeHistory} from './history.js'

@@ -1,9 +1,9 @@
-# devgent
+# aidx
 
 An embeddable AI dev agent for your running app — **chat, page control, and live tests,
 injected into the page via a Vite plugin**.
 
-devgent boots a framework-free h3 engine (`@devgent/core`) behind a set of `/api/*` HTTP routes
+aidx boots a framework-free h3 engine (`@aidx/core`) behind a set of `/api/*` HTTP routes
 on its own dev port, spawns a headless harness (default `claude -p`), and injects a React widget
 into the previewed page. From the widget you can chat with the agent, watch it think and call
 tools, approve risky commands, answer agent-generated UI prompts, and see live test result cards
@@ -11,12 +11,12 @@ tools, approve risky commands, answer agent-generated UI prompts, and see live t
 
 ```
  ┌─────────────┐      /api/* (SSE + JSON)       ┌──────────────────┐
- │  browser    │ ◀──────────────────────────▶  │  @devgent/core   │
+ │  browser    │ ◀──────────────────────────▶  │  @aidx/core   │
  │  widget     │   chat stream · page-bus ·     │  (h3 + srvx)     │
  │ (React,     │   test stream · approvals      │   → harness      │
  │  shadow DOM)│                                │   (claude/codex) │
  └─────────────┘                                └──────────────────┘
-   injected by @devgent/plugin (vite/webpack/…)
+   injected by @aidx/plugin (vite/webpack/…)
 ```
 
 > Status: early. Extracted from an internal preview tool and being generalized for any app.
@@ -25,13 +25,13 @@ tools, approve risky commands, answer agent-generated UI prompts, and see live t
 
 | Package                                          | What it is                                                                                                                           |
 | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
-| [`@devgent/protocol`](./packages/protocol)       | Shared wire types + `define*` factories (chat, generative UI, test, page, harness/runner/bundler, config). Zero-runtime.             |
-| [`@devgent/core`](./packages/core)               | The framework-free h3 + srvx engine: all `/api/*` routes, lock, session, uiBus, harness + test-runner registries, the BundlerBridge. |
-| [`@devgent/harness`](./packages/harness)         | Harness adapters behind a capability interface: claude + codex, plus gemini-cli/opencode/pi stubs.                                   |
-| [`@devgent/test-runner`](./packages/test-runner) | Test-runner adapters over a clean-child fd3 driver: vitest (full), jest/node-test/playwright (stubs).                                |
-| [`@devgent/plugin`](./packages/plugin)           | The dev agent as an unplugin: `@devgent/plugin/vite` (full), webpack/rspack/rollup/esbuild entries. Boots core + injects the widget. |
-| [`@devgent/widget`](./packages/widget)           | The browser half: a React chat UI in an open Shadow DOM, the test card, and the page-control driver.                                 |
-| [`@devgent/cli`](./packages/cli)                 | The `devgent` CLI the agent calls from Bash: `tools server / page / test / open` + `ui`, against core's `/api/*` surface.            |
+| [`@aidx/protocol`](./packages/protocol)       | Shared wire types + `define*` factories (chat, generative UI, test, page, harness/runner/bundler, config). Zero-runtime.             |
+| [`@aidx/core`](./packages/core)               | The framework-free h3 + srvx engine: all `/api/*` routes, lock, session, uiBus, harness + test-runner registries, the BundlerBridge. |
+| [`@aidx/harness`](./packages/harness)         | Harness adapters behind a capability interface: claude + codex, plus gemini-cli/opencode/pi stubs.                                   |
+| [`@aidx/test-runner`](./packages/test-runner) | Test-runner adapters over a clean-child fd3 driver: vitest (full), jest/node-test/playwright (stubs).                                |
+| [`@aidx/plugin`](./packages/plugin)           | The dev agent as an unplugin: `@aidx/plugin/vite` (full), webpack/rspack/rollup/esbuild entries. Boots core + injects the widget. |
+| [`@aidx/widget`](./packages/widget)           | The browser half: a React chat UI in an open Shadow DOM, the test card, and the page-control driver.                                 |
+| [`@aidx/cli`](./packages/cli)                 | The `aidx` CLI the agent calls from Bash: `tools server / page / test / open` + `ui`, against core's `/api/*` surface.            |
 
 ## Quickstart
 
@@ -39,16 +39,16 @@ Add the plugin to your app's `vite.config.ts` and serve the widget bundle:
 
 ```ts
 import {defineConfig} from 'vite'
-import devgent from '@devgent/plugin/vite'
+import aidx from '@aidx/plugin/vite'
 
 export default defineConfig({
-  plugins: [devgent()],
+  plugins: [aidx()],
 })
 ```
 
-`@devgent/core` boots its own dev engine (the `/api/*` surface + the bundled widget) and the
+`@aidx/core` boots its own dev engine (the `/api/*` surface + the bundled widget) and the
 plugin injects the widget `<script>` into your HTML. Override defaults via
-`devgent({harness, testRunner, previewId, widgetUrl, …})`. The widget probes `/api/chat/session`
+`aidx({harness, testRunner, previewId, widgetUrl, …})`. The widget probes `/api/chat/session`
 on load and only shows the ✦ FAB when the dev-server routes are live, so it's inert on a plain
 preview.
 
@@ -65,7 +65,7 @@ pnpm --filter tanstack-start-example dev
 
 ## Configuration
 
-`devgent(options)` — every field is optional:
+`aidx(options)` — every field is optional:
 
 | Option         | Default                  | Purpose                                                                |
 | -------------- | ------------------------ | ---------------------------------------------------------------------- |
@@ -73,8 +73,8 @@ pnpm --filter tanstack-start-example dev
 | `harness`      | `"claude"`               | Harness adapter id (`claude`, `codex`, …).                             |
 | `harnessBin`   | adapter `binName`        | Override the harness binary on `PATH`.                                 |
 | `testRunner`   | `"vitest"`               | Test-runner adapter id.                                                |
-| `widgetUrl`    | `DEVGENT_WIDGET_URL` env | `<script src>` for the injected widget bundle. Omit to skip injection. |
-| `lockDir`      | `process.cwd()`          | Holds `.devgent/{agent.lock,sessions,bin}`.                            |
+| `widgetUrl`    | `AIDX_WIDGET_URL` env | `<script src>` for the injected widget bundle. Omit to skip injection. |
+| `lockDir`      | `process.cwd()`          | Holds `.aidx/{agent.lock,sessions,bin}`.                            |
 | `systemPrompt` | built-in                 | Appended to each agent turn.                                           |
 | `previewId`    | `"local"`                | Correlates a resumable session.                                        |
 | `sessionId`    | –                        | Resume an existing thread.                                             |
@@ -89,7 +89,7 @@ All under the `/api` prefix on the core dev port:
 | `/api/chat/session`                                     | GET              | Current session + lock; the widget's availability probe.                |
 | `/api/chat/history`                                     | GET              | Hydrate a resumed thread.                                               |
 | `/api/chat/permission`, `/api/chat/permission-decision` | POST             | Risky-command gate (PreToolUse hook ⇄ widget allow/deny).               |
-| `/api/chat/ui`                                          | POST             | Inject agent-generated UI (`devgent ui …`).                             |
+| `/api/chat/ui`                                          | POST             | Inject agent-generated UI (`aidx ui …`).                             |
 | `/api/chat/stop`                                        | POST             | Cancel the active turn.                                                 |
 | `/api/test-runner/{list,run,status,stop,ui}`            | POST/GET         | Drive the out-of-process test runner.                                   |
 | `/api/test-runner/stream`                               | GET (SSE)        | Live test results.                                                      |

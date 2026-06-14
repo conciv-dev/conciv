@@ -27,8 +27,8 @@ export function buildClaudeArgs(o: ClaudeArgsOptions): string[] {
     'acceptEdits',
     // Let the agent's own CLIs run unprompted; all other Bash still gates.
     '--allowedTools',
-    'Bash(devgent tools:*)',
-    'Bash(devgent ui:*)',
+    'Bash(aidx tools:*)',
+    'Bash(aidx ui:*)',
     '--add-dir',
     o.cwd,
   ]

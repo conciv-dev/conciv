@@ -1,7 +1,7 @@
-// The public devgent config contract, shared by the engine + every plugin entry. Zero-runtime:
+// The public aidx config contract, shared by the engine + every plugin entry. Zero-runtime:
 // the type + an identity typed factory (mirrors defineHarness/defineRunner). Resolution + env
-// fallbacks live in @devgent/core/config.
-export interface DevgentConfig {
+// fallbacks live in @aidx/core/config.
+export interface AidxConfig {
   enabled?: boolean
   widgetUrl?: string
   previewId?: string
@@ -15,6 +15,6 @@ export interface DevgentConfig {
   /** @deprecated use sessionId */ claudeSessionId?: string
 }
 
-export function defineConfig<T extends DevgentConfig>(config: T): T {
+export function defineConfig<T extends AidxConfig>(config: T): T {
   return config
 }

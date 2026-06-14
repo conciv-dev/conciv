@@ -15,7 +15,7 @@ import {
 // static index.html for vite's transformIndexHtml to touch). A tiny http server runs the real
 // middleware in front of a handler that produces html the way a framework would. No mocks.
 
-const WIDGET_URL = '/@devgent/widget.js'
+const WIDGET_URL = '/@aidx/widget.js'
 const PREVIEW = 'local'
 const API_BASE = 'http://127.0.0.1:12345'
 
@@ -98,7 +98,7 @@ describe('widget inject middleware (IT, real http)', () => {
   })
 
   it('serves the bundled widget file at the default route, and defers other paths', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'devgent-widget-'))
+    const dir = mkdtempSync(join(tmpdir(), 'aidx-widget-'))
     const file = join(dir, 'widget.global.js')
     writeFileSync(file, 'globalThis.__widget = 1')
     const {server, base} = await startServer(makeWidgetServe(file), (res) => {

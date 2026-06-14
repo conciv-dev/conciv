@@ -1,4 +1,4 @@
-import {defineRunner} from '@devgent/protocol/runner-types'
+import {defineRunner} from '@aidx/protocol/runner-types'
 
 // Capability-only stub for the seam-stressing e2e runner. Registered so listRunners() advertises
 // it; create() throws until the playwright child lands. When implemented, switch to

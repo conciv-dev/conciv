@@ -1,7 +1,7 @@
-// Chat session + history client against @devgent/core's /api/chat* routes. On resume the
+// Chat session + history client against @aidx/core's /api/chat* routes. On resume the
 // widget hydrates the thread from the prior session.
 import type {UIMessage} from '@tanstack/ai-client'
-import {ChatSessionSchema, ChatHistorySchema, type ChatSession} from '@devgent/protocol/chat-types'
+import {ChatSessionSchema, ChatHistorySchema, type ChatSession} from '@aidx/protocol/chat-types'
 
 function metaContent(name: string): string {
   return document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content ?? ''
@@ -11,7 +11,7 @@ function resolveBase(apiBase?: string): string {
   return (apiBase ?? metaContent('pw-api-base')).replace(/\/+$/, '')
 }
 
-// Is the chat backend present? The widget can load on a server WITHOUT devgent routes
+// Is the chat backend present? The widget can load on a server WITHOUT aidx routes
 // (then /api/chat/session 404s); probe it so we only mount the chat UI + page-bus when the
 // backend answers, instead of a dead FAB and a retrying EventSource.
 export async function probeChatAvailable(apiBase?: string): Promise<boolean> {

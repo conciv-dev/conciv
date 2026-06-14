@@ -1,6 +1,6 @@
 import {type H3, type H3Event, getValidatedQuery, readValidatedBody} from 'h3'
 import {z} from 'zod'
-import {isRunnerUnavailable, type TestRunnerManager} from '@devgent/protocol/runner-types'
+import {isRunnerUnavailable, type TestRunnerManager} from '@aidx/protocol/runner-types'
 import {corsHeadersFor} from '../cors.js'
 
 const SSE_HEADERS = {

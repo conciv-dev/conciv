@@ -1,14 +1,14 @@
 // A real executable standing in for the `claude` CLI in chat-route ITs — NOT a JS mock:
 // it's spawned as a child process and exercises the true spawn → stdout-pipe → SSE path.
 // It echoes its argv (so the test can assert --resume on the 2nd turn) and replays a
-// stream-json transcript. With DEVGENT_FAKE_HANG it sleeps until SIGTERM to exercise Stop.
+// stream-json transcript. With AIDX_FAKE_HANG it sleeps until SIGTERM to exercise Stop.
 import {writeFileSync} from 'node:fs'
 
 const argv = process.argv.slice(2)
-const argvFile = process.env.DEVGENT_TEST_ARGV_FILE
+const argvFile = process.env.AIDX_TEST_ARGV_FILE
 if (argvFile) writeFileSync(argvFile, JSON.stringify(argv))
 
-if (process.env.DEVGENT_FAKE_HANG) {
+if (process.env.AIDX_FAKE_HANG) {
   process.on('SIGTERM', () => process.exit(143))
   setInterval(() => {}, 1000) // stay alive until signalled
 } else {

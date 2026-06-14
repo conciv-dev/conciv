@@ -1,6 +1,6 @@
-// How the agent inspects + drives the live dev server (`devgent tools server …`). These ops
+// How the agent inspects + drives the live dev server (`aidx tools server …`). These ops
 // are bundler-specific, so core consumes this interface and each bundler implements it in its
-// own plugin package (e.g. viteBridge in @devgent/plugin-vite) — core never imports a bundler.
+// own plugin package (e.g. viteBridge in @aidx/plugin) — core never imports a bundler.
 
 export type BundlerConfig = {
   root: string

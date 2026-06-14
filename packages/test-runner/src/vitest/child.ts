@@ -4,7 +4,7 @@ import {join, relative} from 'node:path'
 import {writeSync, realpathSync} from 'node:fs'
 import {argv as processArgv} from 'node:process'
 import {z} from 'zod'
-import {parseFailure, type Summary, type TestError, type TestRow, type TestCaseLike} from '@devgent/protocol/test-types'
+import {parseFailure, type Summary, type TestError, type TestRow, type TestCaseLike} from '@aidx/protocol/test-types'
 import {type ChildMessage} from '../child-protocol.js'
 
 // ┌──────────────────────────────────────────────────────────────────────────────────────────┐

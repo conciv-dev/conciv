@@ -40,7 +40,7 @@ export const TestRowSchema = z.object({
 })
 export type TestRow = z.infer<typeof TestRowSchema>
 
-// The result of `devgent tools test run` and the run route — the full self-contained tree.
+// The result of `aidx tools test run` and the run route — the full self-contained tree.
 export const TestRunResultSchema = z.object({
   summary: SummarySchema,
   failures: z.array(TestErrorSchema),

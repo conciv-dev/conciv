@@ -1,4 +1,4 @@
-import type {RunArgs} from '@devgent/protocol/runner-types'
+import type {RunArgs} from '@aidx/protocol/runner-types'
 import {defineChildRunner} from '../driver.js'
 
 // The vitest adapter: supplies the child script URL + native arg mapping (mirrors the old

@@ -82,8 +82,8 @@ export async function* codexToAguiEvents(
   lines: AsyncIterable<string>,
   opts: {onSessionId(id: string): void},
 ): AsyncGenerator<StreamChunk> {
-  const threadId = 'devgent-chat'
-  const runId = 'devgent-run'
+  const threadId = 'aidx-chat'
+  const runId = 'aidx-run'
   const ids = {n: 0}
   yield {type: EventType.RUN_STARTED, threadId, runId}
   for await (const line of lines) {

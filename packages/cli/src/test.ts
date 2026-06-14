@@ -2,8 +2,8 @@ import {z} from 'zod'
 import {defineCommand} from 'citty'
 import {runRequest, type CliRequest} from './request.js'
 
-// `devgent tools test <action>` — run & inspect the previewed app's test suite (runner-blind;
-// the configured runner is resolved server-side). Legacy alias: `devgent tools vitest …`.
+// `aidx tools test <action>` — run & inspect the previewed app's test suite (runner-blind;
+// the configured runner is resolved server-side). Legacy alias: `aidx tools vitest …`.
 const RunArgs = z.object({
   patterns: z.array(z.string()).optional(),
   testNamePattern: z.string().optional(),

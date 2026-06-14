@@ -29,16 +29,16 @@ importers:
 
   apps/examples/tanstack-start:
     dependencies:
-      '@devgent/cli':
+      '@aidx/cli':
         specifier: workspace:*
         version: link:../../../packages/cli
-      '@devgent/plugin':
+      '@aidx/plugin':
         specifier: workspace:*
         version: link:../../../packages/plugin
-      '@devgent/protocol':
+      '@aidx/protocol':
         specifier: workspace:*
         version: link:../../../packages/protocol
-      '@devgent/widget':
+      '@aidx/widget':
         specifier: workspace:*
         version: link:../../../packages/widget
       '@tailwindcss/vite':
@@ -99,12 +99,12 @@ importers:
 
   packages/cli:
     dependencies:
+      '@aidx/protocol':
+        specifier: workspace:*
+        version: link:../protocol
       '@clack/prompts':
         specifier: ^1.5.1
         version: 1.5.1
-      '@devgent/protocol':
-        specifier: workspace:*
-        version: link:../protocol
       citty:
         specifier: ^0.2.2
         version: 0.2.2
@@ -130,13 +130,13 @@ importers:
 
   packages/core:
     dependencies:
-      '@devgent/harness':
+      '@aidx/harness':
         specifier: workspace:*
         version: link:../harness
-      '@devgent/protocol':
+      '@aidx/protocol':
         specifier: workspace:*
         version: link:../protocol
-      '@devgent/test-runner':
+      '@aidx/test-runner':
         specifier: workspace:*
         version: link:../test-runner
       '@tanstack/ai':
@@ -170,7 +170,7 @@ importers:
 
   packages/harness:
     dependencies:
-      '@devgent/protocol':
+      '@aidx/protocol':
         specifier: workspace:*
         version: link:../protocol
       '@tanstack/ai':
@@ -198,16 +198,16 @@ importers:
 
   packages/plugin:
     dependencies:
-      '@devgent/cli':
+      '@aidx/cli':
         specifier: workspace:*
         version: link:../cli
-      '@devgent/core':
+      '@aidx/core':
         specifier: workspace:*
         version: link:../core
-      '@devgent/protocol':
+      '@aidx/protocol':
         specifier: workspace:*
         version: link:../protocol
-      '@devgent/widget':
+      '@aidx/widget':
         specifier: workspace:*
         version: link:../widget
       launch-editor:
@@ -257,7 +257,7 @@ importers:
 
   packages/test-runner:
     dependencies:
-      '@devgent/protocol':
+      '@aidx/protocol':
         specifier: workspace:*
         version: link:../protocol
       zod:
@@ -282,7 +282,7 @@ importers:
 
   packages/widget:
     dependencies:
-      '@devgent/protocol':
+      '@aidx/protocol':
         specifier: workspace:*
         version: link:../protocol
       '@tanstack/ai':

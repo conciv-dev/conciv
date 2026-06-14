@@ -1,4 +1,4 @@
-# devgent adapter architecture — design
+# aidx adapter architecture — design
 
 **Date:** 2026-06-13
 **Status:** approved (design); implementation plan to follow
@@ -16,7 +16,7 @@ These were learned painfully. Follow them from the first line of code; do not wa
      `readValidatedBody(event, Schema.safeParse)` when a malformed body must stay lenient.
      Query → `getValidatedQuery(event, Schema)`.
    - NDJSON / stream-json / on-disk JSON → `Schema.safeParse(JSON.parse(line))`.
-   - Wire-type schemas live in `@devgent/protocol`; TS types are **inferred** (`z.infer`) — one
+   - Wire-type schemas live in `@aidx/protocol`; TS types are **inferred** (`z.infer`) — one
      source of truth. Route-local body schemas sit next to the route.
    - The ONLY guards allowed are non-data ones: narrowing a caught `Error`, or a
      dynamically-imported module's function surface (`z.custom`/`instanceof`). Everything that
@@ -29,7 +29,7 @@ These were learned painfully. Follow them from the first line of code; do not wa
    standalone backend on its own port — `/api` self-documents that). One naming convention: the
    folder signals the layer, the entry file is named after its folder (`api/chat/chat.ts`), NO
    mixed `-route`/`-gate` suffixes.
-5. **`@devgent/core` is bundler-agnostic.** It must not import vite/webpack/etc. Dev-server
+5. **`@aidx/core` is bundler-agnostic.** It must not import vite/webpack/etc. Dev-server
    inspection goes through the `BundlerBridge` interface (protocol), implemented in the plugin
    packages. Group `core/src` by domain (chat/, harness/, runner/, page/, server/, editor/), not flat.
 6. **Verify library APIs against real docs (online), not `.d.ts` grepping or memory.** For h3
@@ -55,7 +55,7 @@ The current codebase hard-wires three concrete tools into one Vite plugin:
   permission gate (Claude's `--settings` PreToolUse HTTP hook → `/api/chat/permission`).
 - **Test runner = Vitest.** `vitest-manager.ts`, `vitest-runner-child.ts`, `vitest-route.ts`,
   `vitest-types.ts`, the CLI `vitest` subcommand, and the widget `vitest-card.tsx`.
-- **Bundler = Vite.** The whole `@devgent/vite-plugin` package _is_ a Vite `Plugin`
+- **Bundler = Vite.** The whole `@aidx/vite-plugin` package _is_ a Vite `Plugin`
   (`transformIndexHtml`, `configureServer`, connect `server.middlewares`, `ViteDevServer`).
 
 We want to swap each of these independently: add harnesses (codex, gemini-cli, opencode, pi),
@@ -89,8 +89,8 @@ without touching the others.
   `toServerSentEventsStream()` web stream returns directly from a handler — deletes the current
   hand-rolled `Readable.fromWeb`/`pipeline` SSE glue. Nitro is the deploy-time macro-framework
   (file routing, server bundling, deploy presets) — dead weight for a dev-only embedded sidecar.
-  h3→Nitro stays an open upgrade path if devgent core ever becomes a standalone daemon.
-- **Standalone engine server** (option A): `@devgent/core` boots its own h3 server in dev; each
+  h3→Nitro stays an open upgrade path if aidx core ever becomes a standalone daemon.
+- **Standalone engine server** (option A): `@aidx/core` boots its own h3 server in dev; each
   bundler entry only injects HTML + boots it. Writes the server _once_ for all bundlers. Cost:
   cross-origin → set the existing `pw-api-base` meta to the core port + CORS (the chat stream
   already sends `access-control-allow-origin: *`). Vite may optionally proxy `/api` same-origin
@@ -101,33 +101,33 @@ without touching the others.
 ### Package layout (~12 packages)
 
 ```
-@devgent/protocol      types only: HarnessAdapter, TestRunnerManager, BundlerBridge, TestEvent, chat/ui/page
-@devgent/core          h3 + srvx engine — /api routes, lock, session, uiBus, registry wiring
-@devgent/harness       claude, codex (+ gemini-cli/opencode/pi stubs) via subpaths
-@devgent/runner        vitest, jest, node-test, playwright via subpaths
-@devgent/plugin-core   unplugin factory; boots @devgent/core + injects the widget HTML tags
-@devgent/plugin-vite   thin entry: export default unplugin.vite     (file: vite.ts)
-@devgent/plugin-webpack export default unplugin.webpack
-@devgent/plugin-rspack  export default unplugin.rspack
-@devgent/plugin-rollup  export default unplugin.rollup
-@devgent/plugin-esbuild export default unplugin.esbuild
-@devgent/cli           generic `devgent tools test|page|server|open|ui`
-@devgent/widget        generic test-card over TestEvent
+@aidx/protocol      types only: HarnessAdapter, TestRunnerManager, BundlerBridge, TestEvent, chat/ui/page
+@aidx/core          h3 + srvx engine — /api routes, lock, session, uiBus, registry wiring
+@aidx/harness       claude, codex (+ gemini-cli/opencode/pi stubs) via subpaths
+@aidx/runner        vitest, jest, node-test, playwright via subpaths
+@aidx/plugin-core   unplugin factory; boots @aidx/core + injects the widget HTML tags
+@aidx/plugin-vite   thin entry: export default unplugin.vite     (file: vite.ts)
+@aidx/plugin-webpack export default unplugin.webpack
+@aidx/plugin-rspack  export default unplugin.rspack
+@aidx/plugin-rollup  export default unplugin.rollup
+@aidx/plugin-esbuild export default unplugin.esbuild
+@aidx/cli           generic `aidx tools test|page|server|open|ui`
+@aidx/widget        generic test-card over TestEvent
 ```
 
 **Conventions**
 
 - **No `index.ts` barrels** anywhere. Each file is named after its contents; package `exports`
   subpaths point at named files.
-- Adapter **interfaces/types live in `@devgent/protocol`** (zero-runtime, already a universal
-  dep). Adapters depend only on `@devgent/protocol` for their contract — never on the engine.
-- `@devgent/core` = the engine (framework-free h3 app). `@devgent/plugin-core` = the unplugin
+- Adapter **interfaces/types live in `@aidx/protocol`** (zero-runtime, already a universal
+  dep). Adapters depend only on `@aidx/protocol` for their contract — never on the engine.
+- `@aidx/core` = the engine (framework-free h3 app). `@aidx/plugin-core` = the unplugin
   glue that boots the engine and injects HTML. Distinct responsibilities, distinct packages.
 
 ### Seam 1 — Harness adapters (capability-based)
 
 ```ts
-// @devgent/protocol/harness-types
+// @aidx/protocol/harness-types
 type HarnessCapabilities = {
   resume: boolean // can --resume a prior session
   permissionGate: 'hook' | 'none' // can call back mid-turn for tool approval
@@ -165,7 +165,7 @@ type HarnessAdapter = {
 }
 ```
 
-`@devgent/core`'s chat route becomes harness-agnostic: it takes a resolved `HarnessAdapter` + a
+`@aidx/core`'s chat route becomes harness-agnostic: it takes a resolved `HarnessAdapter` + a
 spawn seam, and **feature-detects by capability**:
 
 | Capability absent          | Core behavior (graceful degradation)                                                                              |
@@ -181,18 +181,18 @@ spawn seam, and **feature-detects by capability**:
 - `claude-agui-stream.ts` → `harness/src/claude/decode.ts` (`decode`)
 - `transcript-path.ts` + `history-parser.ts` → `harness/src/claude/history.ts`
 - `chat-system-prompt.ts` → `harness/src/claude/system-prompt.ts`
-- `claude-lock.ts` → stays in `@devgent/core` (already harness-agnostic; rename `claude.lock` → `agent.lock`)
+- `claude-lock.ts` → stays in `@aidx/core` (already harness-agnostic; rename `claude.lock` → `agent.lock`)
 
 claude capabilities: `{resume:true, permissionGate:'hook', transcriptHistory:true, systemPrompt:'file'}`.
 codex capabilities (proof): research `codex exec` JSON event output + sandbox model; likely
 `{resume:?, permissionGate:'none', transcriptHistory:?, systemPrompt:'flag'}` — confirmed during impl.
 
 Registry (`harness/src/registry.ts`): `registerHarness`, `getHarness(id)`, `listHarnesses`.
-External adapters call `registerHarness` at runtime; they need only `@devgent/protocol`.
+External adapters call `registerHarness` at runtime; they need only `@aidx/protocol`.
 
 ### Authoring adapters — `define*` typed factories
 
-Every seam ships a typed factory helper from `@devgent/protocol` so adapters self-define with
+Every seam ships a typed factory helper from `@aidx/protocol` so adapters self-define with
 full inference, autocomplete, and capability validation — the `defineConfig`/unplugin idiom.
 A `define*` helper is a typed function (not a bare identity): it locks the type, applies
 defaults, and dev-asserts capability/method consistency at definition time.
@@ -200,7 +200,7 @@ defaults, and dev-asserts capability/method consistency at definition time.
 The helpers are **generic** so they preserve each adapter's exact literal type (no widening):
 
 ```ts
-// @devgent/protocol/harness-types
+// @aidx/protocol/harness-types
 export function defineHarness<T extends HarnessAdapter>(adapter: T): T {
   // dev-time invariant: declared capabilities must match provided methods
   if (adapter.capabilities.transcriptHistory && !(adapter.transcriptPath && adapter.parseHistory))
@@ -208,13 +208,13 @@ export function defineHarness<T extends HarnessAdapter>(adapter: T): T {
   return adapter
 }
 
-// @devgent/protocol/runner-types
+// @aidx/protocol/runner-types
 export function defineRunner<T extends TestRunnerAdapter>(adapter: T): T {
   /* + invariants */ return adapter
 }
 
-// @devgent/protocol/config
-export function defineConfig<T extends DevgentConfig>(config: T): T {
+// @aidx/protocol/config
+export function defineConfig<T extends AidxConfig>(config: T): T {
   return config
 }
 ```
@@ -245,7 +245,7 @@ This applies to all ported code, not just new code: porting a file is also de-ca
 
 The current `VitestManager` interface (`list / run / status / subscribeRaw / emitSnapshot /
 openUiServer / stop`) is already runner-neutral — generalize the name to **`TestRunnerManager`**
-and lift `VitestEvent` → **`TestEvent`** into `@devgent/protocol` (shapes `run-start / test /
+and lift `VitestEvent` → **`TestEvent`** into `@aidx/protocol` (shapes `run-start / test /
 file-end / run-end / snapshot` are already runner-agnostic).
 
 ```
@@ -266,10 +266,10 @@ packages/runner/src/
   validates the abstraction isn't vitest-shaped.
 
 Each runner declares `capabilities: { watch, uiServer, filterByName, failedOnly }`. The
-`@devgent/core` test route + widget card consume `TestEvent` only — runner-blind.
+`@aidx/core` test route + widget card consume `TestEvent` only — runner-blind.
 
-**Wrapper types are the contract.** The word "vitest" must not appear in any `@devgent/protocol`
-type name, in `@devgent/core`'s test route, or in `@devgent/widget`. `vitest-types.ts` is renamed
+**Wrapper types are the contract.** The word "vitest" must not appear in any `@aidx/protocol`
+type name, in `@aidx/core`'s test route, or in `@aidx/widget`. `vitest-types.ts` is renamed
 `test-types.ts` and its types lose the runner prefix: `VitestEvent → TestEvent`,
 `RunResult → TestRunResult`, etc. Each runner adapter owns the dirty translation from its native
 output into these wrapper types and emits **only** wrapper types across the fd3/NDJSON channel:
@@ -284,35 +284,35 @@ playwright JSON report  ─┘                               TestError          
 ```
 
 This mirrors the harness side exactly: the widget speaks AG-UI `StreamChunk`, never Claude's
-stream-json. Consumers depend on `@devgent/protocol` wrapper types only — zero runner imports.
+stream-json. Consumers depend on `@aidx/protocol` wrapper types only — zero runner imports.
 
 ### Seam 3 — Bundler via unplugin
 
-`@devgent/plugin-core` exports a `createUnplugin((opts) => ({ name: 'devgent', vite: {...},
+`@aidx/plugin-core` exports a `createUnplugin((opts) => ({ name: 'aidx', vite: {...},
 webpack: {...}, rspack: {...}, rollup: {...}, esbuild: {...} }))`. Per-bundler logic is reduced
 to two things:
 
-1. **Boot the engine** — on dev-server start, `@devgent/core` `.start(opts)` → `{ port, stop }`.
+1. **Boot the engine** — on dev-server start, `@aidx/core` `.start(opts)` → `{ port, stop }`.
 2. **Inject HTML** — the existing `headTags(previewId, widgetUrl)` (meta `pw-api-base` = core
    port, `pw-preview-id`, deferred widget `<script>`). The only genuinely per-bundler code:
    Vite `transformIndexHtml` vs webpack `HtmlWebpackPlugin` tap vs rspack equivalent.
 
-Each bundler package (`@devgent/plugin-vite`, `-webpack`, `-rspack`, `-rollup`, `-esbuild`) is a
+Each bundler package (`@aidx/plugin-vite`, `-webpack`, `-rspack`, `-rollup`, `-esbuild`) is a
 single named file re-exporting the matching unplugin entry, e.g. `vite.ts`:
-`export {default} from '@devgent/plugin-core/vite'` (i.e. `unplugin.vite`). Adding a bundler =
+`export {default} from '@aidx/plugin-core/vite'` (i.e. `unplugin.vite`). Adding a bundler =
 one new 1-file package once `plugin-core` declares that hook.
 
-### Seam 3b — Bundler bridge (`@devgent/core` stays bundler-agnostic)
+### Seam 3b — Bundler bridge (`@aidx/core` stays bundler-agnostic)
 
 Beyond boot + HTML injection, the agent can **inspect and drive the live dev server** via
-`devgent tools server …` (config, resolve, module-graph, transform, urls, reload, restart).
+`aidx tools server …` (config, resolve, module-graph, transform, urls, reload, restart).
 Those operations are bundler-specific — Vite's module graph + HMR are nothing like webpack's.
-So **`@devgent/core` must not import Vite**. The dev-server operations are abstracted behind a
-`BundlerBridge` interface in `@devgent/protocol`; each bundler implements it in its own plugin
+So **`@aidx/core` must not import Vite**. The dev-server operations are abstracted behind a
+`BundlerBridge` interface in `@aidx/protocol`; each bundler implements it in its own plugin
 package and passes it to `engine.start({bridge})`:
 
 ```ts
-// @devgent/protocol/bundler-types
+// @aidx/protocol/bundler-types
 export type BundlerBridge = {
   id: string // 'vite' | 'webpack' | …
   config(): {
@@ -334,19 +334,19 @@ export function defineBundlerBridge<T extends BundlerBridge>(b: T): T {
 }
 ```
 
-- The Vite implementation (today's `tools-layer.ts`) lives in `@devgent/plugin-vite`
-  (`@devgent/vite-plugin` until Plan 4) as `viteBridge` — **never in core**.
-- Core's `api/server/server.ts` calls `bridge.*` only. The CLI surface is `devgent tools
-server …` (generic), replacing the old `devgent tools vite …`.
+- The Vite implementation (today's `tools-layer.ts`) lives in `@aidx/plugin-vite`
+  (`@aidx/vite-plugin` until Plan 4) as `viteBridge` — **never in core**.
+- Core's `api/server/server.ts` calls `bridge.*` only. The CLI surface is `aidx tools
+server …` (generic), replacing the old `aidx tools vite …`.
 - A bridge is optional: `engine.start()` without one simply doesn't mount `/api/server/*`
   (a build-only bundler like rollup/esbuild has no live dev server to inspect).
 
-### `@devgent/core` internal layout (domain-grouped, mirrors the seam packages)
+### `@aidx/core` internal layout (domain-grouped, mirrors the seam packages)
 
 Core's `src/` is grouped by domain — **not flat**. **All HTTP routes live under `src/api/`**
 (HARD RULE 4); each route entry file is named after its folder (no `-route`/`-gate` suffix), and
 non-route domain logic lives under `src/<domain>/`. The `harness/` and `runner/` subfolders mirror
-the future `@devgent/harness` / `@devgent/runner` packages so Plans 2 & 3 are near-straight moves:
+the future `@aidx/harness` / `@aidx/runner` packages so Plans 2 & 3 are near-straight moves:
 
 ```
 core/src/
@@ -360,8 +360,8 @@ core/src/
     test-runner/  test-runner.ts                    (/api/test-runner/* — consumes TestRunnerManager)
     editor/  editor.ts                              (/api/editor/open)
   chat/    ui-bus.ts  lock.ts  risk.ts  session-store.ts        (chat domain logic, no HTTP)
-  harness/ registry.ts  claude/{adapter,args,decode,history,system-prompt,blocks}.ts   → @devgent/harness
-  runner/  registry.ts  vitest/{adapter,manager,child}.ts                              → @devgent/runner
+  harness/ registry.ts  claude/{adapter,args,decode,history,system-prompt,blocks}.ts   → @aidx/harness
+  runner/  registry.ts  vitest/{adapter,manager,child}.ts                              → @aidx/runner
   page/    journal.ts                               (page domain logic)
   editor/  open.ts                                  (makeEditorOpener — agnostic)
 ```
@@ -374,17 +374,17 @@ page  ──widget──>  /api/chat (h3 SSE)  ──>  core resolves HarnessAda
                                               ├─ decode(stdout) → AG-UI StreamChunk stream
                                               ├─ uiBus merges generative-UI CUSTOM events
                                               └─ web ReadableStream → new Response(stream) → SSE
-agent ──Bash──>  devgent tools test run  ──>  /api/test-runner  ──>  core resolves TestRunnerAdapter
+agent ──Bash──>  aidx tools test run  ──>  /api/test-runner  ──>  core resolves TestRunnerAdapter
                                               └─ driver spawns clean child → TestEvent NDJSON
                                                  → SSE /api/test-runner/stream  → widget test-card
 ```
 
 ## Configuration
 
-`DevgentConfig` generalizes the current claude/vitest fields:
+`AidxConfig` generalizes the current claude/vitest fields:
 
 ```ts
-interface DevgentConfig {
+interface AidxConfig {
   enabled?: boolean
   widgetUrl?: string
   previewId?: string
@@ -397,8 +397,8 @@ interface DevgentConfig {
 }
 ```
 
-Env fallbacks generalize `DEVGENT_CLAUDE_*` → `DEVGENT_HARNESS`, `DEVGENT_HARNESS_BIN`,
-`DEVGENT_SESSION_ID`, `DEVGENT_TEST_RUNNER` (keep old names as deprecated aliases for one cycle).
+Env fallbacks generalize `AIDX_CLAUDE_*` → `AIDX_HARNESS`, `AIDX_HARNESS_BIN`,
+`AIDX_SESSION_ID`, `AIDX_TEST_RUNNER` (keep old names as deprecated aliases for one cycle).
 
 ## Testing strategy
 

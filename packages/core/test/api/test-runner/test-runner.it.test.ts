@@ -2,13 +2,13 @@ import {describe, it, expect, afterAll} from 'vitest'
 import {z} from 'zod'
 import {H3} from 'h3'
 import {serve, type Server} from 'srvx'
-import {runnerUnavailableError, type TestRunnerManager, type ListResult} from '@devgent/protocol/runner-types'
-import type {TestEvent, TestRunResult} from '@devgent/protocol/test-types'
+import {runnerUnavailableError, type TestRunnerManager, type ListResult} from '@aidx/protocol/runner-types'
+import type {TestEvent, TestRunResult} from '@aidx/protocol/test-types'
 import {registerTestRunnerRoutes} from '../../../src/api/test-runner/test-runner.js'
 
 // Route IT over a real srvx server. The runner is faked at the TestRunnerManager seam so this
 // proves the HTTP layer (JSON routes + the 422 "runner unavailable" translation) in isolation;
-// the real vitest execution is covered by @devgent/test-runner's own vitest IT.
+// the real vitest execution is covered by @aidx/test-runner's own vitest IT.
 
 const FILES: ListResult = {
   files: [

@@ -1,4 +1,4 @@
-import {defineRunner} from '@devgent/protocol/runner-types'
+import {defineRunner} from '@aidx/protocol/runner-types'
 
 // Capability-only stub (mirrors the harness gemini/opencode/pi stubs). Registered so
 // listRunners() advertises it; create() throws until the jest child lands. When implemented,

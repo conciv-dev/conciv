@@ -8,7 +8,7 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {registerChatRoutes} from '../../../src/api/chat/chat.js'
-import {claude} from '@devgent/harness/claude'
+import {claude} from '@aidx/harness/claude'
 import {acquireLock} from '../../../src/chat/lock.js'
 import {makeUiBus} from '../../../src/chat/ui-bus.js'
 
@@ -20,7 +20,7 @@ const fakeClaude = fileURLToPath(new URL('../../fixtures/fake-claude.ts', import
 const dirs: string[] = []
 
 function tmp(): string {
-  const d = mkdtempSync(join(tmpdir(), 'devgent-chat-it-'))
+  const d = mkdtempSync(join(tmpdir(), 'aidx-chat-it-'))
   dirs.push(d)
   return d
 }
@@ -42,7 +42,7 @@ async function startServer(over: {argvFile?: string; lockDir?: string} = {}): Pr
       const child = spawn(process.execPath, [fakeClaude, ...args], {
         cwd,
         stdio: ['ignore', 'pipe', 'pipe'],
-        env: {...process.env, ...(over.argvFile ? {DEVGENT_TEST_ARGV_FILE: over.argvFile} : {})},
+        env: {...process.env, ...(over.argvFile ? {AIDX_TEST_ARGV_FILE: over.argvFile} : {})},
       })
       const {stdout, stderr} = child
       if (!stdout || !stderr) throw new Error('fake-claude did not expose stdout/stderr')

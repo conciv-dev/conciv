@@ -1,5 +1,5 @@
 import type {H3} from 'h3'
-import type {HarnessAdapter} from '@devgent/protocol/harness-types'
+import type {HarnessAdapter} from '@aidx/protocol/harness-types'
 import {makeUiBus, type UiBus} from '../../chat/ui-bus.js'
 import {readSession} from '../../chat/session-store.js'
 import {makePermissionGate, registerPermissionRoutes} from './permission.js'

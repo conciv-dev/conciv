@@ -1,9 +1,9 @@
 import {z} from 'zod'
 import {defineCommand, type ArgDef, type ArgsDef, type SubCommandsDef} from 'citty'
-import {PAGE_QUERY_KINDS, type PageQueryKind} from '@devgent/protocol/page-protocol'
+import {PAGE_QUERY_KINDS, type PageQueryKind} from '@aidx/protocol/page-protocol'
 import {compact, qs, runRequest, type CliRequest} from './request.js'
 
-// `devgent tools page <verb>` — read and drive the live page. Each verb declares its HTTP
+// `aidx tools page <verb>` — read and drive the live page. Each verb declares its HTTP
 // method, whether it targets an element (positional <selector> or --ref), and which extra
 // flags carry params. The 33 leaf citty commands are GENERATED from this one table (× zod),
 // so adding a verb is a single row — never a hand-written command block.

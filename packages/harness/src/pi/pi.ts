@@ -1,4 +1,4 @@
-import {defineHarness, type HarnessTurn} from '@devgent/protocol/harness-types'
+import {defineHarness, type HarnessTurn} from '@aidx/protocol/harness-types'
 
 // Capability-only stub pending CLI research; buildArgs/decode throw until implemented.
 export const pi = defineHarness({

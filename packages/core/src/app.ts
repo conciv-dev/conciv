@@ -1,10 +1,10 @@
 import {H3} from 'h3'
-import type {HarnessAdapter, HarnessChild} from '@devgent/protocol/harness-types'
-import type {TestRunnerAdapter} from '@devgent/protocol/runner-types'
-import type {BundlerBridge} from '@devgent/protocol/bundler-types'
-import type {ResolvedDevgentConfig} from './config.js'
-import {getHarness} from '@devgent/harness'
-import {getRunner} from '@devgent/test-runner'
+import type {HarnessAdapter, HarnessChild} from '@aidx/protocol/harness-types'
+import type {TestRunnerAdapter} from '@aidx/protocol/runner-types'
+import type {BundlerBridge} from '@aidx/protocol/bundler-types'
+import type {ResolvedAidxConfig} from './config.js'
+import {getHarness} from '@aidx/harness'
+import {getRunner} from '@aidx/test-runner'
 import {registerCors} from './api/cors.js'
 import {registerChatRoutes} from './api/chat/chat.js'
 import {registerPageRoutes} from './api/page/page.js'
@@ -16,7 +16,7 @@ import {makeJournal} from './page/journal.js'
 import type {OpenInEditor} from './editor/open.js'
 
 export type MakeAppOpts = {
-  cfg: ResolvedDevgentConfig
+  cfg: ResolvedAidxConfig
   cwd: string
   bridge?: BundlerBridge
   openInEditor: OpenInEditor

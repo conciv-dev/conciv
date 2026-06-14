@@ -16,7 +16,7 @@ const ORIGIN = 'http://localhost:3000'
 const dirs: string[] = []
 
 function tmp(): string {
-  const d = mkdtempSync(join(tmpdir(), 'devgent-cors-it-'))
+  const d = mkdtempSync(join(tmpdir(), 'aidx-cors-it-'))
   dirs.push(d)
   return d
 }

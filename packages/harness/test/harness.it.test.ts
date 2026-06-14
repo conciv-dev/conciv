@@ -21,7 +21,7 @@ async function* linesOf(stream: Readable): AsyncGenerator<string> {
 function spawnFake(format: 'claude' | 'codex'): Readable {
   const child = spawn(process.execPath, ['--import', tsxEntry, fakeHarness], {
     stdio: ['ignore', 'pipe', 'pipe'],
-    env: {...process.env, DEVGENT_FAKE_FORMAT: format},
+    env: {...process.env, AIDX_FAKE_FORMAT: format},
   })
   const {stdout} = child
   if (!stdout) throw new Error('fake-harness did not expose stdout')

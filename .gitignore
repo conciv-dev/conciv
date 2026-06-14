@@ -7,5 +7,5 @@ coverage/
 .DS_Store
 *.log
 .idea/
-# devgent runtime state the vite plugin writes into a consuming app's root
-.devgent/
+# aidx runtime state the vite plugin writes into a consuming app's root
+.aidx/

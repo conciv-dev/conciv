@@ -1,10 +1,10 @@
-// The agent-facing CLIs (`devgent tools` / `devgent ui`) run inside the headless claude
+// The agent-facing CLIs (`aidx tools` / `aidx ui`) run inside the headless claude
 // loop and call the dev server over plain localhost HTTP. No auth, no third-party client —
 // native fetch is enough. The port is the one the vite plugin is serving on, passed to the
-// claude child as DEVGENT_PORT (defaulting to vite's 5173).
+// claude child as AIDX_PORT (defaulting to vite's 5173).
 
 export function defaultOrigin(): string {
-  const port = process.env.DEVGENT_PORT ?? '5173'
+  const port = process.env.AIDX_PORT ?? '5173'
   return `http://127.0.0.1:${port}`
 }
 

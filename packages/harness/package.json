@@ -1,7 +1,7 @@
 {
-  "name": "@devgent/harness",
+  "name": "@aidx/harness",
   "version": "0.0.0",
-  "description": "Harness adapters (claude, codex, + stubs) behind the @devgent/protocol HarnessAdapter contract.",
+  "description": "Harness adapters (claude, codex, + stubs) behind the @aidx/protocol HarnessAdapter contract.",
   "license": "MIT",
   "files": [
     "dist"
@@ -40,7 +40,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@devgent/protocol": "workspace:*",
+    "@aidx/protocol": "workspace:*",
     "@tanstack/ai": "^0.28.0",
     "zod": "^4.4.3"
   },

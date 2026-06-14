@@ -2,7 +2,7 @@ import {z} from 'zod'
 import {defineCommand} from 'citty'
 import {runRequest, type CliRequest} from './request.js'
 
-// `devgent tools open <file> [--line n]` — open a source file in the user's editor.
+// `aidx tools open <file> [--line n]` — open a source file in the user's editor.
 const OpenArgs = z.object({file: z.string(), line: z.coerce.number().optional()})
 
 export function openRequest(raw: unknown): CliRequest {

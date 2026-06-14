@@ -1,10 +1,10 @@
 import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
 import {defineCommand} from 'citty'
-import type {UiFormField, UiSpec} from '@devgent/protocol/ui-types'
+import type {UiFormField, UiSpec} from '@aidx/protocol/ui-types'
 import {runRequest, type CliRequest} from './request.js'
 
-// `devgent ui <kind>` — render real interactive UI in the chat thread. The agent does NOT
+// `aidx ui <kind>` — render real interactive UI in the chat thread. The agent does NOT
 // block; the user's answer arrives as their next chat message. citty parses argv, zod
 // validates, buildUiSpec produces the typed UiSpec the server injects as an AG-UI event.
 

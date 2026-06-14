@@ -1,4 +1,4 @@
-// The dev-server accessors backing the BundlerBridge (and the `devgent tools server …` CLI).
+// The dev-server accessors backing the BundlerBridge (and the `aidx tools server …` CLI).
 // Typed against vite's real ViteDevServer — this is the vite plugin, so the coupling is fine
 // and it lets the plugin pass the live server straight through with no cast.
 import type {ViteDevServer} from 'vite'

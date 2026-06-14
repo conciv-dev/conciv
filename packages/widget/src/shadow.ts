@@ -5,7 +5,7 @@ import styles from './styles.css?inline'
 
 export function createShadowRoot(): {host: HTMLElement; root: ShadowRoot} {
   const host = document.createElement('div')
-  host.setAttribute('data-devgent-root', '')
+  host.setAttribute('data-aidx-root', '')
   host.style.position = 'fixed'
   host.style.inset = '0'
   host.style.pointerEvents = 'none'

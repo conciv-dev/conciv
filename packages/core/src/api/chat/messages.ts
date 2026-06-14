@@ -1,4 +1,4 @@
-import type {ChatRequest} from '@devgent/protocol/chat-types'
+import type {ChatRequest} from '@aidx/protocol/chat-types'
 
 // Pull the latest user-turn text from a validated chat request. Tolerant of both the
 // parts-based UIMessage shape ({role, parts:[{type:'text', content}]}) and a plain
