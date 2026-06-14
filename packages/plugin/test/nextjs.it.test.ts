@@ -6,7 +6,8 @@ import {withAidx, AIDX_DEFAULT_PORT} from '../src/core/nextjs.js'
 // the Next.js example app's browser smoke; here we lock the three config branches.
 describe('withAidx', () => {
   it('inlines the default port and carries options for the client + server', () => {
-    const cfg = withAidx({reactStrictMode: true})
+    const userConfig = {reactStrictMode: true}
+    const cfg = withAidx(userConfig)
     expect(cfg.reactStrictMode).toBe(true)
     expect(cfg.env?.NEXT_PUBLIC_AIDX_PORT).toBe(String(AIDX_DEFAULT_PORT))
     expect(JSON.parse(cfg.env?.AIDX_OPTIONS ?? '{}').port).toBe(AIDX_DEFAULT_PORT)
@@ -19,7 +20,8 @@ describe('withAidx', () => {
   })
 
   it('is a passthrough when disabled', () => {
-    const cfg = withAidx({reactStrictMode: true}, {enabled: false})
+    const userConfig = {reactStrictMode: true}
+    const cfg = withAidx(userConfig, {enabled: false})
     expect(cfg.reactStrictMode).toBe(true)
     expect(cfg.env?.NEXT_PUBLIC_AIDX_PORT).toBeUndefined()
   })

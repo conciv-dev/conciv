@@ -34,11 +34,13 @@
     },
     "./nextjs": {
       "types": "./dist/nextjs.d.ts",
-      "import": "./dist/nextjs.js"
+      "import": "./dist/nextjs.js",
+      "default": "./dist/nextjs.js"
     },
     "./nextjs/widget": {
       "types": "./dist/nextjs-widget.d.ts",
-      "import": "./dist/nextjs-widget.js"
+      "import": "./dist/nextjs-widget.js",
+      "default": "./dist/nextjs-widget.js"
     }
   },
   "scripts": {
