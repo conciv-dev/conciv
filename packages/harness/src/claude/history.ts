@@ -2,7 +2,7 @@ import {homedir} from 'node:os'
 import {join} from 'node:path'
 import {z} from 'zod'
 import type {MessagePart, UIMessage} from '@aidx/protocol/chat-types'
-import {defineHarnessHistory} from '@aidx/protocol/harness-types'
+import type {HarnessHistory} from '@aidx/protocol/harness-types'
 import {TextBlock, ThinkingBlock, ToolUseBlock} from './blocks.js'
 
 // Where claude persists a session's JSONL transcript, and how to parse it into UIMessages.
@@ -94,5 +94,5 @@ export function parseHistory(jsonl: string): UIMessage[] {
   return out
 }
 
-// Claude's HarnessHistory implementation, authored through the protocol's define* factory.
-export const claudeHistory = defineHarnessHistory({transcriptPath, parse: parseHistory})
+// Claude's HarnessHistory implementation.
+export const claudeHistory: HarnessHistory = {transcriptPath, parse: parseHistory}

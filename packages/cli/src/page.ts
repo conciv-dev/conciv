@@ -1,6 +1,6 @@
 import {z} from 'zod'
 import {defineCommand, type ArgDef, type ArgsDef, type SubCommandsDef} from 'citty'
-import {PAGE_QUERY_KINDS, type PageQueryKind} from '@aidx/protocol/page-protocol'
+import {PAGE_QUERY_KINDS, type PageQueryKind} from '@aidx/protocol/page-types'
 import {compact, qs, runAndPrint, type CliRequest} from './request.js'
 
 // `aidx tools page <verb>` — read and drive the live page. Each verb declares its HTTP

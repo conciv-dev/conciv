@@ -11,7 +11,7 @@ export default defineConfig({
     'src/runner-types.ts',
     'src/bundler-types.ts',
     'src/config-types.ts',
-    'src/page-protocol.ts',
+    'src/page-types.ts',
   ],
   format: 'esm',
   fixedExtension: false,

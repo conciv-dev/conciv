@@ -1,11 +1,8 @@
 import type {ZodType} from 'zod'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 
-// The shared spine every harness decoder rides: RUN_STARTED → per-event chunks → RUN_FINISHED,
-// the NDJSON line loop, JSON-parse-and-validate, the monotonic id minter, and the AG-UI chunk
-// emitters (which are protocol-shaped, not adapter-shaped). An adapter supplies only its Zod
-// event schema and a pure event→chunks `step`.
-
+// Shared decoder spine: run lifecycle, line loop, parse, id minter, AG-UI chunk emitters.
+// An adapter supplies only its Zod event schema and a pure event→chunks `step`.
 const THREAD_ID = 'aidx-chat'
 const RUN_ID = 'aidx-run'
 

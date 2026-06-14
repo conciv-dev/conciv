@@ -1,4 +1,4 @@
-import {defineHarness, defineHarnessArgs, defineHarnessDecoder} from '@aidx/protocol/harness-types'
+import {defineHarness} from '@aidx/protocol/harness-types'
 import {buildCodexArgs} from './args.js'
 import {codexToAguiEvents} from './decode.js'
 
@@ -10,6 +10,6 @@ export const codex = defineHarness({
   id: 'codex',
   binName: 'codex',
   capabilities: {resume: true, permissionGate: 'none', transcriptHistory: false, systemPrompt: 'none'},
-  buildArgs: defineHarnessArgs(buildCodexArgs),
-  decode: defineHarnessDecoder(codexToAguiEvents),
+  buildArgs: buildCodexArgs,
+  decode: codexToAguiEvents,
 })

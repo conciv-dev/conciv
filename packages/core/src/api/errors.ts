@@ -1,9 +1,7 @@
 import {HTTPError, onError, type H3} from 'h3'
 import {isRunnerUnavailable} from '@aidx/protocol/runner-types'
 
-// One place to translate known domain errors into HTTP responses. Handlers throw; this maps.
-// An HTTPError thrown by a handler already carries its status and passes straight through;
-// a runner-unavailable error (thrown deep in an adapter) becomes a 422 instead of a 500.
+// Maps domain errors to HTTP: a runner-unavailable error becomes 422; HTTPErrors pass through.
 export function registerErrorHandler(app: H3): void {
   app.use(
     onError((error) => {

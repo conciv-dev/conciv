@@ -9,7 +9,7 @@ const base = {
   decode: async function* () {},
 }
 
-describe('defineHarness (generic typed factory + dev invariant)', () => {
+describe('defineHarness (generic typed factory; history↔transcriptHistory enforced by the type)', () => {
   it('returns the adapter unchanged when capabilities match members', () => {
     const adapter = defineHarness({
       ...base,
@@ -20,14 +20,8 @@ describe('defineHarness (generic typed factory + dev invariant)', () => {
     expect('history' in adapter).toBe(false)
   })
 
-  it('throws when transcriptHistory is true but no history implementation is provided', () => {
-    expect(() =>
-      defineHarness({
-        ...base,
-        capabilities: {resume: false, permissionGate: 'none', transcriptHistory: true, systemPrompt: 'none'},
-      }),
-    ).toThrow(/transcriptHistory requires a history implementation/)
-  })
+  // A transcriptHistory:true adapter without a `history` is now a COMPILE error (the discriminated
+  // union requires it), so there is no runtime throw to test — the invalid case is unconstructable.
 
   it('accepts a transcriptHistory harness that provides a history implementation', () => {
     const adapter = defineHarness({

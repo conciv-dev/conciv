@@ -34,3 +34,4 @@ export type ChatSession = z.infer<typeof ChatSessionSchema>
 // GET /api/chat/history response — TanStack's UIMessage[] (too rich to re-validate field by
 // field); validate array + object shape via z.custom, the sanctioned typed escape.
 export const ChatHistorySchema = z.array(z.custom<UIMessage>((v) => v !== null && typeof v === 'object'))
+export type ChatHistory = z.infer<typeof ChatHistorySchema>

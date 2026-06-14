@@ -11,8 +11,7 @@ export function readFileOrEmpty(path: string): string {
   }
 }
 
-// Read + Zod-validate a JSON file. Any failure — missing, unparseable, or schema-invalid —
-// yields the fallback. The one place that read-or-default ritual lives.
+// Read + Zod-validate a JSON file; any failure (missing/unparseable/invalid) yields the fallback.
 export function readJson<T>(path: string, schema: ZodType<T>, fallback: T): T {
   const raw = readFileOrEmpty(path)
   if (!raw) return fallback

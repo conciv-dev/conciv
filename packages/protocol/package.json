@@ -36,9 +36,9 @@
       "types": "./dist/config-types.d.ts",
       "import": "./dist/config-types.js"
     },
-    "./page-protocol": {
-      "types": "./dist/page-protocol.d.ts",
-      "import": "./dist/page-protocol.js"
+    "./page-types": {
+      "types": "./dist/page-types.d.ts",
+      "import": "./dist/page-types.js"
     }
   },
   "scripts": {

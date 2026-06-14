@@ -1,7 +1,6 @@
 import {join} from 'node:path'
 
-// The `.aidx/` layout under the state root. Every file the engine persists is named here once,
-// so no other module has to know the directory name or the filenames.
+// The `.aidx/` layout under the state root, named in one place.
 export type StatePaths = {dir: string; lock: string; sessions: string; systemPrompt: string}
 
 export function statePaths(stateRoot: string): StatePaths {

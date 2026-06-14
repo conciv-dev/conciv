@@ -27,15 +27,14 @@ describe('defineRunner (generic typed factory + dev invariant)', () => {
     expect(typeof runner.create).toBe('function')
   })
 
-  it('throws when uiServer capability is declared without an openUiServer-capable manager factory', () => {
+  it('throws when create() is missing', () => {
     expect(() =>
       defineRunner({
         id: 'broken',
         capabilities: {watch: false, uiServer: true, filterByName: false, failedOnly: false},
-        // factory omitted → invariant fails
         // @ts-expect-error intentionally missing create to prove the runtime guard
         create: undefined,
       }),
-    ).toThrow(/runner "broken": uiServer requires a create\(\) factory/)
+    ).toThrow(/runner "broken": create\(\) factory is required/)
   })
 })

@@ -1,4 +1,4 @@
-import {defineHarness, defineHarnessArgs, defineHarnessDecoder} from '@aidx/protocol/harness-types'
+import {defineHarness} from '@aidx/protocol/harness-types'
 import {buildClaudeArgs} from './args.js'
 import {claudeToAguiEvents} from './decode.js'
 import {claudeHistory} from './history.js'
@@ -12,7 +12,7 @@ export const claude = defineHarness({
   id: 'claude',
   binName: 'claude',
   capabilities: {resume: true, permissionGate: 'hook', transcriptHistory: true, systemPrompt: 'file'},
-  buildArgs: defineHarnessArgs(buildClaudeArgs),
-  decode: defineHarnessDecoder(claudeToAguiEvents),
+  buildArgs: buildClaudeArgs,
+  decode: claudeToAguiEvents,
   history: claudeHistory,
 })

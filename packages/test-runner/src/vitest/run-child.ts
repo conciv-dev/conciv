@@ -6,11 +6,8 @@ import {z} from 'zod'
 import {parseFailure, type Summary, type TestError, type TestRow, type TestCaseLike} from '@aidx/protocol/test-types'
 import {type ChildMessage} from '../child-protocol.js'
 
-// The out-of-process vitest runner LOGIC. Pure module — no top-level execution — so importing it
-// is always inert. The spawned entry is child.ts (a one-liner that calls runChild); the driver
-// only ever launches that entry by path. Running vitest in the dev server's preloaded process
-// would corrupt the live app, so the driver spawns a clean child (NODE_OPTIONS stripped).
-
+// Out-of-process vitest runner logic. Pure module (no top-level exec) so importing it is inert;
+// the spawned entry is child.ts. The driver runs it as a clean child (NODE_OPTIONS stripped).
 type TestModuleLike = {
   moduleId: string
   ok: () => boolean

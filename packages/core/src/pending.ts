@@ -1,7 +1,4 @@
-// A registry of in-flight requests awaiting an out-of-band reply (a widget POST, a user click).
-// Each waiter has a fail-closed timeout: if no reply arrives in time, the promise rejects so the
-// caller decides how to fail. One implementation behind the page-bus and the permission gate.
-
+// In-flight requests awaiting an out-of-band reply, each with a fail-closed timeout that rejects.
 const TIMEOUT_TAG = 'aidx:pending-timeout'
 export type PendingTimeout = Error & {[TIMEOUT_TAG]: true}
 
@@ -10,10 +7,8 @@ export function isPendingTimeout(e: unknown): e is PendingTimeout {
 }
 
 export type Pending<T> = {
-  // Register `id` and await its reply, rejecting with a PendingTimeout after `timeoutMs`.
-  await(id: string, timeoutMs: number): Promise<T>
-  // Deliver a reply to a waiter; a no-op if the id is unknown (already resolved or timed out).
-  resolve(id: string, value: T): void
+  await(id: string, timeoutMs: number): Promise<T> // rejects with a PendingTimeout after timeoutMs
+  resolve(id: string, value: T): void // no-op if the id is unknown (resolved or timed out)
   size(): number
 }
 

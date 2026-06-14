@@ -21,11 +21,8 @@ export type HarnessTurn = {
 
 export type HarnessChild = {pid: number; stdout: Readable; stderr: Readable; kill(): void}
 
+// Builds the CLI argv for one turn.
 export type HarnessArgsBuilder = (turn: HarnessTurn) => string[]
-
-export function defineHarnessArgs<T extends HarnessArgsBuilder>(build: T): T {
-  return build
-}
 
 // Turns the harness's raw stdout lines into the AG-UI StreamChunk stream, surfacing the session id.
 export type HarnessDecoder = (
@@ -33,32 +30,27 @@ export type HarnessDecoder = (
   opts: {onSessionId(id: string): void},
 ) => AsyncGenerator<StreamChunk>
 
-export function defineHarnessDecoder<T extends HarnessDecoder>(decode: T): T {
-  return decode
-}
-
 // Where a harness persists a session's transcript, and how to parse it into UIMessages.
 export type HarnessHistory = {
   transcriptPath(cwd: string, sessionId: string): string
   parse(raw: string): UIMessage[]
 }
 
-export function defineHarnessHistory<T extends HarnessHistory>(history: T): T {
-  return history
-}
-
-export type HarnessAdapter = {
+type HarnessAdapterBase = {
   id: string
   binName: string
-  capabilities: HarnessCapabilities
   buildArgs: HarnessArgsBuilder
   decode: HarnessDecoder
-  history?: HarnessHistory // present iff capabilities.transcriptHistory
 }
 
+// `history` is present iff `capabilities.transcriptHistory` — the type enforces it, so there is
+// no runtime check: a transcriptHistory:true adapter without a history is a compile error.
+export type HarnessAdapter = HarnessAdapterBase &
+  (
+    | {capabilities: HarnessCapabilities & {transcriptHistory: true}; history: HarnessHistory}
+    | {capabilities: HarnessCapabilities & {transcriptHistory: false}; history?: undefined}
+  )
+
 export function defineHarness<T extends HarnessAdapter>(adapter: T): T {
-  if (adapter.capabilities.transcriptHistory && !adapter.history) {
-    throw new Error(`harness "${adapter.id}": transcriptHistory requires a history implementation`)
-  }
   return adapter
 }

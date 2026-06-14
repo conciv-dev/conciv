@@ -15,10 +15,8 @@ import {
 } from '@aidx/protocol/runner-types'
 import {ChildMessageSchema, type ChildMessage} from './child-protocol.js'
 
-// The runner-agnostic driver: spawn the adapter's child as a CLEAN process (NODE_OPTIONS +
-// VIBE_* stripped — running a runner inside the dev server's IITM-preloaded process corrupts
-// the live app), read TestEvent NDJSON off fd 3, and own the cache/runBuffer/subscribe logic.
-// An adapter supplies only its childUrl + arg mapping + capabilities (a ChildRunnerSpec).
+// Runner-agnostic driver: spawn the adapter's child as a clean process (NODE_OPTIONS/VIBE_*
+// stripped), read TestEvent NDJSON off fd 3, own cache/runBuffer/subscribe. Adapters supply a spec.
 
 export {isRunnerUnavailable, runnerUnavailableError} from '@aidx/protocol/runner-types'
 export type {RunnerUnavailableError} from '@aidx/protocol/runner-types'
@@ -161,9 +159,7 @@ export function defineChildRunner<T extends ChildRunnerSpec>(spec: T): TestRunne
   })
 }
 
-// Authoring factory for a not-yet-implemented runner: registered so listRunners() advertises it,
-// but create() throws until a real defineChildRunner adapter replaces it. Mirrors the harness
-// defineStubHarness, so a stub and a real runner read the same way bar the create() body.
+// A not-yet-implemented runner: registered so listRunners() advertises it, but create() throws.
 export function defineStubRunner(o: {
   id: string
   capabilities: TestRunnerCapabilities

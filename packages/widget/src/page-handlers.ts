@@ -1,4 +1,4 @@
-import {ok, err, type PageQuery, type PageQueryKind, type PageResult} from '@aidx/protocol/page-protocol'
+import {ok, err, type PageQuery, type PageQueryKind, type PageResult} from '@aidx/protocol/page-types'
 import {buildSnapshot, describeElement, DOM_CAP, type Refs} from './page-snapshot.js'
 
 export type ConsoleEntry = {level: string; ts: number; text: string}

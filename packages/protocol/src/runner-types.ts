@@ -54,11 +54,6 @@ export function isRunnerUnavailable(e: unknown): e is RunnerUnavailableError {
 
 export function defineRunner<T extends TestRunnerAdapter>(adapter: T): T {
   if (!adapter.id) throw new Error('runner: id is required')
-  if (adapter.capabilities.uiServer && typeof adapter.create !== 'function') {
-    throw new Error(`runner "${adapter.id}": uiServer requires a create() factory`)
-  }
-  if (typeof adapter.create !== 'function') {
-    throw new Error(`runner "${adapter.id}": create() factory is required`)
-  }
+  if (typeof adapter.create !== 'function') throw new Error(`runner "${adapter.id}": create() factory is required`)
   return adapter
 }

@@ -1,7 +1,6 @@
 export type HtmlTag = {tag: string; attrs: Record<string, string | boolean>; injectTo: 'head'}
 
-// <head> tags the widget needs, injected by the bundler plugin. pw-api-base points at the
-// standalone core server (cross-origin); the script tag loads the widget bundle when given a url.
+// <head> tags the bundler plugin injects: pw-api-base (cross-origin core server) + widget script.
 export function htmlTags(corePort: number, opts: {previewId: string; widgetUrl?: string}): HtmlTag[] {
   const tags: HtmlTag[] = [
     {tag: 'meta', attrs: {name: 'pw-api-base', content: `http://127.0.0.1:${corePort}`}, injectTo: 'head'},
