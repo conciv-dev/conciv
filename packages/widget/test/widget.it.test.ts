@@ -25,6 +25,9 @@ const APPROVAL_QUESTION = 'Run a risky command?'
 const FAILING_TEST = 'rejects an expired token'
 const FAILURE_MESSAGE = 'expected 200 to be 401'
 const PAGE_QUERY = {requestId: 'pb1', kind: 'text', selector: '#probe'}
+// A react verb aimed at the non-React probe div: proves the verb routes through the driver to
+// the bippy bridge and degrades gracefully (no fiber) — the happy path is covered by example e2e.
+const LOCATE_QUERY = {requestId: 'pbL', kind: 'locate', selector: '#probe'}
 
 function pageHtml(): string {
   return `<!doctype html><html><head>
@@ -130,6 +133,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
           'access-control-allow-origin': '*',
         })
         res.write(`data: ${JSON.stringify(PAGE_QUERY)}\n\n`)
+        res.write(`data: ${JSON.stringify(LOCATE_QUERY)}\n\n`)
         return
       }
       if (url === '/__global-base') {
@@ -206,13 +210,30 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await page.close()
   })
 
+  const replyFor = (id: string) => (r: {url(): string; postData(): string | null}) => {
+    if (!r.url().includes('/api/page/reply')) return false
+    try {
+      return (JSON.parse(r.postData() ?? '{}') as {requestId?: string}).requestId === id
+    } catch {
+      return false
+    }
+  }
+
   it('answers a page-bus query against the live DOM and posts the reply', async () => {
     const page = await browser.newContext().then((c) => c.newPage())
-    const reply = page.waitForRequest((r) => r.url().includes('/api/page/reply'))
+    const reply = page.waitForRequest(replyFor('pb1'))
     await page.goto(state.base)
     const body = (await reply).postDataJSON() as {requestId: string; data: {text?: string}}
-    expect(body.requestId).toBe('pb1')
     expect(body.data.text).toBe('page-bus-ok')
+    await page.close()
+  })
+
+  it('routes a locate verb to the bippy bridge and degrades gracefully on a non-React node', async () => {
+    const page = await browser.newContext().then((c) => c.newPage())
+    const reply = page.waitForRequest(replyFor('pbL'))
+    await page.goto(state.base)
+    const body = (await reply).postDataJSON() as {requestId: string; data: {error?: string}}
+    expect(body.data.error).toContain('no React fiber')
     await page.close()
   })
 })
