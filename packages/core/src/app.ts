@@ -8,6 +8,7 @@ import {getRunner} from '@aidx/test-runner'
 import {registerCors} from './api/cors.js'
 import {registerErrorHandler} from './api/errors.js'
 import {registerChatRoutes} from './api/chat/chat.js'
+import {registerMcpRoutes} from './api/mcp/mcp.js'
 import {registerPageRoutes} from './api/page/page.js'
 import {registerServerRoutes} from './api/server/server.js'
 import {registerEditorRoutes} from './api/editor/editor.js'
@@ -60,6 +61,17 @@ export function makeApp(opts: MakeAppOpts): H3 {
   registerPageRoutes(app, {journal: makeJournal()})
   registerEditorRoutes(app, opts.openInEditor)
   registerTestRunnerRoutes(app, runner)
+  // Expose aidx tools to the harness CLI via MCP-over-HTTP on the same server. page/test are
+  // throwing placeholders until Tasks 8/9 wire them to the page bus + runner.
+  registerMcpRoutes(app, {
+    injectUi: (spec) => uiBus.inject(spec),
+    page: async () => {
+      throw new Error('aidx_page not wired until Task 8')
+    },
+    test: async () => {
+      throw new Error('aidx_test not wired until Task 9')
+    },
+  })
   if (opts.bridge) registerServerRoutes(app, opts.bridge)
   return app
 }

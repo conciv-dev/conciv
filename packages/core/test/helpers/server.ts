@@ -7,6 +7,7 @@ import {serve, type Server} from 'srvx'
 import {getHarness} from '@aidx/harness'
 import type {HarnessChild} from '@aidx/protocol/harness-types'
 import {registerChatRoutes} from '../../src/api/chat/chat.js'
+import {registerMcpRoutes} from '../../src/api/mcp/mcp.js'
 import {makeUiBus, type UiBus} from '../../src/runtime/ui-bus.js'
 
 export type TestServerOpts = {
@@ -60,6 +61,15 @@ export async function startTestServer(opts: TestServerOpts = {}): Promise<TestSe
     spawnHarness: realSpawn(harness.binName),
     systemPromptText: '',
     uiBus,
+  })
+  registerMcpRoutes(app, {
+    injectUi: (spec) => uiBus.inject(spec),
+    page: async () => {
+      throw new Error('aidx_page not wired in test helper')
+    },
+    test: async () => {
+      throw new Error('aidx_test not wired in test helper')
+    },
   })
 
   const server: Server = serve({fetch: app.fetch, port: 0, hostname: '127.0.0.1'})

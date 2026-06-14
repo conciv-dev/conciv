@@ -35,7 +35,9 @@
     "@aidx/harness": "workspace:*",
     "@aidx/protocol": "workspace:*",
     "@aidx/test-runner": "workspace:*",
+    "@aidx/tools": "workspace:*",
     "@jridgewell/trace-mapping": "0.3.31",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@tanstack/ai": "^0.28.0",
     "get-port": "^7.1.0",
     "h3": "2.0.1-rc.22",
@@ -44,6 +46,7 @@
   },
   "devDependencies": {
     "@jridgewell/gen-mapping": "^0.3.13",
+    "@tanstack/ai-mcp": "^0.1.0",
     "@types/node": "^22.19.21",
     "tsdown": "^0.22.2",
     "tsx": "^4.22.4",
