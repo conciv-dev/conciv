@@ -50,7 +50,10 @@ export async function locate(el: Element): Promise<LocateResult | null> {
   const fiber = await fiberForEl(el)
   if (!fiber) return null
   const names = compositeNames(fiber)
-  return {component: names[0] ?? null, stack: names, frames: rawFrames(fiber)}
+  const frames = rawFrames(fiber)
+  // The owner-stack top frame names the component that renders the element (e.g. Home/App),
+  // unpolluted by framework dev wrappers that show up in the fiber-stack names.
+  return {component: frames[0]?.fn ?? names[0] ?? null, stack: names, frames}
 }
 
 export async function inspect(el: Element): Promise<InspectResult | null> {
