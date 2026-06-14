@@ -1,5 +1,6 @@
 import type {IncomingMessage, OutgoingHttpHeader, ServerResponse} from 'node:http'
 import {createReadStream} from 'node:fs'
+import type {WidgetConfig} from '@aidx/protocol/config-types'
 
 // The widget injection + serving middlewares. Kept framework-agnostic (plain node http types)
 // so they work for SSR frameworks (TanStack Start) and plain index.html apps alike: the inject
@@ -15,11 +16,13 @@ function escapeAttr(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;')
 }
 
-// apiBase = the cross-origin engine origin the widget calls.
-export function widgetTags(widgetUrl: string, previewId: string, apiBase: string): string {
+// apiBase = the cross-origin engine origin the widget calls. widgetConfig is the layout config
+// (pw-widget), JSON-encoded so nesting + hotkey arrays survive; the widget reads + normalizes it.
+export function widgetTags(widgetUrl: string, previewId: string, apiBase: string, widgetConfig?: WidgetConfig): string {
   return (
     `<meta name="pw-api-base" content="${escapeAttr(apiBase)}">` +
     `<meta name="pw-preview-id" content="${escapeAttr(previewId)}">` +
+    `<meta name="pw-widget" content="${escapeAttr(JSON.stringify(widgetConfig ?? {}))}">` +
     `<script src="${escapeAttr(widgetUrl)}" defer></script>`
   )
 }
@@ -96,8 +99,13 @@ function trailingCallback(args: ReadonlyArray<unknown>): (() => void) | undefine
 // writeHead's headers are applied via setHeader so a deferred flush still emits them. Non-html
 // responses (assets, SSE, JSON) stream through untouched, and a document already carrying the
 // widget (e.g. a static app where transformIndexHtml injected it) isn't re-injected.
-export function makeWidgetInject(widgetUrl: string, previewId: string, apiBase: string): Middleware {
-  const tags = widgetTags(widgetUrl, previewId, apiBase)
+export function makeWidgetInject(
+  widgetUrl: string,
+  previewId: string,
+  apiBase: string,
+  widgetConfig?: WidgetConfig,
+): Middleware {
+  const tags = widgetTags(widgetUrl, previewId, apiBase, widgetConfig)
   return (_req, res, next) => {
     const chunks: Buffer[] = []
     const realWrite = res.write

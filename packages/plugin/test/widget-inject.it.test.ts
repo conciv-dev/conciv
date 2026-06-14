@@ -74,6 +74,20 @@ describe('widget inject middleware (IT, real http)', () => {
     expect(html.indexOf(WIDGET_URL)).toBeLessThan(html.indexOf('</head>'))
   })
 
+  it('injects the pw-widget config meta into the SSR html response (the path the site uses)', async () => {
+    const widgetConfig = {quickTerminal: {hotkey: ['Alt+k']}}
+    const {server, base} = await startServer(makeWidgetInject(WIDGET_URL, PREVIEW, API_BASE, widgetConfig), (res) => {
+      res.setHeader('content-type', 'text/html')
+      res.end('<!doctype html><html><head><title>app</title></head><body>hi</body></html>')
+    })
+    state.server = server
+    const html = await (await fetch(base)).text()
+    expect(html).toContain('name="pw-widget"')
+    // The serialized config (incl. the configured hotkey) rides along in the meta content.
+    expect(html).toContain('Alt+k')
+    expect(html.indexOf('pw-widget')).toBeLessThan(html.indexOf('</head>'))
+  })
+
   it('passes non-html responses through untouched', async () => {
     const {server, base} = await startServer(makeWidgetInject(WIDGET_URL, PREVIEW, API_BASE), (res) => {
       res.setHeader('content-type', 'application/json')

@@ -46,6 +46,8 @@
   --pw-danger: oklch(0.72 0.15 25); /* error text on dark (≈ #ff8a8a) */
   --pw-danger-line: oklch(0.72 0.15 25 / 0.42);
   --pw-success: oklch(0.82 0.16 162); /* ≈ #6ee7a8 */
+  --pw-warn: oklch(0.81 0.12 95); /* skipped-test gold (≈ #d6c84a) */
+  --pw-dim: oklch(0.5 0.02 var(--pw-hue)); /* hue-tinted mid-gray for the thinking shimmer base */
 
   /* ── Lines */
   --pw-line: oklch(1 0 0 / 0.1);
@@ -61,6 +63,7 @@
   /* ── Elevation: shadow tinted toward the hue (depth, not flat black or neon glow) */
   --pw-shadow: 0 8px 28px oklch(0.12 0.02 var(--pw-hue) / 0.45);
   --pw-shadow-lg: 0 16px 44px oklch(0.1 0.03 var(--pw-hue) / 0.55);
+  --pw-shadow-hover: 0 14px 34px oklch(0.1 0.03 var(--pw-hue) / 0.6);
 
   /* ── Motion: expo for entrances (long, refined deceleration), quart for micro-interactions */
   --pw-ease: cubic-bezier(0.22, 1, 0.36, 1); /* ease-out-quart */
@@ -73,6 +76,19 @@
   box-sizing: border-box;
 }
 
+/* Visually hidden but available to screen readers (e.g. the agent's "thinking" status). */
+.pw-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* A single focus-visible treatment for every interactive control — a magenta ring
    floated off the panel so it reads on any surface. (Inputs that already shift
    their border opt out via :focus styles below.) */
@@ -81,6 +97,18 @@
   box-shadow:
     0 0 0 2px var(--pw-panel),
     0 0 0 4px var(--pw-accent);
+}
+
+/* Resize separators are thin/transparent; light them up with the accent when focused so keyboard
+   users can see what they're about to nudge. */
+.pw-chat-resize:focus-visible {
+  outline: none;
+  background: var(--pw-accent-20);
+  box-shadow: inset 0 0 0 1px var(--pw-accent);
+}
+.pw-qt-grip:focus-visible {
+  outline: none;
+  background: var(--pw-accent);
 }
 
 /* Figma-style numbered marker pinned to the commented element's corner. */
@@ -304,7 +332,7 @@
   padding: 9px 14px;
   min-height: 38px;
   font: 600 13px/1 var(--pw-font);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 16px oklch(0.12 0.02 var(--pw-hue) / 0.4);
   cursor: pointer;
   transition: border-color 120ms var(--pw-ease);
 }
@@ -406,8 +434,6 @@
    pointer-events:none, so interactive bits opt back in. */
 .pw-chat-fab {
   position: fixed;
-  right: 20px;
-  bottom: 20px;
   width: 52px;
   height: 52px;
   border-radius: 999px;
@@ -428,7 +454,7 @@
 }
 .pw-chat-fab:hover {
   transform: translateY(-2px);
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--pw-shadow-hover);
 }
 .pw-chat-fab:active {
   transform: translateY(0) scale(0.94);
@@ -470,10 +496,41 @@
     transform: scale(1.5);
   }
 }
+/* Trigger position presets (placement mirrors TanStack Devtools' trigger, MIT). Middle uses calc
+   instead of translateY so the hover/active transforms don't fight the vertical centering. */
+.pw-fab-pos-top-left {
+  top: 20px;
+  left: 20px;
+}
+.pw-fab-pos-top-right {
+  top: 20px;
+  right: 20px;
+}
+.pw-fab-pos-middle-left {
+  top: calc(50% - 26px);
+  left: 20px;
+}
+.pw-fab-pos-middle-right {
+  top: calc(50% - 26px);
+  right: 20px;
+}
+.pw-fab-pos-bottom-left {
+  bottom: 20px;
+  left: 20px;
+}
+.pw-fab-pos-bottom-right {
+  bottom: 20px;
+  right: 20px;
+}
+/* While dragging: follow the pointer crisply (no transition) and float above everything. */
+.pw-fab-dragging {
+  transition: none;
+  z-index: 2147483647;
+  cursor: grabbing;
+}
+
 .pw-chat-panel {
   position: fixed;
-  right: 20px;
-  bottom: 84px;
   width: 380px;
   max-width: calc(100vw - 40px);
   height: 560px;
@@ -486,25 +543,83 @@
   box-shadow: var(--pw-shadow-lg);
   color: var(--pw-text);
   font: 400 14px/1.45 var(--pw-font);
-  pointer-events: auto;
   overflow: hidden;
+  /* Always mounted; closed by default. Toggling .pw-chat-open animates it in/out.
+     The visibility delay keeps it non-interactive + out of the tab order while closed. */
+  opacity: 0;
+  transform: scale(0.96) translateY(8px);
+  pointer-events: none;
+  visibility: hidden;
+  transition:
+    opacity 200ms var(--pw-ease),
+    transform 240ms var(--pw-ease-expo),
+    visibility 0s linear 240ms;
+}
+.pw-chat-open {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+  visibility: visible;
+  transition:
+    opacity 200ms var(--pw-ease),
+    transform 240ms var(--pw-ease-expo),
+    visibility 0s;
+}
+/* The panel anchors to the same corner as the FAB and scales open from that corner. Top and
+   middle triggers drop the panel below them; bottom triggers float it above. */
+.pw-panel-pos-top-left,
+.pw-panel-pos-middle-left {
+  top: 84px;
+  left: 20px;
+  transform-origin: top left;
+}
+.pw-panel-pos-top-right,
+.pw-panel-pos-middle-right {
+  top: 84px;
+  right: 20px;
+  transform-origin: top right;
+}
+.pw-panel-pos-bottom-left {
+  bottom: 84px;
+  left: 20px;
+  transform-origin: bottom left;
+}
+.pw-panel-pos-bottom-right {
+  bottom: 84px;
+  right: 20px;
   transform-origin: bottom right;
-  animation: pw-chat-in 240ms var(--pw-ease-expo);
 }
-@keyframes pw-chat-in {
-  from {
-    opacity: 0;
-    transform: scale(0.96) translateY(8px);
-  }
+/* Edge handle for the Devtools-style height resize — sits on the panel's free edge (away from
+   the anchored corner). Thin strip so it barely intrudes on the header/composer it overlays. */
+.pw-chat-resize {
+  position: absolute;
+  z-index: 3;
 }
-.pw-chat-closing {
-  animation: pw-chat-out 160ms var(--pw-ease) forwards;
+/* y-axis handle: a horizontal strip on the top/bottom edge → resizes height. */
+.pw-chat-resize-y {
+  left: 0;
+  right: 0;
+  height: 8px;
+  cursor: ns-resize;
 }
-@keyframes pw-chat-out {
-  to {
-    opacity: 0;
-    transform: scale(0.96) translateY(8px);
-  }
+.pw-chat-resize-top {
+  top: 0;
+}
+.pw-chat-resize-bottom {
+  bottom: 0;
+}
+/* x-axis handle: a vertical strip on the left/right edge → resizes width. */
+.pw-chat-resize-x {
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  cursor: ew-resize;
+}
+.pw-chat-resize-left {
+  left: 0;
+}
+.pw-chat-resize-right {
+  right: 0;
 }
 .pw-chat-head {
   display: flex;
@@ -514,6 +629,7 @@
   border-bottom: 1px solid var(--pw-line-soft);
 }
 .pw-chat-title {
+  flex: 1;
   font-weight: 600;
   letter-spacing: -0.01em;
 }
@@ -521,14 +637,14 @@
   background: none;
   border: none;
   color: var(--pw-text-2);
-  font-size: 18px;
+  font-size: 22px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
   transition:
     color 120ms var(--pw-ease),
     background-color 120ms var(--pw-ease);
@@ -621,7 +737,7 @@
 }
 .pw-chat-msg-assistant {
   align-self: flex-start;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--pw-fill);
 }
 .pw-chat-text {
   margin: 0;
@@ -655,8 +771,17 @@
 .pw-md h2,
 .pw-md h3 {
   margin: 12px 0 6px;
-  font-size: 14px;
   font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.pw-md h1 {
+  font-size: 16px;
+}
+.pw-md h2 {
+  font-size: 15px;
+}
+.pw-md h3 {
+  font-size: 14px;
 }
 .pw-md code {
   font-family: var(--pw-mono);
@@ -694,7 +819,14 @@
 }
 /* While the agent is actively reasoning, sweep a shimmer across the "Thinking" label. */
 .pw-chat-thinking-live > summary {
-  background: linear-gradient(90deg, #6b6b6b 0%, #6b6b6b 35%, var(--pw-text) 50%, #6b6b6b 65%, #6b6b6b 100%);
+  background: linear-gradient(
+    90deg,
+    var(--pw-dim) 0%,
+    var(--pw-dim) 35%,
+    var(--pw-text) 50%,
+    var(--pw-dim) 65%,
+    var(--pw-dim) 100%
+  );
   background-size: 200% 100%;
   -webkit-background-clip: text;
   background-clip: text;
@@ -921,7 +1053,7 @@
   transition: background-color 120ms var(--pw-ease);
 }
 .pw-chat-retry:hover {
-  background: rgba(255, 138, 138, 0.12);
+  background: color-mix(in oklch, var(--pw-danger) 14%, transparent);
 }
 .pw-chat-composer {
   display: flex;
@@ -970,8 +1102,8 @@
   transform: scale(0.92);
 }
 .pw-icon {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   display: block;
 }
 .pw-chat-send:disabled {
@@ -1165,8 +1297,8 @@
   color: var(--pw-danger);
 }
 .pw-test-skip {
-  background: color-mix(in oklch, #d6c84a 20%, transparent);
-  color: #d6c84a;
+  background: color-mix(in oklch, var(--pw-warn) 20%, transparent);
+  color: var(--pw-warn);
 }
 .pw-test-watch,
 .pw-test-running-label {
@@ -1205,6 +1337,9 @@
 }
 .pw-test-run {
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
   background: var(--pw-accent);
   color: var(--pw-on-accent);
   border: 0;
@@ -1257,7 +1392,7 @@
   background: var(--pw-danger);
 }
 .pw-test-dot.pw-test-skip {
-  background: #d6c84a;
+  background: var(--pw-warn);
 }
 .pw-test-dot.pw-test-running {
   width: 11px;
@@ -1293,6 +1428,9 @@
   margin-top: 8px;
 }
 .pw-test-act {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
   font: 11px/1 var(--pw-mono);
   padding: 4px 9px;
   border-radius: 5px;
@@ -1313,14 +1451,214 @@
 .pw-test-fix:hover {
   background: var(--pw-accent-20);
 }
+/* ── Quick-terminal layout: a full-width sheet that drops from the top edge on a hotkey (iTerm2 /
+   Ghostty style). No page-dimming scrim. Reuses the chat tokens so it reads native. ── */
+.pw-qt {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--pw-glass);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  backdrop-filter: blur(20px) saturate(140%);
+  border-bottom: 1px solid var(--pw-line);
+  border-radius: 0 0 var(--pw-r-lg) var(--pw-r-lg);
+  box-shadow: var(--pw-shadow-lg);
+  color: var(--pw-text);
+  /* :host uses `all: initial`, so set the font here or text falls back to the serif initial. */
+  font: 400 14px/1.45 var(--pw-font);
+  pointer-events: auto;
+  transform: translateY(-101%);
+  transition: transform 300ms var(--pw-ease-expo);
+  will-change: transform;
+}
+.pw-qt-open {
+  transform: translateY(0);
+}
+/* Magenta edge-light riding the bottom lip as it lands. */
+.pw-qt::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--pw-accent), transparent);
+  opacity: 0.55;
+}
+.pw-qt-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--pw-line-soft);
+  flex-shrink: 0;
+}
+.pw-qt-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.pw-qt-spark {
+  color: var(--pw-accent);
+  font-size: 16px;
+}
+.pw-qt-mode {
+  font: 500 11px/1 var(--pw-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--pw-text-3);
+  border: 1px solid var(--pw-line-2);
+  border-radius: var(--pw-r-pill);
+  padding: 4px 9px;
+}
+.pw-qt-spacer {
+  flex: 1;
+}
+/* Body is a horizontal row of panes (each its own session); gutters resize neighbors. On a narrow
+   viewport the panes keep their min-width and the row scrolls sideways rather than breaking. */
+.pw-qt-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow-x: auto;
+}
+.pw-qt-pane {
+  flex: 1 1 0;
+  min-width: 220px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  transition: opacity 160ms var(--pw-ease);
+}
+/* Unfocused panes recede; the focused one shows an accent top line. */
+.pw-qt-pane:not(.focused) {
+  opacity: 0.62;
+}
+.pw-qt-pane.focused::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--pw-accent);
+  opacity: 0.9;
+}
+.pw-qt-pane-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--pw-line-soft);
+  flex-shrink: 0;
+  font: 12px/1 var(--pw-mono);
+  color: var(--pw-text-3);
+}
+.pw-qt-pane-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--pw-agent);
+  flex-shrink: 0;
+}
+.pw-qt-pane-name {
+  color: var(--pw-text-2);
+}
+.pw-qt-pane-x {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--pw-text-3);
+  cursor: pointer;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    color 120ms var(--pw-ease),
+    background-color 120ms var(--pw-ease);
+}
+.pw-qt-pane-x:hover {
+  color: var(--pw-text);
+  background: var(--pw-fill-strong);
+}
+/* Draggable gutter between panes. */
+.pw-qt-gutter {
+  flex: 0 0 7px;
+  cursor: col-resize;
+  position: relative;
+}
+.pw-qt-gutter::before {
+  content: '';
+  position: absolute;
+  inset: 0 3px;
+  background: var(--pw-line);
+  transition: background-color 120ms var(--pw-ease);
+}
+.pw-qt-gutter:hover::before {
+  background: var(--pw-accent-line);
+}
+/* Drag-to-resize grip on the bottom lip. */
+.pw-qt-grip {
+  position: absolute;
+  left: 50%;
+  bottom: 5px;
+  transform: translateX(-50%);
+  width: 46px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--pw-line-2);
+  cursor: ns-resize;
+  z-index: 2;
+}
+.pw-qt-grip:hover {
+  background: var(--pw-text-3);
+}
+
+/* Inside a Picture-in-Picture window: the popped panel/sheet fills the window — drop the fixed
+   positioning, drop-animation, and floating-card chrome it had docked in the page. */
+.pw-pip {
+  position: fixed;
+  inset: 0;
+  display: flex;
+}
+.pw-pip > .pw-qt,
+.pw-pip > .pw-chat-panel {
+  position: static;
+  inset: auto;
+  width: 100%;
+  height: 100% !important;
+  max-height: none;
+  transform: none;
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+/* The in-page resize affordances are meaningless once it fills a window. */
+.pw-pip .pw-qt-grip,
+.pw-pip .pw-chat-resize {
+  display: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .pw-pin,
   .pw-popover,
+  .pw-spinner,
   .pw-chat-fab,
   .pw-fab-icon,
   .pw-chat-fab-attn::after,
-  .pw-chat-panel,
-  .pw-chat-closing,
   .pw-chat-greeting,
   .pw-chat-chip,
   .pw-chat-msg,
@@ -1335,5 +1673,11 @@
   .pw-chat-dot,
   .pw-chat-thinking-live > summary {
     animation: none;
+  }
+  .pw-chat-panel,
+  .pw-chat-open,
+  .pw-qt,
+  .pw-qt-pane {
+    transition: none;
   }
 }

@@ -52,9 +52,18 @@ function resolveWidgetSetup(options: AidxConfig): WidgetSetup {
   }
 }
 
-function mountWidget(server: ViteDevServer, widget: WidgetSetup, previewId: string, apiBase: string): void {
+function mountWidget(
+  server: ViteDevServer,
+  widget: WidgetSetup,
+  previewId: string,
+  apiBase: string,
+  widgetConfig: AidxConfig['widget'],
+): void {
   if (widget.url) {
-    server.middlewares.stack.unshift({route: '', handle: makeWidgetInject(widget.url, previewId, apiBase)})
+    server.middlewares.stack.unshift({
+      route: '',
+      handle: makeWidgetInject(widget.url, previewId, apiBase, widgetConfig),
+    })
   }
   if (widget.serveBundled && widget.file) server.middlewares.use(makeWidgetServe(widget.file))
 }
@@ -86,7 +95,7 @@ export function makeViteHook(options: AidxConfig = {}): Plugin {
       handler(_html, ctx) {
         const cfg = resolveConfig(options, ctx.server?.config.root ?? process.cwd())
         if (!cfg.enabled || !engine) return []
-        return htmlTags(engine.port, {previewId: cfg.previewId, widgetUrl: widget.url})
+        return htmlTags(engine.port, {previewId: cfg.previewId, widgetUrl: widget.url, widget: options.widget})
       },
     },
     async configureServer(server: ViteDevServer) {
@@ -94,7 +103,7 @@ export function makeViteHook(options: AidxConfig = {}): Plugin {
       if (!cfg.enabled) return
       engine = await bootEngine(server, options, installAidxBinShim(join(cfg.stateRoot, '.aidx')))
       const booted = engine
-      mountWidget(server, widget, cfg.previewId, `http://127.0.0.1:${booted.port}`)
+      mountWidget(server, widget, cfg.previewId, `http://127.0.0.1:${booted.port}`, options.widget)
       server.httpServer?.on('close', () => void booted.stop())
     },
   }

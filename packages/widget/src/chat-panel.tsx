@@ -1,12 +1,14 @@
-import {createMemo, createSignal, For, onCleanup, Show, type JSX} from 'solid-js'
+import {createMemo, createEffect, createSignal, For, onCleanup, Show, type JSX} from 'solid-js'
 import {useChat, fetchServerSentEvents, createChatClientOptions} from '@tanstack/ai-solid'
 import type {MessagePart, ToolCallPart, ToolCallState, ToolResultPart} from '@tanstack/ai-client'
 import {createChatApi} from './chat-api.js'
 import {GenUi} from './gen-ui.js'
 import {TestCard} from './test-card.js'
 import {Markdown} from './markdown.js'
+import {ArrowRight, Square} from 'lucide-solid'
 import {AIDX_UI_EVENT, UiSpecSchema, type UiSpec} from '@aidx/protocol/ui-types'
 import {TestRunResultSchema, type TestRunResult} from '@aidx/protocol/test-types'
+import type {PanelDef} from './widget-shell.js'
 
 // Pull the Bash command out of a tool-call part (input.command, or parsed from arguments).
 function toolCommand(part: {input?: unknown; arguments?: string}): string {
@@ -226,72 +228,26 @@ function MessageParts(props: {
   )
 }
 
-function ChevronDown(): JSX.Element {
-  return (
-    <svg class="pw-chevron" viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M5 9l7 7 7-7"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2.2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      />
-    </svg>
-  )
-}
-
-function SendArrow(): JSX.Element {
-  return (
-    <svg class="pw-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M5 12h14M13 5l7 7-7 7"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2.4"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      />
-    </svg>
-  )
-}
-
-function StopIcon(): JSX.Element {
-  return (
-    <svg class="pw-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <rect x="7" y="7" width="10" height="10" rx="2" fill="currentColor" />
-    </svg>
-  )
-}
-
-// Focusable controls inside the open dialog, in DOM order — used to wrap Tab focus.
-function focusablesIn(root: HTMLElement): HTMLElement[] {
-  return Array.from(
-    root.querySelectorAll<HTMLElement>('button, textarea, input, select, a[href], [tabindex]:not([tabindex="-1"])'),
-  ).filter((el) => !el.hasAttribute('disabled'))
-}
-
 function ThinkingBubble(): JSX.Element {
   return (
-    <div class="pw-chat-msg pw-chat-msg-assistant pw-chat-typing">
-      <span class="pw-chat-dot" />
-      <span class="pw-chat-dot" />
-      <span class="pw-chat-dot" />
+    <div class="pw-chat-msg pw-chat-msg-assistant pw-chat-typing" aria-hidden="true">
+      <span class="pw-chat-dot" aria-hidden="true" />
+      <span class="pw-chat-dot" aria-hidden="true" />
+      <span class="pw-chat-dot" aria-hidden="true" />
     </div>
   )
 }
 
-function panelClass(closing: boolean): string {
-  if (closing) return 'pw-chat-panel pw-chat-closing'
-  return 'pw-chat-panel'
-}
-
-function fabClass(pulsing: boolean): string {
-  if (pulsing) return 'pw-chat-fab pw-chat-fab-attn'
-  return 'pw-chat-fab'
-}
-
-export function ChatFeature(props: {apiBase: string}): JSX.Element {
+// One agent session: owns its useChat + generative-UI state and renders the thread log
+// plus the composer. Layout-agnostic — the modal panel, a quick-terminal pane, and a PiP
+// body all render this same component. Chrome (header, open/close, FAB) lives in the shell.
+export function ChatPanel(props: {
+  apiBase: string
+  // The containing surface is visible/focused — focus the composer and hydrate on first show.
+  active?: boolean
+  // Reports whether the agent is thinking/streaming, so the shell can pulse the trigger.
+  onWorkingChange?: (working: boolean) => void
+}): JSX.Element {
   const api = createChatApi({apiBase: props.apiBase})
   const [genUi, setGenUi] = createSignal<UiSpec[]>([])
   // The agent's `aidx ui …` calls arrive as AG-UI CUSTOM events; render each in the thread.
@@ -311,21 +267,31 @@ export function ChatFeature(props: {apiBase: string}): JSX.Element {
     ...createChatClientOptions({connection: fetchServerSentEvents(api.chatUrl)}),
     onCustomEvent: onAidxUi,
   })
-  const [open, setOpen] = createSignal(false)
-  const [closing, setClosing] = createSignal(false)
   const [input, setInput] = createSignal('')
   const hydrateState = {done: false}
   const stickToBottom = {current: true}
-  let fabEl: HTMLButtonElement | undefined
-  let panelEl: HTMLElement | undefined
   let inputEl: HTMLTextAreaElement | undefined
 
   const isThinking = () => chat.status() === 'submitted'
   const isStreaming = () => chat.status() === 'streaming'
   const lastIndex = () => chat.messages().length - 1
   const isActiveAssistant = (index: number, role: string) => isStreaming() && role === 'assistant' && index === lastIndex()
-  // Halo the FAB while the agent works with the panel closed — derived, no stored flag.
-  const fabPulsing = () => !open() && (isThinking() || isStreaming())
+
+  // Surface the working state for the shell's trigger pulse.
+  createEffect(() => props.onWorkingChange?.(isThinking() || isStreaming()))
+
+  // Screen-reader announcements. The log itself is aria-live="off" (streaming would otherwise
+  // flood it token-by-token); instead we announce status transitions once into a polite region —
+  // concise, not the message body (echoing a long reply into a live region can't be paused or
+  // navigated; the reply text stays readable in the role="log" via browse mode).
+  const [liveMsg, setLiveMsg] = createSignal('')
+  let prevStatus = ''
+  createEffect(() => {
+    const s = chat.status()
+    if (s === 'submitted') setLiveMsg('aidx is thinking…')
+    else if (prevStatus === 'streaming' && s !== 'streaming') setLiveMsg('aidx replied.')
+    prevStatus = s
+  })
 
   const answerGenUi = (renderId: string, text: string) => {
     setGenUi((prev) => prev.filter((g) => g.renderId !== renderId))
@@ -344,8 +310,16 @@ export function ChatFeature(props: {apiBase: string}): JSX.Element {
     el.addEventListener('scroll', () => {
       stickToBottom.current = atBottom()
     })
+    // Coalesce the streaming mutation flood into one scroll write per frame — reading scrollHeight
+    // and writing scrollTop on every token would force a layout per delta.
+    let scheduled = false
     const observer = new MutationObserver(() => {
-      if (stickToBottom.current) el.scrollTop = el.scrollHeight
+      if (!stickToBottom.current || scheduled) return
+      scheduled = true
+      requestAnimationFrame(() => {
+        scheduled = false
+        el.scrollTop = el.scrollHeight
+      })
     })
     observer.observe(el, {childList: true, subtree: true, characterData: true})
     onCleanup(() => observer.disconnect())
@@ -364,28 +338,17 @@ export function ChatFeature(props: {apiBase: string}): JSX.Element {
     }
   }
 
-  const openPanel = () => {
-    setClosing(false)
-    if (open()) return
-    setOpen(true)
+  // Hydrate + focus the composer the first time the surface becomes active.
+  createEffect(() => {
+    if (!props.active) return
     void hydrate()
     requestAnimationFrame(() => inputEl?.focus())
-  }
-  const closePanel = () => {
-    if (!open() || closing()) return
-    setClosing(true)
-    fabEl?.focus()
-    setTimeout(() => {
-      setOpen(false)
-      setClosing(false)
-    }, 170)
-  }
-  const toggle = () => {
-    if (open() && !closing()) {
-      closePanel()
-      return
-    }
-    openPanel()
+  })
+
+  // Grow the composer with its content up to the CSS max-height (120px), then it scrolls.
+  const autoGrow = (el: HTMLTextAreaElement) => {
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 120)}px`
   }
 
   const submit = (e: Event) => {
@@ -393,171 +356,115 @@ export function ChatFeature(props: {apiBase: string}): JSX.Element {
     const text = input().trim()
     if (!text || chat.isLoading()) return
     setInput('')
+    if (inputEl) inputEl.style.height = 'auto'
     void chat.sendMessage(text)
   }
 
   const onKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      closePanel()
-      return
-    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       submit(e)
     }
   }
 
-  // Trap Tab within the open dialog and close on Escape from anywhere in the panel.
-  const onPanelKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      closePanel()
-      return
-    }
-    if (e.key !== 'Tab' || !panelEl) return
-    const items = focusablesIn(panelEl)
-    if (items.length === 0) return
-    const first = items[0]
-    const last = items[items.length - 1]
-    const root = panelEl.getRootNode()
-    const active = root instanceof ShadowRoot ? root.activeElement : null
-    if (e.shiftKey && active === first) {
-      e.preventDefault()
-      last?.focus()
-      return
-    }
-    if (!e.shiftKey && active === last) {
-      e.preventDefault()
-      first?.focus()
-    }
-  }
-
-  const showPanel = () => open() || closing()
-
   return (
     <>
-      <Show when={showPanel()}>
-        <section
-          ref={(el) => {
-            panelEl = el
-          }}
-          class={panelClass(closing())}
-          role="dialog"
-          aria-modal="true"
-          aria-label="aidx chat agent"
-          id="pw-chat-panel"
-          onKeyDown={onPanelKeyDown}
-        >
-          <header class="pw-chat-head">
-            <span class="pw-chat-title">aidx</span>
-            <button class="pw-chat-close" aria-label="Close chat" onClick={closePanel}>
-              <ChevronDown />
-            </button>
-          </header>
-          <div class="pw-chat-log" role="log" aria-live="polite" ref={logRef}>
-            <Show
-              when={chat.messages().length > 0}
-              fallback={
-                <div class="pw-chat-empty">
-                  <p class="pw-chat-greeting">How can I help you today?</p>
-                  <div class="pw-chat-chips">
-                    <For each={STARTERS}>
-                      {(s) => (
-                        <button class="pw-chat-chip" onClick={() => void chat.sendMessage(s)}>
-                          {s}
-                        </button>
-                      )}
-                    </For>
-                  </div>
-                </div>
-              }
-            >
-              <For each={chat.messages()}>
-                {(m, index) => (
-                  <div class={`pw-chat-msg pw-chat-msg-${m.role}`}>
-                    <MessageParts
-                      parts={m.parts}
-                      streaming={isActiveAssistant(index(), m.role)}
-                      apiBase={props.apiBase}
-                      onFix={(text) => void chat.sendMessage(text)}
-                    />
-                  </div>
-                )}
-              </For>
-            </Show>
-            <For each={genUi()}>
-              {(spec) => (
-                <GenUi
-                  spec={spec}
-                  onAnswer={(text) => answerGenUi(spec.renderId, text)}
-                  onDecide={(approved) => decideGate(spec.renderId, approved)}
-                />
-              )}
-            </For>
-            <Show when={isThinking()}>
-              <ThinkingBubble />
-            </Show>
-            <Show when={chat.error()}>
-              {(error) => (
-                <div class="pw-chat-error" role="alert">
-                  <span class="pw-chat-error-msg">{error().message}</span>
-                  <button class="pw-chat-retry" onClick={() => void chat.reload()}>
-                    Retry
-                  </button>
-                </div>
-              )}
-            </Show>
-          </div>
-          <form class="pw-chat-composer" onSubmit={submit}>
-            <textarea
-              class="pw-chat-input"
-              rows={1}
-              placeholder="Ask a question…"
-              aria-label="Message the aidx agent"
-              value={input()}
-              onInput={(e) => setInput(e.currentTarget.value)}
-              onKeyDown={onKeyDown}
-              ref={(el) => {
-                inputEl = el
-              }}
-            />
-            <Show
-              when={chat.isLoading()}
-              fallback={
-                <button type="submit" class="pw-chat-send" aria-label="Send" disabled={!input().trim()}>
-                  <SendArrow />
-                </button>
-              }
-            >
-              <button type="button" class="pw-chat-send pw-chat-stop" aria-label="Stop" onClick={() => chat.stop()}>
-                <StopIcon />
-              </button>
-            </Show>
-          </form>
-        </section>
-      </Show>
-      <button
-        ref={(el) => {
-          fabEl = el
-        }}
-        class={fabClass(fabPulsing())}
-        aria-label="Open aidx chat"
-        aria-expanded={open()}
-        aria-controls="pw-chat-panel"
-        onClick={toggle}
-      >
+      <div class="pw-chat-log" role="log" aria-live="off" ref={logRef}>
         <Show
-          when={open()}
+          when={chat.messages().length > 0}
           fallback={
-            <span class="pw-fab-icon" aria-hidden="true">
-              ✦
-            </span>
+            <div class="pw-chat-empty">
+              <p class="pw-chat-greeting">How can I help you today?</p>
+              <div class="pw-chat-chips">
+                <For each={STARTERS}>
+                  {(s) => (
+                    <button type="button" class="pw-chat-chip" onClick={() => void chat.sendMessage(s)}>
+                      {s}
+                    </button>
+                  )}
+                </For>
+              </div>
+            </div>
           }
         >
-          <span class="pw-fab-icon">
-            <ChevronDown />
-          </span>
+          <For each={chat.messages()}>
+            {(m, index) => (
+              <div class={`pw-chat-msg pw-chat-msg-${m.role}`}>
+                <MessageParts
+                  parts={m.parts}
+                  streaming={isActiveAssistant(index(), m.role)}
+                  apiBase={props.apiBase}
+                  onFix={(text) => void chat.sendMessage(text)}
+                />
+              </div>
+            )}
+          </For>
         </Show>
-      </button>
+        <For each={genUi()}>
+          {(spec) => (
+            <GenUi
+              spec={spec}
+              onAnswer={(text) => answerGenUi(spec.renderId, text)}
+              onDecide={(approved) => decideGate(spec.renderId, approved)}
+            />
+          )}
+        </For>
+        <Show when={isThinking()}>
+          <ThinkingBubble />
+        </Show>
+        <Show when={chat.error()}>
+          {(error) => (
+            <div class="pw-chat-error" role="alert">
+              <span class="pw-chat-error-msg">{error().message}</span>
+              <button type="button" class="pw-chat-retry" onClick={() => void chat.reload()}>
+                Retry
+              </button>
+            </div>
+          )}
+        </Show>
+      </div>
+      <form class="pw-chat-composer" onSubmit={submit}>
+        <textarea
+          class="pw-chat-input"
+          rows={1}
+          placeholder="Ask a question…"
+          aria-label="Message the aidx agent"
+          value={input()}
+          onInput={(e) => {
+            setInput(e.currentTarget.value)
+            autoGrow(e.currentTarget)
+          }}
+          onKeyDown={onKeyDown}
+          ref={(el) => {
+            inputEl = el
+          }}
+        />
+        <Show
+          when={chat.isLoading()}
+          fallback={
+            <button type="submit" class="pw-chat-send" aria-label="Send" disabled={!input().trim()}>
+              <ArrowRight class="pw-icon" aria-hidden="true" />
+            </button>
+          }
+        >
+          <button type="button" class="pw-chat-send pw-chat-stop" aria-label="Stop" onClick={() => chat.stop()}>
+            <Square class="pw-icon" fill="currentColor" aria-hidden="true" />
+          </button>
+        </Show>
+      </form>
+      <div class="pw-sr-only" role="status" aria-live="polite">
+        {liveMsg()}
+      </div>
     </>
   )
+}
+
+// The chat as a registerable shell panel. The modal hosts one; quick-terminal panes each create
+// their own (a fresh agent session per pane).
+export function chatPanelDef(apiBase: string): PanelDef {
+  return {
+    id: 'chat',
+    title: 'aidx',
+    create: (ctx) => <ChatPanel apiBase={apiBase} active={ctx.active()} onWorkingChange={ctx.onWorkingChange} />,
+  }
 }

@@ -29,6 +29,7 @@ aidx({
     sessionId: { type: 'string', default: 'none', description: 'Resume an existing thread.' },
     port: { type: 'number', default: 'auto', description: 'Fixed engine port. Used by the Next.js integration.' },
     stateRoot: { type: 'string', default: 'process.cwd()', description: 'Root holding the .aidx state directory.' },
+    widget: { type: 'object', default: 'both layouts on', description: 'Widget layouts: modal (corner panel) and quickTerminal (top drop-down). Both on by default.' },
   }}
 />
 
@@ -51,6 +52,22 @@ aidx({ harness: 'codex' })
 ```
 
 See [Harnesses](/docs/harnesses) for the full list.
+
+### Widget layouts
+
+Two layouts ship, both on by default: the corner `modal` and the top drop-down `quickTerminal`.
+Configure or disable each under `widget`.
+
+```ts
+aidx({ widget: { modal: { position: 'top-left' } } })   // move the corner button
+aidx({ widget: { quickTerminal: { hotkey: ['Mod+`', 'Control+k'] } } }) // set the hotkey(s)
+aidx({ widget: { quickTerminal: false } })               // corner modal only
+aidx({ widget: { modal: false } })                       // quick terminal only
+```
+
+`modal.position` is one of `top-left`, `top-right`, `middle-left`, `middle-right`, `bottom-left`,
+`bottom-right` (default), and the button is also draggable. See the
+[Quick Terminal](/docs/usage/quick-terminal) guide for the drop-down layout.
 
 ### Override the binary
 

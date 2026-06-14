@@ -78,9 +78,9 @@ T10 full verification sweep                            (all)
 
 **Files:** create `chat-panel.tsx`; modify `chat-shell.tsx`.
 
-- [ ] **Step 1:** Move the chat-rendering JSX + `useChat` wiring + helpers (`MessageParts`, `ToolCall`, composer, log, empty state, genui/test cards) from `chat-shell.tsx` into `ChatPanel(props: {apiBase: string})`. Leave the FAB + panel chrome in `chat-shell.tsx` for now (T3 moves it to the shell).
-- [ ] **Step 2:** `chat-shell.tsx` renders `<ChatPanel apiBase={...} />` inside the existing panel. No prop or behavior change.
-- [ ] **Verify:** `turbo build` green. Playwright IT: open the widget, send a message, see the streamed reply, tool cards, empty-state chips — all identical to before. Screenshot diff against current `chat-thread.png` reference.
+- [x] **Step 1:** Moved the chat-rendering JSX + `useChat` wiring + helpers into `ChatPanel(props: {apiBase, active?, onWorkingChange?})` in `chat-panel.tsx`. ChatPanel owns chat + genUi state and stays mounted (so the FAB pulse + state survive close).
+- [x] **Step 2:** `chat-shell.tsx` slimmed to chrome (FAB + panel section + header + open/close + focus trap), renders `<ChatPanel>`. Modal open/close now a CSS class toggle (`.pw-chat-open`) instead of conditional mount — pre-aligns with the shell.
+- [x] **Verify:** `turbo build` green (vite + tsc, 279 modules). Widget browser IT (Playwright, real built bundle): 7/7 pass — chat probe, streamed reply, tool cards, approval, test-runner, page-bus, locate.
 
 **Acceptance:** modal works exactly as today; chat code now lives in one place.
 
@@ -92,15 +92,14 @@ T10 full verification sweep                            (all)
 
 **Files:** `config-types.ts`, `widget-tags.ts`, `vite.ts`, `mount.tsx`; tests in core.
 
-- [ ] **Step 1 (failing test):** `widget-tags.test.ts` — `htmlTags()` emits `<meta name="pw-widget">` with the JSON blob; omitting `widget` emits `{}`.
-- [ ] **Step 2:** Add `TriggerPosition`, `ModalConfig`, `QuickTerminalConfig`, `WidgetConfig`; add `widget?: WidgetConfig` to `AidxConfig`.
-- [ ] **Step 3:** `htmlTags()` takes `opts.widget`, emits the meta as `JSON.stringify(opts.widget ?? {})`.
-- [ ] **Step 4:** `vite.ts` passes `cfg.widget` into `htmlTags()`.
-- [ ] **Step 5 (failing test):** widget unit test for `resolveWidget()` — boolean vs object `modal`/`quickTerminal`, missing, malformed JSON → defaults (modal on/`bottom-right`, quick terminal off, hotkey `Mod+\``).
-- [ ] **Step 6:** Implement `resolveWidget()` in `mount.tsx`.
-- [ ] **Verify:** unit tests green; `turbo build` green. With no config, the injected meta + resolution reproduce today's defaults.
+- [x] **Step 1-3:** Added `TriggerPosition`/`ModalConfig`/`QuickTerminalConfig`/`WidgetConfig` + `widget?` on `AidxConfig`; `htmlTags()` emits `<meta name="pw-widget">` as `JSON.stringify(opts.widget ?? {})`. Test `widget-tags.test.ts` (3) green.
+- [x] **Step 4:** `vite.ts` passes `options.widget` into `htmlTags()` (static passthrough; not env-derived, so not threaded through resolveConfig).
+- [x] **Step 5-6:** Pure `parseWidgetSettings(raw)` in `widget-settings.ts` (no DOM, jsdom-free unit test, 7 cases); `resolveWidget()` in `mount.tsx` wraps it with `metaContent`. mount gates the corner modal on `settings.modal.enabled`.
+- [x] **Verify:** `turbo build` green (protocol/core/widget/plugin); widget 14/14 (7 unit + 7 IT), core widget-tags 3/3, plugin injection IT 8/8.
 
-**Acceptance:** host config flows to the widget as normalized settings; backward compatible.
+**Acceptance:** host config flows to the widget as normalized settings, both layouts default on, `false` disables each. (v0: cleanest shape, no back-compat.)
+
+- [x] **GAP FOUND + FIXED (post-checkpoint):** the plugin has TWO injection seams — `htmlTags` (vite `transformIndexHtml`, static index.html only) AND `widget-middleware.ts` (`widgetTags`, rewrites the final SSR HTML response — the path TanStack Start / the docs site uses). T2 only updated `htmlTags`, so `pw-widget` never reached SSR apps. The unit test + widget IT both injected the meta via a static fixture, so neither covered the middleware seam → false green. Fix (TDD): deleted the false-confidence `core/widget-tags.test.ts`; added a RED test in `plugin/test/widget-inject.it.test.ts` asserting the middleware injects `pw-widget` (real HTTP round-trip); threaded `options.widget` → `makeWidgetInject` → `widgetTags`; now GREEN (plugin 9/9). **Lesson: test the seam the app runs through, not the function in isolation.**
 
 ---
 
@@ -108,12 +107,14 @@ T10 full verification sweep                            (all)
 
 **Needs:** T1, T2. **Files:** create `widget-shell.tsx`; modify `mount.tsx`, `chat-shell.tsx`.
 
-- [ ] **Step 1:** `createWidgetShell(settings)` returns `{ mount(rootEl), unmount(), registerPanel(panel) }`. Internally holds layout state and a registered-panels list. `type Panel = { id; title; render(container) }`.
-- [ ] **Step 2:** Implement the **modal** layout inside the shell: the FAB + corner panel chrome moved out of `chat-shell.tsx`, rendering the registered panel's content (ChatPanel) as the body.
-- [ ] **Step 3:** `mount.tsx`: `const shell = createWidgetShell(resolveWidget()); shell.registerPanel(ChatPanel(apiBase)); shell.mount(shadowRoot)`. `chat-shell.tsx` slims to the panel body or is folded into ChatPanel.
-- [ ] **Verify:** Playwright — modal opens/closes, chat works, FAB pulse on background reply — identical to T1. `turbo build` green.
+- [x] **Step 1:** `createWidgetShell({settings})` returns `{ mount, unmount, registerPanel }`. Holds a registered-panels list. `PanelDef = { id; title; create(ctx) }`, `PanelContext = { active(); onWorkingChange() }` (reactive `active` accessor drives focus/hydrate; `onWorkingChange` drives the FAB pulse).
+- [x] **Step 2:** `ModalLayout` inside `widget-shell.tsx` owns the FAB + corner panel chrome (moved from `chat-shell.tsx`), rendering `panel.create(ctx)` as the body.
+- [x] **Step 3:** `chatPanelDef(apiBase)` in `chat-panel.tsx`; `mount.tsx` creates the shell, registers it, mounts into the shadow root. `chat-shell.tsx` deleted.
+- [x] **Verify:** `turbo build` green (vite + tsc; fixed `ShadowRoot` mount type + `Show` panel narrowing). Widget tests 14/14.
 
-**Acceptance:** shell hosts ChatPanel in modal mode with no behavior change; chrome is now shell-owned.
+**Acceptance:** shell hosts ChatPanel in modal mode, behavior identical; chrome is shell-owned.
+
+**Note:** `trigger.tsx` dropped — the reusable unit is `createDraggablePosition` (positions any floating element); the FAB button is 8 lines of modal-only chrome inlined in `ModalLayout` (the quick terminal has no FAB).
 
 ---
 
@@ -121,12 +122,12 @@ T10 full verification sweep                            (all)
 
 **Needs:** T3. **Files:** create `draggable-position.ts`, `trigger.tsx`; modify `styles.css`.
 
-- [ ] **Step 1:** Port the Devtools 6-preset placement map (`mainCloseBtnPosition`) into CSS keyed by `TriggerPosition` (credit comment, MIT).
-- [ ] **Step 2:** `createDraggablePosition({ initial, storageKey })` → `{ position, onPointerDown }`. Pointerdown tracks the pointer; pointerup snaps to the nearest preset (compare FAB centre to the 6 anchors); persist to `aidx-fab-position`.
-- [ ] **Step 3:** `trigger.tsx` uses it; shell renders the trigger at `settings.modal.position` initial.
-- [ ] **Verify:** Playwright — each preset renders in the right corner; dragging the FAB and releasing snaps to the nearest preset; reload restores it. Capture `fab-positions.png`.
+- [x] **Step 1:** Ported the Devtools 6-preset placement into CSS keyed by `TriggerPosition` (`.pw-fab-pos-*`, MIT credit). FAB lost its hardcoded corner; panel anchors to the matching corner (`.pw-panel-pos-*` + transform-origin).
+- [x] **Step 2:** `createDraggablePosition({initial, storageKey})` → `{position, dragging, dragStyle, onPointerDown, consumeClick}`. Pointerdown tracks the pointer (no transition); pointerup snaps to the nearest preset and **animates** the glide to it (280ms ease-out-expo to the exact resting center), commits + persists to `aidx-fab-position`. `consumeClick` suppresses the click that follows a drag.
+- [x] **Step 3:** Folded the FAB into `ModalLayout` using the primitive (no `trigger.tsx`); position drives both FAB + panel classes.
+- [x] **Verify:** Playwright IT (15/15) — FAB renders at configured `top-left`; drag to opposite corner snaps to `bottom-right` + persists. Build green.
 
-**Acceptance:** FAB position is config-driven, draggable, snaps, persists.
+**Acceptance:** FAB position is config-driven, draggable, snaps (animated), persists.
 
 ---
 
@@ -134,9 +135,9 @@ T10 full verification sweep                            (all)
 
 **Needs:** T3. **Files:** create `resize.ts`; modify shell + `styles.css`.
 
-- [ ] **Step 1:** Port `handleDragStart` from Devtools `devtools.tsx` (MIT credit): mousedown on the resize edge → `pageY` delta → set height → collapse under threshold.
-- [ ] **Step 2:** Wire to the modal panel; persist height to `aidx-modal-height`; add the resize-edge affordance + `isResizing` style hook.
-- [ ] **Verify:** Playwright — drag the edge resizes the panel; dragging below threshold collapses (closes); height persists across reopen.
+- [x] **Step 1:** `createResizable()` in `resize.ts` ports Devtools `handleDragStart` (MIT credit): pointerdown on the edge → pointer delta → set height → collapse (close) below threshold. `grow: 'up'|'down'` accessor handles corner anchoring (bottom-anchored grows up, top/middle grows down).
+- [x] **Step 2:** Wired to the modal panel (`aidx-modal-height` persist); resize handle on the panel's free edge (`.pw-chat-resize-top|bottom`); min 240, collapse 140.
+- [x] **Verify:** Playwright IT (16/16) — edge drag grows the panel + persists; dragging past threshold closes it (aria-hidden). Build green.
 
 **Acceptance:** modal panel resizes like Devtools.
 
@@ -148,13 +149,15 @@ T10 full verification sweep                            (all)
 
 **Needs:** T3. **Files:** create `drop-sheet.ts`, `quick-terminal.tsx`; modify shell, `mount.tsx`, `styles.css`, `package.json`.
 
-- [ ] **Step 1:** Add `@tanstack/solid-hotkeys` (ask-before-install already cleared for this one dep).
-- [ ] **Step 2:** `createDropSheet()` — open/close + slide-from-top state; height from/to `aidx-qt-height` with the bottom grip (port the mockup's grip logic).
-- [ ] **Step 3:** `quick-terminal.tsx` renders the full-width sheet (no scrim) with header (brand, hotkey hint, PiP+close placeholders) and one `ChatPanel` body. Port look/motion/tokens from the mockup.
-- [ ] **Step 4:** In the shell, bind `createHotkey` per `settings.quickTerminal.hotkeys`; toggling the sheet closes the modal panel and vice versa (one layer visible).
-- [ ] **Verify:** Playwright — hotkey drops/raises the sheet; opening it closes an open modal; `Esc`/close button close it; height drag persists across reopen. Capture `quick-terminal.png`.
+- [x] **Step 1:** Added `@tanstack/solid-hotkeys@0.10.0` (pre-approved). `createHotkey` needs no `HotkeysProvider` (context lookup falls back to `{}`).
+- [x] **Step 2:** Reused `createResizable` for the sheet height (`grow: 'down'`, bottom grip, `aidx-qt-height`) instead of a separate `createDropSheet` — one fewer primitive.
+- [x] **Step 3:** `quick-terminal.tsx` renders the full-width sheet (no scrim) with header (brand, mode chip, close) and one `ChatPanel` body. Tokens/motion ported from the mockup; shared icons in `icons.tsx`.
+- [x] **Step 4:** Shell lifted open state to a single `layer` ('modal' | 'quick' | null) → mutual exclusion is automatic. `createHotkey` bound per `hotkeys`; Esc closes when open.
+- [x] **Verify:** Playwright IT (18/18) — hotkey drops/raises the sheet; Esc closes; opening the quick terminal closes an open modal. Modal-focused tests isolated via quick-terminal-off fixtures. Build green.
 
 **Acceptance:** quick terminal works as a single-pane drop sheet, hotkey-driven, mutually exclusive with the modal.
+
+**Note:** `createDropSheet` dropped — `createResizable` covers the height drag. `trigger.tsx`/`drop-sheet.ts` both folded away; the reusable units are the two primitives + `ChatPanel`.
 
 ---
 
@@ -162,13 +165,15 @@ T10 full verification sweep                            (all)
 
 **Needs:** T6. **Files:** modify `quick-terminal.tsx`, `styles.css`.
 
-- [ ] **Step 1:** Pane state `{ panes: Pane[]; focusedId }`; each pane owns its own `ChatPanel` (fresh session). Render a flex row.
-- [ ] **Step 2:** Split via `Mod+D` and a ⊞ header button — append a fresh pane, focus it.
-- [ ] **Step 3:** Focus on pointer-down / composer focus (accent top line; others recede). Draggable gutters set left-neighbour flex-basis.
-- [ ] **Step 4:** Close a pane: remove pane + adjacent gutter, clear survivors' inline flex so they reflow (lone pane → full width). Last pane closes the terminal.
-- [ ] **Verify:** Playwright — split adds an independent pane (type in each separately); gutter resize works; closing one reflows the survivor to full width; closing the last closes the sheet. Capture `quick-terminal-split.png`.
+- [x] **Step 1:** `panes` signal + `focused` id; each pane calls `panel.create(ctx)` → its own ChatPanel/session. Rendered as a flex row; `active` is true only for the focused pane (it takes composer focus + hydrates).
+- [x] **Step 2:** Split via `Mod+D` and the ⊞ header button — append a fresh pane, focus it.
+- [x] **Step 3:** Focus on pointer-down (accent top line; others recede). Draggable gutters (`<For>` renders gutter-before-pane so siblings line up) set the left neighbour's flex-basis.
+- [x] **Step 4:** Close: filter the pane; clear survivors' inline flex so they reflow (lone pane → full width); closing the last calls `setOpen(false)` (re-seeded on next open).
+- [x] **Verify:** Playwright IT (19/19) — split adds a pane with its own composer; closing one reflows; closing the last closes the sheet. Build green.
 
 **Acceptance:** matches the mockup's pane behavior, including the close-reflow fix.
+
+- [x] **Focus-on-open + active-pane memory (added on request):** seed the first pane at setup (mounted up front, like the modal) so opening reliably focuses the composer — a pane created lazily inside the open handler races the mount+animation and misses focus. Persist the active pane index (`aidx-qt-focused`); restore it on reopen. IT (20/20) asserts the composer is focused on open and the last-active pane is restored.
 
 **CHECKPOINT 3** — quick terminal complete. Review before PiP.
 
@@ -178,10 +183,10 @@ T10 full verification sweep                            (all)
 
 **Needs:** T3 (best after T6). **Files:** create `pip.tsx`; modify shell, both headers, `styles.css`.
 
-- [ ] **Step 1:** Port `pip-context.tsx` (MIT credit): `requestPipWindow` via `window.open('', 'aidx-widget', '<settings>,popup')`; clear PiP head/body; copy `document.styleSheets` into the PiP head (inline cssText + `<link>` fallback); `delegateEvents` on the PiP doc; mutation-mirror our shadow style node; sync close on `pagehide`/`beforeunload`; track `pip_open`.
-- [ ] **Step 2:** Render the active layout's content into the PiP body when active; re-dock into the shadow root on close.
-- [ ] **Step 3:** PiP button in both the modal header and the quick-terminal header.
-- [ ] **Verify:** Playwright (or manual where popup automation is limited) — PiP opens a separate window with styles applied, chat works inside it, closing re-docks. Document any manual step.
+- [x] **Step 1:** `createPiP()` in `pip.tsx` (MIT credit). Simpler than the Devtools port: our styles live in the shadow root, so instead of copying `document.styleSheets` we give the PiP window its own shadow root seeded with the same style text and MOVE the live node in (chat state travels). `delegateEvents(DELEGATED, pip.document)` so Solid's delegated handlers fire in the PiP doc; close-sync on `pagehide`/`beforeunload`.
+- [x] **Step 2:** A placeholder marks the home spot; the node re-docks on close. `.pw-pip` CSS fills the window (drops fixed positioning, drop-animation, card chrome, in-page resize affordances).
+- [x] **Step 3:** PiP button in both headers (`PipIcon`).
+- [x] **Verify:** Playwright IT (21/21) — real popup captured: sheet moves into the PiP window's shadow, **computed font is system-ui (styles travelled)**, in-page leaves a placeholder, closing re-docks. Modal uses the same `createPiP`.
 
 **Acceptance:** either layout pops out into an OS window with styles, and re-docks cleanly.
 
@@ -193,10 +198,10 @@ T10 full verification sweep                            (all)
 
 **Needs:** T4, T6, T7. **Files:** `usage/quick-terminal.mdx`, `usage/meta.json`, `configuration.mdx`, `public/screenshots/*`.
 
-- [ ] **Step 1:** Capture real-widget screenshots via Playwright into `apps/site/public/screenshots/` (`quick-terminal.png`, `quick-terminal-split.png`, `fab-positions.png`).
-- [ ] **Step 2:** Write `usage/quick-terminal.mdx` — enabling layouts, hotkey config (single/multiple/combos), open/close, resize, splitting, PiP — example-first, `<ImageZoom>`, no em dashes, fumadocs-ui components.
-- [ ] **Step 3:** Add `"quick-terminal"` to `usage/meta.json` `pages` after `chat`; add `widget.modal` (with `position`) and `widget.quickTerminal` (with `hotkey`) rows to `configuration.mdx`.
-- [ ] **Verify:** docs site builds; page renders with images; nav shows the entry.
+- [x] **Step 1:** Captured real-widget screenshots headlessly (built bundle + scripted server, same harness as the ITs) → `quick-terminal.png`, `quick-terminal-split.png`. (Skipped `fab-positions.png` — the two qt shots carry the feature; position is documented in the config table.)
+- [x] **Step 2:** `usage/quick-terminal.mdx` — enable, hotkeys (single/multiple/combos, Mod, Option dead-key Callout), split panes, resize, PiP, both layouts. `<ImageZoom>`, no em dashes, fumadocs components.
+- [x] **Step 3:** Added `"quick-terminal"` to `usage/meta.json` after `chat`; added `widget` to the `configuration.mdx` options table + a "Widget layouts" task documenting `modal.position` + `quickTerminal.hotkey`.
+- [x] **Verify:** `turbo build --filter=site` green; `/docs/usage/quick-terminal` prerenders.
 
 **Acceptance:** docs ship with the feature, with real screenshots and config reference.
 
@@ -204,14 +209,21 @@ T10 full verification sweep                            (all)
 
 ## Task 10: Full verification sweep
 
-- [ ] `turbo build`, `turbo lint`, `turbo test` all green.
-- [ ] Playwright suite covers all 10 spec acceptance criteria.
-- [ ] Confirm: omitting `widget` config reproduces today's behavior byte-for-byte (modal bottom-right, no quick terminal, no new hotkey).
-- [ ] Re-read the spec's "Always / Never" boundaries against the diff (no jsdom, no scrim, no hardcoded hotkey/position, MIT credits present, single ChatPanel).
+- [x] `turbo build` + `lint` 18/18 green. Tests: protocol 7, core 34, plugin 9, widget 21, harness 34 — all green.
+- [x] Playwright widget IT covers: hotkey toggle, Esc, mutual exclusion, FAB position + drag-snap, modal resize + collapse, split panes + reflow, focus-on-open + restore, PiP move + styles + re-dock. Plugin IT covers the SSR meta-injection seam.
+- [x] Defaults when `widget` omitted: BOTH layouts on (modal bottom-right + quick terminal on `Mod+\``).
+- [x] Boundaries hold: no jsdom (Playwright only), no scrim, hotkey/position config-driven with defaults, MIT credits on `pip.tsx`/`resize.ts`/`draggable-position.ts`, single `ChatPanel` (no fork).
 
 **Acceptance:** every acceptance criterion verified with evidence; boundaries hold.
 
 ---
+
+## Tech debt (deferred, agreed)
+
+- `parseWidgetSettings` hand-rolls `unknown` + `as` narrowing. Replace with a Zod
+  schema (`WidgetConfigSchema` in protocol) using `.default()` for both layouts +
+  hotkey/position, then `schema.parse(JSON.parse(raw))`. The protocol package
+  already uses Zod. Cleaner, validates, and self-documents. Deferred per user.
 
 ## Risks / watch-items
 

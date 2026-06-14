@@ -355,9 +355,15 @@ importers:
       '@tanstack/ai-solid':
         specifier: ^0.13.4
         version: 0.13.4(@tanstack/ai@0.28.0)(solid-js@1.9.13)
+      '@tanstack/solid-hotkeys':
+        specifier: ^0.10.0
+        version: 0.10.0(solid-js@1.9.13)
       bippy:
         specifier: 0.5.41
         version: 0.5.41(react@19.2.7)
+      lucide-solid:
+        specifier: ^1.18.0
+        version: 1.18.0(solid-js@1.9.13)
       marked:
         specifier: ^18.0.5
         version: 18.0.5
@@ -1977,6 +1983,10 @@ packages:
     resolution: {integrity: sha512-79pf/RkhteYZTRgcR4F9kbk84P2N8rugQJswxfIqovlbRiT3yI7eBE+5QorIrZaOKktsgzRlXh1l/du/xpl4iA==}
     engines: {node: '>=20.19'}
 
+  '@tanstack/hotkeys@0.8.0':
+    resolution: {integrity: sha512-vqH7X9nb0MTJ/O08++dB5bP9jgj4+BIPOUu/U+6myG86lDsirZSVSobpq5UQpE7nBuk62i8eIYeOhd+OMl/UrA==}
+    engines: {node: '>=18'}
+
   '@tanstack/react-router-devtools@1.167.0':
     resolution: {integrity: sha512-nGw095EG7IHx0h5NtlEmzf6vcCTaFNPWdTSuDKazajhN0ct/v/TkekJ9J6KYUCeV1a8/2ZmToc58M+0rrOyn7w==}
     engines: {node: '>=20.19'}
@@ -2093,6 +2103,17 @@ packages:
     resolution: {integrity: sha512-hTWqJtqIFFdvuCl8WXNyrodp2L9zo2G37xKRrcVmVRWpAB2h+U1LuRAfS4tsFTiWOIoE/B+WDVFB8JpoEdw6jQ==}
     engines: {node: '>=20.19'}
 
+  '@tanstack/solid-hotkeys@0.10.0':
+    resolution: {integrity: sha512-jThxkZMt1ShaQ/ynvyzHfwdbl15gTxJWXnQtbHuRHrzYFvuBB5fx4+D0jKQJ3sSq6XN3HwB3f9cVI0na5rN+Bw==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      solid-js: '>=1.7.0'
+
+  '@tanstack/solid-store@0.11.0':
+    resolution: {integrity: sha512-2isL0ZnnyI1iN0V+QPrxE3OcPndohBgVlBcHZYoAOIAiU1WoWjVy0q5gb0suPu1Id0h5cKC23JnwzQTxWDZD0w==}
+    peerDependencies:
+      solid-js: ^1.6.0
+
   '@tanstack/start-client-core@1.170.12':
     resolution: {integrity: sha512-gwtZRMPUIAxmDV2AIQUhC0kSW262SV7BkHXEgy5B1woHQdrdsELuGOdJwdweLxrjyefORxk+9MYGqDY0Cxn0bw==}
     engines: {node: '>=22.12.0'}
@@ -2120,6 +2141,9 @@ packages:
   '@tanstack/start-storage-context@1.167.15':
     resolution: {integrity: sha512-Jy0q4vdG6pv76N92+X+ag3fuOV2zINQagYyMN1/es7tPI1vzpKECIU8AqHqzI6ahkwaph7XDvmfUkiLJ3i4LOA==}
     engines: {node: '>=22.12.0'}
+
+  '@tanstack/store@0.11.0':
+    resolution: {integrity: sha512-WlzzCt3xi0G6pCAJu1U+2jiECwabETDpQDi3hfkFZvJii9AuZqEKbOiVarX1/bWhTNjU486yQtJCCasi/0q+Cw==}
 
   '@tanstack/store@0.9.3':
     resolution: {integrity: sha512-8reSzl/qGWGGVKhBoxXPMWzATSbZLZFWhwBAFO9NAyp0TxzfBP0mIrGb8CP8KrQTmvzXlR/vFPPUrHTLBGyFyw==}
@@ -3450,6 +3474,11 @@ packages:
     resolution: {integrity: sha512-LZDb7H/0YfM+RJncD0hDQRCAu+vSGODqpe35TuVI8EuXaRjkczbsx7p8dY4J87F/MUSj6bpYqeI8nw8qXaAdmA==}
     peerDependencies:
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
+
+  lucide-solid@1.18.0:
+    resolution: {integrity: sha512-YnCvJ37Yk51utVZUs8Rc1LgvxWPk6a58QnW4PgQquxhOHzlo+fjlTSc4zLvzQbOp8IxhPK6tPeGHUD8avd0cvA==}
+    peerDependencies:
+      solid-js: ^1.4.7
 
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
@@ -5868,6 +5897,10 @@ snapshots:
 
   '@tanstack/history@1.162.0': {}
 
+  '@tanstack/hotkeys@0.8.0':
+    dependencies:
+      '@tanstack/store': 0.11.0
+
   '@tanstack/react-router-devtools@1.167.0(@tanstack/react-router@1.170.15(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@tanstack/router-core@1.171.13)(csstype@3.2.3)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
       '@tanstack/react-router': 1.170.15(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -6016,6 +6049,17 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@tanstack/solid-hotkeys@0.10.0(solid-js@1.9.13)':
+    dependencies:
+      '@tanstack/hotkeys': 0.8.0
+      '@tanstack/solid-store': 0.11.0(solid-js@1.9.13)
+      solid-js: 1.9.13
+
+  '@tanstack/solid-store@0.11.0(solid-js@1.9.13)':
+    dependencies:
+      '@tanstack/store': 0.11.0
+      solid-js: 1.9.13
+
   '@tanstack/start-client-core@1.170.12':
     dependencies:
       '@tanstack/router-core': 1.171.13
@@ -6071,6 +6115,8 @@ snapshots:
   '@tanstack/start-storage-context@1.167.15':
     dependencies:
       '@tanstack/router-core': 1.171.13
+
+  '@tanstack/store@0.11.0': {}
 
   '@tanstack/store@0.9.3': {}
 
@@ -7410,6 +7456,10 @@ snapshots:
   lucide-react@1.18.0(react@19.2.7):
     dependencies:
       react: 19.2.7
+
+  lucide-solid@1.18.0(solid-js@1.9.13):
+    dependencies:
+      solid-js: 1.9.13
 
   magic-string@0.30.21:
     dependencies:

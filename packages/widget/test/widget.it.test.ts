@@ -29,9 +29,23 @@ const PAGE_QUERY = {requestId: 'pb1', kind: 'text', selector: '#probe'}
 // the bippy bridge and degrades gracefully (no fiber) — the happy path is covered by example e2e.
 const LOCATE_QUERY = {requestId: 'pbL', kind: 'locate', selector: '#probe'}
 
+// Default fixture for the modal-focused tests: quick terminal off, so there's exactly one chat
+// composer/greeting in the DOM (both layouts render their own ChatPanel when enabled).
 function pageHtml(): string {
   return `<!doctype html><html><head>
     <meta name="pw-api-base" content="">
+    <meta name="pw-widget" content='{"quickTerminal":false}'>
+  </head><body>
+    <div id="probe">page-bus-ok</div>
+    <script>${widgetBundle}</script>
+  </body></html>`
+}
+
+// Fixture with a pw-widget meta so we can exercise the configured trigger position + drag-snap.
+function widgetConfigPageHtml(widgetJson: string): string {
+  return `<!doctype html><html><head>
+    <meta name="pw-api-base" content="">
+    <meta name="pw-widget" content='${widgetJson}'>
   </head><body>
     <div id="probe">page-bus-ok</div>
     <script>${widgetBundle}</script>
@@ -42,6 +56,7 @@ function pageHtml(): string {
 function globalBasePageHtml(globalBase: string): string {
   return `<!doctype html><html><head>
     <meta name="pw-api-base" content="http://127.0.0.1:1">
+    <meta name="pw-widget" content='{"quickTerminal":false}'>
     <script>window.__AIDX_API_BASE__ = ${JSON.stringify(globalBase)}</script>
   </head><body>
     <script>${widgetBundle}</script>
@@ -190,6 +205,18 @@ describe('aidx widget (it) — real browser, real SSE', () => {
         res.writeHead(200, {'content-type': 'text/html'})
         return res.end(globalBasePageHtml(state.base))
       }
+      if (url === '/__position') {
+        res.writeHead(200, {'content-type': 'text/html'})
+        return res.end(widgetConfigPageHtml('{"modal":{"position":"top-left"},"quickTerminal":false}'))
+      }
+      if (url === '/__quick-terminal') {
+        res.writeHead(200, {'content-type': 'text/html'})
+        return res.end(widgetConfigPageHtml('{"modal":false,"quickTerminal":{"hotkey":"Control+k"}}'))
+      }
+      if (url === '/__both') {
+        res.writeHead(200, {'content-type': 'text/html'})
+        return res.end(widgetConfigPageHtml('{"quickTerminal":{"hotkey":"Control+k"}}'))
+      }
       res.writeHead(200, {'content-type': 'text/html'})
       res.end(pageHtml())
     })
@@ -205,7 +232,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
   })
 
   it('mounts the FAB, streams an assistant reply, and renders the approval gate → decision', async () => {
-    const page = await browser.newContext().then((c) => c.newPage())
+    const page = await browser.newPage()
     await page.goto(state.base)
 
     // The FAB mounts only after the chat-availability probe resolves (production boot path).
@@ -234,10 +261,272 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await page.close()
   })
 
+  it('places the FAB by config and snaps to the nearest preset after a drag', async () => {
+    const page = await browser.newPage()
+    await page.setViewportSize({width: 1000, height: 800})
+    await page.goto(`${state.base}/__position`)
+
+    const fab = page.getByRole('button', {name: 'Open aidx chat'})
+    await fab.waitFor({state: 'visible'})
+    // The configured position is applied via the preset class.
+    expect(await fab.getAttribute('class')).toContain('pw-fab-pos-top-left')
+
+    // Drag the FAB from the top-left toward the bottom-right corner.
+    const box = await fab.boundingBox()
+    if (!box) throw new Error('no FAB box')
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(960, 770, {steps: 10})
+    await page.mouse.up()
+
+    // After the snap animation it commits the nearest preset and persists it.
+    await page.waitForFunction(
+      () => localStorage.getItem('aidx-fab-position') === 'bottom-right',
+      undefined,
+      {timeout: 2000},
+    )
+    expect(await fab.getAttribute('class')).toContain('pw-fab-pos-bottom-right')
+    await page.close()
+  })
+
+  it('resizes the modal panel by edge drag, persists the height, and collapses below threshold', async () => {
+    const page = await browser.newPage()
+    await page.setViewportSize({width: 1000, height: 800})
+    await page.goto(state.base)
+    const fab = page.getByRole('button', {name: 'Open aidx chat'})
+    await fab.waitFor({state: 'visible'})
+    await fab.click()
+    // Let the open animation settle so the handle's box is stable before we grab it.
+    await page.getByText('How can I help you today?').waitFor({state: 'visible'})
+    await page.waitForTimeout(300)
+
+    const panel = page.locator('#pw-chat-panel')
+    const before = (await panel.boundingBox())!.height
+    // Bottom-anchored panel → the resize handle sits on its top edge; dragging up grows it.
+    const handle = page.locator('.pw-chat-resize-top')
+    const hb = (await handle.boundingBox())!
+    await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(hb.x + hb.width / 2, hb.y - 120, {steps: 8})
+    await page.mouse.up()
+    const after = (await panel.boundingBox())!.height
+    expect(after).toBeGreaterThan(before + 80)
+    expect(Number(await page.evaluate(() => localStorage.getItem('aidx-modal-height')))).toBeGreaterThan(before)
+
+    // Dragging the edge far past the collapse threshold closes the panel (Devtools behavior).
+    const hb2 = (await page.locator('.pw-chat-resize-top').boundingBox())!
+    await page.mouse.move(hb2.x + hb2.width / 2, hb2.y + hb2.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(hb2.x + hb2.width / 2, hb2.y + 700, {steps: 10})
+    await page.mouse.up()
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector('[data-aidx-root]')
+          ?.shadowRoot?.querySelector('#pw-chat-panel')
+          ?.getAttribute('aria-hidden') === 'true',
+      undefined,
+      {timeout: 2000},
+    )
+    await page.close()
+  })
+
+  it('resizes the modal panel horizontally by dragging the side edge, and persists the width', async () => {
+    const page = await browser.newPage()
+    await page.setViewportSize({width: 1000, height: 800})
+    await page.goto(state.base)
+    const fab = page.getByRole('button', {name: 'Open aidx chat'})
+    await fab.waitFor({state: 'visible'})
+    await fab.click()
+    await page.getByText('How can I help you today?').waitFor({state: 'visible'})
+    await page.waitForTimeout(300)
+
+    const panel = page.locator('#pw-chat-panel')
+    const before = (await panel.boundingBox())!.width
+    // Bottom-right anchored panel → the width handle is on its left edge; dragging left grows it.
+    const handle = page.locator('.pw-chat-resize-left')
+    const hb = (await handle.boundingBox())!
+    await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(hb.x - 140, hb.y + hb.height / 2, {steps: 8})
+    await page.mouse.up()
+    const after = (await panel.boundingBox())!.width
+    expect(after).toBeGreaterThan(before + 80)
+    expect(Number(await page.evaluate(() => localStorage.getItem('aidx-modal-width')))).toBeGreaterThan(before)
+    await page.close()
+  })
+
+  it('resizes the modal panel from the keyboard via the resize separator', async () => {
+    const page = await browser.newPage()
+    await page.setViewportSize({width: 1000, height: 800})
+    await page.goto(state.base)
+    const fab = page.getByRole('button', {name: 'Open aidx chat'})
+    await fab.waitFor({state: 'visible'})
+    await fab.click()
+    await page.getByText('How can I help you today?').waitFor({state: 'visible'})
+    await page.waitForTimeout(300)
+
+    const panel = page.locator('#pw-chat-panel')
+    const before = (await panel.boundingBox())!.height
+    // The height separator is keyboard-operable; bottom-anchored panel grows 'up' on ArrowUp (24px/step).
+    const sep = page.getByRole('separator', {name: 'Resize chat height'})
+    await sep.focus()
+    await sep.press('ArrowUp')
+    await sep.press('ArrowUp')
+    await sep.press('ArrowUp')
+    const after = (await panel.boundingBox())!.height
+    expect(after).toBeGreaterThan(before + 60)
+    await page.close()
+  })
+
+  // Reads aria-hidden of a shadow-DOM element by selector (the widget lives in an open shadow root).
+  const ariaHiddenOf = (sel: string) => `(() => document.querySelector('[data-aidx-root]')?.shadowRoot?.querySelector('${sel}')?.getAttribute('aria-hidden'))()`
+
+  it('drops the quick terminal on its hotkey and closes on Escape', async () => {
+    const page = await browser.newPage()
+    await page.goto(`${state.base}/__quick-terminal`)
+
+    const sheet = page.locator('.pw-qt')
+    await sheet.waitFor({state: 'attached'})
+    expect(await sheet.getAttribute('aria-hidden')).toBe('true')
+
+    // The configured hotkey drops the sheet.
+    await page.keyboard.press('Control+k')
+    await page.waitForFunction(`${ariaHiddenOf('.pw-qt')} === 'false'`, undefined, {timeout: 2000})
+    await page.getByText('How can I help you today?').waitFor({state: 'visible'})
+
+    // Opening focuses the pane's composer.
+    await page.waitForFunction(
+      () => {
+        const ae = document.querySelector('[data-aidx-root]')?.shadowRoot?.activeElement
+        return ae?.tagName === 'TEXTAREA' && ae.classList.contains('pw-chat-input')
+      },
+      undefined,
+      {timeout: 2000},
+    )
+
+    // Escape raises it again.
+    await page.keyboard.press('Escape')
+    await page.waitForFunction(`${ariaHiddenOf('.pw-qt')} === 'true'`, undefined, {timeout: 2000})
+
+    // Closed, the off-screen sheet is inert so its composer/buttons leave the tab order
+    // (and don't trip the aria-hidden-focus rule).
+    const closedInert = await page.evaluate(
+      () => (document.querySelector('[data-aidx-root]')?.shadowRoot?.querySelector('.pw-qt') as HTMLElement)?.inert,
+    )
+    expect(closedInert).toBe(true)
+    await page.close()
+  })
+
+  it('restores focus to the last-active pane on reopen (persisted)', async () => {
+    const page = await browser.newPage()
+    await page.goto(`${state.base}/__quick-terminal`)
+    await page.locator('.pw-qt').waitFor({state: 'attached'})
+    await page.keyboard.press('Control+k')
+    await page.waitForFunction(`${ariaHiddenOf('.pw-qt')} === 'false'`, undefined, {timeout: 2000})
+
+    // Split into two panes, then focus the FIRST pane (the second is focused right after split).
+    await page.getByRole('button', {name: 'Split pane'}).click()
+    await page.waitForFunction(`${countOf('.pw-qt-pane')} === 2`, undefined, {timeout: 2000})
+    await page.locator('.pw-qt-pane').first().dispatchEvent('pointerdown')
+    await page.waitForFunction(
+      () => document.querySelector('[data-aidx-root]')?.shadowRoot?.querySelector('.pw-qt-pane')?.classList.contains('focused') === true,
+      undefined,
+      {timeout: 2000},
+    )
+
+    // Close and reopen — focus returns to the first pane (index 0 persisted).
+    await page.keyboard.press('Escape')
+    await page.waitForFunction(`${ariaHiddenOf('.pw-qt')} === 'true'`, undefined, {timeout: 2000})
+    await page.keyboard.press('Control+k')
+    await page.waitForFunction(`${ariaHiddenOf('.pw-qt')} === 'false'`, undefined, {timeout: 2000})
+    await page.waitForFunction(
+      () => document.querySelector('[data-aidx-root]')?.shadowRoot?.querySelector('.pw-qt-pane')?.classList.contains('focused') === true,
+      undefined,
+      {timeout: 2000},
+    )
+    await page.close()
+  })
+
+  it('opening the quick terminal closes the modal (one layer at a time)', async () => {
+    const page = await browser.newPage()
+    await page.goto(`${state.base}/__both`)
+
+    const fab = page.getByRole('button', {name: 'Open aidx chat'})
+    await fab.waitFor({state: 'visible'})
+    await fab.click()
+    await page.waitForFunction(`${ariaHiddenOf('#pw-chat-panel')} === 'false'`, undefined, {timeout: 2000})
+
+    // The hotkey opens the quick terminal and closes the modal.
+    await page.keyboard.press('Control+k')
+    await page.waitForFunction(`${ariaHiddenOf('.pw-qt')} === 'false'`, undefined, {timeout: 2000})
+    await page.waitForFunction(`${ariaHiddenOf('#pw-chat-panel')} === 'true'`, undefined, {timeout: 2000})
+    await page.close()
+  })
+
+  // Count of shadow-DOM elements matching a selector (the widget lives in an open shadow root).
+  const countOf = (sel: string) =>
+    `(() => document.querySelector('[data-aidx-root]')?.shadowRoot?.querySelectorAll('${sel}').length)()`
+
+  it('pops the quick terminal into a PiP window (styles travel) and re-docks on close', async () => {
+    const page = await browser.newPage()
+    await page.goto(`${state.base}/__quick-terminal`)
+    await page.locator('.pw-qt').waitFor({state: 'attached'})
+    await page.keyboard.press('Control+k')
+    await page.waitForFunction(`${ariaHiddenOf('.pw-qt')} === 'false'`, undefined, {timeout: 2000})
+
+    // Clicking PiP opens a separate window and moves the live sheet into it.
+    const [popup] = await Promise.all([
+      page.waitForEvent('popup'),
+      page.getByRole('button', {name: 'Pop out to a window'}).click(),
+    ])
+    await popup.waitForLoadState()
+    // The sheet now lives in the PiP window's shadow root, and its styles came along (system-ui,
+    // not the serif initial) — proving the shadow style text travelled.
+    const inPip = await popup.evaluate(() => {
+      const qt = document.querySelector('.pw-pip-host')?.shadowRoot?.querySelector('.pw-qt')
+      return {present: !!qt, font: qt ? getComputedStyle(qt as Element).fontFamily : ''}
+    })
+    expect(inPip.present).toBe(true)
+    expect(inPip.font).toContain('system-ui')
+    // It left a placeholder in the page (no .pw-qt there while popped).
+    expect(await page.evaluate(countOf('.pw-qt'))).toBe(0)
+
+    // Closing the PiP window re-docks the sheet into the page.
+    await popup.close()
+    await page.waitForFunction(`${countOf('.pw-qt')} === 1`, undefined, {timeout: 2000})
+    await page.close()
+  })
+
+  it('splits the quick terminal into independent-session panes and reflows on close', async () => {
+    const page = await browser.newPage()
+    await page.goto(`${state.base}/__quick-terminal`)
+    await page.locator('.pw-qt').waitFor({state: 'attached'})
+    await page.keyboard.press('Control+k')
+    await page.waitForFunction(`${ariaHiddenOf('.pw-qt')} === 'false'`, undefined, {timeout: 2000})
+
+    // One pane on open.
+    await page.waitForFunction(`${countOf('.pw-qt-pane')} === 1`, undefined, {timeout: 2000})
+
+    // Split adds a second pane, each with its own composer (its own session).
+    await page.getByRole('button', {name: 'Split pane'}).click()
+    await page.waitForFunction(`${countOf('.pw-qt-pane')} === 2`, undefined, {timeout: 2000})
+    expect(await page.locator('.pw-qt-pane .pw-chat-input').count()).toBe(2)
+
+    // Closing one pane leaves the other (reflowed).
+    await page.locator('.pw-qt-pane-x').first().click()
+    await page.waitForFunction(`${countOf('.pw-qt-pane')} === 1`, undefined, {timeout: 2000})
+
+    // Closing the last pane closes the terminal.
+    await page.locator('.pw-qt-pane-x').first().click()
+    await page.waitForFunction(`${ariaHiddenOf('.pw-qt')} === 'true'`, undefined, {timeout: 2000})
+    await page.close()
+  })
+
   it('renders the assistant reply for a chat() stream (generated threadId, empty reasoning, MCP tools)', async () => {
     chatState.script = mcpAccessScript
     try {
-      const page = await browser.newContext().then((c) => c.newPage())
+      const page = await browser.newPage()
       await page.goto(state.base)
       const fab = page.getByRole('button', {name: 'Open aidx chat'})
       await fab.waitFor({state: 'visible'})
@@ -257,7 +546,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     chatState.script = collisionScript
     collisionState.n = 0
     try {
-      const page = await browser.newContext().then((c) => c.newPage())
+      const page = await browser.newPage()
       await page.goto(state.base)
       const fab = page.getByRole('button', {name: 'Open aidx chat'})
       await fab.waitFor({state: 'visible'})
@@ -280,7 +569,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
   })
 
   it('renders the live vitest card: pass/fail tree, expands the failure with actions', async () => {
-    const page = await browser.newContext().then((c) => c.newPage())
+    const page = await browser.newPage()
     await page.goto(state.base)
     // The test-only seam mounts a standalone live card (result=null → subscribes to the stream).
     await page.waitForFunction(() => '__AIDX_RENDER_TEST_CARD__' in window)
@@ -298,7 +587,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
   })
 
   it('uses window.__AIDX_API_BASE__ over the meta tag (Next.js injection path)', async () => {
-    const page = await browser.newContext().then((c) => c.newPage())
+    const page = await browser.newPage()
     await page.goto(`${state.base}/__global-base`)
     // The meta base is a dead host; the FAB only mounts if the probe used the window global.
     await page.getByRole('button', {name: 'Open aidx chat'}).waitFor({state: 'visible'})
@@ -315,7 +604,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
   }
 
   it('answers a page-bus query against the live DOM and posts the reply', async () => {
-    const page = await browser.newContext().then((c) => c.newPage())
+    const page = await browser.newPage()
     const reply = page.waitForRequest(replyFor('pb1'))
     await page.goto(state.base)
     const body = (await reply).postDataJSON() as {requestId: string; data: {text?: string}}
@@ -324,7 +613,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
   })
 
   it('routes a locate verb to the bippy bridge and degrades gracefully on a non-React node', async () => {
-    const page = await browser.newContext().then((c) => c.newPage())
+    const page = await browser.newPage()
     const reply = page.waitForRequest(replyFor('pbL'))
     await page.goto(state.base)
     const body = (await reply).postDataJSON() as {requestId: string; data: {error?: string}}

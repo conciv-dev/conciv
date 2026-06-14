@@ -144,9 +144,9 @@ export interface QuickTerminalConfig {
 }
 
 export interface WidgetConfig {
-  /** Bottom-right corner modal. true/omitted = on with defaults; object configures it. */
+  /** Bottom-right corner modal. On by default; set false to disable, object configures it. */
   modal?: boolean | ModalConfig
-  /** Top drop-down quick terminal. Default off; object configures the hotkey(s). */
+  /** Top drop-down quick terminal. On by default; set false to disable, object configures the hotkey(s). */
   quickTerminal?: boolean | QuickTerminalConfig
 }
 
@@ -159,9 +159,10 @@ export interface AidxConfig {
 Host examples:
 
 ```ts
-aidx({ widget: { modal: { position: 'top-left' } } })           // move the button
-aidx({ widget: { quickTerminal: true } })                        // modal + quick terminal
-aidx({ widget: { modal: false, quickTerminal: { hotkey: ['Mod+`', 'Control+k'] } } })
+aidx()                                                           // both on (defaults)
+aidx({ widget: { modal: { position: 'top-left' } } })           // both on, move the button
+aidx({ widget: { quickTerminal: false } })                       // modal only
+aidx({ widget: { modal: false, quickTerminal: { hotkey: ['Mod+`', 'Control+k'] } } })  // qt only, custom keys
 ```
 
 `packages/core/src/widget-tags.ts`
@@ -185,10 +186,9 @@ function resolveWidget(): WidgetSettings {
   const m = raw.modal, qt = raw.quickTerminal
   const hk = (qt && typeof qt === 'object' && qt.hotkey) || ['Mod+`']
   return {
-    // modal defaults ON unless explicitly false
+    // both layouts default ON unless explicitly disabled with `false`
     modal: { enabled: m !== false, position: (m && typeof m === 'object' && m.position) || 'bottom-right' },
-    // quick terminal defaults OFF unless truthy
-    quickTerminal: { enabled: !!qt, hotkeys: Array.isArray(hk) ? hk : [String(hk)] },
+    quickTerminal: { enabled: qt !== false, hotkeys: Array.isArray(hk) ? hk : [String(hk)] },
   }
 }
 ```
@@ -400,14 +400,14 @@ Never:
 
 ## Acceptance criteria
 
-1. `aidx({ widget: { quickTerminal: true } })` enables both modal and quick
-   terminal; the hotkey drops the sheet.
+1. `aidx()` (no widget config) enables BOTH layouts: modal FAB bottom-right and
+   the quick terminal on `Mod+\``.
 2. `aidx({ widget: { quickTerminal: { hotkey: ['Mod+`', 'Control+k'] } } })`
-   toggles on either binding.
+   toggles the sheet on either binding; `quickTerminal: false` disables it.
 3. `aidx({ widget: { modal: { position: 'top-left' } } })` starts the FAB top-left;
-   dragging it snaps to the nearest preset and the choice persists.
-4. Omitting `widget` preserves today's behavior exactly (modal bottom-right,
-   no quick terminal).
+   dragging it snaps to the nearest preset and the choice persists; `modal: false`
+   disables the corner modal.
+4. Each layout can be disabled independently with `false`, leaving the other.
 5. Quick-terminal height is draggable and survives a reopen.
 6. The terminal splits into a row of independent-session panes; gutters resize
    them; closing a pane reflows survivors; closing the last closes the sheet.

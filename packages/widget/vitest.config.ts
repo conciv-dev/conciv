@@ -9,7 +9,7 @@ export default defineConfig({
   test: {
     name: 'widget',
     environment: 'node',
-    include: ['test/**/*.it.test.ts'],
+    include: ['test/**/*.test.ts'],
     testTimeout: 90_000,
     hookTimeout: 90_000,
   },

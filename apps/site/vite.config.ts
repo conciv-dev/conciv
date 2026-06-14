@@ -22,7 +22,7 @@ export default defineConfig({
     nitro({
       preset: 'node-server',
     }),
-    aidx(),
+    aidx({widget: {quickTerminal: {hotkey: ['Alt+k']}}}),
   ],
   resolve: {
     tsconfigPaths: true,
