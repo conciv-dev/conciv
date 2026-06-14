@@ -37,14 +37,26 @@ only new dependency is `@modelcontextprotocol/sdk` for the `/api/mcp` server
   `react-introspection` skill is rewritten to reference the MCP tools
   (`aidx_ui`, `aidx_page`, …) instead of instructing `aidx` CLI invocations. One
   clean tool path; no dual Bash+MCP period.
-- **Complete adapter, not a stub.** `HarnessTextAdapter extends BaseTextAdapter`,
-  fully typed and logger/abort/id-aware, modeled on `@tanstack/ai-ollama`.
+- **Complete adapter, not a stub.** `harnessText()` returns a plain object
+  implementing the `@tanstack/ai` `TextAdapter` interface (a factory, no class —
+  repo rule), fully typed and logger/abort/id-aware, modeled on `@tanstack/ai-ollama`.
   `structuredOutput` is a typed `NotSupported` throw (an honest capability gap —
   a coding CLI has no native schema mode; aidx never calls it).
 - **Harness-agnostic invariant:** `chat()` and the `harnessText` factory know
   nothing about any particular CLI. All harness specifics (argv, `--mcp-config`,
-  stdout decode) live inside the `HarnessAdapter` data (`claude`, `codex`, …).
-  Swapping harnesses changes only which adapter is passed in.
+  stdout decode, input delivery) live inside the `HarnessAdapter` data
+  (`claude`, `codex`, …). Swapping harnesses changes only which adapter is passed in.
+- **Image input — absorb the chat-image-input server-half.** The adapter carries
+  image content parts (`lastUserImages`) and delivers them per a new
+  `imageInput: 'native' | 'fileRef' | false` capability via an optional
+  `deliverInput` harness hook. claude = `'native'` (a stream-json user message on
+  stdin). The composer/widget UI half stays in the chat-image-input plan. So the
+  adapter is image-complete from day one, not text-only.
+- **`@tanstack/ai-mcp` is test-only.** It is an MCP *client* (for `chat()` to
+  consume external servers). In the CLI-only path the *CLI* is the MCP client, so
+  `chat()` never uses it; we use it only in integration tests to drive `/api/mcp`.
+  The MCP *server* is `@modelcontextprotocol/sdk`'s `WebStandardStreamableHTTPServerTransport`
+  (web `Request`→`Response`, no node-object bridge).
 
 ## Why not the alternatives (measured)
 
@@ -113,14 +125,18 @@ branches on harness; the factory never hardcodes a CLI — the harness is data.
   In-process, so handlers reach `uiBus` directly. Replaces the `aidx ui` /
   `aidx tools` Bash shell-out path (the `--allowedTools` Bash entries are
   removed from the claude args).
-- **`HarnessTextAdapter` + `harnessText(harness, deps)`** (new): a *complete*
-  adapter, not a stub. Modeled on `@tanstack/ai-ollama`'s from-scratch adapter
-  (`extends BaseTextAdapter` from `@tanstack/ai/adapters`), since Ollama wraps a
-  local process — the closest analog to wrapping a CLI.
-  - `class HarnessTextAdapter<TModel> extends BaseTextAdapter<TModel,
-    ProviderOptions, InputModalities, MessageMetadata>` — type params resolved
-    from the existing `HarnessCapabilities` (+ the image-input capability from
-    the chat-image-input spec): `InputModalities = ['text']` or `['text','image']`;
+- **`harnessText(harness, deps)`** (new): a *complete* adapter, not a stub.
+  Modeled on `@tanstack/ai-ollama`'s from-scratch adapter, since Ollama wraps a
+  local process — the closest analog to wrapping a CLI. Implemented as a
+  **factory returning a plain object** that satisfies the `@tanstack/ai`
+  `TextAdapter` interface (`@tanstack/ai/adapters`) — **not** a class extending
+  `BaseTextAdapter`, honoring the repo's functions-not-classes rule. Verified
+  safe: `chat()` is structural (never does `instanceof`), and `'~types'` is
+  type-only (never read at runtime), satisfied via one cast.
+  - `HarnessTextAdapter = TextAdapter<string, Record<string, never>,
+    InputModalities, MsgMeta>` — type params from the existing
+    `HarnessCapabilities` (+ the image-input capability from the
+    chat-image-input spec): `InputModalities = ['text']` or `['text','image']`;
     tool capabilities empty (the CLI owns its tools; `chat().tools` is unused).
   - `kind: 'text'`, `name: harness.id`, `model: harness.id`.
   - `chatStream(options)`:
