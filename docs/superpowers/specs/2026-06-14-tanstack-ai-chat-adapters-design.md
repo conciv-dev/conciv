@@ -37,11 +37,15 @@ only new dependency is `@modelcontextprotocol/sdk` for the `/api/mcp` server
   `react-introspection` skill is rewritten to reference the MCP tools
   (`aidx_ui`, `aidx_page`, …) instead of instructing `aidx` CLI invocations. One
   clean tool path; no dual Bash+MCP period.
-- **Complete adapter, not a stub.** `harnessText()` returns a plain object
-  implementing the `@tanstack/ai` `TextAdapter` interface (a factory, no class —
-  repo rule), fully typed and logger/abort/id-aware, modeled on `@tanstack/ai-ollama`.
-  `structuredOutput` is a typed `NotSupported` throw (an honest capability gap —
-  a coding CLI has no native schema mode; aidx never calls it).
+- **Complete adapter, not a stub.** `HarnessTextAdapter extends BaseTextAdapter`
+  (built via the `harnessText(harness, deps)` factory), fully typed and
+  logger/abort/id-aware, modeled on `@tanstack/ai-ollama`. `structuredOutput` is a
+  typed `NotSupported` throw (an honest capability gap — a coding CLI has no native
+  schema mode; aidx never calls it). The class is a **justified, narrow exception
+  to functions-not-classes**: the `TextAdapter` interface's `'~types'.systemPromptMetadata`
+  is typed `never` (uninhabited), so a plain object cannot satisfy it without a cast,
+  and the no-casts rule forbids that — extending the library's `BaseTextAdapter` is the
+  only cast-free, library-intended path.
 - **Harness-agnostic invariant:** `chat()` and the `harnessText` factory know
   nothing about any particular CLI. All harness specifics (argv, `--mcp-config`,
   stdout decode, input delivery) live inside the `HarnessAdapter` data
@@ -125,15 +129,12 @@ branches on harness; the factory never hardcodes a CLI — the harness is data.
   In-process, so handlers reach `uiBus` directly. Replaces the `aidx ui` /
   `aidx tools` Bash shell-out path (the `--allowedTools` Bash entries are
   removed from the claude args).
-- **`harnessText(harness, deps)`** (new): a *complete* adapter, not a stub.
-  Modeled on `@tanstack/ai-ollama`'s from-scratch adapter, since Ollama wraps a
-  local process — the closest analog to wrapping a CLI. Implemented as a
-  **factory returning a plain object** that satisfies the `@tanstack/ai`
-  `TextAdapter` interface (`@tanstack/ai/adapters`) — **not** a class extending
-  `BaseTextAdapter`, honoring the repo's functions-not-classes rule. Verified
-  safe: `chat()` is structural (never does `instanceof`), and `'~types'` is
-  type-only (never read at runtime), satisfied via one cast.
-  - `HarnessTextAdapter = TextAdapter<string, Record<string, never>,
+- **`HarnessTextAdapter` + `harnessText(harness, deps)`** (new): a *complete*
+  adapter, not a stub. Modeled on `@tanstack/ai-ollama`'s from-scratch adapter,
+  since Ollama wraps a local process — the closest analog to wrapping a CLI.
+  `class HarnessTextAdapter extends BaseTextAdapter` (`@tanstack/ai/adapters`),
+  cast-free; `harnessText()` is a thin factory function returning an instance.
+  - `class HarnessTextAdapter extends BaseTextAdapter<string, Record<string, never>,
     InputModalities, MsgMeta>` — type params from the existing
     `HarnessCapabilities` (+ the image-input capability from the
     chat-image-input spec): `InputModalities = ['text']` or `['text','image']`;

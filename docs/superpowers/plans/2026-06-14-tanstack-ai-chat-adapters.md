@@ -4,7 +4,7 @@
 
 **Goal:** Make aidx drive every chat turn through `@tanstack/ai`'s `chat()`, with each harness wrapped as a complete `TextAdapter`, and aidx's own tools (`ui`/`page`/`test`) exposed to the harness CLI as `@tanstack/ai` tools over an in-process MCP-over-HTTP server.
 
-**Architecture:** CLI-only. `chat()` is the stream orchestrator (lifecycle pass-through, middleware, message conversion); the harness CLI owns iteration and executes aidx tools via MCP. A generic `harnessText(harness, deps)` factory wraps any `HarnessAdapter` into a `@tanstack/ai` `TextAdapter` (a plain object — no class, per repo rule) — `chat()` and the factory stay harness-agnostic; all CLI specifics live in the `HarnessAdapter`. `/api/mcp` is a streamable-HTTP MCP server built on `@modelcontextprotocol/sdk`'s **Web Standard** transport (`WebStandardStreamableHTTPServerTransport`), which takes a web `Request` and returns a `Response` — so it drops straight into an h3 route (`return transport.handleRequest(event.req)`) with no node-object bridge.
+**Architecture:** CLI-only. `chat()` is the stream orchestrator (lifecycle pass-through, middleware, message conversion); the harness CLI owns iteration and executes aidx tools via MCP. `HarnessTextAdapter extends BaseTextAdapter` wraps any `HarnessAdapter` (built via the `harnessText(harness, deps)` factory function) — `chat()` and the adapter stay harness-agnostic; all CLI specifics live in the `HarnessAdapter`. (The class is a justified, narrow exception to functions-not-classes: it is the only cast-free way to satisfy the `TextAdapter` interface's `never`-typed `'~types'`.) `/api/mcp` is a streamable-HTTP MCP server built on `@modelcontextprotocol/sdk`'s **Web Standard** transport (`WebStandardStreamableHTTPServerTransport`), which takes a web `Request` and returns a `Response` — so it drops straight into an h3 route (`return transport.handleRequest(event.req)`) with no node-object bridge.
 
 **Tech Stack:** `@tanstack/ai` 0.28 (`chat`, `TextAdapter` interface, `StreamChunk`, `TextOptions`, `normalizeSystemPrompts`, `toServerSentEventsStream`, `toolDefinition`), `@modelcontextprotocol/sdk` 1.29 (server: `McpServer`, `WebStandardStreamableHTTPServerTransport`), h3 (web `Request`/`Response`), zod, vitest (integration `*.it.test.ts`, real `claude` + real servers — no mocks/jsdom per repo convention).
 
@@ -15,17 +15,19 @@
 These are confirmed against the installed packages — use them verbatim.
 
 ```ts
-// @tanstack/ai/adapters exports the TextAdapter INTERFACE + StructuredOutputOptions/Result.
-// chat() is structural — verified it NEVER does `instanceof`, only reads
-// adapter.chatStream/.model/.name/.structuredOutput(+optional). So implement the interface with a
-// FACTORY returning a plain object (honors the repo functions-not-classes rule) — do NOT extend the
-// BaseTextAdapter class. `'~types'` is type-only (never read at runtime) → satisfy via one cast.
-interface TextAdapter<TModel extends string, TProviderOptions extends Record<string, any>,
+// @tanstack/ai/adapters exports the abstract BaseTextAdapter class + StructuredOutputOptions/Result.
+// We EXTEND BaseTextAdapter (the library's pattern — Ollama/OpenAI do this). This is the only
+// cast-free way to satisfy the TextAdapter interface: its `'~types'.systemPromptMetadata` is typed
+// `never` (uninhabited), so no object literal can satisfy it without a cast. Extending the base —
+// which declares `'~types'` as a never-assigned class property — is cast-free and library-intended.
+// A justified, narrow exception to functions-not-classes, forced by the no-casts rule.
+abstract class BaseTextAdapter<TModel extends string, TProviderOptions extends Record<string, any>,
   TInputModalities extends ReadonlyArray<Modality>, TMessageMetadataByModality, ...> {
-  readonly kind: 'text'; readonly name: string; readonly model: TModel
-  '~types': { /* type-only, not assigned at runtime */ }
-  chatStream(options: TextOptions<TProviderOptions>): AsyncIterable<StreamChunk>
-  structuredOutput(options: StructuredOutputOptions<TProviderOptions>): Promise<StructuredOutputResult<unknown>>
+  readonly kind: 'text'; abstract readonly name: string; readonly model: TModel
+  constructor(config: TextAdapterConfig | undefined, model: TModel)
+  abstract chatStream(options: TextOptions<TProviderOptions>): AsyncIterable<StreamChunk>
+  abstract structuredOutput(options: StructuredOutputOptions<TProviderOptions>): Promise<StructuredOutputResult<unknown>>
+  protected generateId(): string
 }
 // @tanstack/ai TextOptions fields used here: messages, systemPrompts, runId?, threadId?, parentRunId?, abortController?, logger
 // @tanstack/ai exports: chat, normalizeSystemPrompts, toServerSentEventsStream, EventType
@@ -279,7 +281,7 @@ Expected: PASS — existing `harness.it.test.ts` / `codex-decode.test.ts` still 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add packages/harness/src/_shared/agui.ts packages/harness/src/*/decode.ts packages/harness/test/agui-lifecycle.it.test.ts
+git add packages/harness/src/_shared/agui.ts packages/harness/src/claude/decode.ts packages/harness/src/codex/decode.ts packages/harness/test/agui-lifecycle.it.test.ts
 git commit -m "feat(harness): thread runId/threadId/logger through runAgui; guard empty deltas"
 ```
 
@@ -325,7 +327,7 @@ describe('harnessText adapter', () => {
     }
     expect(out.filter((c) => c.type === EventType.RUN_STARTED)).toHaveLength(1)
     expect(out.filter((c) => c.type === EventType.RUN_FINISHED)).toHaveLength(1)
-    const text = out.filter((c) => c.type === EventType.TEXT_MESSAGE_CONTENT).map((c) => (c as {delta: string}).delta).join('')
+    const text = out.flatMap((c) => (c.type === EventType.TEXT_MESSAGE_CONTENT ? [c.delta] : [])).join('')
     expect(text.toUpperCase()).toContain('PONG')
   }, 60_000)
 })
@@ -344,8 +346,8 @@ Create `packages/harness/src/_shared/text-adapter.ts`:
 import {createInterface} from 'node:readline'
 import type {Readable} from 'node:stream'
 import {normalizeSystemPrompts, type StreamChunk, type TextOptions} from '@tanstack/ai'
-import type {TextAdapter, StructuredOutputOptions, StructuredOutputResult} from '@tanstack/ai/adapters'
-import type {HarnessAdapter, HarnessChild} from '@aidx/protocol/harness-types'
+import {BaseTextAdapter, type StructuredOutputOptions, type StructuredOutputResult} from '@tanstack/ai/adapters'
+import type {HarnessAdapter, HarnessChild, HarnessImage, HarnessTurn} from '@aidx/protocol/harness-types'
 
 export type SpawnHarness = (args: string[], cwd: string) => HarnessChild
 
@@ -362,28 +364,25 @@ export type HarnessAdapterDeps = {
 
 type InputModalities = readonly ['text']
 type MsgMeta = {text: unknown; image: unknown; audio: unknown; video: unknown; document: unknown}
-export type HarnessTextAdapter = TextAdapter<string, Record<string, never>, InputModalities, MsgMeta>
 
 // Latest user-turn text from chat()'s ModelMessage[] (content is string or ContentPart[]).
+// flatMap + the `type` discriminant narrows each part — no cast, no type-guard predicate.
 export function lastUserModelText(messages: TextOptions['messages']): string {
   const last = [...messages].reverse().find((m) => m.role === 'user')
   if (!last) return ''
   if (typeof last.content === 'string') return last.content
-  return last.content
-    .filter((p): p is {type: 'text'; content: string} => p.type === 'text')
-    .map((p) => p.content)
-    .join('\n')
+  return last.content.flatMap((p) => (p.type === 'text' ? [p.content] : [])).join('\n')
 }
 
-// Image content parts from the latest user turn (base64 data source). Empty when none.
-// @tanstack/ai image part: {type:'image', source:{type:'data', value, mediaType}} — verify the
-// exact field names against the installed ContentPart types and adjust the projection.
+// Image parts from the latest user turn. Narrow `type==='image'` then `source.type==='data'`
+// (the data source carries base64) — cast-free; `source.mimeType` is the verified field name.
 export function lastUserImages(messages: TextOptions['messages']): HarnessImage[] {
   const last = [...messages].reverse().find((m) => m.role === 'user')
   if (!last || typeof last.content === 'string') return []
-  return last.content
-    .filter((p) => p.type === 'image')
-    .map((p) => ({mediaType: (p as never as {source: {mediaType: string}}).source.mediaType, dataBase64: (p as never as {source: {value: string}}).source.value}))
+  return last.content.flatMap((p) => {
+    if (p.type !== 'image' || p.source.type !== 'data') return []
+    return [{mediaType: p.source.mimeType, dataBase64: p.source.value}]
+  })
 }
 
 async function* linesOf(stream: Readable): AsyncGenerator<string> {
@@ -391,9 +390,23 @@ async function* linesOf(stream: Readable): AsyncGenerator<string> {
   for await (const line of rl) yield line
 }
 
-// Factory (no class — repo rule). Wraps any HarnessAdapter as a @tanstack/ai TextAdapter.
-export function harnessText(harness: HarnessAdapter, deps: HarnessAdapterDeps): HarnessTextAdapter {
-  async function* chatStream(options: TextOptions<Record<string, never>>): AsyncIterable<StreamChunk> {
+// Extends BaseTextAdapter (the library's cast-free way to satisfy the never-typed `'~types'`).
+// A justified, narrow exception to functions-not-classes: a plain object cannot implement the
+// TextAdapter interface without a cast, which the no-casts rule forbids.
+export class HarnessTextAdapter extends BaseTextAdapter<string, Record<string, never>, InputModalities, MsgMeta> {
+  readonly name: string
+  private readonly harness: HarnessAdapter
+  private readonly deps: HarnessAdapterDeps
+
+  constructor(harness: HarnessAdapter, deps: HarnessAdapterDeps) {
+    super({}, harness.id)
+    this.harness = harness
+    this.deps = deps
+    this.name = harness.id
+  }
+
+  async *chatStream(options: TextOptions<Record<string, never>>): AsyncIterable<StreamChunk> {
+    const {harness, deps} = this
     options.logger.request(`activity=chat provider=${harness.id} messages=${options.messages.length} stream=true`, {
       provider: harness.id,
       model: harness.id,
@@ -405,7 +418,7 @@ export function harnessText(harness: HarnessAdapter, deps: HarnessAdapterDeps): 
     const sysText = sysFromPrompts || deps.systemPrompt
     const userText = lastUserModelText(options.messages)
     const images = harness.capabilities.imageInput !== false ? lastUserImages(options.messages) : []
-    const turn = {
+    const turn: HarnessTurn = {
       prompt: mode === 'none' && sysText ? `${sysText}\n\n${userText}` : userText,
       cwd: deps.cwd,
       resumeSessionId: deps.resumeSessionId ?? null,
@@ -414,8 +427,7 @@ export function harnessText(harness: HarnessAdapter, deps: HarnessAdapterDeps): 
       mcpUrl: deps.mcpUrl,
       ...(images.length ? {images} : {}),
     }
-    const args = harness.buildArgs(turn)
-    const child = deps.spawnHarness(args, deps.cwd)
+    const child = deps.spawnHarness(harness.buildArgs(turn), deps.cwd)
     deps.onSpawn?.(child)
     options.abortController?.signal.addEventListener('abort', () => child.kill())
     await harness.deliverInput?.(child, turn) // e.g. claude native images → stream-json on stdin
@@ -432,19 +444,21 @@ export function harnessText(harness: HarnessAdapter, deps: HarnessAdapterDeps): 
     }
   }
 
-  function structuredOutput(_options: StructuredOutputOptions<Record<string, never>>): Promise<StructuredOutputResult<unknown>> {
-    return Promise.reject(new Error(`harness '${harness.id}' does not support structured output (coding CLIs have no native schema mode)`))
+  structuredOutput(_options: StructuredOutputOptions<Record<string, never>>): Promise<StructuredOutputResult<unknown>> {
+    return Promise.reject(new Error(`harness '${this.harness.id}' does not support structured output (coding CLIs have no native schema mode)`))
   }
+}
 
-  // '~types' is type-only (never read at runtime per @tanstack/ai); satisfy the interface via one cast.
-  return {kind: 'text', name: harness.id, model: harness.id, chatStream, structuredOutput} as HarnessTextAdapter
+// Factory wrapper so call sites read as functions; returns the adapter instance.
+export function harnessText(harness: HarnessAdapter, deps: HarnessAdapterDeps): HarnessTextAdapter {
+  return new HarnessTextAdapter(harness, deps)
 }
 ```
 
 - [ ] **Step 4: Export the adapter from the package root**
 
 - Confirm `@aidx/harness` `package.json` `dependencies` includes `@tanstack/ai` (it does). No new dep.
-- Add a subpath export for the adapter in `packages/harness/package.json` `exports` if core will import it directly; simpler: core imports from `@aidx/harness` root. Add to `packages/harness/src/registry.ts`'s module or a new entry — export `harnessText`, `lastUserModelText` from the package root by adding `export {harnessText, lastUserModelText} from './_shared/text-adapter.js'` to the file referenced by the `.` export (currently `registry.ts`).
+- Core imports `harnessText` from the `@aidx/harness` root. The root (`.`) export maps to `dist/registry.js` (`packages/harness/package.json`), so add this line to `packages/harness/src/registry.ts` (no `package.json` change): `export {harnessText, HarnessTextAdapter, lastUserModelText, lastUserImages} from './_shared/text-adapter.js'`. Task 4 depends on this export existing.
 
 - [ ] **Step 5: Run the test (requires `claude` on PATH + auth)**
 
@@ -459,8 +473,8 @@ Expected: PASS.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add packages/harness/src/_shared/text-adapter.ts packages/harness/src/registry.ts packages/harness/test/text-adapter.it.test.ts packages/harness/package.json
-git commit -m "feat(harness): HarnessTextAdapter + harnessText factory (BaseTextAdapter)"
+git add packages/harness/src/_shared/text-adapter.ts packages/harness/src/registry.ts packages/harness/test/text-adapter.it.test.ts
+git commit -m "feat(harness): HarnessTextAdapter (extends BaseTextAdapter) + harnessText factory"
 ```
 
 ### Task 4: Route the chat turn through chat()
@@ -526,17 +540,19 @@ app.post('/api/chat', async (event) => {
     },
   })
 
-  const stream = chat({adapter, messages: chatReq.messages as never, systemPrompts: sysText ? [sysText] : [], abortController: abort})
-  const merged = uiBus.run(stream as AsyncIterable<StreamChunk>)
+  const stream = chat({adapter, messages: chatReq.messages, systemPrompts: sysText ? [sysText] : [], abortController: abort})
+  const merged = uiBus.run(stream)
   const sse = toServerSentEventsStream(withLockRelease(merged, deps.stateRoot), abort)
   return new Response(sse, {status: 200, headers: sseHeaders(event)})
 })
 ```
 
-Notes:
-- `messages: chatReq.messages as never` — `chat()` accepts mixed `UIMessage | ModelMessage`; the cast bridges aidx's `ChatRequest['messages']` type to `chat()`'s input. Keep it localized.
+Notes (cast-free — repo rule forbids `as`):
+- `chatReq.messages` is already `UIMessage[]` (`@aidx/protocol/chat-types` re-exports `UIMessage` from `@tanstack/ai`), and `chat()` accepts `Array<UIMessage | ModelMessage>`, so it passes with no cast. If `tsc` reports a mismatch, fix the *type* of `ChatRequest['messages']` to be `UIMessage[]` — do not cast.
+- `chat()`'s streaming return is `AsyncIterable<StreamChunk>`, which `uiBus.run` accepts directly — no cast.
 - The `lastUserText` import + `mode === 'none'` prompt-prefix logic moves into the adapter (Task 3), so remove the now-unused `lastUserText` import from `turn.ts`.
 - The lock is acquired in `onSpawn` (after the child exists, so we still record the pid).
+- `mcpUrl` points at `/api/mcp`, which only exists after Task 6 — a real claude turn run between Task 4 and Task 6 would 404 on tool calls. The Task 4 test does not exercise MCP, so it passes; the live tool path lights up in Task 7.
 
 - [ ] **Step 4: Run the chat integration test**
 
@@ -684,7 +700,7 @@ describe('aidx_ui tool', () => {
     const seen: unknown[] = []
     const tools = aidxTools({injectUi: (spec) => (seen.push(spec), true), page: async () => ({}), test: async () => ({})})
     const ui = tools.find((t) => t.name === 'aidx_ui')!
-    const result = await ui.execute({kind: 'confirm', question: 'ok?'}, {} as never)
+    const result = await ui.execute({kind: 'confirm', question: 'ok?'}, {context: undefined})
     expect(seen).toHaveLength(1)
     expect(result).toMatchObject({injected: true})
   })
@@ -780,7 +796,7 @@ Expected: PASS.
 - [ ] **Step 8: Commit**
 
 ```bash
-git add packages/tools packages/protocol/src/ui-types.ts packages/cli/src/ui.ts pnpm-workspace.yaml
+git add packages/tools packages/protocol/src/ui-types.ts packages/cli/src/ui.ts
 git commit -m "feat(tools): @aidx/tools package with aidx_ui tool; share buildUiSpec via protocol"
 ```
 
@@ -819,16 +835,20 @@ describe('/api/mcp', () => {
     // Connect the TanStack MCP client to our server (http transport at `${url}/api/mcp`).
     // Confirm the exact createMCPClient transport-config shape against @tanstack/ai-mcp's types.
     const mcp = await createMCPClient({transport: {type: 'http', url: `${url}/api/mcp`}})
-    const result = await mcp.callTool('aidx_ui', {kind: 'confirm', question: 'ok?'})
+    // MCPClient exposes tools() → ServerTool[] (each with .execute), not a callTool() method.
+    const tools = await mcp.tools()
+    const uiTool = tools.find((t) => t.name === 'aidx_ui')
+    if (!uiTool) throw new Error('aidx_ui not registered on /api/mcp')
+    const result = await uiTool.execute({kind: 'confirm', question: 'ok?'})
     expect(injected).toHaveLength(1)
     expect(JSON.stringify(result)).toContain('renderId')
-    await mcp.close?.()
+    await mcp.close()
     await close()
   }, 30_000)
 })
 ```
 
-(`startTestServer` wires a uiBus whose `inject` calls `onInjectUi`. Confirm `createMCPClient`'s option shape + the call method name — `callTool` / `tools()` — against the installed `@tanstack/ai-mcp` types; the asserted behavior is fixed.)
+(`startTestServer` wires a uiBus whose `inject` calls `onInjectUi`. Confirm `createMCPClient`'s transport-config option shape and `ServerTool.execute`'s argument shape against the installed `@tanstack/ai-mcp` types; the asserted behavior is fixed. The `if (!uiTool) throw` guard narrows away `undefined` — no `!`/cast.)
 
 - [ ] **Step 3: Run it to confirm it fails**
 
@@ -849,13 +869,15 @@ export function registerMcpRoutes(app: H3, ctx: AidxToolContext): void {
   app.post('/api/mcp', async (event) => {
     const server = new McpServer({name: 'aidx', version: '0.0.0'})
     for (const tool of aidxTools(ctx)) {
-      // toolDefinition().server() exposes name/description/inputSchema/execute;
-      // register each with the MCP server. Map the zod inputSchema → registerTool's schema.
+      // registerTool wants a Zod RAW SHAPE (not a z.object). Each aidx tool's inputSchema is a
+      // z.object, so pass its `.shape` — typed, no cast. The handler's `args` is inferred from the
+      // shape and matches the tool's own execute() input; execute closes over `ctx` (the second
+      // arg is the tool execution context — build the real value the @tanstack/ai type requires).
       server.registerTool(
         tool.name,
-        {description: tool.description, inputSchema: tool.inputSchema as never},
-        async (args: unknown) => {
-          const result = await tool.execute(args as never, {} as never)
+        {description: tool.description, inputSchema: tool.inputSchema.shape},
+        async (args, extra) => {
+          const result = await tool.execute(args, {toolCallId: extra.requestId, context: undefined})
           return {content: [{type: 'text', text: JSON.stringify(result)}]}
         },
       )
@@ -868,8 +890,9 @@ export function registerMcpRoutes(app: H3, ctx: AidxToolContext): void {
 }
 ```
 
-Notes / verification:
-- `tool.execute` / `tool.name` / `tool.inputSchema` property access must match the `@tanstack/ai` `Tool` shape produced by `toolDefinition().server()`. Verify against the installed types (`node_modules/@tanstack/ai/dist/esm/.../tool-definition.d.ts`) and adjust property names if needed — the *behavior* (call the server impl, wrap its return as MCP `content`) is fixed.
+Notes / verification (no casts — repo rule; if a type fights you, construct the real value or narrow, do NOT `as`):
+- `tool.inputSchema.shape` — confirm `aidx` tools expose their `z.object`'s `.shape`. `toolDefinition({inputSchema: z.object(...)})` keeps the ZodObject; if the `Tool` type widens `inputSchema` to `SchemaInput`, store the raw shape on the tool (or export the shape alongside) so this stays cast-free.
+- The `tool.execute(args, ctx)` second arg is `@tanstack/ai`'s `ToolExecutionContext`. Construct a real value (its fields are optional / `context` is the typed runtime context — `undefined` here since our tools close over `ctx`). Confirm the exact field names against the installed `ToolExecutionContext` type and fill them in; no cast.
 - No node-object bridge and no double-send concern: `handleRequest(event.req)` returns a `Response` that the h3 route returns directly. `event.req` is already a web `Request`.
 
 - [ ] **Step 5: Wire the route in makeApp + run the test**
@@ -878,15 +901,19 @@ In `packages/core/src/app.ts`, after the chat routes, register MCP with a contex
 
 ```ts
 import {registerMcpRoutes} from './api/mcp/mcp.js'
-// … inside makeApp, after registerChatRoutes/registerPageRoutes/registerTestRunnerRoutes:
+// … inside makeApp, after registerChatRoutes/registerPageRoutes/registerTestRunnerRoutes.
+// page/test are throwing placeholders THIS task (the aidx_ui test doesn't exercise them);
+// Task 8 replaces `page` with the real page-bus `ask`, Task 9 replaces `test` with the runner.
 registerMcpRoutes(app, {
   injectUi: (spec) => uiBus.inject(spec),
-  page: (query) => pageAsk(query), // expose the page bus's ask(); see Task 8 for the handle
-  test: (action) => runnerAction(runner, action), // see Task 9
+  page: async () => {
+    throw new Error('aidx_page not wired until Task 8')
+  },
+  test: async () => {
+    throw new Error('aidx_test not wired until Task 9')
+  },
 })
 ```
-
-For this task, `page`/`test` can be `async () => { throw new Error('not wired yet') }` placeholders (the `aidx_ui` test does not exercise them); they are wired in Tasks 8–9. Note this explicitly in the commit.
 
 Run: `pnpm --filter @aidx/core exec vitest run test/api/mcp/mcp.it.test.ts && pnpm --filter @aidx/core typecheck`
 Expected: PASS — `injected` has 1 entry; result contains `renderId`.
@@ -990,7 +1017,7 @@ describe('aidx_page tool', () => {
     const calls: unknown[] = []
     const tools = aidxTools({injectUi: () => true, page: async (q) => (calls.push(q), {ok: true}), test: async () => ({})})
     const page = tools.find((t) => t.name === 'aidx_page')!
-    const result = await page.execute({verb: 'tree', ref: 'main'}, {} as never)
+    const result = await page.execute({verb: 'tree', ref: 'main'}, {context: undefined})
     expect(calls[0]).toMatchObject({kind: 'tree', ref: 'main'})
     expect(result).toMatchObject({ok: true})
   })
@@ -1061,7 +1088,7 @@ describe('aidx_test tool', () => {
     const calls: unknown[] = []
     const tools = aidxTools({injectUi: () => true, page: async () => ({}), test: async (a) => (calls.push(a), {tests: []})})
     const test = tools.find((t) => t.name === 'aidx_test')!
-    const result = await test.execute({action: 'list'}, {} as never)
+    const result = await test.execute({action: 'list'}, {context: undefined})
     expect(calls[0]).toMatchObject({kind: 'list'})
     expect(result).toMatchObject({tests: []})
   })
@@ -1168,6 +1195,6 @@ git commit -m "chore: build/lint/format fixups for tanstack-ai chat adapters"
 
 ## Self-review notes
 
-- **Spec coverage:** `@aidx/tools` (T5,8,9) · `/api/mcp` via MCP SDK (T6) · complete adapter via factory/`structuredOutput` NotSupported (T3) · chat() routing + lifecycle pass-through (T2,T4) · `mcp` + `imageInput` caps + `mcpUrl`/`images`/`deliverInput` (T1) · native image delivery to claude (T4b, absorbed chat-image-input server-half) · `--mcp-config` + Bash drop (T7) · skill rewrite (T10) · claude-first sequencing (T7→T12). Composer/widget image UI stays in the chat-image-input plan. Codex `fileRef` image delivery: noted in T12 (verify), defaulting `false` until then.
+- **Spec coverage:** `@aidx/tools` (T5,8,9) · `/api/mcp` via MCP SDK (T6) · complete adapter (`HarnessTextAdapter extends BaseTextAdapter`) + `structuredOutput` NotSupported (T3) · chat() routing + lifecycle pass-through (T2,T4) · `mcp` + `imageInput` caps + `mcpUrl`/`images`/`deliverInput` (T1) · native image delivery to claude (T4b, absorbed chat-image-input server-half) · `--mcp-config` + Bash drop (T7) · skill rewrite (T10) · claude-first sequencing (T7→T12). Composer/widget image UI stays in the chat-image-input plan. Codex `fileRef` image delivery: noted in T12 (verify), defaulting `false` until then.
 - **Library types (no wheel-reinvention):** `BaseTextAdapter`/`TextOptions`/`StreamChunk`/`toServerSentEventsStream`/`normalizeSystemPrompts`/`toolDefinition` from `@tanstack/ai`; `McpServer`/`WebStandardStreamableHTTPServerTransport` from `@modelcontextprotocol/sdk`. The MCP server is fully web-standard (`Request`→`Response`), so it needs nothing from `srvx` beyond h3's existing `event.req` — no node-object bridge.
 - **Open verification points (flagged in-task, not placeholders):** (a) the `@tanstack/ai` `Tool` runtime property names (`name`/`description`/`inputSchema`/`execute`) used by the MCP registration loop — confirm against installed types in T6; (b) MCP SDK subpath import paths (`server/mcp.js`, `server/webStandardStreamableHttp.js`) — confirmed against 1.29.0 in T6 Step 1.
