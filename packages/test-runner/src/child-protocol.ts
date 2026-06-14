@@ -1,11 +1,10 @@
 import {z} from 'zod'
 import {TestEventSchema} from '@aidx/protocol/test-types'
 
-// The child↔driver NDJSON contract, in its own side-effect-free module shared by every
-// adapter child + the driver. A child imports the `ChildMessage` TYPE to shape its send();
-// the driver imports `ChildMessageSchema` to VALIDATE each line. The schema must NOT live in
-// a child.ts: children run main() at top level (they are spawned process entries), so importing
-// one for a value would boot a runner in-process — see the warning in vitest/child.ts.
+// The child↔driver NDJSON contract, in its own side-effect-free module shared by every adapter
+// child + the driver. A child imports the `ChildMessage` TYPE to shape its send(); the driver
+// imports `ChildMessageSchema` to VALIDATE each line. It lives here because both sides need it
+// and neither owns it — a plain shared contract.
 
 const ListFileSchema = z.object({file: z.string(), relPath: z.string(), lastState: z.string().optional()})
 export const ListMessageSchema = z.object({type: z.literal('list'), files: z.array(ListFileSchema)})
