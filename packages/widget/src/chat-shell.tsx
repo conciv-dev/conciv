@@ -437,7 +437,9 @@ export function ChatFeature(props: {apiBase: string}): JSX.Element {
     <>
       <Show when={showPanel()}>
         <section
-          ref={panelEl}
+          ref={(el) => {
+            panelEl = el
+          }}
           class={panelClass(closing())}
           role="dialog"
           aria-modal="true"
@@ -514,7 +516,9 @@ export function ChatFeature(props: {apiBase: string}): JSX.Element {
               value={input()}
               onInput={(e) => setInput(e.currentTarget.value)}
               onKeyDown={onKeyDown}
-              ref={inputEl}
+              ref={(el) => {
+                inputEl = el
+              }}
             />
             <Show
               when={chat.isLoading()}
@@ -532,7 +536,9 @@ export function ChatFeature(props: {apiBase: string}): JSX.Element {
         </section>
       </Show>
       <button
-        ref={fabEl}
+        ref={(el) => {
+          fabEl = el
+        }}
         class={fabClass(fabPulsing())}
         aria-label="Open aidx chat"
         aria-expanded={open()}
