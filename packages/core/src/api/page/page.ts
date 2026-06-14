@@ -8,12 +8,12 @@ import {
   type PageQueryInput,
 } from '@devgent/protocol/page-protocol'
 import type {Journal} from '../../page/journal.js'
+import {corsHeadersFor} from '../cors.js'
 
 const SSE_HEADERS = {
   'content-type': 'text/event-stream',
   'cache-control': 'no-cache',
   connection: 'keep-alive',
-  'access-control-allow-origin': '*',
 }
 
 const PageReplySchema = z.object({requestId: z.string(), data: z.record(z.string(), z.unknown()).default({})})
@@ -77,7 +77,7 @@ function makePageBus(timeoutMs = 5000): PageBus {
 export function registerPageRoutes(app: H3, deps: {journal: Journal}): void {
   const bus = makePageBus()
 
-  app.get('/api/page/stream', () => {
+  app.get('/api/page/stream', (event) => {
     const encoder = new TextEncoder()
     let unsubscribe = () => {}
     const stream = new ReadableStream<Uint8Array>({
@@ -89,7 +89,7 @@ export function registerPageRoutes(app: H3, deps: {journal: Journal}): void {
         unsubscribe()
       },
     })
-    return new Response(stream, {status: 200, headers: SSE_HEADERS})
+    return new Response(stream, {status: 200, headers: {...SSE_HEADERS, ...corsHeadersFor(event)}})
   })
 
   app.post('/api/page/reply', async (event) => {

@@ -6,6 +6,7 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
+    "dev": "turbo run dev --filter=tanstack-start-example",
     "build": "turbo run build",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",

@@ -76,7 +76,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     port,
     cfg,
     stop: async () => {
-      await server.close()
+      await server.close(true)
     },
   }
 }

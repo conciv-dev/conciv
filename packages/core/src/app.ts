@@ -5,6 +5,7 @@ import type {BundlerBridge} from '@devgent/protocol/bundler-types'
 import type {ResolvedDevgentConfig} from './config.js'
 import {getHarness} from '@devgent/harness'
 import {getRunner} from '@devgent/test-runner'
+import {registerCors} from './api/cors.js'
 import {registerChatRoutes} from './api/chat/chat.js'
 import {registerPageRoutes} from './api/page/page.js'
 import {registerServerRoutes} from './api/server/server.js'
@@ -42,6 +43,7 @@ export function makeApp(opts: MakeAppOpts): H3 {
   const runner = requireRunner(opts.cfg.testRunner).create(opts.cwd)
   const uiBus = makeUiBus()
 
+  registerCors(app)
   registerChatRoutes(app, {
     cwd: opts.cwd,
     lockDir: opts.cfg.lockDir,

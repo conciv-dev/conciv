@@ -15,12 +15,10 @@ function escapeAttr(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;')
 }
 
-// The tags injected into the page: an empty api-base (⇒ same-origin /__pw), the preview id,
-// and the widget bundle script. `defer` so it runs after the DOM is parsed (it mounts onto
-// document.body).
-export function widgetTags(widgetUrl: string, previewId: string): string {
+// apiBase = the cross-origin engine origin the widget calls.
+export function widgetTags(widgetUrl: string, previewId: string, apiBase: string): string {
   return (
-    `<meta name="pw-api-base" content="">` +
+    `<meta name="pw-api-base" content="${escapeAttr(apiBase)}">` +
     `<meta name="pw-preview-id" content="${escapeAttr(previewId)}">` +
     `<script src="${escapeAttr(widgetUrl)}" defer></script>`
   )
@@ -98,8 +96,8 @@ function trailingCallback(args: ReadonlyArray<unknown>): (() => void) | undefine
 // writeHead's headers are applied via setHeader so a deferred flush still emits them. Non-html
 // responses (assets, SSE, JSON) stream through untouched, and a document already carrying the
 // widget (e.g. a static app where transformIndexHtml injected it) isn't re-injected.
-export function makeWidgetInject(widgetUrl: string, previewId: string): Middleware {
-  const tags = widgetTags(widgetUrl, previewId)
+export function makeWidgetInject(widgetUrl: string, previewId: string, apiBase: string): Middleware {
+  const tags = widgetTags(widgetUrl, previewId, apiBase)
   return (_req, res, next) => {
     const chunks: Buffer[] = []
     const realWrite = res.write

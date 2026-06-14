@@ -10,6 +10,7 @@ import {writeSession} from '../../chat/session-store.js'
 import type {UiBus} from '../../chat/ui-bus.js'
 import {lastUserText} from './messages.js'
 import type {SessionState} from './session.js'
+import {corsHeadersFor} from '../cors.js'
 
 export type SpawnHarness = (args: string[], cwd: string) => HarnessChild
 
@@ -93,7 +94,7 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
         'content-type': 'text/event-stream',
         'cache-control': 'no-cache',
         connection: 'keep-alive',
-        'access-control-allow-origin': '*',
+        ...corsHeadersFor(event),
       },
     })
   })

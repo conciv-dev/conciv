@@ -51,8 +51,10 @@ function resolveWidgetSetup(options: DevgentConfig): WidgetSetup {
   }
 }
 
-function mountWidget(server: ViteDevServer, widget: WidgetSetup, previewId: string): void {
-  if (widget.url) server.middlewares.stack.unshift({route: '', handle: makeWidgetInject(widget.url, previewId)})
+function mountWidget(server: ViteDevServer, widget: WidgetSetup, previewId: string, apiBase: string): void {
+  if (widget.url) {
+    server.middlewares.stack.unshift({route: '', handle: makeWidgetInject(widget.url, previewId, apiBase)})
+  }
   if (widget.serveBundled && widget.file) server.middlewares.use(makeWidgetServe(widget.file))
 }
 
@@ -89,9 +91,9 @@ export function makeViteHook(options: DevgentConfig = {}): Plugin {
     async configureServer(server: ViteDevServer) {
       const cfg = resolveConfig(options, server.config.root)
       if (!cfg.enabled) return
-      mountWidget(server, widget, cfg.previewId)
       engine = await bootEngine(server, options, installDevgentBinShim(join(cfg.lockDir, '.devgent')))
       const booted = engine
+      mountWidget(server, widget, cfg.previewId, `http://127.0.0.1:${booted.port}`)
       server.httpServer?.on('close', () => void booted.stop())
     },
   }

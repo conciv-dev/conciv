@@ -1,12 +1,12 @@
 import {type H3, type H3Event, getValidatedQuery, readValidatedBody} from 'h3'
 import {z} from 'zod'
 import {isRunnerUnavailable, type TestRunnerManager} from '@devgent/protocol/runner-types'
+import {corsHeadersFor} from '../cors.js'
 
 const SSE_HEADERS = {
   'content-type': 'text/event-stream',
   'cache-control': 'no-cache',
   connection: 'keep-alive',
-  'access-control-allow-origin': '*',
 }
 
 const ListQuerySchema = z.object({failed: z.string().optional()})
@@ -24,7 +24,7 @@ function unavailableBody(event: H3Event, e: unknown): {available: false; error: 
 }
 
 export function registerTestRunnerRoutes(app: H3, mgr: TestRunnerManager): void {
-  app.get('/api/test-runner/stream', () => {
+  app.get('/api/test-runner/stream', (event) => {
     const encoder = new TextEncoder()
     let unsubscribe = () => {}
     const stream = new ReadableStream<Uint8Array>({
@@ -37,7 +37,7 @@ export function registerTestRunnerRoutes(app: H3, mgr: TestRunnerManager): void 
         unsubscribe()
       },
     })
-    return new Response(stream, {status: 200, headers: SSE_HEADERS})
+    return new Response(stream, {status: 200, headers: {...SSE_HEADERS, ...corsHeadersFor(event)}})
   })
 
   app.get('/api/test-runner/list', async (event) => {
