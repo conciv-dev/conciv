@@ -1,4 +1,4 @@
-import {type JSX, useEffect, useRef, useState} from 'react'
+import {createEffect, createSignal, For, onCleanup, Show, type JSX} from 'solid-js'
 import {
   TestEventSchema,
   type TestRunResult,
@@ -8,13 +8,8 @@ import {
   type TestEvent,
 } from '@aidx/protocol/test-types'
 
-// The test-runner results card, rendered in the chat thread AT the agent's `aidx tools test
-// run` tool-call. Runner-blind: speaks TestEvent / TestRunResult only. Two modes, one component:
-//   - result === null  → the run is still active (tool-call present, no tool-result yet):
-//                         subscribe to /api/test-runner/stream and build the tree live.
-//   - result !== null  → the run finished (or we reloaded): render the full tree from the
-//                         tool-result JSON in the transcript. No SSE, fully persistent.
-// So results live in history at the right place AND stream live while running.
+// The test-runner results card. Runner-blind: speaks TestEvent / TestRunResult only. result===null
+// → subscribe to /api/test-runner/stream and build the tree live; result!==null → static render.
 
 type Row = {name: string; state: TestState | 'running'; error?: TestError}
 type FileGroup = {file: string; tests: Row[]}
@@ -78,13 +73,13 @@ function TestErrorBlock(props: {error: TestError; apiBase: string; onFix: (text:
       body: JSON.stringify({file: props.error.file, line: props.error.line}),
     })
   return (
-    <div className="pw-test-err">
+    <div class="pw-test-err">
       <pre>{props.error.message}</pre>
-      <div className="pw-test-actions">
-        <button className="pw-test-act" onClick={openInEditor}>
+      <div class="pw-test-actions">
+        <button class="pw-test-act" onClick={openInEditor}>
           ↗ Open {openLabel(props.error)}
         </button>
-        <button className="pw-test-act pw-test-fix" onClick={() => props.onFix(fixMessage(props.error))}>
+        <button class="pw-test-act pw-test-fix" onClick={() => props.onFix(fixMessage(props.error))}>
           ✦ Fix this
         </button>
       </div>
@@ -92,21 +87,16 @@ function TestErrorBlock(props: {error: TestError; apiBase: string; onFix: (text:
   )
 }
 
-export function TestCard(props: {
-  apiBase: string
-  onFix: (text: string) => void
-  result: TestRunResult | null
-}): JSX.Element {
-  const [groups, setGroups] = useState<FileGroup[]>([])
-  const [summary, setSummary] = useState<Summary>(EMPTY_SUMMARY)
-  const [running, setRunning] = useState(false)
-  const [openTest, setOpenTest] = useState<string | null>(null)
+export function TestCard(props: {apiBase: string; onFix: (text: string) => void; result: TestRunResult | null}): JSX.Element {
+  const [groups, setGroups] = createSignal<FileGroup[]>([])
+  const [summary, setSummary] = createSignal<Summary>(EMPTY_SUMMARY)
+  const [running, setRunning] = createSignal(false)
+  const [openTest, setOpenTest] = createSignal<string | null>(null)
   // Live mode accumulates rows keyed by file::name as `test` events arrive.
-  const live = useRef(new Map<string, Row & {file: string}>())
+  const live = new Map<string, Row & {file: string}>()
 
   // result present → static render from the transcript; null → live SSE for the active run.
-  // EventSource subscribe/teardown is genuine external sync — a legitimate useEffect.
-  useEffect(() => {
+  createEffect(() => {
     const result = props.result
     if (result) {
       setRunning(false)
@@ -115,21 +105,20 @@ export function TestCard(props: {
       return
     }
     setRunning(true)
-    const map = live.current
     const applyLive = (ev: TestEvent) => {
       if (ev.type === 'snapshot') {
         setSummary(ev.summary)
         return
       }
       if (ev.type === 'run-start') {
-        map.clear()
+        live.clear()
         setGroups([])
         setSummary(EMPTY_SUMMARY)
         return
       }
       if (ev.type === 'test') {
-        map.set(`${ev.file}::${ev.name}`, {file: ev.file, name: ev.name, state: ev.state, error: ev.error})
-        setGroups(groupByFile([...map.values()]))
+        live.set(`${ev.file}::${ev.name}`, {file: ev.file, name: ev.name, state: ev.state, error: ev.error})
+        setGroups(groupByFile([...live.values()]))
         return
       }
       if (ev.type === 'run-end') {
@@ -145,46 +134,53 @@ export function TestCard(props: {
       const ev = parseTestEvent(e.data)
       if (ev) applyLive(ev)
     })
-    return () => source.close()
-  }, [props.result, props.apiBase])
+    onCleanup(() => source.close())
+  })
 
   const toggleTest = (key: string) => setOpenTest((current) => (current === key ? null : key))
 
   return (
-    <div className="pw-test">
-      <div className="pw-test-bar">
-        {running ? (
-          <span className="pw-test-running-label">
-            <span className="pw-test-dot pw-test-running" aria-hidden="true" />
+    <div class="pw-test">
+      <div class="pw-test-bar">
+        <Show when={running()}>
+          <span class="pw-test-running-label">
+            <span class="pw-test-dot pw-test-running" aria-hidden="true" />
             running
           </span>
-        ) : null}
-        <span className="pw-test-pill pw-test-pass">{summary.passed} passed</span>
-        {summary.failed > 0 ? <span className="pw-test-pill pw-test-fail">{summary.failed} failed</span> : null}
-        {summary.skipped > 0 ? <span className="pw-test-pill pw-test-skip">{summary.skipped} skipped</span> : null}
+        </Show>
+        <span class="pw-test-pill pw-test-pass">{summary().passed} passed</span>
+        <Show when={summary().failed > 0}>
+          <span class="pw-test-pill pw-test-fail">{summary().failed} failed</span>
+        </Show>
+        <Show when={summary().skipped > 0}>
+          <span class="pw-test-pill pw-test-skip">{summary().skipped} skipped</span>
+        </Show>
       </div>
-      {groups.map((group) => (
-        <div key={group.file}>
-          <div className="pw-test-file">
-            <span className="pw-test-fname">{relName(group.file)}</span>
+      <For each={groups()}>
+        {(group) => (
+          <div>
+            <div class="pw-test-file">
+              <span class="pw-test-fname">{relName(group.file)}</span>
+            </div>
+            <For each={group.tests}>
+              {(test) => {
+                const key = `${group.file}::${test.name}`
+                return (
+                  <div>
+                    <div class={testRowClass(test.state)} onClick={() => toggleTest(key)}>
+                      <span class={dotClass(test.state)} aria-hidden="true" />
+                      <span>{test.name}</span>
+                    </div>
+                    <Show when={openTest() === key ? test.error : undefined}>
+                      {(error) => <TestErrorBlock error={error()} apiBase={props.apiBase} onFix={props.onFix} />}
+                    </Show>
+                  </div>
+                )
+              }}
+            </For>
           </div>
-          {group.tests.map((test) => {
-            const key = `${group.file}::${test.name}`
-            const expanded = Boolean(test.error) && openTest === key
-            return (
-              <div key={key}>
-                <div className={testRowClass(test.state)} onClick={() => toggleTest(key)}>
-                  <span className={dotClass(test.state)} aria-hidden="true" />
-                  <span>{test.name}</span>
-                </div>
-                {expanded && test.error ? (
-                  <TestErrorBlock error={test.error} apiBase={props.apiBase} onFix={props.onFix} />
-                ) : null}
-              </div>
-            )
-          })}
-        </div>
-      ))}
+        )}
+      </For>
     </div>
   )
 }
