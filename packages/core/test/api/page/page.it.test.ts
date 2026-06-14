@@ -4,6 +4,7 @@ import {H3} from 'h3'
 import {serve, type Server} from 'srvx'
 import {registerPageRoutes} from '../../../src/api/page/page.js'
 import {makeJournal} from '../../../src/runtime/journal.js'
+import {chunkWithInlineMap, cleanupChunks} from '../../page/fixtures.js'
 
 // Real HTTP round-trip for the page-bus over the h3 app: a fetch-based SSE reader stands in
 // for the browser widget, answering each query by POSTing back. Exercises the true
@@ -77,6 +78,21 @@ describe('page routes page-bus (IT, real http over h3)', () => {
     if (state.server) await state.server.close()
     state.server = undefined
     state.widget = undefined
+    await cleanupChunks()
+  })
+
+  it('enriches a locate reply with symbolicated source', async () => {
+    const {server, base} = await startServer()
+    state.server = server
+    const chunk = await chunkWithInlineMap('app/page.tsx', 17, 4)
+    state.widget = await connectWidget(base, () => ({
+      component: 'Home',
+      stack: ['Home'],
+      frames: [{fileName: `file://${chunk}`, line: 2, column: 1}],
+    }))
+    const data = (await getJson(`${base}/api/page/locate?selector=h1`)) as Record<string, unknown>
+    expect(data.component).toBe('Home')
+    expect(data.source).toEqual({file: 'app/page.tsx', line: 17, column: 4})
   })
 
   it('round-trips a page query: SSE push → widget reply → the query resolves', async () => {

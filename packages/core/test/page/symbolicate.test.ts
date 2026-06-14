@@ -4,23 +4,13 @@ import {join} from 'node:path'
 import {tmpdir} from 'node:os'
 import {GenMapping, addMapping, toEncodedMap} from '@jridgewell/gen-mapping'
 import {symbolicateFrame, symbolicateFrames} from '../../src/page/symbolicate.js'
+import {chunkWithInlineMap, cleanupChunks} from './fixtures.js'
 
 const written: string[] = []
 afterEach(async () => {
+  await cleanupChunks()
   for (const f of written.splice(0)) await rm(f, {force: true})
 })
-
-// Build a chunk whose generated (line 2, col 0) maps to source:line:col, with an inline data map.
-async function chunkWithInlineMap(source: string, line: number, column: number): Promise<string> {
-  const gen = new GenMapping()
-  addMapping(gen, {generated: {line: 2, column: 0}, source, original: {line, column}})
-  const map = toEncodedMap(gen)
-  const b64 = Buffer.from(JSON.stringify(map)).toString('base64')
-  const path = join(tmpdir(), `aidx-chunk-${Math.random().toString(36).slice(2)}.js`)
-  await writeFile(path, `"use strict";\nvoid 0;\n//# sourceMappingURL=data:application/json;base64,${b64}`)
-  written.push(path)
-  return path
-}
 
 describe('symbolicateFrame', () => {
   it('resolves a file:// frame via an inline data map', async () => {
