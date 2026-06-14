@@ -21,6 +21,7 @@ export function makeEngineBooter(options: AidxConfig, root: string): () => Promi
     booting = start({
       options,
       root,
+      port: options.port,
       launchEditor: openInEditor,
       childEnv: (corePort) => ({...process.env, PATH: agentPath, AIDX_PORT: String(corePort)}),
     })
