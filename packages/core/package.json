@@ -36,6 +36,7 @@
     "@aidx/protocol": "workspace:*",
     "@aidx/test-runner": "workspace:*",
     "@tanstack/ai": "^0.28.0",
+    "get-port": "^7.1.0",
     "h3": "2.0.1-rc.22",
     "srvx": "^0.11.16",
     "zod": "^4.4.3"

@@ -9,6 +9,7 @@ export const AIDX_DEFAULT_PORT = 41700
 type ConfigWithEnv = {env?: Record<string, string | undefined>}
 
 // Wrap next.config: pin the engine port, inline it for the client, carry options for register().
+// The port is fixed (default or user-set); if it's taken the engine boot fails — that's acceptable.
 export function withAidx<T extends object>(
   nextConfig: T = {} as T,
   options: AidxConfig = {},

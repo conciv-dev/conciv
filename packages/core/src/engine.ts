@@ -1,5 +1,6 @@
 import {spawn} from 'node:child_process'
 import {serve} from 'srvx'
+import getPort from 'get-port'
 import type {HarnessChild} from '@aidx/protocol/harness-types'
 import type {BundlerBridge} from '@aidx/protocol/bundler-types'
 import {makeApp, type MakeAppOpts} from './app.js'
@@ -50,7 +51,9 @@ export async function start(opts: StartOpts): Promise<Engine> {
     spawnHarness,
   }
   const app = makeApp(appOpts)
-  const server = serve({fetch: app.fetch, port: opts.port ?? 0, hostname: '127.0.0.1'})
+  // Explicit port (e.g. the Next.js integration) is used as-is; otherwise get-port finds a free one.
+  const requestedPort = opts.port ?? (await getPort())
+  const server = serve({fetch: app.fetch, port: requestedPort, hostname: '127.0.0.1'})
   await server.ready()
   const port = portOf(server.url)
   portRef.port = port
