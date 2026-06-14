@@ -20,10 +20,6 @@
       "types": "./dist/test-types.d.ts",
       "import": "./dist/test-types.js"
     },
-    "./vitest-types": {
-      "types": "./dist/vitest-types.d.ts",
-      "import": "./dist/vitest-types.js"
-    },
     "./harness-types": {
       "types": "./dist/harness-types.d.ts",
       "import": "./dist/harness-types.js"

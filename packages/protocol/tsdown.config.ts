@@ -7,7 +7,6 @@ export default defineConfig({
     'src/chat-types.ts',
     'src/ui-types.ts',
     'src/test-types.ts',
-    'src/vitest-types.ts',
     'src/harness-types.ts',
     'src/runner-types.ts',
     'src/bundler-types.ts',
