@@ -1,11 +1,17 @@
-import {defineStubRunner} from '../driver.js'
+import type {RunArgs} from '@aidx/protocol/runner-types'
+import {defineChildRunner} from '../driver.js'
 
-// Capability-only stub for the seam-stressing e2e runner. Registered so listRunners() advertises
-// it; create() throws until the playwright child lands. When implemented, switch to
-// defineChildRunner and add a playwright/child.ts entry (run with --reporter=json via
-// PLAYWRIGHT_JSON_OUTPUT_NAME → map the JSON report onto TestEvent). watch:false, failedOnly:false.
-export const playwright = defineStubRunner({
+// The playwright adapter: spawns playwright/child.ts, which runs the app's `playwright test
+// --reporter=json` and maps the report to TestEvents. No watch, no failed-only memory on a
+// fresh child; name filter maps to playwright's -g.
+export const playwright = defineChildRunner({
   id: 'playwright',
   capabilities: {watch: false, uiServer: false, filterByName: true, failedOnly: false},
-  reason: 'playwright runner not implemented',
+  childUrl: new URL('./child.js', import.meta.url),
+  buildRunArgs: (args: RunArgs, cwd: string) => {
+    const patternArgs = (args.patterns ?? []).flatMap((p) => ['--pattern', p])
+    const nameArgs = args.testNamePattern ? ['--name', args.testNamePattern] : []
+    return ['--mode', 'run', '--cwd', cwd, ...patternArgs, ...nameArgs]
+  },
+  buildListArgs: (_failedOnly: boolean, cwd: string) => ['--mode', 'list', '--cwd', cwd],
 })

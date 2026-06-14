@@ -18,6 +18,7 @@ export default defineConfig({
     'src/jest/jest.ts',
     'src/node-test/node-test.ts',
     'src/playwright/playwright.ts',
+    'src/playwright/child.ts',
   ],
   format: 'esm',
   fixedExtension: false,
