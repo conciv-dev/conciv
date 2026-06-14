@@ -15,7 +15,13 @@ function metaContent(name: string): string {
 declare global {
   interface Window {
     __AIDX_RENDER_TEST_CARD__?: () => void
+    __AIDX_API_BASE__?: string
   }
+}
+
+// apiBase from a window global (Next has no HTML-injection seam) or the meta tag (Vite path).
+function resolveApiBase(): string {
+  return window.__AIDX_API_BASE__ ?? metaContent('pw-api-base')
 }
 
 // Test-only seam (browser IT): render a standalone live TestCard into the widget's shadow root.
@@ -28,7 +34,7 @@ function mountTestCardForTest(root: ShadowRoot, apiBase: string): void {
 export function mountWidget(): void {
   if (document.querySelector('[data-aidx-root]')) return
   const {root} = createShadowRoot()
-  const apiBase = metaContent('pw-api-base')
+  const apiBase = resolveApiBase()
   window.__AIDX_RENDER_TEST_CARD__ = () => mountTestCardForTest(root, apiBase)
   // Chat + page-bus only exist on the aidx dev server; probe first so a plain app shows nothing.
   void probeChatAvailable(apiBase).then((available) => {

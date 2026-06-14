@@ -35,6 +35,16 @@ function pageHtml(): string {
   </body></html>`
 }
 
+// Next-style fixture: no usable meta base (dead host), apiBase supplied via window global instead.
+function globalBasePageHtml(globalBase: string): string {
+  return `<!doctype html><html><head>
+    <meta name="pw-api-base" content="http://127.0.0.1:1">
+    <script>window.__AIDX_API_BASE__ = ${JSON.stringify(globalBase)}</script>
+  </head><body>
+    <script>${widgetBundle}</script>
+  </body></html>`
+}
+
 // One scripted assistant turn: a text message followed by a risky-command approval card.
 async function* chatScript(): AsyncGenerator<StreamChunk> {
   yield {type: EventType.RUN_STARTED, threadId: 't', runId: 'r'}
@@ -122,6 +132,10 @@ describe('aidx widget (it) — real browser, real SSE', () => {
         res.write(`data: ${JSON.stringify(PAGE_QUERY)}\n\n`)
         return
       }
+      if (url === '/__global-base') {
+        res.writeHead(200, {'content-type': 'text/html'})
+        return res.end(globalBasePageHtml(state.base))
+      }
       res.writeHead(200, {'content-type': 'text/html'})
       res.end(pageHtml())
     })
@@ -181,6 +195,14 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await page.getByText(FAILURE_MESSAGE).waitFor({state: 'visible'})
     await page.getByRole('button', {name: /Fix this/}).waitFor({state: 'visible'})
     await page.getByRole('button', {name: /auth\.test\.ts:42/}).waitFor({state: 'visible'})
+    await page.close()
+  })
+
+  it('uses window.__AIDX_API_BASE__ over the meta tag (Next.js injection path)', async () => {
+    const page = await browser.newContext().then((c) => c.newPage())
+    await page.goto(`${state.base}/__global-base`)
+    // The meta base is a dead host; the FAB only mounts if the probe used the window global.
+    await page.getByRole('button', {name: 'Open aidx chat'}).waitFor({state: 'visible'})
     await page.close()
   })
 
