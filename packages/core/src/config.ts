@@ -17,6 +17,13 @@ export interface ResolvedAidxConfig {
   systemPrompt: string
 }
 
+// systemPrompt: false → '' (opt out); string → custom; true/undefined → our minimal default.
+function resolveSystemPrompt(value: string | boolean | undefined): string {
+  if (value === false) return ''
+  if (typeof value === 'string') return value
+  return CHAT_SYSTEM_PROMPT
+}
+
 export function resolveConfig(options: AidxConfig, root: string): ResolvedAidxConfig {
   const env = process.env
   return {
@@ -30,6 +37,6 @@ export function resolveConfig(options: AidxConfig, root: string): ResolvedAidxCo
     sessionId:
       options.sessionId ?? options.claudeSessionId ?? env.AIDX_SESSION_ID ?? env.AIDX_CLAUDE_SESSION_ID ?? '',
     testRunner: options.testRunner ?? env.AIDX_TEST_RUNNER ?? 'vitest',
-    systemPrompt: options.systemPrompt ?? CHAT_SYSTEM_PROMPT,
+    systemPrompt: resolveSystemPrompt(options.systemPrompt),
   }
 }

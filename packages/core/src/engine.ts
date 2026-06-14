@@ -23,7 +23,8 @@ export type Engine = {port: number; stop: () => Promise<void>; cfg: ResolvedAidx
 export async function start(opts: StartOpts): Promise<Engine> {
   const cfg = resolveConfig(opts.options, opts.root)
   const paths = statePaths(cfg.stateRoot)
-  writeText(paths.systemPrompt, cfg.systemPrompt)
+  // Empty (systemPrompt:false) → don't write or pass a file, so no prompt is injected at all.
+  if (cfg.systemPrompt) writeText(paths.systemPrompt, cfg.systemPrompt)
 
   const openInEditor = makeEditorOpener(
     (file, line) => opts.launchEditor(file, line),
@@ -47,7 +48,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     cwd: opts.root,
     bridge: opts.bridge,
     openInEditor,
-    systemPromptFile: paths.systemPrompt,
+    systemPromptFile: cfg.systemPrompt ? paths.systemPrompt : undefined,
     spawnHarness,
   }
   const app = makeApp(appOpts)

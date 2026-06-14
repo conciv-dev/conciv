@@ -12,7 +12,11 @@ export interface AidxConfig {
   testRunner?: string
   /** Fixed engine port. Used by the Next.js integration so server boot + client widget agree. */
   port?: number
-  systemPrompt?: string
+  /**
+   * Our minimal chat grounding prompt. `true`/omitted injects it (default); `false` opts out
+   * entirely (you take full control of the agent); a string replaces it with your own.
+   */
+  systemPrompt?: string | boolean
   /** @deprecated use harnessBin */ claudePath?: string
   /** @deprecated use sessionId */ claudeSessionId?: string
 }

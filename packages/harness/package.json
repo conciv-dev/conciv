@@ -4,7 +4,8 @@
   "description": "Harness adapters (claude, codex, + stubs) behind the @aidx/protocol HarnessAdapter contract.",
   "license": "MIT",
   "files": [
-    "dist"
+    "dist",
+    "plugins"
   ],
   "type": "module",
   "exports": {

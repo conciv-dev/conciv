@@ -1,0 +1,6 @@
+{
+  "name": "aidx-tools",
+  "version": "0.0.0",
+  "description": "React introspection verbs for the aidx live-preview chat agent.",
+  "author": {"name": "aidx"}
+}

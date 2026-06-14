@@ -1,4 +1,5 @@
 import type {HarnessTurn} from '@aidx/protocol/harness-types'
+import {AIDX_PLUGIN_DIR} from './plugin-dir.js'
 
 // PreToolUse http hook on Bash → the dev server's permission route. 600s (route denies sooner).
 function hookSettings(permissionUrl: string): string {
@@ -27,6 +28,9 @@ export function buildClaudeArgs(turn: HarnessTurn): string[] {
     '--add-dir',
     turn.cwd,
   ]
+  // Bundled aidx-tools plugin: its react-introspection skill teaches the agent the page
+  // locate/inspect/tree/find verbs on demand, so it stops hand-rolling fiber detection via eval.
+  if (AIDX_PLUGIN_DIR) args.push('--plugin-dir', AIDX_PLUGIN_DIR)
   if (turn.permissionUrl) args.push('--settings', hookSettings(turn.permissionUrl))
   if (turn.systemPrompt) args.push('--append-system-prompt-file', turn.systemPrompt)
   if (turn.resumeSessionId) args.push('--resume', turn.resumeSessionId)
