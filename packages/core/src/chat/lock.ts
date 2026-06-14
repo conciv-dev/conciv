@@ -1,6 +1,7 @@
-import {mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
+import {mkdirSync, rmSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {z} from 'zod'
+import {readFileOrEmpty} from '../fs.js'
 
 // The shared `<lockDir>/.aidx/agent.lock` that serializes the chat agent and the agent's
 // `iterate`: two processes appending to one agent session id at once corrupt its transcript,
@@ -23,14 +24,6 @@ function pidAlive(pid: number): boolean {
     return true
   } catch {
     return false
-  }
-}
-
-function readFileOrEmpty(path: string): string {
-  try {
-    return readFileSync(path, 'utf8')
-  } catch {
-    return ''
   }
 }
 

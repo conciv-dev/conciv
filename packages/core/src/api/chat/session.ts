@@ -1,9 +1,9 @@
-import {readFileSync} from 'node:fs'
 import {type H3, getValidatedQuery} from 'h3'
 import {z} from 'zod'
 import type {HarnessAdapter} from '@aidx/protocol/harness-types'
 import type {ChatSession} from '@aidx/protocol/chat-types'
 import {readLock} from '../../chat/lock.js'
+import {readFileOrEmpty} from '../../fs.js'
 
 const HistoryQuerySchema = z.object({sessionId: z.string().optional()})
 
@@ -19,14 +19,6 @@ export type SessionRouteDeps = {
   initialSessionId: string
   harness: HarnessAdapter
   state: SessionState
-}
-
-function readFileOrEmpty(path: string): string {
-  try {
-    return readFileSync(path, 'utf8')
-  } catch {
-    return ''
-  }
 }
 
 //   GET  /api/chat/session            → which session + lock state

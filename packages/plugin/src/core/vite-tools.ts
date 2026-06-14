@@ -17,7 +17,7 @@ export function viteConfig(server: ViteLike) {
 
 export async function viteResolve(server: ViteLike, spec: string, importer?: string) {
   const r = await server.pluginContainer.resolveId(spec, importer)
-  return {id: r ? r.id : null}
+  return {id: r?.id ?? null}
 }
 
 export function viteGraph(server: ViteLike, file: string) {

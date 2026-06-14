@@ -1,6 +1,7 @@
-import {mkdirSync, readFileSync, writeFileSync} from 'node:fs'
+import {mkdirSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {z} from 'zod'
+import {readFileOrEmpty} from '../fs.js'
 
 // Persists the chat's agent session id keyed by previewId, so the SAME chat thread reopens
 // every time the dev server starts — not just across page reloads (which the
@@ -12,14 +13,6 @@ const SessionMapSchema = z.record(z.string(), z.string())
 
 function storePath(lockDir: string): string {
   return join(lockDir, '.aidx', 'chat-sessions.json')
-}
-
-function readFileOrEmpty(path: string): string {
-  try {
-    return readFileSync(path, 'utf8')
-  } catch {
-    return ''
-  }
 }
 
 function readMap(lockDir: string): Record<string, string> {

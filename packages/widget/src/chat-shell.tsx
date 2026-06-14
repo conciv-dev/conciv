@@ -179,7 +179,7 @@ function PartView(props: {
   const lastTextIndex = props.parts.map((p) => p.type).lastIndexOf('text')
   const isRunCard = part.type === 'tool-call' && part.id !== undefined && props.tests.runResult.has(part.id)
 
-  if (part.type === 'tool-call' && part.id !== undefined && props.tests.runResult.has(part.id)) {
+  if (isRunCard) {
     return <TestCard apiBase={props.apiBase} onFix={props.onFix} result={props.tests.runResult.get(part.id) ?? null} />
   }
   if (part.type === 'text') {
