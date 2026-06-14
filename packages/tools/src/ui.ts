@@ -2,9 +2,9 @@ import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
 import {toolDefinition} from '@tanstack/ai'
 import {buildUiSpec} from '@aidx/protocol/ui-types'
-import type {AidxToolContext} from './types.js'
+import type {AidxMcpTool, AidxToolContext} from './types.js'
 
-const UiInput = z.object({
+export const UiInput = z.object({
   kind: z.enum(['choices', 'confirm', 'diff', 'form']),
   question: z.string().optional(),
   detail: z.string().optional(),
@@ -25,11 +25,17 @@ export const aidxUiToolDef = toolDefinition({
   inputSchema: UiInput,
 })
 
-export function aidxUiTool(ctx: AidxToolContext) {
-  return aidxUiToolDef.server(async (input) => {
+export function aidxUiTool(ctx: AidxToolContext): AidxMcpTool {
+  const server = aidxUiToolDef.server(async (input) => {
     const renderId = randomUUID()
-    const spec = buildUiSpec(input, renderId)
-    const injected = ctx.injectUi(spec)
+    const injected = ctx.injectUi(buildUiSpec(input, renderId))
     return {renderId, injected}
   })
+  const execute = server.execute
+  return {
+    name: server.name,
+    description: server.description,
+    inputSchema: UiInput,
+    run: async (args) => (execute ? execute(UiInput.parse(args)) : undefined),
+  }
 }

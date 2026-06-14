@@ -12,7 +12,8 @@ import {makePending} from '../../pending.js'
 import {sseStream} from '../sse.js'
 import {symbolicateFrames, type RawFrame} from '../../page/symbolicate.js'
 
-export function registerPageRoutes(app: H3, deps: {journal: Journal}): void {
+// Returns the page bus's `ask` so makeApp can give /api/mcp a page(query) handle into the same bus.
+export function registerPageRoutes(app: H3, deps: {journal: Journal}): {ask: PageBus['ask']} {
   const bus = makePageBus()
 
   app.get('/api/page/stream', (event) => sseStream(event, 'page-bus open', (emit) => bus.subscribe(emit)))
@@ -48,6 +49,8 @@ export function registerPageRoutes(app: H3, deps: {journal: Journal}): void {
 
   app.get('/api/page/:verb', handleVerb)
   app.post('/api/page/:verb', handleVerb)
+
+  return {ask: bus.ask}
 }
 
 type PageBus = {

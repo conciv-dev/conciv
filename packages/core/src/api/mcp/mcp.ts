@@ -10,10 +10,8 @@ import {aidxTools, type AidxToolContext} from '@aidx/tools'
 function buildServer(ctx: AidxToolContext): McpServer {
   const server = new McpServer({name: 'aidx', version: '0.0.0'})
   for (const tool of aidxTools(ctx)) {
-    const execute = tool.execute
-    if (!tool.inputSchema || !execute) continue
-    server.registerTool(tool.name, {description: tool.description, inputSchema: tool.inputSchema.shape}, async (args) => {
-      const result = await execute(args)
+    server.registerTool(tool.name, {description: tool.description, inputSchema: tool.inputSchema}, async (args) => {
+      const result = await tool.run(args)
       return {content: [{type: 'text', text: JSON.stringify(result)}]}
     })
   }

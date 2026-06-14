@@ -58,16 +58,14 @@ export function makeApp(opts: MakeAppOpts): H3 {
     systemPromptText: opts.cfg.systemPrompt,
     uiBus,
   })
-  registerPageRoutes(app, {journal: makeJournal()})
+  const page = registerPageRoutes(app, {journal: makeJournal()})
   registerEditorRoutes(app, opts.openInEditor)
   registerTestRunnerRoutes(app, runner)
-  // Expose aidx tools to the harness CLI via MCP-over-HTTP on the same server. page/test are
-  // throwing placeholders until Tasks 8/9 wire them to the page bus + runner.
+  // Expose aidx tools to the harness CLI via MCP-over-HTTP on the same server. test is a throwing
+  // placeholder until Task 9 wires it to the runner.
   registerMcpRoutes(app, {
     injectUi: (spec) => uiBus.inject(spec),
-    page: async () => {
-      throw new Error('aidx_page not wired until Task 8')
-    },
+    page: (query) => page.ask(query),
     test: async () => {
       throw new Error('aidx_test not wired until Task 9')
     },
