@@ -30,7 +30,7 @@ async function postJson(url: string, body: unknown): Promise<unknown> {
   return res.json()
 }
 
-const ErrorSchema = z.object({error: z.string()})
+const ErrorSchema = z.object({message: z.string()})
 const ChangesSchema = z.array(
   z.object({verb: z.string(), selector: z.string().optional(), args: z.record(z.string(), z.unknown())}),
 )
@@ -86,11 +86,13 @@ describe('page routes page-bus (IT, real http over h3)', () => {
     expect(await getJson(`${base}/api/page/route`)).toEqual({pathname: '/checkout', search: ''})
   })
 
-  it('returns an error when no widget is subscribed', async () => {
+  it('returns 503 when no widget is subscribed', async () => {
     const {server, base} = await startServer()
     state.server = server
-    const body = ErrorSchema.parse(await getJson(`${base}/api/page/route`))
-    expect(body.error).toContain('no widget')
+    const res = await fetch(`${base}/api/page/route`)
+    expect(res.status).toBe(503)
+    const body = ErrorSchema.parse(await res.json())
+    expect(body.message).toContain('no widget')
   })
 
   it('round-trips a fill action and the journal records it', async () => {

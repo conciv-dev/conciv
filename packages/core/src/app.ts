@@ -6,6 +6,7 @@ import type {ResolvedAidxConfig} from './config.js'
 import {getHarness} from '@aidx/harness'
 import {getRunner} from '@aidx/test-runner'
 import {registerCors} from './api/cors.js'
+import {registerErrorHandler} from './api/errors.js'
 import {registerChatRoutes} from './api/chat/chat.js'
 import {registerPageRoutes} from './api/page/page.js'
 import {registerServerRoutes} from './api/server/server.js'
@@ -43,6 +44,7 @@ export function makeApp(opts: MakeAppOpts): H3 {
   const runner = requireRunner(opts.cfg.testRunner).create(opts.cwd)
   const uiBus = makeUiBus()
 
+  registerErrorHandler(app)
   registerCors(app)
   registerChatRoutes(app, {
     cwd: opts.cwd,

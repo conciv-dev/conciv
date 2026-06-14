@@ -1,6 +1,6 @@
 import {createInterface} from 'node:readline'
 import type {Readable} from 'node:stream'
-import {type H3, readValidatedBody} from 'h3'
+import {type H3, HTTPError, readValidatedBody} from 'h3'
 import {toServerSentEventsStream, type StreamChunk} from '@tanstack/ai'
 import type {HarnessAdapter, HarnessChild} from '@aidx/protocol/harness-types'
 import {UiSpecSchema} from '@aidx/protocol/ui-types'
@@ -10,7 +10,7 @@ import {writeSession} from '../../chat/session-store.js'
 import type {UiBus} from '../../chat/ui-bus.js'
 import {lastUserText} from './messages.js'
 import type {SessionState} from './session.js'
-import {corsHeadersFor} from '../cors.js'
+import {sseHeaders} from '../sse.js'
 
 export type SpawnHarness = (args: string[], cwd: string) => HarnessChild
 
@@ -26,21 +26,6 @@ export type TurnDeps = {
   state: SessionState
 }
 
-// Turn a child's stdout into an async iterable of lines.
-async function* linesOf(stream: Readable): AsyncGenerator<string> {
-  const rl = createInterface({input: stream, crlfDelay: Infinity})
-  for await (const line of rl) yield line
-}
-
-// Release the lock when the turn's merged stream finishes OR the client disconnects.
-async function* withLockRelease(src: AsyncIterable<StreamChunk>, lockDir: string): AsyncGenerator<StreamChunk> {
-  try {
-    for await (const c of src) yield c
-  } finally {
-    releaseLock(lockDir)
-  }
-}
-
 // The live-turn routes, both uiBus consumers:
 //   POST /api/chat/ui → inject agent generative UI onto the live turn (non-blocking)
 //   POST /api/chat    → stream a turn (409 if the lock is held)
@@ -53,10 +38,7 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
   })
 
   app.post('/api/chat', async (event) => {
-    if (readLock(deps.lockDir).held) {
-      event.res.status = 409
-      return {error: 'agent busy'}
-    }
+    if (readLock(deps.lockDir).held) throw new HTTPError({status: 409, message: 'agent busy'})
     const chat = await readValidatedBody(event, ChatRequestSchema)
     const resumeSessionId = harness.capabilities.resume ? chat.sessionId || state.sessionId || null : null
     const origin = `http://${event.req.headers.get('host') ?? '127.0.0.1:3000'}`
@@ -88,14 +70,21 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
     })
     const merged = uiBus.run(events)
     const sse = toServerSentEventsStream(withLockRelease(merged, deps.lockDir), abort)
-    return new Response(sse, {
-      status: 200,
-      headers: {
-        'content-type': 'text/event-stream',
-        'cache-control': 'no-cache',
-        connection: 'keep-alive',
-        ...corsHeadersFor(event),
-      },
-    })
+    return new Response(sse, {status: 200, headers: sseHeaders(event)})
   })
+}
+
+// Turn a child's stdout into an async iterable of lines.
+async function* linesOf(stream: Readable): AsyncGenerator<string> {
+  const rl = createInterface({input: stream, crlfDelay: Infinity})
+  for await (const line of rl) yield line
+}
+
+// Release the lock when the turn's merged stream finishes OR the client disconnects.
+async function* withLockRelease(src: AsyncIterable<StreamChunk>, lockDir: string): AsyncGenerator<StreamChunk> {
+  try {
+    for await (const c of src) yield c
+  } finally {
+    releaseLock(lockDir)
+  }
 }

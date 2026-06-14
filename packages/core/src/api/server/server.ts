@@ -2,12 +2,6 @@ import {type H3, getValidatedQuery, readValidatedBody} from 'h3'
 import {z} from 'zod'
 import type {BundlerBridge} from '@aidx/protocol/bundler-types'
 
-const ResolveQuerySchema = z.object({spec: z.string(), importer: z.string().optional()})
-const FileQuerySchema = z.object({file: z.string()})
-const TransformQuerySchema = z.object({url: z.string()})
-const ReloadBodySchema = z.object({file: z.string()})
-const RestartBodySchema = z.object({force: z.boolean().default(false)})
-
 // Mounted iff a BundlerBridge is provided. Core touches the bridge interface only — no bundler.
 export function registerServerRoutes(app: H3, bridge: BundlerBridge): void {
   app.get('/api/server/config', () => bridge.config())
@@ -32,12 +26,18 @@ export function registerServerRoutes(app: H3, bridge: BundlerBridge): void {
   app.post('/api/server/reload', async (event) => {
     const {file} = await readValidatedBody(event, ReloadBodySchema)
     await bridge.reload(file)
-    return {reloaded: true}
+    return {ok: true}
   })
 
   app.post('/api/server/restart', async (event) => {
     const {force} = await readValidatedBody(event, RestartBodySchema)
     await bridge.restart(force)
-    return {restarted: true}
+    return {ok: true}
   })
 }
+
+const ResolveQuerySchema = z.object({spec: z.string(), importer: z.string().optional()})
+const FileQuerySchema = z.object({file: z.string()})
+const TransformQuerySchema = z.object({url: z.string()})
+const ReloadBodySchema = z.object({file: z.string()})
+const RestartBodySchema = z.object({force: z.boolean().default(false)})

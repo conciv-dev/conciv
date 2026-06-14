@@ -1,6 +1,6 @@
 import type {H3} from 'h3'
 import type {HarnessAdapter} from '@aidx/protocol/harness-types'
-import {makeUiBus, type UiBus} from '../../chat/ui-bus.js'
+import type {UiBus} from '../../chat/ui-bus.js'
 import {readSession} from '../../chat/session-store.js'
 import {makePermissionGate, registerPermissionRoutes} from './permission.js'
 import {registerSessionRoutes, type SessionState} from './session.js'
@@ -17,12 +17,12 @@ export type ChatRouteOpts = {
   spawnHarness: SpawnHarness
   systemPromptFile?: string // when systemPrompt==='file'
   systemPromptText?: string // otherwise
-  uiBus?: UiBus
+  uiBus: UiBus // owned by makeApp; the lock guarantees one active turn → one active channel
 }
 
 // Wire the chat HTTP surface — composition only; behaviour lives in permission/session/turn.
 export function registerChatRoutes(app: H3, opts: ChatRouteOpts): void {
-  const uiBus = opts.uiBus ?? makeUiBus()
+  const uiBus = opts.uiBus
   const gate = makePermissionGate(uiBus)
   // The agent's session wins (hand-off from iterate); else resume the preview's persisted one.
   const state: SessionState = {sessionId: opts.initialSessionId || readSession(opts.lockDir, opts.previewId) || ''}

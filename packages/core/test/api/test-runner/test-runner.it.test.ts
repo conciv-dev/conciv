@@ -5,6 +5,7 @@ import {serve, type Server} from 'srvx'
 import {runnerUnavailableError, type TestRunnerManager, type ListResult} from '@aidx/protocol/runner-types'
 import type {TestEvent, TestRunResult} from '@aidx/protocol/test-types'
 import {registerTestRunnerRoutes} from '../../../src/api/test-runner/test-runner.js'
+import {registerErrorHandler} from '../../../src/api/errors.js'
 
 // Route IT over a real srvx server. The runner is faked at the TestRunnerManager seam so this
 // proves the HTTP layer (JSON routes + the 422 "runner unavailable" translation) in isolation;
@@ -52,6 +53,7 @@ function unavailableManager(): TestRunnerManager {
 
 async function startServer(mgr: TestRunnerManager): Promise<{server: Server; base: string}> {
   const app = new H3()
+  registerErrorHandler(app)
   registerTestRunnerRoutes(app, mgr)
   const server = serve({fetch: app.fetch, port: 0, hostname: '127.0.0.1'})
   await server.ready()

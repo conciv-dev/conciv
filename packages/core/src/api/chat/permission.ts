@@ -3,10 +3,7 @@ import {type H3, readValidatedBody} from 'h3'
 import {z} from 'zod'
 import {bashDecision} from '../../chat/risk.js'
 import type {UiBus} from '../../chat/ui-bus.js'
-
-const HookBodySchema = z.object({tool_name: z.string().default(''), tool_input: z.unknown().optional()})
-const DecisionBodySchema = z.object({renderId: z.string().optional(), approved: z.boolean().default(false)})
-const BashInputSchema = z.object({command: z.string()})
+import {makePending} from '../../pending.js'
 
 // The risky-Bash approval gate: safe commands run; risky ones surface a confirm card and block
 // until the user answers or the timeout fires (fail closed).
@@ -19,7 +16,7 @@ export type PermissionGate = {
 }
 
 export function makePermissionGate(uiBus: UiBus, timeoutMs = APPROVAL_TIMEOUT_MS): PermissionGate {
-  const decisions = new Map<string, (approved: boolean) => void>()
+  const pending = makePending<boolean>()
 
   async function decide(toolName: string, toolInput: unknown): Promise<'allow' | 'deny'> {
     if (toolName !== 'Bash') return 'allow'
@@ -29,27 +26,14 @@ export function makePermissionGate(uiBus: UiBus, timeoutMs = APPROVAL_TIMEOUT_MS
     const renderId = randomUUID()
     const injected = uiBus.inject({kind: 'approval', renderId, question: 'Run this command?', detail: command})
     if (!injected) return 'deny' // no live chat stream to ask on → fail closed
-    const approved = await new Promise<boolean>((resolve) => {
-      const timer = setTimeout(() => {
-        decisions.delete(renderId)
-        resolve(false)
-      }, timeoutMs)
-      decisions.set(renderId, (ok) => {
-        clearTimeout(timer)
-        resolve(ok)
-      })
-    })
-    return approved ? 'allow' : 'deny'
+    try {
+      return (await pending.await(renderId, timeoutMs)) ? 'allow' : 'deny'
+    } catch {
+      return 'deny' // timed out → fail closed
+    }
   }
 
-  function resolve(renderId: string, approved: boolean): void {
-    const fn = decisions.get(renderId)
-    if (!fn) return
-    decisions.delete(renderId)
-    fn(approved)
-  }
-
-  return {decide, resolve}
+  return {decide, resolve: pending.resolve}
 }
 
 // Mount the gate routes. `gated` is false for harnesses whose capabilities.permissionGate is
@@ -77,3 +61,7 @@ export function registerPermissionRoutes(app: H3, gate: PermissionGate, gated: b
     return {ok: true}
   })
 }
+
+const HookBodySchema = z.object({tool_name: z.string().default(''), tool_input: z.unknown().optional()})
+const DecisionBodySchema = z.object({renderId: z.string().optional(), approved: z.boolean().default(false)})
+const BashInputSchema = z.object({command: z.string()})

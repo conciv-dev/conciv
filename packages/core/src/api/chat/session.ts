@@ -5,8 +5,6 @@ import type {ChatSession} from '@aidx/protocol/chat-types'
 import {readLock} from '../../chat/lock.js'
 import {readFileOrEmpty} from '../../fs.js'
 
-const HistoryQuerySchema = z.object({sessionId: z.string().optional()})
-
 // The session/history/stop routes — pure reads + a kill. History only exists for
 // transcript-capable harnesses (via harness.history); others hydrate from the live thread.
 
@@ -50,6 +48,8 @@ export function registerSessionRoutes(app: H3, deps: SessionRouteDeps): void {
         // already gone
       }
     }
-    return {}
+    return {ok: true}
   })
 }
+
+const HistoryQuerySchema = z.object({sessionId: z.string().optional()})
