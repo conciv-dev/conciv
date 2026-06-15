@@ -1,11 +1,10 @@
 [build]
-  base = "apps/site"
-  command = "pnpm build"
-  publish = "dist/client"
+  command = "pnpm turbo run build --filter=site"
+  publish = "apps/site/dist/client"
 
 [build.environment]
   NODE_VERSION = "22"
 
 [dev]
-  command = "vite dev"
-  port = 3001
+  command = "pnpm dev:site"
+  targetPort = 3001
