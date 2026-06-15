@@ -2,6 +2,9 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { Message } from './demo-data';
 
+// Non-breaking space + check, so the tick stays glued to the last word and never wraps alone.
+const CHECK = '\u00A0\u2713';
+
 export function MessageRow({ message }: { message: Message }) {
   if (message.kind === 'user') {
     return (
@@ -17,7 +20,7 @@ export function MessageRow({ message }: { message: Message }) {
   }
 
   if (message.kind === 'think') {
-    return <div className="od-msg font-mono text-[12.5px] text-muted-foreground/80">✦ {message.text}</div>;
+    return <div className="od-msg font-mono text-[12.5px] text-muted-foreground/80">{'✦'} {message.text}</div>;
   }
 
   if (message.kind === 'agent') {
@@ -26,12 +29,14 @@ export function MessageRow({ message }: { message: Message }) {
 
   if (message.kind === 'tool') {
     return (
-      <div className="od-msg flex flex-wrap items-center gap-2 font-mono text-[12.5px]">
-        <Badge variant="secondary" className="bg-accent font-semibold text-accent-foreground">
+      <div className="od-msg flex items-start gap-2 font-mono text-[12.5px]">
+        <Badge variant="secondary" className="shrink-0 bg-accent font-semibold text-accent-foreground">
           {message.label}
         </Badge>
-        <span className="text-muted-foreground">{message.detail}</span>
-        <span style={{ color: 'var(--od-pass)' }}>✓</span>
+        <span className="min-w-0 flex-1 text-muted-foreground">
+          {message.detail}
+          <span style={{ color: 'var(--od-pass)' }}>{CHECK}</span>
+        </span>
       </div>
     );
   }
@@ -41,7 +46,7 @@ export function MessageRow({ message }: { message: Message }) {
       className={cn('od-msg flex items-center gap-2 rounded-lg px-2.5 py-1.5 font-mono text-[12.5px] font-medium')}
       style={{ background: 'color-mix(in oklch, var(--od-pass) 14%, transparent)', color: 'var(--od-pass)' }}
     >
-      <span className="font-semibold">✓</span>
+      <span className="font-semibold">{'✓'}</span>
       {message.text}
     </div>
   );

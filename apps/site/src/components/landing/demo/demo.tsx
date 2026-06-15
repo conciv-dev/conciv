@@ -1,16 +1,16 @@
 import { useRef, useState } from 'react';
 import { useGSAP } from '@gsap/react';
 import gsap from 'gsap';
+import { RotateCcw } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Transcript } from './transcript';
 import { Composer } from './composer';
 import { AppPreview } from './app-preview';
 import { GhostCursor } from './ghost-cursor';
 import { useDemo } from './use-demo';
-import { buildTurn, PICKABLES } from './demo-data';
-
-const DEFAULT_PROMPT = 'make this bigger and green';
+import { buildTurn, PICKABLES, pickScenario, type Scenario } from './demo-data';
 
 export function Demo() {
   const [state, dispatch] = useDemo();
@@ -18,9 +18,13 @@ export function Demo() {
 
   const scope = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
-  const ctaRef = useRef<HTMLButtonElement>(null);
   const grabRef = useRef<HTMLButtonElement>(null);
   const ghostRef = useRef<HTMLDivElement>(null);
+  // The element + scenario chosen on the current grab, consumed by the send timeline.
+  const active = useRef<{ id: string; scenario: Scenario } | null>(null);
+
+  const grabbedEl = (id: string) =>
+    scope.current?.querySelector(`[data-pickable="${id}"]`)?.firstElementChild as HTMLElement | null;
 
   const reduced = () =>
     typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -71,45 +75,47 @@ export function Demo() {
         const last = rows[rows.length - 1];
         if (last) gsap.from(last, { autoAlpha: 0, y: 8, duration: 0.35, ease: 'power2.out' });
       }
-      if (viewport) {
-        if (reduced()) viewport.scrollTop = viewport.scrollHeight;
-        else gsap.to(viewport, { scrollTop: viewport.scrollHeight, duration: 0.3, ease: 'power2.out' });
-      }
+      // Direct assignment (not a gsap tween) so useGSAP's cleanup doesn't revert the scroll on the next message.
+      if (viewport) viewport.scrollTop = viewport.scrollHeight;
     },
     { scope, dependencies: [state.messages.length] },
   );
 
   const onPick = (id: string) => {
+    const scenario = pickScenario(PICKABLES[id]);
+    active.current = { id, scenario };
     dispatch({ type: 'grab', pickable: PICKABLES[id] });
-    setInput(DEFAULT_PROMPT);
+    setInput(scenario.prompt);
   };
 
   const { contextSafe } = useGSAP({ scope });
 
+  const onRestart = contextSafe(() => {
+    // Undo any inline styles gsap applied to grabbed elements.
+    scope.current?.querySelectorAll('[data-pickable] > *').forEach((el) => gsap.set(el, { clearProps: 'all' }));
+    active.current = null;
+    setInput('');
+    dispatch({ type: 'reset' });
+  });
+
   const onSend = contextSafe(() => {
     const text = input.trim();
     if (!text) return;
-    const grabbedHtml = state.grabbed?.html;
-    dispatch({ type: 'send', message: { kind: 'user', text, grabbedHtml } });
+    const current = active.current;
+    const scenario = current?.scenario ?? PICKABLES.cta.scenarios[0];
+    dispatch({ type: 'send', message: { kind: 'user', text, grabbedHtml: state.grabbed?.html } });
     setInput('');
 
     const tl = gsap.timeline();
-    for (const beat of buildTurn(grabbedHtml ?? '')) {
+    for (const beat of buildTurn(scenario)) {
       tl.add(() => {
         if (beat.message) dispatch({ type: 'push', message: beat.message });
         if (beat.patch) {
           dispatch({ type: 'patch' });
-          if (ctaRef.current && !reduced()) {
-            gsap.to(ctaRef.current, {
-              height: 52,
-              paddingLeft: 24,
-              paddingRight: 24,
-              fontSize: 15,
-              backgroundColor: 'var(--od-pass)',
-              boxShadow: '0 10px 24px -8px var(--od-pass)',
-              duration: 0.5,
-              ease: 'power2.out',
-            });
+          const el = current ? grabbedEl(current.id) : null;
+          if (el) {
+            if (reduced()) gsap.set(el, scenario.apply);
+            else gsap.to(el, { ...scenario.apply, duration: 0.5, ease: 'power2.out' });
           }
         }
       }, beat.at);
@@ -129,7 +135,20 @@ export function Demo() {
           <Badge className="bg-accent font-mono text-[10px] uppercase tracking-wide text-accent-foreground">
             in your app
           </Badge>
-          <span className="ml-auto font-mono text-[12px] text-muted-foreground">live demo</span>
+          {state.done ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={onRestart}
+              className="ml-auto h-7 gap-1.5 px-2 font-mono text-[12px] text-muted-foreground hover:text-foreground"
+            >
+              <RotateCcw className="size-3.5" />
+              Restart demo
+            </Button>
+          ) : (
+            <span className="ml-auto font-mono text-[12px] text-muted-foreground">live demo</span>
+          )}
         </div>
 
         <div className="grid h-[460px] grid-cols-1 sm:grid-cols-2">
@@ -145,7 +164,7 @@ export function Demo() {
               grabRef={grabRef}
             />
           </div>
-          <AppPreview picking={state.picking} patched={state.patched} onPick={onPick} ctaRef={ctaRef} />
+          <AppPreview picking={state.picking} onPick={onPick} />
         </div>
       </Card>
 

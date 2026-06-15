@@ -1,19 +1,8 @@
-import { type RefObject } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { PICKABLES } from './demo-data';
 
-export function AppPreview({
-  picking,
-  patched,
-  onPick,
-  ctaRef,
-}: {
-  picking: boolean;
-  patched: boolean;
-  onPick: (id: string) => void;
-  ctaRef: RefObject<HTMLButtonElement | null>;
-}) {
+export function AppPreview({ picking, onPick }: { picking: boolean; onPick: (id: string) => void }) {
   return (
     <div className={cn('od-preview relative flex flex-col p-[18px]', picking && 'od-picking')}>
       <div className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
@@ -28,12 +17,7 @@ export function AppPreview({
           <p className="text-[12.5px] text-muted-foreground">Sign in to continue</p>
         </Pickable>
         <Pickable id="cta" picking={picking} onPick={onPick}>
-          <button
-            ref={ctaRef}
-            type="button"
-            className={cn('od-cta', patched && 'od-cta-patched')}
-            tabIndex={-1}
-          >
+          <button type="button" className="od-cta" tabIndex={-1}>
             Get started
           </button>
         </Pickable>

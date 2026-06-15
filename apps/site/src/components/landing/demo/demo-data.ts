@@ -1,14 +1,86 @@
+// A single prompt→change scenario for a grabbed element. `apply` is a set of
+// gsap tween vars applied to the live element when the agent "patches" it.
+export type Scenario = {
+  prompt: string;
+  inspect: string;
+  patchDetail: string;
+  apply: Record<string, string | number>;
+};
+
 export type Pickable = {
   id: string;
   html: string;
   where: string;
+  scenarios: Scenario[];
 };
 
-// The sample "your app" elements that can be grabbed, with react-grab-style references.
+// The sample "your app" elements that can be grabbed, each with a few varied
+// scenarios so every run of the demo feels a little different.
 export const PICKABLES: Record<string, Pickable> = {
-  heading: { id: 'heading', html: '<h3>Welcome back</h3>', where: 'HomePage at routes/index.tsx:12:5' },
-  sub: { id: 'sub', html: '<p class="sub">Sign in to continue</p>', where: 'HomePage at routes/index.tsx:13:5' },
-  cta: { id: 'cta', html: '<button class="cta">Get started</button>', where: 'HomePage at routes/index.tsx:19:7' },
+  heading: {
+    id: 'heading',
+    html: '<h3>Welcome back</h3>',
+    where: 'HomePage at routes/index.tsx:12:5',
+    scenarios: [
+      {
+        prompt: 'make the heading bigger and use our brand color',
+        inspect: 'h3 · "Welcome back"',
+        patchDetail: 'font-size 20 → 30 · color → brand',
+        apply: { fontSize: 30, color: 'var(--od-accent)' },
+      },
+      {
+        prompt: 'make the heading heavier and tighter',
+        inspect: 'h3 · "Welcome back"',
+        patchDetail: 'weight 700 → 800 · tracking → -0.04em',
+        apply: { fontSize: 26, fontWeight: 800, letterSpacing: '-0.04em' },
+      },
+    ],
+  },
+  sub: {
+    id: 'sub',
+    html: '<p class="sub">Sign in to continue</p>',
+    where: 'HomePage at routes/index.tsx:13:5',
+    scenarios: [
+      {
+        prompt: 'make the subtitle italic and a bit softer',
+        inspect: 'p.sub',
+        patchDetail: 'font-style → italic · opacity → 0.7',
+        apply: { fontStyle: 'italic', opacity: 0.7 },
+      },
+      {
+        prompt: 'tint the subtitle with the brand color',
+        inspect: 'p.sub',
+        patchDetail: 'color → brand',
+        apply: { color: 'var(--od-accent)' },
+      },
+    ],
+  },
+  cta: {
+    id: 'cta',
+    html: '<button class="cta">Get started</button>',
+    where: 'HomePage at routes/index.tsx:19:7',
+    scenarios: [
+      {
+        prompt: 'make the Get started button bigger and green',
+        inspect: 'button.cta',
+        patchDetail: 'height 40 → 52 · bg → emerald',
+        apply: {
+          height: 52,
+          paddingLeft: 24,
+          paddingRight: 24,
+          fontSize: 15,
+          backgroundColor: 'var(--od-pass)',
+          boxShadow: '0 10px 24px -8px var(--od-pass)',
+        },
+      },
+      {
+        prompt: 'round the button fully and give it a soft glow',
+        inspect: 'button.cta',
+        patchDetail: 'radius → 999px · shadow → glow',
+        apply: { borderRadius: 999, boxShadow: '0 0 0 5px var(--od-accent-soft)' },
+      },
+    ],
+  },
 };
 
 export type Message =
@@ -18,8 +90,7 @@ export type Message =
   | { kind: 'tool'; label: string; detail: string }
   | { kind: 'result'; text: string };
 
-// The scripted agent turn after the user sends. `at` is seconds on the gsap timeline.
-// `patch` flips the live preview element at that beat.
+// A beat on the gsap timeline; `patch` is the moment the live element changes.
 export type Beat = { at: number; message?: Message; patch?: boolean };
 
 export const GREETING: Message = {
@@ -27,13 +98,17 @@ export const GREETING: Message = {
   text: "Hi — I'm running inside this page. Grab any element and tell me what to change.",
 };
 
-export function buildTurn(grabbedHtml: string): Beat[] {
+export function buildTurn(scenario: Scenario): Beat[] {
   return [
     { at: 0.5, message: { kind: 'think', text: 'thought for 0.4s' } },
     { at: 1.0, message: { kind: 'agent', text: 'On it — patching the element you grabbed.' } },
-    { at: 1.6, message: { kind: 'tool', label: 'inspect', detail: 'button.cta' } },
-    { at: 2.3, message: { kind: 'tool', label: 'patch', detail: 'height 40 → 52 · bg → emerald' } },
+    { at: 1.6, message: { kind: 'tool', label: 'inspect', detail: scenario.inspect } },
+    { at: 2.3, message: { kind: 'tool', label: 'patch', detail: scenario.patchDetail } },
     { at: 2.5, patch: true },
     { at: 2.9, message: { kind: 'result', text: 'done — 1 element changed, saved to source' } },
   ];
+}
+
+export function pickScenario(pickable: Pickable): Scenario {
+  return pickable.scenarios[Math.floor(Math.random() * pickable.scenarios.length)];
 }
