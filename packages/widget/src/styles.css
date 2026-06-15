@@ -1775,3 +1775,85 @@
     transition: none;
   }
 }
+
+/* ── Context tracker: top-bar usage ring + hover popover. ───────────────────── */
+.pw-hovercard {
+  display: inline-flex;
+}
+.pw-hovercard-anchor {
+  display: inline-flex;
+}
+.pw-hovercard-content {
+  /* pw-popover already gives top-layer fixed positioning + chrome; JS sets left/top. */
+  width: 240px;
+  padding: 0;
+}
+.pw-ctx-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--pw-text-2);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 8px;
+  font: inherit;
+}
+.pw-ctx-trigger:hover {
+  color: var(--pw-text-hi);
+  background: var(--pw-fill-soft);
+}
+.pw-ctx-pct {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.pw-ctx-ring {
+  display: block;
+}
+.pw-ctx-head {
+  padding: 12px;
+  border-bottom: 1px solid var(--pw-line-soft);
+}
+.pw-ctx-head-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+.pw-ctx-head-tokens {
+  font-family: var(--pw-font-mono, ui-monospace, monospace);
+  color: var(--pw-text-2);
+}
+.pw-ctx-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--pw-fill-soft);
+  overflow: hidden;
+}
+.pw-ctx-bar-fill {
+  height: 100%;
+  background: var(--pw-accent);
+}
+.pw-ctx-body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pw-ctx-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+}
+.pw-ctx-row-label {
+  color: var(--pw-text-2);
+}
+.pw-ctx-foot {
+  padding: 12px;
+  border-top: 1px solid var(--pw-line-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--pw-panel-sunk);
+}
