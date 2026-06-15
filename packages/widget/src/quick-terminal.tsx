@@ -5,8 +5,10 @@ import {createResizable} from './resize.js'
 import {createPiP} from './pip.js'
 import {ChevronUp, Columns2, PictureInPicture2, X} from 'lucide-solid'
 import {picking} from './react-grab/picking.js'
+import {ContextTracker} from './context-tracker.js'
+import type {UsageSnapshot} from '@aidx/protocol/usage-types'
 
-type Pane = {id: number; content: JSX.Element}
+type Pane = {id: number; content: JSX.Element; usage: () => UsageSnapshot | null}
 
 // Bindings come from user config as plain strings; the library wants its template-literal hotkey
 // type. They're validated at runtime by the key matcher, so a cast is the right call here.
@@ -63,13 +65,15 @@ export function QuickTerminalLayout(props: {
 
   const addPane = () => {
     const id = ++seq
+    const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
     // Each pane is its own session; it's the focused one that takes composer focus + hydrates.
     const content = props.panel.create({
       active: () => props.open() && focused() === id,
       onWorkingChange: () => {},
+      onUsageChange: setUsage,
       composerActions: props.composerActions,
     })
-    setPanes((ps) => [...ps, {id, content}])
+    setPanes((ps) => [...ps, {id, content, usage}])
     focusPane(id)
   }
 
@@ -205,6 +209,7 @@ export function QuickTerminalLayout(props: {
                 <div class="pw-qt-pane-bar">
                   <span class="pw-qt-pane-dot" aria-hidden="true" />
                   <span class="pw-qt-pane-name">session-{pane.id}</span>
+                  <ContextTracker usage={pane.usage()} />
                   <button
                     type="button"
                     class="pw-qt-pane-x"

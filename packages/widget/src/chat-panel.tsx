@@ -7,6 +7,7 @@ import {TestCard} from './test-card.js'
 import {Markdown} from './markdown.js'
 import {ArrowRight, Square} from 'lucide-solid'
 import {AIDX_UI_EVENT, UiSpecSchema, type UiSpec} from '@aidx/protocol/ui-types'
+import {AIDX_USAGE_EVENT, UsageSnapshotSchema, type UsageSnapshot} from '@aidx/protocol/usage-types'
 import {TestRunResultSchema, type TestRunResult} from '@aidx/protocol/test-types'
 import type {ComposerActionDef, PanelDef} from './widget-shell.js'
 
@@ -249,11 +250,19 @@ export function ChatPanel(props: {
   onWorkingChange?: (working: boolean) => void
   // Shell-registered composer-action buttons (e.g. the element picker), rendered in the actions row.
   composerActions?: () => ComposerActionDef[]
+  // Reports the session's latest usage snapshot, so the shell can render a context tracker.
+  onUsageChange?: (usage: UsageSnapshot | null) => void
 }): JSX.Element {
   const api = createChatApi({apiBase: props.apiBase})
   const [genUi, setGenUi] = createSignal<UiSpec[]>([])
+  const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
   // The agent's `aidx ui …` calls arrive as AG-UI CUSTOM events; render each in the thread.
   const onAidxUi = (eventType: string, data: unknown) => {
+    if (eventType === AIDX_USAGE_EVENT) {
+      const parsed = UsageSnapshotSchema.safeParse(data)
+      if (parsed.success) setUsage((prev) => ({...prev, ...parsed.data}))
+      return
+    }
     if (eventType !== AIDX_UI_EVENT) return
     const parsed = UiSpecSchema.safeParse(data)
     if (!parsed.success) return
@@ -281,6 +290,9 @@ export function ChatPanel(props: {
 
   // Surface the working state for the shell's trigger pulse.
   createEffect(() => props.onWorkingChange?.(isThinking() || isStreaming()))
+
+  // Surface the latest usage snapshot for the shell's context tracker.
+  createEffect(() => props.onUsageChange?.(usage()))
 
   // Screen-reader announcements. The log itself is aria-live="off" (streaming would otherwise
   // flood it token-by-token); instead we announce status transitions once into a polite region —
@@ -510,6 +522,7 @@ export function chatPanelDef(apiBase: string): PanelDef {
         apiBase={apiBase}
         active={ctx.active()}
         onWorkingChange={ctx.onWorkingChange}
+        onUsageChange={ctx.onUsageChange}
         composerActions={ctx.composerActions}
       />
     ),

@@ -8,6 +8,8 @@ import {QuickTerminalLayout} from './quick-terminal.js'
 import {createPiP} from './pip.js'
 import {ChevronDown, Crosshair, PictureInPicture2} from 'lucide-solid'
 import {picking, cancelPick} from './react-grab/picking.js'
+import {ContextTracker} from './context-tracker.js'
+import type {UsageSnapshot} from '@aidx/protocol/usage-types'
 
 // A registered content module the shell hosts, modeled on the TanStack Devtools plugin model.
 // `create` returns a fresh content element each call (the modal uses one; quick-terminal panes
@@ -17,6 +19,8 @@ export type PanelContext = {
   active: () => boolean
   // The content reports whether the agent is working, so the shell can pulse the trigger.
   onWorkingChange: (working: boolean) => void
+  // The content reports its latest model-usage snapshot, for the top-bar context tracker.
+  onUsageChange: (usage: UsageSnapshot | null) => void
   // Composer-action buttons registered on the shell, rendered in each panel's composer row.
   composerActions: () => ComposerActionDef[]
 }
@@ -165,6 +169,7 @@ function ModalLayout(props: {
   onClose: () => void
 }): JSX.Element {
   const [working, setWorking] = createSignal(false)
+  const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
   const fab = createDraggablePosition({initial: props.position, storageKey: 'aidx-fab-position'})
   const pip = createPiP()
   let fabEl: HTMLButtonElement | undefined
@@ -174,6 +179,7 @@ function ModalLayout(props: {
   const content = props.panel.create({
     active: () => props.open(),
     onWorkingChange: setWorking,
+    onUsageChange: setUsage,
     composerActions: props.composerActions,
   })
 
@@ -274,6 +280,7 @@ function ModalLayout(props: {
             <PictureInPicture2 class="pw-icon" aria-hidden="true" />
           </button>
           <span class="pw-chat-title">{props.panel.title}</span>
+          <ContextTracker usage={usage()} />
           <button type="button" class="pw-chat-close" aria-label="Close chat" onClick={closePanel}>
             <ChevronDown class="pw-chevron" aria-hidden="true" />
           </button>
