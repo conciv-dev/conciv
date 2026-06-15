@@ -76,57 +76,73 @@ const sessions = new Map<string, SessionState>()    // keyed by OUR sessionId
 ```
 
 Replaces the single `SessionState` in `chat.ts`. Routes look up `sessions.get(sessionId)`,
-creating an empty entry on first reference. The `order: 0` session seeds its
-`harnessSessionId` from `initialSessionId` (the agent `iterate` handoff) or the persisted
-registry.
+creating an empty entry on first reference (lazily seeded from the persisted map). The
+**default** session seeds its `harnessSessionId` from `initialSessionId` (the agent
+`iterate` handoff) when present.
 
-### Persistence
+### Persistence — split by ownership
 
-`chat-sessions.json` shape changes from `previewId → sessionId` to:
+The server owns resume tokens; the client owns UI layout. Two stores:
+
+**Server** — `chat-sessions.json` shape changes from `previewId → sessionId` (flat string) to
+`previewId → { ourSessionId: harnessToken }`:
 
 ```json
 {
   "<previewId>": {
-    "sessions": [
-      { "sessionId": "uuid-a", "harnessSessionId": "claude-sess-1", "order": 0 },
-      { "sessionId": "uuid-b", "harnessSessionId": "claude-sess-2", "order": 1 }
-    ]
+    "uuid-a": "claude-sess-1",
+    "uuid-b": "claude-sess-2",
+    "default": "claude-sess-0"
   }
 }
 ```
 
-- `order` drives left-to-right pane recreation on reopen and the persisted-focus index
-  (`aidx-qt-focused`).
-- `harnessSessionId` is `''` until a session's first turn mints one; empty-token sessions
-  are still persisted so the pane count restores, and hydrate to the greeting.
-- Store API: `writeSession(stateRoot, previewId, sessionId, harnessSessionId)` updates one
-  entry; a new `removeSession(stateRoot, previewId, sessionId)` drops one on `closePane`.
-- Migration: v0, no users — reshape the format outright, no back-compat read of the old
-  flat shape. Old files read as empty and get rewritten.
+- Keyed by *our* client-minted session id; the value is the harness resume token, `''` until
+  the session's first turn mints one.
+- Store API: `readSessions(stateRoot, previewId): Record<string, string>`,
+  `writeSession(stateRoot, previewId, sessionId, harnessToken)` upserts one entry,
+  `removeSession(stateRoot, previewId, sessionId)` drops one.
+- Migration: v0, no users — reshape outright, no back-compat read of the old flat shape. Old
+  files read as empty and get rewritten.
+
+**Client** — pane layout lives in `localStorage` (consistent with `aidx-qt-height`,
+`aidx-qt-focused`, `aidx-fab-position`). Key `aidx-qt-panes` holds the ordered list of pane
+session ids:
+
+```json
+["uuid-a", "uuid-b"]
+```
+
+On reopen the quick terminal recreates one pane per id in order; an empty/absent list seeds
+a single fresh pane. The server is never told about panes or order — it only ever sees a
+session id in a request header.
 
 ## Server routes
 
-`registerChatRoutes` (`chat.ts`) replaces the single `state` with the
-`Map<sessionId, SessionState>` plus a helper that lazily creates an entry and seeds
-`order: 0` from `initialSessionId` / the registry. All three route groups receive the map.
+`registerChatRoutes` (`chat.ts`) replaces the single `state` with a
+`Map<sessionId, SessionState>` plus a `sessionFor(sessionId)` helper that lazily creates an
+entry, seeding it from the persisted map and — for the default session id only — from
+`initialSessionId` when present. All three route groups receive the map + helper.
 
-- `GET /api/chat/session` — reads `sessionId` from the header. Returns
+- `GET /api/chat/session` — reads `sessionId` from the header (or default). Returns
   `{sessionId, name, source, cwd, lock}` where `sessionId` echoes *our* id (never the harness
-  token, which stays server-internal) and `name` is the harness session name or `null`. `source`: `'agent'` if the order-0 session adopted
-  `initialSessionId`, `'chat'` if it has a minted token, else `'new'`. The client decides
-  whether to hydrate from `source !== 'new'`. `lock` is the per-session lock. With no
-  header, returns the default session's state (probe-safe).
-- `GET /api/chat/panes` (new) — returns the persisted registry so the client restores all
-  panes on reopen.
+  token, which stays server-internal) and `name` is the harness session name or `null`.
+  `source`: `'agent'` if the default session adopted `initialSessionId`, `'chat'` if it has a
+  minted token, else `'new'`. The client decides whether to hydrate from `source !== 'new'`.
+  `lock` is the per-session lock. With no header, returns the default session's state
+  (probe-safe).
 - `GET /api/chat/history` — header based (no `?sessionId=` query); resolves the harness
   token from the header session id server-side and reads that transcript.
 - `POST /api/chat` — the core change:
   - Reads `sessionId` from the header.
-  - `resumeSessionId = harness.capabilities.resume ? (sessions.get(sessionId)?.harnessSessionId || null) : null`.
+  - `resumeSessionId = harness.capabilities.resume ? (sessionFor(sessionId).harnessSessionId || null) : null`.
   - Lock check is per session: 409 only if *that* session is busy.
-  - `onSessionId` writes `sessions.get(sessionId)` and
+  - `onSessionId` writes `sessionFor(sessionId).harnessSessionId` and
     `writeSession(..., sessionId, harnessToken)`.
   - `onSpawn` acquires the per-session lock.
+
+No `/panes` endpoint — pane layout is client-side `localStorage` (see Persistence). The
+client restores panes from its own list and hydrates each via the header.
 
 ## Concurrency & lock
 
@@ -135,8 +151,10 @@ registry.
 - The `iterate` / `chat` role invariant ("two writers, one transcript") now holds per
   session, because an `iterate` run and a chat turn targeting the same harness session
   resolve to the same `sessionId` lock.
-- The standalone `iterate` CLI path also acquires this lock; it must compute the matching
-  `sessionId` so a handoff shares pane-0's lock. In scope for this work.
+- There is no standalone `iterate` CLI today; the only `iterate`-role lock holder is the
+  busy-state simulation in `chat.it.test.ts`. That test acquires the lock for the default
+  session id so the 409 assertion still targets the right lock. The `LockRole` enum is
+  unchanged.
 
 ## Harness contract
 
@@ -230,9 +248,11 @@ No rename in this iteration (deferred — would need an editable field and a per
   it) and gates on `source !== 'new'` instead of a truthy harness token.
   `ChatHistorySchema`'s `sessionId` query param is dropped; `ChatSessionSchema.sessionId`
   keeps its shape but now means our id.
-- On reopen, the client reads `GET /api/chat/panes` and recreates one pane per persisted
-  session in `order`, each hydrating from its own transcript.
-- `closePane` calls `removeSession` and stops the session's stream if running.
+- On reopen, the quick terminal reads the `aidx-qt-panes` `localStorage` list and recreates
+  one pane per session id in order, each hydrating from its own transcript via the header. An
+  empty/absent list seeds one fresh pane.
+- `addPane` mints a session id and appends it to the list; `closePane` removes it from the
+  list and stops the session's stream if running.
 
 ## Edge cases
 
@@ -248,8 +268,8 @@ No rename in this iteration (deferred — would need an editable field and a per
 Per project conventions: no jsdom; widget integration tests run in a real browser via
 Playwright using `browser.newPage()`.
 
-- Core unit tests: keyed `sessions` map, per-session lock isolation, registry
-  read/write/remove, default-header fallback, order-0 seeding from `initialSessionId`,
+- Core unit tests: keyed `sessions` map, per-session lock isolation, session-store
+  read/write/remove, default-header fallback, default-session seeding from `initialSessionId`,
   `nameFromTranscript` parsing claude `summary` records, label fallback to short id.
 - Widget integration test (real browser, `newPage()`): open quick terminal → split into two
   panes → each sends a message → both stream in parallel with no 409 → each shows its own
@@ -262,8 +282,8 @@ Playwright using `browser.newPage()`.
 - Surfaces switching which session they reference at runtime (the model allows it; no UI for
   it yet).
 - Back-compat migration of old `chat-sessions.json` (v0, no users).
-- Any change to the streaming protocol or harness adapters beyond threading `sessionId` into
-  the `iterate` lock and the optional `nameFromTranscript`.
+- Any change to the streaming protocol or harness adapters beyond the optional
+  `nameFromTranscript`.
 - Renaming a session from the popover (deferred).
 
 ## Dependencies
