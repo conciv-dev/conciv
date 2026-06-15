@@ -16,7 +16,7 @@ export function AppPreview({
 }) {
   return (
     <div className={cn('od-preview relative flex flex-col p-[18px]', picking && 'od-picking')}>
-      <div className="mb-auto font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
+      <div className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
         your live app
       </div>
 

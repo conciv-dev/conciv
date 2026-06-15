@@ -61,14 +61,20 @@ export function Demo() {
     { scope, dependencies: [state.picking, state.grabbed?.id] },
   );
 
-  // Reveal the most recently added message.
+  // Reveal the most recently added message and keep the transcript pinned to the bottom.
   useGSAP(
     () => {
-      if (reduced() || !viewportRef.current) return;
-      const rows = viewportRef.current.querySelectorAll('.od-msg');
-      const last = rows[rows.length - 1];
-      if (last) gsap.from(last, { autoAlpha: 0, y: 8, duration: 0.35, ease: 'power2.out' });
-      viewportRef.current.parentElement?.scrollTo({ top: viewportRef.current.scrollHeight });
+      if (!viewportRef.current) return;
+      const viewport = viewportRef.current.closest('[data-slot="scroll-area-viewport"]') as HTMLElement | null;
+      if (!reduced()) {
+        const rows = viewportRef.current.querySelectorAll('.od-msg');
+        const last = rows[rows.length - 1];
+        if (last) gsap.from(last, { autoAlpha: 0, y: 8, duration: 0.35, ease: 'power2.out' });
+      }
+      if (viewport) {
+        if (reduced()) viewport.scrollTop = viewport.scrollHeight;
+        else gsap.to(viewport, { scrollTop: viewport.scrollHeight, duration: 0.3, ease: 'power2.out' });
+      }
     },
     { scope, dependencies: [state.messages.length] },
   );
@@ -116,7 +122,7 @@ export function Demo() {
         className="pointer-events-none absolute -inset-3 -z-10 rounded-[28px] opacity-60 blur-2xl"
         style={{ background: 'radial-gradient(60% 60% at 70% 20%, var(--od-accent-soft), transparent)' }}
       />
-      <Card className="overflow-hidden p-0 shadow-xl">
+      <Card className="gap-0 overflow-hidden p-0 shadow-xl">
         <div className="flex items-center gap-2 border-b px-4 py-2.5">
           <span className="text-base text-primary">✦</span>
           <span className="text-[13.5px] font-semibold">opendui</span>

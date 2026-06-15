@@ -31,9 +31,7 @@ export function MessageRow({ message }: { message: Message }) {
           {message.label}
         </Badge>
         <span className="text-muted-foreground">{message.detail}</span>
-        <span className="text-[oklch(0.62_0.16_150)]" style={{ color: 'var(--od-pass)' }}>
-          ✓
-        </span>
+        <span style={{ color: 'var(--od-pass)' }}>✓</span>
       </div>
     );
   }
