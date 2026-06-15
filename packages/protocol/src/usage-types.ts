@@ -1,10 +1,7 @@
 import {z} from 'zod'
-import {EventType, type StreamChunk} from '@tanstack/ai'
+import type {TokenUsage} from '@tanstack/ai'
 
-// A normalized, harness-agnostic snapshot of a session's model usage. Every field is
-// optional: a harness reports only what its CLI exposes, and the widget degrades per
-// missing field. Values are ABSOLUTE (current state), not deltas — the latest snapshot
-// fully describes the session, so the decode spine merges them last-wins per field.
+// Normalized per-session model usage; every field optional so a harness reports only what it has.
 export const UsageSnapshotSchema = z.object({
   modelId: z.string().optional(),
   contextWindow: z.number().int().nonnegative().optional(),
@@ -18,17 +15,49 @@ export const UsageSnapshotSchema = z.object({
 })
 export type UsageSnapshot = z.infer<typeof UsageSnapshotSchema>
 
-// The CUSTOM event name the widget listens for via useChat({onCustomEvent}).
-export const AIDX_USAGE_EVENT = 'aidx-usage'
-
-// Wrap a snapshot as the AG-UI CUSTOM StreamChunk injected into the live chat stream.
-export function aguiUsageFor(snapshot: UsageSnapshot): StreamChunk {
-  return {type: EventType.CUSTOM, name: AIDX_USAGE_EVENT, value: snapshot}
+// Fields with no standard TokenUsage slot ride providerUsageDetails (one type keeps the mappers in sync).
+type AidxProviderUsage = {
+  modelId?: string
+  contextWindow?: number
+  totalCostUsd?: number
+  numTurns?: number
 }
 
-// Context occupancy = the prompt resident in the window this turn (input + cache). Output
-// is generation, not occupancy, so it is excluded (shown in the breakdown instead).
-// Returns undefined when no token data is present.
+// Snapshot → native TokenUsage on RUN_FINISHED (survives chat(); CUSTOM chunks do not).
+export function snapshotToTokenUsage(s: UsageSnapshot): TokenUsage {
+  const provider: AidxProviderUsage = {
+    modelId: s.modelId,
+    contextWindow: s.contextWindow,
+    totalCostUsd: s.totalCostUsd,
+    numTurns: s.numTurns,
+  }
+  return {
+    promptTokens: s.inputTokens ?? 0,
+    completionTokens: s.outputTokens ?? 0,
+    totalTokens: (s.inputTokens ?? 0) + (s.outputTokens ?? 0),
+    promptTokensDetails: {cachedTokens: s.cacheReadTokens, cacheWriteTokens: s.cacheWriteTokens},
+    completionTokensDetails: {reasoningTokens: s.reasoningTokens},
+    providerUsageDetails: provider,
+  }
+}
+
+// Inverse of snapshotToTokenUsage: read a RUN_FINISHED usage back into our display shape.
+export function tokenUsageToSnapshot(u: TokenUsage): UsageSnapshot {
+  const p = (u.providerUsageDetails ?? {}) as AidxProviderUsage
+  return {
+    modelId: p.modelId,
+    contextWindow: p.contextWindow,
+    inputTokens: u.promptTokens,
+    outputTokens: u.completionTokens,
+    cacheReadTokens: u.promptTokensDetails?.cachedTokens,
+    cacheWriteTokens: u.promptTokensDetails?.cacheWriteTokens,
+    reasoningTokens: u.completionTokensDetails?.reasoningTokens,
+    totalCostUsd: p.totalCostUsd,
+    numTurns: p.numTurns,
+  }
+}
+
+// Context occupancy = prompt resident in the window (input + cache), excluding output; undefined when no tokens.
 export function contextUsedTokens(s: UsageSnapshot): number | undefined {
   const parts = [s.inputTokens, s.cacheReadTokens, s.cacheWriteTokens]
   if (parts.every((p) => p === undefined)) return undefined

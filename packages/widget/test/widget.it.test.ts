@@ -16,7 +16,7 @@ import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {chromium, type Browser} from 'playwright'
 import {EventType, type StreamChunk, toServerSentEventsStream} from '@tanstack/ai'
 import {aguiCustomFor} from '@aidx/protocol/ui-types'
-import {aguiUsageFor} from '@aidx/protocol/usage-types'
+import {snapshotToTokenUsage} from '@aidx/protocol/usage-types'
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
 const widgetBundle = fs.readFileSync(path.join(dirname, '../dist/aidx-widget.global.js'), 'utf8')
@@ -70,23 +70,28 @@ async function* chatScript(): AsyncGenerator<StreamChunk> {
   yield {type: EventType.TEXT_MESSAGE_START, messageId: 'm1', role: 'assistant'}
   yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'm1', delta: ASSISTANT_TEXT}
   yield {type: EventType.TEXT_MESSAGE_END, messageId: 'm1'}
-  yield aguiUsageFor({
-    modelId: 'claude-opus-4-8[1m]',
-    contextWindow: 1000000,
-    inputTokens: 18151,
-    cacheReadTokens: 15832,
-    cacheWriteTokens: 1912,
-    outputTokens: 19,
-    totalCostUsd: 0.118,
-    numTurns: 1,
-  })
   yield aguiCustomFor({
     kind: 'approval',
     renderId: 'a1',
     question: APPROVAL_QUESTION,
     detail: 'rm -rf /tmp/scratch',
   })
-  yield {type: EventType.RUN_FINISHED, threadId: 't', runId: 'r', finishReason: 'stop'}
+  yield {
+    type: EventType.RUN_FINISHED,
+    threadId: 't',
+    runId: 'r',
+    finishReason: 'stop',
+    usage: snapshotToTokenUsage({
+      modelId: 'claude-opus-4-8[1m]',
+      contextWindow: 1000000,
+      inputTokens: 18151,
+      cacheReadTokens: 15832,
+      cacheWriteTokens: 1912,
+      outputTokens: 19,
+      totalCostUsd: 0.118,
+      numTurns: 1,
+    }),
+  }
 }
 
 const MCP_REPLY = 'MCP reply is visible'

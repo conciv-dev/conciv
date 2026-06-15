@@ -1,7 +1,7 @@
 import type {ZodType} from 'zod'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 import type {HarnessDecodeOpts} from '@aidx/protocol/harness-types'
-import {aguiUsageFor, type UsageSnapshot} from '@aidx/protocol/usage-types'
+import {snapshotToTokenUsage, type UsageSnapshot} from '@aidx/protocol/usage-types'
 
 // Shared decoder spine: run lifecycle, line loop, parse, id minter, AG-UI chunk emitters.
 // An adapter supplies only its Zod event schema and a pure event→chunks `step`.
@@ -12,11 +12,7 @@ export type Mint = (prefix: string) => string
 export type StepContext = {mint: Mint; onSessionId: (id: string) => void}
 export type Step<E> = (event: E, ctx: StepContext) => Iterable<StreamChunk>
 
-// Optional per-harness usage mapping. PURE: decode one already-validated event into the
-// usage fields it carries (absolute values), or null when it carries none. The spine
-// merges successive partials (last-wins per defined field) and emits an `aidx-usage`
-// CUSTOM chunk whenever the merged snapshot changes. A harness that omits this emits no
-// usage — the widget tracker stays hidden, degrading cleanly.
+// Pure per-harness usage map: one event → the usage fields it carries (absolute), or null. The spine merges these and attaches the result to RUN_FINISHED.
 export type UsageExtractor<E> = (event: E) => Partial<UsageSnapshot> | null
 
 // Drop undefined-valued keys so a partial never clobbers a known field with a blank.
@@ -24,13 +20,6 @@ function definedOnly(delta: Partial<UsageSnapshot>): Partial<UsageSnapshot> {
   const out: Partial<UsageSnapshot> = {}
   for (const [k, v] of Object.entries(delta)) if (v !== undefined) (out as Record<string, unknown>)[k] = v
   return out
-}
-
-// Shallow per-field equality over the union of keys — emit only on real change.
-function sameUsage(a: UsageSnapshot, b: UsageSnapshot): boolean {
-  const keys = new Set([...Object.keys(a), ...Object.keys(b)])
-  for (const k of keys) if ((a as Record<string, unknown>)[k] !== (b as Record<string, unknown>)[k]) return false
-  return true
 }
 
 // Parse one NDJSON line and validate it against the schema; null on blank / unparseable / invalid.
@@ -85,6 +74,7 @@ export async function* runAgui<E>(
     return `${threadId}-${prefix}${counter.n}`
   }
   let usage: UsageSnapshot = {}
+  let sawUsage = false
   yield {type: EventType.RUN_STARTED, threadId, runId}
   for await (const line of lines) {
     opts.logger?.provider('harness-line', {line})
@@ -94,13 +84,17 @@ export async function* runAgui<E>(
     if (extractUsage) {
       const delta = extractUsage(event)
       if (delta) {
-        const next = {...usage, ...definedOnly(delta)}
-        if (!sameUsage(usage, next)) {
-          usage = next
-          yield aguiUsageFor(usage)
-        }
+        usage = {...usage, ...definedOnly(delta)}
+        sawUsage = true
       }
     }
   }
-  yield {type: EventType.RUN_FINISHED, threadId, runId, finishReason: 'stop'}
+  // Usage rides the native RunFinishedEvent.usage field; omitted when the harness reported nothing.
+  yield {
+    type: EventType.RUN_FINISHED,
+    threadId,
+    runId,
+    finishReason: 'stop',
+    ...(sawUsage ? {usage: snapshotToTokenUsage(usage), model: usage.modelId} : {}),
+  }
 }

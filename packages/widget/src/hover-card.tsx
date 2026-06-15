@@ -16,12 +16,7 @@ function hide(el: HTMLElement | undefined): void {
   }
 }
 
-// Hover/focus-triggered popover. The trigger renders inline; the content renders in the
-// top layer (popover="manual") so it escapes the header's overflow and sits above the
-// panel and FAB. Opens on pointer-enter OR keyboard focus, stays open while the pointer
-// bridges trigger→content, closes on pointer-leave of BOTH / blur / Escape. Position is
-// computed under the trigger (flips above when there's no room below) and recomputed on
-// scroll/resize while open.
+// Hover/focus popover; content renders in the top layer (popover="manual"), positioned under the trigger and flipped above when there's no room.
 export function HoverCard(props: {
   trigger: JSX.Element
   children: JSX.Element

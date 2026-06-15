@@ -6,8 +6,9 @@ import {GenUi} from './gen-ui.js'
 import {TestCard} from './test-card.js'
 import {Markdown} from './markdown.js'
 import {ArrowRight, Square} from 'lucide-solid'
+import {EventType, type StreamChunk} from '@tanstack/ai'
 import {AIDX_UI_EVENT, UiSpecSchema, type UiSpec} from '@aidx/protocol/ui-types'
-import {AIDX_USAGE_EVENT, UsageSnapshotSchema, type UsageSnapshot} from '@aidx/protocol/usage-types'
+import {tokenUsageToSnapshot, type UsageSnapshot} from '@aidx/protocol/usage-types'
 import {TestRunResultSchema, type TestRunResult} from '@aidx/protocol/test-types'
 import type {ComposerActionDef, PanelDef} from './widget-shell.js'
 
@@ -258,11 +259,6 @@ export function ChatPanel(props: {
   const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
   // The agent's `aidx ui …` calls arrive as AG-UI CUSTOM events; render each in the thread.
   const onAidxUi = (eventType: string, data: unknown) => {
-    if (eventType === AIDX_USAGE_EVENT) {
-      const parsed = UsageSnapshotSchema.safeParse(data)
-      if (parsed.success) setUsage((prev) => ({...prev, ...parsed.data}))
-      return
-    }
     if (eventType !== AIDX_UI_EVENT) return
     const parsed = UiSpecSchema.safeParse(data)
     if (!parsed.success) return
@@ -274,9 +270,14 @@ export function ChatPanel(props: {
       return [...prev.filter((g) => g.renderId !== spec.renderId), spec]
     })
   }
+  // Usage rides RUN_FINISHED.usage (native AG-UI), read off the raw chunk stream.
+  const onChunk = (chunk: StreamChunk) => {
+    if (chunk.type === EventType.RUN_FINISHED && chunk.usage) setUsage(tokenUsageToSnapshot(chunk.usage))
+  }
   const chat = useChat({
     ...createChatClientOptions({connection: fetchServerSentEvents(api.chatUrl)}),
     onCustomEvent: onAidxUi,
+    onChunk,
   })
   const [input, setInput] = createSignal('')
   const hydrateState = {done: false}
@@ -344,6 +345,7 @@ export function ChatPanel(props: {
     hydrateState.done = true
     try {
       const session = await api.session()
+      if (session.usage) setUsage(session.usage)
       if (!session.sessionId) return
       const prior = await api.history(session.sessionId)
       if (prior.length > 0) chat.setMessages(prior)

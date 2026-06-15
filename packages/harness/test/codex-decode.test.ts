@@ -1,7 +1,6 @@
 import {describe, it, expect} from 'vitest'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 import {codexToAguiEvents} from '../src/codex/decode.js'
-import {AIDX_USAGE_EVENT} from '@aidx/protocol/usage-types'
 
 async function* lines(arr: string[]): AsyncGenerator<string> {
   for (const l of arr) yield l
@@ -66,20 +65,17 @@ describe('codex decode', () => {
     expect(seen).toContain('th-1')
   })
 
-  it('emits an aidx-usage CUSTOM chunk from turn.completed usage', async () => {
+  it('attaches turn.completed usage to RUN_FINISHED', async () => {
     const got = await collect([THREAD, AGENT, DONE])
-    const usage = got.find((c) => c.type === EventType.CUSTOM && (c as {name?: string}).name === AIDX_USAGE_EVENT)
-    expect((usage as {value: {inputTokens: number; outputTokens: number}}).value).toEqual({inputTokens: 1, outputTokens: 2})
+    const fin = got.find((c) => c.type === EventType.RUN_FINISHED)
+    const usage = (fin as {usage?: {promptTokens: number; completionTokens: number}}).usage
+    expect(usage?.promptTokens).toBe(1)
+    expect(usage?.completionTokens).toBe(2)
   })
 
-  it('does not emit usage when no event carries it', async () => {
+  it('RUN_FINISHED carries no usage when no event reports it', async () => {
     const got = await collect([THREAD, AGENT])
-    expect(got.some((c) => c.type === EventType.CUSTOM && (c as {name?: string}).name === AIDX_USAGE_EVENT)).toBe(false)
-  })
-
-  it('emits usage only once when the snapshot does not change', async () => {
-    const got = await collect([THREAD, DONE, DONE])
-    const usages = got.filter((c) => c.type === EventType.CUSTOM && (c as {name?: string}).name === AIDX_USAGE_EVENT)
-    expect(usages).toHaveLength(1)
+    const fin = got.find((c) => c.type === EventType.RUN_FINISHED)
+    expect((fin as {usage?: unknown}).usage).toBeUndefined()
   })
 })

@@ -1,7 +1,6 @@
 import {describe, it, expect} from 'vitest'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 import {claudeToAguiEvents} from '../src/claude/decode.js'
-import {AIDX_USAGE_EVENT} from '@aidx/protocol/usage-types'
 
 async function* lines(arr: string[]): AsyncGenerator<string> {
   for (const l of arr) yield l
@@ -11,10 +10,9 @@ async function collect(input: string[]): Promise<StreamChunk[]> {
   for await (const c of claudeToAguiEvents(lines(input), {onSessionId: () => {}})) out.push(c)
   return out
 }
-function usageValues(chunks: StreamChunk[]): Array<Record<string, unknown>> {
-  return chunks
-    .filter((c) => c.type === EventType.CUSTOM && (c as {name?: string}).name === AIDX_USAGE_EVENT)
-    .map((c) => (c as {value: Record<string, unknown>}).value)
+function finishedUsage(chunks: StreamChunk[]): Record<string, unknown> | undefined {
+  const fin = chunks.find((c) => c.type === EventType.RUN_FINISHED)
+  return (fin as {usage?: Record<string, unknown>}).usage
 }
 
 const ASSISTANT = JSON.stringify({
@@ -34,28 +32,26 @@ const RESULT = JSON.stringify({
 })
 
 describe('claude decode — usage', () => {
-  it('extracts per-turn usage + model from an assistant event', async () => {
-    const v = usageValues(await collect([ASSISTANT]))
-    expect(v[0]).toEqual({
-      modelId: 'claude-opus-4-8[1m]',
-      inputTokens: 18151,
-      outputTokens: 19,
-      cacheReadTokens: 15832,
-      cacheWriteTokens: 1912,
-    })
+  it('puts per-turn tokens + cache on RUN_FINISHED usage', async () => {
+    const u = finishedUsage(await collect([ASSISTANT]))
+    expect(u?.promptTokens).toBe(18151)
+    expect(u?.completionTokens).toBe(19)
+    const prompt = u?.promptTokensDetails as {cachedTokens?: number; cacheWriteTokens?: number} | undefined
+    expect(prompt?.cachedTokens).toBe(15832)
+    expect(prompt?.cacheWriteTokens).toBe(1912)
   })
 
-  it('merges contextWindow + cost + turns from the result event', async () => {
-    const v = usageValues(await collect([ASSISTANT, RESULT]))
-    const last = v.at(-1)!
-    expect(last.contextWindow).toBe(1000000)
-    expect(last.totalCostUsd).toBe(0.118)
-    expect(last.numTurns).toBe(1)
-    expect(last.inputTokens).toBe(18151) // carried from the assistant snapshot (last-wins merge)
+  it('merges contextWindow + cost + turns from the result event (providerUsageDetails)', async () => {
+    const u = finishedUsage(await collect([ASSISTANT, RESULT]))
+    const p = u?.providerUsageDetails as {contextWindow?: number; totalCostUsd?: number; numTurns?: number}
+    expect(p.contextWindow).toBe(1000000)
+    expect(p.totalCostUsd).toBe(0.118)
+    expect(p.numTurns).toBe(1)
+    expect(u?.promptTokens).toBe(18151) // carried from the assistant snapshot (last-wins merge)
   })
 
-  it('emits no usage for an assistant event without a usage field', async () => {
+  it('omits usage when no assistant/result event carries it', async () => {
     const noUsage = JSON.stringify({type: 'assistant', message: {content: [{type: 'text', text: 'hi'}]}})
-    expect(usageValues(await collect([noUsage]))).toHaveLength(0)
+    expect(finishedUsage(await collect([noUsage]))).toBeUndefined()
   })
 })
