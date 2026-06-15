@@ -1,4 +1,4 @@
-import {createUnplugin} from 'unplugin'
+import {createUnplugin, type UnpluginOptions} from 'unplugin'
 import type {AidxConfig} from '@aidx/protocol/config-types'
 import {makeEngineBooter} from './core/boot.js'
 import {makeViteHook} from './core/vite.js'
@@ -12,7 +12,10 @@ export const unplugin = createUnplugin<AidxConfig | undefined>((options = {}) =>
 
   return {
     name: 'aidx',
-    vite: makeViteHook(options),
+    // unplugin resolves its own `vite` (the yaml-peer variant); this package's devDep vite
+    // resolves without that peer, so TS treats the two structurally-identical `Plugin` types
+    // as unrelated. Cast at the boundary to unplugin's expected vite type.
+    vite: makeViteHook(options) as UnpluginOptions['vite'],
     webpack() {
       if (options.enabled !== false) void boot()
     },
