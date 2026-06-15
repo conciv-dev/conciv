@@ -28,7 +28,12 @@ These do not merge: composer buttons are not react-grab's model (it owns the pag
 
 ## Tech Stack
 
-TypeScript, `react-grab@^0.1.44` (widget dep; bundles `bippy`, already a widget dep), Solid widget in an open Shadow DOM, Vite lib build (ES + IIFE), `lucide-solid` for icons (the composer now uses `ArrowRight`/`Square`; the picker uses `Crosshair`), vitest + Playwright (example e2e). `react` is react-grab's *optional* peer — on non-React hosts selection still works; source-mapping/edit degrade gracefully.
+TypeScript, `react-grab@^0.1.44` (widget dep; bundles `bippy`, already a widget dep), Solid widget in an open Shadow DOM, Vite lib build (ES + IIFE), `lucide-solid@^1.18.0` for icons (the composer already imports `ArrowRight`/`Square`; the picker uses `Crosshair`, a future attachment button uses `Paperclip`), vitest + Playwright (example e2e).
+
+**Verified facts (no unknowns remain — checked 2026-06-15 against the installed tree):**
+- **Icons exist** in `lucide-solid@1.18.0` as named exports, same form as the already-working `ArrowRight`/`Square`: `export {default as Crosshair} from './icons/crosshair.mjs'` and `export {default as Paperclip} from './icons/paperclip.mjs'`. Import as `import {Crosshair} from 'lucide-solid'`.
+- **All `--pw-*` tokens used by Task 4 are defined** in `packages/widget/src/styles.css`: `--pw-fill-soft`, `--pw-text-2`, `--pw-text-hi`, `--pw-line-2`, `--pw-line`, `--pw-fill`, `--pw-accent`, `--pw-ease` (each defined exactly once). No token needs inventing.
+- **`react-grab` is NOT currently a dep** (`packages/widget/package.json` has no `react-grab` entry) — Task 0 must add it; do not assume the deleted-worktree install survived. `react` is react-grab's *optional* peer — on non-React hosts selection still works; source-mapping/edit degrade gracefully.
 
 ## Spike findings (2026-06-14, against `apps/examples/tanstack-start`, React 19 + Vite — still valid, react-grab API unchanged)
 
@@ -293,8 +298,7 @@ The current composer (line ~1058) is a single flex row `[textarea(flex:1)][send]
   .pw-chat-act:hover { color: var(--pw-text-hi); border-color: var(--pw-line-2); }
   .pw-chat-act-busy { opacity: 0.6; cursor: progress; }
   ```
-- [ ] **Step 3:** Verify token names exist in `styles.css` (`--pw-fill-soft`, `--pw-text-2`, `--pw-text-hi`, `--pw-line-2`); if any differ, use the closest existing token (do not invent tokens).
-- [ ] **Step 4:** Visually confirm in a real browser that `[textarea]` over `[act … | send]` lays out in modal, quick-terminal pane, and PiP.
+- [ ] **Step 3:** (Tokens already confirmed present — see "Verified facts" above. No lookup needed; use them as written.) Visually confirm in a real browser that `[textarea]` over `[act … | send]` lays out in modal, quick-terminal pane, and PiP.
 
 ---
 

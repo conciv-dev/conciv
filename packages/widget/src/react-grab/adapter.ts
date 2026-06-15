@@ -1,0 +1,79 @@
+import type {ReactGrabAPI} from 'react-grab'
+import {setPicking, setCancelPick} from './picking.js'
+
+// Lazy, dev-only integration of react-grab as the element-selection engine. Auto-init and the
+// react-grab toolbar are disabled; we drive it from the composer. Every grab (select/comment/
+// style-edit) converges on runCopyFlow, so transformCopyContent is the one hook that routes the
+// final content into whichever composer started the current pick. Dynamic import (not static) so
+// we can set the disable flag before the module evaluates, and to defer init to first use.
+
+// aidx-branded handle to our live react-grab instance, for host-app context-menu extensibility.
+// (A literal re-export of react-grab's registerPlugin would target a different instance — see plan.)
+type AidxGlobal = {
+  registerPlugin: ReactGrabAPI['registerPlugin']
+  unregisterPlugin: ReactGrabAPI['unregisterPlugin']
+}
+declare global {
+  interface Window {
+    __AIDX__?: AidxGlobal
+  }
+}
+
+export type GrabSink = (content: string) => void
+
+export type ReactGrabAdapter = {
+  activate: (onGrab: GrabSink) => void // bind sink, then enter selection mode
+  comment: (onGrab: GrabSink) => void // bind sink, then enter prompt mode
+  deactivate: () => void
+  isActive: () => boolean
+}
+
+let adapterPromise: Promise<ReactGrabAdapter> | null = null
+
+export function getReactGrabAdapter(): Promise<ReactGrabAdapter> {
+  if (!adapterPromise) adapterPromise = create()
+  return adapterPromise
+}
+
+async function create(): Promise<ReactGrabAdapter> {
+  window.__REACT_GRAB_DISABLED__ = true
+  const rg = await import('react-grab')
+  const api = rg.init({telemetry: false})
+  // The current pick's destination. react-grab selection is modal (one pick at a time), so a single
+  // mutable sink is race-free; activate()/comment() set it immediately before entering selection.
+  let sink: GrabSink | null = null
+  api.registerPlugin({
+    name: 'aidx',
+    theme: {toolbar: {enabled: false}},
+    hooks: {
+      // Shrink the chat surface to a "Picking…" pill while selection is active, so the page is
+      // reachable and react-grab's overlay (z-index max-int) doesn't fight our modal.
+      onActivate: () => setPicking(true),
+      onDeactivate: () => setPicking(false),
+      // Captures plain-select, Comment, and Style-edit content alike.
+      transformCopyContent: (content) => {
+        sink?.(content)
+        return content
+      },
+    },
+  })
+  // Let the pill abort the current pick (also covers Esc handling in the shell).
+  setCancelPick(() => api.deactivate())
+  // Host-app extensibility: register react-grab context-menu/toolbar actions + hooks against OUR instance.
+  window.__AIDX__ = {
+    registerPlugin: api.registerPlugin,
+    unregisterPlugin: api.unregisterPlugin,
+  }
+  return {
+    activate: (onGrab) => {
+      sink = onGrab
+      api.activate()
+    },
+    comment: (onGrab) => {
+      sink = onGrab
+      api.comment()
+    },
+    deactivate: () => api.deactivate(),
+    isActive: () => api.isActive(),
+  }
+}

@@ -8,7 +8,7 @@ import {Markdown} from './markdown.js'
 import {ArrowRight, Square} from 'lucide-solid'
 import {AIDX_UI_EVENT, UiSpecSchema, type UiSpec} from '@aidx/protocol/ui-types'
 import {TestRunResultSchema, type TestRunResult} from '@aidx/protocol/test-types'
-import type {PanelDef} from './widget-shell.js'
+import type {ComposerActionDef, PanelDef} from './widget-shell.js'
 
 // Pull the Bash command out of a tool-call part (input.command, or parsed from arguments).
 function toolCommand(part: {input?: unknown; arguments?: string}): string {
@@ -247,6 +247,8 @@ export function ChatPanel(props: {
   active?: boolean
   // Reports whether the agent is thinking/streaming, so the shell can pulse the trigger.
   onWorkingChange?: (working: boolean) => void
+  // Shell-registered composer-action buttons (e.g. the element picker), rendered in the actions row.
+  composerActions?: () => ComposerActionDef[]
 }): JSX.Element {
   const api = createChatApi({apiBase: props.apiBase})
   const [genUi, setGenUi] = createSignal<UiSpec[]>([])
@@ -360,6 +362,23 @@ export function ChatPanel(props: {
     void chat.sendMessage(text)
   }
 
+  // Append inserted text (e.g. a grabbed element reference) into THIS composer for the user to edit.
+  const insert = (text: string) => {
+    setInput((prev) => (prev ? `${prev}\n${text}` : text))
+    requestAnimationFrame(() => {
+      if (inputEl) {
+        autoGrow(inputEl)
+        inputEl.focus()
+      }
+    })
+  }
+
+  // Which action is mid-flight (e.g. lazy-loading react-grab), keyed by action id.
+  const [busyAction, setBusyAction] = createSignal<string | null>(null)
+  const runAction = (a: ComposerActionDef) => {
+    void Promise.resolve(a.onClick({insert, setBusy: (b) => setBusyAction(b ? a.id : null)}))
+  }
+
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
@@ -424,33 +443,54 @@ export function ChatPanel(props: {
         </Show>
       </div>
       <form class="pw-chat-composer" onSubmit={submit}>
-        <textarea
-          class="pw-chat-input"
-          rows={1}
-          placeholder="Ask a question…"
-          aria-label="Message the aidx agent"
-          value={input()}
-          onInput={(e) => {
-            setInput(e.currentTarget.value)
-            autoGrow(e.currentTarget)
-          }}
-          onKeyDown={onKeyDown}
-          ref={(el) => {
-            inputEl = el
-          }}
-        />
-        <Show
-          when={chat.isLoading()}
-          fallback={
-            <button type="submit" class="pw-chat-send" aria-label="Send" disabled={!input().trim()}>
-              <ArrowRight class="pw-icon" aria-hidden="true" />
-            </button>
-          }
-        >
-          <button type="button" class="pw-chat-send pw-chat-stop" aria-label="Stop" onClick={() => chat.stop()}>
-            <Square class="pw-icon" fill="currentColor" aria-hidden="true" />
-          </button>
-        </Show>
+        <div class="pw-chat-box">
+          <textarea
+            class="pw-chat-input"
+            rows={1}
+            placeholder="Ask a question…"
+            aria-label="Message the aidx agent"
+            value={input()}
+            onInput={(e) => {
+              setInput(e.currentTarget.value)
+              autoGrow(e.currentTarget)
+            }}
+            onKeyDown={onKeyDown}
+            ref={(el) => {
+              inputEl = el
+            }}
+          />
+          <div class="pw-chat-actions">
+            <For each={props.composerActions?.() ?? []}>
+              {(a) => {
+                const Icon = a.icon
+                return (
+                  <button
+                    type="button"
+                    class="pw-chat-act"
+                    aria-label={a.label}
+                    title={a.label}
+                    classList={{'pw-chat-act-busy': busyAction() === a.id}}
+                    onClick={() => runAction(a)}
+                  >
+                    <Icon class="pw-icon" />
+                  </button>
+                )
+              }}
+            </For>
+            <Show
+              when={chat.isLoading()}
+              fallback={
+                <button type="submit" class="pw-chat-send" aria-label="Send" disabled={!input().trim()}>
+                  <ArrowRight class="pw-icon" aria-hidden="true" />
+                </button>
+              }
+            >
+              <button type="button" class="pw-chat-send pw-chat-stop" aria-label="Stop" onClick={() => chat.stop()}>
+                <Square class="pw-icon" fill="currentColor" aria-hidden="true" />
+              </button>
+            </Show>
+          </div>
+        </div>
       </form>
       <div class="pw-sr-only" role="status" aria-live="polite">
         {liveMsg()}
@@ -465,6 +505,13 @@ export function chatPanelDef(apiBase: string): PanelDef {
   return {
     id: 'chat',
     title: 'aidx',
-    create: (ctx) => <ChatPanel apiBase={apiBase} active={ctx.active()} onWorkingChange={ctx.onWorkingChange} />,
+    create: (ctx) => (
+      <ChatPanel
+        apiBase={apiBase}
+        active={ctx.active()}
+        onWorkingChange={ctx.onWorkingChange}
+        composerActions={ctx.composerActions}
+      />
+    ),
   }
 }

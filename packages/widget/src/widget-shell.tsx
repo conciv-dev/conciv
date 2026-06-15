@@ -1,4 +1,4 @@
-import {createSignal, Show, type JSX} from 'solid-js'
+import {createEffect, createSignal, onCleanup, Show, type Component, type JSX} from 'solid-js'
 import {render} from 'solid-js/web'
 import type {TriggerPosition} from '@aidx/protocol/config-types'
 import type {WidgetSettings} from './widget-settings.js'
@@ -6,7 +6,8 @@ import {createDraggablePosition} from './draggable-position.js'
 import {createResizable} from './resize.js'
 import {QuickTerminalLayout} from './quick-terminal.js'
 import {createPiP} from './pip.js'
-import {ChevronDown, PictureInPicture2} from 'lucide-solid'
+import {ChevronDown, Crosshair, PictureInPicture2} from 'lucide-solid'
+import {picking, cancelPick} from './react-grab/picking.js'
 
 // A registered content module the shell hosts, modeled on the TanStack Devtools plugin model.
 // `create` returns a fresh content element each call (the modal uses one; quick-terminal panes
@@ -16,6 +17,8 @@ export type PanelContext = {
   active: () => boolean
   // The content reports whether the agent is working, so the shell can pulse the trigger.
   onWorkingChange: (working: boolean) => void
+  // Composer-action buttons registered on the shell, rendered in each panel's composer row.
+  composerActions: () => ComposerActionDef[]
 }
 export type PanelDef = {
   id: string
@@ -23,23 +26,48 @@ export type PanelDef = {
   create: (ctx: PanelContext) => JSX.Element
 }
 
+// A handle to the live composer a button was clicked in, so output routes to the right composer
+// even with multiple mounted. This is a CAPABILITY BAG, not a text-only API: the composer owns all
+// draft state (text today; attachments once chat-image-input lands), so future actions like
+// "add attachment" extend the bag rather than reshaping the registry.
+export type ComposerActionContext = {
+  insert: (text: string) => void // append text to this composer's input + focus it
+  setBusy: (busy: boolean) => void
+  // FUTURE (chat-image-input plan): addAttachment: (file: File | Blob) => void
+}
+// A button in the composer's actions row, registered on the shell (mirrors registerPanel).
+export type ComposerActionDef = {
+  id: string
+  label: string // aria-label / tooltip
+  icon: Component<{class?: string}>
+  onClick: (ctx: ComposerActionContext) => void | Promise<void>
+}
+
 // The widget shell. Owns the chrome (trigger, layout modes, settings) and hosts panels.
 // A factory closure rather than a class (analogue of TanStack Devtools' TanStackDevtoolsCore).
 export function createWidgetShell(opts: {settings: WidgetSettings}): {
   registerPanel: (def: PanelDef) => void
+  registerComposerAction: (def: ComposerActionDef) => void
   mount: (rootEl: ShadowRoot | HTMLElement) => void
   unmount: () => void
 } {
   const panels: PanelDef[] = []
+  const composerActions: ComposerActionDef[] = []
   let dispose: (() => void) | undefined
   return {
     registerPanel(def) {
       panels.push(def)
     },
+    registerComposerAction(def) {
+      composerActions.push(def)
+    },
     mount(rootEl) {
       const container = document.createElement('div')
       rootEl.appendChild(container)
-      dispose = render(() => <Shell settings={opts.settings} panels={panels} />, container)
+      dispose = render(
+        () => <Shell settings={opts.settings} panels={panels} composerActions={() => composerActions} />,
+        container,
+      )
     },
     unmount() {
       dispose?.()
@@ -48,11 +76,27 @@ export function createWidgetShell(opts: {settings: WidgetSettings}): {
   }
 }
 
-function Shell(props: {settings: WidgetSettings; panels: PanelDef[]}): JSX.Element {
+function Shell(props: {
+  settings: WidgetSettings
+  panels: PanelDef[]
+  composerActions: () => ComposerActionDef[]
+}): JSX.Element {
   // One layer is visible at a time, so opening the quick terminal closes the modal and vice versa.
   const [layer, setLayer] = createSignal<'modal' | 'quick' | null>(null)
   const setQuickOpen = (v: boolean) => setLayer((prev) => (v ? 'quick' : prev === 'quick' ? null : prev))
   const closeModal = () => setLayer((prev) => (prev === 'modal' ? null : prev))
+
+  // Esc cancels an in-progress element pick (react-grab handles it too; this is a safety net and
+  // covers the pill being focused).
+  createEffect(() => {
+    if (!picking()) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') cancelPick()
+    }
+    document.addEventListener('keydown', onKey)
+    onCleanup(() => document.removeEventListener('keydown', onKey))
+  })
+
   return (
     <Show when={props.panels[0]}>
       {(panel) => (
@@ -60,6 +104,7 @@ function Shell(props: {settings: WidgetSettings; panels: PanelDef[]}): JSX.Eleme
           <Show when={props.settings.modal.enabled}>
             <ModalLayout
               panel={panel()}
+              composerActions={props.composerActions}
               position={props.settings.modal.position}
               open={() => layer() === 'modal'}
               onOpen={() => setLayer('modal')}
@@ -69,10 +114,19 @@ function Shell(props: {settings: WidgetSettings; panels: PanelDef[]}): JSX.Eleme
           <Show when={props.settings.quickTerminal.enabled}>
             <QuickTerminalLayout
               panel={panel()}
+              composerActions={props.composerActions}
               hotkeys={props.settings.quickTerminal.hotkeys}
               open={() => layer() === 'quick'}
               setOpen={setQuickOpen}
             />
+          </Show>
+          {/* While picking, the open surface goes click-through+invisible; this pill is the only chrome. */}
+          <Show when={picking()}>
+            <button type="button" class="pw-pick-pill" onClick={() => cancelPick()} aria-label="Cancel element pick">
+              <Crosshair class="pw-pick-pill-icon" aria-hidden="true" />
+              <span>Picking…</span>
+              <kbd class="pw-pick-kbd">Esc</kbd>
+            </button>
           </Show>
         </>
       )}
@@ -104,6 +158,7 @@ function fabClass(pulsing: boolean, position: TriggerPosition, dragging: boolean
 // and the FAB can pulse while the agent works with the panel closed.
 function ModalLayout(props: {
   panel: PanelDef
+  composerActions: () => ComposerActionDef[]
   position: TriggerPosition
   open: () => boolean
   onOpen: () => void
@@ -116,7 +171,11 @@ function ModalLayout(props: {
   let panelEl: HTMLElement | undefined
 
   const fabPulsing = () => !props.open() && working()
-  const content = props.panel.create({active: () => props.open(), onWorkingChange: setWorking})
+  const content = props.panel.create({
+    active: () => props.open(),
+    onWorkingChange: setWorking,
+    composerActions: props.composerActions,
+  })
 
   // The panel resizes off whichever edges are free (away from its anchored corner): a bottom-anchored
   // panel grows height upward, a top/middle one downward; a right-anchored panel grows width leftward,
@@ -174,6 +233,7 @@ function ModalLayout(props: {
           panelEl = el
         }}
         class={panelClass(props.open(), fab.position())}
+        classList={{'pw-pick-away': picking()}}
         style={{height: `${resizeY.size()}px`, width: `${resizeX.size()}px`}}
         role="dialog"
         aria-label="aidx chat agent"
@@ -226,6 +286,7 @@ function ModalLayout(props: {
           fabEl = el
         }}
         class={fabClass(fabPulsing(), fab.position(), fab.dragging())}
+        classList={{'pw-pick-away': picking()}}
         style={fab.dragStyle()}
         aria-label="Open aidx chat"
         aria-expanded={props.open()}

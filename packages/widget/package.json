@@ -29,6 +29,7 @@
     "bippy": "0.5.41",
     "lucide-solid": "^1.18.0",
     "marked": "^18.0.5",
+    "react-grab": "^0.1.44",
     "shiki": "^4.2.0",
     "solid-js": "^1.9.13"
   },

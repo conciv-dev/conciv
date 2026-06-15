@@ -1,9 +1,10 @@
 import {createEffect, createSignal, For, Show, type JSX} from 'solid-js'
 import {createHotkey} from '@tanstack/solid-hotkeys'
-import type {PanelDef} from './widget-shell.js'
+import type {ComposerActionDef, PanelDef} from './widget-shell.js'
 import {createResizable} from './resize.js'
 import {createPiP} from './pip.js'
 import {ChevronUp, Columns2, PictureInPicture2, X} from 'lucide-solid'
+import {picking} from './react-grab/picking.js'
 
 type Pane = {id: number; content: JSX.Element}
 
@@ -17,6 +18,7 @@ type Bindable = Parameters<typeof createHotkey>[0]
 // a pane reflows survivors; closing the last closes the sheet.
 export function QuickTerminalLayout(props: {
   panel: PanelDef
+  composerActions: () => ComposerActionDef[]
   hotkeys: string[]
   open: () => boolean
   setOpen: (v: boolean) => void
@@ -65,6 +67,7 @@ export function QuickTerminalLayout(props: {
     const content = props.panel.create({
       active: () => props.open() && focused() === id,
       onWorkingChange: () => {},
+      composerActions: props.composerActions,
     })
     setPanes((ps) => [...ps, {id, content}])
     focusPane(id)
@@ -149,6 +152,7 @@ export function QuickTerminalLayout(props: {
         sectionEl = el
       }}
       class={props.open() ? 'pw-qt pw-qt-open' : 'pw-qt'}
+      classList={{'pw-pick-away': picking()}}
       style={{height: `${resize.size()}px`}}
       role="dialog"
       aria-label="aidx quick terminal"

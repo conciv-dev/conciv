@@ -1056,31 +1056,125 @@
   background: color-mix(in oklch, var(--pw-danger) 14%, transparent);
 }
 .pw-chat-composer {
-  display: flex;
-  gap: 8px;
   padding: 12px;
   border-top: 1px solid var(--pw-line-soft);
-  align-items: flex-end;
 }
-.pw-chat-input {
-  flex: 1;
-  resize: none;
+/* The whole composer is one bordered box: textarea on top, action bar inside the bottom,
+   focus ring on the box (not the textarea). */
+.pw-chat-box {
   background: var(--pw-fill);
   border: 1px solid var(--pw-line);
-  border-radius: 12px;
-  color: var(--pw-text);
-  padding: 9px 11px;
+  border-radius: var(--pw-r-md);
+  padding: 4px 6px 6px;
+  transition:
+    border-color 120ms var(--pw-ease),
+    box-shadow 120ms var(--pw-ease);
+}
+.pw-chat-box:focus-within {
+  border-color: var(--pw-accent);
+  box-shadow: 0 0 0 3px var(--pw-accent-08);
+}
+.pw-chat-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-top: 2px;
+}
+.pw-chat-act {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--pw-r-pill);
+  border: none;
+  background: transparent;
+  color: var(--pw-text-2);
+  cursor: pointer;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    color 120ms var(--pw-ease),
+    background-color 120ms var(--pw-ease);
+}
+.pw-chat-act:hover {
+  color: var(--pw-text-hi);
+  background: var(--pw-fill-strong);
+}
+.pw-chat-act-busy {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+/* While the element picker is active, the open surface (and FAB) become invisible AND
+   click-through, so the page underneath is fully reachable by react-grab's overlay. Compound
+   selectors keep specificity at parity with .pw-chat-open and win by source order. */
+.pw-chat-panel.pw-pick-away,
+.pw-chat-fab.pw-pick-away,
+.pw-qt.pw-pick-away {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms var(--pw-ease);
+}
+/* The only widget chrome during a pick: a compact mode indicator. */
+.pw-pick-pill {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2147483647;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 8px 12px;
+  border-radius: var(--pw-r-pill);
+  border: 1px solid var(--pw-accent-line);
+  background: var(--pw-glass);
+  color: var(--pw-text-hi);
   font: inherit;
+  font-size: 13px;
+  box-shadow: var(--pw-shadow);
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  transition:
+    border-color 120ms var(--pw-ease),
+    background-color 120ms var(--pw-ease);
+}
+.pw-pick-pill:hover {
+  border-color: var(--pw-accent);
+  background: var(--pw-panel);
+}
+.pw-pick-pill-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--pw-accent);
+}
+.pw-pick-kbd {
+  font: inherit;
+  font-size: 11px;
+  color: var(--pw-text-2);
+  border: 1px solid var(--pw-line-2);
+  border-radius: 5px;
+  padding: 1px 5px;
+}
+.pw-chat-input {
+  display: block;
+  width: 100%;
+  resize: none;
+  background: transparent;
+  border: none;
+  color: var(--pw-text);
+  padding: 8px 8px 4px;
+  font: inherit;
+  line-height: 1.45;
   max-height: 120px;
-  transition: border-color 120ms var(--pw-ease);
 }
 .pw-chat-input:focus {
   outline: none;
-  border-color: var(--pw-accent);
 }
 .pw-chat-send {
-  width: 38px;
-  height: 38px;
+  margin-left: auto;
+  width: 34px;
+  height: 34px;
   border-radius: 999px;
   border: none;
   background: var(--pw-accent);

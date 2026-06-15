@@ -2,6 +2,7 @@ import {render} from 'solid-js/web'
 import {createShadowRoot} from './shadow.js'
 import {createWidgetShell} from './widget-shell.js'
 import {chatPanelDef} from './chat-panel.js'
+import {elementPickerAction} from './react-grab/picker-action.js'
 import {TestCard} from './test-card.js'
 import {initPageBus} from './page-bus.js'
 import {probeChatAvailable} from './chat-api.js'
@@ -50,6 +51,7 @@ export function mountWidget(): void {
     // The shell owns the chrome + layout modes and hosts the chat as a registered panel.
     const shell = createWidgetShell({settings})
     shell.registerPanel(chatPanelDef(apiBase))
+    shell.registerComposerAction(elementPickerAction)
     shell.mount(root)
     initPageBus({apiBase})
   })
