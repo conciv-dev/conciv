@@ -1,4 +1,4 @@
-import {createMemo, createEffect, createSignal, For, onCleanup, Show, type JSX} from 'solid-js'
+import {createMemo, createEffect, createSignal, For, Index, Match, onCleanup, Show, Switch, type JSX} from 'solid-js'
 import {useChat, fetchServerSentEvents, createChatClientOptions} from '@tanstack/ai-solid'
 import type {MessagePart, ToolCallPart, ToolCallState, ToolResultPart} from '@tanstack/ai-client'
 import {createChatApi} from './chat-api.js'
@@ -8,7 +8,7 @@ import {Markdown} from './markdown.js'
 import {ArrowRight, Square} from 'lucide-solid'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 import {AIDX_UI_EVENT, UiSpecSchema, type UiSpec} from '@aidx/protocol/ui-types'
-import {tokenUsageToSnapshot, type UsageSnapshot} from '@aidx/protocol/usage-types'
+import {AIDX_USAGE_EVENT, UsageSnapshotSchema, tokenUsageToSnapshot, type UsageSnapshot} from '@aidx/protocol/usage-types'
 import {TestRunResultSchema, type TestRunResult} from '@aidx/protocol/test-types'
 import type {ComposerActionDef, PanelDef} from './widget-shell.js'
 
@@ -159,17 +159,17 @@ function thinkingClass(live: boolean): string {
   return 'pw-chat-thinking'
 }
 
-function TextPartView(props: {content: string; showCaret: boolean}): JSX.Element {
+function TextPartView(props: {content: string; streaming: boolean}): JSX.Element {
   return (
     <div class="pw-chat-text">
-      <Markdown text={props.content} />
-      <Show when={props.showCaret}>
-        <span class="pw-chat-caret" aria-hidden="true" />
-      </Show>
+      <Markdown text={props.content} streaming={props.streaming} />
     </div>
   )
 }
 
+// Reactive part view. Branch selection is via <Switch>/<Match> (not a one-shot if-chain) and every
+// value is read off props lazily, so the SAME subtree updates as a part's text grows or its kind
+// changes (e.g. tool-call → run-card when its result lands) — no teardown, no Streamdown remount.
 function PartView(props: {
   part: MessagePart
   index: number
@@ -178,34 +178,51 @@ function PartView(props: {
   apiBase: string
   tests: TestAnalysis
   onFix: (text: string) => void
-}): JSX.Element | null {
-  const part = props.part
-  const lastTextIndex = props.parts.map((p) => p.type).lastIndexOf('text')
-  const isRunCard = part.type === 'tool-call' && part.id !== undefined && props.tests.runResult.has(part.id)
-
-  if (isRunCard) {
-    return <TestCard apiBase={props.apiBase} onFix={props.onFix} result={props.tests.runResult.get(part.id) ?? null} />
+}): JSX.Element {
+  const lastTextIndex = createMemo(() => props.parts.map((p) => p.type).lastIndexOf('text'))
+  const runCallId = (): string | undefined => {
+    const p = props.part
+    return p.type === 'tool-call' ? p.id : undefined
   }
-  if (part.type === 'text') {
-    return <TextPartView content={part.content} showCaret={props.streaming && props.index === lastTextIndex} />
+  const isRunCard = (): boolean => {
+    const id = runCallId()
+    return id !== undefined && props.tests.runResult.has(id)
   }
-  if (part.type === 'thinking' && part.content.trim().length > 0) {
-    return (
-      <details class={thinkingClass(props.streaming && props.index === props.parts.length - 1)}>
-        <summary>Thinking</summary>
-        <span>{part.content}</span>
-      </details>
-    )
-  }
-  if (part.type === 'tool-call' && !isRunCard && !props.tests.hiddenCallIds.has(part.id)) {
-    return <ToolCall part={part} active={props.streaming} />
-  }
-  if (part.type === 'tool-result' && !props.tests.hiddenResultIds.has(part.toolCallId)) {
-    return <ToolResult part={part} />
-  }
-  return null
+  return (
+    <Switch>
+      <Match when={isRunCard()}>
+        <TestCard apiBase={props.apiBase} onFix={props.onFix} result={props.tests.runResult.get(runCallId() ?? '') ?? null} />
+      </Match>
+      <Match when={props.part.type === 'text' ? (props.part as Extract<MessagePart, {type: 'text'}>) : null}>
+        {(p) => <TextPartView content={p().content} streaming={props.streaming && props.index === lastTextIndex()} />}
+      </Match>
+      <Match
+        when={
+          props.part.type === 'thinking' && (props.part as Extract<MessagePart, {type: 'thinking'}>).content.trim().length > 0
+            ? (props.part as Extract<MessagePart, {type: 'thinking'}>)
+            : null
+        }
+      >
+        {(p) => (
+          <details class={thinkingClass(props.streaming && props.index === props.parts.length - 1)}>
+            <summary>Thinking</summary>
+            <span>{p().content}</span>
+          </details>
+        )}
+      </Match>
+      <Match when={props.part.type === 'tool-call' && !isRunCard() && !props.tests.hiddenCallIds.has((props.part as ToolCallPart).id) ? (props.part as ToolCallPart) : null}>
+        {(p) => <ToolCall part={p()} active={props.streaming} />}
+      </Match>
+      <Match when={props.part.type === 'tool-result' && !props.tests.hiddenResultIds.has((props.part as ToolResultPart).toolCallId) ? (props.part as ToolResultPart) : null}>
+        {(p) => <ToolResult part={p()} />}
+      </Match>
+    </Switch>
+  )
 }
 
+// <Index> (position-keyed), NOT <For> (reference-keyed): TanStack hands back new part objects each
+// token, so <For> would rebuild this row's DOM every token. <Index> keeps the DOM and updates the
+// item accessor in place.
 function MessageParts(props: {
   parts: ReadonlyArray<MessagePart>
   streaming: boolean
@@ -214,11 +231,11 @@ function MessageParts(props: {
 }): JSX.Element {
   const tests = createMemo(() => analyzeTests(props.parts))
   return (
-    <For each={props.parts}>
+    <Index each={props.parts}>
       {(part, index) => (
         <PartView
-          part={part}
-          index={index()}
+          part={part()}
+          index={index}
           parts={props.parts}
           streaming={props.streaming}
           apiBase={props.apiBase}
@@ -226,7 +243,7 @@ function MessageParts(props: {
           onFix={props.onFix}
         />
       )}
-    </For>
+    </Index>
   )
 }
 
@@ -258,7 +275,13 @@ export function ChatPanel(props: {
   const [genUi, setGenUi] = createSignal<UiSpec[]>([])
   const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
   // The agent's `aidx ui …` calls arrive as AG-UI CUSTOM events; render each in the thread.
+  // Live usage updates arrive on the same channel (injected by core mid-turn).
   const onAidxUi = (eventType: string, data: unknown) => {
+    if (eventType === AIDX_USAGE_EVENT) {
+      const parsed = UsageSnapshotSchema.safeParse(data)
+      if (parsed.success) setUsage((prev) => ({...prev, ...parsed.data}))
+      return
+    }
     if (eventType !== AIDX_UI_EVENT) return
     const parsed = UiSpecSchema.safeParse(data)
     if (!parsed.success) return
@@ -420,18 +443,18 @@ export function ChatPanel(props: {
             </div>
           }
         >
-          <For each={chat.messages()}>
+          <Index each={chat.messages()}>
             {(m, index) => (
-              <div class={`pw-chat-msg pw-chat-msg-${m.role}`}>
+              <div class={`pw-chat-msg pw-chat-msg-${m().role}`}>
                 <MessageParts
-                  parts={m.parts}
-                  streaming={isActiveAssistant(index(), m.role)}
+                  parts={m().parts}
+                  streaming={isActiveAssistant(index, m().role)}
                   apiBase={props.apiBase}
                   onFix={(text) => void chat.sendMessage(text)}
                 />
               </div>
             )}
-          </For>
+          </Index>
         </Show>
         <For each={genUi()}>
           {(spec) => (

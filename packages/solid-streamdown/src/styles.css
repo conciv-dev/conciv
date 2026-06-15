@@ -1,0 +1,51 @@
+/* Token fade-in for streamed markdown. Spans are injected by the animate rehype plugin with
+   per-token CSS vars (--sd-animation/--sd-duration/--sd-easing/--sd-delay). */
+[data-sd-animate] {
+  animation: var(--sd-animation, sd-fadeIn) var(--sd-duration, 150ms) var(--sd-easing, ease) var(--sd-delay, 0ms) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-sd-animate] {
+    animation: none;
+  }
+}
+
+/* Caret glyph (set via --sd-caret on .sd-root while streaming), on the LAST block element only.
+   Direct-child combinator → exactly one caret, on the block's ::after at the text baseline, never
+   inside an animating token. Matches Vercel streamdown's `[&>*:last-child]:after` approach. */
+.sd-root > *:last-child::after {
+  content: var(--sd-caret, '');
+  display: inline;
+  vertical-align: baseline;
+}
+
+@keyframes sd-fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes sd-blurIn {
+  from {
+    opacity: 0;
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+@keyframes sd-slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

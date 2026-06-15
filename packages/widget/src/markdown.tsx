@@ -1,5 +1,4 @@
-import {createMemo, createSignal, onCleanup, type JSX} from 'solid-js'
-import {Marked} from 'marked'
+import {createSignal, onCleanup, type JSX} from 'solid-js'
 import {createHighlighterCore, type HighlighterCore} from 'shiki/core'
 import {createJavaScriptRegexEngine} from 'shiki/engine/javascript'
 import ts from 'shiki/langs/typescript.mjs'
@@ -12,6 +11,7 @@ import html from 'shiki/langs/html.mjs'
 import bash from 'shiki/langs/bash.mjs'
 import md from 'shiki/langs/markdown.mjs'
 import githubDark from 'shiki/themes/github-dark.mjs'
+import {Streamdown} from '@aidx/solid-streamdown'
 
 const THEME = 'github-dark'
 
@@ -52,26 +52,17 @@ function codeBlock(code: string, lang: string | undefined, hl: HighlighterCore |
   return hl.codeToHtml(code, {lang: language, theme: THEME})
 }
 
-// marked's `code` renderer is registered once; the active highlighter is threaded via this box.
-const activeHl: {current: HighlighterCore | null} = {current: null}
-const marked = new Marked({gfm: true, breaks: true})
-marked.use({
-  renderer: {
-    code(token) {
-      return codeBlock(token.text, token.lang, activeHl.current)
-    },
-  },
-})
-
-function render(text: string, hl: HighlighterCore | null): string {
-  activeHl.current = hl
-  return marked.parse(text, {async: false})
-}
-
-// Re-renders as text streams in and once the highlighter becomes ready.
-export function Markdown(props: {text: string}): JSX.Element {
+// Streaming markdown via @aidx/solid-streamdown. Token fade spans are present only while the active
+// response is streaming; once complete, the markdown re-renders as clean static markup. We feed the
+// accumulated text straight through — streamdown's animate plugin handles the fade (no host-side
+// re-chunking; streamdown has none either).
+export function Markdown(props: {text: string; streaming?: boolean}): JSX.Element {
   const [hl, setHl] = createSignal<HighlighterCore | null>(store.highlighter)
   onCleanup(subscribe(() => setHl(() => store.highlighter)))
-  const rendered = createMemo(() => render(props.text, hl()))
-  return <div class="pw-md" innerHTML={rendered()} />
+  const highlightCode = (code: string, lang: string | undefined): string => codeBlock(code, lang, hl())
+  return (
+    <Streamdown class="pw-md" isAnimating={props.streaming === true} caret={props.streaming ? 'block' : false} highlightCode={highlightCode}>
+      {props.text}
+    </Streamdown>
+  )
 }
