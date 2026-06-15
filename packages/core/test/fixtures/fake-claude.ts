@@ -33,9 +33,22 @@ if (process.env.AIDX_FAKE_HANG) {
   process.exit(0)
 } else {
   const lines = [
-    {type: 'system', subtype: 'init', session_id: 'sess-fake'},
-    {type: 'assistant', message: {content: [{type: 'text', text: 'hello from fake'}]}},
-    {type: 'result', session_id: 'sess-fake', num_turns: 1, total_cost_usd: 0.001},
+    {type: 'system', subtype: 'init', session_id: 'sess-fake', model: 'claude-test'},
+    {
+      type: 'assistant',
+      message: {
+        model: 'claude-test',
+        content: [{type: 'text', text: 'hello from fake'}],
+        usage: {input_tokens: 100, cache_read_input_tokens: 40, cache_creation_input_tokens: 10, output_tokens: 5},
+      },
+    },
+    {
+      type: 'result',
+      session_id: 'sess-fake',
+      num_turns: 1,
+      total_cost_usd: 0.001,
+      modelUsage: {'claude-test': {contextWindow: 200000, costUSD: 0.001}},
+    },
   ]
   for (const line of lines) process.stdout.write(JSON.stringify(line) + '\n')
   process.exit(0)

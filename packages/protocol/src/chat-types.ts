@@ -2,6 +2,7 @@
 // request/session envelopes below are ours.
 import {z} from 'zod'
 import type {UIMessage} from '@tanstack/ai'
+import {UsageSnapshotSchema} from './usage-types.js'
 export type {StreamChunk, UIMessage, MessagePart} from '@tanstack/ai'
 
 // An inline content part on a posted message. Text carries `content`; image carries a base64
@@ -39,6 +40,8 @@ export const ChatSessionSchema = z.object({
   source: z.enum(['agent', 'chat', 'new']),
   cwd: z.string(),
   lock: z.object({held: z.boolean(), role: z.enum(['iterate', 'chat']).nullable()}),
+  // Last persisted usage for this session, so the tracker fills on open before any turn.
+  usage: UsageSnapshotSchema.nullish(),
 })
 export type ChatSession = z.infer<typeof ChatSessionSchema>
 

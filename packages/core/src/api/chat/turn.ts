@@ -1,11 +1,13 @@
 import {type H3, HTTPError, readValidatedBody} from 'h3'
-import {chat, toServerSentEventsStream, type StreamChunk} from '@tanstack/ai'
+import {chat, EventType, toServerSentEventsStream, type StreamChunk} from '@tanstack/ai'
 import {harnessText} from '@aidx/harness'
 import type {HarnessAdapter, HarnessChild} from '@aidx/protocol/harness-types'
 import {UiSpecSchema} from '@aidx/protocol/ui-types'
 import {ChatRequestSchema} from '@aidx/protocol/chat-types'
+import {tokenUsageToSnapshot} from '@aidx/protocol/usage-types'
 import {acquireLock, readLock, releaseLock} from '../../store/lock.js'
 import {writeSession} from '../../store/session-store.js'
+import {writeUsage} from '../../store/usage-store.js'
 import type {UiBus} from '../../runtime/ui-bus.js'
 import {toChatMessages} from './messages.js'
 import type {SessionState} from './session.js'
@@ -73,16 +75,22 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
       abortController: abort,
     })
     const merged = uiBus.run(stream)
-    const sse = toServerSentEventsStream(withLockRelease(merged, deps.stateRoot), abort)
+    const sse = toServerSentEventsStream(withLockRelease(merged, deps), abort)
     return new Response(sse, {status: 200, headers: sseHeaders(event)})
   })
 }
 
-// Release the lock when the turn's merged stream finishes OR the client disconnects.
-async function* withLockRelease(src: AsyncIterable<StreamChunk>, stateRoot: string): AsyncGenerator<StreamChunk> {
+// Persist RUN_FINISHED usage (so the tracker fills on the next open) and release the lock when
+// the turn's merged stream finishes OR the client disconnects.
+async function* withLockRelease(src: AsyncIterable<StreamChunk>, deps: TurnDeps): AsyncGenerator<StreamChunk> {
   try {
-    for await (const c of src) yield c
+    for await (const c of src) {
+      if (c.type === EventType.RUN_FINISHED && c.usage && deps.state.sessionId) {
+        writeUsage(deps.stateRoot, deps.state.sessionId, tokenUsageToSnapshot(c.usage))
+      }
+      yield c
+    }
   } finally {
-    releaseLock(stateRoot)
+    releaseLock(deps.stateRoot)
   }
 }

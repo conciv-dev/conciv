@@ -59,6 +59,18 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     expect(body).toContain('RUN_FINISHED')
   })
 
+  it('persists turn-end usage so GET /api/chat/session returns it for the next open', async () => {
+    const server = await startTestServer({spawnHarness: fakeSpawn()})
+    state.server = server
+    await server.postChat(turn('hi'))
+    const session = (await (await fetch(`${server.base}/api/chat/session`)).json()) as {
+      usage?: {contextWindow?: number; inputTokens?: number; cacheReadTokens?: number}
+    }
+    expect(session.usage?.contextWindow).toBe(200000)
+    expect(session.usage?.inputTokens).toBe(100)
+    expect(session.usage?.cacheReadTokens).toBe(40)
+  })
+
   it('streams exactly one run lifecycle pair through chat()', async () => {
     const server = await startTestServer({spawnHarness: fakeSpawn()})
     state.server = server

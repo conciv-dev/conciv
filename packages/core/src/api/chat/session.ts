@@ -3,6 +3,7 @@ import {z} from 'zod'
 import type {HarnessAdapter} from '@aidx/protocol/harness-types'
 import type {ChatSession} from '@aidx/protocol/chat-types'
 import {readLock} from '../../store/lock.js'
+import {readUsage} from '../../store/usage-store.js'
 import {readFileOrEmpty} from '../../fs.js'
 
 // The session/history/stop routes — pure reads + a kill. History only exists for
@@ -27,7 +28,8 @@ export function registerSessionRoutes(app: H3, deps: SessionRouteDeps): void {
     const lock = readLock(deps.stateRoot)
     const sessionId = deps.state.sessionId || null
     const source: ChatSession['source'] = deps.state.sessionId ? (deps.initialSessionId ? 'agent' : 'chat') : 'new'
-    const body: ChatSession = {sessionId, source, cwd: deps.cwd, lock: {held: lock.held, role: lock.role}}
+    const usage = sessionId ? readUsage(deps.stateRoot, sessionId) : null
+    const body: ChatSession = {sessionId, source, cwd: deps.cwd, lock: {held: lock.held, role: lock.role}, usage}
     return body
   })
 
