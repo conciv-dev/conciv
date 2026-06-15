@@ -16,6 +16,7 @@ import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {chromium, type Browser} from 'playwright'
 import {EventType, type StreamChunk, toServerSentEventsStream} from '@tanstack/ai'
 import {aguiCustomFor} from '@aidx/protocol/ui-types'
+import {aguiUsageFor} from '@aidx/protocol/usage-types'
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
 const widgetBundle = fs.readFileSync(path.join(dirname, '../dist/aidx-widget.global.js'), 'utf8')
@@ -69,6 +70,16 @@ async function* chatScript(): AsyncGenerator<StreamChunk> {
   yield {type: EventType.TEXT_MESSAGE_START, messageId: 'm1', role: 'assistant'}
   yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'm1', delta: ASSISTANT_TEXT}
   yield {type: EventType.TEXT_MESSAGE_END, messageId: 'm1'}
+  yield aguiUsageFor({
+    modelId: 'claude-opus-4-8[1m]',
+    contextWindow: 1000000,
+    inputTokens: 18151,
+    cacheReadTokens: 15832,
+    cacheWriteTokens: 1912,
+    outputTokens: 19,
+    totalCostUsd: 0.118,
+    numTurns: 1,
+  })
   yield aguiCustomFor({
     kind: 'approval',
     renderId: 'a1',
@@ -258,6 +269,30 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     const body = (await decision).postDataJSON() as {renderId: string; approved: boolean}
     expect(body.renderId).toBe('a1')
     expect(body.approved).toBe(true)
+    await page.close()
+  })
+
+  it('renders the context tracker from a streamed aidx-usage event and shows the breakdown on hover', async () => {
+    const page = await browser.newPage()
+    await page.goto(state.base)
+    const fab = page.getByRole('button', {name: 'Open aidx chat'})
+    await fab.waitFor({state: 'visible'})
+    await fab.click()
+    const composer = page.getByLabel('Message the aidx agent')
+    await composer.fill('do something')
+    await composer.press('Enter')
+    await page.getByText(ASSISTANT_TEXT).waitFor({state: 'visible'})
+
+    // The streamed usage snapshot drives the ring: 35,895 / 1,000,000 ≈ 3.6%.
+    const trigger = page.locator('.pw-ctx-trigger')
+    await trigger.waitFor({state: 'visible'})
+    await page.getByText('3.6%').first().waitFor({state: 'visible'})
+
+    // Hovering opens the top-layer popover with the cost footer.
+    await trigger.hover()
+    await page.getByText('Total cost').waitFor({state: 'visible'})
+    const footText = await page.locator('.pw-ctx-foot').textContent()
+    expect(footText).toContain('$0.12')
     await page.close()
   })
 
