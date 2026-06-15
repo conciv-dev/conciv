@@ -624,12 +624,15 @@
 .pw-chat-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 10px;
   padding: 12px 14px;
   border-bottom: 1px solid var(--pw-line-soft);
 }
+/* Close stays hard right; title + context tracker pack left. */
+.pw-chat-head > .pw-chat-close:last-child {
+  margin-left: auto;
+}
 .pw-chat-title {
-  flex: 1;
   font-weight: 600;
   letter-spacing: -0.01em;
 }
