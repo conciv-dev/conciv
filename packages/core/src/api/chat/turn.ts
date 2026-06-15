@@ -59,6 +59,8 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
         state.sessionId = id
         writeSession(deps.stateRoot, deps.previewId, id)
       },
+      // Live usage: inject mid-turn so the widget's tracker fills as the turn streams.
+      onUsage: (usage) => uiBus.injectUsage(usage),
       onSpawn: (child) => {
         acquireLock(deps.stateRoot, 'chat', child.pid)
         event.req.signal.addEventListener('abort', () => {

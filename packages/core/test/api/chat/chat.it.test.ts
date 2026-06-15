@@ -23,7 +23,7 @@ function tmp(): string {
 
 // A fake-claude spawn (optionally capturing argv to a file for the --resume assertion, or emitting
 // the rich multi-block transcript via AIDX_FAKE_RICH).
-function fakeSpawn(opts: {argvFile?: string; rich?: boolean} = {}): SpawnHarness {
+function fakeSpawn(opts: {argvFile?: string; rich?: boolean; partial?: boolean} = {}): SpawnHarness {
   return (args, cwd) => {
     const child = spawn(process.execPath, [fakeClaude, ...args], {
       cwd,
@@ -32,6 +32,7 @@ function fakeSpawn(opts: {argvFile?: string; rich?: boolean} = {}): SpawnHarness
         ...process.env,
         ...(opts.argvFile ? {AIDX_TEST_ARGV_FILE: opts.argvFile} : {}),
         ...(opts.rich ? {AIDX_FAKE_RICH: '1'} : {}),
+        ...(opts.partial ? {AIDX_FAKE_PARTIAL: '1'} : {}),
       },
     })
     const {stdin, stdout, stderr} = child
@@ -57,6 +58,16 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     expect(body).toContain('RUN_STARTED')
     expect(body).toContain('hello from fake')
     expect(body).toContain('RUN_FINISHED')
+  })
+
+  it('renders text AND extracts usage under --include-partial-messages (real claude stream shape)', async () => {
+    const server = await startTestServer({spawnHarness: fakeSpawn({partial: true})})
+    state.server = server
+    const body = await server.postChat(turn('hi'))
+    expect(body).toContain('RUN_STARTED')
+    expect(body).toContain('hello from fake') // consolidated assistant text must still render
+    expect(body).toContain('RUN_FINISHED')
+    expect(body).toContain('aidx-usage') // live usage injected mid-stream
   })
 
   it('persists turn-end usage so GET /api/chat/session returns it for the next open', async () => {

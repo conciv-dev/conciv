@@ -16,7 +16,7 @@ import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {chromium, type Browser} from 'playwright'
 import {EventType, type StreamChunk, toServerSentEventsStream} from '@tanstack/ai'
 import {aguiCustomFor} from '@aidx/protocol/ui-types'
-import {snapshotToTokenUsage} from '@aidx/protocol/usage-types'
+import {aguiUsageFor, snapshotToTokenUsage} from '@aidx/protocol/usage-types'
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
 const widgetBundle = fs.readFileSync(path.join(dirname, '../dist/aidx-widget.global.js'), 'utf8')
@@ -67,6 +67,9 @@ function globalBasePageHtml(globalBase: string): string {
 // One scripted assistant turn: a text message followed by a risky-command approval card.
 async function* chatScript(): AsyncGenerator<StreamChunk> {
   yield {type: EventType.RUN_STARTED, threadId: 't', runId: 'r'}
+  // Live usage injected mid-turn (core does this from claude's message_start) — the tracker fills
+  // before the turn ends, via the widget's onCustomEvent handler.
+  yield aguiUsageFor({modelId: 'claude-opus-4-8[1m]', contextWindow: 1000000, inputTokens: 18151, cacheReadTokens: 15832, cacheWriteTokens: 1912})
   yield {type: EventType.TEXT_MESSAGE_START, messageId: 'm1', role: 'assistant'}
   yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'm1', delta: ASSISTANT_TEXT}
   yield {type: EventType.TEXT_MESSAGE_END, messageId: 'm1'}
@@ -93,6 +96,7 @@ async function* chatScript(): AsyncGenerator<StreamChunk> {
     }),
   }
 }
+
 
 const MCP_REPLY = 'MCP reply is visible'
 
@@ -607,6 +611,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
       chatState.script = chatScript
     }
   })
+
 
   it('renders the live vitest card: pass/fail tree, expands the failure with actions', async () => {
     const page = await browser.newPage()

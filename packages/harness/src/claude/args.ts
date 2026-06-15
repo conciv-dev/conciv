@@ -45,6 +45,9 @@ export function buildClaudeArgs(turn: HarnessTurn): string[] {
     '--output-format',
     'stream-json',
     '--verbose',
+    // Emit the raw Anthropic SSE too: message_start carries the full context at turn start, so the
+    // widget's usage tracker fills live before the reply finishes.
+    '--include-partial-messages',
     '--permission-mode',
     'acceptEdits',
     '--add-dir',

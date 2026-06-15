@@ -1,5 +1,6 @@
 import type {Readable, Writable} from 'node:stream'
 import type {StreamChunk, UIMessage} from '@tanstack/ai'
+import type {UsageSnapshot} from './usage-types.js'
 
 // A harness is the underlying coding agent CLI (claude, codex, …). Core resolves a
 // HarnessAdapter and feature-detects by capability, degrading gracefully when one is absent.
@@ -43,6 +44,9 @@ export type HarnessDecodeLogger = {provider(msg: string, meta?: unknown): void}
 
 export type HarnessDecodeOpts = {
   onSessionId(id: string): void
+  // Live usage as the harness learns it mid-turn (claude message_start carries full context at the
+  // start of the response). Core injects it onto the stream for the widget's tracker.
+  onUsage?(usage: UsageSnapshot): void
   runId?: string
   threadId?: string
   logger?: HarnessDecodeLogger

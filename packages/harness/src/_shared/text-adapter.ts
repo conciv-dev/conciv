@@ -3,6 +3,7 @@ import type {Readable} from 'node:stream'
 import {normalizeSystemPrompts, type StreamChunk, type TextOptions} from '@tanstack/ai'
 import {BaseTextAdapter, type StructuredOutputOptions, type StructuredOutputResult} from '@tanstack/ai/adapters'
 import type {HarnessAdapter, HarnessChild, HarnessImage, HarnessTurn} from '@aidx/protocol/harness-types'
+import type {UsageSnapshot} from '@aidx/protocol/usage-types'
 
 export type SpawnHarness = (args: string[], cwd: string) => HarnessChild
 
@@ -14,6 +15,7 @@ export type HarnessAdapterDeps = {
   permissionUrl?: string
   mcpUrl?: string
   onSessionId?: (id: string) => void
+  onUsage?: (usage: UsageSnapshot) => void // live usage mid-turn, for core to inject
   onSpawn?: (child: HarnessChild) => void // route acquires the lock here
 }
 
@@ -89,6 +91,7 @@ export class HarnessTextAdapter extends BaseTextAdapter<string, Record<string, n
     try {
       yield* harness.decode(linesOf(child.stdout), {
         onSessionId: (id) => deps.onSessionId?.(id),
+        onUsage: deps.onUsage ? (usage) => deps.onUsage?.(usage) : undefined,
         runId: options.runId,
         threadId: options.threadId,
         logger: options.logger,

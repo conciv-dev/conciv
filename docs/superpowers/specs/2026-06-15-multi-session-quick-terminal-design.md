@@ -125,8 +125,10 @@ entry, seeding it from the persisted map and — for the default session id only
 `initialSessionId` when present. All three route groups receive the map + helper.
 
 - `GET /api/chat/session` — reads `sessionId` from the header (or default). Returns
-  `{sessionId, name, source, cwd, lock}` where `sessionId` echoes *our* id (never the harness
-  token, which stays server-internal) and `name` is the harness session name or `null`.
+  `{sessionId, harnessId, name, source, cwd, lock}`. `sessionId` echoes *our* id (the identity
+  the client sends back in the header). `harnessId` is the harness resume token, display-only
+  (powers the short id and the copyable id in the popover; `null` before the first turn) — the
+  client never sends it back as identity. `name` is the harness session name or `null`.
   `source`: `'agent'` if the default session adopted `initialSessionId`, `'chat'` if it has a
   minted token, else `'new'`. The client decides whether to hydrate from `source !== 'new'`.
   `lock` is the per-session lock. With no header, returns the default session's state

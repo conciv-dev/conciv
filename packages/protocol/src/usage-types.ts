@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import type {TokenUsage} from '@tanstack/ai'
+import {EventType, type StreamChunk, type TokenUsage} from '@tanstack/ai'
 
 // Normalized per-session model usage; every field optional so a harness reports only what it has.
 export const UsageSnapshotSchema = z.object({
@@ -55,6 +55,13 @@ export function tokenUsageToSnapshot(u: TokenUsage): UsageSnapshot {
     totalCostUsd: p.totalCostUsd,
     numTurns: p.numTurns,
   }
+}
+
+// Live usage carried to the widget mid-turn as an AG-UI CUSTOM event, injected by core post-chat()
+// (the same seam aidx-ui uses). RUN_FINISHED.usage stays the canonical end-of-turn/persist value.
+export const AIDX_USAGE_EVENT = 'aidx-usage'
+export function aguiUsageFor(snapshot: UsageSnapshot): StreamChunk {
+  return {type: EventType.CUSTOM, name: AIDX_USAGE_EVENT, value: snapshot}
 }
 
 // Context occupancy = prompt resident in the window (input + cache), excluding output; undefined when no tokens.

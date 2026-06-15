@@ -11,3 +11,6 @@ coverage/
 .aidx/
 # Claude Code local worktrees (git worktrees created under the repo)
 .claude/worktrees/
+
+*storybook.log
+storybook-static

@@ -86,6 +86,7 @@ export async function* runAgui<E>(
       if (delta) {
         usage = {...usage, ...definedOnly(delta)}
         sawUsage = true
+        opts.onUsage?.(usage)
       }
     }
   }

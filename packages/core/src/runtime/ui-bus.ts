@@ -1,5 +1,6 @@
 import type {StreamChunk} from '@tanstack/ai'
 import {aguiCustomFor, type UiSpec} from '@aidx/protocol/ui-types'
+import {aguiUsageFor, type UsageSnapshot} from '@aidx/protocol/usage-types'
 
 // Merges agent-emitted generative-UI specs (POST /api/chat/ui) onto the live chat stream as
 // AG-UI CUSTOM events. `run(events)` interleaves the turn's events with injected UI; the lock
@@ -53,6 +54,8 @@ function makeChannel(): Channel {
 export type UiBus = {
   // Inject a UI spec onto the active turn's stream. Returns false if no turn is active.
   inject: (spec: UiSpec) => boolean
+  // Inject a live usage snapshot onto the active turn's stream (no-op if no turn is active).
+  injectUsage: (usage: UsageSnapshot) => void
   // Run one chat turn: merge Claude's events with injected UI events into one stream.
   run: (claudeEvents: AsyncIterable<StreamChunk>) => AsyncGenerator<StreamChunk>
 }
@@ -64,6 +67,10 @@ export function makeUiBus(): UiBus {
     if (!state.channel) return false
     state.channel.push(aguiCustomFor(spec))
     return true
+  }
+
+  function injectUsage(usage: UsageSnapshot): void {
+    state.channel?.push(aguiUsageFor(usage))
   }
 
   async function* run(claudeEvents: AsyncIterable<StreamChunk>): AsyncGenerator<StreamChunk> {
@@ -86,5 +93,5 @@ export function makeUiBus(): UiBus {
     }
   }
 
-  return {inject, run}
+  return {inject, injectUsage, run}
 }
