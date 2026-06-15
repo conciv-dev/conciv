@@ -111,8 +111,8 @@ registry.
 `order: 0` from `initialSessionId` / the registry. All three route groups receive the map.
 
 - `GET /api/chat/session` — reads `sessionId` from the header. Returns
-  `{sessionId, source, cwd, lock}` where `sessionId` echoes *our* id (never the harness
-  token, which stays server-internal). `source`: `'agent'` if the order-0 session adopted
+  `{sessionId, name, source, cwd, lock}` where `sessionId` echoes *our* id (never the harness
+  token, which stays server-internal) and `name` is the harness session name or `null`. `source`: `'agent'` if the order-0 session adopted
   `initialSessionId`, `'chat'` if it has a minted token, else `'new'`. The client decides
   whether to hydrate from `source !== 'new'`. `lock` is the per-session lock. With no
   header, returns the default session's state (probe-safe).
@@ -138,19 +138,85 @@ registry.
 - The standalone `iterate` CLI path also acquires this lock; it must compute the matching
   `sessionId` so a handoff shares pane-0's lock. In scope for this work.
 
-## Harness contract (unchanged — the simplicity goal)
+## Harness contract
 
-The entire feature lives in core + widget. The harness contract is untouched:
+Multi-session itself adds nothing to the harness contract:
 
 - `resumeSessionId: null` → start a new session; the CLI mints its own id.
 - `resumeSessionId: <token>` → resume (`--resume <id>`, `exec resume <id>`, etc.).
 - `onSessionId(id)` → report the minted/active id.
 
-A new harness implements nothing new. If it declares `capabilities.resume` and decodes
-`onSessionId` (all current adapters do), multi-session works for free. `resume: false`
+A new harness implements nothing new for multi-session. If it declares `capabilities.resume`
+and decodes `onSessionId` (all current adapters do), it works for free. `resume: false`
 harnesses (gemini-cli, pi, opencode) still get parallel independent runs; they simply never
 carry context turn-to-turn, a pre-existing CLI limitation guarded by `turn.ts` checking
 `capabilities.resume`.
+
+### Optional session name
+
+To surface a human-readable session name (below), `HarnessHistory` gains one **optional**
+method:
+
+```ts
+nameFromTranscript?(raw: string): string | null
+```
+
+- Claude implements it by reading the transcript's `summary` record (claude auto-generates a
+  short title per session); the current parser ignores those records, so this is additive.
+- Harnesses that omit it return no name and the UI falls back to a short id. No other harness
+  is required to implement it.
+
+## Session label (UX)
+
+Both surfaces show a per-session label. Resolution order:
+
+1. harness session name (`nameFromTranscript`), if any;
+2. else a short id — the first 8 chars of the harness token (`a1b2c3d4`);
+3. else, before the first turn mints a token, the placeholder `New session`.
+
+The label is a button that opens the session-info popover (below) with the full details.
+
+- **Quick-terminal pane bar** — replaces the current hardcoded `session-{pane.id}` (a local
+  counter, not the real session — a bug) with the label, truncated with ellipsis. Clicking
+  it opens the popover anchored to the label.
+- **Modal header** — the shell header renders the same label as a subtitle beside the `aidx`
+  brand, same truncation, same popover on click.
+
+Plumbing: the label is owned by `ChatPanel` (which holds the session id + api), since the
+chrome that displays it (pane bar in quick-terminal, header in the shell) lives outside
+`ChatPanel`. `ChatPanel` gains an `onSessionLabel?(label: {name: string | null; id: string | null})`
+callback, mirroring the existing `onWorkingChange`. It reports on hydrate and again when a
+turn finishes (the name may first appear or change after the first turn). The shell and
+quick-terminal render the resolved label from the callback.
+
+`GET /api/chat/session` includes the name: `ChatSessionSchema` gains `name: string | null`,
+computed server-side via `harness.history?.nameFromTranscript?.(transcript)` when a
+transcript exists, else `null`.
+
+### Popover component
+
+A reusable Solid popover primitive at `packages/widget/src/popover.tsx`, built on
+`@floating-ui/dom` (promoted from a transitive dep to a direct `@aidx/widget` dependency; the
+framework-agnostic `dom` package is the correct choice for Solid — the React wrapper already
+in the tree is not usable here).
+
+- Positions with `computePosition` + `offset` / `flip` / `shift` middleware; `autoUpdate`
+  repositions on scroll, resize, and content change; both torn down in `onCleanup`.
+- API roughly `<Popover anchor={el} open={open()} setOpen={...} placement="bottom-start">…</Popover>`.
+  Closes on outside-click and `Escape`. Rendered into the widget's shadow-root container so
+  styles stay scoped (consistent with the rest of the widget).
+- General-purpose: the session-info popover is its first consumer; later UI can reuse it.
+
+### Session-info popover (content)
+
+Opened by clicking the session label on either surface. Anchored to the label. Contents:
+
+- **Full name** — the harness session name, or `New session`; wraps if long.
+- **Copyable full id** — the full harness session token with a copy-to-clipboard button
+  (empty/omitted before the first turn mints one).
+- **Source** — `new` / `chat` / `agent`.
+
+No rename in this iteration (deferred — would need an editable field and a persist path).
 
 ## Client
 
@@ -183,10 +249,13 @@ Per project conventions: no jsdom; widget integration tests run in a real browse
 Playwright using `browser.newPage()`.
 
 - Core unit tests: keyed `sessions` map, per-session lock isolation, registry
-  read/write/remove, default-header fallback, order-0 seeding from `initialSessionId`.
+  read/write/remove, default-header fallback, order-0 seeding from `initialSessionId`,
+  `nameFromTranscript` parsing claude `summary` records, label fallback to short id.
 - Widget integration test (real browser, `newPage()`): open quick terminal → split into two
   panes → each sends a message → both stream in parallel with no 409 → each shows its own
-  distinct history → reload restores both panes with the correct transcripts.
+  distinct history → each pane bar shows its own label → click a label opens the session-info
+  popover with the right id/source and copy works → reload restores both panes with the
+  correct transcripts and labels.
 
 ## Out of scope
 
@@ -194,4 +263,10 @@ Playwright using `browser.newPage()`.
   it yet).
 - Back-compat migration of old `chat-sessions.json` (v0, no users).
 - Any change to the streaming protocol or harness adapters beyond threading `sessionId` into
-  the `iterate` lock.
+  the `iterate` lock and the optional `nameFromTranscript`.
+- Renaming a session from the popover (deferred).
+
+## Dependencies
+
+- `@floating-ui/dom` promoted to a direct `@aidx/widget` dependency (already present
+  transitively; no new download).
