@@ -2,7 +2,6 @@ import {z} from 'zod'
 import type {StreamChunk} from '@tanstack/ai'
 import type {HarnessDecodeOpts} from '@aidx/protocol/harness-types'
 import {TextBlock, ThinkingBlock, ToolUseBlock, ToolResultBlock} from './blocks.js'
-import type {UsageSnapshot} from '@aidx/protocol/usage-types'
 import {
   runAgui,
   textMessage,
