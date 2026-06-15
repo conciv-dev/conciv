@@ -9,6 +9,10 @@ export type HarnessCapabilities = {
   resume: boolean
   permissionGate: 'hook' | 'none'
   transcriptHistory: boolean
+  // Native context compaction (the agent rewrites its own context to a summary, freeing the window).
+  // true → the adapter must supply `buildCompactArgs` (type-enforced below). false → core falls back
+  // to a summarize-prompt turn, which produces a summary but does not free the resumed context.
+  compaction: boolean
   systemPrompt: 'file' | 'flag' | 'none'
   mcp: 'http' | 'stdio' | 'none'
   // 'native'  → ingests image content blocks (claude: --input-format stream-json on stdin)
@@ -20,6 +24,14 @@ export type HarnessCapabilities = {
 // An image content part carried from chat()'s messages to the harness (base64 data source).
 export type HarnessImage = {mediaType: string; dataBase64: string}
 
+// A model the harness can run. `id` is what the CLI receives (e.g. claude --model <id>); `name`
+// is the display label; `group` buckets the combobox by provider/family.
+export type HarnessModel = {id: string; name: string; description?: string; group?: string; disabled?: boolean}
+
+// A harness's models: either a static list or a (possibly async) resolver, so an adapter that
+// can enumerate its CLI's models at runtime returns a function instead of a literal array.
+export type HarnessModels = HarnessModel[] | (() => HarnessModel[] | Promise<HarnessModel[]>)
+
 export type HarnessTurn = {
   prompt: string
   cwd: string
@@ -28,6 +40,11 @@ export type HarnessTurn = {
   permissionUrl?: string
   mcpUrl?: string
   images?: HarnessImage[]
+  // The selected model id, forwarded by buildArgs to the CLI's model flag. Absent → CLI default.
+  model?: string
+  // 'compact' → core wants this turn to compact the resumed context, not chat. The adapter's
+  // buildCompactArgs builds it (only reached for compaction-capable harnesses). Default 'chat'.
+  kind?: 'chat' | 'compact'
 }
 
 export type HarnessChild = {pid: number; stdout: Readable; stderr: Readable; stdin?: Writable; kill(): void}
@@ -65,16 +82,29 @@ type HarnessAdapterBase = {
   id: string
   binName: string
   buildArgs: HarnessArgsBuilder
+  // Builds the argv for a compaction turn. Present iff capabilities.compaction (enforced by the
+  // adapter union below), mirroring how transcriptHistory enforces `history`.
+  buildCompactArgs?: HarnessArgsBuilder
   decode: HarnessDecoder
   deliverInput?: HarnessDeliverInput
+  // Models this harness can run + the id to pre-select. Both optional: a harness with no model
+  // choice omits them and the widget hides its selector.
+  models?: HarnessModels
+  defaultModel?: string
 }
 
-// `history` is present iff `capabilities.transcriptHistory` — the type enforces it, so there is
-// no runtime check: a transcriptHistory:true adapter without a history is a compile error.
+// `history` is present iff `capabilities.transcriptHistory` and `buildCompactArgs` iff
+// `capabilities.compaction` — the type enforces both, so there is no runtime check: a
+// transcriptHistory:true adapter without a history (or a compaction:true adapter without
+// buildCompactArgs) is a compile error.
 export type HarnessAdapter = HarnessAdapterBase &
   (
     | {capabilities: HarnessCapabilities & {transcriptHistory: true}; history: HarnessHistory}
     | {capabilities: HarnessCapabilities & {transcriptHistory: false}; history?: undefined}
+  ) &
+  (
+    | {capabilities: HarnessCapabilities & {compaction: true}; buildCompactArgs: HarnessArgsBuilder}
+    | {capabilities: HarnessCapabilities & {compaction: false}; buildCompactArgs?: undefined}
   )
 
 export function defineHarness<T extends HarnessAdapter>(adapter: T): T {

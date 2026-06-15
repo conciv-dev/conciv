@@ -8,6 +8,7 @@ export const geminiCli = defineStubHarness({
     resume: false,
     permissionGate: 'none',
     transcriptHistory: false,
+    compaction: false,
     systemPrompt: 'flag',
     mcp: 'none',
     imageInput: false,

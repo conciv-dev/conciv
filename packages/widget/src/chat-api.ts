@@ -1,7 +1,7 @@
 // Chat session + history client against @aidx/core's /api/chat* routes. On resume the
 // widget hydrates the thread from the prior session.
 import type {UIMessage} from '@tanstack/ai-client'
-import {ChatSessionSchema, ChatHistorySchema, type ChatSession} from '@aidx/protocol/chat-types'
+import {ChatSessionSchema, ChatHistorySchema, ChatModelsSchema, type ChatSession, type ChatModels} from '@aidx/protocol/chat-types'
 
 function metaContent(name: string): string {
   return document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content ?? ''
@@ -28,7 +28,9 @@ export type ChatApi = {
   base: string
   chatUrl: string
   session: () => Promise<ChatSession>
+  models: () => Promise<ChatModels>
   history: (sessionId: string) => Promise<UIMessage[]>
+  newSession: () => Promise<Response>
   permissionDecision: (renderId: string, approved: boolean) => Promise<Response>
 }
 
@@ -41,12 +43,18 @@ export function createChatApi(deps: {apiBase?: string} = {}): ChatApi {
       const res = await fetch(`${base}/api/chat/session`, {credentials: 'include'})
       return ChatSessionSchema.parse(await res.json())
     },
+    models: async () => {
+      const res = await fetch(`${base}/api/chat/models`, {credentials: 'include'})
+      return ChatModelsSchema.parse(await res.json())
+    },
     history: async (sessionId: string) => {
       const res = await fetch(`${base}/api/chat/history?sessionId=${encodeURIComponent(sessionId)}`, {
         credentials: 'include',
       })
       return ChatHistorySchema.parse(await res.json())
     },
+    // Forget the resume pointer so the next turn starts a fresh session (server-side reset).
+    newSession: () => fetch(`${base}/api/chat/session/new`, {method: 'POST', credentials: 'include'}),
     // Answer the risky-Bash gate's blocking confirm (unblocks the PreToolUse hook).
     permissionDecision: (renderId: string, approved: boolean) =>
       fetch(`${base}/api/chat/permission-decision`, {

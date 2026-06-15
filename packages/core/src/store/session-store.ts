@@ -26,3 +26,11 @@ export function writeSession(stateRoot: string, previewId: string, sessionId: st
   if (!previewId || !sessionId) return
   writeJson(statePaths(stateRoot).sessions, {...readMap(stateRoot), [previewId]: sessionId})
 }
+
+// Forget this preview's persisted session id (the "new session" reset). The next turn then spawns
+// fresh (no resume) and records its own new id. No-op without a previewId.
+export function clearSession(stateRoot: string, previewId: string): void {
+  if (!previewId) return
+  const {[previewId]: _gone, ...rest} = readMap(stateRoot)
+  writeJson(statePaths(stateRoot).sessions, rest)
+}

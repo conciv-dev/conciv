@@ -1,6 +1,6 @@
 import {createEffect, createSignal, For, Show, type JSX} from 'solid-js'
 import {createHotkey} from '@tanstack/solid-hotkeys'
-import type {ComposerActionDef, PanelDef} from './widget-shell.js'
+import type {ComposerActionDef, ComposerControlDef, PanelDef} from './widget-shell.js'
 import {createResizable} from './resize.js'
 import {createPiP} from './pip.js'
 import {ChevronUp, Columns2, PictureInPicture2, X} from 'lucide-solid'
@@ -21,6 +21,7 @@ type Bindable = Parameters<typeof createHotkey>[0]
 export function QuickTerminalLayout(props: {
   panel: PanelDef
   composerActions: () => ComposerActionDef[]
+  composerControls: () => ComposerControlDef[]
   hotkeys: string[]
   open: () => boolean
   setOpen: (v: boolean) => void
@@ -72,6 +73,7 @@ export function QuickTerminalLayout(props: {
       onWorkingChange: () => {},
       onUsageChange: setUsage,
       composerActions: props.composerActions,
+      composerControls: props.composerControls,
     })
     setPanes((ps) => [...ps, {id, content, usage}])
     focusPane(id)

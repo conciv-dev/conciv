@@ -1,9 +1,11 @@
 import {type H3, getValidatedQuery} from 'h3'
 import {z} from 'zod'
+import {resolveHarnessModels} from '@aidx/harness'
 import type {HarnessAdapter} from '@aidx/protocol/harness-types'
-import type {ChatSession} from '@aidx/protocol/chat-types'
+import type {ChatSession, ChatModels} from '@aidx/protocol/chat-types'
 import {readLock} from '../../store/lock.js'
 import {readUsage} from '../../store/usage-store.js'
+import {clearSession} from '../../store/session-store.js'
 import {readFileOrEmpty} from '../../fs.js'
 
 // The session/history/stop routes — pure reads + a kill. History only exists for
@@ -15,6 +17,7 @@ export type SessionState = {sessionId: string}
 export type SessionRouteDeps = {
   cwd: string
   stateRoot: string
+  previewId: string
   initialSessionId: string
   harness: HarnessAdapter
   state: SessionState
@@ -22,6 +25,7 @@ export type SessionRouteDeps = {
 
 //   GET  /api/chat/session            → which session + lock state
 //   GET  /api/chat/history?sessionId  → filtered prior turns (transcript harnesses)
+//   POST /api/chat/session/new        → forget the session so the next turn starts fresh
 //   POST /api/chat/stop               → SIGTERM the current lock holder
 export function registerSessionRoutes(app: H3, deps: SessionRouteDeps): void {
   app.get('/api/chat/session', () => {
@@ -33,12 +37,27 @@ export function registerSessionRoutes(app: H3, deps: SessionRouteDeps): void {
     return body
   })
 
+  app.get('/api/chat/models', async (): Promise<ChatModels> => {
+    const models = await resolveHarnessModels(deps.harness)
+    const defaultModel = deps.harness.defaultModel ?? models[0]?.id ?? null
+    return {models, defaultModel}
+  })
+
   app.get('/api/chat/history', async (event) => {
     if (!deps.harness.capabilities.transcriptHistory || !deps.harness.history) return []
     const {sessionId} = await getValidatedQuery(event, HistoryQuerySchema)
     if (!sessionId) return []
     const jsonl = readFileOrEmpty(deps.harness.history.transcriptPath(deps.cwd, sessionId))
     return jsonl ? deps.harness.history.parse(jsonl) : []
+  })
+
+  // Start a new session: drop the in-memory + persisted session id. Harness-agnostic — the next
+  // POST /api/chat sees no session to resume and spawns fresh for any harness. The widget keeps the
+  // prior thread on screen (with a boundary divider); only the resume pointer is forgotten.
+  app.post('/api/chat/session/new', () => {
+    deps.state.sessionId = ''
+    clearSession(deps.stateRoot, deps.previewId)
+    return {ok: true}
   })
 
   app.post('/api/chat/stop', () => {

@@ -1,16 +1,17 @@
 import {createMemo, createEffect, createSignal, For, Index, Match, onCleanup, Show, Switch, type JSX} from 'solid-js'
+import {Progress} from '@ark-ui/solid/progress'
 import {useChat, fetchServerSentEvents, createChatClientOptions} from '@tanstack/ai-solid'
 import type {MessagePart, ToolCallPart, ToolCallState, ToolResultPart} from '@tanstack/ai-client'
 import {createChatApi} from './chat-api.js'
 import {GenUi} from './gen-ui.js'
 import {TestCard} from './test-card.js'
 import {Markdown} from './markdown.js'
-import {ArrowRight, Square} from 'lucide-solid'
+import {ArrowRight, Square, SquarePen, FoldVertical} from 'lucide-solid'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 import {AIDX_UI_EVENT, UiSpecSchema, type UiSpec} from '@aidx/protocol/ui-types'
 import {AIDX_USAGE_EVENT, UsageSnapshotSchema, tokenUsageToSnapshot, type UsageSnapshot} from '@aidx/protocol/usage-types'
 import {TestRunResultSchema, type TestRunResult} from '@aidx/protocol/test-types'
-import type {ComposerActionDef, PanelDef} from './widget-shell.js'
+import type {ComposerActionDef, ComposerControlDef, PanelDef} from './widget-shell.js'
 
 // Pull the Bash command out of a tool-call part (input.command, or parsed from arguments).
 function toolCommand(part: {input?: unknown; arguments?: string}): string {
@@ -247,6 +248,40 @@ function MessageParts(props: {
   )
 }
 
+// A session boundary in the scrollback: a hairline rule with a quiet centered label. Marks where a
+// new session began or the context was compacted; everything above stays readable and scrollable.
+// `pending` (a compaction still running) shows "Compacting…" with a spinning icon, so the label never
+// claims "Context compacted" before the turn finishes.
+function Divider(props: {kind: 'new' | 'compact'; pending?: boolean}): JSX.Element {
+  const Icon = props.kind === 'new' ? SquarePen : FoldVertical
+  const label = () => (props.kind === 'new' ? 'New session' : props.pending ? 'Compacting…' : 'Context compacted')
+  return (
+    <div class="pw-chat-divider" classList={{'pw-chat-divider-pending': props.pending}} role="separator" aria-label={label()}>
+      <span class="pw-chat-divider-label">
+        <Icon class="pw-chat-divider-icon" aria-hidden="true" />
+        {label()}
+      </span>
+    </div>
+  )
+}
+
+// Shown in the Send slot while a compaction runs. Claude's /compact reports no numeric progress
+// (only compacting→done), so this is an indeterminate spinner: an Ark Progress circle rendered as a
+// fixed arc (value=25) and spun via CSS. The wrapper carries the live status for screen readers; the
+// Progress itself is aria-hidden so SR doesn't announce a misleading "25%".
+function CompactSpinner(): JSX.Element {
+  return (
+    <div class="pw-compact" role="status" aria-label="Compacting context…">
+      <Progress.Root value={25} class="pw-compact-prog" aria-hidden="true">
+        <Progress.Circle class="pw-compact-circle">
+          <Progress.CircleTrack class="pw-compact-track" />
+          <Progress.CircleRange class="pw-compact-range" />
+        </Progress.Circle>
+      </Progress.Root>
+    </div>
+  )
+}
+
 function ThinkingBubble(): JSX.Element {
   return (
     <div class="pw-chat-msg pw-chat-msg-assistant pw-chat-typing" aria-hidden="true">
@@ -268,6 +303,8 @@ export function ChatPanel(props: {
   onWorkingChange?: (working: boolean) => void
   // Shell-registered composer-action buttons (e.g. the element picker), rendered in the actions row.
   composerActions?: () => ComposerActionDef[]
+  // Shell-registered composer controls (e.g. the model selector), rendered in the actions row.
+  composerControls?: () => ComposerControlDef[]
   // Reports the session's latest usage snapshot, so the shell can render a context tracker.
   onUsageChange?: (usage: UsageSnapshot | null) => void
 }): JSX.Element {
@@ -297,8 +334,14 @@ export function ChatPanel(props: {
   const onChunk = (chunk: StreamChunk) => {
     if (chunk.type === EventType.RUN_FINISHED && chunk.usage) setUsage(tokenUsageToSnapshot(chunk.usage))
   }
+  // Extra POST-body fields contributed by composer controls (e.g. the model selector's {model}).
+  // The panel stays ignorant of their meaning; it just merges patches and ships them each turn.
+  const [requestMeta, setRequestMeta] = createSignal<Record<string, unknown>>({})
+  const mergeRequestMeta = (patch: Record<string, unknown>) => setRequestMeta((prev) => ({...prev, ...patch}))
   const chat = useChat({
-    ...createChatClientOptions({connection: fetchServerSentEvents(api.chatUrl)}),
+    ...createChatClientOptions({
+      connection: fetchServerSentEvents(api.chatUrl, () => ({credentials: 'include', body: requestMeta()})),
+    }),
     onCustomEvent: onAidxUi,
     onChunk,
   })
@@ -393,7 +436,7 @@ export function ChatPanel(props: {
   const submit = (e: Event) => {
     e.preventDefault()
     const text = input().trim()
-    if (!text || chat.isLoading()) return
+    if (!text || chat.isLoading() || compacting()) return
     setInput('')
     if (inputEl) inputEl.style.height = 'auto'
     void chat.sendMessage(text)
@@ -410,10 +453,65 @@ export function ChatPanel(props: {
     })
   }
 
+  // Session boundaries drawn into the scrollback — the prior thread is never wiped, just separated.
+  // `afterCount` is the message count at insert time, so the divider renders before the next message.
+  const dividerSeq = {n: 0}
+  const [dividers, setDividers] = createSignal<{id: number; afterCount: number; kind: 'new' | 'compact'}[]>([])
+  const addDivider = (kind: 'new' | 'compact'): number => {
+    const id = (dividerSeq.n += 1)
+    setDividers((prev) => [...prev, {id, afterCount: chat.messages().length, kind}])
+    return id
+  }
+  const dividersAt = (i: number) => dividers().filter((d) => d.afterCount === i)
+  const resetUsage = () => setUsage(null)
+
+  // Compact the conversation. The turn runs OUT OF BAND — never through useChat — so NOTHING is
+  // appended to the thread: no '/compact' command bubble, no summary. The divider is the only UI,
+  // exactly like Claude Code's /compact. claude runs native /compact (emits no text anyway); other
+  // harnesses run a summarize turn whose output we deliberately drain and discard. The stream MUST be
+  // read to the end — closing early aborts the dev server's child mid-compaction.
+  // pendingCompactId = the just-added compact divider while its turn is in flight. It drives BOTH the
+  // Send-slot spinner and the divider wording, so the divider reads "Compacting…" until the turn
+  // actually finishes, then flips to "Context compacted" (never claiming done while still running).
+  const [pendingCompactId, setPendingCompactId] = createSignal<number | null>(null)
+  const compacting = () => pendingCompactId() !== null
+  const compact = async () => {
+    if (chat.isLoading() || compacting()) return
+    setPendingCompactId(addDivider('compact'))
+    try {
+      const res = await fetch(api.chatUrl, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({
+          messages: [{role: 'user', content: '/compact'}],
+          forwardedProps: {...requestMeta(), intent: 'compact'},
+        }),
+      })
+      await res.body?.pipeTo(new WritableStream())
+      // Server persisted post-compaction usage on RUN_FINISHED → reflect the smaller context.
+      const session = await api.session()
+      if (session.usage) setUsage(session.usage)
+    } catch {
+      // network/abort — the divider stays; the tracker refreshes on the next real turn
+    } finally {
+      setPendingCompactId(null)
+    }
+  }
+
   // Which action is mid-flight (e.g. lazy-loading react-grab), keyed by action id.
   const [busyAction, setBusyAction] = createSignal<string | null>(null)
   const runAction = (a: ComposerActionDef) => {
-    void Promise.resolve(a.onClick({insert, setBusy: (b) => setBusyAction(b ? a.id : null)}))
+    void Promise.resolve(
+      a.onClick({
+        insert,
+        setBusy: (b) => setBusyAction(b ? a.id : null),
+        apiBase: props.apiBase,
+        addDivider,
+        resetUsage,
+        compact,
+      }),
+    )
   }
 
   const onKeyDown = (e: KeyboardEvent) => {
@@ -445,16 +543,22 @@ export function ChatPanel(props: {
         >
           <Index each={chat.messages()}>
             {(m, index) => (
-              <div class={`pw-chat-msg pw-chat-msg-${m().role}`}>
-                <MessageParts
-                  parts={m().parts}
-                  streaming={isActiveAssistant(index, m().role)}
-                  apiBase={props.apiBase}
-                  onFix={(text) => void chat.sendMessage(text)}
-                />
-              </div>
+              <>
+                <For each={dividersAt(index)}>{(d) => <Divider kind={d.kind} pending={d.id === pendingCompactId()} />}</For>
+                <div class={`pw-chat-msg pw-chat-msg-${m().role}`}>
+                  <MessageParts
+                    parts={m().parts}
+                    streaming={isActiveAssistant(index, m().role)}
+                    apiBase={props.apiBase}
+                    onFix={(text) => void chat.sendMessage(text)}
+                  />
+                </div>
+              </>
             )}
           </Index>
+          {/* Boundaries inserted after the last message (e.g. right after New session, before the
+              next turn streams) render here at the tail of the thread. */}
+          <For each={dividersAt(chat.messages().length)}>{(d) => <Divider kind={d.kind} pending={d.id === pendingCompactId()} />}</For>
         </Show>
         <For each={genUi()}>
           {(spec) => (
@@ -514,18 +618,25 @@ export function ChatPanel(props: {
                 )
               }}
             </For>
-            <Show
-              when={chat.isLoading()}
+            <For each={props.composerControls?.() ?? []}>
+              {(c) => c.create({apiBase: props.apiBase, setRequestMeta: mergeRequestMeta})}
+            </For>
+            <Switch
               fallback={
                 <button type="submit" class="pw-chat-send" aria-label="Send" disabled={!input().trim()}>
                   <ArrowRight class="pw-icon" aria-hidden="true" />
                 </button>
               }
             >
-              <button type="button" class="pw-chat-send pw-chat-stop" aria-label="Stop" onClick={() => chat.stop()}>
-                <Square class="pw-icon" fill="currentColor" aria-hidden="true" />
-              </button>
-            </Show>
+              <Match when={compacting()}>
+                <CompactSpinner />
+              </Match>
+              <Match when={chat.isLoading()}>
+                <button type="button" class="pw-chat-send pw-chat-stop" aria-label="Stop" onClick={() => chat.stop()}>
+                  <Square class="pw-icon" fill="currentColor" aria-hidden="true" />
+                </button>
+              </Match>
+            </Switch>
           </div>
         </div>
       </form>
@@ -549,6 +660,7 @@ export function chatPanelDef(apiBase: string): PanelDef {
         onWorkingChange={ctx.onWorkingChange}
         onUsageChange={ctx.onUsageChange}
         composerActions={ctx.composerActions}
+        composerControls={ctx.composerControls}
       />
     ),
   }

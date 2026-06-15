@@ -7,5 +7,6 @@ import type {HarnessTurn} from '@aidx/protocol/harness-types'
 // ignored. A prior session resumes via the `exec resume <id>` subcommand.
 export function buildCodexArgs(turn: HarnessTurn): string[] {
   const head = turn.resumeSessionId ? ['exec', 'resume', turn.resumeSessionId, turn.prompt] : ['exec', turn.prompt]
-  return [...head, '--json', '--sandbox', 'workspace-write']
+  const model = turn.model ? ['-m', turn.model] : []
+  return [...head, ...model, '--json', '--sandbox', 'workspace-write']
 }

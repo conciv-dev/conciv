@@ -744,6 +744,51 @@
   align-self: flex-start;
   background: var(--pw-fill);
 }
+/* Session boundary in the scrollback (New session / Context compacted): a hairline rule flanking a
+   quiet, uppercase label. Full-width (overrides sibling rows' align-self); the thread above stays. */
+.pw-chat-divider {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 2px;
+  color: var(--pw-text-3);
+  animation: pw-chat-msg-in 160ms var(--pw-ease);
+}
+.pw-chat-divider::before,
+.pw-chat-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--pw-line-soft);
+}
+.pw-chat-divider-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.pw-chat-divider-icon {
+  width: 12px;
+  height: 12px;
+}
+/* While a compaction is in flight the divider reads "Compacting…": tint it toward the accent and spin
+   the icon, so it visibly differs from the settled "Context compacted" state. */
+.pw-chat-divider-pending {
+  color: var(--pw-accent-link);
+}
+.pw-chat-divider-pending .pw-chat-divider-icon {
+  transform-origin: center;
+  animation: pw-compact-spin 0.85s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pw-chat-divider-pending .pw-chat-divider-icon {
+    animation: pw-compact-pulse 1.3s ease-in-out infinite;
+  }
+}
 .pw-chat-text {
   margin: 0;
 }
@@ -1110,6 +1155,146 @@
   cursor: progress;
 }
 
+/* Model selector (Ark UI headless Combobox, styled to the composer). The trigger is a compact pill
+   on the left of the actions row; the panel pops above the composer. */
+.pw-model-control {
+  display: inline-flex;
+}
+/* The trigger is a button pill: current model name + chevron. The search lives in the popover. */
+.pw-model-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 168px;
+  height: 28px;
+  padding: 0 7px 0 10px;
+  border: 1px solid var(--pw-line);
+  border-radius: var(--pw-r-pill);
+  background: var(--pw-fill-soft);
+  color: var(--pw-text-2);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    color 120ms var(--pw-ease),
+    border-color 120ms var(--pw-ease),
+    background-color 120ms var(--pw-ease);
+}
+.pw-model-trigger:hover {
+  color: var(--pw-text-hi);
+  border-color: var(--pw-line-2);
+  background: var(--pw-fill-strong);
+}
+.pw-model-current {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pw-model-caret {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+/* Ark sets the `hidden` attribute when the popover closes; a bare `display` rule on the class would
+   override it and keep the (now filtered) list on screen. Respect `hidden` (higher specificity). */
+.pw-model-content[hidden] {
+  display: none;
+}
+.pw-model-content {
+  z-index: 10;
+  width: 256px;
+  max-height: 320px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  border: 1px solid var(--pw-line-2);
+  border-radius: var(--pw-r-md);
+  background: var(--pw-panel);
+  box-shadow: var(--pw-shadow-lg);
+}
+.pw-model-content:focus-visible {
+  outline: none;
+}
+.pw-model-search {
+  width: 100%;
+  height: 32px;
+  margin-bottom: 4px;
+  padding: 0 8px;
+  border: none;
+  border-bottom: 1px solid var(--pw-line-soft);
+  border-radius: 0;
+  background: transparent;
+  color: var(--pw-text);
+  font: inherit;
+  font-size: 13px;
+}
+.pw-model-search:focus {
+  outline: none;
+}
+.pw-model-search::placeholder {
+  color: var(--pw-text-3);
+}
+.pw-model-list {
+  overflow-y: auto;
+  flex: 1;
+}
+.pw-model-empty {
+  padding: 10px 8px;
+  color: var(--pw-text-3);
+  font-size: 12px;
+}
+.pw-model-group-label {
+  padding: 6px 8px 2px;
+  color: var(--pw-text-3);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.pw-model-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: var(--pw-r-sm);
+  color: var(--pw-text);
+  cursor: pointer;
+}
+.pw-model-item[data-highlighted] {
+  background: var(--pw-fill-strong);
+  color: var(--pw-text-hi);
+}
+.pw-model-item[data-disabled] {
+  color: var(--pw-text-3);
+  cursor: not-allowed;
+}
+.pw-model-item-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+.pw-model-desc {
+  color: var(--pw-text-3);
+  font-size: 11px;
+}
+/* Ark renders the indicator for every item and flags the selected one via [data-state]; hide the
+   rest (a bare `display` rule here would show a check on every row). */
+.pw-model-check {
+  margin-left: auto;
+  color: var(--pw-accent);
+  display: none;
+}
+.pw-model-check[data-state='checked'] {
+  display: inline-flex;
+}
+.pw-model-check-icon {
+  width: 15px;
+  height: 15px;
+}
+
 /* While the element picker is active, the open surface (and FAB) become invisible AND
    click-through, so the page underneath is fully reachable by react-grab's overlay. Compound
    selectors keep specificity at parity with .pw-chat-open and win by source order. */
@@ -1215,6 +1400,49 @@
 }
 .pw-chat-stop:hover:not(:disabled) {
   background: var(--pw-text-2);
+}
+/* Compaction spinner: occupies the Send slot while the conversation is being compacted. Ark Progress
+   circle (size/thickness fed via the vars it reads), rendered as a fixed arc and spun continuously —
+   an honest indeterminate indicator, since /compact reports no numeric progress. */
+.pw-compact {
+  margin-left: auto;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.pw-compact-prog {
+  --size: 22px;
+  --thickness: 2.5px;
+  display: block;
+}
+.pw-compact-circle {
+  transform-origin: center;
+  animation: pw-compact-spin 0.85s linear infinite;
+}
+.pw-compact-track {
+  stroke: var(--pw-line-2);
+}
+.pw-compact-range {
+  stroke: var(--pw-accent);
+  stroke-linecap: round;
+}
+@keyframes pw-compact-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pw-compact-circle {
+    animation: pw-compact-pulse 1.3s ease-in-out infinite;
+  }
+  @keyframes pw-compact-pulse {
+    50% {
+      opacity: 0.35;
+    }
+  }
 }
 /* Agent-generated UI rendered inline in the thread (vibe ui …). */
 .pw-genui {

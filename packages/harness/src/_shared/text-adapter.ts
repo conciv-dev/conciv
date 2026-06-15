@@ -17,6 +17,8 @@ export type HarnessAdapterDeps = {
   onSessionId?: (id: string) => void
   onUsage?: (usage: UsageSnapshot) => void // live usage mid-turn, for core to inject
   onSpawn?: (child: HarnessChild) => void // route acquires the lock here
+  model?: string // selected model id, forwarded onto the turn for buildArgs
+  turnKind?: 'chat' | 'compact' // 'compact' → build a compaction turn (capable harnesses only)
 }
 
 type InputModalities = readonly ['text']
@@ -83,8 +85,16 @@ export class HarnessTextAdapter extends BaseTextAdapter<string, Record<string, n
       permissionUrl: deps.permissionUrl,
       mcpUrl: deps.mcpUrl,
       ...(images.length ? {images} : {}),
+      ...(deps.model ? {model: deps.model} : {}),
+      kind: deps.turnKind ?? 'chat',
     }
-    const child = deps.spawnHarness(harness.buildArgs(turn), deps.cwd)
+    // Native compaction iff the harness advertises it (and supplies the builder); otherwise the
+    // turn runs as a normal chat from the summarize prompt the route substituted in.
+    const args =
+      turn.kind === 'compact' && harness.capabilities.compaction && harness.buildCompactArgs
+        ? harness.buildCompactArgs(turn)
+        : harness.buildArgs(turn)
+    const child = deps.spawnHarness(args, deps.cwd)
     deps.onSpawn?.(child)
     options.abortController?.signal.addEventListener('abort', () => child.kill())
     await harness.deliverInput?.(child, turn) // e.g. claude native images → stream-json on stdin

@@ -1,4 +1,4 @@
-import type {HarnessAdapter} from '@aidx/protocol/harness-types'
+import type {HarnessAdapter, HarnessModel} from '@aidx/protocol/harness-types'
 import {claude} from './claude/index.js'
 import {codex} from './codex/index.js'
 import {geminiCli} from './gemini-cli/index.js'
@@ -19,6 +19,14 @@ export function getHarness(id: string): HarnessAdapter | undefined {
 
 export function listHarnesses(): HarnessAdapter[] {
   return [...registry.values()]
+}
+
+// Resolve an adapter's models, whether declared as a static list or a (possibly async) resolver.
+// A harness with no model choice returns [].
+export async function resolveHarnessModels(adapter: HarnessAdapter): Promise<HarnessModel[]> {
+  const models = adapter.models
+  if (!models) return []
+  return typeof models === 'function' ? models() : models
 }
 
 // Bundled adapters self-register on import of the package entry.

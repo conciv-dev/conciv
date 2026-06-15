@@ -31,6 +31,7 @@ export function registerChatRoutes(app: H3, opts: ChatRouteOpts): void {
   registerSessionRoutes(app, {
     cwd: opts.cwd,
     stateRoot: opts.stateRoot,
+    previewId: opts.previewId,
     initialSessionId: opts.initialSessionId,
     harness: opts.harness,
     state,

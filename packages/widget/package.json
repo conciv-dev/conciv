@@ -23,6 +23,7 @@
   "dependencies": {
     "@aidx/protocol": "workspace:*",
     "@aidx/solid-streamdown": "workspace:*",
+    "@ark-ui/solid": "^5.37.1",
     "@tanstack/ai": "^0.28.0",
     "@tanstack/ai-client": "^0.16.3",
     "@tanstack/ai-solid": "^0.13.4",

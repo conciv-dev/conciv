@@ -65,8 +65,18 @@ export function buildClaudeArgs(turn: HarnessTurn): string[] {
   // Bundled aidx-tools plugin: its react-introspection skill teaches the agent the page
   // locate/inspect/tree/find verbs on demand, so it stops hand-rolling fiber detection via eval.
   if (AIDX_PLUGIN_DIR) args.push('--plugin-dir', AIDX_PLUGIN_DIR)
+  if (turn.model) args.push('--model', turn.model)
   if (turn.permissionUrl) args.push('--settings', hookSettings(turn.permissionUrl))
   if (turn.systemPrompt) args.push('--append-system-prompt-file', turn.systemPrompt)
   if (turn.resumeSessionId) args.push('--resume', turn.resumeSessionId)
   return args
+}
+
+// Compaction turn: claude's `/compact` slash command, sent as the prompt against the resumed
+// session. Validated headless (CLI 2.x): it streams a `compact_boundary` system event, writes the
+// summary into the transcript, and returns no assistant text — the UI shows only a boundary divider.
+// Reuses buildClaudeArgs so --resume/--model/MCP/plugin all carry over; the prompt is fixed and
+// images are irrelevant to a compaction.
+export function buildClaudeCompactArgs(turn: HarnessTurn): string[] {
+  return buildClaudeArgs({...turn, prompt: '/compact', images: undefined})
 }

@@ -112,6 +112,27 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     expect(argv[argv.indexOf('--resume') + 1]).toBe('sess-fake')
   })
 
+  it('passes --model <selected> to the spawned claude when the widget sends it via forwardedProps', async () => {
+    const argvFile = join(tmp(), 'argv.json')
+    const server = await startTestServer({spawnHarness: fakeSpawn({argvFile})})
+    state.server = server
+    // The widget puts the model on the AG-UI envelope (forwardedProps), not top-level — this is the
+    // authoritative check that a selector switch reaches the real CLI (the agent can't self-report it).
+    await (await server.post('/api/chat', {messages: [turn('hi')], forwardedProps: {model: 'haiku'}})).text()
+    const argv = z.array(z.string()).parse(JSON.parse(readFileSync(argvFile, 'utf8')))
+    expect(argv).toContain('--model')
+    expect(argv[argv.indexOf('--model') + 1]).toBe('haiku')
+  })
+
+  it('omits --model when no model is selected (CLI keeps its own default)', async () => {
+    const argvFile = join(tmp(), 'argv.json')
+    const server = await startTestServer({spawnHarness: fakeSpawn({argvFile})})
+    state.server = server
+    await server.postChat(turn('hi'))
+    const argv = z.array(z.string()).parse(JSON.parse(readFileSync(argvFile, 'utf8')))
+    expect(argv).not.toContain('--model')
+  })
+
   it('POST /api/chat/ui 400s on a malformed spec, reports injected:false with no active turn', async () => {
     const server = await startTestServer({spawnHarness: fakeSpawn()})
     state.server = server

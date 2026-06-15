@@ -1,5 +1,6 @@
 import {createEffect, createSignal, onCleanup, Show, type Component, type JSX} from 'solid-js'
 import {render} from 'solid-js/web'
+import {EnvironmentProvider} from '@ark-ui/solid/environment'
 import type {TriggerPosition} from '@aidx/protocol/config-types'
 import type {WidgetSettings} from './widget-settings.js'
 import {createDraggablePosition} from './draggable-position.js'
@@ -23,6 +24,8 @@ export type PanelContext = {
   onUsageChange: (usage: UsageSnapshot | null) => void
   // Composer-action buttons registered on the shell, rendered in each panel's composer row.
   composerActions: () => ComposerActionDef[]
+  // Composer-control plugins (stateful widgets, e.g. the model selector), rendered in the same row.
+  composerControls: () => ComposerControlDef[]
 }
 export type PanelDef = {
   id: string
@@ -37,6 +40,12 @@ export type PanelDef = {
 export type ComposerActionContext = {
   insert: (text: string) => void // append text to this composer's input + focus it
   setBusy: (busy: boolean) => void
+  apiBase: string
+  // Session/thread lifecycle. The composer owns thread + usage state; actions drive it through these
+  // rather than reaching into useChat.
+  addDivider: (kind: 'new' | 'compact') => void // mark a session boundary in the scrollback (prior thread stays)
+  resetUsage: () => void // clear the context tracker (no turn ran)
+  compact: () => Promise<void> // run the compaction turn out of band: marks a boundary, shows no chat output
   // FUTURE (chat-image-input plan): addAttachment: (file: File | Blob) => void
 }
 // A button in the composer's actions row, registered on the shell (mirrors registerPanel).
@@ -47,16 +56,32 @@ export type ComposerActionDef = {
   onClick: (ctx: ComposerActionContext) => void | Promise<void>
 }
 
+// What a composer control gets from the host composer. It renders persistent, stateful UI (vs a
+// ComposerActionDef's one-shot button) and can attach per-turn request metadata — the composer
+// merges `setRequestMeta` patches into the next turn's POST body, staying ignorant of their meaning.
+export type ComposerControlContext = {
+  apiBase: string
+  setRequestMeta: (patch: Record<string, unknown>) => void
+}
+// A stateful control rendered into the composer's actions row (e.g. the model selector). `create`
+// returns a fresh element per composer, mirroring PanelDef.create.
+export type ComposerControlDef = {
+  id: string
+  create: (ctx: ComposerControlContext) => JSX.Element
+}
+
 // The widget shell. Owns the chrome (trigger, layout modes, settings) and hosts panels.
 // A factory closure rather than a class (analogue of TanStack Devtools' TanStackDevtoolsCore).
 export function createWidgetShell(opts: {settings: WidgetSettings}): {
   registerPanel: (def: PanelDef) => void
   registerComposerAction: (def: ComposerActionDef) => void
+  registerComposerControl: (def: ComposerControlDef) => void
   mount: (rootEl: ShadowRoot | HTMLElement) => void
   unmount: () => void
 } {
   const panels: PanelDef[] = []
   const composerActions: ComposerActionDef[] = []
+  const composerControls: ComposerControlDef[] = []
   let dispose: (() => void) | undefined
   return {
     registerPanel(def) {
@@ -65,11 +90,26 @@ export function createWidgetShell(opts: {settings: WidgetSettings}): {
     registerComposerAction(def) {
       composerActions.push(def)
     },
+    registerComposerControl(def) {
+      composerControls.push(def)
+    },
     mount(rootEl) {
       const container = document.createElement('div')
       rootEl.appendChild(container)
+      // Ark UI (Zag) resolves its DOM via the environment's root node; inside our open Shadow DOM it
+      // must be told the shadow root, or element lookups hit `document`, find nothing, and popovers
+      // render at 0,0 with dead clicks. rootEl is the shadow root (HTMLElement only in tests).
       dispose = render(
-        () => <Shell settings={opts.settings} panels={panels} composerActions={() => composerActions} />,
+        () => (
+          <EnvironmentProvider value={() => rootEl}>
+            <Shell
+              settings={opts.settings}
+              panels={panels}
+              composerActions={() => composerActions}
+              composerControls={() => composerControls}
+            />
+          </EnvironmentProvider>
+        ),
         container,
       )
     },
@@ -84,6 +124,7 @@ function Shell(props: {
   settings: WidgetSettings
   panels: PanelDef[]
   composerActions: () => ComposerActionDef[]
+  composerControls: () => ComposerControlDef[]
 }): JSX.Element {
   // One layer is visible at a time, so opening the quick terminal closes the modal and vice versa.
   const [layer, setLayer] = createSignal<'modal' | 'quick' | null>(null)
@@ -109,6 +150,7 @@ function Shell(props: {
             <ModalLayout
               panel={panel()}
               composerActions={props.composerActions}
+              composerControls={props.composerControls}
               position={props.settings.modal.position}
               open={() => layer() === 'modal'}
               onOpen={() => setLayer('modal')}
@@ -119,6 +161,7 @@ function Shell(props: {
             <QuickTerminalLayout
               panel={panel()}
               composerActions={props.composerActions}
+              composerControls={props.composerControls}
               hotkeys={props.settings.quickTerminal.hotkeys}
               open={() => layer() === 'quick'}
               setOpen={setQuickOpen}
@@ -163,6 +206,7 @@ function fabClass(pulsing: boolean, position: TriggerPosition, dragging: boolean
 function ModalLayout(props: {
   panel: PanelDef
   composerActions: () => ComposerActionDef[]
+  composerControls: () => ComposerControlDef[]
   position: TriggerPosition
   open: () => boolean
   onOpen: () => void
@@ -181,6 +225,7 @@ function ModalLayout(props: {
     onWorkingChange: setWorking,
     onUsageChange: setUsage,
     composerActions: props.composerActions,
+    composerControls: props.composerControls,
   })
 
   // The panel resizes off whichever edges are free (away from its anchored corner): a bottom-anchored

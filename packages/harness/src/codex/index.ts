@@ -13,6 +13,7 @@ export const codex = defineHarness({
     resume: true,
     permissionGate: 'none',
     transcriptHistory: false,
+    compaction: false,
     systemPrompt: 'none',
     mcp: 'http',
     imageInput: false,

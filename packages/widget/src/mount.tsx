@@ -3,6 +3,9 @@ import {createShadowRoot} from './shadow.js'
 import {createWidgetShell} from './widget-shell.js'
 import {chatPanelDef} from './chat-panel.js'
 import {elementPickerAction} from './react-grab/picker-action.js'
+import {newSessionAction} from './new-session-action.js'
+import {compactAction} from './compact-action.js'
+import {modelSelectorControl} from './model-selector.js'
 import {TestCard} from './test-card.js'
 import {initPageBus} from './page-bus.js'
 import {probeChatAvailable} from './chat-api.js'
@@ -52,6 +55,9 @@ export function mountWidget(): void {
     const shell = createWidgetShell({settings})
     shell.registerPanel(chatPanelDef(apiBase))
     shell.registerComposerAction(elementPickerAction)
+    shell.registerComposerAction(newSessionAction)
+    shell.registerComposerAction(compactAction)
+    shell.registerComposerControl(modelSelectorControl)
     shell.mount(root)
     initPageBus({apiBase})
   })

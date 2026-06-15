@@ -98,6 +98,14 @@ async function* chatScript(): AsyncGenerator<StreamChunk> {
 }
 
 
+// A compaction turn: native /compact streams no assistant text. Held open ~700ms so the composer's
+// out-of-band fetch stays in flight long enough for the test to observe the Send-slot spinner.
+async function* compactScript(): AsyncGenerator<StreamChunk> {
+  yield {type: EventType.RUN_STARTED, threadId: 't', runId: 'rc'}
+  await new Promise((resolve) => setTimeout(resolve, 700))
+  yield {type: EventType.RUN_FINISHED, threadId: 't', runId: 'rc', finishReason: 'stop'}
+}
+
 const MCP_REPLY = 'MCP reply is visible'
 
 // The exact shape @tanstack/ai's chat() now streams: a generated threadId, an empty reasoning
@@ -158,6 +166,33 @@ function writeChatStream(res: ServerResponse): void {
   Readable.fromWeb(sse as Parameters<typeof Readable.fromWeb>[0]).pipe(res)
 }
 
+// Stream a compaction turn (held open ~700ms by compactScript) so the widget's spinner is observable.
+function writeCompactStream(res: ServerResponse): void {
+  res.writeHead(200, {
+    'content-type': 'text/event-stream',
+    'cache-control': 'no-cache',
+    'access-control-allow-origin': '*',
+  })
+  const sse = toServerSentEventsStream(compactScript(), new AbortController())
+  Readable.fromWeb(sse as Parameters<typeof Readable.fromWeb>[0]).pipe(res)
+}
+
+// Read the POST body and report whether it's a compaction turn (intent rides forwardedProps/data).
+function readChatIntent(req: IncomingMessage): Promise<string> {
+  return new Promise((resolve) => {
+    let body = ''
+    req.on('data', (c) => (body += c))
+    req.on('end', () => {
+      try {
+        const j = JSON.parse(body) as {intent?: string; forwardedProps?: {intent?: string}; data?: {intent?: string}}
+        resolve(j.forwardedProps?.intent ?? j.data?.intent ?? j.intent ?? 'chat')
+      } catch {
+        resolve('chat')
+      }
+    })
+  })
+}
+
 // Scripted vitest stream: one passing test, one failing test (with an error), then run-end.
 function writeVitestStream(res: ServerResponse): void {
   res.writeHead(200, {
@@ -204,8 +239,22 @@ describe('aidx widget (it) — real browser, real SSE', () => {
       if (url.startsWith('/api/chat/session')) {
         return writeJson(res, {sessionId: null, source: 'new', cwd: '/app', lock: {held: false, role: null}})
       }
+      if (url.startsWith('/api/chat/models')) {
+        return writeJson(res, {
+          models: [
+            {id: 'opus', name: 'Claude Opus 4.8', description: 'Most capable', group: 'Claude'},
+            {id: 'sonnet', name: 'Claude Sonnet 4.6', description: 'Balanced', group: 'Claude'},
+            {id: 'haiku', name: 'Claude Haiku 4.5', description: 'Fastest', group: 'Claude'},
+            {id: 'claude-fable-5', name: 'Fable 5', description: 'Disabled', group: 'Claude', disabled: true},
+          ],
+          defaultModel: 'sonnet',
+        })
+      }
       if (url.startsWith('/api/chat/history')) return writeJson(res, [])
-      if (url === '/api/chat' && req.method === 'POST') return writeChatStream(res)
+      if (url === '/api/chat' && req.method === 'POST') {
+        void readChatIntent(req).then((intent) => (intent === 'compact' ? writeCompactStream(res) : writeChatStream(res)))
+        return
+      }
       if (url === '/api/chat/permission-decision') return writeJson(res, {ok: true})
       if (url === '/api/test-runner/stream') return writeVitestStream(res)
       if (url === '/api/editor/open') return writeJson(res, {ok: true})
@@ -278,6 +327,67 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     const body = (await decision).postDataJSON() as {renderId: string; approved: boolean}
     expect(body.renderId).toBe('a1')
     expect(body.approved).toBe(true)
+    await page.close()
+  })
+
+  it('New session: posts the reset, draws a boundary, and keeps the prior thread scrollable', async () => {
+    const page = await browser.newPage()
+    await page.goto(state.base)
+    const fab = page.getByRole('button', {name: 'Open aidx chat'})
+    await fab.waitFor({state: 'visible'})
+    await fab.click()
+    const composer = page.getByLabel('Message the aidx agent')
+    await composer.fill('do something')
+    await composer.press('Enter')
+    await page.getByText(ASSISTANT_TEXT).waitFor({state: 'visible'})
+
+    // Clicking New session forgets the resume pointer server-side and marks a boundary in the thread.
+    const reset = page.waitForRequest((r) => r.url().endsWith('/api/chat/session/new') && r.method() === 'POST')
+    await page.getByRole('button', {name: 'Start a new session'}).click()
+    await reset
+
+    // The boundary shows AND the prior reply stays on screen (scrollback preserved, not wiped).
+    await page.locator('.pw-chat-divider', {hasText: 'New session'}).waitFor({state: 'visible'})
+    expect(await page.getByText(ASSISTANT_TEXT).count()).toBe(1)
+    await page.close()
+  })
+
+  it('Compress: marks a boundary and sends a compaction turn (intent rides the AG-UI envelope)', async () => {
+    const page = await browser.newPage()
+    await page.goto(state.base)
+    const fab = page.getByRole('button', {name: 'Open aidx chat'})
+    await fab.waitFor({state: 'visible'})
+    await fab.click()
+    const composer = page.getByLabel('Message the aidx agent')
+    await composer.fill('do something')
+    await composer.press('Enter')
+    await page.getByText(ASSISTANT_TEXT).waitFor({state: 'visible'})
+
+    // The compaction turn carries intent:'compact' — nested on forwardedProps/data like model, the
+    // exact spot @aidx/core's turn route reads. The predicate skips the first (plain) send.
+    const compactReq = page.waitForRequest((r) => {
+      if (!r.url().endsWith('/api/chat') || r.method() !== 'POST') return false
+      const b = r.postDataJSON() as {forwardedProps?: {intent?: string}; data?: {intent?: string}}
+      return (b.forwardedProps?.intent ?? b.data?.intent) === 'compact'
+    })
+    await page.getByRole('button', {name: 'Compress the conversation'}).click()
+    await compactReq
+
+    // While the turn is in flight (server holds the stream ~700ms): the Send button is replaced by the
+    // Ark progress spinner AND the divider reads "Compacting…" (NOT a premature "Context compacted").
+    await page.locator('.pw-compact').waitFor({state: 'visible'})
+    expect(await page.locator('.pw-compact-range').count()).toBe(1)
+    await page.locator('.pw-chat-divider', {hasText: 'Compacting'}).waitFor({state: 'visible'})
+
+    // Once it completes: the spinner goes away and the same divider flips to "Context compacted".
+    await page.locator('.pw-compact').waitFor({state: 'hidden'})
+    await page.locator('.pw-chat-divider', {hasText: 'Context compacted'}).waitFor({state: 'visible'})
+
+    // Claude-Code parity: the compaction turn runs out of band, so the thread shows ONLY the divider —
+    // no '/compact' command bubble and no streamed summary (the assistant reply count stays at 1, from
+    // the first turn; the compact stream is drained and discarded).
+    expect(await page.getByText('/compact').count()).toBe(0)
+    expect(await page.getByText(ASSISTANT_TEXT).count()).toBe(1)
     await page.close()
   })
 
@@ -612,6 +722,64 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     }
   })
 
+
+  it('model selector: picking a model closes the popover and never collapses the list to the chosen one', async () => {
+    const page = await browser.newPage()
+    await page.goto(state.base)
+    const fab = page.getByRole('button', {name: 'Open aidx chat'})
+    await fab.waitFor({state: 'visible'})
+    await fab.click()
+    await page.getByText('How can I help you today?').waitFor({state: 'visible'})
+
+    // The pill shows the default model (sonnet) from /api/chat/models.
+    const trigger = page.getByRole('button', {name: 'Select model'})
+    await trigger.waitFor({state: 'visible'})
+    expect(await trigger.textContent()).toContain('Claude Sonnet 4.6')
+
+    // Open it → all four models listed (Fable disabled but present).
+    await trigger.click()
+    const content = page.locator('.pw-model-content')
+    await content.waitFor({state: 'visible'})
+    expect(await content.locator('.pw-model-item').count()).toBe(4)
+
+    // Pick Opus.
+    await content.getByText('Claude Opus 4.8', {exact: true}).click()
+
+    // The pill reflects the pick.
+    await page.waitForFunction(
+      () => {
+        const t = document
+          .querySelector('[data-aidx-root]')
+          ?.shadowRoot?.querySelector('.pw-model-trigger')
+        return (t?.textContent ?? '').includes('Claude Opus 4.8')
+      },
+      undefined,
+      {timeout: 3000},
+    )
+
+    // THE BUG: selecting echoed the model name into the search box, filtering the open list down to
+    // just the picked row. Correct behavior is the popover CLOSES on select. This fails on the bug.
+    await content.waitFor({state: 'hidden', timeout: 3000})
+
+    // Send NOW, right after the popover closed on select — a clean state with focus free. (Dismissing
+    // a REOPENED popover via Escape/outside-click is unreliable in this shadow-DOM Ark setup and left
+    // the combobox holding focus, so the send must not depend on it.) The chosen model rides the next
+    // turn's POST body; TanStack AI nests connection-body fields on the AG-UI envelope (forwardedProps
+    // /data) — the exact spot @aidx/core's chat route reads.
+    const composer = page.getByLabel('Message the aidx agent')
+    const chatReq = page.waitForRequest((r) => r.url().endsWith('/api/chat') && r.method() === 'POST')
+    await composer.fill('hi')
+    await composer.press('Enter')
+    const sent = (await chatReq).postDataJSON() as {forwardedProps?: {model?: string}; data?: {model?: string}}
+    expect(sent.forwardedProps?.model ?? sent.data?.model).toBe('opus')
+
+    // Reopen → the full list is back (filter reset on close, nothing removed). Done last because it
+    // leaves the popover open; the page is closed right after.
+    await trigger.click()
+    await content.waitFor({state: 'visible'})
+    expect(await content.locator('.pw-model-item').count()).toBe(4)
+    await page.close()
+  })
 
   it('renders the live vitest card: pass/fail tree, expands the failure with actions', async () => {
     const page = await browser.newPage()
