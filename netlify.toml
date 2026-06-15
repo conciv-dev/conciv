@@ -1,0 +1,11 @@
+[build]
+  base = "apps/site"
+  command = "pnpm build"
+  publish = "dist/client"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+[dev]
+  command = "vite dev"
+  port = 3001

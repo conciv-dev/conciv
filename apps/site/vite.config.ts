@@ -3,7 +3,7 @@ import { tanstackStart } from '@tanstack/react-start/plugin/vite';
 import { defineConfig } from 'vite';
 import tailwindcss from '@tailwindcss/vite';
 import mdx from 'fumadocs-mdx/vite';
-import { nitro } from 'nitro/vite';
+import netlify from '@netlify/vite-plugin-tanstack-start';
 import aidx from '@aidx/plugin/vite';
 
 export default defineConfig({
@@ -18,10 +18,8 @@ export default defineConfig({
         enabled: true,
       },
     }),
+    netlify(),
     react(),
-    nitro({
-      preset: 'node-server',
-    }),
     aidx({widget: {quickTerminal: {hotkey: ['Alt+k']}}}),
   ],
   resolve: {

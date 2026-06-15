@@ -5,6 +5,7 @@ node_modules
 .vercel
 .output
 .nitro
+dist
 /build/
 /api/
 /server/build
@@ -16,3 +17,5 @@ node_modules
 .tanstack
 
 .source
+# Local Netlify folder
+.netlify
