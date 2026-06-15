@@ -9,6 +9,7 @@ import {
   toolResult,
   type Mint,
   type StepContext,
+  type UsageExtractor,
 } from '../_shared/agui.js'
 
 // Translate `codex exec --json` JSONL events into the AG-UI StreamChunk stream. Only the event
@@ -25,7 +26,7 @@ const CommandItem = z.object({
 })
 
 const CodexEventSchema = z
-  .object({type: z.string(), thread_id: z.string().optional(), item: z.unknown().optional()})
+  .object({type: z.string(), thread_id: z.string().optional(), item: z.unknown().optional(), usage: z.unknown().optional()})
   .loose()
 type CodexEvent = z.infer<typeof CodexEventSchema>
 
@@ -50,6 +51,16 @@ function* codexStep(e: CodexEvent, ctx: StepContext): Generator<StreamChunk> {
   if (e.type === 'item.completed') yield* itemChunks(e.item, ctx.mint)
 }
 
+const CodexUsage = z.object({input_tokens: z.number().optional(), output_tokens: z.number().optional()}).loose()
+
+// codex reports cumulative turn usage on turn.completed; no model/window/cost yet.
+const codexUsage: UsageExtractor<CodexEvent> = (e) => {
+  if (e.type !== 'turn.completed') return null
+  const u = CodexUsage.safeParse(e.usage)
+  if (!u.success) return null
+  return {inputTokens: u.data.input_tokens, outputTokens: u.data.output_tokens}
+}
+
 export function codexToAguiEvents(lines: AsyncIterable<string>, opts: HarnessDecodeOpts): AsyncGenerator<StreamChunk> {
-  return runAgui(lines, CodexEventSchema, opts, codexStep)
+  return runAgui(lines, CodexEventSchema, opts, codexStep, codexUsage)
 }
