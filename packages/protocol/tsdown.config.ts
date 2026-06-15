@@ -12,6 +12,7 @@ export default defineConfig({
     'src/bundler-types.ts',
     'src/config-types.ts',
     'src/page-types.ts',
+    'src/usage-types.ts',
   ],
   format: 'esm',
   fixedExtension: false,

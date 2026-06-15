@@ -39,6 +39,10 @@
     "./page-types": {
       "types": "./dist/page-types.d.ts",
       "import": "./dist/page-types.js"
+    },
+    "./usage-types": {
+      "types": "./dist/usage-types.d.ts",
+      "import": "./dist/usage-types.js"
     }
   },
   "scripts": {
