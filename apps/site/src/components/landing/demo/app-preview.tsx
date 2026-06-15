@@ -1,0 +1,74 @@
+import { type RefObject } from 'react';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
+import { PICKABLES } from './demo-data';
+
+export function AppPreview({
+  picking,
+  patched,
+  onPick,
+  ctaRef,
+}: {
+  picking: boolean;
+  patched: boolean;
+  onPick: (id: string) => void;
+  ctaRef: RefObject<HTMLButtonElement | null>;
+}) {
+  return (
+    <div className={cn('od-preview relative flex flex-col p-[18px]', picking && 'od-picking')}>
+      <div className="mb-auto font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
+        your live app
+      </div>
+
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
+        <Pickable id="heading" picking={picking} onPick={onPick}>
+          <h3 className="od-display text-xl">Welcome back</h3>
+        </Pickable>
+        <Pickable id="sub" picking={picking} onPick={onPick}>
+          <p className="text-[12.5px] text-muted-foreground">Sign in to continue</p>
+        </Pickable>
+        <Pickable id="cta" picking={picking} onPick={onPick}>
+          <button
+            ref={ctaRef}
+            type="button"
+            className={cn('od-cta', patched && 'od-cta-patched')}
+            tabIndex={-1}
+          >
+            Get started
+          </button>
+        </Pickable>
+      </div>
+
+      {picking ? (
+        <div className="pointer-events-none absolute inset-x-0 top-3.5 flex justify-center">
+          <Badge className="bg-primary text-primary-foreground shadow-lg">Picking… click an element</Badge>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function Pickable({
+  id,
+  picking,
+  onPick,
+  children,
+}: {
+  id: string;
+  picking: boolean;
+  onPick: (id: string) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <span
+      data-pickable={id}
+      onClick={picking ? () => onPick(PICKABLES[id].id) : undefined}
+      className={cn(
+        'od-pickable inline-flex rounded-lg outline-2 outline-offset-[3px] outline-transparent transition-[outline-color,box-shadow]',
+        picking && 'od-pickable-active cursor-crosshair',
+      )}
+    >
+      {children}
+    </span>
+  );
+}

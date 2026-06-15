@@ -7,6 +7,9 @@ coverage/
 .DS_Store
 *.log
 .idea/
+.superpowers/
+.design-ref/
+.playwright-cli/
 # aidx runtime state the vite plugin writes into a consuming app's root
 .aidx/
 # Claude Code local worktrees (git worktrees created under the repo)

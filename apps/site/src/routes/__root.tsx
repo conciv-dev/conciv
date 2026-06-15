@@ -14,7 +14,7 @@ export const Route = createRootRoute({
         content: 'width=device-width, initial-scale=1',
       },
       {
-        title: 'aidx',
+        title: 'opendui — an AI dev agent inside your running app',
       },
     ],
     links: [{ rel: 'stylesheet', href: appCss }],

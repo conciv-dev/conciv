@@ -2,6 +2,16 @@
 @import 'fumadocs-ui/css/neutral.css';
 @import 'fumadocs-ui/css/preset.css';
 
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@import "tw-animate-css";
+
+@import "shadcn/tailwind.css";
+
+@import "@fontsource-variable/geist";
+
+@custom-variant dark (&:is(.dark *));
+
 html {
   scrollbar-gutter: stable;
 }
@@ -9,4 +19,252 @@ html {
 html > body[data-scroll-locked] {
   margin-right: 0 !important;
   --removed-body-scroll-bar-size: 0px !important;
+}
+
+/* --- opendui landing tokens --- */
+:root {
+  --od-paper: oklch(0.985 0.006 75);
+  --od-ink: oklch(0.23 0.012 65);
+  --od-muted: oklch(0.52 0.014 65);
+  --od-line: oklch(0.9 0.008 75);
+  --od-panel: oklch(0.995 0.004 75);
+  --od-accent: oklch(0.6 0.207 27);
+  --od-accent-soft: oklch(0.6 0.207 27 / 0.12);
+  --od-pass: oklch(0.62 0.16 150);
+  --od-display: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
+  --od-mono: 'JetBrains Mono', ui-monospace, monospace;
+  --background: var(--od-paper);
+  --foreground: var(--od-ink);
+  --card: var(--od-panel);
+  --card-foreground: var(--od-ink);
+  --popover: var(--od-panel);
+  --popover-foreground: var(--od-ink);
+  --primary: var(--od-accent);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.965 0.008 70);
+  --secondary-foreground: var(--od-ink);
+  --muted: oklch(0.965 0.008 70);
+  --muted-foreground: var(--od-muted);
+  --accent: var(--od-accent-soft);
+  --accent-foreground: var(--od-accent);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: var(--od-line);
+  --input: var(--od-line);
+  --ring: var(--od-accent);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
+}
+
+.dark {
+  --od-paper: oklch(0.19 0.008 65);
+  --od-ink: oklch(0.94 0.006 75);
+  --od-muted: oklch(0.68 0.012 70);
+  --od-line: oklch(0.31 0.01 65);
+  --od-panel: oklch(0.23 0.009 65);
+  --od-accent: oklch(0.7 0.19 32);
+  --od-accent-soft: oklch(0.7 0.19 32 / 0.16);
+  --od-pass: oklch(0.74 0.16 152);
+  --background: var(--od-paper);
+  --foreground: var(--od-ink);
+  --card: var(--od-panel);
+  --card-foreground: var(--od-ink);
+  --popover: var(--od-panel);
+  --popover-foreground: var(--od-ink);
+  --primary: var(--od-accent);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.26 0.008 65);
+  --secondary-foreground: var(--od-ink);
+  --muted: oklch(0.26 0.008 65);
+  --muted-foreground: var(--od-muted);
+  --accent: var(--od-accent-soft);
+  --accent-foreground: var(--od-accent);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: var(--od-line);
+  --input: var(--od-line);
+  --ring: var(--od-accent);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+.od-display {
+  font-family: var(--od-display);
+  font-optical-sizing: auto;
+  letter-spacing: -0.02em;
+}
+
+.od-mono {
+  font-family: var(--od-mono);
+  font-feature-settings: 'liga' 0;
+}
+
+/* landing-specific surfaces */
+.od-page {
+  background:
+    radial-gradient(120% 80% at 88% -10%, var(--od-accent-soft), transparent 55%),
+    var(--od-paper);
+}
+
+.od-underline {
+  position: relative;
+  white-space: nowrap;
+}
+.od-underline::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 4px;
+  height: 10px;
+  background: var(--od-accent-soft);
+  z-index: -1;
+  border-radius: 2px;
+}
+
+.od-preview {
+  background-color: var(--od-paper);
+  background-image:
+    linear-gradient(var(--od-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--od-line) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+.od-picking .od-pickable:hover {
+  outline-color: var(--od-accent);
+  box-shadow: 0 0 0 5px var(--od-accent-soft);
+}
+
+/* the sample app's "Get started" button, shared by the preview + the grabbed-reference render */
+.od-cta,
+.od-grab-render .cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 10px;
+  background: var(--od-ink);
+  color: var(--od-paper);
+  font-weight: 600;
+  font-size: 13px;
+}
+.od-grab-render h3 {
+  font-family: var(--od-display);
+  font-size: 18px;
+  font-weight: 700;
+}
+.od-grab-render p {
+  font-size: 13px;
+  color: var(--od-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .od-anim {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+@keyframes od-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes od-caret {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes od-grid-pan {
+  to {
+    background-position: 40px 40px;
+  }
+}
+
+@theme inline {
+  --font-heading: var(--font-sans);
+  --font-sans: 'Geist Variable', sans-serif;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
 }
