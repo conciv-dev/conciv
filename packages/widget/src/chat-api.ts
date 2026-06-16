@@ -55,10 +55,14 @@ export type ChatApi = {
   permissionDecision: (renderId: string, approved: boolean) => Promise<Response>
 }
 
-export function createChatApi(deps: {apiBase?: string; sessionId?: string} = {}): ChatApi {
+export function createChatApi(deps: {apiBase?: string; sessionId?: () => string | undefined} = {}): ChatApi {
   const base = resolveBase(deps.apiBase)
-  const sessionHeaders = (): Record<string, string> =>
-    deps.sessionId ? {[AIDX_SESSION_HEADER]: deps.sessionId} : {}
+  // Read the id live each request so a session SWITCH (the modal/pane changing its sessionId) routes
+  // subsequent calls to the new session without recreating the api.
+  const sessionHeaders = (): Record<string, string> => {
+    const id = deps.sessionId?.()
+    return id ? {[AIDX_SESSION_HEADER]: id} : {}
+  }
   return {
     base,
     chatUrl: `${base}/api/chat`,

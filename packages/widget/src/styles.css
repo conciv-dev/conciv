@@ -665,6 +665,7 @@
   display: block;
 }
 .pw-chat-log {
+  position: relative;
   flex: 1;
   overflow-y: auto;
   padding: 14px;
@@ -1576,6 +1577,23 @@
 .pw-chat-hydrating .pw-chat-msg {
   animation: none;
 }
+/* Brief overlay while a session switch loads its thread (role=status; composer disabled meanwhile). */
+.pw-chat-switching {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  background: color-mix(in srgb, var(--pw-panel) 60%, transparent);
+  animation: pw-chat-switching 1.2s ease-in-out infinite;
+}
+@keyframes pw-chat-switching {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
 
 /* While the element picker is active, the open surface (and FAB) become invisible AND
    click-through, so the page underneath is fully reachable by react-grab's overlay. Compound
@@ -2295,6 +2313,7 @@
   .pw-session-skel,
   .pw-session-running,
   .pw-combo-content[data-state='open'],
+  .pw-chat-switching,
   .pw-chat-thinking-live > summary {
     animation: none;
   }
