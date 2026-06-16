@@ -115,6 +115,68 @@ export function nameFromTranscript(jsonl: string): string | null {
   return name
 }
 
+// Enrichment records: a 'system' init line carries the model; a 'result' line carries cumulative
+// usage. Both are .loose so unrelated fields don't trip parsing.
+const SystemRecordSchema = z.object({type: z.literal('system'), model: z.string().optional()}).loose()
+const ResultRecordSchema = z
+  .object({type: z.literal('result'), usage: z.object({input_tokens: z.number().optional(), output_tokens: z.number().optional()}).loose().optional()})
+  .loose()
+const StampedRecordSchema = z.object({timestamp: z.string().optional()}).loose()
+
+// The last text of any human-readable turn, condensed to one line (≤200 chars), or null.
+function lastMessageFrom(jsonl: string): string | null {
+  let last: string | null = null
+  for (const line of jsonl.split('\n')) {
+    const t = line.trim()
+    if (!t) continue
+    const rec = parseRecord(t)
+    if (!rec || (rec.type !== 'user' && rec.type !== 'assistant')) continue
+    const parts = partsFrom(rec.message?.content)
+    if (isInternal(parts)) continue
+    const text = parts.find((p) => p.type === 'text')
+    if (text && text.type === 'text' && typeof text.content === 'string') last = text.content.replace(/\s+/g, ' ').trim().slice(0, 200)
+  }
+  return last
+}
+
+// Parse a transcript into an enriched session row: title + count + model + token total + last
+// message + first-event timestamp. One pass over the lines for the cheap scalars; reuses the shared
+// parse helpers for title/count/last-message.
+export function parseSessionMeta(id: string, jsonl: string, mtime: number): HarnessSessionMeta {
+  let model: string | null = null
+  let totalTokens = 0
+  let createdAt: number | undefined
+  for (const line of jsonl.split('\n')) {
+    const t = line.trim()
+    if (!t) continue
+    let obj: unknown
+    try {
+      obj = JSON.parse(t)
+    } catch {
+      continue
+    }
+    const sys = SystemRecordSchema.safeParse(obj)
+    if (sys.success && sys.data.model) model = sys.data.model
+    const result = ResultRecordSchema.safeParse(obj)
+    if (result.success && result.data.usage) totalTokens += (result.data.usage.input_tokens ?? 0) + (result.data.usage.output_tokens ?? 0)
+    if (createdAt === undefined) {
+      const stamped = StampedRecordSchema.safeParse(obj)
+      const ms = stamped.success && stamped.data.timestamp ? Date.parse(stamped.data.timestamp) : NaN
+      if (!Number.isNaN(ms)) createdAt = ms
+    }
+  }
+  return {
+    id,
+    derivedTitle: titleFromHead(jsonl),
+    updatedAt: Math.round(mtime),
+    messageCount: parseHistory(jsonl).length,
+    model,
+    totalTokens,
+    lastMessage: lastMessageFrom(jsonl),
+    createdAt,
+  }
+}
+
 const MAX_SESSIONS = 50
 
 // The first user line's text, condensed to a one-line title (≤80 chars). Reuses the same private
@@ -160,12 +222,7 @@ export async function listSessions(cwd: string, home: string = homedir()): Promi
   return Promise.all(
     top.map(async (f) => {
       const raw = await readFile(join(dir, f.name), 'utf8').catch(() => '')
-      return {
-        id: f.name.replace(/\.jsonl$/, ''),
-        derivedTitle: titleFromHead(raw),
-        updatedAt: Math.round(f.mtime),
-        messageCount: parseHistory(raw).length,
-      }
+      return parseSessionMeta(f.name.replace(/\.jsonl$/, ''), raw, f.mtime)
     }),
   )
 }

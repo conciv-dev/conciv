@@ -2,7 +2,7 @@ import {describe, it, expect} from 'vitest'
 import {mkdtempSync, mkdirSync, writeFileSync, rmSync, utimesSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {parseHistory, claudeHistory, encodeProjectDir, listSessions, withinProject} from '../src/claude/history.js'
+import {parseHistory, parseSessionMeta, claudeHistory, encodeProjectDir, listSessions, withinProject} from '../src/claude/history.js'
 
 function seed(home: string, cwd: string, id: string, body: string, mtimeSec: number) {
   const dir = join(home, '.claude', 'projects', encodeProjectDir(cwd))
@@ -94,5 +94,21 @@ describe('withinProject', () => {
     expect(withinProject('/proj', '../../etc/passwd', home)).toBe(false)
     expect(withinProject('/proj', '0c1d2e3f-aaaa-bbbb-cccc-000011112222', home)).toBe(true)
     rmSync(home, {recursive: true, force: true})
+  })
+})
+
+describe('parseSessionMeta', () => {
+  it('extracts model + token totals + last message from a transcript', () => {
+    const jsonl = [
+      JSON.stringify({type: 'system', session_id: 'tok', model: 'claude-opus-4-8'}),
+      JSON.stringify({type: 'user', message: {content: 'hi there'}}),
+      JSON.stringify({type: 'assistant', message: {content: [{type: 'text', text: 'the reply'}]}}),
+      JSON.stringify({type: 'result', usage: {input_tokens: 10, output_tokens: 5}}),
+    ].join('\n')
+    const meta = parseSessionMeta('tok', jsonl, 123)
+    expect(meta.model).toBe('claude-opus-4-8')
+    expect(meta.updatedAt).toBe(123)
+    expect(meta.totalTokens).toBe(15)
+    expect(meta.lastMessage).toBe('the reply')
   })
 })

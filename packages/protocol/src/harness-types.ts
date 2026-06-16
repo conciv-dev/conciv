@@ -88,8 +88,18 @@ export type HarnessDecodeOpts = {
 // Turns the harness's raw stdout lines into the AG-UI StreamChunk stream, surfacing the session id.
 export type HarnessDecoder = (lines: AsyncIterable<string>, opts: HarnessDecodeOpts) => AsyncGenerator<StreamChunk>
 
-// One enumerated session from a harness's transcript store (for the session selector list).
-export type HarnessSessionMeta = {id: string; derivedTitle: string; updatedAt: number; messageCount: number}
+// One enumerated session from a harness's transcript store (for the session selector list). The
+// enrichment fields (gathered when cheap) are joined onto selector rows / persisted onto the record.
+export type HarnessSessionMeta = {
+  id: string
+  derivedTitle: string
+  updatedAt: number
+  messageCount: number
+  model?: string | null
+  totalTokens?: number
+  lastMessage?: string | null
+  createdAt?: number
+}
 
 // Where a harness persists a session's transcript, and how to parse it into UIMessages.
 export type HarnessHistory = {
