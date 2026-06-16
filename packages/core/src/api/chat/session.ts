@@ -1,18 +1,21 @@
-import {type H3, getValidatedQuery} from 'h3'
-import {z} from 'zod'
+import {type H3} from 'h3'
 import {resolveHarnessModels} from '@aidx/harness'
 import type {HarnessAdapter} from '@aidx/protocol/harness-types'
 import type {ChatSession, ChatModels} from '@aidx/protocol/chat-types'
+import {DEFAULT_SESSION_ID} from '@aidx/protocol/chat-types'
 import {readLock} from '../../store/lock.js'
 import {readUsage} from '../../store/usage-store.js'
-import {clearSession} from '../../store/session-store.js'
+import {removeSession} from '../../store/session-store.js'
 import {readFileOrEmpty} from '../../fs.js'
+import {sessionIdFromHeaders} from './session-id.js'
 
-// The session/history/stop routes — pure reads + a kill. History only exists for
-// transcript-capable harnesses (via harness.history); others hydrate from the live thread.
+// The session/models/history/stop routes — pure reads + a kill. History only exists for
+// transcript-capable harnesses (via harness.history); others hydrate from the live thread. Every
+// route resolves its target from the AIDX_SESSION_HEADER (the canonical header id).
 
-// Mutable holder shared with the turn route, which updates sessionId as the stream reports it.
-export type SessionState = {sessionId: string}
+// Mutable per-session holder, created by chat.ts's sessionFor and shared with the turn route.
+export type SessionState = {harnessSessionId: string}
+export type SessionLookup = (sessionId: string) => SessionState
 
 export type SessionRouteDeps = {
   cwd: string
@@ -20,25 +23,45 @@ export type SessionRouteDeps = {
   previewId: string
   initialSessionId: string
   harness: HarnessAdapter
-  state: SessionState
+  sessionFor: SessionLookup
 }
 
-//   GET  /api/chat/session            → which session + lock state
-//   GET  /api/chat/history?sessionId  → filtered prior turns (transcript harnesses)
-//   POST /api/chat/session/new        → forget the session so the next turn starts fresh
-//   POST /api/chat/stop               → SIGTERM the current lock holder
+// The harness session name from its transcript, or null (no token / no name hook / no file).
+function nameFor(deps: SessionRouteDeps, token: string): string | null {
+  const hist = deps.harness.history
+  if (!token || !hist?.nameFromTranscript) return null
+  const raw = readFileOrEmpty(hist.transcriptPath(deps.cwd, token))
+  return raw ? hist.nameFromTranscript(raw) : null
+}
+
+//   GET    /api/chat/session      → which session + harness id/name + lock + usage + harness identity
+//   GET    /api/chat/models       → the active harness's models + the id to pre-select
+//   GET    /api/chat/history      → prior turns for the header session (transcript harnesses)
+//   POST   /api/chat/session/new  → forget the header session so its next turn starts fresh
+//   DELETE /api/chat/session      → forget a session (pane closed): kill + drop its token
+//   POST   /api/chat/stop         → SIGTERM the header session's lock holder
 export function registerSessionRoutes(app: H3, deps: SessionRouteDeps): void {
-  app.get('/api/chat/session', () => {
-    const lock = readLock(deps.stateRoot)
-    const sessionId = deps.state.sessionId || null
-    const source: ChatSession['source'] = deps.state.sessionId ? (deps.initialSessionId ? 'agent' : 'chat') : 'new'
-    const usage = sessionId ? readUsage(deps.stateRoot, sessionId) : null
+  app.get('/api/chat/session', (event) => {
+    const sessionId = sessionIdFromHeaders(event.req.headers)
+    const token = deps.sessionFor(sessionId).harnessSessionId
+    const lock = readLock(deps.stateRoot, sessionId)
+    const adopted = sessionId === DEFAULT_SESSION_ID && Boolean(deps.initialSessionId)
+    const source: ChatSession['source'] = token ? (adopted ? 'agent' : 'chat') : 'new'
     const harness = {
       id: deps.harness.id,
       name: deps.harness.displayName ?? deps.harness.id,
       canLaunch: Boolean(deps.harness.launch),
     }
-    const body: ChatSession = {sessionId, source, cwd: deps.cwd, lock: {held: lock.held, role: lock.role}, usage, harness}
+    const body: ChatSession = {
+      sessionId,
+      harnessId: token || null,
+      name: nameFor(deps, token),
+      source,
+      cwd: deps.cwd,
+      lock: {held: lock.held, role: lock.role},
+      usage: readUsage(deps.stateRoot, sessionId),
+      harness,
+    }
     return body
   })
 
@@ -48,25 +71,42 @@ export function registerSessionRoutes(app: H3, deps: SessionRouteDeps): void {
     return {models, defaultModel}
   })
 
-  app.get('/api/chat/history', async (event) => {
+  app.get('/api/chat/history', (event) => {
     if (!deps.harness.capabilities.transcriptHistory || !deps.harness.history) return []
-    const {sessionId} = await getValidatedQuery(event, HistoryQuerySchema)
-    if (!sessionId) return []
-    const jsonl = readFileOrEmpty(deps.harness.history.transcriptPath(deps.cwd, sessionId))
+    const sessionId = sessionIdFromHeaders(event.req.headers)
+    const token = deps.sessionFor(sessionId).harnessSessionId
+    if (!token) return []
+    const jsonl = readFileOrEmpty(deps.harness.history.transcriptPath(deps.cwd, token))
     return jsonl ? deps.harness.history.parse(jsonl) : []
   })
 
-  // Start a new session: drop the in-memory + persisted session id. Harness-agnostic — the next
-  // POST /api/chat sees no session to resume and spawns fresh for any harness. The widget keeps the
-  // prior thread on screen (with a boundary divider); only the resume pointer is forgotten.
-  app.post('/api/chat/session/new', () => {
-    deps.state.sessionId = ''
-    clearSession(deps.stateRoot, deps.previewId)
+  // Start a new session for this header id: drop the in-memory + persisted token. The widget keeps
+  // the prior thread on screen (with a boundary divider); only the resume pointer is forgotten.
+  app.post('/api/chat/session/new', (event) => {
+    const sessionId = sessionIdFromHeaders(event.req.headers)
+    deps.sessionFor(sessionId).harnessSessionId = ''
+    removeSession(deps.stateRoot, deps.previewId, sessionId)
     return {ok: true}
   })
 
-  app.post('/api/chat/stop', () => {
-    const lock = readLock(deps.stateRoot)
+  // Forget a session entirely (a pane closed): kill its live turn and drop its persisted token.
+  app.delete('/api/chat/session', (event) => {
+    const sessionId = sessionIdFromHeaders(event.req.headers)
+    const lock = readLock(deps.stateRoot, sessionId)
+    if (lock.pid) {
+      try {
+        process.kill(lock.pid, 'SIGTERM')
+      } catch {
+        // already gone
+      }
+    }
+    removeSession(deps.stateRoot, deps.previewId, sessionId)
+    return {ok: true}
+  })
+
+  app.post('/api/chat/stop', (event) => {
+    const sessionId = sessionIdFromHeaders(event.req.headers)
+    const lock = readLock(deps.stateRoot, sessionId)
     if (lock.pid) {
       try {
         process.kill(lock.pid, 'SIGTERM')
@@ -77,5 +117,3 @@ export function registerSessionRoutes(app: H3, deps: SessionRouteDeps): void {
     return {ok: true}
   })
 }
-
-const HistoryQuerySchema = z.object({sessionId: z.string().optional()})

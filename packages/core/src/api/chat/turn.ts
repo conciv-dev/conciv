@@ -10,7 +10,8 @@ import {writeSession} from '../../store/session-store.js'
 import {writeUsage} from '../../store/usage-store.js'
 import type {UiBus} from '../../runtime/ui-bus.js'
 import {toChatMessages} from './messages.js'
-import type {SessionState} from './session.js'
+import type {SessionLookup} from './session.js'
+import {sessionIdFromHeaders} from './session-id.js'
 import {sseHeaders} from '../sse.js'
 
 export type SpawnHarness = (args: string[], cwd: string) => HarnessChild
@@ -29,14 +30,14 @@ export type TurnDeps = {
   systemPromptFile?: string
   systemPromptText?: string
   uiBus: UiBus
-  state: SessionState
+  sessionFor: SessionLookup
 }
 
 // The live-turn routes, both uiBus consumers:
 //   POST /api/chat/ui → inject agent generative UI onto the live turn (non-blocking)
-//   POST /api/chat    → stream a turn (409 if the lock is held)
+//   POST /api/chat    → stream a turn (409 if THIS session's lock is held; distinct sessions parallel)
 export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
-  const {harness, uiBus, state} = deps
+  const {harness, uiBus} = deps
 
   app.post('/api/chat/ui', async (event) => {
     const spec = await readValidatedBody(event, UiSpecSchema)
@@ -44,12 +45,14 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
   })
 
   app.post('/api/chat', async (event) => {
-    if (readLock(deps.stateRoot).held) throw new HTTPError({status: 409, message: 'agent busy'})
+    const sessionId = sessionIdFromHeaders(event.req.headers) // header id (canonical)
+    if (readLock(deps.stateRoot, sessionId).held) throw new HTTPError({status: 409, message: 'session busy'})
     const chatReq = await readValidatedBody(event, ChatRequestSchema)
     // intent rides the AG-UI envelope (forwardedProps/data) like model, with a top-level fallback.
     const intent = chatReq.intent ?? chatReq.forwardedProps?.intent ?? chatReq.data?.intent ?? 'chat'
     const turnKind = intent === 'compact' ? 'compact' : 'chat'
-    const resumeSessionId = harness.capabilities.resume ? chatReq.sessionId || state.sessionId || null : null
+    const session = deps.sessionFor(sessionId)
+    const resumeSessionId = harness.capabilities.resume ? session.harnessSessionId || null : null
     const origin = `http://${event.req.headers.get('host') ?? '127.0.0.1:3000'}`
     // systemPrompt delivery by capability: 'file' → the written path; 'flag'/'none' → raw text.
     const mode = harness.capabilities.systemPrompt
@@ -67,13 +70,13 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
       model: chatReq.model ?? chatReq.forwardedProps?.model ?? chatReq.data?.model,
       turnKind,
       onSessionId: (id) => {
-        state.sessionId = id
-        writeSession(deps.stateRoot, deps.previewId, id)
+        session.harnessSessionId = id
+        writeSession(deps.stateRoot, deps.previewId, sessionId, id)
       },
       // Live usage: inject mid-turn so the widget's tracker fills as the turn streams.
       onUsage: (usage) => uiBus.injectUsage(usage),
       onSpawn: (child) => {
-        acquireLock(deps.stateRoot, 'chat', child.pid)
+        acquireLock(deps.stateRoot, sessionId, 'chat', child.pid)
         event.req.signal.addEventListener('abort', () => {
           abort.abort()
           child.kill()
@@ -97,22 +100,26 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
       abortController: abort,
     })
     const merged = uiBus.run(stream)
-    const sse = toServerSentEventsStream(withLockRelease(merged, deps), abort)
+    const sse = toServerSentEventsStream(withLockRelease(merged, deps.stateRoot, sessionId), abort)
     return new Response(sse, {status: 200, headers: sseHeaders(event)})
   })
 }
 
-// Persist RUN_FINISHED usage (so the tracker fills on the next open) and release the lock when
-// the turn's merged stream finishes OR the client disconnects.
-async function* withLockRelease(src: AsyncIterable<StreamChunk>, deps: TurnDeps): AsyncGenerator<StreamChunk> {
+// Persist RUN_FINISHED usage (keyed on the header id so the tracker fills on the next open) and
+// release this session's lock when its merged stream finishes OR the client disconnects.
+async function* withLockRelease(
+  src: AsyncIterable<StreamChunk>,
+  stateRoot: string,
+  sessionId: string,
+): AsyncGenerator<StreamChunk> {
   try {
     for await (const c of src) {
-      if (c.type === EventType.RUN_FINISHED && c.usage && deps.state.sessionId) {
-        writeUsage(deps.stateRoot, deps.state.sessionId, tokenUsageToSnapshot(c.usage))
+      if (c.type === EventType.RUN_FINISHED && c.usage) {
+        writeUsage(stateRoot, sessionId, tokenUsageToSnapshot(c.usage))
       }
       yield c
     }
   } finally {
-    releaseLock(deps.stateRoot)
+    releaseLock(stateRoot, sessionId)
   }
 }

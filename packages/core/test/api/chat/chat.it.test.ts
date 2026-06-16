@@ -6,6 +6,7 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {acquireLock} from '../../../src/store/lock.js'
+import {DEFAULT_SESSION_ID, ChatSessionSchema} from '@aidx/protocol/chat-types'
 import {startTestServer, type SpawnHarness, type TestServer} from '../../helpers/server.js'
 
 // Real process-boundary IT: the REAL app (makeApp) over a real srvx server, with a FAKE harness
@@ -156,12 +157,35 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     expect(await decisionFor({tool_name: 'Bash', tool_input: {command: 'rm -rf dist'}})).toBe('deny')
   })
 
-  it('refuses with 409 while the lock is held by iterate', async () => {
+  it('refuses with 409 while the default session lock is held by iterate', async () => {
     const stateRoot = tmp()
     const server = await startTestServer({stateRoot, spawnHarness: fakeSpawn()})
     state.server = server
-    acquireLock(stateRoot, 'iterate', process.pid)
+    acquireLock(stateRoot, DEFAULT_SESSION_ID, 'iterate', process.pid)
     const res = await server.post('/api/chat', {messages: []})
     expect(res.status).toBe(409)
+  })
+
+  it('keeps per-session resume independent under distinct headers', async () => {
+    const server = await startTestServer({spawnHarness: fakeSpawn()})
+    state.server = server
+    await server.postChat(turn('hi'), 'sess-a')
+    // sess-b is a fresh session: its /session reports source 'new' before any turn.
+    const beforeB = ChatSessionSchema.parse(await (await server.getSession('sess-b')).json())
+    expect(beforeB.source).toBe('new')
+    expect(beforeB.harnessId).toBeNull()
+    // sess-a already ran a turn → it has the fake harness token.
+    const afterA = ChatSessionSchema.parse(await (await server.getSession('sess-a')).json())
+    expect(afterA.harnessId).toBe('sess-fake')
+    expect(afterA.source).toBe('chat')
+  })
+
+  it('does NOT 409 a second session while a different one would be busy', async () => {
+    const stateRoot = tmp()
+    const server = await startTestServer({stateRoot, spawnHarness: fakeSpawn()})
+    state.server = server
+    acquireLock(stateRoot, 'sess-a', 'chat', process.pid)
+    const res = await server.post('/api/chat', {messages: []}, 'sess-b')
+    expect(res.status).toBe(200)
   })
 })
