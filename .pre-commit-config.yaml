@@ -1,0 +1,22 @@
+# Fast, per-file gates run by prek (https://github.com/j178/prek) on commit. Only the staged files
+# are passed to each hook, so this stays sub-second. Whole-project gates (typecheck/build/test) are
+# deliberately NOT here — they can't be sharded by file; run `pnpm typecheck|build|test` manually.
+#
+# Setup (once per clone):  prek install
+repos:
+  - repo: local
+    hooks:
+      - id: oxfmt
+        name: oxfmt (format staged files)
+        entry: pnpm exec oxfmt --write
+        language: system
+        pass_filenames: true
+        files: '\.(m?[jt]sx?|c[jt]s|jsonc?|md)$'
+        exclude: '^(.*/)?(dist|build|\.turbo)/'
+      - id: oxlint
+        name: oxlint (lint staged files)
+        entry: pnpm exec oxlint
+        language: system
+        pass_filenames: true
+        files: '\.(m?[jt]sx?|c[jt]s)$'
+        exclude: '^(.*/)?(dist|build|\.turbo)/'
