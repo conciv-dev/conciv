@@ -5,10 +5,8 @@ import type {UIMessage} from '@tanstack/ai'
 import {UsageSnapshotSchema} from './usage-types.js'
 export type {StreamChunk, UIMessage, MessagePart} from '@tanstack/ai'
 
-// The HTTP header carrying our client-minted session id on every chat request.
+// The HTTP header carrying our session id on every chat request.
 export const AIDX_SESSION_HEADER = 'aidx-session-id'
-// The session a request falls back to when it sends no header (the modal + the probe).
-export const DEFAULT_SESSION_ID = 'default'
 
 // An inline content part on a posted message. Text carries `content`; image carries a base64
 // data `source` (mimeType matches @tanstack/ai's ContentPartDataSource field name).
@@ -50,11 +48,53 @@ export const ChatRequestSchema = z.object({
 export type ChatMessage = z.infer<typeof ChatMessageSchema>
 export type ChatRequest = z.infer<typeof ChatRequestSchema>
 
+// Our session id — minted by the server, aidx_ prefixed, branded so a raw harness id can't be
+// passed where ours is required.
+export const SessionId = z.string().regex(/^aidx_[A-Za-z0-9_-]{1,128}$/).brand<'AidxSessionId'>()
+export type SessionId = z.infer<typeof SessionId>
+
+// Runtime guard — narrows an unknown/raw string to our branded SessionId. The one place to decide
+// "is this ours" so callers never hand-roll a `.startsWith('aidx_')` check.
+export function isSessionId(id: unknown): id is SessionId {
+  return SessionId.safeParse(id).success
+}
+
+// The harness's own session id (resume token). Charset-bounded for filesystem safety.
+export const HarnessSessionId = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/)
+
+// One consolidated, durable record per session — the single source of truth.
+export const SessionRecordSchema = z.object({
+  id: SessionId,
+  harnessSessionId: z.string().nullable(), // resume token; null = never run
+  harnessKind: z.string(), // 'claude' | 'codex' ... routes resume
+  origin: z.enum(['chat', 'agent', 'external']),
+  title: z.string().nullable(),
+  model: z.string().nullable(),
+  usage: UsageSnapshotSchema.nullable(),
+  cwd: z.string(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+})
+export type SessionRecord = z.infer<typeof SessionRecordSchema>
+
+export const ResolveRequestSchema = z.object({id: z.string().optional()})
+export type ResolveRequest = z.infer<typeof ResolveRequestSchema>
+export const ResolveResponseSchema = z.object({sessionId: SessionId})
+export type ResolveResponse = z.infer<typeof ResolveResponseSchema>
+export const RenameResponseSchema = z.object({ok: z.boolean(), title: z.string()})
+export type RenameResponse = z.infer<typeof RenameResponseSchema>
+export const OkSchema = z.object({ok: z.boolean()})
+export type Ok = z.infer<typeof OkSchema>
+
+// The decision posted from the permission approval gate.
+export const PermissionDecisionSchema = z.object({renderId: z.string(), approved: z.boolean()})
+export type PermissionDecision = z.infer<typeof PermissionDecisionSchema>
+
 // GET /api/chat/session response.
 export const ChatSessionSchema = z.object({
-  sessionId: z.string(),
+  sessionId: SessionId,
   // The harness resume token (display + resume), null until a turn mints one.
-  harnessId: z.string().nullable(),
+  harnessSessionId: z.string().nullable(),
   // Human-readable session name from the transcript, or null when none is derivable yet.
   name: z.string().nullable(),
   source: z.enum(['agent', 'chat', 'new']),
@@ -88,11 +128,8 @@ export type ChatModels = z.infer<typeof ChatModelsSchema>
 export const ChatHistorySchema = z.array(z.custom<UIMessage>((v) => v !== null && typeof v === 'object'))
 export type ChatHistory = z.infer<typeof ChatHistorySchema>
 
-// A client-minted session id (uuid) or a harness token. Charset-bounded so it can never escape the
-// transcript dir when it reaches a filesystem path (defense-in-depth alongside withinProject).
-export const SessionId = z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/)
-
-// One row in the session selector: the harness token + its joined live/persisted state.
+// One row in the session selector: our id (or a raw harness id for an unwrapped external row) +
+// its joined live/persisted state.
 export const ChatSessionMetaSchema = z.object({
   id: z.string(),
   title: z.string(),
