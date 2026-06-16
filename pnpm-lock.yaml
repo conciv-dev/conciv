@@ -464,6 +464,9 @@ importers:
       '@ark-ui/solid':
         specifier: ^5.37.1
         version: 5.37.1(solid-js@1.9.13)
+      '@floating-ui/dom':
+        specifier: ^1.7.6
+        version: 1.7.6
       '@tanstack/ai':
         specifier: ^0.28.0
         version: 0.28.0(@opentelemetry/api@1.9.0)
