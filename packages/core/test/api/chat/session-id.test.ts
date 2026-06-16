@@ -1,13 +1,15 @@
 import {describe, it, expect} from 'vitest'
 import {sessionIdFromHeaders} from '../../../src/api/chat/session-id.js'
-import {DEFAULT_SESSION_ID} from '@aidx/protocol/chat-types'
 
 describe('sessionIdFromHeaders', () => {
-  it('returns the header value when present', () => {
-    expect(sessionIdFromHeaders(new Headers({'aidx-session-id': 'sess-a'}))).toBe('sess-a')
+  it('returns null when no header (a new session)', () => {
+    expect(sessionIdFromHeaders(new Headers())).toBeNull()
   })
-  it('falls back to the default when absent or blank', () => {
-    expect(sessionIdFromHeaders(new Headers())).toBe(DEFAULT_SESSION_ID)
-    expect(sessionIdFromHeaders(new Headers({'aidx-session-id': '  '}))).toBe(DEFAULT_SESSION_ID)
+  it('returns the aidx_ id from the header', () => {
+    const h = new Headers({'aidx-session-id': 'aidx_x'})
+    expect(sessionIdFromHeaders(h)).toBe('aidx_x')
+  })
+  it('rejects a malformed id → null', () => {
+    expect(sessionIdFromHeaders(new Headers({'aidx-session-id': 'no spaces!'}))).toBeNull()
   })
 })

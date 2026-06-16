@@ -4,9 +4,7 @@ import {join} from 'node:path'
 export type StatePaths = {
   dir: string
   lockFor: (sessionId: string) => string
-  sessions: string
-  titles: string
-  usage: string
+  sessionsDir: string
   systemPrompt: string
 }
 
@@ -15,9 +13,7 @@ export function statePaths(stateRoot: string): StatePaths {
   return {
     dir,
     lockFor: (sessionId) => join(dir, `agent.${sessionId}.lock`),
-    sessions: join(dir, 'chat-sessions.json'),
-    titles: join(dir, 'session-titles.json'),
-    usage: join(dir, 'chat-usage.json'),
+    sessionsDir: join(dir, 'sessions'),
     systemPrompt: join(dir, 'chat-system-prompt.txt'),
   }
 }

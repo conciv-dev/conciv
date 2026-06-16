@@ -1,9 +1,9 @@
-import {AIDX_SESSION_HEADER, DEFAULT_SESSION_ID, SessionId} from '@aidx/protocol/chat-types'
+import {AIDX_SESSION_HEADER, isSessionId} from '@aidx/protocol/chat-types'
 
-// The session id a request targets: the AIDX_SESSION_HEADER value (charset-validated so it can
-// never become a path-traversal token), or the default session when absent/blank/malformed.
-export function sessionIdFromHeaders(headers: Headers): string {
+// The session a request targets: our aidx_ id from the AIDX_SESSION_HEADER, or null when absent or
+// malformed (a new, not-yet-resolved session). Only our branded id is ever accepted here.
+export function sessionIdFromHeaders(headers: Headers): string | null {
   const raw = headers.get(AIDX_SESSION_HEADER)?.trim()
-  if (!raw) return DEFAULT_SESSION_ID
-  return SessionId.safeParse(raw).success ? raw : DEFAULT_SESSION_ID
+  if (!raw) return null
+  return isSessionId(raw) ? raw : null
 }
