@@ -24,6 +24,8 @@ export type MakeAppOpts = {
   openInEditor: OpenInEditor
   systemPromptFile?: string
   spawnHarness: (args: string[], cwd: string, sessionId?: string) => HarnessChild
+  // Override the harness transcript home (claude: ~/.claude). For tests; defaults to homedir().
+  claudeHome?: string
 }
 
 // Resolve a registered adapter or fall back to the built-in; throw if even that is missing
@@ -56,6 +58,7 @@ export function makeApp(opts: MakeAppOpts): H3 {
     spawnHarness: opts.spawnHarness,
     systemPromptFile: opts.systemPromptFile,
     systemPromptText: opts.cfg.systemPrompt,
+    claudeHome: opts.claudeHome,
     uiBus,
   })
   const page = registerPageRoutes(app, {journal: makeJournal()})

@@ -20,6 +20,7 @@ export type ChatRouteOpts = {
   spawnHarness: SpawnHarness
   systemPromptFile?: string // when systemPrompt==='file'
   systemPromptText?: string // otherwise
+  claudeHome?: string // override the harness transcript home (tests); default homedir()
   uiBus: UiBus
 }
 
@@ -53,6 +54,7 @@ export function registerChatRoutes(app: H3, opts: ChatRouteOpts): void {
     previewId: opts.previewId,
     initialSessionId: opts.initialSessionId,
     harness: opts.harness,
+    claudeHome: opts.claudeHome,
     sessionFor,
   })
   registerLaunchRoutes(app, {cwd: opts.cwd, harness: opts.harness, sessionFor})

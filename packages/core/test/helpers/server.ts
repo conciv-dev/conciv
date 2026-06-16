@@ -13,6 +13,10 @@ export type SpawnHarness = (args: string[], cwd: string, sessionId?: string) => 
 export type TestServerOpts = {
   harness?: string
   stateRoot?: string
+  // The project cwd makeApp serves (transcript lookups key off it). Defaults to the state root.
+  cwd?: string
+  // Override the harness transcript home (~/.claude) so list/history read from a temp dir.
+  claudeHome?: string
   // Inject a (real or fake) harness spawn — the one seam makeApp takes from its host. Defaults to a
   // real spawn of the resolved harness binary.
   spawnHarness?: SpawnHarness
@@ -25,6 +29,7 @@ export type TestServer = {
   post: (path: string, body: unknown, sessionId?: string) => Promise<Response>
   postChat: (message: unknown, sessionId?: string) => Promise<string>
   getSession: (sessionId?: string) => Promise<Response>
+  getSessions: () => Promise<Response>
   close: () => Promise<void>
 }
 
@@ -59,7 +64,13 @@ export async function startTestServer(opts: TestServerOpts = {}): Promise<TestSe
     systemPrompt: '',
   }
   const spawnHarness = opts.spawnHarness ?? realSpawn(harness.binName)
-  const app = makeApp({cfg, cwd: stateRoot, openInEditor: () => {}, spawnHarness})
+  const app = makeApp({
+    cfg,
+    cwd: opts.cwd ?? stateRoot,
+    openInEditor: () => {},
+    spawnHarness,
+    claudeHome: opts.claudeHome,
+  })
 
   const server: Server = serve({fetch: app.fetch, port: 0, hostname: '127.0.0.1'})
   await server.ready()
@@ -75,9 +86,10 @@ export async function startTestServer(opts: TestServerOpts = {}): Promise<TestSe
     (await post('/api/chat', {messages: [message]}, sessionId)).text()
   const getSession = (sessionId?: string): Promise<Response> =>
     fetch(`${base}/api/chat/session`, {headers: sessionId ? {'aidx-session-id': sessionId} : {}})
+  const getSessions = (): Promise<Response> => fetch(`${base}/api/chat/sessions`)
   const close = async (): Promise<void> => {
     await server.close()
     rmSync(stateRoot, {recursive: true, force: true})
   }
-  return {base, stateRoot, previewId: cfg.previewId, post, postChat, getSession, close}
+  return {base, stateRoot, previewId: cfg.previewId, post, postChat, getSession, getSessions, close}
 }
