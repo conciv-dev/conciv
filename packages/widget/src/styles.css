@@ -2100,3 +2100,49 @@
   gap: 6px;
   background: var(--pw-panel-sunk);
 }
+
+/* Floating UI popover + session-info card (session label chrome). */
+.pw-popover {
+  position: absolute;
+  z-index: 2147483647;
+  min-width: 220px;
+  max-width: 320px;
+  padding: 10px 12px;
+  border-radius: var(--pw-r-md);
+  background: var(--pw-panel);
+  color: var(--pw-text);
+  border: 1px solid var(--pw-line);
+  box-shadow: var(--pw-shadow-lg);
+  font-size: 12px;
+}
+.pw-session-info-name {
+  font-weight: 600;
+  margin-bottom: 6px;
+  word-break: break-word;
+}
+.pw-session-info-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+.pw-session-info-key {
+  opacity: 0.6;
+  width: 52px;
+  flex: none;
+}
+.pw-session-info-id {
+  font-family: var(--pw-font-mono);
+  word-break: break-all;
+}
+.pw-session-info-copy {
+  margin-left: auto;
+  flex: none;
+  cursor: pointer;
+  background: none;
+  border: 1px solid var(--pw-line);
+  border-radius: var(--pw-r-sm);
+  color: inherit;
+  padding: 1px 6px;
+  font-size: 11px;
+}
