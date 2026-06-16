@@ -237,7 +237,16 @@ describe('aidx widget (it) — real browser, real SSE', () => {
       const url = req.url ?? ''
       // Probe → present, so the widget mounts the chat FAB + page-bus (production boot path).
       if (url.startsWith('/api/chat/session')) {
-        return writeJson(res, {sessionId: null, source: 'new', cwd: '/app', lock: {held: false, role: null}})
+        return writeJson(res, {
+          sessionId: 'default',
+          harnessId: null,
+          name: null,
+          source: 'new',
+          cwd: '/app',
+          lock: {held: false, role: null},
+          usage: null,
+          harness: {id: 'claude', name: 'Claude', canLaunch: false},
+        })
       }
       if (url.startsWith('/api/chat/models')) {
         return writeJson(res, {
@@ -667,7 +676,12 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await page.waitForFunction(`${countOf('.pw-qt-pane')} === 2`, undefined, {timeout: 2000})
     expect(await page.locator('.pw-qt-pane .pw-chat-input').count()).toBe(2)
 
-    // Closing one pane leaves the other (reflowed).
+    // Each pane bar shows a session label; clicking it opens the session-info popover.
+    await page.locator('.pw-qt-pane-name').first().click()
+    await page.locator('.pw-popover').waitFor({state: 'visible'})
+    await page.locator('.pw-session-info-name').waitFor({state: 'visible'})
+
+    // Closing one pane leaves the other (reflowed). The pane-X click also dismisses the popover.
     await page.locator('.pw-qt-pane-x').first().click()
     await page.waitForFunction(`${countOf('.pw-qt-pane')} === 1`, undefined, {timeout: 2000})
 

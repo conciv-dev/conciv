@@ -36,6 +36,7 @@ if (process.env.AIDX_FAKE_HANG) {
   // then more text. Exercises the chat() + uiBus SSE pipeline for the "reply not rendering" case.
   const lines = [
     {type: 'system', subtype: 'init', session_id: 'sess-fake'},
+    {type: 'summary', summary: 'Fake session title'},
     {
       type: 'assistant',
       message: {
@@ -54,6 +55,7 @@ if (process.env.AIDX_FAKE_HANG) {
 } else {
   const lines = [
     {type: 'system', subtype: 'init', session_id: 'sess-fake', model: 'claude-test'},
+    {type: 'summary', summary: 'Fake session title'},
     {
       type: 'assistant',
       message: {
