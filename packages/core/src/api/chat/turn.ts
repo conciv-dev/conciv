@@ -14,7 +14,9 @@ import type {SessionLookup} from './session.js'
 import {sessionIdFromHeaders} from './session-id.js'
 import {sseHeaders} from '../sse.js'
 
-export type SpawnHarness = (args: string[], cwd: string) => HarnessChild
+// The optional sessionId becomes AIDX_SESSION_ID in the child's env, so the agent's `aidx ui` /
+// permission-hook calls echo it back and core routes them to this turn's channel.
+export type SpawnHarness = (args: string[], cwd: string, sessionId?: string) => HarnessChild
 
 // Sent in place of '/compact' to harnesses without native compaction — best-effort summary (it does
 // not free the resumed context, but gives the user a recap below the boundary divider).
@@ -41,7 +43,8 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
 
   app.post('/api/chat/ui', async (event) => {
     const spec = await readValidatedBody(event, UiSpecSchema)
-    return {renderId: spec.renderId, injected: uiBus.inject(spec)}
+    const sessionId = sessionIdFromHeaders(event.req.headers)
+    return {renderId: spec.renderId, injected: uiBus.inject(sessionId, spec)}
   })
 
   app.post('/api/chat', async (event) => {
@@ -61,7 +64,8 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
 
     const adapter = harnessText(harness, {
       cwd: deps.cwd,
-      spawnHarness: deps.spawnHarness,
+      // Bind this turn's header id into the spawn so the child env carries AIDX_SESSION_ID.
+      spawnHarness: (args, cwd) => deps.spawnHarness(args, cwd, sessionId),
       systemPrompt: sysText,
       resumeSessionId,
       permissionUrl: harness.capabilities.permissionGate === 'hook' ? `${origin}/api/chat/permission` : undefined,
@@ -74,7 +78,7 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
         writeSession(deps.stateRoot, deps.previewId, sessionId, id)
       },
       // Live usage: inject mid-turn so the widget's tracker fills as the turn streams.
-      onUsage: (usage) => uiBus.injectUsage(usage),
+      onUsage: (usage) => uiBus.injectUsage(sessionId, usage),
       onSpawn: (child) => {
         acquireLock(deps.stateRoot, sessionId, 'chat', child.pid)
         event.req.signal.addEventListener('abort', () => {
@@ -99,7 +103,7 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
       systemPrompts: sysText ? [sysText] : [],
       abortController: abort,
     })
-    const merged = uiBus.run(stream)
+    const merged = uiBus.run(sessionId, stream)
     const sse = toServerSentEventsStream(withLockRelease(merged, deps.stateRoot, sessionId), abort)
     return new Response(sse, {status: 200, headers: sseHeaders(event)})
   })

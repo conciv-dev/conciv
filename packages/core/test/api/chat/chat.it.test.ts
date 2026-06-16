@@ -5,7 +5,7 @@ import {mkdtempSync, readFileSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
-import {acquireLock} from '../../../src/store/lock.js'
+import {acquireLock, readLock} from '../../../src/store/lock.js'
 import {DEFAULT_SESSION_ID, ChatSessionSchema} from '@aidx/protocol/chat-types'
 import {startTestServer, type SpawnHarness, type TestServer} from '../../helpers/server.js'
 
@@ -24,7 +24,7 @@ function tmp(): string {
 
 // A fake-claude spawn (optionally capturing argv to a file for the --resume assertion, or emitting
 // the rich multi-block transcript via AIDX_FAKE_RICH).
-function fakeSpawn(opts: {argvFile?: string; rich?: boolean; partial?: boolean} = {}): SpawnHarness {
+function fakeSpawn(opts: {argvFile?: string; rich?: boolean; partial?: boolean; hang?: boolean} = {}): SpawnHarness {
   return (args, cwd) => {
     const child = spawn(process.execPath, [fakeClaude, ...args], {
       cwd,
@@ -34,6 +34,7 @@ function fakeSpawn(opts: {argvFile?: string; rich?: boolean; partial?: boolean} 
         ...(opts.argvFile ? {AIDX_TEST_ARGV_FILE: opts.argvFile} : {}),
         ...(opts.rich ? {AIDX_FAKE_RICH: '1'} : {}),
         ...(opts.partial ? {AIDX_FAKE_PARTIAL: '1'} : {}),
+        ...(opts.hang ? {AIDX_FAKE_HANG: '1'} : {}),
       },
     })
     const {stdin, stdout, stderr} = child
@@ -187,5 +188,31 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     acquireLock(stateRoot, 'sess-a', 'chat', process.pid)
     const res = await server.post('/api/chat', {messages: []}, 'sess-b')
     expect(res.status).toBe(200)
+  })
+
+  it('routes POST /api/chat/ui to the live turn by header id (cross-process path)', async () => {
+    const stateRoot = tmp()
+    const server = await startTestServer({stateRoot, spawnHarness: fakeSpawn({hang: true})})
+    state.server = server
+    // Start a turn for h-a but DON'T await it — the hang fake keeps the child alive, so h-a's lock
+    // stays held and its uiBus channel stays open while we inject.
+    const turnPromise = server.postChat(turn('hi'), 'h-a').catch(() => '')
+    const deadline = Date.now() + 5000
+    while (!readLock(stateRoot, 'h-a').held && Date.now() < deadline) await new Promise((r) => setTimeout(r, 25))
+    // Give the SSE body its first pull so uiBus.run() has registered h-a's channel.
+    let injectedA = false
+    while (Date.now() < deadline) {
+      const res = await server.post('/api/chat/ui', {kind: 'confirm', renderId: 'r-a', question: 'ok?'}, 'h-a')
+      injectedA = ((await res.json()) as {injected: boolean}).injected
+      if (injectedA) break
+      await new Promise((r) => setTimeout(r, 25))
+    }
+    expect(injectedA).toBe(true)
+    // A different session with no live turn rejects the inject.
+    const bRes = await server.post('/api/chat/ui', {kind: 'confirm', renderId: 'r-b', question: 'ok?'}, 'h-b')
+    expect(((await bRes.json()) as {injected: boolean}).injected).toBe(false)
+    // Stop the hung turn so the server can close cleanly.
+    await server.post('/api/chat/stop', {}, 'h-a')
+    await turnPromise
   })
 })

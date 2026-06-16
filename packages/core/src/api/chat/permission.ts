@@ -4,6 +4,7 @@ import {z} from 'zod'
 import {classifyCommand} from '../../policy/command-policy.js'
 import type {UiBus} from '../../runtime/ui-bus.js'
 import {makePending} from '../../pending.js'
+import {sessionIdFromHeaders} from './session-id.js'
 
 // The risky-Bash approval gate: safe commands run; risky ones surface a confirm card and block
 // until the user answers or the timeout fires (fail closed).
@@ -11,20 +12,20 @@ import {makePending} from '../../pending.js'
 const APPROVAL_TIMEOUT_MS = 120_000
 
 export type PermissionGate = {
-  decide(toolName: string, toolInput: unknown): Promise<'allow' | 'deny'>
+  decide(toolName: string, toolInput: unknown, sessionId: string): Promise<'allow' | 'deny'>
   resolve(renderId: string, approved: boolean): void
 }
 
 export function makePermissionGate(uiBus: UiBus, timeoutMs = APPROVAL_TIMEOUT_MS): PermissionGate {
   const pending = makePending<boolean>()
 
-  async function decide(toolName: string, toolInput: unknown): Promise<'allow' | 'deny'> {
+  async function decide(toolName: string, toolInput: unknown, sessionId: string): Promise<'allow' | 'deny'> {
     if (toolName !== 'Bash') return 'allow'
     const parsed = BashInputSchema.safeParse(toolInput)
     const command = parsed.success ? parsed.data.command : ''
     if (classifyCommand(command) === 'allow') return 'allow'
     const renderId = randomUUID()
-    const injected = uiBus.inject({kind: 'approval', renderId, question: 'Run this command?', detail: command})
+    const injected = uiBus.inject(sessionId, {kind: 'approval', renderId, question: 'Run this command?', detail: command})
     if (!injected) return 'deny' // no live chat stream to ask on → fail closed
     try {
       return (await pending.await(renderId, timeoutMs)) ? 'allow' : 'deny'
@@ -45,7 +46,8 @@ export function registerPermissionRoutes(app: H3, gate: PermissionGate, gated: b
     const parsed = await readValidatedBody(event, HookBodySchema.safeParse)
     const toolName = parsed.success ? parsed.data.tool_name : ''
     const toolInput = parsed.success ? parsed.data.tool_input : undefined
-    const decision = gated ? await gate.decide(toolName, toolInput) : 'allow'
+    const sessionId = sessionIdFromHeaders(event.req.headers)
+    const decision = gated ? await gate.decide(toolName, toolInput, sessionId) : 'allow'
     return {
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',

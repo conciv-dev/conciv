@@ -9,10 +9,14 @@ export function defaultOrigin(): string {
 }
 
 export async function sendJson(method: 'GET' | 'POST', url: string, body?: Record<string, unknown>): Promise<string> {
+  // The session id (injected into the agent's env as AIDX_SESSION_ID) rides every call so core
+  // routes the agent's `aidx ui` / permission-hook requests to the originating turn's channel.
+  const sessionId = process.env.AIDX_SESSION_ID
+  const sessionHeader: Record<string, string> = sessionId ? {'aidx-session-id': sessionId} : {}
   const init: RequestInit =
     method === 'POST'
-      ? {method, headers: {'content-type': 'application/json'}, body: JSON.stringify(body ?? {})}
-      : {method}
+      ? {method, headers: {'content-type': 'application/json', ...sessionHeader}, body: JSON.stringify(body ?? {})}
+      : {method, headers: sessionHeader}
   const res = await fetch(url, init)
   return res.text()
 }

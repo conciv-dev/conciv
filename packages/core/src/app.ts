@@ -23,7 +23,7 @@ export type MakeAppOpts = {
   bridge?: BundlerBridge
   openInEditor: OpenInEditor
   systemPromptFile?: string
-  spawnHarness: (args: string[], cwd: string) => HarnessChild
+  spawnHarness: (args: string[], cwd: string, sessionId?: string) => HarnessChild
 }
 
 // Resolve a registered adapter or fall back to the built-in; throw if even that is missing
@@ -63,15 +63,15 @@ export function makeApp(opts: MakeAppOpts): H3 {
   registerTestRunnerRoutes(app, runner)
   // Expose aidx tools to the harness CLI via MCP-over-HTTP on the same server, bridged to the live
   // uiBus / page bus / test runner.
-  registerMcpRoutes(app, {
-    injectUi: (spec) => uiBus.inject(spec),
+  registerMcpRoutes(app, (sessionId) => ({
+    injectUi: (spec) => uiBus.inject(sessionId, spec),
     page: (query) => page.ask(query),
     test: async ({kind, pattern}) => {
       if (kind === 'list') return runner.list()
       if (kind === 'run') return runner.run({patterns: pattern ? [pattern] : undefined})
       return runner.status()
     },
-  })
+  }))
   if (opts.bridge) registerServerRoutes(app, opts.bridge)
   return app
 }
