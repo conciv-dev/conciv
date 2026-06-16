@@ -20,6 +20,8 @@ import {
 } from '@aidx/protocol/usage-types'
 import {TestRunResultSchema, type TestRunResult} from '@aidx/protocol/test-types'
 import type {ComposerActionDef, ComposerControlDef, PanelDef} from './widget-shell.js'
+import {GrabReference} from './react-grab/grab-reference.js'
+import type {Grab} from './react-grab/grab-types.js'
 
 // Pull the Bash command out of a tool-call part (input.command, or parsed from arguments).
 function toolCommand(part: {input?: unknown; arguments?: string}): string {
@@ -94,6 +96,9 @@ function analyzeTests(parts: ReadonlyArray<MessagePart>): TestAnalysis {
 }
 
 const STARTERS = ['Explain this page', 'Change the primary color', "Why doesn't this layout fit?"]
+
+// Width the staged grab preview scales to fit — sits comfortably inside the min (300px) panel width.
+const GRAB_PREVIEW_MAX_W = 280
 
 // Human label + glyph for a tool-call lifecycle state; `active` = the turn is still generating.
 function toolCallStatus(state: ToolCallState, active: boolean): {glyph: string; label: string} {
@@ -392,6 +397,10 @@ export function ChatPanel(props: {
     onChunk,
   })
   const [input, setInput] = createSignal('')
+  // Grabbed-element previews staged above the composer (composer draft state, cleared on send). The
+  // textarea holds only the user's prose — each grab's text context is kept here and composed in at
+  // send time, so removing a chip drops exactly that grab and never touches what the user typed.
+  const [grabs, setGrabs] = createSignal<Grab[]>([])
   // The session id whose thread is currently loaded into this panel. Shared by first-activation
   // hydrate and switching, so neither double-loads. undefined until the first load lands.
   const loadedSessionId = {current: null as string | null}
@@ -532,21 +541,39 @@ export function ChatPanel(props: {
     e.preventDefault()
     const text = input().trim()
     if (!text || chat.isLoading() || compacting()) return
+    // Each staged grab's element context grounds the message ahead of the user's instruction.
+    const context = grabs()
+      .map((g) => g.text)
+      .join('\n')
+    const message = context ? `${context}\n\n${text}` : text
     setInput('')
+    setGrabs([])
     if (inputEl) inputEl.style.height = 'auto'
-    void chat.sendMessage(text)
+    void chat.sendMessage(message)
   }
 
-  // Append inserted text (e.g. a grabbed element reference) into THIS composer for the user to edit.
-  const insert = (text: string) => {
-    setInput((prev) => (prev ? `${prev}\n${text}` : text))
+  const focusInput = () =>
     requestAnimationFrame(() => {
       if (inputEl) {
         autoGrow(inputEl)
         inputEl.focus()
       }
     })
+
+  // Append inserted text (e.g. a grabbed element reference) into THIS composer for the user to edit.
+  const insert = (text: string) => {
+    setInput((prev) => (prev ? `${prev}\n${text}` : text))
+    focusInput()
   }
+
+  // Stage a grabbed element as a preview chip. Its text context is held in `grabs`, not the input.
+  const stageGrab = (g: Grab) => {
+    setGrabs((prev) => [...prev, g])
+    focusInput()
+  }
+
+  // Remove one staged chip (by reference). Pure draft state — the user's typed text is untouched.
+  const removeGrab = (g: Grab) => setGrabs((prev) => prev.filter((x) => x !== g))
 
   // Session boundaries drawn into the scrollback — the prior thread is never wiped, just separated.
   // `afterCount` is the message count at insert time, so the divider renders before the next message.
@@ -628,6 +655,7 @@ export function ChatPanel(props: {
     void Promise.resolve(
       a.onClick({
         insert,
+        stageGrab,
         setBusy: (b) => setBusyAction(b ? a.id : null),
         apiBase: props.apiBase,
         client,
@@ -729,6 +757,9 @@ export function ChatPanel(props: {
         <div class="pw-chat-notice">{notice()}</div>
       </Show>
       <form class="pw-chat-composer" onSubmit={submit}>
+        <For each={grabs()}>
+          {(g) => <GrabReference grab={g} maxWidth={GRAB_PREVIEW_MAX_W} onRemove={() => removeGrab(g)} />}
+        </For>
         <div class="pw-chat-box">
           <textarea
             class="pw-chat-input"

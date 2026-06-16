@@ -1,5 +1,7 @@
-import type {ReactGrabAPI} from 'react-grab'
+import type {ReactGrabAPI, SourceInfo} from 'react-grab'
 import {setPicking, setCancelPick} from './picking.js'
+import {captureElement} from './capture-element.js'
+import type {ElementSource, Grab} from './grab-types.js'
 
 // Lazy, dev-only integration of react-grab as the element-selection engine. Auto-init and the
 // react-grab toolbar are disabled; we drive it from the composer. Every grab (select/comment/
@@ -19,7 +21,13 @@ declare global {
   }
 }
 
-export type GrabSink = (content: string) => void
+export type GrabSink = (grab: Grab) => void
+
+// The one place react-grab's SourceInfo crosses into our domain types.
+function toElementSource(info: SourceInfo | null): ElementSource | null {
+  if (!info) return null
+  return {componentName: info.componentName, filePath: info.filePath, lineNumber: info.lineNumber}
+}
 
 export type ReactGrabAdapter = {
   activate: (onGrab: GrabSink) => void // bind sink, then enter selection mode
@@ -50,9 +58,15 @@ async function create(): Promise<ReactGrabAdapter> {
       // reachable and react-grab's overlay (z-index max-int) doesn't fight our modal.
       onActivate: () => setPicking(true),
       onDeactivate: () => setPicking(false),
-      // Captures plain-select, Comment, and Style-edit content alike.
-      transformCopyContent: (content) => {
-        sink?.(content)
+      // Captures plain-select, Comment, and Style-edit content alike. Stays async so the pick stays
+      // open (element live) through the rAF capture + source lookup; both run before react-grab
+      // unfreezes the page. The text is returned unchanged — it's the agent-bound context.
+      transformCopyContent: async (content, elements) => {
+        const el = elements[0]
+        if (el) {
+          const [snapshot, info] = await Promise.all([captureElement(el), api.getSource(el)])
+          sink?.({text: content, snapshot, source: toElementSource(info)})
+        }
         return content
       },
     },

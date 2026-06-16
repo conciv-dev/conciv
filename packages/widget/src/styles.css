@@ -1130,6 +1130,69 @@
   padding: 12px;
   border-top: 1px solid var(--pw-line-soft);
 }
+/* The staged grabbed-element preview chip above the composer input: an accent-railed card holding
+   the live scaled element + its source location + a remove control. */
+.pw-grab-ref {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 8px;
+  padding: 12px;
+  border: 1px solid var(--pw-line);
+  border-left: 3px solid var(--pw-accent);
+  border-radius: var(--pw-r-md);
+  background: var(--pw-fill);
+  font-family: var(--pw-mono);
+  font-size: 11px;
+}
+.pw-grab-ref-stage {
+  display: inline-flex;
+  overflow: hidden;
+  /* No surface of our own — the element sits directly on the chip, showing only its real styling. */
+  max-width: 100%;
+  cursor: default;
+}
+.pw-grab-ref-scale {
+  transform-origin: top left;
+  flex: none;
+  /* Inert preview: the clone doesn't inline pointer-events/cursor (see capture-element), so this
+     cascades cleanly to the whole subtree — no hover, no clicks, no stray cursor. */
+  pointer-events: none;
+}
+.pw-grab-ref-src {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--pw-text-2);
+  word-break: break-all;
+}
+.pw-grab-ref-arrow {
+  color: var(--pw-accent);
+}
+.pw-grab-ref-remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--pw-r-pill);
+  background: transparent;
+  color: var(--pw-text-2);
+  cursor: pointer;
+  transition:
+    color 120ms var(--pw-ease),
+    background-color 120ms var(--pw-ease);
+}
+.pw-grab-ref-remove:hover {
+  color: var(--pw-text-hi);
+  background: var(--pw-line);
+}
 /* The whole composer is one bordered box: textarea on top, action bar inside the bottom,
    focus ring on the box (not the textarea). */
 .pw-chat-box {

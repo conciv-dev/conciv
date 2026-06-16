@@ -16,6 +16,7 @@ import {readStorage, writeStorage} from './persisted-signal.js'
 import {defineClient, type SessionClient} from './session-client.js'
 import {SessionId, isSessionId} from '@aidx/protocol/chat-types'
 import type {UsageSnapshot} from '@aidx/protocol/usage-types'
+import type {Grab} from './react-grab/grab-types.js'
 
 // Read our persisted active id, accepting only a valid aidx_ id (a stale/foreign value is dropped).
 const parseActiveId = (raw: string): SessionId | undefined => (isSessionId(raw) ? SessionId.parse(raw) : undefined)
@@ -57,6 +58,9 @@ export type PanelDef = {
 // "add attachment" extend the bag rather than reshaping the registry.
 export type ComposerActionContext = {
   insert: (text: string) => void // append text to this composer's input + focus it
+  // Stage a grabbed element: insert its text context AND show the preview chip as one unit, so
+  // removing the chip later strips exactly that inserted text and nothing else.
+  stageGrab: (grab: Grab) => void
   setBusy: (busy: boolean) => void
   apiBase: string
   // The active surface's session client (resolve a new session, launch the current one, etc.).

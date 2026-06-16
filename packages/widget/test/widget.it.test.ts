@@ -37,8 +37,14 @@ function pageHtml(): string {
   return `<!doctype html><html><head>
     <meta name="pw-api-base" content="">
     <meta name="pw-widget" content='{"quickTerminal":false}'>
+    <style>
+      #grab-target { width: 220px; padding: 16px; border-radius: 12px; color: rgb(255, 255, 255);
+        background: rgb(91, 58, 166); box-shadow: 0 10px 20px rgba(0,0,0,.4); font-weight: 700; }
+      #grab-target::before { content: "PRO"; display: block; font-size: 11px; opacity: .7; }
+    </style>
   </head><body>
     <div id="probe">page-bus-ok</div>
+    <div id="grab-target">Upgrade plan</div>
     <script>${widgetBundle}</script>
   </body></html>`
 }
@@ -1060,6 +1066,78 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await page.goto(state.base)
     const body = (await reply).postDataJSON() as {requestId: string; data: {error?: string}}
     expect(body.data.error).toContain('no React fiber')
+    await page.close()
+  })
+
+  it('Grab element: stages preview chips beside untouched input; remove drops one; send composes context', async () => {
+    const page = await browser.newPage()
+    await page.setViewportSize({width: 1000, height: 800})
+    await page.goto(state.base)
+    const fab = page.getByRole('button', {name: 'Open aidx chat'})
+    await fab.waitFor({state: 'visible'})
+    await fab.click()
+    await page.getByText('How can I help you today?').waitFor({state: 'visible'})
+
+    // The user's own prose is in the composer first; grabs must never pollute it.
+    const composer = page.getByLabel('Message the aidx agent')
+    await composer.fill('make these pop')
+
+    const chips = page.locator('.pw-grab-ref')
+    // Enter selection via the composer action, then pick the styled target. react-grab lays a
+    // full-page overlay (z-index max) that intercepts pointer events and resolves the element under
+    // the point, so we drive raw mouse move+click at the target's coords rather than a locator click.
+    const pick = async (expectCount: number) => {
+      await page.getByRole('button', {name: 'Select an element from the page'}).click()
+      await page.locator('.pw-pick-pill').waitFor({state: 'visible'})
+      const box = await page.locator('#grab-target').boundingBox()
+      if (!box) throw new Error('no #grab-target box')
+      const cx = box.x + box.width / 2
+      const cy = box.y + box.height / 2
+      await page.mouse.move(cx, cy)
+      await page.mouse.move(cx + 1, cy + 1)
+      await page.mouse.click(cx, cy)
+      await chips.nth(expectCount - 1).waitFor({state: 'visible'})
+    }
+
+    await pick(1)
+    // The grab's text context did NOT land in the input — the textarea is still only the user's prose.
+    expect(await composer.inputValue()).toBe('make these pop')
+
+    // The chip renders the live, styled clone scaled to fit.
+    const scale = chips.first().locator('.pw-grab-ref-scale')
+    // The clone carries the original's inlined computed background (proves getComputedStyle inlining).
+    const bg = await scale.evaluate((el) =>
+      [...el.querySelectorAll('*')]
+        .map((n) => getComputedStyle(n).backgroundColor)
+        .find((c) => c === 'rgb(91, 58, 166)'),
+    )
+    expect(bg).toBe('rgb(91, 58, 166)')
+    // The ::before glyph survived as a scoped rule (cloneNode alone drops it).
+    const pseudo = await scale.evaluate((el) => {
+      for (const n of el.querySelectorAll('*')) {
+        const c = getComputedStyle(n, '::before').content
+        if (c && c.includes('PRO')) return c
+      }
+      return null
+    })
+    expect(pseudo).toContain('PRO')
+    // The real text node came through, and the layer is scaled (never upscaled past 1:1).
+    expect(await scale.textContent()).toContain('Upgrade plan')
+    const transform = await scale.evaluate((el) => getComputedStyle(el).transform)
+    expect(transform === 'none' || transform.startsWith('matrix')).toBe(true)
+
+    // A second pick stacks a second chip (multi-grab is real, not last-wins).
+    await pick(2)
+    expect(await chips.count()).toBe(2)
+
+    // Removing one chip drops exactly that grab and leaves the typed prose intact.
+    await chips.first().locator('.pw-grab-ref-remove').click()
+    expect(await chips.count()).toBe(1)
+    expect(await composer.inputValue()).toBe('make these pop')
+
+    // Sending composes the remaining grab context with the message, then clears the chips.
+    await composer.press('Enter')
+    await chips.first().waitFor({state: 'hidden'})
     await page.close()
   })
 })
