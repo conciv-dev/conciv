@@ -40,6 +40,7 @@ abstract class BaseTextAdapter<TModel extends string, TProviderOptions extends R
 ## File structure
 
 **New files**
+
 - `packages/tools/` — new package `@aidx/tools`. The `toolDefinition().server()` registry.
   - `packages/tools/package.json`, `tsconfig.json`, `tsdown.config.ts`
   - `packages/tools/src/types.ts` — `AidxToolContext` (handles the tools bridge to)
@@ -51,6 +52,7 @@ abstract class BaseTextAdapter<TModel extends string, TProviderOptions extends R
 - `packages/core/src/api/mcp/mcp.ts` — `registerMcpRoutes(app, deps)` (the `/api/mcp` server)
 
 **Modified files**
+
 - `packages/protocol/src/harness-types.ts` — add `mcp` capability, `mcpUrl` turn field, decoder opts (`runId`/`threadId`/`logger`)
 - `packages/harness/src/_shared/agui.ts` — thread `runId`/`threadId`/`logger`; non-empty delta guard
 - `packages/harness/src/claude/index.ts` — `capabilities.mcp: 'http'`
@@ -68,6 +70,7 @@ abstract class BaseTextAdapter<TModel extends string, TProviderOptions extends R
 ### Task 1: Extend the harness contract (capabilities, turn, decoder opts)
 
 **Files:**
+
 - Modify: `packages/protocol/src/harness-types.ts`
 
 - [ ] **Step 1: Add the `mcp` capability, `mcpUrl`, and decoder opts**
@@ -114,10 +117,7 @@ export type HarnessDecodeOpts = {
   logger?: HarnessDecodeLogger
 }
 
-export type HarnessDecoder = (
-  lines: AsyncIterable<string>,
-  opts: HarnessDecodeOpts,
-) => AsyncGenerator<StreamChunk>
+export type HarnessDecoder = (lines: AsyncIterable<string>, opts: HarnessDecodeOpts) => AsyncGenerator<StreamChunk>
 ```
 
 Also extend `HarnessChild` with an optional writable stdin (native image delivery writes a
@@ -139,19 +139,19 @@ Add `deliverInput?: HarnessDeliverInput` to `HarnessAdapterBase`. Leave `Harness
 - [ ] **Step 2: Typecheck the protocol package**
 
 Run: `pnpm --filter @aidx/protocol typecheck`
-Expected: FAIL — existing harness adapters don't yet set `mcp`, and `agui.ts`/`decode.ts` still use the old opts. These are fixed in later tasks; the protocol package itself compiles, but dependents break. Confirm the *protocol* package's own `tsc` passes (the break is downstream).
+Expected: FAIL — existing harness adapters don't yet set `mcp`, and `agui.ts`/`decode.ts` still use the old opts. These are fixed in later tasks; the protocol package itself compiles, but dependents break. Confirm the _protocol_ package's own `tsc` passes (the break is downstream).
 
 - [ ] **Step 3: Set `mcp` + `imageInput` on every adapter so the workspace typechecks again**
 
 Add both new capability fields to each adapter's `capabilities` (`packages/harness/src/*/index.ts`):
 
-| Harness | `mcp` | `imageInput` |
-|---------|-------|--------------|
-| claude | `'http'` | `'native'` |
-| codex | `'http'` | `'fileRef'` (verify during impl; else `false`) |
-| gemini-cli | `'none'` | `false` |
-| opencode | `'none'` | `false` |
-| pi | `'none'` | `false` |
+| Harness    | `mcp`    | `imageInput`                                   |
+| ---------- | -------- | ---------------------------------------------- |
+| claude     | `'http'` | `'native'`                                     |
+| codex      | `'http'` | `'fileRef'` (verify during impl; else `false`) |
+| gemini-cli | `'none'` | `false`                                        |
+| opencode   | `'none'` | `false`                                        |
+| pi         | `'none'` | `false`                                        |
 
 Example (claude):
 
@@ -178,6 +178,7 @@ git commit -m "feat(protocol): add mcp + imageInput caps, mcpUrl/images on turn,
 ### Task 2: Thread runId/threadId/logger through runAgui; non-empty delta guard
 
 **Files:**
+
 - Modify: `packages/harness/src/_shared/agui.ts`
 - Modify: `packages/harness/src/claude/decode.ts` (signature pass-through only)
 - Modify: `packages/harness/src/codex/decode.ts` (same)
@@ -224,6 +225,7 @@ Expected: FAIL — `runAgui` ignores `runId`/`threadId` (uses hardcoded constant
 - [ ] **Step 3: Update `runAgui` and the emitters**
 
 In `packages/harness/src/_shared/agui.ts`:
+
 - Replace the `THREAD_ID`/`RUN_ID` constants usage. Change `runAgui`'s signature to read ids/logger from opts:
 
 ```ts
@@ -288,6 +290,7 @@ git commit -m "feat(harness): thread runId/threadId/logger through runAgui; guar
 ### Task 3: The HarnessTextAdapter + harnessText factory
 
 **Files:**
+
 - Create: `packages/harness/src/_shared/text-adapter.ts`
 - Test: `packages/harness/test/text-adapter.it.test.ts`
 
@@ -319,17 +322,21 @@ const spawnHarness = (args: string[], cwd: string): HarnessChild => {
 }
 
 describe('harnessText adapter', () => {
-  it.skipIf(!hasClaude())('drives claude through chat() with one lifecycle pair', async () => {
-    const adapter = harnessText(claude, {cwd: process.cwd(), spawnHarness, systemPrompt: '', onSpawn() {}})
-    const out: StreamChunk[] = []
-    for await (const chunk of chat({adapter, messages: [{role: 'user', content: 'reply with exactly PONG'}]})) {
-      out.push(chunk)
-    }
-    expect(out.filter((c) => c.type === EventType.RUN_STARTED)).toHaveLength(1)
-    expect(out.filter((c) => c.type === EventType.RUN_FINISHED)).toHaveLength(1)
-    const text = out.flatMap((c) => (c.type === EventType.TEXT_MESSAGE_CONTENT ? [c.delta] : [])).join('')
-    expect(text.toUpperCase()).toContain('PONG')
-  }, 60_000)
+  it.skipIf(!hasClaude())(
+    'drives claude through chat() with one lifecycle pair',
+    async () => {
+      const adapter = harnessText(claude, {cwd: process.cwd(), spawnHarness, systemPrompt: '', onSpawn() {}})
+      const out: StreamChunk[] = []
+      for await (const chunk of chat({adapter, messages: [{role: 'user', content: 'reply with exactly PONG'}]})) {
+        out.push(chunk)
+      }
+      expect(out.filter((c) => c.type === EventType.RUN_STARTED)).toHaveLength(1)
+      expect(out.filter((c) => c.type === EventType.RUN_FINISHED)).toHaveLength(1)
+      const text = out.flatMap((c) => (c.type === EventType.TEXT_MESSAGE_CONTENT ? [c.delta] : [])).join('')
+      expect(text.toUpperCase()).toContain('PONG')
+    },
+    60_000,
+  )
 })
 ```
 
@@ -445,7 +452,11 @@ export class HarnessTextAdapter extends BaseTextAdapter<string, Record<string, n
   }
 
   structuredOutput(_options: StructuredOutputOptions<Record<string, never>>): Promise<StructuredOutputResult<unknown>> {
-    return Promise.reject(new Error(`harness '${this.harness.id}' does not support structured output (coding CLIs have no native schema mode)`))
+    return Promise.reject(
+      new Error(
+        `harness '${this.harness.id}' does not support structured output (coding CLIs have no native schema mode)`,
+      ),
+    )
   }
 }
 
@@ -480,6 +491,7 @@ git commit -m "feat(harness): HarnessTextAdapter (extends BaseTextAdapter) + har
 ### Task 4: Route the chat turn through chat()
 
 **Files:**
+
 - Modify: `packages/core/src/api/chat/turn.ts`
 - Test: `packages/core/test/api/chat/chat.it.test.ts` (existing — extend assertions)
 
@@ -540,7 +552,12 @@ app.post('/api/chat', async (event) => {
     },
   })
 
-  const stream = chat({adapter, messages: chatReq.messages, systemPrompts: sysText ? [sysText] : [], abortController: abort})
+  const stream = chat({
+    adapter,
+    messages: chatReq.messages,
+    systemPrompts: sysText ? [sysText] : [],
+    abortController: abort,
+  })
   const merged = uiBus.run(stream)
   const sse = toServerSentEventsStream(withLockRelease(merged, deps.stateRoot), abort)
   return new Response(sse, {status: 200, headers: sseHeaders(event)})
@@ -548,7 +565,8 @@ app.post('/api/chat', async (event) => {
 ```
 
 Notes (cast-free — repo rule forbids `as`):
-- `chatReq.messages` is already `UIMessage[]` (`@aidx/protocol/chat-types` re-exports `UIMessage` from `@tanstack/ai`), and `chat()` accepts `Array<UIMessage | ModelMessage>`, so it passes with no cast. If `tsc` reports a mismatch, fix the *type* of `ChatRequest['messages']` to be `UIMessage[]` — do not cast.
+
+- `chatReq.messages` is already `UIMessage[]` (`@aidx/protocol/chat-types` re-exports `UIMessage` from `@tanstack/ai`), and `chat()` accepts `Array<UIMessage | ModelMessage>`, so it passes with no cast. If `tsc` reports a mismatch, fix the _type_ of `ChatRequest['messages']` to be `UIMessage[]` — do not cast.
 - `chat()`'s streaming return is `AsyncIterable<StreamChunk>`, which `uiBus.run` accepts directly — no cast.
 - The `lastUserText` import + `mode === 'none'` prompt-prefix logic moves into the adapter (Task 3), so remove the now-unused `lastUserText` import from `turn.ts`.
 - The lock is acquired in `onSpawn` (after the child exists, so we still record the pid).
@@ -577,6 +595,7 @@ Absorbs the chat-image-input spec's **server half** for the `imageInput:'native'
 The composer/widget UI half stays in the chat-image-input plan; this task makes images reach claude.
 
 **Files:**
+
 - Modify: `packages/harness/src/claude/args.ts` (switch to stream-json stdin when images present)
 - Create: `packages/harness/src/claude/deliver-input.ts` (the `deliverInput` hook)
 - Modify: `packages/harness/src/claude/index.ts` (wire `deliverInput`)
@@ -594,6 +613,7 @@ Expected: FAIL — `buildClaudeArgs` ignores images and uses `-p`, so claude nev
 - [ ] **Step 3: Branch `buildClaudeArgs` on images**
 
 In `packages/harness/src/claude/args.ts`: when `turn.images?.length`, switch the invocation to stream-json stdin instead of `-p`:
+
 - Replace `'-p', turn.prompt` with `'-p', '--input-format', 'stream-json'` (keep `--output-format stream-json`). The user message (text + image blocks) is written to stdin by `deliverInput` (Step 4). When there are no images, keep today's `-p turn.prompt` argv unchanged.
 
 - [ ] **Step 4: Implement the `deliverInput` hook**
@@ -646,6 +666,7 @@ git commit -m "feat(harness): native image input for claude via stream-json stdi
 ### Task 5: Scaffold @aidx/tools with the aidx_ui tool
 
 **Files:**
+
 - Create: `packages/tools/package.json`, `packages/tools/tsconfig.json`, `packages/tools/tsdown.config.ts`
 - Create: `packages/tools/src/types.ts`, `packages/tools/src/ui.ts`, `packages/tools/src/registry.ts`
 - Test: `packages/tools/test/ui-tool.it.test.ts`
@@ -698,7 +719,11 @@ import {aidxTools} from '../src/registry.js'
 describe('aidx_ui tool', () => {
   it('bridges to the ctx.injectUi sink and returns injected:true', async () => {
     const seen: unknown[] = []
-    const tools = aidxTools({injectUi: (spec) => (seen.push(spec), true), page: async () => ({}), test: async () => ({})})
+    const tools = aidxTools({
+      injectUi: (spec) => (seen.push(spec), true),
+      page: async () => ({}),
+      test: async () => ({}),
+    })
     const ui = tools.find((t) => t.name === 'aidx_ui')!
     const result = await ui.execute({kind: 'confirm', question: 'ok?'}, {context: undefined})
     expect(seen).toHaveLength(1)
@@ -748,12 +773,22 @@ const UiInput = z.object({
   file: z.string().optional(),
   before: z.string().optional(),
   after: z.string().optional(),
-  fields: z.array(z.object({name: z.string(), label: z.string(), type: z.enum(['text', 'select']), options: z.array(z.string()).optional()})).optional(),
+  fields: z
+    .array(
+      z.object({
+        name: z.string(),
+        label: z.string(),
+        type: z.enum(['text', 'select']),
+        options: z.array(z.string()).optional(),
+      }),
+    )
+    .optional(),
 })
 
 export const aidxUiToolDef = toolDefinition({
   name: 'aidx_ui',
-  description: 'Render real interactive UI (choices/confirm/diff/form) in the chat thread. Non-blocking: the user reply arrives as their next chat message.',
+  description:
+    'Render real interactive UI (choices/confirm/diff/form) in the chat thread. Non-blocking: the user reply arrives as their next chat message.',
   inputSchema: UiInput,
 })
 
@@ -767,7 +802,7 @@ export function aidxUiTool(ctx: AidxToolContext) {
 }
 ```
 
-  - **Step 5a:** Move `buildUiSpec` (and `parseField`) from `packages/cli/src/ui.ts` into `packages/protocol/src/ui-types.ts`, export it, and re-import it in `cli/src/ui.ts` (so the CLI and the tool share one builder — DRY). Rebuild `@aidx/protocol`.
+- **Step 5a:** Move `buildUiSpec` (and `parseField`) from `packages/cli/src/ui.ts` into `packages/protocol/src/ui-types.ts`, export it, and re-import it in `cli/src/ui.ts` (so the CLI and the tool share one builder — DRY). Rebuild `@aidx/protocol`.
 
 - [ ] **Step 6: Implement the registry**
 
@@ -803,6 +838,7 @@ git commit -m "feat(tools): @aidx/tools package with aidx_ui tool; share buildUi
 ### Task 6: The /api/mcp streamable-HTTP server
 
 **Files:**
+
 - Create: `packages/core/src/api/mcp/mcp.ts`
 - Modify: `packages/core/package.json` (add `@modelcontextprotocol/sdk`)
 - Modify: `packages/core/src/app.ts` (register the route, pass uiBus/page/test)
@@ -814,10 +850,11 @@ git commit -m "feat(tools): @aidx/tools package with aidx_ui tool; share buildUi
 pnpm --filter @aidx/core add @modelcontextprotocol/sdk
 pnpm --filter @aidx/core add -D @tanstack/ai-mcp   # TEST-ONLY MCP client for /api/mcp (no hand-rolled JSON-RPC)
 ```
+
 Confirm a single version resolves and both server subpaths exist. Run: `pnpm --filter @aidx/core exec node -e "Promise.all([import('@modelcontextprotocol/sdk/server/mcp.js'),import('@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js')]).then(([a,b])=>console.log('McpServer' in a, 'WebStandardStreamableHTTPServerTransport' in b))"`
 Expected: prints `true true` (verified against 1.29.0). If a subpath differs, find it: `ls node_modules/.pnpm/@modelcontextprotocol+sdk@*/node_modules/@modelcontextprotocol/sdk/dist/esm/server/`.
 
-> **Why `@tanstack/ai-mcp` is test-only:** it is a host-side MCP *client* (for `chat()` to consume external MCP servers). In aidx's production path the *CLI* is the MCP client (via `--mcp-config`), so `chat()` never uses it. But our tests need an MCP client to exercise `/api/mcp` — `createMCPClient` is exactly that, so we use it instead of hand-rolling JSON-RPC.
+> **Why `@tanstack/ai-mcp` is test-only:** it is a host-side MCP _client_ (for `chat()` to consume external MCP servers). In aidx's production path the _CLI_ is the MCP client (via `--mcp-config`), so `chat()` never uses it. But our tests need an MCP client to exercise `/api/mcp` — `createMCPClient` is exactly that, so we use it instead of hand-rolling JSON-RPC.
 
 - [ ] **Step 2: Write the failing test (drive /api/mcp with the real MCP client)**
 
@@ -883,7 +920,10 @@ export function registerMcpRoutes(app: H3, ctx: AidxToolContext): void {
       )
     }
     // Web Standard transport: takes the web Request, returns a Response — stateless, JSON reply.
-    const transport = new WebStandardStreamableHTTPServerTransport({sessionIdGenerator: undefined, enableJsonResponse: true})
+    const transport = new WebStandardStreamableHTTPServerTransport({
+      sessionIdGenerator: undefined,
+      enableJsonResponse: true,
+    })
     await server.connect(transport)
     return transport.handleRequest(event.req)
   })
@@ -891,6 +931,7 @@ export function registerMcpRoutes(app: H3, ctx: AidxToolContext): void {
 ```
 
 Notes / verification (no casts — repo rule; if a type fights you, construct the real value or narrow, do NOT `as`):
+
 - `tool.inputSchema.shape` — confirm `aidx` tools expose their `z.object`'s `.shape`. `toolDefinition({inputSchema: z.object(...)})` keeps the ZodObject; if the `Tool` type widens `inputSchema` to `SchemaInput`, store the raw shape on the tool (or export the shape alongside) so this stays cast-free.
 - The `tool.execute(args, ctx)` second arg is `@tanstack/ai`'s `ToolExecutionContext`. Construct a real value (its fields are optional / `context` is the typed runtime context — `undefined` here since our tools close over `ctx`). Confirm the exact field names against the installed `ToolExecutionContext` type and fill them in; no cast.
 - No node-object bridge and no double-send concern: `handleRequest(event.req)` returns a `Response` that the h3 route returns directly. `event.req` is already a web `Request`.
@@ -928,6 +969,7 @@ git commit -m "feat(core): /api/mcp streamable-HTTP server bridging @tanstack/ai
 ### Task 7: Claude calls aidx_ui via MCP end-to-end (productionize the spike)
 
 **Files:**
+
 - Modify: `packages/harness/src/claude/args.ts`
 - Test: `packages/core/test/api/mcp/claude-mcp.it.test.ts`
 
@@ -940,16 +982,31 @@ import {execSync} from 'node:child_process'
 import {describe, expect, it} from 'vitest'
 import {startTestServer} from '../../helpers/server.js'
 
-function hasClaude(): boolean { try { execSync('command -v claude', {stdio: 'ignore'}); return true } catch { return false } }
+function hasClaude(): boolean {
+  try {
+    execSync('command -v claude', {stdio: 'ignore'})
+    return true
+  } catch {
+    return false
+  }
+}
 
 describe('claude → /api/mcp → uiBus', () => {
-  it.skipIf(!hasClaude())('claude calls aidx_ui and the inject reaches uiBus', async () => {
-    const injected: unknown[] = []
-    const {postChat, close} = await startTestServer({onInjectUi: (s: unknown) => (injected.push(s), true), harness: 'claude', realSpawn: true})
-    await postChat('Call the aidx_ui tool with kind "confirm" and question "Proceed?". Then reply DONE.')
-    expect(injected.length).toBeGreaterThanOrEqual(1)
-    await close()
-  }, 90_000)
+  it.skipIf(!hasClaude())(
+    'claude calls aidx_ui and the inject reaches uiBus',
+    async () => {
+      const injected: unknown[] = []
+      const {postChat, close} = await startTestServer({
+        onInjectUi: (s: unknown) => (injected.push(s), true),
+        harness: 'claude',
+        realSpawn: true,
+      })
+      await postChat('Call the aidx_ui tool with kind "confirm" and question "Proceed?". Then reply DONE.')
+      expect(injected.length).toBeGreaterThanOrEqual(1)
+      await close()
+    },
+    90_000,
+  )
 })
 ```
 
@@ -961,6 +1018,7 @@ Expected: FAIL — claude isn't told about the MCP server (`--mcp-config` not in
 - [ ] **Step 3: Inject `--mcp-config` and drop the Bash tool allowances**
 
 In `packages/harness/src/claude/args.ts`:
+
 - Add the MCP config when `turn.mcpUrl` is present; allow the MCP tool:
 
 ```ts
@@ -969,6 +1027,7 @@ if (turn.mcpUrl) {
   args.push('--allowedTools', 'mcp__aidx__aidx_ui', 'mcp__aidx__aidx_page', 'mcp__aidx__aidx_test')
 }
 ```
+
 - Remove the old `--allowedTools 'Bash(aidx tools:*)' 'Bash(aidx ui:*)'` entries from the base `args` array.
 
 - [ ] **Step 4: Run the end-to-end test**
@@ -995,6 +1054,7 @@ git commit -m "feat(harness): claude --mcp-config to /api/mcp; drop Bash(aidx) a
 ### Task 8: aidx_page tool wired to the page bus
 
 **Files:**
+
 - Modify: `packages/core/src/api/page/page.ts` (export the bus `ask` handle to `makeApp`)
 - Create: `packages/tools/src/page.ts`
 - Modify: `packages/tools/src/registry.ts`, `packages/core/src/app.ts`
@@ -1015,7 +1075,11 @@ import {aidxTools} from '../src/registry.js'
 describe('aidx_page tool', () => {
   it('forwards the verb+args to ctx.page and returns its result', async () => {
     const calls: unknown[] = []
-    const tools = aidxTools({injectUi: () => true, page: async (q) => (calls.push(q), {ok: true}), test: async () => ({})})
+    const tools = aidxTools({
+      injectUi: () => true,
+      page: async (q) => (calls.push(q), {ok: true}),
+      test: async () => ({}),
+    })
     const page = tools.find((t) => t.name === 'aidx_page')!
     const result = await page.execute({verb: 'tree', ref: 'main'}, {context: undefined})
     expect(calls[0]).toMatchObject({kind: 'tree', ref: 'main'})
@@ -1071,6 +1135,7 @@ git commit -m "feat(tools): aidx_page tool bridged to the live page bus"
 ### Task 9: aidx_test tool wired to the runner
 
 **Files:**
+
 - Create: `packages/tools/src/test.ts`
 - Modify: `packages/tools/src/registry.ts`, `packages/core/src/app.ts`
 - Test: `packages/tools/test/test-tool.it.test.ts`
@@ -1086,7 +1151,11 @@ import {aidxTools} from '../src/registry.js'
 describe('aidx_test tool', () => {
   it('forwards the action to ctx.test', async () => {
     const calls: unknown[] = []
-    const tools = aidxTools({injectUi: () => true, page: async () => ({}), test: async (a) => (calls.push(a), {tests: []})})
+    const tools = aidxTools({
+      injectUi: () => true,
+      page: async () => ({}),
+      test: async (a) => (calls.push(a), {tests: []}),
+    })
     const test = tools.find((t) => t.name === 'aidx_test')!
     const result = await test.execute({action: 'list'}, {context: undefined})
     expect(calls[0]).toMatchObject({kind: 'list'})
@@ -1141,6 +1210,7 @@ git commit -m "feat(tools): aidx_test tool bridged to the test runner"
 ### Task 10: Rewrite the react-introspection skill for MCP tools
 
 **Files:**
+
 - Modify: `packages/harness/plugins/claude/skills/react-introspection/SKILL.md`
 
 - [ ] **Step 1: Read the current skill and rewrite tool references**

@@ -31,6 +31,7 @@
 ### Task 1: Engine accepts a fixed port
 
 **Files:**
+
 - Modify: `packages/core/src/engine.ts:11-17` (StartOpts), `:52` (serve call)
 - Test: `packages/core/test/engine-port.test.ts`
 
@@ -70,7 +71,7 @@ In `packages/core/src/engine.ts`, add to `StartOpts` (after `childEnv`):
 Change the `serve` call (currently `port: 0`):
 
 ```ts
-  const server = serve({fetch: app.fetch, port: opts.port ?? 0, hostname: '127.0.0.1'})
+const server = serve({fetch: app.fetch, port: opts.port ?? 0, hostname: '127.0.0.1'})
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -90,6 +91,7 @@ git commit -m "feat(core): start accepts a fixed port"
 ### Task 2: Thread `port` through config + booter
 
 **Files:**
+
 - Modify: `packages/protocol/src/config-types.ts:4-16`
 - Modify: `packages/plugin/src/core/boot.ts:21-26`
 
@@ -107,13 +109,13 @@ In `packages/protocol/src/config-types.ts`, add inside the interface (after `tes
 In `packages/plugin/src/core/boot.ts`, update the `start({...})` call to pass the port:
 
 ```ts
-    booting = start({
-      options,
-      root,
-      port: options.port,
-      launchEditor: openInEditor,
-      childEnv: (corePort) => ({...process.env, PATH: agentPath, AIDX_PORT: String(corePort)}),
-    })
+booting = start({
+  options,
+  root,
+  port: options.port,
+  launchEditor: openInEditor,
+  childEnv: (corePort) => ({...process.env, PATH: agentPath, AIDX_PORT: String(corePort)}),
+})
 ```
 
 - [ ] **Step 3: Typecheck both packages**
@@ -133,6 +135,7 @@ git commit -m "feat(protocol,plugin): plumb fixed port through config + booter"
 ### Task 3: Widget resolves apiBase without a meta tag
 
 **Files:**
+
 - Modify: `packages/widget/src/mount.tsx:11-19`, `:28-32`
 - Test: `packages/widget/test/api-base.test.ts`
 
@@ -188,7 +191,7 @@ export function resolveApiBase(): string {
 In `mountWidget`, replace the apiBase line:
 
 ```ts
-  const apiBase = resolveApiBase()
+const apiBase = resolveApiBase()
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -208,6 +211,7 @@ git commit -m "feat(widget): resolve apiBase from window global, meta fallback"
 ### Task 4: `withAidx` + `register` core
 
 **Files:**
+
 - Create: `packages/plugin/src/core/nextjs.ts`
 - Test: `packages/plugin/test/nextjs.test.ts`
 
@@ -297,6 +301,7 @@ git commit -m "feat(plugin): withAidx config wrapper + instrumentation register"
 ### Task 5: Next.js entries + packaging
 
 **Files:**
+
 - Create: `packages/plugin/src/nextjs.ts`, `packages/plugin/src/nextjs-widget.ts`
 - Modify: `packages/plugin/tsdown.config.ts:7`, `packages/plugin/package.json:10-35,57-59`
 
@@ -392,6 +397,7 @@ git commit -m "feat(plugin): @aidx/plugin/nextjs server + client entries"
 ### Task 6: Scaffold and wire the example app
 
 **Files:**
+
 - Create: `apps/examples/nextjs-app/` (via `create-next-app`)
 - Create/modify: `next.config.ts`, `instrumentation.ts`, `instrumentation-client.ts`, `package.json`
 
@@ -465,6 +471,7 @@ git commit -m "feat(examples): Next.js App Router example wired to aidx"
 ### Task 7: Browser smoke test
 
 **Files:**
+
 - Create: `apps/examples/nextjs-app/tests/widget.smoke.spec.ts`
 - Modify: `apps/examples/nextjs-app/package.json` (add `playwright` devDep + `test:smoke` script)
 

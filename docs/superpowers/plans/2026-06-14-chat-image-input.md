@@ -30,25 +30,26 @@
 
 ## File structure (remaining)
 
-| File | Change | Responsibility |
-|------|--------|----------------|
-| `packages/protocol/src/config-types.ts` | modify | `chat.images` config + `IMAGE_DEFAULTS` |
-| `packages/core/src/config.ts` | modify | `resolveImageLimits` over defaults |
-| `packages/protocol/src/chat-types.ts` | modify | `images` block on `ChatSessionSchema` |
-| `packages/core/src/api/chat/session.ts` | modify | emit `images` block |
-| `packages/core/src/api/chat/chat.ts` | modify | thread `imageLimits` to the session route |
-| `packages/core/src/app.ts` | modify | resolve + pass `imageLimits` |
-| `packages/widget/src/image-validate.ts` | create | pure validation (unit-testable) |
-| `packages/widget/src/attachments.ts` | create | SolidJS attachment store |
-| `packages/widget/src/chat-shell.tsx` | modify | composer: button, dnd, paste, strip, render, submit |
-| `packages/widget/src/styles.css` | modify | composer image styles |
-| `packages/widget/test/widget.it.test.ts` | modify | session fixture + browser IT |
+| File                                     | Change | Responsibility                                      |
+| ---------------------------------------- | ------ | --------------------------------------------------- |
+| `packages/protocol/src/config-types.ts`  | modify | `chat.images` config + `IMAGE_DEFAULTS`             |
+| `packages/core/src/config.ts`            | modify | `resolveImageLimits` over defaults                  |
+| `packages/protocol/src/chat-types.ts`    | modify | `images` block on `ChatSessionSchema`               |
+| `packages/core/src/api/chat/session.ts`  | modify | emit `images` block                                 |
+| `packages/core/src/api/chat/chat.ts`     | modify | thread `imageLimits` to the session route           |
+| `packages/core/src/app.ts`               | modify | resolve + pass `imageLimits`                        |
+| `packages/widget/src/image-validate.ts`  | create | pure validation (unit-testable)                     |
+| `packages/widget/src/attachments.ts`     | create | SolidJS attachment store                            |
+| `packages/widget/src/chat-shell.tsx`     | modify | composer: button, dnd, paste, strip, render, submit |
+| `packages/widget/src/styles.css`         | modify | composer image styles                               |
+| `packages/widget/test/widget.it.test.ts` | modify | session fixture + browser IT                        |
 
 ---
 
 ## Task 1: image limits config + defaults
 
 **Files:**
+
 - Modify: `packages/protocol/src/config-types.ts`
 - Modify: `packages/core/src/config.ts`
 - Test: `packages/core/test/config.test.ts`
@@ -127,6 +128,7 @@ git commit -m "feat(config): configurable chat.images limits with sane defaults"
 ## Task 2: surface capability + limits on the session
 
 **Files:**
+
 - Modify: `packages/protocol/src/chat-types.ts`
 - Modify: `packages/core/src/api/chat/session.ts`
 - Modify: `packages/core/src/api/chat/chat.ts`
@@ -231,6 +233,7 @@ git commit -m "feat(core): surface image capability + limits on chat session"
 ## Task 3: widget — pure image validation
 
 **Files:**
+
 - Create: `packages/widget/src/image-validate.ts`
 - Test: `packages/widget/test/image-validate.test.ts`
 
@@ -250,7 +253,10 @@ describe('validateImage', () => {
     expect(validateImage({type: 'image/bmp', size: 10}, 0, limits)).toEqual({ok: false, error: 'Unsupported type'})
   })
   it('rejects an oversize file', () => {
-    expect(validateImage({type: 'image/png', size: 200}, 0, limits)).toEqual({ok: false, error: 'Too large (max 0.1MB)'})
+    expect(validateImage({type: 'image/png', size: 200}, 0, limits)).toEqual({
+      ok: false,
+      error: 'Too large (max 0.1MB)',
+    })
   })
   it('rejects when the count limit is reached', () => {
     expect(validateImage({type: 'image/png', size: 10}, 2, limits)).toEqual({ok: false, error: 'Max 2 images'})
@@ -271,10 +277,15 @@ import type {ImageLimits} from '@aidx/protocol/config-types'
 export type ValidateResult = {ok: true} | {ok: false; error: string}
 
 // Pure guard for one candidate file given how many images are already staged.
-export function validateImage(file: {type: string; size: number}, currentCount: number, limits: ImageLimits): ValidateResult {
+export function validateImage(
+  file: {type: string; size: number},
+  currentCount: number,
+  limits: ImageLimits,
+): ValidateResult {
   if (currentCount >= limits.maxCount) return {ok: false, error: `Max ${limits.maxCount} images`}
   if (!limits.accept.includes(file.type)) return {ok: false, error: 'Unsupported type'}
-  if (file.size > limits.maxBytes) return {ok: false, error: `Too large (max ${(limits.maxBytes / 1024 / 1024).toFixed(1)}MB)`}
+  if (file.size > limits.maxBytes)
+    return {ok: false, error: `Too large (max ${(limits.maxBytes / 1024 / 1024).toFixed(1)}MB)`}
   return {ok: true}
 }
 ```
@@ -296,6 +307,7 @@ git commit -m "feat(widget): pure image-validation guard"
 ## Task 4: widget — attachment store
 
 **Files:**
+
 - Create: `packages/widget/src/attachments.ts`
 
 (Behavior exercised by the browser IT in Task 9 — `FileReader`/object URLs are browser-only, no jsdom unit test. This task is a typed implementation step.)
@@ -339,7 +351,10 @@ export function createImageAttachments(limits: () => ImageLimits) {
     const id = `img-${counter++}`
     files.set(id, file)
     setError('')
-    setPending((p) => [...p, {id, name: file.name, mimeType: file.type, bytes: file.size, previewUrl: URL.createObjectURL(file)}])
+    setPending((p) => [
+      ...p,
+      {id, name: file.name, mimeType: file.type, bytes: file.size, previewUrl: URL.createObjectURL(file)},
+    ])
   }
 
   const remove = (id: string): void => {
@@ -387,6 +402,7 @@ git commit -m "feat(widget): image attachment store (add/remove/clear/sendAll)"
 ## Task 5: widget — composer upload button, thumbnail strip, submit
 
 **Files:**
+
 - Modify: `packages/widget/src/chat-shell.tsx`
 - Modify: `packages/widget/src/styles.css`
 
@@ -437,8 +453,14 @@ const submit = (e: Event) => {
 function PaperclipIcon(): JSX.Element {
   return (
     <svg class="pw-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M21 11.5l-8.5 8.5a5 5 0 01-7-7l8.5-8.5a3.3 3.3 0 014.7 4.7l-8.5 8.5a1.7 1.7 0 01-2.4-2.4l7.8-7.8"
-        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+      <path
+        d="M21 11.5l-8.5 8.5a5 5 0 01-7-7l8.5-8.5a3.3 3.3 0 014.7 4.7l-8.5 8.5a1.7 1.7 0 01-2.4-2.4l7.8-7.8"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
     </svg>
   )
 }
@@ -455,14 +477,23 @@ function PaperclipIcon(): JSX.Element {
           {(img) => (
             <div class="pw-chat-thumb">
               <img src={img.previewUrl} alt={img.name} />
-              <button type="button" class="pw-chat-thumb-x" aria-label={`Remove ${img.name}`} onClick={() => attachments.remove(img.id)}>✕</button>
+              <button
+                type="button"
+                class="pw-chat-thumb-x"
+                aria-label={`Remove ${img.name}`}
+                onClick={() => attachments.remove(img.id)}
+              >
+                ✕
+              </button>
             </div>
           )}
         </For>
       </div>
     </Show>
     <Show when={attachments.error()}>
-      <div class="pw-chat-thumb-err" role="alert">{attachments.error()}</div>
+      <div class="pw-chat-thumb-err" role="alert">
+        {attachments.error()}
+      </div>
     </Show>
   </Show>
   <div class="pw-chat-composer-row">
@@ -475,7 +506,9 @@ function PaperclipIcon(): JSX.Element {
         class="pw-chat-file"
         accept={imageCaps().accept.join(',')}
         multiple={imageCaps().maxCount > 1}
-        ref={(el) => { fileInputEl = el }}
+        ref={(el) => {
+          fileInputEl = el
+        }}
         onChange={(e) => {
           for (const f of Array.from(e.currentTarget.files ?? [])) attachments.add(f)
           e.currentTarget.value = ''
@@ -490,7 +523,9 @@ function PaperclipIcon(): JSX.Element {
       value={input()}
       onInput={(e) => setInput(e.currentTarget.value)}
       onKeyDown={onKeyDown}
-      ref={(el) => { inputEl = el }}
+      ref={(el) => {
+        inputEl = el
+      }}
     />
     {/* existing send/stop <Show> block, unchanged except the disabled rule below */}
   </div>
@@ -571,7 +606,9 @@ Update the send button `disabled` to also enable with staged images: `disabled={
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: background-color 120ms var(--pw-ease), color 120ms var(--pw-ease);
+  transition:
+    background-color 120ms var(--pw-ease),
+    color 120ms var(--pw-ease);
 }
 .pw-chat-attach:hover {
   background: var(--pw-fill);
@@ -599,6 +636,7 @@ git commit -m "feat(widget): composer upload button, thumbnail strip, image send
 ## Task 6: widget — drag-and-drop
 
 **Files:**
+
 - Modify: `packages/widget/src/chat-shell.tsx`
 - Modify: `packages/widget/src/styles.css`
 
@@ -629,7 +667,9 @@ const onDrop = (e: DragEvent) => {
 
 ```tsx
 <Show when={dragging()}>
-  <div class="pw-chat-dropzone" aria-hidden="true">Drop images to attach</div>
+  <div class="pw-chat-dropzone" aria-hidden="true">
+    Drop images to attach
+  </div>
 </Show>
 ```
 
@@ -669,6 +709,7 @@ git commit -m "feat(widget): drag-and-drop image attachment"
 ## Task 7: widget — clipboard paste
 
 **Files:**
+
 - Modify: `packages/widget/src/chat-shell.tsx`
 
 - [ ] **Step 1: Add a paste handler:**
@@ -702,6 +743,7 @@ git commit -m "feat(widget): paste image from clipboard into composer"
 ## Task 8: widget — render inbound image parts in the thread
 
 **Files:**
+
 - Modify: `packages/widget/src/chat-shell.tsx`
 - Modify: `packages/widget/src/styles.css`
 
@@ -712,9 +754,7 @@ git commit -m "feat(widget): paste image from clipboard into composer"
 ```tsx
 if (part.type === 'image') {
   const src =
-    part.source.type === 'url'
-      ? part.source.value
-      : `data:${part.source.mimeType};base64,${part.source.value}`
+    part.source.type === 'url' ? part.source.value : `data:${part.source.mimeType};base64,${part.source.value}`
   return <img class="pw-chat-img" src={src} alt="Attached image" />
 }
 ```
@@ -749,6 +789,7 @@ git commit -m "feat(widget): render image content parts in the chat thread"
 ## Task 9: widget — real-browser IT for the image flows
 
 **Files:**
+
 - Modify: `packages/widget/test/widget.it.test.ts`
 
 - [ ] **Step 1: Update the `/api/chat/session` fixture** in the test server to include the `images` block:
@@ -814,4 +855,7 @@ git add -A && git commit -m "chore: lint + format for chat image input"
 - **Type consistency:** `ImageLimits {maxCount, maxBytes, accept}` identical across config/session/widget. The widget `ImagePart` (`{type:'image', source:{type:'data', value, mimeType}}`) matches `ChatContentPartSchema` + `modelContent`'s read exactly. `imageInput` union identical everywhere.
 - **Server-side limit validation** is intentionally NOT added — the merged server does not validate, the widget enforces, and `imageInput===false` already drops images server-side. If defense-in-depth is wanted later, add a guard in `text-adapter.ts` `lastUserImages`; out of scope here.
 - **No jsdom:** widget behavior tested in a real browser (T9); only pure logic (T3) uses plain vitest.
+
+```
+
 ```

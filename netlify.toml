@@ -1,18 +1,18 @@
 [build]
-  command = "pnpm turbo run build --filter=site"
-  publish = "apps/site/dist/client"
+command = "pnpm turbo run build --filter=site"
+publish = "apps/site/dist/client"
 
 [build.environment]
-  NODE_VERSION = "22"
+NODE_VERSION = "22"
 
 # Docs are dev-only in public prod. Enable them on private branch/preview deploys
 # so they can be reviewed without exposing them on the production domain.
 [context.deploy-preview.environment]
-  VITE_DOCS_ENABLED = "true"
+VITE_DOCS_ENABLED = "true"
 
 [context.branch-deploy.environment]
-  VITE_DOCS_ENABLED = "true"
+VITE_DOCS_ENABLED = "true"
 
 [dev]
-  command = "pnpm dev:site"
-  targetPort = 3001
+command = "pnpm dev:site"
+targetPort = 3001

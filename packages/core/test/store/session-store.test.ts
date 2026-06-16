@@ -6,7 +6,14 @@ const base = {harnessKind: 'claude', origin: 'chat' as const, cwd: '/app'}
 describe('SessionStore (memory driver)', () => {
   it('create → get round-trips', async () => {
     const store = memoryStore()
-    const rec = await store.create({id: 'aidx_a', harnessSessionId: null, title: null, model: null, usage: null, ...base})
+    const rec = await store.create({
+      id: 'aidx_a',
+      harnessSessionId: null,
+      title: null,
+      model: null,
+      usage: null,
+      ...base,
+    })
     expect(await store.get('aidx_a')).toEqual(rec)
   })
   it('update merges a patch and bumps updatedAt', async () => {

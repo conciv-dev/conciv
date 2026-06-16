@@ -65,7 +65,12 @@ export function QuickTerminalLayout(props: {
       },
       [],
     )
-  const writePaneIds = (ids: (string | null)[]) => writeStorage(PANES_KEY, ids.filter((x): x is string => Boolean(x)), JSON.stringify)
+  const writePaneIds = (ids: (string | null)[]) =>
+    writeStorage(
+      PANES_KEY,
+      ids.filter((x): x is string => Boolean(x)),
+      JSON.stringify,
+    )
   // The current session id of each pane (null until its client resolves), for layout persistence.
   const paneIds = (): (string | null)[] => panes().map((p) => p.client.sessionId())
   // Closing a pane deletes its server record so they don't accumulate orphans.
@@ -174,8 +179,16 @@ export function QuickTerminalLayout(props: {
   for (const binding of props.hotkeys) {
     createHotkey(binding as Bindable, () => props.setOpen(!props.open()))
   }
-  createHotkey('Escape', () => props.setOpen(false), () => ({enabled: props.open()}))
-  createHotkey('Mod+d' as Bindable, () => addPane(), () => ({enabled: props.open()}))
+  createHotkey(
+    'Escape',
+    () => props.setOpen(false),
+    () => ({enabled: props.open()}),
+  )
+  createHotkey(
+    'Mod+d' as Bindable,
+    () => addPane(),
+    () => ({enabled: props.open()}),
+  )
 
   // Gutter drag: redistribute width between the two adjacent panes (ported from the mockup).
   const onGutterDown = (e: PointerEvent) => {
@@ -231,10 +244,21 @@ export function QuickTerminalLayout(props: {
         >
           <PictureInPicture2 class="pw-icon" aria-hidden="true" />
         </button>
-        <button type="button" class="pw-chat-close" aria-label="Split pane" title="Split pane (Mod+D)" onClick={() => addPane()}>
+        <button
+          type="button"
+          class="pw-chat-close"
+          aria-label="Split pane"
+          title="Split pane (Mod+D)"
+          onClick={() => addPane()}
+        >
           <Columns2 class="pw-icon" aria-hidden="true" />
         </button>
-        <button type="button" class="pw-chat-close" aria-label="Close quick terminal" onClick={() => props.setOpen(false)}>
+        <button
+          type="button"
+          class="pw-chat-close"
+          aria-label="Close quick terminal"
+          onClick={() => props.setOpen(false)}
+        >
           <ChevronUp class="pw-chevron" aria-hidden="true" />
         </button>
       </header>
@@ -263,7 +287,9 @@ export function QuickTerminalLayout(props: {
                     apiBase={props.panel.apiBase ?? ''}
                     activeId={() => pane.client.sessionId()}
                     onActivate={(id) => pane.client.setSessionId(id)}
-                    lockedElsewhere={(id) => (sessions().find((s) => s.id === id)?.running ?? false) && id !== pane.client.sessionId()}
+                    lockedElsewhere={(id) =>
+                      (sessions().find((s) => s.id === id)?.running ?? false) && id !== pane.client.sessionId()
+                    }
                     announce={props.announce}
                   />
                   <ContextTracker usage={pane.usage()} />

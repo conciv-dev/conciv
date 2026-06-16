@@ -4,11 +4,11 @@
 @import 'fumadocs-ui/css/neutral.css';
 @import 'fumadocs-ui/css/preset.css';
 
-@import "tw-animate-css";
+@import 'tw-animate-css';
 
-@import "shadcn/tailwind.css";
+@import 'shadcn/tailwind.css';
 
-@import "@fontsource-variable/geist";
+@import '@fontsource-variable/geist';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -122,9 +122,7 @@ html > body[data-scroll-locked] {
 
 /* landing-specific surfaces */
 .od-page {
-  background:
-    radial-gradient(120% 80% at 88% -10%, var(--od-accent-soft), transparent 55%),
-    var(--od-paper);
+  background: radial-gradient(120% 80% at 88% -10%, var(--od-accent-soft), transparent 55%), var(--od-paper);
 }
 
 .od-underline {
@@ -146,8 +144,7 @@ html > body[data-scroll-locked] {
 .od-preview {
   background-color: var(--od-paper);
   background-image:
-    linear-gradient(var(--od-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--od-line) 1px, transparent 1px);
+    linear-gradient(var(--od-line) 1px, transparent 1px), linear-gradient(90deg, var(--od-line) 1px, transparent 1px);
   background-size: 22px 22px;
 }
 .od-picking .od-pickable:hover {

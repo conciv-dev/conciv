@@ -2,13 +2,7 @@
 // the type + an identity typed factory (mirrors defineHarness/defineRunner). Resolution + env
 // fallbacks live in @aidx/core/config.
 // Where the corner-modal trigger button sits. Draggable at runtime; this is the initial spot.
-export type TriggerPosition =
-  | 'top-left'
-  | 'top-right'
-  | 'middle-left'
-  | 'middle-right'
-  | 'bottom-left'
-  | 'bottom-right'
+export type TriggerPosition = 'top-left' | 'top-right' | 'middle-left' | 'middle-right' | 'bottom-left' | 'bottom-right'
 
 export interface ModalConfig {
   /** Initial trigger position. The user can drag it; it snaps to a preset and persists. Default 'bottom-right'. */

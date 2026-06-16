@@ -16,7 +16,11 @@ let inflight: Promise<void> | null = null
 function refetch(apiBase: string): Promise<void> {
   setStatus('loading')
   // The list is not session-scoped, so a header-less transport is enough. A throw (404/network) → error.
-  const list = createTransport({apiBase}).route({method: 'GET', path: '/api/chat/sessions', response: ChatSessionsSchema})
+  const list = createTransport({apiBase}).route({
+    method: 'GET',
+    path: '/api/chat/sessions',
+    response: ChatSessionsSchema,
+  })
   inflight = list()
     .then((r) => {
       setFetched(r.sessions)
@@ -49,7 +53,15 @@ export function applyTitle(id: string, title: string): void {
 // A provisional list row for a just-born session (modal or pane), keyed by our id, shown until the
 // real list refetches.
 export function makeSurfaceRow(id: string, name: string | null): ChatSessionMeta {
-  return {id, title: name ?? 'New session', updatedAt: Date.now(), messageCount: 0, running: false, origin: 'aidx', usage: null}
+  return {
+    id,
+    title: name ?? 'New session',
+    updatedAt: Date.now(),
+    messageCount: 0,
+    running: false,
+    origin: 'aidx',
+    usage: null,
+  }
 }
 // A surface contributes its current session so a brand-new one shows as one row before it's on disk.
 export function mergeSurface(id: string | null, row: ChatSessionMeta | null): void {

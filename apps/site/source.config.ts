@@ -1,5 +1,5 @@
-import { defineConfig, defineDocs } from 'fumadocs-mdx/config';
-import { remarkMdxMermaid } from 'fumadocs-core/mdx-plugins';
+import {defineConfig, defineDocs} from 'fumadocs-mdx/config'
+import {remarkMdxMermaid} from 'fumadocs-core/mdx-plugins'
 
 export const docs = defineDocs({
   dir: 'content/docs',
@@ -8,10 +8,10 @@ export const docs = defineDocs({
       includeProcessedMarkdown: true,
     },
   },
-});
+})
 
 export default defineConfig({
   mdxOptions: {
     remarkPlugins: [remarkMdxMermaid],
   },
-});
+})

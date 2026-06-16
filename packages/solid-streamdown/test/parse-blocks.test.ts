@@ -6,7 +6,9 @@ import {createAnimatePlugin} from '../src/animate.js'
 describe('parseMarkdownIntoBlocks', () => {
   it('splits top-level blocks (paragraph, heading, code) into separate strings', () => {
     // marked emits whitespace ("\n\n") as its own block; the content blocks are what matter.
-    const content = parseMarkdownIntoBlocks('# Title\n\nA paragraph.\n\n```ts\nconst x = 1\n```\n').filter((b) => b.trim())
+    const content = parseMarkdownIntoBlocks('# Title\n\nA paragraph.\n\n```ts\nconst x = 1\n```\n').filter((b) =>
+      b.trim(),
+    )
     expect(content).toHaveLength(3)
     expect(content[0]).toContain('# Title')
     expect(content[1]).toBe('A paragraph.')
@@ -34,7 +36,10 @@ describe('parseMarkdownIntoBlocks', () => {
 
 // Run the rehype plugin directly on a hast tree — pure transform, no DOM needed.
 function paragraph(text: string): Root {
-  return {type: 'root', children: [{type: 'element', tagName: 'p', properties: {}, children: [{type: 'text', value: text}]}]}
+  return {
+    type: 'root',
+    children: [{type: 'element', tagName: 'p', properties: {}, children: [{type: 'text', value: text}]}],
+  }
 }
 function runPlugin(plugin: ReturnType<typeof createAnimatePlugin>, tree: Root): Root {
   const transform = (plugin.rehypePlugin as () => (t: Root) => void)()

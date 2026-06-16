@@ -25,7 +25,7 @@ Probed a real `claude -p "hi" --output-format stream-json --verbose` (claude 2.1
   These arrive per turn and drive the ring mid-stream.
 - `result` events carry `total_cost_usd`, `num_turns`, and a `modelUsage` map keyed by
   model id, each entry with `{contextWindow, costUSD, inputTokens, outputTokens,
-  cacheReadInputTokens, cacheCreationInputTokens, maxOutputTokens}`.
+cacheReadInputTokens, cacheCreationInputTokens, maxOutputTokens}`.
 
 So **the context window is emitted by the stream** (e.g. `claude-opus-4-8[1m]` →
 `contextWindow: 1000000`). No hardcoded model→window table is needed. Harnesses that do
@@ -174,14 +174,14 @@ native **HTML Popover API** (top layer, escapes `overflow`) + a JS-computed `fix
 position — the same approach the existing `.pw-popover` CSS and `resize.ts` /
 `draggable-position.ts` / `pip.ts` primitives use. So:
 
-| ai-elements piece | Behavior to preserve | Our implementation |
-|-------------------|----------------------|--------------------|
-| `HoverCard` / `HoverCardTrigger` / `HoverCardContent` (Radix) | open on pointer-enter AND keyboard focus; stay open while pointer bridges trigger→content; close on leave-of-both / blur / Escape; `openDelay`/`closeDelay`; floating placement with viewport flip; top layer | NEW headless primitive `createHoverCard` (`hover-card.ts`) + native Popover API |
-| `Progress` (Radix) | `role="progressbar"`, `aria-valuenow/min/max`, indicator scaled to value | inline `pw-ctx-bar` / `pw-ctx-bar-fill` divs |
-| `Button variant="ghost"` (shadcn) | styled, `type="button"`, focusable | inline `<button class="pw-ctx-trigger">` |
-| `ContextIcon` (SVG ring) | stroke-dash arc = used fraction | ported verbatim (math below) |
-| `createContext` fan-out (`Context` + 9 sub-exports sharing context) | section structure | collapses to ONE Solid `ContextTracker(props:{usage})`; sub-rows are internal helpers (Solid prop drilling, no context) |
-| `tokenlens` `getUsage` (per-row $) | per-token cost | DROPPED — claude reports a session total only; no new dep |
+| ai-elements piece                                                   | Behavior to preserve                                                                                                                                                                                          | Our implementation                                                                                                      |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `HoverCard` / `HoverCardTrigger` / `HoverCardContent` (Radix)       | open on pointer-enter AND keyboard focus; stay open while pointer bridges trigger→content; close on leave-of-both / blur / Escape; `openDelay`/`closeDelay`; floating placement with viewport flip; top layer | NEW headless primitive `createHoverCard` (`hover-card.ts`) + native Popover API                                         |
+| `Progress` (Radix)                                                  | `role="progressbar"`, `aria-valuenow/min/max`, indicator scaled to value                                                                                                                                      | inline `pw-ctx-bar` / `pw-ctx-bar-fill` divs                                                                            |
+| `Button variant="ghost"` (shadcn)                                   | styled, `type="button"`, focusable                                                                                                                                                                            | inline `<button class="pw-ctx-trigger">`                                                                                |
+| `ContextIcon` (SVG ring)                                            | stroke-dash arc = used fraction                                                                                                                                                                               | ported verbatim (math below)                                                                                            |
+| `createContext` fan-out (`Context` + 9 sub-exports sharing context) | section structure                                                                                                                                                                                             | collapses to ONE Solid `ContextTracker(props:{usage})`; sub-rows are internal helpers (Solid prop drilling, no context) |
+| `tokenlens` `getUsage` (per-row $)                                  | per-token cost                                                                                                                                                                                                | DROPPED — claude reports a session total only; no new dep                                                               |
 
 ### 3b. HoverCard component — `packages/widget/src/hover-card.tsx` (new)
 
@@ -202,18 +202,19 @@ import type {JSX} from 'solid-js'
 // Escape. Position is computed under the trigger (flips above when there's no room below)
 // and recomputed on scroll/resize while open.
 export function HoverCard(props: {
-  trigger: JSX.Element     // always-visible anchor (e.g. the ring button)
-  children: JSX.Element    // popover content
-  openDelay?: number       // default 0   (reference uses 0)
-  closeDelay?: number      // default 120 (reference uses 0; small bridge so crossing the
-                           //              gap to the card doesn't flicker-close)
-  sideOffset?: number      // default 6
-  class?: string           // extra class merged onto the content element
-  label?: string           // aria-label for the trigger wrapper
+  trigger: JSX.Element // always-visible anchor (e.g. the ring button)
+  children: JSX.Element // popover content
+  openDelay?: number // default 0   (reference uses 0)
+  closeDelay?: number // default 120 (reference uses 0; small bridge so crossing the
+  //              gap to the card doesn't flicker-close)
+  sideOffset?: number // default 6
+  class?: string // extra class merged onto the content element
+  label?: string // aria-label for the trigger wrapper
 }): JSX.Element
 ```
 
 Internal behavior (the "all the features" bar):
+
 - **Open**: trigger `pointerenter` or `focusin` → after `openDelay`, `open=true`, the
   content's `.showPopover()`, then position.
 - **Bridge**: `pointerleave` on the trigger or the content starts a `closeDelay` timer;
@@ -230,7 +231,7 @@ Internal behavior (the "all the features" bar):
   not announced; it stays readable in browse mode.
 - **Internals**: wraps the trigger in a `<span class="pw-hovercard-anchor">` (the ref it
   measures + attaches trigger listeners to) and renders the content `<div popover="manual"
-  class="pw-popover …">`. Reuses the existing `pw-popover` / `pw-pop-in` styles.
+class="pw-popover …">`. Reuses the existing `pw-popover` / `pw-pop-in` styles.
 
 ### 3c. Widget component — `packages/widget/src/context-tracker.tsx` (new)
 
@@ -245,6 +246,7 @@ export function ContextTracker(props: {usage: UsageSnapshot | null}): JSX.Elemen
 ```
 
 Structure (mirrors the reference's sections, all features kept):
+
 - **Trigger** (`pw-ctx-trigger`, the ghost button): `%` label
   (`Intl.NumberFormat` percent, 1 fraction digit) + the ring SVG. When `contextWindow` is
   absent, shows a compact token count (`Intl.NumberFormat` `notation:'compact'`) and no ring.
@@ -254,14 +256,14 @@ Structure (mirrors the reference's sections, all features kept):
   `dashOffset = circumference·(1 − usedPercent)`, base circle at 0.25 opacity + arc at 0.7,
   rotated −90°. Uses `currentColor`.
 - **Popover content** (the `<HoverCard>` children; the component owns `popover="manual"` + positioning):
-  - *Header* (`pw-ctx-head`): `%` + `used / window` (both compact), then a Progress bar
+  - _Header_ (`pw-ctx-head`): `%` + `used / window` (both compact), then a Progress bar
     (`pw-ctx-bar` track + `pw-ctx-bar-fill` indicator scaled to `usedPercent·100`,
     `role="progressbar"` `aria-valuenow/min/max`). Header hidden when `contextWindow` absent.
-  - *Body* (`pw-ctx-body`): Input / Output / Cache / Reasoning rows. Each row =
+  - _Body_ (`pw-ctx-body`): Input / Output / Cache / Reasoning rows. Each row =
     `<UsageRow label tokens>` and renders only when that field is present and non-zero
     (matches the reference's per-row `if (!tokens) return null`). Compact token counts,
     **no per-row $**.
-  - *Footer* (`pw-ctx-foot`): `Total cost` (`totalCostUsd` as USD currency) and a turns
+  - _Footer_ (`pw-ctx-foot`): `Total cost` (`totalCostUsd` as USD currency) and a turns
     line (`numTurns`). Each renders only when present. This is the budget / session-length
     surface the request asked for.
 - **Classes**: `pw-ctx-*` added to `styles.css`, matching the existing dark popover tokens
@@ -276,7 +278,7 @@ Structure (mirrors the reference's sections, all features kept):
 export type PanelContext = {
   active: () => boolean
   onWorkingChange: (working: boolean) => void
-  onUsageChange: (usage: UsageSnapshot | null) => void   // NEW
+  onUsageChange: (usage: UsageSnapshot | null) => void // NEW
   composerActions: () => ComposerActionDef[]
 }
 ```
@@ -312,12 +314,14 @@ Usage sub-schemas validated locally (same `safeParse` style as `TextBlock` etc.)
 top-level `ClaudeEventSchema` stays lean:
 
 ```ts
-const ClaudeUsage = z.object({
-  input_tokens: z.number().optional(),
-  output_tokens: z.number().optional(),
-  cache_read_input_tokens: z.number().optional(),
-  cache_creation_input_tokens: z.number().optional(),
-}).loose()
+const ClaudeUsage = z
+  .object({
+    input_tokens: z.number().optional(),
+    output_tokens: z.number().optional(),
+    cache_read_input_tokens: z.number().optional(),
+    cache_creation_input_tokens: z.number().optional(),
+  })
+  .loose()
 
 const ClaudeModelUsage = z.object({contextWindow: z.number().optional(), costUSD: z.number().optional()}).loose()
 
@@ -387,13 +391,13 @@ stays hidden — zero-config graceful degradation.
 
 ## Degradation matrix
 
-| Harness exposes        | Tracker behavior                                   |
-|------------------------|----------------------------------------------------|
-| nothing (stubs)        | Hidden (no snapshot ever arrives).                 |
-| tokens, no window      | Compact token count, no ring percentage.           |
-| tokens + window        | Full percentage ring.                              |
-| + total cost / turns   | Cost + turns rows appear in the popover footer.    |
-| no reasoning/cache     | Those breakdown rows are omitted.                  |
+| Harness exposes      | Tracker behavior                                |
+| -------------------- | ----------------------------------------------- |
+| nothing (stubs)      | Hidden (no snapshot ever arrives).              |
+| tokens, no window    | Compact token count, no ring percentage.        |
+| tokens + window      | Full percentage ring.                           |
+| + total cost / turns | Cost + turns rows appear in the popover footer. |
+| no reasoning/cache   | Those breakdown rows are omitted.               |
 
 Every field is independently optional; nothing throws on absence.
 
@@ -423,18 +427,18 @@ Every field is independently optional; nothing throws on absence.
 
 ## File manifest
 
-| File | Change |
-|------|--------|
-| `packages/protocol/src/usage-types.ts` | NEW — schema, event name, `aguiUsageFor`, `contextUsedTokens` |
-| `packages/protocol/package.json` | add `./usage-types` export |
-| `packages/harness/src/_shared/agui.ts` | `UsageExtractor` type, `runAgui` 5th param, merge/emit helpers |
-| `packages/harness/src/claude/decode.ts` | schema extend + `claudeUsage` extractor |
-| `packages/harness/src/codex/decode.ts` | schema extend + `codexUsage` extractor |
-| `packages/widget/src/hover-card.tsx` | NEW — reusable `HoverCard` popover component (top-layer, hover+focus, positioned) |
-| `packages/widget/src/context-tracker.tsx` | NEW — Solid `ContextTracker` component (uses `HoverCard`) |
-| `packages/widget/src/chat-panel.tsx` | usage signal, `onCustomEvent` branch, `onUsageChange` prop |
-| `packages/widget/src/widget-shell.tsx` | `PanelContext.onUsageChange`, render in `pw-chat-head` |
-| `packages/widget/src/quick-terminal.tsx` | per-pane usage signal, render in `pw-qt-pane-bar` |
-| `packages/widget/src/styles.css` | `pw-ctx-*` styles |
-| `packages/harness/test/*-decode.test.ts` | usage extraction unit tests |
-| `packages/widget/test/widget.it.test.ts` | usage tracker IT |
+| File                                      | Change                                                                            |
+| ----------------------------------------- | --------------------------------------------------------------------------------- |
+| `packages/protocol/src/usage-types.ts`    | NEW — schema, event name, `aguiUsageFor`, `contextUsedTokens`                     |
+| `packages/protocol/package.json`          | add `./usage-types` export                                                        |
+| `packages/harness/src/_shared/agui.ts`    | `UsageExtractor` type, `runAgui` 5th param, merge/emit helpers                    |
+| `packages/harness/src/claude/decode.ts`   | schema extend + `claudeUsage` extractor                                           |
+| `packages/harness/src/codex/decode.ts`    | schema extend + `codexUsage` extractor                                            |
+| `packages/widget/src/hover-card.tsx`      | NEW — reusable `HoverCard` popover component (top-layer, hover+focus, positioned) |
+| `packages/widget/src/context-tracker.tsx` | NEW — Solid `ContextTracker` component (uses `HoverCard`)                         |
+| `packages/widget/src/chat-panel.tsx`      | usage signal, `onCustomEvent` branch, `onUsageChange` prop                        |
+| `packages/widget/src/widget-shell.tsx`    | `PanelContext.onUsageChange`, render in `pw-chat-head`                            |
+| `packages/widget/src/quick-terminal.tsx`  | per-pane usage signal, render in `pw-qt-pane-bar`                                 |
+| `packages/widget/src/styles.css`          | `pw-ctx-*` styles                                                                 |
+| `packages/harness/test/*-decode.test.ts`  | usage extraction unit tests                                                       |
+| `packages/widget/test/widget.it.test.ts`  | usage tracker IT                                                                  |

@@ -23,15 +23,15 @@ tools, approve risky commands, answer agent-generated UI prompts, and see live t
 
 ## Packages
 
-| Package                                          | What it is                                                                                                                           |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Package                                       | What it is                                                                                                                           |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | [`@aidx/protocol`](./packages/protocol)       | Shared wire types + `define*` factories (chat, generative UI, test, page, harness/runner/bundler, config). Zero-runtime.             |
 | [`@aidx/core`](./packages/core)               | The framework-free h3 + srvx engine: all `/api/*` routes, lock, session, uiBus, harness + test-runner registries, the BundlerBridge. |
 | [`@aidx/harness`](./packages/harness)         | Harness adapters behind a capability interface: claude + codex, plus gemini-cli/opencode/pi stubs.                                   |
 | [`@aidx/test-runner`](./packages/test-runner) | Test-runner adapters over a clean-child fd3 driver: vitest (full), jest/node-test/playwright (stubs).                                |
-| [`@aidx/plugin`](./packages/plugin)           | The dev agent as an unplugin: `@aidx/plugin/vite` (full), webpack/rspack/rollup/esbuild entries. Boots core + injects the widget. |
+| [`@aidx/plugin`](./packages/plugin)           | The dev agent as an unplugin: `@aidx/plugin/vite` (full), webpack/rspack/rollup/esbuild entries. Boots core + injects the widget.    |
 | [`@aidx/widget`](./packages/widget)           | The browser half: a Solid chat UI in an open Shadow DOM, the test card, and the page-control driver.                                 |
-| [`@aidx/cli`](./packages/cli)                 | The `aidx` CLI the agent calls from Bash: `tools server / page / test / open` + `ui`, against core's `/api/*` surface.            |
+| [`@aidx/cli`](./packages/cli)                 | The `aidx` CLI the agent calls from Bash: `tools server / page / test / open` + `ui`, against core's `/api/*` surface.               |
 
 ## Quickstart
 
@@ -67,17 +67,17 @@ pnpm --filter tanstack-start-example dev
 
 `aidx(options)` — every field is optional:
 
-| Option         | Default                  | Purpose                                                                |
-| -------------- | ------------------------ | ---------------------------------------------------------------------- |
-| `enabled`      | `true`                   | Mount the agent. Gate it on dev mode in real apps.                     |
-| `harness`      | `"claude"`               | Harness adapter id (`claude`, `codex`, …).                             |
-| `harnessBin`   | adapter `binName`        | Override the harness binary on `PATH`.                                 |
-| `testRunner`   | `"vitest"`               | Test-runner adapter id.                                                |
+| Option         | Default               | Purpose                                                                |
+| -------------- | --------------------- | ---------------------------------------------------------------------- |
+| `enabled`      | `true`                | Mount the agent. Gate it on dev mode in real apps.                     |
+| `harness`      | `"claude"`            | Harness adapter id (`claude`, `codex`, …).                             |
+| `harnessBin`   | adapter `binName`     | Override the harness binary on `PATH`.                                 |
+| `testRunner`   | `"vitest"`            | Test-runner adapter id.                                                |
 | `widgetUrl`    | `AIDX_WIDGET_URL` env | `<script src>` for the injected widget bundle. Omit to skip injection. |
-| `stateRoot`    | `process.cwd()`          | Root holding `.aidx/{agent.lock,sessions,bin}`.                        |
-| `systemPrompt` | built-in                 | Appended to each agent turn.                                           |
-| `previewId`    | `"local"`                | Correlates a resumable session.                                        |
-| `sessionId`    | –                        | Resume an existing thread.                                             |
+| `stateRoot`    | `process.cwd()`       | Root holding `.aidx/{agent.lock,sessions,bin}`.                        |
+| `systemPrompt` | built-in              | Appended to each agent turn.                                           |
+| `previewId`    | `"local"`             | Correlates a resumable session.                                        |
+| `sessionId`    | –                     | Resume an existing thread.                                             |
 
 ## Routes (the wire contract)
 
@@ -89,7 +89,7 @@ All under the `/api` prefix on the core dev port:
 | `/api/chat/session`                                     | GET              | Current session + lock; the widget's availability probe.                |
 | `/api/chat/history`                                     | GET              | Hydrate a resumed thread.                                               |
 | `/api/chat/permission`, `/api/chat/permission-decision` | POST             | Risky-command gate (PreToolUse hook ⇄ widget allow/deny).               |
-| `/api/chat/ui`                                          | POST             | Inject agent-generated UI (`aidx ui …`).                             |
+| `/api/chat/ui`                                          | POST             | Inject agent-generated UI (`aidx ui …`).                                |
 | `/api/chat/stop`                                        | POST             | Cancel the active turn.                                                 |
 | `/api/test-runner/{list,run,status,stop,ui}`            | POST/GET         | Drive the out-of-process test runner.                                   |
 | `/api/test-runner/stream`                               | GET (SSE)        | Live test results.                                                      |

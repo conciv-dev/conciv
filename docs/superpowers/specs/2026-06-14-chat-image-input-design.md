@@ -81,13 +81,13 @@ export type HarnessCapabilities = {
 
 Per-adapter declarations (`packages/harness/src/*/index.ts`):
 
-| Harness   | imageInput  | Rationale |
-|-----------|-------------|-----------|
-| claude    | `'native'`  | `--input-format stream-json` accepts base64 image blocks |
-| codex     | `'fileRef'` | reads image files by path (verify during impl; else `false`) |
-| gemini-cli| `false`     | until verified |
-| opencode  | `false`     | until verified |
-| pi        | `false`     | until verified |
+| Harness    | imageInput  | Rationale                                                    |
+| ---------- | ----------- | ------------------------------------------------------------ |
+| claude     | `'native'`  | `--input-format stream-json` accepts base64 image blocks     |
+| codex      | `'fileRef'` | reads image files by path (verify during impl; else `false`) |
+| gemini-cli | `false`     | until verified                                               |
+| opencode   | `false`     | until verified                                               |
+| pi         | `false`     | until verified                                               |
 
 Default any unverified harness to `false`. Promoting one is a one-line change
 plus its delivery path.
@@ -101,9 +101,9 @@ export interface AidxConfig {
   // …existing…
   chat?: {
     images?: {
-      maxCount?: number   // default 5
-      maxBytes?: number   // default 5 * 1024 * 1024
-      accept?: string[]   // default ['image/png','image/jpeg','image/webp','image/gif']
+      maxCount?: number // default 5
+      maxBytes?: number // default 5 * 1024 * 1024
+      accept?: string[] // default ['image/png','image/jpeg','image/webp','image/gif']
     }
   }
 }
@@ -154,16 +154,16 @@ type PendingImage = {
   name: string
   mimeType: string
   bytes: number
-  previewUrl: string          // object URL, revoked on remove/clear
+  previewUrl: string // object URL, revoked on remove/clear
   status: 'ready' | 'error'
   error?: string
 }
 
 type ImageAttachmentAdapter = {
-  accept: string[]                                   // session.images.accept
-  add(file: File): PendingImage                      // validate type/size/count → preview
-  send(p: PendingImage): Promise<ContentPart>        // base64-encode → TanStack image part
-  remove(id: string): void                           // revoke object URL, drop from store
+  accept: string[] // session.images.accept
+  add(file: File): PendingImage // validate type/size/count → preview
+  send(p: PendingImage): Promise<ContentPart> // base64-encode → TanStack image part
+  remove(id: string): void // revoke object URL, drop from store
 }
 ```
 
@@ -236,15 +236,12 @@ decodes stdout to `StreamChunk`):
 const raw = await readBody(event)
 let params
 try {
-  params = await chatParamsFromRequestBody(raw)   // throws on non-AG-UI body
+  params = await chatParamsFromRequestBody(raw) // throws on non-AG-UI body
 } catch {
   throw new HTTPError({status: 400, message: 'bad chat request'})
 }
-const fwdSessionId =
-  typeof params.forwardedProps.sessionId === 'string' ? params.forwardedProps.sessionId : ''
-const resumeSessionId = harness.capabilities.resume
-  ? fwdSessionId || state.sessionId || null
-  : null
+const fwdSessionId = typeof params.forwardedProps.sessionId === 'string' ? params.forwardedProps.sessionId : ''
+const resumeSessionId = harness.capabilities.resume ? fwdSessionId || state.sessionId || null : null
 const userText = lastUserText(params.messages)
 const userImages = lastUserImages(params.messages)
 ```
@@ -262,7 +259,7 @@ deletion).
 or `ContentPart[]`). Add:
 
 ```ts
-export type InboundImage = { value: string; mimeType: string }
+export type InboundImage = {value: string; mimeType: string}
 
 // Image parts of the latest user message: {type:'image', source:{type:'data', value, mimeType}}.
 // URL-source images (no base64) are out of scope for v1 and skipped.
@@ -292,10 +289,16 @@ hidden), but is handled by ignoring images.
   existing `--output-format stream-json`). The prompt arrives via stdin.
 - The turn writes one stream-json user message to `child.stdin`, then closes it:
   ```json
-  {"type":"user","message":{"role":"user","content":[
-    {"type":"text","text":"<prompt>"},
-    {"type":"image","source":{"type":"base64","media_type":"image/png","data":"<base64>"}}
-  ]}}
+  {
+    "type": "user",
+    "message": {
+      "role": "user",
+      "content": [
+        {"type": "text", "text": "<prompt>"},
+        {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": "<base64>"}}
+      ]
+    }
+  }
   ```
   VERIFIED against claude 2.1.177 (2026-06-14): text round-trips and a red-pixel
   PNG returns "Red." `--input-format stream-json` works only with `-p`.
@@ -332,19 +335,19 @@ envelope with a text-only content array).
 
 ## Components and boundaries
 
-| Unit | Responsibility | Depends on |
-|------|----------------|------------|
-| `harness-types.ts` | `imageInput` capability in the contract | — |
-| `config-types.ts` | `chat.images` config + `IMAGE_DEFAULTS` | — |
-| each `harness/*/index.ts` | declare `imageInput` per adapter | harness-types |
-| `core/config.ts` | resolve limits over defaults | config-types |
-| `api/chat/session.ts` | expose `images` block in session response | config, harness |
-| `widget/attachments.ts` | validate / preview / encode images (adapter) | session.images, TanStack types |
-| `widget/chat-shell.tsx` | composer UI: button, dnd, paste, strip, submit, render | attachments, useChat |
-| `api/chat/messages.ts` | `lastUserText` + `lastUserImages` over typed parts | TanStack message types |
-| `api/chat/turn.ts` | parse (TanStack), validate, branch delivery | messages, harness caps, spawn |
-| native delivery | stream-json stdin envelope | claude args, child.stdin |
-| fileRef delivery | temp files + prompt path refs | fs, stateRoot |
+| Unit                      | Responsibility                                         | Depends on                     |
+| ------------------------- | ------------------------------------------------------ | ------------------------------ |
+| `harness-types.ts`        | `imageInput` capability in the contract                | —                              |
+| `config-types.ts`         | `chat.images` config + `IMAGE_DEFAULTS`                | —                              |
+| each `harness/*/index.ts` | declare `imageInput` per adapter                       | harness-types                  |
+| `core/config.ts`          | resolve limits over defaults                           | config-types                   |
+| `api/chat/session.ts`     | expose `images` block in session response              | config, harness                |
+| `widget/attachments.ts`   | validate / preview / encode images (adapter)           | session.images, TanStack types |
+| `widget/chat-shell.tsx`   | composer UI: button, dnd, paste, strip, submit, render | attachments, useChat           |
+| `api/chat/messages.ts`    | `lastUserText` + `lastUserImages` over typed parts     | TanStack message types         |
+| `api/chat/turn.ts`        | parse (TanStack), validate, branch delivery            | messages, harness caps, spawn  |
+| native delivery           | stream-json stdin envelope                             | claude args, child.stdin       |
+| fileRef delivery          | temp files + prompt path refs                          | fs, stateRoot                  |
 
 ## Error handling
 

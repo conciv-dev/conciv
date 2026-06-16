@@ -50,18 +50,20 @@ that turbo needs to cache. The misspelled glob matches nothing and is dead confi
 
 ## Commands you will need
 
-| Purpose | Command | Expected on success |
-|---|---|---|
-| Build (all) | `pnpm turbo run build` | exit 0 |
-| Build site only | `pnpm turbo run build --filter=site` | exit 0 |
+| Purpose                | Command                                           | Expected on success                                     |
+| ---------------------- | ------------------------------------------------- | ------------------------------------------------------- |
+| Build (all)            | `pnpm turbo run build`                            | exit 0                                                  |
+| Build site only        | `pnpm turbo run build --filter=site`              | exit 0                                                  |
 | Re-build (cache check) | `pnpm turbo run build --filter=site` (second run) | exit 0; turbo reports the task as cached / `FULL TURBO` |
 
 ## Scope
 
 **In scope** (the only file you should modify):
+
 - `turbo.json`
 
 **Out of scope** (do NOT touch):
+
 - `netlify.toml`, any `vite.config.*`, or `apps/site/**` — the deploy target is correct as-is; this
   plan only removes a dead glob.
 - Do NOT add a `.output/**` glob "to be safe" — the project does not use Nitro; adding it re-introduces

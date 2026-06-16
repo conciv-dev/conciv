@@ -56,22 +56,22 @@ only new dependency is `@modelcontextprotocol/sdk` for the `/api/mcp` server
   `deliverInput` harness hook. claude = `'native'` (a stream-json user message on
   stdin). The composer/widget UI half stays in the chat-image-input plan. So the
   adapter is image-complete from day one, not text-only.
-- **`@tanstack/ai-mcp` is test-only.** It is an MCP *client* (for `chat()` to
-  consume external servers). In the CLI-only path the *CLI* is the MCP client, so
+- **`@tanstack/ai-mcp` is test-only.** It is an MCP _client_ (for `chat()` to
+  consume external servers). In the CLI-only path the _CLI_ is the MCP client, so
   `chat()` never uses it; we use it only in integration tests to drive `/api/mcp`.
-  The MCP *server* is `@modelcontextprotocol/sdk`'s `WebStandardStreamableHTTPServerTransport`
+  The MCP _server_ is `@modelcontextprotocol/sdk`'s `WebStandardStreamableHTTPServerTransport`
   (web `Request`→`Response`, no node-object bridge).
 
 ## Why not the alternatives (measured)
 
 A spike drove real `claude` 2.1.177 two ways:
 
-| | B-via-MCP (this design) | Pure-B (resume per tool call) |
-|---|---|---|
-| Tool exec | JS handler runs inline, one process | kill + `--resume` = fresh turn per call |
-| Process / transcript | 1 process, 1 session, 1 transcript | N processes, transcript replayed each hop |
-| Per-tool-call overhead | ~0 (model-thinking-bound) | +2.2–3.5s wall, cold start each hop |
-| Cost | one bill | resume re-bills transcript ($0.12 → $0.25 on a trivial resume; grows per hop) |
+|                        | B-via-MCP (this design)             | Pure-B (resume per tool call)                                                 |
+| ---------------------- | ----------------------------------- | ----------------------------------------------------------------------------- |
+| Tool exec              | JS handler runs inline, one process | kill + `--resume` = fresh turn per call                                       |
+| Process / transcript   | 1 process, 1 session, 1 transcript  | N processes, transcript replayed each hop                                     |
+| Per-tool-call overhead | ~0 (model-thinking-bound)           | +2.2–3.5s wall, cold start each hop                                           |
+| Cost                   | one bill                            | resume re-bills transcript ($0.12 → $0.25 on a trivial resume; grows per hop) |
 
 `claude -p` has no "exit turn on this tool call, resume later" primitive — the
 only way a call leaves the process unexecuted is MCP, which blocks in place. So
@@ -129,13 +129,13 @@ branches on harness; the factory never hardcodes a CLI — the harness is data.
   In-process, so handlers reach `uiBus` directly. Replaces the `aidx ui` /
   `aidx tools` Bash shell-out path (the `--allowedTools` Bash entries are
   removed from the claude args).
-- **`HarnessTextAdapter` + `harnessText(harness, deps)`** (new): a *complete*
+- **`HarnessTextAdapter` + `harnessText(harness, deps)`** (new): a _complete_
   adapter, not a stub. Modeled on `@tanstack/ai-ollama`'s from-scratch adapter,
   since Ollama wraps a local process — the closest analog to wrapping a CLI.
   `class HarnessTextAdapter extends BaseTextAdapter` (`@tanstack/ai/adapters`),
   cast-free; `harnessText()` is a thin factory function returning an instance.
   - `class HarnessTextAdapter extends BaseTextAdapter<string, Record<string, never>,
-    InputModalities, MsgMeta>` — type params from the existing
+InputModalities, MsgMeta>` — type params from the existing
     `HarnessCapabilities` (+ the image-input capability from the
     chat-image-input spec): `InputModalities = ['text']` or `['text','image']`;
     tool capabilities empty (the CLI owns its tools; `chat().tools` is unused).
@@ -150,7 +150,7 @@ branches on harness; the factory never hardcodes a CLI — the harness is data.
     - spawn `harness.buildArgs(turn)` (incl. `--mcp-config`), wire
       `options.abortController?.signal` → `child.kill()`.
     - `yield* harness.decode(linesOf(child.stdout), {onSessionId, runId:
-      options.runId, threadId: options.threadId, logger: options.logger})`.
+options.runId, threadId: options.threadId, logger: options.logger})`.
   - `structuredOutput()`: a coding CLI has no native schema-constrained mode.
     Implemented as a **typed `NotSupported` throw** — an honest capability gap,
     not a stub. aidx's chat turns never invoke it. (Decision locked with user.)
@@ -161,6 +161,7 @@ branches on harness; the factory never hardcodes a CLI — the harness is data.
 `RUN_STARTED` (once, first) → content blocks → `RUN_FINISHED | RUN_ERROR`
 (once, last). aidx's `runAgui` already follows this. Specific rules to honor,
 all already met or trivial:
+
 - `TEXT_MESSAGE_CONTENT.delta` must be **non-empty** — guard empty deltas in the
   emitters.
 - `TOOL_CALL_START.toolName` non-empty, `toolCallId` globally unique (claude's
@@ -182,7 +183,7 @@ all already met or trivial:
 - `HarnessArgsBuilder` adds `--mcp-config` (with `{type:'http', url: mcpUrl}`)
   when `mcpUrl` is present and `capabilities.mcp === 'http'`.
 - **Lifecycle stays in the adapter (verified against v0.28 source).** The
-  `@tanstack/ai` adapter contract *requires* `chatStream` to emit `RUN_STARTED` /
+  `@tanstack/ai` adapter contract _requires_ `chatStream` to emit `RUN_STARTED` /
   `RUN_FINISHED` — the engine's stream processor depends on `RUN_FINISHED`
   (`activities/chat/stream/processor.js`: "Why RUN_FINISHED is mandatory"). In
   the plain streaming path (no `tools`, no `outputSchema` — aidx's CLI-only

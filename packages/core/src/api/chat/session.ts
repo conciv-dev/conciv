@@ -40,14 +40,26 @@ export async function resolveSession(deps: ResolveDeps, body: {id?: string}): Pr
     const wrapped = await deps.store.findByHarnessId(body.id)
     if (wrapped) return {sessionId: wrapped.id}
     const adopted = await deps.store.create({
-      id: mint(), harnessSessionId: body.id, harnessKind: deps.harnessKind,
-      origin: 'external', title: null, model: null, usage: null, cwd: deps.cwd,
+      id: mint(),
+      harnessSessionId: body.id,
+      harnessKind: deps.harnessKind,
+      origin: 'external',
+      title: null,
+      model: null,
+      usage: null,
+      cwd: deps.cwd,
     })
     return {sessionId: adopted.id}
   }
   const fresh = await deps.store.create({
-    id: mint(), harnessSessionId: null, harnessKind: deps.harnessKind,
-    origin: 'chat', title: null, model: null, usage: null, cwd: deps.cwd,
+    id: mint(),
+    harnessSessionId: null,
+    harnessKind: deps.harnessKind,
+    origin: 'chat',
+    title: null,
+    model: null,
+    usage: null,
+    cwd: deps.cwd,
   })
   return {sessionId: fresh.id}
 }
@@ -80,7 +92,15 @@ export async function buildSessionList(args: {
     .filter((h) => !byHarness.has(h.id))
     .map(
       (h) =>
-        ({id: h.id, title: h.derivedTitle, updatedAt: h.updatedAt, messageCount: h.messageCount, running: false, origin: 'external', usage: null}) satisfies ChatSessionMeta,
+        ({
+          id: h.id,
+          title: h.derivedTitle,
+          updatedAt: h.updatedAt,
+          messageCount: h.messageCount,
+          running: false,
+          origin: 'external',
+          usage: null,
+        }) satisfies ChatSessionMeta,
     )
   return [...ours, ...unwrapped].toSorted((a, b) => b.updatedAt - a.updatedAt)
 }
@@ -160,7 +180,8 @@ export function registerSessionRoutes(app: H3, deps: SessionRouteDeps): void {
   // GET /api/chat/sessions → read-only list: our records ∪ unwrapped harness transcripts.
   app.get('/api/chat/sessions', async (): Promise<ChatSessions> => {
     const hist = deps.harness.history
-    const harnessList = deps.harness.capabilities.transcriptHistory && hist?.list ? await hist.list(deps.cwd, deps.claudeHome) : []
+    const harnessList =
+      deps.harness.capabilities.transcriptHistory && hist?.list ? await hist.list(deps.cwd, deps.claudeHome) : []
     const runningKeys = new Set(readLocks(deps.stateRoot).map((l) => l.key))
     const sessions = await buildSessionList({store: deps.store, harnessList, runningKeys})
     return {sessions}

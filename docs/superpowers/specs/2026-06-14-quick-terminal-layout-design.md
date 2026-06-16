@@ -46,20 +46,20 @@ lives at `packages/widget/mockups/quick-terminal.html`.
 
 ## Decisions (resolved)
 
-| Question | Resolution |
-| --- | --- |
-| Config shape | Namespaced under `AidxConfig.widget`; `modal` and `quickTerminal` are independent toggles (both can be on) |
-| Split scope (v1) | Horizontal row only; tree-shaped state for future nesting |
-| New pane session | Fresh, empty session per pane |
-| Backdrop | None (no dimming) |
-| Quick-terminal height | Draggable bottom grip, persisted to localStorage |
-| Hotkey default | `Mod+\`` (Cmd+backtick on mac, Ctrl+backtick elsewhere) |
-| Hotkey library | `@tanstack/solid-hotkeys` (new dependency) |
-| Pane-close behavior | Reset survivors' flex so a lone pane returns to full width |
-| FAB position | 6 presets (`top/middle/bottom` x `left/right`) + drag-to-reposition with snap; persisted. Ported from Devtools |
-| Panel resize | Modal panel gets Devtools-style edge drag, collapse under threshold |
-| PiP | Both layouts can pop into a separate OS window. Ported from Devtools |
-| License | TanStack Devtools is MIT; adapted code keeps a one-line credit |
+| Question              | Resolution                                                                                                     |
+| --------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Config shape          | Namespaced under `AidxConfig.widget`; `modal` and `quickTerminal` are independent toggles (both can be on)     |
+| Split scope (v1)      | Horizontal row only; tree-shaped state for future nesting                                                      |
+| New pane session      | Fresh, empty session per pane                                                                                  |
+| Backdrop              | None (no dimming)                                                                                              |
+| Quick-terminal height | Draggable bottom grip, persisted to localStorage                                                               |
+| Hotkey default        | `Mod+\`` (Cmd+backtick on mac, Ctrl+backtick elsewhere)                                                        |
+| Hotkey library        | `@tanstack/solid-hotkeys` (new dependency)                                                                     |
+| Pane-close behavior   | Reset survivors' flex so a lone pane returns to full width                                                     |
+| FAB position          | 6 presets (`top/middle/bottom` x `left/right`) + drag-to-reposition with snap; persisted. Ported from Devtools |
+| Panel resize          | Modal panel gets Devtools-style edge drag, collapse under threshold                                            |
+| PiP                   | Both layouts can pop into a separate OS window. Ported from Devtools                                           |
+| License               | TanStack Devtools is MIT; adapted code keeps a one-line credit                                                 |
 
 ## Architecture overview
 
@@ -114,6 +114,7 @@ Entry — mount.tsx
 ```
 
 Why this holds up:
+
 - The shell hosts panels; a non-chat panel registers the same way (Devtools' plugin model).
 - `createPiP` / `createResizable` / `createDraggablePosition` carry no chat knowledge.
 - Quick-terminal panes are just multiple panel instances in a row; the modal is one.
@@ -128,10 +129,7 @@ config rides the same rail as one JSON blob (nesting + arrays survive cleanly).
 `packages/protocol/src/config-types.ts`
 
 ```ts
-export type TriggerPosition =
-  | 'top-left' | 'top-right'
-  | 'middle-left' | 'middle-right'
-  | 'bottom-left' | 'bottom-right'
+export type TriggerPosition = 'top-left' | 'top-right' | 'middle-left' | 'middle-right' | 'bottom-left' | 'bottom-right'
 
 export interface ModalConfig {
   /** Initial trigger position. Draggable at runtime; snaps + persists. Default 'bottom-right'. */
@@ -159,10 +157,10 @@ export interface AidxConfig {
 Host examples:
 
 ```ts
-aidx()                                                           // both on (defaults)
-aidx({ widget: { modal: { position: 'top-left' } } })           // both on, move the button
-aidx({ widget: { quickTerminal: false } })                       // modal only
-aidx({ widget: { modal: false, quickTerminal: { hotkey: ['Mod+`', 'Control+k'] } } })  // qt only, custom keys
+aidx() // both on (defaults)
+aidx({widget: {modal: {position: 'top-left'}}}) // both on, move the button
+aidx({widget: {quickTerminal: false}}) // modal only
+aidx({widget: {modal: false, quickTerminal: {hotkey: ['Mod+`', 'Control+k']}}}) // qt only, custom keys
 ```
 
 `packages/core/src/widget-tags.ts`
@@ -176,19 +174,24 @@ aidx({ widget: { modal: false, quickTerminal: { hotkey: ['Mod+`', 'Control+k'] }
 
 ```ts
 type WidgetSettings = {
-  modal: { enabled: boolean; position: TriggerPosition }
-  quickTerminal: { enabled: boolean; hotkeys: string[] }
+  modal: {enabled: boolean; position: TriggerPosition}
+  quickTerminal: {enabled: boolean; hotkeys: string[]}
 }
 
 function resolveWidget(): WidgetSettings {
   let raw: any = {}
-  try { raw = JSON.parse(metaContent('pw-widget') || '{}') } catch { raw = {} }
-  const m = raw.modal, qt = raw.quickTerminal
+  try {
+    raw = JSON.parse(metaContent('pw-widget') || '{}')
+  } catch {
+    raw = {}
+  }
+  const m = raw.modal,
+    qt = raw.quickTerminal
   const hk = (qt && typeof qt === 'object' && qt.hotkey) || ['Mod+`']
   return {
     // both layouts default ON unless explicitly disabled with `false`
-    modal: { enabled: m !== false, position: (m && typeof m === 'object' && m.position) || 'bottom-right' },
-    quickTerminal: { enabled: qt !== false, hotkeys: Array.isArray(hk) ? hk : [String(hk)] },
+    modal: {enabled: m !== false, position: (m && typeof m === 'object' && m.position) || 'bottom-right'},
+    quickTerminal: {enabled: qt !== false, hotkeys: Array.isArray(hk) ? hk : [String(hk)]},
   }
 }
 ```
@@ -196,11 +199,15 @@ function resolveWidget(): WidgetSettings {
 ### Hotkey binding (`@tanstack/solid-hotkeys`)
 
 ```tsx
-import { createHotkey } from '@tanstack/solid-hotkeys'
+import {createHotkey} from '@tanstack/solid-hotkeys'
 
 // One registration per configured binding. Reactive + auto-disposed by Solid.
 for (const binding of props.hotkeys) {
-  createHotkey(binding, () => toggleQuickTerminal(), () => ({ enabled: true }))
+  createHotkey(
+    binding,
+    () => toggleQuickTerminal(),
+    () => ({enabled: true}),
+  )
 }
 ```
 
@@ -240,14 +247,18 @@ Source: `devtools.tsx` `handleDragStart`. Port verbatim, adapted to our panel:
 const handleDragStart = (panelEl, startEvent) => {
   if (startEvent.button !== 0 || !panelEl) return
   setIsResizing(true)
-  const info = { originalHeight: panelEl.getBoundingClientRect().height, pageY: startEvent.pageY }
+  const info = {originalHeight: panelEl.getBoundingClientRect().height, pageY: startEvent.pageY}
   const run = (e) => {
-    const delta = info.pageY - e.pageY            // corner panel grows upward
+    const delta = info.pageY - e.pageY // corner panel grows upward
     const next = info.originalHeight + delta
     setHeight(next)
-    setOpen(next >= 70)                            // collapse under threshold, like Devtools
+    setOpen(next >= 70) // collapse under threshold, like Devtools
   }
-  const unsub = () => { setIsResizing(false); document.removeEventListener('mousemove', run); document.removeEventListener('mouseup', unsub) }
+  const unsub = () => {
+    setIsResizing(false)
+    document.removeEventListener('mousemove', run)
+    document.removeEventListener('mouseup', unsub)
+  }
   document.addEventListener('mousemove', run)
   document.addEventListener('mouseup', unsub)
 }
@@ -275,8 +286,8 @@ A PiP button sits in both the modal header and the quick-terminal header.
 
 ```ts
 // v1 stores a flat ordered list; the type is tree-ready for later nesting.
-type Pane = { id: string; sessionId: string }     // each pane owns one useChat instance
-type Layout = { panes: Pane[]; focusedId: string } // v1: row of panes
+type Pane = {id: string; sessionId: string} // each pane owns one useChat instance
+type Layout = {panes: Pane[]; focusedId: string} // v1: row of panes
 ```
 
 - Split (⊞ button or `Mod+D`) appends a fresh pane and focuses it.
@@ -377,6 +388,7 @@ Ships on the fumadocs site at `apps/site/content/docs/`.
 ## Boundaries
 
 Always:
+
 - One chat implementation. Extract the chat UI + `useChat` logic into `ChatPanel`
   once; the modal body, every quick-terminal pane, and the PiP body render that
   same component. Never copy or fork the chat code per layout. Extraction is a
@@ -389,11 +401,13 @@ Always:
 - Keep the one-line MIT credit on code adapted from TanStack Devtools.
 
 Ask first:
+
 - Before adding any dependency beyond `@tanstack/solid-hotkeys`.
 - Before expanding split scope to nested row + column.
 - Before persisting pane layout / sessions across reloads.
 
 Never:
+
 - Add jsdom or happy-dom.
 - Introduce a page-dimming backdrop for the quick terminal.
 - Hardcode the hotkey or FAB position in the widget (config-driven, with defaults).
@@ -402,8 +416,7 @@ Never:
 
 1. `aidx()` (no widget config) enables BOTH layouts: modal FAB bottom-right and
    the quick terminal on `Mod+\``.
-2. `aidx({ widget: { quickTerminal: { hotkey: ['Mod+`', 'Control+k'] } } })`
-   toggles the sheet on either binding; `quickTerminal: false` disables it.
+2. `aidx({ widget: { quickTerminal: { hotkey: ['Mod+`', 'Control+k'] } } })`toggles the sheet on either binding;`quickTerminal: false` disables it.
 3. `aidx({ widget: { modal: { position: 'top-left' } } })` starts the FAB top-left;
    dragging it snaps to the nearest preset and the choice persists; `modal: false`
    disables the corner modal.
@@ -417,4 +430,7 @@ Never:
 9. No jsdom; Playwright integration tests cover the above.
 10. A `usage/quick-terminal.mdx` docs page ships with real-widget screenshots,
     is linked in the usage nav, and `configuration.mdx` documents the widget config.
+
+```
+
 ```

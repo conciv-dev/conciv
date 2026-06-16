@@ -11,14 +11,14 @@ shifted scope (lock race narrowed to same-session; CORS surface widened by addin
 
 ## Execution order & status
 
-| Plan | Title | Priority | Effort | Depends on | Status |
-|------|-------|----------|--------|------------|--------|
-| 001 | Remove the dead `.outout` output glob from `turbo.json` (Nitro-only; repo uses Netlify) | P2 | S | — | DONE |
-| 002 | Compact: stop claiming "Context compacted" when the turn failed | P1 | S | — | DONE |
-| 003 | Make session-lock acquisition atomic + enforce it in the turn route | P1 | M | — | DONE |
-| 004 | Add a CI pipeline (typecheck/lint/test/build/format gate) | P1 | M | — | BLOCKED (`pnpm format:check` fails on 162 pre-existing unformatted files; ci.yml written but uncommitted — decide: run oxfmt repo-wide, or drop the format gate) |
-| 005 | Add a root `AGENTS.md` capturing non-discoverable conventions | P2 | S–M | — | DONE |
-| 006 | Design: harden the dev server against cross-origin drive-by | P1 (investigate) | M | — | TODO |
+| Plan | Title                                                                                   | Priority         | Effort | Depends on | Status                                                                                                                                                           |
+| ---- | --------------------------------------------------------------------------------------- | ---------------- | ------ | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 001  | Remove the dead `.outout` output glob from `turbo.json` (Nitro-only; repo uses Netlify) | P2               | S      | —          | DONE                                                                                                                                                             |
+| 002  | Compact: stop claiming "Context compacted" when the turn failed                         | P1               | S      | —          | DONE                                                                                                                                                             |
+| 003  | Make session-lock acquisition atomic + enforce it in the turn route                     | P1               | M      | —          | DONE                                                                                                                                                             |
+| 004  | Add a CI pipeline (typecheck/lint/test/build/format gate)                               | P1               | M      | —          | BLOCKED (`pnpm format:check` fails on 162 pre-existing unformatted files; ci.yml written but uncommitted — decide: run oxfmt repo-wide, or drop the format gate) |
+| 005  | Add a root `AGENTS.md` capturing non-discoverable conventions                           | P2               | S–M    | —          | DONE                                                                                                                                                             |
+| 006  | Design: harden the dev server against cross-origin drive-by                             | P1 (investigate) | M      | —          | TODO                                                                                                                                                             |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | REJECTED (one-line rationale)
 
@@ -27,7 +27,7 @@ Status values: TODO | IN PROGRESS | DONE | BLOCKED (one-line reason) | REJECTED 
 - No hard dependencies between plans. Soft ordering: land **004 (CI)** early so the other plans'
   changes are gated by typecheck/lint/test on push. **003** adds a test to the existing
   `lock.test.ts`; CI will then run it.
-- **006** is an *investigate/design* plan — its output is a design doc + a follow-up implementation
+- **006** is an _investigate/design_ plan — its output is a design doc + a follow-up implementation
   plan, not a code change. Do it before any blind CORS lockdown.
 
 ## Findings considered and rejected (so they aren't re-audited)

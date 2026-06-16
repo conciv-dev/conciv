@@ -35,15 +35,35 @@ export function defineClient(opts: {apiBase: string}) {
     chatStreamUrl: () => t.url('/api/chat'),
     chatHeaders: sessionHeaders,
     // Every session-scoped request/response route lives here, inferred from the shared schemas.
-    resolve: t.route({method: 'POST', path: '/api/chat/session/resolve', request: ResolveRequestSchema, response: ResolveResponseSchema}),
+    resolve: t.route({
+      method: 'POST',
+      path: '/api/chat/session/resolve',
+      request: ResolveRequestSchema,
+      response: ResolveResponseSchema,
+    }),
     session: t.route({method: 'GET', path: '/api/chat/session', response: ChatSessionSchema}),
     sessions: t.route({method: 'GET', path: '/api/chat/sessions', response: ChatSessionsSchema}),
     history: t.route({method: 'GET', path: '/api/chat/history', response: ChatHistorySchema}),
     models: t.route({method: 'GET', path: '/api/chat/models', response: ChatModelsSchema}),
-    rename: t.route({method: 'POST', path: '/api/chat/sessions/title', request: RenameSessionSchema, response: RenameResponseSchema}),
-    launch: t.route({method: 'POST', path: '/api/chat/launch', request: ChatLaunchRequestSchema, response: ChatLaunchSchema}),
+    rename: t.route({
+      method: 'POST',
+      path: '/api/chat/sessions/title',
+      request: RenameSessionSchema,
+      response: RenameResponseSchema,
+    }),
+    launch: t.route({
+      method: 'POST',
+      path: '/api/chat/launch',
+      request: ChatLaunchRequestSchema,
+      response: ChatLaunchSchema,
+    }),
     remove: t.route({method: 'DELETE', path: '/api/chat/session', response: OkSchema}),
-    permissionDecision: t.route({method: 'POST', path: '/api/chat/permission-decision', request: PermissionDecisionSchema, response: OkSchema}),
+    permissionDecision: t.route({
+      method: 'POST',
+      path: '/api/chat/permission-decision',
+      request: PermissionDecisionSchema,
+      response: OkSchema,
+    }),
   }
 }
 

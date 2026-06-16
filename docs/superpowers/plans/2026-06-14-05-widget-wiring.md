@@ -12,12 +12,12 @@
 
 ## Background — the gaps (evidence)
 
-| # | Gap | Evidence |
-|---|-----|----------|
-| 1 | Two injection paths disagree on `pw-api-base`. `engine.htmlTags` injects the engine port (correct), but it only runs via `transformIndexHtml`, which **does not fire for SSR** (TanStack Start). The path SSR uses — `widget-middleware.widgetTags` — injects `content=""` (same-origin). | `packages/core/src/engine.ts:16` vs `packages/plugin/src/core/widget-middleware.ts` (`widgetTags`) |
-| 2 | Structural ordering: in `makeViteHook.configureServer`, `mountWidget(...)` runs **before** `bootEngine(...)`, so the inject middleware cannot know the engine port. | `packages/plugin/src/core/vite.ts` (`configureServer`) |
-| 3 | No working CORS on the cross-origin engine. The probe route `/api/chat/session` and history/permission/editor/server routes set **no** CORS headers. The three SSE routes set `access-control-allow-origin: '*'`, which is **invalid with credentials** (`credentials:'include'` / `withCredentials:true`). No `OPTIONS` preflight anywhere. | `app.ts` (no CORS), `api/page/page.ts:16`, `api/chat/turn.ts:96`, `api/test-runner/test-runner.ts:9`; widget uses credentials in `chat-api.ts`, `page-bus.ts:20` |
-| 4 | Tests enshrine the bug. Plugin IT asserts `pw-api-base content=""` as correct; widget IT passes `apiBase` directly to a same-origin test server, so cross-origin/CORS is never exercised. Green, but blind to the real failure. | `packages/plugin/test/widget-inject.it.test.ts`, `packages/widget/test/widget.it.test.ts` |
+| #   | Gap                                                                                                                                                                                                                                                                                                                                          | Evidence                                                                                                                                                         |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Two injection paths disagree on `pw-api-base`. `engine.htmlTags` injects the engine port (correct), but it only runs via `transformIndexHtml`, which **does not fire for SSR** (TanStack Start). The path SSR uses — `widget-middleware.widgetTags` — injects `content=""` (same-origin).                                                    | `packages/core/src/engine.ts:16` vs `packages/plugin/src/core/widget-middleware.ts` (`widgetTags`)                                                               |
+| 2   | Structural ordering: in `makeViteHook.configureServer`, `mountWidget(...)` runs **before** `bootEngine(...)`, so the inject middleware cannot know the engine port.                                                                                                                                                                          | `packages/plugin/src/core/vite.ts` (`configureServer`)                                                                                                           |
+| 3   | No working CORS on the cross-origin engine. The probe route `/api/chat/session` and history/permission/editor/server routes set **no** CORS headers. The three SSE routes set `access-control-allow-origin: '*'`, which is **invalid with credentials** (`credentials:'include'` / `withCredentials:true`). No `OPTIONS` preflight anywhere. | `app.ts` (no CORS), `api/page/page.ts:16`, `api/chat/turn.ts:96`, `api/test-runner/test-runner.ts:9`; widget uses credentials in `chat-api.ts`, `page-bus.ts:20` |
+| 4   | Tests enshrine the bug. Plugin IT asserts `pw-api-base content=""` as correct; widget IT passes `apiBase` directly to a same-origin test server, so cross-origin/CORS is never exercised. Green, but blind to the real failure.                                                                                                              | `packages/plugin/test/widget-inject.it.test.ts`, `packages/widget/test/widget.it.test.ts`                                                                        |
 
 h3 v2 CORS is built in (`handleCors`, `appendCorsHeaders`, `appendCorsPreflightHeaders`, `onRequest`). v2 requires explicit `return` of the handled response. Options: `origin`, `methods`, `credentials`, `preflight.statusCode`, `allowHeaders`, `exposeHeaders`. **`origin: '*'` is illegal with `credentials: true`** — the Origin must be echoed.
 
@@ -47,7 +47,7 @@ h3 v2 CORS is built in (`handleCors`, `appendCorsHeaders`, `appendCorsPreflightH
   - Pass `apiBase = http://127.0.0.1:${engine.port}` into the inject middleware.
 - [ ] In `packages/plugin/src/core/widget-middleware.ts`, change `widgetTags`/`makeWidgetInject` to take `apiBase` and inject `<meta name="pw-api-base" content="${apiBase}">` instead of empty. Keep the escaping + the `body.includes(widgetUrl)` double-inject guard.
 - [ ] Unify the two paths: `engine.htmlTags(corePort, …)` and `widgetTags(apiBase, …)` must emit the **same** `pw-api-base`. Confirm `transformIndexHtml` (static apps) and the middleware (SSR apps) can't double-inject — the middleware already skips when the body references `widgetUrl`; verify the meta isn't duplicated when both fire.
-- [ ] Update the stale comment in `widget-middleware.ts` ("empty api-base ⇒ same-origin /__pw") — it describes the dead design.
+- [ ] Update the stale comment in `widget-middleware.ts` ("empty api-base ⇒ same-origin /\_\_pw") — it describes the dead design.
 - [ ] **Acceptance:** plugin IT (updated, see Task 4) asserts the injected `pw-api-base` equals the passed engine origin, not `""`.
 
 ### Task 4 — Fix the tests that enshrine the bug (closes Gap 4)
@@ -69,11 +69,13 @@ h3 v2 CORS is built in (`handleCors`, `appendCorsHeaders`, `appendCorsPreflightH
 ---
 
 ## Out of scope
+
 - The same-origin vite-proxy alternative (rejected; cross-origin chosen).
 - Widget UI/feature work — this plan only restores the transport so the widget renders at all.
 - Non-vite bundlers (`boot.ts` path) — HTML injection there is the host's job; CORS from Task 1/2 still applies if those engines are reached cross-origin.
 
 ## Risk notes
+
 - Origin echoing on a dev-only engine is acceptable; do not ship a wildcard-credentials combo (browser will reject it silently).
 - `127.0.0.1` vs `localhost` are distinct origins — echoing the caller's Origin handles either; do not hardcode one.
 - h3 v2 is RC: verify `handleCors`/`onRequest` exact signatures + the `origin`-reflection form against current online docs before implementing (do not grep `.d.ts`).

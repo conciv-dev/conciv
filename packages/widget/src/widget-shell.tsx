@@ -419,7 +419,11 @@ function ModalLayout(props: {
         </header>
         {/* Every visited session stays mounted (background turns keep streaming); only the active shows. */}
         <For each={panes()}>
-          {(p) => <div class="pw-modal-pane" classList={{'pw-modal-pane-hidden': activeId() !== p.id}}>{p.content}</div>}
+          {(p) => (
+            <div class="pw-modal-pane" classList={{'pw-modal-pane-hidden': activeId() !== p.id}}>
+              {p.content}
+            </div>
+          )}
         </For>
       </section>
       <button

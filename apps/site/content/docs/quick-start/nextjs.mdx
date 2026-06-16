@@ -45,8 +45,8 @@ yarn add -D @aidx/plugin
 ### Wrap your config
 
 ```ts title="next.config.ts"
-import type { NextConfig } from 'next'
-import { withAidx } from '@aidx/plugin/nextjs'
+import type {NextConfig} from 'next'
+import {withAidx} from '@aidx/plugin/nextjs'
 
 const nextConfig: NextConfig = {}
 
@@ -59,7 +59,7 @@ export default withAidx(nextConfig)
 ### Add the instrumentation files
 
 ```ts title="instrumentation.ts"
-export { register } from '@aidx/plugin/nextjs'
+export {register} from '@aidx/plugin/nextjs'
 ```
 
 ```ts title="instrumentation-client.ts"

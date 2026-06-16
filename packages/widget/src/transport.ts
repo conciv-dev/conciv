@@ -15,8 +15,17 @@ type Args<T> = {} extends T ? [body?: T] : [body: T]
 export function createTransport(opts: {apiBase: string; headers?: () => Record<string, string>}) {
   const base = opts.apiBase.replace(/\/+$/, '')
   const extra = opts.headers ?? (() => ({}))
-  function route<Res extends z.ZodTypeAny>(spec: {method: 'GET' | 'DELETE'; path: string; response: Res}): () => Promise<z.infer<Res>>
-  function route<Req extends z.ZodTypeAny, Res extends z.ZodTypeAny>(spec: {method: 'POST'; path: string; request: Req; response: Res}): (...a: Args<z.infer<Req>>) => Promise<z.infer<Res>>
+  function route<Res extends z.ZodTypeAny>(spec: {
+    method: 'GET' | 'DELETE'
+    path: string
+    response: Res
+  }): () => Promise<z.infer<Res>>
+  function route<Req extends z.ZodTypeAny, Res extends z.ZodTypeAny>(spec: {
+    method: 'POST'
+    path: string
+    request: Req
+    response: Res
+  }): (...a: Args<z.infer<Req>>) => Promise<z.infer<Res>>
   function route(spec: {method: string; path: string; request?: z.ZodTypeAny; response: z.ZodTypeAny}) {
     return (body?: unknown) => {
       const headers: Record<string, string> = {...extra()}

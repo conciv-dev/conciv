@@ -11,6 +11,7 @@
 **HARD RULES:** Functions not classes. No IIFEs. No `index.ts`. No casts (`as` except `as const`), no `!`. Terse comments — **never more than 1 line**. Commit to `main`. Verify library APIs against real online docs.
 
 **React→Solid mapping (applies to every ported file):**
+
 - `useState(x)` → `const [v, setV] = createSignal(x)`; read as `v()`.
 - `useEffect(fn, deps)` → `createEffect(fn)` (tracks reads); mount-only → `onMount`; teardown → `onCleanup`.
 - `useMemo(fn, deps)` → `createMemo(fn)`.
@@ -25,6 +26,7 @@
 ## Task 1: Dependencies + build config
 
 **Files:**
+
 - Modify: `packages/widget/package.json`
 - Modify: `packages/widget/tsconfig.json`
 - Modify: `packages/widget/vite.config.ts`
@@ -112,6 +114,7 @@ git commit -m "build(widget): swap React toolchain for Solid (deps, jsx, vite pl
 ## Task 2: Port `markdown.tsx` (leaf, no chat deps)
 
 **Files:**
+
 - Modify: `packages/widget/src/markdown.tsx`
 - Reference (behavior spec): the current React `markdown.tsx`
 
@@ -146,7 +149,7 @@ Match the existing class names so `styles.css` still applies.
 
 - [ ] **Step 3: Typecheck the file in isolation**
 
-Run: `pnpm --filter @aidx/widget exec tsc --noEmit -p tsconfig.json 2>&1 | grep markdown` 
+Run: `pnpm --filter @aidx/widget exec tsc --noEmit -p tsconfig.json 2>&1 | grep markdown`
 Expected: no errors referencing `markdown.tsx` (other files may still error — they're ported later).
 
 - [ ] **Step 4: Commit**
@@ -161,6 +164,7 @@ git commit -m "refactor(widget): port markdown.tsx to Solid"
 ## Task 3: Port `gen-ui.tsx`
 
 **Files:**
+
 - Modify: `packages/widget/src/gen-ui.tsx`
 - Reference: current React `gen-ui.tsx`
 
@@ -200,6 +204,7 @@ git commit -m "refactor(widget): port gen-ui.tsx to Solid"
 ## Task 4: Port `test-card.tsx`
 
 **Files:**
+
 - Modify: `packages/widget/src/test-card.tsx`
 - Reference: current React `test-card.tsx`
 
@@ -210,7 +215,9 @@ git commit -m "refactor(widget): port gen-ui.tsx to Solid"
 ```tsx
 import {createSignal, onCleanup, onMount, For, Show, type Component} from 'solid-js'
 
-export const TestCard: Component<{apiBase: string; onFix: (...a: never[]) => void; result: TestRunResult | null}> = (props) => {
+export const TestCard: Component<{apiBase: string; onFix: (...a: never[]) => void; result: TestRunResult | null}> = (
+  props,
+) => {
   const [state, setState] = createSignal(/* initial from props.result */)
   onMount(() => {
     if (props.result !== null) return
@@ -242,6 +249,7 @@ git commit -m "refactor(widget): port test-card.tsx to Solid"
 ## Task 5: Port `chat-shell.tsx` (the core)
 
 **Files:**
+
 - Modify: `packages/widget/src/chat-shell.tsx`
 - Reference: current React `chat-shell.tsx`
 
@@ -275,6 +283,7 @@ git commit -m "refactor(widget): port chat-shell.tsx to Solid (@tanstack/ai-soli
 ## Task 6: Port `mount.tsx` (entry + seams)
 
 **Files:**
+
 - Modify: `packages/widget/src/mount.tsx`
 - Reference: current React `mount.tsx`
 
@@ -332,6 +341,7 @@ git commit -m "refactor(widget): port mount.tsx to Solid render"
 ## Task 7: Build, typecheck, and the parity gate (browser IT)
 
 **Files:**
+
 - Run-only: `packages/widget`
 
 - [ ] **Step 1: Typecheck the whole widget**

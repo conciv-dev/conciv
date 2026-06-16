@@ -25,7 +25,12 @@ export function makePermissionGate(uiBus: UiBus, timeoutMs = APPROVAL_TIMEOUT_MS
     const command = parsed.success ? parsed.data.command : ''
     if (classifyCommand(command) === 'allow') return 'allow'
     const renderId = randomUUID()
-    const injected = uiBus.inject(sessionId, {kind: 'approval', renderId, question: 'Run this command?', detail: command})
+    const injected = uiBus.inject(sessionId, {
+      kind: 'approval',
+      renderId,
+      question: 'Run this command?',
+      detail: command,
+    })
     if (!injected) return 'deny' // no live chat stream to ask on → fail closed
     try {
       return (await pending.await(renderId, timeoutMs)) ? 'allow' : 'deny'

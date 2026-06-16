@@ -5,7 +5,16 @@ import {memoryStore} from '../../helpers/memory-store.js'
 describe('buildSessionList', () => {
   it('unions our records with unwrapped harness transcripts (no writes)', async () => {
     const store = memoryStore()
-    await store.create({id: 'aidx_a', harnessSessionId: 'tok-a', harnessKind: 'claude', origin: 'chat', title: 'Mine', model: null, usage: null, cwd: '/app'})
+    await store.create({
+      id: 'aidx_a',
+      harnessSessionId: 'tok-a',
+      harnessKind: 'claude',
+      origin: 'chat',
+      title: 'Mine',
+      model: null,
+      usage: null,
+      cwd: '/app',
+    })
     const harnessList = [
       {id: 'tok-a', derivedTitle: 'ignored', updatedAt: 10, messageCount: 3},
       {id: 'tok-ext', derivedTitle: 'External', updatedAt: 20, messageCount: 1},

@@ -1,13 +1,11 @@
-import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
-import { PICKABLES } from './demo-data';
+import {Badge} from '@/components/ui/badge'
+import {cn} from '@/lib/utils'
+import {PICKABLES} from './demo-data'
 
-export function AppPreview({ picking, onPick }: { picking: boolean; onPick: (id: string) => void }) {
+export function AppPreview({picking, onPick}: {picking: boolean; onPick: (id: string) => void}) {
   return (
     <div className={cn('od-preview relative flex flex-col p-[18px]', picking && 'od-picking')}>
-      <div className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
-        your live app
-      </div>
+      <div className="font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">your live app</div>
 
       <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
         <Pickable id="heading" picking={picking} onPick={onPick}>
@@ -29,7 +27,7 @@ export function AppPreview({ picking, onPick }: { picking: boolean; onPick: (id:
         </div>
       ) : null}
     </div>
-  );
+  )
 }
 
 function Pickable({
@@ -38,10 +36,10 @@ function Pickable({
   onPick,
   children,
 }: {
-  id: string;
-  picking: boolean;
-  onPick: (id: string) => void;
-  children: React.ReactNode;
+  id: string
+  picking: boolean
+  onPick: (id: string) => void
+  children: React.ReactNode
 }) {
   return (
     <span
@@ -54,5 +52,5 @@ function Pickable({
     >
       {children}
     </span>
-  );
+  )
 }

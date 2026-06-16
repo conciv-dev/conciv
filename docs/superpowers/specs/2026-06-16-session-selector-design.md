@@ -16,8 +16,8 @@ plan). It already provides everything v1/v2 of this spec tried to re-derive — 
   (v2 §3 is deleted). The harness token is a server-internal resume token mapped under our id.
 - **Per-session lock** `agent.<sessionId>.lock` → true concurrency (the locked decision) for free.
 - **`Map<sessionId, SessionState>`** + header-scoped routes → usage/state are per-session, not global.
-- **Session vs surface** model: a surface (pane/PiP/modal) holds a *reference* to a session and **may
-  switch which session it shows** — the foundation explicitly defers the *UI* for that to us.
+- **Session vs surface** model: a surface (pane/PiP/modal) holds a _reference_ to a session and **may
+  switch which session it shows** — the foundation explicitly defers the _UI_ for that to us.
 - **`Popover`** (`@floating-ui/dom`) + **`SessionInfoCard`** + **`nameFromTranscript`** (Claude `summary`
   records) + name→short-id→`New session` label resolver.
 - **`localStorage` pane layout** (`aidx-qt-panes`) restored on reopen.
@@ -38,7 +38,7 @@ foundation work but are prerequisites for this feature's correctness, so they ar
 A header control, modeled on the existing model selector (Ark Combobox), that lists every Claude
 session in the current CWD and lets the user **switch**, **start new**, and **rename**. Claude-only
 (transcript-backed); hidden when the active harness cannot enumerate sessions. Each surface/pane points
-at its own session independently, and — per the locked decision below — sessions on *different* ids can
+at its own session independently, and — per the locked decision below — sessions on _different_ ids can
 run **concurrently** (per-session locking).
 
 Non-goals (YAGNI): deleting sessions, cross-CWD listing, codex/non-transcript enumeration, multi-select,
@@ -55,7 +55,7 @@ future hook now that adapters expose `launch({cwd, sessionId})` — explicitly o
   (the foundation's surface/session model already supports this).
 - **Actions:** list + switch + "+ New session" + rename.
 - **Concurrency:** **per-session locks** — provided by the foundation. Two surfaces on different sessions
-  run in parallel; two turns on the *same* session serialize.
+  run in parallel; two turns on the _same_ session serialize.
 - **Identity:** new sessions = client-minted uuid (foundation); **discovered sessions = referenced by their
   harness token** (§3). Both are opaque, charset-validated strings in one id namespace.
 - **Bug scope:** `sessionId` validation, usage-keying, compact-`sessionId`, and uiBus turn-scoping fixes
@@ -123,11 +123,11 @@ Add to `HarnessHistory` (gated by `transcriptHistory`, so codex is type-excluded
 adapter union at `harness-types.ts:100-108`):
 
 ```ts
-export type HarnessSessionMeta = { id: string; derivedTitle: string; updatedAt: number; messageCount: number }
+export type HarnessSessionMeta = {id: string; derivedTitle: string; updatedAt: number; messageCount: number}
 export type HarnessHistory = {
   transcriptPath(cwd: string, sessionId: string): string
   parse(raw: string): UIMessage[]
-  list(cwd: string): HarnessSessionMeta[] | Promise<HarnessSessionMeta[]>   // NEW (async-capable)
+  list(cwd: string): HarnessSessionMeta[] | Promise<HarnessSessionMeta[]> // NEW (async-capable)
 }
 ```
 
@@ -177,15 +177,14 @@ POST /api/chat/sessions/title   { sessionId, title }   // POST, not PATCH (see b
   - `running`: `readLocks(stateRoot)` keys are headerIds; `running = locks.has(T) || headerIdsByToken[T]?.some(h => locks.has(h))`.
   - `origin`: per §2b, `'aidx'` iff `T` appears in `m` under a key ≠ `T`
     (`Object.entries(m).some(([k,v]) => v === T && k !== T)`), else `'external'`.
-  **Drop a server `current` flag** — it derived from the now-cold-start-only `state.sessionId` and would
-  be misleading across panes; each selector marks its own `activeId()`.
+    **Drop a server `current` flag** — it derived from the now-cold-start-only `state.sessionId` and would
+    be misleading across panes; each selector marks its own `activeId()`.
   ```ts
   ChatSessionMeta = { id, title, updatedAt, messageCount, running, origin: 'aidx' | 'external', usage: UsageSnapshot | null }
   ChatSessions    = { sessions: ChatSessionMeta[] }
   ```
 - `POST /sessions/title`: schema `{ sessionId: SessionId, title: z.string() }`, where the handler
-  `.transform`s title — strip control chars `/[\u0000-\u001F\u007F-\u009F]/`, collapse whitespace, cap
-  120. `writeTitle`; return `{ok:true, title}`.
+  `.transform`s title — strip control chars `/[\u0000-\u001F\u007F-\u009F]/`, collapse whitespace, cap 120. `writeTitle`; return `{ok:true, title}`.
 - **Switch hydration reuses the foundation's header-based `GET /api/chat/history`** (the foundation moved
   it off the `?sessionId=` query onto the header). The selector sets the surface's header id, then hydrates.
 - `sessionId` here (title key, list id) is the **harness token**.
@@ -267,13 +266,14 @@ Ark `Combobox`, two trigger **variants**:
 
 - `variant: 'pill'` — modal header. Bordered pill like the model selector, but `min-width:0; flex:1 1 auto`
   with ellipsis on the title so it flexes in the tight header (the fixed "aidx"/spark brand stays; the
-  *selector* is the flexible element, not the brand).
+  _selector_ is the flexible element, not the brand).
 - `variant: 'bar'` — quick-terminal pane bar. **Borderless**, inherits the bar's 12px mono, uses the
   existing pane dot as the affordance + a tiny caret, no separate glyph/border. Below a pane-width
   breakpoint (container query / ResizeObserver on `.pw-qt-pane`) the `ContextTracker` collapses to
   ring-only (drop the % label) so the title gets room; the close X keeps `margin-left:auto`.
 
 Popover content:
+
 - **Header row** (always visible, in Tab order, outside the listbox): search `Input`, a
   **"Rename current session"** button (the locked rename UX — acts on `activeId`; disabled when the id is
   a not-yet-born fresh session), and a **"+ New session"** button. Each a real `<button>` with a unique,
@@ -297,6 +297,7 @@ Popover content:
   interleaving list refetch; rollback + keep typed value on failure. Focus returns to the rename button.
 
 Props:
+
 ```ts
 {
   variant: 'pill' | 'bar'
@@ -312,6 +313,7 @@ Props:
 ### 5.3 Shared session-list store (`packages/widget/src/session-store-client.ts`)
 
 Module-level reactive store, one fetch shared by all selectors:
+
 - `sessions()`, `status(): 'idle'|'loading'|'ready'|'error'`, `error()`.
 - `load(apiBase)` — fetch `/sessions`; dedupe in-flight; **404 → status `'ready'`, `sessions=[]`**
   (selectors hide); **5xx/timeout → `'error'`** (Retry, trigger stays).
@@ -334,41 +336,45 @@ Module-level reactive store, one fetch shared by all selectors:
 ### 5.5 Exhaustive state matrix
 
 **Loading**
-- *Initial list*: skeleton rows (`pw-session-skel`); popover content `aria-busy`, `role="status"`
+
+- _Initial list_: skeleton rows (`pw-session-skel`); popover content `aria-busy`, `role="status"`
   "Loading sessions…". No skeleton flash when the store is already `ready`.
-- *Switching thread*: overlay + disabled composer (5.4); announce start (polite) and completion.
-- *Rename in-flight*: header input `aria-busy`; optimistic title already shown.
-- *New session*: instant (local clear + divider); real id arrives via the stream — no spinner.
+- _Switching thread_: overlay + disabled composer (5.4); announce start (polite) and completion.
+- _Rename in-flight_: header input `aria-busy`; optimistic title already shown.
+- _New session_: instant (local clear + divider); real id arrives via the stream — no spinner.
 
 **Empty**
-- *Harness unsupported / 404*: `sessions=[]` → selector renders nothing.
-- *Only the current session*: trigger still shows (rename + "+ New" reachable); list shows
+
+- _Harness unsupported / 404_: `sessions=[]` → selector renders nothing.
+- _Only the current session_: trigger still shows (rename + "+ New" reachable); list shows
   `pw-session-empty` `role="status"` "No other sessions yet".
-- *Search yields nothing*: `role="status"` "No sessions match"; header (rename/new) stays.
+- _Search yields nothing_: `role="status"` "No sessions match"; header (rename/new) stays.
 
 **Error**
-- *List fetch (5xx/timeout)*: `pw-session-error` row + Retry (calls `load`); trigger keeps last title or
+
+- _List fetch (5xx/timeout)_: `pw-session-error` row + Retry (calls `load`); trigger keeps last title or
   "New session".
-- *Switch history fetch fails*: keep the CURRENT thread (don't clear), revert `activeId`/`loadedSessionId`,
+- _Switch history fetch fails_: keep the CURRENT thread (don't clear), revert `activeId`/`loadedSessionId`,
   inline `pw-chat-error` "Couldn't load that session" + Retry, announce **assertively**.
-- *Rename POST fails*: roll back optimistic title, keep the input open with an error hint + typed value.
-- *New-session turn fails*: existing `chat.error()` + Retry covers it; divider stays.
-- *Send 409 'session busy' (this session running elsewhere)*: distinct inline state "Busy in another pane",
+- _Rename POST fails_: roll back optimistic title, keep the input open with an error hint + typed value.
+- _New-session turn fails_: existing `chat.error()` + Retry covers it; divider stays.
+- _Send 409 'session busy' (this session running elsewhere)_: distinct inline state "Busy in another pane",
   NOT a raw `chat.error()`; offer Retry once free. Rows for live-elsewhere sessions show the `running` dot
-  and disable *switch-then-send* expectations (switching to read is allowed).
-- *Session vanished on disk between list and switch*: `history(id)` `[]` → treat as empty valid session
+  and disable _switch-then-send_ expectations (switching to read is allowed).
+- _Session vanished on disk between list and switch_: `history(id)` `[]` → treat as empty valid session
   (greeting) and `invalidate()`. Note: `GET /history` also returns `[]` when unsupported — acknowledged
   ambiguity; benign since the selector is hidden when unsupported.
-- *Active session deleted by an external run while idle*: next turn's resume target is gone → harness
+- _Active session deleted by an external run while idle_: next turn's resume target is gone → harness
   spawns fresh, fires `AIDX_SESSION_EVENT` with the new id; drop the stale row on next invalidate; announce.
 
 **Disabled**
+
 - Trigger uses `aria-disabled` + stays focusable (do NOT set the `disabled` attribute — the modal focus
   trap filters `[disabled]` out, `widget-shell.tsx:188`, which would hide the "why" from keyboard/SR).
   Block activation in the handler. Reason via an Ark Tooltip / `aria-describedby`, not bare `title`.
 - "Rename current session" disabled when `activeId` is a not-yet-born fresh session.
 - "+ New session" disabled while `busy()`; double-click guarded to a no-op when already `null` + empty.
-- Active row is non-selectable for *switch* (check shown); rows live elsewhere are switch-to-browse only.
+- Active row is non-selectable for _switch_ (check shown); rows live elsewhere are switch-to-browse only.
 
 **Animations** (see §7)
 
@@ -376,7 +382,7 @@ Module-level reactive store, one fetch shared by all selectors:
 
 - **Modal** (`widget-shell.tsx` `ModalLayout`): the foundation already gives the modal a session label +
   info popover in `pw-chat-head`. This feature **replaces that static label with `<SessionSelector
-  variant="pill">`** as the flexible header element (brand stays fixed). The selector subsumes the
+variant="pill">`** as the flexible header element (brand stays fixed). The selector subsumes the
   foundation's `SessionInfoCard` (its details become a row/expander in the popover). Owner holds the
   surface `sessionId` (foundation), provides `onSwitch`/`onNew`/`announce`.
 - **Quick-terminal** (`quick-terminal.tsx`): the foundation already replaced `session-{pane.id}` with the
@@ -461,6 +467,7 @@ keys), `api/chat/{chat,session,turn}.ts` (header-scoped session map), `store/ses
 `claude/history.ts` (`nameFromTranscript`), `quick-terminal.tsx` + `widget-shell.tsx` (per-pane id + label).
 
 **This feature:**
+
 - Protocol: `harness-types.ts` (`HarnessSessionMeta`, `list`), `chat-types.ts` (`ChatSessionMeta`,
   `ChatSessions`, `SessionId`, title body schema).
 - Harness: `claude/history.ts` (`list` + tests).

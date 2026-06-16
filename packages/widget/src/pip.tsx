@@ -7,7 +7,17 @@ import styles from './styles.css?inline'
 // its styles live in the page; ours live in the widget's shadow root, so we instead give the PiP
 // window its own shadow root seeded with the same style text and MOVE the node into it — the live
 // node (and its chat state) travels intact. A placeholder marks the home spot for re-docking.
-const DELEGATED = ['focusin', 'focusout', 'pointermove', 'keydown', 'pointerdown', 'pointerup', 'click', 'mousedown', 'input']
+const DELEGATED = [
+  'focusin',
+  'focusout',
+  'pointermove',
+  'keydown',
+  'pointerdown',
+  'pointerup',
+  'click',
+  'mousedown',
+  'input',
+]
 
 export function createPiP(): {
   active: () => boolean

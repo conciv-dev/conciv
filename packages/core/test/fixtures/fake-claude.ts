@@ -19,15 +19,30 @@ if (process.env.AIDX_FAKE_HANG) {
     {type: 'system', subtype: 'init', session_id: 'sess-fake', model: 'claude-test'},
     {
       type: 'stream_event',
-      event: {type: 'message_start', message: {model: 'claude-test', usage: {input_tokens: 100, cache_read_input_tokens: 40, cache_creation_input_tokens: 10, output_tokens: 1}}},
+      event: {
+        type: 'message_start',
+        message: {
+          model: 'claude-test',
+          usage: {input_tokens: 100, cache_read_input_tokens: 40, cache_creation_input_tokens: 10, output_tokens: 1},
+        },
+      },
     },
     {type: 'stream_event', event: {type: 'content_block_start', index: 0, content_block: {type: 'text', text: ''}}},
-    {type: 'stream_event', event: {type: 'content_block_delta', index: 0, delta: {type: 'text_delta', text: 'hello from fake'}}},
+    {
+      type: 'stream_event',
+      event: {type: 'content_block_delta', index: 0, delta: {type: 'text_delta', text: 'hello from fake'}},
+    },
     {type: 'stream_event', event: {type: 'content_block_stop', index: 0}},
     {type: 'assistant', message: {model: 'claude-test', content: [{type: 'text', text: 'hello from fake'}]}},
     {type: 'stream_event', event: {type: 'message_delta', usage: {input_tokens: 100, output_tokens: 5}}},
     {type: 'stream_event', event: {type: 'message_stop'}},
-    {type: 'result', session_id: 'sess-fake', num_turns: 1, total_cost_usd: 0.001, modelUsage: {'claude-test': {contextWindow: 200000}}},
+    {
+      type: 'result',
+      session_id: 'sess-fake',
+      num_turns: 1,
+      total_cost_usd: 0.001,
+      modelUsage: {'claude-test': {contextWindow: 200000}},
+    },
   ]
   for (const line of lines) process.stdout.write(JSON.stringify(line) + '\n')
   process.exit(0)
@@ -64,7 +79,12 @@ if (process.env.AIDX_FAKE_HANG) {
       message: {
         model: 'claude-test',
         content: [{type: 'text', text: 'hello from fake'}],
-        usage: {input_tokens: inputTokens, cache_read_input_tokens: 40, cache_creation_input_tokens: 10, output_tokens: 5},
+        usage: {
+          input_tokens: inputTokens,
+          cache_read_input_tokens: 40,
+          cache_creation_input_tokens: 10,
+          output_tokens: 5,
+        },
       },
     },
     {

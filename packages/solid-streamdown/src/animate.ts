@@ -74,18 +74,43 @@ function splitByChar(text: string): string[] {
   return parts
 }
 
-function makeSpan(word: string, animation: string, duration: number, easing: string, skipAnimation: boolean, delay: number): Element {
+function makeSpan(
+  word: string,
+  animation: string,
+  duration: number,
+  easing: string,
+  skipAnimation: boolean,
+  delay: number,
+): Element {
   let style = `--sd-animation:sd-${animation};--sd-duration:${skipAnimation ? 0 : duration}ms;--sd-easing:${easing}`
   if (delay) style += `;--sd-delay:${delay}ms`
-  return {type: 'element', tagName: 'span', properties: {'data-sd-animate': true, style}, children: [{type: 'text', value: word}]}
+  return {
+    type: 'element',
+    tagName: 'span',
+    properties: {'data-sd-animate': true, style},
+    children: [{type: 'text', value: word}],
+  }
 }
 
-type AnimateConfig = {animation: string; duration: number; easing: string; sep: 'word' | 'char'; stagger: number; maxStagger: number}
+type AnimateConfig = {
+  animation: string
+  duration: number
+  easing: string
+  sep: 'word' | 'char'
+  stagger: number
+  maxStagger: number
+}
 
 // Persists for the plugin instance's lifetime; both the rehype closure and the API methods read it.
 type RenderState = {lastRenderCharCount: number; prevContentLength: number}
 
-function processTextNode(node: Text, ancestors: Node[], config: AnimateConfig, state: RenderState, counter: {count: number; newIndex: number}): number | typeof SKIP | undefined {
+function processTextNode(
+  node: Text,
+  ancestors: Node[],
+  config: AnimateConfig,
+  state: RenderState,
+  counter: {count: number; newIndex: number},
+): number | typeof SKIP | undefined {
   const ancestor = ancestors.at(-1)
   if (!(ancestor && 'children' in ancestor)) return
   if (hasSkipAncestor(ancestors)) return SKIP

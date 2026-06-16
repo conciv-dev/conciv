@@ -32,10 +32,8 @@ export function resolveConfig(options: AidxConfig, root: string): ResolvedAidxCo
     previewId: options.previewId ?? env.AIDX_PREVIEW_ID ?? 'local',
     stateRoot: options.stateRoot ?? env.AIDX_STATE_ROOT ?? root,
     harness: options.harness ?? env.AIDX_HARNESS ?? 'claude',
-    harnessBin:
-      options.harnessBin ?? options.claudePath ?? env.AIDX_HARNESS_BIN ?? env.AIDX_CLAUDE_PATH ?? undefined,
-    sessionId:
-      options.sessionId ?? options.claudeSessionId ?? env.AIDX_SESSION_ID ?? env.AIDX_CLAUDE_SESSION_ID ?? '',
+    harnessBin: options.harnessBin ?? options.claudePath ?? env.AIDX_HARNESS_BIN ?? env.AIDX_CLAUDE_PATH ?? undefined,
+    sessionId: options.sessionId ?? options.claudeSessionId ?? env.AIDX_SESSION_ID ?? env.AIDX_CLAUDE_SESSION_ID ?? '',
     testRunner: options.testRunner ?? env.AIDX_TEST_RUNNER ?? 'vitest',
     systemPrompt: resolveSystemPrompt(options.systemPrompt),
   }

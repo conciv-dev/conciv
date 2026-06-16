@@ -25,5 +25,11 @@ for (const adapter of [vitest, jest, nodeTest, playwright]) registerRunner(adapt
 
 // The driver + child-runner authoring seam are part of this package's public API (the factory
 // wires create() to the runtime spawn driver, so it can't live in zero-runtime @aidx/protocol).
-export {makeChildManager, defineChildRunner, defineStubRunner, isRunnerUnavailable, runnerUnavailableError} from './driver.js'
+export {
+  makeChildManager,
+  defineChildRunner,
+  defineStubRunner,
+  isRunnerUnavailable,
+  runnerUnavailableError,
+} from './driver.js'
 export type {ChildRunnerSpec, SpawnRunner, MakeManagerOptions, RunnerUnavailableError} from './driver.js'

@@ -28,7 +28,10 @@ function loadRawPlugins(): Promise<Pluggable[]> {
     // Keep code-fence language-* classes through sanitization (for the host highlighter).
     const schema = {
       ...san.defaultSchema,
-      attributes: {...san.defaultSchema.attributes, code: [...(san.defaultSchema.attributes?.code ?? []), ['className', /^language-./]]},
+      attributes: {
+        ...san.defaultSchema.attributes,
+        code: [...(san.defaultSchema.attributes?.code ?? []), ['className', /^language-./]],
+      },
     }
     return [raw.default, [san.default, schema]]
   })
@@ -92,7 +95,11 @@ function HastNode(props: {
     <Switch>
       <Match when={props.node().type === 'text'}>{(props.node() as {value: string}).value}</Match>
       <Match when={props.node().type === 'element'}>
-        <HastElement node={props.node as () => Element} components={props.components} highlightCode={props.highlightCode} />
+        <HastElement
+          node={props.node as () => Element}
+          components={props.components}
+          highlightCode={props.highlightCode}
+        />
       </Match>
       <Match when={props.node().type === 'root'}>
         <Index each={(props.node() as Root).children}>
@@ -137,8 +144,15 @@ function HastElement(props: {
 }
 
 // pre (block code) → host highlighter when present and not mid-fade; otherwise plain <pre>.
-const Pre = (props: {node?: Element; children?: JSX.Element; class?: string; highlightCode?: HighlightCode}): JSX.Element => {
-  const codeNode = createMemo(() => props.node?.children.find((c: ElementContent): c is Element => c.type === 'element' && c.tagName === 'code'))
+const Pre = (props: {
+  node?: Element
+  children?: JSX.Element
+  class?: string
+  highlightCode?: HighlightCode
+}): JSX.Element => {
+  const codeNode = createMemo(() =>
+    props.node?.children.find((c: ElementContent): c is Element => c.type === 'element' && c.tagName === 'code'),
+  )
   return (
     <Switch fallback={<pre class={props.class}>{props.children}</pre>}>
       <Match when={props.highlightCode && codeNode()}>
@@ -148,7 +162,9 @@ const Pre = (props: {node?: Element; children?: JSX.Element; class?: string; hig
   )
 }
 
-const Code = (props: {class?: string; children?: JSX.Element}): JSX.Element => <code class={props.class}>{props.children}</code>
+const Code = (props: {class?: string; children?: JSX.Element}): JSX.Element => (
+  <code class={props.class}>{props.children}</code>
+)
 
 const STABLE_COMPONENTS = {pre: Pre, code: Code}
 
@@ -172,7 +188,10 @@ function Block(props: {
   // The animate plugin is in the pipeline only while animating — otherwise blocks render as clean
   // static markup (no fade spans), matching the source.
   const processor = createMemo(() => {
-    const hardenPlugin: Pluggable = [harden, {allowedLinkPrefixes: props.linkPrefixes, allowedImagePrefixes: props.imagePrefixes}]
+    const hardenPlugin: Pluggable = [
+      harden,
+      {allowedLinkPrefixes: props.linkPrefixes, allowedImagePrefixes: props.imagePrefixes},
+    ]
     return unified()
       .use(remarkParse)
       .use(remarkGfm)

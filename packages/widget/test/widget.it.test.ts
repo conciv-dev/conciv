@@ -70,7 +70,13 @@ async function* chatScript(): AsyncGenerator<StreamChunk> {
   yield {type: EventType.RUN_STARTED, threadId: 't', runId: 'r'}
   // Live usage injected mid-turn (core does this from claude's message_start) — the tracker fills
   // before the turn ends, via the widget's onCustomEvent handler.
-  yield aguiUsageFor({modelId: 'claude-opus-4-8[1m]', contextWindow: 1000000, inputTokens: 18151, cacheReadTokens: 15832, cacheWriteTokens: 1912})
+  yield aguiUsageFor({
+    modelId: 'claude-opus-4-8[1m]',
+    contextWindow: 1000000,
+    inputTokens: 18151,
+    cacheReadTokens: 15832,
+    cacheWriteTokens: 1912,
+  })
   yield {type: EventType.TEXT_MESSAGE_START, messageId: 'm1', role: 'assistant'}
   yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'm1', delta: ASSISTANT_TEXT}
   yield {type: EventType.TEXT_MESSAGE_END, messageId: 'm1'}
@@ -97,7 +103,6 @@ async function* chatScript(): AsyncGenerator<StreamChunk> {
     }),
   }
 }
-
 
 // A compaction turn: native /compact streams no assistant text. Held open ~700ms so the composer's
 // out-of-band fetch stays in flight long enough for the test to observe the Send-slot spinner.
@@ -311,8 +316,24 @@ describe('aidx widget (it) — real browser, real SSE', () => {
         const nowMs = Date.now()
         return writeJson(res, {
           sessions: [
-            {id: 'tok-aidx', title: 'Made in aidx', updatedAt: nowMs, messageCount: 3, running: false, origin: 'aidx', usage: null},
-            {id: 'tok-ext', title: 'Made externally', updatedAt: nowMs, messageCount: 2, running: false, origin: 'external', usage: null},
+            {
+              id: 'tok-aidx',
+              title: 'Made in aidx',
+              updatedAt: nowMs,
+              messageCount: 3,
+              running: false,
+              origin: 'aidx',
+              usage: null,
+            },
+            {
+              id: 'tok-ext',
+              title: 'Made externally',
+              updatedAt: nowMs,
+              messageCount: 2,
+              running: false,
+              origin: 'external',
+              usage: null,
+            },
           ],
         })
       }
@@ -545,11 +566,9 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await page.mouse.up()
 
     // After the snap animation it commits the nearest preset and persists it.
-    await page.waitForFunction(
-      () => localStorage.getItem('aidx-fab-position') === 'bottom-right',
-      undefined,
-      {timeout: 2000},
-    )
+    await page.waitForFunction(() => localStorage.getItem('aidx-fab-position') === 'bottom-right', undefined, {
+      timeout: 2000,
+    })
     expect(await fab.getAttribute('class')).toContain('pw-fab-pos-bottom-right')
     await page.close()
   })
@@ -645,7 +664,8 @@ describe('aidx widget (it) — real browser, real SSE', () => {
   })
 
   // Reads aria-hidden of a shadow-DOM element by selector (the widget lives in an open shadow root).
-  const ariaHiddenOf = (sel: string) => `(() => document.querySelector('[data-aidx-root]')?.shadowRoot?.querySelector('${sel}')?.getAttribute('aria-hidden'))()`
+  const ariaHiddenOf = (sel: string) =>
+    `(() => document.querySelector('[data-aidx-root]')?.shadowRoot?.querySelector('${sel}')?.getAttribute('aria-hidden'))()`
 
   it('drops the quick terminal on its hotkey and closes on Escape', async () => {
     const page = await browser.newPage()
@@ -695,7 +715,11 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await page.waitForFunction(`${countOf('.pw-qt-pane')} === 2`, undefined, {timeout: 2000})
     await page.locator('.pw-qt-pane').first().dispatchEvent('pointerdown')
     await page.waitForFunction(
-      () => document.querySelector('[data-aidx-root]')?.shadowRoot?.querySelector('.pw-qt-pane')?.classList.contains('focused') === true,
+      () =>
+        document
+          .querySelector('[data-aidx-root]')
+          ?.shadowRoot?.querySelector('.pw-qt-pane')
+          ?.classList.contains('focused') === true,
       undefined,
       {timeout: 2000},
     )
@@ -706,7 +730,11 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await page.keyboard.press('Control+k')
     await page.waitForFunction(`${ariaHiddenOf('.pw-qt')} === 'false'`, undefined, {timeout: 2000})
     await page.waitForFunction(
-      () => document.querySelector('[data-aidx-root]')?.shadowRoot?.querySelector('.pw-qt-pane')?.classList.contains('focused') === true,
+      () =>
+        document
+          .querySelector('[data-aidx-root]')
+          ?.shadowRoot?.querySelector('.pw-qt-pane')
+          ?.classList.contains('focused') === true,
       undefined,
       {timeout: 2000},
     )
@@ -836,7 +864,6 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     }
   })
 
-
   it('model selector: picking a model closes the popover and never collapses the list to the chosen one', async () => {
     const page = await browser.newPage()
     await page.goto(state.base)
@@ -862,9 +889,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     // The pill reflects the pick.
     await page.waitForFunction(
       () => {
-        const t = document
-          .querySelector('[data-aidx-root]')
-          ?.shadowRoot?.querySelector('.pw-model-trigger')
+        const t = document.querySelector('[data-aidx-root]')?.shadowRoot?.querySelector('.pw-model-trigger')
         return (t?.textContent ?? '').includes('Claude Opus 4.8')
       },
       undefined,
@@ -935,7 +960,9 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await rename.press('Enter')
     await page.waitForFunction(
       () => {
-        const t = document.querySelector('[data-aidx-root]')?.shadowRoot?.querySelector('#pw-chat-panel .pw-session-current')
+        const t = document
+          .querySelector('[data-aidx-root]')
+          ?.shadowRoot?.querySelector('#pw-chat-panel .pw-session-current')
         return (t?.textContent ?? '').includes('Renamed thread')
       },
       undefined,
@@ -970,7 +997,9 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await fab.click()
     await page.waitForFunction(
       () => {
-        const t = document.querySelector('[data-aidx-root]')?.shadowRoot?.querySelector('#pw-chat-panel .pw-session-current')
+        const t = document
+          .querySelector('[data-aidx-root]')
+          ?.shadowRoot?.querySelector('#pw-chat-panel .pw-session-current')
         return (t?.textContent ?? '').includes('Made in aidx')
       },
       undefined,

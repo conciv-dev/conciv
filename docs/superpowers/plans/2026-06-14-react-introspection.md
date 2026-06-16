@@ -11,6 +11,7 @@
 **Proven by spike (2026-06-14):** Next App Router RSC server `<h1>` → `app/page.tsx:17` (file:// + Turbopack **sectioned** map → must use `AnyMap`, not `TraceMap`); TanStack Start Vite client `<h1>` → `index.tsx` (http + inline `data:` map). Same ~30-line resolver, both frameworks.
 
 **Known requirements carried from the spike:**
+
 1. Turbopack maps are **sectioned** → resolver must use `AnyMap`/`FlattenMap`, never `TraceMap`.
 2. Vite maps are **inline `data:`** in the served module → read `//# sourceMappingURL=` comment, decode base64.
 3. URL normalize: strip `about://React/Server/` prefix, strip `?query`, handle `file://` + `http` + bare path.
@@ -26,24 +27,29 @@
 ### Task 0: Add dependencies
 
 **Files:**
+
 - Modify: `packages/widget/package.json` (add `bippy` to `dependencies`)
 - Modify: `packages/core/package.json` (add `@jridgewell/trace-mapping` to `dependencies`, `@jridgewell/gen-mapping` to `devDependencies`)
 
 - [ ] **Step 1: Add bippy to the widget**
 
 Run:
+
 ```bash
 pnpm --filter @aidx/widget add bippy@0.5.41
 ```
+
 Expected: `dependencies` gains `"bippy": "0.5.41"`.
 
 - [ ] **Step 2: Add trace-mapping (runtime) + gen-mapping (test fixture builder) to core**
 
 Run:
+
 ```bash
 pnpm --filter @aidx/core add @jridgewell/trace-mapping@0.3.31
 pnpm --filter @aidx/core add -D @jridgewell/gen-mapping
 ```
+
 Expected: core `dependencies` gains `@jridgewell/trace-mapping`, `devDependencies` gains `@jridgewell/gen-mapping`.
 
 - [ ] **Step 3: Verify install + typecheck still green**
@@ -63,6 +69,7 @@ git commit -m "build: add bippy (widget) and trace-mapping (core) for React intr
 ### Task 1: Protocol — register the four React verbs
 
 **Files:**
+
 - Modify: `packages/protocol/src/page-types.ts:6-37` (add kinds), `:41-62` (leave MUTATING_KINDS unchanged — these are reads)
 - Test: `packages/protocol/test/react-verbs.test.ts`
 
@@ -135,6 +142,7 @@ git commit -m "feat(protocol): register react verbs locate/tree/inspect/find"
 ### Task 2: Core symbolicator
 
 **Files:**
+
 - Create: `packages/core/src/page/symbolicate.ts`
 - Test: `packages/core/test/page/symbolicate.test.ts`
 
@@ -197,7 +205,10 @@ describe('symbolicateFrame', () => {
     const b64 = Buffer.from(JSON.stringify(toEncodedMap(gen))).toString('base64')
     const body = `void 0;\nvoid 1;\n//# sourceMappingURL=data:application/json;base64,${b64}`
     const fakeFetch = (async () => new Response(body)) as unknown as typeof fetch
-    const loc = await symbolicateFrame({fileName: 'http://localhost:3000/src/App.tsx?x=1', line: 2, column: 1}, fakeFetch)
+    const loc = await symbolicateFrame(
+      {fileName: 'http://localhost:3000/src/App.tsx?x=1', line: 2, column: 1},
+      fakeFetch,
+    )
     expect(loc?.file).toBe('src/App.tsx')
   })
 
@@ -252,7 +263,8 @@ async function loadSourceMap(chunkUrl: string, fetchImpl: typeof fetch): Promise
   const m = js.match(/\/\/[#@]\s*sourceMappingURL=([^\s'"]+)\s*$/m)
   if (m) {
     const u = m[1].trim()
-    if (u.startsWith('data:')) return JSON.parse(Buffer.from(u.slice(u.indexOf('base64,') + 7), 'base64').toString('utf8'))
+    if (u.startsWith('data:'))
+      return JSON.parse(Buffer.from(u.slice(u.indexOf('base64,') + 7), 'base64').toString('utf8'))
     return JSON.parse(await readUrl(new URL(u, clean).href, fetchImpl))
   }
   return JSON.parse(await readUrl(clean + '.map', fetchImpl))
@@ -274,7 +286,10 @@ export async function symbolicateFrame(frame: RawFrame, fetchImpl: typeof fetch 
 }
 
 // First frame that resolves to non-dependency source wins (skips framework internals).
-export async function symbolicateFrames(frames: RawFrame[], fetchImpl: typeof fetch = fetch): Promise<SourceLoc | null> {
+export async function symbolicateFrames(
+  frames: RawFrame[],
+  fetchImpl: typeof fetch = fetch,
+): Promise<SourceLoc | null> {
   for (const frame of frames) {
     const loc = await symbolicateFrame(frame, fetchImpl)
     if (loc && !loc.file.includes('node_modules')) return loc
@@ -300,6 +315,7 @@ git commit -m "feat(core): source-map symbolicator (file:// disk + http fetch, A
 ### Task 3: Widget React bridge — raw fiber extraction
 
 **Files:**
+
 - Create: `packages/widget/src/react-bridge.ts`
 - Modify: `packages/widget/src/page-snapshot.ts` (export `addRef` helper)
 
@@ -440,6 +456,7 @@ git commit -m "feat(widget): bippy react bridge (locate/tree/inspect/find raw ex
 ### Task 4: Widget handlers — wire the four verbs into the driver
 
 **Files:**
+
 - Modify: `packages/widget/src/page-handlers.ts` (add 4 handlers to `DOM_HANDLERS`, add `locate`/`inspect` to `ELEMENT_KINDS`)
 
 - [ ] **Step 1: Import the bridge and the serializer**
@@ -512,6 +529,7 @@ git commit -m "feat(widget): locate/tree/inspect/find page handlers"
 ### Task 5: Core — symbolicate `locate` replies
 
 **Files:**
+
 - Modify: `packages/core/src/api/page/page.ts` (enrich the `locate` reply in `handleVerb`)
 - Test: `packages/core/test/api/page/page.it.test.ts` (add a locate enrichment case)
 
@@ -547,11 +565,11 @@ import {symbolicateFrames, type RawFrame} from '../../page/symbolicate.js'
 Inside `handleVerb`, replace `return data` with:
 
 ```ts
-    if (verb === 'locate' && Array.isArray(data.frames)) {
-      const source = await symbolicateFrames(data.frames as RawFrame[])
-      return {...data, source}
-    }
-    return data
+if (verb === 'locate' && Array.isArray(data.frames)) {
+  const source = await symbolicateFrames(data.frames as RawFrame[])
+  return {...data, source}
+}
+return data
 ```
 
 (Place the journal-append block as-is before this; `locate` is non-mutating so it is not journaled.)
@@ -578,6 +596,7 @@ git commit -m "feat(core): symbolicate locate replies to source file:line"
 ### Task 6: CLI — generate the four agent commands
 
 **Files:**
+
 - Modify: `packages/cli/src/page.ts:18-50` (add 4 rows to `PAGE_VERBS`)
 - Test: `packages/cli/test/cli.it.test.ts` (assert request shape for the new verbs)
 
@@ -636,6 +655,7 @@ git commit -m "feat(cli): page locate/tree/inspect/find commands"
 ### Task 7: Widget browser-IT — driver dispatches react verbs
 
 **Files:**
+
 - Modify: `packages/widget/test/widget.it.test.ts` (add a React fixture page + assert the driver returns fiber data in a real browser)
 
 - [ ] **Step 1: Add a minimal React fixture to the harness**
@@ -696,6 +716,7 @@ git commit -m "test(widget): browser-IT for locate against a real React fixture"
 ### Task 8: E2E — `locate` to source in the Next.js example
 
 **Files:**
+
 - Create: `apps/examples/nextjs-app/tests/react-locate.e2e.spec.ts`
 
 - [ ] **Step 1: Write the e2e test**
@@ -737,6 +758,7 @@ git commit -m "test(e2e): locate resolves Next.js <h1> to app/page.tsx"
 ### Task 9: E2E — `tree` / `inspect` / `find` in the Next.js example
 
 **Files:**
+
 - Create: `apps/examples/nextjs-app/tests/react-verbs.e2e.spec.ts`
 
 - [ ] **Step 1: Write the e2e test**
@@ -749,7 +771,10 @@ const api = (path: string) => `http://localhost:41700/api/page/${path}`
 test('tree returns a component hierarchy', async ({page}) => {
   await page.goto('/')
   await expect(page.getByRole('button', {name: 'Open aidx chat'})).toBeVisible({timeout: 30_000})
-  const tree = await page.evaluate((u) => fetch(u, {credentials: 'include'}).then((r) => r.json()), api('tree?selector=main'))
+  const tree = await page.evaluate(
+    (u) => fetch(u, {credentials: 'include'}).then((r) => r.json()),
+    api('tree?selector=main'),
+  )
   expect(Array.isArray(tree.nodes)).toBe(true)
   expect(tree.nodes.length).toBeGreaterThan(0)
   expect(typeof tree.nodes[0].component).toBe('string')
@@ -758,7 +783,10 @@ test('tree returns a component hierarchy', async ({page}) => {
 test('inspect returns props for a component element', async ({page}) => {
   await page.goto('/')
   await expect(page.getByRole('button', {name: 'Open aidx chat'})).toBeVisible({timeout: 30_000})
-  const out = await page.evaluate((u) => fetch(u, {credentials: 'include'}).then((r) => r.json()), api('inspect?selector=h1'))
+  const out = await page.evaluate(
+    (u) => fetch(u, {credentials: 'include'}).then((r) => r.json()),
+    api('inspect?selector=h1'),
+  )
   expect(out).toHaveProperty('component')
   expect(out).toHaveProperty('props')
 })
@@ -766,7 +794,10 @@ test('inspect returns props for a component element', async ({page}) => {
 test('find returns refs by component name', async ({page}) => {
   await page.goto('/')
   await expect(page.getByRole('button', {name: 'Open aidx chat'})).toBeVisible({timeout: 30_000})
-  const out = await page.evaluate((u) => fetch(u, {credentials: 'include'}).then((r) => r.json()), api('find?name=Home'))
+  const out = await page.evaluate(
+    (u) => fetch(u, {credentials: 'include'}).then((r) => r.json()),
+    api('find?name=Home'),
+  )
   expect(Array.isArray(out.matches)).toBe(true)
   expect(out.matches.some((m: {component: string}) => m.component === 'Home')).toBe(true)
 })
@@ -789,6 +820,7 @@ git commit -m "test(e2e): tree/inspect/find verbs in the Next.js example"
 ### Task 10: E2E — cross-framework `locate` in TanStack Start
 
 **Files:**
+
 - Create: `apps/examples/tanstack-start/e2e/react-locate.spec.ts`
 
 - [ ] **Step 1: Write the e2e test (with hydration wait — gotcha #4)**
@@ -802,10 +834,15 @@ import {test, expect} from '@playwright/test'
 test('locate resolves the TanStack <h1> to src/routes/index.tsx', async ({page}) => {
   await page.goto('/')
   // Fibers attach only after hydration (gotcha #4).
-  await page.waitForFunction(() => {
-    for (const el of document.querySelectorAll('*')) if (Object.keys(el).some((k) => k.startsWith('__reactFiber'))) return true
-    return false
-  }, null, {timeout: 15_000})
+  await page.waitForFunction(
+    () => {
+      for (const el of document.querySelectorAll('*'))
+        if (Object.keys(el).some((k) => k.startsWith('__reactFiber'))) return true
+      return false
+    },
+    null,
+    {timeout: 15_000},
+  )
   const body = await page.evaluate(
     (u) => fetch(u, {credentials: 'include'}).then((r) => r.json()),
     'http://localhost:41700/api/page/locate?selector=h1',

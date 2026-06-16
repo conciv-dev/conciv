@@ -64,8 +64,19 @@ const StreamContentEvent = z
   .object({
     type: z.string(),
     index: z.number().optional(),
-    content_block: z.object({type: z.string(), id: z.string().optional(), name: z.string().optional()}).loose().optional(),
-    delta: z.object({type: z.string(), text: z.string().optional(), thinking: z.string().optional(), partial_json: z.string().optional()}).loose().optional(),
+    content_block: z
+      .object({type: z.string(), id: z.string().optional(), name: z.string().optional()})
+      .loose()
+      .optional(),
+    delta: z
+      .object({
+        type: z.string(),
+        text: z.string().optional(),
+        thinking: z.string().optional(),
+        partial_json: z.string().optional(),
+      })
+      .loose()
+      .optional(),
   })
   .loose()
 type StreamContent = z.infer<typeof StreamContentEvent>
@@ -74,7 +85,12 @@ type StreamContent = z.infer<typeof StreamContentEvent>
 // minted message id for text/thinking, or the tool_use id for a tool call.
 type OpenBlock = {kind: 'text' | 'thinking' | 'tool'; mid: string; sawArgs?: boolean}
 
-function* openBlock(i: number, cb: NonNullable<StreamContent['content_block']>, open: Map<number, OpenBlock>, mint: Mint): Generator<StreamChunk> {
+function* openBlock(
+  i: number,
+  cb: NonNullable<StreamContent['content_block']>,
+  open: Map<number, OpenBlock>,
+  mint: Mint,
+): Generator<StreamChunk> {
   if (cb.type === 'text') {
     const mid = mint('m')
     open.set(i, {kind: 'text', mid})
@@ -91,8 +107,10 @@ function* openBlock(i: number, cb: NonNullable<StreamContent['content_block']>, 
 
 function* deltaBlock(block: OpenBlock | undefined, delta: NonNullable<StreamContent['delta']>): Generator<StreamChunk> {
   if (!block) return
-  if (block.kind === 'text' && delta.text) yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId: block.mid, delta: delta.text}
-  else if (block.kind === 'thinking' && delta.thinking) yield {type: EventType.REASONING_MESSAGE_CONTENT, messageId: block.mid, delta: delta.thinking}
+  if (block.kind === 'text' && delta.text)
+    yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId: block.mid, delta: delta.text}
+  else if (block.kind === 'thinking' && delta.thinking)
+    yield {type: EventType.REASONING_MESSAGE_CONTENT, messageId: block.mid, delta: delta.thinking}
   else if (block.kind === 'tool' && delta.partial_json !== undefined) {
     block.sawArgs = true
     yield {type: EventType.TOOL_CALL_ARGS, toolCallId: block.mid, delta: delta.partial_json}

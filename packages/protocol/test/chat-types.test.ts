@@ -1,5 +1,11 @@
 import {describe, it, expect} from 'vitest'
-import {SessionId, isSessionId, SessionRecordSchema, ResolveRequestSchema, ResolveResponseSchema} from '../src/chat-types.js'
+import {
+  SessionId,
+  isSessionId,
+  SessionRecordSchema,
+  ResolveRequestSchema,
+  ResolveResponseSchema,
+} from '../src/chat-types.js'
 
 describe('SessionId (branded, aidx_ prefix)', () => {
   it('accepts an aidx_ id', () => {
@@ -24,9 +30,16 @@ describe('isSessionId (branded guard)', () => {
 describe('SessionRecordSchema', () => {
   it('parses a new record (no harness id yet)', () => {
     const r = SessionRecordSchema.parse({
-      id: 'aidx_1', harnessSessionId: null, harnessKind: 'claude',
-      origin: 'chat', title: null, model: null, usage: null,
-      cwd: '/app', createdAt: 1, updatedAt: 1,
+      id: 'aidx_1',
+      harnessSessionId: null,
+      harnessKind: 'claude',
+      origin: 'chat',
+      title: null,
+      model: null,
+      usage: null,
+      cwd: '/app',
+      createdAt: 1,
+      updatedAt: 1,
     })
     expect(r.harnessSessionId).toBeNull()
   })

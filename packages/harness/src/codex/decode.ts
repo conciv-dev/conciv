@@ -26,7 +26,12 @@ const CommandItem = z.object({
 })
 
 const CodexEventSchema = z
-  .object({type: z.string(), thread_id: z.string().optional(), item: z.unknown().optional(), usage: z.unknown().optional()})
+  .object({
+    type: z.string(),
+    thread_id: z.string().optional(),
+    item: z.unknown().optional(),
+    usage: z.unknown().optional(),
+  })
   .loose()
 type CodexEvent = z.infer<typeof CodexEventSchema>
 

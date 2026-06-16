@@ -53,21 +53,23 @@ at near-zero ongoing cost (the scripts already exist and pass locally).
 
 ## Commands you will need
 
-| Purpose | Command | Expected on success |
-|---|---|---|
-| Install (CI mode) | `pnpm install --frozen-lockfile` | exit 0 |
-| Typecheck | `pnpm typecheck` | exit 0 |
-| Lint | `pnpm lint` | exit 0 |
-| Test + build | `pnpm test` (build runs as a dep) and `pnpm build` | exit 0 |
-| Format check | `pnpm format:check` | exit 0 |
-| Validate workflow YAML | `node -e "require('node:fs').readFileSync('.github/workflows/ci.yml','utf8')"` then a YAML parse (see Step 2) | exit 0 |
+| Purpose                | Command                                                                                                       | Expected on success |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------- |
+| Install (CI mode)      | `pnpm install --frozen-lockfile`                                                                              | exit 0              |
+| Typecheck              | `pnpm typecheck`                                                                                              | exit 0              |
+| Lint                   | `pnpm lint`                                                                                                   | exit 0              |
+| Test + build           | `pnpm test` (build runs as a dep) and `pnpm build`                                                            | exit 0              |
+| Format check           | `pnpm format:check`                                                                                           | exit 0              |
+| Validate workflow YAML | `node -e "require('node:fs').readFileSync('.github/workflows/ci.yml','utf8')"` then a YAML parse (see Step 2) | exit 0              |
 
 ## Scope
 
 **In scope**:
+
 - `.github/workflows/ci.yml` (create)
 
 **Out of scope** (do NOT touch):
+
 - `package.json` scripts — they are correct; reuse them, don't rewrite.
 - `turbo.json` — caching config is handled in plan 001; don't change it here.
 - Do NOT add deployment/release steps — Netlify already handles the docs deploy (`netlify.toml`).
@@ -131,6 +133,7 @@ jobs:
 ```
 
 Notes for the executor:
+
 - `pnpm/action-setup@v4` reads the pnpm version from `package.json` `packageManager` automatically — do
   not hardcode a different version.
 - The Playwright step targets the widget package; if `playwright` is not a dependency there, find which

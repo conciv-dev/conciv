@@ -28,7 +28,8 @@ async function loadSourceMap(chunkUrl: string, fetchImpl: typeof fetch): Promise
   const m = js.match(/\/\/[#@]\s*sourceMappingURL=([^\s'"]+)\s*$/m)
   if (m) {
     const u = (m[1] ?? '').trim()
-    if (u.startsWith('data:')) return JSON.parse(Buffer.from(u.slice(u.indexOf('base64,') + 7), 'base64').toString('utf8'))
+    if (u.startsWith('data:'))
+      return JSON.parse(Buffer.from(u.slice(u.indexOf('base64,') + 7), 'base64').toString('utf8'))
     return JSON.parse(await readUrl(new URL(u, clean).href, fetchImpl))
   }
   return JSON.parse(await readUrl(clean + '.map', fetchImpl))
@@ -50,7 +51,10 @@ export async function symbolicateFrame(frame: RawFrame, fetchImpl: typeof fetch 
 }
 
 // First frame that resolves to non-dependency source wins (skips framework internals).
-export async function symbolicateFrames(frames: RawFrame[], fetchImpl: typeof fetch = fetch): Promise<SourceLoc | null> {
+export async function symbolicateFrames(
+  frames: RawFrame[],
+  fetchImpl: typeof fetch = fetch,
+): Promise<SourceLoc | null> {
   for (const frame of frames) {
     const loc = await symbolicateFrame(frame, fetchImpl)
     if (loc && !loc.file.includes('node_modules')) return loc

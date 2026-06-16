@@ -23,7 +23,10 @@ flowchart LR
 
 <Cards>
   <Card title="Plugin" description="@aidx/plugin boots the engine and injects the widget script into your dev build." />
-  <Card title="Widget" description="A chat UI in an open shadow DOM. It probes the engine and shows the ✦ button when dev routes are live." />
+  <Card
+    title="Widget"
+    description="A chat UI in an open shadow DOM. It probes the engine and shows the ✦ button when dev routes are live."
+  />
   <Card title="Engine" description="@aidx/core serves the chat, page, and test APIs on its own dev port." />
   <Card title="Harness" description="The headless agent process behind the chat, such as Claude Code." />
 </Cards>
@@ -31,15 +34,9 @@ flowchart LR
 ## A turn
 
 <Steps>
-<Step>
-You ask something in the chat. The agent reads the live page to ground itself.
-</Step>
-<Step>
-It acts: edits files, drives the DOM, or runs your tests. Output streams back into the widget.
-</Step>
-<Step>
-Anything risky pauses for your approval before it runs.
-</Step>
+  <Step>You ask something in the chat. The agent reads the live page to ground itself.</Step>
+  <Step>It acts: edits files, drives the DOM, or runs your tests. Output streams back into the widget.</Step>
+  <Step>Anything risky pauses for your approval before it runs.</Step>
 </Steps>
 
 Next: [Quick start](/docs/quick-start) to add it, or [Usage](/docs/usage) to see each capability.

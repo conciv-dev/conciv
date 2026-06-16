@@ -1,6 +1,6 @@
-import { Badge } from '@/components/ui/badge';
-import { Demo } from './demo/demo';
-import { InstallChip } from './install-chip';
+import {Badge} from '@/components/ui/badge'
+import {Demo} from './demo/demo'
+import {InstallChip} from './install-chip'
 
 export function Hero() {
   return (
@@ -25,5 +25,5 @@ export function Hero() {
       </div>
       <Demo />
     </header>
-  );
+  )
 }

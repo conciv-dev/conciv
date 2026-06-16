@@ -19,10 +19,12 @@
 ## File Structure
 
 **Protocol — `packages/protocol/src`**
+
 - `chat-types.ts` (modify): branded `SessionId`; delete `DEFAULT_SESSION_ID`; reshape `ChatSession`; add `SessionRecordSchema`, `ResolveRequestSchema`, `ResolveResponseSchema`, `RenameResponseSchema`, `OkSchema`.
 - `harness-types.ts` (modify): enrich `HarnessSessionMeta`.
 
 **Core — `packages/core/src`**
+
 - `store/session-store.ts` (replace): `SessionStore` interface + unstorage impl. Absorbs the old map store, `session-titles-store.ts`, `usage-store.ts` (all deleted).
 - `store/session-titles-store.ts`, `store/usage-store.ts` (delete).
 - `state-paths.ts` (modify): drop `sessions`/`titles`/`usage` paths; add unstorage base dir; keep `lockFor`.
@@ -33,6 +35,7 @@
 - `api/chat/launch.ts` (modify): resume token from the record.
 
 **Widget — `packages/widget/src`**
+
 - `transport.ts` (new): the one network seam — `route` (typed fetch) + `eventSource`/`url` (SSE) for ALL `/api/*` calls.
 - `session-client.ts` (new): `defineClient` — per-instance session client over the transport.
 - `chat-api.ts` (delete): replaced by `transport.ts` + `session-client.ts`.
@@ -43,6 +46,7 @@
 - `page-bus.ts`, `test-card.tsx` (modify): page-bus + test-runner/editor over the shared transport.
 
 **Harness — `packages/harness/src/claude`**
+
 - `history.ts` (modify): enrichment fields.
 
 ---
@@ -52,6 +56,7 @@
 ### Task 1: Protocol — branded id + schemas
 
 **Files:**
+
 - Modify: `packages/protocol/src/chat-types.ts`
 - Test: `packages/protocol/test/chat-types.test.ts`
 
@@ -73,9 +78,16 @@ describe('SessionId (branded, aidx_ prefix)', () => {
 describe('SessionRecordSchema', () => {
   it('parses a new record (no harness id yet)', () => {
     const r = SessionRecordSchema.parse({
-      id: 'aidx_1', harnessSessionId: null, harnessKind: 'claude',
-      origin: 'chat', title: null, model: null, usage: null,
-      cwd: '/app', createdAt: 1, updatedAt: 1,
+      id: 'aidx_1',
+      harnessSessionId: null,
+      harnessKind: 'claude',
+      origin: 'chat',
+      title: null,
+      model: null,
+      usage: null,
+      cwd: '/app',
+      createdAt: 1,
+      updatedAt: 1,
     })
     expect(r.harnessSessionId).toBeNull()
   })
@@ -103,7 +115,10 @@ In `packages/protocol/src/chat-types.ts`:
 ```ts
 // Our session id — minted by the server, aidx_ prefixed, branded so a raw harness id can't be
 // passed where ours is required.
-export const SessionId = z.string().regex(/^aidx_[A-Za-z0-9_-]{1,128}$/).brand<'AidxSessionId'>()
+export const SessionId = z
+  .string()
+  .regex(/^aidx_[A-Za-z0-9_-]{1,128}$/)
+  .brand<'AidxSessionId'>()
 export type SessionId = z.infer<typeof SessionId>
 
 // The harness's own session id (resume token). Charset-bounded for filesystem safety.
@@ -112,8 +127,8 @@ export const HarnessSessionId = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/)
 // One consolidated, durable record per session — the single source of truth.
 export const SessionRecordSchema = z.object({
   id: SessionId,
-  harnessSessionId: z.string().nullable(),  // resume token; null = never run
-  harnessKind: z.string(),                  // 'claude' | 'codex' ... routes resume
+  harnessSessionId: z.string().nullable(), // resume token; null = never run
+  harnessKind: z.string(), // 'claude' | 'codex' ... routes resume
   origin: z.enum(['chat', 'agent', 'external']),
   title: z.string().nullable(),
   model: z.string().nullable(),
@@ -154,6 +169,7 @@ git commit -m "feat(protocol): branded SessionId + SessionRecord/resolve schemas
 ### Task 2: Core — `SessionStore` (unstorage), adapter-agnostic
 
 **Files:**
+
 - Add dep: `packages/core/package.json` (`unstorage`)
 - Create: `packages/core/src/store/session-store.ts`
 - Test: `packages/core/test/store/session-store.test.ts`
@@ -174,7 +190,14 @@ const base = {harnessKind: 'claude', origin: 'chat' as const, cwd: '/app'}
 describe('SessionStore (memory driver)', () => {
   it('create → get round-trips', async () => {
     const store = createMemorySessionStore()
-    const rec = await store.create({id: 'aidx_a', harnessSessionId: null, title: null, model: null, usage: null, ...base})
+    const rec = await store.create({
+      id: 'aidx_a',
+      harnessSessionId: null,
+      title: null,
+      model: null,
+      usage: null,
+      ...base,
+    })
     expect(await store.get('aidx_a')).toEqual(rec)
   })
   it('update merges a patch and bumps updatedAt', async () => {
@@ -254,8 +277,9 @@ function makeStore(storage: Storage, now: () => number): SessionStore {
       return recs.filter((r): r is SessionRecord => r !== null)
     },
     findByHarnessId: async (harnessSessionId) =>
-      (await (async () => (await Promise.all((await storage.getKeys()).map((k) => read(k)))))())
-        .find((r) => r?.harnessSessionId === harnessSessionId) ?? null,
+      (await (async () => await Promise.all((await storage.getKeys()).map((k) => read(k))))()).find(
+        (r) => r?.harnessSessionId === harnessSessionId,
+      ) ?? null,
   }
 }
 
@@ -290,6 +314,7 @@ git commit -m "feat(core): consolidated SessionStore over unstorage (memory + fs
 ### Task 3: Core — header → our id, delete the old stores
 
 **Files:**
+
 - Modify: `packages/core/src/api/chat/session-id.ts`
 - Modify: `packages/core/src/state-paths.ts`
 - Delete: `packages/core/src/store/session-titles-store.ts`, `packages/core/src/store/usage-store.ts`, and the old map `packages/core/src/store/session-store.ts` logic (now replaced)
@@ -354,6 +379,7 @@ git commit -m "feat(core): header→our id (no DEFAULT); delete titles + usage s
 ### Task 4: Core — `resolve` route + record lifecycle
 
 **Files:**
+
 - Modify: `packages/core/src/api/chat/chat.ts` (wire the store, drop `sessionFor` map + DEFAULT)
 - Modify: `packages/core/src/api/chat/session.ts` (add `resolve`)
 - Test: `packages/core/test/api/chat/resolve.test.ts`
@@ -365,7 +391,12 @@ import {describe, it, expect} from 'vitest'
 import {createMemorySessionStore} from '../../../src/store/session-store.js'
 import {resolveSession} from '../../../src/api/chat/session.js'
 
-const deps = (store = createMemorySessionStore()) => ({store, harnessKind: 'claude', cwd: '/app', mintId: () => 'aidx_new'})
+const deps = (store = createMemorySessionStore()) => ({
+  store,
+  harnessKind: 'claude',
+  cwd: '/app',
+  mintId: () => 'aidx_new',
+})
 
 describe('resolveSession', () => {
   it('no id → mints a new record', async () => {
@@ -376,7 +407,16 @@ describe('resolveSession', () => {
   })
   it('our id → returns it unchanged', async () => {
     const store = createMemorySessionStore()
-    await store.create({id: 'aidx_a', harnessSessionId: null, harnessKind: 'claude', origin: 'chat', title: null, model: null, usage: null, cwd: '/app'})
+    await store.create({
+      id: 'aidx_a',
+      harnessSessionId: null,
+      harnessKind: 'claude',
+      origin: 'chat',
+      title: null,
+      model: null,
+      usage: null,
+      cwd: '/app',
+    })
     const {sessionId} = await resolveSession(deps(store), {id: 'aidx_a'})
     expect(sessionId).toBe('aidx_a')
   })
@@ -421,15 +461,27 @@ export async function resolveSession(deps: ResolveDeps, body: {id?: string}): Pr
     const wrapped = await deps.store.findByHarnessId(body.id)
     if (wrapped) return {sessionId: wrapped.id}
     const rec = await deps.store.create({
-      id: mint(), harnessSessionId: body.id, harnessKind: deps.harnessKind,
-      origin: 'external', title: null, model: null, usage: null, cwd: deps.cwd,
+      id: mint(),
+      harnessSessionId: body.id,
+      harnessKind: deps.harnessKind,
+      origin: 'external',
+      title: null,
+      model: null,
+      usage: null,
+      cwd: deps.cwd,
     })
     return {sessionId: rec.id}
   }
   // no id → mint a fresh session
   const rec = await deps.store.create({
-    id: mint(), harnessSessionId: null, harnessKind: deps.harnessKind,
-    origin: 'chat', title: null, model: null, usage: null, cwd: deps.cwd,
+    id: mint(),
+    harnessSessionId: null,
+    harnessKind: deps.harnessKind,
+    origin: 'chat',
+    title: null,
+    model: null,
+    usage: null,
+    cwd: deps.cwd,
   })
   return {sessionId: rec.id}
 }
@@ -463,6 +515,7 @@ git commit -m "feat(core): resolve route (mint/adopt/return) over SessionStore"
 ### Task 5: Core — `/session`, `/sessions` (read-only join), `/history` by our id
 
 **Files:**
+
 - Modify: `packages/core/src/api/chat/session.ts`
 - Test: `packages/core/test/api/chat/sessions-list.test.ts`
 
@@ -476,7 +529,16 @@ import {createMemorySessionStore} from '../../../src/store/session-store.js'
 describe('buildSessionList', () => {
   it('unions our records with unwrapped harness transcripts (no writes)', async () => {
     const store = createMemorySessionStore()
-    await store.create({id: 'aidx_a', harnessSessionId: 'tok-a', harnessKind: 'claude', origin: 'chat', title: 'Mine', model: null, usage: null, cwd: '/app'})
+    await store.create({
+      id: 'aidx_a',
+      harnessSessionId: 'tok-a',
+      harnessKind: 'claude',
+      origin: 'chat',
+      title: 'Mine',
+      model: null,
+      usage: null,
+      cwd: '/app',
+    })
     const harnessList = [
       {id: 'tok-a', derivedTitle: 'ignored', updatedAt: 10, messageCount: 3},
       {id: 'tok-ext', derivedTitle: 'External', updatedAt: 20, messageCount: 1},
@@ -484,8 +546,8 @@ describe('buildSessionList', () => {
     const rows = await buildSessionList({store, harnessList, runningKeys: new Set<string>()})
     const mine = rows.find((r) => r.id === 'aidx_a')!
     const ext = rows.find((r) => r.id === 'tok-ext')!
-    expect(mine.title).toBe('Mine')          // our record wins
-    expect(ext.origin).toBe('external')       // unwrapped transcript shown under its harness id
+    expect(mine.title).toBe('Mine') // our record wins
+    expect(ext.origin).toBe('external') // unwrapped transcript shown under its harness id
     expect(await store.findByHarnessId('tok-ext')).toBeNull() // list did NOT write
   })
 })
@@ -523,7 +585,15 @@ export async function buildSessionList(args: {
   })
   const unwrapped = args.harnessList
     .filter((h) => !byHarness.has(h.id))
-    .map((h) => ({id: h.id, title: h.derivedTitle, updatedAt: h.updatedAt, messageCount: h.messageCount, running: false, origin: 'external' as const, usage: null}))
+    .map((h) => ({
+      id: h.id,
+      title: h.derivedTitle,
+      updatedAt: h.updatedAt,
+      messageCount: h.messageCount,
+      running: false,
+      origin: 'external' as const,
+      usage: null,
+    }))
   return [...ours, ...unwrapped].sort((a, b) => b.updatedAt - a.updatedAt)
 }
 ```
@@ -547,6 +617,7 @@ git commit -m "feat(core): read-only /sessions join + /session,/history keyed by
 ### Task 6: Core — turn.ts (lock/usage/onSessionId/resume by our id)
 
 **Files:**
+
 - Modify: `packages/core/src/api/chat/turn.ts`
 - Test: `packages/core/test/api/chat/turn-session.test.ts` (unit around the session bits)
 
@@ -560,7 +631,16 @@ import {resumeTokenFor, recordMintedToken} from '../../../src/api/chat/turn.js'
 describe('turn session helpers', () => {
   it('resumeTokenFor returns the stored harness token (null when new)', async () => {
     const store = createMemorySessionStore()
-    await store.create({id: 'aidx_a', harnessSessionId: null, harnessKind: 'claude', origin: 'chat', title: null, model: null, usage: null, cwd: '/app'})
+    await store.create({
+      id: 'aidx_a',
+      harnessSessionId: null,
+      harnessKind: 'claude',
+      origin: 'chat',
+      title: null,
+      model: null,
+      usage: null,
+      cwd: '/app',
+    })
     expect(await resumeTokenFor(store, 'aidx_a')).toBeNull()
     await recordMintedToken(store, 'aidx_a', 'tok-1')
     expect(await resumeTokenFor(store, 'aidx_a')).toBe('tok-1')
@@ -577,8 +657,7 @@ Expected: FAIL — helpers not exported.
 
 ```ts
 // turn.ts
-export const resumeTokenFor = async (store: SessionStore, id: string) =>
-  (await store.get(id))?.harnessSessionId ?? null
+export const resumeTokenFor = async (store: SessionStore, id: string) => (await store.get(id))?.harnessSessionId ?? null
 export const recordMintedToken = (store: SessionStore, id: string, token: string) =>
   store.update(id, {harnessSessionId: token})
 ```
@@ -602,6 +681,7 @@ git commit -m "feat(core): turn lock/usage/resume keyed by our id, token persist
 ### Task 7: Core — rename/launch/delete + agent hand-off, then green the package
 
 **Files:**
+
 - Modify: `packages/core/src/api/chat/session.ts` (rename → `record.title`, delete → `store.delete`)
 - Modify: `packages/core/src/api/chat/launch.ts` (resume token from record)
 - Modify: `packages/core/src/api/chat/chat.ts` (agent hand-off seeds a record)
@@ -619,7 +699,10 @@ describe('seedAgentSession', () => {
     const store = createMemorySessionStore()
     const a = await seedAgentSession({store, harnessKind: 'claude', cwd: '/app', mintId: () => 'aidx_seed'}, 'tok-init')
     expect(a.origin).toBe('agent')
-    const b = await seedAgentSession({store, harnessKind: 'claude', cwd: '/app', mintId: () => 'aidx_other'}, 'tok-init')
+    const b = await seedAgentSession(
+      {store, harnessKind: 'claude', cwd: '/app', mintId: () => 'aidx_other'},
+      'tok-init',
+    )
     expect(b.id).toBe('aidx_seed') // idempotent by harness id
   })
 })
@@ -639,8 +722,14 @@ export async function seedAgentSession(deps: ResolveDeps, harnessId: string): Pr
   if (existing) return existing
   const mint = deps.mintId ?? (() => `aidx_${randomUUID()}`)
   return deps.store.create({
-    id: mint(), harnessSessionId: harnessId, harnessKind: deps.harnessKind,
-    origin: 'agent', title: null, model: null, usage: null, cwd: deps.cwd,
+    id: mint(),
+    harnessSessionId: harnessId,
+    harnessKind: deps.harnessKind,
+    origin: 'agent',
+    title: null,
+    model: null,
+    usage: null,
+    cwd: deps.cwd,
   })
 }
 ```
@@ -668,6 +757,7 @@ git commit -m "feat(core): rename/launch/delete + agent hand-off on SessionStore
 ### Task 8a: Widget — the one transport (`route` + `stream`)
 
 **Files:**
+
 - Create: `packages/widget/src/transport.ts`
 - Test: `packages/widget/test/transport.test.ts`
 
@@ -688,7 +778,8 @@ let base = ''
 beforeAll(async () => {
   server = createServer((req, res) => {
     res.setHeader('content-type', 'application/json')
-    if (req.url === '/api/p') return void res.end(JSON.stringify({ok: true, echo: req.headers['aidx-session-id'] ?? null}))
+    if (req.url === '/api/p')
+      return void res.end(JSON.stringify({ok: true, echo: req.headers['aidx-session-id'] ?? null}))
     res.statusCode = 500
     res.end('nope')
   })
@@ -700,7 +791,12 @@ afterAll(() => server.close())
 describe('createTransport (real server)', () => {
   it('route() parses the response and sends the injected header', async () => {
     const t = createTransport({apiBase: base, headers: () => ({'aidx-session-id': 'aidx_1'})})
-    const out = await t.route({method: 'POST', path: '/api/p', request: z.object({a: z.number()}), response: z.object({ok: z.boolean(), echo: z.string().nullable()})})({a: 1})
+    const out = await t.route({
+      method: 'POST',
+      path: '/api/p',
+      request: z.object({a: z.number()}),
+      response: z.object({ok: z.boolean(), echo: z.string().nullable()}),
+    })({a: 1})
     expect(out).toEqual({ok: true, echo: 'aidx_1'})
   })
   it('throws ApiError on non-2xx', async () => {
@@ -722,15 +818,29 @@ Expected: FAIL — module not found.
 import {z} from 'zod'
 
 export class ApiError extends Error {
-  constructor(public path: string, public status: number) { super(`${path} → ${status}`) }
+  constructor(
+    public path: string,
+    public status: number,
+  ) {
+    super(`${path} → ${status}`)
+  }
 }
 type Args<T> = {} extends T ? [body?: T] : [body: T]
 
 export function createTransport(opts: {apiBase: string; headers?: () => Record<string, string>}) {
   const base = opts.apiBase.replace(/\/+$/, '')
   const extra = opts.headers ?? (() => ({}))
-  function route<Res extends z.ZodTypeAny>(spec: {method: 'GET' | 'DELETE'; path: string; response: Res}): () => Promise<z.infer<Res>>
-  function route<Req extends z.ZodTypeAny, Res extends z.ZodTypeAny>(spec: {method: 'POST'; path: string; request: Req; response: Res}): (...a: Args<z.infer<Req>>) => Promise<z.infer<Res>>
+  function route<Res extends z.ZodTypeAny>(spec: {
+    method: 'GET' | 'DELETE'
+    path: string
+    response: Res
+  }): () => Promise<z.infer<Res>>
+  function route<Req extends z.ZodTypeAny, Res extends z.ZodTypeAny>(spec: {
+    method: 'POST'
+    path: string
+    request: Req
+    response: Res
+  }): (...a: Args<z.infer<Req>>) => Promise<z.infer<Res>>
   function route(spec: {method: string; path: string; request?: z.ZodTypeAny; response: z.ZodTypeAny}) {
     return (body?: unknown) => {
       const headers: Record<string, string> = {...extra()}
@@ -743,8 +853,8 @@ export function createTransport(opts: {apiBase: string; headers?: () => Record<s
   }
   return {
     route,
-    url: (path: string) => `${base}${path}`,           // for the AG-UI chat stream transport
-    headers: extra,                                     // ditto (header function it consumes)
+    url: (path: string) => `${base}${path}`, // for the AG-UI chat stream transport
+    headers: extra, // ditto (header function it consumes)
     eventSource: (path: string) => new EventSource(`${base}${path}`, {withCredentials: true}),
   }
 }
@@ -767,6 +877,7 @@ git commit -m "feat(widget): one typed transport (route + stream) for all /api c
 ### Task 8b: Widget — `defineClient` (session instance) over the transport
 
 **Files:**
+
 - Create: `packages/widget/src/session-client.ts`
 - Delete: `packages/widget/src/chat-api.ts` (after Phase 3 importers are migrated)
 - Test: `packages/widget/test/session-client.test.ts`
@@ -804,7 +915,7 @@ describe('defineClient (real server)', () => {
     expect(lastSessionHeader).toBeNull()
     client.setSessionId('aidx_x' as never)
     await client.sessions()
-    expect(lastSessionHeader).toBe('aidx_x')                  // server actually received our id
+    expect(lastSessionHeader).toBe('aidx_x') // server actually received our id
     expect(client.chatStreamUrl()).toBe(`${base}/api/chat`)
   })
 })
@@ -823,10 +934,19 @@ import {createSignal} from 'solid-js'
 import {z} from 'zod'
 import {createTransport} from './transport.js'
 import {
-  AIDX_SESSION_HEADER, type SessionId,
-  ChatSessionSchema, ChatSessionsSchema, ChatHistorySchema, ChatModelsSchema,
-  ChatLaunchSchema, ChatLaunchRequestSchema, RenameSessionSchema,
-  ResolveRequestSchema, ResolveResponseSchema, RenameResponseSchema, OkSchema,
+  AIDX_SESSION_HEADER,
+  type SessionId,
+  ChatSessionSchema,
+  ChatSessionsSchema,
+  ChatHistorySchema,
+  ChatModelsSchema,
+  ChatLaunchSchema,
+  ChatLaunchRequestSchema,
+  RenameSessionSchema,
+  ResolveRequestSchema,
+  ResolveResponseSchema,
+  RenameResponseSchema,
+  OkSchema,
   PermissionDecisionSchema, // {renderId, approved}
 } from '@aidx/protocol/chat-types'
 
@@ -838,20 +958,41 @@ export function defineClient(opts: {apiBase: string}) {
   }
   const t = createTransport({apiBase: opts.apiBase, headers: sessionHeaders})
   return {
-    sessionId, setSessionId,
+    sessionId,
+    setSessionId,
     // AG-UI chat stream transport reads these (POST SSE handled by @tanstack/ai-client)
     chatStreamUrl: () => t.url('/api/chat'),
     chatHeaders: sessionHeaders,
     // request/response routes — every session-scoped call lives here
-    resolve:  t.route({method: 'POST', path: '/api/chat/session/resolve', request: ResolveRequestSchema, response: ResolveResponseSchema}),
-    session:  t.route({method: 'GET',  path: '/api/chat/session',  response: ChatSessionSchema}),
-    sessions: t.route({method: 'GET',  path: '/api/chat/sessions', response: ChatSessionsSchema}),
-    history:  t.route({method: 'GET',  path: '/api/chat/history',  response: ChatHistorySchema}),
-    models:   t.route({method: 'GET',  path: '/api/chat/models',   response: ChatModelsSchema}),
-    rename:   t.route({method: 'POST', path: '/api/chat/sessions/title', request: RenameSessionSchema, response: RenameResponseSchema}),
-    launch:   t.route({method: 'POST', path: '/api/chat/launch', request: ChatLaunchRequestSchema, response: ChatLaunchSchema}),
-    remove:   t.route({method: 'DELETE', path: '/api/chat/session', response: OkSchema}),
-    permissionDecision: t.route({method: 'POST', path: '/api/chat/permission-decision', request: PermissionDecisionSchema, response: OkSchema}),
+    resolve: t.route({
+      method: 'POST',
+      path: '/api/chat/session/resolve',
+      request: ResolveRequestSchema,
+      response: ResolveResponseSchema,
+    }),
+    session: t.route({method: 'GET', path: '/api/chat/session', response: ChatSessionSchema}),
+    sessions: t.route({method: 'GET', path: '/api/chat/sessions', response: ChatSessionsSchema}),
+    history: t.route({method: 'GET', path: '/api/chat/history', response: ChatHistorySchema}),
+    models: t.route({method: 'GET', path: '/api/chat/models', response: ChatModelsSchema}),
+    rename: t.route({
+      method: 'POST',
+      path: '/api/chat/sessions/title',
+      request: RenameSessionSchema,
+      response: RenameResponseSchema,
+    }),
+    launch: t.route({
+      method: 'POST',
+      path: '/api/chat/launch',
+      request: ChatLaunchRequestSchema,
+      response: ChatLaunchSchema,
+    }),
+    remove: t.route({method: 'DELETE', path: '/api/chat/session', response: OkSchema}),
+    permissionDecision: t.route({
+      method: 'POST',
+      path: '/api/chat/permission-decision',
+      request: PermissionDecisionSchema,
+      response: OkSchema,
+    }),
   }
 }
 ```
@@ -879,6 +1020,7 @@ git commit -m "feat(widget): defineClient over transport — all session routes 
 ### Task 9: `widget-shell.tsx` — client instance, persist our id, drop `activeToken`
 
 **Files:**
+
 - Modify: `packages/widget/src/widget-shell.tsx`
 
 - [ ] **Step 1: Replace the session signal with a client + persisted our-id**
@@ -902,6 +1044,7 @@ git commit -m "refactor(widget): shell uses defineClient + persisted our id; rem
 ### Task 10: `session-selector.tsx` — key by our id, resolve on switch
 
 **Files:**
+
 - Modify: `packages/widget/src/session-selector.tsx`
 - Modify: `packages/widget/src/session-store-client.ts` (surface rows keyed by our id)
 
@@ -926,6 +1069,7 @@ git commit -m "refactor(widget): selector keys by our id, resolves (adopts) on s
 ### Task 11: `quick-terminal.tsx` — per-pane client
 
 **Files:**
+
 - Modify: `packages/widget/src/quick-terminal.tsx`
 
 - [ ] **Step 1: Give each pane its own client**
@@ -949,17 +1093,19 @@ git commit -m "refactor(widget): per-pane defineClient, panes persist our ids"
 ### Task 12: `chat-panel.tsx` + `session-info.tsx` — client incl. the chat STREAM + permission gate
 
 **Files:**
+
 - Modify: `packages/widget/src/chat-panel.tsx`
 - Modify: `packages/widget/src/session-info.tsx`
 
 - [ ] **Step 1: Route ALL panel comms — including the stream — through the client**
 
 `chat-panel` takes the pane/modal's `client`. Replace:
+
 - `api.session()` / `api.history()` → `client.session()` / `client.history()`; `loadedSessionId` tracks our id.
 - the AG-UI transport (`chat-panel.tsx:352`): `fetchServerSentEvents(client.chatStreamUrl(), () => ({...}))` with `headers: client.chatHeaders()`.
 - the compact POST (`chat-panel.tsx:541` `fetch(api.chatUrl, ...)`) → a `client` method or `fetch(client.chatStreamUrl(), {headers: client.chatHeaders()})`.
 - the approval gate's decision POST → `client.permissionDecision({renderId, approved})`.
-`session-info` shows `harnessSessionId` as read-only "extra info" only — never used for comms.
+  `session-info` shows `harnessSessionId` as read-only "extra info" only — never used for comms.
 
 - [ ] **Step 2: Typecheck the whole widget — should be green**
 
@@ -979,6 +1125,7 @@ git commit -m "refactor(widget): chat-panel stream + permission via client; drop
 ### Task 13: `model-selector.tsx` — `client.models()`
 
 **Files:**
+
 - Modify: `packages/widget/src/model-selector.tsx`
 
 - [ ] **Step 1: Replace `createChatApi(...).models()` with a transport call**
@@ -989,6 +1136,7 @@ The model selector isn't session-scoped, so it uses a header-less client: `const
 
 Run: `npx turbo run typecheck --filter=@aidx/widget`
 Expected: PASS.
+
 ```bash
 git add packages/widget/src/model-selector.tsx
 git commit -m "refactor(widget): model-selector via client.models()"
@@ -999,6 +1147,7 @@ git commit -m "refactor(widget): model-selector via client.models()"
 ### Task 14: composer actions — `new-session-action` → `resolve`, `open-in-terminal-action` → `launch`
 
 **Files:**
+
 - Modify: `packages/widget/src/new-session-action.tsx`
 - Modify: `packages/widget/src/open-in-terminal-action.tsx`
 
@@ -1010,6 +1159,7 @@ git commit -m "refactor(widget): model-selector via client.models()"
 
 Run: `npx turbo run typecheck --filter=@aidx/widget`
 Expected: PASS.
+
 ```bash
 git add packages/widget/src/new-session-action.tsx packages/widget/src/open-in-terminal-action.tsx
 git commit -m "refactor(widget): composer actions use resolve()/launch() (drop /session/new)"
@@ -1020,6 +1170,7 @@ git commit -m "refactor(widget): composer actions use resolve()/launch() (drop /
 ### Task 15: `mount.tsx` — availability probe target
 
 **Files:**
+
 - Modify: `packages/widget/src/mount.tsx`
 - Modify: `packages/widget/src/transport.ts` (or a small `probeChatAvailable` helper) — probe a NON-session route
 
@@ -1031,6 +1182,7 @@ The old probe hit header-less `GET /api/chat/session`; that now 404s on unknown 
 
 Run: `npx turbo run typecheck --filter=@aidx/widget`
 Expected: PASS.
+
 ```bash
 git add packages/widget/src/mount.tsx packages/widget/src/transport.ts
 git commit -m "refactor(widget): probe chat availability via /models, not /session"
@@ -1041,6 +1193,7 @@ git commit -m "refactor(widget): probe chat availability via /models, not /sessi
 ### Task 16: `page-bus.ts` — over the transport
 
 **Files:**
+
 - Modify: `packages/widget/src/page-bus.ts`
 
 - [ ] **Step 1: Use the transport for the page bus**
@@ -1051,6 +1204,7 @@ git commit -m "refactor(widget): probe chat availability via /models, not /sessi
 
 Run: `npx turbo run typecheck --filter=@aidx/widget`
 Expected: PASS.
+
 ```bash
 git add packages/widget/src/page-bus.ts packages/protocol/src/chat-types.ts
 git commit -m "refactor(widget): page-bus over the shared transport"
@@ -1061,6 +1215,7 @@ git commit -m "refactor(widget): page-bus over the shared transport"
 ### Task 17: `test-card.tsx` — over the transport
 
 **Files:**
+
 - Modify: `packages/widget/src/test-card.tsx`
 
 - [ ] **Step 1: Use the transport**
@@ -1071,6 +1226,7 @@ git commit -m "refactor(widget): page-bus over the shared transport"
 
 Run: `npx turbo run typecheck --filter=@aidx/widget`
 Expected: PASS.
+
 ```bash
 git add packages/widget/src/test-card.tsx packages/protocol/src/chat-types.ts
 git commit -m "refactor(widget): test-card (runner stream + editor open) over the transport"
@@ -1081,6 +1237,7 @@ git commit -m "refactor(widget): test-card (runner stream + editor open) over th
 ### Task 18: Widget browser IT — reload restores, switch, adopt, rename
 
 **Files:**
+
 - Modify: `packages/widget/test/widget.it.test.ts` (re-point the reload test at the new model; extend the existing **real** `http.createServer` test server with the `resolve` route — this is a real server, not a mock)
 
 - [ ] **Step 1: Extend the real test server + the reload regression test**
@@ -1106,6 +1263,7 @@ git commit -m "test(widget): reload-restore + switch + adopt ITs on the one-id m
 ### Task 19: claude `history.ts` enrichment + final sweep
 
 **Files:**
+
 - Modify: `packages/harness/src/claude/history.ts`
 - Modify: `packages/protocol/src/harness-types.ts` (extend `HarnessSessionMeta`)
 - Test: `packages/harness/test/claude/history.test.ts`

@@ -105,6 +105,7 @@ gate has no widget loop in a bare terminal), and the temp `--append-system-promp
 ## Files to change
 
 Contract / protocol:
+
 - `packages/protocol/src/harness-types.ts` - add `HarnessLaunchResult`, `HarnessLaunchContext`
   (with `openTerminal`/`openUrl`), the `launch?` method, and `displayName?` on the adapter base.
 - `packages/protocol/src/chat-types.ts` - add `ChatLaunchSchema` (`{supported, opened, command}`);
@@ -112,6 +113,7 @@ Contract / protocol:
   button before any click.
 
 Harness adapters (build argv only, no open logic):
+
 - `packages/harness/src/claude/args.ts` - extract the MCP arg-builder (`claudeMcpArgs(mcpUrl)`) out of
   `buildClaudeArgs` so `launch` reuses the exact same flags (no drift).
 - `packages/harness/src/claude/index.ts` - `displayName: 'Claude'` + `launch` (interactive argv).
@@ -121,6 +123,7 @@ Harness adapters (build argv only, no open logic):
 - No `_shared/shell-quote.ts` - shell quoting + `cd` now live in core's opener.
 
 Core server (owns all the open logic):
+
 - `packages/core/src/api/chat/launch.ts` (new) - the smart opener (`openTerminal(argv)`/`openUrl`:
   shell-quote argv, `cd` wrap, per-OS spawn) + `POST /api/chat/launch`: read `{model}` from the body,
   build the `HarnessLaunchContext` (cwd, sessionId, model, mcpUrl), call `harness.launch(ctx)`,
@@ -130,6 +133,7 @@ Core server (owns all the open logic):
 - `packages/core/src/api/chat/session.ts` - include `harness: {id, name, canLaunch}` in the response.
 
 Widget:
+
 - `packages/widget/src/chat-api.ts` - add `launch()`; `ChatSession` gains the `harness` field.
 - `packages/widget/src/open-in-terminal-action.tsx` (new) - the composer action (a factory taking
   the harness display name): opened -> notice; else copy command + notice.
@@ -149,7 +153,7 @@ Widget:
 ## Spiked + confirmed
 
 - **claude interactive accepts the carry-over args.** Verified by launching `claude --model sonnet
-  --add-dir … --mcp-config '<json>' --strict-mcp-config --allowedTools …` under a PTY: the TUI
+--add-dir … --mcp-config '<json>' --strict-mcp-config --allowedTools …` under a PTY: the TUI
   started, showed "Sonnet 4.6" (model applied) and "1 MCPs" (mcp-config registered). No flag errors.
   All carry-over flags are global, not print-only (`--output-format`/`--input-format` are the
   print-only ones and we drop them).

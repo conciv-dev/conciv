@@ -23,13 +23,13 @@ near drop-in; only React's render model and JSX reactivity change.
 
 Rewrite (React `.tsx` → Solid `.tsx`):
 
-| File | Notes |
-|---|---|
-| `chat-shell.tsx` | `useChat` from `@tanstack/ai-solid` (returns accessors, not a render snapshot). `useState→createSignal`, `useEffect→createEffect`/`onMount`/`onCleanup`, `useMemo→createMemo`, refs as locals. Lists via `<For>`, conditionals via `<Show>`/`<Switch>`. |
-| `test-card.tsx` | EventSource subscribe/teardown via `onMount`/`onCleanup`; pass/fail tree state via signals or a small store. LIVE mode (`result=null`) subscribes to `/api/test-runner/stream`. |
-| `gen-ui.tsx` | Map agent UI spec → component with Solid `<Dynamic>` / `<Switch>`. |
-| `markdown.tsx` | marked + shiki produce an HTML string rendered via `innerHTML`. shiki's async highlight via `createResource`. |
-| `mount.tsx` | Solid `render(() => <ChatFeature/>, container)` into the shadow root (replaces `createRoot().render`). Preserve the `__AIDX_RENDER_TEST_CARD__` test seam and the `probeChatAvailable` gate. Export `mountWidget` and auto-mount on load (unchanged contract). |
+| File             | Notes                                                                                                                                                                                                                                                          |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `chat-shell.tsx` | `useChat` from `@tanstack/ai-solid` (returns accessors, not a render snapshot). `useState→createSignal`, `useEffect→createEffect`/`onMount`/`onCleanup`, `useMemo→createMemo`, refs as locals. Lists via `<For>`, conditionals via `<Show>`/`<Switch>`.        |
+| `test-card.tsx`  | EventSource subscribe/teardown via `onMount`/`onCleanup`; pass/fail tree state via signals or a small store. LIVE mode (`result=null`) subscribes to `/api/test-runner/stream`.                                                                                |
+| `gen-ui.tsx`     | Map agent UI spec → component with Solid `<Dynamic>` / `<Switch>`.                                                                                                                                                                                             |
+| `markdown.tsx`   | marked + shiki produce an HTML string rendered via `innerHTML`. shiki's async highlight via `createResource`.                                                                                                                                                  |
+| `mount.tsx`      | Solid `render(() => <ChatFeature/>, container)` into the shadow root (replaces `createRoot().render`). Preserve the `__AIDX_RENDER_TEST_CARD__` test seam and the `probeChatAvailable` gate. Export `mountWidget` and auto-mount on load (unchanged contract). |
 
 Unchanged (pure TS, no framework): `page-bus.ts`, `page-driver.ts`, `page-handlers.ts`,
 `page-snapshot.ts`, `shadow.ts`, `chat-api.ts`, `css.d.ts`, `styles.css`.

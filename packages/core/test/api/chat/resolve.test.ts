@@ -13,7 +13,16 @@ describe('resolveSession', () => {
   })
   it('our id → returns it unchanged', async () => {
     const store = memoryStore()
-    await store.create({id: 'aidx_a', harnessSessionId: null, harnessKind: 'claude', origin: 'chat', title: null, model: null, usage: null, cwd: '/app'})
+    await store.create({
+      id: 'aidx_a',
+      harnessSessionId: null,
+      harnessKind: 'claude',
+      origin: 'chat',
+      title: null,
+      model: null,
+      usage: null,
+      cwd: '/app',
+    })
     const {sessionId} = await resolveSession(deps(store), {id: 'aidx_a'})
     expect(sessionId).toBe('aidx_a')
   })

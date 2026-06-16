@@ -69,7 +69,12 @@ function parseTestEvent(raw: string): TestEvent | null {
 }
 
 function TestErrorBlock(props: {error: TestError; apiBase: string; onFix: (text: string) => void}): JSX.Element {
-  const openEditor = createTransport({apiBase: props.apiBase}).route({method: 'POST', path: '/api/editor/open', request: EditorOpenSchema, response: OkSchema})
+  const openEditor = createTransport({apiBase: props.apiBase}).route({
+    method: 'POST',
+    path: '/api/editor/open',
+    request: EditorOpenSchema,
+    response: OkSchema,
+  })
   const openInEditor = () => void openEditor({file: props.error.file, line: props.error.line}).catch(() => {})
   return (
     <div class="pw-test-err">
@@ -86,7 +91,11 @@ function TestErrorBlock(props: {error: TestError; apiBase: string; onFix: (text:
   )
 }
 
-export function TestCard(props: {apiBase: string; onFix: (text: string) => void; result: TestRunResult | null}): JSX.Element {
+export function TestCard(props: {
+  apiBase: string
+  onFix: (text: string) => void
+  result: TestRunResult | null
+}): JSX.Element {
   const [groups, setGroups] = createSignal<FileGroup[]>([])
   const [summary, setSummary] = createSignal<Summary>(EMPTY_SUMMARY)
   const [running, setRunning] = createSignal(false)

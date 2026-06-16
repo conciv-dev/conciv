@@ -24,9 +24,9 @@ Neither action **wipes** the scrollback. The prior thread stays rendered and scr
 
 The Compress button is **always visible** because every harness gets at least the fallback. The mechanism is chosen **server-side** from harness capability — the widget never knows which path ran:
 
-| Harness supports real compaction | Mechanism |
-| --- | --- |
-| yes (`capabilities.compaction === true`) | spawn the harness's native compaction recipe (`buildCompactArgs`) against the resumed session — genuinely frees the harness context window. |
+| Harness supports real compaction         | Mechanism                                                                                                                                                                                  |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| yes (`capabilities.compaction === true`) | spawn the harness's native compaction recipe (`buildCompactArgs`) against the resumed session — genuinely frees the harness context window.                                                |
 | no (`capabilities.compaction === false`) | spawn a normal turn with a built-in "summarize our conversation concisely so we can continue" prompt. Best-effort: produces a summary in-thread but does **not** free the resumed context. |
 
 > **Validated for claude (CLI 2.1.177):** `claude -p "/compact" --resume <id> --output-format stream-json` works. It emits `{"type":"system","subtype":"status","status":"compacting"}` then `{"type":"system","subtype":"compact_boundary"}`, finishes `is_error:false`, keeps the same `session_id`, and writes `isCompactSummary:true` + `compactMetadata` + `isVisibleInTranscriptOnly:true` entries to the transcript. **It streams NO assistant text** (`result:""`, `num_turns:0`) — the summary is applied internally to the session, not returned. So a real compaction turn produces only a divider in the UI; there is nothing to render below it. The next turn resumes the now-compacted context.
@@ -48,7 +48,7 @@ Clears `state.sessionId` and removes the persisted session pointer (`writeSessio
 `ChatRequestSchema` (`packages/protocol/src/chat-types.ts`) gains:
 
 ```ts
-intent: z.enum(['chat', 'compact']).optional()   // default 'chat'
+intent: z.enum(['chat', 'compact']).optional() // default 'chat'
 ```
 
 In `POST /api/chat` (`turn.ts`), when `intent === 'compact'`:
@@ -82,9 +82,10 @@ So a `compaction:true` adapter without `buildCompactArgs` is a **compile error**
 - the assembled `turn` carries `kind: deps.turnKind ?? 'chat'`.
 - arg selection:
   ```ts
-  const args = turn.kind === 'compact' && harness.capabilities.compaction
-    ? harness.buildCompactArgs(turn)
-    : harness.buildArgs(turn)
+  const args =
+    turn.kind === 'compact' && harness.capabilities.compaction
+      ? harness.buildCompactArgs(turn)
+      : harness.buildArgs(turn)
   ```
   When `kind === 'compact'` but the harness has no compaction, `chatStream` falls back to `buildArgs` with the summarize prompt (the route supplies that prompt as the turn text).
 
@@ -103,9 +104,9 @@ export type ComposerActionContext = {
   insert: (text: string) => void
   setBusy: (busy: boolean) => void
   // session/thread lifecycle — the composer owns thread state; actions drive it through these:
-  sendTurn: (text: string, meta?: Record<string, unknown>) => void  // one-shot request-meta merged for this turn only
-  addDivider: (kind: 'new' | 'compact') => void                     // insert a session boundary into the scrollback
-  resetUsage: () => void                                            // clear the context tracker
+  sendTurn: (text: string, meta?: Record<string, unknown>) => void // one-shot request-meta merged for this turn only
+  addDivider: (kind: 'new' | 'compact') => void // insert a session boundary into the scrollback
+  resetUsage: () => void // clear the context tracker
 }
 ```
 
@@ -127,28 +128,28 @@ While the compaction turn is in flight: the Send button is replaced by an **Ark 
 
 ### 2.5 Boundaries / known limitations
 
-- Dividers + retained scrollback are **client-side, for the panel's lifetime**. On page reload, `hydrate` fetches history for the *current* session id only; pre-boundary threads and dividers do not survive a reload. Persisting boundaries server-side is a future enhancement, explicitly out of scope.
+- Dividers + retained scrollback are **client-side, for the panel's lifetime**. On page reload, `hydrate` fetches history for the _current_ session id only; pre-boundary threads and dividers do not survive a reload. Persisting boundaries server-side is a future enhancement, explicitly out of scope.
 - The summarize fallback does not actually free the harness context (full transcript still resumes); only real compaction does. The divider label is identical for both; the distinction is intentionally invisible to the user.
 
 ## 3. Affected files
 
-| File | Change |
-| --- | --- |
-| `packages/protocol/src/harness-types.ts` | `capabilities.compaction`; `HarnessTurn.kind`; adapter union enforces `buildCompactArgs`. |
-| `packages/protocol/src/chat-types.ts` | `ChatRequestSchema.intent`. |
-| `packages/harness/src/_shared/text-adapter.ts` | thread `turnKind` → `turn.kind`; select `buildCompactArgs`. |
-| `packages/harness/src/claude/{index,args}.ts` | `compaction` flag + `buildCompactArgs` (pending validation). |
-| `packages/harness/src/{codex,gemini-cli,opencode,pi}/index.ts` | `compaction: false`. |
-| `packages/core/src/api/chat/session.ts` | `POST /api/chat/session/new`. |
-| `packages/core/src/api/chat/turn.ts` | read `intent`; pass `turnKind`; force resume on compact. |
-| `packages/core/src/store/session-store.ts` | a `clearSession` (or empty-write) helper. |
-| `packages/widget/src/widget-shell.tsx` | extend `ComposerActionContext`. |
-| `packages/widget/src/chat-panel.tsx` | provide the new ctx primitives; `dividers` signal + render. |
-| `packages/widget/src/chat-api.ts` | `newSession`. |
-| `packages/widget/src/new-session-action.tsx` (new) | `newSessionAction`. |
-| `packages/widget/src/compact-action.tsx` (new) | `compactAction` + `SUMMARIZE_PROMPT`. |
-| `packages/widget/src/mount.tsx` | register both actions. |
-| `packages/widget/src/styles.css` | `.pw-chat-divider`. |
+| File                                                           | Change                                                                                    |
+| -------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `packages/protocol/src/harness-types.ts`                       | `capabilities.compaction`; `HarnessTurn.kind`; adapter union enforces `buildCompactArgs`. |
+| `packages/protocol/src/chat-types.ts`                          | `ChatRequestSchema.intent`.                                                               |
+| `packages/harness/src/_shared/text-adapter.ts`                 | thread `turnKind` → `turn.kind`; select `buildCompactArgs`.                               |
+| `packages/harness/src/claude/{index,args}.ts`                  | `compaction` flag + `buildCompactArgs` (pending validation).                              |
+| `packages/harness/src/{codex,gemini-cli,opencode,pi}/index.ts` | `compaction: false`.                                                                      |
+| `packages/core/src/api/chat/session.ts`                        | `POST /api/chat/session/new`.                                                             |
+| `packages/core/src/api/chat/turn.ts`                           | read `intent`; pass `turnKind`; force resume on compact.                                  |
+| `packages/core/src/store/session-store.ts`                     | a `clearSession` (or empty-write) helper.                                                 |
+| `packages/widget/src/widget-shell.tsx`                         | extend `ComposerActionContext`.                                                           |
+| `packages/widget/src/chat-panel.tsx`                           | provide the new ctx primitives; `dividers` signal + render.                               |
+| `packages/widget/src/chat-api.ts`                              | `newSession`.                                                                             |
+| `packages/widget/src/new-session-action.tsx` (new)             | `newSessionAction`.                                                                       |
+| `packages/widget/src/compact-action.tsx` (new)                 | `compactAction` + `SUMMARIZE_PROMPT`.                                                     |
+| `packages/widget/src/mount.tsx`                                | register both actions.                                                                    |
+| `packages/widget/src/styles.css`                               | `.pw-chat-divider`.                                                                       |
 
 ## 4. Commands
 
@@ -159,16 +160,19 @@ While the compaction turn is in flight: the Send button is replaced by an **Ark 
 ## 5. Testing strategy
 
 **Harness (unit)**
+
 - `buildClaudeArgs` compact path emits the compaction recipe (when enabled) and keeps `--resume`.
 - adapter union: a `compaction:true` adapter without `buildCompactArgs` fails to typecheck (compile-time guard, asserted by a type-level test or the build).
 - `text-adapter` picks `buildCompactArgs` for `kind:'compact'` and falls back to `buildArgs` when the harness lacks compaction.
 
 **Core (IT)**
+
 - `POST /api/chat/session/new` clears session state → the next `POST /api/chat` spawns with no resume (assert argv has no `--resume` / no `exec resume`).
 - `POST /api/chat` with `intent:'compact'` on a compaction-capable harness uses the compact builder; on a non-capable harness streams a normal turn from the summarize prompt.
 - compact turn is rejected (409) while the lock is held.
 
 **Widget (real-browser IT)**
+
 - clicking New session inserts a `New session` divider, leaves prior messages visible/scrollable, and clears the context tracker.
 - clicking Compress inserts a `Context compacted` divider and streams a reply below it; scrollback above is preserved.
 - both buttons render in the actions row with the correct `aria-label` / tooltip and lucide glyph.
@@ -180,15 +184,18 @@ Follow the existing widget/harness conventions: functions not classes (the one `
 ## 7. Boundaries
 
 **Always**
+
 - Detect behavior by harness capability; keep core/widget CLI-agnostic.
 - Preserve scrollback on both actions; only insert a divider.
 - Reuse the existing turn route + decode/SSE pipeline for compaction.
 
 **Ask first**
+
 - Persisting dividers / pre-boundary threads across page reloads (out of current scope).
 - Adding a confirmation dialog to New session (product chose immediate, divider-preserving reset).
 
 **Never**
+
 - Wipe the visible thread.
 - Hard-code `/compact` or any claude-specific call in core or the widget.
 - Add an npm dependency without approval; introduce jsdom/happy-dom; use `newContext()` in widget ITs.

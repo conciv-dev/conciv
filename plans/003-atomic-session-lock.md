@@ -31,7 +31,7 @@ check-then-act, and the turn route doesn't enforce the result:
    `claude --resume <same id>`, and corrupt the transcript.
 
 The multi-session redesign correctly made locks per-session (distinct sessions parallelize), which
-*narrows* this to same-session concurrency — but that path is now easy to hit: the out-of-band compact
+_narrows_ this to same-session concurrency — but that path is now easy to hit: the out-of-band compact
 request and a normal turn target the same session. Fix by making `acquireLock` atomic (exclusive file
 creation) and acquiring **before** spawning, rejecting with 409 if the lock is already held.
 
@@ -49,7 +49,7 @@ export function readLock(stateRoot: string, sessionId: string): LockState {
 
 // Acquire if free or stale. Returns false if a live holder already owns it.
 export function acquireLock(stateRoot: string, sessionId: string, role: LockRole, pid: number): boolean {
-  if (readLock(stateRoot, sessionId).held) return false      // <-- TOCTOU: gap before the write
+  if (readLock(stateRoot, sessionId).held) return false // <-- TOCTOU: gap before the write
   writeJson(statePaths(stateRoot).lockFor(sessionId), {role, pid, startedTs: Date.now()})
   return true
 }
@@ -63,18 +63,16 @@ export function releaseLock(stateRoot: string, sessionId: string): void {
 }
 ```
 
-`statePaths(stateRoot).lockFor(sessionId)` returns `join(dir, \`agent.${sessionId}.lock\`)` (see
-`packages/core/src/state-paths.ts`). `writeJson`/`readJson` live in `packages/core/src/fs.ts`;
-`writeJson` calls `writeText` which does `mkdirSync(dirname(path), {recursive:true})` then
-`writeFileSync(path, text)` (no exclusive flag). `pidAlive(pid)` uses `process.kill(pid, 0)`.
+`statePaths(stateRoot).lockFor(sessionId)` returns `join(dir, \`agent.${sessionId}.lock\`)`(see`packages/core/src/state-paths.ts`). `writeJson`/`readJson`live in`packages/core/src/fs.ts`;
+`writeJson`calls`writeText`which does`mkdirSync(dirname(path), {recursive:true})`then`writeFileSync(path, text)`(no exclusive flag).`pidAlive(pid)`uses`process.kill(pid, 0)`.
 
 - `packages/core/src/api/chat/turn.ts` — the turn route. Current guard + late, unchecked acquire:
 
 ```ts
 // turn.ts (lines 54-57)
-    const sessionId = sessionIdFromHeaders(event.req.headers)
-    if (!sessionId) throw new HTTPError({status: 400, message: 'no session (resolve first)'})
-    if (readLock(deps.stateRoot, sessionId).held) throw new HTTPError({status: 409, message: 'session busy'})
+const sessionId = sessionIdFromHeaders(event.req.headers)
+if (!sessionId) throw new HTTPError({status: 400, message: 'no session (resolve first)'})
+if (readLock(deps.stateRoot, sessionId).held) throw new HTTPError({status: 409, message: 'session busy'})
 ```
 
 ```ts
@@ -113,21 +111,23 @@ describe('per-session lock', () => {
 
 ## Commands you will need
 
-| Purpose | Command | Expected on success |
-|---|---|---|
-| Typecheck core | `pnpm turbo run typecheck --filter=@aidx/core` | exit 0 |
-| Core tests | `pnpm turbo run test --filter=@aidx/core` | all pass |
-| Lock test only | `pnpm --filter @aidx/core exec vitest run lock` | lock tests pass |
-| Lint core | `pnpm --filter @aidx/core lint` | exit 0 |
+| Purpose        | Command                                         | Expected on success |
+| -------------- | ----------------------------------------------- | ------------------- |
+| Typecheck core | `pnpm turbo run typecheck --filter=@aidx/core`  | exit 0              |
+| Core tests     | `pnpm turbo run test --filter=@aidx/core`       | all pass            |
+| Lock test only | `pnpm --filter @aidx/core exec vitest run lock` | lock tests pass     |
+| Lint core      | `pnpm --filter @aidx/core lint`                 | exit 0              |
 
 ## Scope
 
 **In scope**:
+
 - `packages/core/src/store/lock.ts`
 - `packages/core/src/api/chat/turn.ts`
 - `packages/core/test/store/lock.test.ts`
 
 **Out of scope** (do NOT touch):
+
 - The lock-file shape/schema, `releaseLock`, `readLocks`, and `pidAlive` — keep them; only `acquireLock`
   changes internally (its signature stays identical).
 - The session store, resume-token plumbing (`recordMintedToken`/`resumeTokenFor`), and `uiBus` — unrelated.
@@ -176,7 +176,7 @@ export function acquireLock(stateRoot: string, sessionId: string, role: LockRole
 }
 ```
 
-Note: there is still a tiny reclaim window for *stale* locks (two callers both seeing a dead pid), but
+Note: there is still a tiny reclaim window for _stale_ locks (two callers both seeing a dead pid), but
 that only happens after a crash and both would write the same "free→held" transition; the live-holder
 path — the one that matters — is now race-free via `wx`. Do not over-engineer this further.
 
@@ -188,20 +188,24 @@ In `turn.ts`, replace the read-only 409 check with an atomic acquire up front, a
 now-redundant `acquireLock` call from `onSpawn` (keep the abort/kill wiring).
 
 Replace:
+
 ```ts
-    if (readLock(deps.stateRoot, sessionId).held) throw new HTTPError({status: 409, message: 'session busy'})
+if (readLock(deps.stateRoot, sessionId).held) throw new HTTPError({status: 409, message: 'session busy'})
 ```
+
 with:
+
 ```ts
-    // Atomic acquire IS the guard — closes the check-then-act race two same-session turns could hit.
-    // Recorded pid is the dev-server's (alive for the run); released in the stream teardown's finally.
-    if (!acquireLock(deps.stateRoot, sessionId, 'chat', process.pid)) {
-      throw new HTTPError({status: 409, message: 'session busy'})
-    }
+// Atomic acquire IS the guard — closes the check-then-act race two same-session turns could hit.
+// Recorded pid is the dev-server's (alive for the run); released in the stream teardown's finally.
+if (!acquireLock(deps.stateRoot, sessionId, 'chat', process.pid)) {
+  throw new HTTPError({status: 409, message: 'session busy'})
+}
 ```
 
 Then in the `onSpawn` callback, delete the `acquireLock(...)` line (the lock is already held); keep the
 abort listener:
+
 ```ts
       onSpawn: (child) => {
         event.req.signal.addEventListener('abort', () => {
@@ -211,7 +215,7 @@ abort listener:
       },
 ```
 
-IMPORTANT — release on the early-return/throw paths: the lock is now acquired *before* the rest of the
+IMPORTANT — release on the early-return/throw paths: the lock is now acquired _before_ the rest of the
 handler runs. Confirm the lock is released if the handler throws after acquiring (e.g. body validation
 fails) — `releaseLock` currently runs in the stream-teardown `finally`, which only covers the streaming
 path. If acquisition happens and then a later `await readValidatedBody(...)` throws, the lock would
@@ -227,25 +231,25 @@ failure. If the structure makes this awkward, that is a STOP condition — repor
 In `packages/core/test/store/lock.test.ts`, add (inside the existing `describe('per-session lock', ...)`):
 
 ```ts
-  it('a second acquire on a held session fails (atomic, no double-acquire)', () => {
-    const root = tmp()
-    expect(acquireLock(root, 's', 'chat', process.pid)).toBe(true)
-    // process.pid is alive → the lock is genuinely held → second acquire must fail.
-    expect(acquireLock(root, 's', 'iterate', process.pid)).toBe(false)
-    releaseLock(root, 's')
-    expect(acquireLock(root, 's', 'chat', process.pid)).toBe(true)
-  })
+it('a second acquire on a held session fails (atomic, no double-acquire)', () => {
+  const root = tmp()
+  expect(acquireLock(root, 's', 'chat', process.pid)).toBe(true)
+  // process.pid is alive → the lock is genuinely held → second acquire must fail.
+  expect(acquireLock(root, 's', 'iterate', process.pid)).toBe(false)
+  releaseLock(root, 's')
+  expect(acquireLock(root, 's', 'chat', process.pid)).toBe(true)
+})
 
-  it('reclaims a stale lock whose holder pid is dead', () => {
-    const root = tmp()
-    const deadPid = 2 ** 31 - 1 // a pid that is virtually certain to be dead
-    // Seed a stale lock by acquiring with a dead pid (readLock treats it as free).
-    expect(acquireLock(root, 's', 'chat', deadPid)).toBe(true)
-    expect(readLock(root, 's').held).toBe(false) // dead pid ⇒ reads as free/stale
-    // A live caller can reclaim it.
-    expect(acquireLock(root, 's', 'chat', process.pid)).toBe(true)
-    expect(readLock(root, 's').held).toBe(true)
-  })
+it('reclaims a stale lock whose holder pid is dead', () => {
+  const root = tmp()
+  const deadPid = 2 ** 31 - 1 // a pid that is virtually certain to be dead
+  // Seed a stale lock by acquiring with a dead pid (readLock treats it as free).
+  expect(acquireLock(root, 's', 'chat', deadPid)).toBe(true)
+  expect(readLock(root, 's').held).toBe(false) // dead pid ⇒ reads as free/stale
+  // A live caller can reclaim it.
+  expect(acquireLock(root, 's', 'chat', process.pid)).toBe(true)
+  expect(readLock(root, 's').held).toBe(true)
+})
 ```
 
 (If a chosen `deadPid` happens to be alive in the executor's environment, pick another clearly-dead pid
@@ -293,7 +297,7 @@ Stop and report (do not improvise) if:
 
 - The lock now records the **dev-server** pid (acquired before the child spawns), not the child's. This
   is correct for crash recovery (server dies → pid dead → lock reads free). If a future change needs the
-  child pid recorded, update it in `onSpawn` *after* a successful up-front acquire — do not reintroduce a
+  child pid recorded, update it in `onSpawn` _after_ a successful up-front acquire — do not reintroduce a
   second `acquireLock`.
 - Reviewer: scrutinize that every early-return/throw after the acquire releases the lock (leak risk),
   and that distinct sessions still run in parallel (per-session file paths unchanged).

@@ -8,7 +8,20 @@ const footnoteDefinitionPattern = /\[\^[\w-]{1,200}\]:/
 const openingTagPattern = /<(\w+)[\s>]/
 
 const voidElements = new Set([
-  'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr',
+  'area',
+  'base',
+  'br',
+  'col',
+  'embed',
+  'hr',
+  'img',
+  'input',
+  'link',
+  'meta',
+  'param',
+  'source',
+  'track',
+  'wbr',
 ])
 
 const openTagPatternCache = new Map<string, RegExp>()

@@ -37,8 +37,8 @@ Settled during brainstorming:
   restart.
 - **Identity approach:** client-minted session id (approach A). The client owns session
   lifecycle; the harness's own id is a server-internal resume token mapped under our id.
-- **Session vs surface:** a *session* is the durable conversation; a *surface* (pane, PiP,
-  modal) holds a *reference* to a session id. Sessions are not tied to panes.
+- **Session vs surface:** a _session_ is the durable conversation; a _surface_ (pane, PiP,
+  modal) holds a _reference_ to a session id. Sessions are not tied to panes.
 - **Transport:** the session id travels in an HTTP header, `aidx-session-id`. Absent →
   the default session.
 
@@ -48,7 +48,7 @@ Settled during brainstorming:
 
 - **Session** — durable conversation, identified by a client-minted `sessionId`
   (`crypto.randomUUID`). The harness's own id (claude `session_id`, codex `thread_id`) is a
-  resume token stored *under* our session id; the client never sees it.
+  resume token stored _under_ our session id; the client never sees it.
 - **Surface** — pane / PiP / modal. Holds a reference to a `sessionId`. Disposable;
   sessions outlive surfaces. A surface may switch which session it shows.
 
@@ -71,8 +71,8 @@ Consequences of the default fallback:
 ### Server state
 
 ```ts
-type SessionState = { harnessSessionId: string }   // resume token, '' until first turn
-const sessions = new Map<string, SessionState>()    // keyed by OUR sessionId
+type SessionState = {harnessSessionId: string} // resume token, '' until first turn
+const sessions = new Map<string, SessionState>() // keyed by OUR sessionId
 ```
 
 Replaces the single `SessionState` in `chat.ts`. Routes look up `sessions.get(sessionId)`,
@@ -97,7 +97,7 @@ The server owns resume tokens; the client owns UI layout. Two stores:
 }
 ```
 
-- Keyed by *our* client-minted session id; the value is the harness resume token, `''` until
+- Keyed by _our_ client-minted session id; the value is the harness resume token, `''` until
   the session's first turn mints one.
 - Store API: `readSessions(stateRoot, previewId): Record<string, string>`,
   `writeSession(stateRoot, previewId, sessionId, harnessToken)` upserts one entry,
@@ -125,7 +125,7 @@ entry, seeding it from the persisted map and — for the default session id only
 `initialSessionId` when present. All three route groups receive the map + helper.
 
 - `GET /api/chat/session` — reads `sessionId` from the header (or default). Returns
-  `{sessionId, harnessId, name, source, cwd, lock}`. `sessionId` echoes *our* id (the identity
+  `{sessionId, harnessId, name, source, cwd, lock}`. `sessionId` echoes _our_ id (the identity
   the client sends back in the header). `harnessId` is the harness resume token, display-only
   (powers the short id and the copyable id in the popover; `null` before the first turn) — the
   client never sends it back as identity. `name` is the harness session name or `null`.
@@ -138,7 +138,7 @@ entry, seeding it from the persisted map and — for the default session id only
 - `POST /api/chat` — the core change:
   - Reads `sessionId` from the header.
   - `resumeSessionId = harness.capabilities.resume ? (sessionFor(sessionId).harnessSessionId || null) : null`.
-  - Lock check is per session: 409 only if *that* session is busy.
+  - Lock check is per session: 409 only if _that_ session is busy.
   - `onSessionId` writes `sessionFor(sessionId).harnessSessionId` and
     `writeSession(..., sessionId, harnessToken)`.
   - `onSpawn` acquires the per-session lock.

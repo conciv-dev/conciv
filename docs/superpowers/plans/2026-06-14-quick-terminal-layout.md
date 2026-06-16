@@ -48,27 +48,27 @@ T10 full verification sweep                            (all)
 
 ## File structure
 
-| File | Change | Responsibility |
-|------|--------|----------------|
-| `packages/widget/src/chat-panel.tsx` | create | `ChatPanel` — chat UI + `useChat`, extracted from chat-shell |
-| `packages/widget/src/chat-shell.tsx` | modify | slim to wiring; chat internals move out |
-| `packages/protocol/src/config-types.ts` | modify | `WidgetConfig`, `ModalConfig`, `QuickTerminalConfig`, `TriggerPosition` |
-| `packages/core/src/widget-tags.ts` | modify | emit `pw-widget` meta (JSON) |
-| `packages/plugin/src/core/vite.ts` | modify | pass `widget` config into `htmlTags()` |
-| `packages/widget/src/mount.tsx` | modify | `resolveWidget`, create shell, register ChatPanel |
-| `packages/widget/src/widget-shell.tsx` | create | `createWidgetShell()` — chrome + layout + panel host |
-| `packages/widget/src/draggable-position.ts` | create | `createDraggablePosition()` |
-| `packages/widget/src/trigger.tsx` | create | positioned, draggable trigger button |
-| `packages/widget/src/resize.ts` | create | `createResizable()` (adapted from Devtools, MIT) |
-| `packages/widget/src/drop-sheet.ts` | create | `createDropSheet()` |
-| `packages/widget/src/quick-terminal.tsx` | create | quick-terminal layout: sheet + pane row + gutters |
-| `packages/widget/src/pip.tsx` | create | `createPiP()` (adapted from Devtools, MIT) |
-| `packages/widget/src/styles.css` | modify | `.pw-qt-*`, position, resize, pane styles |
-| `packages/widget/package.json` | modify | + `@tanstack/solid-hotkeys` |
-| `apps/site/content/docs/usage/quick-terminal.mdx` | create | docs page |
-| `apps/site/content/docs/usage/meta.json` | modify | nav entry |
-| `apps/site/content/docs/configuration.mdx` | modify | widget config rows |
-| `apps/site/public/screenshots/*.png` | create | real-widget screenshots |
+| File                                              | Change | Responsibility                                                          |
+| ------------------------------------------------- | ------ | ----------------------------------------------------------------------- |
+| `packages/widget/src/chat-panel.tsx`              | create | `ChatPanel` — chat UI + `useChat`, extracted from chat-shell            |
+| `packages/widget/src/chat-shell.tsx`              | modify | slim to wiring; chat internals move out                                 |
+| `packages/protocol/src/config-types.ts`           | modify | `WidgetConfig`, `ModalConfig`, `QuickTerminalConfig`, `TriggerPosition` |
+| `packages/core/src/widget-tags.ts`                | modify | emit `pw-widget` meta (JSON)                                            |
+| `packages/plugin/src/core/vite.ts`                | modify | pass `widget` config into `htmlTags()`                                  |
+| `packages/widget/src/mount.tsx`                   | modify | `resolveWidget`, create shell, register ChatPanel                       |
+| `packages/widget/src/widget-shell.tsx`            | create | `createWidgetShell()` — chrome + layout + panel host                    |
+| `packages/widget/src/draggable-position.ts`       | create | `createDraggablePosition()`                                             |
+| `packages/widget/src/trigger.tsx`                 | create | positioned, draggable trigger button                                    |
+| `packages/widget/src/resize.ts`                   | create | `createResizable()` (adapted from Devtools, MIT)                        |
+| `packages/widget/src/drop-sheet.ts`               | create | `createDropSheet()`                                                     |
+| `packages/widget/src/quick-terminal.tsx`          | create | quick-terminal layout: sheet + pane row + gutters                       |
+| `packages/widget/src/pip.tsx`                     | create | `createPiP()` (adapted from Devtools, MIT)                              |
+| `packages/widget/src/styles.css`                  | modify | `.pw-qt-*`, position, resize, pane styles                               |
+| `packages/widget/package.json`                    | modify | + `@tanstack/solid-hotkeys`                                             |
+| `apps/site/content/docs/usage/quick-terminal.mdx` | create | docs page                                                               |
+| `apps/site/content/docs/usage/meta.json`          | modify | nav entry                                                               |
+| `apps/site/content/docs/configuration.mdx`        | modify | widget config rows                                                      |
+| `apps/site/public/screenshots/*.png`              | create | real-widget screenshots                                                 |
 
 ---
 
@@ -228,6 +228,6 @@ T10 full verification sweep                            (all)
 ## Risks / watch-items
 
 - **Shadow DOM + PiP styles:** our styles live in a shadow root, not `document.styleSheets`. The PiP port must copy the shadow's style node specifically; verify the copy path early in T8 (highest-risk task).
-- **Hotkey conflicts:** default `Mod+\`` may collide with host shortcuts; it is overridable, and `~` is offered in docs. Guard `ignoreInputs`.
+- **Hotkey conflicts:** default `Mod+\`` may collide with host shortcuts; it is overridable, and `~`is offered in docs. Guard`ignoreInputs`.
 - **Extraction regressions (T1):** the gate. If any modal behavior shifts, stop and fix before proceeding.
 - **`@tanstack/solid-hotkeys` API drift:** pin the version; the `createHotkey(hotkey, cb, () => opts)` signature is confirmed from docs.

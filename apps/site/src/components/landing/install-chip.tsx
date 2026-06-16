@@ -1,4 +1,4 @@
-import { Badge } from '@/components/ui/badge';
+import {Badge} from '@/components/ui/badge'
 
 export function InstallChip() {
   return (
@@ -9,5 +9,5 @@ export function InstallChip() {
         Coming soon
       </Badge>
     </div>
-  );
+  )
 }

@@ -65,11 +65,15 @@
     "vitest": "^4.1.8"
   },
   "peerDependencies": {
-    "vite": "^6.0.0 || ^7.0.0 || ^8.0.0",
-    "next": "^15.3.0 || ^16.0.0"
+    "next": "^15.3.0 || ^16.0.0",
+    "vite": "^6.0.0 || ^7.0.0 || ^8.0.0"
   },
   "peerDependenciesMeta": {
-    "vite": {"optional": true},
-    "next": {"optional": true}
+    "vite": {
+      "optional": true
+    },
+    "next": {
+      "optional": true
+    }
   }
 }

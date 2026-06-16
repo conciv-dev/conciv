@@ -15,7 +15,8 @@ beforeAll(async () => {
     req.on('end', () => {
       lastBody = raw
       res.setHeader('content-type', 'application/json')
-      if (req.url === '/api/p') return void res.end(JSON.stringify({ok: true, echo: req.headers['aidx-session-id'] ?? null}))
+      if (req.url === '/api/p')
+        return void res.end(JSON.stringify({ok: true, echo: req.headers['aidx-session-id'] ?? null}))
       res.statusCode = 500
       res.end('nope')
     })
@@ -28,7 +29,12 @@ afterAll(() => server.close())
 describe('createTransport (real server)', () => {
   it('route() parses the response and sends the injected header', async () => {
     const t = createTransport({apiBase: base, headers: () => ({'aidx-session-id': 'aidx_1'})})
-    const out = await t.route({method: 'POST', path: '/api/p', request: z.object({a: z.number()}), response: z.object({ok: z.boolean(), echo: z.string().nullable()})})({a: 1})
+    const out = await t.route({
+      method: 'POST',
+      path: '/api/p',
+      request: z.object({a: z.number()}),
+      response: z.object({ok: z.boolean(), echo: z.string().nullable()}),
+    })({a: 1})
     expect(out).toEqual({ok: true, echo: 'aidx_1'})
   })
   it('throws ApiError on non-2xx', async () => {
@@ -37,7 +43,12 @@ describe('createTransport (real server)', () => {
   })
   it('sends a parseable object body for a POST with no argument (all-optional request)', async () => {
     const t = createTransport({apiBase: base})
-    await t.route({method: 'POST', path: '/api/p', request: z.object({id: z.string().optional()}), response: z.object({ok: z.boolean(), echo: z.string().nullable()})})()
+    await t.route({
+      method: 'POST',
+      path: '/api/p',
+      request: z.object({id: z.string().optional()}),
+      response: z.object({ok: z.boolean(), echo: z.string().nullable()}),
+    })()
     expect(lastBody).toBe('{}') // not '' — the server's readValidatedBody needs an object, not a missing body
   })
 })

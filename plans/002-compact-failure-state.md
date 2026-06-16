@@ -39,12 +39,12 @@ The dividers signal + `addDivider` (returns the new divider's id):
 
 ```tsx
 // chat-panel.tsx (around lines 522-526)
-  const [dividers, setDividers] = createSignal<{id: number; afterCount: number; kind: 'new' | 'compact'}[]>([])
-  const addDivider = (kind: 'new' | 'compact'): number => {
-    const id = dividerSeq.n++          // (exact increment expression may differ; it returns a unique id)
-    setDividers((prev) => [...prev, {id, afterCount: chat.messages().length, kind}])
-    return id
-  }
+const [dividers, setDividers] = createSignal<{id: number; afterCount: number; kind: 'new' | 'compact'}[]>([])
+const addDivider = (kind: 'new' | 'compact'): number => {
+  const id = dividerSeq.n++ // (exact increment expression may differ; it returns a unique id)
+  setDividers((prev) => [...prev, {id, afterCount: chat.messages().length, kind}])
+  return id
+}
 ```
 
 The `compact()` function — note it captures the divider id via `setPendingCompactId(addDivider('compact'))`,
@@ -52,31 +52,31 @@ never checks `res.ok`, and the `catch` only catches network/abort (an HTTP 409 i
 
 ```tsx
 // chat-panel.tsx (lines 550-574)
-  const [pendingCompactId, setPendingCompactId] = createSignal<number | null>(null)
-  const compacting = () => pendingCompactId() !== null
-  const compact = async () => {
-    if (chat.isLoading() || compacting()) return
-    setPendingCompactId(addDivider('compact'))
-    try {
-      const res = await fetch(client.chatStreamUrl(), {
-        method: 'POST',
-        credentials: 'include',
-        headers: {'content-type': 'application/json', ...client.chatHeaders()},
-        body: JSON.stringify({
-          messages: [{role: 'user', content: '/compact'}],
-          forwardedProps: {...requestMeta(), intent: 'compact'},
-        }),
-      })
-      await res.body?.pipeTo(new WritableStream())
-      // Server persisted post-compaction usage on RUN_FINISHED → reflect the smaller context.
-      const session = await client.session()
-      if (session.usage) setUsage(session.usage)
-    } catch {
-      // network/abort — the divider stays; the tracker refreshes on the next real turn
-    } finally {
-      setPendingCompactId(null)
-    }
+const [pendingCompactId, setPendingCompactId] = createSignal<number | null>(null)
+const compacting = () => pendingCompactId() !== null
+const compact = async () => {
+  if (chat.isLoading() || compacting()) return
+  setPendingCompactId(addDivider('compact'))
+  try {
+    const res = await fetch(client.chatStreamUrl(), {
+      method: 'POST',
+      credentials: 'include',
+      headers: {'content-type': 'application/json', ...client.chatHeaders()},
+      body: JSON.stringify({
+        messages: [{role: 'user', content: '/compact'}],
+        forwardedProps: {...requestMeta(), intent: 'compact'},
+      }),
+    })
+    await res.body?.pipeTo(new WritableStream())
+    // Server persisted post-compaction usage on RUN_FINISHED → reflect the smaller context.
+    const session = await client.session()
+    if (session.usage) setUsage(session.usage)
+  } catch {
+    // network/abort — the divider stays; the tracker refreshes on the next real turn
+  } finally {
+    setPendingCompactId(null)
   }
+}
 ```
 
 The divider's label is driven purely by `pending` (cleared in `finally`), which is why a failed turn
@@ -99,13 +99,13 @@ in the file — it's used for "aidx is thinking…" / "aidx replied."). Reuse it
 
 ## Commands you will need
 
-| Purpose | Command | Expected on success |
-|---|---|---|
-| Build widget bundle (tests load the built bundle) | `pnpm turbo run build --filter=@aidx/widget` | exit 0 |
-| Widget tests (real browser) | `pnpm --filter @aidx/widget exec vitest run` | all pass |
-| Single test by name | `pnpm --filter @aidx/widget exec vitest run -t "Compress"` | matching tests pass |
-| Typecheck | `pnpm turbo run typecheck --filter=@aidx/widget` | exit 0 |
-| Lint | `pnpm --filter @aidx/widget lint` | exit 0 |
+| Purpose                                           | Command                                                    | Expected on success |
+| ------------------------------------------------- | ---------------------------------------------------------- | ------------------- |
+| Build widget bundle (tests load the built bundle) | `pnpm turbo run build --filter=@aidx/widget`               | exit 0              |
+| Widget tests (real browser)                       | `pnpm --filter @aidx/widget exec vitest run`               | all pass            |
+| Single test by name                               | `pnpm --filter @aidx/widget exec vitest run -t "Compress"` | matching tests pass |
+| Typecheck                                         | `pnpm turbo run typecheck --filter=@aidx/widget`           | exit 0              |
+| Lint                                              | `pnpm --filter @aidx/widget lint`                          | exit 0              |
 
 IMPORTANT: the widget integration tests run a real browser against the **prebuilt** bundle
 (`packages/widget/dist/aidx-widget.global.js`). You MUST rebuild the bundle (first command) after every
@@ -115,17 +115,19 @@ browser via Playwright only.
 ## Scope
 
 **In scope** (the only files you should modify):
+
 - `packages/widget/src/chat-panel.tsx`
 - `packages/widget/test/widget.it.test.ts`
 
 **Out of scope** (do NOT touch):
+
 - `packages/widget/src/transport.ts` — already checks `res.ok` for typed routes; compaction is an SSE
   stream so it can't use `transport.route()` (which parses JSON). Do not try to route compaction
   through it.
 - The server (`packages/core/**`) — the 409 behavior is correct; this plan only fixes the client's
   handling of it.
 - The divider's "Compacting…"/"Context compacted" wording and the spinner — keep them; this plan only
-  ensures the divider is *removed* on failure.
+  ensures the divider is _removed_ on failure.
 
 ## Git workflow
 
@@ -140,7 +142,7 @@ browser via Playwright only.
 Next to `addDivider` in `chat-panel.tsx`, add:
 
 ```tsx
-  const removeDivider = (id: number) => setDividers((prev) => prev.filter((d) => d.id !== id))
+const removeDivider = (id: number) => setDividers((prev) => prev.filter((d) => d.id !== id))
 ```
 
 **Verify**: `pnpm turbo run typecheck --filter=@aidx/widget` → exit 0.
@@ -151,39 +153,38 @@ Rewrite `compact()` so it (a) captures the divider id in a local, (b) treats a n
 failure, and (c) removes the divider + announces on ANY failure. Target shape:
 
 ```tsx
-  const compact = async () => {
-    if (chat.isLoading() || compacting()) return
-    const id = addDivider('compact')
-    setPendingCompactId(id)
-    try {
-      const res = await fetch(client.chatStreamUrl(), {
-        method: 'POST',
-        credentials: 'include',
-        headers: {'content-type': 'application/json', ...client.chatHeaders()},
-        body: JSON.stringify({
-          messages: [{role: 'user', content: '/compact'}],
-          forwardedProps: {...requestMeta(), intent: 'compact'},
-        }),
-      })
-      if (!res.ok) throw apiError('/api/chat', res.status) // 409 session busy, etc.
-      await res.body?.pipeTo(new WritableStream())
-      const session = await client.session()
-      if (session.usage) setUsage(session.usage)
-    } catch {
-      // Any failure (HTTP non-2xx, network, abort): drop the optimistic boundary and tell the user,
-      // so the divider never flips to the false "Context compacted".
-      removeDivider(id)
-      setLiveMsg('Compaction failed — the session may be busy. Try again in a moment.')
-    } finally {
-      setPendingCompactId(null)
-    }
+const compact = async () => {
+  if (chat.isLoading() || compacting()) return
+  const id = addDivider('compact')
+  setPendingCompactId(id)
+  try {
+    const res = await fetch(client.chatStreamUrl(), {
+      method: 'POST',
+      credentials: 'include',
+      headers: {'content-type': 'application/json', ...client.chatHeaders()},
+      body: JSON.stringify({
+        messages: [{role: 'user', content: '/compact'}],
+        forwardedProps: {...requestMeta(), intent: 'compact'},
+      }),
+    })
+    if (!res.ok) throw apiError('/api/chat', res.status) // 409 session busy, etc.
+    await res.body?.pipeTo(new WritableStream())
+    const session = await client.session()
+    if (session.usage) setUsage(session.usage)
+  } catch {
+    // Any failure (HTTP non-2xx, network, abort): drop the optimistic boundary and tell the user,
+    // so the divider never flips to the false "Context compacted".
+    removeDivider(id)
+    setLiveMsg('Compaction failed — the session may be busy. Try again in a moment.')
+  } finally {
+    setPendingCompactId(null)
   }
+}
 ```
 
 Add the import at the top of the file if you used `apiError`:
 `import {apiError} from './transport.js'` (match the file's existing import style/ordering). If you
-prefer not to import it, replace the throw with `throw new Error(\`compact ${res.status}\`)` — the
-`catch` doesn't inspect the error.
+prefer not to import it, replace the throw with `throw new Error(\`compact ${res.status}\`)`— the`catch` doesn't inspect the error.
 
 **Verify**: `pnpm turbo run typecheck --filter=@aidx/widget` → exit 0, and `pnpm --filter @aidx/widget lint` → exit 0.
 

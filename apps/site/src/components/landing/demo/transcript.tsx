@@ -1,14 +1,14 @@
-import { type RefObject } from 'react';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { MessageRow } from './message-row';
-import type { Message } from './demo-data';
+import {type RefObject} from 'react'
+import {ScrollArea} from '@/components/ui/scroll-area'
+import {MessageRow} from './message-row'
+import type {Message} from './demo-data'
 
 export function Transcript({
   messages,
   viewportRef,
 }: {
-  messages: Message[];
-  viewportRef: RefObject<HTMLDivElement | null>;
+  messages: Message[]
+  viewportRef: RefObject<HTMLDivElement | null>
 }) {
   return (
     <ScrollArea className="min-h-0 flex-1">
@@ -18,5 +18,5 @@ export function Transcript({
         ))}
       </div>
     </ScrollArea>
-  );
+  )
 }

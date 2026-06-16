@@ -32,8 +32,14 @@ export async function ensureAgentRecord(deps: ResolveDeps, harnessId: string): P
   if (existing) return existing
   const mint = deps.mintId ?? (() => `aidx_${randomUUID()}`)
   return deps.store.create({
-    id: mint(), harnessSessionId: harnessId, harnessKind: deps.harnessKind,
-    origin: 'agent', title: null, model: null, usage: null, cwd: deps.cwd,
+    id: mint(),
+    harnessSessionId: harnessId,
+    harnessKind: deps.harnessKind,
+    origin: 'agent',
+    title: null,
+    model: null,
+    usage: null,
+    cwd: deps.cwd,
   })
 }
 

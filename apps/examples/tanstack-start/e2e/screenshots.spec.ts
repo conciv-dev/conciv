@@ -62,7 +62,12 @@ test('capture widget screenshots', async ({browser}) => {
     }
   }
 
-  await phase('chat-thread', 'What does this page do? Keep it short.', '.pw-chat-tool-head, .pw-chat-msg-assistant', 150_000)
+  await phase(
+    'chat-thread',
+    'What does this page do? Keep it short.',
+    '.pw-chat-tool-head, .pw-chat-msg-assistant',
+    150_000,
+  )
   await phase('test-card', 'Run the test suite now.', '.pw-test', 200_000)
 
   // Force the exact aidx ui commands so the cards render deterministically.
@@ -86,7 +91,12 @@ test('capture widget screenshots', async ({browser}) => {
     'Run this exact shell command and nothing else: aidx ui form --title "New component" --field "name:Component name:text" --field "kind:Kind:select:page,layout,widget"',
     '.pw-genui-field',
   )
-  await phase('approval-card', 'Install the npm package named is-odd by running: npm install is-odd', '.pw-genui-actions', 150_000)
+  await phase(
+    'approval-card',
+    'Install the npm package named is-odd by running: npm install is-odd',
+    '.pw-genui-actions',
+    150_000,
+  )
 
   console.log('CAPTURED:', captured.join(', ') || 'none')
   console.log('MISSED:', missed.join(', ') || 'none')

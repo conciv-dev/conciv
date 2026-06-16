@@ -22,14 +22,10 @@ export function parseWidgetSettings(raw: string): WidgetSettings {
   const m = cfg.modal
   const qt = cfg.quickTerminal
   const hotkey = qt && typeof qt === 'object' ? (qt as {hotkey?: unknown}).hotkey : undefined
-  const hotkeys = Array.isArray(hotkey)
-    ? hotkey.map(String)
-    : hotkey
-      ? [String(hotkey)]
-      : DEFAULT_HOTKEYS
+  const hotkeys = Array.isArray(hotkey) ? hotkey.map(String) : hotkey ? [String(hotkey)] : DEFAULT_HOTKEYS
   const position =
     m && typeof m === 'object' && (m as {position?: TriggerPosition}).position
-      ? ((m as {position: TriggerPosition}).position)
+      ? (m as {position: TriggerPosition}).position
       : DEFAULT_POSITION
   return {
     modal: {enabled: m !== false, position},

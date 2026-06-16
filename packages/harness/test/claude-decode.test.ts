@@ -64,7 +64,12 @@ describe('claude decode — usage', () => {
         type: 'message_start',
         message: {
           model: 'claude-opus-4-8[1m]',
-          usage: {input_tokens: 17206, cache_read_input_tokens: 15832, cache_creation_input_tokens: 1913, output_tokens: 3},
+          usage: {
+            input_tokens: 17206,
+            cache_read_input_tokens: 15832,
+            cache_creation_input_tokens: 1913,
+            output_tokens: 3,
+          },
         },
       },
     })
@@ -77,7 +82,8 @@ describe('claude decode — usage', () => {
 
 // Raw Anthropic SSE wrapped by --include-partial-messages.
 const streamEvent = (event: unknown) => JSON.stringify({type: 'stream_event', event})
-const blockStart = (index: number, content_block: unknown) => streamEvent({type: 'content_block_start', index, content_block})
+const blockStart = (index: number, content_block: unknown) =>
+  streamEvent({type: 'content_block_start', index, content_block})
 const blockDelta = (index: number, delta: unknown) => streamEvent({type: 'content_block_delta', index, delta})
 const blockStop = (index: number) => streamEvent({type: 'content_block_stop', index})
 
@@ -191,11 +197,7 @@ describe('claude decode — live text streaming', () => {
       type: 'user',
       message: {content: [{type: 'tool_result', tool_use_id: 'toolu_1', content: 'done'}]},
     })
-    const out = await collect([
-      blockStart(0, {type: 'tool_use', id: 'toolu_1', name: 'Bash'}),
-      blockStop(0),
-      userEvent,
-    ])
+    const out = await collect([blockStart(0, {type: 'tool_use', id: 'toolu_1', name: 'Bash'}), blockStop(0), userEvent])
     const res = ofType(out, EventType.TOOL_CALL_RESULT)[0] as {toolCallId: string; content: string}
     expect(res.toolCallId).toBe('toolu_1')
     expect(res.content).toBe('done')

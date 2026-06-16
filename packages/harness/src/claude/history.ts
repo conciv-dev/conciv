@@ -119,7 +119,10 @@ export function nameFromTranscript(jsonl: string): string | null {
 // usage. Both are .loose so unrelated fields don't trip parsing.
 const SystemRecordSchema = z.object({type: z.literal('system'), model: z.string().optional()}).loose()
 const ResultRecordSchema = z
-  .object({type: z.literal('result'), usage: z.object({input_tokens: z.number().optional(), output_tokens: z.number().optional()}).loose().optional()})
+  .object({
+    type: z.literal('result'),
+    usage: z.object({input_tokens: z.number().optional(), output_tokens: z.number().optional()}).loose().optional(),
+  })
   .loose()
 const StampedRecordSchema = z.object({timestamp: z.string().optional()}).loose()
 
@@ -134,7 +137,8 @@ function lastMessageFrom(jsonl: string): string | null {
     const parts = partsFrom(rec.message?.content)
     if (isInternal(parts)) continue
     const text = parts.find((p) => p.type === 'text')
-    if (text && text.type === 'text' && typeof text.content === 'string') last = text.content.replace(/\s+/g, ' ').trim().slice(0, 200)
+    if (text && text.type === 'text' && typeof text.content === 'string')
+      last = text.content.replace(/\s+/g, ' ').trim().slice(0, 200)
   }
   return last
 }
@@ -158,7 +162,8 @@ export function parseSessionMeta(id: string, jsonl: string, mtime: number): Harn
     const sys = SystemRecordSchema.safeParse(obj)
     if (sys.success && sys.data.model) model = sys.data.model
     const result = ResultRecordSchema.safeParse(obj)
-    if (result.success && result.data.usage) totalTokens += (result.data.usage.input_tokens ?? 0) + (result.data.usage.output_tokens ?? 0)
+    if (result.success && result.data.usage)
+      totalTokens += (result.data.usage.input_tokens ?? 0) + (result.data.usage.output_tokens ?? 0)
     if (createdAt === undefined) {
       const stamped = StampedRecordSchema.safeParse(obj)
       const ms = stamped.success && stamped.data.timestamp ? Date.parse(stamped.data.timestamp) : NaN

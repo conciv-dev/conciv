@@ -1,5 +1,5 @@
-import { SiteNav } from './site-nav';
-import { Hero } from './hero';
+import {SiteNav} from './site-nav'
+import {Hero} from './hero'
 
 export function LandingPage() {
   return (
@@ -7,5 +7,5 @@ export function LandingPage() {
       <SiteNav />
       <Hero />
     </div>
-  );
+  )
 }

@@ -75,7 +75,7 @@ describe('engine CORS (IT, real http, cross-origin + credentials)', () => {
     expect(res.status).toBe(204)
     const allowHeaders = (res.headers.get('access-control-allow-headers') ?? '').toLowerCase()
     expect(allowHeaders).toContain('aidx-session-id')
-    expect((res.headers.get('access-control-allow-methods') ?? '')).toContain('DELETE')
+    expect(res.headers.get('access-control-allow-methods') ?? '').toContain('DELETE')
   })
 
   it('echoes CORS headers on the actual probe GET /api/chat/models (never *)', async () => {

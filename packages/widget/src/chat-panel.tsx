@@ -12,7 +12,12 @@ import {Markdown} from './markdown.js'
 import {ArrowRight, Square, SquarePen, FoldVertical} from 'lucide-solid'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 import {AIDX_UI_EVENT, UiSpecSchema, type UiSpec} from '@aidx/protocol/ui-types'
-import {AIDX_USAGE_EVENT, UsageSnapshotSchema, tokenUsageToSnapshot, type UsageSnapshot} from '@aidx/protocol/usage-types'
+import {
+  AIDX_USAGE_EVENT,
+  UsageSnapshotSchema,
+  tokenUsageToSnapshot,
+  type UsageSnapshot,
+} from '@aidx/protocol/usage-types'
 import {TestRunResultSchema, type TestRunResult} from '@aidx/protocol/test-types'
 import type {ComposerActionDef, ComposerControlDef, PanelDef} from './widget-shell.js'
 
@@ -195,14 +200,19 @@ function PartView(props: {
   return (
     <Switch>
       <Match when={isRunCard()}>
-        <TestCard apiBase={props.apiBase} onFix={props.onFix} result={props.tests.runResult.get(runCallId() ?? '') ?? null} />
+        <TestCard
+          apiBase={props.apiBase}
+          onFix={props.onFix}
+          result={props.tests.runResult.get(runCallId() ?? '') ?? null}
+        />
       </Match>
       <Match when={props.part.type === 'text' ? (props.part as Extract<MessagePart, {type: 'text'}>) : null}>
         {(p) => <TextPartView content={p().content} streaming={props.streaming && props.index === lastTextIndex()} />}
       </Match>
       <Match
         when={
-          props.part.type === 'thinking' && (props.part as Extract<MessagePart, {type: 'thinking'}>).content.trim().length > 0
+          props.part.type === 'thinking' &&
+          (props.part as Extract<MessagePart, {type: 'thinking'}>).content.trim().length > 0
             ? (props.part as Extract<MessagePart, {type: 'thinking'}>)
             : null
         }
@@ -214,10 +224,25 @@ function PartView(props: {
           </details>
         )}
       </Match>
-      <Match when={props.part.type === 'tool-call' && !isRunCard() && !props.tests.hiddenCallIds.has((props.part as ToolCallPart).id) ? (props.part as ToolCallPart) : null}>
+      <Match
+        when={
+          props.part.type === 'tool-call' &&
+          !isRunCard() &&
+          !props.tests.hiddenCallIds.has((props.part as ToolCallPart).id)
+            ? (props.part as ToolCallPart)
+            : null
+        }
+      >
         {(p) => <ToolCall part={p()} active={props.streaming} />}
       </Match>
-      <Match when={props.part.type === 'tool-result' && !props.tests.hiddenResultIds.has((props.part as ToolResultPart).toolCallId) ? (props.part as ToolResultPart) : null}>
+      <Match
+        when={
+          props.part.type === 'tool-result' &&
+          !props.tests.hiddenResultIds.has((props.part as ToolResultPart).toolCallId)
+            ? (props.part as ToolResultPart)
+            : null
+        }
+      >
         {(p) => <ToolResult part={p()} />}
       </Match>
     </Switch>
@@ -259,7 +284,12 @@ function Divider(props: {kind: 'new' | 'compact'; pending?: boolean}): JSX.Eleme
   const Icon = props.kind === 'new' ? SquarePen : FoldVertical
   const label = () => (props.kind === 'new' ? 'New session' : props.pending ? 'Compacting…' : 'Context compacted')
   return (
-    <div class="pw-chat-divider" classList={{'pw-chat-divider-pending': props.pending}} role="separator" aria-label={label()}>
+    <div
+      class="pw-chat-divider"
+      classList={{'pw-chat-divider-pending': props.pending}}
+      role="separator"
+      aria-label={label()}
+    >
       <span class="pw-chat-divider-label">
         <Icon class="pw-chat-divider-icon" aria-hidden="true" />
         {label()}
@@ -353,10 +383,10 @@ export function ChatPanel(props: {
   const chat = useChat({
     ...createChatClientOptions({
       connection: fetchServerSentEvents(client.chatStreamUrl(), () => ({
-      credentials: 'include',
-      headers: client.chatHeaders(),
-      body: requestMeta(),
-    })),
+        credentials: 'include',
+        headers: client.chatHeaders(),
+        body: requestMeta(),
+      })),
     }),
     onCustomEvent: onAidxUi,
     onChunk,
@@ -374,7 +404,8 @@ export function ChatPanel(props: {
   const isThinking = () => chat.status() === 'submitted'
   const isStreaming = () => chat.status() === 'streaming'
   const lastIndex = () => chat.messages().length - 1
-  const isActiveAssistant = (index: number, role: string) => isStreaming() && role === 'assistant' && index === lastIndex()
+  const isActiveAssistant = (index: number, role: string) =>
+    isStreaming() && role === 'assistant' && index === lastIndex()
 
   // Surface the working state for the shell's trigger pulse.
   createEffect(() => props.onWorkingChange?.(isThinking() || isStreaming()))
@@ -640,7 +671,9 @@ export function ChatPanel(props: {
           <Index each={chat.messages()}>
             {(m, index) => (
               <>
-                <For each={dividersAt(index)}>{(d) => <Divider kind={d.kind} pending={d.id === pendingCompactId()} />}</For>
+                <For each={dividersAt(index)}>
+                  {(d) => <Divider kind={d.kind} pending={d.id === pendingCompactId()} />}
+                </For>
                 <div class={`pw-chat-msg pw-chat-msg-${m().role}`}>
                   <MessageParts
                     parts={m().parts}
@@ -654,7 +687,9 @@ export function ChatPanel(props: {
           </Index>
           {/* Boundaries inserted after the last message (e.g. right after New session, before the
               next turn streams) render here at the tail of the thread. */}
-          <For each={dividersAt(chat.messages().length)}>{(d) => <Divider kind={d.kind} pending={d.id === pendingCompactId()} />}</For>
+          <For each={dividersAt(chat.messages().length)}>
+            {(d) => <Divider kind={d.kind} pending={d.id === pendingCompactId()} />}
+          </For>
         </Show>
         <For each={genUi()}>
           {(spec) => (

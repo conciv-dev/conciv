@@ -50,7 +50,10 @@ export type ChatRequest = z.infer<typeof ChatRequestSchema>
 
 // Our session id — minted by the server, aidx_ prefixed, branded so a raw harness id can't be
 // passed where ours is required.
-export const SessionId = z.string().regex(/^aidx_[A-Za-z0-9_-]{1,128}$/).brand<'AidxSessionId'>()
+export const SessionId = z
+  .string()
+  .regex(/^aidx_[A-Za-z0-9_-]{1,128}$/)
+  .brand<'AidxSessionId'>()
 export type SessionId = z.infer<typeof SessionId>
 
 // Runtime guard — narrows an unknown/raw string to our branded SessionId. The one place to decide

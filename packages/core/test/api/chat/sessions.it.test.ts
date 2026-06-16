@@ -31,7 +31,11 @@ function tmpHome(): string {
 }
 function fakeSpawn(): SpawnHarness {
   return (args, cwd) => {
-    const child = spawn(process.execPath, [fakeClaude, ...args], {cwd, stdio: ['pipe', 'pipe', 'pipe'], env: {...process.env}})
+    const child = spawn(process.execPath, [fakeClaude, ...args], {
+      cwd,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: {...process.env},
+    })
     const {stdin, stdout, stderr} = child
     if (!stdout || !stderr) throw new Error('fake-claude did not expose stdout/stderr')
     return {pid: child.pid ?? -1, stdin: stdin ?? undefined, stdout, stderr, kill: () => child.kill('SIGTERM')}

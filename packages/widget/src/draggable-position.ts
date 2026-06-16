@@ -21,7 +21,13 @@ function anchorOf(p: TriggerPosition, vw: number, vh: number): {x: number; y: nu
 
 // The element CENTER a preset rests at, given the element size — the snap animation glides here so
 // it lands exactly on the preset class's resting spot (no jump at commit). Mirrors the CSS presets.
-function presetCenter(p: TriggerPosition, vw: number, vh: number, halfW: number, halfH: number): {x: number; y: number} {
+function presetCenter(
+  p: TriggerPosition,
+  vw: number,
+  vh: number,
+  halfW: number,
+  halfH: number,
+): {x: number; y: number} {
   const x = p.endsWith('left') ? MARGIN + halfW : vw - MARGIN - halfW
   const y = p.startsWith('top') ? MARGIN + halfH : p.startsWith('middle') ? vh / 2 : vh - MARGIN - halfH
   return {x, y}

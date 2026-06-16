@@ -34,12 +34,12 @@ const corsOptions: CorsOptions = {
 ```
 
 The server binds `127.0.0.1`, so it's local-only — but any web page the developer visits while the dev
-server runs can issue cross-origin requests to `http://127.0.0.1:<port>/api/*`. CORS governs *response
-readability*, not the *side effect*: a cross-origin `POST /api/chat` executes server-side regardless.
+server runs can issue cross-origin requests to `http://127.0.0.1:<port>/api/*`. CORS governs _response
+readability_, not the _side effect_: a cross-origin `POST /api/chat` executes server-side regardless.
 The port is the only barrier, and ports are scannable. So a malicious page could drive the local agent.
 
 This is the classic "malicious site attacks localhost dev server" class. The permissive CORS is
-partly **by design** — the widget runs on the *app's* origin (injected into the user's page) and must
+partly **by design** — the widget runs on the _app's_ origin (injected into the user's page) and must
 reach core on `127.0.0.1`, which is cross-origin; hence reflect-origin + credentials. So the fix is not
 "lock to one origin" (the app origin varies); it needs a token or strict request-authenticity check
 that still lets the legitimate widget through. That tradeoff is why this is a design task, not a
@@ -61,16 +61,18 @@ one-line change.
   `api/editor/editor.ts` (`/api/editor/open`), `api/mcp/mcp.ts`. The MCP route is hit by the spawned
   CLI (localhost, server-to-server), so any auth scheme must not break that path.
 - No auth/token exists anywhere (`grep -rniE "authorization|bearer|token|secret" packages/core/src`
-  finds only token-*usage* accounting, not auth).
+  finds only token-_usage_ accounting, not auth).
 
 ## Scope
 
 **In scope** (produce these — documents, not code):
+
 - `plans/design/006-dev-server-origin-hardening.md` (create) — the design doc described below.
 - A follow-up implementation plan file `plans/007-<slug>.md` capturing the chosen approach, IF the
   design lands on a concrete recommendation. (Add its row to `plans/README.md`.)
 
 **Out of scope**:
+
 - Any change to `packages/core/**` or `packages/widget/**` source. This plan does not modify runtime
   code. (The follow-up plan 007 will.)
 
@@ -81,17 +83,17 @@ Write the design doc covering:
 1. **Threat model, scoped honestly.** Local dev tool, `127.0.0.1`, dynamic port. Attacker = a web page
    the dev visits while the server runs. What they can/can't do today (drive agent, open files, delete
    sessions; cannot read responses cross-origin without CORS — but side effects land). Note the
-   permission gate still protects *risky* Bash (read-only auto-allows).
+   permission gate still protects _risky_ Bash (read-only auto-allows).
 
 2. **Options, with tradeoffs:**
    - **(A) Per-boot capability token.** Core mints a random token at boot, injects it via the existing
      `widget-tags.ts` meta seam, and requires it (header) on state-changing routes. Same-origin-policy
-     stops a cross-origin attacker from reading the token, so blind drive-by fails. *Tension:* the
+     stops a cross-origin attacker from reading the token, so blind drive-by fails. _Tension:_ the
      token is visible to any JS on the app's page (the app is trusted; a malicious 3rd-party script
-     already on the app page is a different threat). *Tension:* the spawned CLI hits `/api/mcp` — decide
+     already on the app page is a different threat). _Tension:_ the spawned CLI hits `/api/mcp` — decide
      whether MCP needs the token (it's server-to-server on localhost) or stays exempt.
    - **(B) Origin/Referer allow-list derived from the configured preview origin(s).** Reject
-     state-changing requests whose `Origin` isn't the app origin core was configured for. *Tension:*
+     state-changing requests whose `Origin` isn't the app origin core was configured for. _Tension:_
      the app origin must be known to core (is it? check `config.ts` / plugin wiring) and dev setups with
      multiple origins.
    - **(C) Require the existing custom header on all mutating routes** (forces preflight; a cross-origin

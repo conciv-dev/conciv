@@ -1,8 +1,8 @@
-import { createFileRoute, notFound, redirect } from '@tanstack/react-router';
-import { DocsLayout } from 'fumadocs-ui/layouts/docs';
-import { createServerFn } from '@tanstack/react-start';
-import { slugsToMarkdownPath, source } from '@/lib/source';
-import browserCollections from 'collections/browser';
+import {createFileRoute, notFound, redirect} from '@tanstack/react-router'
+import {DocsLayout} from 'fumadocs-ui/layouts/docs'
+import {createServerFn} from '@tanstack/react-start'
+import {slugsToMarkdownPath, source} from '@/lib/source'
+import browserCollections from 'collections/browser'
 import {
   DocsBody,
   DocsDescription,
@@ -10,51 +10,51 @@ import {
   DocsTitle,
   MarkdownCopyButton,
   ViewOptionsPopover,
-} from 'fumadocs-ui/layouts/docs/page';
-import { baseOptions } from '@/lib/layout.shared';
-import { docsEnabled, gitConfig } from '@/lib/shared';
-import { useFumadocsLoader } from 'fumadocs-core/source/client';
-import { Suspense } from 'react';
-import { useMDXComponents } from '@/components/mdx';
+} from 'fumadocs-ui/layouts/docs/page'
+import {baseOptions} from '@/lib/layout.shared'
+import {docsEnabled, gitConfig} from '@/lib/shared'
+import {useFumadocsLoader} from 'fumadocs-core/source/client'
+import {Suspense} from 'react'
+import {useMDXComponents} from '@/components/mdx'
 
 export const Route = createFileRoute('/docs/$')({
   component: Page,
   beforeLoad: () => {
-    if (!docsEnabled) throw redirect({ to: '/' });
+    if (!docsEnabled) throw redirect({to: '/'})
   },
-  loader: async ({ params }) => {
-    const slugs = params._splat?.split('/') ?? [];
-    const data = await serverLoader({ data: slugs });
-    await clientLoader.preload(data.path);
-    return data;
+  loader: async ({params}) => {
+    const slugs = params._splat?.split('/') ?? []
+    const data = await serverLoader({data: slugs})
+    await clientLoader.preload(data.path)
+    return data
   },
-});
+})
 
 const serverLoader = createServerFn({
   method: 'GET',
 })
   .validator((slugs: string[]) => slugs)
-  .handler(async ({ data: slugs }) => {
-    const page = source.getPage(slugs);
-    if (!page) throw notFound();
+  .handler(async ({data: slugs}) => {
+    const page = source.getPage(slugs)
+    if (!page) throw notFound()
 
     return {
       path: page.path,
       markdownUrl: slugsToMarkdownPath(page.slugs).url,
       pageTree: await source.serializePageTree(source.getPageTree()),
-    };
-  });
+    }
+  })
 
 const clientLoader = browserCollections.docs.createClientLoader({
   component(
-    { toc, frontmatter, default: MDX },
+    {toc, frontmatter, default: MDX},
     // you can define props for the component
     {
       markdownUrl,
       path,
     }: {
-      markdownUrl: string;
-      path: string;
+      markdownUrl: string
+      path: string
     },
   ) {
     return (
@@ -72,16 +72,16 @@ const clientLoader = browserCollections.docs.createClientLoader({
           <MDX components={useMDXComponents()} />
         </DocsBody>
       </DocsPage>
-    );
+    )
   },
-});
+})
 
 function Page() {
-  const { path, pageTree, markdownUrl } = useFumadocsLoader(Route.useLoaderData());
+  const {path, pageTree, markdownUrl} = useFumadocsLoader(Route.useLoaderData())
 
   return (
     <DocsLayout {...baseOptions()} tree={pageTree}>
-      <Suspense>{clientLoader.useContent(path, { markdownUrl, path })}</Suspense>
+      <Suspense>{clientLoader.useContent(path, {markdownUrl, path})}</Suspense>
     </DocsLayout>
-  );
+  )
 }

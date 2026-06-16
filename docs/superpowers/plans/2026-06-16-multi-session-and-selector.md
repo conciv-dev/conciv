@@ -55,6 +55,7 @@ owned here (A6, A17–A19) with corrected bodies because the review found the fo
 The foundation's shown Task 6 rewrite of `turn.ts` drops the existing usage-write, `onUsage`/`injectUsage`, and the `intent`/`turnKind`/compact-fallback logic. This version keeps all of it and keys per-session state by the header id.
 
 **Files:**
+
 - Modify: `packages/core/src/api/chat/chat.ts` (session `Map` + `sessionFor`)
 - Modify: `packages/core/src/api/chat/session.ts` (header-based `/session`, `/history`, `/stop`, `DELETE`)
 - Modify: `packages/core/src/api/chat/turn.ts` (per-session lock + header id, KEEP usage/intent/compact)
@@ -118,7 +119,9 @@ async function* withLockRelease(src, stateRoot, sessionId): AsyncGenerator<Strea
       if (c.type === EventType.RUN_FINISHED && c.usage) writeUsage(stateRoot, sessionId, tokenUsageToSnapshot(c.usage))
       yield c
     }
-  } finally { releaseLock(stateRoot, sessionId) }
+  } finally {
+    releaseLock(stateRoot, sessionId)
+  }
 }
 ```
 
@@ -143,6 +146,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 Today `ui-bus.ts` keeps one global `state.channel`; concurrent turns clobber it. And the spawned agent has no session id in its env, so `POST /api/chat/ui` can't route. Fix both.
 
 **Files:**
+
 - Modify: `packages/core/src/runtime/ui-bus.ts`
 - Modify: `packages/core/src/api/chat/turn.ts` (route `/ui` by header id; inject env)
 - Modify: the spawn path so the child env carries the turn's header id (`packages/core/src/engine.ts` / wherever `spawnHarness`/`childEnv` is built — search `AIDX_PORT`)
@@ -156,7 +160,10 @@ import {describe, it, expect} from 'vitest'
 import {makeUiBus} from '../../src/runtime/ui-bus.js'
 import {EventType} from '@tanstack/ai'
 
-async function* slow(chunk: unknown) { yield chunk; await new Promise((r) => setTimeout(r, 5)) }
+async function* slow(chunk: unknown) {
+  yield chunk
+  await new Promise((r) => setTimeout(r, 5))
+}
 
 describe('uiBus per-session channels', () => {
   it('routes inject to the matching header id only', async () => {
@@ -165,7 +172,11 @@ describe('uiBus per-session channels', () => {
     const b = bus.run('h-b', slow({type: EventType.RUN_STARTED}) as never)
     expect(bus.inject('h-a', {renderId: 'r1', kind: 'card'} as never)).toBe(true)
     expect(bus.inject('h-missing', {renderId: 'r2', kind: 'card'} as never)).toBe(false)
-    const drain = async (g: AsyncGenerator<unknown>) => { const o: unknown[] = []; for await (const c of g) o.push(c); return o }
+    const drain = async (g: AsyncGenerator<unknown>) => {
+      const o: unknown[] = []
+      for await (const c of g) o.push(c)
+      return o
+    }
     const [ca, cb] = await Promise.all([drain(a), drain(b)])
     const custom = (cs: unknown[]) => cs.filter((c) => (c as {type: string}).type === EventType.CUSTOM)
     expect(custom(ca).length).toBe(1)
@@ -182,20 +193,38 @@ Run: `pnpm --filter @aidx/core exec vitest run test/runtime/ui-bus.test.ts` → 
 
 ```ts
 export type UiBus = {
-  inject: (sessionId: string, spec: UiSpec) => boolean        // false if no live turn for this id
+  inject: (sessionId: string, spec: UiSpec) => boolean // false if no live turn for this id
   injectUsage: (sessionId: string, usage: UsageSnapshot) => void
   run: (sessionId: string, harnessEvents: AsyncIterable<StreamChunk>) => AsyncGenerator<StreamChunk>
 }
 export function makeUiBus(): UiBus {
   const channels = new Map<string, Channel>()
-  const inject = (sessionId, spec) => { const ch = channels.get(sessionId); if (!ch) return false; ch.push(aguiCustomFor(spec)); return true }
-  const injectUsage = (sessionId, usage) => { channels.get(sessionId)?.push(aguiUsageFor(usage)) }
+  const inject = (sessionId, spec) => {
+    const ch = channels.get(sessionId)
+    if (!ch) return false
+    ch.push(aguiCustomFor(spec))
+    return true
+  }
+  const injectUsage = (sessionId, usage) => {
+    channels.get(sessionId)?.push(aguiUsageFor(usage))
+  }
   async function* run(sessionId, harnessEvents) {
-    const channel = makeChannel(); channels.set(sessionId, channel)
-    async function pump() { try { for await (const c of harnessEvents) channel.push(c) } finally { channel.close() } }
+    const channel = makeChannel()
+    channels.set(sessionId, channel)
+    async function pump() {
+      try {
+        for await (const c of harnessEvents) channel.push(c)
+      } finally {
+        channel.close()
+      }
+    }
     const p = pump()
-    try { for await (const c of channel.iterate()) yield c }
-    finally { if (channels.get(sessionId) === channel) channels.delete(sessionId); await p }
+    try {
+      for await (const c of channel.iterate()) yield c
+    } finally {
+      if (channels.get(sessionId) === channel) channels.delete(sessionId)
+      await p
+    }
   }
   return {inject, injectUsage, run}
 }
@@ -232,6 +261,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 A6 Step 3 already keys `writeUsage` on the header `sessionId`. This task adds the cross-write regression test.
 
 **Files:**
+
 - Modify: `packages/core/test/fixtures/fake-claude.ts` (distinct per-turn usage)
 - Modify: `packages/core/test/api/chat/chat.it.test.ts`
 
@@ -245,11 +275,11 @@ Have the fixture emit distinct `input_tokens` per invocation (e.g. from an env v
 it('writes usage under the turn header id, not a shared pointer', async () => {
   const server = await startTestServer({spawnHarness: fakeSpawn()})
   state.server = server
-  await server.postChat(turn('hi'), 'h-a')   // usage U_a
-  await server.postChat(turn('yo'), 'h-b')   // usage U_b
+  await server.postChat(turn('hi'), 'h-a') // usage U_a
+  await server.postChat(turn('yo'), 'h-b') // usage U_b
   const ua = readUsage(server.stateRoot, 'h-a')
   const ub = readUsage(server.stateRoot, 'h-b')
-  expect(ua?.inputTokens).not.toBe(ub?.inputTokens)  // no cross-write
+  expect(ua?.inputTokens).not.toBe(ub?.inputTokens) // no cross-write
 })
 ```
 
@@ -304,8 +334,13 @@ export type HarnessHistory = {
 ```ts
 export const SessionId = z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/)
 export const ChatSessionMetaSchema = z.object({
-  id: z.string(), title: z.string(), updatedAt: z.number(), messageCount: z.number(),
-  running: z.boolean(), origin: z.enum(['aidx', 'external']), usage: UsageSnapshotSchema.nullable(),
+  id: z.string(),
+  title: z.string(),
+  updatedAt: z.number(),
+  messageCount: z.number(),
+  running: z.boolean(),
+  origin: z.enum(['aidx', 'external']),
+  usage: UsageSnapshotSchema.nullable(),
 })
 export const ChatSessionsSchema = z.object({sessions: z.array(ChatSessionMetaSchema)})
 export type ChatSessionMeta = z.infer<typeof ChatSessionMetaSchema>
@@ -348,10 +383,19 @@ function seed(home: string, cwd: string, id: string, body: string, mtimeSec: num
 }
 
 it('lists newest-first with title + count', async () => {
-  const home = mkdtempSync(join(tmpdir(), 'aidx-home-')); const cwd = '/proj/x'
+  const home = mkdtempSync(join(tmpdir(), 'aidx-home-'))
+  const cwd = '/proj/x'
   seed(home, cwd, 'old', JSON.stringify({type: 'user', message: {content: 'first task'}}) + '\n', 1000)
-  seed(home, cwd, 'new', [JSON.stringify({type: 'user', message: {content: 'newer task'}}),
-    JSON.stringify({type: 'assistant', message: {content: [{type: 'text', text: 'ok'}]}})].join('\n') + '\n', 2000)
+  seed(
+    home,
+    cwd,
+    'new',
+    [
+      JSON.stringify({type: 'user', message: {content: 'newer task'}}),
+      JSON.stringify({type: 'assistant', message: {content: [{type: 'text', text: 'ok'}]}}),
+    ].join('\n') + '\n',
+    2000,
+  )
   const out = await listSessions(cwd, home)
   expect(out.map((s) => s.id)).toEqual(['new', 'old'])
   expect(out[0]).toMatchObject({derivedTitle: 'newer task', messageCount: 2})
@@ -359,9 +403,16 @@ it('lists newest-first with title + count', async () => {
 })
 
 it('caps at 50 and does not read the 51st', async () => {
-  const home = mkdtempSync(join(tmpdir(), 'aidx-home-')); const cwd = '/proj/y'
-  for (let i = 0; i < 51; i++) seed(home, cwd, `s${String(i).padStart(2, '0')}`,
-    JSON.stringify({type: 'user', message: {content: `t${i}`}}) + '\n', 1000 + i)
+  const home = mkdtempSync(join(tmpdir(), 'aidx-home-'))
+  const cwd = '/proj/y'
+  for (let i = 0; i < 51; i++)
+    seed(
+      home,
+      cwd,
+      `s${String(i).padStart(2, '0')}`,
+      JSON.stringify({type: 'user', message: {content: `t${i}`}}) + '\n',
+      1000 + i,
+    )
   const out = await listSessions(cwd, home)
   expect(out.length).toBe(50)
   expect(out.some((s) => s.id === 's00')).toBe(false) // oldest dropped
@@ -387,7 +438,8 @@ const MAX_SESSIONS = 50
 
 function titleFromHead(raw: string): string {
   for (const line of raw.split('\n')) {
-    const t = line.trim(); if (!t) continue
+    const t = line.trim()
+    if (!t) continue
     const rec = parseRecord(t)
     if (rec?.type === 'user') {
       const parts = partsFrom(rec.message?.content)
@@ -402,19 +454,42 @@ function titleFromHead(raw: string): string {
 export async function listSessions(cwd: string, home: string = homedir()): Promise<HarnessSessionMeta[]> {
   const dir = join(home, '.claude', 'projects', encodeProjectDir(cwd))
   let names: string[]
-  try { names = (await readdir(dir)).filter((n) => n.endsWith('.jsonl')) } catch { return [] }
-  const stamped = (await Promise.all(names.map(async (name) => {
-    try { return {name, mtime: (await stat(join(dir, name))).mtimeMs} } catch { return null }
-  }))).filter(Boolean) as {name: string; mtime: number}[]
+  try {
+    names = (await readdir(dir)).filter((n) => n.endsWith('.jsonl'))
+  } catch {
+    return []
+  }
+  const stamped = (
+    await Promise.all(
+      names.map(async (name) => {
+        try {
+          return {name, mtime: (await stat(join(dir, name))).mtimeMs}
+        } catch {
+          return null
+        }
+      }),
+    )
+  ).filter(Boolean) as {name: string; mtime: number}[]
   const top = stamped.sort((a, b) => b.mtime - a.mtime).slice(0, MAX_SESSIONS)
-  return Promise.all(top.map(async (f) => {
-    const raw = await readFile(join(dir, f.name), 'utf8').catch(() => '')
-    return {id: f.name.replace(/\.jsonl$/, ''), derivedTitle: titleFromHead(raw),
-      updatedAt: Math.round(f.mtime), messageCount: parseHistory(raw).length}
-  }))
+  return Promise.all(
+    top.map(async (f) => {
+      const raw = await readFile(join(dir, f.name), 'utf8').catch(() => '')
+      return {
+        id: f.name.replace(/\.jsonl$/, ''),
+        derivedTitle: titleFromHead(raw),
+        updatedAt: Math.round(f.mtime),
+        messageCount: parseHistory(raw).length,
+      }
+    }),
+  )
 }
 
-export const claudeHistory: HarnessHistory = {transcriptPath, parse: parseHistory, nameFromTranscript, list: listSessions}
+export const claudeHistory: HarnessHistory = {
+  transcriptPath,
+  parse: parseHistory,
+  nameFromTranscript,
+  list: listSessions,
+}
 ```
 
 - [ ] **Step 4: Path-containment guard + test**
@@ -461,21 +536,32 @@ Add `titles: join(dir, 'session-titles.json')` to `StatePaths` + `statePaths()` 
 ```ts
 import {describe, it, expect, afterEach} from 'vitest'
 import {mkdtempSync, rmSync} from 'node:fs'
-import {tmpdir} from 'node:os'; import {join} from 'node:path'
+import {tmpdir} from 'node:os'
+import {join} from 'node:path'
 import {readTitle, writeTitle} from '../../src/store/session-titles-store.js'
-const dirs: string[] = []; const tmp = () => { const d = mkdtempSync(join(tmpdir(), 'aidx-titles-')); dirs.push(d); return d }
-afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, {recursive: true, force: true}) })
+const dirs: string[] = []
+const tmp = () => {
+  const d = mkdtempSync(join(tmpdir(), 'aidx-titles-'))
+  dirs.push(d)
+  return d
+}
+afterEach(() => {
+  for (const d of dirs.splice(0)) rmSync(d, {recursive: true, force: true})
+})
 
 it('writes, reads, clears', async () => {
   const root = tmp()
   expect(readTitle(root, 'a')).toBeNull()
-  await writeTitle(root, 'a', 'Checkout bug'); expect(readTitle(root, 'a')).toBe('Checkout bug')
-  await writeTitle(root, 'a', ''); expect(readTitle(root, 'a')).toBeNull()
+  await writeTitle(root, 'a', 'Checkout bug')
+  expect(readTitle(root, 'a')).toBe('Checkout bug')
+  await writeTitle(root, 'a', '')
+  expect(readTitle(root, 'a')).toBeNull()
 })
 it('no lost update under concurrent writes', async () => {
   const root = tmp()
   await Promise.all([writeTitle(root, 'a', 'X'), writeTitle(root, 'b', 'Y'), writeTitle(root, 'a', 'Z')])
-  expect(readTitle(root, 'a')).toBe('Z'); expect(readTitle(root, 'b')).toBe('Y')
+  expect(readTitle(root, 'a')).toBe('Z')
+  expect(readTitle(root, 'b')).toBe('Y')
 })
 ```
 
@@ -502,9 +588,12 @@ export function writeTitle(stateRoot: string, sessionId: string, title: string):
   queue = queue.then(() => {
     const path = statePaths(stateRoot).titles
     const map = readJson(path, TitleMap, {})
-    if (title) map[sessionId] = title; else delete map[sessionId]
+    if (title) map[sessionId] = title
+    else delete map[sessionId]
     mkdirSync(dirname(path), {recursive: true})
-    const tmp = `${path}.tmp`; writeFileSync(tmp, JSON.stringify(map)); renameSync(tmp, path)
+    const tmp = `${path}.tmp`
+    writeFileSync(tmp, JSON.stringify(map))
+    renameSync(tmp, path)
   })
   return queue
 }
@@ -531,7 +620,11 @@ it('enumerates live lock keys (header ids), not the old global name', () => {
   const root = tmp()
   acquireLock(root, 'h-a', 'chat', process.pid)
   acquireLock(root, 'h-b', 'iterate', process.pid)
-  expect(readLocks(root).map((l) => l.key).sort()).toEqual(['h-a', 'h-b'])
+  expect(
+    readLocks(root)
+      .map((l) => l.key)
+      .sort(),
+  ).toEqual(['h-a', 'h-b'])
 })
 ```
 
@@ -542,7 +635,11 @@ it('enumerates live lock keys (header ids), not the old global name', () => {
 import {readdirSync} from 'node:fs'
 export function readLocks(stateRoot: string): {key: string; role: LockRole | null; pid: number}[] {
   let files: string[]
-  try { files = readdirSync(statePaths(stateRoot).dir).filter((f) => /^agent\..+\.lock$/.test(f)) } catch { return [] }
+  try {
+    files = readdirSync(statePaths(stateRoot).dir).filter((f) => /^agent\..+\.lock$/.test(f))
+  } catch {
+    return []
+  }
   const out: {key: string; role: LockRole | null; pid: number}[] = []
   for (const f of files) {
     const key = f.replace(/^agent\./, '').replace(/\.lock$/, '')
@@ -573,7 +670,7 @@ import {AIDX_SESSION_HEADER, DEFAULT_SESSION_ID, SessionId} from '@aidx/protocol
 export function sessionIdFromHeaders(headers: Headers): string {
   const raw = headers.get(AIDX_SESSION_HEADER)?.trim()
   if (!raw) return DEFAULT_SESSION_ID
-  return SessionId.safeParse(raw).success ? raw : DEFAULT_SESSION_ID  // bad → default, never a path
+  return SessionId.safeParse(raw).success ? raw : DEFAULT_SESSION_ID // bad → default, never a path
 }
 ```
 
@@ -583,16 +680,21 @@ export function sessionIdFromHeaders(headers: Headers): string {
 
 ```ts
 import {mkdtempSync, mkdirSync, writeFileSync} from 'node:fs'
-import {tmpdir} from 'node:os'; import {join} from 'node:path'
-import {encodeProjectDir} from '@aidx/harness/claude/history'  // or re-export
+import {tmpdir} from 'node:os'
+import {join} from 'node:path'
+import {encodeProjectDir} from '@aidx/harness/claude/history' // or re-export
 import {ChatSessionsSchema} from '@aidx/protocol/chat-types'
 
 it('lists sessions with origin/title/running joined to the map', async () => {
   const home = mkdtempSync(join(tmpdir(), 'aidx-home-'))
   const cwd = process.cwd()
-  const dir = join(home, '.claude', 'projects', encodeProjectDir(cwd)); mkdirSync(dir, {recursive: true})
+  const dir = join(home, '.claude', 'projects', encodeProjectDir(cwd))
+  mkdirSync(dir, {recursive: true})
   writeFileSync(join(dir, 'tok-aidx.jsonl'), JSON.stringify({type: 'user', message: {content: 'made in aidx'}}) + '\n')
-  writeFileSync(join(dir, 'tok-ext.jsonl'), JSON.stringify({type: 'user', message: {content: 'made in terminal'}}) + '\n')
+  writeFileSync(
+    join(dir, 'tok-ext.jsonl'),
+    JSON.stringify({type: 'user', message: {content: 'made in terminal'}}) + '\n',
+  )
   const server = await startTestServer({cwd, claudeHome: home, spawnHarness: fakeSpawn()})
   state.server = server
   // Map a client uuid -> tok-aidx so origin resolves to 'aidx'; tok-ext stays external.
@@ -626,10 +728,12 @@ app.get('/api/chat/sessions', async () => {
   const hist = deps.harness.history
   if (!deps.harness.capabilities.transcriptHistory || !hist?.list) return {sessions: []}
   const metas = await hist.list(deps.cwd, deps.claudeHome)
-  const map = readSessions(deps.stateRoot, deps.previewId)            // headerId -> token
+  const map = readSessions(deps.stateRoot, deps.previewId) // headerId -> token
   const headerIdsByToken = new Map<string, string[]>()
   for (const [headerId, token] of Object.entries(map)) {
-    const arr = headerIdsByToken.get(token) ?? []; arr.push(headerId); headerIdsByToken.set(token, arr)
+    const arr = headerIdsByToken.get(token) ?? []
+    arr.push(headerId)
+    headerIdsByToken.set(token, arr)
   }
   const lockKeys = new Set(readLocks(deps.stateRoot).map((l) => l.key))
   const sessions = metas.map((m) => {
@@ -641,7 +745,7 @@ app.get('/api/chat/sessions', async () => {
       messageCount: m.messageCount,
       running: lockKeys.has(m.id) || headers.some((h) => lockKeys.has(h)),
       origin: Object.entries(map).some(([k, v]) => v === m.id && k !== m.id) ? 'aidx' : 'external',
-      usage: readUsage(deps.stateRoot, m.id) ?? (headers.map((h) => readUsage(deps.stateRoot, h)).find(Boolean) ?? null),
+      usage: readUsage(deps.stateRoot, m.id) ?? headers.map((h) => readUsage(deps.stateRoot, h)).find(Boolean) ?? null,
     }
   })
   return {sessions}
@@ -649,7 +753,11 @@ app.get('/api/chat/sessions', async () => {
 
 app.post('/api/chat/sessions/title', async (event) => {
   const {sessionId, title} = await readValidatedBody(event, RenameSessionSchema)
-  const clean = title.replace(/[\u0000-\u001F\u007F-\u009F]/g, '').replace(/\s+/g, ' ').trim().slice(0, 120)
+  const clean = title
+    .replace(/[\u0000-\u001F\u007F-\u009F]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 120)
   await writeTitle(deps.stateRoot, sessionId, clean)
   return {ok: true, title: clean}
 })
@@ -725,19 +833,34 @@ let inflight: Promise<void> | null = null
 
 function refetch(apiBase: string): Promise<void> {
   setStatus('loading')
-  inflight = createChatApi({apiBase}).sessions().then((r) => {
-    setFetched(r.sessions); setStatus(r.status === 'error' ? 'error' : 'ready')
-  }).finally(() => { inflight = null })
+  inflight = createChatApi({apiBase})
+    .sessions()
+    .then((r) => {
+      setFetched(r.sessions)
+      setStatus(r.status === 'error' ? 'error' : 'ready')
+    })
+    .finally(() => {
+      inflight = null
+    })
   return inflight
 }
-export function loadSessions(apiBase: string): Promise<void> { return inflight ?? refetch(apiBase) }
-export function invalidateSessions(apiBase: string): Promise<void> { inflight = null; return refetch(apiBase) }
+export function loadSessions(apiBase: string): Promise<void> {
+  return inflight ?? refetch(apiBase)
+}
+export function invalidateSessions(apiBase: string): Promise<void> {
+  inflight = null
+  return refetch(apiBase)
+}
 export function applyTitle(id: string, title: string): void {
   setFetched((p) => p.map((s) => (s.id === id ? {...s, title} : s)))
 }
 // A surface contributes its current session so a brand-new one shows as one row before it's on disk.
 export function mergeSurface(token: string | null, row: ChatSessionMeta | null): void {
-  setSurfaces((p) => { const n = {...p}; if (token && row) n[token] = row; return n })
+  setSurfaces((p) => {
+    const n = {...p}
+    if (token && row) n[token] = row
+    return n
+  })
 }
 // Rendered list: fetched rows, with surface rows unioned in and deduped by token (fetched wins).
 export function sessions(): ChatSessionMeta[] {
@@ -784,12 +907,17 @@ export function SessionSelector(props: {
 }): JSX.Element {
   const [query, setQuery] = createSignal('')
   const coll = useListCollection<ChatSessionMeta>({
-    initialItems: [], itemToValue: (s) => s.id, itemToString: (s) => s.title,
+    initialItems: [],
+    itemToValue: (s) => s.id,
+    itemToString: (s) => s.title,
     filter: (text, q, item) => `${item.title} ${item.id}`.toLowerCase().includes(q.toLowerCase()),
   })
   // VERIFIED (@ark-ui/solid 5.37.1): initialItems is read once; the only reactive update path is set().
   // set() also clears the filter text, so re-apply our query after. Don't recreate useListCollection.
-  createEffect(() => { coll.set(sessions()); if (query()) coll.filter(query()) })
+  createEffect(() => {
+    coll.set(sessions())
+    if (query()) coll.filter(query())
+  })
   onMount(() => void loadSessions(props.apiBase))
   // ... Combobox.Root with a unique `ids` prefix per instance; positioner portal inside the panel.
   return null as unknown as JSX.Element
@@ -803,9 +931,9 @@ export function SessionSelector(props: {
   2. **Popover header** (outside the listbox, Tab order): search input (controlled by `query()`, calls
      `coll.filter`), a **"Rename current session"** button → inline `<input>` (autofocus, Enter commit / Esc
      cancel, `stopPropagation` so Enter/Esc don't reach the combobox or modal trap; optimistic `applyTitle`
-     + `renameSession` + rollback + commit-once; disabled when `activeId()` is a not-yet-born fresh id),
-     and a **"+ New session"** button (`props.onNew()`, disabled while `busy()`). A Retry button when
-     `status()==='error'`.
+     - `renameSession` + rollback + commit-once; disabled when `activeId()` is a not-yet-born fresh id),
+       and a **"+ New session"** button (`props.onNew()`, disabled while `busy()`). A Retry button when
+       `status()==='error'`.
   3. **List** — Ark `Combobox.Item`s grouped by recency buckets (`Today`/`Yesterday`/`Earlier` from
      `updatedAt`) via `Combobox.ItemGroupLabel`. Row: title (ellipsis + `title`/`aria-label`), meta line as
      an `aria-label` ("Edited … · N messages · started in aidx/externally"; glyphs `aria-hidden`), check on
@@ -848,11 +976,11 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 - [ ] **Step 1: Replace the `hydrateState.done` boolean with a `loadedSessionId` ref** shared by first-activation hydrate and switching, so neither double-`setMessages`.
 - [ ] **Step 2: Switch on `props.sessionId()` change (≠ `loadedSessionId`), load-then-swap:**
-  `chat.stop()` → fetch `api.history()` (header carries the id) → on success: add `pw-chat-hydrating` on the
-  log, `setMessages(prior)`, set usage from cached meta, set `loadedSessionId`, remove the class; on empty:
-  greeting + `invalidateSessions`; **on failure: keep the current thread, revert `loadedSessionId`, show
-  `pw-chat-error` "Couldn't load that session" + Retry, `announce(..., true)`**. Show a `pw-chat-switching`
-  overlay (`role="status"`) while loading; move focus to it (don't orphan it) and re-disable composer.
+      `chat.stop()` → fetch `api.history()` (header carries the id) → on success: add `pw-chat-hydrating` on the
+      log, `setMessages(prior)`, set usage from cached meta, set `loadedSessionId`, remove the class; on empty:
+      greeting + `invalidateSessions`; **on failure: keep the current thread, revert `loadedSessionId`, show
+      `pw-chat-error` "Couldn't load that session" + Retry, `announce(..., true)`**. Show a `pw-chat-switching`
+      overlay (`role="status"`) while loading; move focus to it (don't orphan it) and re-disable composer.
 - [ ] **Step 3: Send-time 409** → a distinct `pw-chat-busy` inline state ("Busy in another pane"), not raw `chat.error()`; Retry once free.
 - [ ] **Step 4: Debounced `invalidateSessions(props.apiBase)` on turn-end** (when `isThinking()||isStreaming()` falls to false).
 - [ ] **Step 5:** `pnpm turbo typecheck build --filter=@aidx/widget` → PASS. **Step 6: Commit**

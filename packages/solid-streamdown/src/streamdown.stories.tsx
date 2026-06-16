@@ -72,7 +72,13 @@ function logUser(user: User) {
 `
 
 // Streams SAMPLE in one character-chunk at a time so the fade-in is visible in the Storybook canvas.
-function StreamingDemo(props: {full: string; animated: boolean; caret?: CaretVariant; highlightCode?: HighlightCode; speed?: number}): ReturnType<typeof Streamdown> {
+function StreamingDemo(props: {
+  full: string
+  animated: boolean
+  caret?: CaretVariant
+  highlightCode?: HighlightCode
+  speed?: number
+}): ReturnType<typeof Streamdown> {
   const [shown, setShown] = createSignal('')
   const [done, setDone] = createSignal(false)
   createEffect(() => {
@@ -134,7 +140,9 @@ export const Static: Story = {
 // Streams token-by-token with a block caret; watch the fade-in. (Flicker suppression is covered
 // deterministically by the animate-plugin unit test.)
 export const Streaming: Story = {
-  render: (args) => <StreamingDemo full={args.children} animated={args.animated ?? true} caret="block" highlightCode={demoHighlight} />,
+  render: (args) => (
+    <StreamingDemo full={args.children} animated={args.animated ?? true} caret="block" highlightCode={demoHighlight} />
+  ),
   play: async ({canvasElement}) => {
     // Animation on splits text into per-word spans, so assert against reconstructed textContent.
     await waitFor(() => expect(canvasElement.querySelector('[data-sd-animate]')).toBeTruthy(), {timeout: 4000})
@@ -144,7 +152,15 @@ export const Streaming: Story = {
 }
 
 export const ComplexStreaming: Story = {
-  render: (args) => <StreamingDemo full={COMPLEX_SAMPLE} animated={args.animated ?? true} caret="block" highlightCode={demoHighlight} speed={30} />,
+  render: (args) => (
+    <StreamingDemo
+      full={COMPLEX_SAMPLE}
+      animated={args.animated ?? true}
+      caret="block"
+      highlightCode={demoHighlight}
+      speed={30}
+    />
+  ),
 }
 
 // Frozen mid-stream (isAnimating, never completes) with an earlier complete block + an hr + the
@@ -263,7 +279,9 @@ export const WidgetStreamFrozen: Story = {
     await waitFor(() => expect(root.textContent).toContain('doing'), {timeout: 4000})
     // No stagger by default → tokens fade uniformly, never sequentially, so the caret never floats
     // over an empty gap of still-invisible trailing tokens (the bug from image #20).
-    const delays = Array.from(root.querySelectorAll('[data-sd-animate]')).map((s) => Number(/--sd-delay:(\d+)ms/.exec((s as HTMLElement).getAttribute('style') ?? '')?.[1] ?? '0'))
+    const delays = Array.from(root.querySelectorAll('[data-sd-animate]')).map((s) =>
+      Number(/--sd-delay:(\d+)ms/.exec((s as HTMLElement).getAttribute('style') ?? '')?.[1] ?? '0'),
+    )
     await expect(Math.max(...delays, 0)).toBe(0)
     // Caret renders inline on the LAST block (the streaming paragraph), never detached or elsewhere.
     const blocks = Array.from(root.querySelectorAll(':scope > *')) as HTMLElement[]
@@ -275,7 +293,9 @@ export const WidgetStreamFrozen: Story = {
 
 // Circle caret variant.
 export const CaretCircle: Story = {
-  render: (args) => <StreamingDemo full={args.children} animated={args.animated ?? true} caret="circle" highlightCode={demoHighlight} />,
+  render: (args) => (
+    <StreamingDemo full={args.children} animated={args.animated ?? true} caret="circle" highlightCode={demoHighlight} />
+  ),
   play: async ({canvasElement}) => {
     await waitFor(() => expect(canvasElement.textContent).toContain('Streaming Markdown'), {timeout: 10_000})
   },
@@ -340,7 +360,9 @@ export const RawHtml: Story = {
 
 // harden neutralizes unsafe URLs: a javascript: link must not survive as an href.
 export const LinkSafety: Story = {
-  render: () => <Streamdown animated={false}>{'[click me](javascript:alert(1)) and [ok](https://example.com)'}</Streamdown>,
+  render: () => (
+    <Streamdown animated={false}>{'[click me](javascript:alert(1)) and [ok](https://example.com)'}</Streamdown>
+  ),
   play: async ({canvasElement}) => {
     const hrefs = Array.from(canvasElement.querySelectorAll('a')).map((a) => a.getAttribute('href') ?? '')
     await expect(hrefs.some((h) => h.startsWith('javascript:'))).toBe(false)

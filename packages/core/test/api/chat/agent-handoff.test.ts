@@ -5,9 +5,15 @@ import {ensureAgentRecord} from '../../../src/api/chat/chat.js'
 describe('ensureAgentRecord', () => {
   it('wraps an initial harness id as an aidx_ record (origin agent), idempotent', async () => {
     const store = memoryStore()
-    const a = await ensureAgentRecord({store, harnessKind: 'claude', cwd: '/app', mintId: () => 'aidx_seed'}, 'tok-init')
+    const a = await ensureAgentRecord(
+      {store, harnessKind: 'claude', cwd: '/app', mintId: () => 'aidx_seed'},
+      'tok-init',
+    )
     expect(a.origin).toBe('agent')
-    const b = await ensureAgentRecord({store, harnessKind: 'claude', cwd: '/app', mintId: () => 'aidx_other'}, 'tok-init')
+    const b = await ensureAgentRecord(
+      {store, harnessKind: 'claude', cwd: '/app', mintId: () => 'aidx_other'},
+      'tok-init',
+    )
     expect(b.id).toBe('aidx_seed') // idempotent by harness id
   })
 })

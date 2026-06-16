@@ -12,29 +12,30 @@
 
 ## File Structure
 
-| File | Responsibility |
-|------|----------------|
-| `packages/protocol/src/usage-types.ts` | NEW — `UsageSnapshot` schema, `AIDX_USAGE_EVENT`, `aguiUsageFor`, `contextUsedTokens` |
-| `packages/protocol/tsdown.config.ts` | add `src/usage-types.ts` entry |
-| `packages/protocol/package.json` | add `./usage-types` export |
-| `packages/harness/src/_shared/agui.ts` | `UsageExtractor` type, `runAgui` 5th param, `definedOnly`/`sameUsage` helpers |
-| `packages/harness/src/codex/decode.ts` | `codexUsage` extractor + schema field |
-| `packages/harness/src/claude/decode.ts` | `claudeUsage` extractor + schema fields |
-| `packages/widget/src/hover-card.tsx` | NEW — reusable `HoverCard` popover component |
-| `packages/widget/src/context-tracker.tsx` | NEW — `ContextTracker` component |
-| `packages/widget/src/styles.css` | `pw-ctx-*` + `pw-hovercard-*` styles |
-| `packages/widget/src/chat-panel.tsx` | usage signal, `onCustomEvent` branch, `onUsageChange` prop |
-| `packages/widget/src/widget-shell.tsx` | `PanelContext.onUsageChange`, render tracker in `pw-chat-head` |
-| `packages/widget/src/quick-terminal.tsx` | per-pane usage signal, render tracker in `pw-qt-pane-bar` |
-| `packages/harness/test/codex-decode.test.ts` | codex usage extraction tests |
-| `packages/harness/test/claude-decode.test.ts` | NEW — claude usage extraction tests |
-| `packages/widget/test/widget.it.test.ts` | tracker + hover-card browser IT |
+| File                                          | Responsibility                                                                        |
+| --------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `packages/protocol/src/usage-types.ts`        | NEW — `UsageSnapshot` schema, `AIDX_USAGE_EVENT`, `aguiUsageFor`, `contextUsedTokens` |
+| `packages/protocol/tsdown.config.ts`          | add `src/usage-types.ts` entry                                                        |
+| `packages/protocol/package.json`              | add `./usage-types` export                                                            |
+| `packages/harness/src/_shared/agui.ts`        | `UsageExtractor` type, `runAgui` 5th param, `definedOnly`/`sameUsage` helpers         |
+| `packages/harness/src/codex/decode.ts`        | `codexUsage` extractor + schema field                                                 |
+| `packages/harness/src/claude/decode.ts`       | `claudeUsage` extractor + schema fields                                               |
+| `packages/widget/src/hover-card.tsx`          | NEW — reusable `HoverCard` popover component                                          |
+| `packages/widget/src/context-tracker.tsx`     | NEW — `ContextTracker` component                                                      |
+| `packages/widget/src/styles.css`              | `pw-ctx-*` + `pw-hovercard-*` styles                                                  |
+| `packages/widget/src/chat-panel.tsx`          | usage signal, `onCustomEvent` branch, `onUsageChange` prop                            |
+| `packages/widget/src/widget-shell.tsx`        | `PanelContext.onUsageChange`, render tracker in `pw-chat-head`                        |
+| `packages/widget/src/quick-terminal.tsx`      | per-pane usage signal, render tracker in `pw-qt-pane-bar`                             |
+| `packages/harness/test/codex-decode.test.ts`  | codex usage extraction tests                                                          |
+| `packages/harness/test/claude-decode.test.ts` | NEW — claude usage extraction tests                                                   |
+| `packages/widget/test/widget.it.test.ts`      | tracker + hover-card browser IT                                                       |
 
 ---
 
 ## Task 1: Protocol usage types
 
 **Files:**
+
 - Create: `packages/protocol/src/usage-types.ts`
 - Modify: `packages/protocol/tsdown.config.ts`
 - Modify: `packages/protocol/package.json`
@@ -68,7 +69,9 @@ describe('usage-types', () => {
   })
 
   it('sums prompt-side tokens for occupancy, excludes output', () => {
-    expect(contextUsedTokens({inputTokens: 100, cacheReadTokens: 50, cacheWriteTokens: 10, outputTokens: 999})).toBe(160)
+    expect(contextUsedTokens({inputTokens: 100, cacheReadTokens: 50, cacheWriteTokens: 10, outputTokens: 999})).toBe(
+      160,
+    )
   })
 
   it('returns undefined when no token fields present', () => {
@@ -160,6 +163,7 @@ git commit -m "feat(protocol): normalized UsageSnapshot + aidx-usage event"
 ## Task 2: Harness spine + codex extractor
 
 **Files:**
+
 - Modify: `packages/harness/src/_shared/agui.ts`
 - Modify: `packages/harness/src/codex/decode.ts`
 - Test: `packages/harness/test/codex-decode.test.ts`
@@ -169,22 +173,25 @@ git commit -m "feat(protocol): normalized UsageSnapshot + aidx-usage event"
 Append to `packages/harness/test/codex-decode.test.ts` (inside the existing `describe('codex decode', …)` block, before its closing `})`). Also add the import at the top of the file: `import {AIDX_USAGE_EVENT} from '@aidx/protocol/usage-types'`.
 
 ```ts
-  it('emits an aidx-usage CUSTOM chunk from turn.completed usage', async () => {
-    const got = await collect([THREAD, AGENT, DONE])
-    const usage = got.find((c) => c.type === EventType.CUSTOM && (c as {name?: string}).name === AIDX_USAGE_EVENT)
-    expect((usage as {value: {inputTokens: number; outputTokens: number}}).value).toEqual({inputTokens: 1, outputTokens: 2})
+it('emits an aidx-usage CUSTOM chunk from turn.completed usage', async () => {
+  const got = await collect([THREAD, AGENT, DONE])
+  const usage = got.find((c) => c.type === EventType.CUSTOM && (c as {name?: string}).name === AIDX_USAGE_EVENT)
+  expect((usage as {value: {inputTokens: number; outputTokens: number}}).value).toEqual({
+    inputTokens: 1,
+    outputTokens: 2,
   })
+})
 
-  it('does not emit usage when no event carries it', async () => {
-    const got = await collect([THREAD, AGENT])
-    expect(got.some((c) => c.type === EventType.CUSTOM && (c as {name?: string}).name === AIDX_USAGE_EVENT)).toBe(false)
-  })
+it('does not emit usage when no event carries it', async () => {
+  const got = await collect([THREAD, AGENT])
+  expect(got.some((c) => c.type === EventType.CUSTOM && (c as {name?: string}).name === AIDX_USAGE_EVENT)).toBe(false)
+})
 
-  it('emits usage only once when the snapshot does not change', async () => {
-    const got = await collect([THREAD, DONE, DONE])
-    const usages = got.filter((c) => c.type === EventType.CUSTOM && (c as {name?: string}).name === AIDX_USAGE_EVENT)
-    expect(usages).toHaveLength(1)
-  })
+it('emits usage only once when the snapshot does not change', async () => {
+  const got = await collect([THREAD, DONE, DONE])
+  const usages = got.filter((c) => c.type === EventType.CUSTOM && (c as {name?: string}).name === AIDX_USAGE_EVENT)
+  expect(usages).toHaveLength(1)
+})
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
@@ -275,7 +282,12 @@ Add `usage` to `CodexEventSchema` (it is already `.loose()`):
 
 ```ts
 const CodexEventSchema = z
-  .object({type: z.string(), thread_id: z.string().optional(), item: z.unknown().optional(), usage: z.unknown().optional()})
+  .object({
+    type: z.string(),
+    thread_id: z.string().optional(),
+    item: z.unknown().optional(),
+    usage: z.unknown().optional(),
+  })
   .loose()
 ```
 
@@ -318,6 +330,7 @@ git commit -m "feat(harness): usage extractor API + codex usage"
 ## Task 3: Claude usage extractor
 
 **Files:**
+
 - Modify: `packages/harness/src/claude/decode.ts`
 - Test: `packages/harness/test/claude-decode.test.ts` (create)
 
@@ -495,6 +508,7 @@ git commit -m "feat(harness): claude usage extractor (tokens, window, cost, turn
 ## Task 4: HoverCard component
 
 **Files:**
+
 - Create: `packages/widget/src/hover-card.tsx`
 
 (No isolated unit test — UI is verified in a real browser in Task 9, per the project's no-jsdom rule. This task is verified by typecheck.)
@@ -643,6 +657,7 @@ git commit -m "feat(widget): reusable HoverCard popover component"
 ## Task 5: ContextTracker component + styles
 
 **Files:**
+
 - Create: `packages/widget/src/context-tracker.tsx`
 - Modify: `packages/widget/src/styles.css`
 
@@ -677,7 +692,15 @@ function Ring(props: {percent: number}): JSX.Element {
       role="img"
       aria-label="Model context usage"
     >
-      <circle cx={ICON_CENTER} cy={ICON_CENTER} r={ICON_R} fill="none" stroke="currentColor" opacity="0.25" stroke-width={ICON_SW} />
+      <circle
+        cx={ICON_CENTER}
+        cy={ICON_CENTER}
+        r={ICON_R}
+        fill="none"
+        stroke="currentColor"
+        opacity="0.25"
+        stroke-width={ICON_SW}
+      />
       <circle
         cx={ICON_CENTER}
         cy={ICON_CENTER}
@@ -887,6 +910,7 @@ git commit -m "feat(widget): ContextTracker component + styles"
 ## Task 6: Wire ChatPanel
 
 **Files:**
+
 - Modify: `packages/widget/src/chat-panel.tsx`
 
 - [ ] **Step 1: Import the usage types**
@@ -918,7 +942,7 @@ Add to the `ChatPanel` props object type (after `composerActions?: …`):
 After the `const [genUi, setGenUi] = createSignal<UiSpec[]>([])` line, add:
 
 ```ts
-  const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
+const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
 ```
 
 Replace the `onAidxUi` handler so it also handles usage. Change its signature/body from:
@@ -947,8 +971,8 @@ to:
 After the existing `createEffect(() => props.onWorkingChange?.(isThinking() || isStreaming()))`, add:
 
 ```ts
-  // Surface the latest usage snapshot for the shell's context tracker.
-  createEffect(() => props.onUsageChange?.(usage()))
+// Surface the latest usage snapshot for the shell's context tracker.
+createEffect(() => props.onUsageChange?.(usage()))
 ```
 
 - [ ] **Step 5: Pass it through chatPanelDef**
@@ -969,6 +993,7 @@ This task commits together with Task 7 (the `PanelContext` change they share). S
 ## Task 7: Wire the modal shell
 
 **Files:**
+
 - Modify: `packages/widget/src/widget-shell.tsx`
 
 - [ ] **Step 1: Import the tracker + type**
@@ -994,7 +1019,7 @@ In the `PanelContext` type, add after `onWorkingChange: …`:
 In `ModalLayout`, after `const [working, setWorking] = createSignal(false)`, add:
 
 ```ts
-  const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
+const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
 ```
 
 Update the `props.panel.create({…})` call to pass the reporter (add after `onWorkingChange: setWorking,`):
@@ -1033,6 +1058,7 @@ git commit -m "feat(widget): render ContextTracker in chat modal + quick-termina
 ## Task 8: Wire quick-terminal panes
 
 **Files:**
+
 - Modify: `packages/widget/src/quick-terminal.tsx`
 
 - [ ] **Step 1: Import the tracker + type**
@@ -1057,19 +1083,19 @@ type Pane = {id: number; content: JSX.Element; usage: () => UsageSnapshot | null
 In `addPane`, replace the body up to `setPanes(...)` with:
 
 ```ts
-  const addPane = () => {
-    const id = ++seq
-    const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
-    // Each pane is its own session; it's the focused one that takes composer focus + hydrates.
-    const content = props.panel.create({
-      active: () => props.open() && focused() === id,
-      onWorkingChange: () => {},
-      onUsageChange: setUsage,
-      composerActions: props.composerActions,
-    })
-    setPanes((ps) => [...ps, {id, content, usage}])
-    focusPane(id)
-  }
+const addPane = () => {
+  const id = ++seq
+  const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
+  // Each pane is its own session; it's the focused one that takes composer focus + hydrates.
+  const content = props.panel.create({
+    active: () => props.open() && focused() === id,
+    onWorkingChange: () => {},
+    onUsageChange: setUsage,
+    composerActions: props.composerActions,
+  })
+  setPanes((ps) => [...ps, {id, content, usage}])
+  focusPane(id)
+}
 ```
 
 - [ ] **Step 4: Render the tracker in the pane bar**
@@ -1099,6 +1125,7 @@ Commit happens with Tasks 6 + 7 (shared `PanelContext` change) — see Task 7 St
 ## Task 9: Browser IT — tracker renders from a streamed usage event
 
 **Files:**
+
 - Modify: `packages/widget/test/widget.it.test.ts`
 
 - [ ] **Step 1: Import the helper + inject a usage event into the scripted stream**
@@ -1132,29 +1159,29 @@ In `chatScript()`, add a usage CUSTOM event after the assistant text END and bef
 Add a new `it(...)` inside the `describe('aidx widget (it) …')` block:
 
 ```ts
-  it('renders the context tracker from a streamed aidx-usage event and shows the breakdown on hover', async () => {
-    const page = await browser.newPage()
-    await page.goto(state.base)
-    const fab = page.getByRole('button', {name: 'Open aidx chat'})
-    await fab.waitFor({state: 'visible'})
-    await fab.click()
-    const composer = page.getByLabel('Message the aidx agent')
-    await composer.fill('do something')
-    await composer.press('Enter')
-    await page.getByText(ASSISTANT_TEXT).waitFor({state: 'visible'})
+it('renders the context tracker from a streamed aidx-usage event and shows the breakdown on hover', async () => {
+  const page = await browser.newPage()
+  await page.goto(state.base)
+  const fab = page.getByRole('button', {name: 'Open aidx chat'})
+  await fab.waitFor({state: 'visible'})
+  await fab.click()
+  const composer = page.getByLabel('Message the aidx agent')
+  await composer.fill('do something')
+  await composer.press('Enter')
+  await page.getByText(ASSISTANT_TEXT).waitFor({state: 'visible'})
 
-    // The streamed usage snapshot drives the ring: 35,895 / 1,000,000 ≈ 3.6%.
-    const trigger = page.locator('.pw-ctx-trigger')
-    await trigger.waitFor({state: 'visible'})
-    await page.getByText('3.6%').first().waitFor({state: 'visible'})
+  // The streamed usage snapshot drives the ring: 35,895 / 1,000,000 ≈ 3.6%.
+  const trigger = page.locator('.pw-ctx-trigger')
+  await trigger.waitFor({state: 'visible'})
+  await page.getByText('3.6%').first().waitFor({state: 'visible'})
 
-    // Hovering opens the top-layer popover with the cost footer.
-    await trigger.hover()
-    await page.getByText('Total cost').waitFor({state: 'visible'})
-    const footText = await page.locator('.pw-ctx-foot').textContent()
-    expect(footText).toContain('$0.12')
-    await page.close()
-  })
+  // Hovering opens the top-layer popover with the cost footer.
+  await trigger.hover()
+  await page.getByText('Total cost').waitFor({state: 'visible'})
+  const footText = await page.locator('.pw-ctx-foot').textContent()
+  expect(footText).toContain('$0.12')
+  await page.close()
+})
 ```
 
 (Uses the file's existing vitest `expect` on a string plus Playwright `waitFor` — matching the other tests; no Playwright web-first matchers, which are not available here.)

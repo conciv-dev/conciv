@@ -61,7 +61,12 @@ export function Markdown(props: {text: string; streaming?: boolean}): JSX.Elemen
   onCleanup(subscribe(() => setHl(() => store.highlighter)))
   const highlightCode = (code: string, lang: string | undefined): string => codeBlock(code, lang, hl())
   return (
-    <Streamdown class="pw-md" isAnimating={props.streaming === true} caret={props.streaming ? 'block' : false} highlightCode={highlightCode}>
+    <Streamdown
+      class="pw-md"
+      isAnimating={props.streaming === true}
+      caret={props.streaming ? 'block' : false}
+      highlightCode={highlightCode}
+    >
       {props.text}
     </Streamdown>
   )

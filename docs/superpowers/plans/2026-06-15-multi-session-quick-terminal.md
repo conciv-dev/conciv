@@ -17,13 +17,16 @@
 ## File map
 
 **Protocol** (`packages/protocol/src/`)
+
 - `chat-types.ts` (modify) — add `AIDX_SESSION_HEADER` + `DEFAULT_SESSION_ID` constants; add `harnessId` + `name` to `ChatSessionSchema`; drop `sessionId` from `ChatRequestSchema`.
 - `harness-types.ts` (modify) — add optional `nameFromTranscript?(raw): string | null` to `HarnessHistory`.
 
 **Harness** (`packages/harness/src/`)
+
 - `claude/history.ts` (modify) — implement `nameFromTranscript` (reads `summary` records).
 
 **Core** (`packages/core/src/`)
+
 - `state-paths.ts` (modify) — `lock: string` → `lockFor: (sessionId) => string`.
 - `store/lock.ts` (modify) — all fns take `sessionId`; path `agent.<sessionId>.lock`.
 - `store/session-store.ts` (modify) — reshape to `previewId → {sessionId: harnessToken}`; `readSessions` / `writeSession` / `removeSession`.
@@ -33,6 +36,7 @@
 - `api/chat/turn.ts` (modify) — per-session lock + header + resume from map.
 
 **Widget** (`packages/widget/src/`)
+
 - `package.json` (modify) — add `@floating-ui/dom` dependency.
 - `chat-api.ts` (modify) — header on all requests; `history()` drops its arg; add `sessionHeaders` + `deleteSession`.
 - `popover.tsx` (create) — reusable Floating UI popover primitive.
@@ -42,6 +46,7 @@
 - `quick-terminal.tsx` (modify) — mint session id per pane; restore from `localStorage`; pane-bar label + popover.
 
 **Tests**
+
 - `packages/harness/test/claude-history.test.ts` (create or extend) — `nameFromTranscript`.
 - `packages/core/test/store/lock.test.ts` (create) — per-session lock isolation.
 - `packages/core/test/store/session-store.test.ts` (create) — read/write/remove.
@@ -54,6 +59,7 @@
 ## Task 1: Protocol constants + schema changes
 
 **Files:**
+
 - Modify: `packages/protocol/src/chat-types.ts`
 - Modify: `packages/protocol/src/harness-types.ts`
 
@@ -125,6 +131,7 @@ git commit -m "feat(protocol): session header constant + harnessId/name on ChatS
 Claude writes one or more `{"type":"summary","summary":"<title>"}` records into its JSONL transcript. We read the last one as the session name.
 
 **Files:**
+
 - Modify: `packages/harness/src/claude/history.ts`
 - Test: `packages/harness/test/claude-history.test.ts` (create)
 
@@ -206,6 +213,7 @@ git commit -m "feat(harness): claude nameFromTranscript reads summary records"
 ## Task 3: Per-session lock
 
 **Files:**
+
 - Modify: `packages/core/src/state-paths.ts`
 - Modify: `packages/core/src/store/lock.ts`
 - Test: `packages/core/test/store/lock.test.ts` (create)
@@ -315,6 +323,7 @@ git commit -m "feat(core): per-session agent lock keyed by session id"
 ## Task 4: Session store reshape
 
 **Files:**
+
 - Modify: `packages/core/src/store/session-store.ts`
 - Test: `packages/core/test/store/session-store.test.ts` (create)
 
@@ -429,6 +438,7 @@ git commit -m "feat(core): session store keyed by previewId -> sessionId -> harn
 ## Task 5: `sessionIdFromHeaders` helper
 
 **Files:**
+
 - Create: `packages/core/src/api/chat/session-id.ts`
 - Test: `packages/core/test/api/chat/session-id.test.ts` (create)
 
@@ -488,6 +498,7 @@ git commit -m "feat(core): sessionIdFromHeaders helper"
 This is the core change: `chat.ts` holds the `Map`, `session.ts` and `turn.ts` resolve the session id from the header.
 
 **Files:**
+
 - Modify: `packages/core/src/api/chat/chat.ts`
 - Modify: `packages/core/src/api/chat/session.ts`
 - Modify: `packages/core/src/api/chat/turn.ts`
@@ -740,7 +751,11 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
 }
 
 // Release the session's lock when its merged stream finishes OR the client disconnects.
-async function* withLockRelease(src: AsyncIterable<StreamChunk>, stateRoot: string, sessionId: string): AsyncGenerator<StreamChunk> {
+async function* withLockRelease(
+  src: AsyncIterable<StreamChunk>,
+  stateRoot: string,
+  sessionId: string,
+): AsyncGenerator<StreamChunk> {
   try {
     for await (const c of src) yield c
   } finally {
@@ -791,6 +806,7 @@ git commit -m "feat(core): per-session chat routes keyed by aidx-session-id head
 ## Task 7: Core IT — header isolates sessions + parallel resume
 
 **Files:**
+
 - Modify: `packages/core/test/helpers/server.ts` (let `post`/`postChat` send a session header)
 - Modify: `packages/core/test/api/chat/chat.it.test.ts`
 
@@ -878,6 +894,7 @@ git commit -m "test(core): IT for header-scoped session isolation + parallel loc
 ## Task 8: Add `@floating-ui/dom` to the widget
 
 **Files:**
+
 - Modify: `packages/widget/package.json`
 
 - [ ] **Step 1: Add the dependency**
@@ -907,6 +924,7 @@ git commit -m "chore(widget): add @floating-ui/dom dependency"
 A small Solid wrapper over `@floating-ui/dom`: positions a floating panel against an anchor, repositions with `autoUpdate`, closes on outside-click + Escape.
 
 **Files:**
+
 - Create: `packages/widget/src/popover.tsx`
 
 - [ ] **Step 1: Create `popover.tsx`**
@@ -1015,6 +1033,7 @@ git commit -m "feat(widget): reusable Floating UI Popover component"
 ## Task 10: Session-info popover content
 
 **Files:**
+
 - Create: `packages/widget/src/session-info.tsx`
 
 - [ ] **Step 1: Create `session-info.tsx`**
@@ -1068,11 +1087,37 @@ export function sessionLabel(info: {name: string | null; harnessId: string | nul
 - [ ] **Step 2: Add styles** (same stylesheet as Task 9)
 
 ```css
-.pw-session-info-name { font-weight: 600; margin-bottom: 6px; word-break: break-word; }
-.pw-session-info-row { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
-.pw-session-info-key { opacity: 0.6; width: 52px; flex: none; }
-.pw-session-info-id { font-family: ui-monospace, monospace; word-break: break-all; }
-.pw-session-info-copy { margin-left: auto; flex: none; cursor: pointer; background: none; border: 1px solid var(--pw-border, #333); border-radius: 4px; color: inherit; padding: 1px 6px; font-size: 11px; }
+.pw-session-info-name {
+  font-weight: 600;
+  margin-bottom: 6px;
+  word-break: break-word;
+}
+.pw-session-info-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+.pw-session-info-key {
+  opacity: 0.6;
+  width: 52px;
+  flex: none;
+}
+.pw-session-info-id {
+  font-family: ui-monospace, monospace;
+  word-break: break-all;
+}
+.pw-session-info-copy {
+  margin-left: auto;
+  flex: none;
+  cursor: pointer;
+  background: none;
+  border: 1px solid var(--pw-border, #333);
+  border-radius: 4px;
+  color: inherit;
+  padding: 1px 6px;
+  font-size: 11px;
+}
 ```
 
 - [ ] **Step 3: Typecheck**
@@ -1092,6 +1137,7 @@ git commit -m "feat(widget): session-info popover content + label resolver"
 ## Task 11: `chat-api.ts` — session header on every request
 
 **Files:**
+
 - Modify: `packages/widget/src/chat-api.ts`
 
 - [ ] **Step 1: Rewrite the `ChatApi` type + `createChatApi`**
@@ -1131,8 +1177,7 @@ export type ChatApi = {
 
 export function createChatApi(deps: {apiBase?: string; sessionId?: string} = {}): ChatApi {
   const base = resolveBase(deps.apiBase)
-  const sessionHeaders = (): Record<string, string> =>
-    deps.sessionId ? {[AIDX_SESSION_HEADER]: deps.sessionId} : {}
+  const sessionHeaders = (): Record<string, string> => (deps.sessionId ? {[AIDX_SESSION_HEADER]: deps.sessionId} : {})
   return {
     base,
     chatUrl: `${base}/api/chat`,
@@ -1175,6 +1220,7 @@ git commit -m "feat(widget): chat-api sends aidx-session-id header on all reques
 ## Task 12: `ChatPanel` — session id, header on SSE, label reporting
 
 **Files:**
+
 - Modify: `packages/widget/src/chat-panel.tsx`
 
 - [ ] **Step 1: Add the two new props**
@@ -1285,6 +1331,7 @@ git commit -m "feat(widget): ChatPanel threads session id header + reports sessi
 ## Task 13: `PanelContext` additions + modal header label/popover
 
 **Files:**
+
 - Modify: `packages/widget/src/widget-shell.tsx`
 
 - [ ] **Step 1: Extend `PanelContext`**
@@ -1366,6 +1413,7 @@ git commit -m "feat(widget): modal header session label + info popover"
 ## Task 14: Quick-terminal panes — mint, restore, pane-bar label/popover
 
 **Files:**
+
 - Modify: `packages/widget/src/quick-terminal.tsx`
 
 - [ ] **Step 1: Add session-id minting + localStorage layout**
@@ -1378,7 +1426,13 @@ import {Popover} from './popover.js'
 import {SessionInfoCard, sessionLabel} from './session-info.js'
 
 type PaneLabel = {name: string | null; harnessId: string | null}
-type Pane = {id: number; sessionId: string; content: JSX.Element; label: () => PaneLabel; setLabel: (l: PaneLabel) => void}
+type Pane = {
+  id: number
+  sessionId: string
+  content: JSX.Element
+  label: () => PaneLabel
+  setLabel: (l: PaneLabel) => void
+}
 ```
 
 Add the layout store (near `FOCUS_KEY`):
@@ -1524,6 +1578,7 @@ git commit -m "feat(widget): per-pane sessions, localStorage layout, pane-bar la
 ## Task 15: fake-claude summary fixture + widget multi-pane IT
 
 **Files:**
+
 - Modify: `packages/core/test/fixtures/fake-claude.ts`
 - Modify: `packages/widget/test/widget.it.test.ts`
 

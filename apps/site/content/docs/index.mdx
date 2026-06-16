@@ -9,7 +9,7 @@ appears in your dev build. Open it to chat with an agent that sees the page you 
 edits it, and runs your tests, without leaving the app.
 
 ```ts title="vite.config.ts"
-import { defineConfig } from 'vite'
+import {defineConfig} from 'vite'
 import aidx from '@aidx/plugin/vite'
 
 export default defineConfig({
@@ -20,15 +20,29 @@ export default defineConfig({
 ## What you can do
 
 <Cards>
-  <Card title="Chat" href="/docs/usage/chat" description="Talk to the agent about the page you are looking at. It grounds on the real DOM." />
-  <Card title="Page control" href="/docs/usage/page-control" description="The agent reads and drives your live page, then persists the change to source." />
-  <Card title="Live tests" href="/docs/usage/live-tests" description="Ask it to run your tests and watch results stream into a card." />
-  <Card title="Approvals" href="/docs/usage/approvals" description="Risky commands surface an Approve or Deny card before they run." />
+  <Card
+    title="Chat"
+    href="/docs/usage/chat"
+    description="Talk to the agent about the page you are looking at. It grounds on the real DOM."
+  />
+  <Card
+    title="Page control"
+    href="/docs/usage/page-control"
+    description="The agent reads and drives your live page, then persists the change to source."
+  />
+  <Card
+    title="Live tests"
+    href="/docs/usage/live-tests"
+    description="Ask it to run your tests and watch results stream into a card."
+  />
+  <Card
+    title="Approvals"
+    href="/docs/usage/approvals"
+    description="Risky commands surface an Approve or Deny card before they run."
+  />
 </Cards>
 
-<Callout type="warn">
-  aidx is early and dev only. The chat needs the `claude` CLI on your `PATH` to answer.
-</Callout>
+<Callout type="warn">aidx is early and dev only. The chat needs the `claude` CLI on your `PATH` to answer.</Callout>
 
 ## Next
 

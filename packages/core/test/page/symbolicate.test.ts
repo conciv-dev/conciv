@@ -43,7 +43,10 @@ describe('symbolicateFrame', () => {
     const b64 = Buffer.from(JSON.stringify(toEncodedMap(gen))).toString('base64')
     const body = `void 0;\nvoid 1;\n//# sourceMappingURL=data:application/json;base64,${b64}`
     const fakeFetch = (async () => new Response(body)) as unknown as typeof fetch
-    const loc = await symbolicateFrame({fileName: 'http://localhost:3000/src/App.tsx?x=1', line: 2, column: 1}, fakeFetch)
+    const loc = await symbolicateFrame(
+      {fileName: 'http://localhost:3000/src/App.tsx?x=1', line: 2, column: 1},
+      fakeFetch,
+    )
     expect(loc?.file).toBe('src/App.tsx')
   })
 

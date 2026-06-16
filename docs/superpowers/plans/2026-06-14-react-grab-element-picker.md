@@ -14,7 +14,7 @@ Add an extensible **actions row** to the widget's chat composer. The first actio
 
 The user wants the composer "extensible with a plugin arch like react-grab." There are **two distinct, complementary layers** — keep them separate:
 
-1. **Composer actions** (buttons in the row next to the textarea) — an **aidx shell registry**, `registerComposerAction(def)`, modeled exactly on the existing `registerPanel(def)` in `widget-shell.tsx`. This is *our* UI surface. The element-picker is composer-action #1. Host apps and future features add buttons the same way panels are registered.
+1. **Composer actions** (buttons in the row next to the textarea) — an **aidx shell registry**, `registerComposerAction(def)`, modeled exactly on the existing `registerPanel(def)` in `widget-shell.tsx`. This is _our_ UI surface. The element-picker is composer-action #1. Host apps and future features add buttons the same way panels are registered.
 2. **react-grab context-menu actions** (Copy/Style/Comment/Open + custom) — react-grab's **own plugin system**, reached via `window.__AIDX__.registerPlugin` bound to our headless instance. This is react-grab's page overlay, not our chat UI.
 
 These do not merge: composer buttons are not react-grab's model (it owns the page overlay/context-menu, not the chat composer), and react-grab plugins can't render into our Solid composer. Each layer extends its own surface.
@@ -23,7 +23,7 @@ These do not merge: composer buttons are not react-grab's model (it owns the pag
 
 - Integrate `react-grab` as the selection/edit/context-menu **engine**; drive it from the aidx composer. react-grab renders its overlay in the **light DOM** (its normal mode); we **hide its own toolbar** (`theme.toolbar.enabled:false`) and trigger it from the composer via its API (`api.activate()` for selection, `api.comment()` for prompt mode).
 - Every grab flow — plain select, Comment, Style-edit — converges on react-grab's internal `runCopyFlow`, so a **single hook (`transformCopyContent`)** captures the final content string.
-- **Multi-instance routing (new vs v1):** there is exactly **one** react-grab instance per page (it owns a single light-DOM overlay), but there are **N composers** (`ChatPanel` is created by the modal, by each quick-terminal pane, and by PiP). The grabbed content must land in the composer that *started* the pick. We solve this with a **per-activation sink**: the adapter is a page-lifetime singleton, but `activate(onGrab)` rebinds the current sink immediately before entering selection mode. Because react-grab selection is modal (one pick at a time, auto-deactivates on click), there is no sink race. The invoking `ChatPanel` passes its own `insert` as the sink, so content routes back to the right textarea.
+- **Multi-instance routing (new vs v1):** there is exactly **one** react-grab instance per page (it owns a single light-DOM overlay), but there are **N composers** (`ChatPanel` is created by the modal, by each quick-terminal pane, and by PiP). The grabbed content must land in the composer that _started_ the pick. We solve this with a **per-activation sink**: the adapter is a page-lifetime singleton, but `activate(onGrab)` rebinds the current sink immediately before entering selection mode. Because react-grab selection is modal (one pick at a time, auto-deactivates on click), there is no sink race. The invoking `ChatPanel` passes its own `insert` as the sink, so content routes back to the right textarea.
 - The widget's shadow-DOM chat UI and react-grab's light-DOM overlay coexist in the same document (no z-index conflict observed in the spike). The aidx FAB stays the only visible launcher.
 
 ## Tech Stack
@@ -31,9 +31,10 @@ These do not merge: composer buttons are not react-grab's model (it owns the pag
 TypeScript, `react-grab@^0.1.44` (widget dep; bundles `bippy`, already a widget dep), Solid widget in an open Shadow DOM, Vite lib build (ES + IIFE), `lucide-solid@^1.18.0` for icons (the composer already imports `ArrowRight`/`Square`; the picker uses `Crosshair`, a future attachment button uses `Paperclip`), vitest + Playwright (example e2e).
 
 **Verified facts (no unknowns remain — checked 2026-06-15 against the installed tree):**
+
 - **Icons exist** in `lucide-solid@1.18.0` as named exports, same form as the already-working `ArrowRight`/`Square`: `export {default as Crosshair} from './icons/crosshair.mjs'` and `export {default as Paperclip} from './icons/paperclip.mjs'`. Import as `import {Crosshair} from 'lucide-solid'`.
 - **All `--pw-*` tokens used by Task 4 are defined** in `packages/widget/src/styles.css`: `--pw-fill-soft`, `--pw-text-2`, `--pw-text-hi`, `--pw-line-2`, `--pw-line`, `--pw-fill`, `--pw-accent`, `--pw-ease` (each defined exactly once). No token needs inventing.
-- **`react-grab` is NOT currently a dep** (`packages/widget/package.json` has no `react-grab` entry) — Task 0 must add it; do not assume the deleted-worktree install survived. `react` is react-grab's *optional* peer — on non-React hosts selection still works; source-mapping/edit degrade gracefully.
+- **`react-grab` is NOT currently a dep** (`packages/widget/package.json` has no `react-grab` entry) — Task 0 must add it; do not assume the deleted-worktree install survived. `react` is react-grab's _optional_ peer — on non-React hosts selection still works; source-mapping/edit degrade gracefully.
 
 ## Spike findings (2026-06-14, against `apps/examples/tanstack-start`, React 19 + Vite — still valid, react-grab API unchanged)
 
@@ -46,6 +47,7 @@ TypeScript, `react-grab@^0.1.44` (widget dep; bundles `bippy`, already a widget 
 ## Build behavior (verified 2026-06-14 in the original spike; re-verify in Task 5)
 
 `pnpm turbo run build --filter=@aidx/widget` succeeded for **both** formats with no Rollup error:
+
 - **ESM (`dist/mount.js`)**: react-grab is **code-split** into lazy chunks — true byte-laziness on this path.
 - **IIFE (`dist/aidx-widget.global.js`, the injected global)**: cannot code-split, so react-grab is **inlined** — but execution is still deferred to first click (the import resolves an already-present module). Behavioral laziness + dev-only gating hold; only byte-laziness is lost. Acceptable: the widget is dev-only and already bundles `bippy`, `shiki`, `marked`. **No CDN/script-injection fallback required.**
 
@@ -53,9 +55,9 @@ TypeScript, `react-grab@^0.1.44` (widget dep; bundles `bippy`, already a widget 
 
 - **Integrate react-grab** (not reimplement, not fork). Light-DOM overlay, aidx FAB drives it.
 - **Composer extensibility = shell registry** (`registerComposerAction`), mirroring `registerPanel`. react-grab plugins are a separate layer for context-menu actions.
-- **Auto-insert on select**, into the composer of the panel that started the pick, for the user to edit before sending. Keep react-grab's Copy/Style/Comment/Open as-is. (A plain grab both writes the clipboard — react-grab default — *and* inserts into the composer via our hook. The clipboard write is a harmless side effect.)
+- **Auto-insert on select**, into the composer of the panel that started the pick, for the user to edit before sending. Keep react-grab's Copy/Style/Comment/Open as-is. (A plain grab both writes the clipboard — react-grab default — _and_ inserts into the composer via our hook. The clipboard write is a harmless side effect.)
 - **Want all react-grab plugins:** Copy, Style-edit, Comment, Open all come along for free via the integrated context menu.
-- **Dev-only, lazy on first use.** The widget already mounts only when the aidx dev routes answer. We `import('react-grab')` lazily on first **Select element** click; this also lets us set `__REACT_GRAB_DISABLED__` *before* the module evaluates.
+- **Dev-only, lazy on first use.** The widget already mounts only when the aidx dev routes answer. We `import('react-grab')` lazily on first **Select element** click; this also lets us set `__REACT_GRAB_DISABLED__` _before_ the module evaluates.
 
 ## Shippable milestone
 
@@ -87,8 +89,8 @@ A lazy, single-instance adapter that initializes react-grab headless and exposes
 // we can set the disable flag before the module evaluates, and to defer init to first use.
 
 export type ReactGrabAdapter = {
-  activate: (onGrab: (content: string) => void) => void  // bind sink, then enter selection mode
-  comment: (onGrab: (content: string) => void) => void   // bind sink, then enter prompt mode
+  activate: (onGrab: (content: string) => void) => void // bind sink, then enter selection mode
+  comment: (onGrab: (content: string) => void) => void // bind sink, then enter prompt mode
   deactivate: () => void
   isActive: () => boolean
 }
@@ -151,6 +153,7 @@ async function create(): Promise<ReactGrabAdapter> {
 Add a registry on the shell that mirrors `registerPanel`, and thread the registered actions down to every `ChatPanel` through the existing `PanelContext`.
 
 - [ ] **Step 1:** In `widget-shell.tsx`, define the action types and a per-invocation context:
+
   ```ts
   import type {Component} from 'solid-js'
 
@@ -159,7 +162,7 @@ Add a registry on the shell that mirrors `registerPanel`, and thread the registe
   // composer owns all draft state (text today; attachments once chat-image-input lands), so
   // future actions like "add attachment" extend the bag rather than reshaping the registry.
   export type ComposerActionContext = {
-    insert: (text: string) => void  // append text to this composer's input + focus it
+    insert: (text: string) => void // append text to this composer's input + focus it
     setBusy: (busy: boolean) => void
     // FUTURE (chat-image-input plan): addAttachment: (file: File | Blob) => void
     // An "Add attachment" action would call ctx.addAttachment(file) from a file/clipboard picker;
@@ -170,24 +173,26 @@ Add a registry on the shell that mirrors `registerPanel`, and thread the registe
   }
   export type ComposerActionDef = {
     id: string
-    label: string                   // aria-label / tooltip
+    label: string // aria-label / tooltip
     icon: Component<{class?: string}>
     onClick: (ctx: ComposerActionContext) => void | Promise<void>
   }
   ```
+
 - [ ] **Step 2:** Extend `PanelContext` with the registered actions, and have `createWidgetShell` collect + expose them:
   ```ts
   export type PanelContext = {
     active: () => boolean
     onWorkingChange: (working: boolean) => void
-    composerActions: () => ComposerActionDef[]   // NEW
+    composerActions: () => ComposerActionDef[] // NEW
   }
   ```
   In `createWidgetShell`: keep a `composerActions: ComposerActionDef[]`, return `registerComposerAction(def)` alongside `registerPanel`, and pass `composerActions: () => composerActions` into the `PanelContext` that `Shell` builds for `panel.create(ctx)`. The `Shell` component already forwards `ctx` from both `ModalLayout` and `QuickTerminalLayout` — extend the `PanelContext` they construct (`{active, onWorkingChange}` → add `composerActions`).
 - [ ] **Step 3:** `pnpm turbo run typecheck --filter=@aidx/widget` → PASS (registry compiles, not yet rendered).
 
 **Design notes:**
-- The registry lives on the shell (page-lifetime), the actions render inside each `ChatPanel`. `onClick` gets a *fresh* `ComposerActionContext` bound to the panel instance that was clicked — this is what makes multi-instance routing correct without any global "active composer" state.
+
+- The registry lives on the shell (page-lifetime), the actions render inside each `ChatPanel`. `onClick` gets a _fresh_ `ComposerActionContext` bound to the panel instance that was clicked — this is what makes multi-instance routing correct without any global "active composer" state.
 - This is the analogue of `registerPanel` — same factory-closure pattern, no classes (project convention).
 - **Future-fit (known next button: "Add attachment").** The context is a capability bag, not a text-only API, precisely so the next planned action fits without reshaping the registry. "Add attachment" is its own action def (`{id:'add-attachment', icon: Paperclip, onClick}`) whose `onClick` opens a file/clipboard picker and calls `ctx.addAttachment(file)`. That capability arrives with the **`2026-06-14-chat-image-input.md`** plan (which adds drag-drop / paste / upload + multimodal send to the composer); this picker plan only needs `ctx.insert`. When the two land together, the composer exposes both `insert` and `addAttachment` on the same context — the actions row simply gains a second button. Sequencing: either plan can land first; if chat-image-input lands first, add `addAttachment` to the context then; if this one lands first, leave the `FUTURE` comment as the contract.
 
@@ -214,9 +219,7 @@ Add a registry on the shell that mirrors `registerPanel`, and thread the registe
   ```tsx
   const [busy, setBusy] = createSignal<string | null>(null)
   const runAction = (a: ComposerActionDef) => {
-    void Promise.resolve(
-      a.onClick({insert, setBusy: (b) => setBusy(b ? a.id : null)}),
-    )
+    void Promise.resolve(a.onClick({insert, setBusy: (b) => setBusy(b ? a.id : null)}))
   }
   ```
   Markup (see Task 4 for the layout — actions row beneath the textarea):
@@ -243,6 +246,7 @@ Add a registry on the shell that mirrors `registerPanel`, and thread the registe
   ```
 - [ ] **Step 3:** Thread `composerActions` into `ChatPanel`. Update `chatPanelDef` and the `ChatPanel` props so `create: (ctx) => <ChatPanel … composerActions={ctx.composerActions} />`.
 - [ ] **Step 4:** Define the element-picker action and register it. Put the action factory next to the adapter (e.g. `react-grab/picker-action.ts`) so the picker is self-contained:
+
   ```ts
   import {Crosshair} from 'lucide-solid'
   import {getReactGrabAdapter} from './adapter.js'
@@ -256,17 +260,20 @@ Add a registry on the shell that mirrors `registerPanel`, and thread the registe
       ctx.setBusy(true)
       try {
         const adapter = await getReactGrabAdapter()
-        adapter.activate(ctx.insert)   // sink = THIS composer's insert
+        adapter.activate(ctx.insert) // sink = THIS composer's insert
       } finally {
         ctx.setBusy(false)
       }
     },
   }
   ```
+
   At the shell build site (where `registerPanel` is called): `shell.registerComposerAction(elementPickerAction)`.
+
 - [ ] **Step 5:** `pnpm turbo run typecheck --filter=@aidx/widget` → PASS.
 
 **Design notes:**
+
 - No `onCleanup`-dispose: the adapter is a page-lifetime singleton (react-grab owns one overlay). Re-activating just calls `activate()` again with a fresh sink.
 - The picker inserts a reference the user edits in the composer — same outcome as react-grab's prompt mode, in our own input. `comment()` stays available for a future second action; not surfaced in v1.
 
@@ -287,16 +294,34 @@ The current composer (line ~1058) is a single flex row `[textarea(flex:1)][send]
     gap: 8px;
     margin-top: 8px;
   }
-  .pw-chat-send { margin-left: auto; }   /* push send to the right of the action buttons */
+  .pw-chat-send {
+    margin-left: auto;
+  } /* push send to the right of the action buttons */
   .pw-chat-act {
-    width: 38px; height: 38px; border-radius: 999px;
-    border: 1px solid var(--pw-line); background: var(--pw-fill-soft);
-    color: var(--pw-text-2); cursor: pointer; flex-shrink: 0;
-    display: inline-flex; align-items: center; justify-content: center;
-    transition: color 120ms var(--pw-ease), border-color 120ms var(--pw-ease), background-color 120ms var(--pw-ease);
+    width: 38px;
+    height: 38px;
+    border-radius: 999px;
+    border: 1px solid var(--pw-line);
+    background: var(--pw-fill-soft);
+    color: var(--pw-text-2);
+    cursor: pointer;
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition:
+      color 120ms var(--pw-ease),
+      border-color 120ms var(--pw-ease),
+      background-color 120ms var(--pw-ease);
   }
-  .pw-chat-act:hover { color: var(--pw-text-hi); border-color: var(--pw-line-2); }
-  .pw-chat-act-busy { opacity: 0.6; cursor: progress; }
+  .pw-chat-act:hover {
+    color: var(--pw-text-hi);
+    border-color: var(--pw-line-2);
+  }
+  .pw-chat-act-busy {
+    opacity: 0.6;
+    cursor: progress;
+  }
   ```
 - [ ] **Step 3:** (Tokens already confirmed present — see "Verified facts" above. No lookup needed; use them as written.) Visually confirm in a real browser that `[textarea]` over `[act … | send]` lays out in modal, quick-terminal pane, and PiP.
 
@@ -324,7 +349,7 @@ The current composer (line ~1058) is a single flex row `[textarea(flex:1)][send]
   - Assert react-grab's toolbar is **not** present; assert the hover highlight appears on `pointermove`.
   - Click a source-mapped element (e.g. a Header link); assert this panel's textarea now contains the reference (`in Header` / selector).
   - Right-click an element while active; assert the context menu shows **Copy / Style / Comment / Open**.
-- [ ] **Step 3 (multi-instance):** Open a quick-terminal pane, run the pick from *that* pane's composer; assert the reference lands in the **pane's** textarea, not the modal's. This guards the per-activation sink.
+- [ ] **Step 3 (multi-instance):** Open a quick-terminal pane, run the pick from _that_ pane's composer; assert the reference lands in the **pane's** textarea, not the modal's. This guards the per-activation sink.
 - [ ] **Step 4:** `pnpm turbo run test --filter=@aidx/widget` → PASS.
 
 ---
@@ -335,10 +360,11 @@ The current composer (line ~1058) is a single flex row `[textarea(flex:1)][send]
 
 - [ ] **Step 1:** Document **composer actions** (our registry): `shell.registerComposerAction({id, label, icon, onClick})`, and that `onClick` receives `{insert, setBusy}` bound to the live composer. Example: a custom "Insert selector" button.
 - [ ] **Step 2:** Document **react-grab context-menu plugins** via `window.__AIDX__.registerPlugin(...)`, including the timing caveat (only live after the adapter initializes — i.e. after the first **Select element** click) and **why a literal re-export does not work**:
-  1. The widget bundles its own copy of react-grab inside the IIFE — a host's `import {registerPlugin} from 'react-grab'` is a *different module instance*.
+  1. The widget bundles its own copy of react-grab inside the IIFE — a host's `import {registerPlugin} from 'react-grab'` is a _different module instance_.
   2. react-grab's top-level `registerPlugin` coordinates via `window.__REACT_GRAB__`, published only by react-grab's **auto-init** — which we disable and replace with our own `init()` that does not set that global.
 
-  So we bind an aidx-branded API to *our* instance instead:
+  So we bind an aidx-branded API to _our_ instance instead:
+
   ```js
   // host app, dev only — after the widget has initialized react-grab (first picker use):
   window.__AIDX__?.registerPlugin({
@@ -346,13 +372,14 @@ The current composer (line ~1058) is a single flex row `[textarea(flex:1)][send]
     actions: [{id: 'inspect', label: 'Inspect', onAction: (ctx) => console.dir(ctx.element)}],
   })
   ```
-- [ ] **Step 3 (optional):** If we want react-grab's *own* `registerPlugin` to also resolve, publish our instance with `window.__REACT_GRAB__ = api` right after `init()`. Trade-off: re-introduces the react-grab-branded global. Default: **do not** — keep only `window.__AIDX__`.
+
+- [ ] **Step 3 (optional):** If we want react-grab's _own_ `registerPlugin` to also resolve, publish our instance with `window.__REACT_GRAB__ = api` right after `init()`. Trade-off: re-introduces the react-grab-branded global. Default: **do not** — keep only `window.__AIDX__`.
 
 ---
 
 ## Open considerations (not blockers)
 
-- **PiP cross-document:** when the chat is popped out to Picture-in-Picture (`pip.ts`), the composer lives in a **separate document**, while react-grab's overlay runs on the **main page**. A pick started from the PiP window would highlight the main page, and the grabbed text routes back into the PiP composer via the sink (works — the sink is a JS closure, document-agnostic), but the *highlight* the user sees is on the parent window, not the PiP. Acceptable for v1; if confusing, hide the picker action when rendered inside PiP (the action context could carry a `surface` hint). Decide after seeing it in Task 6.
+- **PiP cross-document:** when the chat is popped out to Picture-in-Picture (`pip.ts`), the composer lives in a **separate document**, while react-grab's overlay runs on the **main page**. A pick started from the PiP window would highlight the main page, and the grabbed text routes back into the PiP composer via the sink (works — the sink is a JS closure, document-agnostic), but the _highlight_ the user sees is on the parent window, not the PiP. Acceptable for v1; if confusing, hide the picker action when rendered inside PiP (the action context could carry a `surface` hint). Decide after seeing it in Task 6.
 - **Clipboard side effect:** a plain grab still writes the clipboard (react-grab default). Accepted per "keep Copy". Override `getContent` later if undesired.
 - **Non-React hosts:** selection + selector reference work; source-mapping and Style-edit degrade (react-grab handles the fallback). aidx stays framework-agnostic.
 - **Two overlay systems:** react-grab (light DOM) + aidx widget (shadow DOM) coexist; only the aidx FAB is a visible launcher. No z-index conflict observed in the spike.

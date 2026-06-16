@@ -22,7 +22,15 @@ function Ring(props: {percent: number}): JSX.Element {
       role="img"
       aria-label="Model context usage"
     >
-      <circle cx={ICON_CENTER} cy={ICON_CENTER} r={ICON_R} fill="none" stroke="currentColor" opacity="0.25" stroke-width={ICON_SW} />
+      <circle
+        cx={ICON_CENTER}
+        cy={ICON_CENTER}
+        r={ICON_R}
+        fill="none"
+        stroke="currentColor"
+        opacity="0.25"
+        stroke-width={ICON_SW}
+      />
       <circle
         cx={ICON_CENTER}
         cy={ICON_CENTER}

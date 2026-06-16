@@ -1,10 +1,5 @@
 import {describe, it, expect} from 'vitest'
-import {
-  UsageSnapshotSchema,
-  snapshotToTokenUsage,
-  tokenUsageToSnapshot,
-  contextUsedTokens,
-} from '../src/usage-types.js'
+import {UsageSnapshotSchema, snapshotToTokenUsage, tokenUsageToSnapshot, contextUsedTokens} from '../src/usage-types.js'
 
 describe('usage-types', () => {
   it('parses a partial snapshot (all fields optional)', () => {
@@ -52,7 +47,9 @@ describe('usage-types', () => {
   })
 
   it('sums prompt-side tokens for occupancy, excludes output', () => {
-    expect(contextUsedTokens({inputTokens: 100, cacheReadTokens: 50, cacheWriteTokens: 10, outputTokens: 999})).toBe(160)
+    expect(contextUsedTokens({inputTokens: 100, cacheReadTokens: 50, cacheWriteTokens: 10, outputTokens: 999})).toBe(
+      160,
+    )
   })
 
   it('returns undefined when no token fields present', () => {

@@ -58,17 +58,19 @@ README/config/code.
 
 ## Commands you will need
 
-| Purpose | Command | Expected on success |
-|---|---|---|
-| Format check (ensure the new file doesn't break it) | `pnpm format:check` | exit 0 |
+| Purpose                                             | Command             | Expected on success |
+| --------------------------------------------------- | ------------------- | ------------------- |
+| Format check (ensure the new file doesn't break it) | `pnpm format:check` | exit 0              |
 
 ## Scope
 
 **In scope**:
+
 - `AGENTS.md` (create at repo root)
 
 **Out of scope** (do NOT touch):
-- README.md (it documents the product/packages; AGENTS.md is for working *in* the repo — don't
+
+- README.md (it documents the product/packages; AGENTS.md is for working _in_ the repo — don't
   duplicate the package table).
 - Any code or config. This plan adds one doc file only.
 - Do NOT restate things discoverable from README/config (e.g. the package list, the quickstart).
@@ -93,12 +95,14 @@ Conventions for agents and contributors working in this repo. Product/architectu
 README.md; this file is the non-obvious operational rules.
 
 ## Toolchain
+
 - pnpm 10.33.2, Node >= 22. Monorepo orchestrated by turbo.
 - Build: `pnpm build`. Typecheck: `pnpm typecheck`. Test: `pnpm test`. Lint: `pnpm lint`
   (oxlint). Format: `pnpm format:check` / `pnpm format` (oxfmt).
 - `pnpm test` builds first (`turbo run test` dependsOn `build`). Don't hand-rebuild `dist/` — use turbo.
 
 ## Code style
+
 - Functions, not classes. (Sole exception: the `BaseTextAdapter` subclass in
   `packages/harness/src/_shared/text-adapter.ts`, which the library's typing forces.)
 - No IIFEs unless explicitly required.
@@ -108,6 +112,7 @@ README.md; this file is the non-obvious operational rules.
 - oxfmt: no semicolons, single quotes, no bracket spacing, trailing commas, printWidth 120.
 
 ## Testing
+
 - Widget UI is tested in a REAL browser (Playwright/Chromium), never jsdom/happy-dom.
 - Widget integration tests load the PREBUILT bundle (`packages/widget/dist/aidx-widget.global.js`):
   rebuild the widget (`pnpm turbo run build --filter=@aidx/widget`) before running them, or you test
@@ -116,18 +121,21 @@ README.md; this file is the non-obvious operational rules.
 - zod validates every HTTP boundary (`readValidatedBody`); add validation for new routes.
 
 ## Harness & runner adapters
+
 - `HarnessAdapter` is capability-typed (`packages/protocol/src/harness-types.ts`): `transcriptHistory:
-  true` ⇒ `history` required; `compaction: true` ⇒ `buildCompactArgs` required — enforced at compile
+true` ⇒ `history` required; `compaction: true` ⇒ `buildCompactArgs` required — enforced at compile
   time. Add a harness by satisfying the capability contract; never special-case a CLI in core/widget.
 - Test runners follow the same registry/stub pattern.
 
 ## Security & safety
+
 - The core dev server binds `127.0.0.1` only. Never commit or log credentials/tokens.
 - Risky Bash from the agent is gated (`packages/core/src/api/chat/permission.ts` +
   `policy/command-policy.ts`) — read-only commands auto-allow, everything else asks. Keep that policy
   conservative when editing it.
 
 ## Project status
+
 - Pre-release (v0), no external users: reshape internal APIs freely and update all call sites; no
   back-compat shims.
 ```

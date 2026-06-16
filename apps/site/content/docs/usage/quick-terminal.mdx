@@ -7,7 +7,12 @@ The quick terminal is a full-width sheet that drops from the top edge of the pag
 like the iTerm2 or Ghostty quick terminal. It drops over your app without dimming it, and you can
 split it into multiple panes that each run their own agent session.
 
-<ImageZoom src="/screenshots/quick-terminal.png" alt="The aidx quick terminal dropped over an app" width={1280} height={760} />
+<ImageZoom
+  src="/screenshots/quick-terminal.png"
+  alt="The aidx quick terminal dropped over an app"
+  width={1280}
+  height={760}
+/>
 
 It is on by default, alongside the corner modal. Press the hotkey to drop it in, press it again or
 hit `Escape` to send it back up.
@@ -19,14 +24,14 @@ Both layouts are on by default, so there is nothing to enable. To set the hotkey
 ```ts title="vite.config.ts"
 import aidx from '@aidx/plugin/vite'
 
-aidx({ widget: { quickTerminal: { hotkey: 'Mod+`' } } })
+aidx({widget: {quickTerminal: {hotkey: 'Mod+`'}}})
 ```
 
 `Mod` is Cmd on macOS and Ctrl on Windows or Linux, so one binding works everywhere. To disable
 the quick terminal and keep only the corner modal:
 
 ```ts
-aidx({ widget: { quickTerminal: false } })
+aidx({widget: {quickTerminal: false}})
 ```
 
 ## Hotkeys
@@ -34,14 +39,14 @@ aidx({ widget: { quickTerminal: false } })
 The `hotkey` field accepts a single binding or a list, and supports key combinations.
 
 ```ts
-aidx({ widget: { quickTerminal: { hotkey: 'Mod+`' } } })          // one binding
-aidx({ widget: { quickTerminal: { hotkey: ['Mod+`', 'Control+k'] } } }) // either fires
-aidx({ widget: { quickTerminal: { hotkey: 'Alt+k' } } })          // a combo
+aidx({widget: {quickTerminal: {hotkey: 'Mod+`'}}}) // one binding
+aidx({widget: {quickTerminal: {hotkey: ['Mod+`', 'Control+k']}}}) // either fires
+aidx({widget: {quickTerminal: {hotkey: 'Alt+k'}}}) // a combo
 ```
 
 <Callout type="warn">
-  On macOS, `Option` (`Alt`) plus a letter often produces a special character, so a binding like
-  `Alt+k` may not fire. Prefer `Mod+`` or a `Control+` combo if a hotkey seems dead.
+  On macOS, `Option` (`Alt`) plus a letter often produces a special character, so a binding like `Alt+k` may not fire.
+  Prefer `Mod+`` or a `Control+` combo if a hotkey seems dead.
 </Callout>
 
 ## Split into panes
@@ -51,7 +56,12 @@ agent session with its own thread and composer, so you can run two tasks side by
 gutter between panes to resize them. Closing a pane lets the others grow back to fill the space,
 and closing the last pane closes the terminal.
 
-<ImageZoom src="/screenshots/quick-terminal-split.png" alt="The quick terminal split into two independent agent panes" width={1280} height={760} />
+<ImageZoom
+  src="/screenshots/quick-terminal-split.png"
+  alt="The quick terminal split into two independent agent panes"
+  width={1280}
+  height={760}
+/>
 
 ## Resize and pop out
 

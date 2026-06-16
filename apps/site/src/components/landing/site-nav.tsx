@@ -1,7 +1,7 @@
-import { ThemeToggle } from './theme-toggle';
+import {ThemeToggle} from './theme-toggle'
 
 // Flip to true once the repo is public to surface the GitHub link.
-const SHOW_GITHUB = false;
+const SHOW_GITHUB = false
 
 export function SiteNav() {
   return (
@@ -22,5 +22,5 @@ export function SiteNav() {
       ) : null}
       <ThemeToggle />
     </nav>
-  );
+  )
 }

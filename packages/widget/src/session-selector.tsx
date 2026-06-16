@@ -186,7 +186,11 @@ export function SessionSelector(props: {
       }}
       openOnClick
       selectionBehavior="clear"
-      positioning={{strategy: 'fixed', placement: props.variant === 'pill' ? 'bottom-start' : 'bottom-start', gutter: 6}}
+      positioning={{
+        strategy: 'fixed',
+        placement: props.variant === 'pill' ? 'bottom-start' : 'bottom-start',
+        gutter: 6,
+      }}
     >
       <Combobox.Control class="pw-session-control">
         <Combobox.Trigger
@@ -274,7 +278,11 @@ export function SessionSelector(props: {
                   <Combobox.ItemGroupLabel class="pw-session-group-label">{group.name}</Combobox.ItemGroupLabel>
                   <For each={group.items}>
                     {(s) => (
-                      <Combobox.Item item={s} class="pw-session-item" aria-label={`${s.title} — ${metaLabel(s, now())}`}>
+                      <Combobox.Item
+                        item={s}
+                        class="pw-session-item"
+                        aria-label={`${s.title} — ${metaLabel(s, now())}`}
+                      >
                         <div class="pw-session-item-main">
                           <span class="pw-session-item-title" title={s.title}>
                             <Combobox.ItemText>{s.title}</Combobox.ItemText>

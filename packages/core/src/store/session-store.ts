@@ -21,7 +21,13 @@ function makeStore(storage: Storage, now: () => number): SessionStore {
   const queues = new Map<string, Promise<unknown>>()
   const withKey = <T>(key: string, fn: () => Promise<T>): Promise<T> => {
     const run = (queues.get(key) ?? Promise.resolve()).then(fn, fn)
-    queues.set(key, run.then(() => undefined, () => undefined))
+    queues.set(
+      key,
+      run.then(
+        () => undefined,
+        () => undefined,
+      ),
+    )
     return run
   }
   const readRaw = async (id: string) => {

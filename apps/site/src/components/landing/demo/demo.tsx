@@ -1,132 +1,131 @@
-import { useRef, useState } from 'react';
-import { useGSAP } from '@gsap/react';
-import gsap from 'gsap';
-import { RotateCcw } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Transcript } from './transcript';
-import { Composer } from './composer';
-import { AppPreview } from './app-preview';
-import { GhostCursor } from './ghost-cursor';
-import { useDemo } from './use-demo';
-import { buildTurn, PICKABLES, pickScenario, type Scenario } from './demo-data';
+import {useRef, useState} from 'react'
+import {useGSAP} from '@gsap/react'
+import gsap from 'gsap'
+import {RotateCcw} from 'lucide-react'
+import {Badge} from '@/components/ui/badge'
+import {Button} from '@/components/ui/button'
+import {Card} from '@/components/ui/card'
+import {Transcript} from './transcript'
+import {Composer} from './composer'
+import {AppPreview} from './app-preview'
+import {GhostCursor} from './ghost-cursor'
+import {useDemo} from './use-demo'
+import {buildTurn, PICKABLES, pickScenario, type Scenario} from './demo-data'
 
 export function Demo() {
-  const [state, dispatch] = useDemo();
-  const [input, setInput] = useState('');
+  const [state, dispatch] = useDemo()
+  const [input, setInput] = useState('')
 
-  const scope = useRef<HTMLDivElement>(null);
-  const viewportRef = useRef<HTMLDivElement>(null);
-  const grabRef = useRef<HTMLButtonElement>(null);
-  const ghostRef = useRef<HTMLDivElement>(null);
+  const scope = useRef<HTMLDivElement>(null)
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const grabRef = useRef<HTMLButtonElement>(null)
+  const ghostRef = useRef<HTMLDivElement>(null)
   // The element + scenario chosen on the current grab, consumed by the send timeline.
-  const active = useRef<{ id: string; scenario: Scenario } | null>(null);
+  const active = useRef<{id: string; scenario: Scenario} | null>(null)
 
   const grabbedEl = (id: string) =>
-    scope.current?.querySelector(`[data-pickable="${id}"]`)?.firstElementChild as HTMLElement | null;
+    scope.current?.querySelector(`[data-pickable="${id}"]`)?.firstElementChild as HTMLElement | null
 
-  const reduced = () =>
-    typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const reduced = () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
   // Ghost cursor glides to the grab pill on mount to teach the first click.
   useGSAP(
     () => {
-      if (reduced() || !ghostRef.current || !grabRef.current) return;
-      const root = scope.current!.getBoundingClientRect();
-      const pill = grabRef.current.getBoundingClientRect();
-      const x = pill.left - root.left + pill.width / 2;
-      const y = pill.top - root.top + pill.height / 2;
+      if (reduced() || !ghostRef.current || !grabRef.current) return
+      const root = scope.current!.getBoundingClientRect()
+      const pill = grabRef.current.getBoundingClientRect()
+      const x = pill.left - root.left + pill.width / 2
+      const y = pill.top - root.top + pill.height / 2
       gsap
-        .timeline({ delay: 0.8 })
-        .set(ghostRef.current, { x: x - 60, y: y - 50 })
-        .to(ghostRef.current, { autoAlpha: 1, duration: 0.3 })
-        .to(ghostRef.current, { x, y, duration: 1, ease: 'power3.inOut' })
-        .to(ghostRef.current, { scale: 0.82, duration: 0.16, yoyo: true, repeat: 1 })
-        .to(ghostRef.current, { autoAlpha: 0, duration: 0.3 }, '+=0.2');
+        .timeline({delay: 0.8})
+        .set(ghostRef.current, {x: x - 60, y: y - 50})
+        .to(ghostRef.current, {autoAlpha: 1, duration: 0.3})
+        .to(ghostRef.current, {x, y, duration: 1, ease: 'power3.inOut'})
+        .to(ghostRef.current, {scale: 0.82, duration: 0.16, yoyo: true, repeat: 1})
+        .to(ghostRef.current, {autoAlpha: 0, duration: 0.3}, '+=0.2')
     },
-    { scope },
-  );
+    {scope},
+  )
 
   // Pulse the grab pill while idle (not picking, nothing grabbed yet).
   useGSAP(
     () => {
-      if (reduced() || !grabRef.current) return;
-      if (state.picking || state.grabbed) return;
+      if (reduced() || !grabRef.current) return
+      if (state.picking || state.grabbed) return
       const tween = gsap.to(grabRef.current, {
         boxShadow: '0 0 0 5px var(--od-accent-soft)',
         repeat: -1,
         yoyo: true,
         duration: 0.95,
         ease: 'sine.inOut',
-      });
-      return () => tween.kill();
+      })
+      return () => tween.kill()
     },
-    { scope, dependencies: [state.picking, state.grabbed?.id] },
-  );
+    {scope, dependencies: [state.picking, state.grabbed?.id]},
+  )
 
   // Reveal the most recently added message and keep the transcript pinned to the bottom.
   useGSAP(
     () => {
-      if (!viewportRef.current) return;
-      const viewport = viewportRef.current.closest('[data-slot="scroll-area-viewport"]') as HTMLElement | null;
+      if (!viewportRef.current) return
+      const viewport = viewportRef.current.closest('[data-slot="scroll-area-viewport"]') as HTMLElement | null
       if (!reduced()) {
-        const rows = viewportRef.current.querySelectorAll('.od-msg');
-        const last = rows[rows.length - 1];
-        if (last) gsap.from(last, { autoAlpha: 0, y: 8, duration: 0.35, ease: 'power2.out' });
+        const rows = viewportRef.current.querySelectorAll('.od-msg')
+        const last = rows[rows.length - 1]
+        if (last) gsap.from(last, {autoAlpha: 0, y: 8, duration: 0.35, ease: 'power2.out'})
       }
       // Direct assignment (not a gsap tween) so useGSAP's cleanup doesn't revert the scroll on the next message.
-      if (viewport) viewport.scrollTop = viewport.scrollHeight;
+      if (viewport) viewport.scrollTop = viewport.scrollHeight
     },
-    { scope, dependencies: [state.messages.length] },
-  );
+    {scope, dependencies: [state.messages.length]},
+  )
 
   const onPick = (id: string) => {
-    const scenario = pickScenario(PICKABLES[id]);
-    active.current = { id, scenario };
-    dispatch({ type: 'grab', pickable: PICKABLES[id] });
-    setInput(scenario.prompt);
-  };
+    const scenario = pickScenario(PICKABLES[id])
+    active.current = {id, scenario}
+    dispatch({type: 'grab', pickable: PICKABLES[id]})
+    setInput(scenario.prompt)
+  }
 
-  const { contextSafe } = useGSAP({ scope });
+  const {contextSafe} = useGSAP({scope})
 
   const onRestart = contextSafe(() => {
     // Undo any inline styles gsap applied to grabbed elements.
-    scope.current?.querySelectorAll('[data-pickable] > *').forEach((el) => gsap.set(el, { clearProps: 'all' }));
-    active.current = null;
-    setInput('');
-    dispatch({ type: 'reset' });
-  });
+    scope.current?.querySelectorAll('[data-pickable] > *').forEach((el) => gsap.set(el, {clearProps: 'all'}))
+    active.current = null
+    setInput('')
+    dispatch({type: 'reset'})
+  })
 
   const onSend = contextSafe(() => {
-    const text = input.trim();
-    if (!text) return;
-    const current = active.current;
-    const scenario = current?.scenario ?? PICKABLES.cta.scenarios[0];
-    dispatch({ type: 'send', message: { kind: 'user', text, grabbedHtml: state.grabbed?.html } });
-    setInput('');
+    const text = input.trim()
+    if (!text) return
+    const current = active.current
+    const scenario = current?.scenario ?? PICKABLES.cta.scenarios[0]
+    dispatch({type: 'send', message: {kind: 'user', text, grabbedHtml: state.grabbed?.html}})
+    setInput('')
 
-    const tl = gsap.timeline();
+    const tl = gsap.timeline()
     for (const beat of buildTurn(scenario)) {
       tl.add(() => {
-        if (beat.message) dispatch({ type: 'push', message: beat.message });
+        if (beat.message) dispatch({type: 'push', message: beat.message})
         if (beat.patch) {
-          dispatch({ type: 'patch' });
-          const el = current ? grabbedEl(current.id) : null;
+          dispatch({type: 'patch'})
+          const el = current ? grabbedEl(current.id) : null
           if (el) {
-            if (reduced()) gsap.set(el, scenario.apply);
-            else gsap.to(el, { ...scenario.apply, duration: 0.5, ease: 'power2.out' });
+            if (reduced()) gsap.set(el, scenario.apply)
+            else gsap.to(el, {...scenario.apply, duration: 0.5, ease: 'power2.out'})
           }
         }
-      }, beat.at);
+      }, beat.at)
     }
-  });
+  })
 
   return (
     <div className="relative" ref={scope}>
       <div
         className="pointer-events-none absolute -inset-3 -z-10 rounded-[28px] opacity-60 blur-2xl"
-        style={{ background: 'radial-gradient(60% 60% at 70% 20%, var(--od-accent-soft), transparent)' }}
+        style={{background: 'radial-gradient(60% 60% at 70% 20%, var(--od-accent-soft), transparent)'}}
       />
       <Card className="gap-0 overflow-hidden p-0 shadow-xl">
         <div className="flex items-center gap-2 border-b px-4 py-2.5">
@@ -159,7 +158,7 @@ export function Demo() {
               picking={state.picking}
               value={input}
               onValueChange={setInput}
-              onArm={() => dispatch({ type: 'arm', on: !state.picking })}
+              onArm={() => dispatch({type: 'arm', on: !state.picking})}
               onSend={onSend}
               grabRef={grabRef}
             />
@@ -170,5 +169,5 @@ export function Demo() {
 
       <GhostCursor cursorRef={ghostRef} />
     </div>
-  );
+  )
 }

@@ -25,7 +25,13 @@ function tmp(): string {
 // A fake-claude spawn (optionally capturing argv to a file for the --resume assertion, or emitting
 // the rich multi-block transcript via AIDX_FAKE_RICH).
 function fakeSpawn(
-  opts: {argvFile?: string; rich?: boolean; partial?: boolean; hang?: boolean; usageBySession?: Record<string, number>} = {},
+  opts: {
+    argvFile?: string
+    rich?: boolean
+    partial?: boolean
+    hang?: boolean
+    usageBySession?: Record<string, number>
+  } = {},
 ): SpawnHarness {
   return (args, cwd, sessionId) => {
     const inputTokens = opts.usageBySession?.[sessionId ?? '']
@@ -126,7 +132,9 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     state.server = server
     // The widget puts the model on the AG-UI envelope (forwardedProps), not top-level — this is the
     // authoritative check that a selector switch reaches the real CLI (the agent can't self-report it).
-    await (await server.post('/api/chat', {messages: [turn('hi')], forwardedProps: {model: 'haiku'}}, await server.resolve())).text()
+    await (
+      await server.post('/api/chat', {messages: [turn('hi')], forwardedProps: {model: 'haiku'}}, await server.resolve())
+    ).text()
     const argv = z.array(z.string()).parse(JSON.parse(readFileSync(argvFile, 'utf8')))
     expect(argv).toContain('--model')
     expect(argv[argv.indexOf('--model') + 1]).toBe('haiku')

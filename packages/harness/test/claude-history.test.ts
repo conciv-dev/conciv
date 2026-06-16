@@ -2,7 +2,14 @@ import {describe, it, expect} from 'vitest'
 import {mkdtempSync, mkdirSync, writeFileSync, rmSync, utimesSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {parseHistory, parseSessionMeta, claudeHistory, encodeProjectDir, listSessions, withinProject} from '../src/claude/history.js'
+import {
+  parseHistory,
+  parseSessionMeta,
+  claudeHistory,
+  encodeProjectDir,
+  listSessions,
+  withinProject,
+} from '../src/claude/history.js'
 
 function seed(home: string, cwd: string, id: string, body: string, mtimeSec: number) {
   const dir = join(home, '.claude', 'projects', encodeProjectDir(cwd))
@@ -76,7 +83,13 @@ describe('listSessions', () => {
     const home = mkdtempSync(join(tmpdir(), 'aidx-home-'))
     const cwd = '/proj/y'
     for (let i = 0; i < 51; i++)
-      seed(home, cwd, `s${String(i).padStart(2, '0')}`, JSON.stringify({type: 'user', message: {content: `t${i}`}}) + '\n', 1000 + i)
+      seed(
+        home,
+        cwd,
+        `s${String(i).padStart(2, '0')}`,
+        JSON.stringify({type: 'user', message: {content: `t${i}`}}) + '\n',
+        1000 + i,
+      )
     const out = await listSessions(cwd, home)
     expect(out.length).toBe(50)
     expect(out.some((s) => s.id === 's00')).toBe(false) // oldest dropped

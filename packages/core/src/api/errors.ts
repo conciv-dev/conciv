@@ -7,7 +7,11 @@ export function registerErrorHandler(app: H3): void {
     onError((error) => {
       const original = error.cause ?? error
       if (isRunnerUnavailable(original)) {
-        return new HTTPError({status: 422, message: original.message, body: {available: false, error: original.message}})
+        return new HTTPError({
+          status: 422,
+          message: original.message,
+          body: {available: false, error: original.message},
+        })
       }
       return undefined
     }),
