@@ -6,6 +6,7 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {acquireLock, readLock} from '../../../src/store/lock.js'
+import {readUsage} from '../../../src/store/usage-store.js'
 import {DEFAULT_SESSION_ID, ChatSessionSchema} from '@aidx/protocol/chat-types'
 import {startTestServer, type SpawnHarness, type TestServer} from '../../helpers/server.js'
 
@@ -24,8 +25,11 @@ function tmp(): string {
 
 // A fake-claude spawn (optionally capturing argv to a file for the --resume assertion, or emitting
 // the rich multi-block transcript via AIDX_FAKE_RICH).
-function fakeSpawn(opts: {argvFile?: string; rich?: boolean; partial?: boolean; hang?: boolean} = {}): SpawnHarness {
-  return (args, cwd) => {
+function fakeSpawn(
+  opts: {argvFile?: string; rich?: boolean; partial?: boolean; hang?: boolean; usageBySession?: Record<string, number>} = {},
+): SpawnHarness {
+  return (args, cwd, sessionId) => {
+    const inputTokens = opts.usageBySession?.[sessionId ?? '']
     const child = spawn(process.execPath, [fakeClaude, ...args], {
       cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -35,6 +39,7 @@ function fakeSpawn(opts: {argvFile?: string; rich?: boolean; partial?: boolean; 
         ...(opts.rich ? {AIDX_FAKE_RICH: '1'} : {}),
         ...(opts.partial ? {AIDX_FAKE_PARTIAL: '1'} : {}),
         ...(opts.hang ? {AIDX_FAKE_HANG: '1'} : {}),
+        ...(inputTokens != null ? {AIDX_FAKE_INPUT_TOKENS: String(inputTokens)} : {}),
       },
     })
     const {stdin, stdout, stderr} = child
@@ -188,6 +193,19 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     acquireLock(stateRoot, 'sess-a', 'chat', process.pid)
     const res = await server.post('/api/chat', {messages: []}, 'sess-b')
     expect(res.status).toBe(200)
+  })
+
+  it('writes usage under the turn header id, not a shared pointer', async () => {
+    const stateRoot = tmp()
+    const server = await startTestServer({stateRoot, spawnHarness: fakeSpawn({usageBySession: {'h-a': 111, 'h-b': 222}})})
+    state.server = server
+    await server.postChat(turn('hi'), 'h-a') // usage 111
+    await server.postChat(turn('yo'), 'h-b') // usage 222
+    const ua = readUsage(stateRoot, 'h-a')
+    const ub = readUsage(stateRoot, 'h-b')
+    expect(ua?.inputTokens).toBe(111)
+    expect(ub?.inputTokens).toBe(222)
+    expect(ua?.inputTokens).not.toBe(ub?.inputTokens) // no cross-write
   })
 
   it('routes POST /api/chat/ui to the live turn by header id (cross-process path)', async () => {
