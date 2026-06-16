@@ -454,9 +454,10 @@ export function ChatPanel(props: {
       const session = await client.session()
       props.onSessionLabel?.(session.name)
       setUsage(session.usage ?? null)
-      // A new session (no harness token yet) has no transcript to hydrate.
+      // A new session (no harness token yet) has no transcript to hydrate. Keep whatever's on screen
+      // as scrollback (the "New session" divider sits above the next turn, Claude-Code style) — there
+      // is no server-side thread to replace it with.
       if (session.harnessSessionId === null) {
-        if (isSwitch) chat.setMessages([])
         loadedSessionId.current = id
         void invalidateSessions(props.apiBase)
         return

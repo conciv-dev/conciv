@@ -40,9 +40,11 @@ export function invalidateSessions(apiBase: string): Promise<void> {
   inflight = null
   return refetch(apiBase)
 }
-// Optimistic title update applied to the cached rows.
+// Optimistic title update applied to the cached rows AND any surface row (a just-adopted/born
+// session shows only as a surface row until the next list refetch).
 export function applyTitle(id: string, title: string): void {
   setFetched((p) => p.map((s) => (s.id === id ? {...s, title} : s)))
+  setSurfaces((p) => (p[id] ? {...p, [id]: {...p[id], title}} : p))
 }
 // A provisional list row for a just-born session (modal or pane), keyed by our id, shown until the
 // real list refetches.

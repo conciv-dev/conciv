@@ -240,22 +240,40 @@ function writeJson(res: ServerResponse, body: unknown): void {
 describe('aidx widget (it) — real browser, real SSE', () => {
   let browser: Browser
   let server: Server
-  const state = {base: ''}
+  const state = {base: '', mint: 0}
 
   beforeAll(async () => {
     server = createServer((req: IncomingMessage, res: ServerResponse) => {
       const url = req.url ?? ''
+      // The one id-normalization seam: no id → mint a fresh aidx_ id; an aidx_ id → echo; a raw
+      // harness id (an unwrapped external row) → a deterministic aidx_ wrapper (adoption). Stateful in
+      // this closure, exactly like core's resolve.
+      if (url.startsWith('/api/chat/session/resolve') && req.method === 'POST') {
+        void readBody(req).then((body) => {
+          const id = (() => {
+            try {
+              return (JSON.parse(body) as {id?: string}).id
+            } catch {
+              return undefined
+            }
+          })()
+          if (!id) return writeJson(res, {sessionId: `aidx_new_${++state.mint}`})
+          if (id.startsWith('aidx_')) return writeJson(res, {sessionId: id})
+          return writeJson(res, {sessionId: `aidx_ext_${id}`})
+        })
+        return
+      }
       // Probe → present, so the widget mounts the chat FAB + page-bus (production boot path).
-      // Header-aware: switching to tok-aidx reports a resumable session (source 'chat' + token) so
-      // ChatPanel hydrates its history. NB: exclude /sessions (startsWith would otherwise swallow it).
+      // The adopted 'Made in aidx' row resolves to aidx_ext_tok-aidx, which reports a resumable
+      // session (a harness token) so ChatPanel hydrates its history. NB: exclude /sessions.
       if (url.startsWith('/api/chat/session') && !url.startsWith('/api/chat/sessions')) {
         const sid = req.headers['aidx-session-id']
-        const resumable = sid === 'tok-aidx'
+        const resumable = sid === 'aidx_ext_tok-aidx'
         return writeJson(res, {
-          sessionId: typeof sid === 'string' ? sid : 'default',
-          harnessId: resumable ? 'tok-aidx' : null,
+          sessionId: typeof sid === 'string' ? sid : 'aidx_unknown',
+          harnessSessionId: resumable ? 'tok-aidx' : null,
           name: resumable ? 'Made in aidx' : null,
-          source: resumable ? 'chat' : 'new',
+          origin: resumable ? 'external' : 'chat',
           cwd: '/app',
           lock: {held: false, role: null},
           usage: null,
@@ -271,6 +289,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
             {id: 'claude-fable-5', name: 'Fable 5', description: 'Disabled', group: 'Claude', disabled: true},
           ],
           defaultModel: 'sonnet',
+          harness: {id: 'claude', name: 'Claude', canLaunch: false},
         })
       }
       if (url.startsWith('/api/chat/sessions/title') && req.method === 'POST') {
@@ -295,10 +314,10 @@ describe('aidx widget (it) — real browser, real SSE', () => {
           ],
         })
       }
-      // Per-session history keyed by the aidx-session-id header: switching to tok-aidx loads a thread.
+      // Per-session history keyed by our id: the adopted 'Made in aidx' session loads a thread.
       if (url.startsWith('/api/chat/history')) {
         const sid = req.headers['aidx-session-id']
-        if (sid === 'tok-aidx') {
+        if (sid === 'aidx_ext_tok-aidx') {
           return writeJson(res, [{id: 'h1', role: 'assistant', parts: [{type: 'text', content: SWITCHED_REPLY}]}])
         }
         return writeJson(res, [])
@@ -393,8 +412,8 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await composer.press('Enter')
     await page.getByText(ASSISTANT_TEXT).waitFor({state: 'visible'})
 
-    // Clicking New session forgets the resume pointer server-side and marks a boundary in the thread.
-    const reset = page.waitForRequest((r) => r.url().endsWith('/api/chat/session/new') && r.method() === 'POST')
+    // Clicking New session resolves a fresh aidx_ session and marks a boundary in the thread.
+    const reset = page.waitForRequest((r) => r.url().endsWith('/api/chat/session/resolve') && r.method() === 'POST')
     await page.getByRole('button', {name: 'Start a new session'}).click()
     await reset
 
@@ -860,7 +879,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
 
     // Selecting tok-aidx fires a /history fetch carrying the new header; the thread swaps in.
     const historyReq = page.waitForRequest(
-      (r) => r.url().includes('/api/chat/history') && r.headers()['aidx-session-id'] === 'tok-aidx',
+      (r) => r.url().includes('/api/chat/history') && r.headers()['aidx-session-id'] === 'aidx_ext_tok-aidx',
     )
     await aidxItem.click()
     await historyReq
@@ -899,7 +918,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     const content = page.locator('.pw-session-content')
     await content.waitFor({state: 'visible'})
     const historyReq = page.waitForRequest(
-      (r) => r.url().includes('/api/chat/history') && r.headers()['aidx-session-id'] === 'tok-aidx',
+      (r) => r.url().includes('/api/chat/history') && r.headers()['aidx-session-id'] === 'aidx_ext_tok-aidx',
     )
     await content.locator('.pw-session-item', {hasText: 'Made in aidx'}).click()
     await historyReq
