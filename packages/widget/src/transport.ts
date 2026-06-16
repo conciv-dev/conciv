@@ -20,7 +20,9 @@ export function createTransport(opts: {apiBase: string; headers?: () => Record<s
   function route(spec: {method: string; path: string; request?: z.ZodTypeAny; response: z.ZodTypeAny}) {
     return (body?: unknown) => {
       const headers: Record<string, string> = {...extra()}
-      const payload = spec.request ? JSON.stringify(body) : undefined
+      // A POST route always sends a JSON body — default to {} when the (all-optional) body is omitted,
+      // so the server's readValidatedBody gets an object, not a missing body.
+      const payload = spec.request ? JSON.stringify(body ?? {}) : undefined
       if (payload) headers['content-type'] = 'application/json'
       return fetch(`${base}${spec.path}`, {method: spec.method, credentials: 'include', headers, body: payload})
         .then((r) => (r.ok ? r.json() : Promise.reject(apiError(spec.path, r.status))))

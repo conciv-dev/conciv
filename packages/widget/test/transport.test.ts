@@ -7,12 +7,18 @@ import {createTransport} from '../src/transport.js'
 // Real server — NO mocks. It echoes the received session header so we assert what actually went over the wire.
 let server: Server
 let base = ''
+let lastBody = ''
 beforeAll(async () => {
   server = createServer((req, res) => {
-    res.setHeader('content-type', 'application/json')
-    if (req.url === '/api/p') return void res.end(JSON.stringify({ok: true, echo: req.headers['aidx-session-id'] ?? null}))
-    res.statusCode = 500
-    res.end('nope')
+    let raw = ''
+    req.on('data', (c) => (raw += c))
+    req.on('end', () => {
+      lastBody = raw
+      res.setHeader('content-type', 'application/json')
+      if (req.url === '/api/p') return void res.end(JSON.stringify({ok: true, echo: req.headers['aidx-session-id'] ?? null}))
+      res.statusCode = 500
+      res.end('nope')
+    })
   })
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
@@ -28,5 +34,10 @@ describe('createTransport (real server)', () => {
   it('throws ApiError on non-2xx', async () => {
     const t = createTransport({apiBase: base})
     await expect(t.route({method: 'GET', path: '/api/missing', response: z.object({})})()).rejects.toThrow()
+  })
+  it('sends a parseable object body for a POST with no argument (all-optional request)', async () => {
+    const t = createTransport({apiBase: base})
+    await t.route({method: 'POST', path: '/api/p', request: z.object({id: z.string().optional()}), response: z.object({ok: z.boolean(), echo: z.string().nullable()})})()
+    expect(lastBody).toBe('{}') // not '' — the server's readValidatedBody needs an object, not a missing body
   })
 })
