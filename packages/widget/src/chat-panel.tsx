@@ -297,6 +297,8 @@ function ThinkingBubble(): JSX.Element {
 // body all render this same component. Chrome (header, open/close, FAB) lives in the shell.
 export function ChatPanel(props: {
   apiBase: string
+  // The pane's session id (quick-terminal panes mint one; the modal omits it → default session).
+  sessionId?: string
   // The containing surface is visible/focused — focus the composer and hydrate on first show.
   active?: boolean
   // Reports whether the agent is thinking/streaming, so the shell can pulse the trigger.
@@ -307,8 +309,10 @@ export function ChatPanel(props: {
   composerControls?: () => ComposerControlDef[]
   // Reports the session's latest usage snapshot, so the shell can render a context tracker.
   onUsageChange?: (usage: UsageSnapshot | null) => void
+  // Reports the resolved session label (name + harness id) for the chrome to show.
+  onSessionLabel?: (label: {name: string | null; harnessId: string | null}) => void
 }): JSX.Element {
-  const api = createChatApi({apiBase: props.apiBase})
+  const api = createChatApi({apiBase: props.apiBase, sessionId: props.sessionId})
   const [genUi, setGenUi] = createSignal<UiSpec[]>([])
   const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
   // The agent's `aidx ui …` calls arrive as AG-UI CUSTOM events; render each in the thread.
@@ -340,7 +344,11 @@ export function ChatPanel(props: {
   const mergeRequestMeta = (patch: Record<string, unknown>) => setRequestMeta((prev) => ({...prev, ...patch}))
   const chat = useChat({
     ...createChatClientOptions({
-      connection: fetchServerSentEvents(api.chatUrl, () => ({credentials: 'include', body: requestMeta()})),
+      connection: fetchServerSentEvents(api.chatUrl, () => ({
+      credentials: 'include',
+      headers: api.sessionHeaders(),
+      body: requestMeta(),
+    })),
     }),
     onCustomEvent: onAidxUi,
     onChunk,
@@ -360,6 +368,16 @@ export function ChatPanel(props: {
 
   // Surface the latest usage snapshot for the shell's context tracker.
   createEffect(() => props.onUsageChange?.(usage()))
+
+  // When a turn finishes, the harness may have minted/renamed the session — refresh the label.
+  let wasWorking = false
+  createEffect(() => {
+    const working = isThinking() || isStreaming()
+    if (wasWorking && !working) {
+      void api.session().then((s) => props.onSessionLabel?.({name: s.name, harnessId: s.harnessId}))
+    }
+    wasWorking = working
+  })
 
   // Screen-reader announcements. The log itself is aria-live="off" (streaming would otherwise
   // flood it token-by-token); instead we announce status transitions once into a polite region —
@@ -411,9 +429,10 @@ export function ChatPanel(props: {
     hydrateState.done = true
     try {
       const session = await api.session()
+      props.onSessionLabel?.({name: session.name, harnessId: session.harnessId})
       if (session.usage) setUsage(session.usage)
-      if (!session.sessionId) return
-      const prior = await api.history(session.sessionId)
+      if (session.source === 'new') return
+      const prior = await api.history()
       if (prior.length > 0) chat.setMessages(prior)
     } catch {
       // No transcript / not resumable → start from the greeting.
@@ -482,7 +501,7 @@ export function ChatPanel(props: {
       const res = await fetch(api.chatUrl, {
         method: 'POST',
         credentials: 'include',
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json', ...api.sessionHeaders()},
         body: JSON.stringify({
           messages: [{role: 'user', content: '/compact'}],
           forwardedProps: {...requestMeta(), intent: 'compact'},
@@ -672,9 +691,11 @@ export function chatPanelDef(apiBase: string): PanelDef {
     create: (ctx) => (
       <ChatPanel
         apiBase={apiBase}
+        sessionId={ctx.sessionId?.()}
         active={ctx.active()}
         onWorkingChange={ctx.onWorkingChange}
         onUsageChange={ctx.onUsageChange}
+        onSessionLabel={ctx.onSessionLabel}
         composerActions={ctx.composerActions}
         composerControls={ctx.composerControls}
       />
