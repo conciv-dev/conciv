@@ -88,6 +88,28 @@ export type ChatModels = z.infer<typeof ChatModelsSchema>
 export const ChatHistorySchema = z.array(z.custom<UIMessage>((v) => v !== null && typeof v === 'object'))
 export type ChatHistory = z.infer<typeof ChatHistorySchema>
 
+// A client-minted session id (uuid) or a harness token. Charset-bounded so it can never escape the
+// transcript dir when it reaches a filesystem path (defense-in-depth alongside withinProject).
+export const SessionId = z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/)
+
+// One row in the session selector: the harness token + its joined live/persisted state.
+export const ChatSessionMetaSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  updatedAt: z.number(),
+  messageCount: z.number(),
+  running: z.boolean(),
+  origin: z.enum(['aidx', 'external']),
+  usage: UsageSnapshotSchema.nullable(),
+})
+export const ChatSessionsSchema = z.object({sessions: z.array(ChatSessionMetaSchema)})
+export type ChatSessionMeta = z.infer<typeof ChatSessionMetaSchema>
+export type ChatSessions = z.infer<typeof ChatSessionsSchema>
+
+// POST /api/chat/sessions/title body.
+export const RenameSessionSchema = z.object({sessionId: SessionId, title: z.string().max(120)})
+export type RenameSession = z.infer<typeof RenameSessionSchema>
+
 // POST /api/chat/launch body — the widget's current model, mirrored into the resumed terminal session.
 export const ChatLaunchRequestSchema = z.object({model: z.string().optional()})
 export type ChatLaunchRequest = z.infer<typeof ChatLaunchRequestSchema>
