@@ -199,6 +199,9 @@ importers:
       srvx:
         specifier: ^0.11.16
         version: 0.11.16
+      unstorage:
+        specifier: ^1.17.5
+        version: 1.17.5(@netlify/blobs@10.7.9)
       zod:
         specifier: ^4.4.3
         version: 4.4.3

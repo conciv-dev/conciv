@@ -1,36 +1,32 @@
-import {describe, it, expect, afterEach} from 'vitest'
-import {mkdtempSync, rmSync} from 'node:fs'
-import {tmpdir} from 'node:os'
-import {join} from 'node:path'
-import {readSessions, writeSession, removeSession} from '../../src/store/session-store.js'
+import {describe, it, expect} from 'vitest'
+import {memoryStore} from '../helpers/memory-store.js'
 
-const dirs: string[] = []
-const tmp = () => {
-  const d = mkdtempSync(join(tmpdir(), 'aidx-sess-'))
-  dirs.push(d)
-  return d
-}
-afterEach(() => {
-  for (const d of dirs.splice(0)) rmSync(d, {recursive: true, force: true})
-})
+const base = {harnessKind: 'claude', origin: 'chat' as const, cwd: '/app'}
 
-describe('session store', () => {
-  it('writes, reads, and removes per-preview session tokens', () => {
-    const root = tmp()
-    expect(readSessions(root, 'p1')).toEqual({})
-    writeSession(root, 'p1', 'sess-a', 'claude-1')
-    writeSession(root, 'p1', 'sess-b', 'claude-2')
-    writeSession(root, 'p2', 'sess-a', 'claude-9')
-    expect(readSessions(root, 'p1')).toEqual({'sess-a': 'claude-1', 'sess-b': 'claude-2'})
-    expect(readSessions(root, 'p2')).toEqual({'sess-a': 'claude-9'})
-    removeSession(root, 'p1', 'sess-a')
-    expect(readSessions(root, 'p1')).toEqual({'sess-b': 'claude-2'})
+describe('SessionStore (memory driver)', () => {
+  it('create → get round-trips', async () => {
+    const store = memoryStore()
+    const rec = await store.create({id: 'aidx_a', harnessSessionId: null, title: null, model: null, usage: null, ...base})
+    expect(await store.get('aidx_a')).toEqual(rec)
   })
-
-  it('ignores empty preview/session/token', () => {
-    const root = tmp()
-    writeSession(root, '', 'sess-a', 'claude-1')
-    writeSession(root, 'p1', 'sess-a', '')
-    expect(readSessions(root, 'p1')).toEqual({})
+  it('update merges a patch and bumps updatedAt', async () => {
+    const store = memoryStore()
+    await store.create({id: 'aidx_a', harnessSessionId: null, title: null, model: null, usage: null, ...base})
+    const updated = await store.update('aidx_a', {harnessSessionId: 'tok-1', title: 'Hi'})
+    expect(updated.harnessSessionId).toBe('tok-1')
+    expect(updated.title).toBe('Hi')
+  })
+  it('list returns all records; delete removes one', async () => {
+    const store = memoryStore()
+    await store.create({id: 'aidx_a', harnessSessionId: null, title: null, model: null, usage: null, ...base})
+    await store.create({id: 'aidx_b', harnessSessionId: null, title: null, model: null, usage: null, ...base})
+    expect((await store.list()).map((r) => r.id).sort()).toEqual(['aidx_a', 'aidx_b'])
+    await store.delete('aidx_a')
+    expect(await store.get('aidx_a')).toBeNull()
+  })
+  it('findByHarnessId returns the wrapping record (adopt idempotency)', async () => {
+    const store = memoryStore()
+    await store.create({id: 'aidx_a', harnessSessionId: 'tok-ext', title: null, model: null, usage: null, ...base})
+    expect((await store.findByHarnessId('tok-ext'))?.id).toBe('aidx_a')
   })
 })

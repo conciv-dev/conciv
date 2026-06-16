@@ -1,40 +1,62 @@
-import {z} from 'zod'
-import {readJson, writeJson} from '../fs.js'
-import {statePaths} from '../state-paths.js'
+import {createStorage, type Storage} from 'unstorage'
+import fsDriver from 'unstorage/drivers/fs-lite'
+import {SessionRecordSchema, type SessionRecord} from '@aidx/protocol/chat-types'
 
-// Persists each chat session's harness resume token, keyed previewId → { ourSessionId:
-// harnessToken }, so a session reopens across page reloads and dev-server restarts. Pane
-// layout (which sessions, in what order) is client-side localStorage, not here. Lives next to
-// the lock + system prompt in `<stateRoot>/.aidx/chat-sessions.json`.
-
-const SessionMapSchema = z.record(z.string(), z.string())
-const PreviewMapSchema = z.record(z.string(), SessionMapSchema)
-
-function readAll(stateRoot: string): Record<string, Record<string, string>> {
-  return readJson(statePaths(stateRoot).sessions, PreviewMapSchema, {})
+// Domain interface — the only thing the rest of core imports. No storage primitives leak past it.
+export type SessionStore = {
+  create(record: Omit<SessionRecord, 'createdAt' | 'updatedAt'>): Promise<SessionRecord>
+  get(id: string): Promise<SessionRecord | null>
+  update(id: string, patch: Partial<SessionRecord>): Promise<SessionRecord>
+  delete(id: string): Promise<void>
+  list(): Promise<SessionRecord[]>
+  findByHarnessId(harnessSessionId: string): Promise<SessionRecord | null>
 }
 
-// All { ourSessionId: harnessToken } for this preview, or {} if none recorded yet.
-export function readSessions(stateRoot: string, previewId: string): Record<string, string> {
-  if (!previewId) return {}
-  return readAll(stateRoot)[previewId] ?? {}
+// `now` is injected so tests are deterministic and the store stays pure.
+function makeStore(storage: Storage, now: () => number): SessionStore {
+  const read = async (id: string) => {
+    const raw = await storage.getItem(id)
+    return raw ? SessionRecordSchema.parse(raw) : null
+  }
+  const listAll = async () => {
+    const keys = await storage.getKeys()
+    const recs = await Promise.all(keys.map((k) => read(k)))
+    return recs.filter((r): r is SessionRecord => r !== null)
+  }
+  return {
+    create: async (input) => {
+      const ts = now()
+      const record = SessionRecordSchema.parse({...input, createdAt: ts, updatedAt: ts})
+      await storage.setItem(record.id, record)
+      return record
+    },
+    get: read,
+    update: async (id, patch) => {
+      const cur = await read(id)
+      if (!cur) throw new Error(`session ${id} not found`)
+      const next = SessionRecordSchema.parse({...cur, ...patch, id: cur.id, updatedAt: now()})
+      await storage.setItem(id, next)
+      return next
+    },
+    delete: async (id) => {
+      await storage.removeItem(id)
+    },
+    list: listAll,
+    findByHarnessId: async (harnessSessionId) =>
+      (await listAll()).find((r) => r.harnessSessionId === harnessSessionId) ?? null,
+  }
 }
 
-// Upsert one session's harness token. No-op without all three values.
-export function writeSession(stateRoot: string, previewId: string, sessionId: string, harnessToken: string): void {
-  if (!previewId || !sessionId || !harnessToken) return
-  const all = readAll(stateRoot)
-  all[previewId] = {...(all[previewId] ?? {}), [sessionId]: harnessToken}
-  writeJson(statePaths(stateRoot).sessions, all)
+// Build a store over any unstorage backend — the seam where the driver swaps (fs in prod, memory or
+// sqlite/redis later) without any caller or the domain interface changing.
+export function createSessionStore(storage: Storage, now: () => number = Date.now): SessionStore {
+  return makeStore(storage, now)
 }
 
-// Drop one session from a preview (called when a pane closes).
-export function removeSession(stateRoot: string, previewId: string, sessionId: string): void {
-  if (!previewId || !sessionId) return
-  const all = readAll(stateRoot)
-  const map = all[previewId]
-  if (!map || !(sessionId in map)) return
-  delete map[sessionId]
-  all[previewId] = map
-  writeJson(statePaths(stateRoot).sessions, all)
+// fs: one file per session under <stateRoot>/.aidx/sessions/<previewId>/ — atomic per session.
+export function createFsSessionStore(opts: {stateRoot: string; previewId: string; now?: () => number}): SessionStore {
+  const storage = createStorage<SessionRecord>({
+    driver: fsDriver({base: `${opts.stateRoot}/.aidx/sessions/${opts.previewId}`}),
+  })
+  return createSessionStore(storage, opts.now ?? Date.now)
 }
