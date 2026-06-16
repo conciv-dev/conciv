@@ -3,6 +3,7 @@ import {Progress} from '@ark-ui/solid/progress'
 import {useChat, fetchServerSentEvents, createChatClientOptions} from '@tanstack/ai-solid'
 import type {MessagePart, ToolCallPart, ToolCallState, ToolResultPart} from '@tanstack/ai-client'
 import type {SessionClient} from './session-client.js'
+import {apiError} from './transport.js'
 import {invalidateSessions} from './session-store-client.js'
 import {createDebouncer} from '@tanstack/solid-pacer'
 import {GenUi} from './gen-ui.js'
@@ -525,6 +526,7 @@ export function ChatPanel(props: {
     setDividers((prev) => [...prev, {id, afterCount: chat.messages().length, kind}])
     return id
   }
+  const removeDivider = (id: number) => setDividers((prev) => prev.filter((d) => d.id !== id))
   const dividersAt = (i: number) => dividers().filter((d) => d.afterCount === i)
   const resetUsage = () => setUsage(null)
 
@@ -551,7 +553,8 @@ export function ChatPanel(props: {
   const compacting = () => pendingCompactId() !== null
   const compact = async () => {
     if (chat.isLoading() || compacting()) return
-    setPendingCompactId(addDivider('compact'))
+    const id = addDivider('compact')
+    setPendingCompactId(id)
     try {
       const res = await fetch(client.chatStreamUrl(), {
         method: 'POST',
@@ -562,12 +565,16 @@ export function ChatPanel(props: {
           forwardedProps: {...requestMeta(), intent: 'compact'},
         }),
       })
+      if (!res.ok) throw apiError('/api/chat', res.status) // 409 session busy, etc.
       await res.body?.pipeTo(new WritableStream())
       // Server persisted post-compaction usage on RUN_FINISHED → reflect the smaller context.
       const session = await client.session()
       if (session.usage) setUsage(session.usage)
     } catch {
-      // network/abort — the divider stays; the tracker refreshes on the next real turn
+      // Any failure (HTTP non-2xx, network, abort): drop the optimistic boundary and tell the user,
+      // so the divider never flips to the false "Context compacted".
+      removeDivider(id)
+      setLiveMsg('Compaction failed — the session may be busy. Try again in a moment.')
     } finally {
       setPendingCompactId(null)
     }

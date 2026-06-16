@@ -156,6 +156,8 @@ async function* collisionScript(): AsyncGenerator<StreamChunk> {
 
 // Which script the next POST /api/chat serves; tests set it before sending.
 const chatState = {script: chatScript as () => AsyncGenerator<StreamChunk>}
+// HTTP status the next compaction turn returns; tests set it (e.g. 409) to simulate a busy session.
+const compactState = {status: 200}
 
 function writeChatStream(res: ServerResponse): void {
   res.writeHead(200, {
@@ -323,7 +325,15 @@ describe('aidx widget (it) — real browser, real SSE', () => {
         return writeJson(res, [])
       }
       if (url === '/api/chat' && req.method === 'POST') {
-        void readChatIntent(req).then((intent) => (intent === 'compact' ? writeCompactStream(res) : writeChatStream(res)))
+        void readChatIntent(req).then((intent) => {
+          if (intent !== 'compact') return writeChatStream(res)
+          if (compactState.status !== 200) {
+            res.writeHead(compactState.status)
+            res.end('{}')
+            return
+          }
+          return writeCompactStream(res)
+        })
         return
       }
       if (url === '/api/chat/permission-decision') return writeJson(res, {ok: true})
@@ -460,6 +470,36 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     expect(await page.getByText('/compact').count()).toBe(0)
     expect(await page.getByText(ASSISTANT_TEXT).count()).toBe(1)
     await page.close()
+  })
+
+  it('Compress on a busy session (409) removes the boundary instead of claiming success', async () => {
+    compactState.status = 409
+    try {
+      const page = await browser.newPage()
+      await page.goto(state.base)
+      const fab = page.getByRole('button', {name: 'Open aidx chat'})
+      await fab.waitFor({state: 'visible'})
+      await fab.click()
+      const composer = page.getByLabel('Message the aidx agent')
+      await composer.fill('do something')
+      await composer.press('Enter')
+      await page.getByText(ASSISTANT_TEXT).waitFor({state: 'visible'})
+
+      const compactReq = page.waitForResponse((r) => r.url().endsWith('/api/chat') && r.status() === 409)
+      await page.getByRole('button', {name: 'Compress the conversation'}).click()
+      await compactReq
+
+      // The 409 settles: the optimistic boundary is REMOVED, never flipping to "Context compacted".
+      // (The fast-fail path adds then removes the divider in ms, so the transient "Compacting" state is
+      // not asserted — the regression is that the false "Context compacted" must never appear.)
+      await page.locator('.pw-chat-divider', {hasText: 'Compacting'}).waitFor({state: 'hidden'})
+      expect(await page.locator('.pw-chat-divider', {hasText: 'Context compacted'}).count()).toBe(0)
+      // Scrollback intact: the prior assistant reply is still present.
+      expect(await page.getByText(ASSISTANT_TEXT).count()).toBe(1)
+      await page.close()
+    } finally {
+      compactState.status = 200
+    }
   })
 
   it('renders the context tracker from a streamed aidx-usage event and shows the breakdown on hover', async () => {
