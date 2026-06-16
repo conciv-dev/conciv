@@ -76,6 +76,8 @@ export const SessionRecordSchema = z.object({
   updatedAt: z.number(),
 })
 export type SessionRecord = z.infer<typeof SessionRecordSchema>
+// Raw shape accepted into the store (id is an unbranded string here; the schema brands it on parse).
+export type SessionRecordInput = z.input<typeof SessionRecordSchema>
 
 export const ResolveRequestSchema = z.object({id: z.string().optional()})
 export type ResolveRequest = z.infer<typeof ResolveRequestSchema>
@@ -93,11 +95,12 @@ export type PermissionDecision = z.infer<typeof PermissionDecisionSchema>
 // GET /api/chat/session response.
 export const ChatSessionSchema = z.object({
   sessionId: SessionId,
-  // The harness resume token (display + resume), null until a turn mints one.
+  // The harness resume token (display + resume), null until a turn mints one (= a "new" session).
   harnessSessionId: z.string().nullable(),
   // Human-readable session name from the transcript, or null when none is derivable yet.
   name: z.string().nullable(),
-  source: z.enum(['agent', 'chat', 'new']),
+  // How this session came to exist; never the harness id.
+  origin: z.enum(['chat', 'agent', 'external']),
   cwd: z.string(),
   lock: z.object({held: z.boolean(), role: z.enum(['iterate', 'chat']).nullable()}),
   // Last persisted usage for this session, so the tracker fills on open before any turn.

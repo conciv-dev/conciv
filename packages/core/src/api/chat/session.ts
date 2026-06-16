@@ -1,72 +1,136 @@
-import {type H3, readValidatedBody} from 'h3'
+import {randomUUID} from 'node:crypto'
+import {type H3, HTTPError, readValidatedBody} from 'h3'
 import {resolveHarnessModels} from '@aidx/harness'
 import type {HarnessAdapter} from '@aidx/protocol/harness-types'
-import type {ChatSession, ChatModels, ChatSessions} from '@aidx/protocol/chat-types'
-import {DEFAULT_SESSION_ID, RenameSessionSchema} from '@aidx/protocol/chat-types'
+import type {ChatSession, ChatModels, ChatSessions, ChatSessionMeta} from '@aidx/protocol/chat-types'
+import {RenameSessionSchema, ResolveRequestSchema, isSessionId} from '@aidx/protocol/chat-types'
+import type {SessionStore} from '../../store/session-store.js'
 import {readLock, readLocks} from '../../store/lock.js'
-import {readUsage} from '../../store/usage-store.js'
-import {readSessions, removeSession} from '../../store/session-store.js'
-import {readTitle, writeTitle} from '../../store/session-titles-store.js'
 import {readFileOrEmpty} from '../../fs.js'
 import {sessionIdFromHeaders} from './session-id.js'
 
-// The session/models/history/stop routes — pure reads + a kill. History only exists for
-// transcript-capable harnesses (via harness.history); others hydrate from the live thread. Every
-// route resolves its target from the AIDX_SESSION_HEADER (the canonical header id).
-
-// Mutable per-session holder, created by chat.ts's sessionFor and shared with the turn route.
-export type SessionState = {harnessSessionId: string}
-export type SessionLookup = (sessionId: string) => SessionState
+// The session/models/history/resolve/rename/delete routes. Every route keys off our aidx_ id (the
+// AIDX_SESSION_HEADER); `resolve` is the ONLY route that accepts a raw harness id, normalizing it.
 
 export type SessionRouteDeps = {
   cwd: string
   stateRoot: string
-  previewId: string
-  initialSessionId: string
+  store: SessionStore
   harness: HarnessAdapter
   claudeHome?: string // injectable transcript home for hist.list (tests); default homedir()
-  sessionFor: SessionLookup
+}
+
+// Deps for the pure id-normalization helpers (resolve + agent hand-off seeding).
+export type ResolveDeps = {
+  store: SessionStore
+  harnessKind: string
+  cwd: string
+  mintId?: () => string
+}
+
+// Normalize any id to one of ours: our id → return it; raw harness id → find-or-create a wrapping
+// record (idempotent); no/unknown id → mint a fresh chat record. The only id-normalization seam.
+export async function resolveSession(deps: ResolveDeps, body: {id?: string}): Promise<{sessionId: string}> {
+  const mint = deps.mintId ?? (() => `aidx_${randomUUID()}`)
+  if (body.id && isSessionId(body.id)) {
+    const existing = await deps.store.get(body.id)
+    if (existing) return {sessionId: existing.id}
+    // unknown aidx id (lost record) → fall through and mint fresh
+  } else if (body.id) {
+    const wrapped = await deps.store.findByHarnessId(body.id)
+    if (wrapped) return {sessionId: wrapped.id}
+    const adopted = await deps.store.create({
+      id: mint(), harnessSessionId: body.id, harnessKind: deps.harnessKind,
+      origin: 'external', title: null, model: null, usage: null, cwd: deps.cwd,
+    })
+    return {sessionId: adopted.id}
+  }
+  const fresh = await deps.store.create({
+    id: mint(), harnessSessionId: null, harnessKind: deps.harnessKind,
+    origin: 'chat', title: null, model: null, usage: null, cwd: deps.cwd,
+  })
+  return {sessionId: fresh.id}
+}
+
+// A harness transcript row (from harness.history.list) before joining to our records.
+export type HarnessRow = {id: string; derivedTitle: string; updatedAt: number; messageCount: number}
+
+// Read-only list = our records (id = aidx_) ∪ unwrapped harness transcripts (id = raw harness id),
+// joined to live transcript data + lock state. NEVER writes — records are minted only via resolve.
+export async function buildSessionList(args: {
+  store: SessionStore
+  harnessList: HarnessRow[]
+  runningKeys: Set<string>
+}): Promise<ChatSessionMeta[]> {
+  const records = await args.store.list()
+  const byHarness = new Map(records.filter((r) => r.harnessSessionId).map((r) => [r.harnessSessionId as string, r]))
+  const ours = records.map((r) => {
+    const h = r.harnessSessionId ? args.harnessList.find((x) => x.id === r.harnessSessionId) : undefined
+    return {
+      id: r.id,
+      title: r.title ?? h?.derivedTitle ?? 'New session',
+      updatedAt: h?.updatedAt ?? r.updatedAt,
+      messageCount: h?.messageCount ?? 0,
+      running: args.runningKeys.has(r.id),
+      origin: r.origin === 'external' ? 'external' : 'aidx',
+      usage: r.usage,
+    } satisfies ChatSessionMeta
+  })
+  const unwrapped = args.harnessList
+    .filter((h) => !byHarness.has(h.id))
+    .map(
+      (h) =>
+        ({id: h.id, title: h.derivedTitle, updatedAt: h.updatedAt, messageCount: h.messageCount, running: false, origin: 'external', usage: null}) satisfies ChatSessionMeta,
+    )
+  return [...ours, ...unwrapped].toSorted((a, b) => b.updatedAt - a.updatedAt)
 }
 
 // The harness session name from its transcript, or null (no token / no name hook / no file).
-function nameFor(deps: SessionRouteDeps, token: string): string | null {
+function nameFor(deps: SessionRouteDeps, token: string | null): string | null {
   const hist = deps.harness.history
   if (!token || !hist?.nameFromTranscript) return null
   const raw = readFileOrEmpty(hist.transcriptPath(deps.cwd, token))
   return raw ? hist.nameFromTranscript(raw) : null
 }
 
-//   GET    /api/chat/session      → which session + harness id/name + lock + usage + harness identity
-//   GET    /api/chat/models       → the active harness's models + the id to pre-select
-//   GET    /api/chat/history      → prior turns for the header session (transcript harnesses)
-//   GET    /api/chat/sessions     → the cwd's sessions joined to live/persisted state
-//   POST   /api/chat/sessions/title → set or clear a session's user title
-//   POST   /api/chat/session/new  → forget the header session so its next turn starts fresh
-//   DELETE /api/chat/session      → forget a session (pane closed): kill + drop its token
-//   POST   /api/chat/stop         → SIGTERM the header session's lock holder
+// Kill a session's live turn (best-effort SIGTERM) if a lock holds a pid.
+function killLock(stateRoot: string, sessionId: string): void {
+  const lock = readLock(stateRoot, sessionId)
+  if (!lock.pid) return
+  try {
+    process.kill(lock.pid, 'SIGTERM')
+  } catch {
+    // already gone
+  }
+}
+
 export function registerSessionRoutes(app: H3, deps: SessionRouteDeps): void {
-  app.get('/api/chat/session', (event) => {
+  // POST /api/chat/session/resolve → the only id-normalization seam: returns {sessionId: aidx_}.
+  app.post('/api/chat/session/resolve', async (event) => {
+    const body = await readValidatedBody(event, ResolveRequestSchema)
+    return resolveSession({store: deps.store, harnessKind: deps.harness.id, cwd: deps.cwd}, body)
+  })
+
+  // GET /api/chat/session → the record for our id + harness identity. Unknown id → 404.
+  app.get('/api/chat/session', async (event): Promise<ChatSession> => {
     const sessionId = sessionIdFromHeaders(event.req.headers)
-    const token = deps.sessionFor(sessionId).harnessSessionId
-    const lock = readLock(deps.stateRoot, sessionId)
-    const adopted = sessionId === DEFAULT_SESSION_ID && Boolean(deps.initialSessionId)
-    const source: ChatSession['source'] = token ? (adopted ? 'agent' : 'chat') : 'new'
-    const harness = {
-      id: deps.harness.id,
-      name: deps.harness.displayName ?? deps.harness.id,
-      canLaunch: Boolean(deps.harness.launch),
-    }
-    const body: ChatSession = {
-      sessionId,
-      harnessId: token || null,
-      name: nameFor(deps, token),
-      source,
+    const record = sessionId ? await deps.store.get(sessionId) : null
+    if (!record) throw new HTTPError({status: 404, message: 'unknown session'})
+    const lock = readLock(deps.stateRoot, record.id)
+    return {
+      sessionId: record.id as ChatSession['sessionId'],
+      harnessSessionId: record.harnessSessionId,
+      name: record.title ?? nameFor(deps, record.harnessSessionId),
+      origin: record.origin,
       cwd: deps.cwd,
       lock: {held: lock.held, role: lock.role},
-      usage: readUsage(deps.stateRoot, sessionId),
-      harness,
+      usage: record.usage,
+      harness: {
+        id: deps.harness.id,
+        name: deps.harness.displayName ?? deps.harness.id,
+        canLaunch: Boolean(deps.harness.launch),
+      },
     }
-    return body
   })
 
   app.get('/api/chat/models', async (): Promise<ChatModels> => {
@@ -75,87 +139,27 @@ export function registerSessionRoutes(app: H3, deps: SessionRouteDeps): void {
     return {models, defaultModel}
   })
 
-  app.get('/api/chat/history', (event) => {
+  // GET /api/chat/history → prior turns for our id (record.harnessSessionId ? transcript : []).
+  app.get('/api/chat/history', async (event) => {
     if (!deps.harness.capabilities.transcriptHistory || !deps.harness.history) return []
     const sessionId = sessionIdFromHeaders(event.req.headers)
-    const token = deps.sessionFor(sessionId).harnessSessionId
-    if (!token) return []
-    const jsonl = readFileOrEmpty(deps.harness.history.transcriptPath(deps.cwd, token))
+    const record = sessionId ? await deps.store.get(sessionId) : null
+    if (!record?.harnessSessionId) return []
+    const jsonl = readFileOrEmpty(deps.harness.history.transcriptPath(deps.cwd, record.harnessSessionId))
     return jsonl ? deps.harness.history.parse(jsonl) : []
   })
 
-  // Start a new session for this header id: drop the in-memory + persisted token. The widget keeps
-  // the prior thread on screen (with a boundary divider); only the resume pointer is forgotten.
-  app.post('/api/chat/session/new', (event) => {
-    const sessionId = sessionIdFromHeaders(event.req.headers)
-    deps.sessionFor(sessionId).harnessSessionId = ''
-    removeSession(deps.stateRoot, deps.previewId, sessionId)
-    return {ok: true}
-  })
-
-  // Forget a session entirely (a pane closed): kill its live turn and drop its persisted token.
-  app.delete('/api/chat/session', (event) => {
-    const sessionId = sessionIdFromHeaders(event.req.headers)
-    const lock = readLock(deps.stateRoot, sessionId)
-    if (lock.pid) {
-      try {
-        process.kill(lock.pid, 'SIGTERM')
-      } catch {
-        // already gone
-      }
-    }
-    removeSession(deps.stateRoot, deps.previewId, sessionId)
-    return {ok: true}
-  })
-
-  app.post('/api/chat/stop', (event) => {
-    const sessionId = sessionIdFromHeaders(event.req.headers)
-    const lock = readLock(deps.stateRoot, sessionId)
-    if (lock.pid) {
-      try {
-        process.kill(lock.pid, 'SIGTERM')
-      } catch {
-        // already gone
-      }
-    }
-    return {ok: true}
-  })
-
-  // GET /api/chat/sessions → the cwd's sessions, joined to live state through the previewId map:
-  // title (user override else derived), running (this id's lock OR any header id mapped to it),
-  // origin (a token mapped under a DIFFERENT key = started by aidx), and last usage.
+  // GET /api/chat/sessions → read-only list: our records ∪ unwrapped harness transcripts.
   app.get('/api/chat/sessions', async (): Promise<ChatSessions> => {
     const hist = deps.harness.history
-    if (!deps.harness.capabilities.transcriptHistory || !hist?.list) return {sessions: []}
-    const metas = await hist.list(deps.cwd, deps.claudeHome)
-    const map = readSessions(deps.stateRoot, deps.previewId) // headerId -> token
-    const headerIdsByToken = new Map<string, string[]>()
-    for (const [headerId, token] of Object.entries(map)) {
-      const arr = headerIdsByToken.get(token) ?? []
-      arr.push(headerId)
-      headerIdsByToken.set(token, arr)
-    }
-    const lockKeys = new Set(readLocks(deps.stateRoot).map((l) => l.key))
-    const sessions = metas.map((m) => {
-      const headers = headerIdsByToken.get(m.id) ?? []
-      const origin: 'aidx' | 'external' = Object.entries(map).some(([k, v]) => v === m.id && k !== m.id)
-        ? 'aidx'
-        : 'external'
-      return {
-        id: m.id,
-        title: readTitle(deps.stateRoot, m.id) ?? m.derivedTitle,
-        updatedAt: m.updatedAt,
-        messageCount: m.messageCount,
-        running: lockKeys.has(m.id) || headers.some((h) => lockKeys.has(h)),
-        origin,
-        usage: readUsage(deps.stateRoot, m.id) ?? headers.map((h) => readUsage(deps.stateRoot, h)).find(Boolean) ?? null,
-      }
-    })
+    const harnessList = deps.harness.capabilities.transcriptHistory && hist?.list ? await hist.list(deps.cwd, deps.claudeHome) : []
+    const runningKeys = new Set(readLocks(deps.stateRoot).map((l) => l.key))
+    const sessions = await buildSessionList({store: deps.store, harnessList, runningKeys})
     return {sessions}
   })
 
-  // POST /api/chat/sessions/title → set (or clear) a session's user title. Strips C0/C1 control
-  // characters and collapses whitespace before persisting.
+  // POST /api/chat/sessions/title → set (or clear) a session's user title on its record. Strips
+  // C0/C1 control characters and collapses whitespace before persisting.
   app.post('/api/chat/sessions/title', async (event) => {
     const {sessionId, title} = await readValidatedBody(event, RenameSessionSchema)
     const clean = title
@@ -163,7 +167,22 @@ export function registerSessionRoutes(app: H3, deps: SessionRouteDeps): void {
       .replace(/\s+/g, ' ')
       .trim()
       .slice(0, 120)
-    await writeTitle(deps.stateRoot, sessionId, clean)
+    await deps.store.update(sessionId, {title: clean})
     return {ok: true, title: clean}
+  })
+
+  // DELETE /api/chat/session → forget a session (pane closed): kill its live turn + delete its record.
+  app.delete('/api/chat/session', async (event) => {
+    const sessionId = sessionIdFromHeaders(event.req.headers)
+    if (!sessionId) throw new HTTPError({status: 400, message: 'no session'})
+    killLock(deps.stateRoot, sessionId)
+    await deps.store.delete(sessionId)
+    return {ok: true}
+  })
+
+  app.post('/api/chat/stop', (event) => {
+    const sessionId = sessionIdFromHeaders(event.req.headers)
+    if (sessionId) killLock(deps.stateRoot, sessionId)
+    return {ok: true}
   })
 }
