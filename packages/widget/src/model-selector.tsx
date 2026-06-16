@@ -2,7 +2,7 @@ import {createSignal, For, onMount, Show, type JSX} from 'solid-js'
 import {Combobox, useListCollection} from '@ark-ui/solid/combobox'
 import {Check, ChevronsUpDown} from 'lucide-solid'
 import type {HarnessModelInfo} from '@aidx/protocol/chat-types'
-import {createChatApi} from './chat-api.js'
+import {defineClient} from './session-client.js'
 import {createPersistedSignal} from './persisted-signal.js'
 import type {ComposerControlDef} from './widget-shell.js'
 
@@ -131,7 +131,8 @@ const MODEL_KEY = 'pw-aidx-model'
 export const modelSelectorControl: ComposerControlDef = {
   id: 'model-selector',
   create: (ctx) => {
-    const api = createChatApi({apiBase: ctx.apiBase})
+    // Models aren't session-scoped → a header-less client (never setSessionId).
+    const client = defineClient({apiBase: ctx.apiBase})
     const [models, setModels] = createSignal<HarnessModelInfo[]>([])
     const [model, setModel] = createPersistedSignal<string | null>({
       key: MODEL_KEY,
@@ -145,7 +146,7 @@ export const modelSelectorControl: ComposerControlDef = {
     onMount(() => {
       const stored = model()
       if (stored) ctx.setRequestMeta({model: stored})
-      void api
+      void client
         .models()
         .then(({models: list, defaultModel}) => {
           setModels(list)

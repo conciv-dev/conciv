@@ -9,12 +9,13 @@ import {picking} from './react-grab/picking.js'
 import {ContextTracker} from './context-tracker.js'
 import {SessionSelector} from './session-selector.js'
 import {sessions, mergeSurface, makeSurfaceRow, invalidateSessions} from './session-store-client.js'
+import {defineClient, type SessionClient} from './session-client.js'
+import {SessionId, isSessionId} from '@aidx/protocol/chat-types'
 import type {UsageSnapshot} from '@aidx/protocol/usage-types'
 
 type Pane = {
   id: number
-  sessionId: () => string
-  setSessionId: (s: string) => void
+  client: SessionClient
   content: JSX.Element
   usage: () => UsageSnapshot | null
   working: () => boolean
@@ -64,15 +65,12 @@ export function QuickTerminalLayout(props: {
       },
       [],
     )
-  const writePaneIds = (ids: string[]) => writeStorage(PANES_KEY, ids, JSON.stringify)
-  // Closing a pane DELETEs its server session so the resume-token map doesn't accumulate orphans.
-  const forgetSession = (sessionId: string) => {
-    const base = (document.querySelector<HTMLMetaElement>('meta[name="pw-api-base"]')?.content ?? '').replace(/\/+$/, '')
-    void fetch(`${base}/api/chat/session`, {
-      method: 'DELETE',
-      credentials: 'include',
-      headers: {'aidx-session-id': sessionId},
-    }).catch(() => {})
+  const writePaneIds = (ids: (string | null)[]) => writeStorage(PANES_KEY, ids.filter((x): x is string => Boolean(x)), JSON.stringify)
+  // The current session id of each pane (null until its client resolves), for layout persistence.
+  const paneIds = (): (string | null)[] => panes().map((p) => p.client.sessionId())
+  // Closing a pane deletes its server record so they don't accumulate orphans.
+  const forgetSession = (client: SessionClient) => {
+    if (client.sessionId()) void client.remove().catch(() => {})
   }
 
   // Remember which pane was active (by position) so reopening focuses the same one.
@@ -94,26 +92,31 @@ export function QuickTerminalLayout(props: {
     }
   }
 
-  const addPane = (initialId: string = crypto.randomUUID()) => {
+  const addPane = (initialId?: string) => {
     const id = ++seq
     const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
     const [working, setWorking] = createSignal(false)
-    const [sessionId, setSessionId] = createSignal(initialId)
+    // Each pane owns its session client. Restore a persisted aidx_ id, else resolve a fresh session.
+    const client = defineClient({apiBase: props.panel.apiBase ?? ''})
+    if (initialId && isSessionId(initialId)) client.setSessionId(SessionId.parse(initialId))
+    else void client.resolve().then((r) => client.setSessionId(r.sessionId))
     // Each pane is its own session; it's the focused one that takes composer focus + hydrates.
     const content = props.panel.create({
       active: () => props.open() && focused() === id,
       onWorkingChange: setWorking,
       onUsageChange: setUsage,
       // A just-born session shows in every selector before its file flushes (surface union).
-      onSessionLabel: (l) =>
-        mergeSurface(l.harnessId, l.harnessId ? makeSurfaceRow(l.harnessId, l.name) : null),
-      sessionId: () => sessionId(),
+      onSessionLabel: (name) => {
+        const sid = client.sessionId()
+        mergeSurface(sid, sid ? makeSurfaceRow(sid, name) : null)
+      },
+      client,
       announce: props.announce,
       composerActions: props.composerActions,
       composerControls: props.composerControls,
     })
-    setPanes((ps) => [...ps, {id, sessionId, setSessionId, content, usage, working}])
-    writePaneIds(panes().map((p) => p.sessionId()))
+    setPanes((ps) => [...ps, {id, client, content, usage, working}])
+    writePaneIds(paneIds())
     void invalidateSessions(props.panel.apiBase ?? '')
     focusPane(id)
   }
@@ -121,8 +124,8 @@ export function QuickTerminalLayout(props: {
   const closePane = (id: number) => {
     const target = panes().find((p) => p.id === id)
     const remaining = panes().filter((p) => p.id !== id)
-    if (target) forgetSession(target.sessionId())
-    writePaneIds(remaining.map((p) => p.sessionId()))
+    if (target) forgetSession(target.client)
+    writePaneIds(remaining.map((p) => p.client.sessionId()))
     void invalidateSessions(props.panel.apiBase ?? '')
     if (remaining.length === 0) {
       props.setOpen(false) // last pane closes the terminal; re-seeded on next open
@@ -258,11 +261,9 @@ export function QuickTerminalLayout(props: {
                   <SessionSelector
                     variant="bar"
                     apiBase={props.panel.apiBase ?? ''}
-                    activeId={() => pane.sessionId()}
+                    client={pane.client}
                     busy={pane.working}
-                    lockedElsewhere={(id) => (sessions().find((s) => s.id === id)?.running ?? false) && id !== pane.sessionId()}
-                    onSwitch={(id) => pane.setSessionId(id)}
-                    onNew={() => pane.setSessionId(crypto.randomUUID())}
+                    lockedElsewhere={(id) => (sessions().find((s) => s.id === id)?.running ?? false) && id !== pane.client.sessionId()}
                     announce={props.announce}
                   />
                   <ContextTracker usage={pane.usage()} />

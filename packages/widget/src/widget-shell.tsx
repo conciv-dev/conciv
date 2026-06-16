@@ -11,9 +11,14 @@ import {ChevronDown, Crosshair, PictureInPicture2} from 'lucide-solid'
 import {picking, cancelPick} from './react-grab/picking.js'
 import {ContextTracker} from './context-tracker.js'
 import {SessionSelector} from './session-selector.js'
-import {sessions, status} from './session-store-client.js'
-import {createPersistedSignal} from './persisted-signal.js'
+import {sessions, mergeSurface, makeSurfaceRow} from './session-store-client.js'
+import {readStorage, writeStorage} from './persisted-signal.js'
+import {defineClient, type SessionClient} from './session-client.js'
+import {SessionId, isSessionId} from '@aidx/protocol/chat-types'
 import type {UsageSnapshot} from '@aidx/protocol/usage-types'
+
+// Read our persisted active id, accepting only a valid aidx_ id (a stale/foreign value is dropped).
+const parseActiveId = (raw: string): SessionId | undefined => (isSessionId(raw) ? SessionId.parse(raw) : undefined)
 
 // A registered content module the shell hosts, modeled on the TanStack Devtools plugin model.
 // `create` returns a fresh content element each call (the modal uses one; quick-terminal panes
@@ -25,10 +30,10 @@ export type PanelContext = {
   onWorkingChange: (working: boolean) => void
   // The content reports its latest model-usage snapshot, for the top-bar context tracker.
   onUsageChange: (usage: UsageSnapshot | null) => void
-  // The pane's session id (quick-terminal panes mint one; the modal omits it → default session).
-  sessionId?: () => string | undefined
-  // The content reports its resolved session label (name + harness id) for the chrome to show.
-  onSessionLabel?: (label: {name: string | null; harnessId: string | null}) => void
+  // This surface's session client — owns the active aidx_ id, the single comms seam for the panel.
+  client: SessionClient
+  // The content reports its resolved session name, so the chrome can surface a just-born row.
+  onSessionLabel?: (name: string | null) => void
   // Shell-level live-region writer (outside any inert pane) for switch/error announcements.
   announce?: (msg: string, assertive?: boolean) => void
   // Composer-action buttons registered on the shell, rendered in each panel's composer row.
@@ -52,6 +57,8 @@ export type ComposerActionContext = {
   insert: (text: string) => void // append text to this composer's input + focus it
   setBusy: (busy: boolean) => void
   apiBase: string
+  // The active surface's session client (resolve a new session, launch the current one, etc.).
+  client: SessionClient
   // Session/thread lifecycle. The composer owns thread + usage state; actions drive it through these
   // rather than reaching into useChat.
   addDivider: (kind: 'new' | 'compact') => void // mark a session boundary in the scrollback (prior thread stays)
@@ -242,20 +249,14 @@ function ModalLayout(props: {
 }): JSX.Element {
   const [working, setWorking] = createSignal(false)
   const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
-  // The modal's active session id (the `aidx-session-id` header we send), restored across refreshes
-  // (localStorage, per-origin = per-cwd). undefined = the default session; switching sets a token,
-  // "+ New" mints a fresh uuid. This is the stable routing key — it never re-keys mid-turn, and
-  // re-sending it after a refresh is what resumes the session server-side. A stale/deleted id is
-  // handled by the server (it just starts fresh), so we never need to scrub it client-side.
-  const [sessionId, setSessionId] = createPersistedSignal<string | undefined>({
-    key: 'aidx-active-session',
-    initial: undefined,
-    parse: (raw) => raw || undefined,
-  })
-  // The resolved harness token for the active header id (null until a turn mints one). The session
-  // LIST is keyed by token, not by header id, so this — not sessionId — is what marks/labels the
-  // active row in the selector. The panel reports it via onSessionLabel below.
-  const [activeToken, setActiveToken] = createSignal<string | null>(null)
+  // The modal's session client owns the active aidx_ id (the `aidx-session-id` header). It's seeded
+  // from localStorage (per-origin = per-cwd) and, if none, a fresh session is resolved up front so the
+  // first turn always has an id. Every change persists. The client is the single comms seam.
+  const client = defineClient({apiBase: props.panel.apiBase ?? ''})
+  const restored = readStorage('aidx-active-session', parseActiveId, undefined)
+  if (restored) client.setSessionId(restored)
+  else void client.resolve().then((r) => client.setSessionId(r.sessionId))
+  createEffect(() => writeStorage('aidx-active-session', client.sessionId()))
   const fab = createDraggablePosition({initial: props.position, storageKey: 'aidx-fab-position'})
   const pip = createPiP()
   let fabEl: HTMLButtonElement | undefined
@@ -266,13 +267,12 @@ function ModalLayout(props: {
     active: () => props.open(),
     onWorkingChange: setWorking,
     onUsageChange: setUsage,
-    // Adopt the resolved token: mark/label the active row, and surface a just-born session as a row
-    // before its transcript flushes (mirrors the quick-terminal panes).
-    onSessionLabel: (l) => {
-      setActiveToken(l.harnessId)
-      mergeSurface(l.harnessId, l.harnessId ? makeSurfaceRow(l.harnessId, l.name) : null)
+    // Surface a just-born session as a row (keyed by our id) before its transcript flushes.
+    onSessionLabel: (name) => {
+      const id = client.sessionId()
+      mergeSurface(id, id ? makeSurfaceRow(id, name) : null)
     },
-    sessionId: () => sessionId(),
+    client,
     announce: props.announce,
     composerActions: props.composerActions,
     composerControls: props.composerControls,
@@ -378,17 +378,9 @@ function ModalLayout(props: {
           <SessionSelector
             variant="pill"
             apiBase={props.panel.apiBase ?? ''}
-            activeId={() => activeToken()}
+            client={client}
             busy={working}
-            lockedElsewhere={(id) => (sessions().find((s) => s.id === id)?.running ?? false) && id !== activeToken()}
-            onSwitch={(id) => {
-              setSessionId(id) // re-key the header to the chosen token (the canonical id from here on)
-              setActiveToken(id) // optimistic: mark the row now; onSessionLabel reconfirms after load
-            }}
-            onNew={() => {
-              setSessionId(crypto.randomUUID())
-              setActiveToken(null) // a fresh session has no token yet → "New session" until a turn
-            }}
+            lockedElsewhere={(id) => (sessions().find((s) => s.id === id)?.running ?? false) && id !== client.sessionId()}
             announce={props.announce}
           />
           <ContextTracker usage={usage()} />

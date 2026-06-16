@@ -9,7 +9,7 @@ import {makeOpenInTerminalAction} from './open-in-terminal-action.js'
 import {modelSelectorControl} from './model-selector.js'
 import {TestCard} from './test-card.js'
 import {initPageBus} from './page-bus.js'
-import {createChatApi, probeChatAvailable} from './chat-api.js'
+import {defineClient} from './session-client.js'
 import {parseWidgetSettings, type WidgetSettings} from './widget-settings.js'
 
 // Entry: create the open Shadow DOM, probe the dev server, and mount the Solid chat agent +
@@ -49,22 +49,26 @@ export function mountWidget(): void {
   const apiBase = resolveApiBase()
   window.__AIDX_RENDER_TEST_CARD__ = () => mountTestCardForTest(root, apiBase)
   const settings = resolveWidget()
-  // Chat + page-bus only exist on the aidx dev server; probe first so a plain app shows nothing.
-  void probeChatAvailable(apiBase).then(async (available) => {
-    if (!available) return
-    // The active harness's identity gates + labels the "open in <harness>" button.
-    const session = await createChatApi({apiBase}).session().catch(() => null)
-    // The shell owns the chrome + layout modes and hosts the chat as a registered panel.
-    const shell = createWidgetShell({settings})
-    shell.registerPanel(chatPanelDef(apiBase))
-    shell.registerComposerAction(elementPickerAction)
-    shell.registerComposerAction(newSessionAction)
-    shell.registerComposerAction(compactAction)
-    if (session?.harness.canLaunch) shell.registerComposerAction(makeOpenInTerminalAction(session.harness.name))
-    shell.registerComposerControl(modelSelectorControl)
-    shell.mount(root)
-    initPageBus({apiBase})
-  })
+  // Chat + page-bus only exist on the aidx dev server. Probe the non-session /models route: a 2xx
+  // means chat is mounted (and carries the harness identity that gates the launch button). A throw
+  // (404 / network) → a plain app, so the widget shows nothing.
+  void defineClient({apiBase})
+    .models()
+    .then((models) => {
+      // The shell owns the chrome + layout modes and hosts the chat as a registered panel.
+      const shell = createWidgetShell({settings})
+      shell.registerPanel(chatPanelDef(apiBase))
+      shell.registerComposerAction(elementPickerAction)
+      shell.registerComposerAction(newSessionAction)
+      shell.registerComposerAction(compactAction)
+      if (models.harness.canLaunch) shell.registerComposerAction(makeOpenInTerminalAction(models.harness.name))
+      shell.registerComposerControl(modelSelectorControl)
+      shell.mount(root)
+      initPageBus({apiBase})
+    })
+    .catch(() => {
+      // No /models route (older core / non-chat server) → mount nothing.
+    })
 }
 
 mountWidget()

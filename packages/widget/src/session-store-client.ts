@@ -1,6 +1,6 @@
 import {createSignal} from 'solid-js'
-import type {ChatSessionMeta} from '@aidx/protocol/chat-types'
-import {createChatApi} from './chat-api.js'
+import {ChatSessionsSchema, type ChatSessionMeta} from '@aidx/protocol/chat-types'
+import {createTransport} from './transport.js'
 
 // One shared client-side cache of the session list, so every mounted SessionSelector (modal pill +
 // each qt pane bar) reads the same rows from a single fetch. Surfaces contribute their just-born
@@ -15,11 +15,15 @@ let inflight: Promise<void> | null = null
 
 function refetch(apiBase: string): Promise<void> {
   setStatus('loading')
-  inflight = createChatApi({apiBase})
-    .sessions()
+  // The list is not session-scoped, so a header-less transport is enough. A throw (404/network) → error.
+  const list = createTransport({apiBase}).route({method: 'GET', path: '/api/chat/sessions', response: ChatSessionsSchema})
+  inflight = list()
     .then((r) => {
       setFetched(r.sessions)
-      setStatus(r.status === 'error' ? 'error' : 'ready')
+      setStatus('ready')
+    })
+    .catch(() => {
+      setStatus('error')
     })
     .finally(() => {
       inflight = null
@@ -40,15 +44,16 @@ export function invalidateSessions(apiBase: string): Promise<void> {
 export function applyTitle(id: string, title: string): void {
   setFetched((p) => p.map((s) => (s.id === id ? {...s, title} : s)))
 }
-// A provisional list row for a just-born session (modal or pane), shown until the real list refetches.
-export function makeSurfaceRow(token: string, name: string | null): ChatSessionMeta {
-  return {id: token, title: name ?? 'New session', updatedAt: Date.now(), messageCount: 0, running: false, origin: 'aidx', usage: null}
+// A provisional list row for a just-born session (modal or pane), keyed by our id, shown until the
+// real list refetches.
+export function makeSurfaceRow(id: string, name: string | null): ChatSessionMeta {
+  return {id, title: name ?? 'New session', updatedAt: Date.now(), messageCount: 0, running: false, origin: 'aidx', usage: null}
 }
 // A surface contributes its current session so a brand-new one shows as one row before it's on disk.
-export function mergeSurface(token: string | null, row: ChatSessionMeta | null): void {
+export function mergeSurface(id: string | null, row: ChatSessionMeta | null): void {
   setSurfaces((p) => {
     const n = {...p}
-    if (token && row) n[token] = row
+    if (id && row) n[id] = row
     return n
   })
 }
@@ -56,6 +61,6 @@ export function mergeSurface(token: string | null, row: ChatSessionMeta | null):
 export function sessions(): ChatSessionMeta[] {
   const byId = new Map(Object.values(surfaces()).map((s) => [s.id, s]))
   for (const s of fetched()) byId.set(s.id, s)
-  return [...byId.values()].sort((a, b) => b.updatedAt - a.updatedAt)
+  return [...byId.values()].toSorted((a, b) => b.updatedAt - a.updatedAt)
 }
 export {status}

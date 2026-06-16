@@ -2,7 +2,7 @@ import {createMemo, createEffect, createSignal, For, Index, Match, onCleanup, Sh
 import {Progress} from '@ark-ui/solid/progress'
 import {useChat, fetchServerSentEvents, createChatClientOptions} from '@tanstack/ai-solid'
 import type {MessagePart, ToolCallPart, ToolCallState, ToolResultPart} from '@tanstack/ai-client'
-import {createChatApi} from './chat-api.js'
+import type {SessionClient} from './session-client.js'
 import {invalidateSessions} from './session-store-client.js'
 import {createDebouncer} from '@tanstack/solid-pacer'
 import {GenUi} from './gen-ui.js'
@@ -299,9 +299,9 @@ function ThinkingBubble(): JSX.Element {
 // body all render this same component. Chrome (header, open/close, FAB) lives in the shell.
 export function ChatPanel(props: {
   apiBase: string
-  // The surface's CURRENT session id, reactive — switching it reloads the thread in place (the modal
-  // pill / a pane bar selector drives this). Absent → the default session.
-  sessionId?: () => string | undefined
+  // This surface's session client — owns the active aidx_ id; switching it reloads the thread in
+  // place. The single comms seam (session reads, the chat stream, the permission gate).
+  client: SessionClient
   // The containing surface is visible/focused — focus the composer and hydrate on first show.
   active?: boolean
   // Live-region writer for switch/error announcements (owner provides one outside any inert pane).
@@ -314,10 +314,10 @@ export function ChatPanel(props: {
   composerControls?: () => ComposerControlDef[]
   // Reports the session's latest usage snapshot, so the shell can render a context tracker.
   onUsageChange?: (usage: UsageSnapshot | null) => void
-  // Reports the resolved session label (name + harness id) for the chrome to show.
-  onSessionLabel?: (label: {name: string | null; harnessId: string | null}) => void
+  // Reports the resolved session name for the chrome to surface a just-born row.
+  onSessionLabel?: (name: string | null) => void
 }): JSX.Element {
-  const api = createChatApi({apiBase: props.apiBase, sessionId: props.sessionId})
+  const client = props.client
   const [genUi, setGenUi] = createSignal<UiSpec[]>([])
   const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
   // The agent's `aidx ui …` calls arrive as AG-UI CUSTOM events; render each in the thread.
@@ -349,9 +349,9 @@ export function ChatPanel(props: {
   const mergeRequestMeta = (patch: Record<string, unknown>) => setRequestMeta((prev) => ({...prev, ...patch}))
   const chat = useChat({
     ...createChatClientOptions({
-      connection: fetchServerSentEvents(api.chatUrl, () => ({
+      connection: fetchServerSentEvents(client.chatStreamUrl(), () => ({
       credentials: 'include',
-      headers: api.sessionHeaders(),
+      headers: client.chatHeaders(),
       body: requestMeta(),
     })),
     }),
@@ -361,7 +361,7 @@ export function ChatPanel(props: {
   const [input, setInput] = createSignal('')
   // The session id whose thread is currently loaded into this panel. Shared by first-activation
   // hydrate and switching, so neither double-loads. undefined until the first load lands.
-  const loadedSessionId = {current: undefined as string | undefined}
+  const loadedSessionId = {current: null as string | null}
   const [switching, setSwitching] = createSignal(false)
   const [switchError, setSwitchError] = createSignal(false)
   const stickToBottom = {current: true}
@@ -386,7 +386,7 @@ export function ChatPanel(props: {
   createEffect(() => {
     const working = isThinking() || isStreaming()
     if (wasWorking && !working) {
-      void api.session().then((s) => props.onSessionLabel?.({name: s.name, harnessId: s.harnessId}))
+      void client.session().then((s) => props.onSessionLabel?.(s.name))
       invalidate.maybeExecute()
     }
     wasWorking = working
@@ -413,7 +413,7 @@ export function ChatPanel(props: {
   // Answer the risky-Bash gate (blocking allow/deny, no new turn), then drop the card.
   const decideGate = (renderId: string, approved: boolean) => {
     setGenUi((prev) => prev.filter((g) => g.renderId !== renderId))
-    void api.permissionDecision(renderId, approved)
+    void client.permissionDecision({renderId, approved})
   }
 
   // Auto-scroll to bottom as the agent streams, but only while the user is already at the bottom.
@@ -441,8 +441,8 @@ export function ChatPanel(props: {
   // Load (or switch to) a session's thread. First load just hydrates; a real switch stops any
   // in-flight turn, shows the switching overlay, and load-then-swaps so the prior thread stays put
   // on failure (never a blank panel). setMessages happens only after a successful fetch.
-  const loadSession = async (id: string | undefined) => {
-    const isSwitch = loadedSessionId.current !== undefined
+  const loadSession = async (id: string | null) => {
+    const isSwitch = loadedSessionId.current !== null
     setSwitchError(false)
     if (isSwitch) {
       chat.stop()
@@ -451,16 +451,17 @@ export function ChatPanel(props: {
       props.announce?.('Loading session…')
     }
     try {
-      const session = await api.session()
-      props.onSessionLabel?.({name: session.name, harnessId: session.harnessId})
+      const session = await client.session()
+      props.onSessionLabel?.(session.name)
       setUsage(session.usage ?? null)
-      if (session.source === 'new') {
+      // A new session (no harness token yet) has no transcript to hydrate.
+      if (session.harnessSessionId === null) {
         if (isSwitch) chat.setMessages([])
         loadedSessionId.current = id
         void invalidateSessions(props.apiBase)
         return
       }
-      const prior = await api.history()
+      const prior = await client.history()
       if (isSwitch || prior.length > 0) chat.setMessages(prior)
       loadedSessionId.current = id
     } catch {
@@ -475,10 +476,11 @@ export function ChatPanel(props: {
     }
   }
 
-  // First activation hydrates; thereafter a sessionId change drives an in-place switch.
+  // First activation hydrates; thereafter a sessionId change (resolve/switch) drives an in-place
+  // reload. client.sessionId() is reactive — it flips from null to our id once resolve lands.
   createEffect(() => {
-    const id = props.sessionId?.()
-    if (!props.active) return
+    const id = client.sessionId()
+    if (!props.active || !id) return
     if (id === loadedSessionId.current) {
       requestAnimationFrame(() => inputEl?.focus())
       return
@@ -538,10 +540,10 @@ export function ChatPanel(props: {
     if (chat.isLoading() || compacting()) return
     setPendingCompactId(addDivider('compact'))
     try {
-      const res = await fetch(api.chatUrl, {
+      const res = await fetch(client.chatStreamUrl(), {
         method: 'POST',
         credentials: 'include',
-        headers: {'content-type': 'application/json', ...api.sessionHeaders()},
+        headers: {'content-type': 'application/json', ...client.chatHeaders()},
         body: JSON.stringify({
           messages: [{role: 'user', content: '/compact'}],
           forwardedProps: {...requestMeta(), intent: 'compact'},
@@ -549,7 +551,7 @@ export function ChatPanel(props: {
       })
       await res.body?.pipeTo(new WritableStream())
       // Server persisted post-compaction usage on RUN_FINISHED → reflect the smaller context.
-      const session = await api.session()
+      const session = await client.session()
       if (session.usage) setUsage(session.usage)
     } catch {
       // network/abort — the divider stays; the tracker refreshes on the next real turn
@@ -577,6 +579,7 @@ export function ChatPanel(props: {
         insert,
         setBusy: (b) => setBusyAction(b ? a.id : null),
         apiBase: props.apiBase,
+        client,
         addDivider,
         resetUsage,
         compact,
@@ -657,7 +660,7 @@ export function ChatPanel(props: {
         <Show when={switchError()}>
           <div class="pw-chat-error" role="alert">
             <span class="pw-chat-error-msg">Couldn’t load that session</span>
-            <button type="button" class="pw-chat-retry" onClick={() => void loadSession(props.sessionId?.())}>
+            <button type="button" class="pw-chat-retry" onClick={() => void loadSession(client.sessionId())}>
               Retry
             </button>
           </div>
@@ -743,7 +746,7 @@ export function chatPanelDef(apiBase: string): PanelDef {
     create: (ctx) => (
       <ChatPanel
         apiBase={apiBase}
-        sessionId={ctx.sessionId}
+        client={ctx.client}
         active={ctx.active()}
         announce={ctx.announce}
         onWorkingChange={ctx.onWorkingChange}
