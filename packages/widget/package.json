@@ -34,7 +34,8 @@
     "lucide-solid": "^1.18.0",
     "react-grab": "^0.1.44",
     "shiki": "^4.2.0",
-    "solid-js": "^1.9.13"
+    "solid-js": "^1.9.13",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^22.19.21",
