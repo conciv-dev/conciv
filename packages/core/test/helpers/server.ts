@@ -8,7 +8,7 @@ import type {HarnessChild} from '@aidx/protocol/harness-types'
 import {makeApp} from '../../src/app.js'
 import type {ResolvedAidxConfig} from '../../src/config.js'
 
-export type SpawnHarness = (args: string[], cwd: string) => HarnessChild
+export type SpawnHarness = (args: string[], cwd: string, sessionId?: string) => HarnessChild
 
 export type TestServerOpts = {
   harness?: string

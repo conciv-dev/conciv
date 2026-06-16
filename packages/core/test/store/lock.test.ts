@@ -2,7 +2,7 @@ import {describe, it, expect, afterEach} from 'vitest'
 import {mkdtempSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {acquireLock, readLock, releaseLock} from '../../src/store/lock.js'
+import {acquireLock, readLock, releaseLock, readLocks} from '../../src/store/lock.js'
 
 const dirs: string[] = []
 const tmp = () => {
@@ -25,5 +25,16 @@ describe('per-session lock', () => {
     releaseLock(root, 'sess-a')
     expect(readLock(root, 'sess-a').held).toBe(false)
     expect(readLock(root, 'sess-b').held).toBe(true)
+  })
+
+  it('enumerates live lock keys (header ids), not the old global name', () => {
+    const root = tmp()
+    acquireLock(root, 'h-a', 'chat', process.pid)
+    acquireLock(root, 'h-b', 'iterate', process.pid)
+    expect(
+      readLocks(root)
+        .map((l) => l.key)
+        .sort(),
+    ).toEqual(['h-a', 'h-b'])
   })
 })

@@ -1,4 +1,4 @@
-import {rmSync} from 'node:fs'
+import {rmSync, readdirSync} from 'node:fs'
 import {z} from 'zod'
 import {readJson, writeJson} from '../fs.js'
 import {statePaths} from '../state-paths.js'
@@ -33,6 +33,24 @@ export function releaseLock(stateRoot: string, sessionId: string): void {
   } catch {
     // already gone
   }
+}
+
+// Enumerate live session locks (header ids) by scanning the `agent.<id>.lock` files — drives the
+// selector's running indicator. Dead-pid (stale) locks are filtered out via readLock.
+export function readLocks(stateRoot: string): {key: string; role: LockRole | null; pid: number}[] {
+  let files: string[]
+  try {
+    files = readdirSync(statePaths(stateRoot).dir).filter((f) => /^agent\..+\.lock$/.test(f))
+  } catch {
+    return []
+  }
+  const out: {key: string; role: LockRole | null; pid: number}[] = []
+  for (const f of files) {
+    const key = f.replace(/^agent\./, '').replace(/\.lock$/, '')
+    const lock = readLock(stateRoot, key)
+    if (lock.held && lock.pid) out.push({key, role: lock.role, pid: lock.pid})
+  }
+  return out
 }
 
 function pidAlive(pid: number): boolean {
