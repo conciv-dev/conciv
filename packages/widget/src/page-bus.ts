@@ -3,7 +3,9 @@
 // /api/page/reply. All page knowledge lives in the driver — swap it to change the
 // execution backend without touching transport.
 import {makeDomPageDriver, type PageDriver} from './page-driver.js'
-import {PageQuerySchema, type PageQuery} from '@aidx/protocol/page-types'
+import {PageQuerySchema, PageReplySchema, type PageQuery} from '@aidx/protocol/page-types'
+import {OkSchema} from '@aidx/protocol/chat-types'
+import {createTransport} from './transport.js'
 
 function parseQuery(raw: string): PageQuery | null {
   try {
@@ -15,21 +17,18 @@ function parseQuery(raw: string): PageQuery | null {
 }
 
 export function initPageBus(deps: {apiBase?: string; driver?: PageDriver} = {}): void {
-  const base = (deps.apiBase ?? '').replace(/\/+$/, '')
+  const t = createTransport({apiBase: deps.apiBase ?? ''})
   const driver = deps.driver ?? makeDomPageDriver()
-  const source = new EventSource(`${base}/api/page/stream`, {withCredentials: true})
+  const reply = t.route({method: 'POST', path: '/api/page/reply', request: PageReplySchema, response: OkSchema})
+  const source = t.eventSource('/api/page/stream')
 
   source.addEventListener('message', (ev) => {
     const query = parseQuery(ev.data)
     if (!query?.requestId) return
+    const requestId = query.requestId
     void (async () => {
       const data = await driver.execute(query)
-      void fetch(`${base}/api/page/reply`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {'content-type': 'application/json'},
-        body: JSON.stringify({requestId: query.requestId, data}),
-      })
+      void reply({requestId, data}).catch(() => {})
     })()
   })
 }

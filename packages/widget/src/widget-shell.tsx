@@ -1,4 +1,4 @@
-import {createEffect, createSignal, onCleanup, Show, type Component, type JSX} from 'solid-js'
+import {createEffect, createSignal, For, onCleanup, Show, type Component, type JSX} from 'solid-js'
 import {render} from 'solid-js/web'
 import {EnvironmentProvider} from '@ark-ui/solid/environment'
 import type {TriggerPosition} from '@aidx/protocol/config-types'
@@ -10,7 +10,15 @@ import {createPiP} from './pip.js'
 import {ChevronDown, Crosshair, PictureInPicture2} from 'lucide-solid'
 import {picking, cancelPick} from './react-grab/picking.js'
 import {ContextTracker} from './context-tracker.js'
+import {SessionSelector} from './session-selector.js'
+import {sessions, mergeSurface, makeSurfaceRow} from './session-store-client.js'
+import {readStorage, writeStorage} from './persisted-signal.js'
+import {defineClient, type SessionClient} from './session-client.js'
+import {SessionId, isSessionId} from '@aidx/protocol/chat-types'
 import type {UsageSnapshot} from '@aidx/protocol/usage-types'
+
+// Read our persisted active id, accepting only a valid aidx_ id (a stale/foreign value is dropped).
+const parseActiveId = (raw: string): SessionId | undefined => (isSessionId(raw) ? SessionId.parse(raw) : undefined)
 
 // A registered content module the shell hosts, modeled on the TanStack Devtools plugin model.
 // `create` returns a fresh content element each call (the modal uses one; quick-terminal panes
@@ -22,6 +30,14 @@ export type PanelContext = {
   onWorkingChange: (working: boolean) => void
   // The content reports its latest model-usage snapshot, for the top-bar context tracker.
   onUsageChange: (usage: UsageSnapshot | null) => void
+  // This surface's session client — owns the active aidx_ id, the single comms seam for the panel.
+  client: SessionClient
+  // The content reports its resolved session name, so the chrome can surface a just-born row.
+  onSessionLabel?: (name: string | null) => void
+  // Optional "new session" handler the surface provides (the modal opens a fresh panel).
+  onNewSession?: () => void | Promise<void>
+  // Shell-level live-region writer (outside any inert pane) for switch/error announcements.
+  announce?: (msg: string, assertive?: boolean) => void
   // Composer-action buttons registered on the shell, rendered in each panel's composer row.
   composerActions: () => ComposerActionDef[]
   // Composer-control plugins (stateful widgets, e.g. the model selector), rendered in the same row.
@@ -30,6 +46,8 @@ export type PanelContext = {
 export type PanelDef = {
   id: string
   title: string
+  // The API base the panel talks to — also used by the chrome's SessionSelector (same backend).
+  apiBase?: string
   create: (ctx: PanelContext) => JSX.Element
 }
 
@@ -41,9 +59,12 @@ export type ComposerActionContext = {
   insert: (text: string) => void // append text to this composer's input + focus it
   setBusy: (busy: boolean) => void
   apiBase: string
+  // The active surface's session client (resolve a new session, launch the current one, etc.).
+  client: SessionClient
   // Session/thread lifecycle. The composer owns thread + usage state; actions drive it through these
   // rather than reaching into useChat.
   addDivider: (kind: 'new' | 'compact') => void // mark a session boundary in the scrollback (prior thread stays)
+  newSession: () => void | Promise<void> // start a fresh session (modal opens a new pane; else in-place)
   resetUsage: () => void // clear the context tracker (no turn ran)
   compact: () => Promise<void> // run the compaction turn out of band: marks a boundary, shows no chat output
   notify: (message: string) => void // transient status line above the composer (auto-dismisses)
@@ -133,6 +154,12 @@ function Shell(props: {
   const setQuickOpen = (v: boolean) => setLayer((prev) => (v ? 'quick' : prev === 'quick' ? null : prev))
   const closeModal = () => setLayer((prev) => (prev === 'modal' ? null : prev))
 
+  // ONE shell-level live region pair, outside any pane (never inside an inert/closed qt sheet), so
+  // session switch/error announcements are reliably read. Passed down as `announce`.
+  const [politeMsg, setPoliteMsg] = createSignal('')
+  const [assertiveMsg, setAssertiveMsg] = createSignal('')
+  const announce = (msg: string, assertive = false) => (assertive ? setAssertiveMsg(msg) : setPoliteMsg(msg))
+
   // Esc cancels an in-progress element pick (react-grab handles it too; this is a safety net and
   // covers the pill being focused).
   createEffect(() => {
@@ -154,6 +181,7 @@ function Shell(props: {
               composerActions={props.composerActions}
               composerControls={props.composerControls}
               position={props.settings.modal.position}
+              announce={announce}
               open={() => layer() === 'modal'}
               onOpen={() => setLayer('modal')}
               onClose={closeModal}
@@ -165,10 +193,17 @@ function Shell(props: {
               composerActions={props.composerActions}
               composerControls={props.composerControls}
               hotkeys={props.settings.quickTerminal.hotkeys}
+              announce={announce}
               open={() => layer() === 'quick'}
               setOpen={setQuickOpen}
             />
           </Show>
+          <div class="pw-sr-only" role="status" aria-live="polite">
+            {politeMsg()}
+          </div>
+          <div class="pw-sr-only" role="alert" aria-live="assertive">
+            {assertiveMsg()}
+          </div>
           {/* While picking, the open surface goes click-through+invisible; this pill is the only chrome. */}
           <Show when={picking()}>
             <button type="button" class="pw-pick-pill" onClick={() => cancelPick()} aria-label="Cancel element pick">
@@ -183,11 +218,15 @@ function Shell(props: {
   )
 }
 
-// Focusable controls inside the open dialog, in DOM order — used to wrap Tab focus.
+// One mounted session view in the modal (its own ChatPanel + working/usage signals), keyed by our id.
+type ModalPane = {id: SessionId; content: JSX.Element; working: () => boolean; usage: () => UsageSnapshot | null}
+
+// Focusable controls inside the open dialog, in DOM order — used to wrap Tab focus. Skips controls in
+// a hidden (inactive) session pane so the trap only spans the visible pane + chrome.
 function focusablesIn(root: HTMLElement): HTMLElement[] {
   return Array.from(
     root.querySelectorAll<HTMLElement>('button, textarea, input, select, a[href], [tabindex]:not([tabindex="-1"])'),
-  ).filter((el) => !el.hasAttribute('disabled'))
+  ).filter((el) => !el.hasAttribute('disabled') && !el.closest('.pw-modal-pane-hidden'))
 }
 
 function panelClass(open: boolean, position: TriggerPosition): string {
@@ -210,25 +249,63 @@ function ModalLayout(props: {
   composerActions: () => ComposerActionDef[]
   composerControls: () => ComposerControlDef[]
   position: TriggerPosition
+  announce: (msg: string, assertive?: boolean) => void
   open: () => boolean
   onOpen: () => void
   onClose: () => void
 }): JSX.Element {
-  const [working, setWorking] = createSignal(false)
-  const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
+  // One ChatPanel per visited session, all mounted (so a background turn keeps streaming + persists),
+  // the active one shown. Switching is a pure view swap — it never tears down or kills a turn.
+  const [activeId, setActiveId] = createSignal<SessionId | null>(null)
+  const [panes, setPanes] = createSignal<ModalPane[]>([])
+  createEffect(() => writeStorage('aidx-active-session', activeId()))
+  const apiBase = props.panel.apiBase ?? ''
+
+  const mountPane = (id: SessionId) => {
+    if (panes().some((p) => p.id === id)) return
+    const client = defineClient({apiBase})
+    client.setSessionId(id)
+    const [working, setWorking] = createSignal(false)
+    const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
+    const content = props.panel.create({
+      active: () => props.open() && activeId() === id,
+      onWorkingChange: setWorking,
+      onUsageChange: setUsage,
+      onSessionLabel: (name) => mergeSurface(id, makeSurfaceRow(id, name)),
+      client,
+      onNewSession: () => void activateNew(),
+      announce: props.announce,
+      composerActions: props.composerActions,
+      composerControls: props.composerControls,
+    })
+    setPanes((prev) => [...prev, {id, content, working, usage}])
+  }
+  // Make a session active, mounting its pane on first visit.
+  const activate = (id: SessionId) => {
+    mountPane(id)
+    setActiveId(id)
+  }
+  // New session: resolve a fresh id, then open + activate its pane.
+  const activateNew = async () => {
+    const {sessionId} = await defineClient({apiBase}).resolve()
+    activate(sessionId)
+  }
+  // Seed: restore the persisted active session, else resolve a fresh one up front.
+  const restored = readStorage('aidx-active-session', parseActiveId, undefined)
+  if (restored) activate(restored)
+  else void activateNew()
+
+  // The chrome (FAB pulse, context tracker, selector busy) reflects the ACTIVE pane.
+  const activePane = () => panes().find((p) => p.id === activeId())
+  const working = () => activePane()?.working() ?? false
+  const usage = () => activePane()?.usage() ?? null
+
   const fab = createDraggablePosition({initial: props.position, storageKey: 'aidx-fab-position'})
   const pip = createPiP()
   let fabEl: HTMLButtonElement | undefined
   let panelEl: HTMLElement | undefined
 
   const fabPulsing = () => !props.open() && working()
-  const content = props.panel.create({
-    active: () => props.open(),
-    onWorkingChange: setWorking,
-    onUsageChange: setUsage,
-    composerActions: props.composerActions,
-    composerControls: props.composerControls,
-  })
 
   // The panel resizes off whichever edges are free (away from its anchored corner): a bottom-anchored
   // panel grows height upward, a top/middle one downward; a right-anchored panel grows width leftward,
@@ -327,12 +404,23 @@ function ModalLayout(props: {
             <PictureInPicture2 class="pw-icon" aria-hidden="true" />
           </button>
           <span class="pw-chat-title">{props.panel.title}</span>
+          <SessionSelector
+            variant="pill"
+            apiBase={props.panel.apiBase ?? ''}
+            activeId={activeId}
+            onActivate={activate}
+            lockedElsewhere={(id) => (sessions().find((s) => s.id === id)?.running ?? false) && id !== activeId()}
+            announce={props.announce}
+          />
           <ContextTracker usage={usage()} />
           <button type="button" class="pw-chat-close" aria-label="Close chat" onClick={closePanel}>
             <ChevronDown class="pw-chevron" aria-hidden="true" />
           </button>
         </header>
-        {content}
+        {/* Every visited session stays mounted (background turns keep streaming); only the active shows. */}
+        <For each={panes()}>
+          {(p) => <div class="pw-modal-pane" classList={{'pw-modal-pane-hidden': activeId() !== p.id}}>{p.content}</div>}
+        </For>
       </section>
       <button
         type="button"

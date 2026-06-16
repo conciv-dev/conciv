@@ -1,5 +1,4 @@
 import {SquareTerminal} from 'lucide-solid'
-import {createChatApi} from './chat-api.js'
 import type {ComposerActionDef} from './widget-shell.js'
 
 // "Open in <harness>": ask the server to launch the current session in the harness's CLI, carrying
@@ -13,7 +12,7 @@ export function makeOpenInTerminalAction(harnessName: string): ComposerActionDef
       ctx.setBusy(true)
       try {
         const model = ctx.requestMeta().model
-        const res = await createChatApi({apiBase: ctx.apiBase}).launch({
+        const res = await ctx.client.launch({
           model: typeof model === 'string' ? model : undefined,
         })
         if (!res.supported || !res.command) {

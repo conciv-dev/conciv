@@ -24,15 +24,18 @@
     "@aidx/protocol": "workspace:*",
     "@aidx/solid-streamdown": "workspace:*",
     "@ark-ui/solid": "^5.37.1",
+    "@floating-ui/dom": "^1.7.6",
     "@tanstack/ai": "^0.28.0",
     "@tanstack/ai-client": "^0.16.3",
     "@tanstack/ai-solid": "^0.13.4",
     "@tanstack/solid-hotkeys": "^0.10.0",
+    "@tanstack/solid-pacer": "^0.21.1",
     "bippy": "0.5.41",
     "lucide-solid": "^1.18.0",
     "react-grab": "^0.1.44",
     "shiki": "^4.2.0",
-    "solid-js": "^1.9.13"
+    "solid-js": "^1.9.13",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^22.19.21",

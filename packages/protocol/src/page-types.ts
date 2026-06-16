@@ -96,6 +96,11 @@ export type PageQuery = z.infer<typeof PageQuerySchema>
 export const PageQueryInputSchema = PageQuerySchema.omit({kind: true, requestId: true})
 export type PageQueryInput = z.infer<typeof PageQueryInputSchema>
 
+// POST /api/page/reply body — the widget's answer to a pushed PageQuery. Shared by core (validation)
+// and the widget transport (typing) so the two ends can't drift.
+export const PageReplySchema = z.object({requestId: z.string(), data: z.record(z.string(), z.unknown()).default({})})
+export type PageReply = z.infer<typeof PageReplySchema>
+
 // A reply is always a plain JSON object: either an error or some data (often {ok:true}).
 export type PageResult = Record<string, unknown>
 

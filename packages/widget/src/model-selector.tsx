@@ -2,7 +2,8 @@ import {createSignal, For, onMount, Show, type JSX} from 'solid-js'
 import {Combobox, useListCollection} from '@ark-ui/solid/combobox'
 import {Check, ChevronsUpDown} from 'lucide-solid'
 import type {HarnessModelInfo} from '@aidx/protocol/chat-types'
-import {createChatApi} from './chat-api.js'
+import {defineClient} from './session-client.js'
+import {createPersistedSignal} from './persisted-signal.js'
 import type {ComposerControlDef} from './widget-shell.js'
 
 // Bucket models by their `group` (provider/family), preserving first-seen order. Ungrouped
@@ -85,7 +86,7 @@ export function ModelSelector(props: {
         </Combobox.Trigger>
       </Combobox.Control>
       <Combobox.Positioner>
-        <Combobox.Content class="pw-model-content">
+        <Combobox.Content class="pw-model-content pw-combo-content">
           <Combobox.Input class="pw-model-search" placeholder="Search models…" />
           <div class="pw-model-list">
             <Show when={collection().items.length === 0}>
@@ -123,20 +124,6 @@ export function ModelSelector(props: {
 // Persist the user's pick across sessions. Keyed globally (one composer model at a time); a future
 // per-harness key can slot in here without touching the plugin contract.
 const MODEL_KEY = 'pw-aidx-model'
-function readStoredModel(): string | null {
-  try {
-    return localStorage.getItem(MODEL_KEY)
-  } catch {
-    return null
-  }
-}
-function storeModel(id: string): void {
-  try {
-    localStorage.setItem(MODEL_KEY, id)
-  } catch {
-    // storage blocked — selection still lives in memory for this session
-  }
-}
 
 // The composer-control plugin. Registered on the shell (mount.tsx), it fetches the active harness's
 // models, owns the selection (persisted), and ships it on every turn via ctx.setRequestMeta({model}).
@@ -144,18 +131,22 @@ function storeModel(id: string): void {
 export const modelSelectorControl: ComposerControlDef = {
   id: 'model-selector',
   create: (ctx) => {
-    const api = createChatApi({apiBase: ctx.apiBase})
+    // Models aren't session-scoped → a header-less client (never setSessionId).
+    const client = defineClient({apiBase: ctx.apiBase})
     const [models, setModels] = createSignal<HarnessModelInfo[]>([])
-    const [model, setModel] = createSignal<string | null>(readStoredModel())
+    const [model, setModel] = createPersistedSignal<string | null>({
+      key: MODEL_KEY,
+      initial: null,
+      parse: (raw) => raw || null,
+    })
     const select = (id: string) => {
       setModel(id)
-      storeModel(id)
       ctx.setRequestMeta({model: id})
     }
     onMount(() => {
       const stored = model()
       if (stored) ctx.setRequestMeta({model: stored})
-      void api
+      void client
         .models()
         .then(({models: list, defaultModel}) => {
           setModels(list)

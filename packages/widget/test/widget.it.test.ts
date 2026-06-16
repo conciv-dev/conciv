@@ -22,6 +22,7 @@ const dirname = path.dirname(fileURLToPath(import.meta.url))
 const widgetBundle = fs.readFileSync(path.join(dirname, '../dist/aidx-widget.global.js'), 'utf8')
 
 const ASSISTANT_TEXT = 'Hello from aidx'
+const SWITCHED_REPLY = 'Reply from the switched session'
 const APPROVAL_QUESTION = 'Run a risky command?'
 const FAILING_TEST = 'rejects an expired token'
 const FAILURE_MESSAGE = 'expected 200 to be 401'
@@ -177,6 +178,15 @@ function writeCompactStream(res: ServerResponse): void {
   Readable.fromWeb(sse as Parameters<typeof Readable.fromWeb>[0]).pipe(res)
 }
 
+// Read a request body to a string.
+function readBody(req: IncomingMessage): Promise<string> {
+  return new Promise((resolve) => {
+    let body = ''
+    req.on('data', (c) => (body += c))
+    req.on('end', () => resolve(body))
+  })
+}
+
 // Read the POST body and report whether it's a compaction turn (intent rides forwardedProps/data).
 function readChatIntent(req: IncomingMessage): Promise<string> {
   return new Promise((resolve) => {
@@ -230,14 +240,45 @@ function writeJson(res: ServerResponse, body: unknown): void {
 describe('aidx widget (it) — real browser, real SSE', () => {
   let browser: Browser
   let server: Server
-  const state = {base: ''}
+  const state = {base: '', mint: 0}
 
   beforeAll(async () => {
     server = createServer((req: IncomingMessage, res: ServerResponse) => {
       const url = req.url ?? ''
+      // The one id-normalization seam: no id → mint a fresh aidx_ id; an aidx_ id → echo; a raw
+      // harness id (an unwrapped external row) → a deterministic aidx_ wrapper (adoption). Stateful in
+      // this closure, exactly like core's resolve.
+      if (url.startsWith('/api/chat/session/resolve') && req.method === 'POST') {
+        void readBody(req).then((body) => {
+          const id = (() => {
+            try {
+              return (JSON.parse(body) as {id?: string}).id
+            } catch {
+              return undefined
+            }
+          })()
+          if (!id) return writeJson(res, {sessionId: `aidx_new_${++state.mint}`})
+          if (id.startsWith('aidx_')) return writeJson(res, {sessionId: id})
+          return writeJson(res, {sessionId: `aidx_ext_${id}`})
+        })
+        return
+      }
       // Probe → present, so the widget mounts the chat FAB + page-bus (production boot path).
-      if (url.startsWith('/api/chat/session')) {
-        return writeJson(res, {sessionId: null, source: 'new', cwd: '/app', lock: {held: false, role: null}})
+      // The adopted 'Made in aidx' row resolves to aidx_ext_tok-aidx, which reports a resumable
+      // session (a harness token) so ChatPanel hydrates its history. NB: exclude /sessions.
+      if (url.startsWith('/api/chat/session') && !url.startsWith('/api/chat/sessions')) {
+        const sid = req.headers['aidx-session-id']
+        const resumable = sid === 'aidx_ext_tok-aidx'
+        return writeJson(res, {
+          sessionId: typeof sid === 'string' ? sid : 'aidx_unknown',
+          harnessSessionId: resumable ? 'tok-aidx' : null,
+          name: resumable ? 'Made in aidx' : null,
+          origin: resumable ? 'external' : 'chat',
+          cwd: '/app',
+          lock: {held: false, role: null},
+          usage: null,
+          harness: {id: 'claude', name: 'Claude', canLaunch: false},
+        })
       }
       if (url.startsWith('/api/chat/models')) {
         return writeJson(res, {
@@ -248,9 +289,39 @@ describe('aidx widget (it) — real browser, real SSE', () => {
             {id: 'claude-fable-5', name: 'Fable 5', description: 'Disabled', group: 'Claude', disabled: true},
           ],
           defaultModel: 'sonnet',
+          harness: {id: 'claude', name: 'Claude', canLaunch: false},
         })
       }
-      if (url.startsWith('/api/chat/history')) return writeJson(res, [])
+      if (url.startsWith('/api/chat/sessions/title') && req.method === 'POST') {
+        void readBody(req).then((body) => {
+          const title = (() => {
+            try {
+              return (JSON.parse(body) as {title?: string}).title ?? ''
+            } catch {
+              return ''
+            }
+          })()
+          writeJson(res, {ok: true, title})
+        })
+        return
+      }
+      if (url.startsWith('/api/chat/sessions')) {
+        const nowMs = Date.now()
+        return writeJson(res, {
+          sessions: [
+            {id: 'tok-aidx', title: 'Made in aidx', updatedAt: nowMs, messageCount: 3, running: false, origin: 'aidx', usage: null},
+            {id: 'tok-ext', title: 'Made externally', updatedAt: nowMs, messageCount: 2, running: false, origin: 'external', usage: null},
+          ],
+        })
+      }
+      // Per-session history keyed by our id: the adopted 'Made in aidx' session loads a thread.
+      if (url.startsWith('/api/chat/history')) {
+        const sid = req.headers['aidx-session-id']
+        if (sid === 'aidx_ext_tok-aidx') {
+          return writeJson(res, [{id: 'h1', role: 'assistant', parts: [{type: 'text', content: SWITCHED_REPLY}]}])
+        }
+        return writeJson(res, [])
+      }
       if (url === '/api/chat' && req.method === 'POST') {
         void readChatIntent(req).then((intent) => (intent === 'compact' ? writeCompactStream(res) : writeChatStream(res)))
         return
@@ -330,7 +401,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await page.close()
   })
 
-  it('New session: posts the reset, draws a boundary, and keeps the prior thread scrollable', async () => {
+  it('New session: opens a fresh empty session (resolve); the prior session is preserved in a hidden pane', async () => {
     const page = await browser.newPage()
     await page.goto(state.base)
     const fab = page.getByRole('button', {name: 'Open aidx chat'})
@@ -341,14 +412,14 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await composer.press('Enter')
     await page.getByText(ASSISTANT_TEXT).waitFor({state: 'visible'})
 
-    // Clicking New session forgets the resume pointer server-side and marks a boundary in the thread.
-    const reset = page.waitForRequest((r) => r.url().endsWith('/api/chat/session/new') && r.method() === 'POST')
+    // Clicking New session resolves a fresh aidx_ session and opens it as a new pane.
+    const reset = page.waitForRequest((r) => r.url().endsWith('/api/chat/session/resolve') && r.method() === 'POST')
     await page.getByRole('button', {name: 'Start a new session'}).click()
     await reset
 
-    // The boundary shows AND the prior reply stays on screen (scrollback preserved, not wiped).
-    await page.locator('.pw-chat-divider', {hasText: 'New session'}).waitFor({state: 'visible'})
-    expect(await page.getByText(ASSISTANT_TEXT).count()).toBe(1)
+    // The fresh pane shows the greeting; the prior reply is preserved but in the now-hidden pane.
+    await page.getByText('How can I help you today?').waitFor({state: 'visible'})
+    expect(await page.getByText(ASSISTANT_TEXT).isVisible()).toBe(false)
     await page.close()
   })
 
@@ -667,6 +738,9 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await page.waitForFunction(`${countOf('.pw-qt-pane')} === 2`, undefined, {timeout: 2000})
     expect(await page.locator('.pw-qt-pane .pw-chat-input').count()).toBe(2)
 
+    // Each pane bar hosts its own session selector (bar variant).
+    expect(await page.locator('.pw-qt-pane .pw-session-bar').count()).toBe(2)
+
     // Closing one pane leaves the other (reflowed).
     await page.locator('.pw-qt-pane-x').first().click()
     await page.waitForFunction(`${countOf('.pw-qt-pane')} === 1`, undefined, {timeout: 2000})
@@ -778,6 +852,92 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await trigger.click()
     await content.waitFor({state: 'visible'})
     expect(await content.locator('.pw-model-item').count()).toBe(4)
+    await page.close()
+  })
+
+  it('session selector: lists rows, marks aidx origin, switches by header, renames optimistically', async () => {
+    const page = await browser.newPage()
+    await page.goto(state.base)
+    const fab = page.getByRole('button', {name: 'Open aidx chat'})
+    await fab.waitFor({state: 'visible'})
+    await fab.click()
+    await page.getByText('How can I help you today?').waitFor({state: 'visible'})
+
+    // Open the selector pill in the modal header.
+    const trigger = page.locator('#pw-chat-panel .pw-session-trigger')
+    await trigger.click()
+    const content = page.locator('.pw-session-content')
+    await content.waitFor({state: 'visible'})
+
+    // Both scripted rows render; the aidx row shows the origin marker, the external one does not.
+    const aidxItem = content.locator('.pw-session-item', {hasText: 'Made in aidx'})
+    const extItem = content.locator('.pw-session-item', {hasText: 'Made externally'})
+    await aidxItem.waitFor({state: 'visible'})
+    await extItem.waitFor({state: 'visible'})
+    expect(await aidxItem.locator('.pw-session-origin').count()).toBe(1)
+    expect(await extItem.locator('.pw-session-origin').count()).toBe(0)
+
+    // Selecting tok-aidx fires a /history fetch carrying the new header; the thread swaps in.
+    const historyReq = page.waitForRequest(
+      (r) => r.url().includes('/api/chat/history') && r.headers()['aidx-session-id'] === 'aidx_ext_tok-aidx',
+    )
+    await aidxItem.click()
+    await historyReq
+    await page.getByText(SWITCHED_REPLY).waitFor({state: 'visible'})
+
+    // Reopen, rename the now-active session — the optimistic title shows on the trigger immediately.
+    await trigger.click()
+    await content.waitFor({state: 'visible'})
+    await content.getByRole('button', {name: 'Rename current session'}).click()
+    const rename = page.locator('.pw-session-rename')
+    await rename.waitFor({state: 'visible'})
+    await rename.fill('Renamed thread')
+    await rename.press('Enter')
+    await page.waitForFunction(
+      () => {
+        const t = document.querySelector('[data-aidx-root]')?.shadowRoot?.querySelector('#pw-chat-panel .pw-session-current')
+        return (t?.textContent ?? '').includes('Renamed thread')
+      },
+      undefined,
+      {timeout: 3000},
+    )
+    await page.close()
+  })
+
+  it('session selector: restores the active session across a page reload', async () => {
+    const page = await browser.newPage()
+    await page.goto(state.base)
+    const fab = page.getByRole('button', {name: 'Open aidx chat'})
+    await fab.waitFor({state: 'visible'})
+    await fab.click()
+    await page.getByText('How can I help you today?').waitFor({state: 'visible'})
+
+    // Switch to the aidx session — this is the choice that must survive a refresh.
+    const trigger = page.locator('#pw-chat-panel .pw-session-trigger')
+    await trigger.click()
+    const content = page.locator('.pw-session-content')
+    await content.waitFor({state: 'visible'})
+    const historyReq = page.waitForRequest(
+      (r) => r.url().includes('/api/chat/history') && r.headers()['aidx-session-id'] === 'aidx_ext_tok-aidx',
+    )
+    await content.locator('.pw-session-item', {hasText: 'Made in aidx'}).click()
+    await historyReq
+    await page.getByText(SWITCHED_REPLY).waitFor({state: 'visible'})
+
+    // Reload: the modal must reopen to the SAME session, not fall back to "New session".
+    await page.reload()
+    await fab.waitFor({state: 'visible'})
+    await fab.click()
+    await page.waitForFunction(
+      () => {
+        const t = document.querySelector('[data-aidx-root]')?.shadowRoot?.querySelector('#pw-chat-panel .pw-session-current')
+        return (t?.textContent ?? '').includes('Made in aidx')
+      },
+      undefined,
+      {timeout: 4000},
+    )
+    // The restored session also re-hydrates its own thread.
+    await page.getByText(SWITCHED_REPLY).waitFor({state: 'visible'})
     await page.close()
   })
 

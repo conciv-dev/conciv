@@ -19,15 +19,18 @@ describe('claude native image input', () => {
   it.skipIf(!hasClaude())(
     'delivers an image to claude so the model sees its pixels',
     async () => {
-      const {postChat, close} = await startTestServer({harness: 'claude'})
+      const {resolve, postChat, close} = await startTestServer({harness: 'claude'})
       try {
-        const body = await postChat({
-          role: 'user',
-          content: [
-            {type: 'text', content: 'An image is included in this message. Reply with ONLY the dominant color name.'},
-            {type: 'image', source: {type: 'data', mimeType: 'image/png', value: PNG_RED_4x4}},
-          ],
-        })
+        const body = await postChat(
+          {
+            role: 'user',
+            content: [
+              {type: 'text', content: 'An image is included in this message. Reply with ONLY the dominant color name.'},
+              {type: 'image', source: {type: 'data', mimeType: 'image/png', value: PNG_RED_4x4}},
+            ],
+          },
+          await resolve(),
+        )
         expect(body.toLowerCase()).toContain('red')
       } finally {
         await close()

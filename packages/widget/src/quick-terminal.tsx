@@ -2,13 +2,24 @@ import {createEffect, createSignal, For, Show, type JSX} from 'solid-js'
 import {createHotkey} from '@tanstack/solid-hotkeys'
 import type {ComposerActionDef, ComposerControlDef, PanelDef} from './widget-shell.js'
 import {createResizable} from './resize.js'
+import {readStorage, writeStorage} from './persisted-signal.js'
 import {createPiP} from './pip.js'
 import {ChevronUp, Columns2, PictureInPicture2, X} from 'lucide-solid'
 import {picking} from './react-grab/picking.js'
 import {ContextTracker} from './context-tracker.js'
+import {SessionSelector} from './session-selector.js'
+import {sessions, mergeSurface, makeSurfaceRow, invalidateSessions} from './session-store-client.js'
+import {defineClient, type SessionClient} from './session-client.js'
+import {SessionId, isSessionId} from '@aidx/protocol/chat-types'
 import type {UsageSnapshot} from '@aidx/protocol/usage-types'
 
-type Pane = {id: number; content: JSX.Element; usage: () => UsageSnapshot | null}
+type Pane = {
+  id: number
+  client: SessionClient
+  content: JSX.Element
+  usage: () => UsageSnapshot | null
+  working: () => boolean
+}
 
 // Bindings come from user config as plain strings; the library wants its template-literal hotkey
 // type. They're validated at runtime by the key matcher, so a cast is the right call here.
@@ -23,6 +34,7 @@ export function QuickTerminalLayout(props: {
   composerActions: () => ComposerActionDef[]
   composerControls: () => ComposerControlDef[]
   hotkeys: string[]
+  announce: (msg: string, assertive?: boolean) => void
   open: () => boolean
   setOpen: (v: boolean) => void
 }): JSX.Element {
@@ -42,45 +54,79 @@ export function QuickTerminalLayout(props: {
   let rowEl: HTMLDivElement | undefined
   let sectionEl: HTMLElement | undefined
 
+  // Persisted pane layout: one session id per pane, restored on reopen (which sessions, in order).
+  const PANES_KEY = 'aidx-qt-panes'
+  const readPaneIds = (): string[] =>
+    readStorage(
+      PANES_KEY,
+      (raw) => {
+        const arr: unknown = JSON.parse(raw)
+        return Array.isArray(arr) ? arr.filter((x): x is string => typeof x === 'string') : undefined
+      },
+      [],
+    )
+  const writePaneIds = (ids: (string | null)[]) => writeStorage(PANES_KEY, ids.filter((x): x is string => Boolean(x)), JSON.stringify)
+  // The current session id of each pane (null until its client resolves), for layout persistence.
+  const paneIds = (): (string | null)[] => panes().map((p) => p.client.sessionId())
+  // Closing a pane deletes its server record so they don't accumulate orphans.
+  const forgetSession = (client: SessionClient) => {
+    if (client.sessionId()) void client.remove().catch(() => {})
+  }
+
   // Remember which pane was active (by position) so reopening focuses the same one.
   const FOCUS_KEY = 'aidx-qt-focused'
-  const readFocusIndex = (): number => {
-    try {
-      const n = Number(localStorage.getItem(FOCUS_KEY))
-      return Number.isInteger(n) && n >= 0 ? n : 0
-    } catch {
-      return 0
-    }
-  }
+  const readFocusIndex = (): number =>
+    readStorage(
+      FOCUS_KEY,
+      (raw) => {
+        const n = Number(raw)
+        return Number.isInteger(n) && n >= 0 ? n : undefined
+      },
+      0,
+    )
   const focusPane = (id: number) => {
     setFocused(id)
     const idx = panes().findIndex((p) => p.id === id)
     if (idx >= 0) {
-      try {
-        localStorage.setItem(FOCUS_KEY, String(idx))
-      } catch {
-        // storage unavailable — focus still set in memory
-      }
+      writeStorage(FOCUS_KEY, idx)
     }
   }
 
-  const addPane = () => {
+  const addPane = (initialId?: string) => {
     const id = ++seq
     const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
+    const [working, setWorking] = createSignal(false)
+    // Each pane owns its session client. Restore a persisted aidx_ id, else resolve a fresh session.
+    const client = defineClient({apiBase: props.panel.apiBase ?? ''})
+    if (initialId && isSessionId(initialId)) client.setSessionId(SessionId.parse(initialId))
+    else void client.resolve().then((r) => client.setSessionId(r.sessionId))
     // Each pane is its own session; it's the focused one that takes composer focus + hydrates.
     const content = props.panel.create({
       active: () => props.open() && focused() === id,
-      onWorkingChange: () => {},
+      onWorkingChange: setWorking,
       onUsageChange: setUsage,
+      // A just-born session shows in every selector before its file flushes (surface union).
+      onSessionLabel: (name) => {
+        const sid = client.sessionId()
+        mergeSurface(sid, sid ? makeSurfaceRow(sid, name) : null)
+      },
+      client,
+      announce: props.announce,
       composerActions: props.composerActions,
       composerControls: props.composerControls,
     })
-    setPanes((ps) => [...ps, {id, content, usage}])
+    setPanes((ps) => [...ps, {id, client, content, usage, working}])
+    writePaneIds(paneIds())
+    void invalidateSessions(props.panel.apiBase ?? '')
     focusPane(id)
   }
 
   const closePane = (id: number) => {
+    const target = panes().find((p) => p.id === id)
     const remaining = panes().filter((p) => p.id !== id)
+    if (target) forgetSession(target.client)
+    writePaneIds(remaining.map((p) => p.client.sessionId()))
+    void invalidateSessions(props.panel.apiBase ?? '')
     if (remaining.length === 0) {
       props.setOpen(false) // last pane closes the terminal; re-seeded on next open
       return
@@ -98,10 +144,13 @@ export function QuickTerminalLayout(props: {
     if (sectionEl) sectionEl.inert = !props.open()
   })
 
-  // Seed the first pane up front (not lazily on open) so its ChatPanel is mounted from the start —
-  // opening then only flips `active`, the same path the modal uses to focus its composer reliably.
-  // (A pane created inside the open handler races the mount + drop animation and misses focus.)
-  addPane()
+  // Seed panes up front (not lazily on open) so each ChatPanel is mounted from the start — opening
+  // then only flips `active`, the same path the modal uses to focus its composer reliably. (A pane
+  // created inside the open handler races the mount + drop animation and misses focus.) Restore the
+  // saved layout (one pane per persisted session id); else seed one fresh pane.
+  const savedIds = readPaneIds()
+  if (savedIds.length > 0) for (const sid of savedIds) addPane(sid)
+  else addPane()
 
   // On open: restore focus to the last-active pane (persisted). Setting focused flips that pane's
   // `active` true, and its ChatPanel focuses the composer.
@@ -182,7 +231,7 @@ export function QuickTerminalLayout(props: {
         >
           <PictureInPicture2 class="pw-icon" aria-hidden="true" />
         </button>
-        <button type="button" class="pw-chat-close" aria-label="Split pane" title="Split pane (Mod+D)" onClick={addPane}>
+        <button type="button" class="pw-chat-close" aria-label="Split pane" title="Split pane (Mod+D)" onClick={() => addPane()}>
           <Columns2 class="pw-icon" aria-hidden="true" />
         </button>
         <button type="button" class="pw-chat-close" aria-label="Close quick terminal" onClick={() => props.setOpen(false)}>
@@ -209,8 +258,14 @@ export function QuickTerminalLayout(props: {
                 }}
               >
                 <div class="pw-qt-pane-bar">
-                  <span class="pw-qt-pane-dot" aria-hidden="true" />
-                  <span class="pw-qt-pane-name">session-{pane.id}</span>
+                  <SessionSelector
+                    variant="bar"
+                    apiBase={props.panel.apiBase ?? ''}
+                    activeId={() => pane.client.sessionId()}
+                    onActivate={(id) => pane.client.setSessionId(id)}
+                    lockedElsewhere={(id) => (sessions().find((s) => s.id === id)?.running ?? false) && id !== pane.client.sessionId()}
+                    announce={props.announce}
+                  />
                   <ContextTracker usage={pane.usage()} />
                   <button
                     type="button"

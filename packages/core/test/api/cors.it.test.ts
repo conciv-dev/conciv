@@ -48,7 +48,7 @@ describe('engine CORS (IT, real http, cross-origin + credentials)', () => {
   it('answers the preflight (OPTIONS) for the probe route with 204 + echoed origin + credentials', async () => {
     const {server, base} = await startServer()
     state.server = server
-    const res = await fetch(`${base}/api/chat/session`, {
+    const res = await fetch(`${base}/api/chat/models`, {
       method: 'OPTIONS',
       headers: {
         origin: ORIGIN,
@@ -61,10 +61,27 @@ describe('engine CORS (IT, real http, cross-origin + credentials)', () => {
     expect(res.headers.get('access-control-allow-credentials')).toBe('true')
   })
 
-  it('echoes CORS headers on the actual probe GET /api/chat/session (never *)', async () => {
+  it('preflight for a session-scoped request allows the aidx-session-id header + DELETE', async () => {
     const {server, base} = await startServer()
     state.server = server
-    const res = await fetch(`${base}/api/chat/session`, {headers: {origin: ORIGIN}})
+    const res = await fetch(`${base}/api/chat/session`, {
+      method: 'OPTIONS',
+      headers: {
+        origin: ORIGIN,
+        'access-control-request-method': 'DELETE',
+        'access-control-request-headers': 'aidx-session-id, content-type',
+      },
+    })
+    expect(res.status).toBe(204)
+    const allowHeaders = (res.headers.get('access-control-allow-headers') ?? '').toLowerCase()
+    expect(allowHeaders).toContain('aidx-session-id')
+    expect((res.headers.get('access-control-allow-methods') ?? '')).toContain('DELETE')
+  })
+
+  it('echoes CORS headers on the actual probe GET /api/chat/models (never *)', async () => {
+    const {server, base} = await startServer()
+    state.server = server
+    const res = await fetch(`${base}/api/chat/models`, {headers: {origin: ORIGIN}})
     expect(res.status).toBe(200)
     const allowOrigin = res.headers.get('access-control-allow-origin')
     expect(allowOrigin).toBe(ORIGIN)

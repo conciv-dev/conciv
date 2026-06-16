@@ -36,6 +36,7 @@ if (process.env.AIDX_FAKE_HANG) {
   // then more text. Exercises the chat() + uiBus SSE pipeline for the "reply not rendering" case.
   const lines = [
     {type: 'system', subtype: 'init', session_id: 'sess-fake'},
+    {type: 'summary', summary: 'Fake session title'},
     {
       type: 'assistant',
       message: {
@@ -52,14 +53,18 @@ if (process.env.AIDX_FAKE_HANG) {
   for (const line of lines) process.stdout.write(JSON.stringify(line) + '\n')
   process.exit(0)
 } else {
+  // input_tokens is configurable per spawn (AIDX_FAKE_INPUT_TOKENS) so interleaved-turn tests can
+  // prove usage is keyed per session and not cross-written. Defaults to 100.
+  const inputTokens = Number(process.env.AIDX_FAKE_INPUT_TOKENS ?? '100')
   const lines = [
     {type: 'system', subtype: 'init', session_id: 'sess-fake', model: 'claude-test'},
+    {type: 'summary', summary: 'Fake session title'},
     {
       type: 'assistant',
       message: {
         model: 'claude-test',
         content: [{type: 'text', text: 'hello from fake'}],
-        usage: {input_tokens: 100, cache_read_input_tokens: 40, cache_creation_input_tokens: 10, output_tokens: 5},
+        usage: {input_tokens: inputTokens, cache_read_input_tokens: 40, cache_creation_input_tokens: 10, output_tokens: 5},
       },
     },
     {

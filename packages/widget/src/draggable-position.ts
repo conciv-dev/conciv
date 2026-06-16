@@ -1,5 +1,6 @@
 import {createSignal, onCleanup, type JSX} from 'solid-js'
 import type {TriggerPosition} from '@aidx/protocol/config-types'
+import {readStorage, writeStorage} from './persisted-signal.js'
 
 // Headless positioning for a floating element: 6 corner/middle presets plus drag-to-reposition
 // that snaps to the nearest preset on release and persists the choice. Content-agnostic — the
@@ -48,13 +49,9 @@ function reduceMotion(): boolean {
   }
 }
 
-function readStored(key: string): TriggerPosition | null {
-  try {
-    const v = localStorage.getItem(key)
-    return v && (ALL as string[]).includes(v) ? (v as TriggerPosition) : null
-  } catch {
-    return null
-  }
+// Validates a stored value against the known presets; an unknown string is rejected.
+function parsePosition(raw: string): TriggerPosition | undefined {
+  return (ALL as string[]).includes(raw) ? (raw as TriggerPosition) : undefined
 }
 
 export function createDraggablePosition(opts: {initial: TriggerPosition; storageKey: string}): {
@@ -66,7 +63,9 @@ export function createDraggablePosition(opts: {initial: TriggerPosition; storage
   // Call from onClick; returns true when the click should be ignored because it was a drag.
   consumeClick: () => boolean
 } {
-  const [position, setPosition] = createSignal<TriggerPosition>(readStored(opts.storageKey) ?? opts.initial)
+  const [position, setPosition] = createSignal<TriggerPosition>(
+    readStorage(opts.storageKey, parsePosition, opts.initial),
+  )
   // Free-position the element by its center (px) while dragging, then while snapping. null = at rest.
   const [point, setPoint] = createSignal<{x: number; y: number} | null>(null)
   const [snapping, setSnapping] = createSignal(false)
@@ -100,11 +99,7 @@ export function createDraggablePosition(opts: {initial: TriggerPosition; storage
       const next = nearestPreset(ev.clientX, ev.clientY, vw, vh)
       const commit = () => {
         setPosition(next)
-        try {
-          localStorage.setItem(opts.storageKey, next)
-        } catch {
-          // storage unavailable — keep the in-memory position
-        }
+        writeStorage(opts.storageKey, next)
         setPoint(null)
         setSnapping(false)
       }

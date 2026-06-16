@@ -1,12 +1,15 @@
 import {createEffect, createSignal, For, onCleanup, Show, type JSX} from 'solid-js'
 import {
   TestEventSchema,
+  EditorOpenSchema,
   type TestRunResult,
   type Summary,
   type TestError,
   type TestState,
   type TestEvent,
 } from '@aidx/protocol/test-types'
+import {OkSchema} from '@aidx/protocol/chat-types'
+import {createTransport} from './transport.js'
 
 // The test-runner results card. Runner-blind: speaks TestEvent / TestRunResult only. result===null
 // → subscribe to /api/test-runner/stream and build the tree live; result!==null → static render.
@@ -66,12 +69,8 @@ function parseTestEvent(raw: string): TestEvent | null {
 }
 
 function TestErrorBlock(props: {error: TestError; apiBase: string; onFix: (text: string) => void}): JSX.Element {
-  const openInEditor = () =>
-    void fetch(`${props.apiBase}/api/editor/open`, {
-      method: 'POST',
-      headers: {'content-type': 'application/json'},
-      body: JSON.stringify({file: props.error.file, line: props.error.line}),
-    })
+  const openEditor = createTransport({apiBase: props.apiBase}).route({method: 'POST', path: '/api/editor/open', request: EditorOpenSchema, response: OkSchema})
+  const openInEditor = () => void openEditor({file: props.error.file, line: props.error.line}).catch(() => {})
   return (
     <div class="pw-test-err">
       <pre>{props.error.message}</pre>
@@ -129,7 +128,7 @@ export function TestCard(props: {apiBase: string; onFix: (text: string) => void;
         source.close()
       }
     }
-    const source = new EventSource(`${props.apiBase}/api/test-runner/stream`)
+    const source = createTransport({apiBase: props.apiBase}).eventSource('/api/test-runner/stream')
     source.addEventListener('message', (e) => {
       const ev = parseTestEvent(e.data)
       if (ev) applyLive(ev)

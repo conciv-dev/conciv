@@ -6,14 +6,22 @@ import {UiSpecSchema} from '@aidx/protocol/ui-types'
 import {ChatRequestSchema} from '@aidx/protocol/chat-types'
 import {tokenUsageToSnapshot} from '@aidx/protocol/usage-types'
 import {acquireLock, readLock, releaseLock} from '../../store/lock.js'
-import {writeSession} from '../../store/session-store.js'
-import {writeUsage} from '../../store/usage-store.js'
+import type {SessionStore} from '../../store/session-store.js'
 import type {UiBus} from '../../runtime/ui-bus.js'
 import {toChatMessages} from './messages.js'
-import type {SessionState} from './session.js'
+import {sessionIdFromHeaders} from './session-id.js'
 import {sseHeaders} from '../sse.js'
 
-export type SpawnHarness = (args: string[], cwd: string) => HarnessChild
+// The harness resume token stored on our record (null = never run), and the writer that persists it
+// when the harness mints its id mid-turn. The only session bits the turn touches on the store.
+export const resumeTokenFor = async (store: SessionStore, id: string): Promise<string | null> =>
+  (await store.get(id))?.harnessSessionId ?? null
+export const recordMintedToken = (store: SessionStore, id: string, token: string): Promise<unknown> =>
+  store.update(id, {harnessSessionId: token})
+
+// The optional sessionId becomes AIDX_SESSION_ID in the child's env, so the agent's `aidx ui` /
+// permission-hook calls echo it back and core routes them to this turn's channel.
+export type SpawnHarness = (args: string[], cwd: string, sessionId?: string) => HarnessChild
 
 // Sent in place of '/compact' to harnesses without native compaction — best-effort summary (it does
 // not free the resumed context, but gives the user a recap below the boundary divider).
@@ -23,33 +31,35 @@ const COMPACT_FALLBACK_PROMPT =
 export type TurnDeps = {
   cwd: string
   stateRoot: string
-  previewId: string
   harness: HarnessAdapter
   spawnHarness: SpawnHarness
   systemPromptFile?: string
   systemPromptText?: string
   uiBus: UiBus
-  state: SessionState
+  store: SessionStore
 }
 
 // The live-turn routes, both uiBus consumers:
 //   POST /api/chat/ui → inject agent generative UI onto the live turn (non-blocking)
-//   POST /api/chat    → stream a turn (409 if the lock is held)
+//   POST /api/chat    → stream a turn (409 if THIS session's lock is held; distinct sessions parallel)
 export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
-  const {harness, uiBus, state} = deps
+  const {harness, uiBus} = deps
 
   app.post('/api/chat/ui', async (event) => {
     const spec = await readValidatedBody(event, UiSpecSchema)
-    return {renderId: spec.renderId, injected: uiBus.inject(spec)}
+    const sessionId = sessionIdFromHeaders(event.req.headers)
+    return {renderId: spec.renderId, injected: sessionId ? uiBus.inject(sessionId, spec) : false}
   })
 
   app.post('/api/chat', async (event) => {
-    if (readLock(deps.stateRoot).held) throw new HTTPError({status: 409, message: 'agent busy'})
+    const sessionId = sessionIdFromHeaders(event.req.headers) // our id; client always resolves first
+    if (!sessionId) throw new HTTPError({status: 400, message: 'no session (resolve first)'})
+    if (readLock(deps.stateRoot, sessionId).held) throw new HTTPError({status: 409, message: 'session busy'})
     const chatReq = await readValidatedBody(event, ChatRequestSchema)
     // intent rides the AG-UI envelope (forwardedProps/data) like model, with a top-level fallback.
     const intent = chatReq.intent ?? chatReq.forwardedProps?.intent ?? chatReq.data?.intent ?? 'chat'
     const turnKind = intent === 'compact' ? 'compact' : 'chat'
-    const resumeSessionId = harness.capabilities.resume ? chatReq.sessionId || state.sessionId || null : null
+    const resumeSessionId = harness.capabilities.resume ? await resumeTokenFor(deps.store, sessionId) : null
     const origin = `http://${event.req.headers.get('host') ?? '127.0.0.1:3000'}`
     // systemPrompt delivery by capability: 'file' → the written path; 'flag'/'none' → raw text.
     const mode = harness.capabilities.systemPrompt
@@ -58,7 +68,8 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
 
     const adapter = harnessText(harness, {
       cwd: deps.cwd,
-      spawnHarness: deps.spawnHarness,
+      // Bind this turn's header id into the spawn so the child env carries AIDX_SESSION_ID.
+      spawnHarness: (args, cwd) => deps.spawnHarness(args, cwd, sessionId),
       systemPrompt: sysText,
       resumeSessionId,
       permissionUrl: harness.capabilities.permissionGate === 'hook' ? `${origin}/api/chat/permission` : undefined,
@@ -67,13 +78,13 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
       model: chatReq.model ?? chatReq.forwardedProps?.model ?? chatReq.data?.model,
       turnKind,
       onSessionId: (id) => {
-        state.sessionId = id
-        writeSession(deps.stateRoot, deps.previewId, id)
+        // Best-effort persist of the resume token; a failed write must not crash the live turn.
+        void recordMintedToken(deps.store, sessionId, id).catch(() => {})
       },
       // Live usage: inject mid-turn so the widget's tracker fills as the turn streams.
-      onUsage: (usage) => uiBus.injectUsage(usage),
+      onUsage: (usage) => uiBus.injectUsage(sessionId, usage),
       onSpawn: (child) => {
-        acquireLock(deps.stateRoot, 'chat', child.pid)
+        acquireLock(deps.stateRoot, sessionId, 'chat', child.pid)
         event.req.signal.addEventListener('abort', () => {
           abort.abort()
           child.kill()
@@ -96,23 +107,28 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
       systemPrompts: sysText ? [sysText] : [],
       abortController: abort,
     })
-    const merged = uiBus.run(stream)
-    const sse = toServerSentEventsStream(withLockRelease(merged, deps), abort)
+    const merged = uiBus.run(sessionId, stream)
+    const sse = toServerSentEventsStream(withLockRelease(merged, deps.store, deps.stateRoot, sessionId), abort)
     return new Response(sse, {status: 200, headers: sseHeaders(event)})
   })
 }
 
-// Persist RUN_FINISHED usage (so the tracker fills on the next open) and release the lock when
-// the turn's merged stream finishes OR the client disconnects.
-async function* withLockRelease(src: AsyncIterable<StreamChunk>, deps: TurnDeps): AsyncGenerator<StreamChunk> {
+// Persist RUN_FINISHED usage onto our record (so the tracker fills on the next open) and release this
+// session's lock when its merged stream finishes OR the client disconnects.
+async function* withLockRelease(
+  src: AsyncIterable<StreamChunk>,
+  store: SessionStore,
+  stateRoot: string,
+  sessionId: string,
+): AsyncGenerator<StreamChunk> {
   try {
     for await (const c of src) {
-      if (c.type === EventType.RUN_FINISHED && c.usage && deps.state.sessionId) {
-        writeUsage(deps.stateRoot, deps.state.sessionId, tokenUsageToSnapshot(c.usage))
+      if (c.type === EventType.RUN_FINISHED && c.usage) {
+        await store.update(sessionId, {usage: tokenUsageToSnapshot(c.usage)})
       }
       yield c
     }
   } finally {
-    releaseLock(deps.stateRoot)
+    releaseLock(stateRoot, sessionId)
   }
 }

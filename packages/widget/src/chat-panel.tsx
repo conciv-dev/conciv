@@ -2,7 +2,9 @@ import {createMemo, createEffect, createSignal, For, Index, Match, onCleanup, Sh
 import {Progress} from '@ark-ui/solid/progress'
 import {useChat, fetchServerSentEvents, createChatClientOptions} from '@tanstack/ai-solid'
 import type {MessagePart, ToolCallPart, ToolCallState, ToolResultPart} from '@tanstack/ai-client'
-import {createChatApi} from './chat-api.js'
+import type {SessionClient} from './session-client.js'
+import {invalidateSessions} from './session-store-client.js'
+import {createDebouncer} from '@tanstack/solid-pacer'
 import {GenUi} from './gen-ui.js'
 import {TestCard} from './test-card.js'
 import {Markdown} from './markdown.js'
@@ -297,8 +299,13 @@ function ThinkingBubble(): JSX.Element {
 // body all render this same component. Chrome (header, open/close, FAB) lives in the shell.
 export function ChatPanel(props: {
   apiBase: string
+  // This surface's session client — owns the active aidx_ id; switching it reloads the thread in
+  // place. The single comms seam (session reads, the chat stream, the permission gate).
+  client: SessionClient
   // The containing surface is visible/focused — focus the composer and hydrate on first show.
   active?: boolean
+  // Live-region writer for switch/error announcements (owner provides one outside any inert pane).
+  announce?: (msg: string, assertive?: boolean) => void
   // Reports whether the agent is thinking/streaming, so the shell can pulse the trigger.
   onWorkingChange?: (working: boolean) => void
   // Shell-registered composer-action buttons (e.g. the element picker), rendered in the actions row.
@@ -307,8 +314,12 @@ export function ChatPanel(props: {
   composerControls?: () => ComposerControlDef[]
   // Reports the session's latest usage snapshot, so the shell can render a context tracker.
   onUsageChange?: (usage: UsageSnapshot | null) => void
+  // Reports the resolved session name for the chrome to surface a just-born row.
+  onSessionLabel?: (name: string | null) => void
+  // The surface's "new session" handler (modal opens a fresh panel); absent → in-place new session.
+  onNewSession?: () => void | Promise<void>
 }): JSX.Element {
-  const api = createChatApi({apiBase: props.apiBase})
+  const client = props.client
   const [genUi, setGenUi] = createSignal<UiSpec[]>([])
   const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
   // The agent's `aidx ui …` calls arrive as AG-UI CUSTOM events; render each in the thread.
@@ -340,15 +351,24 @@ export function ChatPanel(props: {
   const mergeRequestMeta = (patch: Record<string, unknown>) => setRequestMeta((prev) => ({...prev, ...patch}))
   const chat = useChat({
     ...createChatClientOptions({
-      connection: fetchServerSentEvents(api.chatUrl, () => ({credentials: 'include', body: requestMeta()})),
+      connection: fetchServerSentEvents(client.chatStreamUrl(), () => ({
+      credentials: 'include',
+      headers: client.chatHeaders(),
+      body: requestMeta(),
+    })),
     }),
     onCustomEvent: onAidxUi,
     onChunk,
   })
   const [input, setInput] = createSignal('')
-  const hydrateState = {done: false}
+  // The session id whose thread is currently loaded into this panel. Shared by first-activation
+  // hydrate and switching, so neither double-loads. undefined until the first load lands.
+  const loadedSessionId = {current: null as string | null}
+  const [switching, setSwitching] = createSignal(false)
+  const [switchError, setSwitchError] = createSignal(false)
   const stickToBottom = {current: true}
   let inputEl: HTMLTextAreaElement | undefined
+  let logEl: HTMLDivElement | undefined
 
   const isThinking = () => chat.status() === 'submitted'
   const isStreaming = () => chat.status() === 'streaming'
@@ -360,6 +380,19 @@ export function ChatPanel(props: {
 
   // Surface the latest usage snapshot for the shell's context tracker.
   createEffect(() => props.onUsageChange?.(usage()))
+
+  // When a turn finishes, the harness may have minted/renamed the session — refresh the label and
+  // (debounced) the session list, since a new/renamed session may now exist on disk.
+  const invalidate = createDebouncer(() => void invalidateSessions(props.apiBase), {wait: 400})
+  let wasWorking = false
+  createEffect(() => {
+    const working = isThinking() || isStreaming()
+    if (wasWorking && !working) {
+      void client.session().then((s) => props.onSessionLabel?.(s.name))
+      invalidate.maybeExecute()
+    }
+    wasWorking = working
+  })
 
   // Screen-reader announcements. The log itself is aria-live="off" (streaming would otherwise
   // flood it token-by-token); instead we announce status transitions once into a polite region —
@@ -382,11 +415,12 @@ export function ChatPanel(props: {
   // Answer the risky-Bash gate (blocking allow/deny, no new turn), then drop the card.
   const decideGate = (renderId: string, approved: boolean) => {
     setGenUi((prev) => prev.filter((g) => g.renderId !== renderId))
-    void api.permissionDecision(renderId, approved)
+    void client.permissionDecision({renderId, approved})
   }
 
   // Auto-scroll to bottom as the agent streams, but only while the user is already at the bottom.
   const logRef = (el: HTMLDivElement) => {
+    logEl = el
     const atBottom = () => el.scrollHeight - el.scrollTop - el.clientHeight < 40
     el.addEventListener('scroll', () => {
       stickToBottom.current = atBottom()
@@ -406,25 +440,54 @@ export function ChatPanel(props: {
     onCleanup(() => observer.disconnect())
   }
 
-  const hydrate = async () => {
-    if (hydrateState.done) return
-    hydrateState.done = true
+  // Load (or switch to) a session's thread. First load just hydrates; a real switch stops any
+  // in-flight turn, shows the switching overlay, and load-then-swaps so the prior thread stays put
+  // on failure (never a blank panel). setMessages happens only after a successful fetch.
+  const loadSession = async (id: string | null) => {
+    const isSwitch = loadedSessionId.current !== null
+    setSwitchError(false)
+    if (isSwitch) {
+      chat.stop()
+      setSwitching(true)
+      logEl?.classList.add('pw-chat-hydrating')
+      props.announce?.('Loading session…')
+    }
     try {
-      const session = await api.session()
-      if (session.usage) setUsage(session.usage)
-      if (!session.sessionId) return
-      const prior = await api.history(session.sessionId)
-      if (prior.length > 0) chat.setMessages(prior)
+      const session = await client.session()
+      props.onSessionLabel?.(session.name)
+      setUsage(session.usage ?? null)
+      // No harness token → empty thread on a switch (the New-session action keeps scrollback instead).
+      if (session.harnessSessionId === null) {
+        if (isSwitch) chat.setMessages([])
+        loadedSessionId.current = id
+        void invalidateSessions(props.apiBase)
+        return
+      }
+      const prior = await client.history()
+      if (isSwitch || prior.length > 0) chat.setMessages(prior)
+      loadedSessionId.current = id
     } catch {
-      // No transcript / not resumable → start from the greeting.
+      // First load: just start from the greeting. A switch: keep the current thread + flag the error.
+      if (isSwitch) {
+        setSwitchError(true)
+        props.announce?.('Couldn’t load that session', true)
+      }
+    } finally {
+      setSwitching(false)
+      logEl?.classList.remove('pw-chat-hydrating')
     }
   }
 
-  // Hydrate + focus the composer the first time the surface becomes active.
+  // First activation hydrates; thereafter a sessionId change (resolve/switch) drives an in-place
+  // reload. client.sessionId() is reactive — it flips from null to our id once resolve lands.
   createEffect(() => {
-    if (!props.active) return
-    void hydrate()
-    requestAnimationFrame(() => inputEl?.focus())
+    const id = client.sessionId()
+    if (!props.active || !id) return
+    if (id === loadedSessionId.current) {
+      requestAnimationFrame(() => inputEl?.focus())
+      return
+    }
+    void loadSession(id).then(() => requestAnimationFrame(() => inputEl?.focus()))
   })
 
   // Grow the composer with its content up to the CSS max-height (120px), then it scrolls.
@@ -465,6 +528,17 @@ export function ChatPanel(props: {
   const dividersAt = (i: number) => dividers().filter((d) => d.afterCount === i)
   const resetUsage = () => setUsage(null)
 
+  // In-place new session (quick-terminal): mark a divider, resolve a fresh id, pre-mark it loaded so
+  // the reload is skipped (the prior thread stays as scrollback).
+  const startNewSession = async () => {
+    addDivider('new')
+    const {sessionId} = await client.resolve()
+    loadedSessionId.current = sessionId
+    client.setSessionId(sessionId)
+  }
+  // The surface's handler wins (the modal opens a fresh pane); else the in-place flow above.
+  const doNewSession = () => (props.onNewSession ? props.onNewSession() : startNewSession())
+
   // Compact the conversation. The turn runs OUT OF BAND — never through useChat — so NOTHING is
   // appended to the thread: no '/compact' command bubble, no summary. The divider is the only UI,
   // exactly like Claude Code's /compact. claude runs native /compact (emits no text anyway); other
@@ -479,10 +553,10 @@ export function ChatPanel(props: {
     if (chat.isLoading() || compacting()) return
     setPendingCompactId(addDivider('compact'))
     try {
-      const res = await fetch(api.chatUrl, {
+      const res = await fetch(client.chatStreamUrl(), {
         method: 'POST',
         credentials: 'include',
-        headers: {'content-type': 'application/json'},
+        headers: {'content-type': 'application/json', ...client.chatHeaders()},
         body: JSON.stringify({
           messages: [{role: 'user', content: '/compact'}],
           forwardedProps: {...requestMeta(), intent: 'compact'},
@@ -490,7 +564,7 @@ export function ChatPanel(props: {
       })
       await res.body?.pipeTo(new WritableStream())
       // Server persisted post-compaction usage on RUN_FINISHED → reflect the smaller context.
-      const session = await api.session()
+      const session = await client.session()
       if (session.usage) setUsage(session.usage)
     } catch {
       // network/abort — the divider stays; the tracker refreshes on the next real turn
@@ -518,7 +592,9 @@ export function ChatPanel(props: {
         insert,
         setBusy: (b) => setBusyAction(b ? a.id : null),
         apiBase: props.apiBase,
+        client,
         addDivider,
+        newSession: doNewSession,
         resetUsage,
         compact,
         notify,
@@ -595,6 +671,17 @@ export function ChatPanel(props: {
             </div>
           )}
         </Show>
+        <Show when={switchError()}>
+          <div class="pw-chat-error" role="alert">
+            <span class="pw-chat-error-msg">Couldn’t load that session</span>
+            <button type="button" class="pw-chat-retry" onClick={() => void loadSession(client.sessionId())}>
+              Retry
+            </button>
+          </div>
+        </Show>
+        <Show when={switching()}>
+          <div class="pw-chat-switching" role="status" aria-label="Loading session…" tabindex={-1} />
+        </Show>
       </div>
       <Show when={notice()}>
         <div class="pw-chat-notice">{notice()}</div>
@@ -669,12 +756,17 @@ export function chatPanelDef(apiBase: string): PanelDef {
   return {
     id: 'chat',
     title: 'aidx',
+    apiBase,
     create: (ctx) => (
       <ChatPanel
         apiBase={apiBase}
+        client={ctx.client}
         active={ctx.active()}
+        announce={ctx.announce}
         onWorkingChange={ctx.onWorkingChange}
         onUsageChange={ctx.onUsageChange}
+        onSessionLabel={ctx.onSessionLabel}
+        onNewSession={ctx.onNewSession}
         composerActions={ctx.composerActions}
         composerControls={ctx.composerControls}
       />

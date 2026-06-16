@@ -88,10 +88,29 @@ export type HarnessDecodeOpts = {
 // Turns the harness's raw stdout lines into the AG-UI StreamChunk stream, surfacing the session id.
 export type HarnessDecoder = (lines: AsyncIterable<string>, opts: HarnessDecodeOpts) => AsyncGenerator<StreamChunk>
 
+// One enumerated session from a harness's transcript store (for the session selector list). The
+// enrichment fields (gathered when cheap) are joined onto selector rows / persisted onto the record.
+export type HarnessSessionMeta = {
+  id: string
+  derivedTitle: string
+  updatedAt: number
+  messageCount: number
+  model?: string | null
+  totalTokens?: number
+  lastMessage?: string | null
+  createdAt?: number
+}
+
 // Where a harness persists a session's transcript, and how to parse it into UIMessages.
 export type HarnessHistory = {
   transcriptPath(cwd: string, sessionId: string): string
   parse(raw: string): UIMessage[]
+  // Optional human-readable session name derived from the transcript (e.g. claude's `summary`
+  // record). Harnesses that omit it fall back to a short id in the UI.
+  nameFromTranscript?(raw: string): string | null
+  // Enumerate the cwd's sessions, newest first, bounded. `home` is injectable for testing. Optional
+  // so a transcript adapter without enumeration still typechecks (the selector just stays empty).
+  list?(cwd: string, home?: string): HarnessSessionMeta[] | Promise<HarnessSessionMeta[]>
 }
 
 type HarnessAdapterBase = {

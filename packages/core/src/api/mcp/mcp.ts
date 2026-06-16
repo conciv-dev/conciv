@@ -2,6 +2,7 @@ import type {H3} from 'h3'
 import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js'
 import {WebStandardStreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import {aidxTools, type AidxToolContext} from '@aidx/tools'
+import {sessionIdFromHeaders} from '../chat/session-id.js'
 
 // Build an McpServer exposing the aidx tool registry bound to `ctx`. A fresh server + transport is
 // created per request: the stateless streamable-HTTP pattern isolates each client's request-id
@@ -20,9 +21,11 @@ function buildServer(ctx: AidxToolContext): McpServer {
 
 // Mount the MCP-over-HTTP server on core's existing h3 app. Web Standard transport: takes the
 // incoming web Request and returns a Response, so the route returns it directly — in-process, no
-// node-object bridge, no separate server.
-export function registerMcpRoutes(app: H3, ctx: AidxToolContext): void {
+// node-object bridge, no separate server. The ctx is built per request, bound to the caller's
+// header session id, so an agent's `aidx_ui` MCP tool injects onto its own turn's channel.
+export function registerMcpRoutes(app: H3, makeCtx: (sessionId: string) => AidxToolContext): void {
   app.post('/api/mcp', async (event) => {
+    const ctx = makeCtx(sessionIdFromHeaders(event.req.headers) ?? '') // '' = no live channel
     const transport = new WebStandardStreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
       enableJsonResponse: true,

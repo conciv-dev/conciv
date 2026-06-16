@@ -34,9 +34,11 @@ export async function start(opts: StartOpts): Promise<Engine> {
 
   // stdio:[…'pipe','pipe'] guarantees the pipes; narrow via a guard, never `!`.
   const portRef = {port: 0}
-  const spawnHarness = (args: string[], cwd: string): HarnessChild => {
+  const spawnHarness = (args: string[], cwd: string, sessionId?: string): HarnessChild => {
     const harnessBin = cfg.harnessBin ?? 'claude'
-    const env = opts.childEnv ? opts.childEnv(portRef.port) : process.env
+    const baseEnv = opts.childEnv ? opts.childEnv(portRef.port) : process.env
+    // The turn's header id rides the child env so the agent's aidx ui / permission hook echo it back.
+    const env = sessionId ? {...baseEnv, AIDX_SESSION_ID: sessionId} : baseEnv
     const child = spawn(harnessBin, args, {cwd, stdio: ['pipe', 'pipe', 'pipe'], env})
     const {stdin, stdout, stderr} = child
     if (!stdin || !stdout || !stderr) throw new Error(`harness "${harnessBin}" did not expose stdio pipes`)

@@ -664,7 +664,18 @@
   height: 1em;
   display: block;
 }
+/* Each modal session is its own mounted ChatPanel; only the active shows (others keep streaming). */
+.pw-modal-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.pw-modal-pane-hidden {
+  display: none;
+}
 .pw-chat-log {
+  position: relative;
   flex: 1;
   overflow-y: auto;
   padding: 14px;
@@ -1305,6 +1316,319 @@
   height: 15px;
 }
 
+/* Shared combo-popover entrance (session + model selectors). Close stays instant via [hidden]
+   (display:none) so it never lingers; only the open frame animates. */
+.pw-combo-content[data-state='open'] {
+  animation: pw-combo-in 120ms var(--pw-ease);
+}
+@keyframes pw-combo-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Session selector. `pill` = bordered (modal header, flexes with ellipsis); `bar` = borderless
+   (qt pane bar, inherits mono, dot + caret). */
+.pw-session-control {
+  display: inline-flex;
+  min-width: 0;
+}
+.pw-session-pill {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+/* Ghost chip: no chrome at rest (reads as a label), a hairline + soft fill lift in on hover/open.
+   A transparent border at rest reserves the 1px so the hover border never shifts layout. */
+.pw-session-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: 28px;
+  padding: 0 6px 0 8px;
+  border: 1px solid transparent;
+  border-radius: var(--pw-r-pill);
+  background: none;
+  color: var(--pw-text-2);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    color 120ms var(--pw-ease),
+    border-color 120ms var(--pw-ease),
+    background-color 120ms var(--pw-ease);
+}
+.pw-session-pill .pw-session-trigger {
+  width: 100%;
+}
+.pw-session-bar .pw-session-trigger {
+  border-color: transparent;
+  padding: 0;
+  font-family: var(--pw-font-mono);
+}
+.pw-session-trigger:hover {
+  color: var(--pw-text-hi);
+}
+.pw-session-pill .pw-session-trigger:hover,
+.pw-session-pill .pw-session-trigger[data-state='open'] {
+  border-color: var(--pw-line);
+  background: var(--pw-fill-soft);
+  color: var(--pw-text-hi);
+}
+.pw-session-trigger[aria-disabled='true'] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.pw-session-dot {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--pw-accent);
+}
+/* Fresh-session marker: accent spark in place of the status dot. */
+.pw-session-spark {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  color: var(--pw-accent);
+}
+.pw-session-current {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* New session reads as intentional (muted), not like a placeholder. */
+.pw-session-trigger[data-empty] .pw-session-current {
+  color: var(--pw-text-2);
+}
+.pw-session-caret {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  opacity: 0.45;
+  transition:
+    transform 160ms var(--pw-ease),
+    opacity 120ms var(--pw-ease);
+}
+.pw-session-trigger:hover .pw-session-caret,
+.pw-session-trigger[data-state='open'] .pw-session-caret {
+  opacity: 0.9;
+}
+.pw-session-trigger[data-state='open'] .pw-session-caret {
+  transform: rotate(180deg);
+}
+.pw-session-content[hidden] {
+  display: none;
+}
+.pw-session-content {
+  z-index: 10;
+  width: 280px;
+  max-height: 360px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  border: 1px solid var(--pw-line-2);
+  border-radius: var(--pw-r-md);
+  background: var(--pw-panel);
+  box-shadow: var(--pw-shadow-lg);
+}
+.pw-session-content:focus-visible {
+  outline: none;
+}
+.pw-session-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-bottom: 1px solid var(--pw-line-soft);
+  margin-bottom: 4px;
+}
+.pw-session-search,
+.pw-session-rename {
+  flex: 1;
+  min-width: 0;
+  height: 32px;
+  padding: 0 8px;
+  border: none;
+  background: transparent;
+  color: var(--pw-text);
+  font: inherit;
+  font-size: 13px;
+}
+.pw-session-search:focus,
+.pw-session-rename:focus {
+  outline: none;
+}
+.pw-session-search::placeholder {
+  color: var(--pw-text-3);
+}
+.pw-session-act {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: var(--pw-r-sm);
+  background: none;
+  color: var(--pw-text-2);
+  cursor: pointer;
+}
+.pw-session-act:hover {
+  background: var(--pw-fill-strong);
+  color: var(--pw-text-hi);
+}
+.pw-session-act[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.pw-session-list {
+  overflow-y: auto;
+  flex: 1;
+}
+.pw-session-group-label {
+  padding: 6px 8px 2px;
+  color: var(--pw-text-3);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.pw-session-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: var(--pw-r-sm);
+  color: var(--pw-text);
+  cursor: pointer;
+}
+.pw-session-item[data-highlighted] {
+  background: var(--pw-fill-strong);
+  color: var(--pw-text-hi);
+}
+.pw-session-item-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+.pw-session-item-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pw-session-item-meta {
+  color: var(--pw-text-3);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pw-session-origin {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  color: var(--pw-accent);
+  opacity: 0.8;
+}
+.pw-session-running {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--pw-success, #3fb950);
+  animation: pw-session-pulse 1.4s ease-in-out infinite;
+}
+@keyframes pw-session-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+.pw-session-check {
+  margin-left: auto;
+  color: var(--pw-accent);
+  display: none;
+}
+.pw-session-check[data-state='checked'] {
+  display: inline-flex;
+}
+.pw-session-empty,
+.pw-session-error {
+  padding: 10px 8px;
+  color: var(--pw-text-3);
+  font-size: 12px;
+}
+.pw-session-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.pw-session-retry {
+  border: 1px solid var(--pw-line);
+  border-radius: var(--pw-r-sm);
+  background: none;
+  color: var(--pw-text);
+  cursor: pointer;
+  padding: 2px 8px;
+  font-size: 11px;
+}
+.pw-session-loading {
+  padding: 6px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pw-session-skel {
+  height: 32px;
+  border-radius: var(--pw-r-sm);
+  background: linear-gradient(90deg, var(--pw-fill-soft) 25%, var(--pw-fill-strong) 50%, var(--pw-fill-soft) 75%);
+  background-size: 200% 100%;
+  animation: pw-session-skel 1.2s linear infinite;
+}
+@keyframes pw-session-skel {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+/* Suppress per-row entrance while a switched thread hydrates (only the container crossfades). */
+.pw-chat-hydrating .pw-chat-msg {
+  animation: none;
+}
+/* Brief overlay while a session switch loads its thread (role=status; composer disabled meanwhile). */
+.pw-chat-switching {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  background: color-mix(in srgb, var(--pw-panel) 60%, transparent);
+  animation: pw-chat-switching 1.2s ease-in-out infinite;
+}
+@keyframes pw-chat-switching {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
 /* While the element picker is active, the open surface (and FAB) become invisible AND
    click-through, so the page underneath is fully reachable by react-grab's overlay. Compound
    selectors keep specificity at parity with .pw-chat-open and win by source order. */
@@ -1906,6 +2230,18 @@
 }
 .pw-qt-pane-name {
   color: var(--pw-text-2);
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pw-qt-pane-name:hover {
+  color: var(--pw-text);
 }
 .pw-qt-pane-x {
   margin-left: auto;
@@ -2008,13 +2344,18 @@
   .pw-chat-glyph-ask,
   .pw-chat-caret,
   .pw-chat-dot,
+  .pw-session-skel,
+  .pw-session-running,
+  .pw-combo-content[data-state='open'],
+  .pw-chat-switching,
   .pw-chat-thinking-live > summary {
     animation: none;
   }
   .pw-chat-panel,
   .pw-chat-open,
   .pw-qt,
-  .pw-qt-pane {
+  .pw-qt-pane,
+  .pw-session-caret {
     transition: none;
   }
 }
@@ -2099,4 +2440,69 @@
   flex-direction: column;
   gap: 6px;
   background: var(--pw-panel-sunk);
+}
+
+/* Clickable session subtitle in the modal header (opens the session-info popover). */
+.pw-chat-subtitle {
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: none;
+  border: 0;
+  padding: 0 6px;
+  color: var(--pw-text-2);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.pw-chat-subtitle:hover {
+  color: var(--pw-text);
+}
+
+/* Floating UI popover + session-info card (session label chrome). */
+.pw-popover {
+  position: absolute;
+  z-index: 2147483647;
+  min-width: 220px;
+  max-width: 320px;
+  padding: 10px 12px;
+  border-radius: var(--pw-r-md);
+  background: var(--pw-panel);
+  color: var(--pw-text);
+  border: 1px solid var(--pw-line);
+  box-shadow: var(--pw-shadow-lg);
+  font-size: 12px;
+}
+.pw-session-info-name {
+  font-weight: 600;
+  margin-bottom: 6px;
+  word-break: break-word;
+}
+.pw-session-info-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+.pw-session-info-key {
+  opacity: 0.6;
+  width: 52px;
+  flex: none;
+}
+.pw-session-info-id {
+  font-family: var(--pw-font-mono);
+  word-break: break-all;
+}
+.pw-session-info-copy {
+  margin-left: auto;
+  flex: none;
+  cursor: pointer;
+  background: none;
+  border: 1px solid var(--pw-line);
+  border-radius: var(--pw-r-sm);
+  color: inherit;
+  padding: 1px 6px;
+  font-size: 11px;
 }

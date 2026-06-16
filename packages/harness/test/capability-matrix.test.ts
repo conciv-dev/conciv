@@ -27,4 +27,9 @@ describe('harness capability matrix', () => {
       })
     })
   }
+
+  it('claude exposes listSessions for the session selector', () => {
+    const claude = listHarnesses().find((a) => a.id === 'claude')
+    expect(typeof claude?.history?.list).toBe('function')
+  })
 })
