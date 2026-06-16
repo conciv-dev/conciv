@@ -22,6 +22,7 @@ const dirname = path.dirname(fileURLToPath(import.meta.url))
 const widgetBundle = fs.readFileSync(path.join(dirname, '../dist/aidx-widget.global.js'), 'utf8')
 
 const ASSISTANT_TEXT = 'Hello from aidx'
+const SWITCHED_REPLY = 'Reply from the switched session'
 const APPROVAL_QUESTION = 'Run a risky command?'
 const FAILING_TEST = 'rejects an expired token'
 const FAILURE_MESSAGE = 'expected 200 to be 401'
@@ -177,6 +178,15 @@ function writeCompactStream(res: ServerResponse): void {
   Readable.fromWeb(sse as Parameters<typeof Readable.fromWeb>[0]).pipe(res)
 }
 
+// Read a request body to a string.
+function readBody(req: IncomingMessage): Promise<string> {
+  return new Promise((resolve) => {
+    let body = ''
+    req.on('data', (c) => (body += c))
+    req.on('end', () => resolve(body))
+  })
+}
+
 // Read the POST body and report whether it's a compaction turn (intent rides forwardedProps/data).
 function readChatIntent(req: IncomingMessage): Promise<string> {
   return new Promise((resolve) => {
@@ -236,12 +246,16 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     server = createServer((req: IncomingMessage, res: ServerResponse) => {
       const url = req.url ?? ''
       // Probe → present, so the widget mounts the chat FAB + page-bus (production boot path).
-      if (url.startsWith('/api/chat/session')) {
+      // Header-aware: switching to tok-aidx reports a resumable session (source 'chat' + token) so
+      // ChatPanel hydrates its history. NB: exclude /sessions (startsWith would otherwise swallow it).
+      if (url.startsWith('/api/chat/session') && !url.startsWith('/api/chat/sessions')) {
+        const sid = req.headers['aidx-session-id']
+        const resumable = sid === 'tok-aidx'
         return writeJson(res, {
-          sessionId: 'default',
-          harnessId: null,
-          name: null,
-          source: 'new',
+          sessionId: typeof sid === 'string' ? sid : 'default',
+          harnessId: resumable ? 'tok-aidx' : null,
+          name: resumable ? 'Made in aidx' : null,
+          source: resumable ? 'chat' : 'new',
           cwd: '/app',
           lock: {held: false, role: null},
           usage: null,
@@ -259,7 +273,36 @@ describe('aidx widget (it) — real browser, real SSE', () => {
           defaultModel: 'sonnet',
         })
       }
-      if (url.startsWith('/api/chat/history')) return writeJson(res, [])
+      if (url.startsWith('/api/chat/sessions/title') && req.method === 'POST') {
+        void readBody(req).then((body) => {
+          const title = (() => {
+            try {
+              return (JSON.parse(body) as {title?: string}).title ?? ''
+            } catch {
+              return ''
+            }
+          })()
+          writeJson(res, {ok: true, title})
+        })
+        return
+      }
+      if (url.startsWith('/api/chat/sessions')) {
+        const nowMs = Date.now()
+        return writeJson(res, {
+          sessions: [
+            {id: 'tok-aidx', title: 'Made in aidx', updatedAt: nowMs, messageCount: 3, running: false, origin: 'aidx', usage: null},
+            {id: 'tok-ext', title: 'Made externally', updatedAt: nowMs, messageCount: 2, running: false, origin: 'external', usage: null},
+          ],
+        })
+      }
+      // Per-session history keyed by the aidx-session-id header: switching to tok-aidx loads a thread.
+      if (url.startsWith('/api/chat/history')) {
+        const sid = req.headers['aidx-session-id']
+        if (sid === 'tok-aidx') {
+          return writeJson(res, [{id: 'h1', role: 'assistant', parts: [{type: 'text', content: SWITCHED_REPLY}]}])
+        }
+        return writeJson(res, [])
+      }
       if (url === '/api/chat' && req.method === 'POST') {
         void readChatIntent(req).then((intent) => (intent === 'compact' ? writeCompactStream(res) : writeChatStream(res)))
         return
@@ -790,6 +833,55 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await trigger.click()
     await content.waitFor({state: 'visible'})
     expect(await content.locator('.pw-model-item').count()).toBe(4)
+    await page.close()
+  })
+
+  it('session selector: lists rows, marks aidx origin, switches by header, renames optimistically', async () => {
+    const page = await browser.newPage()
+    await page.goto(state.base)
+    const fab = page.getByRole('button', {name: 'Open aidx chat'})
+    await fab.waitFor({state: 'visible'})
+    await fab.click()
+    await page.getByText('How can I help you today?').waitFor({state: 'visible'})
+
+    // Open the selector pill in the modal header.
+    const trigger = page.locator('#pw-chat-panel .pw-session-trigger')
+    await trigger.click()
+    const content = page.locator('.pw-session-content')
+    await content.waitFor({state: 'visible'})
+
+    // Both scripted rows render; the aidx row shows the origin marker, the external one does not.
+    const aidxItem = content.locator('.pw-session-item', {hasText: 'Made in aidx'})
+    const extItem = content.locator('.pw-session-item', {hasText: 'Made externally'})
+    await aidxItem.waitFor({state: 'visible'})
+    await extItem.waitFor({state: 'visible'})
+    expect(await aidxItem.locator('.pw-session-origin').count()).toBe(1)
+    expect(await extItem.locator('.pw-session-origin').count()).toBe(0)
+
+    // Selecting tok-aidx fires a /history fetch carrying the new header; the thread swaps in.
+    const historyReq = page.waitForRequest(
+      (r) => r.url().includes('/api/chat/history') && r.headers()['aidx-session-id'] === 'tok-aidx',
+    )
+    await aidxItem.click()
+    await historyReq
+    await page.getByText(SWITCHED_REPLY).waitFor({state: 'visible'})
+
+    // Reopen, rename the now-active session — the optimistic title shows on the trigger immediately.
+    await trigger.click()
+    await content.waitFor({state: 'visible'})
+    await content.getByRole('button', {name: 'Rename current session'}).click()
+    const rename = page.locator('.pw-session-rename')
+    await rename.waitFor({state: 'visible'})
+    await rename.fill('Renamed thread')
+    await rename.press('Enter')
+    await page.waitForFunction(
+      () => {
+        const t = document.querySelector('[data-aidx-root]')?.shadowRoot?.querySelector('#pw-chat-panel .pw-session-current')
+        return (t?.textContent ?? '').includes('Renamed thread')
+      },
+      undefined,
+      {timeout: 3000},
+    )
     await page.close()
   })
 
