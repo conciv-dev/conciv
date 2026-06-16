@@ -9,7 +9,8 @@ describe('sessionIdFromHeaders', () => {
     const h = new Headers({'aidx-session-id': 'aidx_x'})
     expect(sessionIdFromHeaders(h)).toBe('aidx_x')
   })
-  it('rejects a malformed id → null', () => {
-    expect(sessionIdFromHeaders(new Headers({'aidx-session-id': 'no spaces!'}))).toBeNull()
+  it('throws 400 on a present-but-non-ours id (only our SessionId is accepted)', () => {
+    expect(() => sessionIdFromHeaders(new Headers({'aidx-session-id': 'no spaces!'}))).toThrow()
+    expect(() => sessionIdFromHeaders(new Headers({'aidx-session-id': 'raw-harness-token'}))).toThrow()
   })
 })

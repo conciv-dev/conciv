@@ -5,7 +5,6 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {ChatSessionsSchema} from '@aidx/protocol/chat-types'
-import {writeSession} from '../../../src/store/session-store.js'
 import {startTestServer, type SpawnHarness, type TestServer} from '../../helpers/server.js'
 
 // GET /api/chat/sessions joins the harness transcript list to the previewId map (origin/running/
@@ -47,31 +46,35 @@ describe('GET /api/chat/sessions + rename (IT, real temp ~/.claude)', () => {
     for (const h of homes.splice(0)) rmSync(h, {recursive: true, force: true})
   })
 
-  it('lists sessions with origin/title joined to the previewId map', async () => {
+  it('lists our records (origin aidx) joined to transcripts, plus unwrapped externals', async () => {
     const home = tmpHome()
     const cwd = process.cwd()
     const dir = projectDir(home, cwd)
-    seedTranscript(dir, 'tok-aidx', 'made in aidx')
+    // The fake harness mints 'sess-fake'; seed that transcript so our record joins it on title.
+    seedTranscript(dir, 'sess-fake', 'made in aidx')
     seedTranscript(dir, 'tok-ext', 'made in terminal')
     const server = await startTestServer({cwd, claudeHome: home, spawnHarness: fakeSpawn()})
     state.server = server
-    // Map a client uuid -> tok-aidx so origin resolves to 'aidx'; tok-ext stays external.
-    writeSession(server.stateRoot, server.previewId, 'uuid-1', 'tok-aidx')
+    // A chat-born session that runs a turn → record (origin chat) wrapping the minted 'sess-fake'.
+    const id = await server.resolve()
+    await server.postChat({id: 'm', role: 'user', parts: [{type: 'text', content: 'hi'}]}, id)
     const {sessions} = ChatSessionsSchema.parse(await (await server.getSessions()).json())
-    expect(sessions.find((s) => s.id === 'tok-aidx')?.origin).toBe('aidx')
+    expect(sessions.find((s) => s.id === id)?.origin).toBe('aidx')
+    expect(sessions.find((s) => s.id === id)?.title).toBe('made in aidx')
     expect(sessions.find((s) => s.id === 'tok-ext')?.origin).toBe('external')
-    expect(sessions.find((s) => s.id === 'tok-aidx')?.title).toBe('made in aidx')
   })
 
-  it('rename persists into the next list', async () => {
+  it('rename persists into the next list (keyed by our id)', async () => {
     const home = tmpHome()
     const cwd = process.cwd()
     seedTranscript(projectDir(home, cwd), 'tok-ext', 'made in terminal')
     const server = await startTestServer({cwd, claudeHome: home, spawnHarness: fakeSpawn()})
     state.server = server
-    await server.post('/api/chat/sessions/title', {sessionId: 'tok-ext', title: 'My title'})
+    // Adopt the external transcript → our aidx_ id, then rename by that id.
+    const id = await server.resolve('tok-ext')
+    await server.post('/api/chat/sessions/title', {sessionId: id, title: 'My title'})
     const {sessions} = ChatSessionsSchema.parse(await (await server.getSessions()).json())
-    expect(sessions.find((s) => s.id === 'tok-ext')?.title).toBe('My title')
+    expect(sessions.find((s) => s.id === id)?.title).toBe('My title')
   })
 
   it('rejects a bad session id', async () => {

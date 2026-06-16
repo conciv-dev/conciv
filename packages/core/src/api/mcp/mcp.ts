@@ -25,7 +25,7 @@ function buildServer(ctx: AidxToolContext): McpServer {
 // header session id, so an agent's `aidx_ui` MCP tool injects onto its own turn's channel.
 export function registerMcpRoutes(app: H3, makeCtx: (sessionId: string) => AidxToolContext): void {
   app.post('/api/mcp', async (event) => {
-    const ctx = makeCtx(sessionIdFromHeaders(event.req.headers))
+    const ctx = makeCtx(sessionIdFromHeaders(event.req.headers) ?? '') // '' = no live channel
     const transport = new WebStandardStreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
       enableJsonResponse: true,

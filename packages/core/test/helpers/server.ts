@@ -26,6 +26,8 @@ export type TestServer = {
   base: string
   stateRoot: string
   previewId: string
+  // Normalize any id (none/ours/harness) to our aidx_ id — the one-round-trip every client does first.
+  resolve: (id?: string) => Promise<string>
   post: (path: string, body: unknown, sessionId?: string) => Promise<Response>
   postChat: (message: unknown, sessionId?: string) => Promise<string>
   getSession: (sessionId?: string) => Promise<Response>
@@ -87,9 +89,13 @@ export async function startTestServer(opts: TestServerOpts = {}): Promise<TestSe
   const getSession = (sessionId?: string): Promise<Response> =>
     fetch(`${base}/api/chat/session`, {headers: sessionId ? {'aidx-session-id': sessionId} : {}})
   const getSessions = (): Promise<Response> => fetch(`${base}/api/chat/sessions`)
+  const resolve = async (id?: string): Promise<string> => {
+    const res = await post('/api/chat/session/resolve', id ? {id} : {})
+    return ((await res.json()) as {sessionId: string}).sessionId
+  }
   const close = async (): Promise<void> => {
     await server.close()
     rmSync(stateRoot, {recursive: true, force: true})
   }
-  return {base, stateRoot, previewId: cfg.previewId, post, postChat, getSession, getSessions, close}
+  return {base, stateRoot, previewId: cfg.previewId, resolve, post, postChat, getSession, getSessions, close}
 }

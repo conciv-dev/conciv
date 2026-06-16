@@ -7,7 +7,7 @@ import {platform} from 'node:os'
 import {type H3, readValidatedBody} from 'h3'
 import type {HarnessAdapter, HarnessLaunchContext, HarnessLaunchResult} from '@aidx/protocol/harness-types'
 import {ChatLaunchRequestSchema, type ChatLaunch} from '@aidx/protocol/chat-types'
-import type {SessionLookup} from './session.js'
+import type {SessionStore} from '../../store/session-store.js'
 import {sessionIdFromHeaders} from './session-id.js'
 
 // "Open in <harness>": build the harness's launch context (carrying the same model + mcpUrl the
@@ -17,7 +17,7 @@ import {sessionIdFromHeaders} from './session-id.js'
 export type LaunchRouteDeps = {
   cwd: string
   harness: HarnessAdapter
-  sessionFor: SessionLookup
+  store: SessionStore
 }
 
 //   POST /api/chat/launch → {supported, opened, command} — launches the header session's transcript
@@ -25,7 +25,8 @@ export function registerLaunchRoutes(app: H3, deps: LaunchRouteDeps): void {
   app.post('/api/chat/launch', async (event): Promise<ChatLaunch> => {
     if (!deps.harness.launch) return {supported: false, opened: false, command: null}
     const {model} = await readValidatedBody(event, ChatLaunchRequestSchema)
-    const token = deps.sessionFor(sessionIdFromHeaders(event.req.headers)).harnessSessionId
+    const sessionId = sessionIdFromHeaders(event.req.headers)
+    const token = sessionId ? ((await deps.store.get(sessionId))?.harnessSessionId ?? null) : null
     const origin = `http://${event.req.headers.get('host') ?? '127.0.0.1:3000'}`
     const ctx: HarnessLaunchContext = {
       cwd: deps.cwd,

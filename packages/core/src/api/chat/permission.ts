@@ -46,7 +46,7 @@ export function registerPermissionRoutes(app: H3, gate: PermissionGate, gated: b
     const parsed = await readValidatedBody(event, HookBodySchema.safeParse)
     const toolName = parsed.success ? parsed.data.tool_name : ''
     const toolInput = parsed.success ? parsed.data.tool_input : undefined
-    const sessionId = sessionIdFromHeaders(event.req.headers)
+    const sessionId = sessionIdFromHeaders(event.req.headers) ?? '' // '' = no live channel → fail safe
     const decision = gated ? await gate.decide(toolName, toolInput, sessionId) : 'allow'
     return {
       hookSpecificOutput: {

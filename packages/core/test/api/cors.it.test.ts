@@ -48,7 +48,7 @@ describe('engine CORS (IT, real http, cross-origin + credentials)', () => {
   it('answers the preflight (OPTIONS) for the probe route with 204 + echoed origin + credentials', async () => {
     const {server, base} = await startServer()
     state.server = server
-    const res = await fetch(`${base}/api/chat/session`, {
+    const res = await fetch(`${base}/api/chat/models`, {
       method: 'OPTIONS',
       headers: {
         origin: ORIGIN,
@@ -61,10 +61,10 @@ describe('engine CORS (IT, real http, cross-origin + credentials)', () => {
     expect(res.headers.get('access-control-allow-credentials')).toBe('true')
   })
 
-  it('echoes CORS headers on the actual probe GET /api/chat/session (never *)', async () => {
+  it('echoes CORS headers on the actual probe GET /api/chat/models (never *)', async () => {
     const {server, base} = await startServer()
     state.server = server
-    const res = await fetch(`${base}/api/chat/session`, {headers: {origin: ORIGIN}})
+    const res = await fetch(`${base}/api/chat/models`, {headers: {origin: ORIGIN}})
     expect(res.status).toBe(200)
     const allowOrigin = res.headers.get('access-control-allow-origin')
     expect(allowOrigin).toBe(ORIGIN)
