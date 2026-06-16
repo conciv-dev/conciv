@@ -11,8 +11,7 @@ export const newSessionAction: ComposerActionDef = {
   onClick: async (ctx) => {
     ctx.setBusy(true)
     try {
-      const {sessionId} = await ctx.client.resolve()
-      ctx.client.setSessionId(sessionId)
+      await ctx.newSession()
       ctx.addDivider('new')
       ctx.resetUsage()
     } finally {

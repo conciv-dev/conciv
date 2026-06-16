@@ -91,7 +91,10 @@ export function SessionSelector(props: {
   const [renaming, setRenaming] = createSignal(false)
   const [draft, setDraft] = createSignal('')
   const [renameBusy, setRenameBusy] = createSignal(false)
-  let renameBtn: HTMLButtonElement | undefined
+  let searchEl: HTMLInputElement | undefined
+  // After a rename ends, land focus back in the search box (not the pencil) — otherwise clicking the
+  // search toggles Ark's openOnClick and closes the still-open popover, so it reads as "can't click".
+  const focusSearch = () => requestAnimationFrame(() => searchEl?.focus())
   const startRename = () => {
     const row = activeRow()
     if (!row) return
@@ -100,7 +103,7 @@ export function SessionSelector(props: {
   }
   const cancelRename = () => {
     setRenaming(false)
-    renameBtn?.focus()
+    focusSearch()
   }
   const commitRename = () => {
     if (!renaming()) return
@@ -109,7 +112,7 @@ export function SessionSelector(props: {
     const id = props.client.sessionId() // the active row is always our id
     const next = draft().trim()
     if (!row || !id || !next || next === row.title) {
-      renameBtn?.focus()
+      focusSearch()
       return
     }
     const prev = row.title
@@ -129,7 +132,7 @@ export function SessionSelector(props: {
         setRenameBusy(false)
         void invalidateSessions(props.apiBase)
       })
-    renameBtn?.focus()
+    focusSearch()
   }
 
   // Switch / open an external row: resolve its id to ours (adopting an external transcript), then
@@ -229,11 +232,10 @@ export function SessionSelector(props: {
                 />
               }
             >
-              <Combobox.Input class="pw-session-search" placeholder="Search sessions…" />
+              <Combobox.Input class="pw-session-search" placeholder="Search sessions…" ref={(el) => (searchEl = el)} />
               <button
                 type="button"
                 class="pw-session-act"
-                ref={(el) => (renameBtn = el)}
                 aria-label="Rename current session"
                 aria-disabled={!canRename()}
                 onClick={() => canRename() && startRename()}

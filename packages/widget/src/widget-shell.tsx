@@ -62,6 +62,7 @@ export type ComposerActionContext = {
   // Session/thread lifecycle. The composer owns thread + usage state; actions drive it through these
   // rather than reaching into useChat.
   addDivider: (kind: 'new' | 'compact') => void // mark a session boundary in the scrollback (prior thread stays)
+  newSession: () => Promise<void> // resolve a fresh session + make it active, keeping the scrollback
   resetUsage: () => void // clear the context tracker (no turn ran)
   compact: () => Promise<void> // run the compaction turn out of band: marks a boundary, shows no chat output
   notify: (message: string) => void // transient status line above the composer (auto-dismisses)

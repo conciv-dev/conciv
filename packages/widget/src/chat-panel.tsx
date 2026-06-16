@@ -454,10 +454,9 @@ export function ChatPanel(props: {
       const session = await client.session()
       props.onSessionLabel?.(session.name)
       setUsage(session.usage ?? null)
-      // A new session (no harness token yet) has no transcript to hydrate. Keep whatever's on screen
-      // as scrollback (the "New session" divider sits above the next turn, Claude-Code style) — there
-      // is no server-side thread to replace it with.
+      // No harness token → empty thread on a switch (the New-session action keeps scrollback instead).
       if (session.harnessSessionId === null) {
+        if (isSwitch) chat.setMessages([])
         loadedSessionId.current = id
         void invalidateSessions(props.apiBase)
         return
@@ -527,6 +526,13 @@ export function ChatPanel(props: {
   const dividersAt = (i: number) => dividers().filter((d) => d.afterCount === i)
   const resetUsage = () => setUsage(null)
 
+  // New session: resolve a fresh id, pre-mark it loaded so the reload is skipped (keeps scrollback).
+  const startNewSession = async () => {
+    const {sessionId} = await client.resolve()
+    loadedSessionId.current = sessionId
+    client.setSessionId(sessionId)
+  }
+
   // Compact the conversation. The turn runs OUT OF BAND — never through useChat — so NOTHING is
   // appended to the thread: no '/compact' command bubble, no summary. The divider is the only UI,
   // exactly like Claude Code's /compact. claude runs native /compact (emits no text anyway); other
@@ -582,6 +588,7 @@ export function ChatPanel(props: {
         apiBase: props.apiBase,
         client,
         addDivider,
+        newSession: startNewSession,
         resetUsage,
         compact,
         notify,
