@@ -664,6 +664,16 @@
   height: 1em;
   display: block;
 }
+/* Each modal session is its own mounted ChatPanel; only the active shows (others keep streaming). */
+.pw-modal-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.pw-modal-pane-hidden {
+  display: none;
+}
 .pw-chat-log {
   position: relative;
   flex: 1;

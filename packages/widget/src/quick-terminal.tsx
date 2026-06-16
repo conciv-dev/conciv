@@ -261,8 +261,8 @@ export function QuickTerminalLayout(props: {
                   <SessionSelector
                     variant="bar"
                     apiBase={props.panel.apiBase ?? ''}
-                    client={pane.client}
-                    busy={pane.working}
+                    activeId={() => pane.client.sessionId()}
+                    onActivate={(id) => pane.client.setSessionId(id)}
                     lockedElsewhere={(id) => (sessions().find((s) => s.id === id)?.running ?? false) && id !== pane.client.sessionId()}
                     announce={props.announce}
                   />

@@ -1,8 +1,8 @@
 import {createSignal, createEffect, For, Show, onMount, type JSX} from 'solid-js'
 import {Combobox, useListCollection} from '@ark-ui/solid/combobox'
 import {Check, ChevronDown, Sparkles, SquarePen, Plus} from 'lucide-solid'
-import type {ChatSessionMeta} from '@aidx/protocol/chat-types'
-import type {SessionClient} from './session-client.js'
+import type {ChatSessionMeta, SessionId} from '@aidx/protocol/chat-types'
+import {defineClient} from './session-client.js'
 import {sessions, status, loadSessions, invalidateSessions, applyTitle} from './session-store-client.js'
 
 // One id-prefix per mounted instance so two selectors under one shadow root never share Ark's
@@ -51,14 +51,17 @@ function groupsOf(list: ChatSessionMeta[], now: number): {name: string; items: C
 export function SessionSelector(props: {
   variant: 'pill' | 'bar'
   apiBase: string
-  // This surface's client — owns the active aidx_ id; switch/new resolve through it, rename posts to it.
-  client: SessionClient
-  busy: () => boolean
+  // The active session id, and a callback to make a (resolved) session active. The selector owns the
+  // resolve (adopting an external row id) + rename; the surface owns what "active" means.
+  activeId: () => SessionId | null
+  onActivate: (id: SessionId) => void
   lockedElsewhere: (id: string) => boolean
   announce: (msg: string, assertive?: boolean) => void
 }): JSX.Element {
   const idPrefix = `pw-session-${++instanceSeq}`
-  const activeId = () => props.client.sessionId()
+  // Header-less: resolve takes the id in its body, rename takes the sessionId in its body.
+  const api = defineClient({apiBase: props.apiBase})
+  const activeId = () => props.activeId()
   // Narrowed to a plain string[] for Ark's controlled value (drops null without a cast).
   const valueArr = (): string[] => {
     const id = activeId()
@@ -109,7 +112,7 @@ export function SessionSelector(props: {
     if (!renaming()) return
     setRenaming(false)
     const row = activeRow()
-    const id = props.client.sessionId() // the active row is always our id
+    const id = props.activeId() // the active row is always our id
     const next = draft().trim()
     if (!row || !id || !next || next === row.title) {
       focusSearch()
@@ -118,7 +121,7 @@ export function SessionSelector(props: {
     const prev = row.title
     applyTitle(id, next) // optimistic
     setRenameBusy(true)
-    void props.client
+    void api
       .rename({sessionId: id, title: next})
       .then((r) => {
         applyTitle(id, r.title)
@@ -136,12 +139,12 @@ export function SessionSelector(props: {
   }
 
   // Switch / open an external row: resolve its id to ours (adopting an external transcript), then
-  // make it active. resolve is the only call that may carry a non-ours row id.
+  // hand it to the surface. resolve is the only call that may carry a non-ours row id.
   const select = (id: string) => {
-    if (!id || id === activeId() || props.busy()) return
+    if (!id || id === activeId()) return
     const title = sessions().find((s) => s.id === id)?.title ?? id
-    void props.client.resolve({id}).then(({sessionId}) => {
-      props.client.setSessionId(sessionId)
+    void api.resolve({id}).then(({sessionId}) => {
+      props.onActivate(sessionId)
       props.announce(`Switched to ${title}`)
       void invalidateSessions(props.apiBase)
     })
@@ -149,8 +152,8 @@ export function SessionSelector(props: {
 
   // New session: resolve with no id → a fresh aidx_ record, then make it active.
   const newSession = () => {
-    void props.client.resolve().then(({sessionId}) => {
-      props.client.setSessionId(sessionId)
+    void api.resolve().then(({sessionId}) => {
+      props.onActivate(sessionId)
       props.announce('Started a new session')
       void invalidateSessions(props.apiBase)
     })
@@ -190,10 +193,6 @@ export function SessionSelector(props: {
           class="pw-session-trigger"
           data-empty={canRename() ? undefined : ''}
           aria-label={`Session: ${triggerLabel()}`}
-          aria-disabled={props.busy()}
-          onClick={(e) => {
-            if (props.busy()) e.preventDefault()
-          }}
         >
           {/* Leading marker: a status dot for a live session, an accent spark for a fresh one. */}
           <Show when={canRename()} fallback={<Sparkles class="pw-session-spark" aria-hidden="true" />}>
@@ -242,16 +241,7 @@ export function SessionSelector(props: {
               >
                 <SquarePen class="pw-icon" aria-hidden="true" />
               </button>
-              <button
-                type="button"
-                class="pw-session-act"
-                aria-label="New session"
-                aria-disabled={props.busy()}
-                onClick={() => {
-                  if (props.busy()) return
-                  newSession()
-                }}
-              >
+              <button type="button" class="pw-session-act" aria-label="New session" onClick={() => newSession()}>
                 <Plus class="pw-icon" aria-hidden="true" />
               </button>
             </Show>

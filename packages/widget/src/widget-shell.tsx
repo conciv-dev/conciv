@@ -1,4 +1,4 @@
-import {createEffect, createSignal, onCleanup, Show, type Component, type JSX} from 'solid-js'
+import {createEffect, createSignal, For, onCleanup, Show, type Component, type JSX} from 'solid-js'
 import {render} from 'solid-js/web'
 import {EnvironmentProvider} from '@ark-ui/solid/environment'
 import type {TriggerPosition} from '@aidx/protocol/config-types'
@@ -34,6 +34,8 @@ export type PanelContext = {
   client: SessionClient
   // The content reports its resolved session name, so the chrome can surface a just-born row.
   onSessionLabel?: (name: string | null) => void
+  // Optional "new session" handler the surface provides (the modal opens a fresh panel).
+  onNewSession?: () => void | Promise<void>
   // Shell-level live-region writer (outside any inert pane) for switch/error announcements.
   announce?: (msg: string, assertive?: boolean) => void
   // Composer-action buttons registered on the shell, rendered in each panel's composer row.
@@ -62,7 +64,7 @@ export type ComposerActionContext = {
   // Session/thread lifecycle. The composer owns thread + usage state; actions drive it through these
   // rather than reaching into useChat.
   addDivider: (kind: 'new' | 'compact') => void // mark a session boundary in the scrollback (prior thread stays)
-  newSession: () => Promise<void> // resolve a fresh session + make it active, keeping the scrollback
+  newSession: () => void | Promise<void> // start a fresh session (modal opens a new pane; else in-place)
   resetUsage: () => void // clear the context tracker (no turn ran)
   compact: () => Promise<void> // run the compaction turn out of band: marks a boundary, shows no chat output
   notify: (message: string) => void // transient status line above the composer (auto-dismisses)
@@ -216,11 +218,15 @@ function Shell(props: {
   )
 }
 
-// Focusable controls inside the open dialog, in DOM order — used to wrap Tab focus.
+// One mounted session view in the modal (its own ChatPanel + working/usage signals), keyed by our id.
+type ModalPane = {id: SessionId; content: JSX.Element; working: () => boolean; usage: () => UsageSnapshot | null}
+
+// Focusable controls inside the open dialog, in DOM order — used to wrap Tab focus. Skips controls in
+// a hidden (inactive) session pane so the trap only spans the visible pane + chrome.
 function focusablesIn(root: HTMLElement): HTMLElement[] {
   return Array.from(
     root.querySelectorAll<HTMLElement>('button, textarea, input, select, a[href], [tabindex]:not([tabindex="-1"])'),
-  ).filter((el) => !el.hasAttribute('disabled'))
+  ).filter((el) => !el.hasAttribute('disabled') && !el.closest('.pw-modal-pane-hidden'))
 }
 
 function panelClass(open: boolean, position: TriggerPosition): string {
@@ -248,36 +254,58 @@ function ModalLayout(props: {
   onOpen: () => void
   onClose: () => void
 }): JSX.Element {
-  const [working, setWorking] = createSignal(false)
-  const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
-  // The modal's session client owns the active aidx_ id (the `aidx-session-id` header). It's seeded
-  // from localStorage (per-origin = per-cwd) and, if none, a fresh session is resolved up front so the
-  // first turn always has an id. Every change persists. The client is the single comms seam.
-  const client = defineClient({apiBase: props.panel.apiBase ?? ''})
+  // One ChatPanel per visited session, all mounted (so a background turn keeps streaming + persists),
+  // the active one shown. Switching is a pure view swap — it never tears down or kills a turn.
+  const [activeId, setActiveId] = createSignal<SessionId | null>(null)
+  const [panes, setPanes] = createSignal<ModalPane[]>([])
+  createEffect(() => writeStorage('aidx-active-session', activeId()))
+  const apiBase = props.panel.apiBase ?? ''
+
+  const mountPane = (id: SessionId) => {
+    if (panes().some((p) => p.id === id)) return
+    const client = defineClient({apiBase})
+    client.setSessionId(id)
+    const [working, setWorking] = createSignal(false)
+    const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
+    const content = props.panel.create({
+      active: () => props.open() && activeId() === id,
+      onWorkingChange: setWorking,
+      onUsageChange: setUsage,
+      onSessionLabel: (name) => mergeSurface(id, makeSurfaceRow(id, name)),
+      client,
+      onNewSession: () => void activateNew(),
+      announce: props.announce,
+      composerActions: props.composerActions,
+      composerControls: props.composerControls,
+    })
+    setPanes((prev) => [...prev, {id, content, working, usage}])
+  }
+  // Make a session active, mounting its pane on first visit.
+  const activate = (id: SessionId) => {
+    mountPane(id)
+    setActiveId(id)
+  }
+  // New session: resolve a fresh id, then open + activate its pane.
+  const activateNew = async () => {
+    const {sessionId} = await defineClient({apiBase}).resolve()
+    activate(sessionId)
+  }
+  // Seed: restore the persisted active session, else resolve a fresh one up front.
   const restored = readStorage('aidx-active-session', parseActiveId, undefined)
-  if (restored) client.setSessionId(restored)
-  else void client.resolve().then((r) => client.setSessionId(r.sessionId))
-  createEffect(() => writeStorage('aidx-active-session', client.sessionId()))
+  if (restored) activate(restored)
+  else void activateNew()
+
+  // The chrome (FAB pulse, context tracker, selector busy) reflects the ACTIVE pane.
+  const activePane = () => panes().find((p) => p.id === activeId())
+  const working = () => activePane()?.working() ?? false
+  const usage = () => activePane()?.usage() ?? null
+
   const fab = createDraggablePosition({initial: props.position, storageKey: 'aidx-fab-position'})
   const pip = createPiP()
   let fabEl: HTMLButtonElement | undefined
   let panelEl: HTMLElement | undefined
 
   const fabPulsing = () => !props.open() && working()
-  const content = props.panel.create({
-    active: () => props.open(),
-    onWorkingChange: setWorking,
-    onUsageChange: setUsage,
-    // Surface a just-born session as a row (keyed by our id) before its transcript flushes.
-    onSessionLabel: (name) => {
-      const id = client.sessionId()
-      mergeSurface(id, id ? makeSurfaceRow(id, name) : null)
-    },
-    client,
-    announce: props.announce,
-    composerActions: props.composerActions,
-    composerControls: props.composerControls,
-  })
 
   // The panel resizes off whichever edges are free (away from its anchored corner): a bottom-anchored
   // panel grows height upward, a top/middle one downward; a right-anchored panel grows width leftward,
@@ -379,9 +407,9 @@ function ModalLayout(props: {
           <SessionSelector
             variant="pill"
             apiBase={props.panel.apiBase ?? ''}
-            client={client}
-            busy={working}
-            lockedElsewhere={(id) => (sessions().find((s) => s.id === id)?.running ?? false) && id !== client.sessionId()}
+            activeId={activeId}
+            onActivate={activate}
+            lockedElsewhere={(id) => (sessions().find((s) => s.id === id)?.running ?? false) && id !== activeId()}
             announce={props.announce}
           />
           <ContextTracker usage={usage()} />
@@ -389,7 +417,10 @@ function ModalLayout(props: {
             <ChevronDown class="pw-chevron" aria-hidden="true" />
           </button>
         </header>
-        {content}
+        {/* Every visited session stays mounted (background turns keep streaming); only the active shows. */}
+        <For each={panes()}>
+          {(p) => <div class="pw-modal-pane" classList={{'pw-modal-pane-hidden': activeId() !== p.id}}>{p.content}</div>}
+        </For>
       </section>
       <button
         type="button"

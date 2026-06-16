@@ -316,6 +316,8 @@ export function ChatPanel(props: {
   onUsageChange?: (usage: UsageSnapshot | null) => void
   // Reports the resolved session name for the chrome to surface a just-born row.
   onSessionLabel?: (name: string | null) => void
+  // The surface's "new session" handler (modal opens a fresh panel); absent → in-place new session.
+  onNewSession?: () => void | Promise<void>
 }): JSX.Element {
   const client = props.client
   const [genUi, setGenUi] = createSignal<UiSpec[]>([])
@@ -526,12 +528,16 @@ export function ChatPanel(props: {
   const dividersAt = (i: number) => dividers().filter((d) => d.afterCount === i)
   const resetUsage = () => setUsage(null)
 
-  // New session: resolve a fresh id, pre-mark it loaded so the reload is skipped (keeps scrollback).
+  // In-place new session (quick-terminal): mark a divider, resolve a fresh id, pre-mark it loaded so
+  // the reload is skipped (the prior thread stays as scrollback).
   const startNewSession = async () => {
+    addDivider('new')
     const {sessionId} = await client.resolve()
     loadedSessionId.current = sessionId
     client.setSessionId(sessionId)
   }
+  // The surface's handler wins (the modal opens a fresh pane); else the in-place flow above.
+  const doNewSession = () => (props.onNewSession ? props.onNewSession() : startNewSession())
 
   // Compact the conversation. The turn runs OUT OF BAND — never through useChat — so NOTHING is
   // appended to the thread: no '/compact' command bubble, no summary. The divider is the only UI,
@@ -588,7 +594,7 @@ export function ChatPanel(props: {
         apiBase: props.apiBase,
         client,
         addDivider,
-        newSession: startNewSession,
+        newSession: doNewSession,
         resetUsage,
         compact,
         notify,
@@ -760,6 +766,7 @@ export function chatPanelDef(apiBase: string): PanelDef {
         onWorkingChange={ctx.onWorkingChange}
         onUsageChange={ctx.onUsageChange}
         onSessionLabel={ctx.onSessionLabel}
+        onNewSession={ctx.onNewSession}
         composerActions={ctx.composerActions}
         composerControls={ctx.composerControls}
       />

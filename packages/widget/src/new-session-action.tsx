@@ -1,9 +1,8 @@
 import {SquarePen} from 'lucide-solid'
 import type {ComposerActionDef} from './widget-shell.js'
 
-// New session: resolve a fresh aidx_ session and make it active, then mark a boundary in the
-// scrollback and clear the context tracker. The prior thread stays on screen above the divider
-// (scrollable, Claude-Code style); the next message streams below it as a fresh session.
+// New session: hand off to the surface (the modal opens a fresh pane; the quick-terminal starts a
+// new session in place with a divider) and clear the context tracker.
 export const newSessionAction: ComposerActionDef = {
   id: 'new-session',
   label: 'Start a new session',
@@ -12,7 +11,6 @@ export const newSessionAction: ComposerActionDef = {
     ctx.setBusy(true)
     try {
       await ctx.newSession()
-      ctx.addDivider('new')
       ctx.resetUsage()
     } finally {
       ctx.setBusy(false)

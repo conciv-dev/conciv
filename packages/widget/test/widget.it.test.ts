@@ -401,7 +401,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await page.close()
   })
 
-  it('New session: posts the reset, draws a boundary, and keeps the prior thread scrollable', async () => {
+  it('New session: opens a fresh empty session (resolve); the prior session is preserved in a hidden pane', async () => {
     const page = await browser.newPage()
     await page.goto(state.base)
     const fab = page.getByRole('button', {name: 'Open aidx chat'})
@@ -412,14 +412,14 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await composer.press('Enter')
     await page.getByText(ASSISTANT_TEXT).waitFor({state: 'visible'})
 
-    // Clicking New session resolves a fresh aidx_ session and marks a boundary in the thread.
+    // Clicking New session resolves a fresh aidx_ session and opens it as a new pane.
     const reset = page.waitForRequest((r) => r.url().endsWith('/api/chat/session/resolve') && r.method() === 'POST')
     await page.getByRole('button', {name: 'Start a new session'}).click()
     await reset
 
-    // The boundary shows AND the prior reply stays on screen (scrollback preserved, not wiped).
-    await page.locator('.pw-chat-divider', {hasText: 'New session'}).waitFor({state: 'visible'})
-    expect(await page.getByText(ASSISTANT_TEXT).count()).toBe(1)
+    // The fresh pane shows the greeting; the prior reply is preserved but in the now-hidden pane.
+    await page.getByText('How can I help you today?').waitFor({state: 'visible'})
+    expect(await page.getByText(ASSISTANT_TEXT).isVisible()).toBe(false)
     await page.close()
   })
 
