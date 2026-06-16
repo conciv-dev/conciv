@@ -21,8 +21,10 @@ export type TestServerOpts = {
 export type TestServer = {
   base: string
   stateRoot: string
-  post: (path: string, body: unknown) => Promise<Response>
-  postChat: (message: unknown) => Promise<string>
+  previewId: string
+  post: (path: string, body: unknown, sessionId?: string) => Promise<Response>
+  postChat: (message: unknown, sessionId?: string) => Promise<string>
+  getSession: (sessionId?: string) => Promise<Response>
   close: () => Promise<void>
 }
 
@@ -63,12 +65,19 @@ export async function startTestServer(opts: TestServerOpts = {}): Promise<TestSe
   await server.ready()
   const base = new URL(server.url ?? '').origin
 
-  const post = (path: string, body: unknown): Promise<Response> =>
-    fetch(`${base}${path}`, {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify(body)})
-  const postChat = async (message: unknown): Promise<string> => (await post('/api/chat', {messages: [message]})).text()
+  const post = (path: string, body: unknown, sessionId?: string): Promise<Response> =>
+    fetch(`${base}${path}`, {
+      method: 'POST',
+      headers: {'content-type': 'application/json', ...(sessionId ? {'aidx-session-id': sessionId} : {})},
+      body: JSON.stringify(body),
+    })
+  const postChat = async (message: unknown, sessionId?: string): Promise<string> =>
+    (await post('/api/chat', {messages: [message]}, sessionId)).text()
+  const getSession = (sessionId?: string): Promise<Response> =>
+    fetch(`${base}/api/chat/session`, {headers: sessionId ? {'aidx-session-id': sessionId} : {}})
   const close = async (): Promise<void> => {
     await server.close()
     rmSync(stateRoot, {recursive: true, force: true})
   }
-  return {base, stateRoot, post, postChat, close}
+  return {base, stateRoot, previewId: cfg.previewId, post, postChat, getSession, close}
 }
