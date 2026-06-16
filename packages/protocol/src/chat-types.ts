@@ -122,6 +122,9 @@ export const HarnessModelSchema = z.object({
 export const ChatModelsSchema = z.object({
   models: z.array(HarnessModelSchema),
   defaultModel: z.string().nullable(),
+  // The active harness's identity + whether it supports "open in <harness>". Lives on this
+  // non-session route so the widget can gate/label the launch button before resolving a session.
+  harness: z.object({id: z.string(), name: z.string(), canLaunch: z.boolean()}),
 })
 export type HarnessModelInfo = z.infer<typeof HarnessModelSchema>
 export type ChatModels = z.infer<typeof ChatModelsSchema>

@@ -136,7 +136,15 @@ export function registerSessionRoutes(app: H3, deps: SessionRouteDeps): void {
   app.get('/api/chat/models', async (): Promise<ChatModels> => {
     const models = await resolveHarnessModels(deps.harness)
     const defaultModel = deps.harness.defaultModel ?? models[0]?.id ?? null
-    return {models, defaultModel}
+    return {
+      models,
+      defaultModel,
+      harness: {
+        id: deps.harness.id,
+        name: deps.harness.displayName ?? deps.harness.id,
+        canLaunch: Boolean(deps.harness.launch),
+      },
+    }
   })
 
   // GET /api/chat/history → prior turns for our id (record.harnessSessionId ? transcript : []).

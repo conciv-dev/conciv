@@ -4,6 +4,7 @@ import {
   isMutating,
   PageQueryInputSchema,
   PageQueryKindSchema,
+  PageReplySchema,
   type PageQuery,
   type PageQueryInput,
 } from '@aidx/protocol/page-types'
@@ -92,5 +93,4 @@ function pageArgs(input: PageQueryInput): Record<string, unknown> {
   return Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined))
 }
 
-const PageReplySchema = z.object({requestId: z.string(), data: z.record(z.string(), z.unknown()).default({})})
 const VerbParamsSchema = z.object({verb: PageQueryKindSchema})

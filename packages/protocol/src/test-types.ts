@@ -6,6 +6,11 @@ import {z} from 'zod'
 export const TestStateSchema = z.enum(['pass', 'fail', 'skip'])
 export type TestState = z.infer<typeof TestStateSchema>
 
+// POST /api/editor/open body — "open this file at this line" from the test card. Shared by core
+// (validation) and the widget transport (typing).
+export const EditorOpenSchema = z.object({file: z.string().min(1), line: z.number().optional()})
+export type EditorOpen = z.infer<typeof EditorOpenSchema>
+
 export const TestErrorSchema = z.object({
   file: z.string(),
   name: z.string(),
