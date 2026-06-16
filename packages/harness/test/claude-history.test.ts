@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest'
-import {parseHistory} from '../src/claude/history.js'
+import {parseHistory, claudeHistory} from '../src/claude/history.js'
 
 // claude records a user turn (from `-p "text"`) with message.content as a plain STRING, while
 // assistant turns use a content-block array. History must keep both — on refresh the widget
@@ -21,5 +21,21 @@ describe('parseHistory', () => {
 
     const user = msgs.find((m) => m.role === 'user')
     expect(user?.parts).toContainEqual({type: 'text', content: 'what else can you do?'})
+  })
+})
+
+describe('claudeHistory.nameFromTranscript', () => {
+  it('returns the last summary record', () => {
+    const jsonl = [
+      JSON.stringify({type: 'summary', summary: 'First guess'}),
+      JSON.stringify({type: 'user', message: {content: 'hi'}}),
+      JSON.stringify({type: 'summary', summary: 'Fix the checkout layout bug'}),
+    ].join('\n')
+    expect(claudeHistory.nameFromTranscript?.(jsonl)).toBe('Fix the checkout layout bug')
+  })
+
+  it('returns null when there is no summary', () => {
+    const jsonl = JSON.stringify({type: 'user', message: {content: 'hi'}})
+    expect(claudeHistory.nameFromTranscript?.(jsonl)).toBeNull()
   })
 })

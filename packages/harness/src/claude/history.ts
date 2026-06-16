@@ -96,5 +96,23 @@ export function parseHistory(jsonl: string): UIMessage[] {
   return out
 }
 
+const SummaryRecordSchema = z.object({type: z.literal('summary'), summary: z.string()}).loose()
+
+// The last `summary` record claude wrote for this transcript, or null if none.
+export function nameFromTranscript(jsonl: string): string | null {
+  let name: string | null = null
+  for (const line of jsonl.split('\n')) {
+    const trimmed = line.trim()
+    if (!trimmed) continue
+    try {
+      const parsed = SummaryRecordSchema.safeParse(JSON.parse(trimmed))
+      if (parsed.success && parsed.data.summary) name = parsed.data.summary
+    } catch {
+      // not JSON — skip
+    }
+  }
+  return name
+}
+
 // Claude's HarnessHistory implementation.
-export const claudeHistory: HarnessHistory = {transcriptPath, parse: parseHistory}
+export const claudeHistory: HarnessHistory = {transcriptPath, parse: parseHistory, nameFromTranscript}
