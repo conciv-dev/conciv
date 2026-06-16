@@ -1,17 +1,26 @@
 // Chat session + history client against @aidx/core's /api/chat* routes. On resume the
 // widget hydrates the thread from the prior session. Identity travels in the AIDX_SESSION_HEADER
 // on every request, so one ChatApi instance is bound to one session id.
+import {z} from 'zod'
 import type {UIMessage} from '@tanstack/ai-client'
 import {
   ChatSessionSchema,
   ChatHistorySchema,
   ChatModelsSchema,
   ChatLaunchSchema,
+  ChatSessionsSchema,
   AIDX_SESSION_HEADER,
   type ChatSession,
   type ChatModels,
   type ChatLaunch,
+  type ChatSessionMeta,
 } from '@aidx/protocol/chat-types'
+
+const RenameResp = z.object({ok: z.boolean(), title: z.string()})
+
+// The list fetch's outcome: 'unsupported' (no transcript harness → hide the selector), 'error'
+// (transient → offer Retry), or 'ok'.
+export type SessionsResult = {status: 'ok' | 'unsupported' | 'error'; sessions: ChatSessionMeta[]}
 
 function metaContent(name: string): string {
   return document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content ?? ''
@@ -41,6 +50,8 @@ export type ChatApi = {
   session: () => Promise<ChatSession>
   models: () => Promise<ChatModels>
   history: () => Promise<UIMessage[]>
+  sessions: () => Promise<SessionsResult>
+  renameSession: (sessionId: string, title: string) => Promise<string>
   newSession: () => Promise<Response>
   deleteSession: () => Promise<Response>
   launch: (req?: {model?: string}) => Promise<ChatLaunch>
@@ -66,6 +77,28 @@ export function createChatApi(deps: {apiBase?: string; sessionId?: string} = {})
     history: async () => {
       const res = await fetch(`${base}/api/chat/history`, {credentials: 'include', headers: sessionHeaders()})
       return ChatHistorySchema.parse(await res.json())
+    },
+    // The cwd's sessions for the selector. 404 → harness has no transcript list (hide the selector).
+    sessions: async () => {
+      try {
+        const res = await fetch(`${base}/api/chat/sessions`, {credentials: 'include'})
+        if (res.status === 404) return {status: 'unsupported', sessions: []}
+        if (!res.ok) return {status: 'error', sessions: []}
+        return {status: 'ok', sessions: ChatSessionsSchema.parse(await res.json()).sessions}
+      } catch {
+        return {status: 'error', sessions: []}
+      }
+    },
+    // Set a session's user title; returns the server-sanitized title actually stored.
+    renameSession: async (sessionId: string, title: string) => {
+      const res = await fetch(`${base}/api/chat/sessions/title`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({sessionId, title}),
+      })
+      if (!res.ok) throw new Error('rename failed')
+      return RenameResp.parse(await res.json()).title
     },
     // Forget the resume pointer so the next turn starts a fresh session (server-side reset).
     newSession: () =>
