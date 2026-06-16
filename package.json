@@ -6,6 +6,7 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
+    "prepare": "prek install",
     "dev": "turbo run dev --filter=tanstack-start-example",
     "dev:site": "turbo run dev --filter=site",
     "build": "turbo run build",
@@ -16,6 +17,7 @@
     "format:check": "oxfmt --check ."
   },
   "devDependencies": {
+    "@j178/prek": "^0.4.5",
     "@types/node": "^22.19.21",
     "netlify-cli": "^26.1.0",
     "oxfmt": "^0.54.0",

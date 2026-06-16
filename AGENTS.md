@@ -9,8 +9,9 @@ README.md; this file is the non-obvious operational rules.
 - Build: `pnpm build`. Typecheck: `pnpm typecheck`. Test: `pnpm test`. Lint: `pnpm lint`
   (oxlint). Format: `pnpm format:check` / `pnpm format` (oxfmt).
 - `pnpm test` builds first (`turbo run test` dependsOn `build`). Don't hand-rebuild `dist/` — use turbo.
-- Commit hooks: `prek` (`.pre-commit-config.yaml`) runs oxfmt + oxlint on staged files. Run `prek install`
-  once per clone. Whole-project gates (typecheck/build/test) are not in hooks — run them manually.
+- Commit hooks: `prek` (devDep `@j178/prek`, config `.pre-commit-config.yaml`) runs oxfmt + oxlint on
+  staged files. `pnpm install` auto-activates the hook via the `prepare` script — no per-clone step.
+  Whole-project gates (typecheck/build/test) are not in hooks — run them manually.
 
 ## Code style
 
