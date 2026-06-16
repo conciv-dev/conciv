@@ -11,7 +11,8 @@ import {ChevronDown, Crosshair, PictureInPicture2} from 'lucide-solid'
 import {picking, cancelPick} from './react-grab/picking.js'
 import {ContextTracker} from './context-tracker.js'
 import {SessionSelector} from './session-selector.js'
-import {sessions} from './session-store-client.js'
+import {sessions, status} from './session-store-client.js'
+import {createPersistedSignal} from './persisted-signal.js'
 import type {UsageSnapshot} from '@aidx/protocol/usage-types'
 
 // A registered content module the shell hosts, modeled on the TanStack Devtools plugin model.
@@ -241,9 +242,20 @@ function ModalLayout(props: {
 }): JSX.Element {
   const [working, setWorking] = createSignal(false)
   const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
-  // The modal's active session id. undefined = the default session; switching sets a token, and
-  // "+ New" mints a fresh uuid. The header id never re-keys mid-turn (canonical-id model).
-  const [sessionId, setSessionId] = createSignal<string | undefined>(undefined)
+  // The modal's active session id (the `aidx-session-id` header we send), restored across refreshes
+  // (localStorage, per-origin = per-cwd). undefined = the default session; switching sets a token,
+  // "+ New" mints a fresh uuid. This is the stable routing key — it never re-keys mid-turn, and
+  // re-sending it after a refresh is what resumes the session server-side. A stale/deleted id is
+  // handled by the server (it just starts fresh), so we never need to scrub it client-side.
+  const [sessionId, setSessionId] = createPersistedSignal<string | undefined>({
+    key: 'aidx-active-session',
+    initial: undefined,
+    parse: (raw) => raw || undefined,
+  })
+  // The resolved harness token for the active header id (null until a turn mints one). The session
+  // LIST is keyed by token, not by header id, so this — not sessionId — is what marks/labels the
+  // active row in the selector. The panel reports it via onSessionLabel below.
+  const [activeToken, setActiveToken] = createSignal<string | null>(null)
   const fab = createDraggablePosition({initial: props.position, storageKey: 'aidx-fab-position'})
   const pip = createPiP()
   let fabEl: HTMLButtonElement | undefined
@@ -254,6 +266,12 @@ function ModalLayout(props: {
     active: () => props.open(),
     onWorkingChange: setWorking,
     onUsageChange: setUsage,
+    // Adopt the resolved token: mark/label the active row, and surface a just-born session as a row
+    // before its transcript flushes (mirrors the quick-terminal panes).
+    onSessionLabel: (l) => {
+      setActiveToken(l.harnessId)
+      mergeSurface(l.harnessId, l.harnessId ? makeSurfaceRow(l.harnessId, l.name) : null)
+    },
     sessionId: () => sessionId(),
     announce: props.announce,
     composerActions: props.composerActions,
@@ -360,11 +378,17 @@ function ModalLayout(props: {
           <SessionSelector
             variant="pill"
             apiBase={props.panel.apiBase ?? ''}
-            activeId={() => sessionId() ?? null}
+            activeId={() => activeToken()}
             busy={working}
-            lockedElsewhere={(id) => (sessions().find((s) => s.id === id)?.running ?? false) && id !== sessionId()}
-            onSwitch={(id) => setSessionId(id)}
-            onNew={() => setSessionId(crypto.randomUUID())}
+            lockedElsewhere={(id) => (sessions().find((s) => s.id === id)?.running ?? false) && id !== activeToken()}
+            onSwitch={(id) => {
+              setSessionId(id) // re-key the header to the chosen token (the canonical id from here on)
+              setActiveToken(id) // optimistic: mark the row now; onSessionLabel reconfirms after load
+            }}
+            onNew={() => {
+              setSessionId(crypto.randomUUID())
+              setActiveToken(null) // a fresh session has no token yet → "New session" until a turn
+            }}
             announce={props.announce}
           />
           <ContextTracker usage={usage()} />

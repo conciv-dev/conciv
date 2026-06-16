@@ -16,12 +16,12 @@ export function readTitle(stateRoot: string, sessionId: string): string | null {
   return typeof t === 'string' && t ? t : null
 }
 
-let queue: Promise<void> = Promise.resolve()
+let tail: Promise<void> = Promise.resolve()
 
 // Upsert (or clear, when title is empty) one session's title. Returns when this write has landed.
 export function writeTitle(stateRoot: string, sessionId: string, title: string): Promise<void> {
   if (!sessionId) return Promise.resolve()
-  queue = queue.then(() => {
+  const run = tail.then(() => {
     const path = statePaths(stateRoot).titles
     const map = readJson(path, TitleMap, {})
     if (title) map[sessionId] = title
@@ -31,5 +31,7 @@ export function writeTitle(stateRoot: string, sessionId: string, title: string):
     writeFileSync(tmp, JSON.stringify(map))
     renameSync(tmp, path)
   })
-  return queue
+  // The sequencing tail must always settle fulfilled, else one failed write wedges every later one.
+  tail = run.catch(() => {})
+  return run
 }

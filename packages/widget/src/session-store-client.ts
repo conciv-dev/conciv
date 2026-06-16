@@ -40,6 +40,10 @@ export function invalidateSessions(apiBase: string): Promise<void> {
 export function applyTitle(id: string, title: string): void {
   setFetched((p) => p.map((s) => (s.id === id ? {...s, title} : s)))
 }
+// A provisional list row for a just-born session (modal or pane), shown until the real list refetches.
+export function makeSurfaceRow(token: string, name: string | null): ChatSessionMeta {
+  return {id: token, title: name ?? 'New session', updatedAt: Date.now(), messageCount: 0, running: false, origin: 'aidx', usage: null}
+}
 // A surface contributes its current session so a brand-new one shows as one row before it's on disk.
 export function mergeSurface(token: string | null, row: ChatSessionMeta | null): void {
   setSurfaces((p) => {

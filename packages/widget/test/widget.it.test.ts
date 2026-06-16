@@ -885,6 +885,43 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await page.close()
   })
 
+  it('session selector: restores the active session across a page reload', async () => {
+    const page = await browser.newPage()
+    await page.goto(state.base)
+    const fab = page.getByRole('button', {name: 'Open aidx chat'})
+    await fab.waitFor({state: 'visible'})
+    await fab.click()
+    await page.getByText('How can I help you today?').waitFor({state: 'visible'})
+
+    // Switch to the aidx session — this is the choice that must survive a refresh.
+    const trigger = page.locator('#pw-chat-panel .pw-session-trigger')
+    await trigger.click()
+    const content = page.locator('.pw-session-content')
+    await content.waitFor({state: 'visible'})
+    const historyReq = page.waitForRequest(
+      (r) => r.url().includes('/api/chat/history') && r.headers()['aidx-session-id'] === 'tok-aidx',
+    )
+    await content.locator('.pw-session-item', {hasText: 'Made in aidx'}).click()
+    await historyReq
+    await page.getByText(SWITCHED_REPLY).waitFor({state: 'visible'})
+
+    // Reload: the modal must reopen to the SAME session, not fall back to "New session".
+    await page.reload()
+    await fab.waitFor({state: 'visible'})
+    await fab.click()
+    await page.waitForFunction(
+      () => {
+        const t = document.querySelector('[data-aidx-root]')?.shadowRoot?.querySelector('#pw-chat-panel .pw-session-current')
+        return (t?.textContent ?? '').includes('Made in aidx')
+      },
+      undefined,
+      {timeout: 4000},
+    )
+    // The restored session also re-hydrates its own thread.
+    await page.getByText(SWITCHED_REPLY).waitFor({state: 'visible'})
+    await page.close()
+  })
+
   it('renders the live vitest card: pass/fail tree, expands the failure with actions', async () => {
     const page = await browser.newPage()
     await page.goto(state.base)

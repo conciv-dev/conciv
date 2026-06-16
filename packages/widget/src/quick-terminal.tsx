@@ -2,19 +2,14 @@ import {createEffect, createSignal, For, Show, type JSX} from 'solid-js'
 import {createHotkey} from '@tanstack/solid-hotkeys'
 import type {ComposerActionDef, ComposerControlDef, PanelDef} from './widget-shell.js'
 import {createResizable} from './resize.js'
+import {readStorage, writeStorage} from './persisted-signal.js'
 import {createPiP} from './pip.js'
 import {ChevronUp, Columns2, PictureInPicture2, X} from 'lucide-solid'
 import {picking} from './react-grab/picking.js'
 import {ContextTracker} from './context-tracker.js'
 import {SessionSelector} from './session-selector.js'
-import {sessions, mergeSurface, invalidateSessions} from './session-store-client.js'
+import {sessions, mergeSurface, makeSurfaceRow, invalidateSessions} from './session-store-client.js'
 import type {UsageSnapshot} from '@aidx/protocol/usage-types'
-import type {ChatSessionMeta} from '@aidx/protocol/chat-types'
-
-// A provisional list row for a pane's just-born session (shown until the real list refetches).
-function makeSurfaceRow(token: string, name: string | null): ChatSessionMeta {
-  return {id: token, title: name ?? 'New session', updatedAt: Date.now(), messageCount: 0, running: false, origin: 'aidx', usage: null}
-}
 
 type Pane = {
   id: number
@@ -60,22 +55,16 @@ export function QuickTerminalLayout(props: {
 
   // Persisted pane layout: one session id per pane, restored on reopen (which sessions, in order).
   const PANES_KEY = 'aidx-qt-panes'
-  const readPaneIds = (): string[] => {
-    try {
-      const raw = localStorage.getItem(PANES_KEY)
-      const arr: unknown = raw ? JSON.parse(raw) : []
-      return Array.isArray(arr) ? arr.filter((x): x is string => typeof x === 'string') : []
-    } catch {
-      return []
-    }
-  }
-  const writePaneIds = (ids: string[]) => {
-    try {
-      localStorage.setItem(PANES_KEY, JSON.stringify(ids))
-    } catch {
-      // storage unavailable — layout just won't persist
-    }
-  }
+  const readPaneIds = (): string[] =>
+    readStorage(
+      PANES_KEY,
+      (raw) => {
+        const arr: unknown = JSON.parse(raw)
+        return Array.isArray(arr) ? arr.filter((x): x is string => typeof x === 'string') : undefined
+      },
+      [],
+    )
+  const writePaneIds = (ids: string[]) => writeStorage(PANES_KEY, ids, JSON.stringify)
   // Closing a pane DELETEs its server session so the resume-token map doesn't accumulate orphans.
   const forgetSession = (sessionId: string) => {
     const base = (document.querySelector<HTMLMetaElement>('meta[name="pw-api-base"]')?.content ?? '').replace(/\/+$/, '')
@@ -88,23 +77,20 @@ export function QuickTerminalLayout(props: {
 
   // Remember which pane was active (by position) so reopening focuses the same one.
   const FOCUS_KEY = 'aidx-qt-focused'
-  const readFocusIndex = (): number => {
-    try {
-      const n = Number(localStorage.getItem(FOCUS_KEY))
-      return Number.isInteger(n) && n >= 0 ? n : 0
-    } catch {
-      return 0
-    }
-  }
+  const readFocusIndex = (): number =>
+    readStorage(
+      FOCUS_KEY,
+      (raw) => {
+        const n = Number(raw)
+        return Number.isInteger(n) && n >= 0 ? n : undefined
+      },
+      0,
+    )
   const focusPane = (id: number) => {
     setFocused(id)
     const idx = panes().findIndex((p) => p.id === id)
     if (idx >= 0) {
-      try {
-        localStorage.setItem(FOCUS_KEY, String(idx))
-      } catch {
-        // storage unavailable — focus still set in memory
-      }
+      writeStorage(FOCUS_KEY, idx)
     }
   }
 

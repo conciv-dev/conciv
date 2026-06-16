@@ -4,6 +4,7 @@ import {useChat, fetchServerSentEvents, createChatClientOptions} from '@tanstack
 import type {MessagePart, ToolCallPart, ToolCallState, ToolResultPart} from '@tanstack/ai-client'
 import {createChatApi} from './chat-api.js'
 import {invalidateSessions} from './session-store-client.js'
+import {createDebouncer} from '@tanstack/solid-pacer'
 import {GenUi} from './gen-ui.js'
 import {TestCard} from './test-card.js'
 import {Markdown} from './markdown.js'
@@ -378,12 +379,15 @@ export function ChatPanel(props: {
   // Surface the latest usage snapshot for the shell's context tracker.
   createEffect(() => props.onUsageChange?.(usage()))
 
-  // When a turn finishes, the harness may have minted/renamed the session — refresh the label.
+  // When a turn finishes, the harness may have minted/renamed the session — refresh the label and
+  // (debounced) the session list, since a new/renamed session may now exist on disk.
+  const invalidate = createDebouncer(() => void invalidateSessions(props.apiBase), {wait: 400})
   let wasWorking = false
   createEffect(() => {
     const working = isThinking() || isStreaming()
     if (wasWorking && !working) {
       void api.session().then((s) => props.onSessionLabel?.({name: s.name, harnessId: s.harnessId}))
+      invalidate.maybeExecute()
     }
     wasWorking = working
   })
@@ -480,12 +484,6 @@ export function ChatPanel(props: {
       return
     }
     void loadSession(id).then(() => requestAnimationFrame(() => inputEl?.focus()))
-  })
-
-  // Debounced list refresh when a turn ends (a new/renamed session may now exist on disk).
-  createEffect(() => {
-    const working = isThinking() || isStreaming()
-    if (!working && loadedSessionId.current !== undefined) void invalidateSessions(props.apiBase)
   })
 
   // Grow the composer with its content up to the CSS max-height (120px), then it scrolls.

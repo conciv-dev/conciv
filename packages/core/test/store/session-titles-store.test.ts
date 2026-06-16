@@ -1,5 +1,5 @@
 import {describe, it, expect, afterEach} from 'vitest'
-import {mkdtempSync, rmSync} from 'node:fs'
+import {mkdtempSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {readTitle, writeTitle} from '../../src/store/session-titles-store.js'
@@ -29,5 +29,15 @@ describe('session titles store', () => {
     await Promise.all([writeTitle(root, 'a', 'X'), writeTitle(root, 'b', 'Y'), writeTitle(root, 'a', 'Z')])
     expect(readTitle(root, 'a')).toBe('Z')
     expect(readTitle(root, 'b')).toBe('Y')
+  })
+
+  it('a failed write rejects but does not wedge later writes', async () => {
+    const bad = tmp()
+    writeFileSync(join(bad, '.aidx'), 'x') // .aidx is a file, so the write can't create its dir
+    await expect(writeTitle(bad, 'a', 'X')).rejects.toThrow()
+
+    const good = tmp()
+    await writeTitle(good, 'b', 'Y') // would hang forever if the shared queue were poisoned
+    expect(readTitle(good, 'b')).toBe('Y')
   })
 })

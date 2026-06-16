@@ -1332,14 +1332,18 @@
   min-width: 0;
   flex: 1 1 auto;
 }
+/* Ghost chip: no chrome at rest (reads as a label), a hairline + soft fill lift in on hover/open.
+   A transparent border at rest reserves the 1px so the hover border never shifts layout. */
 .pw-session-trigger {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   min-width: 0;
   height: 28px;
-  padding: 0 7px 0 10px;
+  padding: 0 6px 0 8px;
+  border: 1px solid transparent;
   border-radius: var(--pw-r-pill);
+  background: none;
   color: var(--pw-text-2);
   font: inherit;
   font-size: 12px;
@@ -1351,21 +1355,20 @@
 }
 .pw-session-pill .pw-session-trigger {
   width: 100%;
-  border: 1px solid var(--pw-line);
-  background: var(--pw-fill-soft);
 }
 .pw-session-bar .pw-session-trigger {
-  border: 0;
-  background: none;
+  border-color: transparent;
   padding: 0;
   font-family: var(--pw-font-mono);
 }
 .pw-session-trigger:hover {
   color: var(--pw-text-hi);
 }
-.pw-session-pill .pw-session-trigger:hover {
-  border-color: var(--pw-line-2);
-  background: var(--pw-fill-strong);
+.pw-session-pill .pw-session-trigger:hover,
+.pw-session-pill .pw-session-trigger[data-state='open'] {
+  border-color: var(--pw-line);
+  background: var(--pw-fill-soft);
+  color: var(--pw-text-hi);
 }
 .pw-session-trigger[aria-disabled='true'] {
   opacity: 0.55;
@@ -1378,17 +1381,38 @@
   border-radius: 50%;
   background: var(--pw-accent);
 }
+/* Fresh-session marker: accent spark in place of the status dot. */
+.pw-session-spark {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  color: var(--pw-accent);
+}
 .pw-session-current {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* New session reads as intentional (muted), not like a placeholder. */
+.pw-session-trigger[data-empty] .pw-session-current {
+  color: var(--pw-text-2);
+}
 .pw-session-caret {
   width: 13px;
   height: 13px;
   flex-shrink: 0;
-  opacity: 0.7;
+  opacity: 0.45;
+  transition:
+    transform 160ms var(--pw-ease),
+    opacity 120ms var(--pw-ease);
+}
+.pw-session-trigger:hover .pw-session-caret,
+.pw-session-trigger[data-state='open'] .pw-session-caret {
+  opacity: 0.9;
+}
+.pw-session-trigger[data-state='open'] .pw-session-caret {
+  transform: rotate(180deg);
 }
 .pw-session-content[hidden] {
   display: none;
@@ -2320,7 +2344,8 @@
   .pw-chat-panel,
   .pw-chat-open,
   .pw-qt,
-  .pw-qt-pane {
+  .pw-qt-pane,
+  .pw-session-caret {
     transition: none;
   }
 }

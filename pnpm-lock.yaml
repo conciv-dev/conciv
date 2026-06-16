@@ -479,6 +479,9 @@ importers:
       '@tanstack/solid-hotkeys':
         specifier: ^0.10.0
         version: 0.10.0(solid-js@1.9.13)
+      '@tanstack/solid-pacer':
+        specifier: ^0.21.1
+        version: 0.21.1(solid-js@1.9.13)
       bippy:
         specifier: 0.5.41
         version: 0.5.41(react@19.2.7)
@@ -4050,6 +4053,10 @@ packages:
     resolution: {integrity: sha512-vqH7X9nb0MTJ/O08++dB5bP9jgj4+BIPOUu/U+6myG86lDsirZSVSobpq5UQpE7nBuk62i8eIYeOhd+OMl/UrA==}
     engines: {node: '>=18'}
 
+  '@tanstack/pacer@0.21.1':
+    resolution: {integrity: sha512-hB01dd4rlsYcTCNP7wK186jgAe6K5qimgM1Y5Jtvz+9PUaILvpmeLLjmQNUNSO1l23lIt+CeQR6mO1mjlPvRtQ==}
+    engines: {node: '>=18'}
+
   '@tanstack/react-router-devtools@1.167.0':
     resolution: {integrity: sha512-nGw095EG7IHx0h5NtlEmzf6vcCTaFNPWdTSuDKazajhN0ct/v/TkekJ9J6KYUCeV1a8/2ZmToc58M+0rrOyn7w==}
     engines: {node: '>=20.19'}
@@ -4171,6 +4178,12 @@ packages:
     engines: {node: '>=18'}
     peerDependencies:
       solid-js: '>=1.7.0'
+
+  '@tanstack/solid-pacer@0.21.1':
+    resolution: {integrity: sha512-0a0Fv35Ht3P6iQYDZKXInI1DkKzb4WYi3bxh+4lx9FDfvL4GDik7EKTkP8P5N/vJ8fF8by9oqls1BMIlaEywoQ==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      solid-js: '>=1.9.5'
 
   '@tanstack/solid-store@0.11.0':
     resolution: {integrity: sha512-2isL0ZnnyI1iN0V+QPrxE3OcPndohBgVlBcHZYoAOIAiU1WoWjVy0q5gb0suPu1Id0h5cKC23JnwzQTxWDZD0w==}
@@ -13667,6 +13680,11 @@ snapshots:
     dependencies:
       '@tanstack/store': 0.11.0
 
+  '@tanstack/pacer@0.21.1':
+    dependencies:
+      '@tanstack/devtools-event-client': 0.4.3
+      '@tanstack/store': 0.11.0
+
   '@tanstack/react-router-devtools@1.167.0(@tanstack/react-router@1.170.15(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@tanstack/router-core@1.171.13)(csstype@3.2.3)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
       '@tanstack/react-router': 1.170.15(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -13818,6 +13836,12 @@ snapshots:
   '@tanstack/solid-hotkeys@0.10.0(solid-js@1.9.13)':
     dependencies:
       '@tanstack/hotkeys': 0.8.0
+      '@tanstack/solid-store': 0.11.0(solid-js@1.9.13)
+      solid-js: 1.9.13
+
+  '@tanstack/solid-pacer@0.21.1(solid-js@1.9.13)':
+    dependencies:
+      '@tanstack/pacer': 0.21.1
       '@tanstack/solid-store': 0.11.0(solid-js@1.9.13)
       solid-js: 1.9.13
 

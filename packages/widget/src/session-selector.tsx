@@ -1,6 +1,6 @@
 import {createSignal, createEffect, For, Show, onMount, type JSX} from 'solid-js'
 import {Combobox, useListCollection} from '@ark-ui/solid/combobox'
-import {Check, ChevronsUpDown, Sparkles, SquarePen, Plus} from 'lucide-solid'
+import {Check, ChevronDown, Sparkles, SquarePen, Plus} from 'lucide-solid'
 import type {ChatSessionMeta} from '@aidx/protocol/chat-types'
 import {createChatApi} from './chat-api.js'
 import {sessions, status, loadSessions, invalidateSessions, applyTitle} from './session-store-client.js'
@@ -166,17 +166,19 @@ export function SessionSelector(props: {
       <Combobox.Control class="pw-session-control">
         <Combobox.Trigger
           class="pw-session-trigger"
+          data-empty={canRename() ? undefined : ''}
           aria-label={`Session: ${triggerLabel()}`}
           aria-disabled={props.busy()}
           onClick={(e) => {
             if (props.busy()) e.preventDefault()
           }}
         >
-          <Show when={props.variant === 'bar'}>
+          {/* Leading marker: a status dot for a live session, an accent spark for a fresh one. */}
+          <Show when={canRename()} fallback={<Sparkles class="pw-session-spark" aria-hidden="true" />}>
             <span class="pw-session-dot" aria-hidden="true" />
           </Show>
           <span class="pw-session-current">{triggerLabel()}</span>
-          <ChevronsUpDown class="pw-session-caret" aria-hidden="true" />
+          <ChevronDown class="pw-session-caret" aria-hidden="true" />
         </Combobox.Trigger>
       </Combobox.Control>
       <Combobox.Positioner>

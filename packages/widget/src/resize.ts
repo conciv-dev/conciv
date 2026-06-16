@@ -1,4 +1,5 @@
 import {createSignal, onCleanup} from 'solid-js'
+import {readStorage, writeStorage} from './persisted-signal.js'
 
 export type Grow = 'up' | 'down' | 'left' | 'right'
 
@@ -20,13 +21,16 @@ export function createResizable(opts: {
   onPointerDown: (e: PointerEvent) => void
   onKeyDown: (e: KeyboardEvent) => void
 } {
-  let stored = opts.initial
-  try {
-    const v = Number(localStorage.getItem(opts.storageKey))
-    if (Number.isFinite(v) && v >= opts.min) stored = v
-  } catch {
-    // storage unavailable — use the initial size
-  }
+  // Live size persists on commit (pointer-up / key step), not on every drag tick — so seed a plain
+  // signal from storage and write at the commit points below rather than write-through on set.
+  const stored = readStorage(
+    opts.storageKey,
+    (raw) => {
+      const v = Number(raw)
+      return Number.isFinite(v) && v >= opts.min ? v : undefined
+    },
+    opts.initial,
+  )
   const [size, setSize] = createSignal(stored)
   const [resizing, setResizing] = createSignal(false)
   let cleanup: (() => void) | undefined
@@ -53,11 +57,7 @@ export function createResizable(opts: {
       cleanup?.()
       cleanup = undefined
       setResizing(false)
-      try {
-        localStorage.setItem(opts.storageKey, String(size()))
-      } catch {
-        // storage unavailable — keep the in-memory size
-      }
+      writeStorage(opts.storageKey, size())
     }
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)
@@ -82,11 +82,7 @@ export function createResizable(opts: {
     e.preventDefault()
     const next = Math.max(opts.min, size() + dir * STEP)
     setSize(next)
-    try {
-      localStorage.setItem(opts.storageKey, String(next))
-    } catch {
-      // storage unavailable — keep the in-memory size
-    }
+    writeStorage(opts.storageKey, next)
   }
 
   onCleanup(() => cleanup?.())
