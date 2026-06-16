@@ -85,7 +85,7 @@ export function ModelSelector(props: {
         </Combobox.Trigger>
       </Combobox.Control>
       <Combobox.Positioner>
-        <Combobox.Content class="pw-model-content">
+        <Combobox.Content class="pw-model-content pw-combo-content">
           <Combobox.Input class="pw-model-search" placeholder="Search models…" />
           <div class="pw-model-list">
             <Show when={collection().items.length === 0}>
