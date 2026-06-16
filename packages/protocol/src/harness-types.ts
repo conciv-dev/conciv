@@ -92,6 +92,9 @@ export type HarnessDecoder = (lines: AsyncIterable<string>, opts: HarnessDecodeO
 export type HarnessHistory = {
   transcriptPath(cwd: string, sessionId: string): string
   parse(raw: string): UIMessage[]
+  // Optional human-readable session name derived from the transcript (e.g. claude's `summary`
+  // record). Harnesses that omit it fall back to a short id in the UI.
+  nameFromTranscript?(raw: string): string | null
 }
 
 type HarnessAdapterBase = {

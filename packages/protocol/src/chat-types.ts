@@ -5,6 +5,11 @@ import type {UIMessage} from '@tanstack/ai'
 import {UsageSnapshotSchema} from './usage-types.js'
 export type {StreamChunk, UIMessage, MessagePart} from '@tanstack/ai'
 
+// The HTTP header carrying our client-minted session id on every chat request.
+export const AIDX_SESSION_HEADER = 'aidx-session-id'
+// The session a request falls back to when it sends no header (the modal + the probe).
+export const DEFAULT_SESSION_ID = 'default'
+
 // An inline content part on a posted message. Text carries `content`; image carries a base64
 // data `source` (mimeType matches @tanstack/ai's ContentPartDataSource field name).
 export const ChatContentPartSchema = z
@@ -34,7 +39,6 @@ const TurnIntent = z.enum(['chat', 'compact'])
 const MetaCarrier = z.object({model: z.string().optional(), intent: TurnIntent.optional()}).loose().optional()
 export const ChatRequestSchema = z.object({
   messages: z.array(ChatMessageSchema),
-  sessionId: z.string().optional(),
   model: z.string().optional(),
   // 'compact' → the turn compacts the resumed context (native where the harness supports it, else a
   // summarize-prompt fallback).
@@ -48,7 +52,11 @@ export type ChatRequest = z.infer<typeof ChatRequestSchema>
 
 // GET /api/chat/session response.
 export const ChatSessionSchema = z.object({
-  sessionId: z.string().nullable(),
+  sessionId: z.string(),
+  // The harness resume token (display + resume), null until a turn mints one.
+  harnessId: z.string().nullable(),
+  // Human-readable session name from the transcript, or null when none is derivable yet.
+  name: z.string().nullable(),
   source: z.enum(['agent', 'chat', 'new']),
   cwd: z.string(),
   lock: z.object({held: z.boolean(), role: z.enum(['iterate', 'chat']).nullable()}),
