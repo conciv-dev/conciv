@@ -3,10 +3,10 @@ import {z} from 'zod'
 import {readJson, writeJson} from '../fs.js'
 import {statePaths} from '../state-paths.js'
 
-// The shared `<stateRoot>/.aidx/agent.lock` that serializes the chat agent and the agent's
-// `iterate`: two processes appending to one agent session id at once corrupt its transcript,
-// so only one may hold an agent run at a time. The file records the live holder's role +
-// pid; a lock whose pid is dead is treated as free (crash recovery). Harness-agnostic.
+// A per-session `<stateRoot>/.aidx/agent.<sessionId>.lock` that serializes one session's turns:
+// two processes appending to the same harness session at once corrupt its transcript, so only one
+// run per session may be live at a time (distinct sessions run in parallel). The file records the
+// holder's role + pid; a lock whose pid is dead is treated as free (crash recovery). Harness-agnostic.
 
 export type LockRole = 'iterate' | 'chat'
 export type LockState = {held: boolean; role: LockRole | null; pid: number | null}
@@ -14,22 +14,22 @@ export type LockState = {held: boolean; role: LockRole | null; pid: number | nul
 // The on-disk lock-file shape. Validated with Zod (tolerant of extra/missing keys).
 const LockFileSchema = z.object({role: z.enum(['iterate', 'chat']).optional(), pid: z.number().optional()}).loose()
 
-export function readLock(stateRoot: string): LockState {
-  const parsed = readJson(statePaths(stateRoot).lock, LockFileSchema, {})
+export function readLock(stateRoot: string, sessionId: string): LockState {
+  const parsed = readJson(statePaths(stateRoot).lockFor(sessionId), LockFileSchema, {})
   if (typeof parsed.pid !== 'number' || !pidAlive(parsed.pid)) return {held: false, role: null, pid: null}
   return {held: true, role: parsed.role ?? null, pid: parsed.pid}
 }
 
 // Acquire if free or stale. Returns false if a live holder already owns it.
-export function acquireLock(stateRoot: string, role: LockRole, pid: number): boolean {
-  if (readLock(stateRoot).held) return false
-  writeJson(statePaths(stateRoot).lock, {role, pid, startedTs: Date.now()})
+export function acquireLock(stateRoot: string, sessionId: string, role: LockRole, pid: number): boolean {
+  if (readLock(stateRoot, sessionId).held) return false
+  writeJson(statePaths(stateRoot).lockFor(sessionId), {role, pid, startedTs: Date.now()})
   return true
 }
 
-export function releaseLock(stateRoot: string): void {
+export function releaseLock(stateRoot: string, sessionId: string): void {
   try {
-    rmSync(statePaths(stateRoot).lock)
+    rmSync(statePaths(stateRoot).lockFor(sessionId))
   } catch {
     // already gone
   }
