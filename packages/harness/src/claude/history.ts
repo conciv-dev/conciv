@@ -1,8 +1,9 @@
+import {readdir, stat, readFile} from 'node:fs/promises'
 import {homedir} from 'node:os'
-import {join} from 'node:path'
+import {join, resolve, sep} from 'node:path'
 import {z} from 'zod'
 import type {MessagePart, UIMessage} from '@aidx/protocol/chat-types'
-import type {HarnessHistory} from '@aidx/protocol/harness-types'
+import type {HarnessHistory, HarnessSessionMeta} from '@aidx/protocol/harness-types'
 import {TextBlock, ThinkingBlock, ToolUseBlock} from './blocks.js'
 
 // Where claude persists a session's JSONL transcript, and how to parse it into UIMessages.
@@ -114,5 +115,71 @@ export function nameFromTranscript(jsonl: string): string | null {
   return name
 }
 
+const MAX_SESSIONS = 50
+
+// The first user line's text, condensed to a one-line title (≤80 chars). Reuses the same private
+// parseRecord/partsFrom helpers as parseHistory — no duplicate parsing.
+function titleFromHead(raw: string): string {
+  for (const line of raw.split('\n')) {
+    const t = line.trim()
+    if (!t) continue
+    const rec = parseRecord(t)
+    if (rec?.type === 'user') {
+      const parts = partsFrom(rec.message?.content)
+      const text = parts.find((p) => p.type === 'text')
+      if (text && text.type === 'text' && typeof text.content === 'string')
+        return text.content.replace(/\s+/g, ' ').trim().slice(0, 80)
+    }
+  }
+  return ''
+}
+
+// Enumerate the cwd's claude sessions, newest first, capped at MAX_SESSIONS. Stat all transcripts,
+// sort by mtime, then read only the top N (title + message count). Never throws — a missing dir or
+// unreadable file yields [] / an empty entry.
+export async function listSessions(cwd: string, home: string = homedir()): Promise<HarnessSessionMeta[]> {
+  const dir = join(home, '.claude', 'projects', encodeProjectDir(cwd))
+  let names: string[]
+  try {
+    names = (await readdir(dir)).filter((n) => n.endsWith('.jsonl'))
+  } catch {
+    return []
+  }
+  const stamped = (
+    await Promise.all(
+      names.map(async (name) => {
+        try {
+          return {name, mtime: (await stat(join(dir, name))).mtimeMs}
+        } catch {
+          return null
+        }
+      }),
+    )
+  ).filter(Boolean) as {name: string; mtime: number}[]
+  const top = stamped.sort((a, b) => b.mtime - a.mtime).slice(0, MAX_SESSIONS)
+  return Promise.all(
+    top.map(async (f) => {
+      const raw = await readFile(join(dir, f.name), 'utf8').catch(() => '')
+      return {
+        id: f.name.replace(/\.jsonl$/, ''),
+        derivedTitle: titleFromHead(raw),
+        updatedAt: Math.round(f.mtime),
+        messageCount: parseHistory(raw).length,
+      }
+    }),
+  )
+}
+
+// True iff the resolved transcript path stays inside the project dir (defense-in-depth vs traversal).
+export function withinProject(cwd: string, sessionId: string, home: string = homedir()): boolean {
+  const root = resolve(join(home, '.claude', 'projects', encodeProjectDir(cwd)))
+  return resolve(transcriptPath(cwd, sessionId, home)).startsWith(root + sep)
+}
+
 // Claude's HarnessHistory implementation.
-export const claudeHistory: HarnessHistory = {transcriptPath, parse: parseHistory, nameFromTranscript}
+export const claudeHistory: HarnessHistory = {
+  transcriptPath,
+  parse: parseHistory,
+  nameFromTranscript,
+  list: listSessions,
+}
