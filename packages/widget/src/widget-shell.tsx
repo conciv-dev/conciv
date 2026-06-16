@@ -10,8 +10,8 @@ import {createPiP} from './pip.js'
 import {ChevronDown, Crosshair, PictureInPicture2} from 'lucide-solid'
 import {picking, cancelPick} from './react-grab/picking.js'
 import {ContextTracker} from './context-tracker.js'
-import {Popover} from './popover.js'
-import {SessionInfoCard, sessionLabel} from './session-info.js'
+import {SessionSelector} from './session-selector.js'
+import {sessions} from './session-store-client.js'
 import type {UsageSnapshot} from '@aidx/protocol/usage-types'
 
 // A registered content module the shell hosts, modeled on the TanStack Devtools plugin model.
@@ -28,6 +28,8 @@ export type PanelContext = {
   sessionId?: () => string | undefined
   // The content reports its resolved session label (name + harness id) for the chrome to show.
   onSessionLabel?: (label: {name: string | null; harnessId: string | null}) => void
+  // Shell-level live-region writer (outside any inert pane) for switch/error announcements.
+  announce?: (msg: string, assertive?: boolean) => void
   // Composer-action buttons registered on the shell, rendered in each panel's composer row.
   composerActions: () => ComposerActionDef[]
   // Composer-control plugins (stateful widgets, e.g. the model selector), rendered in the same row.
@@ -36,6 +38,8 @@ export type PanelContext = {
 export type PanelDef = {
   id: string
   title: string
+  // The API base the panel talks to — also used by the chrome's SessionSelector (same backend).
+  apiBase?: string
   create: (ctx: PanelContext) => JSX.Element
 }
 
@@ -139,6 +143,12 @@ function Shell(props: {
   const setQuickOpen = (v: boolean) => setLayer((prev) => (v ? 'quick' : prev === 'quick' ? null : prev))
   const closeModal = () => setLayer((prev) => (prev === 'modal' ? null : prev))
 
+  // ONE shell-level live region pair, outside any pane (never inside an inert/closed qt sheet), so
+  // session switch/error announcements are reliably read. Passed down as `announce`.
+  const [politeMsg, setPoliteMsg] = createSignal('')
+  const [assertiveMsg, setAssertiveMsg] = createSignal('')
+  const announce = (msg: string, assertive = false) => (assertive ? setAssertiveMsg(msg) : setPoliteMsg(msg))
+
   // Esc cancels an in-progress element pick (react-grab handles it too; this is a safety net and
   // covers the pill being focused).
   createEffect(() => {
@@ -160,6 +170,7 @@ function Shell(props: {
               composerActions={props.composerActions}
               composerControls={props.composerControls}
               position={props.settings.modal.position}
+              announce={announce}
               open={() => layer() === 'modal'}
               onOpen={() => setLayer('modal')}
               onClose={closeModal}
@@ -171,10 +182,17 @@ function Shell(props: {
               composerActions={props.composerActions}
               composerControls={props.composerControls}
               hotkeys={props.settings.quickTerminal.hotkeys}
+              announce={announce}
               open={() => layer() === 'quick'}
               setOpen={setQuickOpen}
             />
           </Show>
+          <div class="pw-sr-only" role="status" aria-live="polite">
+            {politeMsg()}
+          </div>
+          <div class="pw-sr-only" role="alert" aria-live="assertive">
+            {assertiveMsg()}
+          </div>
           {/* While picking, the open surface goes click-through+invisible; this pill is the only chrome. */}
           <Show when={picking()}>
             <button type="button" class="pw-pick-pill" onClick={() => cancelPick()} aria-label="Cancel element pick">
@@ -216,27 +234,28 @@ function ModalLayout(props: {
   composerActions: () => ComposerActionDef[]
   composerControls: () => ComposerControlDef[]
   position: TriggerPosition
+  announce: (msg: string, assertive?: boolean) => void
   open: () => boolean
   onOpen: () => void
   onClose: () => void
 }): JSX.Element {
   const [working, setWorking] = createSignal(false)
   const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
-  const [label, setLabel] = createSignal<{name: string | null; harnessId: string | null}>({name: null, harnessId: null})
-  const [infoOpen, setInfoOpen] = createSignal(false)
+  // The modal's active session id. undefined = the default session; switching sets a token, and
+  // "+ New" mints a fresh uuid. The header id never re-keys mid-turn (canonical-id model).
+  const [sessionId, setSessionId] = createSignal<string | undefined>(undefined)
   const fab = createDraggablePosition({initial: props.position, storageKey: 'aidx-fab-position'})
   const pip = createPiP()
   let fabEl: HTMLButtonElement | undefined
   let panelEl: HTMLElement | undefined
-  let labelEl: HTMLButtonElement | undefined
 
   const fabPulsing = () => !props.open() && working()
-  // The modal hosts the default session (no minted id) — it omits sessionId.
   const content = props.panel.create({
     active: () => props.open(),
     onWorkingChange: setWorking,
     onUsageChange: setUsage,
-    onSessionLabel: setLabel,
+    sessionId: () => sessionId(),
+    announce: props.announce,
     composerActions: props.composerActions,
     composerControls: props.composerControls,
   })
@@ -338,21 +357,16 @@ function ModalLayout(props: {
             <PictureInPicture2 class="pw-icon" aria-hidden="true" />
           </button>
           <span class="pw-chat-title">{props.panel.title}</span>
-          <button
-            type="button"
-            class="pw-chat-subtitle"
-            ref={(el) => {
-              labelEl = el
-            }}
-            onClick={() => setInfoOpen((v) => !v)}
-          >
-            {sessionLabel(label())}
-          </button>
-          <Popover anchor={labelEl} open={infoOpen} setOpen={setInfoOpen} placement="bottom-start">
-            <SessionInfoCard
-              info={{name: label().name, harnessId: label().harnessId, source: label().harnessId ? 'chat' : 'new'}}
-            />
-          </Popover>
+          <SessionSelector
+            variant="pill"
+            apiBase={props.panel.apiBase ?? ''}
+            activeId={() => sessionId() ?? null}
+            busy={working}
+            lockedElsewhere={(id) => (sessions().find((s) => s.id === id)?.running ?? false) && id !== sessionId()}
+            onSwitch={(id) => setSessionId(id)}
+            onNew={() => setSessionId(crypto.randomUUID())}
+            announce={props.announce}
+          />
           <ContextTracker usage={usage()} />
           <button type="button" class="pw-chat-close" aria-label="Close chat" onClick={closePanel}>
             <ChevronDown class="pw-chevron" aria-hidden="true" />

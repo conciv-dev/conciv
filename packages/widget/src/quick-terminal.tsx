@@ -6,18 +6,23 @@ import {createPiP} from './pip.js'
 import {ChevronUp, Columns2, PictureInPicture2, X} from 'lucide-solid'
 import {picking} from './react-grab/picking.js'
 import {ContextTracker} from './context-tracker.js'
-import {Popover} from './popover.js'
-import {SessionInfoCard, sessionLabel} from './session-info.js'
+import {SessionSelector} from './session-selector.js'
+import {sessions, mergeSurface, invalidateSessions} from './session-store-client.js'
 import type {UsageSnapshot} from '@aidx/protocol/usage-types'
+import type {ChatSessionMeta} from '@aidx/protocol/chat-types'
 
-type PaneLabel = {name: string | null; harnessId: string | null}
+// A provisional list row for a pane's just-born session (shown until the real list refetches).
+function makeSurfaceRow(token: string, name: string | null): ChatSessionMeta {
+  return {id: token, title: name ?? 'New session', updatedAt: Date.now(), messageCount: 0, running: false, origin: 'aidx', usage: null}
+}
+
 type Pane = {
   id: number
-  sessionId: string
+  sessionId: () => string
+  setSessionId: (s: string) => void
   content: JSX.Element
   usage: () => UsageSnapshot | null
-  label: () => PaneLabel
-  setLabel: (l: PaneLabel) => void
+  working: () => boolean
 }
 
 // Bindings come from user config as plain strings; the library wants its template-literal hotkey
@@ -33,6 +38,7 @@ export function QuickTerminalLayout(props: {
   composerActions: () => ComposerActionDef[]
   composerControls: () => ComposerControlDef[]
   hotkeys: string[]
+  announce: (msg: string, assertive?: boolean) => void
   open: () => boolean
   setOpen: (v: boolean) => void
 }): JSX.Element {
@@ -48,8 +54,6 @@ export function QuickTerminalLayout(props: {
   const pip = createPiP()
   const [panes, setPanes] = createSignal<Pane[]>([])
   const [focused, setFocused] = createSignal(0)
-  const [infoFor, setInfoFor] = createSignal<number | null>(null)
-  const anchors = new Map<number, HTMLButtonElement>()
   let seq = 0
   let rowEl: HTMLDivElement | undefined
   let sectionEl: HTMLElement | undefined
@@ -104,30 +108,36 @@ export function QuickTerminalLayout(props: {
     }
   }
 
-  const addPane = (sessionId: string = crypto.randomUUID()) => {
+  const addPane = (initialId: string = crypto.randomUUID()) => {
     const id = ++seq
     const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
-    const [label, setLabel] = createSignal<PaneLabel>({name: null, harnessId: null})
+    const [working, setWorking] = createSignal(false)
+    const [sessionId, setSessionId] = createSignal(initialId)
     // Each pane is its own session; it's the focused one that takes composer focus + hydrates.
     const content = props.panel.create({
       active: () => props.open() && focused() === id,
-      onWorkingChange: () => {},
+      onWorkingChange: setWorking,
       onUsageChange: setUsage,
-      onSessionLabel: setLabel,
-      sessionId: () => sessionId,
+      // A just-born session shows in every selector before its file flushes (surface union).
+      onSessionLabel: (l) =>
+        mergeSurface(l.harnessId, l.harnessId ? makeSurfaceRow(l.harnessId, l.name) : null),
+      sessionId: () => sessionId(),
+      announce: props.announce,
       composerActions: props.composerActions,
       composerControls: props.composerControls,
     })
-    setPanes((ps) => [...ps, {id, sessionId, content, usage, label, setLabel}])
-    writePaneIds(panes().map((p) => p.sessionId))
+    setPanes((ps) => [...ps, {id, sessionId, setSessionId, content, usage, working}])
+    writePaneIds(panes().map((p) => p.sessionId()))
+    void invalidateSessions(props.panel.apiBase ?? '')
     focusPane(id)
   }
 
   const closePane = (id: number) => {
     const target = panes().find((p) => p.id === id)
     const remaining = panes().filter((p) => p.id !== id)
-    if (target) forgetSession(target.sessionId)
-    writePaneIds(remaining.map((p) => p.sessionId))
+    if (target) forgetSession(target.sessionId())
+    writePaneIds(remaining.map((p) => p.sessionId()))
+    void invalidateSessions(props.panel.apiBase ?? '')
     if (remaining.length === 0) {
       props.setOpen(false) // last pane closes the terminal; re-seeded on next open
       return
@@ -259,32 +269,16 @@ export function QuickTerminalLayout(props: {
                 }}
               >
                 <div class="pw-qt-pane-bar">
-                  <span class="pw-qt-pane-dot" aria-hidden="true" />
-                  <button
-                    type="button"
-                    class="pw-qt-pane-name"
-                    ref={(el) => anchors.set(pane.id, el)}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setInfoFor((cur) => (cur === pane.id ? null : pane.id))
-                    }}
-                  >
-                    {sessionLabel(pane.label())}
-                  </button>
-                  <Popover
-                    anchor={anchors.get(pane.id)}
-                    open={() => infoFor() === pane.id}
-                    setOpen={(v) => setInfoFor(v ? pane.id : null)}
-                    placement="bottom-start"
-                  >
-                    <SessionInfoCard
-                      info={{
-                        name: pane.label().name,
-                        harnessId: pane.label().harnessId,
-                        source: pane.label().harnessId ? 'chat' : 'new',
-                      }}
-                    />
-                  </Popover>
+                  <SessionSelector
+                    variant="bar"
+                    apiBase={props.panel.apiBase ?? ''}
+                    activeId={() => pane.sessionId()}
+                    busy={pane.working}
+                    lockedElsewhere={(id) => (sessions().find((s) => s.id === id)?.running ?? false) && id !== pane.sessionId()}
+                    onSwitch={(id) => pane.setSessionId(id)}
+                    onNew={() => pane.setSessionId(crypto.randomUUID())}
+                    announce={props.announce}
+                  />
                   <ContextTracker usage={pane.usage()} />
                   <button
                     type="button"

@@ -676,12 +676,10 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await page.waitForFunction(`${countOf('.pw-qt-pane')} === 2`, undefined, {timeout: 2000})
     expect(await page.locator('.pw-qt-pane .pw-chat-input').count()).toBe(2)
 
-    // Each pane bar shows a session label; clicking it opens the session-info popover.
-    await page.locator('.pw-qt-pane-name').first().click()
-    await page.locator('.pw-popover').waitFor({state: 'visible'})
-    await page.locator('.pw-session-info-name').waitFor({state: 'visible'})
+    // Each pane bar hosts its own session selector (bar variant).
+    expect(await page.locator('.pw-qt-pane .pw-session-bar').count()).toBe(2)
 
-    // Closing one pane leaves the other (reflowed). The pane-X click also dismisses the popover.
+    // Closing one pane leaves the other (reflowed).
     await page.locator('.pw-qt-pane-x').first().click()
     await page.waitForFunction(`${countOf('.pw-qt-pane')} === 1`, undefined, {timeout: 2000})
 
