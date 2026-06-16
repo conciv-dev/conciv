@@ -1,7 +1,6 @@
 // Chat session + history client against @aidx/core's /api/chat* routes. On resume the
 // widget hydrates the thread from the prior session. Identity travels in the AIDX_SESSION_HEADER
 // on every request, so one ChatApi instance is bound to one session id.
-import {z} from 'zod'
 import type {UIMessage} from '@tanstack/ai-client'
 import {
   ChatSessionSchema,
@@ -15,8 +14,6 @@ import {
   type ChatLaunch,
   type ChatSessionMeta,
 } from '@aidx/protocol/chat-types'
-
-const RenameResp = z.object({ok: z.boolean(), title: z.string()})
 
 // The list fetch's outcome: 'unsupported' (no transcript harness → hide the selector), 'error'
 // (transient → offer Retry), or 'ok'.
@@ -98,7 +95,9 @@ export function createChatApi(deps: {apiBase?: string; sessionId?: string} = {})
         body: JSON.stringify({sessionId, title}),
       })
       if (!res.ok) throw new Error('rename failed')
-      return RenameResp.parse(await res.json()).title
+      const body: unknown = await res.json()
+      const t = (body as {title?: unknown}).title
+      return typeof t === 'string' ? t : title
     },
     // Forget the resume pointer so the next turn starts a fresh session (server-side reset).
     newSession: () =>
