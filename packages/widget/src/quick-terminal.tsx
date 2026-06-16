@@ -6,9 +6,19 @@ import {createPiP} from './pip.js'
 import {ChevronUp, Columns2, PictureInPicture2, X} from 'lucide-solid'
 import {picking} from './react-grab/picking.js'
 import {ContextTracker} from './context-tracker.js'
+import {Popover} from './popover.js'
+import {SessionInfoCard, sessionLabel} from './session-info.js'
 import type {UsageSnapshot} from '@aidx/protocol/usage-types'
 
-type Pane = {id: number; content: JSX.Element; usage: () => UsageSnapshot | null}
+type PaneLabel = {name: string | null; harnessId: string | null}
+type Pane = {
+  id: number
+  sessionId: string
+  content: JSX.Element
+  usage: () => UsageSnapshot | null
+  label: () => PaneLabel
+  setLabel: (l: PaneLabel) => void
+}
 
 // Bindings come from user config as plain strings; the library wants its template-literal hotkey
 // type. They're validated at runtime by the key matcher, so a cast is the right call here.
@@ -38,9 +48,39 @@ export function QuickTerminalLayout(props: {
   const pip = createPiP()
   const [panes, setPanes] = createSignal<Pane[]>([])
   const [focused, setFocused] = createSignal(0)
+  const [infoFor, setInfoFor] = createSignal<number | null>(null)
+  const anchors = new Map<number, HTMLButtonElement>()
   let seq = 0
   let rowEl: HTMLDivElement | undefined
   let sectionEl: HTMLElement | undefined
+
+  // Persisted pane layout: one session id per pane, restored on reopen (which sessions, in order).
+  const PANES_KEY = 'aidx-qt-panes'
+  const readPaneIds = (): string[] => {
+    try {
+      const raw = localStorage.getItem(PANES_KEY)
+      const arr: unknown = raw ? JSON.parse(raw) : []
+      return Array.isArray(arr) ? arr.filter((x): x is string => typeof x === 'string') : []
+    } catch {
+      return []
+    }
+  }
+  const writePaneIds = (ids: string[]) => {
+    try {
+      localStorage.setItem(PANES_KEY, JSON.stringify(ids))
+    } catch {
+      // storage unavailable — layout just won't persist
+    }
+  }
+  // Closing a pane DELETEs its server session so the resume-token map doesn't accumulate orphans.
+  const forgetSession = (sessionId: string) => {
+    const base = (document.querySelector<HTMLMetaElement>('meta[name="pw-api-base"]')?.content ?? '').replace(/\/+$/, '')
+    void fetch(`${base}/api/chat/session`, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: {'aidx-session-id': sessionId},
+    }).catch(() => {})
+  }
 
   // Remember which pane was active (by position) so reopening focuses the same one.
   const FOCUS_KEY = 'aidx-qt-focused'
@@ -64,23 +104,30 @@ export function QuickTerminalLayout(props: {
     }
   }
 
-  const addPane = () => {
+  const addPane = (sessionId: string = crypto.randomUUID()) => {
     const id = ++seq
     const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
+    const [label, setLabel] = createSignal<PaneLabel>({name: null, harnessId: null})
     // Each pane is its own session; it's the focused one that takes composer focus + hydrates.
     const content = props.panel.create({
       active: () => props.open() && focused() === id,
       onWorkingChange: () => {},
       onUsageChange: setUsage,
+      onSessionLabel: setLabel,
+      sessionId: () => sessionId,
       composerActions: props.composerActions,
       composerControls: props.composerControls,
     })
-    setPanes((ps) => [...ps, {id, content, usage}])
+    setPanes((ps) => [...ps, {id, sessionId, content, usage, label, setLabel}])
+    writePaneIds(panes().map((p) => p.sessionId))
     focusPane(id)
   }
 
   const closePane = (id: number) => {
+    const target = panes().find((p) => p.id === id)
     const remaining = panes().filter((p) => p.id !== id)
+    if (target) forgetSession(target.sessionId)
+    writePaneIds(remaining.map((p) => p.sessionId))
     if (remaining.length === 0) {
       props.setOpen(false) // last pane closes the terminal; re-seeded on next open
       return
@@ -98,10 +145,13 @@ export function QuickTerminalLayout(props: {
     if (sectionEl) sectionEl.inert = !props.open()
   })
 
-  // Seed the first pane up front (not lazily on open) so its ChatPanel is mounted from the start —
-  // opening then only flips `active`, the same path the modal uses to focus its composer reliably.
-  // (A pane created inside the open handler races the mount + drop animation and misses focus.)
-  addPane()
+  // Seed panes up front (not lazily on open) so each ChatPanel is mounted from the start — opening
+  // then only flips `active`, the same path the modal uses to focus its composer reliably. (A pane
+  // created inside the open handler races the mount + drop animation and misses focus.) Restore the
+  // saved layout (one pane per persisted session id); else seed one fresh pane.
+  const savedIds = readPaneIds()
+  if (savedIds.length > 0) for (const sid of savedIds) addPane(sid)
+  else addPane()
 
   // On open: restore focus to the last-active pane (persisted). Setting focused flips that pane's
   // `active` true, and its ChatPanel focuses the composer.
@@ -182,7 +232,7 @@ export function QuickTerminalLayout(props: {
         >
           <PictureInPicture2 class="pw-icon" aria-hidden="true" />
         </button>
-        <button type="button" class="pw-chat-close" aria-label="Split pane" title="Split pane (Mod+D)" onClick={addPane}>
+        <button type="button" class="pw-chat-close" aria-label="Split pane" title="Split pane (Mod+D)" onClick={() => addPane()}>
           <Columns2 class="pw-icon" aria-hidden="true" />
         </button>
         <button type="button" class="pw-chat-close" aria-label="Close quick terminal" onClick={() => props.setOpen(false)}>
@@ -210,7 +260,31 @@ export function QuickTerminalLayout(props: {
               >
                 <div class="pw-qt-pane-bar">
                   <span class="pw-qt-pane-dot" aria-hidden="true" />
-                  <span class="pw-qt-pane-name">session-{pane.id}</span>
+                  <button
+                    type="button"
+                    class="pw-qt-pane-name"
+                    ref={(el) => anchors.set(pane.id, el)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setInfoFor((cur) => (cur === pane.id ? null : pane.id))
+                    }}
+                  >
+                    {sessionLabel(pane.label())}
+                  </button>
+                  <Popover
+                    anchor={anchors.get(pane.id)}
+                    open={() => infoFor() === pane.id}
+                    setOpen={(v) => setInfoFor(v ? pane.id : null)}
+                    placement="bottom-start"
+                  >
+                    <SessionInfoCard
+                      info={{
+                        name: pane.label().name,
+                        harnessId: pane.label().harnessId,
+                        source: pane.label().harnessId ? 'chat' : 'new',
+                      }}
+                    />
+                  </Popover>
                   <ContextTracker usage={pane.usage()} />
                   <button
                     type="button"

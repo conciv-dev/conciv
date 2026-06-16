@@ -1906,6 +1906,18 @@
 }
 .pw-qt-pane-name {
   color: var(--pw-text-2);
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pw-qt-pane-name:hover {
+  color: var(--pw-text);
 }
 .pw-qt-pane-x {
   margin-left: auto;
