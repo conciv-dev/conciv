@@ -15,7 +15,7 @@ shifted scope (lock race narrowed to same-session; CORS surface widened by addin
 |------|-------|----------|--------|------------|--------|
 | 001 | Remove the dead `.outout` output glob from `turbo.json` (Nitro-only; repo uses Netlify) | P2 | S | — | DONE |
 | 002 | Compact: stop claiming "Context compacted" when the turn failed | P1 | S | — | DONE |
-| 003 | Make session-lock acquisition atomic + enforce it in the turn route | P1 | M | — | TODO |
+| 003 | Make session-lock acquisition atomic + enforce it in the turn route | P1 | M | — | DONE |
 | 004 | Add a CI pipeline (typecheck/lint/test/build/format gate) | P1 | M | — | TODO |
 | 005 | Add a root `AGENTS.md` capturing non-discoverable conventions | P2 | S–M | — | TODO |
 | 006 | Design: harden the dev server against cross-origin drive-by | P1 (investigate) | M | — | TODO |

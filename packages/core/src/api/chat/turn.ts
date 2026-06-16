@@ -5,7 +5,7 @@ import type {HarnessAdapter, HarnessChild} from '@aidx/protocol/harness-types'
 import {UiSpecSchema} from '@aidx/protocol/ui-types'
 import {ChatRequestSchema} from '@aidx/protocol/chat-types'
 import {tokenUsageToSnapshot} from '@aidx/protocol/usage-types'
-import {acquireLock, readLock, releaseLock} from '../../store/lock.js'
+import {acquireLock, releaseLock, updateLockPid} from '../../store/lock.js'
 import type {SessionStore} from '../../store/session-store.js'
 import type {UiBus} from '../../runtime/ui-bus.js'
 import {toChatMessages} from './messages.js'
@@ -54,62 +54,75 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
   app.post('/api/chat', async (event) => {
     const sessionId = sessionIdFromHeaders(event.req.headers) // our id; client always resolves first
     if (!sessionId) throw new HTTPError({status: 400, message: 'no session (resolve first)'})
-    if (readLock(deps.stateRoot, sessionId).held) throw new HTTPError({status: 409, message: 'session busy'})
-    const chatReq = await readValidatedBody(event, ChatRequestSchema)
-    // intent rides the AG-UI envelope (forwardedProps/data) like model, with a top-level fallback.
-    const intent = chatReq.intent ?? chatReq.forwardedProps?.intent ?? chatReq.data?.intent ?? 'chat'
-    const turnKind = intent === 'compact' ? 'compact' : 'chat'
-    const resumeSessionId = harness.capabilities.resume ? await resumeTokenFor(deps.store, sessionId) : null
-    const origin = `http://${event.req.headers.get('host') ?? '127.0.0.1:3000'}`
-    // systemPrompt delivery by capability: 'file' → the written path; 'flag'/'none' → raw text.
-    const mode = harness.capabilities.systemPrompt
-    const sysText = mode === 'file' ? (deps.systemPromptFile ?? '') : (deps.systemPromptText ?? '')
-    const abort = new AbortController()
-
-    const adapter = harnessText(harness, {
-      cwd: deps.cwd,
-      // Bind this turn's header id into the spawn so the child env carries AIDX_SESSION_ID.
-      spawnHarness: (args, cwd) => deps.spawnHarness(args, cwd, sessionId),
-      systemPrompt: sysText,
-      resumeSessionId,
-      permissionUrl: harness.capabilities.permissionGate === 'hook' ? `${origin}/api/chat/permission` : undefined,
-      mcpUrl: harness.capabilities.mcp === 'http' ? `${origin}/api/mcp` : undefined,
-      // The widget's model rides the AG-UI envelope (forwardedProps/data), not top-level.
-      model: chatReq.model ?? chatReq.forwardedProps?.model ?? chatReq.data?.model,
-      turnKind,
-      onSessionId: (id) => {
-        // Best-effort persist of the resume token; a failed write must not crash the live turn.
-        void recordMintedToken(deps.store, sessionId, id).catch(() => {})
-      },
-      // Live usage: inject mid-turn so the widget's tracker fills as the turn streams.
-      onUsage: (usage) => uiBus.injectUsage(sessionId, usage),
-      onSpawn: (child) => {
-        acquireLock(deps.stateRoot, sessionId, 'chat', child.pid)
-        event.req.signal.addEventListener('abort', () => {
-          abort.abort()
-          child.kill()
-        })
-      },
-    })
-
-    // Compaction fallback: the widget posts '/compact' as the user text. A compaction-capable
-    // harness ignores it (its buildCompactArgs hardcodes the native command); a non-capable one gets
-    // a real summarize instruction substituted here, so the turn still yields a usable summary.
-    const messages = toChatMessages(chatReq)
-    if (turnKind === 'compact' && !harness.capabilities.compaction) {
-      const lastUser = [...messages].reverse().find((m) => m.role === 'user')
-      if (lastUser) lastUser.content = COMPACT_FALLBACK_PROMPT
+    // Atomic acquire IS the guard — closes the check-then-act race two same-session turns could hit.
+    // Recorded pid is the dev-server's (alive for the run); released in the stream teardown's finally.
+    if (!acquireLock(deps.stateRoot, sessionId, 'chat', process.pid)) {
+      throw new HTTPError({status: 409, message: 'session busy'})
     }
+    // Any throw after a successful acquire but before the stream takes over its release (the
+    // withLockRelease finally only covers the streaming path) must not leak the lock.
+    try {
+      const chatReq = await readValidatedBody(event, ChatRequestSchema)
+      // intent rides the AG-UI envelope (forwardedProps/data) like model, with a top-level fallback.
+      const intent = chatReq.intent ?? chatReq.forwardedProps?.intent ?? chatReq.data?.intent ?? 'chat'
+      const turnKind = intent === 'compact' ? 'compact' : 'chat'
+      const resumeSessionId = harness.capabilities.resume ? await resumeTokenFor(deps.store, sessionId) : null
+      const origin = `http://${event.req.headers.get('host') ?? '127.0.0.1:3000'}`
+      // systemPrompt delivery by capability: 'file' → the written path; 'flag'/'none' → raw text.
+      const mode = harness.capabilities.systemPrompt
+      const sysText = mode === 'file' ? (deps.systemPromptFile ?? '') : (deps.systemPromptText ?? '')
+      const abort = new AbortController()
 
-    const stream = chat({
-      adapter,
-      messages,
-      systemPrompts: sysText ? [sysText] : [],
-      abortController: abort,
-    })
-    const merged = uiBus.run(sessionId, stream)
-    const sse = toServerSentEventsStream(withLockRelease(merged, deps.store, deps.stateRoot, sessionId), abort)
-    return new Response(sse, {status: 200, headers: sseHeaders(event)})
+      const adapter = harnessText(harness, {
+        cwd: deps.cwd,
+        // Bind this turn's header id into the spawn so the child env carries AIDX_SESSION_ID.
+        spawnHarness: (args, cwd) => deps.spawnHarness(args, cwd, sessionId),
+        systemPrompt: sysText,
+        resumeSessionId,
+        permissionUrl: harness.capabilities.permissionGate === 'hook' ? `${origin}/api/chat/permission` : undefined,
+        mcpUrl: harness.capabilities.mcp === 'http' ? `${origin}/api/mcp` : undefined,
+        // The widget's model rides the AG-UI envelope (forwardedProps/data), not top-level.
+        model: chatReq.model ?? chatReq.forwardedProps?.model ?? chatReq.data?.model,
+        turnKind,
+        onSessionId: (id) => {
+          // Best-effort persist of the resume token; a failed write must not crash the live turn.
+          void recordMintedToken(deps.store, sessionId, id).catch(() => {})
+        },
+        // Live usage: inject mid-turn so the widget's tracker fills as the turn streams.
+        onUsage: (usage) => uiBus.injectUsage(sessionId, usage),
+        // The lock is already held (acquired up front under the server pid). Re-point it at the child
+        // so /api/chat/stop's process.kill signals the child, not the dev server. Then wire abort → kill.
+        onSpawn: (child) => {
+          if (child.pid) updateLockPid(deps.stateRoot, sessionId, 'chat', child.pid)
+          event.req.signal.addEventListener('abort', () => {
+            abort.abort()
+            child.kill()
+          })
+        },
+      })
+
+      // Compaction fallback: the widget posts '/compact' as the user text. A compaction-capable
+      // harness ignores it (its buildCompactArgs hardcodes the native command); a non-capable one gets
+      // a real summarize instruction substituted here, so the turn still yields a usable summary.
+      const messages = toChatMessages(chatReq)
+      if (turnKind === 'compact' && !harness.capabilities.compaction) {
+        const lastUser = [...messages].reverse().find((m) => m.role === 'user')
+        if (lastUser) lastUser.content = COMPACT_FALLBACK_PROMPT
+      }
+
+      const stream = chat({
+        adapter,
+        messages,
+        systemPrompts: sysText ? [sysText] : [],
+        abortController: abort,
+      })
+      const merged = uiBus.run(sessionId, stream)
+      const sse = toServerSentEventsStream(withLockRelease(merged, deps.store, deps.stateRoot, sessionId), abort)
+      return new Response(sse, {status: 200, headers: sseHeaders(event)})
+    } catch (e) {
+      releaseLock(deps.stateRoot, sessionId)
+      throw e
+    }
   })
 }
 

@@ -1,6 +1,7 @@
-import {rmSync, readdirSync} from 'node:fs'
+import {rmSync, readdirSync, writeFileSync, mkdirSync} from 'node:fs'
+import {dirname} from 'node:path'
 import {z} from 'zod'
-import {readJson, writeJson} from '../fs.js'
+import {readJson} from '../fs.js'
 import {statePaths} from '../state-paths.js'
 
 // A per-session `<stateRoot>/.aidx/agent.<sessionId>.lock` that serializes one session's turns:
@@ -20,11 +21,32 @@ export function readLock(stateRoot: string, sessionId: string): LockState {
   return {held: true, role: parsed.role ?? null, pid: parsed.pid}
 }
 
-// Acquire if free or stale. Returns false if a live holder already owns it.
+// Acquire atomically: O_EXCL create is the mutex. If the file already exists, reclaim it only when
+// the recorded pid is dead (crash recovery); a live holder means we lost the race → false.
 export function acquireLock(stateRoot: string, sessionId: string, role: LockRole, pid: number): boolean {
-  if (readLock(stateRoot, sessionId).held) return false
-  writeJson(statePaths(stateRoot).lockFor(sessionId), {role, pid, startedTs: Date.now()})
-  return true
+  const path = statePaths(stateRoot).lockFor(sessionId)
+  const body = JSON.stringify({role, pid, startedTs: Date.now()})
+  mkdirSync(dirname(path), {recursive: true})
+  try {
+    writeFileSync(path, body, {flag: 'wx'}) // wx = create + fail if exists (atomic)
+    return true
+  } catch {
+    // Exists. Reclaim iff the current holder is stale (dead pid); else we lost the race.
+    if (readLock(stateRoot, sessionId).held) return false
+    try {
+      writeFileSync(path, body) // overwrite the stale lock
+      return true
+    } catch {
+      return false
+    }
+  }
+}
+
+// Re-point an already-held lock at a new pid (the spawned child) without releasing it, so the stop
+// route's process.kill targets the child rather than the up-front holder (the dev server). The caller
+// must already hold the lock; this overwrites in place, it does not contend.
+export function updateLockPid(stateRoot: string, sessionId: string, role: LockRole, pid: number): void {
+  writeFileSync(statePaths(stateRoot).lockFor(sessionId), JSON.stringify({role, pid, startedTs: Date.now()}))
 }
 
 export function releaseLock(stateRoot: string, sessionId: string): void {
