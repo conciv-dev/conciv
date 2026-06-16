@@ -33,7 +33,12 @@ export function registerSessionRoutes(app: H3, deps: SessionRouteDeps): void {
     const sessionId = deps.state.sessionId || null
     const source: ChatSession['source'] = deps.state.sessionId ? (deps.initialSessionId ? 'agent' : 'chat') : 'new'
     const usage = sessionId ? readUsage(deps.stateRoot, sessionId) : null
-    const body: ChatSession = {sessionId, source, cwd: deps.cwd, lock: {held: lock.held, role: lock.role}, usage}
+    const harness = {
+      id: deps.harness.id,
+      name: deps.harness.displayName ?? deps.harness.id,
+      canLaunch: Boolean(deps.harness.launch),
+    }
+    const body: ChatSession = {sessionId, source, cwd: deps.cwd, lock: {held: lock.held, role: lock.role}, usage, harness}
     return body
   })
 

@@ -500,6 +500,17 @@ export function ChatPanel(props: {
   }
 
   // Which action is mid-flight (e.g. lazy-loading react-grab), keyed by action id.
+  // Transient notice above the composer (e.g. "command copied"); also mirrored to the aria-live
+  // region. Auto-dismisses; re-notifying resets the timer.
+  const [notice, setNotice] = createSignal('')
+  let noticeTimer: ReturnType<typeof setTimeout> | undefined
+  const notify = (message: string) => {
+    setNotice(message)
+    setLiveMsg(message)
+    if (noticeTimer) clearTimeout(noticeTimer)
+    noticeTimer = setTimeout(() => setNotice(''), 5000)
+  }
+
   const [busyAction, setBusyAction] = createSignal<string | null>(null)
   const runAction = (a: ComposerActionDef) => {
     void Promise.resolve(
@@ -510,6 +521,8 @@ export function ChatPanel(props: {
         addDivider,
         resetUsage,
         compact,
+        notify,
+        requestMeta,
       }),
     )
   }
@@ -583,6 +596,9 @@ export function ChatPanel(props: {
           )}
         </Show>
       </div>
+      <Show when={notice()}>
+        <div class="pw-chat-notice">{notice()}</div>
+      </Show>
       <form class="pw-chat-composer" onSubmit={submit}>
         <div class="pw-chat-box">
           <textarea

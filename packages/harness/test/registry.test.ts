@@ -11,6 +11,7 @@ function stub(id: string): HarnessAdapter {
       resume: false,
       permissionGate: 'none',
       transcriptHistory: false,
+      compaction: false,
       systemPrompt: 'none',
       mcp: 'none',
       imageInput: false,

@@ -1,6 +1,6 @@
 import {describe, it, expect} from 'vitest'
 import {claude} from '../src/claude/index.js'
-import {getHarness} from '../src/registry.js'
+import {getHarness, resolveHarnessModels} from '../src/registry.js'
 
 describe('claude harness adapter', () => {
   it('declares the claude capability set', () => {
@@ -63,7 +63,7 @@ describe('claude harness adapter', () => {
   })
 
   it('declares selectable models with a default (Fable advertised but disabled)', async () => {
-    const models = typeof claude.models === 'function' ? await claude.models() : (claude.models ?? [])
+    const models = await resolveHarnessModels(claude)
     expect(models.map((m) => m.id)).toContain('sonnet')
     expect(claude.defaultModel).toBe('sonnet')
     expect(models.find((m) => m.id === 'claude-fable-5')?.disabled).toBe(true)

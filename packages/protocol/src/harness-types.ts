@@ -49,6 +49,22 @@ export type HarnessTurn = {
 
 export type HarnessChild = {pid: number; stdout: Readable; stderr: Readable; stdin?: Writable; kill(): void}
 
+// "Open in <harness>": reopen a chat session as the harness's own interactive CLI in a terminal.
+// Core owns the open logic (OS detection, cwd, shell quoting, spawning) and hands it to the harness
+// via the context's open* methods; the harness only builds the interactive argv.
+export type HarnessLaunchResult = {opened: boolean; command: string}
+export type HarnessLaunchContext = {
+  cwd: string
+  sessionId: string | null
+  model: string | null // the model the widget currently has selected, mirrored from the chat turn
+  mcpUrl: string | null // the aidx MCP-over-HTTP endpoint, for tool parity (null if not http-capable)
+  // Run `argv` in an interactive terminal at cwd. Core shell-quotes it, prepends `cd`, spawns the
+  // per-OS terminal, and returns {opened, command} — command is the resolved paste-able fallback.
+  openTerminal(argv: string[]): Promise<HarnessLaunchResult>
+  openUrl(url: string): Promise<HarnessLaunchResult>
+}
+export type HarnessLaunch = (ctx: HarnessLaunchContext) => HarnessLaunchResult | Promise<HarnessLaunchResult>
+
 // Builds the CLI argv for one turn.
 export type HarnessArgsBuilder = (turn: HarnessTurn) => string[]
 
@@ -81,6 +97,11 @@ export type HarnessHistory = {
 type HarnessAdapterBase = {
   id: string
   binName: string
+  // Human label for "Open in <displayName>" and other UI; falls back to id when absent.
+  displayName?: string
+  // How to reopen a session as this harness's interactive CLI. Absent → "open in <harness>" is
+  // unavailable (core reports unsupported, the widget hides the button).
+  launch?: HarnessLaunch
   buildArgs: HarnessArgsBuilder
   // Builds the argv for a compaction turn. Present iff capabilities.compaction (enforced by the
   // adapter union below), mirroring how transcriptHistory enforces `history`.

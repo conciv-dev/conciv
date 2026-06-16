@@ -54,6 +54,9 @@ export const ChatSessionSchema = z.object({
   lock: z.object({held: z.boolean(), role: z.enum(['iterate', 'chat']).nullable()}),
   // Last persisted usage for this session, so the tracker fills on open before any turn.
   usage: UsageSnapshotSchema.nullish(),
+  // The active harness's identity + whether it supports "open in <harness>", so the widget can
+  // label and gate the button before any click.
+  harness: z.object({id: z.string(), name: z.string(), canLaunch: z.boolean()}),
 })
 export type ChatSession = z.infer<typeof ChatSessionSchema>
 
@@ -76,3 +79,17 @@ export type ChatModels = z.infer<typeof ChatModelsSchema>
 // field); validate array + object shape via z.custom, the sanctioned typed escape.
 export const ChatHistorySchema = z.array(z.custom<UIMessage>((v) => v !== null && typeof v === 'object'))
 export type ChatHistory = z.infer<typeof ChatHistorySchema>
+
+// POST /api/chat/launch body — the widget's current model, mirrored into the resumed terminal session.
+export const ChatLaunchRequestSchema = z.object({model: z.string().optional()})
+export type ChatLaunchRequest = z.infer<typeof ChatLaunchRequestSchema>
+
+// POST /api/chat/launch response. `supported` false → the active harness defines no interactive
+// launch. `opened` true → core launched the terminal; false → the widget copies `command` (the
+// paste-able resume command, null only when unsupported).
+export const ChatLaunchSchema = z.object({
+  supported: z.boolean(),
+  opened: z.boolean(),
+  command: z.string().nullable(),
+})
+export type ChatLaunch = z.infer<typeof ChatLaunchSchema>

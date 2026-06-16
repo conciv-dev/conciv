@@ -46,6 +46,8 @@ export type ComposerActionContext = {
   addDivider: (kind: 'new' | 'compact') => void // mark a session boundary in the scrollback (prior thread stays)
   resetUsage: () => void // clear the context tracker (no turn ran)
   compact: () => Promise<void> // run the compaction turn out of band: marks a boundary, shows no chat output
+  notify: (message: string) => void // transient status line above the composer (auto-dismisses)
+  requestMeta: () => Record<string, unknown> // current per-turn extras (e.g. the selected {model})
   // FUTURE (chat-image-input plan): addAttachment: (file: File | Blob) => void
 }
 // A button in the composer's actions row, registered on the shell (mirrors registerPanel).

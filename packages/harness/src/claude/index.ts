@@ -1,5 +1,6 @@
 import {defineHarness} from '@aidx/protocol/harness-types'
-import {buildClaudeArgs, buildClaudeCompactArgs} from './args.js'
+import {AIDX_PLUGIN_DIR} from './plugin-dir.js'
+import {buildClaudeArgs, buildClaudeCompactArgs, claudeMcpArgs} from './args.js'
 import {claudeToAguiEvents} from './decode.js'
 import {claudeHistory} from './history.js'
 
@@ -20,6 +21,7 @@ const CLAUDE_MODELS = [
 export const claude = defineHarness({
   id: 'claude',
   binName: 'claude',
+  displayName: 'Claude',
   capabilities: {
     resume: true,
     permissionGate: 'hook',
@@ -35,4 +37,14 @@ export const claude = defineHarness({
   buildCompactArgs: buildClaudeCompactArgs,
   decode: claudeToAguiEvents,
   history: claudeHistory,
+  // Interactive resume: claude [--resume <id>] [--model <m>] + the same MCP/plugin flags the chat
+  // turn uses, minus the headless -p/stream-json flags (verified accepted in interactive mode).
+  launch: (ctx) => {
+    const argv = ['claude']
+    if (ctx.sessionId) argv.push('--resume', ctx.sessionId)
+    if (ctx.model) argv.push('--model', ctx.model)
+    if (ctx.mcpUrl) argv.push(...claudeMcpArgs(ctx.mcpUrl))
+    if (AIDX_PLUGIN_DIR) argv.push('--plugin-dir', AIDX_PLUGIN_DIR)
+    return ctx.openTerminal(argv)
+  },
 })

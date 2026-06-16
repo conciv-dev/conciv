@@ -9,6 +9,7 @@ import {codexToAguiEvents} from './decode.js'
 export const codex = defineHarness({
   id: 'codex',
   binName: 'codex',
+  displayName: 'Codex',
   capabilities: {
     resume: true,
     permissionGate: 'none',
@@ -20,4 +21,12 @@ export const codex = defineHarness({
   },
   buildArgs: buildCodexArgs,
   decode: codexToAguiEvents,
+  // Interactive resume: codex [resume <id>] [-m <m>]. Model-only for v1 — codex has no --mcp-config
+  // flag (MCP lives in ~/.codex/config.toml or -c overrides), so aidx tool parity is out of scope here.
+  launch: (ctx) => {
+    const argv = ['codex']
+    if (ctx.sessionId) argv.push('resume', ctx.sessionId)
+    if (ctx.model) argv.push('-m', ctx.model)
+    return ctx.openTerminal(argv)
+  },
 })

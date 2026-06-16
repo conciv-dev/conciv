@@ -1105,6 +1105,16 @@
 .pw-chat-retry:hover {
   background: color-mix(in oklch, var(--pw-danger) 14%, transparent);
 }
+.pw-chat-notice {
+  margin: 0 12px 8px;
+  padding: 8px 10px;
+  border-radius: var(--pw-r-md);
+  border: 1px solid var(--pw-line);
+  background: var(--pw-fill);
+  color: var(--pw-text-2);
+  font: 500 12px/1.4 var(--pw-font);
+  word-break: break-word;
+}
 .pw-chat-composer {
   padding: 12px;
   border-top: 1px solid var(--pw-line-soft);

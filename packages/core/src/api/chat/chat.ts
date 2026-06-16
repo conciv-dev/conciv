@@ -2,6 +2,7 @@ import type {H3} from 'h3'
 import type {HarnessAdapter} from '@aidx/protocol/harness-types'
 import type {UiBus} from '../../runtime/ui-bus.js'
 import {readSession} from '../../store/session-store.js'
+import {registerLaunchRoutes} from './launch.js'
 import {makePermissionGate, registerPermissionRoutes} from './permission.js'
 import {registerSessionRoutes, type SessionState} from './session.js'
 import {registerTurnRoutes, type SpawnHarness} from './turn.js'
@@ -36,6 +37,7 @@ export function registerChatRoutes(app: H3, opts: ChatRouteOpts): void {
     harness: opts.harness,
     state,
   })
+  registerLaunchRoutes(app, {cwd: opts.cwd, harness: opts.harness, state})
   registerTurnRoutes(app, {
     cwd: opts.cwd,
     stateRoot: opts.stateRoot,
