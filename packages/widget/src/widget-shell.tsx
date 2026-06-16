@@ -10,6 +10,8 @@ import {createPiP} from './pip.js'
 import {ChevronDown, Crosshair, PictureInPicture2} from 'lucide-solid'
 import {picking, cancelPick} from './react-grab/picking.js'
 import {ContextTracker} from './context-tracker.js'
+import {Popover} from './popover.js'
+import {SessionInfoCard, sessionLabel} from './session-info.js'
 import type {UsageSnapshot} from '@aidx/protocol/usage-types'
 
 // A registered content module the shell hosts, modeled on the TanStack Devtools plugin model.
@@ -22,6 +24,10 @@ export type PanelContext = {
   onWorkingChange: (working: boolean) => void
   // The content reports its latest model-usage snapshot, for the top-bar context tracker.
   onUsageChange: (usage: UsageSnapshot | null) => void
+  // The pane's session id (quick-terminal panes mint one; the modal omits it → default session).
+  sessionId?: () => string | undefined
+  // The content reports its resolved session label (name + harness id) for the chrome to show.
+  onSessionLabel?: (label: {name: string | null; harnessId: string | null}) => void
   // Composer-action buttons registered on the shell, rendered in each panel's composer row.
   composerActions: () => ComposerActionDef[]
   // Composer-control plugins (stateful widgets, e.g. the model selector), rendered in the same row.
@@ -216,16 +222,21 @@ function ModalLayout(props: {
 }): JSX.Element {
   const [working, setWorking] = createSignal(false)
   const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
+  const [label, setLabel] = createSignal<{name: string | null; harnessId: string | null}>({name: null, harnessId: null})
+  const [infoOpen, setInfoOpen] = createSignal(false)
   const fab = createDraggablePosition({initial: props.position, storageKey: 'aidx-fab-position'})
   const pip = createPiP()
   let fabEl: HTMLButtonElement | undefined
   let panelEl: HTMLElement | undefined
+  let labelEl: HTMLButtonElement | undefined
 
   const fabPulsing = () => !props.open() && working()
+  // The modal hosts the default session (no minted id) — it omits sessionId.
   const content = props.panel.create({
     active: () => props.open(),
     onWorkingChange: setWorking,
     onUsageChange: setUsage,
+    onSessionLabel: setLabel,
     composerActions: props.composerActions,
     composerControls: props.composerControls,
   })
@@ -327,6 +338,21 @@ function ModalLayout(props: {
             <PictureInPicture2 class="pw-icon" aria-hidden="true" />
           </button>
           <span class="pw-chat-title">{props.panel.title}</span>
+          <button
+            type="button"
+            class="pw-chat-subtitle"
+            ref={(el) => {
+              labelEl = el
+            }}
+            onClick={() => setInfoOpen((v) => !v)}
+          >
+            {sessionLabel(label())}
+          </button>
+          <Popover anchor={labelEl} open={infoOpen} setOpen={setInfoOpen} placement="bottom-start">
+            <SessionInfoCard
+              info={{name: label().name, harnessId: label().harnessId, source: label().harnessId ? 'chat' : 'new'}}
+            />
+          </Popover>
           <ContextTracker usage={usage()} />
           <button type="button" class="pw-chat-close" aria-label="Close chat" onClick={closePanel}>
             <ChevronDown class="pw-chevron" aria-hidden="true" />

@@ -2101,6 +2101,25 @@
   background: var(--pw-panel-sunk);
 }
 
+/* Clickable session subtitle in the modal header (opens the session-info popover). */
+.pw-chat-subtitle {
+  min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: none;
+  border: 0;
+  padding: 0 6px;
+  color: var(--pw-text-2);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.pw-chat-subtitle:hover {
+  color: var(--pw-text);
+}
+
 /* Floating UI popover + session-info card (session label chrome). */
 .pw-popover {
   position: absolute;
