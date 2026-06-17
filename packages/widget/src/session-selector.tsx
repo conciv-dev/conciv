@@ -1,7 +1,7 @@
 import {createSignal, createEffect, For, Show, onMount, type JSX} from 'solid-js'
 import {Combobox, useListCollection} from '@ark-ui/solid/combobox'
 import {Check, ChevronDown, Sparkles, SquarePen, Plus} from 'lucide-solid'
-import type {ChatSessionMeta, SessionId} from '@aidx/protocol/chat-types'
+import type {ChatSessionMeta, SessionId} from '@opendui/aidx-protocol/chat-types'
 import {defineClient} from './session-client.js'
 import {sessions, status, loadSessions, invalidateSessions, applyTitle} from './session-store-client.js'
 

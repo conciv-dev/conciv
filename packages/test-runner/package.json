@@ -1,5 +1,5 @@
 {
-  "name": "@aidx/test-runner",
+  "name": "@opendui/aidx-test-runner",
   "version": "0.0.0",
   "description": "Runner-agnostic test-runner adapters for aidx (vitest today; jest/node-test/playwright are drop-in via the ChildRunnerSpec seam). Each adapter spawns a clean child that streams TestEvent NDJSON on fd 3.",
   "license": "MIT",
@@ -37,7 +37,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@aidx/protocol": "workspace:*",
+    "@opendui/aidx-protocol": "workspace:*",
     "zod": "^4.4.3"
   },
   "devDependencies": {

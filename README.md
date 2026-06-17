@@ -3,7 +3,7 @@
 An embeddable AI dev agent for your running app — **chat, page control, and live tests,
 injected into the page via a Vite plugin**.
 
-aidx boots a framework-free h3 engine (`@aidx/core`) behind a set of `/api/*` HTTP routes
+aidx boots a framework-free h3 engine (`@opendui/aidx-core`) behind a set of `/api/*` HTTP routes
 on its own dev port, spawns a headless harness (default `claude -p`), and injects a Solid widget
 into the previewed page. From the widget you can chat with the agent, watch it think and call
 tools, approve risky commands, answer agent-generated UI prompts, and see live test result cards
@@ -11,27 +11,27 @@ tools, approve risky commands, answer agent-generated UI prompts, and see live t
 
 ```
  ┌─────────────┐      /api/* (SSE + JSON)       ┌──────────────────┐
- │  browser    │ ◀──────────────────────────▶  │  @aidx/core   │
+ │  browser    │ ◀──────────────────────────▶  │  @opendui/aidx-core   │
  │  widget     │   chat stream · page-bus ·     │  (h3 + srvx)     │
  │ (Solid,     │   test stream · approvals      │   → harness      │
  │  shadow DOM)│                                │   (claude/codex) │
  └─────────────┘                                └──────────────────┘
-   injected by @aidx/plugin (vite/webpack/…)
+   injected by @opendui/aidx-plugin (vite/webpack/…)
 ```
 
 > Status: early. Extracted from an internal preview tool and being generalized for any app.
 
 ## Packages
 
-| Package                                       | What it is                                                                                                                           |
-| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| [`@aidx/protocol`](./packages/protocol)       | Shared wire types + `define*` factories (chat, generative UI, test, page, harness/runner/bundler, config). Zero-runtime.             |
-| [`@aidx/core`](./packages/core)               | The framework-free h3 + srvx engine: all `/api/*` routes, lock, session, uiBus, harness + test-runner registries, the BundlerBridge. |
-| [`@aidx/harness`](./packages/harness)         | Harness adapters behind a capability interface: claude + codex, plus gemini-cli/opencode/pi stubs.                                   |
-| [`@aidx/test-runner`](./packages/test-runner) | Test-runner adapters over a clean-child fd3 driver: vitest (full), jest/node-test/playwright (stubs).                                |
-| [`@aidx/plugin`](./packages/plugin)           | The dev agent as an unplugin: `@aidx/plugin/vite` (full), webpack/rspack/rollup/esbuild entries. Boots core + injects the widget.    |
-| [`@aidx/widget`](./packages/widget)           | The browser half: a Solid chat UI in an open Shadow DOM, the test card, and the page-control driver.                                 |
-| [`@aidx/cli`](./packages/cli)                 | The `aidx` CLI the agent calls from Bash: `tools server / page / test / open` + `ui`, against core's `/api/*` surface.               |
+| Package                                               | What it is                                                                                                                                |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| [`@opendui/aidx-protocol`](./packages/protocol)       | Shared wire types + `define*` factories (chat, generative UI, test, page, harness/runner/bundler, config). Zero-runtime.                  |
+| [`@opendui/aidx-core`](./packages/core)               | The framework-free h3 + srvx engine: all `/api/*` routes, lock, session, uiBus, harness + test-runner registries, the BundlerBridge.      |
+| [`@opendui/aidx-harness`](./packages/harness)         | Harness adapters behind a capability interface: claude + codex, plus gemini-cli/opencode/pi stubs.                                        |
+| [`@opendui/aidx-test-runner`](./packages/test-runner) | Test-runner adapters over a clean-child fd3 driver: vitest (full), jest/node-test/playwright (stubs).                                     |
+| [`@opendui/aidx-plugin`](./packages/plugin)           | The dev agent as an unplugin: `@opendui/aidx-plugin/vite` (full), webpack/rspack/rollup/esbuild entries. Boots core + injects the widget. |
+| [`@opendui/aidx-widget`](./packages/widget)           | The browser half: a Solid chat UI in an open Shadow DOM, the test card, and the page-control driver.                                      |
+| [`@opendui/aidx-cli`](./packages/cli)                 | The `aidx` CLI the agent calls from Bash: `tools server / page / test / open` + `ui`, against core's `/api/*` surface.                    |
 
 ## Quickstart
 
@@ -39,14 +39,14 @@ Add the plugin to your app's `vite.config.ts` and serve the widget bundle:
 
 ```ts
 import {defineConfig} from 'vite'
-import aidx from '@aidx/plugin/vite'
+import aidx from '@opendui/aidx-plugin/vite'
 
 export default defineConfig({
   plugins: [aidx()],
 })
 ```
 
-`@aidx/core` boots its own dev engine (the `/api/*` surface + the bundled widget) and the
+`@opendui/aidx-core` boots its own dev engine (the `/api/*` surface + the bundled widget) and the
 plugin injects the widget `<script>` into your HTML. Override defaults via
 `aidx({harness, testRunner, previewId, widgetUrl, …})`. The widget probes `/api/chat/session`
 on load and only shows the ✦ FAB when the dev-server routes are live, so it's inert on a plain

@@ -3,7 +3,7 @@ import {defineConfig} from 'tsdown'
 // registry.ts is the package entry ("."); each runner adapter (vitest/jest/node-test/
 // playwright .ts) is a subpath export. vitest/child.ts MUST stay its own output: the driver
 // spawns it as a fresh process via new URL('./child.js', import.meta.url), so it cannot be
-// bundled into its adapter (its logic lives in run-child.ts, bundled into child.js). @aidx/
+// bundled into its adapter (its logic lives in run-child.ts, bundled into child.js). @opendui/aidx-
 // protocol + zod stay external; the runner libs (vitest/jest/playwright/node:test) are the
 // previewed app's deps, resolved at runtime — never bundled. vitest is fully implemented;
 // jest/node-test/playwright are capability-only stubs (defineStubRunner) pending implementation —

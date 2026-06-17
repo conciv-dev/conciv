@@ -1,8 +1,8 @@
 import {createSignal, For, Show, type JSX} from 'solid-js'
-import type {UiApproval, UiChoices, UiConfirm, UiDiff, UiForm, UiSpec} from '@aidx/protocol/ui-types'
+import type {UiApproval, UiChoices, UiConfirm, UiDiff, UiForm, UiSpec} from '@opendui/aidx-protocol/ui-types'
 
 // Agent-generated UI rendered inline in the chat thread; the user's answer becomes the next
-// chat message (the resume turn cycle is the round-trip). Types come from @aidx/protocol.
+// chat message (the resume turn cycle is the round-trip). Types come from @opendui/aidx-protocol.
 
 function Choices(props: {spec: UiChoices; onAnswer: (text: string) => void}): JSX.Element {
   return (

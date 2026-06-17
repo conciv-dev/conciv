@@ -216,7 +216,7 @@ transcript exists, else `null`.
 ### Popover component
 
 A reusable Solid popover primitive at `packages/widget/src/popover.tsx`, built on
-`@floating-ui/dom` (promoted from a transitive dep to a direct `@aidx/widget` dependency; the
+`@floating-ui/dom` (promoted from a transitive dep to a direct `@opendui/aidx-widget` dependency; the
 framework-agnostic `dom` package is the correct choice for Solid — the React wrapper already
 in the tree is not usable here).
 
@@ -290,5 +290,5 @@ Playwright using `browser.newPage()`.
 
 ## Dependencies
 
-- `@floating-ui/dom` promoted to a direct `@aidx/widget` dependency (already present
+- `@floating-ui/dom` promoted to a direct `@opendui/aidx-widget` dependency (already present
   transitively; no new download).

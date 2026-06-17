@@ -2,8 +2,8 @@ import {createInterface} from 'node:readline'
 import type {Readable} from 'node:stream'
 import {normalizeSystemPrompts, type StreamChunk, type TextOptions} from '@tanstack/ai'
 import {BaseTextAdapter, type StructuredOutputOptions, type StructuredOutputResult} from '@tanstack/ai/adapters'
-import type {HarnessAdapter, HarnessChild, HarnessImage, HarnessTurn} from '@aidx/protocol/harness-types'
-import type {UsageSnapshot} from '@aidx/protocol/usage-types'
+import type {HarnessAdapter, HarnessChild, HarnessImage, HarnessTurn} from '@opendui/aidx-protocol/harness-types'
+import type {UsageSnapshot} from '@opendui/aidx-protocol/usage-types'
 
 export type SpawnHarness = (args: string[], cwd: string) => HarnessChild
 

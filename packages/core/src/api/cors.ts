@@ -1,5 +1,5 @@
 import {handleCors, type CorsOptions, type H3, type H3Event} from 'h3'
-import {AIDX_SESSION_HEADER} from '@aidx/protocol/chat-types'
+import {AIDX_SESSION_HEADER} from '@opendui/aidx-protocol/chat-types'
 
 // The core server binds to loopback (127.0.0.1) and serves a dev tool whose verbs include `eval`
 // and live React `override` — arbitrary code/state mutation in the dev app. Without an origin

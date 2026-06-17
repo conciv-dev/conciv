@@ -2,7 +2,7 @@ import {spawn} from 'node:child_process'
 import {createRequire} from 'node:module'
 import {join} from 'node:path'
 import {writeSync} from 'node:fs'
-import type {Summary, TestError, TestRow} from '@aidx/protocol/test-types'
+import type {Summary, TestError, TestRow} from '@opendui/aidx-protocol/test-types'
 import type {ChildMessage} from '../child-protocol.js'
 import {parsePlaywrightReport} from './report.js'
 

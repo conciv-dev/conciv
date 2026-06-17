@@ -1,5 +1,5 @@
 {
-  "name": "@aidx/cli",
+  "name": "@opendui/aidx-cli",
   "version": "0.0.0",
   "description": "The aidx agent-facing CLI: `aidx tools` (drive the live page/vite/tests) and `aidx ui` (render interactive UI in the chat). citty command tree, zod-validated args.",
   "license": "MIT",
@@ -20,8 +20,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@aidx/protocol": "workspace:*",
     "@clack/prompts": "^1.5.1",
+    "@opendui/aidx-protocol": "workspace:*",
     "citty": "^0.2.2",
     "consola": "^3.4.2",
     "zod": "^4.4.3"

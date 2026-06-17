@@ -16,7 +16,7 @@ widget.
 <Tab value="pnpm">
 
 ```bash
-pnpm add -D @aidx/plugin
+pnpm add -D @opendui/aidx
 ```
 
 </Tab>
@@ -24,7 +24,7 @@ pnpm add -D @aidx/plugin
 <Tab value="npm">
 
 ```bash
-npm install -D @aidx/plugin
+npm install -D @opendui/aidx
 ```
 
 </Tab>
@@ -32,7 +32,7 @@ npm install -D @aidx/plugin
 <Tab value="yarn">
 
 ```bash
-yarn add -D @aidx/plugin
+yarn add -D @opendui/aidx
 ```
 
 </Tab>
@@ -46,7 +46,7 @@ yarn add -D @aidx/plugin
 
 ```ts title="next.config.ts"
 import type {NextConfig} from 'next'
-import {withAidx} from '@aidx/plugin/nextjs'
+import {withAidx} from '@opendui/aidx/plugin/nextjs'
 
 const nextConfig: NextConfig = {}
 
@@ -59,11 +59,11 @@ export default withAidx(nextConfig)
 ### Add the instrumentation files
 
 ```ts title="instrumentation.ts"
-export {register} from '@aidx/plugin/nextjs'
+export {register} from '@opendui/aidx/plugin/nextjs'
 ```
 
 ```ts title="instrumentation-client.ts"
-import '@aidx/plugin/nextjs/widget'
+import '@opendui/aidx/plugin/nextjs/widget'
 ```
 
 </Step>

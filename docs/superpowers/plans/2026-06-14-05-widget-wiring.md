@@ -60,7 +60,7 @@ h3 v2 CORS is built in (`handleCors`, `appendCorsHeaders`, `appendCorsPreflightH
 ### Task 5 — End-to-end verify in the example app (proves the fix)
 
 - [ ] Run `apps/examples/tanstack-start` dev (`vite dev --port 3000`). In a real browser (or playwright):
-  - Confirm the widget bundle loads from `/@aidx/widget.js`.
+  - Confirm the widget bundle loads from `/@opendui/aidx-widget.js`.
   - Confirm `<meta name="pw-api-base">` is the engine origin (`http://127.0.0.1:<port>`), not empty.
   - Confirm `GET /api/chat/session` succeeds cross-origin (no CORS error in console).
   - Confirm the FAB mounts and the page-bus `EventSource` (`/api/page/stream`) connects.

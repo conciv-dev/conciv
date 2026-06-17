@@ -154,7 +154,7 @@ Expected: PASS.
 
 - [ ] **Step 5: Typecheck protocol**
 
-Run: `npx turbo run typecheck --filter=@aidx/protocol`
+Run: `npx turbo run typecheck --filter=@opendui/aidx-protocol`
 Expected: PASS (downstream packages will break until later tasks — that's expected; do not fix them here).
 
 - [ ] **Step 6: Commit**
@@ -176,7 +176,7 @@ git commit -m "feat(protocol): branded SessionId + SessionRecord/resolve schemas
 
 - [ ] **Step 1: Add the unstorage dependency**
 
-Run: `pnpm --filter @aidx/core add unstorage`
+Run: `pnpm --filter @opendui/aidx-core add unstorage`
 Expected: `unstorage` appears in `packages/core/package.json` dependencies.
 
 - [ ] **Step 2: Write failing tests against the MEMORY driver**
@@ -235,7 +235,7 @@ Expected: FAIL — module not found.
 import {createStorage, type Storage} from 'unstorage'
 import memoryDriver from 'unstorage/drivers/memory'
 import fsDriver from 'unstorage/drivers/fs-lite'
-import {SessionRecordSchema, type SessionRecord} from '@aidx/protocol/chat-types'
+import {SessionRecordSchema, type SessionRecord} from '@opendui/aidx-protocol/chat-types'
 
 // Domain interface — the only thing the rest of core imports. No storage primitives leak past it.
 export type SessionStore = {
@@ -350,7 +350,7 @@ Expected: FAIL — still returns `DEFAULT_SESSION_ID`.
 
 ```ts
 // packages/core/src/api/chat/session-id.ts
-import {AIDX_SESSION_HEADER, SessionId} from '@aidx/protocol/chat-types'
+import {AIDX_SESSION_HEADER, SessionId} from '@opendui/aidx-protocol/chat-types'
 
 export function sessionIdFromHeaders(headers: Headers): string | null {
   const raw = headers.get(AIDX_SESSION_HEADER)
@@ -440,7 +440,7 @@ Expected: FAIL — `resolveSession` not exported.
 ```ts
 // packages/core/src/api/chat/session.ts  (new exported helper, used by the route)
 import {randomUUID} from 'node:crypto'
-import {ResolveRequestSchema, type SessionRecord} from '@aidx/protocol/chat-types'
+import {ResolveRequestSchema, type SessionRecord} from '@opendui/aidx-protocol/chat-types'
 
 export type ResolveDeps = {
   store: SessionStore
@@ -740,7 +740,7 @@ At app boot, if `cfg.sessionId` (the handed-off harness id) is set, call `seedAg
 
 Run: `npx vitest run packages/core/test/api/chat/agent-handoff.test.ts`
 Expected: PASS.
-Run: `npx turbo run typecheck test --filter=@aidx/core`
+Run: `npx turbo run typecheck test --filter=@opendui/aidx-core`
 Expected: PASS — Phase 1 verify gate green.
 
 - [ ] **Step 5: Commit**
@@ -948,7 +948,7 @@ import {
   RenameResponseSchema,
   OkSchema,
   PermissionDecisionSchema, // {renderId, approved}
-} from '@aidx/protocol/chat-types'
+} from '@opendui/aidx-protocol/chat-types'
 
 export function defineClient(opts: {apiBase: string}) {
   const [sessionId, setSessionId] = createSignal<SessionId | null>(null)
@@ -997,13 +997,13 @@ export function defineClient(opts: {apiBase: string}) {
 }
 ```
 
-(Add `PermissionDecisionSchema = z.object({renderId: z.string(), approved: z.boolean()})` to `@aidx/protocol/chat-types.ts` in this step — it backs the approval gate.)
+(Add `PermissionDecisionSchema = z.object({renderId: z.string(), approved: z.boolean()})` to `@opendui/aidx-protocol/chat-types.ts` in this step — it backs the approval gate.)
 
 - [ ] **Step 4: Run, verify it passes + typecheck**
 
 Run: `npx vitest run packages/widget/test/session-client.test.ts`
 Expected: PASS.
-Run: `npx turbo run typecheck --filter=@aidx/widget`
+Run: `npx turbo run typecheck --filter=@opendui/aidx-widget`
 Expected: errors only in the not-yet-rewired importers (Phase 3); `session-client.ts` itself clean.
 
 - [ ] **Step 5: Commit**
@@ -1029,7 +1029,7 @@ Remove the `activeToken` signal and the `onSessionLabel` token plumbing added du
 
 - [ ] **Step 2: Typecheck**
 
-Run: `npx turbo run typecheck --filter=@aidx/widget`
+Run: `npx turbo run typecheck --filter=@opendui/aidx-widget`
 Expected: errors shrink to the remaining components (selector, panes, panel).
 
 - [ ] **Step 3: Commit**
@@ -1054,7 +1054,7 @@ git commit -m "refactor(widget): shell uses defineClient + persisted our id; rem
 
 - [ ] **Step 2: Typecheck**
 
-Run: `npx turbo run typecheck --filter=@aidx/widget`
+Run: `npx turbo run typecheck --filter=@opendui/aidx-widget`
 Expected: errors shrink to panes + panel.
 
 - [ ] **Step 3: Commit**
@@ -1078,7 +1078,7 @@ Each pane creates `defineClient({apiBase})`; pane "new" → `resolve()`; pane la
 
 - [ ] **Step 2: Typecheck**
 
-Run: `npx turbo run typecheck --filter=@aidx/widget`
+Run: `npx turbo run typecheck --filter=@opendui/aidx-widget`
 Expected: errors shrink to chat-panel only.
 
 - [ ] **Step 3: Commit**
@@ -1109,7 +1109,7 @@ git commit -m "refactor(widget): per-pane defineClient, panes persist our ids"
 
 - [ ] **Step 2: Typecheck the whole widget — should be green**
 
-Run: `npx turbo run typecheck --filter=@aidx/widget`
+Run: `npx turbo run typecheck --filter=@opendui/aidx-widget`
 Expected: PASS (chat-api.ts now has no importers; ensure it's deleted).
 
 - [ ] **Step 3: Commit**
@@ -1134,7 +1134,7 @@ The model selector isn't session-scoped, so it uses a header-less client: `const
 
 - [ ] **Step 2: Typecheck + commit**
 
-Run: `npx turbo run typecheck --filter=@aidx/widget`
+Run: `npx turbo run typecheck --filter=@opendui/aidx-widget`
 Expected: PASS.
 
 ```bash
@@ -1157,7 +1157,7 @@ git commit -m "refactor(widget): model-selector via client.models()"
 
 - [ ] **Step 2: Typecheck + commit**
 
-Run: `npx turbo run typecheck --filter=@aidx/widget`
+Run: `npx turbo run typecheck --filter=@opendui/aidx-widget`
 Expected: PASS.
 
 ```bash
@@ -1180,7 +1180,7 @@ The old probe hit header-less `GET /api/chat/session`; that now 404s on unknown 
 
 - [ ] **Step 2: Typecheck + commit**
 
-Run: `npx turbo run typecheck --filter=@aidx/widget`
+Run: `npx turbo run typecheck --filter=@opendui/aidx-widget`
 Expected: PASS.
 
 ```bash
@@ -1202,7 +1202,7 @@ git commit -m "refactor(widget): probe chat availability via /models, not /sessi
 
 - [ ] **Step 2: Typecheck + manual smoke (page-bus has IT coverage) + commit**
 
-Run: `npx turbo run typecheck --filter=@aidx/widget`
+Run: `npx turbo run typecheck --filter=@opendui/aidx-widget`
 Expected: PASS.
 
 ```bash
@@ -1224,7 +1224,7 @@ git commit -m "refactor(widget): page-bus over the shared transport"
 
 - [ ] **Step 2: Typecheck + commit**
 
-Run: `npx turbo run typecheck --filter=@aidx/widget`
+Run: `npx turbo run typecheck --filter=@opendui/aidx-widget`
 Expected: PASS.
 
 ```bash

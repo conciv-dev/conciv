@@ -1,7 +1,7 @@
 import {execSync, spawn} from 'node:child_process'
 import {describe, expect, it} from 'vitest'
 import {chat, EventType, type StreamChunk} from '@tanstack/ai'
-import type {HarnessChild} from '@aidx/protocol/harness-types'
+import type {HarnessChild} from '@opendui/aidx-protocol/harness-types'
 import {harnessText} from '../src/_shared/text-adapter.js'
 import {claude} from '../src/claude/index.js'
 

@@ -4,7 +4,7 @@ import {mkdtempSync, mkdirSync, writeFileSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
-import {ChatSessionsSchema} from '@aidx/protocol/chat-types'
+import {ChatSessionsSchema} from '@opendui/aidx-protocol/chat-types'
 import {startTestServer, type SpawnHarness, type TestServer} from '../../helpers/server.js'
 
 // GET /api/chat/sessions joins the harness transcript list to the previewId map (origin/running/

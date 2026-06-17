@@ -1,4 +1,4 @@
-import type {HarnessTurn} from '@aidx/protocol/harness-types'
+import type {HarnessTurn} from '@opendui/aidx-protocol/harness-types'
 
 // Build the non-interactive `codex exec` argv: stream machine-readable JSON events to stdout and
 // allow workspace edits without interactive approval (codex governs risky ops via its own

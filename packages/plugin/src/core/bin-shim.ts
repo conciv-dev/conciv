@@ -4,7 +4,7 @@ import {createRequire} from 'node:module'
 
 const require = createRequire(import.meta.url)
 
-// Symlink the @aidx/cli bin onto the agent's PATH so its `aidx tools …` calls resolve.
+// Symlink the @opendui/aidx-cli bin onto the agent's PATH so its `aidx tools …` calls resolve.
 // Returns the PATH (binDir prepended) for childEnv. Best effort — falls back to PATH's `aidx`.
 export function installAidxBinShim(stateDir: string): string {
   const binDir = join(stateDir, 'bin')
@@ -12,7 +12,7 @@ export function installAidxBinShim(stateDir: string): string {
   try {
     const shim = join(binDir, 'aidx')
     rmSync(shim, {force: true})
-    symlinkSync(require.resolve('@aidx/cli/bin'), shim)
+    symlinkSync(require.resolve('@opendui/aidx-cli/bin'), shim)
   } catch {
     // best effort
   }

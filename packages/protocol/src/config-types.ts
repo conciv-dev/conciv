@@ -1,6 +1,6 @@
 // The public aidx config contract, shared by the engine + every plugin entry. Zero-runtime:
 // the type + an identity typed factory (mirrors defineHarness/defineRunner). Resolution + env
-// fallbacks live in @aidx/core/config.
+// fallbacks live in @opendui/aidx-core/config.
 // Where the corner-modal trigger button sits. Draggable at runtime; this is the initial spot.
 export type TriggerPosition = 'top-left' | 'top-right' | 'middle-left' | 'middle-right' | 'bottom-left' | 'bottom-right'
 

@@ -2,7 +2,7 @@ import {spawn, type ChildProcess} from 'node:child_process'
 import {createInterface} from 'node:readline'
 import {fileURLToPath} from 'node:url'
 import {Readable} from 'node:stream'
-import type {Summary, TestRunResult, TestEvent, FileState} from '@aidx/protocol/test-types'
+import type {Summary, TestRunResult, TestEvent, FileState} from '@opendui/aidx-protocol/test-types'
 import {
   defineRunner,
   runnerUnavailableError,
@@ -12,14 +12,14 @@ import {
   type TestRunnerAdapter,
   type TestRunnerCapabilities,
   type TestRunnerManager,
-} from '@aidx/protocol/runner-types'
+} from '@opendui/aidx-protocol/runner-types'
 import {ChildMessageSchema, type ChildMessage} from './child-protocol.js'
 
 // Runner-agnostic driver: spawn the adapter's child as a clean process (NODE_OPTIONS/VIBE_*
 // stripped), read TestEvent NDJSON off fd 3, own cache/runBuffer/subscribe. Adapters supply a spec.
 
-export {isRunnerUnavailable, runnerUnavailableError} from '@aidx/protocol/runner-types'
-export type {RunnerUnavailableError} from '@aidx/protocol/runner-types'
+export {isRunnerUnavailable, runnerUnavailableError} from '@opendui/aidx-protocol/runner-types'
+export type {RunnerUnavailableError} from '@opendui/aidx-protocol/runner-types'
 
 // What a child-spawning runner declares. Coupled to THIS driver, so it lives here (not in the
 // zero-runtime protocol package); authored through defineChildRunner, never a bare literal.

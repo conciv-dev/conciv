@@ -29,7 +29,7 @@ only new dependency is `@modelcontextprotocol/sdk` for the `/api/mcp` server
   coding CLI owns its own iteration and tool execution. The faithful, measured
   realization of "aidx tools in the loop" is: aidx tools are MCP tools the CLI
   calls natively; the handlers run server-side in core's process.
-- **`@aidx/tools` is a new package** holding the tool registry.
+- **`@opendui/aidx-tools` is a new package** holding the tool registry.
 - **`/api/mcp` uses `@modelcontextprotocol/sdk`** (new, user-approved dependency)
   for the streamable-HTTP MCP server, rather than hand-rolling the JSON-RPC.
 - **Full Bash→MCP replacement.** The `Bash(aidx ui:*)` / `Bash(aidx tools:*)`
@@ -82,7 +82,7 @@ calls inline under one pid, one session, one transcript.
 ## Architecture
 
 ```
-                    @aidx/tools  (NEW)
+                    @opendui/aidx-tools  (NEW)
         tanstack/ai toolDefinition().server() registry
         aidx_ui · aidx_page · aidx_test
                     │ handlers bridge to uiBus / pageBus / testRunner
@@ -120,12 +120,12 @@ branches on harness; the factory never hardcodes a CLI — the harness is data.
 
 ## Components
 
-- **`@aidx/tools`** (new package): `toolDefinition().server()` registry
+- **`@opendui/aidx-tools`** (new package): `toolDefinition().server()` registry
   (`aidx_ui`, `aidx_page`, `aidx_test`). Handlers receive a typed `context`
   (handles to `uiBus` / pageBus / testRunner). Pure tool logic — no transport,
   no CLI knowledge. Reusable by the MCP server.
 - **`/api/mcp`** (new core route): MCP-over-HTTP (streamable-http) server built
-  on `@modelcontextprotocol/sdk`, exposing the `@aidx/tools` registry.
+  on `@modelcontextprotocol/sdk`, exposing the `@opendui/aidx-tools` registry.
   In-process, so handlers reach `uiBus` directly. Replaces the `aidx ui` /
   `aidx tools` Bash shell-out path (the `--allowedTools` Bash entries are
   removed from the claude args).
@@ -140,16 +140,12 @@ InputModalities, MsgMeta>` — type params from the existing
     chat-image-input spec): `InputModalities = ['text']` or `['text','image']`;
     tool capabilities empty (the CLI owns its tools; `chat().tools` is unused).
   - `kind: 'text'`, `name: harness.id`, `model: harness.id`.
-  - `chatStream(options)`:
-    - `options.logger.request(...)` before spawn; `logger.errors(...)` on throw
-      (matches the adapter logger contract).
-    - derive a `HarnessTurn` from `options.messages` (`lastUserText` /
-      multimodal content) + `normalizeSystemPrompts(options.systemPrompts)`
-      mapped to the CLI's file/flag per capability (the logic in `turn.ts`
-      lines 47–56 moves here) + resume session id.
-    - spawn `harness.buildArgs(turn)` (incl. `--mcp-config`), wire
-      `options.abortController?.signal` → `child.kill()`.
-    - `yield* harness.decode(linesOf(child.stdout), {onSessionId, runId:
+  - `chatStream(options)`: - `options.logger.request(...)` before spawn; `logger.errors(...)` on throw
+    (matches the adapter logger contract). - derive a `HarnessTurn` from `options.messages` (`lastUserText` /
+    multimodal content) + `normalizeSystemPrompts(options.systemPrompts)`
+    mapped to the CLI's file/flag per capability (the logic in `turn.ts`
+    lines 47–56 moves here) + resume session id. - spawn `harness.buildArgs(turn)` (incl. `--mcp-config`), wire
+    `options.abortController?.signal` → `child.kill()`. - `yield* harness.decode(linesOf(child.stdout), {onSessionId, runId:
 options.runId, threadId: options.threadId, logger: options.logger})`.
   - `structuredOutput()`: a coding CLI has no native schema-constrained mode.
     Implemented as a **typed `NotSupported` throw** — an honest capability gap,
@@ -176,7 +172,7 @@ all already met or trivial:
   `chat({adapter, messages, systemPrompts, abortController})` →
   `uiBus.run` merge → `toServerSentEventsStream`.
 
-## Contract changes (`@aidx/protocol/harness-types`)
+## Contract changes (`@opendui/aidx-protocol/harness-types`)
 
 - `HarnessCapabilities` gains `mcp: 'http' | 'stdio' | 'none'`.
 - `HarnessTurn` gains `mcpUrl?: string` (injected like `permissionUrl` today).
@@ -239,7 +235,7 @@ Repo convention — integration only, real processes, no mocks (`*.it.test.ts`):
 - This spec covers all harnesses; implementation sequences **claude first**.
 - claude/codex get `mcp: 'http'`; the gemini-cli / opencode / pi stubs stay
   `mcp: 'none'` and keep working unchanged.
-- Tools migrated to `@aidx/tools` + `/api/mcp`: start with `aidx_ui` (smallest,
+- Tools migrated to `@opendui/aidx-tools` + `/api/mcp`: start with `aidx_ui` (smallest,
   already validated in the spike), then `page` and `test`. As each tool moves,
   drop its `Bash(aidx …:*)` `--allowedTools` entry and update the
   `react-introspection` skill text to reference the MCP tool.
@@ -249,6 +245,6 @@ Repo convention — integration only, real processes, no mocks (`*.it.test.ts`):
 - Model-provider fallback / no-CLI operation.
 - `chat()`'s agent loop executing tools (`tools` param stays empty for CLI path).
 - Driving `chat()`'s `agentLoopStrategy` as the literal iteration driver (pure-B).
-- Removing the `@aidx/cli` package or its non-tool commands (`server` / `open`);
+- Removing the `@opendui/aidx-cli` package or its non-tool commands (`server` / `open`);
   only the agent-facing `ui` / `page` / `test` tool invocations move from Bash
   to MCP.

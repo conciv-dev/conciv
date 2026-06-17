@@ -1,1 +1,1 @@
-import '@aidx/plugin/nextjs/widget'
+import '@opendui/aidx/plugin/nextjs/widget'

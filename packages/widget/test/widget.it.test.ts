@@ -5,7 +5,7 @@
 // uses, so the widget's fetchServerSentEvents consumes it natively), a scripted test-runner
 // stream, and the page-bus (push a PageQuery, resolve from the widget's reply). Real transport,
 // real browser, real bundle, real driver — scripted fixtures, not mocks. The authoritative
-// harness→SSE and test-runner→SSE backends are proven by @aidx/core's route ITs.
+// harness→SSE and test-runner→SSE backends are proven by @opendui/aidx-core's route ITs.
 import fs from 'node:fs'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
@@ -15,8 +15,8 @@ import type {AddressInfo} from 'node:net'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {chromium, type Browser} from 'playwright'
 import {EventType, type StreamChunk, toServerSentEventsStream} from '@tanstack/ai'
-import {aguiCustomFor} from '@aidx/protocol/ui-types'
-import {aguiUsageFor, snapshotToTokenUsage} from '@aidx/protocol/usage-types'
+import {aguiCustomFor} from '@opendui/aidx-protocol/ui-types'
+import {aguiUsageFor, snapshotToTokenUsage} from '@opendui/aidx-protocol/usage-types'
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
 const widgetBundle = fs.readFileSync(path.join(dirname, '../dist/aidx-widget.global.js'), 'utf8')
@@ -479,7 +479,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await page.getByText(ASSISTANT_TEXT).waitFor({state: 'visible'})
 
     // The compaction turn carries intent:'compact' — nested on forwardedProps/data like model, the
-    // exact spot @aidx/core's turn route reads. The predicate skips the first (plain) send.
+    // exact spot @opendui/aidx-core's turn route reads. The predicate skips the first (plain) send.
     const compactReq = page.waitForRequest((r) => {
       if (!r.url().endsWith('/api/chat') || r.method() !== 'POST') return false
       const b = r.postDataJSON() as {forwardedProps?: {intent?: string}; data?: {intent?: string}}
@@ -917,7 +917,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     // a REOPENED popover via Escape/outside-click is unreliable in this shadow-DOM Ark setup and left
     // the combobox holding focus, so the send must not depend on it.) The chosen model rides the next
     // turn's POST body; TanStack AI nests connection-body fields on the AG-UI envelope (forwardedProps
-    // /data) — the exact spot @aidx/core's chat route reads.
+    // /data) — the exact spot @opendui/aidx-core's chat route reads.
     const composer = page.getByLabel('Message the aidx agent')
     const chatReq = page.waitForRequest((r) => r.url().endsWith('/api/chat') && r.method() === 'POST')
     await composer.fill('hi')

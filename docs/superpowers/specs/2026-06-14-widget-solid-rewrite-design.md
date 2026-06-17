@@ -2,7 +2,7 @@
 
 ## Goal
 
-Rewrite `@aidx/widget` from React to SolidJS, removing all React. Behavior stays 1:1 with the
+Rewrite `@opendui/aidx-widget` from React to SolidJS, removing all React. Behavior stays 1:1 with the
 current widget; allow Solid-idiomatic cleanup where it is clearly better. The existing Chromium
 playwright IT is the acceptance gate for behavior parity.
 
@@ -17,7 +17,7 @@ near drop-in; only React's render model and JSX reactivity change.
 
 - Remove: `react`, `react-dom`, `@tanstack/ai-react`, `@types/react`, `@types/react-dom`, `@vitejs/plugin-react`
 - Add: `solid-js`, `@tanstack/ai-solid`, `vite-plugin-solid`
-- Keep: `@tanstack/ai-client` (framework-agnostic types), `@tanstack/ai`, `marked`, `shiki`, `@aidx/protocol`
+- Keep: `@tanstack/ai-client` (framework-agnostic types), `@tanstack/ai`, `marked`, `shiki`, `@opendui/aidx-protocol`
 
 ## Files
 

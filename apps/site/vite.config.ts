@@ -4,7 +4,7 @@ import {defineConfig} from 'vite'
 import tailwindcss from '@tailwindcss/vite'
 import mdx from 'fumadocs-mdx/vite'
 import netlify from '@netlify/vite-plugin-tanstack-start'
-import aidx from '@aidx/plugin/vite'
+import aidx from '@opendui/aidx/plugin/vite'
 
 export default defineConfig({
   server: {

@@ -6,7 +6,7 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {acquireLock, readLock} from '../../../src/store/lock.js'
-import {ChatSessionSchema} from '@aidx/protocol/chat-types'
+import {ChatSessionSchema} from '@opendui/aidx-protocol/chat-types'
 import {startTestServer, type SpawnHarness, type TestServer} from '../../helpers/server.js'
 
 // Real process-boundary IT: the REAL app (makeApp) over a real srvx server, with a FAKE harness

@@ -1,7 +1,7 @@
 import type {H3} from 'h3'
 import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js'
 import {WebStandardStreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
-import {aidxTools, type AidxToolContext} from '@aidx/tools'
+import {aidxTools, type AidxToolContext} from '@opendui/aidx-tools'
 import {sessionIdFromHeaders} from '../chat/session-id.js'
 
 // Build an McpServer exposing the aidx tool registry bound to `ctx`. A fresh server + transport is

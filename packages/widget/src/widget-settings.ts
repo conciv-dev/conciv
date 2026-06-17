@@ -1,4 +1,4 @@
-import type {TriggerPosition} from '@aidx/protocol/config-types'
+import type {TriggerPosition} from '@opendui/aidx-protocol/config-types'
 
 // Resolved widget settings the shell renders from. Pure-derived from the pw-widget meta blob.
 export type WidgetSettings = {

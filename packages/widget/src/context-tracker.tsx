@@ -1,6 +1,6 @@
 import {Show, type JSX} from 'solid-js'
 import {HoverCard} from './hover-card.js'
-import {contextUsedTokens, type UsageSnapshot} from '@aidx/protocol/usage-types'
+import {contextUsedTokens, type UsageSnapshot} from '@opendui/aidx-protocol/usage-types'
 
 const pct = new Intl.NumberFormat('en-US', {style: 'percent', maximumFractionDigits: 1})
 const compact = new Intl.NumberFormat('en-US', {notation: 'compact'})

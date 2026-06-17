@@ -1,5 +1,5 @@
 import {createUnplugin, type UnpluginOptions} from 'unplugin'
-import type {AidxConfig} from '@aidx/protocol/config-types'
+import type {AidxConfig} from '@opendui/aidx-protocol/config-types'
 import {makeEngineBooter} from './core/boot.js'
 import {makeViteHook} from './core/vite.js'
 

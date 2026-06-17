@@ -1,7 +1,7 @@
 import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
 import {toolDefinition} from '@tanstack/ai'
-import {buildUiSpec} from '@aidx/protocol/ui-types'
+import {buildUiSpec} from '@opendui/aidx-protocol/ui-types'
 import type {AidxMcpTool, AidxToolContext} from './types.js'
 
 export const UiInput = z.object({

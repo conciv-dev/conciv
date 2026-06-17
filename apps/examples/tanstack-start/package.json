@@ -17,10 +17,10 @@
     "e2e": "playwright test"
   },
   "dependencies": {
-    "@aidx/cli": "workspace:*",
-    "@aidx/plugin": "workspace:*",
-    "@aidx/protocol": "workspace:*",
-    "@aidx/widget": "workspace:*",
+    "@opendui/aidx": "workspace:*",
+    "@opendui/aidx-cli": "workspace:*",
+    "@opendui/aidx-protocol": "workspace:*",
+    "@opendui/aidx-widget": "workspace:*",
     "@tailwindcss/vite": "^4.3.1",
     "@tanstack/react-devtools": "^0.10.5",
     "@tanstack/react-router": "^1.170.15",

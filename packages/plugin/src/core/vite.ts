@@ -2,11 +2,11 @@ import {join} from 'node:path'
 import {createRequire} from 'node:module'
 import type {Plugin, ViteDevServer} from 'vite'
 import launchEditor from 'launch-editor'
-import {defineBundlerBridge, type BundlerBridge} from '@aidx/protocol/bundler-types'
-import {start, type Engine} from '@aidx/core/engine'
-import {htmlTags} from '@aidx/core/widget-tags'
-import {resolveConfig} from '@aidx/core/config'
-import type {AidxConfig} from '@aidx/protocol/config-types'
+import {defineBundlerBridge, type BundlerBridge} from '@opendui/aidx-protocol/bundler-types'
+import {start, type Engine} from '@opendui/aidx-core/engine'
+import {htmlTags} from '@opendui/aidx-core/widget-tags'
+import {resolveConfig} from '@opendui/aidx-core/config'
+import type {AidxConfig} from '@opendui/aidx-protocol/config-types'
 import {installAidxBinShim} from './bin-shim.js'
 import {viteConfig, viteResolve, viteGraph, viteTransform, viteUrls, type ViteLike} from './vite-tools.js'
 import {DEFAULT_WIDGET_ROUTE, makeWidgetInject, makeWidgetServe} from './widget-middleware.js'
@@ -16,7 +16,7 @@ const require = createRequire(import.meta.url)
 
 function resolveWidgetFile(): string | null {
   try {
-    return require.resolve('@aidx/widget/global')
+    return require.resolve('@opendui/aidx-widget/global')
   } catch {
     return null
   }
@@ -98,7 +98,7 @@ function bootEngine(server: ViteDevServer, options: AidxConfig, agentPath: strin
   })
 }
 
-// The unplugin factory's rich `vite` hook: boots @aidx/core (with the live viteBridge +
+// The unplugin factory's rich `vite` hook: boots @opendui/aidx-core (with the live viteBridge +
 // widget middleware), injects the widget head tags, and stamps JSX with data-aidx-source.
 // serve-only (no-op in prod builds). enforce:'pre' so the source transform sees raw JSX/TSX
 // before @vitejs/plugin-react compiles it away.

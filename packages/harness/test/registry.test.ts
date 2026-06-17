@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest'
-import {defineHarness, type HarnessAdapter} from '@aidx/protocol/harness-types'
+import {defineHarness, type HarnessAdapter} from '@opendui/aidx-protocol/harness-types'
 import {registerHarness, getHarness, listHarnesses} from '../src/registry.js'
 
 // Even a throwaway test adapter goes through defineHarness (Constraint A).

@@ -119,7 +119,7 @@ This is the **API a new harness implements**. One pure function. No `StreamChunk
 name, no merge or emit logic — the spine owns all of that.
 
 ```ts
-import type {UsageSnapshot} from '@aidx/protocol/usage-types'
+import type {UsageSnapshot} from '@opendui/aidx-protocol/usage-types'
 
 // Optional per-harness usage mapping. PURE: decode one already-validated event into the
 // usage fields it carries (absolute values), or null when the event carries none. The
@@ -236,7 +236,7 @@ class="pw-popover …">`. Reuses the existing `pw-popover` / `pw-pop-in` styles.
 ### 3c. Widget component — `packages/widget/src/context-tracker.tsx` (new)
 
 ```ts
-import type {UsageSnapshot} from '@aidx/protocol/usage-types'
+import type {UsageSnapshot} from '@opendui/aidx-protocol/usage-types'
 
 // The top-bar context tracker for one session. Renders nothing until the first snapshot
 // arrives. When contextWindow is known it shows a percentage ring; otherwise a raw token

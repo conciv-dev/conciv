@@ -10,8 +10,8 @@ import {ContextTracker} from './context-tracker.js'
 import {SessionSelector} from './session-selector.js'
 import {sessions, mergeSurface, makeSurfaceRow, invalidateSessions} from './session-store-client.js'
 import {defineClient, type SessionClient} from './session-client.js'
-import {SessionId, isSessionId} from '@aidx/protocol/chat-types'
-import type {UsageSnapshot} from '@aidx/protocol/usage-types'
+import {SessionId, isSessionId} from '@opendui/aidx-protocol/chat-types'
+import type {UsageSnapshot} from '@opendui/aidx-protocol/usage-types'
 
 type Pane = {
   id: number

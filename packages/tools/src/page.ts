@@ -1,6 +1,6 @@
 import {z} from 'zod'
 import {toolDefinition} from '@tanstack/ai'
-import {PageQueryInputSchema, PageQueryKindSchema} from '@aidx/protocol/page-types'
+import {PageQueryInputSchema, PageQueryKindSchema} from '@opendui/aidx-protocol/page-types'
 import type {AidxMcpTool, AidxToolContext} from './types.js'
 
 // verb + the page-query input fields, as a single ZodObject (the MCP server registers it directly).

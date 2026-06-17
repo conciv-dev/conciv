@@ -7,7 +7,7 @@ import {
   PageReplySchema,
   type PageQuery,
   type PageQueryInput,
-} from '@aidx/protocol/page-types'
+} from '@opendui/aidx-protocol/page-types'
 import type {Journal} from '../../runtime/journal.js'
 import {makePending} from '../../pending.js'
 import {sseStream} from '../sse.js'

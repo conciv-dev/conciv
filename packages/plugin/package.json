@@ -1,5 +1,5 @@
 {
-  "name": "@aidx/plugin",
+  "name": "@opendui/aidx-plugin",
   "version": "0.0.0",
   "description": "The aidx dev agent as an unplugin: vite (full — viteBridge + widget middleware + boot), webpack/rspack (boot the engine), rollup/esbuild (build-only no-ops). One factory, per-bundler subpath entries.",
   "license": "MIT",
@@ -50,10 +50,10 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@aidx/cli": "workspace:*",
-    "@aidx/core": "workspace:*",
-    "@aidx/protocol": "workspace:*",
-    "@aidx/widget": "workspace:*",
+    "@opendui/aidx-cli": "workspace:*",
+    "@opendui/aidx-core": "workspace:*",
+    "@opendui/aidx-protocol": "workspace:*",
+    "@opendui/aidx-widget": "workspace:*",
     "launch-editor": "^2.14.1",
     "magic-string": "^0.30.21",
     "oxc-parser": "^0.127.0",

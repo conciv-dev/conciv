@@ -120,7 +120,7 @@ export const IMAGE_DEFAULTS = {
 } as const
 ```
 
-`@aidx/core/config` resolves `config.chat.images` over `IMAGE_DEFAULTS`.
+`@opendui/aidx-core/config` resolves `config.chat.images` over `IMAGE_DEFAULTS`.
 
 ### Surfacing capability + limits to the widget
 

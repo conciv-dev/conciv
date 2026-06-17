@@ -100,7 +100,7 @@ export const IMAGE_DEFAULTS: ImageLimits = {
 - [ ] **Step 4: Edit `config.ts`** — add the resolver (simple signature, no conditional type):
 
 ```ts
-import {IMAGE_DEFAULTS, type ImageLimits} from '@aidx/protocol/config-types'
+import {IMAGE_DEFAULTS, type ImageLimits} from '@opendui/aidx-protocol/config-types'
 
 export function resolveImageLimits(images?: {maxCount?: number; maxBytes?: number; accept?: string[]}): ImageLimits {
   return {
@@ -180,7 +180,7 @@ export const ChatSessionSchema = z.object({
 - [ ] **Step 4: Edit `session.ts`** — add `imageLimits` to `SessionRouteDeps`, emit the block:
 
 ```ts
-import type {ImageLimits} from '@aidx/protocol/config-types'
+import type {ImageLimits} from '@opendui/aidx-protocol/config-types'
 
 export type SessionRouteDeps = {
   cwd: string
@@ -272,7 +272,7 @@ Expected: FAIL — module missing.
 - [ ] **Step 3: Create `image-validate.ts`:**
 
 ```ts
-import type {ImageLimits} from '@aidx/protocol/config-types'
+import type {ImageLimits} from '@opendui/aidx-protocol/config-types'
 
 export type ValidateResult = {ok: true} | {ok: false; error: string}
 
@@ -316,7 +316,7 @@ git commit -m "feat(widget): pure image-validation guard"
 
 ```ts
 import {createSignal} from 'solid-js'
-import type {ImageLimits} from '@aidx/protocol/config-types'
+import type {ImageLimits} from '@opendui/aidx-protocol/config-types'
 import {validateImage} from './image-validate.js'
 
 export type PendingImage = {id: string; name: string; mimeType: string; bytes: number; previewUrl: string}
@@ -387,7 +387,7 @@ export function createImageAttachments(limits: () => ImageLimits) {
 
 - [ ] **Step 2: Typecheck the widget**
 
-Run: `pnpm turbo typecheck --filter=@aidx/widget`
+Run: `pnpm turbo typecheck --filter=@opendui/aidx-widget`
 Expected: PASS.
 
 - [ ] **Step 3: Commit**
@@ -410,7 +410,7 @@ git commit -m "feat(widget): image attachment store (add/remove/clear/sendAll)"
 
 ```ts
 import {createImageAttachments, type ImagePart} from './attachments.js'
-import {IMAGE_DEFAULTS} from '@aidx/protocol/config-types'
+import {IMAGE_DEFAULTS} from '@opendui/aidx-protocol/config-types'
 
 const [imageCaps, setImageCaps] = createSignal(IMAGE_DEFAULTS)
 const [imageInput, setImageInput] = createSignal<'native' | 'fileRef' | false>(false)
@@ -621,7 +621,7 @@ Update the send button `disabled` to also enable with staged images: `disabled={
 
 - [ ] **Step 6: Build + typecheck the widget** (the browser IT loads the built global bundle):
 
-Run: `pnpm turbo build typecheck --filter=@aidx/widget`
+Run: `pnpm turbo build typecheck --filter=@opendui/aidx-widget`
 Expected: PASS.
 
 - [ ] **Step 7: Commit**
@@ -694,7 +694,7 @@ const onDrop = (e: DragEvent) => {
 
 - [ ] **Step 4: Build + typecheck**
 
-Run: `pnpm turbo build typecheck --filter=@aidx/widget`
+Run: `pnpm turbo build typecheck --filter=@opendui/aidx-widget`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -728,7 +728,7 @@ const onPaste = (e: ClipboardEvent) => {
 
 - [ ] **Step 3: Build + typecheck**
 
-Run: `pnpm turbo build typecheck --filter=@aidx/widget`
+Run: `pnpm turbo build typecheck --filter=@opendui/aidx-widget`
 Expected: PASS.
 
 - [ ] **Step 4: Commit**
@@ -774,7 +774,7 @@ if (part.type === 'image') {
 
 - [ ] **Step 3: Build + typecheck**
 
-Run: `pnpm turbo build typecheck --filter=@aidx/widget`
+Run: `pnpm turbo build typecheck --filter=@opendui/aidx-widget`
 Expected: PASS.
 
 - [ ] **Step 4: Commit**
