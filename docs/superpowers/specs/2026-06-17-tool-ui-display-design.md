@@ -74,12 +74,27 @@ v1 implements: claude's tools + the aidx\_\* tools + the generic fallback. codex
 opencode / pi fall through to generic until their classifiers are added (they still render,
 just without the rich per-kind body).
 
-How the classification reaches the widget: `ToolCallPart` is generic over `TMetadata` and
-carries `metadata?: TMetadata` ("provider-specific metadata that round-trips with the tool
-call, typed per-adapter" — confirmed in ai-client `types.d.ts:239`). That is the native
-carrier: the harness decode (`harness/src/<h>/decode.ts`), which is the "adapter", attaches
-the `ClassifiedTool` as the tool-call's `metadata`. No CUSTOM side channel, no forked types.
-The widget reads `part.metadata` (the `ClassifiedTool`), never the raw name in a switch.
+How the classification reaches the widget (verified end-to-end by review): the AG-UI
+`ToolCallStartEvent` carries `metadata?: Record<string, unknown>` ("provider-specific metadata
+to carry into the ToolCall", `@tanstack/ai/dist/esm/types.d.ts:839-853`). The decode emits the
+`ClassifiedTool` there; `StreamProcessor.handleToolCallStartEvent` folds `chunk.metadata` onto
+the part (`processor.js:643-673`) and preserves it across snapshot rebuilds. So no CUSTOM side
+channel is needed. Two real caveats the plan must handle:
+
+- The _client_ `ToolCallPart` that the widget renders (`@tanstack/ai-client` types) does NOT
+  declare a `metadata` field (only `@tanstack/ai`'s wire `ToolCallPart<TMetadata>` does). The
+  value arrives at runtime but is untyped on the consumer side, so the widget reads it through a
+  local TypeScript declaration-merge augmentation that types `ToolCallPart.metadata` as
+  `ClassifiedTool` — not an `as` cast (AGENTS.md forbids `as`).
+- aidx's outbound wire converter (`uiMessagesToWire`) serializes only `{id, function{name,
+arguments}}` and drops metadata. Inbound rendering is unaffected, but transcript history
+  reload would lose classification — so on history load the widget re-runs the (pure) classifier
+  over each tool call, or core persists+restores the metadata. The plan picks one; re-classify
+  on load is simplest and keeps the classifier the single source of truth.
+
+The current emit site (`_shared/agui.ts:50` `TOOL_CALL_START` without metadata) gains
+`metadata: classified`. The widget reads `part.metadata` (the `ClassifiedTool`), never the raw
+name in a switch.
 
 ### 3. Widget tool-UI registry (keyed on ToolKind)
 
@@ -90,14 +105,35 @@ const toolRenderers: Record<ToolKind, {
 }>
 ```
 
-`PartView` looks up by `kind`, renders header (icon + family rail + `title` + state) and the
-kind-specific body. Unknown kinds use the generic fallback (collapsible raw args/result).
-Adding a tool kind is one registry entry. The current `<Switch>/<Match>` part dispatch is kept
-(reactive, no Streamdown remount); only the tool branch changes. State comes from the real
-`ToolCallState` (`awaiting-input | input-streaming | input-complete | complete |
-output-available | approval-requested | approval-responded`, confirmed in types.d.ts), and
-approval/permission uses `part.approval` ({id, needsApproval, approved}) — which is how the
-existing risky-Bash gate should converge rather than the separate GenUi approval path.
+`PartView` looks up by `kind` (the lookup runs inside the JSX/an accessor, never hoisted to a
+component-init `const`, so it re-evaluates as the part object changes per token), renders header
+(icon + family rail + `title` + state) and the kind-specific body. Unknown kinds use the
+generic fallback (collapsible raw args/result). Adding a tool kind is one registry entry. The
+current `<Switch>/<Match>` part dispatch is kept (reactive, no Streamdown remount); only the
+tool branch changes.
+
+The real `ToolCallState` is six values — `awaiting-input | input-streaming | input-complete |
+approval-requested | approval-responded | complete` (`ai-client/types.d.ts:61`; there is no
+`output-available` state — that is an internal tool-_result_ value). `ToolResultState` is
+`streaming | complete | error`. The existing risky-Bash approval stays on its current
+out-of-band path (a blocking PreToolUse hook rendered as a `GenUi` `Approval` from `genUi()`
+state, not a tanstack `part.approval` lifecycle); converging onto `part.approval` only makes
+sense once page actions are real client tools, so it is a follow-up, not v1.
+
+### Renderer state contract
+
+Every kind's renderer is a function of (call, result) and MUST handle, not just the happy path:
+
+- error / denied: `ToolResultPart.state === 'error'` (render `part.error`, mirroring today's
+  `ToolResult` error branch) and the deny case of `approval-responded`.
+- streaming partial args: during `input-streaming`, `part.input` may be absent and
+  `part.arguments` partial JSON. Read defensively (like the existing `toolCommand`/`prettyArgs`)
+  and show the title/spinner rather than crash.
+- long output: a vertical char/line cap with "show more" (mirroring the `DOM_CAP`/`CONSOLE_CAP`
+  pattern in `page-handlers.ts`), so a large shell/diff body cannot blow the thread.
+- accessibility: keep the log `aria-live="off"` with status announced into the existing single
+  polite region; glyphs/state dots stay `aria-hidden`; no per-card live regions (they would
+  flood a screen reader while streaming).
 
 ## Frontend vs backend tools (tanstack client/server model)
 
@@ -132,18 +168,23 @@ tests). One card per action.
 
 ## Per-tool result renderers (full set, v1)
 
+All renderers live in the new `@aidx/tool-ui` package (see below), each obeying the renderer
+state contract above.
+
 - `shell` -> terminal block: command + output, exit-aware coloring. Horizontal scroll at narrow width.
 - `file-edit` -> diff: +N / -M counts in the header, colorized hunk in the body.
 - `file-read` -> file path + line range.
 - `search` -> match list with counts.
 - `page-action` -> human label by verb ("Clicked X", "Typed \"...\" into Y") + element chip + on-page mirror.
-- `test` -> existing `TestCard` (already wired through the runner).
+- `test` -> the `TestCard` (moved from the widget into `@aidx/tool-ui`; still fed by the runner).
 - `todo` -> checklist with done/active/pending states.
-- `ui` -> existing GenUi (unchanged).
+- `ui` -> a compact chip ("rendered a form/choices"); the interactive UI itself remains the
+  `GenUi` component driven by the separate `aidx-ui` CUSTOM event, which stays in the widget.
 - `unknown` -> label + collapsible raw args/result.
 
 Family color rail: page = magenta accent, code = teal agent hue, test = gold, read = purple.
-Uses the existing `--pw-*` design tokens in `styles.css`; no new palette.
+Uses the existing `--pw-*` design tokens, which move into `@aidx/tool-ui` as a shared tokens
+stylesheet (the widget imports it) so the cards render identically in Storybook and in the app.
 
 ## Reflection card (per step)
 
@@ -165,38 +206,58 @@ transient activity from settled history. Settled cards stay in the thread above 
 ## On-page mirror (page-action)
 
 For `page-action` element verbs, draw a cursor + highlight ring on the real target element
-before the handler runs. Seam: `packages/widget/src/page-handlers.ts` `resolveTarget(query)`
-already resolves the element for every `aidx_page` action; the mirror hooks there. Reuses
-react-grab's overlay infrastructure (`getBoundingClientRect` + max z-index overlay,
-`react-grab/`): a new small module draws the ring at the element rect, animates a cursor glide
-to it, brief pulse, then the existing handler executes. Element verbs are the `ELEMENT_KINDS`
-set already defined in page-handlers. The future page agent emits the same `page-action`
-shape, so it reuses this mirror with no change.
+before the handler runs. Seam: `packages/widget/src/page-driver.ts` `makeDomPageDriver.execute`
+resolves the element (`page-driver.ts:29`) and then calls the handler (`page-driver.ts:37`); the
+mirror goes in that gap, where the live element and `query.kind ∈ ELEMENT_KINDS` are known. (Not
+`resolveTarget`, which is a pure lookup that returns an element and does no work.)
 
-## Structured final-result card (v1, capability-gated)
+The cursor + ring is net-new code, not a reuse of react-grab: the widget's `react-grab/` has no
+ring/overlay module (`capture-element.ts` only sizes inert clones). It is a small module that
+draws a fixed-position ring at the element's `getBoundingClientRect()` at max z-index, animates
+a cursor glide, pulses, then the handler runs. It renders into the page DOM (outside the widget
+shadow root, like the page driver itself). The future page agent emits the same `page-action`
+shape and reuses this mirror unchanged.
 
-A "done" card built from real structured data, not parsed prose, using @tanstack/ai's native
-`structured-output` message part (`useChat({ outputSchema })` exposes a typed
-`structured-output` part; confirmed in the installed ai-client `.d.ts`).
+## Structured final-result card (v1, capability-gated, agent-authored)
+
+A "done" card whose summary is authored by the agent as validated structured data. The data
+model is @tanstack/ai's `structured-output` message part (`StructuredOutputPart`, in the
+`MessagePart` union); the mechanics below were corrected against the installed code and a live
+CLI test (the first draft named non-existent APIs).
 
 Wiring:
 
-1. Add a `structuredOutput` capability to `HarnessAdapter` (capability-typed, per the existing
-   contract). claude and codex set it; the others do not.
-2. For capable harnesses, pass the schema to the CLI: claude `--json-schema <schema>`, codex
-   `--output-schema <file>` (both shape the run's final response, confirmed in the CLI docs
-   and `--help`). Added in `harness/src/<h>/args.ts`.
-3. The schema includes a prose field so normal conversation survives, plus structured metadata:
-   `{ message: string, summary?: string, filesChanged?: [...], pageActions?: [...], testsPassed?: number }`.
-   The text part renders `message`; the done card renders the metadata.
-4. `decode.ts` maps the CLI's final JSON to tanstack `structured-output` events
-   (`appendStructuredOutputDelta` / `structured-output:completed`); the widget reads it off the
-   `structured-output` part and renders the done card.
-5. Harnesses without the capability skip the card entirely; the agent's normal prose ends the
-   turn. No regression for gemini-cli / opencode / pi.
+1. `structuredOutput` capability on `HarnessAdapter` (capability-typed like
+   `transcriptHistory`/`compaction`; can mirror their discriminated-arm enforcement to require a
+   schema-args builder when true). claude and codex set it; gemini-cli / opencode / pi do not and
+   are skipped with no runtime branching.
+2. Pass the schema per the real CLI surfaces (both verified with `--help` + a live run): claude
+   `--json-schema '<inline schema>'`, codex `--output-schema <file>`. Added in
+   `harness/src/<h>/args.ts`.
+3. Schema carries a prose field so conversation survives:
+   `{ message, summary?, filesChanged?, pageActions?, testsPassed? }`. The text part renders
+   `message`; the done card renders the rest.
+4. Production is via CUSTOM events, NOT the internal helpers the first draft named
+   (`appendStructuredOutputDelta` is not exported; there is no `structured-output:completed`
+   wire event). `decode.ts` emits the chunks the `StreamProcessor` actually consumes:
+   `CUSTOM name:'structured-output.start' {messageId}` -> the JSON via `TEXT_MESSAGE_CONTENT` ->
+   `CUSTOM name:'structured-output.complete' {messageId, object, raw}` (same CUSTOM pattern aidx
+   already uses for `aidx-ui`). The widget reads the resulting `structured-output` part. Do NOT
+   depend on `useChat({ outputSchema })`: ai-client 0.16.3 `ChatClientBaseOptions` has no
+   `outputSchema` field (doc-comment only); the part appears from the CUSTOM events regardless,
+   and `outputSchema` would at most narrow the TS type of `part.data`.
+5. claude-specific decode work (verified live, both required): claude implements `--json-schema`
+   by forcing a synthetic `StructuredOutput` tool call and returning the result on the terminal
+   `result` event's top-level `structured_output` field. So `decode.ts` must (a) extend the
+   result schema to read `result.structured_output`, and (b) suppress the synthetic
+   `StructuredOutput` `tool_use` block so it does not render as a junk tool card.
 
-This is the riskiest piece because it touches the final-answer contract; it is isolated behind
-the capability flag and the schema's prose field so a non-capable or schema-less turn behaves
+Cost / gating (important): `--json-schema` forces the `StructuredOutput` tool call to complete
+_any_ request, so it adds an extra model round-trip on EVERY turn it is active — even a trivial
+conversational reply with no real tools (a live run showed `num_turns: 5`). It is not "only when
+a tool ran." The plan therefore gates it: a setting (default on for capable harnesses, optional
+per the user) decides whether to pass the flag; when off, no done card and no overhead. The
+capability flag + the prose `message` field keep a non-capable or schema-off turn behaving
 exactly as today.
 
 ## Narrow / modal
@@ -253,6 +314,42 @@ Blast radius is contained: `@aidx/tools` (5 tool files + types) and `core/src/ap
 plus the new harness classifiers. Existing tools ITs (`tools/test/*.it.test.ts`) are updated to
 the new shape.
 
+Note on ownership: only aidx's own four tools are `toolDefinition`s. The harness CLI's built-in
+tools (`Bash`, `Read`, `Edit`, `Grep`, `TodoWrite`, ...) are defined inside the CLI, not by aidx;
+they arrive as tool-call events and are only classified for display. That asymmetry is the whole
+reason the classifier layer exists.
+
+## New package: `@aidx/tool-ui` + Storybook
+
+A dedicated package holds every tool renderer so adding one is centralized and each card is
+viewable in isolation. Storybook is already a repo devDependency (`storybook-solidjs-vite@10.3.0`
+
+- `storybook@10.4`, with the `.storybook` + `*.stories.tsx` pattern proven in
+  `packages/solid-streamdown`); no new install.
+
+Contents of `@aidx/tool-ui` (SolidJS):
+
+- The `toolRenderers` registry keyed on `ToolKind`, and one component per kind (shell, file-edit,
+  file-read, search, page-action, test [the moved `TestCard`], todo, ui chip, generic fallback).
+- The reflection card, the morphing now-line, and the done card.
+- The shared `--pw-*` design tokens stylesheet (moved out of the widget) so cards look identical
+  in Storybook and in the app.
+- `.storybook/` config mirroring `packages/solid-streamdown`, and a `*.stories.tsx` per renderer
+  with fixture `ClassifiedTool` + `ToolResultPart` data covering each state: input-streaming,
+  running, complete, error, denied, long-output-truncated, narrow-width.
+
+Dependencies and boundaries (keep the node/browser split clean):
+
+- Types `ToolKind` / `ClassifiedTool` live in `@aidx/protocol` (shared, no DOM).
+- `classify()` lives in `@aidx/tools` (node-safe; imported by the harness decode, which is node).
+- Renderers live in `@aidx/tool-ui` (browser/Solid; imports only the `ClassifiedTool` type, never
+  `classify`). `@aidx/widget` consumes the registry and the on-page mirror stays in the widget
+  (it needs the page driver).
+
+How to add a tool (the centralized recipe): add/confirm a `ToolKind` in `@aidx/protocol`, a
+`classify` branch in `@aidx/tools`, and a renderer + story in `@aidx/tool-ui`. Three small,
+obvious edits; the registry and Storybook pick it up.
+
 ## Components touched
 
 - `@aidx/protocol`: `ToolKind`, `ClassifiedTool`, `structuredOutput` capability on
@@ -265,9 +362,12 @@ the new shape.
   co-locate `classify(input): ClassifiedTool`, per-verb map for `aidx_page`.
 - `@aidx/core`: `api/mcp/mcp.ts` registers tools from the def schema + `.server` instance
   directly (no `run`/re-parse indirection).
-- `@aidx/widget`: tool-UI registry keyed on `ToolKind`, paired call+result rendering,
-  reflection card, now-line, on-page mirror module (under `react-grab/` or sibling), done card,
-  `styles.css` additions using existing tokens.
+- `@aidx/tool-ui` (new): the `ToolKind` renderer registry + per-kind components, reflection card,
+  now-line, done card, moved `TestCard`, moved `--pw-*` tokens, `.storybook` + stories.
+- `@aidx/widget`: consume the `@aidx/tool-ui` registry from `PartView`, paired call+result
+  rendering, the `ToolCallPart.metadata` declaration-merge augmentation + history re-classify, the
+  on-page mirror module (page DOM, hooked in `page-driver.execute`); `GenUi`/approval path
+  unchanged.
 
 ## Verification
 
@@ -277,11 +377,18 @@ the new shape.
   rather than overflows.
 - A harness without classifiers (simulate via the stub) falls through to the generic card with
   no errors, proving harness-agnostic behavior.
-- The structured final card renders for a capable harness and is absent for a non-capable one.
+- The structured final card renders for a capable harness and is absent for a non-capable one;
+  the synthetic `StructuredOutput` tool call is suppressed (no junk card); a schema-off turn is
+  unchanged.
+- Storybook: every renderer has a story covering its states (streaming/complete/error/denied/
+  truncated/narrow); these double as the fast visual-regression surface alongside the ITs.
 - `pnpm typecheck` / `pnpm build` / `pnpm test` via turbo.
 
 ## Follow-ups
 
 - Scoped first-party page agent harness (tanstack loop + macro tool) for guaranteed structured
-  reflection and zero-CLI page driving. Reuses this UI via `page-action`.
+  reflection and zero-CLI page driving. Reuses this UI via `page-action`, and is where page
+  actions become real `.client()` tools and approval can converge onto `part.approval`.
 - Classifiers for the remaining harnesses (codex / gemini-cli / opencode / pi).
+- Converge the risky-Bash approval gate from the out-of-band blocking hook + `GenUi` onto the
+  tanstack `part.approval` lifecycle (only sensible once page actions are client tools).
