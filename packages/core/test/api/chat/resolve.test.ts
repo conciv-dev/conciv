@@ -5,11 +5,18 @@ import {resolveSession} from '../../../src/api/chat/session.js'
 const deps = (store = memoryStore()) => ({store, harnessKind: 'claude', cwd: '/app', mintId: () => 'aidx_new'})
 
 describe('resolveSession', () => {
-  it('no id → mints a new record', async () => {
+  it('no id → mints a fresh id WITHOUT persisting (lazy birth on first turn)', async () => {
     const d = deps()
     const {sessionId} = await resolveSession(d, {})
     expect(sessionId).toBe('aidx_new')
-    expect((await d.store.get('aidx_new'))?.origin).toBe('chat')
+    expect(await d.store.get('aidx_new')).toBeNull()
+  })
+  it('unknown aidx id (lost record) → mints fresh WITHOUT persisting', async () => {
+    const d = deps()
+    const {sessionId} = await resolveSession(d, {id: 'aidx_gone'})
+    expect(sessionId).toBe('aidx_new')
+    expect(await d.store.get('aidx_new')).toBeNull()
+    expect(await d.store.get('aidx_gone')).toBeNull()
   })
   it('our id → returns it unchanged', async () => {
     const store = memoryStore()

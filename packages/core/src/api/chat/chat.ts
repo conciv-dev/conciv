@@ -6,7 +6,8 @@ import type {UiBus} from '../../runtime/ui-bus.js'
 import {createFsSessionStore} from '../../store/session-store.js'
 import {registerLaunchRoutes} from './launch.js'
 import {makePermissionGate, registerPermissionRoutes} from './permission.js'
-import {registerSessionRoutes, type ResolveDeps} from './session.js'
+import {readLocks} from '../../store/lock.js'
+import {registerSessionRoutes, sweepEmptyChatRecords, type ResolveDeps} from './session.js'
 import {registerTurnRoutes, type SpawnHarness} from './turn.js'
 
 export type {SpawnHarness} from './turn.js'
@@ -54,6 +55,9 @@ export function registerChatRoutes(app: H3, opts: ChatRouteOpts): void {
   if (opts.initialSessionId) {
     void ensureAgentRecord({store, harnessKind: opts.harness.id, cwd: opts.cwd}, opts.initialSessionId).catch(() => {})
   }
+
+  // Best-effort boot cleanup of legacy ghost records (empty chat sessions from the old eager resolve).
+  void sweepEmptyChatRecords(store, new Set(readLocks(opts.stateRoot).map((l) => l.key))).catch(() => {})
 
   registerPermissionRoutes(app, gate, opts.harness.capabilities.permissionGate === 'hook')
   registerSessionRoutes(app, {

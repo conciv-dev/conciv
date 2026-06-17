@@ -19,6 +19,29 @@ export const resumeTokenFor = async (store: SessionStore, id: string): Promise<s
 export const recordMintedToken = (store: SessionStore, id: string, token: string): Promise<unknown> =>
   store.update(id, {harnessSessionId: token})
 
+// Lazy birth: resolve only mints the id, so the record is created here on the first real turn —
+// idempotent, so a returning (or agent/external) session keeps its existing record. This is what
+// keeps abandoned New-session ids out of the picker, and what guarantees the token/usage writers
+// below have a record to update (store.update throws on a missing record).
+export const ensureChatRecord = async (
+  store: SessionStore,
+  id: string,
+  harnessKind: string,
+  cwd: string,
+): Promise<void> => {
+  if (await store.get(id)) return
+  await store.create({
+    id,
+    harnessSessionId: null,
+    harnessKind,
+    origin: 'chat',
+    title: null,
+    model: null,
+    usage: null,
+    cwd,
+  })
+}
+
 // The optional sessionId becomes AIDX_SESSION_ID in the child's env, so the agent's `aidx ui` /
 // permission-hook calls echo it back and core routes them to this turn's channel.
 export type SpawnHarness = (args: string[], cwd: string, sessionId?: string) => HarnessChild
@@ -62,6 +85,8 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
     // Any throw after a successful acquire but before the stream takes over its release (the
     // withLockRelease finally only covers the streaming path) must not leak the lock.
     try {
+      // First turn for a lazily-resolved id persists its record (idempotent for returning sessions).
+      await ensureChatRecord(deps.store, sessionId, harness.id, deps.cwd)
       const chatReq = await readValidatedBody(event, ChatRequestSchema)
       // intent rides the AG-UI envelope (forwardedProps/data) like model, with a top-level fallback.
       const intent = chatReq.intent ?? chatReq.forwardedProps?.intent ?? chatReq.data?.intent ?? 'chat'

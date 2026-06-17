@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto'
+import {withoutTrailingSlash} from 'ufo'
 import {type H3, HTTPError, readValidatedBody} from 'h3'
 import {resolveHarnessModels} from '@opendui/aidx-harness'
 import type {HarnessAdapter} from '@opendui/aidx-protocol/harness-types'
@@ -29,7 +30,9 @@ export type ResolveDeps = {
 }
 
 // Normalize any id to one of ours: our id → return it; raw harness id → find-or-create a wrapping
-// record (idempotent); no/unknown id → mint a fresh chat record. The only id-normalization seam.
+// record (idempotent); no/unknown id → mint a fresh id WITHOUT persisting. The only id-normalization
+// seam. Fresh chat ids stay record-less until their first turn (turn.ts), so an abandoned New-session
+// never leaves a ghost "New session · 0 messages" row in the picker.
 export async function resolveSession(deps: ResolveDeps, body: {id?: string}): Promise<{sessionId: string}> {
   const mint = deps.mintId ?? (() => `aidx_${randomUUID()}`)
   if (body.id && isSessionId(body.id)) {
@@ -51,17 +54,24 @@ export async function resolveSession(deps: ResolveDeps, body: {id?: string}): Pr
     })
     return {sessionId: adopted.id}
   }
-  const fresh = await deps.store.create({
-    id: mint(),
-    harnessSessionId: null,
-    harnessKind: deps.harnessKind,
-    origin: 'chat',
-    title: null,
-    model: null,
-    usage: null,
-    cwd: deps.cwd,
-  })
-  return {sessionId: fresh.id}
+  return {sessionId: mint()}
+}
+
+// Same on-disk working directory, tolerant of a trailing-slash difference between when a record was
+// written and the live cwd. ufo handles the path-segment normalization.
+const sameCwd = (a: string, b: string): boolean => withoutTrailingSlash(a) === withoutTrailingSlash(b)
+
+// Remove legacy ghost records: chat-origin sessions with no resume token and no user title — created
+// eagerly by the old resolve before lazy-birth and never messaged. Skips currently-locked ids (an
+// in-flight first turn holds a record in exactly this null/null shape until the harness mints a
+// token). Best-effort, boot-time; never touches external/agent records or titled/run sessions.
+export async function sweepEmptyChatRecords(store: SessionStore, locked: Set<string>): Promise<void> {
+  const records = await store.list()
+  for (const r of records) {
+    if (r.origin === 'chat' && r.harnessSessionId === null && r.title === null && !locked.has(r.id)) {
+      await store.delete(r.id)
+    }
+  }
 }
 
 // A harness transcript row (from harness.history.list) before joining to our records.
@@ -69,12 +79,15 @@ export type HarnessRow = {id: string; derivedTitle: string; updatedAt: number; m
 
 // Read-only list = our records (id = aidx_) ∪ unwrapped harness transcripts (id = raw harness id),
 // joined to live transcript data + lock state. NEVER writes — records are minted only via resolve.
+// Scoped to the current cwd: records carry the cwd they were created in, and the harness transcript
+// list is already cwd-filtered by its caller, so the two halves agree on scope.
 export async function buildSessionList(args: {
   store: SessionStore
   harnessList: HarnessRow[]
   runningKeys: Set<string>
+  cwd: string
 }): Promise<ChatSessionMeta[]> {
-  const records = await args.store.list()
+  const records = (await args.store.list()).filter((r) => sameCwd(r.cwd, args.cwd))
   const byHarness = new Map(records.filter((r) => r.harnessSessionId).map((r) => [r.harnessSessionId as string, r]))
   const ours = records.map((r) => {
     const h = r.harnessSessionId ? args.harnessList.find((x) => x.id === r.harnessSessionId) : undefined
@@ -131,11 +144,30 @@ export function registerSessionRoutes(app: H3, deps: SessionRouteDeps): void {
     return resolveSession({store: deps.store, harnessKind: deps.harness.id, cwd: deps.cwd}, body)
   })
 
-  // GET /api/chat/session → the record for our id + harness identity. Unknown id → 404.
+  // GET /api/chat/session → the record for our id + harness identity. No header → 400. A valid but
+  // record-less id (lazy-resolved, no turn yet) reports a fresh empty session, NOT 404, so the widget
+  // can label and open it before the first message persists the record.
   app.get('/api/chat/session', async (event): Promise<ChatSession> => {
     const sessionId = sessionIdFromHeaders(event.req.headers)
-    const record = sessionId ? await deps.store.get(sessionId) : null
-    if (!record) throw new HTTPError({status: 404, message: 'unknown session'})
+    if (!sessionId) throw new HTTPError({status: 400, message: 'no session'})
+    const harness = {
+      id: deps.harness.id,
+      name: deps.harness.displayName ?? deps.harness.id,
+      canLaunch: Boolean(deps.harness.launch),
+    }
+    const record = await deps.store.get(sessionId)
+    if (!record) {
+      return {
+        sessionId: sessionId as ChatSession['sessionId'],
+        harnessSessionId: null,
+        name: null,
+        origin: 'chat',
+        cwd: deps.cwd,
+        lock: {held: false, role: null},
+        usage: null,
+        harness,
+      }
+    }
     const lock = readLock(deps.stateRoot, record.id)
     return {
       sessionId: record.id as ChatSession['sessionId'],
@@ -145,11 +177,7 @@ export function registerSessionRoutes(app: H3, deps: SessionRouteDeps): void {
       cwd: deps.cwd,
       lock: {held: lock.held, role: lock.role},
       usage: record.usage,
-      harness: {
-        id: deps.harness.id,
-        name: deps.harness.displayName ?? deps.harness.id,
-        canLaunch: Boolean(deps.harness.launch),
-      },
+      harness,
     }
   })
 
@@ -183,7 +211,7 @@ export function registerSessionRoutes(app: H3, deps: SessionRouteDeps): void {
     const harnessList =
       deps.harness.capabilities.transcriptHistory && hist?.list ? await hist.list(deps.cwd, deps.claudeHome) : []
     const runningKeys = new Set(readLocks(deps.stateRoot).map((l) => l.key))
-    const sessions = await buildSessionList({store: deps.store, harnessList, runningKeys})
+    const sessions = await buildSessionList({store: deps.store, harnessList, runningKeys, cwd: deps.cwd})
     return {sessions}
   })
 
