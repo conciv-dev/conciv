@@ -92,9 +92,24 @@ arguments}}` and drops metadata. Inbound rendering is unaffected, but transcript
   over each tool call, or core persists+restores the metadata. The plan picks one; re-classify
   on load is simplest and keeps the classifier the single source of truth.
 
-The current emit site (`_shared/agui.ts:50` `TOOL_CALL_START` without metadata) gains
-`metadata: classified`. The widget reads `part.metadata` (the `ClassifiedTool`), never the raw
-name in a switch.
+Timing constraint (verified, and it changes the split): the processor reads `metadata` ONLY on
+`TOOL_CALL_START` (`processor.js:654-672`; the `TOOL_CALL_ARGS`/`TOOL_CALL_END` handlers never
+touch it). But in claude's live stream `TOOL_CALL_START` carries only the tool NAME — the input
+arrives afterward as `TOOL_CALL_ARGS` deltas (`decode.ts:104` then `deltaBlock`). So metadata
+attached at START can hold only NAME-derived data (`kind`, `family`), not INPUT-derived data
+(`title`, `fields`). The classification therefore splits:
+
+- `kind` + `family` (from the tool name): attached as `metadata` at `TOOL_CALL_START`. Harness
+  knows its names (AGENTS.md-compliant), available immediately, drives the icon/rail/color even
+  while args stream.
+- `title` + `fields` (from the input, e.g. "Clicked Save"): produced once the input is complete.
+  Carrier for this is an OPEN decision (see Open questions): either a per-kind, harness-normalized
+  label function the widget runs over `part.input`, or a CUSTOM event the harness emits at
+  `TOOL_CALL_END` keyed by tool-call id (the metadata channel cannot deliver it post-START).
+
+The current emit site is `_shared/agui.ts:50` (`TOOL_CALL_START` without metadata); it gains the
+name-derived `{kind, family}`. The widget reads `part.metadata` for those, never the raw name in
+a switch.
 
 ### 3. Widget tool-UI registry (keyed on ToolKind)
 
@@ -383,6 +398,46 @@ obvious edits; the registry and Storybook pick it up.
 - Storybook: every renderer has a story covering its states (streaming/complete/error/denied/
   truncated/narrow); these double as the fast visual-regression surface alongside the ITs.
 - `pnpm typecheck` / `pnpm build` / `pnpm test` via turbo.
+
+## Open questions and unknowns
+
+Honest list of what is not yet nailed down, worst first. The first two should be resolved (a
+small spike each) before or early in implementation; the rest are decisions to make in the plan.
+
+1. **Title/fields carrier (design decision, medium).** Metadata can only ride `TOOL_CALL_START`
+   (name only), so input-derived `title`/`fields` need another path: (a) a per-kind label
+   function the widget runs over `part.input` — simplest, no extra events, but the input field
+   shapes are partly CLI-specific so the function must be kind-keyed and tolerant; or (b) a
+   harness CUSTOM event at `TOOL_CALL_END` carrying the full `ClassifiedTool` by id — keeps all
+   CLI knowledge in the adapter but adds a side channel and ordering to manage. Leaning (a) for
+   aidx\_\* + claude, with (b) reserved if field shapes diverge across harnesses. Needs a decision.
+2. **History reload classification (gap, medium).** The harness classifier is node-side; on
+   transcript reload the widget cannot re-run claude's `Bash->shell` mapping. So either core
+   persists+restores the tool metadata in history, or the name->kind map is made browser-importable
+   (pure, no CLI process needed) so the widget re-derives it. "Re-classify on load" only works for
+   the latter; pick one. Affects whether scrollback shows rich cards after a reload.
+3. **Interactive renderer callbacks (gap, small).** The registry `Result(call, result)` signature
+   has no callback channel, but `TestCard` needs `onFix` (sends a message) and "show more"/retry
+   need handlers. The signature needs a `ctx` param (actions: sendMessage, apiBase, ...) threaded
+   from the widget. Straightforward but must be designed in, not bolted on.
+4. **Structured card inside the full turn pipeline (risk, untested).** `--json-schema` was
+   verified in isolation. Its interaction with aidx's real turn machinery (permission gate, usage
+   accounting, compaction, the synthetic `StructuredOutput` tool + extra turns) is not yet tested
+   end-to-end. And codex's `--output-schema` was NOT live-tested — whether codex also forces a
+   synthetic tool / where it returns the object is assumed symmetric with claude, unverified.
+   Needs a spike before relying on it. Also undecided: where the on/off gating setting lives
+   (per-session vs global).
+5. **Mirror scope + timing (small).** Which page verbs get the cursor/ring (find/locate/inspect
+   are in `ELEMENT_KINDS` but are non-visual and probably should not animate), and whether the
+   animation blocks the action (adds latency to every page action) or runs fire-and-forget (ring
+   may not be visible before a fast click). Decide per-verb + a short, non-blocking animation.
+6. **Token scoping (small).** Moving `--pw-*` tokens into `@aidx/tool-ui`: in the app they must
+   resolve inside the widget shadow root; in Storybook they resolve on `:root`. The shared
+   stylesheet must work in both scopes (define on `:host, :root`), a minor but real detail.
+7. **Reflection parsing heuristic (small).** "Parse structured lines if present, else restyle"
+   has no defined detection rule, and extended thinking may be absent depending on model/config.
+   Worst case it is a plain restyle of whatever thinking text exists; acceptable, but the
+   "structured if present" half is best-effort and may rarely trigger.
 
 ## Follow-ups
 
