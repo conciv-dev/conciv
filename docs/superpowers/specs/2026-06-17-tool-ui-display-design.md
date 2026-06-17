@@ -12,8 +12,11 @@ on-page cursor + highlight mirror for page actions. The design is harness-agnost
 same UI works across every harness (claude, codex, gemini-cli, opencode, pi) and the future
 first-party page agent, with zero widget rework when harnesses change.
 
-Inspiration: alibaba/page-agent (the "GUI agent living in your webpage") and assistant-ui's
-tool-ui registry pattern, adapted to aidx's Solid + @tanstack/ai-client thread.
+Inspiration: alibaba/page-agent (the "GUI agent living in your webpage"). Rendering follows
+@tanstack/ai's own convention (verified against the docs and installed types), not a foreign
+pattern: tanstack has no dedicated tool-UI component; you render by inspecting message parts
+(`part.type === 'tool-call'`, switch on `part.name`, read typed `part.input`/`part.output`).
+Our registry is the organized, harness-agnostic form of that switch.
 
 ## Today
 
@@ -67,15 +70,16 @@ so they classify identically on every harness; that mapping lives in a shared de
 classifier the adapters delegate to. A generic fallback returns `kind:'unknown'` with the raw
 name as the title for anything unrecognized.
 
-v1 implements: claude's tools + the aidx_* tools + the generic fallback. codex / gemini-cli /
+v1 implements: claude's tools + the aidx\_\* tools + the generic fallback. codex / gemini-cli /
 opencode / pi fall through to generic until their classifiers are added (they still render,
 just without the rich per-kind body).
 
-How the classification reaches the widget: the harness decode (`harness/src/<h>/decode.ts`)
-already turns the CLI stream into AG-UI tool-call events. It attaches the `ClassifiedTool`
-to the emitted tool-call so the widget receives canonical data alongside the raw name. The
-exact carrier (an AG-UI field vs a side map keyed by tool-call id) is settled in the plan;
-the contract is that the widget reads `ClassifiedTool`, not raw names.
+How the classification reaches the widget: `ToolCallPart` is generic over `TMetadata` and
+carries `metadata?: TMetadata` ("provider-specific metadata that round-trips with the tool
+call, typed per-adapter" — confirmed in ai-client `types.d.ts:239`). That is the native
+carrier: the harness decode (`harness/src/<h>/decode.ts`), which is the "adapter", attaches
+the `ClassifiedTool` as the tool-call's `metadata`. No CUSTOM side channel, no forked types.
+The widget reads `part.metadata` (the `ClassifiedTool`), never the raw name in a switch.
 
 ### 3. Widget tool-UI registry (keyed on ToolKind)
 
@@ -89,14 +93,42 @@ const toolRenderers: Record<ToolKind, {
 `PartView` looks up by `kind`, renders header (icon + family rail + `title` + state) and the
 kind-specific body. Unknown kinds use the generic fallback (collapsible raw args/result).
 Adding a tool kind is one registry entry. The current `<Switch>/<Match>` part dispatch is kept
-(reactive, no Streamdown remount); only the tool branch changes.
+(reactive, no Streamdown remount); only the tool branch changes. State comes from the real
+`ToolCallState` (`awaiting-input | input-streaming | input-complete | complete |
+output-available | approval-requested | approval-responded`, confirmed in types.d.ts), and
+approval/permission uses `part.approval` ({id, needsApproval, approved}) — which is how the
+existing risky-Bash gate should converge rather than the separate GenUi approval path.
+
+## Frontend vs backend tools (tanstack client/server model)
+
+tanstack/ai is explicit about tool _side_: `toolDefinition().server(exec)` (`__toolSide:
+'server'`, runs server-side) vs `.client(exec?)` (`__toolSide: 'client'`, runs in the
+browser), registered with `clientTools(...)` + `createChatClientOptions({ tools, context })`,
+and executed automatically (the runtime emits `tool-input-available`, the client runs the impl
+by name, the output lands on `part.output`). Client tools receive a runtime `ctx.context`.
+
+aidx's page actions are conceptually **client tools** (frontend tools): they execute in the
+browser against the live DOM. Today they are MCP `server` tools (`aidxPageToolDef.server(...)`)
+because the CLI owns the loop and calls them over MCP, round-tripping through core to the
+widget. The rendering layer does not care which side executed: it renders from the tool-call
+part by name/kind either way.
+
+The future first-party page agent (tanstack loop) registers the SAME page tools via
+`toolDefinition().client(exec)` + `clientTools()` + `createChatClientOptions({ tools, context })`,
+with the page-driver injected through `ctx.context`. The on-page mirror lives in the client
+tool's execute wrapper, and rendering reuses the same `page-action` card. So modeling page
+actions as client tools is the seam that makes "frontend tools" work natively later while the
+CLI path keeps working now — same definitions, same UI, different `__toolSide`.
 
 ## Pairing call + result into one card
 
-Today a `tool-call` part and its `tool-result` part render as two blocks. Generalize the
-existing `resultByCallId` seam (from `analyzeTests`) to the whole message: build a map of
-result-by-callId, render each call card with its paired result inline, and hide the standalone
-result part (as `hiddenResultIds` already does for tests). One card per action.
+Output can arrive two ways: on the tool-call part itself (`part.output`, for client/hybrid
+tools or after approval) and/or as a sibling `tool-result` part (the CLI-decoded path emits
+both a tool-call and a tool-result). The renderer reads `part.output` when present and
+otherwise pairs the sibling result. Generalize the existing `resultByCallId` seam (from
+`analyzeTests`) to the whole message: map result-by-callId, render each call card with its
+result inline, and hide the standalone result part (as `hiddenResultIds` already does for
+tests). One card per action.
 
 ## Per-tool result renderers (full set, v1)
 
@@ -148,6 +180,7 @@ A "done" card built from real structured data, not parsed prose, using @tanstack
 `structured-output` part; confirmed in the installed ai-client `.d.ts`).
 
 Wiring:
+
 1. Add a `structuredOutput` capability to `HarnessAdapter` (capability-typed, per the existing
    contract). claude and codex set it; the others do not.
 2. For capable harnesses, pass the schema to the CLI: claude `--json-schema <schema>`, codex
@@ -189,9 +222,10 @@ stays compact. Verified in the brainstorm mockup at the real 390px width.
 
 - `@aidx/protocol`: `ToolKind`, `ClassifiedTool`, `structuredOutput` capability on
   `HarnessAdapter`, final-result schema.
-- `@aidx/harness`: per-adapter `classifyTool` (claude + shared aidx_* default + generic),
-  `--json-schema`/`--output-schema` args for claude/codex, decode mapping to structured-output
-  and classified tool calls.
+- `@aidx/harness`: per-adapter `classifyTool` (claude + shared aidx\_\* default + generic),
+  emitting the `ClassifiedTool` as the tool-call's `metadata` (the per-adapter
+  `TToolCallMetadata`), `--json-schema`/`--output-schema` args for claude/codex, decode mapping
+  to structured-output and classified tool calls.
 - `@aidx/widget`: tool-UI registry keyed on `ToolKind`, paired call+result rendering,
   reflection card, now-line, on-page mirror module (under `react-grab/` or sibling), done card,
   `styles.css` additions using existing tokens.
