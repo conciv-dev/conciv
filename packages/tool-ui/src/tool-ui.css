@@ -416,3 +416,147 @@
 .pw-test-fix:hover {
   background: var(--pw-accent-20);
 }
+
+/* ── Reflection card (restyled thinking). ── */
+.pw-reflect {
+  border-left: 2px solid var(--pw-accent-line);
+  background: var(--pw-fill-soft);
+  border-radius: var(--pw-r-sm);
+  padding: 8px 11px;
+  margin: 6px 0;
+  font-size: 13px;
+  color: var(--pw-text-2);
+}
+.pw-reflect-text {
+  white-space: pre-wrap;
+}
+.pw-reflect-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 2px 0;
+}
+.pw-reflect-glyph {
+  flex: 0 0 auto;
+}
+
+/* ── Now line (single live status). ── */
+.pw-now {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 11px;
+  border-radius: var(--pw-r-pill);
+  background: var(--pw-fill);
+  border: 1px solid var(--pw-line);
+  font-size: 12.5px;
+  color: var(--pw-text);
+}
+.pw-now-spin {
+  flex: 0 0 auto;
+  width: 11px;
+  height: 11px;
+  border: 2px solid var(--pw-line-2);
+  border-top-color: var(--pw-accent);
+  border-radius: var(--pw-r-pill);
+  animation: pw-tool-spin 0.7s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pw-now-spin {
+    animation: none;
+  }
+}
+.pw-now-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  animation: pw-now-fade 220ms var(--pw-ease);
+}
+@keyframes pw-now-fade {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.pw-now-stop {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--pw-line-2);
+  border-radius: var(--pw-r-sm);
+  background: var(--pw-fill);
+  color: var(--pw-text-2);
+  font-size: 10px;
+  cursor: pointer;
+}
+.pw-now-stop:hover {
+  background: var(--pw-fill-strong);
+  color: var(--pw-danger);
+}
+
+/* ── Done card (structured roll-up). ── */
+.pw-done {
+  border: 1px solid var(--pw-accent-line);
+  border-radius: var(--pw-r-md);
+  background: var(--pw-accent-08);
+  padding: 10px 12px;
+  margin: 6px 0;
+  font-size: 13px;
+}
+.pw-done-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.pw-done-ic {
+  color: var(--pw-accent);
+}
+.pw-done-summary {
+  color: var(--pw-text-hi);
+  font-weight: 500;
+}
+.pw-done-section {
+  margin-top: 8px;
+}
+.pw-done-label {
+  display: block;
+  color: var(--pw-text-3);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 3px;
+}
+.pw-done-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-family: var(--pw-mono);
+  font-size: 12px;
+  color: var(--pw-text-2);
+}
+.pw-done-list li {
+  padding: 1px 0;
+}
+.pw-done-tests--pass {
+  color: var(--pw-success);
+}
+.pw-done-tests--fail {
+  color: var(--pw-danger);
+}
+
+/* The embedded @pierre/diffs viewer inside the file-edit card. */
+.pw-edit-diff {
+  display: block;
+  border-radius: var(--pw-r-sm);
+  overflow: hidden;
+  font-size: 12px;
+}

@@ -1,11 +1,16 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
-import {expect, within} from 'storybook/test'
+import {expect, waitFor, within} from 'storybook/test'
 import {FileEditCard} from './file-edit.js'
 import {callPart, resultPart, noopCtx} from '../fixtures.js'
 
 const meta: Meta<typeof FileEditCard> = {title: 'tool-ui/FileEdit', component: FileEditCard}
 export default meta
 type Story = StoryObj<typeof FileEditCard>
+
+// The diff body renders via @pierre/diffs into a <diffs-container> open shadow root.
+function diffText(canvasElement: HTMLElement): string {
+  return canvasElement.querySelector('diffs-container')?.shadowRoot?.textContent ?? ''
+}
 
 export const Edit: Story = {
   args: {
@@ -20,7 +25,11 @@ export const Edit: Story = {
     const c = within(canvasElement)
     await expect(c.getByText('Edited styles.css')).toBeInTheDocument()
     await expect(c.getByText('+3 −3')).toBeInTheDocument()
-    await expect(c.getByText(/color: blue;/)).toBeInTheDocument()
+    await waitFor(() => {
+      const text = diffText(canvasElement)
+      expect(text).toContain('color: blue;')
+      expect(text).toContain('color: red;')
+    })
   },
 }
 
@@ -33,6 +42,7 @@ export const Write: Story = {
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await expect(c.getByText('Wrote new.ts')).toBeInTheDocument()
+    await waitFor(() => expect(diffText(canvasElement)).toContain('export const x = 1'))
   },
 }
 

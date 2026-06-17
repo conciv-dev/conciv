@@ -632,6 +632,9 @@ importers:
       '@opendui/aidx-protocol':
         specifier: workspace:*
         version: link:../protocol
+      '@opendui/aidx-solid-diffs':
+        specifier: workspace:*
+        version: link:../solid-diffs
       '@opendui/aidx-tools':
         specifier: workspace:*
         version: link:../tools

@@ -1,5 +1,6 @@
-import {For, Show, type JSX} from 'solid-js'
+import {Show, type JSX} from 'solid-js'
 import {z} from 'zod'
+import {SolidFileDiff} from '@opendui/aidx-solid-diffs'
 import {ToolCard} from '../shell.js'
 import {parseInput} from '../util.js'
 import type {ToolCardProps} from '../types.js'
@@ -13,22 +14,21 @@ const EditInput = z.object({
   content: z.string().optional(),
 })
 
-type DiffLine = {sign: '+' | '-'; text: string}
-
-function diffLines(input: z.infer<typeof EditInput> | undefined): DiffLine[] {
-  if (!input) return []
-  const removed = input.old_string ? input.old_string.split('\n') : []
-  const added = (input.new_string ?? input.content) ? (input.new_string ?? input.content ?? '').split('\n') : []
-  return [
-    ...removed.map((text): DiffLine => ({sign: '-', text})),
-    ...added.map((text): DiffLine => ({sign: '+', text})),
-  ]
-}
+type EditData = z.infer<typeof EditInput>
 
 function basename(path: string | undefined): string {
   if (!path) return ''
   const parts = path.split('/')
   return parts[parts.length - 1] ?? path
+}
+
+// The before/after sides for the diff. Write is a pure addition (empty before).
+function sides(input: EditData): {oldText: string; newText: string} {
+  return {oldText: input.old_string ?? '', newText: input.new_string ?? input.content ?? ''}
+}
+
+function lineCount(text: string): number {
+  return text ? text.split('\n').length : 0
 }
 
 function FileEditIcon(): JSX.Element {
@@ -41,12 +41,19 @@ function FileEditIcon(): JSX.Element {
 
 export function FileEditCard(props: ToolCardProps): JSX.Element {
   const input = () => parseInput(EditInput, props.part)
-  const lines = () => diffLines(input())
-  const added = () => lines().filter((l) => l.sign === '+').length
-  const removed = () => lines().filter((l) => l.sign === '-').length
+  const path = () => input()?.file_path
+  const name = () => basename(path())
   const verb = () => (props.part.name === 'Write' ? 'Wrote' : 'Edited')
-  const name = () => basename(input()?.file_path)
-  const meta = () => (lines().length ? `+${added()} −${removed()}` : undefined)
+  const removed = () => {
+    const i = input()
+    return i ? lineCount(sides(i).oldText) : 0
+  }
+  const added = () => {
+    const i = input()
+    return i ? lineCount(sides(i).newText) : 0
+  }
+  const hasDiff = () => added() > 0 || removed() > 0
+  const meta = () => (hasDiff() ? `+${added()} −${removed()}` : undefined)
   return (
     <ToolCard
       accent="code"
@@ -56,16 +63,12 @@ export function FileEditCard(props: ToolCardProps): JSX.Element {
       result={props.result}
       meta={meta()}
     >
-      <Show when={lines().length} fallback={<div class="pw-tool-muted">no diff</div>}>
-        <pre class="pw-diff">
-          <For each={lines()}>
-            {(l) => (
-              <div class={l.sign === '+' ? 'pw-diff-add' : 'pw-diff-del'}>
-                {l.sign} {l.text}
-              </div>
-            )}
-          </For>
-        </pre>
+      <Show when={hasDiff()} fallback={<div class="pw-tool-muted">no diff</div>}>
+        <SolidFileDiff
+          class="pw-edit-diff"
+          oldFile={{name: path() ?? 'file', contents: sides(input()!).oldText}}
+          newFile={{name: path() ?? 'file', contents: sides(input()!).newText}}
+        />
       </Show>
     </ToolCard>
   )
