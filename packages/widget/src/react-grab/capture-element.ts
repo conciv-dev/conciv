@@ -81,22 +81,31 @@ const INHERITED_PROPS = new Set([
 // Per-tag UA-default computed styles, measured once from a throwaway element in an offscreen sandbox
 // (computed style is only meaningful while connected) and cached. Diffing against these is what lets
 // each node inline ONLY the few properties that differ from a bare element of its tag, not all ~350.
+// The sandbox lives in its OWN shadow root, NOT plain document.body: a host page reset (Tailwind's
+// preflight sets `* { box-sizing: border-box }` and zeroes heading margins) would otherwise cascade
+// into the reference element, so the "default" we diff against would be the host's reset, not the UA
+// default. We'd then skip those very properties — and the clone, mounted in the widget's own shadow
+// DOM (which has its own `*` reset + bare-tag markdown rules), would silently pick the wrong values
+// (e.g. a leaked `h3 { margin-top }` pushing content out of the box and clipping it). Non-inherited
+// properties don't cross the shadow boundary, so measuring here yields genuine UA defaults.
 const defaultsCache = new Map<string, Record<string, string>>()
 let sandbox: HTMLElement | null = null
+let sandboxRoot: ShadowRoot | null = null
 
 function defaultStyleFor(tag: string): Record<string, string> {
   const cached = defaultsCache.get(tag)
   if (cached) return cached
   const map: Record<string, string> = {}
   try {
-    if (!sandbox) {
+    if (!sandboxRoot) {
       sandbox = document.createElement('div')
       sandbox.style.cssText =
         'position:absolute!important;left:-9999px;top:0;width:0;height:0;overflow:hidden;visibility:hidden'
       document.body.appendChild(sandbox)
+      sandboxRoot = sandbox.attachShadow({mode: 'open'})
     }
     const ref = document.createElement(tag)
-    sandbox.appendChild(ref)
+    sandboxRoot.appendChild(ref)
     const cs = getComputedStyle(ref)
     for (const prop of cs) map[prop] = cs.getPropertyValue(prop)
     ref.remove()
@@ -110,6 +119,7 @@ function defaultStyleFor(tag: string): Record<string, string> {
 function teardownSandbox(): void {
   sandbox?.remove()
   sandbox = null
+  sandboxRoot = null
 }
 
 // Walk original + clone in lockstep, inlining onto each clone node only the computed properties that

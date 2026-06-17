@@ -38,13 +38,21 @@ function pageHtml(): string {
     <meta name="pw-api-base" content="">
     <meta name="pw-widget" content='{"quickTerminal":false}'>
     <style>
+      /* A Tailwind-preflight-style host reset: zeroes heading margins + flips the box model. The grab
+         capture must diff against TRUE UA defaults (not these host overrides), or it skips the very
+         properties the host reset, and the clone re-inherits them from the UA sheet inside our shadow
+         DOM — e.g. the h3 picks up its UA margin and overflows the captured box. */
+      *, ::before, ::after { box-sizing: border-box; }
+      h1, h2, h3, h4, h5, h6 { margin: 0; }
       #grab-target { width: 220px; padding: 16px; border-radius: 12px; color: rgb(255, 255, 255);
         background: rgb(91, 58, 166); box-shadow: 0 10px 20px rgba(0,0,0,.4); font-weight: 700; }
       #grab-target::before { content: "PRO"; display: block; font-size: 11px; opacity: .7; }
+      #grab-target h3 { font-size: 14px; }
+      #grab-target p { font-size: 13px; margin: 0; }
     </style>
   </head><body>
     <div id="probe">page-bus-ok</div>
-    <div id="grab-target">Upgrade plan</div>
+    <div id="grab-target"><h3>Upgrade plan</h3><p>Unlock every feature today.</p></div>
     <script>${widgetBundle}</script>
   </body></html>`
 }
@@ -1091,8 +1099,11 @@ describe('aidx widget (it) — real browser, real SSE', () => {
       await page.locator('.pw-pick-pill').waitFor({state: 'visible'})
       const box = await page.locator('#grab-target').boundingBox()
       if (!box) throw new Error('no #grab-target box')
-      const cx = box.x + box.width / 2
-      const cy = box.y + box.height / 2
+      // Aim at the card's top-left padding (not its center, which now sits over the h3/p children)
+      // so react-grab resolves the card itself — the clone must include its heading to exercise the
+      // host-reset margin regression.
+      const cx = box.x + 6
+      const cy = box.y + 6
       await page.mouse.move(cx, cy)
       await page.mouse.move(cx + 1, cy + 1)
       await page.mouse.click(cx, cy)
@@ -1125,6 +1136,18 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     expect(await scale.textContent()).toContain('Upgrade plan')
     const transform = await scale.evaluate((el) => getComputedStyle(el).transform)
     expect(transform === 'none' || transform.startsWith('matrix')).toBe(true)
+    // Regression: the host preflight zeroed the h3 margin, so the clone must inline `margin-top: 0`
+    // (defaults are probed against true UA values, not the host reset). Otherwise the h3 re-inherits
+    // the UA heading margin inside our shadow DOM and the content overflows the captured box — the
+    // exact clipping that cut off the grabbed card's text.
+    const fit = await scale.evaluate((el) => {
+      const h3 = el.querySelector('h3')
+      const card = h3?.parentElement
+      if (!h3 || !card) return null
+      return {marginTop: getComputedStyle(h3).marginTop, overflow: card.scrollHeight - card.clientHeight}
+    })
+    expect(fit?.marginTop).toBe('0px')
+    expect(fit?.overflow).toBeLessThanOrEqual(1)
 
     // A second pick stacks a second chip (multi-grab is real, not last-wins).
     await pick(2)
