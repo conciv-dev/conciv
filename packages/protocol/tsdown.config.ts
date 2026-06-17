@@ -6,6 +6,7 @@ export default defineConfig({
   entry: [
     'src/chat-types.ts',
     'src/ui-types.ts',
+    'src/done-types.ts',
     'src/test-types.ts',
     'src/harness-types.ts',
     'src/runner-types.ts',

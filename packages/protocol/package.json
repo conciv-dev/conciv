@@ -16,6 +16,10 @@
       "types": "./dist/ui-types.d.ts",
       "import": "./dist/ui-types.js"
     },
+    "./done-types": {
+      "types": "./dist/done-types.d.ts",
+      "import": "./dist/done-types.js"
+    },
     "./test-types": {
       "types": "./dist/test-types.d.ts",
       "import": "./dist/test-types.js"
