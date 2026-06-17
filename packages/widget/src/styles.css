@@ -1402,7 +1402,12 @@
   min-width: 0;
 }
 .pw-session-pill {
+  display: flex;
   min-width: 0;
+  flex: 1 1 auto;
+}
+/* Flex container + flex:1 child so the trigger is bounded by the header, letting the title ellipsis. */
+.pw-session-pill .pw-session-control {
   flex: 1 1 auto;
 }
 /* Ghost chip: no chrome at rest (reads as a label), a hairline + soft fill lift in on hover/open.
