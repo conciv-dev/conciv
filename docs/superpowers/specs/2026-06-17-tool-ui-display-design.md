@@ -61,55 +61,37 @@ type ClassifiedTool = {
 }
 ```
 
-### 2. Per-harness classifier (lives in each harness adapter)
+### 2. Classification: a pure function, run client-side (resolved by spike)
 
-Each `HarnessAdapter` exposes `classifyTool(rawName, input): ClassifiedTool`. CLI-specific
-knowledge (claude `Bash` to `shell`, codex `apply_patch` to `file-edit`) stays with the CLI
-adapter, never in the widget. The `aidx_*` MCP tools are aidx-owned and harness-independent,
-so they classify identically on every harness; that mapping lives in a shared default
-classifier the adapters delegate to. A generic fallback returns `kind:'unknown'` with the raw
-name as the title for anything unrecognized.
+Classification is a pure function `classify(name, input): ClassifiedTool`, one per harness, plus
+a shared `aidx_*` classifier and a generic fallback. It runs **in the widget**, not in the
+harness stream. This was the original open question (how to carry the `ClassifiedTool` to the
+widget); the spike settled it decisively in favor of client-side classification:
 
-v1 implements: claude's tools + the aidx\_\* tools + the generic fallback. codex / gemini-cli /
-opencode / pi fall through to generic until their classifiers are added (they still render,
-just without the rich per-kind body).
+- A metadata carrier can only ride `TOOL_CALL_START` (`processor.js:654-672`; the ARGS/END
+  handlers never touch metadata), and claude's `TOOL_CALL_START` has the name but NOT the input
+  (args stream afterward as `TOOL_CALL_ARGS`, `decode.ts:104`). So metadata could never carry the
+  input-derived `title`/`fields`. Also the client `ToolCallPart` doesn't even declare `metadata`,
+  and aidx's wire converter drops it on persist.
+- But the widget already has everything it needs on the part: `name`, and the args (accumulated
+  into `arguments` and `parsedArguments`/`input` by the processor — `handleToolCallArgsEvent`).
+  History reload carries the same (`claude/history.ts:54-58` emits `tool-call` with `name` +
+  `arguments`). And the widget already knows the active harness (`models.harness` in
+  `mount.tsx`/`model-selector.tsx`).
 
-How the classification reaches the widget (verified end-to-end by review): the AG-UI
-`ToolCallStartEvent` carries `metadata?: Record<string, unknown>` ("provider-specific metadata
-to carry into the ToolCall", `@tanstack/ai/dist/esm/types.d.ts:839-853`). The decode emits the
-`ClassifiedTool` there; `StreamProcessor.handleToolCallStartEvent` folds `chunk.metadata` onto
-the part (`processor.js:643-673`) and preserves it across snapshot rebuilds. So no CUSTOM side
-channel is needed. Two real caveats the plan must handle:
+So the widget calls `classify(harnessId, name, input)` per tool-call part, reading `part.input`
+(or `JSON.parse(part.arguments)` defensively while streaming). No metadata, no decode change, no
+CUSTOM side channel, no persistence, no timing problem, and history re-derives identically. `kind`
+is available from the name immediately (icon/rail render while args stream); `title`/`fields` fill
+in once the args complete.
 
-- The _client_ `ToolCallPart` that the widget renders (`@tanstack/ai-client` types) does NOT
-  declare a `metadata` field (only `@tanstack/ai`'s wire `ToolCallPart<TMetadata>` does). The
-  value arrives at runtime but is untyped on the consumer side, so the widget reads it through a
-  local TypeScript declaration-merge augmentation that types `ToolCallPart.metadata` as
-  `ClassifiedTool` — not an `as` cast (AGENTS.md forbids `as`).
-- aidx's outbound wire converter (`uiMessagesToWire`) serializes only `{id, function{name,
-arguments}}` and drops metadata. Inbound rendering is unaffected, but transcript history
-  reload would lose classification — so on history load the widget re-runs the (pure) classifier
-  over each tool call, or core persists+restores the metadata. The plan picks one; re-classify
-  on load is simplest and keeps the classifier the single source of truth.
-
-Timing constraint (verified, and it changes the split): the processor reads `metadata` ONLY on
-`TOOL_CALL_START` (`processor.js:654-672`; the `TOOL_CALL_ARGS`/`TOOL_CALL_END` handlers never
-touch it). But in claude's live stream `TOOL_CALL_START` carries only the tool NAME — the input
-arrives afterward as `TOOL_CALL_ARGS` deltas (`decode.ts:104` then `deltaBlock`). So metadata
-attached at START can hold only NAME-derived data (`kind`, `family`), not INPUT-derived data
-(`title`, `fields`). The classification therefore splits:
-
-- `kind` + `family` (from the tool name): attached as `metadata` at `TOOL_CALL_START`. Harness
-  knows its names (AGENTS.md-compliant), available immediately, drives the icon/rail/color even
-  while args stream.
-- `title` + `fields` (from the input, e.g. "Clicked Save"): produced once the input is complete.
-  Carrier for this is an OPEN decision (see Open questions): either a per-kind, harness-normalized
-  label function the widget runs over `part.input`, or a CUSTOM event the harness emits at
-  `TOOL_CALL_END` keyed by tool-call id (the metadata channel cannot deliver it post-START).
-
-The current emit site is `_shared/agui.ts:50` (`TOOL_CALL_START` without metadata); it gains the
-name-derived `{kind, family}`. The widget reads `part.metadata` for those, never the raw name in
-a switch.
+Where the classifiers live (AGENTS.md: "never special-case a CLI in core/widget"): each harness's
+classifier is a pure, node-dep-free function owned by its adapter and exposed through a
+browser-safe entry (`@aidx/harness` classify barrel keyed by harness id); the `aidx_*` classifier
+lives in `@aidx/tools` (browser-safe). The widget calls `classify(harnessId, ...)` from that lib —
+no CLI `if` in widget code; the per-CLI knowledge stays in the classifier modules. v1 ships the
+claude classifier + the `aidx_*` classifier + the generic fallback; codex / gemini-cli / opencode
+/ pi fall through to generic (still render, just without rich per-kind bodies) until added.
 
 ### 3. Widget tool-UI registry (keyed on ToolKind)
 
@@ -249,9 +231,13 @@ Wiring:
 2. Pass the schema per the real CLI surfaces (both verified with `--help` + a live run): claude
    `--json-schema '<inline schema>'`, codex `--output-schema <file>`. Added in
    `harness/src/<h>/args.ts`.
-3. Schema carries a prose field so conversation survives:
-   `{ message, summary?, filesChanged?, pageActions?, testsPassed? }`. The text part renders
-   `message`; the done card renders the rest.
+3. Schema carries a prose field so conversation survives, and MUST be OpenAI-strict to work on
+   codex (verified live: codex rejected a schema with optional fields —
+   `'required' ... must include every key in properties`). So every property is required and
+   `additionalProperties:false`; "optional" fields are required-but-emptyable (e.g.
+   `filesChanged: []`, `summary: ""`). Shape:
+   `{ message, summary, filesChanged[], pageActions[], testsPassed }` all required. The text part
+   renders `message`; the done card renders the rest.
 4. Production is via CUSTOM events, NOT the internal helpers the first draft named
    (`appendStructuredOutputDelta` is not exported; there is no `structured-output:completed`
    wire event). `decode.ts` emits the chunks the `StreamProcessor` actually consumes:
@@ -261,19 +247,34 @@ Wiring:
    depend on `useChat({ outputSchema })`: ai-client 0.16.3 `ChatClientBaseOptions` has no
    `outputSchema` field (doc-comment only); the part appears from the CUSTOM events regardless,
    and `outputSchema` would at most narrow the TS type of `part.data`.
-5. claude-specific decode work (verified live, both required): claude implements `--json-schema`
-   by forcing a synthetic `StructuredOutput` tool call and returning the result on the terminal
-   `result` event's top-level `structured_output` field. So `decode.ts` must (a) extend the
-   result schema to read `result.structured_output`, and (b) suppress the synthetic
-   `StructuredOutput` `tool_use` block so it does not render as a junk tool card.
+5. The two capable harnesses use DIFFERENT mechanisms, so decode is bespoke per harness (both
+   verified live):
+   - claude (`--json-schema`): forces a synthetic `StructuredOutput` tool call and returns the
+     object on the terminal `result` event's top-level `structured_output` field. Prose still
+     streams as normal text. `decode.ts` must (a) read `result.structured_output`, and (b)
+     suppress the synthetic `StructuredOutput` `tool_use` block so it is not rendered as a junk
+     tool card. Cost: the forced tool adds an extra model round-trip on EVERY turn the flag is
+     active, even a trivial no-tool reply (live run: `num_turns: 5`) — not "only when a tool ran".
+   - codex (`--output-schema <file>`): uses OpenAI `response_format` (no synthetic tool, cleaner),
+     but the ENTIRE final message becomes the JSON object — it arrives as the normal
+     `agent_message`/`item.completed` whose `text` is the JSON string (verified:
+     `{"message":"Hi."}`). So on codex there is no free-form prose outside the schema; the `message`
+     field IS the whole answer. `codex/decode.ts` must detect the schema-constrained
+     `agent_message` and route it to the structured part (and render `message` as the prose)
+     rather than printing raw JSON as text.
+6. Both decoders converge on the same client surface: emit the CUSTOM chunks the `StreamProcessor`
+   consumes — `CUSTOM 'structured-output.start' {messageId}` -> JSON via `TEXT_MESSAGE_CONTENT` ->
+   `CUSTOM 'structured-output.complete' {messageId, object, raw}` (same CUSTOM pattern as
+   `aidx-ui`; NOT the unexported `appendStructuredOutputDelta`). Do NOT depend on
+   `useChat({ outputSchema })`: ai-client 0.16.3 `ChatClientBaseOptions` has no such field
+   (doc-comment only); the part appears from the CUSTOM events regardless.
 
-Cost / gating (important): `--json-schema` forces the `StructuredOutput` tool call to complete
-_any_ request, so it adds an extra model round-trip on EVERY turn it is active — even a trivial
-conversational reply with no real tools (a live run showed `num_turns: 5`). It is not "only when
-a tool ran." The plan therefore gates it: a setting (default on for capable harnesses, optional
-per the user) decides whether to pass the flag; when off, no done card and no overhead. The
-capability flag + the prose `message` field keep a non-capable or schema-off turn behaving
-exactly as today.
+Gating: the flag is opt-in per harness (a setting; default decided in the plan). When off, no
+done card and zero overhead — the turn behaves exactly as today. The capability flag excludes
+gemini-cli / opencode / pi entirely. Residual risk: the full interaction inside aidx's live turn
+pipeline (permission gate, usage accounting, compaction) is not yet exercised end-to-end; the
+plan makes that an early real-run task, since the isolated CLI behavior is now known but the
+integration is not.
 
 ## Narrow / modal
 
@@ -315,10 +316,10 @@ Refactor:
    instantiates `.client(exec)` from the same def. Drop the `AidxMcpTool` re-wrap and the
    double zod parse; `core/src/api/mcp/mcp.ts` registers from the def's schema + the `.server`
    instance directly. (`McpServer.registerTool` still gets `inputSchema.shape`.)
-2. Co-locate the canonical classification with each def: a `classify(input): ClassifiedTool`
-   (kind, title, family, fields) exported from the tools package. The aidx\_\* branch of the
-   harness classifier delegates to it, and the future client tools reuse it, so labels/kinds
-   for aidx tools are defined once and are harness-independent by construction.
+2. Co-locate the canonical classification with each def: a pure `classify(name, input):
+ClassifiedTool` (kind, title, family, fields) exported from the tools package, browser-safe so
+   the widget calls it directly. The aidx\_\* tools classify identically on every harness; the
+   future client tools reuse the same function. Labels/kinds for aidx tools are defined once.
 3. `aidx_page` stays one tool (tool-slot economy) but its per-verb label/kind/family map becomes
    first-class data next to the def, driving both the model-facing description and the UI.
 4. `AidxToolContext` (the runtime bridge) maps cleanly to tanstack's client-tool `ctx.context`
@@ -356,10 +357,12 @@ Contents of `@aidx/tool-ui` (SolidJS):
 Dependencies and boundaries (keep the node/browser split clean):
 
 - Types `ToolKind` / `ClassifiedTool` live in `@aidx/protocol` (shared, no DOM).
-- `classify()` lives in `@aidx/tools` (node-safe; imported by the harness decode, which is node).
-- Renderers live in `@aidx/tool-ui` (browser/Solid; imports only the `ClassifiedTool` type, never
-  `classify`). `@aidx/widget` consumes the registry and the on-page mirror stays in the widget
-  (it needs the page driver).
+- Classifiers are PURE and browser-importable: the `aidx_*` classifier in `@aidx/tools`, each
+  harness classifier behind a node-dep-free `@aidx/harness` classify entry. The widget imports
+  them and classifies client-side (they are not run in the stream/decode).
+- Renderers live in `@aidx/tool-ui` (browser/Solid; import only the `ClassifiedTool` type).
+  `@aidx/widget` composes classify (active harness id) + the registry; the on-page mirror stays in
+  the widget (it needs the page driver).
 
 How to add a tool (the centralized recipe): add/confirm a `ToolKind` in `@aidx/protocol`, a
 `classify` branch in `@aidx/tools`, and a renderer + story in `@aidx/tool-ui`. Three small,
@@ -369,20 +372,21 @@ obvious edits; the registry and Storybook pick it up.
 
 - `@aidx/protocol`: `ToolKind`, `ClassifiedTool`, `structuredOutput` capability on
   `HarnessAdapter`, final-result schema.
-- `@aidx/harness`: per-adapter `classifyTool` (claude + shared aidx\_\* default + generic),
-  emitting the `ClassifiedTool` as the tool-call's `metadata` (the per-adapter
-  `TToolCallMetadata`), `--json-schema`/`--output-schema` args for claude/codex, decode mapping
-  to structured-output and classified tool calls.
+- `@aidx/harness`: a pure, browser-safe classify entry (claude classifier + generic; others
+  fall through), and `--json-schema`/`--output-schema` args + bespoke structured-output decode for
+  claude/codex (read `result.structured_output` / route the codex `agent_message` JSON; emit the
+  `structured-output.start/.complete` CUSTOM chunks; suppress claude's synthetic `StructuredOutput`
+  tool). No tool-call metadata emission (classification is client-side).
 - `@aidx/tools`: drop the `AidxMcpTool` re-wrap, instantiate `.server()` from the shared defs,
-  co-locate `classify(input): ClassifiedTool`, per-verb map for `aidx_page`.
+  co-locate the pure browser-safe `classify(name, input)` for the aidx\_\* tools, per-verb map for
+  `aidx_page`.
 - `@aidx/core`: `api/mcp/mcp.ts` registers tools from the def schema + `.server` instance
   directly (no `run`/re-parse indirection).
 - `@aidx/tool-ui` (new): the `ToolKind` renderer registry + per-kind components, reflection card,
   now-line, done card, moved `TestCard`, moved `--pw-*` tokens, `.storybook` + stories.
-- `@aidx/widget`: consume the `@aidx/tool-ui` registry from `PartView`, paired call+result
-  rendering, the `ToolCallPart.metadata` declaration-merge augmentation + history re-classify, the
-  on-page mirror module (page DOM, hooked in `page-driver.execute`); `GenUi`/approval path
-  unchanged.
+- `@aidx/widget`: classify client-side (active harness id) and render via the `@aidx/tool-ui`
+  registry from `PartView`, paired call+result rendering, the on-page mirror module (page DOM,
+  hooked in `page-driver.execute`); `GenUi`/approval path unchanged.
 
 ## Verification
 
@@ -401,32 +405,31 @@ obvious edits; the registry and Storybook pick it up.
 
 ## Open questions and unknowns
 
-Honest list of what is not yet nailed down, worst first. The first two should be resolved (a
-small spike each) before or early in implementation; the rest are decisions to make in the plan.
+Honest list, worst first. Items 1, 2, 4 were spiked and are now resolved (findings below and
+folded into the sections above); 3, 5-7 are decisions for the plan.
 
-1. **Title/fields carrier (design decision, medium).** Metadata can only ride `TOOL_CALL_START`
-   (name only), so input-derived `title`/`fields` need another path: (a) a per-kind label
-   function the widget runs over `part.input` — simplest, no extra events, but the input field
-   shapes are partly CLI-specific so the function must be kind-keyed and tolerant; or (b) a
-   harness CUSTOM event at `TOOL_CALL_END` carrying the full `ClassifiedTool` by id — keeps all
-   CLI knowledge in the adapter but adds a side channel and ordering to manage. Leaning (a) for
-   aidx\_\* + claude, with (b) reserved if field shapes diverge across harnesses. Needs a decision.
-2. **History reload classification (gap, medium).** The harness classifier is node-side; on
-   transcript reload the widget cannot re-run claude's `Bash->shell` mapping. So either core
-   persists+restores the tool metadata in history, or the name->kind map is made browser-importable
-   (pure, no CLI process needed) so the widget re-derives it. "Re-classify on load" only works for
-   the latter; pick one. Affects whether scrollback shows rich cards after a reload.
+1. **RESOLVED (spike) - classification carrier.** Decided: classify CLIENT-SIDE from
+   `part.name` + parsed args via pure per-harness functions, selected by the active harness id the
+   widget already has. The metadata carrier is dropped entirely (it could only ride
+   `TOOL_CALL_START`, before claude's input exists). No decode change, no side channel, no timing
+   problem. See "Classification: a pure function, run client-side".
+2. **RESOLVED (spike) - history reload.** Falls out of #1: transcript tool-call parts carry
+   `name` + `arguments` (`claude/history.ts:54-58`), so the same client-side classifier re-derives
+   the card on reload. No persistence needed. Requirement: the per-harness classifiers must be
+   pure and browser-importable (a node-dep-free entry).
 3. **Interactive renderer callbacks (gap, small).** The registry `Result(call, result)` signature
    has no callback channel, but `TestCard` needs `onFix` (sends a message) and "show more"/retry
    need handlers. The signature needs a `ctx` param (actions: sendMessage, apiBase, ...) threaded
    from the widget. Straightforward but must be designed in, not bolted on.
-4. **Structured card inside the full turn pipeline (risk, untested).** `--json-schema` was
-   verified in isolation. Its interaction with aidx's real turn machinery (permission gate, usage
-   accounting, compaction, the synthetic `StructuredOutput` tool + extra turns) is not yet tested
-   end-to-end. And codex's `--output-schema` was NOT live-tested — whether codex also forces a
-   synthetic tool / where it returns the object is assumed symmetric with claude, unverified.
-   Needs a spike before relying on it. Also undecided: where the on/off gating setting lives
-   (per-session vs global).
+4. **RESOLVED (spike) - structured output per harness; one residual.** Live-tested both: claude
+   forces a synthetic `StructuredOutput` tool, result on `result.structured_output`, lenient
+   schema, extra turn every request; codex uses OpenAI `response_format` (no synthetic tool) but
+   the whole final message becomes the JSON `agent_message` and the schema must be OpenAI-strict
+   (all properties required, `additionalProperties:false` — a loose schema was rejected). Decoders
+   are bespoke per harness; the portable schema is all-required. Folded into the structured-card
+   section. Residual (one real-run task in the plan, not a blocker): the interaction inside aidx's
+   live turn pipeline (permission gate, usage, compaction) is not yet exercised end-to-end. Also
+   to decide in the plan: where the on/off gating setting lives (per-session vs global).
 5. **Mirror scope + timing (small).** Which page verbs get the cursor/ring (find/locate/inspect
    are in `ELEMENT_KINDS` but are non-visual and probably should not animate), and whether the
    animation blocks the action (adds latency to every page action) or runs fire-and-forget (ring
