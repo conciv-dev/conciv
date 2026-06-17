@@ -39,13 +39,6 @@ export const UiFormSchema = z.object({
   title: z.string().optional(),
   fields: z.array(UiFormFieldSchema).min(1),
 })
-// Emitted by the risky-Bash gate; answered via POST /api/chat/permission-decision (blocking).
-export const UiApprovalSchema = z.object({
-  kind: z.literal('approval'),
-  renderId,
-  question: z.string(),
-  detail: z.string().optional(),
-})
 // Test-results card injected by the test route. (Kind stays 'vitest' until Plan 3.)
 export const UiVitestSchema = z.object({kind: z.literal('vitest'), renderId})
 
@@ -54,7 +47,6 @@ export const UiSpecSchema = z.discriminatedUnion('kind', [
   UiConfirmSchema,
   UiDiffSchema,
   UiFormSchema,
-  UiApprovalSchema,
   UiVitestSchema,
 ])
 
@@ -65,7 +57,6 @@ export type UiChoices = z.infer<typeof UiChoicesSchema>
 export type UiConfirm = z.infer<typeof UiConfirmSchema>
 export type UiDiff = z.infer<typeof UiDiffSchema>
 export type UiForm = z.infer<typeof UiFormSchema>
-export type UiApproval = z.infer<typeof UiApprovalSchema>
 export type UiVitest = z.infer<typeof UiVitestSchema>
 
 // The CUSTOM event name the widget listens for via useChat({onCustomEvent}).
@@ -74,6 +65,26 @@ export const AIDX_UI_EVENT = 'aidx-ui'
 // Wrap a spec as the AG-UI CUSTOM StreamChunk injected into the live chat stream.
 export function aguiCustomFor(spec: UiSpec): StreamChunk {
   return {type: EventType.CUSTOM, name: AIDX_UI_EVENT, value: spec}
+}
+
+// tanstack's StreamProcessor consumes this reserved CUSTOM event name to drive a tool-call part into
+// its NATIVE approval-requested state — it sets part.state='approval-requested' and part.approval
+// (see @tanstack/ai processor handleCustomEvent). The risky-Bash gate emits it so approval renders on
+// the tool card itself (no separate GenUi card). The decision returns out-of-band via
+// /api/chat/permission-decision: claude owns the loop and blocks on its PreToolUse hook, so the
+// decision cannot ride the one-way stream back (it would deadlock the live turn).
+export const APPROVAL_REQUESTED_EVENT = 'approval-requested'
+
+// The value shape the StreamProcessor reads off the approval-requested CUSTOM event. toolCallId MUST
+// equal the streamed tool-call part id (= claude's tool_use_id) so the right part is targeted.
+export type ApprovalRequest = {toolCallId: string; toolName: string; input: unknown; approvalId: string}
+
+export function aguiApprovalRequestedFor(req: ApprovalRequest): StreamChunk {
+  return {
+    type: EventType.CUSTOM,
+    name: APPROVAL_REQUESTED_EVENT,
+    value: {toolCallId: req.toolCallId, toolName: req.toolName, input: req.input, approval: {id: req.approvalId}},
+  }
 }
 
 // For non-h3 callers; route handlers use readValidatedBody(event, UiSpecSchema) directly.

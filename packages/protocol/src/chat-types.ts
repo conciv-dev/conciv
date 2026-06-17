@@ -92,7 +92,7 @@ export const OkSchema = z.object({ok: z.boolean()})
 export type Ok = z.infer<typeof OkSchema>
 
 // The decision posted from the permission approval gate.
-export const PermissionDecisionSchema = z.object({renderId: z.string(), approved: z.boolean()})
+export const PermissionDecisionSchema = z.object({approvalId: z.string(), approved: z.boolean()})
 export type PermissionDecision = z.infer<typeof PermissionDecisionSchema>
 
 // GET /api/chat/session response.

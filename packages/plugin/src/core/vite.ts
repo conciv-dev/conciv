@@ -106,15 +106,22 @@ export function makeViteHook(options: AidxConfig = {}): Plugin {
   const widget = resolveWidgetSetup(options)
   let engine: Engine | null = null
   let root = process.cwd()
+  // When TanStack devtools' source injector is in the pipeline it stamps data-tsd-source (which
+  // `locate` already reads), at its own position relative to the framework's per-environment
+  // transforms. aidx stamping too then yields divergent line numbers between the SSR and client
+  // builds → a React hydration mismatch. Defer to it: detected from the resolved plugin list (same
+  // for both builds), so the decision is deterministic, not order/code dependent.
+  let deferToTsd = false
   return {
     name: 'aidx',
     apply: 'serve',
     enforce: 'pre',
     configResolved(config) {
       root = config.root
+      deferToTsd = config.plugins.some((p) => p.name === '@tanstack/devtools:inject-source')
     },
     transform(code, id) {
-      if (options.enabled === false || id.includes('node_modules')) return null
+      if (options.enabled === false || deferToTsd || id.includes('node_modules')) return null
       return addSourceToJsx(code, id, root)
     },
     transformIndexHtml: {

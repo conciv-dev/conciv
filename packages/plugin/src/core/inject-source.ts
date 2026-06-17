@@ -1,3 +1,4 @@
+import {readFileSync} from 'node:fs'
 import {parseSync} from 'oxc-parser'
 import MagicString from 'magic-string'
 
@@ -48,6 +49,39 @@ function collectOpenings(node: Node, out: Node[]): void {
   }
 }
 
+function parseOpenings(file: string, code: string): Node[] | null {
+  let parsed: ReturnType<typeof parseSync>
+  try {
+    parsed = parseSync(file, code, {sourceType: 'module', lang: file.endsWith('.tsx') ? 'tsx' : 'jsx'})
+  } catch {
+    return null
+  }
+  if (parsed.errors.length > 0) return null
+  const openings: Node[] = []
+  collectOpenings(parsed.program, openings)
+  return openings
+}
+
+// Line/col for each JSX opening as it appears in the ORIGINAL on-disk source. Per-environment
+// build transforms (notably TanStack Start's SSR boilerplate) prepend code before our pre-transform
+// in one environment only, shifting every line and yielding divergent data-aidx-source values
+// between the SSR and client builds → a React hydration mismatch. The JSX tree itself is identical
+// across environments (only non-JSX top-level statements get inserted), so we match by document
+// order: the disk opening at index i is the same element as the code opening at index i. Returns
+// null (→ fall back to the in-code position) if disk is unreadable or the counts disagree.
+function diskPositions(file: string, expected: number): {line: number; column: number}[] | null {
+  let raw: string
+  try {
+    raw = readFileSync(file, 'utf8')
+  } catch {
+    return null
+  }
+  const openings = parseOpenings(file, raw)
+  if (!openings || openings.length !== expected) return null
+  const loc = makeLocator(raw)
+  return openings.map((node) => loc(node.start))
+}
+
 function hasSourceAttr(node: Node): boolean {
   return (
     Array.isArray(node.attributes) &&
@@ -69,25 +103,21 @@ export function addSourceToJsx(
   // mismatch. `locate` reads their attribute anyway, so there's nothing to add here.
   if (code.includes('data-tsd-source') || code.includes('data-aidx-source')) return null
   const rel = file.startsWith(root) ? file.slice(root.length).replace(/^\//, '') : file
-  let parsed: ReturnType<typeof parseSync>
-  try {
-    parsed = parseSync(file, code, {sourceType: 'module', lang: file.endsWith('.tsx') ? 'tsx' : 'jsx'})
-  } catch {
-    return null
-  }
-  if (parsed.errors.length > 0) return null
-  const openings: Node[] = []
-  collectOpenings(parsed.program, openings)
-  if (openings.length === 0) return null
+  const openings = parseOpenings(file, code)
+  if (!openings || openings.length === 0) return null
 
+  // Prefer positions from the on-disk source (stable across SSR/client line shifts); fall back to
+  // the in-code position when disk is unreadable or its JSX count differs from this code's.
+  const diskLocs = diskPositions(file, openings.length)
   const loc = makeLocator(code)
   const s = new MagicString(code)
   let changed = false
-  for (const node of openings) {
+  for (let i = 0; i < openings.length; i++) {
+    const node = openings[i]
     const name = elementName(node.name)
     if (name === '' || name === 'Fragment' || name === 'React.Fragment') continue
     if (hasSourceAttr(node)) continue
-    const {line, column} = loc(node.start)
+    const {line, column} = diskLocs ? (diskLocs[i] ?? loc(node.start)) : loc(node.start)
     // JSON.stringify the value so a path with quotes/specials can't break out of the attribute (XSS-safe).
     const attr = ` data-aidx-source=${JSON.stringify(`${rel}:${line}:${column}`)}`
     s.appendLeft(node.selfClosing ? node.end - 2 : node.end - 1, attr)

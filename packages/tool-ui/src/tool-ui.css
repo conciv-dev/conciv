@@ -30,11 +30,33 @@
   border-left-color: var(--pw-line-2);
 }
 
+/* The header doubles as the Ark Collapsible trigger (a button) — reset native chrome, keep the row. */
 .pw-tool-head {
   display: flex;
   align-items: center;
   gap: 7px;
+  width: 100%;
   min-width: 0;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.pw-tool-chevron {
+  flex: 0 0 auto;
+  color: var(--pw-text-3);
+  transition: transform 160ms var(--pw-ease);
+}
+.pw-tool-head[data-state='closed'] .pw-tool-chevron {
+  transform: rotate(-90deg);
+}
+/* Hide the body when collapsed. Ark sets `hidden` on the content reliably (data-state is omitted
+   during its mount-skip), and an explicit display:none makes it stick in the widget shadow root. */
+.pw-tool-content[hidden] {
+  display: none;
 }
 
 .pw-tool-ic {
@@ -553,6 +575,58 @@
   color: var(--pw-danger);
 }
 
+/* ── Native approval bar (rendered on a tool card when part.state==='approval-requested'). ── */
+.pw-approve {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 6px;
+  padding: 8px 11px;
+  border: 1px solid var(--pw-accent-line);
+  border-radius: var(--pw-r-md);
+  background: var(--pw-accent-08);
+  font-family: var(--pw-font);
+  font-size: 12.5px;
+  color: var(--pw-text);
+}
+.pw-approve-ic {
+  display: inline-flex;
+  color: var(--pw-accent);
+}
+.pw-approve-q {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.pw-approve-allow,
+.pw-approve-deny {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: var(--pw-r-sm);
+  border: 1px solid var(--pw-line-2);
+  font: 600 12px/1 var(--pw-font);
+  cursor: pointer;
+}
+.pw-approve-deny {
+  background: var(--pw-fill);
+  color: var(--pw-text-2);
+}
+.pw-approve-deny:hover {
+  background: var(--pw-fill-strong);
+  color: var(--pw-danger);
+}
+.pw-approve-allow {
+  background: var(--pw-accent);
+  border-color: var(--pw-accent);
+  color: var(--pw-on-accent);
+}
+.pw-approve-allow:hover {
+  background: var(--pw-accent-hi);
+}
+
 /* ── Done card (structured roll-up). ── */
 .pw-done {
   border: 1px solid var(--pw-accent-line);
@@ -688,6 +762,8 @@
 /* Self-contained keyboard focus ring so focus is visible in Storybook and any host — not only under
    the widget's global :focus-visible rule. */
 .pw-now-stop:focus-visible,
+.pw-approve-allow:focus-visible,
+.pw-approve-deny:focus-visible,
 .pw-test-act:focus-visible,
 .pw-test-file:focus-visible,
 .pw-test-row:focus-visible,

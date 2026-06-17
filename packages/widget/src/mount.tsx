@@ -67,7 +67,7 @@ export function mountWidget(): void {
     .then((models) => {
       // The shell owns the chrome + layout modes and hosts the chat as a registered panel.
       const shell = createWidgetShell({settings})
-      shell.registerPanel(chatPanelDef(apiBase))
+      shell.registerPanel(chatPanelDef(apiBase, models.harness.id))
       shell.registerComposerAction(elementPickerAction)
       shell.registerComposerAction(newSessionAction)
       shell.registerComposerAction(compactAction)

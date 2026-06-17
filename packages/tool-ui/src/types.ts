@@ -12,6 +12,9 @@ export type ToolViewCtx = {
   apiBase: string
   harnessId: string
   sendMessage: (text: string) => void
+  // Answer a native tanstack tool approval (part.state==='approval-requested'). The widget posts the
+  // decision out-of-band to unblock the harness's gate; absent → no approval controls are rendered.
+  respondApproval?: (approvalId: string, approved: boolean) => void
   // Subscribe to the live test-runner stream; returns an unsubscribe. Absent → static render only.
   subscribeTestRunner?: (onEvent: (event: TestEvent) => void) => () => void
   // Open a source file in the user's editor (the test card's "open" action).

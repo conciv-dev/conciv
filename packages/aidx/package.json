@@ -8,10 +8,6 @@
   ],
   "type": "module",
   "exports": {
-    "./plugin": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    },
     "./plugin/vite": {
       "types": "./dist/vite.d.ts",
       "import": "./dist/vite.js"

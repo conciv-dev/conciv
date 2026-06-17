@@ -1,5 +1,5 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
-import {expect, waitFor, within} from 'storybook/test'
+import {expect, userEvent, waitFor, within} from 'storybook/test'
 import {ShellCard} from './shell.js'
 import {callPart, resultPart, noopCtx} from '../fixtures.js'
 
@@ -36,6 +36,21 @@ export const Errored: Story = {
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await waitFor(() => expect(c.getByText(/exit 1/)).toBeInTheDocument())
+  },
+}
+
+// Interaction test: the header is the collapse trigger — toggling it minimizes/expands the body.
+// Asserted the user-facing way: the header is an expandable button, and the body's visibility tracks it.
+export const CollapseToggle: Story = {
+  args: {part: bash(), result: resultPart('✓ built in 1.8s · 142 modules'), ctx: noopCtx()},
+  play: async ({canvasElement}) => {
+    const c = within(canvasElement)
+    // The header is an expandable toggle button (aria-expanded) — the canonical user-facing state.
+    await expect(c.getByRole('button', {name: /Ran pnpm build/, expanded: true})).toBeInTheDocument()
+    await userEvent.click(c.getByRole('button', {name: /Ran pnpm build/}))
+    await c.findByRole('button', {name: /Ran pnpm build/, expanded: false})
+    await userEvent.click(c.getByRole('button', {name: /Ran pnpm build/}))
+    await c.findByRole('button', {name: /Ran pnpm build/, expanded: true})
   },
 }
 

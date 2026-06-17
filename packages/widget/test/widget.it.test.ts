@@ -15,7 +15,7 @@ import type {AddressInfo} from 'node:net'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {chromium, type Browser} from 'playwright'
 import {EventType, type StreamChunk, toServerSentEventsStream} from '@tanstack/ai'
-import {aguiCustomFor} from '@opendui/aidx-protocol/ui-types'
+import {aguiApprovalRequestedFor} from '@opendui/aidx-protocol/ui-types'
 import {aguiUsageFor, snapshotToTokenUsage} from '@opendui/aidx-protocol/usage-types'
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -23,7 +23,9 @@ const widgetBundle = fs.readFileSync(path.join(dirname, '../dist/aidx-widget.glo
 
 const ASSISTANT_TEXT = 'Hello from aidx'
 const SWITCHED_REPLY = 'Reply from the switched session'
-const APPROVAL_QUESTION = 'Run a risky command?'
+const RISKY_COMMAND = 'rm -rf /tmp/scratch'
+const APPROVAL_ID = 'a1'
+const APPROVE_CALL_ID = 'tc-approve'
 const FAILING_TEST = 'rejects an expired token'
 const FAILURE_MESSAGE = 'expected 200 to be 401'
 const PAGE_QUERY = {requestId: 'pb1', kind: 'text', selector: '#probe'}
@@ -78,7 +80,8 @@ function globalBasePageHtml(globalBase: string): string {
   </body></html>`
 }
 
-// One scripted assistant turn: a text message followed by a risky-command approval card.
+// The default scripted turn: a text reply with live usage. Fast (no open-ended hold), so the many
+// tests that just need an assistant reply + usage tracker aren't kept in a loading state.
 async function* chatScript(): AsyncGenerator<StreamChunk> {
   yield {type: EventType.RUN_STARTED, threadId: 't', runId: 'r'}
   // Live usage injected mid-turn (core does this from claude's message_start) — the tracker fills
@@ -93,12 +96,6 @@ async function* chatScript(): AsyncGenerator<StreamChunk> {
   yield {type: EventType.TEXT_MESSAGE_START, messageId: 'm1', role: 'assistant'}
   yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'm1', delta: ASSISTANT_TEXT}
   yield {type: EventType.TEXT_MESSAGE_END, messageId: 'm1'}
-  yield aguiCustomFor({
-    kind: 'approval',
-    renderId: 'a1',
-    question: APPROVAL_QUESTION,
-    detail: 'rm -rf /tmp/scratch',
-  })
   yield {
     type: EventType.RUN_FINISHED,
     threadId: 't',
@@ -115,6 +112,29 @@ async function* chatScript(): AsyncGenerator<StreamChunk> {
       numTurns: 1,
     }),
   }
+}
+
+// A turn that drives a risky Bash tool-call into tanstack's NATIVE approval-requested state via the
+// approval-requested CUSTOM event (the same event core's gate emits). The tool_use id IS the streamed
+// toolCallId, so the approval lands on that tool card. The stream is held open ~900ms (claude blocks
+// on its hook in reality) so the approval bar is observable and the out-of-band decision can post
+// before the turn settles.
+async function* approvalScript(): AsyncGenerator<StreamChunk> {
+  yield {type: EventType.RUN_STARTED, threadId: 't', runId: 'r'}
+  yield {type: EventType.TEXT_MESSAGE_START, messageId: 'm1', role: 'assistant'}
+  yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'm1', delta: ASSISTANT_TEXT}
+  yield {type: EventType.TEXT_MESSAGE_END, messageId: 'm1'}
+  yield {type: EventType.TOOL_CALL_START, toolCallId: APPROVE_CALL_ID, toolCallName: 'Bash', toolName: 'Bash'}
+  yield {type: EventType.TOOL_CALL_ARGS, toolCallId: APPROVE_CALL_ID, delta: JSON.stringify({command: RISKY_COMMAND})}
+  yield {type: EventType.TOOL_CALL_END, toolCallId: APPROVE_CALL_ID}
+  yield aguiApprovalRequestedFor({
+    toolCallId: APPROVE_CALL_ID,
+    toolName: 'Bash',
+    input: {command: RISKY_COMMAND},
+    approvalId: APPROVAL_ID,
+  })
+  await new Promise((resolve) => setTimeout(resolve, 900))
+  yield {type: EventType.RUN_FINISHED, threadId: 't', runId: 'r', finishReason: 'stop'}
 }
 
 // A compaction turn: native /compact streams no assistant text. Held open ~700ms so the composer's
@@ -415,34 +435,47 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     server?.close()
   })
 
-  it('mounts the FAB, streams an assistant reply, and renders the approval gate → decision', async () => {
-    const page = await browser.newPage()
-    await page.goto(state.base)
+  it('streams a reply, renders a tool card, and approves via the NATIVE part.approval flow', async () => {
+    chatState.script = approvalScript
+    try {
+      const page = await browser.newPage()
+      await page.goto(state.base)
 
-    // The FAB mounts only after the chat-availability probe resolves (production boot path).
-    const fab = page.getByRole('button', {name: 'Open aidx chat'})
-    await fab.waitFor({state: 'visible'})
-    await fab.click()
+      // The FAB mounts only after the chat-availability probe resolves (production boot path).
+      const fab = page.getByRole('button', {name: 'Open aidx chat'})
+      await fab.waitFor({state: 'visible'})
+      await fab.click()
 
-    // Empty thread → greeting + starters.
-    await page.getByText('How can I help you today?').waitFor({state: 'visible'})
+      // Empty thread → greeting + starters.
+      await page.getByText('How can I help you today?').waitFor({state: 'visible'})
 
-    // Send a message; the scripted AG-UI stream renders the assistant text.
-    const composer = page.getByLabel('Message the aidx agent')
-    await composer.fill('do something')
-    await composer.press('Enter')
-    await page.getByText(ASSISTANT_TEXT).waitFor({state: 'visible'})
+      // Send a message; the scripted AG-UI stream renders the assistant text.
+      const composer = page.getByLabel('Message the aidx agent')
+      await composer.fill('do something')
+      await composer.press('Enter')
+      await page.getByText(ASSISTANT_TEXT).waitFor({state: 'visible'})
 
-    // The same turn emits a CUSTOM aidx-ui approval spec → the gate card renders.
-    await page.getByText(APPROVAL_QUESTION).waitFor({state: 'visible'})
+      // The Bash tool-call renders as a shell card showing the command (proves part.arguments → typed
+      // input, since tanstack never populates part.input).
+      await page.getByText(RISKY_COMMAND).first().waitFor({state: 'visible'})
 
-    // Approving posts the blocking allow/deny decision back to the dev server.
-    const decision = page.waitForRequest((r) => r.url().includes('/api/chat/permission-decision'))
-    await page.getByRole('button', {name: 'Approve'}).click()
-    const body = (await decision).postDataJSON() as {renderId: string; approved: boolean}
-    expect(body.renderId).toBe('a1')
-    expect(body.approved).toBe(true)
-    await page.close()
+      // The approval-requested event drove the part into part.approval → the approval bar renders ON
+      // the card (not a separate GenUi gate). Allow/Deny live here now.
+      await page.getByText('Run this command?').waitFor({state: 'visible'})
+
+      // Allowing posts the decision OUT OF BAND (keyed by approval.id), unblocking the harness gate.
+      const decision = page.waitForRequest((r) => r.url().includes('/api/chat/permission-decision'))
+      await page.getByRole('button', {name: 'Allow'}).click()
+      const body = (await decision).postDataJSON() as {approvalId: string; approved: boolean}
+      expect(body.approvalId).toBe(APPROVAL_ID)
+      expect(body.approved).toBe(true)
+
+      // Clicking optimistically clears the controls.
+      await page.getByText('Run this command?').waitFor({state: 'hidden'})
+      await page.close()
+    } finally {
+      chatState.script = chatScript
+    }
   })
 
   it('New session: opens a fresh empty session (resolve); the prior session is preserved in a hidden pane', async () => {

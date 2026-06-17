@@ -1,11 +1,15 @@
-import {Show, type Component, type JSX} from 'solid-js'
+import {Show, createSignal, type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
+import {Collapsible} from '@ark-ui/solid/collapsible'
+import {ChevronDown} from 'lucide-solid'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolAccent} from './types.js'
 import {toolGlyph} from './util.js'
 
-// Shared card chrome: family-accent rail, icon, title, lifecycle glyph, optional right-aligned
-// meta, and the kind-specific body as children.
+// Shared card chrome: family-accent rail, icon, title, lifecycle glyph, optional right-aligned meta,
+// and the kind-specific body as children. The header is an Ark Collapsible trigger so the user can
+// minimize a card; state is a controlled local signal (the card instance is position-stable under the
+// thread's <Index>, so the choice survives streaming re-renders — no per-token reset).
 export function ToolCard(props: {
   accent: ToolAccent
   Icon: Component
@@ -15,9 +19,14 @@ export function ToolCard(props: {
   meta?: string
   children?: JSX.Element
 }): JSX.Element {
+  const [open, setOpen] = createSignal(true)
   return (
-    <div class={`pw-tool pw-tool--${props.accent}`}>
-      <div class="pw-tool-head">
+    <Collapsible.Root
+      open={open()}
+      onOpenChange={(details) => setOpen(details.open)}
+      class={`pw-tool pw-tool--${props.accent}`}
+    >
+      <Collapsible.Trigger class="pw-tool-head">
         <span class="pw-tool-ic" aria-hidden="true">
           <Dynamic component={props.Icon} />
         </span>
@@ -26,10 +35,15 @@ export function ToolCard(props: {
         <Show when={props.meta}>
           <span class="pw-tool-meta">{props.meta}</span>
         </Show>
-      </div>
+        <Show when={props.children}>
+          <ChevronDown class="pw-tool-chevron" size={14} aria-hidden="true" />
+        </Show>
+      </Collapsible.Trigger>
       <Show when={props.children}>
-        <div class="pw-tool-body">{props.children}</div>
+        <Collapsible.Content class="pw-tool-content">
+          <div class="pw-tool-body">{props.children}</div>
+        </Collapsible.Content>
       </Show>
-    </div>
+    </Collapsible.Root>
   )
 }

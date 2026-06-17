@@ -1,4 +1,8 @@
 @import '@opendui/aidx-solid-streamdown/styles.css';
+/* Shared design tokens + tool-card styles: single source of truth, scoped :host,:root so they
+   resolve in this shadow root and in tool-ui's Storybook alike. The widget owns no token copy. */
+@import '@opendui/aidx-tool-ui/tokens.css';
+@import '@opendui/aidx-tool-ui/tool-ui.css';
 
 /* preview-widget styles, injected into the Shadow DOM root. Mirrors react-grab's
    design language (dark panel, magenta brand accent) so the comment UI reads as
@@ -14,65 +18,10 @@
    arbitrary, often light, preview pages and must read as a distinct tool layer next
    to react-grab), so depth comes from hue-tinted shadow, not from glow. */
 
+/* Reset only: every --pw-* token comes from @opendui/aidx-tool-ui/tokens.css (imported above),
+   the single source of truth shared with the tool cards and their Storybook. */
 :host {
   all: initial;
-
-  --pw-hue: 328; /* react-grab brand magenta — every neutral is tinted toward it */
-
-  /* ── Accent: exact brand hex kept literal (matches react-grab); states mixed off it */
-  --pw-accent: #ff40e0;
-  --pw-accent-hi: color-mix(in oklch, var(--pw-accent), white 14%); /* hover */
-  --pw-accent-link: color-mix(in oklch, var(--pw-accent), white 34%); /* links */
-  --pw-accent-08: color-mix(in oklch, var(--pw-accent) 10%, transparent);
-  --pw-accent-20: color-mix(in oklch, var(--pw-accent) 22%, transparent);
-  --pw-accent-line: color-mix(in oklch, var(--pw-accent) 42%, transparent);
-
-  /* ── Surfaces: near-black tinted toward the hue, never pure #000 */
-  --pw-panel: oklch(0.2 0.012 var(--pw-hue)); /* opaque dark panel (≈ warm #161616) */
-  --pw-panel-sunk: oklch(0.16 0.012 var(--pw-hue)); /* deepest field bg */
-  --pw-glass: oklch(0.21 0.014 var(--pw-hue) / 0.97); /* chat panel */
-  --pw-fill: oklch(1 0 0 / 0.05); /* input / elevated fill */
-  --pw-fill-soft: oklch(1 0 0 / 0.04);
-  --pw-fill-strong: oklch(1 0 0 / 0.1);
-  --pw-sunken: oklch(0.12 0.01 var(--pw-hue) / 0.5); /* code / pre blocks */
-
-  /* ── Text ramp: tinted whites/grays (no pure #fff), perceptually even in OKLCH */
-  --pw-text: oklch(0.93 0.006 var(--pw-hue)); /* primary body (≈ #ececec, faintly warm) */
-  --pw-text-hi: oklch(0.98 0.008 var(--pw-hue)); /* emphasis / near-white */
-  --pw-text-2: oklch(0.74 0.012 var(--pw-hue)); /* secondary / muted */
-  --pw-text-3: oklch(0.64 0.012 var(--pw-hue)); /* faint / metadata */
-  --pw-on-accent: oklch(0.22 0.03 var(--pw-hue)); /* text on a magenta fill — ~7:1 */
-
-  /* ── Status */
-  --pw-agent: oklch(0.79 0.13 188); /* fixed agent hue (teal ≈ #19d6c4) */
-  --pw-danger: oklch(0.72 0.15 25); /* error text on dark (≈ #ff8a8a) */
-  --pw-danger-line: oklch(0.72 0.15 25 / 0.42);
-  --pw-success: oklch(0.82 0.16 162); /* ≈ #6ee7a8 */
-  --pw-warn: oklch(0.81 0.12 95); /* skipped-test gold (≈ #d6c84a) */
-  --pw-dim: oklch(0.5 0.02 var(--pw-hue)); /* hue-tinted mid-gray for the thinking shimmer base */
-
-  /* ── Lines */
-  --pw-line: oklch(1 0 0 / 0.1);
-  --pw-line-2: oklch(1 0 0 / 0.18);
-  --pw-line-soft: oklch(1 0 0 / 0.06);
-
-  /* ── Radii */
-  --pw-r-sm: 8px;
-  --pw-r-md: 12px;
-  --pw-r-lg: 18px;
-  --pw-r-pill: 999px;
-
-  /* ── Elevation: shadow tinted toward the hue (depth, not flat black or neon glow) */
-  --pw-shadow: 0 8px 28px oklch(0.12 0.02 var(--pw-hue) / 0.45);
-  --pw-shadow-lg: 0 16px 44px oklch(0.1 0.03 var(--pw-hue) / 0.55);
-  --pw-shadow-hover: 0 14px 34px oklch(0.1 0.03 var(--pw-hue) / 0.6);
-
-  /* ── Motion: expo for entrances (long, refined deceleration), quart for micro-interactions */
-  --pw-ease: cubic-bezier(0.22, 1, 0.36, 1); /* ease-out-quart */
-  --pw-ease-expo: cubic-bezier(0.16, 1, 0.3, 1); /* ease-out-expo */
-
-  --pw-font: system-ui, -apple-system, sans-serif;
-  --pw-mono: ui-monospace, monospace;
 }
 * {
   box-sizing: border-box;
@@ -751,9 +700,13 @@
   background: var(--pw-accent);
   color: var(--pw-on-accent);
 }
+/* Assistant turns are full-width, not a capped bubble: they hold rich tool cards (terminal, diff,
+   tests) that need the whole column, and each card carries its own chrome. User turns stay bubbles. */
 .pw-chat-msg-assistant {
-  align-self: flex-start;
-  background: var(--pw-fill);
+  align-self: stretch;
+  max-width: 100%;
+  background: transparent;
+  padding: 2px 0;
 }
 /* Session boundary in the scrollback (New session / Context compacted): a hairline rule flanking a
    quiet, uppercase label. Full-width (overrides sibling rows' align-self); the thread above stays. */
@@ -1437,7 +1390,7 @@
 .pw-session-bar .pw-session-trigger {
   border-color: transparent;
   padding: 0;
-  font-family: var(--pw-font-mono);
+  font-family: var(--pw-mono);
 }
 .pw-session-trigger:hover {
   color: var(--pw-text-hi);
@@ -1857,10 +1810,6 @@
   flex-direction: column;
   gap: 10px;
   animation: pw-chat-msg-in 180ms var(--pw-ease);
-}
-.pw-genui-approval {
-  border-color: var(--pw-accent-line);
-  background: var(--pw-accent-08);
 }
 .pw-genui-q {
   margin: 0;
@@ -2474,7 +2423,7 @@
   margin-bottom: 8px;
 }
 .pw-ctx-head-tokens {
-  font-family: var(--pw-font-mono, ui-monospace, monospace);
+  font-family: var(--pw-mono);
   color: var(--pw-text-2);
 }
 .pw-ctx-bar {
@@ -2560,7 +2509,7 @@
   flex: none;
 }
 .pw-session-info-id {
-  font-family: var(--pw-font-mono);
+  font-family: var(--pw-mono);
   word-break: break-all;
 }
 .pw-session-info-copy {

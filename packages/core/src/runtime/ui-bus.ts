@@ -1,5 +1,10 @@
 import type {StreamChunk} from '@tanstack/ai'
-import {aguiCustomFor, type UiSpec} from '@opendui/aidx-protocol/ui-types'
+import {
+  aguiCustomFor,
+  aguiApprovalRequestedFor,
+  type ApprovalRequest,
+  type UiSpec,
+} from '@opendui/aidx-protocol/ui-types'
 import {aguiUsageFor, type UsageSnapshot} from '@opendui/aidx-protocol/usage-types'
 
 // Merges agent-emitted generative-UI specs (POST /api/chat/ui) onto the live chat stream as
@@ -54,6 +59,11 @@ function makeChannel(): Channel {
 export type UiBus = {
   // Inject a UI spec onto the matching session's live stream. Returns false if no turn is active there.
   inject: (sessionId: string, spec: UiSpec) => boolean
+  // Drive a tool-call part into its native approval-requested state on the live stream (risky-Bash
+  // gate). Returns false if no turn is active there → the gate fails closed. The matching
+  // TOOL_CALL_START is already on the channel (claude streams the tool_use before its PreToolUse hook
+  // fires), so the part exists when this lands and the StreamProcessor sets part.approval on it.
+  injectApproval: (sessionId: string, req: ApprovalRequest) => boolean
   // Inject a live usage snapshot onto the matching session's stream (no-op if no turn is active).
   injectUsage: (sessionId: string, usage: UsageSnapshot) => void
   // Run one chat turn for a session: merge Claude's events with injected UI events into one stream.
@@ -67,6 +77,13 @@ export function makeUiBus(): UiBus {
     const channel = channels.get(sessionId)
     if (!channel) return false
     channel.push(aguiCustomFor(spec))
+    return true
+  }
+
+  function injectApproval(sessionId: string, req: ApprovalRequest): boolean {
+    const channel = channels.get(sessionId)
+    if (!channel) return false
+    channel.push(aguiApprovalRequestedFor(req))
     return true
   }
 
@@ -100,5 +117,5 @@ export function makeUiBus(): UiBus {
     return drain()
   }
 
-  return {inject, injectUsage, run}
+  return {inject, injectApproval, injectUsage, run}
 }

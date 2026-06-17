@@ -1,13 +1,13 @@
 import {createMemo, createEffect, createSignal, For, Index, Match, onCleanup, Show, Switch, type JSX} from 'solid-js'
 import {Progress} from '@ark-ui/solid/progress'
 import {useChat, fetchServerSentEvents, createChatClientOptions} from '@tanstack/ai-solid'
-import type {MessagePart, ToolCallPart, ToolCallState, ToolResultPart} from '@tanstack/ai-client'
+import type {MessagePart, ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {SessionClient} from './session-client.js'
-import {apiError} from './transport.js'
+import {apiError, createTransport} from './transport.js'
 import {invalidateSessions} from './session-store-client.js'
 import {createDebouncer} from '@tanstack/solid-pacer'
 import {GenUi} from './gen-ui.js'
-import {TestCard} from './test-card.js'
+import {ToolCallCard, ReflectionCard, NowLine, nowTitle, type ToolViewCtx} from '@opendui/aidx-tool-ui'
 import {Markdown} from './markdown.js'
 import {ArrowRight, Square, SquarePen, FoldVertical} from 'lucide-solid'
 import {EventType, type StreamChunk} from '@tanstack/ai'
@@ -18,81 +18,53 @@ import {
   tokenUsageToSnapshot,
   type UsageSnapshot,
 } from '@opendui/aidx-protocol/usage-types'
-import {TestRunResultSchema, type TestRunResult} from '@opendui/aidx-protocol/test-types'
+import {TestEventSchema, EditorOpenSchema} from '@opendui/aidx-protocol/test-types'
+import {OkSchema} from '@opendui/aidx-protocol/chat-types'
 import type {ComposerActionDef, ComposerControlDef, PanelDef} from './widget-shell.js'
 import {GrabReference} from './react-grab/grab-reference.js'
 import type {Grab} from './react-grab/grab-types.js'
 
-// Pull the Bash command out of a tool-call part (input.command, or parsed from arguments).
-function toolCommand(part: {input?: unknown; arguments?: string}): string {
-  const input: unknown = part.input
-  if (input && typeof input === 'object' && 'command' in input) {
-    const command = input.command
-    if (typeof command === 'string') return command
+// One message's tool-call ↔ tool-result pairing. Each tool-call renders one card (from
+// @opendui/aidx-tool-ui) with its sibling result inline; the standalone result part is then hidden.
+// An orphan result (no matching call — rare) still renders via the fallback.
+type ResultPairing = {byCallId: Map<string, ToolResultPart>; hiddenResultIds: Set<string>}
+
+function pairResults(parts: ReadonlyArray<MessagePart>): ResultPairing {
+  const callIds = new Set<string>()
+  for (const p of parts) if (p.type === 'tool-call' && p.id) callIds.add(p.id)
+  const byCallId = new Map<string, ToolResultPart>()
+  const hiddenResultIds = new Set<string>()
+  for (const p of parts) {
+    if (p.type !== 'tool-result' || !p.toolCallId) continue
+    byCallId.set(p.toolCallId, p)
+    if (callIds.has(p.toolCallId)) hiddenResultIds.add(p.toolCallId)
   }
-  if (typeof part.arguments === 'string') {
-    try {
-      const parsed: unknown = JSON.parse(part.arguments)
-      if (parsed && typeof parsed === 'object' && 'command' in parsed) {
-        const command = parsed.command
-        if (typeof command === 'string') return command
-      }
-    } catch {
-      // arguments wasn't JSON
-    }
-  }
-  return ''
+  return {byCallId, hiddenResultIds}
 }
 
-function parseRunResult(raw: string): TestRunResult | null {
+// A tool call is settled once its result lands (complete/error) or its own output is populated.
+function callSettled(part: ToolCallPart, result: ToolResultPart | undefined): boolean {
+  return result?.state === 'complete' || result?.state === 'error' || part.output !== undefined
+}
+
+// The present-tense label of the most recent still-running tool call in a message, for the now-line.
+function activeCallTitle(parts: ReadonlyArray<MessagePart>): string | null {
+  const {byCallId} = pairResults(parts)
+  let title: string | null = null
+  for (const p of parts) {
+    if (p.type !== 'tool-call' || !p.id) continue
+    title = callSettled(p, byCallId.get(p.id)) ? title : nowTitle(p)
+  }
+  return title
+}
+
+// SSE frames are untrusted strings — JSON-parse to unknown, then validate with a protocol schema.
+function parseJson(raw: string): unknown {
   try {
-    const result = TestRunResultSchema.safeParse(JSON.parse(raw))
-    return result.success ? result.data : null
+    return JSON.parse(raw)
   } catch {
     return null
   }
-}
-
-type TestAnalysis = {
-  runResult: Map<string, TestRunResult | null>
-  hiddenCallIds: Set<string>
-  hiddenResultIds: Set<string>
-}
-
-// The agent drives the runner via `aidx tools test …` (legacy alias: `tools vitest …`).
-function isTestCommand(command: string): boolean {
-  return command.includes('tools test') || command.includes('tools vitest')
-}
-function isRunCommand(command: string): boolean {
-  return command.includes('tools test run') || command.includes('tools vitest run')
-}
-
-function resultContent(part: MessagePart): string {
-  if (part.type !== 'tool-result') return ''
-  return typeof part.content === 'string' ? part.content : ''
-}
-
-// For one message's parts: which test-runner tool-calls become cards, which raw blocks to hide.
-function analyzeTests(parts: ReadonlyArray<MessagePart>): TestAnalysis {
-  const resultByCallId = new Map<string, string>()
-  for (const p of parts) {
-    if (p.type === 'tool-result' && p.toolCallId) resultByCallId.set(p.toolCallId, resultContent(p))
-  }
-  const runResult = new Map<string, TestRunResult | null>()
-  const hiddenCallIds = new Set<string>()
-  const hiddenResultIds = new Set<string>()
-  for (const p of parts) {
-    if (p.type !== 'tool-call' || !p.id) continue
-    const command = toolCommand(p)
-    if (!isTestCommand(command)) continue
-    hiddenCallIds.add(p.id)
-    hiddenResultIds.add(p.id)
-    if (isRunCommand(command)) {
-      const raw = resultByCallId.get(p.id)
-      runResult.set(p.id, raw ? parseRunResult(raw) : null)
-    }
-  }
-  return {runResult, hiddenCallIds, hiddenResultIds}
 }
 
 const STARTERS = ['Explain this page', 'Change the primary color', "Why doesn't this layout fit?"]
@@ -100,55 +72,13 @@ const STARTERS = ['Explain this page', 'Change the primary color', "Why doesn't 
 // Width the staged grab preview scales to fit — sits comfortably inside the min (300px) panel width.
 const GRAB_PREVIEW_MAX_W = 280
 
-// Human label + glyph for a tool-call lifecycle state; `active` = the turn is still generating.
-function toolCallStatus(state: ToolCallState, active: boolean): {glyph: string; label: string} {
-  if (state === 'complete') return {glyph: 'done', label: 'Done'}
-  if (state === 'approval-requested') return {glyph: 'ask', label: 'Needs approval'}
-  if (!active) return {glyph: 'done', label: 'Done'}
-  if (state === 'awaiting-input') return {glyph: 'spin', label: 'Calling'}
-  if (state === 'input-streaming') return {glyph: 'spin', label: 'Preparing'}
-  return {glyph: 'spin', label: 'Running'}
-}
-
-function prettyArgs(part: ToolCallPart): string {
-  if (part.input !== undefined) return JSON.stringify(part.input, null, 2)
-  if (!part.arguments) return ''
-  try {
-    return JSON.stringify(JSON.parse(part.arguments), null, 2)
-  } catch {
-    return part.arguments
-  }
-}
-
 function asText(content: ToolResultPart['content']): string {
   if (typeof content === 'string') return content
   return JSON.stringify(content, null, 2)
 }
 
-function ToolGlyph(props: {kind: string}): JSX.Element {
-  return <span class={`pw-chat-tool-glyph pw-chat-glyph-${props.kind}`} aria-hidden="true" />
-}
-
-function ToolCall(props: {part: ToolCallPart; active: boolean}): JSX.Element {
-  const status = () => toolCallStatus(props.part.state, props.active)
-  const args = () => prettyArgs(props.part)
-  return (
-    <div class={`pw-chat-tool pw-chat-tool-${props.part.state}`}>
-      <div class="pw-chat-tool-head">
-        <ToolGlyph kind={status().glyph} />
-        <span class="pw-chat-tool-name">{props.part.name}</span>
-        <span class="pw-chat-tool-state">{status().label}</span>
-      </div>
-      <Show when={args()}>
-        <details class="pw-chat-tool-args">
-          <summary>arguments</summary>
-          <pre>{args()}</pre>
-        </details>
-      </Show>
-    </div>
-  )
-}
-
+// Fallback for an ORPHAN tool-result part (no matching tool-call in the message — rare). Paired
+// results are rendered inside their tool card and hidden here; this only catches the stray case.
 function ToolResult(props: {part: ToolResultPart}): JSX.Element {
   return (
     <Show
@@ -168,11 +98,6 @@ function ToolResult(props: {part: ToolResultPart}): JSX.Element {
   )
 }
 
-function thinkingClass(live: boolean): string {
-  if (live) return 'pw-chat-thinking pw-chat-thinking-live'
-  return 'pw-chat-thinking'
-}
-
 function TextPartView(props: {content: string; streaming: boolean}): JSX.Element {
   return (
     <div class="pw-chat-text">
@@ -181,74 +106,50 @@ function TextPartView(props: {content: string; streaming: boolean}): JSX.Element
   )
 }
 
+// Narrowing accessors: read the discriminated part as its concrete type for the matched branch,
+// returning null otherwise (no `as` casts — the type guard narrows the value Solid hands back).
+function asTextPart(part: MessagePart): Extract<MessagePart, {type: 'text'}> | null {
+  return part.type === 'text' ? part : null
+}
+function asThinkingPart(part: MessagePart): Extract<MessagePart, {type: 'thinking'}> | null {
+  return part.type === 'thinking' && part.content.trim().length > 0 ? part : null
+}
+function asToolCallPart(part: MessagePart): ToolCallPart | null {
+  return part.type === 'tool-call' ? part : null
+}
+function asResultPart(part: MessagePart): ToolResultPart | null {
+  return part.type === 'tool-result' ? part : null
+}
+
 // Reactive part view. Branch selection is via <Switch>/<Match> (not a one-shot if-chain) and every
-// value is read off props lazily, so the SAME subtree updates as a part's text grows or its kind
-// changes (e.g. tool-call → run-card when its result lands) — no teardown, no Streamdown remount.
+// value is read off props lazily, so the SAME subtree updates as a part's text grows or its result
+// lands — no teardown, no Streamdown remount. Each tool-call renders one card from
+// @opendui/aidx-tool-ui (dispatched by part.name, reading typed part.input/part.output), paired with
+// its sibling tool-result; the standalone result part is hidden once paired.
 function PartView(props: {
   part: MessagePart
   index: number
   parts: ReadonlyArray<MessagePart>
   streaming: boolean
-  apiBase: string
-  tests: TestAnalysis
-  onFix: (text: string) => void
+  pairing: ResultPairing
+  ctx: ToolViewCtx
 }): JSX.Element {
   const lastTextIndex = createMemo(() => props.parts.map((p) => p.type).lastIndexOf('text'))
-  const runCallId = (): string | undefined => {
-    const p = props.part
-    return p.type === 'tool-call' ? p.id : undefined
-  }
-  const isRunCard = (): boolean => {
-    const id = runCallId()
-    return id !== undefined && props.tests.runResult.has(id)
-  }
   return (
     <Switch>
-      <Match when={isRunCard()}>
-        <TestCard
-          apiBase={props.apiBase}
-          onFix={props.onFix}
-          result={props.tests.runResult.get(runCallId() ?? '') ?? null}
-        />
-      </Match>
-      <Match when={props.part.type === 'text' ? (props.part as Extract<MessagePart, {type: 'text'}>) : null}>
+      <Match when={asTextPart(props.part)}>
         {(p) => <TextPartView content={p().content} streaming={props.streaming && props.index === lastTextIndex()} />}
       </Match>
-      <Match
-        when={
-          props.part.type === 'thinking' &&
-          (props.part as Extract<MessagePart, {type: 'thinking'}>).content.trim().length > 0
-            ? (props.part as Extract<MessagePart, {type: 'thinking'}>)
-            : null
-        }
-      >
+      <Match when={asThinkingPart(props.part)}>{(p) => <ReflectionCard content={p().content} />}</Match>
+      <Match when={asToolCallPart(props.part)}>
+        {(p) => <ToolCallCard part={p()} result={props.pairing.byCallId.get(p().id)} ctx={props.ctx} />}
+      </Match>
+      <Match when={asResultPart(props.part)}>
         {(p) => (
-          <details class={thinkingClass(props.streaming && props.index === props.parts.length - 1)}>
-            <summary>Thinking</summary>
-            <span>{p().content}</span>
-          </details>
+          <Show when={!props.pairing.hiddenResultIds.has(p().toolCallId)}>
+            <ToolResult part={p()} />
+          </Show>
         )}
-      </Match>
-      <Match
-        when={
-          props.part.type === 'tool-call' &&
-          !isRunCard() &&
-          !props.tests.hiddenCallIds.has((props.part as ToolCallPart).id)
-            ? (props.part as ToolCallPart)
-            : null
-        }
-      >
-        {(p) => <ToolCall part={p()} active={props.streaming} />}
-      </Match>
-      <Match
-        when={
-          props.part.type === 'tool-result' &&
-          !props.tests.hiddenResultIds.has((props.part as ToolResultPart).toolCallId)
-            ? (props.part as ToolResultPart)
-            : null
-        }
-      >
-        {(p) => <ToolResult part={p()} />}
       </Match>
     </Switch>
   )
@@ -257,13 +158,8 @@ function PartView(props: {
 // <Index> (position-keyed), NOT <For> (reference-keyed): TanStack hands back new part objects each
 // token, so <For> would rebuild this row's DOM every token. <Index> keeps the DOM and updates the
 // item accessor in place.
-function MessageParts(props: {
-  parts: ReadonlyArray<MessagePart>
-  streaming: boolean
-  apiBase: string
-  onFix: (text: string) => void
-}): JSX.Element {
-  const tests = createMemo(() => analyzeTests(props.parts))
+function MessageParts(props: {parts: ReadonlyArray<MessagePart>; streaming: boolean; ctx: ToolViewCtx}): JSX.Element {
+  const pairing = createMemo(() => pairResults(props.parts))
   return (
     <Index each={props.parts}>
       {(part, index) => (
@@ -272,9 +168,8 @@ function MessageParts(props: {
           index={index}
           parts={props.parts}
           streaming={props.streaming}
-          apiBase={props.apiBase}
-          tests={tests()}
-          onFix={props.onFix}
+          pairing={pairing()}
+          ctx={props.ctx}
         />
       )}
     </Index>
@@ -335,6 +230,9 @@ function ThinkingBubble(): JSX.Element {
 // body all render this same component. Chrome (header, open/close, FAB) lives in the shell.
 export function ChatPanel(props: {
   apiBase: string
+  // The active harness id (claude/codex/…), passed to each tool card's ToolViewCtx so renderers can
+  // adapt if needed. Known at mount from /models; threaded through chatPanelDef.
+  harnessId: string
   // This surface's session client — owns the active aidx_ id; switching it reloads the thread in
   // place. The single comms seam (session reads, the chat stream, the permission gate).
   client: SessionClient
@@ -416,6 +314,42 @@ export function ChatPanel(props: {
   const isActiveAssistant = (index: number, role: string) =>
     isStreaming() && role === 'assistant' && index === lastIndex()
 
+  // Host-app seams the tool cards need, injected so @opendui/aidx-tool-ui stays transport-free: send
+  // a follow-up message, subscribe to the live test-runner SSE, open a file in the user's editor.
+  const transport = createTransport({apiBase: props.apiBase})
+  const openEditor = transport.route({
+    method: 'POST',
+    path: '/api/editor/open',
+    request: EditorOpenSchema,
+    response: OkSchema,
+  })
+  const toolCtx: ToolViewCtx = {
+    apiBase: props.apiBase,
+    harnessId: props.harnessId,
+    sendMessage: (text) => void chat.sendMessage(text),
+    // Answer a native tool approval out-of-band: the harness owns the loop and blocks on its gate, so
+    // the decision can't ride the one-way stream back; this unblocks the pending gate in core.
+    respondApproval: (approvalId, approved) => void client.permissionDecision({approvalId, approved}).catch(() => {}),
+    subscribeTestRunner: (onEvent) => {
+      const source = transport.eventSource('/api/test-runner/stream')
+      source.addEventListener('message', (e) => {
+        const parsed = TestEventSchema.safeParse(parseJson(e.data))
+        if (parsed.success) onEvent(parsed.data)
+      })
+      return () => source.close()
+    },
+    openEditor: (file, line) => void openEditor({file, line}).catch(() => {}),
+  }
+
+  // The single morphing "now" line: the most recent still-running tool call's title while streaming,
+  // else null (hidden). Settled cards stay in the thread above it; the stop control is pinned right.
+  const nowTitleText = (): string | null => {
+    if (!isStreaming()) return null
+    const last = chat.messages()[lastIndex()]
+    if (!last || last.role !== 'assistant') return null
+    return activeCallTitle(last.parts)
+  }
+
   // Surface the working state for the shell's trigger pulse.
   createEffect(() => props.onWorkingChange?.(isThinking() || isStreaming()))
 
@@ -451,12 +385,6 @@ export function ChatPanel(props: {
   const answerGenUi = (renderId: string, text: string) => {
     setGenUi((prev) => prev.filter((g) => g.renderId !== renderId))
     void chat.sendMessage(text)
-  }
-
-  // Answer the risky-Bash gate (blocking allow/deny, no new turn), then drop the card.
-  const decideGate = (renderId: string, approved: boolean) => {
-    setGenUi((prev) => prev.filter((g) => g.renderId !== renderId))
-    void client.permissionDecision({renderId, approved})
   }
 
   // Auto-scroll to bottom as the agent streams, but only while the user is already at the bottom.
@@ -703,12 +631,7 @@ export function ChatPanel(props: {
                   {(d) => <Divider kind={d.kind} pending={d.id === pendingCompactId()} />}
                 </For>
                 <div class={`pw-chat-msg pw-chat-msg-${m().role}`}>
-                  <MessageParts
-                    parts={m().parts}
-                    streaming={isActiveAssistant(index, m().role)}
-                    apiBase={props.apiBase}
-                    onFix={(text) => void chat.sendMessage(text)}
-                  />
+                  <MessageParts parts={m().parts} streaming={isActiveAssistant(index, m().role)} ctx={toolCtx} />
                 </div>
               </>
             )}
@@ -720,17 +643,12 @@ export function ChatPanel(props: {
           </For>
         </Show>
         <For each={genUi()}>
-          {(spec) => (
-            <GenUi
-              spec={spec}
-              onAnswer={(text) => answerGenUi(spec.renderId, text)}
-              onDecide={(approved) => decideGate(spec.renderId, approved)}
-            />
-          )}
+          {(spec) => <GenUi spec={spec} onAnswer={(text) => answerGenUi(spec.renderId, text)} />}
         </For>
         <Show when={isThinking()}>
           <ThinkingBubble />
         </Show>
+        <Show when={nowTitleText()}>{(title) => <NowLine title={title()} onStop={() => chat.stop()} />}</Show>
         <Show when={chat.error()}>
           {(error) => (
             <div class="pw-chat-error" role="alert">
@@ -825,7 +743,7 @@ export function ChatPanel(props: {
 
 // The chat as a registerable shell panel. The modal hosts one; quick-terminal panes each create
 // their own (a fresh agent session per pane).
-export function chatPanelDef(apiBase: string): PanelDef {
+export function chatPanelDef(apiBase: string, harnessId: string): PanelDef {
   return {
     id: 'chat',
     title: 'aidx',
@@ -833,6 +751,7 @@ export function chatPanelDef(apiBase: string): PanelDef {
     create: (ctx) => (
       <ChatPanel
         apiBase={apiBase}
+        harnessId={harnessId}
         client={ctx.client}
         active={ctx.active()}
         announce={ctx.announce}

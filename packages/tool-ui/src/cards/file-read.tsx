@@ -3,7 +3,7 @@ import {z} from 'zod'
 import {FileText} from 'lucide-solid'
 import {SolidCodeBlock} from '@opendui/aidx-solid-diffs'
 import {ToolCard} from '../shell.js'
-import {parseInput, resultText} from '../util.js'
+import {parseInput, resultText, stripReadLineNumbers} from '../util.js'
 import {CODE_OPTIONS} from '../diff-options.js'
 import type {ToolCardProps} from '../types.js'
 
@@ -31,11 +31,11 @@ function lineRange(input: z.infer<typeof ReadInput>): string | undefined {
   return undefined
 }
 
-// claude's Read result prefixes each line with a right-aligned number + arrow ("   12→code").
-// Strip it so the code block highlights the real source, and cap the length.
+// Strip claude Read's "<lineno>\t" prefix (so it isn't a duplicate gutter) and cap the line count so
+// a huge file can't blow the thread.
 function fileContents(raw: string): string {
   if (!raw) return ''
-  const lines = raw.split('\n').map((line) => line.replace(/^\s*\d+→/, ''))
+  const lines = stripReadLineNumbers(raw).split('\n')
   const capped = lines.length > MAX_LINES ? lines.slice(0, MAX_LINES) : lines
   return capped.join('\n')
 }

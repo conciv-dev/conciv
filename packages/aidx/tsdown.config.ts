@@ -4,7 +4,6 @@ import {defineConfig} from 'tsdown'
 // stay external — never bundled — so @opendui/aidx just forwards types and runtime to it.
 export default defineConfig({
   entry: [
-    'src/plugin/index.ts',
     'src/plugin/vite.ts',
     'src/plugin/webpack.ts',
     'src/plugin/rspack.ts',

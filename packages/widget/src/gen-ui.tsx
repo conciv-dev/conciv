@@ -1,5 +1,5 @@
 import {createSignal, For, Show, type JSX} from 'solid-js'
-import type {UiApproval, UiChoices, UiConfirm, UiDiff, UiForm, UiSpec} from '@opendui/aidx-protocol/ui-types'
+import type {UiChoices, UiConfirm, UiDiff, UiForm, UiSpec} from '@opendui/aidx-protocol/ui-types'
 
 // Agent-generated UI rendered inline in the chat thread; the user's answer becomes the next
 // chat message (the resume turn cycle is the round-trip). Types come from @opendui/aidx-protocol.
@@ -31,23 +31,6 @@ function Confirm(props: {spec: UiConfirm; onAnswer: (text: string) => void}): JS
           Approve
         </button>
         <button class="pw-genui-ghost" onClick={() => props.onAnswer("No, don't.")}>
-          Deny
-        </button>
-      </div>
-    </div>
-  )
-}
-
-function Approval(props: {spec: UiApproval; onDecide: (approved: boolean) => void}): JSX.Element {
-  return (
-    <div class="pw-genui pw-genui-approval">
-      <p class="pw-genui-q">{props.spec.question}</p>
-      <Show when={props.spec.detail}>{(detail) => <pre class="pw-genui-detail">{detail()}</pre>}</Show>
-      <div class="pw-genui-actions">
-        <button class="pw-genui-primary" onClick={() => props.onDecide(true)}>
-          Approve
-        </button>
-        <button class="pw-genui-ghost" onClick={() => props.onDecide(false)}>
           Deny
         </button>
       </div>
@@ -133,13 +116,8 @@ function Form(props: {spec: UiForm; onAnswer: (text: string) => void}): JSX.Elem
 }
 
 // Dispatch a spec to its component; the if-chain narrows the discriminated union by `kind`.
-export function GenUi(props: {
-  spec: UiSpec
-  onAnswer: (text: string) => void
-  onDecide: (approved: boolean) => void
-}): JSX.Element | null {
+export function GenUi(props: {spec: UiSpec; onAnswer: (text: string) => void}): JSX.Element | null {
   const spec = props.spec
-  if (spec.kind === 'approval') return <Approval spec={spec} onDecide={props.onDecide} />
   if (spec.kind === 'choices') return <Choices spec={spec} onAnswer={props.onAnswer} />
   if (spec.kind === 'confirm') return <Confirm spec={spec} onAnswer={props.onAnswer} />
   if (spec.kind === 'diff') return <Diff spec={spec} onAnswer={props.onAnswer} />
