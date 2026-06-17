@@ -1,0 +1,44 @@
+import {Show, type JSX} from 'solid-js'
+import {z} from 'zod'
+import {ToolCard} from '../shell.js'
+import {parseInput, resultText} from '../util.js'
+import type {ToolCardProps} from '../types.js'
+
+// Grep carries pattern (+ optional path/glob); Glob carries pattern. Both render a match list.
+const SearchInput = z.object({pattern: z.string().optional(), path: z.string().optional(), glob: z.string().optional()})
+
+function SearchIcon(): JSX.Element {
+  return (
+    <span class="pw-tool-glyph-search" aria-hidden="true">
+      ⌕
+    </span>
+  )
+}
+
+// Count non-empty result lines as matches; 0 reads as "no matches".
+function matchCount(result: ToolCardProps['result']): number {
+  const text = resultText(result).trim()
+  return text ? text.split('\n').filter((l) => l.trim().length > 0).length : 0
+}
+
+export function SearchCard(props: ToolCardProps): JSX.Element {
+  const input = () => parseInput(SearchInput, props.part)
+  const pattern = () => input()?.pattern ?? ''
+  const verb = () => (props.part.name === 'Glob' ? 'Globbed' : 'Searched')
+  const count = () => matchCount(props.result)
+  const meta = () => (props.result ? `${count()} ${count() === 1 ? 'match' : 'matches'}` : undefined)
+  return (
+    <ToolCard
+      accent="read"
+      Icon={SearchIcon}
+      title={pattern() ? `${verb()} ${pattern()}` : `${verb()} files`}
+      part={props.part}
+      result={props.result}
+      meta={meta()}
+    >
+      <Show when={count() > 0}>
+        <pre class="pw-search-out">{resultText(props.result)}</pre>
+      </Show>
+    </ToolCard>
+  )
+}

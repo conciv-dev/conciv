@@ -577,6 +577,9 @@ importers:
 
   packages/tool-ui:
     dependencies:
+      '@opendui/aidx-protocol':
+        specifier: workspace:*
+        version: link:../protocol
       '@opendui/aidx-tools':
         specifier: workspace:*
         version: link:../tools

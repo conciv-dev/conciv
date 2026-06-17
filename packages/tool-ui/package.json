@@ -26,6 +26,7 @@
     "build-storybook": "storybook build"
   },
   "dependencies": {
+    "@opendui/aidx-protocol": "workspace:*",
     "@opendui/aidx-tools": "workspace:*",
     "zod": "^4.4.3"
   },
