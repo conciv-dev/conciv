@@ -1,5 +1,6 @@
 import {Show, type JSX} from 'solid-js'
 import {z} from 'zod'
+import {FileText} from 'lucide-solid'
 import {SolidCodeBlock} from '@opendui/aidx-solid-diffs'
 import {ToolCard} from '../shell.js'
 import {parseInput, resultText} from '../util.js'
@@ -17,11 +18,7 @@ const ReadInput = z.object({
 const MAX_LINES = 200 // cap so a huge file can't blow the thread
 
 function FileReadIcon(): JSX.Element {
-  return (
-    <span class="pw-tool-glyph-read" aria-hidden="true">
-      ▤
-    </span>
-  )
+  return <FileText size={14} />
 }
 
 function lineRange(input: z.infer<typeof ReadInput>): string | undefined {

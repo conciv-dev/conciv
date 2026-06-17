@@ -1,4 +1,5 @@
 import {Show, type JSX} from 'solid-js'
+import {LayoutTemplate} from 'lucide-solid'
 import {UiInput} from '@opendui/aidx-tools/defs'
 import {ToolCard} from '../shell.js'
 import {parseInput} from '../util.js'
@@ -14,11 +15,7 @@ const LABEL: Record<'choices' | 'confirm' | 'diff' | 'form', string> = {
 }
 
 function UiIcon(): JSX.Element {
-  return (
-    <span class="pw-tool-glyph-ui" aria-hidden="true">
-      ◧
-    </span>
-  )
+  return <LayoutTemplate size={14} />
 }
 
 export function UiCard(props: ToolCardProps): JSX.Element {

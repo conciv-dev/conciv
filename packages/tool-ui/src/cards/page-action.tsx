@@ -1,4 +1,5 @@
 import {Show, type JSX} from 'solid-js'
+import {MousePointerClick, Target} from 'lucide-solid'
 import {PageInput} from '@opendui/aidx-tools/defs'
 import {ToolCard} from '../shell.js'
 import {parseInput} from '../util.js'
@@ -58,11 +59,7 @@ function pageTitle(props: ToolCardProps): string {
 }
 
 function PageActionIcon(): JSX.Element {
-  return (
-    <span class="pw-tool-glyph-page" aria-hidden="true">
-      ◉
-    </span>
-  )
+  return <MousePointerClick size={14} />
 }
 
 export function PageActionCard(props: ToolCardProps): JSX.Element {
@@ -70,7 +67,10 @@ export function PageActionCard(props: ToolCardProps): JSX.Element {
   return (
     <ToolCard accent="page" Icon={PageActionIcon} title={pageTitle(props)} part={props.part} result={props.result}>
       <Show when={t()}>
-        <span class="pw-elchip">◉ {t()}</span>
+        <span class="pw-elchip">
+          <Target size={12} />
+          {t()}
+        </span>
       </Show>
     </ToolCard>
   )

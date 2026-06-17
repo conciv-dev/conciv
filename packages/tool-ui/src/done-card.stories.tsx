@@ -20,7 +20,7 @@ export const Passed: Story = {
     const c = within(canvasElement)
     await expect(c.getByText('Added the tool-ui cards and wired the dispatcher')).toBeInTheDocument()
     await expect(c.getByText('packages/tool-ui/src/cards/shell.tsx')).toBeInTheDocument()
-    await expect(c.getByText('✓ tests passed')).toBeInTheDocument()
+    await expect(c.getByText('tests passed')).toBeInTheDocument()
   },
 }
 
@@ -36,6 +36,6 @@ export const Failed: Story = {
   },
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    await expect(c.getByText('✗ tests failed')).toBeInTheDocument()
+    await expect(c.getByText('tests failed')).toBeInTheDocument()
   },
 }

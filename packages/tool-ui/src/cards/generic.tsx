@@ -1,4 +1,5 @@
 import {Show, type JSX} from 'solid-js'
+import {Wrench} from 'lucide-solid'
 import {ToolCard} from '../shell.js'
 import {resultText} from '../util.js'
 import type {ToolCardProps} from '../types.js'
@@ -14,7 +15,7 @@ function rawArgs(props: ToolCardProps): string {
 }
 
 function GenericIcon(): JSX.Element {
-  return <span class="pw-tool-glyph-dot" aria-hidden="true" />
+  return <Wrench size={14} />
 }
 
 // Fallback card for any tool name with no dedicated card (tanstack convention: render by name,

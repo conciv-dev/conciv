@@ -644,6 +644,9 @@ importers:
       '@tanstack/solid-virtual':
         specifier: ^3.13.12
         version: 3.13.29(solid-js@1.9.13)
+      lucide-solid:
+        specifier: ^1.18.0
+        version: 1.18.0(solid-js@1.9.13)
       zod:
         specifier: ^4.4.3
         version: 4.4.3

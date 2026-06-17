@@ -1,5 +1,6 @@
 import {Show, type JSX} from 'solid-js'
 import {z} from 'zod'
+import {Search} from 'lucide-solid'
 import {ToolCard} from '../shell.js'
 import {parseInput, resultText} from '../util.js'
 import type {ToolCardProps} from '../types.js'
@@ -8,11 +9,7 @@ import type {ToolCardProps} from '../types.js'
 const SearchInput = z.object({pattern: z.string().optional(), path: z.string().optional(), glob: z.string().optional()})
 
 function SearchIcon(): JSX.Element {
-  return (
-    <span class="pw-tool-glyph-search" aria-hidden="true">
-      ⌕
-    </span>
-  )
+  return <Search size={14} />
 }
 
 // Count non-empty result lines as matches; 0 reads as "no matches".

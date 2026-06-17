@@ -1,4 +1,6 @@
 import {createEffect, createSignal, For, onCleanup, Show, type JSX} from 'solid-js'
+import {Collapsible} from '@ark-ui/solid/collapsible'
+import {ChevronRight, ExternalLink, FlaskConical, Sparkles} from 'lucide-solid'
 import {
   TestRunResultSchema,
   type TestRunResult,
@@ -68,11 +70,13 @@ function TestErrorBlock(props: {error: TestError; ctx: ToolViewCtx}): JSX.Elemen
       <div class="pw-test-actions">
         <Show when={props.ctx.openEditor}>
           <button class="pw-test-act" onClick={openInEditor}>
-            ↗ Open {openLabel(props.error)}
+            <ExternalLink size={12} />
+            Open {openLabel(props.error)}
           </button>
         </Show>
         <button class="pw-test-act pw-test-fix" onClick={() => props.ctx.sendMessage(fixMessage(props.error))}>
-          ✦ Fix this
+          <Sparkles size={12} />
+          Fix this
         </button>
       </div>
     </div>
@@ -146,27 +150,30 @@ export function TestResults(props: {result: TestRunResult | null; ctx: ToolViewC
       </div>
       <For each={groups()}>
         {(group) => (
-          <div>
-            <div class="pw-test-file">
+          <Collapsible.Root class="pw-test-group" defaultOpen>
+            <Collapsible.Trigger class="pw-test-file">
+              <ChevronRight class="pw-test-chevron" size={14} aria-hidden="true" />
               <span class="pw-test-fname">{relName(group.file)}</span>
-            </div>
-            <For each={group.tests}>
-              {(test) => {
-                const key = `${group.file}::${test.name}`
-                return (
-                  <div>
-                    <div class={testRowClass(test.state)} onClick={() => toggleTest(key)}>
-                      <span class={dotClass(test.state)} aria-hidden="true" />
-                      <span>{test.name}</span>
+            </Collapsible.Trigger>
+            <Collapsible.Content>
+              <For each={group.tests}>
+                {(test) => {
+                  const key = `${group.file}::${test.name}`
+                  return (
+                    <div>
+                      <div class={testRowClass(test.state)} onClick={() => toggleTest(key)}>
+                        <span class={dotClass(test.state)} aria-hidden="true" />
+                        <span>{test.name}</span>
+                      </div>
+                      <Show when={openTest() === key ? test.error : undefined}>
+                        {(error) => <TestErrorBlock error={error()} ctx={props.ctx} />}
+                      </Show>
                     </div>
-                    <Show when={openTest() === key ? test.error : undefined}>
-                      {(error) => <TestErrorBlock error={error()} ctx={props.ctx} />}
-                    </Show>
-                  </div>
-                )
-              }}
-            </For>
-          </div>
+                  )
+                }}
+              </For>
+            </Collapsible.Content>
+          </Collapsible.Root>
         )}
       </For>
     </div>
@@ -186,11 +193,7 @@ function parseRunResult(props: ToolCardProps): TestRunResult | null {
 }
 
 function TestIcon(): JSX.Element {
-  return (
-    <span class="pw-tool-glyph-test" aria-hidden="true">
-      ✓
-    </span>
-  )
+  return <FlaskConical size={14} />
 }
 
 export function TestCard(props: ToolCardProps): JSX.Element {

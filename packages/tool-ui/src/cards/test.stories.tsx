@@ -1,5 +1,5 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
-import {expect, fn, userEvent, within} from 'storybook/test'
+import {expect, fn, userEvent, waitFor, within} from 'storybook/test'
 import type {TestRunResult} from '@opendui/aidx-protocol/test-types'
 import {TestCard} from './test.js'
 import {callPart, resultPart, noopCtx} from '../fixtures.js'
@@ -43,7 +43,12 @@ export const Passing: Story = {
     const c = within(canvasElement)
     // The pill renders "{n} passed" as two text nodes, so assert on the card's text content.
     await expect(canvasElement.textContent).toContain('3 passed')
-    await expect(c.getByText('renders')).toBeInTheDocument()
+    await expect(c.getByText('renders')).toBeVisible()
+    // Each file group is an Ark Collapsible — clicking the file header collapses its tests.
+    await userEvent.click(c.getByText('src/b.test.ts'))
+    await waitFor(() => expect(c.getByText('renders')).not.toBeVisible())
+    await userEvent.click(c.getByText('src/b.test.ts'))
+    await waitFor(() => expect(c.getByText('renders')).toBeVisible())
   },
 }
 
@@ -61,7 +66,7 @@ export const Failing: Story = {
     await expect(c.queryByText(/expected 2 but got Infinity/)).not.toBeInTheDocument()
     await userEvent.click(c.getByText('divides'))
     await expect(c.getByText(/expected 2 but got Infinity/)).toBeInTheDocument()
-    await userEvent.click(c.getByText('✦ Fix this'))
+    await userEvent.click(c.getByText('Fix this'))
     await expect(args.ctx.sendMessage).toHaveBeenCalledWith(expect.stringContaining('divides'))
   },
 }

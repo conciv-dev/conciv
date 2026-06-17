@@ -1,5 +1,7 @@
 import {For, Show, type JSX} from 'solid-js'
+import {Dynamic} from 'solid-js/web'
 import {z} from 'zod'
+import {Circle, CircleCheckBig, CircleDashed, ListTodo, type LucideIcon} from 'lucide-solid'
 import {ToolCard} from '../shell.js'
 import {parseInput} from '../util.js'
 import type {ToolCardProps} from '../types.js'
@@ -17,18 +19,14 @@ const TodoInput = z.object({
     .optional(),
 })
 
-const GLYPH: Record<'pending' | 'in_progress' | 'completed', string> = {
-  pending: '○',
-  in_progress: '◐',
-  completed: '●',
+const STATUS_ICON: Record<'pending' | 'in_progress' | 'completed', LucideIcon> = {
+  pending: CircleDashed,
+  in_progress: Circle,
+  completed: CircleCheckBig,
 }
 
 function TodoIcon(): JSX.Element {
-  return (
-    <span class="pw-tool-glyph-todo" aria-hidden="true">
-      ☑
-    </span>
-  )
+  return <ListTodo size={14} />
 }
 
 export function TodoCard(props: ToolCardProps): JSX.Element {
@@ -50,7 +48,7 @@ export function TodoCard(props: ToolCardProps): JSX.Element {
             {(t) => (
               <li class={`pw-todo-${t.status}`}>
                 <span class="pw-todo-dot" aria-hidden="true">
-                  {GLYPH[t.status]}
+                  <Dynamic component={STATUS_ICON[t.status]} size={13} />
                 </span>
                 {t.status === 'in_progress' ? (t.activeForm ?? t.content) : t.content}
               </li>

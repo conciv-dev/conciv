@@ -1,5 +1,6 @@
 import {Show, type JSX} from 'solid-js'
 import {z} from 'zod'
+import {FilePen} from 'lucide-solid'
 import {SolidFileDiff} from '@opendui/aidx-solid-diffs'
 import {ToolCard} from '../shell.js'
 import {parseInput} from '../util.js'
@@ -38,11 +39,7 @@ function lineCount(text: string): number {
 }
 
 function FileEditIcon(): JSX.Element {
-  return (
-    <span class="pw-tool-glyph-edit" aria-hidden="true">
-      ✎
-    </span>
-  )
+  return <FilePen size={14} />
 }
 
 export function FileEditCard(props: ToolCardProps): JSX.Element {

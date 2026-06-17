@@ -256,14 +256,16 @@
 
 /* Element chip (page-action card) + UI question (ui chip). */
 .pw-elchip {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-family: var(--pw-mono);
   font-size: 11.5px;
   color: var(--pw-accent-link);
   background: var(--pw-accent-08);
   border: 1px solid var(--pw-accent-line);
   border-radius: var(--pw-r-pill);
-  padding: 1px 9px;
+  padding: 2px 9px;
 }
 .pw-ui-q {
   color: var(--pw-text-2);
@@ -315,15 +317,34 @@
   color: var(--pw-text-3);
   font-size: 11px;
 }
+/* The file group header is an Ark Collapsible trigger — full-width, button-reset, clickable. */
 .pw-test-file {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 7px;
+  width: 100%;
   padding: 5px 12px;
-  font-weight: 600;
+  font: 600 13px/1.45 var(--pw-mono);
+  color: var(--pw-text);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+}
+.pw-test-file:hover {
+  background: var(--pw-fill);
 }
 .pw-test-fname {
   color: var(--pw-text);
+}
+/* Chevron points right when collapsed, down when the Collapsible is open. */
+.pw-test-chevron {
+  flex: 0 0 auto;
+  color: var(--pw-text-3);
+  transition: transform 150ms var(--pw-ease);
+}
+.pw-test-file[data-state='open'] .pw-test-chevron {
+  transform: rotate(90deg);
 }
 .pw-test-test {
   display: flex;
@@ -395,6 +416,7 @@
 .pw-test-act {
   display: inline-flex;
   align-items: center;
+  gap: 5px;
   min-height: 24px;
   font: 11px/1 var(--pw-mono);
   padding: 4px 9px;
@@ -550,6 +572,11 @@
 .pw-done-list li {
   padding: 1px 0;
 }
+.pw-done-tests {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
 .pw-done-tests--pass {
   color: var(--pw-success);
 }
@@ -604,9 +631,10 @@
 }
 .pw-vl-thumb {
   flex: 1;
-  background: var(--pw-line-2);
+  background: var(--pw-accent-link);
   border-radius: var(--pw-r-pill);
+  transition: background-color 120ms var(--pw-ease);
 }
 .pw-vl-thumb:hover {
-  background: var(--pw-text-3);
+  background: var(--pw-accent);
 }

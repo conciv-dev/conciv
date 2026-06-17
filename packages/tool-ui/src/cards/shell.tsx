@@ -1,5 +1,6 @@
 import {Show, type JSX} from 'solid-js'
 import {z} from 'zod'
+import {Terminal} from 'lucide-solid'
 import {ToolCard} from '../shell.js'
 import {parseInput, resultText} from '../util.js'
 import {VirtualLines} from '../virtual-lines.js'
@@ -9,11 +10,7 @@ import type {ToolCardProps} from '../types.js'
 const ShellInput = z.object({command: z.string().optional(), description: z.string().optional()})
 
 function ShellIcon(): JSX.Element {
-  return (
-    <span class="pw-tool-glyph-term" aria-hidden="true">
-      $
-    </span>
-  )
+  return <Terminal size={14} />
 }
 
 export function ShellCard(props: ToolCardProps): JSX.Element {
