@@ -26,9 +26,11 @@
     "build-storybook": "storybook build"
   },
   "dependencies": {
+    "@ark-ui/solid": "^5.37.1",
     "@opendui/aidx-protocol": "workspace:*",
     "@opendui/aidx-solid-diffs": "workspace:*",
     "@opendui/aidx-tools": "workspace:*",
+    "@tanstack/solid-virtual": "^3.13.12",
     "zod": "^4.4.3"
   },
   "devDependencies": {

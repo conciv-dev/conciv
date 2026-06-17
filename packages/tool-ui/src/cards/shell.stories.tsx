@@ -1,5 +1,5 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
-import {expect, userEvent, within} from 'storybook/test'
+import {expect, waitFor, within} from 'storybook/test'
 import {ShellCard} from './shell.js'
 import {callPart, resultPart, noopCtx} from '../fixtures.js'
 
@@ -14,7 +14,8 @@ export const Complete: Story = {
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await expect(c.getByText('Ran pnpm build')).toBeInTheDocument()
-    await expect(c.getByText(/142 modules/)).toBeInTheDocument()
+    // Output is virtual-rendered, so it appears after the virtualizer's first measure.
+    await waitFor(() => expect(c.getByText(/142 modules/)).toBeInTheDocument())
   },
 }
 
@@ -34,22 +35,29 @@ export const Errored: Story = {
   },
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    await expect(c.getByText(/exit 1/)).toBeInTheDocument()
+    await waitFor(() => expect(c.getByText(/exit 1/)).toBeInTheDocument())
   },
 }
 
-// Interaction test: long output is capped and the remainder is revealed by the "show more" details.
+// Interaction test: long output is virtual-scrolled at a capped height — only the visible window is
+// in the DOM, and scrolling to the bottom reveals the last line (which was never rendered before).
 export const LongOutput: Story = {
   args: {
     part: bash(),
-    result: resultPart(Array.from({length: 120}, (_, i) => `line ${i + 1}`).join('\n')),
+    result: resultPart(Array.from({length: 1000}, (_, i) => `line ${i + 1}`).join('\n')),
     ctx: noopCtx(),
   },
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    await expect(c.queryByText('line 120')).not.toBeInTheDocument()
-    const summary = c.getByText(/show \d+ more lines/)
-    await userEvent.click(summary)
-    await expect(c.getByText(/line 120/)).toBeInTheDocument()
+    // The scroll region is capped, not a 1000-line dump.
+    const viewport = canvasElement.querySelector<HTMLElement>('.pw-vl-viewport')
+    if (!viewport) throw new Error('virtual-lines viewport not found')
+    await waitFor(() => expect(viewport.clientHeight).toBeLessThanOrEqual(360))
+    // Virtualized: the last line is not rendered until we scroll to it.
+    await expect(c.queryByText('line 1000')).not.toBeInTheDocument()
+    viewport.scrollTo({top: viewport.scrollHeight})
+    await waitFor(() => expect(c.getByText('line 1000')).toBeInTheDocument())
+    // Only Ark's custom scrollbar shows — the native one is hidden, so there are not two scrollbars.
+    await expect(getComputedStyle(viewport).scrollbarWidth).toBe('none')
   },
 }

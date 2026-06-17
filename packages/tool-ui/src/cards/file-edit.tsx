@@ -15,6 +15,7 @@ const EditInput = z.object({
 })
 
 type EditData = z.infer<typeof EditInput>
+type Diff = {oldText: string; newText: string}
 
 function basename(path: string | undefined): string {
   if (!path) return ''
@@ -22,9 +23,14 @@ function basename(path: string | undefined): string {
   return parts[parts.length - 1] ?? path
 }
 
-// The before/after sides for the diff. Write is a pure addition (empty before).
-function sides(input: EditData): {oldText: string; newText: string} {
-  return {oldText: input.old_string ?? '', newText: input.new_string ?? input.content ?? ''}
+// The before/after sides of the edit, or undefined when there is nothing to diff (streaming).
+// Write is a pure addition (empty before).
+function diffOf(input: EditData | undefined): Diff | undefined {
+  if (!input) return undefined
+  const oldText = input.old_string ?? ''
+  const newText = input.new_string ?? input.content ?? ''
+  if (!oldText && !newText) return undefined
+  return {oldText, newText}
 }
 
 function lineCount(text: string): number {
@@ -40,20 +46,14 @@ function FileEditIcon(): JSX.Element {
 }
 
 export function FileEditCard(props: ToolCardProps): JSX.Element {
-  const input = () => parseInput(EditInput, props.part)
-  const path = () => input()?.file_path
+  const path = () => parseInput(EditInput, props.part)?.file_path
   const name = () => basename(path())
   const verb = () => (props.part.name === 'Write' ? 'Wrote' : 'Edited')
-  const removed = () => {
-    const i = input()
-    return i ? lineCount(sides(i).oldText) : 0
+  const diff = () => diffOf(parseInput(EditInput, props.part))
+  const meta = () => {
+    const d = diff()
+    return d ? `+${lineCount(d.newText)} −${lineCount(d.oldText)}` : undefined
   }
-  const added = () => {
-    const i = input()
-    return i ? lineCount(sides(i).newText) : 0
-  }
-  const hasDiff = () => added() > 0 || removed() > 0
-  const meta = () => (hasDiff() ? `+${added()} −${removed()}` : undefined)
   return (
     <ToolCard
       accent="code"
@@ -63,12 +63,14 @@ export function FileEditCard(props: ToolCardProps): JSX.Element {
       result={props.result}
       meta={meta()}
     >
-      <Show when={hasDiff()} fallback={<div class="pw-tool-muted">no diff</div>}>
-        <SolidFileDiff
-          class="pw-edit-diff"
-          oldFile={{name: path() ?? 'file', contents: sides(input()!).oldText}}
-          newFile={{name: path() ?? 'file', contents: sides(input()!).newText}}
-        />
+      <Show when={diff()} fallback={<div class="pw-tool-muted">no diff</div>}>
+        {(d) => (
+          <SolidFileDiff
+            class="pw-edit-diff"
+            oldFile={{name: path() ?? 'file', contents: d().oldText}}
+            newFile={{name: path() ?? 'file', contents: d().newText}}
+          />
+        )}
       </Show>
     </ToolCard>
   )

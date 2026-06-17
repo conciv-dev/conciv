@@ -424,6 +424,7 @@
   border-radius: var(--pw-r-sm);
   padding: 8px 11px;
   margin: 6px 0;
+  font-family: var(--pw-font);
   font-size: 13px;
   color: var(--pw-text-2);
 }
@@ -449,6 +450,7 @@
   border-radius: var(--pw-r-pill);
   background: var(--pw-fill);
   border: 1px solid var(--pw-line);
+  font-family: var(--pw-font);
   font-size: 12.5px;
   color: var(--pw-text);
 }
@@ -510,7 +512,9 @@
   background: var(--pw-accent-08);
   padding: 10px 12px;
   margin: 6px 0;
+  font-family: var(--pw-font);
   font-size: 13px;
+  color: var(--pw-text);
 }
 .pw-done-head {
   display: flex;
@@ -569,4 +573,40 @@
   font-size: 12px;
   max-height: 320px;
   overflow-y: auto;
+}
+
+/* Virtual-scrolled terminal output: Ark ScrollArea viewport + thumb, tanstack-virtual rows. */
+.pw-vl-viewport {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+}
+/* Ark draws its own scrollbar/thumb; hide the viewport's native scrollbar (its canonical recipe)
+   so only one shows. */
+[data-scope='scroll-area'][data-part='viewport'] {
+  scrollbar-width: none;
+}
+[data-scope='scroll-area'][data-part='viewport']::-webkit-scrollbar {
+  display: none;
+}
+.pw-vl-row {
+  white-space: pre;
+}
+.pw-vl-bar {
+  display: flex;
+  width: 8px;
+  padding: 2px;
+  background: transparent;
+  transition: background-color 120ms var(--pw-ease);
+}
+.pw-vl-bar:hover {
+  background: var(--pw-fill);
+}
+.pw-vl-thumb {
+  flex: 1;
+  background: var(--pw-line-2);
+  border-radius: var(--pw-r-pill);
+}
+.pw-vl-thumb:hover {
+  background: var(--pw-text-3);
 }
