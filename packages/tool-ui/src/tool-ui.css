@@ -1,0 +1,162 @@
+/* tool-ui.css — the tool-call card styling. All color/radius/motion flows from the --pw-* tokens
+   so cards render identically in the widget shadow root and in Storybook. */
+
+.pw-tool {
+  font-family: var(--pw-font);
+  color: var(--pw-text);
+  background: var(--pw-fill-soft);
+  border: 1px solid var(--pw-line-soft);
+  border-left: 2px solid var(--pw-accent-line);
+  border-radius: var(--pw-r-md);
+  padding: 8px 10px;
+  margin: 6px 0;
+  font-size: 13px;
+}
+
+/* Family rails: page=magenta, code=teal, test=gold, read=purple, neutral=line. */
+.pw-tool--page {
+  border-left-color: var(--pw-accent);
+}
+.pw-tool--code {
+  border-left-color: var(--pw-agent);
+}
+.pw-tool--test {
+  border-left-color: var(--pw-warn);
+}
+.pw-tool--read {
+  border-left-color: color-mix(in oklch, var(--pw-accent) 30%, var(--pw-agent));
+}
+.pw-tool--neutral {
+  border-left-color: var(--pw-line-2);
+}
+
+.pw-tool-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.pw-tool-ic {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--pw-text-2);
+}
+
+.pw-tool-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--pw-text-hi);
+  font-weight: 500;
+}
+
+.pw-tool-meta {
+  flex: 0 0 auto;
+  color: var(--pw-text-3);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Lifecycle glyph: spinner / done dot / error dot. */
+.pw-tool-glyph {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: var(--pw-r-pill);
+}
+.pw-tool-glyph--done {
+  background: var(--pw-success);
+}
+.pw-tool-glyph--error {
+  background: var(--pw-danger);
+}
+.pw-tool-glyph--spin {
+  border: 1.5px solid var(--pw-line-2);
+  border-top-color: var(--pw-text-2);
+  border-radius: var(--pw-r-pill);
+  animation: pw-tool-spin 0.7s linear infinite;
+}
+@keyframes pw-tool-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pw-tool-glyph--spin {
+    animation: none;
+  }
+}
+
+.pw-tool-body {
+  margin-top: 7px;
+}
+
+/* Terminal block (shell card). */
+.pw-term {
+  font-family: var(--pw-mono);
+  font-size: 12px;
+  background: var(--pw-sunken);
+  border-radius: var(--pw-r-sm);
+  padding: 7px 9px;
+  overflow-x: auto;
+}
+.pw-term-cmd {
+  color: var(--pw-accent-link);
+  white-space: pre;
+}
+.pw-term-cmd::before {
+  content: '$ ';
+  color: var(--pw-text-3);
+}
+.pw-term-out {
+  margin: 5px 0 0;
+  color: var(--pw-text-2);
+  white-space: pre;
+}
+.pw-tool-errbox {
+  border: 1px solid var(--pw-danger-line);
+}
+
+/* Error / raw blocks (generic card). */
+.pw-tool-error {
+  color: var(--pw-danger);
+  font-family: var(--pw-mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+.pw-tool-raw summary,
+.pw-tool-more summary {
+  cursor: pointer;
+  color: var(--pw-text-3);
+  font-size: 11px;
+}
+.pw-tool-raw pre,
+.pw-tool-more pre {
+  margin: 5px 0 0;
+  font-family: var(--pw-mono);
+  font-size: 11px;
+  color: var(--pw-text-2);
+  background: var(--pw-sunken);
+  border-radius: var(--pw-r-sm);
+  padding: 7px 9px;
+  overflow-x: auto;
+}
+
+/* The generic dot icon. */
+.pw-tool-glyph-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--pw-r-pill);
+  background: var(--pw-text-3);
+}
+.pw-tool-glyph-term {
+  font-family: var(--pw-mono);
+  color: var(--pw-agent);
+}

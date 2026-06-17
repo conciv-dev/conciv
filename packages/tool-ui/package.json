@@ -1,0 +1,53 @@
+{
+  "name": "@opendui/aidx-tool-ui",
+  "version": "0.0.0",
+  "description": "SolidJS tool-call renderers for the aidx chat thread. tanstack-AI convention: render by tool name, reading zod-typed part.input/part.output. One view per tool, viewable in Storybook.",
+  "license": "MIT",
+  "files": [
+    "dist",
+    "src/tokens.css",
+    "src/tool-ui.css"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./tokens.css": "./src/tokens.css",
+    "./tool-ui.css": "./src/tool-ui.css"
+  },
+  "scripts": {
+    "build": "vite build && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run",
+    "storybook": "storybook dev -p 6007",
+    "build-storybook": "storybook build"
+  },
+  "dependencies": {
+    "@opendui/aidx-tools": "workspace:*",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@chromatic-com/storybook": "^5.2.1",
+    "@storybook/addon-a11y": "^10.4.4",
+    "@storybook/addon-docs": "^10.4.4",
+    "@storybook/addon-vitest": "^10.4.4",
+    "@tanstack/ai-client": "^0.16.3",
+    "@types/node": "^22.19.21",
+    "@vitest/browser-playwright": "4.1.8",
+    "@vitest/coverage-v8": "4.1.8",
+    "playwright": "^1.60.0",
+    "solid-js": "^1.9.13",
+    "storybook": "^10.4.4",
+    "storybook-solidjs-vite": "^10.3.0",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vite-plugin-solid": "^2.11.12",
+    "vitest": "^4.1.8"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.9.13"
+  }
+}
