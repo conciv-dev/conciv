@@ -1,0 +1,10 @@
+{
+  "what": "FAB mascot rig layers (robot-head.png, robot-eyes.png, robot-antenna.png)",
+  "pipeline": "base robot head generated with tools/gen_assets.ts (gpt-image-1.5, transparent) -> segmented into 3 registered transparent layers by /tmp/robot-gen/segment.mjs (color-key the magenta eyes, split the antenna at the head's top edge, dark-fill the lenses behind the eyes) -> animated as parts by GSAP in fab-robot.tsx",
+  "layers": {
+    "robot-head.png": "head + glasses with dark (unlit) lenses, static mouth, no antenna",
+    "robot-eyes.png": "magenta eye glow only; blink = scaleY, glance = translateX",
+    "robot-antenna.png": "antenna stalk + tip; sway = rotate about its base"
+  },
+  "transformOrigins": {"eyes": "49.6% 58.6%", "antenna": "50% 32.8%", "head": "50% 80%"}
+}

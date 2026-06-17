@@ -8,6 +8,7 @@ import {createResizable} from './resize.js'
 import {QuickTerminalLayout} from './quick-terminal.js'
 import {createPiP} from './pip.js'
 import {ChevronDown, Crosshair, PictureInPicture2} from 'lucide-solid'
+import {FabRobot} from './fab-robot.js'
 import {picking, cancelPick} from './react-grab/picking.js'
 import {ContextTracker} from './context-tracker.js'
 import {SessionSelector} from './session-selector.js'
@@ -438,7 +439,7 @@ function ModalLayout(props: {
         class={fabClass(fabPulsing(), fab.position(), fab.dragging())}
         classList={{'pw-pick-away': picking()}}
         style={fab.dragStyle()}
-        aria-label="Open aidx chat"
+        aria-label={props.open() ? 'Minimize aidx chat' : 'Open aidx chat'}
         aria-expanded={props.open()}
         aria-controls="pw-chat-panel"
         onPointerDown={fab.onPointerDown}
@@ -446,9 +447,8 @@ function ModalLayout(props: {
           if (!fab.consumeClick()) toggle()
         }}
       >
-        <span class="pw-fab-icon" aria-hidden="true">
-          {props.open() ? <ChevronDown class="pw-chevron" aria-hidden="true" /> : '✦'}
-        </span>
+        {/* Rigged mascot: GSAP animates head/eyes/antenna as parts on open/close + while working. */}
+        <FabRobot open={() => props.open()} working={working} />
       </button>
     </>
   )

@@ -763,6 +763,9 @@ importers:
       bippy:
         specifier: 0.5.41
         version: 0.5.41(react@19.2.7)
+      gsap:
+        specifier: ^3.15.0
+        version: 3.15.0
       lucide-solid:
         specifier: ^1.18.0
         version: 1.18.0(solid-js@1.9.13)

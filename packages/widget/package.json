@@ -33,6 +33,7 @@
     "@tanstack/solid-hotkeys": "^0.10.0",
     "@tanstack/solid-pacer": "^0.21.1",
     "bippy": "0.5.41",
+    "gsap": "^3.15.0",
     "lucide-solid": "^1.18.0",
     "react-grab": "^0.1.44",
     "shiki": "^4.2.0",
