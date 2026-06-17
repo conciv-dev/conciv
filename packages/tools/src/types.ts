@@ -3,7 +3,8 @@ import type {PageQuery} from '@opendui/aidx-protocol/page-types'
 import type {UiSpec} from '@opendui/aidx-protocol/ui-types'
 
 // The runtime bridge each aidx tool's handler closes over. Pure handles to the live buses/runner;
-// no transport or CLI knowledge. The MCP server (and tests) supply a concrete context.
+// no transport or CLI knowledge. The MCP server (and tests) supply a concrete context. Maps cleanly
+// to tanstack's client-tool ctx.context for the future page agent.
 export type AidxToolContext = {
   injectUi: (spec: UiSpec) => boolean
   // The page-bus ask shape: a query without the bus-assigned requestId.
@@ -13,12 +14,14 @@ export type AidxToolContext = {
   open: (file: string, line?: number) => void
 }
 
-// Uniform, MCP-facing view of an aidx tool. The per-tool ServerTool types are erased here so the
-// MCP server can iterate a homogeneous list: it registers `inputSchema` (a ZodObject the SDK
-// validates against) and invokes `run` with the validated args.
-export type AidxMcpTool = {
+// A bound aidx tool the MCP server iterates: the tool name/description, its zod inputSchema (the SDK
+// registers `.shape` and validates against it), and an `execute` that validates args once at the
+// boundary before running the tanstack server tool. The per-tool ServerTool generics are erased to
+// this uniform shape so the MCP server registers a homogeneous list — without any cast (execute
+// re-parses with the concrete schema, so its input is typed inside the factory).
+export type AidxServerTool = {
   name: string
   description: string
   inputSchema: z.ZodObject<z.ZodRawShape>
-  run: (args: Record<string, unknown>) => Promise<unknown>
+  execute: (input: unknown) => Promise<unknown>
 }

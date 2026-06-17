@@ -1,8 +1,9 @@
 import {defineConfig} from 'tsdown'
 
-// tools.ts is the package entry ("."). @tanstack/ai + @opendui/aidx-protocol stay external.
+// tools.ts is the package entry ("."); defs.ts is the browser-safe ./defs subpath (no node deps).
+// @tanstack/ai + @opendui/aidx-protocol stay external.
 export default defineConfig({
-  entry: ['src/tools.ts'],
+  entry: ['src/tools.ts', 'src/defs.ts'],
   format: 'esm',
   fixedExtension: false,
   dts: true,

@@ -12,7 +12,7 @@ describe('aidx_page tool', () => {
     })
     const page = tools.find((t) => t.name === 'aidx_page')
     if (!page) throw new Error('aidx_page tool missing')
-    const result = await page.run({verb: 'tree', ref: 'main'})
+    const result = await page.execute({verb: 'tree', ref: 'main'})
     expect(calls[0]).toMatchObject({kind: 'tree', ref: 'main'})
     expect(result).toMatchObject({ok: true})
   })

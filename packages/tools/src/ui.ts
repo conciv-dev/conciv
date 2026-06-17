@@ -1,8 +1,5 @@
-import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
 import {toolDefinition} from '@tanstack/ai'
-import {buildUiSpec} from '@opendui/aidx-protocol/ui-types'
-import type {AidxMcpTool, AidxToolContext} from './types.js'
 
 export const UiInput = z.object({
   kind: z.enum(['choices', 'confirm', 'diff', 'form']),
@@ -31,18 +28,3 @@ export const aidxUiToolDef = toolDefinition({
     'Render real interactive UI (choices/confirm/diff/form) in the chat thread. Non-blocking: the user reply arrives as their next chat message.',
   inputSchema: UiInput,
 })
-
-export function aidxUiTool(ctx: AidxToolContext): AidxMcpTool {
-  const server = aidxUiToolDef.server(async (input) => {
-    const renderId = randomUUID()
-    const injected = ctx.injectUi(buildUiSpec(input, renderId))
-    return {renderId, injected}
-  })
-  const execute = server.execute
-  return {
-    name: server.name,
-    description: server.description,
-    inputSchema: UiInput,
-    run: async (args) => (execute ? execute(UiInput.parse(args)) : undefined),
-  }
-}

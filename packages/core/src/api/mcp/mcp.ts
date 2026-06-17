@@ -11,10 +11,15 @@ import {sessionIdFromHeaders} from '../chat/session-id.js'
 function buildServer(ctx: AidxToolContext): McpServer {
   const server = new McpServer({name: 'aidx', version: '0.0.0'})
   for (const tool of aidxTools(ctx)) {
-    server.registerTool(tool.name, {description: tool.description, inputSchema: tool.inputSchema}, async (args) => {
-      const result = await tool.run(args)
-      return {content: [{type: 'text', text: JSON.stringify(result)}]}
-    })
+    server.registerTool(
+      tool.name,
+      {description: tool.description, inputSchema: tool.inputSchema.shape},
+      async (args) => {
+        // tool.execute validates args against its zod schema once at this boundary, then runs.
+        const result = await tool.execute(args)
+        return {content: [{type: 'text', text: JSON.stringify(result)}]}
+      },
+    )
   }
   return server
 }

@@ -11,6 +11,10 @@
     ".": {
       "types": "./dist/tools.d.ts",
       "import": "./dist/tools.js"
+    },
+    "./defs": {
+      "types": "./dist/defs.d.ts",
+      "import": "./dist/defs.js"
     }
   },
   "scripts": {

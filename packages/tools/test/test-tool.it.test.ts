@@ -12,7 +12,7 @@ describe('aidx_test tool', () => {
     })
     const test = tools.find((t) => t.name === 'aidx_test')
     if (!test) throw new Error('aidx_test tool missing')
-    const result = await test.run({action: 'list'})
+    const result = await test.execute({action: 'list'})
     expect(calls[0]).toMatchObject({kind: 'list'})
     expect(result).toMatchObject({tests: []})
   })

@@ -12,7 +12,7 @@ describe('aidx_ui tool', () => {
     })
     const ui = tools.find((t) => t.name === 'aidx_ui')
     if (!ui) throw new Error('aidx_ui tool missing')
-    const result = await ui.run({kind: 'confirm', question: 'ok?'})
+    const result = await ui.execute({kind: 'confirm', question: 'ok?'})
     expect(seen).toHaveLength(1)
     expect(result).toMatchObject({injected: true})
   })

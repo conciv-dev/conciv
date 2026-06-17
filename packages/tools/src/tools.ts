@@ -1,13 +1,9 @@
-import type {AidxMcpTool, AidxToolContext} from './types.js'
-import {aidxPageTool} from './page.js'
-import {aidxTestTool} from './test.js'
-import {aidxUiTool} from './ui.js'
-import {aidxOpenTool} from './open.js'
+// Package entry ("."): the node-side server tools the MCP server binds to a runtime context.
+export type {AidxServerTool, AidxToolContext} from './types.js'
+export {aidxTools} from './server.js'
 
-export type {AidxMcpTool, AidxToolContext} from './types.js'
-
-// The aidx tool list as uniform MCP descriptors, bound to a runtime context, in one place so the
-// MCP server (and tests) get them with a single import.
-export function aidxTools(ctx: AidxToolContext): AidxMcpTool[] {
-  return [aidxUiTool(ctx), aidxPageTool(ctx), aidxTestTool(ctx), aidxOpenTool(ctx)]
-}
+// The definitions + schemas are also exported from the browser-safe `./defs` subpath.
+export {aidxPageToolDef, PageInput} from './page.js'
+export {aidxTestToolDef, TestInput} from './test.js'
+export {aidxUiToolDef, UiInput} from './ui.js'
+export {aidxOpenToolDef, OpenInput} from './open.js'
