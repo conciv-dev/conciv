@@ -16,6 +16,7 @@ export type SolidFileDiffProps = {
 // imported.
 export function SolidFileDiff(props: SolidFileDiffProps): JSX.Element {
   let instance: FileDiff<undefined> | null = null
+  let primed = false
 
   const setRef = (node: HTMLElement) => {
     instance = new FileDiff(props.options, undefined, true)
@@ -26,10 +27,15 @@ export function SolidFileDiff(props: SolidFileDiffProps): JSX.Element {
     })
   }
 
-  // Re-render when the files or options change. hydrate() did the first render; this keeps it live.
+  // Re-render only when the inputs actually change. hydrate() did the first render, so skip the
+  // effect's initial run (it would re-render identical content) while still tracking the inputs.
   createEffect(() => {
     const {oldFile, newFile, options} = props
     if (!instance) return
+    if (!primed) {
+      primed = true
+      return
+    }
     if (options) instance.setOptions(options)
     void instance.render({oldFile, newFile, forceRender: true})
   })

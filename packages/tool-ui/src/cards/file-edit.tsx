@@ -4,6 +4,7 @@ import {FilePen} from 'lucide-solid'
 import {SolidFileDiff} from '@opendui/aidx-solid-diffs'
 import {ToolCard} from '../shell.js'
 import {parseInput} from '../util.js'
+import {DIFF_OPTIONS} from '../diff-options.js'
 import type {ToolCardProps} from '../types.js'
 
 // Fields we read to render a diff. Edit/MultiEdit carry old_string/new_string; Write carries
@@ -64,6 +65,7 @@ export function FileEditCard(props: ToolCardProps): JSX.Element {
         {(d) => (
           <SolidFileDiff
             class="pw-edit-diff"
+            options={DIFF_OPTIONS}
             oldFile={{name: path() ?? 'file', contents: d().oldText}}
             newFile={{name: path() ?? 'file', contents: d().newText}}
           />

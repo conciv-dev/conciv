@@ -11,7 +11,7 @@ export function NowLine(props: {title: string; onStop: () => void}): JSX.Element
       <span class="pw-now-title">{props.title}</span>
       <Show when={props.onStop}>
         <button class="pw-now-stop" onClick={() => props.onStop()} aria-label="Stop">
-          <Square size={12} fill="currentColor" />
+          <Square size={12} fill="currentColor" aria-hidden="true" />
         </button>
       </Show>
     </div>

@@ -203,9 +203,11 @@
 
 /* File path (file-read card). */
 .pw-path {
+  display: block;
   font-family: var(--pw-mono);
   font-size: 12px;
   color: var(--pw-text-2);
+  overflow-wrap: anywhere;
 }
 
 /* Search results (search card). */
@@ -231,7 +233,7 @@
 }
 .pw-todo li {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   gap: 7px;
   padding: 2px 0;
   color: var(--pw-text-2);
@@ -245,7 +247,9 @@
 }
 .pw-todo-dot {
   flex: 0 0 auto;
-  font-size: 10px;
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
 }
 .pw-todo-completed .pw-todo-dot {
   color: var(--pw-success);
@@ -259,6 +263,8 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  max-width: 100%;
+  min-width: 0;
   font-family: var(--pw-mono);
   font-size: 11.5px;
   color: var(--pw-accent-link);
@@ -266,6 +272,11 @@
   border: 1px solid var(--pw-accent-line);
   border-radius: var(--pw-r-pill);
   padding: 2px 9px;
+}
+.pw-elchip-target {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .pw-ui-q {
   color: var(--pw-text-2);
@@ -335,6 +346,10 @@
   background: var(--pw-fill);
 }
 .pw-test-fname {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--pw-text);
 }
 /* Chevron points right when collapsed, down when the Collapsible is open. */
@@ -350,9 +365,16 @@
   display: flex;
   align-items: center;
   gap: 9px;
+  min-width: 0;
   padding: 5px 12px 5px 24px;
   color: var(--pw-text-2);
   cursor: pointer;
+}
+.pw-test-tname {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .pw-test-test:hover {
   background: var(--pw-fill);
@@ -455,12 +477,16 @@
 }
 .pw-reflect-row {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   gap: 8px;
   padding: 2px 0;
 }
 .pw-reflect-glyph {
   flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  height: 19px;
+  color: var(--pw-accent-link);
 }
 
 /* ── Now line (single live status). ── */
@@ -540,10 +566,13 @@
 }
 .pw-done-head {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   gap: 8px;
 }
 .pw-done-ic {
+  display: inline-flex;
+  align-items: center;
+  height: 19px;
   color: var(--pw-accent);
 }
 .pw-done-summary {
@@ -571,6 +600,7 @@
 }
 .pw-done-list li {
   padding: 1px 0;
+  overflow-wrap: anywhere;
 }
 .pw-done-tests {
   display: inline-flex;
@@ -587,19 +617,22 @@
 /* The embedded @pierre/diffs viewer inside the file-edit card. */
 .pw-edit-diff {
   display: block;
+  max-width: 100%;
   border-radius: var(--pw-r-sm);
-  overflow: hidden;
+  overflow: auto;
+  background: var(--pw-sunken);
   font-size: 12px;
 }
 
 /* The embedded @pierre/diffs code view inside the file-read card. */
 .pw-read-code {
   display: block;
+  max-width: 100%;
   border-radius: var(--pw-r-sm);
-  overflow: hidden;
+  overflow: auto;
+  background: var(--pw-sunken);
   font-size: 12px;
   max-height: 320px;
-  overflow-y: auto;
 }
 
 /* Virtual-scrolled terminal output: Ark ScrollArea viewport + thumb, tanstack-virtual rows. */
@@ -637,4 +670,37 @@
 }
 .pw-vl-thumb:hover {
   background: var(--pw-accent);
+}
+
+/* Visually hidden but available to screen readers (test state labels, etc.). */
+.pw-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Self-contained keyboard focus ring so focus is visible in Storybook and any host — not only under
+   the widget's global :focus-visible rule. */
+.pw-now-stop:focus-visible,
+.pw-test-act:focus-visible,
+.pw-test-file:focus-visible,
+.pw-test-row:focus-visible,
+.pw-tool-raw summary:focus-visible {
+  outline: 2px solid var(--pw-accent);
+  outline-offset: 2px;
+}
+
+/* Test rows become buttons when expandable — reset the native button chrome. */
+.pw-test-row {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  font: inherit;
+  text-align: left;
 }

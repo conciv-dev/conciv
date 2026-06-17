@@ -68,8 +68,8 @@ export function PageActionCard(props: ToolCardProps): JSX.Element {
     <ToolCard accent="page" Icon={PageActionIcon} title={pageTitle(props)} part={props.part} result={props.result}>
       <Show when={t()}>
         <span class="pw-elchip">
-          <Target size={12} />
-          {t()}
+          <Target size={12} aria-hidden="true" />
+          <span class="pw-elchip-target">{t()}</span>
         </span>
       </Show>
     </ToolCard>

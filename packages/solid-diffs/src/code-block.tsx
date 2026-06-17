@@ -13,6 +13,7 @@ export type SolidCodeBlockProps = {
 // block. Same lifecycle as SolidFileDiff (create, hydrate on mount, re-render on change, clean up).
 export function SolidCodeBlock(props: SolidCodeBlockProps): JSX.Element {
   let instance: File<undefined> | null = null
+  let primed = false
 
   const setRef = (node: HTMLElement) => {
     instance = new File(props.options, undefined, true)
@@ -23,9 +24,14 @@ export function SolidCodeBlock(props: SolidCodeBlockProps): JSX.Element {
     })
   }
 
+  // Skip the effect's initial run (hydrate already rendered); re-render only on real input changes.
   createEffect(() => {
     const {file, options} = props
     if (!instance) return
+    if (!primed) {
+      primed = true
+      return
+    }
     if (options) instance.setOptions(options)
     void instance.render({file, forceRender: true})
   })

@@ -45,7 +45,9 @@ export function VirtualLines(props: VirtualLinesProps): JSX.Element {
                   position: 'absolute',
                   top: 0,
                   left: 0,
-                  width: '100%',
+                  // min-width (not width) so a line longer than the viewport extends the row and the
+                  // viewport scrolls horizontally instead of clipping it.
+                  'min-width': '100%',
                   height: `${item.size}px`,
                   'line-height': `${item.size}px`,
                   transform: `translateY(${item.start}px)`,

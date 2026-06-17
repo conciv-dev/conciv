@@ -4,6 +4,7 @@ import {FileText} from 'lucide-solid'
 import {SolidCodeBlock} from '@opendui/aidx-solid-diffs'
 import {ToolCard} from '../shell.js'
 import {parseInput, resultText} from '../util.js'
+import {CODE_OPTIONS} from '../diff-options.js'
 import type {ToolCardProps} from '../types.js'
 
 // claude Read carries file_path + optional offset/limit; aidx_open carries file + optional line.
@@ -71,7 +72,11 @@ export function FileReadCard(props: ToolCardProps): JSX.Element {
           </Show>
         }
       >
-        <SolidCodeBlock class="pw-read-code" file={{name: path() || 'file', contents: contents()}} />
+        <SolidCodeBlock
+          class="pw-read-code"
+          options={CODE_OPTIONS}
+          file={{name: path() || 'file', contents: contents()}}
+        />
       </Show>
     </ToolCard>
   )

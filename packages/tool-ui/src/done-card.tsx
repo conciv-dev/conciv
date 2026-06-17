@@ -34,8 +34,8 @@ export function DoneCard(props: {data: DoneData}): JSX.Element {
       </Show>
       <div class="pw-done-section">
         <span class={`pw-done-tests pw-done-tests--${props.data.testsPassed ? 'pass' : 'fail'}`}>
-          <Show when={props.data.testsPassed} fallback={<X size={13} />}>
-            <Check size={13} />
+          <Show when={props.data.testsPassed} fallback={<X size={13} aria-hidden="true" />}>
+            <Check size={13} aria-hidden="true" />
           </Show>
           {props.data.testsPassed ? 'tests passed' : 'tests failed'}
         </span>

@@ -32,6 +32,19 @@ function dotClass(state: TestState | 'running'): string {
   return `pw-test-dot pw-test-${state}`
 }
 
+// Screen-reader label for the colored state dot (the dot itself is aria-hidden / color-only).
+function stateLabel(state: TestState | 'running'): string {
+  if (state === 'pass') return 'passed'
+  if (state === 'fail') return 'failed'
+  if (state === 'skip') return 'skipped'
+  return 'running'
+}
+
+// A DOM-id-safe slug for aria-controls wiring (the file::name key has / and :).
+function domId(key: string): string {
+  return `pw-test-${key.replace(/[^a-zA-Z0-9_-]/g, '-')}`
+}
+
 function openLabel(error: TestError): string {
   const base = relName(error.file)
   return error.line ? `${base}:${error.line}` : base
@@ -70,12 +83,12 @@ function TestErrorBlock(props: {error: TestError; ctx: ToolViewCtx}): JSX.Elemen
       <div class="pw-test-actions">
         <Show when={props.ctx.openEditor}>
           <button class="pw-test-act" onClick={openInEditor}>
-            <ExternalLink size={12} />
+            <ExternalLink size={12} aria-hidden="true" />
             Open {openLabel(props.error)}
           </button>
         </Show>
         <button class="pw-test-act pw-test-fix" onClick={() => props.ctx.sendMessage(fixMessage(props.error))}>
-          <Sparkles size={12} />
+          <Sparkles size={12} aria-hidden="true" />
           Fix this
         </button>
       </div>
@@ -89,6 +102,9 @@ export function TestResults(props: {result: TestRunResult | null; ctx: ToolViewC
   const [summary, setSummary] = createSignal<Summary>(EMPTY_SUMMARY)
   const [running, setRunning] = createSignal(false)
   const [openTest, setOpenTest] = createSignal<string | null>(null)
+  // Collapsed file groups, keyed by file path (not group-object ref) so the user's collapse choice
+  // survives the live re-creation of the groups array on each test event.
+  const [collapsed, setCollapsed] = createSignal<ReadonlySet<string>>(new Set())
   const live = new Map<string, Row & {file: string}>()
 
   createEffect(() => {
@@ -102,6 +118,7 @@ export function TestResults(props: {result: TestRunResult | null; ctx: ToolViewC
     const subscribe = props.ctx.subscribeTestRunner
     if (!subscribe) return
     setRunning(true)
+    let active = true
     const applyLive = (ev: TestEvent) => {
       if (ev.type === 'snapshot') {
         setSummary(ev.summary)
@@ -122,14 +139,28 @@ export function TestResults(props: {result: TestRunResult | null; ctx: ToolViewC
         setSummary(ev.summary)
         setGroups(groupByFile(ev.tests.map((t) => ({...t}))))
         setRunning(false)
+        // Stop after our run ends so a later run's stream can't overwrite this card.
+        active = false
         unsubscribe()
       }
     }
     const unsubscribe = subscribe(applyLive)
-    onCleanup(unsubscribe)
+    // Single teardown: skip if run-end already unsubscribed (no double call).
+    onCleanup(() => {
+      if (!active) return
+      active = false
+      unsubscribe()
+    })
   })
 
   const toggleTest = (key: string) => setOpenTest((current) => (current === key ? null : key))
+  const setFileOpen = (file: string, open: boolean) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev)
+      if (open) next.delete(file)
+      else next.add(file)
+      return next
+    })
 
   return (
     <div class="pw-test">
@@ -150,7 +181,11 @@ export function TestResults(props: {result: TestRunResult | null; ctx: ToolViewC
       </div>
       <For each={groups()}>
         {(group) => (
-          <Collapsible.Root class="pw-test-group" defaultOpen>
+          <Collapsible.Root
+            class="pw-test-group"
+            open={!collapsed().has(group.file)}
+            onOpenChange={(details) => setFileOpen(group.file, details.open)}
+          >
             <Collapsible.Trigger class="pw-test-file">
               <ChevronRight class="pw-test-chevron" size={14} aria-hidden="true" />
               <span class="pw-test-fname">{relName(group.file)}</span>
@@ -159,16 +194,39 @@ export function TestResults(props: {result: TestRunResult | null; ctx: ToolViewC
               <For each={group.tests}>
                 {(test) => {
                   const key = `${group.file}::${test.name}`
+                  const id = domId(key)
                   return (
-                    <div>
-                      <div class={testRowClass(test.state)} onClick={() => toggleTest(key)}>
-                        <span class={dotClass(test.state)} aria-hidden="true" />
-                        <span>{test.name}</span>
-                      </div>
-                      <Show when={openTest() === key ? test.error : undefined}>
-                        {(error) => <TestErrorBlock error={error()} ctx={props.ctx} />}
-                      </Show>
-                    </div>
+                    <Show
+                      when={test.error}
+                      fallback={
+                        <div class={testRowClass(test.state)}>
+                          <span class={dotClass(test.state)} aria-hidden="true" />
+                          <span class="pw-sr-only">{stateLabel(test.state)}: </span>
+                          <span class="pw-test-tname">{test.name}</span>
+                        </div>
+                      }
+                    >
+                      {(error) => (
+                        <div>
+                          <button
+                            type="button"
+                            class={`${testRowClass(test.state)} pw-test-row`}
+                            aria-expanded={openTest() === key}
+                            aria-controls={id}
+                            onClick={() => toggleTest(key)}
+                          >
+                            <span class={dotClass(test.state)} aria-hidden="true" />
+                            <span class="pw-sr-only">{stateLabel(test.state)}: </span>
+                            <span class="pw-test-tname">{test.name}</span>
+                          </button>
+                          <div id={id}>
+                            <Show when={openTest() === key}>
+                              <TestErrorBlock error={error()} ctx={props.ctx} />
+                            </Show>
+                          </div>
+                        </div>
+                      )}
+                    </Show>
                   )
                 }}
               </For>
