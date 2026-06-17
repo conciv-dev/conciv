@@ -38,16 +38,15 @@ function pageHtml(): string {
     <meta name="pw-api-base" content="">
     <meta name="pw-widget" content='{"quickTerminal":false}'>
     <style>
-      /* A Tailwind-preflight-style host reset: zeroes heading margins + flips the box model. The grab
-         capture must diff against TRUE UA defaults (not these host overrides), or it skips the very
-         properties the host reset, and the clone re-inherits them from the UA sheet inside our shadow
-         DOM — e.g. the h3 picks up its UA margin and overflows the captured box. */
+      /* Host reset zeroing heading margins: a leaky capture would skip these and let our shadow DOM's UA sheet repaint them. */
       *, ::before, ::after { box-sizing: border-box; }
       h1, h2, h3, h4, h5, h6 { margin: 0; }
       #grab-target { width: 220px; padding: 16px; border-radius: 12px; color: rgb(255, 255, 255);
-        background: rgb(91, 58, 166); box-shadow: 0 10px 20px rgba(0,0,0,.4); font-weight: 700; }
+        background: rgb(91, 58, 166); box-shadow: 0 10px 20px rgba(0,0,0,.4); font-weight: 700;
+        font-size: 16px; }
       #grab-target::before { content: "PRO"; display: block; font-size: 11px; opacity: .7; }
-      #grab-target h3 { font-size: 14px; }
+      /* font-size deliberately equals the card's, so a diff-against-default capture would skip it. */
+      #grab-target h3 { font-size: 16px; }
       #grab-target p { font-size: 13px; margin: 0; }
     </style>
   </head><body>
@@ -1136,17 +1135,22 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     expect(await scale.textContent()).toContain('Upgrade plan')
     const transform = await scale.evaluate((el) => getComputedStyle(el).transform)
     expect(transform === 'none' || transform.startsWith('matrix')).toBe(true)
-    // Regression: the host preflight zeroed the h3 margin, so the clone must inline `margin-top: 0`
-    // (defaults are probed against true UA values, not the host reset). Otherwise the h3 re-inherits
-    // the UA heading margin inside our shadow DOM and the content overflows the captured box — the
-    // exact clipping that cut off the grabbed card's text.
+    // Regression: clone matches the source exactly, not our shadow DOM's UA heading margin/size or a stray border.
     const fit = await scale.evaluate((el) => {
       const h3 = el.querySelector('h3')
       const card = h3?.parentElement
       if (!h3 || !card) return null
-      return {marginTop: getComputedStyle(h3).marginTop, overflow: card.scrollHeight - card.clientHeight}
+      const cs = getComputedStyle(h3)
+      return {
+        marginTop: cs.marginTop,
+        fontSize: cs.fontSize,
+        borderTopWidth: cs.borderTopWidth,
+        overflow: card.scrollHeight - card.clientHeight,
+      }
     })
     expect(fit?.marginTop).toBe('0px')
+    expect(fit?.fontSize).toBe('16px')
+    expect(fit?.borderTopWidth).toBe('0px')
     expect(fit?.overflow).toBeLessThanOrEqual(1)
 
     // A second pick stacks a second chip (multi-grab is real, not last-wins).
