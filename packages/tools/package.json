@@ -1,5 +1,5 @@
 {
-  "name": "@aidx/tools",
+  "name": "@opendui/aidx-tools",
   "version": "0.0.0",
   "description": "aidx agent tools as @tanstack/ai toolDefinition().server() functions: ui, page, test.",
   "license": "MIT",
@@ -20,7 +20,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@aidx/protocol": "workspace:*",
+    "@opendui/aidx-protocol": "workspace:*",
     "@tanstack/ai": "^0.28.0",
     "zod": "^4.4.3"
   },

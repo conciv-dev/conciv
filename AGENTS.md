@@ -1,3 +1,15 @@
+<!-- intent-skills:start -->
+
+## Skill Loading
+
+Before substantial work:
+
+- Skill check: run `pnpm dlx @tanstack/intent@latest list`, or use skills already listed in context.
+- Skill guidance: if one local skill clearly matches the task, run `pnpm dlx @tanstack/intent@latest load <package>#<skill>` and follow the returned `SKILL.md`.
+- Monorepos: when working across packages, run the skill check from the workspace root and prefer the local skill for the package being changed.
+- Multiple matches: prefer the most specific local skill for the package or concern you are changing; load additional skills only when the task spans multiple packages or concerns.
+<!-- intent-skills:end -->
+
 # AGENTS.md
 
 Conventions for agents and contributors working in this repo. Product/architecture overview lives in
@@ -27,7 +39,7 @@ README.md; this file is the non-obvious operational rules.
 
 - Widget UI is tested in a REAL browser (Playwright/Chromium), never jsdom/happy-dom.
 - Widget integration tests load the PREBUILT bundle (`packages/widget/dist/aidx-widget.global.js`):
-  rebuild the widget (`pnpm turbo run build --filter=@aidx/widget`) before running them, or you test
+  rebuild the widget (`pnpm turbo run build --filter=@opendui/aidx-widget`) before running them, or you test
   stale code.
 - In widget ITs use `browser.newPage()`, not `newContext()` (contexts leak and spike CPU/memory).
 - zod validates every HTTP boundary (`readValidatedBody`); add validation for new routes.

@@ -99,13 +99,13 @@ in the file — it's used for "aidx is thinking…" / "aidx replied."). Reuse it
 
 ## Commands you will need
 
-| Purpose                                           | Command                                                    | Expected on success |
-| ------------------------------------------------- | ---------------------------------------------------------- | ------------------- |
-| Build widget bundle (tests load the built bundle) | `pnpm turbo run build --filter=@aidx/widget`               | exit 0              |
-| Widget tests (real browser)                       | `pnpm --filter @aidx/widget exec vitest run`               | all pass            |
-| Single test by name                               | `pnpm --filter @aidx/widget exec vitest run -t "Compress"` | matching tests pass |
-| Typecheck                                         | `pnpm turbo run typecheck --filter=@aidx/widget`           | exit 0              |
-| Lint                                              | `pnpm --filter @aidx/widget lint`                          | exit 0              |
+| Purpose                                           | Command                                                            | Expected on success |
+| ------------------------------------------------- | ------------------------------------------------------------------ | ------------------- |
+| Build widget bundle (tests load the built bundle) | `pnpm turbo run build --filter=@opendui/aidx-widget`               | exit 0              |
+| Widget tests (real browser)                       | `pnpm --filter @opendui/aidx-widget exec vitest run`               | all pass            |
+| Single test by name                               | `pnpm --filter @opendui/aidx-widget exec vitest run -t "Compress"` | matching tests pass |
+| Typecheck                                         | `pnpm turbo run typecheck --filter=@opendui/aidx-widget`           | exit 0              |
+| Lint                                              | `pnpm --filter @opendui/aidx-widget lint`                          | exit 0              |
 
 IMPORTANT: the widget integration tests run a real browser against the **prebuilt** bundle
 (`packages/widget/dist/aidx-widget.global.js`). You MUST rebuild the bundle (first command) after every
@@ -145,7 +145,7 @@ Next to `addDivider` in `chat-panel.tsx`, add:
 const removeDivider = (id: number) => setDividers((prev) => prev.filter((d) => d.id !== id))
 ```
 
-**Verify**: `pnpm turbo run typecheck --filter=@aidx/widget` → exit 0.
+**Verify**: `pnpm turbo run typecheck --filter=@opendui/aidx-widget` → exit 0.
 
 ### Step 2: Fail the compact cleanly on non-OK / error
 
@@ -186,11 +186,11 @@ Add the import at the top of the file if you used `apiError`:
 `import {apiError} from './transport.js'` (match the file's existing import style/ordering). If you
 prefer not to import it, replace the throw with `throw new Error(\`compact ${res.status}\`)`— the`catch` doesn't inspect the error.
 
-**Verify**: `pnpm turbo run typecheck --filter=@aidx/widget` → exit 0, and `pnpm --filter @aidx/widget lint` → exit 0.
+**Verify**: `pnpm turbo run typecheck --filter=@opendui/aidx-widget` → exit 0, and `pnpm --filter @opendui/aidx-widget lint` → exit 0.
 
 ### Step 3: Rebuild the bundle
 
-**Verify**: `pnpm turbo run build --filter=@aidx/widget` → exit 0.
+**Verify**: `pnpm turbo run build --filter=@opendui/aidx-widget` → exit 0.
 
 ### Step 4: Add a regression test (409 → no false "Context compacted")
 
@@ -215,8 +215,8 @@ end up reading "Context compacted":
 
 Use `browser.newPage()` (NOT `newContext()`), matching every other test in this file.
 
-**Verify**: `pnpm --filter @aidx/widget exec vitest run -t "Compress"` → all Compress tests pass,
-including the new 409 one. Then `pnpm --filter @aidx/widget exec vitest run` → full widget suite passes.
+**Verify**: `pnpm --filter @opendui/aidx-widget exec vitest run -t "Compress"` → all Compress tests pass,
+including the new 409 one. Then `pnpm --filter @opendui/aidx-widget exec vitest run` → full widget suite passes.
 
 ## Test plan
 
@@ -224,7 +224,7 @@ including the new 409 one. Then `pnpm --filter @aidx/widget exec vitest run` →
   boundary instead of claiming success" — happy path is the existing Compress test; this covers the
   regression (409 → no "Context compacted" divider; scrollback preserved).
 - Pattern to follow: the existing `Compress: marks a boundary ...` test in the same file.
-- Verification: `pnpm --filter @aidx/widget exec vitest run` → all pass (existing count + 1 new).
+- Verification: `pnpm --filter @opendui/aidx-widget exec vitest run` → all pass (existing count + 1 new).
 
 ## Done criteria
 
@@ -232,10 +232,10 @@ ALL must hold:
 
 - [ ] `grep -n "if (!res.ok)" packages/widget/src/chat-panel.tsx` returns the new guard inside `compact()`
 - [ ] `removeDivider` exists and is called in `compact()`'s `catch`
-- [ ] `pnpm turbo run typecheck --filter=@aidx/widget` exits 0
-- [ ] `pnpm turbo run build --filter=@aidx/widget` exits 0
-- [ ] `pnpm --filter @aidx/widget exec vitest run` exits 0; the new 409 test exists and passes
-- [ ] `pnpm --filter @aidx/widget lint` exits 0
+- [ ] `pnpm turbo run typecheck --filter=@opendui/aidx-widget` exits 0
+- [ ] `pnpm turbo run build --filter=@opendui/aidx-widget` exits 0
+- [ ] `pnpm --filter @opendui/aidx-widget exec vitest run` exits 0; the new 409 test exists and passes
+- [ ] `pnpm --filter @opendui/aidx-widget lint` exits 0
 - [ ] Only the two in-scope files are modified (`git status --porcelain`)
 - [ ] `plans/README.md` row for 002 updated
 

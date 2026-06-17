@@ -1,7 +1,7 @@
 import {describe, it, expect, beforeAll, afterAll} from 'vitest'
 import {createServer, type Server} from 'node:http'
 import type {AddressInfo} from 'node:net'
-import {SessionId} from '@aidx/protocol/chat-types'
+import {SessionId} from '@opendui/aidx-protocol/chat-types'
 import {defineClient} from '../src/session-client.js'
 
 // Real server — NO mocks. Captures the last session header it actually received.

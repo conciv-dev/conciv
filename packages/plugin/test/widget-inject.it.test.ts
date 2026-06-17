@@ -15,7 +15,7 @@ import {
 // static index.html for vite's transformIndexHtml to touch). A tiny http server runs the real
 // middleware in front of a handler that produces html the way a framework would. No mocks.
 
-const WIDGET_URL = '/@aidx/widget.js'
+const WIDGET_URL = '/@opendui/aidx-widget.js'
 const PREVIEW = 'local'
 const API_BASE = 'http://127.0.0.1:12345'
 

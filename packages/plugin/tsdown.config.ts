@@ -1,7 +1,7 @@
 import {defineConfig} from 'tsdown'
 
 // One factory (index.ts) + a subpath entry per bundler, plus the Next.js entries (nextjs =
-// withAidx/register, nextjs-widget = client mount). @aidx/* + unplugin + vite + launch-editor
+// withAidx/register, nextjs-widget = client mount). @opendui/aidx-* + unplugin + vite + launch-editor
 // stay external (peer/host deps, never bundled).
 export default defineConfig({
   entry: [
@@ -17,5 +17,5 @@ export default defineConfig({
   format: 'esm',
   fixedExtension: false,
   dts: true,
-  external: [/^@aidx\//, 'unplugin', 'vite', 'launch-editor'],
+  external: [/^@opendui\/aidx-/, 'unplugin', 'vite', 'launch-editor'],
 })

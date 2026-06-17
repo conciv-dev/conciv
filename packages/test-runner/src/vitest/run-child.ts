@@ -3,7 +3,13 @@ import {pathToFileURL} from 'node:url'
 import {join, relative} from 'node:path'
 import {writeSync} from 'node:fs'
 import {z} from 'zod'
-import {parseFailure, type Summary, type TestError, type TestRow, type TestCaseLike} from '@aidx/protocol/test-types'
+import {
+  parseFailure,
+  type Summary,
+  type TestError,
+  type TestRow,
+  type TestCaseLike,
+} from '@opendui/aidx-protocol/test-types'
 import {type ChildMessage} from '../child-protocol.js'
 
 // Out-of-process vitest runner logic. Pure module (no top-level exec) so importing it is inert;

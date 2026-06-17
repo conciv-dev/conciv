@@ -56,7 +56,7 @@ test('start boots on the requested fixed port', async () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @aidx/core test -- engine-port`
+Run: `pnpm --filter @opendui/aidx-core test -- engine-port`
 Expected: FAIL — `port` is not an accepted option / engine boots on a random port (not 41799).
 
 - [ ] **Step 3: Add `port` to StartOpts and pass it to `serve`**
@@ -76,7 +76,7 @@ const server = serve({fetch: app.fetch, port: opts.port ?? 0, hostname: '127.0.0
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm --filter @aidx/core test -- engine-port`
+Run: `pnpm --filter @opendui/aidx-core test -- engine-port`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
@@ -120,7 +120,7 @@ booting = start({
 
 - [ ] **Step 3: Typecheck both packages**
 
-Run: `pnpm --filter @aidx/protocol typecheck && pnpm --filter @aidx/plugin typecheck`
+Run: `pnpm --filter @opendui/aidx-protocol typecheck && pnpm --filter @opendui/aidx-plugin typecheck`
 Expected: PASS (no type errors)
 
 - [ ] **Step 4: Commit**
@@ -167,7 +167,7 @@ test('falls back to the meta tag when the global is unset', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @aidx/widget test -- api-base`
+Run: `pnpm --filter @opendui/aidx-widget test -- api-base`
 Expected: FAIL — `resolveApiBase` is not exported.
 
 - [ ] **Step 3: Add the resolver and use it**
@@ -196,7 +196,7 @@ const apiBase = resolveApiBase()
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm --filter @aidx/widget test -- api-base`
+Run: `pnpm --filter @opendui/aidx-widget test -- api-base`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
@@ -244,14 +244,14 @@ test('withAidx is a no-op passthrough when disabled', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @aidx/plugin test -- nextjs`
+Run: `pnpm --filter @opendui/aidx-plugin test -- nextjs`
 Expected: FAIL — `../src/core/nextjs.js` does not exist.
 
 - [ ] **Step 3: Implement `core/nextjs.ts`**
 
 ```ts
 // packages/plugin/src/core/nextjs.ts
-import type {AidxConfig} from '@aidx/protocol/config-types'
+import type {AidxConfig} from '@opendui/aidx-protocol/config-types'
 
 // Next owns HTML rendering, so aidx integrates via conventions, not a bundler hook:
 // withAidx pins a fixed engine port and inlines it for the client; register() boots the engine.
@@ -286,7 +286,7 @@ export async function register(): Promise<void> {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm --filter @aidx/plugin test -- nextjs`
+Run: `pnpm --filter @opendui/aidx-plugin test -- nextjs`
 Expected: PASS (3 tests)
 
 - [ ] **Step 5: Commit**
@@ -310,7 +310,7 @@ git commit -m "feat(plugin): withAidx config wrapper + instrumentation register"
 ```ts
 // packages/plugin/src/nextjs.ts
 export {withAidx, register, AIDX_DEFAULT_PORT} from './core/nextjs.js'
-export type {AidxConfig} from '@aidx/protocol/config-types'
+export type {AidxConfig} from '@opendui/aidx-protocol/config-types'
 ```
 
 - [ ] **Step 2: Create the client entry**
@@ -324,7 +324,7 @@ const port = process.env.NEXT_PUBLIC_AIDX_PORT
 
 function startWidget(): void {
   window.__AIDX_API_BASE__ = `http://127.0.0.1:${port}`
-  void import('@aidx/widget')
+  void import('@opendui/aidx-widget')
 }
 
 if (typeof window !== 'undefined' && port && process.env.NODE_ENV !== 'production') {
@@ -382,14 +382,14 @@ Add a `peerDependenciesMeta` so `next` stays optional, and list `next` under `pe
 
 - [ ] **Step 5: Build the plugin and verify the new artifacts exist**
 
-Run: `pnpm --filter @aidx/plugin build && ls packages/plugin/dist/nextjs.js packages/plugin/dist/nextjs-widget.js`
+Run: `pnpm --filter @opendui/aidx-plugin build && ls packages/plugin/dist/nextjs.js packages/plugin/dist/nextjs-widget.js`
 Expected: both files listed, build exits 0.
 
 - [ ] **Step 6: Commit**
 
 ```bash
 git add packages/plugin/src/nextjs.ts packages/plugin/src/nextjs-widget.ts packages/plugin/tsdown.config.ts packages/plugin/package.json
-git commit -m "feat(plugin): @aidx/plugin/nextjs server + client entries"
+git commit -m "feat(plugin): @opendui/aidx-plugin/nextjs server + client entries"
 ```
 
 ---
@@ -417,7 +417,7 @@ Edit `apps/examples/nextjs-app/package.json` to add the workspace dependency, th
 
 ```json
   "dependencies": {
-    "@aidx/plugin": "workspace:*"
+    "@opendui/aidx-plugin": "workspace:*"
   }
 ```
 
@@ -430,7 +430,7 @@ Replace `apps/examples/nextjs-app/next.config.ts` with:
 
 ```ts
 import type {NextConfig} from 'next'
-import {withAidx} from '@aidx/plugin/nextjs'
+import {withAidx} from '@opendui/aidx-plugin/nextjs'
 
 const nextConfig: NextConfig = {}
 
@@ -442,7 +442,7 @@ export default withAidx(nextConfig)
 Create `apps/examples/nextjs-app/instrumentation.ts`:
 
 ```ts
-export {register} from '@aidx/plugin/nextjs'
+export {register} from '@opendui/aidx-plugin/nextjs'
 ```
 
 - [ ] **Step 5: Add the client instrumentation**
@@ -450,7 +450,7 @@ export {register} from '@aidx/plugin/nextjs'
 Create `apps/examples/nextjs-app/instrumentation-client.ts`:
 
 ```ts
-import '@aidx/plugin/nextjs/widget'
+import '@opendui/aidx-plugin/nextjs/widget'
 ```
 
 - [ ] **Step 6: Verify the dev server boots and the engine answers**
@@ -545,7 +545,7 @@ git commit -m "test(examples): browser smoke for Next.js widget mount"
 
 - [ ] **Step 1: Vite path unchanged**
 
-Run: `pnpm --filter @aidx/plugin test && pnpm --filter @aidx/widget test`
+Run: `pnpm --filter @opendui/aidx-plugin test && pnpm --filter @opendui/aidx-widget test`
 Expected: all existing tests still pass.
 
 - [ ] **Step 2: Production build omits the widget/engine**

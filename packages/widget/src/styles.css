@@ -1,4 +1,4 @@
-@import '@aidx/solid-streamdown/styles.css';
+@import '@opendui/aidx-solid-streamdown/styles.css';
 
 /* preview-widget styles, injected into the Shadow DOM root. Mirrors react-grab's
    design language (dark panel, magenta brand accent) so the comment UI reads as
@@ -803,7 +803,7 @@
 .pw-chat-text {
   margin: 0;
 }
-/* Streaming markdown (@aidx/solid-streamdown + Shiki). Shiki emits inline-styled <pre class="shiki">. */
+/* Streaming markdown (@opendui/aidx-solid-streamdown + Shiki). Shiki emits inline-styled <pre class="shiki">. */
 .pw-md {
   display: flow-root;
 }

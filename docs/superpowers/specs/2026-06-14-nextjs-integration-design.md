@@ -31,16 +31,16 @@ No proxy, no `aidx dev`, no React component, no `layout.tsx` edit. Integration i
 
 ```ts
 // next.config.ts
-import {withAidx} from '@aidx/plugin/nextjs'
+import {withAidx} from '@opendui/aidx-plugin/nextjs'
 export default withAidx({
   /* user config */
 })
 
 // instrumentation.ts          — boots the engine server-side, once per server start
-export {register} from '@aidx/plugin/nextjs'
+export {register} from '@opendui/aidx-plugin/nextjs'
 
 // instrumentation-client.ts   — runs on the client on every page, mounts the widget
-import '@aidx/plugin/nextjs/widget'
+import '@opendui/aidx-plugin/nextjs/widget'
 ```
 
 - `instrumentation.ts` `register()` — Next's sanctioned server-startup hook. Boots the engine.
@@ -76,7 +76,7 @@ If the port is taken, fail loudly with a clear message telling the user to set `
 
 ## Components / changes
 
-### New: `@aidx/plugin/nextjs` (and `/nextjs/widget` subpath)
+### New: `@opendui/aidx-plugin/nextjs` (and `/nextjs/widget` subpath)
 
 - `withAidx(nextConfig)` — returns a Next config with `env.NEXT_PUBLIC_AIDX_PORT` set; carries
   aidx options (harness, testRunner, enabled, port, stateRoot) for `register` to consume (via a
@@ -86,19 +86,19 @@ If the port is taken, fail loudly with a clear message telling the user to set `
 - `/nextjs/widget` entry — client-only; reads the inlined port, supplies the apiBase to the
   widget, then mounts.
 
-### Touch: `@aidx/core` engine — allow a fixed port
+### Touch: `@opendui/aidx-core` engine — allow a fixed port
 
 `StartOpts` gains an optional `port?: number`; `serve({ port })` uses it (falls back to `0`).
 Minimal, additive, does not affect existing Vite/webpack callers.
 
-### Touch: `@aidx/widget` — apiBase without a meta tag
+### Touch: `@opendui/aidx-widget` — apiBase without a meta tag
 
 `mount.tsx` resolves apiBase from `<meta name="pw-api-base">`. Add a fallback: accept an explicit
 apiBase (e.g. read `window.__AIDX_API_BASE__` or a small `mount({apiBase})` export). The Next
 client entry sets it from the inlined port before mounting. Keep the existing meta-tag path intact
 for Vite. Self-mount must also wait for DOM readiness (`instrumentation-client` runs early).
 
-### Touch: `@aidx/plugin` packaging
+### Touch: `@opendui/aidx-plugin` packaging
 
 Add `./nextjs` and `./nextjs/widget` to `package.json` `exports`; add `next` as an optional
 peer dependency; add the entry source files (`src/nextjs.ts`, `src/nextjs-widget.ts`,

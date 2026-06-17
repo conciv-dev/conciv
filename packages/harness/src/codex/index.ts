@@ -1,4 +1,4 @@
-import {defineHarness} from '@aidx/protocol/harness-types'
+import {defineHarness} from '@opendui/aidx-protocol/harness-types'
 import {buildCodexArgs} from './args.js'
 import {codexToAguiEvents} from './decode.js'
 

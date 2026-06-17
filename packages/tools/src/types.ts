@@ -1,6 +1,6 @@
 import {z} from 'zod'
-import type {PageQuery} from '@aidx/protocol/page-types'
-import type {UiSpec} from '@aidx/protocol/ui-types'
+import type {PageQuery} from '@opendui/aidx-protocol/page-types'
+import type {UiSpec} from '@opendui/aidx-protocol/ui-types'
 
 // The runtime bridge each aidx tool's handler closes over. Pure handles to the live buses/runner;
 // no transport or CLI knowledge. The MCP server (and tests) supply a concrete context.

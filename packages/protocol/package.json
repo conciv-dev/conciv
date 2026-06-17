@@ -1,5 +1,5 @@
 {
-  "name": "@aidx/protocol",
+  "name": "@opendui/aidx-protocol",
   "version": "0.0.0",
   "description": "Wire types shared by the aidx vite-plugin and widget.",
   "license": "MIT",

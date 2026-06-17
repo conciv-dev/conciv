@@ -41,7 +41,7 @@ abstract class BaseTextAdapter<TModel extends string, TProviderOptions extends R
 
 **New files**
 
-- `packages/tools/` — new package `@aidx/tools`. The `toolDefinition().server()` registry.
+- `packages/tools/` — new package `@opendui/aidx-tools`. The `toolDefinition().server()` registry.
   - `packages/tools/package.json`, `tsconfig.json`, `tsdown.config.ts`
   - `packages/tools/src/types.ts` — `AidxToolContext` (handles the tools bridge to)
   - `packages/tools/src/ui.ts` — `aidxUiTool`
@@ -138,7 +138,7 @@ Add `deliverInput?: HarnessDeliverInput` to `HarnessAdapterBase`. Leave `Harness
 
 - [ ] **Step 2: Typecheck the protocol package**
 
-Run: `pnpm --filter @aidx/protocol typecheck`
+Run: `pnpm --filter @opendui/aidx-protocol typecheck`
 Expected: FAIL — existing harness adapters don't yet set `mcp`, and `agui.ts`/`decode.ts` still use the old opts. These are fixed in later tasks; the protocol package itself compiles, but dependents break. Confirm the _protocol_ package's own `tsc` passes (the break is downstream).
 
 - [ ] **Step 3: Set `mcp` + `imageInput` on every adapter so the workspace typechecks again**
@@ -161,7 +161,7 @@ capabilities: {resume: true, permissionGate: 'hook', transcriptHistory: true, sy
 
 - [ ] **Step 4: Build protocol + typecheck harness**
 
-Run: `pnpm --filter @aidx/protocol build && pnpm --filter @aidx/harness typecheck`
+Run: `pnpm --filter @opendui/aidx-protocol build && pnpm --filter @opendui/aidx-harness typecheck`
 Expected: harness typecheck FAILs only in `_shared/agui.ts` / `claude/decode.ts` (decoder opts) — fixed in Task 2. No capability errors.
 
 - [ ] **Step 5: Commit**
@@ -219,7 +219,7 @@ describe('runAgui lifecycle', () => {
 
 - [ ] **Step 2: Run it to confirm it fails**
 
-Run: `pnpm --filter @aidx/harness exec vitest run test/agui-lifecycle.it.test.ts`
+Run: `pnpm --filter @opendui/aidx-harness exec vitest run test/agui-lifecycle.it.test.ts`
 Expected: FAIL — `runAgui` ignores `runId`/`threadId` (uses hardcoded constants) and `textMessage` emits an empty delta.
 
 - [ ] **Step 3: Update `runAgui` and the emitters**
@@ -253,7 +253,7 @@ export async function* runAgui<E>(
 }
 ```
 
-- Import `HarnessDecodeOpts` from `@aidx/protocol/harness-types` and drop the local `SessionSink` type (replace its uses with `HarnessDecodeOpts`).
+- Import `HarnessDecodeOpts` from `@opendui/aidx-protocol/harness-types` and drop the local `SessionSink` type (replace its uses with `HarnessDecodeOpts`).
 - Guard the empty delta in `textMessage` and `reasoningMessage`:
 
 ```ts
@@ -272,12 +272,12 @@ In `packages/harness/src/claude/decode.ts` and `packages/harness/src/codex/decod
 
 - [ ] **Step 5: Run the test to confirm pass**
 
-Run: `pnpm --filter @aidx/harness exec vitest run test/agui-lifecycle.it.test.ts`
+Run: `pnpm --filter @opendui/aidx-harness exec vitest run test/agui-lifecycle.it.test.ts`
 Expected: PASS (2 tests).
 
 - [ ] **Step 6: Typecheck harness + run existing harness tests for regressions**
 
-Run: `pnpm --filter @aidx/harness typecheck && pnpm --filter @aidx/harness test`
+Run: `pnpm --filter @opendui/aidx-harness typecheck && pnpm --filter @opendui/aidx-harness test`
 Expected: PASS — existing `harness.it.test.ts` / `codex-decode.test.ts` still green (they call decode with `{onSessionId}`, still valid).
 
 - [ ] **Step 7: Commit**
@@ -303,7 +303,7 @@ import {execSync} from 'node:child_process'
 import {spawn} from 'node:child_process'
 import {describe, expect, it} from 'vitest'
 import {chat, EventType, type StreamChunk} from '@tanstack/ai'
-import type {HarnessChild} from '@aidx/protocol/harness-types'
+import type {HarnessChild} from '@opendui/aidx-protocol/harness-types'
 import {harnessText} from '../src/_shared/text-adapter.js'
 import {claude} from '../src/claude/index.js'
 
@@ -342,7 +342,7 @@ describe('harnessText adapter', () => {
 
 - [ ] **Step 2: Run it to confirm it fails**
 
-Run: `pnpm --filter @aidx/harness exec vitest run test/text-adapter.it.test.ts`
+Run: `pnpm --filter @opendui/aidx-harness exec vitest run test/text-adapter.it.test.ts`
 Expected: FAIL — `harnessText` does not exist.
 
 - [ ] **Step 3: Implement the adapter**
@@ -354,7 +354,7 @@ import {createInterface} from 'node:readline'
 import type {Readable} from 'node:stream'
 import {normalizeSystemPrompts, type StreamChunk, type TextOptions} from '@tanstack/ai'
 import {BaseTextAdapter, type StructuredOutputOptions, type StructuredOutputResult} from '@tanstack/ai/adapters'
-import type {HarnessAdapter, HarnessChild, HarnessImage, HarnessTurn} from '@aidx/protocol/harness-types'
+import type {HarnessAdapter, HarnessChild, HarnessImage, HarnessTurn} from '@opendui/aidx-protocol/harness-types'
 
 export type SpawnHarness = (args: string[], cwd: string) => HarnessChild
 
@@ -468,17 +468,17 @@ export function harnessText(harness: HarnessAdapter, deps: HarnessAdapterDeps): 
 
 - [ ] **Step 4: Export the adapter from the package root**
 
-- Confirm `@aidx/harness` `package.json` `dependencies` includes `@tanstack/ai` (it does). No new dep.
-- Core imports `harnessText` from the `@aidx/harness` root. The root (`.`) export maps to `dist/registry.js` (`packages/harness/package.json`), so add this line to `packages/harness/src/registry.ts` (no `package.json` change): `export {harnessText, HarnessTextAdapter, lastUserModelText, lastUserImages} from './_shared/text-adapter.js'`. Task 4 depends on this export existing.
+- Confirm `@opendui/aidx-harness` `package.json` `dependencies` includes `@tanstack/ai` (it does). No new dep.
+- Core imports `harnessText` from the `@opendui/aidx-harness` root. The root (`.`) export maps to `dist/registry.js` (`packages/harness/package.json`), so add this line to `packages/harness/src/registry.ts` (no `package.json` change): `export {harnessText, HarnessTextAdapter, lastUserModelText, lastUserImages} from './_shared/text-adapter.js'`. Task 4 depends on this export existing.
 
 - [ ] **Step 5: Run the test (requires `claude` on PATH + auth)**
 
-Run: `pnpm --filter @aidx/harness exec vitest run test/text-adapter.it.test.ts`
+Run: `pnpm --filter @opendui/aidx-harness exec vitest run test/text-adapter.it.test.ts`
 Expected: PASS (or SKIP if no `claude`). One RUN_STARTED, one RUN_FINISHED, text contains PONG.
 
 - [ ] **Step 6: Typecheck**
 
-Run: `pnpm --filter @aidx/harness typecheck`
+Run: `pnpm --filter @opendui/aidx-harness typecheck`
 Expected: PASS.
 
 - [ ] **Step 7: Commit**
@@ -511,7 +511,7 @@ it('streams exactly one run lifecycle pair through chat()', async () => {
 
 - [ ] **Step 2: Run it to confirm it fails or is unstable on the old path**
 
-Run: `pnpm --filter @aidx/core exec vitest run test/api/chat/chat.it.test.ts`
+Run: `pnpm --filter @opendui/aidx-core exec vitest run test/api/chat/chat.it.test.ts`
 Expected: the new assertion may pass on the old path (decode emits the pair directly) — that's fine; it becomes the regression guard. If the helper doesn't exist, the test FAILs to compile. Build the minimal helper inline from the existing request code in the file.
 
 - [ ] **Step 3: Rewrite `registerTurnRoutes` to use `chat()`**
@@ -520,7 +520,7 @@ In `packages/core/src/api/chat/turn.ts`, replace the body of the `app.post('/api
 
 ```ts
 import {chat, toServerSentEventsStream, type StreamChunk} from '@tanstack/ai'
-import {harnessText} from '@aidx/harness'
+import {harnessText} from '@opendui/aidx-harness'
 // … existing imports …
 
 app.post('/api/chat', async (event) => {
@@ -566,7 +566,7 @@ app.post('/api/chat', async (event) => {
 
 Notes (cast-free — repo rule forbids `as`):
 
-- `chatReq.messages` is already `UIMessage[]` (`@aidx/protocol/chat-types` re-exports `UIMessage` from `@tanstack/ai`), and `chat()` accepts `Array<UIMessage | ModelMessage>`, so it passes with no cast. If `tsc` reports a mismatch, fix the _type_ of `ChatRequest['messages']` to be `UIMessage[]` — do not cast.
+- `chatReq.messages` is already `UIMessage[]` (`@opendui/aidx-protocol/chat-types` re-exports `UIMessage` from `@tanstack/ai`), and `chat()` accepts `Array<UIMessage | ModelMessage>`, so it passes with no cast. If `tsc` reports a mismatch, fix the _type_ of `ChatRequest['messages']` to be `UIMessage[]` — do not cast.
 - `chat()`'s streaming return is `AsyncIterable<StreamChunk>`, which `uiBus.run` accepts directly — no cast.
 - The `lastUserText` import + `mode === 'none'` prompt-prefix logic moves into the adapter (Task 3), so remove the now-unused `lastUserText` import from `turn.ts`.
 - The lock is acquired in `onSpawn` (after the child exists, so we still record the pid).
@@ -574,12 +574,12 @@ Notes (cast-free — repo rule forbids `as`):
 
 - [ ] **Step 4: Run the chat integration test**
 
-Run: `pnpm --filter @aidx/core exec vitest run test/api/chat/chat.it.test.ts`
+Run: `pnpm --filter @opendui/aidx-core exec vitest run test/api/chat/chat.it.test.ts`
 Expected: PASS — one lifecycle pair; existing streaming assertions still green.
 
 - [ ] **Step 5: Typecheck core**
 
-Run: `pnpm --filter @aidx/core typecheck`
+Run: `pnpm --filter @opendui/aidx-core typecheck`
 Expected: PASS.
 
 - [ ] **Step 6: Commit**
@@ -607,7 +607,7 @@ The composer/widget UI half stays in the chat-image-input plan; this task makes 
 
 - [ ] **Step 2: Run it to confirm it fails**
 
-Run: `pnpm --filter @aidx/core exec vitest run test/api/mcp/claude-image.it.test.ts`
+Run: `pnpm --filter @opendui/aidx-core exec vitest run test/api/mcp/claude-image.it.test.ts`
 Expected: FAIL — `buildClaudeArgs` ignores images and uses `-p`, so claude never receives the image.
 
 - [ ] **Step 3: Branch `buildClaudeArgs` on images**
@@ -621,7 +621,7 @@ In `packages/harness/src/claude/args.ts`: when `turn.images?.length`, switch the
 Create `packages/harness/src/claude/deliver-input.ts`. When `turn.images?.length`, write one stream-json user message to `child.stdin` then end it:
 
 ```ts
-import type {HarnessChild, HarnessTurn} from '@aidx/protocol/harness-types'
+import type {HarnessChild, HarnessTurn} from '@opendui/aidx-protocol/harness-types'
 
 // claude --input-format stream-json expects newline-delimited JSON user messages on stdin.
 // Verify the exact envelope against the installed claude (`claude --help`, stream-json input docs);
@@ -649,7 +649,7 @@ The `spawnHarness` in `packages/core/src/engine.ts` must pipe stdin (`stdio: ['p
 
 - [ ] **Step 6: Run the test**
 
-Run: `pnpm --filter @aidx/core exec vitest run test/api/mcp/claude-image.it.test.ts`
+Run: `pnpm --filter @opendui/aidx-core exec vitest run test/api/mcp/claude-image.it.test.ts`
 Expected: PASS (or SKIP) — claude received and described the image.
 
 - [ ] **Step 7: Commit**
@@ -661,9 +661,9 @@ git commit -m "feat(harness): native image input for claude via stream-json stdi
 
 ---
 
-## Phase 2 — @aidx/tools + /api/mcp + aidx_ui (first tool end-to-end)
+## Phase 2 — @opendui/aidx-tools + /api/mcp + aidx_ui (first tool end-to-end)
 
-### Task 5: Scaffold @aidx/tools with the aidx_ui tool
+### Task 5: Scaffold @opendui/aidx-tools with the aidx_ui tool
 
 **Files:**
 
@@ -673,11 +673,11 @@ git commit -m "feat(harness): native image input for claude via stream-json stdi
 
 - [ ] **Step 1: Create the package manifest**
 
-`packages/tools/package.json` (mirror `@aidx/harness`'s shape — tsdown build, per-subpath exports, `@tanstack/ai` + `zod` deps):
+`packages/tools/package.json` (mirror `@opendui/aidx-harness`'s shape — tsdown build, per-subpath exports, `@tanstack/ai` + `zod` deps):
 
 ```json
 {
-  "name": "@aidx/tools",
+  "name": "@opendui/aidx-tools",
   "version": "0.0.0",
   "description": "aidx agent tools as @tanstack/ai toolDefinition().server() functions: ui, page, test.",
   "license": "MIT",
@@ -693,7 +693,7 @@ git commit -m "feat(harness): native image input for claude via stream-json stdi
     "test": "vitest run"
   },
   "dependencies": {
-    "@aidx/protocol": "workspace:*",
+    "@opendui/aidx-protocol": "workspace:*",
     "@tanstack/ai": "^0.28.0",
     "zod": "^4.4.3"
   },
@@ -706,7 +706,7 @@ git commit -m "feat(harness): native image input for claude via stream-json stdi
 }
 ```
 
-Copy `tsconfig.json` and `tsdown.config.ts` from `packages/harness` (adjust entry to `src/registry.ts`). Add `@aidx/tools` to the root `pnpm-workspace.yaml` if packages aren't globbed (check: it globs `packages/*`, so no change needed — verify).
+Copy `tsconfig.json` and `tsdown.config.ts` from `packages/harness` (adjust entry to `src/registry.ts`). Add `@opendui/aidx-tools` to the root `pnpm-workspace.yaml` if packages aren't globbed (check: it globs `packages/*`, so no change needed — verify).
 
 - [ ] **Step 2: Write the failing test**
 
@@ -736,7 +736,7 @@ describe('aidx_ui tool', () => {
 
 - [ ] **Step 3: Run it to confirm it fails**
 
-Run: `pnpm --filter @aidx/tools exec vitest run`
+Run: `pnpm --filter @opendui/aidx-tools exec vitest run`
 Expected: FAIL — package/exports don't exist yet.
 
 - [ ] **Step 4: Define the context type**
@@ -744,8 +744,8 @@ Expected: FAIL — package/exports don't exist yet.
 `packages/tools/src/types.ts`:
 
 ```ts
-import type {UiSpec} from '@aidx/protocol/ui-types'
-import type {PageQuery} from '@aidx/protocol/page-types'
+import type {UiSpec} from '@opendui/aidx-protocol/ui-types'
+import type {PageQuery} from '@opendui/aidx-protocol/page-types'
 
 export type AidxToolContext = {
   injectUi: (spec: UiSpec) => boolean
@@ -756,14 +756,14 @@ export type AidxToolContext = {
 
 - [ ] **Step 5: Implement the aidx_ui tool**
 
-`packages/tools/src/ui.ts` — reuse `buildUiSpec` logic from `packages/cli/src/ui.ts` (move the pure `buildUiSpec` into `@aidx/protocol/ui-types` or duplicate the small schema here; prefer importing a shared builder). Define with `toolDefinition`:
+`packages/tools/src/ui.ts` — reuse `buildUiSpec` logic from `packages/cli/src/ui.ts` (move the pure `buildUiSpec` into `@opendui/aidx-protocol/ui-types` or duplicate the small schema here; prefer importing a shared builder). Define with `toolDefinition`:
 
 ```ts
 import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
 import {toolDefinition} from '@tanstack/ai'
 import type {AidxToolContext} from './types.js'
-import {buildUiSpec} from '@aidx/protocol/ui-types' // move buildUiSpec here in Step 5a
+import {buildUiSpec} from '@opendui/aidx-protocol/ui-types' // move buildUiSpec here in Step 5a
 
 const UiInput = z.object({
   kind: z.enum(['choices', 'confirm', 'diff', 'form']),
@@ -802,7 +802,7 @@ export function aidxUiTool(ctx: AidxToolContext) {
 }
 ```
 
-- **Step 5a:** Move `buildUiSpec` (and `parseField`) from `packages/cli/src/ui.ts` into `packages/protocol/src/ui-types.ts`, export it, and re-import it in `cli/src/ui.ts` (so the CLI and the tool share one builder — DRY). Rebuild `@aidx/protocol`.
+- **Step 5a:** Move `buildUiSpec` (and `parseField`) from `packages/cli/src/ui.ts` into `packages/protocol/src/ui-types.ts`, export it, and re-import it in `cli/src/ui.ts` (so the CLI and the tool share one builder — DRY). Rebuild `@opendui/aidx-protocol`.
 
 - [ ] **Step 6: Implement the registry**
 
@@ -825,14 +825,14 @@ For this task, temporarily export only `aidxUiTool(ctx)` and add the others in t
 
 - [ ] **Step 7: Run the test**
 
-Run: `pnpm --filter @aidx/tools exec vitest run && pnpm --filter @aidx/tools typecheck`
+Run: `pnpm --filter @opendui/aidx-tools exec vitest run && pnpm --filter @opendui/aidx-tools typecheck`
 Expected: PASS.
 
 - [ ] **Step 8: Commit**
 
 ```bash
 git add packages/tools packages/protocol/src/ui-types.ts packages/cli/src/ui.ts
-git commit -m "feat(tools): @aidx/tools package with aidx_ui tool; share buildUiSpec via protocol"
+git commit -m "feat(tools): @opendui/aidx-tools package with aidx_ui tool; share buildUiSpec via protocol"
 ```
 
 ### Task 6: The /api/mcp streamable-HTTP server
@@ -847,11 +847,11 @@ git commit -m "feat(tools): @aidx/tools package with aidx_ui tool; share buildUi
 - [ ] **Step 1: Add the dependencies (user-approved)**
 
 ```bash
-pnpm --filter @aidx/core add @modelcontextprotocol/sdk
-pnpm --filter @aidx/core add -D @tanstack/ai-mcp   # TEST-ONLY MCP client for /api/mcp (no hand-rolled JSON-RPC)
+pnpm --filter @opendui/aidx-core add @modelcontextprotocol/sdk
+pnpm --filter @opendui/aidx-core add -D @tanstack/ai-mcp   # TEST-ONLY MCP client for /api/mcp (no hand-rolled JSON-RPC)
 ```
 
-Confirm a single version resolves and both server subpaths exist. Run: `pnpm --filter @aidx/core exec node -e "Promise.all([import('@modelcontextprotocol/sdk/server/mcp.js'),import('@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js')]).then(([a,b])=>console.log('McpServer' in a, 'WebStandardStreamableHTTPServerTransport' in b))"`
+Confirm a single version resolves and both server subpaths exist. Run: `pnpm --filter @opendui/aidx-core exec node -e "Promise.all([import('@modelcontextprotocol/sdk/server/mcp.js'),import('@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js')]).then(([a,b])=>console.log('McpServer' in a, 'WebStandardStreamableHTTPServerTransport' in b))"`
 Expected: prints `true true` (verified against 1.29.0). If a subpath differs, find it: `ls node_modules/.pnpm/@modelcontextprotocol+sdk@*/node_modules/@modelcontextprotocol/sdk/dist/esm/server/`.
 
 > **Why `@tanstack/ai-mcp` is test-only:** it is a host-side MCP _client_ (for `chat()` to consume external MCP servers). In aidx's production path the _CLI_ is the MCP client (via `--mcp-config`), so `chat()` never uses it. But our tests need an MCP client to exercise `/api/mcp` — `createMCPClient` is exactly that, so we use it instead of hand-rolling JSON-RPC.
@@ -889,7 +889,7 @@ describe('/api/mcp', () => {
 
 - [ ] **Step 3: Run it to confirm it fails**
 
-Run: `pnpm --filter @aidx/core exec vitest run test/api/mcp/mcp.it.test.ts`
+Run: `pnpm --filter @opendui/aidx-core exec vitest run test/api/mcp/mcp.it.test.ts`
 Expected: FAIL — `/api/mcp` returns 404.
 
 - [ ] **Step 4: Implement the MCP route (bridge SDK transport via srvx node access)**
@@ -900,7 +900,7 @@ Expected: FAIL — `/api/mcp` returns 404.
 import type {H3} from 'h3'
 import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js'
 import {WebStandardStreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
-import {aidxTools, type AidxToolContext} from '@aidx/tools'
+import {aidxTools, type AidxToolContext} from '@opendui/aidx-tools'
 
 export function registerMcpRoutes(app: H3, ctx: AidxToolContext): void {
   app.post('/api/mcp', async (event) => {
@@ -956,7 +956,7 @@ registerMcpRoutes(app, {
 })
 ```
 
-Run: `pnpm --filter @aidx/core exec vitest run test/api/mcp/mcp.it.test.ts && pnpm --filter @aidx/core typecheck`
+Run: `pnpm --filter @opendui/aidx-core exec vitest run test/api/mcp/mcp.it.test.ts && pnpm --filter @opendui/aidx-core typecheck`
 Expected: PASS — `injected` has 1 entry; result contains `renderId`.
 
 - [ ] **Step 6: Commit**
@@ -1012,7 +1012,7 @@ describe('claude → /api/mcp → uiBus', () => {
 
 - [ ] **Step 2: Run it to confirm it fails**
 
-Run: `pnpm --filter @aidx/core exec vitest run test/api/mcp/claude-mcp.it.test.ts`
+Run: `pnpm --filter @opendui/aidx-core exec vitest run test/api/mcp/claude-mcp.it.test.ts`
 Expected: FAIL — claude isn't told about the MCP server (`--mcp-config` not injected), so it can't call `aidx_ui`.
 
 - [ ] **Step 3: Inject `--mcp-config` and drop the Bash tool allowances**
@@ -1032,12 +1032,12 @@ if (turn.mcpUrl) {
 
 - [ ] **Step 4: Run the end-to-end test**
 
-Run: `pnpm --filter @aidx/core exec vitest run test/api/mcp/claude-mcp.it.test.ts`
+Run: `pnpm --filter @opendui/aidx-core exec vitest run test/api/mcp/claude-mcp.it.test.ts`
 Expected: PASS (or SKIP). The uiBus observed at least one inject from a real claude MCP call.
 
 - [ ] **Step 5: Typecheck + harness tests**
 
-Run: `pnpm --filter @aidx/harness typecheck && pnpm --filter @aidx/harness test`
+Run: `pnpm --filter @opendui/aidx-harness typecheck && pnpm --filter @opendui/aidx-harness test`
 Expected: PASS — update any existing arg-builder assertion that referenced the removed `Bash(aidx …)` allowances.
 
 - [ ] **Step 6: Commit**
@@ -1090,17 +1090,17 @@ describe('aidx_page tool', () => {
 
 - [ ] **Step 3: Run it to confirm it fails**
 
-Run: `pnpm --filter @aidx/tools exec vitest run test/page-tool.it.test.ts`
+Run: `pnpm --filter @opendui/aidx-tools exec vitest run test/page-tool.it.test.ts`
 Expected: FAIL — `page.ts` is the throwing stub.
 
 - [ ] **Step 4: Implement aidx_page**
 
-`packages/tools/src/page.ts` — input schema mirrors `PageQueryInputSchema` + a `verb` field (the page-bus verbs: `tree`/`inspect`/`find`/`locate`/etc., from `@aidx/protocol/page-types`):
+`packages/tools/src/page.ts` — input schema mirrors `PageQueryInputSchema` + a `verb` field (the page-bus verbs: `tree`/`inspect`/`find`/`locate`/etc., from `@opendui/aidx-protocol/page-types`):
 
 ```ts
 import {z} from 'zod'
 import {toolDefinition} from '@tanstack/ai'
-import {PageQueryKindSchema, PageQueryInputSchema} from '@aidx/protocol/page-types'
+import {PageQueryKindSchema, PageQueryInputSchema} from '@opendui/aidx-protocol/page-types'
 import type {AidxToolContext} from './types.js'
 
 const PageInput = z.object({verb: PageQueryKindSchema}).and(PageQueryInputSchema)
@@ -1122,7 +1122,7 @@ In `packages/core/src/app.ts`, replace the `page` placeholder with the captured 
 
 - [ ] **Step 6: Run tool + MCP tests**
 
-Run: `pnpm --filter @aidx/tools exec vitest run && pnpm --filter @aidx/core exec vitest run test/api/mcp/mcp.it.test.ts`
+Run: `pnpm --filter @opendui/aidx-tools exec vitest run && pnpm --filter @opendui/aidx-core exec vitest run test/api/mcp/mcp.it.test.ts`
 Expected: PASS.
 
 - [ ] **Step 7: Commit**
@@ -1166,7 +1166,7 @@ describe('aidx_test tool', () => {
 
 - [ ] **Step 2: Run it to confirm it fails**
 
-Run: `pnpm --filter @aidx/tools exec vitest run test/test-tool.it.test.ts`
+Run: `pnpm --filter @opendui/aidx-tools exec vitest run test/test-tool.it.test.ts`
 Expected: FAIL — `test.ts` is the throwing stub.
 
 - [ ] **Step 3: Implement aidx_test**
@@ -1197,7 +1197,7 @@ In `packages/core/src/app.ts`, replace the `test` placeholder with a call into t
 
 - [ ] **Step 5: Run tests + typecheck**
 
-Run: `pnpm --filter @aidx/tools exec vitest run && pnpm --filter @aidx/core typecheck`
+Run: `pnpm --filter @opendui/aidx-tools exec vitest run && pnpm --filter @opendui/aidx-core typecheck`
 Expected: PASS.
 
 - [ ] **Step 6: Commit**
@@ -1219,7 +1219,7 @@ Replace every instruction that tells the agent to run `aidx tools page …` / `a
 
 - [ ] **Step 2: Verify the agent uses the MCP tool (reuse Task 7's e2e)**
 
-Run: `pnpm --filter @aidx/core exec vitest run test/api/mcp/claude-mcp.it.test.ts`
+Run: `pnpm --filter @opendui/aidx-core exec vitest run test/api/mcp/claude-mcp.it.test.ts`
 Expected: PASS — still green; the skill change doesn't regress tool invocation.
 
 - [ ] **Step 3: Commit**
@@ -1236,7 +1236,7 @@ git commit -m "docs(harness): rewrite react-introspection skill to use MCP tools
 - [ ] **Step 1: Build the workspace**
 
 Run: `pnpm build`
-Expected: all packages (now including `@aidx/tools`) build. Add `@aidx/tools` to any turbo pipeline filters if a task lists packages explicitly (check `turbo.json` — it globs, so likely no change).
+Expected: all packages (now including `@opendui/aidx-tools`) build. Add `@opendui/aidx-tools` to any turbo pipeline filters if a task lists packages explicitly (check `turbo.json` — it globs, so likely no change).
 
 - [ ] **Step 2: Typecheck + lint + format**
 
@@ -1265,6 +1265,6 @@ git commit -m "chore: build/lint/format fixups for tanstack-ai chat adapters"
 
 ## Self-review notes
 
-- **Spec coverage:** `@aidx/tools` (T5,8,9) · `/api/mcp` via MCP SDK (T6) · complete adapter (`HarnessTextAdapter extends BaseTextAdapter`) + `structuredOutput` NotSupported (T3) · chat() routing + lifecycle pass-through (T2,T4) · `mcp` + `imageInput` caps + `mcpUrl`/`images`/`deliverInput` (T1) · native image delivery to claude (T4b, absorbed chat-image-input server-half) · `--mcp-config` + Bash drop (T7) · skill rewrite (T10) · claude-first sequencing (T7→T12). Composer/widget image UI stays in the chat-image-input plan. Codex `fileRef` image delivery: noted in T12 (verify), defaulting `false` until then.
+- **Spec coverage:** `@opendui/aidx-tools` (T5,8,9) · `/api/mcp` via MCP SDK (T6) · complete adapter (`HarnessTextAdapter extends BaseTextAdapter`) + `structuredOutput` NotSupported (T3) · chat() routing + lifecycle pass-through (T2,T4) · `mcp` + `imageInput` caps + `mcpUrl`/`images`/`deliverInput` (T1) · native image delivery to claude (T4b, absorbed chat-image-input server-half) · `--mcp-config` + Bash drop (T7) · skill rewrite (T10) · claude-first sequencing (T7→T12). Composer/widget image UI stays in the chat-image-input plan. Codex `fileRef` image delivery: noted in T12 (verify), defaulting `false` until then.
 - **Library types (no wheel-reinvention):** `BaseTextAdapter`/`TextOptions`/`StreamChunk`/`toServerSentEventsStream`/`normalizeSystemPrompts`/`toolDefinition` from `@tanstack/ai`; `McpServer`/`WebStandardStreamableHTTPServerTransport` from `@modelcontextprotocol/sdk`. The MCP server is fully web-standard (`Request`→`Response`), so it needs nothing from `srvx` beyond h3's existing `event.req` — no node-object bridge.
 - **Open verification points (flagged in-task, not placeholders):** (a) the `@tanstack/ai` `Tool` runtime property names (`name`/`description`/`inputSchema`/`execute`) used by the MCP registration loop — confirm against installed types in T6; (b) MCP SDK subpath import paths (`server/mcp.js`, `server/webStandardStreamableHttp.js`) — confirmed against 1.29.0 in T6 Step 1.

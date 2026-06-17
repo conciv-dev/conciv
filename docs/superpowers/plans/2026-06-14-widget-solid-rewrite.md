@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Rewrite `@aidx/widget` from React to SolidJS, removing all React, keeping behavior 1:1 (Solid-idiomatic cleanup allowed), with the existing Chromium playwright IT as the parity gate.
+**Goal:** Rewrite `@opendui/aidx-widget` from React to SolidJS, removing all React, keeping behavior 1:1 (Solid-idiomatic cleanup allowed), with the existing Chromium playwright IT as the parity gate.
 
 **Architecture:** Swap the framework only. `@tanstack/ai-solid` replaces `@tanstack/ai-react` (identical `useChat`/`fetchServerSentEvents`/`createChatClientOptions` API). The 5 `.tsx` files are ported to Solid; the pure-TS files (`page-*`, `shadow`, `chat-api`, `css.d.ts`) are untouched. The existing React source is the behavioral spec for each ported file.
 
@@ -37,7 +37,7 @@ Remove `react`, `react-dom`, `@tanstack/ai-react` from `dependencies`; remove `@
 
 ```json
   "dependencies": {
-    "@aidx/protocol": "workspace:*",
+    "@opendui/aidx-protocol": "workspace:*",
     "@tanstack/ai": "^0.28.0",
     "@tanstack/ai-client": "^0.16.3",
     "@tanstack/ai-solid": "^0.13.4",
@@ -71,7 +71,7 @@ import {fileURLToPath} from 'node:url'
 import {defineConfig} from 'vite'
 import solid from 'vite-plugin-solid'
 
-// One entry (mount.tsx) ships two ways: an ESM module (@aidx/widget) and a self-contained IIFE
+// One entry (mount.tsx) ships two ways: an ESM module (@opendui/aidx-widget) and a self-contained IIFE
 // global the plugin injects as a <script>. The Solid runtime is bundled in. styles.css is
 // imported `?inline` (shadow.ts) and injected into the Shadow DOM.
 export default defineConfig({
@@ -149,7 +149,7 @@ Match the existing class names so `styles.css` still applies.
 
 - [ ] **Step 3: Typecheck the file in isolation**
 
-Run: `pnpm --filter @aidx/widget exec tsc --noEmit -p tsconfig.json 2>&1 | grep markdown`
+Run: `pnpm --filter @opendui/aidx-widget exec tsc --noEmit -p tsconfig.json 2>&1 | grep markdown`
 Expected: no errors referencing `markdown.tsx` (other files may still error — they're ported later).
 
 - [ ] **Step 4: Commit**
@@ -174,7 +174,7 @@ git commit -m "refactor(widget): port markdown.tsx to Solid"
 
 ```tsx
 import {Switch, Match, type Component} from 'solid-js'
-// import the spec types from @aidx/protocol/ui-types as the React version did
+// import the spec types from @opendui/aidx-protocol/ui-types as the React version did
 
 export const GenUi: Component<{spec: UiSpec; onReply: (r: Reply) => void}> = (props) => (
   <Switch>
@@ -189,7 +189,7 @@ Preserve every `kind`, the markup classes, and the callback payloads exactly.
 
 - [ ] **Step 3: Typecheck**
 
-Run: `pnpm --filter @aidx/widget exec tsc --noEmit -p tsconfig.json 2>&1 | grep gen-ui`
+Run: `pnpm --filter @opendui/aidx-widget exec tsc --noEmit -p tsconfig.json 2>&1 | grep gen-ui`
 Expected: no errors referencing `gen-ui.tsx`.
 
 - [ ] **Step 4: Commit**
@@ -234,7 +234,7 @@ Keep the exact class names and the expand/fix actions.
 
 - [ ] **Step 3: Typecheck**
 
-Run: `pnpm --filter @aidx/widget exec tsc --noEmit -p tsconfig.json 2>&1 | grep test-card`
+Run: `pnpm --filter @opendui/aidx-widget exec tsc --noEmit -p tsconfig.json 2>&1 | grep test-card`
 Expected: no errors referencing `test-card.tsx`.
 
 - [ ] **Step 4: Commit**
@@ -268,7 +268,7 @@ Solid's `useChat` returns **accessors** (call them as functions in JSX), not a R
 
 - [ ] **Step 4: Typecheck**
 
-Run: `pnpm --filter @aidx/widget exec tsc --noEmit -p tsconfig.json 2>&1 | grep chat-shell`
+Run: `pnpm --filter @opendui/aidx-widget exec tsc --noEmit -p tsconfig.json 2>&1 | grep chat-shell`
 Expected: no errors referencing `chat-shell.tsx`.
 
 - [ ] **Step 5: Commit**
@@ -346,23 +346,23 @@ git commit -m "refactor(widget): port mount.tsx to Solid render"
 
 - [ ] **Step 1: Typecheck the whole widget**
 
-Run: `pnpm --filter @aidx/widget typecheck`
+Run: `pnpm --filter @opendui/aidx-widget typecheck`
 Expected: PASS (zero errors).
 
 - [ ] **Step 2: Build the bundle**
 
-Run: `pnpm --filter @aidx/widget build`
+Run: `pnpm --filter @opendui/aidx-widget build`
 Expected: emits `dist/aidx-widget.global.js` and `dist/mount.js`; no react in the bundle —
 verify: `grep -c "react-dom" packages/widget/dist/aidx-widget.global.js` → `0`.
 
 - [ ] **Step 3: Run the browser IT (parity gate)**
 
-Run: `pnpm --filter @aidx/widget test`
+Run: `pnpm --filter @opendui/aidx-widget test`
 Expected: PASS — "mounts the FAB, streams an assistant reply, and renders the approval gate → decision" and "renders the live vitest card: pass/fail tree, expands the failure with actions".
 
 - [ ] **Step 4: Lint**
 
-Run: `pnpm --filter @aidx/widget lint`
+Run: `pnpm --filter @opendui/aidx-widget lint`
 Expected: PASS.
 
 - [ ] **Step 5: Full workspace check (nothing downstream broke)**

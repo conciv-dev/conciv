@@ -1,5 +1,5 @@
 import type {NextConfig} from 'next'
-import {withAidx} from '@aidx/plugin/nextjs'
+import {withAidx} from '@opendui/aidx/plugin/nextjs'
 
 const nextConfig: NextConfig = {}
 

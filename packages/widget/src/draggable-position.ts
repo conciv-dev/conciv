@@ -1,5 +1,5 @@
 import {createSignal, onCleanup, type JSX} from 'solid-js'
-import type {TriggerPosition} from '@aidx/protocol/config-types'
+import type {TriggerPosition} from '@opendui/aidx-protocol/config-types'
 import {readStorage, writeStorage} from './persisted-signal.js'
 
 // Headless positioning for a floating element: 6 corner/middle presets plus drag-to-reposition

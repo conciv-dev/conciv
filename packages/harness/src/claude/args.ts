@@ -1,7 +1,7 @@
 import {randomUUID} from 'node:crypto'
 import {writeFileSync} from 'node:fs'
 import {join} from 'node:path'
-import type {HarnessImage, HarnessTurn} from '@aidx/protocol/harness-types'
+import type {HarnessImage, HarnessTurn} from '@opendui/aidx-protocol/harness-types'
 import {AIDX_PLUGIN_DIR} from './plugin-dir.js'
 
 // aidx tools (ui/page/test) reach the agent via MCP-over-HTTP, not Bash: point claude at our

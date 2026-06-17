@@ -26,7 +26,7 @@ A throwaway spike (`/tmp/aidx-capture-spike`, Swift + ScreenCaptureKit) establis
 - No restart required: each freshly spawned child picks up the host's grant.
 - A non-bundled CLI binary aborts in CoreGraphics with `CGS_REQUIRE_INIT` unless it
   bootstraps Cocoa first via `NSApplication.shared` + `setActivationPolicy(.accessory)`
-  + `finishLaunching()`.
+  - `finishLaunching()`.
 - The signed-helper-`.app` path is dead: `open`/LaunchServices rejects an untrusted
   self-signed app (Gatekeeper), and owning a private TCC entry requires Finder/launchd
   launch, which a dev-server plugin cannot arrange.
@@ -38,7 +38,7 @@ A throwaway spike (`/tmp/aidx-capture-spike`, Swift + ScreenCaptureKit) establis
 
 ### Components
 
-1. `@aidx/capture-macos` (new): a prebuilt Swift + ScreenCaptureKit binary, one per arch
+1. `@opendui/aidx-capture-macos` (new): a prebuilt Swift + ScreenCaptureKit binary, one per arch
    (darwin-arm64, darwin-x64), shipped in the npm package. Single-shot CLI:
    - bootstraps Cocoa (`NSApplication.shared` accessory, `finishLaunching()`)
    - checks `CGPreflightScreenCaptureAccess()`; if false, emits `{error:"permission"}`
@@ -64,7 +64,7 @@ A throwaway spike (`/tmp/aidx-capture-spike`, Swift + ScreenCaptureKit) establis
 user clicks grab, picks element
   -> widget: DOM clone (existing) + getBoundingClientRect + page URL
   -> POST /page/capture
-       -> core spawns @aidx/capture-macos --out /tmp/...png
+       -> core spawns @opendui/aidx-capture-macos --out /tmp/...png
             -> SCK captures target browser window -> PNG
        -> core reads PNG, returns base64 (or structured error)
   -> widget shows screenshot chip + DOM-clone chip in composer
@@ -94,9 +94,9 @@ the largest browser window. The widget passes the page URL/title to disambiguate
 
 - `packages/capture-macos/`: Swift source, built with `swiftc` (no Xcode, CLT only),
   `-target arm64-apple-macos14.0 -parse-as-library`, frameworks AppKit + ScreenCaptureKit
-  + CoreGraphics. CI builds both arches; binaries published per-arch and selected at
-  runtime by `process.platform`/`process.arch`. No signing, no notarization, no Apple
-  Developer account.
+  - CoreGraphics. CI builds both arches; binaries published per-arch and selected at
+    runtime by `process.platform`/`process.arch`. No signing, no notarization, no Apple
+    Developer account.
 - Plugin is dev-only (`apply:'serve'`), so the binary never enters a prod bundle.
 
 ## Testing

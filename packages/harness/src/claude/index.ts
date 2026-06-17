@@ -1,4 +1,4 @@
-import {defineHarness} from '@aidx/protocol/harness-types'
+import {defineHarness} from '@opendui/aidx-protocol/harness-types'
 import {AIDX_PLUGIN_DIR} from './plugin-dir.js'
 import {buildClaudeArgs, buildClaudeCompactArgs, claudeMcpArgs} from './args.js'
 import {claudeToAguiEvents} from './decode.js'

@@ -9,9 +9,9 @@ your page. The engine talks to a headless agent.
 
 ```mermaid
 flowchart LR
-  P(["@aidx/plugin"])
+  P(["@opendui/aidx"])
   W["Browser widget<br/>(shadow DOM)"]
-  C["@aidx/core<br/>(engine)"]
+  C["@opendui/aidx-core<br/>(engine)"]
   H["Harness<br/>(claude / codex)"]
   W <-->|"/api/* · SSE + JSON<br/>chat · page bus · tests · approvals"| C
   C --> H
@@ -22,12 +22,12 @@ flowchart LR
 ## The parts
 
 <Cards>
-  <Card title="Plugin" description="@aidx/plugin boots the engine and injects the widget script into your dev build." />
+  <Card title="Plugin" description="@opendui/aidx boots the engine and injects the widget script into your dev build." />
   <Card
     title="Widget"
     description="A chat UI in an open shadow DOM. It probes the engine and shows the ✦ button when dev routes are live."
   />
-  <Card title="Engine" description="@aidx/core serves the chat, page, and test APIs on its own dev port." />
+  <Card title="Engine" description="@opendui/aidx-core serves the chat, page, and test APIs on its own dev port." />
   <Card title="Harness" description="The headless agent process behind the chat, such as Claude Code." />
 </Cards>
 

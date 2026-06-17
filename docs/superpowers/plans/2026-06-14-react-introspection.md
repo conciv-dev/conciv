@@ -36,7 +36,7 @@
 Run:
 
 ```bash
-pnpm --filter @aidx/widget add bippy@0.5.41
+pnpm --filter @opendui/aidx-widget add bippy@0.5.41
 ```
 
 Expected: `dependencies` gains `"bippy": "0.5.41"`.
@@ -46,8 +46,8 @@ Expected: `dependencies` gains `"bippy": "0.5.41"`.
 Run:
 
 ```bash
-pnpm --filter @aidx/core add @jridgewell/trace-mapping@0.3.31
-pnpm --filter @aidx/core add -D @jridgewell/gen-mapping
+pnpm --filter @opendui/aidx-core add @jridgewell/trace-mapping@0.3.31
+pnpm --filter @opendui/aidx-core add -D @jridgewell/gen-mapping
 ```
 
 Expected: core `dependencies` gains `@jridgewell/trace-mapping`, `devDependencies` gains `@jridgewell/gen-mapping`.
@@ -102,7 +102,7 @@ describe('react verbs', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @aidx/protocol exec vitest run test/react-verbs.test.ts`
+Run: `pnpm --filter @opendui/aidx-protocol exec vitest run test/react-verbs.test.ts`
 Expected: FAIL — `PAGE_QUERY_KINDS` does not contain `'locate'`.
 
 - [ ] **Step 3: Add the four kinds**
@@ -122,12 +122,12 @@ Leave `MUTATING_KINDS` unchanged (the four verbs are reads). The existing `name`
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm --filter @aidx/protocol exec vitest run test/react-verbs.test.ts`
+Run: `pnpm --filter @opendui/aidx-protocol exec vitest run test/react-verbs.test.ts`
 Expected: PASS.
 
 - [ ] **Step 5: Typecheck (proves the Record types now demand handlers + CLI rows — expected to fail in widget/cli until Tasks 4 & 7)**
 
-Run: `pnpm --filter @aidx/protocol run typecheck`
+Run: `pnpm --filter @opendui/aidx-protocol run typecheck`
 Expected: PASS for protocol itself. (Workspace-wide typecheck will fail until `DOM_HANDLERS` and `PAGE_VERBS` cover the new kinds — that is the compile-time drift guard working as intended.)
 
 - [ ] **Step 6: Commit**
@@ -226,7 +226,7 @@ describe('symbolicateFrame', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @aidx/core exec vitest run test/page/symbolicate.test.ts`
+Run: `pnpm --filter @opendui/aidx-core exec vitest run test/page/symbolicate.test.ts`
 Expected: FAIL — cannot find module `../../src/page/symbolicate.js`.
 
 - [ ] **Step 3: Implement the symbolicator**
@@ -300,7 +300,7 @@ export async function symbolicateFrames(
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm --filter @aidx/core exec vitest run test/page/symbolicate.test.ts`
+Run: `pnpm --filter @opendui/aidx-core exec vitest run test/page/symbolicate.test.ts`
 Expected: PASS (all 5 cases).
 
 - [ ] **Step 5: Commit**
@@ -441,7 +441,7 @@ export function find(name: string, refs: Refs): {ref: string; component: string}
 
 - [ ] **Step 3: Typecheck the widget package**
 
-Run: `pnpm --filter @aidx/widget run typecheck`
+Run: `pnpm --filter @opendui/aidx-widget run typecheck`
 Expected: PASS (bridge compiles; bippy types resolve). Handlers not yet wired — that is Task 4.
 
 - [ ] **Step 4: Commit**
@@ -509,12 +509,12 @@ Note: `locate`/`inspect` receive a guaranteed-non-null `el` only because they ar
 
 - [ ] **Step 4: Typecheck — the `Record<PageQueryKind, PageHandler>` type now passes**
 
-Run: `pnpm --filter @aidx/widget run typecheck`
+Run: `pnpm --filter @opendui/aidx-widget run typecheck`
 Expected: PASS (all kinds have handlers).
 
 - [ ] **Step 5: Build the widget global bundle (needed by the widget browser-IT and example e2e)**
 
-Run: `pnpm turbo run build --filter=@aidx/widget`
+Run: `pnpm turbo run build --filter=@opendui/aidx-widget`
 Expected: PASS — produces `packages/widget/dist/aidx-widget.global.js` containing bippy.
 
 - [ ] **Step 6: Commit**
@@ -551,7 +551,7 @@ If the existing IT file has no reusable `driveVerb` helper, add one mirroring th
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @aidx/core exec vitest run test/api/page/page.it.test.ts -t "enriches a locate"`
+Run: `pnpm --filter @opendui/aidx-core exec vitest run test/api/page/page.it.test.ts -t "enriches a locate"`
 Expected: FAIL — `data.source` is undefined.
 
 - [ ] **Step 3: Enrich locate in handleVerb**
@@ -576,12 +576,12 @@ return data
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm --filter @aidx/core exec vitest run test/api/page/page.it.test.ts -t "enriches a locate"`
+Run: `pnpm --filter @opendui/aidx-core exec vitest run test/api/page/page.it.test.ts -t "enriches a locate"`
 Expected: PASS.
 
 - [ ] **Step 5: Full core test run**
 
-Run: `pnpm --filter @aidx/core exec vitest run`
+Run: `pnpm --filter @opendui/aidx-core exec vitest run`
 Expected: PASS (no regressions).
 
 - [ ] **Step 6: Commit**
@@ -617,7 +617,7 @@ it('builds GET requests for react verbs', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @aidx/cli exec vitest run test/cli.it.test.ts -t "react verbs"`
+Run: `pnpm --filter @opendui/aidx-cli exec vitest run test/cli.it.test.ts -t "react verbs"`
 Expected: FAIL — `PAGE_VERBS` missing `locate` (TS error) or wrong path.
 
 - [ ] **Step 3: Add the four rows to PAGE_VERBS**
@@ -635,7 +635,7 @@ In `packages/cli/src/page.ts`, add to the `PAGE_VERBS` table (after `snapshot`):
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm --filter @aidx/cli exec vitest run test/cli.it.test.ts -t "react verbs"`
+Run: `pnpm --filter @opendui/aidx-cli exec vitest run test/cli.it.test.ts -t "react verbs"`
 Expected: PASS.
 
 - [ ] **Step 5: Typecheck the whole workspace (drift guard now fully satisfied)**
@@ -696,12 +696,12 @@ Wire it using the file's existing scripted page-bus server (the one that already
 
 - [ ] **Step 3: Ensure the bundle is current**
 
-Run: `pnpm turbo run build --filter=@aidx/widget`
+Run: `pnpm turbo run build --filter=@opendui/aidx-widget`
 Expected: PASS.
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm --filter @aidx/widget exec vitest run test/widget.it.test.ts -t "locate returns"`
+Run: `pnpm --filter @opendui/aidx-widget exec vitest run test/widget.it.test.ts -t "locate returns"`
 Expected: PASS (real Chromium, real React, real bippy in the bundle).
 
 - [ ] **Step 5: Commit**
@@ -852,7 +852,7 @@ test('locate resolves the TanStack <h1> to src/routes/index.tsx', async ({page})
 })
 ```
 
-(Confirm the TanStack example's engine port. If it differs from `41700`, read it from the example's `instrumentation`/config and substitute. If no engine is wired into the TanStack example yet, that wiring is a prerequisite — verify `@aidx/plugin` is registered in its `vite.config.ts` the same way the Next example wires it; if absent, add a Task 10a to wire it before this test.)
+(Confirm the TanStack example's engine port. If it differs from `41700`, read it from the example's `instrumentation`/config and substitute. If no engine is wired into the TanStack example yet, that wiring is a prerequisite — verify `@opendui/aidx-plugin` is registered in its `vite.config.ts` the same way the Next example wires it; if absent, add a Task 10a to wire it before this test.)
 
 - [ ] **Step 2: Run the e2e**
 

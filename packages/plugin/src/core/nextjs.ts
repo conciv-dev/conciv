@@ -1,4 +1,4 @@
-import type {AidxConfig} from '@aidx/protocol/config-types'
+import type {AidxConfig} from '@opendui/aidx-protocol/config-types'
 
 // Next owns HTML rendering, so aidx integrates via conventions, not a bundler hook:
 // withAidx pins a fixed engine port and inlines it for the client; register() boots the engine.

@@ -4,7 +4,7 @@ const port = process.env.NEXT_PUBLIC_AIDX_PORT
 
 function startWidget(): void {
   window.__AIDX_API_BASE__ = `http://127.0.0.1:${port}`
-  void import('@aidx/widget')
+  void import('@opendui/aidx-widget')
 }
 
 if (typeof window !== 'undefined' && port && process.env.NODE_ENV !== 'production') {

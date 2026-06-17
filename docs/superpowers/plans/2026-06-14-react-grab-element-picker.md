@@ -1,6 +1,6 @@
 # React Grab Element Picker — Composer Integration Plan (v2, rewritten for the post-quick-terminal widget)
 
-> **For workers:** Implement **inline** (no subagents — project convention). Steps use checkbox (`- [ ]`) syntax. Build/typecheck/lint via **turbo** (`pnpm turbo run … --filter=@aidx/widget`), never manual dist rebuilds. Test UI in a real browser (Playwright), never jsdom.
+> **For workers:** Implement **inline** (no subagents — project convention). Steps use checkbox (`- [ ]`) syntax. Build/typecheck/lint via **turbo** (`pnpm turbo run … --filter=@opendui/aidx-widget`), never manual dist rebuilds. Test UI in a real browser (Playwright), never jsdom.
 
 > **Why v2:** The original plan (same filename, committed in `91d5fde`) targeted `packages/widget/src/chat-shell.tsx`, which has since been **deleted** and replaced by the quick-terminal refactor. The composer now lives in `ChatPanel` (`chat-panel.tsx`), the shell hosts panels via a registry (`widget-shell.tsx`), and `ChatPanel` is **multi-instance** (modal, each quick-terminal pane, PiP). The original implementation was prototyped in a now-deleted worktree and never committed, so **no code survives** — only this plan. This rewrite preserves the original's full feature set and re-maps it onto the current architecture, and makes the composer's extension model first-class.
 
@@ -46,7 +46,7 @@ TypeScript, `react-grab@^0.1.44` (widget dep; bundles `bippy`, already a widget 
 
 ## Build behavior (verified 2026-06-14 in the original spike; re-verify in Task 5)
 
-`pnpm turbo run build --filter=@aidx/widget` succeeded for **both** formats with no Rollup error:
+`pnpm turbo run build --filter=@opendui/aidx-widget` succeeded for **both** formats with no Rollup error:
 
 - **ESM (`dist/mount.js`)**: react-grab is **code-split** into lazy chunks — true byte-laziness on this path.
 - **IIFE (`dist/aidx-widget.global.js`, the injected global)**: cannot code-split, so react-grab is **inlined** — but execution is still deferred to first click (the import resolves an already-present module). Behavioral laziness + dev-only gating hold; only byte-laziness is lost. Acceptable: the widget is dev-only and already bundles `bippy`, `shiki`, `marked`. **No CDN/script-injection fallback required.**
@@ -70,8 +70,8 @@ Tasks 0–5 deliver the headline (Select element → insert into the right compo
 **Files:** `packages/widget/package.json` (+ `pnpm-lock.yaml`).
 
 - [ ] **Step 1:** `pnpm -C packages/widget add react-grab` → `dependencies` gains `react-grab ^0.1.44`. (Was done in the deleted worktree; redo — it is **not** in the current `package.json`.)
-- [ ] **Step 2:** `pnpm turbo run typecheck --filter=@aidx/widget` → PASS (confirms resolution; no usage yet).
-- [ ] **Step 3:** Commit: `build: add react-grab to @aidx/widget for the element picker`.
+- [ ] **Step 2:** `pnpm turbo run typecheck --filter=@opendui/aidx-widget` → PASS (confirms resolution; no usage yet).
+- [ ] **Step 3:** Commit: `build: add react-grab to @opendui/aidx-widget for the element picker`.
 
 ---
 
@@ -142,7 +142,7 @@ async function create(): Promise<ReactGrabAdapter> {
 ```
 
 - [ ] **Step 1:** Write the module above.
-- [ ] **Step 2:** `pnpm turbo run typecheck --filter=@aidx/widget` → PASS. If `init`/`registerPlugin`/hook types mismatch, reconcile against react-grab's shipped `.d.ts` (`Options.telemetry`, `Plugin.theme`, `PluginHooks.transformCopyContent` all existed per the spike).
+- [ ] **Step 2:** `pnpm turbo run typecheck --filter=@opendui/aidx-widget` → PASS. If `init`/`registerPlugin`/hook types mismatch, reconcile against react-grab's shipped `.d.ts` (`Options.telemetry`, `Plugin.theme`, `PluginHooks.transformCopyContent` all existed per the spike).
 
 ---
 
@@ -188,7 +188,7 @@ Add a registry on the shell that mirrors `registerPanel`, and thread the registe
   }
   ```
   In `createWidgetShell`: keep a `composerActions: ComposerActionDef[]`, return `registerComposerAction(def)` alongside `registerPanel`, and pass `composerActions: () => composerActions` into the `PanelContext` that `Shell` builds for `panel.create(ctx)`. The `Shell` component already forwards `ctx` from both `ModalLayout` and `QuickTerminalLayout` — extend the `PanelContext` they construct (`{active, onWorkingChange}` → add `composerActions`).
-- [ ] **Step 3:** `pnpm turbo run typecheck --filter=@aidx/widget` → PASS (registry compiles, not yet rendered).
+- [ ] **Step 3:** `pnpm turbo run typecheck --filter=@opendui/aidx-widget` → PASS (registry compiles, not yet rendered).
 
 **Design notes:**
 
@@ -270,7 +270,7 @@ Add a registry on the shell that mirrors `registerPanel`, and thread the registe
 
   At the shell build site (where `registerPanel` is called): `shell.registerComposerAction(elementPickerAction)`.
 
-- [ ] **Step 5:** `pnpm turbo run typecheck --filter=@aidx/widget` → PASS.
+- [ ] **Step 5:** `pnpm turbo run typecheck --filter=@opendui/aidx-widget` → PASS.
 
 **Design notes:**
 
@@ -331,10 +331,10 @@ The current composer (line ~1058) is a single flex row `[textarea(flex:1)][send]
 
 **Files:** none (build only).
 
-- [ ] **Step 1:** `pnpm turbo run build --filter=@aidx/widget`.
+- [ ] **Step 1:** `pnpm turbo run build --filter=@opendui/aidx-widget`.
   - Expected: builds `dist/mount.js` (ES, react-grab code-split) and `dist/aidx-widget.global.js` (IIFE, react-grab inlined). A Rollup **warning** about inlining the dynamic import in the IIFE output is acceptable.
   - If the IIFE build **errors** on the dynamic import: decide with evidence from the actual error (split the picker into the ES entry only, or runtime `<script>` injection of react-grab's own global). Per the spike this did **not** error.
-- [ ] **Step 2:** `pnpm turbo run lint --filter=@aidx/widget` → PASS (oxlint).
+- [ ] **Step 2:** `pnpm turbo run lint --filter=@opendui/aidx-widget` → PASS (oxlint).
 - [ ] **Step 3:** Commit: `feat(widget): add an extensible composer actions row with a react-grab element picker`.
 
 ---
@@ -350,7 +350,7 @@ The current composer (line ~1058) is a single flex row `[textarea(flex:1)][send]
   - Click a source-mapped element (e.g. a Header link); assert this panel's textarea now contains the reference (`in Header` / selector).
   - Right-click an element while active; assert the context menu shows **Copy / Style / Comment / Open**.
 - [ ] **Step 3 (multi-instance):** Open a quick-terminal pane, run the pick from _that_ pane's composer; assert the reference lands in the **pane's** textarea, not the modal's. This guards the per-activation sink.
-- [ ] **Step 4:** `pnpm turbo run test --filter=@aidx/widget` → PASS.
+- [ ] **Step 4:** `pnpm turbo run test --filter=@opendui/aidx-widget` → PASS.
 
 ---
 

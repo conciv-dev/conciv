@@ -115,7 +115,7 @@ README.md; this file is the non-obvious operational rules.
 
 - Widget UI is tested in a REAL browser (Playwright/Chromium), never jsdom/happy-dom.
 - Widget integration tests load the PREBUILT bundle (`packages/widget/dist/aidx-widget.global.js`):
-  rebuild the widget (`pnpm turbo run build --filter=@aidx/widget`) before running them, or you test
+  rebuild the widget (`pnpm turbo run build --filter=@opendui/aidx-widget`) before running them, or you test
   stale code.
 - In widget ITs use `browser.newPage()`, not `newContext()` (contexts leak and spike CPU/memory).
 - zod validates every HTTP boundary (`readValidatedBody`); add validation for new routes.

@@ -1,11 +1,11 @@
 import {join} from 'node:path'
 import launchEditor from 'launch-editor'
-import {start, type Engine} from '@aidx/core/engine'
-import type {AidxConfig} from '@aidx/protocol/config-types'
+import {start, type Engine} from '@opendui/aidx-core/engine'
+import type {AidxConfig} from '@opendui/aidx-protocol/config-types'
 import {installAidxBinShim} from './bin-shim.js'
 
 // Bridge-less engine booter for the non-vite bundlers (no Vite-style live server → no
-// /api/server/*). Memoized so repeated hooks boot @aidx/core once. The vite hook boots with
+// /api/server/*). Memoized so repeated hooks boot @opendui/aidx-core once. The vite hook boots with
 // its own viteBridge + widget middleware.
 
 function openInEditor(file: string, line: number): void {

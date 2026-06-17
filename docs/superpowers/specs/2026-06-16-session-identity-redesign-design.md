@@ -116,12 +116,12 @@ All routes key by our id (the `aidx-session-id` header), never the token.
 
 ## Typed API client (single comms seam, derived from zod)
 
-No OpenAPI in the client path — client and server share `@aidx/protocol`, so we infer types from the zod schemas and validate with the same schemas. Each route is declared once as a **contract**; both the server handler and the widget client derive from it. (H3 route `meta` is reserved for an optional future OpenAPI _docs_ page — orthogonal to this client.)
+No OpenAPI in the client path — client and server share `@opendui/aidx-protocol`, so we infer types from the zod schemas and validate with the same schemas. Each route is declared once as a **contract**; both the server handler and the widget client derive from it. (H3 route `meta` is reserved for an optional future OpenAPI _docs_ page — orthogonal to this client.)
 
 **1. Branded session id** — makes the client invariant a compile error, not a convention:
 
 ```ts
-// @aidx/protocol
+// @opendui/aidx-protocol
 export const SessionId = z
   .string()
   .regex(/^aidx_[A-Za-z0-9_-]{1,128}$/)
@@ -132,7 +132,7 @@ export type SessionId = z.infer<typeof SessionId>
 **2. Request/response schemas (protocol)** — the shared source of truth, validated on both ends. No registry object. Reuse the existing schemas (`ChatSession`, `ChatSessions`, `ChatModels`, `ChatHistory`, `RenameSession`, `ChatLaunch`) and add the few that are new:
 
 ```ts
-// @aidx/protocol/chat-types.ts
+// @opendui/aidx-protocol/chat-types.ts
 export const ResolveRequestSchema = z.object({id: z.string().optional()}) // plain string: harness id OR ours
 export const ResolveResponseSchema = z.object({sessionId: SessionId})
 export const RenameResponseSchema = z.object({ok: z.boolean(), title: z.string()})
@@ -144,7 +144,7 @@ Each route is declared **once, inline** in the client below; the server imports 
 **3. The client — `defineClient`** — a per-instance closure that _owns_ its active session id. Each pane (and the modal) holds its own. Routes are declared **inline** via a generic `route(spec)` — no registry object, no `Object.fromEntries`, no cast. Method types are _inferred_ from the schemas, so nothing is typed twice:
 
 ```ts
-// @aidx/widget/session-client.ts
+// @opendui/aidx-widget/session-client.ts
 import {createSignal} from 'solid-js'
 import {z} from 'zod'
 import {
@@ -161,7 +161,7 @@ import {
   ResolveResponseSchema,
   RenameResponseSchema,
   OkSchema,
-} from '@aidx/protocol/chat-types'
+} from '@opendui/aidx-protocol/chat-types'
 
 export function defineClient(deps: {apiBase: string}) {
   const base = deps.apiBase.replace(/\/+$/, '')

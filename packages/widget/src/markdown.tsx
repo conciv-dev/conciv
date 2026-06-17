@@ -11,7 +11,7 @@ import html from 'shiki/langs/html.mjs'
 import bash from 'shiki/langs/bash.mjs'
 import md from 'shiki/langs/markdown.mjs'
 import githubDark from 'shiki/themes/github-dark.mjs'
-import {Streamdown} from '@aidx/solid-streamdown'
+import {Streamdown} from '@opendui/aidx-solid-streamdown'
 
 const THEME = 'github-dark'
 
@@ -52,7 +52,7 @@ function codeBlock(code: string, lang: string | undefined, hl: HighlighterCore |
   return hl.codeToHtml(code, {lang: language, theme: THEME})
 }
 
-// Streaming markdown via @aidx/solid-streamdown. Token fade spans are present only while the active
+// Streaming markdown via @opendui/aidx-solid-streamdown. Token fade spans are present only while the active
 // response is streaming; once complete, the markdown re-renders as clean static markup. We feed the
 // accumulated text straight through — streamdown's animate plugin handles the fade (no host-side
 // re-chunking; streamdown has none either).

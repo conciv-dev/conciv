@@ -1,7 +1,7 @@
 import {describe, it, expect} from 'vitest'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 import {claudeToAguiEvents} from '../src/claude/decode.js'
-import type {UsageSnapshot} from '@aidx/protocol/usage-types'
+import type {UsageSnapshot} from '@opendui/aidx-protocol/usage-types'
 
 async function* lines(arr: string[]): AsyncGenerator<string> {
   for (const l of arr) yield l

@@ -1,7 +1,13 @@
 import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
 import {defineCommand} from 'citty'
-import {buildUiSpec, parseField, type UiBuildInput, type UiFormField, type UiSpec} from '@aidx/protocol/ui-types'
+import {
+  buildUiSpec,
+  parseField,
+  type UiBuildInput,
+  type UiFormField,
+  type UiSpec,
+} from '@opendui/aidx-protocol/ui-types'
 import {runRequest, type CliRequest} from './request.js'
 
 // `aidx ui <kind>` — render real interactive UI in the chat thread. The agent does NOT

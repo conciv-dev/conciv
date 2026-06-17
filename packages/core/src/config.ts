@@ -1,9 +1,9 @@
-import {CHAT_SYSTEM_PROMPT} from '@aidx/harness/claude'
-import type {AidxConfig} from '@aidx/protocol/config-types'
+import {CHAT_SYSTEM_PROMPT} from '@opendui/aidx-harness/claude'
+import type {AidxConfig} from '@opendui/aidx-protocol/config-types'
 
-// The public config contract lives in @aidx/protocol; core owns only resolution.
-export type {AidxConfig} from '@aidx/protocol/config-types'
-export {defineConfig} from '@aidx/protocol/config-types'
+// The public config contract lives in @opendui/aidx-protocol; core owns only resolution.
+export type {AidxConfig} from '@opendui/aidx-protocol/config-types'
+export {defineConfig} from '@opendui/aidx-protocol/config-types'
 
 export interface ResolvedAidxConfig {
   enabled: boolean

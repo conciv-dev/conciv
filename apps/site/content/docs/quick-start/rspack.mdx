@@ -12,7 +12,7 @@ Rspack works like webpack. The entry boots the engine, and you inject the widget
 ### Install
 
 ```bash
-npm install -D @aidx/plugin
+npm install -D @opendui/aidx
 ```
 
 </Step>
@@ -21,7 +21,7 @@ npm install -D @aidx/plugin
 ### Add the plugin
 
 ```js title="rspack.config.js"
-const aidx = require('@aidx/plugin/rspack')
+const aidx = require('@opendui/aidx/plugin/rspack')
 
 module.exports = {
   plugins: [aidx.default()],
@@ -33,7 +33,7 @@ module.exports = {
 
 ### Inject the widget
 
-The widget bundle ships as `@aidx/widget/global`. Serve it and set `widgetUrl` so the script is
+The widget bundle ships as `@opendui/aidx-widget/global`. Serve it and set `widgetUrl` so the script is
 added to your page. See [Configuration](/docs/configuration#widgeturl).
 
 </Step>

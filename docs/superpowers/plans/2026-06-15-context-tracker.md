@@ -82,7 +82,7 @@ describe('usage-types', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @aidx/protocol exec vitest run test/usage-types.test.ts`
+Run: `pnpm --filter @opendui/aidx-protocol exec vitest run test/usage-types.test.ts`
 Expected: FAIL — cannot find module `../src/usage-types.js`.
 
 - [ ] **Step 3: Create the implementation**
@@ -143,12 +143,12 @@ In `packages/protocol/package.json` `exports`, add after the `./page-types` bloc
 
 - [ ] **Step 5: Run test to verify it passes**
 
-Run: `pnpm --filter @aidx/protocol exec vitest run test/usage-types.test.ts`
+Run: `pnpm --filter @opendui/aidx-protocol exec vitest run test/usage-types.test.ts`
 Expected: PASS (5 tests).
 
 - [ ] **Step 6: Build protocol so dependents can import the new subpath**
 
-Run: `pnpm turbo run build --filter=@aidx/protocol`
+Run: `pnpm turbo run build --filter=@opendui/aidx-protocol`
 Expected: success; `packages/protocol/dist/usage-types.js` and `.d.ts` exist.
 
 - [ ] **Step 7: Commit**
@@ -170,7 +170,7 @@ git commit -m "feat(protocol): normalized UsageSnapshot + aidx-usage event"
 
 - [ ] **Step 1: Write the failing tests**
 
-Append to `packages/harness/test/codex-decode.test.ts` (inside the existing `describe('codex decode', …)` block, before its closing `})`). Also add the import at the top of the file: `import {AIDX_USAGE_EVENT} from '@aidx/protocol/usage-types'`.
+Append to `packages/harness/test/codex-decode.test.ts` (inside the existing `describe('codex decode', …)` block, before its closing `})`). Also add the import at the top of the file: `import {AIDX_USAGE_EVENT} from '@opendui/aidx-protocol/usage-types'`.
 
 ```ts
 it('emits an aidx-usage CUSTOM chunk from turn.completed usage', async () => {
@@ -196,7 +196,7 @@ it('emits usage only once when the snapshot does not change', async () => {
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `pnpm --filter @aidx/harness exec vitest run test/codex-decode.test.ts`
+Run: `pnpm --filter @opendui/aidx-harness exec vitest run test/codex-decode.test.ts`
 Expected: FAIL — no CUSTOM `aidx-usage` chunk is emitted.
 
 - [ ] **Step 3: Add the extractor plumbing to the shared spine**
@@ -204,7 +204,7 @@ Expected: FAIL — no CUSTOM `aidx-usage` chunk is emitted.
 In `packages/harness/src/_shared/agui.ts`, add the import at the top:
 
 ```ts
-import {aguiUsageFor, type UsageSnapshot} from '@aidx/protocol/usage-types'
+import {aguiUsageFor, type UsageSnapshot} from '@opendui/aidx-protocol/usage-types'
 ```
 
 Add the type next to `Step` (after the `export type Step<E> = …` line):
@@ -276,7 +276,7 @@ export async function* runAgui<E>(
 In `packages/harness/src/codex/decode.ts`:
 
 Add to the existing import from `../_shared/agui.js`: append `type UsageExtractor` to the named imports.
-Add the protocol import at the top: `import type {UsageSnapshot} from '@aidx/protocol/usage-types'`.
+Add the protocol import at the top: `import type {UsageSnapshot} from '@opendui/aidx-protocol/usage-types'`.
 
 Add `usage` to `CodexEventSchema` (it is already `.loose()`):
 
@@ -315,7 +315,7 @@ export function codexToAguiEvents(lines: AsyncIterable<string>, opts: HarnessDec
 
 - [ ] **Step 5: Run tests to verify they pass**
 
-Run: `pnpm --filter @aidx/harness exec vitest run test/codex-decode.test.ts`
+Run: `pnpm --filter @opendui/aidx-harness exec vitest run test/codex-decode.test.ts`
 Expected: PASS (original 4 + new 3 tests).
 
 - [ ] **Step 6: Commit**
@@ -342,7 +342,7 @@ Create `packages/harness/test/claude-decode.test.ts`:
 import {describe, it, expect} from 'vitest'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 import {claudeToAguiEvents} from '../src/claude/decode.js'
-import {AIDX_USAGE_EVENT} from '@aidx/protocol/usage-types'
+import {AIDX_USAGE_EVENT} from '@opendui/aidx-protocol/usage-types'
 
 async function* lines(arr: string[]): AsyncGenerator<string> {
   for (const l of arr) yield l
@@ -404,14 +404,14 @@ describe('claude decode — usage', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @aidx/harness exec vitest run test/claude-decode.test.ts`
+Run: `pnpm --filter @opendui/aidx-harness exec vitest run test/claude-decode.test.ts`
 Expected: FAIL — no usage chunks emitted.
 
 - [ ] **Step 3: Extend the claude schema + add the extractor**
 
 In `packages/harness/src/claude/decode.ts`:
 
-Add the protocol import at the top: `import type {UsageSnapshot} from '@aidx/protocol/usage-types'`.
+Add the protocol import at the top: `import type {UsageSnapshot} from '@opendui/aidx-protocol/usage-types'`.
 Add `type UsageExtractor` to the existing named imports from `../_shared/agui.js`.
 
 Replace `ClaudeEventSchema` with a version that carries the usage-bearing fields (still `.loose()`):
@@ -488,12 +488,12 @@ export function claudeToAguiEvents(lines: AsyncIterable<string>, opts: HarnessDe
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm --filter @aidx/harness exec vitest run test/claude-decode.test.ts`
+Run: `pnpm --filter @opendui/aidx-harness exec vitest run test/claude-decode.test.ts`
 Expected: PASS (3 tests).
 
 - [ ] **Step 5: Typecheck the harness package**
 
-Run: `pnpm turbo run typecheck --filter=@aidx/harness`
+Run: `pnpm turbo run typecheck --filter=@opendui/aidx-harness`
 Expected: success.
 
 - [ ] **Step 6: Commit**
@@ -642,7 +642,7 @@ export function HoverCard(props: {
 
 - [ ] **Step 2: Typecheck the widget package**
 
-Run: `pnpm turbo run typecheck --filter=@aidx/widget`
+Run: `pnpm turbo run typecheck --filter=@opendui/aidx-widget`
 Expected: success.
 
 - [ ] **Step 3: Commit**
@@ -670,7 +670,7 @@ Create `packages/widget/src/context-tracker.tsx`:
 ```tsx
 import {Show, type JSX} from 'solid-js'
 import {HoverCard} from './hover-card.js'
-import {contextUsedTokens, type UsageSnapshot} from '@aidx/protocol/usage-types'
+import {contextUsedTokens, type UsageSnapshot} from '@opendui/aidx-protocol/usage-types'
 
 const pct = new Intl.NumberFormat('en-US', {style: 'percent', maximumFractionDigits: 1})
 const compact = new Intl.NumberFormat('en-US', {notation: 'compact'})
@@ -895,7 +895,7 @@ Append to `packages/widget/src/styles.css`:
 
 - [ ] **Step 3: Typecheck the widget package**
 
-Run: `pnpm turbo run typecheck --filter=@aidx/widget`
+Run: `pnpm turbo run typecheck --filter=@opendui/aidx-widget`
 Expected: success. (If `--pw-accent`/`--pw-font-mono` are undefined, the CSS fallbacks/`currentColor` still render; no typecheck impact.)
 
 - [ ] **Step 4: Commit**
@@ -918,14 +918,14 @@ git commit -m "feat(widget): ContextTracker component + styles"
 In `packages/widget/src/chat-panel.tsx`, change the protocol-ui import line to also pull usage types. Replace:
 
 ```ts
-import {AIDX_UI_EVENT, UiSpecSchema, type UiSpec} from '@aidx/protocol/ui-types'
+import {AIDX_UI_EVENT, UiSpecSchema, type UiSpec} from '@opendui/aidx-protocol/ui-types'
 ```
 
 with:
 
 ```ts
-import {AIDX_UI_EVENT, UiSpecSchema, type UiSpec} from '@aidx/protocol/ui-types'
-import {AIDX_USAGE_EVENT, UsageSnapshotSchema, type UsageSnapshot} from '@aidx/protocol/usage-types'
+import {AIDX_UI_EVENT, UiSpecSchema, type UiSpec} from '@opendui/aidx-protocol/ui-types'
+import {AIDX_USAGE_EVENT, UsageSnapshotSchema, type UsageSnapshot} from '@opendui/aidx-protocol/usage-types'
 ```
 
 - [ ] **Step 2: Add the prop**
@@ -981,7 +981,7 @@ In `chatPanelDef`, add `onUsageChange={ctx.onUsageChange}` to the `<ChatPanel ..
 
 - [ ] **Step 6: Typecheck**
 
-Run: `pnpm turbo run typecheck --filter=@aidx/widget`
+Run: `pnpm turbo run typecheck --filter=@opendui/aidx-widget`
 Expected: FAIL — `ctx.onUsageChange` does not exist on `PanelContext` yet (fixed in Task 7). This confirms the wiring is connected; proceed to Task 7 before committing.
 
 - [ ] **Step 7: Commit (after Task 7 typecheck passes)**
@@ -1002,7 +1002,7 @@ At the top of `packages/widget/src/widget-shell.tsx`, add:
 
 ```ts
 import {ContextTracker} from './context-tracker.js'
-import type {UsageSnapshot} from '@aidx/protocol/usage-types'
+import type {UsageSnapshot} from '@opendui/aidx-protocol/usage-types'
 ```
 
 - [ ] **Step 2: Extend PanelContext**
@@ -1040,12 +1040,12 @@ In `ModalLayout`'s `<header class="pw-chat-head">`, insert the tracker between t
 
 - [ ] **Step 5: Typecheck the whole widget + commit Tasks 6 + 7**
 
-Run: `pnpm turbo run typecheck --filter=@aidx/widget`
+Run: `pnpm turbo run typecheck --filter=@opendui/aidx-widget`
 Expected: success (the `QuickTerminalLayout.addPane` call to `props.panel.create` now lacks `onUsageChange` — if typecheck flags it, that is fixed in Task 8; if it passes because the missing property is caught only there, proceed to Task 8 and commit after).
 
 > Note: `PanelContext.onUsageChange` is required, so `quick-terminal.tsx`'s `create({…})` call will fail typecheck until Task 8. Do Task 8, then run the typecheck below and commit all three together.
 
-Run: `pnpm turbo run typecheck --filter=@aidx/widget` (after Task 8)
+Run: `pnpm turbo run typecheck --filter=@opendui/aidx-widget` (after Task 8)
 Expected: success.
 
 ```bash
@@ -1067,7 +1067,7 @@ At the top of `packages/widget/src/quick-terminal.tsx`, add:
 
 ```ts
 import {ContextTracker} from './context-tracker.js'
-import type {UsageSnapshot} from '@aidx/protocol/usage-types'
+import type {UsageSnapshot} from '@opendui/aidx-protocol/usage-types'
 ```
 
 - [ ] **Step 2: Carry usage on each pane**
@@ -1115,7 +1115,7 @@ In the pane bar markup, insert the tracker after the session name span:
 
 - [ ] **Step 5: Typecheck + commit**
 
-Run: `pnpm turbo run typecheck --filter=@aidx/widget`
+Run: `pnpm turbo run typecheck --filter=@opendui/aidx-widget`
 Expected: success.
 
 Commit happens with Tasks 6 + 7 (shared `PanelContext` change) — see Task 7 Step 5.
@@ -1133,7 +1133,7 @@ Commit happens with Tasks 6 + 7 (shared `PanelContext` change) — see Task 7 St
 In `packages/widget/test/widget.it.test.ts`, add to the protocol import line:
 
 ```ts
-import {aguiUsageFor} from '@aidx/protocol/usage-types'
+import {aguiUsageFor} from '@opendui/aidx-protocol/usage-types'
 ```
 
 In `chatScript()`, add a usage CUSTOM event after the assistant text END and before the approval card:
@@ -1188,17 +1188,17 @@ it('renders the context tracker from a streamed aidx-usage event and shows the b
 
 - [ ] **Step 3: Build the widget bundle (the IT loads dist/aidx-widget.global.js)**
 
-Run: `pnpm turbo run build --filter=@aidx/widget`
+Run: `pnpm turbo run build --filter=@opendui/aidx-widget`
 Expected: success; `packages/widget/dist/aidx-widget.global.js` is rebuilt with the tracker.
 
 - [ ] **Step 4: Run the IT**
 
-Run: `pnpm --filter @aidx/widget exec vitest run test/widget.it.test.ts -t "context tracker"`
-Expected: PASS. (If Playwright Chromium is missing, run `pnpm --filter @aidx/widget exec playwright install chromium` first.)
+Run: `pnpm --filter @opendui/aidx-widget exec vitest run test/widget.it.test.ts -t "context tracker"`
+Expected: PASS. (If Playwright Chromium is missing, run `pnpm --filter @opendui/aidx-widget exec playwright install chromium` first.)
 
 - [ ] **Step 5: Run the full widget IT to confirm no regression**
 
-Run: `pnpm --filter @aidx/widget exec vitest run test/widget.it.test.ts`
+Run: `pnpm --filter @opendui/aidx-widget exec vitest run test/widget.it.test.ts`
 Expected: PASS — the added usage event does not disturb the existing approval-gate test.
 
 - [ ] **Step 6: Commit**

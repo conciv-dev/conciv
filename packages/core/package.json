@@ -1,5 +1,5 @@
 {
-  "name": "@aidx/core",
+  "name": "@opendui/aidx-core",
   "version": "0.0.0",
   "description": "The aidx engine: a framework-free h3 + srvx server exposing the /__pw HTTP surface, with harness + test-runner registry seams.",
   "license": "MIT",
@@ -32,12 +32,12 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@aidx/harness": "workspace:*",
-    "@aidx/protocol": "workspace:*",
-    "@aidx/test-runner": "workspace:*",
-    "@aidx/tools": "workspace:*",
     "@jridgewell/trace-mapping": "0.3.31",
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@opendui/aidx-harness": "workspace:*",
+    "@opendui/aidx-protocol": "workspace:*",
+    "@opendui/aidx-test-runner": "workspace:*",
+    "@opendui/aidx-tools": "workspace:*",
     "@tanstack/ai": "^0.28.0",
     "get-port": "^7.1.0",
     "h3": "2.0.1-rc.22",

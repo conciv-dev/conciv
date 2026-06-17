@@ -1,6 +1,6 @@
 import {createStorage, type Storage} from 'unstorage'
 import fsDriver from 'unstorage/drivers/fs-lite'
-import {SessionRecordSchema, type SessionRecord, type SessionRecordInput} from '@aidx/protocol/chat-types'
+import {SessionRecordSchema, type SessionRecord, type SessionRecordInput} from '@opendui/aidx-protocol/chat-types'
 
 // Domain interface — the only thing the rest of core imports. No storage primitives leak past it.
 // Inputs accept raw (unbranded) data; the schema validates + brands it, so reads return SessionRecord.

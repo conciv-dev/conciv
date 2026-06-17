@@ -4,7 +4,7 @@
 
 **Goal:** When a user grabs an element in the widget, additionally send the bot a real pixel screenshot of the dev app's browser window, captured by a node-spawned native Swift binary, with the entire feature behaving as a progressive enhancement that fully degrades to today's behavior when unavailable.
 
-**Architecture:** A prebuilt Swift + ScreenCaptureKit binary is spawned by `@aidx/core` as a child of the dev server; it rides the dev-host (terminal/IDE) Screen Recording grant and writes a PNG. A new `POST /api/page/capture` core route exposes it. The widget calls it during a grab and attaches the PNG as an inline image content part on the next turn, reusing the existing image-delivery path. Every layer treats capture as optional: missing binary, non-macOS host, denied permission, or any spawn error falls back silently to the existing DOM-clone-only grab.
+**Architecture:** A prebuilt Swift + ScreenCaptureKit binary is spawned by `@opendui/aidx-core` as a child of the dev server; it rides the dev-host (terminal/IDE) Screen Recording grant and writes a PNG. A new `POST /api/page/capture` core route exposes it. The widget calls it during a grab and attaches the PNG as an inline image content part on the next turn, reusing the existing image-delivery path. Every layer treats capture as optional: missing binary, non-macOS host, denied permission, or any spawn error falls back silently to the existing DOM-clone-only grab.
 
 **Tech Stack:** Swift (swiftc, Command Line Tools, no Xcode), ScreenCaptureKit, AppKit; TypeScript, h3, zod, vitest; SolidJS widget.
 
@@ -28,7 +28,7 @@
 - `packages/capture-macos/build.sh` — builds the binary into `bin/<arch>/aidx-capture`.
 - `packages/capture-macos/bin/arm64/aidx-capture` — prebuilt binary (committed; mac-only MVP).
 - `packages/capture-macos/src/index.ts` — `resolveCaptureBinary()`: returns the host-arch binary path or null.
-- `packages/capture-macos/package.json` — `@aidx/capture-macos`, `os: ["darwin"]`.
+- `packages/capture-macos/package.json` — `@opendui/aidx-capture-macos`, `os: ["darwin"]`.
 - `packages/protocol/src/capture-types.ts` — zod schema + types for the capture request and result.
 - `packages/core/src/page/capture.ts` — `captureWindow()`: spawns the binary, classifies the outcome.
 - `packages/core/src/api/page/page.ts` — register `POST /api/page/capture` (modify).
@@ -43,10 +43,12 @@
 ## Task 1: Capture protocol types
 
 **Files:**
+
 - Create: `packages/protocol/src/capture-types.ts`
 - Test: `packages/protocol/test/capture-types.test.ts`
 
 **Interfaces:**
+
 - Produces: `CaptureRequestSchema`, `CaptureRequest` (`{url?: string; title?: string}`), `CaptureResultSchema`, `CaptureResult` (`{ok: true; mediaType: string; dataBase64: string} | {ok: false; reason: CaptureFailure}`), `CaptureFailure` (`'unsupported-os' | 'binary-missing' | 'permission' | 'no-window' | 'capture-failed'`).
 
 - [ ] **Step 1: Write the failing test**
@@ -75,7 +77,7 @@ describe('capture-types', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @aidx/protocol test capture-types`
+Run: `pnpm --filter @opendui/aidx-protocol test capture-types`
 Expected: FAIL — cannot resolve `../src/capture-types.js`.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -90,7 +92,13 @@ export const CaptureRequestSchema = z.object({
 })
 export type CaptureRequest = z.infer<typeof CaptureRequestSchema>
 
-export const CAPTURE_FAILURES = ['unsupported-os', 'binary-missing', 'permission', 'no-window', 'capture-failed'] as const
+export const CAPTURE_FAILURES = [
+  'unsupported-os',
+  'binary-missing',
+  'permission',
+  'no-window',
+  'capture-failed',
+] as const
 export type CaptureFailure = (typeof CAPTURE_FAILURES)[number]
 
 export const CaptureResultSchema = z.union([
@@ -102,7 +110,7 @@ export type CaptureResult = z.infer<typeof CaptureResultSchema>
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm --filter @aidx/protocol test capture-types`
+Run: `pnpm --filter @opendui/aidx-protocol test capture-types`
 Expected: PASS (4 tests).
 
 - [ ] **Step 5: Commit**
@@ -117,10 +125,12 @@ git commit --no-verify -m "feat(protocol): capture request/result types"
 ## Task 2: Responsible host-app detection
 
 **Files:**
+
 - Create: `packages/core/src/host-app.ts`
 - Test: `packages/core/test/host-app.test.ts`
 
 **Interfaces:**
+
 - Produces: `responsibleHostApp(pid?: number): string` — walks the parent-process chain via `ps` and returns a human label for the dev host (e.g. `"iTerm"`, `"Terminal"`, `"Visual Studio Code"`, `"WebStorm"`), or `"your terminal"` when unknown. Default `pid` is `process.pid`.
 
 - [ ] **Step 1: Write the failing test**
@@ -145,7 +155,7 @@ describe('responsibleHostApp', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @aidx/core test host-app`
+Run: `pnpm --filter @opendui/aidx-core test host-app`
 Expected: FAIL — cannot resolve `../src/host-app.js`.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -198,7 +208,7 @@ export function responsibleHostApp(pid: number = process.pid): string {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm --filter @aidx/core test host-app`
+Run: `pnpm --filter @opendui/aidx-core test host-app`
 Expected: PASS (2 tests).
 
 - [ ] **Step 5: Commit**
@@ -213,11 +223,13 @@ git commit --no-verify -m "feat(core): detect responsible dev-host app for TCC g
 ## Task 3: The Swift capture binary
 
 **Files:**
+
 - Create: `packages/capture-macos/src/main.swift`
 - Create: `packages/capture-macos/build.sh`
 - Create: `packages/capture-macos/package.json`
 
 **Interfaces:**
+
 - Produces: an executable that accepts `--out <path>` and optional `--match <substring>`, prints one JSON line to stdout, and exits 0 on success / non-zero on failure. JSON shapes:
   - success: `{"ok":true,"width":W,"height":H}` and the PNG written to `<path>`.
   - failure: `{"ok":false,"reason":"permission"|"no-window"|"capture-failed"}`.
@@ -226,7 +238,7 @@ git commit --no-verify -m "feat(core): detect responsible dev-host app for TCC g
 
 ```json
 {
-  "name": "@aidx/capture-macos",
+  "name": "@opendui/aidx-capture-macos",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -362,10 +374,12 @@ git commit --no-verify -m "feat(capture-macos): ScreenCaptureKit window-capture 
 ## Task 4: Binary resolver
 
 **Files:**
+
 - Create: `packages/capture-macos/src/index.ts`
 - Test: `packages/capture-macos/test/resolve.test.ts`
 
 **Interfaces:**
+
 - Consumes: the built binary at `bin/<arch>/aidx-capture` from Task 3.
 - Produces: `resolveCaptureBinary(): string | null` — absolute path to the host-arch binary if it exists and the OS is darwin, else null.
 
@@ -391,7 +405,7 @@ describe('resolveCaptureBinary', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @aidx/capture-macos test`
+Run: `pnpm --filter @opendui/aidx-capture-macos test`
 Expected: FAIL — cannot resolve `../src/index.js`.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -415,7 +429,7 @@ export function resolveCaptureBinary(): string | null {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm --filter @aidx/capture-macos test`
+Run: `pnpm --filter @opendui/aidx-capture-macos test`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -430,11 +444,13 @@ git commit --no-verify -m "feat(capture-macos): host-arch binary resolver"
 ## Task 5: Core capture orchestrator
 
 **Files:**
+
 - Create: `packages/core/src/page/capture.ts`
 - Create: `packages/core/test/page/capture.test.ts`
 - Create: `packages/core/test/fixtures/fake-capture.sh` (a real executable, not a mock — behaves like the binary)
 
 **Interfaces:**
+
 - Consumes: `CaptureRequest`, `CaptureResult` (Task 1); `resolveCaptureBinary` (Task 4) — injected for testability via an options bag.
 - Produces: `captureWindow(req: CaptureRequest, opts?: {binaryPath?: string | null; timeoutMs?: number}): Promise<CaptureResult>`. Spawns the binary, reads the JSON line + PNG, returns a `CaptureResult`. Never throws.
 
@@ -500,15 +516,21 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {randomUUID} from 'node:crypto'
 import {existsSync} from 'node:fs'
-import {CAPTURE_FAILURES, type CaptureFailure, type CaptureRequest, type CaptureResult} from '@aidx/protocol/capture-types'
-import {resolveCaptureBinary} from '@aidx/capture-macos'
+import {
+  CAPTURE_FAILURES,
+  type CaptureFailure,
+  type CaptureRequest,
+  type CaptureResult,
+} from '@opendui/aidx-protocol/capture-types'
+import {resolveCaptureBinary} from '@opendui/aidx-capture-macos'
 
 type CaptureOpts = {binaryPath?: string | null; timeoutMs?: number; extraArgs?: string[]}
 
 function classify(line: string): CaptureFailure {
   try {
     const reason = JSON.parse(line)?.reason
-    if (typeof reason === 'string' && (CAPTURE_FAILURES as readonly string[]).includes(reason)) return reason as CaptureFailure
+    if (typeof reason === 'string' && (CAPTURE_FAILURES as readonly string[]).includes(reason))
+      return reason as CaptureFailure
   } catch {}
   return 'capture-failed'
 }
@@ -516,7 +538,8 @@ function classify(line: string): CaptureFailure {
 // Spawn the capture binary as a direct child (rides the dev-host TCC grant). Never throws.
 export async function captureWindow(req: CaptureRequest, opts: CaptureOpts = {}): Promise<CaptureResult> {
   const binaryPath = opts.binaryPath === undefined ? resolveCaptureBinary() : opts.binaryPath
-  if (binaryPath === null) return {ok: false, reason: process.platform === 'darwin' ? 'binary-missing' : 'unsupported-os'}
+  if (binaryPath === null)
+    return {ok: false, reason: process.platform === 'darwin' ? 'binary-missing' : 'unsupported-os'}
   if (!existsSync(binaryPath)) return {ok: false, reason: 'binary-missing'}
 
   const out = join(tmpdir(), `aidx-capture-${randomUUID()}.png`)
@@ -548,11 +571,11 @@ export async function captureWindow(req: CaptureRequest, opts: CaptureOpts = {})
 }
 ```
 
-Note: add `@aidx/capture-macos` to `packages/core/package.json` `dependencies` (workspace) and `optionalDependencies` semantics are unnecessary because `resolveCaptureBinary` already null-guards; the import must not throw on non-darwin, so `index.ts` must have no top-level darwin-only side effects (it does not).
+Note: add `@opendui/aidx-capture-macos` to `packages/core/package.json` `dependencies` (workspace) and `optionalDependencies` semantics are unnecessary because `resolveCaptureBinary` already null-guards; the import must not throw on non-darwin, so `index.ts` must have no top-level darwin-only side effects (it does not).
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `pnpm --filter @aidx/core test page/capture`
+Run: `pnpm --filter @opendui/aidx-core test page/capture`
 Expected: PASS (4 tests).
 
 - [ ] **Step 5: Commit**
@@ -567,10 +590,12 @@ git commit --no-verify -m "feat(core): window-capture orchestrator with graceful
 ## Task 6: Capture route
 
 **Files:**
+
 - Modify: `packages/core/src/api/page/page.ts`
 - Create: `packages/core/test/api/page/capture.it.test.ts`
 
 **Interfaces:**
+
 - Consumes: `captureWindow` (Task 5); `CaptureRequestSchema` (Task 1); `responsibleHostApp` (Task 2).
 - Produces: `POST /api/page/capture` accepting a `CaptureRequest` body, returning `CaptureResult` plus, on a `permission` failure, `{host: string}` naming the responsible app. Always HTTP 200 (failures are in the body, so the widget branches without try/catch around the transport).
 
@@ -612,7 +637,7 @@ describe('POST /api/page/capture', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @aidx/core test api/page/capture`
+Run: `pnpm --filter @opendui/aidx-core test api/page/capture`
 Expected: FAIL — 404, route not registered.
 
 - [ ] **Step 3: Add the route to `registerPageRoutes`**
@@ -620,23 +645,23 @@ Expected: FAIL — 404, route not registered.
 In `packages/core/src/api/page/page.ts`, add imports and a route inside `registerPageRoutes`:
 
 ```ts
-import {CaptureRequestSchema} from '@aidx/protocol/capture-types'
+import {CaptureRequestSchema} from '@opendui/aidx-protocol/capture-types'
 import {captureWindow} from '../../page/capture.js'
 import {responsibleHostApp} from '../../host-app.js'
 ```
 
 ```ts
-  app.post('/api/page/capture', async (event) => {
-    const req = await readValidatedBody(event, CaptureRequestSchema)
-    const result = await captureWindow(req)
-    if (result.ok === false && result.reason === 'permission') return {...result, host: responsibleHostApp()}
-    return result
-  })
+app.post('/api/page/capture', async (event) => {
+  const req = await readValidatedBody(event, CaptureRequestSchema)
+  const result = await captureWindow(req)
+  if (result.ok === false && result.reason === 'permission') return {...result, host: responsibleHostApp()}
+  return result
+})
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm --filter @aidx/core test api/page/capture`
+Run: `pnpm --filter @opendui/aidx-core test api/page/capture`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -651,10 +676,12 @@ git commit --no-verify -m "feat(core): POST /api/page/capture route"
 ## Task 7: Widget capture client
 
 **Files:**
+
 - Create: `packages/widget/src/react-grab/capture-screenshot.ts`
 - Test: `packages/widget/test/capture-screenshot.it.test.ts`
 
 **Interfaces:**
+
 - Consumes: `POST /api/page/capture` (Task 6).
 - Produces: `requestScreenshot(apiBase: string, hint: {url?: string; title?: string}): Promise<CaptureScreenshot | null>` where `CaptureScreenshot = {mediaType: string; dataBase64: string}`. Returns null on any failure (degraded-safe); on a `permission` failure it calls an injected `onPermission(host: string)` once.
 
@@ -697,13 +724,13 @@ describe('requestScreenshot', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @aidx/widget test capture-screenshot`
+Run: `pnpm --filter @opendui/aidx-widget test capture-screenshot`
 Expected: FAIL — cannot resolve module.
 
 - [ ] **Step 3: Write minimal implementation**
 
 ```ts
-import type {CaptureResult} from '@aidx/protocol/capture-types'
+import type {CaptureResult} from '@opendui/aidx-protocol/capture-types'
 
 export type CaptureScreenshot = {mediaType: string; dataBase64: string}
 type Opts = {onPermission?: (host: string) => void}
@@ -734,7 +761,7 @@ export async function requestScreenshot(
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm --filter @aidx/widget test capture-screenshot`
+Run: `pnpm --filter @opendui/aidx-widget test capture-screenshot`
 Expected: PASS (3 tests).
 
 - [ ] **Step 5: Commit**
@@ -749,10 +776,12 @@ git commit --no-verify -m "feat(widget): best-effort screenshot capture client"
 ## Task 8: Carry the screenshot on the staged grab
 
 **Files:**
+
 - Modify: `packages/widget/src/react-grab/grab-types.ts`
 - Modify: `packages/widget/src/react-grab/picker-action.ts`
 
 **Interfaces:**
+
 - Consumes: `requestScreenshot` (Task 7); `ComposerActionContext` (`ctx.stageGrab`, and `ctx.apiBase` — confirm the field name in `widget-shell.tsx`; the model selector control reads `apiBase` from its context, mirror that).
 - Produces: `StagedGrab.screenshot?: {mediaType: string; dataBase64: string}` and `Grab.screenshot?` carried through to send.
 
@@ -801,7 +830,7 @@ In `packages/widget/src/widget-shell.tsx`, extend `ComposerActionContext` with `
 
 - [ ] **Step 4: Typecheck**
 
-Run: `pnpm turbo typecheck --filter @aidx/widget`
+Run: `pnpm turbo typecheck --filter @opendui/aidx-widget`
 Expected: PASS. (No unit test here; behavior is verified end-to-end in Task 10.)
 
 - [ ] **Step 5: Commit**
@@ -816,10 +845,12 @@ git commit --no-verify -m "feat(widget): attach screenshot to staged grab (non-b
 ## Task 9: Attach the screenshot as an image part on send
 
 **Files:**
+
 - Modify: the widget send path. **First confirm the file**: `grep -rn "role: 'user'\|parts\|content:\|sendMessage\|append" packages/widget/src/transport.ts packages/widget/src/session-client.ts packages/widget/src/chat-panel.tsx` and locate where the outgoing user message `content`/`parts` array is assembled.
 - Test: extend `packages/widget/test/*.it.test.ts` for the send-body assembly if a unit seam exists; otherwise rely on Task 10's end-to-end check.
 
 **Interfaces:**
+
 - Consumes: `Grab.screenshot` (Task 8).
 - Produces: when a staged grab carries a screenshot, the outgoing user message `content` includes an image part of the exact shape the core converts (`packages/core/src/api/chat/messages.ts` `modelContent`): `{type: 'image', source: {type: 'data', mimeType: 'image/png', value: <base64>}}`.
 
@@ -835,7 +866,12 @@ Where the user message is constructed, when the active staged grab has `screensh
 // Real screenshot rides as an inline image content part; core's modelContent maps it to the
 // harness image channel (fileRef). Absent when capture was unavailable — nothing is added.
 const imageParts = grab?.screenshot
-  ? [{type: 'image' as const, source: {type: 'data' as const, mimeType: grab.screenshot.mediaType, value: grab.screenshot.dataBase64}}]
+  ? [
+      {
+        type: 'image' as const,
+        source: {type: 'data' as const, mimeType: grab.screenshot.mediaType, value: grab.screenshot.dataBase64},
+      },
+    ]
   : []
 ```
 
@@ -843,7 +879,7 @@ and merge `imageParts` into the message `content` array alongside the existing t
 
 - [ ] **Step 3: Typecheck**
 
-Run: `pnpm turbo typecheck --filter @aidx/widget`
+Run: `pnpm turbo typecheck --filter @opendui/aidx-widget`
 Expected: PASS.
 
 - [ ] **Step 4: Commit**
@@ -858,10 +894,12 @@ git commit --no-verify -m "feat(widget): send grabbed-window screenshot as an im
 ## Task 10: End-to-end verification (real browser, no Playwright)
 
 **Files:**
+
 - Create: `packages/widget/test/capture-e2e.it.test.ts` (gated; skips when the host lacks the grant)
 - Create: `docs/superpowers/plans/capture-manual-verification.md` (manual checklist)
 
 **Interfaces:**
+
 - Consumes: the full stack (Tasks 3–9).
 
 - [ ] **Step 1: Write the gated end-to-end check**
@@ -870,7 +908,7 @@ Boot a real core server and a real dev page (the existing widget IT harness patt
 
 - [ ] **Step 2: Run it**
 
-Run: `pnpm --filter @aidx/widget test capture-e2e`
+Run: `pnpm --filter @opendui/aidx-widget test capture-e2e`
 Expected: PASS or SKIP (with a clear "Screen Recording not granted to <host>; skipping" message). Never a hard failure on an ungranted/CI host.
 
 - [ ] **Step 3: Write the manual verification checklist**
@@ -889,6 +927,7 @@ git commit --no-verify -m "test(widget): gated end-to-end window-capture check +
 ## Task 11: Wire the build + document the feature
 
 **Files:**
+
 - Modify: `packages/capture-macos/package.json` (add a `build` script invoking `build.sh`)
 - Modify: root build pipeline (`turbo.json` if Swift build needs a pipeline entry) — document that the Swift binary is built out-of-band on macOS, not in `turbo typecheck`.
 - Modify: relevant README/docs to note the macOS-only, opt-in, permission-gated nature.
@@ -922,6 +961,7 @@ git commit --no-verify -m "chore(capture-macos): build wiring + docs"
 ## Self-Review
 
 **Spec coverage:**
+
 - Spawned Swift+SCK binary riding host grant → Tasks 3, 4, 5. ✓
 - `POST /api/page/capture` + failure classification → Tasks 5, 6. ✓
 - Widget grab attaches screenshot, sent as image part via existing delivery → Tasks 7, 8, 9. ✓
@@ -936,5 +976,6 @@ git commit --no-verify -m "chore(capture-macos): build wiring + docs"
 **Type consistency:** `CaptureResult`/`CaptureFailure` (Task 1) used identically in Tasks 5–7. `resolveCaptureBinary` (Task 4) consumed in Task 5. `requestScreenshot` signature (Task 7) matches its call in Task 8. Image-part shape (Task 9) matches `modelContent` in `messages.ts` verbatim. `screenshot` field name consistent across Tasks 8–10.
 
 **Known soft spots flagged for the implementer:**
+
 - Task 8 Step 3 assumes `ComposerActionContext` can carry `apiBase`/`notify`/`updateStagedScreenshot`; confirm exact field names against `widget-shell.tsx` before writing.
 - Task 9 requires confirming the send-assembly file first (Step 1).

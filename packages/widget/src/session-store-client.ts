@@ -1,5 +1,5 @@
 import {createSignal} from 'solid-js'
-import {ChatSessionsSchema, type ChatSessionMeta} from '@aidx/protocol/chat-types'
+import {ChatSessionsSchema, type ChatSessionMeta} from '@opendui/aidx-protocol/chat-types'
 import {createTransport} from './transport.js'
 
 // One shared client-side cache of the session list, so every mounted SessionSelector (modal pill +

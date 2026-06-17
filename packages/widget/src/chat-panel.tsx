@@ -11,14 +11,14 @@ import {TestCard} from './test-card.js'
 import {Markdown} from './markdown.js'
 import {ArrowRight, Square, SquarePen, FoldVertical} from 'lucide-solid'
 import {EventType, type StreamChunk} from '@tanstack/ai'
-import {AIDX_UI_EVENT, UiSpecSchema, type UiSpec} from '@aidx/protocol/ui-types'
+import {AIDX_UI_EVENT, UiSpecSchema, type UiSpec} from '@opendui/aidx-protocol/ui-types'
 import {
   AIDX_USAGE_EVENT,
   UsageSnapshotSchema,
   tokenUsageToSnapshot,
   type UsageSnapshot,
-} from '@aidx/protocol/usage-types'
-import {TestRunResultSchema, type TestRunResult} from '@aidx/protocol/test-types'
+} from '@opendui/aidx-protocol/usage-types'
+import {TestRunResultSchema, type TestRunResult} from '@opendui/aidx-protocol/test-types'
 import type {ComposerActionDef, ComposerControlDef, PanelDef} from './widget-shell.js'
 import {GrabReference} from './react-grab/grab-reference.js'
 import type {Grab} from './react-grab/grab-types.js'

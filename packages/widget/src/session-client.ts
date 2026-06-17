@@ -17,7 +17,7 @@ import {
   RenameResponseSchema,
   OkSchema,
   PermissionDecisionSchema,
-} from '@aidx/protocol/chat-types'
+} from '@opendui/aidx-protocol/chat-types'
 import {createTransport} from './transport.js'
 
 export function defineClient(opts: {apiBase: string}) {

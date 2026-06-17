@@ -1,1 +1,1 @@
-export {register} from '@aidx/plugin/nextjs'
+export {register} from '@opendui/aidx/plugin/nextjs'

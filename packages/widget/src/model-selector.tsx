@@ -1,7 +1,7 @@
 import {createSignal, For, onMount, Show, type JSX} from 'solid-js'
 import {Combobox, useListCollection} from '@ark-ui/solid/combobox'
 import {Check, ChevronsUpDown} from 'lucide-solid'
-import type {HarnessModelInfo} from '@aidx/protocol/chat-types'
+import type {HarnessModelInfo} from '@opendui/aidx-protocol/chat-types'
 import {defineClient} from './session-client.js'
 import {createPersistedSignal} from './persisted-signal.js'
 import type {ComposerControlDef} from './widget-shell.js'

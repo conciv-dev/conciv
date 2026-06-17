@@ -1,7 +1,7 @@
 import type {ZodType} from 'zod'
 import {EventType, type StreamChunk} from '@tanstack/ai'
-import type {HarnessDecodeOpts} from '@aidx/protocol/harness-types'
-import {snapshotToTokenUsage, type UsageSnapshot} from '@aidx/protocol/usage-types'
+import type {HarnessDecodeOpts} from '@opendui/aidx-protocol/harness-types'
+import {snapshotToTokenUsage, type UsageSnapshot} from '@opendui/aidx-protocol/usage-types'
 
 // Shared decoder spine: run lifecycle, line loop, parse, id minter, AG-UI chunk emitters.
 // An adapter supplies only its Zod event schema and a pure event→chunks `step`.
