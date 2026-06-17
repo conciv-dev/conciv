@@ -269,12 +269,18 @@ Wiring:
    `useChat({ outputSchema })`: ai-client 0.16.3 `ChatClientBaseOptions` has no such field
    (doc-comment only); the part appears from the CUSTOM events regardless.
 
-Gating: the flag is opt-in per harness (a setting; default decided in the plan). When off, no
-done card and zero overhead — the turn behaves exactly as today. The capability flag excludes
-gemini-cli / opencode / pi entirely. Residual risk: the full interaction inside aidx's live turn
-pipeline (permission gate, usage accounting, compaction) is not yet exercised end-to-end; the
-plan makes that an early real-run task, since the isolated CLI behavior is now known but the
-integration is not.
+Gating: a single config flag, default ON for capable harnesses (claude + codex). It lives in the
+aidx config (`@aidx/protocol` config-types, e.g. `doneCard: boolean`, default true) so it is
+trivially disabled in one place; when off, the harness args simply omit `--json-schema` /
+`--output-schema`, so there is NO done card and ZERO overhead — no forced tool, no extra turn, no
+schema-shaped answer; the turn behaves exactly as today. This is the important property: the whole
+structured-output path (and its costs — claude's extra round-trip per message, codex's
+final-answer-as-JSON) is bypassed by flipping one flag, not just hidden in the UI. The capability
+flag excludes gemini-cli / opencode / pi entirely. Because the off-switch fully bypasses the path,
+the risk of the feature is bounded: anyone hitting latency/answer-shape issues turns it off and is
+back to today's behavior. Residual: the full interaction inside aidx's live turn pipeline
+(permission gate, usage, compaction) is not yet exercised end-to-end; the plan makes that an early
+real-run task.
 
 ## Narrow / modal
 
@@ -371,7 +377,8 @@ obvious edits; the registry and Storybook pick it up.
 ## Components touched
 
 - `@aidx/protocol`: `ToolKind`, `ClassifiedTool`, `structuredOutput` capability on
-  `HarnessAdapter`, final-result schema.
+  `HarnessAdapter`, the all-required final-result schema, and the `doneCard` config flag
+  (config-types, default true) that bypasses the whole structured-output path when off.
 - `@aidx/harness`: a pure, browser-safe classify entry (claude classifier + generic; others
   fall through), and `--json-schema`/`--output-schema` args + bespoke structured-output decode for
   claude/codex (read `result.structured_output` / route the codex `agent_message` JSON; emit the
