@@ -1,6 +1,8 @@
 import {ok, err, type PageQuery, type PageQueryKind, type PageResult} from '@aidx/protocol/page-types'
 import {buildSnapshot, describeElement, DOM_CAP, type Refs} from './page-snapshot.js'
+import {dehydrate, navigatePath} from './dehydrate.js'
 import * as react from './react-bridge.js'
+import {startTracking, stopTracking, report as trackReport} from './render-tracker.js'
 
 export type ConsoleEntry = {level: string; ts: number; text: string}
 
@@ -41,22 +43,18 @@ export function startConsoleBuffer(): ConsoleEntry[] {
 export function resolveTarget(query: PageQuery, refs: Refs): Element | null {
   if (query.ref) return refs.map.get(query.ref)?.deref() ?? null
   if (query.selector) return document.querySelector(query.selector)
+  // Target a React component by name (resolves to the first match's nearest host element).
+  if (query.name) return react.elementByName(query.name)
   return null
 }
 
-// JSON-safe a value for the reply (eval results, mostly). Nodes summarized; non-serializable
-// stringified; capped like `dom`.
+// JSON-safe a value for the reply (eval results, mostly). A top-level DOM element gets the rich
+// `describeElement` summary; everything else goes through the React-aware dehydrator, which is
+// circular-safe, keeps functions/elements/bigint as readable previews, and bounds depth/breadth
+// so a huge or cyclic object can't blow the reply (no more "[object Object]").
 export function serialize(value: unknown): unknown {
-  if (value === null || value === undefined) return value
   if (value instanceof Element) return describeElement(value)
-  if (typeof value === 'string') return value.slice(0, DOM_CAP)
-  if (typeof value === 'number' || typeof value === 'boolean') return value
-  try {
-    const json = JSON.stringify(value)
-    return json.length > DOM_CAP ? json.slice(0, DOM_CAP) : JSON.parse(json)
-  } catch {
-    return String(value).slice(0, DOM_CAP)
-  }
+  return dehydrate(value)
 }
 
 function waitFor(selector: string, state: 'visible' | 'hidden', timeout: number): Promise<PageResult> {
@@ -99,6 +97,7 @@ export const ELEMENT_KINDS = new Set<PageQueryKind>([
   'attr',
   'locate',
   'inspect',
+  'override',
   'click',
   'fill',
   'select',
@@ -146,21 +145,58 @@ export const DOM_HANDLERS: Record<PageQueryKind, PageHandler> = {
     return {nodes: root ? buildSnapshot(root, refs) : []}
   },
   // react reads — fiber introspection via bippy (raw frames; the engine symbolicates locate)
-  locate: async ({el}: PageContext) => {
-    const result = el ? await react.locate(el) : null
+  locate: async ({el, refs}: PageContext) => {
+    const result = el ? await react.locate(el, refs) : null
     return result ?? err('no React fiber — element may be outside a React tree or not hydrated yet')
   },
-  inspect: async ({el}: PageContext) => {
+  inspect: async ({el, query}: PageContext) => {
     const result = el ? await react.inspect(el) : null
     if (!result) return err('no React fiber for element')
-    return {component: result.component, props: serialize(result.props), hooks: serialize(result.hooks)}
+    const root = {props: result.props, state: result.state, hooks: result.hooks}
+    // Drill: navigate the raw value at `path`, then dehydrate THAT subtree (2 more levels from there).
+    if (query.path) {
+      const hit = navigatePath(root, query.path)
+      if (!hit.found) return err(`path not found: ${query.path}`)
+      return {component: result.component, path: query.path, value: dehydrate(hit.value)}
+    }
+    return {
+      component: result.component,
+      props: dehydrate(result.props),
+      state: dehydrate(result.state),
+      hooks: dehydrate(result.hooks),
+      rect: result.rect,
+    }
+  },
+  override: async ({el, query}: PageContext) => {
+    if (!el) return err('no target element')
+    if (!query.target) return err('override requires --target (props|state|hooks|context)')
+    let value: unknown
+    try {
+      value = query.json === undefined ? undefined : JSON.parse(query.json)
+    } catch {
+      return err(`--json is not valid JSON: ${query.json}`)
+    }
+    const path = query.path ? query.path.split('.') : []
+    const result = await react.override(el, query.target, path, value, query.hookId)
+    if ('error' in result) return err(result.error)
+    return ok({target: query.target, path: query.path ?? '', value})
   },
   tree: async ({query, refs}: PageContext) => {
     const root = query.selector ? document.querySelector(query.selector) : document.body
-    return root ? {nodes: await react.tree(root, refs)} : err('no root element')
+    return root ? await react.tree(root, refs) : err('no root element')
   },
   find: ({query, refs}: PageContext) =>
-    query.name ? {matches: react.find(query.name, refs)} : err('find requires a component name (--name)'),
+    query.name ? react.find(query.name, refs) : err('find requires a component name (--name)'),
+  // Render tracking: start/stop a recording, or read the current report (filter by --name).
+  track: ({query}: PageContext) => {
+    const action = query.action ?? 'report'
+    if (action === 'start') {
+      startTracking()
+      return ok({tracking: true})
+    }
+    if (action === 'stop') return stopTracking()
+    return trackReport({name: query.name})
+  },
   wait: ({query}) =>
     query.selector
       ? waitFor(query.selector, query.state ?? 'visible', query.timeout ?? 5000)

@@ -10,6 +10,7 @@ import type {AidxConfig} from '@aidx/protocol/config-types'
 import {installAidxBinShim} from './bin-shim.js'
 import {viteConfig, viteResolve, viteGraph, viteTransform, viteUrls, type ViteLike} from './vite-tools.js'
 import {DEFAULT_WIDGET_ROUTE, makeWidgetInject, makeWidgetServe} from './widget-middleware.js'
+import {addSourceToJsx} from './inject-source.js'
 
 const require = createRequire(import.meta.url)
 
@@ -72,24 +73,50 @@ function openInEditor(file: string, line: number): void {
   launchEditor(`${file}:${line}`)
 }
 
+// The dev server's own origins (esp. a LAN IP like http://192.168.1.5:5173) — loopback origins
+// are always allowed by the core CORS guard, so this only widens it to non-loopback dev hosts.
+function devOrigins(server: ViteDevServer): string[] {
+  const urls = [...(server.resolvedUrls?.local ?? []), ...(server.resolvedUrls?.network ?? [])]
+  return [...new Set(urls.map((u) => safeOrigin(u)).filter((o): o is string => o !== null))]
+}
+function safeOrigin(url: string): string | null {
+  try {
+    return new URL(url).origin
+  } catch {
+    return null
+  }
+}
+
 function bootEngine(server: ViteDevServer, options: AidxConfig, agentPath: string): Promise<Engine> {
   return start({
     options,
     root: server.config.root,
     bridge: makeViteBridge(server),
     launchEditor: openInEditor,
+    allowedOrigins: devOrigins(server),
     childEnv: (corePort) => ({...process.env, PATH: agentPath, AIDX_PORT: String(corePort)}),
   })
 }
 
 // The unplugin factory's rich `vite` hook: boots @aidx/core (with the live viteBridge +
-// widget middleware) and injects the widget head tags. serve-only (no-op in prod builds).
+// widget middleware), injects the widget head tags, and stamps JSX with data-aidx-source.
+// serve-only (no-op in prod builds). enforce:'pre' so the source transform sees raw JSX/TSX
+// before @vitejs/plugin-react compiles it away.
 export function makeViteHook(options: AidxConfig = {}): Plugin {
   const widget = resolveWidgetSetup(options)
   let engine: Engine | null = null
+  let root = process.cwd()
   return {
     name: 'aidx',
     apply: 'serve',
+    enforce: 'pre',
+    configResolved(config) {
+      root = config.root
+    },
+    transform(code, id) {
+      if (options.enabled === false || id.includes('node_modules')) return null
+      return addSourceToJsx(code, id, root)
+    },
     transformIndexHtml: {
       order: 'pre',
       handler(_html, ctx) {

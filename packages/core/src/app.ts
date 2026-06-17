@@ -26,6 +26,9 @@ export type MakeAppOpts = {
   spawnHarness: (args: string[], cwd: string, sessionId?: string) => HarnessChild
   // Override the harness transcript home (claude: ~/.claude). For tests; defaults to homedir().
   claudeHome?: string
+  // Extra browser origins allowed to call the API (beyond loopback, which is always allowed) —
+  // e.g. a dev server bound to a LAN IP. The loopback default already covers localhost dev.
+  allowedOrigins?: string[]
 }
 
 // Resolve a registered adapter or fall back to the built-in; throw if even that is missing
@@ -48,7 +51,7 @@ export function makeApp(opts: MakeAppOpts): H3 {
   const uiBus = makeUiBus()
 
   registerErrorHandler(app)
-  registerCors(app)
+  registerCors(app, opts.allowedOrigins ?? [])
   registerChatRoutes(app, {
     cwd: opts.cwd,
     stateRoot: opts.cfg.stateRoot,
@@ -61,7 +64,7 @@ export function makeApp(opts: MakeAppOpts): H3 {
     claudeHome: opts.claudeHome,
     uiBus,
   })
-  const page = registerPageRoutes(app, {journal: makeJournal()})
+  const page = registerPageRoutes(app, {journal: makeJournal(), root: opts.cwd})
   registerEditorRoutes(app, opts.openInEditor)
   registerTestRunnerRoutes(app, runner)
   // Expose aidx tools to the harness CLI via MCP-over-HTTP on the same server, bridged to the live
@@ -74,6 +77,7 @@ export function makeApp(opts: MakeAppOpts): H3 {
       if (kind === 'run') return runner.run({patterns: pattern ? [pattern] : undefined})
       return runner.status()
     },
+    open: (file, line) => opts.openInEditor(file, line),
   }))
   if (opts.bridge) registerServerRoutes(app, opts.bridge)
   return app

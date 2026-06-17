@@ -8,6 +8,7 @@ describe('aidx_page tool', () => {
       injectUi: () => true,
       page: async (q) => (calls.push(q), {ok: true}),
       test: async () => ({}),
+      open: () => {},
     })
     const page = tools.find((t) => t.name === 'aidx_page')
     if (!page) throw new Error('aidx_page tool missing')

@@ -20,9 +20,11 @@ export const PAGE_VERBS: Record<PageQueryKind, VerbSpec> = {
   exists: {method: 'GET', targetsElement: true, flags: []},
   snapshot: {method: 'GET', targetsElement: true, flags: []},
   locate: {method: 'GET', targetsElement: true, flags: []},
-  inspect: {method: 'GET', targetsElement: true, flags: []},
+  inspect: {method: 'GET', targetsElement: true, flags: ['path']},
+  override: {method: 'POST', targetsElement: true, flags: ['target', 'path', 'hookId', 'json']},
   tree: {method: 'GET', targetsElement: true, flags: []},
   find: {method: 'GET', targetsElement: false, flags: ['name']},
+  track: {method: 'GET', targetsElement: false, flags: ['action', 'name']},
   wait: {method: 'GET', targetsElement: true, flags: ['state', 'timeout']},
   click: {method: 'POST', targetsElement: true, flags: []},
   hover: {method: 'POST', targetsElement: true, flags: []},
@@ -60,6 +62,11 @@ const FIELD = {
   html: z.string(),
   key: z.string(),
   code: z.string(),
+  path: z.string(),
+  target: z.enum(['props', 'state', 'hooks', 'context']),
+  hookId: z.coerce.number(),
+  json: z.string(),
+  action: z.enum(['start', 'stop', 'report']),
   position: z.enum(['before', 'after', 'prepend', 'append']),
   state: z.enum(['visible', 'hidden']),
   since: z.coerce.number(),
@@ -73,7 +80,8 @@ function isFieldName(f: string): f is FieldName {
 }
 function allowedFields(verb: PageQueryKind): FieldName[] {
   const spec = PAGE_VERBS[verb]
-  const target: FieldName[] = spec.targetsElement ? ['selector', 'ref'] : []
+  // Element verbs target by selector, snapshot ref, OR React component name (whichever the agent has).
+  const target: FieldName[] = spec.targetsElement ? ['selector', 'ref', 'name'] : []
   return [...target, ...spec.flags.filter(isFieldName)]
 }
 
@@ -98,6 +106,13 @@ function flagArg(flag: string): ArgDef {
   if (flag === 'state') return {type: 'enum', options: ['visible', 'hidden'], description: 'state to wait for'}
   if (flag === 'since') return {type: 'string', description: 'only logs after this timestamp (ms)'}
   if (flag === 'timeout') return {type: 'string', description: 'max wait in ms'}
+  if (flag === 'path') return {type: 'string', description: 'dot-path to drill into, e.g. props.user.address'}
+  if (flag === 'target') {
+    return {type: 'enum', options: ['props', 'state', 'hooks', 'context'], description: 'which slice to override'}
+  }
+  if (flag === 'hookId') return {type: 'string', description: 'hook id from inspect (for --target hooks)'}
+  if (flag === 'json') return {type: 'string', description: 'new value as JSON, e.g. true or {"a":1}'}
+  if (flag === 'action') return {type: 'enum', options: ['start', 'stop', 'report'], description: 'track action'}
   return {type: 'string', description: `--${flag}`}
 }
 
@@ -105,17 +120,18 @@ function argsFor(verb: PageQueryKind): ArgsDef {
   const spec = PAGE_VERBS[verb]
   const args: ArgsDef = {}
   if (spec.targetsElement) {
-    args.selector = {type: 'positional', required: false, description: 'CSS selector (or use --ref)'}
+    args.selector = {type: 'positional', required: false, description: 'CSS selector (or use --ref / --name)'}
     args.ref = {type: 'string', description: 'element ref from the latest snapshot'}
+    args.name = {type: 'string', description: 'React component name (targets the first match)'}
   }
   for (const f of spec.flags) args[f] = flagArg(f)
   return args
 }
 
-// The generated leaf commands for every page verb, plus the non-query `changes` journal cmd.
-export function pageCommands(): SubCommandsDef {
-  const verbs = Object.fromEntries(
-    PAGE_QUERY_KINDS.map((verb) => [
+// One generated leaf command per verb (all hit /api/page/:verb, so the `react` alias group reuses them).
+function leafCommandsFor(verbs: readonly PageQueryKind[]): SubCommandsDef {
+  return Object.fromEntries(
+    verbs.map((verb) => [
       verb,
       defineCommand({
         meta: {name: verb, description: `page ${verb}`},
@@ -124,6 +140,10 @@ export function pageCommands(): SubCommandsDef {
       }),
     ]),
   )
+}
+
+// The generated leaf commands for every page verb, plus the non-query `changes` journal cmd.
+export function pageCommands(): SubCommandsDef {
   const changes = defineCommand({
     meta: {name: 'changes', description: 'list (or --clear) the live-edit journal'},
     args: {clear: {type: 'boolean', description: 'reset the journal after listing'}},
@@ -134,10 +154,26 @@ export function pageCommands(): SubCommandsDef {
       return runAndPrint(req)
     },
   })
-  return {...verbs, changes}
+  return {...leafCommandsFor(PAGE_QUERY_KINDS), changes}
 }
 
 export const pageCommand = defineCommand({
   meta: {name: 'page', description: 'read & drive the live page (snapshot, click, fill, edit, eval, …)'},
   subCommands: pageCommands(),
+})
+
+// The React-introspection subset, exposed under `aidx tools react` as an alias of the same verbs —
+// where agents intuitively reach for them. All resolve to the same /api/page/:verb endpoints.
+export const REACT_VERBS = [
+  'inspect',
+  'tree',
+  'find',
+  'locate',
+  'override',
+  'track',
+] as const satisfies readonly PageQueryKind[]
+
+export const reactCommand = defineCommand({
+  meta: {name: 'react', description: 'inspect & edit live React components (inspect, tree, find, override, track)'},
+  subCommands: leafCommandsFor(REACT_VERBS),
 })

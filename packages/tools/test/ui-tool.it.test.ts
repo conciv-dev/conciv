@@ -8,6 +8,7 @@ describe('aidx_ui tool', () => {
       injectUi: (spec) => (seen.push(spec), true),
       page: async () => ({}),
       test: async () => ({}),
+      open: () => {},
     })
     const ui = tools.find((t) => t.name === 'aidx_ui')
     if (!ui) throw new Error('aidx_ui tool missing')

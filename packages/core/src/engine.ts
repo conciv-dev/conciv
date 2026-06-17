@@ -16,6 +16,8 @@ export type StartOpts = {
   launchEditor: (file: string, line: number) => void
   childEnv?: (corePort: number) => NodeJS.ProcessEnv
   port?: number
+  // Browser origins allowed to call the API beyond loopback (e.g. a dev server on a LAN IP).
+  allowedOrigins?: string[]
 }
 
 export type Engine = {port: number; stop: () => Promise<void>; cfg: ResolvedAidxConfig}
@@ -52,6 +54,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     openInEditor,
     systemPromptFile: cfg.systemPrompt ? paths.systemPrompt : undefined,
     spawnHarness,
+    allowedOrigins: opts.allowedOrigins,
   }
   const app = makeApp(appOpts)
   // Explicit port (e.g. the Next.js integration) is used as-is; otherwise get-port finds a free one.

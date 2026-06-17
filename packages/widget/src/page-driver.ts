@@ -28,9 +28,10 @@ export function makeDomPageDriver(deps: {handlers?: Partial<Record<PageQueryKind
     const needsEl = ELEMENT_KINDS.has(query.kind)
     const el = needsEl ? resolveTarget(query, refs) : null
     if (needsEl && !el) {
-      return query.ref
-        ? err(`stale ref ${query.ref} — re-run page snapshot`)
-        : err(`no element for selector ${query.selector ?? '(none)'}`)
+      if (query.ref) return err(`stale ref ${query.ref} — re-run page snapshot`)
+      if (query.name) return err(`no React component named "${query.name}" found`)
+      if (query.selector) return err(`no element for selector ${query.selector}`)
+      return err('no target — pass --ref, --selector, or --name')
     }
     try {
       return await handler({query, el, refs, consoleBuf})

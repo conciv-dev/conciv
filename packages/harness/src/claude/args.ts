@@ -14,10 +14,11 @@ export function claudeMcpArgs(mcpUrl: string): string[] {
     '--mcp-config',
     JSON.stringify({mcpServers: {aidx: {type: 'http', url: mcpUrl}}}),
     '--strict-mcp-config',
+    // Server-level allow: every tool the aidx MCP server exposes (ui/page/test/open + any future
+    // tool) runs unprompted, so the allowlist can't drift as we add tools. --strict-mcp-config keeps
+    // this to OUR server only, so it never blesses a user's MCP server.
     '--allowedTools',
-    'mcp__aidx__aidx_ui',
-    'mcp__aidx__aidx_page',
-    'mcp__aidx__aidx_test',
+    'mcp__aidx',
   ]
 }
 

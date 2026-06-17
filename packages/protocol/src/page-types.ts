@@ -16,7 +16,9 @@ export const PAGE_QUERY_KINDS = [
   'locate',
   'tree',
   'inspect',
+  'override',
   'find',
+  'track',
   'wait',
   'click',
   'fill',
@@ -43,6 +45,7 @@ export const PAGE_QUERY_KINDS = [
 export type PageQueryKind = (typeof PAGE_QUERY_KINDS)[number]
 
 export const MUTATING_KINDS = [
+  'override',
   'click',
   'fill',
   'select',
@@ -89,6 +92,16 @@ export const PageQuerySchema = z.object({
   state: PageWaitStateSchema.optional(),
   timeout: z.coerce.number().optional(),
   code: z.string().optional(),
+  // Dot-path into an inspect result for drill-down, e.g. "props.user.address" or "hooks.0.value".
+  // Numeric segments index arrays. Stays a plain string so it rides the query-string + MCP alike.
+  path: z.string().optional(),
+  // override verb: which slice to edit, the hook id (from inspect's hooks tree), and the new value
+  // as a JSON-encoded string (so `42`, `"text"`, `{"a":1}` are unambiguous over query-string + MCP).
+  target: z.enum(['props', 'state', 'hooks', 'context']).optional(),
+  hookId: z.coerce.number().optional(),
+  json: z.string().optional(),
+  // track verb: start a recording, stop it, or read the current report (filter by `name`).
+  action: z.enum(['start', 'stop', 'report']).optional(),
 })
 
 export type PageQuery = z.infer<typeof PageQuerySchema>

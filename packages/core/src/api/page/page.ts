@@ -14,7 +14,7 @@ import {sseStream} from '../sse.js'
 import {symbolicateFrames, type RawFrame} from '../../page/symbolicate.js'
 
 // Returns the page bus's `ask` so makeApp can give /api/mcp a page(query) handle into the same bus.
-export function registerPageRoutes(app: H3, deps: {journal: Journal}): {ask: PageBus['ask']} {
+export function registerPageRoutes(app: H3, deps: {journal: Journal; root: string}): {ask: PageBus['ask']} {
   const bus = makePageBus()
 
   app.get('/api/page/stream', (event) => sseStream(event, 'page-bus open', (emit) => bus.subscribe(emit)))
@@ -41,9 +41,10 @@ export function registerPageRoutes(app: H3, deps: {journal: Journal}): {ask: Pag
     if (isMutating(verb)) {
       deps.journal.append({verb, ref: input.ref, selector: input.selector, args: pageArgs(input)}, Date.now())
     }
-    // locate ships raw stack frames; resolve them to original source server-side (fs + http).
-    if (verb === 'locate' && Array.isArray(data.frames)) {
-      return {...data, source: await symbolicateFrames(data.frames as RawFrame[])}
+    // locate ships raw stack frames; resolve them to original source server-side (fs + http) —
+    // unless the widget already read an exact source from a build-injected attribute (data-aidx-source).
+    if (verb === 'locate' && !data.source && Array.isArray(data.frames)) {
+      return {...data, source: await symbolicateFrames(data.frames as RawFrame[], deps.root)}
     }
     return data
   }

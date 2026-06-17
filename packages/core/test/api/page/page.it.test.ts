@@ -2,6 +2,7 @@ import {describe, it, expect, afterEach} from 'vitest'
 import {z} from 'zod'
 import {H3} from 'h3'
 import {serve, type Server} from 'srvx'
+import {tmpdir} from 'node:os'
 import {registerPageRoutes} from '../../../src/api/page/page.js'
 import {makeJournal} from '../../../src/runtime/journal.js'
 import {chunkWithInlineMap, cleanupChunks} from '../../page/fixtures.js'
@@ -12,7 +13,8 @@ import {chunkWithInlineMap, cleanupChunks} from '../../page/fixtures.js'
 
 async function startServer(): Promise<{server: Server; base: string}> {
   const app = new H3()
-  registerPageRoutes(app, {journal: makeJournal()})
+  // Symbolication fixtures (chunkWithInlineMap) write to tmpdir, so that's the project root here.
+  registerPageRoutes(app, {journal: makeJournal(), root: tmpdir()})
   const server = serve({fetch: app.fetch, port: 0, hostname: '127.0.0.1'})
   await server.ready()
   return {server, base: new URL(server.url ?? '').origin}

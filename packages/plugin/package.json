@@ -55,6 +55,8 @@
     "@aidx/protocol": "workspace:*",
     "@aidx/widget": "workspace:*",
     "launch-editor": "^2.14.1",
+    "magic-string": "^0.30.21",
+    "oxc-parser": "^0.127.0",
     "unplugin": "^3.0.0"
   },
   "devDependencies": {

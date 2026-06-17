@@ -9,6 +9,8 @@ import {makeOpenInTerminalAction} from './open-in-terminal-action.js'
 import {modelSelectorControl} from './model-selector.js'
 import {TestCard} from './test-card.js'
 import {initPageBus} from './page-bus.js'
+import {makeDomPageDriver, type PageDriver} from './page-driver.js'
+import {installReactBridge} from './react-bridge.js'
 import {defineClient} from './session-client.js'
 import {parseWidgetSettings, type WidgetSettings} from './widget-settings.js'
 
@@ -23,6 +25,9 @@ declare global {
   interface Window {
     __AIDX_RENDER_TEST_CARD__?: () => void
     __AIDX_API_BASE__?: string
+    // Test seam (browser IT): the live page driver, for driving React verbs against real fibers
+    // without a running dev server. Same driver the page-bus uses (one console buffer / registry).
+    __AIDX_PAGE_DRIVER__?: PageDriver
   }
 }
 
@@ -45,9 +50,14 @@ function mountTestCardForTest(root: ShadowRoot, apiBase: string): void {
 
 export function mountWidget(): void {
   if (document.querySelector('[data-aidx-root]')) return
+  // Install the RDT hook before the host app's React initializes (so inspect/override work).
+  installReactBridge()
   const {root} = createShadowRoot()
   const apiBase = resolveApiBase()
   window.__AIDX_RENDER_TEST_CARD__ = () => mountTestCardForTest(root, apiBase)
+  // One driver, shared by the page-bus and the test seam, so console-patching + registry happen once.
+  const driver = makeDomPageDriver()
+  window.__AIDX_PAGE_DRIVER__ = driver
   const settings = resolveWidget()
   // Chat + page-bus only exist on the aidx dev server. Probe the non-session /models route: a 2xx
   // means chat is mounted (and carries the harness identity that gates the launch button). A throw
@@ -64,7 +74,7 @@ export function mountWidget(): void {
       if (models.harness.canLaunch) shell.registerComposerAction(makeOpenInTerminalAction(models.harness.name))
       shell.registerComposerControl(modelSelectorControl)
       shell.mount(root)
-      initPageBus({apiBase})
+      initPageBus({apiBase, driver})
     })
     .catch(() => {
       // No /models route (older core / non-chat server) → mount nothing.

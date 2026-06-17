@@ -8,6 +8,7 @@ describe('aidx_test tool', () => {
       injectUi: () => true,
       page: async () => ({}),
       test: async (a) => (calls.push(a), {tests: []}),
+      open: () => {},
     })
     const test = tools.find((t) => t.name === 'aidx_test')
     if (!test) throw new Error('aidx_test tool missing')

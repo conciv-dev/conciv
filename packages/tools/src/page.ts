@@ -11,6 +11,7 @@ export const PageInput = PageQueryInputSchema.extend({
   verb: PageQueryKindSchema,
   since: z.number().optional(),
   timeout: z.number().optional(),
+  hookId: z.number().optional(),
 })
 
 export const aidxPageToolDef = toolDefinition({
