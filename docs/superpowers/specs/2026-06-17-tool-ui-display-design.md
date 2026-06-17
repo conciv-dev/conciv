@@ -218,6 +218,41 @@ stays compact. Verified in the brainstorm mockup at the real 390px width.
   follow-up; this design ensures its page actions reuse the `page-action` card + mirror.
 - Not in scope: classifiers for codex / gemini-cli / opencode / pi (generic fallback for now).
 
+## Tools package refactor (`@aidx/tools`)
+
+The current tool layer is the wrong shape for this feature and should be refactored as part of
+it (v0, no back-compat shims per AGENTS.md). Problems today:
+
+- Each tool builds a tanstack `toolDefinition().server(exec)` then discards the typed
+  `ServerTool` to hand-roll an `AidxMcpTool = {name, description, inputSchema, run}`
+  (`tools/src/types.ts`). `run` re-parses input with zod (`PageInput.parse`, `UiInput.parse`)
+  although `.server(exec)` already validated. tanstack's tool system is reduced to a schema
+  holder, with double validation and full type erasure.
+- The shape is MCP/server-only. There is no way to instantiate the same definition as a
+  `.client()` tool, which the future page agent needs.
+- Per-tool human labels / classification live nowhere; the widget would have to infer them.
+
+Refactor:
+
+1. Tool definitions (`aidxPageToolDef`, `aidxUiToolDef`, ...) are the single source of truth and
+   stay side-agnostic. The MCP server path instantiates `.server(exec)`; the future page agent
+   instantiates `.client(exec)` from the same def. Drop the `AidxMcpTool` re-wrap and the
+   double zod parse; `core/src/api/mcp/mcp.ts` registers from the def's schema + the `.server`
+   instance directly. (`McpServer.registerTool` still gets `inputSchema.shape`.)
+2. Co-locate the canonical classification with each def: a `classify(input): ClassifiedTool`
+   (kind, title, family, fields) exported from the tools package. The aidx\_\* branch of the
+   harness classifier delegates to it, and the future client tools reuse it, so labels/kinds
+   for aidx tools are defined once and are harness-independent by construction.
+3. `aidx_page` stays one tool (tool-slot economy) but its per-verb label/kind/family map becomes
+   first-class data next to the def, driving both the model-facing description and the UI.
+4. `AidxToolContext` (the runtime bridge) maps cleanly to tanstack's client-tool `ctx.context`
+   for the future page agent; keep it a plain handle bag, no transport/CLI knowledge (already
+   true).
+
+Blast radius is contained: `@aidx/tools` (5 tool files + types) and `core/src/api/mcp/mcp.ts`,
+plus the new harness classifiers. Existing tools ITs (`tools/test/*.it.test.ts`) are updated to
+the new shape.
+
 ## Components touched
 
 - `@aidx/protocol`: `ToolKind`, `ClassifiedTool`, `structuredOutput` capability on
@@ -226,6 +261,10 @@ stays compact. Verified in the brainstorm mockup at the real 390px width.
   emitting the `ClassifiedTool` as the tool-call's `metadata` (the per-adapter
   `TToolCallMetadata`), `--json-schema`/`--output-schema` args for claude/codex, decode mapping
   to structured-output and classified tool calls.
+- `@aidx/tools`: drop the `AidxMcpTool` re-wrap, instantiate `.server()` from the shared defs,
+  co-locate `classify(input): ClassifiedTool`, per-verb map for `aidx_page`.
+- `@aidx/core`: `api/mcp/mcp.ts` registers tools from the def schema + `.server` instance
+  directly (no `run`/re-parse indirection).
 - `@aidx/widget`: tool-UI registry keyed on `ToolKind`, paired call+result rendering,
   reflection card, now-line, on-page mirror module (under `react-grab/` or sibling), done card,
   `styles.css` additions using existing tokens.
