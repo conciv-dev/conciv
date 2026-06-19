@@ -7,5 +7,6 @@ export default defineConfig({
   test: {
     include: ['test/**/*.test.ts'],
     exclude: ['test/fixtures/**', 'node_modules/**', 'dist/**'],
+    env: process.env.CI && !process.env.MANDARAX_CLAUDE_CLI ? {MANDARAX_CLAUDE_CLI: '1'} : {},
   },
 })

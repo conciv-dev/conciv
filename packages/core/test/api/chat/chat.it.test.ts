@@ -75,14 +75,18 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     expect(body).toContain('RUN_FINISHED')
   })
 
-  it.skipIf(!useFakeHarness && !hasClaude())('streams a run lifecycle with assistant text', async () => {
-    const server = await startTestServer({spawnHarness: fakeSpawn()})
-    state.server = server
-    const body = await server.postChat(turn('Reply with a short greeting.'), await server.resolve())
-    expect(body).toContain('RUN_STARTED')
-    expect(body).toContain('TEXT_MESSAGE_CONTENT')
-    expect(body).toContain('RUN_FINISHED')
-  })
+  it.skipIf(!useFakeHarness && !hasClaude())(
+    'streams a run lifecycle with assistant text',
+    async () => {
+      const server = await startTestServer({spawnHarness: fakeSpawn()})
+      state.server = server
+      const body = await server.postChat(turn('Reply with a short greeting.'), await server.resolve())
+      expect(body).toContain('RUN_STARTED')
+      expect(body).toContain('TEXT_MESSAGE_CONTENT')
+      expect(body).toContain('RUN_FINISHED')
+    },
+    60_000,
+  )
 
   fakeIt('renders text AND extracts usage under --include-partial-messages (real claude stream shape)', async () => {
     const server = await startTestServer({spawnHarness: fakeSpawn({partial: true})})

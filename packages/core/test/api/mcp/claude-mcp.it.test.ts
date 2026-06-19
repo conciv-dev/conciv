@@ -1,18 +1,9 @@
-import {execSync} from 'node:child_process'
 import {describe, expect, it} from 'vitest'
 import {startTestServer} from '../../helpers/server.js'
-
-function hasClaude(): boolean {
-  try {
-    execSync('command -v claude', {stdio: 'ignore'})
-    return true
-  } catch {
-    return false
-  }
-}
+import {hasClaude, useFakeHarness} from '../../helpers/harness-mode.js'
 
 describe('claude → /api/mcp → uiBus', () => {
-  it.skipIf(!hasClaude())(
+  it.skipIf(!hasClaude() || useFakeHarness)(
     'claude calls mandarax_ui mid-turn and the inject lands on the live stream',
     async () => {
       const {resolve, postChat, close} = await startTestServer({harness: 'claude'})

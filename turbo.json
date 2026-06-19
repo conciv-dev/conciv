@@ -15,7 +15,7 @@
     },
     "test": {
       "dependsOn": ["^build", "build"],
-      "env": ["SKIP_STORYBOOK_TESTS", "MANDARAX_CLAUDE_CLI"]
+      "env": ["SKIP_STORYBOOK_TESTS", "CI"]
     },
     "lint": {},
     "publint": {
