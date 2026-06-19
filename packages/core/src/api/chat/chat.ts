@@ -19,6 +19,7 @@ export type ChatRouteOpts = {
   initialSessionId: string // the agent's handed-off harness id, '' if none
   harness: HarnessAdapter
   spawnHarness: SpawnHarness
+  harnessEnv?: (sessionId?: string) => NodeJS.ProcessEnv
   systemPromptFile?: string // when systemPrompt==='file'
   systemPromptText?: string // otherwise
   claudeHome?: string // override the harness transcript home (tests); default homedir()
@@ -73,6 +74,8 @@ export function registerChatRoutes(app: H3, opts: ChatRouteOpts): void {
     stateRoot: opts.stateRoot,
     harness: opts.harness,
     spawnHarness: opts.spawnHarness,
+    harnessEnv: opts.harnessEnv,
+    gate,
     systemPromptFile: opts.systemPromptFile,
     systemPromptText: opts.systemPromptText,
     uiBus,

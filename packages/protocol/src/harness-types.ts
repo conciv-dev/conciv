@@ -7,7 +7,7 @@ import type {UsageSnapshot} from './usage-types.js'
 
 export type HarnessCapabilities = {
   resume: boolean
-  permissionGate: 'hook' | 'none'
+  permissionGate: 'hook' | 'callback' | 'none'
   transcriptHistory: boolean
   // Native context compaction (the agent rewrites its own context to a summary, freeing the window).
   // true → the adapter must supply `buildCompactArgs` (type-enforced below). false → core falls back
@@ -68,6 +68,20 @@ export type HarnessLaunch = (ctx: HarnessLaunchContext) => HarnessLaunchResult |
 // Builds the CLI argv for one turn.
 export type HarnessArgsBuilder = (turn: HarnessTurn) => string[]
 
+// In-process turn runner (SDK transport): core branches to this in place of buildArgs/spawn/decode.
+export type HarnessRunContext = {
+  sessionId: string
+  env: Record<string, string | undefined>
+  onSessionId(id: string): void
+  onUsage?(usage: UsageSnapshot): void
+  signal: AbortSignal
+  decide(toolName: string, input: unknown, toolUseId: string): Promise<'allow' | 'deny'>
+  runId?: string
+  threadId?: string
+  logger?: HarnessDecodeLogger
+}
+export type HarnessRun = (turn: HarnessTurn, ctx: HarnessRunContext) => AsyncGenerator<StreamChunk>
+
 // Optional: write the turn's input to the child after spawn (e.g. claude native images →
 // a stream-json user message on stdin). Harnesses that take everything via argv omit it.
 export type HarnessDeliverInput = (child: HarnessChild, turn: HarnessTurn) => void | Promise<void>
@@ -127,6 +141,8 @@ type HarnessAdapterBase = {
   buildCompactArgs?: HarnessArgsBuilder
   decode: HarnessDecoder
   deliverInput?: HarnessDeliverInput
+  run?: HarnessRun
+  shutdown?: () => void | Promise<void>
   // Models this harness can run + the id to pre-select. Both optional: a harness with no model
   // choice omits them and the widget hides its selector.
   models?: HarnessModels

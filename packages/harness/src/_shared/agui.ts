@@ -56,9 +56,20 @@ export function* toolResult(messageId: string, toolCallId: string, content: stri
   yield {type: EventType.TOOL_CALL_RESULT, messageId, toolCallId, content}
 }
 
-export async function* runAgui<E>(
+async function* parsedLines<E>(
   lines: AsyncIterable<string>,
   schema: ZodType<E>,
+  logger?: HarnessDecodeOpts['logger'],
+): AsyncGenerator<E> {
+  for await (const line of lines) {
+    logger?.provider('harness-line', {line})
+    const event = parseJsonLine(line, schema)
+    if (event !== null) yield event
+  }
+}
+
+export async function* runAguiEvents<E>(
+  events: AsyncIterable<E>,
   opts: HarnessDecodeOpts,
   step: Step<E>,
   extractUsage?: UsageExtractor<E>,
@@ -76,10 +87,7 @@ export async function* runAgui<E>(
   let usage: UsageSnapshot = {}
   let sawUsage = false
   yield {type: EventType.RUN_STARTED, threadId, runId}
-  for await (const line of lines) {
-    opts.logger?.provider('harness-line', {line})
-    const event = parseJsonLine(line, schema)
-    if (event === null) continue
+  for await (const event of events) {
     yield* step(event, {mint, onSessionId: opts.onSessionId})
     if (extractUsage) {
       const delta = extractUsage(event)
@@ -98,4 +106,14 @@ export async function* runAgui<E>(
     finishReason: 'stop',
     ...(sawUsage ? {usage: snapshotToTokenUsage(usage), model: usage.modelId} : {}),
   }
+}
+
+export function runAgui<E>(
+  lines: AsyncIterable<string>,
+  schema: ZodType<E>,
+  opts: HarnessDecodeOpts,
+  step: Step<E>,
+  extractUsage?: UsageExtractor<E>,
+): AsyncGenerator<StreamChunk> {
+  return runAguiEvents(parsedLines(lines, schema, opts.logger), opts, step, extractUsage)
 }

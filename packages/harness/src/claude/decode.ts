@@ -4,6 +4,7 @@ import type {HarnessDecodeOpts} from '@mandarax/protocol/harness-types'
 import {TextBlock, ThinkingBlock, ToolUseBlock, ToolResultBlock} from './blocks.js'
 import {
   runAgui,
+  runAguiEvents,
   textMessage,
   reasoningMessage,
   toolCall,
@@ -227,4 +228,19 @@ const claudeUsage: UsageExtractor<ClaudeEvent> = (e) => {
 
 export function claudeToAguiEvents(lines: AsyncIterable<string>, opts: HarnessDecodeOpts): AsyncGenerator<StreamChunk> {
   return runAgui(lines, ClaudeEventSchema, opts, makeClaudeStep(), claudeUsage)
+}
+
+// SDK transport: SDKMessage objects share the CLI stream-json shape, so reuse the same step + usage.
+export function claudeMessagesToAgui(
+  messages: AsyncIterable<unknown>,
+  opts: HarnessDecodeOpts,
+): AsyncGenerator<StreamChunk> {
+  return runAguiEvents(validatedClaudeEvents(messages), opts, makeClaudeStep(), claudeUsage)
+}
+
+async function* validatedClaudeEvents(messages: AsyncIterable<unknown>): AsyncGenerator<ClaudeEvent> {
+  for await (const m of messages) {
+    const parsed = ClaudeEventSchema.safeParse(m)
+    if (parsed.success) yield parsed.data
+  }
 }

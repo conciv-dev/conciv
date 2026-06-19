@@ -19,6 +19,9 @@ export type HarnessAdapterDeps = {
   onSpawn?: (child: HarnessChild) => void // route acquires the lock here
   model?: string // selected model id, forwarded onto the turn for buildArgs
   turnKind?: 'chat' | 'compact' // 'compact' → build a compaction turn (capable harnesses only)
+  sessionId?: string
+  env?: Record<string, string | undefined>
+  decide?: (toolName: string, input: unknown, toolUseId: string) => Promise<'allow' | 'deny'>
 }
 
 type InputModalities = readonly ['text']
@@ -87,6 +90,20 @@ export class HarnessTextAdapter extends BaseTextAdapter<string, Record<string, n
       ...(images.length ? {images} : {}),
       ...(deps.model ? {model: deps.model} : {}),
       kind: deps.turnKind ?? 'chat',
+    }
+    if (harness.run) {
+      yield* harness.run(turn, {
+        sessionId: deps.sessionId ?? '',
+        env: deps.env ?? {},
+        signal: options.abortController?.signal ?? new AbortController().signal,
+        decide: deps.decide ?? (async () => 'allow'),
+        onSessionId: (id) => deps.onSessionId?.(id),
+        onUsage: deps.onUsage ? (usage) => deps.onUsage?.(usage) : undefined,
+        runId: options.runId,
+        threadId: options.threadId,
+        logger: options.logger,
+      })
+      return
     }
     // Native compaction iff the harness advertises it (and supplies the builder); otherwise the
     // turn runs as a normal chat from the summarize prompt the route substituted in.

@@ -126,10 +126,10 @@ function nameFor(deps: SessionRouteDeps, token: string | null): string | null {
   return raw ? hist.nameFromTranscript(raw) : null
 }
 
-// Kill a session's live turn (best-effort SIGTERM) if a lock holds a pid.
+// Kill a session's live turn if a lock holds a pid. Skip our own pid (SDK transport stops via abort).
 function killLock(stateRoot: string, sessionId: string): void {
   const lock = readLock(stateRoot, sessionId)
-  if (!lock.pid) return
+  if (!lock.pid || lock.pid === process.pid) return
   try {
     process.kill(lock.pid, 'SIGTERM')
   } catch {

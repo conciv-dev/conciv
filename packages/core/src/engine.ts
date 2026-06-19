@@ -3,6 +3,7 @@ import {serve} from 'srvx'
 import getPort from 'get-port'
 import type {HarnessChild} from '@mandarax/protocol/harness-types'
 import type {BundlerBridge} from '@mandarax/protocol/bundler-types'
+import {getHarness} from '@mandarax/harness'
 import {makeApp, type MakeAppOpts} from './app.js'
 import {makeEditorOpener} from './editor/open.js'
 import {resolveConfig, type MandaraxConfig, type ResolvedMandaraxConfig} from './config.js'
@@ -34,14 +35,15 @@ export async function start(opts: StartOpts): Promise<Engine> {
     () => Date.now(),
   )
 
-  // stdio:[…'pipe','pipe'] guarantees the pipes; narrow via a guard, never `!`.
   const portRef = {port: 0}
+  const harnessEnv = (sessionId?: string): NodeJS.ProcessEnv => {
+    const baseEnv = opts.childEnv ? opts.childEnv(portRef.port) : process.env
+    return sessionId ? {...baseEnv, MANDARAX_SESSION_ID: sessionId} : baseEnv
+  }
+
   const spawnHarness = (args: string[], cwd: string, sessionId?: string): HarnessChild => {
     const harnessBin = cfg.harnessBin ?? 'claude'
-    const baseEnv = opts.childEnv ? opts.childEnv(portRef.port) : process.env
-    // The turn's header id rides the child env so the agent's mandarax ui / permission hook echo it back.
-    const env = sessionId ? {...baseEnv, MANDARAX_SESSION_ID: sessionId} : baseEnv
-    const child = spawn(harnessBin, args, {cwd, stdio: ['pipe', 'pipe', 'pipe'], env})
+    const child = spawn(harnessBin, args, {cwd, stdio: ['pipe', 'pipe', 'pipe'], env: harnessEnv(sessionId)})
     const {stdin, stdout, stderr} = child
     if (!stdin || !stdout || !stderr) throw new Error(`harness "${harnessBin}" did not expose stdio pipes`)
     return {pid: child.pid ?? -1, stdin, stdout, stderr, kill: () => void child.kill('SIGTERM')}
@@ -54,6 +56,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     openInEditor,
     systemPromptFile: cfg.systemPrompt ? paths.systemPrompt : undefined,
     spawnHarness,
+    harnessEnv,
     allowedOrigins: opts.allowedOrigins,
   }
   const app = makeApp(appOpts)
@@ -67,6 +70,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     port,
     cfg,
     stop: async () => {
+      await getHarness(cfg.harness)?.shutdown?.()
       await server.close(true)
     },
   }

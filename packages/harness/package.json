@@ -2,7 +2,22 @@
   "name": "@mandarax/harness",
   "version": "0.0.0",
   "description": "Harness adapters (claude, codex, + stubs) behind the @mandarax/protocol HarnessAdapter contract.",
+  "keywords": [
+    "ai",
+    "claude",
+    "codex",
+    "gemini",
+    "harness",
+    "mandarax"
+  ],
+  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/harness#readme",
+  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mandarax-dev/mandarax.git",
+    "directory": "packages/harness"
+  },
   "files": [
     "dist",
     "plugins"
@@ -34,6 +49,9 @@
       "import": "./dist/pi/index.js"
     }
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -43,6 +61,7 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.179",
     "@mandarax/protocol": "workspace:^",
     "@tanstack/ai": "^0.28.0",
     "zod": "^4.4.3"
@@ -53,23 +72,5 @@
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/mandarax-dev/mandarax.git",
-    "directory": "packages/harness"
-  },
-  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/harness#readme",
-  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
-  "publishConfig": {
-    "access": "public"
-  },
-  "keywords": [
-    "ai",
-    "claude",
-    "codex",
-    "gemini",
-    "harness",
-    "mandarax"
-  ]
+  }
 }

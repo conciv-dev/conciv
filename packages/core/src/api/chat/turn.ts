@@ -8,6 +8,7 @@ import {tokenUsageToSnapshot} from '@mandarax/protocol/usage-types'
 import {acquireLock, releaseLock, updateLockPid} from '../../store/lock.js'
 import type {SessionStore} from '../../store/session-store.js'
 import type {UiBus} from '../../runtime/ui-bus.js'
+import type {PermissionGate} from './permission.js'
 import {toChatMessages} from './messages.js'
 import {sessionIdFromHeaders} from './session-id.js'
 import {sseHeaders} from '../sse.js'
@@ -56,6 +57,8 @@ export type TurnDeps = {
   stateRoot: string
   harness: HarnessAdapter
   spawnHarness: SpawnHarness
+  harnessEnv?: (sessionId?: string) => NodeJS.ProcessEnv
+  gate: PermissionGate
   systemPromptFile?: string
   systemPromptText?: string
   uiBus: UiBus
@@ -97,11 +100,15 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
       const mode = harness.capabilities.systemPrompt
       const sysText = mode === 'file' ? (deps.systemPromptFile ?? '') : (deps.systemPromptText ?? '')
       const abort = new AbortController()
+      event.req.signal.addEventListener('abort', () => abort.abort())
 
       const adapter = harnessText(harness, {
         cwd: deps.cwd,
         // Bind this turn's header id into the spawn so the child env carries MANDARAX_SESSION_ID.
         spawnHarness: (args, cwd) => deps.spawnHarness(args, cwd, sessionId),
+        sessionId,
+        env: deps.harnessEnv?.(sessionId) ?? {},
+        decide: (toolName, input, toolUseId) => deps.gate.decide(toolName, input, sessionId, toolUseId),
         systemPrompt: sysText,
         resumeSessionId,
         permissionUrl: harness.capabilities.permissionGate === 'hook' ? `${origin}/api/chat/permission` : undefined,
@@ -115,14 +122,8 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
         },
         // Live usage: inject mid-turn so the widget's tracker fills as the turn streams.
         onUsage: (usage) => uiBus.injectUsage(sessionId, usage),
-        // The lock is already held (acquired up front under the server pid). Re-point it at the child
-        // so /api/chat/stop's process.kill signals the child, not the dev server. Then wire abort → kill.
         onSpawn: (child) => {
           if (child.pid) updateLockPid(deps.stateRoot, sessionId, 'chat', child.pid)
-          event.req.signal.addEventListener('abort', () => {
-            abort.abort()
-            child.kill()
-          })
         },
       })
 

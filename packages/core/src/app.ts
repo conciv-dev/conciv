@@ -24,6 +24,7 @@ export type MakeAppOpts = {
   openInEditor: OpenInEditor
   systemPromptFile?: string
   spawnHarness: (args: string[], cwd: string, sessionId?: string) => HarnessChild
+  harnessEnv?: (sessionId?: string) => NodeJS.ProcessEnv
   // Override the harness transcript home (claude: ~/.claude). For tests; defaults to homedir().
   claudeHome?: string
   // Extra browser origins allowed to call the API (beyond loopback, which is always allowed) —
@@ -59,6 +60,7 @@ export function makeApp(opts: MakeAppOpts): H3 {
     initialSessionId: opts.cfg.sessionId,
     harness,
     spawnHarness: opts.spawnHarness,
+    harnessEnv: opts.harnessEnv,
     systemPromptFile: opts.systemPromptFile,
     systemPromptText: opts.cfg.systemPrompt,
     claudeHome: opts.claudeHome,

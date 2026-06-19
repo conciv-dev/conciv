@@ -41,7 +41,7 @@ const IMAGE_EXT: Record<string, string> = {
 // claude ingests images via `@<path>` file references in the prompt (inline base64 over stream-json
 // is rejected by the CLI). Write each image under cwd (an allowed dir via --add-dir, so claude can
 // read it) and return the space-joined refs.
-function imageRefs(images: HarnessImage[], cwd: string): string {
+export function imageRefs(images: HarnessImage[], cwd: string): string {
   return images
     .map((img) => {
       const ext = IMAGE_EXT[img.mediaType] ?? 'png'
