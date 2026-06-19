@@ -18,15 +18,17 @@
     "build": "vite build && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only --exclude-entrypoints global"
   },
   "dependencies": {
     "@ark-ui/solid": "^5.37.1",
     "@floating-ui/dom": "^1.7.6",
-    "@mandarax/protocol": "workspace:*",
-    "@mandarax/solid-diffs": "workspace:*",
-    "@mandarax/solid-streamdown": "workspace:*",
-    "@mandarax/tool-ui": "workspace:*",
+    "@mandarax/protocol": "workspace:^",
+    "@mandarax/solid-diffs": "workspace:^",
+    "@mandarax/solid-streamdown": "workspace:^",
+    "@mandarax/tool-ui": "workspace:^",
     "@tanstack/ai": "^0.28.0",
     "@tanstack/ai-client": "^0.16.3",
     "@tanstack/ai-solid": "^0.13.4",
@@ -47,5 +49,22 @@
     "vite": "^8.0.16",
     "vite-plugin-solid": "^2.11.12",
     "vitest": "^4.1.8"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mandarax-dev/mandarax.git",
+    "directory": "packages/widget"
+  },
+  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/widget#readme",
+  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "ai",
+    "chat",
+    "mandarax",
+    "solid-js",
+    "widget"
+  ]
 }

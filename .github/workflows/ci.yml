@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  workflow_call: {}
+  pull_request: {}
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: SocketDev/action@ba6de6cc0565af1f42295590380973573297e31f # v1.3.2
+        with:
+          mode: firewall-free
+      - run: sfw pnpm i --frozen-lockfile # Socket Firewall blocks known-malicious packages at install
+      - run: pnpm --filter @mandarax/widget exec playwright install --with-deps chromium # real-browser vitest tests
+      # Only the publishable libraries; the example/site apps are private and not part of the release gate.
+      # Single turbo run: build is deduped (once per package) and shared by typecheck/test.
+      # SKIP_STORYBOOK_TESTS: storybook browser tests are skipped here (upstream cold-optimize race
+      # on constrained runners); they run locally. See packages/*/vitest.config.ts.
+      - run: pnpm exec turbo run typecheck lint test --filter='./packages/*'
+        env:
+          SKIP_STORYBOOK_TESTS: '1'
+
+  zizmor:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+      - uses: zizmorcore/zizmor-action@5f14fd08f7cf1cb1609c1e344975f152c7ee938d # v0.5.6
+        with:
+          advanced-security: false # fail the job on workflow-security findings instead of uploading SARIF

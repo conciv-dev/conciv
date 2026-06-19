@@ -1,0 +1,54 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+# Least privilege at the workflow level; the elevated grants live only on the
+# release job so the test job (which runs untrusted dep/test code) never shares
+# a run that carries id-token: write.
+permissions:
+  contents: read
+
+jobs:
+  test:
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    environment: npm-publish
+    permissions:
+      id-token: write # OIDC trusted publishing + provenance
+      contents: write # changesets/action pushes the version commit
+      pull-requests: write # changesets/action opens the version PR
+    steps:
+      # changesets/action needs the git credential to push the version commit/PR; this job
+      # uploads no artifacts, so credential persistence is safe here.
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4 # zizmor: ignore[artipacked]
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      # No dependency cache in this job: it holds id-token: write and publishes to
+      # npm, so restoring a shared Actions cache could turn cache poisoning into a
+      # trusted-publish compromise. Fresh install only.
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      - run: npm i -g npm@latest # OIDC trusted publishing requires npm >= 11.5.1
+      - uses: SocketDev/action@ba6de6cc0565af1f42295590380973573297e31f # v1.3.2
+        with:
+          mode: firewall-free
+      - run: sfw pnpm i --frozen-lockfile # Socket Firewall blocks known-malicious packages at install
+      - uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1
+        with:
+          version: pnpm release:version
+          publish: pnpm release
+          commit: "chore: version packages"
+          title: "chore: version packages"
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          NPM_CONFIG_PROVENANCE: "true" # npm CLI
+          PNPM_CONFIG_PROVENANCE: "true" # pnpm 11 reads pnpm_config_* prefix
+          NPM_TOKEN: "" # empty -> npm CLI uses OIDC (.npmrc from registry-url)

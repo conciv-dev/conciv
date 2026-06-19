@@ -1,8 +1,22 @@
 {
-  "name": "mandarax",
+  "name": "@mandarax/qu",
   "version": "0.0.0",
   "description": "The mandarax dev agent, one install. Re-exports the unplugin under mandarax/plugin/* (vite, webpack, rspack, rollup, esbuild, nextjs).",
+  "keywords": [
+    "ai",
+    "dev-agent",
+    "embeddable",
+    "mandarax",
+    "vite-plugin"
+  ],
+  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/mandarax#readme",
+  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mandarax-dev/mandarax.git",
+    "directory": "packages/mandarax"
+  },
   "files": [
     "dist"
   ],
@@ -39,13 +53,18 @@
       "default": "./dist/nextjs-widget.js"
     }
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "oxlint"
+    "lint": "oxlint",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "@mandarax/plugin": "workspace:*"
+    "@mandarax/plugin": "workspace:^"
   },
   "devDependencies": {
     "@types/node": "^22.19.21",

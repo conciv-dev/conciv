@@ -3,6 +3,26 @@ packages:
   - apps/*
   - apps/examples/*
 
-ignoredBuiltDependencies:
-  - sharp
-  - unrs-resolver
+# Supply-chain hardening (pnpm 11). Only these deps may run install/build scripts;
+# everything else is blocked by strictDepBuilds (default on in pnpm 11).
+# Dev-only tooling (netlify-cli and its native deps) is blocked - not needed to
+# build, test, or publish, and a blocked script is one less worm entry point.
+allowBuilds:
+  esbuild: true
+  lightningcss: true
+  '@parcel/watcher': false
+  netlify-cli: false
+  sharp: false
+  unix-dgram: false
+  unrs-resolver: false
+
+# Gate dependency *resolution* (lockfile updates on dev machines): don't pick npm
+# versions younger than 48h, so a poisoned release is likely yanked before it ever
+# enters the lockfile. CI runs --frozen-lockfile and never re-resolves, so there the
+# real controls are the reviewed lockfile + Socket Firewall, not this cooldown.
+minimumReleaseAge: 2880
+# @publint/pack is a fresh third-party transitive dep (publint/tsdown); excluded only
+# to unblock dev lockfile updates while it ages past the window. Build-script-blocked
+# regardless. Remove once it has aged out.
+minimumReleaseAgeExclude:
+  - "@publint/pack"

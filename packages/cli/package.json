@@ -17,11 +17,13 @@
     "build": "tsdown && chmod +x dist/bin.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
     "@clack/prompts": "^1.5.1",
-    "@mandarax/protocol": "workspace:*",
+    "@mandarax/protocol": "workspace:^",
     "citty": "^0.2.2",
     "consola": "^3.4.2",
     "zod": "^4.4.3"
@@ -31,5 +33,20 @@
     "tsdown": "^0.22.2",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mandarax-dev/mandarax.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/cli#readme",
+  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "ai-agent",
+    "cli",
+    "mandarax"
+  ]
 }

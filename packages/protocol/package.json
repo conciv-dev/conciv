@@ -53,7 +53,9 @@
     "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
     "@tanstack/ai": "^0.28.0",
@@ -64,5 +66,21 @@
     "tsdown": "^0.22.2",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mandarax-dev/mandarax.git",
+    "directory": "packages/protocol"
+  },
+  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/protocol#readme",
+  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "ag-ui",
+    "mandarax",
+    "protocol",
+    "types"
+  ]
 }

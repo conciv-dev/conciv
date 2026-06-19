@@ -1,0 +1,8 @@
+# Release-critical paths require review.
+/.changeset/             @omridevk
+/packages/*/package.json @omridevk
+/packages/publish/       @omridevk
+/.github/workflows/      @omridevk
+/.github/CODEOWNERS      @omridevk
+/pnpm-workspace.yaml     @omridevk
+/pnpm-lock.yaml          @omridevk

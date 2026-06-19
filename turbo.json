@@ -14,8 +14,15 @@
       "dependsOn": ["^build"]
     },
     "test": {
-      "dependsOn": ["^build", "build"]
+      "dependsOn": ["^build", "build"],
+      "env": ["SKIP_STORYBOOK_TESTS"]
     },
-    "lint": {}
+    "lint": {},
+    "publint": {
+      "dependsOn": ["build"]
+    },
+    "attw": {
+      "dependsOn": ["build"]
+    }
   }
 }

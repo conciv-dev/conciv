@@ -1,5 +1,5 @@
 import type {NextConfig} from 'next'
-import {withMandarax} from 'mandarax/plugin/nextjs'
+import {withMandarax} from '@mandarax/qu/plugin/nextjs'
 
 const nextConfig: NextConfig = {}
 

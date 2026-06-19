@@ -19,7 +19,9 @@
     "lint": "oxlint",
     "test": "vitest run",
     "storybook": "storybook dev -p 6008",
-    "build-storybook": "storybook build"
+    "build-storybook": "storybook build",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
     "@pierre/diffs": "^1.2.11"
@@ -43,5 +45,21 @@
   },
   "peerDependencies": {
     "solid-js": "^1.9.13"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mandarax-dev/mandarax.git",
+    "directory": "packages/solid-diffs"
+  },
+  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/solid-diffs#readme",
+  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "code-diff",
+    "diff",
+    "mandarax",
+    "solid-js"
+  ]
 }

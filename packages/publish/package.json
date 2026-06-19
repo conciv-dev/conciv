@@ -1,0 +1,30 @@
+{
+  "name": "@mandarax/publish",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Internal release tooling for the aidx monorepo: normalize package metadata, version, and publish via changesets. citty command tree.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mandarax-dev/mandarax.git",
+    "directory": "packages/publish"
+  },
+  "bin": {
+    "mandarax-publish": "./src/cli.ts"
+  },
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "citty": "^0.2.2",
+    "execa": "^9.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.21",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  }
+}

@@ -34,10 +34,12 @@
     "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "@mandarax/protocol": "workspace:*",
+    "@mandarax/protocol": "workspace:^",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -47,5 +49,22 @@
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mandarax-dev/mandarax.git",
+    "directory": "packages/test-runner"
+  },
+  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/test-runner#readme",
+  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "jest",
+    "mandarax",
+    "playwright",
+    "test-runner",
+    "vitest"
+  ]
 }

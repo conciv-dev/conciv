@@ -38,10 +38,12 @@
     "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "@mandarax/protocol": "workspace:*",
+    "@mandarax/protocol": "workspace:^",
     "@tanstack/ai": "^0.28.0",
     "zod": "^4.4.3"
   },
@@ -51,5 +53,23 @@
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mandarax-dev/mandarax.git",
+    "directory": "packages/harness"
+  },
+  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/harness#readme",
+  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "ai",
+    "claude",
+    "codex",
+    "gemini",
+    "harness",
+    "mandarax"
+  ]
 }

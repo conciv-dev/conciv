@@ -29,14 +29,16 @@
     "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
     "@jridgewell/trace-mapping": "0.3.31",
-    "@mandarax/harness": "workspace:*",
-    "@mandarax/protocol": "workspace:*",
-    "@mandarax/test-runner": "workspace:*",
-    "@mandarax/tools": "workspace:*",
+    "@mandarax/harness": "workspace:^",
+    "@mandarax/protocol": "workspace:^",
+    "@mandarax/test-runner": "workspace:^",
+    "@mandarax/tools": "workspace:^",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@tanstack/ai": "^0.28.0",
     "get-port": "^7.1.0",
@@ -54,5 +56,23 @@
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mandarax-dev/mandarax.git",
+    "directory": "packages/core"
+  },
+  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/core#readme",
+  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "ai",
+    "engine",
+    "h3",
+    "mandarax",
+    "server",
+    "srvx"
+  ]
 }

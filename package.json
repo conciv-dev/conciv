@@ -14,14 +14,24 @@
     "typecheck": "turbo run typecheck",
     "lint": "turbo run lint",
     "format": "oxfmt --write .",
-    "format:check": "oxfmt --check ."
+    "format:check": "oxfmt --check .",
+    "changeset": "changeset",
+    "release:version": "mandarax-publish version",
+    "release:check": "mandarax-publish check",
+    "release": "mandarax-publish release",
+    "release:snapshot": "mandarax-publish snapshot"
   },
   "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.3",
+    "@changesets/changelog-github": "^0.7.0",
+    "@changesets/cli": "^2.31.0",
     "@j178/prek": "^0.4.5",
+    "@mandarax/publish": "workspace:*",
     "@types/node": "^22.19.21",
     "netlify-cli": "^26.1.0",
     "oxfmt": "^0.54.0",
     "oxlint": "^1.69.0",
+    "publint": "^0.3.21",
     "turbo": "^2.9.18",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"
@@ -29,11 +39,5 @@
   "engines": {
     "node": ">=22"
   },
-  "packageManager": "pnpm@10.33.2",
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "lightningcss"
-    ]
-  }
+  "packageManager": "pnpm@11.7.0"
 }

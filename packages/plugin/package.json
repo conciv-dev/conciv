@@ -47,13 +47,15 @@
     "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "@mandarax/cli": "workspace:*",
-    "@mandarax/core": "workspace:*",
-    "@mandarax/protocol": "workspace:*",
-    "@mandarax/widget": "workspace:*",
+    "@mandarax/cli": "workspace:^",
+    "@mandarax/core": "workspace:^",
+    "@mandarax/protocol": "workspace:^",
+    "@mandarax/widget": "workspace:^",
     "launch-editor": "^2.14.1",
     "magic-string": "^0.30.21",
     "oxc-parser": "^0.127.0",
@@ -77,5 +79,24 @@
     "next": {
       "optional": true
     }
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mandarax-dev/mandarax.git",
+    "directory": "packages/plugin"
+  },
+  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/plugin#readme",
+  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "esbuild",
+    "mandarax",
+    "nextjs",
+    "rollup",
+    "rspack",
+    "vite-plugin",
+    "webpack"
+  ]
 }
