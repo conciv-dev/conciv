@@ -26,6 +26,9 @@ importers:
       '@types/node':
         specifier: ^22.19.21
         version: 22.19.21
+      fallow:
+        specifier: 2.98.0
+        version: 2.98.0
       netlify-cli:
         specifier: ^26.1.0
         version: 26.1.0(@types/node@22.19.21)(picomatch@4.0.4)(srvx@0.11.16)(supports-color@10.2.2)
@@ -1772,6 +1775,46 @@ packages:
   '@eslint/plugin-kit@0.4.1':
     resolution: {integrity: sha512-43/qtrDUokr7LJqoF2c3+RInu/t4zfrpYdoSDfYyhg52rwLV6TnOvdG4fXm7IkSB3wErkcmJS9iEhjVtOSEjjA==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+
+  '@fallow-cli/darwin-arm64@2.98.0':
+    resolution: {integrity: sha512-tFCy1pv8aYePZewaof83bdRNWY141kuJDb5Z+zcAoh+WAEZedAUyBQ2+3mEJSURo/pe1AWccNMDt31/LJOemAA==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@fallow-cli/darwin-x64@2.98.0':
+    resolution: {integrity: sha512-6+j4Q+guPRYWPvQr8njmb+34koBoxcGisa6zthDCV4jVqlVC2Vyc/5fmUyJtqIa+i00lnSo7K4XaWS/QAh4Tfg==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@fallow-cli/linux-arm64-gnu@2.98.0':
+    resolution: {integrity: sha512-fYg1hmwppTohcZnFReKiZaxJ5mG+tWnkSqONLFidkwFfr3dLie+rNqWPDM35aI+7+zwtD2ebcDSmDf48fnH01g==}
+    cpu: [arm64]
+    os: [linux]
+
+  '@fallow-cli/linux-arm64-musl@2.98.0':
+    resolution: {integrity: sha512-sDcOyYYjfFves3EGUjKooql02cb07j53OUdIeN2NKn0V9dXCeW36g31vc5ZlqDjNkmsQQkzi5J5jp/nxAbSwjw==}
+    cpu: [arm64]
+    os: [linux]
+
+  '@fallow-cli/linux-x64-gnu@2.98.0':
+    resolution: {integrity: sha512-Rk95DLLufZXD3w/u6pdymOOvRotquutO0o2Nd2oYa1BWl6pHhcO3B9tbENJIZR1qY3vAS1n/BA2ZRfnL9rvwIw==}
+    cpu: [x64]
+    os: [linux]
+
+  '@fallow-cli/linux-x64-musl@2.98.0':
+    resolution: {integrity: sha512-+hEuVxoJ6qANCbvZzwZUuivpSKBvPtAEUi1t/yzgo4DktnTMNmYTHBYHRoyE1U+3ysCjrCnhUZSwolX2kjzZEQ==}
+    cpu: [x64]
+    os: [linux]
+
+  '@fallow-cli/win32-arm64-msvc@2.98.0':
+    resolution: {integrity: sha512-90zE6+aMKBQHLTgQ5oDXd1as26OjapokGJpX3yc+q4rLfofgSFogVffNbrLRlYTkWtEMBRub98NLEajlZoI3CQ==}
+    cpu: [arm64]
+    os: [win32]
+
+  '@fallow-cli/win32-x64-msvc@2.98.0':
+    resolution: {integrity: sha512-ibmYWggQvkeKSvdzBu6d3XcmgxgggbHugYfwECsWSlHfBmkBOktx38eU/72VpEzSEsJfbGM7q77so/284VD8tw==}
+    cpu: [x64]
+    os: [win32]
 
   '@fastify/accept-negotiator@2.0.1':
     resolution: {integrity: sha512-/c/TW2bO/v9JeEgoD/g1G5GxGeCF1Hafdf79WPmUlgYiBXummY0oX3VVq4yFkKKVBKDNlaDUYoab7g38RpPqCQ==}
@@ -7621,6 +7664,11 @@ packages:
     engines: {node: '>= 10.17.0'}
     hasBin: true
 
+  fallow@2.98.0:
+    resolution: {integrity: sha512-6n7CZjXyvkRzv30kkGwG+JNK/t/jWPUU9J8wMIN4uo4GpGrrBFtW+c9SJ9DSDAR7TZrQs2u/pMykpSrxpCGMjA==}
+    engines: {node: '>=16'}
+    hasBin: true
+
   fast-decode-uri-component@1.0.1:
     resolution: {integrity: sha512-WKgKWg5eUxvRZGwW8FvfbaH7AXSh2cL+3j5fMGzUMCxWBJ3dV3a7Wz8y2f/uQ0e3B6WmodD3oS54jTQ9HVTIIg==}
 
@@ -12901,6 +12949,30 @@ snapshots:
       '@eslint/core': 0.17.0
       levn: 0.4.1
 
+  '@fallow-cli/darwin-arm64@2.98.0':
+    optional: true
+
+  '@fallow-cli/darwin-x64@2.98.0':
+    optional: true
+
+  '@fallow-cli/linux-arm64-gnu@2.98.0':
+    optional: true
+
+  '@fallow-cli/linux-arm64-musl@2.98.0':
+    optional: true
+
+  '@fallow-cli/linux-x64-gnu@2.98.0':
+    optional: true
+
+  '@fallow-cli/linux-x64-musl@2.98.0':
+    optional: true
+
+  '@fallow-cli/win32-arm64-msvc@2.98.0':
+    optional: true
+
+  '@fallow-cli/win32-x64-msvc@2.98.0':
+    optional: true
+
   '@fastify/accept-negotiator@2.0.1': {}
 
   '@fastify/ajv-compiler@4.0.5':
@@ -13319,7 +13391,7 @@ snapshots:
       cross-spawn: 7.0.6
       eventsource: 3.0.7
       eventsource-parser: 3.1.0
-      express: 5.2.1
+      express: 5.2.1(supports-color@10.2.2)
       express-rate-limit: 8.5.2(express@5.2.1)
       hono: 4.12.25
       jose: 6.2.3
@@ -13341,7 +13413,7 @@ snapshots:
       cross-spawn: 7.0.6
       eventsource: 3.0.7
       eventsource-parser: 3.1.0
-      express: 5.2.1
+      express: 5.2.1(supports-color@10.2.2)
       express-rate-limit: 8.5.2(express@5.2.1)
       hono: 4.12.25
       jose: 6.2.3
@@ -17886,7 +17958,7 @@ snapshots:
       inherits: 2.0.4
       readable-stream: 3.6.2
 
-  body-parser@2.2.2:
+  body-parser@2.2.2(supports-color@10.2.2):
     dependencies:
       bytes: 3.1.2
       content-type: 1.0.5
@@ -19359,13 +19431,13 @@ snapshots:
 
   express-rate-limit@8.5.2(express@5.2.1):
     dependencies:
-      express: 5.2.1
+      express: 5.2.1(supports-color@10.2.2)
       ip-address: 10.2.0
 
-  express@5.2.1:
+  express@5.2.1(supports-color@10.2.2):
     dependencies:
       accepts: 2.0.0
-      body-parser: 2.2.2
+      body-parser: 2.2.2(supports-color@10.2.2)
       content-disposition: 1.1.0
       content-type: 1.0.5
       cookie: 0.7.2
@@ -19375,7 +19447,7 @@ snapshots:
       encodeurl: 2.0.0
       escape-html: 1.0.3
       etag: 1.8.1
-      finalhandler: 2.1.1
+      finalhandler: 2.1.1(supports-color@10.2.2)
       fresh: 2.0.0
       http-errors: 2.0.1
       merge-descriptors: 2.0.0
@@ -19386,8 +19458,8 @@ snapshots:
       proxy-addr: 2.0.7
       qs: 6.15.2
       range-parser: 1.2.1
-      router: 2.2.0
-      send: 1.2.1
+      router: 2.2.0(supports-color@10.2.2)
+      send: 1.2.1(supports-color@10.2.2)
       serve-static: 2.2.1
       statuses: 2.0.2
       type-is: 2.1.0
@@ -19410,6 +19482,19 @@ snapshots:
       '@types/yauzl': 2.10.3
     transitivePeerDependencies:
       - supports-color
+
+  fallow@2.98.0:
+    dependencies:
+      detect-libc: 2.1.2
+    optionalDependencies:
+      '@fallow-cli/darwin-arm64': 2.98.0
+      '@fallow-cli/darwin-x64': 2.98.0
+      '@fallow-cli/linux-arm64-gnu': 2.98.0
+      '@fallow-cli/linux-arm64-musl': 2.98.0
+      '@fallow-cli/linux-x64-gnu': 2.98.0
+      '@fallow-cli/linux-x64-musl': 2.98.0
+      '@fallow-cli/win32-arm64-msvc': 2.98.0
+      '@fallow-cli/win32-x64-msvc': 2.98.0
 
   fast-decode-uri-component@1.0.1: {}
 
@@ -19535,7 +19620,7 @@ snapshots:
 
   filter-obj@6.1.0: {}
 
-  finalhandler@2.1.1:
+  finalhandler@2.1.1(supports-color@10.2.2):
     dependencies:
       debug: 4.4.3(supports-color@10.2.2)
       encodeurl: 2.0.0
@@ -21628,7 +21713,7 @@ snapshots:
       envinfo: 7.21.0
       etag: 1.8.1
       execa: 5.1.1
-      express: 5.2.1
+      express: 5.2.1(supports-color@10.2.2)
       express-logging: 1.1.1
       fastest-levenshtein: 1.0.16
       fastify: 5.8.5
@@ -23085,7 +23170,7 @@ snapshots:
       points-on-curve: 0.2.0
       points-on-path: 0.2.1
 
-  router@2.2.0:
+  router@2.2.0(supports-color@10.2.2):
     dependencies:
       debug: 4.4.3(supports-color@10.2.2)
       depd: 2.0.0
@@ -23166,7 +23251,7 @@ snapshots:
 
   semver@7.8.4: {}
 
-  send@1.2.1:
+  send@1.2.1(supports-color@10.2.2):
     dependencies:
       debug: 4.4.3(supports-color@10.2.2)
       encodeurl: 2.0.0
@@ -23193,7 +23278,7 @@ snapshots:
       encodeurl: 2.0.0
       escape-html: 1.0.3
       parseurl: 1.3.3
-      send: 1.2.1
+      send: 1.2.1(supports-color@10.2.2)
     transitivePeerDependencies:
       - supports-color
 

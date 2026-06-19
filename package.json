@@ -28,6 +28,7 @@
     "@j178/prek": "^0.4.5",
     "@mandarax/publish": "workspace:*",
     "@types/node": "^22.19.21",
+    "fallow": "2.98.0",
     "netlify-cli": "^26.1.0",
     "oxfmt": "^0.54.0",
     "oxlint": "^1.69.0",

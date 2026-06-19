@@ -1,0 +1,27 @@
+{
+  "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
+  "ignorePatterns": [
+    "**/dist/**",
+    "**/build/**",
+    "**/.turbo/**",
+    "**/*.d.ts",
+    "**/*.generated.ts",
+    "packages/aidx/**",
+    "apps/examples/**",
+    "**/vitest.config.ts",
+    "**/*.stories.tsx"
+  ],
+  "duplicates": {
+    "minOccurrences": 3
+  },
+  "health": {
+    "maxCyclomatic": 20,
+    "maxCrap": 30
+  },
+  "rules": {
+    "unused-exports": "warn",
+    "unused-dependencies": "warn",
+    "unused-dev-dependencies": "warn",
+    "circular-dependencies": "warn"
+  }
+}
