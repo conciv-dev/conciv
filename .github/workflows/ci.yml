@@ -33,6 +33,7 @@ jobs:
       - run: pnpm exec turbo run typecheck lint test --filter='./packages/*'
         env:
           SKIP_STORYBOOK_TESTS: '1'
+          MANDARAX_CLAUDE_CLI: '1' # CI has no claude creds: force the CLI transport + fake-claude fixture (chat ITs)
 
   zizmor:
     runs-on: ubuntu-latest

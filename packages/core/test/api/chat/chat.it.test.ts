@@ -8,6 +8,9 @@ import {fileURLToPath} from 'node:url'
 import {acquireLock, readLock} from '../../../src/store/lock.js'
 import {ChatSessionSchema} from '@mandarax/protocol/chat-types'
 import {startTestServer, type SpawnHarness, type TestServer} from '../../helpers/server.js'
+import {useFakeHarness, hasClaude} from '../../helpers/harness-mode.js'
+
+const fakeIt = it.runIf(useFakeHarness)
 
 // Real process-boundary IT: the REAL app (makeApp) over a real srvx server, with a FAKE harness
 // spawn injected (fake-claude.ts emits canned stream-json the real claude decoder parses). Proves
@@ -63,7 +66,7 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     for (const d of dirs.splice(0)) rmSync(d, {recursive: true, force: true})
   })
 
-  it('streams TanStack AG-UI SSE from a real claude child', async () => {
+  fakeIt('streams TanStack AG-UI SSE from a real claude child', async () => {
     const server = await startTestServer({spawnHarness: fakeSpawn()})
     state.server = server
     const body = await server.postChat(turn('hi'), await server.resolve())
@@ -72,7 +75,16 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     expect(body).toContain('RUN_FINISHED')
   })
 
-  it('renders text AND extracts usage under --include-partial-messages (real claude stream shape)', async () => {
+  it.skipIf(!useFakeHarness && !hasClaude())('streams a run lifecycle with assistant text', async () => {
+    const server = await startTestServer({spawnHarness: fakeSpawn()})
+    state.server = server
+    const body = await server.postChat(turn('Reply with a short greeting.'), await server.resolve())
+    expect(body).toContain('RUN_STARTED')
+    expect(body).toContain('TEXT_MESSAGE_CONTENT')
+    expect(body).toContain('RUN_FINISHED')
+  })
+
+  fakeIt('renders text AND extracts usage under --include-partial-messages (real claude stream shape)', async () => {
     const server = await startTestServer({spawnHarness: fakeSpawn({partial: true})})
     state.server = server
     const body = await server.postChat(turn('hi'), await server.resolve())
@@ -82,7 +94,7 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     expect(body).toContain('mandarax-usage') // live usage injected mid-stream
   })
 
-  it('persists turn-end usage so GET /api/chat/session returns it for the next open', async () => {
+  fakeIt('persists turn-end usage so GET /api/chat/session returns it for the next open', async () => {
     const server = await startTestServer({spawnHarness: fakeSpawn()})
     state.server = server
     const id = await server.resolve()
@@ -95,7 +107,7 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     expect(session.usage?.cacheReadTokens).toBe(40)
   })
 
-  it('streams exactly one run lifecycle pair through chat()', async () => {
+  fakeIt('streams exactly one run lifecycle pair through chat()', async () => {
     const server = await startTestServer({spawnHarness: fakeSpawn()})
     state.server = server
     const body = await server.postChat(turn('hi'), await server.resolve())
@@ -104,7 +116,7 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     expect(count('RUN_FINISHED')).toBe(1)
   })
 
-  it('streams a multi-block turn (empty thinking + text + tool call + text) without dropping text', async () => {
+  fakeIt('streams a multi-block turn (empty thinking + text + tool call + text) without dropping text', async () => {
     const server = await startTestServer({spawnHarness: fakeSpawn({rich: true})})
     state.server = server
     const body = await server.postChat(turn('hi'), await server.resolve())
@@ -114,7 +126,7 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     expect(body).toContain('RICH_REPLY_VISIBLE')
   })
 
-  it('passes --resume <captured session id> on the second turn', async () => {
+  fakeIt('passes --resume <captured session id> on the second turn', async () => {
     const argvFile = join(tmp(), 'argv.json')
     const server = await startTestServer({spawnHarness: fakeSpawn({argvFile})})
     state.server = server
@@ -126,7 +138,7 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     expect(argv[argv.indexOf('--resume') + 1]).toBe('sess-fake')
   })
 
-  it('passes --model <selected> to the spawned claude when the widget sends it via forwardedProps', async () => {
+  fakeIt('passes --model <selected> to the spawned claude when the widget sends it via forwardedProps', async () => {
     const argvFile = join(tmp(), 'argv.json')
     const server = await startTestServer({spawnHarness: fakeSpawn({argvFile})})
     state.server = server
@@ -140,7 +152,7 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     expect(argv[argv.indexOf('--model') + 1]).toBe('haiku')
   })
 
-  it('omits --model when no model is selected (CLI keeps its own default)', async () => {
+  fakeIt('omits --model when no model is selected (CLI keeps its own default)', async () => {
     const argvFile = join(tmp(), 'argv.json')
     const server = await startTestServer({spawnHarness: fakeSpawn({argvFile})})
     state.server = server
@@ -158,7 +170,7 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     expect(await ok.json()).toEqual({renderId: 'r9', injected: false})
   })
 
-  it('PreToolUse gate allows non-Bash + safe Bash, denies risky Bash with no widget to ask', async () => {
+  fakeIt('PreToolUse gate allows non-Bash + safe Bash, denies risky Bash with no widget to ask', async () => {
     const server = await startTestServer({spawnHarness: fakeSpawn()})
     state.server = server
     const DecisionSchema = z.object({hookSpecificOutput: z.object({permissionDecision: z.string()})})
@@ -189,7 +201,7 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     expect(res.status).toBe(400)
   })
 
-  it('keeps per-session resume independent under distinct ids', async () => {
+  fakeIt('keeps per-session resume independent under distinct ids', async () => {
     const server = await startTestServer({spawnHarness: fakeSpawn()})
     state.server = server
     const a = await server.resolve()
@@ -205,7 +217,7 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     expect(afterA.origin).toBe('chat')
   })
 
-  it('does NOT 409 a second session while a different one would be busy', async () => {
+  fakeIt('does NOT 409 a second session while a different one would be busy', async () => {
     const stateRoot = tmp()
     const server = await startTestServer({stateRoot, spawnHarness: fakeSpawn()})
     state.server = server
@@ -216,7 +228,7 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     expect(res.status).toBe(200)
   })
 
-  it('persists usage onto each session record, not a shared pointer', async () => {
+  fakeIt('persists usage onto each session record, not a shared pointer', async () => {
     const stateRoot = tmp()
     const usageBySession: Record<string, number> = {}
     const server = await startTestServer({stateRoot, spawnHarness: fakeSpawn({usageBySession})})
@@ -234,7 +246,7 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     expect(ua?.inputTokens).not.toBe(ub?.inputTokens) // no cross-write
   })
 
-  it('routes POST /api/chat/ui to the live turn by our id (cross-process path)', async () => {
+  fakeIt('routes POST /api/chat/ui to the live turn by our id (cross-process path)', async () => {
     const stateRoot = tmp()
     const server = await startTestServer({stateRoot, spawnHarness: fakeSpawn({hang: true})})
     state.server = server

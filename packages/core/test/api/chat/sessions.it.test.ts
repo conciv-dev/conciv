@@ -6,6 +6,9 @@ import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {ChatSessionsSchema} from '@mandarax/protocol/chat-types'
 import {startTestServer, type SpawnHarness, type TestServer} from '../../helpers/server.js'
+import {useFakeHarness} from '../../helpers/harness-mode.js'
+
+const fakeIt = it.runIf(useFakeHarness)
 
 // GET /api/chat/sessions joins the harness transcript list to the previewId map (origin/running/
 // usage) — proven here against a REAL temp ~/.claude with seeded transcripts.
@@ -50,7 +53,7 @@ describe('GET /api/chat/sessions + rename (IT, real temp ~/.claude)', () => {
     for (const h of homes.splice(0)) rmSync(h, {recursive: true, force: true})
   })
 
-  it('lists our records (origin mandarax) joined to transcripts, plus unwrapped externals', async () => {
+  fakeIt('lists our records (origin mandarax) joined to transcripts, plus unwrapped externals', async () => {
     const home = tmpHome()
     const cwd = process.cwd()
     const dir = projectDir(home, cwd)
