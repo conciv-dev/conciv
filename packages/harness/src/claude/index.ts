@@ -8,8 +8,9 @@ import {claudeSdkRun, claudeSdkShutdown} from './sdk.js'
 // The claude-specific default chat prompt; core reads it as its fallback systemPrompt.
 export {CHAT_SYSTEM_PROMPT} from './system-prompt.js'
 
-// MANDARAX_CLAUDE_SDK → in-process Agent SDK transport (warm process per session); unset → spawn path.
-const USE_SDK = !!process.env.MANDARAX_CLAUDE_SDK
+// Default: in-process Agent SDK transport (warm process per session). MANDARAX_CLAUDE_CLI forces the
+// legacy `claude -p` spawn-per-turn path.
+const USE_SDK = !process.env.MANDARAX_CLAUDE_CLI
 
 // Models the claude CLI accepts via --model. Aliases (opus/sonnet/haiku) track the latest of each
 // tier; the explicit Fable id is pinned. Listed newest-first within the Claude group.
@@ -41,8 +42,9 @@ const claudeBase = {
   launch: claudeLaunch,
 } as const
 
-export const claude: HarnessAdapter = USE_SDK
-  ? defineHarness({
+export function makeClaudeAdapter(useSdk: boolean): HarnessAdapter {
+  if (useSdk) {
+    return defineHarness({
       ...claudeBase,
       capabilities: {
         resume: true,
@@ -56,16 +58,20 @@ export const claude: HarnessAdapter = USE_SDK
       run: claudeSdkRun,
       shutdown: claudeSdkShutdown,
     })
-  : defineHarness({
-      ...claudeBase,
-      capabilities: {
-        resume: true,
-        permissionGate: 'hook',
-        transcriptHistory: true,
-        compaction: true,
-        systemPrompt: 'file',
-        mcp: 'http',
-        imageInput: 'fileRef',
-      },
-      buildCompactArgs: buildClaudeCompactArgs,
-    })
+  }
+  return defineHarness({
+    ...claudeBase,
+    capabilities: {
+      resume: true,
+      permissionGate: 'hook',
+      transcriptHistory: true,
+      compaction: true,
+      systemPrompt: 'file',
+      mcp: 'http',
+      imageInput: 'fileRef',
+    },
+    buildCompactArgs: buildClaudeCompactArgs,
+  })
+}
+
+export const claude = makeClaudeAdapter(USE_SDK)

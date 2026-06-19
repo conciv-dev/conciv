@@ -1,12 +1,28 @@
 import {describe, it, expect} from 'vitest'
-import {claude} from '../src/claude/index.js'
+import {claude, makeClaudeAdapter} from '../src/claude/index.js'
 import {getHarness, resolveHarnessModels} from '../src/registry.js'
 
+const cli = makeClaudeAdapter(false)
+const sdk = makeClaudeAdapter(true)
+
 describe('claude harness adapter', () => {
-  it('declares the claude capability set', () => {
+  it('defaults to the SDK transport (in-process run, callback gate, no native compaction)', () => {
     expect(claude.id).toBe('claude')
-    expect(claude.binName).toBe('claude')
     expect(claude.capabilities).toEqual({
+      resume: true,
+      permissionGate: 'callback',
+      transcriptHistory: true,
+      compaction: false,
+      systemPrompt: 'flag',
+      mcp: 'http',
+      imageInput: 'fileRef',
+    })
+    expect(typeof claude.run).toBe('function')
+    expect(typeof claude.shutdown).toBe('function')
+  })
+
+  it('the CLI transport keeps the spawn-path capability set', () => {
+    expect(cli.capabilities).toEqual({
       resume: true,
       permissionGate: 'hook',
       transcriptHistory: true,
@@ -15,20 +31,18 @@ describe('claude harness adapter', () => {
       mcp: 'http',
       imageInput: 'fileRef',
     })
+    expect(cli.run).toBeUndefined()
   })
 
   it('capability presence matches members (transcriptHistory ⇒ history, compaction ⇒ buildCompactArgs)', () => {
-    if (claude.capabilities.transcriptHistory) {
-      expect(typeof claude.history?.transcriptPath).toBe('function')
-      expect(typeof claude.history?.parse).toBe('function')
-    }
-    if (claude.capabilities.compaction) {
-      expect(typeof claude.buildCompactArgs).toBe('function')
-    }
+    expect(typeof claude.history?.transcriptPath).toBe('function')
+    expect(typeof claude.history?.parse).toBe('function')
+    expect(typeof cli.buildCompactArgs).toBe('function')
+    expect(sdk.buildCompactArgs).toBeUndefined()
   })
 
-  it('buildCompactArgs sends /compact as the prompt and keeps --resume', () => {
-    const args = claude.buildCompactArgs?.({
+  it('CLI buildCompactArgs sends /compact as the prompt and keeps --resume', () => {
+    const args = cli.buildCompactArgs?.({
       prompt: 'this is ignored',
       cwd: '/w',
       resumeSessionId: 'sess-9',
@@ -40,8 +54,8 @@ describe('claude harness adapter', () => {
     expect(args?.[(args?.indexOf('--resume') ?? -1) + 1]).toBe('sess-9')
   })
 
-  it('buildArgs honours resume + permission hook + append-system-prompt-file', () => {
-    const args = claude.buildArgs({
+  it('CLI buildArgs honours resume + permission hook + append-system-prompt-file', () => {
+    const args = cli.buildArgs({
       prompt: 'hi',
       cwd: '/w',
       resumeSessionId: 'sess-1',
@@ -54,12 +68,12 @@ describe('claude harness adapter', () => {
     expect(args).toContain('--add-dir')
   })
 
-  it('buildArgs maps turn.model to --model, and omits it when absent', () => {
+  it('CLI buildArgs maps turn.model to --model, and omits it when absent', () => {
     const base = {prompt: 'hi', cwd: '/w', resumeSessionId: null, systemPrompt: ''}
-    const withModel = claude.buildArgs({...base, model: 'haiku'})
+    const withModel = cli.buildArgs({...base, model: 'haiku'})
     expect(withModel).toContain('--model')
     expect(withModel[withModel.indexOf('--model') + 1]).toBe('haiku')
-    expect(claude.buildArgs(base)).not.toContain('--model')
+    expect(cli.buildArgs(base)).not.toContain('--model')
   })
 
   it('declares selectable models with a default (Fable advertised but disabled)', async () => {

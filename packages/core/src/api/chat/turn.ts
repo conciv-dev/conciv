@@ -107,7 +107,7 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
         // Bind this turn's header id into the spawn so the child env carries MANDARAX_SESSION_ID.
         spawnHarness: (args, cwd) => deps.spawnHarness(args, cwd, sessionId),
         sessionId,
-        env: deps.harnessEnv?.(sessionId) ?? {},
+        env: deps.harnessEnv?.(sessionId) ?? process.env,
         decide: (toolName, input, toolUseId) => deps.gate.decide(toolName, input, sessionId, toolUseId),
         systemPrompt: sysText,
         resumeSessionId,
