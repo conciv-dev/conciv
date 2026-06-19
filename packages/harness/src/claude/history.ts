@@ -4,7 +4,7 @@ import {join, resolve, sep} from 'node:path'
 import {z} from 'zod'
 import type {MessagePart, UIMessage} from '@mandarax/protocol/chat-types'
 import type {HarnessHistory, HarnessSessionMeta} from '@mandarax/protocol/harness-types'
-import {TextBlock, ThinkingBlock, ToolUseBlock} from './blocks.js'
+import {TextBlock, ThinkingBlock, ToolUseBlock, ToolResultBlock, canonicalToolName, contentText} from './blocks.js'
 
 // Where claude persists a session's JSONL transcript, and how to parse it into UIMessages.
 
@@ -26,7 +26,7 @@ const TranscriptRecordSchema = z
   .object({
     type: z.string(),
     message: z
-      .object({content: z.union([z.string(), z.array(z.unknown())]).optional()})
+      .object({id: z.string().optional(), content: z.union([z.string(), z.array(z.unknown())]).optional()})
       .loose()
       .optional(),
   })
@@ -53,9 +53,22 @@ function partsFrom(content: unknown): MessagePart[] {
       out.push({
         type: 'tool-call',
         id: tool.data.id,
-        name: tool.data.name,
+        name: canonicalToolName(tool.data.name),
         arguments: JSON.stringify(tool.data.input ?? {}),
         state: 'input-complete',
+      })
+      continue
+    }
+    // claude stores tool_result blocks in the user turn that follows the call; parseHistory folds
+    // these onto the calling assistant message so they pair with their tool-call (the same shape the
+    // live StreamProcessor produces). is_error → tanstack result state 'error', else 'complete'.
+    const result = ToolResultBlock.safeParse(part)
+    if (result.success) {
+      out.push({
+        type: 'tool-result',
+        toolCallId: result.data.tool_use_id,
+        content: contentText(result.data.content),
+        state: result.data.is_error ? 'error' : 'complete',
       })
     }
   }
@@ -83,6 +96,8 @@ function parseRecord(line: string): z.infer<typeof TranscriptRecordSchema> | nul
 export function parseHistory(jsonl: string): UIMessage[] {
   const out: UIMessage[] = []
   const idState = {n: 0}
+  // Claude splits one assistant message (a single message.id) across consecutive lines; merge them.
+  let openAssistantId: string | null = null
   for (const line of jsonl.split('\n')) {
     const trimmed = line.trim()
     if (!trimmed) continue
@@ -91,8 +106,26 @@ export function parseHistory(jsonl: string): UIMessage[] {
     if (e.type !== 'user' && e.type !== 'assistant') continue
     const parts = partsFrom(e.message?.content)
     if (parts.length === 0 || isInternal(parts)) continue
+    if (e.type === 'user') {
+      const results = parts.filter((p) => p.type === 'tool-result')
+      const rest = parts.filter((p) => p.type !== 'tool-result')
+      const lastAssistant = [...out].reverse().find((m) => m.role === 'assistant')
+      if (lastAssistant) lastAssistant.parts.push(...results)
+      if (rest.length === 0) continue
+      openAssistantId = null
+      idState.n += 1
+      out.push({id: `h${idState.n}`, role: 'user', parts: rest})
+      continue
+    }
+    const claudeId = e.message?.id
+    const open = out.at(-1)
+    if (claudeId && claudeId === openAssistantId && open?.role === 'assistant') {
+      open.parts.push(...parts)
+      continue
+    }
+    openAssistantId = claudeId ?? null
     idState.n += 1
-    out.push({id: `h${idState.n}`, role: e.type, parts})
+    out.push({id: `h${idState.n}`, role: 'assistant', parts})
   }
   return out
 }

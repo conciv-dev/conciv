@@ -1,13 +1,13 @@
 import {createMemo, createEffect, createSignal, For, Index, Match, onCleanup, Show, Switch, type JSX} from 'solid-js'
 import {Progress} from '@ark-ui/solid/progress'
 import {useChat, fetchServerSentEvents, createChatClientOptions} from '@tanstack/ai-solid'
-import type {MessagePart, ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
+import type {MessagePart, ToolCallPart, ToolResultPart, UIMessage} from '@tanstack/ai-client'
 import type {SessionClient} from './session-client.js'
 import {apiError, createTransport} from './transport.js'
 import {invalidateSessions} from './session-store-client.js'
 import {createDebouncer} from '@tanstack/solid-pacer'
 import {GenUi} from './gen-ui.js'
-import {ToolCallCard, ReflectionCard, NowLine, nowTitle, type ToolViewCtx} from '@mandarax/tool-ui'
+import {ToolCallCard, ChainOfThought, Reasoning, NowLine, nowTitle, type ToolViewCtx} from '@mandarax/tool-ui'
 import {Markdown} from './markdown.js'
 import {ArrowRight, Square, SquarePen, FoldVertical} from 'lucide-solid'
 import {EventType, type StreamChunk} from '@tanstack/ai'
@@ -108,41 +108,38 @@ function TextPartView(props: {content: string; streaming: boolean}): JSX.Element
 
 // Narrowing accessors: read the discriminated part as its concrete type for the matched branch,
 // returning null otherwise (no `as` casts — the type guard narrows the value Solid hands back).
-function asTextPart(part: MessagePart): Extract<MessagePart, {type: 'text'}> | null {
-  return part.type === 'text' ? part : null
+// Accept undefined so an out-of-range index lookup (noUncheckedIndexedAccess) renders nothing.
+function asTextPart(part: MessagePart | undefined): Extract<MessagePart, {type: 'text'}> | null {
+  return part?.type === 'text' ? part : null
 }
-function asThinkingPart(part: MessagePart): Extract<MessagePart, {type: 'thinking'}> | null {
-  return part.type === 'thinking' && part.content.trim().length > 0 ? part : null
+function asThinkingPart(part: MessagePart | undefined): Extract<MessagePart, {type: 'thinking'}> | null {
+  return part?.type === 'thinking' && part.content.trim().length > 0 ? part : null
 }
-function asToolCallPart(part: MessagePart): ToolCallPart | null {
-  return part.type === 'tool-call' ? part : null
+function asToolCallPart(part: MessagePart | undefined): ToolCallPart | null {
+  return part?.type === 'tool-call' ? part : null
 }
-function asResultPart(part: MessagePart): ToolResultPart | null {
-  return part.type === 'tool-result' ? part : null
+function asResultPart(part: MessagePart | undefined): ToolResultPart | null {
+  return part?.type === 'tool-result' ? part : null
 }
 
-// Reactive part view. Branch selection is via <Switch>/<Match> (not a one-shot if-chain) and every
-// value is read off props lazily, so the SAME subtree updates as a part's text grows or its result
-// lands — no teardown, no Streamdown remount. Each tool-call renders one card from
-// @mandarax/tool-ui (dispatched by part.name, reading typed part.input/part.output), paired with
-// its sibling tool-result; the standalone result part is hidden once paired.
-function PartView(props: {
-  part: MessagePart
-  index: number
-  parts: ReadonlyArray<MessagePart>
-  streaming: boolean
+function ChainPart(props: {
+  part: MessagePart | undefined
   pairing: ResultPairing
   ctx: ToolViewCtx
+  durationFor?: (toolCallId: string) => number | undefined
 }): JSX.Element {
-  const lastTextIndex = createMemo(() => props.parts.map((p) => p.type).lastIndexOf('text'))
   return (
     <Switch>
-      <Match when={asTextPart(props.part)}>
-        {(p) => <TextPartView content={p().content} streaming={props.streaming && props.index === lastTextIndex()} />}
-      </Match>
-      <Match when={asThinkingPart(props.part)}>{(p) => <ReflectionCard content={p().content} />}</Match>
+      <Match when={asThinkingPart(props.part)}>{(p) => <Reasoning content={p().content} />}</Match>
       <Match when={asToolCallPart(props.part)}>
-        {(p) => <ToolCallCard part={p()} result={props.pairing.byCallId.get(p().id)} ctx={props.ctx} />}
+        {(p) => (
+          <ToolCallCard
+            part={p()}
+            result={props.pairing.byCallId.get(p().id)}
+            ctx={props.ctx}
+            durationMs={props.durationFor?.(p().id)}
+          />
+        )}
       </Match>
       <Match when={asResultPart(props.part)}>
         {(p) => (
@@ -155,25 +152,90 @@ function PartView(props: {
   )
 }
 
-// <Index> (position-keyed), NOT <For> (reference-keyed): TanStack hands back new part objects each
-// token, so <For> would rebuild this row's DOM every token. <Index> keeps the DOM and updates the
-// item accessor in place.
-function MessageParts(props: {parts: ReadonlyArray<MessagePart>; streaming: boolean; ctx: ToolViewCtx}): JSX.Element {
-  const pairing = createMemo(() => pairResults(props.parts))
+function ReplyPart(props: {part: MessagePart | undefined; streaming: boolean}): JSX.Element {
   return (
-    <Index each={props.parts}>
-      {(part, index) => (
-        <PartView
-          part={part()}
-          index={index}
-          parts={props.parts}
-          streaming={props.streaming}
-          pairing={pairing()}
-          ctx={props.ctx}
-        />
+    <Show when={asTextPart(props.part)}>
+      {(p) => <TextPartView content={p().content} streaming={props.streaming} />}
+    </Show>
+  )
+}
+
+type ChainSegment = {kind: 'chain'; indices: number[]}
+type ReplySegment = {kind: 'reply'; index: number}
+type Segment = ChainSegment | ReplySegment
+
+const isReplyText = (part: MessagePart): boolean => part.type === 'text' && part.content.trim().length > 0
+
+// Consecutive reasoning + tool parts fold into one chain; a non-empty reply text breaks it.
+function groupSegments(parts: ReadonlyArray<MessagePart>): Segment[] {
+  return parts.reduce<Segment[]>((segments, part, index) => {
+    if (isReplyText(part)) return [...segments, {kind: 'reply', index}]
+    const last = segments.at(-1)
+    return last?.kind === 'chain'
+      ? [...segments.slice(0, -1), {kind: 'chain', indices: [...last.indices, index]}]
+      : [...segments, {kind: 'chain', indices: [index]}]
+  }, [])
+}
+
+function MessageParts(props: {
+  parts: ReadonlyArray<MessagePart>
+  streaming: boolean
+  ctx: ToolViewCtx
+  durationFor?: (toolCallId: string) => number | undefined
+}): JSX.Element {
+  const pairing = createMemo(() => pairResults(props.parts))
+  const segments = createMemo(() => groupSegments(props.parts))
+  const lastTextIndex = createMemo(() => props.parts.map((p) => p.type).lastIndexOf('text'))
+  const asChain = (seg: Segment): ChainSegment | null => (seg.kind === 'chain' ? seg : null)
+  const asReply = (seg: Segment): ReplySegment | null => (seg.kind === 'reply' ? seg : null)
+  const isLastSegment = (index: number) => index === segments().length - 1
+  return (
+    <Index each={segments()}>
+      {(seg, segIndex) => (
+        <Switch>
+          <Match when={asChain(seg())}>
+            {(chain) => (
+              <ChainOfThought streaming={props.streaming && isLastSegment(segIndex)}>
+                <Index each={chain().indices}>
+                  {(partIndex) => (
+                    <ChainPart
+                      part={props.parts[partIndex()]}
+                      pairing={pairing()}
+                      ctx={props.ctx}
+                      durationFor={props.durationFor}
+                    />
+                  )}
+                </Index>
+              </ChainOfThought>
+            )}
+          </Match>
+          <Match when={asReply(seg())}>
+            {(reply) => (
+              <ReplyPart
+                part={props.parts[reply().index]}
+                streaming={props.streaming && reply().index === lastTextIndex()}
+              />
+            )}
+          </Match>
+        </Switch>
       )}
     </Index>
   )
+}
+
+// One user question and the AI's full answer span several messages (think → tool → think → … → reply).
+// Coalesce consecutive assistant messages into one turn so the whole answer renders as a single
+// chain-of-thought plus its reply, not one box per step.
+type Turn = {key: string; role: UIMessage['role']; parts: MessagePart[]; start: number; end: number}
+
+function coalesceTurns(messages: ReadonlyArray<UIMessage>): Turn[] {
+  return messages.reduce<Turn[]>((turns, m, index) => {
+    const last = turns.at(-1)
+    if (m.role === 'assistant' && last?.role === 'assistant') {
+      return [...turns.slice(0, -1), {...last, parts: [...last.parts, ...m.parts], end: index}]
+    }
+    return [...turns, {key: m.id, role: m.role, parts: [...m.parts], start: index, end: index}]
+  }, [])
 }
 
 // A session boundary in the scrollback: a hairline rule with a quiet centered label. Marks where a
@@ -275,9 +337,22 @@ export function ChatPanel(props: {
       return [...prev.filter((g) => g.renderId !== spec.renderId), spec]
     })
   }
+  // Per-tool wall-clock for the card meta ("0.4s"). tanstack parts carry no timing slot, so we time
+  // it off the raw event stream with the Performance API: mark on TOOL_CALL_START, measure when the
+  // result lands. Keyed by toolCallId; the reactive map drives the card meta.
+  const callStarts = new Map<string, number>()
+  const [durations, setDurations] = createSignal<Record<string, number>>({})
+  const durationFor = (toolCallId: string): number | undefined => durations()[toolCallId]
   // Usage rides RUN_FINISHED.usage (native AG-UI), read off the raw chunk stream.
   const onChunk = (chunk: StreamChunk) => {
     if (chunk.type === EventType.RUN_FINISHED && chunk.usage) setUsage(tokenUsageToSnapshot(chunk.usage))
+    if (chunk.type === EventType.TOOL_CALL_START && !callStarts.has(chunk.toolCallId)) {
+      callStarts.set(chunk.toolCallId, performance.now())
+    }
+    if (chunk.type === EventType.TOOL_CALL_RESULT) {
+      const start = callStarts.get(chunk.toolCallId)
+      if (start !== undefined) setDurations((prev) => ({...prev, [chunk.toolCallId]: performance.now() - start}))
+    }
   }
   // Extra POST-body fields contributed by composer controls (e.g. the model selector's {model}).
   // The panel stays ignorant of their meaning; it just merges patches and ships them each turn.
@@ -514,6 +589,8 @@ export function ChatPanel(props: {
   }
   const removeDivider = (id: number) => setDividers((prev) => prev.filter((d) => d.id !== id))
   const dividersAt = (i: number) => dividers().filter((d) => d.afterCount === i)
+  const dividersInRange = (start: number, end: number) =>
+    dividers().filter((d) => d.afterCount >= start && d.afterCount <= end)
   const resetUsage = () => setUsage(null)
 
   // In-place new session (quick-terminal): mark a divider, resolve a fresh id, pre-mark it loaded so
@@ -624,14 +701,19 @@ export function ChatPanel(props: {
             </div>
           }
         >
-          <Index each={chat.messages()}>
-            {(m, index) => (
+          <Index each={coalesceTurns(chat.messages())}>
+            {(turn) => (
               <>
-                <For each={dividersAt(index)}>
+                <For each={dividersInRange(turn().start, turn().end)}>
                   {(d) => <Divider kind={d.kind} pending={d.id === pendingCompactId()} />}
                 </For>
-                <div class={`pw-chat-msg pw-chat-msg-${m().role}`}>
-                  <MessageParts parts={m().parts} streaming={isActiveAssistant(index, m().role)} ctx={toolCtx} />
+                <div class={`pw-chat-msg pw-chat-msg-${turn().role}`}>
+                  <MessageParts
+                    parts={turn().parts}
+                    streaming={isActiveAssistant(turn().end, turn().role)}
+                    ctx={toolCtx}
+                    durationFor={durationFor}
+                  />
                 </div>
               </>
             )}

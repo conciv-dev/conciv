@@ -31,6 +31,7 @@ export function SearchCard(props: ToolCardProps): JSX.Element {
       title={pattern() ? `${verb()} ${pattern()}` : `${verb()} files`}
       part={props.part}
       result={props.result}
+      durationMs={props.durationMs}
       meta={meta()}
     >
       <Show when={count() > 0}>

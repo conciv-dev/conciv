@@ -23,8 +23,11 @@ export type ToolViewCtx = {
 
 // The props every tool card receives: the raw tool-call part, its paired result, and host actions.
 // Each card parses part.input with its own zod schema for typed, validated rendering.
+// durationMs is the wall-clock the host measured between the call appearing and its result landing
+// (tanstack parts carry no timing slot); ToolCard renders it as the mono meta when set.
 export type ToolCardProps = {
   part: ToolCallPart
   result: ToolResultPart | undefined
   ctx: ToolViewCtx
+  durationMs?: number
 }

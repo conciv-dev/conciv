@@ -28,30 +28,30 @@ export function ToolCallCard(props: ToolCardProps): JSX.Element {
 
 function ByName(props: ToolCardProps): JSX.Element {
   return (
-    <Switch fallback={<GenericCard part={props.part} result={props.result} ctx={props.ctx} />}>
+    <Switch fallback={<GenericCard {...props} />}>
       <Match when={props.part.name === 'Bash'}>
-        <ShellCard part={props.part} result={props.result} ctx={props.ctx} />
+        <ShellCard {...props} />
       </Match>
       <Match when={props.part.name === 'Edit' || props.part.name === 'MultiEdit' || props.part.name === 'Write'}>
-        <FileEditCard part={props.part} result={props.result} ctx={props.ctx} />
+        <FileEditCard {...props} />
       </Match>
       <Match when={props.part.name === 'Read' || props.part.name === 'mandarax_open'}>
-        <FileReadCard part={props.part} result={props.result} ctx={props.ctx} />
+        <FileReadCard {...props} />
       </Match>
       <Match when={props.part.name === 'Grep' || props.part.name === 'Glob'}>
-        <SearchCard part={props.part} result={props.result} ctx={props.ctx} />
+        <SearchCard {...props} />
       </Match>
       <Match when={props.part.name === 'TodoWrite'}>
-        <TodoCard part={props.part} result={props.result} ctx={props.ctx} />
+        <TodoCard {...props} />
       </Match>
       <Match when={props.part.name === 'mandarax_page'}>
-        <PageActionCard part={props.part} result={props.result} ctx={props.ctx} />
+        <PageActionCard {...props} />
       </Match>
       <Match when={props.part.name === 'mandarax_ui'}>
-        <UiCard part={props.part} result={props.result} ctx={props.ctx} />
+        <UiCard {...props} />
       </Match>
       <Match when={props.part.name === 'mandarax_test'}>
-        <TestCard part={props.part} result={props.result} ctx={props.ctx} />
+        <TestCard {...props} />
       </Match>
     </Switch>
   )

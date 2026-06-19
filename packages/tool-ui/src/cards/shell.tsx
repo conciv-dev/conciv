@@ -24,6 +24,7 @@ export function ShellCard(props: ToolCardProps): JSX.Element {
       title={command() ? `Ran ${command()}` : 'Ran a command'}
       part={props.part}
       result={props.result}
+      durationMs={props.durationMs}
     >
       <div class="pw-term" classList={{'pw-tool-errbox': props.result?.state === 'error'}}>
         <Show when={command()}>

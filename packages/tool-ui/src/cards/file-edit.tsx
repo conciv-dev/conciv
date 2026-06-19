@@ -59,6 +59,7 @@ export function FileEditCard(props: ToolCardProps): JSX.Element {
       title={name() ? `${verb()} ${name()}` : `${verb()} a file`}
       part={props.part}
       result={props.result}
+      durationMs={props.durationMs}
       meta={meta()}
     >
       <Show when={diff()} fallback={<div class="pw-tool-muted">no diff</div>}>

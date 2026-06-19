@@ -68,6 +68,25 @@ export const MUTATING_KINDS = [
   'eval',
 ] as const satisfies readonly PageQueryKind[]
 
+// Visual action verbs that move/affect a visible element — the ones worth mirroring on the real page
+// (cursor glide + ring) and flagging in the tool card. Shared so the widget's page-mirror and the
+// tool-ui card never drift on which actions claim "shown on your page". Non-visual reads are excluded.
+export const MIRROR_KINDS = [
+  'click',
+  'fill',
+  'select',
+  'check',
+  'uncheck',
+  'press',
+  'hover',
+  'scroll',
+  'submit',
+] as const satisfies readonly PageQueryKind[]
+
+export function mirrorsKind(kind: PageQueryKind): boolean {
+  return (MIRROR_KINDS as readonly PageQueryKind[]).includes(kind)
+}
+
 export const PageQueryKindSchema = z.enum(PAGE_QUERY_KINDS)
 export const PagePositionSchema = z.enum(['before', 'after', 'prepend', 'append'])
 export const PageWaitStateSchema = z.enum(['visible', 'hidden'])

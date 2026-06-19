@@ -1,7 +1,7 @@
 import {z} from 'zod'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 import type {HarnessDecodeOpts} from '@mandarax/protocol/harness-types'
-import {TextBlock, ThinkingBlock, ToolUseBlock, ToolResultBlock} from './blocks.js'
+import {TextBlock, ThinkingBlock, ToolUseBlock, ToolResultBlock, canonicalToolName, contentText} from './blocks.js'
 import {
   runAgui,
   runAguiEvents,
@@ -42,7 +42,7 @@ function* blockChunks(part: unknown, mint: Mint): Generator<StreamChunk> {
   const thinking = ThinkingBlock.safeParse(part)
   if (thinking.success) return yield* reasoningMessage(mint('t'), thinking.data.thinking)
   const tool = ToolUseBlock.safeParse(part)
-  if (tool.success) yield* toolCall(tool.data.id, tool.data.name, tool.data.input)
+  if (tool.success) yield* toolCall(tool.data.id, canonicalToolName(tool.data.name), tool.data.input)
 }
 
 // Emit a tool result for each tool_result block in a Claude `user` event.
@@ -51,9 +51,13 @@ function* toolResultChunks(content: unknown, mint: Mint): Generator<StreamChunk>
   for (const part of content) {
     const result = ToolResultBlock.safeParse(part)
     if (!result.success) continue
-    const raw = result.data.content
-    const text = typeof raw === 'string' ? raw : JSON.stringify(raw ?? '')
-    yield* toolResult(mint('r'), result.data.tool_use_id, text)
+    const text = contentText(result.data.content)
+    yield* toolResult(
+      mint('r'),
+      result.data.tool_use_id,
+      text,
+      result.data.is_error ? 'output-error' : 'output-available',
+    )
   }
 }
 
@@ -102,7 +106,8 @@ function* openBlock(
     yield {type: EventType.REASONING_MESSAGE_START, messageId: mid, role: 'reasoning'}
   } else if (cb.type === 'tool_use' && cb.id) {
     open.set(i, {kind: 'tool', mid: cb.id})
-    yield {type: EventType.TOOL_CALL_START, toolCallId: cb.id, toolCallName: cb.name ?? '', toolName: cb.name ?? ''}
+    const name = canonicalToolName(cb.name ?? '')
+    yield {type: EventType.TOOL_CALL_START, toolCallId: cb.id, toolCallName: name, toolName: name}
   }
 }
 

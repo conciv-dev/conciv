@@ -169,6 +169,25 @@ describe('claude decode — live text streaming', () => {
     expect(end.toolCallId).toBe('toolu_1')
   })
 
+  it('un-prefixes our own MCP tool name back to canonical (mcp__mandarax__mandarax_page → mandarax_page)', async () => {
+    const out = await collect([
+      blockStart(0, {type: 'tool_use', id: 'toolu_3', name: 'mcp__mandarax__mandarax_page'}),
+      blockStop(0),
+    ])
+    const start = ofType(out, EventType.TOOL_CALL_START)[0] as {toolName: string; toolCallName: string}
+    expect(start.toolName).toBe('mandarax_page')
+    expect(start.toolCallName).toBe('mandarax_page')
+  })
+
+  it('leaves a third-party MCP tool name prefixed (falls through to the generic card)', async () => {
+    const out = await collect([
+      blockStart(0, {type: 'tool_use', id: 'toolu_4', name: 'mcp__github__create_issue'}),
+      blockStop(0),
+    ])
+    const start = ofType(out, EventType.TOOL_CALL_START)[0] as {toolName: string}
+    expect(start.toolName).toBe('mcp__github__create_issue')
+  })
+
   it('emits empty-object ARGS for a tool_use with no input deltas (valid JSON to accumulate)', async () => {
     const out = await collect([blockStart(0, {type: 'tool_use', id: 'toolu_2', name: 'Now'}), blockStop(0)])
     const args = ofType(out, EventType.TOOL_CALL_ARGS).map((c) => (c as {delta: string}).delta)

@@ -40,6 +40,7 @@ export function TodoCard(props: ToolCardProps): JSX.Element {
       title="Updated the to-do list"
       part={props.part}
       result={props.result}
+      durationMs={props.durationMs}
       meta={meta()}
     >
       <Show when={todos().length}>

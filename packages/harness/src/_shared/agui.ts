@@ -1,5 +1,5 @@
 import type {ZodType} from 'zod'
-import {EventType, type StreamChunk} from '@tanstack/ai'
+import {EventType, type StreamChunk, type ToolOutputState} from '@tanstack/ai'
 import type {HarnessDecodeOpts} from '@mandarax/protocol/harness-types'
 import {snapshotToTokenUsage, type UsageSnapshot} from '@mandarax/protocol/usage-types'
 
@@ -52,8 +52,16 @@ export function* toolCall(toolCallId: string, name: string, input: unknown): Gen
   yield {type: EventType.TOOL_CALL_END, toolCallId}
 }
 
-export function* toolResult(messageId: string, toolCallId: string, content: string): Generator<StreamChunk> {
-  yield {type: EventType.TOOL_CALL_RESULT, messageId, toolCallId, content}
+// `state` is tanstack/ai's ToolOutputState wire value: the StreamProcessor maps 'output-error' →
+// result part state 'error' and anything else → 'complete'. Omitting it silently rendered every
+// failed tool as a success, so each harness now passes its real outcome.
+export function* toolResult(
+  messageId: string,
+  toolCallId: string,
+  content: string,
+  state: ToolOutputState = 'output-available',
+): Generator<StreamChunk> {
+  yield {type: EventType.TOOL_CALL_RESULT, messageId, toolCallId, content, state}
 }
 
 async function* parsedLines<E>(

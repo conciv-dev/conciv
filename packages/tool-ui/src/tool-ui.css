@@ -1,16 +1,34 @@
 /* tool-ui.css — the tool-call card styling. All color/radius/motion flows from the --pw-* tokens
    so cards render identically in the widget shadow root and in Storybook. */
 
+/* Glassy gradient panel — faithful port of page-agent's .historyItem: a 135° white-on-dark sheen,
+   hairline border, a colored family rail on the left, a 1px top sheen line (::before), and an inset
+   highlight + drop shadow. position/overflow anchor the sheen and the done-shimmer. */
 .pw-tool {
+  position: relative;
+  overflow: hidden;
   font-family: var(--pw-font);
   color: var(--pw-text);
-  background: var(--pw-fill-soft);
+  background: linear-gradient(135deg, oklch(1 0 0 / 0.08), oklch(1 0 0 / 0.03));
   border: 1px solid var(--pw-line-soft);
   border-left: 2px solid var(--pw-accent-line);
-  border-radius: var(--pw-r-md);
+  border-radius: var(--pw-r-sm);
   padding: 8px 10px;
   margin: 6px 0;
   font-size: 13px;
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.1),
+    0 1px 3px oklch(0 0 0 / 0.1);
+}
+/* Top sheen: a 1px gradient hairline that catches light across the card's top edge. */
+.pw-tool::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, oklch(1 0 0 / 0.2), transparent);
 }
 
 /* Family rails: page=magenta, code=teal, test=gold, read=purple, neutral=line. */
@@ -28,6 +46,22 @@
 }
 .pw-tool--neutral {
   border-left-color: var(--pw-line-2);
+}
+
+/* Error tint (wins over the family rail) — red rail + red-washed gradient, like the mockup's
+   .item.err. Completed reads stay neutral glass; the green "done" celebration is reserved for the
+   terminal roll-up card (.pw-done), matching the mockup's single ✅ item. */
+.pw-tool--err {
+  border-left-color: var(--pw-danger);
+  background: linear-gradient(135deg, oklch(0.72 0.15 25 / 0.12), oklch(0.72 0.15 25 / 0.05));
+}
+
+/* One-pass shimmer that sweeps across a card to celebrate a state transition, then settles — no
+   perpetual idle loop. Used by the terminal .pw-done roll-up. */
+@keyframes pw-tool-shimmer {
+  to {
+    left: 100%;
+  }
 }
 
 /* The header doubles as the Ark Collapsible trigger (a button) — reset native chrome, keep the row. */
@@ -53,9 +87,12 @@
 .pw-tool-head[data-state='closed'] .pw-tool-chevron {
   transform: rotate(-90deg);
 }
-/* Hide the body when collapsed. Ark sets `hidden` on the content reliably (data-state is omitted
-   during its mount-skip), and an explicit display:none makes it stick in the widget shadow root. */
-.pw-tool-content[hidden] {
+.pw-tool-content[hidden],
+.pw-tool-content[data-state='closed'],
+.pw-test-content[hidden],
+.pw-test-content[data-state='closed'],
+.pw-think-content[hidden],
+.pw-think-content[data-state='closed'] {
   display: none;
 }
 
@@ -118,6 +155,80 @@
 
 .pw-tool-body {
   margin-top: 7px;
+}
+/* Stack body items (element chip → mirror note → result block) without stretching the inline chip. */
+.pw-tool-body > * + * {
+  margin-top: 7px;
+}
+
+/* Page read result (tree / text / snapshot) — the mockup's sunk mono .term block. Capped height so a
+   big DOM tree scrolls inside the card instead of flooding the thread. */
+.pw-page-out {
+  margin: 0;
+  width: 100%;
+  max-height: 220px;
+  overflow: auto;
+  font-family: var(--pw-mono);
+  font-size: 11px;
+  color: var(--pw-text-2);
+  background: var(--pw-sunken);
+  border: 1px solid var(--pw-line-soft);
+  border-radius: var(--pw-r-sm);
+  padding: 8px 10px;
+  white-space: pre;
+}
+
+/* Accessibility-node list (page snapshot/tree result): role chip · name · ref, one row each. */
+.pw-snap {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  width: 100%;
+  max-height: 220px;
+  overflow: auto;
+  background: var(--pw-sunken);
+  border: 1px solid var(--pw-line-soft);
+  border-radius: var(--pw-r-sm);
+}
+.pw-snap-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 4px 10px;
+  font-size: 11.5px;
+}
+.pw-snap-row + .pw-snap-row {
+  border-top: 1px solid var(--pw-line-soft);
+}
+.pw-snap-role {
+  flex: none;
+  font-family: var(--pw-mono);
+  font-size: 10.5px;
+  color: var(--pw-accent-link);
+}
+.pw-snap-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--pw-text);
+}
+.pw-snap-ref {
+  flex: none;
+  font-family: var(--pw-mono);
+  font-size: 10px;
+  color: var(--pw-text-3);
+}
+
+/* "Shown on your page" note (page-action card) — mirrors the mockup's magenta .mirror line; pairs
+   with the real on-page cursor/ring the widget draws for the same action verbs. */
+.pw-mirror {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--pw-accent-link);
 }
 
 /* Terminal block (shell card). */
@@ -483,14 +594,68 @@
   background: var(--pw-accent-20);
 }
 
-/* ── Reflection card (restyled thinking). ── */
-.pw-reflect {
-  border-left: 2px solid var(--pw-accent-line);
-  background: var(--pw-fill-soft);
-  border-radius: var(--pw-r-sm);
-  padding: 8px 11px;
+/* ── Thinking card (chain-of-thought disclosure). Quiet by design — reasoning is metacognition, not
+   a reply, so it recedes: no glass panel, just a muted collapsible row. ── */
+.pw-think {
   margin: 6px 0;
   font-family: var(--pw-font);
+}
+/* The trigger is the collapsed row: brain glyph + label + chevron. Button-reset, full-width. */
+.pw-think-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  background: none;
+  border: 0;
+  padding: 2px 0;
+  font: inherit;
+  color: var(--pw-text-3);
+  text-align: left;
+  cursor: pointer;
+}
+.pw-think-ic {
+  flex: 0 0 auto;
+  display: inline-flex;
+  color: var(--pw-text-3);
+}
+.pw-think-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12.5px;
+}
+/* While the tokens stream, the label shimmers — a moving highlight clipped to the text. */
+.pw-think-label--live {
+  background: linear-gradient(90deg, var(--pw-dim) 0%, var(--pw-text-hi) 50%, var(--pw-dim) 100%);
+  background-size: 200% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  animation: pw-think-shimmer 1.6s linear infinite;
+}
+@keyframes pw-think-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pw-think-label--live {
+    animation: none;
+    color: var(--pw-text-2);
+  }
+}
+.pw-think-chevron {
+  flex: 0 0 auto;
+  color: var(--pw-text-3);
+  transition: transform 160ms var(--pw-ease);
+}
+.pw-think-head[data-state='closed'] .pw-think-chevron {
+  transform: rotate(-90deg);
+}
+.pw-think-body {
+  margin-top: 5px;
+  padding: 4px 0 2px 11px;
+  border-left: 1px solid var(--pw-line-soft);
   font-size: 13px;
   color: var(--pw-text-2);
 }
@@ -627,16 +792,39 @@
   background: var(--pw-accent-hi);
 }
 
-/* ── Done card (structured roll-up). ── */
+/* ── Done card (structured roll-up) — the mockup's terminal ✅ item: a brighter green gradient, a
+   thick green rail, inset highlight, and a one-pass shimmer that sweeps then settles. ── */
 .pw-done {
-  border: 1px solid var(--pw-accent-line);
-  border-radius: var(--pw-r-md);
-  background: var(--pw-accent-08);
+  position: relative;
+  overflow: hidden;
+  border: none;
+  border-left: 4px solid var(--pw-success);
+  border-radius: var(--pw-r-sm);
+  background: linear-gradient(
+    135deg,
+    oklch(0.82 0.16 162 / 0.25),
+    oklch(0.82 0.16 162 / 0.15),
+    oklch(0.82 0.16 162 / 0.08)
+  );
+  box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.2);
   padding: 10px 12px;
   margin: 6px 0;
   font-family: var(--pw-font);
   font-size: 13px;
   color: var(--pw-text);
+}
+.pw-done::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 -100%;
+  width: 100%;
+  background: linear-gradient(90deg, transparent, oklch(1 0 0 / 0.12), transparent);
+  animation: pw-tool-shimmer 1.8s var(--pw-ease) 2;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pw-done::after {
+    animation: none;
+  }
 }
 .pw-done-head {
   display: flex;

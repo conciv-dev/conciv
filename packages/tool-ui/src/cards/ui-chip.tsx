@@ -29,6 +29,7 @@ export function UiCard(props: ToolCardProps): JSX.Element {
       title={kind() ? `Rendered ${LABEL[kind()!]}` : 'Rendered UI'}
       part={props.part}
       result={props.result}
+      durationMs={props.durationMs}
     >
       <Show when={question()}>
         <span class="pw-ui-q">{question()}</span>

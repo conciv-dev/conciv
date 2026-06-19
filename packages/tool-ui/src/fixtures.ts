@@ -11,6 +11,13 @@ export function resultPart(content: string, over: Partial<ToolResultPart> = {}):
   return {type: 'tool-result', toolCallId: 't1', content, state: 'complete', ...over}
 }
 
+// A page/MCP tool result as it reaches a card AFTER the harness unwraps the MCP content envelope at
+// decode: content is the payload JSON as a single-encoded string (e.g. '{"nodes":[...]}'). The
+// envelope-unwrap itself is verified in the harness decode test, not faked here.
+export function payloadResultPart(payload: unknown, over: Partial<ToolResultPart> = {}): ToolResultPart {
+  return resultPart(JSON.stringify(payload), over)
+}
+
 // A no-op host context for stories that don't exercise actions; spies override sendMessage.
 export function noopCtx(over: Partial<ToolViewCtx> = {}): ToolViewCtx {
   return {apiBase: '', harnessId: 'claude', sendMessage: () => {}, ...over}

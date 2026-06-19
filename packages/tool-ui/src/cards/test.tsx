@@ -190,7 +190,7 @@ export function TestResults(props: {result: TestRunResult | null; ctx: ToolViewC
               <ChevronRight class="pw-test-chevron" size={14} aria-hidden="true" />
               <span class="pw-test-fname">{relName(group.file)}</span>
             </Collapsible.Trigger>
-            <Collapsible.Content>
+            <Collapsible.Content class="pw-test-content">
               <For each={group.tests}>
                 {(test) => {
                   const key = `${group.file}::${test.name}`
@@ -256,7 +256,14 @@ function TestIcon(): JSX.Element {
 
 export function TestCard(props: ToolCardProps): JSX.Element {
   return (
-    <ToolCard accent="test" Icon={TestIcon} title="Ran tests" part={props.part} result={props.result}>
+    <ToolCard
+      accent="test"
+      Icon={TestIcon}
+      title="Ran tests"
+      part={props.part}
+      result={props.result}
+      durationMs={props.durationMs}
+    >
       <TestResults result={parseRunResult(props)} ctx={props.ctx} />
     </ToolCard>
   )

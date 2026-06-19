@@ -23,6 +23,7 @@ const CommandItem = z.object({
   id: z.string(),
   command: z.string(),
   aggregated_output: z.string().optional(),
+  exit_code: z.number().optional(),
 })
 
 const CodexEventSchema = z
@@ -38,7 +39,8 @@ type CodexEvent = z.infer<typeof CodexEventSchema>
 // A completed command_execution maps to a full tool-call lifecycle plus its captured output.
 function* commandChunks(cmd: z.infer<typeof CommandItem>, mint: Mint): Generator<StreamChunk> {
   yield* toolCall(cmd.id, 'shell', {command: cmd.command})
-  yield* toolResult(mint('r'), cmd.id, cmd.aggregated_output ?? '')
+  const ok = cmd.exit_code === undefined || cmd.exit_code === 0
+  yield* toolResult(mint('r'), cmd.id, cmd.aggregated_output ?? '', ok ? 'output-available' : 'output-error')
 }
 
 function* itemChunks(item: unknown, mint: Mint): Generator<StreamChunk> {

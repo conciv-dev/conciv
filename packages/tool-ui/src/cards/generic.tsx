@@ -22,7 +22,14 @@ function GenericIcon(): JSX.Element {
 // generic for the rest). Title is the raw tool name; body shows raw args + result behind a details.
 export function GenericCard(props: ToolCardProps): JSX.Element {
   return (
-    <ToolCard accent="neutral" Icon={GenericIcon} title={props.part.name} part={props.part} result={props.result}>
+    <ToolCard
+      accent="neutral"
+      Icon={GenericIcon}
+      title={props.part.name}
+      part={props.part}
+      result={props.result}
+      durationMs={props.durationMs}
+    >
       <Show
         when={props.result?.state === 'error'}
         fallback={

@@ -57,6 +57,7 @@ export function FileReadCard(props: ToolCardProps): JSX.Element {
       title={path() ? `${verb()} ${path()}` : `${verb()} a file`}
       part={props.part}
       result={props.result}
+      durationMs={props.durationMs}
       meta={range()}
     >
       <Show

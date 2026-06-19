@@ -40,6 +40,41 @@ describe('parseHistory', () => {
     const user = msgs.find((m) => m.role === 'user')
     expect(user?.parts).toContainEqual({type: 'text', content: 'what else can you do?'})
   })
+
+  // Claude splits one assistant message (a single message.id) across consecutive transcript lines:
+  // the thinking block on one line, the tool_use on the next. parseHistory must merge them into one
+  // UIMessage so the widget renders a single chain-of-thought, not a fragmented one per line.
+  it('merges consecutive assistant records that share a message.id', () => {
+    const jsonl = [
+      JSON.stringify({type: 'user', message: {role: 'user', content: "what's on the page now?"}}),
+      JSON.stringify({
+        type: 'assistant',
+        message: {id: 'msg_A', role: 'assistant', content: [{type: 'thinking', thinking: 'Let me take a snapshot.'}]},
+      }),
+      JSON.stringify({
+        type: 'assistant',
+        message: {
+          id: 'msg_A',
+          role: 'assistant',
+          content: [{type: 'tool_use', id: 'toolu_1', name: 'mcp__mandarax__mandarax_page', input: {verb: 'snapshot'}}],
+        },
+      }),
+      JSON.stringify({
+        type: 'user',
+        message: {role: 'user', content: [{type: 'tool_result', tool_use_id: 'toolu_1', content: 'ok'}]},
+      }),
+      JSON.stringify({
+        type: 'assistant',
+        message: {id: 'msg_B', role: 'assistant', content: [{type: 'text', text: 'Same as before.'}]},
+      }),
+    ].join('\n')
+
+    const msgs = parseHistory(jsonl)
+    const assistants = msgs.filter((m) => m.role === 'assistant')
+    expect(assistants).toHaveLength(2)
+    expect(assistants[0]?.parts.map((p) => p.type)).toEqual(['thinking', 'tool-call', 'tool-result'])
+    expect(assistants[1]?.parts.map((p) => p.type)).toEqual(['text'])
+  })
 })
 
 describe('claudeHistory.nameFromTranscript', () => {
