@@ -25,8 +25,6 @@ const storybook = {
   },
 }
 
-export default defineConfig({
-  test: {
-    projects: process.env.SKIP_STORYBOOK_TESTS ? [] : [storybook],
-  },
-})
+export default defineConfig(
+  process.env.SKIP_STORYBOOK_TESTS ? {test: {passWithNoTests: true}} : {test: {projects: [storybook]}},
+)

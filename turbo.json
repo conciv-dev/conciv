@@ -17,7 +17,9 @@
       "dependsOn": ["^build", "build"],
       "env": ["SKIP_STORYBOOK_TESTS", "CI"]
     },
-    "lint": {},
+    "lint": {
+      "dependsOn": ["^build"]
+    },
     "publint": {
       "dependsOn": ["build"]
     },

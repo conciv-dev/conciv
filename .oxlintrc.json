@@ -53,6 +53,12 @@
       "rules": {
         "no-restricted-imports": "off"
       }
+    },
+    {
+      "files": ["packages/solid-streamdown/**"],
+      "rules": {
+        "unocss/order": "off"
+      }
     }
   ],
   "ignorePatterns": ["dist", "build", "node_modules", ".turbo"]

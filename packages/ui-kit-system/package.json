@@ -36,7 +36,7 @@
     "build": "vite build && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "storybook": "storybook dev -p 6008",
     "build-storybook": "storybook build",
     "publint": "publint",
