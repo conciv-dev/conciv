@@ -7,6 +7,7 @@
   },
   "rules": {
     "unicorn/consistent-function-scoping": "off",
+    "unicorn/require-module-specifiers": "off",
     "react/react-in-jsx-scope": "off",
     "no-underscore-dangle": [
       "warn",

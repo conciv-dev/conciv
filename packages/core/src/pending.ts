@@ -16,7 +16,7 @@ export function makePending<T>(): Pending<T> {
   const waiters = new Map<string, (value: T) => void>()
 
   function awaitReply(id: string, timeoutMs: number): Promise<T> {
-    return new Promise<T>((resolve, reject) => {
+    return new Promise<T>((settle, reject) => {
       const timer = setTimeout(() => {
         waiters.delete(id)
         reject(Object.assign(new Error('pending request timed out'), {[TIMEOUT_TAG]: true as const}))
@@ -24,7 +24,7 @@ export function makePending<T>(): Pending<T> {
       waiters.set(id, (value) => {
         clearTimeout(timer)
         waiters.delete(id)
-        resolve(value)
+        settle(value)
       })
     })
   }

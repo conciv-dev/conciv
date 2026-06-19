@@ -63,7 +63,7 @@ describe('sweepEmptyChatRecords', () => {
     await store.create(rec({id: 'mandarax_agent', origin: 'agent'})) // agent → kept
     await store.create(rec({id: 'mandarax_live'})) // empty but locked (in-flight first turn) → kept
     await sweepEmptyChatRecords(store, new Set(['mandarax_live']))
-    const ids = (await store.list()).map((r) => r.id).sort()
+    const ids = (await store.list()).map((r) => r.id).toSorted()
     expect(ids).toEqual(['mandarax_agent', 'mandarax_ext', 'mandarax_live', 'mandarax_run', 'mandarax_titled'])
   })
 })

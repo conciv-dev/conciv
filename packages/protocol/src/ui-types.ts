@@ -121,25 +121,25 @@ export type UiBuildInput = {
 }
 
 // Pure: normalized input + a caller-supplied renderId → a typed UiSpec. Throws on invalid input.
-export function buildUiSpec(input: UiBuildInput, renderId: string): UiSpec {
+export function buildUiSpec(input: UiBuildInput, id: string): UiSpec {
   if (input.kind === 'choices') {
     if (!input.question) throw new Error('choices needs a question')
     if (!input.options?.length) throw new Error('choices needs at least one option')
-    return {kind: 'choices', renderId, question: input.question, options: input.options}
+    return {kind: 'choices', renderId: id, question: input.question, options: input.options}
   }
   if (input.kind === 'confirm') {
     if (!input.question) throw new Error('confirm needs a question')
-    return {kind: 'confirm', renderId, question: input.question, detail: input.detail}
+    return {kind: 'confirm', renderId: id, question: input.question, detail: input.detail}
   }
   if (input.kind === 'diff') {
     if (input.file === undefined || input.before === undefined || input.after === undefined) {
       throw new Error('diff needs file, before, and after')
     }
-    return {kind: 'diff', renderId, file: input.file, before: input.before, after: input.after}
+    return {kind: 'diff', renderId: id, file: input.file, before: input.before, after: input.after}
   }
   if (input.kind === 'form') {
     if (!input.fields?.length) throw new Error('form needs at least one field')
-    return {kind: 'form', renderId, title: input.title, fields: input.fields}
+    return {kind: 'form', renderId: id, title: input.title, fields: input.fields}
   }
   throw new Error(`unknown ui kind: ${input.kind}`)
 }

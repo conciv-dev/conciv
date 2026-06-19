@@ -81,7 +81,7 @@ export function report(opts: {name?: string; limit?: number} = {}): TrackReport 
   const all = [...state.stats.values()]
   const timingsAvailable = all.some((s) => s.selfTimeMaxMs > 0)
   const filtered = opts.name ? all.filter((s) => s.component.toLowerCase().includes(opts.name!.toLowerCase())) : all
-  const ranked = filtered.sort((a, b) => b.renders - a.renders).slice(0, opts.limit ?? 15)
+  const ranked = filtered.toSorted((a, b) => b.renders - a.renders).slice(0, opts.limit ?? 15)
   const components = ranked.map((s) => ({
     component: s.component,
     renders: s.renders,

@@ -30,7 +30,7 @@ type MsgMeta = {text: unknown; image: unknown; audio: unknown; video: unknown; d
 // Latest user-turn text from chat()'s ModelMessage[] (content is string | null | ContentPart[]).
 // flatMap + the `type` discriminant narrows each part — no cast, no type-guard predicate.
 export function lastUserModelText(messages: TextOptions['messages']): string {
-  const last = [...messages].reverse().find((m) => m.role === 'user')
+  const last = messages.findLast((m) => m.role === 'user')
   if (!last || last.content === null) return ''
   if (typeof last.content === 'string') return last.content
   return last.content.flatMap((p) => (p.type === 'text' ? [p.content] : [])).join('\n')
@@ -39,7 +39,7 @@ export function lastUserModelText(messages: TextOptions['messages']): string {
 // Image parts from the latest user turn. Narrow `type==='image'` then `source.type==='data'`
 // (the data source carries base64) — cast-free; `source.mimeType` is the verified field name.
 export function lastUserImages(messages: TextOptions['messages']): HarnessImage[] {
-  const last = [...messages].reverse().find((m) => m.role === 'user')
+  const last = messages.findLast((m) => m.role === 'user')
   if (!last || last.content === null || typeof last.content === 'string') return []
   return last.content.flatMap((p) => {
     if (p.type !== 'image' || p.source.type !== 'data') return []

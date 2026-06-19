@@ -54,7 +54,7 @@ describe('per-session lock', () => {
     expect(
       readLocks(root)
         .map((l) => l.key)
-        .sort(),
+        .toSorted(),
     ).toEqual(['h-a', 'h-b'])
   })
 })

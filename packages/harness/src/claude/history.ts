@@ -109,7 +109,7 @@ export function parseHistory(jsonl: string): UIMessage[] {
     if (e.type === 'user') {
       const results = parts.filter((p) => p.type === 'tool-result')
       const rest = parts.filter((p) => p.type !== 'tool-result')
-      const lastAssistant = [...out].reverse().find((m) => m.role === 'assistant')
+      const lastAssistant = out.findLast((m) => m.role === 'assistant')
       if (lastAssistant) lastAssistant.parts.push(...results)
       if (rest.length === 0) continue
       openAssistantId = null
@@ -256,7 +256,7 @@ export async function listSessions(cwd: string, home: string = homedir()): Promi
       }),
     )
   ).filter(Boolean) as {name: string; mtime: number}[]
-  const top = stamped.sort((a, b) => b.mtime - a.mtime).slice(0, MAX_SESSIONS)
+  const top = stamped.toSorted((a, b) => b.mtime - a.mtime).slice(0, MAX_SESSIONS)
   return Promise.all(
     top.map(async (f) => {
       const raw = await readFile(join(dir, f.name), 'utf8').catch(() => '')

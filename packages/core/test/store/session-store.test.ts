@@ -27,7 +27,7 @@ describe('SessionStore (memory driver)', () => {
     const store = memoryStore()
     await store.create({id: 'mandarax_a', harnessSessionId: null, title: null, model: null, usage: null, ...base})
     await store.create({id: 'mandarax_b', harnessSessionId: null, title: null, model: null, usage: null, ...base})
-    expect((await store.list()).map((r) => r.id).sort()).toEqual(['mandarax_a', 'mandarax_b'])
+    expect((await store.list()).map((r) => r.id).toSorted()).toEqual(['mandarax_a', 'mandarax_b'])
     await store.delete('mandarax_a')
     expect(await store.get('mandarax_a')).toBeNull()
   })

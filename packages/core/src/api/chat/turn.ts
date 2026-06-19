@@ -132,7 +132,7 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
       // a real summarize instruction substituted here, so the turn still yields a usable summary.
       const messages = toChatMessages(chatReq)
       if (turnKind === 'compact' && !harness.capabilities.compaction) {
-        const lastUser = [...messages].reverse().find((m) => m.role === 'user')
+        const lastUser = messages.findLast((m) => m.role === 'user')
         if (lastUser) lastUser.content = COMPACT_FALLBACK_PROMPT
       }
 
