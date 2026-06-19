@@ -1,0 +1,35 @@
+name: Fallow
+
+# Codebase-intelligence gate: changed-file dead code, complexity, duplication.
+# Report-only for now (fail-on-issues:false) — surfaces findings as PR comments
+# without blocking merges. Flip to true once the signal is tuned. Binary version
+# comes from the root package.json fallow devDependency (Ed25519 + SHA-256 verified).
+#
+# PR-only: this job needs pull-requests: write to post comments, so it lives in its
+# own workflow rather than ci.yml, which is also called as a reusable workflow by
+# release.yml (a reusable workflow cannot request more than its caller's token grants).
+
+on:
+  pull_request: {}
+
+permissions:
+  contents: read
+
+jobs:
+  fallow:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write # sticky summary + inline review comments
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0 # audit needs git history for changed-file attribution
+          persist-credentials: false
+      - uses: fallow-rs/fallow@eaeb0634af797a69bae7600d2020dd99b33402ad # v2.100.0
+        with:
+          command: audit
+          fail-on-issues: 'false' # report-only during rollout
+          auto-changed-since: 'true' # scope to the PR diff
+          comment: 'true'
+          review-comments: 'true'
