@@ -3,7 +3,11 @@ import {describe, expect, it} from 'vitest'
 import {chat, EventType, type StreamChunk} from '@tanstack/ai'
 import type {HarnessChild} from '@mandarax/protocol/harness-types'
 import {harnessText} from '../src/_shared/text-adapter.js'
-import {claude} from '../src/claude/index.js'
+import {makeClaudeAdapter} from '../src/claude/index.js'
+
+// Exercises the stream-json decode path with scripted stdout, so force the CLI adapter — the default
+// `claude` is now the SDK transport whose run() would bypass the scripted spawn.
+const claude = makeClaudeAdapter(false)
 
 // Scripted claude stream-json stdout: a system init, an assistant turn carrying usage, then a
 // result with modelUsage. Mirrors the real claude CLI shape (verified against claude 2.1.177).

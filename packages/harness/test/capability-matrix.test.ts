@@ -21,8 +21,8 @@ describe('harness capability matrix', () => {
         expect(typeof adapter.decode).toBe('function')
       })
 
-      it('permissionGate is one of hook|none and systemPrompt one of file|flag|none', () => {
-        expect(['hook', 'none']).toContain(adapter.capabilities.permissionGate)
+      it('permissionGate is one of hook|callback|none and systemPrompt one of file|flag|none', () => {
+        expect(['hook', 'callback', 'none']).toContain(adapter.capabilities.permissionGate)
         expect(['file', 'flag', 'none']).toContain(adapter.capabilities.systemPrompt)
       })
     })

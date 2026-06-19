@@ -3,7 +3,11 @@ import {describe, expect, it} from 'vitest'
 import {chat, EventType, type StreamChunk} from '@tanstack/ai'
 import type {HarnessChild} from '@mandarax/protocol/harness-types'
 import {harnessText} from '../src/_shared/text-adapter.js'
-import {claude} from '../src/claude/index.js'
+import {makeClaudeAdapter} from '../src/claude/index.js'
+
+// Drives the spawned CLI through the stream-json decode path, so force the CLI adapter — the default
+// `claude` is now the SDK transport whose run() would ignore the injected spawnHarness.
+const claude = makeClaudeAdapter(false)
 
 function hasClaude(): boolean {
   try {
