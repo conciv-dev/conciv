@@ -9,7 +9,7 @@ A harness is the headless agent process that powers the chat. Claude is the defa
 ## Select a harness
 
 ```ts title="vite.config.ts"
-aidx({
+mandarax({
   harness: 'codex',
   harnessBin: '/usr/local/bin/codex',
 })
@@ -25,7 +25,7 @@ aidx({
 Default. Full support. Needs the `claude` CLI on your `PATH`.
 
 ```ts
-aidx({harness: 'claude'})
+mandarax({harness: 'claude'})
 ```
 
 ### Codex
@@ -33,7 +33,7 @@ aidx({harness: 'claude'})
 Full support.
 
 ```ts
-aidx({harness: 'codex'})
+mandarax({harness: 'codex'})
 ```
 
 ## Planned

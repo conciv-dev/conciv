@@ -60,7 +60,7 @@ describe('claudeHistory.nameFromTranscript', () => {
 
 describe('listSessions', () => {
   it('lists newest-first with title + count', async () => {
-    const home = mkdtempSync(join(tmpdir(), 'aidx-home-'))
+    const home = mkdtempSync(join(tmpdir(), 'mandarax-home-'))
     const cwd = '/proj/x'
     seed(home, cwd, 'old', JSON.stringify({type: 'user', message: {content: 'first task'}}) + '\n', 1000)
     seed(
@@ -80,7 +80,7 @@ describe('listSessions', () => {
   })
 
   it('caps at 50 and does not read the 51st', async () => {
-    const home = mkdtempSync(join(tmpdir(), 'aidx-home-'))
+    const home = mkdtempSync(join(tmpdir(), 'mandarax-home-'))
     const cwd = '/proj/y'
     for (let i = 0; i < 51; i++)
       seed(
@@ -97,13 +97,13 @@ describe('listSessions', () => {
   })
 
   it('returns [] for a missing dir', async () => {
-    expect(await listSessions('/no/such', mkdtempSync(join(tmpdir(), 'aidx-home-')))).toEqual([])
+    expect(await listSessions('/no/such', mkdtempSync(join(tmpdir(), 'mandarax-home-')))).toEqual([])
   })
 })
 
 describe('withinProject', () => {
   it('rejects traversal and accepts a normal id', () => {
-    const home = mkdtempSync(join(tmpdir(), 'aidx-home-'))
+    const home = mkdtempSync(join(tmpdir(), 'mandarax-home-'))
     expect(withinProject('/proj', '../../etc/passwd', home)).toBe(false)
     expect(withinProject('/proj', '0c1d2e3f-aaaa-bbbb-cccc-000011112222', home)).toBe(true)
     rmSync(home, {recursive: true, force: true})

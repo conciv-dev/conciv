@@ -8,7 +8,7 @@
   "rules": {
     "unicorn/consistent-function-scoping": "off",
     "react/react-in-jsx-scope": "off",
-    "no-underscore-dangle": ["warn", {"allow": ["__AIDX_RENDER_VITEST_CARD__"]}]
+    "no-underscore-dangle": ["warn", {"allow": ["__MANDARAX_RENDER_VITEST_CARD__"]}]
   },
   "env": {
     "browser": true,

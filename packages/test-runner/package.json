@@ -1,7 +1,7 @@
 {
-  "name": "@opendui/aidx-test-runner",
+  "name": "@mandarax/test-runner",
   "version": "0.0.0",
-  "description": "Runner-agnostic test-runner adapters for aidx (vitest today; jest/node-test/playwright are drop-in via the ChildRunnerSpec seam). Each adapter spawns a clean child that streams TestEvent NDJSON on fd 3.",
+  "description": "Runner-agnostic test-runner adapters for mandarax (vitest today; jest/node-test/playwright are drop-in via the ChildRunnerSpec seam). Each adapter spawns a clean child that streams TestEvent NDJSON on fd 3.",
   "license": "MIT",
   "files": [
     "dist"
@@ -37,7 +37,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@opendui/aidx-protocol": "workspace:*",
+    "@mandarax/protocol": "workspace:*",
     "zod": "^4.4.3"
   },
   "devDependencies": {

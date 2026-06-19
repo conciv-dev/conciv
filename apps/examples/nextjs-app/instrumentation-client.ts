@@ -1,1 +1,1 @@
-import '@opendui/aidx/plugin/nextjs/widget'
+import 'mandarax/plugin/nextjs/widget'

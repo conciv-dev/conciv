@@ -1,5 +1,5 @@
 import type {ContentPart, ModelMessage} from '@tanstack/ai'
-import type {ChatMessage, ChatRequest} from '@opendui/aidx-protocol/chat-types'
+import type {ChatMessage, ChatRequest} from '@mandarax/protocol/chat-types'
 
 // Text of one validated request message. Tolerant of both the parts-based UIMessage shape
 // ({role, parts:[{type:'text', content}]}) and a plain {role, content: string}.

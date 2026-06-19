@@ -9,15 +9,15 @@ import type {ElementSource, Grab} from './grab-types.js'
 // final content into whichever composer started the current pick. Dynamic import (not static) so
 // we can set the disable flag before the module evaluates, and to defer init to first use.
 
-// aidx-branded handle to our live react-grab instance, for host-app context-menu extensibility.
+// mandarax-branded handle to our live react-grab instance, for host-app context-menu extensibility.
 // (A literal re-export of react-grab's registerPlugin would target a different instance — see plan.)
-type AidxGlobal = {
+type MandaraxGlobal = {
   registerPlugin: ReactGrabAPI['registerPlugin']
   unregisterPlugin: ReactGrabAPI['unregisterPlugin']
 }
 declare global {
   interface Window {
-    __AIDX__?: AidxGlobal
+    __MANDARAX__?: MandaraxGlobal
   }
 }
 
@@ -51,7 +51,7 @@ async function create(): Promise<ReactGrabAdapter> {
   // mutable sink is race-free; activate()/comment() set it immediately before entering selection.
   let sink: GrabSink | null = null
   api.registerPlugin({
-    name: 'aidx',
+    name: 'mandarax',
     theme: {toolbar: {enabled: false}},
     hooks: {
       // Shrink the chat surface to a "Picking…" pill while selection is active, so the page is
@@ -74,7 +74,7 @@ async function create(): Promise<ReactGrabAdapter> {
   // Let the pill abort the current pick (also covers Esc handling in the shell).
   setCancelPick(() => api.deactivate())
   // Host-app extensibility: register react-grab context-menu/toolbar actions + hooks against OUR instance.
-  window.__AIDX__ = {
+  window.__MANDARAX__ = {
     registerPlugin: api.registerPlugin,
     unregisterPlugin: api.unregisterPlugin,
   }

@@ -15,7 +15,7 @@ import {defineClient} from './session-client.js'
 import {parseWidgetSettings, type WidgetSettings} from './widget-settings.js'
 
 // Entry: create the open Shadow DOM, probe the dev server, and mount the Solid chat agent +
-// page-bus when the aidx routes are live. Auto-mounts on load; also exports mountWidget.
+// page-bus when the mandarax routes are live. Auto-mounts on load; also exports mountWidget.
 
 function metaContent(name: string): string {
   return document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content ?? ''
@@ -23,17 +23,17 @@ function metaContent(name: string): string {
 
 declare global {
   interface Window {
-    __AIDX_RENDER_TEST_CARD__?: () => void
-    __AIDX_API_BASE__?: string
+    __MANDARAX_RENDER_TEST_CARD__?: () => void
+    __MANDARAX_API_BASE__?: string
     // Test seam (browser IT): the live page driver, for driving React verbs against real fibers
     // without a running dev server. Same driver the page-bus uses (one console buffer / registry).
-    __AIDX_PAGE_DRIVER__?: PageDriver
+    __MANDARAX_PAGE_DRIVER__?: PageDriver
   }
 }
 
 // apiBase from a window global (Next has no HTML-injection seam) or the meta tag (Vite path).
 function resolveApiBase(): string {
-  return window.__AIDX_API_BASE__ ?? metaContent('pw-api-base')
+  return window.__MANDARAX_API_BASE__ ?? metaContent('pw-api-base')
 }
 
 // Layout settings injected as the pw-widget meta JSON. Both layouts default on.
@@ -49,17 +49,17 @@ function mountTestCardForTest(root: ShadowRoot, apiBase: string): void {
 }
 
 export function mountWidget(): void {
-  if (document.querySelector('[data-aidx-root]')) return
+  if (document.querySelector('[data-mandarax-root]')) return
   // Install the RDT hook before the host app's React initializes (so inspect/override work).
   installReactBridge()
   const {root} = createShadowRoot()
   const apiBase = resolveApiBase()
-  window.__AIDX_RENDER_TEST_CARD__ = () => mountTestCardForTest(root, apiBase)
+  window.__MANDARAX_RENDER_TEST_CARD__ = () => mountTestCardForTest(root, apiBase)
   // One driver, shared by the page-bus and the test seam, so console-patching + registry happen once.
   const driver = makeDomPageDriver()
-  window.__AIDX_PAGE_DRIVER__ = driver
+  window.__MANDARAX_PAGE_DRIVER__ = driver
   const settings = resolveWidget()
-  // Chat + page-bus only exist on the aidx dev server. Probe the non-session /models route: a 2xx
+  // Chat + page-bus only exist on the mandarax dev server. Probe the non-session /models route: a 2xx
   // means chat is mounted (and carries the harness identity that gates the launch button). A throw
   // (404 / network) → a plain app, so the widget shows nothing.
   void defineClient({apiBase})

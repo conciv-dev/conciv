@@ -1,6 +1,6 @@
 ---
 title: Next.js
-description: Add aidx to a Next.js app.
+description: Add mandarax to a Next.js app.
 ---
 
 Next.js needs three small wires: the config wrapper, the server register hook, and the client
@@ -16,7 +16,7 @@ widget.
 <Tab value="pnpm">
 
 ```bash
-pnpm add -D @opendui/aidx
+pnpm add -D mandarax
 ```
 
 </Tab>
@@ -24,7 +24,7 @@ pnpm add -D @opendui/aidx
 <Tab value="npm">
 
 ```bash
-npm install -D @opendui/aidx
+npm install -D mandarax
 ```
 
 </Tab>
@@ -32,7 +32,7 @@ npm install -D @opendui/aidx
 <Tab value="yarn">
 
 ```bash
-yarn add -D @opendui/aidx
+yarn add -D mandarax
 ```
 
 </Tab>
@@ -46,11 +46,11 @@ yarn add -D @opendui/aidx
 
 ```ts title="next.config.ts"
 import type {NextConfig} from 'next'
-import {withAidx} from '@opendui/aidx/plugin/nextjs'
+import {withMandarax} from 'mandarax/plugin/nextjs'
 
 const nextConfig: NextConfig = {}
 
-export default withAidx(nextConfig)
+export default withMandarax(nextConfig)
 ```
 
 </Step>
@@ -59,11 +59,11 @@ export default withAidx(nextConfig)
 ### Add the instrumentation files
 
 ```ts title="instrumentation.ts"
-export {register} from '@opendui/aidx/plugin/nextjs'
+export {register} from 'mandarax/plugin/nextjs'
 ```
 
 ```ts title="instrumentation-client.ts"
-import '@opendui/aidx/plugin/nextjs/widget'
+import 'mandarax/plugin/nextjs/widget'
 ```
 
 </Step>

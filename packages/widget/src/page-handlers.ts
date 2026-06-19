@@ -1,4 +1,4 @@
-import {ok, err, type PageQuery, type PageQueryKind, type PageResult} from '@opendui/aidx-protocol/page-types'
+import {ok, err, type PageQuery, type PageQueryKind, type PageResult} from '@mandarax/protocol/page-types'
 import {buildSnapshot, describeElement, DOM_CAP, type Refs} from './page-snapshot.js'
 import {dehydrate, navigatePath} from './dehydrate.js'
 import * as react from './react-bridge.js'

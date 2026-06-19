@@ -1,7 +1,7 @@
 import {z} from 'zod'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 
-// Generative-UI specs the chat agent emits via `aidx ui …`, rendered as components in the
+// Generative-UI specs the chat agent emits via `mandarax ui …`, rendered as components in the
 // chat thread and carried to the widget as an AG-UI CUSTOM event. The schemas are the contract;
 // types are inferred from them.
 
@@ -60,11 +60,11 @@ export type UiForm = z.infer<typeof UiFormSchema>
 export type UiVitest = z.infer<typeof UiVitestSchema>
 
 // The CUSTOM event name the widget listens for via useChat({onCustomEvent}).
-export const AIDX_UI_EVENT = 'aidx-ui'
+export const MANDARAX_UI_EVENT = 'mandarax-ui'
 
 // Wrap a spec as the AG-UI CUSTOM StreamChunk injected into the live chat stream.
 export function aguiCustomFor(spec: UiSpec): StreamChunk {
-  return {type: EventType.CUSTOM, name: AIDX_UI_EVENT, value: spec}
+  return {type: EventType.CUSTOM, name: MANDARAX_UI_EVENT, value: spec}
 }
 
 // tanstack's StreamProcessor consumes this reserved CUSTOM event name to drive a tool-call part into
@@ -106,7 +106,7 @@ export function parseField(raw: string): UiFormField | null {
   return {name, label, type}
 }
 
-// Normalized builder input — shared by the CLI (`aidx ui`) and the aidx_ui MCP tool. Both
+// Normalized builder input — shared by the CLI (`mandarax ui`) and the mandarax_ui MCP tool. Both
 // normalize their own raw args to this shape, then call buildUiSpec.
 export type UiBuildInput = {
   kind: string

@@ -6,7 +6,7 @@
 // silently drops functions), so the naive serializer collapsed everything to "[object Object]".
 // Here every value becomes JSON-stringifiable: terminal specials render as readable string
 // previews (`ƒ onClick`, `<Button />`, `123n`), and containers past the depth/breadth budget
-// collapse to a sentinel `{__aidx, size, preview}` so the agent knows what is drillable and how big.
+// collapse to a sentinel `{__mandarax, size, preview}` so the agent knows what is drillable and how big.
 
 const REACT_ELEMENT = Symbol.for('react.element')
 const REACT_TRANSITIONAL_ELEMENT = Symbol.for('react.transitional.element')
@@ -21,7 +21,7 @@ export type DehydrateOptions = {
 }
 
 // A collapsed container: not expanded (depth/breadth/budget hit) but the agent can drill via path.
-export type Collapsed = {__aidx: string; size?: number; preview: string; name?: string}
+export type Collapsed = {__mandarax: string; size?: number; preview: string; name?: string}
 
 const DEFAULT_REDACT =
   /pass(word|wd)?|secret|token|api[-_]?key|authorization|bearer|jwt|cookie|credential|private[-_]?key|session/i
@@ -124,12 +124,12 @@ function walk(
   if (value instanceof RegExp) return value.toString()
   if (value instanceof Error) return `${value.name}: ${clampStr(value.message, opts.stringCap)}`
   if (value instanceof Promise) return 'Promise {…}'
-  if (value instanceof Map) return {__aidx: 'Map', size: value.size, preview: `Map(${value.size})`}
-  if (value instanceof Set) return {__aidx: 'Set', size: value.size, preview: `Set(${value.size})`}
+  if (value instanceof Map) return {__mandarax: 'Map', size: value.size, preview: `Map(${value.size})`}
+  if (value instanceof Set) return {__mandarax: 'Set', size: value.size, preview: `Set(${value.size})`}
   if (ArrayBuffer.isView(value) || value instanceof ArrayBuffer) {
     const name = ctorName(value) || 'ArrayBuffer'
     const size = 'length' in value ? (value as {length: number}).length : (value as ArrayBuffer).byteLength
-    return {__aidx: 'binary', size, preview: `${name}(${size})`}
+    return {__mandarax: 'binary', size, preview: `${name}(${size})`}
   }
 
   if (Array.isArray(value)) return walkArray(value, depth, seen, budget, opts)
@@ -140,7 +140,7 @@ function walk(
   const isPlain = proto === Object.prototype || proto === null
   if (!isPlain) {
     const name = ctorName(obj) || 'Object'
-    return {__aidx: 'class', name, preview: name, size: countKeys(obj)}
+    return {__mandarax: 'class', name, preview: name, size: countKeys(obj)}
   }
   return walkObject(obj, depth, seen, budget, opts)
 }
@@ -162,7 +162,7 @@ function walkArray(
 ): unknown {
   if (seen.has(arr)) return '[Circular]'
   if (depth >= opts.maxDepth || budget.nodes <= 0)
-    return {__aidx: 'array', size: arr.length, preview: `Array(${arr.length})`}
+    return {__mandarax: 'array', size: arr.length, preview: `Array(${arr.length})`}
   seen.add(arr)
   budget.nodes -= 1
   const out: unknown[] = []
@@ -182,7 +182,7 @@ function walkObject(
 ): unknown {
   if (seen.has(obj)) return '[Circular]'
   const keys = Object.keys(obj)
-  if (depth >= opts.maxDepth || budget.nodes <= 0) return {__aidx: 'object', size: keys.length, preview: '{…}'}
+  if (depth >= opts.maxDepth || budget.nodes <= 0) return {__mandarax: 'object', size: keys.length, preview: '{…}'}
   seen.add(obj)
   budget.nodes -= 1
   const out: Record<string, unknown> = {}

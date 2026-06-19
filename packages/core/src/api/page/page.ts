@@ -7,7 +7,7 @@ import {
   PageReplySchema,
   type PageQuery,
   type PageQueryInput,
-} from '@opendui/aidx-protocol/page-types'
+} from '@mandarax/protocol/page-types'
 import type {Journal} from '../../runtime/journal.js'
 import {makePending} from '../../pending.js'
 import {sseStream} from '../sse.js'
@@ -42,7 +42,7 @@ export function registerPageRoutes(app: H3, deps: {journal: Journal; root: strin
       deps.journal.append({verb, ref: input.ref, selector: input.selector, args: pageArgs(input)}, Date.now())
     }
     // locate ships raw stack frames; resolve them to original source server-side (fs + http) —
-    // unless the widget already read an exact source from a build-injected attribute (data-aidx-source).
+    // unless the widget already read an exact source from a build-injected attribute (data-mandarax-source).
     if (verb === 'locate' && !data.source && Array.isArray(data.frames)) {
       return {...data, source: await symbolicateFrames(data.frames as RawFrame[], deps.root)}
     }

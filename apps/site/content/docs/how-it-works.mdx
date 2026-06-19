@@ -4,14 +4,14 @@ description: The pieces behind the widget and how a turn flows.
 icon: Workflow
 ---
 
-aidx has three parts. The build plugin boots an engine and injects the widget. The widget runs in
+mandarax has three parts. The build plugin boots an engine and injects the widget. The widget runs in
 your page. The engine talks to a headless agent.
 
 ```mermaid
 flowchart LR
-  P(["@opendui/aidx"])
+  P(["mandarax"])
   W["Browser widget<br/>(shadow DOM)"]
-  C["@opendui/aidx-core<br/>(engine)"]
+  C["@mandarax/core<br/>(engine)"]
   H["Harness<br/>(claude / codex)"]
   W <-->|"/api/* · SSE + JSON<br/>chat · page bus · tests · approvals"| C
   C --> H
@@ -22,12 +22,12 @@ flowchart LR
 ## The parts
 
 <Cards>
-  <Card title="Plugin" description="@opendui/aidx boots the engine and injects the widget script into your dev build." />
+  <Card title="Plugin" description="mandarax boots the engine and injects the widget script into your dev build." />
   <Card
     title="Widget"
     description="A chat UI in an open shadow DOM. It probes the engine and shows the ✦ button when dev routes are live."
   />
-  <Card title="Engine" description="@opendui/aidx-core serves the chat, page, and test APIs on its own dev port." />
+  <Card title="Engine" description="@mandarax/core serves the chat, page, and test APIs on its own dev port." />
   <Card title="Harness" description="The headless agent process behind the chat, such as Claude Code." />
 </Cards>
 

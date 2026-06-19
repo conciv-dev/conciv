@@ -1,8 +1,8 @@
 import {defineCommand} from 'citty'
 import {runAndPrint} from './request.js'
 
-// `aidx tools test <action>` — run & inspect the previewed app's test suite (runner-blind;
-// the configured runner is resolved server-side). Legacy alias: `aidx tools vitest …`.
+// `mandarax tools test <action>` — run & inspect the previewed app's test suite (runner-blind;
+// the configured runner is resolved server-side). Legacy alias: `mandarax tools vitest …`.
 // Each run builds its request against /api/test-runner/* directly.
 export const testCommand = defineCommand({
   meta: {name: 'test', description: "run & inspect the previewed app's test suite"},

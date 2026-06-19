@@ -8,7 +8,7 @@ import {
   type TestError,
   type TestState,
   type TestEvent,
-} from '@opendui/aidx-protocol/test-types'
+} from '@mandarax/protocol/test-types'
 import {ToolCard} from '../shell.js'
 import {resultText} from '../util.js'
 import type {ToolCardProps, ToolViewCtx} from '../types.js'
@@ -238,7 +238,7 @@ export function TestResults(props: {result: TestRunResult | null; ctx: ToolViewC
   )
 }
 
-// Parse the aidx_test tool result into a TestRunResult; null while streaming or for a live run.
+// Parse the mandarax_test tool result into a TestRunResult; null while streaming or for a live run.
 function parseRunResult(props: ToolCardProps): TestRunResult | null {
   const text = resultText(props.result)
   if (!text) return null

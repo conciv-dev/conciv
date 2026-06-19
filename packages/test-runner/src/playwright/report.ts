@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import type {TestError, TestRow, TestState} from '@opendui/aidx-protocol/test-types'
+import type {TestError, TestRow, TestState} from '@mandarax/protocol/test-types'
 
 // Pure mapping of Playwright's `--reporter=json` report onto our wire types. Kept separate from
 // the spawning child so it's unit-testable without a browser.

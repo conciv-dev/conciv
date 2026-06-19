@@ -1,7 +1,7 @@
 // Real executable standing in for a harness CLI in ITs — spawned as a child to exercise the
 // true spawn → stdout-pipe → decode path. Replays a format-specific transcript selected by
-// AIDX_FAKE_FORMAT (claude | codex). Echoes argv (AIDX_TEST_ARGV_FILE) so a test can
-// assert resume; hangs until SIGTERM under AIDX_FAKE_HANG to exercise Stop.
+// MANDARAX_FAKE_FORMAT (claude | codex). Echoes argv (MANDARAX_TEST_ARGV_FILE) so a test can
+// assert resume; hangs until SIGTERM under MANDARAX_FAKE_HANG to exercise Stop.
 import {writeFileSync} from 'node:fs'
 
 function claudeLines(): unknown[] {
@@ -27,15 +27,15 @@ function transcript(format: string): unknown[] {
 
 function main(): void {
   const argv = process.argv.slice(2)
-  const argvFile = process.env.AIDX_TEST_ARGV_FILE
+  const argvFile = process.env.MANDARAX_TEST_ARGV_FILE
   if (argvFile) writeFileSync(argvFile, JSON.stringify(argv))
 
-  if (process.env.AIDX_FAKE_HANG) {
+  if (process.env.MANDARAX_FAKE_HANG) {
     process.on('SIGTERM', () => process.exit(143))
     setInterval(() => {}, 1000)
     return
   }
-  for (const line of transcript(process.env.AIDX_FAKE_FORMAT ?? 'claude')) {
+  for (const line of transcript(process.env.MANDARAX_FAKE_FORMAT ?? 'claude')) {
     process.stdout.write(JSON.stringify(line) + '\n')
   }
   process.exit(0)

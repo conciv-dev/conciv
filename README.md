@@ -1,9 +1,9 @@
-# aidx
+# mandarax
 
 An embeddable AI dev agent for your running app — **chat, page control, and live tests,
 injected into the page via a Vite plugin**.
 
-aidx boots a framework-free h3 engine (`@opendui/aidx-core`) behind a set of `/api/*` HTTP routes
+mandarax boots a framework-free h3 engine (`@mandarax/core`) behind a set of `/api/*` HTTP routes
 on its own dev port, spawns a headless harness (default `claude -p`), and injects a Solid widget
 into the previewed page. From the widget you can chat with the agent, watch it think and call
 tools, approve risky commands, answer agent-generated UI prompts, and see live test result cards
@@ -11,27 +11,27 @@ tools, approve risky commands, answer agent-generated UI prompts, and see live t
 
 ```
  ┌─────────────┐      /api/* (SSE + JSON)       ┌──────────────────┐
- │  browser    │ ◀──────────────────────────▶  │  @opendui/aidx-core   │
+ │  browser    │ ◀──────────────────────────▶  │  @mandarax/core   │
  │  widget     │   chat stream · page-bus ·     │  (h3 + srvx)     │
  │ (Solid,     │   test stream · approvals      │   → harness      │
  │  shadow DOM)│                                │   (claude/codex) │
  └─────────────┘                                └──────────────────┘
-   injected by @opendui/aidx-plugin (vite/webpack/…)
+   injected by @mandarax/plugin (vite/webpack/…)
 ```
 
 > Status: early. Extracted from an internal preview tool and being generalized for any app.
 
 ## Packages
 
-| Package                                               | What it is                                                                                                                                |
-| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| [`@opendui/aidx-protocol`](./packages/protocol)       | Shared wire types + `define*` factories (chat, generative UI, test, page, harness/runner/bundler, config). Zero-runtime.                  |
-| [`@opendui/aidx-core`](./packages/core)               | The framework-free h3 + srvx engine: all `/api/*` routes, lock, session, uiBus, harness + test-runner registries, the BundlerBridge.      |
-| [`@opendui/aidx-harness`](./packages/harness)         | Harness adapters behind a capability interface: claude + codex, plus gemini-cli/opencode/pi stubs.                                        |
-| [`@opendui/aidx-test-runner`](./packages/test-runner) | Test-runner adapters over a clean-child fd3 driver: vitest (full), jest/node-test/playwright (stubs).                                     |
-| [`@opendui/aidx-plugin`](./packages/plugin)           | The dev agent as an unplugin: `@opendui/aidx-plugin/vite` (full), webpack/rspack/rollup/esbuild entries. Boots core + injects the widget. |
-| [`@opendui/aidx-widget`](./packages/widget)           | The browser half: a Solid chat UI in an open Shadow DOM, the test card, and the page-control driver.                                      |
-| [`@opendui/aidx-cli`](./packages/cli)                 | The `aidx` CLI the agent calls from Bash: `tools server / page / test / open` + `ui`, against core's `/api/*` surface.                    |
+| Package                                           | What it is                                                                                                                            |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| [`@mandarax/protocol`](./packages/protocol)       | Shared wire types + `define*` factories (chat, generative UI, test, page, harness/runner/bundler, config). Zero-runtime.              |
+| [`@mandarax/core`](./packages/core)               | The framework-free h3 + srvx engine: all `/api/*` routes, lock, session, uiBus, harness + test-runner registries, the BundlerBridge.  |
+| [`@mandarax/harness`](./packages/harness)         | Harness adapters behind a capability interface: claude + codex, plus gemini-cli/opencode/pi stubs.                                    |
+| [`@mandarax/test-runner`](./packages/test-runner) | Test-runner adapters over a clean-child fd3 driver: vitest (full), jest/node-test/playwright (stubs).                                 |
+| [`@mandarax/plugin`](./packages/plugin)           | The dev agent as an unplugin: `@mandarax/plugin/vite` (full), webpack/rspack/rollup/esbuild entries. Boots core + injects the widget. |
+| [`@mandarax/widget`](./packages/widget)           | The browser half: a Solid chat UI in an open Shadow DOM, the test card, and the page-control driver.                                  |
+| [`@mandarax/cli`](./packages/cli)                 | The `mandarax` CLI the agent calls from Bash: `tools server / page / test / open` + `ui`, against core's `/api/*` surface.            |
 
 ## Quickstart
 
@@ -39,16 +39,16 @@ Add the plugin to your app's `vite.config.ts` and serve the widget bundle:
 
 ```ts
 import {defineConfig} from 'vite'
-import aidx from '@opendui/aidx-plugin/vite'
+import mandarax from '@mandarax/plugin/vite'
 
 export default defineConfig({
-  plugins: [aidx()],
+  plugins: [mandarax()],
 })
 ```
 
-`@opendui/aidx-core` boots its own dev engine (the `/api/*` surface + the bundled widget) and the
+`@mandarax/core` boots its own dev engine (the `/api/*` surface + the bundled widget) and the
 plugin injects the widget `<script>` into your HTML. Override defaults via
-`aidx({harness, testRunner, previewId, widgetUrl, …})`. The widget probes `/api/chat/session`
+`mandarax({harness, testRunner, previewId, widgetUrl, …})`. The widget probes `/api/chat/session`
 on load and only shows the ✦ FAB when the dev-server routes are live, so it's inert on a plain
 preview.
 
@@ -65,19 +65,19 @@ pnpm --filter tanstack-start-example dev
 
 ## Configuration
 
-`aidx(options)` — every field is optional:
+`mandarax(options)` — every field is optional:
 
-| Option         | Default               | Purpose                                                                |
-| -------------- | --------------------- | ---------------------------------------------------------------------- |
-| `enabled`      | `true`                | Mount the agent. Gate it on dev mode in real apps.                     |
-| `harness`      | `"claude"`            | Harness adapter id (`claude`, `codex`, …).                             |
-| `harnessBin`   | adapter `binName`     | Override the harness binary on `PATH`.                                 |
-| `testRunner`   | `"vitest"`            | Test-runner adapter id.                                                |
-| `widgetUrl`    | `AIDX_WIDGET_URL` env | `<script src>` for the injected widget bundle. Omit to skip injection. |
-| `stateRoot`    | `process.cwd()`       | Root holding `.aidx/{agent.lock,sessions,bin}`.                        |
-| `systemPrompt` | built-in              | Appended to each agent turn.                                           |
-| `previewId`    | `"local"`             | Correlates a resumable session.                                        |
-| `sessionId`    | –                     | Resume an existing thread.                                             |
+| Option         | Default                   | Purpose                                                                |
+| -------------- | ------------------------- | ---------------------------------------------------------------------- |
+| `enabled`      | `true`                    | Mount the agent. Gate it on dev mode in real apps.                     |
+| `harness`      | `"claude"`                | Harness adapter id (`claude`, `codex`, …).                             |
+| `harnessBin`   | adapter `binName`         | Override the harness binary on `PATH`.                                 |
+| `testRunner`   | `"vitest"`                | Test-runner adapter id.                                                |
+| `widgetUrl`    | `MANDARAX_WIDGET_URL` env | `<script src>` for the injected widget bundle. Omit to skip injection. |
+| `stateRoot`    | `process.cwd()`           | Root holding `.mandarax/{agent.lock,sessions,bin}`.                    |
+| `systemPrompt` | built-in                  | Appended to each agent turn.                                           |
+| `previewId`    | `"local"`                 | Correlates a resumable session.                                        |
+| `sessionId`    | –                         | Resume an existing thread.                                             |
 
 ## Routes (the wire contract)
 
@@ -89,7 +89,7 @@ All under the `/api` prefix on the core dev port:
 | `/api/chat/session`                                     | GET              | Current session + lock; the widget's availability probe.                |
 | `/api/chat/history`                                     | GET              | Hydrate a resumed thread.                                               |
 | `/api/chat/permission`, `/api/chat/permission-decision` | POST             | Risky-command gate (PreToolUse hook ⇄ widget allow/deny).               |
-| `/api/chat/ui`                                          | POST             | Inject agent-generated UI (`aidx ui …`).                                |
+| `/api/chat/ui`                                          | POST             | Inject agent-generated UI (`mandarax ui …`).                            |
 | `/api/chat/stop`                                        | POST             | Cancel the active turn.                                                 |
 | `/api/test-runner/{list,run,status,stop,ui}`            | POST/GET         | Drive the out-of-process test runner.                                   |
 | `/api/test-runner/stream`                               | GET (SSE)        | Live test results.                                                      |

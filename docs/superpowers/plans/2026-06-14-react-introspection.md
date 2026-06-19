@@ -18,7 +18,7 @@
 4. **Hydration timing:** fibers attach to DOM nodes only after hydration. The bridge must **retry-until-fiber** (rAF loop), not read immediately. TanStack's streamed SSR had zero `__reactFiber` keys pre-hydration.
 5. Line precision: Next resolves exactly; Vite resolves to the right **file** but coarse line (the `?tsr-split=component` virtual module). v1 asserts exact line for Next, file-match for Vite.
 
-**Dev-only safety:** The aidx widget is injected only by the dev plugin and only activates when its probe to the dev engine succeeds, so `bippy` (private React internals) never runs in production. No extra gating task; noted here intentionally.
+**Dev-only safety:** The mandarax widget is injected only by the dev plugin and only activates when its probe to the dev engine succeeds, so `bippy` (private React internals) never runs in production. No extra gating task; noted here intentionally.
 
 **Shippable milestone:** Tasks 0–5 + 8 deliver `locate` end-to-end (the headline). Tasks 6–7 + 9 add `tree`/`inspect`/`find`. Task 10 is the cross-framework e2e.
 
@@ -36,7 +36,7 @@
 Run:
 
 ```bash
-pnpm --filter @opendui/aidx-widget add bippy@0.5.41
+pnpm --filter @mandarax/widget add bippy@0.5.41
 ```
 
 Expected: `dependencies` gains `"bippy": "0.5.41"`.
@@ -46,8 +46,8 @@ Expected: `dependencies` gains `"bippy": "0.5.41"`.
 Run:
 
 ```bash
-pnpm --filter @opendui/aidx-core add @jridgewell/trace-mapping@0.3.31
-pnpm --filter @opendui/aidx-core add -D @jridgewell/gen-mapping
+pnpm --filter @mandarax/core add @jridgewell/trace-mapping@0.3.31
+pnpm --filter @mandarax/core add -D @jridgewell/gen-mapping
 ```
 
 Expected: core `dependencies` gains `@jridgewell/trace-mapping`, `devDependencies` gains `@jridgewell/gen-mapping`.
@@ -102,7 +102,7 @@ describe('react verbs', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @opendui/aidx-protocol exec vitest run test/react-verbs.test.ts`
+Run: `pnpm --filter @mandarax/protocol exec vitest run test/react-verbs.test.ts`
 Expected: FAIL — `PAGE_QUERY_KINDS` does not contain `'locate'`.
 
 - [ ] **Step 3: Add the four kinds**
@@ -122,12 +122,12 @@ Leave `MUTATING_KINDS` unchanged (the four verbs are reads). The existing `name`
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm --filter @opendui/aidx-protocol exec vitest run test/react-verbs.test.ts`
+Run: `pnpm --filter @mandarax/protocol exec vitest run test/react-verbs.test.ts`
 Expected: PASS.
 
 - [ ] **Step 5: Typecheck (proves the Record types now demand handlers + CLI rows — expected to fail in widget/cli until Tasks 4 & 7)**
 
-Run: `pnpm --filter @opendui/aidx-protocol run typecheck`
+Run: `pnpm --filter @mandarax/protocol run typecheck`
 Expected: PASS for protocol itself. (Workspace-wide typecheck will fail until `DOM_HANDLERS` and `PAGE_VERBS` cover the new kinds — that is the compile-time drift guard working as intended.)
 
 - [ ] **Step 6: Commit**
@@ -168,7 +168,7 @@ async function chunkWithInlineMap(source: string, line: number, column: number):
   addMapping(gen, {generated: {line: 2, column: 0}, source, original: {line, column}})
   const map = toEncodedMap(gen)
   const b64 = Buffer.from(JSON.stringify(map)).toString('base64')
-  const path = join(tmpdir(), `aidx-chunk-${Math.random().toString(36).slice(2)}.js`)
+  const path = join(tmpdir(), `mandarax-chunk-${Math.random().toString(36).slice(2)}.js`)
   await writeFile(path, `"use strict";\nvoid 0;\n//# sourceMappingURL=data:application/json;base64,${b64}`)
   written.push(path)
   return path
@@ -192,7 +192,7 @@ describe('symbolicateFrame', () => {
     addMapping(gen, {generated: {line: 1, column: 0}, source: 'src/routes/index.tsx', original: {line: 5, column: 2}})
     const sectioned = {version: 3 as const, sections: [{offset: {line: 0, column: 0}, map: toEncodedMap(gen)}]}
     const b64 = Buffer.from(JSON.stringify(sectioned)).toString('base64')
-    const path = join(tmpdir(), `aidx-sect-${Math.random().toString(36).slice(2)}.js`)
+    const path = join(tmpdir(), `mandarax-sect-${Math.random().toString(36).slice(2)}.js`)
     await writeFile(path, `void 0;\n//# sourceMappingURL=data:application/json;base64,${b64}`)
     written.push(path)
     const loc = await symbolicateFrame({fileName: `file://${path}`, line: 1, column: 1})
@@ -226,7 +226,7 @@ describe('symbolicateFrame', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @opendui/aidx-core exec vitest run test/page/symbolicate.test.ts`
+Run: `pnpm --filter @mandarax/core exec vitest run test/page/symbolicate.test.ts`
 Expected: FAIL — cannot find module `../../src/page/symbolicate.js`.
 
 - [ ] **Step 3: Implement the symbolicator**
@@ -300,7 +300,7 @@ export async function symbolicateFrames(
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm --filter @opendui/aidx-core exec vitest run test/page/symbolicate.test.ts`
+Run: `pnpm --filter @mandarax/core exec vitest run test/page/symbolicate.test.ts`
 Expected: PASS (all 5 cases).
 
 - [ ] **Step 5: Commit**
@@ -441,7 +441,7 @@ export function find(name: string, refs: Refs): {ref: string; component: string}
 
 - [ ] **Step 3: Typecheck the widget package**
 
-Run: `pnpm --filter @opendui/aidx-widget run typecheck`
+Run: `pnpm --filter @mandarax/widget run typecheck`
 Expected: PASS (bridge compiles; bippy types resolve). Handlers not yet wired — that is Task 4.
 
 - [ ] **Step 4: Commit**
@@ -509,13 +509,13 @@ Note: `locate`/`inspect` receive a guaranteed-non-null `el` only because they ar
 
 - [ ] **Step 4: Typecheck — the `Record<PageQueryKind, PageHandler>` type now passes**
 
-Run: `pnpm --filter @opendui/aidx-widget run typecheck`
+Run: `pnpm --filter @mandarax/widget run typecheck`
 Expected: PASS (all kinds have handlers).
 
 - [ ] **Step 5: Build the widget global bundle (needed by the widget browser-IT and example e2e)**
 
-Run: `pnpm turbo run build --filter=@opendui/aidx-widget`
-Expected: PASS — produces `packages/widget/dist/aidx-widget.global.js` containing bippy.
+Run: `pnpm turbo run build --filter=@mandarax/widget`
+Expected: PASS — produces `packages/widget/dist/mandarax-widget.global.js` containing bippy.
 
 - [ ] **Step 6: Commit**
 
@@ -551,7 +551,7 @@ If the existing IT file has no reusable `driveVerb` helper, add one mirroring th
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @opendui/aidx-core exec vitest run test/api/page/page.it.test.ts -t "enriches a locate"`
+Run: `pnpm --filter @mandarax/core exec vitest run test/api/page/page.it.test.ts -t "enriches a locate"`
 Expected: FAIL — `data.source` is undefined.
 
 - [ ] **Step 3: Enrich locate in handleVerb**
@@ -576,12 +576,12 @@ return data
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm --filter @opendui/aidx-core exec vitest run test/api/page/page.it.test.ts -t "enriches a locate"`
+Run: `pnpm --filter @mandarax/core exec vitest run test/api/page/page.it.test.ts -t "enriches a locate"`
 Expected: PASS.
 
 - [ ] **Step 5: Full core test run**
 
-Run: `pnpm --filter @opendui/aidx-core exec vitest run`
+Run: `pnpm --filter @mandarax/core exec vitest run`
 Expected: PASS (no regressions).
 
 - [ ] **Step 6: Commit**
@@ -617,7 +617,7 @@ it('builds GET requests for react verbs', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @opendui/aidx-cli exec vitest run test/cli.it.test.ts -t "react verbs"`
+Run: `pnpm --filter @mandarax/cli exec vitest run test/cli.it.test.ts -t "react verbs"`
 Expected: FAIL — `PAGE_VERBS` missing `locate` (TS error) or wrong path.
 
 - [ ] **Step 3: Add the four rows to PAGE_VERBS**
@@ -635,7 +635,7 @@ In `packages/cli/src/page.ts`, add to the `PAGE_VERBS` table (after `snapshot`):
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm --filter @opendui/aidx-cli exec vitest run test/cli.it.test.ts -t "react verbs"`
+Run: `pnpm --filter @mandarax/cli exec vitest run test/cli.it.test.ts -t "react verbs"`
 Expected: PASS.
 
 - [ ] **Step 5: Typecheck the whole workspace (drift guard now fully satisfied)**
@@ -696,12 +696,12 @@ Wire it using the file's existing scripted page-bus server (the one that already
 
 - [ ] **Step 3: Ensure the bundle is current**
 
-Run: `pnpm turbo run build --filter=@opendui/aidx-widget`
+Run: `pnpm turbo run build --filter=@mandarax/widget`
 Expected: PASS.
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm --filter @opendui/aidx-widget exec vitest run test/widget.it.test.ts -t "locate returns"`
+Run: `pnpm --filter @mandarax/widget exec vitest run test/widget.it.test.ts -t "locate returns"`
 Expected: PASS (real Chromium, real React, real bippy in the bundle).
 
 - [ ] **Step 5: Commit**
@@ -725,11 +725,11 @@ git commit -m "test(widget): browser-IT for locate against a real React fixture"
 import {test, expect} from '@playwright/test'
 
 // The widget + engine are live (instrumentation boots the engine on :41700; widget probes it).
-// Driving `aidx tools page locate` through the engine HTTP API proves the full chain:
+// Driving `mandarax tools page locate` through the engine HTTP API proves the full chain:
 // browser fiber extraction → engine symbolication → source file:line.
 test('locate resolves the <h1> to app/page.tsx via the engine', async ({page, request}) => {
   await page.goto('/')
-  await expect(page.getByRole('button', {name: 'Open aidx chat'})).toBeVisible({timeout: 30_000})
+  await expect(page.getByRole('button', {name: 'Open mandarax chat'})).toBeVisible({timeout: 30_000})
   // Engine runs on the pinned dev port; call its page API directly.
   const res = await request.get('http://localhost:41700/api/page/locate?selector=h1', {timeout: 15_000})
   const body = await res.json()
@@ -770,7 +770,7 @@ const api = (path: string) => `http://localhost:41700/api/page/${path}`
 
 test('tree returns a component hierarchy', async ({page}) => {
   await page.goto('/')
-  await expect(page.getByRole('button', {name: 'Open aidx chat'})).toBeVisible({timeout: 30_000})
+  await expect(page.getByRole('button', {name: 'Open mandarax chat'})).toBeVisible({timeout: 30_000})
   const tree = await page.evaluate(
     (u) => fetch(u, {credentials: 'include'}).then((r) => r.json()),
     api('tree?selector=main'),
@@ -782,7 +782,7 @@ test('tree returns a component hierarchy', async ({page}) => {
 
 test('inspect returns props for a component element', async ({page}) => {
   await page.goto('/')
-  await expect(page.getByRole('button', {name: 'Open aidx chat'})).toBeVisible({timeout: 30_000})
+  await expect(page.getByRole('button', {name: 'Open mandarax chat'})).toBeVisible({timeout: 30_000})
   const out = await page.evaluate(
     (u) => fetch(u, {credentials: 'include'}).then((r) => r.json()),
     api('inspect?selector=h1'),
@@ -793,7 +793,7 @@ test('inspect returns props for a component element', async ({page}) => {
 
 test('find returns refs by component name', async ({page}) => {
   await page.goto('/')
-  await expect(page.getByRole('button', {name: 'Open aidx chat'})).toBeVisible({timeout: 30_000})
+  await expect(page.getByRole('button', {name: 'Open mandarax chat'})).toBeVisible({timeout: 30_000})
   const out = await page.evaluate(
     (u) => fetch(u, {credentials: 'include'}).then((r) => r.json()),
     api('find?name=Home'),
@@ -852,7 +852,7 @@ test('locate resolves the TanStack <h1> to src/routes/index.tsx', async ({page})
 })
 ```
 
-(Confirm the TanStack example's engine port. If it differs from `41700`, read it from the example's `instrumentation`/config and substitute. If no engine is wired into the TanStack example yet, that wiring is a prerequisite — verify `@opendui/aidx-plugin` is registered in its `vite.config.ts` the same way the Next example wires it; if absent, add a Task 10a to wire it before this test.)
+(Confirm the TanStack example's engine port. If it differs from `41700`, read it from the example's `instrumentation`/config and substitute. If no engine is wired into the TanStack example yet, that wiring is a prerequisite — verify `@mandarax/plugin` is registered in its `vite.config.ts` the same way the Next example wires it; if absent, add a Task 10a to wire it before this test.)
 
 - [ ] **Step 2: Run the e2e**
 
@@ -872,5 +872,5 @@ git commit -m "test(e2e): cross-framework locate resolves TanStack <h1> to index
 
 - **Spec coverage:** all four verbs have a protocol entry (T1), widget bridge fn (T3), handler (T4), CLI command (T6), and e2e (T8/T9/T10). `locate` symbolication is T2+T5. Cross-framework requirement is T10.
 - **Type consistency:** `RawFrame` is defined in both `react-bridge.ts` (widget, browser shape) and `symbolicate.ts` (core) — intentional, they are different packages with no shared import; fields (`fileName`, `line`, `column`, `fn`) match by name so the JSON crosses the bus cleanly. `SourceLoc` (`{file, line, column}`) is core-only and is what `locate.source` carries. Handler return keys (`component`, `stack`, `frames`, `nodes`, `matches`, `props`, `hooks`) are referenced identically in handlers (T4), core enrichment (T5), and e2e assertions (T8–T10).
-- **Open prerequisite flagged:** T10 assumes the TanStack example has the aidx engine wired (port + plugin). Verify before T10; add wiring as T10a if missing.
+- **Open prerequisite flagged:** T10 assumes the TanStack example has the mandarax engine wired (port + plugin). Verify before T10; add wiring as T10a if missing.
 - **Known imprecision accepted for v1:** Vite `locate` line is coarse (asserted at file level in T10). Follow-up: pick the most-specific frame / column-base tuning.

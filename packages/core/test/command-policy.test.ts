@@ -10,8 +10,8 @@ describe('classifyCommand', () => {
   })
 
   it('allows the agent CLIs, but still gates them when composed with a pipe or redirect', () => {
-    expect(classifyCommand('aidx tools page snapshot')).toBe('allow')
-    expect(classifyCommand('aidx tools page changes | tee evil.txt')).toBe('ask')
-    expect(classifyCommand('aidx ui confirm --question x > out')).toBe('ask')
+    expect(classifyCommand('mandarax tools page snapshot')).toBe('allow')
+    expect(classifyCommand('mandarax tools page changes | tee evil.txt')).toBe('ask')
+    expect(classifyCommand('mandarax ui confirm --question x > out')).toBe('ask')
   })
 })

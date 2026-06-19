@@ -1,4 +1,4 @@
-import type {WidgetConfig} from '@opendui/aidx-protocol/config-types'
+import type {WidgetConfig} from '@mandarax/protocol/config-types'
 
 export type HtmlTag = {tag: string; attrs: Record<string, string | boolean>; injectTo: 'head'}
 

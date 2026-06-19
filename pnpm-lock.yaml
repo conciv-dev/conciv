@@ -35,9 +35,9 @@ importers:
 
   apps/examples/nextjs-app:
     dependencies:
-      '@opendui/aidx':
+      mandarax:
         specifier: workspace:*
-        version: link:../../../packages/aidx
+        version: link:../../../packages/mandarax
       next:
         specifier: 16.2.9
         version: 16.2.9(@opentelemetry/api@1.9.0)(@playwright/test@1.60.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -72,16 +72,13 @@ importers:
 
   apps/examples/tanstack-start:
     dependencies:
-      '@opendui/aidx':
-        specifier: workspace:*
-        version: link:../../../packages/aidx
-      '@opendui/aidx-cli':
+      '@mandarax/cli':
         specifier: workspace:*
         version: link:../../../packages/cli
-      '@opendui/aidx-protocol':
+      '@mandarax/protocol':
         specifier: workspace:*
         version: link:../../../packages/protocol
-      '@opendui/aidx-widget':
+      '@mandarax/widget':
         specifier: workspace:*
         version: link:../../../packages/widget
       '@tailwindcss/vite':
@@ -102,6 +99,9 @@ importers:
       lucide-react:
         specifier: ^1.18.0
         version: 1.18.0(react@19.2.7)
+      mandarax:
+        specifier: workspace:*
+        version: link:../../../packages/mandarax
       react:
         specifier: ^19.2.7
         version: 19.2.7
@@ -154,16 +154,13 @@ importers:
       '@gsap/react':
         specifier: ^2.1.2
         version: 2.1.2(gsap@3.15.0)(react@19.2.7)
-      '@opendui/aidx':
-        specifier: workspace:*
-        version: link:../../packages/aidx
-      '@opendui/aidx-cli':
+      '@mandarax/cli':
         specifier: workspace:*
         version: link:../../packages/cli
-      '@opendui/aidx-protocol':
+      '@mandarax/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
-      '@opendui/aidx-widget':
+      '@mandarax/widget':
         specifier: workspace:*
         version: link:../../packages/widget
       '@tanstack/react-router':
@@ -196,6 +193,9 @@ importers:
       lucide-react:
         specifier: ^1.18.0
         version: 1.18.0(react@19.2.7)
+      mandarax:
+        specifier: workspace:*
+        version: link:../../packages/mandarax
       mermaid:
         specifier: ^11.15.0
         version: 11.15.0
@@ -252,34 +252,12 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
-  packages/aidx:
-    dependencies:
-      '@opendui/aidx-plugin':
-        specifier: workspace:*
-        version: link:../plugin
-      next:
-        specifier: ^15.3.0 || ^16.0.0
-        version: 16.2.9(@babel/core@7.29.7)(@opentelemetry/api@1.9.0)(@playwright/test@1.60.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      vite:
-        specifier: ^6.0.0 || ^7.0.0 || ^8.0.0
-        version: 8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0)
-    devDependencies:
-      '@types/node':
-        specifier: ^22.19.21
-        version: 22.19.21
-      tsdown:
-        specifier: ^0.22.2
-        version: 0.22.2(oxc-resolver@11.20.0)(tsx@4.22.4)(typescript@6.0.3)
-      typescript:
-        specifier: ^6.0.3
-        version: 6.0.3
-
   packages/cli:
     dependencies:
       '@clack/prompts':
         specifier: ^1.5.1
         version: 1.5.1
-      '@opendui/aidx-protocol':
+      '@mandarax/protocol':
         specifier: workspace:*
         version: link:../protocol
       citty:
@@ -310,21 +288,21 @@ importers:
       '@jridgewell/trace-mapping':
         specifier: 0.3.31
         version: 0.3.31
+      '@mandarax/harness':
+        specifier: workspace:*
+        version: link:../harness
+      '@mandarax/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@mandarax/test-runner':
+        specifier: workspace:*
+        version: link:../test-runner
+      '@mandarax/tools':
+        specifier: workspace:*
+        version: link:../tools
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(zod@4.4.3)
-      '@opendui/aidx-harness':
-        specifier: workspace:*
-        version: link:../harness
-      '@opendui/aidx-protocol':
-        specifier: workspace:*
-        version: link:../protocol
-      '@opendui/aidx-test-runner':
-        specifier: workspace:*
-        version: link:../test-runner
-      '@opendui/aidx-tools':
-        specifier: workspace:*
-        version: link:../tools
       '@tanstack/ai':
         specifier: ^0.28.0
         version: 0.28.0(@opentelemetry/api@1.9.0)
@@ -371,7 +349,7 @@ importers:
 
   packages/harness:
     dependencies:
-      '@opendui/aidx-protocol':
+      '@mandarax/protocol':
         specifier: workspace:*
         version: link:../protocol
       '@tanstack/ai':
@@ -397,18 +375,40 @@ importers:
         specifier: ^4.1.8
         version: 4.1.8(@opentelemetry/api@1.9.0)(@types/node@22.19.21)(@vitest/browser-playwright@4.1.8)(@vitest/coverage-v8@4.1.8)(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
 
+  packages/mandarax:
+    dependencies:
+      '@mandarax/plugin':
+        specifier: workspace:*
+        version: link:../plugin
+      next:
+        specifier: ^15.3.0 || ^16.0.0
+        version: 16.2.9(@babel/core@7.29.7)(@opentelemetry/api@1.9.0)(@playwright/test@1.60.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      vite:
+        specifier: ^6.0.0 || ^7.0.0 || ^8.0.0
+        version: 8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0)
+    devDependencies:
+      '@types/node':
+        specifier: ^22.19.21
+        version: 22.19.21
+      tsdown:
+        specifier: ^0.22.2
+        version: 0.22.2(oxc-resolver@11.20.0)(tsx@4.22.4)(typescript@6.0.3)
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+
   packages/plugin:
     dependencies:
-      '@opendui/aidx-cli':
+      '@mandarax/cli':
         specifier: workspace:*
         version: link:../cli
-      '@opendui/aidx-core':
+      '@mandarax/core':
         specifier: workspace:*
         version: link:../core
-      '@opendui/aidx-protocol':
+      '@mandarax/protocol':
         specifier: workspace:*
         version: link:../protocol
-      '@opendui/aidx-widget':
+      '@mandarax/widget':
         specifier: workspace:*
         version: link:../widget
       launch-editor:
@@ -604,7 +604,7 @@ importers:
 
   packages/test-runner:
     dependencies:
-      '@opendui/aidx-protocol':
+      '@mandarax/protocol':
         specifier: workspace:*
         version: link:../protocol
       zod:
@@ -635,13 +635,13 @@ importers:
       '@ark-ui/solid':
         specifier: ^5.37.1
         version: 5.37.1(solid-js@1.9.13)
-      '@opendui/aidx-protocol':
+      '@mandarax/protocol':
         specifier: workspace:*
         version: link:../protocol
-      '@opendui/aidx-solid-diffs':
+      '@mandarax/solid-diffs':
         specifier: workspace:*
         version: link:../solid-diffs
-      '@opendui/aidx-tools':
+      '@mandarax/tools':
         specifier: workspace:*
         version: link:../tools
       '@tanstack/solid-virtual':
@@ -705,7 +705,7 @@ importers:
 
   packages/tools:
     dependencies:
-      '@opendui/aidx-protocol':
+      '@mandarax/protocol':
         specifier: workspace:*
         version: link:../protocol
       '@tanstack/ai':
@@ -736,16 +736,16 @@ importers:
       '@floating-ui/dom':
         specifier: ^1.7.6
         version: 1.7.6
-      '@opendui/aidx-protocol':
+      '@mandarax/protocol':
         specifier: workspace:*
         version: link:../protocol
-      '@opendui/aidx-solid-diffs':
+      '@mandarax/solid-diffs':
         specifier: workspace:*
         version: link:../solid-diffs
-      '@opendui/aidx-solid-streamdown':
+      '@mandarax/solid-streamdown':
         specifier: workspace:*
         version: link:../solid-streamdown
-      '@opendui/aidx-tool-ui':
+      '@mandarax/tool-ui':
         specifier: workspace:*
         version: link:../tool-ui
       '@tanstack/ai':

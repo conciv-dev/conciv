@@ -13,7 +13,7 @@ import {TestCard} from './cards/test.js'
 
 // Render a tool-call part as a card, dispatched by tool name — the tanstack convention (the
 // api/ai-solid docs render manually with `if (part.name === '…')`; there is no component registry).
-// aidx's own tools are matched by their MCP names; the rest are the harness CLI's built-in tools.
+// mandarax's own tools are matched by their MCP names; the rest are the harness CLI's built-in tools.
 // Unknown names fall back to the generic card. Adding a tool = a card + one <Match> here. When the
 // part is in tanstack's native approval-requested state, an approval bar renders below the card
 // (uniform across every tool — approval is a property of the call, not of any one renderer).
@@ -35,7 +35,7 @@ function ByName(props: ToolCardProps): JSX.Element {
       <Match when={props.part.name === 'Edit' || props.part.name === 'MultiEdit' || props.part.name === 'Write'}>
         <FileEditCard part={props.part} result={props.result} ctx={props.ctx} />
       </Match>
-      <Match when={props.part.name === 'Read' || props.part.name === 'aidx_open'}>
+      <Match when={props.part.name === 'Read' || props.part.name === 'mandarax_open'}>
         <FileReadCard part={props.part} result={props.result} ctx={props.ctx} />
       </Match>
       <Match when={props.part.name === 'Grep' || props.part.name === 'Glob'}>
@@ -44,13 +44,13 @@ function ByName(props: ToolCardProps): JSX.Element {
       <Match when={props.part.name === 'TodoWrite'}>
         <TodoCard part={props.part} result={props.result} ctx={props.ctx} />
       </Match>
-      <Match when={props.part.name === 'aidx_page'}>
+      <Match when={props.part.name === 'mandarax_page'}>
         <PageActionCard part={props.part} result={props.result} ctx={props.ctx} />
       </Match>
-      <Match when={props.part.name === 'aidx_ui'}>
+      <Match when={props.part.name === 'mandarax_ui'}>
         <UiCard part={props.part} result={props.result} ctx={props.ctx} />
       </Match>
-      <Match when={props.part.name === 'aidx_test'}>
+      <Match when={props.part.name === 'mandarax_test'}>
         <TestCard part={props.part} result={props.result} ctx={props.ctx} />
       </Match>
     </Switch>

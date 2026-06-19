@@ -40,7 +40,7 @@ README/config/code.
   - **TS is strict** (`tsconfig.base.json`: `strict`, `noUncheckedIndexedAccess`, `verbatimModuleSyntax`,
     `isolatedModules`, NodeNext). No `any`/`as`/`@ts-ignore` casual escapes.
   - **Widget tests run in a real browser (Playwright/Chromium) against the prebuilt bundle**
-    (`packages/widget/dist/aidx-widget.global.js`): rebuild the bundle before running widget IT, or the
+    (`packages/widget/dist/mandarax-widget.global.js`): rebuild the bundle before running widget IT, or the
     test runs stale code. Use `browser.newPage()` (NOT `newContext()`). **Never** use jsdom/happy-dom.
   - **Harness adapters are capability-typed**: `HarnessAdapter` is a discriminated union where
     `capabilities.transcriptHistory: true` ⇒ `history` is required and `capabilities.compaction: true`
@@ -114,8 +114,8 @@ README.md; this file is the non-obvious operational rules.
 ## Testing
 
 - Widget UI is tested in a REAL browser (Playwright/Chromium), never jsdom/happy-dom.
-- Widget integration tests load the PREBUILT bundle (`packages/widget/dist/aidx-widget.global.js`):
-  rebuild the widget (`pnpm turbo run build --filter=@opendui/aidx-widget`) before running them, or you test
+- Widget integration tests load the PREBUILT bundle (`packages/widget/dist/mandarax-widget.global.js`):
+  rebuild the widget (`pnpm turbo run build --filter=@mandarax/widget`) before running them, or you test
   stale code.
 - In widget ITs use `browser.newPage()`, not `newContext()` (contexts leak and spike CPU/memory).
 - zod validates every HTTP boundary (`readValidatedBody`); add validation for new routes.

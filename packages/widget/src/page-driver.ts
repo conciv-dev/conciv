@@ -1,4 +1,4 @@
-import {err, type PageQuery, type PageQueryKind, type PageResult} from '@opendui/aidx-protocol/page-types'
+import {err, type PageQuery, type PageQueryKind, type PageResult} from '@mandarax/protocol/page-types'
 import {
   DOM_HANDLERS,
   ELEMENT_KINDS,

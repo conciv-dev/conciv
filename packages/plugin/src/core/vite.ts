@@ -2,12 +2,12 @@ import {join} from 'node:path'
 import {createRequire} from 'node:module'
 import type {Plugin, ViteDevServer} from 'vite'
 import launchEditor from 'launch-editor'
-import {defineBundlerBridge, type BundlerBridge} from '@opendui/aidx-protocol/bundler-types'
-import {start, type Engine} from '@opendui/aidx-core/engine'
-import {htmlTags} from '@opendui/aidx-core/widget-tags'
-import {resolveConfig} from '@opendui/aidx-core/config'
-import type {AidxConfig} from '@opendui/aidx-protocol/config-types'
-import {installAidxBinShim} from './bin-shim.js'
+import {defineBundlerBridge, type BundlerBridge} from '@mandarax/protocol/bundler-types'
+import {start, type Engine} from '@mandarax/core/engine'
+import {htmlTags} from '@mandarax/core/widget-tags'
+import {resolveConfig} from '@mandarax/core/config'
+import type {MandaraxConfig} from '@mandarax/protocol/config-types'
+import {installMandaraxBinShim} from './bin-shim.js'
 import {viteConfig, viteResolve, viteGraph, viteTransform, viteUrls, type ViteLike} from './vite-tools.js'
 import {DEFAULT_WIDGET_ROUTE, makeWidgetInject, makeWidgetServe} from './widget-middleware.js'
 import {addSourceToJsx} from './inject-source.js'
@@ -16,7 +16,7 @@ const require = createRequire(import.meta.url)
 
 function resolveWidgetFile(): string | null {
   try {
-    return require.resolve('@opendui/aidx-widget/global')
+    return require.resolve('@mandarax/widget/global')
   } catch {
     return null
   }
@@ -44,7 +44,7 @@ function makeViteBridge(server: ViteLike): BundlerBridge {
 
 type WidgetSetup = {url: string | undefined; serveBundled: boolean; file: string | null}
 
-function resolveWidgetSetup(options: AidxConfig): WidgetSetup {
+function resolveWidgetSetup(options: MandaraxConfig): WidgetSetup {
   const file = resolveWidgetFile()
   return {
     url: options.widgetUrl ?? (file ? DEFAULT_WIDGET_ROUTE : undefined),
@@ -58,7 +58,7 @@ function mountWidget(
   widget: WidgetSetup,
   previewId: string,
   apiBase: string,
-  widgetConfig: AidxConfig['widget'],
+  widgetConfig: MandaraxConfig['widget'],
 ): void {
   if (widget.url) {
     server.middlewares.stack.unshift({
@@ -87,33 +87,33 @@ function safeOrigin(url: string): string | null {
   }
 }
 
-function bootEngine(server: ViteDevServer, options: AidxConfig, agentPath: string): Promise<Engine> {
+function bootEngine(server: ViteDevServer, options: MandaraxConfig, agentPath: string): Promise<Engine> {
   return start({
     options,
     root: server.config.root,
     bridge: makeViteBridge(server),
     launchEditor: openInEditor,
     allowedOrigins: devOrigins(server),
-    childEnv: (corePort) => ({...process.env, PATH: agentPath, AIDX_PORT: String(corePort)}),
+    childEnv: (corePort) => ({...process.env, PATH: agentPath, MANDARAX_PORT: String(corePort)}),
   })
 }
 
-// The unplugin factory's rich `vite` hook: boots @opendui/aidx-core (with the live viteBridge +
-// widget middleware), injects the widget head tags, and stamps JSX with data-aidx-source.
+// The unplugin factory's rich `vite` hook: boots @mandarax/core (with the live viteBridge +
+// widget middleware), injects the widget head tags, and stamps JSX with data-mandarax-source.
 // serve-only (no-op in prod builds). enforce:'pre' so the source transform sees raw JSX/TSX
 // before @vitejs/plugin-react compiles it away.
-export function makeViteHook(options: AidxConfig = {}): Plugin {
+export function makeViteHook(options: MandaraxConfig = {}): Plugin {
   const widget = resolveWidgetSetup(options)
   let engine: Engine | null = null
   let root = process.cwd()
   // When TanStack devtools' source injector is in the pipeline it stamps data-tsd-source (which
   // `locate` already reads), at its own position relative to the framework's per-environment
-  // transforms. aidx stamping too then yields divergent line numbers between the SSR and client
+  // transforms. mandarax stamping too then yields divergent line numbers between the SSR and client
   // builds → a React hydration mismatch. Defer to it: detected from the resolved plugin list (same
   // for both builds), so the decision is deterministic, not order/code dependent.
   let deferToTsd = false
   return {
-    name: 'aidx',
+    name: 'mandarax',
     apply: 'serve',
     enforce: 'pre',
     configResolved(config) {
@@ -135,7 +135,7 @@ export function makeViteHook(options: AidxConfig = {}): Plugin {
     async configureServer(server: ViteDevServer) {
       const cfg = resolveConfig(options, server.config.root)
       if (!cfg.enabled) return
-      engine = await bootEngine(server, options, installAidxBinShim(join(cfg.stateRoot, '.aidx')))
+      engine = await bootEngine(server, options, installMandaraxBinShim(join(cfg.stateRoot, '.mandarax')))
       const booted = engine
       mountWidget(server, widget, cfg.previewId, `http://127.0.0.1:${booted.port}`, options.widget)
       server.httpServer?.on('close', () => void booted.stop())

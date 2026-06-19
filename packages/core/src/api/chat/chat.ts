@@ -1,7 +1,7 @@
 import {randomUUID} from 'node:crypto'
 import type {H3} from 'h3'
-import type {HarnessAdapter} from '@opendui/aidx-protocol/harness-types'
-import type {SessionRecord} from '@opendui/aidx-protocol/chat-types'
+import type {HarnessAdapter} from '@mandarax/protocol/harness-types'
+import type {SessionRecord} from '@mandarax/protocol/chat-types'
 import type {UiBus} from '../../runtime/ui-bus.js'
 import {createFsSessionStore} from '../../store/session-store.js'
 import {registerLaunchRoutes} from './launch.js'
@@ -25,13 +25,13 @@ export type ChatRouteOpts = {
   uiBus: UiBus
 }
 
-// Ensure a record exists for an agent hand-off: aidx was launched with AIDX_SESSION_ID = a harness
+// Ensure a record exists for an agent hand-off: mandarax was launched with MANDARAX_SESSION_ID = a harness
 // id it didn't mint, so we wrap that id in an 'agent'-origin record (find-or-create, idempotent by
 // the harness id). The agent-origin twin of resolveSession's external-adopt branch.
 export async function ensureAgentRecord(deps: ResolveDeps, harnessId: string): Promise<SessionRecord> {
   const existing = await deps.store.findByHarnessId(harnessId)
   if (existing) return existing
-  const mint = deps.mintId ?? (() => `aidx_${randomUUID()}`)
+  const mint = deps.mintId ?? (() => `mandarax_${randomUUID()}`)
   return deps.store.create({
     id: mint(),
     harnessSessionId: harnessId,

@@ -1,5 +1,5 @@
 import {HTTPError, onError, type H3} from 'h3'
-import {isRunnerUnavailable} from '@opendui/aidx-protocol/runner-types'
+import {isRunnerUnavailable} from '@mandarax/protocol/runner-types'
 
 // Maps domain errors to HTTP: a runner-unavailable error becomes 422; HTTPErrors pass through.
 export function registerErrorHandler(app: H3): void {

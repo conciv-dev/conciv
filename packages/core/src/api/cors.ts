@@ -1,5 +1,5 @@
 import {handleCors, type CorsOptions, type H3, type H3Event} from 'h3'
-import {AIDX_SESSION_HEADER} from '@opendui/aidx-protocol/chat-types'
+import {MANDARAX_SESSION_HEADER} from '@mandarax/protocol/chat-types'
 
 // The core server binds to loopback (127.0.0.1) and serves a dev tool whose verbs include `eval`
 // and live React `override` — arbitrary code/state mutation in the dev app. Without an origin
@@ -43,7 +43,7 @@ export function registerCors(app: H3, allowedOrigins: string[] = []): void {
     origin: (origin) => originAllowed(origin, extra),
     credentials: true,
     methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['content-type', AIDX_SESSION_HEADER],
+    allowHeaders: ['content-type', MANDARAX_SESSION_HEADER],
   }
   app.use((event, next) => {
     const origin = event.req.headers.get('origin')

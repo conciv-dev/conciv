@@ -1,6 +1,6 @@
-// The public aidx config contract, shared by the engine + every plugin entry. Zero-runtime:
+// The public mandarax config contract, shared by the engine + every plugin entry. Zero-runtime:
 // the type + an identity typed factory (mirrors defineHarness/defineRunner). Resolution + env
-// fallbacks live in @opendui/aidx-core/config.
+// fallbacks live in @mandarax/core/config.
 // Where the corner-modal trigger button sits. Draggable at runtime; this is the initial spot.
 export type TriggerPosition = 'top-left' | 'top-right' | 'middle-left' | 'middle-right' | 'bottom-left' | 'bottom-right'
 
@@ -21,7 +21,7 @@ export interface WidgetConfig {
   quickTerminal?: boolean | QuickTerminalConfig
 }
 
-export interface AidxConfig {
+export interface MandaraxConfig {
   enabled?: boolean
   widgetUrl?: string
   /** Widget layouts + their options. Both layouts are enabled by default. */
@@ -43,6 +43,6 @@ export interface AidxConfig {
   /** @deprecated use sessionId */ claudeSessionId?: string
 }
 
-export function defineConfig<T extends AidxConfig>(config: T): T {
+export function defineConfig<T extends MandaraxConfig>(config: T): T {
   return config
 }

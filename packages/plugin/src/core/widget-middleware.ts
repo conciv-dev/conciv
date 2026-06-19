@@ -1,6 +1,6 @@
 import type {IncomingMessage, OutgoingHttpHeader, ServerResponse} from 'node:http'
 import {createReadStream} from 'node:fs'
-import type {WidgetConfig} from '@opendui/aidx-protocol/config-types'
+import type {WidgetConfig} from '@mandarax/protocol/config-types'
 
 // The widget injection + serving middlewares. Kept framework-agnostic (plain node http types)
 // so they work for SSR frameworks (TanStack Start) and plain index.html apps alike: the inject
@@ -9,8 +9,8 @@ import type {WidgetConfig} from '@opendui/aidx-protocol/config-types'
 
 export type Middleware = (req: IncomingMessage, res: ServerResponse, next: (err?: unknown) => void) => void
 
-// Where the plugin serves the bundled @opendui/aidx-widget global by default.
-export const DEFAULT_WIDGET_ROUTE = '/@opendui/aidx-widget.js'
+// Where the plugin serves the bundled @mandarax/widget global by default.
+export const DEFAULT_WIDGET_ROUTE = '/@mandarax/widget.js'
 
 function escapeAttr(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;')

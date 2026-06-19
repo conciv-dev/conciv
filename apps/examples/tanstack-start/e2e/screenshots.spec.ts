@@ -2,15 +2,15 @@ import {test, expect} from '@playwright/test'
 import path from 'node:path'
 import {fileURLToPath} from 'node:url'
 
-// Live-agent screenshot capture for the docs site. Drives the real aidx widget + claude.
+// Live-agent screenshot capture for the docs site. Drives the real mandarax widget + claude.
 // Run explicitly: `CAPTURE=1 npx playwright test screenshots.spec.ts`. Skipped otherwise.
 // Captured at deviceScaleFactor 2 for crisp retina output.
 const here = path.dirname(fileURLToPath(import.meta.url))
 const OUT = path.resolve(here, '../../../site/public/screenshots')
 const shot = (name: string) => path.join(OUT, `${name}.png`)
 
-const FAB = '[aria-label="Open aidx chat"]'
-const PANEL = '[role="dialog"][aria-label="aidx chat agent"]'
+const FAB = '[aria-label="Open mandarax chat"]'
+const PANEL = '[role="dialog"][aria-label="mandarax chat agent"]'
 const INPUT = '.pw-chat-input'
 const SEND = '[aria-label="Send"]'
 
@@ -70,25 +70,25 @@ test('capture widget screenshots', async ({browser}) => {
   )
   await phase('test-card', 'Run the test suite now.', '.pw-test', 200_000)
 
-  // Force the exact aidx ui commands so the cards render deterministically.
+  // Force the exact mandarax ui commands so the cards render deterministically.
   await phase(
     'gen-ui-choices',
-    'Run this exact shell command and nothing else: aidx ui choices --question "Which test file should I run?" --option "cn.test.ts" --option "nav.test.ts" --option "All tests"',
+    'Run this exact shell command and nothing else: mandarax ui choices --question "Which test file should I run?" --option "cn.test.ts" --option "nav.test.ts" --option "All tests"',
     '.pw-genui-choices',
   )
   await phase(
     'gen-ui-confirm',
-    'Run this exact shell command and nothing else: aidx ui confirm --question "Delete the build cache?" --detail "Removes .vite and forces a rebuild."',
+    'Run this exact shell command and nothing else: mandarax ui confirm --question "Delete the build cache?" --detail "Removes .vite and forces a rebuild."',
     '.pw-genui-actions',
   )
   await phase(
     'gen-ui-diff',
-    'Run this exact shell command and nothing else: aidx ui diff --file src/routes/index.tsx --before "Start simple, ship quickly." --after "Build it live."',
+    'Run this exact shell command and nothing else: mandarax ui diff --file src/routes/index.tsx --before "Start simple, ship quickly." --after "Build it live."',
     '.pw-genui-diff-file',
   )
   await phase(
     'gen-ui-form',
-    'Run this exact shell command and nothing else: aidx ui form --title "New component" --field "name:Component name:text" --field "kind:Kind:select:page,layout,widget"',
+    'Run this exact shell command and nothing else: mandarax ui form --title "New component" --field "name:Component name:text" --field "kind:Kind:select:page,layout,widget"',
     '.pw-genui-field',
   )
   await phase(

@@ -3,8 +3,8 @@
 // /api/page/reply. All page knowledge lives in the driver — swap it to change the
 // execution backend without touching transport.
 import {makeDomPageDriver, type PageDriver} from './page-driver.js'
-import {PageQuerySchema, PageReplySchema, type PageQuery} from '@opendui/aidx-protocol/page-types'
-import {OkSchema} from '@opendui/aidx-protocol/chat-types'
+import {PageQuerySchema, PageReplySchema, type PageQuery} from '@mandarax/protocol/page-types'
+import {OkSchema} from '@mandarax/protocol/chat-types'
 import {createTransport} from './transport.js'
 
 function parseQuery(raw: string): PageQuery | null {

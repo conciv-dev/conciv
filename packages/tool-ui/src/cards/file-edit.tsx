@@ -1,7 +1,7 @@
 import {Show, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {FilePen} from 'lucide-solid'
-import {SolidFileDiff} from '@opendui/aidx-solid-diffs'
+import {SolidFileDiff} from '@mandarax/solid-diffs'
 import {ToolCard} from '../shell.js'
 import {parseInput} from '../util.js'
 import {DIFF_OPTIONS} from '../diff-options.js'

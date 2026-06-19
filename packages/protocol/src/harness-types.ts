@@ -57,7 +57,7 @@ export type HarnessLaunchContext = {
   cwd: string
   sessionId: string | null
   model: string | null // the model the widget currently has selected, mirrored from the chat turn
-  mcpUrl: string | null // the aidx MCP-over-HTTP endpoint, for tool parity (null if not http-capable)
+  mcpUrl: string | null // the mandarax MCP-over-HTTP endpoint, for tool parity (null if not http-capable)
   // Run `argv` in an interactive terminal at cwd. Core shell-quotes it, prepends `cd`, spawns the
   // per-OS terminal, and returns {opened, command} — command is the resolved paste-able fallback.
   openTerminal(argv: string[]): Promise<HarnessLaunchResult>

@@ -1,18 +1,12 @@
 import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
 import {defineCommand} from 'citty'
-import {
-  buildUiSpec,
-  parseField,
-  type UiBuildInput,
-  type UiFormField,
-  type UiSpec,
-} from '@opendui/aidx-protocol/ui-types'
+import {buildUiSpec, parseField, type UiBuildInput, type UiFormField, type UiSpec} from '@mandarax/protocol/ui-types'
 import {runRequest, type CliRequest} from './request.js'
 
-// `aidx ui <kind>` — render real interactive UI in the chat thread. The agent does NOT
+// `mandarax ui <kind>` — render real interactive UI in the chat thread. The agent does NOT
 // block; the user's answer arrives as their next chat message. citty parses argv, zod
-// validates, the shared buildUiSpec (also used by the aidx_ui tool) produces the typed UiSpec.
+// validates, the shared buildUiSpec (also used by the mandarax_ui tool) produces the typed UiSpec.
 
 // Repeated flags (--option / --field) arrive as a string or string[]; normalise to a list.
 const list = z.preprocess((v) => (Array.isArray(v) ? v : v === undefined ? [] : [v]), z.array(z.string()))

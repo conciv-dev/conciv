@@ -1,4 +1,4 @@
-/* tokens.css — shared aidx design tokens. Scoped to :host, :root so they resolve both inside the
+/* tokens.css — shared mandarax design tokens. Scoped to :host, :root so they resolve both inside the
    widget shadow root and on :root in Storybook. Single source of truth; the widget imports this. */
 :host,
 :root {

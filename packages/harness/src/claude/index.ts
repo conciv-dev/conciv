@@ -1,5 +1,5 @@
-import {defineHarness} from '@opendui/aidx-protocol/harness-types'
-import {AIDX_PLUGIN_DIR} from './plugin-dir.js'
+import {defineHarness} from '@mandarax/protocol/harness-types'
+import {MANDARAX_PLUGIN_DIR} from './plugin-dir.js'
 import {buildClaudeArgs, buildClaudeCompactArgs, claudeMcpArgs} from './args.js'
 import {claudeToAguiEvents} from './decode.js'
 import {claudeHistory} from './history.js'
@@ -44,7 +44,7 @@ export const claude = defineHarness({
     if (ctx.sessionId) argv.push('--resume', ctx.sessionId)
     if (ctx.model) argv.push('--model', ctx.model)
     if (ctx.mcpUrl) argv.push(...claudeMcpArgs(ctx.mcpUrl))
-    if (AIDX_PLUGIN_DIR) argv.push('--plugin-dir', AIDX_PLUGIN_DIR)
+    if (MANDARAX_PLUGIN_DIR) argv.push('--plugin-dir', MANDARAX_PLUGIN_DIR)
     return ctx.openTerminal(argv)
   },
 })

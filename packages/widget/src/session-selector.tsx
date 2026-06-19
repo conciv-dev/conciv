@@ -1,7 +1,7 @@
 import {createSignal, createEffect, For, Show, onMount, type JSX} from 'solid-js'
 import {Combobox, useListCollection} from '@ark-ui/solid/combobox'
 import {Check, ChevronDown, Sparkles, SquarePen, Plus} from 'lucide-solid'
-import type {ChatSessionMeta, SessionId} from '@opendui/aidx-protocol/chat-types'
+import type {ChatSessionMeta, SessionId} from '@mandarax/protocol/chat-types'
 import {defineClient} from './session-client.js'
 import {sessions, status, loadSessions, invalidateSessions, applyTitle} from './session-store-client.js'
 
@@ -31,7 +31,7 @@ function relativeTime(updatedAt: number, now: number): string {
 }
 
 function metaLabel(s: ChatSessionMeta, now: number): string {
-  const origin = s.origin === 'aidx' ? 'started in aidx' : 'started externally'
+  const origin = s.origin === 'mandarax' ? 'started in mandarax' : 'started externally'
   return `Edited ${relativeTime(s.updatedAt, now)} · ${s.messageCount} messages · ${origin}`
 }
 
@@ -150,7 +150,7 @@ export function SessionSelector(props: {
     })
   }
 
-  // New session: resolve with no id → a fresh aidx_ record, then make it active.
+  // New session: resolve with no id → a fresh mandarax_ record, then make it active.
   const newSession = () => {
     void api.resolve().then(({sessionId}) => {
       props.onActivate(sessionId)
@@ -291,7 +291,7 @@ export function SessionSelector(props: {
                             Edited {relativeTime(s.updatedAt, now())} · {s.messageCount} messages
                           </span>
                         </div>
-                        <Show when={s.origin === 'aidx'}>
+                        <Show when={s.origin === 'mandarax'}>
                           <Sparkles class="pw-session-origin" aria-hidden="true" />
                         </Show>
                         <Show when={props.lockedElsewhere(s.id)}>

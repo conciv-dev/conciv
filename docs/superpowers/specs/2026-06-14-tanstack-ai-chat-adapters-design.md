@@ -5,13 +5,13 @@ Status: Draft — awaiting user review
 
 ## Summary
 
-aidx currently uses `@tanstack/ai` for types (`StreamChunk`, `UIMessage`,
+mandarax currently uses `@tanstack/ai` for types (`StreamChunk`, `UIMessage`,
 `MessagePart`, `EventType`) and `toServerSentEventsStream` only. The chat turn in
 `packages/core/src/api/chat/turn.ts` hand-rolls the pipeline: spawn the harness
 CLI, decode its stdout into AG-UI `StreamChunk`s, merge the uiBus, serialize SSE.
 
-This spec makes aidx **fully use `@tanstack/ai`'s `chat()`** as the turn
-orchestrator, with each harness wrapped as a `TextAdapter`, and aidx's own tools
+This spec makes mandarax **fully use `@tanstack/ai`'s `chat()`** as the turn
+orchestrator, with each harness wrapped as a `TextAdapter`, and mandarax's own tools
 (`ui` / `page` / `test`) expressed as real `@tanstack/ai` `toolDefinition().server()`
 functions, exposed to the harness CLI via an in-process **MCP-over-HTTP** server.
 
@@ -27,21 +27,21 @@ only new dependency is `@modelcontextprotocol/sdk` for the `/api/mcp` server
   no-CLI branch.
 - **Tools execute inside the CLI via MCP, not in `chat()`'s agent loop.** A
   coding CLI owns its own iteration and tool execution. The faithful, measured
-  realization of "aidx tools in the loop" is: aidx tools are MCP tools the CLI
+  realization of "mandarax tools in the loop" is: mandarax tools are MCP tools the CLI
   calls natively; the handlers run server-side in core's process.
-- **`@opendui/aidx-tools` is a new package** holding the tool registry.
+- **`@mandarax/tools` is a new package** holding the tool registry.
 - **`/api/mcp` uses `@modelcontextprotocol/sdk`** (new, user-approved dependency)
   for the streamable-HTTP MCP server, rather than hand-rolling the JSON-RPC.
-- **Full Bash→MCP replacement.** The `Bash(aidx ui:*)` / `Bash(aidx tools:*)`
+- **Full Bash→MCP replacement.** The `Bash(mandarax ui:*)` / `Bash(mandarax tools:*)`
   `--allowedTools` entries are dropped from the claude args, and the bundled
   `react-introspection` skill is rewritten to reference the MCP tools
-  (`aidx_ui`, `aidx_page`, …) instead of instructing `aidx` CLI invocations. One
+  (`mandarax_ui`, `mandarax_page`, …) instead of instructing `mandarax` CLI invocations. One
   clean tool path; no dual Bash+MCP period.
 - **Complete adapter, not a stub.** `HarnessTextAdapter extends BaseTextAdapter`
   (built via the `harnessText(harness, deps)` factory), fully typed and
   logger/abort/id-aware, modeled on `@tanstack/ai-ollama`. `structuredOutput` is a
   typed `NotSupported` throw (an honest capability gap — a coding CLI has no native
-  schema mode; aidx never calls it). The class is a **justified, narrow exception
+  schema mode; mandarax never calls it). The class is a **justified, narrow exception
   to functions-not-classes**: the `TextAdapter` interface's `'~types'.systemPromptMetadata`
   is typed `never` (uninhabited), so a plain object cannot satisfy it without a cast,
   and the no-casts rule forbids that — extending the library's `BaseTextAdapter` is the
@@ -82,15 +82,15 @@ calls inline under one pid, one session, one transcript.
 ## Architecture
 
 ```
-                    @opendui/aidx-tools  (NEW)
+                    @mandarax/tools  (NEW)
         tanstack/ai toolDefinition().server() registry
-        aidx_ui · aidx_page · aidx_test
+        mandarax_ui · mandarax_page · mandarax_test
                     │ handlers bridge to uiBus / pageBus / testRunner
                     ▼
         core /api/mcp  (NEW)  — MCP-over-HTTP, in-process
                     │ exposed to the CLI via --mcp-config {type:http,url:/api/mcp}
                     ▼
-        harness CLI (claude | codex | …)  — owns iteration; calls aidx_* via MCP
+        harness CLI (claude | codex | …)  — owns iteration; calls mandarax_* via MCP
                     │ stdout NDJSON
                     ▼
         harnessText(harness, deps)  (NEW)  — generic over any HarnessAdapter
@@ -120,14 +120,14 @@ branches on harness; the factory never hardcodes a CLI — the harness is data.
 
 ## Components
 
-- **`@opendui/aidx-tools`** (new package): `toolDefinition().server()` registry
-  (`aidx_ui`, `aidx_page`, `aidx_test`). Handlers receive a typed `context`
+- **`@mandarax/tools`** (new package): `toolDefinition().server()` registry
+  (`mandarax_ui`, `mandarax_page`, `mandarax_test`). Handlers receive a typed `context`
   (handles to `uiBus` / pageBus / testRunner). Pure tool logic — no transport,
   no CLI knowledge. Reusable by the MCP server.
 - **`/api/mcp`** (new core route): MCP-over-HTTP (streamable-http) server built
-  on `@modelcontextprotocol/sdk`, exposing the `@opendui/aidx-tools` registry.
-  In-process, so handlers reach `uiBus` directly. Replaces the `aidx ui` /
-  `aidx tools` Bash shell-out path (the `--allowedTools` Bash entries are
+  on `@modelcontextprotocol/sdk`, exposing the `@mandarax/tools` registry.
+  In-process, so handlers reach `uiBus` directly. Replaces the `mandarax ui` /
+  `mandarax tools` Bash shell-out path (the `--allowedTools` Bash entries are
   removed from the claude args).
 - **`HarnessTextAdapter` + `harnessText(harness, deps)`** (new): a _complete_
   adapter, not a stub. Modeled on `@tanstack/ai-ollama`'s from-scratch adapter,
@@ -149,13 +149,13 @@ InputModalities, MsgMeta>` — type params from the existing
 options.runId, threadId: options.threadId, logger: options.logger})`.
   - `structuredOutput()`: a coding CLI has no native schema-constrained mode.
     Implemented as a **typed `NotSupported` throw** — an honest capability gap,
-    not a stub. aidx's chat turns never invoke it. (Decision locked with user.)
+    not a stub. mandarax's chat turns never invoke it. (Decision locked with user.)
 
 ### Adapter contract compliance (verified against source)
 
 `docs/chat-architecture.md#adapter-contract` mandates per `chatStream`:
 `RUN_STARTED` (once, first) → content blocks → `RUN_FINISHED | RUN_ERROR`
-(once, last). aidx's `runAgui` already follows this. Specific rules to honor,
+(once, last). mandarax's `runAgui` already follows this. Specific rules to honor,
 all already met or trivial:
 
 - `TEXT_MESSAGE_CONTENT.delta` must be **non-empty** — guard empty deltas in the
@@ -163,16 +163,16 @@ all already met or trivial:
 - `TOOL_CALL_START.toolName` non-empty, `toolCallId` globally unique (claude's
   `tool_use.id` satisfies this).
 - `TOOL_CALL_END` carries `input` only, **never `result`** (reserved for the
-  engine). aidx already delivers the CLI's own tool results via the separate,
+  engine). mandarax already delivers the CLI's own tool results via the separate,
   spec-compliant `TOOL_CALL_RESULT` event (`processor.ts:1220` — "the
   spec-compliant path for delivering tool results to the client"), so no CLI or
   decode change is needed.
-- `finishReason: 'stop'` (aidx never wants the engine to execute tools).
+- `finishReason: 'stop'` (mandarax never wants the engine to execute tools).
 - **`turn.ts`**: the hand-rolled pipeline becomes
   `chat({adapter, messages, systemPrompts, abortController})` →
   `uiBus.run` merge → `toServerSentEventsStream`.
 
-## Contract changes (`@opendui/aidx-protocol/harness-types`)
+## Contract changes (`@mandarax/protocol/harness-types`)
 
 - `HarnessCapabilities` gains `mcp: 'http' | 'stdio' | 'none'`.
 - `HarnessTurn` gains `mcpUrl?: string` (injected like `permissionUrl` today).
@@ -182,14 +182,14 @@ all already met or trivial:
   `@tanstack/ai` adapter contract _requires_ `chatStream` to emit `RUN_STARTED` /
   `RUN_FINISHED` — the engine's stream processor depends on `RUN_FINISHED`
   (`activities/chat/stream/processor.js`: "Why RUN_FINISHED is mandatory"). In
-  the plain streaming path (no `tools`, no `outputSchema` — aidx's CLI-only
+  the plain streaming path (no `tools`, no `outputSchema` — mandarax's CLI-only
   case), the engine passes the adapter's chunks straight through middleware
   (`activities/chat/index.js:376–436`); it does not prepend its own pair, so
   there is exactly one `RUN_STARTED`/`RUN_FINISHED` per turn and no doubling.
   Therefore `runAgui` in `packages/harness/src/_shared/agui.ts` keeps emitting
   lifecycle. The adapter wiring: the `HarnessDecoder` opts (and `runAgui`) gain
   `runId` / `threadId` / `logger`, so `runAgui` emits lifecycle with the ids
-  `chat()` supplies (not the hardcoded `'aidx-chat'` / `'aidx-run'`) and calls
+  `chat()` supplies (not the hardcoded `'mandarax-chat'` / `'mandarax-run'`) and calls
   `logger.provider(...)` per chunk, matching the adapter logger contract.
 - `HarnessDecoder` signature gains `runId?`, `threadId?`, `logger?` in its opts
   object alongside the existing `onSessionId`.
@@ -202,7 +202,7 @@ all already met or trivial:
    `chat()`-supplied `runId`/`threadId`), which `chat()` passes through.
 3. `chatStream` derives the `HarnessTurn` from `opts`, spawns the CLI with
    `--mcp-config {type:http, url:${origin}/api/mcp}`, decodes stdout → `StreamChunk`s.
-4. Mid-turn the CLI calls `mcp__aidx__aidx_ui`; core's `/api/mcp` handler runs the
+4. Mid-turn the CLI calls `mcp__mandarax__mandarax_ui`; core's `/api/mcp` handler runs the
    tool against `uiBus` and returns inline. The CLI continues. One process, one
    transcript.
 5. decode chunks flow through `chat()` → `uiBus.run` merge →
@@ -222,7 +222,7 @@ all already met or trivial:
 
 Repo convention — integration only, real processes, no mocks (`*.it.test.ts`):
 
-- **MCP tool round-trip**: real `claude` calls real `/api/mcp` `aidx_ui`; assert
+- **MCP tool round-trip**: real `claude` calls real `/api/mcp` `mandarax_ui`; assert
   `uiBus` observed the inject. (Productionizes the spike.)
 - **Single run lifecycle**: a `chat()` turn yields exactly one `RUN_STARTED` /
   `RUN_FINISHED` pair (the adapter emits them, `chat()` passes them through with
@@ -235,9 +235,9 @@ Repo convention — integration only, real processes, no mocks (`*.it.test.ts`):
 - This spec covers all harnesses; implementation sequences **claude first**.
 - claude/codex get `mcp: 'http'`; the gemini-cli / opencode / pi stubs stay
   `mcp: 'none'` and keep working unchanged.
-- Tools migrated to `@opendui/aidx-tools` + `/api/mcp`: start with `aidx_ui` (smallest,
+- Tools migrated to `@mandarax/tools` + `/api/mcp`: start with `mandarax_ui` (smallest,
   already validated in the spike), then `page` and `test`. As each tool moves,
-  drop its `Bash(aidx …:*)` `--allowedTools` entry and update the
+  drop its `Bash(mandarax …:*)` `--allowedTools` entry and update the
   `react-introspection` skill text to reference the MCP tool.
 
 ## Non-goals
@@ -245,6 +245,6 @@ Repo convention — integration only, real processes, no mocks (`*.it.test.ts`):
 - Model-provider fallback / no-CLI operation.
 - `chat()`'s agent loop executing tools (`tools` param stays empty for CLI path).
 - Driving `chat()`'s `agentLoopStrategy` as the literal iteration driver (pure-B).
-- Removing the `@opendui/aidx-cli` package or its non-tool commands (`server` / `open`);
+- Removing the `@mandarax/cli` package or its non-tool commands (`server` / `open`);
   only the agent-facing `ui` / `page` / `test` tool invocations move from Bash
   to MCP.

@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {TestEventSchema} from '@opendui/aidx-protocol/test-types'
+import {TestEventSchema} from '@mandarax/protocol/test-types'
 
 // The child↔driver NDJSON contract, in its own side-effect-free module shared by every adapter
 // child + the driver. A child imports the `ChildMessage` TYPE to shape its send(); the driver

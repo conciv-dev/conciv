@@ -1,7 +1,7 @@
 {
-  "name": "@opendui/aidx-widget",
+  "name": "@mandarax/widget",
   "version": "0.0.0",
-  "description": "The aidx in-page widget: a SolidJS chat UI mounted into a Shadow DOM that talks to the dev server over SSE, plus the page-control driver the agent drives.",
+  "description": "The mandarax in-page widget: a SolidJS chat UI mounted into a Shadow DOM that talks to the dev server over SSE, plus the page-control driver the agent drives.",
   "license": "MIT",
   "files": [
     "dist"
@@ -12,7 +12,7 @@
       "types": "./dist/mount.d.ts",
       "import": "./dist/mount.js"
     },
-    "./global": "./dist/aidx-widget.global.js"
+    "./global": "./dist/mandarax-widget.global.js"
   },
   "scripts": {
     "build": "vite build && tsc -p tsconfig.build.json",
@@ -23,10 +23,10 @@
   "dependencies": {
     "@ark-ui/solid": "^5.37.1",
     "@floating-ui/dom": "^1.7.6",
-    "@opendui/aidx-protocol": "workspace:*",
-    "@opendui/aidx-solid-diffs": "workspace:*",
-    "@opendui/aidx-solid-streamdown": "workspace:*",
-    "@opendui/aidx-tool-ui": "workspace:*",
+    "@mandarax/protocol": "workspace:*",
+    "@mandarax/solid-diffs": "workspace:*",
+    "@mandarax/solid-streamdown": "workspace:*",
+    "@mandarax/tool-ui": "workspace:*",
     "@tanstack/ai": "^0.28.0",
     "@tanstack/ai-client": "^0.16.3",
     "@tanstack/ai-solid": "^0.13.4",

@@ -1,7 +1,7 @@
 {
-  "name": "@opendui/aidx",
+  "name": "mandarax",
   "version": "0.0.0",
-  "description": "The aidx dev agent, one install. Re-exports the unplugin under @opendui/aidx/plugin/* (vite, webpack, rspack, rollup, esbuild, nextjs).",
+  "description": "The mandarax dev agent, one install. Re-exports the unplugin under mandarax/plugin/* (vite, webpack, rspack, rollup, esbuild, nextjs).",
   "license": "MIT",
   "files": [
     "dist"
@@ -45,7 +45,7 @@
     "lint": "oxlint"
   },
   "dependencies": {
-    "@opendui/aidx-plugin": "workspace:*"
+    "@mandarax/plugin": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.19.21",

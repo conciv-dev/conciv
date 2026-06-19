@@ -1,5 +1,5 @@
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import type {TestEvent} from '@opendui/aidx-protocol/test-types'
+import type {TestEvent} from '@mandarax/protocol/test-types'
 
 // The color rail / accent a card renders under — a UI-local style, not a classification layer:
 // page=magenta, code=teal, test=gold, read=purple, neutral=line.

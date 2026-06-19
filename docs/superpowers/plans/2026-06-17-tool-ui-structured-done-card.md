@@ -6,7 +6,7 @@
 
 **Architecture:** A `structuredOutput` capability gates the feature per harness. When the `doneCard` flag is on and the harness is capable, the args builder passes the schema to the CLI. The decode (bespoke per harness — claude returns `result.structured_output` + a synthetic tool to suppress; codex returns the whole final message as JSON) emits the CUSTOM chunks the `StreamProcessor` consumes (`structured-output.start` → `TEXT_MESSAGE_CONTENT` → `structured-output.complete`). The widget renders the resulting part's prose `message` as text and the rest in `DoneCard`.
 
-**Tech Stack:** `@opendui/aidx-protocol` (capability + config + schema), `@opendui/aidx-harness` (args + decode), `@opendui/aidx-core` (config resolution), `@opendui/aidx-tool-ui` (`DoneCard` from Plan B), `@opendui/aidx-widget`. Both CLI behaviors were verified live (see the spec); re-verify in the aidx pipeline (Task 6).
+**Tech Stack:** `@mandarax/protocol` (capability + config + schema), `@mandarax/harness` (args + decode), `@mandarax/core` (config resolution), `@mandarax/tool-ui` (`DoneCard` from Plan B), `@mandarax/widget`. Both CLI behaviors were verified live (see the spec); re-verify in the mandarax pipeline (Task 6).
 
 **Depends on:** Plans A-C. Riskiest/most invasive plan; fully bypassed when `doneCard` is off. Conventions: functions not classes; no IIFEs; one-line comments; oxfmt; zod validates every boundary.
 
@@ -15,7 +15,7 @@
 ## File structure
 
 - `packages/protocol/src/harness-types.ts` (modify) — `structuredOutput: boolean` capability.
-- `packages/protocol/src/config-types.ts` (modify) — `doneCard?: boolean` on `AidxConfig`.
+- `packages/protocol/src/config-types.ts` (modify) — `doneCard?: boolean` on `MandaraxConfig`.
 - `packages/protocol/src/tool-types.ts` (modify) — `DoneCardData` + `DoneCardSchema` (zod) + the all-required JSON Schema for the CLIs.
 - `packages/core/src/config.ts` (modify) — resolve `doneCard` (default true).
 - `packages/harness/src/claude/{args,decode}.ts` (modify) — pass `--json-schema`; read `result.structured_output`; suppress synthetic `StructuredOutput`; emit structured-output chunks.
@@ -45,7 +45,7 @@ Every adapter literal must now set it. In `packages/harness/src/claude/index.ts`
 
 - [ ] **Step 2: Add the config flag**
 
-In `packages/protocol/src/config-types.ts`, add to `AidxConfig`:
+In `packages/protocol/src/config-types.ts`, add to `MandaraxConfig`:
 
 ```ts
   /** Agent-authored "done" summary card (claude/codex only). On by default; `false` disables it
@@ -110,7 +110,7 @@ describe('done card schema', () => {
 
 - [ ] **Step 5: Run + typecheck**
 
-Run: `pnpm --filter @opendui/aidx-protocol exec vitest run test/done-card.test.ts && pnpm --filter @opendui/aidx-harness typecheck`
+Run: `pnpm --filter @mandarax/protocol exec vitest run test/done-card.test.ts && pnpm --filter @mandarax/harness typecheck`
 Expected: test PASS; harness typecheck fails only if an adapter is missing `structuredOutput` — add it.
 
 - [ ] **Step 6: Commit**
@@ -128,7 +128,7 @@ git commit -m "feat(protocol): structuredOutput capability, doneCard flag, done-
 
 - [ ] **Step 1: Find the config resolver**
 
-Run: `grep -n "systemPrompt\|enabled\|resolveConfig\|AidxConfig" packages/core/src/config.ts | head`
+Run: `grep -n "systemPrompt\|enabled\|resolveConfig\|MandaraxConfig" packages/core/src/config.ts | head`
 Locate where defaults are applied.
 
 - [ ] **Step 2: Default doneCard to true**
@@ -139,7 +139,7 @@ shape the chat route reads (so Task 3/4 can branch on it). If core has a config 
 
 - [ ] **Step 3: Typecheck + commit**
 
-Run: `pnpm --filter @opendui/aidx-core typecheck`
+Run: `pnpm --filter @mandarax/core typecheck`
 
 ```bash
 git add packages/core/src/config.ts
@@ -183,7 +183,7 @@ In `claude/args.ts`, the args builder receives the turn. Thread the resolved `do
 When on, append:
 
 ```ts
-import {DONE_CARD_JSON_SCHEMA} from '@opendui/aidx-protocol/tool-types'
+import {DONE_CARD_JSON_SCHEMA} from '@mandarax/protocol/tool-types'
 // ...inside the argv builder, chat turns only (not compact):
 if (doneCardEnabled) argv.push('--json-schema', JSON.stringify(DONE_CARD_JSON_SCHEMA))
 ```
@@ -245,7 +245,7 @@ it, and a `result` event with `structured_output` produces a `structured-output.
 
 - [ ] **Step 5: Run + commit**
 
-Run: `pnpm --filter @opendui/aidx-harness exec vitest run test/structured-output.test.ts`
+Run: `pnpm --filter @mandarax/harness exec vitest run test/structured-output.test.ts`
 
 ```bash
 git add packages/harness/src/_shared/agui.ts packages/harness/src/claude packages/harness/test/structured-output.test.ts
@@ -265,7 +265,7 @@ codex takes a FILE path. The args builder writes the schema to a temp file and p
 pre-written path from the chat route). Concretely:
 
 ```ts
-import {DONE_CARD_JSON_SCHEMA} from '@opendui/aidx-protocol/tool-types'
+import {DONE_CARD_JSON_SCHEMA} from '@mandarax/protocol/tool-types'
 // the chat route writes DONE_CARD_JSON_SCHEMA to `${stateDir}/done-schema.json` once and passes the
 // path in the turn; args appends:
 if (doneCardEnabled && schemaPath) argv.push('--output-schema', schemaPath)
@@ -298,7 +298,7 @@ input on `packages/harness/test/` codex decode tests if present.
 
 - [ ] **Step 4: Run + commit**
 
-Run: `pnpm --filter @opendui/aidx-harness exec vitest run test/structured-output.test.ts`
+Run: `pnpm --filter @mandarax/harness exec vitest run test/structured-output.test.ts`
 
 ```bash
 git add packages/harness/src/codex packages/harness/test/structured-output.test.ts
@@ -339,15 +339,15 @@ via `DoneCard`:
 </Match>
 ```
 
-Import `DoneCard` from `@opendui/aidx-tool-ui` and `DoneCardSchema` from
-`@opendui/aidx-protocol/tool-types`. Add a `rawText(part)` helper returning `part.raw ?? ''`.
+Import `DoneCard` from `@mandarax/tool-ui` and `DoneCardSchema` from
+`@mandarax/protocol/tool-types`. Add a `rawText(part)` helper returning `part.raw ?? ''`.
 
 - [ ] **Step 2: Rebuild + IT**
 
-Run: `pnpm turbo run build --filter=@opendui/aidx-widget`
+Run: `pnpm turbo run build --filter=@mandarax/widget`
 Add to `tool-ui.it.test.ts`: a stream emitting `structured-output.start`/content/`.complete` renders
 the prose + a `.pw-done` card with the files/tests roll-up. Run
-`pnpm --filter @opendui/aidx-widget test`.
+`pnpm --filter @mandarax/widget test`.
 
 - [ ] **Step 3: Commit**
 
@@ -379,7 +379,7 @@ JSON), and a loose/optional-field schema is not used (we ship the strict schema)
 
 - [ ] **Step 3: Flip the flag off and confirm zero overhead**
 
-Set `doneCard: false` in the aidx config; confirm the CLI args no longer include
+Set `doneCard: false` in the mandarax config; confirm the CLI args no longer include
 `--json-schema`/`--output-schema` (log the argv), no done card renders, and turns behave exactly as
 before. This is the bounded-risk guarantee.
 
@@ -394,7 +394,7 @@ interplay), note them at the top of this plan and fix before merge. Commit any f
 
 - [ ] **Step 1: Typecheck + build + test the chain**
 
-Run: `pnpm turbo run typecheck build test --filter=@opendui/aidx-protocol --filter=@opendui/aidx-harness --filter=@opendui/aidx-core --filter=@opendui/aidx-widget --filter=@opendui/aidx-tool-ui`
+Run: `pnpm turbo run typecheck build test --filter=@mandarax/protocol --filter=@mandarax/harness --filter=@mandarax/core --filter=@mandarax/widget --filter=@mandarax/tool-ui`
 Expected: green.
 
 - [ ] **Step 2: Lint + format + commit**

@@ -4,7 +4,7 @@
 
 **Goal:** Make each quick-terminal pane a real, independent agent session — true parallel runs, per-session history, restore on reload — and expose a per-session label + Floating UI popover.
 
-**Architecture:** Identity is a client-minted session id sent in an `aidx-session-id` header. The server keys its session state, lock, and persisted resume-token map by that id; pane layout lives in the client's `localStorage`. The harness contract is unchanged (new session = spawn with `resumeSessionId: null`). A reusable Floating UI `Popover` surfaces the session name / harness id / source.
+**Architecture:** Identity is a client-minted session id sent in an `mandarax-session-id` header. The server keys its session state, lock, and persisted resume-token map by that id; pane layout lives in the client's `localStorage`. The harness contract is unchanged (new session = spawn with `resumeSessionId: null`). A reusable Floating UI `Popover` surfaces the session name / harness id / source.
 
 **Tech Stack:** TypeScript, Solid (widget), h3 + srvx (core), Zod, Vitest (unit + core IT), Playwright (widget IT), `@floating-ui/dom`.
 
@@ -18,7 +18,7 @@
 
 **Protocol** (`packages/protocol/src/`)
 
-- `chat-types.ts` (modify) — add `AIDX_SESSION_HEADER` + `DEFAULT_SESSION_ID` constants; add `harnessId` + `name` to `ChatSessionSchema`; drop `sessionId` from `ChatRequestSchema`.
+- `chat-types.ts` (modify) — add `MANDARAX_SESSION_HEADER` + `DEFAULT_SESSION_ID` constants; add `harnessId` + `name` to `ChatSessionSchema`; drop `sessionId` from `ChatRequestSchema`.
 - `harness-types.ts` (modify) — add optional `nameFromTranscript?(raw): string | null` to `HarnessHistory`.
 
 **Harness** (`packages/harness/src/`)
@@ -69,7 +69,7 @@ Add near the top (after the imports), and edit the two schemas:
 
 ```ts
 // The HTTP header carrying our client-minted session id on every chat request.
-export const AIDX_SESSION_HEADER = 'aidx-session-id'
+export const MANDARAX_SESSION_HEADER = 'mandarax-session-id'
 // The session a request falls back to when it sends no header (the modal + the probe).
 export const DEFAULT_SESSION_ID = 'default'
 ```
@@ -77,7 +77,7 @@ export const DEFAULT_SESSION_ID = 'default'
 Change `ChatRequestSchema` to drop `sessionId` (identity now lives only in the header):
 
 ```ts
-// POST /api/chat body — identity travels in the AIDX_SESSION_HEADER, not the body.
+// POST /api/chat body — identity travels in the MANDARAX_SESSION_HEADER, not the body.
 export const ChatRequestSchema = z.object({
   messages: z.array(ChatMessageSchema),
 })
@@ -114,7 +114,7 @@ export type HarnessHistory = {
 
 - [ ] **Step 3: Typecheck the protocol package**
 
-Run: `pnpm turbo typecheck --filter=@opendui/aidx-protocol`
+Run: `pnpm turbo typecheck --filter=@mandarax/protocol`
 Expected: PASS (no consumers compiled yet against the new shape; core/widget break in later tasks where we fix them).
 
 - [ ] **Step 4: Commit**
@@ -162,7 +162,7 @@ describe('claudeHistory.nameFromTranscript', () => {
 
 - [ ] **Step 2: Run it to confirm it fails**
 
-Run: `pnpm --filter @opendui/aidx-harness exec vitest run test/claude-history.test.ts`
+Run: `pnpm --filter @mandarax/harness exec vitest run test/claude-history.test.ts`
 Expected: FAIL — `nameFromTranscript` is `undefined`.
 
 - [ ] **Step 3: Implement `nameFromTranscript` in `history.ts`**
@@ -198,7 +198,7 @@ export const claudeHistory: HarnessHistory = {transcriptPath, parse: parseHistor
 
 - [ ] **Step 4: Run the test to confirm it passes**
 
-Run: `pnpm --filter @opendui/aidx-harness exec vitest run test/claude-history.test.ts`
+Run: `pnpm --filter @mandarax/harness exec vitest run test/claude-history.test.ts`
 Expected: PASS (both cases).
 
 - [ ] **Step 5: Commit**
@@ -231,7 +231,7 @@ import {acquireLock, readLock, releaseLock} from '../../src/store/lock.js'
 
 const dirs: string[] = []
 const tmp = () => {
-  const d = mkdtempSync(join(tmpdir(), 'aidx-lock-'))
+  const d = mkdtempSync(join(tmpdir(), 'mandarax-lock-'))
   dirs.push(d)
   return d
 }
@@ -256,7 +256,7 @@ describe('per-session lock', () => {
 
 - [ ] **Step 2: Run it to confirm it fails**
 
-Run: `pnpm --filter @opendui/aidx-core exec vitest run test/store/lock.test.ts`
+Run: `pnpm --filter @mandarax/core exec vitest run test/store/lock.test.ts`
 Expected: FAIL — `acquireLock`/`readLock`/`releaseLock` don't take a session id yet (type error / wrong path).
 
 - [ ] **Step 3: Change `state-paths.ts` to a per-session lock path**
@@ -266,11 +266,11 @@ Replace the `lock` field with a function:
 ```ts
 import {join} from 'node:path'
 
-// The `.aidx/` layout under the state root, named in one place.
+// The `.mandarax/` layout under the state root, named in one place.
 export type StatePaths = {dir: string; lockFor: (sessionId: string) => string; sessions: string; systemPrompt: string}
 
 export function statePaths(stateRoot: string): StatePaths {
-  const dir = join(stateRoot, '.aidx')
+  const dir = join(stateRoot, '.mandarax')
   return {
     dir,
     lockFor: (sessionId) => join(dir, `agent.${sessionId}.lock`),
@@ -308,7 +308,7 @@ export function releaseLock(stateRoot: string, sessionId: string): void {
 
 - [ ] **Step 5: Run the test to confirm it passes**
 
-Run: `pnpm --filter @opendui/aidx-core exec vitest run test/store/lock.test.ts`
+Run: `pnpm --filter @mandarax/core exec vitest run test/store/lock.test.ts`
 Expected: PASS.
 
 - [ ] **Step 6: Commit** (callers still broken — fixed in Task 6; commit the store layer now)
@@ -340,7 +340,7 @@ import {readSessions, writeSession, removeSession} from '../../src/store/session
 
 const dirs: string[] = []
 const tmp = () => {
-  const d = mkdtempSync(join(tmpdir(), 'aidx-sess-'))
+  const d = mkdtempSync(join(tmpdir(), 'mandarax-sess-'))
   dirs.push(d)
   return d
 }
@@ -372,7 +372,7 @@ describe('session store', () => {
 
 - [ ] **Step 2: Run it to confirm it fails**
 
-Run: `pnpm --filter @opendui/aidx-core exec vitest run test/store/session-store.test.ts`
+Run: `pnpm --filter @mandarax/core exec vitest run test/store/session-store.test.ts`
 Expected: FAIL — `readSessions`/`removeSession` don't exist; `writeSession` has the old signature.
 
 - [ ] **Step 3: Rewrite `session-store.ts`**
@@ -423,7 +423,7 @@ export function removeSession(stateRoot: string, previewId: string, sessionId: s
 
 - [ ] **Step 4: Run the test to confirm it passes**
 
-Run: `pnpm --filter @opendui/aidx-core exec vitest run test/store/session-store.test.ts`
+Run: `pnpm --filter @mandarax/core exec vitest run test/store/session-store.test.ts`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -449,39 +449,39 @@ Create `packages/core/test/api/chat/session-id.test.ts`:
 ```ts
 import {describe, it, expect} from 'vitest'
 import {sessionIdFromHeaders} from '../../../src/api/chat/session-id.js'
-import {DEFAULT_SESSION_ID} from '@opendui/aidx-protocol/chat-types'
+import {DEFAULT_SESSION_ID} from '@mandarax/protocol/chat-types'
 
 describe('sessionIdFromHeaders', () => {
   it('returns the header value when present', () => {
-    expect(sessionIdFromHeaders(new Headers({'aidx-session-id': 'sess-a'}))).toBe('sess-a')
+    expect(sessionIdFromHeaders(new Headers({'mandarax-session-id': 'sess-a'}))).toBe('sess-a')
   })
   it('falls back to the default when absent or blank', () => {
     expect(sessionIdFromHeaders(new Headers())).toBe(DEFAULT_SESSION_ID)
-    expect(sessionIdFromHeaders(new Headers({'aidx-session-id': '  '}))).toBe(DEFAULT_SESSION_ID)
+    expect(sessionIdFromHeaders(new Headers({'mandarax-session-id': '  '}))).toBe(DEFAULT_SESSION_ID)
   })
 })
 ```
 
 - [ ] **Step 2: Run it to confirm it fails**
 
-Run: `pnpm --filter @opendui/aidx-core exec vitest run test/api/chat/session-id.test.ts`
+Run: `pnpm --filter @mandarax/core exec vitest run test/api/chat/session-id.test.ts`
 Expected: FAIL — module not found.
 
 - [ ] **Step 3: Create `session-id.ts`**
 
 ```ts
-import {AIDX_SESSION_HEADER, DEFAULT_SESSION_ID} from '@opendui/aidx-protocol/chat-types'
+import {MANDARAX_SESSION_HEADER, DEFAULT_SESSION_ID} from '@mandarax/protocol/chat-types'
 
-// The session id a request targets: the AIDX_SESSION_HEADER value, or the default session.
+// The session id a request targets: the MANDARAX_SESSION_HEADER value, or the default session.
 export function sessionIdFromHeaders(headers: Headers): string {
-  const raw = headers.get(AIDX_SESSION_HEADER)?.trim()
+  const raw = headers.get(MANDARAX_SESSION_HEADER)?.trim()
   return raw || DEFAULT_SESSION_ID
 }
 ```
 
 - [ ] **Step 4: Run the test to confirm it passes**
 
-Run: `pnpm --filter @opendui/aidx-core exec vitest run test/api/chat/session-id.test.ts`
+Run: `pnpm --filter @mandarax/core exec vitest run test/api/chat/session-id.test.ts`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -508,8 +508,8 @@ This is the core change: `chat.ts` holds the `Map`, `session.ts` and `turn.ts` r
 
 ```ts
 import type {H3} from 'h3'
-import type {HarnessAdapter} from '@opendui/aidx-protocol/harness-types'
-import {DEFAULT_SESSION_ID} from '@opendui/aidx-protocol/chat-types'
+import type {HarnessAdapter} from '@mandarax/protocol/harness-types'
+import {DEFAULT_SESSION_ID} from '@mandarax/protocol/chat-types'
 import type {UiBus} from '../../runtime/ui-bus.js'
 import {readSessions} from '../../store/session-store.js'
 import {makePermissionGate, registerPermissionRoutes} from './permission.js'
@@ -576,9 +576,9 @@ export function registerChatRoutes(app: H3, opts: ChatRouteOpts): void {
 
 ```ts
 import {type H3} from 'h3'
-import type {HarnessAdapter} from '@opendui/aidx-protocol/harness-types'
-import type {ChatSession} from '@opendui/aidx-protocol/chat-types'
-import {DEFAULT_SESSION_ID} from '@opendui/aidx-protocol/chat-types'
+import type {HarnessAdapter} from '@mandarax/protocol/harness-types'
+import type {ChatSession} from '@mandarax/protocol/chat-types'
+import {DEFAULT_SESSION_ID} from '@mandarax/protocol/chat-types'
 import {readLock} from '../../store/lock.js'
 import {removeSession} from '../../store/session-store.js'
 import {readFileOrEmpty} from '../../fs.js'
@@ -670,10 +670,10 @@ export function registerSessionRoutes(app: H3, deps: SessionRouteDeps): void {
 ```ts
 import {type H3, HTTPError, readValidatedBody} from 'h3'
 import {chat, toServerSentEventsStream, type StreamChunk} from '@tanstack/ai'
-import {harnessText} from '@opendui/aidx-harness'
-import type {HarnessAdapter, HarnessChild} from '@opendui/aidx-protocol/harness-types'
-import {UiSpecSchema} from '@opendui/aidx-protocol/ui-types'
-import {ChatRequestSchema} from '@opendui/aidx-protocol/chat-types'
+import {harnessText} from '@mandarax/harness'
+import type {HarnessAdapter, HarnessChild} from '@mandarax/protocol/harness-types'
+import {UiSpecSchema} from '@mandarax/protocol/ui-types'
+import {ChatRequestSchema} from '@mandarax/protocol/chat-types'
 import {acquireLock, readLock, releaseLock} from '../../store/lock.js'
 import {writeSession} from '../../store/session-store.js'
 import type {UiBus} from '../../runtime/ui-bus.js'
@@ -784,21 +784,21 @@ it('refuses with 409 while the lock is held by iterate', async () => {
 Add the import at the top of the test file:
 
 ```ts
-import {DEFAULT_SESSION_ID} from '@opendui/aidx-protocol/chat-types'
+import {DEFAULT_SESSION_ID} from '@mandarax/protocol/chat-types'
 ```
 
 - [ ] **Step 5: Typecheck + run the core test suite**
 
-Run: `pnpm turbo typecheck --filter=@opendui/aidx-core`
+Run: `pnpm turbo typecheck --filter=@mandarax/core`
 Expected: PASS.
-Run: `pnpm --filter @opendui/aidx-core exec vitest run`
+Run: `pnpm --filter @mandarax/core exec vitest run`
 Expected: PASS — existing `--resume` test still green (single default session resumes `sess-fake`), 409 test green.
 
 - [ ] **Step 6: Commit**
 
 ```bash
 git add packages/core/src/api/chat packages/core/test/api/chat/chat.it.test.ts
-git commit -m "feat(core): per-session chat routes keyed by aidx-session-id header"
+git commit -m "feat(core): per-session chat routes keyed by mandarax-session-id header"
 ```
 
 ---
@@ -818,13 +818,13 @@ In `server.ts`, change `post` and `postChat` to accept an optional session id, a
 const post = (path: string, body: unknown, sessionId?: string): Promise<Response> =>
   fetch(`${base}${path}`, {
     method: 'POST',
-    headers: {'content-type': 'application/json', ...(sessionId ? {'aidx-session-id': sessionId} : {})},
+    headers: {'content-type': 'application/json', ...(sessionId ? {'mandarax-session-id': sessionId} : {})},
     body: JSON.stringify(body),
   })
 const postChat = async (message: unknown, sessionId?: string): Promise<string> =>
   (await post('/api/chat', {messages: [message]}, sessionId)).text()
 const getSession = async (sessionId?: string): Promise<Response> =>
-  fetch(`${base}/api/chat/session`, {headers: sessionId ? {'aidx-session-id': sessionId} : {}})
+  fetch(`${base}/api/chat/session`, {headers: sessionId ? {'mandarax-session-id': sessionId} : {}})
 ```
 
 Update the `TestServer` type accordingly:
@@ -874,12 +874,12 @@ it('does NOT 409 a second session while a different one would be busy', async ()
 Add the import:
 
 ```ts
-import {ChatSessionSchema} from '@opendui/aidx-protocol/chat-types'
+import {ChatSessionSchema} from '@mandarax/protocol/chat-types'
 ```
 
 - [ ] **Step 3: Run it**
 
-Run: `pnpm --filter @opendui/aidx-core exec vitest run test/api/chat/chat.it.test.ts`
+Run: `pnpm --filter @mandarax/core exec vitest run test/api/chat/chat.it.test.ts`
 Expected: PASS — proves header-scoped isolation + per-session lock (no cross-session 409).
 
 - [ ] **Step 4: Commit**
@@ -1018,7 +1018,7 @@ Append to the widget's stylesheet (the same file that defines `pw-qt-*` / `pw-ch
 
 - [ ] **Step 3: Typecheck**
 
-Run: `pnpm turbo typecheck --filter=@opendui/aidx-widget`
+Run: `pnpm turbo typecheck --filter=@mandarax/widget`
 Expected: PASS.
 
 - [ ] **Step 4: Commit**
@@ -1122,7 +1122,7 @@ export function sessionLabel(info: {name: string | null; harnessId: string | nul
 
 - [ ] **Step 3: Typecheck**
 
-Run: `pnpm turbo typecheck --filter=@opendui/aidx-widget`
+Run: `pnpm turbo typecheck --filter=@mandarax/widget`
 Expected: PASS.
 
 - [ ] **Step 4: Commit**
@@ -1144,8 +1144,8 @@ git commit -m "feat(widget): session-info popover content + label resolver"
 
 ```ts
 import type {UIMessage} from '@tanstack/ai-client'
-import {ChatSessionSchema, ChatHistorySchema, type ChatSession} from '@opendui/aidx-protocol/chat-types'
-import {AIDX_SESSION_HEADER} from '@opendui/aidx-protocol/chat-types'
+import {ChatSessionSchema, ChatHistorySchema, type ChatSession} from '@mandarax/protocol/chat-types'
+import {MANDARAX_SESSION_HEADER} from '@mandarax/protocol/chat-types'
 
 function metaContent(name: string): string {
   return document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content ?? ''
@@ -1177,7 +1177,8 @@ export type ChatApi = {
 
 export function createChatApi(deps: {apiBase?: string; sessionId?: string} = {}): ChatApi {
   const base = resolveBase(deps.apiBase)
-  const sessionHeaders = (): Record<string, string> => (deps.sessionId ? {[AIDX_SESSION_HEADER]: deps.sessionId} : {})
+  const sessionHeaders = (): Record<string, string> =>
+    deps.sessionId ? {[MANDARAX_SESSION_HEADER]: deps.sessionId} : {}
   return {
     base,
     chatUrl: `${base}/api/chat`,
@@ -1205,14 +1206,14 @@ export function createChatApi(deps: {apiBase?: string; sessionId?: string} = {})
 
 - [ ] **Step 2: Typecheck (expect ChatPanel to break — fixed next task)**
 
-Run: `pnpm turbo typecheck --filter=@opendui/aidx-widget`
+Run: `pnpm turbo typecheck --filter=@mandarax/widget`
 Expected: FAIL in `chat-panel.tsx` (`api.history(session.sessionId)` now takes no arg, and `session.sessionId` is still valid). Note the errors; Task 12 fixes them.
 
 - [ ] **Step 3: Commit**
 
 ```bash
 git add packages/widget/src/chat-api.ts
-git commit -m "feat(widget): chat-api sends aidx-session-id header on all requests"
+git commit -m "feat(widget): chat-api sends mandarax-session-id header on all requests"
 ```
 
 ---
@@ -1251,7 +1252,7 @@ const chat = useChat({
   ...createChatClientOptions({
     connection: fetchServerSentEvents(api.chatUrl, () => ({headers: api.sessionHeaders(), credentials: 'include'})),
   }),
-  onCustomEvent: onAidxUi,
+  onCustomEvent: onMandaraxUi,
 })
 ```
 
@@ -1299,7 +1300,7 @@ Edit the bottom of the file:
 export function chatPanelDef(apiBase: string): PanelDef {
   return {
     id: 'chat',
-    title: 'aidx',
+    title: 'mandarax',
     create: (ctx) => (
       <ChatPanel
         apiBase={apiBase}
@@ -1316,7 +1317,7 @@ export function chatPanelDef(apiBase: string): PanelDef {
 
 - [ ] **Step 6: Typecheck (PanelContext members don't exist yet — fixed next task)**
 
-Run: `pnpm turbo typecheck --filter=@opendui/aidx-widget`
+Run: `pnpm turbo typecheck --filter=@mandarax/widget`
 Expected: FAIL — `ctx.sessionId` / `ctx.onSessionLabel` not on `PanelContext`. Fixed in Task 13.
 
 - [ ] **Step 7: Commit**
@@ -1398,7 +1399,7 @@ import {SessionInfoCard, sessionLabel} from './session-info.js'
 
 - [ ] **Step 3: Typecheck the whole widget**
 
-Run: `pnpm turbo typecheck --filter=@opendui/aidx-widget`
+Run: `pnpm turbo typecheck --filter=@mandarax/widget`
 Expected: PASS — `chat-panel.tsx` now matches `PanelContext`.
 
 - [ ] **Step 4: Commit**
@@ -1438,7 +1439,7 @@ type Pane = {
 Add the layout store (near `FOCUS_KEY`):
 
 ```tsx
-const PANES_KEY = 'aidx-qt-panes'
+const PANES_KEY = 'mandarax-qt-panes'
 const readPaneIds = (): string[] => {
   try {
     const raw = localStorage.getItem(PANES_KEY)
@@ -1469,7 +1470,7 @@ const forgetSession = (sessionId: string) => {
   void fetch(`${base}/api/chat/session`, {
     method: 'DELETE',
     credentials: 'include',
-    headers: {'aidx-session-id': sessionId},
+    headers: {'mandarax-session-id': sessionId},
   }).catch(() => {})
 }
 ```
@@ -1558,12 +1559,12 @@ Replace the pane name span (currently `<span class="pw-qt-pane-name">session-{pa
 
 - [ ] **Step 5: Typecheck**
 
-Run: `pnpm turbo typecheck --filter=@opendui/aidx-widget`
+Run: `pnpm turbo typecheck --filter=@mandarax/widget`
 Expected: PASS.
 
 - [ ] **Step 6: Build the widget**
 
-Run: `pnpm turbo build --filter=@opendui/aidx-widget`
+Run: `pnpm turbo build --filter=@mandarax/widget`
 Expected: PASS.
 
 - [ ] **Step 7: Commit**
@@ -1590,7 +1591,7 @@ In `fake-claude.ts`, add a summary line to the emitted transcript stream (after 
 {type: 'summary', summary: 'Fake session title'},
 ```
 
-> This is what the live stream emits to the decoder. The decoder ignores `summary` (only `system`/`result` carry the session id), so existing decode tests are unaffected — verify by running `pnpm --filter @opendui/aidx-harness exec vitest run` after the edit.
+> This is what the live stream emits to the decoder. The decoder ignores `summary` (only `system`/`result` carry the session id), so existing decode tests are unaffected — verify by running `pnpm --filter @mandarax/harness exec vitest run` after the edit.
 
 - [ ] **Step 2: Write the failing widget IT**
 
@@ -1629,7 +1630,7 @@ it('runs two quick-terminal panes as independent parallel sessions', async () =>
 
 - [ ] **Step 3: Run the widget IT**
 
-Run: `pnpm --filter @opendui/aidx-widget exec vitest run test/widget.it.test.ts`
+Run: `pnpm --filter @mandarax/widget exec vitest run test/widget.it.test.ts`
 Expected: PASS — two panes stream in parallel, labels + popover render.
 
 - [ ] **Step 4: Commit**

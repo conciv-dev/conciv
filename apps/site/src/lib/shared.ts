@@ -1,4 +1,4 @@
-export const appName = 'aidx'
+export const appName = 'mandarax'
 export const docsRoute = '/docs'
 export const docsImageRoute = '/og/docs'
 
@@ -7,6 +7,6 @@ export const docsEnabled = import.meta.env.DEV || import.meta.env.VITE_DOCS_ENAB
 
 export const gitConfig = {
   user: 'omridevk',
-  repo: 'aidx',
+  repo: 'mandarax',
   branch: 'main',
 }

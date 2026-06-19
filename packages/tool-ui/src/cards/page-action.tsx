@@ -1,6 +1,6 @@
 import {Show, type JSX} from 'solid-js'
 import {MousePointerClick, Target} from 'lucide-solid'
-import {PageInput} from '@opendui/aidx-tools/defs'
+import {PageInput} from '@mandarax/tools/defs'
 import {ToolCard} from '../shell.js'
 import {parseInput} from '../util.js'
 import type {ToolCardProps} from '../types.js'

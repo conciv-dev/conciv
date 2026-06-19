@@ -10,7 +10,7 @@ export async function chunkWithInlineMap(source: string, line: number, column: n
   const gen = new GenMapping()
   addMapping(gen, {generated: {line: 2, column: 0}, source, original: {line, column}})
   const b64 = Buffer.from(JSON.stringify(toEncodedMap(gen))).toString('base64')
-  const path = join(tmpdir(), `aidx-chunk-${Math.random().toString(36).slice(2)}.js`)
+  const path = join(tmpdir(), `mandarax-chunk-${Math.random().toString(36).slice(2)}.js`)
   await writeFile(path, `"use strict";\nvoid 0;\n//# sourceMappingURL=data:application/json;base64,${b64}`)
   written.push(path)
   return path

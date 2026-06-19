@@ -1,7 +1,7 @@
 import {createSignal, For, onMount, Show, type JSX} from 'solid-js'
 import {Combobox, useListCollection} from '@ark-ui/solid/combobox'
 import {Check, ChevronsUpDown} from 'lucide-solid'
-import type {HarnessModelInfo} from '@opendui/aidx-protocol/chat-types'
+import type {HarnessModelInfo} from '@mandarax/protocol/chat-types'
 import {defineClient} from './session-client.js'
 import {createPersistedSignal} from './persisted-signal.js'
 import type {ComposerControlDef} from './widget-shell.js'
@@ -123,7 +123,7 @@ export function ModelSelector(props: {
 
 // Persist the user's pick across sessions. Keyed globally (one composer model at a time); a future
 // per-harness key can slot in here without touching the plugin contract.
-const MODEL_KEY = 'pw-aidx-model'
+const MODEL_KEY = 'pw-mandarax-model'
 
 // The composer-control plugin. Registered on the shell (mount.tsx), it fetches the active harness's
 // models, owns the selection (persisted), and ships it on every turn via ctx.setRequestMeta({model}).

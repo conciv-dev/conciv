@@ -39,7 +39,7 @@ export const LongRead: Story = {
 
 export const Opened: Story = {
   args: {
-    part: callPart({name: 'aidx_open', input: {file: 'src/routes/index.tsx', line: 12}}),
+    part: callPart({name: 'mandarax_open', input: {file: 'src/routes/index.tsx', line: 12}}),
     result: resultPart('{"ok":true}'),
     ctx: noopCtx(),
   },

@@ -9,7 +9,7 @@ type Story = StoryObj<typeof UiCard>
 
 export const Form: Story = {
   args: {
-    part: callPart({name: 'aidx_ui', input: {kind: 'form', title: 'Add a project'}}),
+    part: callPart({name: 'mandarax_ui', input: {kind: 'form', title: 'Add a project'}}),
     result: resultPart('{"injected":true}'),
     ctx: noopCtx(),
   },
@@ -21,7 +21,7 @@ export const Form: Story = {
 
 export const Confirm: Story = {
   args: {
-    part: callPart({name: 'aidx_ui', input: {kind: 'confirm', question: 'Delete the file?'}}),
+    part: callPart({name: 'mandarax_ui', input: {kind: 'confirm', question: 'Delete the file?'}}),
     result: resultPart('{"injected":true}'),
     ctx: noopCtx(),
   },

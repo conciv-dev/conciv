@@ -3,10 +3,10 @@ import {mkdtempSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {serve, type Server} from 'srvx'
-import {getHarness} from '@opendui/aidx-harness'
-import type {HarnessChild} from '@opendui/aidx-protocol/harness-types'
+import {getHarness} from '@mandarax/harness'
+import type {HarnessChild} from '@mandarax/protocol/harness-types'
 import {makeApp} from '../../src/app.js'
-import type {ResolvedAidxConfig} from '../../src/config.js'
+import type {ResolvedMandaraxConfig} from '../../src/config.js'
 
 export type SpawnHarness = (args: string[], cwd: string, sessionId?: string) => HarnessChild
 
@@ -26,7 +26,7 @@ export type TestServer = {
   base: string
   stateRoot: string
   previewId: string
-  // Normalize any id (none/ours/harness) to our aidx_ id — the one-round-trip every client does first.
+  // Normalize any id (none/ours/harness) to our mandarax_ id — the one-round-trip every client does first.
   resolve: (id?: string) => Promise<string>
   post: (path: string, body: unknown, sessionId?: string) => Promise<Response>
   postChat: (message: unknown, sessionId?: string) => Promise<string>
@@ -49,12 +49,12 @@ function realSpawn(bin: string): SpawnHarness {
 // Boot the REAL app (makeApp — the same factory production uses) over a real srvx server, with a
 // harness spawn injected. No bespoke route wiring: tests exercise the production composition.
 export async function startTestServer(opts: TestServerOpts = {}): Promise<TestServer> {
-  const stateRoot = opts.stateRoot ?? mkdtempSync(join(tmpdir(), 'aidx-it-'))
+  const stateRoot = opts.stateRoot ?? mkdtempSync(join(tmpdir(), 'mandarax-it-'))
   const harnessId = opts.harness ?? 'claude'
   const harness = getHarness(harnessId)
   if (!harness) throw new Error(`harness '${harnessId}' not registered`)
 
-  const cfg: ResolvedAidxConfig = {
+  const cfg: ResolvedMandaraxConfig = {
     enabled: true,
     widgetUrl: undefined,
     previewId: 'it-preview',
@@ -81,13 +81,13 @@ export async function startTestServer(opts: TestServerOpts = {}): Promise<TestSe
   const post = (path: string, body: unknown, sessionId?: string): Promise<Response> =>
     fetch(`${base}${path}`, {
       method: 'POST',
-      headers: {'content-type': 'application/json', ...(sessionId ? {'aidx-session-id': sessionId} : {})},
+      headers: {'content-type': 'application/json', ...(sessionId ? {'mandarax-session-id': sessionId} : {})},
       body: JSON.stringify(body),
     })
   const postChat = async (message: unknown, sessionId?: string): Promise<string> =>
     (await post('/api/chat', {messages: [message]}, sessionId)).text()
   const getSession = (sessionId?: string): Promise<Response> =>
-    fetch(`${base}/api/chat/session`, {headers: sessionId ? {'aidx-session-id': sessionId} : {}})
+    fetch(`${base}/api/chat/session`, {headers: sessionId ? {'mandarax-session-id': sessionId} : {}})
   const getSessions = (): Promise<Response> => fetch(`${base}/api/chat/sessions`)
   const resolve = async (id?: string): Promise<string> => {
     const res = await post('/api/chat/session/resolve', id ? {id} : {})

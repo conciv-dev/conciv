@@ -1,4 +1,4 @@
-import {defineHarness} from '@opendui/aidx-protocol/harness-types'
+import {defineHarness} from '@mandarax/protocol/harness-types'
 import {buildCodexArgs} from './args.js'
 import {codexToAguiEvents} from './decode.js'
 
@@ -22,7 +22,7 @@ export const codex = defineHarness({
   buildArgs: buildCodexArgs,
   decode: codexToAguiEvents,
   // Interactive resume: codex [resume <id>] [-m <m>]. Model-only for v1 — codex has no --mcp-config
-  // flag (MCP lives in ~/.codex/config.toml or -c overrides), so aidx tool parity is out of scope here.
+  // flag (MCP lives in ~/.codex/config.toml or -c overrides), so mandarax tool parity is out of scope here.
   launch: (ctx) => {
     const argv = ['codex']
     if (ctx.sessionId) argv.push('resume', ctx.sessionId)

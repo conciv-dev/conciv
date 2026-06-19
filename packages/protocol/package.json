@@ -1,7 +1,7 @@
 {
-  "name": "@opendui/aidx-protocol",
+  "name": "@mandarax/protocol",
   "version": "0.0.0",
-  "description": "Wire types shared by the aidx vite-plugin and widget.",
+  "description": "Wire types shared by the mandarax vite-plugin and widget.",
   "license": "MIT",
   "files": [
     "dist"

@@ -8,7 +8,7 @@ const get = (page: import('@playwright/test').Page, path: string) =>
 
 async function widgetReady(page: import('@playwright/test').Page): Promise<void> {
   await page.goto('/')
-  await expect(page.getByRole('button', {name: 'Open aidx chat'})).toBeVisible({timeout: 30_000})
+  await expect(page.getByRole('button', {name: 'Open mandarax chat'})).toBeVisible({timeout: 30_000})
 }
 
 test('tree returns a component hierarchy', async ({page}) => {

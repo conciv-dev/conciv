@@ -187,7 +187,7 @@ export const CaretPlacement: Story = {
   },
 }
 
-// The exact TEXT_MESSAGE_CONTENT deltas captured from a real aidx run that mis-rendered the caret.
+// The exact TEXT_MESSAGE_CONTENT deltas captured from a real mandarax run that mis-rendered the caret.
 // The widget accumulates deltas and passes the growing string to <Markdown> each token, so we do the same.
 const WIDGET_DELTAS = [
   'Another long prose passage, no code.\n\n---\n\nIt occurs to me that what we are doing,',

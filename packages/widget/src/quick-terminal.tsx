@@ -10,8 +10,8 @@ import {ContextTracker} from './context-tracker.js'
 import {SessionSelector} from './session-selector.js'
 import {sessions, mergeSurface, makeSurfaceRow, invalidateSessions} from './session-store-client.js'
 import {defineClient, type SessionClient} from './session-client.js'
-import {SessionId, isSessionId} from '@opendui/aidx-protocol/chat-types'
-import type {UsageSnapshot} from '@opendui/aidx-protocol/usage-types'
+import {SessionId, isSessionId} from '@mandarax/protocol/chat-types'
+import type {UsageSnapshot} from '@mandarax/protocol/usage-types'
 
 type Pane = {
   id: number
@@ -42,7 +42,7 @@ export function QuickTerminalLayout(props: {
     initial: Math.round(window.innerHeight * 0.52),
     min: 200,
     collapseAt: 120,
-    storageKey: 'aidx-qt-height',
+    storageKey: 'mandarax-qt-height',
     grow: () => 'down',
     onCollapse: () => props.setOpen(false),
   })
@@ -55,7 +55,7 @@ export function QuickTerminalLayout(props: {
   let sectionEl: HTMLElement | undefined
 
   // Persisted pane layout: one session id per pane, restored on reopen (which sessions, in order).
-  const PANES_KEY = 'aidx-qt-panes'
+  const PANES_KEY = 'mandarax-qt-panes'
   const readPaneIds = (): string[] =>
     readStorage(
       PANES_KEY,
@@ -79,7 +79,7 @@ export function QuickTerminalLayout(props: {
   }
 
   // Remember which pane was active (by position) so reopening focuses the same one.
-  const FOCUS_KEY = 'aidx-qt-focused'
+  const FOCUS_KEY = 'mandarax-qt-focused'
   const readFocusIndex = (): number =>
     readStorage(
       FOCUS_KEY,
@@ -101,7 +101,7 @@ export function QuickTerminalLayout(props: {
     const id = ++seq
     const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
     const [working, setWorking] = createSignal(false)
-    // Each pane owns its session client. Restore a persisted aidx_ id, else resolve a fresh session.
+    // Each pane owns its session client. Restore a persisted mandarax_ id, else resolve a fresh session.
     const client = defineClient({apiBase: props.panel.apiBase ?? ''})
     if (initialId && isSessionId(initialId)) client.setSessionId(SessionId.parse(initialId))
     else void client.resolve().then((r) => client.setSessionId(r.sessionId))
@@ -223,7 +223,7 @@ export function QuickTerminalLayout(props: {
       classList={{'pw-pick-away': picking()}}
       style={{height: `${resize.size()}px`}}
       role="dialog"
-      aria-label="aidx quick terminal"
+      aria-label="mandarax quick terminal"
       aria-hidden={!props.open()}
     >
       <header class="pw-qt-head">
@@ -240,7 +240,7 @@ export function QuickTerminalLayout(props: {
           class="pw-chat-close"
           aria-label="Pop out to a window"
           title="Picture-in-Picture"
-          onClick={() => sectionEl && pip.open(sectionEl, {title: 'aidx quick terminal'})}
+          onClick={() => sectionEl && pip.open(sectionEl, {title: 'mandarax quick terminal'})}
         >
           <PictureInPicture2 class="pw-icon" aria-hidden="true" />
         </button>

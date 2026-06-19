@@ -1,7 +1,7 @@
 {
-  "name": "@opendui/aidx-harness",
+  "name": "@mandarax/harness",
   "version": "0.0.0",
-  "description": "Harness adapters (claude, codex, + stubs) behind the @opendui/aidx-protocol HarnessAdapter contract.",
+  "description": "Harness adapters (claude, codex, + stubs) behind the @mandarax/protocol HarnessAdapter contract.",
   "license": "MIT",
   "files": [
     "dist",
@@ -41,7 +41,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@opendui/aidx-protocol": "workspace:*",
+    "@mandarax/protocol": "workspace:*",
     "@tanstack/ai": "^0.28.0",
     "zod": "^4.4.3"
   },

@@ -1,13 +1,13 @@
 import {Show, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {FileText} from 'lucide-solid'
-import {SolidCodeBlock} from '@opendui/aidx-solid-diffs'
+import {SolidCodeBlock} from '@mandarax/solid-diffs'
 import {ToolCard} from '../shell.js'
 import {parseInput, resultText, stripReadLineNumbers} from '../util.js'
 import {CODE_OPTIONS} from '../diff-options.js'
 import type {ToolCardProps} from '../types.js'
 
-// claude Read carries file_path + optional offset/limit; aidx_open carries file + optional line.
+// claude Read carries file_path + optional offset/limit; mandarax_open carries file + optional line.
 const ReadInput = z.object({
   file_path: z.string().optional(),
   file: z.string().optional(),
@@ -43,13 +43,13 @@ function fileContents(raw: string): string {
 export function FileReadCard(props: ToolCardProps): JSX.Element {
   const input = () => parseInput(ReadInput, props.part)
   const path = () => input()?.file_path ?? input()?.file ?? ''
-  const verb = () => (props.part.name === 'aidx_open' ? 'Opened' : 'Read')
+  const verb = () => (props.part.name === 'mandarax_open' ? 'Opened' : 'Read')
   const range = () => {
     const i = input()
     return i ? lineRange(i) : undefined
   }
-  // aidx_open just opens the editor (no contents); Read returns the file text.
-  const contents = () => (props.part.name === 'aidx_open' ? '' : fileContents(resultText(props.result)))
+  // mandarax_open just opens the editor (no contents); Read returns the file text.
+  const contents = () => (props.part.name === 'mandarax_open' ? '' : fileContents(resultText(props.result)))
   return (
     <ToolCard
       accent="read"

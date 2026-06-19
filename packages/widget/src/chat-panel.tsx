@@ -7,25 +7,25 @@ import {apiError, createTransport} from './transport.js'
 import {invalidateSessions} from './session-store-client.js'
 import {createDebouncer} from '@tanstack/solid-pacer'
 import {GenUi} from './gen-ui.js'
-import {ToolCallCard, ReflectionCard, NowLine, nowTitle, type ToolViewCtx} from '@opendui/aidx-tool-ui'
+import {ToolCallCard, ReflectionCard, NowLine, nowTitle, type ToolViewCtx} from '@mandarax/tool-ui'
 import {Markdown} from './markdown.js'
 import {ArrowRight, Square, SquarePen, FoldVertical} from 'lucide-solid'
 import {EventType, type StreamChunk} from '@tanstack/ai'
-import {AIDX_UI_EVENT, UiSpecSchema, type UiSpec} from '@opendui/aidx-protocol/ui-types'
+import {MANDARAX_UI_EVENT, UiSpecSchema, type UiSpec} from '@mandarax/protocol/ui-types'
 import {
-  AIDX_USAGE_EVENT,
+  MANDARAX_USAGE_EVENT,
   UsageSnapshotSchema,
   tokenUsageToSnapshot,
   type UsageSnapshot,
-} from '@opendui/aidx-protocol/usage-types'
-import {TestEventSchema, EditorOpenSchema} from '@opendui/aidx-protocol/test-types'
-import {OkSchema} from '@opendui/aidx-protocol/chat-types'
+} from '@mandarax/protocol/usage-types'
+import {TestEventSchema, EditorOpenSchema} from '@mandarax/protocol/test-types'
+import {OkSchema} from '@mandarax/protocol/chat-types'
 import type {ComposerActionDef, ComposerControlDef, PanelDef} from './widget-shell.js'
 import {GrabReference} from './react-grab/grab-reference.js'
 import type {Grab} from './react-grab/grab-types.js'
 
 // One message's tool-call ↔ tool-result pairing. Each tool-call renders one card (from
-// @opendui/aidx-tool-ui) with its sibling result inline; the standalone result part is then hidden.
+// @mandarax/tool-ui) with its sibling result inline; the standalone result part is then hidden.
 // An orphan result (no matching call — rare) still renders via the fallback.
 type ResultPairing = {byCallId: Map<string, ToolResultPart>; hiddenResultIds: Set<string>}
 
@@ -124,7 +124,7 @@ function asResultPart(part: MessagePart): ToolResultPart | null {
 // Reactive part view. Branch selection is via <Switch>/<Match> (not a one-shot if-chain) and every
 // value is read off props lazily, so the SAME subtree updates as a part's text grows or its result
 // lands — no teardown, no Streamdown remount. Each tool-call renders one card from
-// @opendui/aidx-tool-ui (dispatched by part.name, reading typed part.input/part.output), paired with
+// @mandarax/tool-ui (dispatched by part.name, reading typed part.input/part.output), paired with
 // its sibling tool-result; the standalone result part is hidden once paired.
 function PartView(props: {
   part: MessagePart
@@ -233,7 +233,7 @@ export function ChatPanel(props: {
   // The active harness id (claude/codex/…), passed to each tool card's ToolViewCtx so renderers can
   // adapt if needed. Known at mount from /models; threaded through chatPanelDef.
   harnessId: string
-  // This surface's session client — owns the active aidx_ id; switching it reloads the thread in
+  // This surface's session client — owns the active mandarax_ id; switching it reloads the thread in
   // place. The single comms seam (session reads, the chat stream, the permission gate).
   client: SessionClient
   // The containing surface is visible/focused — focus the composer and hydrate on first show.
@@ -256,15 +256,15 @@ export function ChatPanel(props: {
   const client = props.client
   const [genUi, setGenUi] = createSignal<UiSpec[]>([])
   const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
-  // The agent's `aidx ui …` calls arrive as AG-UI CUSTOM events; render each in the thread.
+  // The agent's `mandarax ui …` calls arrive as AG-UI CUSTOM events; render each in the thread.
   // Live usage updates arrive on the same channel (injected by core mid-turn).
-  const onAidxUi = (eventType: string, data: unknown) => {
-    if (eventType === AIDX_USAGE_EVENT) {
+  const onMandaraxUi = (eventType: string, data: unknown) => {
+    if (eventType === MANDARAX_USAGE_EVENT) {
       const parsed = UsageSnapshotSchema.safeParse(data)
       if (parsed.success) setUsage((prev) => ({...prev, ...parsed.data}))
       return
     }
-    if (eventType !== AIDX_UI_EVENT) return
+    if (eventType !== MANDARAX_UI_EVENT) return
     const parsed = UiSpecSchema.safeParse(data)
     if (!parsed.success) return
     const spec = parsed.data
@@ -291,7 +291,7 @@ export function ChatPanel(props: {
         body: requestMeta(),
       })),
     }),
-    onCustomEvent: onAidxUi,
+    onCustomEvent: onMandaraxUi,
     onChunk,
   })
   const [input, setInput] = createSignal('')
@@ -314,7 +314,7 @@ export function ChatPanel(props: {
   const isActiveAssistant = (index: number, role: string) =>
     isStreaming() && role === 'assistant' && index === lastIndex()
 
-  // Host-app seams the tool cards need, injected so @opendui/aidx-tool-ui stays transport-free: send
+  // Host-app seams the tool cards need, injected so @mandarax/tool-ui stays transport-free: send
   // a follow-up message, subscribe to the live test-runner SSE, open a file in the user's editor.
   const transport = createTransport({apiBase: props.apiBase})
   const openEditor = transport.route({
@@ -377,8 +377,8 @@ export function ChatPanel(props: {
   let prevStatus = ''
   createEffect(() => {
     const s = chat.status()
-    if (s === 'submitted') setLiveMsg('aidx is thinking…')
-    else if (prevStatus === 'streaming' && s !== 'streaming') setLiveMsg('aidx replied.')
+    if (s === 'submitted') setLiveMsg('mandarax is thinking…')
+    else if (prevStatus === 'streaming' && s !== 'streaming') setLiveMsg('mandarax replied.')
     prevStatus = s
   })
 
@@ -683,7 +683,7 @@ export function ChatPanel(props: {
             class="pw-chat-input"
             rows={1}
             placeholder="Ask a question…"
-            aria-label="Message the aidx agent"
+            aria-label="Message the mandarax agent"
             value={input()}
             onInput={(e) => {
               setInput(e.currentTarget.value)
@@ -746,7 +746,7 @@ export function ChatPanel(props: {
 export function chatPanelDef(apiBase: string, harnessId: string): PanelDef {
   return {
     id: 'chat',
-    title: 'aidx',
+    title: 'mandarax',
     apiBase,
     create: (ctx) => (
       <ChatPanel

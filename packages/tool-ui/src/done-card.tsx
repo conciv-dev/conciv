@@ -1,6 +1,6 @@
 import {For, Show, type JSX} from 'solid-js'
 import {Check, Sparkles, X} from 'lucide-solid'
-import type {DoneCard as DoneData} from '@opendui/aidx-protocol/done-types'
+import type {DoneCard as DoneData} from '@mandarax/protocol/done-types'
 
 // The structured "done" card: renders the agent-authored roll-up (summary + files/page/tests). The
 // prose `message` is rendered by the widget's normal text part, so this card shows only the

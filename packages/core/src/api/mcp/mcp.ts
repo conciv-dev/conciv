@@ -1,16 +1,16 @@
 import type {H3} from 'h3'
 import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js'
 import {WebStandardStreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
-import {aidxTools, type AidxToolContext} from '@opendui/aidx-tools'
+import {mandaraxTools, type MandaraxToolContext} from '@mandarax/tools'
 import {sessionIdFromHeaders} from '../chat/session-id.js'
 
-// Build an McpServer exposing the aidx tool registry bound to `ctx`. A fresh server + transport is
+// Build an McpServer exposing the mandarax tool registry bound to `ctx`. A fresh server + transport is
 // created per request: the stateless streamable-HTTP pattern isolates each client's request-id
 // state and connect() binds exactly one transport. registerTool wants a Zod raw shape, so we pass
 // each tool's inputSchema.shape (the ZodObject is preserved on the tool, so .shape is typed).
-function buildServer(ctx: AidxToolContext): McpServer {
-  const server = new McpServer({name: 'aidx', version: '0.0.0'})
-  for (const tool of aidxTools(ctx)) {
+function buildServer(ctx: MandaraxToolContext): McpServer {
+  const server = new McpServer({name: 'mandarax', version: '0.0.0'})
+  for (const tool of mandaraxTools(ctx)) {
     server.registerTool(
       tool.name,
       {description: tool.description, inputSchema: tool.inputSchema.shape},
@@ -27,8 +27,8 @@ function buildServer(ctx: AidxToolContext): McpServer {
 // Mount the MCP-over-HTTP server on core's existing h3 app. Web Standard transport: takes the
 // incoming web Request and returns a Response, so the route returns it directly — in-process, no
 // node-object bridge, no separate server. The ctx is built per request, bound to the caller's
-// header session id, so an agent's `aidx_ui` MCP tool injects onto its own turn's channel.
-export function registerMcpRoutes(app: H3, makeCtx: (sessionId: string) => AidxToolContext): void {
+// header session id, so an agent's `mandarax_ui` MCP tool injects onto its own turn's channel.
+export function registerMcpRoutes(app: H3, makeCtx: (sessionId: string) => MandaraxToolContext): void {
   app.post('/api/mcp', async (event) => {
     const ctx = makeCtx(sessionIdFromHeaders(event.req.headers) ?? '') // '' = no live channel
     const transport = new WebStandardStreamableHTTPServerTransport({

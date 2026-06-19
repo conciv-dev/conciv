@@ -1,2 +1,2 @@
-export {withAidx, register, AIDX_DEFAULT_PORT} from './core/nextjs.js'
-export type {AidxConfig} from '@opendui/aidx-protocol/config-types'
+export {withMandarax, register, MANDARAX_DEFAULT_PORT} from './core/nextjs.js'
+export type {MandaraxConfig} from '@mandarax/protocol/config-types'

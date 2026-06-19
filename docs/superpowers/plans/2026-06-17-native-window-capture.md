@@ -4,7 +4,7 @@
 
 **Goal:** When a user grabs an element in the widget, additionally send the bot a real pixel screenshot of the dev app's browser window, captured by a node-spawned native Swift binary, with the entire feature behaving as a progressive enhancement that fully degrades to today's behavior when unavailable.
 
-**Architecture:** A prebuilt Swift + ScreenCaptureKit binary is spawned by `@opendui/aidx-core` as a child of the dev server; it rides the dev-host (terminal/IDE) Screen Recording grant and writes a PNG. A new `POST /api/page/capture` core route exposes it. The widget calls it during a grab and attaches the PNG as an inline image content part on the next turn, reusing the existing image-delivery path. Every layer treats capture as optional: missing binary, non-macOS host, denied permission, or any spawn error falls back silently to the existing DOM-clone-only grab.
+**Architecture:** A prebuilt Swift + ScreenCaptureKit binary is spawned by `@mandarax/core` as a child of the dev server; it rides the dev-host (terminal/IDE) Screen Recording grant and writes a PNG. A new `POST /api/page/capture` core route exposes it. The widget calls it during a grab and attaches the PNG as an inline image content part on the next turn, reusing the existing image-delivery path. Every layer treats capture as optional: missing binary, non-macOS host, denied permission, or any spawn error falls back silently to the existing DOM-clone-only grab.
 
 **Tech Stack:** Swift (swiftc, Command Line Tools, no Xcode), ScreenCaptureKit, AppKit; TypeScript, h3, zod, vitest; SolidJS widget.
 
@@ -25,10 +25,10 @@
 ## File Structure
 
 - `packages/capture-macos/src/main.swift` — the Swift capture binary source (single-shot CLI).
-- `packages/capture-macos/build.sh` — builds the binary into `bin/<arch>/aidx-capture`.
-- `packages/capture-macos/bin/arm64/aidx-capture` — prebuilt binary (committed; mac-only MVP).
+- `packages/capture-macos/build.sh` — builds the binary into `bin/<arch>/mandarax-capture`.
+- `packages/capture-macos/bin/arm64/mandarax-capture` — prebuilt binary (committed; mac-only MVP).
 - `packages/capture-macos/src/index.ts` — `resolveCaptureBinary()`: returns the host-arch binary path or null.
-- `packages/capture-macos/package.json` — `@opendui/aidx-capture-macos`, `os: ["darwin"]`.
+- `packages/capture-macos/package.json` — `@mandarax/capture-macos`, `os: ["darwin"]`.
 - `packages/protocol/src/capture-types.ts` — zod schema + types for the capture request and result.
 - `packages/core/src/page/capture.ts` — `captureWindow()`: spawns the binary, classifies the outcome.
 - `packages/core/src/api/page/page.ts` — register `POST /api/page/capture` (modify).
@@ -77,7 +77,7 @@ describe('capture-types', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @opendui/aidx-protocol test capture-types`
+Run: `pnpm --filter @mandarax/protocol test capture-types`
 Expected: FAIL — cannot resolve `../src/capture-types.js`.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -110,7 +110,7 @@ export type CaptureResult = z.infer<typeof CaptureResultSchema>
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm --filter @opendui/aidx-protocol test capture-types`
+Run: `pnpm --filter @mandarax/protocol test capture-types`
 Expected: PASS (4 tests).
 
 - [ ] **Step 5: Commit**
@@ -155,7 +155,7 @@ describe('responsibleHostApp', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @opendui/aidx-core test host-app`
+Run: `pnpm --filter @mandarax/core test host-app`
 Expected: FAIL — cannot resolve `../src/host-app.js`.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -208,7 +208,7 @@ export function responsibleHostApp(pid: number = process.pid): string {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm --filter @opendui/aidx-core test host-app`
+Run: `pnpm --filter @mandarax/core test host-app`
 Expected: PASS (2 tests).
 
 - [ ] **Step 5: Commit**
@@ -238,7 +238,7 @@ git commit --no-verify -m "feat(core): detect responsible dev-host app for TCC g
 
 ```json
 {
-  "name": "@opendui/aidx-capture-macos",
+  "name": "@mandarax/capture-macos",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -340,11 +340,11 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 ARCH="$(uname -m)" # arm64 | x86_64
 OUT="$DIR/bin/$ARCH"
 mkdir -p "$OUT"
-swiftc "$DIR/src/main.swift" -o "$OUT/aidx-capture" \
+swiftc "$DIR/src/main.swift" -o "$OUT/mandarax-capture" \
   -target "$ARCH-apple-macos14.0" -parse-as-library \
   -framework AppKit -framework ScreenCaptureKit -framework CoreGraphics
-codesign --force --sign - "$OUT/aidx-capture" # ad-hoc; rides the dev-host grant, no own identity
-echo "built $OUT/aidx-capture"
+codesign --force --sign - "$OUT/mandarax-capture" # ad-hoc; rides the dev-host grant, no own identity
+echo "built $OUT/mandarax-capture"
 ```
 
 - [ ] **Step 4: Build and smoke-test the binary**
@@ -353,14 +353,14 @@ echo "built $OUT/aidx-capture"
 chmod +x packages/capture-macos/build.sh
 bash packages/capture-macos/build.sh
 # Permission path (run before granting, or in CI): prints a permission/no-window failure, exits non-zero.
-./packages/capture-macos/bin/$(uname -m)/aidx-capture --out /tmp/aidx-smoke.png; echo "exit=$?"
+./packages/capture-macos/bin/$(uname -m)/mandarax-capture --out /tmp/mandarax-smoke.png; echo "exit=$?"
 ```
 
-Expected: a single JSON line. With Screen Recording granted to the host terminal and a browser window open: `{"ok":true,...}`, exit 0, `/tmp/aidx-smoke.png` exists. Without the grant: `{"ok":false,"reason":"permission"}`, exit 1.
+Expected: a single JSON line. With Screen Recording granted to the host terminal and a browser window open: `{"ok":true,...}`, exit 0, `/tmp/mandarax-smoke.png` exists. Without the grant: `{"ok":false,"reason":"permission"}`, exit 1.
 
 - [ ] **Step 5: Verify the PNG visually (manual, one-time)**
 
-Open `/tmp/aidx-smoke.png` and confirm it is a real browser window, not wallpaper. (If it is wallpaper, the host terminal lacks the grant — that is the `permission` path, expected.)
+Open `/tmp/mandarax-smoke.png` and confirm it is a real browser window, not wallpaper. (If it is wallpaper, the host terminal lacks the grant — that is the `permission` path, expected.)
 
 - [ ] **Step 6: Commit**
 
@@ -380,7 +380,7 @@ git commit --no-verify -m "feat(capture-macos): ScreenCaptureKit window-capture 
 
 **Interfaces:**
 
-- Consumes: the built binary at `bin/<arch>/aidx-capture` from Task 3.
+- Consumes: the built binary at `bin/<arch>/mandarax-capture` from Task 3.
 - Produces: `resolveCaptureBinary(): string | null` — absolute path to the host-arch binary if it exists and the OS is darwin, else null.
 
 - [ ] **Step 1: Write the failing test**
@@ -405,7 +405,7 @@ describe('resolveCaptureBinary', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @opendui/aidx-capture-macos test`
+Run: `pnpm --filter @mandarax/capture-macos test`
 Expected: FAIL — cannot resolve `../src/index.js`.
 
 - [ ] **Step 3: Write minimal implementation**
@@ -421,15 +421,15 @@ const here = dirname(fileURLToPath(import.meta.url))
 export function resolveCaptureBinary(): string | null {
   if (process.platform !== 'darwin') return null
   const arch = process.arch === 'arm64' ? 'arm64' : 'x86_64'
-  // dist/index.js -> ../bin/<arch>/aidx-capture
-  const path = join(here, '..', 'bin', arch, 'aidx-capture')
+  // dist/index.js -> ../bin/<arch>/mandarax-capture
+  const path = join(here, '..', 'bin', arch, 'mandarax-capture')
   return existsSync(path) ? path : null
 }
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm --filter @opendui/aidx-capture-macos test`
+Run: `pnpm --filter @mandarax/capture-macos test`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -460,7 +460,7 @@ git commit --no-verify -m "feat(capture-macos): host-arch binary resolver"
 
 ```bash
 #!/bin/bash
-# Mimics aidx-capture: --out <path> [--mode ok|permission]. Writes a 1x1 PNG and the JSON line.
+# Mimics mandarax-capture: --out <path> [--mode ok|permission]. Writes a 1x1 PNG and the JSON line.
 OUT=""; MODE="ok"
 while [ $# -gt 0 ]; do case "$1" in --out) OUT="$2"; shift 2;; --mode) MODE="$2"; shift 2;; *) shift;; esac; done
 if [ "$MODE" = "permission" ]; then echo '{"ok":false,"reason":"permission"}'; exit 1; fi
@@ -488,7 +488,7 @@ describe('captureWindow', () => {
     expect(r).toEqual({ok: false, reason: process.platform === 'darwin' ? 'binary-missing' : 'unsupported-os'})
   })
   it('returns binary-missing when the path does not exist', async () => {
-    const r = await captureWindow({}, {binaryPath: '/no/such/aidx-capture'})
+    const r = await captureWindow({}, {binaryPath: '/no/such/mandarax-capture'})
     expect(r).toEqual({ok: false, reason: 'binary-missing'})
   })
   it('returns a base64 PNG on success', async () => {
@@ -521,8 +521,8 @@ import {
   type CaptureFailure,
   type CaptureRequest,
   type CaptureResult,
-} from '@opendui/aidx-protocol/capture-types'
-import {resolveCaptureBinary} from '@opendui/aidx-capture-macos'
+} from '@mandarax/protocol/capture-types'
+import {resolveCaptureBinary} from '@mandarax/capture-macos'
 
 type CaptureOpts = {binaryPath?: string | null; timeoutMs?: number; extraArgs?: string[]}
 
@@ -542,7 +542,7 @@ export async function captureWindow(req: CaptureRequest, opts: CaptureOpts = {})
     return {ok: false, reason: process.platform === 'darwin' ? 'binary-missing' : 'unsupported-os'}
   if (!existsSync(binaryPath)) return {ok: false, reason: 'binary-missing'}
 
-  const out = join(tmpdir(), `aidx-capture-${randomUUID()}.png`)
+  const out = join(tmpdir(), `mandarax-capture-${randomUUID()}.png`)
   const args = ['--out', out, ...(req.title ? ['--match', req.title] : []), ...(opts.extraArgs ?? [])]
   const timeoutMs = opts.timeoutMs ?? 8000
 
@@ -571,11 +571,11 @@ export async function captureWindow(req: CaptureRequest, opts: CaptureOpts = {})
 }
 ```
 
-Note: add `@opendui/aidx-capture-macos` to `packages/core/package.json` `dependencies` (workspace) and `optionalDependencies` semantics are unnecessary because `resolveCaptureBinary` already null-guards; the import must not throw on non-darwin, so `index.ts` must have no top-level darwin-only side effects (it does not).
+Note: add `@mandarax/capture-macos` to `packages/core/package.json` `dependencies` (workspace) and `optionalDependencies` semantics are unnecessary because `resolveCaptureBinary` already null-guards; the import must not throw on non-darwin, so `index.ts` must have no top-level darwin-only side effects (it does not).
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `pnpm --filter @opendui/aidx-core test page/capture`
+Run: `pnpm --filter @mandarax/core test page/capture`
 Expected: PASS (4 tests).
 
 - [ ] **Step 5: Commit**
@@ -637,7 +637,7 @@ describe('POST /api/page/capture', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @opendui/aidx-core test api/page/capture`
+Run: `pnpm --filter @mandarax/core test api/page/capture`
 Expected: FAIL — 404, route not registered.
 
 - [ ] **Step 3: Add the route to `registerPageRoutes`**
@@ -645,7 +645,7 @@ Expected: FAIL — 404, route not registered.
 In `packages/core/src/api/page/page.ts`, add imports and a route inside `registerPageRoutes`:
 
 ```ts
-import {CaptureRequestSchema} from '@opendui/aidx-protocol/capture-types'
+import {CaptureRequestSchema} from '@mandarax/protocol/capture-types'
 import {captureWindow} from '../../page/capture.js'
 import {responsibleHostApp} from '../../host-app.js'
 ```
@@ -661,7 +661,7 @@ app.post('/api/page/capture', async (event) => {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm --filter @opendui/aidx-core test api/page/capture`
+Run: `pnpm --filter @mandarax/core test api/page/capture`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -724,13 +724,13 @@ describe('requestScreenshot', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @opendui/aidx-widget test capture-screenshot`
+Run: `pnpm --filter @mandarax/widget test capture-screenshot`
 Expected: FAIL — cannot resolve module.
 
 - [ ] **Step 3: Write minimal implementation**
 
 ```ts
-import type {CaptureResult} from '@opendui/aidx-protocol/capture-types'
+import type {CaptureResult} from '@mandarax/protocol/capture-types'
 
 export type CaptureScreenshot = {mediaType: string; dataBase64: string}
 type Opts = {onPermission?: (host: string) => void}
@@ -761,7 +761,7 @@ export async function requestScreenshot(
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm --filter @opendui/aidx-widget test capture-screenshot`
+Run: `pnpm --filter @mandarax/widget test capture-screenshot`
 Expected: PASS (3 tests).
 
 - [ ] **Step 5: Commit**
@@ -830,7 +830,7 @@ In `packages/widget/src/widget-shell.tsx`, extend `ComposerActionContext` with `
 
 - [ ] **Step 4: Typecheck**
 
-Run: `pnpm turbo typecheck --filter @opendui/aidx-widget`
+Run: `pnpm turbo typecheck --filter @mandarax/widget`
 Expected: PASS. (No unit test here; behavior is verified end-to-end in Task 10.)
 
 - [ ] **Step 5: Commit**
@@ -879,7 +879,7 @@ and merge `imageParts` into the message `content` array alongside the existing t
 
 - [ ] **Step 3: Typecheck**
 
-Run: `pnpm turbo typecheck --filter @opendui/aidx-widget`
+Run: `pnpm turbo typecheck --filter @mandarax/widget`
 Expected: PASS.
 
 - [ ] **Step 4: Commit**
@@ -908,7 +908,7 @@ Boot a real core server and a real dev page (the existing widget IT harness patt
 
 - [ ] **Step 2: Run it**
 
-Run: `pnpm --filter @opendui/aidx-widget test capture-e2e`
+Run: `pnpm --filter @mandarax/widget test capture-e2e`
 Expected: PASS or SKIP (with a clear "Screen Recording not granted to <host>; skipping" message). Never a hard failure on an ungranted/CI host.
 
 - [ ] **Step 3: Write the manual verification checklist**

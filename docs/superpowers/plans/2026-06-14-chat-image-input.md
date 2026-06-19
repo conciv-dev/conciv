@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans (inline, on `main` per user) to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Finish capability-gated image input for the aidx chat composer — drag-and-drop, paste, an upload button, and multiple images per message.
+**Goal:** Finish capability-gated image input for the mandarax chat composer — drag-and-drop, paste, an upload button, and multiple images per message.
 
 **Architecture:** The server half shipped with the TanStack-AI `chat()` migration (merged 2026-06-14): `chat()` drives the turn through `harnessText(harness)`, the request schema accepts image content parts, the adapter extracts them, and claude delivers them as `@<path>` file references written under `cwd`. **Only the frontend and a thin capability-surfacing seam remain.**
 
@@ -20,7 +20,7 @@
 - [x] `HarnessImage {mediaType, dataBase64}`, `images?` on `HarnessTurn`, `stdin?` on `HarnessChild`, optional `deliverInput` hook (76bfd72).
 - [x] Request accepts image parts — `ChatContentPartSchema` (`source: {type, mimeType?, value}`) + `ChatMessageSchema.content: string | ContentPart[]` (`packages/protocol/src/chat-types.ts`).
 - [x] Server extraction — `modelContent`/`toChatMessages` (`messages.ts`) build typed `ContentPart[]`; `lastUserImages` (`packages/harness/src/_shared/text-adapter.ts`) → `HarnessImage[]`, gated on `imageInput === false`.
-- [x] Delivery — `turn.ts` runs `chat({adapter: harnessText(harness, …)})`; claude `buildArgs` writes each image to `.aidx-img-<uuid>.<ext>` under `cwd` and appends `@<path>` to the prompt (`packages/harness/src/claude/args.ts`, c16d5dd).
+- [x] Delivery — `turn.ts` runs `chat({adapter: harnessText(harness, …)})`; claude `buildArgs` writes each image to `.mandarax-img-<uuid>.<ext>` under `cwd` and appends `@<path>` to the prompt (`packages/harness/src/claude/args.ts`, c16d5dd).
 
 **Decision change vs the original plan:** claude ingests images via **`@<path>` file refs**, NOT native `--input-format stream-json`. (A live test showed stream-json base64 works, but the team chose fileRef; the `claude-image-fileref` memory records it.) Net effect: the old "native stdin / encodeStdin" tasks are obsolete. The widget is unaffected — it always sends base64 image content parts; the server converts.
 
@@ -78,10 +78,10 @@ it('resolves chat.images over IMAGE_DEFAULTS', () => {
 Run: `cd packages/core && pnpm vitest run test/config.test.ts`
 Expected: FAIL — `resolveImageLimits` not exported.
 
-- [ ] **Step 3: Edit `config-types.ts`** — extend `AidxConfig`, export defaults:
+- [ ] **Step 3: Edit `config-types.ts`** — extend `MandaraxConfig`, export defaults:
 
 ```ts
-export interface AidxConfig {
+export interface MandaraxConfig {
   // …existing fields unchanged…
   chat?: {
     images?: {maxCount?: number; maxBytes?: number; accept?: string[]}
@@ -100,7 +100,7 @@ export const IMAGE_DEFAULTS: ImageLimits = {
 - [ ] **Step 4: Edit `config.ts`** — add the resolver (simple signature, no conditional type):
 
 ```ts
-import {IMAGE_DEFAULTS, type ImageLimits} from '@opendui/aidx-protocol/config-types'
+import {IMAGE_DEFAULTS, type ImageLimits} from '@mandarax/protocol/config-types'
 
 export function resolveImageLimits(images?: {maxCount?: number; maxBytes?: number; accept?: string[]}): ImageLimits {
   return {
@@ -180,7 +180,7 @@ export const ChatSessionSchema = z.object({
 - [ ] **Step 4: Edit `session.ts`** — add `imageLimits` to `SessionRouteDeps`, emit the block:
 
 ```ts
-import type {ImageLimits} from '@opendui/aidx-protocol/config-types'
+import type {ImageLimits} from '@mandarax/protocol/config-types'
 
 export type SessionRouteDeps = {
   cwd: string
@@ -272,7 +272,7 @@ Expected: FAIL — module missing.
 - [ ] **Step 3: Create `image-validate.ts`:**
 
 ```ts
-import type {ImageLimits} from '@opendui/aidx-protocol/config-types'
+import type {ImageLimits} from '@mandarax/protocol/config-types'
 
 export type ValidateResult = {ok: true} | {ok: false; error: string}
 
@@ -316,7 +316,7 @@ git commit -m "feat(widget): pure image-validation guard"
 
 ```ts
 import {createSignal} from 'solid-js'
-import type {ImageLimits} from '@opendui/aidx-protocol/config-types'
+import type {ImageLimits} from '@mandarax/protocol/config-types'
 import {validateImage} from './image-validate.js'
 
 export type PendingImage = {id: string; name: string; mimeType: string; bytes: number; previewUrl: string}
@@ -387,7 +387,7 @@ export function createImageAttachments(limits: () => ImageLimits) {
 
 - [ ] **Step 2: Typecheck the widget**
 
-Run: `pnpm turbo typecheck --filter=@opendui/aidx-widget`
+Run: `pnpm turbo typecheck --filter=@mandarax/widget`
 Expected: PASS.
 
 - [ ] **Step 3: Commit**
@@ -410,7 +410,7 @@ git commit -m "feat(widget): image attachment store (add/remove/clear/sendAll)"
 
 ```ts
 import {createImageAttachments, type ImagePart} from './attachments.js'
-import {IMAGE_DEFAULTS} from '@opendui/aidx-protocol/config-types'
+import {IMAGE_DEFAULTS} from '@mandarax/protocol/config-types'
 
 const [imageCaps, setImageCaps] = createSignal(IMAGE_DEFAULTS)
 const [imageInput, setImageInput] = createSignal<'native' | 'fileRef' | false>(false)
@@ -519,7 +519,7 @@ function PaperclipIcon(): JSX.Element {
       class="pw-chat-input"
       rows={1}
       placeholder="Ask a question…"
-      aria-label="Message the aidx agent"
+      aria-label="Message the mandarax agent"
       value={input()}
       onInput={(e) => setInput(e.currentTarget.value)}
       onKeyDown={onKeyDown}
@@ -621,7 +621,7 @@ Update the send button `disabled` to also enable with staged images: `disabled={
 
 - [ ] **Step 6: Build + typecheck the widget** (the browser IT loads the built global bundle):
 
-Run: `pnpm turbo build typecheck --filter=@opendui/aidx-widget`
+Run: `pnpm turbo build typecheck --filter=@mandarax/widget`
 Expected: PASS.
 
 - [ ] **Step 7: Commit**
@@ -694,7 +694,7 @@ const onDrop = (e: DragEvent) => {
 
 - [ ] **Step 4: Build + typecheck**
 
-Run: `pnpm turbo build typecheck --filter=@opendui/aidx-widget`
+Run: `pnpm turbo build typecheck --filter=@mandarax/widget`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -728,7 +728,7 @@ const onPaste = (e: ClipboardEvent) => {
 
 - [ ] **Step 3: Build + typecheck**
 
-Run: `pnpm turbo build typecheck --filter=@opendui/aidx-widget`
+Run: `pnpm turbo build typecheck --filter=@mandarax/widget`
 Expected: PASS.
 
 - [ ] **Step 4: Commit**
@@ -774,7 +774,7 @@ if (part.type === 'image') {
 
 - [ ] **Step 3: Build + typecheck**
 
-Run: `pnpm turbo build typecheck --filter=@opendui/aidx-widget`
+Run: `pnpm turbo build typecheck --filter=@mandarax/widget`
 Expected: PASS.
 
 - [ ] **Step 4: Commit**
@@ -804,7 +804,7 @@ images: {input: 'fileRef', maxCount: 5, maxBytes: 5 * 1024 * 1024, accept: ['ima
 it('shows the upload button and a thumbnail after selecting an image', async () => {
   const page = await browser.newPage()
   await page.goto(base)
-  await page.click('[aria-label="Open aidx chat"]')
+  await page.click('[aria-label="Open mandarax chat"]')
   await page.waitForSelector('.pw-chat-attach')
   const png = Buffer.from(
     'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
@@ -822,7 +822,7 @@ it('shows the upload button and a thumbnail after selecting an image', async () 
 - [ ] **Step 3: Build the bundle, then run the IT**
 
 Run: `cd packages/widget && pnpm build && pnpm vitest run test/widget.it.test.ts -t "upload button"`
-Expected: PASS (rebuild required — the IT loads `dist/aidx-widget.global.js`).
+Expected: PASS (rebuild required — the IT loads `dist/mandarax-widget.global.js`).
 
 - [ ] **Step 4: Commit**
 
@@ -839,7 +839,7 @@ git commit -m "test(widget): browser IT for image upload + thumbnail removal"
 - [ ] **Step 2: Whole-repo build** — `pnpm turbo build` → PASS.
 - [ ] **Step 3: Whole-repo tests** — `pnpm turbo test` → PASS.
 - [ ] **Step 4: Lint + format** — `pnpm turbo lint && pnpm format:check` → PASS.
-- [ ] **Step 5: Manual smoke (real claude harness, end-to-end)** — open the widget, paste a screenshot, send "what's in this image?", confirm the agent describes it (claude reads the `@<path>` written under cwd). Confirm a `.aidx-img-*.png` is written and cleaned up as expected.
+- [ ] **Step 5: Manual smoke (real claude harness, end-to-end)** — open the widget, paste a screenshot, send "what's in this image?", confirm the agent describes it (claude reads the `@<path>` written under cwd). Confirm a `.mandarax-img-*.png` is written and cleaned up as expected.
 - [ ] **Step 6: Commit any lint/format fixes**
 
 ```bash

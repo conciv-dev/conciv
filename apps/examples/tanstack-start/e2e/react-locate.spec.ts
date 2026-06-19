@@ -6,7 +6,7 @@ import {test, expect} from '@playwright/test'
 // so assert the file, not the exact line.
 test('locate resolves the TanStack <h1> to src/routes/index.tsx', async ({page}) => {
   await page.goto('/')
-  await expect(page.getByRole('button', {name: 'Open aidx chat'})).toBeVisible({timeout: 30_000})
+  await expect(page.getByRole('button', {name: 'Open mandarax chat'})).toBeVisible({timeout: 30_000})
   // Fibers attach only after hydration.
   await page.waitForFunction(
     () => {
@@ -19,8 +19,9 @@ test('locate resolves the TanStack <h1> to src/routes/index.tsx', async ({page})
     {timeout: 15_000},
   )
   const body = await page.evaluate(async () => {
-    const w = window as unknown as {__AIDX_API_BASE__?: string}
-    const base = w.__AIDX_API_BASE__ ?? document.querySelector('meta[name=pw-api-base]')?.getAttribute('content') ?? ''
+    const w = window as unknown as {__MANDARAX_API_BASE__?: string}
+    const base =
+      w.__MANDARAX_API_BASE__ ?? document.querySelector('meta[name=pw-api-base]')?.getAttribute('content') ?? ''
     const r = await fetch(`${base}/api/page/locate?selector=h1`, {credentials: 'include'})
     return r.json()
   })

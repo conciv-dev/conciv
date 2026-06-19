@@ -7,8 +7,8 @@ import {
   type TestError,
   type TestState,
   type TestEvent,
-} from '@opendui/aidx-protocol/test-types'
-import {OkSchema} from '@opendui/aidx-protocol/chat-types'
+} from '@mandarax/protocol/test-types'
+import {OkSchema} from '@mandarax/protocol/chat-types'
 import {createTransport} from './transport.js'
 
 // The test-runner results card. Runner-blind: speaks TestEvent / TestRunResult only. result===null

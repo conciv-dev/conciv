@@ -1,4 +1,4 @@
-import type {RunArgs} from '@opendui/aidx-protocol/runner-types'
+import type {RunArgs} from '@mandarax/protocol/runner-types'
 import {defineChildRunner} from '../driver.js'
 
 // The playwright adapter: spawns playwright/child.ts, which runs the app's `playwright test

@@ -9,9 +9,9 @@ import {makeViteHook} from '../src/core/vite.js'
 const ROOT = '/proj'
 
 const sourceValues = (code: string): string[] =>
-  [...code.matchAll(/data-aidx-source="([^"]+)"/g)].map((m) => m[1] ?? '')
+  [...code.matchAll(/data-mandarax-source="([^"]+)"/g)].map((m) => m[1] ?? '')
 
-// Run the aidx plugin's transform after configResolved with the given peer plugins present.
+// Run the mandarax plugin's transform after configResolved with the given peer plugins present.
 function transformViaHook(peerPlugins: {name: string}[]): {code: string} | null {
   const hook = makeViteHook({enabled: true})
   const configResolved = hook.configResolved
@@ -19,7 +19,7 @@ function transformViaHook(peerPlugins: {name: string}[]): {code: string} | null 
     configResolved.call({} as never, {root: ROOT, plugins: peerPlugins} as never)
   const transform = hook.transform
   const run = typeof transform === 'function' ? transform : transform?.handler
-  if (!run) throw new Error('aidx plugin has no transform')
+  if (!run) throw new Error('mandarax plugin has no transform')
   const result = run.call(
     {} as never,
     'export const A = () => <div>hi</div>\n',
@@ -33,26 +33,26 @@ const reactPlugin: Plugin = {name: 'vite:react'}
 const tsdInjectSource: Plugin = {name: '@tanstack/devtools:inject-source'}
 
 describe('addSourceToJsx', () => {
-  it('stamps a host element with data-aidx-source="<relpath>:<line>:<col>"', () => {
+  it('stamps a host element with data-mandarax-source="<relpath>:<line>:<col>"', () => {
     const code = `export const A = () => <div className="x">hi</div>\n`
     const out = addSourceToJsx(code, `${ROOT}/src/App.tsx`, ROOT)
     expect(out).not.toBeNull()
-    expect(out!.code).toContain('data-aidx-source="src/App.tsx:1:24"')
+    expect(out!.code).toContain('data-mandarax-source="src/App.tsx:1:24"')
     expect(out!.code).toContain('className="x"') // original attrs preserved
   })
 
   it('handles self-closing elements', () => {
     const code = `export const B = () => <img src="a.png" />\n`
     const out = addSourceToJsx(code, `${ROOT}/src/B.tsx`, ROOT)
-    expect(out!.code).toMatch(/<img src="a\.png"\s+data-aidx-source="src\/B\.tsx:1:\d+"\s*\/>/)
+    expect(out!.code).toMatch(/<img src="a\.png"\s+data-mandarax-source="src\/B\.tsx:1:\d+"\s*\/>/)
   })
 
   it('skips Fragments', () => {
     const code = `export const C = () => <><span>x</span></>\n`
     const out = addSourceToJsx(code, `${ROOT}/src/C.tsx`, ROOT)
     // the <span> gets stamped, the fragment does not
-    expect(out!.code).toContain('<span data-aidx-source=')
-    expect(out!.code).not.toContain('<> data-aidx-source')
+    expect(out!.code).toContain('<span data-mandarax-source=')
+    expect(out!.code).not.toContain('<> data-mandarax-source')
   })
 
   it('returns null for non-JSX files', () => {
@@ -64,7 +64,7 @@ describe('addSourceToJsx', () => {
   })
 
   it('does not double-stamp an element that already has the attribute', () => {
-    const code = `export const D = () => <div data-aidx-source="x">y</div>\n`
+    const code = `export const D = () => <div data-mandarax-source="x">y</div>\n`
     const out = addSourceToJsx(code, `${ROOT}/src/D.tsx`, ROOT)
     expect(out).toBeNull()
   })
@@ -74,7 +74,7 @@ describe('addSourceToJsx', () => {
     const out = addSourceToJsx(code, `${ROOT}/src/we"ird.tsx`, ROOT)
     // the embedded quote is escaped, not a raw attribute breakout
     expect(out!.code).toContain('\\"')
-    expect(out!.code).not.toContain('data-aidx-source="src/we"ird')
+    expect(out!.code).not.toContain('data-mandarax-source="src/we"ird')
   })
 
   // TanStack Start's SSR transform prepends server boilerplate BEFORE our enforce:'pre' transform
@@ -83,7 +83,7 @@ describe('addSourceToJsx', () => {
   // on-disk source is the single source of truth for positions, so the stamped line/col must reflect
   // it regardless of upstream per-environment line shifts → identical in both builds.
   it('stamps line numbers from the on-disk source, stable across per-environment line shifts', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'aidx-inject-'))
+    const dir = mkdtempSync(join(tmpdir(), 'mandarax-inject-'))
     const raw = [
       'export function Root() {',
       '  return (',
@@ -111,16 +111,16 @@ describe('addSourceToJsx', () => {
 })
 
 describe('makeViteHook source injection', () => {
-  it('stamps data-aidx-source when no @tanstack/devtools source injector is present', () => {
+  it('stamps data-mandarax-source when no @tanstack/devtools source injector is present', () => {
     const out = transformViaHook([reactPlugin])
-    expect(out?.code).toContain('data-aidx-source=')
+    expect(out?.code).toContain('data-mandarax-source=')
   })
 
-  // TanStack devtools' inject-source already stamps data-tsd-source (which aidx's `locate` reads), and
-  // it runs at its own pipeline position — so aidx stamping too produces an SSR/client line-number
-  // mismatch (data-aidx-source ":49" vs ":87"). When devtools is in the pipeline, aidx must defer
+  // TanStack devtools' inject-source already stamps data-tsd-source (which mandarax's `locate` reads), and
+  // it runs at its own pipeline position — so mandarax stamping too produces an SSR/client line-number
+  // mismatch (data-mandarax-source ":49" vs ":87"). When devtools is in the pipeline, mandarax must defer
   // (config-time, deterministic across both builds) and add nothing.
-  it('defers to @tanstack/devtools (no data-aidx-source) when its inject-source plugin is present', () => {
+  it('defers to @tanstack/devtools (no data-mandarax-source) when its inject-source plugin is present', () => {
     const out = transformViaHook([reactPlugin, tsdInjectSource])
     expect(out).toBeNull()
   })

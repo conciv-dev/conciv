@@ -7,10 +7,10 @@ Status: design (no implementation yet)
 
 A chat session has **two identities** today, and the code treats them as interchangeable when they are not:
 
-- **header id** — the `aidx-session-id` we send (`'default'` or a client `crypto.randomUUID()`). Stable from t=0.
+- **header id** — the `mandarax-session-id` we send (`'default'` or a client `crypto.randomUUID()`). Stable from t=0.
 - **harness token** — the harness's own session id (`harnessId`). `null` until the first turn mints it; the session _list_ is keyed by it.
 
-They coincide only when you switch to an existing row; for any aidx-started session they diverge. A server-side map (`headerId → token`, `.aidx/chat-sessions.json`) bridges them. Symptoms of the split:
+They coincide only when you switch to an existing row; for any mandarax-started session they diverge. A server-side map (`headerId → token`, `.mandarax/chat-sessions.json`) bridges them. Symptoms of the split:
 
 - **Sessions don't persist / "+New" vanishes on refresh** — the active id was sometimes compared against a list keyed by the _other_ id space.
 - **Usage is keyed inconsistently** — written by header id (`turn.ts`), read by token in `/sessions` → a session's usage silently fails to appear in the list.
@@ -21,7 +21,7 @@ They coincide only when you switch to an existing row; for any aidx-started sess
 
 > **Our id is the primary key for everything. The harness's id is an attribute of a session (`harnessSessionId`), passed to the harness _only_ for `--resume`. Nothing else ever keys off it.**
 
-- Our id is `aidx_<uuid>`. The `aidx_` prefix makes "ours vs a raw harness id" decidable at a glance and in code.
+- Our id is `mandarax_<uuid>`. The `mandarax_` prefix makes "ours vs a raw harness id" decidable at a glance and in code.
 - `harnessSessionId: null` means "new — has not run yet" (replaces the magic `'default'`).
 - The harness still owns _its_ identity; we never force it (no `--session-id`). We adopt the id it mints.
 
@@ -31,11 +31,11 @@ One **session record**, keyed by our id, is the single source of truth for durab
 
 ```
 SessionRecord {
-  id: string                 // aidx_<uuid> — primary key
+  id: string                 // mandarax_<uuid> — primary key
   harnessSessionId: string | null  // resume token; null = never run
   harnessKind: string        // 'claude' | 'codex' ... — routes resume
   origin: 'chat' | 'agent' | 'external'
-                             // chat = born in widget; agent = handed off via AIDX_SESSION_ID;
+                             // chat = born in widget; agent = handed off via MANDARAX_SESSION_ID;
                              // external = discovered transcript, adopted on open
   title: string | null       // user override; null = derive from harness. Lives HERE — replaces session-titles-store.
   model: string | null       // last model used / selected
@@ -74,38 +74,38 @@ The store is layered so callers never see the backend and the backend never sees
 Details:
 
 - **Dependency:** unstorage (new, approved).
-- **fs layout:** `.aidx/sessions/<previewId>/aidx_<uuid>.json`, key = our id, value = `SessionRecord`.
+- **fs layout:** `.mandarax/sessions/<previewId>/mandarax_<uuid>.json`, key = our id, value = `SessionRecord`.
 - **One file per session** → atomic per-session writes → the cross-session clobber race is gone by construction.
 - **Replaces:** `store/session-store.ts` (the map), `store/session-titles-store.ts`, `store/usage-store.ts`.
 - **Locks stay separate:** `agent.<our-id>.lock` (pid + role), scanned by readdir for the running indicator; a dead pid = auto-free crash recovery. Transient lock state is deliberately _not_ in the durable record.
 
 ## Identity lifecycle
 
-- **One resolve seam.** `POST /api/chat/session/resolve { id? }` always returns `{ sessionId: aidx_<uuid> }`:
-  - **no id** → mint a new record `{ id: aidx_<uuid>, harnessSessionId: null, origin: 'chat' }` (new session).
+- **One resolve seam.** `POST /api/chat/session/resolve { id? }` always returns `{ sessionId: mandarax_<uuid> }`:
+  - **no id** → mint a new record `{ id: mandarax_<uuid>, harnessSessionId: null, origin: 'chat' }` (new session).
   - **a harness id** (unadopted external row) → find-or-create the wrapping record (idempotent: look up by `harnessSessionId` first), `origin: 'external'`.
-  - **our `aidx_` id** → return it, mark last-active.
+  - **our `mandarax_` id** → return it, mark last-active.
     The client calls `resolve` for every "become this session" action (new / switch / open-external), then uses the returned id as its header from there on. (One round-trip before the first turn of a brand-new session.)
 - **New session:** `harnessSessionId: null`. The composer shows it; nothing to resume yet.
 - **First turn:** spawn with no `--resume`. When the harness emits its id (`onSessionId`), `store.update(id, { harnessSessionId })`. Lock acquired under our id; usage written under our id.
 - **Resume (later turn / reload):** client sends our id → record → spawn with `--resume record.harnessSessionId`.
-- **Agent hand-off:** launched with `AIDX_SESSION_ID = <harness id>` → at boot, ensure a record exists wrapping it (`origin: 'agent'`, `harnessSessionId` pre-filled).
-- **External discovery:** `GET /sessions` is read-only — it returns our records (id = `aidx_…`) plus harness transcripts with no record yet (row id = the raw harness id, the only id they have). The client hands whichever row id to `resolve`, which normalizes it to an `aidx_` id (adopting the external transcript on first open). No write-on-list.
+- **Agent hand-off:** launched with `MANDARAX_SESSION_ID = <harness id>` → at boot, ensure a record exists wrapping it (`origin: 'agent'`, `harnessSessionId` pre-filled).
+- **External discovery:** `GET /sessions` is read-only — it returns our records (id = `mandarax_…`) plus harness transcripts with no record yet (row id = the raw harness id, the only id they have). The client hands whichever row id to `resolve`, which normalizes it to an `mandarax_` id (adopting the external transcript on first open). No write-on-list.
 
 ## Client identity invariant (hard rule)
 
-**The widget only ever knows, stores, and transmits our `aidx_` id. The harness id is never used for any backend communication, routing, selection, or persistence — it may appear only as read-only display ("extra info").**
+**The widget only ever knows, stores, and transmits our `mandarax_` id. The harness id is never used for any backend communication, routing, selection, or persistence — it may appear only as read-only display ("extra info").**
 
-- **Comms chokepoint:** every request goes through the `defineClient` instance (`session-client.ts`); the `aidx-session-id` header and all request bodies carry our id, only. This is the single seam to guard.
-- **Selection/state keyed by our id:** session list rows, the active-row match, surface rows, quick-terminal panes, and the persisted active id are all our `aidx_` id. The `activeToken` debugging hack is deleted — there is no token in client routing.
+- **Comms chokepoint:** every request goes through the `defineClient` instance (`session-client.ts`); the `mandarax-session-id` header and all request bodies carry our id, only. This is the single seam to guard.
+- **Selection/state keyed by our id:** session list rows, the active-row match, surface rows, quick-terminal panes, and the persisted active id are all our `mandarax_` id. The `activeToken` debugging hack is deleted — there is no token in client routing.
 - **`harnessSessionId` reaches the client only as a display field** (e.g. `session-info`'s short slice). It is never read back into a header, a body (except `resolve`, below), a list key, or localStorage.
-- **One sanctioned exception — the `resolve` endpoint.** External/discovered rows may carry a raw harness id. The client never _routes_ by it; it passes the row id once to `POST /api/chat/session/resolve`, which returns the canonical `aidx_` id. From that point every request uses the `aidx_` id. `resolve` is the only endpoint that accepts a non-`aidx_` id, and its sole job is to normalize any id to ours.
+- **One sanctioned exception — the `resolve` endpoint.** External/discovered rows may carry a raw harness id. The client never _routes_ by it; it passes the row id once to `POST /api/chat/session/resolve`, which returns the canonical `mandarax_` id. From that point every request uses the `mandarax_` id. `resolve` is the only endpoint that accepts a non-`mandarax_` id, and its sole job is to normalize any id to ours.
 
 ## API surface (reshaped)
 
-All routes key by our id (the `aidx-session-id` header), never the token.
+All routes key by our id (the `mandarax-session-id` header), never the token.
 
-- `POST /api/chat/session/resolve { id? }` → returns `{ sessionId: aidx_<uuid> }`. The **only** id-normalization seam: no id → mint new; harness id → find-or-create wrapper; our id → return + mark last-active. (Replaces the old `/session/new`, mint, and adopt.)
+- `POST /api/chat/session/resolve { id? }` → returns `{ sessionId: mandarax_<uuid> }`. The **only** id-normalization seam: no id → mint new; harness id → find-or-create wrapper; our id → return + mark last-active. (Replaces the old `/session/new`, mint, and adopt.)
 - `GET /api/chat/sessions` → **read-only** list = store records ∪ unwrapped harness transcripts, joined with lock state + harness enrichment. (No writes.)
 - `GET /api/chat/session` (header = our id) → look up record → session view. Unknown id → 404 (client re-resolves with no id to get a fresh one).
 - `GET /api/chat/history` (header = our id) → `record.harnessSessionId ? readTranscript : []`.
@@ -116,23 +116,23 @@ All routes key by our id (the `aidx-session-id` header), never the token.
 
 ## Typed API client (single comms seam, derived from zod)
 
-No OpenAPI in the client path — client and server share `@opendui/aidx-protocol`, so we infer types from the zod schemas and validate with the same schemas. Each route is declared once as a **contract**; both the server handler and the widget client derive from it. (H3 route `meta` is reserved for an optional future OpenAPI _docs_ page — orthogonal to this client.)
+No OpenAPI in the client path — client and server share `@mandarax/protocol`, so we infer types from the zod schemas and validate with the same schemas. Each route is declared once as a **contract**; both the server handler and the widget client derive from it. (H3 route `meta` is reserved for an optional future OpenAPI _docs_ page — orthogonal to this client.)
 
 **1. Branded session id** — makes the client invariant a compile error, not a convention:
 
 ```ts
-// @opendui/aidx-protocol
+// @mandarax/protocol
 export const SessionId = z
   .string()
-  .regex(/^aidx_[A-Za-z0-9_-]{1,128}$/)
-  .brand<'AidxSessionId'>()
+  .regex(/^mandarax_[A-Za-z0-9_-]{1,128}$/)
+  .brand<'MandaraxSessionId'>()
 export type SessionId = z.infer<typeof SessionId>
 ```
 
 **2. Request/response schemas (protocol)** — the shared source of truth, validated on both ends. No registry object. Reuse the existing schemas (`ChatSession`, `ChatSessions`, `ChatModels`, `ChatHistory`, `RenameSession`, `ChatLaunch`) and add the few that are new:
 
 ```ts
-// @opendui/aidx-protocol/chat-types.ts
+// @mandarax/protocol/chat-types.ts
 export const ResolveRequestSchema = z.object({id: z.string().optional()}) // plain string: harness id OR ours
 export const ResolveResponseSchema = z.object({sessionId: SessionId})
 export const RenameResponseSchema = z.object({ok: z.boolean(), title: z.string()})
@@ -144,11 +144,11 @@ Each route is declared **once, inline** in the client below; the server imports 
 **3. The client — `defineClient`** — a per-instance closure that _owns_ its active session id. Each pane (and the modal) holds its own. Routes are declared **inline** via a generic `route(spec)` — no registry object, no `Object.fromEntries`, no cast. Method types are _inferred_ from the schemas, so nothing is typed twice:
 
 ```ts
-// @opendui/aidx-widget/session-client.ts
+// @mandarax/widget/session-client.ts
 import {createSignal} from 'solid-js'
 import {z} from 'zod'
 import {
-  AIDX_SESSION_HEADER,
+  MANDARAX_SESSION_HEADER,
   type SessionId,
   ChatSessionSchema,
   ChatSessionsSchema,
@@ -161,7 +161,7 @@ import {
   ResolveResponseSchema,
   RenameResponseSchema,
   OkSchema,
-} from '@opendui/aidx-protocol/chat-types'
+} from '@mandarax/protocol/chat-types'
 
 export function defineClient(deps: {apiBase: string}) {
   const base = deps.apiBase.replace(/\/+$/, '')
@@ -195,7 +195,7 @@ export function defineClient(deps: {apiBase: string}) {
       const headers: Record<string, string> = {}
       if (spec.sendsSessionId) {
         const id = sessionId() // only our branded id ever reaches the wire
-        if (id) headers[AIDX_SESSION_HEADER] = id
+        if (id) headers[MANDARAX_SESSION_HEADER] = id
       }
       const payload = spec.request ? JSON.stringify(body) : undefined
       if (payload) headers['content-type'] = 'application/json'
@@ -244,7 +244,7 @@ export function defineClient(deps: {apiBase: string}) {
 const client = defineClient({apiBase})
 client.setSessionId(restored) // on mount, from localStorage (owner persists)
 
-const {sessionId} = await client.resolve() // new session → aidx_ id (no args — body is all-optional)
+const {sessionId} = await client.resolve() // new session → mandarax_ id (no args — body is all-optional)
 client.setSessionId(sessionId)
 
 const onSwitch = async (rowId: string) => {
@@ -269,7 +269,7 @@ await client.rename({sessionId: 'raw-harness-id', title: 'x'}) // ✗ not a Sess
 
 **Protocol — `packages/protocol/src`**
 
-- `chat-types.ts`: delete `DEFAULT_SESSION_ID`; reshape `ChatSession` (`sessionId` = our id, `harnessId` → `harnessSessionId: string | null`); `ChatSessionMeta.id` = our id (or raw harness id for unwrapped external); `RenameSessionSchema.sessionId` = our id; **`SessionId` becomes a branded `aidx_…` schema**; add `SessionRecord`, `ResolveRequest`/`ResolveResponse`, `RenameResponse`, `Ok` schemas. These schemas are the shared source of truth (no registry object); client and server both import them.
+- `chat-types.ts`: delete `DEFAULT_SESSION_ID`; reshape `ChatSession` (`sessionId` = our id, `harnessId` → `harnessSessionId: string | null`); `ChatSessionMeta.id` = our id (or raw harness id for unwrapped external); `RenameSessionSchema.sessionId` = our id; **`SessionId` becomes a branded `mandarax_…` schema**; add `SessionRecord`, `ResolveRequest`/`ResolveResponse`, `RenameResponse`, `Ok` schemas. These schemas are the shared source of truth (no registry object); client and server both import them.
 - `harness-types.ts`: enrich `HarnessSessionMeta` (model, usage, lastMessage, createdAt, branch). Harness still speaks native ids.
 - `config-types.ts`: `sessionId?`/`claudeSessionId?` (agent hand-off) carry a harness id → wrapped at boot.
 
@@ -282,7 +282,7 @@ await client.rename({sessionId: 'raw-harness-id', title: 'x'}) // ✗ not a Sess
 - `api/chat/session.ts`: all routes re-keyed to our id; `/sessions` joins store + harness list + locks (read-only); add the single `resolve` route (new / adopt / switch).
 - `api/chat/turn.ts`: lock + usage by our id; `onSessionId` → store update; resume from record.
 - `api/chat/launch.ts`: read `harnessSessionId` from store.
-- `engine.ts`: revisit `AIDX_SESSION_ID` child env (now our id).
+- `engine.ts`: revisit `MANDARAX_SESSION_ID` child env (now our id).
 
 **Harness — `packages/harness/src`**
 
@@ -291,7 +291,7 @@ await client.rename({sessionId: 'raw-harness-id', title: 'x'}) // ✗ not a Sess
 **Widget — `packages/widget/src`** (net simplification)
 
 - `widget-shell.tsx`: persist `sessionId` (our id); **remove the `activeToken` signal + token plumbing** added during debugging; `onNew` → `resolve()` (no id) then set the returned id.
-- `session-selector.tsx`: `activeId` = our id, matches our rows directly; selecting any row → `resolve(rowId)` → set the returned `aidx_` id (this is where an external row gets adopted).
+- `session-selector.tsx`: `activeId` = our id, matches our rows directly; selecting any row → `resolve(rowId)` → set the returned `mandarax_` id (this is where an external row gets adopted).
 - `chat-api.ts` → **`session-client.ts`**: replaced by `defineClient` — a per-instance closure that owns its session id (the modal and each quick-terminal pane create their own); the sole comms seam; routes declared inline; header = our branded id.
 - Server handlers (`api/chat/*`) import the same request/response schemas for validation + typed responses.
 - `session-store-client.ts`, `quick-terminal.tsx`, `chat-panel.tsx`, `session-info.tsx`: key by our id; surface-merge simplifies.
@@ -324,13 +324,13 @@ Backend first, then the typed client immediately after it, then the widget rewir
 
 ## Testing strategy
 
-- **Widget (real browser, Playwright IT):** new session → chat → **reload restores it**; switch → reload restores; adopt an external row → it gets an `aidx_` id and persists; rename persists; running indicator reflects locks. (Keep the reload regression test already drafted, re-pointed at the new model.)
+- **Widget (real browser, Playwright IT):** new session → chat → **reload restores it**; switch → reload restores; adopt an external row → it gets an `mandarax_` id and persists; rename persists; running indicator reflects locks. (Keep the reload regression test already drafted, re-pointed at the new model.)
 - **Core (unit):** run `SessionStore` against the **memory driver** (no filesystem). Record CRUD; lifecycle (mint → first-turn sets `harnessSessionId` → resume); adopt-on-open; agent hand-off seeding; usage round-trips under one key. The same suite is the contract any future driver must pass.
 - **Harness (unit):** enrichment parsing from a fixture transcript.
 
 ## Risks / open notes
 
 - **`resolve` round-trip** before the first message of a new session; panes wait on it. Acceptable; can be made optimistic later if it bites.
-- **List carries two id formats** transiently (our `aidx_` ids vs raw harness ids for never-opened external rows). The `aidx_` prefix keeps it unambiguous, and `resolve` collapses it to our id on first open.
+- **List carries two id formats** transiently (our `mandarax_` ids vs raw harness ids for never-opened external rows). The `mandarax_` prefix keeps it unambiguous, and `resolve` collapses it to our id on first open.
 - **List cost** is bounded by `MAX_SESSIONS`; listing is read-only — records are created only via `resolve`, never on a plain list.
 - **Other harnesses (codex):** model is harness-agnostic — codex mints `thread_id`, we adopt it the same way; `harnessKind` routes resume.

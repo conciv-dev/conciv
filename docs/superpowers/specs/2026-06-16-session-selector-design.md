@@ -11,8 +11,8 @@ and its 16-task plan (`docs/superpowers/plans/2026-06-15-multi-session-quick-ter
 **approved but not yet implemented**. That foundation must land first (or as the lower tasks of a merged
 plan). It already provides everything v1/v2 of this spec tried to re-derive — more cleanly:
 
-- **Client-minted session id** (`crypto.randomUUID`) sent in the `aidx-session-id` header. The client
-  always knows its own id → **no `AIDX_SESSION_EVENT`, no stream-capture, no adoption feedback-loop**
+- **Client-minted session id** (`crypto.randomUUID`) sent in the `mandarax-session-id` header. The client
+  always knows its own id → **no `MANDARAX_SESSION_EVENT`, no stream-capture, no adoption feedback-loop**
   (v2 §3 is deleted). The harness token is a server-internal resume token mapped under our id.
 - **Per-session lock** `agent.<sessionId>.lock` → true concurrency (the locked decision) for free.
 - **`Map<sessionId, SessionState>`** + header-scoped routes → usage/state are per-session, not global.
@@ -20,7 +20,7 @@ plan). It already provides everything v1/v2 of this spec tried to re-derive — 
   switch which session it shows** — the foundation explicitly defers the _UI_ for that to us.
 - **`Popover`** (`@floating-ui/dom`) + **`SessionInfoCard`** + **`nameFromTranscript`** (Claude `summary`
   records) + name→short-id→`New session` label resolver.
-- **`localStorage` pane layout** (`aidx-qt-panes`) restored on reopen.
+- **`localStorage` pane layout** (`mandarax-qt-panes`) restored on reopen.
 
 What THIS spec adds on top: **(1)** session **enumeration** (`HarnessHistory.list`), **(2)** the
 **switch UI** (the combobox selector), **(3)** **rename** + a title store. Plus review-driven hardening:
@@ -49,7 +49,7 @@ future hook now that adapters expose `launch({cwd, sessionId})` — explicitly o
 
 - **Builds on the multi-session foundation** (§0) — client-minted id header, per-session lock, session map.
 - **Scope:** list ALL Claude sessions in the CWD (incl. terminal-CLI and agent-iterate runs), with an
-  **origin marker** distinguishing aidx-started sessions from externally-started ones (§4.4, §5.2a).
+  **origin marker** distinguishing mandarax-started sessions from externally-started ones (§4.4, §5.2a).
 - **Harnesses:** Claude-only via a general `HarnessHistory.list`; selector hides when absent (codex).
 - **Surfaces:** modal header + every quick-terminal pane + PiP; each surface re-references independently
   (the foundation's surface/session model already supports this).
@@ -71,22 +71,22 @@ filename; the only id a discovered/external session has). The 5-angle review fou
 by uuid and read-state by token with no join breaks `running`, generative-UI inject, and `origin`. One rule
 makes them cohere:
 
-- **The "header session id" is canonical for all live state** — what the client sends in `aidx-session-id`
+- **The "header session id" is canonical for all live state** — what the client sends in `mandarax-session-id`
   (a uuid for new, the harness token for discovered). **Lock, uiBus channel, and usage are ALL keyed by it**
   and never re-keyed to the harness token mid-turn (the A18 correction: do NOT move the usage key to the
   token).
 - **The list keys rows by the harness token.** `GET /sessions` **joins** through the foundation's
   `previewId → {headerId: harnessToken}` map: for a row with token `T`, find any `headerId` mapping to `T`
   and test `running`/`usage` against **both** `T` and that `headerId`.
-- **Generative-UI inject** (`aidx ui`, cross-process): the agent is spawned with its header id in the env
-  (`AIDX_SESSION_ID`); the CLI echoes it as the `aidx-session-id` header on `POST /api/chat/ui`; the uiBus
+- **Generative-UI inject** (`mandarax ui`, cross-process): the agent is spawned with its header id in the env
+  (`MANDARAX_SESSION_ID`); the CLI echoes it as the `mandarax-session-id` header on `POST /api/chat/ui`; the uiBus
   channel registers under that same header id. The agent env carries no session id today — this is new
   spawn-path wiring the plan must add, or inject cannot route under concurrency.
 - **`origin` = true birth-provenance.** A new session's entry is `uuid → token` (key ≠ value); an adopted
-  external's entry is `token → token` (key == value). So `origin='aidx'` iff the token appears as a value
+  external's entry is `token → token` (key == value). So `origin='mandarax'` iff the token appears as a value
   under a key **≠ itself**:
-  `aidxTokens = new Set(Object.entries(map).filter(([k,v]) => k !== v).map(([,v]) => v))`. Exactly "started
-  by aidx"; never poisons on resume.
+  `mandaraxTokens = new Set(Object.entries(map).filter(([k,v]) => k !== v).map(([,v]) => v))`. Exactly "started
+  by mandarax"; never poisons on resume.
 
 ## 3. Integration: referencing discovered sessions
 
@@ -96,7 +96,7 @@ transcript files, which are named by **harness** id — and includes sessions ou
 `SessionInfoCard` already displays them). Reconciliation:
 
 - **A surface references a discovered session by its harness token directly.** When the user switches a
-  surface to a listed session `T`, the surface sets its `sessionId` (the `aidx-session-id` header) to `T`.
+  surface to a listed session `T`, the surface sets its `sessionId` (the `mandarax-session-id` header) to `T`.
 - **Server seeds an unmapped, transcript-backed id as its own resume token.** Extend the foundation's
   `sessionFor(id)`: if `readSessions(previewId)[id]` is empty AND a transcript exists at
   `transcriptPath(cwd, id)`, seed `harnessSessionId = id`. So referencing `T` resumes `T` and
@@ -106,7 +106,7 @@ transcript files, which are named by **harness** id — and includes sessions ou
   same conversation. To avoid a duplicate row, the list **unions/dedupes** the surface's resolved harness
   token (reported via the foundation's `onSessionLabel`) — a new session shows as one row once its token
   is known, and as the surface's own "New session" label before that.
-- **No `AIDX_SESSION_EVENT`, no adoption loop, no turn-scoped client state** — the client already owns its
+- **No `MANDARAX_SESSION_EVENT`, no adoption loop, no turn-scoped client state** — the client already owns its
   id. (v2 §3 deleted.) Switching is a plain re-reference: set the header id, clear thread, hydrate history.
 
 ## 3a. Carry-over backend fixes (prerequisites — see §4.6)
@@ -149,7 +149,7 @@ event loop. Bound the cost:
 
 ### 4.3 Title store (`packages/core/src/store/session-titles-store.ts`)
 
-`sessionId → title` map in `<stateRoot>/.aidx/session-titles.json`. Because titles are NOT gated by the
+`sessionId → title` map in `<stateRoot>/.mandarax/session-titles.json`. Because titles are NOT gated by the
 agent lock and multiple surfaces can rename, the read-modify-write race in the existing store pattern is
 real here:
 
@@ -175,12 +175,12 @@ POST /api/chat/sessions/title   { sessionId, title }   // POST, not PATCH (see b
   - `usage`: for row token `T`, `readUsage(T) ?? readUsage(headerIdsByToken[T])` (live uuid-session usage is
     stored under the uuid headerId — §2b).
   - `running`: `readLocks(stateRoot)` keys are headerIds; `running = locks.has(T) || headerIdsByToken[T]?.some(h => locks.has(h))`.
-  - `origin`: per §2b, `'aidx'` iff `T` appears in `m` under a key ≠ `T`
+  - `origin`: per §2b, `'mandarax'` iff `T` appears in `m` under a key ≠ `T`
     (`Object.entries(m).some(([k,v]) => v === T && k !== T)`), else `'external'`.
     **Drop a server `current` flag** — it derived from the now-cold-start-only `state.sessionId` and would
     be misleading across panes; each selector marks its own `activeId()`.
   ```ts
-  ChatSessionMeta = { id, title, updatedAt, messageCount, running, origin: 'aidx' | 'external', usage: UsageSnapshot | null }
+  ChatSessionMeta = { id, title, updatedAt, messageCount, running, origin: 'mandarax' | 'external', usage: UsageSnapshot | null }
   ChatSessions    = { sessions: ChatSessionMeta[] }
   ```
 - `POST /sessions/title`: schema `{ sessionId: SessionId, title: z.string() }`, where the handler
@@ -192,7 +192,7 @@ POST /api/chat/sessions/title   { sessionId, title }   // POST, not PATCH (see b
 ### 4.5 `sessionId` validation (security — path traversal)
 
 `sessionId` is interpolated raw into `transcriptPath`'s `join` (`history.ts:17`). Under the foundation it
-arrives in the `aidx-session-id` header (client-minted uuid OR, for discovered sessions, a harness token),
+arrives in the `mandarax-session-id` header (client-minted uuid OR, for discovered sessions, a harness token),
 and is a persisted map key. Lock it down:
 
 - A shared `SessionId = z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/)` schema (uuids and claude tokens pass).
@@ -212,9 +212,9 @@ the foundation) misbehave. Ideally folded into the foundation's Task 6; tracked 
   keyed by the **header id** (§2b), the same id the agent echoes — NOT the harness token.
 - **Agent must learn its header id (NEW spawn-path wiring)**: the spawned agent process has no session id
   in its env today, so `POST /api/chat/ui` arrives header-less and can't route. Inject the turn's header id
-  into the child env as `AIDX_SESSION_ID` (this makes `spawnHarness`/child env per-turn, not per-engine — a
-  real signature change to budget), and have the `aidx ui` CLI (`cli-http.ts`) set the `aidx-session-id`
-  header from `process.env.AIDX_SESSION_ID`.
+  into the child env as `MANDARAX_SESSION_ID` (this makes `spawnHarness`/child env per-turn, not per-engine — a
+  real signature change to budget), and have the `mandarax ui` CLI (`cli-http.ts`) set the `mandarax-session-id`
+  header from `process.env.MANDARAX_SESSION_ID`.
 - **Usage keyed on the turn's HEADER id** (A18 correction): write `RUN_FINISHED` usage against the stable
   header id the turn was invoked with — do NOT re-key to the harness token in `onSessionId`. This keeps
   lock + uiBus + usage on one key; the list joins to it (§4.4).
@@ -246,7 +246,7 @@ Older core without `/sessions` → 404 → selector hidden. Distinguish **404 (u
 ### 5.1 Session identity (already owned by the surface, via the foundation)
 
 The foundation makes the surface own its `sessionId` and pass it into `ChatPanel` (`PanelContext.sessionId`),
-which sets the `aidx-session-id` header on every request/SSE. The selector reuses that — **switching is just
+which sets the `mandarax-session-id` header on every request/SSE. The selector reuses that — **switching is just
 re-pointing the surface's `sessionId`**:
 
 - The owner (`ModalLayout` / each qt pane) holds the surface's `sessionId` signal (the foundation already
@@ -265,7 +265,7 @@ re-pointing the surface's `sessionId`**:
 Ark `Combobox`, two trigger **variants**:
 
 - `variant: 'pill'` — modal header. Bordered pill like the model selector, but `min-width:0; flex:1 1 auto`
-  with ellipsis on the title so it flexes in the tight header (the fixed "aidx"/spark brand stays; the
+  with ellipsis on the title so it flexes in the tight header (the fixed "mandarax"/spark brand stays; the
   _selector_ is the flexible element, not the brand).
 - `variant: 'bar'` — quick-terminal pane bar. **Borderless**, inherits the bar's 12px mono, uses the
   existing pane dot as the affordance + a tiny caret, no separate glyph/border. Below a pane-width
@@ -284,11 +284,11 @@ Popover content:
   `title` + `aria-label`), meta line ("Edited 2 hours ago · 14 messages" as an `aria-label`; the visible
   "·"/glyphs are `aria-hidden`), check indicator on the active row, a **`running` indicator** (small pulse
   dot) for sessions live in another pane, and an **origin marker** (§5.2a).
-- **Origin marker (`origin: 'aidx' | 'external'`)** — distinguishes sessions aidx started from ones started
-  in the terminal/externally. Show a subtle aidx glyph (the ✦ spark, `aria-hidden`) on `'aidx'` rows and
+- **Origin marker (`origin: 'mandarax' | 'external'`)** — distinguishes sessions mandarax started from ones started
+  in the terminal/externally. Show a subtle mandarax glyph (the ✦ spark, `aria-hidden`) on `'mandarax'` rows and
   nothing on `'external'` rows; the difference is also carried in each row's `aria-label`
-  ("… · started in aidx" / "… · started externally") so it isn't color/glyph-only. Optionally group or sort
-  aidx-first within a recency bucket is **out of scope** — recency order stays; the marker is the only cue.
+  ("… · started in mandarax" / "… · started externally") so it isn't color/glyph-only. Optionally group or sort
+  mandarax-first within a recency bucket is **out of scope** — recency order stays; the marker is the only cue.
   The `SessionInfoCard` (popover detail) also states the origin in words.
 - **Rename** = inline edit in the header (not in a row): the "Rename current session" button swaps the
   header into a labeled `<input>` (`aria-label="Rename session"`), autofocus, Enter commits / Esc cancels —
@@ -317,7 +317,7 @@ Module-level reactive store, one fetch shared by all selectors:
 - `sessions()`, `status(): 'idle'|'loading'|'ready'|'error'`, `error()`.
 - `load(apiBase)` — fetch `/sessions`; dedupe in-flight; **404 → status `'ready'`, `sessions=[]`**
   (selectors hide); **5xx/timeout → `'error'`** (Retry, trigger stays).
-- `invalidate()` — refetch; called on `AIDX_SESSION_EVENT` and debounced turn-end (4.6).
+- `invalidate()` — refetch; called on `MANDARAX_SESSION_EVENT` and debounced turn-end (4.6).
 - `applyTitle(id, title)` — optimistic patch that wins over a fetched value until the POST settles.
 - Recency buckets + relative times are **derived/recomputed reactively**, not snapshotted at popover open,
   so an open popover re-buckets when `updatedAt` changes.
@@ -365,7 +365,7 @@ Module-level reactive store, one fetch shared by all selectors:
   (greeting) and `invalidate()`. Note: `GET /history` also returns `[]` when unsupported — acknowledged
   ambiguity; benign since the selector is hidden when unsupported.
 - _Active session deleted by an external run while idle_: next turn's resume target is gone → harness
-  spawns fresh, fires `AIDX_SESSION_EVENT` with the new id; drop the stale row on next invalidate; announce.
+  spawns fresh, fires `MANDARAX_SESSION_EVENT` with the new id; drop the stale row on next invalidate; announce.
 
 **Disabled**
 
@@ -436,7 +436,7 @@ variant="pill">`** as the flexible header element (brand stays fixed). The selec
 
 ## 8. Persistence
 
-- Custom titles → `.aidx/session-titles.json` (atomic, 4.3).
+- Custom titles → `.mandarax/session-titles.json` (atomic, 4.3).
 - Modal active session restores via the `previewId` map (cold-start hint only).
 - Quick-terminal pane active sessions are ephemeral (matches today's fresh-per-pane); qt focus-index
   persistence unchanged.
@@ -448,7 +448,7 @@ variant="pill">`** as the flexible header element (brand stays fixed). The selec
 - **Lock unit** (foundation): per-session acquire/release; same-id chat vs iterate exclude; different ids
   concurrent; dead-pid sweep. Add a `readLocks` enumerator test here.
 - **Core route**: `GET /sessions` merges title + usage + `running` + `origin` (a token in the session-store
-  map → `'aidx'`, one only on disk → `'external'`); `[]` when unsupported; `sessionFor`
+  map → `'mandarax'`, one only on disk → `'external'`); `[]` when unsupported; `sessionFor`
   seeds an unmapped transcript-backed id; `POST /sessions/title` validation (control-char strip, 120 cap,
   bad `sessionId` → 400, malformed store survives); header `sessionId` charset rejection.
 - **Carry-over (§4.6) unit**: usage keyed on the turn's id under two interleaved turns (no cross-write);
@@ -487,7 +487,7 @@ registry), `api/chat/ui` inject (route by `sessionId`), `turn.ts`/`compact()` (h
 - **Sequencing**: the foundation (2026-06-15) must land first, or be merged into one plan with this as the
   upper tasks. This spec is incoherent without it.
 - **Foundation carry-over fixes (§4.6)** are correctness blockers under true concurrency; whoever lands the
-  foundation should include them. The cross-process `aidx ui` inject needs the agent to send its
+  foundation should include them. The cross-process `mandarax ui` inject needs the agent to send its
   `sessionId` — verify the CLI has it (it runs inside the harness process, which knows it).
 - **Discovered-session identity**: referencing by harness token (§3) breaks the foundation's "client never
   sees harness tokens" abstraction — intentional, since the selector surfaces them. Validate the seed rule

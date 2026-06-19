@@ -1,6 +1,6 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, fn, userEvent, waitFor, within} from 'storybook/test'
-import type {TestRunResult} from '@opendui/aidx-protocol/test-types'
+import type {TestRunResult} from '@mandarax/protocol/test-types'
 import {TestCard} from './test.js'
 import {callPart, resultPart, noopCtx} from '../fixtures.js'
 
@@ -38,7 +38,7 @@ const failing: TestRunResult = {
 const testResult = (data: TestRunResult) => resultPart(JSON.stringify(data))
 
 export const Passing: Story = {
-  args: {part: callPart({name: 'aidx_test', input: {action: 'run'}}), result: testResult(passing), ctx: noopCtx()},
+  args: {part: callPart({name: 'mandarax_test', input: {action: 'run'}}), result: testResult(passing), ctx: noopCtx()},
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     // The pill renders "{n} passed" as two text nodes, so assert on the card's text content.
@@ -55,7 +55,7 @@ export const Passing: Story = {
 // Interaction test: expand a failing test to reveal its error, then "Fix this" sends a message.
 export const Failing: Story = {
   args: {
-    part: callPart({name: 'aidx_test', input: {action: 'run'}}),
+    part: callPart({name: 'mandarax_test', input: {action: 'run'}}),
     result: testResult(failing),
     ctx: noopCtx({sendMessage: fn()}),
   },

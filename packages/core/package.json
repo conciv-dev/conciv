@@ -1,7 +1,7 @@
 {
-  "name": "@opendui/aidx-core",
+  "name": "@mandarax/core",
   "version": "0.0.0",
-  "description": "The aidx engine: a framework-free h3 + srvx server exposing the /__pw HTTP surface, with harness + test-runner registry seams.",
+  "description": "The mandarax engine: a framework-free h3 + srvx server exposing the /__pw HTTP surface, with harness + test-runner registry seams.",
   "license": "MIT",
   "files": [
     "dist"
@@ -33,11 +33,11 @@
   },
   "dependencies": {
     "@jridgewell/trace-mapping": "0.3.31",
+    "@mandarax/harness": "workspace:*",
+    "@mandarax/protocol": "workspace:*",
+    "@mandarax/test-runner": "workspace:*",
+    "@mandarax/tools": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@opendui/aidx-harness": "workspace:*",
-    "@opendui/aidx-protocol": "workspace:*",
-    "@opendui/aidx-test-runner": "workspace:*",
-    "@opendui/aidx-tools": "workspace:*",
     "@tanstack/ai": "^0.28.0",
     "get-port": "^7.1.0",
     "h3": "2.0.1-rc.22",

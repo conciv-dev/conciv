@@ -9,7 +9,7 @@ type Story = StoryObj<typeof PageActionCard>
 
 export const Click: Story = {
   args: {
-    part: callPart({name: 'aidx_page', input: {verb: 'click', selector: 'button.save'}}),
+    part: callPart({name: 'mandarax_page', input: {verb: 'click', selector: 'button.save'}}),
     result: resultPart('{"ok":true}'),
     ctx: noopCtx(),
   },
@@ -21,7 +21,7 @@ export const Click: Story = {
 
 export const Fill: Story = {
   args: {
-    part: callPart({name: 'aidx_page', input: {verb: 'fill', selector: '#name', value: 'Ada'}}),
+    part: callPart({name: 'mandarax_page', input: {verb: 'fill', selector: '#name', value: 'Ada'}}),
     result: resultPart('{"ok":true}'),
     ctx: noopCtx(),
   },
@@ -33,7 +33,7 @@ export const Fill: Story = {
 
 export const Errored: Story = {
   args: {
-    part: callPart({name: 'aidx_page', input: {verb: 'click', selector: '.missing'}}),
+    part: callPart({name: 'mandarax_page', input: {verb: 'click', selector: '.missing'}}),
     result: resultPart('{"error":"no element"}', {state: 'error', error: 'no element matched .missing'}),
     ctx: noopCtx(),
   },

@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build the harness-agnostic tool-classification layer (pure functions the widget will call) and refactor `@opendui/aidx-tools` so tool definitions are the single source of truth, instantiated `.server()` for MCP today and `.client()` later.
+**Goal:** Build the harness-agnostic tool-classification layer (pure functions the widget will call) and refactor `@mandarax/tools` so tool definitions are the single source of truth, instantiated `.server()` for MCP today and `.client()` later.
 
-**Architecture:** A `ToolKind`/`ClassifiedTool` contract lives in `@opendui/aidx-protocol`. Pure `classify(name, input)` functions (aidx tools in `@opendui/aidx-tools`; claude in `@opendui/aidx-harness` behind a browser-safe `./classify` entry; generic fallback) turn a tool-call's name + input into a `ClassifiedTool`. The tools package drops the `AidxMcpTool` re-wrap + double zod parse; `core` registers MCP tools from the bound server tools directly. This plan is pure logic + wiring — no UI. Plans B (renderers + Storybook), C (widget integration + mirror), D (structured done card) build on it.
+**Architecture:** A `ToolKind`/`ClassifiedTool` contract lives in `@mandarax/protocol`. Pure `classify(name, input)` functions (mandarax tools in `@mandarax/tools`; claude in `@mandarax/harness` behind a browser-safe `./classify` entry; generic fallback) turn a tool-call's name + input into a `ClassifiedTool`. The tools package drops the `MandaraxMcpTool` re-wrap + double zod parse; `core` registers MCP tools from the bound server tools directly. This plan is pure logic + wiring — no UI. Plans B (renderers + Storybook), C (widget integration + mirror), D (structured done card) build on it.
 
-**Tech Stack:** TypeScript (strict, NodeNext, no `any`/`as`), zod, `@tanstack/ai` `toolDefinition`, vitest, oxfmt/oxlint, pnpm + turbo. Package scope is `@opendui/aidx-*` (rename in progress).
+**Tech Stack:** TypeScript (strict, NodeNext, no `any`/`as`), zod, `@tanstack/ai` `toolDefinition`, vitest, oxfmt/oxlint, pnpm + turbo. Package scope is `@mandarax/*` (rename in progress).
 
 **Conventions (AGENTS.md):** functions not classes; no IIFEs; one-line comments; oxfmt (no semicolons, single quotes, no bracket spacing, trailing commas, width 120). Pre-commit `prek` runs oxfmt+oxlint on staged files and will reformat Markdown/code on first run — if a commit aborts with "files were modified by this hook", re-stage and commit again.
 
@@ -17,17 +17,17 @@
 - `packages/protocol/src/tool-types.ts` (create) — `ToolKind`, `ToolFamily`, `ClassifiedTool`, `TOOL_KINDS`, `familyForKind`.
 - `packages/protocol/package.json` (modify) — add `./tool-types` subpath export.
 - `packages/protocol/test/tool-types.test.ts` (create) — runtime sanity for the const/map.
-- `packages/tools/src/classify.ts` (create) — `classifyAidxTool(name, input): ClassifiedTool | null`.
+- `packages/tools/src/classify.ts` (create) — `classifyMandaraxTool(name, input): ClassifiedTool | null`.
 - `packages/tools/test/classify.test.ts` (create).
-- `packages/tools/src/types.ts` (modify) — remove `AidxMcpTool`; keep `AidxToolContext`; add `AidxServerTool` alias.
+- `packages/tools/src/types.ts` (modify) — remove `MandaraxMcpTool`; keep `MandaraxToolContext`; add `MandaraxServerTool` alias.
 - `packages/tools/src/{page,test,ui,open}.ts` (modify) — export a `*ServerTool(ctx)` returning the bound tanstack `ServerTool` (drop the hand-rolled `{name,description,inputSchema,run}`).
-- `packages/tools/src/tools.ts` (modify) — `aidxTools(ctx)` returns `AidxServerTool[]`.
+- `packages/tools/src/tools.ts` (modify) — `mandaraxTools(ctx)` returns `MandaraxServerTool[]`.
 - `packages/core/src/api/mcp/mcp.ts` (modify) — register from the server tool + def schema directly; validate args once at the boundary.
 - `packages/harness/src/claude/classify.ts` (create) — `classifyClaudeTool(name, input): ClassifiedTool`.
 - `packages/harness/src/classify.ts` (create) — `classifyTool(harnessId, name, input): ClassifiedTool` barrel.
 - `packages/harness/package.json` (modify) — add a browser-safe `./classify` subpath export.
 - `packages/harness/test/classify.test.ts` (create).
-- `packages/tools/test/*.it.test.ts` (modify) — update to the new `aidxTools` shape.
+- `packages/tools/test/*.it.test.ts` (modify) — update to the new `mandaraxTools` shape.
 
 ---
 
@@ -71,7 +71,7 @@ describe('tool-types', () => {
 
 - [ ] **Step 2: Run it and confirm it fails**
 
-Run: `pnpm --filter @opendui/aidx-protocol exec vitest run test/tool-types.test.ts`
+Run: `pnpm --filter @mandarax/protocol exec vitest run test/tool-types.test.ts`
 Expected: FAIL — cannot find module `../src/tool-types.js`.
 
 - [ ] **Step 3: Create the contract**
@@ -139,7 +139,7 @@ In `packages/protocol/package.json`, inside `"exports"`, add an entry alongside 
 
 - [ ] **Step 5: Run the test and confirm it passes**
 
-Run: `pnpm --filter @opendui/aidx-protocol exec vitest run test/tool-types.test.ts`
+Run: `pnpm --filter @mandarax/protocol exec vitest run test/tool-types.test.ts`
 Expected: PASS (3 tests).
 
 - [ ] **Step 6: Commit**
@@ -151,10 +151,10 @@ git commit -m "feat(protocol): ToolKind + ClassifiedTool tool taxonomy"
 
 ---
 
-## Task 2: aidx\_\* classifier (pure)
+## Task 2: mandarax\_\* classifier (pure)
 
-The `aidx_*` tools are aidx-owned and classify identically on every harness. `classifyAidxTool`
-returns `null` for non-aidx names so the barrel can fall through. It must tolerate partial/missing
+The `mandarax_*` tools are mandarax-owned and classify identically on every harness. `classifyMandaraxTool`
+returns `null` for non-mandarax names so the barrel can fall through. It must tolerate partial/missing
 input (args stream in).
 
 **Files:**
@@ -167,15 +167,15 @@ input (args stream in).
 ```ts
 // packages/tools/test/classify.test.ts
 import {describe, it, expect} from 'vitest'
-import {classifyAidxTool} from '../src/classify.js'
+import {classifyMandaraxTool} from '../src/classify.js'
 
-describe('classifyAidxTool', () => {
-  it('returns null for non-aidx tools', () => {
-    expect(classifyAidxTool('Bash', {command: 'ls'})).toBeNull()
+describe('classifyMandaraxTool', () => {
+  it('returns null for non-mandarax tools', () => {
+    expect(classifyMandaraxTool('Bash', {command: 'ls'})).toBeNull()
   })
 
-  it('classifies aidx_page click with a human title', () => {
-    const c = classifyAidxTool('aidx_page', {verb: 'click', selector: 'button.save'})
+  it('classifies mandarax_page click with a human title', () => {
+    const c = classifyMandaraxTool('mandarax_page', {verb: 'click', selector: 'button.save'})
     expect(c).not.toBeNull()
     expect(c?.kind).toBe('page-action')
     expect(c?.family).toBe('page')
@@ -183,42 +183,42 @@ describe('classifyAidxTool', () => {
     expect(c?.fields.verb).toBe('click')
   })
 
-  it('classifies aidx_page fill with the typed value', () => {
-    const c = classifyAidxTool('aidx_page', {verb: 'fill', selector: '#name', value: 'Ada'})
+  it('classifies mandarax_page fill with the typed value', () => {
+    const c = classifyMandaraxTool('mandarax_page', {verb: 'fill', selector: '#name', value: 'Ada'})
     expect(c?.title).toBe('Typed "Ada" into #name')
   })
 
   it('tolerates missing input (streaming)', () => {
-    const c = classifyAidxTool('aidx_page', {})
+    const c = classifyMandaraxTool('mandarax_page', {})
     expect(c?.kind).toBe('page-action')
     expect(c?.title).toBe('Page action')
   })
 
-  it('classifies aidx_test run', () => {
-    const c = classifyAidxTool('aidx_test', {action: 'run', pattern: 'widget'})
+  it('classifies mandarax_test run', () => {
+    const c = classifyMandaraxTool('mandarax_test', {action: 'run', pattern: 'widget'})
     expect(c?.kind).toBe('test')
     expect(c?.title).toBe('Ran tests: widget')
   })
 
-  it('classifies aidx_ui and aidx_open', () => {
-    expect(classifyAidxTool('aidx_ui', {kind: 'form'})?.kind).toBe('ui')
-    expect(classifyAidxTool('aidx_ui', {kind: 'form'})?.title).toBe('Rendered form')
-    expect(classifyAidxTool('aidx_open', {file: 'src/a.ts', line: 12})?.kind).toBe('file-read')
-    expect(classifyAidxTool('aidx_open', {file: 'src/a.ts'})?.title).toBe('Opened src/a.ts')
+  it('classifies mandarax_ui and mandarax_open', () => {
+    expect(classifyMandaraxTool('mandarax_ui', {kind: 'form'})?.kind).toBe('ui')
+    expect(classifyMandaraxTool('mandarax_ui', {kind: 'form'})?.title).toBe('Rendered form')
+    expect(classifyMandaraxTool('mandarax_open', {file: 'src/a.ts', line: 12})?.kind).toBe('file-read')
+    expect(classifyMandaraxTool('mandarax_open', {file: 'src/a.ts'})?.title).toBe('Opened src/a.ts')
   })
 })
 ```
 
 - [ ] **Step 2: Run it and confirm it fails**
 
-Run: `pnpm --filter @opendui/aidx-tools exec vitest run test/classify.test.ts`
+Run: `pnpm --filter @mandarax/tools exec vitest run test/classify.test.ts`
 Expected: FAIL — cannot find module `../src/classify.js`.
 
 - [ ] **Step 3: Implement the classifier**
 
 ```ts
 // packages/tools/src/classify.ts
-import type {ClassifiedTool} from '@opendui/aidx-protocol/tool-types'
+import type {ClassifiedTool} from '@mandarax/protocol/tool-types'
 
 // Read a string field off an unknown input bag without throwing on partial/streaming args.
 function str(input: unknown, key: string): string | undefined {
@@ -234,7 +234,7 @@ function pageTarget(input: unknown): string | undefined {
   return str(input, 'selector') ?? str(input, 'name') ?? str(input, 'ref')
 }
 
-// Human label for an aidx_page verb. `t` is the resolved target (may be undefined while streaming).
+// Human label for an mandarax_page verb. `t` is the resolved target (may be undefined while streaming).
 function pageTitle(verb: string | undefined, input: unknown): string {
   const t = pageTarget(input)
   const at = t ? ` ${t}` : ''
@@ -286,21 +286,21 @@ function testTitle(input: unknown): string {
   return 'Tests'
 }
 
-// Classify an aidx-owned tool by name + input. Returns null for any other tool so the harness
+// Classify an mandarax-owned tool by name + input. Returns null for any other tool so the harness
 // barrel can fall through to a CLI classifier or the generic fallback.
-export function classifyAidxTool(name: string, input: unknown): ClassifiedTool | null {
-  if (name === 'aidx_page') {
+export function classifyMandaraxTool(name: string, input: unknown): ClassifiedTool | null {
+  if (name === 'mandarax_page') {
     const verb = str(input, 'verb')
     return {kind: 'page-action', family: 'page', title: pageTitle(verb, input), fields: {verb, ...asFields(input)}}
   }
-  if (name === 'aidx_test') {
+  if (name === 'mandarax_test') {
     return {kind: 'test', family: 'test', title: testTitle(input), fields: asFields(input)}
   }
-  if (name === 'aidx_ui') {
+  if (name === 'mandarax_ui') {
     const k = str(input, 'kind')
     return {kind: 'ui', family: 'neutral', title: k ? `Rendered ${k}` : 'Rendered UI', fields: asFields(input)}
   }
-  if (name === 'aidx_open') {
+  if (name === 'mandarax_open') {
     const file = str(input, 'file')
     return {
       kind: 'file-read',
@@ -320,14 +320,14 @@ function asFields(input: unknown): Record<string, unknown> {
 
 - [ ] **Step 4: Run the test and confirm it passes**
 
-Run: `pnpm --filter @opendui/aidx-tools exec vitest run test/classify.test.ts`
+Run: `pnpm --filter @mandarax/tools exec vitest run test/classify.test.ts`
 Expected: PASS (6 tests).
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add packages/tools/src/classify.ts packages/tools/test/classify.test.ts
-git commit -m "feat(tools): pure classifier for aidx_* tools"
+git commit -m "feat(tools): pure classifier for mandarax_* tools"
 ```
 
 ---
@@ -335,7 +335,7 @@ git commit -m "feat(tools): pure classifier for aidx_* tools"
 ## Task 3: claude classifier + harness classify barrel
 
 `classifyClaudeTool` maps claude's built-in tool names to kinds/titles. `classifyTool` is the
-browser-safe barrel: aidx tools first (harness-independent), then the per-harness classifier, then
+browser-safe barrel: mandarax tools first (harness-independent), then the per-harness classifier, then
 a generic fallback. Both files are pure (no node imports) so the widget can import them.
 
 **Files:**
@@ -368,8 +368,8 @@ describe('classifyTool', () => {
     expect(classifyTool('claude', 'TodoWrite', {}).kind).toBe('todo')
   })
 
-  it('routes aidx tools through the shared classifier regardless of harness', () => {
-    expect(classifyTool('codex', 'aidx_page', {verb: 'click', selector: 'b'}).kind).toBe('page-action')
+  it('routes mandarax tools through the shared classifier regardless of harness', () => {
+    expect(classifyTool('codex', 'mandarax_page', {verb: 'click', selector: 'b'}).kind).toBe('page-action')
   })
 
   it('falls back to unknown for unmapped tools and harnesses', () => {
@@ -388,14 +388,14 @@ describe('classifyTool', () => {
 
 - [ ] **Step 2: Run it and confirm it fails**
 
-Run: `pnpm --filter @opendui/aidx-harness exec vitest run test/classify.test.ts`
+Run: `pnpm --filter @mandarax/harness exec vitest run test/classify.test.ts`
 Expected: FAIL — cannot find module `../src/classify.js`.
 
 - [ ] **Step 3: Implement the claude classifier**
 
 ```ts
 // packages/harness/src/claude/classify.ts
-import type {ClassifiedTool} from '@opendui/aidx-protocol/tool-types'
+import type {ClassifiedTool} from '@mandarax/protocol/tool-types'
 
 function str(input: unknown, key: string): string | undefined {
   if (input && typeof input === 'object' && key in input) {
@@ -453,8 +453,8 @@ function label(verb: string, target: string | undefined): string {
 
 ```ts
 // packages/harness/src/classify.ts
-import type {ClassifiedTool} from '@opendui/aidx-protocol/tool-types'
-import {classifyAidxTool} from '@opendui/aidx-tools/classify'
+import type {ClassifiedTool} from '@mandarax/protocol/tool-types'
+import {classifyMandaraxTool} from '@mandarax/tools/classify'
 import {classifyClaudeTool} from './claude/classify.js'
 
 // Per-harness classifiers, keyed by harness id. Each is pure and browser-safe. Harnesses without
@@ -463,11 +463,11 @@ const HARNESS: Record<string, (name: string, input: unknown) => ClassifiedTool |
   claude: classifyClaudeTool,
 }
 
-// Classify any tool call into a ClassifiedTool. aidx-owned tools win first (harness-independent),
+// Classify any tool call into a ClassifiedTool. mandarax-owned tools win first (harness-independent),
 // then the active harness's classifier, then a generic fallback. Tolerates partial input.
 export function classifyTool(harnessId: string, name: string, input: unknown): ClassifiedTool {
-  const aidx = classifyAidxTool(name, input)
-  if (aidx) return aidx
+  const mandarax = classifyMandaraxTool(name, input)
+  if (mandarax) return mandarax
   const byHarness = HARNESS[harnessId]?.(name, input)
   if (byHarness) return byHarness
   return {kind: 'unknown', family: 'neutral', title: name, fields: asFields(input)}
@@ -480,7 +480,7 @@ function asFields(input: unknown): Record<string, unknown> {
 
 - [ ] **Step 5: Export the browser-safe `./classify` entry**
 
-`classifyAidxTool` is imported from `@opendui/aidx-tools/classify`. First add that subpath export to
+`classifyMandaraxTool` is imported from `@mandarax/tools/classify`. First add that subpath export to
 `packages/tools/package.json` `"exports"` (alongside the package's main entry):
 
 ```json
@@ -505,16 +505,16 @@ in Step 7.
 
 - [ ] **Step 6: Run the test and confirm it passes**
 
-Run: `pnpm --filter @opendui/aidx-harness exec vitest run test/classify.test.ts`
+Run: `pnpm --filter @mandarax/harness exec vitest run test/classify.test.ts`
 Expected: PASS (5 tests).
 
 - [ ] **Step 7: Verify the new entries build and are pure**
 
-Run: `pnpm turbo run build --filter=@opendui/aidx-tools --filter=@opendui/aidx-harness`
+Run: `pnpm turbo run build --filter=@mandarax/tools --filter=@mandarax/harness`
 Expected: builds emit `dist/classify.js` + `dist/classify.d.ts` in both packages. Then confirm the
 harness classify entry pulls no node builtins:
 
-Run: `node -e "import('@opendui/aidx-harness/classify').then(m => console.log(typeof m.classifyTool))"`
+Run: `node -e "import('@mandarax/harness/classify').then(m => console.log(typeof m.classifyTool))"`
 Expected: prints `function` with no error.
 
 - [ ] **Step 8: Commit**
@@ -526,10 +526,10 @@ git commit -m "feat(harness): browser-safe tool classify barrel (claude + generi
 
 ---
 
-## Task 4: refactor @opendui/aidx-tools to bound server tools
+## Task 4: refactor @mandarax/tools to bound server tools
 
-Drop the `AidxMcpTool` re-wrap and the double zod parse. Each tool module exports a factory
-returning the bound tanstack `ServerTool`; `aidxTools(ctx)` returns the list. Validation moves to a
+Drop the `MandaraxMcpTool` re-wrap and the double zod parse. Each tool module exports a factory
+returning the bound tanstack `ServerTool`; `mandaraxTools(ctx)` returns the list. Validation moves to a
 single boundary in `core` (Task 5).
 
 **Files:**
@@ -540,69 +540,71 @@ single boundary in `core` (Task 5).
 
 - [ ] **Step 1: Replace the tool view type**
 
-In `packages/tools/src/types.ts`, delete the `AidxMcpTool` type and replace it with an alias for the
-tanstack server tool (keep `AidxToolContext` unchanged):
+In `packages/tools/src/types.ts`, delete the `MandaraxMcpTool` type and replace it with an alias for the
+tanstack server tool (keep `MandaraxToolContext` unchanged):
 
 ```ts
 import type {ServerTool} from '@tanstack/ai'
 
-// A bound aidx tool as tanstack produces it: name, description, the zod inputSchema, and a
+// A bound mandarax tool as tanstack produces it: name, description, the zod inputSchema, and a
 // validated `execute`. The MCP server iterates these directly (no hand-rolled wrapper).
-export type AidxServerTool = ServerTool<z.ZodObject<z.ZodRawShape>, z.ZodTypeAny, string>
+export type MandaraxServerTool = ServerTool<z.ZodObject<z.ZodRawShape>, z.ZodTypeAny, string>
 ```
 
-(Keep the existing `import {z} from 'zod'` and the `AidxToolContext` definition.)
+(Keep the existing `import {z} from 'zod'` and the `MandaraxToolContext` definition.)
 
 - [ ] **Step 2: Convert each tool module to a server-tool factory**
 
-`packages/tools/src/ui.ts` — replace `aidxUiTool` with:
+`packages/tools/src/ui.ts` — replace `mandaraxUiTool` with:
 
 ```ts
-import type {AidxServerTool, AidxToolContext} from './types.js'
+import type {MandaraxServerTool, MandaraxToolContext} from './types.js'
 
-export function aidxUiServerTool(ctx: AidxToolContext): AidxServerTool {
-  return aidxUiToolDef.server(async (input) => {
+export function mandaraxUiServerTool(ctx: MandaraxToolContext): MandaraxServerTool {
+  return mandaraxUiToolDef.server(async (input) => {
     const renderId = randomUUID()
     const injected = ctx.injectUi(buildUiSpec(input, renderId))
     return {renderId, injected}
-  }) as AidxServerTool
+  }) as MandaraxServerTool
 }
 ```
 
-`packages/tools/src/page.ts` — replace `aidxPageTool` with:
+`packages/tools/src/page.ts` — replace `mandaraxPageTool` with:
 
 ```ts
-import type {AidxServerTool, AidxToolContext} from './types.js'
+import type {MandaraxServerTool, MandaraxToolContext} from './types.js'
 
-export function aidxPageServerTool(ctx: AidxToolContext): AidxServerTool {
-  return aidxPageToolDef.server(async ({verb, ...input}) => ctx.page({kind: verb, ...input})) as AidxServerTool
+export function mandaraxPageServerTool(ctx: MandaraxToolContext): MandaraxServerTool {
+  return mandaraxPageToolDef.server(async ({verb, ...input}) => ctx.page({kind: verb, ...input})) as MandaraxServerTool
 }
 ```
 
-`packages/tools/src/test.ts` — replace `aidxTestTool` with:
+`packages/tools/src/test.ts` — replace `mandaraxTestTool` with:
 
 ```ts
-import type {AidxServerTool, AidxToolContext} from './types.js'
+import type {MandaraxServerTool, MandaraxToolContext} from './types.js'
 
-export function aidxTestServerTool(ctx: AidxToolContext): AidxServerTool {
-  return aidxTestToolDef.server(async ({action, pattern}) => ctx.test({kind: action, pattern})) as AidxServerTool
+export function mandaraxTestServerTool(ctx: MandaraxToolContext): MandaraxServerTool {
+  return mandaraxTestToolDef.server(async ({action, pattern}) =>
+    ctx.test({kind: action, pattern}),
+  ) as MandaraxServerTool
 }
 ```
 
-`packages/tools/src/open.ts` — replace `aidxOpenTool` with:
+`packages/tools/src/open.ts` — replace `mandaraxOpenTool` with:
 
 ```ts
-import type {AidxServerTool, AidxToolContext} from './types.js'
+import type {MandaraxServerTool, MandaraxToolContext} from './types.js'
 
-export function aidxOpenServerTool(ctx: AidxToolContext): AidxServerTool {
-  return aidxOpenToolDef.server(async ({file, line}) => {
+export function mandaraxOpenServerTool(ctx: MandaraxToolContext): MandaraxServerTool {
+  return mandaraxOpenToolDef.server(async ({file, line}) => {
     ctx.open(file, line)
     return {ok: true, file, ...(line === undefined ? {} : {line})}
-  }) as AidxServerTool
+  }) as MandaraxServerTool
 }
 ```
 
-Note: the `as AidxServerTool` here narrows tanstack's generic `ServerTool` to the erased alias used
+Note: the `as MandaraxServerTool` here narrows tanstack's generic `ServerTool` to the erased alias used
 by the MCP iterator; it is the one sanctioned cast at this boundary (the SDK validates args against
 `inputSchema` before `execute` runs). If `tsc` accepts the assignment without the cast, drop it.
 
@@ -611,40 +613,45 @@ by the MCP iterator; it is the one sanctioned cast at this boundary (the SDK val
 `packages/tools/src/tools.ts`:
 
 ```ts
-import type {AidxServerTool, AidxToolContext} from './types.js'
-import {aidxPageServerTool} from './page.js'
-import {aidxTestServerTool} from './test.js'
-import {aidxUiServerTool} from './ui.js'
-import {aidxOpenServerTool} from './open.js'
+import type {MandaraxServerTool, MandaraxToolContext} from './types.js'
+import {mandaraxPageServerTool} from './page.js'
+import {mandaraxTestServerTool} from './test.js'
+import {mandaraxUiServerTool} from './ui.js'
+import {mandaraxOpenServerTool} from './open.js'
 
-export type {AidxServerTool, AidxToolContext} from './types.js'
-export {classifyAidxTool} from './classify.js'
+export type {MandaraxServerTool, MandaraxToolContext} from './types.js'
+export {classifyMandaraxTool} from './classify.js'
 
-// The aidx tool list as bound tanstack server tools, in one place so the MCP server (and tests)
+// The mandarax tool list as bound tanstack server tools, in one place so the MCP server (and tests)
 // get them with a single import.
-export function aidxTools(ctx: AidxToolContext): AidxServerTool[] {
-  return [aidxUiServerTool(ctx), aidxPageServerTool(ctx), aidxTestServerTool(ctx), aidxOpenServerTool(ctx)]
+export function mandaraxTools(ctx: MandaraxToolContext): MandaraxServerTool[] {
+  return [
+    mandaraxUiServerTool(ctx),
+    mandaraxPageServerTool(ctx),
+    mandaraxTestServerTool(ctx),
+    mandaraxOpenServerTool(ctx),
+  ]
 }
 ```
 
 - [ ] **Step 4: Typecheck the package**
 
-Run: `pnpm --filter @opendui/aidx-tools typecheck`
-Expected: PASS (no `any`, no unused `AidxMcpTool`). If `ServerTool` is not exported from
+Run: `pnpm --filter @mandarax/tools typecheck`
+Expected: PASS (no `any`, no unused `MandaraxMcpTool`). If `ServerTool` is not exported from
 `@tanstack/ai`, import it from `@tanstack/ai/client` instead and adjust `types.ts`.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add packages/tools/src
-git commit -m "refactor(tools): expose bound server tools, drop AidxMcpTool re-wrap"
+git commit -m "refactor(tools): expose bound server tools, drop MandaraxMcpTool re-wrap"
 ```
 
 ---
 
 ## Task 5: register MCP tools from the server tools directly
 
-`core/src/api/mcp/mcp.ts` iterates `aidxTools(ctx)` and calls `tool.run`. Switch it to call the
+`core/src/api/mcp/mcp.ts` iterates `mandaraxTools(ctx)` and calls `tool.run`. Switch it to call the
 server tool's `execute`, validating once against the def schema at the boundary.
 
 **Files:**
@@ -653,10 +660,10 @@ server tool's `execute`, validating once against the def schema at the boundary.
 
 - [ ] **Step 1: Update the registration loop**
 
-Replace the `for (const tool of aidxTools(ctx))` block in `buildServer` with:
+Replace the `for (const tool of mandaraxTools(ctx))` block in `buildServer` with:
 
 ```ts
-for (const tool of aidxTools(ctx)) {
+for (const tool of mandaraxTools(ctx)) {
   server.registerTool(tool.name, {description: tool.description, inputSchema: tool.inputSchema.shape}, async (args) => {
     // The SDK validated `args` against inputSchema; parse once more to hand `execute` typed input.
     const result = await tool.execute(tool.inputSchema.parse(args))
@@ -665,11 +672,11 @@ for (const tool of aidxTools(ctx)) {
 }
 ```
 
-Keep the import as `import {aidxTools, type AidxToolContext} from '@opendui/aidx-tools'`.
+Keep the import as `import {mandaraxTools, type MandaraxToolContext} from '@mandarax/tools'`.
 
 - [ ] **Step 2: Typecheck core**
 
-Run: `pnpm --filter @opendui/aidx-core typecheck`
+Run: `pnpm --filter @mandarax/core typecheck`
 Expected: PASS. If `tool.execute`'s signature requires a second context arg, pass `undefined`:
 `tool.execute(tool.inputSchema.parse(args), undefined)`.
 
@@ -684,8 +691,8 @@ git commit -m "refactor(core): register MCP tools from bound server tools"
 
 ## Task 6: update tools integration tests to the new shape
 
-The existing ITs (`tools/test/*.it.test.ts`) build tools via the old `aidx*Tool(ctx)` returning
-`{run}`. Update them to the server-tool shape (`aidx*ServerTool(ctx).execute`) so they validate the
+The existing ITs (`tools/test/*.it.test.ts`) build tools via the old `mandarax*Tool(ctx)` returning
+`{run}`. Update them to the server-tool shape (`mandarax*ServerTool(ctx).execute`) so they validate the
 real path.
 
 **Files:**
@@ -697,7 +704,7 @@ real path.
 
 - [ ] **Step 1: Read each IT to see how it invokes the tool**
 
-Run: `grep -n "Tool(\|\\.run(\|aidxTools" packages/tools/test/*.it.test.ts`
+Run: `grep -n "Tool(\|\\.run(\|mandaraxTools" packages/tools/test/*.it.test.ts`
 Expected: each test constructs a tool and calls `.run(args)`.
 
 - [ ] **Step 2: Swap `.run(args)` for `.execute(parsedArgs)`**
@@ -705,20 +712,20 @@ Expected: each test constructs a tool and calls `.run(args)`.
 For each IT, change the import + call. Example for `open-tool.it.test.ts`:
 
 ```ts
-import {aidxOpenServerTool} from '../src/open.js'
+import {mandaraxOpenServerTool} from '../src/open.js'
 import {OpenInput} from '../src/open.js'
 // ...
-const tool = aidxOpenServerTool(ctx)
+const tool = mandaraxOpenServerTool(ctx)
 const result = await tool.execute(OpenInput.parse({file: 'src/a.ts', line: 3}))
 ```
 
-Apply the analogous rename in the other three (`aidxPageServerTool` + `PageInput`,
-`aidxTestServerTool` + `TestInput`, `aidxUiServerTool` + `UiInput`). The MCP-shape assertions on
+Apply the analogous rename in the other three (`mandaraxPageServerTool` + `PageInput`,
+`mandaraxTestServerTool` + `TestInput`, `mandaraxUiServerTool` + `UiInput`). The MCP-shape assertions on
 `tool.run`/`tool.inputSchema` become assertions on the returned `execute` result.
 
 - [ ] **Step 3: Run the tools test suite**
 
-Run: `pnpm --filter @opendui/aidx-tools test`
+Run: `pnpm --filter @mandarax/tools test`
 Expected: PASS (classifier unit test + the four updated ITs).
 
 - [ ] **Step 4: Commit**
@@ -734,7 +741,7 @@ git commit -m "test(tools): update ITs to bound server-tool shape"
 
 - [ ] **Step 1: Typecheck + build + test the touched packages via turbo**
 
-Run: `pnpm turbo run typecheck build test --filter=@opendui/aidx-protocol --filter=@opendui/aidx-tools --filter=@opendui/aidx-harness --filter=@opendui/aidx-core`
+Run: `pnpm turbo run typecheck build test --filter=@mandarax/protocol --filter=@mandarax/tools --filter=@mandarax/harness --filter=@mandarax/core`
 Expected: all green.
 
 - [ ] **Step 2: Lint + format check**
@@ -754,10 +761,10 @@ git commit -m "chore(tools): formatting + lint after classification layer" || ec
 ## Self-review notes (author)
 
 - Spec coverage: implements the canonical `ToolKind`/`ClassifiedTool` contract, the client-side
-  classifiers (aidx\_* + claude + generic barrel, browser-safe entries), and the tools refactor
-  (drop `AidxMcpTool`, bound server tools, simplified `core/mcp.ts`). The widget *consuming\*
+  classifiers (mandarax\_* + claude + generic barrel, browser-safe entries), and the tools refactor
+  (drop `MandaraxMcpTool`, bound server tools, simplified `core/mcp.ts`). The widget *consuming\*
   `classifyTool` is Plan C; renderers are Plan B; the structured done card is Plan D.
-- The one `as AidxServerTool` cast is called out with a "drop if `tsc` accepts" instruction;
+- The one `as MandaraxServerTool` cast is called out with a "drop if `tsc` accepts" instruction;
   everything else avoids `as` per AGENTS.md.
 - Open dependency to confirm during execution: whether `ServerTool` is exported from `@tanstack/ai`
   vs `@tanstack/ai/client`, and whether `tsdown.config.ts` needs `src/classify.ts` added as an

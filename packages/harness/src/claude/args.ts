@@ -1,24 +1,24 @@
 import {randomUUID} from 'node:crypto'
 import {writeFileSync} from 'node:fs'
 import {join} from 'node:path'
-import type {HarnessImage, HarnessTurn} from '@opendui/aidx-protocol/harness-types'
-import {AIDX_PLUGIN_DIR} from './plugin-dir.js'
+import type {HarnessImage, HarnessTurn} from '@mandarax/protocol/harness-types'
+import {MANDARAX_PLUGIN_DIR} from './plugin-dir.js'
 
-// aidx tools (ui/page/test) reach the agent via MCP-over-HTTP, not Bash: point claude at our
+// mandarax tools (ui/page/test) reach the agent via MCP-over-HTTP, not Bash: point claude at our
 // in-process server and allow the MCP tools so they run unprompted. --strict-mcp-config makes claude
 // use ONLY our server, ignoring the user's own MCP servers — without it that tool flood buries
-// aidx_* behind claude's deferred-tool search and the agent can't find them reliably. Shared by the
+// mandarax_* behind claude's deferred-tool search and the agent can't find them reliably. Shared by the
 // chat turn (buildClaudeArgs) and the interactive "open in claude" launch so they cannot drift.
 export function claudeMcpArgs(mcpUrl: string): string[] {
   return [
     '--mcp-config',
-    JSON.stringify({mcpServers: {aidx: {type: 'http', url: mcpUrl}}}),
+    JSON.stringify({mcpServers: {mandarax: {type: 'http', url: mcpUrl}}}),
     '--strict-mcp-config',
-    // Server-level allow: every tool the aidx MCP server exposes (ui/page/test/open + any future
+    // Server-level allow: every tool the mandarax MCP server exposes (ui/page/test/open + any future
     // tool) runs unprompted, so the allowlist can't drift as we add tools. --strict-mcp-config keeps
     // this to OUR server only, so it never blesses a user's MCP server.
     '--allowedTools',
-    'mcp__aidx',
+    'mcp__mandarax',
   ]
 }
 
@@ -45,7 +45,7 @@ function imageRefs(images: HarnessImage[], cwd: string): string {
   return images
     .map((img) => {
       const ext = IMAGE_EXT[img.mediaType] ?? 'png'
-      const path = join(cwd, `.aidx-img-${randomUUID()}.${ext}`)
+      const path = join(cwd, `.mandarax-img-${randomUUID()}.${ext}`)
       writeFileSync(path, Buffer.from(img.dataBase64, 'base64'))
       return `@${path}`
     })
@@ -72,7 +72,7 @@ export function buildClaudeArgs(turn: HarnessTurn): string[] {
     turn.cwd,
   ]
   if (turn.mcpUrl) args.push(...claudeMcpArgs(turn.mcpUrl))
-  if (AIDX_PLUGIN_DIR) args.push('--plugin-dir', AIDX_PLUGIN_DIR)
+  if (MANDARAX_PLUGIN_DIR) args.push('--plugin-dir', MANDARAX_PLUGIN_DIR)
   if (turn.model) args.push('--model', turn.model)
   if (turn.permissionUrl) args.push('--settings', hookSettings(turn.permissionUrl))
   if (turn.systemPrompt) args.push('--append-system-prompt-file', turn.systemPrompt)

@@ -6,7 +6,7 @@ import {acquireLock, readLock, releaseLock, readLocks} from '../../src/store/loc
 
 const dirs: string[] = []
 const tmp = () => {
-  const d = mkdtempSync(join(tmpdir(), 'aidx-lock-'))
+  const d = mkdtempSync(join(tmpdir(), 'mandarax-lock-'))
   dirs.push(d)
   return d
 }

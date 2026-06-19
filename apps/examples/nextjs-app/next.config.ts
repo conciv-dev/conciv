@@ -1,6 +1,6 @@
 import type {NextConfig} from 'next'
-import {withAidx} from '@opendui/aidx/plugin/nextjs'
+import {withMandarax} from 'mandarax/plugin/nextjs'
 
 const nextConfig: NextConfig = {}
 
-export default withAidx(nextConfig)
+export default withMandarax(nextConfig)

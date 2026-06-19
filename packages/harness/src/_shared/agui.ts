@@ -1,7 +1,7 @@
 import type {ZodType} from 'zod'
 import {EventType, type StreamChunk} from '@tanstack/ai'
-import type {HarnessDecodeOpts} from '@opendui/aidx-protocol/harness-types'
-import {snapshotToTokenUsage, type UsageSnapshot} from '@opendui/aidx-protocol/usage-types'
+import type {HarnessDecodeOpts} from '@mandarax/protocol/harness-types'
+import {snapshotToTokenUsage, type UsageSnapshot} from '@mandarax/protocol/usage-types'
 
 // Shared decoder spine: run lifecycle, line loop, parse, id minter, AG-UI chunk emitters.
 // An adapter supplies only its Zod event schema and a pure event→chunks `step`.
@@ -63,8 +63,8 @@ export async function* runAgui<E>(
   step: Step<E>,
   extractUsage?: UsageExtractor<E>,
 ): AsyncGenerator<StreamChunk> {
-  const runId = opts.runId ?? 'aidx-run'
-  const threadId = opts.threadId ?? 'aidx-chat'
+  const runId = opts.runId ?? 'mandarax-run'
+  const threadId = opts.threadId ?? 'mandarax-chat'
   // Scope minted ids to this turn (threadId is fresh per turn) so a later turn never reuses an
   // earlier turn's message id — a collision makes the widget update the old message in place
   // (reply renders above the question, or not at all) instead of appending a new one.

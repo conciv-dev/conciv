@@ -130,7 +130,7 @@ export function Demo() {
       <Card className="gap-0 overflow-hidden p-0 shadow-xl">
         <div className="flex items-center gap-2 border-b px-4 py-2.5">
           <span className="text-base text-primary">✦</span>
-          <span className="text-[13.5px] font-semibold">opendui</span>
+          <span className="text-[13.5px] font-semibold">mandarax</span>
           <Badge className="bg-accent font-mono text-[10px] uppercase tracking-wide text-accent-foreground">
             in your app
           </Badge>

@@ -17,7 +17,7 @@ capture is exact.
 
 ## Spike findings (proven 2026-06-17, macOS 26, arm64)
 
-A throwaway spike (`/tmp/aidx-capture-spike`, Swift + ScreenCaptureKit) established:
+A throwaway spike (`/tmp/mandarax-capture-spike`, Swift + ScreenCaptureKit) established:
 
 - Swift + ScreenCaptureKit captures a real window at retina resolution (2048x1644 @2x). Verified visually.
 - A plain binary spawned as a child of the dev host (terminal/IDE) rides that host's
@@ -38,7 +38,7 @@ A throwaway spike (`/tmp/aidx-capture-spike`, Swift + ScreenCaptureKit) establis
 
 ### Components
 
-1. `@opendui/aidx-capture-macos` (new): a prebuilt Swift + ScreenCaptureKit binary, one per arch
+1. `@mandarax/capture-macos` (new): a prebuilt Swift + ScreenCaptureKit binary, one per arch
    (darwin-arm64, darwin-x64), shipped in the npm package. Single-shot CLI:
    - bootstraps Cocoa (`NSApplication.shared` accessory, `finishLaunching()`)
    - checks `CGPreflightScreenCaptureAccess()`; if false, emits `{error:"permission"}`
@@ -64,7 +64,7 @@ A throwaway spike (`/tmp/aidx-capture-spike`, Swift + ScreenCaptureKit) establis
 user clicks grab, picks element
   -> widget: DOM clone (existing) + getBoundingClientRect + page URL
   -> POST /page/capture
-       -> core spawns @opendui/aidx-capture-macos --out /tmp/...png
+       -> core spawns @mandarax/capture-macos --out /tmp/...png
             -> SCK captures target browser window -> PNG
        -> core reads PNG, returns base64 (or structured error)
   -> widget shows screenshot chip + DOM-clone chip in composer
@@ -125,7 +125,7 @@ literal full screen.
 
 ## Open risks
 
-- Broad permission: the user grants their terminal/IDE Screen Recording, not aidx
+- Broad permission: the user grants their terminal/IDE Screen Recording, not mandarax
   specifically. Mitigated by naming the exact host app; inherent to the spawned-child
   model.
 - Host detection across the many terminals/IDEs developers use.

@@ -1,10 +1,10 @@
 import {type H3, HTTPError, readValidatedBody} from 'h3'
 import {chat, EventType, toServerSentEventsStream, type StreamChunk} from '@tanstack/ai'
-import {harnessText} from '@opendui/aidx-harness'
-import type {HarnessAdapter, HarnessChild} from '@opendui/aidx-protocol/harness-types'
-import {UiSpecSchema} from '@opendui/aidx-protocol/ui-types'
-import {ChatRequestSchema} from '@opendui/aidx-protocol/chat-types'
-import {tokenUsageToSnapshot} from '@opendui/aidx-protocol/usage-types'
+import {harnessText} from '@mandarax/harness'
+import type {HarnessAdapter, HarnessChild} from '@mandarax/protocol/harness-types'
+import {UiSpecSchema} from '@mandarax/protocol/ui-types'
+import {ChatRequestSchema} from '@mandarax/protocol/chat-types'
+import {tokenUsageToSnapshot} from '@mandarax/protocol/usage-types'
 import {acquireLock, releaseLock, updateLockPid} from '../../store/lock.js'
 import type {SessionStore} from '../../store/session-store.js'
 import type {UiBus} from '../../runtime/ui-bus.js'
@@ -42,7 +42,7 @@ export const ensureChatRecord = async (
   })
 }
 
-// The optional sessionId becomes AIDX_SESSION_ID in the child's env, so the agent's `aidx ui` /
+// The optional sessionId becomes MANDARAX_SESSION_ID in the child's env, so the agent's `mandarax ui` /
 // permission-hook calls echo it back and core routes them to this turn's channel.
 export type SpawnHarness = (args: string[], cwd: string, sessionId?: string) => HarnessChild
 
@@ -100,7 +100,7 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
 
       const adapter = harnessText(harness, {
         cwd: deps.cwd,
-        // Bind this turn's header id into the spawn so the child env carries AIDX_SESSION_ID.
+        // Bind this turn's header id into the spawn so the child env carries MANDARAX_SESSION_ID.
         spawnHarness: (args, cwd) => deps.spawnHarness(args, cwd, sessionId),
         systemPrompt: sysText,
         resumeSessionId,

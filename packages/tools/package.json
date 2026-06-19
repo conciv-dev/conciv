@@ -1,7 +1,7 @@
 {
-  "name": "@opendui/aidx-tools",
+  "name": "@mandarax/tools",
   "version": "0.0.0",
-  "description": "aidx agent tools as @tanstack/ai toolDefinition().server() functions: ui, page, test.",
+  "description": "mandarax agent tools as @tanstack/ai toolDefinition().server() functions: ui, page, test.",
   "license": "MIT",
   "files": [
     "dist"
@@ -24,7 +24,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@opendui/aidx-protocol": "workspace:*",
+    "@mandarax/protocol": "workspace:*",
     "@tanstack/ai": "^0.28.0",
     "zod": "^4.4.3"
   },

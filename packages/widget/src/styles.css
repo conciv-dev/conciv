@@ -1,8 +1,8 @@
-@import '@opendui/aidx-solid-streamdown/styles.css';
+@import '@mandarax/solid-streamdown/styles.css';
 /* Shared design tokens + tool-card styles: single source of truth, scoped :host,:root so they
    resolve in this shadow root and in tool-ui's Storybook alike. The widget owns no token copy. */
-@import '@opendui/aidx-tool-ui/tokens.css';
-@import '@opendui/aidx-tool-ui/tool-ui.css';
+@import '@mandarax/tool-ui/tokens.css';
+@import '@mandarax/tool-ui/tool-ui.css';
 
 /* preview-widget styles, injected into the Shadow DOM root. Mirrors react-grab's
    design language (dark panel, magenta brand accent) so the comment UI reads as
@@ -18,7 +18,7 @@
    arbitrary, often light, preview pages and must read as a distinct tool layer next
    to react-grab), so depth comes from hue-tinted shadow, not from glow. */
 
-/* Reset only: every --pw-* token comes from @opendui/aidx-tool-ui/tokens.css (imported above),
+/* Reset only: every --pw-* token comes from @mandarax/tool-ui/tokens.css (imported above),
    the single source of truth shared with the tool cards and their Storybook. */
 :host {
   all: initial;
@@ -790,7 +790,7 @@
 .pw-chat-text {
   margin: 0;
 }
-/* Streaming markdown (@opendui/aidx-solid-streamdown + Shiki). Shiki emits inline-styled <pre class="shiki">. */
+/* Streaming markdown (@mandarax/solid-streamdown + Shiki). Shiki emits inline-styled <pre class="shiki">. */
 .pw-md {
   display: flow-root;
 }

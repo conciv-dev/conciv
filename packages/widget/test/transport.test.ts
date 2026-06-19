@@ -16,7 +16,7 @@ beforeAll(async () => {
       lastBody = raw
       res.setHeader('content-type', 'application/json')
       if (req.url === '/api/p')
-        return void res.end(JSON.stringify({ok: true, echo: req.headers['aidx-session-id'] ?? null}))
+        return void res.end(JSON.stringify({ok: true, echo: req.headers['mandarax-session-id'] ?? null}))
       res.statusCode = 500
       res.end('nope')
     })
@@ -28,14 +28,14 @@ afterAll(() => server.close())
 
 describe('createTransport (real server)', () => {
   it('route() parses the response and sends the injected header', async () => {
-    const t = createTransport({apiBase: base, headers: () => ({'aidx-session-id': 'aidx_1'})})
+    const t = createTransport({apiBase: base, headers: () => ({'mandarax-session-id': 'mandarax_1'})})
     const out = await t.route({
       method: 'POST',
       path: '/api/p',
       request: z.object({a: z.number()}),
       response: z.object({ok: z.boolean(), echo: z.string().nullable()}),
     })({a: 1})
-    expect(out).toEqual({ok: true, echo: 'aidx_1'})
+    expect(out).toEqual({ok: true, echo: 'mandarax_1'})
   })
   it('throws ApiError on non-2xx', async () => {
     const t = createTransport({apiBase: base})

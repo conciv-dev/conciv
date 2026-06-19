@@ -40,7 +40,7 @@ describe('dehydrate', () => {
   it('collapses past max depth into a drillable sentinel with size', () => {
     const deep = {a: {b: {c: {d: 1}}}}
     const out = dehydrate(deep, {maxDepth: 2}) as {a: {b: unknown}}
-    expect(out.a.b).toEqual({__aidx: 'object', size: 1, preview: '{…}'})
+    expect(out.a.b).toEqual({__mandarax: 'object', size: 1, preview: '{…}'})
   })
 
   it('caps wide arrays and reports how many were omitted', () => {
@@ -80,9 +80,9 @@ describe('dehydrate', () => {
       s: unknown
       store: unknown
     }
-    expect(out.m).toMatchObject({__aidx: 'Map', size: 1})
-    expect(out.s).toMatchObject({__aidx: 'Set', size: 2})
-    expect(out.store).toMatchObject({__aidx: 'class', name: 'Store'})
+    expect(out.m).toMatchObject({__mandarax: 'Map', size: 1})
+    expect(out.s).toMatchObject({__mandarax: 'Set', size: 2})
+    expect(out.store).toMatchObject({__mandarax: 'class', name: 'Store'})
   })
 })
 

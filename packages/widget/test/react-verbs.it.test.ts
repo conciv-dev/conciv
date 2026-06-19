@@ -1,7 +1,7 @@
 // The React verbs (inspect / drill-down / override) driven in a REAL browser against a REAL React
 // app. A tiny React fixture is bundled with esbuild (dev build → real reconciler + hooks), rendered
 // into the page alongside the built widget global, and we call the widget's OWN page driver
-// (window.__AIDX_PAGE_DRIVER__) — real bippy, real dehydrate, real fibers. No mocks, no example app.
+// (window.__MANDARAX_PAGE_DRIVER__) — real bippy, real dehydrate, real fibers. No mocks, no example app.
 import fs from 'node:fs'
 import path from 'node:path'
 import {fileURLToPath, pathToFileURL} from 'node:url'
@@ -13,7 +13,7 @@ import {chromium, type Browser, type Page} from 'playwright'
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
 const require = createRequire(import.meta.url)
-const widgetBundle = fs.readFileSync(path.join(dirname, '../dist/aidx-widget.global.js'), 'utf8')
+const widgetBundle = fs.readFileSync(path.join(dirname, '../dist/mandarax-widget.global.js'), 'utf8')
 
 // Bundle the React fixture to an IIFE. React/react-dom resolve from the workspace (dev build via
 // NODE_ENV=development); esbuild's own copy comes from vite. tsconfigRaw:'{}' stops it inheriting
@@ -53,14 +53,17 @@ function fixturePage(fixtureJs: string): string {
 
 type Driver = {execute: (q: Record<string, unknown>) => Promise<Record<string, unknown>>}
 const drive = (page: Page, q: Record<string, unknown>): Promise<Record<string, unknown>> =>
-  page.evaluate((query) => (window as unknown as {__AIDX_PAGE_DRIVER__: Driver}).__AIDX_PAGE_DRIVER__.execute(query), q)
+  page.evaluate(
+    (query) => (window as unknown as {__MANDARAX_PAGE_DRIVER__: Driver}).__MANDARAX_PAGE_DRIVER__.execute(query),
+    q,
+  )
 
 async function ready(page: Page): Promise<void> {
   // Fixture rendered (count visible) and the driver seam is live.
   await page.waitForFunction(() => document.querySelector('#card-count')?.textContent === 'count: 7', undefined, {
     timeout: 15_000,
   })
-  await page.waitForFunction(() => '__AIDX_PAGE_DRIVER__' in window, undefined, {timeout: 15_000})
+  await page.waitForFunction(() => '__MANDARAX_PAGE_DRIVER__' in window, undefined, {timeout: 15_000})
 }
 
 describe('react verbs (it) — real browser, real React, real driver', () => {
@@ -159,7 +162,7 @@ describe('react verbs (it) — real browser, real React, real driver', () => {
     const owners = out.owners as Array<Record<string, unknown>>
     expect(Array.isArray(owners)).toBe(true)
     expect(owners.some((o) => o.component === 'Card')).toBe(true)
-    // The fixture stamps #card with data-aidx-source — locate reads it directly (the fast path).
+    // The fixture stamps #card with data-mandarax-source — locate reads it directly (the fast path).
     const source = out.source as Record<string, unknown> | undefined
     expect(source).toBeTruthy()
     expect(String(source!.file)).toContain('fixture.tsx')

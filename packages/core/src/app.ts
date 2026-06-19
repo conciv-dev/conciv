@@ -1,10 +1,10 @@
 import {H3} from 'h3'
-import type {HarnessAdapter, HarnessChild} from '@opendui/aidx-protocol/harness-types'
-import type {TestRunnerAdapter} from '@opendui/aidx-protocol/runner-types'
-import type {BundlerBridge} from '@opendui/aidx-protocol/bundler-types'
-import type {ResolvedAidxConfig} from './config.js'
-import {getHarness} from '@opendui/aidx-harness'
-import {getRunner} from '@opendui/aidx-test-runner'
+import type {HarnessAdapter, HarnessChild} from '@mandarax/protocol/harness-types'
+import type {TestRunnerAdapter} from '@mandarax/protocol/runner-types'
+import type {BundlerBridge} from '@mandarax/protocol/bundler-types'
+import type {ResolvedMandaraxConfig} from './config.js'
+import {getHarness} from '@mandarax/harness'
+import {getRunner} from '@mandarax/test-runner'
 import {registerCors} from './api/cors.js'
 import {registerErrorHandler} from './api/errors.js'
 import {registerChatRoutes} from './api/chat/chat.js'
@@ -18,7 +18,7 @@ import {makeJournal} from './runtime/journal.js'
 import type {OpenInEditor} from './editor/open.js'
 
 export type MakeAppOpts = {
-  cfg: ResolvedAidxConfig
+  cfg: ResolvedMandaraxConfig
   cwd: string
   bridge?: BundlerBridge
   openInEditor: OpenInEditor
@@ -67,7 +67,7 @@ export function makeApp(opts: MakeAppOpts): H3 {
   const page = registerPageRoutes(app, {journal: makeJournal(), root: opts.cwd})
   registerEditorRoutes(app, opts.openInEditor)
   registerTestRunnerRoutes(app, runner)
-  // Expose aidx tools to the harness CLI via MCP-over-HTTP on the same server, bridged to the live
+  // Expose mandarax tools to the harness CLI via MCP-over-HTTP on the same server, bridged to the live
   // uiBus / page bus / test runner.
   registerMcpRoutes(app, (sessionId) => ({
     injectUi: (spec) => uiBus.inject(sessionId, spec),

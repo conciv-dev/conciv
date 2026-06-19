@@ -1,6 +1,6 @@
 ---
 title: webpack
-description: Add aidx to a webpack app.
+description: Add mandarax to a webpack app.
 ---
 
 The webpack entry boots the engine, but it does not inject the widget for you. You add the widget
@@ -12,7 +12,7 @@ script yourself and point `widgetUrl` at the bundle.
 ### Install
 
 ```bash
-npm install -D @opendui/aidx
+npm install -D mandarax
 ```
 
 </Step>
@@ -21,10 +21,10 @@ npm install -D @opendui/aidx
 ### Add the plugin
 
 ```js title="webpack.config.js"
-const aidx = require('@opendui/aidx/plugin/webpack')
+const mandarax = require('mandarax/plugin/webpack')
 
 module.exports = {
-  plugins: [aidx.default()],
+  plugins: [mandarax.default()],
 }
 ```
 
@@ -33,7 +33,7 @@ module.exports = {
 
 ### Inject the widget
 
-The widget bundle ships as `@opendui/aidx-widget/global`. Serve it and set `widgetUrl` so the script is
+The widget bundle ships as `@mandarax/widget/global`. Serve it and set `widgetUrl` so the script is
 added to your page. See [Configuration](/docs/configuration#widgeturl).
 
 </Step>

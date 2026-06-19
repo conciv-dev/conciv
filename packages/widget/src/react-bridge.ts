@@ -21,7 +21,7 @@ export type LocateResult = {
   stack: string[]
   frames: RawFrame[]
   owners: Owner[]
-  // When the element carries a build-injected source attribute (data-aidx-source / data-tsd-source),
+  // When the element carries a build-injected source attribute (data-mandarax-source / data-tsd-source),
   // the exact file:line:col is read directly — no owner-stack symbolication needed.
   source?: SourceLoc
 }
@@ -121,8 +121,8 @@ function rawFrames(fiber: Fiber): RawFrame[] {
 // A build-injected source attribute on the element (or nearest ancestor that has one). Format is
 // "path:line:col"; the path may itself contain ':' (drive letters), so parse the trailing two.
 function sourceFromAttr(el: Element): SourceLoc | null {
-  const node = el.closest('[data-aidx-source],[data-tsd-source]')
-  const raw = node?.getAttribute('data-aidx-source') ?? node?.getAttribute('data-tsd-source')
+  const node = el.closest('[data-mandarax-source],[data-tsd-source]')
+  const raw = node?.getAttribute('data-mandarax-source') ?? node?.getAttribute('data-tsd-source')
   if (!raw) return null
   const parts = raw.split(':')
   const column = Number(parts.pop())

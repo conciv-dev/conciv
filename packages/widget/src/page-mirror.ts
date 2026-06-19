@@ -4,7 +4,7 @@
 // Fire-and-forget and short: it never blocks the action (zero added latency) and self-cleans. The
 // future first-party page agent emits the same page-action shape and reuses this unchanged.
 
-import type {PageQueryKind} from '@opendui/aidx-protocol/page-types'
+import type {PageQueryKind} from '@mandarax/protocol/page-types'
 
 // Visual verbs that move/affect a visible element — the ones worth animating. Non-visual lookups
 // (find/locate/inspect/text/value/attr/override) are excluded: a ring on a silent read is noise.

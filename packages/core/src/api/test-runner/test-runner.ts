@@ -1,6 +1,6 @@
 import {type H3, getValidatedQuery, readValidatedBody} from 'h3'
 import {z} from 'zod'
-import type {TestRunnerManager} from '@opendui/aidx-protocol/runner-types'
+import type {TestRunnerManager} from '@mandarax/protocol/runner-types'
 import {sseStream} from '../sse.js'
 
 // A runner-unavailable error thrown by mgr.list/run is mapped to a 422 by the app error handler

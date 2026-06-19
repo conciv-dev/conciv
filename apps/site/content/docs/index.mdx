@@ -1,19 +1,19 @@
 ---
-title: What is aidx
+title: What is mandarax
 description: An embeddable AI dev agent for your running app. Chat, page control, and live tests, injected via a build plugin.
 icon: Rocket
 ---
 
-aidx puts an AI dev agent inside the app you are already running. Add one plugin, and a ✦ button
+mandarax puts an AI dev agent inside the app you are already running. Add one plugin, and a ✦ button
 appears in your dev build. Open it to chat with an agent that sees the page you are on, drives and
 edits it, and runs your tests, without leaving the app.
 
 ```ts title="vite.config.ts"
 import {defineConfig} from 'vite'
-import aidx from '@opendui/aidx/plugin/vite'
+import mandarax from 'mandarax/plugin/vite'
 
 export default defineConfig({
-  plugins: [aidx()],
+  plugins: [mandarax()],
 })
 ```
 
@@ -42,11 +42,11 @@ export default defineConfig({
   />
 </Cards>
 
-<Callout type="warn">aidx is early and dev only. The chat needs the `claude` CLI on your `PATH` to answer.</Callout>
+<Callout type="warn">mandarax is early and dev only. The chat needs the `claude` CLI on your `PATH` to answer.</Callout>
 
 ## Next
 
 <Cards>
-  <Card title="Quick start" href="/docs/quick-start" description="Add aidx to your framework in a few steps." />
+  <Card title="Quick start" href="/docs/quick-start" description="Add mandarax to your framework in a few steps." />
   <Card title="How it works" href="/docs/how-it-works" description="The pieces behind the widget." />
 </Cards>

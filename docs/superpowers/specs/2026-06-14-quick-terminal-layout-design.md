@@ -5,7 +5,7 @@ Status: Approved for planning
 
 ## Summary
 
-Expand the aidx widget with a richer layout system, drawing the floating-button
+Expand the mandarax widget with a richer layout system, drawing the floating-button
 position, drag, resize, and Picture-in-Picture behaviors from TanStack Devtools
 (MIT, adapted into our own source with a credit comment).
 
@@ -33,7 +33,7 @@ lives at `packages/widget/mockups/quick-terminal.html`.
 - Modal panel: edge resize-drag with collapse-on-small (ported from Devtools).
 - Picture-in-Picture: pop either layout into a separate OS window (ported from
   Devtools).
-- All config namespaced under `AidxConfig.widget`.
+- All config namespaced under `MandaraxConfig.widget`.
 
 ## Non-goals
 
@@ -48,7 +48,7 @@ lives at `packages/widget/mockups/quick-terminal.html`.
 
 | Question              | Resolution                                                                                                     |
 | --------------------- | -------------------------------------------------------------------------------------------------------------- |
-| Config shape          | Namespaced under `AidxConfig.widget`; `modal` and `quickTerminal` are independent toggles (both can be on)     |
+| Config shape          | Namespaced under `MandaraxConfig.widget`; `modal` and `quickTerminal` are independent toggles (both can be on) |
 | Split scope (v1)      | Horizontal row only; tree-shaped state for future nesting                                                      |
 | New pane session      | Fresh, empty session per pane                                                                                  |
 | Backdrop              | None (no dimming)                                                                                              |
@@ -66,7 +66,7 @@ lives at `packages/widget/mockups/quick-terminal.html`.
 ```
 plugin config (Vite/Next)         core injection         widget (SolidJS)
 ─────────────────────────         ──────────────         ────────────────
-AidxConfig {                       htmlTags() adds        mount.tsx reads <meta pw-widget>:
+MandaraxConfig {                       htmlTags() adds        mount.tsx reads <meta pw-widget>:
   widget?: {                         <meta pw-widget>     → { modal, quickTerminal }
     modal?: boolean | {              (one JSON blob)        │
       position?: TriggerPosition }                          ├─ modal: FAB(position, drag) + panel(resize) + PiP
@@ -148,7 +148,7 @@ export interface WidgetConfig {
   quickTerminal?: boolean | QuickTerminalConfig
 }
 
-export interface AidxConfig {
+export interface MandaraxConfig {
   // ...existing fields...
   widget?: WidgetConfig
 }
@@ -157,10 +157,10 @@ export interface AidxConfig {
 Host examples:
 
 ```ts
-aidx() // both on (defaults)
-aidx({widget: {modal: {position: 'top-left'}}}) // both on, move the button
-aidx({widget: {quickTerminal: false}}) // modal only
-aidx({widget: {modal: false, quickTerminal: {hotkey: ['Mod+`', 'Control+k']}}}) // qt only, custom keys
+mandarax() // both on (defaults)
+mandarax({widget: {modal: {position: 'top-left'}}}) // both on, move the button
+mandarax({widget: {quickTerminal: false}}) // modal only
+mandarax({widget: {modal: false, quickTerminal: {hotkey: ['Mod+`', 'Control+k']}}}) // qt only, custom keys
 ```
 
 `packages/core/src/widget-tags.ts`
@@ -234,8 +234,8 @@ const PLACEMENT: Record<TriggerPosition, string> = {
 - Drag (our addition on top of the enum): pointerdown on the FAB tracks the
   pointer; on pointerup, snap to the nearest preset by comparing the FAB centre
   against the 6 anchor points; write the chosen preset to localStorage
-  (`aidx-fab-position`). This is the superset the user asked for. Devtools itself
-  only sets position by enum, so the snap-on-drop is aidx-specific but built on
+  (`mandarax-fab-position`). This is the superset the user asked for. Devtools itself
+  only sets position by enum, so the snap-on-drop is mandarax-specific but built on
   their preset model.
 
 ### Modal panel resize (ported from TanStack Devtools, MIT)
@@ -264,13 +264,13 @@ const handleDragStart = (panelEl, startEvent) => {
 }
 ```
 
-Persist the panel height to localStorage (`aidx-modal-height`).
+Persist the panel height to localStorage (`mandarax-modal-height`).
 
 ### Picture-in-Picture (ported from TanStack Devtools, MIT)
 
 Source: `context/pip-context.tsx`. Port the provider near-verbatim:
 
-- `requestPipWindow(settings)`: `window.open('', 'aidx-widget', '${settings},popup')`;
+- `requestPipWindow(settings)`: `window.open('', 'mandarax-widget', '${settings},popup')`;
   clear the PiP doc head + body; copy every `document.styleSheets` entry into the
   PiP head (inline cssText, with a `<link>` fallback for cross-origin sheets);
   `delegateEvents([...], pip.document)` so Solid delegation works inside PiP.
@@ -304,8 +304,8 @@ type Layout = {panes: Pane[]; focusedId: string} // v1: row of panes
 - Opening the quick terminal closes the modal panel if open, and vice versa. One
   layer is visible at a time (even when both are enabled).
 - Close via hotkey, `Escape`, or the header close button. No click-away (no scrim).
-- Persisted to localStorage: quick-terminal height (`aidx-qt-height`), modal
-  panel height (`aidx-modal-height`), FAB position (`aidx-fab-position`).
+- Persisted to localStorage: quick-terminal height (`mandarax-qt-height`), modal
+  panel height (`mandarax-modal-height`), FAB position (`mandarax-fab-position`).
 
 ## Commands
 
@@ -414,10 +414,10 @@ Never:
 
 ## Acceptance criteria
 
-1. `aidx()` (no widget config) enables BOTH layouts: modal FAB bottom-right and
+1. `mandarax()` (no widget config) enables BOTH layouts: modal FAB bottom-right and
    the quick terminal on `Mod+\``.
-2. `aidx({ widget: { quickTerminal: { hotkey: ['Mod+`', 'Control+k'] } } })`toggles the sheet on either binding;`quickTerminal: false` disables it.
-3. `aidx({ widget: { modal: { position: 'top-left' } } })` starts the FAB top-left;
+2. `mandarax({ widget: { quickTerminal: { hotkey: ['Mod+`', 'Control+k'] } } })`toggles the sheet on either binding;`quickTerminal: false` disables it.
+3. `mandarax({ widget: { modal: { position: 'top-left' } } })` starts the FAB top-left;
    dragging it snaps to the nearest preset and the choice persists; `modal: false`
    disables the corner modal.
 4. Each layout can be disabled independently with `false`, leaving the other.

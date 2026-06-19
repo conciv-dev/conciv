@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Wire the widget thread to classify tool calls client-side and render them via `@opendui/aidx-tool-ui`, replace the collapsed Thinking with the reflection card and per-call spinners with one now-line, and play a cursor+ring mirror on the real page for `aidx_page` element actions.
+**Goal:** Wire the widget thread to classify tool calls client-side and render them via `@mandarax/tool-ui`, replace the collapsed Thinking with the reflection card and per-call spinners with one now-line, and play a cursor+ring mirror on the real page for `mandarax_page` element actions.
 
 **Architecture:** `packages/widget/src/chat-panel.tsx` replaces its `ToolCall`/`ToolResult` with a `ToolCardView` that calls `classifyTool(harnessId, name, input)` and the `rendererFor(kind)` registry. Tool-call + tool-result parts pair into one card (generalizing the existing `resultByCallId`/`hiddenResultIds` seam). The on-page mirror hooks `makeDomPageDriver` via a new `onBeforeElementAction` dep.
 
-**Tech Stack:** SolidJS widget (Shadow DOM), `@tanstack/ai-solid` `useChat`, `@opendui/aidx-tool-ui`, `@opendui/aidx-harness/classify`. Widget UI is tested in a REAL browser (Playwright) against the prebuilt bundle (rebuild before ITs).
+**Tech Stack:** SolidJS widget (Shadow DOM), `@tanstack/ai-solid` `useChat`, `@mandarax/tool-ui`, `@mandarax/harness/classify`. Widget UI is tested in a REAL browser (Playwright) against the prebuilt bundle (rebuild before ITs).
 
 **Depends on:** Plan A (classifiers) + Plan B (renderers). Conventions: functions not classes; no IIFEs; one-line comments; oxfmt; never special-case a CLI in the widget (classification comes from the harness classifier lib).
 
@@ -14,13 +14,13 @@
 
 ## File structure
 
-- `packages/widget/package.json` (modify) — add `@opendui/aidx-tool-ui`, `@opendui/aidx-harness` deps.
+- `packages/widget/package.json` (modify) — add `@mandarax/tool-ui`, `@mandarax/harness` deps.
 - `packages/widget/src/tool-card.tsx` (create) — `ToolCardView` (classify + shell + registry body + meta).
 - `packages/widget/src/chat-panel.tsx` (modify) — use `ToolCardView`; generalize pairing; reflection card; now-line; thread `harnessId`.
 - `packages/widget/src/page-mirror.ts` (create) — the cursor+ring overlay played before element actions.
 - `packages/widget/src/page-driver.ts` (modify) — add `onBeforeElementAction` dep, call it between resolve and handler.
 - `packages/widget/src/mount.tsx` (modify) — thread `harnessId` to `ChatPanel`; wire the mirror into the page driver.
-- `packages/harness/src/claude/classify.ts` (modify) — Bash `aidx tools test` → `test` kind (preserve the test card).
+- `packages/harness/src/claude/classify.ts` (modify) — Bash `mandarax tools test` → `test` kind (preserve the test card).
 - `packages/widget/test/tool-ui.it.test.ts` (create) — browser ITs.
 
 ---
@@ -31,8 +31,8 @@
 
 - [ ] **Step 1: Add deps**
 
-Add to `packages/widget/package.json` dependencies: `"@opendui/aidx-tool-ui": "workspace:*"` and
-`"@opendui/aidx-harness": "workspace:*"`. Run `pnpm install`.
+Add to `packages/widget/package.json` dependencies: `"@mandarax/tool-ui": "workspace:*"` and
+`"@mandarax/harness": "workspace:*"`. Run `pnpm install`.
 
 - [ ] **Step 2: ToolCardView**
 
@@ -40,8 +40,8 @@ Add to `packages/widget/package.json` dependencies: `"@opendui/aidx-tool-ui": "w
 // packages/widget/src/tool-card.tsx
 import {type JSX} from 'solid-js'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import {classifyTool} from '@opendui/aidx-harness/classify'
-import {rendererFor, ToolCardShell, type ToolRendererCtx} from '@opendui/aidx-tool-ui'
+import {classifyTool} from '@mandarax/harness/classify'
+import {rendererFor, ToolCardShell, type ToolRendererCtx} from '@mandarax/tool-ui'
 
 // Parsed tool input, tolerant of partial streaming args (input may be undefined; arguments partial).
 function toolInput(part: ToolCallPart): unknown {
@@ -90,8 +90,8 @@ export function ToolCardView(props: {
 
 - [ ] **Step 3: Typecheck**
 
-Run: `pnpm --filter @opendui/aidx-widget typecheck`
-Expected: PASS (the registry/types resolve from `@opendui/aidx-tool-ui`).
+Run: `pnpm --filter @mandarax/widget typecheck`
+Expected: PASS (the registry/types resolve from `@mandarax/tool-ui`).
 
 - [ ] **Step 4: Commit**
 
@@ -162,7 +162,7 @@ Thread `resultByCallId`, `harnessId`, `toolCtx` through `MessageParts` → `Part
 
 - [ ] **Step 4: Rebuild the widget + run the existing widget ITs**
 
-Run: `pnpm turbo run build --filter=@opendui/aidx-widget && pnpm --filter @opendui/aidx-widget test`
+Run: `pnpm turbo run build --filter=@mandarax/widget && pnpm --filter @mandarax/widget test`
 Expected: existing ITs pass (the thread still renders tool calls, now as cards). Fix any IT that
 asserted the old `pw-chat-tool` DOM to assert the new `pw-tool` card DOM.
 
@@ -190,13 +190,13 @@ reflection card, keeping the same guard (non-empty trimmed content):
 }
 ```
 
-Import `ReflectionCard` from `@opendui/aidx-tool-ui`. Remove the now-unused `thinkingClass` helper.
+Import `ReflectionCard` from `@mandarax/tool-ui`. Remove the now-unused `thinkingClass` helper.
 Keep the streaming indicator behavior: a still-streaming reflection can get a `pw-reflect-live`
 class via a wrapper if `props.streaming && index === parts.length - 1` (optional polish).
 
 - [ ] **Step 2: Rebuild + eyeball in a real browser**
 
-Run: `pnpm turbo run build --filter=@opendui/aidx-widget`
+Run: `pnpm turbo run build --filter=@mandarax/widget`
 Then load the widget against the example app (see `packages/widget/test` harness) and confirm the
 agent's thinking renders as the accent-rail reflection card, not a `<details>`.
 
@@ -234,12 +234,12 @@ const activeTool = createMemo(() => {
 Where the thread renders the streaming indicator (the `ThinkingBubble`/`isThinking()` block), render
 `<NowLine title={activeTool() ?? 'Thinking…'} onStop={() => chat.stop()} />` while
 `isThinking() || isStreaming()`. Keep the `aria-live` status announcements untouched. Import
-`NowLine` from `@opendui/aidx-tool-ui`. Individual tool cards no longer show their own "Running"
+`NowLine` from `@mandarax/tool-ui`. Individual tool cards no longer show their own "Running"
 spinner (the shell glyph shows spin/done/error per card; the NowLine is the single transient).
 
 - [ ] **Step 3: Rebuild + verify**
 
-Run: `pnpm turbo run build --filter=@opendui/aidx-widget && pnpm --filter @opendui/aidx-widget test`
+Run: `pnpm turbo run build --filter=@mandarax/widget && pnpm --filter @mandarax/widget test`
 Expected: ITs pass; the now-line shows the current action and stops the turn.
 
 - [ ] **Step 4: Commit**
@@ -265,7 +265,7 @@ field name from the harness models endpoint — it is the adapter `id`, e.g. `'c
 - [ ] **Step 2: Default + typecheck**
 
 If a surface can mount before models load, default `harnessId` to `'claude'` (the classifier already
-falls back to generic for unknowns). Run `pnpm --filter @opendui/aidx-widget typecheck`. Expected: PASS.
+falls back to generic for unknowns). Run `pnpm --filter @mandarax/widget typecheck`. Expected: PASS.
 
 - [ ] **Step 3: Commit**
 
@@ -276,14 +276,14 @@ git commit -m "feat(widget): pass active harness id to the chat panel"
 
 ---
 
-## Task 6: preserve the test card (Bash + aidx_test → test kind)
+## Task 6: preserve the test card (Bash + mandarax_test → test kind)
 
 **Files:** modify `packages/harness/src/claude/classify.ts`; verify the `test` renderer reads the result.
 
 - [ ] **Step 1: Detect test commands in the claude classifier**
 
-The agent runs tests via `aidx tools test …` (Bash) and/or the `aidx_test` MCP tool. `aidx_test` is
-already `test` kind (Plan A). Add a Bash branch so `aidx tools test`/`tools vitest` commands also
+The agent runs tests via `mandarax tools test …` (Bash) and/or the `mandarax_test` MCP tool. `mandarax_test` is
+already `test` kind (Plan A). Add a Bash branch so `mandarax tools test`/`tools vitest` commands also
 classify as `test`:
 
 ```ts
@@ -301,18 +301,18 @@ case 'Bash': {
 Confirm the `test` renderer (Plan B Task 7) parses a `TestRunResult` from `result.content` (via the
 moved `parseRunResult`) for the static path, and uses `ctx.streamTestRunner` for the live path.
 Update the classifier test (`harness/test/classify.test.ts`) to assert
-`classifyTool('claude','Bash',{command:'aidx tools test run'}).kind === 'test'`.
+`classifyTool('claude','Bash',{command:'mandarax tools test run'}).kind === 'test'`.
 
 - [ ] **Step 3: Run classifier tests + rebuild widget + ITs**
 
-Run: `pnpm --filter @opendui/aidx-harness test && pnpm turbo run build --filter=@opendui/aidx-widget && pnpm --filter @opendui/aidx-widget test`
+Run: `pnpm --filter @mandarax/harness test && pnpm turbo run build --filter=@mandarax/widget && pnpm --filter @mandarax/widget test`
 Expected: green; a test run renders the test card as before.
 
 - [ ] **Step 4: Commit**
 
 ```bash
 git add packages/harness/src/claude/classify.ts packages/harness/test/classify.test.ts
-git commit -m "feat(harness): classify aidx test Bash commands as test kind"
+git commit -m "feat(harness): classify mandarax test Bash commands as test kind"
 ```
 
 ---
@@ -325,7 +325,7 @@ git commit -m "feat(harness): classify aidx test Bash commands as test kind"
 
 ```ts
 // packages/widget/src/page-mirror.ts
-import type {PageQueryKind} from '@opendui/aidx-protocol/page-types'
+import type {PageQueryKind} from '@mandarax/protocol/page-types'
 
 // Verbs worth showing a cursor + ring for (visual actions). Non-visual verbs (find/inspect/eval)
 // are excluded so the page does not flash for reads.
@@ -353,7 +353,7 @@ export function playMirror(el: Element): void {
   const r = el.getBoundingClientRect()
   if (r.width === 0 && r.height === 0) return
   const ring = document.createElement('div')
-  ring.setAttribute('data-aidx-mirror', '')
+  ring.setAttribute('data-mandarax-mirror', '')
   Object.assign(ring.style, {
     position: 'fixed',
     left: `${r.left - 4}px`,
@@ -430,8 +430,8 @@ Import `shouldMirror`, `playMirror` from `./page-mirror.js`.
 
 - [ ] **Step 4: Rebuild + manual verify**
 
-Run: `pnpm turbo run build --filter=@opendui/aidx-widget`
-Drive an `aidx_page click`/`fill` against the example app and confirm the ring flashes on the target
+Run: `pnpm turbo run build --filter=@mandarax/widget`
+Drive an `mandarax_page click`/`fill` against the example app and confirm the ring flashes on the target
 element (in the page, behind the widget), and that find/inspect do NOT flash.
 
 - [ ] **Step 5: Commit**
@@ -449,20 +449,20 @@ git commit -m "feat(widget): on-page cursor+ring mirror for page actions"
 
 - [ ] **Step 1: Write the ITs (real browser, prebuilt bundle)**
 
-Following the existing widget IT pattern (load `dist/aidx-widget.global.js`, `browser.newPage()` not
-`newContext()`), drive a fake stream that emits: a Bash tool-call+result, an Edit, an aidx_page
+Following the existing widget IT pattern (load `dist/mandarax-widget.global.js`, `browser.newPage()` not
+`newContext()`), drive a fake stream that emits: a Bash tool-call+result, an Edit, an mandarax_page
 click, and a test run. Assert:
 
 - `.pw-tool.pw-tool-code` exists for the Bash card with a terminal body.
 - the Edit card shows a diff with `.pw-diff-add`/`.pw-diff-del` and `+N −M` meta.
-- the page-action card shows the element chip; a `[data-aidx-mirror]` element appears on click.
+- the page-action card shows the element chip; a `[data-mandarax-mirror]` element appears on click.
 - the now-line (`.pw-now`) shows the active title while streaming and is gone when complete.
 - at 390px width, a long shell output does not overflow the panel (scrollWidth check) and the title
   ellipsizes.
 
 - [ ] **Step 2: Rebuild + run**
 
-Run: `pnpm turbo run build --filter=@opendui/aidx-widget && pnpm --filter @opendui/aidx-widget test`
+Run: `pnpm turbo run build --filter=@mandarax/widget && pnpm --filter @mandarax/widget test`
 Expected: PASS.
 
 - [ ] **Step 3: Commit**
@@ -478,7 +478,7 @@ git commit -m "test(widget): tool-ui rendering + mirror integration tests"
 
 - [ ] **Step 1: Typecheck + build + test the chain**
 
-Run: `pnpm turbo run typecheck build test --filter=@opendui/aidx-widget --filter=@opendui/aidx-tool-ui --filter=@opendui/aidx-harness`
+Run: `pnpm turbo run typecheck build test --filter=@mandarax/widget --filter=@mandarax/tool-ui --filter=@mandarax/harness`
 Expected: green.
 
 - [ ] **Step 2: Lint + format**
@@ -496,11 +496,11 @@ git add -A && git commit -m "chore(widget): lint/format after tool-ui integratio
 
 ## Self-review notes (author)
 
-- Spec coverage: widget renders tool calls via the `@opendui/aidx-tool-ui` registry with client-side
+- Spec coverage: widget renders tool calls via the `@mandarax/tool-ui` registry with client-side
   classification (`classifyTool` from the harness lib — no CLI switch in the widget), pairs
   call+result, replaces Thinking with the reflection card and per-call spinners with one now-line,
   and plays the on-page mirror via the `page-driver.execute` seam (visual verbs only, page DOM, max
-  z-index). Test card preserved for both `aidx_test` and Bash `aidx tools test` paths.
+  z-index). Test card preserved for both `mandarax_test` and Bash `mandarax tools test` paths.
 - Resolves open item #5 (mirror scope/timing): visual-verb allowlist + non-blocking ~600ms ring.
 - Verify during execution: the exact `makeDomPageDriver` call site, the `models.harness` field name
   for `harnessId`, and which existing widget ITs assert the old `pw-chat-tool` DOM (update to

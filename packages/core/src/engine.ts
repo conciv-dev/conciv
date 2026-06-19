@@ -1,16 +1,16 @@
 import {spawn} from 'node:child_process'
 import {serve} from 'srvx'
 import getPort from 'get-port'
-import type {HarnessChild} from '@opendui/aidx-protocol/harness-types'
-import type {BundlerBridge} from '@opendui/aidx-protocol/bundler-types'
+import type {HarnessChild} from '@mandarax/protocol/harness-types'
+import type {BundlerBridge} from '@mandarax/protocol/bundler-types'
 import {makeApp, type MakeAppOpts} from './app.js'
 import {makeEditorOpener} from './editor/open.js'
-import {resolveConfig, type AidxConfig, type ResolvedAidxConfig} from './config.js'
+import {resolveConfig, type MandaraxConfig, type ResolvedMandaraxConfig} from './config.js'
 import {statePaths} from './state-paths.js'
 import {writeText} from './fs.js'
 
 export type StartOpts = {
-  options: AidxConfig
+  options: MandaraxConfig
   root: string
   bridge?: BundlerBridge
   launchEditor: (file: string, line: number) => void
@@ -20,7 +20,7 @@ export type StartOpts = {
   allowedOrigins?: string[]
 }
 
-export type Engine = {port: number; stop: () => Promise<void>; cfg: ResolvedAidxConfig}
+export type Engine = {port: number; stop: () => Promise<void>; cfg: ResolvedMandaraxConfig}
 
 export async function start(opts: StartOpts): Promise<Engine> {
   const cfg = resolveConfig(opts.options, opts.root)
@@ -39,8 +39,8 @@ export async function start(opts: StartOpts): Promise<Engine> {
   const spawnHarness = (args: string[], cwd: string, sessionId?: string): HarnessChild => {
     const harnessBin = cfg.harnessBin ?? 'claude'
     const baseEnv = opts.childEnv ? opts.childEnv(portRef.port) : process.env
-    // The turn's header id rides the child env so the agent's aidx ui / permission hook echo it back.
-    const env = sessionId ? {...baseEnv, AIDX_SESSION_ID: sessionId} : baseEnv
+    // The turn's header id rides the child env so the agent's mandarax ui / permission hook echo it back.
+    const env = sessionId ? {...baseEnv, MANDARAX_SESSION_ID: sessionId} : baseEnv
     const child = spawn(harnessBin, args, {cwd, stdio: ['pipe', 'pipe', 'pipe'], env})
     const {stdin, stdout, stderr} = child
     if (!stdin || !stdout || !stderr) throw new Error(`harness "${harnessBin}" did not expose stdio pipes`)

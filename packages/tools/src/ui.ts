@@ -22,8 +22,8 @@ export const UiInput = z.object({
     .optional(),
 })
 
-export const aidxUiToolDef = toolDefinition({
-  name: 'aidx_ui',
+export const mandaraxUiToolDef = toolDefinition({
+  name: 'mandarax_ui',
   description:
     'Render real interactive UI (choices/confirm/diff/form) in the chat thread. Non-blocking: the user reply arrives as their next chat message.',
   inputSchema: UiInput,

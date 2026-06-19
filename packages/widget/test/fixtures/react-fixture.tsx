@@ -12,7 +12,7 @@ type CardProps = {label: string; onAction: () => void; meta: {nested: {deep: num
 function Card(props: CardProps) {
   const [count, setCount] = useState(7)
   return (
-    <div id="card" data-aidx-source="src/fixture.tsx:12:5">
+    <div id="card" data-mandarax-source="src/fixture.tsx:12:5">
       <span id="card-label">{props.label}</span>
       <span id="card-count">count: {count}</span>
       <button id="card-inc" onClick={() => setCount((c) => c + 1)}>

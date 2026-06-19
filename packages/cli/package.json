@@ -1,10 +1,10 @@
 {
-  "name": "@opendui/aidx-cli",
+  "name": "@mandarax/cli",
   "version": "0.0.0",
-  "description": "The aidx agent-facing CLI: `aidx tools` (drive the live page/vite/tests) and `aidx ui` (render interactive UI in the chat). citty command tree, zod-validated args.",
+  "description": "The mandarax agent-facing CLI: `mandarax tools` (drive the live page/vite/tests) and `mandarax ui` (render interactive UI in the chat). citty command tree, zod-validated args.",
   "license": "MIT",
   "bin": {
-    "aidx": "./dist/bin.js"
+    "mandarax": "./dist/bin.js"
   },
   "files": [
     "dist"
@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "@clack/prompts": "^1.5.1",
-    "@opendui/aidx-protocol": "workspace:*",
+    "@mandarax/protocol": "workspace:*",
     "citty": "^0.2.2",
     "consola": "^3.4.2",
     "zod": "^4.4.3"

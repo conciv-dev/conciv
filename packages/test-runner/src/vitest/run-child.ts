@@ -9,7 +9,7 @@ import {
   type TestError,
   type TestRow,
   type TestCaseLike,
-} from '@opendui/aidx-protocol/test-types'
+} from '@mandarax/protocol/test-types'
 import {type ChildMessage} from '../child-protocol.js'
 
 // Out-of-process vitest runner logic. Pure module (no top-level exec) so importing it is inert;

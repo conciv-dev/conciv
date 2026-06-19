@@ -1,5 +1,5 @@
 // In-flight requests awaiting an out-of-band reply, each with a fail-closed timeout that rejects.
-const TIMEOUT_TAG = 'aidx:pending-timeout'
+const TIMEOUT_TAG = 'mandarax:pending-timeout'
 export type PendingTimeout = Error & {[TIMEOUT_TAG]: true}
 
 export function isPendingTimeout(e: unknown): e is PendingTimeout {

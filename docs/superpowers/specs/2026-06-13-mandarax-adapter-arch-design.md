@@ -1,4 +1,4 @@
-# aidx adapter architecture — design
+# mandarax adapter architecture — design
 
 **Date:** 2026-06-13
 **Status:** approved (design); implementation plan to follow
@@ -16,7 +16,7 @@ These were learned painfully. Follow them from the first line of code; do not wa
      `readValidatedBody(event, Schema.safeParse)` when a malformed body must stay lenient.
      Query → `getValidatedQuery(event, Schema)`.
    - NDJSON / stream-json / on-disk JSON → `Schema.safeParse(JSON.parse(line))`.
-   - Wire-type schemas live in `@opendui/aidx-protocol`; TS types are **inferred** (`z.infer`) — one
+   - Wire-type schemas live in `@mandarax/protocol`; TS types are **inferred** (`z.infer`) — one
      source of truth. Route-local body schemas sit next to the route.
    - The ONLY guards allowed are non-data ones: narrowing a caught `Error`, or a
      dynamically-imported module's function surface (`z.custom`/`instanceof`). Everything that
@@ -29,7 +29,7 @@ These were learned painfully. Follow them from the first line of code; do not wa
    standalone backend on its own port — `/api` self-documents that). One naming convention: the
    folder signals the layer, the entry file is named after its folder (`api/chat/chat.ts`), NO
    mixed `-route`/`-gate` suffixes.
-5. **`@opendui/aidx-core` is bundler-agnostic.** It must not import vite/webpack/etc. Dev-server
+5. **`@mandarax/core` is bundler-agnostic.** It must not import vite/webpack/etc. Dev-server
    inspection goes through the `BundlerBridge` interface (protocol), implemented in the plugin
    packages. Group `core/src` by domain (chat/, harness/, runner/, page/, server/, editor/), not flat.
 6. **Verify library APIs against real docs (online), not `.d.ts` grepping or memory.** For h3
@@ -55,7 +55,7 @@ The current codebase hard-wires three concrete tools into one Vite plugin:
   permission gate (Claude's `--settings` PreToolUse HTTP hook → `/api/chat/permission`).
 - **Test runner = Vitest.** `vitest-manager.ts`, `vitest-runner-child.ts`, `vitest-route.ts`,
   `vitest-types.ts`, the CLI `vitest` subcommand, and the widget `vitest-card.tsx`.
-- **Bundler = Vite.** The whole `@opendui/aidx-vite-plugin` package _is_ a Vite `Plugin`
+- **Bundler = Vite.** The whole `@mandarax/vite-plugin` package _is_ a Vite `Plugin`
   (`transformIndexHtml`, `configureServer`, connect `server.middlewares`, `ViteDevServer`).
 
 We want to swap each of these independently: add harnesses (codex, gemini-cli, opencode, pi),
@@ -89,8 +89,8 @@ without touching the others.
   `toServerSentEventsStream()` web stream returns directly from a handler — deletes the current
   hand-rolled `Readable.fromWeb`/`pipeline` SSE glue. Nitro is the deploy-time macro-framework
   (file routing, server bundling, deploy presets) — dead weight for a dev-only embedded sidecar.
-  h3→Nitro stays an open upgrade path if aidx core ever becomes a standalone daemon.
-- **Standalone engine server** (option A): `@opendui/aidx-core` boots its own h3 server in dev; each
+  h3→Nitro stays an open upgrade path if mandarax core ever becomes a standalone daemon.
+- **Standalone engine server** (option A): `@mandarax/core` boots its own h3 server in dev; each
   bundler entry only injects HTML + boots it. Writes the server _once_ for all bundlers. Cost:
   cross-origin → set the existing `pw-api-base` meta to the core port + CORS (the chat stream
   already sends `access-control-allow-origin: *`). Vite may optionally proxy `/api` same-origin
@@ -101,33 +101,33 @@ without touching the others.
 ### Package layout (~12 packages)
 
 ```
-@opendui/aidx-protocol      types only: HarnessAdapter, TestRunnerManager, BundlerBridge, TestEvent, chat/ui/page
-@opendui/aidx-core          h3 + srvx engine — /api routes, lock, session, uiBus, registry wiring
-@opendui/aidx-harness       claude, codex (+ gemini-cli/opencode/pi stubs) via subpaths
-@opendui/aidx-runner        vitest, jest, node-test, playwright via subpaths
-@opendui/aidx-plugin-core   unplugin factory; boots @opendui/aidx-core + injects the widget HTML tags
-@opendui/aidx-plugin-vite   thin entry: export default unplugin.vite     (file: vite.ts)
-@opendui/aidx-plugin-webpack export default unplugin.webpack
-@opendui/aidx-plugin-rspack  export default unplugin.rspack
-@opendui/aidx-plugin-rollup  export default unplugin.rollup
-@opendui/aidx-plugin-esbuild export default unplugin.esbuild
-@opendui/aidx-cli           generic `aidx tools test|page|server|open|ui`
-@opendui/aidx-widget        generic test-card over TestEvent
+@mandarax/protocol      types only: HarnessAdapter, TestRunnerManager, BundlerBridge, TestEvent, chat/ui/page
+@mandarax/core          h3 + srvx engine — /api routes, lock, session, uiBus, registry wiring
+@mandarax/harness       claude, codex (+ gemini-cli/opencode/pi stubs) via subpaths
+@mandarax/runner        vitest, jest, node-test, playwright via subpaths
+@mandarax/plugin-core   unplugin factory; boots @mandarax/core + injects the widget HTML tags
+@mandarax/plugin-vite   thin entry: export default unplugin.vite     (file: vite.ts)
+@mandarax/plugin-webpack export default unplugin.webpack
+@mandarax/plugin-rspack  export default unplugin.rspack
+@mandarax/plugin-rollup  export default unplugin.rollup
+@mandarax/plugin-esbuild export default unplugin.esbuild
+@mandarax/cli           generic `mandarax tools test|page|server|open|ui`
+@mandarax/widget        generic test-card over TestEvent
 ```
 
 **Conventions**
 
 - **No `index.ts` barrels** anywhere. Each file is named after its contents; package `exports`
   subpaths point at named files.
-- Adapter **interfaces/types live in `@opendui/aidx-protocol`** (zero-runtime, already a universal
-  dep). Adapters depend only on `@opendui/aidx-protocol` for their contract — never on the engine.
-- `@opendui/aidx-core` = the engine (framework-free h3 app). `@opendui/aidx-plugin-core` = the unplugin
+- Adapter **interfaces/types live in `@mandarax/protocol`** (zero-runtime, already a universal
+  dep). Adapters depend only on `@mandarax/protocol` for their contract — never on the engine.
+- `@mandarax/core` = the engine (framework-free h3 app). `@mandarax/plugin-core` = the unplugin
   glue that boots the engine and injects HTML. Distinct responsibilities, distinct packages.
 
 ### Seam 1 — Harness adapters (capability-based)
 
 ```ts
-// @opendui/aidx-protocol/harness-types
+// @mandarax/protocol/harness-types
 type HarnessCapabilities = {
   resume: boolean // can --resume a prior session
   permissionGate: 'hook' | 'none' // can call back mid-turn for tool approval
@@ -165,7 +165,7 @@ type HarnessAdapter = {
 }
 ```
 
-`@opendui/aidx-core`'s chat route becomes harness-agnostic: it takes a resolved `HarnessAdapter` + a
+`@mandarax/core`'s chat route becomes harness-agnostic: it takes a resolved `HarnessAdapter` + a
 spawn seam, and **feature-detects by capability**:
 
 | Capability absent          | Core behavior (graceful degradation)                                                                              |
@@ -181,18 +181,18 @@ spawn seam, and **feature-detects by capability**:
 - `claude-agui-stream.ts` → `harness/src/claude/decode.ts` (`decode`)
 - `transcript-path.ts` + `history-parser.ts` → `harness/src/claude/history.ts`
 - `chat-system-prompt.ts` → `harness/src/claude/system-prompt.ts`
-- `claude-lock.ts` → stays in `@opendui/aidx-core` (already harness-agnostic; rename `claude.lock` → `agent.lock`)
+- `claude-lock.ts` → stays in `@mandarax/core` (already harness-agnostic; rename `claude.lock` → `agent.lock`)
 
 claude capabilities: `{resume:true, permissionGate:'hook', transcriptHistory:true, systemPrompt:'file'}`.
 codex capabilities (proof): research `codex exec` JSON event output + sandbox model; likely
 `{resume:?, permissionGate:'none', transcriptHistory:?, systemPrompt:'flag'}` — confirmed during impl.
 
 Registry (`harness/src/registry.ts`): `registerHarness`, `getHarness(id)`, `listHarnesses`.
-External adapters call `registerHarness` at runtime; they need only `@opendui/aidx-protocol`.
+External adapters call `registerHarness` at runtime; they need only `@mandarax/protocol`.
 
 ### Authoring adapters — `define*` typed factories
 
-Every seam ships a typed factory helper from `@opendui/aidx-protocol` so adapters self-define with
+Every seam ships a typed factory helper from `@mandarax/protocol` so adapters self-define with
 full inference, autocomplete, and capability validation — the `defineConfig`/unplugin idiom.
 A `define*` helper is a typed function (not a bare identity): it locks the type, applies
 defaults, and dev-asserts capability/method consistency at definition time.
@@ -200,7 +200,7 @@ defaults, and dev-asserts capability/method consistency at definition time.
 The helpers are **generic** so they preserve each adapter's exact literal type (no widening):
 
 ```ts
-// @opendui/aidx-protocol/harness-types
+// @mandarax/protocol/harness-types
 export function defineHarness<T extends HarnessAdapter>(adapter: T): T {
   // dev-time invariant: declared capabilities must match provided methods
   if (adapter.capabilities.transcriptHistory && !(adapter.transcriptPath && adapter.parseHistory))
@@ -208,13 +208,13 @@ export function defineHarness<T extends HarnessAdapter>(adapter: T): T {
   return adapter
 }
 
-// @opendui/aidx-protocol/runner-types
+// @mandarax/protocol/runner-types
 export function defineRunner<T extends TestRunnerAdapter>(adapter: T): T {
   /* + invariants */ return adapter
 }
 
-// @opendui/aidx-protocol/config
-export function defineConfig<T extends AidxConfig>(config: T): T {
+// @mandarax/protocol/config
+export function defineConfig<T extends MandaraxConfig>(config: T): T {
   return config
 }
 ```
@@ -245,7 +245,7 @@ This applies to all ported code, not just new code: porting a file is also de-ca
 
 The current `VitestManager` interface (`list / run / status / subscribeRaw / emitSnapshot /
 openUiServer / stop`) is already runner-neutral — generalize the name to **`TestRunnerManager`**
-and lift `VitestEvent` → **`TestEvent`** into `@opendui/aidx-protocol` (shapes `run-start / test /
+and lift `VitestEvent` → **`TestEvent`** into `@mandarax/protocol` (shapes `run-start / test /
 file-end / run-end / snapshot` are already runner-agnostic).
 
 ```
@@ -266,10 +266,10 @@ packages/runner/src/
   validates the abstraction isn't vitest-shaped.
 
 Each runner declares `capabilities: { watch, uiServer, filterByName, failedOnly }`. The
-`@opendui/aidx-core` test route + widget card consume `TestEvent` only — runner-blind.
+`@mandarax/core` test route + widget card consume `TestEvent` only — runner-blind.
 
-**Wrapper types are the contract.** The word "vitest" must not appear in any `@opendui/aidx-protocol`
-type name, in `@opendui/aidx-core`'s test route, or in `@opendui/aidx-widget`. `vitest-types.ts` is renamed
+**Wrapper types are the contract.** The word "vitest" must not appear in any `@mandarax/protocol`
+type name, in `@mandarax/core`'s test route, or in `@mandarax/widget`. `vitest-types.ts` is renamed
 `test-types.ts` and its types lose the runner prefix: `VitestEvent → TestEvent`,
 `RunResult → TestRunResult`, etc. Each runner adapter owns the dirty translation from its native
 output into these wrapper types and emits **only** wrapper types across the fd3/NDJSON channel:
@@ -284,35 +284,35 @@ playwright JSON report  ─┘                               TestError          
 ```
 
 This mirrors the harness side exactly: the widget speaks AG-UI `StreamChunk`, never Claude's
-stream-json. Consumers depend on `@opendui/aidx-protocol` wrapper types only — zero runner imports.
+stream-json. Consumers depend on `@mandarax/protocol` wrapper types only — zero runner imports.
 
 ### Seam 3 — Bundler via unplugin
 
-`@opendui/aidx-plugin-core` exports a `createUnplugin((opts) => ({ name: 'aidx', vite: {...},
+`@mandarax/plugin-core` exports a `createUnplugin((opts) => ({ name: 'mandarax', vite: {...},
 webpack: {...}, rspack: {...}, rollup: {...}, esbuild: {...} }))`. Per-bundler logic is reduced
 to two things:
 
-1. **Boot the engine** — on dev-server start, `@opendui/aidx-core` `.start(opts)` → `{ port, stop }`.
+1. **Boot the engine** — on dev-server start, `@mandarax/core` `.start(opts)` → `{ port, stop }`.
 2. **Inject HTML** — the existing `headTags(previewId, widgetUrl)` (meta `pw-api-base` = core
    port, `pw-preview-id`, deferred widget `<script>`). The only genuinely per-bundler code:
    Vite `transformIndexHtml` vs webpack `HtmlWebpackPlugin` tap vs rspack equivalent.
 
-Each bundler package (`@opendui/aidx-plugin-vite`, `-webpack`, `-rspack`, `-rollup`, `-esbuild`) is a
+Each bundler package (`@mandarax/plugin-vite`, `-webpack`, `-rspack`, `-rollup`, `-esbuild`) is a
 single named file re-exporting the matching unplugin entry, e.g. `vite.ts`:
-`export {default} from '@opendui/aidx-plugin-core/vite'` (i.e. `unplugin.vite`). Adding a bundler =
+`export {default} from '@mandarax/plugin-core/vite'` (i.e. `unplugin.vite`). Adding a bundler =
 one new 1-file package once `plugin-core` declares that hook.
 
-### Seam 3b — Bundler bridge (`@opendui/aidx-core` stays bundler-agnostic)
+### Seam 3b — Bundler bridge (`@mandarax/core` stays bundler-agnostic)
 
 Beyond boot + HTML injection, the agent can **inspect and drive the live dev server** via
-`aidx tools server …` (config, resolve, module-graph, transform, urls, reload, restart).
+`mandarax tools server …` (config, resolve, module-graph, transform, urls, reload, restart).
 Those operations are bundler-specific — Vite's module graph + HMR are nothing like webpack's.
-So **`@opendui/aidx-core` must not import Vite**. The dev-server operations are abstracted behind a
-`BundlerBridge` interface in `@opendui/aidx-protocol`; each bundler implements it in its own plugin
+So **`@mandarax/core` must not import Vite**. The dev-server operations are abstracted behind a
+`BundlerBridge` interface in `@mandarax/protocol`; each bundler implements it in its own plugin
 package and passes it to `engine.start({bridge})`:
 
 ```ts
-// @opendui/aidx-protocol/bundler-types
+// @mandarax/protocol/bundler-types
 export type BundlerBridge = {
   id: string // 'vite' | 'webpack' | …
   config(): {
@@ -334,19 +334,19 @@ export function defineBundlerBridge<T extends BundlerBridge>(b: T): T {
 }
 ```
 
-- The Vite implementation (today's `tools-layer.ts`) lives in `@opendui/aidx-plugin-vite`
-  (`@opendui/aidx-vite-plugin` until Plan 4) as `viteBridge` — **never in core**.
-- Core's `api/server/server.ts` calls `bridge.*` only. The CLI surface is `aidx tools
-server …` (generic), replacing the old `aidx tools vite …`.
+- The Vite implementation (today's `tools-layer.ts`) lives in `@mandarax/plugin-vite`
+  (`@mandarax/vite-plugin` until Plan 4) as `viteBridge` — **never in core**.
+- Core's `api/server/server.ts` calls `bridge.*` only. The CLI surface is `mandarax tools
+server …` (generic), replacing the old `mandarax tools vite …`.
 - A bridge is optional: `engine.start()` without one simply doesn't mount `/api/server/*`
   (a build-only bundler like rollup/esbuild has no live dev server to inspect).
 
-### `@opendui/aidx-core` internal layout (domain-grouped, mirrors the seam packages)
+### `@mandarax/core` internal layout (domain-grouped, mirrors the seam packages)
 
 Core's `src/` is grouped by domain — **not flat**. **All HTTP routes live under `src/api/`**
 (HARD RULE 4); each route entry file is named after its folder (no `-route`/`-gate` suffix), and
 non-route domain logic lives under `src/<domain>/`. The `harness/` and `runner/` subfolders mirror
-the future `@opendui/aidx-harness` / `@opendui/aidx-runner` packages so Plans 2 & 3 are near-straight moves:
+the future `@mandarax/harness` / `@mandarax/runner` packages so Plans 2 & 3 are near-straight moves:
 
 ```
 core/src/
@@ -360,8 +360,8 @@ core/src/
     test-runner/  test-runner.ts                    (/api/test-runner/* — consumes TestRunnerManager)
     editor/  editor.ts                              (/api/editor/open)
   chat/    ui-bus.ts  lock.ts  risk.ts  session-store.ts        (chat domain logic, no HTTP)
-  harness/ registry.ts  claude/{adapter,args,decode,history,system-prompt,blocks}.ts   → @opendui/aidx-harness
-  runner/  registry.ts  vitest/{adapter,manager,child}.ts                              → @opendui/aidx-runner
+  harness/ registry.ts  claude/{adapter,args,decode,history,system-prompt,blocks}.ts   → @mandarax/harness
+  runner/  registry.ts  vitest/{adapter,manager,child}.ts                              → @mandarax/runner
   page/    journal.ts                               (page domain logic)
   editor/  open.ts                                  (makeEditorOpener — agnostic)
 ```
@@ -374,17 +374,17 @@ page  ──widget──>  /api/chat (h3 SSE)  ──>  core resolves HarnessAda
                                               ├─ decode(stdout) → AG-UI StreamChunk stream
                                               ├─ uiBus merges generative-UI CUSTOM events
                                               └─ web ReadableStream → new Response(stream) → SSE
-agent ──Bash──>  aidx tools test run  ──>  /api/test-runner  ──>  core resolves TestRunnerAdapter
+agent ──Bash──>  mandarax tools test run  ──>  /api/test-runner  ──>  core resolves TestRunnerAdapter
                                               └─ driver spawns clean child → TestEvent NDJSON
                                                  → SSE /api/test-runner/stream  → widget test-card
 ```
 
 ## Configuration
 
-`AidxConfig` generalizes the current claude/vitest fields:
+`MandaraxConfig` generalizes the current claude/vitest fields:
 
 ```ts
-interface AidxConfig {
+interface MandaraxConfig {
   enabled?: boolean
   widgetUrl?: string
   previewId?: string
@@ -397,8 +397,8 @@ interface AidxConfig {
 }
 ```
 
-Env fallbacks generalize `AIDX_CLAUDE_*` → `AIDX_HARNESS`, `AIDX_HARNESS_BIN`,
-`AIDX_SESSION_ID`, `AIDX_TEST_RUNNER` (keep old names as deprecated aliases for one cycle).
+Env fallbacks generalize `MANDARAX_CLAUDE_*` → `MANDARAX_HARNESS`, `MANDARAX_HARNESS_BIN`,
+`MANDARAX_SESSION_ID`, `MANDARAX_TEST_RUNNER` (keep old names as deprecated aliases for one cycle).
 
 ## Testing strategy
 

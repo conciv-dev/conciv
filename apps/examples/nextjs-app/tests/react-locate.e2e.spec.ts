@@ -6,7 +6,7 @@ import {test, expect} from '@playwright/test'
 // source file:line. The <h1> is rendered by the Home server component → app/page.tsx.
 test('locate resolves the <h1> to app/page.tsx via the engine', async ({page}) => {
   await page.goto('/')
-  await expect(page.getByRole('button', {name: 'Open aidx chat'})).toBeVisible({timeout: 30_000})
+  await expect(page.getByRole('button', {name: 'Open mandarax chat'})).toBeVisible({timeout: 30_000})
   const body = await page.evaluate(
     (u) => fetch(u, {credentials: 'include'}).then((r) => r.json()),
     'http://localhost:41700/api/page/locate?selector=h1',

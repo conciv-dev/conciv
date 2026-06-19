@@ -1,5 +1,5 @@
 import {createSignal} from 'solid-js'
-import {ChatSessionsSchema, type ChatSessionMeta} from '@opendui/aidx-protocol/chat-types'
+import {ChatSessionsSchema, type ChatSessionMeta} from '@mandarax/protocol/chat-types'
 import {createTransport} from './transport.js'
 
 // One shared client-side cache of the session list, so every mounted SessionSelector (modal pill +
@@ -59,7 +59,7 @@ export function makeSurfaceRow(id: string, name: string | null): ChatSessionMeta
     updatedAt: Date.now(),
     messageCount: 0,
     running: false,
-    origin: 'aidx',
+    origin: 'mandarax',
     usage: null,
   }
 }

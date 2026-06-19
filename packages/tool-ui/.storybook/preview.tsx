@@ -2,7 +2,7 @@ import type {Preview} from 'storybook-solidjs-vite'
 import '../src/tokens.css'
 import '../src/tool-ui.css'
 
-// Stories render against the aidx dark panel so cards look exactly as they do in the widget.
+// Stories render against the mandarax dark panel so cards look exactly as they do in the widget.
 const preview: Preview = {
   parameters: {
     controls: {matchers: {color: /(background|color)$/i, date: /Date$/i}},

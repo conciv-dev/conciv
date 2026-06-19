@@ -1,6 +1,6 @@
 ---
 title: Vite
-description: Add aidx to a Vite app.
+description: Add mandarax to a Vite app.
 ---
 
 Vite is the full integration. The plugin boots the engine, bridges the live page, and injects the
@@ -16,7 +16,7 @@ widget for you.
 <Tab value="pnpm">
 
 ```bash
-pnpm add -D @opendui/aidx
+pnpm add -D mandarax
 ```
 
 </Tab>
@@ -24,7 +24,7 @@ pnpm add -D @opendui/aidx
 <Tab value="npm">
 
 ```bash
-npm install -D @opendui/aidx
+npm install -D mandarax
 ```
 
 </Tab>
@@ -32,7 +32,7 @@ npm install -D @opendui/aidx
 <Tab value="yarn">
 
 ```bash
-yarn add -D @opendui/aidx
+yarn add -D mandarax
 ```
 
 </Tab>
@@ -46,10 +46,10 @@ yarn add -D @opendui/aidx
 
 ```ts title="vite.config.ts"
 import {defineConfig} from 'vite'
-import aidx from '@opendui/aidx/plugin/vite'
+import mandarax from 'mandarax/plugin/vite'
 
 export default defineConfig({
-  plugins: [aidx()],
+  plugins: [mandarax()],
 })
 ```
 
@@ -68,7 +68,7 @@ vite dev
 </Steps>
 
 <Callout type="warn">
-  Keep aidx out of production. Gate it on the dev command, or set `enabled`. See [Configuration](/docs/configuration).
+  Keep mandarax out of production. Gate it on the dev command, or set `enabled`. See [Configuration](/docs/configuration).
 </Callout>
 
 Next: [Usage](/docs/usage) to see what the agent can do.

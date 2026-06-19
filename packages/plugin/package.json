@@ -1,7 +1,7 @@
 {
-  "name": "@opendui/aidx-plugin",
+  "name": "@mandarax/plugin",
   "version": "0.0.0",
-  "description": "The aidx dev agent as an unplugin: vite (full — viteBridge + widget middleware + boot), webpack/rspack (boot the engine), rollup/esbuild (build-only no-ops). One factory, per-bundler subpath entries.",
+  "description": "The mandarax dev agent as an unplugin: vite (full — viteBridge + widget middleware + boot), webpack/rspack (boot the engine), rollup/esbuild (build-only no-ops). One factory, per-bundler subpath entries.",
   "license": "MIT",
   "files": [
     "dist"
@@ -50,10 +50,10 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@opendui/aidx-cli": "workspace:*",
-    "@opendui/aidx-core": "workspace:*",
-    "@opendui/aidx-protocol": "workspace:*",
-    "@opendui/aidx-widget": "workspace:*",
+    "@mandarax/cli": "workspace:*",
+    "@mandarax/core": "workspace:*",
+    "@mandarax/protocol": "workspace:*",
+    "@mandarax/widget": "workspace:*",
     "launch-editor": "^2.14.1",
     "magic-string": "^0.30.21",
     "oxc-parser": "^0.127.0",

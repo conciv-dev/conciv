@@ -92,7 +92,7 @@ T10 full verification sweep                            (all)
 
 **Files:** `config-types.ts`, `widget-tags.ts`, `vite.ts`, `mount.tsx`; tests in core.
 
-- [x] **Step 1-3:** Added `TriggerPosition`/`ModalConfig`/`QuickTerminalConfig`/`WidgetConfig` + `widget?` on `AidxConfig`; `htmlTags()` emits `<meta name="pw-widget">` as `JSON.stringify(opts.widget ?? {})`. Test `widget-tags.test.ts` (3) green.
+- [x] **Step 1-3:** Added `TriggerPosition`/`ModalConfig`/`QuickTerminalConfig`/`WidgetConfig` + `widget?` on `MandaraxConfig`; `htmlTags()` emits `<meta name="pw-widget">` as `JSON.stringify(opts.widget ?? {})`. Test `widget-tags.test.ts` (3) green.
 - [x] **Step 4:** `vite.ts` passes `options.widget` into `htmlTags()` (static passthrough; not env-derived, so not threaded through resolveConfig).
 - [x] **Step 5-6:** Pure `parseWidgetSettings(raw)` in `widget-settings.ts` (no DOM, jsdom-free unit test, 7 cases); `resolveWidget()` in `mount.tsx` wraps it with `metaContent`. mount gates the corner modal on `settings.modal.enabled`.
 - [x] **Verify:** `turbo build` green (protocol/core/widget/plugin); widget 14/14 (7 unit + 7 IT), core widget-tags 3/3, plugin injection IT 8/8.
@@ -123,7 +123,7 @@ T10 full verification sweep                            (all)
 **Needs:** T3. **Files:** create `draggable-position.ts`, `trigger.tsx`; modify `styles.css`.
 
 - [x] **Step 1:** Ported the Devtools 6-preset placement into CSS keyed by `TriggerPosition` (`.pw-fab-pos-*`, MIT credit). FAB lost its hardcoded corner; panel anchors to the matching corner (`.pw-panel-pos-*` + transform-origin).
-- [x] **Step 2:** `createDraggablePosition({initial, storageKey})` → `{position, dragging, dragStyle, onPointerDown, consumeClick}`. Pointerdown tracks the pointer (no transition); pointerup snaps to the nearest preset and **animates** the glide to it (280ms ease-out-expo to the exact resting center), commits + persists to `aidx-fab-position`. `consumeClick` suppresses the click that follows a drag.
+- [x] **Step 2:** `createDraggablePosition({initial, storageKey})` → `{position, dragging, dragStyle, onPointerDown, consumeClick}`. Pointerdown tracks the pointer (no transition); pointerup snaps to the nearest preset and **animates** the glide to it (280ms ease-out-expo to the exact resting center), commits + persists to `mandarax-fab-position`. `consumeClick` suppresses the click that follows a drag.
 - [x] **Step 3:** Folded the FAB into `ModalLayout` using the primitive (no `trigger.tsx`); position drives both FAB + panel classes.
 - [x] **Verify:** Playwright IT (15/15) — FAB renders at configured `top-left`; drag to opposite corner snaps to `bottom-right` + persists. Build green.
 
@@ -136,7 +136,7 @@ T10 full verification sweep                            (all)
 **Needs:** T3. **Files:** create `resize.ts`; modify shell + `styles.css`.
 
 - [x] **Step 1:** `createResizable()` in `resize.ts` ports Devtools `handleDragStart` (MIT credit): pointerdown on the edge → pointer delta → set height → collapse (close) below threshold. `grow: 'up'|'down'` accessor handles corner anchoring (bottom-anchored grows up, top/middle grows down).
-- [x] **Step 2:** Wired to the modal panel (`aidx-modal-height` persist); resize handle on the panel's free edge (`.pw-chat-resize-top|bottom`); min 240, collapse 140.
+- [x] **Step 2:** Wired to the modal panel (`mandarax-modal-height` persist); resize handle on the panel's free edge (`.pw-chat-resize-top|bottom`); min 240, collapse 140.
 - [x] **Verify:** Playwright IT (16/16) — edge drag grows the panel + persists; dragging past threshold closes it (aria-hidden). Build green.
 
 **Acceptance:** modal panel resizes like Devtools.
@@ -150,7 +150,7 @@ T10 full verification sweep                            (all)
 **Needs:** T3. **Files:** create `drop-sheet.ts`, `quick-terminal.tsx`; modify shell, `mount.tsx`, `styles.css`, `package.json`.
 
 - [x] **Step 1:** Added `@tanstack/solid-hotkeys@0.10.0` (pre-approved). `createHotkey` needs no `HotkeysProvider` (context lookup falls back to `{}`).
-- [x] **Step 2:** Reused `createResizable` for the sheet height (`grow: 'down'`, bottom grip, `aidx-qt-height`) instead of a separate `createDropSheet` — one fewer primitive.
+- [x] **Step 2:** Reused `createResizable` for the sheet height (`grow: 'down'`, bottom grip, `mandarax-qt-height`) instead of a separate `createDropSheet` — one fewer primitive.
 - [x] **Step 3:** `quick-terminal.tsx` renders the full-width sheet (no scrim) with header (brand, mode chip, close) and one `ChatPanel` body. Tokens/motion ported from the mockup; shared icons in `icons.tsx`.
 - [x] **Step 4:** Shell lifted open state to a single `layer` ('modal' | 'quick' | null) → mutual exclusion is automatic. `createHotkey` bound per `hotkeys`; Esc closes when open.
 - [x] **Verify:** Playwright IT (18/18) — hotkey drops/raises the sheet; Esc closes; opening the quick terminal closes an open modal. Modal-focused tests isolated via quick-terminal-off fixtures. Build green.
@@ -173,7 +173,7 @@ T10 full verification sweep                            (all)
 
 **Acceptance:** matches the mockup's pane behavior, including the close-reflow fix.
 
-- [x] **Focus-on-open + active-pane memory (added on request):** seed the first pane at setup (mounted up front, like the modal) so opening reliably focuses the composer — a pane created lazily inside the open handler races the mount+animation and misses focus. Persist the active pane index (`aidx-qt-focused`); restore it on reopen. IT (20/20) asserts the composer is focused on open and the last-active pane is restored.
+- [x] **Focus-on-open + active-pane memory (added on request):** seed the first pane at setup (mounted up front, like the modal) so opening reliably focuses the composer — a pane created lazily inside the open handler races the mount+animation and misses focus. Persist the active pane index (`mandarax-qt-focused`); restore it on reopen. IT (20/20) asserts the composer is focused on open and the last-active pane is restored.
 
 **CHECKPOINT 3** — quick terminal complete. Review before PiP.
 

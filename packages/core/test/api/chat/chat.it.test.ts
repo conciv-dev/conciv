@@ -6,7 +6,7 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {acquireLock, readLock} from '../../../src/store/lock.js'
-import {ChatSessionSchema} from '@opendui/aidx-protocol/chat-types'
+import {ChatSessionSchema} from '@mandarax/protocol/chat-types'
 import {startTestServer, type SpawnHarness, type TestServer} from '../../helpers/server.js'
 
 // Real process-boundary IT: the REAL app (makeApp) over a real srvx server, with a FAKE harness
@@ -17,13 +17,13 @@ const fakeClaude = fileURLToPath(new URL('../../fixtures/fake-claude.ts', import
 const dirs: string[] = []
 
 function tmp(): string {
-  const d = mkdtempSync(join(tmpdir(), 'aidx-chat-it-'))
+  const d = mkdtempSync(join(tmpdir(), 'mandarax-chat-it-'))
   dirs.push(d)
   return d
 }
 
 // A fake-claude spawn (optionally capturing argv to a file for the --resume assertion, or emitting
-// the rich multi-block transcript via AIDX_FAKE_RICH).
+// the rich multi-block transcript via MANDARAX_FAKE_RICH).
 function fakeSpawn(
   opts: {
     argvFile?: string
@@ -40,11 +40,11 @@ function fakeSpawn(
       stdio: ['pipe', 'pipe', 'pipe'],
       env: {
         ...process.env,
-        ...(opts.argvFile ? {AIDX_TEST_ARGV_FILE: opts.argvFile} : {}),
-        ...(opts.rich ? {AIDX_FAKE_RICH: '1'} : {}),
-        ...(opts.partial ? {AIDX_FAKE_PARTIAL: '1'} : {}),
-        ...(opts.hang ? {AIDX_FAKE_HANG: '1'} : {}),
-        ...(inputTokens != null ? {AIDX_FAKE_INPUT_TOKENS: String(inputTokens)} : {}),
+        ...(opts.argvFile ? {MANDARAX_TEST_ARGV_FILE: opts.argvFile} : {}),
+        ...(opts.rich ? {MANDARAX_FAKE_RICH: '1'} : {}),
+        ...(opts.partial ? {MANDARAX_FAKE_PARTIAL: '1'} : {}),
+        ...(opts.hang ? {MANDARAX_FAKE_HANG: '1'} : {}),
+        ...(inputTokens != null ? {MANDARAX_FAKE_INPUT_TOKENS: String(inputTokens)} : {}),
       },
     })
     const {stdin, stdout, stderr} = child
@@ -79,7 +79,7 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     expect(body).toContain('RUN_STARTED')
     expect(body).toContain('hello from fake') // consolidated assistant text must still render
     expect(body).toContain('RUN_FINISHED')
-    expect(body).toContain('aidx-usage') // live usage injected mid-stream
+    expect(body).toContain('mandarax-usage') // live usage injected mid-stream
   })
 
   it('persists turn-end usage so GET /api/chat/session returns it for the next open', async () => {

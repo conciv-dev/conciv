@@ -1,7 +1,7 @@
 import {describe, it, expect, afterAll} from 'vitest'
 import {fileURLToPath} from 'node:url'
 import {dirname, join} from 'node:path'
-import type {TestRunnerManager} from '@opendui/aidx-protocol/runner-types'
+import type {TestRunnerManager} from '@mandarax/protocol/runner-types'
 import {makeChildManager, isRunnerUnavailable, type ChildRunnerSpec} from '../src/driver.js'
 import {vitest as vitestAdapter} from '../src/vitest/vitest.js'
 import {tsxSpawnFor, errorSpawnRunner} from './helpers.js'

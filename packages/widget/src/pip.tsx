@@ -43,11 +43,11 @@ export function createPiP(): {
 
   const open = (node: HTMLElement, opts: {title?: string; width?: number; height?: number} = {}) => {
     if (win()) return
-    const w = window.open('', 'aidx-pip', `width=${opts.width ?? 480},height=${opts.height ?? 620},popup`)
+    const w = window.open('', 'mandarax-pip', `width=${opts.width ?? 480},height=${opts.height ?? 620},popup`)
     if (!w) return
     w.document.head.innerHTML = ''
     w.document.body.innerHTML = ''
-    w.document.title = opts.title ?? 'aidx'
+    w.document.title = opts.title ?? 'mandarax'
     w.document.body.style.margin = '0'
 
     // A shadow root in the PiP doc, seeded with our styles, marked .pw-pip so the content fills it.
@@ -64,7 +64,7 @@ export function createPiP(): {
 
     // Drop a placeholder where the node lived, then move it into the PiP shadow (appendChild across
     // documents auto-adopts the node — its Solid reactivity keeps working).
-    placeholder = node.ownerDocument.createComment('aidx-pip')
+    placeholder = node.ownerDocument.createComment('mandarax-pip')
     node.parentNode?.replaceChild(placeholder, node)
     wrap.appendChild(node)
     moved = node

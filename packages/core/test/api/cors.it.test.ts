@@ -16,7 +16,7 @@ const ORIGIN = 'http://localhost:3000'
 const dirs: string[] = []
 
 function tmp(): string {
-  const d = mkdtempSync(join(tmpdir(), 'aidx-cors-it-'))
+  const d = mkdtempSync(join(tmpdir(), 'mandarax-cors-it-'))
   dirs.push(d)
   return d
 }
@@ -61,7 +61,7 @@ describe('engine CORS (IT, real http, cross-origin + credentials)', () => {
     expect(res.headers.get('access-control-allow-credentials')).toBe('true')
   })
 
-  it('preflight for a session-scoped request allows the aidx-session-id header + DELETE', async () => {
+  it('preflight for a session-scoped request allows the mandarax-session-id header + DELETE', async () => {
     const {server, base} = await startServer()
     state.server = server
     const res = await fetch(`${base}/api/chat/session`, {
@@ -69,12 +69,12 @@ describe('engine CORS (IT, real http, cross-origin + credentials)', () => {
       headers: {
         origin: ORIGIN,
         'access-control-request-method': 'DELETE',
-        'access-control-request-headers': 'aidx-session-id, content-type',
+        'access-control-request-headers': 'mandarax-session-id, content-type',
       },
     })
     expect(res.status).toBe(204)
     const allowHeaders = (res.headers.get('access-control-allow-headers') ?? '').toLowerCase()
-    expect(allowHeaders).toContain('aidx-session-id')
+    expect(allowHeaders).toContain('mandarax-session-id')
     expect(res.headers.get('access-control-allow-methods') ?? '').toContain('DELETE')
   })
 

@@ -1,23 +1,23 @@
 import {randomUUID} from 'node:crypto'
-import {buildUiSpec} from '@opendui/aidx-protocol/ui-types'
-import type {AidxServerTool, AidxToolContext} from './types.js'
-import {aidxPageToolDef, PageInput} from './page.js'
-import {aidxTestToolDef, TestInput} from './test.js'
-import {aidxUiToolDef, UiInput} from './ui.js'
-import {aidxOpenToolDef, OpenInput} from './open.js'
+import {buildUiSpec} from '@mandarax/protocol/ui-types'
+import type {MandaraxServerTool, MandaraxToolContext} from './types.js'
+import {mandaraxPageToolDef, PageInput} from './page.js'
+import {mandaraxTestToolDef, TestInput} from './test.js'
+import {mandaraxUiToolDef, UiInput} from './ui.js'
+import {mandaraxOpenToolDef, OpenInput} from './open.js'
 
 // Each factory instantiates its definition as a tanstack server tool (the def stays the single
 // source of truth — the future page agent instantiates the same def with `.client()`), then erases
-// the per-tool generics to the uniform AidxServerTool the MCP server iterates. The uniform execute
+// the per-tool generics to the uniform MandaraxServerTool the MCP server iterates. The uniform execute
 // validates raw args against the concrete zod schema once at the boundary before running.
 
-function aidxUiServerTool(ctx: AidxToolContext): AidxServerTool {
-  const tool = aidxUiToolDef.server(async (input) => {
+function mandaraxUiServerTool(ctx: MandaraxToolContext): MandaraxServerTool {
+  const tool = mandaraxUiToolDef.server(async (input) => {
     const renderId = randomUUID()
     return {renderId, injected: ctx.injectUi(buildUiSpec(input, renderId))}
   })
   const run = tool.execute
-  if (!run) throw new Error('aidx_ui: server tool has no execute')
+  if (!run) throw new Error('mandarax_ui: server tool has no execute')
   return {
     name: tool.name,
     description: tool.description,
@@ -26,10 +26,10 @@ function aidxUiServerTool(ctx: AidxToolContext): AidxServerTool {
   }
 }
 
-function aidxPageServerTool(ctx: AidxToolContext): AidxServerTool {
-  const tool = aidxPageToolDef.server(async ({verb, ...input}) => ctx.page({kind: verb, ...input}))
+function mandaraxPageServerTool(ctx: MandaraxToolContext): MandaraxServerTool {
+  const tool = mandaraxPageToolDef.server(async ({verb, ...input}) => ctx.page({kind: verb, ...input}))
   const run = tool.execute
-  if (!run) throw new Error('aidx_page: server tool has no execute')
+  if (!run) throw new Error('mandarax_page: server tool has no execute')
   return {
     name: tool.name,
     description: tool.description,
@@ -38,10 +38,10 @@ function aidxPageServerTool(ctx: AidxToolContext): AidxServerTool {
   }
 }
 
-function aidxTestServerTool(ctx: AidxToolContext): AidxServerTool {
-  const tool = aidxTestToolDef.server(async ({action, pattern}) => ctx.test({kind: action, pattern}))
+function mandaraxTestServerTool(ctx: MandaraxToolContext): MandaraxServerTool {
+  const tool = mandaraxTestToolDef.server(async ({action, pattern}) => ctx.test({kind: action, pattern}))
   const run = tool.execute
-  if (!run) throw new Error('aidx_test: server tool has no execute')
+  if (!run) throw new Error('mandarax_test: server tool has no execute')
   return {
     name: tool.name,
     description: tool.description,
@@ -50,13 +50,13 @@ function aidxTestServerTool(ctx: AidxToolContext): AidxServerTool {
   }
 }
 
-function aidxOpenServerTool(ctx: AidxToolContext): AidxServerTool {
-  const tool = aidxOpenToolDef.server(async ({file, line}) => {
+function mandaraxOpenServerTool(ctx: MandaraxToolContext): MandaraxServerTool {
+  const tool = mandaraxOpenToolDef.server(async ({file, line}) => {
     ctx.open(file, line)
     return {ok: true, file, ...(line === undefined ? {} : {line})}
   })
   const run = tool.execute
-  if (!run) throw new Error('aidx_open: server tool has no execute')
+  if (!run) throw new Error('mandarax_open: server tool has no execute')
   return {
     name: tool.name,
     description: tool.description,
@@ -65,8 +65,13 @@ function aidxOpenServerTool(ctx: AidxToolContext): AidxServerTool {
   }
 }
 
-// The aidx tool list as bound server tools, in one place so the MCP server (and tests) get them
+// The mandarax tool list as bound server tools, in one place so the MCP server (and tests) get them
 // with a single import.
-export function aidxTools(ctx: AidxToolContext): AidxServerTool[] {
-  return [aidxUiServerTool(ctx), aidxPageServerTool(ctx), aidxTestServerTool(ctx), aidxOpenServerTool(ctx)]
+export function mandaraxTools(ctx: MandaraxToolContext): MandaraxServerTool[] {
+  return [
+    mandaraxUiServerTool(ctx),
+    mandaraxPageServerTool(ctx),
+    mandaraxTestServerTool(ctx),
+    mandaraxOpenServerTool(ctx),
+  ]
 }

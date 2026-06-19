@@ -3,9 +3,9 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>aidx — quick-terminal layout mockup</title>
+    <title>mandarax — quick-terminal layout mockup</title>
     <style>
-      /* ── aidx widget tokens (mirrored from packages/widget/src/styles.css) ── */
+      /* ── mandarax widget tokens (mirrored from packages/widget/src/styles.css) ── */
       :root {
         --pw-hue: 328;
         --pw-accent: #ff40e0;
@@ -513,7 +513,7 @@
     <main class="host">
       <h1>Acme Dashboard</h1>
       <p>
-        The aidx quick-terminal drops over this page and can be split into multiple panes — each pane is its own
+        The mandarax quick-terminal drops over this page and can be split into multiple panes — each pane is its own
         independent agent session.
       </p>
       <div class="skeleton"></div>
@@ -537,9 +537,9 @@
     </div>
 
     <!-- Quick-terminal drop sheet (no page-dimming scrim) -->
-    <section class="qt" id="qt" role="dialog" aria-label="aidx quick terminal">
+    <section class="qt" id="qt" role="dialog" aria-label="mandarax quick terminal">
       <header class="qt-head">
-        <span class="qt-brand"><span class="qt-spark">✦</span> aidx</span>
+        <span class="qt-brand"><span class="qt-spark">✦</span> mandarax</span>
         <span class="qt-mode">quick terminal</span>
         <span class="qt-spacer"></span>
         <span class="qt-keyhint"><kbd>⌘D</kbd> split · <kbd>esc</kbd> close</span>
@@ -724,7 +724,7 @@
       }
 
       // ── Sheet open/close + height persistence ──
-      const HEIGHT_KEY = 'aidx-qt-height'
+      const HEIGHT_KEY = 'mandarax-qt-height'
       const savedH = localStorage.getItem(HEIGHT_KEY)
       if (savedH) qt.style.setProperty('--qt-height', savedH)
 

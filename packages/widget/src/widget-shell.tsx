@@ -1,7 +1,7 @@
 import {createEffect, createSignal, For, onCleanup, Show, type Component, type JSX} from 'solid-js'
 import {render} from 'solid-js/web'
 import {EnvironmentProvider} from '@ark-ui/solid/environment'
-import type {TriggerPosition} from '@opendui/aidx-protocol/config-types'
+import type {TriggerPosition} from '@mandarax/protocol/config-types'
 import type {WidgetSettings} from './widget-settings.js'
 import {createDraggablePosition} from './draggable-position.js'
 import {createResizable} from './resize.js'
@@ -15,11 +15,11 @@ import {SessionSelector} from './session-selector.js'
 import {sessions, mergeSurface, makeSurfaceRow} from './session-store-client.js'
 import {readStorage, writeStorage} from './persisted-signal.js'
 import {defineClient, type SessionClient} from './session-client.js'
-import {SessionId, isSessionId} from '@opendui/aidx-protocol/chat-types'
-import type {UsageSnapshot} from '@opendui/aidx-protocol/usage-types'
+import {SessionId, isSessionId} from '@mandarax/protocol/chat-types'
+import type {UsageSnapshot} from '@mandarax/protocol/usage-types'
 import type {Grab} from './react-grab/grab-types.js'
 
-// Read our persisted active id, accepting only a valid aidx_ id (a stale/foreign value is dropped).
+// Read our persisted active id, accepting only a valid mandarax_ id (a stale/foreign value is dropped).
 const parseActiveId = (raw: string): SessionId | undefined => (isSessionId(raw) ? SessionId.parse(raw) : undefined)
 
 // A registered content module the shell hosts, modeled on the TanStack Devtools plugin model.
@@ -32,7 +32,7 @@ export type PanelContext = {
   onWorkingChange: (working: boolean) => void
   // The content reports its latest model-usage snapshot, for the top-bar context tracker.
   onUsageChange: (usage: UsageSnapshot | null) => void
-  // This surface's session client — owns the active aidx_ id, the single comms seam for the panel.
+  // This surface's session client — owns the active mandarax_ id, the single comms seam for the panel.
   client: SessionClient
   // The content reports its resolved session name, so the chrome can surface a just-born row.
   onSessionLabel?: (name: string | null) => void
@@ -263,7 +263,7 @@ function ModalLayout(props: {
   // the active one shown. Switching is a pure view swap — it never tears down or kills a turn.
   const [activeId, setActiveId] = createSignal<SessionId | null>(null)
   const [panes, setPanes] = createSignal<ModalPane[]>([])
-  createEffect(() => writeStorage('aidx-active-session', activeId()))
+  createEffect(() => writeStorage('mandarax-active-session', activeId()))
   const apiBase = props.panel.apiBase ?? ''
 
   const mountPane = (id: SessionId) => {
@@ -296,7 +296,7 @@ function ModalLayout(props: {
     activate(sessionId)
   }
   // Seed: restore the persisted active session, else resolve a fresh one up front.
-  const restored = readStorage('aidx-active-session', parseActiveId, undefined)
+  const restored = readStorage('mandarax-active-session', parseActiveId, undefined)
   if (restored) activate(restored)
   else void activateNew()
 
@@ -305,7 +305,7 @@ function ModalLayout(props: {
   const working = () => activePane()?.working() ?? false
   const usage = () => activePane()?.usage() ?? null
 
-  const fab = createDraggablePosition({initial: props.position, storageKey: 'aidx-fab-position'})
+  const fab = createDraggablePosition({initial: props.position, storageKey: 'mandarax-fab-position'})
   const pip = createPiP()
   let fabEl: HTMLButtonElement | undefined
   let panelEl: HTMLElement | undefined
@@ -326,14 +326,14 @@ function ModalLayout(props: {
     initial: 560,
     min: 240,
     collapseAt: 140,
-    storageKey: 'aidx-modal-height',
+    storageKey: 'mandarax-modal-height',
     grow: () => (anchoredBottom() ? 'up' : 'down'),
     onCollapse: () => closePanel(),
   })
   const resizeX = createResizable({
     initial: 380,
     min: 300,
-    storageKey: 'aidx-modal-width',
+    storageKey: 'mandarax-modal-width',
     grow: () => (anchoredRight() ? 'left' : 'right'),
   })
   const toggle = () => (props.open() ? closePanel() : props.onOpen())
@@ -371,7 +371,7 @@ function ModalLayout(props: {
         classList={{'pw-pick-away': picking()}}
         style={{height: `${resizeY.size()}px`, width: `${resizeX.size()}px`}}
         role="dialog"
-        aria-label="aidx chat agent"
+        aria-label="mandarax chat agent"
         aria-hidden={!props.open()}
         id="pw-chat-panel"
         onKeyDown={onPanelKeyDown}
@@ -439,7 +439,7 @@ function ModalLayout(props: {
         class={fabClass(fabPulsing(), fab.position(), fab.dragging())}
         classList={{'pw-pick-away': picking()}}
         style={fab.dragStyle()}
-        aria-label={props.open() ? 'Minimize aidx chat' : 'Open aidx chat'}
+        aria-label={props.open() ? 'Minimize mandarax chat' : 'Open mandarax chat'}
         aria-expanded={props.open()}
         aria-controls="pw-chat-panel"
         onPointerDown={fab.onPointerDown}

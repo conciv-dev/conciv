@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Rewrite `@opendui/aidx-widget` from React to SolidJS, removing all React, keeping behavior 1:1 (Solid-idiomatic cleanup allowed), with the existing Chromium playwright IT as the parity gate.
+**Goal:** Rewrite `@mandarax/widget` from React to SolidJS, removing all React, keeping behavior 1:1 (Solid-idiomatic cleanup allowed), with the existing Chromium playwright IT as the parity gate.
 
 **Architecture:** Swap the framework only. `@tanstack/ai-solid` replaces `@tanstack/ai-react` (identical `useChat`/`fetchServerSentEvents`/`createChatClientOptions` API). The 5 `.tsx` files are ported to Solid; the pure-TS files (`page-*`, `shadow`, `chat-api`, `css.d.ts`) are untouched. The existing React source is the behavioral spec for each ported file.
 
@@ -37,7 +37,7 @@ Remove `react`, `react-dom`, `@tanstack/ai-react` from `dependencies`; remove `@
 
 ```json
   "dependencies": {
-    "@opendui/aidx-protocol": "workspace:*",
+    "@mandarax/protocol": "workspace:*",
     "@tanstack/ai": "^0.28.0",
     "@tanstack/ai-client": "^0.16.3",
     "@tanstack/ai-solid": "^0.13.4",
@@ -71,7 +71,7 @@ import {fileURLToPath} from 'node:url'
 import {defineConfig} from 'vite'
 import solid from 'vite-plugin-solid'
 
-// One entry (mount.tsx) ships two ways: an ESM module (@opendui/aidx-widget) and a self-contained IIFE
+// One entry (mount.tsx) ships two ways: an ESM module (@mandarax/widget) and a self-contained IIFE
 // global the plugin injects as a <script>. The Solid runtime is bundled in. styles.css is
 // imported `?inline` (shadow.ts) and injected into the Shadow DOM.
 export default defineConfig({
@@ -80,8 +80,8 @@ export default defineConfig({
     lib: {
       entry: fileURLToPath(new URL('src/mount.tsx', import.meta.url)),
       formats: ['es', 'iife'],
-      name: 'AidxWidget',
-      fileName: (format) => (format === 'iife' ? 'aidx-widget.global.js' : 'mount.js'),
+      name: 'MandaraxWidget',
+      fileName: (format) => (format === 'iife' ? 'mandarax-widget.global.js' : 'mount.js'),
     },
     cssCodeSplit: false,
     emptyOutDir: true,
@@ -135,7 +135,7 @@ type Props = {text: string}
 
 export const Markdown: Component<Props> = (props) => {
   const [html] = createResource(() => props.text, renderMarkdown)
-  return <div class="aidx-md" innerHTML={html() ?? marked.parse(props.text, {async: false})} />
+  return <div class="mandarax-md" innerHTML={html() ?? marked.parse(props.text, {async: false})} />
 }
 
 // renderMarkdown: marked + shiki highlight → HTML string. Port the body verbatim from the
@@ -149,7 +149,7 @@ Match the existing class names so `styles.css` still applies.
 
 - [ ] **Step 3: Typecheck the file in isolation**
 
-Run: `pnpm --filter @opendui/aidx-widget exec tsc --noEmit -p tsconfig.json 2>&1 | grep markdown`
+Run: `pnpm --filter @mandarax/widget exec tsc --noEmit -p tsconfig.json 2>&1 | grep markdown`
 Expected: no errors referencing `markdown.tsx` (other files may still error — they're ported later).
 
 - [ ] **Step 4: Commit**
@@ -174,7 +174,7 @@ git commit -m "refactor(widget): port markdown.tsx to Solid"
 
 ```tsx
 import {Switch, Match, type Component} from 'solid-js'
-// import the spec types from @opendui/aidx-protocol/ui-types as the React version did
+// import the spec types from @mandarax/protocol/ui-types as the React version did
 
 export const GenUi: Component<{spec: UiSpec; onReply: (r: Reply) => void}> = (props) => (
   <Switch>
@@ -189,7 +189,7 @@ Preserve every `kind`, the markup classes, and the callback payloads exactly.
 
 - [ ] **Step 3: Typecheck**
 
-Run: `pnpm --filter @opendui/aidx-widget exec tsc --noEmit -p tsconfig.json 2>&1 | grep gen-ui`
+Run: `pnpm --filter @mandarax/widget exec tsc --noEmit -p tsconfig.json 2>&1 | grep gen-ui`
 Expected: no errors referencing `gen-ui.tsx`.
 
 - [ ] **Step 4: Commit**
@@ -226,7 +226,7 @@ export const TestCard: Component<{apiBase: string; onFix: (...a: never[]) => voi
     onCleanup(() => source.close())
   })
   // render the same pass/fail tree + expandable failures as the React version
-  return <div class="aidx-test-card">{/* ... */}</div>
+  return <div class="mandarax-test-card">{/* ... */}</div>
 }
 ```
 
@@ -234,7 +234,7 @@ Keep the exact class names and the expand/fix actions.
 
 - [ ] **Step 3: Typecheck**
 
-Run: `pnpm --filter @opendui/aidx-widget exec tsc --noEmit -p tsconfig.json 2>&1 | grep test-card`
+Run: `pnpm --filter @mandarax/widget exec tsc --noEmit -p tsconfig.json 2>&1 | grep test-card`
 Expected: no errors referencing `test-card.tsx`.
 
 - [ ] **Step 4: Commit**
@@ -268,7 +268,7 @@ Solid's `useChat` returns **accessors** (call them as functions in JSX), not a R
 
 - [ ] **Step 4: Typecheck**
 
-Run: `pnpm --filter @opendui/aidx-widget exec tsc --noEmit -p tsconfig.json 2>&1 | grep chat-shell`
+Run: `pnpm --filter @mandarax/widget exec tsc --noEmit -p tsconfig.json 2>&1 | grep chat-shell`
 Expected: no errors referencing `chat-shell.tsx`.
 
 - [ ] **Step 5: Commit**
@@ -287,7 +287,7 @@ git commit -m "refactor(widget): port chat-shell.tsx to Solid (@tanstack/ai-soli
 - Modify: `packages/widget/src/mount.tsx`
 - Reference: current React `mount.tsx`
 
-Preserve the public contract: exports `mountWidget`, auto-mounts on load, guards against double-mount (`[data-aidx-root]`), probes via `probeChatAvailable(apiBase)` before mounting chat, and exposes the `__AIDX_RENDER_TEST_CARD__` test seam (the IT calls it).
+Preserve the public contract: exports `mountWidget`, auto-mounts on load, guards against double-mount (`[data-mandarax-root]`), probes via `probeChatAvailable(apiBase)` before mounting chat, and exposes the `__MANDARAX_RENDER_TEST_CARD__` test seam (the IT calls it).
 
 - [ ] **Step 1: Rewrite using Solid `render`**
 
@@ -303,7 +303,7 @@ function metaContent(name: string): string {
   return document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content ?? ''
 }
 
-type TestSeam = {__AIDX_RENDER_TEST_CARD__?: () => void}
+type TestSeam = {__MANDARAX_RENDER_TEST_CARD__?: () => void}
 
 function mountTestCardForTest(root: ShadowRoot, apiBase: string): void {
   const container = document.createElement('div')
@@ -312,11 +312,11 @@ function mountTestCardForTest(root: ShadowRoot, apiBase: string): void {
 }
 
 export function mountWidget(): void {
-  if (document.querySelector('[data-aidx-root]')) return
+  if (document.querySelector('[data-mandarax-root]')) return
   const {root} = createShadowRoot()
   const apiBase = metaContent('pw-api-base')
   const w = window as unknown as TestSeam
-  w.__AIDX_RENDER_TEST_CARD__ = () => mountTestCardForTest(root, apiBase)
+  w.__MANDARAX_RENDER_TEST_CARD__ = () => mountTestCardForTest(root, apiBase)
   void probeChatAvailable(apiBase).then((available) => {
     if (!available) return
     const container = document.createElement('div')
@@ -346,29 +346,29 @@ git commit -m "refactor(widget): port mount.tsx to Solid render"
 
 - [ ] **Step 1: Typecheck the whole widget**
 
-Run: `pnpm --filter @opendui/aidx-widget typecheck`
+Run: `pnpm --filter @mandarax/widget typecheck`
 Expected: PASS (zero errors).
 
 - [ ] **Step 2: Build the bundle**
 
-Run: `pnpm --filter @opendui/aidx-widget build`
-Expected: emits `dist/aidx-widget.global.js` and `dist/mount.js`; no react in the bundle —
-verify: `grep -c "react-dom" packages/widget/dist/aidx-widget.global.js` → `0`.
+Run: `pnpm --filter @mandarax/widget build`
+Expected: emits `dist/mandarax-widget.global.js` and `dist/mount.js`; no react in the bundle —
+verify: `grep -c "react-dom" packages/widget/dist/mandarax-widget.global.js` → `0`.
 
 - [ ] **Step 3: Run the browser IT (parity gate)**
 
-Run: `pnpm --filter @opendui/aidx-widget test`
+Run: `pnpm --filter @mandarax/widget test`
 Expected: PASS — "mounts the FAB, streams an assistant reply, and renders the approval gate → decision" and "renders the live vitest card: pass/fail tree, expands the failure with actions".
 
 - [ ] **Step 4: Lint**
 
-Run: `pnpm --filter @opendui/aidx-widget lint`
+Run: `pnpm --filter @mandarax/widget lint`
 Expected: PASS.
 
 - [ ] **Step 5: Full workspace check (nothing downstream broke)**
 
 Run: `pnpm build && pnpm test && pnpm typecheck`
-Expected: all tasks succeed (the plugin serves the rebuilt `aidx-widget.global.js`).
+Expected: all tasks succeed (the plugin serves the rebuilt `mandarax-widget.global.js`).
 
 - [ ] **Step 6: Verify no React anywhere in widget source**
 
@@ -387,5 +387,5 @@ git commit -m "test(widget): Solid rewrite passes the browser parity IT"
 ## Self-review notes
 
 - Spec coverage: deps (T1), build/jsx (T1), each `.tsx` file (T2–T6), pure-TS files untouched (not in any task — correct), testing gate (T7), risks (Solid `useChat` shape — T5 step 2; shiki async — T2 step 2; gen-ui dynamic — T3). All covered.
-- The `__AIDX_RENDER_TEST_CARD__` seam and `pw-api-base` meta read are preserved (T6) so the IT keeps working.
+- The `__MANDARAX_RENDER_TEST_CARD__` seam and `pw-api-base` meta read are preserved (T6) so the IT keeps working.
 - Order is leaf-first (markdown → gen-ui → test-card → chat-shell → mount) so each task typechecks against already-ported children before the parent.
