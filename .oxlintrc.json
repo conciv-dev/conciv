@@ -8,7 +8,24 @@
   "rules": {
     "unicorn/consistent-function-scoping": "off",
     "react/react-in-jsx-scope": "off",
-    "no-underscore-dangle": ["warn", {"allow": ["__MANDARAX_RENDER_VITEST_CARD__"]}]
+    "no-underscore-dangle": [
+      "warn",
+      {
+        "allow": [
+          "__MANDARAX__",
+          "__MANDARAX_API_BASE__",
+          "__MANDARAX_PAGE_DRIVER__",
+          "__MANDARAX_RENDER_TEST_CARD__",
+          "__REACT_GRAB_DISABLED__",
+          "__sdkStats",
+          "__sdkReset",
+          "_debugHookTypes",
+          "_debugStack",
+          "_context",
+          "_splat"
+        ]
+      }
+    ]
   },
   "env": {
     "browser": true,
