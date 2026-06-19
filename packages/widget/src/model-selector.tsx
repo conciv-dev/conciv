@@ -1,5 +1,6 @@
 import {createSignal, For, onMount, Show, type JSX} from 'solid-js'
-import {Combobox, useListCollection} from '@ark-ui/solid/combobox'
+import {Combobox} from '@mandarax/ui-kit-system'
+import {useListCollection} from '@ark-ui/solid/combobox'
 import {Check, ChevronsUpDown} from 'lucide-solid'
 import type {HarnessModelInfo} from '@mandarax/protocol/chat-types'
 import {defineClient} from './session-client.js'
@@ -55,7 +56,6 @@ export function ModelSelector(props: {
   }
   return (
     <Combobox.Root
-      class="pw-model"
       collection={collection()}
       value={props.value ? [props.value] : []}
       inputValue={query()}
@@ -79,34 +79,46 @@ export function ModelSelector(props: {
     >
       {/* assistant-ui's Popover+Command shape: the Trigger is a button pill showing the current
           model (not a text field); the search Input lives inside the popover Content. */}
-      <Combobox.Control class="pw-model-control">
-        <Combobox.Trigger class="pw-model-trigger" aria-label="Select model" title="Select model">
-          <span class="pw-model-current">{selectedName()}</span>
-          <ChevronsUpDown class="pw-model-caret" aria-hidden="true" />
+      <Combobox.Control class="inline-flex">
+        <Combobox.Trigger
+          class="text-xs text-pw-text-2 pl-2.5 pr-[0.4375rem] border border-pw-line rounded-pw-pill bg-pw-fill-soft inline-flex gap-1 h-7 max-w-42 cursor-pointer transition-[color,border-color,background-color] duration-[120ms] ease-pw items-center hover:text-pw-text-hi hover:border-pw-line-2 hover:bg-pw-fill-strong"
+          aria-label="Select model"
+          title="Select model"
+        >
+          <span class="truncate">{selectedName()}</span>
+          <ChevronsUpDown class="opacity-70 shrink-0 size-3.25" aria-hidden="true" />
         </Combobox.Trigger>
       </Combobox.Control>
       <Combobox.Positioner>
-        <Combobox.Content class="pw-model-content pw-combo-content">
-          <Combobox.Input class="pw-model-search" placeholder="Search models…" />
-          <div class="pw-model-list">
+        <Combobox.Content class="p-1 border border-pw-line-2 rounded-pw-md bg-pw-panel flex-col max-h-80 w-64 hidden shadow-pw-lg z-10 focus-visible:outline-none data-[state=open]:flex data-[state=open]:anim-combo">
+          <Combobox.Input
+            class="text-[0.8125rem] text-pw-text mb-1 px-2 border-0 border-b border-b-pw-line-soft rounded-none bg-transparent h-8 w-full placeholder:text-pw-text-3 focus:outline-none"
+            placeholder="Search models…"
+          />
+          <div class="flex-1 overflow-y-auto">
             <Show when={collection().items.length === 0}>
-              <div class="pw-model-empty">No models match</div>
+              <div class="text-xs text-pw-text-3 px-2 py-2.5">No models match</div>
             </Show>
             <For each={groupsOf(collection().items)}>
               {(group) => (
-                <Combobox.ItemGroup class="pw-model-group">
-                  <Combobox.ItemGroupLabel class="pw-model-group-label">{group.name}</Combobox.ItemGroupLabel>
+                <Combobox.ItemGroup>
+                  <Combobox.ItemGroupLabel class="text-[0.6875rem] text-pw-text-3 tracking-[0.02em] font-semibold px-2 pb-0.5 pt-1.5 uppercase">
+                    {group.name}
+                  </Combobox.ItemGroupLabel>
                   <For each={group.items}>
                     {(m) => (
-                      <Combobox.Item item={m} class="pw-model-item">
-                        <div class="pw-model-item-text">
+                      <Combobox.Item
+                        item={m}
+                        class="text-pw-text px-2 py-[0.4375rem] rounded-pw-sm flex gap-2 cursor-pointer items-center data-[disabled]:text-pw-text-3 data-[highlighted]:text-pw-text-hi data-[highlighted]:bg-pw-fill-strong data-[disabled]:cursor-not-allowed"
+                      >
+                        <div class="flex flex-1 flex-col gap-px min-w-0">
                           <Combobox.ItemText>{m.name}</Combobox.ItemText>
                           <Show when={m.description}>
-                            <span class="pw-model-desc">{m.description}</span>
+                            <span class="text-[0.6875rem] text-pw-text-3">{m.description}</span>
                           </Show>
                         </div>
-                        <Combobox.ItemIndicator class="pw-model-check">
-                          <Check class="pw-model-check-icon" aria-hidden="true" />
+                        <Combobox.ItemIndicator class="text-pw-accent ml-auto hidden data-[state=checked]:inline-flex">
+                          <Check class="size-3.75" aria-hidden="true" />
                         </Combobox.ItemIndicator>
                       </Combobox.Item>
                     )}

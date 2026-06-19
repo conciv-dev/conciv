@@ -1,6 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxlint/configuration_schema.json",
   "plugins": ["typescript", "react", "unicorn"],
+  "jsPlugins": [{"name": "unocss", "specifier": "@unocss/eslint-plugin"}],
   "categories": {
     "correctness": "error",
     "suspicious": "warn"
@@ -26,6 +27,19 @@
           "_splat"
         ]
       }
+    ],
+    "unocss/order": "warn",
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          {
+            "group": ["@ark-ui", "@ark-ui/**"],
+            "importNames": ["Collapsible", "HoverCard", "ScrollArea", "Combobox", "Progress", "EnvironmentProvider"],
+            "message": "Import design-system components from @mandarax/ui-kit-system, not @ark-ui directly. Only ui-kit-system may wrap Ark UI components. (Headless hooks like useListCollection / useFilter may still be imported from @ark-ui.)"
+          }
+        ]
+      }
     ]
   },
   "env": {
@@ -33,5 +47,13 @@
     "node": true,
     "es2022": true
   },
+  "overrides": [
+    {
+      "files": ["packages/ui-kit-system/**"],
+      "rules": {
+        "no-restricted-imports": "off"
+      }
+    }
+  ],
   "ignorePatterns": ["dist", "build", "node_modules", ".turbo"]
 }

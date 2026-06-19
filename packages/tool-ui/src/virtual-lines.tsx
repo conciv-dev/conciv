@@ -1,5 +1,5 @@
 import {createSignal, For, type JSX} from 'solid-js'
-import {ScrollArea} from '@ark-ui/solid/scroll-area'
+import {ScrollArea} from '@mandarax/ui-kit-system'
 import {createVirtualizer} from '@tanstack/solid-virtual'
 
 export type VirtualLinesProps = {
@@ -35,12 +35,15 @@ export function VirtualLines(props: VirtualLinesProps): JSX.Element {
 
   return (
     <ScrollArea.Root class={props.class} style={{height: `${height()}px`}}>
-      <ScrollArea.Viewport ref={setViewport} class="pw-vl-viewport">
+      <ScrollArea.Viewport
+        ref={setViewport}
+        class="h-full w-full [scrollbar-width:none] overflow-auto [&::-webkit-scrollbar]:hidden"
+      >
         <ScrollArea.Content style={{height: `${virtualizer.getTotalSize()}px`, position: 'relative', width: '100%'}}>
           <For each={virtualizer.getVirtualItems()}>
             {(item) => (
               <div
-                class="pw-vl-row"
+                class="whitespace-pre"
                 style={{
                   position: 'absolute',
                   top: 0,
@@ -59,8 +62,8 @@ export function VirtualLines(props: VirtualLinesProps): JSX.Element {
           </For>
         </ScrollArea.Content>
       </ScrollArea.Viewport>
-      <ScrollArea.Scrollbar class="pw-vl-bar">
-        <ScrollArea.Thumb class="pw-vl-thumb" />
+      <ScrollArea.Scrollbar>
+        <ScrollArea.Thumb />
       </ScrollArea.Scrollbar>
     </ScrollArea.Root>
   )

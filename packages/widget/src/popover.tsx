@@ -1,6 +1,11 @@
 import {createEffect, onCleanup, Show, type JSX} from 'solid-js'
 import {computePosition, autoUpdate, offset, flip, shift, type Placement} from '@floating-ui/dom'
 
+// Shared floating-card chrome for the Popover (session-info) + HoverCard content (context tracker).
+// Padding-free so each caller sets its own (the popover pads; the hovercard content is flush).
+export const POPOVER_SHELL =
+  'absolute z-[2147483647] min-w-55 max-w-80 rounded-pw-md bg-pw-panel text-pw-text border border-pw-line shadow-pw-lg text-[0.75rem]'
+
 // A floating panel anchored to `anchor`, positioned with Floating UI. Closes on outside-click
 // and Escape. Render it inside the widget's shadow container so styles stay scoped.
 export function Popover(props: {
@@ -49,7 +54,7 @@ export function Popover(props: {
   return (
     <Show when={props.open()}>
       <div
-        class="pw-popover"
+        class={`${POPOVER_SHELL} px-3 py-2.5`}
         role="dialog"
         ref={(el) => {
           panel = el

@@ -65,7 +65,7 @@ export function FileReadCard(props: ToolCardProps): JSX.Element {
         fallback={
           <Show when={path()}>
             {
-              <code class="pw-path">
+              <code class="text-[0.75rem] text-pw-text-2 font-pw-mono block [overflow-wrap:anywhere]">
                 {path()}
                 {range()}
               </code>
@@ -74,7 +74,7 @@ export function FileReadCard(props: ToolCardProps): JSX.Element {
         }
       >
         <SolidCodeBlock
-          class="pw-read-code"
+          class="text-[0.75rem] rounded-pw-sm bg-pw-sunken max-h-80 max-w-full block overflow-auto"
           options={CODE_OPTIONS}
           file={{name: path() || 'file', contents: contents()}}
         />

@@ -1,0 +1,17 @@
+/* Storybook-only entry: tool-ui has no shadow host (the widget supplies the reset there), so stories
+   need their own reset + tokens. Vite's CSS pipeline inlines the @imports and @unocss/postcss
+   (postcss.config.mjs) expands `@unocss all;` live by scanning tool-ui's src (+ the kit's, per
+   uno.config). tool-ui ships JS only now — no generated CSS; the widget scans these sources itself. */
+@import '@unocss/reset/tailwind.css';
+@import '@mandarax/ui-kit-system/tokens.css';
+@unocss all;
+
+/* Honor reduced-motion in Storybook (the widget supplies its own blanket reset in its shadow root).
+   Cards' motion rides UnoCSS [animation:…] utilities, so flatten them all here rather than per-card. */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

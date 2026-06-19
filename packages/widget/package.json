@@ -2,7 +2,21 @@
   "name": "@mandarax/widget",
   "version": "0.0.0",
   "description": "The mandarax in-page widget: a SolidJS chat UI mounted into a Shadow DOM that talks to the dev server over SSE, plus the page-control driver the agent drives.",
+  "keywords": [
+    "ai",
+    "chat",
+    "mandarax",
+    "solid-js",
+    "widget"
+  ],
+  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/widget#readme",
+  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mandarax-dev/mandarax.git",
+    "directory": "packages/widget"
+  },
   "files": [
     "dist"
   ],
@@ -13,6 +27,9 @@
       "import": "./dist/mount.js"
     },
     "./global": "./dist/mandarax-widget.global.js"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "build": "vite build && tsc -p tsconfig.build.json",
@@ -29,6 +46,7 @@
     "@mandarax/solid-diffs": "workspace:^",
     "@mandarax/solid-streamdown": "workspace:^",
     "@mandarax/tool-ui": "workspace:^",
+    "@mandarax/ui-kit-system": "workspace:^",
     "@tanstack/ai": "^0.28.0",
     "@tanstack/ai-client": "^0.16.3",
     "@tanstack/ai-solid": "^0.13.4",
@@ -43,28 +61,15 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@mandarax/uno-preset": "workspace:*",
     "@types/node": "^22.19.21",
+    "@unocss/postcss": "^66.7.2",
+    "@unocss/reset": "^66.7.2",
     "playwright": "^1.60.0",
     "typescript": "^6.0.3",
+    "unocss": "^66.7.2",
     "vite": "^8.0.16",
     "vite-plugin-solid": "^2.11.12",
     "vitest": "^4.1.8"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/mandarax-dev/mandarax.git",
-    "directory": "packages/widget"
-  },
-  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/widget#readme",
-  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
-  "publishConfig": {
-    "access": "public"
-  },
-  "keywords": [
-    "ai",
-    "chat",
-    "mandarax",
-    "solid-js",
-    "widget"
-  ]
+  }
 }

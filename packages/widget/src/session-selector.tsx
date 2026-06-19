@@ -1,5 +1,6 @@
 import {createSignal, createEffect, For, Show, onMount, type JSX} from 'solid-js'
-import {Combobox, useListCollection} from '@ark-ui/solid/combobox'
+import {Combobox} from '@mandarax/ui-kit-system'
+import {useListCollection} from '@ark-ui/solid/combobox'
 import {Check, ChevronDown, Sparkles, SquarePen, Plus} from 'lucide-solid'
 import type {ChatSessionMeta, SessionId} from '@mandarax/protocol/chat-types'
 import {defineClient} from './session-client.js'
@@ -8,6 +9,12 @@ import {sessions, status, loadSessions, invalidateSessions, applyTitle} from './
 // One id-prefix per mounted instance so two selectors under one shadow root never share Ark's
 // aria-controls / activedescendant ids (a11y — §6).
 let instanceSeq = 0
+
+// Header icon buttons (rename / new): square ghost buttons that fill in on hover.
+const ACT =
+  'inline-flex items-center justify-center size-7 shrink-0 [border:0] rounded-pw-sm bg-transparent text-pw-text-2 cursor-pointer hover:bg-pw-fill-strong hover:text-pw-text-hi [&[aria-disabled=true]]:opacity-50 [&[aria-disabled=true]]:cursor-not-allowed'
+// Loading skeleton row: a shimmering gradient swept by the pw-session-skel keyframes (kept in CSS).
+const SKEL = 'h-8 rounded-pw-sm skel-bg [background-size:200%_100%] anim-skel'
 
 // Recency bucket from a ms timestamp, relative to now. Recomputed reactively (not snapshotted).
 function bucketOf(updatedAt: number, now: number): 'Today' | 'Yesterday' | 'Earlier' {
@@ -159,10 +166,11 @@ export function SessionSelector(props: {
     })
   }
 
+  const isPill = props.variant === 'pill'
   return (
     <Combobox.Root
       ids={{root: idPrefix}}
-      class={props.variant === 'pill' ? 'pw-session pw-session-pill' : 'pw-session pw-session-bar'}
+      class={isPill ? 'flex min-w-0 flex-[1_1_auto]' : ''}
       collection={collection()}
       value={valueArr()}
       inputValue={query()}
@@ -192,29 +200,36 @@ export function SessionSelector(props: {
         gutter: 6,
       }}
     >
-      <Combobox.Control class="pw-session-control">
+      <Combobox.Control class={isPill ? 'inline-flex min-w-0 flex-[1_1_auto]' : 'inline-flex min-w-0'}>
         <Combobox.Trigger
-          class="pw-session-trigger"
+          class={`group text-[0.75rem] text-pw-text-2 border border-transparent rounded-pw-pill inline-flex gap-1.5 h-7 min-w-0 cursor-pointer bg-transparent trans-cbb items-center hover:text-pw-text-hi [&[aria-disabled=true]]:opacity-[0.55] [&[aria-disabled=true]]:cursor-not-allowed ${
+            isPill
+              ? 'w-full py-0 pr-1.5 pl-2 hover:border-pw-line hover:bg-pw-fill-soft data-[state=open]:border-pw-line data-[state=open]:bg-pw-fill-soft data-[state=open]:text-pw-text-hi'
+              : 'p-0 font-pw-mono'
+          }`}
           data-empty={canRename() ? undefined : ''}
           aria-label={`Session: ${triggerLabel()}`}
         >
           {/* Leading marker: a status dot for a live session, an accent spark for a fresh one. */}
-          <Show when={canRename()} fallback={<Sparkles class="pw-session-spark" aria-hidden="true" />}>
-            <span class="pw-session-dot" aria-hidden="true" />
+          <Show when={canRename()} fallback={<Sparkles class="text-pw-accent shrink-0 size-3.25" aria-hidden="true" />}>
+            <span class="rounded-[50%] bg-pw-accent shrink-0 size-1.75" aria-hidden="true" />
           </Show>
-          <span class="pw-session-current">{triggerLabel()}</span>
-          <ChevronDown class="pw-session-caret" aria-hidden="true" />
+          <span class="min-w-0 truncate group-data-[empty]:text-pw-text-2">{triggerLabel()}</span>
+          <ChevronDown
+            class="opacity-45 shrink-0 size-3.25 trans-tf-op group-data-[state=open]:opacity-90 group-hover:opacity-90 group-data-[state=open]:rotate-180"
+            aria-hidden="true"
+          />
         </Combobox.Trigger>
       </Combobox.Control>
       <Combobox.Positioner>
-        <Combobox.Content class="pw-session-content pw-combo-content">
+        <Combobox.Content class="p-1 border border-pw-line-2 rounded-pw-md bg-pw-panel flex-col max-h-90 w-70 hidden shadow-pw-lg z-10 data-[state=open]:flex data-[state=open]:anim-combo focus-visible:outline-none">
           {/* Header: search + rename + new + retry. Always in Tab order, OUTSIDE the listbox. */}
-          <div class="pw-session-head">
+          <div class="mb-1 border-b border-b-pw-line-soft flex gap-1 items-center">
             <Show
               when={!renaming()}
               fallback={
                 <input
-                  class="pw-session-rename"
+                  class="text-[0.8125rem] text-pw-text px-2 flex-1 h-8 min-w-0 bg-transparent [border:none] focus:outline-none"
                   aria-label="Rename session"
                   aria-busy={renameBusy()}
                   value={draft()}
@@ -235,70 +250,87 @@ export function SessionSelector(props: {
                 />
               }
             >
-              <Combobox.Input class="pw-session-search" placeholder="Search sessions…" ref={(el) => (searchEl = el)} />
+              <Combobox.Input
+                class="text-[0.8125rem] text-pw-text px-2 flex-1 h-8 min-w-0 bg-transparent [border:none] placeholder:text-pw-text-3 focus:outline-none"
+                placeholder="Search sessions…"
+                ref={(el) => (searchEl = el)}
+              />
               <button
                 type="button"
-                class="pw-session-act"
+                class={ACT}
                 aria-label="Rename current session"
                 aria-disabled={!canRename()}
                 onClick={() => canRename() && startRename()}
               >
-                <SquarePen class="pw-icon" aria-hidden="true" />
+                <SquarePen class="size-5 block" aria-hidden="true" />
               </button>
-              <button type="button" class="pw-session-act" aria-label="New session" onClick={() => newSession()}>
-                <Plus class="pw-icon" aria-hidden="true" />
+              <button type="button" class={ACT} aria-label="New session" onClick={() => newSession()}>
+                <Plus class="size-5 block" aria-hidden="true" />
               </button>
             </Show>
           </div>
-          <div class="pw-session-list">
+          <div class="flex-1 overflow-y-auto">
             <Show when={status() === 'loading' && sessions().length === 0}>
-              <div class="pw-session-loading" role="status" aria-busy="true">
-                <div class="pw-session-skel" />
-                <div class="pw-session-skel" />
-                <div class="pw-session-skel" />
-                <span class="pw-sr-only">Loading sessions…</span>
+              <div class="px-1 py-1.5 flex flex-col gap-1.5" role="status" aria-busy="true">
+                <div class={SKEL} />
+                <div class={SKEL} />
+                <div class={SKEL} />
+                <span class="sr-only">Loading sessions…</span>
               </div>
             </Show>
             <Show when={status() === 'error'}>
-              <div class="pw-session-error" role="status">
+              <div
+                class="text-[0.75rem] text-pw-text-3 px-2 py-2.5 flex gap-2 items-center justify-between"
+                role="status"
+              >
                 <span>Couldn't load sessions</span>
-                <button type="button" class="pw-session-retry" onClick={() => void invalidateSessions(props.apiBase)}>
+                <button
+                  type="button"
+                  class="text-[0.6875rem] text-pw-text px-2 py-0.5 border border-pw-line rounded-pw-sm bg-transparent cursor-pointer"
+                  onClick={() => void invalidateSessions(props.apiBase)}
+                >
                   Retry
                 </button>
               </div>
             </Show>
             <Show when={status() === 'ready' && collection().items.length === 0}>
-              <div class="pw-session-empty" role="status">
+              <div class="text-[0.75rem] text-pw-text-3 px-2 py-2.5" role="status">
                 {query() ? 'No sessions match' : 'No other sessions yet'}
               </div>
             </Show>
             <For each={groupsOf(collection().items, now())}>
               {(group) => (
-                <Combobox.ItemGroup class="pw-session-group">
-                  <Combobox.ItemGroupLabel class="pw-session-group-label">{group.name}</Combobox.ItemGroupLabel>
+                <Combobox.ItemGroup>
+                  <Combobox.ItemGroupLabel class="text-[0.6875rem] text-pw-text-3 tracking-[0.02em] font-semibold px-2 pb-0.5 pt-1.5 [text-transform:uppercase]">
+                    {group.name}
+                  </Combobox.ItemGroupLabel>
                   <For each={group.items}>
                     {(s) => (
                       <Combobox.Item
                         item={s}
-                        class="pw-session-item"
+                        class="text-pw-text px-2 py-[0.4375rem] rounded-pw-sm flex gap-2 cursor-pointer items-center data-[highlighted]:text-pw-text-hi data-[highlighted]:bg-pw-fill-strong"
                         aria-label={`${s.title} — ${metaLabel(s, now())}`}
                       >
-                        <div class="pw-session-item-main">
-                          <span class="pw-session-item-title" title={s.title}>
+                        <div class="flex flex-1 flex-col gap-px min-w-0">
+                          <span class="truncate" title={s.title}>
                             <Combobox.ItemText>{s.title}</Combobox.ItemText>
                           </span>
-                          <span class="pw-session-item-meta" aria-hidden="true">
+                          <span class="text-[0.6875rem] text-pw-text-3 truncate" aria-hidden="true">
                             Edited {relativeTime(s.updatedAt, now())} · {s.messageCount} messages
                           </span>
                         </div>
                         <Show when={s.origin === 'mandarax'}>
-                          <Sparkles class="pw-session-origin" aria-hidden="true" />
+                          <Sparkles class="text-pw-accent opacity-80 shrink-0 size-3.25" aria-hidden="true" />
                         </Show>
                         <Show when={props.lockedElsewhere(s.id)}>
-                          <span class="pw-session-running" aria-hidden="true" title="Running in another pane" />
+                          <span
+                            class="rounded-[50%] bg-pw-success shrink-0 size-1.75 anim-pulse"
+                            aria-hidden="true"
+                            title="Running in another pane"
+                          />
                         </Show>
-                        <Combobox.ItemIndicator class="pw-session-check">
-                          <Check class="pw-icon" aria-hidden="true" />
+                        <Combobox.ItemIndicator class="text-pw-accent ml-auto hidden data-[state=checked]:inline-flex">
+                          <Check class="size-5 block" aria-hidden="true" />
                         </Combobox.ItemIndicator>
                       </Combobox.Item>
                     )}

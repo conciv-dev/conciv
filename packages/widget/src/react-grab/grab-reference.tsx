@@ -15,14 +15,15 @@ function ScaledSnapshot(props: {snapshot: ElementSnapshot; maxWidth: number}): J
   const scale = () => fitScale(props.snapshot.width, props.maxWidth)
   return (
     <div
-      class="pw-grab-ref-stage"
+      class="inline-flex max-w-full cursor-default overflow-hidden"
       style={{
         width: `${Math.ceil(props.snapshot.width * scale())}px`,
         height: `${Math.ceil(props.snapshot.height * scale())}px`,
       }}
     >
       <div
-        class="pw-grab-ref-scale"
+        class="flex-none pointer-events-none origin-top-left"
+        data-pw-grab-scale
         style={{
           width: `${props.snapshot.width}px`,
           height: `${props.snapshot.height}px`,
@@ -43,20 +44,23 @@ function sourceLabel(source: ElementSource): string {
 // source location, and a remove control. Mirrors the marketing demo's GrabReference, real content.
 export function GrabReference(props: {grab: StagedGrab; maxWidth: number; onRemove: () => void}): JSX.Element {
   return (
-    <div class="pw-grab-ref">
+    <div
+      class="text-[0.6875rem] font-pw-mono mb-2 p-3 border-b border-r border-t border-y-pw-line border-l-[0.1875rem] border-l-pw-accent border-r-pw-line rounded-pw-md bg-pw-fill flex flex-col gap-2.5 items-start relative"
+      data-pw-grab
+    >
       <button
         type="button"
-        class="pw-grab-ref-remove"
+        class="text-pw-text-2 rounded-pw-pill bg-transparent inline-flex size-6 cursor-pointer [border:none] trans-color-bg items-center right-1.5 top-1.5 justify-center absolute hover:text-pw-text-hi hover:bg-pw-line"
         aria-label="Remove grabbed element"
         onClick={() => props.onRemove()}
       >
-        <X class="pw-icon" aria-hidden="true" />
+        <X class="size-5 block" aria-hidden="true" />
       </button>
       <ScaledSnapshot snapshot={props.grab.snapshot} maxWidth={props.maxWidth} />
       <Show when={props.grab.source}>
         {(source) => (
-          <span class="pw-grab-ref-src">
-            <span class="pw-grab-ref-arrow" aria-hidden="true">
+          <span class="text-pw-text-2 flex gap-1.5 [word-break:break-all] items-center">
+            <span class="text-pw-accent" aria-hidden="true">
               ↳
             </span>{' '}
             in {sourceLabel(source())}

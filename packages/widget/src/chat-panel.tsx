@@ -1,5 +1,5 @@
 import {createMemo, createEffect, createSignal, For, Index, Match, onCleanup, Show, Switch, type JSX} from 'solid-js'
-import {Progress} from '@ark-ui/solid/progress'
+import {Progress} from '@mandarax/ui-kit-system'
 import {useChat, fetchServerSentEvents, createChatClientOptions} from '@tanstack/ai-solid'
 import type {MessagePart, ToolCallPart, ToolResultPart, UIMessage} from '@tanstack/ai-client'
 import type {SessionClient} from './session-client.js'
@@ -72,6 +72,35 @@ const STARTERS = ['Explain this page', 'Change the primary color', "Why doesn't 
 // Width the staged grab preview scales to fit — sits comfortably inside the min (300px) panel width.
 const GRAB_PREVIEW_MAX_W = 280
 
+// Composed utility strings (no .pw-* classes). Each background/display lives on its own variant so
+// UnoCSS never has to break a same-property tie. Message rows + composer carry data-pw-msg /
+// data-pw-input hooks (hydrating compound + IT/qt). Icons are `size-5 block`; sr-only is a uno.config shortcut.
+const SEND_SHELL =
+  'ml-auto size-8.5 rounded-pw-pill [border:none] cursor-pointer text-[1rem] shrink-0 inline-flex items-center justify-center trans-send [&:active:not(:disabled)]:scale-[0.92] [&:disabled]:opacity-40 [&:disabled]:cursor-default'
+const SEND = `${SEND_SHELL} bg-pw-accent text-pw-on-accent [&:hover:not(:disabled)]:bg-pw-accent-hi`
+const STOP = `${SEND_SHELL} bg-pw-text-3 text-pw-panel [&:hover:not(:disabled)]:bg-pw-text-2`
+const ACT =
+  'size-8.5 rounded-pw-pill [border:none] bg-transparent text-pw-text-2 cursor-pointer shrink-0 inline-flex items-center justify-center trans-color-bg hover:text-pw-text-hi hover:bg-pw-fill-strong'
+// MSG_SHELL carries no marker; the message rows get `data-pw-msg` so the hydrating compound matches.
+const MSG_SHELL = 'rounded-pw-md max-w-[90%] anim-msg'
+const MSG = `${MSG_SHELL} py-2 px-2.75`
+const MSG_USER = 'self-end bg-pw-accent text-pw-on-accent'
+const MSG_ASSISTANT = 'self-start bg-pw-fill [&>:first-child]:mt-0 [&>:last-child]:mb-0'
+const TOOL_GLYPH = 'size-2.75 shrink-0 inline-block rounded-[50%]'
+const TOOL_DISCLOSURE = 'mt-1.5 text-pw-text-2'
+const TOOL_SUMMARY = 'cursor-pointer [user-select:none] text-[0.6875rem]'
+const TOOL_PRE =
+  'mt-1.5 mx-0 py-1.75 px-2 bg-pw-sunken rounded-[0.4375rem] overflow-x-auto whitespace-pre-wrap [word-break:break-word] text-[0.6875rem] leading-[1.4]'
+// Stagger delay lives inside the animation shorthand (static literals; a separate [animation-delay:] is reset by the shorthand).
+const DOT = 'w-1.5 h-1.5 rounded-[50%] bg-pw-text-2'
+const ERROR = 'flex gap-2 items-center text-pw-danger text-[0.75rem]'
+const RETRY =
+  'py-1.5 px-2.5 min-h-8 rounded-[0.4375rem] border border-pw-danger-line bg-transparent text-pw-danger cursor-pointer font-semibold text-[0.75rem] leading-none font-pw shrink-0 trans-bg hover:bg-pw-danger-14'
+const DIVIDER =
+  "self-stretch flex items-center gap-2.5 my-1.5 mx-0.5 anim-msg before:content-[''] before:flex-1 before:h-px before:bg-pw-line-soft after:content-[''] after:flex-1 after:h-px after:bg-pw-line-soft"
+const DIVIDER_LABEL =
+  'inline-flex items-center gap-1.25 text-[0.6875rem] font-medium tracking-[0.06em] [text-transform:uppercase]'
+
 function asText(content: ToolResultPart['content']): string {
   if (typeof content === 'string') return content
   return JSON.stringify(content, null, 2)
@@ -84,14 +113,14 @@ function ToolResult(props: {part: ToolResultPart}): JSX.Element {
     <Show
       when={props.part.state === 'error'}
       fallback={
-        <details class="pw-chat-tool-result">
-          <summary>result</summary>
-          <pre>{asText(props.part.content)}</pre>
+        <details class={TOOL_DISCLOSURE}>
+          <summary class={TOOL_SUMMARY}>result</summary>
+          <pre class={TOOL_PRE}>{asText(props.part.content)}</pre>
         </details>
       }
     >
-      <div class="pw-chat-tool-error">
-        <span class="pw-chat-tool-glyph pw-chat-glyph-error" aria-hidden="true" />
+      <div class="text-[0.6875rem] text-pw-danger mt-1.5 flex gap-1.5 items-center">
+        <span class={`${TOOL_GLYPH} bg-pw-danger`} aria-hidden="true" />
         {props.part.error ?? asText(props.part.content)}
       </div>
     </Show>
@@ -100,7 +129,7 @@ function ToolResult(props: {part: ToolResultPart}): JSX.Element {
 
 function TextPartView(props: {content: string; streaming: boolean}): JSX.Element {
   return (
-    <div class="pw-chat-text">
+    <div class="m-0">
       <Markdown text={props.content} streaming={props.streaming} />
     </div>
   )
@@ -247,13 +276,13 @@ function Divider(props: {kind: 'new' | 'compact'; pending?: boolean}): JSX.Eleme
   const label = () => (props.kind === 'new' ? 'New session' : props.pending ? 'Compacting…' : 'Context compacted')
   return (
     <div
-      class="pw-chat-divider"
-      classList={{'pw-chat-divider-pending': props.pending}}
+      class={DIVIDER}
+      classList={{'text-pw-accent-link': props.pending, 'text-pw-text-3': !props.pending}}
       role="separator"
       aria-label={label()}
     >
-      <span class="pw-chat-divider-label">
-        <Icon class="pw-chat-divider-icon" aria-hidden="true" />
+      <span class={DIVIDER_LABEL}>
+        <Icon class={`size-3 ${props.pending ? '[transform-origin:center] anim-compact' : ''}`} aria-hidden="true" />
         {label()}
       </span>
     </div>
@@ -266,11 +295,15 @@ function Divider(props: {kind: 'new' | 'compact'; pending?: boolean}): JSX.Eleme
 // Progress itself is aria-hidden so SR doesn't announce a misleading "25%".
 function CompactSpinner(): JSX.Element {
   return (
-    <div class="pw-compact" role="status" aria-label="Compacting context…">
-      <Progress.Root value={25} class="pw-compact-prog" aria-hidden="true">
-        <Progress.Circle class="pw-compact-circle">
-          <Progress.CircleTrack class="pw-compact-track" />
-          <Progress.CircleRange class="pw-compact-range" />
+    <div
+      class="ml-auto inline-flex shrink-0 size-8.5 items-center justify-center"
+      role="status"
+      aria-label="Compacting context…"
+    >
+      <Progress.Root value={25} class="block [--size:1.375rem] [--thickness:0.15625rem]" aria-hidden="true">
+        <Progress.Circle class="[transform-origin:center] anim-compact">
+          <Progress.CircleTrack class="stroke-pw-line-2" />
+          <Progress.CircleRange class="[stroke-linecap:round] stroke-pw-accent" />
         </Progress.Circle>
       </Progress.Root>
     </div>
@@ -279,10 +312,10 @@ function CompactSpinner(): JSX.Element {
 
 function ThinkingBubble(): JSX.Element {
   return (
-    <div class="pw-chat-msg pw-chat-msg-assistant pw-chat-typing" aria-hidden="true">
-      <span class="pw-chat-dot" aria-hidden="true" />
-      <span class="pw-chat-dot" aria-hidden="true" />
-      <span class="pw-chat-dot" aria-hidden="true" />
+    <div class={`${MSG_SHELL}  ${MSG_ASSISTANT} p-2.75 inline-flex gap-1 items-center`} data-pw-msg aria-hidden="true">
+      <span class={`${DOT} anim-dot1`} aria-hidden="true" />
+      <span class={`${DOT} anim-dot2`} aria-hidden="true" />
+      <span class={`${DOT} anim-dot3`} aria-hidden="true" />
     </div>
   )
 }
@@ -493,7 +526,7 @@ export function ChatPanel(props: {
     if (isSwitch) {
       chat.stop()
       setSwitching(true)
-      logEl?.classList.add('pw-chat-hydrating')
+      logEl?.setAttribute('data-pw-hydrating', '')
       props.announce?.('Loading session…')
     }
     try {
@@ -518,7 +551,7 @@ export function ChatPanel(props: {
       }
     } finally {
       setSwitching(false)
-      logEl?.classList.remove('pw-chat-hydrating')
+      logEl?.removeAttribute('data-pw-hydrating')
     }
   }
 
@@ -683,16 +716,23 @@ export function ChatPanel(props: {
 
   return (
     <>
-      <div class="pw-chat-log" role="log" aria-live="off" ref={logRef}>
+      <div class="p-3.5 flex flex-1 flex-col gap-2.5 relative overflow-y-auto" role="log" aria-live="off" ref={logRef}>
         <Show
           when={chat.messages().length > 0}
           fallback={
-            <div class="pw-chat-empty">
-              <p class="pw-chat-greeting">How can I help you today?</p>
-              <div class="pw-chat-chips">
+            <div class="m-auto text-center">
+              <p class="text-[1.125rem] tracking-[-0.015em] font-semibold mb-3.5 anim-rise-d">
+                How can I help you today?
+              </p>
+              <div class="flex flex-col gap-2">
                 <For each={STARTERS}>
-                  {(s) => (
-                    <button type="button" class="pw-chat-chip" onClick={() => void chat.sendMessage(s)}>
+                  {(s, i) => (
+                    <button
+                      type="button"
+                      class="text-[0.8125rem] text-pw-text px-3.5 py-2.5 border border-pw-line rounded-pw-pill min-h-9.5 cursor-pointer bg-transparent anim-rise trans-input hover:border-pw-accent hover:bg-pw-accent-08 active:scale-[0.97]"
+                      style={{'animation-delay': `${100 + i() * 60}ms`}}
+                      onClick={() => void chat.sendMessage(s)}
+                    >
                       {s}
                     </button>
                   )}
@@ -707,7 +747,7 @@ export function ChatPanel(props: {
                 <For each={dividersInRange(turn().start, turn().end)}>
                   {(d) => <Divider kind={d.kind} pending={d.id === pendingCompactId()} />}
                 </For>
-                <div class={`pw-chat-msg pw-chat-msg-${turn().role}`}>
+                <div class={`${MSG}  ${turn().role === 'user' ? MSG_USER : MSG_ASSISTANT}`} data-pw-msg>
                   <MessageParts
                     parts={turn().parts}
                     streaming={isActiveAssistant(turn().end, turn().role)}
@@ -733,36 +773,44 @@ export function ChatPanel(props: {
         <Show when={nowTitleText()}>{(title) => <NowLine title={title()} onStop={() => chat.stop()} />}</Show>
         <Show when={chat.error()}>
           {(error) => (
-            <div class="pw-chat-error" role="alert">
-              <span class="pw-chat-error-msg">{error().message}</span>
-              <button type="button" class="pw-chat-retry" onClick={() => void chat.reload()}>
+            <div class={ERROR} role="alert">
+              <span class="flex-1">{error().message}</span>
+              <button type="button" class={RETRY} onClick={() => void chat.reload()}>
                 Retry
               </button>
             </div>
           )}
         </Show>
         <Show when={switchError()}>
-          <div class="pw-chat-error" role="alert">
-            <span class="pw-chat-error-msg">Couldn’t load that session</span>
-            <button type="button" class="pw-chat-retry" onClick={() => void loadSession(client.sessionId())}>
+          <div class={ERROR} role="alert">
+            <span class="flex-1">Couldn’t load that session</span>
+            <button type="button" class={RETRY} onClick={() => void loadSession(client.sessionId())}>
               Retry
             </button>
           </div>
         </Show>
         <Show when={switching()}>
-          <div class="pw-chat-switching" role="status" aria-label="Loading session…" tabindex={-1} />
+          <div
+            class="bg-pw-panel-60 anim-switching inset-0 absolute z-[5]"
+            role="status"
+            aria-label="Loading session…"
+            tabindex={-1}
+          />
         </Show>
       </div>
       <Show when={notice()}>
-        <div class="pw-chat-notice">{notice()}</div>
+        <div class="text-[0.75rem] text-pw-text-2 leading-[1.4] font-medium font-pw mx-3 mb-2 px-2.5 py-2 border border-pw-line rounded-pw-md bg-pw-fill [word-break:break-word]">
+          {notice()}
+        </div>
       </Show>
-      <form class="pw-chat-composer" onSubmit={submit}>
+      <form class="p-3 border-t border-t-pw-line-soft" onSubmit={submit}>
         <For each={grabs()}>
           {(g) => <GrabReference grab={g} maxWidth={GRAB_PREVIEW_MAX_W} onRemove={() => removeGrab(g)} />}
         </For>
-        <div class="pw-chat-box">
+        <div class="px-1.5 pb-1.5 pt-1 border border-pw-line rounded-pw-md bg-pw-fill trans-composer focus-within:border-pw-accent focus-within:ring-accent">
           <textarea
-            class="pw-chat-input"
+            class="text-pw-text leading-[1.45] px-2 pb-1 pt-2 max-h-30 w-full block resize-none bg-transparent [border:none] [font:inherit] focus:outline-none"
+            data-pw-input
             rows={1}
             placeholder="Ask a question…"
             aria-label="Message the mandarax agent"
@@ -776,20 +824,20 @@ export function ChatPanel(props: {
               inputEl = el
             }}
           />
-          <div class="pw-chat-actions">
+          <div class="pt-0.5 flex gap-0.5 items-center">
             <For each={props.composerActions?.() ?? []}>
               {(a) => {
                 const Icon = a.icon
                 return (
                   <button
                     type="button"
-                    class="pw-chat-act"
+                    class={ACT}
                     aria-label={a.label}
                     title={a.label}
-                    classList={{'pw-chat-act-busy': busyAction() === a.id}}
+                    classList={{'opacity-60': busyAction() === a.id, 'cursor-progress': busyAction() === a.id}}
                     onClick={() => runAction(a)}
                   >
-                    <Icon class="pw-icon" />
+                    <Icon class="size-5 block" />
                   </button>
                 )
               }}
@@ -799,8 +847,8 @@ export function ChatPanel(props: {
             </For>
             <Switch
               fallback={
-                <button type="submit" class="pw-chat-send" aria-label="Send" disabled={!input().trim()}>
-                  <ArrowRight class="pw-icon" aria-hidden="true" />
+                <button type="submit" class={SEND} aria-label="Send" disabled={!input().trim()}>
+                  <ArrowRight class="size-5 block" aria-hidden="true" />
                 </button>
               }
             >
@@ -808,15 +856,15 @@ export function ChatPanel(props: {
                 <CompactSpinner />
               </Match>
               <Match when={chat.isLoading()}>
-                <button type="button" class="pw-chat-send pw-chat-stop" aria-label="Stop" onClick={() => chat.stop()}>
-                  <Square class="pw-icon" fill="currentColor" aria-hidden="true" />
+                <button type="button" class={STOP} aria-label="Stop" onClick={() => chat.stop()}>
+                  <Square class="size-5 block" fill="currentColor" aria-hidden="true" />
                 </button>
               </Match>
             </Switch>
           </div>
         </div>
       </form>
-      <div class="pw-sr-only" role="status" aria-live="polite">
+      <div class="sr-only" role="status" aria-live="polite">
         {liveMsg()}
       </div>
     </>

@@ -1,6 +1,7 @@
 import {createSignal, onCleanup} from 'solid-js'
 import {delegateEvents} from 'solid-js/web'
 import styles from './styles.css?inline'
+import {registerWind4Properties} from './shadow.js'
 
 // Picture-in-Picture: pop a live DOM node into a separate OS window and re-dock it on close.
 // Adapted from TanStack Devtools' pip-context (MIT). Devtools copies document.styleSheets because
@@ -18,6 +19,10 @@ const DELEGATED = [
   'mousedown',
   'input',
 ]
+
+// Fills the window and `!`-flattens its one popped child (qt or panel) back to a plain fill — important beats the child's utilities + inline height.
+const PIP_WRAP =
+  'fixed inset-0 flex [&>*]:!static [&>*]:!inset-auto [&>*]:!w-full [&>*]:!h-full [&>*]:!max-h-none [&>*]:!transform-none [&>*]:!opacity-100 [&>*]:!visible [&>*]:!pointer-events-auto [&>*]:!border-none [&>*]:!rounded-none [&>*]:!shadow-none [&_[role=separator]]:hidden'
 
 export function createPiP(): {
   active: () => boolean
@@ -49,17 +54,22 @@ export function createPiP(): {
     w.document.body.innerHTML = ''
     w.document.title = opts.title ?? 'mandarax'
     w.document.body.style.margin = '0'
+    // wind4's @property rules must register in the PiP document too (they don't register from the
+    // shadow <style> below), else translate/opacity utilities collapse in the popped-out window.
+    registerWind4Properties(w.document)
 
-    // A shadow root in the PiP doc, seeded with our styles, marked .pw-pip so the content fills it.
+    // A shadow root in the PiP doc, seeded with our styles. The host carries a data-pw-pip-host hook
+    // (no styling — just the shadow-walk anchor); the wrap fills the window and flattens the popped
+    // child's docked chrome (fixed position, drop animation, resize height, floating-card shell).
     const host = w.document.createElement('div')
-    host.className = 'pw-pip-host'
+    host.setAttribute('data-pw-pip-host', '')
     w.document.body.appendChild(host)
     const root = host.attachShadow({mode: 'open'})
     const style = w.document.createElement('style')
     style.textContent = styles
     root.appendChild(style)
     const wrap = w.document.createElement('div')
-    wrap.className = 'pw-pip'
+    wrap.className = PIP_WRAP
     root.appendChild(wrap)
 
     // Drop a placeholder where the node lived, then move it into the PiP shadow (appendChild across

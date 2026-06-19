@@ -4,14 +4,30 @@ import type {UiChoices, UiConfirm, UiDiff, UiForm, UiSpec} from '@mandarax/proto
 // Agent-generated UI rendered inline in the chat thread; the user's answer becomes the next
 // chat message (the resume turn cycle is the round-trip). Types come from @mandarax/protocol.
 
+// Shared chrome composed as utility strings (not CSS classes) so the shapes stay reusable.
+const CARD = 'self-stretch flex flex-col gap-2.5 p-3 border border-pw-line rounded-pw-md bg-pw-fill-soft anim-msg-lg'
+const QUESTION = 'font-semibold text-pw-text'
+const DETAIL =
+  'p-2 rounded-[0.4375rem] bg-pw-sunken text-[0.6875rem] whitespace-pre-wrap [word-break:break-word] text-pw-text-2'
+const ACTIONS = 'flex gap-2'
+const ACTION_BASE =
+  'flex-1 min-h-[2.375rem] py-[0.5625rem] px-3 border rounded-[0.5625rem] cursor-pointer font-semibold text-[0.8125rem] leading-none font-pw trans-btn active:scale-[0.97]'
+const PRIMARY = `${ACTION_BASE} border-transparent bg-pw-accent text-pw-on-accent hover:bg-pw-accent-hi`
+const GHOST = `${ACTION_BASE} bg-transparent border-pw-line-2 text-pw-text hover:border-pw-danger hover:text-pw-danger`
+const INPUT =
+  'py-2 px-2.5 border border-pw-line rounded-pw-sm bg-pw-fill text-pw-text [font:inherit] trans-border focus:outline-none focus:border-pw-accent'
+
 function Choices(props: {spec: UiChoices; onAnswer: (text: string) => void}): JSX.Element {
   return (
-    <div class="pw-genui">
-      <p class="pw-genui-q">{props.spec.question}</p>
-      <div class="pw-genui-choices">
+    <div class={CARD}>
+      <p class={QUESTION}>{props.spec.question}</p>
+      <div class="flex flex-wrap gap-2">
         <For each={props.spec.options}>
           {(option) => (
-            <button class="pw-genui-choice" onClick={() => props.onAnswer(option)}>
+            <button
+              class="text-[0.8125rem] text-pw-text leading-none font-medium font-pw px-[0.8125rem] py-[0.5625rem] border border-pw-accent-line rounded-pw-pill bg-pw-accent-08 min-h-9 cursor-pointer trans-bg-tf hover:bg-pw-accent-20 active:scale-[0.97]"
+              onClick={() => props.onAnswer(option)}
+            >
               {option}
             </button>
           )}
@@ -23,14 +39,14 @@ function Choices(props: {spec: UiChoices; onAnswer: (text: string) => void}): JS
 
 function Confirm(props: {spec: UiConfirm; onAnswer: (text: string) => void}): JSX.Element {
   return (
-    <div class="pw-genui pw-genui-confirm">
-      <p class="pw-genui-q">{props.spec.question}</p>
-      <Show when={props.spec.detail}>{(detail) => <pre class="pw-genui-detail">{detail()}</pre>}</Show>
-      <div class="pw-genui-actions">
-        <button class="pw-genui-primary" onClick={() => props.onAnswer('Yes, go ahead.')}>
+    <div class={CARD}>
+      <p class={QUESTION}>{props.spec.question}</p>
+      <Show when={props.spec.detail}>{(detail) => <pre class={DETAIL}>{detail()}</pre>}</Show>
+      <div class={ACTIONS}>
+        <button class={PRIMARY} onClick={() => props.onAnswer('Yes, go ahead.')}>
           Approve
         </button>
-        <button class="pw-genui-ghost" onClick={() => props.onAnswer("No, don't.")}>
+        <button class={GHOST} onClick={() => props.onAnswer("No, don't.")}>
           Deny
         </button>
       </div>
@@ -44,17 +60,21 @@ function splitLines(text: string): string[] {
 
 function Diff(props: {spec: UiDiff; onAnswer: (text: string) => void}): JSX.Element {
   return (
-    <div class="pw-genui pw-genui-diff">
-      <div class="pw-genui-diff-file">{props.spec.file}</div>
-      <div class="pw-genui-diff-body">
-        <For each={splitLines(props.spec.before)}>{(line) => <div class="pw-genui-diff-del">- {line}</div>}</For>
-        <For each={splitLines(props.spec.after)}>{(line) => <div class="pw-genui-diff-add">+ {line}</div>}</For>
+    <div class={CARD}>
+      <div class="text-[0.75rem] text-pw-text-2 font-pw-mono">{props.spec.file}</div>
+      <div class="text-[0.71875rem] leading-[1.5] font-pw-mono p-2 rounded-[0.4375rem] bg-pw-sunken overflow-x-auto">
+        <For each={splitLines(props.spec.before)}>
+          {(line) => <div class="text-pw-danger whitespace-pre">- {line}</div>}
+        </For>
+        <For each={splitLines(props.spec.after)}>
+          {(line) => <div class="text-pw-success whitespace-pre">+ {line}</div>}
+        </For>
       </div>
-      <div class="pw-genui-actions">
-        <button class="pw-genui-primary" onClick={() => props.onAnswer(`Apply the change to ${props.spec.file}.`)}>
+      <div class={ACTIONS}>
+        <button class={PRIMARY} onClick={() => props.onAnswer(`Apply the change to ${props.spec.file}.`)}>
           Apply
         </button>
-        <button class="pw-genui-ghost" onClick={() => props.onAnswer('Reject that change.')}>
+        <button class={GHOST} onClick={() => props.onAnswer('Reject that change.')}>
           Reject
         </button>
       </div>
@@ -78,17 +98,17 @@ function Form(props: {spec: UiForm; onAnswer: (text: string) => void}): JSX.Elem
     props.onAnswer(summary)
   }
   return (
-    <form class="pw-genui pw-genui-form" onSubmit={submit}>
-      <Show when={props.spec.title}>{(title) => <p class="pw-genui-q">{title()}</p>}</Show>
+    <form class={CARD} onSubmit={submit}>
+      <Show when={props.spec.title}>{(title) => <p class={QUESTION}>{title()}</p>}</Show>
       <For each={props.spec.fields}>
         {(field) => (
-          <label class="pw-genui-field">
-            <span class="pw-genui-label">{field.label}</span>
+          <label class="flex flex-col gap-1">
+            <span class="text-[0.75rem] text-pw-text-2">{field.label}</span>
             <Show
               when={field.type === 'select'}
               fallback={
                 <input
-                  class="pw-genui-input"
+                  class={INPUT}
                   type="text"
                   value={values()[field.name] ?? ''}
                   onInput={(e) => set(field.name, e.currentTarget.value)}
@@ -96,7 +116,7 @@ function Form(props: {spec: UiForm; onAnswer: (text: string) => void}): JSX.Elem
               }
             >
               <select
-                class="pw-genui-input"
+                class={INPUT}
                 value={fieldValue(values(), field)}
                 onChange={(e) => set(field.name, e.currentTarget.value)}
               >
@@ -106,8 +126,8 @@ function Form(props: {spec: UiForm; onAnswer: (text: string) => void}): JSX.Elem
           </label>
         )}
       </For>
-      <div class="pw-genui-actions">
-        <button type="submit" class="pw-genui-primary">
+      <div class={ACTIONS}>
+        <button type="submit" class={PRIMARY}>
           Submit
         </button>
       </div>

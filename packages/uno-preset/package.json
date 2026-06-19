@@ -1,0 +1,33 @@
+{
+  "name": "@mandarax/uno-preset",
+  "version": "0.0.0",
+  "description": "Shared aidx UnoCSS preset: presetMini + presetTypography (themed to the --pw-* tokens) + the sr-only shortcut. One source of truth reused by every package's uno.config so spacing/prose/shortcuts never drift.",
+  "license": "MIT",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint"
+  },
+  "dependencies": {
+    "@unocss/preset-typography": "^66.7.2",
+    "@unocss/preset-wind4": "^66.7.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.21",
+    "typescript": "^6.0.3",
+    "unocss": "^66.7.2"
+  },
+  "peerDependencies": {
+    "unocss": "^66.7.2"
+  }
+}

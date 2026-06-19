@@ -1,5 +1,5 @@
 import {createEffect, createSignal, For, onCleanup, Show, type JSX} from 'solid-js'
-import {Collapsible} from '@ark-ui/solid/collapsible'
+import {Collapsible} from '@mandarax/ui-kit-system'
 import {ChevronRight, ExternalLink, FlaskConical, Sparkles} from 'lucide-solid'
 import {
   TestRunResultSchema,
@@ -27,9 +27,42 @@ function relName(file: string): string {
   return file.split('/').slice(-2).join('/')
 }
 
+// Self-contained focus ring (visible in Storybook + any host, not only under the widget's global rule).
+const FOCUS = 'focus-ring'
+const CARD =
+  'border border-pw-line rounded-pw-md bg-pw-fill-soft overflow-hidden font-pw-mono text-[0.8125rem] leading-[1.45] text-pw-text'
+const BAR = 'flex items-center gap-2 py-2.25 px-3 bg-pw-fill border-b border-b-pw-line text-[0.75rem]'
+const RUN_LABEL = 'flex items-center gap-1.25 text-pw-text-3 text-[0.6875rem]'
+const PILL = 'py-px px-2 rounded-pw-pill font-semibold text-[0.6875rem]'
+const PILL_STATE: Record<'pass' | 'fail' | 'skip', string> = {
+  pass: 'bg-pw-success-18 text-pw-success',
+  fail: 'bg-pw-danger-18 text-pw-danger',
+  skip: 'bg-pw-warn-20 text-pw-warn',
+}
+const FILE_HEAD = `flex items-center gap-1.75 w-full py-1.25 px-3 font-semibold text-[0.8125rem] leading-[1.45] font-pw-mono text-pw-text [border:0] cursor-pointer text-left hover:bg-pw-fill ${FOCUS}`
+const CHEVRON = 'flex-none text-pw-text-3 trans-tf150 [[data-state=open]_&]:[transform:rotate(90deg)]'
+const FNAME = 'min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-pw-text'
+const ROW = 'flex items-center gap-2.25 min-w-0 py-1.25 pr-3 pl-6 text-pw-text-2 cursor-pointer hover:bg-pw-fill'
+const ROW_FAIL = 'bg-pw-danger-10'
+const ROW_BTN = `w-full [border:0] text-left ${FOCUS}`
+const TNAME = 'min-w-0 overflow-hidden text-ellipsis whitespace-nowrap'
+const DOT_BASE = 'rounded-full flex-none'
+const DOT_STATE: Record<TestState | 'running', string> = {
+  pass: 'size-2.25 bg-pw-success',
+  fail: 'size-2.25 bg-pw-danger',
+  skip: 'size-2.25 bg-pw-warn',
+  running: 'size-2.75 bg-transparent border-2 border-t-transparent border-x-pw-accent border-b-pw-accent anim-test-rot',
+}
+const ERR =
+  'mt-0 mr-3 mb-2 ml-9 py-2 px-2.5 bg-pw-sunken border-l-2 border-l-pw-danger rounded text-pw-danger text-[0.71875rem]'
+const ERR_PRE = 'm-0 whitespace-pre-wrap [word-break:break-word] [font:inherit]'
+const ACTIONS = 'flex gap-1.75 mt-2'
+const ACT = `inline-flex items-center gap-1.25 min-h-6 text-[0.6875rem] leading-none font-pw-mono py-1 px-2.25 rounded-[0.3125rem] cursor-pointer border trans-bg ${FOCUS}`
+const ACT_PLAIN = 'border-pw-line-2 bg-pw-fill text-pw-text hover:bg-pw-fill-strong'
+const ACT_FIX = 'border-pw-accent-line bg-pw-accent-08 text-pw-accent-link hover:bg-pw-accent-20'
+
 function dotClass(state: TestState | 'running'): string {
-  if (state === 'running') return 'pw-test-dot pw-test-running'
-  return `pw-test-dot pw-test-${state}`
+  return `${DOT_BASE} ${DOT_STATE[state]}`
 }
 
 // Screen-reader label for the colored state dot (the dot itself is aria-hidden / color-only).
@@ -71,23 +104,22 @@ function groupByFile(tests: ReadonlyArray<Row & {file: string}>): FileGroup[] {
 }
 
 function testRowClass(state: Row['state']): string {
-  if (state === 'fail') return 'pw-test-test pw-test-test-fail'
-  return 'pw-test-test'
+  return state === 'fail' ? `${ROW} ${ROW_FAIL}` : ROW
 }
 
 function TestErrorBlock(props: {error: TestError; ctx: ToolViewCtx}): JSX.Element {
   const openInEditor = () => props.ctx.openEditor?.(props.error.file, props.error.line)
   return (
-    <div class="pw-test-err">
-      <pre>{props.error.message}</pre>
-      <div class="pw-test-actions">
+    <div class={ERR}>
+      <pre class={ERR_PRE}>{props.error.message}</pre>
+      <div class={ACTIONS}>
         <Show when={props.ctx.openEditor}>
-          <button class="pw-test-act" onClick={openInEditor}>
+          <button class={`${ACT}  ${ACT_PLAIN}`} onClick={openInEditor}>
             <ExternalLink size={12} aria-hidden="true" />
             Open {openLabel(props.error)}
           </button>
         </Show>
-        <button class="pw-test-act pw-test-fix" onClick={() => props.ctx.sendMessage(fixMessage(props.error))}>
+        <button class={`${ACT}  ${ACT_FIX}`} onClick={() => props.ctx.sendMessage(fixMessage(props.error))}>
           <Sparkles size={12} aria-hidden="true" />
           Fix this
         </button>
@@ -163,34 +195,33 @@ export function TestResults(props: {result: TestRunResult | null; ctx: ToolViewC
     })
 
   return (
-    <div class="pw-test">
-      <div class="pw-test-bar">
+    <div class={CARD}>
+      <div class={BAR}>
         <Show when={running()}>
-          <span class="pw-test-running-label">
-            <span class="pw-test-dot pw-test-running" aria-hidden="true" />
+          <span class={RUN_LABEL}>
+            <span class={`${DOT_BASE}  ${DOT_STATE.running}`} aria-hidden="true" />
             running
           </span>
         </Show>
-        <span class="pw-test-pill pw-test-pass">{summary().passed} passed</span>
+        <span class={`${PILL}  ${PILL_STATE.pass}`}>{summary().passed} passed</span>
         <Show when={summary().failed > 0}>
-          <span class="pw-test-pill pw-test-fail">{summary().failed} failed</span>
+          <span class={`${PILL}  ${PILL_STATE.fail}`}>{summary().failed} failed</span>
         </Show>
         <Show when={summary().skipped > 0}>
-          <span class="pw-test-pill pw-test-skip">{summary().skipped} skipped</span>
+          <span class={`${PILL}  ${PILL_STATE.skip}`}>{summary().skipped} skipped</span>
         </Show>
       </div>
       <For each={groups()}>
         {(group) => (
           <Collapsible.Root
-            class="pw-test-group"
             open={!collapsed().has(group.file)}
             onOpenChange={(details) => setFileOpen(group.file, details.open)}
           >
-            <Collapsible.Trigger class="pw-test-file">
-              <ChevronRight class="pw-test-chevron" size={14} aria-hidden="true" />
-              <span class="pw-test-fname">{relName(group.file)}</span>
+            <Collapsible.Trigger class={FILE_HEAD}>
+              <ChevronRight class={CHEVRON} size={14} aria-hidden="true" />
+              <span class={FNAME}>{relName(group.file)}</span>
             </Collapsible.Trigger>
-            <Collapsible.Content class="pw-test-content">
+            <Collapsible.Content>
               <For each={group.tests}>
                 {(test) => {
                   const key = `${group.file}::${test.name}`
@@ -201,8 +232,8 @@ export function TestResults(props: {result: TestRunResult | null; ctx: ToolViewC
                       fallback={
                         <div class={testRowClass(test.state)}>
                           <span class={dotClass(test.state)} aria-hidden="true" />
-                          <span class="pw-sr-only">{stateLabel(test.state)}: </span>
-                          <span class="pw-test-tname">{test.name}</span>
+                          <span class="sr-only">{stateLabel(test.state)}: </span>
+                          <span class={TNAME}>{test.name}</span>
                         </div>
                       }
                     >
@@ -210,14 +241,14 @@ export function TestResults(props: {result: TestRunResult | null; ctx: ToolViewC
                         <div>
                           <button
                             type="button"
-                            class={`${testRowClass(test.state)} pw-test-row`}
+                            class={`${testRowClass(test.state)}  ${ROW_BTN}`}
                             aria-expanded={openTest() === key}
                             aria-controls={id}
                             onClick={() => toggleTest(key)}
                           >
                             <span class={dotClass(test.state)} aria-hidden="true" />
-                            <span class="pw-sr-only">{stateLabel(test.state)}: </span>
-                            <span class="pw-test-tname">{test.name}</span>
+                            <span class="sr-only">{stateLabel(test.state)}: </span>
+                            <span class={TNAME}>{test.name}</span>
                           </button>
                           <div id={id}>
                             <Show when={openTest() === key}>

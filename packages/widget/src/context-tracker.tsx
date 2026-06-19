@@ -1,5 +1,5 @@
 import {Show, type JSX} from 'solid-js'
-import {HoverCard} from './hover-card.js'
+import {HoverCard} from '@mandarax/ui-kit-system'
 import {contextUsedTokens, type UsageSnapshot} from '@mandarax/protocol/usage-types'
 
 const pct = new Intl.NumberFormat('en-US', {style: 'percent', maximumFractionDigits: 1})
@@ -15,7 +15,7 @@ function Ring(props: {percent: number}): JSX.Element {
   const circ = 2 * Math.PI * ICON_R
   return (
     <svg
-      class="pw-ctx-ring"
+      class="block"
       width="16"
       height="16"
       viewBox={`0 0 ${ICON_VB} ${ICON_VB}`}
@@ -51,9 +51,9 @@ function Ring(props: {percent: number}): JSX.Element {
 function UsageRow(props: {label: string; tokens?: number}): JSX.Element {
   return (
     <Show when={props.tokens}>
-      <div class="pw-ctx-row">
-        <span class="pw-ctx-row-label">{props.label}</span>
-        <span class="pw-ctx-row-val">{compact.format(props.tokens ?? 0)}</span>
+      <div class="text-xs flex justify-between">
+        <span class="text-pw-text-2">{props.label}</span>
+        <span>{compact.format(props.tokens ?? 0)}</span>
       </div>
     </Show>
   )
@@ -74,55 +74,57 @@ export function ContextTracker(props: {usage: UsageSnapshot | null}): JSX.Elemen
     <Show when={props.usage && hasData()}>
       <HoverCard
         label="Model context usage"
-        class="pw-ctx-card"
+        triggerClass="text-pw-text-2 px-1.5 py-0.5 rounded-pw-sm inline-flex gap-1.5 cursor-pointer items-center hover:text-pw-text-hi hover:bg-pw-fill-soft"
         trigger={
-          <button type="button" class="pw-ctx-trigger">
-            <Show
-              when={percent() !== undefined}
-              fallback={<span class="pw-ctx-pct">{compact.format(used() ?? props.usage?.outputTokens ?? 0)}</span>}
-            >
-              <span class="pw-ctx-pct">{pct.format(percent() ?? 0)}</span>
-              <Ring percent={percent() ?? 0} />
-            </Show>
-          </button>
+          <Show
+            when={percent() !== undefined}
+            fallback={
+              <span class="text-xs [font-variant-numeric:tabular-nums]">
+                {compact.format(used() ?? props.usage?.outputTokens ?? 0)}
+              </span>
+            }
+          >
+            <span class="text-xs [font-variant-numeric:tabular-nums]">{pct.format(percent() ?? 0)}</span>
+            <Ring percent={percent() ?? 0} />
+          </Show>
         }
       >
         <Show when={percent() !== undefined}>
-          <div class="pw-ctx-head">
-            <div class="pw-ctx-head-row">
+          <div class="p-3 border-b border-b-pw-line-soft">
+            <div class="text-xs mb-2 flex justify-between">
               <span>{pct.format(percent() ?? 0)}</span>
-              <span class="pw-ctx-head-tokens">
+              <span class="text-pw-text-2 font-pw-mono">
                 {compact.format(used() ?? 0)} / {compact.format(maxTokens() ?? 0)}
               </span>
             </div>
             <div
-              class="pw-ctx-bar"
+              class="rounded-full bg-pw-fill-soft h-1.5 overflow-hidden"
               role="progressbar"
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={Math.round((percent() ?? 0) * 100)}
             >
-              <div class="pw-ctx-bar-fill" style={{width: `${Math.min(100, (percent() ?? 0) * 100)}%`}} />
+              <div class="bg-pw-accent h-full" style={{width: `${Math.min(100, (percent() ?? 0) * 100)}%`}} />
             </div>
           </div>
         </Show>
-        <div class="pw-ctx-body">
+        <div class="p-3 flex flex-col gap-1.5">
           <UsageRow label="Input" tokens={props.usage?.inputTokens} />
           <UsageRow label="Output" tokens={props.usage?.outputTokens} />
           <UsageRow label="Cache" tokens={props.usage?.cacheReadTokens} />
           <UsageRow label="Reasoning" tokens={props.usage?.reasoningTokens} />
         </div>
         <Show when={props.usage?.totalCostUsd !== undefined || props.usage?.numTurns !== undefined}>
-          <div class="pw-ctx-foot">
+          <div class="p-3 border-t border-t-pw-line-soft bg-pw-panel-sunk flex flex-col gap-1.5">
             <Show when={props.usage?.totalCostUsd !== undefined}>
-              <div class="pw-ctx-row">
-                <span class="pw-ctx-row-label">Total cost</span>
+              <div class="text-xs flex justify-between">
+                <span class="text-pw-text-2">Total cost</span>
                 <span>{usd.format(props.usage?.totalCostUsd ?? 0)}</span>
               </div>
             </Show>
             <Show when={props.usage?.numTurns !== undefined}>
-              <div class="pw-ctx-row">
-                <span class="pw-ctx-row-label">Turns</span>
+              <div class="text-xs flex justify-between">
+                <span class="text-pw-text-2">Turns</span>
                 <span>{props.usage?.numTurns}</span>
               </div>
             </Show>

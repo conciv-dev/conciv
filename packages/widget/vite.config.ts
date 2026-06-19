@@ -6,6 +6,8 @@ import solid from 'vite-plugin-solid'
 // global the plugin injects as a <script>. The Solid runtime is bundled in (no host-page
 // framework assumed). styles.css is imported `?inline` (shadow.ts) and injected into the Shadow DOM.
 export default defineConfig({
+  // UnoCSS runs via @unocss/postcss (postcss.config.mjs) expanding `@unocss all;` in styles.css, not as a
+  // vite plugin — its shadow-dom mode's placeholder rewrite is dropped by vite@8's rolldown build hooks.
   plugins: [solid()],
   build: {
     lib: {

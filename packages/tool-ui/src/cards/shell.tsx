@@ -26,13 +26,17 @@ export function ShellCard(props: ToolCardProps): JSX.Element {
       result={props.result}
       durationMs={props.durationMs}
     >
-      <div class="pw-term" classList={{'pw-tool-errbox': props.result?.state === 'error'}}>
+      <div
+        class={`text-[0.75rem] font-pw-mono px-2.25 py-1.75 rounded-pw-sm bg-pw-sunken overflow-x-auto${
+          props.result?.state === 'error' ? ' border border-pw-danger-line' : ''
+        }`}
+      >
         <Show when={command()}>
-          <div class="pw-term-cmd">{command()}</div>
+          <div class="text-pw-accent-link whitespace-pre before:text-pw-text-3 before:content-['$_']">{command()}</div>
         </Show>
         <Show when={out()}>
           {/* Long output stays a fixed, sane height and virtual-scrolls — never a giant dump. */}
-          <VirtualLines class="pw-term-out" lines={lines()} />
+          <VirtualLines class="text-pw-text-2 mt-1.25 whitespace-pre" lines={lines()} />
         </Show>
       </div>
     </ToolCard>

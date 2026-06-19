@@ -132,6 +132,12 @@ function asNodes(v: unknown): SnapNode[] | undefined {
   return v.filter((n): n is SnapNode => typeof n === 'object' && n !== null)
 }
 
+// Element chip (mono pill) + a scrollable mono <pre> for raw read output — both reused below.
+const ELCHIP =
+  'inline-flex items-center gap-1.25 max-w-full min-w-0 font-pw-mono text-[0.71875rem] text-pw-accent-link bg-pw-accent-08 border border-pw-accent-line rounded-pw-pill py-0.5 px-2.25'
+const PAGE_OUT =
+  'm-0 w-full max-h-[13.75rem] overflow-auto font-pw-mono text-[0.6875rem] text-pw-text-2 bg-pw-sunken border border-pw-line-soft rounded-pw-sm py-2 px-2.5 whitespace-pre'
+
 // Readable per-shape render of a page read result (already unwrapped + JSON-parsed by the harness +
 // parseResultPayload): an accessibility-node list, a DOM code block, plain text/value, else the
 // payload pretty-printed. Never the raw escaped MCP envelope.
@@ -146,21 +152,21 @@ function PageResultView(props: {payload: unknown; raw: string}): JSX.Element {
   }
   const pretty = () => (props.payload === undefined ? props.raw : JSON.stringify(props.payload, null, 2))
   return (
-    <Switch fallback={<pre class="pw-page-out">{pretty()}</pre>}>
+    <Switch fallback={<pre class={PAGE_OUT}>{pretty()}</pre>}>
       <Match when={nodes()}>
         {(ns) => (
-          <ul class="pw-snap">
+          <ul class="m-0 p-0 list-none w-full max-h-[13.75rem] overflow-auto bg-pw-sunken border border-pw-line-soft rounded-pw-sm">
             <For each={ns()}>
               {(n) => (
-                <li class="pw-snap-row">
+                <li class="flex items-baseline gap-2 py-1 px-2.5 text-[0.71875rem] [&:not(:first-child)]:border-t [&:not(:first-child)]:border-t-pw-line-soft">
                   <Show when={n.role}>
-                    <span class="pw-snap-role">{n.role}</span>
+                    <span class="flex-none font-pw-mono text-[0.65625rem] text-pw-accent-link">{n.role}</span>
                   </Show>
                   <Show when={n.name}>
-                    <span class="pw-snap-name">{n.name}</span>
+                    <span class="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-pw-text">{n.name}</span>
                   </Show>
                   <Show when={n.ref}>
-                    <span class="pw-snap-ref">{n.ref}</span>
+                    <span class="flex-none font-pw-mono text-[0.625rem] text-pw-text-3">{n.ref}</span>
                   </Show>
                 </li>
               )}
@@ -171,17 +177,17 @@ function PageResultView(props: {payload: unknown; raw: string}): JSX.Element {
       <Match when={html()}>
         {(h) => (
           <SolidCodeBlock
-            class="pw-read-code"
+            class="block max-w-full rounded-pw-sm overflow-auto bg-pw-sunken text-[0.75rem] max-h-[20rem]"
             options={CODE_OPTIONS}
             file={{name: 'page.html', contents: formatHtml(h())}}
           />
         )}
       </Match>
       <Match when={text() !== undefined}>
-        <pre class="pw-page-out">{text()}</pre>
+        <pre class={PAGE_OUT}>{text()}</pre>
       </Match>
       <Match when={value() !== undefined}>
-        <code class="pw-elchip">{value()}</code>
+        <code class={ELCHIP}>{value()}</code>
       </Match>
     </Switch>
   )
@@ -219,13 +225,13 @@ export function PageActionCard(props: ToolCardProps): JSX.Element {
         fallback={
           <>
             <Show when={t()}>
-              <span class="pw-elchip">
+              <span class={ELCHIP}>
                 <Target size={12} aria-hidden="true" />
-                <span class="pw-elchip-target">{t()}</span>
+                <span class="overflow-hidden text-ellipsis whitespace-nowrap">{t()}</span>
               </span>
             </Show>
             <Show when={showMirror()}>
-              <div class="pw-mirror">
+              <div class="flex items-center gap-1.5 text-[0.6875rem] text-pw-accent-link">
                 <MoveUpRight size={12} aria-hidden="true" />
                 <span>shown on your page</span>
               </div>
@@ -236,7 +242,7 @@ export function PageActionCard(props: ToolCardProps): JSX.Element {
           </>
         }
       >
-        <div class="pw-tool-error">{errorMessage()}</div>
+        <div class="text-pw-danger font-pw-mono text-[0.75rem] whitespace-pre-wrap">{errorMessage()}</div>
       </Show>
     </ToolCard>
   )

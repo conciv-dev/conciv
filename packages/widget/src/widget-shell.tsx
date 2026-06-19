@@ -1,6 +1,6 @@
 import {createEffect, createSignal, For, onCleanup, Show, type Component, type JSX} from 'solid-js'
 import {render} from 'solid-js/web'
-import {EnvironmentProvider} from '@ark-ui/solid/environment'
+import {EnvironmentProvider} from '@mandarax/ui-kit-system'
 import type {TriggerPosition} from '@mandarax/protocol/config-types'
 import type {WidgetSettings} from './widget-settings.js'
 import {createDraggablePosition} from './draggable-position.js'
@@ -203,18 +203,25 @@ function Shell(props: {
               setOpen={setQuickOpen}
             />
           </Show>
-          <div class="pw-sr-only" role="status" aria-live="polite">
+          <div class="sr-only" role="status" aria-live="polite">
             {politeMsg()}
           </div>
-          <div class="pw-sr-only" role="alert" aria-live="assertive">
+          <div class="sr-only" role="alert" aria-live="assertive">
             {assertiveMsg()}
           </div>
           {/* While picking, the open surface goes click-through+invisible; this pill is the only chrome. */}
           <Show when={picking()}>
-            <button type="button" class="pw-pick-pill" onClick={() => cancelPick()} aria-label="Cancel element pick">
-              <Crosshair class="pw-pick-pill-icon" aria-hidden="true" />
+            <button
+              type="button"
+              class="text-[0.8125rem] text-pw-text-hi pb-2 pl-3 pr-2.5 pt-2 border border-pw-accent-line rounded-pw-pill bg-pw-glass inline-flex gap-2 cursor-pointer [backdrop-filter:blur(0.5rem)] shadow-pw trans-chip items-center bottom-6 left-1/2 fixed z-[2147483647] hover:border-pw-accent hover:bg-pw-panel -translate-x-1/2"
+              onClick={() => cancelPick()}
+              aria-label="Cancel element pick"
+            >
+              <Crosshair class="text-pw-accent size-4" aria-hidden="true" />
               <span>Picking…</span>
-              <kbd class="pw-pick-kbd">Esc</kbd>
+              <kbd class="text-[0.6875rem] text-pw-text-2 px-[0.3125rem] py-px border border-pw-line-2 rounded-[0.3125rem] [font-family:inherit]">
+                Esc
+              </kbd>
             </button>
           </Show>
         </>
@@ -231,19 +238,56 @@ type ModalPane = {id: SessionId; content: JSX.Element; working: () => boolean; u
 function focusablesIn(root: HTMLElement): HTMLElement[] {
   return Array.from(
     root.querySelectorAll<HTMLElement>('button, textarea, input, select, a[href], [tabindex]:not([tabindex="-1"])'),
-  ).filter((el) => !el.hasAttribute('disabled') && !el.closest('.pw-modal-pane-hidden'))
+  ).filter((el) => !el.hasAttribute('disabled') && !el.closest('[data-pw-modal-hidden]'))
 }
 
+// FAB + panel carry `data-pw-fab` / `data-pw-panel` hooks (the shared-state `[data-pw-*]
+// [data-pw-picking]` compound + PiP rules match on them). The mascot layers (pw-fab-rig / pw-rig-*)
+// stay in CSS (embedded base64 PNGs). Everything else here is utilities.
+const FAB_POS: Record<TriggerPosition, string> = {
+  'top-left': 'top-5 left-5',
+  'top-right': 'top-5 right-5',
+  'middle-left': 'top-[calc(50%-1.625rem)] left-5',
+  'middle-right': 'top-[calc(50%-1.625rem)] right-5',
+  'bottom-left': 'bottom-5 left-5',
+  'bottom-right': 'bottom-5 right-5',
+}
+const PANEL_POS: Record<TriggerPosition, string> = {
+  'top-left': 'top-21 left-5 [transform-origin:top_left]',
+  'top-right': 'top-21 right-5 [transform-origin:top_right]',
+  'middle-left': 'top-21 left-5 [transform-origin:top_left]',
+  'middle-right': 'top-21 right-5 [transform-origin:top_right]',
+  'bottom-left': 'bottom-21 left-5 [transform-origin:bottom_left]',
+  'bottom-right': 'bottom-21 right-5 [transform-origin:bottom_right]',
+}
+const FAB_BASE =
+  'fixed size-13 rounded-pw-pill border border-pw-line bg-pw-panel text-pw-accent text-[1.375rem] cursor-pointer pointer-events-auto shadow-pw-lg inline-flex items-center justify-center trans-lift anim-fab hover:[transform:translateY(-0.125rem)] hover:shadow-pw-hover active:[transform:translateY(0)_scale(0.94)]'
+const FAB_ATTN =
+  "after:content-[''] after:absolute after:-inset-[0.1875rem] after:rounded-pw-pill after:border-2 after:border-pw-accent after:anim-fab-ring"
+const FAB_DRAGGING = 'transition-none z-[2147483647] cursor-grabbing'
+const PANEL_BASE =
+  'fixed w-95 max-w-[calc(100vw-2.5rem)] h-140 max-h-[calc(100vh-7.5rem)] flex flex-col bg-pw-glass border border-pw-line-soft rounded-pw-lg shadow-pw-lg text-pw-text font-normal text-[0.875rem] leading-[1.45] font-pw overflow-hidden'
+const PANEL_CLOSED = 'opacity-0 [transform:scale(0.96)_translateY(0.5rem)] pointer-events-none invisible trans-pop-out'
+const PANEL_OPEN = 'opacity-100 [transform:none] pointer-events-auto visible trans-pop-in'
+
+// Resize separators (thin, transparent; accent-lit on keyboard focus). Head chrome + close buttons.
+const RESIZE = 'absolute z-[3] focus-visible:outline-none focus-visible:bg-pw-accent-20 focus-visible:ring-inset-accent'
+const RESIZE_Y = 'left-0 right-0 h-2 cursor-ns-resize'
+const RESIZE_X = 'top-0 bottom-0 w-2 cursor-ew-resize'
+const HEAD = 'flex items-center gap-2.5 py-3 px-3.5 border-b border-b-pw-line-soft'
+// Shared ghost icon button (modal close + quick-terminal header pip/split/close): bare at rest,
+// fill + brighten on hover. Exported so quick-terminal reuses the exact same treatment.
+export const CLOSE =
+  'bg-transparent [border:none] text-pw-text-2 text-[1.375rem] cursor-pointer inline-flex items-center justify-center size-9.5 rounded-[0.5625rem] trans-color-bg hover:text-pw-text hover:bg-pw-fill-strong'
+// Display is toggled (flex when active, hidden otherwise) so the two never collide on `display`.
+const MODAL_PANE = 'flex-col flex-[1_1_auto] min-h-0'
+
 function panelClass(open: boolean, position: TriggerPosition): string {
-  const base = `pw-chat-panel pw-panel-pos-${position}`
-  return open ? `${base} pw-chat-open` : base
+  return `${PANEL_BASE} ${PANEL_POS[position]} ${open ? PANEL_OPEN : PANEL_CLOSED}`
 }
 
 function fabClass(pulsing: boolean, position: TriggerPosition, dragging: boolean): string {
-  let cls = `pw-chat-fab pw-fab-pos-${position}`
-  if (pulsing) cls += ' pw-chat-fab-attn'
-  if (dragging) cls += ' pw-fab-dragging'
-  return cls
+  return `${FAB_BASE} ${FAB_POS[position]}${pulsing ? ` ${FAB_ATTN}` : ''}${dragging ? ` ${FAB_DRAGGING}` : ''}`
 }
 
 // Corner-modal layout: the FAB (configurable position, drag-to-reposition) and the floating panel
@@ -368,7 +412,8 @@ function ModalLayout(props: {
           panelEl = el
         }}
         class={panelClass(props.open(), fab.position())}
-        classList={{'pw-pick-away': picking()}}
+        data-pw-panel
+        data-pw-picking={picking() ? '' : undefined}
         style={{height: `${resizeY.size()}px`, width: `${resizeX.size()}px`}}
         role="dialog"
         aria-label="mandarax chat agent"
@@ -377,7 +422,7 @@ function ModalLayout(props: {
         onKeyDown={onPanelKeyDown}
       >
         <div
-          class={`pw-chat-resize pw-chat-resize-y ${anchoredBottom() ? 'pw-chat-resize-top' : 'pw-chat-resize-bottom'}`}
+          class={`${RESIZE}  ${RESIZE_Y}  ${anchoredBottom() ? 'top-0' : 'bottom-0'}`}
           role="separator"
           aria-orientation="horizontal"
           aria-label="Resize chat height"
@@ -388,7 +433,7 @@ function ModalLayout(props: {
           onKeyDown={resizeY.onKeyDown}
         />
         <div
-          class={`pw-chat-resize pw-chat-resize-x ${anchoredRight() ? 'pw-chat-resize-left' : 'pw-chat-resize-right'}`}
+          class={`${RESIZE}  ${RESIZE_X}  ${anchoredRight() ? 'left-0' : 'right-0'}`}
           role="separator"
           aria-orientation="vertical"
           aria-label="Resize chat width"
@@ -398,17 +443,17 @@ function ModalLayout(props: {
           onPointerDown={resizeX.onPointerDown}
           onKeyDown={resizeX.onKeyDown}
         />
-        <header class="pw-chat-head">
+        <header class={HEAD}>
           <button
             type="button"
-            class="pw-chat-close"
+            class={CLOSE}
             aria-label="Pop out to a window"
             title="Picture-in-Picture"
             onClick={() => panelEl && pip.open(panelEl, {title: props.panel.title})}
           >
-            <PictureInPicture2 class="pw-icon" aria-hidden="true" />
+            <PictureInPicture2 class="size-5 block" aria-hidden="true" />
           </button>
-          <span class="pw-chat-title">{props.panel.title}</span>
+          <span class="tracking-[-0.01em] font-semibold">{props.panel.title}</span>
           <SessionSelector
             variant="pill"
             apiBase={props.panel.apiBase ?? ''}
@@ -418,14 +463,18 @@ function ModalLayout(props: {
             announce={props.announce}
           />
           <ContextTracker usage={usage()} />
-          <button type="button" class="pw-chat-close" aria-label="Close chat" onClick={closePanel}>
-            <ChevronDown class="pw-chevron" aria-hidden="true" />
+          <button type="button" class={`${CLOSE} ml-auto`} aria-label="Close chat" onClick={closePanel}>
+            <ChevronDown class="size-[1em] block" aria-hidden="true" />
           </button>
         </header>
         {/* Every visited session stays mounted (background turns keep streaming); only the active shows. */}
         <For each={panes()}>
           {(p) => (
-            <div class="pw-modal-pane" classList={{'pw-modal-pane-hidden': activeId() !== p.id}}>
+            <div
+              class={MODAL_PANE}
+              classList={{flex: activeId() === p.id, hidden: activeId() !== p.id}}
+              data-pw-modal-hidden={activeId() !== p.id ? '' : undefined}
+            >
               {p.content}
             </div>
           )}
@@ -437,7 +486,8 @@ function ModalLayout(props: {
           fabEl = el
         }}
         class={fabClass(fabPulsing(), fab.position(), fab.dragging())}
-        classList={{'pw-pick-away': picking()}}
+        data-pw-fab
+        data-pw-picking={picking() ? '' : undefined}
         style={fab.dragStyle()}
         aria-label={props.open() ? 'Minimize mandarax chat' : 'Open mandarax chat'}
         aria-expanded={props.open()}

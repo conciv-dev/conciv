@@ -32,7 +32,7 @@ export function UiCard(props: ToolCardProps): JSX.Element {
       durationMs={props.durationMs}
     >
       <Show when={question()}>
-        <span class="pw-ui-q">{question()}</span>
+        <span class="text-[0.78125rem] text-pw-text-2">{question()}</span>
       </Show>
     </ToolCard>
   )

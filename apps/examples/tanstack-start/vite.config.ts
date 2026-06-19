@@ -8,5 +8,11 @@ import mandarax from '@mandarax/qu/plugin/vite'
 // Add the mandarax plugin — dev-only; override defaults via mandarax({harness, previewId, …}).
 export default defineConfig({
   resolve: {tsconfigPaths: true},
-  plugins: [devtools(), tailwindcss(), tanstackStart(), viteReact(), mandarax()],
+  plugins: [
+    devtools(),
+    tailwindcss(),
+    tanstackStart(),
+    viteReact(),
+    mandarax({widget: {quickTerminal: {hotkey: 'Alt+k'}}}),
+  ],
 })

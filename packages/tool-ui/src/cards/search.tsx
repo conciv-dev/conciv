@@ -35,7 +35,9 @@ export function SearchCard(props: ToolCardProps): JSX.Element {
       meta={meta()}
     >
       <Show when={count() > 0}>
-        <pre class="pw-search-out">{resultText(props.result)}</pre>
+        <pre class="text-[0.6875rem] text-pw-text-2 font-pw-mono m-0 px-2.25 py-1.75 rounded-pw-sm bg-pw-sunken max-h-55 whitespace-pre overflow-auto">
+          {resultText(props.result)}
+        </pre>
       </Show>
     </ToolCard>
   )

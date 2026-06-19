@@ -15,22 +15,27 @@ export function SessionInfoCard(props: {info: SessionInfo}): JSX.Element {
     })
   }
   return (
-    <div class="pw-session-info">
-      <div class="pw-session-info-name">{props.info.name ?? 'New session'}</div>
+    <div>
+      <div class="font-semibold mb-1.5 break-words">{props.info.name ?? 'New session'}</div>
       <Show when={props.info.harnessSessionId}>
         {(id) => (
-          <div class="pw-session-info-row">
-            <span class="pw-session-info-key">session</span>
-            <code class="pw-session-info-id">{id()}</code>
-            <button type="button" class="pw-session-info-copy" aria-label="Copy session id" onClick={copy}>
+          <div class="mt-1 flex gap-2 items-center">
+            <span class="opacity-60 flex-none w-13">session</span>
+            <code class="font-pw-mono break-all">{id()}</code>
+            <button
+              type="button"
+              class="text-[0.6875rem] text-inherit ml-auto px-1.5 py-px border border-pw-line rounded-pw-sm flex-none cursor-pointer"
+              aria-label="Copy session id"
+              onClick={copy}
+            >
               {copied() ? 'copied' : 'copy'}
             </button>
           </div>
         )}
       </Show>
-      <div class="pw-session-info-row">
-        <span class="pw-session-info-key">origin</span>
-        <span class="pw-session-info-val">{props.info.origin}</span>
+      <div class="mt-1 flex gap-2 items-center">
+        <span class="opacity-60 flex-none w-13">origin</span>
+        <span>{props.info.origin}</span>
       </div>
     </div>
   )

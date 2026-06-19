@@ -1,4 +1,4 @@
-// The mandarax widget driven in a REAL browser against a REAL local SSE server. A tiny Node
+// The aidx widget driven in a REAL browser against a REAL local SSE server. A tiny Node
 // http server serves an HTML page that embeds the vite-built global bundle, and answers the
 // /api/* routes the widget speaks: the chat-availability probe, a scripted AG-UI chat stream
 // (encoded with TanStack AI's own toServerSentEventsStream — the exact encoder the dev server
@@ -21,7 +21,7 @@ import {aguiUsageFor, snapshotToTokenUsage} from '@mandarax/protocol/usage-types
 const dirname = path.dirname(fileURLToPath(import.meta.url))
 const widgetBundle = fs.readFileSync(path.join(dirname, '../dist/mandarax-widget.global.js'), 'utf8')
 
-const ASSISTANT_TEXT = 'Hello from mandarax'
+const ASSISTANT_TEXT = 'Hello from aidx'
 const SWITCHED_REPLY = 'Reply from the switched session'
 const RISKY_COMMAND = 'rm -rf /tmp/scratch'
 const APPROVAL_ID = 'a1'
@@ -152,7 +152,7 @@ const MCP_REPLY = 'MCP reply is visible'
 // second text message. Reproduces "the bot replied but the chat shows nothing".
 async function* mcpAccessScript(): AsyncGenerator<StreamChunk> {
   const threadId = 'thread-1781448888530-xl65usg'
-  yield {type: EventType.RUN_STARTED, threadId, runId: 'mandarax-run'}
+  yield {type: EventType.RUN_STARTED, threadId, runId: 'aidx-run'}
   yield {type: EventType.REASONING_MESSAGE_START, messageId: 't1', role: 'reasoning'}
   yield {type: EventType.REASONING_MESSAGE_END, messageId: 't1'}
   yield {type: EventType.TEXT_MESSAGE_START, messageId: 'm2', role: 'assistant'}
@@ -170,7 +170,7 @@ async function* mcpAccessScript(): AsyncGenerator<StreamChunk> {
   yield {type: EventType.TEXT_MESSAGE_START, messageId: 'm5', role: 'assistant'}
   yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'm5', delta: MCP_REPLY}
   yield {type: EventType.TEXT_MESSAGE_END, messageId: 'm5'}
-  yield {type: EventType.RUN_FINISHED, threadId, runId: 'mandarax-run', finishReason: 'stop'}
+  yield {type: EventType.RUN_FINISHED, threadId, runId: 'aidx-run', finishReason: 'stop'}
 }
 
 // Two turns that REUSE the same message ids (t1/m2) across turns — exactly what runAgui's
@@ -183,13 +183,13 @@ async function* collisionScript(): AsyncGenerator<StreamChunk> {
   // prefixes minted ids with the threadId), so turn 2 never reuses turn 1's id and the widget
   // appends a new message instead of overwriting the earlier one.
   const threadId = `thread-${collisionState.n}-generated`
-  yield {type: EventType.RUN_STARTED, threadId, runId: 'mandarax-run'}
+  yield {type: EventType.RUN_STARTED, threadId, runId: 'aidx-run'}
   yield {type: EventType.REASONING_MESSAGE_START, messageId: `${threadId}-t1`, role: 'reasoning'}
   yield {type: EventType.REASONING_MESSAGE_END, messageId: `${threadId}-t1`}
   yield {type: EventType.TEXT_MESSAGE_START, messageId: `${threadId}-m2`, role: 'assistant'}
   yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId: `${threadId}-m2`, delta: text}
   yield {type: EventType.TEXT_MESSAGE_END, messageId: `${threadId}-m2`}
-  yield {type: EventType.RUN_FINISHED, threadId, runId: 'mandarax-run', finishReason: 'stop'}
+  yield {type: EventType.RUN_FINISHED, threadId, runId: 'aidx-run', finishReason: 'stop'}
 }
 
 // Which script the next POST /api/chat serves; tests set it before sending.
@@ -277,7 +277,7 @@ function writeJson(res: ServerResponse, body: unknown): void {
   res.end(JSON.stringify(body))
 }
 
-describe('mandarax widget (it) — real browser, real SSE', () => {
+describe('aidx widget (it) — real browser, real SSE', () => {
   let browser: Browser
   let server: Server
   const state = {base: '', mint: 0}
@@ -304,14 +304,14 @@ describe('mandarax widget (it) — real browser, real SSE', () => {
         return
       }
       // Probe → present, so the widget mounts the chat FAB + page-bus (production boot path).
-      // The adopted 'Made in mandarax' row resolves to mandarax_ext_tok-mandarax, which reports a resumable
+      // The adopted 'Made in mandarax' row resolves to mandarax_ext_tok-aidx, which reports a resumable
       // session (a harness token) so ChatPanel hydrates its history. NB: exclude /sessions.
       if (url.startsWith('/api/chat/session') && !url.startsWith('/api/chat/sessions')) {
         const sid = req.headers['mandarax-session-id']
-        const resumable = sid === 'mandarax_ext_tok-mandarax'
+        const resumable = sid === 'mandarax_ext_tok-aidx'
         return writeJson(res, {
           sessionId: typeof sid === 'string' ? sid : 'mandarax_unknown',
-          harnessSessionId: resumable ? 'tok-mandarax' : null,
+          harnessSessionId: resumable ? 'tok-aidx' : null,
           name: resumable ? 'Made in mandarax' : null,
           origin: resumable ? 'external' : 'chat',
           cwd: '/app',
@@ -350,7 +350,7 @@ describe('mandarax widget (it) — real browser, real SSE', () => {
         return writeJson(res, {
           sessions: [
             {
-              id: 'tok-mandarax',
+              id: 'tok-aidx',
               title: 'Made in mandarax',
               updatedAt: nowMs,
               messageCount: 3,
@@ -373,7 +373,7 @@ describe('mandarax widget (it) — real browser, real SSE', () => {
       // Per-session history keyed by our id: the adopted 'Made in mandarax' session loads a thread.
       if (url.startsWith('/api/chat/history')) {
         const sid = req.headers['mandarax-session-id']
-        if (sid === 'mandarax_ext_tok-mandarax') {
+        if (sid === 'mandarax_ext_tok-aidx') {
           return writeJson(res, [{id: 'h1', role: 'assistant', parts: [{type: 'text', content: SWITCHED_REPLY}]}])
         }
         return writeJson(res, [])
@@ -523,13 +523,14 @@ describe('mandarax widget (it) — real browser, real SSE', () => {
 
     // While the turn is in flight (server holds the stream ~700ms): the Send button is replaced by the
     // Ark progress spinner AND the divider reads "Compacting…" (NOT a premature "Context compacted").
-    await page.locator('.pw-compact').waitFor({state: 'visible'})
-    expect(await page.locator('.pw-compact-range').count()).toBe(1)
-    await page.locator('.pw-chat-divider', {hasText: 'Compacting'}).waitFor({state: 'visible'})
+    const spinner = page.getByRole('status', {name: /Compacting context/})
+    await spinner.waitFor({state: 'visible'})
+    expect(await spinner.count()).toBe(1)
+    await page.getByRole('separator', {name: /Compacting/}).waitFor({state: 'visible'})
 
     // Once it completes: the spinner goes away and the same divider flips to "Context compacted".
-    await page.locator('.pw-compact').waitFor({state: 'hidden'})
-    await page.locator('.pw-chat-divider', {hasText: 'Context compacted'}).waitFor({state: 'visible'})
+    await spinner.waitFor({state: 'hidden'})
+    await page.getByRole('separator', {name: 'Context compacted'}).waitFor({state: 'visible'})
 
     // Claude-Code parity: the compaction turn runs out of band, so the thread shows ONLY the divider —
     // no '/compact' command bubble and no streamed summary (the assistant reply count stays at 1, from
@@ -559,8 +560,8 @@ describe('mandarax widget (it) — real browser, real SSE', () => {
       // The 409 settles: the optimistic boundary is REMOVED, never flipping to "Context compacted".
       // (The fast-fail path adds then removes the divider in ms, so the transient "Compacting" state is
       // not asserted — the regression is that the false "Context compacted" must never appear.)
-      await page.locator('.pw-chat-divider', {hasText: 'Compacting'}).waitFor({state: 'hidden'})
-      expect(await page.locator('.pw-chat-divider', {hasText: 'Context compacted'}).count()).toBe(0)
+      await page.getByRole('separator', {name: /Compacting/}).waitFor({state: 'hidden'})
+      expect(await page.getByRole('separator', {name: 'Context compacted'}).count()).toBe(0)
       // Scrollback intact: the prior assistant reply is still present.
       expect(await page.getByText(ASSISTANT_TEXT).count()).toBe(1)
       await page.close()
@@ -581,15 +582,14 @@ describe('mandarax widget (it) — real browser, real SSE', () => {
     await page.getByText(ASSISTANT_TEXT).waitFor({state: 'visible'})
 
     // The streamed usage snapshot drives the ring: 35,895 / 1,000,000 ≈ 3.6%.
-    const trigger = page.locator('.pw-ctx-trigger')
+    const trigger = page.getByRole('img', {name: 'Model context usage'})
     await trigger.waitFor({state: 'visible'})
     await page.getByText('3.6%').first().waitFor({state: 'visible'})
 
     // Hovering opens the top-layer popover with the cost footer.
     await trigger.hover()
     await page.getByText('Total cost').waitFor({state: 'visible'})
-    const footText = await page.locator('.pw-ctx-foot').textContent()
-    expect(footText).toContain('$0.12')
+    await page.getByText('$0.12').waitFor({state: 'visible'})
     await page.close()
   })
 
@@ -600,8 +600,13 @@ describe('mandarax widget (it) — real browser, real SSE', () => {
 
     const fab = page.getByRole('button', {name: 'Open mandarax chat'})
     await fab.waitFor({state: 'visible'})
-    // The configured position is applied via the preset class.
-    expect(await fab.getAttribute('class')).toContain('pw-fab-pos-top-left')
+    // The configured position pins the FAB to a corner (read the resolved inset, not a class).
+    const corner = () =>
+      fab.evaluate((el) => {
+        const c = getComputedStyle(el)
+        return {top: c.top, right: c.right, bottom: c.bottom, left: c.left}
+      })
+    expect(await corner()).toMatchObject({top: '20px', left: '20px'})
 
     // Drag the FAB from the top-left toward the bottom-right corner.
     const box = await fab.boundingBox()
@@ -615,7 +620,7 @@ describe('mandarax widget (it) — real browser, real SSE', () => {
     await page.waitForFunction(() => localStorage.getItem('mandarax-fab-position') === 'bottom-right', undefined, {
       timeout: 2000,
     })
-    expect(await fab.getAttribute('class')).toContain('pw-fab-pos-bottom-right')
+    expect(await corner()).toMatchObject({bottom: '20px', right: '20px'})
     await page.close()
   })
 
@@ -633,7 +638,7 @@ describe('mandarax widget (it) — real browser, real SSE', () => {
     const panel = page.locator('#pw-chat-panel')
     const before = (await panel.boundingBox())!.height
     // Bottom-anchored panel → the resize handle sits on its top edge; dragging up grows it.
-    const handle = page.locator('.pw-chat-resize-top')
+    const handle = page.getByRole('separator', {name: 'Resize chat height'})
     const hb = (await handle.boundingBox())!
     await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2)
     await page.mouse.down()
@@ -644,7 +649,7 @@ describe('mandarax widget (it) — real browser, real SSE', () => {
     expect(Number(await page.evaluate(() => localStorage.getItem('mandarax-modal-height')))).toBeGreaterThan(before)
 
     // Dragging the edge far past the collapse threshold closes the panel (Devtools behavior).
-    const hb2 = (await page.locator('.pw-chat-resize-top').boundingBox())!
+    const hb2 = (await page.getByRole('separator', {name: 'Resize chat height'}).boundingBox())!
     await page.mouse.move(hb2.x + hb2.width / 2, hb2.y + hb2.height / 2)
     await page.mouse.down()
     await page.mouse.move(hb2.x + hb2.width / 2, hb2.y + 700, {steps: 10})
@@ -674,7 +679,7 @@ describe('mandarax widget (it) — real browser, real SSE', () => {
     const panel = page.locator('#pw-chat-panel')
     const before = (await panel.boundingBox())!.width
     // Bottom-right anchored panel → the width handle is on its left edge; dragging left grows it.
-    const handle = page.locator('.pw-chat-resize-left')
+    const handle = page.getByRole('separator', {name: 'Resize chat width'})
     const hb = (await handle.boundingBox())!
     await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2)
     await page.mouse.down()
@@ -717,20 +722,20 @@ describe('mandarax widget (it) — real browser, real SSE', () => {
     const page = await browser.newPage()
     await page.goto(`${state.base}/__quick-terminal`)
 
-    const sheet = page.locator('.pw-qt')
+    const sheet = page.locator('[data-pw-qt]')
     await sheet.waitFor({state: 'attached'})
     expect(await sheet.getAttribute('aria-hidden')).toBe('true')
 
     // The configured hotkey drops the sheet.
     await page.keyboard.press('Control+k')
-    await page.waitForFunction(`${ariaHiddenOf('.pw-qt')} === 'false'`, undefined, {timeout: 2000})
+    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'false'`, undefined, {timeout: 2000})
     await page.getByText('How can I help you today?').waitFor({state: 'visible'})
 
     // Opening focuses the pane's composer.
     await page.waitForFunction(
       () => {
         const ae = document.querySelector('[data-mandarax-root]')?.shadowRoot?.activeElement
-        return ae?.tagName === 'TEXTAREA' && ae.classList.contains('pw-chat-input')
+        return ae?.tagName === 'TEXTAREA' && ae.hasAttribute('data-pw-input')
       },
       undefined,
       {timeout: 2000},
@@ -738,49 +743,101 @@ describe('mandarax widget (it) — real browser, real SSE', () => {
 
     // Escape raises it again.
     await page.keyboard.press('Escape')
-    await page.waitForFunction(`${ariaHiddenOf('.pw-qt')} === 'true'`, undefined, {timeout: 2000})
+    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'true'`, undefined, {timeout: 2000})
 
     // Closed, the off-screen sheet is inert so its composer/buttons leave the tab order
     // (and don't trip the aria-hidden-focus rule).
     const closedInert = await page.evaluate(
-      () => (document.querySelector('[data-mandarax-root]')?.shadowRoot?.querySelector('.pw-qt') as HTMLElement)?.inert,
+      () =>
+        (document.querySelector('[data-mandarax-root]')?.shadowRoot?.querySelector('[data-pw-qt]') as HTMLElement)
+          ?.inert,
     )
     expect(closedInert).toBe(true)
+    await page.close()
+  })
+
+  // Bounding rect (viewport coords) of a shadow-DOM element by selector.
+  const rectOf = (sel: string) =>
+    `(() => { const el = document.querySelector('[data-mandarax-root]')?.shadowRoot?.querySelector('${sel}'); return el ? el.getBoundingClientRect() : null })()`
+
+  it('closes the quick terminal via its close button — the sheet slides fully off-screen', async () => {
+    const page = await browser.newPage()
+    await page.goto(`${state.base}/__quick-terminal`)
+    const sheet = page.locator('[data-pw-qt]')
+    await sheet.waitFor({state: 'attached'})
+
+    // Drop the sheet; open, it occupies the top of the viewport (its top edge at y≈0).
+    await page.keyboard.press('Control+k')
+    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'false'`, undefined, {timeout: 2000})
+    await page.waitForFunction(`${rectOf('[data-pw-qt]')}?.top <= 1`, undefined, {timeout: 2000})
+
+    // Click Close (the user's own gesture, not Escape). The -translate-y-[101%] must take it fully
+    // above the viewport — otherwise the inert sheet stays painted over the page and feels "stuck".
+    await page.getByRole('button', {name: 'Close quick terminal'}).click()
+    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'true'`, undefined, {timeout: 2000})
+    await page.waitForFunction(`${rectOf('[data-pw-qt]')}?.bottom <= 0`, undefined, {timeout: 2000})
+    await page.close()
+  })
+
+  it('resizes the quick terminal by dragging its height handle', async () => {
+    const page = await browser.newPage()
+    await page.setViewportSize({width: 1000, height: 800})
+    await page.goto(`${state.base}/__quick-terminal`)
+    await page.locator('[data-pw-qt]').waitFor({state: 'attached'})
+    await page.keyboard.press('Control+k')
+    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'false'`, undefined, {timeout: 2000})
+    await page.getByText('How can I help you today?').waitFor({state: 'visible'})
+    await page.waitForTimeout(300)
+
+    const sheet = page.locator('[data-pw-qt]')
+    const handle = page.getByRole('separator', {name: 'Resize quick terminal height'})
+    const sb = (await sheet.boundingBox())!
+    const hb = (await handle.boundingBox())!
+    // Top-anchored sheet → drag the bottom handle DOWN to grow it.
+    await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(hb.x + hb.width / 2, hb.y + 160, {steps: 8})
+    await page.mouse.up()
+    expect((await sheet.boundingBox())!.height).toBeGreaterThan(sb.height + 100)
     await page.close()
   })
 
   it('restores focus to the last-active pane on reopen (persisted)', async () => {
     const page = await browser.newPage()
     await page.goto(`${state.base}/__quick-terminal`)
-    await page.locator('.pw-qt').waitFor({state: 'attached'})
+    await page.locator('[data-pw-qt]').waitFor({state: 'attached'})
     await page.keyboard.press('Control+k')
-    await page.waitForFunction(`${ariaHiddenOf('.pw-qt')} === 'false'`, undefined, {timeout: 2000})
+    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'false'`, undefined, {timeout: 2000})
 
     // Split into two panes, then focus the FIRST pane (the second is focused right after split).
     await page.getByRole('button', {name: 'Split pane'}).click()
-    await page.waitForFunction(`${countOf('.pw-qt-pane')} === 2`, undefined, {timeout: 2000})
-    await page.locator('.pw-qt-pane').first().dispatchEvent('pointerdown')
+    await page.waitForFunction(`${countOf('[data-pw-qt-pane]')} === 2`, undefined, {timeout: 2000})
+    await page.locator('[data-pw-qt-pane]').first().dispatchEvent('pointerdown')
+    // Focus is no longer a marker class — the focused pane is the one that holds composer focus, so
+    // assert the first pane contains the shadow root's active element (its own composer).
     await page.waitForFunction(
-      () =>
-        document
-          .querySelector('[data-mandarax-root]')
-          ?.shadowRoot?.querySelector('.pw-qt-pane')
-          ?.classList.contains('focused') === true,
+      () => {
+        const root = document.querySelector('[data-mandarax-root]')?.shadowRoot
+        const firstPane = root?.querySelector('[data-pw-qt-pane]')
+        const active = root?.activeElement
+        return !!firstPane && !!active && firstPane.contains(active)
+      },
       undefined,
       {timeout: 2000},
     )
 
     // Close and reopen — focus returns to the first pane (index 0 persisted).
     await page.keyboard.press('Escape')
-    await page.waitForFunction(`${ariaHiddenOf('.pw-qt')} === 'true'`, undefined, {timeout: 2000})
+    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'true'`, undefined, {timeout: 2000})
     await page.keyboard.press('Control+k')
-    await page.waitForFunction(`${ariaHiddenOf('.pw-qt')} === 'false'`, undefined, {timeout: 2000})
+    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'false'`, undefined, {timeout: 2000})
     await page.waitForFunction(
-      () =>
-        document
-          .querySelector('[data-mandarax-root]')
-          ?.shadowRoot?.querySelector('.pw-qt-pane')
-          ?.classList.contains('focused') === true,
+      () => {
+        const root = document.querySelector('[data-mandarax-root]')?.shadowRoot
+        const firstPane = root?.querySelector('[data-pw-qt-pane]')
+        const active = root?.activeElement
+        return !!firstPane && !!active && firstPane.contains(active)
+      },
       undefined,
       {timeout: 2000},
     )
@@ -798,7 +855,7 @@ describe('mandarax widget (it) — real browser, real SSE', () => {
 
     // The hotkey opens the quick terminal and closes the modal.
     await page.keyboard.press('Control+k')
-    await page.waitForFunction(`${ariaHiddenOf('.pw-qt')} === 'false'`, undefined, {timeout: 2000})
+    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'false'`, undefined, {timeout: 2000})
     await page.waitForFunction(`${ariaHiddenOf('#pw-chat-panel')} === 'true'`, undefined, {timeout: 2000})
     await page.close()
   })
@@ -810,9 +867,9 @@ describe('mandarax widget (it) — real browser, real SSE', () => {
   it('pops the quick terminal into a PiP window (styles travel) and re-docks on close', async () => {
     const page = await browser.newPage()
     await page.goto(`${state.base}/__quick-terminal`)
-    await page.locator('.pw-qt').waitFor({state: 'attached'})
+    await page.locator('[data-pw-qt]').waitFor({state: 'attached'})
     await page.keyboard.press('Control+k')
-    await page.waitForFunction(`${ariaHiddenOf('.pw-qt')} === 'false'`, undefined, {timeout: 2000})
+    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'false'`, undefined, {timeout: 2000})
 
     // Clicking PiP opens a separate window and moves the live sheet into it.
     const [popup] = await Promise.all([
@@ -823,45 +880,45 @@ describe('mandarax widget (it) — real browser, real SSE', () => {
     // The sheet now lives in the PiP window's shadow root, and its styles came along (system-ui,
     // not the serif initial) — proving the shadow style text travelled.
     const inPip = await popup.evaluate(() => {
-      const qt = document.querySelector('.pw-pip-host')?.shadowRoot?.querySelector('.pw-qt')
+      const qt = document.querySelector('[data-pw-pip-host]')?.shadowRoot?.querySelector('[data-pw-qt]')
       return {present: !!qt, font: qt ? getComputedStyle(qt as Element).fontFamily : ''}
     })
     expect(inPip.present).toBe(true)
     expect(inPip.font).toContain('system-ui')
-    // It left a placeholder in the page (no .pw-qt there while popped).
-    expect(await page.evaluate(countOf('.pw-qt'))).toBe(0)
+    // It left a placeholder in the page (no [data-pw-qt] there while popped).
+    expect(await page.evaluate(countOf('[data-pw-qt]'))).toBe(0)
 
     // Closing the PiP window re-docks the sheet into the page.
     await popup.close()
-    await page.waitForFunction(`${countOf('.pw-qt')} === 1`, undefined, {timeout: 2000})
+    await page.waitForFunction(`${countOf('[data-pw-qt]')} === 1`, undefined, {timeout: 2000})
     await page.close()
   })
 
   it('splits the quick terminal into independent-session panes and reflows on close', async () => {
     const page = await browser.newPage()
     await page.goto(`${state.base}/__quick-terminal`)
-    await page.locator('.pw-qt').waitFor({state: 'attached'})
+    await page.locator('[data-pw-qt]').waitFor({state: 'attached'})
     await page.keyboard.press('Control+k')
-    await page.waitForFunction(`${ariaHiddenOf('.pw-qt')} === 'false'`, undefined, {timeout: 2000})
+    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'false'`, undefined, {timeout: 2000})
 
     // One pane on open.
-    await page.waitForFunction(`${countOf('.pw-qt-pane')} === 1`, undefined, {timeout: 2000})
+    await page.waitForFunction(`${countOf('[data-pw-qt-pane]')} === 1`, undefined, {timeout: 2000})
 
     // Split adds a second pane, each with its own composer (its own session).
     await page.getByRole('button', {name: 'Split pane'}).click()
-    await page.waitForFunction(`${countOf('.pw-qt-pane')} === 2`, undefined, {timeout: 2000})
-    expect(await page.locator('.pw-qt-pane .pw-chat-input').count()).toBe(2)
+    await page.waitForFunction(`${countOf('[data-pw-qt-pane]')} === 2`, undefined, {timeout: 2000})
+    expect(await page.locator('[data-pw-qt-pane] [data-pw-input]').count()).toBe(2)
 
-    // Each pane bar hosts its own session selector (bar variant).
-    expect(await page.locator('.pw-qt-pane .pw-session-bar').count()).toBe(2)
+    // Each pane bar hosts its own session selector (bar variant) — one Session: trigger per pane.
+    expect(await page.getByRole('button', {name: /^Session:/}).count()).toBe(2)
 
     // Closing one pane leaves the other (reflowed).
-    await page.locator('.pw-qt-pane-x').first().click()
-    await page.waitForFunction(`${countOf('.pw-qt-pane')} === 1`, undefined, {timeout: 2000})
+    await page.getByRole('button', {name: 'Close pane'}).first().click()
+    await page.waitForFunction(`${countOf('[data-pw-qt-pane]')} === 1`, undefined, {timeout: 2000})
 
     // Closing the last pane closes the terminal.
-    await page.locator('.pw-qt-pane-x').first().click()
-    await page.waitForFunction(`${ariaHiddenOf('.pw-qt')} === 'true'`, undefined, {timeout: 2000})
+    await page.getByRole('button', {name: 'Close pane'}).first().click()
+    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'true'`, undefined, {timeout: 2000})
     await page.close()
   })
 
@@ -875,7 +932,7 @@ describe('mandarax widget (it) — real browser, real SSE', () => {
       await fab.click()
       await page.getByText('How can I help you today?').waitFor({state: 'visible'})
       const composer = page.getByLabel('Message the mandarax agent')
-      await composer.fill('do you have access to mandarax mcp?')
+      await composer.fill('do you have access to aidx mcp?')
       await composer.press('Enter')
       await page.getByText(MCP_REPLY).waitFor({state: 'visible', timeout: 10_000})
       await page.close()
@@ -923,28 +980,22 @@ describe('mandarax widget (it) — real browser, real SSE', () => {
     await trigger.waitFor({state: 'visible'})
     expect(await trigger.textContent()).toContain('Claude Sonnet 4.6')
 
-    // Open it → all four models listed (Fable disabled but present).
+    // Open it → all four models listed as options (Fable disabled but present). The Opus row exists
+    // only inside the open popover (the pill still shows Sonnet), so it doubles as the open sentinel.
     await trigger.click()
-    const content = page.locator('.pw-model-content')
-    await content.waitFor({state: 'visible'})
-    expect(await content.locator('.pw-model-item').count()).toBe(4)
+    await page.getByText('Claude Opus 4.8', {exact: true}).waitFor({state: 'visible'})
+    expect(await page.getByRole('option').count()).toBe(4)
 
     // Pick Opus.
-    await content.getByText('Claude Opus 4.8', {exact: true}).click()
+    await page.getByText('Claude Opus 4.8', {exact: true}).click()
 
-    // The pill reflects the pick.
-    await page.waitForFunction(
-      () => {
-        const t = document.querySelector('[data-mandarax-root]')?.shadowRoot?.querySelector('.pw-model-trigger')
-        return (t?.textContent ?? '').includes('Claude Opus 4.8')
-      },
-      undefined,
-      {timeout: 3000},
-    )
+    // The pill reflects the pick (the trigger's label span updates).
+    await trigger.getByText('Claude Opus 4.8').waitFor({state: 'visible', timeout: 3000})
 
     // THE BUG: selecting echoed the model name into the search box, filtering the open list down to
-    // just the picked row. Correct behavior is the popover CLOSES on select. This fails on the bug.
-    await content.waitFor({state: 'hidden', timeout: 3000})
+    // just the picked row. Correct behavior is the popover CLOSES on select. Haiku lives only in the
+    // popover (never in the pill), so its disappearance proves the list closed — not just filtered.
+    await page.getByText('Claude Haiku 4.5', {exact: true}).waitFor({state: 'hidden', timeout: 3000})
 
     // Send NOW, right after the popover closed on select — a clean state with focus free. (Dismissing
     // a REOPENED popover via Escape/outside-click is unreliable in this shadow-DOM Ark setup and left
@@ -961,12 +1012,12 @@ describe('mandarax widget (it) — real browser, real SSE', () => {
     // Reopen → the full list is back (filter reset on close, nothing removed). Done last because it
     // leaves the popover open; the page is closed right after.
     await trigger.click()
-    await content.waitFor({state: 'visible'})
-    expect(await content.locator('.pw-model-item').count()).toBe(4)
+    await page.getByText('Claude Haiku 4.5', {exact: true}).waitFor({state: 'visible'})
+    expect(await page.getByRole('option').count()).toBe(4)
     await page.close()
   })
 
-  it('session selector: lists rows, marks mandarax origin, switches by header, renames optimistically', async () => {
+  it('session selector: lists rows, marks aidx origin, switches by header, renames optimistically', async () => {
     const page = await browser.newPage()
     await page.goto(state.base)
     const fab = page.getByRole('button', {name: 'Open mandarax chat'})
@@ -974,47 +1025,38 @@ describe('mandarax widget (it) — real browser, real SSE', () => {
     await fab.click()
     await page.getByText('How can I help you today?').waitFor({state: 'visible'})
 
-    // Open the selector pill in the modal header.
-    const trigger = page.locator('#pw-chat-panel .pw-session-trigger')
+    // Open the selector pill in the modal header (its label is `Session: <title>`).
+    const trigger = page.getByRole('button', {name: /^Session:/})
     await trigger.click()
-    const content = page.locator('.pw-session-content')
-    await content.waitFor({state: 'visible'})
 
-    // Both scripted rows render; the mandarax row shows the origin marker, the external one does not.
-    const mandaraxItem = content.locator('.pw-session-item', {hasText: 'Made in mandarax'})
-    const extItem = content.locator('.pw-session-item', {hasText: 'Made externally'})
-    await mandaraxItem.waitFor({state: 'visible'})
+    // Both scripted rows render as options; each row's accessible name encodes origin ("started in
+    // aidx" vs "started externally"), so origin is asserted natively, not via a marker class.
+    const aidxItem = page.getByRole('option', {name: /Made in mandarax/})
+    const extItem = page.getByRole('option', {name: /Made externally/})
+    await aidxItem.waitFor({state: 'visible'})
     await extItem.waitFor({state: 'visible'})
-    expect(await mandaraxItem.locator('.pw-session-origin').count()).toBe(1)
-    expect(await extItem.locator('.pw-session-origin').count()).toBe(0)
+    expect(await page.getByRole('option', {name: /Made in mandarax[\s\S]*started in mandarax/}).count()).toBe(1)
+    expect(await page.getByRole('option', {name: /Made externally[\s\S]*started externally/}).count()).toBe(1)
 
-    // Selecting tok-mandarax fires a /history fetch carrying the new header; the thread swaps in.
+    // Selecting tok-aidx fires a /history fetch carrying the new header; the thread swaps in.
     const historyReq = page.waitForRequest(
-      (r) =>
-        r.url().includes('/api/chat/history') && r.headers()['mandarax-session-id'] === 'mandarax_ext_tok-mandarax',
+      (r) => r.url().includes('/api/chat/history') && r.headers()['mandarax-session-id'] === 'mandarax_ext_tok-aidx',
     )
-    await mandaraxItem.click()
+    await aidxItem.click()
     await historyReq
     await page.getByText(SWITCHED_REPLY).waitFor({state: 'visible'})
 
     // Reopen, rename the now-active session — the optimistic title shows on the trigger immediately.
     await trigger.click()
-    await content.waitFor({state: 'visible'})
-    await content.getByRole('button', {name: 'Rename current session'}).click()
-    const rename = page.locator('.pw-session-rename')
+    const renameBtn = page.getByRole('button', {name: 'Rename current session'})
+    await renameBtn.waitFor({state: 'visible'})
+    await renameBtn.click()
+    const rename = page.getByRole('textbox', {name: 'Rename session'})
     await rename.waitFor({state: 'visible'})
     await rename.fill('Renamed thread')
     await rename.press('Enter')
-    await page.waitForFunction(
-      () => {
-        const t = document
-          .querySelector('[data-mandarax-root]')
-          ?.shadowRoot?.querySelector('#pw-chat-panel .pw-session-current')
-        return (t?.textContent ?? '').includes('Renamed thread')
-      },
-      undefined,
-      {timeout: 3000},
-    )
+    // The trigger's label flips to the new title optimistically.
+    await page.getByRole('button', {name: 'Session: Renamed thread'}).waitFor({state: 'visible', timeout: 3000})
     await page.close()
   })
 
@@ -1026,16 +1068,14 @@ describe('mandarax widget (it) — real browser, real SSE', () => {
     await fab.click()
     await page.getByText('How can I help you today?').waitFor({state: 'visible'})
 
-    // Switch to the mandarax session — this is the choice that must survive a refresh.
-    const trigger = page.locator('#pw-chat-panel .pw-session-trigger')
+    // Switch to the aidx session — this is the choice that must survive a refresh.
+    const trigger = page.getByRole('button', {name: /^Session:/})
     await trigger.click()
-    const content = page.locator('.pw-session-content')
-    await content.waitFor({state: 'visible'})
+    await page.getByRole('option', {name: /Made in mandarax/}).waitFor({state: 'visible'})
     const historyReq = page.waitForRequest(
-      (r) =>
-        r.url().includes('/api/chat/history') && r.headers()['mandarax-session-id'] === 'mandarax_ext_tok-mandarax',
+      (r) => r.url().includes('/api/chat/history') && r.headers()['mandarax-session-id'] === 'mandarax_ext_tok-aidx',
     )
-    await content.locator('.pw-session-item', {hasText: 'Made in mandarax'}).click()
+    await page.getByRole('option', {name: /Made in mandarax/}).click()
     await historyReq
     await page.getByText(SWITCHED_REPLY).waitFor({state: 'visible'})
 
@@ -1043,16 +1083,8 @@ describe('mandarax widget (it) — real browser, real SSE', () => {
     await page.reload()
     await fab.waitFor({state: 'visible'})
     await fab.click()
-    await page.waitForFunction(
-      () => {
-        const t = document
-          .querySelector('[data-mandarax-root]')
-          ?.shadowRoot?.querySelector('#pw-chat-panel .pw-session-current')
-        return (t?.textContent ?? '').includes('Made in mandarax')
-      },
-      undefined,
-      {timeout: 4000},
-    )
+    // The trigger's label restores to the persisted session title.
+    await page.getByRole('button', {name: 'Session: Made in mandarax'}).waitFor({state: 'visible', timeout: 4000})
     // The restored session also re-hydrates its own thread.
     await page.getByText(SWITCHED_REPLY).waitFor({state: 'visible'})
     await page.close()
@@ -1124,13 +1156,13 @@ describe('mandarax widget (it) — real browser, real SSE', () => {
     const composer = page.getByLabel('Message the mandarax agent')
     await composer.fill('make these pop')
 
-    const chips = page.locator('.pw-grab-ref')
+    const chips = page.locator('[data-pw-grab]')
     // Enter selection via the composer action, then pick the styled target. react-grab lays a
     // full-page overlay (z-index max) that intercepts pointer events and resolves the element under
     // the point, so we drive raw mouse move+click at the target's coords rather than a locator click.
     const pick = async (expectCount: number) => {
       await page.getByRole('button', {name: 'Select an element from the page'}).click()
-      await page.locator('.pw-pick-pill').waitFor({state: 'visible'})
+      await page.getByRole('button', {name: 'Cancel element pick'}).waitFor({state: 'visible'})
       const box = await page.locator('#grab-target').boundingBox()
       if (!box) throw new Error('no #grab-target box')
       // Aim at the card's top-left padding (not its center, which now sits over the h3/p children)
@@ -1149,7 +1181,7 @@ describe('mandarax widget (it) — real browser, real SSE', () => {
     expect(await composer.inputValue()).toBe('make these pop')
 
     // The chip renders the live, styled clone scaled to fit.
-    const scale = chips.first().locator('.pw-grab-ref-scale')
+    const scale = chips.first().locator('[data-pw-grab-scale]')
     // The clone carries the original's inlined computed background (proves getComputedStyle inlining).
     const bg = await scale.evaluate((el) =>
       [...el.querySelectorAll('*')]
@@ -1193,7 +1225,7 @@ describe('mandarax widget (it) — real browser, real SSE', () => {
     expect(await chips.count()).toBe(2)
 
     // Removing one chip drops exactly that grab and leaves the typed prose intact.
-    await chips.first().locator('.pw-grab-ref-remove').click()
+    await chips.first().getByRole('button', {name: 'Remove grabbed element'}).click()
     expect(await chips.count()).toBe(1)
     expect(await composer.inputValue()).toBe('make these pop')
 

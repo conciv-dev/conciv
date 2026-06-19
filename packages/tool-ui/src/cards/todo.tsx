@@ -25,6 +25,21 @@ const STATUS_ICON: Record<'pending' | 'in_progress' | 'completed', LucideIcon> =
   completed: CircleCheckBig,
 }
 
+// Row text vs dot tint differ per status (completed strikes text but the dot stays green), so two maps.
+type Status = 'pending' | 'in_progress' | 'completed'
+const ROW = 'flex items-start gap-1.75 py-0.5'
+const ROW_STATUS: Record<Status, string> = {
+  pending: 'text-pw-text-2',
+  in_progress: 'text-pw-text-hi',
+  completed: 'text-pw-text-3 line-through',
+}
+const DOT = 'flex-none inline-flex items-center h-4.5'
+const DOT_STATUS: Record<Status, string> = {
+  pending: '',
+  in_progress: 'text-pw-accent',
+  completed: 'text-pw-success',
+}
+
 function TodoIcon(): JSX.Element {
   return <ListTodo size={14} />
 }
@@ -44,11 +59,11 @@ export function TodoCard(props: ToolCardProps): JSX.Element {
       meta={meta()}
     >
       <Show when={todos().length}>
-        <ul class="pw-todo">
+        <ul class="text-[0.78125rem] m-0 p-0 list-none">
           <For each={todos()}>
             {(t) => (
-              <li class={`pw-todo-${t.status}`}>
-                <span class="pw-todo-dot" aria-hidden="true">
+              <li class={`${ROW}  ${ROW_STATUS[t.status]}`}>
+                <span class={`${DOT}  ${DOT_STATUS[t.status]}`} aria-hidden="true">
                   <Dynamic component={STATUS_ICON[t.status]} size={13} />
                 </span>
                 {t.status === 'in_progress' ? (t.activeForm ?? t.content) : t.content}

@@ -1,0 +1,3 @@
+# Transient outputs written on a failing run (the goldens themselves ARE tracked).
+style-diff.json
+shots/*.actual.png

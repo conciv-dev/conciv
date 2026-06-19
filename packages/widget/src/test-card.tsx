@@ -23,9 +23,24 @@ function relName(file: string): string {
   return file.split('/').slice(-2).join('/')
 }
 
+const DOT_BASE = 'size-2.25 rounded-full flex-[0_0_auto]'
 function dotClass(state: TestState | 'running'): string {
-  if (state === 'running') return 'pw-test-dot pw-test-running'
-  return `pw-test-dot pw-test-${state}`
+  if (state === 'running')
+    return 'size-2.75 rounded-full flex-[0_0_auto] bg-transparent border-2 border-pw-accent border-t-transparent anim-test-rot'
+  const tone = state === 'pass' ? 'bg-pw-success' : state === 'fail' ? 'bg-pw-danger' : 'bg-pw-warn'
+  return `${DOT_BASE} ${tone}`
+}
+
+// Summary pill colors by outcome (also reused for the bar counts).
+function pillClass(kind: 'pass' | 'fail' | 'skip'): string {
+  const base = 'px-2 py-px rounded-pw-pill font-semibold text-[0.6875rem]'
+  const tone =
+    kind === 'pass'
+      ? 'bg-pw-success-18 text-pw-success'
+      : kind === 'fail'
+        ? 'bg-pw-danger-18 text-pw-danger'
+        : 'bg-pw-warn-20 text-pw-warn'
+  return `${base} ${tone}`
 }
 
 function openLabel(error: TestError): string {
@@ -53,9 +68,10 @@ function groupByFile(tests: ReadonlyArray<Row & {file: string}>): FileGroup[] {
   return order.map((file) => ({file, tests: byFile.get(file) ?? []}))
 }
 
+const ROW_BASE = 'flex items-center gap-2.25 pl-6 pr-3 py-1.25 text-pw-text-2 cursor-pointer hover:bg-pw-fill'
 function testRowClass(state: Row['state']): string {
-  if (state === 'fail') return 'pw-test-test pw-test-test-fail'
-  return 'pw-test-test'
+  if (state === 'fail') return `${ROW_BASE} bg-pw-danger-10`
+  return ROW_BASE
 }
 
 // SSE frames are untrusted — parse to unknown, validate with the protocol schema (no `as`).
@@ -77,13 +93,19 @@ function TestErrorBlock(props: {error: TestError; apiBase: string; onFix: (text:
   })
   const openInEditor = () => void openEditor({file: props.error.file, line: props.error.line}).catch(() => {})
   return (
-    <div class="pw-test-err">
-      <pre>{props.error.message}</pre>
-      <div class="pw-test-actions">
-        <button class="pw-test-act" onClick={openInEditor}>
+    <div class="text-[0.71875rem] text-pw-danger mb-2 ml-9 mr-3 mt-0 px-2.5 py-2 border-l-2 border-l-pw-danger rounded bg-pw-sunken">
+      <pre class="m-0 whitespace-pre-wrap break-words [font:inherit]">{props.error.message}</pre>
+      <div class="mt-2 flex gap-1.75">
+        <button
+          class="text-[0.6875rem] text-pw-text leading-none font-pw-mono px-2.25 py-1 border border-pw-line-2 rounded-[0.3125rem] bg-pw-fill inline-flex min-h-6 cursor-pointer transition-[background-color] duration-[120ms] ease-pw items-center hover:bg-pw-fill-strong"
+          onClick={openInEditor}
+        >
           ↗ Open {openLabel(props.error)}
         </button>
-        <button class="pw-test-act pw-test-fix" onClick={() => props.onFix(fixMessage(props.error))}>
+        <button
+          class="text-[0.6875rem] text-pw-accent-link leading-none font-pw-mono px-2.25 py-1 border border-pw-accent-line rounded-[0.3125rem] bg-pw-accent-08 inline-flex min-h-6 cursor-pointer transition-[background-color] duration-[120ms] ease-pw items-center hover:bg-pw-accent-20"
+          onClick={() => props.onFix(fixMessage(props.error))}
+        >
           ✦ Fix this
         </button>
       </div>
@@ -148,27 +170,27 @@ export function TestCard(props: {
   const toggleTest = (key: string) => setOpenTest((current) => (current === key ? null : key))
 
   return (
-    <div class="pw-test">
-      <div class="pw-test-bar">
+    <div class="text-[0.8125rem] text-pw-text leading-[1.45] font-pw-mono border border-pw-line rounded-pw-md bg-pw-fill-soft pointer-events-auto anim-msg-lg self-stretch overflow-hidden">
+      <div class="text-xs px-3 py-2.25 border-b border-b-pw-line bg-pw-fill flex gap-2 items-center">
         <Show when={running()}>
-          <span class="pw-test-running-label">
-            <span class="pw-test-dot pw-test-running" aria-hidden="true" />
+          <span class="text-[0.6875rem] text-pw-text-3 flex gap-1.25 items-center">
+            <span class={dotClass('running')} aria-hidden="true" />
             running
           </span>
         </Show>
-        <span class="pw-test-pill pw-test-pass">{summary().passed} passed</span>
+        <span class={pillClass('pass')}>{summary().passed} passed</span>
         <Show when={summary().failed > 0}>
-          <span class="pw-test-pill pw-test-fail">{summary().failed} failed</span>
+          <span class={pillClass('fail')}>{summary().failed} failed</span>
         </Show>
         <Show when={summary().skipped > 0}>
-          <span class="pw-test-pill pw-test-skip">{summary().skipped} skipped</span>
+          <span class={pillClass('skip')}>{summary().skipped} skipped</span>
         </Show>
       </div>
       <For each={groups()}>
         {(group) => (
           <div>
-            <div class="pw-test-file">
-              <span class="pw-test-fname">{relName(group.file)}</span>
+            <div class="font-semibold px-3 py-1.25 flex gap-2.25 items-center">
+              <span class="text-pw-text">{relName(group.file)}</span>
             </div>
             <For each={group.tests}>
               {(test) => {

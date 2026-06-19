@@ -18,6 +18,10 @@ function GenericIcon(): JSX.Element {
   return <Wrench size={14} />
 }
 
+// Raw args / result <pre> inside the collapsible details (also reused for the result block).
+const RAW_PRE =
+  'mt-1.25 font-pw-mono text-[0.6875rem] text-pw-text-2 bg-pw-sunken rounded-pw-sm py-1.75 px-2.25 overflow-x-auto'
+
 // Fallback card for any tool name with no dedicated card (tanstack convention: render by name,
 // generic for the rest). Title is the raw tool name; body shows raw args + result behind a details.
 export function GenericCard(props: ToolCardProps): JSX.Element {
@@ -33,16 +37,18 @@ export function GenericCard(props: ToolCardProps): JSX.Element {
       <Show
         when={props.result?.state === 'error'}
         fallback={
-          <details class="pw-tool-raw">
-            <summary>details</summary>
-            <pre>{rawArgs(props)}</pre>
+          <details>
+            <summary class="text-[0.6875rem] text-pw-text-3 cursor-pointer focus-ring">details</summary>
+            <pre class={RAW_PRE}>{rawArgs(props)}</pre>
             <Show when={resultText(props.result)}>
-              <pre>{resultText(props.result)}</pre>
+              <pre class={RAW_PRE}>{resultText(props.result)}</pre>
             </Show>
           </details>
         }
       >
-        <div class="pw-tool-error">{props.result?.error ?? resultText(props.result)}</div>
+        <div class="text-[0.75rem] text-pw-danger font-pw-mono whitespace-pre-wrap">
+          {props.result?.error ?? resultText(props.result)}
+        </div>
       </Show>
     </ToolCard>
   )

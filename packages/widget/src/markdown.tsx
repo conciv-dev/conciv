@@ -46,7 +46,7 @@ function escapeHtml(s: string): string {
 }
 
 function codeBlock(code: string, lang: string | undefined, hl: HighlighterCore | null): string {
-  if (!hl) return `<pre class="pw-md-pre"><code>${escapeHtml(code)}</code></pre>`
+  if (!hl) return `<pre><code>${escapeHtml(code)}</code></pre>`
   const requested = (lang ?? '').trim().toLowerCase()
   const language = hl.getLoadedLanguages().includes(requested) ? requested : 'text'
   return hl.codeToHtml(code, {lang: language, theme: THEME})
@@ -62,7 +62,7 @@ export function Markdown(props: {text: string; streaming?: boolean}): JSX.Elemen
   const highlightCode = (code: string, lang: string | undefined): string => codeBlock(code, lang, hl())
   return (
     <Streamdown
-      class="pw-md"
+      class="prose-pw"
       isAnimating={props.streaming === true}
       caret={props.streaming ? 'block' : false}
       highlightCode={highlightCode}

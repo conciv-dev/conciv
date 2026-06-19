@@ -62,10 +62,10 @@ export function FileEditCard(props: ToolCardProps): JSX.Element {
       durationMs={props.durationMs}
       meta={meta()}
     >
-      <Show when={diff()} fallback={<div class="pw-tool-muted">no diff</div>}>
+      <Show when={diff()} fallback={<div class="text-[0.75rem] text-pw-text-3">no diff</div>}>
         {(d) => (
           <SolidFileDiff
-            class="pw-edit-diff"
+            class="text-[0.75rem] rounded-pw-sm bg-pw-sunken max-w-full block overflow-auto"
             options={DIFF_OPTIONS}
             oldFile={{name: path() ?? 'file', contents: d().oldText}}
             newFile={{name: path() ?? 'file', contents: d().newText}}

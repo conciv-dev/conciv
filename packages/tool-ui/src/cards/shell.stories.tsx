@@ -65,7 +65,7 @@ export const LongOutput: Story = {
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     // The scroll region is capped, not a 1000-line dump.
-    const viewport = canvasElement.querySelector<HTMLElement>('.pw-vl-viewport')
+    const viewport = canvasElement.querySelector<HTMLElement>('[data-scope="scroll-area"][data-part="viewport"]')
     if (!viewport) throw new Error('virtual-lines viewport not found')
     await waitFor(() => expect(viewport.clientHeight).toBeLessThanOrEqual(360))
     // Virtualized: the last line is not rendered until we scroll to it.
