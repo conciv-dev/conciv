@@ -13,6 +13,8 @@ import {makeDomPageDriver, type PageDriver} from './page-driver.js'
 import {installReactBridge} from './react-bridge.js'
 import {defineClient} from './session-client.js'
 import {parseWidgetSettings, type WidgetSettings} from './widget-settings.js'
+import {applyThemeOverrides} from './theme.js'
+import {installExtensionGlobal, type ClientApi, type MandaraxExtension} from './extension.js'
 
 // Entry: create the open Shadow DOM, probe the dev server, and mount the Solid chat agent +
 // page-bus when the mandarax routes are live. Auto-mounts on load; also exports mountWidget.
@@ -74,6 +76,11 @@ export function mountWidget(): void {
       if (models.harness.canLaunch) shell.registerComposerAction(makeOpenInTerminalAction(models.harness.name))
       shell.registerComposerControl(modelSelectorControl)
       shell.mount(root)
+      const clientApi: ClientApi = {
+        ui: {setTheme: (tokens) => applyThemeOverrides(root, tokens)},
+        registerComposerAction: (def) => shell.registerComposerAction(def),
+      }
+      installExtensionGlobal((ext: MandaraxExtension) => ext.clientFn?.(clientApi))
       initPageBus({apiBase, driver})
     })
     .catch(() => {
