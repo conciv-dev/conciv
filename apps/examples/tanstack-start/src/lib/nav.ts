@@ -3,6 +3,7 @@ export type NavLink = {to: string; label: string}
 export const NAV_LINKS: NavLink[] = [
   {to: '/', label: 'Home'},
   {to: '/about', label: 'About'},
+  {to: '/form', label: 'Form'},
 ]
 
 // The nav link whose `to` matches the current path, or null.

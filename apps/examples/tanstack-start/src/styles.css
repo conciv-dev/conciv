@@ -163,6 +163,25 @@ pre code {
   font-family: 'Fraunces', Georgia, serif;
 }
 
+.form-control {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 0.625rem;
+  background: var(--surface-strong);
+  padding: 0.55rem 0.75rem;
+  font-size: 0.875rem;
+  color: var(--sea-ink);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: color-mix(in oklab, var(--lagoon-deep) 55%, var(--line));
+  box-shadow: 0 0 0 3px rgba(79, 184, 178, 0.18);
+}
+
 .island-shell {
   border: 1px solid var(--line);
   background: linear-gradient(165deg, var(--surface-strong), var(--surface));

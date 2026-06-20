@@ -15,6 +15,7 @@ export const PageInput = PageQueryInputSchema.extend({
 
 export const mandaraxPageToolDef = toolDefinition({
   name: 'mandarax_page',
-  description: 'Inspect and drive the live page DOM/React tree: tree, inspect, find, locate, click, type, etc.',
+  description:
+    'Read and drive the live page DOM and React tree by ref/selector/name. Reads: snapshot, query, text, value, dom. Actions: click, fill (text/number/select/textarea), select, check, uncheck, hover, press, scroll, submit. React: tree, inspect, find, locate, override, track. One snapshot returns a ref for every control — act on all of them before re-snapshotting.',
   inputSchema: PageInput,
 })

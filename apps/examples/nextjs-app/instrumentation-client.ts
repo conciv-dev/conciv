@@ -1,1 +1,1 @@
-import 'mandarax/plugin/nextjs/widget'
+import '@mandarax/qu/plugin/nextjs/widget'

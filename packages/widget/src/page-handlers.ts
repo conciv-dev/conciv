@@ -75,6 +75,14 @@ function fireInput(el: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElemen
   el.dispatchEvent(new Event('input', {bubbles: true}))
   el.dispatchEvent(new Event('change', {bubbles: true}))
 }
+// Set value/checked through the element's prototype setter, bypassing React's per-instance
+// override that keeps its value-tracker in sync. Without this, a direct `el.value =` leaves the
+// tracker thinking nothing changed, so onChange never fires and controlled inputs revert on render.
+function setNative(el: Element, prop: 'value' | 'checked', value: string | boolean): void {
+  const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), prop)?.set
+  if (setter) setter.call(el, value)
+  else (el as unknown as Record<string, unknown>)[prop] = value
+}
 function isField(el: Element): el is HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement {
   return el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement
 }
@@ -228,25 +236,25 @@ export const DOM_HANDLERS: Record<PageQueryKind, PageHandler> = {
   }),
   fill: onEl((el, query) => {
     if (!isField(el)) return err('fill target is not an input/textarea/select')
-    el.value = query.value ?? ''
+    setNative(el, 'value', query.value ?? '')
     fireInput(el)
     return ok({value: el.value})
   }),
   select: onEl((el, query) => {
     if (!(el instanceof HTMLSelectElement)) return err('select target is not a <select>')
-    el.value = query.value ?? ''
+    setNative(el, 'value', query.value ?? '')
     fireInput(el)
     return ok({value: el.value})
   }),
   check: onEl((el) => {
     if (!(el instanceof HTMLInputElement)) return err('check target is not an input')
-    el.checked = true
+    setNative(el, 'checked', true)
     fireInput(el)
     return ok({checked: true})
   }),
   uncheck: onEl((el) => {
     if (!(el instanceof HTMLInputElement)) return err('uncheck target is not an input')
-    el.checked = false
+    setNative(el, 'checked', false)
     fireInput(el)
     return ok({checked: false})
   }),
