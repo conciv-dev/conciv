@@ -202,7 +202,7 @@ export function SessionSelector(props: {
     >
       <Combobox.Control class={isPill ? 'inline-flex min-w-0 flex-[1_1_auto]' : 'inline-flex min-w-0'}>
         <Combobox.Trigger
-          class={`group text-[0.75rem] text-pw-text-2 border border-transparent rounded-pw-pill inline-flex gap-1.5 h-7 min-w-0 cursor-pointer bg-transparent trans-cbb items-center hover:text-pw-text-hi [&[aria-disabled=true]]:opacity-[0.55] [&[aria-disabled=true]]:cursor-not-allowed ${
+          class={`group text-[0.75rem] text-pw-text-2 border border-transparent rounded-pw-pill bg-transparent inline-flex gap-1.5 h-7 min-w-0 cursor-pointer trans-cbb items-center hover:text-pw-text-hi [&[aria-disabled=true]]:opacity-[0.55] [&[aria-disabled=true]]:cursor-not-allowed ${
             isPill
               ? 'w-full py-0 pr-1.5 pl-2 hover:border-pw-line hover:bg-pw-fill-soft data-[state=open]:border-pw-line data-[state=open]:bg-pw-fill-soft data-[state=open]:text-pw-text-hi'
               : 'p-0 font-pw-mono'
@@ -222,14 +222,14 @@ export function SessionSelector(props: {
         </Combobox.Trigger>
       </Combobox.Control>
       <Combobox.Positioner>
-        <Combobox.Content class="p-1 border border-pw-line-2 rounded-pw-md bg-pw-panel flex-col max-h-90 w-70 hidden shadow-pw-lg z-10 data-[state=open]:flex data-[state=open]:anim-combo focus-visible:outline-none">
+        <Combobox.Content class="p-1 border border-pw-line-2 rounded-pw-md bg-pw-panel flex-col max-h-90 w-70 hidden shadow-pw-lg z-10 focus-visible:outline-none data-[state=open]:flex data-[state=open]:anim-combo">
           {/* Header: search + rename + new + retry. Always in Tab order, OUTSIDE the listbox. */}
           <div class="mb-1 border-b border-b-pw-line-soft flex gap-1 items-center">
             <Show
               when={!renaming()}
               fallback={
                 <input
-                  class="text-[0.8125rem] text-pw-text px-2 flex-1 h-8 min-w-0 bg-transparent [border:none] focus:outline-none"
+                  class="text-[0.8125rem] text-pw-text px-2 bg-transparent flex-1 h-8 min-w-0 [border:none] focus:outline-none"
                   aria-label="Rename session"
                   aria-busy={renameBusy()}
                   value={draft()}
@@ -251,7 +251,7 @@ export function SessionSelector(props: {
               }
             >
               <Combobox.Input
-                class="text-[0.8125rem] text-pw-text px-2 flex-1 h-8 min-w-0 bg-transparent [border:none] placeholder:text-pw-text-3 focus:outline-none"
+                class="text-[0.8125rem] text-pw-text px-2 bg-transparent flex-1 h-8 min-w-0 [border:none] placeholder:text-pw-text-3 focus:outline-none"
                 placeholder="Search sessions…"
                 ref={(el) => (searchEl = el)}
               />

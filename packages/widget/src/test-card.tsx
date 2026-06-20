@@ -170,7 +170,7 @@ export function TestCard(props: {
   const toggleTest = (key: string) => setOpenTest((current) => (current === key ? null : key))
 
   return (
-    <div class="text-[0.8125rem] text-pw-text leading-[1.45] font-pw-mono border border-pw-line rounded-pw-md bg-pw-fill-soft pointer-events-auto anim-msg-lg self-stretch overflow-hidden">
+    <div class="text-[0.8125rem] text-pw-text leading-[1.45] font-pw-mono border border-pw-line rounded-pw-md bg-pw-fill-soft pointer-events-auto self-stretch overflow-hidden anim-msg-lg">
       <div class="text-xs px-3 py-2.25 border-b border-b-pw-line bg-pw-fill flex gap-2 items-center">
         <Show when={running()}>
           <span class="text-[0.6875rem] text-pw-text-3 flex gap-1.25 items-center">
