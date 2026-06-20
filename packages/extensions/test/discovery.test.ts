@@ -46,4 +46,22 @@ describe('co-located tool: server execute + client renderer from one definition'
     expect(collectServerContributions([override]).tools).toHaveLength(0)
     expect(collectClientContributions([override]).toolRenderers[0]?.name).toBe('Bash')
   })
+
+  it('the .server() execute re-parses args at the boundary and rejects a bad call', async () => {
+    const deploy = collectServerContributions([ext]).tools.find((t) => t.name === 'acme_deploy')
+    expect(deploy).toBeDefined()
+    await expect(deploy?.execute({})).rejects.toThrow()
+  })
+
+  it('drains an imperative serverFn (registerTool + systemPrompt.append)', () => {
+    const imperative = defineExtension({id: 'imp'}).server((mx) => {
+      mx.systemPrompt.append('Imperative prompt line.')
+      mx.registerTool(
+        defineTool({name: 'imp_do', description: 'd', inputSchema: z.object({})}).server(() => ({ok: true})),
+      )
+    })
+    const {tools, systemPrompt} = collectServerContributions([imperative])
+    expect(tools.map((t) => t.name)).toContain('imp_do')
+    expect(systemPrompt).toContain('Imperative prompt line.')
+  })
 })

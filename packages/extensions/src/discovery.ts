@@ -50,7 +50,8 @@ export function collectServerContributions(extensions: MandaraxExtension[]): Ext
   return {tools, systemPrompt}
 }
 
-// The client half of declared tools: each tool's renderer, keyed by name, for the renderer registry.
+// The client half of declared tools: each tool's renderer keyed by name, which the widget turns into
+// tool cards (ToolCardEntry) and passes to ToolCallCard alongside the built-ins.
 export function collectClientContributions(extensions: MandaraxExtension[]): {
   toolRenderers: {name: string; render: ToolRenderer}[]
 } {
