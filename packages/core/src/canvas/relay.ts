@@ -13,6 +13,16 @@ const PERSIST_DEBOUNCE_MS = 400
 // An Excalidraw element as the canvas stores it — id-keyed, version-tracked, otherwise opaque.
 export type CanvasElement = {id: string; version: number} & Record<string, unknown>
 
+// A comment pin: pure geometry keyed by commentId (the source of truth for "a comment exists" is the
+// TrailBase/sqlite row; the pin is the Yjs half of the join). pinState is a geometric fact.
+export type CanvasPin = {
+  commentId: string
+  x: number
+  y: number
+  elementId?: string
+  pinState: 'locked' | 'offset'
+}
+
 type Room = {doc: Y.Doc; subscribers: Set<(update: Uint8Array) => void>; timer: ReturnType<typeof setTimeout> | null}
 
 export type CanvasRelay = {
@@ -22,6 +32,10 @@ export type CanvasRelay = {
   // Server-side element ops the AI's canvas tools use — mutate the authoritative doc directly.
   read: (sessionId: string) => Promise<CanvasElement[]>
   draw: (sessionId: string, elements: CanvasElement[]) => Promise<void>
+  // Pin geometry (the Yjs half of the commentId join). setPin/deletePin run inside the comment execute.
+  setPin: (sessionId: string, pin: CanvasPin) => Promise<void>
+  deletePin: (sessionId: string, commentId: string) => Promise<void>
+  pins: (sessionId: string) => Promise<CanvasPin[]>
   flush: (sessionId: string) => Promise<void>
   dispose: () => Promise<void>
 }
@@ -72,6 +86,18 @@ export function createCanvasRelay(opts: {store: CanvasStore; debounceMs?: number
         const map = room.doc.getMap<CanvasElement>('elements')
         for (const el of elements) map.set(el.id, el)
       }, CORE)
+    },
+    setPin: async (sessionId, pin) => {
+      const room = await getRoom(sessionId)
+      room.doc.transact(() => room.doc.getMap<CanvasPin>('pins').set(pin.commentId, pin), CORE)
+    },
+    deletePin: async (sessionId, commentId) => {
+      const room = await getRoom(sessionId)
+      room.doc.transact(() => room.doc.getMap<CanvasPin>('pins').delete(commentId), CORE)
+    },
+    pins: async (sessionId) => {
+      const room = await getRoom(sessionId)
+      return [...room.doc.getMap<CanvasPin>('pins').values()]
     },
     subscribe: async (sessionId, cb) => {
       const room = await getRoom(sessionId)
