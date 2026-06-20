@@ -1,6 +1,9 @@
 import {z} from 'zod'
-import type {Component} from 'solid-js'
+import type {Component, JSX} from 'solid-js'
 import type {ThemeTokens} from '@mandarax/ui-kit-system'
+
+// A live UI region an extension paints into a named widget slot / header / footer (Pi-style setters).
+export type UiFactory = () => JSX.Element
 
 // The server-side shape an extension contributes: a mandarax MCP tool (name + description + zod
 // inputSchema the SDK registers via .shape + an execute validated at the boundary). Structurally
@@ -36,7 +39,13 @@ export type ExtComposerAction = {
 
 // What an extension's .client(mx => …) half can do in the widget (browser).
 export type ClientApi = {
-  ui: {setTheme: (tokens: ThemeTokens) => void}
+  ui: {
+    setTheme: (tokens: ThemeTokens) => void
+    setWidget: (key: string, factory: UiFactory | null) => void
+    setHeader: (factory: UiFactory | null) => void
+    setFooter: (factory: UiFactory | null) => void
+    setStatus: (key: string, text: string | null) => void
+  }
   registerComposerAction: (action: ExtComposerAction) => void
 }
 

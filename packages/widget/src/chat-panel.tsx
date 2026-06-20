@@ -23,6 +23,7 @@ import {OkSchema} from '@mandarax/protocol/chat-types'
 import type {ComposerActionDef, ComposerControlDef, PanelDef} from './widget-shell.js'
 import {GrabReference} from './react-grab/grab-reference.js'
 import type {Grab} from './react-grab/grab-types.js'
+import {ExtHeaderSlot, ExtFooterSlot, ExtWidgetsSlot, ExtStatusSlot} from './ui-store.js'
 
 // One message's tool-call ↔ tool-result pairing. Each tool-call renders one card (from
 // @mandarax/tool-ui) with its sibling result inline; the standalone result part is then hidden.
@@ -716,6 +717,8 @@ export function ChatPanel(props: {
 
   return (
     <>
+      <ExtHeaderSlot />
+      <ExtWidgetsSlot />
       <div class="p-3.5 flex flex-1 flex-col gap-2.5 relative overflow-y-auto" role="log" aria-live="off" ref={logRef}>
         <Show
           when={chat.messages().length > 0}
@@ -798,6 +801,8 @@ export function ChatPanel(props: {
           />
         </Show>
       </div>
+      <ExtStatusSlot />
+      <ExtFooterSlot />
       <Show when={notice()}>
         <div class="text-[0.75rem] text-pw-text-2 leading-[1.4] font-medium font-pw mx-3 mb-2 px-2.5 py-2 border border-pw-line rounded-pw-md bg-pw-fill [word-break:break-word]">
           {notice()}

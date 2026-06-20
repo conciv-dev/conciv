@@ -14,6 +14,7 @@ import {installReactBridge} from './react-bridge.js'
 import {defineClient} from './session-client.js'
 import {parseWidgetSettings, type WidgetSettings} from './widget-settings.js'
 import {applyThemeOverrides} from './theme.js'
+import {setExtWidget, setExtHeader, setExtFooter, setExtStatus} from './ui-store.js'
 import {installExtensionGlobal} from './extension-runtime.js'
 import type {ClientApi, MandaraxExtension} from '@mandarax/extensions'
 
@@ -80,7 +81,13 @@ export function mountWidget(): void {
       // Adapt the public ExtComposerAction (slim, stable) to the shell's richer internal def: the
       // public onClick ctx exposes only insert + notify, mapped from the full capability bag.
       const clientApi: ClientApi = {
-        ui: {setTheme: (tokens) => applyThemeOverrides(root, tokens)},
+        ui: {
+          setTheme: (tokens) => applyThemeOverrides(root, tokens),
+          setWidget: (key, factory) => setExtWidget(key, factory),
+          setHeader: (factory) => setExtHeader(factory),
+          setFooter: (factory) => setExtFooter(factory),
+          setStatus: (key, text) => setExtStatus(key, text),
+        },
         registerComposerAction: (action) =>
           shell.registerComposerAction({
             id: action.id,

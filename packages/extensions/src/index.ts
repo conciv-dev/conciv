@@ -3,6 +3,7 @@ export {
   defineTool,
   type MandaraxExtension,
   type ExtensionBuilder,
+  type UiFactory,
   type ClientApi,
   type ServerApi,
   type ComposerActionCtx,
