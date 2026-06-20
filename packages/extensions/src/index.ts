@@ -15,6 +15,13 @@ export {
   type ExtComposerAction,
   type ExtensionServerTool,
   type ExtensionServerContributions,
+  type ExtensionEvent,
+  type ExtensionEventHandler,
 } from './contract.js'
-export {extensionsModuleSource, collectServerContributions, collectClientContributions} from './discovery.js'
+export {
+  extensionsModuleSource,
+  collectServerContributions,
+  collectClientContributions,
+  emitExtensionEvent,
+} from './discovery.js'
 export {buildCatalog, scaffold, validateSource, type Catalog, type CatalogToken, type ScaffoldKind} from './catalog.js'

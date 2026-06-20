@@ -1,6 +1,8 @@
 import type {
   MandaraxExtension,
   ServerApi,
+  ExtensionEvent,
+  ExtensionEventHandler,
   ExtensionServerContributions,
   ExtensionServerTool,
   ExtensionTool,
@@ -39,15 +41,33 @@ function addServerTool(tools: ExtensionServerTool[], systemPrompt: string[], t: 
 export function collectServerContributions(extensions: MandaraxExtension[]): ExtensionServerContributions {
   const tools: ExtensionServerTool[] = []
   const systemPrompt: string[] = []
+  const handlers: ExtensionEventHandler[] = []
   const api: ServerApi = {
     registerTool: (t) => addServerTool(tools, systemPrompt, t),
     systemPrompt: {append: (text) => systemPrompt.push(text)},
+    on: (event, handler) => handlers.push({event, handler}),
   }
   for (const ext of extensions) {
     for (const t of ext.tools ?? []) addServerTool(tools, systemPrompt, t)
     ext.serverFn?.(api)
   }
-  return {tools, systemPrompt}
+  return {tools, systemPrompt, handlers}
+}
+
+// Fire one lifecycle event to every extension handler registered for it (in registration order).
+// Errors in one handler don't abort the rest — a failing doctor sweep never blocks session start.
+export async function emitExtensionEvent(
+  contributions: ExtensionServerContributions,
+  event: ExtensionEvent,
+): Promise<void> {
+  for (const h of contributions.handlers) {
+    if (h.event !== event) continue
+    try {
+      await h.handler()
+    } catch {
+      // swallow — a misbehaving extension handler must not break the lifecycle
+    }
+  }
 }
 
 // The client half of declared tools: each tool's renderer keyed by name, which the widget turns into

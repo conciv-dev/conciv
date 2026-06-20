@@ -24,17 +24,26 @@ export type ExtensionServerTool = {
   execute: (input: unknown) => Promise<unknown>
 }
 
-// What an extension's .server(mx => …) half collects: extra agent tools + system prompt text.
+// Lifecycle events an extension's .server() half can hook. session_start fires once per session boot
+// (doctor sweeps here); tool_execution_start fires before any tool runs (approval/auditing hooks).
+export type ExtensionEvent = 'session_start' | 'tool_execution_start'
+export type ExtensionEventHandler = {event: ExtensionEvent; handler: () => void | Promise<void>}
+
+// What an extension's .server(mx => …) half collects: extra agent tools + system prompt text + the
+// lifecycle handlers the engine fires.
 export type ExtensionServerContributions = {
   tools: ExtensionServerTool[]
   systemPrompt: string[]
+  handlers: ExtensionEventHandler[]
 }
 
 // The slim, stable context a composer-action click receives (the widget adapts its richer internal
 // capability bag down to this — extensions never see widget internals like the session client).
+// runTool invokes a registered tool by name through the same path the agent uses (one shared execute).
 export type ComposerActionCtx = {
   insert: (text: string) => void
   notify: (message: string) => void
+  runTool: (name: string, input: unknown) => Promise<unknown>
 }
 
 // A button an extension adds to the composer.
@@ -78,10 +87,12 @@ export type ClientApi = {
   registerComposerAction: (action: ExtComposerAction) => void
 }
 
-// What an extension's .server(mx => …) half can do in core (node): add agent tools, extend the prompt.
+// What an extension's .server(mx => …) half can do in core (node): add agent tools, extend the prompt,
+// and hook lifecycle events.
 export type ServerApi = {
   registerTool: (tool: ExtensionTool) => void
   systemPrompt: {append: (text: string) => void}
+  on: (event: ExtensionEvent, handler: () => void | Promise<void>) => void
 }
 
 export type MandaraxExtension = {

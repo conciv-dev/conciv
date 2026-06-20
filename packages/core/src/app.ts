@@ -2,7 +2,7 @@ import {H3} from 'h3'
 import type {HarnessAdapter, HarnessChild} from '@mandarax/protocol/harness-types'
 import type {TestRunnerAdapter} from '@mandarax/protocol/runner-types'
 import type {BundlerBridge} from '@mandarax/protocol/bundler-types'
-import type {ExtensionServerTool} from '@mandarax/extensions'
+import {type ExtensionServerTool, collectServerContributions, emitExtensionEvent} from '@mandarax/extensions'
 import type {ResolvedMandaraxConfig} from './config.js'
 import {getHarness} from '@mandarax/harness'
 import {getRunner} from '@mandarax/test-runner'
@@ -15,8 +15,10 @@ import {registerServerRoutes} from './api/server/server.js'
 import {registerEditorRoutes} from './api/editor/editor.js'
 import {registerTestRunnerRoutes} from './api/test-runner/test-runner.js'
 import {registerCanvasRoutes} from './api/canvas/canvas.js'
+import {registerToolRunRoute} from './api/tools/tools.js'
 import {createCanvasRelay} from './canvas/relay.js'
 import {createFsCanvasStore} from './canvas/canvas-store.js'
+import {createCanvasCommentsExtension} from './extensions/canvas-comments/index.js'
 import {makeUiBus} from './runtime/ui-bus.js'
 import {makeJournal} from './runtime/journal.js'
 import type {OpenInEditor} from './editor/open.js'
@@ -79,6 +81,14 @@ export function makeApp(opts: MakeAppOpts): H3 {
     store: createFsCanvasStore({stateRoot: opts.cfg.stateRoot, previewId: opts.cfg.previewId}),
   })
   registerCanvasRoutes(app, {relay: canvasRelay})
+  // The canvas-comments built-in: authored with the extension contract, registered at boot (not
+  // file-discovered). Its agent tools join the MCP surface; its session_start handlers fire below.
+  const canvasComments = collectServerContributions([
+    createCanvasCommentsExtension({relay: canvasRelay, sessionId: () => opts.cfg.sessionId ?? 'local'}),
+  ])
+  void emitExtensionEvent(canvasComments, 'session_start')
+  const allExtensionTools = [...(opts.extensionTools ?? []), ...canvasComments.tools]
+  registerToolRunRoute(app, {tools: () => allExtensionTools})
   registerEditorRoutes(app, opts.openInEditor)
   registerTestRunnerRoutes(app, runner)
   // Expose mandarax tools to the harness CLI via MCP-over-HTTP on the same server, bridged to the live
@@ -95,7 +105,7 @@ export function makeApp(opts: MakeAppOpts): H3 {
       },
       open: (file, line) => opts.openInEditor(file, line),
     }),
-    opts.extensionTools ?? [],
+    allExtensionTools,
   )
   if (opts.bridge) registerServerRoutes(app, opts.bridge)
   return app

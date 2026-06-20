@@ -108,7 +108,21 @@ export function mountWidget(): void {
             id: action.id,
             label: action.label,
             icon: action.icon,
-            onClick: (ctx) => action.onClick({insert: ctx.insert, notify: ctx.notify}),
+            onClick: (ctx) =>
+              action.onClick({
+                insert: ctx.insert,
+                notify: ctx.notify,
+                // Run a tool through core's shared loopback-gated execute (same path the agent uses).
+                runTool: async (name, input) => {
+                  const res = await fetch(`${apiBase}/api/tools/run`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {'content-type': 'application/json'},
+                    body: JSON.stringify({name, input}),
+                  })
+                  return (await res.json()).result
+                },
+              }),
           }),
       }
       installExtensionGlobal((ext: MandaraxExtension) => {

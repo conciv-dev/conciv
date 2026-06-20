@@ -7,7 +7,11 @@ import type {CanvasStore} from './canvas-store.js'
 // harmless no-op), and edits are persisted to the store debounced. Rehydrate uses its own origin so a
 // boot load never rebroadcasts.
 const REHYDRATE = Symbol('relay.rehydrate')
+const CORE = Symbol('relay.core')
 const PERSIST_DEBOUNCE_MS = 400
+
+// An Excalidraw element as the canvas stores it — id-keyed, version-tracked, otherwise opaque.
+export type CanvasElement = {id: string; version: number} & Record<string, unknown>
 
 type Room = {doc: Y.Doc; subscribers: Set<(update: Uint8Array) => void>; timer: ReturnType<typeof setTimeout> | null}
 
@@ -15,6 +19,9 @@ export type CanvasRelay = {
   snapshot: (sessionId: string) => Promise<Uint8Array>
   applyUpdate: (sessionId: string, update: Uint8Array) => Promise<void>
   subscribe: (sessionId: string, cb: (update: Uint8Array) => void) => Promise<() => void>
+  // Server-side element ops the AI's canvas tools use — mutate the authoritative doc directly.
+  read: (sessionId: string) => Promise<CanvasElement[]>
+  draw: (sessionId: string, elements: CanvasElement[]) => Promise<void>
   flush: (sessionId: string) => Promise<void>
   dispose: () => Promise<void>
 }
@@ -54,6 +61,17 @@ export function createCanvasRelay(opts: {store: CanvasStore; debounceMs?: number
     applyUpdate: async (sessionId, update) => {
       const room = await getRoom(sessionId)
       Y.applyUpdate(room.doc, update, 'remote')
+    },
+    read: async (sessionId) => {
+      const room = await getRoom(sessionId)
+      return [...room.doc.getMap<CanvasElement>('elements').values()]
+    },
+    draw: async (sessionId, elements) => {
+      const room = await getRoom(sessionId)
+      room.doc.transact(() => {
+        const map = room.doc.getMap<CanvasElement>('elements')
+        for (const el of elements) map.set(el.id, el)
+      }, CORE)
     },
     subscribe: async (sessionId, cb) => {
       const room = await getRoom(sessionId)
