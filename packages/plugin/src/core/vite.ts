@@ -11,6 +11,7 @@ import {installMandaraxBinShim} from './bin-shim.js'
 import {viteConfig, viteResolve, viteGraph, viteTransform, viteUrls, type ViteLike} from './vite-tools.js'
 import {DEFAULT_WIDGET_ROUTE, makeWidgetInject, makeWidgetServe} from './widget-middleware.js'
 import {addSourceToJsx} from './inject-source.js'
+import {EXTENSIONS_RESOLVED_ID, EXTENSIONS_VIRTUAL_ID, extensionsModuleSource} from './extensions.js'
 
 const require = createRequire(import.meta.url)
 
@@ -119,6 +120,12 @@ export function makeViteHook(options: MandaraxConfig = {}): Plugin {
     configResolved(config) {
       root = config.root
       deferToTsd = config.plugins.some((p) => p.name === '@tanstack/devtools:inject-source')
+    },
+    resolveId(id) {
+      return id === EXTENSIONS_VIRTUAL_ID ? EXTENSIONS_RESOLVED_ID : null
+    },
+    load(id) {
+      return id === EXTENSIONS_RESOLVED_ID ? extensionsModuleSource() : null
     },
     transform(code, id) {
       if (options.enabled === false || deferToTsd || id.includes('node_modules')) return null
