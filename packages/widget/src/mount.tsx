@@ -14,7 +14,8 @@ import {installReactBridge} from './react-bridge.js'
 import {defineClient} from './session-client.js'
 import {parseWidgetSettings, type WidgetSettings} from './widget-settings.js'
 import {applyThemeOverrides} from './theme.js'
-import {installExtensionGlobal, type ClientApi, type MandaraxExtension} from './extension.js'
+import {installExtensionGlobal} from './extension-runtime.js'
+import type {ClientApi, MandaraxExtension} from '@mandarax/extensions'
 
 // Entry: create the open Shadow DOM, probe the dev server, and mount the Solid chat agent +
 // page-bus when the mandarax routes are live. Auto-mounts on load; also exports mountWidget.
@@ -76,9 +77,17 @@ export function mountWidget(): void {
       if (models.harness.canLaunch) shell.registerComposerAction(makeOpenInTerminalAction(models.harness.name))
       shell.registerComposerControl(modelSelectorControl)
       shell.mount(root)
+      // Adapt the public ExtComposerAction (slim, stable) to the shell's richer internal def: the
+      // public onClick ctx exposes only insert + notify, mapped from the full capability bag.
       const clientApi: ClientApi = {
         ui: {setTheme: (tokens) => applyThemeOverrides(root, tokens)},
-        registerComposerAction: (def) => shell.registerComposerAction(def),
+        registerComposerAction: (action) =>
+          shell.registerComposerAction({
+            id: action.id,
+            label: action.label,
+            icon: action.icon,
+            onClick: (ctx) => action.onClick({insert: ctx.insert, notify: ctx.notify}),
+          }),
       }
       installExtensionGlobal((ext: MandaraxExtension) => ext.clientFn?.(clientApi))
       initPageBus({apiBase, driver})

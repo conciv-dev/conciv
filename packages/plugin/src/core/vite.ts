@@ -17,7 +17,13 @@ import {
   type Middleware,
 } from './widget-middleware.js'
 import {addSourceToJsx} from './inject-source.js'
-import {EXTENSIONS_RESOLVED_ID, EXTENSIONS_VIRTUAL_ID, extensionsModuleSource} from './extensions.js'
+import type {ExtensionServerContributions} from '@mandarax/extensions'
+import {
+  EXTENSIONS_RESOLVED_ID,
+  EXTENSIONS_VIRTUAL_ID,
+  extensionsModuleSource,
+  loadServerContributions,
+} from './extensions.js'
 
 const require = createRequire(import.meta.url)
 
@@ -118,13 +124,19 @@ function safeOrigin(url: string): string | null {
   }
 }
 
-function bootEngine(server: ViteDevServer, options: MandaraxConfig, agentPath: string): Promise<Engine> {
+function bootEngine(
+  server: ViteDevServer,
+  options: MandaraxConfig,
+  agentPath: string,
+  extensions: ExtensionServerContributions,
+): Promise<Engine> {
   return start({
     options,
     root: server.config.root,
     bridge: makeViteBridge(server),
     launchEditor: openInEditor,
     allowedOrigins: devOrigins(server),
+    extensions,
     childEnv: (corePort) => ({...process.env, PATH: agentPath, MANDARAX_PORT: String(corePort)}),
   })
 }
@@ -172,7 +184,8 @@ export function makeViteHook(options: MandaraxConfig = {}): Plugin {
     async configureServer(server: ViteDevServer) {
       const cfg = resolveConfig(options, server.config.root)
       if (!cfg.enabled) return
-      engine = await bootEngine(server, options, installMandaraxBinShim(join(cfg.stateRoot, '.mandarax')))
+      const extensions = await loadServerContributions(server.config.root, (path) => server.ssrLoadModule(path))
+      engine = await bootEngine(server, options, installMandaraxBinShim(join(cfg.stateRoot, '.mandarax')), extensions)
       const booted = engine
       mountWidget(server, widget, cfg.previewId, `http://127.0.0.1:${booted.port}`, options.widget)
       server.httpServer?.on('close', () => void booted.stop())

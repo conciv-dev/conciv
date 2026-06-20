@@ -2,6 +2,7 @@ import {H3} from 'h3'
 import type {HarnessAdapter, HarnessChild} from '@mandarax/protocol/harness-types'
 import type {TestRunnerAdapter} from '@mandarax/protocol/runner-types'
 import type {BundlerBridge} from '@mandarax/protocol/bundler-types'
+import type {ExtensionServerTool} from '@mandarax/extensions'
 import type {ResolvedMandaraxConfig} from './config.js'
 import {getHarness} from '@mandarax/harness'
 import {getRunner} from '@mandarax/test-runner'
@@ -23,6 +24,10 @@ export type MakeAppOpts = {
   bridge?: BundlerBridge
   openInEditor: OpenInEditor
   systemPromptFile?: string
+  // The effective system prompt text (base + extension appends); defaults to cfg.systemPrompt.
+  systemPromptText?: string
+  // Extension-contributed MCP tools, registered alongside the built-in mandarax tools.
+  extensionTools?: ExtensionServerTool[]
   spawnHarness: (args: string[], cwd: string, sessionId?: string) => HarnessChild
   harnessEnv?: (sessionId?: string) => NodeJS.ProcessEnv
   // Override the harness transcript home (claude: ~/.claude). For tests; defaults to homedir().
@@ -62,7 +67,7 @@ export function makeApp(opts: MakeAppOpts): H3 {
     spawnHarness: opts.spawnHarness,
     harnessEnv: opts.harnessEnv,
     systemPromptFile: opts.systemPromptFile,
-    systemPromptText: opts.cfg.systemPrompt,
+    systemPromptText: opts.systemPromptText ?? opts.cfg.systemPrompt,
     claudeHome: opts.claudeHome,
     uiBus,
   })
@@ -71,16 +76,20 @@ export function makeApp(opts: MakeAppOpts): H3 {
   registerTestRunnerRoutes(app, runner)
   // Expose mandarax tools to the harness CLI via MCP-over-HTTP on the same server, bridged to the live
   // uiBus / page bus / test runner.
-  registerMcpRoutes(app, (sessionId) => ({
-    injectUi: (spec) => uiBus.inject(sessionId, spec),
-    page: (query) => page.ask(query),
-    test: async ({kind, pattern}) => {
-      if (kind === 'list') return runner.list()
-      if (kind === 'run') return runner.run({patterns: pattern ? [pattern] : undefined})
-      return runner.status()
-    },
-    open: (file, line) => opts.openInEditor(file, line),
-  }))
+  registerMcpRoutes(
+    app,
+    (sessionId) => ({
+      injectUi: (spec) => uiBus.inject(sessionId, spec),
+      page: (query) => page.ask(query),
+      test: async ({kind, pattern}) => {
+        if (kind === 'list') return runner.list()
+        if (kind === 'run') return runner.run({patterns: pattern ? [pattern] : undefined})
+        return runner.status()
+      },
+      open: (file, line) => opts.openInEditor(file, line),
+    }),
+    opts.extensionTools ?? [],
+  )
   if (opts.bridge) registerServerRoutes(app, opts.bridge)
   return app
 }
