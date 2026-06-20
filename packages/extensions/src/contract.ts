@@ -9,6 +9,10 @@ export type UiFactory = () => JSX.Element
 // A client-side renderer for a tool's call/result cards (the browser half of a tool definition).
 export type ToolRenderer = Component<ToolCardProps>
 
+// The empty chat state (greeting + starters). An extension swaps it with ui.setEmptyState(factory).
+export type EmptyStateProps = {onStarter: (text: string) => void}
+export type EmptyStateFactory = Component<EmptyStateProps>
+
 // The server-side shape an extension contributes: a mandarax MCP tool (name + description + zod
 // inputSchema the SDK registers via .shape + an execute validated at the boundary). Structurally
 // identical to @mandarax/tools' MandaraxServerTool, so core registers extension tools alongside the
@@ -69,6 +73,7 @@ export type ClientApi = {
     setHeader: (factory: UiFactory | null) => void
     setFooter: (factory: UiFactory | null) => void
     setStatus: (key: string, text: string | null) => void
+    setEmptyState: (factory: EmptyStateFactory | null) => void
   }
   registerComposerAction: (action: ExtComposerAction) => void
   registerToolRenderer: (name: string, renderer: ToolRenderer) => void

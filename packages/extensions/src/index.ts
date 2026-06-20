@@ -4,6 +4,8 @@ export {
   type MandaraxExtension,
   type ExtensionBuilder,
   type UiFactory,
+  type EmptyStateProps,
+  type EmptyStateFactory,
   type ToolRenderer,
   type ToolBuilder,
   type ExtensionTool,

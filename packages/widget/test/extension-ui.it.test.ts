@@ -6,7 +6,7 @@ import path from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {createServer, type IncomingMessage, type Server, type ServerResponse} from 'node:http'
 import type {AddressInfo} from 'node:net'
-import {afterAll, beforeAll, describe, it} from 'vitest'
+import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {chromium, type Browser} from 'playwright'
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -30,6 +30,7 @@ function pageHtml(): string {
           mx.ui.setFooter(function () { return node('div', 'Acme footer') })
           mx.ui.setStatus('tokens', 'Tokens: 42')
           mx.ui.setWidget('deploy', function () { return node('button', 'Deploy now', {type: 'button'}) })
+          mx.ui.setEmptyState(function () { return node('div', 'Custom welcome!') })
         },
       } ] }
     </script>
@@ -104,6 +105,15 @@ describe('widget extension UI store (it) — real browser', () => {
     await page.getByText('Acme footer').waitFor({state: 'visible'})
     await page.getByText('Tokens: 42').waitFor({state: 'visible'})
     await page.getByRole('button', {name: 'Deploy now'}).waitFor({state: 'visible'})
+    await page.close()
+  })
+
+  it('overrides the empty state via ui.setEmptyState', async () => {
+    const page = await browser.newPage()
+    await page.goto(state.base)
+    await page.getByRole('button', {name: 'Open mandarax chat'}).click()
+    await page.getByText('Custom welcome!').waitFor({state: 'visible'})
+    expect(await page.getByText('How can I help you today?').count()).toBe(0)
     await page.close()
   })
 })

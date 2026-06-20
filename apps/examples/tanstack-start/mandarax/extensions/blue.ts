@@ -6,6 +6,7 @@ import {defineExtension, defineTool} from '@mandarax/extensions'
 export default defineExtension({id: 'blue'})
   .client((mx) => {
     mx.ui.setTheme({'pw-accent': 'rgb(37, 99, 235)'})
+    mx.ui.setStatus('theme', 'Blue theme active')
   })
   .server((mx) => {
     mx.systemPrompt.append('This app is themed blue. Greet users with the acme_hello tool.')

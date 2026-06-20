@@ -15,6 +15,7 @@ import {defineClient} from './session-client.js'
 import {parseWidgetSettings, type WidgetSettings} from './widget-settings.js'
 import {applyThemeOverrides} from './theme.js'
 import {setExtWidget, setExtHeader, setExtFooter, setExtStatus} from './ui-store.js'
+import {setEmptyStateOverride} from './empty-state.js'
 import {installExtensionGlobal} from './extension-runtime.js'
 import {registerToolRenderer} from '@mandarax/tool-ui'
 import {collectClientContributions, type ClientApi, type MandaraxExtension} from '@mandarax/extensions'
@@ -88,6 +89,7 @@ export function mountWidget(): void {
           setHeader: (factory) => setExtHeader(factory),
           setFooter: (factory) => setExtFooter(factory),
           setStatus: (key, text) => setExtStatus(key, text),
+          setEmptyState: (factory) => setEmptyStateOverride(factory),
         },
         registerComposerAction: (action) =>
           shell.registerComposerAction({

@@ -24,6 +24,7 @@ import type {ComposerActionDef, ComposerControlDef, PanelDef} from './widget-she
 import {GrabReference} from './react-grab/grab-reference.js'
 import type {Grab} from './react-grab/grab-types.js'
 import {ExtHeaderSlot, ExtFooterSlot, ExtWidgetsSlot, ExtStatusSlot} from './ui-store.js'
+import {EmptyStateSlot} from './empty-state.js'
 
 // One message's tool-call ↔ tool-result pairing. Each tool-call renders one card (from
 // @mandarax/tool-ui) with its sibling result inline; the standalone result part is then hidden.
@@ -67,8 +68,6 @@ function parseJson(raw: string): unknown {
     return null
   }
 }
-
-const STARTERS = ['Explain this page', 'Change the primary color', "Why doesn't this layout fit?"]
 
 // Width the staged grab preview scales to fit — sits comfortably inside the min (300px) panel width.
 const GRAB_PREVIEW_MAX_W = 280
@@ -722,27 +721,7 @@ export function ChatPanel(props: {
       <div class="p-3.5 flex flex-1 flex-col gap-2.5 relative overflow-y-auto" role="log" aria-live="off" ref={logRef}>
         <Show
           when={chat.messages().length > 0}
-          fallback={
-            <div class="m-auto text-center">
-              <p class="text-[1.125rem] tracking-[-0.015em] font-semibold mb-3.5 anim-rise-d">
-                How can I help you today?
-              </p>
-              <div class="flex flex-col gap-2">
-                <For each={STARTERS}>
-                  {(s, i) => (
-                    <button
-                      type="button"
-                      class="text-[0.8125rem] text-pw-text px-3.5 py-2.5 border border-pw-line rounded-pw-pill min-h-9.5 cursor-pointer bg-transparent anim-rise trans-input hover:border-pw-accent hover:bg-pw-accent-08 active:scale-[0.97]"
-                      style={{'animation-delay': `${100 + i() * 60}ms`}}
-                      onClick={() => void chat.sendMessage(s)}
-                    >
-                      {s}
-                    </button>
-                  )}
-                </For>
-              </div>
-            </div>
-          }
+          fallback={<EmptyStateSlot onStarter={(s) => void chat.sendMessage(s)} />}
         >
           <Index each={coalesceTurns(chat.messages())}>
             {(turn) => (
