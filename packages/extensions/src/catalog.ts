@@ -5,11 +5,11 @@
 // → CSS + ThemeTokens type + this list).
 import {TOKENS} from '@mandarax/ui-kit-system/tokens'
 
-export const OVERRIDABLE_COMPONENTS = [
+const OVERRIDABLE_COMPONENTS = [
   {id: 'EmptyState', description: 'The empty chat state (greeting + starter prompts) shown before any messages.'},
 ] as const
 
-export const CLIENT_SURFACES = [
+const CLIENT_SURFACES = [
   {method: 'ui.setTheme(tokens)', description: 'Override design tokens (e.g. {"pw-accent": "#2563eb"}).'},
   {
     method: 'ui.setWidget(key, factory)',
@@ -25,7 +25,7 @@ export const CLIENT_SURFACES = [
   {method: 'registerComposerAction(action)', description: 'Add a button to the composer ({id,label,icon,onClick}).'},
 ] as const
 
-export const SERVER_SURFACES = [
+const SERVER_SURFACES = [
   {
     method: 'defineTool({name,description,inputSchema}).server(execute).render(Component)',
     description: 'Define a tool once: .server runs it (node), .render draws its card (browser).',

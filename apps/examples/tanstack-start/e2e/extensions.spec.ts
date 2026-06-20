@@ -6,8 +6,11 @@ test('a file-based extension applies its theme override to the widget', async ({
   await page.goto('/')
   const fab = page.getByRole('button', {name: 'Open mandarax chat'})
   await expect(fab).toBeVisible({timeout: 30_000})
-  const accent = await fab.evaluate((el) => getComputedStyle(el).getPropertyValue('--pw-accent').trim())
-  expect(accent).toBe('rgb(37, 99, 235)')
+  // The extension module loads asynchronously after mount; poll until blue.ts's setTheme lands rather
+  // than read once (which races extension application).
+  await expect
+    .poll(() => fab.evaluate((el) => getComputedStyle(el).getPropertyValue('--pw-accent').trim()), {timeout: 10_000})
+    .toBe('rgb(37, 99, 235)')
 })
 
 // deploy-button.tsx is a Solid-JSX extension in this React host app: the mandarax plugin compiles

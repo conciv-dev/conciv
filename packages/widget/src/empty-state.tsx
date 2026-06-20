@@ -7,7 +7,7 @@ import type {EmptyStateProps, EmptyStateFactory} from '@mandarax/extensions'
 
 const STARTERS = ['Explain this page', 'Change the primary color', "Why doesn't this layout fit?"]
 
-export const DefaultEmptyState: Component<EmptyStateProps> = (props) => (
+const DefaultEmptyState: Component<EmptyStateProps> = (props) => (
   <div class="m-auto text-center">
     <p class="text-[1.125rem] tracking-[-0.015em] font-semibold mb-3.5 anim-rise-d">How can I help you today?</p>
     <div class="flex flex-col gap-2">
