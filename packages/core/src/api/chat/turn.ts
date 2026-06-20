@@ -12,6 +12,7 @@ import type {PermissionGate} from './permission.js'
 import {toChatMessages} from './messages.js'
 import {sessionIdFromHeaders} from './session-id.js'
 import {sseHeaders} from '../sse.js'
+import {harnessDebug} from '../../runtime/harness-logger.js'
 
 // The harness resume token stored on our record (null = never run), and the writer that persists it
 // when the harness mints its id mid-turn. The only session bits the turn touches on the store.
@@ -141,6 +142,7 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
         messages,
         systemPrompts: sysText ? [sysText] : [],
         abortController: abort,
+        debug: harnessDebug,
       })
       const merged = uiBus.run(sessionId, stream)
       const sse = toServerSentEventsStream(withLockRelease(merged, deps.store, deps.stateRoot, sessionId), abort)
