@@ -14,6 +14,9 @@ import {registerPageRoutes} from './api/page/page.js'
 import {registerServerRoutes} from './api/server/server.js'
 import {registerEditorRoutes} from './api/editor/editor.js'
 import {registerTestRunnerRoutes} from './api/test-runner/test-runner.js'
+import {registerCanvasRoutes} from './api/canvas/canvas.js'
+import {createCanvasRelay} from './canvas/relay.js'
+import {createFsCanvasStore} from './canvas/canvas-store.js'
 import {makeUiBus} from './runtime/ui-bus.js'
 import {makeJournal} from './runtime/journal.js'
 import type {OpenInEditor} from './editor/open.js'
@@ -72,6 +75,10 @@ export function makeApp(opts: MakeAppOpts): H3 {
     uiBus,
   })
   const page = registerPageRoutes(app, {journal: makeJournal(), root: opts.cwd})
+  const canvasRelay = createCanvasRelay({
+    store: createFsCanvasStore({stateRoot: opts.cfg.stateRoot, previewId: opts.cfg.previewId}),
+  })
+  registerCanvasRoutes(app, {relay: canvasRelay})
   registerEditorRoutes(app, opts.openInEditor)
   registerTestRunnerRoutes(app, runner)
   // Expose mandarax tools to the harness CLI via MCP-over-HTTP on the same server, bridged to the live

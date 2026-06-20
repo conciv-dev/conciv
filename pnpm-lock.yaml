@@ -357,6 +357,9 @@ importers:
       unstorage:
         specifier: ^1.17.5
         version: 1.17.5(@netlify/blobs@10.7.9)
+      yjs:
+        specifier: ^13.6.31
+        version: 13.6.31
       zod:
         specifier: ^4.4.3
         version: 4.4.3

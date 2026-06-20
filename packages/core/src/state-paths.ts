@@ -5,6 +5,7 @@ export type StatePaths = {
   dir: string
   lockFor: (sessionId: string) => string
   sessionsDir: string
+  canvasDir: string
   systemPrompt: string
 }
 
@@ -14,6 +15,7 @@ export function statePaths(stateRoot: string): StatePaths {
     dir,
     lockFor: (sessionId) => join(dir, `agent.${sessionId}.lock`),
     sessionsDir: join(dir, 'sessions'),
+    canvasDir: join(dir, 'canvas'),
     systemPrompt: join(dir, 'chat-system-prompt.txt'),
   }
 }
