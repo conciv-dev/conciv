@@ -4,9 +4,15 @@
 
 **Goal:** A transparent infinite Excalidraw canvas overlay on the dev app where the user and the AI leave source-anchored, threaded comments that survive code edits via git-like content hashing, all local-first and exposed identically to AI (MCP), user (UI), and CLI.
 
-**Architecture:** mandarax core (Node, 127.0.0.1) is the only process the browser talks to. Core owns the canvas Yjs `.ybin` blobs and is the sole client of TrailBase (an external `trail` binary). The canvas surface is an Excalidraw + y-excalidraw React island inside the Solid widget; pins/threads stay Solid (tool-ui). Comments use TanStack DB (browser, optimistic) syncing through core to TrailBase. canvas-comments ships as a first-party built-in authored with the merged `defineExtension`/`defineTool` contract.
+**Architecture:** mandarax core (Node, 127.0.0.1) is the only process the browser talks to. Core owns the canvas Yjs `.ybin` blobs and is the sole client of TrailBase (an external `trail` binary). The canvas **sync/store layer is plain framework-agnostic TypeScript** (Yjs + our own thin glue against Excalidraw's official `onChange`/`updateScene` API). React renders _only_ the `<Excalidraw>` component (it ships React-only); Solid renders pins/threads/composer. Both frameworks are dumb edges that call the same plain-TS store. Comments use TanStack DB (browser, optimistic) syncing through core to TrailBase. canvas-comments ships as a first-party built-in authored with the merged `defineExtension`/`defineTool` contract.
 
-**Tech Stack:** Solid (widget), React (Excalidraw island only), Yjs + y-excalidraw + y-indexeddb, @excalidraw/excalidraw, @tanstack/db, TrailBase (`trail` binary + SQLite/FTS5), oxc/babel parser + git for anchoring, solid-sonner, the merged `@mandarax/extensions` contract, h3 core server, Playwright ITs.
+**Tech Stack:** plain TypeScript sync layer (the brain), Solid (widget UI), React (renders the `<Excalidraw>` component only), Yjs + y-indexeddb, @excalidraw/excalidraw, @tanstack/db, TrailBase (`trail` binary + SQLite/FTS5), oxc/babel parser + git for anchoring, solid-sonner, the merged `@mandarax/extensions` contract, h3 core server, Playwright ITs.
+
+**Stack decisions made during execution (override the spec where they conflict):**
+
+- **No vendoring.** Never copy third-party source into the repo. `y-excalidraw` is **dropped entirely** (obscure single-maintainer). We write our own ~150-line plain-TS Yjs↔Excalidraw glue against Excalidraw's official API.
+- **Jazz evaluated and rejected** for the canvas: it's a whole data-layer framework (would replace Yjs _and_ TrailBase _and_ TanStack DB, with a client-connects-to-sync-server model that fights our browser-talks-only-to-core rule) and still wouldn't bind Excalidraw for us. Yjs (mainstream CRDT) + our glue is the lean choice.
+- **The sync/store layer is plain TS**, not Solid or React — both frameworks just consume it.
 
 ---
 
@@ -63,8 +69,7 @@ The spec was written against an assumed contract. The merged `@mandarax/extensio
 - `packages/core/src/anchor/` — default `AnchorResolver` (oxc/babel + git, project-root-confined, secret denylist).
 - `packages/core/src/execute/` — the shared tool `execute` chokepoint + generalized approval gate + undo/redo history stack.
 - `packages/core/src/extensions/canvas-comments/` — the built-in extension (`defineExtension`) wiring all the above to capabilities.
-- `packages/widget/src/canvas/` — the React island (`island.tsx` React root, `excalidraw-yjs.ts` y-excalidraw bridge), Solid `pins.tsx`/`threads.tsx`/`zoom-controls.tsx`, `comment-collection.ts` (TanStack DB), `shadow-react.ts` (mount React into the Solid shadow root).
-- `packages/widget/vendor/y-excalidraw/` — vendored/forked binding (no npm release).
+- `packages/widget/src/canvas/` — **plain-TS** `store.ts` (Y.Doc + elements + y-indexeddb + origin-tagged writes + `bind(excalidrawApi)` glue, framework-agnostic), `excalidraw-island.ts` (minimal React render of `<Excalidraw>` wired to the store — the only React), Solid `pins.tsx`/`threads.tsx`/`zoom-controls.tsx`, `comment-collection.ts` (TanStack DB), `mount-island.ts` (mount the React render into the Solid shadow root).
 - `packages/cli/src/commands/doctor.ts` — `mandarax doctor`.
 - `packages/widget/src/spike/` — **Phase 1 throwaway** spike entry (deleted or graduated after Phase 2).
 
@@ -80,7 +85,7 @@ The spec was written against an assumed contract. The merged `@mandarax/extensio
 - Create: `docs/superpowers/notes/trailbase-binary.md` (version, install method, spawn/migrate/query contract)
 
 **Approval gate (deps for later phases — confirm the list now, install per-phase):**
-`@excalidraw/excalidraw`, `react`, `react-dom`, `yjs`, `y-indexeddb`, `@tanstack/db`, `solid-sonner`, an oxc or babel parser (`oxc-parser` vs `@babel/parser` — decide in Phase 6), a git interface (shell `git` vs `simple-git` — decide in Phase 6). `y-excalidraw` is **vendored**, not installed. `trail` is a **PATH binary**, not npm.
+`@excalidraw/excalidraw`, `react`, `react-dom`, `yjs`, `y-indexeddb` (Phase 1 — **installed**), `@tanstack/db`, `solid-sonner`, an oxc or babel parser (`oxc-parser` vs `@babel/parser` — decide in Phase 6), a git interface (shell `git` vs `simple-git` — decide in Phase 6). **No `y-excalidraw`** (dropped — we write our own glue). **No vendoring** of any third-party source. `trail` is a **PATH binary**, not npm.
 
 - [ ] **Step 1: Confirm `trail` install method** — locate the official `trail` binary release (version + checksum + how it lands on PATH). Record in `docs/superpowers/notes/trailbase-binary.md`: exact version, the spawn command core will use, the migration command, and a one-row insert+select smoke query.
 
@@ -135,90 +140,117 @@ git commit -m "chore(canvas-comments): phase 0 preflight + trailbase binary cont
 
 ---
 
-## Phase 1 — Canvas spike: Excalidraw React island in the Solid shadow root + Yjs (local-only)
+## Phase 1 — Canvas spike: plain-TS Yjs store + our own Excalidraw glue + Solid shadow-root mount (local-only)
 
-**Goal:** De-risk the single hardest integration before any core wiring: an Excalidraw + y-excalidraw React island, mounted _inside the Solid widget's shadow root_, bound to a Yjs doc, as a transparent infinite overlay, persisting locally via y-indexeddb. **No core, no TrailBase, no extension system.** This is a throwaway spike under `packages/widget/src/spike/` that either graduates into `packages/widget/src/canvas/` in Phase 2 or is deleted.
+**Goal:** De-risk the hardest integration before any core wiring, with **no third-party binding** and a **framework-agnostic core**:
 
-**Why first:** the spec calls out three real risks — the React-island-in-Solid-shadow-DOM bridge, the y-excalidraw vendoring, and the origin-tagged feedback-loop guard. All three are provable cheaply, locally, in a real browser, with zero backend.
+1. A **plain-TS** `store.ts` (Yjs doc + elements + y-indexeddb + origin-tagged writes + a `bind(excalidrawApi)` that wires Excalidraw's official `onChange`/`updateScene` to Yjs). No React, no Solid — this is the testable brain.
+2. A **minimal React render** of `<Excalidraw>` (the only React) that calls `store.bind(api)`.
+3. Mount that render into the **Solid widget's shadow root** as a transparent infinite overlay; persist locally via y-indexeddb.
+
+**No core, no TrailBase, no extension system, no y-excalidraw, no vendoring.** Throwaway spike under `packages/widget/src/spike/` that graduates into `packages/widget/src/canvas/` in Phase 2 or is deleted.
+
+**Why first:** three real risks — (a) our own Yjs↔Excalidraw glue (no library), (b) the React-render-inside-a-Solid-shadow-root bridge, (c) the origin-tagged feedback-loop guard (so a Yjs change we apply via `updateScene` doesn't bounce back through `onChange` into Yjs forever). All provable cheaply, locally, real browser, zero backend.
 
 **Files:**
 
-- Create: `packages/widget/vendor/y-excalidraw/` (vendored binding)
-- Create: `packages/widget/src/spike/canvas-island.tsx` (React root: `<Excalidraw>` + y-excalidraw)
-- Create: `packages/widget/src/spike/mount-island.ts` (mount React into a Solid-owned shadow root node; transparent overlay + pointer-events flip)
-- Create: `packages/widget/src/spike/yjs-doc.ts` (Y.Doc + y-indexeddb + origin-tagged transactions)
+- Create: `packages/widget/src/spike/store.ts` — **plain TS**, framework-agnostic (the heart)
+- Create: `packages/widget/src/spike/excalidraw-render.ts` — minimal `React.createElement(Excalidraw, …)`, calls `store.bind` (no JSX → sidesteps the Solid JSX transform)
+- Create: `packages/widget/src/spike/mount.ts` — mount the React render into a Solid-owned shadow root; transparent overlay + pointer-events flip
+- Create: `packages/widget/src/spike/entry.ts` — isolated IIFE spike entry (own vite build → `dist/spike-canvas.global.js`; zero prod-bundle pollution)
+- Create: `packages/widget/vite.spike.config.ts` + a `build:spike` script
 - Create: `packages/widget/test/spike-canvas.it.test.ts` (Playwright `newPage()`)
-- Modify: `packages/widget/package.json` (add `react`, `react-dom`, `@excalidraw/excalidraw`, `yjs`, `y-indexeddb` — **after Phase 0 approval gate**)
+- Modify: `packages/widget/package.json` — deps already installed (`react`, `react-dom`, `@excalidraw/excalidraw`, `yjs`, `y-indexeddb`, `@types/react*`); add `fractional-indexing`? **No** — our own glue uses Yjs array order, not fractional indices.
 
 **Interfaces:**
 
-- Produces: `createCanvasDoc(): {doc: Y.Doc; elements: Y.Map; origin: {USER; AI; REMOTE; REHYDRATE}; localCache: IndexeddbPersistence}` — consumed by Phase 2 when the doc gains a core relay provider.
-- Produces: `mountCanvasIsland(host: HTMLElement, doc: Y.Doc): () => void` (returns dispose) — the React-into-shadow mount, reused by Phase 2.
+- Produces: `createCanvasStore(roomId): {doc; elements; bind(api): () => void; addElement(el); count(): number; origin: {USER; REMOTE; REHYDRATE}; dispose()}` — plain TS, consumed unchanged by Phase 2 (which adds a core relay provider to the same doc) and by the Solid pins layer (reads geometry).
+- Produces: `mountCanvasSpike(shadowRoot): () => void` (dispose) — the React-into-shadow mount.
 
-- [ ] **Step 1: Install the Phase 1 deps** (gate cleared in Phase 0)
-
-Run: `pnpm --filter @mandarax/widget add react react-dom @excalidraw/excalidraw yjs y-indexeddb`
-Expected: installs; `pnpm --filter @mandarax/widget exec tsc --noEmit` still resolves (types present).
-
-- [ ] **Step 2: Vendor y-excalidraw** — copy the y-excalidraw source into `packages/widget/vendor/y-excalidraw/`, adapt imports to the installed `yjs`/`@excalidraw/excalidraw` versions, add a one-line provenance comment (source repo + commit). Export its binding factory.
-
-- [ ] **Step 3: Write the failing IT** (real browser; asserts the island mounts in the shadow root and a drawn shape survives reload)
+- [ ] **Step 1: Write the failing test for the plain-TS store** (Yjs glue, no browser needed for this unit — runs under vitest node, real Yjs)
 
 ```ts
-// packages/widget/test/spike-canvas.it.test.ts
-import {test, expect} from '@playwright/test'
-import {startWidgetServer} from './helpers/widget-server'
+// packages/widget/test/spike-store.test.ts — real Yjs, no mocks
+import {test, expect} from 'vitest'
+import {createCanvasStore} from '../src/spike/store'
 
-test('excalidraw island mounts in the shadow root and persists a shape across reload', async ({browser}) => {
-  const page = await browser.newPage()
-  const {base, close} = await startWidgetServer(SPIKE_HTML)
-  try {
-    await page.goto(base, {waitUntil: 'domcontentloaded'})
-    // Reach the Excalidraw canvas through the widget shadow root (house rule).
-    const canvas = page.getByRole('img', {name: /excalidraw/i})
-    await expect(canvas).toBeVisible()
-    // Draw one rectangle programmatically through the spike's test hook (sets a Y.Map element).
-    await page.evaluate(() => (window as any).__SPIKE__.addRect())
-    await expect(page.getByTestId('spike-element-count')).toHaveText('1')
-    await page.reload({waitUntil: 'domcontentloaded'})
-    // y-indexeddb rehydrates: the element is still there with no backend.
-    await expect(page.getByTestId('spike-element-count')).toHaveText('1')
-  } finally {
-    await page.close()
-    await close()
-  }
+test('a USER write lands in the elements array and a REMOTE-origin apply does not echo back', () => {
+  const a = createCanvasStore('room-1')
+  const b = createCanvasStore('room-1')
+  // simulate sync: pipe a's updates into b and vice versa via Y.applyUpdate with REMOTE origin
+  a.doc.on('update', (u: Uint8Array, origin: unknown) => {
+    if (origin !== b.origin.REMOTE) b.applyRemote(u)
+  })
+  b.doc.on('update', (u: Uint8Array, origin: unknown) => {
+    if (origin !== a.origin.REMOTE) a.applyRemote(u)
+  })
+  a.addElement({id: 'r1', version: 1})
+  expect(a.count()).toBe(1)
+  expect(b.count()).toBe(1) // synced
+  // no echo: b applying a's update as REMOTE must not re-emit a USER update back to a
+  a.addElement({id: 'r2', version: 1})
+  expect(b.count()).toBe(2)
+  expect(a.count()).toBe(2) // stable, no duplicate from echo
 })
 ```
 
-- [ ] **Step 4: Run it, verify it fails**
+- [ ] **Step 2: Run it, verify it fails** — `pnpm --filter @mandarax/widget test spike-store` → FAIL (no `store.ts` yet).
 
-Run: `pnpm --filter @mandarax/widget test spike-canvas`
-Expected: FAIL (island/test hook not built yet).
+- [ ] **Step 3: Build `store.ts`** (plain TS) — `createCanvasStore(roomId)`: a `Y.Doc`, `elements = doc.getArray('elements')`, `IndexeddbPersistence(roomId, doc)` (guarded so it no-ops under node/vitest where IndexedDB is absent), origin tags `{USER, REMOTE, REHYDRATE}`. `addElement` wraps `doc.transact(fn, origin.USER)`; `applyRemote(update)` calls `Y.applyUpdate(doc, update, origin.REMOTE)`; `bind(api)` (added in Step 6) subscribes `api.onChange` (push USER edits → elements) and `elements.observe` (non-USER origin → `api.updateScene({captureUpdate: NEVER})`), skipping its own origin so no echo.
 
-- [ ] **Step 5: Build `yjs-doc.ts`** — `createCanvasDoc()` with a `Y.Map` of elements, `IndexeddbPersistence` cache, and the origin enum. All writes wrap in `doc.transact(fn, origin)`; rehydrate uses `origin.REHYDRATE`.
+- [ ] **Step 4: Run it, verify it passes** — `pnpm --filter @mandarax/widget test spike-store` → PASS.
 
-- [ ] **Step 6: Build `canvas-island.tsx`** — a React component rendering `<Excalidraw>` with `viewBackgroundColor: 'transparent'`, zen mode on, chrome hidden, bound to the Y.Doc via the vendored y-excalidraw binding. The outbound Excalidraw→Yjs writer fires only for local user edits (tag `origin.USER`); inbound applies non-user origins with `captureUpdate: NEVER`. Expose `window.__SPIKE__.addRect()` and a `spike-element-count` testid reading `elements.size`.
+- [ ] **Step 5: Write the failing browser IT** (real browser; the React render mounts inside the Solid shadow root and a drawn element persists across reload)
 
-- [ ] **Step 7: Build `mount-island.ts`** — create a host `div` (transparent, `position: fixed; inset: 0`, `pointer-events: none` idle), append it into a Solid-owned shadow root, `createRoot` a React root on it, render the island, flip `pointer-events: auto` when active. Return a dispose that unmounts the React root and removes the host. `SPIKE_HTML` injects the built widget bundle and calls `mountCanvasIsland`.
+```ts
+// packages/widget/test/spike-canvas.it.test.ts
+import {afterAll, beforeAll, expect, it, describe} from 'vitest'
+import {chromium, type Browser} from 'playwright'
+import {readFileSync} from 'node:fs'
+import {startWidgetServer} from './helpers/widget-server.js'
 
-- [ ] **Step 8: Run the IT, verify it passes**
+const spikeBundle = readFileSync(new URL('../dist/spike-canvas.global.js', import.meta.url), 'utf8')
+const SPIKE_HTML = `<!doctype html><html><head><meta name="pw-api-base" content=""></head>
+  <body><script>${spikeBundle}</script></body></html>`
 
-Run: `pnpm --filter @mandarax/widget build && pnpm --filter @mandarax/widget test spike-canvas`
-Expected: PASS (island visible in shadow root; count `1` survives reload).
+describe('canvas spike (it) — real browser', () => {
+  let browser: Browser
+  let close: (() => Promise<void>) | undefined
+  const state = {base: ''}
+  beforeAll(async () => {
+    ;({base: state.base, close} = await startWidgetServer(SPIKE_HTML))
+    browser = await chromium.launch()
+  }, 90_000)
+  afterAll(async () => {
+    await browser?.close()
+    await close?.()
+  })
 
-- [ ] **Step 9: Add the two-writer feedback-loop guard test** — second test: open the same doc twice (two `createCanvasDoc` over one IndexeddbPersistence room in one page, or two pages on the same room) and assert a `USER`-origin write in one shows up in the other via `REMOTE` origin **without** echoing back (no duplicate element, no infinite loop). Assert the local undo stack ignored the remote edit.
-
-Run: `pnpm --filter @mandarax/widget test spike-canvas`
-Expected: PASS (no echo, count stable, remote edit not in local undo).
-
-- [ ] **Step 10: Commit**
-
-```bash
-git add packages/widget/src/spike packages/widget/vendor/y-excalidraw packages/widget/test/spike-canvas.it.test.ts packages/widget/package.json pnpm-lock.yaml
-git commit -m "feat(canvas-comments): phase 1 spike — excalidraw react island in solid shadow root + yjs (local-only)"
+  it('mounts the excalidraw render in the shadow root and persists across reload', async () => {
+    const page = await browser.newPage()
+    await page.goto(state.base, {waitUntil: 'domcontentloaded'})
+    await expect(page.getByTestId('spike-count')).toHaveText('0')
+    await page.evaluate(() => (window as any).__SPIKE__.addRect())
+    await expect(page.getByTestId('spike-count')).toHaveText('1')
+    await page.reload({waitUntil: 'domcontentloaded'})
+    await expect(page.getByTestId('spike-count')).toHaveText('1') // y-indexeddb rehydrated, no backend
+    await page.close()
+  })
+})
 ```
 
-**Deliverable:** proven React-island-in-Solid-shadow + Yjs transparent canvas, persisting locally, with a working origin-tag feedback guard — no backend. **Approval gate before Phase 2:** review the spike; decide graduate-vs-rewrite of `src/spike/` into `src/canvas/`.
+- [ ] **Step 6: Build the glue + render + mount + entry + spike vite config** — `bind(api)` in `store.ts` (origin-guarded onChange↔elements↔updateScene); `excalidraw-render.ts` (`createElement(Excalidraw, {excalidrawAPI: api => store.bind(api), viewModeEnabled:false, ...transparent + zen + chrome-hidden})`, inject Excalidraw's CSS into the shadow root); `mount.ts` (`createShadowRoot()` reuse → host div pointer-events flip → `createRoot` React → render); `entry.ts` exposes `window.__SPIKE__.addRect()` + a `spike-count` testid node reading `store.count()`; `vite.spike.config.ts` (solid() plugin, entry `src/spike/entry.ts`, IIFE → `dist/spike-canvas.global.js`).
+
+- [ ] **Step 7: Build the spike bundle + run the IT** — `pnpm --filter @mandarax/widget build:spike && pnpm --filter @mandarax/widget test spike-canvas` → PASS.
+
+- [ ] **Step 8: Commit**
+
+```bash
+git add packages/widget/src/spike packages/widget/test/spike-*.test.ts packages/widget/vite.spike.config.ts packages/widget/package.json pnpm-lock.yaml
+git commit -m "feat(canvas-comments): phase 1 spike — plain-ts yjs store + own excalidraw glue in solid shadow root (local-only)"
+```
+
+**Deliverable:** proven plain-TS Yjs store + our own Excalidraw glue, rendered inside the Solid shadow root, persisting locally, with a working origin-tag feedback guard — no backend, no third-party binding. **Approval gate before Phase 2:** review the spike; decide graduate-vs-rewrite of `src/spike/` into `src/canvas/`.
 
 ---
 
