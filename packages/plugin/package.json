@@ -71,17 +71,21 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@babel/core": "^7.29.7",
+    "@babel/preset-typescript": "^7.29.7",
     "@mandarax/cli": "workspace:^",
     "@mandarax/core": "workspace:^",
     "@mandarax/extensions": "workspace:^",
     "@mandarax/protocol": "workspace:^",
     "@mandarax/widget": "workspace:^",
+    "babel-preset-solid": "^1.9.12",
     "launch-editor": "^2.14.1",
     "magic-string": "^0.30.21",
     "oxc-parser": "^0.127.0",
     "unplugin": "^3.0.0"
   },
   "devDependencies": {
+    "@types/babel__core": "^7.20.5",
     "@types/node": "^22.19.21",
     "tsdown": "^0.22.2",
     "typescript": "^6.0.3",

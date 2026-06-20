@@ -135,6 +135,9 @@ importers:
       react-dom:
         specifier: ^19.2.7
         version: 19.2.7(react@19.2.7)
+      solid-js:
+        specifier: ^1.9.13
+        version: 1.9.13
       tailwindcss:
         specifier: ^4.3.1
         version: 4.3.1
@@ -463,6 +466,12 @@ importers:
 
   packages/plugin:
     dependencies:
+      '@babel/core':
+        specifier: ^7.29.7
+        version: 7.29.7
+      '@babel/preset-typescript':
+        specifier: ^7.29.7
+        version: 7.29.7(@babel/core@7.29.7)
       '@mandarax/cli':
         specifier: workspace:^
         version: link:../cli
@@ -478,6 +487,9 @@ importers:
       '@mandarax/widget':
         specifier: workspace:^
         version: link:../widget
+      babel-preset-solid:
+        specifier: ^1.9.12
+        version: 1.9.12(@babel/core@7.29.7)(solid-js@1.9.13)
       launch-editor:
         specifier: ^2.14.1
         version: 2.14.1
@@ -494,6 +506,9 @@ importers:
         specifier: ^3.0.0
         version: 3.0.0
     devDependencies:
+      '@types/babel__core':
+        specifier: ^7.20.5
+        version: 7.20.5
       '@types/node':
         specifier: ^22.19.21
         version: 22.19.21

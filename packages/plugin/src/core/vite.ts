@@ -17,6 +17,7 @@ import {
   type Middleware,
 } from './widget-middleware.js'
 import {addSourceToJsx} from './inject-source.js'
+import {isExtensionJsx, compileExtensionSolid} from './compile-extension.js'
 import type {ExtensionServerContributions} from '@mandarax/extensions'
 import {
   EXTENSIONS_RESOLVED_ID,
@@ -169,8 +170,12 @@ export function makeViteHook(options: MandaraxConfig = {}): Plugin {
     load(id) {
       return id === EXTENSIONS_RESOLVED_ID ? extensionsModuleSource() : null
     },
-    transform(code, id) {
-      if (options.enabled === false || deferToTsd || id.includes('node_modules')) return null
+    transform(code, id, opts) {
+      if (options.enabled === false || id.includes('node_modules')) return null
+      // Extension files are a Solid zone: compile their JSX with Solid before the host's React
+      // transform runs (enforce:'pre'), so renderers/ui factories paint in the Solid widget.
+      if (isExtensionJsx(id)) return compileExtensionSolid(code, id, opts?.ssr ?? false)
+      if (deferToTsd) return null
       return addSourceToJsx(code, id, root)
     },
     transformIndexHtml: {
