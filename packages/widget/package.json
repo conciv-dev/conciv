@@ -42,6 +42,7 @@
   "dependencies": {
     "@ark-ui/solid": "^5.37.1",
     "@floating-ui/dom": "^1.7.6",
+    "@mandarax/extensions": "workspace:^",
     "@mandarax/protocol": "workspace:^",
     "@mandarax/solid-diffs": "workspace:^",
     "@mandarax/solid-streamdown": "workspace:^",

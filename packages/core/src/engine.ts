@@ -3,6 +3,7 @@ import {serve} from 'srvx'
 import getPort from 'get-port'
 import type {HarnessChild} from '@mandarax/protocol/harness-types'
 import type {BundlerBridge} from '@mandarax/protocol/bundler-types'
+import type {ExtensionServerContributions} from '@mandarax/extensions'
 import {getHarness} from '@mandarax/harness'
 import {makeApp, type MakeAppOpts} from './app.js'
 import {makeEditorOpener} from './editor/open.js'
@@ -19,6 +20,8 @@ export type StartOpts = {
   port?: number
   // Browser origins allowed to call the API beyond loopback (e.g. a dev server on a LAN IP).
   allowedOrigins?: string[]
+  // The collected .server() halves of discovered extensions: extra MCP tools + system prompt text.
+  extensions?: ExtensionServerContributions
 }
 
 export type Engine = {port: number; stop: () => Promise<void>; cfg: ResolvedMandaraxConfig}
@@ -26,8 +29,10 @@ export type Engine = {port: number; stop: () => Promise<void>; cfg: ResolvedMand
 export async function start(opts: StartOpts): Promise<Engine> {
   const cfg = resolveConfig(opts.options, opts.root)
   const paths = statePaths(cfg.stateRoot)
-  // Empty (systemPrompt:false) → don't write or pass a file, so no prompt is injected at all.
-  if (cfg.systemPrompt) writeText(paths.systemPrompt, cfg.systemPrompt)
+  // The effective prompt = the configured base plus each extension's systemPrompt.append() text.
+  // Empty (systemPrompt:false and no appends) → don't write or pass a file, so none is injected.
+  const systemPrompt = [cfg.systemPrompt, ...(opts.extensions?.systemPrompt ?? [])].filter(Boolean).join('\n\n')
+  if (systemPrompt) writeText(paths.systemPrompt, systemPrompt)
 
   const openInEditor = makeEditorOpener(
     (file, line) => opts.launchEditor(file, line),
@@ -54,7 +59,9 @@ export async function start(opts: StartOpts): Promise<Engine> {
     cwd: opts.root,
     bridge: opts.bridge,
     openInEditor,
-    systemPromptFile: cfg.systemPrompt ? paths.systemPrompt : undefined,
+    systemPromptFile: systemPrompt ? paths.systemPrompt : undefined,
+    systemPromptText: systemPrompt,
+    extensionTools: opts.extensions?.tools ?? [],
     spawnHarness,
     harnessEnv,
     allowedOrigins: opts.allowedOrigins,

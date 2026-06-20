@@ -28,7 +28,7 @@ importers:
         version: 22.19.21
       '@unocss/eslint-plugin':
         specifier: 66.7.2
-        version: 66.7.2(eslint@9.39.4(jiti@2.7.0))(typescript@6.0.3)
+        version: 66.7.2(eslint@9.39.4(jiti@2.7.0))(supports-color@10.2.2)(typescript@6.0.3)
       fallow:
         specifier: 2.98.0
         version: 2.98.0
@@ -96,6 +96,9 @@ importers:
       '@mandarax/cli':
         specifier: workspace:*
         version: link:../../../packages/cli
+      '@mandarax/extensions':
+        specifier: workspace:*
+        version: link:../../../packages/extensions
       '@mandarax/protocol':
         specifier: workspace:*
         version: link:../../../packages/protocol
@@ -132,9 +135,15 @@ importers:
       react-dom:
         specifier: ^19.2.7
         version: 19.2.7(react@19.2.7)
+      solid-js:
+        specifier: ^1.9.13
+        version: 1.9.13
       tailwindcss:
         specifier: ^4.3.1
         version: 4.3.1
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@playwright/test':
         specifier: ^1.60.0
@@ -312,6 +321,9 @@ importers:
       '@jridgewell/trace-mapping':
         specifier: 0.3.31
         version: 0.3.31
+      '@mandarax/extensions':
+        specifier: workspace:^
+        version: link:../extensions
       '@mandarax/harness':
         specifier: workspace:^
         version: link:../harness
@@ -364,6 +376,34 @@ importers:
       tsx:
         specifier: ^4.22.4
         version: 4.22.4
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.8
+        version: 4.1.8(@opentelemetry/api@1.9.0)(@types/node@22.19.21)(@vitest/browser-playwright@4.1.8)(@vitest/coverage-v8@4.1.8)(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+
+  packages/extensions:
+    dependencies:
+      '@mandarax/protocol':
+        specifier: workspace:^
+        version: link:../protocol
+      '@mandarax/ui-kit-system':
+        specifier: workspace:^
+        version: link:../ui-kit-system
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: ^22.19.21
+        version: 22.19.21
+      solid-js:
+        specifier: ^1.9.13
+        version: 1.9.13
+      tsdown:
+        specifier: ^0.22.2
+        version: 0.22.2(@arethetypeswrong/core@0.18.3)(oxc-resolver@11.20.0)(publint@0.3.21)(tsx@4.22.4)(typescript@6.0.3)
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -426,18 +466,33 @@ importers:
 
   packages/plugin:
     dependencies:
+      '@babel/core':
+        specifier: ^7.29.7
+        version: 7.29.7
+      '@babel/preset-typescript':
+        specifier: ^7.29.7
+        version: 7.29.7(@babel/core@7.29.7)
       '@mandarax/cli':
         specifier: workspace:^
         version: link:../cli
       '@mandarax/core':
         specifier: workspace:^
         version: link:../core
+      '@mandarax/extensions':
+        specifier: workspace:^
+        version: link:../extensions
       '@mandarax/protocol':
         specifier: workspace:^
         version: link:../protocol
       '@mandarax/widget':
         specifier: workspace:^
         version: link:../widget
+      babel-preset-solid:
+        specifier: ^1.9.12
+        version: 1.9.12(@babel/core@7.29.7)(solid-js@1.9.13)
+      jiti:
+        specifier: ^2.7.0
+        version: 2.7.0
       launch-editor:
         specifier: ^2.14.1
         version: 2.14.1
@@ -454,6 +509,9 @@ importers:
         specifier: ^3.0.0
         version: 3.0.0
     devDependencies:
+      '@types/babel__core':
+        specifier: ^7.20.5
+        version: 7.20.5
       '@types/node':
         specifier: ^22.19.21
         version: 22.19.21
@@ -475,6 +533,9 @@ importers:
       '@tanstack/ai':
         specifier: ^0.28.0
         version: 0.28.0(@opentelemetry/api@1.9.0)
+      '@tanstack/ai-client':
+        specifier: ^0.16.3
+        version: 0.16.3(@opentelemetry/api@1.9.0)
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -775,6 +836,9 @@ importers:
 
   packages/tools:
     dependencies:
+      '@mandarax/extensions':
+        specifier: workspace:^
+        version: link:../extensions
       '@mandarax/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -895,6 +959,9 @@ importers:
       '@floating-ui/dom':
         specifier: ^1.7.6
         version: 1.7.6
+      '@mandarax/extensions':
+        specifier: workspace:^
+        version: link:../extensions
       '@mandarax/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -17184,7 +17251,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@typescript-eslint/project-service@8.61.1(typescript@6.0.3)':
+  '@typescript-eslint/project-service@8.61.1(supports-color@10.2.2)(typescript@6.0.3)':
     dependencies:
       '@typescript-eslint/tsconfig-utils': 8.61.1(typescript@6.0.3)
       '@typescript-eslint/types': 8.61.1
@@ -17235,9 +17302,9 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@typescript-eslint/typescript-estree@8.61.1(typescript@6.0.3)':
+  '@typescript-eslint/typescript-estree@8.61.1(supports-color@10.2.2)(typescript@6.0.3)':
     dependencies:
-      '@typescript-eslint/project-service': 8.61.1(typescript@6.0.3)
+      '@typescript-eslint/project-service': 8.61.1(supports-color@10.2.2)(typescript@6.0.3)
       '@typescript-eslint/tsconfig-utils': 8.61.1(typescript@6.0.3)
       '@typescript-eslint/types': 8.61.1
       '@typescript-eslint/visitor-keys': 8.61.1
@@ -17250,6 +17317,17 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@typescript-eslint/utils@8.61.1(eslint@9.39.4(jiti@2.7.0))(supports-color@10.2.2)(typescript@6.0.3)':
+    dependencies:
+      '@eslint-community/eslint-utils': 4.9.1(eslint@9.39.4(jiti@2.7.0))
+      '@typescript-eslint/scope-manager': 8.61.1
+      '@typescript-eslint/types': 8.61.1
+      '@typescript-eslint/typescript-estree': 8.61.1(supports-color@10.2.2)(typescript@6.0.3)
+      eslint: 9.39.4(jiti@2.7.0)
+      typescript: 6.0.3
+    transitivePeerDependencies:
+      - supports-color
+
   '@typescript-eslint/utils@8.61.1(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3)':
     dependencies:
       '@eslint-community/eslint-utils': 4.9.1(eslint@9.39.4(jiti@2.7.0))
@@ -17258,17 +17336,6 @@ snapshots:
       '@typescript-eslint/typescript-estree': 8.61.1(supports-color@10.2.2)(typescript@5.9.3)
       eslint: 9.39.4(jiti@2.7.0)
       typescript: 5.9.3
-    transitivePeerDependencies:
-      - supports-color
-
-  '@typescript-eslint/utils@8.61.1(eslint@9.39.4(jiti@2.7.0))(typescript@6.0.3)':
-    dependencies:
-      '@eslint-community/eslint-utils': 4.9.1(eslint@9.39.4(jiti@2.7.0))
-      '@typescript-eslint/scope-manager': 8.61.1
-      '@typescript-eslint/types': 8.61.1
-      '@typescript-eslint/typescript-estree': 8.61.1(typescript@6.0.3)
-      eslint: 9.39.4(jiti@2.7.0)
-      typescript: 6.0.3
     transitivePeerDependencies:
       - supports-color
 
@@ -17306,9 +17373,9 @@ snapshots:
 
   '@unocss/core@66.7.2': {}
 
-  '@unocss/eslint-plugin@66.7.2(eslint@9.39.4(jiti@2.7.0))(typescript@6.0.3)':
+  '@unocss/eslint-plugin@66.7.2(eslint@9.39.4(jiti@2.7.0))(supports-color@10.2.2)(typescript@6.0.3)':
     dependencies:
-      '@typescript-eslint/utils': 8.61.1(eslint@9.39.4(jiti@2.7.0))(typescript@6.0.3)
+      '@typescript-eslint/utils': 8.61.1(eslint@9.39.4(jiti@2.7.0))(supports-color@10.2.2)(typescript@6.0.3)
       '@unocss/config': 66.7.2
       '@unocss/core': 66.7.2
       '@unocss/rule-utils': 66.7.2

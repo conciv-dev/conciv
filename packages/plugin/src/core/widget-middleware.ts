@@ -12,6 +12,9 @@ export type Middleware = (req: IncomingMessage, res: ServerResponse, next: (err?
 // Where the plugin serves the bundled @mandarax/widget global by default.
 export const DEFAULT_WIDGET_ROUTE = '/@mandarax/widget.js'
 
+// Where the plugin serves the compiled extensions entry (the virtual:mandarax-extensions module).
+export const EXTENSIONS_ROUTE = '/@mandarax/extensions.js'
+
 function escapeAttr(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;')
 }
@@ -23,7 +26,8 @@ export function widgetTags(widgetUrl: string, previewId: string, apiBase: string
     `<meta name="pw-api-base" content="${escapeAttr(apiBase)}">` +
     `<meta name="pw-preview-id" content="${escapeAttr(previewId)}">` +
     `<meta name="pw-widget" content="${escapeAttr(JSON.stringify(widgetConfig ?? {}))}">` +
-    `<script src="${escapeAttr(widgetUrl)}" defer></script>`
+    `<script src="${escapeAttr(widgetUrl)}" defer></script>` +
+    `<script type="module" src="${escapeAttr(EXTENSIONS_ROUTE)}"></script>`
   )
 }
 

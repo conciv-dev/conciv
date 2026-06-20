@@ -2,7 +2,23 @@
   "name": "@mandarax/plugin",
   "version": "0.0.0",
   "description": "The mandarax dev agent as an unplugin: vite (full — viteBridge + widget middleware + boot), webpack/rspack (boot the engine), rollup/esbuild (build-only no-ops). One factory, per-bundler subpath entries.",
+  "keywords": [
+    "esbuild",
+    "mandarax",
+    "nextjs",
+    "rollup",
+    "rspack",
+    "vite-plugin",
+    "webpack"
+  ],
+  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/plugin#readme",
+  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mandarax-dev/mandarax.git",
+    "directory": "packages/plugin"
+  },
   "files": [
     "dist"
   ],
@@ -43,6 +59,9 @@
       "default": "./dist/nextjs-widget.js"
     }
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -52,16 +71,22 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@babel/core": "^7.29.7",
+    "@babel/preset-typescript": "^7.29.7",
     "@mandarax/cli": "workspace:^",
     "@mandarax/core": "workspace:^",
+    "@mandarax/extensions": "workspace:^",
     "@mandarax/protocol": "workspace:^",
     "@mandarax/widget": "workspace:^",
+    "babel-preset-solid": "^1.9.12",
+    "jiti": "^2.7.0",
     "launch-editor": "^2.14.1",
     "magic-string": "^0.30.21",
     "oxc-parser": "^0.127.0",
     "unplugin": "^3.0.0"
   },
   "devDependencies": {
+    "@types/babel__core": "^7.20.5",
     "@types/node": "^22.19.21",
     "tsdown": "^0.22.2",
     "typescript": "^6.0.3",
@@ -79,24 +104,5 @@
     "next": {
       "optional": true
     }
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/mandarax-dev/mandarax.git",
-    "directory": "packages/plugin"
-  },
-  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/plugin#readme",
-  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
-  "publishConfig": {
-    "access": "public"
-  },
-  "keywords": [
-    "esbuild",
-    "mandarax",
-    "nextjs",
-    "rollup",
-    "rspack",
-    "vite-plugin",
-    "webpack"
-  ]
+  }
 }

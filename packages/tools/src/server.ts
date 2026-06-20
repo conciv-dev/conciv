@@ -5,6 +5,8 @@ import {mandaraxPageToolDef, PageInput} from './page.js'
 import {mandaraxTestToolDef, TestInput} from './test.js'
 import {mandaraxUiToolDef, UiInput} from './ui.js'
 import {mandaraxOpenToolDef, OpenInput} from './open.js'
+import {buildCatalog, scaffold, validateSource} from '@mandarax/extensions'
+import {mandaraxExtensionsToolDef, ExtensionsInput} from './extensions-tool.js'
 
 // Each factory instantiates its definition as a tanstack server tool (the def stays the single
 // source of truth — the future page agent instantiates the same def with `.client()`), then erases
@@ -65,6 +67,27 @@ function mandaraxOpenServerTool(ctx: MandaraxToolContext): MandaraxServerTool {
   }
 }
 
+// Stateless (no ctx): catalog/scaffold/validate are pure projections of node-safe extension metadata.
+function mandaraxExtensionsServerTool(): MandaraxServerTool {
+  const tool = mandaraxExtensionsToolDef.server(async (input) => {
+    if (input.verb === 'catalog') return buildCatalog()
+    if (input.verb === 'scaffold') {
+      if (!input.kind || !input.id) throw new Error('scaffold needs {kind, id}')
+      return {code: scaffold(input.kind, {id: input.id})}
+    }
+    if (!input.source) throw new Error('validate needs {source}')
+    return validateSource(input.source)
+  })
+  const run = tool.execute
+  if (!run) throw new Error('mandarax_extensions: server tool has no execute')
+  return {
+    name: tool.name,
+    description: tool.description,
+    inputSchema: ExtensionsInput,
+    execute: (input) => run(ExtensionsInput.parse(input)),
+  }
+}
+
 // The mandarax tool list as bound server tools, in one place so the MCP server (and tests) get them
 // with a single import.
 export function mandaraxTools(ctx: MandaraxToolContext): MandaraxServerTool[] {
@@ -73,5 +96,6 @@ export function mandaraxTools(ctx: MandaraxToolContext): MandaraxServerTool[] {
     mandaraxPageServerTool(ctx),
     mandaraxTestServerTool(ctx),
     mandaraxOpenServerTool(ctx),
+    mandaraxExtensionsServerTool(),
   ]
 }

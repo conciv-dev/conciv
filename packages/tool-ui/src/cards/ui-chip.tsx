@@ -3,7 +3,7 @@ import {LayoutTemplate} from 'lucide-solid'
 import {UiInput} from '@mandarax/tools/defs'
 import {ToolCard} from '../shell.js'
 import {parseInput} from '../util.js'
-import type {ToolCardProps} from '../types.js'
+import type {ToolCardEntry, ToolCardProps} from '../types.js'
 
 // A compact chip for mandarax_ui. The interactive UI itself stays the widget's GenUi (driven by the
 // separate mandarax-ui CUSTOM event); this card only notes that a UI was rendered.
@@ -37,3 +37,6 @@ export function UiCard(props: ToolCardProps): JSX.Element {
     </ToolCard>
   )
 }
+
+// This card renders the mandarax_ui tool.
+export const uiTool: ToolCardEntry = {names: ['mandarax_ui'], render: UiCard}

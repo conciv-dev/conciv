@@ -9,8 +9,22 @@ import {resolveConfig} from '@mandarax/core/config'
 import type {MandaraxConfig} from '@mandarax/protocol/config-types'
 import {installMandaraxBinShim} from './bin-shim.js'
 import {viteConfig, viteResolve, viteGraph, viteTransform, viteUrls, type ViteLike} from './vite-tools.js'
-import {DEFAULT_WIDGET_ROUTE, makeWidgetInject, makeWidgetServe} from './widget-middleware.js'
+import {
+  DEFAULT_WIDGET_ROUTE,
+  EXTENSIONS_ROUTE,
+  makeWidgetInject,
+  makeWidgetServe,
+  type Middleware,
+} from './widget-middleware.js'
 import {addSourceToJsx} from './inject-source.js'
+import {isExtensionJsx, compileExtensionSolid} from './compile-extension.js'
+import type {ExtensionServerContributions} from '@mandarax/extensions'
+import {
+  EXTENSIONS_RESOLVED_ID,
+  EXTENSIONS_VIRTUAL_ID,
+  extensionsModuleSource,
+  loadServerContributions,
+} from './extensions.js'
 
 const require = createRequire(import.meta.url)
 
@@ -67,6 +81,30 @@ function mountWidget(
     })
   }
   if (widget.serveBundled && widget.file) server.middlewares.use(makeWidgetServe(widget.file))
+  server.middlewares.use(makeExtensionsServe(server))
+}
+
+// Serve the compiled extensions entry by running the virtual module through vite's own pipeline
+// (resolveId/load above + import.meta.glob expansion + HMR wiring). Same dev origin as the page, so
+// the injected <script type=module> works for both static and SSR document responses.
+function makeExtensionsServe(server: ViteDevServer): Middleware {
+  return (req, res, next) => {
+    if ((req.url ?? '').split('?')[0] !== EXTENSIONS_ROUTE) {
+      next()
+      return
+    }
+    void server
+      .transformRequest(EXTENSIONS_VIRTUAL_ID)
+      .then((result) => {
+        if (!result) {
+          next()
+          return
+        }
+        res.setHeader('content-type', 'text/javascript')
+        res.end(result.code)
+      })
+      .catch(next)
+  }
 }
 
 function openInEditor(file: string, line: number): void {
@@ -87,13 +125,19 @@ function safeOrigin(url: string): string | null {
   }
 }
 
-function bootEngine(server: ViteDevServer, options: MandaraxConfig, agentPath: string): Promise<Engine> {
+function bootEngine(
+  server: ViteDevServer,
+  options: MandaraxConfig,
+  agentPath: string,
+  extensions: ExtensionServerContributions,
+): Promise<Engine> {
   return start({
     options,
     root: server.config.root,
     bridge: makeViteBridge(server),
     launchEditor: openInEditor,
     allowedOrigins: devOrigins(server),
+    extensions,
     childEnv: (corePort) => ({...process.env, PATH: agentPath, MANDARAX_PORT: String(corePort)}),
   })
 }
@@ -120,8 +164,18 @@ export function makeViteHook(options: MandaraxConfig = {}): Plugin {
       root = config.root
       deferToTsd = config.plugins.some((p) => p.name === '@tanstack/devtools:inject-source')
     },
-    transform(code, id) {
-      if (options.enabled === false || deferToTsd || id.includes('node_modules')) return null
+    resolveId(id) {
+      return id === EXTENSIONS_VIRTUAL_ID ? EXTENSIONS_RESOLVED_ID : null
+    },
+    load(id) {
+      return id === EXTENSIONS_RESOLVED_ID ? extensionsModuleSource() : null
+    },
+    transform(code, id, opts) {
+      if (options.enabled === false || id.includes('node_modules')) return null
+      // Extension files are a Solid zone: compile their JSX with Solid before the host's React
+      // transform runs (enforce:'pre'), so renderers/ui factories paint in the Solid widget.
+      if (isExtensionJsx(id)) return compileExtensionSolid(code, id, opts?.ssr ?? false)
+      if (deferToTsd) return null
       return addSourceToJsx(code, id, root)
     },
     transformIndexHtml: {
@@ -135,7 +189,8 @@ export function makeViteHook(options: MandaraxConfig = {}): Plugin {
     async configureServer(server: ViteDevServer) {
       const cfg = resolveConfig(options, server.config.root)
       if (!cfg.enabled) return
-      engine = await bootEngine(server, options, installMandaraxBinShim(join(cfg.stateRoot, '.mandarax')))
+      const extensions = await loadServerContributions(server.config.root)
+      engine = await bootEngine(server, options, installMandaraxBinShim(join(cfg.stateRoot, '.mandarax')), extensions)
       const booted = engine
       mountWidget(server, widget, cfg.previewId, `http://127.0.0.1:${booted.port}`, options.widget)
       server.httpServer?.on('close', () => void booted.stop())

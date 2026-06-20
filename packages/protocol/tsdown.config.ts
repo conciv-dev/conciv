@@ -14,6 +14,7 @@ export default defineConfig({
     'src/config-types.ts',
     'src/page-types.ts',
     'src/usage-types.ts',
+    'src/tool-view-types.ts',
   ],
   format: 'esm',
   fixedExtension: false,

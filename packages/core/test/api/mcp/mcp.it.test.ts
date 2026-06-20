@@ -22,4 +22,24 @@ describe('/api/mcp', () => {
       await close()
     }
   }, 30_000)
+
+  it('exposes mandarax_extensions and returns the token catalog', async () => {
+    const {base, close} = await startTestServer()
+    const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
+    try {
+      const tools = await mcp.tools()
+      expect(tools.map((t) => t.name)).toEqual(expect.arrayContaining(['mandarax_extensions']))
+      const extTool = tools.find((t) => t.name === 'mandarax_extensions')
+      if (!extTool?.execute) throw new Error('mandarax_extensions not registered on /api/mcp')
+      const result = await extTool.execute({verb: 'catalog'})
+      // Structural, not a lone substring: the real catalog shape with the brand accent token.
+      const json = JSON.stringify(result)
+      expect(json).toContain('pw-accent')
+      expect(json).toContain('overridableComponents')
+      expect(json).toContain('clientSurfaces')
+    } finally {
+      await mcp.close()
+      await close()
+    }
+  }, 30_000)
 })

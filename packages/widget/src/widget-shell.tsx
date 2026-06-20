@@ -108,7 +108,7 @@ export function createWidgetShell(opts: {settings: WidgetSettings}): {
   unmount: () => void
 } {
   const panels: PanelDef[] = []
-  const composerActions: ComposerActionDef[] = []
+  const [composerActions, setComposerActions] = createSignal<ComposerActionDef[]>([])
   const composerControls: ComposerControlDef[] = []
   let dispose: (() => void) | undefined
   return {
@@ -116,7 +116,10 @@ export function createWidgetShell(opts: {settings: WidgetSettings}): {
       panels.push(def)
     },
     registerComposerAction(def) {
-      composerActions.push(def)
+      // Upsert by id so a re-applied extension (HMR) replaces its button instead of duplicating it.
+      setComposerActions((prev) =>
+        prev.some((a) => a.id === def.id) ? prev.map((a) => (a.id === def.id ? def : a)) : [...prev, def],
+      )
     },
     registerComposerControl(def) {
       composerControls.push(def)
@@ -133,7 +136,7 @@ export function createWidgetShell(opts: {settings: WidgetSettings}): {
             <Shell
               settings={opts.settings}
               panels={panels}
-              composerActions={() => composerActions}
+              composerActions={composerActions}
               composerControls={() => composerControls}
             />
           </EnvironmentProvider>

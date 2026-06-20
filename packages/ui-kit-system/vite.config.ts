@@ -10,9 +10,11 @@ export default defineConfig({
   plugins: [solid()],
   build: {
     lib: {
-      entry: fileURLToPath(new URL('src/index.tsx', import.meta.url)),
+      entry: {
+        index: fileURLToPath(new URL('src/index.tsx', import.meta.url)),
+        tokens: fileURLToPath(new URL('src/tokens.ts', import.meta.url)),
+      },
       formats: ['es'],
-      fileName: () => 'index.js',
     },
     rollupOptions: {
       external: [/^solid-js/, /^@ark-ui\//, /^lucide-solid/, /^@mandarax\//],

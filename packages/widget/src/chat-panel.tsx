@@ -7,7 +7,15 @@ import {apiError, createTransport} from './transport.js'
 import {invalidateSessions} from './session-store-client.js'
 import {createDebouncer} from '@tanstack/solid-pacer'
 import {GenUi} from './gen-ui.js'
-import {ToolCallCard, ChainOfThought, Reasoning, NowLine, nowTitle, type ToolViewCtx} from '@mandarax/tool-ui'
+import {
+  ToolCallCard,
+  ChainOfThought,
+  Reasoning,
+  NowLine,
+  nowTitle,
+  type ToolViewCtx,
+  type ToolCardEntry,
+} from '@mandarax/tool-ui'
 import {Markdown} from './markdown.js'
 import {ArrowRight, Square, SquarePen, FoldVertical} from 'lucide-solid'
 import {EventType, type StreamChunk} from '@tanstack/ai'
@@ -23,6 +31,8 @@ import {OkSchema} from '@mandarax/protocol/chat-types'
 import type {ComposerActionDef, ComposerControlDef, PanelDef} from './widget-shell.js'
 import {GrabReference} from './react-grab/grab-reference.js'
 import type {Grab} from './react-grab/grab-types.js'
+import {ExtHeaderSlot, ExtFooterSlot, ExtWidgetsSlot, ExtStatusSlot} from './ui-store.js'
+import {EmptyStateSlot} from './empty-state.js'
 
 // One message's tool-call ↔ tool-result pairing. Each tool-call renders one card (from
 // @mandarax/tool-ui) with its sibling result inline; the standalone result part is then hidden.
@@ -66,8 +76,6 @@ function parseJson(raw: string): unknown {
     return null
   }
 }
-
-const STARTERS = ['Explain this page', 'Change the primary color', "Why doesn't this layout fit?"]
 
 // Width the staged grab preview scales to fit — sits comfortably inside the min (300px) panel width.
 const GRAB_PREVIEW_MAX_W = 280
@@ -155,6 +163,7 @@ function ChainPart(props: {
   part: MessagePart | undefined
   pairing: ResultPairing
   ctx: ToolViewCtx
+  tools?: () => ToolCardEntry[]
   durationFor?: (toolCallId: string) => number | undefined
 }): JSX.Element {
   return (
@@ -166,6 +175,7 @@ function ChainPart(props: {
             part={p()}
             result={props.pairing.byCallId.get(p().id)}
             ctx={props.ctx}
+            tools={props.tools}
             durationMs={props.durationFor?.(p().id)}
           />
         )}
@@ -210,6 +220,7 @@ function MessageParts(props: {
   parts: ReadonlyArray<MessagePart>
   streaming: boolean
   ctx: ToolViewCtx
+  tools?: () => ToolCardEntry[]
   durationFor?: (toolCallId: string) => number | undefined
 }): JSX.Element {
   const pairing = createMemo(() => pairResults(props.parts))
@@ -231,6 +242,7 @@ function MessageParts(props: {
                       part={props.parts[partIndex()]}
                       pairing={pairing()}
                       ctx={props.ctx}
+                      tools={props.tools}
                       durationFor={props.durationFor}
                     />
                   )}
@@ -337,6 +349,9 @@ export function ChatPanel(props: {
   announce?: (msg: string, assertive?: boolean) => void
   // Reports whether the agent is thinking/streaming, so the shell can pulse the trigger.
   onWorkingChange?: (working: boolean) => void
+  // The tool cards to dispatch by name (built-ins + extension tools), passed by the host like the
+  // composer actions; ToolCallCard matches each tool-call part to its card.
+  tools?: () => ToolCardEntry[]
   // Shell-registered composer-action buttons (e.g. the element picker), rendered in the actions row.
   composerActions?: () => ComposerActionDef[]
   // Shell-registered composer controls (e.g. the model selector), rendered in the actions row.
@@ -716,30 +731,12 @@ export function ChatPanel(props: {
 
   return (
     <>
+      <ExtHeaderSlot />
+      <ExtWidgetsSlot />
       <div class="p-3.5 flex flex-1 flex-col gap-2.5 relative overflow-y-auto" role="log" aria-live="off" ref={logRef}>
         <Show
           when={chat.messages().length > 0}
-          fallback={
-            <div class="m-auto text-center">
-              <p class="text-[1.125rem] tracking-[-0.015em] font-semibold mb-3.5 anim-rise-d">
-                How can I help you today?
-              </p>
-              <div class="flex flex-col gap-2">
-                <For each={STARTERS}>
-                  {(s, i) => (
-                    <button
-                      type="button"
-                      class="text-[0.8125rem] text-pw-text px-3.5 py-2.5 border border-pw-line rounded-pw-pill min-h-9.5 cursor-pointer bg-transparent anim-rise trans-input hover:border-pw-accent hover:bg-pw-accent-08 active:scale-[0.97]"
-                      style={{'animation-delay': `${100 + i() * 60}ms`}}
-                      onClick={() => void chat.sendMessage(s)}
-                    >
-                      {s}
-                    </button>
-                  )}
-                </For>
-              </div>
-            </div>
-          }
+          fallback={<EmptyStateSlot onStarter={(s) => void chat.sendMessage(s)} />}
         >
           <Index each={coalesceTurns(chat.messages())}>
             {(turn) => (
@@ -752,6 +749,7 @@ export function ChatPanel(props: {
                     parts={turn().parts}
                     streaming={isActiveAssistant(turn().end, turn().role)}
                     ctx={toolCtx}
+                    tools={props.tools}
                     durationFor={durationFor}
                   />
                 </div>
@@ -798,6 +796,8 @@ export function ChatPanel(props: {
           />
         </Show>
       </div>
+      <ExtStatusSlot />
+      <ExtFooterSlot />
       <Show when={notice()}>
         <div class="text-[0.75rem] text-pw-text-2 leading-[1.4] font-medium font-pw mx-3 mb-2 px-2.5 py-2 border border-pw-line rounded-pw-md bg-pw-fill [word-break:break-word]">
           {notice()}
@@ -873,7 +873,7 @@ export function ChatPanel(props: {
 
 // The chat as a registerable shell panel. The modal hosts one; quick-terminal panes each create
 // their own (a fresh agent session per pane).
-export function chatPanelDef(apiBase: string, harnessId: string): PanelDef {
+export function chatPanelDef(apiBase: string, harnessId: string, tools: () => ToolCardEntry[]): PanelDef {
   return {
     id: 'chat',
     title: 'mandarax',
@@ -889,6 +889,7 @@ export function chatPanelDef(apiBase: string, harnessId: string): PanelDef {
         onUsageChange={ctx.onUsageChange}
         onSessionLabel={ctx.onSessionLabel}
         onNewSession={ctx.onNewSession}
+        tools={tools}
         composerActions={ctx.composerActions}
         composerControls={ctx.composerControls}
       />
