@@ -108,7 +108,7 @@ export function createWidgetShell(opts: {settings: WidgetSettings}): {
   unmount: () => void
 } {
   const panels: PanelDef[] = []
-  const composerActions: ComposerActionDef[] = []
+  const [composerActions, setComposerActions] = createSignal<ComposerActionDef[]>([])
   const composerControls: ComposerControlDef[] = []
   let dispose: (() => void) | undefined
   return {
@@ -116,7 +116,7 @@ export function createWidgetShell(opts: {settings: WidgetSettings}): {
       panels.push(def)
     },
     registerComposerAction(def) {
-      composerActions.push(def)
+      setComposerActions((prev) => [...prev, def])
     },
     registerComposerControl(def) {
       composerControls.push(def)
@@ -133,7 +133,7 @@ export function createWidgetShell(opts: {settings: WidgetSettings}): {
             <Shell
               settings={opts.settings}
               panels={panels}
-              composerActions={() => composerActions}
+              composerActions={composerActions}
               composerControls={() => composerControls}
             />
           </EnvironmentProvider>
