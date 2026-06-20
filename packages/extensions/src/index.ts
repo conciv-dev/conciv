@@ -4,6 +4,9 @@ export {
   type MandaraxExtension,
   type ExtensionBuilder,
   type UiFactory,
+  type ToolRenderer,
+  type ToolBuilder,
+  type ExtensionTool,
   type ClientApi,
   type ServerApi,
   type ComposerActionCtx,
@@ -11,4 +14,4 @@ export {
   type ExtensionServerTool,
   type ExtensionServerContributions,
 } from './contract.js'
-export {extensionsModuleSource, collectServerContributions} from './discovery.js'
+export {extensionsModuleSource, collectServerContributions, collectClientContributions} from './discovery.js'

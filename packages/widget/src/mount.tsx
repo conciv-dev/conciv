@@ -16,7 +16,8 @@ import {parseWidgetSettings, type WidgetSettings} from './widget-settings.js'
 import {applyThemeOverrides} from './theme.js'
 import {setExtWidget, setExtHeader, setExtFooter, setExtStatus} from './ui-store.js'
 import {installExtensionGlobal} from './extension-runtime.js'
-import type {ClientApi, MandaraxExtension} from '@mandarax/extensions'
+import {registerToolRenderer} from '@mandarax/tool-ui'
+import {collectClientContributions, type ClientApi, type MandaraxExtension} from '@mandarax/extensions'
 
 // Entry: create the open Shadow DOM, probe the dev server, and mount the Solid chat agent +
 // page-bus when the mandarax routes are live. Auto-mounts on load; also exports mountWidget.
@@ -95,8 +96,12 @@ export function mountWidget(): void {
             icon: action.icon,
             onClick: (ctx) => action.onClick({insert: ctx.insert, notify: ctx.notify}),
           }),
+        registerToolRenderer: (name, renderer) => registerToolRenderer(name, renderer),
       }
-      installExtensionGlobal((ext: MandaraxExtension) => ext.clientFn?.(clientApi))
+      installExtensionGlobal((ext: MandaraxExtension) => {
+        ext.clientFn?.(clientApi)
+        for (const t of collectClientContributions([ext]).toolRenderers) registerToolRenderer(t.name, t.render)
+      })
       initPageBus({apiBase, driver})
     })
     .catch(() => {

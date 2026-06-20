@@ -1,6 +1,7 @@
 // CSS ships alongside (tokens.css + tool-ui.css) for the host to import; not bundled into the JS.
 // Public surface: the by-name dispatcher, the shared card shell, the cards, and the typed helpers.
 export {ToolCallCard} from './tool-call.js'
+export {registerToolRenderer, BUILTIN_TOOL_RENDERERS} from './registry.js'
 export {ApprovalBar} from './approval-bar.js'
 export {ToolCard} from './shell.js'
 export {GenericCard} from './cards/generic.js'

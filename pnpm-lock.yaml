@@ -382,6 +382,9 @@ importers:
 
   packages/extensions:
     dependencies:
+      '@mandarax/tool-ui':
+        specifier: workspace:^
+        version: link:../tool-ui
       '@mandarax/ui-kit-system':
         specifier: workspace:^
         version: link:../ui-kit-system

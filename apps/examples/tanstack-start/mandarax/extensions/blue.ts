@@ -14,7 +14,6 @@ export default defineExtension({id: 'blue'})
         name: 'acme_hello',
         description: 'Return a friendly greeting for a name',
         inputSchema: z.object({name: z.string()}),
-        execute: ({name}) => ({greeting: `Hello, ${name}!`}),
-      }),
+      }).server(({name}) => ({greeting: `Hello, ${name}!`})),
     )
   })

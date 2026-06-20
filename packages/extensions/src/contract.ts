@@ -1,9 +1,13 @@
 import {z} from 'zod'
 import type {Component, JSX} from 'solid-js'
 import type {ThemeTokens} from '@mandarax/ui-kit-system'
+import type {ToolCardProps} from '@mandarax/tool-ui'
 
 // A live UI region an extension paints into a named widget slot / header / footer (Pi-style setters).
 export type UiFactory = () => JSX.Element
+
+// A client-side renderer for a tool's call/result cards (the browser half of a tool definition).
+export type ToolRenderer = Component<ToolCardProps>
 
 // The server-side shape an extension contributes: a mandarax MCP tool (name + description + zod
 // inputSchema the SDK registers via .shape + an execute validated at the boundary). Structurally
@@ -37,6 +41,26 @@ export type ExtComposerAction = {
   onClick: (ctx: ComposerActionCtx) => void | Promise<void>
 }
 
+// The erased tool shape collected from an extension (per-tool generics dropped for the array).
+export type ExtensionTool = {
+  name: string
+  description: string
+  inputSchema: z.ZodObject<z.ZodRawShape>
+  promptSnippet?: string
+  promptGuidelines?: string[]
+  serverExecute?: (input: unknown) => Promise<unknown>
+  clientRender?: ToolRenderer
+}
+
+// The builder: .server(execute) attaches the node half, .render(Component) the browser half. Both
+// live on one object so the renderer is co-located with the definition (Pi-style), and each runtime
+// loader reads its own half.
+export type ToolBuilder<S extends z.ZodObject<z.ZodRawShape>> = ExtensionTool & {
+  inputSchema: S
+  server: (execute: (input: z.infer<S>) => Promise<unknown> | unknown) => ToolBuilder<S>
+  render: (renderer: ToolRenderer) => ToolBuilder<S>
+}
+
 // What an extension's .client(mx => …) half can do in the widget (browser).
 export type ClientApi = {
   ui: {
@@ -47,16 +71,18 @@ export type ClientApi = {
     setStatus: (key: string, text: string | null) => void
   }
   registerComposerAction: (action: ExtComposerAction) => void
+  registerToolRenderer: (name: string, renderer: ToolRenderer) => void
 }
 
 // What an extension's .server(mx => …) half can do in core (node): add agent tools, extend the prompt.
 export type ServerApi = {
-  registerTool: (tool: ExtensionServerTool) => void
+  registerTool: (tool: ExtensionTool) => void
   systemPrompt: {append: (text: string) => void}
 }
 
 export type MandaraxExtension = {
   id: string
+  tools?: ExtensionTool[]
   clientFn?: (mx: ClientApi) => void
   serverFn?: (mx: ServerApi) => void
 }
@@ -66,11 +92,12 @@ export type ExtensionBuilder = MandaraxExtension & {
   server: (fn: (mx: ServerApi) => void) => ExtensionBuilder
 }
 
-// The author entry point: defineExtension({id}).client(…).server(…). Each half is optional and the
-// chain composes (returns the same builder), matching @tanstack/ai's .server()/.client() split.
-export function defineExtension(meta: {id: string}): ExtensionBuilder {
+// The author entry point: defineExtension({id, tools}).client(…).server(…). Each half is optional and
+// the chain composes (returns the same builder), matching @tanstack/ai's .server()/.client() split.
+export function defineExtension(meta: {id: string; tools?: ExtensionTool[]}): ExtensionBuilder {
   const builder: ExtensionBuilder = {
     id: meta.id,
+    tools: meta.tools,
     client(fn) {
       builder.clientFn = fn
       return builder
@@ -83,19 +110,30 @@ export function defineExtension(meta: {id: string}): ExtensionBuilder {
   return builder
 }
 
-// Define a typed agent tool: execute receives args already validated against inputSchema, and the
-// returned tool conforms to the wire shape core's MCP server registers (execute re-parses at the
-// boundary, so a malformed model call is rejected there too).
-export function defineTool<S extends z.ZodObject<z.ZodRawShape>>(tool: {
+// Define a tool: name + schema declared once; .server(execute) re-parses args at the node boundary,
+// .render(Component) supplies the browser card. promptSnippet/promptGuidelines self-document the tool
+// into the system prompt when it is registered (Pi parity).
+export function defineTool<S extends z.ZodObject<z.ZodRawShape>>(def: {
   name: string
   description: string
   inputSchema: S
-  execute: (input: z.infer<S>) => Promise<unknown> | unknown
-}): ExtensionServerTool {
-  return {
-    name: tool.name,
-    description: tool.description,
-    inputSchema: tool.inputSchema,
-    execute: async (raw: unknown) => tool.execute(tool.inputSchema.parse(raw)),
+  promptSnippet?: string
+  promptGuidelines?: string[]
+}): ToolBuilder<S> {
+  const builder: ToolBuilder<S> = {
+    name: def.name,
+    description: def.description,
+    inputSchema: def.inputSchema,
+    promptSnippet: def.promptSnippet,
+    promptGuidelines: def.promptGuidelines,
+    server(execute) {
+      builder.serverExecute = async (raw: unknown) => execute(def.inputSchema.parse(raw))
+      return builder
+    },
+    render(renderer) {
+      builder.clientRender = renderer
+      return builder
+    },
   }
+  return builder
 }

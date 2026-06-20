@@ -37,6 +37,7 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@mandarax/tool-ui": "workspace:^",
     "@mandarax/ui-kit-system": "workspace:^",
     "zod": "^4.4.3"
   },

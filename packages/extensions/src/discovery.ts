@@ -1,4 +1,11 @@
-import type {MandaraxExtension, ServerApi, ExtensionServerContributions, ExtensionServerTool} from './contract.js'
+import type {
+  MandaraxExtension,
+  ServerApi,
+  ExtensionServerContributions,
+  ExtensionServerTool,
+  ExtensionTool,
+  ToolRenderer,
+} from './contract.js'
 
 // The body of the client virtual module the bundler serves: glob every extension file and feed each
 // default export to window.__MANDARAX__.use() (queued until the widget installs use()). import.meta
@@ -17,16 +24,41 @@ if (import.meta.hot) import.meta.hot.accept()
 `
 }
 
-// Run each extension's .server(mx => …) half against a collecting ServerApi, gathering the agent
-// tools + system prompt text the engine should add. Pure: the caller loads the modules (the bundler
-// owns transpilation) and passes their default exports here.
+// Convert one collected tool into the wire shape core's MCP server registers; append its prompt text.
+function addServerTool(tools: ExtensionServerTool[], systemPrompt: string[], t: ExtensionTool): void {
+  if (t.serverExecute) {
+    tools.push({name: t.name, description: t.description, inputSchema: t.inputSchema, execute: t.serverExecute})
+  }
+  if (t.promptSnippet) systemPrompt.push(t.promptSnippet)
+  if (t.promptGuidelines?.length) systemPrompt.push(...t.promptGuidelines)
+}
+
+// Run each extension's .server(mx => …) half against a collecting ServerApi, also draining its
+// declarative tools[], gathering the agent tools + system prompt text the engine should add. Pure:
+// the caller loads the modules (the bundler owns transpilation) and passes their default exports here.
 export function collectServerContributions(extensions: MandaraxExtension[]): ExtensionServerContributions {
   const tools: ExtensionServerTool[] = []
   const systemPrompt: string[] = []
   const api: ServerApi = {
-    registerTool: (tool) => tools.push(tool),
+    registerTool: (t) => addServerTool(tools, systemPrompt, t),
     systemPrompt: {append: (text) => systemPrompt.push(text)},
   }
-  for (const ext of extensions) ext.serverFn?.(api)
+  for (const ext of extensions) {
+    for (const t of ext.tools ?? []) addServerTool(tools, systemPrompt, t)
+    ext.serverFn?.(api)
+  }
   return {tools, systemPrompt}
+}
+
+// The client half of declared tools: each tool's renderer, keyed by name, for the renderer registry.
+export function collectClientContributions(extensions: MandaraxExtension[]): {
+  toolRenderers: {name: string; render: ToolRenderer}[]
+} {
+  const toolRenderers: {name: string; render: ToolRenderer}[] = []
+  for (const ext of extensions) {
+    for (const t of ext.tools ?? []) {
+      if (t.clientRender) toolRenderers.push({name: t.name, render: t.clientRender})
+    }
+  }
+  return {toolRenderers}
 }
