@@ -9,7 +9,13 @@ import {resolveConfig} from '@mandarax/core/config'
 import type {MandaraxConfig} from '@mandarax/protocol/config-types'
 import {installMandaraxBinShim} from './bin-shim.js'
 import {viteConfig, viteResolve, viteGraph, viteTransform, viteUrls, type ViteLike} from './vite-tools.js'
-import {DEFAULT_WIDGET_ROUTE, makeWidgetInject, makeWidgetServe} from './widget-middleware.js'
+import {
+  DEFAULT_WIDGET_ROUTE,
+  EXTENSIONS_ROUTE,
+  makeWidgetInject,
+  makeWidgetServe,
+  type Middleware,
+} from './widget-middleware.js'
 import {addSourceToJsx} from './inject-source.js'
 import {EXTENSIONS_RESOLVED_ID, EXTENSIONS_VIRTUAL_ID, extensionsModuleSource} from './extensions.js'
 
@@ -68,6 +74,30 @@ function mountWidget(
     })
   }
   if (widget.serveBundled && widget.file) server.middlewares.use(makeWidgetServe(widget.file))
+  server.middlewares.use(makeExtensionsServe(server))
+}
+
+// Serve the compiled extensions entry by running the virtual module through vite's own pipeline
+// (resolveId/load above + import.meta.glob expansion + HMR wiring). Same dev origin as the page, so
+// the injected <script type=module> works for both static and SSR document responses.
+function makeExtensionsServe(server: ViteDevServer): Middleware {
+  return (req, res, next) => {
+    if ((req.url ?? '').split('?')[0] !== EXTENSIONS_ROUTE) {
+      next()
+      return
+    }
+    void server
+      .transformRequest(EXTENSIONS_VIRTUAL_ID)
+      .then((result) => {
+        if (!result) {
+          next()
+          return
+        }
+        res.setHeader('content-type', 'text/javascript')
+        res.end(result.code)
+      })
+      .catch(next)
+  }
 }
 
 function openInEditor(file: string, line: number): void {
