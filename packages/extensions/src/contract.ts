@@ -1,7 +1,7 @@
 import {z} from 'zod'
 import type {Component, JSX} from 'solid-js'
 import type {ThemeTokens} from '@mandarax/ui-kit-system'
-import type {ToolCardProps} from '@mandarax/tool-ui'
+import type {ToolCardProps} from '@mandarax/protocol/tool-view-types'
 
 // A live UI region an extension paints into a named widget slot / header / footer (Pi-style setters).
 export type UiFactory = () => JSX.Element

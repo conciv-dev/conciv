@@ -22,4 +22,20 @@ describe('/api/mcp', () => {
       await close()
     }
   }, 30_000)
+
+  it('exposes mandarax_extensions and returns the token catalog', async () => {
+    const {base, close} = await startTestServer()
+    const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
+    try {
+      const tools = await mcp.tools()
+      expect(tools.map((t) => t.name)).toEqual(expect.arrayContaining(['mandarax_extensions']))
+      const extTool = tools.find((t) => t.name === 'mandarax_extensions')
+      if (!extTool?.execute) throw new Error('mandarax_extensions not registered on /api/mcp')
+      const result = await extTool.execute({verb: 'catalog'})
+      expect(JSON.stringify(result)).toContain('pw-accent')
+    } finally {
+      await mcp.close()
+      await close()
+    }
+  }, 30_000)
 })

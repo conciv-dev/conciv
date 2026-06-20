@@ -2,7 +2,19 @@
   "name": "@mandarax/tools",
   "version": "0.0.0",
   "description": "mandarax agent tools as @tanstack/ai toolDefinition().server() functions: ui, page, test.",
+  "keywords": [
+    "ai-tools",
+    "mandarax",
+    "tool-definitions"
+  ],
+  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/tools#readme",
+  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mandarax-dev/mandarax.git",
+    "directory": "packages/tools"
+  },
   "files": [
     "dist"
   ],
@@ -17,6 +29,9 @@
       "import": "./dist/defs.js"
     }
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -26,6 +41,7 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@mandarax/extensions": "workspace:^",
     "@mandarax/protocol": "workspace:^",
     "@tanstack/ai": "^0.28.0",
     "zod": "^4.4.3"
@@ -35,20 +51,5 @@
     "tsdown": "^0.22.2",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/mandarax-dev/mandarax.git",
-    "directory": "packages/tools"
-  },
-  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/tools#readme",
-  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
-  "publishConfig": {
-    "access": "public"
-  },
-  "keywords": [
-    "ai-tools",
-    "mandarax",
-    "tool-definitions"
-  ]
+  }
 }

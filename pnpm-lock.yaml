@@ -382,9 +382,9 @@ importers:
 
   packages/extensions:
     dependencies:
-      '@mandarax/tool-ui':
+      '@mandarax/protocol':
         specifier: workspace:^
-        version: link:../tool-ui
+        version: link:../protocol
       '@mandarax/ui-kit-system':
         specifier: workspace:^
         version: link:../ui-kit-system
@@ -515,6 +515,9 @@ importers:
       '@tanstack/ai':
         specifier: ^0.28.0
         version: 0.28.0(@opentelemetry/api@1.9.0)
+      '@tanstack/ai-client':
+        specifier: ^0.16.3
+        version: 0.16.3(@opentelemetry/api@1.9.0)
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -815,6 +818,9 @@ importers:
 
   packages/tools:
     dependencies:
+      '@mandarax/extensions':
+        specifier: workspace:^
+        version: link:../extensions
       '@mandarax/protocol':
         specifier: workspace:^
         version: link:../protocol
