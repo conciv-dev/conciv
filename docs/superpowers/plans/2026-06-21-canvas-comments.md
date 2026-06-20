@@ -250,7 +250,21 @@ git add packages/widget/src/spike packages/widget/test/spike-*.test.ts packages/
 git commit -m "feat(canvas-comments): phase 1 spike — plain-ts yjs store + own excalidraw glue in solid shadow root (local-only)"
 ```
 
-**Deliverable:** proven plain-TS Yjs store + our own Excalidraw glue, rendered inside the Solid shadow root, persisting locally, with a working origin-tag feedback guard — no backend, no third-party binding. **Approval gate before Phase 2:** review the spike; decide graduate-vs-rewrite of `src/spike/` into `src/canvas/`.
+**Deliverable:** proven plain-TS Yjs store + our own Excalidraw glue, rendered inside the Solid shadow root, persisting locally, with a working origin-tag feedback guard — no backend, no third-party binding.
+
+### Phase 1 outcome — PROVEN, then deleted (rebuild clean in Phase 2)
+
+The spike validated the approach end-to-end (Excalidraw rendered in a shadow root, our own Yjs glue applied elements, a drawn element survived reload via y-indexeddb, all in real Chromium). The throwaway code (incl. all test-ids/hooks) was then **deleted**; Phase 2 rebuilds the canvas for real, wired into the actual widget + core. **Confirmed findings to apply in Phase 2 (these are the real deliverable):**
+
+1. **No third-party binding needed.** Our own ~40-line plain-TS Yjs↔Excalidraw glue against Excalidraw's official `onChange`/`updateScene` works. `y-excalidraw` stays dropped.
+2. **React MUST be deduped** — `resolve: {dedupe: ['react', 'react-dom']}`. Without it, Excalidraw's hooks read `null` (`Cannot read properties of null (reading 'useLayoutEffect')`) because pnpm resolves React twice.
+3. **Excalidraw in a browser bundle needs** `define: {'process.env.NODE_ENV': '"production"', 'process.env.IS_PREACT': '"false"'}`. Its font-subsetting worker uses `import.meta` (harmless warning in non-ESM output; affects only font subsetting/export, not rendering).
+4. **Excalidraw renders inside an open shadow root** with its CSS (`@excalidraw/excalidraw/index.css?inline`) injected as a `<style>` into that root. No portal/measurement breakage observed.
+5. **Excalidraw 0.18.1 + React 19.2 work together** despite the `^0.17` peer range.
+6. **Origin-tag model** (`USER` / `EXCALIDRAW` / `REMOTE` / `REHYDRATE`): the Yjs→Excalidraw `updateScene` applier skips `EXCALIDRAW`-origin changes (no echo); the network relay skips `REMOTE`-origin updates (no ping-pong). Excalidraw→Yjs writes only version-changed elements.
+7. **Build/test isolation:** a feature build that doesn't use UnoCSS must bypass postcss discovery (`css: {postcss: {plugins: []}}`) or it fails loading the unbuilt `@mandarax/uno-preset`. Widget ITs can run their own tiny http server instead of the bundle-coupled `widget-server.ts` helper.
+
+**Approval gate before Phase 2:** approve the Phase 2 expansion (core canvas store + `.ybin` + gated relay, built against these findings).
 
 ---
 
