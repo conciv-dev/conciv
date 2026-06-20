@@ -81,6 +81,15 @@ describe('canvas relay (IT, real http + yjs)', () => {
     expect(mirror.getMap('elements').has('rect-1')).toBe(true)
   })
 
+  it('runs the doctor sweep over http and returns a report', async () => {
+    const {server, base} = await startServer()
+    state.server = server
+    const res = await fetch(`${base}/api/canvas/doctor`, {method: 'POST', headers: {origin: ORIGIN}})
+    expect(res.status).toBe(200)
+    const {report} = await res.json()
+    expect(report).toEqual({fresh: 0, reAnchored: 0, drifted: 0, orphaned: 0, ambiguous: 0})
+  })
+
   it('rejects a cross-origin (non-loopback) caller', async () => {
     const {server, base} = await startServer()
     state.server = server

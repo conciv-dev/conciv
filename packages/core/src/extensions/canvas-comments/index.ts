@@ -14,6 +14,7 @@ export type CanvasContext = {
   sessionId: () => string
   previewId: () => string
   genId?: () => string
+  doctor?: {run: () => Promise<unknown>}
 }
 
 const ElementSchema = z.object({id: z.string(), version: z.number()}).passthrough()
@@ -158,5 +159,10 @@ export function createCanvasCommentsExtension(ctx: CanvasContext) {
       commentResolve,
       commentDelete,
     ],
+  }).server((mx) => {
+    // Doctor sweeps source anchors on session boot (the extension bus already has this event).
+    mx.on('session_start', async () => {
+      await ctx.doctor?.run()
+    })
   })
 }

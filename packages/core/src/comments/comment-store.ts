@@ -40,6 +40,11 @@ export type CommentStore = {
   list: (filter?: ListFilter) => Comment[]
   search: (query: string, sessionId?: string) => Comment[]
   setStatus: (id: string, status: Comment['status'], by?: string, now?: number) => Comment
+  setAnchor: (
+    id: string,
+    anchor: {file?: string; component?: string; hash?: string} & Record<string, unknown>,
+    now?: number,
+  ) => Comment
   delete: (id: string) => void
   close: () => void
 }
@@ -199,6 +204,19 @@ export function createCommentStore(opts: {stateRoot: string; now?: () => number}
         status,
         resolved ? now : null,
         resolved ? (by ?? null) : null,
+        now,
+        id,
+      )
+      return toComment(readRow(id)!)
+    },
+    setAnchor: (id, anchor, now = clock()) => {
+      db.prepare(
+        'UPDATE comments SET anchor = ?, anchor_file = ?, anchor_component = ?, anchor_hash = ?, updated_at = ? WHERE id = ?',
+      ).run(
+        JSON.stringify(anchor),
+        (anchor.file as string) ?? null,
+        (anchor.component as string) ?? null,
+        (anchor.hash as string) ?? null,
         now,
         id,
       )

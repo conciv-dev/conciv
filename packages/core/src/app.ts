@@ -20,6 +20,8 @@ import {createCanvasRelay} from './canvas/relay.js'
 import {createFsCanvasStore} from './canvas/canvas-store.js'
 import {createCanvasCommentsExtension} from './extensions/canvas-comments/index.js'
 import {createCommentStore} from './comments/comment-store.js'
+import {createAnchorResolver} from './anchor/resolver.js'
+import {createDoctor} from './comments/doctor.js'
 import {makeUiBus} from './runtime/ui-bus.js'
 import {makeJournal} from './runtime/journal.js'
 import type {OpenInEditor} from './editor/open.js'
@@ -81,16 +83,20 @@ export function makeApp(opts: MakeAppOpts): H3 {
   const canvasRelay = createCanvasRelay({
     store: createFsCanvasStore({stateRoot: opts.cfg.stateRoot, previewId: opts.cfg.previewId}),
   })
-  registerCanvasRoutes(app, {relay: canvasRelay})
   // The canvas-comments built-in: authored with the extension contract, registered at boot (not
   // file-discovered). Its agent tools join the MCP surface; its session_start handlers fire below.
   const commentStore = createCommentStore({stateRoot: opts.cfg.stateRoot})
+  const anchorResolver = createAnchorResolver({projectRoot: opts.cwd})
+  const sessionId = () => opts.cfg.sessionId ?? 'local'
+  const doctor = createDoctor({comments: commentStore, resolver: anchorResolver, relay: canvasRelay, sessionId})
+  registerCanvasRoutes(app, {relay: canvasRelay, doctor})
   const canvasComments = collectServerContributions([
     createCanvasCommentsExtension({
       relay: canvasRelay,
       comments: commentStore,
-      sessionId: () => opts.cfg.sessionId ?? 'local',
+      sessionId,
       previewId: () => opts.cfg.previewId,
+      doctor,
     }),
   ])
   void emitExtensionEvent(canvasComments, 'session_start')

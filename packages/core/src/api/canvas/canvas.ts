@@ -2,6 +2,7 @@ import {type H3, getValidatedQuery, readValidatedBody} from 'h3'
 import {z} from 'zod'
 import {sseStream} from '../sse.js'
 import type {CanvasRelay} from '../../canvas/relay.js'
+import type {Doctor} from '../../comments/doctor.js'
 
 // Yjs updates are binary; SSE frames are text, so updates ride as base64. POST bodies carry base64 too.
 const b64 = (bytes: Uint8Array) => Buffer.from(bytes).toString('base64')
@@ -13,7 +14,10 @@ const UpdateBody = z.object({session: z.string().min(1), update: z.string().min(
 // The canvas Yjs sync relay over the existing h3 server. Gating: the global registerCors middleware
 // already rejects non-loopback Origin + Host (DNS-rebinding). A per-session secret token is layered in
 // Phase 9 (security pass) — tracked, not yet here.
-export function registerCanvasRoutes(app: H3, opts: {relay: CanvasRelay}): void {
+export function registerCanvasRoutes(app: H3, opts: {relay: CanvasRelay; doctor: Doctor}): void {
+  // Manual re-anchor sweep (the CLI `mandarax doctor` hits this; it also auto-runs on session_start).
+  app.post('/api/canvas/doctor', async () => ({report: await opts.doctor.run()}))
+
   // SSE: emit the full snapshot first, then live updates, until the client disconnects.
   app.get('/api/canvas/sync', async (event) => {
     const {session} = await getValidatedQuery(event, SessionQuery)
