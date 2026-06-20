@@ -3,10 +3,10 @@
   "version": "0.0.0",
   "description": "The mandarax design system: SolidJS primitives (Button + Ark-UI-based Collapsible, HoverCard, ScrollArea, Combobox, Progress) styled with the shared UnoCSS preset, so every surface looks and behaves identically. Each component is viewable in Storybook.",
   "keywords": [
+    "ark-ui",
     "design-system",
     "mandarax",
     "solid-js",
-    "ark-ui",
     "ui-kit"
   ],
   "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/ui-kit-system#readme",
@@ -33,7 +33,8 @@
     "access": "public"
   },
   "scripts": {
-    "build": "vite build && tsc -p tsconfig.build.json",
+    "gen:tokens": "node scripts/gen-tokens.ts",
+    "build": "pnpm gen:tokens && vite build && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run --passWithNoTests",
