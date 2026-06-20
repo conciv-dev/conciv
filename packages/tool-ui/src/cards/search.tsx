@@ -3,7 +3,7 @@ import {z} from 'zod'
 import {Search} from 'lucide-solid'
 import {ToolCard} from '../shell.js'
 import {parseInput, resultText} from '../util.js'
-import type {ToolCardProps} from '../types.js'
+import type {ToolCardEntry, ToolCardProps} from '../types.js'
 
 // Grep carries pattern (+ optional path/glob); Glob carries pattern. Both render a match list.
 const SearchInput = z.object({pattern: z.string().optional(), path: z.string().optional(), glob: z.string().optional()})
@@ -42,3 +42,6 @@ export function SearchCard(props: ToolCardProps): JSX.Element {
     </ToolCard>
   )
 }
+
+// This card renders the search tools (Grep and Glob).
+export const searchTool: ToolCardEntry = {names: ['Grep', 'Glob'], render: SearchCard}

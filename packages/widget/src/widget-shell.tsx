@@ -116,7 +116,10 @@ export function createWidgetShell(opts: {settings: WidgetSettings}): {
       panels.push(def)
     },
     registerComposerAction(def) {
-      setComposerActions((prev) => [...prev, def])
+      // Upsert by id so a re-applied extension (HMR) replaces its button instead of duplicating it.
+      setComposerActions((prev) =>
+        prev.some((a) => a.id === def.id) ? prev.map((a) => (a.id === def.id ? def : a)) : [...prev, def],
+      )
     },
     registerComposerControl(def) {
       composerControls.push(def)

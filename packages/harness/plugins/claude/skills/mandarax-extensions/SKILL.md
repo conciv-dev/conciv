@@ -13,7 +13,9 @@ file and it hot-reloads into the live widget (client) and the agent engine (serv
 1. `mandarax_extensions` with `verb: "catalog"` — see the surface (theme tokens, overridable
    components, client/server APIs). Read it before writing.
 2. `mandarax_extensions` with `verb: "scaffold", kind, id` — get a typed skeleton.
-3. Edit it into `mandarax/extensions/<id>.ts`. The widget hot-reloads; screenshot to confirm.
+3. Edit it into `mandarax/extensions/<id>.ts`. Client (`.client`) changes hot-reload into the live
+   widget (screenshot to confirm); new or changed server (`.server`) tools + prompt text need a
+   dev-server restart.
 4. `mandarax_extensions` with `verb: "validate", source` — lint against the catalog before relying on it.
 
 ## Shape
@@ -46,8 +48,8 @@ const deploy = defineTool({name: 'deploy', description: '…', inputSchema: z.ob
 export default defineExtension({id: 'acme', tools: [deploy]})  // both halves auto-wired
 ```
 
-To restyle a built-in tool you don't own, define a render-only tool keyed to its name (no `.server`):
-`defineTool({name: 'Bash', …}).render(MyBashCard)`.
+To restyle a built-in tool you don't own, define a render-only tool with its name (no `.server`):
+`defineTool({name: 'Bash', …}).render(MyBashCard)` — a same-name tool wins over the built-in card.
 
 ## Reach tiers
 
@@ -56,7 +58,10 @@ To restyle a built-in tool you don't own, define a render-only tool keyed to its
 3. Ejection: copy the source component into your repo and edit wholesale.
 
 Client `mx`: `ui.setTheme`, `ui.setWidget/setHeader/setFooter/setStatus`, `ui.setEmptyState`,
-`registerComposerAction`, `registerToolRenderer` (escape hatch — prefer `.render` on the tool).
+`registerComposerAction`. Tool cards are self-describing — co-locate via `defineTool(...).render(Component)`.
 Server `mx`: `registerTool(defineTool({…}).server(…))`, `systemPrompt.append(text)`.
+
+A tool's `description`/`promptSnippet`/`promptGuidelines` are appended to the agent system prompt as
+trusted text (you own the repo) — they are not sanitized user input.
 
 See `apps/examples/tanstack-start/mandarax/extensions/` for worked examples.

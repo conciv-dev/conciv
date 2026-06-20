@@ -23,10 +23,6 @@ export const CLIENT_SURFACES = [
     description: 'Replace the empty chat state (greeting + starters); null restores default.',
   },
   {method: 'registerComposerAction(action)', description: 'Add a button to the composer ({id,label,icon,onClick}).'},
-  {
-    method: 'registerToolRenderer(name, Component)',
-    description: 'Imperative escape hatch; prefer co-locating via defineTool(...).render(Component).',
-  },
 ] as const
 
 export const SERVER_SURFACES = [
@@ -66,9 +62,9 @@ export function buildCatalog(): Catalog {
       description: def.description,
       overridable: 'overridable' in def ? def.overridable : false,
     })),
-    overridableComponents: OVERRIDABLE_COMPONENTS.map((c) => ({id: c.id, description: c.description})),
-    clientSurfaces: CLIENT_SURFACES.map((s) => ({method: s.method, description: s.description})),
-    serverSurfaces: SERVER_SURFACES.map((s) => ({method: s.method, description: s.description})),
+    overridableComponents: [...OVERRIDABLE_COMPONENTS],
+    clientSurfaces: [...CLIENT_SURFACES],
+    serverSurfaces: [...SERVER_SURFACES],
   }
 }
 
@@ -148,13 +144,21 @@ export function scaffold(kind: ScaffoldKind, opts: {id: string}): string {
   return TEMPLATES[kind](opts.id)
 }
 
-const TOKEN_NAMES = new Set(Object.keys(TOKENS))
+export type Issue = {level: 'error' | 'warn'; message: string}
 
-// Lint a draft against the catalog: unknown token names in setTheme + a missing defineExtension
-// default export. v0 heuristic (string-level) — catches the common mistakes the agent makes before a
-// file ever loads; a full typecheck is the build's job.
-export function validateSource(source: string): {ok: boolean; issues: {level: 'error' | 'warn'; message: string}[]} {
-  const issues: {level: 'error' | 'warn'; message: string}[] = []
+const TOKEN_NAMES = new Set(Object.keys(TOKENS))
+const OVERRIDABLE_TOKEN_NAMES = new Set(
+  Object.entries(TOKENS)
+    .filter(([, def]) => 'overridable' in def && def.overridable)
+    .map(([name]) => name),
+)
+
+// Lint a draft against the catalog: a missing defineExtension default export (error), an unknown
+// setTheme token (error), and a known-but-not-overridable token (warn — it may be restyled by the
+// base theme). v0 heuristic (string-level) — catches the common mistakes before a file loads; a full
+// typecheck is the build's job.
+export function validateSource(source: string): {ok: boolean; issues: Issue[]} {
+  const issues: Issue[] = []
   if (!/export\s+default\s+defineExtension\s*\(/.test(source)) {
     issues.push({level: 'error', message: 'No `export default defineExtension({id})` found.'})
   }
@@ -164,10 +168,16 @@ export function validateSource(source: string): {ok: boolean; issues: {level: 'e
     if (!body) continue
     for (const key of body.matchAll(/['"]([\w-]+)['"]\s*:/g)) {
       const name = key[1]
-      if (name && !TOKEN_NAMES.has(name)) {
+      if (!name) continue
+      if (!TOKEN_NAMES.has(name)) {
         issues.push({
           level: 'error',
           message: `Unknown theme token '${name}'. Run mandarax_extensions catalog for the token list.`,
+        })
+      } else if (!OVERRIDABLE_TOKEN_NAMES.has(name)) {
+        issues.push({
+          level: 'warn',
+          message: `Token '${name}' is not marked overridable; it may be restyled by the base theme.`,
         })
       }
     }

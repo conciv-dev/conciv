@@ -76,7 +76,6 @@ export type ClientApi = {
     setEmptyState: (factory: EmptyStateFactory | null) => void
   }
   registerComposerAction: (action: ExtComposerAction) => void
-  registerToolRenderer: (name: string, renderer: ToolRenderer) => void
 }
 
 // What an extension's .server(mx => …) half can do in core (node): add agent tools, extend the prompt.

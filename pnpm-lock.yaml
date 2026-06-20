@@ -490,6 +490,9 @@ importers:
       babel-preset-solid:
         specifier: ^1.9.12
         version: 1.9.12(@babel/core@7.29.7)(solid-js@1.9.13)
+      jiti:
+        specifier: ^2.7.0
+        version: 2.7.0
       launch-editor:
         specifier: ^2.14.1
         version: 2.14.1

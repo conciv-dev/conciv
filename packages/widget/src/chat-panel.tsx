@@ -7,7 +7,15 @@ import {apiError, createTransport} from './transport.js'
 import {invalidateSessions} from './session-store-client.js'
 import {createDebouncer} from '@tanstack/solid-pacer'
 import {GenUi} from './gen-ui.js'
-import {ToolCallCard, ChainOfThought, Reasoning, NowLine, nowTitle, type ToolViewCtx} from '@mandarax/tool-ui'
+import {
+  ToolCallCard,
+  ChainOfThought,
+  Reasoning,
+  NowLine,
+  nowTitle,
+  type ToolViewCtx,
+  type ToolCardEntry,
+} from '@mandarax/tool-ui'
 import {Markdown} from './markdown.js'
 import {ArrowRight, Square, SquarePen, FoldVertical} from 'lucide-solid'
 import {EventType, type StreamChunk} from '@tanstack/ai'
@@ -155,6 +163,7 @@ function ChainPart(props: {
   part: MessagePart | undefined
   pairing: ResultPairing
   ctx: ToolViewCtx
+  tools?: () => ToolCardEntry[]
   durationFor?: (toolCallId: string) => number | undefined
 }): JSX.Element {
   return (
@@ -166,6 +175,7 @@ function ChainPart(props: {
             part={p()}
             result={props.pairing.byCallId.get(p().id)}
             ctx={props.ctx}
+            tools={props.tools}
             durationMs={props.durationFor?.(p().id)}
           />
         )}
@@ -210,6 +220,7 @@ function MessageParts(props: {
   parts: ReadonlyArray<MessagePart>
   streaming: boolean
   ctx: ToolViewCtx
+  tools?: () => ToolCardEntry[]
   durationFor?: (toolCallId: string) => number | undefined
 }): JSX.Element {
   const pairing = createMemo(() => pairResults(props.parts))
@@ -231,6 +242,7 @@ function MessageParts(props: {
                       part={props.parts[partIndex()]}
                       pairing={pairing()}
                       ctx={props.ctx}
+                      tools={props.tools}
                       durationFor={props.durationFor}
                     />
                   )}
@@ -337,6 +349,9 @@ export function ChatPanel(props: {
   announce?: (msg: string, assertive?: boolean) => void
   // Reports whether the agent is thinking/streaming, so the shell can pulse the trigger.
   onWorkingChange?: (working: boolean) => void
+  // The tool cards to dispatch by name (built-ins + extension tools), passed by the host like the
+  // composer actions; ToolCallCard matches each tool-call part to its card.
+  tools?: () => ToolCardEntry[]
   // Shell-registered composer-action buttons (e.g. the element picker), rendered in the actions row.
   composerActions?: () => ComposerActionDef[]
   // Shell-registered composer controls (e.g. the model selector), rendered in the actions row.
@@ -734,6 +749,7 @@ export function ChatPanel(props: {
                     parts={turn().parts}
                     streaming={isActiveAssistant(turn().end, turn().role)}
                     ctx={toolCtx}
+                    tools={props.tools}
                     durationFor={durationFor}
                   />
                 </div>
@@ -857,7 +873,7 @@ export function ChatPanel(props: {
 
 // The chat as a registerable shell panel. The modal hosts one; quick-terminal panes each create
 // their own (a fresh agent session per pane).
-export function chatPanelDef(apiBase: string, harnessId: string): PanelDef {
+export function chatPanelDef(apiBase: string, harnessId: string, tools: () => ToolCardEntry[]): PanelDef {
   return {
     id: 'chat',
     title: 'mandarax',
@@ -873,6 +889,7 @@ export function chatPanelDef(apiBase: string, harnessId: string): PanelDef {
         onUsageChange={ctx.onUsageChange}
         onSessionLabel={ctx.onSessionLabel}
         onNewSession={ctx.onNewSession}
+        tools={tools}
         composerActions={ctx.composerActions}
         composerControls={ctx.composerControls}
       />

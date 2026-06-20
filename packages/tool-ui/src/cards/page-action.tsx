@@ -6,7 +6,7 @@ import {MUTATING_KINDS, mirrorsKind, type PageQueryKind} from '@mandarax/protoco
 import {ToolCard} from '../shell.js'
 import {parseInput, resultText, parseResultPayload, formatHtml} from '../util.js'
 import {CODE_OPTIONS} from '../diff-options.js'
-import type {ToolCardProps} from '../types.js'
+import type {ToolCardEntry, ToolCardProps} from '../types.js'
 
 function readInput(props: ToolCardProps): ReturnType<typeof parseInput<typeof PageInput>> {
   return parseInput(PageInput, props.part)
@@ -163,7 +163,9 @@ function PageResultView(props: {payload: unknown; raw: string}): JSX.Element {
                     <span class="flex-none font-pw-mono text-[0.65625rem] text-pw-accent-link">{n.role}</span>
                   </Show>
                   <Show when={n.name}>
-                    <span class="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-pw-text">{n.name}</span>
+                    <span class="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-pw-text">
+                      {n.name}
+                    </span>
                   </Show>
                   <Show when={n.ref}>
                     <span class="flex-none font-pw-mono text-[0.625rem] text-pw-text-3">{n.ref}</span>
@@ -247,3 +249,6 @@ export function PageActionCard(props: ToolCardProps): JSX.Element {
     </ToolCard>
   )
 }
+
+// This card renders the mandarax_page tool.
+export const pageActionTool: ToolCardEntry = {names: ['mandarax_page'], render: PageActionCard}

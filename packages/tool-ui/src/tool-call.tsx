@@ -1,22 +1,28 @@
-import {type JSX} from 'solid-js'
+import {type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
-import type {ToolCardProps} from './types.js'
+import type {ToolCardProps, ToolCardEntry} from './types.js'
 import {ApprovalBar} from './approval-bar.js'
-import {rendererFor} from './registry.js'
+import {GenericCard} from './cards/generic.js'
 
-// Render a tool-call part as a card, dispatched by tool name through the open renderer registry
-// (built-ins seed it; extensions add/override via registerToolRenderer; GenericCard is the fallback).
-// When the part is in tanstack's native approval-requested state, an approval bar renders below the
-// card (uniform across every tool — approval is a property of the call, not of any one renderer).
-export function ToolCallCard(props: ToolCardProps): JSX.Element {
+export type ToolCallCardProps = ToolCardProps & {tools?: () => ToolCardEntry[]}
+
+// Render a tool-call part as a card: find the tool whose names include this part's name from the
+// passed array (extension tools first, so an extension can override a built-in name — Pi's same-name
+// override), else the generic card. An approval bar renders below when the part is in tanstack's
+// native approval-requested state (uniform across every tool — approval is a property of the call).
+export function ToolCallCard(props: ToolCallCardProps): JSX.Element {
+  const render = (): Component<ToolCardProps> =>
+    props.tools?.().find((t) => t.names.includes(props.part.name))?.render ?? GenericCard
   return (
     <>
-      <ByName {...props} />
+      <Dynamic
+        component={render()}
+        part={props.part}
+        result={props.result}
+        ctx={props.ctx}
+        durationMs={props.durationMs}
+      />
       <ApprovalBar part={props.part} ctx={props.ctx} />
     </>
   )
-}
-
-function ByName(props: ToolCardProps): JSX.Element {
-  return <Dynamic component={rendererFor(props.part.name)} {...props} />
 }

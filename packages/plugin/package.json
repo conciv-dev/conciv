@@ -79,6 +79,7 @@
     "@mandarax/protocol": "workspace:^",
     "@mandarax/widget": "workspace:^",
     "babel-preset-solid": "^1.9.12",
+    "jiti": "^2.7.0",
     "launch-editor": "^2.14.1",
     "magic-string": "^0.30.21",
     "oxc-parser": "^0.127.0",

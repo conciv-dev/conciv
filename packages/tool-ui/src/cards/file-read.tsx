@@ -5,7 +5,7 @@ import {SolidCodeBlock} from '@mandarax/solid-diffs'
 import {ToolCard} from '../shell.js'
 import {parseInput, resultText, stripReadLineNumbers} from '../util.js'
 import {CODE_OPTIONS} from '../diff-options.js'
-import type {ToolCardProps} from '../types.js'
+import type {ToolCardEntry, ToolCardProps} from '../types.js'
 
 // claude Read carries file_path + optional offset/limit; mandarax_open carries file + optional line.
 const ReadInput = z.object({
@@ -82,3 +82,6 @@ export function FileReadCard(props: ToolCardProps): JSX.Element {
     </ToolCard>
   )
 }
+
+// This card renders the file-read tools (Read and mandarax_open).
+export const fileReadTool: ToolCardEntry = {names: ['Read', 'mandarax_open'], render: FileReadCard}

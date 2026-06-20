@@ -1,5 +1,7 @@
 import {readdirSync} from 'node:fs'
 import {join} from 'node:path'
+import {pathToFileURL} from 'node:url'
+import {createJiti} from 'jiti'
 import type {MandaraxExtension, ExtensionServerContributions} from '@mandarax/extensions'
 import {collectServerContributions} from '@mandarax/extensions'
 
@@ -23,18 +25,20 @@ function extensionFiles(root: string): string[] {
   }
 }
 
-// Load each extension's SERVER half via the bundler's TS loader and collect its contributions (extra
-// agent tools + system prompt text) to hand to the engine. `load` is the bundler's module evaluator
-// (vite's ssrLoadModule) so no separate transpiler is needed.
-export async function loadServerContributions(
-  root: string,
-  load: (path: string) => Promise<{default?: unknown}>,
-): Promise<ExtensionServerContributions> {
+// Load each extension's SERVER half and collect its contributions (extra agent tools + system prompt
+// text) for the engine. jiti is a bundler-agnostic node TS loader, so this works under any bundler
+// (the client half rides the app bundler's HMR). Solid jsx importSource so a .tsx extension's renderer
+// transpiles without pulling React. Re-runs on dev-server (re)start; server edits need a restart.
+export async function loadServerContributions(root: string): Promise<ExtensionServerContributions> {
   const files = extensionFiles(root)
+  if (files.length === 0) return collectServerContributions([])
+  const jiti = createJiti(pathToFileURL(join(root, 'noop.js')).href, {
+    jsx: {runtime: 'automatic', importSource: 'solid-js'},
+  })
   const extensions: MandaraxExtension[] = []
   for (const file of files) {
-    const mod = await load(file)
-    if (mod.default) extensions.push(mod.default as MandaraxExtension)
+    const mod = await jiti.import<{default?: MandaraxExtension}>(file)
+    if (mod.default) extensions.push(mod.default)
   }
   return collectServerContributions(extensions)
 }

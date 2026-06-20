@@ -4,7 +4,7 @@ import {Terminal} from 'lucide-solid'
 import {ToolCard} from '../shell.js'
 import {parseInput, resultText} from '../util.js'
 import {VirtualLines} from '../virtual-lines.js'
-import type {ToolCardProps} from '../types.js'
+import type {ToolCardEntry, ToolCardProps} from '../types.js'
 
 // The shell-command tool input we read for rendering (claude's Bash and equivalents).
 const ShellInput = z.object({command: z.string().optional(), description: z.string().optional()})
@@ -42,3 +42,6 @@ export function ShellCard(props: ToolCardProps): JSX.Element {
     </ToolCard>
   )
 }
+
+// This card renders the Bash tool (and equivalents).
+export const shellTool: ToolCardEntry = {names: ['Bash'], render: ShellCard}

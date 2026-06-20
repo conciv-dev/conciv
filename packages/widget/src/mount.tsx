@@ -1,4 +1,5 @@
 import {render} from 'solid-js/web'
+import {createSignal} from 'solid-js'
 import {createShadowRoot} from './shadow.js'
 import {createWidgetShell} from './widget-shell.js'
 import {chatPanelDef} from './chat-panel.js'
@@ -17,7 +18,7 @@ import {applyThemeOverrides} from './theme.js'
 import {setExtWidget, setExtHeader, setExtFooter, setExtStatus} from './ui-store.js'
 import {setEmptyStateOverride} from './empty-state.js'
 import {installExtensionGlobal} from './extension-runtime.js'
-import {registerToolRenderer} from '@mandarax/tool-ui'
+import {builtinToolCards, type ToolCardEntry} from '@mandarax/tool-ui'
 import {collectClientContributions, type ClientApi, type MandaraxExtension} from '@mandarax/extensions'
 
 // Entry: create the open Shadow DOM, probe the dev server, and mount the Solid chat agent +
@@ -71,9 +72,20 @@ export function mountWidget(): void {
   void defineClient({apiBase})
     .models()
     .then((models) => {
+      // Extension tool cards (each tool self-describes via defineTool(...).render()). Composed with
+      // the built-ins and passed to the panel like composerActions; extension entries come first so an
+      // extension can override a built-in tool by name. Upsert keeps HMR re-applies from duplicating.
+      const [extToolCards, setExtToolCards] = createSignal<ToolCardEntry[]>([])
+      const tools = () => [...extToolCards(), ...builtinToolCards]
+      const addToolCard = (entry: ToolCardEntry) =>
+        setExtToolCards((prev) =>
+          prev.some((e) => e.names[0] === entry.names[0])
+            ? prev.map((e) => (e.names[0] === entry.names[0] ? entry : e))
+            : [...prev, entry],
+        )
       // The shell owns the chrome + layout modes and hosts the chat as a registered panel.
       const shell = createWidgetShell({settings})
-      shell.registerPanel(chatPanelDef(apiBase, models.harness.id))
+      shell.registerPanel(chatPanelDef(apiBase, models.harness.id, tools))
       shell.registerComposerAction(elementPickerAction)
       shell.registerComposerAction(newSessionAction)
       shell.registerComposerAction(compactAction)
@@ -85,11 +97,11 @@ export function mountWidget(): void {
       const clientApi: ClientApi = {
         ui: {
           setTheme: (tokens) => applyThemeOverrides(root, tokens),
-          setWidget: (key, factory) => setExtWidget(key, factory),
-          setHeader: (factory) => setExtHeader(factory),
-          setFooter: (factory) => setExtFooter(factory),
-          setStatus: (key, text) => setExtStatus(key, text),
-          setEmptyState: (factory) => setEmptyStateOverride(factory),
+          setWidget: setExtWidget,
+          setHeader: setExtHeader,
+          setFooter: setExtFooter,
+          setStatus: setExtStatus,
+          setEmptyState: setEmptyStateOverride,
         },
         registerComposerAction: (action) =>
           shell.registerComposerAction({
@@ -98,11 +110,11 @@ export function mountWidget(): void {
             icon: action.icon,
             onClick: (ctx) => action.onClick({insert: ctx.insert, notify: ctx.notify}),
           }),
-        registerToolRenderer: (name, renderer) => registerToolRenderer(name, renderer),
       }
       installExtensionGlobal((ext: MandaraxExtension) => {
         ext.clientFn?.(clientApi)
-        for (const t of collectClientContributions([ext]).toolRenderers) registerToolRenderer(t.name, t.render)
+        for (const t of collectClientContributions([ext]).toolRenderers)
+          addToolCard({names: [t.name], render: t.render})
       })
       initPageBus({apiBase, driver})
     })

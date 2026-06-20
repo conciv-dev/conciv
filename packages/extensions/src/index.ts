@@ -17,14 +17,4 @@ export {
   type ExtensionServerContributions,
 } from './contract.js'
 export {extensionsModuleSource, collectServerContributions, collectClientContributions} from './discovery.js'
-export {
-  buildCatalog,
-  scaffold,
-  validateSource,
-  OVERRIDABLE_COMPONENTS,
-  CLIENT_SURFACES,
-  SERVER_SURFACES,
-  type Catalog,
-  type CatalogToken,
-  type ScaffoldKind,
-} from './catalog.js'
+export {buildCatalog, scaffold, validateSource, type Catalog, type CatalogToken, type ScaffoldKind} from './catalog.js'

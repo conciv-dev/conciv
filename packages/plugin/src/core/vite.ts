@@ -189,7 +189,7 @@ export function makeViteHook(options: MandaraxConfig = {}): Plugin {
     async configureServer(server: ViteDevServer) {
       const cfg = resolveConfig(options, server.config.root)
       if (!cfg.enabled) return
-      const extensions = await loadServerContributions(server.config.root, (path) => server.ssrLoadModule(path))
+      const extensions = await loadServerContributions(server.config.root)
       engine = await bootEngine(server, options, installMandaraxBinShim(join(cfg.stateRoot, '.mandarax')), extensions)
       const booted = engine
       mountWidget(server, widget, cfg.previewId, `http://127.0.0.1:${booted.port}`, options.widget)
