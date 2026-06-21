@@ -28,8 +28,11 @@ correction, decided with the user:
      client, the browser gets a reactive TanStack DB collection synced through core. Powers comments.
 3. **Two sync stories on purpose.** Canvas geometry needs true CRDT merge (Yjs). Comments are rows
    that need realtime + optimistic writes + FTS + instant agent replies (TrailBase + TanStack DB).
-4. **Real TrailBase.** The prior attempt deviated to `node:sqlite`; v2 uses the real `trail` binary
-   (verified present: `trail v0.22.9`).
+4. **One durable store: TrailBase (SQLite).** `trail` is a Rust HTTP server over a single SQLite DB
+   in its `--data-dir` (`<cwd>/.mandarax/trail/`). All durable data lives there: comment rows + FTS5,
+   **and** the canvas `.ybin` snapshot as a BLOB row. No second persistence mechanism (no unstorage
+   fs for the canvas). Verified present: `trail v0.22.9`. The prior attempt deviated to `node:sqlite`;
+   v2 uses the real binary.
 5. **No vendoring, no `y-excalidraw`.** Our own ~40-line plain-TS Yjs↔Excalidraw glue against
    Excalidraw's official `onChange`/`updateScene`. (Carried over; it is the one proven finding.)
 6. **Clean TDD rebuild.** Every phase a real vertical slice, real browser / real `trail` / real Yjs /
@@ -55,20 +58,20 @@ USER'S MACHINE (all local, 127.0.0.1)
 │ mandarax core (Node) — the ONLY process the browser talks to                 │
 │                                                                              │
 │  CORE-OWNED SERVICES (generic, exposed on ServerApi, opt-in for any ext)     │
-│   • mx.sync — Yjs room engine: <cwd>/.mandarax/canvas/<preview>/<sess>.ybin  │
+│   • mx.db   — live collection service: supervises `trail` (sole client,      │
+│               SQLite in .mandarax/trail/), gated SSE fan-out + mutation routes│
+│   • mx.sync — Yjs room engine: snapshot persisted as a trail BLOB row         │
 │               + gated relay route (origin + host-loopback + per-session tok) │
-│   • mx.db   — live collection service: supervises `trail` (sole client),     │
-│               gated SSE fan-out + gated mutation routes                      │
 │   • event bus (session_start / tool_execution_start) · approval policy gate  │
 │                                                                              │
 │  EXTENSIONS (discovered/loaded; canvas-comments is one of them)              │
 │   • declares its `comments` collection on mx.db, canvas room on mx.sync      │
 │   • owns: overlay Effect, pins/threads UI, AnchorResolver, doctor, tools     │
 │                                                                              │
-│        │ gated relay (WS)          │ gated SSE+POST      │ /api/mcp          │
+│        │ gated relay (SSE+POST)    │ gated SSE+POST      │ /api/mcp          │
 │ ┌──────┴───────────────┐   ┌───────┴──────────┐   ┌──────┴───────────────┐  │
 │ │ BROWSER WIDGET (Solid)│   │ TrailBase (binary)│   │ harness (Node AI)    │  │
-│ │  Excalidraw React     │   │  comments.db      │   │ draws via mx.sync ·  │  │
+│ │  Excalidraw React     │   │  SQLite main.db   │   │ draws via mx.sync ·  │  │
 │ │   island (only React) │◄─►│  127.0.0.1 only,  │   │ comments via mx.db · │  │
 │ │  Solid pins/threads,  │   │  reachable only   │   │ tools via /api/mcp   │  │
 │ │  TanStack DB (solid)  │   │  by core          │   └──────────────────────┘  │
@@ -97,11 +100,21 @@ type SyncRoom = {
   apply(update: Uint8Array, origin: unknown): void
   snapshot(): Uint8Array // Y.encodeStateAsUpdate, for export/debug
 }
+
+// The swappable persistence seam: Yjs stays unaware of where its snapshot lands.
+type SnapshotStore = {
+  load(room: string): Promise<Uint8Array | null>
+  save(room: string, ybin: Uint8Array): Promise<void> // debounced by the engine
+}
 ```
 
-- One room per session, id `${previewId}:${sessionId}`. Core persists `Y.encodeStateAsUpdate` to
-  `<cwd>/.mandarax/canvas/<previewId>/<sessionId>.ybin` (debounced) via the `session-store` unstorage
-  pattern, and rehydrates on boot under a `core-rehydrate` origin so load never re-broadcasts.
+- One room per session, id `${previewId}:${sessionId}`. The engine persists `Y.encodeStateAsUpdate`
+  (debounced) through the `SnapshotStore` seam and rehydrates on boot under a `core-rehydrate` origin
+  so load never re-broadcasts.
+- **`SnapshotStore` is backed by TrailBase** in core: a `canvas_snapshots(room TEXT pk, ybin BLOB,
+updated_at)` table written by core (the sole `trail` client). Yjs never sees trail; the seam keeps
+  the backend swappable. While `trail` is mid-restart, snapshotting pauses; the live doc + browser
+  `y-indexeddb` cache cover the gap and reconcile on restart.
 - Core serves the **gated relay route** from its `api/` layer (origin allowlist + host-loopback +
   per-session token). The widget connects through a core-provided relay client.
 - **Three writers** (user, AI/harness, extra tab) into one doc. Feedback-loop guard uses a
@@ -151,8 +164,9 @@ type ServerCollection<T> = {
 ### Cold start
 
 core spawns `trail` → waits ready → runs migrations → opens the gated SSE+mutation routes → browser
-syncs. `mx.sync` `.ybin` loads independently. Nothing blocks the widget mounting (services fail
-gracefully into local-only).
+syncs. Because the canvas snapshot is also a trail BLOB, `mx.sync` rehydrates after trail is ready;
+until then the room starts empty and the browser `y-indexeddb` cache seeds it. Nothing blocks the
+widget mounting (services fail gracefully into local-only).
 
 ## Contract seams added to the extension system (generic, help every extension)
 
@@ -514,8 +528,9 @@ existing **`harness-logger`**. Structured, dev-visible, no telemetry egress.
 
 - **`packages/extensions`** — grow the contract: `ServerApi.sync/db/on/approval`,
   `ComposerActionCtx.runTool`; collect handlers in `collectServerContributions`.
-- **`packages/core`** — the two generic services (`sync/` Yjs room engine + `.ybin` persistence +
-  gated relay route; `db/` TrailBase supervisor + sole client + gated SSE/mutation routes); the event
+- **`packages/core`** — the two generic services (`db/` TrailBase supervisor + sole client + gated
+  SSE/mutation routes, the single SQLite store; `sync/` Yjs room engine + gated relay route, its
+  `SnapshotStore` seam backed by a trail BLOB table); the event
   bus; the shared `execute` chokepoint + generalized approval gate + undo stack. **Zero
   canvas/comment-specific logic.**
 - **`mandarax/extensions/canvas-comments/`** (the extension, discovered/loaded) — `.server`: tools,
