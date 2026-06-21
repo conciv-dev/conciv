@@ -18,21 +18,26 @@ export type PageHandler = (ctx: PageContext) => PageResult | Promise<PageResult>
 
 const CONSOLE_CAP = 200
 
+// A dev console forwarder (TanStack devtools + vite client-console) streams server logs into the
+// browser console and browser logs back to the terminal. Our patched console mounts last, so its
+// `original` IS that forwarder — re-emitting an already-forwarded line sends it round again, and the
+// two forwarders ping-pong one warning into an infinite, exponentially-nesting flood. We buffer every
+// line (so the agent still sees it) but skip re-emitting lines that already carry a forwarder marker,
+// which breaks the cycle without silencing real app logs.
+const FORWARD_MARKER = /\[vite\] \(client\)|\[Server\]/
 export function startConsoleBuffer(): ConsoleEntry[] {
   const buf: ConsoleEntry[] = []
-  const push = (level: string, args: unknown[]): void => {
-    buf.push({
-      level,
-      ts: Date.now(),
-      text: args.map((a) => String(a)).join(' '),
-    })
+  const push = (level: string, args: unknown[]): string => {
+    const text = args.map((a) => String(a)).join(' ')
+    buf.push({level, ts: Date.now(), text})
     if (buf.length > CONSOLE_CAP) buf.shift()
+    return text
   }
   for (const level of ['log', 'info', 'warn', 'error'] as const) {
     const original = console[level].bind(console)
     console[level] = (...args: unknown[]) => {
-      push(level, args)
-      original(...args)
+      const text = push(level, args)
+      if (!FORWARD_MARKER.test(text)) original(...args)
     }
   }
   window.addEventListener('error', (e) => push('error', [e.message]))
