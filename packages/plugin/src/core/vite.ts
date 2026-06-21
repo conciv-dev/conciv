@@ -18,13 +18,8 @@ import {
 import {addSourceToJsx} from './inject-source.js'
 import {makeOpenInEditor} from './open-editor.js'
 import {isExtensionJsx, compileExtensionSolid} from './compile-extension.js'
-import type {ExtensionServerContributions} from '@mandarax/extensions'
-import {
-  EXTENSIONS_RESOLVED_ID,
-  EXTENSIONS_VIRTUAL_ID,
-  extensionsModuleSource,
-  loadServerContributions,
-} from './extensions.js'
+import {EXTENSIONS_RESOLVED_ID, EXTENSIONS_VIRTUAL_ID, extensionsModuleSource} from './extensions.js'
+import {bootServices, type BootedServices} from './services.js'
 
 const require = createRequire(import.meta.url)
 
@@ -125,7 +120,7 @@ function bootEngine(
   server: ViteDevServer,
   options: MandaraxConfig,
   agentPath: string,
-  extensions: ExtensionServerContributions,
+  services: BootedServices,
 ): Promise<Engine> {
   return start({
     options,
@@ -133,7 +128,9 @@ function bootEngine(
     bridge: makeViteBridge(server),
     launchEditor: makeOpenInEditor(server.config.root),
     allowedOrigins: devOrigins(server),
-    extensions,
+    extensions: services.extensions,
+    dbProxyTarget: services.dbProxyTarget,
+    syncHooks: services.syncHooks,
     childEnv: (corePort) => ({...process.env, PATH: agentPath, MANDARAX_PORT: String(corePort)}),
   })
 }
@@ -185,11 +182,11 @@ export function makeViteHook(options: MandaraxConfig = {}): Plugin {
     async configureServer(server: ViteDevServer) {
       const cfg = resolveConfig(options, server.config.root)
       if (!cfg.enabled) return
-      const extensions = await loadServerContributions(server.config.root)
-      engine = await bootEngine(server, options, installMandaraxBinShim(join(cfg.stateRoot, '.mandarax')), extensions)
+      const services = await bootServices(server.config.root, cfg.stateRoot)
+      engine = await bootEngine(server, options, installMandaraxBinShim(join(cfg.stateRoot, '.mandarax')), services)
       const booted = engine
       mountWidget(server, widget, cfg.previewId, `http://127.0.0.1:${booted.port}`, options.widget)
-      server.httpServer?.on('close', () => void booted.stop())
+      server.httpServer?.on('close', () => void (booted.stop(), services.stop()))
     },
   }
 }

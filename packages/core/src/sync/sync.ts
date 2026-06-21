@@ -109,7 +109,7 @@ export function createSync(opts: SyncOptions): Sync {
       removeAwarenessStates(state.awareness, [...(state.controlled.get(peer) ?? [])], null)
       state.controlled.delete(peer)
       state.peers.delete(peer)
-      if (state.peers.size === 0) void opts.store.save(room, Y.encodeStateAsUpdate(state.doc))
+      if (state.peers.size === 0) void opts.store.save(room, Y.encodeStateAsUpdate(state.doc)).catch(() => {})
     },
   }
 
