@@ -11,6 +11,7 @@ import {registerErrorHandler} from './api/errors.js'
 import {registerChatRoutes} from './api/chat/chat.js'
 import {registerMcpRoutes} from './api/mcp/mcp.js'
 import {registerPageRoutes} from './api/page/page.js'
+import {registerOpenSourceRoute} from './api/page/open-source.js'
 import {registerServerRoutes} from './api/server/server.js'
 import {registerEditorRoutes} from './api/editor/editor.js'
 import {registerTestRunnerRoutes} from './api/test-runner/test-runner.js'
@@ -73,6 +74,7 @@ export function makeApp(opts: MakeAppOpts): H3 {
   })
   const page = registerPageRoutes(app, {journal: makeJournal(), root: opts.cwd})
   registerEditorRoutes(app, opts.openInEditor)
+  registerOpenSourceRoute(app, {openInEditor: opts.openInEditor, root: opts.cwd})
   registerTestRunnerRoutes(app, runner)
   // Expose mandarax tools to the harness CLI via MCP-over-HTTP on the same server, bridged to the live
   // uiBus / page bus / test runner.

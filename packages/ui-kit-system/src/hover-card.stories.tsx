@@ -8,7 +8,10 @@ type Story = StoryObj<typeof HoverCard>
 
 export const Default: Story = {
   render: () => (
-    <HoverCard label="Context usage" trigger={<span class="text-pw-accent-link underline cursor-pointer">Hover me</span>}>
+    <HoverCard
+      label="Context usage"
+      trigger={<span class="text-pw-accent-link underline cursor-pointer">Hover me</span>}
+    >
       <div class="p-3">
         <div class="text-pw-text-hi font-medium">Context usage</div>
         <div class="text-pw-text-2 mt-1">42% of the window used this turn.</div>

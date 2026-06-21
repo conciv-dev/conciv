@@ -2,7 +2,20 @@
   "name": "@mandarax/solid-diffs",
   "version": "0.0.0",
   "description": "SolidJS wrappers around @pierre/diffs: thin Solid components over the framework-agnostic FileDiff / File web-component renderers (Shiki-highlighted diffs + code), reusable across the mandarax UI.",
+  "keywords": [
+    "code-diff",
+    "diff",
+    "mandarax",
+    "solid-js"
+  ],
+  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/solid-diffs#readme",
+  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mandarax-dev/mandarax.git",
+    "directory": "packages/solid-diffs"
+  },
   "files": [
     "dist"
   ],
@@ -12,6 +25,9 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     }
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "build": "vite build && tsc -p tsconfig.build.json",
@@ -45,21 +61,5 @@
   },
   "peerDependencies": {
     "solid-js": "^1.9.13"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/mandarax-dev/mandarax.git",
-    "directory": "packages/solid-diffs"
-  },
-  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/solid-diffs#readme",
-  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
-  "publishConfig": {
-    "access": "public"
-  },
-  "keywords": [
-    "code-diff",
-    "diff",
-    "mandarax",
-    "solid-js"
-  ]
+  }
 }

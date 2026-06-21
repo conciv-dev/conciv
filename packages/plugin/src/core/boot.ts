@@ -1,17 +1,13 @@
 import {join} from 'node:path'
-import launchEditor from 'launch-editor'
 import {start, type Engine} from '@mandarax/core/engine'
 import type {MandaraxConfig} from '@mandarax/protocol/config-types'
 import {installMandaraxBinShim} from './bin-shim.js'
+import {makeOpenInEditor} from './open-editor.js'
 import {loadServerContributions} from './extensions.js'
 
 // Bridge-less engine booter for the non-vite bundlers (no Vite-style live server → no
 // /api/server/*). Memoized so repeated hooks boot @mandarax/core once. The vite hook boots with
 // its own viteBridge + widget middleware.
-
-function openInEditor(file: string, line: number): void {
-  launchEditor(`${file}:${line}`)
-}
 
 export function makeEngineBooter(options: MandaraxConfig, root: string): () => Promise<Engine> {
   let booting: Promise<Engine> | null = null
@@ -25,7 +21,7 @@ export function makeEngineBooter(options: MandaraxConfig, root: string): () => P
         options,
         root,
         port: options.port,
-        launchEditor: openInEditor,
+        launchEditor: makeOpenInEditor(root),
         extensions,
         childEnv: (corePort) => ({...process.env, PATH: agentPath, MANDARAX_PORT: String(corePort)}),
       }),

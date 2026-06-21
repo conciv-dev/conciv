@@ -15,7 +15,9 @@ function Demo(props: {defaultOpen?: boolean}) {
     <Collapsible.Root defaultOpen={props.defaultOpen}>
       <Collapsible.Trigger class={TRIGGER}>
         Tool details
-        <Collapsible.Indicator class="text-pw-text-3 [&[data-state=open]]:[transform:rotate(180deg)]">▾</Collapsible.Indicator>
+        <Collapsible.Indicator class="text-pw-text-3 [&[data-state=open]]:[transform:rotate(180deg)]">
+          ▾
+        </Collapsible.Indicator>
       </Collapsible.Trigger>
       <Collapsible.Content>
         <div class={BODY}>Hidden content that slides open and closed with the shared kit animation.</div>

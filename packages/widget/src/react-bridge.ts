@@ -13,30 +13,28 @@ import {parseStack, hasDebugStack, getFallbackOwnerStack, formatOwnerStack} from
 import {installTracker} from './render-tracker.js'
 import {addRef, type Refs} from './page-snapshot.js'
 
-export type RawFrame = {fileName?: string; line?: number; column?: number; fn?: string}
-export type SourceLoc = {file: string; line: number; column: number}
-export type Owner = {component: string; ref: string}
-export type LocateResult = {
-  component: string | null
-  stack: string[]
-  frames: RawFrame[]
-  owners: Owner[]
-  // When the element carries a build-injected source attribute (data-mandarax-source / data-tsd-source),
-  // the exact file:line:col is read directly — no owner-stack symbolication needed.
-  source?: SourceLoc
-}
-export type TreeNode = {component: string; ref: string; children: TreeNode[]; truncated?: number}
-export type HookNode = {id: number; name: string; value: unknown; editable: boolean}
-export type Rect = {x: number; y: number; w: number; h: number}
-export type InspectResult = {
-  component: string | null
-  props: unknown
-  state: unknown
-  hooks: HookNode[]
-  // Where the component sits on screen (its nearest host element's box) — so the agent can answer
-  // "where is <Foo>" without a separate verb.
-  rect: Rect | null
-}
+// Page-introspection result types live in @mandarax/protocol; re-exported so widget imports stay put.
+export type {
+  RawFrame,
+  SourceLoc,
+  Owner,
+  Rect,
+  TreeNode,
+  HookNode,
+  LocateResult,
+  InspectResult,
+  TreeResult,
+} from '@mandarax/protocol/page-introspect-types'
+import type {
+  RawFrame,
+  SourceLoc,
+  Owner,
+  TreeNode,
+  HookNode,
+  LocateResult,
+  InspectResult,
+  TreeResult,
+} from '@mandarax/protocol/page-introspect-types'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- bippy fibers are untyped internals
 type Fiber = any
@@ -155,6 +153,23 @@ export async function locate(el: Element, refs: Refs): Promise<LocateResult | nu
   // The owner-stack top frame names the component that renders the element (e.g. Home/App),
   // unpolluted by framework dev wrappers that show up in the fiber-stack names.
   return {component: frames[0]?.fn ?? names[0] ?? null, stack: names, frames, owners, ...(source ? {source} : {})}
+}
+
+export function componentHostAt(el: Element): Element | null {
+  const fiber = getFiberFromHostInstance(el)
+  if (!fiber) return null
+  const composite = isCompositeFiber(fiber) ? fiber : getFiberStack(fiber).find((f: Fiber) => isCompositeFiber(f))
+  if (!composite) return null
+  const host = getNearestHostFiber(composite)
+  return host?.stateNode instanceof Element ? host.stateNode : el
+}
+
+export function describe(host: Element): {component: string; file: string | null} {
+  const fiber = getFiberFromHostInstance(host)
+  const composite =
+    fiber && (isCompositeFiber(fiber) ? fiber : getFiberStack(fiber).find((f: Fiber) => isCompositeFiber(f)))
+  const source = sourceFromAttr(host)
+  return {component: (composite && getDisplayName(composite)) || '?', file: source ? source.file : null}
 }
 
 // Class component state lives on the instance (stateNode.state); function components have no
@@ -277,8 +292,6 @@ export async function override(
   renderer.overrideProps(provider, ['value', ...path], value)
   return {ok: true}
 }
-
-export type TreeResult = {nodes: TreeNode[]; truncated: number}
 
 // Build a component tree from the root host element's fiber subtree, assigning a ref per component
 // (mapped to its nearest host element so the agent can target it with other verbs). Bounded by

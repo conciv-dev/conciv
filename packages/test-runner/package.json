@@ -2,7 +2,21 @@
   "name": "@mandarax/test-runner",
   "version": "0.0.0",
   "description": "Runner-agnostic test-runner adapters for mandarax (vitest today; jest/node-test/playwright are drop-in via the ChildRunnerSpec seam). Each adapter spawns a clean child that streams TestEvent NDJSON on fd 3.",
+  "keywords": [
+    "jest",
+    "mandarax",
+    "playwright",
+    "test-runner",
+    "vitest"
+  ],
+  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/test-runner#readme",
+  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mandarax-dev/mandarax.git",
+    "directory": "packages/test-runner"
+  },
   "files": [
     "dist"
   ],
@@ -30,6 +44,9 @@
     },
     "./package.json": "./package.json"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -49,22 +66,5 @@
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/mandarax-dev/mandarax.git",
-    "directory": "packages/test-runner"
-  },
-  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/test-runner#readme",
-  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
-  "publishConfig": {
-    "access": "public"
-  },
-  "keywords": [
-    "jest",
-    "mandarax",
-    "playwright",
-    "test-runner",
-    "vitest"
-  ]
+  }
 }

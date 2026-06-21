@@ -18,16 +18,17 @@ const RocketIcon = (props: {class?: string}) => (
   </svg>
 )
 
-// One definition: .server runs it (node), .render draws its card (browser, props inferred from the
-// renderer type), promptSnippet documents it.
+// One self-describing definition: execute runs it (node), renderResult draws its card (browser),
+// promptSnippet documents it into the system prompt.
 const deployRun = defineTool({
   name: 'deploy_run',
+  label: 'Deploy',
   description: 'Deploy the current branch',
-  inputSchema: z.object({env: z.enum(['staging', 'prod'])}),
+  parameters: z.object({env: z.enum(['staging', 'prod'])}),
   promptSnippet: 'You can deploy with the deploy_run tool.',
+  execute: ({env}) => ({url: `https://${env}.example.com`}),
+  renderResult: (_result, _options, ctx) => <div data-pw-deploy-card>Deploying… ({ctx.part.name})</div>,
 })
-  .server(({env}) => ({url: `https://${env}.example.com`}))
-  .render((props) => <div data-pw-deploy-card>Deploying… ({props.part.name})</div>)
 
 export default defineExtension({id: 'deploy', tools: [deployRun]}).client((mx) => {
   mx.registerComposerAction({

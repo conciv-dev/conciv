@@ -9,9 +9,11 @@ import {
   type TestState,
   type TestEvent,
 } from '@mandarax/protocol/test-types'
+import {TestInput} from '@mandarax/tools/defs'
 import {ToolCard} from '../shell.js'
 import {resultText} from '../util.js'
-import type {ToolCardEntry, ToolCardProps, ToolViewCtx} from '../types.js'
+import type {ToolCardProps, ToolViewCtx} from '../types.js'
+import {cardTool} from '../card-tool.js'
 
 // The test-runner results card, moved from the widget. Runner-blind: speaks TestEvent /
 // TestRunResult only. result===null → subscribe to the live runner stream via ctx and build the
@@ -300,5 +302,4 @@ export function TestCard(props: ToolCardProps): JSX.Element {
   )
 }
 
-// This card renders the mandarax_test tool.
-export const testTool: ToolCardEntry = {names: ['mandarax_test'], render: TestCard}
+export const testTool = cardTool({name: 'mandarax_test', label: 'Test', parameters: TestInput, Card: TestCard})

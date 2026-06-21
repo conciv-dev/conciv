@@ -2,69 +2,11 @@
 // app. A tiny React fixture is bundled with esbuild (dev build → real reconciler + hooks), rendered
 // into the page alongside the built widget global, and we call the widget's OWN page driver
 // (window.__MANDARAX_PAGE_DRIVER__) — real bippy, real dehydrate, real fibers. No mocks, no example app.
-import fs from 'node:fs'
-import path from 'node:path'
-import {fileURLToPath, pathToFileURL} from 'node:url'
-import {createRequire} from 'node:module'
 import {createServer, type IncomingMessage, type Server, type ServerResponse} from 'node:http'
 import type {AddressInfo} from 'node:net'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
-import {chromium, type Browser, type Page} from 'playwright'
-
-const dirname = path.dirname(fileURLToPath(import.meta.url))
-const require = createRequire(import.meta.url)
-const widgetBundle = fs.readFileSync(path.join(dirname, '../dist/mandarax-widget.global.js'), 'utf8')
-
-// Bundle the React fixture to an IIFE. React/react-dom resolve from the workspace (dev build via
-// NODE_ENV=development); esbuild's own copy comes from vite. tsconfigRaw:'{}' stops it inheriting
-// the widget's solid-js jsxImportSource.
-async function buildFixture(): Promise<string> {
-  const app = path.resolve(dirname, '../../../apps/examples/tanstack-start')
-  const rdClient = require.resolve('react-dom/client', {paths: [app]})
-  const nodeModules = rdClient.slice(0, rdClient.indexOf('/node_modules/react-dom/')) + '/node_modules'
-  const viteEntry = require.resolve('vite', {paths: [dirname]})
-  const esbuildPath = require.resolve('esbuild', {paths: [path.dirname(viteEntry)]})
-  type Esbuild = {build: (opts: Record<string, unknown>) => Promise<{outputFiles: Array<{text: string}>}>}
-  const esbuild = (await import(pathToFileURL(esbuildPath).href)) as Esbuild
-  const res = await esbuild.build({
-    entryPoints: [path.join(dirname, 'fixtures/react-fixture.tsx')],
-    bundle: true,
-    format: 'iife',
-    write: false,
-    jsx: 'automatic',
-    jsxImportSource: 'react',
-    tsconfigRaw: '{}',
-    define: {'process.env.NODE_ENV': '"development"'},
-    nodePaths: [nodeModules],
-  })
-  const built = res.outputFiles[0]
-  if (!built) throw new Error('esbuild produced no output')
-  return built.text
-}
-
-// Widget script FIRST (installs the RDT hook), THEN the React fixture (so React connects to it).
-function fixturePage(fixtureJs: string): string {
-  return `<!doctype html><html><head><meta name="pw-api-base" content=""></head><body>
-    <div id="react-root"></div>
-    <script>${widgetBundle}</script>
-    <script>${fixtureJs}</script>
-  </body></html>`
-}
-
-type Driver = {execute: (q: Record<string, unknown>) => Promise<Record<string, unknown>>}
-const drive = (page: Page, q: Record<string, unknown>): Promise<Record<string, unknown>> =>
-  page.evaluate(
-    (query) => (window as unknown as {__MANDARAX_PAGE_DRIVER__: Driver}).__MANDARAX_PAGE_DRIVER__.execute(query),
-    q,
-  )
-
-async function ready(page: Page): Promise<void> {
-  // Fixture rendered (count visible) and the driver seam is live.
-  await page.waitForFunction(() => document.querySelector('#card-count')?.textContent === 'count: 7', undefined, {
-    timeout: 15_000,
-  })
-  await page.waitForFunction(() => '__MANDARAX_PAGE_DRIVER__' in window, undefined, {timeout: 15_000})
-}
+import {chromium, type Browser} from 'playwright'
+import {buildFixture, fixturePage, drive, ready} from './it-fixture.js'
 
 describe('react verbs (it) — real browser, real React, real driver', () => {
   let browser: Browser
@@ -108,6 +50,24 @@ describe('react verbs (it) — real browser, real React, real driver', () => {
     expect(props.tags).toEqual(['a', 'b', 'c'])
     // The whole reply must be JSON-clean — the original bug serialized props as "[object Object]".
     expect(JSON.stringify(out)).not.toContain('[object Object]')
+    await page.close()
+  })
+
+  it('componentHostAt resolves the nearest component host; describe reads its name', async () => {
+    const page = await browser.newPage()
+    await page.goto(state.base)
+    await ready(page)
+    type Bridge = {
+      componentHostAt: (el: Element) => Element | null
+      describe: (host: Element) => {component: string; file: string | null}
+    }
+    const out = await page.evaluate(() => {
+      const b = (window as unknown as {__MANDARAX_REACT_BRIDGE__: Bridge}).__MANDARAX_REACT_BRIDGE__
+      const leaf = document.querySelector('#card-inc')
+      const host = leaf && b.componentHostAt(leaf)
+      return host ? b.describe(host) : null
+    })
+    expect(out?.component).toBeTruthy()
     await page.close()
   })
 

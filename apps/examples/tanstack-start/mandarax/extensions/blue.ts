@@ -13,8 +13,10 @@ export default defineExtension({id: 'blue'})
     mx.registerTool(
       defineTool({
         name: 'acme_hello',
+        label: 'Hello',
         description: 'Return a friendly greeting for a name',
-        inputSchema: z.object({name: z.string()}),
-      }).server(({name}) => ({greeting: `Hello, ${name}!`})),
+        parameters: z.object({name: z.string()}),
+        execute: ({name}) => ({greeting: `Hello, ${name}!`}),
+      }),
     )
   })

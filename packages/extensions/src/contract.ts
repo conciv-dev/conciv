@@ -1,22 +1,17 @@
 import {z} from 'zod'
 import type {Component, JSX} from 'solid-js'
 import type {ThemeTokens} from '@mandarax/ui-kit-system'
-import type {ToolCardProps} from '@mandarax/protocol/tool-view-types'
+import type {ToolCardProps, ToolRenderContext, ToolRenderResultOptions} from '@mandarax/protocol/tool-view-types'
+import type {LocateResult, InspectResult, TreeResult} from '@mandarax/protocol/page-introspect-types'
 
-// A live UI region an extension paints into a named widget slot / header / footer (Pi-style setters).
+export type {ToolRenderContext, ToolRenderResultOptions} from '@mandarax/protocol/tool-view-types'
+
 export type UiFactory = () => JSX.Element
-
-// A client-side renderer for a tool's call/result cards (the browser half of a tool definition).
 export type ToolRenderer = Component<ToolCardProps>
-
-// The empty chat state (greeting + starters). An extension swaps it with ui.setEmptyState(factory).
 export type EmptyStateProps = {onStarter: (text: string) => void}
 export type EmptyStateFactory = Component<EmptyStateProps>
 
-// The server-side shape an extension contributes: a mandarax MCP tool (name + description + zod
-// inputSchema the SDK registers via .shape + an execute validated at the boundary). Structurally
-// identical to @mandarax/tools' MandaraxServerTool, so core registers extension tools alongside the
-// built-ins with no cast.
+// The wire tool core's MCP server registers; structurally identical to @mandarax/tools' MandaraxServerTool.
 export type ExtensionServerTool = {
   name: string
   description: string
@@ -24,20 +19,17 @@ export type ExtensionServerTool = {
   execute: (input: unknown) => Promise<unknown>
 }
 
-// What an extension's .server(mx => …) half collects: extra agent tools + system prompt text.
 export type ExtensionServerContributions = {
   tools: ExtensionServerTool[]
   systemPrompt: string[]
 }
 
-// The slim, stable context a composer-action click receives (the widget adapts its richer internal
-// capability bag down to this — extensions never see widget internals like the session client).
+// The slim context a composer-action click receives; the widget adapts its internal bag down to this.
 export type ComposerActionCtx = {
   insert: (text: string) => void
   notify: (message: string) => void
 }
 
-// A button an extension adds to the composer.
 export type ExtComposerAction = {
   id: string
   label: string
@@ -45,27 +37,7 @@ export type ExtComposerAction = {
   onClick: (ctx: ComposerActionCtx) => void | Promise<void>
 }
 
-// The erased tool shape collected from an extension (per-tool generics dropped for the array).
-export type ExtensionTool = {
-  name: string
-  description: string
-  inputSchema: z.ZodObject<z.ZodRawShape>
-  promptSnippet?: string
-  promptGuidelines?: string[]
-  serverExecute?: (input: unknown) => Promise<unknown>
-  clientRender?: ToolRenderer
-}
-
-// The builder: .server(execute) attaches the node half, .render(Component) the browser half. Both
-// live on one object so the renderer is co-located with the definition (Pi-style), and each runtime
-// loader reads its own half.
-export type ToolBuilder<S extends z.ZodObject<z.ZodRawShape>> = ExtensionTool & {
-  inputSchema: S
-  server: (execute: (input: z.infer<S>) => Promise<unknown> | unknown) => ToolBuilder<S>
-  render: (renderer: ToolRenderer) => ToolBuilder<S>
-}
-
-// What an extension's .client(mx => …) half can do in the widget (browser).
+// What an extension's .client(mx => …) half can do in the widget.
 export type ClientApi = {
   ui: {
     setTheme: (tokens: ThemeTokens) => void
@@ -78,15 +50,17 @@ export type ClientApi = {
   registerComposerAction: (action: ExtComposerAction) => void
 }
 
-// What an extension's .server(mx => …) half can do in core (node): add agent tools, extend the prompt.
+// What an extension's .server(mx => …) half can do in core: add agent tools, extend the prompt.
 export type ServerApi = {
-  registerTool: (tool: ExtensionTool) => void
+  registerTool: (tool: ToolDefinition) => void
   systemPrompt: {append: (text: string) => void}
 }
 
+// One loadable unit, carrying the tools and effects it contributes plus optional imperative halves.
 export type MandaraxExtension = {
   id: string
-  tools?: ExtensionTool[]
+  tools?: ToolDefinition[]
+  effects?: EffectDefinition[]
   clientFn?: (mx: ClientApi) => void
   serverFn?: (mx: ServerApi) => void
 }
@@ -96,12 +70,15 @@ export type ExtensionBuilder = MandaraxExtension & {
   server: (fn: (mx: ServerApi) => void) => ExtensionBuilder
 }
 
-// The author entry point: defineExtension({id, tools}).client(…).server(…). Each half is optional and
-// the chain composes (returns the same builder), matching @tanstack/ai's .server()/.client() split.
-export function defineExtension(meta: {id: string; tools?: ExtensionTool[]}): ExtensionBuilder {
+export function defineExtension(meta: {
+  id: string
+  tools?: ToolDefinition[]
+  effects?: EffectDefinition[]
+}): ExtensionBuilder {
   const builder: ExtensionBuilder = {
     id: meta.id,
     tools: meta.tools,
+    effects: meta.effects,
     client(fn) {
       builder.clientFn = fn
       return builder
@@ -114,30 +91,67 @@ export function defineExtension(meta: {id: string; tools?: ExtensionTool[]}): Ex
   return builder
 }
 
-// Define a tool: name + schema declared once; .server(execute) re-parses args at the node boundary,
-// .render(Component) supplies the browser card. promptSnippet/promptGuidelines self-document the tool
-// into the system prompt when it is registered (Pi parity).
-export function defineTool<S extends z.ZodObject<z.ZodRawShape>>(def: {
+// Pi's ToolDefinition: zod params, Solid JSX renderers, optional execute, names? for foreign harness
+// tools one card serves. Method syntax keeps concrete defs assignable to the bare type in arrays.
+export type ToolDefinition<
+  TParams extends z.ZodObject<z.ZodRawShape> = z.ZodObject<z.ZodRawShape>,
+  TResult = unknown,
+> = {
   name: string
+  names?: string[]
+  label: string
   description: string
-  inputSchema: S
   promptSnippet?: string
   promptGuidelines?: string[]
-}): ToolBuilder<S> {
-  const builder: ToolBuilder<S> = {
-    name: def.name,
-    description: def.description,
-    inputSchema: def.inputSchema,
-    promptSnippet: def.promptSnippet,
-    promptGuidelines: def.promptGuidelines,
-    server(execute) {
-      builder.serverExecute = async (raw: unknown) => execute(def.inputSchema.parse(raw))
-      return builder
-    },
-    render(renderer) {
-      builder.clientRender = renderer
-      return builder
-    },
+  parameters: TParams
+  renderShell?: 'default' | 'self'
+  prepareArguments?(args: unknown): z.infer<TParams>
+  execute?(input: z.infer<TParams>): Promise<TResult> | TResult
+  renderCall?(args: z.infer<TParams>, ctx: ToolRenderContext<z.infer<TParams>>): JSX.Element
+  renderResult?(
+    result: TResult,
+    options: ToolRenderResultOptions,
+    ctx: ToolRenderContext<z.infer<TParams>>,
+  ): JSX.Element
+}
+
+// Identity helper preserving param inference, matching Pi's defineTool().
+export function defineTool<TParams extends z.ZodObject<z.ZodRawShape>, TResult = unknown>(
+  tool: ToolDefinition<TParams, TResult>,
+): ToolDefinition<TParams, TResult> {
+  return tool
+}
+
+// The stable author API an effect's render() receives; the widget supplies the concrete implementation.
+export type EffectCtx = {
+  page: {
+    elementAt: (x: number, y: number) => Element | null
+    componentHostAt: (el: Element) => Element | null
+    describe: (host: Element) => {component: string; file: string | null}
+    locate: (el: Element) => Promise<LocateResult | null>
+    inspect: (el: Element) => Promise<InspectResult | null>
+    tree: () => Promise<TreeResult>
+    find: (name: string) => {matches: {ref: string; component: string}[]; total: number}
+    addRef: (el: Element) => string
   }
-  return builder
+  openSource: (locate: LocateResult) => Promise<'opened' | 'no-source' | 'failed'>
+  toast: (msg: string, tone?: 'info' | 'success' | 'error') => void
+  env: {reducedMotion: () => boolean; doc: Document; win: Window}
+  disable: () => void
+}
+
+export type EffectSetupCtx = {enable: () => void; disable: () => void; isEnabled: () => boolean}
+
+// A toggleable Solid page overlay; render() paints it, setup() is an optional lifecycle (e.g. a hotkey).
+export type EffectDefinition = {
+  name: string
+  label: string
+  description: string
+  render: (ctx: EffectCtx) => JSX.Element
+  setup?: (ctx: EffectSetupCtx) => (() => void) | void
+}
+
+// Identity helper, the parallel to defineTool.
+export function defineEffect(effect: EffectDefinition): EffectDefinition {
+  return effect
 }

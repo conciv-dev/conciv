@@ -6,9 +6,6 @@
 // stream, and the page-bus (push a PageQuery, resolve from the widget's reply). Real transport,
 // real browser, real bundle, real driver — scripted fixtures, not mocks. The authoritative
 // harness→SSE and test-runner→SSE backends are proven by @mandarax/core's route ITs.
-import fs from 'node:fs'
-import path from 'node:path'
-import {fileURLToPath} from 'node:url'
 import {Readable} from 'node:stream'
 import {createServer, type IncomingMessage, type Server, type ServerResponse} from 'node:http'
 import type {AddressInfo} from 'node:net'
@@ -17,9 +14,7 @@ import {chromium, type Browser} from 'playwright'
 import {EventType, type StreamChunk, toServerSentEventsStream} from '@tanstack/ai'
 import {aguiApprovalRequestedFor} from '@mandarax/protocol/ui-types'
 import {aguiUsageFor, snapshotToTokenUsage} from '@mandarax/protocol/usage-types'
-
-const dirname = path.dirname(fileURLToPath(import.meta.url))
-const widgetBundle = fs.readFileSync(path.join(dirname, '../dist/mandarax-widget.global.js'), 'utf8')
+import {widgetBundle, readBody} from './it-fixture.js'
 
 const ASSISTANT_TEXT = 'Hello from aidx'
 const SWITCHED_REPLY = 'Reply from the switched session'
@@ -219,14 +214,6 @@ function writeCompactStream(res: ServerResponse): void {
 }
 
 // Read a request body to a string.
-function readBody(req: IncomingMessage): Promise<string> {
-  return new Promise((resolve) => {
-    let body = ''
-    req.on('data', (c) => (body += c))
-    req.on('end', () => resolve(body))
-  })
-}
-
 // Read the POST body and report whether it's a compaction turn (intent rides forwardedProps/data).
 function readChatIntent(req: IncomingMessage): Promise<string> {
   return new Promise((resolve) => {

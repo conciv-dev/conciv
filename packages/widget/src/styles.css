@@ -87,7 +87,8 @@
   animation: pw-rig-glow 1.3s ease-in-out infinite;
 }
 @keyframes pw-rig-glow {
-  0%, 100% {
+  0%,
+  100% {
     filter: drop-shadow(0 0 1px var(--pw-accent));
   }
   50% {

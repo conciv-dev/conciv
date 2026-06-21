@@ -27,12 +27,12 @@ const CLIENT_SURFACES = [
 
 const SERVER_SURFACES = [
   {
-    method: 'defineTool({name,description,inputSchema}).server(execute).render(Component)',
-    description: 'Define a tool once: .server runs it (node), .render draws its card (browser).',
+    method: 'defineTool({name,label,description,parameters,execute,renderResult})',
+    description: 'Define a tool once: execute runs it (node), renderResult/renderCall draw its card (browser).',
   },
   {
-    method: 'defineExtension({id, tools:[…]})',
-    description: 'Declare tools; execute auto-wires server-side, renderer client-side, across the split.',
+    method: 'defineExtension({id, tools:[…], effects:[…]})',
+    description: 'Declare tools + effects; execute runs server-side, renderers client-side, across the split.',
   },
   {
     method: 'systemPrompt.append(text)',
@@ -94,23 +94,26 @@ import {defineExtension, defineTool} from '@mandarax/extensions'
 
 const ${id}Do = defineTool({
   name: '${id}_do',
+  label: '${id}',
   description: 'Describe what this tool does',
-  inputSchema: z.object({input: z.string()}),
-}).server(({input}) => ({result: input}))
+  parameters: z.object({input: z.string()}),
+  execute: ({input}) => ({result: input}),
+})
 
 export default defineExtension({id: '${id}', tools: [${id}Do]})
 `,
   'tool-renderer': (id) => `import {z} from 'zod'
 import {defineExtension, defineTool} from '@mandarax/extensions'
 
-// Co-locate the renderer with the tool: .render draws its card (browser), .server runs it (node).
+// Co-locate the renderer with the tool: execute runs it (node), renderResult draws its card (browser).
 const ${id}Do = defineTool({
   name: '${id}_do',
+  label: '${id}',
   description: 'Describe what this tool does',
-  inputSchema: z.object({input: z.string()}),
+  parameters: z.object({input: z.string()}),
+  execute: ({input}) => ({result: input}),
+  renderResult: (_result, _options, ctx) => <div>Custom render for {ctx.part.name}</div>,
 })
-  .server(({input}) => ({result: input}))
-  .render((props) => <div>Custom render for {props.part.name}</div>)
 
 export default defineExtension({id: '${id}', tools: [${id}Do]})
 `,
@@ -125,12 +128,13 @@ import {defineExtension, defineTool} from '@mandarax/extensions'
 
 const ${id}Do = defineTool({
   name: '${id}_do',
+  label: '${id}',
   description: 'Describe what this tool does',
-  inputSchema: z.object({input: z.string()}),
+  parameters: z.object({input: z.string()}),
   promptSnippet: 'You can use ${id}_do.',
+  execute: ({input}) => ({result: input}),
+  renderResult: (_result, _options, ctx) => <div>${id}: {ctx.part.name}</div>,
 })
-  .server(({input}) => ({result: input}))
-  .render((props) => <div>${id}: {props.part.name}</div>)
 
 export default defineExtension({id: '${id}', tools: [${id}Do]})
   .client((mx) => {

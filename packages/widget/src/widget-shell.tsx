@@ -1,6 +1,7 @@
-import {createEffect, createSignal, For, onCleanup, Show, type Component, type JSX} from 'solid-js'
+import {createEffect, createSignal, createUniqueId, For, onCleanup, Show, type Component, type JSX} from 'solid-js'
 import {render} from 'solid-js/web'
 import {EnvironmentProvider} from '@mandarax/ui-kit-system'
+import {ApprovalModal, type PendingApproval} from './approval-modal.js'
 import type {TriggerPosition} from '@mandarax/protocol/config-types'
 import type {WidgetSettings} from './widget-settings.js'
 import {createDraggablePosition} from './draggable-position.js'
@@ -32,6 +33,9 @@ export type PanelContext = {
   onWorkingChange: (working: boolean) => void
   // The content reports its latest model-usage snapshot, for the top-bar context tracker.
   onUsageChange: (usage: UsageSnapshot | null) => void
+  // The content reports its pending native approvals, so the shell can surface them in the modal
+  // while the panel is closed.
+  onApprovalsChange: (approvals: PendingApproval[]) => void
   // This surface's session client — owns the active mandarax_ id, the single comms seam for the panel.
   client: SessionClient
   // The content reports its resolved session name, so the chrome can surface a just-born row.
@@ -168,6 +172,15 @@ function Shell(props: {
   const [assertiveMsg, setAssertiveMsg] = createSignal('')
   const announce = (msg: string, assertive = false) => (assertive ? setAssertiveMsg(msg) : setPoliteMsg(msg))
 
+  // Pending native approvals, aggregated across every mounted pane (each reports its own under a
+  // stable key). The modal shows the first while the chat panel is closed. No module-global store:
+  // each thread derives its approvals from its messages and reports them up the same way it reports
+  // working/usage.
+  const [approvalsByPane, setApprovalsByPane] = createSignal<Record<string, PendingApproval[]>>({})
+  const reportApprovals = (key: string, items: PendingApproval[]) =>
+    setApprovalsByPane((prev) => ({...prev, [key]: items}))
+  const pendingApprovals = () => Object.values(approvalsByPane()).flat()
+
   // Esc cancels an in-progress element pick (react-grab handles it too; this is a safety net and
   // covers the pill being focused).
   createEffect(() => {
@@ -190,6 +203,7 @@ function Shell(props: {
               composerControls={props.composerControls}
               position={props.settings.modal.position}
               announce={announce}
+              reportApprovals={reportApprovals}
               open={() => layer() === 'modal'}
               onOpen={() => setLayer('modal')}
               onClose={closeModal}
@@ -202,10 +216,12 @@ function Shell(props: {
               composerControls={props.composerControls}
               hotkeys={props.settings.quickTerminal.hotkeys}
               announce={announce}
+              reportApprovals={reportApprovals}
               open={() => layer() === 'quick'}
               setOpen={setQuickOpen}
             />
           </Show>
+          <ApprovalModal visible={() => layer() !== 'modal'} approvals={pendingApprovals} />
           <div class="sr-only" role="status" aria-live="polite">
             {politeMsg()}
           </div>
@@ -302,6 +318,7 @@ function ModalLayout(props: {
   composerControls: () => ComposerControlDef[]
   position: TriggerPosition
   announce: (msg: string, assertive?: boolean) => void
+  reportApprovals: (key: string, approvals: PendingApproval[]) => void
   open: () => boolean
   onOpen: () => void
   onClose: () => void
@@ -319,10 +336,12 @@ function ModalLayout(props: {
     client.setSessionId(id)
     const [working, setWorking] = createSignal(false)
     const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
+    const approvalKey = createUniqueId()
     const content = props.panel.create({
       active: () => props.open() && activeId() === id,
       onWorkingChange: setWorking,
       onUsageChange: setUsage,
+      onApprovalsChange: (items) => props.reportApprovals(approvalKey, items),
       onSessionLabel: (name) => mergeSurface(id, makeSurfaceRow(id, name)),
       client,
       onNewSession: () => void activateNew(),

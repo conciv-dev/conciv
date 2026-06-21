@@ -3,13 +3,11 @@ import type {
   ServerApi,
   ExtensionServerContributions,
   ExtensionServerTool,
-  ExtensionTool,
-  ToolRenderer,
+  ToolDefinition,
+  EffectDefinition,
 } from './contract.js'
 
-// The body of the client virtual module the bundler serves: glob every extension file and feed each
-// default export to window.__MANDARAX__.use() (queued until the widget installs use()). import.meta
-// .glob is a bundler macro, so this string is handed to the bundler's load() hook to expand + HMR.
+// Client virtual-module body: glob every extension file and feed its default export to use() (+ HMR).
 export function extensionsModuleSource(): string {
   return `
 const mods = import.meta.glob('/mandarax/extensions/*.{ts,tsx,js,jsx}', { eager: true })
@@ -24,18 +22,26 @@ if (import.meta.hot) import.meta.hot.accept()
 `
 }
 
-// Convert one collected tool into the wire shape core's MCP server registers; append its prompt text.
-function addServerTool(tools: ExtensionServerTool[], systemPrompt: string[], t: ExtensionTool): void {
-  if (t.serverExecute) {
-    tools.push({name: t.name, description: t.description, inputSchema: t.inputSchema, execute: t.serverExecute})
+// Pi's wrapToolDefinition: adapt an executable def into the wire tool, validating args at the boundary.
+export function wrapToolDefinition(def: ToolDefinition): ExtensionServerTool {
+  const run = def.execute
+  if (!run) throw new Error(`tool ${def.name} has no execute`)
+  return {
+    name: def.name,
+    description: def.description,
+    inputSchema: def.parameters,
+    execute: async (input) => run(def.parameters.parse(input)),
   }
+}
+
+// Wrap an execute-bearing def into a wire tool (render-only defs contribute none); append its prompt text.
+function addServerTool(tools: ExtensionServerTool[], systemPrompt: string[], t: ToolDefinition): void {
+  if (t.execute) tools.push(wrapToolDefinition(t))
   if (t.promptSnippet) systemPrompt.push(t.promptSnippet)
   if (t.promptGuidelines?.length) systemPrompt.push(...t.promptGuidelines)
 }
 
-// Run each extension's .server(mx => …) half against a collecting ServerApi, also draining its
-// declarative tools[], gathering the agent tools + system prompt text the engine should add. Pure:
-// the caller loads the modules (the bundler owns transpilation) and passes their default exports here.
+// Gather the wire tools + system-prompt text from each extension's tools[] and its imperative serverFn.
 export function collectServerContributions(extensions: MandaraxExtension[]): ExtensionServerContributions {
   const tools: ExtensionServerTool[] = []
   const systemPrompt: string[] = []
@@ -50,16 +56,16 @@ export function collectServerContributions(extensions: MandaraxExtension[]): Ext
   return {tools, systemPrompt}
 }
 
-// The client half of declared tools: each tool's renderer keyed by name, which the widget turns into
-// tool cards (ToolCardEntry) and passes to ToolCallCard alongside the built-ins.
+// The client half: tools that carry a renderer (matched by name in the widget) + the effects.
 export function collectClientContributions(extensions: MandaraxExtension[]): {
-  toolRenderers: {name: string; render: ToolRenderer}[]
+  tools: ToolDefinition[]
+  effects: EffectDefinition[]
 } {
-  const toolRenderers: {name: string; render: ToolRenderer}[] = []
+  const tools: ToolDefinition[] = []
+  const effects: EffectDefinition[] = []
   for (const ext of extensions) {
-    for (const t of ext.tools ?? []) {
-      if (t.clientRender) toolRenderers.push({name: t.name, render: t.clientRender})
-    }
+    for (const t of ext.tools ?? []) if (t.renderCall || t.renderResult) tools.push(t)
+    for (const e of ext.effects ?? []) effects.push(e)
   }
-  return {toolRenderers}
+  return {tools, effects}
 }

@@ -1,11 +1,10 @@
 import {z} from 'zod'
-import {toolDefinition} from '@tanstack/ai'
+import {defineTool, type ToolDefinition} from '@mandarax/extensions'
 import {PageQueryInputSchema, PageQueryKindSchema} from '@mandarax/protocol/page-types'
+import type {MandaraxToolContext} from './types.js'
 
-// verb + the page-query input fields, as a single ZodObject (the MCP server registers it directly).
-// since/timeout are plain numbers here (not the shared schema's z.coerce.number(), which exists for
-// the HTTP query-string route): over MCP/JSON the model sends real numbers, and plain numbers keep
-// the inferred handler-arg types precise (z.coerce's input type is `unknown`).
+// since/timeout are plain numbers (not the shared schema's z.coerce.number(), which is for the HTTP
+// query-string route): over MCP/JSON the model sends real numbers, keeping inferred arg types precise.
 export const PageInput = PageQueryInputSchema.extend({
   verb: PageQueryKindSchema,
   since: z.number().optional(),
@@ -13,9 +12,13 @@ export const PageInput = PageQueryInputSchema.extend({
   hookId: z.number().optional(),
 })
 
-export const mandaraxPageToolDef = toolDefinition({
-  name: 'mandarax_page',
-  description:
-    'Read and drive the live page DOM and React tree by ref/selector/name. Reads: snapshot, query, text, value, dom. Actions: click, fill (text/number/select/textarea), select, check, uncheck, hover, press, scroll, submit. React: tree, inspect, find, locate, override, track. One snapshot returns a ref for every control — act on all of them before re-snapshotting.',
-  inputSchema: PageInput,
-})
+export function createPageToolDefinition(ctx: MandaraxToolContext): ToolDefinition<typeof PageInput> {
+  return defineTool({
+    name: 'mandarax_page',
+    label: 'Page',
+    description:
+      'Read and drive the live page DOM and React tree by ref/selector/name. Reads: snapshot, query, text, value, dom. Actions: click, fill (text/number/select/textarea), select, check, uncheck, hover, press, scroll, submit. React: tree, inspect, find, locate, override, track. One snapshot returns a ref for every control — act on all of them before re-snapshotting.',
+    parameters: PageInput,
+    execute: ({verb, ...input}) => ctx.page({kind: verb, ...input}),
+  })
+}

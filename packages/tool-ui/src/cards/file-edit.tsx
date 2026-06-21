@@ -5,7 +5,8 @@ import {SolidFileDiff} from '@mandarax/solid-diffs'
 import {ToolCard} from '../shell.js'
 import {parseInput} from '../util.js'
 import {DIFF_OPTIONS} from '../diff-options.js'
-import type {ToolCardEntry, ToolCardProps} from '../types.js'
+import type {ToolCardProps} from '../types.js'
+import {cardTool} from '../card-tool.js'
 
 // Fields we read to render a diff. Edit/MultiEdit carry old_string/new_string; Write carries
 // content (a pure addition). All optional so partial/streaming input still renders a title.
@@ -77,4 +78,9 @@ export function FileEditCard(props: ToolCardProps): JSX.Element {
 }
 
 // This card renders the file-write tools (Edit/MultiEdit/Write).
-export const fileEditTool: ToolCardEntry = {names: ['Edit', 'MultiEdit', 'Write'], render: FileEditCard}
+export const fileEditTool = cardTool({
+  name: 'Edit',
+  names: ['Edit', 'MultiEdit', 'Write'],
+  parameters: EditInput,
+  Card: FileEditCard,
+})

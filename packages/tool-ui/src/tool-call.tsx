@@ -1,27 +1,45 @@
-import {type Component, type JSX} from 'solid-js'
-import {Dynamic} from 'solid-js/web'
-import type {ToolCardProps, ToolCardEntry} from './types.js'
+import type {JSX} from 'solid-js'
+import type {ToolDefinition} from '@mandarax/extensions'
+import type {ToolCardProps, ToolRenderContext} from './types.js'
 import {ApprovalBar} from './approval-bar.js'
 import {GenericCard} from './cards/generic.js'
+import {parseInput} from './util.js'
 
-export type ToolCallCardProps = ToolCardProps & {tools?: () => ToolCardEntry[]}
+export type ToolCallCardProps = ToolCardProps & {tools?: () => ToolDefinition[]}
 
-// Render a tool-call part as a card: find the tool whose names include this part's name from the
-// passed array (extension tools first, so an extension can override a built-in name — Pi's same-name
-// override), else the generic card. An approval bar renders below when the part is in tanstack's
-// native approval-requested state (uniform across every tool — approval is a property of the call).
+function matches(tool: ToolDefinition, name: string): boolean {
+  return (tool.names ?? [tool.name]).includes(name)
+}
+
+function renderContext(props: ToolCallCardProps, tool: ToolDefinition): ToolRenderContext<Record<string, unknown>> {
+  return {
+    ...props.ctx,
+    args: parseInput(tool.parameters, props.part) ?? {},
+    part: props.part,
+    toolCallId: props.part.id,
+    durationMs: props.durationMs,
+    expanded: true,
+    isPartial: !props.result,
+    isError: props.result?.state === 'error',
+  }
+}
+
+// Match a tool-call part by name/names (extension tools first, overriding built-ins): renderCall while
+// running, renderResult once output lands, else the generic card. ApprovalBar renders below.
 export function ToolCallCard(props: ToolCallCardProps): JSX.Element {
-  const render = (): Component<ToolCardProps> =>
-    props.tools?.().find((t) => t.names.includes(props.part.name))?.render ?? GenericCard
+  const tool = (): ToolDefinition | undefined => props.tools?.().find((t) => matches(t, props.part.name))
+  const body = (): JSX.Element => {
+    const t = tool()
+    if (!t) return <GenericCard part={props.part} result={props.result} ctx={props.ctx} durationMs={props.durationMs} />
+    const ctx = renderContext(props, t)
+    const result = props.result
+    return result
+      ? t.renderResult?.(result, {expanded: ctx.expanded, isPartial: false}, ctx)
+      : t.renderCall?.(ctx.args, ctx)
+  }
   return (
     <>
-      <Dynamic
-        component={render()}
-        part={props.part}
-        result={props.result}
-        ctx={props.ctx}
-        durationMs={props.durationMs}
-      />
+      {body()}
       <ApprovalBar part={props.part} ctx={props.ctx} />
     </>
   )

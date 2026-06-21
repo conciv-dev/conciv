@@ -11,15 +11,24 @@ import {modelSelectorControl} from './model-selector.js'
 import {TestCard} from './test-card.js'
 import {initPageBus} from './page-bus.js'
 import {makeDomPageDriver, type PageDriver} from './page-driver.js'
+import {createEffectsHost} from './effects-host.js'
+import highlightExtension from './effects/highlight-extension.js'
+import type {Refs} from './page-snapshot.js'
 import {installReactBridge} from './react-bridge.js'
+import * as reactBridge from './react-bridge.js'
 import {defineClient} from './session-client.js'
 import {parseWidgetSettings, type WidgetSettings} from './widget-settings.js'
 import {applyThemeOverrides} from './theme.js'
 import {setExtWidget, setExtHeader, setExtFooter, setExtStatus} from './ui-store.js'
 import {setEmptyStateOverride} from './empty-state.js'
 import {installExtensionGlobal} from './extension-runtime.js'
-import {builtinToolCards, type ToolCardEntry} from '@mandarax/tool-ui'
-import {collectClientContributions, type ClientApi, type MandaraxExtension} from '@mandarax/extensions'
+import {builtinTools} from '@mandarax/tool-ui'
+import {
+  collectClientContributions,
+  type ClientApi,
+  type MandaraxExtension,
+  type ToolDefinition,
+} from '@mandarax/extensions'
 
 // Entry: create the open Shadow DOM, probe the dev server, and mount the Solid chat agent +
 // page-bus when the mandarax routes are live. Auto-mounts on load; also exports mountWidget.
@@ -35,6 +44,7 @@ declare global {
     // Test seam (browser IT): the live page driver, for driving React verbs against real fibers
     // without a running dev server. Same driver the page-bus uses (one console buffer / registry).
     __MANDARAX_PAGE_DRIVER__?: PageDriver
+    __MANDARAX_REACT_BRIDGE__?: typeof import('./react-bridge.js')
   }
 }
 
@@ -62,9 +72,15 @@ export function mountWidget(): void {
   const {root} = createShadowRoot()
   const apiBase = resolveApiBase()
   window.__MANDARAX_RENDER_TEST_CARD__ = () => mountTestCardForTest(root, apiBase)
-  // One driver, shared by the page-bus and the test seam, so console-patching + registry happen once.
-  const driver = makeDomPageDriver()
+  // Effects host first: it owns the refs + injects the page `effect` verb handler into the one driver
+  // the page-bus and test seam share. The built-in highlight extension applies through the same use()
+  // path as user extensions — synchronously here, so it works even without the chat server.
+  const refs: Refs = {map: new Map(), n: 0}
+  const effectsHost = createEffectsHost({apiBase, refs})
+  const driver = makeDomPageDriver({refs, handlers: {effect: effectsHost.effectHandler}})
   window.__MANDARAX_PAGE_DRIVER__ = driver
+  window.__MANDARAX_REACT_BRIDGE__ = reactBridge
+  effectsHost.applyEffects(collectClientContributions([highlightExtension]).effects)
   const settings = resolveWidget()
   // Chat + page-bus only exist on the mandarax dev server. Probe the non-session /models route: a 2xx
   // means chat is mounted (and carries the harness identity that gates the launch button). A throw
@@ -72,16 +88,13 @@ export function mountWidget(): void {
   void defineClient({apiBase})
     .models()
     .then((models) => {
-      // Extension tool cards (each tool self-describes via defineTool(...).render()). Composed with
-      // the built-ins and passed to the panel like composerActions; extension entries come first so an
-      // extension can override a built-in tool by name. Upsert keeps HMR re-applies from duplicating.
-      const [extToolCards, setExtToolCards] = createSignal<ToolCardEntry[]>([])
-      const tools = () => [...extToolCards(), ...builtinToolCards]
-      const addToolCard = (entry: ToolCardEntry) =>
-        setExtToolCards((prev) =>
-          prev.some((e) => e.names[0] === entry.names[0])
-            ? prev.map((e) => (e.names[0] === entry.names[0] ? entry : e))
-            : [...prev, entry],
+      // Extension tools come first so an extension can override a built-in by name; upsert keeps HMR
+      // re-applies from duplicating.
+      const [extTools, setExtTools] = createSignal<ToolDefinition[]>([])
+      const tools = () => [...extTools(), ...builtinTools]
+      const addTool = (tool: ToolDefinition) =>
+        setExtTools((prev) =>
+          prev.some((e) => e.name === tool.name) ? prev.map((e) => (e.name === tool.name ? tool : e)) : [...prev, tool],
         )
       // The shell owns the chrome + layout modes and hosts the chat as a registered panel.
       const shell = createWidgetShell({settings})
@@ -113,8 +126,9 @@ export function mountWidget(): void {
       }
       installExtensionGlobal((ext: MandaraxExtension) => {
         ext.clientFn?.(clientApi)
-        for (const t of collectClientContributions([ext]).toolRenderers)
-          addToolCard({names: [t.name], render: t.render})
+        const contributions = collectClientContributions([ext])
+        for (const t of contributions.tools) addTool(t)
+        if (contributions.effects.length) effectsHost.applyEffects(contributions.effects)
       })
       initPageBus({apiBase, driver})
     })

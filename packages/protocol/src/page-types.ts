@@ -19,6 +19,7 @@ export const PAGE_QUERY_KINDS = [
   'override',
   'find',
   'track',
+  'effect',
   'wait',
   'click',
   'fill',
@@ -119,8 +120,8 @@ export const PageQuerySchema = z.object({
   target: z.enum(['props', 'state', 'hooks', 'context']).optional(),
   hookId: z.coerce.number().optional(),
   json: z.string().optional(),
-  // track verb: start a recording, stop it, or read the current report (filter by `name`).
-  action: z.enum(['start', 'stop', 'report']).optional(),
+  effect: z.string().optional(),
+  action: z.enum(['start', 'stop', 'report', 'enable', 'disable', 'toggle', 'list']).optional(),
 })
 
 export type PageQuery = z.infer<typeof PageQuerySchema>
@@ -150,3 +151,13 @@ const MUTATING = new Set<string>(MUTATING_KINDS)
 export function isMutating(kind: string): boolean {
   return MUTATING.has(kind)
 }
+
+export const RawFrameSchema = z.object({
+  fileName: z.string().optional(),
+  line: z.number().optional(),
+  column: z.number().optional(),
+  fn: z.string().optional(),
+})
+export const OpenSourceSchema = z.object({frames: z.array(RawFrameSchema)})
+export const OpenSourceResultSchema = z.object({status: z.enum(['opened', 'no-source', 'failed'])})
+export type OpenSourceResult = z.infer<typeof OpenSourceResultSchema>['status']
