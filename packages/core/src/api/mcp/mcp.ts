@@ -4,6 +4,7 @@ import {WebStandardStreamableHTTPServerTransport} from '@modelcontextprotocol/sd
 import {mandaraxTools, type MandaraxToolContext} from '@mandarax/tools'
 import type {ExtensionServerTool} from '@mandarax/extensions'
 import {sessionIdFromHeaders} from '../chat/session-id.js'
+import {createHistory, takeHistory, type History} from '../../history/history.js'
 
 // Build an McpServer exposing the mandarax tool registry bound to `ctx`, plus any extension tools. A
 // fresh server + transport is created per request: the stateless streamable-HTTP pattern isolates
@@ -14,6 +15,7 @@ function buildServer(
   extensionTools: ExtensionServerTool[],
   sessionId: string,
   previewId: string,
+  history: History,
 ): McpServer {
   const server = new McpServer({name: 'mandarax', version: '0.0.0'})
   for (const tool of [...mandaraxTools(ctx), ...extensionTools]) {
@@ -22,7 +24,8 @@ function buildServer(
       {description: tool.description, inputSchema: tool.inputSchema.shape},
       async (args) => {
         // tool.execute validates args against its zod schema once at this boundary, then runs.
-        const result = await tool.execute(args, {sessionId, previewId})
+        const raw = await tool.execute(args, {sessionId, previewId})
+        const result = takeHistory(raw, sessionId, history)
         return {content: [{type: 'text', text: JSON.stringify(result)}]}
       },
     )
@@ -39,6 +42,7 @@ export function registerMcpRoutes(
   makeCtx: (sessionId: string) => MandaraxToolContext,
   extensionTools: ExtensionServerTool[] = [],
   previewId = '',
+  history: History = createHistory(),
 ): void {
   app.post('/api/mcp', async (event) => {
     const sessionId = sessionIdFromHeaders(event.req.headers) ?? '' // '' = no live channel
@@ -47,7 +51,7 @@ export function registerMcpRoutes(
       sessionIdGenerator: undefined,
       enableJsonResponse: true,
     })
-    await buildServer(ctx, extensionTools, sessionId, previewId).connect(transport)
+    await buildServer(ctx, extensionTools, sessionId, previewId, history).connect(transport)
     return transport.handleRequest(event.req)
   })
 }

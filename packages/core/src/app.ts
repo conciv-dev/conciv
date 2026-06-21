@@ -12,6 +12,7 @@ import {registerErrorHandler} from './api/errors.js'
 import {registerChatRoutes} from './api/chat/chat.js'
 import {registerMcpRoutes} from './api/mcp/mcp.js'
 import {registerToolRunRoute} from './api/tools/run.js'
+import {createHistory} from './history/history.js'
 import {registerPageRoutes} from './api/page/page.js'
 import {registerOpenSourceRoute} from './api/page/open-source.js'
 import {registerServerRoutes} from './api/server/server.js'
@@ -86,6 +87,7 @@ export function makeApp(opts: MakeAppOpts): H3 {
   registerTestRunnerRoutes(app, runner)
   // Expose mandarax tools to the harness CLI via MCP-over-HTTP on the same server, bridged to the live
   // uiBus / page bus / test runner.
+  const history = createHistory()
   registerMcpRoutes(
     app,
     (sessionId) => ({
@@ -100,11 +102,13 @@ export function makeApp(opts: MakeAppOpts): H3 {
     }),
     extensions?.tools ?? [],
     opts.cfg.previewId,
+    history,
   )
   registerToolRunRoute(app, {
     tools: extensions?.tools ?? [],
     approvals: extensions?.approvalPolicies ?? {},
     previewId: opts.cfg.previewId,
+    history,
     fire,
   })
   if (opts.dbProxyTarget) registerDbProxy(app, opts.dbProxyTarget)
