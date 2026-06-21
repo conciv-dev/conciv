@@ -128,8 +128,8 @@ export function Comments(props: {
               <button type="button" onClick={() => setCompose(null)}>
                 Cancel
               </button>
-              <button type="button" onClick={save}>
-                Comment
+              <button type="button" aria-label="Save comment" onClick={save}>
+                Save
               </button>
             </div>
           </div>

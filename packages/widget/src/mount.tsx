@@ -60,7 +60,7 @@ export function mountWidget(): void {
   if (document.querySelector('[data-mandarax-root]')) return
   // Install the RDT hook before the host app's React initializes (so inspect/override work).
   installReactBridge()
-  const {root} = createShadowRoot()
+  const {host: widgetHost, root} = createShadowRoot()
   const apiBase = resolveApiBase()
   window.__MANDARAX_RENDER_TEST_CARD__ = () => mountTestCardForTest(root, apiBase)
   // One driver, shared by the page-bus and the test seam, so console-patching + registry happen once.
@@ -91,7 +91,7 @@ export function mountWidget(): void {
       shell.registerComposerAction(newSessionAction)
       shell.registerComposerAction(compactAction)
       // Lazy canvas overlay: injects the core-served bundle on first toggle, mounts into the shadow root.
-      const canvasToggle = makeCanvasToggle(apiBase, 'local')
+      const canvasToggle = makeCanvasToggle(apiBase, 'local', widgetHost)
       shell.registerComposerAction({
         id: canvasToggle.id,
         label: canvasToggle.label,

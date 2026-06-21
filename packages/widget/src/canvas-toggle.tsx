@@ -47,19 +47,25 @@ export type CanvasToggleAction = {
 // A composer action that toggles the lazy canvas overlay on/off. Mounted into the LIGHT DOM (not the
 // widget shadow root): Excalidraw's pointer/drawing events get retargeted at a shadow boundary and the
 // canvas never receives drags, so the island must live in the page document to be drawable.
-export function makeCanvasToggle(apiBase: string, session: string): CanvasToggleAction {
+// widgetHost is the widget's shadow host (chat + FAB); we hide it while the canvas is open so the
+// canvas takes the screen, and restore it on Close (the overlay carries its own Close control).
+export function makeCanvasToggle(apiBase: string, session: string, widgetHost: HTMLElement): CanvasToggleAction {
   let handle: OverlayHandle | null = null
   let host: HTMLDivElement | null = null
+  const close = () => {
+    handle?.dispose()
+    handle = null
+    host?.remove()
+    host = null
+    widgetHost.style.display = ''
+  }
   return {
     id: 'canvas',
     label: 'Canvas',
     icon: CanvasIcon,
     onClick: async () => {
       if (handle) {
-        handle.dispose()
-        handle = null
-        host?.remove()
-        host = null
+        close()
         return
       }
       const api = await loadOverlay(apiBase)
@@ -69,7 +75,8 @@ export function makeCanvasToggle(apiBase: string, session: string): CanvasToggle
       host.style.pointerEvents = 'none'
       host.style.zIndex = '2147482000'
       document.body.appendChild(host)
-      handle = api.mount(host, {roomId: session, base: apiBase, session})
+      handle = api.mount(host, {roomId: session, base: apiBase, session, onClose: close})
+      widgetHost.style.display = 'none' // close the chat panel while the canvas is up
     },
   }
 }

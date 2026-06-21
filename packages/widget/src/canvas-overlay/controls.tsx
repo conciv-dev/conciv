@@ -1,59 +1,17 @@
-import {createSignal} from 'solid-js'
-
-// Minimal slice of the Excalidraw API the controls drive (zoom + fit).
-export type ExcalidrawApi = {
-  updateScene: (scene: {appState?: Record<string, unknown>}) => void
-  getAppState: () => {zoom: {value: number}}
-  getSceneElements: () => readonly unknown[]
-  scrollToContent: (target?: unknown, opts?: {fitToContent?: boolean; animate?: boolean}) => void
-}
-
-const ZOOM_STEP = 1.2
-const clampZoom = (z: number) => Math.min(30, Math.max(0.1, z))
-
-// Our own chrome (Excalidraw's is hidden via zen mode): a Draw toggle that flips the canvas between
-// pass-through (idle — click the app beneath) and interactive (draw), plus zoom in/out/reset/fit.
+// A small control bar for what Excalidraw's own chrome doesn't cover: Comment mode (place pins),
+// Browse (pass-through so the app beneath is clickable), and Close. Drawing + zoom use Excalidraw's
+// native toolbar. Pinned top-right with pointer-events on, above the canvas, so it's always reachable.
 export function Controls(props: {
-  api: () => ExcalidrawApi | null
-  onDrawChange: (draw: boolean) => void
-  onCommentChange: (comment: boolean) => void
+  commentMode: () => boolean
+  passThrough: () => boolean
+  onComment: (on: boolean) => void
+  onPassThrough: (on: boolean) => void
+  onClose: () => void
 }) {
-  const [draw, setDraw] = createSignal(false)
-  const [comment, setComment] = createSignal(false)
-  const toggleDraw = () => {
-    const next = !draw()
-    setDraw(next)
-    if (next && comment()) {
-      setComment(false)
-      props.onCommentChange(false)
-    }
-    props.onDrawChange(next)
-  }
-  const toggleComment = () => {
-    const next = !comment()
-    setComment(next)
-    if (next && draw()) {
-      setDraw(false)
-      props.onDrawChange(false)
-    }
-    props.onCommentChange(next)
-  }
-  const zoom = (factor: number) => {
-    const api = props.api()
-    if (!api) return
-    api.updateScene({appState: {zoom: {value: clampZoom(api.getAppState().zoom.value * factor)}}})
-  }
-  const reset = () => props.api()?.updateScene({appState: {zoom: {value: 1}}})
-  const fit = () => {
-    const api = props.api()
-    if (api) api.scrollToContent(api.getSceneElements(), {fitToContent: true, animate: false})
-  }
-
   const bar = {
     position: 'absolute',
-    bottom: '16px',
-    left: '50%',
-    transform: 'translateX(-50%)',
+    top: '12px',
+    right: '12px',
     display: 'flex',
     gap: '4px',
     padding: '4px',
@@ -61,48 +19,40 @@ export function Controls(props: {
     background: 'rgba(20,20,28,0.85)',
     'box-shadow': '0 4px 16px rgba(0,0,0,0.3)',
     'pointer-events': 'auto',
+    'z-index': '20',
   } as const
-  const btn = {
-    'min-width': '34px',
-    height: '30px',
-    padding: '0 8px',
-    border: 'none',
-    'border-radius': '7px',
-    background: 'transparent',
-    color: 'white',
-    'font-size': '13px',
-    cursor: 'pointer',
-  } as const
+  const btn = (active: boolean) =>
+    ({
+      height: '30px',
+      padding: '0 10px',
+      border: 'none',
+      'border-radius': '7px',
+      background: active ? '#6366f1' : 'transparent',
+      color: 'white',
+      'font-size': '13px',
+      cursor: 'pointer',
+    }) as const
 
   return (
     <div style={bar}>
       <button
         type="button"
-        style={{...btn, background: draw() ? '#6366f1' : 'transparent'}}
-        aria-label={draw() ? 'Stop drawing' : 'Draw'}
-        onClick={toggleDraw}
+        style={btn(props.commentMode())}
+        aria-label={props.commentMode() ? 'Stop commenting' : 'Comment'}
+        onClick={() => props.onComment(!props.commentMode())}
       >
-        {draw() ? '✏️ Drawing' : '✏️ Draw'}
+        💬 {props.commentMode() ? 'Click to pin' : 'Comment'}
       </button>
       <button
         type="button"
-        style={{...btn, background: comment() ? '#6366f1' : 'transparent'}}
-        aria-label={comment() ? 'Stop commenting' : 'Comment'}
-        onClick={toggleComment}
+        style={btn(props.passThrough())}
+        aria-label={props.passThrough() ? 'Resume editing the canvas' : 'Browse the app underneath'}
+        onClick={() => props.onPassThrough(!props.passThrough())}
       >
-        {comment() ? '💬 Click to pin' : '💬 Comment'}
+        {props.passThrough() ? '👆 Browsing' : '👆 Browse'}
       </button>
-      <button type="button" style={btn} aria-label="Zoom in" onClick={() => zoom(ZOOM_STEP)}>
-        +
-      </button>
-      <button type="button" style={btn} aria-label="Zoom out" onClick={() => zoom(1 / ZOOM_STEP)}>
-        −
-      </button>
-      <button type="button" style={btn} aria-label="Reset zoom" onClick={reset}>
-        100%
-      </button>
-      <button type="button" style={btn} aria-label="Zoom to fit" onClick={fit}>
-        Fit
+      <button type="button" style={btn(false)} aria-label="Close canvas" onClick={props.onClose}>
+        ✕
       </button>
     </div>
   )

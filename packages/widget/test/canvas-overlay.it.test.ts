@@ -47,8 +47,8 @@ describe('canvas overlay (it) — real browser', () => {
     const page = await browser.newPage()
     await page.goto(state.base, {waitUntil: 'domcontentloaded'})
 
-    // Our own controls render (zen-free Excalidraw + the Draw/Comment toggle bar).
-    await page.getByRole('button', {name: 'Draw'}).waitFor({state: 'visible'})
+    // Our own control bar renders (Comment / Browse / Close over the Excalidraw island).
+    await page.getByRole('button', {name: 'Close canvas'}).waitFor({state: 'visible'})
 
     // Add a pin to the doc; the Solid pins layer reactively renders a marker for it.
     await page.evaluate(() =>

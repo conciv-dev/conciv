@@ -87,7 +87,10 @@ export function makeApp(opts: MakeAppOpts): H3 {
   // file-discovered). Its agent tools join the MCP surface; its session_start handlers fire below.
   const commentStore = createCommentStore({stateRoot: opts.cfg.stateRoot})
   const anchorResolver = createAnchorResolver({projectRoot: opts.cwd})
-  const sessionId = () => opts.cfg.sessionId ?? 'local'
+  // The canvas room must match what the browser connects to. cfg.sessionId defaults to '' (and ''??x
+  // keeps ''), so key the canvas on previewId ('local' on both sides) — a single canvas per preview for
+  // now; per-chat-session canvas is future work.
+  const sessionId = () => opts.cfg.previewId || 'local'
   const doctor = createDoctor({comments: commentStore, resolver: anchorResolver, relay: canvasRelay, sessionId})
   registerCanvasRoutes(app, {relay: canvasRelay, doctor})
   const canvasComments = collectServerContributions([
