@@ -18,6 +18,7 @@ import {applyThemeOverrides} from './theme.js'
 import {setExtWidget, setExtHeader, setExtFooter, setExtStatus} from './ui-store.js'
 import {setEmptyStateOverride} from './empty-state.js'
 import {installExtensionGlobal} from './extension-runtime.js'
+import {makeCanvasToggle} from './canvas-toggle.js'
 import {builtinToolCards, type ToolCardEntry} from '@mandarax/tool-ui'
 import {collectClientContributions, type ClientApi, type MandaraxExtension} from '@mandarax/extensions'
 
@@ -89,6 +90,14 @@ export function mountWidget(): void {
       shell.registerComposerAction(elementPickerAction)
       shell.registerComposerAction(newSessionAction)
       shell.registerComposerAction(compactAction)
+      // Lazy canvas overlay: injects the core-served bundle on first toggle, mounts into the shadow root.
+      const canvasToggle = makeCanvasToggle(root, apiBase, 'local')
+      shell.registerComposerAction({
+        id: canvasToggle.id,
+        label: canvasToggle.label,
+        icon: canvasToggle.icon,
+        onClick: () => void canvasToggle.onClick(),
+      })
       if (models.harness.canLaunch) shell.registerComposerAction(makeOpenInTerminalAction(models.harness.name))
       shell.registerComposerControl(modelSelectorControl)
       shell.mount(root)

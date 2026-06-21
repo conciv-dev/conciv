@@ -90,6 +90,15 @@ describe('canvas relay (IT, real http + yjs)', () => {
     expect(report).toEqual({fresh: 0, reAnchored: 0, drifted: 0, orphaned: 0, ambiguous: 0})
   })
 
+  it('serves the lazy overlay bundle as javascript', async () => {
+    const {server, base} = await startServer()
+    state.server = server
+    const res = await fetch(`${base}/api/canvas/overlay.js`, {headers: {origin: ORIGIN}})
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toContain('javascript')
+    expect(await res.text()).toContain('__MANDARAX_CANVAS__')
+  })
+
   it('rejects a cross-origin (non-loopback) caller', async () => {
     const {server, base} = await startServer()
     state.server = server

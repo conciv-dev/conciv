@@ -15,9 +15,19 @@ export const ORIGIN = {
 
 export type CanvasElement = {id: string; version: number} & Record<string, unknown>
 
+// A comment pin: pure geometry keyed by commentId (the join's Yjs half; the row is the source of truth).
+export type CanvasPin = {
+  commentId: string
+  x: number
+  y: number
+  elementId?: string
+  pinState: 'locked' | 'offset'
+}
+
 export type CanvasDoc = {
   doc: Y.Doc
   elements: Y.Map<CanvasElement>
+  pins: Y.Map<CanvasPin>
   origin: typeof ORIGIN
   addElement: (el: CanvasElement) => void
   applyRemote: (update: Uint8Array) => void
@@ -33,10 +43,12 @@ function localCache(roomId: string, doc: Y.Doc): IndexeddbPersistence | null {
 export function createCanvasDoc(roomId: string): CanvasDoc {
   const doc = new Y.Doc()
   const elements = doc.getMap<CanvasElement>('elements')
+  const pins = doc.getMap<CanvasPin>('pins')
   const cache = localCache(roomId, doc)
   return {
     doc,
     elements,
+    pins,
     origin: ORIGIN,
     addElement: (el) => doc.transact(() => elements.set(el.id, el), ORIGIN.USER),
     applyRemote: (update) => Y.applyUpdate(doc, update, ORIGIN.REMOTE),
