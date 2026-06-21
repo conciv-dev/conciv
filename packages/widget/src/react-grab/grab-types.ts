@@ -11,10 +11,14 @@ export type ElementSnapshot = {
 }
 
 // Where the grabbed element lives in source. Our own shape; the adapter maps react-grab's SourceInfo.
+// column comes from the build-injected data-mandarax-source attr (react-grab carries no column); null
+// when the attr is absent, so a source anchor degrades to file:line and flags drift rather than
+// silently pinning an ambiguous shared-line JSX node.
 export type ElementSource = {
   componentName: string | null
   filePath: string
   lineNumber: number | null
+  column: number | null
 }
 
 // What the human sees staged above the composer: the visual + its origin. This is composer draft

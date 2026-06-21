@@ -1,6 +1,7 @@
 import type {SourceInfo} from 'react-grab'
 import {setPicking, setCancelPick} from './picking.js'
 import {captureElement} from './capture-element.js'
+import {sourceFromAttr} from '../react-bridge.js'
 import type {ElementSource, Grab} from './grab-types.js'
 import '../mandarax-global.js'
 
@@ -12,10 +13,16 @@ import '../mandarax-global.js'
 
 export type GrabSink = (grab: Grab) => void
 
-// The one place react-grab's SourceInfo crosses into our domain types.
-function toElementSource(info: SourceInfo | null): ElementSource | null {
-  if (!info) return null
-  return {componentName: info.componentName, filePath: info.filePath, lineNumber: info.lineNumber}
+// The one place react-grab's SourceInfo crosses into our domain types. The build-injected
+// data-mandarax-source attr is preferred when present (it carries file:line:col as one coherent
+// triple); otherwise we degrade to react-grab's file/line with a null column.
+function toElementSource(info: SourceInfo | null, el: Element): ElementSource | null {
+  const attr = sourceFromAttr(el)
+  if (attr)
+    return {componentName: info?.componentName ?? null, filePath: attr.file, lineNumber: attr.line, column: attr.column}
+  if (info)
+    return {componentName: info.componentName, filePath: info.filePath, lineNumber: info.lineNumber, column: null}
+  return null
 }
 
 export type ReactGrabAdapter = {
@@ -54,7 +61,7 @@ async function create(): Promise<ReactGrabAdapter> {
         const el = elements[0]
         if (el) {
           const [snapshot, info] = await Promise.all([captureElement(el), api.getSource(el)])
-          sink?.({text: content, snapshot, source: toElementSource(info)})
+          sink?.({text: content, snapshot, source: toElementSource(info, el)})
         }
         return content
       },
