@@ -3,6 +3,12 @@ import type {Component, JSX} from 'solid-js'
 import type {ThemeTokens} from '@mandarax/ui-kit-system'
 import type {ToolCardProps, ToolRenderContext, ToolRenderResultOptions} from '@mandarax/protocol/tool-view-types'
 import type {LocateResult, InspectResult, TreeResult} from '@mandarax/protocol/page-introspect-types'
+import type {LiveDb, ClientDb} from '@mandarax/protocol/db-types'
+import type {SyncEngine, ClientSync} from '@mandarax/protocol/sync-types'
+
+export type ExtensionEvent = 'session_start' | 'tool_execution_start'
+export type EventCtx = {sessionId: string; previewId: string; tool?: string}
+export type ApprovalPolicy = 'auto' | 'ask'
 
 export type {ToolRenderContext, ToolRenderResultOptions} from '@mandarax/protocol/tool-view-types'
 
@@ -22,12 +28,15 @@ export type ExtensionServerTool = {
 export type ExtensionServerContributions = {
   tools: ExtensionServerTool[]
   systemPrompt: string[]
+  eventHandlers: Record<ExtensionEvent, ((ctx: EventCtx) => void | Promise<void>)[]>
+  approvalPolicies: Record<string, ApprovalPolicy>
 }
 
 // The slim context a composer-action click receives; the widget adapts its internal bag down to this.
 export type ComposerActionCtx = {
   insert: (text: string) => void
   notify: (message: string) => void
+  runTool: (name: string, input: unknown) => Promise<unknown>
 }
 
 export type ExtComposerAction = {
@@ -48,13 +57,22 @@ export type ClientApi = {
     setEmptyState: (factory: EmptyStateFactory | null) => void
   }
   registerComposerAction: (action: ExtComposerAction) => void
+  db: ClientDb
+  sync: ClientSync
 }
 
-// What an extension's .server(mx => …) half can do in core: add agent tools, extend the prompt.
+// What an extension's .server(mx => …) half can do in core: add agent tools, extend the prompt,
+// declare live collections + CRDT rooms, react to lifecycle events, gate tools behind approval.
 export type ServerApi = {
   registerTool: (tool: ToolDefinition) => void
   systemPrompt: {append: (text: string) => void}
+  db: LiveDb
+  sync: SyncEngine
+  on: (event: ExtensionEvent, handler: (ctx: EventCtx) => void | Promise<void>) => void
+  approval: (toolName: string, policy: ApprovalPolicy) => void
 }
+
+export type ServerServices = {db: LiveDb; sync: SyncEngine}
 
 // One loadable unit, carrying the tools and effects it contributes plus optional imperative halves.
 export type MandaraxExtension = {

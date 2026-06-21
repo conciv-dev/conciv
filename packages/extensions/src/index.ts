@@ -20,6 +20,10 @@ export {
   type ExtComposerAction,
   type ExtensionServerTool,
   type ExtensionServerContributions,
+  type ServerServices,
+  type ExtensionEvent,
+  type EventCtx,
+  type ApprovalPolicy,
 } from './contract.js'
 export {
   extensionsModuleSource,

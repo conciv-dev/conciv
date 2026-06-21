@@ -1,11 +1,17 @@
 import type {
   MandaraxExtension,
   ServerApi,
+  ServerServices,
+  ExtensionEvent,
+  EventCtx,
+  ApprovalPolicy,
   ExtensionServerContributions,
   ExtensionServerTool,
   ToolDefinition,
   EffectDefinition,
 } from './contract.js'
+import type {LiveDb} from '@mandarax/protocol/db-types'
+import type {SyncEngine} from '@mandarax/protocol/sync-types'
 
 // Client virtual-module body: glob every extension file and feed its default export to use() (+ HMR).
 export function extensionsModuleSource(): string {
@@ -41,19 +47,43 @@ function addServerTool(tools: ExtensionServerTool[], systemPrompt: string[], t: 
   if (t.promptGuidelines?.length) systemPrompt.push(...t.promptGuidelines)
 }
 
-// Gather the wire tools + system-prompt text from each extension's tools[] and its imperative serverFn.
-export function collectServerContributions(extensions: MandaraxExtension[]): ExtensionServerContributions {
+function unavailable(name: string): never {
+  throw new Error(`${name} is not available until services are wired (boot)`)
+}
+
+const NO_DB: LiveDb = {
+  collection: () => unavailable('mx.db'),
+  list: () => unavailable('mx.db'),
+  get: () => unavailable('mx.db'),
+}
+const NO_SYNC: SyncEngine = {room: () => unavailable('mx.sync')}
+
+// Gather wire tools + system prompt + event handlers + approval policies from each extension's
+// tools[] and its imperative serverFn, threading the core-owned db/sync services into the api.
+export function collectServerContributions(
+  extensions: MandaraxExtension[],
+  services?: ServerServices,
+): ExtensionServerContributions {
   const tools: ExtensionServerTool[] = []
   const systemPrompt: string[] = []
+  const eventHandlers: Record<ExtensionEvent, ((ctx: EventCtx) => void | Promise<void>)[]> = {
+    session_start: [],
+    tool_execution_start: [],
+  }
+  const approvalPolicies: Record<string, ApprovalPolicy> = {}
   const api: ServerApi = {
     registerTool: (t) => addServerTool(tools, systemPrompt, t),
     systemPrompt: {append: (text) => systemPrompt.push(text)},
+    db: services?.db ?? NO_DB,
+    sync: services?.sync ?? NO_SYNC,
+    on: (event, handler) => void eventHandlers[event].push(handler),
+    approval: (toolName, policy) => void (approvalPolicies[toolName] = policy),
   }
   for (const ext of extensions) {
     for (const t of ext.tools ?? []) addServerTool(tools, systemPrompt, t)
     ext.serverFn?.(api)
   }
-  return {tools, systemPrompt}
+  return {tools, systemPrompt, eventHandlers, approvalPolicies}
 }
 
 // The client half: tools that carry a renderer (matched by name in the widget) + the effects.
