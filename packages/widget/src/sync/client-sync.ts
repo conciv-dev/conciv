@@ -20,6 +20,7 @@ function createRoom(coreBaseUrl: string, token: string, roomId: string, persist:
   const persistence = persist ? new IndexeddbPersistence(roomId, doc) : null
   return {
     doc,
+    awareness: provider.awareness,
     connected: () => provider.wsconnected,
     disconnect: () => {
       provider.destroy()

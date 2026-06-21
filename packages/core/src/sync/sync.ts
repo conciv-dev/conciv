@@ -121,6 +121,7 @@ export function createSync(opts: SyncOptions): Sync {
       const state = ensureRoom(roomId)
       return {
         doc: state.doc,
+        awareness: state.awareness,
         observe: (cb) => {
           const handler = (update: Uint8Array, origin: unknown): void => cb(update, origin)
           state.doc.on('update', handler)

@@ -1,4 +1,5 @@
 import type {Doc} from 'yjs'
+import type {Awareness} from 'y-protocols/awareness'
 
 export const ORIGIN = {
   USER: 'user',
@@ -12,6 +13,7 @@ export type Origin = (typeof ORIGIN)[keyof typeof ORIGIN]
 
 export type SyncRoom = {
   doc: Doc
+  awareness: Awareness
   observe: (cb: (update: Uint8Array, origin: unknown) => void) => () => void
   apply: (update: Uint8Array, origin: unknown) => void
   snapshot: () => Uint8Array
@@ -24,6 +26,6 @@ export type SnapshotStore = {
   save: (room: string, ybin: Uint8Array) => Promise<void>
 }
 
-export type ClientRoom = {doc: Doc; connected: () => boolean; disconnect: () => void}
+export type ClientRoom = {doc: Doc; awareness: Awareness; connected: () => boolean; disconnect: () => void}
 
 export type ClientSync = {room: (roomId: string) => ClientRoom}
