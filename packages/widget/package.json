@@ -50,6 +50,7 @@
     "@mandarax/solid-streamdown": "workspace:^",
     "@mandarax/tool-ui": "workspace:^",
     "@mandarax/ui-kit-system": "workspace:^",
+    "@mandarax/whiteboard": "workspace:^",
     "@tanstack/ai": "^0.28.0",
     "@tanstack/ai-client": "^0.16.3",
     "@tanstack/ai-solid": "^0.13.4",

@@ -514,6 +514,9 @@ importers:
       '@mandarax/protocol':
         specifier: workspace:^
         version: link:../protocol
+      '@mandarax/whiteboard':
+        specifier: workspace:^
+        version: link:../whiteboard
       '@mandarax/widget':
         specifier: workspace:^
         version: link:../widget
@@ -993,6 +996,64 @@ importers:
         specifier: ^66.7.2
         version: 66.7.2(@unocss/postcss@66.7.2(postcss@8.5.15))(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
 
+  packages/whiteboard:
+    dependencies:
+      '@mandarax/extensions':
+        specifier: workspace:^
+        version: link:../extensions
+      '@mandarax/protocol':
+        specifier: workspace:^
+        version: link:../protocol
+      '@mandarax/tool-ui':
+        specifier: workspace:^
+        version: link:../tool-ui
+      '@tanstack/solid-db':
+        specifier: ^0.2.23
+        version: 0.2.23(solid-js@1.9.13)(typescript@6.0.3)
+      solid-js:
+        specifier: ^1.9.13
+        version: 1.9.13
+      yjs:
+        specifier: ^13.6.31
+        version: 13.6.31
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@mandarax/core':
+        specifier: workspace:^
+        version: link:../core
+      '@types/node':
+        specifier: ^22.19.21
+        version: 22.19.21
+      crossws:
+        specifier: ^0.4.6
+        version: 0.4.6(srvx@0.11.16)
+      get-port:
+        specifier: ^7.2.0
+        version: 7.2.0
+      h3:
+        specifier: 2.0.1-rc.22
+        version: 2.0.1-rc.22(crossws@0.4.6(srvx@0.11.16))
+      playwright:
+        specifier: ^1.60.0
+        version: 1.60.0
+      srvx:
+        specifier: ^0.11.16
+        version: 0.11.16
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vite:
+        specifier: ^8.0.16
+        version: 8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0)
+      vite-plugin-solid:
+        specifier: ^2.11.12
+        version: 2.11.12(@testing-library/jest-dom@6.9.1)(solid-js@1.9.13)(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+      vitest:
+        specifier: ^4.1.8
+        version: 4.1.8(@opentelemetry/api@1.9.0)(@types/node@22.19.21)(@vitest/browser-playwright@4.1.8)(@vitest/coverage-v8@4.1.8)(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+
   packages/widget:
     dependencies:
       '@ark-ui/solid':
@@ -1019,6 +1080,9 @@ importers:
       '@mandarax/ui-kit-system':
         specifier: workspace:^
         version: link:../ui-kit-system
+      '@mandarax/whiteboard':
+        specifier: workspace:^
+        version: link:../whiteboard
       '@tanstack/ai':
         specifier: ^0.28.0
         version: 0.28.0(@opentelemetry/api@1.9.0)

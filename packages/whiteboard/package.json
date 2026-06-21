@@ -1,0 +1,64 @@
+{
+  "name": "@mandarax/whiteboard",
+  "version": "0.0.0",
+  "description": "The mandarax whiteboard: a default-on first-party extension giving the user and the AI an equal, transparent Excalidraw canvas over the dev app, with source-anchored comments, a drift doctor, and one cross-store undo stack.",
+  "keywords": [
+    "ai",
+    "canvas",
+    "excalidraw",
+    "mandarax",
+    "whiteboard"
+  ],
+  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/whiteboard#readme",
+  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mandarax-dev/mandarax.git",
+    "directory": "packages/whiteboard"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "vite build && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@mandarax/extensions": "workspace:^",
+    "@mandarax/protocol": "workspace:^",
+    "@mandarax/tool-ui": "workspace:^",
+    "@tanstack/solid-db": "^0.2.23",
+    "solid-js": "^1.9.13",
+    "yjs": "^13.6.31",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@mandarax/core": "workspace:^",
+    "@types/node": "^22.19.21",
+    "crossws": "^0.4.6",
+    "get-port": "^7.2.0",
+    "h3": "2.0.1-rc.22",
+    "playwright": "^1.60.0",
+    "srvx": "^0.11.16",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vite-plugin-solid": "^2.11.12",
+    "vitest": "^4.1.8"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.9.13"
+  }
+}

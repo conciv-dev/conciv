@@ -25,16 +25,12 @@ function extensionFiles(root: string): string[] {
   }
 }
 
-// Load each extension's SERVER half and collect its contributions (extra agent tools + system prompt
-// text) for the engine. jiti is a bundler-agnostic node TS loader, so this works under any bundler
-// (the client half rides the app bundler's HMR). Solid jsx importSource so a .tsx extension's renderer
-// transpiles without pulling React. Re-runs on dev-server (re)start; server edits need a restart.
-export async function loadServerContributions(
-  root: string,
-  services?: ServerServices,
-): Promise<ExtensionServerContributions> {
+// Discover + load each extension's SERVER half. jiti is a bundler-agnostic node TS loader, so this
+// works under any bundler (the client half rides the app bundler's HMR). Solid jsx importSource so a
+// .tsx extension's renderer transpiles without pulling React. Re-runs on dev-server (re)start.
+export async function loadServerExtensions(root: string): Promise<MandaraxExtension[]> {
   const files = extensionFiles(root)
-  if (files.length === 0) return collectServerContributions([], services)
+  if (files.length === 0) return []
   const jiti = createJiti(pathToFileURL(join(root, 'noop.js')).href, {
     jsx: {runtime: 'automatic', importSource: 'solid-js'},
   })
@@ -43,5 +39,13 @@ export async function loadServerContributions(
     const mod = await jiti.import<{default?: MandaraxExtension}>(file)
     if (mod.default) extensions.push(mod.default)
   }
-  return collectServerContributions(extensions, services)
+  return extensions
+}
+
+// Collect the contributions (extra agent tools + system prompt text) from the discovered extensions.
+export async function loadServerContributions(
+  root: string,
+  services?: ServerServices,
+): Promise<ExtensionServerContributions> {
+  return collectServerContributions(await loadServerExtensions(root), services)
 }

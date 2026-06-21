@@ -26,6 +26,7 @@ import {createClientDb} from './db/client-db.js'
 import {createClientSync} from './sync/client-sync.js'
 import {createRunTool} from './run-tool.js'
 import {builtinTools} from '@mandarax/tool-ui'
+import whiteboard from '@mandarax/whiteboard'
 import {
   collectClientContributions,
   type ClientApi,
@@ -143,6 +144,10 @@ export function mountWidget(): void {
         previewId,
         sessionId,
       }
+      whiteboard.clientFn?.(clientApi)
+      const builtin = collectClientContributions([whiteboard])
+      for (const t of builtin.tools) addTool(t)
+      if (builtin.effects.length) effectsHost.applyEffects(builtin.effects)
       installExtensionGlobal((ext: MandaraxExtension) => {
         ext.clientFn?.(clientApi)
         const contributions = collectClientContributions([ext])
