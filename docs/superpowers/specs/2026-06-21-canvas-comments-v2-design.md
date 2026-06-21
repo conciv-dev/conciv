@@ -192,16 +192,35 @@ widget mounting (services fail gracefully into local-only).
 
 ## Contract seams added to the extension system (generic, help every extension)
 
-The merged `@mandarax/extensions` `ServerApi` is `{registerTool, systemPrompt}`. v2 grows it minimally:
+**Design principle — one composable extension API.** `mx.sync` and `mx.db` are not a parallel API;
+they are added to the **same `mx` object** an extension already receives, composing with
+`registerTool`, `systemPrompt`, `on`, `approval`, `ui`, `registerComposerAction`, and effects. An
+extension declares a collection (`mx.db`), registers a tool whose `execute` closes over that
+collection (`mx.registerTool`), gates it (`mx.approval`), self-documents it (`mx.systemPrompt` /
+`promptSnippet`), renders it (`mx.ui` / `renderResult`), and reacts to lifecycle (`mx.on`) — all
+through one coherent surface, server and client halves symmetrical. Core's own subsystems consume the
+same service interfaces, so nothing the extension can do is a private back door.
+
+The merged `@mandarax/extensions` `ServerApi` is `{registerTool, systemPrompt}`. v2 grows both halves:
 
 ```ts
+// .server(mx => …)
 type ServerApi = {
   registerTool: (tool: ToolDefinition) => void
   systemPrompt: {append: (text: string) => void}
-  sync: SyncEngine // NEW (core service 1)
-  db: LiveDb // NEW (core service 2)
+  sync: SyncEngine // NEW (core service 1) — rooms
+  db: LiveDb // NEW (core service 2) — collections + list()/get() introspection
   on: (event: 'session_start' | 'tool_execution_start', handler: () => void) => void // NEW
   approval: (tool: string, policy: 'auto' | 'ask') => void // NEW
+}
+// .client(mx => …)
+type ClientApi = {
+  ui: {
+    /* existing: setWidget/setHeader/setFooter/setStatus/setEmptyState/setTheme */
+  }
+  registerComposerAction: (action: ExtComposerAction) => void
+  sync: ClientSync // NEW — room(roomId) → a Yjs provider wired through core's gated relay
+  db: ClientDb // NEW — collection(name) → a reactive TanStack DB collection synced through core
 }
 type ComposerActionCtx = {
   insert: (text: string) => void
@@ -210,8 +229,9 @@ type ComposerActionCtx = {
 }
 ```
 
-These are generic capabilities, not canvas/comment-specific. A future presence/cursors/collab
-extension can use `mx.sync`; any extension wanting durable realtime rows can use `mx.db`.
+These are generic capabilities, not canvas/comment-specific, and they compose with the rest. A future
+presence/cursors/collab extension can use `mx.sync`; any extension wanting durable realtime rows can
+use `mx.db` and discover others' collections via `mx.db.list()`.
 
 ## The commentId join — one core-side write owns both stores
 
