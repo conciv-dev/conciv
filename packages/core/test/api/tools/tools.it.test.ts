@@ -58,6 +58,43 @@ describe('shared tool-run endpoint (IT) — the canvas-comments built-in', () =>
     expect(elements.map((e) => e.id)).toEqual(['r1'])
   })
 
+  it('gates a destructive tool: comment.delete needs approval, then runs once approved', async () => {
+    const {server, base} = await startServer()
+    state.server = server
+
+    // Create a comment (auto), then attempt delete (ask) — it parks for approval, not run.
+    const created = await (await run(base, 'comment.create', {parts: [{type: 'text', text: 'x'}]})).json()
+    const id = created.result.id as string
+    const del = await (await run(base, 'comment.delete', {id})).json()
+    expect(del.status).toBe('needs-approval')
+    expect(del.approvalId).toBeTruthy()
+    // still present (not yet deleted)
+    expect(((await (await run(base, 'comment.list', {})).json()).result.comments as unknown[]).length).toBe(1)
+
+    // Approve -> the delete actually runs.
+    const approved = await fetch(`${base}/api/tools/approve`, {
+      method: 'POST',
+      headers: {origin: ORIGIN, 'content-type': 'application/json'},
+      body: JSON.stringify({approvalId: del.approvalId, approved: true}),
+    })
+    expect((await approved.json()).status).toBe('ok')
+    expect(((await (await run(base, 'comment.list', {})).json()).result.comments as unknown[]).length).toBe(0)
+  })
+
+  it('denying an approval does not run the tool', async () => {
+    const {server, base} = await startServer()
+    state.server = server
+    const created = await (await run(base, 'comment.create', {parts: [{type: 'text', text: 'keep'}]})).json()
+    const del = await (await run(base, 'comment.delete', {id: created.result.id})).json()
+    const denied = await fetch(`${base}/api/tools/approve`, {
+      method: 'POST',
+      headers: {origin: ORIGIN, 'content-type': 'application/json'},
+      body: JSON.stringify({approvalId: del.approvalId, approved: false}),
+    })
+    expect((await denied.json()).status).toBe('denied')
+    expect(((await (await run(base, 'comment.list', {})).json()).result.comments as unknown[]).length).toBe(1)
+  })
+
   it('returns 404 for an unknown tool', async () => {
     const {server, base} = await startServer()
     state.server = server
