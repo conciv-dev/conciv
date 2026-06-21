@@ -1,6 +1,8 @@
 import {spawn} from 'node:child_process'
 import {serve} from 'srvx'
+import {plugin as ws} from 'crossws/server'
 import getPort from 'get-port'
+import type {Hooks} from 'crossws'
 import type {HarnessChild} from '@mandarax/protocol/harness-types'
 import type {BundlerBridge} from '@mandarax/protocol/bundler-types'
 import type {ExtensionServerContributions} from '@mandarax/extensions'
@@ -22,6 +24,9 @@ export type StartOpts = {
   allowedOrigins?: string[]
   // The collected .server() halves of discovered extensions: extra MCP tools + system prompt text.
   extensions?: ExtensionServerContributions
+  // mx.db: the trail base URL to reverse-proxy. mx.sync: the crossws hooks for the y-websocket server.
+  dbProxyTarget?: string
+  syncHooks?: Partial<Hooks>
 }
 
 export type Engine = {port: number; stop: () => Promise<void>; cfg: ResolvedMandaraxConfig}
@@ -61,7 +66,8 @@ export async function start(opts: StartOpts): Promise<Engine> {
     openInEditor,
     systemPromptFile: systemPrompt ? paths.systemPrompt : undefined,
     systemPromptText: systemPrompt,
-    extensionTools: opts.extensions?.tools ?? [],
+    extensions: opts.extensions,
+    dbProxyTarget: opts.dbProxyTarget,
     spawnHarness,
     harnessEnv,
     allowedOrigins: opts.allowedOrigins,
@@ -69,7 +75,12 @@ export async function start(opts: StartOpts): Promise<Engine> {
   const app = makeApp(appOpts)
   // Explicit port (e.g. the Next.js integration) is used as-is; otherwise get-port finds a free one.
   const requestedPort = opts.port ?? (await getPort())
-  const server = serve({fetch: app.fetch, port: requestedPort, hostname: '127.0.0.1'})
+  const server = serve({
+    fetch: app.fetch,
+    port: requestedPort,
+    hostname: '127.0.0.1',
+    plugins: opts.syncHooks ? [ws(opts.syncHooks)] : [],
+  })
   await server.ready()
   const port = portOf(server.url)
   portRef.port = port

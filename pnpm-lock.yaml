@@ -342,12 +342,18 @@ importers:
       '@tanstack/ai':
         specifier: ^0.28.0
         version: 0.28.0(@opentelemetry/api@1.9.0)
+      crossws:
+        specifier: ^0.4.6
+        version: 0.4.6(srvx@0.11.16)
       get-port:
         specifier: ^7.1.0
         version: 7.2.0
       h3:
         specifier: 2.0.1-rc.22
         version: 2.0.1-rc.22(crossws@0.4.6(srvx@0.11.16))
+      lib0:
+        specifier: ^0.2.117
+        version: 0.2.117
       srvx:
         specifier: ^0.11.16
         version: 0.11.16
@@ -360,6 +366,9 @@ importers:
       unstorage:
         specifier: ^1.17.5
         version: 1.17.5(@netlify/blobs@10.7.9)
+      y-protocols:
+        specifier: ^1.0.7
+        version: 1.0.7(yjs@13.6.31)
       yjs:
         specifier: ^13.6.31
         version: 13.6.31
@@ -409,7 +418,7 @@ importers:
         version: 0.2.23(solid-js@1.9.13)(typescript@6.0.3)
       '@tanstack/trailbase-db-collection':
         specifier: ^0.1.87
-        version: 0.1.87(typescript@6.0.3)
+        version: 0.1.87(supports-color@10.2.2)(typescript@6.0.3)
       '@types/node':
         specifier: ^22.19.21
         version: 22.19.21
@@ -1021,7 +1030,7 @@ importers:
         version: 0.21.1(solid-js@1.9.13)
       '@tanstack/trailbase-db-collection':
         specifier: ^0.1.87
-        version: 0.1.87(typescript@6.0.3)
+        version: 0.1.87(supports-color@10.2.2)(typescript@6.0.3)
       bippy:
         specifier: 0.5.41
         version: 0.5.41(react@19.2.7)
@@ -1046,6 +1055,9 @@ importers:
       y-indexeddb:
         specifier: ^9.0.12
         version: 9.0.12(yjs@13.6.31)
+      y-websocket:
+        specifier: ^3.0.0
+        version: 3.0.0(yjs@13.6.31)
       yjs:
         specifier: ^13.6.31
         version: 13.6.31
@@ -1086,6 +1098,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: 4.1.8
         version: 4.1.8(@vitest/browser@4.1.8)(vitest@4.1.8)
+      crossws:
+        specifier: ^0.4.6
+        version: 0.4.6(srvx@0.11.16)
       get-port:
         specifier: ^7.2.0
         version: 7.2.0
@@ -12530,6 +12545,18 @@ packages:
     peerDependencies:
       yjs: ^13.0.0
 
+  y-protocols@1.0.7:
+    resolution: {integrity: sha512-YSVsLoXxO67J6eE/nV4AtFtT3QEotZf5sK5BHxFBXso7VDUT3Tx07IfA6hsu5Q5OmBdMkQVmFZ9QOA7fikWvnw==}
+    engines: {node: '>=16.0.0', npm: '>=8.0.0'}
+    peerDependencies:
+      yjs: ^13.0.0
+
+  y-websocket@3.0.0:
+    resolution: {integrity: sha512-mUHy7AzkOZ834T/7piqtlA8Yk6AchqKqcrCXjKW8J1w2lPtRDjz8W5/CvXz9higKAHgKRKqpI3T33YkRFLkPtg==}
+    engines: {node: '>=16.0.0', npm: '>=8.0.0'}
+    peerDependencies:
+      yjs: ^13.5.6
+
   y18n@5.0.8:
     resolution: {integrity: sha512-0pfFzegeDWJHJIAmTLRP2DwHjdF5s7jo9tuztdQxAhINCdvS+3nGINqPd00AphqJR/0LhANUS6/+7SCb98YOfA==}
     engines: {node: '>=10'}
@@ -17112,7 +17139,7 @@ snapshots:
 
   '@tanstack/store@0.9.3': {}
 
-  '@tanstack/trailbase-db-collection@0.1.87(typescript@6.0.3)':
+  '@tanstack/trailbase-db-collection@0.1.87(supports-color@10.2.2)(typescript@6.0.3)':
     dependencies:
       '@standard-schema/spec': 1.1.0
       '@tanstack/db': 0.6.9(typescript@6.0.3)
@@ -25626,6 +25653,17 @@ snapshots:
   y-indexeddb@9.0.12(yjs@13.6.31):
     dependencies:
       lib0: 0.2.117
+      yjs: 13.6.31
+
+  y-protocols@1.0.7(yjs@13.6.31):
+    dependencies:
+      lib0: 0.2.117
+      yjs: 13.6.31
+
+  y-websocket@3.0.0(yjs@13.6.31):
+    dependencies:
+      lib0: 0.2.117
+      y-protocols: 1.0.7(yjs@13.6.31)
       yjs: 13.6.31
 
   y18n@5.0.8: {}

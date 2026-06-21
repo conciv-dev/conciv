@@ -2,8 +2,9 @@ import {H3} from 'h3'
 import type {HarnessAdapter, HarnessChild} from '@mandarax/protocol/harness-types'
 import type {TestRunnerAdapter} from '@mandarax/protocol/runner-types'
 import type {BundlerBridge} from '@mandarax/protocol/bundler-types'
-import type {ExtensionServerTool} from '@mandarax/extensions'
+import type {ExtensionServerContributions, ExtensionEvent, EventCtx} from '@mandarax/extensions'
 import type {ResolvedMandaraxConfig} from './config.js'
+import {registerDbProxy} from './db/proxy.js'
 import {getHarness} from '@mandarax/harness'
 import {getRunner} from '@mandarax/test-runner'
 import {registerCors} from './api/cors.js'
@@ -28,8 +29,10 @@ export type MakeAppOpts = {
   systemPromptFile?: string
   // The effective system prompt text (base + extension appends); defaults to cfg.systemPrompt.
   systemPromptText?: string
-  // Extension-contributed MCP tools, registered alongside the built-in mandarax tools.
-  extensionTools?: ExtensionServerTool[]
+  // Collected .server() halves: extra MCP tools, event handlers, approval policies.
+  extensions?: ExtensionServerContributions
+  // mx.db: the trail base URL the gated Record-API reverse-proxy forwards to.
+  dbProxyTarget?: string
   spawnHarness: (args: string[], cwd: string, sessionId?: string) => HarnessChild
   harnessEnv?: (sessionId?: string) => NodeJS.ProcessEnv
   // Override the harness transcript home (claude: ~/.claude). For tests; defaults to homedir().
@@ -57,6 +60,10 @@ export function makeApp(opts: MakeAppOpts): H3 {
   const harness = requireHarness(opts.cfg.harness)
   const runner = requireRunner(opts.cfg.testRunner).create(opts.cwd)
   const uiBus = makeUiBus()
+  const extensions = opts.extensions
+  const fire = (event: ExtensionEvent, ctx: EventCtx): void => {
+    for (const handler of extensions?.eventHandlers[event] ?? []) void handler(ctx)
+  }
 
   registerErrorHandler(app)
   registerCors(app, opts.allowedOrigins ?? [])
@@ -91,9 +98,16 @@ export function makeApp(opts: MakeAppOpts): H3 {
       },
       open: (file, line) => opts.openInEditor(file, line),
     }),
-    opts.extensionTools ?? [],
+    extensions?.tools ?? [],
   )
-  registerToolRunRoute(app, opts.extensionTools ?? [])
+  registerToolRunRoute(app, {
+    tools: extensions?.tools ?? [],
+    approvals: extensions?.approvalPolicies ?? {},
+    previewId: opts.cfg.previewId,
+    fire,
+  })
+  if (opts.dbProxyTarget) registerDbProxy(app, opts.dbProxyTarget)
   if (opts.bridge) registerServerRoutes(app, opts.bridge)
+  fire('session_start', {sessionId: opts.cfg.sessionId, previewId: opts.cfg.previewId})
   return app
 }

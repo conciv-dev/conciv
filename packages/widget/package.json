@@ -66,6 +66,7 @@
     "solid-js": "^1.9.13",
     "trailbase": "^0.10.0",
     "y-indexeddb": "^9.0.12",
+    "y-websocket": "^3.0.0",
     "yjs": "^13.6.31",
     "zod": "^4.4.3"
   },
@@ -81,6 +82,7 @@
     "@unocss/reset": "^66.7.2",
     "@vitest/browser-playwright": "4.1.8",
     "@vitest/coverage-v8": "4.1.8",
+    "crossws": "^0.4.6",
     "get-port": "^7.2.0",
     "h3": "2.0.1-rc.22",
     "playwright": "^1.60.0",

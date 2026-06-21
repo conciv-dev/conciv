@@ -4,17 +4,16 @@ import {dirname, join} from 'node:path'
 import {fileURLToPath, pathToFileURL} from 'node:url'
 import {createRequire} from 'node:module'
 import getPort from 'get-port'
-import {H3, type H3Event} from 'h3'
+import {H3} from 'h3'
 import {serve, type Server} from 'srvx'
+import {plugin as ws} from 'crossws/server'
 import {chromium, type Browser} from 'playwright'
 import {afterAll, beforeAll, describe, it} from 'vitest'
-import {MANDARAX_SESSION_HEADER} from '@mandarax/protocol/chat-types'
 import {createLiveDb, createTrailSupervisor, type TrailSupervisor} from '@mandarax/core/db'
-import {createSnapshotStore, createSyncEngine, registerSyncRelay} from '@mandarax/core/sync'
+import {createSnapshotStore, createSync} from '@mandarax/core/sync'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const require = createRequire(import.meta.url)
-const ROOM = 'preview:session'
 
 type Esbuild = {build: (opts: Record<string, unknown>) => Promise<{outputFiles: Array<{text: string}>}>}
 
@@ -46,18 +45,15 @@ beforeAll(async () => {
   state.dir = dir
   const trailPort = await getPort()
   const db = createLiveDb({trailBaseUrl: `http://localhost:${trailPort}`, dataDir: dir})
-  const engine = createSyncEngine({store: createSnapshotStore(db)})
+  const sync = createSync({store: createSnapshotStore(db)})
   const sup = createTrailSupervisor({dataDir: dir, port: trailPort})
   state.sup = sup
   await sup.start()
 
   const html = pageHtml(await bundleFixture())
   const app = new H3()
-  const validateRoom = (room: string, event: H3Event): boolean =>
-    room === ROOM && event.req.headers.get(MANDARAX_SESSION_HEADER) === 'tok'
-  registerSyncRelay(app, engine, validateRoom)
   app.get('/', () => new Response(html, {headers: {'content-type': 'text/html'}}))
-  const server = serve({fetch: app.fetch, port: await getPort(), hostname: '127.0.0.1'})
+  const server = serve({fetch: app.fetch, port: await getPort(), hostname: '127.0.0.1', plugins: [ws(sync.hooks)]})
   state.server = server
   await server.ready()
   state.base = new URL(server.url ?? '').origin
