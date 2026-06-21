@@ -16,6 +16,25 @@
 
 ---
 
+## Build status (as of this session)
+
+Branch `worktree-canvas-comments`, all committed, **~82 tests green (real Yjs / sqlite / oxc-parser / http, no mocks)**.
+
+- **Phase 0** ✅ trail verified, preflight, contract notes.
+- **Phase 1** ✅ spike proved Excalidraw-in-Solid-shadow + our own Yjs glue, then deleted (findings kept).
+- **Phase 2** ✅ core `.ybin` store + `CanvasRelay` + gated SSE/POST canvas routes + widget relay-client.
+- **Phase 3** ✅ extension event bus (`mx.on`) + composer `runTool` + canvas-comments built-in + shared `/api/tools/run`.
+- **Phase 4** ✅ `node:sqlite` comment store + FTS5 + commentId join (row + Yjs pin in one execute) + comment tools.
+- **Phase 5** 🟡 backend done (comment.create captures source anchor from a pick; browser comment-client). **UI pending** (see blocker).
+- **Phase 6** ✅ AnchorResolver (AST content-hash + ancestor salt, confinement + secret denylist).
+- **Phase 7** ✅ doctor sweep + CLI + `session_start` auto-run + `/api/canvas/doctor`.
+- **Phase 8** ⬜ not started (AI streaming/undo/approval gate).
+- **Phase 9** ⬜ not started (hardening/polish/ship).
+
+**Deviations (all flagged in commits, reversible behind seams):** no vendoring / dropped y-excalidraw (own glue); `node:sqlite` instead of trail Record-API; line-only anchoring (react-grab 0.1.44 has no structured column/fiber/selector); deferred: relay per-session token, git commit-granularity anchor fallback, doctor incrementality.
+
+**Phase 5 UI blocker — packaging decision:** the widget ships as a single **IIFE global** which can't code-split, so a `dynamic import()` of the Excalidraw island (~1MB React) inlines into the initial bundle, defeating lazy-load. Options: (a) build the overlay as a _separate_ prod IIFE that core serves and the widget injects on toggle (productionize the spike pattern); (b) accept Excalidraw in the main bundle for v1; (c) switch the widget to a code-splitting format. This gates the real Excalidraw-overlay + Solid pins/threads UI.
+
 ## How this plan is structured (read before executing)
 
 This is a 10-phase feature spanning multiple independent subsystems. Rather than emit thousands of lines of speculative step-code up front, this document is:
