@@ -1,4 +1,4 @@
-# Canvas + Source-Anchored Comments — Extension Design (v2)
+# Whiteboard — Canvas + Source-Anchored Comments Extension (Design v2)
 
 Status: design. Worktree `worktree-canvas-comments`. **The platform this builds on is already shipped**
 (PR #12: `mx.db`, `mx.sync`, the grown extension contract). This document is the **extension** — it
@@ -56,8 +56,8 @@ canvas/comment-specific logic.
 
 ## Packaging & discovery — first-party, default-on
 
-The extension is its own monorepo package, **`packages/ext-canvas-comments`**, exporting a single
-`MandaraxExtension` (`defineExtension({id:'canvas-comments', tools}).server(...).client(...)`). It ships
+The extension is its own monorepo package, **`packages/whiteboard`**, exporting a single
+`MandaraxExtension` (`defineExtension({id:'whiteboard', tools}).server(...).client(...)`). It ships
 **enabled by default** for every mandarax user — it is the product's flagship surface, not a sample.
 
 The loader learns one new concept: **first-party (built-in) extensions applied alongside discovered
@@ -65,7 +65,7 @@ project ones**, on both halves, using only the public API:
 
 - **Server:** `bootServices` / `loadServerContributions` prepend the built-in list to the discovered
   files: `collectServerContributions([...firstParty, ...discovered], services)`. `firstParty` is a
-  small explicit array importing `@mandarax/ext-canvas-comments`.
+  small explicit array importing `@mandarax/whiteboard`.
 - **Client:** `mount.tsx` applies the built-in extensions' `clientFn(clientApi)` (and
   `collectClientContributions`) directly, in addition to the discovered virtual-module ones.
 
@@ -75,7 +75,7 @@ loads first. (Disabling/config is a later concern; default-on is the v1 behavior
 ## Architecture
 
 ```
-EXTENSION  @mandarax/ext-canvas-comments  (uses only the public mx API)
+EXTENSION  @mandarax/whiteboard  (uses only the public mx API)
 ┌───────────────────────────────────────────────────────────────────────────┐
 │ .server(mx)                                  .client(mx)                     │
 │  • mx.db.collection('comments', …)            • overlay Effect: React island │
@@ -391,17 +391,75 @@ trail bound `127.0.0.1`, reachable only by core). The extension adds:
 
 - Each `defineTool` carries `promptSnippet` + `promptGuidelines` → self-documents into the system prompt
   on registration. Tools/renderers/effects appear in the extension system's generated catalog.
-- A **`canvas-comments` skill** + worked examples (pin a comment, Mermaid diagram, re-anchor a drifted
+- A **`whiteboard` skill** + worked examples (pin a comment, Mermaid diagram, re-anchor a drifted
   comment).
 
-## Open decisions deferred into the plan
+## Platform additions required — Phase 0 (close before any feature phase)
 
-- Exact `packages/ext-canvas-comments` layout + the precise loader hook for built-in first-party
-  extensions (server prepend + client apply).
-- Where AI canvas conversion runs (server `convertToExcalidrawElements` vs a browser step for Mermaid).
+The shipped platform was validated only by a synthetic probe. An audit of every requirement above
+against the real platform surfaces (`ServerApi`/`ClientApi`/`ComposerActionCtx`, `SyncRoom`/`ClientRoom`,
+`ServerCollection`/`ClientDb`, the `/api/tools/run` chokepoint, `EffectCtx`, `cors.ts`,
+`page-introspect-types`) found seven concrete gaps. Each is a small, public-API-level addition; the plan
+opens with a Phase 0 that lands and tests them before the canvas/comments phases consume them.
+
+1. **Tool execute gets session/preview context.** Today `ExtensionServerTool.execute = (input) => …`
+   sees only `input`; the run route knows `sessionId` but doesn't pass it. Add an execute context
+   `{sessionId, previewId}` (the room id is `${previewId}:${sessionId}`) threaded from the run route +
+   MCP path. Without it `canvas.draw`/`comment.create` can't address the right room.
+2. **`runTool` on the general client surface.** Today it lives only on `ComposerActionCtx`. Add it to
+   `ClientApi` (and/or `EffectCtx`) so pins/threads can invoke `comment.resolve/reply/delete/move`
+   through the gated execute (the optimistic collection write bypasses approval + undo + dual-write).
+3. **Awareness on `mx.sync`.** `SyncRoom` and `ClientRoom` expose only `doc`. Surface the `Awareness`
+   (the `WebsocketProvider.awareness` client-side; an awareness handle server-side) so AI + user
+   presence cursors work. Cursors are awareness, not durable doc state.
+4. **Session/preview identity on `ClientApi`.** It is `{ui, registerComposerAction, db, sync}` today;
+   add `previewId` + `sessionId` (and a change signal) so the client opens the right canvas room and
+   scopes comment queries to the session.
+5. **Approval decision/resume flow.** `mx.approval` only makes `/api/tools/run` return 403
+   `needsApproval` — the confirm-then-run loop (UI confirm for user-origin, in-thread `part.approval`
+   for AI-origin) does not exist. Build the decision + resume path on the chokepoint.
+6. **Undo/history hook at the execute chokepoint.** Nothing records `{label, inverse}` today. Add a
+   per-session history recorded by the single execute, plus `history.undo`/`history.redo` capabilities,
+   so the cross-store undo stack the design relies on exists.
+7. **CORS `PATCH` in the method allowlist.** `cors.ts` allows `GET,POST,DELETE,OPTIONS` — `PATCH` is
+   missing, so a cross-origin `comment.update`/resolve via the trailbase adapter fails preflight. Add
+   `PATCH`.
+
+**Anchoring fidelity (accepted limitation, not a blocker).** `LocateResult` exposes
+`source:{file,line,column}` (so the _source anchor_ is fully capturable) but no stable selector / React
+key / fiber path, so the _instance anchor_ (which of N repeated elements) degrades to rect/position
+heuristics — the design already says: flag `drifted` when ambiguous, never silently re-pin. Optionally
+extend the react-grab adapter to expose `getElementContext()` (column + fiber + selector + frame stack)
+in a later slice for exact instance identity.
+
+## Resolved unknowns
+
+- **Streaming AI replies into a thread.** MCP tools are one-shot (call → result), so the AI does not
+  stream token-by-token into a comment. v1: the AI calls `comment.reply` **once with the full `parts`**;
+  the row inserts and `mx.db` fans it out to the thread. (A true streaming channel is a later nicety, not
+  required for the feature.)
+- **AI canvas-draw conversion location.** `convertToExcalidrawElements` is pure and runs wherever the
+  tool executes (server-side write into the Yjs doc). `parseMermaidToExcalidraw` needs the DOM, so
+  Mermaid conversion runs in the browser island: the `canvas.diagram` tool stores the Mermaid source +
+  an `ai` marker in the doc; the island converts on receipt. Element-skeleton draws (`canvas.draw`) go
+  fully server-side.
+- **Dynamic per-turn context push.** `systemPrompt.append` is static. v1 uses the **pull** path
+  (`comment.list({file, status})` is an MCP tool the agent calls); the auto-inject-on-file-touch push is
+  deferred to a later slice (it needs a per-turn context hook the platform doesn't have, and pull is
+  sufficient for the loop).
+- **tool-ui renderer reuse.** The first-party extension depends on `@mandarax/widget` and reuses its
+  Solid `tool-ui` render-by-`part.name` pipeline for comment `parts`; no new platform surface.
+- **`session.switch`.** v1 scopes to the active session's room; cross-session "show all → switch" reuses
+  the widget's existing session selector (the extension reads `ClientApi.sessionId` from #4 and asks the
+  shell to switch). No new platform primitive beyond #4.
+
+## Open decisions for the plan
+
+- Exact `packages/whiteboard` layout + the precise loader hook for built-in first-party extensions
+  (server prepend in `bootServices`/`loadServerContributions` + client apply in `mount.tsx`).
 - Shell `git` vs `simple-git` for line-tracking (start with shell `git`).
-- React-island bundling spike (dedupe/define/shadow-CSS) validated first inside its phase, then built.
-- Adding `PATCH`/`DELETE` to the platform `cors.ts` method allowlist for cross-origin comment edits.
+- The React-island bundling spike (dedupe / define / shadow-CSS inject) is validated first inside the
+  bridge phase, then the rest builds on it.
 
 ## Risks / notes
 
