@@ -25,11 +25,13 @@ Branch `worktree-canvas-comments`, all committed, **~82 tests green (real Yjs / 
 - **Phase 2** ✅ core `.ybin` store + `CanvasRelay` + gated SSE/POST canvas routes + widget relay-client.
 - **Phase 3** ✅ extension event bus (`mx.on`) + composer `runTool` + canvas-comments built-in + shared `/api/tools/run`.
 - **Phase 4** ✅ `node:sqlite` comment store + FTS5 + commentId join (row + Yjs pin in one execute) + comment tools.
-- **Phase 5** 🟡 backend done (comment.create captures source anchor from a pick; browser comment-client). **UI pending** (see blocker).
+- **Phase 5** 🟢 mostly done: comment.create captures source anchor from a pick; browser comment-client; **lazy canvas overlay** (Excalidraw island + Solid pins) built as a separate IIFE, core-served at `/api/canvas/overlay.js`, widget-injected on toggle; overlay mount + pin render proven in a real browser. **Deferred**: threads/parts UI, drag rule, zoom controls, react-grab comment-sink redirect, browser optimistic collection.
 - **Phase 6** ✅ AnchorResolver (AST content-hash + ancestor salt, confinement + secret denylist).
 - **Phase 7** ✅ doctor sweep + CLI + `session_start` auto-run + `/api/canvas/doctor`.
-- **Phase 8** ⬜ not started (AI streaming/undo/approval gate).
+- **Phase 8** 🟡 generalized approval gate done (`/api/tools/run` + `/api/tools/approve`, per-tool policy, all surfaces). **Deferred (need harness/AI running):** in-thread approval UI, streaming replies (ui-bus), unified undo/redo, AI collaborator cursor, push/pull comment context injection, Mermaid diagrams.
 - **Phase 9** ⬜ not started (hardening/polish/ship).
+
+**~108 tests green** (85 core + 15 extensions + 8 widget UI, real Yjs/sqlite/oxc/http/browser). The overlay packaging decision (separate core-served IIFE) is implemented.
 
 **Deviations (all flagged in commits, reversible behind seams):** no vendoring / dropped y-excalidraw (own glue); `node:sqlite` instead of trail Record-API; line-only anchoring (react-grab 0.1.44 has no structured column/fiber/selector); deferred: relay per-session token, git commit-granularity anchor fallback, doctor incrementality.
 
