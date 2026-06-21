@@ -58,8 +58,8 @@ USER'S MACHINE (all local, 127.0.0.1)
 │ mandarax core (Node) — the ONLY process the browser talks to                 │
 │                                                                              │
 │  CORE-OWNED SERVICES (generic, exposed on ServerApi, opt-in for any ext)     │
-│   • mx.db   — live collection service: supervises `trail` (sole client,      │
-│               SQLite in .mandarax/trail/), gated SSE fan-out + mutation routes│
+│   • mx.db   — live collections: supervises `trail` (sole client, SQLite in    │
+│               .mandarax/trail/) + gated reverse-proxy of its Record API+stream│
 │   • mx.sync — Yjs room engine: snapshot persisted as a trail BLOB row         │
 │               + gated relay route (origin + host-loopback + per-session tok) │
 │   • event bus (session_start / tool_execution_start) · approval policy gate  │
@@ -162,31 +162,41 @@ surfaces the same to the AI, so the agent knows what tables/schemas are queryabl
 are globally unique; declaring an existing name with a matching schema is idempotent (returns the same
 handle), with a mismatched schema is a clear error (no silent clobber).
 
-**Contracts characterized before use (zero unknowns).** Before any `mx.db` wiring, three contracts are
-pinned down by throwaway spikes against the real packages/binary, each committing a notes doc: (1) the
-`trail` Record API + realtime SSE + auth/ACL contract; (2) the `@tanstack/db` core custom-collection
-adapter (`SyncConfig` callback signature: `begin`/`write`/`commit`/`markReady`, `getKey`, schema
-validation, `createCollection` return methods, transaction `mutationFn`/`isPersisted`); (3) the
-`@tanstack/solid-db` `useLiveQuery` contract (the docs are inconsistent — resolve whether it returns
-`{data, isLoading()}` or a call-accessor — in a real browser). No `mx.db` code is written against an
-unverified signature.
+**Contracts characterized (DONE — zero unknowns).** All three external contracts were pinned against
+the real binary/packages and recorded in `docs/superpowers/notes/`: `trailbase-api.md` (trail v0.22.9
+Record API, UUID-PK requirement, base64url ids, `{cursor,records}`, `filter[col][$op]` search,
+`enable_subscriptions: true` for anon realtime) and `tanstack-db-contract.md` (the native
+`trailBaseCollectionOptions` shape, required `parse`/`serialize`, no mutation handlers, the `trailbase`
+client `RecordApi`, `useLiveQuery` = `Accessor<T[]> & {data, isLoading, isReady}`). The plan is written
+against these verified signatures.
 
-- **Server half (core):** TrailBase supervisor (spawn + restart, bound `127.0.0.1`), sole client (the
-  `trail` HTTP Record API), migrations on boot, a **gated SSE** route driven by TrailBase's realtime
-  subscription (fan-out), and **gated mutation** routes.
-- **Client half (widget):** a `@tanstack/db` collection whose **custom sync adapter** opens the core
-  SSE (`sync: { sync: ({begin, write, commit, markReady}) => … }`) for live updates and whose
-  `onInsert/onUpdate/onDelete` POST to core's gated mutation routes. Solid reads it via
-  `@tanstack/solid-db`'s `useLiveQuery`. Optimistic writes apply instantly; rollback on failure;
-  upsert-by-pk collapses the optimistic + sync echo.
-- **Browser never touches `trail` directly.** All sync is browser ↔ core ↔ TrailBase.
-- **Degraded mode:** `trail` down → the browser keeps reading/writing its local TanStack DB; mutations
-  queue and reconcile on reconnect.
+**RESOLVED against the real packages (see `docs/superpowers/notes/`).** TanStack DB ships a _native_
+TrailBase integration, so there is **no custom sync adapter** and **no hand-rolled SSE fan-out**:
+
+- **Server half (core):** TrailBase supervisor (spawn + restart, bound `127.0.0.1`); the **same
+  `trailbase` client** used server-side for agent/tool/CLI writes + `list()`/`get()` introspection;
+  migrations emitted per collection + applied on `trail` boot; each Record API declared with
+  `enable_subscriptions: true` + `acl_world` CRUD (loopback-only). Core also mounts a **gated reverse
+  proxy** of `/api/records/v1/*` (incl. the `subscribeAll` stream) → `trail` on loopback, behind
+  `api/cors.ts` (Origin + Host loopback) + the session token. Core stays the only process that opens a
+  socket to `trail`.
+- **Client half (widget):** `initClient(<core-proxy-base>).records(name)` → the **native**
+  `trailBaseCollectionOptions({recordApi, getKey: r => r.cid, schema, parse, serialize})` →
+  `createCollection(...)`. Optimistic insert/update/delete + realtime reconcile + rollback are built
+  into the adapter; `parse`/`serialize` map trail scalars ↔ app types (`created_at: unix↔Date`,
+  `parts: json↔object`). Solid reads via `useLiveQuery` (`Accessor<T[]> & {data, isLoading, isReady}`).
+- **commentId join:** each collection carries a `cid TEXT UNIQUE` column = the client-generated UUID
+  (the `getKey`), distinct from trail's incidental uuid_v7 BLOB PK. The Yjs pin keys by `cid`. No
+  base64 conversion in our code.
+- **Browser never touches `trail` directly.** All sync is browser ↔ core proxy ↔ TrailBase.
+- **Degraded mode:** `trail` down → the adapter serves its local optimistic state; writes reconcile
+  when the proxied Record API returns.
 
 ### Cold start
 
-core spawns `trail` → waits ready → runs migrations → opens the gated SSE+mutation routes → browser
-syncs. Because the canvas snapshot is also a trail BLOB, `mx.sync` rehydrates after trail is ready;
+core spawns `trail` → waits for the `Listening on` line (migrations already applied on boot) → mounts
+the gated Record-API reverse proxy → browser collections sync. Because the canvas snapshot is also a
+trail BLOB, `mx.sync` rehydrates after trail is ready;
 until then the room starts empty and the browser `y-indexeddb` cache seeds it. Nothing blocks the
 widget mounting (services fail gracefully into local-only).
 
