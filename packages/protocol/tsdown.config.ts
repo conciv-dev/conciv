@@ -21,5 +21,6 @@ export default defineConfig({
   ],
   format: 'esm',
   fixedExtension: false,
+  external: ['yjs'],
   dts: true,
 })
