@@ -42,6 +42,10 @@
     "./db": {
       "types": "./dist/db/index.d.ts",
       "import": "./dist/db/index.js"
+    },
+    "./sync": {
+      "types": "./dist/sync/index.d.ts",
+      "import": "./dist/sync/index.js"
     }
   },
   "publishConfig": {
