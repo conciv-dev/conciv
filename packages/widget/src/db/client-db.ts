@@ -1,23 +1,12 @@
-import {createCollection, type Collection} from '@tanstack/solid-db'
-import {trailBaseCollectionOptions, type TrailBaseCollectionConfig} from '@tanstack/trailbase-db-collection'
+import {createCollection} from '@tanstack/solid-db'
+import {trailBaseCollectionOptions} from '@tanstack/trailbase-db-collection'
 import {initClient, type RecordApi, type RecordId} from 'trailbase'
 import {z} from 'zod'
+import type {ClientDb, ClientCollectionSpec} from '@mandarax/extensions'
 
 type ShapeOf<T> = Record<keyof T, unknown>
 
 const Identified = z.object({id: z.union([z.string(), z.number()])})
-
-export type ClientCollectionSpec<TItem extends ShapeOf<TRecord>, TRecord extends ShapeOf<TItem>> = Omit<
-  TrailBaseCollectionConfig<TItem, TRecord>,
-  'recordApi' | 'id' | 'getKey'
->
-
-export type ClientDb = {
-  collection: <TItem extends {cid: string} & ShapeOf<TRecord>, TRecord extends ShapeOf<TItem> = TItem>(
-    name: string,
-    spec: ClientCollectionSpec<TItem, TRecord>,
-  ) => Collection<TItem>
-}
 
 function cidKeyedApi<TRecord extends {cid: string}>(api: RecordApi<TRecord>): RecordApi<TRecord> {
   const idByCid = async (cid: string): Promise<RecordId> => {

@@ -10,6 +10,7 @@ import {registerCors} from './api/cors.js'
 import {registerErrorHandler} from './api/errors.js'
 import {registerChatRoutes} from './api/chat/chat.js'
 import {registerMcpRoutes} from './api/mcp/mcp.js'
+import {registerToolRunRoute} from './api/tools/run.js'
 import {registerPageRoutes} from './api/page/page.js'
 import {registerOpenSourceRoute} from './api/page/open-source.js'
 import {registerServerRoutes} from './api/server/server.js'
@@ -92,6 +93,7 @@ export function makeApp(opts: MakeAppOpts): H3 {
     }),
     opts.extensionTools ?? [],
   )
+  registerToolRunRoute(app, opts.extensionTools ?? [])
   if (opts.bridge) registerServerRoutes(app, opts.bridge)
   return app
 }

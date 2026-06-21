@@ -401,6 +401,15 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      '@tanstack/db':
+        specifier: ^0.6.9
+        version: 0.6.9(typescript@6.0.3)
+      '@tanstack/solid-db':
+        specifier: ^0.2.23
+        version: 0.2.23(solid-js@1.9.13)(typescript@6.0.3)
+      '@tanstack/trailbase-db-collection':
+        specifier: ^0.1.87
+        version: 0.1.87(typescript@6.0.3)
       '@types/node':
         specifier: ^22.19.21
         version: 22.19.21
@@ -1012,7 +1021,7 @@ importers:
         version: 0.21.1(solid-js@1.9.13)
       '@tanstack/trailbase-db-collection':
         specifier: ^0.1.87
-        version: 0.1.87(supports-color@10.2.2)(typescript@6.0.3)
+        version: 0.1.87(typescript@6.0.3)
       bippy:
         specifier: 0.5.41
         version: 0.5.41(react@19.2.7)
@@ -17103,7 +17112,7 @@ snapshots:
 
   '@tanstack/store@0.9.3': {}
 
-  '@tanstack/trailbase-db-collection@0.1.87(supports-color@10.2.2)(typescript@6.0.3)':
+  '@tanstack/trailbase-db-collection@0.1.87(typescript@6.0.3)':
     dependencies:
       '@standard-schema/spec': 1.1.0
       '@tanstack/db': 0.6.9(typescript@6.0.3)

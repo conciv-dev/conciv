@@ -5,5 +5,6 @@ export default defineConfig({
   entry: ['src/index.ts'],
   format: 'esm',
   fixedExtension: false,
+  external: ['@tanstack/db', '@tanstack/solid-db', '@tanstack/trailbase-db-collection'],
   dts: true,
 })

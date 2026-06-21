@@ -42,6 +42,9 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@tanstack/db": "^0.6.9",
+    "@tanstack/solid-db": "^0.2.23",
+    "@tanstack/trailbase-db-collection": "^0.1.87",
     "@types/node": "^22.19.21",
     "solid-js": "^1.9.13",
     "tsdown": "^0.22.2",

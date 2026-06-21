@@ -15,6 +15,8 @@ export {
   type EmptyStateFactory,
   type ToolRenderer,
   type ClientApi,
+  type ClientDb,
+  type ClientCollectionSpec,
   type ServerApi,
   type ComposerActionCtx,
   type ExtComposerAction,

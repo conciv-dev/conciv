@@ -3,8 +3,23 @@ import type {Component, JSX} from 'solid-js'
 import type {ThemeTokens} from '@mandarax/ui-kit-system'
 import type {ToolCardProps, ToolRenderContext, ToolRenderResultOptions} from '@mandarax/protocol/tool-view-types'
 import type {LocateResult, InspectResult, TreeResult} from '@mandarax/protocol/page-introspect-types'
-import type {LiveDb, ClientDb} from '@mandarax/protocol/db-types'
+import type {Collection} from '@tanstack/solid-db'
+import type {TrailBaseCollectionConfig} from '@tanstack/trailbase-db-collection'
+import type {LiveDb} from '@mandarax/protocol/db-types'
 import type {SyncEngine, ClientSync} from '@mandarax/protocol/sync-types'
+
+type ShapeOf<T> = Record<keyof T, unknown>
+
+export type ClientCollectionSpec<TItem extends ShapeOf<TRecord>, TRecord extends ShapeOf<TItem>> = Omit<
+  TrailBaseCollectionConfig<TItem, TRecord>,
+  'recordApi' | 'id' | 'getKey'
+>
+export type ClientDb = {
+  collection: <TItem extends {cid: string} & ShapeOf<TRecord>, TRecord extends ShapeOf<TItem> = TItem>(
+    name: string,
+    spec: ClientCollectionSpec<TItem, TRecord>,
+  ) => Collection<TItem>
+}
 
 export type ExtensionEvent = 'session_start' | 'tool_execution_start'
 export type EventCtx = {sessionId: string; previewId: string; tool?: string}

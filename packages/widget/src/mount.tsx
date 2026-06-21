@@ -22,6 +22,9 @@ import {applyThemeOverrides} from './theme.js'
 import {setExtWidget, setExtHeader, setExtFooter, setExtStatus} from './ui-store.js'
 import {setEmptyStateOverride} from './empty-state.js'
 import {installExtensionGlobal} from './extension-runtime.js'
+import {createClientDb} from './db/client-db.js'
+import {createClientSync} from './sync/client-sync.js'
+import {createRunTool} from './run-tool.js'
 import {builtinTools} from '@mandarax/tool-ui'
 import {
   collectClientContributions,
@@ -107,6 +110,9 @@ export function mountWidget(): void {
       shell.mount(root)
       // Adapt the public ExtComposerAction (slim, stable) to the shell's richer internal def: the
       // public onClick ctx exposes only insert + notify, mapped from the full capability bag.
+      const db = createClientDb(apiBase)
+      const sync = createClientSync(apiBase, '')
+      const runTool = createRunTool(apiBase, () => ({}))
       const clientApi: ClientApi = {
         ui: {
           setTheme: (tokens) => applyThemeOverrides(root, tokens),
@@ -121,8 +127,10 @@ export function mountWidget(): void {
             id: action.id,
             label: action.label,
             icon: action.icon,
-            onClick: (ctx) => action.onClick({insert: ctx.insert, notify: ctx.notify}),
+            onClick: (ctx) => action.onClick({insert: ctx.insert, notify: ctx.notify, runTool}),
           }),
+        db,
+        sync,
       }
       installExtensionGlobal((ext: MandaraxExtension) => {
         ext.clientFn?.(clientApi)
