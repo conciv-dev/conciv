@@ -1,5 +1,6 @@
 import {z} from 'zod'
-import {defineEffect, defineExtension, defineTool} from '@mandarax/extensions'
+import {defineExtension, defineTool} from '@mandarax/extensions'
+import {canvasEffect} from './canvas/canvas-effect.js'
 
 const ping = defineTool({
   name: 'whiteboard.ping',
@@ -9,18 +10,6 @@ const ping = defineTool({
   execute: async () => 'pong',
 })
 
-const marker = defineEffect({
-  name: 'whiteboard',
-  label: 'Whiteboard',
-  description: 'The whiteboard canvas overlay.',
-  render: () => {
-    const el = document.createElement('div')
-    el.setAttribute('data-whiteboard-marker', '')
-    el.textContent = 'whiteboard'
-    return el
-  },
-})
-
-export default defineExtension({id: 'whiteboard', tools: [ping], effects: [marker]})
+export default defineExtension({id: 'whiteboard', tools: [ping], effects: [canvasEffect]})
   .server(() => {})
   .client(() => {})
