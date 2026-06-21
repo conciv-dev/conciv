@@ -7,7 +7,8 @@ import excalidrawCss from '@excalidraw/excalidraw/index.css?inline'
 import {createCanvasDoc, type CanvasDoc} from '../canvas/canvas-doc.js'
 import {bindExcalidraw} from '../canvas/excalidraw-glue.js'
 import {connectRelay} from '../canvas/relay-client.js'
-import {Pins} from './pins.js'
+import {createCommentClient} from '../canvas/comment-client.js'
+import {Comments} from './comments.js'
 import {Controls, type ExcalidrawApi} from './controls.js'
 
 export type OverlayHandle = {doc: CanvasDoc; dispose: () => void}
@@ -49,7 +50,7 @@ export function mountCanvasOverlay(host: ShadowRoot | HTMLElement, opts: MountOp
   const reactRoot = createRoot(surface)
   reactRoot.render(
     createElement(Excalidraw, {
-      initialData: {appState: {viewBackgroundColor: 'transparent', zenModeEnabled: true}},
+      initialData: {appState: {viewBackgroundColor: 'transparent'}},
       excalidrawAPI: (instance: unknown) => {
         setApi(instance as ExcalidrawApi)
         bindExcalidraw(doc, instance as never)
@@ -57,18 +58,31 @@ export function mountCanvasOverlay(host: ShadowRoot | HTMLElement, opts: MountOp
     }),
   )
 
-  const disposePins = render(() => Pins({doc, onOpen: opts.onOpen ?? (() => {})}), pinsLayer)
-  const disposeControls = render(
-    () => Controls({api, onDrawChange: (draw) => (surface.style.pointerEvents = draw ? 'auto' : 'none')}),
-    controlsLayer,
+  const [commentMode, setCommentMode] = createSignal(false)
+  const client = createCommentClient({base: opts.base ?? ''})
+
+  // Draw mode flips the canvas interactive; idle is pass-through so the app beneath stays usable.
+  const onDrawChange = (draw: boolean) => {
+    surface.style.pointerEvents = draw ? 'auto' : 'none'
+  }
+  // Comment mode makes the pins layer catch the placement click (see Comments' capture div).
+  const onCommentChange = (on: boolean) => {
+    setCommentMode(on)
+    pinsLayer.style.pointerEvents = on ? 'auto' : 'none'
+  }
+
+  const disposeComments = render(
+    () => Comments({doc, client, commentMode, onPlaced: () => onCommentChange(false)}),
+    pinsLayer,
   )
+  const disposeControls = render(() => Controls({api, onDrawChange, onCommentChange}), controlsLayer)
   const stopRelay = opts.base && opts.session ? connectRelay(doc, {base: opts.base, session: opts.session}) : () => {}
 
   return {
     doc,
     dispose: () => {
       stopRelay()
-      disposePins()
+      disposeComments()
       disposeControls()
       reactRoot.unmount()
       doc.dispose()

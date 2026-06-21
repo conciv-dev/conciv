@@ -13,12 +13,30 @@ const clampZoom = (z: number) => Math.min(30, Math.max(0.1, z))
 
 // Our own chrome (Excalidraw's is hidden via zen mode): a Draw toggle that flips the canvas between
 // pass-through (idle — click the app beneath) and interactive (draw), plus zoom in/out/reset/fit.
-export function Controls(props: {api: () => ExcalidrawApi | null; onDrawChange: (draw: boolean) => void}) {
+export function Controls(props: {
+  api: () => ExcalidrawApi | null
+  onDrawChange: (draw: boolean) => void
+  onCommentChange: (comment: boolean) => void
+}) {
   const [draw, setDraw] = createSignal(false)
+  const [comment, setComment] = createSignal(false)
   const toggleDraw = () => {
     const next = !draw()
     setDraw(next)
+    if (next && comment()) {
+      setComment(false)
+      props.onCommentChange(false)
+    }
     props.onDrawChange(next)
+  }
+  const toggleComment = () => {
+    const next = !comment()
+    setComment(next)
+    if (next && draw()) {
+      setDraw(false)
+      props.onDrawChange(false)
+    }
+    props.onCommentChange(next)
   }
   const zoom = (factor: number) => {
     const api = props.api()
@@ -65,6 +83,14 @@ export function Controls(props: {api: () => ExcalidrawApi | null; onDrawChange: 
         onClick={toggleDraw}
       >
         {draw() ? '✏️ Drawing' : '✏️ Draw'}
+      </button>
+      <button
+        type="button"
+        style={{...btn, background: comment() ? '#6366f1' : 'transparent'}}
+        aria-label={comment() ? 'Stop commenting' : 'Comment'}
+        onClick={toggleComment}
+      >
+        {comment() ? '💬 Click to pin' : '💬 Comment'}
       </button>
       <button type="button" style={btn} aria-label="Zoom in" onClick={() => zoom(ZOOM_STEP)}>
         +

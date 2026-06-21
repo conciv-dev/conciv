@@ -44,8 +44,10 @@ export type CanvasToggleAction = {
   onClick: () => Promise<void>
 }
 
-// A composer action that toggles the lazy canvas overlay on/off, mounted into the widget shadow root.
-export function makeCanvasToggle(root: ShadowRoot, apiBase: string, session: string): CanvasToggleAction {
+// A composer action that toggles the lazy canvas overlay on/off. Mounted into the LIGHT DOM (not the
+// widget shadow root): Excalidraw's pointer/drawing events get retargeted at a shadow boundary and the
+// canvas never receives drags, so the island must live in the page document to be drawable.
+export function makeCanvasToggle(apiBase: string, session: string): CanvasToggleAction {
   let handle: OverlayHandle | null = null
   let host: HTMLDivElement | null = null
   return {
@@ -62,10 +64,11 @@ export function makeCanvasToggle(root: ShadowRoot, apiBase: string, session: str
       }
       const api = await loadOverlay(apiBase)
       host = document.createElement('div')
-      host.style.position = 'absolute'
+      host.style.position = 'fixed'
       host.style.inset = '0'
-      host.style.pointerEvents = 'auto'
-      root.appendChild(host)
+      host.style.pointerEvents = 'none'
+      host.style.zIndex = '2147482000'
+      document.body.appendChild(host)
       handle = api.mount(host, {roomId: session, base: apiBase, session})
     },
   }

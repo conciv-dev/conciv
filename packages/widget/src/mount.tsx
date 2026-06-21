@@ -91,7 +91,7 @@ export function mountWidget(): void {
       shell.registerComposerAction(newSessionAction)
       shell.registerComposerAction(compactAction)
       // Lazy canvas overlay: injects the core-served bundle on first toggle, mounts into the shadow root.
-      const canvasToggle = makeCanvasToggle(root, apiBase, 'local')
+      const canvasToggle = makeCanvasToggle(apiBase, 'local')
       shell.registerComposerAction({
         id: canvasToggle.id,
         label: canvasToggle.label,

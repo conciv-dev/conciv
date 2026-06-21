@@ -4,15 +4,15 @@ import {afterAll, beforeAll, describe, it} from 'vitest'
 import {chromium, type Browser} from 'playwright'
 
 const bundle = readFileSync(new URL('../dist/canvas-overlay.global.js', import.meta.url), 'utf8')
-// Load the overlay bundle, mount it into a shadow root, and expose the handle for the test to drive.
+// Load the overlay bundle, mount it into a light-DOM host (Excalidraw can't draw inside a shadow root),
+// and expose the handle for the test to drive.
 const HTML = `<!doctype html><html><head><meta charset="utf-8"></head><body>
   <script>${bundle}</script>
   <script>
     const host = document.createElement('div')
-    host.style.position = 'fixed'; host.style.inset = '0'
+    host.style.position = 'fixed'; host.style.inset = '0'; host.style.pointerEvents = 'none'
     document.body.appendChild(host)
-    const root = host.attachShadow({mode: 'open'})
-    window.__overlay = window.__MANDARAX_CANVAS__.mount(root, {roomId: 'it-room'})
+    window.__overlay = window.__MANDARAX_CANVAS__.mount(host, {roomId: 'it-room'})
   </script>
 </body></html>`
 
@@ -43,12 +43,12 @@ describe('canvas overlay (it) — real browser', () => {
     await close?.()
   })
 
-  it('mounts Excalidraw + renders a Solid pin from the doc, inside the shadow root', async () => {
+  it('mounts the overlay (Excalidraw + our controls) and renders a Solid pin from the doc', async () => {
     const page = await browser.newPage()
     await page.goto(state.base, {waitUntil: 'domcontentloaded'})
 
-    // Excalidraw (React island) mounted in the shadow root.
-    await page.getByRole('button', {name: /zoom in/i}).waitFor({state: 'visible'})
+    // Our own controls render (zen-free Excalidraw + the Draw/Comment toggle bar).
+    await page.getByRole('button', {name: 'Draw'}).waitFor({state: 'visible'})
 
     // Add a pin to the doc; the Solid pins layer reactively renders a marker for it.
     await page.evaluate(() =>
