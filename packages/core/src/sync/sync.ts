@@ -53,7 +53,10 @@ export function createSync(opts: SyncOptions): Sync {
     const awareness = new Awareness(doc)
     const state: RoomState = {doc, awareness, peers: new Set(), controlled: new Map()}
     rooms.set(roomId, state)
-    void opts.store.load(roomId).then((saved) => saved && Y.applyUpdate(doc, saved, ORIGIN.REHYDRATE))
+    void opts.store
+      .load(roomId)
+      .then((saved) => saved && Y.applyUpdate(doc, saved, ORIGIN.REHYDRATE))
+      .catch(() => {})
     doc.on('update', (update: Uint8Array, origin: unknown) => {
       const message = frame(MESSAGE_SYNC, (encoder) => writeUpdate(encoder, update))
       for (const peer of state.peers) if (peer !== origin) peer.send(message)
