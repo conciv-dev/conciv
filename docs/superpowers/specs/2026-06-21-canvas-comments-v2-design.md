@@ -140,7 +140,13 @@ type LiveDb = {
       fts?: string[] // columns to index in FTS5
     },
   ): ServerCollection<T>
+  // Introspection — the storage layer is SHARED and discoverable. Any extension can see which
+  // collections exist, their JSON Schema, table name, and FTS columns. Matches the self-describe
+  // model: collections carry their own metadata, discovered at runtime (no central catalog).
+  list(): CollectionInfo[]
+  get(name: string): ServerCollection<unknown> | null // reach another extension's collection
 }
+type CollectionInfo = {name: string; table: string; schema: object /* JSON Schema */; fts: string[]}
 type ServerCollection<T> = {
   query(filter?: Partial<T> & {search?: string}): Promise<T[]>
   insert(row: T): Promise<T>
@@ -148,6 +154,22 @@ type ServerCollection<T> = {
   delete(id: string): Promise<void>
 }
 ```
+
+**Shared + introspectable.** `mx.db` is one store shared by all extensions, not a per-extension silo.
+`mx.db.list()` returns every declared collection's name, table, JSON Schema, and FTS columns;
+`mx.db.get(name)` reaches another extension's collection. A built-in `mandarax_db catalog`-style tool
+surfaces the same to the AI, so the agent knows what tables/schemas are queryable. Collection names
+are globally unique; declaring an existing name with a matching schema is idempotent (returns the same
+handle), with a mismatched schema is a clear error (no silent clobber).
+
+**Contracts characterized before use (zero unknowns).** Before any `mx.db` wiring, three contracts are
+pinned down by throwaway spikes against the real packages/binary, each committing a notes doc: (1) the
+`trail` Record API + realtime SSE + auth/ACL contract; (2) the `@tanstack/db` core custom-collection
+adapter (`SyncConfig` callback signature: `begin`/`write`/`commit`/`markReady`, `getKey`, schema
+validation, `createCollection` return methods, transaction `mutationFn`/`isPersisted`); (3) the
+`@tanstack/solid-db` `useLiveQuery` contract (the docs are inconsistent — resolve whether it returns
+`{data, isLoading()}` or a call-accessor — in a real browser). No `mx.db` code is written against an
+unverified signature.
 
 - **Server half (core):** TrailBase supervisor (spawn + restart, bound `127.0.0.1`), sole client (the
   `trail` HTTP Record API), migrations on boot, a **gated SSE** route driven by TrailBase's realtime
