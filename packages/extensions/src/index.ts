@@ -25,6 +25,7 @@ export {
   type ServerServices,
   type ExtensionEvent,
   type EventCtx,
+  type ToolExecuteCtx,
   type ApprovalPolicy,
 } from './contract.js'
 export {

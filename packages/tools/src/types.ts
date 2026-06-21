@@ -1,4 +1,5 @@
 import {z} from 'zod'
+import type {ToolExecuteCtx} from '@mandarax/extensions'
 import type {PageQuery} from '@mandarax/protocol/page-types'
 import type {UiSpec} from '@mandarax/protocol/ui-types'
 
@@ -23,5 +24,5 @@ export type MandaraxServerTool = {
   name: string
   description: string
   inputSchema: z.ZodObject<z.ZodRawShape>
-  execute: (input: unknown) => Promise<unknown>
+  execute: (input: unknown, ctx?: ToolExecuteCtx) => Promise<unknown>
 }

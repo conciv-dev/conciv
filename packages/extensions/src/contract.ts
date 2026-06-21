@@ -23,6 +23,7 @@ export type ClientDb = {
 
 export type ExtensionEvent = 'session_start' | 'tool_execution_start'
 export type EventCtx = {sessionId: string; previewId: string; tool?: string}
+export type ToolExecuteCtx = {sessionId: string; previewId: string}
 export type ApprovalPolicy = 'auto' | 'ask'
 
 export type {ToolRenderContext, ToolRenderResultOptions} from '@mandarax/protocol/tool-view-types'
@@ -37,7 +38,7 @@ export type ExtensionServerTool = {
   name: string
   description: string
   inputSchema: z.ZodObject<z.ZodRawShape>
-  execute: (input: unknown) => Promise<unknown>
+  execute: (input: unknown, ctx?: ToolExecuteCtx) => Promise<unknown>
 }
 
 export type ExtensionServerContributions = {
@@ -139,7 +140,7 @@ export type ToolDefinition<
   parameters: TParams
   renderShell?: 'default' | 'self'
   prepareArguments?(args: unknown): z.infer<TParams>
-  execute?(input: z.infer<TParams>): Promise<TResult> | TResult
+  execute?(input: z.infer<TParams>, ctx?: ToolExecuteCtx): Promise<TResult> | TResult
   renderCall?(args: z.infer<TParams>, ctx: ToolRenderContext<z.infer<TParams>>): JSX.Element
   renderResult?(
     result: TResult,

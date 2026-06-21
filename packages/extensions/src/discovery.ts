@@ -36,7 +36,7 @@ export function wrapToolDefinition(def: ToolDefinition): ExtensionServerTool {
     name: def.name,
     description: def.description,
     inputSchema: def.parameters,
-    execute: async (input) => run(def.parameters.parse(input)),
+    execute: async (input, ctx) => run(def.parameters.parse(input), ctx),
   }
 }
 

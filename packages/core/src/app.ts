@@ -99,6 +99,7 @@ export function makeApp(opts: MakeAppOpts): H3 {
       open: (file, line) => opts.openInEditor(file, line),
     }),
     extensions?.tools ?? [],
+    opts.cfg.previewId,
   )
   registerToolRunRoute(app, {
     tools: extensions?.tools ?? [],

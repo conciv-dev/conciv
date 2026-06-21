@@ -9,7 +9,12 @@ import {sessionIdFromHeaders} from '../chat/session-id.js'
 // fresh server + transport is created per request: the stateless streamable-HTTP pattern isolates
 // each client's request-id state and connect() binds exactly one transport. registerTool wants a Zod
 // raw shape, so we pass each tool's inputSchema.shape (the ZodObject is preserved, so .shape is typed).
-function buildServer(ctx: MandaraxToolContext, extensionTools: ExtensionServerTool[]): McpServer {
+function buildServer(
+  ctx: MandaraxToolContext,
+  extensionTools: ExtensionServerTool[],
+  sessionId: string,
+  previewId: string,
+): McpServer {
   const server = new McpServer({name: 'mandarax', version: '0.0.0'})
   for (const tool of [...mandaraxTools(ctx), ...extensionTools]) {
     server.registerTool(
@@ -17,7 +22,7 @@ function buildServer(ctx: MandaraxToolContext, extensionTools: ExtensionServerTo
       {description: tool.description, inputSchema: tool.inputSchema.shape},
       async (args) => {
         // tool.execute validates args against its zod schema once at this boundary, then runs.
-        const result = await tool.execute(args)
+        const result = await tool.execute(args, {sessionId, previewId})
         return {content: [{type: 'text', text: JSON.stringify(result)}]}
       },
     )
@@ -33,14 +38,16 @@ export function registerMcpRoutes(
   app: H3,
   makeCtx: (sessionId: string) => MandaraxToolContext,
   extensionTools: ExtensionServerTool[] = [],
+  previewId = '',
 ): void {
   app.post('/api/mcp', async (event) => {
-    const ctx = makeCtx(sessionIdFromHeaders(event.req.headers) ?? '') // '' = no live channel
+    const sessionId = sessionIdFromHeaders(event.req.headers) ?? '' // '' = no live channel
+    const ctx = makeCtx(sessionId)
     const transport = new WebStandardStreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
       enableJsonResponse: true,
     })
-    await buildServer(ctx, extensionTools).connect(transport)
+    await buildServer(ctx, extensionTools, sessionId, previewId).connect(transport)
     return transport.handleRequest(event.req)
   })
 }

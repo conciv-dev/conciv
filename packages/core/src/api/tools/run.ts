@@ -25,6 +25,6 @@ export function registerToolRunRoute(app: H3, deps: ToolRunDeps): void {
       })
     const sessionId = sessionIdFromHeaders(event.req.headers) ?? ''
     deps.fire('tool_execution_start', {sessionId, previewId: deps.previewId, tool: name})
-    return {result: await tool.execute(input)}
+    return {result: await tool.execute(input, {sessionId, previewId: deps.previewId})}
   })
 }
