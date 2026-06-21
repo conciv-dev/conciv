@@ -68,6 +68,14 @@
     "./tool-view-types": {
       "types": "./dist/tool-view-types.d.ts",
       "import": "./dist/tool-view-types.js"
+    },
+    "./db-types": {
+      "types": "./dist/db-types.d.ts",
+      "import": "./dist/db-types.js"
+    },
+    "./sync-types": {
+      "types": "./dist/sync-types.d.ts",
+      "import": "./dist/sync-types.js"
     }
   },
   "publishConfig": {
@@ -90,6 +98,7 @@
     "@types/node": "^22.19.21",
     "tsdown": "^0.22.2",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.8",
+    "yjs": "^13.6.31"
   }
 }

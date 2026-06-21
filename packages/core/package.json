@@ -63,8 +63,10 @@
     "get-port": "^7.1.0",
     "h3": "2.0.1-rc.22",
     "srvx": "^0.11.16",
+    "trailbase": "^0.12.2",
     "ufo": "^1.6.4",
     "unstorage": "^1.17.5",
+    "yjs": "^13.6.31",
     "zod": "^4.4.3"
   },
   "devDependencies": {

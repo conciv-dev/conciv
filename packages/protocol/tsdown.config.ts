@@ -16,6 +16,8 @@ export default defineConfig({
     'src/page-introspect-types.ts',
     'src/usage-types.ts',
     'src/tool-view-types.ts',
+    'src/db-types.ts',
+    'src/sync-types.ts',
   ],
   format: 'esm',
   fixedExtension: false,

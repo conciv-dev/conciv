@@ -65,6 +65,8 @@
     "shiki": "^4.2.0",
     "solid-js": "^1.9.13",
     "trailbase": "^0.12.2",
+    "y-indexeddb": "^9.0.12",
+    "yjs": "^13.6.31",
     "zod": "^4.4.3"
   },
   "devDependencies": {
