@@ -94,6 +94,7 @@ export function makeApp(opts: MakeAppOpts): H3 {
     createCanvasCommentsExtension({
       relay: canvasRelay,
       comments: commentStore,
+      resolver: anchorResolver,
       sessionId,
       previewId: () => opts.cfg.previewId,
       doctor,

@@ -3,6 +3,7 @@ import {z} from 'zod'
 import {defineExtension, defineTool} from '@mandarax/extensions'
 import type {CanvasRelay, CanvasElement} from '../../canvas/relay.js'
 import type {CommentStore} from '../../comments/comment-store.js'
+import type {AnchorResolver} from '../../anchor/resolver.js'
 
 // The canvas-comments built-in, authored against the real extension contract (dogfooding it) but
 // registered at engine boot rather than file-discovered. Tools close over the canvas context (relay +
@@ -11,6 +12,7 @@ import type {CommentStore} from '../../comments/comment-store.js'
 export type CanvasContext = {
   relay: CanvasRelay
   comments: CommentStore
+  resolver: AnchorResolver
   sessionId: () => string
   previewId: () => string
   genId?: () => string
@@ -56,6 +58,8 @@ export function createCanvasCommentsExtension(ctx: CanvasContext) {
       kind: z.enum(['source-linked', 'floating']).default('floating'),
       authorKind: z.enum(['human', 'ai']).default('human'),
       authorModel: z.string().optional(),
+      // A picked element to source-anchor to (file + line; col defaults to 1 — line-only for now).
+      target: z.object({file: z.string(), line: z.number(), col: z.number().default(1)}).optional(),
       anchor: z.unknown().optional(),
       anchorFile: z.string().optional(),
       anchorComponent: z.string().optional(),
@@ -65,6 +69,8 @@ export function createCanvasCommentsExtension(ctx: CanvasContext) {
     promptSnippet: 'Use comment.create to leave a durable, place-anchored note the user will see later.',
   }).server(async (input) => {
     const id = input.id ?? newId()
+    // A target captures the source anchor server-side (fs + parser + confinement live in core).
+    const captured = input.target ? await ctx.resolver.capture(input.target) : null
     const comment = ctx.comments.create({
       id,
       sessionId: ctx.sessionId(),
@@ -73,11 +79,11 @@ export function createCanvasCommentsExtension(ctx: CanvasContext) {
       parts: input.parts,
       authorKind: input.authorKind,
       authorModel: input.authorModel ?? null,
-      kind: input.kind,
-      anchor: input.anchor,
-      anchorFile: input.anchorFile ?? null,
-      anchorComponent: input.anchorComponent ?? null,
-      anchorHash: input.anchorHash ?? null,
+      kind: captured ? 'source-linked' : input.kind,
+      anchor: captured ?? input.anchor,
+      anchorFile: captured?.file ?? input.anchorFile ?? null,
+      anchorComponent: captured?.component ?? input.anchorComponent ?? null,
+      anchorHash: captured?.hash ?? input.anchorHash ?? null,
     })
     if (input.pin) await ctx.relay.setPin(ctx.sessionId(), {commentId: id, ...input.pin})
     return comment
