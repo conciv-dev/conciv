@@ -21,6 +21,5 @@ export async function bootServices(root: string, stateRoot: string): Promise<Boo
   const sync = createSync({store})
   const extensions = await loadServerContributions(root, {db, sync: sync.engine})
   await supervisor.start()
-  supervisor.onExit(() => void supervisor.start())
   return {extensions, dbProxyTarget: supervisor.baseUrl, syncHooks: sync.hooks, stop: () => supervisor.stop()}
 }
