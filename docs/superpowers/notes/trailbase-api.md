@@ -93,14 +93,31 @@ Base: `/api/records/v1/<name>`.
   PK be incidental/server-generated. Join the Yjs pin and the row by `cid`; filter by
   `filter[cid][$eq]=<hex>`. No base64 conversion anywhere in our code.
 
-## Realtime — we do NOT use trail's subscribe
+## Realtime — works anon with `enable_subscriptions: true` (no auth)
 
-- `GET /api/records/v1/<name>/subscribe/*` returns **403** under full `acl_world` (anon). It requires
-  authentication / different config.
-- **We don't need it.** Core is the _sole_ trail client and _sole_ writer (every mutation — user, AI,
-  CLI — goes through core's `mx.db`). So core fans out changes to browser SSE **from its own mutation
-  methods**, not from trail's realtime. trail's subscribe endpoint is irrelevant to our architecture.
-  This removes the only auth dependency and the only multi-writer assumption.
+- The 403 was a **missing config flag**, NOT auth. Add `enable_subscriptions: true` to the record_api.
+- With the flag, `GET /api/records/v1/<name>/subscribe/*` returns **200 `text/event-stream`**
+  anonymously and opens with `: subscription established`, then streams change events. Verified.
+- This unlocks using TanStack DB's **native** `@tanstack/trailbase-db-collection` adapter, which drives
+  realtime via this endpoint — so we do NOT hand-roll a custom sync adapter.
+
+## Architecture consequence — native adapter + core as a gated trail proxy
+
+The browser uses `@tanstack/db` + `@tanstack/trailbase-db-collection` + the `trailbase` client
+(`initClient(url).records('<name>')`). To keep "browser never talks to trail directly", `url` points at
+**core**, which **reverse-proxies trail's Record API + subscribe SSE on loopback**, applying the
+`api/cors.ts` gate (Origin allowlist + Host loopback + session token). Core remains the only process
+that opens a socket to trail. Two server-side uses of trail, both via core:
+
+1. **Browser sync/optimistic/realtime** → native adapter → core proxy → trail (anon, acl_world + subs).
+2. **Agent/tool/CLI writes** → core's own trail Record-API client (server side) → trail.
+
+Both land in the same SQLite db; trail realtime (proxied) fans changes back to every browser
+collection. No custom adapter, no core-side fan-out bus needed for comments.
+
+Open item to confirm during the TanStack characterization spike: that the `trailbase` `initClient`
+works **anonymously** (no login) against an acl_world API, and that core can proxy its Record API +
+subscribe SSE transparently (path shape `/api/records/v1/*`).
 
 ## Implications for `mx.db` (core)
 

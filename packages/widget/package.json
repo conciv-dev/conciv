@@ -53,14 +53,18 @@
     "@tanstack/ai": "^0.28.0",
     "@tanstack/ai-client": "^0.16.3",
     "@tanstack/ai-solid": "^0.13.4",
+    "@tanstack/db": "^0.6.9",
+    "@tanstack/solid-db": "^0.2.23",
     "@tanstack/solid-hotkeys": "^0.10.0",
     "@tanstack/solid-pacer": "^0.21.1",
+    "@tanstack/trailbase-db-collection": "^0.1.87",
     "bippy": "0.5.41",
     "gsap": "^3.15.0",
     "lucide-solid": "^1.18.0",
     "react-grab": "^0.1.44",
     "shiki": "^4.2.0",
     "solid-js": "^1.9.13",
+    "trailbase": "^0.12.2",
     "zod": "^4.4.3"
   },
   "devDependencies": {
