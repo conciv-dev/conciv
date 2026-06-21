@@ -97,6 +97,18 @@ are re-exported from `@tanstack/solid-db`, so one import source.
   `list()`/`get()` introspection). Client `collection(name, {schema, getKey, parse, serialize})` →
   the native TrailBase TanStack collection over the core proxy.
 
+## Correction (verified 2026-06-21 in a real browser IT): cid-as-key needs a thin recordApi shim
+
+The claim that the native adapter works as-is with `getKey: r => r.cid` is INCOMPLETE. `@tanstack/trailbase-db-collection@0.1.87` confirms an optimistic insert via `awaitIds(createBulk(...))` — it waits until the realtime subscription echoes the id that `createBulk` RETURNED. trail's `createBulk` returns the uuid_v7 **PK** (base64url), but `seenIds` is keyed by `getKey` = `cid`. PK-base64 never equals cid, so `awaitIds` hangs 120s and BLOCKS every later sync commit (realtime inserts never apply).
+
+Fix (kept cid-as-key, no custom sync adapter): `createClientDb` wraps the `trailbase` `recordApi` in a `cidKeyedApi` proxy so the adapter's `getKey=cid` contract holds end to end:
+
+- `createBulk(records)` → persist via the real `createBulk`, but RETURN `records.map(r => r.cid)` (the adapter only uses the return for `awaitIds`; the subscription echo sets `seenIds[cid]`, so confirmation resolves).
+- `update(cid, patch)` / `delete(cid)` → resolve `cid`→PK first (`list filter[cid][$eq]`, read `id`) then call trail by PK (trail's by-id endpoints key off the PK, not cid).
+- `list`/`subscribe` pass through unchanged.
+
+So the native adapter is still used; only a ~20-line recordApi shim is ours. Proven by `packages/widget/test/client-db.it.test.ts` (optimistic render + realtime server-side insert reconcile, real browser + real proxy + real trail).
+
 ## Node caveat
 
 `EventSource` is `undefined` in the repo's node; the trailbase realtime stream is fetch/ReadableStream

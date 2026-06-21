@@ -38,6 +38,10 @@
     "./widget-tags": {
       "types": "./dist/widget-tags.d.ts",
       "import": "./dist/widget-tags.js"
+    },
+    "./db": {
+      "types": "./dist/db/index.d.ts",
+      "import": "./dist/db/index.js"
     }
   },
   "publishConfig": {
