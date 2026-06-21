@@ -37,10 +37,13 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@excalidraw/excalidraw": "^0.18.1",
     "@mandarax/extensions": "workspace:^",
     "@mandarax/protocol": "workspace:^",
     "@mandarax/tool-ui": "workspace:^",
     "@tanstack/solid-db": "^0.2.23",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
     "solid-js": "^1.9.13",
     "yjs": "^13.6.31",
     "zod": "^4.4.3"
@@ -48,6 +51,8 @@
   "devDependencies": {
     "@mandarax/core": "workspace:^",
     "@types/node": "^22.19.21",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
     "crossws": "^0.4.6",
     "get-port": "^7.2.0",
     "h3": "2.0.1-rc.22",

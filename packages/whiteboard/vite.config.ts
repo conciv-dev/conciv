@@ -7,6 +7,9 @@ import solid from 'vite-plugin-solid'
 // and @excalidraw never enter this static graph — they load only via dynamic import inside render().
 export default defineConfig({
   plugins: [solid()],
+  // The island and Excalidraw must share ONE React instance, and Excalidraw branches on these flags.
+  resolve: {dedupe: ['react', 'react-dom']},
+  define: {'process.env.NODE_ENV': JSON.stringify('production'), 'process.env.IS_PREACT': JSON.stringify('false')},
   build: {
     lib: {
       entry: fileURLToPath(new URL('src/index.ts', import.meta.url)),
