@@ -1,5 +1,5 @@
 import {createSignal} from 'solid-js'
-import type {EffectCtx, EffectDefinition} from '@mandarax/extensions'
+import type {ClientApi, EffectCtx, EffectDefinition} from '@mandarax/extensions'
 import {createTransport} from './transport.js'
 import {EditorOpenSchema} from '@mandarax/protocol/test-types'
 import {OkSchema} from '@mandarax/protocol/chat-types'
@@ -23,7 +23,17 @@ import styles from './styles.css?inline'
 
 const EFFECTS_MARKER = 'data-mandarax-effects'
 
-function makeEffectCtx(deps: {apiBase: string; refs: Refs}): Omit<EffectCtx, 'disable'> {
+type EffectHostDeps = {
+  apiBase: string
+  refs: Refs
+  runTool: ClientApi['runTool']
+  db: ClientApi['db']
+  sync: ClientApi['sync']
+  previewId: string
+  sessionId: () => string | null
+}
+
+function makeEffectCtx(deps: EffectHostDeps): Omit<EffectCtx, 'disable'> {
   const server = createTransport({apiBase: deps.apiBase})
   const openEditor = server.route({
     method: 'POST',
@@ -70,12 +80,17 @@ function makeEffectCtx(deps: {apiBase: string; refs: Refs}): Omit<EffectCtx, 'di
     openSource,
     toast: showToast,
     env: {reducedMotion: () => matchMedia('(prefers-reduced-motion: reduce)').matches, doc: document, win: window},
+    runTool: deps.runTool,
+    db: deps.db,
+    sync: deps.sync,
+    previewId: deps.previewId,
+    sessionId: deps.sessionId,
   }
 }
 
 // Build the effect host: a stateless makeEffects dispatcher over an instance signal of effects, the
 // page `effect` verb handler injected into the driver, and applyEffects to upsert contributed effects.
-export function createEffectsHost(deps: {apiBase: string; refs: Refs}) {
+export function createEffectsHost(deps: EffectHostDeps) {
   registerWind4Properties()
   const [effects, setEffects] = createSignal<readonly EffectDefinition[]>([])
   const fx = makeEffects(() => effects(), makeEffectCtx(deps), styles)

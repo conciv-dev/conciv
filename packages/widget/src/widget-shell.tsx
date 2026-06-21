@@ -108,14 +108,17 @@ export function createWidgetShell(opts: {settings: WidgetSettings}): {
   registerPanel: (def: PanelDef) => void
   registerComposerAction: (def: ComposerActionDef) => void
   registerComposerControl: (def: ComposerControlDef) => void
+  activeClient: () => SessionClient | null
   mount: (rootEl: ShadowRoot | HTMLElement) => void
   unmount: () => void
 } {
   const panels: PanelDef[] = []
   const [composerActions, setComposerActions] = createSignal<ComposerActionDef[]>([])
   const composerControls: ComposerControlDef[] = []
+  const [activeClient, setActiveClient] = createSignal<SessionClient | null>(null)
   let dispose: (() => void) | undefined
   return {
+    activeClient,
     registerPanel(def) {
       panels.push(def)
     },
@@ -142,6 +145,7 @@ export function createWidgetShell(opts: {settings: WidgetSettings}): {
               panels={panels}
               composerActions={composerActions}
               composerControls={() => composerControls}
+              onActiveClient={setActiveClient}
             />
           </EnvironmentProvider>
         ),
@@ -160,6 +164,7 @@ function Shell(props: {
   panels: PanelDef[]
   composerActions: () => ComposerActionDef[]
   composerControls: () => ComposerControlDef[]
+  onActiveClient: (client: SessionClient) => void
 }): JSX.Element {
   // One layer is visible at a time, so opening the quick terminal closes the modal and vice versa.
   const [layer, setLayer] = createSignal<'modal' | 'quick' | null>(null)
@@ -204,6 +209,7 @@ function Shell(props: {
               position={props.settings.modal.position}
               announce={announce}
               reportApprovals={reportApprovals}
+              onActiveClient={props.onActiveClient}
               open={() => layer() === 'modal'}
               onOpen={() => setLayer('modal')}
               onClose={closeModal}
@@ -217,6 +223,7 @@ function Shell(props: {
               hotkeys={props.settings.quickTerminal.hotkeys}
               announce={announce}
               reportApprovals={reportApprovals}
+              onActiveClient={props.onActiveClient}
               open={() => layer() === 'quick'}
               setOpen={setQuickOpen}
             />
@@ -250,7 +257,13 @@ function Shell(props: {
 }
 
 // One mounted session view in the modal (its own ChatPanel + working/usage signals), keyed by our id.
-type ModalPane = {id: SessionId; content: JSX.Element; working: () => boolean; usage: () => UsageSnapshot | null}
+type ModalPane = {
+  id: SessionId
+  client: SessionClient
+  content: JSX.Element
+  working: () => boolean
+  usage: () => UsageSnapshot | null
+}
 
 // Focusable controls inside the open dialog, in DOM order — used to wrap Tab focus. Skips controls in
 // a hidden (inactive) session pane so the trap only spans the visible pane + chrome.
@@ -319,6 +332,7 @@ function ModalLayout(props: {
   position: TriggerPosition
   announce: (msg: string, assertive?: boolean) => void
   reportApprovals: (key: string, approvals: PendingApproval[]) => void
+  onActiveClient: (client: SessionClient) => void
   open: () => boolean
   onOpen: () => void
   onClose: () => void
@@ -328,6 +342,11 @@ function ModalLayout(props: {
   const [activeId, setActiveId] = createSignal<SessionId | null>(null)
   const [panes, setPanes] = createSignal<ModalPane[]>([])
   createEffect(() => writeStorage('mandarax-active-session', activeId()))
+  createEffect(() => {
+    if (!props.open()) return
+    const pane = panes().find((p) => p.id === activeId())
+    if (pane) props.onActiveClient(pane.client)
+  })
   const apiBase = props.panel.apiBase ?? ''
 
   const mountPane = (id: SessionId) => {
@@ -349,7 +368,7 @@ function ModalLayout(props: {
       composerActions: props.composerActions,
       composerControls: props.composerControls,
     })
-    setPanes((prev) => [...prev, {id, content, working, usage}])
+    setPanes((prev) => [...prev, {id, client, content, working, usage}])
   }
   // Make a session active, mounting its pane on first visit.
   const activate = (id: SessionId) => {

@@ -4,6 +4,11 @@ import {createSignal, type JSX} from 'solid-js'
 import {defineEffect, type EffectCtx, type EffectDefinition} from '@mandarax/extensions'
 import {makeEffects} from './page-effects.js'
 import {highlightEffect} from './effects/highlight.js'
+import {createClientDb} from './db/client-db.js'
+import {createClientSync} from './sync/client-sync.js'
+import {createRunTool} from './run-tool.js'
+
+const seamBase = 'http://127.0.0.1'
 
 function seamCtx(): Omit<EffectCtx, 'disable'> {
   return {
@@ -20,6 +25,11 @@ function seamCtx(): Omit<EffectCtx, 'disable'> {
     openSource: async () => 'opened',
     toast: () => {},
     env: {reducedMotion: () => true, doc: document, win: window},
+    runTool: createRunTool(seamBase, () => ({})),
+    db: createClientDb(seamBase),
+    sync: createClientSync(seamBase, '', {persist: false}),
+    previewId: '',
+    sessionId: () => null,
   }
 }
 

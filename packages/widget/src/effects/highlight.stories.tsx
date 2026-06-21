@@ -3,6 +3,11 @@ import {expect, fireEvent, waitFor, within} from 'storybook/test'
 import {createSignal} from 'solid-js'
 import {highlightEffect} from './highlight.js'
 import type {EffectCtx} from '@mandarax/extensions'
+import {createClientDb} from '../db/client-db.js'
+import {createClientSync} from '../sync/client-sync.js'
+import {createRunTool} from '../run-tool.js'
+
+const seamBase = 'http://127.0.0.1'
 
 // Seam ctx: no backend. elementAt mirrors the real toggle-capture-then-elementFromPoint behaviour so
 // the inspector resolves the page element under the cursor (the capture layer would otherwise win).
@@ -37,6 +42,11 @@ function makeSeam(onOpen: (file: string) => void): EffectCtx {
     },
     toast: () => {},
     env: {reducedMotion: () => true, doc: document, win: window},
+    runTool: createRunTool(seamBase, () => ({})),
+    db: createClientDb(seamBase),
+    sync: createClientSync(seamBase, '', {persist: false}),
+    previewId: '',
+    sessionId: () => null,
     disable: () => {},
   }
 }

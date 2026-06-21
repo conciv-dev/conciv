@@ -75,6 +75,9 @@ export type ClientApi = {
   registerComposerAction: (action: ExtComposerAction) => void
   db: ClientDb
   sync: ClientSync
+  runTool: (name: string, input: unknown) => Promise<unknown>
+  previewId: string
+  sessionId: () => string | null
 }
 
 // What an extension's .server(mx => …) half can do in core: add agent tools, extend the prompt,
@@ -171,6 +174,11 @@ export type EffectCtx = {
   openSource: (locate: LocateResult) => Promise<'opened' | 'no-source' | 'failed'>
   toast: (msg: string, tone?: 'info' | 'success' | 'error') => void
   env: {reducedMotion: () => boolean; doc: Document; win: Window}
+  runTool: (name: string, input: unknown) => Promise<unknown>
+  db: ClientDb
+  sync: ClientSync
+  previewId: string
+  sessionId: () => string | null
   disable: () => void
 }
 

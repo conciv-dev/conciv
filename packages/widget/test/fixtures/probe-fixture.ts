@@ -27,6 +27,9 @@ const clientApi: ClientApi = {
   registerComposerAction: (action) => void (composer.onClick = action.onClick),
   db,
   sync,
+  runTool,
+  previewId: '',
+  sessionId: () => null,
 }
 probe.clientFn?.(clientApi)
 

@@ -16,7 +16,7 @@ import highlightExtension from './effects/highlight-extension.js'
 import type {Refs} from './page-snapshot.js'
 import {installReactBridge} from './react-bridge.js'
 import * as reactBridge from './react-bridge.js'
-import {defineClient} from './session-client.js'
+import {defineClient, type SessionClient} from './session-client.js'
 import {parseWidgetSettings, type WidgetSettings} from './widget-settings.js'
 import {applyThemeOverrides} from './theme.js'
 import {setExtWidget, setExtHeader, setExtFooter, setExtStatus} from './ui-store.js'
@@ -74,12 +74,22 @@ export function mountWidget(): void {
   installReactBridge()
   const {root} = createShadowRoot()
   const apiBase = resolveApiBase()
+  const previewId = metaContent('pw-preview-id')
   window.__MANDARAX_RENDER_TEST_CARD__ = () => mountTestCardForTest(root, apiBase)
+  // Identity + capabilities the effects host (built next) and clientApi share. runTool sends the
+  // active session's header so server tools scope to the right room; activeClient is late-bound to
+  // the shell once it exists (effects only run after chat mounts anyway).
+  const db = createClientDb(apiBase)
+  const sync = createClientSync(apiBase, '')
+  let activeClient: () => SessionClient | null = () => null
+  const sessionId = () => activeClient()?.sessionId() ?? null
+  const sessionHeaders = () => activeClient()?.chatHeaders() ?? {}
+  const runTool = createRunTool(apiBase, sessionHeaders)
   // Effects host first: it owns the refs + injects the page `effect` verb handler into the one driver
   // the page-bus and test seam share. The built-in highlight extension applies through the same use()
   // path as user extensions — synchronously here, so it works even without the chat server.
   const refs: Refs = {map: new Map(), n: 0}
-  const effectsHost = createEffectsHost({apiBase, refs})
+  const effectsHost = createEffectsHost({apiBase, refs, runTool, db, sync, previewId, sessionId})
   const driver = makeDomPageDriver({refs, handlers: {effect: effectsHost.effectHandler}})
   window.__MANDARAX_PAGE_DRIVER__ = driver
   window.__MANDARAX_REACT_BRIDGE__ = reactBridge
@@ -101,6 +111,7 @@ export function mountWidget(): void {
         )
       // The shell owns the chrome + layout modes and hosts the chat as a registered panel.
       const shell = createWidgetShell({settings})
+      activeClient = shell.activeClient
       shell.registerPanel(chatPanelDef(apiBase, models.harness.id, tools))
       shell.registerComposerAction(elementPickerAction)
       shell.registerComposerAction(newSessionAction)
@@ -110,9 +121,6 @@ export function mountWidget(): void {
       shell.mount(root)
       // Adapt the public ExtComposerAction (slim, stable) to the shell's richer internal def: the
       // public onClick ctx exposes only insert + notify, mapped from the full capability bag.
-      const db = createClientDb(apiBase)
-      const sync = createClientSync(apiBase, '')
-      const runTool = createRunTool(apiBase, () => ({}))
       const clientApi: ClientApi = {
         ui: {
           setTheme: (tokens) => applyThemeOverrides(root, tokens),
@@ -131,6 +139,9 @@ export function mountWidget(): void {
           }),
         db,
         sync,
+        runTool,
+        previewId,
+        sessionId,
       }
       installExtensionGlobal((ext: MandaraxExtension) => {
         ext.clientFn?.(clientApi)

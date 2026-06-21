@@ -37,6 +37,7 @@ export function QuickTerminalLayout(props: {
   hotkeys: string[]
   announce: (msg: string, assertive?: boolean) => void
   reportApprovals: (key: string, approvals: PendingApproval[]) => void
+  onActiveClient: (client: SessionClient) => void
   open: () => boolean
   setOpen: (v: boolean) => void
 }): JSX.Element {
@@ -52,6 +53,11 @@ export function QuickTerminalLayout(props: {
   const pip = createPiP()
   const [panes, setPanes] = createSignal<Pane[]>([])
   const [focused, setFocused] = createSignal(0)
+  createEffect(() => {
+    if (!props.open()) return
+    const pane = panes().find((p) => p.id === focused())
+    if (pane) props.onActiveClient(pane.client)
+  })
   let seq = 0
   let rowEl: HTMLDivElement | undefined
   let sectionEl: HTMLElement | undefined
