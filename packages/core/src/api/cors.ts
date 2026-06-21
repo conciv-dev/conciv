@@ -42,7 +42,7 @@ export function registerCors(app: H3, allowedOrigins: string[] = []): void {
     // Reflect only allowed origins so the browser never exposes responses to a disallowed site.
     origin: (origin) => originAllowed(origin, extra),
     credentials: true,
-    methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
     allowHeaders: ['content-type', MANDARAX_SESSION_HEADER],
   }
   app.use((event, next) => {
