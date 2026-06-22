@@ -161,6 +161,7 @@ export function mountWidget(): void {
         sync,
         runTool,
         pick,
+        toggleEffect: effectsHost.toggleEffect,
         previewId,
         sessionId,
       }

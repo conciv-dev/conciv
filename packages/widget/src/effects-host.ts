@@ -110,5 +110,7 @@ export function createEffectsHost(deps: EffectHostDeps) {
     return action === 'toggle' ? fx.toggleEffect(query.effect) : fx.setEffect(query.effect, action === 'enable')
   }
 
-  return {effectHandler, applyEffects}
+  const toggleEffect = (name: string): void => void fx.toggleEffect(name)
+
+  return {effectHandler, applyEffects, toggleEffect}
 }

@@ -90,6 +90,8 @@ export type ClientApi = {
   sync: ClientSync
   runTool: (name: string, input: unknown) => Promise<unknown>
   pick: PickFn
+  // Toggle one of this extension's own page effects on/off (the user-facing entry to an overlay).
+  toggleEffect: (name: string) => void
   previewId: string
   sessionId: () => string | null
 }

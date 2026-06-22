@@ -1,5 +1,13 @@
-import {MessageSquarePlus} from 'lucide-solid'
+import {MessageSquarePlus, Presentation} from 'lucide-solid'
 import type {ExtComposerAction} from '@mandarax/extensions'
+
+// The user-facing entry to the canvas: toggles the whiteboard effect on/off.
+export const makeWhiteboardAction = (toggle: () => void): ExtComposerAction => ({
+  id: 'whiteboard-canvas',
+  label: 'Open the whiteboard canvas',
+  icon: Presentation,
+  onClick: () => toggle(),
+})
 
 const centerOf = (rect: {x: number; y: number; width: number; height: number} | null): {x: number; y: number} =>
   rect ? {x: rect.x + rect.width / 2, y: rect.y + rect.height / 2} : {x: 24, y: 24}

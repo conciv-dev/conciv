@@ -30,6 +30,7 @@ const clientApi: ClientApi = {
   sync,
   runTool,
   pick,
+  toggleEffect: noop,
   previewId: '',
   sessionId: () => null,
 }

@@ -56,5 +56,8 @@ export default defineExtension({id: 'whiteboard', tools: [ping], effects: [canva
       serialize: commentSerialize,
     })
     setCommentsCollection(comments)
-    void import('./pins/comment-action.js').then((m) => mx.registerComposerAction(m.commentAction))
+    void import('./pins/comment-action.js').then((m) => {
+      mx.registerComposerAction(m.makeWhiteboardAction(() => mx.toggleEffect('whiteboard')))
+      mx.registerComposerAction(m.commentAction)
+    })
   })

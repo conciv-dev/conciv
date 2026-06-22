@@ -88,6 +88,18 @@ const tool = (core: string, name: string, input: unknown): Promise<Response> =>
   })
 
 describe('whiteboard Comment action + source-linked badge (it) — full stack', () => {
+  it('opens the canvas from the composer action (no page driver)', async () => {
+    const page = await state.browser!.newPage()
+    await page.goto(state.base)
+    await page.getByRole('button', {name: 'Open mandarax chat'}).click()
+    const open = page.getByRole('button', {name: 'Open the whiteboard canvas'})
+    await open.waitFor({state: 'visible', timeout: 30_000})
+    expect(await page.locator('canvas').count()).toBe(0)
+    await open.click()
+    await page.locator('canvas').first().waitFor({state: 'attached', timeout: 20_000})
+    await page.close()
+  })
+
   it('registers the Comment action and entering it activates react-grab selection', async () => {
     const page = await state.browser!.newPage()
     await page.goto(state.base)
