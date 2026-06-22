@@ -13,9 +13,11 @@ export const canvasEffect = defineEffect({
     marker.setAttribute('data-whiteboard-marker', '')
     let handle: IslandHandle | undefined
     let host: HTMLDivElement | undefined
+    let pinsHost: HTMLDivElement | undefined
     let disposeSync: (() => void) | undefined
     let disposeAi: (() => void) | undefined
     let disposePresence: (() => void) | undefined
+    let disposePins: (() => void) | undefined
     onMount(async () => {
       const [island, sheet] = await Promise.all([
         import('./island.js'),
@@ -55,8 +57,16 @@ export const canvasEffect = defineEffect({
       const presence = bindPresence({awareness: room.awareness, handle, self: selfIdentity()})
       pointer = (p) => presence.setCursor(p.x, p.y)
       disposePresence = presence.dispose
+      pinsHost = document.createElement('div')
+      pinsHost.setAttribute('data-whiteboard-pins', '')
+      pinsHost.style.cssText = 'position:fixed;inset:0;z-index:2147482001;pointer-events:none'
+      document.body.appendChild(pinsHost)
+      const {mountPins} = await import('../pins/pins.js')
+      disposePins = mountPins({container: pinsHost, doc: room.doc})
     })
     onCleanup(() => {
+      disposePins?.()
+      pinsHost?.remove()
       disposePresence?.()
       disposeAi?.()
       disposeSync?.()
