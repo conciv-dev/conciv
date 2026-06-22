@@ -1,4 +1,4 @@
-import {onCleanup, onMount, type JSX} from 'solid-js'
+import {createEffect, getOwner, onCleanup, onMount, runWithOwner, type JSX} from 'solid-js'
 import {defineEffect, type EffectCtx} from '@mandarax/extensions'
 import {roomId} from '../room.js'
 import type {SceneElement} from './glue.js'
@@ -11,13 +11,10 @@ export const canvasEffect = defineEffect({
   render: (ctx: EffectCtx): JSX.Element => {
     const marker = document.createElement('div')
     marker.setAttribute('data-whiteboard-marker', '')
+    const owner = getOwner()
     let handle: IslandHandle | undefined
     let host: HTMLDivElement | undefined
     let pinsHost: HTMLDivElement | undefined
-    let disposeSync: (() => void) | undefined
-    let disposeAi: (() => void) | undefined
-    let disposePresence: (() => void) | undefined
-    let disposePins: (() => void) | undefined
     let threadHost: HTMLDivElement | undefined
     let disposeThread: (() => void) | undefined
     onMount(async () => {
@@ -35,35 +32,28 @@ export const canvasEffect = defineEffect({
       host.setAttribute('data-whiteboard-canvas', '')
       host.style.cssText = 'position:fixed;inset:0;z-index:2147482000'
       document.body.appendChild(host)
-      const [{bindCanvasSync}, {bindAiDraws}, {bindPresence}] = await Promise.all([
+      pinsHost = document.createElement('div')
+      pinsHost.setAttribute('data-whiteboard-pins', '')
+      pinsHost.style.cssText = 'position:fixed;inset:0;z-index:2147482001;pointer-events:none'
+      document.body.appendChild(pinsHost)
+      const [{bindCanvasSync}, {bindAiDraws}, {bindPresence}, {mountPins}, {mountThread}] = await Promise.all([
         import('./canvas-sync.js'),
         import('./ai-draws.js'),
         import('./presence.js'),
+        import('../pins/pins.js'),
+        import('../pins/thread.js'),
       ])
-      const room = ctx.sync.room(roomId(ctx.previewId, ctx.sessionId() ?? ''))
       let writer: (next: readonly SceneElement[]) => void = () => {}
       let pointer: (p: {x: number; y: number}) => void = () => {}
-      handle = island.mountIsland({
+      const activeHandle = island.mountIsland({
         container: host,
         initialElements: [],
         onUserChange: (elements) => writer(elements),
         onPointer: (p) => pointer(p),
         theme: 'light',
       })
-      disposeSync = bindCanvasSync({
-        doc: room.doc,
-        handle,
-        onUserChange: (register) => void (writer = register),
-      })
-      disposeAi = bindAiDraws(room.doc)
-      const presence = bindPresence({awareness: room.awareness, handle, self: selfIdentity()})
-      pointer = (p) => presence.setCursor(p.x, p.y)
-      disposePresence = presence.dispose
-      pinsHost = document.createElement('div')
-      pinsHost.setAttribute('data-whiteboard-pins', '')
-      pinsHost.style.cssText = 'position:fixed;inset:0;z-index:2147482001;pointer-events:none'
-      document.body.appendChild(pinsHost)
-      const {mountThread} = await import('../pins/thread.js')
+      const activePinsHost = pinsHost
+      handle = activeHandle
       const closeThread = (): void => {
         disposeThread?.()
         disposeThread = undefined
@@ -84,17 +74,34 @@ export const canvasEffect = defineEffect({
           onClose: closeThread,
         })
       }
-      const {mountPins} = await import('../pins/pins.js')
-      disposePins = mountPins({container: pinsHost, doc: room.doc, onOpen: openThread})
+      // Re-bind the room whenever the active session changes: the canvas, pins, and presence follow
+      // the widget's current session, clearing the previous session's scene + pins.
+      runWithOwner(owner, () =>
+        createEffect(() => {
+          const room = ctx.sync.room(roomId(ctx.previewId, ctx.sessionId() ?? ''))
+          const disposeSync = bindCanvasSync({
+            doc: room.doc,
+            handle: activeHandle,
+            onUserChange: (r) => void (writer = r),
+          })
+          const disposeAi = bindAiDraws(room.doc)
+          const presence = bindPresence({awareness: room.awareness, handle: activeHandle, self: selfIdentity()})
+          pointer = (p) => presence.setCursor(p.x, p.y)
+          const disposePins = mountPins({container: activePinsHost, doc: room.doc, onOpen: openThread})
+          onCleanup(() => {
+            closeThread()
+            disposePins()
+            presence.dispose()
+            disposeAi()
+            disposeSync()
+          })
+        }),
+      )
     })
     onCleanup(() => {
       disposeThread?.()
       threadHost?.remove()
-      disposePins?.()
       pinsHost?.remove()
-      disposePresence?.()
-      disposeAi?.()
-      disposeSync?.()
       handle?.destroy()
       host?.remove()
     })
