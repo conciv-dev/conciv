@@ -14,7 +14,7 @@ import {chromium, type Browser} from 'playwright'
 import {EventType, type StreamChunk, toServerSentEventsStream} from '@tanstack/ai'
 import {aguiApprovalRequestedFor} from '@mandarax/protocol/ui-types'
 import {aguiUsageFor, snapshotToTokenUsage} from '@mandarax/protocol/usage-types'
-import {widgetBundle, readBody} from './it-fixture.js'
+import {widgetScriptTag, serveWidgetAsset, readBody} from './it-fixture.js'
 
 const ASSISTANT_TEXT = 'Hello from aidx'
 const SWITCHED_REPLY = 'Reply from the switched session'
@@ -49,7 +49,7 @@ function pageHtml(): string {
   </head><body>
     <div id="probe">page-bus-ok</div>
     <div id="grab-target"><h3>Upgrade plan</h3><p>Unlock every feature today.</p></div>
-    <script>${widgetBundle}</script>
+    ${widgetScriptTag}
   </body></html>`
 }
 
@@ -60,7 +60,7 @@ function widgetConfigPageHtml(widgetJson: string): string {
     <meta name="pw-widget" content='${widgetJson}'>
   </head><body>
     <div id="probe">page-bus-ok</div>
-    <script>${widgetBundle}</script>
+    ${widgetScriptTag}
   </body></html>`
 }
 
@@ -71,7 +71,7 @@ function globalBasePageHtml(globalBase: string): string {
     <meta name="pw-widget" content='{"quickTerminal":false}'>
     <script>window.__MANDARAX_API_BASE__ = ${JSON.stringify(globalBase)}</script>
   </head><body>
-    <script>${widgetBundle}</script>
+    ${widgetScriptTag}
   </body></html>`
 }
 
@@ -271,6 +271,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
 
   beforeAll(async () => {
     server = createServer((req: IncomingMessage, res: ServerResponse) => {
+      if (serveWidgetAsset(req, res)) return
       const url = req.url ?? ''
       // The one id-normalization seam: no id → mint a fresh mandarax_ id; an mandarax_ id → echo; a raw
       // harness id (an unwrapped external row) → a deterministic mandarax_ wrapper (adoption). Stateful in

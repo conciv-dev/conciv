@@ -18,7 +18,7 @@ export function htmlTags(
     {tag: 'meta', attrs: {name: 'pw-widget', content: JSON.stringify(opts.widget ?? {})}, injectTo: 'head'},
   ]
   if (opts.widgetUrl) {
-    tags.push({tag: 'script', attrs: {src: opts.widgetUrl, defer: true}, injectTo: 'head'})
+    tags.push({tag: 'script', attrs: {type: 'module', src: opts.widgetUrl}, injectTo: 'head'})
     tags.push({tag: 'script', attrs: {type: 'module', src: EXTENSIONS_ROUTE}, injectTo: 'head'})
   }
   return tags

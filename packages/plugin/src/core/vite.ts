@@ -1,4 +1,4 @@
-import {join} from 'node:path'
+import {dirname, join} from 'node:path'
 import {createRequire} from 'node:module'
 import type {Plugin, ViteDevServer} from 'vite'
 import {defineBundlerBridge, type BundlerBridge} from '@mandarax/protocol/bundler-types'
@@ -9,7 +9,7 @@ import type {MandaraxConfig} from '@mandarax/protocol/config-types'
 import {installMandaraxBinShim} from './bin-shim.js'
 import {viteConfig, viteResolve, viteGraph, viteTransform, viteUrls, type ViteLike} from './vite-tools.js'
 import {
-  DEFAULT_WIDGET_ROUTE,
+  DEFAULT_WIDGET_ENTRY,
   EXTENSIONS_ROUTE,
   makeWidgetInject,
   makeWidgetServe,
@@ -23,9 +23,9 @@ import {bootServices, type BootedServices} from './services.js'
 
 const require = createRequire(import.meta.url)
 
-function resolveWidgetFile(): string | null {
+function resolveWidgetDir(): string | null {
   try {
-    return require.resolve('@mandarax/widget/global')
+    return dirname(require.resolve('@mandarax/widget'))
   } catch {
     return null
   }
@@ -51,14 +51,14 @@ function makeViteBridge(server: ViteLike): BundlerBridge {
   })
 }
 
-type WidgetSetup = {url: string | undefined; serveBundled: boolean; file: string | null}
+type WidgetSetup = {url: string | undefined; serveBundled: boolean; dir: string | null}
 
 function resolveWidgetSetup(options: MandaraxConfig): WidgetSetup {
-  const file = resolveWidgetFile()
+  const dir = resolveWidgetDir()
   return {
-    url: options.widgetUrl ?? (file ? DEFAULT_WIDGET_ROUTE : undefined),
-    serveBundled: !options.widgetUrl && file !== null,
-    file,
+    url: options.widgetUrl ?? (dir ? DEFAULT_WIDGET_ENTRY : undefined),
+    serveBundled: !options.widgetUrl && dir !== null,
+    dir,
   }
 }
 
@@ -75,7 +75,7 @@ function mountWidget(
       handle: makeWidgetInject(widget.url, previewId, apiBase, widgetConfig),
     })
   }
-  if (widget.serveBundled && widget.file) server.middlewares.use(makeWidgetServe(widget.file))
+  if (widget.serveBundled && widget.dir) server.middlewares.use(makeWidgetServe(widget.dir))
   server.middlewares.use(makeExtensionsServe(server))
 }
 

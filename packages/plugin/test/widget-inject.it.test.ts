@@ -4,7 +4,8 @@ import {mkdtempSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {
-  DEFAULT_WIDGET_ROUTE,
+  DEFAULT_WIDGET_BASE,
+  DEFAULT_WIDGET_ENTRY,
   type Middleware,
   makeWidgetInject,
   makeWidgetServe,
@@ -15,7 +16,7 @@ import {
 // static index.html for vite's transformIndexHtml to touch). A tiny http server runs the real
 // middleware in front of a handler that produces html the way a framework would. No mocks.
 
-const WIDGET_URL = '/@mandarax/widget.js'
+const WIDGET_URL = DEFAULT_WIDGET_ENTRY
 const PREVIEW = 'local'
 const API_BASE = 'http://127.0.0.1:12345'
 
@@ -50,7 +51,7 @@ describe('widget inject middleware (IT, real http)', () => {
     })
     state.server = server
     const html = await (await fetch(base)).text()
-    expect(html).toContain(`<script src="${WIDGET_URL}" defer></script>`)
+    expect(html).toContain(`<script type="module" src="${WIDGET_URL}"></script>`)
     expect(html).toContain(`<meta name="pw-api-base" content="${API_BASE}">`)
     // Injected into the head, before the framework's own markup closes it.
     expect(html.indexOf(WIDGET_URL)).toBeLessThan(html.indexOf('</head>'))
@@ -70,7 +71,7 @@ describe('widget inject middleware (IT, real http)', () => {
     const res = await fetch(base)
     const html = await res.text()
     expect(res.status).toBe(200)
-    expect(html).toContain(`<script src="${WIDGET_URL}" defer></script>`)
+    expect(html).toContain(`<script type="module" src="${WIDGET_URL}"></script>`)
     expect(html.indexOf(WIDGET_URL)).toBeLessThan(html.indexOf('</head>'))
   })
 
@@ -100,7 +101,7 @@ describe('widget inject middleware (IT, real http)', () => {
   })
 
   it('does not double-inject when the html already references the widget', async () => {
-    const preinjected = `<html><head><script src="${WIDGET_URL}" defer></script></head><body>x</body></html>`
+    const preinjected = `<html><head><script type="module" src="${WIDGET_URL}"></script></head><body>x</body></html>`
     const {server, base} = await startServer(makeWidgetInject(WIDGET_URL, PREVIEW, API_BASE), (res) => {
       res.setHeader('content-type', 'text/html')
       res.end(preinjected)
@@ -111,18 +112,26 @@ describe('widget inject middleware (IT, real http)', () => {
     expect(occurrences).toBe(1)
   })
 
-  it('serves the bundled widget file at the default route, and defers other paths', async () => {
+  it('serves the widget dist dir (entry + chunks) under the base, 404s missing, defers other paths', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'mandarax-widget-'))
-    const file = join(dir, 'widget.global.js')
-    writeFileSync(file, 'globalThis.__widget = 1')
-    const {server, base} = await startServer(makeWidgetServe(file), (res) => {
+    writeFileSync(join(dir, 'mount.js'), 'import("./island-abc.js")')
+    writeFileSync(join(dir, 'island-abc.js'), 'globalThis.__island = 1')
+    const {server, base} = await startServer(makeWidgetServe(dir), (res) => {
       res.statusCode = 404
       res.end('not-found')
     })
     state.server = server
-    const served = await fetch(`${base}${DEFAULT_WIDGET_ROUTE}`)
-    expect(served.headers.get('content-type')).toContain('text/javascript')
-    expect(await served.text()).toBe('globalThis.__widget = 1')
+
+    const entry = await fetch(`${base}${DEFAULT_WIDGET_ENTRY}`)
+    expect(entry.headers.get('content-type')).toContain('text/javascript')
+    expect(await entry.text()).toBe('import("./island-abc.js")')
+
+    const chunk = await fetch(`${base}${DEFAULT_WIDGET_BASE}island-abc.js`)
+    expect(await chunk.text()).toBe('globalThis.__island = 1')
+
+    const missing = await fetch(`${base}${DEFAULT_WIDGET_BASE}nope.js`)
+    expect(missing.status).toBe(404)
+
     const other = await fetch(`${base}/something-else`)
     expect(other.status).toBe(404)
     expect(await other.text()).toBe('not-found')

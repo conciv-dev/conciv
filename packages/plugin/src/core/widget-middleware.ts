@@ -1,5 +1,6 @@
 import type {IncomingMessage, OutgoingHttpHeader, ServerResponse} from 'node:http'
 import {createReadStream} from 'node:fs'
+import {extname, join, sep} from 'node:path'
 import type {WidgetConfig} from '@mandarax/protocol/config-types'
 
 // The widget injection + serving middlewares. Kept framework-agnostic (plain node http types)
@@ -9,8 +10,10 @@ import type {WidgetConfig} from '@mandarax/protocol/config-types'
 
 export type Middleware = (req: IncomingMessage, res: ServerResponse, next: (err?: unknown) => void) => void
 
-// Where the plugin serves the bundled @mandarax/widget global by default.
-export const DEFAULT_WIDGET_ROUTE = '/@mandarax/widget.js'
+// Base path the plugin serves the @mandarax/widget dist dir under (mount.js + its lazy chunks). A
+// trailing slash so mount.js's relative dynamic imports (./island-*.js) resolve under the same base.
+export const DEFAULT_WIDGET_BASE = '/@mandarax/widget/'
+export const DEFAULT_WIDGET_ENTRY = `${DEFAULT_WIDGET_BASE}mount.js`
 
 // Where the plugin serves the compiled extensions entry (the virtual:mandarax-extensions module).
 export const EXTENSIONS_ROUTE = '/@mandarax/extensions.js'
@@ -26,7 +29,7 @@ export function widgetTags(widgetUrl: string, previewId: string, apiBase: string
     `<meta name="pw-api-base" content="${escapeAttr(apiBase)}">` +
     `<meta name="pw-preview-id" content="${escapeAttr(previewId)}">` +
     `<meta name="pw-widget" content="${escapeAttr(JSON.stringify(widgetConfig ?? {}))}">` +
-    `<script src="${escapeAttr(widgetUrl)}" defer></script>` +
+    `<script type="module" src="${escapeAttr(widgetUrl)}"></script>` +
     `<script type="module" src="${escapeAttr(EXTENSIONS_ROUTE)}"></script>`
   )
 }
@@ -37,17 +40,35 @@ function injectInto(html: string, tags: string): string {
   return `${tags}${html}`
 }
 
-// Serve the prebuilt widget global bundle at `route`, so a host app needs only the plugin —
-// no separate static-serve wiring.
-export function makeWidgetServe(filePath: string, route: string = DEFAULT_WIDGET_ROUTE): Middleware {
+const ASSET_CONTENT_TYPES: Record<string, string> = {
+  '.js': 'text/javascript',
+  '.mjs': 'text/javascript',
+  '.map': 'application/json',
+  '.css': 'text/css',
+}
+
+// Serve the prebuilt widget dist dir under `base` (mount.js + its lazy chunks), so a host app needs
+// only the plugin — no separate static-serve wiring. Confined to `dir`; a `..` escape is rejected.
+export function makeWidgetServe(dir: string, base: string = DEFAULT_WIDGET_BASE): Middleware {
   return (req, res, next) => {
-    const path = (req.url ?? '').split('?')[0]
-    if (path !== route) {
+    const path = (req.url ?? '').split('?')[0] ?? ''
+    if (!path.startsWith(base)) {
       next()
       return
     }
-    res.setHeader('content-type', 'text/javascript')
-    createReadStream(filePath).pipe(res)
+    const file = join(dir, path.slice(base.length))
+    if (file !== dir && !file.startsWith(dir + sep)) {
+      res.statusCode = 403
+      res.end('forbidden')
+      return
+    }
+    res.setHeader('content-type', ASSET_CONTENT_TYPES[extname(file)] ?? 'application/octet-stream')
+    const stream = createReadStream(file)
+    stream.on('error', () => {
+      res.statusCode = 404
+      res.end('not found')
+    })
+    stream.pipe(res)
   }
 }
 

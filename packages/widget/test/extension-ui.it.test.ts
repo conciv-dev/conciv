@@ -3,7 +3,7 @@
 // the page can author them in plain JS). Real bundle, real browser, native assertions.
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {chromium, type Browser} from 'playwright'
-import {startWidgetServer, widgetBundle} from './helpers/widget-server.js'
+import {startWidgetServer, widgetScriptTag} from './helpers/widget-server.js'
 
 function pageHtml(): string {
   return `<!doctype html><html><head>
@@ -31,7 +31,7 @@ function pageHtml(): string {
       } ] }
     </script>
   </head><body>
-    <script>${widgetBundle}</script>
+    ${widgetScriptTag}
   </body></html>`
 }
 

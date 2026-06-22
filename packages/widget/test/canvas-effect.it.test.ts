@@ -5,7 +5,7 @@ import {createServer, type IncomingMessage, type Server, type ServerResponse} fr
 import type {AddressInfo} from 'node:net'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {chromium, type Browser} from 'playwright'
-import {buildFixture, fixturePage, drive, ready, readBody} from './it-fixture.js'
+import {buildFixture, fixturePage, drive, ready, readBody, serveWidgetAsset} from './it-fixture.js'
 
 function writeJson(res: ServerResponse, body: unknown): void {
   res.writeHead(200, {'content-type': 'application/json'})
@@ -20,6 +20,7 @@ describe('whiteboard canvas effect (it): lazy-mounts Excalidraw in the widget sh
   beforeAll(async () => {
     const html = fixturePage(await buildFixture())
     server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
+      if (serveWidgetAsset(req, res)) return
       const url = req.url ?? ''
       // Minimal mandarax server so the widget takes its full mount path (which applies the built-in
       // whiteboard effect): a valid /models, a session resolve + detail. Everything else is harmless.

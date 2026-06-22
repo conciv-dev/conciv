@@ -3,7 +3,7 @@ import {createServer, type IncomingMessage, type Server, type ServerResponse} fr
 import type {AddressInfo} from 'node:net'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {chromium, type Browser} from 'playwright'
-import {buildFixture, fixturePage, readBody, drive, ready} from './it-fixture.js'
+import {buildFixture, fixturePage, readBody, drive, ready, serveWidgetAsset} from './it-fixture.js'
 
 describe('highlight effect (it): enable, hover, click, open', () => {
   let browser: Browser
@@ -16,6 +16,7 @@ describe('highlight effect (it): enable, hover, click, open', () => {
     const fixtureJs = await buildFixture()
     const html = fixturePage(fixtureJs)
     server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
+      if (serveWidgetAsset(req, res)) return
       const url = req.url ?? ''
       if (req.method === 'POST' && url === '/api/page/open-source') {
         openSourceCalls.push(JSON.parse((await readBody(req)) || '{}'))

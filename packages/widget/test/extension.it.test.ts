@@ -2,7 +2,7 @@
 // assert the theme override + the added composer button take effect. Real bundle, real browser.
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {chromium, type Browser} from 'playwright'
-import {startWidgetServer, widgetBundle} from './helpers/widget-server.js'
+import {startWidgetServer, widgetScriptTag} from './helpers/widget-server.js'
 
 // Register an extension BEFORE the widget bundle runs by seeding window.__MANDARAX__.queue; the
 // bundle's installExtensionGlobal drains it on mount. clientFn sets a blue accent and adds a button.
@@ -26,7 +26,7 @@ function pageHtml(): string {
     </script>
   </head><body>
     <div id="probe">page-bus-ok</div>
-    <script>${widgetBundle}</script>
+    ${widgetScriptTag}
   </body></html>`
 }
 

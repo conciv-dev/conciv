@@ -2,9 +2,11 @@ import {fileURLToPath} from 'node:url'
 import {defineConfig} from 'vite'
 import solid from 'vite-plugin-solid'
 
-// One entry (mount.tsx) ships two ways: an ESM module (`@mandarax/widget`) and a self-contained IIFE
-// global the plugin injects as a <script>. The Solid runtime is bundled in (no host-page
-// framework assumed). styles.css is imported `?inline` (shadow.ts) and injected into the Shadow DOM.
+// One entry (mount.tsx) ships as an ES module (`@mandarax/widget`) plus code-split chunks: the plugin
+// serves the dist dir and injects `<script type="module" src=mount.js>`, so heavy lazy imports (the
+// Excalidraw island, shiki languages) stay in separate chunks loaded on demand — never in the core.
+// The Solid runtime is bundled in (no host-page framework assumed). styles.css is imported `?inline`
+// (shadow.ts) and injected into the Shadow DOM.
 export default defineConfig({
   // UnoCSS runs via @unocss/postcss (postcss.config.mjs) expanding `@unocss all;` in styles.css, not as a
   // vite plugin — its shadow-dom mode's placeholder rewrite is dropped by vite@8's rolldown build hooks.
@@ -16,9 +18,8 @@ export default defineConfig({
   build: {
     lib: {
       entry: fileURLToPath(new URL('src/mount.tsx', import.meta.url)),
-      formats: ['es', 'iife'],
-      name: 'MandaraxWidget',
-      fileName: (format) => (format === 'iife' ? 'mandarax-widget.global.js' : 'mount.js'),
+      formats: ['es'],
+      fileName: () => 'mount.js',
     },
     cssCodeSplit: false,
     emptyOutDir: true,

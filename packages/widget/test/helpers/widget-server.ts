@@ -1,12 +1,7 @@
-import fs from 'node:fs'
-import path from 'node:path'
-import {fileURLToPath} from 'node:url'
 import {createServer, type IncomingMessage, type ServerResponse} from 'node:http'
+import {serveWidgetAsset} from '../it-fixture.js'
 
-const dirname = path.dirname(fileURLToPath(import.meta.url))
-
-// The built widget global bundle the ITs inject into the page (real bundle, not a mock).
-export const widgetBundle = fs.readFileSync(path.join(dirname, '../../dist/mandarax-widget.global.js'), 'utf8')
+export {widgetScriptTag} from '../it-fixture.js'
 
 function writeJson(res: ServerResponse, body: unknown): void {
   res.writeHead(200, {'content-type': 'application/json', 'access-control-allow-origin': '*'})
@@ -17,6 +12,7 @@ function writeJson(res: ServerResponse, body: unknown): void {
 // A real http server (no mocks); returns its base URL + a close fn. Shared by the widget ITs.
 export async function startWidgetServer(html: string): Promise<{base: string; close: () => Promise<void>}> {
   const server = createServer((req: IncomingMessage, res: ServerResponse) => {
+    if (serveWidgetAsset(req, res)) return
     const url = req.url ?? ''
     if (url.startsWith('/api/chat/session/resolve') && req.method === 'POST') {
       return writeJson(res, {sessionId: 'mandarax_new_1'})
