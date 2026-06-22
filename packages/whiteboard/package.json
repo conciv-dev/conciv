@@ -38,6 +38,7 @@
   },
   "dependencies": {
     "@excalidraw/excalidraw": "^0.18.1",
+    "@excalidraw/mermaid-to-excalidraw": "^1.1.4",
     "@mandarax/extensions": "workspace:^",
     "@mandarax/protocol": "workspace:^",
     "@mandarax/tool-ui": "workspace:^",

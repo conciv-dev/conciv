@@ -10,8 +10,6 @@ const skeleton = z
   .object({type: z.string(), x: z.number(), y: z.number(), width: z.number().optional(), height: z.number().optional()})
   .passthrough()
 
-type Skeleton = z.infer<typeof skeleton>
-
 const roomOf = (sync: SyncEngine, ctx: ToolExecuteCtx | undefined) =>
   sync.room(roomId(ctx?.previewId ?? '', ctx?.sessionId ?? ''))
 
@@ -24,11 +22,13 @@ function transact(sync: SyncEngine, ctx: ToolExecuteCtx | undefined, mutate: (do
   room.doc.transact(() => mutate(room.doc), ORIGIN.AI)
 }
 
-function enqueue(sync: SyncEngine, ctx: ToolExecuteCtx | undefined, skeletons: Skeleton[]): string {
+const MAX_EDGES = 500
+
+function enqueue(sync: SyncEngine, ctx: ToolExecuteCtx | undefined, entry: unknown): string {
   const id = randomUUID()
   const room = roomOf(sync, ctx)
   room.awareness.setLocalStateField('user', {id: 'ai', name: 'AI', color: {background: '#d0bfff', stroke: '#7048e8'}})
-  room.doc.transact(() => room.doc.getMap(PENDING_KEY).set(id, {elements: skeletons}), ORIGIN.AI)
+  room.doc.transact(() => room.doc.getMap(PENDING_KEY).set(id, entry), ORIGIN.AI)
   return id
 }
 
@@ -48,7 +48,20 @@ export function createCanvasTools(sync: SyncEngine): ToolDefinition[] {
     description: 'Add Excalidraw element skeletons (rectangle, ellipse, diamond, text, arrow, line) to the canvas.',
     parameters: z.object({elements: z.array(skeleton)}),
     promptSnippet: 'Use canvas.draw to sketch shapes and text for the user; pass an array of element skeletons.',
-    execute: async (input, ctx) => ({pending: enqueue(sync, ctx, input.elements)}),
+    execute: async (input, ctx) => ({pending: enqueue(sync, ctx, {kind: 'skeletons', elements: input.elements})}),
+  })
+
+  const diagram = defineTool({
+    name: 'canvas.diagram',
+    label: 'Draw diagram',
+    description: 'Render a Mermaid diagram (flowchart, sequence, class, ...) onto the canvas.',
+    parameters: z.object({mermaid: z.string()}),
+    promptSnippet: 'Use canvas.diagram with Mermaid source to render a structured diagram on the canvas.',
+    execute: async (input, ctx) => {
+      const edges = (input.mermaid.match(/--+>|--+|-\.-+>|==+>|--[xo]/g) ?? []).length
+      if (edges > MAX_EDGES) throw new Error(`diagram exceeds ${MAX_EDGES} edges`)
+      return {pending: enqueue(sync, ctx, {kind: 'mermaid', source: input.mermaid})}
+    },
   })
 
   const connect = defineTool({
@@ -58,7 +71,10 @@ export function createCanvasTools(sync: SyncEngine): ToolDefinition[] {
     parameters: z.object({fromId: z.string(), toId: z.string()}),
     promptSnippet: 'Use canvas.connect to link two existing elements with an arrow.',
     execute: async (input, ctx) => ({
-      pending: enqueue(sync, ctx, [{type: 'arrow', x: 0, y: 0, start: {id: input.fromId}, end: {id: input.toId}}]),
+      pending: enqueue(sync, ctx, {
+        kind: 'skeletons',
+        elements: [{type: 'arrow', x: 0, y: 0, start: {id: input.fromId}, end: {id: input.toId}}],
+      }),
     }),
   })
 
@@ -116,5 +132,5 @@ export function createCanvasTools(sync: SyncEngine): ToolDefinition[] {
     execute: async (_input, ctx) => ({elements: elementsOf(sync, ctx)}),
   })
 
-  return [read, draw, connect, update, remove, clear, exportScene]
+  return [read, draw, diagram, connect, update, remove, clear, exportScene]
 }
