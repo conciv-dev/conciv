@@ -2,17 +2,29 @@ import {randomUUID} from 'node:crypto'
 import {writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import type {HarnessImage, HarnessTurn} from '@mandarax/protocol/harness-types'
+import {MANDARAX_SESSION_HEADER} from '@mandarax/protocol/chat-types'
 import {MANDARAX_PLUGIN_DIR} from './plugin-dir.js'
+
+type McpHttpServer = {type: 'http'; url: string; headers?: Record<string, string>}
+
+// The mandarax MCP-over-HTTP server entry. When a session is known the turn's session rides as a
+// header so session-scoped tools (canvas.draw, comments) hit the room the widget joined; the
+// header-less form is for the interactive launch, which has no live room. Shared by the CLI args and
+// the SDK options so the two transports cannot drift.
+export function mcpServerConfig(mcpUrl: string, sessionId?: string): {mandarax: McpHttpServer} {
+  const mandarax: McpHttpServer = {type: 'http', url: mcpUrl}
+  return {mandarax: sessionId ? {...mandarax, headers: {[MANDARAX_SESSION_HEADER]: sessionId}} : mandarax}
+}
 
 // mandarax tools (ui/page/test) reach the agent via MCP-over-HTTP, not Bash: point claude at our
 // in-process server and allow the MCP tools so they run unprompted. --strict-mcp-config makes claude
 // use ONLY our server, ignoring the user's own MCP servers — without it that tool flood buries
 // mandarax_* behind claude's deferred-tool search and the agent can't find them reliably. Shared by the
 // chat turn (buildClaudeArgs) and the interactive "open in claude" launch so they cannot drift.
-export function claudeMcpArgs(mcpUrl: string): string[] {
+export function claudeMcpArgs(mcpUrl: string, sessionId?: string): string[] {
   return [
     '--mcp-config',
-    JSON.stringify({mcpServers: {mandarax: {type: 'http', url: mcpUrl}}}),
+    JSON.stringify({mcpServers: mcpServerConfig(mcpUrl, sessionId)}),
     '--strict-mcp-config',
     // Server-level allow: every tool the mandarax MCP server exposes (ui/page/test/open + any future
     // tool) runs unprompted, so the allowlist can't drift as we add tools. --strict-mcp-config keeps
@@ -71,7 +83,7 @@ export function buildClaudeArgs(turn: HarnessTurn): string[] {
     '--add-dir',
     turn.cwd,
   ]
-  if (turn.mcpUrl) args.push(...claudeMcpArgs(turn.mcpUrl))
+  if (turn.mcpUrl) args.push(...claudeMcpArgs(turn.mcpUrl, turn.sessionId))
   if (MANDARAX_PLUGIN_DIR) args.push('--plugin-dir', MANDARAX_PLUGIN_DIR)
   if (turn.model) args.push('--model', turn.model)
   if (turn.permissionUrl) args.push('--settings', hookSettings(turn.permissionUrl))

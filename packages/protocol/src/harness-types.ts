@@ -39,6 +39,9 @@ export type HarnessTurn = {
   systemPrompt: string
   permissionUrl?: string
   mcpUrl?: string
+  // The mandarax chat session this turn runs in; rides the MCP config as a header so session-scoped
+  // tools (canvas.draw, comments) resolve the same room the widget joined.
+  sessionId?: string
   images?: HarnessImage[]
   // The selected model id, forwarded by buildArgs to the CLI's model flag. Absent → CLI default.
   model?: string

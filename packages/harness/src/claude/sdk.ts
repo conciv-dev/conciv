@@ -1,7 +1,7 @@
 import {query, type Query, type SDKMessage, type SDKUserMessage, type Options} from '@anthropic-ai/claude-agent-sdk'
 import type {StreamChunk} from '@tanstack/ai'
 import type {HarnessRun, HarnessRunContext, HarnessTurn} from '@mandarax/protocol/harness-types'
-import {imageRefs} from './args.js'
+import {imageRefs, mcpServerConfig} from './args.js'
 import {claudeMessagesToAgui} from './decode.js'
 import {MANDARAX_PLUGIN_DIR} from './plugin-dir.js'
 
@@ -84,7 +84,7 @@ function buildOptions(turn: HarnessTurn, ctxRef: CtxRef): Options {
   if (turn.systemPrompt) options.systemPrompt = {type: 'preset', preset: 'claude_code', append: turn.systemPrompt}
   if (turn.model) options.model = turn.model
   if (turn.mcpUrl) {
-    options.mcpServers = {mandarax: {type: 'http', url: turn.mcpUrl}}
+    options.mcpServers = mcpServerConfig(turn.mcpUrl, turn.sessionId)
     options.allowedTools = ['mcp__mandarax']
   }
   if (MANDARAX_PLUGIN_DIR) options.plugins = [{type: 'local', path: MANDARAX_PLUGIN_DIR}]

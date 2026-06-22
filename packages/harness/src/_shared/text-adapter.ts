@@ -87,6 +87,7 @@ export class HarnessTextAdapter extends BaseTextAdapter<string, Record<string, n
       systemPrompt: mode === 'none' ? '' : sysText,
       permissionUrl: deps.permissionUrl,
       mcpUrl: deps.mcpUrl,
+      ...(deps.sessionId ? {sessionId: deps.sessionId} : {}),
       ...(images.length ? {images} : {}),
       ...(deps.model ? {model: deps.model} : {}),
       kind: deps.turnKind ?? 'chat',
