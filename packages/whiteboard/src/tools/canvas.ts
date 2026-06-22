@@ -26,7 +26,9 @@ function transact(sync: SyncEngine, ctx: ToolExecuteCtx | undefined, mutate: (do
 
 function enqueue(sync: SyncEngine, ctx: ToolExecuteCtx | undefined, skeletons: Skeleton[]): string {
   const id = randomUUID()
-  transact(sync, ctx, (doc) => doc.getMap(PENDING_KEY).set(id, {elements: skeletons}))
+  const room = roomOf(sync, ctx)
+  room.awareness.setLocalStateField('user', {id: 'ai', name: 'AI', color: {background: '#d0bfff', stroke: '#7048e8'}})
+  room.doc.transact(() => room.doc.getMap(PENDING_KEY).set(id, {elements: skeletons}), ORIGIN.AI)
   return id
 }
 

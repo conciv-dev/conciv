@@ -17,6 +17,7 @@ export const canvasEffect = defineEffect({
     let handle: IslandHandle | undefined
     let disposeSync: (() => void) | undefined
     let disposeAi: (() => void) | undefined
+    let disposePresence: (() => void) | undefined
     let disposeControls: (() => void) | undefined
     onMount(async () => {
       const root = host.getRootNode()
@@ -30,14 +31,19 @@ export const canvasEffect = defineEffect({
         style.textContent = sheet.default
         root.appendChild(style)
       }
-      const {bindCanvasSync} = await import('./canvas-sync.js')
+      const [{bindCanvasSync}, {bindAiDraws}, {bindPresence}] = await Promise.all([
+        import('./canvas-sync.js'),
+        import('./ai-draws.js'),
+        import('./presence.js'),
+      ])
       const room = ctx.sync.room(roomId(ctx.previewId, ctx.sessionId() ?? ''))
       let writer: (next: readonly SceneElement[]) => void = () => {}
+      let pointer: (p: {x: number; y: number}) => void = () => {}
       handle = island.mountIsland({
         container: host,
         initialElements: [],
         onUserChange: (elements) => writer(elements),
-        onPointer: () => {},
+        onPointer: (p) => pointer(p),
         theme: 'light',
       })
       disposeSync = bindCanvasSync({
@@ -45,14 +51,17 @@ export const canvasEffect = defineEffect({
         handle,
         onUserChange: (register) => void (writer = register),
       })
-      const {bindAiDraws} = await import('./ai-draws.js')
       disposeAi = bindAiDraws(room.doc)
+      const presence = bindPresence({awareness: room.awareness, handle, self: selfIdentity()})
+      pointer = (p) => presence.setCursor(p.x, p.y)
+      disposePresence = presence.dispose
       const controls = mountZoomControls({handle, reducedMotion: ctx.env.reducedMotion})
       host.appendChild(controls.el)
       disposeControls = controls.dispose
     })
     onCleanup(() => {
       disposeControls?.()
+      disposePresence?.()
       disposeAi?.()
       disposeSync?.()
       handle?.destroy()
@@ -60,3 +69,15 @@ export const canvasEffect = defineEffect({
     return host
   },
 })
+
+const PALETTE = [
+  {background: '#ffc9c9', stroke: '#e03131'},
+  {background: '#b2f2bb', stroke: '#2f9e44'},
+  {background: '#a5d8ff', stroke: '#1971c2'},
+  {background: '#ffec99', stroke: '#f08c00'},
+]
+
+function selfIdentity(): {id: string; name: string; color: {background: string; stroke: string}} {
+  const id = crypto.randomUUID()
+  return {id, name: `Guest ${id.slice(0, 4)}`, color: PALETTE[Math.floor(Math.random() * PALETTE.length)]!}
+}
