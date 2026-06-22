@@ -98,13 +98,16 @@ describe('whiteboard canvas persistence (it) — full stack', () => {
     await page.mouse.up()
     await expect.poll(() => canvasInk(page), {timeout: 10_000}).toBeGreaterThan(blank)
 
-    // Close the canvas, then reopen it — the drawing must come back.
+    // Close the canvas: it stays mounted but hidden (host never torn down), so reopening is instant
+    // with the drawing already painted — no remount, no blank flash.
     await toggle.click()
-    await page.locator('canvas').first().waitFor({state: 'detached', timeout: 10_000})
-    await toggle.click()
-    await page.locator('canvas').first().waitFor({state: 'attached', timeout: 20_000})
+    await page.locator('[data-whiteboard-canvas]').waitFor({state: 'attached', timeout: 10_000})
+    await page.locator('canvas').first().waitFor({state: 'hidden', timeout: 10_000})
 
-    await expect.poll(() => canvasInk(page), {timeout: 15_000}).toBeGreaterThan(blank)
+    await toggle.click()
+    await page.locator('canvas').first().waitFor({state: 'visible', timeout: 20_000})
+    // Immediate read (no poll): the drawing is present the moment the canvas shows.
+    expect(await canvasInk(page)).toBeGreaterThan(blank)
     await page.close()
   })
 })

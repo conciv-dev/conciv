@@ -66,7 +66,7 @@ describe('whiteboard canvas effect (it): lazy-mounts an interactive Excalidraw o
     server?.close()
   })
 
-  it('enables the canvas, renders Excalidraw, and unmounts on disable', async () => {
+  it('enables the canvas, renders Excalidraw, and hides on disable', async () => {
     const page = await browser.newPage()
     await page.goto(state.base)
     await ready(page)
@@ -112,7 +112,10 @@ describe('whiteboard canvas effect (it): lazy-mounts an interactive Excalidraw o
 
     const disabled = await drive(page, {kind: 'effect', effect: 'whiteboard', action: 'disable'})
     expect(disabled).toMatchObject({effect: 'whiteboard', enabled: false})
-    await page.locator('canvas').first().waitFor({state: 'detached', timeout: 10_000})
+    // Disable hides the canvas but keeps it mounted (instant, flash-free reopen), so the host stays in
+    // the DOM and the canvas is merely hidden.
+    await page.locator('[data-whiteboard-canvas]').waitFor({state: 'attached', timeout: 10_000})
+    await page.locator('canvas').first().waitFor({state: 'hidden', timeout: 10_000})
 
     await page.close()
   })
