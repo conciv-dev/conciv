@@ -53,6 +53,15 @@ export type ToolbarCtx = {
   }
   clipboard: {copy: (text: string) => Promise<void>}
   toast: (msg: string, tone?: 'info' | 'success' | 'error') => void
+  // Control the dock itself from an item (e.g. collapse to the grip while picking,
+  // expand again on completion). Drives the same collapsed state the grip toggles,
+  // so programmatic + manual hide/show stay in sync and persist.
+  toolbar: {
+    show: () => void // expand the dock
+    hide: () => void // collapse to the grip
+    toggle: () => void
+    isVisible: () => boolean // false when collapsed to the grip
+  }
 }
 
 // One toolbar entry. render() returns the button JSX — the author owns its look and
@@ -104,8 +113,11 @@ modal, **always mounted** regardless of chat open/closed):
   edge; click the grip to re-expand. Collapsed + position state persisted via
   `persisted-signal`.
 - Builds the single `ToolbarCtx` once (closes over the widget's stageGrab bag,
-  navigator.clipboard, the effect-host page introspection, the toast surface) and
-  passes it to every item's `render`.
+  navigator.clipboard, the effect-host page introspection, the toast surface, and
+  the dock's own collapsed signal) and passes it to every item's `render`.
+- `ctx.toolbar` (`show`/`hide`/`toggle`/`isVisible`) drives the **same** collapsed
+  signal the grip control toggles — programmatic and manual hide/show share one
+  source of truth and the same persistence.
 
 The dock does not know what any item does. It frames and positions; the item's JSX
 owns content and clicks.
