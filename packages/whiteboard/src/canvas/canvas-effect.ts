@@ -1,7 +1,6 @@
 import {onCleanup, onMount, type JSX} from 'solid-js'
 import {defineEffect, type EffectCtx} from '@mandarax/extensions'
 import {roomId} from '../room.js'
-import {mountZoomControls} from './zoom-controls.js'
 import type {SceneElement} from './glue.js'
 import type {IslandHandle} from './island-types.js'
 
@@ -18,7 +17,6 @@ export const canvasEffect = defineEffect({
     let disposeSync: (() => void) | undefined
     let disposeAi: (() => void) | undefined
     let disposePresence: (() => void) | undefined
-    let disposeControls: (() => void) | undefined
     onMount(async () => {
       const root = host.getRootNode()
       const [island, sheet] = await Promise.all([
@@ -55,12 +53,8 @@ export const canvasEffect = defineEffect({
       const presence = bindPresence({awareness: room.awareness, handle, self: selfIdentity()})
       pointer = (p) => presence.setCursor(p.x, p.y)
       disposePresence = presence.dispose
-      const controls = mountZoomControls({handle, reducedMotion: ctx.env.reducedMotion})
-      host.appendChild(controls.el)
-      disposeControls = controls.dispose
     })
     onCleanup(() => {
-      disposeControls?.()
       disposePresence?.()
       disposeAi?.()
       disposeSync?.()

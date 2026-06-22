@@ -78,6 +78,9 @@ describe('whiteboard canvas effect (it): lazy-mounts Excalidraw in the widget sh
     expect(await page.locator('canvas').count()).toBeGreaterThan(0)
     expect(await page.locator('[data-whiteboard-error]').count()).toBe(0)
 
+    await page.locator('[aria-label="Zoom in"]').first().waitFor({state: 'visible', timeout: 10_000})
+    expect(await page.locator('[data-whiteboard-zoom]').count()).toBe(0)
+
     const disabled = await drive(page, {kind: 'effect', effect: 'whiteboard', action: 'disable'})
     expect(disabled).toMatchObject({effect: 'whiteboard', enabled: false})
     await page.locator('canvas').first().waitFor({state: 'detached', timeout: 10_000})

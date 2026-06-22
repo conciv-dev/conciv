@@ -46,13 +46,6 @@ export function mountIsland(opts: IslandOpts): IslandHandle {
     updateScene: (data: SceneData) => api?.updateScene(data),
     getSceneElements: () => api?.getSceneElements() ?? [],
     updateCollaborators: (m) => api?.updateScene({collaborators: m}),
-    getZoom: () => api?.getAppState().zoom.value ?? 1,
-    fitToContent: () => {
-      if (api) api.scrollToContent(api.getSceneElements(), {fitToContent: true})
-    },
-    setZoomClamped: (zoom: number) => {
-      if (api) api.scrollToContent(api.getSceneElements(), {fitToContent: true, minZoom: zoom, maxZoom: zoom})
-    },
     destroy: () => root.unmount(),
   }
 }
