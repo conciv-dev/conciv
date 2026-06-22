@@ -27,13 +27,16 @@ export async function bootStack(): Promise<Stack> {
   const trailPort = await getPort()
   const db = createLiveDb({trailBaseUrl: `http://localhost:${trailPort}`, dataDir: dir})
   const sync = createSync({store: createSnapshotStore(db)})
+  // Collections declare themselves when serverFn runs, emitting migrations + config; trail applies
+  // them on boot, so contributions must be collected BEFORE the supervisor starts.
+  const extensions = collectServerContributions([whiteboard], {db, sync: sync.engine})
   const sup = createTrailSupervisor({dataDir: dir, port: trailPort})
   await sup.start()
   const engine = await start({
     options: {stateRoot: dir, harnessBin: 'true'},
     root: dir,
     launchEditor: () => {},
-    extensions: collectServerContributions([whiteboard], {db, sync: sync.engine}),
+    extensions,
     dbProxyTarget: sup.baseUrl,
     syncHooks: sync.hooks,
   })

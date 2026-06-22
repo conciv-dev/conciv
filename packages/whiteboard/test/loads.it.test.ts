@@ -1,13 +1,22 @@
+import {mkdtempSync, rmSync} from 'node:fs'
+import {tmpdir} from 'node:os'
+import {join} from 'node:path'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {collectServerContributions} from '@mandarax/extensions'
+import {createLiveDb} from '@mandarax/core/db'
+import {createSnapshotStore, createSync} from '@mandarax/core/sync'
 import whiteboard from '../src/index.js'
 import {bootStack, type Stack} from './helpers/boot-stack.js'
 import {runTool, sessionId} from './helpers/run-tool.js'
 
 describe('whiteboard loads', () => {
   it('contributes a server tool through collectServerContributions', () => {
-    const c = collectServerContributions([whiteboard])
+    const dir = mkdtempSync(join(tmpdir(), 'mx-wb-loads-'))
+    const db = createLiveDb({trailBaseUrl: 'http://localhost:0', dataDir: dir})
+    const sync = createSync({store: createSnapshotStore(db)})
+    const c = collectServerContributions([whiteboard], {db, sync: sync.engine})
     expect(c.tools.map((t) => t.name)).toContain('whiteboard.ping')
+    rmSync(dir, {recursive: true, force: true})
   })
 })
 

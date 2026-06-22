@@ -83,6 +83,29 @@ export const CommentSchema: z.ZodType<Comment> = z.object({
   resolved_by: z.string().nullable(),
 })
 
+export const CommentRecordSchema: z.ZodType<CommentRecord> = z.object({
+  cid: z.string(),
+  preview_id: z.string(),
+  session_id: z.string(),
+  thread_id: z.string(),
+  parent_id: z.string().nullable(),
+  parts: z.string(),
+  author_kind: z.enum(['human', 'ai']),
+  author_model: z.string().nullable(),
+  status: z.enum(['open', 'resolved', 'drifted', 'orphaned']),
+  kind: z.enum(['source-linked', 'floating']),
+  anchor: z.string().nullable(),
+  anchor_file: z.string().nullable(),
+  anchor_component: z.string().nullable(),
+  anchor_hash: z.string().nullable(),
+  last_resolved_commit: z.string().nullable(),
+  last_resolved_file_hash: z.string().nullable(),
+  created_at: z.number(),
+  updated_at: z.number(),
+  resolved_at: z.number().nullable(),
+  resolved_by: z.string().nullable(),
+})
+
 const parseJson = (column: string, value: string): unknown => {
   try {
     return JSON.parse(value)
