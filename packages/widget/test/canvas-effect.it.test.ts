@@ -81,6 +81,16 @@ describe('whiteboard canvas effect (it): lazy-mounts Excalidraw in the widget sh
     await page.locator('[aria-label="Zoom in"]').first().waitFor({state: 'visible', timeout: 10_000})
     expect(await page.locator('[data-whiteboard-zoom]').count()).toBe(0)
 
+    const backgrounds = await page.evaluate(() => {
+      const root = document.querySelector('[data-mandarax-effects]')?.shadowRoot
+      const cs = (sel: string) => {
+        const el = root?.querySelector(sel)
+        return el ? getComputedStyle(el).backgroundColor : 'missing'
+      }
+      return [cs('[data-whiteboard-canvas]'), cs('.excalidraw'), cs('canvas')]
+    })
+    expect(backgrounds).toEqual(['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)'])
+
     const disabled = await drive(page, {kind: 'effect', effect: 'whiteboard', action: 'disable'})
     expect(disabled).toMatchObject({effect: 'whiteboard', enabled: false})
     await page.locator('canvas').first().waitFor({state: 'detached', timeout: 10_000})
