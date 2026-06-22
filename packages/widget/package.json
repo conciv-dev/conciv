@@ -24,7 +24,8 @@
   "exports": {
     ".": {
       "types": "./dist/mount.d.ts",
-      "import": "./dist/mount.js"
+      "import": "./dist/mount.js",
+      "default": "./dist/mount.js"
     }
   },
   "publishConfig": {
