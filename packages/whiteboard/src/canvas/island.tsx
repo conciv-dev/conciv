@@ -26,6 +26,10 @@ class IslandBoundary extends Component<{children: ReactNode}, {failed: boolean}>
 export function mountIsland(opts: IslandOpts): IslandHandle {
   const root = createRoot(opts.container)
   let api: ExcalidrawImperativeAPI | null = null
+  // excalidrawAPI fires before initialData finishes applying, so a scene seeded then is clobbered a frame
+  // later; buffer scene writes in `pending` until one frame past mount (`ready`), then flush post-initialData.
+  let ready = false
+  let pending: SceneData | null = null
   root.render(
     createElement(
       IslandBoundary,
@@ -36,14 +40,22 @@ export function mountIsland(opts: IslandOpts): IslandHandle {
         viewModeEnabled: false,
         theme: opts.theme === 'dark' ? THEME.DARK : THEME.LIGHT,
         isCollaborating: true,
-        excalidrawAPI: (instance: ExcalidrawImperativeAPI) => void (api = instance),
+        excalidrawAPI: (instance: ExcalidrawImperativeAPI) => {
+          api = instance
+          requestAnimationFrame(() => {
+            ready = true
+            if (!pending) return
+            instance.updateScene(pending)
+            pending = null
+          })
+        },
         onChange: (elements: readonly OrderedExcalidrawElement[]) => opts.onUserChange(elements),
         onPointerUpdate: (payload: {pointer: {x: number; y: number}}) => opts.onPointer(payload.pointer),
       }),
     ),
   )
   return {
-    updateScene: (data: SceneData) => api?.updateScene(data),
+    updateScene: (data: SceneData) => (ready && api ? api.updateScene(data) : void (pending = data)),
     getSceneElements: () => api?.getSceneElements() ?? [],
     updateCollaborators: (m) => api?.updateScene({collaborators: m}),
     destroy: () => root.unmount(),
