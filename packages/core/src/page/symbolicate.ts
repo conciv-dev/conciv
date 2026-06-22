@@ -1,4 +1,4 @@
-import {readFile} from 'node:fs/promises'
+import {readFile, realpath} from 'node:fs/promises'
 import {fileURLToPath} from 'node:url'
 import {resolve, sep} from 'node:path'
 import {AnyMap, originalPositionFor} from '@jridgewell/trace-mapping'
@@ -17,9 +17,11 @@ function normalizeUrl(url: string): string {
 
 // A filesystem path must resolve inside the project root — the chunk/map URLs come from the
 // (untrusted) widget reply, so a bare/file:// path could otherwise traverse to ../../etc/passwd.
-function readFileInRoot(path: string, root: string): Promise<string> {
-  const abs = resolve(path)
-  const base = resolve(root)
+// realpath (not resolve) on both root and target so a symlink whose target escapes the root is
+// rejected: resolve() does not dereference symlinks, so a symlinked path would slip the prefix check.
+async function readFileInRoot(path: string, root: string): Promise<string> {
+  const base = await realpath(root)
+  const abs = await realpath(resolve(base, path))
   if (abs !== base && !abs.startsWith(base + sep)) throw new Error(`refused: ${path} outside project root`)
   return readFile(abs, 'utf8')
 }
