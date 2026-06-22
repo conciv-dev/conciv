@@ -76,6 +76,7 @@ export function collectServerContributions(
     systemPrompt: {append: (text) => systemPrompt.push(text)},
     db: services?.db ?? NO_DB,
     sync: services?.sync ?? NO_SYNC,
+    cwd: services?.cwd ?? '',
     on: (event, handler) => void eventHandlers[event].push(handler),
     approval: (toolName, policy) => void (approvalPolicies[toolName] = policy),
   }

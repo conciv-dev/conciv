@@ -3,6 +3,7 @@ import {defineExtension, defineTool} from '@mandarax/extensions'
 import {canvasEffect} from './canvas/canvas-effect.js'
 import {createCanvasTools} from './tools/canvas.js'
 import {createCommentTools} from './tools/comment.js'
+import {createAnchorTools} from './tools/anchor.js'
 import {setCommentsCollection} from './comments-store.js'
 import {
   COMMENT_COLUMNS,
@@ -40,7 +41,8 @@ export default defineExtension({id: 'whiteboard', tools: [ping], effects: [canva
       fts: ['parts'],
     })
     createCanvasTools(mx.sync).forEach((tool) => mx.registerTool(tool))
-    createCommentTools(comments, mx.sync).forEach((tool) => mx.registerTool(tool))
+    createCommentTools(comments, mx.sync, mx.cwd).forEach((tool) => mx.registerTool(tool))
+    createAnchorTools(comments, mx.cwd).forEach((tool) => mx.registerTool(tool))
     mx.approval('canvas.delete', 'ask')
     mx.approval('canvas.clear', 'ask')
     mx.approval('comment.delete', 'ask')

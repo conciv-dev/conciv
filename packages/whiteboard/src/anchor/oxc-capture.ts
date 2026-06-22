@@ -28,6 +28,11 @@ const lineColToOffset = (source: string, line: number, column: number): number =
   return before + Math.max(0, column - 1)
 }
 
+const offsetToLineCol = (source: string, offset: number): {line: number; column: number} => {
+  const before = source.slice(0, offset)
+  return {line: before.split('\n').length, column: offset - before.lastIndexOf('\n')}
+}
+
 const fnv1a = (input: string): string => {
   const hash = [...input].reduce((acc, ch) => Math.imul(acc ^ ch.charCodeAt(0), 0x01000193), 0x811c9dc5)
   return (hash >>> 0).toString(16).padStart(8, '0')
@@ -102,6 +107,49 @@ export function hashAt(
     component: found.component,
     snippet: redactSnippet(source.slice(start, end)),
   }
+}
+
+export type ElementFingerprint = {
+  line: number
+  column: number
+  hash: string
+  salt: string
+  component: string | null
+  snippet: string
+}
+
+// Every JSX element in the source with its structural fingerprint — the resolver searches these by
+// hash to relocate a node that moved within the file.
+export function scanElements(source: string): ElementFingerprint[] {
+  const parsed = parseSync('anchor.tsx', source)
+  const program = asNode(parsed.program)
+  if (!program) return []
+  const out: ElementFingerprint[] = []
+  const visit = (value: unknown, ancestors: string[], component: string | null): void => {
+    if (Array.isArray(value)) {
+      for (const child of value) visit(child, ancestors, component)
+      return
+    }
+    const node = asNode(value)
+    if (!node || typeof node.type !== 'string') return
+    const nextComponent = componentName(node) ?? component
+    if (node.type === 'JSXElement') {
+      const start = num(node.start) ?? 0
+      out.push({
+        ...offsetToLineCol(source, start),
+        hash: fnv1a(structure(node)),
+        salt: fnv1a(ancestors.join('>')),
+        component: nextComponent,
+        snippet: redactSnippet(source.slice(start, num(node.end) ?? start)),
+      })
+      for (const key of Object.keys(node))
+        if (key !== 'type') visit(node[key], [...ancestors, tagOf(node)], nextComponent)
+      return
+    }
+    for (const key of Object.keys(node)) if (key !== 'type') visit(node[key], ancestors, nextComponent)
+  }
+  visit(program, [], null)
+  return out
 }
 
 export async function captureSource(opts: {

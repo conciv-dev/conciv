@@ -31,6 +31,9 @@ async function bundleFixture(): Promise<string> {
     format: 'iife',
     write: false,
     define: {'process.env.NODE_ENV': '"development"'},
+    // The whiteboard barrel reaches a server-only chunk (the oxc anchor resolver) via dynamic import;
+    // it is never executed in this fixture, so leave its native/node deps external rather than bundle.
+    external: ['oxc-parser', '@oxc-parser/*', 'node:*'],
     nodePaths: [join(here, '../node_modules'), join(here, '../../../node_modules')],
   })
   const built = res.outputFiles[0]

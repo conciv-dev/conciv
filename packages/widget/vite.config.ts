@@ -24,5 +24,9 @@ export default defineConfig({
     cssCodeSplit: false,
     emptyOutDir: true,
     sourcemap: true,
+    // The bundled whiteboard extension dynamic-imports a server-only chunk (the oxc anchor resolver)
+    // that pulls node:* + oxc-parser. That chunk is never executed in the browser (server tool execute
+    // only), so externalize those so the browser build doesn't try to bundle the native binding.
+    rollupOptions: {external: [/^node:/, /^oxc-parser/, /^@oxc-parser\//]},
   },
 })

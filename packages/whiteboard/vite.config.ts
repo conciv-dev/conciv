@@ -17,7 +17,9 @@ export default defineConfig({
       fileName: () => 'index.js',
     },
     rollupOptions: {
-      external: [/^solid-js/, /^zod/, /^@tanstack\//, /^@mandarax\//, /^yjs/, /^y-protocols/],
+      // node:* + oxc-parser are server-only (the anchor resolver); they enter the graph solely via
+      // dynamic import from a server tool's execute, never the client static graph, so externalize them.
+      external: [/^solid-js/, /^zod/, /^@tanstack\//, /^@mandarax\//, /^yjs/, /^y-protocols/, /^node:/, /^oxc-parser/],
     },
     emptyOutDir: true,
     sourcemap: true,

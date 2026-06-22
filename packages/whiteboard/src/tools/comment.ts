@@ -4,6 +4,38 @@ import type {SyncEngine} from '@mandarax/protocol/sync-types'
 import type {ServerCollection} from '@mandarax/protocol/db-types'
 import {ORIGIN, PINS_KEY, roomId, type PinGeometry} from '../room.js'
 import {commentParse, commentSerialize, LIMITS, type Comment, type CommentRecord} from '../schema.js'
+import {loadResolver} from '../anchor/load-resolver.js'
+
+const PickAnchor = z.object({
+  source: z.object({file: z.string(), line: z.number(), column: z.number().nullable().optional()}),
+})
+
+type EnrichedAnchor = {anchor: unknown; file: string | null; component: string | null; hash: string | null}
+
+// A source-linked anchor arrives as {source:{file,line,column}} from the pick (3.6). When the file
+// resolves under the project root, enrich it into a full SourceAnchor (hash/salt/snippet) so the doctor
+// can track drift; otherwise (missing file, no root) keep the raw source — never fail the create.
+const enrichAnchor = async (cwd: string, raw: unknown): Promise<EnrichedAnchor> => {
+  const parsed = PickAnchor.safeParse(raw)
+  const fallback = (): EnrichedAnchor => ({anchor: raw ?? null, ...sourceOf(raw)})
+  if (!parsed.success || cwd === '') return fallback()
+  try {
+    const resolver = await loadResolver(cwd)
+    const captured = await resolver.capture({
+      file: parsed.data.source.file,
+      line: parsed.data.source.line,
+      column: parsed.data.source.column ?? 1,
+    })
+    return {
+      anchor: captured,
+      file: captured.source.file,
+      component: captured.source.component,
+      hash: captured.source.hash,
+    }
+  } catch {
+    return fallback()
+  }
+}
 
 const AnchorSource = z.object({
   source: z.object({
@@ -66,7 +98,11 @@ const patchPin = (
   room.doc.transact(() => pins.set(cid, {...current, ...patch}), ORIGIN.USER)
 }
 
-export function createCommentTools(comments: ServerCollection<CommentRecord>, sync: SyncEngine): ToolDefinition[] {
+export function createCommentTools(
+  comments: ServerCollection<CommentRecord>,
+  sync: SyncEngine,
+  cwd: string,
+): ToolDefinition[] {
   const create = defineTool({
     name: 'comment.create',
     label: 'Create comment',
@@ -85,8 +121,7 @@ export function createCommentTools(comments: ServerCollection<CommentRecord>, sy
     promptSnippet: 'Use comment.create to leave a pinned note on the canvas for the user to see.',
     execute: async (input, ctx) => {
       const now = Date.now()
-      const anchor = input.anchor ?? null
-      const source = sourceOf(anchor)
+      const enriched = await enrichAnchor(cwd, input.anchor ?? null)
       const record: CommentRecord = {
         cid: input.cid,
         preview_id: ctx?.previewId ?? '',
@@ -98,10 +133,10 @@ export function createCommentTools(comments: ServerCollection<CommentRecord>, sy
         author_model: input.author_model ?? null,
         status: 'open',
         kind: input.kind,
-        anchor: commentSerialize.anchor(anchor),
-        anchor_file: source.file,
-        anchor_component: source.component,
-        anchor_hash: source.hash,
+        anchor: commentSerialize.anchor(enriched.anchor),
+        anchor_file: enriched.file,
+        anchor_component: enriched.component,
+        anchor_hash: enriched.hash,
         last_resolved_commit: null,
         last_resolved_file_hash: null,
         created_at: now,

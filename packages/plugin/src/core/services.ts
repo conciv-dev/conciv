@@ -21,7 +21,7 @@ export async function bootServices(root: string, stateRoot: string): Promise<Boo
   const store = createSnapshotStore(db)
   const sync = createSync({store})
   const discovered = await loadServerExtensions(root)
-  const extensions = collectServerContributions([whiteboard, ...discovered], {db, sync: sync.engine})
+  const extensions = collectServerContributions([whiteboard, ...discovered], {db, sync: sync.engine, cwd: root})
   await supervisor.start()
   return {extensions, dbProxyTarget: supervisor.baseUrl, syncHooks: sync.hooks, stop: () => supervisor.stop()}
 }

@@ -103,9 +103,11 @@ export type ServerApi = {
   sync: SyncEngine
   on: (event: ExtensionEvent, handler: (ctx: EventCtx) => void | Promise<void>) => void
   approval: (toolName: string, policy: ApprovalPolicy) => void
+  // The project root the engine was started in — anchoring/doctor resolve source files under it.
+  cwd: string
 }
 
-export type ServerServices = {db: LiveDb; sync: SyncEngine}
+export type ServerServices = {db: LiveDb; sync: SyncEngine; cwd?: string}
 
 // One loadable unit, carrying the tools and effects it contributes plus optional imperative halves.
 export type MandaraxExtension = {
