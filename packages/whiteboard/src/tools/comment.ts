@@ -53,6 +53,19 @@ const dropPin = (sync: SyncEngine, ctx: ToolExecuteCtx | undefined, cid: string)
   room.doc.transact(() => room.doc.getMap<PinGeometry>(PINS_KEY).delete(cid), ORIGIN.USER)
 }
 
+const patchPin = (
+  sync: SyncEngine,
+  ctx: ToolExecuteCtx | undefined,
+  cid: string,
+  patch: Partial<PinGeometry>,
+): void => {
+  const room = roomOf(sync, ctx)
+  const pins = room.doc.getMap<PinGeometry>(PINS_KEY)
+  const current = pins.get(cid)
+  if (!current) throw new Error(`no pin for comment ${cid}`)
+  room.doc.transact(() => pins.set(cid, {...current, ...patch}), ORIGIN.USER)
+}
+
 export function createCommentTools(comments: ServerCollection<CommentRecord>, sync: SyncEngine): ToolDefinition[] {
   const create = defineTool({
     name: 'comment.create',
@@ -217,5 +230,29 @@ export function createCommentTools(comments: ServerCollection<CommentRecord>, sy
     },
   })
 
-  return [create, remove, reply, read, list, resolve]
+  const move = defineTool({
+    name: 'comment.move',
+    label: 'Move comment pin',
+    description: 'Move a comment pin to new canvas coordinates.',
+    parameters: z.object({cid: z.string(), x: z.number(), y: z.number()}),
+    promptSnippet: 'Use comment.move to reposition a comment pin on the canvas.',
+    execute: async (input, ctx) => {
+      patchPin(sync, ctx, input.cid, {x: input.x, y: input.y})
+      return {cid: input.cid, x: input.x, y: input.y}
+    },
+  })
+
+  const setState = defineTool({
+    name: 'pin.setState',
+    label: 'Set pin state',
+    description: 'Set a pin to locked (tracks its element) or offset (floats at a custom position).',
+    parameters: z.object({cid: z.string(), pinState: z.enum(['locked', 'offset'])}),
+    promptSnippet: 'Use pin.setState to lock a pin to its element or let it float at an offset.',
+    execute: async (input, ctx) => {
+      patchPin(sync, ctx, input.cid, {pinState: input.pinState})
+      return {cid: input.cid, pinState: input.pinState}
+    },
+  })
+
+  return [create, remove, reply, read, list, resolve, move, setState]
 }

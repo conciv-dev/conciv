@@ -15,4 +15,7 @@ export type PinGeometry = {
   y: number
   elementId: string | null
   pinState: 'locked' | 'offset'
+  // For an offset (drifted) pin: the locked origin the tether draws back to. Absent while locked.
+  anchorX?: number
+  anchorY?: number
 }
