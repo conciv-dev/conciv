@@ -20,6 +20,8 @@ export {
   type ServerApi,
   type ComposerActionCtx,
   type ExtComposerAction,
+  type PickFn,
+  type PickResult,
   type ExtensionServerTool,
   type ExtensionServerContributions,
   type ServerServices,

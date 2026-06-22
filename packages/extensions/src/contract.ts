@@ -48,11 +48,24 @@ export type ExtensionServerContributions = {
   approvalPolicies: Record<string, ApprovalPolicy>
 }
 
+// One interactive element pick: the human-entered text plus where the element lives in source and on
+// screen. source/rect are null when unavailable (no build-injected source attr, or a non-element pick),
+// so a source anchor degrades to file:line rather than silently pinning an ambiguous node.
+export type PickResult = {
+  text: string
+  source: {file: string; line: number | null; column: number | null; component: string | null} | null
+  rect: {x: number; y: number; width: number; height: number} | null
+}
+
+// Enter interactive element selection; onPick fires once with the grabbed element (never on cancel).
+export type PickFn = (onPick: (result: PickResult) => void) => void
+
 // The slim context a composer-action click receives; the widget adapts its internal bag down to this.
 export type ComposerActionCtx = {
   insert: (text: string) => void
   notify: (message: string) => void
   runTool: (name: string, input: unknown) => Promise<unknown>
+  pick: PickFn
 }
 
 export type ExtComposerAction = {
@@ -76,6 +89,7 @@ export type ClientApi = {
   db: ClientDb
   sync: ClientSync
   runTool: (name: string, input: unknown) => Promise<unknown>
+  pick: PickFn
   previewId: string
   sessionId: () => string | null
 }

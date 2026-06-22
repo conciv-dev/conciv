@@ -31,8 +31,10 @@ import {
   collectClientContributions,
   type ClientApi,
   type MandaraxExtension,
+  type PickFn,
   type ToolDefinition,
 } from '@mandarax/extensions'
+import {getReactGrabAdapter} from './react-grab/adapter.js'
 
 // Entry: create the open Shadow DOM, probe the dev server, and mount the Solid chat agent +
 // page-bus when the mandarax routes are live. Auto-mounts on load; also exports mountWidget.
@@ -122,6 +124,23 @@ export function mountWidget(): void {
       shell.mount(root)
       // Adapt the public ExtComposerAction (slim, stable) to the shell's richer internal def: the
       // public onClick ctx exposes only insert + notify, mapped from the full capability bag.
+      const pick: PickFn = (onPick) =>
+        void getReactGrabAdapter().then((adapter) =>
+          adapter.comment((grab) =>
+            onPick({
+              text: grab.text,
+              source: grab.source
+                ? {
+                    file: grab.source.filePath,
+                    line: grab.source.lineNumber,
+                    column: grab.source.column,
+                    component: grab.source.componentName,
+                  }
+                : null,
+              rect: grab.rect,
+            }),
+          ),
+        )
       const clientApi: ClientApi = {
         ui: {
           setTheme: (tokens) => applyThemeOverrides(root, tokens),
@@ -136,11 +155,12 @@ export function mountWidget(): void {
             id: action.id,
             label: action.label,
             icon: action.icon,
-            onClick: (ctx) => action.onClick({insert: ctx.insert, notify: ctx.notify, runTool}),
+            onClick: (ctx) => action.onClick({insert: ctx.insert, notify: ctx.notify, runTool, pick}),
           }),
         db,
         sync,
         runTool,
+        pick,
         previewId,
         sessionId,
       }

@@ -28,5 +28,8 @@ export type StagedGrab = {
   source: ElementSource | null
 }
 
-// One full pick: the agent-bound text context plus the staged visual. Produced once per grab.
-export type Grab = StagedGrab & {text: string}
+// The grabbed element's on-screen box at pick time (for placing a source-linked pin); null if absent.
+export type ElementRect = {x: number; y: number; width: number; height: number}
+
+// One full pick: the agent-bound text context plus the staged visual + its screen box. Per grab.
+export type Grab = StagedGrab & {text: string; rect: ElementRect | null}

@@ -21,6 +21,7 @@ const sync = createClientSync(core, '', {persist: false})
 const runTool = createRunTool(core, () => ({}))
 
 const noop = (): void => {}
+const pick = noop
 const composer: {onClick: ((ctx: ComposerActionCtx) => void | Promise<void>) | null} = {onClick: null}
 const clientApi: ClientApi = {
   ui: {setTheme: noop, setWidget: noop, setHeader: noop, setFooter: noop, setStatus: noop, setEmptyState: noop},
@@ -28,6 +29,7 @@ const clientApi: ClientApi = {
   db,
   sync,
   runTool,
+  pick,
   previewId: '',
   sessionId: () => null,
 }
@@ -57,4 +59,5 @@ createRoot(() => {
   })
 })
 
-if (new URLSearchParams(location.search).get('composer')) void composer.onClick?.({runTool, insert: noop, notify: noop})
+if (new URLSearchParams(location.search).get('composer'))
+  void composer.onClick?.({runTool, insert: noop, notify: noop, pick})

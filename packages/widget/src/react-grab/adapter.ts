@@ -61,7 +61,9 @@ async function create(): Promise<ReactGrabAdapter> {
         const el = elements[0]
         if (el) {
           const [snapshot, info] = await Promise.all([captureElement(el), api.getSource(el)])
-          sink?.({text: content, snapshot, source: toElementSource(info, el)})
+          const box = el.getBoundingClientRect()
+          const rect = {x: box.x, y: box.y, width: box.width, height: box.height}
+          sink?.({text: content, snapshot, source: toElementSource(info, el), rect})
         }
         return content
       },

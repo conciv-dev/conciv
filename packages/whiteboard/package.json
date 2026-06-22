@@ -43,6 +43,7 @@
     "@mandarax/protocol": "workspace:^",
     "@mandarax/tool-ui": "workspace:^",
     "@tanstack/solid-db": "^0.2.23",
+    "lucide-solid": "^1.18.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "solid-js": "^1.9.13",
