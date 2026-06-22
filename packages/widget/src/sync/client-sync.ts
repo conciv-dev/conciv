@@ -6,7 +6,7 @@ import type {ClientRoom, ClientSync} from '@mandarax/protocol/sync-types'
 export type ClientSyncOptions = {persist?: boolean}
 
 function wsBase(coreBaseUrl: string): string {
-  const url = new URL(coreBaseUrl)
+  const url = new URL(coreBaseUrl || location.origin, location.href)
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
   return `${url.origin}/api/sync`
 }

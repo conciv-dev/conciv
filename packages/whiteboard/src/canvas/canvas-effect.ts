@@ -1,21 +1,20 @@
 import {onCleanup, onMount, type JSX} from 'solid-js'
-import {defineEffect} from '@mandarax/extensions'
+import {defineEffect, type EffectCtx} from '@mandarax/extensions'
+import {roomId} from '../room.js'
+import type {SceneElement} from './glue.js'
 import type {IslandHandle} from './island-types.js'
 
-// The canvas overlay effect. render() returns a Solid-mounted host div; onMount lazy-imports the React
-// island and the Excalidraw CSS (so react/@excalidraw stay out of index.ts's static graph and the
-// widget core bundle), injects the CSS once into the effect shadow root, and mounts Excalidraw into
-// the host. onCleanup / ctx.disable tears the React root down. No static react/@excalidraw/?inline.
 export const canvasEffect = defineEffect({
   name: 'whiteboard',
   label: 'Whiteboard',
   description: 'The whiteboard canvas overlay.',
-  render: (): JSX.Element => {
+  render: (ctx: EffectCtx): JSX.Element => {
     const host = document.createElement('div')
     host.setAttribute('data-whiteboard-canvas', '')
     host.style.position = 'fixed'
     host.style.inset = '0'
     let handle: IslandHandle | undefined
+    let disposeSync: (() => void) | undefined
     onMount(async () => {
       const root = host.getRootNode()
       const [island, sheet] = await Promise.all([
@@ -28,15 +27,26 @@ export const canvasEffect = defineEffect({
         style.textContent = sheet.default
         root.appendChild(style)
       }
+      const {bindCanvasSync} = await import('./canvas-sync.js')
+      const room = ctx.sync.room(roomId(ctx.previewId, ctx.sessionId() ?? ''))
+      let writer: (next: readonly SceneElement[]) => void = () => {}
       handle = island.mountIsland({
         container: host,
         initialElements: [],
-        onUserChange: () => {},
+        onUserChange: (elements) => writer(elements),
         onPointer: () => {},
         theme: 'light',
       })
+      disposeSync = bindCanvasSync({
+        doc: room.doc,
+        handle,
+        onUserChange: (register) => void (writer = register),
+      })
     })
-    onCleanup(() => handle?.destroy())
+    onCleanup(() => {
+      disposeSync?.()
+      handle?.destroy()
+    })
     return host
   },
 })

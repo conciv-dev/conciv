@@ -479,7 +479,7 @@ importers:
         version: link:../plugin
       next:
         specifier: ^15.3.0 || ^16.0.0
-        version: 16.2.9(@opentelemetry/api@1.9.0)(@playwright/test@1.60.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        version: 16.2.9(@babel/core@7.29.7)(@opentelemetry/api@1.9.0)(@playwright/test@1.60.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(sass@1.51.0)
       vite:
         specifier: ^6.0.0 || ^7.0.0 || ^8.0.0
         version: 8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(sass@1.51.0)(tsx@4.22.4)(yaml@2.9.0)
@@ -1022,6 +1022,9 @@ importers:
       solid-js:
         specifier: ^1.9.13
         version: 1.9.13
+      y-websocket:
+        specifier: ^3.0.0
+        version: 3.0.0(yjs@13.6.31)
       yjs:
         specifier: ^13.6.31
         version: 13.6.31
@@ -23921,32 +23924,6 @@ snapshots:
       '@opentelemetry/api': 1.9.0
       '@playwright/test': 1.60.0
       sass: 1.51.0
-      sharp: 0.34.5
-    transitivePeerDependencies:
-      - '@babel/core'
-      - babel-plugin-macros
-
-  next@16.2.9(@opentelemetry/api@1.9.0)(@playwright/test@1.60.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7):
-    dependencies:
-      '@next/env': 16.2.9
-      '@swc/helpers': 0.5.15
-      baseline-browser-mapping: 2.10.37
-      caniuse-lite: 1.0.30001799
-      postcss: 8.4.31
-      react: 19.2.7
-      react-dom: 19.2.7(react@19.2.7)
-      styled-jsx: 5.1.6(@babel/core@7.29.7)(react@19.2.7)
-    optionalDependencies:
-      '@next/swc-darwin-arm64': 16.2.9
-      '@next/swc-darwin-x64': 16.2.9
-      '@next/swc-linux-arm64-gnu': 16.2.9
-      '@next/swc-linux-arm64-musl': 16.2.9
-      '@next/swc-linux-x64-gnu': 16.2.9
-      '@next/swc-linux-x64-musl': 16.2.9
-      '@next/swc-win32-arm64-msvc': 16.2.9
-      '@next/swc-win32-x64-msvc': 16.2.9
-      '@opentelemetry/api': 1.9.0
-      '@playwright/test': 1.60.0
       sharp: 0.34.5
     transitivePeerDependencies:
       - '@babel/core'
