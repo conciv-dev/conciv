@@ -9,26 +9,28 @@ export const canvasEffect = defineEffect({
   label: 'Whiteboard',
   description: 'The whiteboard canvas overlay.',
   render: (ctx: EffectCtx): JSX.Element => {
-    const host = document.createElement('div')
-    host.setAttribute('data-whiteboard-canvas', '')
-    host.style.position = 'fixed'
-    host.style.inset = '0'
+    const marker = document.createElement('div')
+    marker.setAttribute('data-whiteboard-marker', '')
     let handle: IslandHandle | undefined
+    let host: HTMLDivElement | undefined
     let disposeSync: (() => void) | undefined
     let disposeAi: (() => void) | undefined
     let disposePresence: (() => void) | undefined
     onMount(async () => {
-      const root = host.getRootNode()
       const [island, sheet] = await Promise.all([
         import('./island.js'),
         import('@excalidraw/excalidraw/index.css?inline'),
       ])
-      if (root instanceof ShadowRoot && !root.querySelector('[data-whiteboard-style]')) {
+      if (!document.head.querySelector('[data-whiteboard-style]')) {
         const style = document.createElement('style')
         style.setAttribute('data-whiteboard-style', '')
         style.textContent = sheet.default
-        root.appendChild(style)
+        document.head.appendChild(style)
       }
+      host = document.createElement('div')
+      host.setAttribute('data-whiteboard-canvas', '')
+      host.style.cssText = 'position:fixed;inset:0;z-index:2147482000'
+      document.body.appendChild(host)
       const [{bindCanvasSync}, {bindAiDraws}, {bindPresence}] = await Promise.all([
         import('./canvas-sync.js'),
         import('./ai-draws.js'),
@@ -59,8 +61,9 @@ export const canvasEffect = defineEffect({
       disposeAi?.()
       disposeSync?.()
       handle?.destroy()
+      host?.remove()
     })
-    return host
+    return marker
   },
 })
 

@@ -1,6 +1,6 @@
 // The first-party whiteboard canvas effect, end to end in the real widget: toggling the `whiteboard`
-// effect lazy-mounts the Excalidraw island into the widget's effect shadow root; toggling off unmounts
-// it. Real browser, the built widget bundle (which includes the whiteboard extension), no mocks.
+// effect lazy-mounts the Excalidraw island into a light-DOM overlay (shadow DOM breaks Excalidraw
+// pointer hit-testing); toggling off unmounts it. Real browser, the built widget bundle, no mocks.
 import {createServer, type IncomingMessage, type Server, type ServerResponse} from 'node:http'
 import type {AddressInfo} from 'node:net'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
@@ -12,7 +12,7 @@ function writeJson(res: ServerResponse, body: unknown): void {
   res.end(JSON.stringify(body))
 }
 
-describe('whiteboard canvas effect (it): lazy-mounts Excalidraw in the widget shadow root', () => {
+describe('whiteboard canvas effect (it): lazy-mounts an interactive Excalidraw overlay', () => {
   let browser: Browser
   let server: Server
   const state = {base: ''}
@@ -82,14 +82,33 @@ describe('whiteboard canvas effect (it): lazy-mounts Excalidraw in the widget sh
     expect(await page.locator('[data-whiteboard-zoom]').count()).toBe(0)
 
     const backgrounds = await page.evaluate(() => {
-      const root = document.querySelector('[data-mandarax-effects]')?.shadowRoot
       const cs = (sel: string) => {
-        const el = root?.querySelector(sel)
+        const el = document.querySelector(sel)
         return el ? getComputedStyle(el).backgroundColor : 'missing'
       }
       return [cs('[data-whiteboard-canvas]'), cs('.excalidraw'), cs('canvas')]
     })
     expect(backgrounds).toEqual(['rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)', 'rgba(0, 0, 0, 0)'])
+
+    const hashBefore = await page.evaluate(() =>
+      [...document.querySelectorAll('canvas')].map((c) => c.toDataURL().length).join(','),
+    )
+    const tool = await page.evaluate(() => {
+      const b = document.querySelector('[title*="Rectangle" i]')!.getBoundingClientRect()
+      return {x: b.x + b.width / 2, y: b.y + b.height / 2}
+    })
+    await page.mouse.click(tool.x, tool.y)
+    await page.mouse.move(480, 340)
+    await page.mouse.down()
+    await page.mouse.move(720, 520, {steps: 12})
+    await page.mouse.up()
+    await expect
+      .poll(
+        async () =>
+          page.evaluate(() => [...document.querySelectorAll('canvas')].map((c) => c.toDataURL().length).join(',')),
+        {timeout: 10_000},
+      )
+      .not.toBe(hashBefore)
 
     const disabled = await drive(page, {kind: 'effect', effect: 'whiteboard', action: 'disable'})
     expect(disabled).toMatchObject({effect: 'whiteboard', enabled: false})
