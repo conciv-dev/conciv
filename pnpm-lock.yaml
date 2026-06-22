@@ -1019,6 +1019,9 @@ importers:
       lucide-solid:
         specifier: ^1.18.0
         version: 1.18.0(solid-js@1.9.13)
+      oxc-parser:
+        specifier: ^0.127.0
+        version: 0.127.0
       react:
         specifier: ^19.2.0
         version: 19.2.7
