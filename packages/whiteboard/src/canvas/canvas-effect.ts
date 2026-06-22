@@ -16,6 +16,7 @@ export const canvasEffect = defineEffect({
     host.style.inset = '0'
     let handle: IslandHandle | undefined
     let disposeSync: (() => void) | undefined
+    let disposeAi: (() => void) | undefined
     let disposeControls: (() => void) | undefined
     onMount(async () => {
       const root = host.getRootNode()
@@ -44,12 +45,15 @@ export const canvasEffect = defineEffect({
         handle,
         onUserChange: (register) => void (writer = register),
       })
+      const {bindAiDraws} = await import('./ai-draws.js')
+      disposeAi = bindAiDraws(room.doc)
       const controls = mountZoomControls({handle, reducedMotion: ctx.env.reducedMotion})
       host.appendChild(controls.el)
       disposeControls = controls.dispose
     })
     onCleanup(() => {
       disposeControls?.()
+      disposeAi?.()
       disposeSync?.()
       handle?.destroy()
     })

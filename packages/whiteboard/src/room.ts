@@ -7,6 +7,8 @@ export const ELEMENTS_KEY = 'elements'
 
 export const PINS_KEY = 'pins'
 
+export const PENDING_KEY = 'pending'
+
 export type PinGeometry = {
   cid: string
   x: number
