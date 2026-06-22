@@ -1,4 +1,3 @@
-import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
 import type * as Y from 'yjs'
 import {defineTool, type ToolDefinition, type ToolExecuteCtx} from '@mandarax/extensions'
@@ -25,7 +24,7 @@ function transact(sync: SyncEngine, ctx: ToolExecuteCtx | undefined, mutate: (do
 const MAX_EDGES = 500
 
 function enqueue(sync: SyncEngine, ctx: ToolExecuteCtx | undefined, entry: unknown): string {
-  const id = randomUUID()
+  const id = crypto.randomUUID()
   const room = roomOf(sync, ctx)
   room.awareness.setLocalStateField('user', {id: 'ai', name: 'AI', color: {background: '#d0bfff', stroke: '#7048e8'}})
   room.doc.transact(() => room.doc.getMap(PENDING_KEY).set(id, entry), ORIGIN.AI)

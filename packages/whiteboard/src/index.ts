@@ -44,6 +44,7 @@ export default defineExtension({id: 'whiteboard', tools: [ping], effects: [canva
     mx.approval('canvas.delete', 'ask')
     mx.approval('canvas.clear', 'ask')
     mx.approval('comment.delete', 'ask')
+    mx.approval('comment.resolve', 'ask')
   })
   .client((mx) => {
     const comments = mx.db.collection<Comment, CommentRecord>('comments', {

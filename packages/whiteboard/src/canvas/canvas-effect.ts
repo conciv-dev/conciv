@@ -18,6 +18,8 @@ export const canvasEffect = defineEffect({
     let disposeAi: (() => void) | undefined
     let disposePresence: (() => void) | undefined
     let disposePins: (() => void) | undefined
+    let threadHost: HTMLDivElement | undefined
+    let disposeThread: (() => void) | undefined
     onMount(async () => {
       const [island, sheet] = await Promise.all([
         import('./island.js'),
@@ -61,10 +63,33 @@ export const canvasEffect = defineEffect({
       pinsHost.setAttribute('data-whiteboard-pins', '')
       pinsHost.style.cssText = 'position:fixed;inset:0;z-index:2147482001;pointer-events:none'
       document.body.appendChild(pinsHost)
+      const {mountThread} = await import('../pins/thread.js')
+      const closeThread = (): void => {
+        disposeThread?.()
+        disposeThread = undefined
+        threadHost?.remove()
+        threadHost = undefined
+      }
+      const openThread = (cid: string): void => {
+        closeThread()
+        threadHost = document.createElement('div')
+        threadHost.setAttribute('data-whiteboard-thread-host', '')
+        threadHost.style.cssText = 'position:fixed;inset:0;z-index:2147482002;pointer-events:none'
+        document.body.appendChild(threadHost)
+        disposeThread = mountThread({
+          container: threadHost,
+          rootCid: cid,
+          ctx: {apiBase: '', harnessId: '', sendMessage: () => {}},
+          runTool: (name, input) => ctx.runTool(name, input),
+          onClose: closeThread,
+        })
+      }
       const {mountPins} = await import('../pins/pins.js')
-      disposePins = mountPins({container: pinsHost, doc: room.doc})
+      disposePins = mountPins({container: pinsHost, doc: room.doc, onOpen: openThread})
     })
     onCleanup(() => {
+      disposeThread?.()
+      threadHost?.remove()
       disposePins?.()
       pinsHost?.remove()
       disposePresence?.()
