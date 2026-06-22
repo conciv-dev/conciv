@@ -18,6 +18,8 @@ export type AnchorResolver = {
   capture(target: PickedTarget): Promise<Anchor>
   resolve(anchor: Anchor): Promise<ResolveResult>
   reanchor(anchor: Anchor, target: PickedTarget): Promise<Anchor>
+  // Locate a JSX element by component/tag name (the AI's mouse-free targeting) → a PickedTarget.
+  locate(file: string, component: string): Promise<PickedTarget | null>
 }
 
 export function createReactAnchorResolver(opts: {root: string}): AnchorResolver {
@@ -104,5 +106,15 @@ export function createReactAnchorResolver(opts: {root: string}): AnchorResolver 
     return {source: next.source, instance: next.instance ?? anchor.instance}
   }
 
-  return {capture, resolve, reanchor}
+  const locate: AnchorResolver['locate'] = async (file, component) => {
+    const abs = await confineToRoot(root, file).catch(() => null)
+    if (abs === null) return null
+    const source = await readFile(abs, 'utf8').catch(() => null)
+    if (source === null) return null
+    const elements = scanElements(source)
+    const hit = elements.find((e) => e.component === component) ?? elements.find((e) => e.tag === component)
+    return hit ? {file, line: hit.line, column: hit.column} : null
+  }
+
+  return {capture, resolve, reanchor, locate}
 }

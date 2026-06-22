@@ -112,6 +112,7 @@ export function hashAt(
 export type ElementFingerprint = {
   line: number
   column: number
+  tag: string
   hash: string
   salt: string
   component: string | null
@@ -137,6 +138,7 @@ export function scanElements(source: string): ElementFingerprint[] {
       const start = num(node.start) ?? 0
       out.push({
         ...offsetToLineCol(source, start),
+        tag: tagOf(node),
         hash: fnv1a(structure(node)),
         salt: fnv1a(ancestors.join('>')),
         component: nextComponent,
