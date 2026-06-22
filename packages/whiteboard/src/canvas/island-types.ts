@@ -5,6 +5,9 @@ export type IslandHandle = {
   updateScene: ExcalidrawImperativeAPI['updateScene']
   getSceneElements: ExcalidrawImperativeAPI['getSceneElements']
   updateCollaborators: (m: Map<SocketId, Collaborator>) => void
+  getZoom: () => number
+  fitToContent: () => void
+  setZoomClamped: (zoom: number) => void
   destroy: () => void
 }
 
