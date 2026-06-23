@@ -1,6 +1,6 @@
 import {Show, type JSX} from 'solid-js'
 import {X} from 'lucide-solid'
-import type {ElementSnapshot, ElementSource, StagedGrab} from './grab-types.js'
+import type {ElementSnapshot, ElementSource, StagedGrab} from '@mandarax/grab'
 
 // Scale a captured snapshot down to fit a width, never up past 1:1.
 function fitScale(width: number, maxWidth: number): number {

@@ -44,6 +44,7 @@
     "@floating-ui/dom": "^1.7.6",
     "@mandarax/api-client": "workspace:^",
     "@mandarax/extensions": "workspace:^",
+    "@mandarax/grab": "workspace:^",
     "@mandarax/protocol": "workspace:^",
     "@mandarax/solid-diffs": "workspace:^",
     "@mandarax/solid-streamdown": "workspace:^",

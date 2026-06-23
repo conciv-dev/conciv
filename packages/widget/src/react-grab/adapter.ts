@@ -1,7 +1,7 @@
 import type {SourceInfo} from 'react-grab'
 import {setPicking, setCancelPick} from './picking.js'
 import {captureElement} from './capture-element.js'
-import type {ElementSource, Grab} from './grab-types.js'
+import type {ElementSource, Grab} from '@mandarax/grab'
 import '../mandarax-global.js'
 
 // Lazy, dev-only integration of react-grab as the element-selection engine. Auto-init and the

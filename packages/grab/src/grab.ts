@@ -26,3 +26,13 @@ export type StagedGrab = {
 
 // One full pick: the agent-bound text context plus the staged visual. Produced once per grab.
 export type Grab = StagedGrab & {text: string}
+
+// The element-grab capability the host exposes to extensions. The widget implements it over
+// react-grab; the extension triggers a pick and receives a fully-built Grab (it never constructs one).
+export type GrabApi = {
+  pick: () => Promise<Grab | null>
+  comment: () => Promise<Grab | null>
+  cancel: () => void
+  isActive: () => boolean
+  stage: (grab: Grab) => void
+}

@@ -42,6 +42,7 @@
   },
   "dependencies": {
     "@mandarax/api-client": "workspace:^",
+    "@mandarax/grab": "workspace:^",
     "@mandarax/protocol": "workspace:^",
     "@mandarax/ui-kit-system": "workspace:^",
     "zod": "^4.4.3"

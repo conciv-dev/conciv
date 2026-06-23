@@ -17,7 +17,7 @@ import {readStorage, writeStorage} from './persisted-signal.js'
 import {defineClient, type SessionClient} from '@mandarax/api-client'
 import {SessionId, isSessionId} from '@mandarax/protocol/chat-types'
 import type {UsageSnapshot} from '@mandarax/protocol/usage-types'
-import type {Grab} from './react-grab/grab-types.js'
+import type {Grab} from '@mandarax/grab'
 
 // Read our persisted active id, accepting only a valid mandarax_ id (a stale/foreign value is dropped).
 const parseActiveId = (raw: string): SessionId | undefined => (isSessionId(raw) ? SessionId.parse(raw) : undefined)

@@ -29,7 +29,7 @@ import {TestEventSchema, EditorOpenSchema} from '@mandarax/protocol/test-types'
 import {OkSchema} from '@mandarax/protocol/chat-types'
 import type {ComposerActionDef, ComposerControlDef, PanelDef} from './widget-shell.js'
 import {GrabReference} from './react-grab/grab-reference.js'
-import type {Grab} from './react-grab/grab-types.js'
+import type {Grab} from '@mandarax/grab'
 import {ExtHeaderSlot, ExtFooterSlot, ExtWidgetsSlot, ExtStatusSlot} from './ui-store.js'
 import {EmptyStateSlot} from './empty-state.js'
 

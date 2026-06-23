@@ -2,6 +2,7 @@ import type {Component} from 'solid-js'
 import type {z} from 'zod'
 import type {ToolCardProps, ToolViewCtx} from '@mandarax/protocol/tool-view-types'
 import type {RequestMeta, SessionClient} from '@mandarax/api-client'
+import type {GrabApi} from '@mandarax/grab'
 import type {ThemeTokens} from '@mandarax/ui-kit-system'
 
 export type ExtensionSlot = 'header' | 'footer' | 'composer' | 'empty' | 'status' | `widget:${string}`
@@ -20,6 +21,7 @@ export type ExtensionHostContext = ToolViewCtx &
   ComposerActions & {
     client: SessionClient
     requestMeta: () => RequestMeta
+    grab: GrabApi
     currentSlot: ExtensionSlot
   }
 
