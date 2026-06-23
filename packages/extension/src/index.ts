@@ -13,5 +13,6 @@ export type {
   ExtensionServerTool,
   ExtensionSlot,
   ExtensionTool,
+  ServerContribution,
   ToolRenderer,
 } from './types.js'

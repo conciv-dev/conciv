@@ -32,9 +32,17 @@ export type ExtensionServerTool = {
   execute: (input: unknown) => Promise<unknown>
 }
 
-export type ExtensionServerContributions = {
+// What a .server() factory returns — both halves optional (an extension may contribute just a prompt).
+export type ServerContribution = {
   tools?: ExtensionServerTool[]
   systemPrompt?: string
+}
+
+// The merged result collectServerContributions feeds the engine — both halves always populated.
+// systemPrompt is the list of appends (the engine joins them), matching the engine's contract.
+export type ExtensionServerContributions = {
+  tools: ExtensionServerTool[]
+  systemPrompt: string[]
 }
 
 export type ToolRenderer = Component<ToolCardProps>
@@ -56,7 +64,7 @@ export type ExtensionDefinition<ClientReturnValue extends object> = {
   theme?: ThemeTokens
   tools?: ExtensionTool[]
   clientFactory?: () => ClientFactoryResult<ClientReturnValue>
-  serverFactory?: () => ExtensionServerContributions
+  serverFactory?: () => ServerContribution
 }
 
 export type ClientFactoryResult<ClientReturnValue extends object> = {

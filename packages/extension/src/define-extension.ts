@@ -3,7 +3,7 @@ import type {ThemeTokens} from '@mandarax/ui-kit-system'
 import type {
   ClientFactoryResult,
   ExtensionHostContext,
-  ExtensionServerContributions,
+  ServerContribution,
   ExtensionSlot,
   ExtensionTool,
 } from './types.js'
@@ -16,7 +16,7 @@ export type ExtensionBuilder<ClientReturnValue extends object> = {
   theme?: ThemeTokens
   tools?: ExtensionTool[]
   clientFactory?: () => ClientFactoryResult<ClientReturnValue>
-  serverFactory?: () => ExtensionServerContributions
+  serverFactory?: () => ServerContribution
   useSlot: () => () => ExtensionSlot
   useContext: {
     (): ExtensionHostContext & ClientReturnValue
@@ -25,7 +25,7 @@ export type ExtensionBuilder<ClientReturnValue extends object> = {
   client: <ReturnValue extends object>(
     factory: () => ClientFactoryResult<ReturnValue>,
   ) => ExtensionBuilder<ClientReturnValue & ReturnValue>
-  server: (factory: () => ExtensionServerContributions) => ExtensionBuilder<ClientReturnValue>
+  server: (factory: () => ServerContribution) => ExtensionBuilder<ClientReturnValue>
 }
 
 export type ExtensionMeta = {
@@ -57,7 +57,7 @@ export function defineExtension(meta: ExtensionMeta): ExtensionBuilder<Record<ne
       builder.clientFactory = factory
       return builder
     },
-    server(factory: () => ExtensionServerContributions) {
+    server(factory: () => ServerContribution) {
       builder.serverFactory = factory
       return builder
     },

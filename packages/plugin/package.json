@@ -75,6 +75,7 @@
     "@babel/preset-typescript": "^7.29.7",
     "@mandarax/cli": "workspace:^",
     "@mandarax/core": "workspace:^",
+    "@mandarax/extension": "workspace:^",
     "@mandarax/extensions": "workspace:^",
     "@mandarax/protocol": "workspace:^",
     "@mandarax/widget": "workspace:^",

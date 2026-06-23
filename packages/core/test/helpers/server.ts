@@ -7,6 +7,7 @@ import {getHarness} from '@mandarax/harness'
 import type {HarnessChild} from '@mandarax/protocol/harness-types'
 import {makeApp} from '../../src/app.js'
 import type {ResolvedMandaraxConfig} from '../../src/config.js'
+import type {ExtensionServerTool} from '@mandarax/extension'
 
 export type SpawnHarness = (args: string[], cwd: string, sessionId?: string) => HarnessChild
 
@@ -20,6 +21,8 @@ export type TestServerOpts = {
   // Inject a (real or fake) harness spawn — the one seam makeApp takes from its host. Defaults to a
   // real spawn of the resolved harness binary.
   spawnHarness?: SpawnHarness
+  // Extension MCP tools to register alongside the built-ins (exercises the /api/mcp registration path).
+  extensionTools?: ExtensionServerTool[]
 }
 
 export type TestServer = {
@@ -72,6 +75,7 @@ export async function startTestServer(opts: TestServerOpts = {}): Promise<TestSe
     openInEditor: () => {},
     spawnHarness,
     claudeHome: opts.claudeHome,
+    extensionTools: opts.extensionTools,
   })
 
   const server: Server = serve({fetch: app.fetch, port: 0, hostname: '127.0.0.1'})

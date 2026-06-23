@@ -24,5 +24,5 @@ export function collectServerContributions(builders: ExtensionBuilder<object>[])
     if (builder.systemPrompt) prompts.push(builder.systemPrompt)
     if (contributed?.systemPrompt) prompts.push(contributed.systemPrompt)
   }
-  return {tools, systemPrompt: prompts.join('\n\n')}
+  return {tools, systemPrompt: prompts}
 }
