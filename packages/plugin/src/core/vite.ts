@@ -9,13 +9,7 @@ import {resolveConfig} from '@mandarax/core/config'
 import type {MandaraxConfig} from '@mandarax/protocol/config-types'
 import {installMandaraxBinShim} from './bin-shim.js'
 import {viteConfig, viteResolve, viteGraph, viteTransform, viteUrls, type ViteLike} from './vite-tools.js'
-import {
-  DEFAULT_WIDGET_ROUTE,
-  EXTENSIONS_ROUTE,
-  makeWidgetInject,
-  makeWidgetServe,
-  type Middleware,
-} from './widget-middleware.js'
+import {EXTENSIONS_ROUTE, makeWidgetInject, type Middleware} from './widget-middleware.js'
 import {addSourceToJsx} from './inject-source.js'
 import {isExtensionJsx, compileExtensionSolid} from './compile-extension.js'
 import type {ExtensionServerContributions} from '@mandarax/extensions'
@@ -28,11 +22,12 @@ import {
 
 const require = createRequire(import.meta.url)
 
-function resolveWidgetFile(): string | null {
+function widgetInstalled(): boolean {
   try {
-    return require.resolve('@mandarax/widget/global')
+    require.resolve('@mandarax/widget')
+    return true
   } catch {
-    return null
+    return false
   }
 }
 
@@ -56,31 +51,16 @@ function makeViteBridge(server: ViteLike): BundlerBridge {
   })
 }
 
-type WidgetSetup = {url: string | undefined; serveBundled: boolean; file: string | null}
-
-function resolveWidgetSetup(options: MandaraxConfig): WidgetSetup {
-  const file = resolveWidgetFile()
-  return {
-    url: options.widgetUrl ?? (file ? DEFAULT_WIDGET_ROUTE : undefined),
-    serveBundled: !options.widgetUrl && file !== null,
-    file,
-  }
-}
-
 function mountWidget(
   server: ViteDevServer,
-  widget: WidgetSetup,
   previewId: string,
   apiBase: string,
   widgetConfig: MandaraxConfig['widget'],
 ): void {
-  if (widget.url) {
-    server.middlewares.stack.unshift({
-      route: '',
-      handle: makeWidgetInject(widget.url, previewId, apiBase, widgetConfig),
-    })
-  }
-  if (widget.serveBundled && widget.file) server.middlewares.use(makeWidgetServe(widget.file))
+  server.middlewares.stack.unshift({
+    route: '',
+    handle: makeWidgetInject(previewId, apiBase, widgetConfig),
+  })
   server.middlewares.use(makeExtensionsServe(server))
 }
 
@@ -147,7 +127,7 @@ function bootEngine(
 // serve-only (no-op in prod builds). enforce:'pre' so the source transform sees raw JSX/TSX
 // before @vitejs/plugin-react compiles it away.
 export function makeViteHook(options: MandaraxConfig = {}): Plugin {
-  const widget = resolveWidgetSetup(options)
+  const hasWidget = widgetInstalled()
   let engine: Engine | null = null
   let root = process.cwd()
   // When TanStack devtools' source injector is in the pipeline it stamps data-tsd-source (which
@@ -160,6 +140,16 @@ export function makeViteHook(options: MandaraxConfig = {}): Plugin {
     name: 'mandarax',
     apply: 'serve',
     enforce: 'pre',
+    config() {
+      // The widget + file-based extensions must share ONE solid + one @mandarax/extension instance
+      // (so an extension's useContext resolves the widget's Provider). dedupe collapses duplicate
+      // copies; exclude keeps Vite's dep optimizer from pre-bundling (re-inlining) them.
+      if (!hasWidget) return {}
+      return {
+        resolve: {dedupe: ['solid-js', '@mandarax/extension']},
+        optimizeDeps: {exclude: ['@mandarax/widget', '@mandarax/extension']},
+      }
+    },
     configResolved(config) {
       root = config.root
       deferToTsd = config.plugins.some((p) => p.name === '@tanstack/devtools:inject-source')
@@ -182,8 +172,8 @@ export function makeViteHook(options: MandaraxConfig = {}): Plugin {
       order: 'pre',
       handler(_html, ctx) {
         const cfg = resolveConfig(options, ctx.server?.config.root ?? process.cwd())
-        if (!cfg.enabled || !engine) return []
-        return htmlTags(engine.port, {previewId: cfg.previewId, widgetUrl: widget.url, widget: options.widget})
+        if (!cfg.enabled || !engine || !hasWidget) return []
+        return htmlTags(engine.port, {previewId: cfg.previewId, widget: options.widget})
       },
     },
     async configureServer(server: ViteDevServer) {
@@ -192,7 +182,7 @@ export function makeViteHook(options: MandaraxConfig = {}): Plugin {
       const extensions = await loadServerContributions(server.config.root)
       engine = await bootEngine(server, options, installMandaraxBinShim(join(cfg.stateRoot, '.mandarax')), extensions)
       const booted = engine
-      mountWidget(server, widget, cfg.previewId, `http://127.0.0.1:${booted.port}`, options.widget)
+      if (hasWidget) mountWidget(server, cfg.previewId, `http://127.0.0.1:${booted.port}`, options.widget)
       server.httpServer?.on('close', () => void booted.stop())
     },
   }

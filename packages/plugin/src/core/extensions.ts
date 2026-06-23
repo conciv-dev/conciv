@@ -5,12 +5,24 @@ import {createJiti} from 'jiti'
 import type {ExtensionBuilder, ExtensionServerContributions} from '@mandarax/extension'
 import {collectServerContributions} from '@mandarax/extension'
 
-// The vite virtual module that discovers + applies CLIENT halves in the browser; its body (the glob)
-// still comes from the legacy @mandarax/extensions package — the new-contract client discovery is
-// slice 3b. The ids are vite conventions, so they live with the bundler hook.
-export {extensionsModuleSource} from '@mandarax/extensions'
 export const EXTENSIONS_VIRTUAL_ID = 'virtual:mandarax-extensions'
 export const EXTENSIONS_RESOLVED_ID = '\0' + EXTENSIONS_VIRTUAL_ID
+
+// The single client entry the plugin serves through Vite (so bare imports resolve + dedupe). It globs
+// the file-based extensions (their default export is an ExtensionBuilder), seeds them onto the shared
+// __MANDARAX__ queue, THEN imports the widget — so the widget, every extension, solid-js and
+// @mandarax/extension all live in ONE Vite graph (one ExtensionRuntimeContext) and the widget drains
+// the queue on mount. import.meta.glob is eager so the queue is seeded before the widget loads.
+export function extensionsModuleSource(): string {
+  return [
+    "const mods = import.meta.glob('/mandarax/extensions/*.{ts,tsx}', {eager: true})",
+    'const builders = Object.values(mods).map((m) => m && m.default).filter(Boolean)',
+    'const g = (window.__MANDARAX__ ??= {})',
+    'g.queue = [...(g.queue ?? []), ...builders]',
+    "await import('@mandarax/widget')",
+    '',
+  ].join('\n')
+}
 
 const EXTENSION_DIR = 'mandarax/extensions'
 const EXTENSION_RE = /\.(?:ts|tsx|js|jsx)$/
