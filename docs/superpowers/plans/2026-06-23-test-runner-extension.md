@@ -1,5 +1,7 @@
 # Test-Runner Standalone Extension — Implementation Plan
 
+> **ON HOLD.** The extension delivery/split is being redesigned simpler — see `docs/superpowers/specs/2026-06-23-extension-split-design.md` (import-based, no global registry). This plan's test-runner migration is a LATER layer to rebuild on top of that. Do not execute as-is.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Migrate the test-runner into the first fully standalone `@mandarax/extension-test-runner`, growing the extension core API by exactly the four gaps the migration forces, so that zero test-runner code remains in core/widget/protocol/tools/tool-ui/harness/cli while the live test card still renders in chat with no regressions.
