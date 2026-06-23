@@ -79,6 +79,7 @@
     "@mandarax/extensions": "workspace:^",
     "@mandarax/protocol": "workspace:^",
     "@mandarax/widget": "workspace:^",
+    "babel-dead-code-elimination": "^1.0.12",
     "babel-preset-solid": "^1.9.12",
     "jiti": "^2.7.0",
     "launch-editor": "^2.14.1",
