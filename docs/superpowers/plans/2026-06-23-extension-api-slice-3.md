@@ -34,7 +34,6 @@ What genuinely remains: (a) drain server contributions from the new builder shap
 ### v1 scope cuts (deferred, stated explicitly)
 
 - Keyed `widget:${string}` slots → collapse to a single `'widget'` slot for v1 (one region above the log, replacing `ExtWidgetsSlot`). Keyed widgets deferred.
-- Structured n-item composer actions (array of `{id,label,icon,onClick}`) → deferred; the `composer` slot renders the extension's own JSX into a composer region. Single-Component-returns-fragment is acceptable for v1.
 - `client` / `stageGrab` / `requestMeta` context fields → deferred (need protocol relocation).
 - File-based user-extension discovery + virtual module → carried to a slice 3b; v1 proves built-in extensions passed via the engine array, injected for ITs through a `window.__MANDARAX__` builder queue.
 
@@ -718,7 +717,7 @@ git commit -m "test(widget): two-panel extension IT + node server-tool IT"
 
 ## Self-review notes
 
-- **Spec coverage:** header/footer/composer/empty/status/widget slots (Task 5), per-panel Provider fixing the multi-panel bug (Tasks 4-5, IT in 9), `useContext(select)` (example + IT), server tools + systemPrompt ordering (Tasks 2,7,9), theme (Task 6), tool cards staying on `.render()` and flowing via `collectToolRenderers` (Task 3,6), deletion of `ui-store`/`clientApi`/override (Task 6). Deferred items (keyed widgets, structured composer actions, `client`/`stageGrab`/`requestMeta`, file discovery/virtual module, `.client()` dispose) are listed in the Feasibility summary with reasons.
+- **Spec coverage:** header/footer/composer/empty/status/widget slots (Task 5), per-panel Provider fixing the multi-panel bug (Tasks 4-5, IT in 9), `useContext(select)` (example + IT), server tools + systemPrompt ordering (Tasks 2,7,9), theme (Task 6), tool cards staying on `.render()` and flowing via `collectToolRenderers` (Task 3,6), deletion of `ui-store`/`clientApi`/override (Task 6). Deferred items (keyed widgets, `client`/`stageGrab`/`requestMeta`, file discovery/virtual module, `.client()` dispose) are listed in the Feasibility summary with reasons. (Extension composer buttons are just JSX the `composer` Component renders — no structured-action array; not a deferral.)
 - **Carried from slice 2:** file-based discovery + the client virtual module for USER extensions (not built-ins) — slice 3 proves built-ins via the array/global; user-file discovery is slice 3b (it needs the strip transform wired into the per-bundler client entry, which is the remaining slice-2 wiring).
 - **Type consistency:** `ExtensionHostBag = Omit<ExtensionHostContext,'currentSlot'>` used in Tasks 4/5/6; `collectToolRenderers` returns `{names,render}` ≡ `ToolCardEntry` (Task 3/6); `chatPanelDef(apiBase,harnessId,tools,extensions)` consistent across Tasks 5/6.
 - **Open risk to verify during execution:** Task 5 places the `hostBag` after line 704 so all closures exist; if any closure is defined below 704, move the bag builder down accordingly. The `setBusy` mapping uses a synthetic id — confirm `busyAction` semantics don't conflict with real action ids.
