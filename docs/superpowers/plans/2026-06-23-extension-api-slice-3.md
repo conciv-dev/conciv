@@ -31,9 +31,12 @@ Slice 3 is **substantially smaller than the spec's worst case**, because three f
 
 What genuinely remains: (a) drain server contributions from the new builder shape; (b) render Components into slots via a per-panel Provider, building the full host bag (incl. `grab`/`client`/`requestMeta`); (c) keep extension tool-renderers flowing into the `tools` accessor; (d) delete `ui-store.tsx` + the empty-state override + the old `clientApi`/`installExtensionGlobal` plumbing; (e) one real example extension + a two-panel browser IT + a node IT.
 
+### Slots are a fixed union (not keyed)
+
+`ExtensionSlot = 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget'` — the host renders this fixed set of mount points and the Component branches on `useSlot()`. There is no `setWidget(key)` and no `` `widget:${string}` `` keyed family; `widget` is simply the generic content region (above the log, replacing the old `ExtWidgetsSlot`).
+
 ### v1 scope cuts (deferred, stated explicitly)
 
-- Keyed `widget:${string}` slots → collapse to a single `'widget'` slot for v1 (one region above the log, replacing `ExtWidgetsSlot`). Keyed widgets deferred.
 - File-based user-extension discovery + virtual module → carried to a slice 3b; v1 proves built-in extensions passed via the engine array, injected for ITs through a `window.__MANDARAX__` builder queue.
 
 ### Done ahead of this plan (prerequisite relocations, committed)
