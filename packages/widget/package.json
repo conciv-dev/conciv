@@ -25,8 +25,7 @@
     ".": {
       "types": "./dist/mount.d.ts",
       "import": "./dist/mount.js"
-    },
-    "./global": "./dist/mandarax-widget.global.js"
+    }
   },
   "publishConfig": {
     "access": "public"
@@ -37,7 +36,7 @@
     "lint": "oxlint",
     "test": "vitest run",
     "publint": "publint",
-    "attw": "attw --pack . --profile esm-only --exclude-entrypoints global"
+    "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
     "@ark-ui/solid": "^5.37.1",
