@@ -53,8 +53,8 @@ export type ExtensionTool = {
   inputSchema: z.ZodObject<z.ZodRawShape>
   promptSnippet?: string
   promptGuidelines?: string[]
-  serverExecute?: (input: unknown) => Promise<unknown>
-  clientRender?: ToolRenderer
+  __execute?: (input: unknown) => Promise<unknown>
+  __render?: ToolRenderer
 }
 
 export type ExtensionDefinition<ClientReturnValue extends object> = {
@@ -63,8 +63,8 @@ export type ExtensionDefinition<ClientReturnValue extends object> = {
   systemPrompt?: string
   theme?: ThemeTokens
   tools?: ExtensionTool[]
-  clientFactory?: () => ClientFactoryResult<ClientReturnValue>
-  serverFactory?: () => ServerContribution
+  __client?: () => ClientFactoryResult<ClientReturnValue>
+  __server?: () => ServerContribution
 }
 
 export type ClientFactoryResult<ClientReturnValue extends object> = {

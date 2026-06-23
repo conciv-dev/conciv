@@ -14,9 +14,8 @@ import {installReactBridge} from './react-bridge.js'
 import {defineClient} from '@mandarax/api-client'
 import {parseWidgetSettings, type WidgetSettings} from './widget-settings.js'
 import {applyThemeOverrides} from './theme.js'
-import {installExtensionGlobal} from './extension-runtime.js'
 import {builtinToolCards, type ToolCardEntry} from '@mandarax/tool-ui'
-import {collectToolRenderers} from '@mandarax/extension'
+import {collectToolRenderers, type ExtensionBuilder} from '@mandarax/extension'
 
 // Entry: create the open Shadow DOM, probe the dev server, and mount the Solid chat agent +
 // page-bus when the mandarax routes are live. Auto-mounts on load; also exports mountWidget.
@@ -52,7 +51,11 @@ function mountTestCardForTest(root: ShadowRoot, apiBase: string): void {
   render(() => <TestCard apiBase={apiBase} onFix={() => {}} result={null} />, container)
 }
 
-export function mountWidget(): void {
+// The plugin's client entry imports this and passes the discovered extensions (built-ins + the user's
+// mandarax/extensions/*). Their server halves were collapsed by the bundler; here their theme applies
+// and their Component renders into the surface slots. Tool renderers compose ahead of the built-ins so
+// an extension can override a built-in card by name.
+export function mountWidget(extensions: ExtensionBuilder<object>[]): void {
   if (document.querySelector('[data-mandarax-root]')) return
   // Install the RDT hook before the host app's React initializes (so inspect/override work).
   installReactBridge()
@@ -63,20 +66,14 @@ export function mountWidget(): void {
   const driver = makeDomPageDriver()
   window.__MANDARAX_PAGE_DRIVER__ = driver
   const settings = resolveWidget()
+  for (const extension of extensions) if (extension.theme) applyThemeOverrides(root, extension.theme)
+  const tools = (): ToolCardEntry[] => [...collectToolRenderers(extensions), ...builtinToolCards]
   // Chat + page-bus only exist on the mandarax dev server. Probe the non-session /models route: a 2xx
   // means chat is mounted (and carries the harness identity that gates the launch button). A throw
   // (404 / network) → a plain app, so the widget shows nothing.
   void defineClient({apiBase})
     .models()
     .then((models) => {
-      // Collect the live extensions (built-ins seed + the __MANDARAX__ queue/use). Their server halves
-      // ran in node; here their declarative theme is applied and their Component is rendered into the
-      // surface slots by the panel. Tool renderers compose with the built-ins (extension entries first
-      // so an extension can override a built-in tool by name).
-      const extensions = installExtensionGlobal([])
-      for (const extension of extensions()) if (extension.theme) applyThemeOverrides(root, extension.theme)
-      const tools = (): ToolCardEntry[] => [...collectToolRenderers(extensions()), ...builtinToolCards]
-      // The shell owns the chrome + layout modes and hosts the chat as a registered panel.
       const shell = createWidgetShell({settings})
       shell.registerPanel(chatPanelDef(apiBase, models.harness.id, tools, extensions))
       shell.registerComposerAction(elementPickerAction)
@@ -91,5 +88,3 @@ export function mountWidget(): void {
       // No /models route (older core / non-chat server) → mount nothing.
     })
 }
-
-mountWidget()

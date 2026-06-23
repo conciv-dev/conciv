@@ -8,7 +8,7 @@ const Card = () => null
 const draw = defineTool({name: 'draw', description: 'd', inputSchema: z.object({})}).render(Card)
 
 describe('collectToolRenderers', () => {
-  it('returns a render entry per tool with a clientRender', () => {
+  it('returns a render entry per tool that has a .render() card', () => {
     const entries = collectToolRenderers([defineExtension({name: 'canvas', tools: [draw]})])
     expect(entries).toHaveLength(1)
     expect(entries[0]?.names).toEqual(['draw'])

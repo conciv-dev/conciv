@@ -15,8 +15,8 @@ export type ExtensionBuilder<ClientReturnValue extends object> = {
   systemPrompt?: string
   theme?: ThemeTokens
   tools?: ExtensionTool[]
-  clientFactory?: () => ClientFactoryResult<ClientReturnValue>
-  serverFactory?: () => ServerContribution
+  __client?: () => ClientFactoryResult<ClientReturnValue>
+  __server?: () => ServerContribution
   useSlot: () => () => ExtensionSlot
   useContext: {
     (): ExtensionHostContext & ClientReturnValue
@@ -54,11 +54,11 @@ export function defineExtension(meta: ExtensionMeta): ExtensionBuilder<Record<ne
     useSlot,
     useContext,
     client(factory: () => ClientFactoryResult<object>) {
-      builder.clientFactory = factory
+      builder.__client = factory
       return builder
     },
     server(factory: () => ServerContribution) {
-      builder.serverFactory = factory
+      builder.__server = factory
       return builder
     },
   } as unknown as ExtensionBuilder<Record<never, never>>

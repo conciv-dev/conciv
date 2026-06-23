@@ -21,11 +21,11 @@ export function defineTool<Schema extends z.ZodObject<z.ZodRawShape>>(definition
     promptSnippet: definition.promptSnippet,
     promptGuidelines: definition.promptGuidelines,
     server(execute) {
-      builder.serverExecute = async (raw: unknown) => execute(definition.inputSchema.parse(raw))
+      builder.__execute = async (raw: unknown) => execute(definition.inputSchema.parse(raw))
       return builder
     },
     render(renderer) {
-      builder.clientRender = renderer
+      builder.__render = renderer
       return builder
     },
   }

@@ -364,7 +364,7 @@ export function ChatPanel(props: {
   // The surface's "new session" handler (modal opens a fresh panel); absent → in-place new session.
   onNewSession?: () => void | Promise<void>
   // The extensions to paint into the surface slots; each one's Component branches on useSlot().
-  extensions: () => ExtensionBuilder<object>[]
+  extensions: ExtensionBuilder<object>[]
 }): JSX.Element {
   const client = props.client
   const [genUi, setGenUi] = createSignal<UiSpec[]>([])
@@ -743,7 +743,7 @@ export function ChatPanel(props: {
   }
   // Run each extension's .client() once per panel; its return merges into that extension's context.
   const extensionInstances = createMemo(() =>
-    props.extensions().map((extension) => ({extension, clientValue: extension.clientFactory?.().value ?? {}})),
+    props.extensions.map((extension) => ({extension, clientValue: extension.__client?.().value ?? {}})),
   )
 
   const onKeyDown = (e: KeyboardEvent) => {
@@ -908,7 +908,7 @@ export function chatPanelDef(
   apiBase: string,
   harnessId: string,
   tools: () => ToolCardEntry[],
-  extensions: () => ExtensionBuilder<object>[],
+  extensions: ExtensionBuilder<object>[],
 ): PanelDef {
   return {
     id: 'chat',

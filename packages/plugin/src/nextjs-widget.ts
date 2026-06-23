@@ -4,7 +4,8 @@ const port = process.env.NEXT_PUBLIC_MANDARAX_PORT
 
 function startWidget(): void {
   window.__MANDARAX_API_BASE__ = `http://127.0.0.1:${port}`
-  void import('@mandarax/widget')
+  // Next has no bundler-side user-extension discovery yet (vite-first); mount with built-ins only.
+  void import('@mandarax/widget').then(({mountWidget}) => mountWidget([]))
 }
 
 if (typeof window !== 'undefined' && port && process.env.NODE_ENV !== 'production') {

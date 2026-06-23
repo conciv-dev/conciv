@@ -2,8 +2,8 @@ import type {ExtensionBuilder} from './define-extension.js'
 import type {ExtensionServerContributions, ExtensionServerTool, ExtensionTool} from './types.js'
 
 function toServerTool(tool: ExtensionTool): ExtensionServerTool | null {
-  if (!tool.serverExecute) return null
-  return {name: tool.name, description: tool.description, inputSchema: tool.inputSchema, execute: tool.serverExecute}
+  if (!tool.__execute) return null
+  return {name: tool.name, description: tool.description, inputSchema: tool.inputSchema, execute: tool.__execute}
 }
 
 export function collectServerContributions(builders: ExtensionBuilder<object>[]): ExtensionServerContributions {
@@ -11,12 +11,12 @@ export function collectServerContributions(builders: ExtensionBuilder<object>[])
   const tools: ExtensionServerTool[] = []
   const prompts: string[] = []
   for (const builder of builders) {
-    const contributed = builder.serverFactory?.()
+    const contributed = builder.__server?.()
     const declaredTools = [...(builder.tools ?? []), ...(contributed?.tools ?? [])]
     for (const tool of declaredTools) {
-      if (seen.has(tool.name)) continue
       const serverTool = toServerTool(tool)
       if (!serverTool) continue
+      if (seen.has(tool.name)) throw new Error(`extension tool name collision: "${tool.name}" is defined twice`)
       seen.add(tool.name)
       tools.push(serverTool)
     }

@@ -17,10 +17,10 @@ describe('collectServerContributions', () => {
     expect(out.systemPrompt).toContain('srv')
   })
 
-  it('dedups tools by name across extensions, first wins', () => {
+  it('throws on a tool name collision across extensions', () => {
     const a = defineExtension({name: 'a', tools: [draw]})
     const b = defineExtension({name: 'b', tools: [draw]})
-    expect(collectServerContributions([a, b]).tools?.length).toBe(1)
+    expect(() => collectServerContributions([a, b])).toThrow(/collision/)
   })
 
   it('produces an executable server tool from .server(execute)', async () => {

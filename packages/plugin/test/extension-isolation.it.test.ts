@@ -1,7 +1,7 @@
 import {describe, it, expect} from 'vitest'
 import {fileURLToPath} from 'node:url'
 import {dirname, join} from 'node:path'
-import {stripServerHalf} from '../src/core/strip-server.js'
+import {splitExtension} from '../src/core/split-extension.js'
 import {compileExtensionSolid} from '../src/core/compile-extension.js'
 import {loadServerContributions} from '../src/core/extensions.js'
 
@@ -9,10 +9,10 @@ const here = dirname(fileURLToPath(import.meta.url))
 
 const ID = '/proj/mandarax/extensions/iso.tsx'
 
-// The exact CLIENT compile the vite hook runs on an extension file: strip the server half, then Solid.
+// The exact CLIENT compile the vite hook runs on an extension file: split for the browser, then Solid.
 async function compileClient(source: string): Promise<string> {
-  const stripped = await stripServerHalf(source, ID)
-  const compiled = await compileExtensionSolid(stripped.code, ID, false)
+  const split = await splitExtension(source, ID, 'browser')
+  const compiled = await compileExtensionSolid(split?.code ?? source, ID, false)
   if (!compiled) throw new Error('compile produced no output')
   return compiled.code
 }
