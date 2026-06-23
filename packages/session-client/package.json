@@ -1,19 +1,19 @@
 {
-  "name": "@mandarax/extension",
+  "name": "@mandarax/session-client",
   "version": "0.0.0",
-  "description": "The mandarax extension authoring contract: defineExtension/defineTool plus the SolidJS runtime context and typed useSlot/useContext hooks.",
+  "description": "The mandarax network seam: the typed fetch/SSE transport and the per-session client (defineClient/SessionClient) shared by the widget and the extension contract.",
   "keywords": [
-    "extension",
+    "client",
     "mandarax",
-    "plugins"
+    "transport"
   ],
-  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/extension#readme",
+  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/session-client#readme",
   "bugs": "https://github.com/mandarax-dev/mandarax/issues",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/mandarax-dev/mandarax.git",
-    "directory": "packages/extension"
+    "directory": "packages/session-client"
   },
   "files": [
     "dist"
@@ -23,10 +23,6 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    },
-    "./runtime": {
-      "types": "./dist/runtime.d.ts",
-      "import": "./dist/runtime.js"
     }
   },
   "publishConfig": {
@@ -42,8 +38,6 @@
   },
   "dependencies": {
     "@mandarax/protocol": "workspace:^",
-    "@mandarax/session-client": "workspace:^",
-    "@mandarax/ui-kit-system": "workspace:^",
     "zod": "^4.4.3"
   },
   "devDependencies": {

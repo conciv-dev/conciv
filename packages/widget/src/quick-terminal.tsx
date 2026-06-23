@@ -9,7 +9,7 @@ import {picking} from './react-grab/picking.js'
 import {ContextTracker} from './context-tracker.js'
 import {SessionSelector} from './session-selector.js'
 import {sessions, mergeSurface, makeSurfaceRow, invalidateSessions} from './session-store-client.js'
-import {defineClient, type SessionClient} from './session-client.js'
+import {defineClient, type SessionClient} from '@mandarax/session-client'
 import {SessionId, isSessionId} from '@mandarax/protocol/chat-types'
 import type {UsageSnapshot} from '@mandarax/protocol/usage-types'
 

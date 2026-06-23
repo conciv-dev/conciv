@@ -1,6 +1,7 @@
 import type {Component} from 'solid-js'
 import type {z} from 'zod'
 import type {ToolCardProps, ToolViewCtx} from '@mandarax/protocol/tool-view-types'
+import type {RequestMeta, SessionClient} from '@mandarax/session-client'
 import type {ThemeTokens} from '@mandarax/ui-kit-system'
 
 export type ExtensionSlot = 'header' | 'footer' | 'composer' | 'empty' | 'status' | `widget:${string}`
@@ -10,13 +11,15 @@ export type ComposerActions = {
   notify: (message: string) => void
   setBusy: (busy: boolean) => void
   newSession: () => void
-  addDivider: () => void
+  addDivider: (kind: 'new' | 'compact') => void
   compact: () => void
   resetUsage: () => void
 }
 
 export type ExtensionHostContext = ToolViewCtx &
   ComposerActions & {
+    client: SessionClient
+    requestMeta: () => RequestMeta
     currentSlot: ExtensionSlot
   }
 

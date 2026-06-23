@@ -3,7 +3,7 @@ import {Combobox} from '@mandarax/ui-kit-system'
 import {useListCollection} from '@ark-ui/solid/combobox'
 import {Check, ChevronsUpDown} from 'lucide-solid'
 import type {HarnessModelInfo} from '@mandarax/protocol/chat-types'
-import {defineClient} from './session-client.js'
+import {defineClient} from '@mandarax/session-client'
 import {createPersistedSignal} from './persisted-signal.js'
 import type {ComposerControlDef} from './widget-shell.js'
 

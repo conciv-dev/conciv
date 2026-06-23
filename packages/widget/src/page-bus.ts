@@ -5,7 +5,7 @@
 import {makeDomPageDriver, type PageDriver} from './page-driver.js'
 import {PageQuerySchema, PageReplySchema, type PageQuery} from '@mandarax/protocol/page-types'
 import {OkSchema} from '@mandarax/protocol/chat-types'
-import {createTransport} from './transport.js'
+import {createTransport} from '@mandarax/session-client'
 
 function parseQuery(raw: string): PageQuery | null {
   try {

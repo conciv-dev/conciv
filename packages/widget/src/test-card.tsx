@@ -9,7 +9,7 @@ import {
   type TestEvent,
 } from '@mandarax/protocol/test-types'
 import {OkSchema} from '@mandarax/protocol/chat-types'
-import {createTransport} from './transport.js'
+import {createTransport} from '@mandarax/session-client'
 
 // The test-runner results card. Runner-blind: speaks TestEvent / TestRunResult only. result===null
 // → subscribe to /api/test-runner/stream and build the tree live; result!==null → static render.
