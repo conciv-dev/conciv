@@ -11,7 +11,8 @@ import {installMandaraxBinShim} from './bin-shim.js'
 import {viteConfig, viteResolve, viteGraph, viteTransform, viteUrls, type ViteLike} from './vite-tools.js'
 import {EXTENSIONS_ROUTE, makeWidgetInject, type Middleware} from './widget-middleware.js'
 import {addSourceToJsx} from './inject-source.js'
-import {isExtensionJsx, compileExtensionSolid} from './compile-extension.js'
+import {isExtensionModule, compileExtensionSolid} from './compile-extension.js'
+import {stripServerHalf} from './strip-server.js'
 import type {ExtensionServerContributions} from '@mandarax/extensions'
 import {
   EXTENSIONS_RESOLVED_ID,
@@ -162,9 +163,16 @@ export function makeViteHook(options: MandaraxConfig = {}): Plugin {
     },
     transform(code, id, opts) {
       if (options.enabled === false || id.includes('node_modules')) return null
-      // Extension files are a Solid zone: compile their JSX with Solid before the host's React
-      // transform runs (enforce:'pre'), so renderers/ui factories paint in the Solid widget.
-      if (isExtensionJsx(id)) return compileExtensionSolid(code, id, opts?.ssr ?? false)
+      // Extension files are a Solid zone for the CLIENT bundle: first strip every .server(fn) body +
+      // its now-dead node imports (so server code never ships to the browser), then compile the JSX
+      // with Solid before the host's React transform runs (enforce:'pre'). The server half is loaded
+      // separately in node via jiti (loadServerContributions), which keeps .server intact. Only this
+      // branch is async (returns a Promise); the source-stamp path below stays synchronous.
+      if (isExtensionModule(id)) {
+        return stripServerHalf(code, id).then((stripped) =>
+          compileExtensionSolid(stripped.code, id, opts?.ssr ?? false),
+        )
+      }
       if (deferToTsd) return null
       return addSourceToJsx(code, id, root)
     },
