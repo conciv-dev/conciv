@@ -25,17 +25,22 @@ Slice 3 is **substantially smaller than the spec's worst case**, because three f
 
 1. **No mount explosion.** Tool cards stayed on `defineTool().render()` (your call), so the slot set is only the ~6 fixed singleton slots — NOT `tool:*` × N tool calls. Mounting one Component into 6 slots × a few extensions is trivial; the reviewer's O(extensions × live-slots) concern was driven entirely by `tool:*`. So we mount the Component into each singleton slot and let it return `null` — exactly your original design — with no cost problem and no `slots` hint / build inference needed.
 
-2. **No protocol type relocation for v1.** The three host-context fields that need widget types — `client: SessionClient`, `stageGrab: (grab: Grab)`, `requestMeta` — are NOT shipped. Slice 1 already shipped the leaf-safe bag (`insert`, `notify`, `setBusy`, `newSession`, `addDivider`, `compact`, `resetUsage`, plus all of `ToolViewCtx`). That set covers what an extension author needs in v1, and needs zero changes to `@mandarax/protocol`. The hard `SessionClient` relocation (moderate; `defineClient` pulls Solid) is deferred until an extension actually needs `client`.
+2. **The host context is complete — types relocated to clean leaves (DONE).** The full `ExtensionHostContext` ships: `ToolViewCtx` + the composer bag (`insert`, `notify`, `setBusy`, `newSession`, `addDivider`, `compact`, `resetUsage`) + `client: SessionClient` + `requestMeta: () => RequestMeta` + `grab: GrabApi` + `currentSlot`. The widget-coupled types were extracted into two new leaves both `@mandarax/widget` and `@mandarax/extension` consume: **`@mandarax/api-client`** (the network seam — `transport` + `defineClient`/`SessionClient` + `RequestMeta`) and **`@mandarax/grab`** (the element-grab contract — `Grab`/`StagedGrab`/`ElementSnapshot`/`ElementSource` + `GrabApi`). No drift (`SessionClient` stays `ReturnType<typeof defineClient>` in the leaf), no cycle, nothing deferred.
 
-3. **No built-in composer-action migration.** `elementPickerAction`/`newSessionAction`/`compactAction`/`openInTerminal`/`modelSelectorControl` stay registered shell-internally via `shell.registerComposerAction` (mount.tsx:89-93) — they are NOT extensions. So `stageGrab` (the only reason those need the rich bag) never enters the extension contract.
+3. **No built-in composer-action migration.** `elementPickerAction`/`newSessionAction`/`compactAction`/`openInTerminal`/`modelSelectorControl` stay registered shell-internally via `shell.registerComposerAction` (mount.tsx:89-93) — they are NOT extensions. (Extensions get grab via `grab.pick()`, which the widget implements over react-grab — the extension never constructs a `Grab`.)
 
-What genuinely remains: (a) drain server contributions from the new builder shape; (b) render Components into slots via a per-panel Provider; (c) keep extension tool-renderers flowing into the `tools` accessor; (d) delete `ui-store.tsx` + the empty-state override + the old `clientApi`/`installExtensionGlobal` plumbing; (e) one real example extension + a two-panel browser IT + a node IT.
+What genuinely remains: (a) drain server contributions from the new builder shape; (b) render Components into slots via a per-panel Provider, building the full host bag (incl. `grab`/`client`/`requestMeta`); (c) keep extension tool-renderers flowing into the `tools` accessor; (d) delete `ui-store.tsx` + the empty-state override + the old `clientApi`/`installExtensionGlobal` plumbing; (e) one real example extension + a two-panel browser IT + a node IT.
 
 ### v1 scope cuts (deferred, stated explicitly)
 
 - Keyed `widget:${string}` slots → collapse to a single `'widget'` slot for v1 (one region above the log, replacing `ExtWidgetsSlot`). Keyed widgets deferred.
-- `client` / `stageGrab` / `requestMeta` context fields → deferred (need protocol relocation).
 - File-based user-extension discovery + virtual module → carried to a slice 3b; v1 proves built-in extensions passed via the engine array, injected for ITs through a `window.__MANDARAX__` builder queue.
+
+### Done ahead of this plan (prerequisite relocations, committed)
+
+- `@mandarax/api-client` leaf created; `transport`/`defineClient`/`SessionClient`/`RequestMeta` moved out of widget; all 9 widget import sites repointed; tests moved.
+- `@mandarax/grab` leaf created; grab data types + `GrabApi` moved out of `widget/react-grab`; 5 widget importers repointed.
+- `ExtensionHostContext` (in `@mandarax/extension`) extended with `client`, `requestMeta`, `grab`; `addDivider` aligned to `(kind) => void`. Typecheck/build/lint green across all touched packages.
 
 ---
 
@@ -406,9 +411,32 @@ Add to the `ChatPanel` props type (near line 339-354): `extensions: () => Extens
 
 - [ ] **Step 2: Build the per-panel host bag**
 
-After `toolCtx` is constructed (after line 465) and after the closures `insert`/`notify`/`compact`/`addDivider`/`resetUsage`/`doNewSession` are defined (they are defined later, ~615-704, so place the bag builder AFTER line 704, just before `runAction` at 706):
+After `toolCtx` is constructed (after line 465) and after the closures `insert`/`notify`/`compact`/`addDivider`/`resetUsage`/`doNewSession`/`stageGrab` are defined (they are defined later, ~615-704, so place the bag builder AFTER line 704, just before `runAction` at 706). The `grab: GrabApi` is built per-panel over the existing react-grab adapter + `cancelPick` + the per-panel `stageGrab`/`grabs` signal:
 
 ```ts
+import {getReactGrabAdapter} from './react-grab/adapter.js'
+import {cancelPick} from './react-grab/picking.js'
+import type {GrabApi} from '@mandarax/grab'
+
+const pickWith = (mode: 'activate' | 'comment'): Promise<Grab | null> =>
+  new Promise((resolve) => {
+    let settled = false
+    const done = (grab: Grab | null) => {
+      if (settled) return
+      settled = true
+      resolve(grab)
+    }
+    void getReactGrabAdapter().then((adapter) => adapter[mode]((grab) => done(grab)))
+  })
+
+const grab: GrabApi = {
+  pick: () => pickWith('activate'),
+  comment: () => pickWith('comment'),
+  cancel: cancelPick,
+  isActive: picking,
+  stage: stageGrab,
+}
+
 const hostBag: ExtensionHostBag = {
   ...toolCtx,
   insert,
@@ -418,10 +446,13 @@ const hostBag: ExtensionHostBag = {
   addDivider: (kind) => void addDivider(kind),
   compact: () => void compact(),
   resetUsage,
+  client,
+  requestMeta,
+  grab,
 }
 ```
 
-(`toolCtx` provides `apiBase`/`harnessId`/`sendMessage`/`respondApproval`/`subscribeTestRunner`/`openEditor`; the rest are the per-panel closures. This is the leaf-safe bag — no `client`/`stageGrab`/`requestMeta`.)
+(`toolCtx` provides `apiBase`/`harnessId`/`sendMessage`/`respondApproval`/`subscribeTestRunner`/`openEditor`; `client` is the per-panel `props.client`; `requestMeta` is the per-panel signal accessor (line 407); `grab` is the per-panel `GrabApi`. `isActive` reuses the shared `picking` signal accessor from `./react-grab/picking.js`. Verify during execution: `adapter.activate`/`adapter.comment` fire the sink once per pick; cancellation currently leaves the promise pending — if the example needs cancel-to-null, wire `setCancelPick` to also call `done(null)`.)
 
 - [ ] **Step 3: Replace the five slot render sites**
 
