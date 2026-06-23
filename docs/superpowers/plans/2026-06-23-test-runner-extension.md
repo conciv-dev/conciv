@@ -32,9 +32,9 @@
 - Modify `packages/extension/src/collect-server.ts` → replace with builder-returning collection; new `apply-server.ts` runs `.server()` in the App phase.
 - Create `packages/extension/src/server-route.ts` — the namespaced `{get,post,sse}` surface factory over an h3 app.
 - Modify `packages/core/src/engine.ts`, `app.ts`, `api/mcp/mcp.ts` — two-phase lifecycle, context-passing `execute`, dispose collection.
-- Modify `packages/plugin/src/core/extensions.ts` — return builders, not pre-drained contributions.
+- Modify `packages/plugin/src/core/extensions.ts` (return builders), `boot.ts` + `vite.ts` (merge a `builtinExtensions` array with file-discovered builders — the NEW server built-in seam; `vite.ts:113` param type changes too).
 - Modify `packages/tool-ui/src/now-title.ts` + `packages/widget/src/chat-panel.tsx` — `nowTitle` off the matched tool.
-- Modify `packages/widget/src/mount.tsx` — per-panel `ExtensionRuntimeContext.Provider` wrapping the tool-card subtree.
+- Modify `packages/widget/src/chat-panel.tsx:745-747` (the `extensionInstances` memo — pass `ClientApi`, capture `dispose`) + `extension-slots.tsx` (per-card Provider wrapper + `ExtensionInstance.dispose`). Client built-in seed is `installExtensionGlobal([])` at `mount.tsx:78`.
 - Fixture: `packages/extension/test/fixtures/sample-server-extension.ts` and widget fixture `packages/widget/test/fixtures/sample-extension.tsx` (extended).
 
 **Slice 3 (type relocation):**
@@ -315,26 +315,22 @@ git commit -m "feat(extension): namespaced ServerRoute {get,post,sse} under /api
 
 ---
 
-### Task 4: `.client(client => …)` factory argument + per-extension value merge
+### Task 4: `.client(client => …)` factory argument + capture dispose
+
+> **Review note (current code):** the per-extension `value` merge ALREADY exists — `chat-panel.tsx:745` runs `extension.clientFactory?.().value` once per panel in a `createMemo`, and `extension-slots.tsx:22` spreads `...instance.clientValue` into the `ExtensionRuntimeContext.Provider`. So do NOT invent a `runApplyClient` helper. Two real defects to fix: (a) `clientFactory()` takes no args — give it `ClientApi`; (b) the `dispose` returned alongside `value` is **dropped** at `chat-panel.tsx:746` — capture it and call it in `onCleanup` (panel unmount + HMR), or the Gap-4 EventSource leaks.
 
 **Files:**
 
-- Modify: `packages/extension/src/define-extension.ts`, `runtime-context.ts`, `types.ts`
-- Test: `packages/extension/test/runtime-context.test.ts` (create), widget browser IT in Task 9.
+- Modify: `packages/extension/src/define-extension.ts`, `types.ts` (`.client` factory takes `ClientApi`; `ClientApi = {apiBase: string; client: SessionClient; requestMeta: () => RequestMeta}`).
+- Modify: `packages/widget/src/chat-panel.tsx:745-747` — pass the panel's `ClientApi` into `clientFactory(clientApi)`, store `{extension, clientValue, dispose}`, and `onCleanup(() => instances.forEach((i) => i.dispose?.()))`.
+- Modify: `packages/widget/src/extension-slots.tsx` — `ExtensionInstance` gains optional `dispose`.
+- Test: `packages/extension/test/define-extension.test.ts` (extend — `.client((api) => …)` receives the api and its `dispose` is retained on the builder result), widget browser IT in Task 9 proves the EventSource closes on unmount.
 
-**Interfaces:**
-
-- Produces: `.client(fn: (client: ClientApi) => ClientFactoryResult<V>)`; the runtime Provider merges each extension's `value` into the bag keyed for that extension instance, so `useContext()` returns `ExtensionHostContext & ClientValue`. `runApplyClient(builder, hostContext, clientApi): {context: ExtensionHostContext & V; dispose?}`.
-
-- [ ] **Step 1: Write the failing test**
-
-```ts
-// packages/extension/test/runtime-context.test.ts — runs .client() and asserts merged read
-```
-
-(Assert `runApplyClient` merges `value` over the host bag and surfaces `dispose`.)
-
-- [ ] **Steps 2–5:** implement `client` factory taking `ClientApi`; add `runApplyClient` helper; verify; commit `"feat(extension): client factory receives ClientApi; per-extension value merge"`.
+- [ ] **Step 1: Write the failing test** — assert `clientFactory` is invoked with a `ClientApi` and the returned `{value, dispose}` round-trips (dispose is a function).
+- [ ] **Step 2: Run** → FAIL (factory takes no args today).
+- [ ] **Step 3: Implement** the `ClientApi` arg in `define-extension.ts`; update `chat-panel.tsx` memo to pass `clientApi` (built from the panel's `apiBase`/`client`/`requestMeta`, already in `hostBag`) and capture+dispose.
+- [ ] **Step 4: Run** → `pnpm turbo build typecheck --filter=@mandarax/extension --filter=@mandarax/widget` PASS.
+- [ ] **Step 5: Commit** — `"feat(extension): client factory receives ClientApi; widget captures + disposes it"`.
 
 ---
 
@@ -386,7 +382,7 @@ test('collectSystemPrompts reads declarative prompt without running .server()', 
 
 - [ ] **Step 2: Run to verify it fails** — `pnpm --filter @mandarax/extension exec vitest run test/apply-server.test.ts` → FAIL.
 
-- [ ] **Step 3: Implement** `apply-server.ts` (the `execute` the MCP layer calls passes the per-extension context, so the bound tool ignores the 2nd arg the MCP layer would pass and uses the closed-over context). Update `extensions.ts` `loadServerExtensions` to return builders. Update `index.ts` exports.
+- [ ] **Step 3: Implement** `apply-server.ts` (the `execute` the MCP layer calls passes the per-extension context, so the bound tool ignores the 2nd arg the MCP layer would pass and uses the closed-over context). Update `extensions.ts` `loadServerExtensions` to return builders. Update `index.ts` exports (replace the `collectServerContributions` export). **Consumers to update (review-confirmed): `plugin/src/core/extensions.ts:6,47,56`, `plugin/src/core/boot.ts:23`, `plugin/src/core/vite.ts:21,113,190`, `core/src/engine.ts` — all currently consume the pre-drained `ExtensionServerContributions`.**
 
 - [ ] **Step 4: Run** — `pnpm --filter @mandarax/extension exec vitest run` → PASS.
 
@@ -396,16 +392,19 @@ test('collectSystemPrompts reads declarative prompt without running .server()', 
 
 ### Task 6: Wire two-phase lifecycle + context-passing MCP into core
 
+> **Review note (NEW work — built-in server seam is missing):** there is no seam to register a built-in extension's SERVER half. `loadServerContributions` (now `loadServerExtensions`) only globs `mandarax/extensions/` for user files; the base spec's `{extensions: [canvasExtension, …]}` array never landed on the server side. The booter (`boot.ts:23`) and `vite.ts:190` must merge an explicit **built-in builders array** with the file-discovered ones before handing them to `start()`. The client side already has its seam (`installExtensionGlobal(seed)` at `mount.tsx:78`, seeded `[]`). This task adds the server seam; Task 16 fills it with the test-runner.
+
 **Files:**
 
-- Modify: `packages/core/src/engine.ts` (pass builders; Prompt phase via `collectSystemPrompts`; collect disposers into `stop`), `app.ts` (App phase: build `sse` wrapper over `sseStream`, call `applyServerContributions`, pass resulting tools to `registerMcpRoutes`), `api/mcp/mcp.ts` (call `tool.execute(args, undefined)` — context is already closed over).
-- Modify: `packages/plugin/src/core/boot.ts` (pass builders through).
+- Modify: `packages/core/src/engine.ts` (accept `extensions: ExtensionBuilder[]`; Prompt phase via `collectSystemPrompts`; collect disposers into `stop`), `app.ts` (App phase: build `sse` wrapper over `sseStream`, call `applyServerContributions`, pass resulting tools to `registerMcpRoutes`), `api/mcp/mcp.ts` (call `tool.execute(args, undefined)` — context is already closed over).
+- Modify: `packages/plugin/src/core/boot.ts:23` and `packages/plugin/src/core/vite.ts:190` — `start({extensions: [...builtinExtensions, ...await loadServerExtensions(root)]})`; introduce a `builtinExtensions: ExtensionBuilder[]` constant (empty for now; Task 16 adds the test-runner).
+- Modify: `packages/plugin/src/core/vite.ts:113` — `extensions` param type changes from `ExtensionServerContributions` to `ExtensionBuilder[]`.
 - Test: `packages/core/test/api/extension-server.it.test.ts` (create — real app + MCP + a route + dispose).
 
 **Interfaces:**
 
 - Consumes: `applyServerContributions`, `collectSystemPrompts`, `makeServerRoute`, `loadServerExtensions`.
-- Produces: `StartOpts.extensions: ExtensionBuilder[]`; `MakeAppOpts.extensions: ExtensionBuilder[]`; engine `stop` awaits disposers.
+- Produces: `StartOpts.extensions: ExtensionBuilder[]`; `MakeAppOpts.extensions: ExtensionBuilder[]`; engine `stop` awaits disposers; a `builtinExtensions: ExtensionBuilder[]` array in the plugin (the server built-in seam).
 
 - [ ] **Step 1: Write the failing IT** — load a fixture extension that registers `/api/ext/sample/ping` and a tool; assert the route responds, the tool executes over `/api/mcp` against injected context, and `engine.stop` calls the extension's `dispose`.
 
@@ -431,14 +430,19 @@ test('collectSystemPrompts reads declarative prompt without running .server()', 
 
 ---
 
-### Task 8: Per-panel `ExtensionRuntimeContext.Provider` wraps the tool-card subtree
+### Task 8: Tool cards render under their owning extension's `ExtensionRuntimeContext.Provider`
+
+> **Review note (current code + a subtlety the spec glossed):** `extension-slots.tsx:22` already wraps `<Component/>` slot mounts in `ExtensionRuntimeContext.Provider value={{...bag, ...instance.clientValue, currentSlot}}`. But tool cards are NOT rendered there — they go through `tools()` (`mount.tsx:78` → `collectToolRenderers` → by-name dispatch in the chat thread), which has no Provider. A card's `useContext((c) => c.subscribeTests)` therefore throws today. **Do not wrap the whole tool-card thread in one Provider** — multiple extensions can each contribute a card with its own `clientValue`, and a single merged bag would collide on flat keys (the value merge is per-extension by design). Instead, each card must render under _its owning extension's_ Provider.
 
 **Files:**
 
-- Modify: `packages/widget/src/mount.tsx` / `chat-panel.tsx` — run `.client()` once per panel, build the host bag, wrap both slot mounts AND the chat/tool-card subtree in one `ExtensionRuntimeContext.Provider` per extension per panel.
-- Test: covered by Task 9 browser IT.
+- Modify: `packages/widget/src/extension-slots.tsx` — export a small `ToolCardContext` wrapper, or extend `ExtensionSurface`, that renders a given card under `ExtensionRuntimeContext.Provider value={{...bag, ...instance.clientValue, currentSlot: 'widget'}}` for the instance that owns the tool name.
+- Modify: `packages/widget/src/mount.tsx` / `chat-panel.tsx` — the tool-card dispatch must know which extension instance owns each tool name. Build an ownership map (tool name → `ExtensionInstance`) from `props.extensions()` (each builder's `tools[].name`); when the thread renders a card whose name is in the map, wrap that one card in the owning instance's Provider; built-in cards (not in the map) render as today.
+- Test: covered by the Task 9 browser IT (a card reads `useContext` and resolves; two extensions' cards do not see each other's `clientValue`).
 
-- [ ] **Steps 1–5:** implement the per-panel Provider; commit `"feat(widget): per-panel ExtensionRuntimeContext.Provider over tool-card subtree"`.
+- [ ] **Step 1:** failing browser IT — a fixture extension's card reads `useContext((c) => c.subscribeX)` and renders the streamed value; without the Provider it errors.
+- [ ] **Steps 2–4:** build the ownership map + per-card Provider wrapper; verify.
+- [ ] **Step 5: Commit** — `"feat(widget): tool cards render under their owning extension's runtime context"`.
 
 ---
 
@@ -531,7 +535,7 @@ test('collectSystemPrompts reads declarative prompt without running .server()', 
 
 **Files:**
 
-- Modify: the consumer that assembles `{extensions: [...]}` (the app/widget boot) to include `testRunnerExtension`.
+- Modify (register in BOTH seams — review-confirmed they are separate): the **server** built-in array introduced in Task 6 (`builtinExtensions` in `plugin/src/core/{boot,vite}.ts`) AND the **client** seed `installExtensionGlobal([])` at `widget/src/mount.tsx:78` — add `testRunnerExtension` to each. (Server half = routes/tool/runner; client half = `.client()` SSE + card. Both reference the same builder object.)
 - Delete (per spec list): `core/src/api/test-runner/`, `app.ts` runner wiring + `ctx.test`, `core/package.json` dep, `errors.ts` 422 import, `config.ts`/`config-types.ts` `testRunner`, `protocol/src/test-types.ts`+`runner-types.ts` (residual after Task 12), `tool-view-types.ts` `subscribeTestRunner` + `chat-panel.tsx` wiring, `tools/src/test.ts`+`server.ts`/`defs.ts`/`tools.ts`/`types.ts:12`, `tool-ui/src/cards/test.tsx`+`test.stories.tsx`+`index.tsx` entries+`now-title.ts:65`, `widget/src/test-card.tsx`+`mount.tsx` test seam, `harness/system-prompt.ts:9`, `cli/src/test.ts`+`tools.ts` registration, and the test files listed in the spec.
 - Test: **clean-core regression** — `packages/core/test/clean-core.it.test.ts` (create): boot with `extensions: []`; assert no `/api/ext/test-runner/*` route, no `testRunner` config read, non-loopback Origin 403 on an extension route; a repo grep test asserts no `mandarax_test`/`subscribeTestRunner`/`TestRunnerManager` symbol in the seven packages.
 
@@ -561,7 +565,9 @@ test('collectSystemPrompts reads declarative prompt without running .server()', 
 
 ## Self-Review
 
-**Spec coverage:** Gap 1 → Task 2; Gap 2 → Tasks 3,5,6,15; Gap 3 → Tasks 1,5,6,15; Gap 4 → Tasks 4,8,9,15. Boot lifecycle correction → Tasks 5,6. Type relocation/cycle → Tasks 10–12. EditorOpenSchema carve-out → Task 12. CLI → Tasks 15,16. Security (namespace/CORS/no-raw-handle) → Tasks 3,6,16. Strip/node-free → Tasks 10,14. Pre-split build → Task 14. Dispose → Tasks 5,6,15. Atomic move+delete → Task 16. nowTitle → Task 7. Authoring → Task 17. Naming → Task 13.
+**Spec coverage:** Gap 1 → Task 2; Gap 2 → Tasks 3,5,6,15; Gap 3 → Tasks 1,5,6,15; Gap 4 → Tasks 4,8,9,15. Boot lifecycle correction → Tasks 5,6. Built-in server-extension seam (review-found gap; absent today) → Task 6, filled in Task 16. Type relocation/cycle → Tasks 10–12. EditorOpenSchema carve-out → Task 12. CLI → Tasks 15,16. Security (namespace/CORS/no-raw-handle) → Tasks 3,6,16. Strip/node-free → Tasks 10,14. Pre-split build → Task 14. Dispose (client leak at chat-panel.tsx:746 + server) → Tasks 4,5,6,15. Atomic move+delete → Task 16. nowTitle → Task 7. Authoring → Task 17. Naming → Task 13.
+
+**Review-driven adjustments (against the landed slice-1–3 code):** Task 4 integrates with the existing `extensionInstances` memo + `extension-slots.tsx` Provider (no invented `runApplyClient`) and fixes the dropped-`dispose` leak; Task 8 wraps each tool card under its _owning_ extension's Provider (per-extension, not a colliding global merge); Tasks 5/6 update the real consumers (`plugin/extensions.ts`, `boot.ts`, `vite.ts`, `engine.ts`) and add the missing built-in server seam; Task 16 registers in both the server `builtinExtensions` array and the client `installExtensionGlobal` seed.
 
 **Placeholder scan:** Tasks 4, 7, 8, 9, 15 compress per-step code where the implementation is a verbatim move or a direct consequence of an interface defined in a neighboring task; each names exact files, the exact interface, and the exact test obligation. Tasks 1–3, 5, 6, 10, 14, 16 carry full code/tests for the novel, high-risk surface. No "TBD"/"handle edge cases".
 
