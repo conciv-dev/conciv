@@ -5,7 +5,7 @@ import type {RequestMeta, SessionClient} from '@mandarax/api-client'
 import type {GrabApi} from '@mandarax/grab'
 import type {ThemeTokens} from '@mandarax/ui-kit-system'
 
-export type ExtensionSlot = 'header' | 'footer' | 'composer' | 'empty' | 'status' | `widget:${string}`
+export type ExtensionSlot = 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget'
 
 export type ComposerActions = {
   insert: (text: string) => void
