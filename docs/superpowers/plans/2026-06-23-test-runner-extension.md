@@ -32,9 +32,9 @@
 - Modify `packages/extension/src/collect-server.ts` → replace with builder-returning collection; new `apply-server.ts` runs `.server()` in the App phase.
 - Create `packages/extension/src/server-route.ts` — the namespaced `{get,post,sse}` surface factory over an h3 app.
 - Modify `packages/core/src/engine.ts`, `app.ts`, `api/mcp/mcp.ts` — two-phase lifecycle, context-passing `execute`, dispose collection.
-- Modify `packages/plugin/src/core/extensions.ts` (return builders), `boot.ts` + `vite.ts` (merge a `builtinExtensions` array with file-discovered builders — the NEW server built-in seam; `vite.ts:113` param type changes too).
+- Modify `packages/plugin/src/core/extensions.ts` — `loadServerExtensions` returns builders; the plugin owns a `builtinExtensions: ExtensionBuilder[]` array merged with file-discovered user builders (`boot.ts`/`vite.ts:190`); `extensionsModuleSource()` emits each built-in's client import into the `__MANDARAX__.queue`; `vite.ts:113` param type changes.
 - Modify `packages/tool-ui/src/now-title.ts` + `packages/widget/src/chat-panel.tsx` — `nowTitle` off the matched tool.
-- Modify `packages/widget/src/chat-panel.tsx:745-747` (the `extensionInstances` memo — pass `ClientApi`, capture `dispose`) + `extension-slots.tsx` (per-card Provider wrapper + `ExtensionInstance.dispose`). Client built-in seed is `installExtensionGlobal([])` at `mount.tsx:78`.
+- Modify `packages/widget/src/chat-panel.tsx:745-747` (the `extensionInstances` memo — pass `ClientApi`, capture `dispose`) + `extension-slots.tsx` (per-card Provider wrapper + `ExtensionInstance.dispose`). Widget client seed stays `installExtensionGlobal([])`; built-ins arrive via the plugin-generated `__MANDARAX__.queue`, user ones via the same queue.
 - Fixture: `packages/extension/test/fixtures/sample-server-extension.ts` and widget fixture `packages/widget/test/fixtures/sample-extension.tsx` (extended).
 
 **Slice 3 (type relocation):**
@@ -48,9 +48,9 @@
 
 **Slice 4 (extension package + deletions):**
 
-- Create `packages/extension-test-runner/` — `package.json` (browser/node split via tsdown), `src/extension.ts`, `src/test-tool.ts`, `src/test-card.tsx`, `src/test-card.stories.tsx`, `src/cli.ts`, `src/parse-json.ts`.
+- Create `packages/extension-test-runner/` — `package.json` (browser/node split via tsdown; `./client` subpath for the client view), `src/extension.ts`, `src/test-tool.ts`, `src/test-card.tsx`, `src/test-card.stories.tsx`, `src/cli.ts`, `src/parse-json.ts`.
 - Delete the full deletion list from the spec.
-- Register the built-in where the consumer assembles `{extensions: [...]}`.
+- Register in the plugin: add to the `builtinExtensions` array (server) and emit its client import in `extensionsModuleSource()` (client `__MANDARAX__.queue`); add `@mandarax/extension-test-runner` as a `@mandarax/plugin` dependency.
 
 **Slice 5 (authoring):**
 
@@ -58,9 +58,29 @@
 
 ---
 
+## SLICE 0 — Prerequisite: consolidate onto the singular `@mandarax/extension`
+
+> **Review-found blocker.** `core` and `plugin` import the contribution types from the LEGACY plural `@mandarax/extensions` (`core/src/app.ts:5`, `engine.ts:6`, `api/mcp/mcp.ts:5`, `plugin/src/core/vite.ts:16` — all `from '@mandarax/extensions'`), while `plugin/src/core/extensions.ts`+`boot.ts` already use the singular `@mandarax/extension`. They only typecheck because both packages define structurally-identical `ExtensionServerTool`/`ExtensionServerContributions`. The moment Task 1 changes the singular `execute` to 2-arg, the two diverge and core breaks. Consolidate FIRST.
+
+### Task 0: Repoint all consumers to `@mandarax/extension` (singular); drop the plural dep
+
+**Files:**
+
+- Modify: `packages/core/src/app.ts:5`, `engine.ts:6`, `api/mcp/mcp.ts:5`, `packages/plugin/src/core/vite.ts:16` — import `ExtensionServerTool`/`ExtensionServerContributions` from `@mandarax/extension`.
+- Modify: `packages/core/package.json:56`, `packages/widget/package.json:47`, `packages/plugin/package.json:79` — remove the `@mandarax/extensions` (plural) dependency.
+- Note: the base rewrite intends to delete the plural `@mandarax/extensions` package (`contract.ts`/`discovery.ts` — the old imperative API); confirm what still imports it (the client `extensionsModuleSource` lives there today — `plugin/extensions.ts:11` re-exports it). Keep the plural package until Slice 1 Task 5 relocates `extensionsModuleSource`, then delete it.
+
+- [ ] **Step 1:** repoint the four imports; remove the three deps.
+- [ ] **Step 2:** `pnpm turbo typecheck --filter=@mandarax/core --filter=@mandarax/widget --filter=@mandarax/plugin` → PASS (structurally identical types, so this is a clean swap).
+- [ ] **Step 3: Commit** — `"refactor: consume the singular @mandarax/extension contract everywhere"`.
+
+---
+
 ## SLICE 1 — API foundations (typed config, server factory, tool context, two-phase lifecycle)
 
 ### Task 1: `defineTool<Schema, Ctx>` — context-carrying tool
+
+> **Review fix — keep the typecheck green:** the injected-context arg on `serverExecute`/`ExtensionServerTool.execute` MUST be **optional** (`context?: unknown`). One-arg callers exist until Tasks 5–6 (`mcp.ts:20` `tool.execute(args)`, `collect-server.test.ts:29`); a required 2nd arg makes `pnpm turbo typecheck` RED across core+extension. Optional keeps every task's typecheck green. Step 2's red below is a TYPE error in the new test, not a runtime failure.
 
 **Files:**
 
@@ -70,7 +90,7 @@
 
 **Interfaces:**
 
-- Produces: `defineTool<Schema extends z.ZodObject<z.ZodRawShape>, Ctx = unknown>(def: {name; description; inputSchema: Schema; promptSnippet?; promptGuidelines?; nowTitle?}): ToolBuilder<Schema, Ctx>` where `ToolBuilder<Schema, Ctx>.server(execute: (input: z.output<Schema>, ctx: Ctx) => unknown | Promise<unknown>): ToolBuilder<Schema, Ctx>` and `.render(r): ToolBuilder<Schema, Ctx>`. `ExtensionTool` gains `nowTitle?: string` and a phantom `__ctx?: Ctx`. `ExtensionServerTool.execute: (input: unknown, context: unknown) => Promise<unknown>`.
+- Produces: `defineTool<Schema extends z.ZodObject<z.ZodRawShape>, Ctx = unknown>(def: {name; description; inputSchema: Schema; promptSnippet?; promptGuidelines?; nowTitle?}): ToolBuilder<Schema, Ctx>` where `ToolBuilder<Schema, Ctx>.server(execute: (input: z.output<Schema>, ctx: Ctx) => unknown | Promise<unknown>): ToolBuilder<Schema, Ctx>` and `.render(r): ToolBuilder<Schema, Ctx>`. `ExtensionTool` gains `nowTitle?: string` and a phantom `__ctx?: Ctx`. `ExtensionServerTool.execute: (input: unknown, context?: unknown) => Promise<unknown>` (context OPTIONAL — preserves one-arg callers until Task 6).
 
 - [ ] **Step 1: Write the failing test**
 
@@ -146,7 +166,7 @@ export function defineTool<Schema extends z.ZodObject<z.ZodRawShape>, Ctx = unkn
 }
 ```
 
-Update `types.ts`: `ExtensionTool` adds `nowTitle?: string` and `serverExecute?: (input: unknown, context: unknown) => Promise<unknown>`; `ExtensionServerTool.execute: (input: unknown, context: unknown) => Promise<unknown>`.
+Update `types.ts`: `ExtensionTool` adds `nowTitle?: string` and `serverExecute?: (input: unknown, context?: unknown) => Promise<unknown>`; `ExtensionServerTool.execute: (input: unknown, context?: unknown) => Promise<unknown>` (context OPTIONAL — preserves one-arg callers until Task 6).
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -213,7 +233,7 @@ Expected: FAIL — `parseConfig` undefined.
 
 - [ ] **Step 3: Implement**
 
-Add `parseConfig(raw: unknown): Config` to the builder (`meta.configSchema ? meta.configSchema.parse(raw ?? {}) : {}`). Re-type the builder with the four parameters; type the builder object literally (no `as unknown as` — give `client`/`server` precise return types). Keep `useSlot`/`useContext` reading `useExtensionRuntimeContext()`. Define `ConfigOf`, `RequiredContext`, `ServerApi`, `ServerResult`, `ClientApi` in `types.ts` (Task 3/4 fill route + client shapes; here they may be minimal: `ServerApi<Config> = {config: Config; cwd: string; route: ServerRoute}`, `ServerResult<C> = {context: C; dispose?: () => void | Promise<void>}`, `ClientApi = {apiBase: string; client: SessionClient; requestMeta: () => RequestMeta}`).
+Add `parseConfig(raw: unknown): Config` to the builder (`meta.configSchema ? meta.configSchema.parse(raw ?? {}) : {}`). Re-type the builder with the four parameters; type the builder object literally (no `as unknown as` — give `client`/`server` precise return types). Keep `useSlot`/`useContext` reading `useExtensionRuntimeContext()`. Fix the `useContext` impl return type from `ExtensionHostContext | Selected` (the current union bug at `define-extension.ts:44`) to the overload-narrowed result. **`RequiredContext<Tools>` MUST use the `UnionToIntersection` idiom** — `UnionToIntersection<CtxOf<Tools[number]>>` — not a bare `CtxOf<Tools[number]>` (which is a union = too-weak a constraint; two tools needing `{a}` and `{b}` must require BOTH). Define `ConfigOf`, `RequiredContext`, `UnionToIntersection`, `CtxOf`, `ServerApi`, `ServerResult`, `ClientApi` in `types.ts` (Task 3/4 fill route + client shapes; here they may be minimal: `ServerApi<Config> = {config: Config; cwd: string; route: ServerRoute}`, `ServerResult<C> = {context: C; dispose?: () => void | Promise<void>}`, `ClientApi = {apiBase: string; client: SessionClient; requestMeta: () => RequestMeta}`).
 
 - [ ] **Step 4: Run to verify it passes**
 
@@ -248,15 +268,16 @@ git commit -m "feat(extension): defineExtension generic over configSchema + tupl
 import {expect, test} from 'vitest'
 import {H3} from 'h3'
 import {serve} from 'srvx'
-import {makeServerRoute} from '@mandarax/extension/server-route'
+import {makeServerRoute, type SseRegister} from '@mandarax/extension/server-route'
 
 test('routes mount under /api/ext/<name>/ and reject cross-origin', async () => {
   const app = new H3()
-  const route = makeServerRoute(app, 'test-runner')
+  const noopSse: SseRegister = () => {}
+  const route = makeServerRoute(app, 'test-runner', noopSse)
   route.get('/status', () => ({ok: true}))
   const server = serve({fetch: app.fetch, port: 0, hostname: '127.0.0.1'})
   await server.ready()
-  const base = server.url.replace(/\/$/, '')
+  const base = new URL(server.url ?? '').origin
   const res = await fetch(`${base}/api/ext/test-runner/status`)
   expect(await res.json()).toEqual({ok: true})
   await server.close(true)
@@ -275,6 +296,8 @@ Expected: FAIL — `makeServerRoute` not exported.
 import type {H3} from 'h3'
 
 export type SseEmit = (data: unknown) => void
+export type SseEmit = (data: unknown) => void
+export type SseRegister = (app: H3, path: string, open: (emit: SseEmit) => () => void) => void
 export type ServerRoute = {
   get: (path: string, handler: (event: unknown) => unknown) => void
   post: (path: string, handler: (event: unknown) => unknown) => void
@@ -288,18 +311,18 @@ function slug(name: string): string {
     .replace(/^-|-$/g, '')
 }
 
-export function makeServerRoute(app: H3, extensionName: string, sse?: SseRegister): ServerRoute {
+export function makeServerRoute(app: H3, extensionName: string, sse: SseRegister): ServerRoute {
   const prefix = `/api/ext/${slug(extensionName)}`
   const at = (path: string) => `${prefix}${path.startsWith('/') ? path : `/${path}`}`
   return {
     get: (path, handler) => void app.get(at(path), (event) => handler(event)),
     post: (path, handler) => void app.post(at(path), (event) => handler(event)),
-    sse: (path, open) => void (sse ?? defaultSse)(app, at(path), open),
+    sse: (path, open) => sse(app, at(path), open),
   }
 }
 ```
 
-`sse` is injected by core (Task 6) as a wrapper over `sseStream`, so `@mandarax/extension` does not depend on `@mandarax/core`. Add `./server-route` to `packages/extension/package.json` exports.
+`sse` is REQUIRED and injected by core (Task 6) as a wrapper over `sseStream`, so `@mandarax/extension` does not depend on `@mandarax/core` (no node-free default SSE exists here). The Task-3 IT therefore exercises `.get` only; the SSE path is covered by the Task-6 IT (which has core's `sseStream` to inject). Add `./server-route` to `packages/extension/package.json` exports.
 
 - [ ] **Step 4: Run to verify it passes**
 
@@ -333,6 +356,10 @@ git commit -m "feat(extension): namespaced ServerRoute {get,post,sse} under /api
 - [ ] **Step 5: Commit** — `"feat(extension): client factory receives ClientApi; widget captures + disposes it"`.
 
 ---
+
+### Tasks 5 + 6: Builder collection + two-phase core wiring — LAND TOGETHER
+
+> **Review fix:** Tasks 5 and 6 are mutually dependent and must land in ONE commit. Task 5 changes `loadServerContributions`→`loadServerExtensions` (returns builders) and replaces `collectServerContributions`; Task 6's `engine`/`app`/`boot`/`vite` are the only things that can consume the new shape. Neither typechecks without the other, so there is no independent green gate at Task 5 — gate green only at the end of Task 6. (Sub-steps still commit the extension-package unit tests first, then the core wiring.)
 
 ### Task 5: Builder collection → return builders; `applyServerContributions` (App phase)
 
@@ -392,12 +419,16 @@ test('collectSystemPrompts reads declarative prompt without running .server()', 
 
 ### Task 6: Wire two-phase lifecycle + context-passing MCP into core
 
-> **Review note (NEW work — built-in server seam is missing):** there is no seam to register a built-in extension's SERVER half. `loadServerContributions` (now `loadServerExtensions`) only globs `mandarax/extensions/` for user files; the base spec's `{extensions: [canvasExtension, …]}` array never landed on the server side. The booter (`boot.ts:23`) and `vite.ts:190` must merge an explicit **built-in builders array** with the file-discovered ones before handing them to `start()`. The client side already has its seam (`installExtensionGlobal(seed)` at `mount.tsx:78`, seeded `[]`). This task adds the server seam; Task 16 fills it with the test-runner.
+> **Review note + decided architecture (the plugin owns the built-in ARRAY):** there is no seam to register a built-in extension. The plugin is the only layer wired to BOTH channels, so it owns a `builtinExtensions: ExtensionBuilder[]` array (our in-house defaults — test-runner is the first of several; empty until Task 16). User extensions keep loading **dynamically** exactly as today: the server file-glob (`loadServerExtensions(root)`) and the client `__MANDARAX__` queue. The two channels:
+>
+> - **Server:** `boot.ts:23` / `vite.ts:190` → `start({extensions: [...builtinExtensions, ...await loadServerExtensions(root)]})`.
+> - **Client:** the built-ins are emitted into the generated `extensionsModuleSource()` (each `import {ext} from '@mandarax/extension-<name>/client'; (g.queue ??= []).push(ext)`), so they ride the SAME `__MANDARAX__.queue` the widget already drains. The widget seed stays `installExtensionGlobal([])` — built-ins are NOT a widget-bundled seed (correction to an earlier draft). Core and widget stay extension-blind; only the plugin gains the dependency.
 
 **Files:**
 
 - Modify: `packages/core/src/engine.ts` (accept `extensions: ExtensionBuilder[]`; Prompt phase via `collectSystemPrompts`; collect disposers into `stop`), `app.ts` (App phase: build `sse` wrapper over `sseStream`, call `applyServerContributions`, pass resulting tools to `registerMcpRoutes`), `api/mcp/mcp.ts` (call `tool.execute(args, undefined)` — context is already closed over).
-- Modify: `packages/plugin/src/core/boot.ts:23` and `packages/plugin/src/core/vite.ts:190` — `start({extensions: [...builtinExtensions, ...await loadServerExtensions(root)]})`; introduce a `builtinExtensions: ExtensionBuilder[]` constant (empty for now; Task 16 adds the test-runner).
+- Modify: `packages/plugin/src/core/boot.ts:23` and `packages/plugin/src/core/vite.ts:190` — merge `[...builtinExtensions, ...await loadServerExtensions(root)]` into `start()`; introduce the `builtinExtensions: ExtensionBuilder[]` constant (empty now).
+- Modify: `packages/plugin/src/core/extensions.ts` `extensionsModuleSource()` — emit a client `import`+`queue.push` per built-in (empty now; Task 16 adds test-runner). A `MandaraxConfig.extensions?: false | string[]` opt-out can narrow the default set (default: all built-ins on).
 - Modify: `packages/plugin/src/core/vite.ts:113` — `extensions` param type changes from `ExtensionServerContributions` to `ExtensionBuilder[]`.
 - Test: `packages/core/test/api/extension-server.it.test.ts` (create — real app + MCP + a route + dispose).
 
@@ -440,8 +471,13 @@ test('collectSystemPrompts reads declarative prompt without running .server()', 
 - Modify: `packages/widget/src/mount.tsx` / `chat-panel.tsx` — the tool-card dispatch must know which extension instance owns each tool name. Build an ownership map (tool name → `ExtensionInstance`) from `props.extensions()` (each builder's `tools[].name`); when the thread renders a card whose name is in the map, wrap that one card in the owning instance's Provider; built-in cards (not in the map) render as today.
 - Test: covered by the Task 9 browser IT (a card reads `useContext` and resolves; two extensions' cards do not see each other's `clientValue`).
 
-- [ ] **Step 1:** failing browser IT — a fixture extension's card reads `useContext((c) => c.subscribeX)` and renders the streamed value; without the Provider it errors.
-- [ ] **Steps 2–4:** build the ownership map + per-card Provider wrapper; verify.
+**Sub-tasks (split — this is novel, cross-file, on the streaming render path):**
+
+- **8a — ownership map + wrapper.** In `extension-slots.tsx`, export `ExtensionToolCard(props: {instance: ExtensionInstance; bag: ExtensionHostBag; children})` that renders `children` under `ExtensionRuntimeContext.Provider value={{...bag, ...instance.clientValue, currentSlot: 'widget'}}`. In `chat-panel.tsx`, build `ownerByToolName = new Map<string, ExtensionInstance>()` from `extensionInstances()` (each `instance.extension.tools?.map((t) => t.name)`). Commit.
+- **8b — thread it through dispatch.** Where the chat thread renders a tool card by name, look up `ownerByToolName.get(part.name)`; if present, wrap that one card in `<ExtensionToolCard instance={owner} bag={hostBag}>`; built-in cards (not in the map) render unchanged. Commit.
+
+- [ ] **Step 1:** failing browser IT — a fixture extension's card reads `useContext((c) => c.subscribeX)` and renders the streamed value; without the Provider it errors. A second fixture extension's card must NOT see the first's `clientValue`.
+- [ ] **Steps 2–4:** implement 8a then 8b; verify.
 - [ ] **Step 5: Commit** — `"feat(widget): tool cards render under their owning extension's runtime context"`.
 
 ---
@@ -466,7 +502,7 @@ test('collectSystemPrompts reads declarative prompt without running .server()', 
 
 **Files:**
 
-- Create: `packages/test-runner/src/events.ts` — move `TestEvent`, `TestEventSchema`, `TestRunResult`, `TestRunResultSchema`, `Summary`, `TestError`, `TestState` (+ their schemas) verbatim from `protocol/src/test-types.ts` (excluding `EditorOpenSchema`).
+- Create: `packages/test-runner/src/events.ts` — move the FULL runner-domain type/schema closure verbatim from `protocol/src/test-types.ts` (excluding `EditorOpenSchema`): `TestState`, `TestError`(+`TestErrorSchema`), `Summary`(+`SummarySchema`), `FileState`(+`FileStateSchema`), `TestRow`(+`TestRowSchema`), `TestRunResult`(+`TestRunResultSchema`), `TestEvent`(+`TestEventSchema`), plus the `parseFailure` helper and `TestCaseLike` type. **Review-confirmed:** `@mandarax/test-runner` already imports `FileState`/`TestRow`/`parseFailure`/`TestCaseLike` (`driver.ts:5`, `playwright/report.ts:2`, `playwright/run-child.ts:5`, `vitest/run-child.ts:7,62`), and the schemas reference each other — a 7-symbol subset would break the runner build.
 - Modify: `packages/test-runner/package.json` — add `"./events"` export (types + import), ensure `events.ts` imports nothing node.
 - Modify: `packages/test-runner/tsdown.config.ts` — add `src/events.ts` entry.
 - Test: `packages/test-runner/test/events.test.ts` (create) — `TestEventSchema.safeParse` round-trips; assert the built `dist/events.js` has no `node:` import (read the file, assert no `require('node:`/`from 'node:`).
@@ -510,12 +546,16 @@ test('collectSystemPrompts reads declarative prompt without running .server()', 
 
 ### Task 14: Scaffold `@mandarax/extension-test-runner` with browser/node split build
 
+> **Review-found issue + how the split is produced.** `stripServerHalf` exists (`plugin/src/core/strip-server.ts:62`) but is NOT in `@mandarax/plugin`'s public exports, and the plugin's vite hook is `apply: 'serve'` (dev-only). So the dual-view build needs a decision (see the question raised alongside this plan). The plan assumes **Option A**: expose `stripServerHalf` as a public subpath `@mandarax/plugin/strip-server` and use it as a BUILD-TIME `devDependency` of the extension package (it runs at publish/build to PRODUCE `dist`; the shipped dist contains no plugin code, so "plugin dev-only, never prod" still holds). **Prerequisite step 0 below adds the export.** `@mandarax/test-runner` gets NO `browser` condition — its node-free `/events` subpath is the ONLY client-safe entry, and the Build IT (not the strip) is the authoritative gate against node code reaching the browser.
+
 **Files:**
 
-- Create: `packages/extension-test-runner/package.json` (deps: `@mandarax/extension`, `@mandarax/test-runner`, `@mandarax/ui-kit-system`, `@mandarax/api-client`, `zod`, `solid-js`, `lucide-solid`; `exports` with a `"browser"` condition → `dist/extension.browser.js`, `node`/`default` → `dist/extension.js`), `tsconfig.json`, `tsdown.config.ts` (two entries; the browser entry runs `@mandarax/plugin`'s `stripServerHalf` on `extension.ts`).
+- Modify (prereq): `packages/plugin/src/index.ts` + `package.json` — export `stripServerHalf` at a new `@mandarax/plugin/strip-server` subpath.
+- Create: `packages/extension-test-runner/package.json` (deps: `@mandarax/extension`, `@mandarax/test-runner`, `@mandarax/ui-kit-system`, `@mandarax/api-client`, `zod`, `solid-js`, `lucide-solid`; devDeps: `@mandarax/plugin`, `tsdown`; `exports`: `.` → `node`/`default` `dist/extension.js`; `./client` → `dist/extension.browser.js` for the plugin to import in `extensionsModuleSource`), `tsconfig.json`, `tsdown.config.ts` (two entries; the browser entry runs `stripServerHalf` on `extension.ts`).
 - Create: `packages/extension-test-runner/src/parse-json.ts` (3-line safe JSON parse).
 - Test: `packages/extension-test-runner/test/build.it.test.ts` (create) — build the package, assert `dist/extension.browser.js` contains no `@mandarax/test-runner` (main, not `/events`), no `h3`, no `node:`; assert `dist/extension.js` does reference `@mandarax/test-runner`.
 
+- [ ] **Step 0:** export `stripServerHalf` from `@mandarax/plugin/strip-server`; commit `"feat(plugin): expose stripServerHalf as a build-time subpath"`.
 - [ ] **Steps 1–5:** scaffold; wire the dual-view tsdown build using `stripServerHalf`; make the build IT pass; commit `"feat(extension-test-runner): package scaffold + browser/node split build IT"`.
 
 ### Task 15: Implement the extension (tool + routes + config + client SSE) and move the card
@@ -529,14 +569,23 @@ test('collectSystemPrompts reads declarative prompt without running .server()', 
 - Create: `src/cli.ts` — the `mandarax tools test` subcommand re-pointed to `/api/ext/test-runner/*`.
 - Test: node IT (config parse, route serves, tool over MCP, dispose), browser IT (live card streams + static render + Fix/Open + run-end teardown), CLI IT.
 
-- [ ] **Steps 1–5:** TDD each; commit per cohesive unit (`"feat(extension-test-runner): tool+runner+routes"`, `"feat(extension-test-runner): live card via useContext"`, `"feat(extension-test-runner): CLI subcommand"`).
+> **Review fix — split (this is the densest, highest-regression task):**
+>
+> - **15a — tool + server.** `test-tool.ts` + `extension.ts` `.server()` (runner, config, 6 routes with `RunArgsSchema`/`ListQuerySchema` carried verbatim, 422 mapping, `dispose`). Node IT (config parse, routes serve, tool over MCP against injected runner, dispose calls `runner.stop()`). Commit.
+> - **15b — card + client.** Move `test-card.tsx`+`stories` verbatim, rewire `subscribeTestRunner`→`useContext`, keep `openEditor`/`sendMessage` via `useContext`, carry `parse-json`, import `resultText` from `@mandarax/tool-ui`; `extension.ts` `.client()` opens the EventSource. Browser IT (live stream + static render + Fix/Open + run-end teardown calls per-card `unsubscribe()` NOT `source.close()`). Commit.
+> - **15c — CLI.** `cli.ts` subcommand → `/api/ext/test-runner/*`. **CLI "not available" (resolves spec Open item 1):** the command ships WITH the extension; a clean-core install simply has no `tools test` command (unknown-command, acceptable) — the CLI IT asserts the command works when the extension is loaded, and is absent (not a 404 stack) when it is not. Commit.
+
+- [ ] **Steps:** TDD 15a → 15b → 15c as above; each ends green.
 
 ### Task 16: Register the built-in + delete all core/widget/protocol/tools/tool-ui/cli copies (atomic)
 
 **Files:**
 
-- Modify (register in BOTH seams — review-confirmed they are separate): the **server** built-in array introduced in Task 6 (`builtinExtensions` in `plugin/src/core/{boot,vite}.ts`) AND the **client** seed `installExtensionGlobal([])` at `widget/src/mount.tsx:78` — add `testRunnerExtension` to each. (Server half = routes/tool/runner; client half = `.client()` SSE + card. Both reference the same builder object.)
-- Delete (per spec list): `core/src/api/test-runner/`, `app.ts` runner wiring + `ctx.test`, `core/package.json` dep, `errors.ts` 422 import, `config.ts`/`config-types.ts` `testRunner`, `protocol/src/test-types.ts`+`runner-types.ts` (residual after Task 12), `tool-view-types.ts` `subscribeTestRunner` + `chat-panel.tsx` wiring, `tools/src/test.ts`+`server.ts`/`defs.ts`/`tools.ts`/`types.ts:12`, `tool-ui/src/cards/test.tsx`+`test.stories.tsx`+`index.tsx` entries+`now-title.ts:65`, `widget/src/test-card.tsx`+`mount.tsx` test seam, `harness/system-prompt.ts:9`, `cli/src/test.ts`+`tools.ts` registration, and the test files listed in the spec.
+- Modify (register in BOTH channels via the plugin — Task 6 set them up): add `testRunnerExtension` to the **server** `builtinExtensions` array (`plugin/src/core` — merged into `start()`) AND emit its client import into `extensionsModuleSource()` (`import {testRunnerExtension} from '@mandarax/extension-test-runner/client'; g.queue.push(testRunnerExtension)`) so the widget receives it via `__MANDARAX__.queue`. The widget seed stays `[]`. Add `@mandarax/extension-test-runner` as a `@mandarax/plugin` dependency.
+- Delete (per spec list): `core/src/api/test-runner/`, `app.ts` runner wiring + `ctx.test`, `core/package.json` dep, `errors.ts` 422 import, `config.ts`/`config-types.ts` `testRunner`, `protocol/src/test-types.ts`+`runner-types.ts` (residual after Task 12), `tool-view-types.ts` `subscribeTestRunner` + `chat-panel.tsx` wiring, `tools/src/test.ts`+`server.ts`/`defs.ts`/`tools.ts`/`types.ts:12`, `tool-ui/src/cards/test.tsx`+`test.stories.tsx`+`index.tsx` entries+`now-title.ts:64`, `widget/src/test-card.tsx`+`mount.tsx` test seam, `harness/src/claude/system-prompt.ts` `mandarax_test` line, `cli/src/test.ts`+`tools.ts` registration. Test files to rewrite/move (review-confirmed full list): `core/test/api/test-runner/*`, `core/test/helpers/server.ts:68` (`testRunner:'vitest'`), `core/test/config.test.ts`, **`core/test/api/mcp/mcp.it.test.ts`** (review-added — references `mandarax_test`), `core/test/api/chat/chat.it.test.ts`, `tools/test/test-tool.it.test.ts`, `widget/test/widget.it.test.ts` (the `__MANDARAX_RENDER_TEST_CARD__` driver), `cli/test/cli.it.test.ts:77`. (`protocol/test/define-runner.test.ts` is moved in Task 11, not here.)
+
+> **Precondition (review):** Task 16 must not start until Task 15b's browser IT is green (the card renders + streams from the extension). Registration + the whole deletion list land as ONE commit so the live card never vanishes.
+
 - Test: **clean-core regression** — `packages/core/test/clean-core.it.test.ts` (create): boot with `extensions: []`; assert no `/api/ext/test-runner/*` route, no `testRunner` config read, non-loopback Origin 403 on an extension route; a repo grep test asserts no `mandarax_test`/`subscribeTestRunner`/`TestRunnerManager` symbol in the seven packages.
 
 - [ ] **Step 1:** write the clean-core regression IT + grep test (FAIL — symbols still present).
@@ -567,7 +616,9 @@ test('collectSystemPrompts reads declarative prompt without running .server()', 
 
 **Spec coverage:** Gap 1 → Task 2; Gap 2 → Tasks 3,5,6,15; Gap 3 → Tasks 1,5,6,15; Gap 4 → Tasks 4,8,9,15. Boot lifecycle correction → Tasks 5,6. Built-in server-extension seam (review-found gap; absent today) → Task 6, filled in Task 16. Type relocation/cycle → Tasks 10–12. EditorOpenSchema carve-out → Task 12. CLI → Tasks 15,16. Security (namespace/CORS/no-raw-handle) → Tasks 3,6,16. Strip/node-free → Tasks 10,14. Pre-split build → Task 14. Dispose (client leak at chat-panel.tsx:746 + server) → Tasks 4,5,6,15. Atomic move+delete → Task 16. nowTitle → Task 7. Authoring → Task 17. Naming → Task 13.
 
-**Review-driven adjustments (against the landed slice-1–3 code):** Task 4 integrates with the existing `extensionInstances` memo + `extension-slots.tsx` Provider (no invented `runApplyClient`) and fixes the dropped-`dispose` leak; Task 8 wraps each tool card under its _owning_ extension's Provider (per-extension, not a colliding global merge); Tasks 5/6 update the real consumers (`plugin/extensions.ts`, `boot.ts`, `vite.ts`, `engine.ts`) and add the missing built-in server seam; Task 16 registers in both the server `builtinExtensions` array and the client `installExtensionGlobal` seed.
+**Round-2 review adjustments (2 plan-review agents):** added Slice 0 / Task 0 (consume the singular `@mandarax/extension` everywhere — core/plugin imported the legacy plural `@mandarax/extensions`, a build blocker once `execute` changes); made the injected-context arg OPTIONAL so every task's typecheck stays green until Task 6; merged Tasks 5+6 (mutually dependent, no independent green gate); named the `UnionToIntersection` idiom in Task 2 (a bare union is the wrong, too-weak constraint); fixed Task 3's code block (`new URL(server.url ?? '').origin`, defined `SseRegister`, `sse` required — no `defaultSse`); expanded Task 10's type-move list to the full closure (`FileState`/`TestRow`/`parseFailure`/`TestCaseLike`); Task 14 adds a prereq to export `stripServerHalf` as `@mandarax/plugin/strip-server` (build-time devDep; dist ships no plugin code) and clarifies `@mandarax/test-runner` gets no `browser` condition (`/events` is the sole client entry); split Tasks 8 (8a/8b) and 15 (15a/b/c); Task 16 adds `core/test/api/mcp/mcp.it.test.ts` to the deletion list and a precondition that Task 15b is green first. Type-soundness blocker from round 1 re-confirmed SOUND.
+
+**Review-driven adjustments (against the landed slice-1–3 code):** Task 4 integrates with the existing `extensionInstances` memo + `extension-slots.tsx` Provider (no invented `runApplyClient`) and fixes the dropped-`dispose` leak; Task 8 wraps each tool card under its _owning_ extension's Provider (per-extension, not a colliding global merge); Tasks 5/6 update the real consumers (`plugin/extensions.ts`, `boot.ts`, `vite.ts`, `engine.ts`) and add the plugin-owned `builtinExtensions: ExtensionBuilder[]` array (in-house defaults) merged with dynamically-loaded user extensions; Task 16 registers test-runner in the server `builtinExtensions` array AND emits its client import into `extensionsModuleSource()` so it rides the `__MANDARAX__.queue` (widget seed stays `[]`).
 
 **Placeholder scan:** Tasks 4, 7, 8, 9, 15 compress per-step code where the implementation is a verbatim move or a direct consequence of an interface defined in a neighboring task; each names exact files, the exact interface, and the exact test obligation. Tasks 1–3, 5, 6, 10, 14, 16 carry full code/tests for the novel, high-risk surface. No "TBD"/"handle edge cases".
 
