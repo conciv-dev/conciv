@@ -68,3 +68,8 @@ export function defineClient(opts: {apiBase: string}) {
 }
 
 export type SessionClient = ReturnType<typeof defineClient>
+
+export {createTransport, apiError} from './transport.js'
+export type {ApiError} from './transport.js'
+
+export type RequestMeta = Record<string, unknown>

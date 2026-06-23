@@ -2,7 +2,7 @@ import {describe, it, expect, beforeAll, afterAll} from 'vitest'
 import {createServer, type Server} from 'node:http'
 import type {AddressInfo} from 'node:net'
 import {SessionId} from '@mandarax/protocol/chat-types'
-import {defineClient} from '../src/session-client.js'
+import {defineClient} from '../src/api-client.js'
 
 // Real server — NO mocks. Captures the last session header it actually received.
 let server: Server

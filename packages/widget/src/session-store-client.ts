@@ -1,6 +1,6 @@
 import {createSignal} from 'solid-js'
 import {ChatSessionsSchema, type ChatSessionMeta} from '@mandarax/protocol/chat-types'
-import {createTransport} from '@mandarax/session-client'
+import {createTransport} from '@mandarax/api-client'
 
 // One shared client-side cache of the session list, so every mounted SessionSelector (modal pill +
 // each qt pane bar) reads the same rows from a single fetch. Surfaces contribute their just-born

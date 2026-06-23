@@ -2,7 +2,7 @@ import {createMemo, createEffect, createSignal, For, Index, Match, onCleanup, Sh
 import {Progress} from '@mandarax/ui-kit-system'
 import {useChat, fetchServerSentEvents, createChatClientOptions} from '@tanstack/ai-solid'
 import type {MessagePart, ToolCallPart, ToolResultPart, UIMessage} from '@tanstack/ai-client'
-import {apiError, createTransport, type SessionClient} from '@mandarax/session-client'
+import {apiError, createTransport, type SessionClient} from '@mandarax/api-client'
 import {invalidateSessions} from './session-store-client.js'
 import {createDebouncer} from '@tanstack/solid-pacer'
 import {GenUi} from './gen-ui.js'

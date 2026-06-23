@@ -1,7 +1,7 @@
 import type {Component} from 'solid-js'
 import type {z} from 'zod'
 import type {ToolCardProps, ToolViewCtx} from '@mandarax/protocol/tool-view-types'
-import type {RequestMeta, SessionClient} from '@mandarax/session-client'
+import type {RequestMeta, SessionClient} from '@mandarax/api-client'
 import type {ThemeTokens} from '@mandarax/ui-kit-system'
 
 export type ExtensionSlot = 'header' | 'footer' | 'composer' | 'empty' | 'status' | `widget:${string}`

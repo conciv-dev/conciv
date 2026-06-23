@@ -3,7 +3,7 @@ import {Combobox} from '@mandarax/ui-kit-system'
 import {useListCollection} from '@ark-ui/solid/combobox'
 import {Check, ChevronDown, Sparkles, SquarePen, Plus} from 'lucide-solid'
 import type {ChatSessionMeta, SessionId} from '@mandarax/protocol/chat-types'
-import {defineClient} from '@mandarax/session-client'
+import {defineClient} from '@mandarax/api-client'
 import {sessions, status, loadSessions, invalidateSessions, applyTitle} from './session-store-client.js'
 
 // One id-prefix per mounted instance so two selectors under one shadow root never share Ark's

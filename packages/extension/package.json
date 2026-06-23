@@ -41,8 +41,8 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@mandarax/api-client": "workspace:^",
     "@mandarax/protocol": "workspace:^",
-    "@mandarax/session-client": "workspace:^",
     "@mandarax/ui-kit-system": "workspace:^",
     "zod": "^4.4.3"
   },

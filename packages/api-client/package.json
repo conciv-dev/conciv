@@ -1,5 +1,5 @@
 {
-  "name": "@mandarax/session-client",
+  "name": "@mandarax/api-client",
   "version": "0.0.0",
   "description": "The mandarax network seam: the typed fetch/SSE transport and the per-session client (defineClient/SessionClient) shared by the widget and the extension contract.",
   "keywords": [
@@ -7,13 +7,13 @@
     "mandarax",
     "transport"
   ],
-  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/session-client#readme",
+  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/api-client#readme",
   "bugs": "https://github.com/mandarax-dev/mandarax/issues",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/mandarax-dev/mandarax.git",
-    "directory": "packages/session-client"
+    "directory": "packages/api-client"
   },
   "files": [
     "dist"
@@ -21,8 +21,8 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/api-client.d.ts",
+      "import": "./dist/api-client.js"
     }
   },
   "publishConfig": {
