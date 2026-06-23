@@ -18,7 +18,7 @@
   },
   "dependencies": {
     "@mandarax/cli": "workspace:*",
-    "@mandarax/extensions": "workspace:*",
+    "@mandarax/extension": "workspace:*",
     "@mandarax/protocol": "workspace:*",
     "@mandarax/qu": "workspace:*",
     "@mandarax/widget": "workspace:*",

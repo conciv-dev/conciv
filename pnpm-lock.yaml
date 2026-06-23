@@ -96,9 +96,9 @@ importers:
       '@mandarax/cli':
         specifier: workspace:*
         version: link:../../../packages/cli
-      '@mandarax/extensions':
+      '@mandarax/extension':
         specifier: workspace:*
-        version: link:../../../packages/extensions
+        version: link:../../../packages/extension
       '@mandarax/protocol':
         specifier: workspace:*
         version: link:../../../packages/protocol
