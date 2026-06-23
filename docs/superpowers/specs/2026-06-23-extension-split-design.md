@@ -34,6 +34,19 @@ export default defineExtension({name: 'x', tools: [...]})
   .server(() => ({ /* node only: routes, getRunner, ... */ }))
 ```
 
+## Internal shape — follows TanStack's `createServerFn` (Pattern 2)
+
+An extension/tool is an aggregate object that lives in a list, so it follows TanStack's `createServerFn` shape, not `createIsomorphicFn` (which collapses to a bare function and has no object). The builder records each chained half onto the object under a **`__`-prefixed** property, signalling "engine/widget-internal — never called by extension authors" (the same convention as TanStack's `__executeServer`):
+
+```ts
+ext.__client // set by .client(fn) — read by the widget at mount
+ext.__server // set by .server(fn) — read by the engine at boot
+tool.__execute // set by .server(fn)
+tool.__render // set by .render(Card)
+```
+
+The transform **collapses** the wrong-side call per environment (Pattern 1's idea, adapted): in the browser build it removes the `.server(...)` call from the chain (so `ext.__server` is simply never set + node imports drop); in the node build it removes `.client(...)` / `.render(...)`. Cleaner than nulling the argument — the object survives, the wrong-side half is gone entirely.
+
 ## The two gather points
 
 Each just builds `[...builtinExtensions, ...userExtensions]`.
