@@ -1,5 +1,4 @@
 import {render} from 'solid-js/web'
-import {createSignal} from 'solid-js'
 import {createShadowRoot} from './shadow.js'
 import {createWidgetShell} from './widget-shell.js'
 import {chatPanelDef} from './chat-panel.js'
@@ -15,11 +14,9 @@ import {installReactBridge} from './react-bridge.js'
 import {defineClient} from '@mandarax/api-client'
 import {parseWidgetSettings, type WidgetSettings} from './widget-settings.js'
 import {applyThemeOverrides} from './theme.js'
-import {setExtWidget, setExtHeader, setExtFooter, setExtStatus} from './ui-store.js'
-import {setEmptyStateOverride} from './empty-state.js'
 import {installExtensionGlobal} from './extension-runtime.js'
 import {builtinToolCards, type ToolCardEntry} from '@mandarax/tool-ui'
-import {collectClientContributions, type ClientApi, type MandaraxExtension} from '@mandarax/extensions'
+import {collectToolRenderers} from '@mandarax/extension'
 
 // Entry: create the open Shadow DOM, probe the dev server, and mount the Solid chat agent +
 // page-bus when the mandarax routes are live. Auto-mounts on load; also exports mountWidget.
@@ -72,50 +69,22 @@ export function mountWidget(): void {
   void defineClient({apiBase})
     .models()
     .then((models) => {
-      // Extension tool cards (each tool self-describes via defineTool(...).render()). Composed with
-      // the built-ins and passed to the panel like composerActions; extension entries come first so an
-      // extension can override a built-in tool by name. Upsert keeps HMR re-applies from duplicating.
-      const [extToolCards, setExtToolCards] = createSignal<ToolCardEntry[]>([])
-      const tools = () => [...extToolCards(), ...builtinToolCards]
-      const addToolCard = (entry: ToolCardEntry) =>
-        setExtToolCards((prev) =>
-          prev.some((e) => e.names[0] === entry.names[0])
-            ? prev.map((e) => (e.names[0] === entry.names[0] ? entry : e))
-            : [...prev, entry],
-        )
+      // Collect the live extensions (built-ins seed + the __MANDARAX__ queue/use). Their server halves
+      // ran in node; here their declarative theme is applied and their Component is rendered into the
+      // surface slots by the panel. Tool renderers compose with the built-ins (extension entries first
+      // so an extension can override a built-in tool by name).
+      const extensions = installExtensionGlobal([])
+      for (const extension of extensions()) if (extension.theme) applyThemeOverrides(root, extension.theme)
+      const tools = (): ToolCardEntry[] => [...collectToolRenderers(extensions()), ...builtinToolCards]
       // The shell owns the chrome + layout modes and hosts the chat as a registered panel.
       const shell = createWidgetShell({settings})
-      shell.registerPanel(chatPanelDef(apiBase, models.harness.id, tools))
+      shell.registerPanel(chatPanelDef(apiBase, models.harness.id, tools, extensions))
       shell.registerComposerAction(elementPickerAction)
       shell.registerComposerAction(newSessionAction)
       shell.registerComposerAction(compactAction)
       if (models.harness.canLaunch) shell.registerComposerAction(makeOpenInTerminalAction(models.harness.name))
       shell.registerComposerControl(modelSelectorControl)
       shell.mount(root)
-      // Adapt the public ExtComposerAction (slim, stable) to the shell's richer internal def: the
-      // public onClick ctx exposes only insert + notify, mapped from the full capability bag.
-      const clientApi: ClientApi = {
-        ui: {
-          setTheme: (tokens) => applyThemeOverrides(root, tokens),
-          setWidget: setExtWidget,
-          setHeader: setExtHeader,
-          setFooter: setExtFooter,
-          setStatus: setExtStatus,
-          setEmptyState: setEmptyStateOverride,
-        },
-        registerComposerAction: (action) =>
-          shell.registerComposerAction({
-            id: action.id,
-            label: action.label,
-            icon: action.icon,
-            onClick: (ctx) => action.onClick({insert: ctx.insert, notify: ctx.notify}),
-          }),
-      }
-      installExtensionGlobal((ext: MandaraxExtension) => {
-        ext.clientFn?.(clientApi)
-        for (const t of collectClientContributions([ext]).toolRenderers)
-          addToolCard({names: [t.name], render: t.render})
-      })
       initPageBus({apiBase, driver})
     })
     .catch(() => {

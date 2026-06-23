@@ -1030,6 +1030,9 @@ importers:
       '@mandarax/api-client':
         specifier: workspace:^
         version: link:../api-client
+      '@mandarax/extension':
+        specifier: workspace:^
+        version: link:../extension
       '@mandarax/extensions':
         specifier: workspace:^
         version: link:../extensions
@@ -1100,6 +1103,9 @@ importers:
       '@unocss/reset':
         specifier: ^66.7.2
         version: 66.7.2
+      '@vitest/browser-playwright':
+        specifier: 4.1.8
+        version: 4.1.8(playwright@1.60.0)(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))(vitest@4.1.8)
       playwright:
         specifier: ^1.60.0
         version: 1.60.0

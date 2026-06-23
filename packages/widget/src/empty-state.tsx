@@ -1,13 +1,10 @@
-// The empty chat state (greeting + starter prompts) and its override seam: ui.setEmptyState(factory)
-// stores a replacement in a signal; EmptyStateSlot renders the override if set, else the default.
-// Named, concretely-typed setter (Pi-style), not a generic id registry.
-import {createSignal, For, type Component, type JSX} from 'solid-js'
-import {Dynamic} from 'solid-js/web'
-import type {EmptyStateProps, EmptyStateFactory} from '@mandarax/extensions'
+// The empty chat state (greeting + starter prompts). An extension paints the 'empty' slot above it.
+import {For, type Component, type JSX} from 'solid-js'
+import {ExtensionSurface, type ExtensionHostBag, type ExtensionInstance} from './extension-slots.js'
 
 const STARTERS = ['Explain this page', 'Change the primary color', "Why doesn't this layout fit?"]
 
-const DefaultEmptyState: Component<EmptyStateProps> = (props) => (
+const DefaultEmptyState: Component<{onStarter: (text: string) => void}> = (props) => (
   <div class="m-auto text-center">
     <p class="text-[1.125rem] tracking-[-0.015em] font-semibold mb-3.5 anim-rise-d">How can I help you today?</p>
     <div class="flex flex-col gap-2">
@@ -27,11 +24,15 @@ const DefaultEmptyState: Component<EmptyStateProps> = (props) => (
   </div>
 )
 
-const [override, setOverride] = createSignal<EmptyStateFactory | null>(null)
-export const setEmptyStateOverride = (factory: EmptyStateFactory | null): void => {
-  setOverride(() => factory)
-}
-
-export function EmptyStateSlot(props: {onStarter: (text: string) => void}): JSX.Element {
-  return <Dynamic component={override() ?? DefaultEmptyState} onStarter={props.onStarter} />
+export function EmptyStateSlot(props: {
+  onStarter: (text: string) => void
+  instances: ExtensionInstance[]
+  bag: ExtensionHostBag
+}): JSX.Element {
+  return (
+    <>
+      <ExtensionSurface name="empty" instances={props.instances} bag={props.bag} />
+      <DefaultEmptyState onStarter={props.onStarter} />
+    </>
+  )
 }
