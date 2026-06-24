@@ -1,4 +1,5 @@
 import {describe, it, expect} from 'vitest'
+import {scaffold} from '@mandarax/extension/catalog'
 import {splitExtension} from '../src/core/split-extension.js'
 
 const ID = '/proj/mandarax/extensions/canvas.tsx'
@@ -45,5 +46,19 @@ describe('splitExtension', () => {
   it('returns null for a file that does not use defineExtension', async () => {
     const out = await splitExtension(`export const x = api.server(() => 1)`, ID, 'browser')
     expect(out).toBeNull()
+  })
+
+  it('round-trips a scaffolded full extension through both sides', async () => {
+    const source = scaffold('full', {name: 'demo'})
+    const browser = await splitExtension(source, ID, 'browser')
+    const node = await splitExtension(source, ID, 'node')
+    expect(browser).not.toBeNull()
+    expect(node).not.toBeNull()
+    expect(browser!.code).not.toContain('.server(')
+    expect(browser!.code).toContain('.client(')
+    expect(browser!.code).toContain('.render(')
+    expect(node!.code).not.toContain('.client(')
+    expect(node!.code).not.toContain('.render(')
+    expect(node!.code).toContain('.server(')
   })
 })
