@@ -2,7 +2,7 @@ import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {TestEvent} from './test-types.js'
 
 // The card-render contract shared by the renderer (@mandarax/tool-ui) and the authoring layer
-// (@mandarax/extensions, whose defineTool(...).render() supplies a card). Lives in protocol so both
+// (@mandarax/extension, whose defineTool(...).render() supplies a card). Lives in protocol so both
 // sides depend on a leaf rather than each other (kept here, not in tool-ui, to avoid a package cycle).
 
 // The color rail / accent a card renders under — a UI-local style, not a classification layer:
