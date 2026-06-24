@@ -76,7 +76,6 @@
     "@mandarax/cli": "workspace:^",
     "@mandarax/core": "workspace:^",
     "@mandarax/extension": "workspace:^",
-    "@mandarax/extensions": "workspace:^",
     "@mandarax/protocol": "workspace:^",
     "@mandarax/widget": "workspace:^",
     "babel-dead-code-elimination": "^1.0.12",

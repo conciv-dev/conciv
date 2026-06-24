@@ -346,9 +346,6 @@ importers:
       '@jridgewell/trace-mapping':
         specifier: 0.3.31
         version: 0.3.31
-      '@mandarax/extensions':
-        specifier: workspace:^
-        version: link:../extensions
       '@mandarax/harness':
         specifier: workspace:^
         version: link:../harness
@@ -419,34 +416,6 @@ importers:
       '@mandarax/grab':
         specifier: workspace:^
         version: link:../grab
-      '@mandarax/protocol':
-        specifier: workspace:^
-        version: link:../protocol
-      '@mandarax/ui-kit-system':
-        specifier: workspace:^
-        version: link:../ui-kit-system
-      zod:
-        specifier: ^4.4.3
-        version: 4.4.3
-    devDependencies:
-      '@types/node':
-        specifier: ^22.19.21
-        version: 22.19.21
-      solid-js:
-        specifier: ^1.9.13
-        version: 1.9.13
-      tsdown:
-        specifier: ^0.22.2
-        version: 0.22.2(@arethetypeswrong/core@0.18.3)(oxc-resolver@11.20.0)(publint@0.3.21)(tsx@4.22.4)(typescript@6.0.3)
-      typescript:
-        specifier: ^6.0.3
-        version: 6.0.3
-      vitest:
-        specifier: ^4.1.8
-        version: 4.1.8(@opentelemetry/api@1.9.0)(@types/node@22.19.21)(@vitest/browser-playwright@4.1.8)(@vitest/coverage-v8@4.1.8)(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
-
-  packages/extensions:
-    dependencies:
       '@mandarax/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -552,9 +521,6 @@ importers:
       '@mandarax/extension':
         specifier: workspace:^
         version: link:../extension
-      '@mandarax/extensions':
-        specifier: workspace:^
-        version: link:../extensions
       '@mandarax/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -1042,9 +1008,6 @@ importers:
       '@mandarax/extension':
         specifier: workspace:^
         version: link:../extension
-      '@mandarax/extensions':
-        specifier: workspace:^
-        version: link:../extensions
       '@mandarax/grab':
         specifier: workspace:^
         version: link:../grab

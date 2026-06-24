@@ -2,7 +2,7 @@ import type {H3} from 'h3'
 import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js'
 import {WebStandardStreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
 import {mandaraxTools, type MandaraxToolContext} from '@mandarax/tools'
-import type {ExtensionServerTool} from '@mandarax/extensions'
+import type {ExtensionServerTool} from '@mandarax/extension'
 import {sessionIdFromHeaders} from '../chat/session-id.js'
 
 // Build an McpServer exposing the mandarax tool registry bound to `ctx`, plus any extension tools. A

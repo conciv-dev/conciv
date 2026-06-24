@@ -53,7 +53,6 @@
   },
   "dependencies": {
     "@jridgewell/trace-mapping": "0.3.31",
-    "@mandarax/extensions": "workspace:^",
     "@mandarax/harness": "workspace:^",
     "@mandarax/protocol": "workspace:^",
     "@mandarax/test-runner": "workspace:^",
