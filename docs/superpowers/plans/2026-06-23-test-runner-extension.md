@@ -1,6 +1,6 @@
 # Test-Runner Standalone Extension — Implementation Plan
 
-> **ON HOLD.** The extension delivery/split is being redesigned simpler — see `docs/superpowers/specs/2026-06-23-extension-split-design.md` (import-based, no global registry). This plan's test-runner migration is a LATER layer to rebuild on top of that. Do not execute as-is.
+> **SUPERSEDED.** The split landed; the API gaps are re-specced in `docs/superpowers/specs/2026-06-24-extension-api-gaps-design.md` (generic API, fixture-proven) and will get their own plan. The test-runner migration is a LATER layer on top of that. Do not execute this plan as-is.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

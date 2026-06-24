@@ -1,7 +1,7 @@
 # Test-Runner as the First Standalone Extension — and the API Gaps It Forces
 
 Date: 2026-06-23
-Status: ON HOLD — delivery mechanism superseded by `2026-06-23-extension-split-design.md` (import-based split, no global registry). This doc's API gaps (config, tool context, routes, dispose) and the test-runner migration remain valid as a LATER layer, to be rebuilt on top of the split design once it lands. Do not execute as-is.
+Status: SUPERSEDED. Its API-gap portion is rebased onto the landed split in `2026-06-24-extension-api-gaps-design.md` (the generic API, fixture-proven). The test-runner migration itself remains a LATER layer to spec on top of that, once the gaps land. Do not execute this doc as-is.
 Builds on: `2026-06-23-extension-api-rewrite-design.md` (slots, `defineExtension`, `defineTool`, strip transform)
 
 ## Goal
