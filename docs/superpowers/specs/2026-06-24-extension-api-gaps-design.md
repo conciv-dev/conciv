@@ -192,6 +192,15 @@ const disposers = mounted.map((m) => m.dispose).filter(Boolean)
 - `@mandarax/protocol`: `ExtensionConfigRegistry` + `MandaraxConfig.extensions`.
 - **No new package.** Built-ins do not exist in this pass; when they do (migration), their manifest array lives in the dev-only plugin layer, never anywhere a consumer prod bundle could reach.
 
+### Package layout (convention, applied at migration)
+
+- `packages/extension/` → `@mandarax/extension` — the contract (singular). Stays.
+- `packages/extensions/` → a **grouping folder, not a package** (the legacy plural package was deleted in Workstream C, freeing the name). It holds every built-in extension, one package each.
+- `packages/extensions/<name>/` → `@mandarax/extension-<name>` (e.g. `packages/extensions/test-runner/` → `@mandarax/extension-test-runner`). npm scopes are flat, so the nesting is filesystem-only; the package name is `@mandarax/extension-<name>`.
+- `pnpm-workspace.yaml` gains `packages/extensions/*` (today's `packages/*` harmlessly ignores the folder, which has no `package.json`).
+
+None of this lands in this pass — recorded so the migration follows it.
+
 ## Delivery — rides the landed split, no queue
 
 The split already deleted `installExtensionGlobal` / `__MANDARAX__.queue`. The fixture rides the existing arrays: server `start({extensions: [...]})`, client `mountWidget([fixture])` (the widget browser IT already mounts fixtures this way). Gap C needs no new delivery path.
