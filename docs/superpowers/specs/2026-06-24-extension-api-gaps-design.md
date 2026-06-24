@@ -37,34 +37,41 @@ Consequence: an extension today cannot register an HTTP route, run an SSE stream
 Each runtime gap is "a factory that gets no argument today gets one." Closing them is three changes:
 
 1. **Pass the missing argument** at each internal call site (`__server`, `__execute`, `__client`).
-2. **Build what those arguments contain.** Only `route` is new (a small `makeServerRoute` in core); `cwd`/`apiBase`/`client` already exist in scope.
+2. **Build what those arguments contain.** Only `app` is new (a guarded h3 sub-app from `makeExtensionApp` in core, plus a one-time `attachWebSocket` transport); `cwd`/`apiBase`/`client` already exist in scope.
 3. **Run `.server()` later** — inside `makeApp`, where `app` + `cwd` are live — instead of at boot, and capture the `dispose` it returns (today thrown away).
 
 No new framework, no exotic runtime.
 
 ## Gap A — server factory: context in, namespaced routes out, dispose
 
-`.server()` changes from `() => ({tools, systemPrompt})` to `(server) => ({context, dispose?})`, where `server = {config, cwd, route}`. It runs in the App phase (below).
+`.server()` changes from `() => ({tools, systemPrompt})` to `(server) => ({context, dispose?})`, where `server = {config, cwd, app}`. It runs in the App phase (below).
 
 ```ts
 .server((server) => {
   const runner = makeRunner(server.config.runner, server.cwd)
-  server.route.sse('/stream', (emit) => runner.subscribe(emit))   // mounted at /api/ext/test-runner/stream
-  server.route.get('/status', () => runner.status())
-  server.route.post('/run', (event) => runner.run(event))
+  server.app.get('/status', () => runner.status())                  // /api/ext/test-runner/status
+  server.app.post('/run', (event) => runner.run(event))
+  server.app.get('/stream', (event) => sseStream(event, 'ok', (emit) => runner.subscribe(emit)))
+  server.app.get('/ws', defineWebSocketHandler({message: (peer, m) => runner.command(peer, m)}))
   return {context: {runner}, dispose: () => runner.stop()}
 })
 ```
 
 `tools` and `systemPrompt` are no longer returned here — they are the declarative `tools: []` and `systemPrompt` fields already on `defineExtension`.
 
-`server.route` is a narrowed `{get, post, sse}` surface, never the raw `H3`:
+`server.app` is a **real, full h3 sub-app** — every verb, middleware, `defineWebSocketHandler`, event streams — not a narrowed wrapper. We do NOT reinvent h3's API; the extension writes idiomatic h3. Isolation and namespacing come from it being a _separate_ `H3` instance mounted under a prefix, not from amputating methods:
 
-- **Namespacing.** Every path is auto-prefixed to `/api/ext/<slug(name)>/...`. The extension writes `/stream`; the host mounts `/api/ext/test-runner/stream`. Cross-extension collisions and shadowing a core route (`/api/chat`, `/api/mcp`, ...) are structurally impossible.
-- **No raw handle.** A full `H3` would let an extension `app.use(...)` global middleware and observe every request. The narrowed surface forecloses that.
-- **`sse` is core's `sseStream` injected in.** SSE responses bypass the global CORS middleware, so they flow through this one helper, which carries the loopback CORS guard per response. `get`/`post` register after `registerCors`, inheriting the global origin guard.
+- **Namespacing.** Core mounts the sub-app at `/api/ext/<slug(name)>` via `withBase`. The extension writes `/status`; it serves at `/api/ext/test-runner/status`. Cross-extension collisions and shadowing a core route (`/api/chat`, `/api/mcp`, ...) are structurally impossible.
+- **Isolation, not amputation.** Because `server.app` is its own `H3` instance, an extension's `.use(...)` middleware sees only its own routes — it can't observe core's requests or other extensions'. A full raw _parent_ handle would leak everything; a scoped sub-app does not.
+- **Origin guard pre-installed.** Core installs the same loopback origin/host guard `registerCors` uses onto the sub-app before handing it over, so a sub-app route can't escape the guard. SSE responses bypass `.use` header-injection but the guard's request-time `403` still fires; SSE routes use core's `sseStream` for the CORS response headers.
+- **ws guarded at the handshake.** ws upgrades never run `.use` middleware, so the origin guard also lives in the crossws `upgrade` hook (transport below).
+- **Type-only h3 in the contract.** `ServerApi.app: H3` is an `import type {H3}` in `@mandarax/extension` — erased at build, zero runtime in the browser bundle, honoring "h3 out" at runtime. ws-using extensions bring their own `h3`/`crossws` deps to call `defineWebSocketHandler`.
 
 `slug(name)`: lowercase, non-alphanumeric runs to `-`, trimmed. Extension-name uniqueness (we throw on duplicate tool _and_ extension names) prevents two names slugging to the same prefix.
+
+### ws transport (built once in core)
+
+srvx `0.11.16` does not upgrade ws and h3's `defineWebSocketHandler` only attaches a `.crossws` hook bag to a `426` response, so core wires the upgrade itself, ONCE: after `serve(...)`, `attachWebSocket(server, app, originAllowed)` hangs a `crossws/adapters/node` adapter on srvx's underlying node `http.Server` (`server.node.server`), resolves the matched h3 route's ws hooks, and refuses the handshake when the `Origin` is not loopback/allowed. After this, every extension's `server.app.get('/ws', defineWebSocketHandler(...))` works with no per-extension transport code. `crossws` is declared in `@mandarax/core` (installed transitively today).
 
 ## Gap B — tools receive injected context (typed)
 
@@ -183,12 +190,12 @@ const extensionTools = mounted.flatMap((m) => m.tools)
 const disposers = mounted.map((m) => m.dispose).filter(Boolean)
 ```
 
-`serverApiFor(ext)` builds `{config: ext.parseConfig(userConfig.extensions?.[ext.name]), cwd, route: makeServerRoute(app, ext.name, sse)}`. Because `makeApp` runs once and the per-request MCP context closes over the same `context`, the route handler and the tool handler share one stateful object (the property that makes "agent runs the tool, the live card sees the stream" work). `engine.stop` awaits the disposers before `server.close()`. `mcp.ts` calls `execute(args)` — context is already closed over. A duplicate tool-name across extensions throws (a `Set` guard in the `.map`).
+`serverApiFor(ext)` builds `{config: ext.parseConfig(userConfig.extensions?.[ext.name]), cwd, app: makeExtensionApp(app, ext.name, originGuard)}`. Because `makeApp` runs once and the per-request MCP context closes over the same `context`, the route handler and the tool handler share one stateful object (the property that makes "agent runs the tool, the live card sees the stream" work). `engine.stop` awaits the disposers before `server.close()`. `mcp.ts` calls `execute(args)` — context is already closed over. A duplicate tool-name across extensions throws (a `Set` guard in the `.map`).
 
 ## Where the new code lives
 
-- `@mandarax/extension`: the `ServerApi`/`ServerRoute`/`ServerResult` **types** (pure, no h3), `RegisterExtension`, the generic `defineExtension`/`defineTool` changes, `parseConfig`, the 4-arg builder.
-- `@mandarax/core`: the runtime `makeServerRoute(app, name, sse)` (h3 + `sseStream` already in scope) and the two-phase wiring in `engine`/`makeApp`/`mcp.ts`. h3 stays out of `@mandarax/extension`.
+- `@mandarax/extension`: the `ServerApi`/`ServerResult`/`ClientApi` **types** (`H3` type-only, erased at build), `RegisterExtension`, the generic `defineExtension`/`defineTool` changes, `parseConfig`, the 4-arg builder.
+- `@mandarax/core`: the runtime `makeExtensionApp(parent, name, originGuard)` (guarded sub-`H3` mounted via `withBase`), the one-time `attachWebSocket` ws transport (crossws on srvx's node server), and the two-phase wiring in `engine`/`makeApp`/`mcp.ts`. h3 stays out of `@mandarax/extension` at runtime (type-only).
 - `@mandarax/protocol`: `ExtensionConfigRegistry` + `MandaraxConfig.extensions`.
 - **No new package.** Built-ins do not exist in this pass; when they do (migration), their manifest array lives in the dev-only plugin layer, never anywhere a consumer prod bundle could reach.
 

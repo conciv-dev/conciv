@@ -27,7 +27,7 @@
 
 - Modify `packages/extension/src/define-tool.ts` — `defineTool<Schema, Ctx>`; `__execute(raw, ctx)`.
 - Modify `packages/extension/src/define-extension.ts` — generic `<Name, Schema>`; `parseConfig`; `.server((server) => ({context, dispose?}))`; `.client((client) => ({value, dispose?}))`; drop the `as unknown as` cast; fix `useContext` return type; 5-arg builder.
-- Modify `packages/extension/src/types.ts` — `ServerApi`/`ServerRoute`/`ServerResult`/`ClientApi`/`RegisterExtension`; `ExtensionTool.__execute(input, ctx?)`; builder field types.
+- Modify `packages/extension/src/types.ts` — `ServerApi`/`ServerResult`/`ClientApi`/`RegisterExtension` (type-only `H3`); `ExtensionTool.__execute(input, ctx?)`; builder field types.
 - Delete `packages/extension/src/collect-server.ts` + its `index.ts` export (replaced by two-phase wiring in core).
 - Modify `packages/extension/src/index.ts` — export the new types; drop `collectServerContributions`.
 
@@ -37,8 +37,10 @@
 
 **`@mandarax/core`:**
 
-- Create `packages/core/src/extension-route.ts` — `makeServerRoute(app, name, sse)` (the only new file).
-- Modify `packages/core/src/app.ts` — `MakeAppOpts.extensions: ExtensionBuilder[]` + `extensionConfig`; build `sse`; run the App-phase `.map`; return disposers.
+- Create `packages/core/src/api/ws.ts` — `attachWebSocket(server, app, originAllowed)` (Task 3a).
+- Create `packages/core/src/extension-app.ts` — `makeExtensionApp(parent, name, originAllowed)` + `slug` (Task 3b).
+- Modify `packages/core/src/app.ts` — `MakeAppOpts.extensions: ExtensionBuilder[]` + `extensionConfig`; run the App-phase `.map` (each factory registers its own routes on `server.app`); return disposers.
+- Modify `packages/core/src/engine.ts` — call `attachWebSocket` after `serve(...)`.
 - Modify `packages/core/src/engine.ts` — accept `extensions: ExtensionBuilder[]`; Prompt-phase projection; await disposers in `stop`.
 - Modify `packages/core/src/api/mcp/mcp.ts` — call `execute(args)` (context closed over).
 - Modify `packages/core/src/config.ts` — `ResolvedMandaraxConfig.extensions` passthrough.
@@ -219,97 +221,64 @@ git commit -m "feat(protocol): open ExtensionConfigRegistry + MandaraxConfig.ext
 
 ---
 
-## Task 3: `makeServerRoute` (core) + route/api types (extension)
+## Task 3a: core ws transport — crossws on srvx's node server + upgrade origin guard
+
+> srvx `0.11.16` does not upgrade ws (its node adapter has zero ws code); h3's `defineWebSocketHandler` only attaches a `.crossws` hook bag to a 426 response. So core wires the upgrade itself, ONCE: catch the node `upgrade` event, run crossws, resolve the matched h3 route's ws hooks, and origin-guard the handshake (the `.use` CORS guard never runs on upgrades — the API exposes `eval`/`override`, so an unguarded socket is a hole). After this, every extension's `server.app.get('/ws', defineWebSocketHandler(...))` just works.
 
 **Files:**
 
-- Create: `packages/core/src/extension-route.ts`
-- Modify: `packages/extension/src/types.ts` (add `ServerRoute`/`ServerApi`/`ServerResult`/`ClientApi`), `packages/extension/src/index.ts` (export them)
-- Test: `packages/core/test/api/extension-route.it.test.ts` (create — real h3 + srvx)
+- Create: `packages/core/src/api/ws.ts` — `attachWebSocket(server, app, originAllowed)`.
+- Modify: `packages/core/src/engine.ts` — call `attachWebSocket` after `serve(...)`.
+- Modify: `packages/core/package.json` — declare `crossws` (installed transitively today; the user approved declaring it).
+- Test: `packages/core/test/api/ws.it.test.ts` (create — real srvx server + real `ws` client).
 
 **Interfaces:**
 
-- Produces (extension types, pure, no h3):
+- Produces: `attachWebSocket(server: Server, app: H3, originAllowed: (origin: string | null) => boolean): void`. Hangs a `crossws/adapters/node` adapter on `server.node.server`'s `upgrade` event; the adapter's `resolve` runs the h3 app for the request and reads the matched handler's attached `.crossws` hooks; the `upgrade` hook returns `403`-equivalent (refuses the handshake) when `originAllowed(req.headers.origin)` is false.
+- Consumes: `originAllowed` (`core/src/api/cors.ts`), srvx `Server.node.server`, h3 route resolution.
+
+- [ ] **Step 1: Write the failing ws IT** — boot a real srvx server with one h3 ws route (`defineWebSocketHandler` echoing messages); open a real `ws` client to `/__ws_probe`; assert echo round-trip; open a second with a non-loopback `Origin` header; assert the handshake is rejected. (Uses the `ws` package — a core devDep; if absent, add it with approval.)
+
+- [ ] **Step 2: Run to verify it fails** — `pnpm --filter @mandarax/core exec vitest run test/api/ws.it.test.ts` → FAIL (`attachWebSocket` not found; without it the route returns 426, never upgrades).
+
+- [ ] **Step 3: Implement** `attachWebSocket` per the interface (crossws node adapter, resolve via the h3 app, origin-guarded `upgrade`); declare `crossws` in `package.json`; call it in `engine.ts` right after `serve(...)`, passing `(origin) => originAllowed(origin, extraOrigins)`.
+
+- [ ] **Step 4: Run to verify it passes** — `pnpm turbo build --filter=@mandarax/core && pnpm --filter @mandarax/core exec vitest run test/api/ws.it.test.ts` → PASS.
+
+- [ ] **Step 5: Commit** — `git commit -m "feat(core): ws transport — crossws on srvx node server, origin-guarded upgrade"`.
+
+---
+
+## Task 3b: `makeExtensionApp` (core, guarded sub-H3) + api types (extension)
+
+> Extensions get a real, full h3 sub-app — every verb, middleware, `defineWebSocketHandler`, event streams — NOT a narrowed verb wrapper. It is a separate `H3` instance, so its `.use()` middleware sees only its own routes (isolation for free); core mounts it at `/api/ext/<slug>` via `withBase` and pre-installs the loopback origin guard on it so a sub-app route can't escape the guard. h3 enters `@mandarax/extension` as a TYPE-ONLY import (`import type {H3}`), erased at build — zero runtime in the browser bundle, honoring "h3 out of the contract" at runtime.
+
+**Files:**
+
+- Create: `packages/core/src/extension-app.ts` — `makeExtensionApp(parent, name, originAllowed)` + `slug`.
+- Modify: `packages/extension/src/types.ts` (add `ServerApi`/`ServerResult`/`ClientApi`, type-only `H3`), `packages/extension/src/index.ts` (export them), `packages/extension/package.json` (h3 as a type-only devDep).
+- Test: `packages/core/test/api/extension-app.it.test.ts` (create — real h3 + srvx; GET + SSE + ws all under `/api/ext/<slug>/`, all origin-guarded).
+
+**Interfaces:**
+
+- Produces (extension types, runtime-h3-free):
   ```ts
-  export type SseEmit = (data: unknown) => void
-  export type ServerRoute = {
-    get: (path: string, handler: (event: unknown) => unknown) => void
-    post: (path: string, handler: (event: unknown) => unknown) => void
-    sse: (path: string, open: (emit: SseEmit) => () => void) => void
-  }
-  export type ServerApi<Config> = {config: Config; cwd: string; route: ServerRoute}
+  import type {H3} from 'h3'
+  export type ServerApi<Config> = {config: Config; cwd: string; app: H3}
   export type ServerResult<Context> = {context: Context; dispose?: () => void | Promise<void>}
   export type ClientApi = {apiBase: string; client: SessionClient; requestMeta: () => RequestMeta}
   ```
-- Produces (core runtime): `makeServerRoute(app: H3, name: string, sse: SseRegister): ServerRoute` where `SseRegister = (app: H3, path: string, open: (emit: SseEmit) => () => void) => void`. Paths mount at `/api/ext/<slug(name)>/...`.
+- Produces (core runtime): `makeExtensionApp(parent: H3, name: string, originAllowed: (o: string | null) => boolean): H3`. Creates `const sub = new H3()`, pre-installs the same origin/host guard `registerCors` uses, then `parent.use(\`${prefix}/**\`, withBase(prefix, sub.handler))` where `prefix = /api/ext/${slug(name)}`. Returns `sub`. SSE inside a route uses core's existing `sseStream`; ws uses h3's `defineWebSocketHandler` (carried by Task 3a's transport).
 
-- [ ] **Step 1: Write the failing IT**
+- [ ] **Step 1: Write the failing IT** — mount `makeExtensionApp(app, 'Test Runner', () => true)`; register on the returned sub-app a `get('/status', () => ({ok:true}))`, an SSE route via `sseStream`, and a `get('/ws', defineWebSocketHandler(echo))`; serve via srvx; assert GET serves at `/api/ext/test-runner/status`, SSE streams a frame, ws echoes; then assert a non-loopback `Origin` GET is rejected 403.
 
-```ts
-// packages/core/test/api/extension-route.it.test.ts
-import {expect, test} from 'vitest'
-import {H3} from 'h3'
-import {serve} from 'srvx'
-import {makeServerRoute} from '../../src/extension-route.js'
+- [ ] **Step 2: Run to verify it fails** — `pnpm --filter @mandarax/core exec vitest run test/api/extension-app.it.test.ts` → FAIL (`makeExtensionApp` not found).
 
-test('routes mount under /api/ext/<slug>/', async () => {
-  const app = new H3()
-  const route = makeServerRoute(app, 'Test Runner', () => {})
-  route.get('/status', () => ({ok: true}))
-  const server = serve({fetch: app.fetch, port: 0, hostname: '127.0.0.1'})
-  await server.ready()
-  const base = new URL(server.url ?? '').origin
-  const res = await fetch(`${base}/api/ext/test-runner/status`)
-  expect(await res.json()).toEqual({ok: true})
-  await server.close(true)
-})
-```
+- [ ] **Step 3: Implement** `makeExtensionApp` + `slug` (lowercase, non-alphanumeric runs → `-`, trimmed) in `extension-app.ts`; add the `ServerApi`/`ServerResult`/`ClientApi` types (type-only `H3`) to `types.ts`; export from `index.ts`; add h3 as an extension devDep for the type-only import.
 
-- [ ] **Step 2: Run to verify it fails**
+- [ ] **Step 4: Run to verify it passes** — `pnpm turbo build --filter=@mandarax/extension && pnpm --filter @mandarax/core exec vitest run test/api/extension-app.it.test.ts` → PASS.
 
-Run: `pnpm --filter @mandarax/core exec vitest run test/api/extension-route.it.test.ts`
-Expected: FAIL — `makeServerRoute` not found.
-
-- [ ] **Step 3: Implement**
-
-```ts
-// packages/core/src/extension-route.ts
-import type {H3} from 'h3'
-import type {ServerRoute, SseEmit} from '@mandarax/extension'
-
-export type SseRegister = (app: H3, path: string, open: (emit: SseEmit) => () => void) => void
-
-function slug(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-}
-
-export function makeServerRoute(app: H3, name: string, sse: SseRegister): ServerRoute {
-  const prefix = `/api/ext/${slug(name)}`
-  const at = (path: string) => `${prefix}${path.startsWith('/') ? path : `/${path}`}`
-  return {
-    get: (path, handler) => void app.get(at(path), (event) => handler(event)),
-    post: (path, handler) => void app.post(at(path), (event) => handler(event)),
-    sse: (path, open) => sse(app, at(path), open),
-  }
-}
-```
-
-Add the type block above to `packages/extension/src/types.ts` (it already imports `SessionClient`/`RequestMeta` from `@mandarax/api-client`), and export the four types from `packages/extension/src/index.ts`.
-
-- [ ] **Step 4: Run to verify it passes**
-
-Run: `pnpm turbo build --filter=@mandarax/extension && pnpm --filter @mandarax/core exec vitest run test/api/extension-route.it.test.ts`
-Expected: PASS.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add packages/core/src/extension-route.ts packages/extension/src/types.ts packages/extension/src/index.ts packages/core/test/api/extension-route.it.test.ts
-git commit -m "feat(extension): namespaced ServerRoute {get,post,sse} under /api/ext/<slug>/"
-```
+- [ ] **Step 5: Commit** — `git commit -m "feat(extension): ServerApi.app is a guarded h3 sub-app mounted at /api/ext/<slug>/"`.
 
 ---
 
@@ -330,7 +299,7 @@ git commit -m "feat(extension): namespaced ServerRoute {get,post,sse} under /api
 
 - Produces: `defineExtension<Name extends string, Schema extends z.ZodType = z.ZodNever, Tools extends ToolBuilder<z.ZodObject<z.ZodRawShape>, unknown>[] = []>(meta: {name: Name; configSchema?: Schema; tools?: [...Tools]; Component?; systemPrompt?; theme?}): ExtensionBuilder<Name, ConfigOf<Schema>, Tools, {}, {}>`. Builder carries `name: Name`, `configSchema?: Schema`, `parseConfig(raw: unknown): ConfigOf<Schema>`, `__server?: (server: ServerApi<ConfigOf<Schema>>) => ServerResult<ServerContext>`, `__client?: (client: ClientApi) => ClientFactoryResult<ClientValue>`. `.server<C extends RequiredContext<Tools>>(fn): ExtensionBuilder<Name, Config, Tools, C, ClientValue>`; `.client<V extends object>(fn): ExtensionBuilder<Name, Config, Tools, ServerContext, ClientValue & V>`. `ConfigOf<S> = [S] extends [z.ZodNever] ? Record<never, never> : z.output<S>`. `RequiredContext<Tools> = UnionToIntersection<CtxOf<Tools[number]>>`.
 - Produces: core `MakeAppOpts.extensions?: ExtensionBuilder[]`, `MakeAppOpts.extensionConfig?: Record<string, unknown>`; `makeApp` returns `{app, disposers}` (or attaches disposers to the engine via `StartOpts`). `engine`'s `StartOpts.extensions?: ExtensionBuilder[]`. Plugin `loadServerExtensions(root): Promise<ExtensionBuilder[]>`.
-- Consumes: `ToolBuilder<Schema, Ctx>` (Task 1), `makeServerRoute` + `SseRegister` (Task 3), `sseStream` (`core/src/api/sse.ts`), `ExtensionConfigRegistry` (Task 2).
+- Consumes: `ToolBuilder<Schema, Ctx>` (Task 1), `makeExtensionApp` + `originAllowed` (Task 3b), `attachWebSocket` (Task 3a), `sseStream` (`core/src/api/sse.ts`), `ExtensionConfigRegistry` (Task 2).
 
 - [ ] **Step 1: Write the failing extension unit test**
 
@@ -354,7 +323,7 @@ test('server factory receives api and returns context + dispose', () => {
     inputSchema: z.object({n: z.number()}),
   }).server((i, c) => i.n * c.factor)
   const ext = defineExtension({name: 'm', tools: [tool]}).server((server) => {
-    server.route.get('/ping', () => ({ok: true}))
+    server.app.get('/ping', () => ({ok: true}))
     return {context: {factor: server.config ? 10 : 10}, dispose: () => {}}
   })
   expect(ext.__server).toBeTypeOf('function')
@@ -421,7 +390,7 @@ export const sampleServerExtension = defineExtension({
   tools: [ping],
 }).server((server) => {
   let stopped = false
-  server.route.get('/echo', () => ({factor: server.config.factor, cwd: server.cwd}))
+  server.app.get('/echo', () => ({factor: server.config.factor, cwd: server.cwd}))
   return {
     context: {factor: server.config.factor},
     dispose: () => {
@@ -483,11 +452,11 @@ const systemPrompt = [
 `app.ts`: `MakeAppOpts` gains `extensions?: ExtensionBuilder[]` + `extensionConfig?: Record<string, unknown>`; drop `extensionTools`. Build the sse wrapper and the App-phase map; pass `extensionTools` (computed) to `registerMcpRoutes`; return `{app, disposers}` (update `engine.ts`'s `makeApp(appOpts)` call to read both).
 
 ```ts
-const sse: SseRegister = (a, path, open) => void a.get(path, (event) => sseStream(event, 'ok', open))
+const guard = (origin: string | null) => originAllowed(origin, new Set(opts.allowedOrigins ?? []))
 const serverApiFor = (ext) => ({
   config: ext.parseConfig(opts.extensionConfig?.[ext.name]),
   cwd: opts.cwd,
-  route: makeServerRoute(app, ext.name, sse),
+  app: makeExtensionApp(app, ext.name, guard),
 })
 const seen = new Set<string>()
 const mounted = (opts.extensions ?? []).map((ext) => {
