@@ -438,6 +438,9 @@ importers:
       '@types/node':
         specifier: ^22.19.21
         version: 22.19.21
+      h3:
+        specifier: 2.0.1-rc.22
+        version: 2.0.1-rc.22(crossws@0.4.6(srvx@0.11.16))
       solid-js:
         specifier: ^1.9.13
         version: 1.9.13

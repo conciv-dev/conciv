@@ -5,6 +5,7 @@ export type {ToolBuilder} from './define-tool.js'
 export {collectServerContributions} from './collect-server.js'
 export {collectToolRenderers} from './collect-client.js'
 export type {
+  ClientApi,
   ClientFactoryResult,
   ComposerActions,
   ExtensionDefinition,
@@ -13,6 +14,8 @@ export type {
   ExtensionServerTool,
   ExtensionSlot,
   ExtensionTool,
+  ServerApi,
   ServerContribution,
+  ServerResult,
   ToolRenderer,
 } from './types.js'

@@ -1,3 +1,4 @@
+import type {H3} from 'h3'
 import type {Component} from 'solid-js'
 import type {z} from 'zod'
 import type {ToolCardProps, ToolViewCtx} from '@mandarax/protocol/tool-view-types'
@@ -71,3 +72,9 @@ export type ClientFactoryResult<ClientReturnValue extends object> = {
   value: ClientReturnValue
   dispose?: () => void
 }
+
+export type ServerApi<Config> = {config: Config; cwd: string; app: H3}
+
+export type ServerResult<Context> = {context: Context; dispose?: () => void | Promise<void>}
+
+export type ClientApi = {apiBase: string; client: SessionClient; requestMeta: () => RequestMeta}
