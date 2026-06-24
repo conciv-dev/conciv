@@ -5,7 +5,7 @@ import {mandaraxPageToolDef, PageInput} from './page.js'
 import {mandaraxTestToolDef, TestInput} from './test.js'
 import {mandaraxUiToolDef, UiInput} from './ui.js'
 import {mandaraxOpenToolDef, OpenInput} from './open.js'
-import {buildCatalog, scaffold, validateSource} from '@mandarax/extensions'
+import {buildCatalog, scaffold, validateSource} from '@mandarax/extension/catalog'
 import {mandaraxExtensionsToolDef, ExtensionsInput} from './extensions-tool.js'
 
 // Each factory instantiates its definition as a tanstack server tool (the def stays the single
@@ -72,8 +72,8 @@ function mandaraxExtensionsServerTool(): MandaraxServerTool {
   const tool = mandaraxExtensionsToolDef.server(async (input) => {
     if (input.verb === 'catalog') return buildCatalog()
     if (input.verb === 'scaffold') {
-      if (!input.kind || !input.id) throw new Error('scaffold needs {kind, id}')
-      return {code: scaffold(input.kind, {id: input.id})}
+      if (!input.kind || !input.name) throw new Error('scaffold needs {kind, name}')
+      return {code: scaffold(input.kind, {name: input.name})}
     }
     if (!input.source) throw new Error('validate needs {source}')
     return validateSource(input.source)
