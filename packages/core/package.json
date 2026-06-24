@@ -59,6 +59,7 @@
     "@mandarax/tools": "workspace:^",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@tanstack/ai": "^0.28.0",
+    "crossws": "0.4.6",
     "get-port": "^7.1.0",
     "h3": "2.0.1-rc.22",
     "srvx": "^0.11.16",
@@ -71,9 +72,11 @@
     "@mandarax/extension": "workspace:^",
     "@tanstack/ai-mcp": "^0.1.0",
     "@types/node": "^22.19.21",
+    "@types/ws": "^8.18.1",
     "tsdown": "^0.22.2",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.8",
+    "ws": "^8.21.0"
   }
 }

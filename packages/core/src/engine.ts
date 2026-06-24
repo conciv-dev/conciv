@@ -6,6 +6,8 @@ import type {BundlerBridge} from '@mandarax/protocol/bundler-types'
 import type {ExtensionServerContributions} from '@mandarax/extension'
 import {getHarness} from '@mandarax/harness'
 import {makeApp, type MakeAppOpts} from './app.js'
+import {attachWebSocket} from './api/ws.js'
+import {originAllowed} from './api/cors.js'
 import {makeEditorOpener} from './editor/open.js'
 import {resolveConfig, type MandaraxConfig, type ResolvedMandaraxConfig} from './config.js'
 import {statePaths} from './state-paths.js'
@@ -71,6 +73,8 @@ export async function start(opts: StartOpts): Promise<Engine> {
   const requestedPort = opts.port ?? (await getPort())
   const server = serve({fetch: app.fetch, port: requestedPort, hostname: '127.0.0.1'})
   await server.ready()
+  const allowed = new Set(opts.allowedOrigins ?? [])
+  attachWebSocket(server, app, (origin) => originAllowed(origin, allowed))
   const port = portOf(server.url)
   portRef.port = port
   return {
