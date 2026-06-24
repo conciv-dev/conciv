@@ -1,27 +1,28 @@
 import type {z} from 'zod'
 import type {ExtensionTool, ToolRenderer} from './types.js'
 
-export type ToolBuilder<Schema extends z.ZodObject<z.ZodRawShape>> = ExtensionTool & {
+export type ToolBuilder<Schema extends z.ZodObject<z.ZodRawShape>, Ctx = unknown> = ExtensionTool & {
   inputSchema: Schema
-  server: (execute: (input: z.infer<Schema>) => Promise<unknown> | unknown) => ToolBuilder<Schema>
-  render: (renderer: ToolRenderer) => ToolBuilder<Schema>
+  __ctx?: Ctx
+  server: (execute: (input: z.infer<Schema>, ctx: Ctx) => Promise<unknown> | unknown) => ToolBuilder<Schema, Ctx>
+  render: (renderer: ToolRenderer) => ToolBuilder<Schema, Ctx>
 }
 
-export function defineTool<Schema extends z.ZodObject<z.ZodRawShape>>(definition: {
+export function defineTool<Schema extends z.ZodObject<z.ZodRawShape>, Ctx = unknown>(definition: {
   name: string
   description: string
   inputSchema: Schema
   promptSnippet?: string
   promptGuidelines?: string[]
-}): ToolBuilder<Schema> {
-  const builder: ToolBuilder<Schema> = {
+}): ToolBuilder<Schema, Ctx> {
+  const builder: ToolBuilder<Schema, Ctx> = {
     name: definition.name,
     description: definition.description,
     inputSchema: definition.inputSchema,
     promptSnippet: definition.promptSnippet,
     promptGuidelines: definition.promptGuidelines,
     server(execute) {
-      builder.__execute = async (raw: unknown) => execute(definition.inputSchema.parse(raw))
+      builder.__execute = async (raw, ctx) => execute(definition.inputSchema.parse(raw), ctx as Ctx)
       return builder
     },
     render(renderer) {
