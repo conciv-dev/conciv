@@ -21,8 +21,12 @@ export interface WidgetConfig {
   quickTerminal?: boolean | QuickTerminalConfig
 }
 
+export interface ExtensionConfigRegistry {}
+
 export interface MandaraxConfig {
   enabled?: boolean
+  /** Per-extension config, keyed + typed by each extension's declaration-merged ExtensionConfigRegistry entry. */
+  extensions?: {[Name in keyof ExtensionConfigRegistry]?: ExtensionConfigRegistry[Name]}
   widgetUrl?: string
   /** Widget layouts + their options. Both layouts are enabled by default. */
   widget?: WidgetConfig
