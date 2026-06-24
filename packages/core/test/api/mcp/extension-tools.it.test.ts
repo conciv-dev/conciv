@@ -32,4 +32,33 @@ describe('/api/mcp extension tools', () => {
       await close()
     }
   }, 30_000)
+
+  it('mandarax_extensions scaffolds + validates on the new contract over /api/mcp', async () => {
+    const {base, close} = await startTestServer()
+    const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
+    try {
+      const tools = await mcp.tools()
+      const ext = tools.find((t) => t.name === 'mandarax_extensions')
+      if (!ext?.execute) throw new Error('mandarax_extensions not registered on /api/mcp')
+
+      const full = JSON.stringify(await ext.execute({verb: 'scaffold', kind: 'full', name: 'demo'}))
+      expect(full).toContain('defineExtension({name:')
+      expect(full).toContain('useSlot')
+      expect(full).toContain('.client(')
+
+      const catalog = JSON.stringify(await ext.execute({verb: 'catalog'}))
+      for (const slot of ['header', 'footer', 'composer', 'empty', 'status', 'widget']) expect(catalog).toContain(slot)
+
+      const bad = JSON.stringify(
+        await ext.execute({
+          verb: 'validate',
+          source: "export default defineExtension({name: 'x', theme: {'pw-nope': 'red'}})",
+        }),
+      )
+      expect(bad).toContain('pw-nope')
+    } finally {
+      await mcp.close()
+      await close()
+    }
+  }, 30_000)
 })
