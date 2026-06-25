@@ -40,6 +40,7 @@ export type ExtensionTool = {
   inputSchema: z.ZodObject<z.ZodRawShape>
   promptSnippet?: string
   promptGuidelines?: string[]
+  streamTitle?: string
   __execute?: (input: unknown, ctx?: unknown) => Promise<unknown>
   __render?: ToolRenderer
 }

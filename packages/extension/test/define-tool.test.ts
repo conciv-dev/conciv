@@ -15,3 +15,8 @@ test('execute reparses raw input at the boundary', async () => {
   const tool = defineTool({name: 't', description: 'd', inputSchema: z.object({n: z.number()})}).server((i) => i.n)
   await expect(tool.__execute?.({n: 'x'}, undefined)).rejects.toThrow()
 })
+
+test('streamTitle is carried onto the builder', () => {
+  const tool = defineTool({name: 't', description: 'd', inputSchema: z.object({}), streamTitle: 'Running tests'})
+  expect(tool.streamTitle).toBe('Running tests')
+})
