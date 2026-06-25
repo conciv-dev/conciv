@@ -9,7 +9,7 @@ const extension = defineExtension({name: 'canvas'})
     }
     return {value}
   })
-  .server(() => ({systemPrompt: 'node guidance'}))
+  .server(() => ({context: {}}))
 
 function ProbeComponent() {
   const slot: () => string = extension.useSlot()
@@ -22,7 +22,7 @@ function ProbeComponent() {
 }
 
 const reversedOrder = defineExtension({name: 'reversed'})
-  .server(() => ({tools: []}))
+  .server(() => ({context: {}}))
   .client(() => ({value: {count: 1}}))
 
 function ReversedProbe() {

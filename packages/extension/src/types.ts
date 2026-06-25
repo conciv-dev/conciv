@@ -4,7 +4,6 @@ import type {z} from 'zod'
 import type {ToolCardProps, ToolViewCtx} from '@mandarax/protocol/tool-view-types'
 import type {RequestMeta, SessionClient} from '@mandarax/api-client'
 import type {GrabApi} from '@mandarax/grab'
-import type {ThemeTokens} from '@mandarax/ui-kit-system'
 
 export type ExtensionSlot = 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget'
 
@@ -33,19 +32,6 @@ export type ExtensionServerTool = {
   execute: (input: unknown) => Promise<unknown>
 }
 
-// What a .server() factory returns — both halves optional (an extension may contribute just a prompt).
-export type ServerContribution = {
-  tools?: ExtensionServerTool[]
-  systemPrompt?: string
-}
-
-// The merged result collectServerContributions feeds the engine — both halves always populated.
-// systemPrompt is the list of appends (the engine joins them), matching the engine's contract.
-export type ExtensionServerContributions = {
-  tools: ExtensionServerTool[]
-  systemPrompt: string[]
-}
-
 export type ToolRenderer = Component<ToolCardProps>
 
 export type ExtensionTool = {
@@ -58,16 +44,6 @@ export type ExtensionTool = {
   __render?: ToolRenderer
 }
 
-export type ExtensionDefinition<ClientReturnValue extends object> = {
-  name: string
-  Component?: Component
-  systemPrompt?: string
-  theme?: ThemeTokens
-  tools?: ExtensionTool[]
-  __client?: () => ClientFactoryResult<ClientReturnValue>
-  __server?: () => ServerContribution
-}
-
 export type ClientFactoryResult<ClientReturnValue extends object> = {
   value: ClientReturnValue
   dispose?: () => void
@@ -78,3 +54,22 @@ export type ServerApi<Config> = {config: Config; cwd: string; app: H3}
 export type ServerResult<Context> = {context: Context; dispose?: () => void | Promise<void>}
 
 export type ClientApi = {apiBase: string; client: SessionClient; requestMeta: () => RequestMeta}
+
+export type ConfigOf<Schema> = [Schema] extends [z.ZodNever] ? Record<never, never> : z.output<Schema>
+
+export type UnionToIntersection<Union> = (Union extends unknown ? (incoming: Union) => void : never) extends (
+  merged: infer Intersection,
+) => void
+  ? Intersection
+  : never
+
+export type CtxOf<Tool> = Tool extends {__ctx?: infer Ctx} ? Ctx : unknown
+
+export type RequiredContext<Tools extends readonly unknown[]> = UnionToIntersection<CtxOf<Tools[number]>>
+
+export type RegisterExtension<Extension extends {name: string; configSchema?: z.ZodType}> = Extension extends {
+  name: infer Name extends string
+  configSchema: infer Schema extends z.ZodType
+}
+  ? {[Key in Name]: z.input<Schema>}
+  : Record<never, never>
