@@ -1,5 +1,11 @@
 export {defineExtension} from './define-extension.js'
-export type {AnyExtension, AnyToolBuilder, ExtensionBuilder, ExtensionMeta} from './define-extension.js'
+export type {
+  AnyExtension,
+  AnyToolBuilder,
+  ExtensionBuilder,
+  ExtensionMeta,
+  RegisterExtension,
+} from './define-extension.js'
 export {defineTool} from './define-tool.js'
 export type {ToolBuilder} from './define-tool.js'
 export {collectToolRenderers} from './collect-client.js'
@@ -12,7 +18,6 @@ export type {
   ExtensionServerTool,
   ExtensionSlot,
   ExtensionTool,
-  RegisterExtension,
   RequiredContext,
   ServerApi,
   ServerResult,

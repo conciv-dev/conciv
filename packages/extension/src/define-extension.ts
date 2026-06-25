@@ -55,6 +55,13 @@ export type ExtensionBuilder<
 
 export type AnyExtension = ExtensionBuilder<string, z.ZodType, readonly AnyToolBuilder[], object>
 
+export type RegisterExtension<Extension> =
+  Extension extends ExtensionBuilder<infer Name, infer Schema, infer _Tools, infer _ClientValue>
+    ? [Schema] extends [z.ZodNever]
+      ? Record<never, never>
+      : {[Key in Name]: z.input<Schema>}
+    : Record<never, never>
+
 function parseExtensionConfig<Schema extends z.ZodType>(schema: Schema | undefined, raw: unknown): ConfigOf<Schema> {
   return (schema ? schema.parse(raw ?? {}) : {}) as ConfigOf<Schema>
 }

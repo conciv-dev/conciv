@@ -22,7 +22,7 @@ function mountPanel(): HTMLElement {
           harnessId="claude"
           client={defineClient({apiBase: ''})}
           active={false}
-          extensions={() => [sampleExtension]}
+          extensions={[sampleExtension]}
         />
       ),
       host,
@@ -40,7 +40,7 @@ describe('extension rendering (real browser)', () => {
   it('renders the Component into the header, status and composer slots', async () => {
     mountPanel()
     await expect.element(page.getByText('sample header for claude')).toBeVisible()
-    await expect.element(page.getByText('sample status line')).toBeVisible()
+    await expect.element(page.getByText('sample status ready')).toBeVisible()
     await expect.element(page.getByRole('button', {name: 'Sample Draw'})).toBeVisible()
   })
 

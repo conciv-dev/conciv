@@ -66,10 +66,3 @@ export type UnionToIntersection<Union> = (Union extends unknown ? (incoming: Uni
 export type CtxOf<Tool> = Tool extends {__ctx?: infer Ctx} ? Ctx : unknown
 
 export type RequiredContext<Tools extends readonly unknown[]> = UnionToIntersection<CtxOf<Tools[number]>>
-
-export type RegisterExtension<Extension extends {name: string; configSchema?: z.ZodType}> = Extension extends {
-  name: infer Name extends string
-  configSchema: infer Schema extends z.ZodType
-}
-  ? {[Key in Name]: z.input<Schema>}
-  : Record<never, never>
