@@ -4,7 +4,7 @@
 
 **Goal:** Move the test runner into the first standalone built-in extension `@mandarax/extension-test-runner`, so zero test-runner code remains in `@mandarax/core`, `@mandarax/widget`, `@mandarax/protocol`, `@mandarax/tools`, `@mandarax/tool-ui`, `@mandarax/harness`, or `@mandarax/cli`, while the live test card still streams in chat with no regressions.
 
-**Architecture:** The generic extension API (Gaps A–D) already landed and is fixture-proven; this plan is the migration layer on top. It runs the runner manager inside `.server()` (the manager IS the injected `context`), serves `/api/ext/test-runner/*` on `server.app`, exposes the `test` tool reading `ctx.manager`, and renders the live card via a tool `.render()` that opens the namespaced SSE through `ctx.apiBase`. `@mandarax/test-runner` (the vitest/jest/playwright/node-test adapters) stays as the engine; only the contract types relocate out of `@mandarax/protocol`.
+**Architecture:** The generic extension API (Gaps A–D) already landed and is fixture-proven; this plan is the migration layer on top. The existing `@mandarax/test-runner` package (the vitest/jest/playwright/node-test adapters + manager) is **renamed to `@mandarax/extension-test-runner`, relocated to `packages/extensions/test-runner/`, and becomes the extension itself** — engine + extension surface in ONE package via the client/server split. No separate engine + wrapper. It runs the runner manager inside `.server()` (the manager IS the injected `context`), serves `/api/ext/test-runner/*` on `server.app`, exposes the test tool reading `ctx.manager`, and renders the live card via a tool `.render()` that opens the namespaced SSE through `ctx.apiBase`. The contract types relocate out of `@mandarax/protocol` into this same package.
 
 **Tech Stack:** SolidJS, zod v4, h3 + srvx (server), TanStack AI tool defs, jiti (server-half load), tsdown (package build, client/server split), Playwright + vitest (ITs), turborepo, oxlint/oxfmt.
 
@@ -14,11 +14,11 @@
 2. **`defineTool` gains an optional `streamTitle?: string`** — the present-tense label shown on the now-line while the tool streams. `tool-ui`'s `nowTitle()` stops hard-coding `mandarax_test`; the widget threads each registered renderer's `streamTitle` into `nowTitle` by tool name. This is the one generic-API addition the migration forces.
 3. **Built-in registration uses the landed array path, not the deleted queue.** The plugin owns `builtinExtensions: AnyExtension[]` merged into `loadServerExtensions(...)` (server → `start({extensions})`) and `extensionsModuleSource()` prepends the built-in's client import into the `mountWidget([...])` array. There is no `__MANDARAX__.queue` / `installExtensionGlobal` (deleted in the split).
 4. **`MandaraxConfig.testRunner` moves to `extensions['test-runner'].runner`** via the extension's `configSchema`; the top-level field + `ResolvedMandaraxConfig.testRunner` + `MANDARAX_TEST_RUNNER` resolution are deleted (v0, break freely).
-5. **Package location:** `packages/extensions/test-runner/` → name `@mandarax/extension-test-runner`, with a `./client` subpath for the browser view. `pnpm-workspace.yaml` gains `packages/extensions/*`.
+5. **One package, not two.** The existing `@mandarax/test-runner` is renamed → `@mandarax/extension-test-runner` and `git mv`-d to `packages/extensions/test-runner/` (the home for all built-in extensions); the extension surface (`defineExtension`/tool/card/client) is added INTO it, client/server split via a `./client` subpath. There is NO separate engine package + wrapper, and NO cross-package dependency between them. `pnpm-workspace.yaml` gains `packages/extensions/*`.
 
 ## Global Constraints
 
-- **No test-runner symbol** remains in core/widget/protocol/tools/tool-ui/harness/cli after Slice D. (`@mandarax/test-runner` the engine package stays.)
+- **No test-runner symbol** remains in core/widget/protocol/tools/tool-ui/harness/cli after Slice D. (it is renamed to `@mandarax/extension-test-runner` and relocated, not deleted.)
 - **Code style (HARD):** zero narration comments (one concise line max), no `any`/casts, no IIFE, no `else`, functions not classes, map/reduce over if/else, names spelled out fully. Two sanctioned leaf casts allowed only behind a zod parse or where the author types nothing (see the gaps work).
 - **No mocks/stubs/jsdom.** Real `http.createServer`/h3 apps, real browser (Playwright `browser.newPage()`), real MCP, real child processes.
 - **Build/typecheck/test via turbo:** `pnpm turbo <tasks> --filter=<pkg>`. Widget/core ITs need `@mandarax/core` + `@mandarax/extension-test-runner` built first.
@@ -36,21 +36,22 @@
 - Modify `packages/tool-ui/src/now-title.ts` — `nowTitle(part, titleByName)` consults a name→title map; drop the `mandarax_test` case.
 - Modify `packages/tool-ui/src/types.ts` (`ToolCardEntry` gains `streamTitle?`), `packages/extension/src/collect-client.ts` (carry it), `packages/widget/src/chat-panel.tsx` (build the map, pass to `nowTitle`).
 
-**Slice B — relocate contract types out of `@mandarax/protocol`:**
+**Slice B — rename/relocate the package + relocate contract types out of `@mandarax/protocol`:**
 
-- Create `packages/test-runner/src/events.ts` — `TestState`/`TestError`/`Summary`/`FileState`/`TestRow`/`TestRunResult`/`TestEvent` (+ schemas) + `TestCaseLike`/`parseFailure`. Add `./events` export to `packages/test-runner/{package.json,tsdown.config.ts}`.
-- Move `runner-types.ts` runtime+types into `packages/test-runner/src/runner.ts` (`TestRunnerManager`/`TestRunnerAdapter`/`RunArgs`/`ListResult`/`UiServerInfo`/`TestRunnerCapabilities`/`defineRunner`/`isRunnerUnavailable`/`runnerUnavailableError`). Add `./runner` export.
+- **Rename + relocate (B0):** `git mv packages/test-runner packages/extensions/test-runner`; `package.json` name `@mandarax/test-runner` → `@mandarax/extension-test-runner`; add `packages/extensions/*` to `pnpm-workspace.yaml`; repoint every `@mandarax/test-runner` importer across the repo to the new name (grep first).
+- Create `packages/extensions/test-runner/src/events.ts` — `TestState`/`TestError`/`Summary`/`FileState`/`TestRow`/`TestRunResult`/`TestEvent` (+ schemas) + `TestCaseLike`/`parseFailure`. Add `./events` export to the package's `{package.json,tsdown.config.ts}`.
+- Move `runner-types.ts` runtime+types into `packages/extensions/test-runner/src/runner.ts` (`TestRunnerManager`/`TestRunnerAdapter`/`RunArgs`/`ListResult`/`UiServerInfo`/`TestRunnerCapabilities`/`defineRunner`/`isRunnerUnavailable`/`runnerUnavailableError`). Add `./runner` export.
 - Create `packages/protocol/src/editor-types.ts` — `EditorOpenSchema`/`EditorOpen` (moved out of `test-types.ts`). Add `./editor-types` export; drop `./test-types` + `./runner-types` from `packages/protocol/{tsdown.config.ts,package.json}`.
-- Modify importers: `packages/test-runner/src/*` (local imports), `packages/core/src/api/editor/editor.ts` + `packages/widget/src/chat-panel.tsx` (`EditorOpenSchema` from `editor-types`), `packages/tool-ui/src/cards/test.tsx` (events from `@mandarax/test-runner/events`).
+- Modify importers: the package's own `src/*` (local imports), `packages/core/src/api/editor/editor.ts` + `packages/widget/src/chat-panel.tsx` (`EditorOpenSchema` from `editor-types`), `packages/tool-ui/src/cards/test.tsx` (events from `@mandarax/extension-test-runner/events`, until it is deleted in Slice D).
 
-**Slice C — create `@mandarax/extension-test-runner` + register as a built-in:**
+**Slice C — add the extension surface INTO the relocated package + register as a built-in (no new package):**
 
-- Create `packages/extensions/test-runner/package.json`, `tsconfig.json`, `tsdown.config.ts` (two entries: `src/extension.ts` server view, `src/client.ts` browser view), `vitest config` as needed.
-- Create `packages/extensions/test-runner/src/extension.ts` — `defineExtension({name:'test-runner', configSchema, tools:[testTool], Component?, systemPrompt}).server(...).client(...)`.
+- Modify `packages/extensions/test-runner/{package.json,tsdown.config.ts}` — add entries `src/extension.ts` (server view, default export the builder) + `src/client.ts` (browser view) + a `./client` subpath.
+- Create `packages/extensions/test-runner/src/extension.ts` — `defineExtension({name:'test-runner', configSchema, tools:[testTool], systemPrompt}).server(...).client(...)`. The `.server` builds the manager from the SAME package's registry (`getRunner` is now a local import, not a cross-package dep).
 - Create `packages/extensions/test-runner/src/test-tool.ts` — `defineTool` with `.server((input, ctx) => ctx.manager…)` + `.render(TestCard)` + `streamTitle`.
 - Create `packages/extensions/test-runner/src/test-card.tsx` — the card (moved from `tool-ui/src/cards/test.tsx`, rewired to `ctx.apiBase`).
 - Create `packages/extensions/test-runner/src/client.ts` — the browser entry (default export = the client-collapsed builder).
-- Modify `pnpm-workspace.yaml` (`packages/extensions/*`), `packages/plugin/package.json` (dep), `packages/plugin/src/core/extensions.ts` (`builtinExtensions` + `extensionsModuleSource` import), `packages/plugin/src/core/{boot.ts,vite.ts}` (merge built-ins into `start`).
+- Modify `packages/plugin/package.json` (dep `@mandarax/extension-test-runner`), `packages/plugin/src/core/extensions.ts` (`builtinExtensions` + `extensionsModuleSource` import), `packages/plugin/src/core/{boot.ts,vite.ts}` (merge built-ins into `start`).
 
 **Slice D — delete test-runner from the seven packages + rewire:**
 
@@ -133,15 +134,34 @@ test('falls back to the built-in label when no map entry exists', () => {
 
 ---
 
-## Slice B — relocate the contract types out of `@mandarax/protocol`
+## Slice B — rename/relocate the package + relocate the contract types out of `@mandarax/protocol`
 
-### Task B1: `@mandarax/test-runner/events` (wire types)
+### Task B0: rename `@mandarax/test-runner` → `@mandarax/extension-test-runner` and relocate to `packages/extensions/`
 
 **Files:**
 
-- Create: `packages/test-runner/src/events.ts`
-- Modify: `packages/test-runner/package.json`, `packages/test-runner/tsdown.config.ts`
-- Test: `packages/test-runner/test/events.test-d.ts` (create) or a runtime parse test.
+- Move: `git mv packages/test-runner packages/extensions/test-runner`
+- Modify: `packages/extensions/test-runner/package.json` (name), `pnpm-workspace.yaml` (add `packages/extensions/*`), every repo importer of `@mandarax/test-runner`
+
+**Interfaces:**
+
+- Produces: the same package at a new path + name `@mandarax/extension-test-runner`. No code changes inside `src/` yet — pure rename/relocate.
+
+- [ ] **Step 1: Survey the blast radius** — `git grep -n "@mandarax/test-runner"` (record every importer: expect `packages/core/src/app.ts` registry import, possibly `harness`/`cli`/test helpers). These are the repoint targets.
+
+- [ ] **Step 2: Move + rename** — `git mv packages/test-runner packages/extensions/test-runner`; set `"name": "@mandarax/extension-test-runner"` in its `package.json`; add `packages/extensions/*` to `pnpm-workspace.yaml`; `sed`-repoint every importer from `@mandarax/test-runner` to `@mandarax/extension-test-runner`; `pnpm install`.
+
+- [ ] **Step 3: Verify the move builds** — `pnpm turbo build typecheck --filter=@mandarax/extension-test-runner --filter=@mandarax/core` → green (pure rename, no behavior change).
+
+- [ ] **Step 4: Commit** — `git commit -m "refactor: rename @mandarax/test-runner -> @mandarax/extension-test-runner, relocate to packages/extensions/"`.
+
+### Task B1: own the wire event types (`./events`)
+
+**Files:**
+
+- Create: `packages/extensions/test-runner/src/events.ts`
+- Modify: `packages/extensions/test-runner/{package.json,tsdown.config.ts}`
+- Test: `packages/extensions/test-runner/test/events.test.ts` (create)
 
 **Interfaces:**
 
@@ -150,7 +170,7 @@ test('falls back to the built-in label when no map entry exists', () => {
 - [ ] **Step 1: Write the failing test**
 
 ```ts
-// packages/test-runner/test/events.test.ts
+// packages/extensions/test-runner/test/events.test.ts
 import {expect, test} from 'vitest'
 import {TestEventSchema} from '../src/events.js'
 
@@ -166,11 +186,11 @@ test('a run-end event parses', () => {
 })
 ```
 
-- [ ] **Step 2: Run to verify it fails** — `pnpm --filter @mandarax/test-runner exec vitest run test/events.test.ts` → FAIL (`../src/events.js` missing).
+- [ ] **Step 2: Run to verify it fails** — `pnpm --filter @mandarax/extension-test-runner exec vitest run test/events.test.ts` → FAIL (`../src/events.js` missing).
 
 - [ ] **Step 3: Implement** — create `events.ts` by copying `protocol/src/test-types.ts` content EXCEPT `EditorOpenSchema`/`EditorOpen`. Add to `package.json` exports `"./events": {types, import}` and the entry to `tsdown.config.ts`.
 
-- [ ] **Step 4: Run to verify it passes** — test green; `pnpm turbo build --filter=@mandarax/test-runner` green.
+- [ ] **Step 4: Run to verify it passes** — test green; `pnpm turbo build --filter=@mandarax/extension-test-runner` green.
 
 - [ ] **Step 5: Commit** — `git commit -m "feat(test-runner): own the wire event types (./events), moved off protocol"`.
 
@@ -178,9 +198,9 @@ test('a run-end event parses', () => {
 
 **Files:**
 
-- Create: `packages/test-runner/src/runner.ts`
-- Modify: `packages/test-runner/{package.json,tsdown.config.ts}`, every `packages/test-runner/src/**` importer of `@mandarax/protocol/runner-types` and `@mandarax/protocol/test-types`
-- Test: `packages/test-runner/test/runner.test.ts` (create)
+- Create: `packages/extensions/test-runner/src/runner.ts`
+- Modify: `packages/extensions/test-runner/{package.json,tsdown.config.ts}`, every `packages/extensions/test-runner/src/**` importer of `@mandarax/protocol/runner-types` and `@mandarax/protocol/test-types`
+- Test: `packages/extensions/test-runner/test/runner.test.ts` (create)
 
 **Interfaces:**
 
@@ -189,7 +209,7 @@ test('a run-end event parses', () => {
 - [ ] **Step 1: Write the failing test**
 
 ```ts
-// packages/test-runner/test/runner.test.ts
+// packages/extensions/test-runner/test/runner.test.ts
 import {expect, test} from 'vitest'
 import {defineRunner, isRunnerUnavailable, runnerUnavailableError} from '../src/runner.js'
 
@@ -201,11 +221,11 @@ test('runner-unavailable error is tagged + detected', () => {
 })
 ```
 
-- [ ] **Step 2: Run to verify it fails** — `pnpm --filter @mandarax/test-runner exec vitest run test/runner.test.ts` → FAIL (`../src/runner.js` missing).
+- [ ] **Step 2: Run to verify it fails** — `pnpm --filter @mandarax/extension-test-runner exec vitest run test/runner.test.ts` → FAIL (`../src/runner.js` missing).
 
-- [ ] **Step 3: Implement** — create `runner.ts` from `protocol/src/runner-types.ts` (import `TestEvent`/`TestRunResult` from `./events.js`). Add `"./runner"` export + tsdown entry. Re-point every `packages/test-runner/src/**` import from `@mandarax/protocol/{runner-types,test-types}` to `./runner.js` / `./events.js` (grep: `grep -rl "@mandarax/protocol/\(runner\|test\)-types" packages/test-runner/src`).
+- [ ] **Step 3: Implement** — create `runner.ts` from `protocol/src/runner-types.ts` (import `TestEvent`/`TestRunResult` from `./events.js`). Add `"./runner"` export + tsdown entry. Re-point every `packages/extensions/test-runner/src/**` import from `@mandarax/protocol/{runner-types,test-types}` to `./runner.js` / `./events.js` (grep: `grep -rl "@mandarax/protocol/\(runner\|test\)-types" packages/extensions/test-runner/src`).
 
-- [ ] **Step 4: Run to verify it passes** — test green; `pnpm turbo build typecheck --filter=@mandarax/test-runner` green.
+- [ ] **Step 4: Run to verify it passes** — test green; `pnpm turbo build typecheck --filter=@mandarax/extension-test-runner` green.
 
 - [ ] **Step 5: Commit** — `git commit -m "feat(test-runner): own the manager/adapter contract (./runner), moved off protocol"`.
 
@@ -289,7 +309,7 @@ test('extension serves /status and registers test_runner_run', async () => {
 
 - [ ] **Step 3: Implement** — scaffold `package.json` (deps: `@mandarax/extension`, `@mandarax/test-runner`, `zod`; devDeps: `h3`, vitest, tsdown, `@tanstack/ai-mcp`, `@mandarax/core`), `tsconfig.json` (extends the repo base), `tsdown.config.ts` (entries `src/extension.ts` + `src/client.ts`). Write `test-tool.ts` (no `.render` yet) + `extension.ts` per Interfaces. Add `packages/extensions/*` to `pnpm-workspace.yaml`; `pnpm install`. Add the `@mandarax/core` `./test-helpers` export.
 
-- [ ] **Step 4: Run to verify it passes** — `pnpm turbo build --filter=@mandarax/extension --filter=@mandarax/core --filter=@mandarax/test-runner && pnpm --filter @mandarax/extension-test-runner exec vitest run` → PASS.
+- [ ] **Step 4: Run to verify it passes** — `pnpm turbo build --filter=@mandarax/extension --filter=@mandarax/core --filter=@mandarax/extension-test-runner && pnpm --filter @mandarax/extension-test-runner exec vitest run` → PASS.
 
 - [ ] **Step 5: Commit** — `git commit -m "feat(extension-test-runner): server factory owns the runner + routes + test tool"`.
 
@@ -309,7 +329,7 @@ test('extension serves /status and registers test_runner_run', async () => {
 
 - [ ] **Step 2: Run to verify it fails** — package test → FAIL (`TestCard` missing).
 
-- [ ] **Step 3: Implement** — copy `tool-ui/src/cards/test.tsx` → `test-card.tsx`; replace the `ctx.subscribeTestRunner` path with an `EventSource` on `ctx.apiBase`; replace `ctx.openEditor` with a `fetch` POST to `/api/editor/open`; import events from `@mandarax/test-runner/events`. Add `.render(TestCard)` to `test-tool.ts`. Create `client.ts` (default export the builder). Add the `./client` subpath to `package.json`/`tsdown.config.ts`.
+- [ ] **Step 3: Implement** — copy `tool-ui/src/cards/test.tsx` → `test-card.tsx`; replace the `ctx.subscribeTestRunner` path with an `EventSource` on `ctx.apiBase`; replace `ctx.openEditor` with a `fetch` POST to `/api/editor/open`; import events from `@mandarax/extension-test-runner/events`. Add `.render(TestCard)` to `test-tool.ts`. Create `client.ts` (default export the builder). Add the `./client` subpath to `package.json`/`tsdown.config.ts`.
 
 - [ ] **Step 4: Run to verify it passes** — package render test green; `pnpm turbo build typecheck --filter=@mandarax/extension-test-runner` green.
 
@@ -374,7 +394,7 @@ test('extension serves /status and registers test_runner_run', async () => {
 
 ## Final gate
 
-- [ ] `git grep -nE "test-runner|testRunner|TestRunner|mandarax_test|subscribeTestRunner|runner-types" -- packages/core packages/widget packages/protocol packages/tools packages/tool-ui packages/harness packages/cli ':!*.test.*'` → only `@mandarax/test-runner` engine references (the import of the engine package by the extension is in `packages/extensions/`, not these) — i.e. NO test-runner domain symbol in the seven packages.
+- [ ] `git grep -nE "test-runner|testRunner|TestRunner|mandarax_test|subscribeTestRunner|runner-types" -- packages/core packages/widget packages/protocol packages/tools packages/tool-ui packages/harness packages/cli ':!*.test.*'` → ZERO matches. The whole feature now lives under `packages/extensions/test-runner/` (not searched); nothing in the seven packages references it.
 - [ ] `pnpm turbo build typecheck lint test` across all touched packages → green.
 - [ ] The live test card streams in a real browser via the built-in (the Slice D regression IT) — no regression vs the deleted `__MANDARAX_RENDER_TEST_CARD__` path.
 - [ ] CLI `mandarax tools test …` either removed cleanly OR re-homed (decision: removed — the extension owns its own routes; a CLI shim can come later if wanted; record the removal in the commit).
