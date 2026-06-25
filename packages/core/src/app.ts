@@ -2,11 +2,12 @@ import {H3} from 'h3'
 import type {HarnessAdapter, HarnessChild} from '@mandarax/protocol/harness-types'
 import type {TestRunnerAdapter} from '@mandarax/protocol/runner-types'
 import type {BundlerBridge} from '@mandarax/protocol/bundler-types'
-import type {ExtensionServerTool} from '@mandarax/extension'
+import type {AnyExtension} from '@mandarax/extension'
 import type {ResolvedMandaraxConfig} from './config.js'
 import {getHarness} from '@mandarax/harness'
 import {getRunner} from '@mandarax/test-runner'
-import {registerCors} from './api/cors.js'
+import {makeExtensionApp} from './extension-app.js'
+import {originAllowed, registerCors} from './api/cors.js'
 import {registerErrorHandler} from './api/errors.js'
 import {registerChatRoutes} from './api/chat/chat.js'
 import {registerMcpRoutes} from './api/mcp/mcp.js'
@@ -26,8 +27,10 @@ export type MakeAppOpts = {
   systemPromptFile?: string
   // The effective system prompt text (base + extension appends); defaults to cfg.systemPrompt.
   systemPromptText?: string
-  // Extension-contributed MCP tools, registered alongside the built-in mandarax tools.
-  extensionTools?: ExtensionServerTool[]
+  // Discovered extension builders; their .server() factories run here, in the App phase.
+  extensions?: AnyExtension[]
+  // Per-extension user config, keyed by extension name; parsed by each builder's parseConfig.
+  extensionConfig?: Record<string, unknown>
   spawnHarness: (args: string[], cwd: string, sessionId?: string) => HarnessChild
   harnessEnv?: (sessionId?: string) => NodeJS.ProcessEnv
   // Override the harness transcript home (claude: ~/.claude). For tests; defaults to homedir().
@@ -50,7 +53,9 @@ function requireRunner(id: string): TestRunnerAdapter {
   return found
 }
 
-export function makeApp(opts: MakeAppOpts): H3 {
+export type MadeApp = {app: H3; disposers: (() => void | Promise<void>)[]}
+
+export function makeApp(opts: MakeAppOpts): MadeApp {
   const app = new H3()
   const harness = requireHarness(opts.cfg.harness)
   const runner = requireRunner(opts.cfg.testRunner).create(opts.cwd)
@@ -74,6 +79,37 @@ export function makeApp(opts: MakeAppOpts): H3 {
   const page = registerPageRoutes(app, {journal: makeJournal(), root: opts.cwd})
   registerEditorRoutes(app, opts.openInEditor)
   registerTestRunnerRoutes(app, runner)
+
+  const guard = (origin: string | null) => originAllowed(origin, new Set(opts.allowedOrigins ?? []))
+  const seenTools = new Set<string>()
+  const seenNames = new Set<string>()
+  const mounted = (opts.extensions ?? []).map((extension) => {
+    if (seenNames.has(extension.name)) throw new Error(`extension name collision: "${extension.name}"`)
+    seenNames.add(extension.name)
+    const result = extension.__server?.({
+      config: extension.parseConfig(opts.extensionConfig?.[extension.name]),
+      cwd: opts.cwd,
+      app: makeExtensionApp(app, extension.name, guard),
+    })
+    const context = result?.context
+    const tools = (extension.tools ?? []).flatMap((tool) => {
+      const run = tool.__execute
+      if (!run) return []
+      if (seenTools.has(tool.name)) throw new Error(`extension tool name collision: "${tool.name}"`)
+      seenTools.add(tool.name)
+      return [
+        {
+          name: tool.name,
+          description: tool.description,
+          inputSchema: tool.inputSchema,
+          execute: (input: unknown) => run(input, context),
+        },
+      ]
+    })
+    return {tools, dispose: result?.dispose}
+  })
+  const extensionTools = mounted.flatMap((entry) => entry.tools)
+  const disposers = mounted.flatMap((entry) => (entry.dispose ? [entry.dispose] : []))
   // Expose mandarax tools to the harness CLI via MCP-over-HTTP on the same server, bridged to the live
   // uiBus / page bus / test runner.
   registerMcpRoutes(
@@ -88,8 +124,8 @@ export function makeApp(opts: MakeAppOpts): H3 {
       },
       open: (file, line) => opts.openInEditor(file, line),
     }),
-    opts.extensionTools ?? [],
+    extensionTools,
   )
   if (opts.bridge) registerServerRoutes(app, opts.bridge)
-  return app
+  return {app, disposers}
 }

@@ -3,7 +3,7 @@ import {fileURLToPath} from 'node:url'
 import {dirname, join} from 'node:path'
 import {splitExtension} from '../src/core/split-extension.js'
 import {compileExtensionSolid} from '../src/core/compile-extension.js'
-import {loadServerContributions} from '../src/core/extensions.js'
+import {loadServerExtensions} from '../src/core/extensions.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
@@ -43,7 +43,7 @@ function Surface() {
   it('the server load never executes the client (Component / .client) halves', async () => {
     // The fixture's Component touches a browser global and its .client() throws; jiti loading the file
     // server-side must still collect iso_tool — proving neither client half runs during the server load.
-    const contributions = await loadServerContributions(join(here, 'fixtures', 'iso-extensions'))
-    expect(contributions.tools.map((t) => t.name)).toEqual(['iso_tool'])
+    const builders = await loadServerExtensions(join(here, 'fixtures', 'iso-extensions'))
+    expect(builders.flatMap((builder) => (builder.tools ?? []).map((tool) => tool.name))).toEqual(['iso_tool'])
   })
 })

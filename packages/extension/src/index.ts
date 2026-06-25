@@ -1,5 +1,5 @@
 export {defineExtension} from './define-extension.js'
-export type {AnyToolBuilder, ExtensionBuilder, ExtensionMeta} from './define-extension.js'
+export type {AnyExtension, AnyToolBuilder, ExtensionBuilder, ExtensionMeta} from './define-extension.js'
 export {defineTool} from './define-tool.js'
 export type {ToolBuilder} from './define-tool.js'
 export {collectToolRenderers} from './collect-client.js'

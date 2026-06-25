@@ -35,8 +35,8 @@ describe('/api/mcp', () => {
       // Structural, not a lone substring: the real catalog shape with the brand accent token.
       const json = JSON.stringify(result)
       expect(json).toContain('pw-accent')
-      expect(json).toContain('overridableComponents')
       expect(json).toContain('clientSurfaces')
+      expect(json).toContain('serverSurfaces')
     } finally {
       await mcp.close()
       await close()

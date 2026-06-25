@@ -29,8 +29,9 @@ const CLIENT_SURFACES = [
     description: 'Declarative design-token overrides on the meta object.',
   },
   {
-    method: '.client(() => ({value, dispose?}))',
-    description: 'Browser-only setup; value is merged into useContext, dispose runs on teardown.',
+    method: '.client((client) => ({value, dispose?}))',
+    description:
+      'Browser-only setup; client = {apiBase, client, requestMeta}. value merges into useContext, dispose runs on unmount.',
   },
   {
     method: 'defineTool(...).render(Card)',
@@ -40,16 +41,17 @@ const CLIENT_SURFACES = [
 
 const SERVER_SURFACES = [
   {
-    method: 'defineTool({name, description, inputSchema}).server(execute)',
-    description: 'Define a tool once; .server runs it in node.',
+    method: 'defineTool({name, description, inputSchema}).server((input, ctx) => …)',
+    description: 'Define a tool once; .server runs it in node, receiving validated input + the injected ctx.',
   },
   {
-    method: 'defineExtension({name, tools: […]})',
-    description: 'Declare tools; execute auto-wires server-side, renderer client-side, across the split.',
+    method: 'defineExtension({name, configSchema, tools: […]})',
+    description: 'Declare tools + a zod configSchema; execute auto-wires server-side, renderer client-side.',
   },
   {
-    method: '.server(() => ({tools?, systemPrompt?}))',
-    description: 'Node-only contribution: extra tools and/or appended system prompt.',
+    method: '.server((server) => ({context, dispose?}))',
+    description:
+      'Node-only setup; server = {config, cwd, app}. Register namespaced routes on server.app (HTTP + SSE + ws under /api/ext/<name>/), return the shared context injected into your tools, plus a dispose.',
   },
   {
     method: 'systemPrompt / promptSnippet',
@@ -71,7 +73,8 @@ export function buildCatalog(): Catalog {
   return {
     conventions: {
       location: 'mandarax/extensions/*.{ts,tsx}',
-      entry: 'export default defineExtension({name}).client(() => ({value})).server(() => ({tools, systemPrompt}))',
+      entry:
+        'export default defineExtension({name, configSchema, tools}).client((client) => ({value})).server((server) => ({context, dispose}))',
     },
     tokens: Object.entries(TOKENS).map(([name, def]) => ({
       name,
@@ -162,8 +165,11 @@ const ${name}Do = defineTool({
   .render((props) => <div>${name}: {props.part.name}</div>)
 
 const extension = defineExtension({name: '${name}', Component, theme: {'pw-accent': '#2563eb'}, tools: [${name}Do]})
-  .client(() => ({value: {ready: true}}))
-  .server(() => ({systemPrompt: '${name} runs in node.'}))
+  .client((client) => ({value: {ready: true}}))
+  .server((server) => {
+    server.app.get('/status', () => ({ok: true}))
+    return {context: {ready: true}}
+  })
 
 export default extension
 

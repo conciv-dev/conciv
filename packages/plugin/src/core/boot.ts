@@ -3,7 +3,7 @@ import launchEditor from 'launch-editor'
 import {start, type Engine} from '@mandarax/core/engine'
 import type {MandaraxConfig} from '@mandarax/protocol/config-types'
 import {installMandaraxBinShim} from './bin-shim.js'
-import {loadServerContributions} from './extensions.js'
+import {loadServerExtensions} from './extensions.js'
 
 // Bridge-less engine booter for the non-vite bundlers (no Vite-style live server → no
 // /api/server/*). Memoized so repeated hooks boot @mandarax/core once. The vite hook boots with
@@ -20,7 +20,7 @@ export function makeEngineBooter(options: MandaraxConfig, root: string): () => P
     const stateRoot = options.stateRoot ?? root
     const agentPath = installMandaraxBinShim(join(stateRoot, '.mandarax'))
     // jiti-load extension server halves so .server tools + prompt work under any bundler, not just vite.
-    booting = loadServerContributions(root).then((extensions) =>
+    booting = loadServerExtensions(root).then((extensions) =>
       start({
         options,
         root,

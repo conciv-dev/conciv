@@ -13,12 +13,12 @@ import {EXTENSIONS_ROUTE, makeWidgetInject, type Middleware} from './widget-midd
 import {addSourceToJsx} from './inject-source.js'
 import {isExtensionModule, compileExtensionSolid} from './compile-extension.js'
 import {splitExtension} from './split-extension.js'
-import type {ExtensionServerContributions} from '@mandarax/extension'
+import type {AnyExtension} from '@mandarax/extension'
 import {
   EXTENSIONS_RESOLVED_ID,
   EXTENSIONS_VIRTUAL_ID,
   extensionsModuleSource,
-  loadServerContributions,
+  loadServerExtensions,
 } from './extensions.js'
 
 const require = createRequire(import.meta.url)
@@ -110,7 +110,7 @@ function bootEngine(
   server: ViteDevServer,
   options: MandaraxConfig,
   agentPath: string,
-  extensions: ExtensionServerContributions,
+  extensions: AnyExtension[],
 ): Promise<Engine> {
   return start({
     options,
@@ -187,7 +187,7 @@ export function makeViteHook(options: MandaraxConfig = {}): Plugin {
     async configureServer(server: ViteDevServer) {
       const cfg = resolveConfig(options, server.config.root)
       if (!cfg.enabled) return
-      const extensions = await loadServerContributions(server.config.root)
+      const extensions = await loadServerExtensions(server.config.root)
       engine = await bootEngine(server, options, installMandaraxBinShim(join(cfg.stateRoot, '.mandarax')), extensions)
       const booted = engine
       if (hasWidget) mountWidget(server, cfg.previewId, `http://127.0.0.1:${booted.port}`, options.widget)

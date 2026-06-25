@@ -30,7 +30,7 @@ import {OkSchema} from '@mandarax/protocol/chat-types'
 import type {ComposerActionDef, ComposerControlDef, PanelDef} from './widget-shell.js'
 import {GrabReference} from './react-grab/grab-reference.js'
 import type {Grab, GrabApi} from '@mandarax/grab'
-import type {ExtensionBuilder} from '@mandarax/extension'
+import type {AnyExtension, ClientApi} from '@mandarax/extension'
 import {ExtensionSurface, type ExtensionHostBag} from './extension-slots.js'
 import {EmptyStateSlot} from './empty-state.js'
 import {grabApi} from './grab-api.js'
@@ -364,7 +364,7 @@ export function ChatPanel(props: {
   // The surface's "new session" handler (modal opens a fresh panel); absent → in-place new session.
   onNewSession?: () => void | Promise<void>
   // The extensions to paint into the surface slots; each one's Component branches on useSlot().
-  extensions: ExtensionBuilder<object>[]
+  extensions: AnyExtension[]
 }): JSX.Element {
   const client = props.client
   const [genUi, setGenUi] = createSignal<UiSpec[]>([])
@@ -742,9 +742,14 @@ export function ChatPanel(props: {
     grab,
   }
   // Run each extension's .client() once per panel; its return merges into that extension's context.
+  const clientApi: ClientApi = {apiBase: props.apiBase, client, requestMeta}
   const extensionInstances = createMemo(() =>
-    props.extensions.map((extension) => ({extension, clientValue: extension.__client?.().value ?? {}})),
+    props.extensions.map((extension) => {
+      const result = extension.__client?.(clientApi)
+      return {extension, clientValue: result?.value ?? {}, dispose: result?.dispose}
+    }),
   )
+  onCleanup(() => extensionInstances().forEach((instance) => instance.dispose?.()))
 
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -908,7 +913,7 @@ export function chatPanelDef(
   apiBase: string,
   harnessId: string,
   tools: () => ToolCardEntry[],
-  extensions: ExtensionBuilder<object>[],
+  extensions: AnyExtension[],
 ): PanelDef {
   return {
     id: 'chat',

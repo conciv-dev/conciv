@@ -1,11 +1,11 @@
 import {ErrorBoundary, For, Show, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {ExtensionRuntimeContext} from '@mandarax/extension/runtime'
-import type {ExtensionBuilder, ExtensionHostContext, ExtensionSlot} from '@mandarax/extension'
+import type {AnyExtension, ExtensionHostContext, ExtensionSlot} from '@mandarax/extension'
 
 export type ExtensionHostBag = Omit<ExtensionHostContext, 'currentSlot'>
 
-export type ExtensionInstance = {extension: ExtensionBuilder<object>; clientValue: object}
+export type ExtensionInstance = {extension: AnyExtension; clientValue: object; dispose?: () => void}
 
 export function ExtensionSurface(props: {
   name: ExtensionSlot

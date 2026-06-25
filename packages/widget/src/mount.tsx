@@ -15,7 +15,7 @@ import {defineClient} from '@mandarax/api-client'
 import {parseWidgetSettings, type WidgetSettings} from './widget-settings.js'
 import {applyThemeOverrides} from './theme.js'
 import {builtinToolCards, type ToolCardEntry} from '@mandarax/tool-ui'
-import {collectToolRenderers, type ExtensionBuilder} from '@mandarax/extension'
+import {collectToolRenderers, type AnyExtension} from '@mandarax/extension'
 
 // Entry: create the open Shadow DOM, probe the dev server, and mount the Solid chat agent +
 // page-bus when the mandarax routes are live. Auto-mounts on load; also exports mountWidget.
@@ -55,7 +55,7 @@ function mountTestCardForTest(root: ShadowRoot, apiBase: string): void {
 // mandarax/extensions/*). Their server halves were collapsed by the bundler; here their theme applies
 // and their Component renders into the surface slots. Tool renderers compose ahead of the built-ins so
 // an extension can override a built-in card by name.
-export function mountWidget(extensions: ExtensionBuilder<object>[]): void {
+export function mountWidget(extensions: AnyExtension[]): void {
   if (document.querySelector('[data-mandarax-root]')) return
   // Install the RDT hook before the host app's React initializes (so inspect/override work).
   installReactBridge()

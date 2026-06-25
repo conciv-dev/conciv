@@ -38,8 +38,8 @@ export type ExtensionBuilder<
   theme?: ThemeTokens
   tools?: Tools
   parseConfig: (raw: unknown) => ConfigOf<Schema>
-  __client?: (client: ClientApi) => ClientFactoryResult<ClientValue>
-  __server?: (server: ServerApi<ConfigOf<Schema>>) => ServerResult<unknown>
+  __client?(client: ClientApi): ClientFactoryResult<ClientValue>
+  __server?(server: ServerApi<ConfigOf<Schema>>): ServerResult<unknown>
   useSlot: () => () => ExtensionSlot
   useContext: {
     (): ExtensionHostContext & ClientValue
@@ -52,6 +52,8 @@ export type ExtensionBuilder<
     factory: (server: ServerApi<ConfigOf<Schema>>) => ServerResult<Context>,
   ) => ExtensionBuilder<Name, Schema, Tools, ClientValue>
 }
+
+export type AnyExtension = ExtensionBuilder<string, z.ZodType, readonly AnyToolBuilder[], object>
 
 function parseExtensionConfig<Schema extends z.ZodType>(schema: Schema | undefined, raw: unknown): ConfigOf<Schema> {
   return (schema ? schema.parse(raw ?? {}) : {}) as ConfigOf<Schema>

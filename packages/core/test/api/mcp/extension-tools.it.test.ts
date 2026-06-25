@@ -1,12 +1,12 @@
 import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {createMCPClient} from '@tanstack/ai-mcp'
-import {defineExtension, defineTool, collectServerContributions} from '@mandarax/extension'
+import {defineExtension, defineTool} from '@mandarax/extension'
 import {startTestServer} from '../../helpers/server.js'
 
-// A real extension's .server() tool, drained by collectServerContributions, must register on the real
-// /api/mcp alongside the built-ins and round-trip a call. No mocks — the production app + a real MCP
-// client over http. Proves the full new-contract server path end to end.
+// A real extension's tool must register on the real /api/mcp alongside the built-ins and round-trip a
+// call. No mocks — the production app + a real MCP client over http. Proves the full server path end to
+// end through the App-phase wiring.
 const draw = defineTool({
   name: 'acme_draw',
   description: 'Draw a shape on the canvas',
@@ -16,9 +16,8 @@ const draw = defineTool({
 const acme = defineExtension({name: 'acme', tools: [draw]})
 
 describe('/api/mcp extension tools', () => {
-  it('registers a collected extension tool and round-trips a call', async () => {
-    const contributions = collectServerContributions([acme])
-    const {base, close} = await startTestServer({extensionTools: contributions.tools})
+  it('registers an extension tool and round-trips a call', async () => {
+    const {base, close} = await startTestServer({extensions: [acme]})
     const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
     try {
       const tools = await mcp.tools()

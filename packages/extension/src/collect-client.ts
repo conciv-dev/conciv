@@ -1,7 +1,7 @@
-import type {ExtensionBuilder} from './define-extension.js'
+import type {AnyExtension} from './define-extension.js'
 import type {ToolRenderer} from './types.js'
 
-export function collectToolRenderers(builders: ExtensionBuilder[]): {names: string[]; render: ToolRenderer}[] {
+export function collectToolRenderers(builders: AnyExtension[]): {names: string[]; render: ToolRenderer}[] {
   const seen = new Set<string>()
   const entries: {names: string[]; render: ToolRenderer}[] = []
   for (const builder of builders)

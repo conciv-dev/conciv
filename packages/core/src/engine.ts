@@ -3,7 +3,7 @@ import {serve} from 'srvx'
 import getPort from 'get-port'
 import type {HarnessChild} from '@mandarax/protocol/harness-types'
 import type {BundlerBridge} from '@mandarax/protocol/bundler-types'
-import type {ExtensionServerContributions} from '@mandarax/extension'
+import type {AnyExtension} from '@mandarax/extension'
 import {getHarness} from '@mandarax/harness'
 import {makeApp, type MakeAppOpts} from './app.js'
 import {attachWebSocket} from './api/ws.js'
@@ -22,8 +22,8 @@ export type StartOpts = {
   port?: number
   // Browser origins allowed to call the API beyond loopback (e.g. a dev server on a LAN IP).
   allowedOrigins?: string[]
-  // The collected .server() halves of discovered extensions: extra MCP tools + system prompt text.
-  extensions?: ExtensionServerContributions
+  // Discovered extension builders; their prompt text is projected here, .server() runs in makeApp.
+  extensions?: AnyExtension[]
 }
 
 export type Engine = {port: number; stop: () => Promise<void>; cfg: ResolvedMandaraxConfig}
@@ -31,9 +31,17 @@ export type Engine = {port: number; stop: () => Promise<void>; cfg: ResolvedMand
 export async function start(opts: StartOpts): Promise<Engine> {
   const cfg = resolveConfig(opts.options, opts.root)
   const paths = statePaths(cfg.stateRoot)
-  // The effective prompt = the configured base plus each extension's systemPrompt.append() text.
+  // The effective prompt = the configured base plus each extension's tool snippets + systemPrompt.
   // Empty (systemPrompt:false and no appends) → don't write or pass a file, so none is injected.
-  const systemPrompt = [cfg.systemPrompt, ...(opts.extensions?.systemPrompt ?? [])].filter(Boolean).join('\n\n')
+  const systemPrompt = [
+    cfg.systemPrompt,
+    ...(opts.extensions ?? []).flatMap((ext) => [
+      ...(ext.tools ?? []).map((tool) => tool.promptSnippet),
+      ext.systemPrompt,
+    ]),
+  ]
+    .filter(Boolean)
+    .join('\n\n')
   if (systemPrompt) writeText(paths.systemPrompt, systemPrompt)
 
   const openInEditor = makeEditorOpener(
@@ -63,12 +71,13 @@ export async function start(opts: StartOpts): Promise<Engine> {
     openInEditor,
     systemPromptFile: systemPrompt ? paths.systemPrompt : undefined,
     systemPromptText: systemPrompt,
-    extensionTools: opts.extensions?.tools ?? [],
+    extensions: opts.extensions,
+    extensionConfig: cfg.extensions,
     spawnHarness,
     harnessEnv,
     allowedOrigins: opts.allowedOrigins,
   }
-  const app = makeApp(appOpts)
+  const {app, disposers} = makeApp(appOpts)
   // Explicit port (e.g. the Next.js integration) is used as-is; otherwise get-port finds a free one.
   const requestedPort = opts.port ?? (await getPort())
   const server = serve({fetch: app.fetch, port: requestedPort, hostname: '127.0.0.1'})
@@ -81,6 +90,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     port,
     cfg,
     stop: async () => {
+      await Promise.all(disposers.map((dispose) => dispose()))
       await getHarness(cfg.harness)?.shutdown?.()
       await server.close(true)
     },
