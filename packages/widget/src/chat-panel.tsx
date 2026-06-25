@@ -59,12 +59,12 @@ function callSettled(part: ToolCallPart, result: ToolResultPart | undefined): bo
 }
 
 // The present-tense label of the most recent still-running tool call in a message, for the now-line.
-function activeCallTitle(parts: ReadonlyArray<MessagePart>): string | null {
+function activeCallTitle(parts: ReadonlyArray<MessagePart>, titleByName: Record<string, string>): string | null {
   const {byCallId} = pairResults(parts)
   let title: string | null = null
   for (const p of parts) {
     if (p.type !== 'tool-call' || !p.id) continue
-    title = callSettled(p, byCallId.get(p.id)) ? title : nowTitle(p)
+    title = callSettled(p, byCallId.get(p.id)) ? title : nowTitle(p, titleByName)
   }
   return title
 }
@@ -469,11 +469,17 @@ export function ChatPanel(props: {
 
   // The single morphing "now" line: the most recent still-running tool call's title while streaming,
   // else null (hidden). Settled cards stay in the thread above it; the stop control is pinned right.
+  const streamTitles = (): Record<string, string> =>
+    Object.fromEntries(
+      (props.tools?.() ?? []).flatMap((entry) =>
+        entry.streamTitle ? entry.names.map((name) => [name, entry.streamTitle ?? '']) : [],
+      ),
+    )
   const nowTitleText = (): string | null => {
     if (!isStreaming()) return null
     const last = chat.messages()[lastIndex()]
     if (!last || last.role !== 'assistant') return null
-    return activeCallTitle(last.parts)
+    return activeCallTitle(last.parts, streamTitles())
   }
 
   // Surface the working state for the shell's trigger pulse.

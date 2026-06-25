@@ -8,4 +8,4 @@ export type {ToolAccent, ToolViewCtx, ToolCardProps} from '@mandarax/protocol/to
 // A tool's card, co-located with the tool by the name(s) it renders. Built-in and extension tools
 // share this one shape; the host passes an array of them and ToolCallCard matches a part by name.
 // (Named ToolCardEntry to avoid colliding with the ToolCard shell component in shell.tsx.)
-export type ToolCardEntry = {names: string[]; render: Component<ToolCardProps>}
+export type ToolCardEntry = {names: string[]; render: Component<ToolCardProps>; streamTitle?: string}
