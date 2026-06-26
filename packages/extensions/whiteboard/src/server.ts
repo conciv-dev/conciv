@@ -6,6 +6,7 @@ import {WHITEBOARD_NAME, WHITEBOARD_PROMPT} from './shared/meta.js'
 import {roomId} from './shared/room.js'
 import {startJazzRunner} from './server/jazz/runner.js'
 import {createBackendDb} from './server/jazz/backend.js'
+import {startCommentEnrichment} from './server/jazz/enrich-worker.js'
 import {canvasTools} from './tool/canvas/server.js'
 import {commentTools} from './tool/comment/server.js'
 import {anchorTools} from './tool/anchor/server.js'
@@ -26,6 +27,7 @@ export default defineExtension({
     backendSecret: runner.backendSecret,
   })
   server.app.get('/config', () => ({serverUrl: runner.serverUrl, appId: runner.appId}))
+  const stopEnrichment = startCommentEnrichment(backend.db, server.cwd)
   return {
     context: {
       cwd: server.cwd,
@@ -33,6 +35,7 @@ export default defineExtension({
       room: (request: ToolRequest) => roomId(request.previewId, request.sessionId),
     },
     dispose: async () => {
+      stopEnrichment()
       await backend.shutdown()
       await runner.stop()
     },
