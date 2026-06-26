@@ -40,7 +40,7 @@ export type ExtensionBuilder<
   tools?: Tools
   parseConfig: (raw: unknown) => ConfigOf<Schema>
   __client?(): ClientFactoryResult<ClientValue>
-  __server?(server: ServerApi<ConfigOf<Schema>>): ServerResult<unknown>
+  __server?(server: ServerApi<ConfigOf<Schema>>): ServerResult<unknown> | Promise<ServerResult<unknown>>
   useClientApi: () => ClientApi
   useSlot: () => () => ExtensionSlot
   useContext: {
@@ -51,7 +51,7 @@ export type ExtensionBuilder<
     factory: () => ClientFactoryResult<Value>,
   ) => ExtensionBuilder<Name, Schema, Tools, ClientValue & Value>
   server: <Context extends RequiredContext<Tools>>(
-    factory: (server: ServerApi<ConfigOf<Schema>>) => ServerResult<Context>,
+    factory: (server: ServerApi<ConfigOf<Schema>>) => ServerResult<Context> | Promise<ServerResult<Context>>,
   ) => ExtensionBuilder<Name, Schema, Tools, ClientValue>
 }
 
@@ -96,7 +96,7 @@ export function defineExtension<
       builder.__client = factory
       return builder
     },
-    server(factory: (server: ServerApi<ConfigOf<Schema>>) => ServerResult<unknown>) {
+    server(factory: (server: ServerApi<ConfigOf<Schema>>) => ServerResult<unknown> | Promise<ServerResult<unknown>>) {
       builder.__server = factory
       return builder
     },

@@ -71,7 +71,7 @@ export async function startTestServer(opts: TestServerOpts = {}): Promise<TestSe
     extensions: undefined,
   }
   const spawnHarness = opts.spawnHarness ?? realSpawn(harness.binName)
-  const {app, disposers} = makeApp({
+  const {app, disposers} = await makeApp({
     cfg,
     cwd: opts.cwd ?? stateRoot,
     openInEditor: () => {},

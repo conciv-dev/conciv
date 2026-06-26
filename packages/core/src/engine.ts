@@ -77,7 +77,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     harnessEnv,
     allowedOrigins: opts.allowedOrigins,
   }
-  const {app, disposers} = makeApp(appOpts)
+  const {app, disposers} = await makeApp(appOpts)
   // Explicit port (e.g. the Next.js integration) is used as-is; otherwise get-port finds a free one.
   const requestedPort = opts.port ?? (await getPort())
   const server = serve({fetch: app.fetch, port: requestedPort, hostname: '127.0.0.1'})
