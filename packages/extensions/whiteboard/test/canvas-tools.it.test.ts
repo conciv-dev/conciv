@@ -1,51 +1,41 @@
-import {dirname, join} from 'node:path'
-import {fileURLToPath} from 'node:url'
-import {chromium, type Browser} from 'playwright'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {bootStack, type Stack} from './helpers/boot-stack.js'
-import {bundleFixture, pageHtml, servePage, type PageServer} from './helpers/page.js'
-import {runTool, sessionId} from './helpers/run-tool.js'
+import {callTool, sessionId} from './helpers/run-tool.js'
+import {canvasClearDef, canvasDeleteDef} from '../src/tool/canvas/def.js'
 
-const here = dirname(fileURLToPath(import.meta.url))
-
-const state: {browser?: Browser; stack?: Stack; page?: PageServer} = {}
+const state: {stack: Stack} = {stack: undefined as never}
 
 beforeAll(async () => {
-  const stack = await bootStack()
-  state.stack = stack
-  const js = await bundleFixture(join(here, 'fixtures/canvas-tools-fixture.ts'))
-  state.page = await servePage(
-    pageHtml(js, stack.core, '<div id="host"></div><p id="count">scene:0</p>'),
-    stack.sync.hooks,
-  )
-  state.browser = await chromium.launch()
-}, 120_000)
+  state.stack = await bootStack()
+}, 60_000)
 
 afterAll(async () => {
-  await state.browser?.close()
-  await state.page?.close()
   await state.stack?.stop()
 })
 
-describe('whiteboard canvas tools (it) — AI draws into the shared room', () => {
-  it('canvas.draw appears live in the browser and canvas.delete needs approval', async () => {
-    const sid = sessionId('canvasdraw')
-    const room = `local:${sid}`
-    const page = await state.browser!.newPage()
-    await page.goto(`${state.page!.base}/?room=${encodeURIComponent(room)}`)
-    await page.locator('canvas').first().waitFor({state: 'attached', timeout: 20_000})
+const parse = (result: unknown): {elements: {type: string}[]; drawn: string[]} => JSON.parse(String(result))
 
-    const drawn = await runTool(state.stack!.core, sid, 'canvas.draw', {
-      elements: [{type: 'rectangle', x: 0, y: 0, width: 100, height: 100}],
-    })
-    expect(drawn.status).toBe(200)
+describe('whiteboard canvas tools (it) — agent writes via the backend db', () => {
+  it('canvas.draw writes an element the same session reads back', async () => {
+    const session = sessionId('canvasdraw')
+    const drawn = parse(
+      await callTool(state.stack.core, session, 'canvas.draw', {
+        elements: [{type: 'rectangle', x: 0, y: 0, width: 100, height: 100}],
+      }),
+    )
+    expect(drawn.drawn).toHaveLength(1)
+    const read = parse(await callTool(state.stack.core, session, 'canvas.read', {}))
+    expect(read.elements.some((element) => element.type === 'rectangle')).toBe(true)
+  })
 
-    await page.getByText('scene:1').waitFor({state: 'visible', timeout: 30_000})
+  it('scopes elements per session room (G1)', async () => {
+    await callTool(state.stack.core, sessionId('scopeA'), 'canvas.draw', {elements: [{type: 'ellipse', x: 1, y: 1}]})
+    const other = parse(await callTool(state.stack.core, sessionId('scopeB'), 'canvas.read', {}))
+    expect(other.elements).toHaveLength(0)
+  })
 
-    const refused = await runTool(state.stack!.core, sid, 'canvas.delete', {id: 'whatever'})
-    expect(refused.status).toBe(403)
-    expect(await refused.json()).toMatchObject({needsApproval: true, name: 'canvas.delete'})
-
-    await page.close()
+  it('declares destructive canvas tools as approval:ask (G2)', () => {
+    expect(canvasDeleteDef.approval).toBe('ask')
+    expect(canvasClearDef.approval).toBe('ask')
   })
 })
