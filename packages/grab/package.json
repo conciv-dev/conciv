@@ -1,0 +1,42 @@
+{
+  "name": "@mandarax/grab",
+  "version": "0.0.0",
+  "description": "The mandarax element-grab contract: the grab data types (Grab/StagedGrab/ElementSnapshot/ElementSource) and the GrabApi capability surface shared by the widget and the extension contract.",
+  "keywords": [
+    "grab",
+    "mandarax"
+  ],
+  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/grab#readme",
+  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mandarax-dev/mandarax.git",
+    "directory": "packages/grab"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/grab.d.ts",
+      "import": "./dist/grab.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run --passWithNoTests",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only"
+  },
+  "devDependencies": {
+    "tsdown": "^0.22.2",
+    "typescript": "^6.0.3"
+  }
+}

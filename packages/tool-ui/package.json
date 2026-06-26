@@ -42,11 +42,10 @@
   },
   "dependencies": {
     "@ark-ui/solid": "^5.37.1",
-    "@mandarax/extensions": "workspace:^",
     "@mandarax/protocol": "workspace:^",
     "@mandarax/solid-diffs": "workspace:^",
-    "@mandarax/tools": "workspace:^",
     "@mandarax/ui-kit-system": "workspace:^",
+    "@mandarax/tools": "workspace:^",
     "@tanstack/solid-virtual": "^3.13.12",
     "js-beautify": "^1.15.4",
     "lucide-solid": "^1.18.0",

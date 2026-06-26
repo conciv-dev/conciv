@@ -3,10 +3,10 @@
 // Storybook play-tests in a real browser, native assertions. No registry, no globals.
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within} from 'storybook/test'
-import {z} from 'zod'
-import {defineTool, type ToolDefinition} from '@mandarax/extensions'
+import type {JSX} from 'solid-js'
 import {ToolCallCard} from './tool-call.js'
-import {builtinTools} from './index.js'
+import {builtinToolCards} from './index.js'
+import type {ToolCardEntry} from './types.js'
 import {callPart, resultPart, noopCtx} from './fixtures.js'
 
 const meta: Meta<typeof ToolCallCard> = {title: 'tool-ui/ToolCallCard', component: ToolCallCard}
@@ -19,7 +19,7 @@ export const Builtin: Story = {
     part: callPart({name: 'Bash', arguments: JSON.stringify({command: 'echo hi'})}),
     result: resultPart('hi'),
     ctx: noopCtx(),
-    tools: () => builtinTools,
+    tools: () => builtinToolCards,
   },
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
@@ -27,21 +27,17 @@ export const Builtin: Story = {
   },
 }
 
-const acmeTool = defineTool({
-  name: 'acme_deploy',
-  label: 'Acme',
-  description: '',
-  parameters: z.object({env: z.string().optional()}),
-  renderResult: () => <div>Acme custom renderer</div>,
-})
+function AcmeCard(): JSX.Element {
+  return <div>Acme custom renderer</div>
+}
 
-// An extension tool (same ToolDefinition shape) resolves to its own renderer by name.
+// An extension tool entry (same {names, render} shape) resolves to its own renderer by name.
 export const ExtensionTool: Story = {
   args: {
     part: callPart({name: 'acme_deploy', arguments: JSON.stringify({env: 'staging'})}),
     result: resultPart('{}'),
     ctx: noopCtx(),
-    tools: (): ToolDefinition[] => [acmeTool, ...builtinTools],
+    tools: (): ToolCardEntry[] => [{names: ['acme_deploy'], render: AcmeCard}, ...builtinToolCards],
   },
   play: async ({canvasElement}) => {
     const c = within(canvasElement)

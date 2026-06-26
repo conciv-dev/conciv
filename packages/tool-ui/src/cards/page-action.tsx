@@ -6,8 +6,7 @@ import {MUTATING_KINDS, mirrorsKind, type PageQueryKind} from '@mandarax/protoco
 import {ToolCard} from '../shell.js'
 import {parseInput, resultText, parseResultPayload, formatHtml} from '../util.js'
 import {CODE_OPTIONS} from '../diff-options.js'
-import type {ToolCardProps} from '../types.js'
-import {cardTool} from '../card-tool.js'
+import type {ToolCardEntry, ToolCardProps} from '../types.js'
 
 function readInput(props: ToolCardProps): ReturnType<typeof parseInput<typeof PageInput>> {
   return parseInput(PageInput, props.part)
@@ -156,20 +155,20 @@ function PageResultView(props: {payload: unknown; raw: string}): JSX.Element {
     <Switch fallback={<pre class={PAGE_OUT}>{pretty()}</pre>}>
       <Match when={nodes()}>
         {(ns) => (
-          <ul class="m-0 p-0 list-none border border-pw-line-soft rounded-pw-sm bg-pw-sunken max-h-[13.75rem] w-full overflow-auto">
+          <ul class="m-0 p-0 list-none w-full max-h-[13.75rem] overflow-auto bg-pw-sunken border border-pw-line-soft rounded-pw-sm">
             <For each={ns()}>
               {(n) => (
-                <li class="text-[0.71875rem] px-2.5 py-1 flex gap-2 items-baseline [&:not(:first-child)]:border-t [&:not(:first-child)]:border-t-pw-line-soft">
+                <li class="flex items-baseline gap-2 py-1 px-2.5 text-[0.71875rem] [&:not(:first-child)]:border-t [&:not(:first-child)]:border-t-pw-line-soft">
                   <Show when={n.role}>
-                    <span class="text-[0.65625rem] text-pw-accent-link font-pw-mono flex-none">{n.role}</span>
+                    <span class="flex-none font-pw-mono text-[0.65625rem] text-pw-accent-link">{n.role}</span>
                   </Show>
                   <Show when={n.name}>
-                    <span class="text-pw-text flex-1 min-w-0 whitespace-nowrap text-ellipsis overflow-hidden">
+                    <span class="flex-1 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-pw-text">
                       {n.name}
                     </span>
                   </Show>
                   <Show when={n.ref}>
-                    <span class="text-[0.625rem] text-pw-text-3 font-pw-mono flex-none">{n.ref}</span>
+                    <span class="flex-none font-pw-mono text-[0.625rem] text-pw-text-3">{n.ref}</span>
                   </Show>
                 </li>
               )}
@@ -180,7 +179,7 @@ function PageResultView(props: {payload: unknown; raw: string}): JSX.Element {
       <Match when={html()}>
         {(h) => (
           <SolidCodeBlock
-            class="text-[0.75rem] rounded-pw-sm bg-pw-sunken max-h-[20rem] max-w-full block overflow-auto"
+            class="block max-w-full rounded-pw-sm overflow-auto bg-pw-sunken text-[0.75rem] max-h-[20rem]"
             options={CODE_OPTIONS}
             file={{name: 'page.html', contents: formatHtml(h())}}
           />
@@ -230,11 +229,11 @@ export function PageActionCard(props: ToolCardProps): JSX.Element {
             <Show when={t()}>
               <span class={ELCHIP}>
                 <Target size={12} aria-hidden="true" />
-                <span class="whitespace-nowrap text-ellipsis overflow-hidden">{t()}</span>
+                <span class="overflow-hidden text-ellipsis whitespace-nowrap">{t()}</span>
               </span>
             </Show>
             <Show when={showMirror()}>
-              <div class="text-[0.6875rem] text-pw-accent-link flex gap-1.5 items-center">
+              <div class="flex items-center gap-1.5 text-[0.6875rem] text-pw-accent-link">
                 <MoveUpRight size={12} aria-hidden="true" />
                 <span>shown on your page</span>
               </div>
@@ -245,15 +244,11 @@ export function PageActionCard(props: ToolCardProps): JSX.Element {
           </>
         }
       >
-        <div class="text-[0.75rem] text-pw-danger font-pw-mono whitespace-pre-wrap">{errorMessage()}</div>
+        <div class="text-pw-danger font-pw-mono text-[0.75rem] whitespace-pre-wrap">{errorMessage()}</div>
       </Show>
     </ToolCard>
   )
 }
 
-export const pageActionTool = cardTool({
-  name: 'mandarax_page',
-  label: 'Page',
-  parameters: PageInput,
-  Card: PageActionCard,
-})
+// This card renders the mandarax_page tool.
+export const pageActionTool: ToolCardEntry = {names: ['mandarax_page'], render: PageActionCard}

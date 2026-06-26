@@ -4,8 +4,7 @@ import {z} from 'zod'
 import {Circle, CircleCheckBig, CircleDashed, ListTodo, type LucideIcon} from 'lucide-solid'
 import {ToolCard} from '../shell.js'
 import {parseInput} from '../util.js'
-import type {ToolCardProps} from '../types.js'
-import {cardTool} from '../card-tool.js'
+import type {ToolCardEntry, ToolCardProps} from '../types.js'
 
 // claude TodoWrite carries todos: a checklist of {content, status, activeForm?}.
 const TodoInput = z.object({
@@ -77,4 +76,5 @@ export function TodoCard(props: ToolCardProps): JSX.Element {
   )
 }
 
-export const todoTool = cardTool({name: 'TodoWrite', parameters: TodoInput, Card: TodoCard})
+// This card renders the TodoWrite tool.
+export const todoTool: ToolCardEntry = {names: ['TodoWrite'], render: TodoCard}

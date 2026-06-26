@@ -1,0 +1,65 @@
+{
+  "name": "@mandarax/extension",
+  "version": "0.0.0",
+  "description": "The mandarax extension authoring contract: defineExtension/defineTool plus the SolidJS runtime context and typed useSlot/useContext hooks.",
+  "keywords": [
+    "extension",
+    "mandarax",
+    "plugins"
+  ],
+  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/extension#readme",
+  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mandarax-dev/mandarax.git",
+    "directory": "packages/extension"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./runtime": {
+      "types": "./dist/runtime.d.ts",
+      "import": "./dist/runtime.js"
+    },
+    "./catalog": {
+      "types": "./dist/catalog.d.ts",
+      "import": "./dist/catalog.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run --passWithNoTests",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only"
+  },
+  "dependencies": {
+    "@mandarax/api-client": "workspace:^",
+    "@mandarax/grab": "workspace:^",
+    "@mandarax/protocol": "workspace:^",
+    "@mandarax/ui-kit-system": "workspace:^",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.21",
+    "h3": "2.0.1-rc.22",
+    "solid-js": "^1.9.13",
+    "tsdown": "^0.22.2",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.9.13"
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "name": "@mandarax/api-client",
+  "version": "0.0.0",
+  "description": "The mandarax network seam: the typed fetch/SSE transport and the per-session client (defineClient/SessionClient) shared by the widget and the extension contract.",
+  "keywords": [
+    "client",
+    "mandarax",
+    "transport"
+  ],
+  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/api-client#readme",
+  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mandarax-dev/mandarax.git",
+    "directory": "packages/api-client"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/api-client.d.ts",
+      "import": "./dist/api-client.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run --passWithNoTests",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only"
+  },
+  "dependencies": {
+    "@mandarax/protocol": "workspace:^",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.21",
+    "solid-js": "^1.9.13",
+    "tsdown": "^0.22.2",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.9.13"
+  }
+}

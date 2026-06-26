@@ -5,44 +5,13 @@ import fs from 'node:fs'
 import path from 'node:path'
 import {fileURLToPath, pathToFileURL} from 'node:url'
 import {createRequire} from 'node:module'
-import type {IncomingMessage, ServerResponse} from 'node:http'
+import type {IncomingMessage} from 'node:http'
 import type {Page} from 'playwright'
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
 const require = createRequire(import.meta.url)
 
-// The widget now ships as an ES module + lazy chunks (no IIFE global), so ITs serve its dist dir and
-// inject a module <script>; heavy chunks (the Excalidraw island, shiki langs) load on demand only.
-const WIDGET_DIST = path.join(dirname, '../dist')
-export const WIDGET_BASE = '/__mandarax_widget__/'
-export const widgetScriptTag = `<script type="module" src="${WIDGET_BASE}mount.js"></script>`
-
-const ASSET_CONTENT_TYPES: Record<string, string> = {
-  '.js': 'text/javascript',
-  '.map': 'application/json',
-  '.css': 'text/css',
-}
-
-// Serve a widget dist asset (mount.js + its lazy chunks) for any request under WIDGET_BASE; returns
-// true if it handled the request. Each IT calls this first in its server handler. Confined to dist.
-export function serveWidgetAsset(req: IncomingMessage, res: ServerResponse): boolean {
-  const reqPath = (req.url ?? '').split('?')[0] ?? ''
-  if (!reqPath.startsWith(WIDGET_BASE)) return false
-  const file = path.join(WIDGET_DIST, reqPath.slice(WIDGET_BASE.length))
-  if (file !== WIDGET_DIST && !file.startsWith(WIDGET_DIST + path.sep)) {
-    res.statusCode = 403
-    res.end('forbidden')
-    return true
-  }
-  res.setHeader('content-type', ASSET_CONTENT_TYPES[path.extname(file)] ?? 'application/octet-stream')
-  const stream = fs.createReadStream(file)
-  stream.on('error', () => {
-    res.statusCode = 404
-    res.end('not found')
-  })
-  stream.pipe(res)
-  return true
-}
+export const widgetBundle = fs.readFileSync(path.join(dirname, '../dist/mandarax-widget.global.js'), 'utf8')
 
 export async function buildFixture(): Promise<string> {
   const app = path.resolve(dirname, '../../../apps/examples/tanstack-start')
@@ -68,14 +37,12 @@ export async function buildFixture(): Promise<string> {
   return built.text
 }
 
-// Widget module FIRST (installs the RDT hook), THEN the React fixture (so React connects to it).
-// Both are module scripts so they execute in document order (a classic inline script would run
-// before the deferred widget module and miss the hook).
+// Widget script FIRST (installs the RDT hook), THEN the React fixture (so React connects to it).
 export function fixturePage(fixtureJs: string): string {
   return `<!doctype html><html><head><meta name="pw-api-base" content=""></head><body>
     <div id="react-root"></div>
-    ${widgetScriptTag}
-    <script type="module">${fixtureJs}</script>
+    <script>${widgetBundle}</script>
+    <script>${fixtureJs}</script>
   </body></html>`
 }
 

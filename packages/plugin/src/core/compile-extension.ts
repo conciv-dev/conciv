@@ -7,10 +7,10 @@ import typescript from '@babel/preset-typescript'
 // zone": it compiles mandarax/extensions/*.{tsx,jsx} with babel-preset-solid (matching the widget's
 // compiler) at enforce:'pre', so the host's React transform afterward sees JSX-free Solid output.
 
-const EXTENSION_JSX_RE = /[\\/]mandarax[\\/]extensions[\\/][^?]*\.(?:tsx|jsx)(?:\?|$)/
+const EXTENSION_MODULE_RE = /[\\/]mandarax[\\/]extensions[\\/][^?]*\.(?:ts|tsx|js|jsx)(?:\?|$)/
 
-export function isExtensionJsx(id: string): boolean {
-  return EXTENSION_JSX_RE.test(id)
+export function isExtensionModule(id: string): boolean {
+  return EXTENSION_MODULE_RE.test(id)
 }
 
 // Compile one extension JSX file to Solid. generate:'ssr' for the server load (the .server() half

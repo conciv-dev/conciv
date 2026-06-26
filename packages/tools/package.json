@@ -41,7 +41,7 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "@mandarax/extensions": "workspace:^",
+    "@mandarax/extension": "workspace:^",
     "@mandarax/protocol": "workspace:^",
     "@tanstack/ai": "^0.28.0",
     "zod": "^4.4.3"

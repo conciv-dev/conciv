@@ -1,8 +1,8 @@
 import {z} from 'zod'
-import {defineExtension, defineTool} from '@mandarax/extensions'
+import {defineExtension, defineTool} from '@mandarax/extension'
 
 // Plain Solid JSX — the mandarax plugin compiles mandarax/extensions/** as a Solid zone, even inside
-// this React host app. A composer-action icon is a Solid component the widget renders, authored inline.
+// this React host app. The Component branches on useSlot(): a composer button + a status line.
 const RocketIcon = (props: {class?: string}) => (
   <svg
     class={props.class}
@@ -18,24 +18,29 @@ const RocketIcon = (props: {class?: string}) => (
   </svg>
 )
 
-// One self-describing definition: execute runs it (node), renderResult draws its card (browser),
-// promptSnippet documents it into the system prompt.
+// One definition: .server runs it (node), .render draws its card (browser, props inferred from the
+// renderer type), promptSnippet documents it.
 const deployRun = defineTool({
   name: 'deploy_run',
-  label: 'Deploy',
   description: 'Deploy the current branch',
-  parameters: z.object({env: z.enum(['staging', 'prod'])}),
+  inputSchema: z.object({env: z.enum(['staging', 'prod'])}),
   promptSnippet: 'You can deploy with the deploy_run tool.',
-  execute: ({env}) => ({url: `https://${env}.example.com`}),
-  renderResult: (_result, _options, ctx) => <div data-pw-deploy-card>Deploying… ({ctx.part.name})</div>,
 })
+  .server(({env}) => ({url: `https://${env}.example.com`}))
+  .render((props) => <div data-pw-deploy-card>Deploying… ({props.part.name})</div>)
 
-export default defineExtension({id: 'deploy', tools: [deployRun]}).client((mx) => {
-  mx.registerComposerAction({
-    id: 'deploy',
-    label: 'Deploy',
-    icon: RocketIcon,
-    onClick: (ctx) => ctx.notify('Deploy requested'),
-  })
-  mx.ui.setStatus('env', 'env: staging')
-})
+const deploy = defineExtension({name: 'deploy', Component: DeploySurface, tools: [deployRun]})
+export default deploy
+
+function DeploySurface() {
+  const slot = deploy.useSlot()
+  const notify = deploy.useContext((context) => context.notify)
+  if (slot() === 'composer')
+    return (
+      <button type="button" aria-label="Deploy" title="Deploy" onClick={() => notify('Deploy requested')}>
+        <RocketIcon />
+      </button>
+    )
+  if (slot() === 'status') return <span>env: staging</span>
+  return null
+}

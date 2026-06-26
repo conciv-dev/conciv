@@ -1,13 +1,13 @@
 import {spawn} from 'node:child_process'
 import {serve} from 'srvx'
-import {plugin as ws} from 'crossws/server'
 import getPort from 'get-port'
-import type {Hooks} from 'crossws'
 import type {HarnessChild} from '@mandarax/protocol/harness-types'
 import type {BundlerBridge} from '@mandarax/protocol/bundler-types'
-import type {ExtensionServerContributions} from '@mandarax/extensions'
+import type {AnyExtension} from '@mandarax/extension'
 import {getHarness} from '@mandarax/harness'
 import {makeApp, type MakeAppOpts} from './app.js'
+import {attachWebSocket} from './api/ws.js'
+import {originAllowed} from './api/cors.js'
 import {makeEditorOpener} from './editor/open.js'
 import {resolveConfig, type MandaraxConfig, type ResolvedMandaraxConfig} from './config.js'
 import {statePaths} from './state-paths.js'
@@ -22,11 +22,8 @@ export type StartOpts = {
   port?: number
   // Browser origins allowed to call the API beyond loopback (e.g. a dev server on a LAN IP).
   allowedOrigins?: string[]
-  // The collected .server() halves of discovered extensions: extra MCP tools + system prompt text.
-  extensions?: ExtensionServerContributions
-  // mx.db: the trail base URL to reverse-proxy. mx.sync: the crossws hooks for the y-websocket server.
-  dbProxyTarget?: string
-  syncHooks?: Partial<Hooks>
+  // Discovered extension builders; their prompt text is projected here, .server() runs in makeApp.
+  extensions?: AnyExtension[]
 }
 
 export type Engine = {port: number; stop: () => Promise<void>; cfg: ResolvedMandaraxConfig}
@@ -34,9 +31,17 @@ export type Engine = {port: number; stop: () => Promise<void>; cfg: ResolvedMand
 export async function start(opts: StartOpts): Promise<Engine> {
   const cfg = resolveConfig(opts.options, opts.root)
   const paths = statePaths(cfg.stateRoot)
-  // The effective prompt = the configured base plus each extension's systemPrompt.append() text.
+  // The effective prompt = the configured base plus each extension's tool snippets + systemPrompt.
   // Empty (systemPrompt:false and no appends) → don't write or pass a file, so none is injected.
-  const systemPrompt = [cfg.systemPrompt, ...(opts.extensions?.systemPrompt ?? [])].filter(Boolean).join('\n\n')
+  const systemPrompt = [
+    cfg.systemPrompt,
+    ...(opts.extensions ?? []).flatMap((ext) => [
+      ...(ext.tools ?? []).map((tool) => tool.promptSnippet),
+      ext.systemPrompt,
+    ]),
+  ]
+    .filter(Boolean)
+    .join('\n\n')
   if (systemPrompt) writeText(paths.systemPrompt, systemPrompt)
 
   const openInEditor = makeEditorOpener(
@@ -67,27 +72,25 @@ export async function start(opts: StartOpts): Promise<Engine> {
     systemPromptFile: systemPrompt ? paths.systemPrompt : undefined,
     systemPromptText: systemPrompt,
     extensions: opts.extensions,
-    dbProxyTarget: opts.dbProxyTarget,
+    extensionConfig: cfg.extensions,
     spawnHarness,
     harnessEnv,
     allowedOrigins: opts.allowedOrigins,
   }
-  const app = makeApp(appOpts)
+  const {app, disposers} = makeApp(appOpts)
   // Explicit port (e.g. the Next.js integration) is used as-is; otherwise get-port finds a free one.
   const requestedPort = opts.port ?? (await getPort())
-  const server = serve({
-    fetch: app.fetch,
-    port: requestedPort,
-    hostname: '127.0.0.1',
-    plugins: opts.syncHooks ? [ws(opts.syncHooks)] : [],
-  })
+  const server = serve({fetch: app.fetch, port: requestedPort, hostname: '127.0.0.1'})
   await server.ready()
+  const allowed = new Set(opts.allowedOrigins ?? [])
+  attachWebSocket(server, app, (origin) => originAllowed(origin, allowed))
   const port = portOf(server.url)
   portRef.port = port
   return {
     port,
     cfg,
     stop: async () => {
+      await Promise.all(disposers.map((dispose) => dispose()))
       await getHarness(cfg.harness)?.shutdown?.()
       await server.close(true)
     },

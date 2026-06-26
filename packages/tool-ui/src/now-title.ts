@@ -44,8 +44,11 @@ const PAGE_VERB: Record<string, string> = {
   eval: 'Running a script',
 }
 
-// The active tool call's label for the single live "now" line while a turn streams.
-export function nowTitle(part: ToolCallPart): string {
+// The active tool call's label for the single live "now" line while a turn streams. An
+// extension-supplied streamTitle (keyed by tool name) wins over the built-in labels.
+export function nowTitle(part: ToolCallPart, titleByName: Record<string, string> = {}): string {
+  const supplied = titleByName[part.name]
+  if (supplied) return supplied
   const h = hint(part)
   switch (part.name) {
     case 'Bash':
@@ -62,8 +65,6 @@ export function nowTitle(part: ToolCallPart): string {
       return h.pattern ? `Searching ${clip(h.pattern, 32)}` : 'Searching'
     case 'TodoWrite':
       return 'Updating tasks'
-    case 'mandarax_test':
-      return 'Running tests'
     case 'mandarax_ui':
       return 'Rendering UI'
     case 'mandarax_page':

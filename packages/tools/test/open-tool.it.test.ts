@@ -7,7 +7,6 @@ describe('mandarax_open tool', () => {
     const tools = mandaraxTools({
       injectUi: () => true,
       page: async () => ({}),
-      test: async () => ({}),
       open: (file, line) => calls.push([file, line]),
     })
     const open = tools.find((t) => t.name === 'mandarax_open')

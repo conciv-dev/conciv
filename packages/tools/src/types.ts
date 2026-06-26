@@ -1,5 +1,4 @@
 import {z} from 'zod'
-import type {ToolExecuteCtx} from '@mandarax/extensions'
 import type {PageQuery} from '@mandarax/protocol/page-types'
 import type {UiSpec} from '@mandarax/protocol/ui-types'
 
@@ -10,7 +9,6 @@ export type MandaraxToolContext = {
   injectUi: (spec: UiSpec) => boolean
   // The page-bus ask shape: a query without the bus-assigned requestId.
   page: (query: Omit<PageQuery, 'requestId'>) => Promise<unknown>
-  test: (action: {kind: 'list' | 'run' | 'status'; pattern?: string}) => Promise<unknown>
   // Open a source file (optionally at a line) in the user's editor — the follow-up to locate/inspect.
   open: (file: string, line?: number) => void
 }
@@ -24,5 +22,5 @@ export type MandaraxServerTool = {
   name: string
   description: string
   inputSchema: z.ZodObject<z.ZodRawShape>
-  execute: (input: unknown, ctx?: ToolExecuteCtx) => Promise<unknown>
+  execute: (input: unknown) => Promise<unknown>
 }

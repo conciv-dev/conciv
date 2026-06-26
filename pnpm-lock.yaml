@@ -96,9 +96,9 @@ importers:
       '@mandarax/cli':
         specifier: workspace:*
         version: link:../../../packages/cli
-      '@mandarax/extensions':
+      '@mandarax/extension':
         specifier: workspace:*
-        version: link:../../../packages/extensions
+        version: link:../../../packages/extension
       '@mandarax/protocol':
         specifier: workspace:*
         version: link:../../../packages/protocol
@@ -285,6 +285,31 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
+  packages/api-client:
+    dependencies:
+      '@mandarax/protocol':
+        specifier: workspace:^
+        version: link:../protocol
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: ^22.19.21
+        version: 22.19.21
+      solid-js:
+        specifier: ^1.9.13
+        version: 1.9.13
+      tsdown:
+        specifier: ^0.22.2
+        version: 0.22.2(@arethetypeswrong/core@0.18.3)(oxc-resolver@11.20.0)(publint@0.3.21)(tsx@4.22.4)(typescript@6.0.3)
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.8
+        version: 4.1.8(@opentelemetry/api@1.9.0)(@types/node@22.19.21)(@vitest/browser-playwright@4.1.8)(@vitest/coverage-v8@4.1.8)(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+
   packages/cli:
     dependencies:
       '@clack/prompts':
@@ -321,18 +346,12 @@ importers:
       '@jridgewell/trace-mapping':
         specifier: 0.3.31
         version: 0.3.31
-      '@mandarax/extensions':
-        specifier: workspace:^
-        version: link:../extensions
       '@mandarax/harness':
         specifier: workspace:^
         version: link:../harness
       '@mandarax/protocol':
         specifier: workspace:^
         version: link:../protocol
-      '@mandarax/test-runner':
-        specifier: workspace:^
-        version: link:../test-runner
       '@mandarax/tools':
         specifier: workspace:^
         version: link:../tools
@@ -343,7 +362,7 @@ importers:
         specifier: ^0.28.0
         version: 0.28.0(@opentelemetry/api@1.9.0)
       crossws:
-        specifier: ^0.4.6
+        specifier: 0.4.6
         version: 0.4.6(srvx@0.11.16)
       get-port:
         specifier: ^7.1.0
@@ -351,33 +370,15 @@ importers:
       h3:
         specifier: 2.0.1-rc.22
         version: 2.0.1-rc.22(crossws@0.4.6(srvx@0.11.16))
-      lib0:
-        specifier: ^0.2.117
-        version: 0.2.117
-      p-retry:
-        specifier: ^8.0.0
-        version: 8.0.0
-      p-wait-for:
-        specifier: ^6.0.0
-        version: 6.0.0
       srvx:
         specifier: ^0.11.16
         version: 0.11.16
-      trailbase:
-        specifier: ^0.10.0
-        version: 0.10.0
       ufo:
         specifier: ^1.6.4
         version: 1.6.4
       unstorage:
         specifier: ^1.17.5
         version: 1.17.5(@netlify/blobs@10.7.9)
-      y-protocols:
-        specifier: ^1.0.7
-        version: 1.0.7(yjs@13.6.31)
-      yjs:
-        specifier: ^13.6.31
-        version: 13.6.31
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -385,12 +386,18 @@ importers:
       '@jridgewell/gen-mapping':
         specifier: ^0.3.13
         version: 0.3.13
+      '@mandarax/extension':
+        specifier: workspace:^
+        version: link:../extension
       '@tanstack/ai-mcp':
         specifier: ^0.1.0
         version: 0.1.0(@opentelemetry/api@1.9.0)(zod@4.4.3)
       '@types/node':
         specifier: ^22.19.21
         version: 22.19.21
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.1
       tsdown:
         specifier: ^0.22.2
         version: 0.22.2(@arethetypeswrong/core@0.18.3)(oxc-resolver@11.20.0)(publint@0.3.21)(tsx@4.22.4)(typescript@6.0.3)
@@ -403,9 +410,18 @@ importers:
       vitest:
         specifier: ^4.1.8
         version: 4.1.8(@opentelemetry/api@1.9.0)(@types/node@22.19.21)(@vitest/browser-playwright@4.1.8)(@vitest/coverage-v8@4.1.8)(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+      ws:
+        specifier: ^8.21.0
+        version: 8.21.0
 
-  packages/extensions:
+  packages/extension:
     dependencies:
+      '@mandarax/api-client':
+        specifier: workspace:^
+        version: link:../api-client
+      '@mandarax/grab':
+        specifier: workspace:^
+        version: link:../grab
       '@mandarax/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -416,18 +432,12 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
-      '@tanstack/db':
-        specifier: ^0.6.9
-        version: 0.6.9(typescript@6.0.3)
-      '@tanstack/solid-db':
-        specifier: ^0.2.23
-        version: 0.2.23(solid-js@1.9.13)(typescript@6.0.3)
-      '@tanstack/trailbase-db-collection':
-        specifier: ^0.1.87
-        version: 0.1.87(supports-color@10.2.2)(typescript@6.0.3)
       '@types/node':
         specifier: ^22.19.21
         version: 22.19.21
+      h3:
+        specifier: 2.0.1-rc.22
+        version: 2.0.1-rc.22(crossws@0.4.6(srvx@0.11.16))
       solid-js:
         specifier: ^1.9.13
         version: 1.9.13
@@ -440,6 +450,82 @@ importers:
       vitest:
         specifier: ^4.1.8
         version: 4.1.8(@opentelemetry/api@1.9.0)(@types/node@22.19.21)(@vitest/browser-playwright@4.1.8)(@vitest/coverage-v8@4.1.8)(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+
+  packages/extensions/test-runner:
+    dependencies:
+      '@mandarax/extension':
+        specifier: workspace:^
+        version: link:../../extension
+      '@mandarax/tool-ui':
+        specifier: workspace:^
+        version: link:../../tool-ui
+      '@mandarax/ui-kit-system':
+        specifier: workspace:^
+        version: link:../../ui-kit-system
+      h3:
+        specifier: 2.0.1-rc.22
+        version: 2.0.1-rc.22(crossws@0.4.6(srvx@0.11.16))
+      lucide-solid:
+        specifier: ^1.18.0
+        version: 1.18.0(solid-js@1.9.13)
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@mandarax/core':
+        specifier: workspace:^
+        version: link:../../core
+      '@mandarax/protocol':
+        specifier: workspace:^
+        version: link:../../protocol
+      '@mandarax/uno-preset':
+        specifier: workspace:*
+        version: link:../../uno-preset
+      '@playwright/test':
+        specifier: ^1.60.0
+        version: 1.60.0
+      '@tanstack/ai-mcp':
+        specifier: ^0.1.0
+        version: 0.1.0(@opentelemetry/api@1.9.0)(zod@4.4.3)
+      '@types/node':
+        specifier: ^22.19.21
+        version: 22.19.21
+      '@vitest/browser-playwright':
+        specifier: 4.1.8
+        version: 4.1.8(playwright@1.60.0)(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))(vitest@4.1.8)
+      solid-js:
+        specifier: ^1.9.13
+        version: 1.9.13
+      tsdown:
+        specifier: ^0.22.2
+        version: 0.22.2(@arethetypeswrong/core@0.18.3)(oxc-resolver@11.20.0)(publint@0.3.21)(tsx@4.22.4)(typescript@6.0.3)
+      tsx:
+        specifier: ^4.22.4
+        version: 4.22.4
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      unocss:
+        specifier: ^66.7.2
+        version: 66.7.2(@unocss/postcss@66.7.2(postcss@8.5.15))(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+      vite:
+        specifier: ^8.0.16
+        version: 8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(sass@1.51.0)(tsx@4.22.4)(yaml@2.9.0)
+      vite-plugin-solid:
+        specifier: ^2.11.12
+        version: 2.11.12(@testing-library/jest-dom@6.9.1)(solid-js@1.9.13)(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+      vitest:
+        specifier: ^4.1.8
+        version: 4.1.8(@opentelemetry/api@1.9.0)(@types/node@22.19.21)(@vitest/browser-playwright@4.1.8)(@vitest/coverage-v8@4.1.8)(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+
+  packages/grab:
+    devDependencies:
+      tsdown:
+        specifier: ^0.22.2
+        version: 0.22.2(@arethetypeswrong/core@0.18.3)(oxc-resolver@11.20.0)(publint@0.3.21)(tsx@4.22.4)(typescript@6.0.3)
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
 
   packages/harness:
     dependencies:
@@ -508,24 +594,24 @@ importers:
       '@mandarax/core':
         specifier: workspace:^
         version: link:../core
-      '@mandarax/extensions':
+      '@mandarax/extension':
         specifier: workspace:^
-        version: link:../extensions
+        version: link:../extension
+      '@mandarax/extension-test-runner':
+        specifier: workspace:^
+        version: link:../extensions/test-runner
       '@mandarax/protocol':
         specifier: workspace:^
         version: link:../protocol
-      '@mandarax/whiteboard':
-        specifier: workspace:^
-        version: link:../whiteboard
       '@mandarax/widget':
         specifier: workspace:^
         version: link:../widget
+      babel-dead-code-elimination:
+        specifier: ^1.0.12
+        version: 1.0.12
       babel-preset-solid:
         specifier: ^1.9.12
         version: 1.9.12(@babel/core@7.29.7)(solid-js@1.9.13)
-      get-port:
-        specifier: ^7.2.0
-        version: 7.2.0
       jiti:
         specifier: ^2.7.0
         version: 2.7.0
@@ -588,12 +674,6 @@ importers:
       vitest:
         specifier: ^4.1.8
         version: 4.1.8(@opentelemetry/api@1.9.0)(@types/node@22.19.21)(@vitest/browser-playwright@4.1.8)(@vitest/coverage-v8@4.1.8)(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
-      y-protocols:
-        specifier: ^1.0.7
-        version: 1.0.7(yjs@13.6.31)
-      yjs:
-        specifier: ^13.6.31
-        version: 13.6.31
 
   packages/publish:
     dependencies:
@@ -751,42 +831,11 @@ importers:
         specifier: ^4.1.8
         version: 4.1.8(@opentelemetry/api@1.9.0)(@types/node@22.19.21)(@vitest/browser-playwright@4.1.8)(@vitest/coverage-v8@4.1.8)(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
 
-  packages/test-runner:
-    dependencies:
-      '@mandarax/protocol':
-        specifier: workspace:^
-        version: link:../protocol
-      zod:
-        specifier: ^4.4.3
-        version: 4.4.3
-    devDependencies:
-      '@playwright/test':
-        specifier: ^1.60.0
-        version: 1.60.0
-      '@types/node':
-        specifier: ^22.19.21
-        version: 22.19.21
-      tsdown:
-        specifier: ^0.22.2
-        version: 0.22.2(@arethetypeswrong/core@0.18.3)(oxc-resolver@11.20.0)(publint@0.3.21)(tsx@4.22.4)(typescript@6.0.3)
-      tsx:
-        specifier: ^4.22.4
-        version: 4.22.4
-      typescript:
-        specifier: ^6.0.3
-        version: 6.0.3
-      vitest:
-        specifier: ^4.1.8
-        version: 4.1.8(@opentelemetry/api@1.9.0)(@types/node@22.19.21)(@vitest/browser-playwright@4.1.8)(@vitest/coverage-v8@4.1.8)(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
-
   packages/tool-ui:
     dependencies:
       '@ark-ui/solid':
         specifier: ^5.37.1
         version: 5.37.1(solid-js@1.9.13)
-      '@mandarax/extensions':
-        specifier: workspace:^
-        version: link:../extensions
       '@mandarax/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -881,9 +930,9 @@ importers:
 
   packages/tools:
     dependencies:
-      '@mandarax/extensions':
+      '@mandarax/extension':
         specifier: workspace:^
-        version: link:../extensions
+        version: link:../extension
       '@mandarax/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -1004,9 +1053,6 @@ importers:
       '@excalidraw/mermaid-to-excalidraw':
         specifier: ^1.1.4
         version: 1.1.4(react@19.2.7)(supports-color@10.2.2)
-      '@mandarax/extensions':
-        specifier: workspace:^
-        version: link:../extensions
       '@mandarax/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -1089,9 +1135,15 @@ importers:
       '@floating-ui/dom':
         specifier: ^1.7.6
         version: 1.7.6
-      '@mandarax/extensions':
+      '@mandarax/api-client':
         specifier: workspace:^
-        version: link:../extensions
+        version: link:../api-client
+      '@mandarax/extension':
+        specifier: workspace:^
+        version: link:../extension
+      '@mandarax/grab':
+        specifier: workspace:^
+        version: link:../grab
       '@mandarax/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -1107,9 +1159,6 @@ importers:
       '@mandarax/ui-kit-system':
         specifier: workspace:^
         version: link:../ui-kit-system
-      '@mandarax/whiteboard':
-        specifier: workspace:^
-        version: link:../whiteboard
       '@tanstack/ai':
         specifier: ^0.28.0
         version: 0.28.0(@opentelemetry/api@1.9.0)
@@ -1119,21 +1168,12 @@ importers:
       '@tanstack/ai-solid':
         specifier: ^0.13.4
         version: 0.13.4(@opentelemetry/api@1.9.0)(@tanstack/ai@0.28.0(@opentelemetry/api@1.9.0))(solid-js@1.9.13)
-      '@tanstack/db':
-        specifier: ^0.6.9
-        version: 0.6.9(typescript@6.0.3)
-      '@tanstack/solid-db':
-        specifier: ^0.2.23
-        version: 0.2.23(solid-js@1.9.13)(typescript@6.0.3)
       '@tanstack/solid-hotkeys':
         specifier: ^0.10.0
         version: 0.10.0(solid-js@1.9.13)
       '@tanstack/solid-pacer':
         specifier: ^0.21.1
         version: 0.21.1(solid-js@1.9.13)
-      '@tanstack/trailbase-db-collection':
-        specifier: ^0.1.87
-        version: 0.1.87(supports-color@10.2.2)(typescript@6.0.3)
       bippy:
         specifier: 0.5.41
         version: 0.5.41(react@19.2.7)
@@ -1152,18 +1192,6 @@ importers:
       solid-js:
         specifier: ^1.9.13
         version: 1.9.13
-      trailbase:
-        specifier: ^0.10.0
-        version: 0.10.0
-      y-indexeddb:
-        specifier: ^9.0.12
-        version: 9.0.12(yjs@13.6.31)
-      y-websocket:
-        specifier: ^3.0.0
-        version: 3.0.0(yjs@13.6.31)
-      yjs:
-        specifier: ^13.6.31
-        version: 13.6.31
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -1171,9 +1199,9 @@ importers:
       '@chromatic-com/storybook':
         specifier: ^5.2.1
         version: 5.2.1(storybook@10.4.4(@testing-library/dom@10.4.1)(@types/react@19.2.17)(prettier@3.8.4)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))
-      '@mandarax/core':
+      '@mandarax/extension-test-runner':
         specifier: workspace:^
-        version: link:../core
+        version: link:../extensions/test-runner
       '@mandarax/uno-preset':
         specifier: workspace:*
         version: link:../uno-preset
@@ -1201,24 +1229,12 @@ importers:
       '@vitest/coverage-v8':
         specifier: 4.1.8
         version: 4.1.8(@vitest/browser@4.1.8)(vitest@4.1.8)
-      crossws:
-        specifier: ^0.4.6
-        version: 0.4.6(srvx@0.11.16)
-      get-port:
-        specifier: ^7.2.0
-        version: 7.2.0
-      h3:
-        specifier: 2.0.1-rc.22
-        version: 2.0.1-rc.22(crossws@0.4.6(srvx@0.11.16))
       playwright:
         specifier: ^1.60.0
         version: 1.60.0
       postcss:
         specifier: ^8.5.6
         version: 8.5.15
-      srvx:
-        specifier: ^0.11.16
-        version: 0.11.16
       storybook:
         specifier: ^10.4.4
         version: 10.4.4(@testing-library/dom@10.4.1)(@types/react@19.2.17)(prettier@3.8.4)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -6094,11 +6110,6 @@ packages:
   '@tanstack/store@0.9.3':
     resolution: {integrity: sha512-8reSzl/qGWGGVKhBoxXPMWzATSbZLZFWhwBAFO9NAyp0TxzfBP0mIrGb8CP8KrQTmvzXlR/vFPPUrHTLBGyFyw==}
 
-  '@tanstack/trailbase-db-collection@0.1.87':
-    resolution: {integrity: sha512-6VYiNCE29vI2EXHev0wb9ZG6BCuX9nDG4fP7l2YVgFmhLgWoMjH5VCYH7FnD2WnmMmLS0EzrJ0RqU2SE/vgMUQ==}
-    peerDependencies:
-      typescript: '>=4.7'
-
   '@tanstack/virtual-core@3.17.1':
     resolution: {integrity: sha512-VZyW2Uiml5tmBZwPGrSD3Sz73OxzljQMCmzYHsUTPEuTsERf5xwa+uWb01xEzkz3ZSYTjj8NEb/mKHvgKxyZdA==}
 
@@ -6362,6 +6373,9 @@ packages:
   '@types/validate-npm-package-name@4.0.2':
     resolution: {integrity: sha512-lrpDziQipxCEeK5kWxvljWYhUvOiB2A9izZd9B2AFarYAkqZshb4lPbRs7zKEic6eGtH8V/2qJW+dPp9OtF6bw==}
 
+  '@types/ws@8.18.1':
+    resolution: {integrity: sha512-ThVF6DCVhA8kUGy+aazFQ4kXQ7E1Ty7A3ypFOe0IcJV8O/M511G99AW24irKrW56Wt44yG9+ij8FaqoBGkuBXg==}
+
   '@types/yauzl@2.10.3':
     resolution: {integrity: sha512-oJoftv0LSuaDZE3Le4DbKX+KS9G36NzOeSap90UIK0yMA/NhKJhqlSGtNDORNRaIbQfzjXDrQa0ytJ6mNRGz/Q==}
 
@@ -6423,9 +6437,6 @@ packages:
   '@typescript-eslint/visitor-keys@8.61.1':
     resolution: {integrity: sha512-6fJ9MHWtK14C1DSkiMlHUSOmrVebL7150xZJBlJiL62jjhIA4JmOq6flwBgDxIdBKKdoiZRel+dfPD5MLfny3w==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
-
-  '@ungap/raw-json@0.4.4':
-    resolution: {integrity: sha512-mUDobz3DeEItDmI34Hg+eL9hTTJSZbIvsvGAr42YoK4IyS7SWKmF5Xa0pI8RWFZSijL8QmfvCNH3s8HYJNxKaw==}
 
   '@ungap/structured-clone@1.3.1':
     resolution: {integrity: sha512-mUFwbeTqrVgDQxFveS+df2yfap6iuP20NAKAsBt5jDEoOTDew+zwLAOilHCeQJOVSvmgCX4ogqIrA0mnyr08yQ==}
@@ -9083,10 +9094,6 @@ packages:
     resolution: {integrity: sha512-3hN7NaskYvMDLQY55gnW3NQ+mesEAepTqlg+VEbj7zzqEMBVNhzcGYYeqFo/TlYz6eQiFcp1HcsCZO+nGgS8zg==}
     engines: {node: '>=6.9.0'}
 
-  geojson@0.5.0:
-    resolution: {integrity: sha512-/Bx5lEn+qRF4TfQ5aLu6NH+UKtvIv7Lhc487y/c8BdludrCTpiWf9wyI0RTyqg49MFefIAvFDuEi5Dfd/zgNxQ==}
-    engines: {node: '>= 0.10'}
-
   get-amd-module-type@6.0.2:
     resolution: {integrity: sha512-7zShVYAYtMnj9S65CfN+hvpBCByfuB1OY8xID01nZEzXTZbx4YyysAfi+nMl95JSR6odt4q8TCj2W63KAoyVLQ==}
     engines: {node: '>=18'}
@@ -11116,10 +11123,6 @@ packages:
     resolution: {integrity: sha512-hEt02O4hUct5wtwg4H4KcWgDdm+l1bOaEy/hWzd8xtXB9BqxTWBBhb+2ImAtH4Cv4rPjV76xN3Zumqk3k3AhhQ==}
     engines: {node: '>=16.17'}
 
-  p-retry@8.0.0:
-    resolution: {integrity: sha512-kFVqH1HxOHp8LupNsOys7bSV09VYTRLxarH/mokO4Rqhk6wGi70E0jh4VzvVGXfEVNggHoHLAMWsQqHyU1Ey9A==}
-    engines: {node: '>=22'}
-
   p-timeout@6.1.4:
     resolution: {integrity: sha512-MyIV3ZA/PmyBN/ud8vV9XzwTrNtR4jFrObymZYnZqMmW0zA8Z17vnT0rBgFE/TlohB+YCHqXMgZzb3Csp49vqg==}
     engines: {node: '>=14.16'}
@@ -12522,9 +12525,6 @@ packages:
   tr46@0.0.3:
     resolution: {integrity: sha512-N3WMsuqV66lT30CrXNbEjx4GEwlow3v6rr4mCcv6prnfwhS01rkgyFdjPNBYd9br7LpXV1+Emh01fHnq2Gdgrw==}
 
-  trailbase@0.10.0:
-    resolution: {integrity: sha512-IGIofZQWU3RRUZVXIAztWQ1vBabtbcuFFLZhTLj5gtZOIR2ml/levQgKaWNE+RhcDsFE/pD1gf+tfHVfrC9NGw==}
-
   tree-kill@1.2.2:
     resolution: {integrity: sha512-L0Orpi8qGpRG//Nd+H90vFB+3iHnue1zSSGmNOOCh1GLJ7rUKVwV2HvijphGQS2UmhUZewS9VgvxYIdgr+fG1A==}
     hasBin: true
@@ -12938,10 +12938,6 @@ packages:
   util-deprecate@1.0.2:
     resolution: {integrity: sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw==}
 
-  uuid@13.0.2:
-    resolution: {integrity: sha512-vzi9uRZ926x4XV73S/4qQaTwPXM2JBj6/6lI/byHH1jOpCzb0zDbfytgA9LcN/hzb2l7WQSQnxITOVx5un/wGw==}
-    hasBin: true
-
   uuid@14.0.0:
     resolution: {integrity: sha512-Qo+uWgilfSmAhXCMav1uYFynlQO7fMFiMVZsQqZRMIXp0O7rR7qjkj+cPvBHLgBqi960QCoo/PH2/6ZtVqKvrg==}
     hasBin: true
@@ -13250,12 +13246,6 @@ packages:
   xtend@4.0.2:
     resolution: {integrity: sha512-LKYU1iAXJXUgAXn9URjiu+MWhyUXHsvfp7mcuYm9dSUKK0/CjtrUwFAxD82/mCWbtLsGjFIad0wIsod4zrTAEQ==}
     engines: {node: '>=0.4'}
-
-  y-indexeddb@9.0.12:
-    resolution: {integrity: sha512-9oCFRSPPzBK7/w5vOkJBaVCQZKHXB/v6SIT+WYhnJxlEC61juqG0hBrAf+y3gmSMLFLwICNH9nQ53uscuse6Hg==}
-    engines: {node: '>=16.0.0', npm: '>=8.0.0'}
-    peerDependencies:
-      yjs: ^13.0.0
 
   y-protocols@1.0.7:
     resolution: {integrity: sha512-YSVsLoXxO67J6eE/nV4AtFtT3QEotZf5sK5BHxFBXso7VDUT3Tx07IfA6hsu5Q5OmBdMkQVmFZ9QOA7fikWvnw==}
@@ -18232,17 +18222,6 @@ snapshots:
 
   '@tanstack/store@0.9.3': {}
 
-  '@tanstack/trailbase-db-collection@0.1.87(supports-color@10.2.2)(typescript@6.0.3)':
-    dependencies:
-      '@standard-schema/spec': 1.1.0
-      '@tanstack/db': 0.6.9(typescript@6.0.3)
-      '@tanstack/store': 0.9.3
-      debug: 4.4.3(supports-color@10.2.2)
-      trailbase: 0.10.0
-      typescript: 6.0.3
-    transitivePeerDependencies:
-      - supports-color
-
   '@tanstack/virtual-core@3.17.1': {}
 
   '@tanstack/virtual-file-routes@1.162.0': {}
@@ -18528,6 +18507,10 @@ snapshots:
 
   '@types/validate-npm-package-name@4.0.2': {}
 
+  '@types/ws@8.18.1':
+    dependencies:
+      '@types/node': 22.19.21
+
   '@types/yauzl@2.10.3':
     dependencies:
       '@types/node': 22.19.21
@@ -18662,8 +18645,6 @@ snapshots:
     dependencies:
       '@typescript-eslint/types': 8.61.1
       eslint-visitor-keys: 5.0.1
-
-  '@ungap/raw-json@0.4.4': {}
 
   '@ungap/structured-clone@1.3.1': {}
 
@@ -22012,8 +21993,6 @@ snapshots:
 
   gensync@1.0.0-beta.2: {}
 
-  geojson@0.5.0: {}
-
   get-amd-module-type@6.0.2:
     dependencies:
       ast-module-types: 6.0.2
@@ -24734,10 +24713,6 @@ snapshots:
       is-network-error: 1.3.2
       retry: 0.13.1
 
-  p-retry@8.0.0:
-    dependencies:
-      is-network-error: 1.3.2
-
   p-timeout@6.1.4: {}
 
   p-try@2.2.0: {}
@@ -26398,14 +26373,6 @@ snapshots:
 
   tr46@0.0.3: {}
 
-  trailbase@0.10.0:
-    dependencies:
-      '@types/geojson': 7946.0.16
-      '@ungap/raw-json': 0.4.4
-      geojson: 0.5.0
-      jwt-decode: 4.0.0
-      uuid: 13.0.2
-
   tree-kill@1.2.2: {}
 
   trim-lines@3.0.1: {}
@@ -26835,8 +26802,6 @@ snapshots:
 
   util-deprecate@1.0.2: {}
 
-  uuid@13.0.2: {}
-
   uuid@14.0.0: {}
 
   uuid@9.0.1: {}
@@ -27130,11 +27095,6 @@ snapshots:
       cssfilter: 0.0.10
 
   xtend@4.0.2: {}
-
-  y-indexeddb@9.0.12(yjs@13.6.31):
-    dependencies:
-      lib0: 0.2.117
-      yjs: 13.6.31
 
   y-protocols@1.0.7(yjs@13.6.31):
     dependencies:

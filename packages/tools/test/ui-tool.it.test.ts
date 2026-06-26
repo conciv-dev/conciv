@@ -7,7 +7,6 @@ describe('mandarax_ui tool', () => {
     const tools = mandaraxTools({
       injectUi: (spec) => (seen.push(spec), true),
       page: async () => ({}),
-      test: async () => ({}),
       open: () => {},
     })
     const ui = tools.find((t) => t.name === 'mandarax_ui')

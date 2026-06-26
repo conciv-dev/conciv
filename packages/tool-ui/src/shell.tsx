@@ -54,7 +54,7 @@ export function ToolCard(props: {
     <Collapsible.Root
       open={open()}
       onOpenChange={(details) => setOpen(details.open)}
-      class={`${TOOL}  ${errored() ? ERR_BG : `${GLASS_BG} ${ACCENT_RAIL[props.accent]}`}`}
+      class={`${TOOL} ${errored() ? ERR_BG : `${GLASS_BG} ${ACCENT_RAIL[props.accent]}`}`}
     >
       <Collapsible.Trigger class={HEAD}>
         <span class="text-pw-text-2 inline-flex flex-none size-4 items-center justify-center" aria-hidden="true">

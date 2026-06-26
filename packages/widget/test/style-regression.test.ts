@@ -23,9 +23,8 @@ import type {AddressInfo} from 'node:net'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {chromium, type Browser, type Locator, type Page} from 'playwright'
 
-import {serveWidgetAsset, widgetScriptTag} from './it-fixture.js'
-
 const dirname = path.dirname(fileURLToPath(import.meta.url))
+const widgetBundle = fs.readFileSync(path.join(dirname, '../dist/mandarax-widget.global.js'), 'utf8')
 const snapDir = path.join(dirname, '__snapshots__')
 const goldenPath = path.join(snapDir, 'computed-styles.json')
 const shotsDir = path.join(snapDir, 'shots')
@@ -209,7 +208,7 @@ function pageHtml(widgetJson: string): string {
     <meta charset="utf-8">
     <meta name="pw-api-base" content="">
     <meta name="pw-widget" content='${widgetJson}'>
-  </head><body>${widgetScriptTag}</body></html>`
+  </head><body><script>${widgetBundle}</script></body></html>`
 }
 
 function writeJson(res: ServerResponse, body: unknown): void {
@@ -221,7 +220,6 @@ function writeJson(res: ServerResponse, body: unknown): void {
 // thread isn't part of the chrome snapshot). Deterministic bodies (fixed timestamps, static models).
 function makeServer(): Server {
   return createServer((req: IncomingMessage, res: ServerResponse) => {
-    if (serveWidgetAsset(req, res)) return
     const url = req.url ?? ''
     if (url.startsWith('/api/chat/session/resolve') && req.method === 'POST')
       return writeJson(res, {sessionId: 'mandarax_new_1'})

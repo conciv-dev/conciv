@@ -1,5 +1,5 @@
 import {type H3, readValidatedBody} from 'h3'
-import {EditorOpenSchema} from '@mandarax/protocol/test-types'
+import {EditorOpenSchema} from '@mandarax/protocol/editor-types'
 import type {OpenInEditor} from '../../editor/open.js'
 
 export function registerEditorRoutes(app: H3, openInEditor: OpenInEditor): void {

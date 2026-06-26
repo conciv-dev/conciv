@@ -7,6 +7,7 @@ import {getHarness} from '@mandarax/harness'
 import type {HarnessChild} from '@mandarax/protocol/harness-types'
 import {makeApp} from '../../src/app.js'
 import type {ResolvedMandaraxConfig} from '../../src/config.js'
+import type {AnyExtension} from '@mandarax/extension'
 
 export type SpawnHarness = (args: string[], cwd: string, sessionId?: string) => HarnessChild
 
@@ -20,6 +21,10 @@ export type TestServerOpts = {
   // Inject a (real or fake) harness spawn — the one seam makeApp takes from its host. Defaults to a
   // real spawn of the resolved harness binary.
   spawnHarness?: SpawnHarness
+  // Extension builders whose .server() runs in makeApp (routes + injected tool ctx + dispose).
+  extensions?: AnyExtension[]
+  // Per-extension user config keyed by extension name.
+  extensionConfig?: Record<string, unknown>
 }
 
 export type TestServer = {
@@ -62,16 +67,18 @@ export async function startTestServer(opts: TestServerOpts = {}): Promise<TestSe
     harness: harnessId,
     harnessBin: undefined,
     sessionId: '',
-    testRunner: 'vitest',
     systemPrompt: '',
+    extensions: undefined,
   }
   const spawnHarness = opts.spawnHarness ?? realSpawn(harness.binName)
-  const app = makeApp({
+  const {app, disposers} = makeApp({
     cfg,
     cwd: opts.cwd ?? stateRoot,
     openInEditor: () => {},
     spawnHarness,
     claudeHome: opts.claudeHome,
+    extensions: opts.extensions,
+    extensionConfig: opts.extensionConfig,
   })
 
   const server: Server = serve({fetch: app.fetch, port: 0, hostname: '127.0.0.1'})
@@ -94,6 +101,7 @@ export async function startTestServer(opts: TestServerOpts = {}): Promise<TestSe
     return ((await res.json()) as {sessionId: string}).sessionId
   }
   const close = async (): Promise<void> => {
+    await Promise.all(disposers.map((dispose) => dispose()))
     await server.close()
     rmSync(stateRoot, {recursive: true, force: true})
   }

@@ -24,7 +24,7 @@ function tmp(): string {
 async function startServer(): Promise<{server: Server; base: string}> {
   const root = tmp()
   const cfg = resolveConfig({}, root)
-  const app = makeApp({
+  const {app} = makeApp({
     cfg,
     cwd: root,
     openInEditor: () => {},

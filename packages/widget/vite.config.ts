@@ -2,11 +2,12 @@ import {fileURLToPath} from 'node:url'
 import {defineConfig} from 'vite'
 import solid from 'vite-plugin-solid'
 
-// One entry (mount.tsx) ships as an ES module (`@mandarax/widget`) plus code-split chunks: the plugin
-// serves the dist dir and injects `<script type="module" src=mount.js>`, so heavy lazy imports (the
-// Excalidraw island, shiki languages) stay in separate chunks loaded on demand — never in the core.
-// The Solid runtime is bundled in (no host-page framework assumed). styles.css is imported `?inline`
-// (shadow.ts) and injected into the Shadow DOM.
+// One entry (mount.tsx) ships as an ES module (`@mandarax/widget`) plus code-split chunks; the dev
+// plugin serves them and injects `<script type="module">`. solid-js + @mandarax/extension are
+// EXTERNAL (not inlined): the dev plugin loads the widget and the file-based extensions through one
+// Vite graph, so both resolve to a SINGLE solid + a single ExtensionRuntimeContext — that is what lets
+// an extension's useContext() resolve the context the widget's Provider sets. Inlining would give each
+// its own copy and break it. The plugin is serve-only, so a host graph always provides the externals.
 export default defineConfig({
   // UnoCSS runs via @unocss/postcss (postcss.config.mjs) expanding `@unocss all;` in styles.css, not as a
   // vite plugin — its shadow-dom mode's placeholder rewrite is dropped by vite@8's rolldown build hooks.
@@ -24,9 +25,8 @@ export default defineConfig({
     cssCodeSplit: false,
     emptyOutDir: true,
     sourcemap: true,
-    // The bundled whiteboard extension dynamic-imports a server-only chunk (the oxc anchor resolver)
-    // that pulls node:* + oxc-parser. That chunk is never executed in the browser (server tool execute
-    // only), so externalize those so the browser build doesn't try to bundle the native binding.
-    rollupOptions: {external: [/^node:/, /^oxc-parser/, /^@oxc-parser\//]},
+    rollupOptions: {
+      external: ['solid-js', 'solid-js/web', 'solid-js/store', '@mandarax/extension', '@mandarax/extension/runtime'],
+    },
   },
 })

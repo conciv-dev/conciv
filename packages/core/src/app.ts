@@ -1,23 +1,17 @@
 import {H3} from 'h3'
 import type {HarnessAdapter, HarnessChild} from '@mandarax/protocol/harness-types'
-import type {TestRunnerAdapter} from '@mandarax/protocol/runner-types'
 import type {BundlerBridge} from '@mandarax/protocol/bundler-types'
-import type {ExtensionServerContributions, ExtensionEvent, EventCtx} from '@mandarax/extensions'
+import type {AnyExtension} from '@mandarax/extension'
 import type {ResolvedMandaraxConfig} from './config.js'
-import {registerDbProxy} from './db/proxy.js'
 import {getHarness} from '@mandarax/harness'
-import {getRunner} from '@mandarax/test-runner'
-import {registerCors} from './api/cors.js'
-import {registerErrorHandler} from './api/errors.js'
+import {makeExtensionApp} from './extension-app.js'
+import {originAllowed, registerCors} from './api/cors.js'
 import {registerChatRoutes} from './api/chat/chat.js'
 import {registerMcpRoutes} from './api/mcp/mcp.js'
-import {registerToolRunRoute} from './api/tools/run.js'
-import {createHistory} from './history/history.js'
 import {registerPageRoutes} from './api/page/page.js'
 import {registerOpenSourceRoute} from './api/page/open-source.js'
 import {registerServerRoutes} from './api/server/server.js'
 import {registerEditorRoutes} from './api/editor/editor.js'
-import {registerTestRunnerRoutes} from './api/test-runner/test-runner.js'
 import {makeUiBus} from './runtime/ui-bus.js'
 import {makeJournal} from './runtime/journal.js'
 import type {OpenInEditor} from './editor/open.js'
@@ -30,10 +24,10 @@ export type MakeAppOpts = {
   systemPromptFile?: string
   // The effective system prompt text (base + extension appends); defaults to cfg.systemPrompt.
   systemPromptText?: string
-  // Collected .server() halves: extra MCP tools, event handlers, approval policies.
-  extensions?: ExtensionServerContributions
-  // mx.db: the trail base URL the gated Record-API reverse-proxy forwards to.
-  dbProxyTarget?: string
+  // Discovered extension builders; their .server() factories run here, in the App phase.
+  extensions?: AnyExtension[]
+  // Per-extension user config, keyed by extension name; parsed by each builder's parseConfig.
+  extensionConfig?: Record<string, unknown>
   spawnHarness: (args: string[], cwd: string, sessionId?: string) => HarnessChild
   harnessEnv?: (sessionId?: string) => NodeJS.ProcessEnv
   // Override the harness transcript home (claude: ~/.claude). For tests; defaults to homedir().
@@ -50,23 +44,14 @@ function requireHarness(id: string): HarnessAdapter {
   if (!found) throw new Error('no harness registered (built-in claude missing)')
   return found
 }
-function requireRunner(id: string): TestRunnerAdapter {
-  const found = getRunner(id) ?? getRunner('vitest')
-  if (!found) throw new Error('no test runner registered (built-in vitest missing)')
-  return found
-}
 
-export function makeApp(opts: MakeAppOpts): H3 {
+export type MadeApp = {app: H3; disposers: (() => void | Promise<void>)[]}
+
+export function makeApp(opts: MakeAppOpts): MadeApp {
   const app = new H3()
   const harness = requireHarness(opts.cfg.harness)
-  const runner = requireRunner(opts.cfg.testRunner).create(opts.cwd)
   const uiBus = makeUiBus()
-  const extensions = opts.extensions
-  const fire = (event: ExtensionEvent, ctx: EventCtx): void => {
-    for (const handler of extensions?.eventHandlers[event] ?? []) void handler(ctx)
-  }
 
-  registerErrorHandler(app)
   registerCors(app, opts.allowedOrigins ?? [])
   registerChatRoutes(app, {
     cwd: opts.cwd,
@@ -84,35 +69,48 @@ export function makeApp(opts: MakeAppOpts): H3 {
   const page = registerPageRoutes(app, {journal: makeJournal(), root: opts.cwd})
   registerEditorRoutes(app, opts.openInEditor)
   registerOpenSourceRoute(app, {openInEditor: opts.openInEditor, root: opts.cwd})
-  registerTestRunnerRoutes(app, runner)
+
+  const guard = (origin: string | null) => originAllowed(origin, new Set(opts.allowedOrigins ?? []))
+  const seenTools = new Set<string>()
+  const seenNames = new Set<string>()
+  const mounted = (opts.extensions ?? []).map((extension) => {
+    if (seenNames.has(extension.name)) throw new Error(`extension name collision: "${extension.name}"`)
+    seenNames.add(extension.name)
+    const result = extension.__server?.({
+      config: extension.parseConfig(opts.extensionConfig?.[extension.name]),
+      cwd: opts.cwd,
+      app: makeExtensionApp(app, extension.name, guard),
+    })
+    const context = result?.context
+    const tools = (extension.tools ?? []).flatMap((tool) => {
+      const run = tool.__execute
+      if (!run) return []
+      if (seenTools.has(tool.name)) throw new Error(`extension tool name collision: "${tool.name}"`)
+      seenTools.add(tool.name)
+      return [
+        {
+          name: tool.name,
+          description: tool.description,
+          inputSchema: tool.inputSchema,
+          execute: (input: unknown) => run(input, context),
+        },
+      ]
+    })
+    return {tools, dispose: result?.dispose}
+  })
+  const extensionTools = mounted.flatMap((entry) => entry.tools)
+  const disposers = mounted.flatMap((entry) => (entry.dispose ? [entry.dispose] : []))
   // Expose mandarax tools to the harness CLI via MCP-over-HTTP on the same server, bridged to the live
-  // uiBus / page bus / test runner.
-  const history = createHistory()
+  // uiBus / page bus.
   registerMcpRoutes(
     app,
     (sessionId) => ({
       injectUi: (spec) => uiBus.inject(sessionId, spec),
       page: (query) => page.ask(query),
-      test: async ({kind, pattern}) => {
-        if (kind === 'list') return runner.list()
-        if (kind === 'run') return runner.run({patterns: pattern ? [pattern] : undefined})
-        return runner.status()
-      },
       open: (file, line) => opts.openInEditor(file, line),
     }),
-    extensions?.tools ?? [],
-    opts.cfg.previewId,
-    history,
+    extensionTools,
   )
-  registerToolRunRoute(app, {
-    tools: extensions?.tools ?? [],
-    approvals: extensions?.approvalPolicies ?? {},
-    previewId: opts.cfg.previewId,
-    history,
-    fire,
-  })
-  if (opts.dbProxyTarget) registerDbProxy(app, opts.dbProxyTarget)
   if (opts.bridge) registerServerRoutes(app, opts.bridge)
-  fire('session_start', {sessionId: opts.cfg.sessionId, previewId: opts.cfg.previewId})
-  return app
+  return {app, disposers}
 }

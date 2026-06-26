@@ -6,7 +6,7 @@ import {createServer, type IncomingMessage, type Server, type ServerResponse} fr
 import type {AddressInfo} from 'node:net'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {chromium, type Browser} from 'playwright'
-import {buildFixture, fixturePage, drive, ready, serveWidgetAsset} from './it-fixture.js'
+import {buildFixture, fixturePage, drive, ready} from './it-fixture.js'
 
 describe('react verbs (it) — real browser, real React, real driver', () => {
   let browser: Browser
@@ -17,9 +17,8 @@ describe('react verbs (it) — real browser, real React, real driver', () => {
     const fixtureJs = await buildFixture()
     const html = fixturePage(fixtureJs)
     server = createServer((req: IncomingMessage, res: ServerResponse) => {
-      if (serveWidgetAsset(req, res)) return
       // Any /api/* probe 404s so the widget mounts no chrome — but the driver seam + RDT hook are
-      // already live (set when the widget module executes, before the probe).
+      // already live (set synchronously on bundle load, before the probe).
       if ((req.url ?? '').startsWith('/api/')) {
         res.writeHead(404)
         return res.end('{}')

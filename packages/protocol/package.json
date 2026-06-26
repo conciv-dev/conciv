@@ -33,17 +33,13 @@
       "types": "./dist/done-types.d.ts",
       "import": "./dist/done-types.js"
     },
-    "./test-types": {
-      "types": "./dist/test-types.d.ts",
-      "import": "./dist/test-types.js"
+    "./editor-types": {
+      "types": "./dist/editor-types.d.ts",
+      "import": "./dist/editor-types.js"
     },
     "./harness-types": {
       "types": "./dist/harness-types.d.ts",
       "import": "./dist/harness-types.js"
-    },
-    "./runner-types": {
-      "types": "./dist/runner-types.d.ts",
-      "import": "./dist/runner-types.js"
     },
     "./bundler-types": {
       "types": "./dist/bundler-types.d.ts",
@@ -68,14 +64,6 @@
     "./tool-view-types": {
       "types": "./dist/tool-view-types.d.ts",
       "import": "./dist/tool-view-types.js"
-    },
-    "./db-types": {
-      "types": "./dist/db-types.d.ts",
-      "import": "./dist/db-types.js"
-    },
-    "./sync-types": {
-      "types": "./dist/sync-types.d.ts",
-      "import": "./dist/sync-types.js"
     }
   },
   "publishConfig": {
@@ -98,8 +86,6 @@
     "@types/node": "^22.19.21",
     "tsdown": "^0.22.2",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.8",
-    "y-protocols": "^1.0.7",
-    "yjs": "^13.6.31"
+    "vitest": "^4.1.8"
   }
 }

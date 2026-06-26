@@ -1,6 +1,4 @@
 import type {IncomingMessage, OutgoingHttpHeader, ServerResponse} from 'node:http'
-import {createReadStream} from 'node:fs'
-import {extname, join, sep} from 'node:path'
 import type {WidgetConfig} from '@mandarax/protocol/config-types'
 
 // The widget injection + serving middlewares. Kept framework-agnostic (plain node http types)
@@ -10,12 +8,8 @@ import type {WidgetConfig} from '@mandarax/protocol/config-types'
 
 export type Middleware = (req: IncomingMessage, res: ServerResponse, next: (err?: unknown) => void) => void
 
-// Base path the plugin serves the @mandarax/widget dist dir under (mount.js + its lazy chunks). A
-// trailing slash so mount.js's relative dynamic imports (./island-*.js) resolve under the same base.
-export const DEFAULT_WIDGET_BASE = '/@mandarax/widget/'
-export const DEFAULT_WIDGET_ENTRY = `${DEFAULT_WIDGET_BASE}mount.js`
-
-// Where the plugin serves the compiled extensions entry (the virtual:mandarax-extensions module).
+// Where the plugin serves the single client entry (the virtual:mandarax-extensions module, which
+// globs the extensions and imports the widget — both through Vite so solid + @mandarax/extension dedupe).
 export const EXTENSIONS_ROUTE = '/@mandarax/extensions.js'
 
 function escapeAttr(value: string): string {
@@ -24,12 +18,11 @@ function escapeAttr(value: string): string {
 
 // apiBase = the cross-origin engine origin the widget calls. widgetConfig is the layout config
 // (pw-widget), JSON-encoded so nesting + hotkey arrays survive; the widget reads + normalizes it.
-export function widgetTags(widgetUrl: string, previewId: string, apiBase: string, widgetConfig?: WidgetConfig): string {
+export function widgetTags(previewId: string, apiBase: string, widgetConfig?: WidgetConfig): string {
   return (
     `<meta name="pw-api-base" content="${escapeAttr(apiBase)}">` +
     `<meta name="pw-preview-id" content="${escapeAttr(previewId)}">` +
     `<meta name="pw-widget" content="${escapeAttr(JSON.stringify(widgetConfig ?? {}))}">` +
-    `<script type="module" src="${escapeAttr(widgetUrl)}"></script>` +
     `<script type="module" src="${escapeAttr(EXTENSIONS_ROUTE)}"></script>`
   )
 }
@@ -38,38 +31,6 @@ function injectInto(html: string, tags: string): string {
   if (html.includes('</head>')) return html.replace('</head>', `${tags}</head>`)
   if (html.includes('</body>')) return html.replace('</body>', `${tags}</body>`)
   return `${tags}${html}`
-}
-
-const ASSET_CONTENT_TYPES: Record<string, string> = {
-  '.js': 'text/javascript',
-  '.mjs': 'text/javascript',
-  '.map': 'application/json',
-  '.css': 'text/css',
-}
-
-// Serve the prebuilt widget dist dir under `base` (mount.js + its lazy chunks), so a host app needs
-// only the plugin — no separate static-serve wiring. Confined to `dir`; a `..` escape is rejected.
-export function makeWidgetServe(dir: string, base: string = DEFAULT_WIDGET_BASE): Middleware {
-  return (req, res, next) => {
-    const path = (req.url ?? '').split('?')[0] ?? ''
-    if (!path.startsWith(base)) {
-      next()
-      return
-    }
-    const file = join(dir, path.slice(base.length))
-    if (file !== dir && !file.startsWith(dir + sep)) {
-      res.statusCode = 403
-      res.end('forbidden')
-      return
-    }
-    res.setHeader('content-type', ASSET_CONTENT_TYPES[extname(file)] ?? 'application/octet-stream')
-    const stream = createReadStream(file)
-    stream.on('error', () => {
-      res.statusCode = 404
-      res.end('not found')
-    })
-    stream.pipe(res)
-  }
 }
 
 function toBuffer(chunk: unknown): Buffer | null {
@@ -124,13 +85,8 @@ function trailingCallback(args: ReadonlyArray<unknown>): (() => void) | undefine
 // writeHead's headers are applied via setHeader so a deferred flush still emits them. Non-html
 // responses (assets, SSE, JSON) stream through untouched, and a document already carrying the
 // widget (e.g. a static app where transformIndexHtml injected it) isn't re-injected.
-export function makeWidgetInject(
-  widgetUrl: string,
-  previewId: string,
-  apiBase: string,
-  widgetConfig?: WidgetConfig,
-): Middleware {
-  const tags = widgetTags(widgetUrl, previewId, apiBase, widgetConfig)
+export function makeWidgetInject(previewId: string, apiBase: string, widgetConfig?: WidgetConfig): Middleware {
+  const tags = widgetTags(previewId, apiBase, widgetConfig)
   return (_req, res, next) => {
     const chunks: Buffer[] = []
     const realWrite = res.write
@@ -183,7 +139,7 @@ export function makeWidgetInject(
       const body = Buffer.concat(chunks).toString('utf8')
       // Decide for real now that all headers are set. Only inject into actual html documents.
       const shouldInject =
-        String(res.getHeader('content-type') ?? '').includes('text/html') && !body.includes(widgetUrl)
+        String(res.getHeader('content-type') ?? '').includes('text/html') && !body.includes(EXTENSIONS_ROUTE)
       const out = shouldInject ? injectInto(body, tags) : body
       // Restore the originals before flushing: Node's end() calls this.write() internally, and
       // re-entering our buffering write would swallow the body.

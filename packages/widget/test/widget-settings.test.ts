@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest'
-import {parseWidgetSettings} from '../src/widget-settings.js'
+import {parseWidgetSettings} from '../src/client/widget-settings.js'
 
 describe('parseWidgetSettings', () => {
   it('defaults both layouts on when config is empty', () => {
