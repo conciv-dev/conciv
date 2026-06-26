@@ -22,3 +22,4 @@ storybook-static
 
 # vitest browser failure screenshots (regenerated on failure, never committed)
 **/test/__screenshots__/
+**/.vitest-attachments/
