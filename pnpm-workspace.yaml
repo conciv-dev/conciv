@@ -16,6 +16,7 @@ allowBuilds:
   sharp: false
   unix-dgram: false
   unrs-resolver: false
+  protobufjs: false
 
 # Gate dependency *resolution* (lockfile updates on dev machines): don't pick npm
 # versions younger than 48h, so a poisoned release is likely yanked before it ever
@@ -27,3 +28,12 @@ minimumReleaseAge: 2880
 # regardless. Remove once it has aged out.
 minimumReleaseAgeExclude:
   - '@publint/pack'
+  # jazz-tools alpha moves faster than the 48h window; the whiteboard extension pins an exact
+  # alpha (reviewed in the migration plan). Drop these once Jazz reaches a stable cadence.
+  - 'jazz-tools'
+  - 'jazz-napi'
+  - 'jazz-wasm'
+  - '@garden-co/jazz-napi-darwin-arm64'
+  - '@garden-co/jazz-napi-darwin-x64'
+  - '@garden-co/jazz-napi-linux-x64-gnu'
+  - '@garden-co/jazz-napi-win32-x64-msvc'
