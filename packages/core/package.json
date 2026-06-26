@@ -1,7 +1,7 @@
 {
   "name": "@mandarax/core",
   "version": "0.0.0",
-  "description": "The mandarax engine: a framework-free h3 + srvx server exposing the /__pw HTTP surface, with harness + test-runner registry seams.",
+  "description": "The mandarax engine: a framework-free h3 + srvx server exposing the /__pw HTTP surface, with a harness registry seam.",
   "keywords": [
     "ai",
     "engine",
@@ -55,7 +55,6 @@
     "@jridgewell/trace-mapping": "0.3.31",
     "@mandarax/harness": "workspace:^",
     "@mandarax/protocol": "workspace:^",
-    "@mandarax/test-runner": "workspace:^",
     "@mandarax/tools": "workspace:^",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@tanstack/ai": "^0.28.0",

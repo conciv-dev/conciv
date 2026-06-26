@@ -1,4 +1,5 @@
 import {join} from 'node:path'
+import {fileURLToPath} from 'node:url'
 import {createRequire} from 'node:module'
 import type {Plugin, ViteDevServer} from 'vite'
 import launchEditor from 'launch-editor'
@@ -15,6 +16,7 @@ import {isExtensionModule, compileExtensionSolid} from './compile-extension.js'
 import {splitExtension} from './split-extension.js'
 import type {AnyExtension} from '@mandarax/extension'
 import {
+  BUILTIN_CLIENT_ENTRIES,
   EXTENSIONS_RESOLVED_ID,
   EXTENSIONS_VIRTUAL_ID,
   extensionsModuleSource,
@@ -156,7 +158,13 @@ export function makeViteHook(options: MandaraxConfig = {}): Plugin {
       deferToTsd = config.plugins.some((p) => p.name === '@tanstack/devtools:inject-source')
     },
     resolveId(id) {
-      return id === EXTENSIONS_VIRTUAL_ID ? EXTENSIONS_RESOLVED_ID : null
+      if (id === EXTENSIONS_VIRTUAL_ID) return EXTENSIONS_RESOLVED_ID
+      // Built-in client entries are the plugin's deps, not the app's; resolve them from the plugin so
+      // the app's node_modules need not declare them (a bare specifier wouldn't resolve under pnpm).
+      // import.meta.resolve (ESM, `import` condition) — the entries are esm-only, so require.resolve can't.
+      if (BUILTIN_CLIENT_ENTRIES.includes(id as (typeof BUILTIN_CLIENT_ENTRIES)[number]))
+        return fileURLToPath(import.meta.resolve(id))
+      return null
     },
     load(id) {
       return id === EXTENSIONS_RESOLVED_ID ? extensionsModuleSource() : null

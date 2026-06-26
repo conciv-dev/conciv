@@ -1,5 +1,5 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
-import {expect, within, userEvent} from 'storybook/test'
+import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {Collapsible} from './collapsible.js'
 
 const meta: Meta<typeof Collapsible.Root> = {title: 'ui-kit/Collapsible', component: Collapsible.Root}
@@ -15,7 +15,9 @@ function Demo(props: {defaultOpen?: boolean}) {
     <Collapsible.Root defaultOpen={props.defaultOpen}>
       <Collapsible.Trigger class={TRIGGER}>
         Tool details
-        <Collapsible.Indicator class="text-pw-text-3 [&[data-state=open]]:[transform:rotate(180deg)]">▾</Collapsible.Indicator>
+        <Collapsible.Indicator class="text-pw-text-3 [&[data-state=open]]:[transform:rotate(180deg)]">
+          ▾
+        </Collapsible.Indicator>
       </Collapsible.Trigger>
       <Collapsible.Content>
         <div class={BODY}>Hidden content that slides open and closed with the shared kit animation.</div>
@@ -31,7 +33,7 @@ export const Default: Story = {
     const trigger = c.getByRole('button', {name: /Tool details/})
     await expect(trigger).toBeVisible()
     await userEvent.click(trigger)
-    await expect(c.getByText(/Hidden content/)).toBeVisible()
+    await waitFor(() => expect(c.getByText(/Hidden content/)).toBeVisible())
   },
 }
 

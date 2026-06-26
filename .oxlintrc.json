@@ -59,6 +59,12 @@
       "rules": {
         "unocss/order": "off"
       }
+    },
+    {
+      "files": ["apps/**"],
+      "rules": {
+        "unocss/order": "off"
+      }
     }
   ],
   "ignorePatterns": ["dist", "build", "node_modules", ".turbo"]

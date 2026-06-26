@@ -1,6 +1,6 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {For} from 'solid-js'
-import {expect, within, userEvent} from 'storybook/test'
+import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {useFilter} from '@ark-ui/solid/locale'
 import {useListCollection} from '@ark-ui/solid/combobox'
 import {Combobox} from './combobox.js'
@@ -25,7 +25,7 @@ function Demo() {
     filter: filterFn().contains,
   })
   return (
-    <Combobox.Root collection={collection()} onInputValueChange={(d) => filter(d.inputValue)} class="w-64">
+    <Combobox.Root openOnClick collection={collection()} onInputValueChange={(d) => filter(d.inputValue)} class="w-64">
       <Combobox.Control class="relative">
         <Combobox.Input
           class="text-pw-text font-pw px-3 border border-pw-line-2 rounded-pw-md bg-pw-fill h-9 w-full [outline:none]"
@@ -54,6 +54,6 @@ export const Default: Story = {
     const input = c.getByPlaceholderText('Pick a model')
     await expect(input).toBeVisible()
     await userEvent.click(input)
-    await expect(await c.findByText('Claude Sonnet')).toBeVisible()
+    await waitFor(() => expect(c.getByText('Claude Sonnet')).toBeVisible())
   },
 }

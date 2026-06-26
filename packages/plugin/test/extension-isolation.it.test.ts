@@ -44,6 +44,7 @@ function Surface() {
     // The fixture's Component touches a browser global and its .client() throws; jiti loading the file
     // server-side must still collect iso_tool — proving neither client half runs during the server load.
     const builders = await loadServerExtensions(join(here, 'fixtures', 'iso-extensions'))
-    expect(builders.flatMap((builder) => (builder.tools ?? []).map((tool) => tool.name))).toEqual(['iso_tool'])
+    // Built-ins (test_runner) are prepended; the user fixture's iso_tool must be collected alongside.
+    expect(builders.flatMap((builder) => (builder.tools ?? []).map((tool) => tool.name))).toContain('iso_tool')
   })
 })

@@ -13,7 +13,6 @@ export interface ResolvedMandaraxConfig {
   harness: string
   harnessBin: string | undefined
   sessionId: string
-  testRunner: string
   systemPrompt: string
   extensions: MandaraxConfig['extensions']
 }
@@ -37,7 +36,6 @@ export function resolveConfig(options: MandaraxConfig, root: string): ResolvedMa
       options.harnessBin ?? options.claudePath ?? env.MANDARAX_HARNESS_BIN ?? env.MANDARAX_CLAUDE_PATH ?? undefined,
     sessionId:
       options.sessionId ?? options.claudeSessionId ?? env.MANDARAX_SESSION_ID ?? env.MANDARAX_CLAUDE_SESSION_ID ?? '',
-    testRunner: options.testRunner ?? env.MANDARAX_TEST_RUNNER ?? 'vitest',
     systemPrompt: resolveSystemPrompt(options.systemPrompt),
     extensions: options.extensions,
   }

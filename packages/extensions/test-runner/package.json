@@ -1,0 +1,91 @@
+{
+  "name": "@mandarax/extension-test-runner",
+  "version": "0.0.0",
+  "description": "The test-runner built-in extension: runner-agnostic adapters (vitest today; jest/node-test/playwright via the ChildRunnerSpec seam) exposed through the @mandarax/extension contract — server routes, a test tool, and the live results card.",
+  "keywords": [
+    "extension",
+    "jest",
+    "mandarax",
+    "playwright",
+    "test-runner",
+    "vitest"
+  ],
+  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/extensions/test-runner#readme",
+  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mandarax-dev/mandarax.git",
+    "directory": "packages/extensions/test-runner"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "import": "./dist/client.js"
+    },
+    "./vitest": {
+      "types": "./dist/runners/vitest/adapter.d.ts",
+      "import": "./dist/runners/vitest/adapter.js"
+    },
+    "./jest": {
+      "types": "./dist/runners/jest.d.ts",
+      "import": "./dist/runners/jest.js"
+    },
+    "./node-test": {
+      "types": "./dist/runners/node-test.d.ts",
+      "import": "./dist/runners/node-test.js"
+    },
+    "./playwright": {
+      "types": "./dist/runners/playwright/adapter.d.ts",
+      "import": "./dist/runners/playwright/adapter.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown && vite build && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only"
+  },
+  "dependencies": {
+    "@mandarax/extension": "workspace:^",
+    "@mandarax/tool-ui": "workspace:^",
+    "@mandarax/ui-kit-system": "workspace:^",
+    "h3": "2.0.1-rc.22",
+    "lucide-solid": "^1.18.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@mandarax/core": "workspace:^",
+    "@mandarax/protocol": "workspace:^",
+    "@mandarax/uno-preset": "workspace:*",
+    "@playwright/test": "^1.60.0",
+    "@tanstack/ai-mcp": "^0.1.0",
+    "@types/node": "^22.19.21",
+    "@vitest/browser-playwright": "4.1.8",
+    "solid-js": "^1.9.13",
+    "tsdown": "^0.22.2",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "unocss": "^66.7.2",
+    "vite": "^8.0.16",
+    "vite-plugin-solid": "^2.11.12",
+    "vitest": "^4.1.8"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.9.13"
+  }
+}

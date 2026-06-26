@@ -1,4 +1,3 @@
-import {render} from 'solid-js/web'
 import {createShadowRoot} from './shadow.js'
 import {createWidgetShell} from './widget-shell.js'
 import {chatPanelDef} from './chat-panel.js'
@@ -7,7 +6,6 @@ import {newSessionAction} from './new-session-action.js'
 import {compactAction} from './compact-action.js'
 import {makeOpenInTerminalAction} from './open-in-terminal-action.js'
 import {modelSelectorControl} from './model-selector.js'
-import {TestCard} from './test-card.js'
 import {initPageBus} from './page-bus.js'
 import {makeDomPageDriver, type PageDriver} from './page-driver.js'
 import {installReactBridge} from './react-bridge.js'
@@ -26,7 +24,6 @@ function metaContent(name: string): string {
 
 declare global {
   interface Window {
-    __MANDARAX_RENDER_TEST_CARD__?: () => void
     __MANDARAX_API_BASE__?: string
     // Test seam (browser IT): the live page driver, for driving React verbs against real fibers
     // without a running dev server. Same driver the page-bus uses (one console buffer / registry).
@@ -44,13 +41,6 @@ function resolveWidget(): WidgetSettings {
   return parseWidgetSettings(metaContent('pw-widget'))
 }
 
-// Test-only seam (browser IT): render a standalone live TestCard into the widget's shadow root.
-function mountTestCardForTest(root: ShadowRoot, apiBase: string): void {
-  const container = document.createElement('div')
-  root.appendChild(container)
-  render(() => <TestCard apiBase={apiBase} onFix={() => {}} result={null} />, container)
-}
-
 // The plugin's client entry imports this and passes the discovered extensions (built-ins + the user's
 // mandarax/extensions/*). Their server halves were collapsed by the bundler; here their theme applies
 // and their Component renders into the surface slots. Tool renderers compose ahead of the built-ins so
@@ -61,7 +51,6 @@ export function mountWidget(extensions: AnyExtension[]): void {
   installReactBridge()
   const {root} = createShadowRoot()
   const apiBase = resolveApiBase()
-  window.__MANDARAX_RENDER_TEST_CARD__ = () => mountTestCardForTest(root, apiBase)
   // One driver, shared by the page-bus and the test seam, so console-patching + registry happen once.
   const driver = makeDomPageDriver()
   window.__MANDARAX_PAGE_DRIVER__ = driver

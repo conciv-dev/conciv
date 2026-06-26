@@ -8,9 +8,7 @@ describe('/api/mcp', () => {
     const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
     try {
       const tools = await mcp.tools()
-      expect(tools.map((t) => t.name)).toEqual(
-        expect.arrayContaining(['mandarax_ui', 'mandarax_page', 'mandarax_test']),
-      )
+      expect(tools.map((t) => t.name)).toEqual(expect.arrayContaining(['mandarax_ui', 'mandarax_page']))
       const uiTool = tools.find((t) => t.name === 'mandarax_ui')
       if (!uiTool?.execute) throw new Error('mandarax_ui not registered on /api/mcp')
       // No active chat turn, so the inject has no stream to land on (injected:false) — but a

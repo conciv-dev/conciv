@@ -26,8 +26,6 @@ const SWITCHED_REPLY = 'Reply from the switched session'
 const RISKY_COMMAND = 'rm -rf /tmp/scratch'
 const APPROVAL_ID = 'a1'
 const APPROVE_CALL_ID = 'tc-approve'
-const FAILING_TEST = 'rejects an expired token'
-const FAILURE_MESSAGE = 'expected 200 to be 401'
 const PAGE_QUERY = {requestId: 'pb1', kind: 'text', selector: '#probe'}
 // A react verb aimed at the non-React probe div: proves the verb routes through the driver to
 // the bippy bridge and degrades gracefully (no fiber) — the happy path is covered by example e2e.
@@ -243,35 +241,6 @@ function readChatIntent(req: IncomingMessage): Promise<string> {
   })
 }
 
-// Scripted vitest stream: one passing test, one failing test (with an error), then run-end.
-function writeVitestStream(res: ServerResponse): void {
-  res.writeHead(200, {
-    'content-type': 'text/event-stream',
-    'cache-control': 'no-cache',
-    'access-control-allow-origin': '*',
-  })
-  const send = (event: unknown) => res.write(`data: ${JSON.stringify(event)}\n\n`)
-  const file = '/app/src/auth.test.ts'
-  const error = {file, name: FAILING_TEST, message: FAILURE_MESSAGE, stack: FAILURE_MESSAGE, line: 42}
-  const tests = [
-    {file, name: 'signs in a valid user', state: 'pass', durationMs: 5},
-    {file, name: FAILING_TEST, state: 'fail', durationMs: 9, error},
-  ]
-  send({type: 'snapshot', files: [], summary: {passed: 0, failed: 0, skipped: 0, durationMs: 0}, watching: true})
-  send({type: 'run-start', runId: 'r1', files: [file]})
-  send(tests[0])
-  send(tests[1])
-  // The real backend's run-end carries the full tests array (and failures); the card renders
-  // its tree from it.
-  send({
-    type: 'run-end',
-    runId: 'r1',
-    summary: {passed: 1, failed: 1, skipped: 0, durationMs: 14},
-    failures: [error],
-    tests,
-  })
-}
-
 function writeJson(res: ServerResponse, body: unknown): void {
   res.writeHead(200, {'content-type': 'application/json', 'access-control-allow-origin': '*'})
   res.end(JSON.stringify(body))
@@ -391,7 +360,6 @@ describe('aidx widget (it) — real browser, real SSE', () => {
         return
       }
       if (url === '/api/chat/permission-decision') return writeJson(res, {ok: true})
-      if (url === '/api/test-runner/stream') return writeVitestStream(res)
       if (url === '/api/editor/open') return writeJson(res, {ok: true})
       if (url === '/api/page/reply') return writeJson(res, {ok: true})
       // Page-bus: as soon as the widget subscribes, push one query and keep the stream open.
@@ -1087,24 +1055,6 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await page.getByRole('button', {name: 'Session: Made in mandarax'}).waitFor({state: 'visible', timeout: 4000})
     // The restored session also re-hydrates its own thread.
     await page.getByText(SWITCHED_REPLY).waitFor({state: 'visible'})
-    await page.close()
-  })
-
-  it('renders the live vitest card: pass/fail tree, expands the failure with actions', async () => {
-    const page = await browser.newPage()
-    await page.goto(state.base)
-    // The test-only seam mounts a standalone live card (result=null → subscribes to the stream).
-    await page.waitForFunction(() => '__MANDARAX_RENDER_TEST_CARD__' in window)
-    await page.evaluate(() => {
-      const w = window as unknown as {__MANDARAX_RENDER_TEST_CARD__?: () => void}
-      w.__MANDARAX_RENDER_TEST_CARD__?.()
-    })
-
-    await page.getByText('1 failed').waitFor({state: 'visible'})
-    await page.getByText(FAILING_TEST).click()
-    await page.getByText(FAILURE_MESSAGE).waitFor({state: 'visible'})
-    await page.getByRole('button', {name: /Fix this/}).waitFor({state: 'visible'})
-    await page.getByRole('button', {name: /auth\.test\.ts:42/}).waitFor({state: 'visible'})
     await page.close()
   })
 

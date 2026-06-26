@@ -2,7 +2,6 @@ import {randomUUID} from 'node:crypto'
 import {buildUiSpec} from '@mandarax/protocol/ui-types'
 import type {MandaraxServerTool, MandaraxToolContext} from './types.js'
 import {mandaraxPageToolDef, PageInput} from './page.js'
-import {mandaraxTestToolDef, TestInput} from './test.js'
 import {mandaraxUiToolDef, UiInput} from './ui.js'
 import {mandaraxOpenToolDef, OpenInput} from './open.js'
 import {buildCatalog, scaffold, validateSource} from '@mandarax/extension/catalog'
@@ -37,18 +36,6 @@ function mandaraxPageServerTool(ctx: MandaraxToolContext): MandaraxServerTool {
     description: tool.description,
     inputSchema: PageInput,
     execute: (input) => run(PageInput.parse(input)),
-  }
-}
-
-function mandaraxTestServerTool(ctx: MandaraxToolContext): MandaraxServerTool {
-  const tool = mandaraxTestToolDef.server(async ({action, pattern}) => ctx.test({kind: action, pattern}))
-  const run = tool.execute
-  if (!run) throw new Error('mandarax_test: server tool has no execute')
-  return {
-    name: tool.name,
-    description: tool.description,
-    inputSchema: TestInput,
-    execute: (input) => run(TestInput.parse(input)),
   }
 }
 
@@ -94,7 +81,6 @@ export function mandaraxTools(ctx: MandaraxToolContext): MandaraxServerTool[] {
   return [
     mandaraxUiServerTool(ctx),
     mandaraxPageServerTool(ctx),
-    mandaraxTestServerTool(ctx),
     mandaraxOpenServerTool(ctx),
     mandaraxExtensionsServerTool(),
   ]

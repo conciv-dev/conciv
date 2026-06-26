@@ -33,17 +33,13 @@
       "types": "./dist/done-types.d.ts",
       "import": "./dist/done-types.js"
     },
-    "./test-types": {
-      "types": "./dist/test-types.d.ts",
-      "import": "./dist/test-types.js"
+    "./editor-types": {
+      "types": "./dist/editor-types.d.ts",
+      "import": "./dist/editor-types.js"
     },
     "./harness-types": {
       "types": "./dist/harness-types.d.ts",
       "import": "./dist/harness-types.js"
-    },
-    "./runner-types": {
-      "types": "./dist/runner-types.d.ts",
-      "import": "./dist/runner-types.js"
     },
     "./bundler-types": {
       "types": "./dist/bundler-types.d.ts",

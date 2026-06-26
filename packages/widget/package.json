@@ -32,7 +32,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "vite build && tsc -p tsconfig.build.json",
+    "build": "vite build && vite build --config vite.global.config.ts && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run",
@@ -64,6 +64,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@mandarax/extension-test-runner": "workspace:^",
     "@mandarax/uno-preset": "workspace:*",
     "@types/node": "^22.19.21",
     "@unocss/postcss": "^66.7.2",

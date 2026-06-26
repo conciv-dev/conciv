@@ -35,7 +35,6 @@ export interface MandaraxConfig {
   harness?: string
   harnessBin?: string
   sessionId?: string
-  testRunner?: string
   /** Fixed engine port. Used by the Next.js integration so server boot + client widget agree. */
   port?: number
   /**

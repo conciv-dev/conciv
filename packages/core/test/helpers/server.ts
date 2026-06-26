@@ -67,7 +67,6 @@ export async function startTestServer(opts: TestServerOpts = {}): Promise<TestSe
     harness: harnessId,
     harnessBin: undefined,
     sessionId: '',
-    testRunner: 'vitest',
     systemPrompt: '',
     extensions: undefined,
   }

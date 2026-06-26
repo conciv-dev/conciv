@@ -1,5 +1,4 @@
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import type {TestEvent} from './test-types.js'
 
 // The card-render contract shared by the renderer (@mandarax/tool-ui) and the authoring layer
 // (@mandarax/extension, whose defineTool(...).render() supplies a card). Lives in protocol so both
@@ -10,8 +9,7 @@ import type {TestEvent} from './test-types.js'
 export type ToolAccent = 'page' | 'code' | 'test' | 'read' | 'neutral'
 
 // Host-app actions a card may need. The widget supplies concrete implementations; cards that don't
-// need a given seam ignore it. The two test seams are optional so the package stays transport-free:
-// the widget injects the live SSE subscription and the editor-open route (Plan C).
+// need a given seam ignore it. Extension cards open their own transports via apiBase.
 export type ToolViewCtx = {
   apiBase: string
   harnessId: string
@@ -19,10 +17,6 @@ export type ToolViewCtx = {
   // Answer a native tanstack tool approval (part.state==='approval-requested'). The widget posts the
   // decision out-of-band to unblock the harness's gate; absent → no approval controls are rendered.
   respondApproval?: (approvalId: string, approved: boolean) => void
-  // Subscribe to the live test-runner stream; returns an unsubscribe. Absent → static render only.
-  subscribeTestRunner?: (onEvent: (event: TestEvent) => void) => () => void
-  // Open a source file in the user's editor (the test card's "open" action).
-  openEditor?: (file: string, line?: number) => void
 }
 
 // The props every tool card receives: the raw tool-call part, its paired result, and host actions.

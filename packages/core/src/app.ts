@@ -1,20 +1,16 @@
 import {H3} from 'h3'
 import type {HarnessAdapter, HarnessChild} from '@mandarax/protocol/harness-types'
-import type {TestRunnerAdapter} from '@mandarax/protocol/runner-types'
 import type {BundlerBridge} from '@mandarax/protocol/bundler-types'
 import type {AnyExtension} from '@mandarax/extension'
 import type {ResolvedMandaraxConfig} from './config.js'
 import {getHarness} from '@mandarax/harness'
-import {getRunner} from '@mandarax/test-runner'
 import {makeExtensionApp} from './extension-app.js'
 import {originAllowed, registerCors} from './api/cors.js'
-import {registerErrorHandler} from './api/errors.js'
 import {registerChatRoutes} from './api/chat/chat.js'
 import {registerMcpRoutes} from './api/mcp/mcp.js'
 import {registerPageRoutes} from './api/page/page.js'
 import {registerServerRoutes} from './api/server/server.js'
 import {registerEditorRoutes} from './api/editor/editor.js'
-import {registerTestRunnerRoutes} from './api/test-runner/test-runner.js'
 import {makeUiBus} from './runtime/ui-bus.js'
 import {makeJournal} from './runtime/journal.js'
 import type {OpenInEditor} from './editor/open.js'
@@ -47,21 +43,14 @@ function requireHarness(id: string): HarnessAdapter {
   if (!found) throw new Error('no harness registered (built-in claude missing)')
   return found
 }
-function requireRunner(id: string): TestRunnerAdapter {
-  const found = getRunner(id) ?? getRunner('vitest')
-  if (!found) throw new Error('no test runner registered (built-in vitest missing)')
-  return found
-}
 
 export type MadeApp = {app: H3; disposers: (() => void | Promise<void>)[]}
 
 export function makeApp(opts: MakeAppOpts): MadeApp {
   const app = new H3()
   const harness = requireHarness(opts.cfg.harness)
-  const runner = requireRunner(opts.cfg.testRunner).create(opts.cwd)
   const uiBus = makeUiBus()
 
-  registerErrorHandler(app)
   registerCors(app, opts.allowedOrigins ?? [])
   registerChatRoutes(app, {
     cwd: opts.cwd,
@@ -78,7 +67,6 @@ export function makeApp(opts: MakeAppOpts): MadeApp {
   })
   const page = registerPageRoutes(app, {journal: makeJournal(), root: opts.cwd})
   registerEditorRoutes(app, opts.openInEditor)
-  registerTestRunnerRoutes(app, runner)
 
   const guard = (origin: string | null) => originAllowed(origin, new Set(opts.allowedOrigins ?? []))
   const seenTools = new Set<string>()
@@ -111,17 +99,12 @@ export function makeApp(opts: MakeAppOpts): MadeApp {
   const extensionTools = mounted.flatMap((entry) => entry.tools)
   const disposers = mounted.flatMap((entry) => (entry.dispose ? [entry.dispose] : []))
   // Expose mandarax tools to the harness CLI via MCP-over-HTTP on the same server, bridged to the live
-  // uiBus / page bus / test runner.
+  // uiBus / page bus.
   registerMcpRoutes(
     app,
     (sessionId) => ({
       injectUi: (spec) => uiBus.inject(sessionId, spec),
       page: (query) => page.ask(query),
-      test: async ({kind, pattern}) => {
-        if (kind === 'list') return runner.list()
-        if (kind === 'run') return runner.run({patterns: pattern ? [pattern] : undefined})
-        return runner.status()
-      },
       open: (file, line) => opts.openInEditor(file, line),
     }),
     extensionTools,

@@ -1,5 +1,5 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
-import {expect, within, userEvent} from 'storybook/test'
+import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {ChainOfThought, Reasoning} from './thinking.js'
 
 const meta: Meta<typeof ChainOfThought> = {title: 'tool-ui/ChainOfThought', component: ChainOfThought}
@@ -50,13 +50,13 @@ export const TogglesRepeatedly: Story = {
     const c = within(canvasElement)
     const trigger = c.getByRole('button', {name: /Thought process/})
     const body = c.getByText(/hides and shows/)
-    await expect(body).not.toBeVisible()
+    await waitFor(() => expect(body).not.toBeVisible())
     await userEvent.click(trigger)
-    await expect(body).toBeVisible()
+    await waitFor(() => expect(body).toBeVisible())
     await userEvent.click(trigger)
-    await expect(body).not.toBeVisible()
+    await waitFor(() => expect(body).not.toBeVisible())
     await userEvent.click(trigger)
-    await expect(body).toBeVisible()
+    await waitFor(() => expect(body).toBeVisible())
   },
 }
 

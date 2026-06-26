@@ -4,6 +4,5 @@ export {mandaraxTools} from './server.js'
 
 // The definitions + schemas are also exported from the browser-safe `./defs` subpath.
 export {mandaraxPageToolDef, PageInput} from './page.js'
-export {mandaraxTestToolDef, TestInput} from './test.js'
 export {mandaraxUiToolDef, UiInput} from './ui.js'
 export {mandaraxOpenToolDef, OpenInput} from './open.js'

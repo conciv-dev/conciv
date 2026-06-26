@@ -2,7 +2,7 @@ import {createMemo, createEffect, createSignal, For, Index, Match, onCleanup, Sh
 import {Progress} from '@mandarax/ui-kit-system'
 import {useChat, fetchServerSentEvents, createChatClientOptions} from '@tanstack/ai-solid'
 import type {MessagePart, ToolCallPart, ToolResultPart, UIMessage} from '@tanstack/ai-client'
-import {apiError, createTransport, type SessionClient} from '@mandarax/api-client'
+import {apiError, type SessionClient} from '@mandarax/api-client'
 import {invalidateSessions} from './session-store-client.js'
 import {createDebouncer} from '@tanstack/solid-pacer'
 import {GenUi} from './gen-ui.js'
@@ -25,8 +25,6 @@ import {
   tokenUsageToSnapshot,
   type UsageSnapshot,
 } from '@mandarax/protocol/usage-types'
-import {TestEventSchema, EditorOpenSchema} from '@mandarax/protocol/test-types'
-import {OkSchema} from '@mandarax/protocol/chat-types'
 import type {ComposerActionDef, ComposerControlDef, PanelDef} from './widget-shell.js'
 import {GrabReference} from './react-grab/grab-reference.js'
 import type {Grab, GrabApi} from '@mandarax/grab'
@@ -67,15 +65,6 @@ function activeCallTitle(parts: ReadonlyArray<MessagePart>, titleByName: Record<
     title = callSettled(p, byCallId.get(p.id)) ? title : nowTitle(p, titleByName)
   }
   return title
-}
-
-// SSE frames are untrusted strings — JSON-parse to unknown, then validate with a protocol schema.
-function parseJson(raw: string): unknown {
-  try {
-    return JSON.parse(raw)
-  } catch {
-    return null
-  }
 }
 
 // Width the staged grab preview scales to fit — sits comfortably inside the min (300px) panel width.
@@ -440,15 +429,7 @@ export function ChatPanel(props: {
   const isActiveAssistant = (index: number, role: string) =>
     isStreaming() && role === 'assistant' && index === lastIndex()
 
-  // Host-app seams the tool cards need, injected so @mandarax/tool-ui stays transport-free: send
-  // a follow-up message, subscribe to the live test-runner SSE, open a file in the user's editor.
-  const transport = createTransport({apiBase: props.apiBase})
-  const openEditor = transport.route({
-    method: 'POST',
-    path: '/api/editor/open',
-    request: EditorOpenSchema,
-    response: OkSchema,
-  })
+  // Host-app seams the tool cards need: send a follow-up message, answer a native tool approval.
   const toolCtx: ToolViewCtx = {
     apiBase: props.apiBase,
     harnessId: props.harnessId,
@@ -456,15 +437,6 @@ export function ChatPanel(props: {
     // Answer a native tool approval out-of-band: the harness owns the loop and blocks on its gate, so
     // the decision can't ride the one-way stream back; this unblocks the pending gate in core.
     respondApproval: (approvalId, approved) => void client.permissionDecision({approvalId, approved}).catch(() => {}),
-    subscribeTestRunner: (onEvent) => {
-      const source = transport.eventSource('/api/test-runner/stream')
-      source.addEventListener('message', (e) => {
-        const parsed = TestEventSchema.safeParse(parseJson(e.data))
-        if (parsed.success) onEvent(parsed.data)
-      })
-      return () => source.close()
-    },
-    openEditor: (file, line) => void openEditor({file, line}).catch(() => {}),
   }
 
   // The single morphing "now" line: the most recent still-running tool call's title while streaming,

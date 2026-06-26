@@ -8,7 +8,6 @@ import {searchTool} from './cards/search.js'
 import {todoTool} from './cards/todo.js'
 import {pageActionTool} from './cards/page-action.js'
 import {uiTool} from './cards/ui-chip.js'
-import {testTool} from './cards/test.js'
 
 export {ToolCallCard, type ToolCallCardProps} from './tool-call.js'
 export {ApprovalBar} from './approval-bar.js'
@@ -21,7 +20,6 @@ export {SearchCard, searchTool} from './cards/search.js'
 export {TodoCard, todoTool} from './cards/todo.js'
 export {PageActionCard, pageActionTool} from './cards/page-action.js'
 export {UiCard, uiTool} from './cards/ui-chip.js'
-export {TestCard, TestResults, testTool} from './cards/test.js'
 export {ChainOfThought, Reasoning} from './thinking.js'
 export {NowLine} from './now-line.js'
 export {nowTitle} from './now-title.js'
@@ -39,5 +37,4 @@ export const builtinToolCards: ToolCardEntry[] = [
   todoTool,
   pageActionTool,
   uiTool,
-  testTool,
 ]

@@ -9,7 +9,6 @@ export type MandaraxToolContext = {
   injectUi: (spec: UiSpec) => boolean
   // The page-bus ask shape: a query without the bus-assigned requestId.
   page: (query: Omit<PageQuery, 'requestId'>) => Promise<unknown>
-  test: (action: {kind: 'list' | 'run' | 'status'; pattern?: string}) => Promise<unknown>
   // Open a source file (optionally at a line) in the user's editor — the follow-up to locate/inspect.
   open: (file: string, line?: number) => void
 }

@@ -74,15 +74,6 @@ describe('mandarax CLI (IT, real server)', () => {
     expect(state.last).toMatchObject({method: 'GET', url: '/api/page/find?name=LoginForm'})
   })
 
-  it('tools test run → POST /api/test-runner/run with patterns + testNamePattern', async () => {
-    await runCommand(toolsCommand, {rawArgs: ['test', 'run', 'auth', '-t', 'expired']})
-    expect(state.last).toMatchObject({
-      method: 'POST',
-      url: '/api/test-runner/run',
-      body: {patterns: ['auth'], testNamePattern: 'expired'},
-    })
-  })
-
   it('ui confirm → POST a confirm spec to /api/chat/ui', async () => {
     await runCommand(uiCommand, {rawArgs: ['confirm', '--question', 'OK?']})
     expect(state.last?.method).toBe('POST')
