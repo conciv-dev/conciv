@@ -26,6 +26,16 @@ async function readUntil(core: string, session: string, type: string): Promise<b
   return false
 }
 
+async function readCountAtLeast(core: string, session: string, count: number): Promise<number> {
+  let last = 0
+  for (let attempt = 0; attempt < 40; attempt++) {
+    last = parse(await callTool(core, session, 'canvas.read', {})).elements.length
+    if (last >= count) return last
+    await new Promise((resolve) => setTimeout(resolve, 250))
+  }
+  return last
+}
+
 beforeAll(async () => {
   state.stack = await bootStack()
   state.built = await buildSolidFixture(join(here, 'fixtures/canvas-binding-fixture.tsx'))
@@ -68,6 +78,16 @@ describe('whiteboard canvas binding (it) — AI draws drain into the canvas, loc
     await page.getByText('scene:1').waitFor({state: 'visible', timeout: 40_000})
 
     expect(await readUntil(state.stack!.core, sessionId('e2local'), 'ellipse')).toBe(true)
+    await page.close()
+  })
+
+  it('renders an AI mermaid diagram as multiple elements', async () => {
+    await callTool(state.stack!.core, sessionId('e2mermaid'), 'canvas.diagram', {mermaid: 'graph TD; A-->B; B-->C'})
+    const page = await state.browser!.newPage()
+    await page.goto(`${state.page!.base}/?session=e2mermaid`)
+    await page.getByText('ready').waitFor({state: 'visible', timeout: 40_000})
+
+    expect(await readCountAtLeast(state.stack!.core, sessionId('e2mermaid'), 3)).toBeGreaterThanOrEqual(3)
     await page.close()
   })
 })

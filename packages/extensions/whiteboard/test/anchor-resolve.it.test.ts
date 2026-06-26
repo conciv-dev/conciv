@@ -50,4 +50,21 @@ describe('anchor.resolve (it) — drift status for a comment', () => {
     })
     expect((await call(session, 'anchor.resolve', {cid: 'anchor-float'})).status).toBe('orphaned')
   })
+
+  it('reports moved after the anchored node shifts down in the file', async () => {
+    const session = sessionId('anchormoved')
+    const target = await call(session, 'element.reference', {file: 'src/App.tsx', component: 'App'})
+    await call(session, 'comment.create', {
+      cid: 'anchor-moved',
+      kind: 'source-linked',
+      parts: [{type: 'text', text: 'move me'}],
+      anchor: {source: {file: target.file, line: target.line, column: target.column}},
+      x: 0,
+      y: 0,
+      authorKind: 'human',
+    })
+    expect((await call(session, 'anchor.resolve', {cid: 'anchor-moved'})).status).not.toBe('orphaned')
+    writeFileSync(join(state.stack.dir, 'src', 'App.tsx'), `// pushed down\n// two\n${APP}`)
+    expect((await call(session, 'anchor.resolve', {cid: 'anchor-moved'})).status).toBe('moved')
+  })
 })
