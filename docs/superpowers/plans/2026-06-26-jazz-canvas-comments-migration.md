@@ -170,8 +170,7 @@ Phases 0–2 of the **prior** (Yjs+trailbase) migration are committed on this br
 
 **Files:** rewrite `src/tool/comment/{def,server,client}.ts`; pin write helpers. Server execute writes `comments` (+ `pins`) rows scoped by room; `comment.delete`/`comment.resolve` declare `approval:'ask'`. Test: `test/comment-tools.it.test.ts`.
 
-- [ ] **Step 1:** Failing — `comment.create` via MCP inserts a `comments` row + a `pins` row in the room; a client query sees both; resolve flips `resolved`.
-- [ ] **Step 2:** FAIL → implement → PASS. Commit.
+- [x] **Step 1+2:** DONE (full rich model, user-approved). Expanded the `comments` table to `{previewId, sessionId, cid, threadId, parentId?, parts(json), authorKind, authorModel?, status(open|resolved|drifted|orphaned), kind(source-linked|floating), anchor(json)?, anchorFile?/anchorComponent?/anchorHash?, lastResolvedCommit?/lastResolvedFileHash?, createdAt, updatedAt, resolvedAt?, resolvedBy?}` and `pins` to `{room, cid, x, y, elementId?, pinState(locked|offset), anchorX?, anchorY?}`. Comments scope by `previewId`/`sessionId` (so `comment.list` supports session-vs-all); pins scope by `room` (the session canvas). JSON columns store `parts`/`anchor` objects directly (no serialize — simpler than trailbase). Ported `comment.{create,reply,read,list,resolve,delete,move}` + `pin.setState` to `src/tool/comment/{def,server}.ts`; `create` enriches the anchor via `src/anchor` resolver (`anchor-enrich.ts`, lazy import, graceful fallback) and writes a comments row + a pins row; `delete`/`resolve` declare `approval:'ask'`. Test `test/comment-tools.it.test.ts`: create→read (pin proven via `comment.move`), reply/thread, list, resolve (status flip), delete. 23 B+C+D tests pass; build PASS; typecheck PASS (38 others).
 
 ### Task D.3: Port `anchor.*` / `element.*` + assemble `tools`
 
