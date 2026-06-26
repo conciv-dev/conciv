@@ -176,8 +176,8 @@ Phases 0–2 of the **prior** (Yjs+trailbase) migration are committed on this br
 
 **Files:** move `src/anchor/*` (pure: `confine.ts`/`oxc-capture.ts`/`git-track.ts`/`resolver.ts`/`load-resolver.ts`) unchanged; rewrite `src/tool/{anchor,element}/*` using `ctx.cwd`; add all tools to `server.ts`'s `defineExtension({tools:[...]})`. `RequiredContext<Tools>` forces the DI context to satisfy every tool. Tests: move `anchor`/`resolver`/`git-track`/`element-reference`/`confine`/`oxc-capture`/`mermaid` tests; retarget.
 
-- [ ] **Step 1:** Wire tools; `pnpm turbo run typecheck --filter @mandarax/extension-whiteboard` PASS for the server half (extend `tsconfig.build.json` include with `src/tool/**`, `src/anchor/**`).
-- [ ] **Step 2:** Run moved server ITs (anchor/resolver/git-track/element/confine/oxc/mermaid/canvas-tools/comment-tools) PASS. Commit.
+- [x] **Step 1:** DONE. Ported `element.reference` (cwd + `resolver.locate`) and `anchor.resolve` (loads the comment by `{previewId,cid}`, parses its stored anchor, runs `resolver.resolve`; orphaned when no valid anchor) to `src/tool/{element,anchor}/{def,server}.ts`. `src/anchor/*` stays in place (pure; loaded lazily via `loadResolver`). Assembled all tools: `defineExtension({tools: [...canvas, ...comment, ...anchor, ...element]})`. `tsconfig.build.json` already includes `src/tool/**`; build (server-half typecheck) PASS.
+- [x] **Step 2:** Retargeted `element-reference.it` to `callTool`; added `anchor-resolve.it` (source-linked→non-orphaned via real capture, floating→orphaned). Pure anchor tests (confine/oxc-capture/git-track/resolver) pass unchanged. **Full ported server suite: 50 tests / 14 files PASS**; build PASS; typecheck PASS (38 others). `mermaid` stays with `canvas.diagram` (deferred to E.2). Commit.
 
 **Checkpoint:** report Phase D.
 

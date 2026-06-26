@@ -8,12 +8,14 @@ import {startJazzRunner} from './server/jazz/runner.js'
 import {createBackendDb} from './server/jazz/backend.js'
 import {canvasTools} from './tool/canvas/server.js'
 import {commentTools} from './tool/comment/server.js'
+import {anchorTools} from './tool/anchor/server.js'
+import {elementTools} from './tool/element/server.js'
 
 const schemaDir = fileURLToPath(new URL('./shared', import.meta.url))
 
 export default defineExtension({
   name: WHITEBOARD_NAME,
-  tools: [...canvasTools, ...commentTools],
+  tools: [...canvasTools, ...commentTools, ...anchorTools, ...elementTools],
   systemPrompt: WHITEBOARD_PROMPT,
 }).server(async (server) => {
   const runner = await startJazzRunner({dataDir: join(server.cwd, '.mandarax', 'whiteboard-jazz')})
