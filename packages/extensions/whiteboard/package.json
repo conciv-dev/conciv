@@ -1,21 +1,22 @@
 {
-  "name": "@mandarax/whiteboard",
+  "name": "@mandarax/extension-whiteboard",
   "version": "0.0.0",
-  "description": "The mandarax whiteboard: a default-on first-party extension giving the user and the AI an equal, transparent Excalidraw canvas over the dev app, with source-anchored comments, a drift doctor, and one cross-store undo stack.",
+  "description": "The whiteboard built-in extension: an Excalidraw canvas the user and the AI share over the dev app, with source-anchored comments and pins, hosting its own Yjs sync + trailbase db on the @mandarax/extension contract.",
   "keywords": [
     "ai",
     "canvas",
     "excalidraw",
+    "extension",
     "mandarax",
     "whiteboard"
   ],
-  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/whiteboard#readme",
+  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/extensions/whiteboard#readme",
   "bugs": "https://github.com/mandarax-dev/mandarax/issues",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/mandarax-dev/mandarax.git",
-    "directory": "packages/whiteboard"
+    "directory": "packages/extensions/whiteboard"
   },
   "files": [
     "dist"
@@ -23,15 +24,20 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "import": "./dist/client.js"
+    },
+    "./package.json": "./package.json"
   },
   "publishConfig": {
     "access": "public"
   },
   "scripts": {
-    "build": "vite build && tsc -p tsconfig.build.json",
+    "build": "tsdown && vite build && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run"
@@ -39,28 +45,41 @@
   "dependencies": {
     "@excalidraw/excalidraw": "^0.18.1",
     "@excalidraw/mermaid-to-excalidraw": "^1.1.4",
+    "@mandarax/extension": "workspace:^",
     "@mandarax/protocol": "workspace:^",
     "@mandarax/tool-ui": "workspace:^",
+    "@tanstack/db": "^0.6.9",
     "@tanstack/solid-db": "^0.2.23",
+    "@tanstack/trailbase-db-collection": "^0.1.87",
+    "crossws": "^0.4.6",
+    "h3": "2.0.1-rc.22",
+    "lib0": "^0.2.117",
     "lucide-solid": "^1.18.0",
     "oxc-parser": "^0.127.0",
+    "p-retry": "^8.0.0",
+    "p-wait-for": "^6.0.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "solid-js": "^1.9.13",
+    "trailbase": "^0.10.0",
+    "y-indexeddb": "^9.0.12",
+    "y-protocols": "^1.0.7",
     "y-websocket": "^3.0.0",
     "yjs": "^13.6.31",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@mandarax/core": "workspace:^",
+    "@playwright/test": "^1.60.0",
+    "@tanstack/ai-mcp": "^0.1.0",
     "@types/node": "^22.19.21",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
-    "crossws": "^0.4.6",
+    "@vitest/browser-playwright": "4.1.8",
     "get-port": "^7.2.0",
-    "h3": "2.0.1-rc.22",
     "playwright": "^1.60.0",
     "srvx": "^0.11.16",
+    "tsdown": "^0.22.2",
     "typescript": "^6.0.3",
     "vite": "^8.0.16",
     "vite-plugin-solid": "^2.11.12",

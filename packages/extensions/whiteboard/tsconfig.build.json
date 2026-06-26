@@ -7,6 +7,6 @@
     "rootDir": "src",
     "outDir": "dist"
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "include": ["src/server.ts", "src/client.ts", "src/shared/**/*.ts"],
   "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
 }
