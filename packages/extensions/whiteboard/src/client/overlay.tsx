@@ -8,8 +8,20 @@ import {mountIsland} from '../canvas/island.js'
 import {roomId} from '../shared/room.js'
 import {WhiteboardJazzProvider, type JazzConfig} from './jazz-client.js'
 import {useCanvasBinding} from './canvas/binding.js'
+import {useCursorPresence, type Self} from './canvas/presence.js'
 import {PinsLayer} from './pins/pins.js'
 import {Thread} from './pins/thread.js'
+
+const PALETTE = ['#e03131', '#2f9e44', '#1971c2', '#f08c00', '#9c36b5']
+
+function selfIdentity(): Self {
+  const sessionId = crypto.randomUUID()
+  return {
+    sessionId,
+    name: `Guest ${sessionId.slice(0, 4)}`,
+    color: PALETTE[Math.floor(Math.random() * PALETTE.length)]!,
+  }
+}
 
 type MountOverlayOptions = {
   api: ClientApi
@@ -26,10 +38,15 @@ function Overlay(props: {
   handle: ReturnType<typeof mountIsland>
   previewId: string
   sessionId: Accessor<string>
+  self: Self
   setWriter: (writer: (next: readonly OrderedExcalidrawElement[]) => void) => void
+  setPointer: (pointer: (point: {x: number; y: number}) => void) => void
 }): JSX.Element {
-  const writeLocal = useCanvasBinding({handle: props.handle, room: () => roomId(props.previewId, props.sessionId())})
+  const room = (): string => roomId(props.previewId, props.sessionId())
+  const writeLocal = useCanvasBinding({handle: props.handle, room})
   props.setWriter(writeLocal)
+  const setCursor = useCursorPresence({handle: props.handle, room, self: props.self})
+  props.setPointer((point) => setCursor(point.x, point.y))
   const [openCid, setOpenCid] = createSignal<string | null>(null)
   return (
     <>
@@ -72,11 +89,12 @@ export function mountOverlay(options: MountOverlayOptions): () => void {
   surfaceRoot.appendChild(layer)
 
   let writer: (next: readonly OrderedExcalidrawElement[]) => void = () => {}
+  let pointer: (point: {x: number; y: number}) => void = () => {}
   const handle = mountIsland({
     container: host,
     initialElements: [],
     onUserChange: (elements) => writer(elements),
-    onPointer: () => {},
+    onPointer: (point) => pointer(point),
     theme: 'light',
   })
 
@@ -89,7 +107,9 @@ export function mountOverlay(options: MountOverlayOptions): () => void {
             handle={handle}
             previewId={options.previewId}
             sessionId={options.sessionId}
+            self={selfIdentity()}
             setWriter={(next) => (writer = next)}
+            setPointer={(next) => (pointer = next)}
           />
         </WhiteboardJazzProvider>
       </EnvironmentProvider>
