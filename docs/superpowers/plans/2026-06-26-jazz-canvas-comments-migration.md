@@ -32,7 +32,7 @@ Phases 0–2 of the **prior** (Yjs+trailbase) migration are committed on this br
   - `useLocalFirstAuth(store?): { secret: string|null; isLoading: boolean; error; login(secret); signOut() }` — **required for writes**; persists the device secret (localStorage). Pass `secret` into the client `DbConfig`.
   - `DbConfig` (client): `{ appId, serverUrl?, secret?, driver?: {type:'persistent'|'memory'}, runtimeSources?, env?, userBranch? }`. Browser default driver is `{type:'persistent'}` (OPFS). `runtimeSources` ({baseUrl|wasmUrl|workerUrl|wasmModule|wasmSource}) overrides WASM/worker asset URLs — **likely needed in the widget's vite bundle / shadow-DOM context** (risk, prove in E.1).
 - **CLI (`jazz-tools` bin → native binary):** `jazz-tools create app --name <stable>` (deterministic appId from name), `jazz-tools server <appId> --port <p> --data-dir <dir> --admin-secret <s> --backend-secret <s> --allow-local-first-auth` (default port 1625; `--in-memory` for tests; health/ws on the listen port), `jazz-tools deploy <appId>` (publishes schema.ts + permissions; needs admin secret), `jazz-tools validate`, `jazz-tools mcp`. **No `--data-dir`/identity persistence needed if appId is derived deterministically via `create app --name`.**
-- **Dev bundler plugin (alternative to a hand-rolled supervisor — evaluate in C.1):** `jazz-tools/dev/vite` `jazzPlugin()` starts an embedded local server under `node_modules/.cache/jazz-dev-server/`, watches+auto-pushes `schema.ts`/`permissions.ts`, injects `VITE_JAZZ_APP_ID`/`VITE_JAZZ_SERVER_URL`. Tied to vite-dev + env injection; our `.server()` runs in the core engine (not vite) and also needs the server for the agent backend, so the CLI-supervisor (C.1) stays primary, but the plugin may simplify the widget-side dev loop.
+- **Programmatic server API (`jazz-tools/dev`) — CHOSEN for Phase C (replaces spawn):** `startLocalJazzServer({appId?, port?, dataDir?, inMemory?, allowLocalFirstAuth?, adminSecret?, backendSecret?, …}) → Promise<{appId, port, url, dataDir, adminSecret, backendSecret, stop()}>`. Starts the native server in-process (manages its own child), resolves when ready, auto free-port, generates secrets, owns/cleans a temp dir, idempotent `stop()`. No `onExit`/auto-restart (accepted tradeoff). Schema publish: `deploy`/`pushSchema`/`pushPermissions`/`pushMigration` (all read `schema.ts`/`permissions.ts` from a `schemaDir`). Test helpers: `getAvailablePort`, `createTempRootTracker`. Also `jazz-tools/dev/vite` `jazzPlugin()` (embedded server + auto-push + env injection) for the widget vite dev loop only — not used by `.server()`.
 - **NodeNext:** `jazz-tools` `exports` map points every subpath `types` at real emitted `.d.ts` (`./dist/**`), incl. `./solid`, `./backend`, `./permissions` — resolves clean under NodeNext (unlike trailbase). The whiteboard tsconfig does **not** need `moduleResolution: "bundler"` for Jazz.
 
 ---
@@ -110,37 +110,45 @@ Phases 0–2 of the **prior** (Yjs+trailbase) migration are committed on this br
 
 ---
 
-## Phase C — Supervise the Jazz server + wire `.server()` + sync proof
+## Phase C — Run the Jazz server + wire `.server()` + sync proof
 
-### Task C.1: Jazz server supervisor
+> **Approach (revised A.0 finding, user-approved):** Jazz ships a programmatic Node API — `startLocalJazzServer` from `jazz-tools/dev` — so there is **NO `child_process.spawn`, no `jazz-tools create app`, no CLI shelling, no hand-rolled health-poll, no `p-wait-for`/`p-retry`, no identity-persistence file**. `startLocalJazzServer(options?) => Promise<LocalJazzServerHandle>` starts the native server (managing the child process itself), resolves only when ready, auto-picks a free port, generates admin/backend secrets, and owns/cleans a temp data dir. Schema publish is also programmatic: `deploy`/`pushSchema`/`pushPermissions` from `jazz-tools/dev`. `jazz-tools/dev` is plain Node (what the vite plugin uses internally) and is the intended path for a locally-installed dev tool. **Tradeoff accepted:** the handle exposes `stop()` but no `onExit`/auto-restart — no crash-restart-with-ceiling (recoverable by restarting the extension; add a thin restart wrapper later only if it proves flaky).
 
-**Why:** the extension must spawn + health-check + restart the local Jazz sync server and deploy the schema, like the old trail-supervisor.
+**Pinned `jazz-tools/dev` API (verified A.0):**
 
-**Files:** `src/server/jazz/supervisor.ts`, `src/server/jazz/identity.ts` (resolve `appId` + `adminSecret`/`backendSecret`), `src/server/jazz/index.ts`. Test: `test/jazz-supervisor.it.test.ts`.
+- `startLocalJazzServer({appId?, port?, dataDir?, inMemory?, allowLocalFirstAuth?, adminSecret?, backendSecret?, jwksUrl?, upstreamUrl?, telemetryCollectorUrl?, enableLogs?}) → Promise<{appId, port, url, dataDir, adminSecret, backendSecret, stop():Promise<void>}>`. `allowLocalFirstAuth: true` is REQUIRED (without it local-first clients can't authenticate → every write rejected). `inMemory: true` for tests.
+- `pushSchema/pushPermissions/deploy({appId, serverUrl, adminSecret, schemaDir, onEvent?})` — these read `schema.ts` (+ optional `permissions.ts`) **from `schemaDir` on disk** and publish to the server. (`pushPermissions` also needs `schemaHash`.)
+
+### Task C.1: Jazz server runner + schema publish
+
+**Why:** the extension must start the local Jazz sync server, publish the schema/permissions, and expose a stable `appId` + `serverUrl`.
+
+**Files:** `src/server/jazz/runner.ts` (import it directly — NO `index.ts` barrel [[no-barrel-files]]). Test: `test/jazz-runner.it.test.ts`.
+
+**RESOLVED (probe-verified against real server + backend, todo-server-ts example):** schema travels **in-memory** with the context — pass the `app` object + `permissions` to `createJazzContext`; **NO file-based `deploy`/`pushSchema` for the backend**, no `schemaToWasm`, no `app.wasmSchema`. Writes need a durability tier in `wait()`: `db.insert(...).wait({tier:'local'})`. `jazz-napi@2.0.0-alpha.52` is an explicit dep (the native runtime; `jazz-tools` auto-detects it but it must be listed). Open for E: whether the **browser** client pulls the schema from the synced server automatically, or needs schema push for the client (the backend context syncing its schema to the hub likely suffices — verify in E.1).
 
 **Interfaces — Produces:**
 
-- `createJazzSupervisor({dataDir, port}): {start():Promise<void>; stop():Promise<void>; onExit(cb); baseUrl; wsUrl; appId; pid}` — resolves the appId (deterministic via `jazz-tools create app --name mandarax-whiteboard`, or persisted), then spawns `jazz-tools server <appId> --port <port> --data-dir <dataDir> --admin-secret <secret> --backend-secret <secret> --allow-local-first-auth` (the last flag is REQUIRED — without it local-first clients can't authenticate, so every write is rejected). Waits for the server to answer on the listen port (no programmatic `createServer` — CLI only), restart-on-crash with a ceiling (mirror the old trail-supervisor lifecycle), then `jazz-tools deploy <appId>` (cwd at the schema.ts dir, admin secret in env) to publish schema + permissions once ready. `wsUrl` = `ws(s)://127.0.0.1:<port>/...` per A.0's transport; the client takes the http(s) `serverUrl` form.
-- `loadOrCreateIdentity(dataDir): {appId, adminSecret, backendSecret}` — appId is deterministic from a fixed `--name` (no persistence strictly required); secrets generated once and persisted (JSON under dataDir).
+- `startJazzRunner({dataDir, inMemory?}): Promise<{appId, serverUrl, backendSecret, stop():Promise<void>}>` — thin wrapper over `startLocalJazzServer({dataDir, inMemory, allowLocalFirstAuth: true})`. `serverUrl` = the handle's `url`. No separate publish step (schema rides the backend context in C.2).
 
-- [ ] **Step 1:** Failing `jazz-supervisor.it.test.ts` — `start()` resolves once the server answers on `baseUrl`/`wsUrl`; `appId` is stable across restarts; `stop()` exits the child. Verify the exact health/readiness probe in A.0 (the native server's ready signal — health route vs ws upgrade — confirm against the running `--help`/server output during this task; the CLI showed health on the listen port).
-- [ ] **Step 2:** FAIL → implement (spawn CLI with `--allow-local-first-auth`, poll readiness via `fetch` with bounded retry — `get-port` for a fresh test port, hand-rolled retry loop now that `p-wait-for`/`p-retry` are removed, or re-add only if the user approves), resolve identity, `deploy` schema → PASS. Commit.
+- [ ] **Step 1:** Failing `jazz-runner.it.test.ts` (`inMemory: true`, fresh port via `startLocalJazzServer`'s auto-pick) — `startJazzRunner(...)` resolves with a reachable `serverUrl` + `appId`; a backend `createJazzContext({appId, app: whiteboardApp, permissions: whiteboardPermissions, driver:{type:'memory'}, serverUrl, backendSecret}).asBackend()` can `insert` into `whiteboardApp.canvasElements` (`.wait({tier:'local'})`) and read it back via `db.all(...where({room}))`; `stop()` shuts it down.
+- [ ] **Step 2:** FAIL → implement (`startLocalJazzServer`) → PASS. Commit.
 
 ### Task C.2: Wire `.server()` + expose Jazz config + backend db on the DI context
 
-**Files:** `src/server.ts`; `src/server/jazz/backend.ts` (`createBackendDb({appId, adminSecret, serverUrl, dataDir}) → Db` via `createJazzContext({appId, app: whiteboardApp (→ WasmSchema via schemaToWasm), permissions: whiteboardPermissions, driver: {type:'persistent', dataPath: dataDir}, serverUrl, adminSecret, backendSecret}).asBackend()`). The `.server()` factory: start the supervisor, build the backend db, register `GET /config` on `server.app` returning `{serverUrl, wsUrl, appId}` (the client needs the http `serverUrl` for `DbConfig.serverUrl`; secret is minted client-side by `useLocalFirstAuth`, never sent by the server), return `{context: {cwd, db, room: (request)=>roomId(request.previewId, request.sessionId)}, dispose}`. Test: `test/server-config.it.test.ts`.
+**Files:** `src/server.ts`; `src/server/jazz/backend.ts` (`createBackendDb({appId, backendSecret, serverUrl}) → Db` via `createJazzContext({appId, app: whiteboardApp, permissions: whiteboardPermissions, driver: {type:'memory'}, serverUrl, backendSecret}).asBackend()` — schema rides in-memory, no deploy; backend driver can be `memory` since the sync hub persists). The `.server()` factory: `await startJazzRunner(...)` (C.1), build the backend db from its `{appId, serverUrl, backendSecret}`, register `GET /config` on `server.app` returning `{serverUrl, appId}` (the client needs the http `serverUrl` for `DbConfig.serverUrl`; secret is minted client-side by `useLocalFirstAuth`, never sent by the server), return `{context: {cwd, db, room: (request)=>roomId(request.previewId, request.sessionId)}, dispose: () => runner.stop()}`. Agent tool writes use `.wait({tier:'local'})`. Test: `test/server-config.it.test.ts`.
 
-- [ ] **Step 1:** Failing `server-config.it.test.ts` — boot the engine with whiteboard built-in; `GET /api/ext/whiteboard/config` returns `{serverUrl, wsUrl, appId}` and the server answers on it.
+- [ ] **Step 1:** Failing `server-config.it.test.ts` — boot the engine with whiteboard built-in; `GET /api/ext/whiteboard/config` returns `{serverUrl, appId}` and the server answers on it.
 - [ ] **Step 2:** FAIL → implement; rewrite `test/helpers/boot-stack.ts` to expose `extBase` + the Jazz config; extend `tsconfig.build.json` include with `src/server/**` → PASS. Commit.
 
 ### Task C.3: Two-client sync proof over the Jazz server
 
 **Files:** `test/jazz-sync.it.test.ts` (two backend `createJazzContext` clients, OR two Node Jazz clients, on the same `appId`+room converge).
 
-- [ ] **Step 1:** Failing — client A `db.insert(whiteboardApp.canvasElements, {room, elementId:'r1', …})` then `await result.wait()` for durability; client B `db.subscribeAll(whiteboardApp.canvasElements.where({room}), (delta) => …)` observes the row in `delta.all` (reconcile by id). Both clients are `createJazzContext(...).asBackend()` (or Node `createDb`) on the same appId+room. Assert via the IT's `locator.waitFor`-style polling on the subscription, not a fixed sleep.
-- [ ] **Step 2:** FAIL → implement against the booted supervisor → PASS. Commit.
+- [ ] **Step 1:** Failing — client A `db.insert(whiteboardApp.canvasElements, {room, elementId:'r1', …})` then `await result.wait()` for durability; client B `db.subscribeAll(whiteboardApp.canvasElements.where({room}), (delta) => …)` observes the row in `delta.all` (reconcile by id). Both clients are `createJazzContext(...).asBackend()` (or Node `createDb`) on the same appId+room, against a `startJazzRunner`-started server. Assert via the IT's `locator.waitFor`-style polling on the subscription, not a fixed sleep.
+- [ ] **Step 2:** FAIL → implement against the running server → PASS. Commit.
 
-**Checkpoint:** report Phase C (platform foundation — riskiest; the supervisor + sync proof).
+**Checkpoint:** report Phase C (platform foundation — riskiest; the server runner + sync proof).
 
 ---
 
@@ -148,7 +156,7 @@ Phases 0–2 of the **prior** (Yjs+trailbase) migration are committed on this br
 
 ### Task D.1: Port `canvas.*` tools
 
-**Files:** rewrite `src/tool/canvas/{def,server,client}.ts` (from the old `tools/canvas.ts`). Server `execute(input, ctx, request)`: `const room = ctx.room(request)`; `canvas.draw` → `await ctx.db.insert(whiteboardApp.canvasElements, {room, elementId, data, version}).wait()` (insert is sync; `.wait()` ensures the row is durable before the tool result returns so the asserting client sees it); `canvas.delete`/`canvas.clear` declare `approval:'ask'` and `db.delete` rows for the room (query `db.all(...where({room}))` then delete by id). Test: `test/canvas-tools.it.test.ts` — `canvas.draw` via MCP with `mandarax-session-id: mandarax_x` writes a row into the `local:mandarax_x` room (assert via a Jazz client `db.all`/`subscribeAll`); `canvas.delete` is gated (not 403).
+**Files:** rewrite `src/tool/canvas/{def,server,client}.ts` (from the old `tools/canvas.ts`). Server `execute(input, ctx, request)`: `const room = ctx.room(request)`; `canvas.draw` → `await ctx.db.insert(whiteboardApp.canvasElements, {room, elementId, data, version}).wait({tier:'local'})` (insert is sync; `.wait({tier})` ensures the row is durable before the tool result returns so the asserting client sees it); `canvas.delete`/`canvas.clear` declare `approval:'ask'` and `db.delete` rows for the room (query `db.all(...where({room}))` then delete by id). Test: `test/canvas-tools.it.test.ts` — `canvas.draw` via MCP with `mandarax-session-id: mandarax_x` writes a row into the `local:mandarax_x` room (assert via a Jazz client `db.all`/`subscribeAll`); `canvas.delete` is gated (not 403).
 
 - [ ] **Step 1:** Failing test (draw → row in the session room; a second client sees it; delete is gated).
 - [ ] **Step 2:** FAIL → implement → PASS. Commit.

@@ -49,6 +49,7 @@
     "@mandarax/protocol": "workspace:^",
     "@mandarax/tool-ui": "workspace:^",
     "h3": "2.0.1-rc.22",
+    "jazz-napi": "2.0.0-alpha.52",
     "jazz-tools": "2.0.0-alpha.52",
     "lucide-solid": "^1.18.0",
     "oxc-parser": "^0.127.0",

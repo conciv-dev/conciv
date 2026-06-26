@@ -538,6 +538,9 @@ importers:
       h3:
         specifier: 2.0.1-rc.22
         version: 2.0.1-rc.22(crossws@0.4.6(srvx@0.11.16))
+      jazz-napi:
+        specifier: 2.0.0-alpha.52
+        version: 2.0.0-alpha.52
       jazz-tools:
         specifier: 2.0.0-alpha.52
         version: 2.0.0-alpha.52(react@19.2.7)(solid-js@1.9.13)
@@ -23030,7 +23033,6 @@ snapshots:
       '@garden-co/jazz-napi-darwin-x64': 2.0.0-alpha.52
       '@garden-co/jazz-napi-linux-x64-gnu': 2.0.0-alpha.52
       '@garden-co/jazz-napi-win32-x64-msvc': 2.0.0-alpha.52
-    optional: true
 
   jazz-tools@2.0.0-alpha.52(react@19.2.7)(solid-js@1.9.13):
     dependencies:
