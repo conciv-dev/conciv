@@ -99,8 +99,8 @@ export function PinsLayer(props: PinsLayerProps): JSX.Element {
               <Show when={pin.pinState === 'offset' && pin.anchorX != null && pin.anchorY != null}>
                 <svg class="absolute inset-0 size-full pointer-events-none">
                   <line
-                    x1={pin.anchorX}
-                    y1={pin.anchorY}
+                    x1={pin.anchorX ?? undefined}
+                    y1={pin.anchorY ?? undefined}
                     x2={pos().x}
                     y2={pos().y}
                     stroke="#adb5bd"

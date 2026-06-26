@@ -26,10 +26,9 @@ const whiteboard = defineExtension({
   tools: [],
   systemPrompt: WHITEBOARD_PROMPT,
   Component,
-})
-
-whiteboard.client((api) =>
+}).client(() =>
   createRoot((dispose) => {
+    const api = whiteboard.useClientApi()
     const [open, setOpen] = createSignal(false)
     let disposeOverlay: (() => void) | undefined
     const start = async (): Promise<void> => {
@@ -51,11 +50,5 @@ whiteboard.client((api) =>
     return {value: {toggle, open}, dispose}
   }),
 )
-
-declare module '@mandarax/extension' {
-  interface Register {
-    whiteboard: {context: {toggle: () => void; open: () => boolean}}
-  }
-}
 
 export default whiteboard

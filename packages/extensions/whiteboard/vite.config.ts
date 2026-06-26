@@ -1,7 +1,9 @@
 import {fileURLToPath} from 'node:url'
-import {defineConfig} from 'vite'
+import {defineConfig, type PluginOption} from 'vite'
 import solid from 'vite-plugin-solid'
-import wasm from 'vite-plugin-wasm'
+import wasmPlugin from 'vite-plugin-wasm'
+
+const wasm = wasmPlugin as unknown as () => PluginOption
 
 export default defineConfig({
   plugins: [solid(), wasm()],

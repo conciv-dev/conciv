@@ -5,9 +5,11 @@ import {dirname, join, normalize} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import getPort from 'get-port'
 import {serve, type Server} from 'srvx'
-import {build} from 'vite'
+import {build, type PluginOption} from 'vite'
 import solid from 'vite-plugin-solid'
-import wasm from 'vite-plugin-wasm'
+import wasmPlugin from 'vite-plugin-wasm'
+
+const wasm = wasmPlugin as unknown as () => PluginOption
 
 const here = dirname(fileURLToPath(import.meta.url))
 

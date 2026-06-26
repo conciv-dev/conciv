@@ -2,6 +2,7 @@ import {mkdtempSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {start, type Engine} from '@mandarax/core/engine'
+import type {AnyExtension} from '@mandarax/extension'
 import whiteboard from '../../src/server.js'
 
 export type Stack = {
@@ -18,7 +19,7 @@ export async function bootStack(): Promise<Stack> {
     options: {stateRoot: dir, harnessBin: 'true'},
     root: dir,
     launchEditor: () => {},
-    extensions: [whiteboard],
+    extensions: [whiteboard as unknown as AnyExtension],
   })
   const core = `http://127.0.0.1:${engine.port}`
   const extBase = `${core}/api/ext/whiteboard`

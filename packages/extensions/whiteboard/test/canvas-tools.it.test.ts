@@ -114,8 +114,8 @@ describe('whiteboard canvas tools (it) — AI enqueues pending draws via the bac
   it('declares destructive canvas tools as approval:ask (G2)', () => {
     expect(canvasDeleteDef.approval).toBe('ask')
     expect(canvasClearDef.approval).toBe('ask')
-    expect(canvasDrawDef.approval).toBeUndefined()
-    expect(canvasDiagramDef.approval).toBeUndefined()
-    expect(canvasConnectDef.approval).toBeUndefined()
+    expect('approval' in canvasDrawDef).toBe(false)
+    expect('approval' in canvasDiagramDef).toBe(false)
+    expect('approval' in canvasConnectDef).toBe(false)
   })
 })
