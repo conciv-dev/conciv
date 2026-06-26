@@ -30,3 +30,20 @@ describe('claude MCP server config carries the turn session', () => {
     expect(cfg.mcpServers.mandarax.headers).toBeUndefined()
   })
 })
+
+describe('claude PreToolUse gate covers extension MCP tools (G2)', () => {
+  const turn: HarnessTurn = {...base, permissionUrl: 'http://x/api/chat/permission'}
+
+  it('a PreToolUse matcher matches an mcp__mandarax__ tool name and Bash', () => {
+    const args = buildClaudeArgs({...turn, mcpUrl: 'http://x/api/mcp'})
+    const settings = JSON.parse(args[args.indexOf('--settings') + 1] ?? '{}')
+    const matchers: string[] = settings.hooks.PreToolUse.map((entry: {matcher: string}) => entry.matcher)
+    expect(matchers.some((matcher) => new RegExp(matcher).test('mcp__mandarax__canvas.delete'))).toBe(true)
+    expect(matchers.some((matcher) => new RegExp(matcher).test('Bash'))).toBe(true)
+  })
+
+  it('does not blanket-allow mandarax MCP tools so the gate fires', () => {
+    expect(claudeMcpArgs('http://x/api/mcp')).not.toContain('--allowedTools')
+    expect(buildClaudeArgs({...turn, mcpUrl: 'http://x/api/mcp'})).not.toContain('--allowedTools')
+  })
+})

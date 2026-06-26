@@ -24,6 +24,7 @@ export type ChatRouteOpts = {
   systemPromptText?: string // otherwise
   claudeHome?: string // override the harness transcript home (tests); default homedir()
   uiBus: UiBus
+  riskyTools?: ReadonlySet<string>
 }
 
 // Ensure a record exists for an agent hand-off: mandarax was launched with MANDARAX_SESSION_ID = a harness
@@ -48,7 +49,7 @@ export async function ensureAgentRecord(deps: ResolveDeps, harnessId: string): P
 // Wire the chat HTTP surface — composition only; behaviour lives in permission/session/turn/launch.
 export function registerChatRoutes(app: H3, opts: ChatRouteOpts): void {
   const uiBus = opts.uiBus
-  const gate = makePermissionGate(uiBus)
+  const gate = makePermissionGate(uiBus, {risky: opts.riskyTools})
   const store = createFsSessionStore({stateRoot: opts.stateRoot, previewId: opts.previewId})
 
   // Agent hand-off: ensure the handed-off harness id has a wrapping record before its first turn.

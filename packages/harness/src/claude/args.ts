@@ -16,29 +16,18 @@ export function mcpServerConfig(mcpUrl: string, sessionId?: string): {mandarax: 
   return {mandarax: sessionId ? {...mandarax, headers: {[MANDARAX_SESSION_HEADER]: sessionId}} : mandarax}
 }
 
-// mandarax tools (ui/page/test) reach the agent via MCP-over-HTTP, not Bash: point claude at our
-// in-process server and allow the MCP tools so they run unprompted. --strict-mcp-config makes claude
-// use ONLY our server, ignoring the user's own MCP servers — without it that tool flood buries
-// mandarax_* behind claude's deferred-tool search and the agent can't find them reliably. Shared by the
-// chat turn (buildClaudeArgs) and the interactive "open in claude" launch so they cannot drift.
 export function claudeMcpArgs(mcpUrl: string, sessionId?: string): string[] {
-  return [
-    '--mcp-config',
-    JSON.stringify({mcpServers: mcpServerConfig(mcpUrl, sessionId)}),
-    '--strict-mcp-config',
-    // Server-level allow: every tool the mandarax MCP server exposes (ui/page/test/open + any future
-    // tool) runs unprompted, so the allowlist can't drift as we add tools. --strict-mcp-config keeps
-    // this to OUR server only, so it never blesses a user's MCP server.
-    '--allowedTools',
-    'mcp__mandarax',
-  ]
+  return ['--mcp-config', JSON.stringify({mcpServers: mcpServerConfig(mcpUrl, sessionId)}), '--strict-mcp-config']
 }
 
-// PreToolUse http hook on Bash → the dev server's permission route. 600s (route denies sooner).
 function hookSettings(permissionUrl: string): string {
+  const hooks = [{type: 'http', url: permissionUrl, timeout: 600}]
   return JSON.stringify({
     hooks: {
-      PreToolUse: [{matcher: 'Bash', hooks: [{type: 'http', url: permissionUrl, timeout: 600}]}],
+      PreToolUse: [
+        {matcher: 'Bash', hooks},
+        {matcher: 'mcp__mandarax__.*', hooks},
+      ],
     },
   })
 }

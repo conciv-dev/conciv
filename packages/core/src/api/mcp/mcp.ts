@@ -8,8 +8,6 @@ import {sessionIdFromHeaders} from '../chat/session-id.js'
 
 type RegistrableTool = {name: string; description: string; inputSchema: z.ZodObject<z.ZodRawShape>}
 
-// registerTool wants a Zod raw shape, so we pass each tool's inputSchema.shape (the ZodObject is
-// preserved, so .shape is typed). `run` validates args against the tool's schema and executes.
 function registerTool(server: McpServer, tool: RegistrableTool, run: (args: unknown) => Promise<unknown>): void {
   server.registerTool(
     tool.name,
@@ -20,11 +18,6 @@ function registerTool(server: McpServer, tool: RegistrableTool, run: (args: unkn
   )
 }
 
-// Build an McpServer exposing the mandarax tool registry bound to `ctx`, plus any extension tools. A
-// fresh server + transport is created per request: the stateless streamable-HTTP pattern isolates each
-// client's request-id state and connect() binds exactly one transport. Core tools carry session via the
-// ctx binding; extension tools build their context once at boot, so the per-request `request` is threaded
-// into their execute instead (G1).
 function buildServer(ctx: MandaraxToolContext, extensionTools: ExtensionServerTool[], request: ToolRequest): McpServer {
   const server = new McpServer({name: 'mandarax', version: '0.0.0'})
   for (const tool of mandaraxTools(ctx)) registerTool(server, tool, (args) => tool.execute(args))

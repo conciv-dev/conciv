@@ -52,6 +52,13 @@ export function makeApp(opts: MakeAppOpts): MadeApp {
   const harness = requireHarness(opts.cfg.harness)
   const uiBus = makeUiBus()
 
+  const riskyTools = new Set(
+    (opts.extensions ?? [])
+      .flatMap((extension) => extension.tools ?? [])
+      .filter((tool) => tool.approval === 'ask')
+      .map((tool) => `mcp__mandarax__${tool.name}`),
+  )
+
   registerCors(app, opts.allowedOrigins ?? [])
   registerChatRoutes(app, {
     cwd: opts.cwd,
@@ -65,6 +72,7 @@ export function makeApp(opts: MakeAppOpts): MadeApp {
     systemPromptText: opts.systemPromptText ?? opts.cfg.systemPrompt,
     claudeHome: opts.claudeHome,
     uiBus,
+    riskyTools,
   })
   const page = registerPageRoutes(app, {journal: makeJournal(), root: opts.cwd})
   registerEditorRoutes(app, opts.openInEditor)

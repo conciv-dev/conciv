@@ -5,9 +5,6 @@ import {MANDARAX_SESSION_HEADER} from '@mandarax/protocol/chat-types'
 import {defineExtension, defineTool} from '@mandarax/extension'
 import {startTestServer} from './helpers/server.js'
 
-// G1: a per-request {sessionId, previewId} must reach an extension tool's execute. The MCP server is
-// built per request, the session rides the MANDARAX_SESSION_HEADER, and previewId comes from core
-// config — so a session-scoped tool (canvas.draw, comments) resolves the room the widget joined.
 const echo = defineTool({
   name: 'acme_echo_session',
   description: 'Echo the request session + preview back',

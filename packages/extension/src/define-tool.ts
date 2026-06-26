@@ -17,6 +17,7 @@ export function defineTool<Schema extends z.ZodObject<z.ZodRawShape>, Ctx = unkn
   promptSnippet?: string
   promptGuidelines?: string[]
   streamTitle?: string
+  approval?: 'ask'
 }): ToolBuilder<Schema, Ctx> {
   const builder: ToolBuilder<Schema, Ctx> = {
     name: definition.name,
@@ -25,6 +26,7 @@ export function defineTool<Schema extends z.ZodObject<z.ZodRawShape>, Ctx = unkn
     promptSnippet: definition.promptSnippet,
     promptGuidelines: definition.promptGuidelines,
     streamTitle: definition.streamTitle,
+    approval: definition.approval,
     server(execute) {
       builder.__execute = async (raw, ctx, request) =>
         execute(definition.inputSchema.parse(raw), ctx as Ctx, request as ToolRequest)

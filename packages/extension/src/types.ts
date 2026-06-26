@@ -27,8 +27,6 @@ export type ExtensionHostContext = ToolViewCtx &
     currentSlot: ExtensionSlot
   }
 
-// Per-request context for a server tool's execute: the chat session the turn targets (from the MCP
-// session header) and the preview the core serves. A session-scoped tool resolves its room from these.
 export type ToolRequest = {sessionId: string; previewId: string}
 
 export type ExtensionServerTool = {
@@ -47,6 +45,7 @@ export type ExtensionTool = {
   promptSnippet?: string
   promptGuidelines?: string[]
   streamTitle?: string
+  approval?: 'ask'
   __execute?: (input: unknown, ctx?: unknown, request?: ToolRequest) => Promise<unknown>
   __render?: ToolRenderer
 }

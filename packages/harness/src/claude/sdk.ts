@@ -83,10 +83,7 @@ function buildOptions(turn: HarnessTurn, ctxRef: CtxRef): Options {
   }
   if (turn.systemPrompt) options.systemPrompt = {type: 'preset', preset: 'claude_code', append: turn.systemPrompt}
   if (turn.model) options.model = turn.model
-  if (turn.mcpUrl) {
-    options.mcpServers = mcpServerConfig(turn.mcpUrl, turn.sessionId)
-    options.allowedTools = ['mcp__mandarax']
-  }
+  if (turn.mcpUrl) options.mcpServers = mcpServerConfig(turn.mcpUrl, turn.sessionId)
   if (MANDARAX_PLUGIN_DIR) options.plugins = [{type: 'local', path: MANDARAX_PLUGIN_DIR}]
   if (turn.resumeSessionId) options.resume = turn.resumeSessionId
   return options

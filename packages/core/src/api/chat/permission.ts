@@ -16,8 +16,19 @@ export type PermissionGate = {
   resolve(approvalId: string, approved: boolean): void
 }
 
-export function makePermissionGate(uiBus: UiBus, timeoutMs = APPROVAL_TIMEOUT_MS): PermissionGate {
+export type PermissionGateOptions = {risky?: ReadonlySet<string>; timeoutMs?: number}
+
+function needsApproval(toolName: string, toolInput: unknown, risky: ReadonlySet<string>): boolean {
+  if (risky.has(toolName)) return true
+  if (toolName !== 'Bash') return false
+  const parsed = BashInputSchema.safeParse(toolInput)
+  return classifyCommand(parsed.success ? parsed.data.command : '') !== 'allow'
+}
+
+export function makePermissionGate(uiBus: UiBus, options: PermissionGateOptions = {}): PermissionGate {
   const pending = makePending<boolean>()
+  const risky = options.risky ?? new Set<string>()
+  const timeoutMs = options.timeoutMs ?? APPROVAL_TIMEOUT_MS
 
   async function decide(
     toolName: string,
@@ -25,10 +36,7 @@ export function makePermissionGate(uiBus: UiBus, timeoutMs = APPROVAL_TIMEOUT_MS
     sessionId: string,
     toolUseId: string,
   ): Promise<'allow' | 'deny'> {
-    if (toolName !== 'Bash') return 'allow'
-    const parsed = BashInputSchema.safeParse(toolInput)
-    const command = parsed.success ? parsed.data.command : ''
-    if (classifyCommand(command) === 'allow') return 'allow'
+    if (!needsApproval(toolName, toolInput, risky)) return 'allow'
     // Drive the matching tool-call part into its native approval-requested state (claude's tool_use_id
     // is the streamed tanstack toolCallId), so approval renders ON the tool card. The decision returns
     // out-of-band via /permission-decision and resolves this pending — claude blocks on its hook
