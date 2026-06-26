@@ -73,7 +73,9 @@ describe('whiteboard canvas binding (it) — AI draws drain into the canvas, loc
   it('persists a local draw into canvasElements the agent can read', async () => {
     const page = await state.browser!.newPage()
     await page.goto(`${state.page!.base}/?session=e2local`)
-    await page.getByText('ready').waitFor({state: 'visible', timeout: 40_000})
+    await page.waitForFunction(() => (window as unknown as {__bindingReady?: boolean}).__bindingReady === true, {
+      timeout: 40_000,
+    })
     await page.evaluate(() => (window as unknown as {drawLocal: () => void}).drawLocal())
     await page.getByText('scene:1').waitFor({state: 'visible', timeout: 40_000})
 
@@ -85,7 +87,7 @@ describe('whiteboard canvas binding (it) — AI draws drain into the canvas, loc
     await callTool(state.stack!.core, sessionId('e2mermaid'), 'canvas.diagram', {mermaid: 'graph TD; A-->B; B-->C'})
     const page = await state.browser!.newPage()
     await page.goto(`${state.page!.base}/?session=e2mermaid`)
-    await page.getByText('ready').waitFor({state: 'visible', timeout: 40_000})
+    await page.locator('canvas').first().waitFor({state: 'attached', timeout: 40_000})
 
     expect(await readCountAtLeast(state.stack!.core, sessionId('e2mermaid'), 3)).toBeGreaterThanOrEqual(3)
     await page.close()

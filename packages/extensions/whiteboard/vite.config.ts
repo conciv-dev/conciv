@@ -9,7 +9,7 @@ export default defineConfig({
   define: {'process.env.NODE_ENV': JSON.stringify('production'), 'process.env.IS_PREACT': JSON.stringify('false')},
   build: {
     lib: {
-      entry: fileURLToPath(new URL('src/client.ts', import.meta.url)),
+      entry: fileURLToPath(new URL('src/client.tsx', import.meta.url)),
       formats: ['es'],
       fileName: () => 'client.js',
     },

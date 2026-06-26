@@ -1,4 +1,4 @@
-import {Show, createResource, onMount} from 'solid-js'
+import {Show, createResource} from 'solid-js'
 import {render} from 'solid-js/web'
 import {convertToExcalidrawElements} from '@excalidraw/excalidraw'
 import type {OrderedExcalidrawElement} from '@excalidraw/excalidraw/element/types'
@@ -10,6 +10,7 @@ import {useCanvasBinding} from '../../src/client/canvas/binding.js'
 declare global {
   interface Window {
     __CORE__: string
+    __bindingReady: boolean
     drawLocal: () => void
   }
 }
@@ -47,11 +48,7 @@ window.drawLocal = () => {
 
 function Binding(props: {room: string}) {
   writer = useCanvasBinding({handle, room: () => props.room})
-  onMount(() => {
-    const marker = document.createElement('p')
-    marker.textContent = 'ready'
-    document.body.appendChild(marker)
-  })
+  window.__bindingReady = true
   return null
 }
 

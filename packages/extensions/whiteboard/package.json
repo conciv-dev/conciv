@@ -48,6 +48,7 @@
     "@mandarax/extension": "workspace:^",
     "@mandarax/protocol": "workspace:^",
     "@mandarax/tool-ui": "workspace:^",
+    "@mandarax/ui-kit-system": "workspace:^",
     "h3": "2.0.1-rc.22",
     "jazz-napi": "2.0.0-alpha.52",
     "jazz-tools": "2.0.0-alpha.52",
@@ -60,6 +61,7 @@
   },
   "devDependencies": {
     "@mandarax/core": "workspace:^",
+    "@mandarax/uno-preset": "workspace:*",
     "@playwright/test": "^1.60.0",
     "@tanstack/ai-mcp": "^0.1.0",
     "@types/node": "^22.19.21",
@@ -71,6 +73,7 @@
     "srvx": "^0.11.16",
     "tsdown": "^0.22.2",
     "typescript": "^6.0.3",
+    "unocss": "^66.7.2",
     "vite": "^8.0.16",
     "vite-plugin-solid": "^2.11.12",
     "vite-plugin-wasm": "^3.6.0",
