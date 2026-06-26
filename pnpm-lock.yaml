@@ -525,7 +525,7 @@ importers:
         version: 0.18.1(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@excalidraw/mermaid-to-excalidraw':
         specifier: ^1.1.4
-        version: 1.1.4(react@19.2.7)
+        version: 1.1.4(react@19.2.7)(supports-color@10.2.2)
       '@mandarax/extension':
         specifier: workspace:^
         version: link:../../extension
@@ -543,7 +543,7 @@ importers:
         version: 0.2.23(solid-js@1.9.13)(typescript@6.0.3)
       '@tanstack/trailbase-db-collection':
         specifier: ^0.1.87
-        version: 0.1.88(typescript@6.0.3)
+        version: 0.1.88(supports-color@10.2.2)(typescript@6.0.3)
       crossws:
         specifier: ^0.4.6
         version: 0.4.6(srvx@0.11.16)
@@ -686,7 +686,7 @@ importers:
         version: link:../plugin
       next:
         specifier: ^15.3.0 || ^16.0.0
-        version: 16.2.9(@opentelemetry/api@1.9.0)(@playwright/test@1.60.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        version: 16.2.9(@babel/core@7.29.7)(@opentelemetry/api@1.9.0)(@playwright/test@1.60.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(sass@1.51.0)
       vite:
         specifier: ^6.0.0 || ^7.0.0 || ^8.0.0
         version: 8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(sass@1.51.0)(tsx@4.22.4)(yaml@2.9.0)
@@ -721,6 +721,9 @@ importers:
       '@mandarax/extension-test-runner':
         specifier: workspace:^
         version: link:../extensions/test-runner
+      '@mandarax/extension-whiteboard':
+        specifier: workspace:^
+        version: link:../extensions/whiteboard
       '@mandarax/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -1241,6 +1244,9 @@ importers:
       '@mandarax/extension-test-runner':
         specifier: workspace:^
         version: link:../extensions/test-runner
+      '@mandarax/extension-whiteboard':
+        specifier: workspace:^
+        version: link:../extensions/whiteboard
       '@mandarax/uno-preset':
         specifier: workspace:*
         version: link:../uno-preset
@@ -14465,10 +14471,10 @@ snapshots:
 
   '@excalidraw/markdown-to-text@0.1.2': {}
 
-  '@excalidraw/mermaid-to-excalidraw@1.1.4(react@19.2.7)':
+  '@excalidraw/mermaid-to-excalidraw@1.1.4(react@19.2.7)(supports-color@10.2.2)':
     dependencies:
       '@excalidraw/markdown-to-text': 0.1.2
-      mermaid: 10.9.4
+      mermaid: 10.9.4(supports-color@10.2.2)
       nanoid: 4.0.2
       react-split: 2.0.14(react@19.2.7)
     transitivePeerDependencies:
@@ -18302,7 +18308,7 @@ snapshots:
 
   '@tanstack/store@0.9.3': {}
 
-  '@tanstack/trailbase-db-collection@0.1.88(typescript@6.0.3)':
+  '@tanstack/trailbase-db-collection@0.1.88(supports-color@10.2.2)(typescript@6.0.3)':
     dependencies:
       '@standard-schema/spec': 1.1.0
       '@tanstack/db': 0.6.10(typescript@6.0.3)
@@ -23364,13 +23370,13 @@ snapshots:
       unist-util-is: 6.0.1
       unist-util-visit-parents: 6.0.2
 
-  mdast-util-from-markdown@1.3.1:
+  mdast-util-from-markdown@1.3.1(supports-color@10.2.2):
     dependencies:
       '@types/mdast': 3.0.15
       '@types/unist': 2.0.11
       decode-named-character-reference: 1.3.0
       mdast-util-to-string: 3.2.0
-      micromark: 3.2.0
+      micromark: 3.2.0(supports-color@10.2.2)
       micromark-util-decode-numeric-character-reference: 1.1.0
       micromark-util-decode-string: 1.1.0
       micromark-util-normalize-identifier: 1.1.0
@@ -23563,7 +23569,7 @@ snapshots:
 
   merge2@1.4.1: {}
 
-  mermaid@10.9.4:
+  mermaid@10.9.4(supports-color@10.2.2):
     dependencies:
       '@braintree/sanitize-url': 6.0.2
       '@types/d3-scale': 4.0.9
@@ -23579,7 +23585,7 @@ snapshots:
       katex: 0.16.47
       khroma: 2.1.0
       lodash-es: 4.18.1
-      mdast-util-from-markdown: 1.3.1
+      mdast-util-from-markdown: 1.3.1(supports-color@10.2.2)
       non-layered-tidy-tree-layout: 2.0.2
       stylis: 4.4.0
       ts-dedent: 2.3.0
@@ -23970,7 +23976,7 @@ snapshots:
 
   micromark-util-types@2.0.2: {}
 
-  micromark@3.2.0:
+  micromark@3.2.0(supports-color@10.2.2):
     dependencies:
       '@types/debug': 4.1.13
       debug: 4.4.3(supports-color@10.2.2)
@@ -24329,32 +24335,6 @@ snapshots:
       '@opentelemetry/api': 1.9.0
       '@playwright/test': 1.60.0
       sass: 1.51.0
-      sharp: 0.34.5
-    transitivePeerDependencies:
-      - '@babel/core'
-      - babel-plugin-macros
-
-  next@16.2.9(@opentelemetry/api@1.9.0)(@playwright/test@1.60.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7):
-    dependencies:
-      '@next/env': 16.2.9
-      '@swc/helpers': 0.5.15
-      baseline-browser-mapping: 2.10.37
-      caniuse-lite: 1.0.30001799
-      postcss: 8.4.31
-      react: 19.2.7
-      react-dom: 19.2.7(react@19.2.7)
-      styled-jsx: 5.1.6(@babel/core@7.29.7)(react@19.2.7)
-    optionalDependencies:
-      '@next/swc-darwin-arm64': 16.2.9
-      '@next/swc-darwin-x64': 16.2.9
-      '@next/swc-linux-arm64-gnu': 16.2.9
-      '@next/swc-linux-arm64-musl': 16.2.9
-      '@next/swc-linux-x64-gnu': 16.2.9
-      '@next/swc-linux-x64-musl': 16.2.9
-      '@next/swc-win32-arm64-msvc': 16.2.9
-      '@next/swc-win32-x64-msvc': 16.2.9
-      '@opentelemetry/api': 1.9.0
-      '@playwright/test': 1.60.0
       sharp: 0.34.5
     transitivePeerDependencies:
       - '@babel/core'

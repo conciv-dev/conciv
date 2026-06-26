@@ -4,6 +4,7 @@ import {pathToFileURL} from 'node:url'
 import {createJiti} from 'jiti'
 import type {AnyExtension} from '@mandarax/extension'
 import testRunnerExtension from '@mandarax/extension-test-runner'
+import whiteboardExtension from '@mandarax/extension-whiteboard'
 import {splitExtension} from './split-extension.js'
 
 export const EXTENSIONS_VIRTUAL_ID = 'virtual:mandarax-extensions'
@@ -11,11 +12,14 @@ export const EXTENSIONS_RESOLVED_ID = '\0' + EXTENSIONS_VIRTUAL_ID
 
 // Built-in client entries the plugin ships. The bundler must resolve these from the PLUGIN (they are
 // the plugin's deps, not the app's), so the vite hook maps each to its plugin-resolved absolute path.
-export const BUILTIN_CLIENT_ENTRIES = ['@mandarax/extension-test-runner/client'] as const
+export const BUILTIN_CLIENT_ENTRIES = [
+  '@mandarax/extension-test-runner/client',
+  '@mandarax/extension-whiteboard/client',
+] as const
 
 // The built-in extensions the plugin ships, merged ahead of the user's file-based ones (server side
 // here; client side via extensionsModuleSource).
-const builtinExtensions: AnyExtension[] = [testRunnerExtension]
+const builtinExtensions: AnyExtension[] = [testRunnerExtension, whiteboardExtension]
 
 // The single client entry the plugin serves through Vite (so the widget, every extension, solid-js and
 // @mandarax/extension share ONE Vite graph + one ExtensionRuntimeContext). It imports each built-in's
@@ -25,9 +29,10 @@ export function extensionsModuleSource(): string {
   return [
     "import {mountWidget} from '@mandarax/widget'",
     "import testRunner from '@mandarax/extension-test-runner/client'",
+    "import whiteboard from '@mandarax/extension-whiteboard/client'",
     "const mods = import.meta.glob('/mandarax/extensions/*.{ts,tsx}', {eager: true})",
     'const userExtensions = Object.values(mods).map((m) => m && m.default).filter(Boolean)',
-    'mountWidget([testRunner, ...userExtensions])',
+    'mountWidget([testRunner, whiteboard, ...userExtensions])',
     '',
   ].join('\n')
 }
