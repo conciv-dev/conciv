@@ -118,7 +118,7 @@ function rawFrames(fiber: Fiber): RawFrame[] {
 
 // A build-injected source attribute on the element (or nearest ancestor that has one). Format is
 // "path:line:col"; the path may itself contain ':' (drive letters), so parse the trailing two.
-export function sourceFromAttr(el: Element): SourceLoc | null {
+function sourceFromAttr(el: Element): SourceLoc | null {
   const node = el.closest('[data-mandarax-source],[data-tsd-source]')
   const raw = node?.getAttribute('data-mandarax-source') ?? node?.getAttribute('data-tsd-source')
   if (!raw) return null
