@@ -6,6 +6,7 @@
 
 // mirrorsKind + the verb set are the single source of truth in @mandarax/protocol, shared with the
 // tool-ui card so its "shown on your page" note matches exactly what animates here.
+import {overlayLayer} from './overlay.js'
 export {mirrorsKind} from '@mandarax/protocol/page-types'
 
 // Brand magenta, kept literal: the overlay lives outside the shadow root, so it can't resolve --pw-*.
@@ -13,33 +14,39 @@ const ACCENT = '#ff40e0'
 const CURSOR_MS = 240
 const RING_MS = 420
 
-const MAX_Z = '2147483647'
+// Arrow-pointer glyph; tip at the SVG's top-left so translate(x,y) lands the hotspot on the target.
+const CURSOR_SVG =
+  `<svg width="34" height="34" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">` +
+  `<path d="M2 1.5 L2 17.5 L6.3 13.6 L9.2 20.2 L11.9 19 L9 12.5 L14.6 12.5 Z" ` +
+  `fill="${ACCENT}" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg>`
+
+// Marker to adopt a lingering cursor node after HMR/re-import, so there's only ever one on the page.
+const CURSOR_MARKER = 'data-mandarax-cursor'
 
 let cursorEl: HTMLDivElement | undefined
 let lastX = -40
 let lastY = -40
 
 function fixedLayer(el: HTMLDivElement): void {
-  el.style.position = 'fixed'
+  overlayLayer(el)
   el.style.top = '0'
   el.style.left = '0'
-  el.style.zIndex = MAX_Z
-  el.style.pointerEvents = 'none'
-  el.setAttribute('aria-hidden', 'true')
 }
 
 function ensureCursor(): HTMLDivElement {
   if (cursorEl?.isConnected) return cursorEl
+  const adopted = document.querySelector<HTMLDivElement>(`[${CURSOR_MARKER}]`)
+  if (adopted) return (cursorEl = adopted)
   const el = document.createElement('div')
+  el.setAttribute(CURSOR_MARKER, '')
   fixedLayer(el)
-  el.style.width = '14px'
-  el.style.height = '14px'
+  el.style.width = '34px'
+  el.style.height = '34px'
   el.style.marginLeft = '-3px'
-  el.style.marginTop = '-3px'
-  el.style.borderRadius = '50% 50% 50% 2px'
-  el.style.background = ACCENT
-  el.style.boxShadow = `0 0 10px ${ACCENT}, 0 1px 2px rgba(0,0,0,.5)`
+  el.style.marginTop = '-2px'
+  el.style.filter = `drop-shadow(0 1px 3px rgba(0,0,0,.45)) drop-shadow(0 0 9px ${ACCENT}aa)`
   el.style.transform = `translate(${lastX}px, ${lastY}px)`
+  el.innerHTML = CURSOR_SVG
   document.body.appendChild(el)
   cursorEl = el
   return el

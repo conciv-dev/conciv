@@ -17,6 +17,7 @@
           "__MANDARAX__",
           "__MANDARAX_API_BASE__",
           "__MANDARAX_PAGE_DRIVER__",
+          "__MANDARAX_REACT_BRIDGE__",
           "__MANDARAX_RENDER_TEST_CARD__",
           "__REACT_GRAB_DISABLED__",
           "__sdkStats",

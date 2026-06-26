@@ -1,6 +1,7 @@
-import {createEffect, createSignal, For, Show, type JSX} from 'solid-js'
+import {createEffect, createSignal, createUniqueId, For, Show, type JSX} from 'solid-js'
 import {createHotkey} from '@tanstack/solid-hotkeys'
 import {CLOSE, type ComposerActionDef, type ComposerControlDef, type PanelDef} from './widget-shell.js'
+import type {PendingApproval} from './approval-modal.js'
 import {createResizable} from '../lib/resize.js'
 import {readStorage, writeStorage} from '../lib/persisted-signal.js'
 import {createPiP} from './pip.js'
@@ -35,6 +36,7 @@ export function QuickTerminalLayout(props: {
   composerControls: () => ComposerControlDef[]
   hotkeys: string[]
   announce: (msg: string, assertive?: boolean) => void
+  reportApprovals: (key: string, approvals: PendingApproval[]) => void
   open: () => boolean
   setOpen: (v: boolean) => void
 }): JSX.Element {
@@ -106,10 +108,12 @@ export function QuickTerminalLayout(props: {
     if (initialId && isSessionId(initialId)) client.setSessionId(SessionId.parse(initialId))
     else void client.resolve().then((r) => client.setSessionId(r.sessionId))
     // Each pane is its own session; it's the focused one that takes composer focus + hydrates.
+    const approvalKey = createUniqueId()
     const content = props.panel.create({
       active: () => props.open() && focused() === id,
       onWorkingChange: setWorking,
       onUsageChange: setUsage,
+      onApprovalsChange: (items) => props.reportApprovals(approvalKey, items),
       // A just-born session shows in every selector before its file flushes (surface union).
       onSessionLabel: (name) => {
         const sid = client.sessionId()

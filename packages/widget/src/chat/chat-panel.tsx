@@ -6,16 +6,9 @@ import {apiError, type SessionClient} from '@mandarax/api-client'
 import {invalidateSessions} from '../client/session-store-client.js'
 import {createDebouncer} from '@tanstack/solid-pacer'
 import {GenUi} from './gen-ui.js'
-import {
-  ToolCallCard,
-  ChainOfThought,
-  Reasoning,
-  NowLine,
-  nowTitle,
-  type ToolViewCtx,
-  type ToolCardEntry,
-} from '@mandarax/tool-ui'
+import {ToolCallCard, ChainOfThought, Reasoning, NowLine, nowTitle, type ToolViewCtx, type ToolCardEntry} from '@mandarax/tool-ui'
 import {Markdown} from './markdown.js'
+import type {PendingApproval} from '../shell/approval-modal.js'
 import {ArrowRight, Square, SquarePen, FoldVertical} from 'lucide-solid'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 import {MANDARAX_UI_EVENT, UiSpecSchema, type UiSpec} from '@mandarax/protocol/ui-types'
@@ -348,6 +341,9 @@ export function ChatPanel(props: {
   composerControls?: () => ComposerControlDef[]
   // Reports the session's latest usage snapshot, so the shell can render a context tracker.
   onUsageChange?: (usage: UsageSnapshot | null) => void
+  // Reports this thread's pending native approvals, so the shell can surface them while the panel
+  // is closed. Cleared on unmount.
+  onApprovalsChange?: (approvals: PendingApproval[]) => void
   // Reports the resolved session name for the chrome to surface a just-born row.
   onSessionLabel?: (name: string | null) => void
   // The surface's "new session" handler (modal opens a fresh panel); absent → in-place new session.
@@ -438,6 +434,29 @@ export function ChatPanel(props: {
     // the decision can't ride the one-way stream back; this unblocks the pending gate in core.
     respondApproval: (approvalId, approved) => void client.permissionDecision({approvalId, approved}).catch(() => {}),
   }
+
+  // Pending native approvals for this thread, derived straight from the messages. `answered` covers
+  // the window between a click and the stream flipping the part off `approval-requested`, so a request
+  // isn't shown twice. Reported up to the shell, which renders the modal when the panel is closed.
+  const [answered, setAnswered] = createSignal<readonly string[]>([])
+  const pendingApprovals = createMemo<PendingApproval[]>(() =>
+    chat
+      .messages()
+      .flatMap((m) => m.parts)
+      .map(asToolCallPart)
+      .filter((p): p is ToolCallPart => !!p && p.state === 'approval-requested' && !!p.approval)
+      .filter((p) => !answered().includes(p.approval!.id))
+      .map((p) => ({
+        id: p.approval!.id,
+        title: nowTitle(p),
+        decide: (approved: boolean) => {
+          setAnswered((prev) => [...prev, p.approval!.id])
+          toolCtx.respondApproval?.(p.approval!.id, approved)
+        },
+      })),
+  )
+  createEffect(() => props.onApprovalsChange?.(pendingApprovals()))
+  onCleanup(() => props.onApprovalsChange?.([]))
 
   // The single morphing "now" line: the most recent still-running tool call's title while streaming,
   // else null (hidden). Settled cards stay in the thread above it; the stop control is pinned right.
@@ -802,7 +821,7 @@ export function ChatPanel(props: {
         </Show>
         <Show when={switching()}>
           <div
-            class="bg-pw-panel-60 anim-switching inset-0 absolute z-[5]"
+            class="bg-pw-panel-60 inset-0 absolute z-[5] anim-switching"
             role="status"
             aria-label="Loading session…"
             tabindex={-1}
@@ -822,7 +841,7 @@ export function ChatPanel(props: {
         </For>
         <div class="px-1.5 pb-1.5 pt-1 border border-pw-line rounded-pw-md bg-pw-fill trans-composer focus-within:border-pw-accent focus-within:ring-accent">
           <textarea
-            class="text-pw-text leading-[1.45] px-2 pb-1 pt-2 max-h-30 w-full block resize-none bg-transparent [border:none] [font:inherit] focus:outline-none"
+            class="text-pw-text leading-[1.45] px-2 pb-1 pt-2 bg-transparent max-h-30 w-full block resize-none [border:none] [font:inherit] focus:outline-none"
             data-pw-input
             rows={1}
             placeholder="Ask a question…"
@@ -906,6 +925,7 @@ export function chatPanelDef(
         announce={ctx.announce}
         onWorkingChange={ctx.onWorkingChange}
         onUsageChange={ctx.onUsageChange}
+        onApprovalsChange={ctx.onApprovalsChange}
         onSessionLabel={ctx.onSessionLabel}
         onNewSession={ctx.onNewSession}
         tools={tools}

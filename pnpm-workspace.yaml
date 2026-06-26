@@ -26,4 +26,4 @@ minimumReleaseAge: 2880
 # to unblock dev lockfile updates while it ages past the window. Build-script-blocked
 # regardless. Remove once it has aged out.
 minimumReleaseAgeExclude:
-  - "@publint/pack"
+  - '@publint/pack'

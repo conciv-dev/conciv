@@ -25,6 +25,7 @@ export const PAGE_VERBS: Record<PageQueryKind, VerbSpec> = {
   tree: {method: 'GET', targetsElement: true, flags: []},
   find: {method: 'GET', targetsElement: false, flags: ['name']},
   track: {method: 'GET', targetsElement: false, flags: ['action', 'name']},
+  effect: {method: 'GET', targetsElement: false, flags: ['action', 'effect']},
   wait: {method: 'GET', targetsElement: true, flags: ['state', 'timeout']},
   click: {method: 'POST', targetsElement: true, flags: []},
   hover: {method: 'POST', targetsElement: true, flags: []},

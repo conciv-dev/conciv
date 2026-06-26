@@ -13,10 +13,12 @@ import {mirrorPageAction, mirrorsKind} from './page-mirror.js'
 // The execution backend behind the page-bus. Owns the console buffer + ref registry and
 // dispatches each query to a handler. Swap this whole object to change the backend; pass
 // `handlers` overrides to swap a single verb.
-export type PageDriver = {execute: (query: PageQuery) => Promise<PageResult>}
+export type PageDriver = {execute: (query: PageQuery) => Promise<PageResult>; refs: Refs}
 
-export function makeDomPageDriver(deps: {handlers?: Partial<Record<PageQueryKind, PageHandler>>} = {}): PageDriver {
-  const refs: Refs = {map: new Map(), n: 0}
+export function makeDomPageDriver(
+  deps: {handlers?: Partial<Record<PageQueryKind, PageHandler>>; refs?: Refs} = {},
+): PageDriver {
+  const refs: Refs = deps.refs ?? {map: new Map(), n: 0}
   const consoleBuf: ConsoleEntry[] = startConsoleBuffer()
   const handlers: Record<PageQueryKind, PageHandler> = {
     ...DOM_HANDLERS,
@@ -43,5 +45,5 @@ export function makeDomPageDriver(deps: {handlers?: Partial<Record<PageQueryKind
     }
   }
 
-  return {execute}
+  return {execute, refs}
 }

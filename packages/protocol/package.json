@@ -53,6 +53,10 @@
       "types": "./dist/page-types.d.ts",
       "import": "./dist/page-types.js"
     },
+    "./page-introspect-types": {
+      "types": "./dist/page-introspect-types.d.ts",
+      "import": "./dist/page-introspect-types.js"
+    },
     "./usage-types": {
       "types": "./dist/usage-types.d.ts",
       "import": "./dist/usage-types.js"

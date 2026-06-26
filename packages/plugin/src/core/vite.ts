@@ -2,7 +2,6 @@ import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {createRequire} from 'node:module'
 import type {Plugin, ViteDevServer} from 'vite'
-import launchEditor from 'launch-editor'
 import {defineBundlerBridge, type BundlerBridge} from '@mandarax/protocol/bundler-types'
 import {start, type Engine} from '@mandarax/core/engine'
 import {htmlTags} from '@mandarax/core/widget-tags'
@@ -12,6 +11,7 @@ import {installMandaraxBinShim} from './bin-shim.js'
 import {viteConfig, viteResolve, viteGraph, viteTransform, viteUrls, type ViteLike} from './vite-tools.js'
 import {EXTENSIONS_ROUTE, makeWidgetInject, type Middleware} from './widget-middleware.js'
 import {addSourceToJsx} from './inject-source.js'
+import {makeOpenInEditor} from './open-editor.js'
 import {isExtensionModule, compileExtensionSolid} from './compile-extension.js'
 import {splitExtension} from './split-extension.js'
 import type {AnyExtension} from '@mandarax/extension'
@@ -90,10 +90,6 @@ function makeExtensionsServe(server: ViteDevServer): Middleware {
   }
 }
 
-function openInEditor(file: string, line: number): void {
-  launchEditor(`${file}:${line}`)
-}
-
 // The dev server's own origins (esp. a LAN IP like http://192.168.1.5:5173) — loopback origins
 // are always allowed by the core CORS guard, so this only widens it to non-loopback dev hosts.
 function devOrigins(server: ViteDevServer): string[] {
@@ -118,7 +114,7 @@ function bootEngine(
     options,
     root: server.config.root,
     bridge: makeViteBridge(server),
-    launchEditor: openInEditor,
+    launchEditor: makeOpenInEditor(server.config.root),
     allowedOrigins: devOrigins(server),
     extensions,
     childEnv: (corePort) => ({...process.env, PATH: agentPath, MANDARAX_PORT: String(corePort)}),

@@ -2,7 +2,19 @@
   "name": "@mandarax/cli",
   "version": "0.0.0",
   "description": "The mandarax agent-facing CLI: `mandarax tools` (drive the live page/vite/tests) and `mandarax ui` (render interactive UI in the chat). citty command tree, zod-validated args.",
+  "keywords": [
+    "ai-agent",
+    "cli",
+    "mandarax"
+  ],
+  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/cli#readme",
+  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mandarax-dev/mandarax.git",
+    "directory": "packages/cli"
+  },
   "bin": {
     "mandarax": "./dist/bin.js"
   },
@@ -12,6 +24,9 @@
   "type": "module",
   "exports": {
     "./bin": "./dist/bin.js"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "build": "tsdown && chmod +x dist/bin.js",
@@ -33,20 +48,5 @@
     "tsdown": "^0.22.2",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/mandarax-dev/mandarax.git",
-    "directory": "packages/cli"
-  },
-  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/cli#readme",
-  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
-  "publishConfig": {
-    "access": "public"
-  },
-  "keywords": [
-    "ai-agent",
-    "cli",
-    "mandarax"
-  ]
+  }
 }

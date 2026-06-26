@@ -9,6 +9,7 @@ import {originAllowed, registerCors} from './api/cors.js'
 import {registerChatRoutes} from './api/chat/chat.js'
 import {registerMcpRoutes} from './api/mcp/mcp.js'
 import {registerPageRoutes} from './api/page/page.js'
+import {registerOpenSourceRoute} from './api/page/open-source.js'
 import {registerServerRoutes} from './api/server/server.js'
 import {registerEditorRoutes} from './api/editor/editor.js'
 import {makeUiBus} from './runtime/ui-bus.js'
@@ -67,6 +68,7 @@ export function makeApp(opts: MakeAppOpts): MadeApp {
   })
   const page = registerPageRoutes(app, {journal: makeJournal(), root: opts.cwd})
   registerEditorRoutes(app, opts.openInEditor)
+  registerOpenSourceRoute(app, {openInEditor: opts.openInEditor, root: opts.cwd})
 
   const guard = (origin: string | null) => originAllowed(origin, new Set(opts.allowedOrigins ?? []))
   const seenTools = new Set<string>()

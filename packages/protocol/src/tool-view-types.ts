@@ -19,13 +19,25 @@ export type ToolViewCtx = {
   respondApproval?: (approvalId: string, approved: boolean) => void
 }
 
-// The props every tool card receives: the raw tool-call part, its paired result, and host actions.
-// Each card parses part.input with its own zod schema for typed, validated rendering.
-// durationMs is the wall-clock the host measured between the call appearing and its result landing
-// (tanstack parts carry no timing slot); ToolCard renders it as the mono meta when set.
+// The props every tool card receives: the tool-call part, its paired result, host actions, and the
+// host-measured wall-clock (tanstack parts carry no timing slot).
 export type ToolCardProps = {
   part: ToolCallPart
   result: ToolResultPart | undefined
   ctx: ToolViewCtx
   durationMs?: number
+}
+
+export type ToolRenderResultOptions = {expanded: boolean; isPartial: boolean}
+
+// Pi's render context, widened with the host seams (ToolViewCtx), the raw part, and host timing —
+// so renderCall(args, ctx) / renderResult(result, options, ctx) reach everything a card needs.
+export type ToolRenderContext<TArgs = unknown> = ToolViewCtx & {
+  args: TArgs
+  part: ToolCallPart
+  toolCallId: string
+  durationMs?: number
+  expanded: boolean
+  isPartial: boolean
+  isError: boolean
 }
