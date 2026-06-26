@@ -1,26 +1,27 @@
+import {createMCPClient} from '@tanstack/ai-mcp'
 import {MANDARAX_SESSION_HEADER} from '@mandarax/protocol/chat-types'
 
-// Core only accepts our branded `mandarax_` ids (session-id.ts throws 400 otherwise), so ITs mint
-// session ids through this rather than hand-rolling the prefix.
 export function sessionId(label: string): string {
   return `mandarax_${label}`
 }
 
-// The node-side IT runTool: POSTs /api/tools/run carrying a REAL session header so session-scoped
-// rooms, comments, undo, and approval are actually isolated per session (an empty header collapses
-// every session to '' and makes those ITs vacuous). Returns the raw Response so callers assert status.
-export function runTool(core: string, sessionId: string, name: string, input: unknown): Promise<Response> {
-  return fetch(`${core}/api/tools/run`, {
-    method: 'POST',
-    headers: {'content-type': 'application/json', [MANDARAX_SESSION_HEADER]: sessionId},
-    body: JSON.stringify({name, input}),
+export async function callTool(core: string, session: string, name: string, input: unknown): Promise<unknown> {
+  const mcp = await createMCPClient({
+    transport: {type: 'http', url: `${core}/api/mcp`, headers: {[MANDARAX_SESSION_HEADER]: session}},
   })
+  try {
+    const tool = (await mcp.tools()).find((entry) => entry.name === name)
+    if (!tool?.execute) throw new Error(`tool ${name} not registered on /api/mcp`)
+    return await tool.execute(input)
+  } finally {
+    await mcp.close()
+  }
 }
 
-export function runToolApproved(core: string, sessionId: string, name: string, input: unknown): Promise<Response> {
-  return fetch(`${core}/api/tools/run`, {
+export function postAction(extBase: string, path: string, body: unknown, session?: string): Promise<Response> {
+  return fetch(`${extBase}${path}`, {
     method: 'POST',
-    headers: {'content-type': 'application/json', [MANDARAX_SESSION_HEADER]: sessionId},
-    body: JSON.stringify({name, input, confirmed: true}),
+    headers: {'content-type': 'application/json', ...(session ? {[MANDARAX_SESSION_HEADER]: session} : {})},
+    body: JSON.stringify(body),
   })
 }

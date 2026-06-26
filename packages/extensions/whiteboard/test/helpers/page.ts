@@ -4,17 +4,12 @@ import {createRequire} from 'node:module'
 import getPort from 'get-port'
 import {H3} from 'h3'
 import {serve, type Server} from 'srvx'
-import {plugin as ws} from 'crossws/server'
-import type {Sync} from '@mandarax/core/sync'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const require = createRequire(import.meta.url)
 
 type Esbuild = {build: (opts: Record<string, unknown>) => Promise<{outputFiles: Array<{text: string}>}>}
 
-// `?inline` CSS imports are a Vite feature esbuild can't resolve; the canvas effect pulls in
-// excalidraw + widget styles that way. Browser ITs assert rendered text/roles, not styling, so every
-// `*.css?inline` import resolves to empty text.
 const cssInlinePlugin = {
   name: 'css-inline',
   setup(build: {
@@ -26,10 +21,6 @@ const cssInlinePlugin = {
   },
 }
 
-// Bundle a browser fixture entry to a single IIFE string. esbuild is resolved from vite's install so
-// no extra dep; node_modules paths cover the package + workspace root. react/react-dom are aliased to
-// the package's single copy so the island and Excalidraw share ONE React instance (a second copy ->
-// "invalid hook call"); the same dedupe the vite lib build does.
 export async function bundleFixture(entry: string): Promise<string> {
   const viteEntry = require.resolve('vite', {paths: [here]})
   const esbuildPath = require.resolve('esbuild', {paths: [dirname(viteEntry)]})
@@ -41,7 +32,6 @@ export async function bundleFixture(entry: string): Promise<string> {
     bundle: true,
     format: 'iife',
     write: false,
-    // Excalidraw branches on both flags; without IS_PREACT defined it throws at import.
     define: {'process.env.NODE_ENV': '"development"', 'process.env.IS_PREACT': '"false"'},
     alias: {react: reactDir, 'react-dom': reactDomDir},
     nodePaths: [`${here}/../../node_modules`, `${here}/../../../../node_modules`],
@@ -58,17 +48,10 @@ export function pageHtml(fixtureJs: string, core: string, body = ''): string {
 
 export type PageServer = {base: string; close: () => Promise<void>}
 
-// Serve one HTML page; when syncHooks are given, mount the sync ws relay so browser fixtures can join
-// rooms over the same origin. A fresh getPort keeps parallel suites from colliding.
-export async function servePage(html: string, syncHooks?: Sync['hooks']): Promise<PageServer> {
+export async function servePage(html: string): Promise<PageServer> {
   const app = new H3()
   app.get('/', () => new Response(html, {headers: {'content-type': 'text/html'}}))
-  const server: Server = serve({
-    fetch: app.fetch,
-    port: await getPort(),
-    hostname: '127.0.0.1',
-    plugins: syncHooks ? [ws(syncHooks)] : [],
-  })
+  const server: Server = serve({fetch: app.fetch, port: await getPort(), hostname: '127.0.0.1'})
   await server.ready()
   return {base: new URL(server.url ?? '').origin, close: () => server.close()}
 }
