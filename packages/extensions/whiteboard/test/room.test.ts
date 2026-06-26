@@ -1,18 +1,12 @@
 import {describe, expect, it} from 'vitest'
-import {ELEMENTS_KEY, ORIGIN, PINS_KEY, roomId} from '../src/room.js'
+import {roomId} from '../src/shared/room.js'
 
-describe('room', () => {
-  it('composes the room id from previewId and sessionId', () => {
-    expect(roomId('p', 's')).toBe('p:s')
+describe('roomId', () => {
+  it('joins previewId and sessionId with a colon', () => {
+    expect(roomId('local', 'mandarax_x')).toBe('local:mandarax_x')
   })
 
-  it('exposes the Yjs key constants', () => {
-    expect(ELEMENTS_KEY).toBe('elements')
-    expect(PINS_KEY).toBe('pins')
-  })
-
-  it('re-exports the shared ORIGIN map', () => {
-    expect(ORIGIN.USER).toBe('user')
-    expect(ORIGIN.AI).toBe('ai')
+  it('falls back to a local session when the sessionId is empty', () => {
+    expect(roomId('local', '')).toBe('local:local')
   })
 })
