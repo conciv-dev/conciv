@@ -4,15 +4,18 @@ import {page} from 'vitest/browser'
 import {ChatPanel} from '../src/chat/chat-panel.js'
 import {defineClient} from '@mandarax/api-client'
 import {sampleExtension, sampleClientProbe} from './fixtures/sample-extension.js'
+import {buildInstances} from './helpers/instances.js'
+import type {ExtensionInstance} from '../src/extension/extension-slots.js'
 
-// Gap C in a real browser: the panel runs each extension's .client(ClientApi) once, merges its value
-// into useContext, and runs the returned dispose on unmount. The fixture's .client records opens /
-// closes / live count + the apiBase it received, so the real Solid mount/unmount lifecycle is observed
-// directly (no mocks). active={false} keeps chat from hydrating.
+// The mount-time .client() lifecycle in a real browser: mountWidget installs the one ClientApi and runs
+// each extension's .client() ONCE (widget lifetime, not per panel), merging its value into useContext
+// and returning a dispose. The fixture's .client records opens / closes / live + the apiBase it read off
+// useClientApi(), so the real lifecycle is observed directly (no mocks). active={false} keeps chat from
+// hydrating.
 const API_BASE = 'http://probe.example'
 const disposers: (() => void)[] = []
 
-function mountPanel(): () => void {
+function mountPanel(instances: ExtensionInstance[]): () => void {
   const host = document.createElement('div')
   document.body.appendChild(host)
   const dispose = render(
@@ -22,7 +25,7 @@ function mountPanel(): () => void {
         harnessId="claude"
         client={defineClient({apiBase: API_BASE})}
         active={false}
-        extensions={[sampleExtension]}
+        instances={instances}
       />
     ),
     host,
@@ -43,9 +46,9 @@ afterEach(() => {
   document.body.replaceChildren()
 })
 
-describe('extension .client(ClientApi) lifecycle (real browser)', () => {
-  it('runs .client once per panel and hands it the panel apiBase', async () => {
-    mountPanel()
+describe('extension .client() lifecycle (real browser)', () => {
+  it('runs .client once at mount and reads the apiBase off useClientApi()', async () => {
+    mountPanel(buildInstances([sampleExtension], API_BASE))
     // The value merged into useContext renders ("ready") — proves the client factory ran + merged.
     await expect.element(page.getByText('sample status ready')).toBeVisible()
     expect(sampleClientProbe.opens).toBe(1)
@@ -53,25 +56,25 @@ describe('extension .client(ClientApi) lifecycle (real browser)', () => {
     expect(sampleClientProbe.apiBase).toBe(API_BASE)
   })
 
-  it('runs the returned dispose when the panel unmounts (no leak)', async () => {
-    const dispose = mountPanel()
+  it('runs the returned dispose to tear the client down (no leak)', async () => {
+    const instances = buildInstances([sampleExtension], API_BASE)
+    mountPanel(instances)
     await expect.element(page.getByText('sample status ready')).toBeVisible()
     expect(sampleClientProbe.live).toBe(1)
-    dispose()
+    for (const instance of instances) instance.dispose?.()
     expect(sampleClientProbe.closes).toBe(1)
     expect(sampleClientProbe.live).toBe(0)
   })
 
-  it('keeps one independent client per concurrent panel and disposes each on its own unmount', async () => {
-    const disposeA = mountPanel()
-    const disposeB = mountPanel()
+  it('shares ONE client across concurrent panels (mount-lifetime, not per-panel)', async () => {
+    const instances = buildInstances([sampleExtension], API_BASE)
+    mountPanel(instances)
+    mountPanel(instances)
     await expect.element(page.getByText('sample status ready').nth(1)).toBeVisible()
-    expect(sampleClientProbe.opens).toBe(2)
-    expect(sampleClientProbe.live).toBe(2)
-    disposeA()
+    expect(sampleClientProbe.opens).toBe(1)
     expect(sampleClientProbe.live).toBe(1)
-    disposeB()
+    for (const instance of instances) instance.dispose?.()
+    expect(sampleClientProbe.closes).toBe(1)
     expect(sampleClientProbe.live).toBe(0)
-    expect(sampleClientProbe.closes).toBe(2)
   })
 })

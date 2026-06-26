@@ -4,11 +4,13 @@ import {page} from 'vitest/browser'
 import {ChatPanel} from '../src/chat/chat-panel.js'
 import {defineClient} from '@mandarax/api-client'
 import {sampleExtension} from './fixtures/sample-extension.js'
+import {buildInstances} from './helpers/instances.js'
 
 // Real browser, real Solid, real ChatPanel + a real defineExtension fixture. The test module and the
 // widget share ONE vite module graph, so the Component's useContext resolves the SAME runtime context
 // the panel provides. The harness is never called — extension slots render independently of chat —
-// so there is nothing to stub. active={false} keeps the panel from hydrating a session.
+// so there is nothing to stub. active={false} keeps the panel from hydrating a session. Instances are
+// built the way mountWidget does (one ClientApi, .client() run once), then handed to the panel.
 const disposers: (() => void)[] = []
 
 function mountPanel(): HTMLElement {
@@ -22,7 +24,7 @@ function mountPanel(): HTMLElement {
           harnessId="claude"
           client={defineClient({apiBase: ''})}
           active={false}
-          extensions={[sampleExtension]}
+          instances={buildInstances([sampleExtension], '')}
         />
       ),
       host,

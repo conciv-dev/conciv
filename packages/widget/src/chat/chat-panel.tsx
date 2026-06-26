@@ -21,8 +21,7 @@ import {
 import type {ComposerActionDef, ComposerControlDef, PanelDef} from '../shell/widget-shell.js'
 import {GrabReference} from '../page/react-grab/grab-reference.js'
 import type {Grab, GrabApi} from '@mandarax/grab'
-import type {AnyExtension, ClientApi} from '@mandarax/extension'
-import {ExtensionSurface, type ExtensionHostBag} from '../extension/extension-slots.js'
+import {ExtensionSurface, type ExtensionHostBag, type ExtensionInstance} from '../extension/extension-slots.js'
 import {EmptyStateSlot} from '../shell/empty-state.js'
 import {grabApi} from '../page/grab-api.js'
 
@@ -349,7 +348,7 @@ export function ChatPanel(props: {
   // The surface's "new session" handler (modal opens a fresh panel); absent → in-place new session.
   onNewSession?: () => void | Promise<void>
   // The extensions to paint into the surface slots; each one's Component branches on useSlot().
-  extensions: AnyExtension[]
+  instances: ExtensionInstance[]
 }): JSX.Element {
   const client = props.client
   const [genUi, setGenUi] = createSignal<UiSpec[]>([])
@@ -738,16 +737,6 @@ export function ChatPanel(props: {
     requestMeta,
     grab,
   }
-  // Run each extension's .client() once per panel; its return merges into that extension's context.
-  const clientApi: ClientApi = {apiBase: props.apiBase, client, requestMeta}
-  const extensionInstances = createMemo(() =>
-    props.extensions.map((extension) => {
-      const result = extension.__client?.(clientApi)
-      return {extension, clientValue: result?.value ?? {}, dispose: result?.dispose}
-    }),
-  )
-  onCleanup(() => extensionInstances().forEach((instance) => instance.dispose?.()))
-
   const onKeyDown = (e: KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
@@ -757,15 +746,15 @@ export function ChatPanel(props: {
 
   return (
     <>
-      <ExtensionSurface name="header" instances={extensionInstances()} bag={hostBag} />
-      <ExtensionSurface name="widget" instances={extensionInstances()} bag={hostBag} />
+      <ExtensionSurface name="header" instances={props.instances} bag={hostBag} />
+      <ExtensionSurface name="widget" instances={props.instances} bag={hostBag} />
       <div class="p-3.5 flex flex-1 flex-col gap-2.5 relative overflow-y-auto" role="log" aria-live="off" ref={logRef}>
         <Show
           when={chat.messages().length > 0}
           fallback={
             <EmptyStateSlot
               onStarter={(s) => void chat.sendMessage(s)}
-              instances={extensionInstances()}
+              instances={props.instances}
               bag={hostBag}
             />
           }
@@ -828,8 +817,8 @@ export function ChatPanel(props: {
           />
         </Show>
       </div>
-      <ExtensionSurface name="status" instances={extensionInstances()} bag={hostBag} />
-      <ExtensionSurface name="footer" instances={extensionInstances()} bag={hostBag} />
+      <ExtensionSurface name="status" instances={props.instances} bag={hostBag} />
+      <ExtensionSurface name="footer" instances={props.instances} bag={hostBag} />
       <Show when={notice()}>
         <div class="text-[0.75rem] text-pw-text-2 leading-[1.4] font-medium font-pw mx-3 mb-2 px-2.5 py-2 border border-pw-line rounded-pw-md bg-pw-fill [word-break:break-word]">
           {notice()}
@@ -874,7 +863,7 @@ export function ChatPanel(props: {
                 )
               }}
             </For>
-            <ExtensionSurface name="composer" instances={extensionInstances()} bag={hostBag} />
+            <ExtensionSurface name="composer" instances={props.instances} bag={hostBag} />
             <For each={props.composerControls?.() ?? []}>
               {(c) => c.create({apiBase: props.apiBase, setRequestMeta: mergeRequestMeta})}
             </For>
@@ -910,7 +899,7 @@ export function chatPanelDef(
   apiBase: string,
   harnessId: string,
   tools: () => ToolCardEntry[],
-  extensions: AnyExtension[],
+  instances: ExtensionInstance[],
 ): PanelDef {
   return {
     id: 'chat',
@@ -929,7 +918,7 @@ export function chatPanelDef(
         onSessionLabel={ctx.onSessionLabel}
         onNewSession={ctx.onNewSession}
         tools={tools}
-        extensions={extensions}
+        instances={instances}
         composerActions={ctx.composerActions}
         composerControls={ctx.composerControls}
       />

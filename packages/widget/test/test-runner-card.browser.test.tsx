@@ -5,6 +5,7 @@ import {collectToolRenderers, type AnyExtension} from '@mandarax/extension'
 import {defineClient} from '@mandarax/api-client'
 import testRunnerClient from '@mandarax/extension-test-runner/client'
 import {ChatPanel} from '../src/chat/chat-panel.js'
+import {buildInstances} from './helpers/instances.js'
 
 // End-to-end in a real browser: the real ChatPanel hydrates a settled turn (served same-origin by
 // the chat-history-fixture vite middleware) whose chain carries a test_runner tool-call + result.
@@ -36,7 +37,7 @@ describe('test-runner result in the chat transcript (real browser)', () => {
             client={client}
             active={true}
             tools={() => collectToolRenderers(extensions)}
-            extensions={extensions}
+            instances={buildInstances(extensions, '')}
           />
         ),
         host,

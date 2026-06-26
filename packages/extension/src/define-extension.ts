@@ -13,6 +13,7 @@ import type {
   ServerResult,
 } from './types.js'
 import {useExtensionRuntimeContext} from './runtime-context.js'
+import {useClientApi} from './extension-api.js'
 
 export type AnyToolBuilder = ToolBuilder<z.ZodObject<z.ZodRawShape>, unknown>
 
@@ -38,15 +39,16 @@ export type ExtensionBuilder<
   theme?: ThemeTokens
   tools?: Tools
   parseConfig: (raw: unknown) => ConfigOf<Schema>
-  __client?(client: ClientApi): ClientFactoryResult<ClientValue>
+  __client?(): ClientFactoryResult<ClientValue>
   __server?(server: ServerApi<ConfigOf<Schema>>): ServerResult<unknown>
+  useClientApi: () => ClientApi
   useSlot: () => () => ExtensionSlot
   useContext: {
     (): ExtensionHostContext & ClientValue
     <Selected>(select: (context: ExtensionHostContext & ClientValue) => Selected): Selected
   }
   client: <Value extends object>(
-    factory: (client: ClientApi) => ClientFactoryResult<Value>,
+    factory: () => ClientFactoryResult<Value>,
   ) => ExtensionBuilder<Name, Schema, Tools, ClientValue & Value>
   server: <Context extends RequiredContext<Tools>>(
     factory: (server: ServerApi<ConfigOf<Schema>>) => ServerResult<Context>,
@@ -87,9 +89,10 @@ export function defineExtension<
     theme: meta.theme,
     tools: meta.tools,
     parseConfig: (raw: unknown) => parseExtensionConfig(meta.configSchema, raw),
+    useClientApi,
     useSlot,
     useContext,
-    client(factory: (client: ClientApi) => ClientFactoryResult<object>) {
+    client(factory: () => ClientFactoryResult<object>) {
       builder.__client = factory
       return builder
     },

@@ -9,8 +9,11 @@ export type {
 export {defineTool} from './define-tool.js'
 export type {ToolBuilder} from './define-tool.js'
 export {collectToolRenderers} from './collect-client.js'
+export {getExtensionApi, useClientApi, installClientApi} from './extension-api.js'
+export type {ExtensionApi, ExtensionId, Register} from './extension-api.js'
 export type {
   ClientApi,
+  PageInspect,
   ClientFactoryResult,
   ComposerActions,
   ConfigOf,

@@ -16,10 +16,10 @@ export const sampleExtension = defineExtension({
   systemPrompt: 'You can draw shapes.',
   tools: [draw],
 })
-  .client((client) => {
+  .client(() => {
     sampleClientProbe.opens += 1
     sampleClientProbe.live += 1
-    sampleClientProbe.apiBase = client.apiBase
+    sampleClientProbe.apiBase = sampleExtension.useClientApi().apiBase
     return {
       value: {sampleReady: () => true},
       dispose: () => {

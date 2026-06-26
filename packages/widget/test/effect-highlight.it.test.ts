@@ -1,11 +1,13 @@
-// End-to-end highlight effect in a real browser + real React, scripted server, no mocks.
+// End-to-end highlight extension in a real browser + real React, scripted server, no mocks. Highlight
+// is a built-in extension: holding Alt arms the inspector overlay, a click on a component opens its
+// source. No effect verb — the user drives it.
 import {createServer, type IncomingMessage, type Server, type ServerResponse} from 'node:http'
 import type {AddressInfo} from 'node:net'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {chromium, type Browser} from 'playwright'
-import {buildFixture, fixturePage, readBody, drive, ready} from './it-fixture.js'
+import {buildFixture, fixturePage, readBody, ready} from './it-fixture.js'
 
-describe('highlight effect (it): enable, hover, click, open', () => {
+describe('highlight extension (it): Alt-hold, hover, click, open', () => {
   let browser: Browser
   let server: Server
   const state = {base: ''}
@@ -44,19 +46,20 @@ describe('highlight effect (it): enable, hover, click, open', () => {
     server?.close()
   })
 
-  it('enables highlight and a click on a component opens its source (attribute fast path)', async () => {
+  it('Alt-hold arms the inspector and a click on a component opens its source (attribute fast path)', async () => {
     const page = await browser.newPage()
     await page.goto(state.base)
     await ready(page)
-
-    const enabled = await drive(page, {kind: 'effect', effect: 'highlight', action: 'enable'})
-    expect(enabled).toMatchObject({effect: 'highlight', enabled: true})
 
     // The esbuild fixture has no build-injected source attr; set one on the component host so the click
     // resolves via the fast path (the symbolication fallback is covered by core's open-source IT).
     await page.evaluate(() =>
       document.querySelector('#card')?.setAttribute('data-mandarax-source', '/src/Card.tsx:3:1'),
     )
+
+    await page.keyboard.down('Alt')
+    // The armed overlay renders a full-screen capture layer into the shared surface — wait for it.
+    await page.locator('[data-mandarax-capture]').waitFor({timeout: 5000})
 
     const box = await page.locator('#card').boundingBox()
     if (!box) throw new Error('#card has no box')
@@ -68,16 +71,20 @@ describe('highlight effect (it): enable, hover, click, open', () => {
     await expect.poll(() => editorOpenCalls.length, {timeout: 5000}).toBeGreaterThan(0)
     expect(editorOpenCalls[0]).toEqual({file: '/src/Card.tsx', line: 3})
 
+    await page.keyboard.up('Alt')
     await page.close()
   })
 
-  it('disable tears the inspector down (no open on click after)', async () => {
+  it('releasing Alt tears the inspector down (no open on click after)', async () => {
     const page = await browser.newPage()
     await page.goto(state.base)
     await ready(page)
-    await drive(page, {kind: 'effect', effect: 'highlight', action: 'enable'})
-    const before = await drive(page, {kind: 'effect', effect: 'highlight', action: 'disable'})
-    expect(before).toMatchObject({enabled: false})
+
+    await page.keyboard.down('Alt')
+    await page.locator('[data-mandarax-capture]').waitFor({timeout: 5000})
+    await page.keyboard.up('Alt')
+    await page.locator('[data-mandarax-capture]').waitFor({state: 'detached', timeout: 5000})
+
     const baseline = openSourceCalls.length + editorOpenCalls.length
     const box = await page.locator('#card-inc').boundingBox()
     await page.mouse.click(box!.x + 5, box!.y + 5)
