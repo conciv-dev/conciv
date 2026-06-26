@@ -14,8 +14,8 @@ declare global {
 const room = roomId('local', 'mandarax_e1seed')
 
 function Probe() {
-  const rows = useAll(() => ({query: app.canvasElements.where({room})}))
-  return <For each={rows.data ?? []}>{(row) => <div>{row.elementId}</div>}</For>
+  const rows = useAll(() => ({query: app.canvasPending.where({room})}))
+  return <For each={rows.data ?? []}>{(row) => <div>{row.id}</div>}</For>
 }
 
 const [config] = createResource(() => fetchJazzConfig(`${window.__CORE__}/api/ext/whiteboard`))

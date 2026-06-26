@@ -29,20 +29,20 @@ afterAll(async () => {
 })
 
 describe('whiteboard jazz client bootstrap (it)', () => {
-  it('reads a backend-seeded canvas element in the browser', async () => {
-    const drawn = JSON.parse(
+  it('syncs a backend-written row into the browser jazz client', async () => {
+    const result = JSON.parse(
       String(
         await callTool(state.stack!.core, sessionId('e1seed'), 'canvas.draw', {
           elements: [{type: 'rectangle', x: 0, y: 0, width: 80, height: 60}],
         }),
       ),
-    ) as {drawn: string[]}
-    const elementId = drawn.drawn[0]!
+    ) as {pending: string}
+    const pendingId = result.pending
     state.page = await serveBuiltFixture(state.built!, state.stack!.core, '<div id="host"></div>')
     const page = await state.browser!.newPage()
     await page.goto(`${state.page.base}/`)
-    await page.getByText(elementId).waitFor({state: 'visible', timeout: 30_000})
-    expect(await page.getByText(elementId).count()).toBe(1)
+    await page.getByText(pendingId).waitFor({state: 'visible', timeout: 30_000})
+    expect(await page.getByText(pendingId).count()).toBe(1)
     await page.close()
   })
 })

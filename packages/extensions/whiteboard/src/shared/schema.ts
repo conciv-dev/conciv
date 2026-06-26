@@ -7,6 +7,11 @@ export const app = schema.defineApp({
     data: col.json(),
     version: col.int(),
   }),
+  canvasPending: schema.table({
+    room: col.string(),
+    kind: col.enum('skeletons', 'mermaid'),
+    payload: col.json(),
+  }),
   comments: schema.table({
     previewId: col.string(),
     sessionId: col.string(),
