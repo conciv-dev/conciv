@@ -1,10 +1,12 @@
 import type {z} from 'zod'
-import type {ExtensionTool, ToolRenderer} from './types.js'
+import type {ExtensionTool, ToolRenderer, ToolRequest} from './types.js'
 
 export type ToolBuilder<Schema extends z.ZodObject<z.ZodRawShape>, Ctx = unknown> = ExtensionTool & {
   inputSchema: Schema
   __ctx?: Ctx
-  server: (execute: (input: z.infer<Schema>, ctx: Ctx) => Promise<unknown> | unknown) => ToolBuilder<Schema, Ctx>
+  server: (
+    execute: (input: z.infer<Schema>, ctx: Ctx, request: ToolRequest) => Promise<unknown> | unknown,
+  ) => ToolBuilder<Schema, Ctx>
   render: (renderer: ToolRenderer) => ToolBuilder<Schema, Ctx>
 }
 
@@ -24,7 +26,8 @@ export function defineTool<Schema extends z.ZodObject<z.ZodRawShape>, Ctx = unkn
     promptGuidelines: definition.promptGuidelines,
     streamTitle: definition.streamTitle,
     server(execute) {
-      builder.__execute = async (raw, ctx) => execute(definition.inputSchema.parse(raw), ctx as Ctx)
+      builder.__execute = async (raw, ctx, request) =>
+        execute(definition.inputSchema.parse(raw), ctx as Ctx, request as ToolRequest)
       return builder
     },
     render(renderer) {

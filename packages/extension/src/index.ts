@@ -25,4 +25,5 @@ export type {
   ServerApi,
   ServerResult,
   ToolRenderer,
+  ToolRequest,
 } from './types.js'

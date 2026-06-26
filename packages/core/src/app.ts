@@ -1,7 +1,7 @@
 import {H3} from 'h3'
 import type {HarnessAdapter, HarnessChild} from '@mandarax/protocol/harness-types'
 import type {BundlerBridge} from '@mandarax/protocol/bundler-types'
-import type {AnyExtension} from '@mandarax/extension'
+import type {AnyExtension, ToolRequest} from '@mandarax/extension'
 import type {ResolvedMandaraxConfig} from './config.js'
 import {getHarness} from '@mandarax/harness'
 import {makeExtensionApp} from './extension-app.js'
@@ -92,7 +92,7 @@ export function makeApp(opts: MakeAppOpts): MadeApp {
           name: tool.name,
           description: tool.description,
           inputSchema: tool.inputSchema,
-          execute: (input: unknown) => run(input, context),
+          execute: (input: unknown, request: ToolRequest) => run(input, context, request),
         },
       ]
     })
@@ -110,6 +110,7 @@ export function makeApp(opts: MakeAppOpts): MadeApp {
       open: (file, line) => opts.openInEditor(file, line),
     }),
     extensionTools,
+    opts.cfg.previewId,
   )
   if (opts.bridge) registerServerRoutes(app, opts.bridge)
   return {app, disposers}
