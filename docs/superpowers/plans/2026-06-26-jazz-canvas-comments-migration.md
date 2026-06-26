@@ -125,7 +125,13 @@ Phases 0–2 of the **prior** (Yjs+trailbase) migration are committed on this br
 
 **Files:** `src/server/jazz/runner.ts` (import it directly — NO `index.ts` barrel [[no-barrel-files]]). Test: `test/jazz-runner.it.test.ts`.
 
-**RESOLVED (probe-verified against real server + backend, todo-server-ts example):** schema travels **in-memory** with the context — pass the `app` object + `permissions` to `createJazzContext`; **NO file-based `deploy`/`pushSchema` for the backend**, no `schemaToWasm`, no `app.wasmSchema`. Writes need a durability tier in `wait()`: `db.insert(...).wait({tier:'local'})`. `jazz-napi@2.0.0-alpha.52` is an explicit dep (the native runtime; `jazz-tools` auto-detects it but it must be listed). Open for E: whether the **browser** client pulls the schema from the synced server automatically, or needs schema push for the client (the backend context syncing its schema to the hub likely suffices — verify in E.1).
+**CORRECTED (probe-verified, supersedes the earlier "in-memory is enough"):** the backend context's in-memory schema lets the backend read/write **its own** rows, but a **separate client** (browser / any `createDb`) cannot sync until the schema is **published to the server**. Proven: a local-first client's `all()`/`wait({tier:'edge'})` hang until `deploy`/`pushSchema`; `adminSecret` on the backend does NOT auto-publish; `publishStoredSchema` (object-based) is internal/unexported. The only public publish is **file-based** `deploy({serverUrl, appId, adminSecret, schemaDir})` (from `jazz-tools/dev` or `jazz-tools/testing`) — it loads `schemaDir/schema.ts` (must `export const app`/`schema`/`default` — our `whiteboardApp` name is rejected) + `schemaDir/permissions.ts` (`export default`), publishing two versioned artifacts (schema hash, then permissions against it). So:
+
+- Reshape `src/shared/schema.ts` → `export const app = schema.defineApp({...})`; move policies to `src/shared/permissions.ts` → `export default definePermissions(app, …)`. These two are the canonical schema + the deploy source (one definition, no duplication).
+- `startJazzRunner` exposes `adminSecret`; `.server()` `await deploy({serverUrl, appId, adminSecret, schemaDir: <src/shared>})` after start. Idempotent ("already-stored") on a persistent server.
+- Writes still need `.wait({tier:'edge'})` for cross-client visibility (`'local'` only confirms local durability — the reader never sees it).
+- **Runtime packaging follow-up (deferred):** `deploy` reads the `.ts` source at runtime; the ITs run from `src/` so this works now. For the published `dist`-only package, emit `src/shared/{schema,permissions}.ts` into `dist/` at build (rides the existing `dist` files entry — no `files` change). Resolve `schemaDir` via `new URL('./shared', import.meta.url)` so it lands on `src/shared` in dev and `dist/shared` in prod.
+- **E.1 widget needs** `vite-plugin-wasm` + `vite-plugin-top-level-await` for the in-browser Jazz client (the Solid example's deps) — new dev deps, get approval at E.1.
 
 **Interfaces — Produces:**
 
@@ -145,8 +151,8 @@ Phases 0–2 of the **prior** (Yjs+trailbase) migration are committed on this br
 
 **Files:** `test/jazz-sync.it.test.ts` (two backend `createJazzContext` clients, OR two Node Jazz clients, on the same `appId`+room converge).
 
-- [ ] **Step 1:** Failing — client A `db.insert(whiteboardApp.canvasElements, {room, elementId:'r1', …})` then `await result.wait()` for durability; client B `db.subscribeAll(whiteboardApp.canvasElements.where({room}), (delta) => …)` observes the row in `delta.all` (reconcile by id). Both clients are `createJazzContext(...).asBackend()` (or Node `createDb`) on the same appId+room, against a `startJazzRunner`-started server. Assert via the IT's `locator.waitFor`-style polling on the subscription, not a fixed sleep.
-- [ ] **Step 2:** FAIL → implement against the running server → PASS. Commit.
+- [x] **Step 1:** DONE — `test/jazz-sync.it.test.ts`: after `startJazzRunner` + `deploy(schemaDir)`, two `createJazzContext(...).asBackend()` connections on the same appId+room; the reader's `subscribeAll(app.canvasElements.where({room}))` observes the writer's `insert(...).wait({tier:'edge'})`. Event-driven (resolve in the callback, 15s reject guard), no fixed sleep.
+- [x] **Step 2:** PASS. **Note:** the local-first `createDb` **browser** client can't run under vitest's node env (its WASM/worker runtime hangs) — proven working in raw node (deploy + backend writer(edge) + `createDb` reader synced), and exercised for real in Phase E (Chromium). C.3 proves server relay between two connections; E.2 proves the actual agent→browser path. Commit.
 
 **Checkpoint:** report Phase C (platform foundation — riskiest; the server runner + sync proof).
 

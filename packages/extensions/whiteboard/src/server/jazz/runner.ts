@@ -3,6 +3,7 @@ import {startLocalJazzServer} from 'jazz-tools/dev'
 export type JazzRunner = {
   appId: string
   serverUrl: string
+  adminSecret: string
   backendSecret: string
   stop: () => Promise<void>
 }
@@ -21,6 +22,7 @@ export const startJazzRunner = async (options: JazzRunnerOptions = {}): Promise<
   return {
     appId: server.appId,
     serverUrl: server.url,
+    adminSecret: server.adminSecret,
     backendSecret: server.backendSecret,
     stop: () => server.stop(),
   }

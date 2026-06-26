@@ -1,5 +1,6 @@
 import {createJazzContext, type Db} from 'jazz-tools/backend'
-import {whiteboardApp, whiteboardPermissions} from '../../shared/schema.js'
+import {app} from '../../shared/schema.js'
+import permissions from '../../shared/permissions.js'
 
 export type BackendDb = {
   db: Db
@@ -15,8 +16,8 @@ export type BackendDbOptions = {
 export const createBackendDb = ({appId, serverUrl, backendSecret}: BackendDbOptions): BackendDb => {
   const context = createJazzContext({
     appId,
-    app: whiteboardApp,
-    permissions: whiteboardPermissions,
+    app,
+    permissions,
     driver: {type: 'memory'},
     serverUrl,
     backendSecret,

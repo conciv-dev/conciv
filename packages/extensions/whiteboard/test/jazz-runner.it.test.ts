@@ -1,7 +1,8 @@
 import {createJazzContext} from 'jazz-tools/backend'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {startJazzRunner, type JazzRunner} from '../src/server/jazz/runner.js'
-import {whiteboardApp, whiteboardPermissions} from '../src/shared/schema.js'
+import {app} from '../src/shared/schema.js'
+import permissions from '../src/shared/permissions.js'
 
 const state: {runner: JazzRunner} = {runner: undefined as never}
 
@@ -22,21 +23,21 @@ describe('startJazzRunner', () => {
   it('serves the whiteboard schema so a backend can write and read a scoped row', async () => {
     const context = createJazzContext({
       appId: state.runner.appId,
-      app: whiteboardApp,
-      permissions: whiteboardPermissions,
+      app,
+      permissions,
       driver: {type: 'memory'},
       serverUrl: state.runner.serverUrl,
       backendSecret: state.runner.backendSecret,
     })
     const db = context.asBackend()
-    const written = db.insert(whiteboardApp.canvasElements, {
+    const written = db.insert(app.canvasElements, {
       room: 'local:local',
       elementId: 'rect-1',
       data: {kind: 'rectangle'},
       version: 1,
     })
     await written.wait({tier: 'local'})
-    const rows = await db.all(whiteboardApp.canvasElements.where({room: 'local:local'}))
+    const rows = await db.all(app.canvasElements.where({room: 'local:local'}))
     expect(rows.map((row) => row.elementId)).toContain('rect-1')
     await context.shutdown()
   })

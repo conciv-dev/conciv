@@ -1,6 +1,6 @@
-import {schema, col, definePermissions} from 'jazz-tools'
+import {schema, col} from 'jazz-tools'
 
-export const whiteboardApp = schema.defineApp({
+export const app = schema.defineApp({
   canvasElements: schema.table({
     room: col.string(),
     elementId: col.string(),
@@ -33,16 +33,4 @@ export const whiteboardApp = schema.defineApp({
     name: col.string(),
     color: col.string(),
   }),
-})
-
-const scopedTables = ['canvasElements', 'comments', 'pins', 'cursors'] as const
-
-export const whiteboardPermissions = definePermissions(whiteboardApp, (ctx) => {
-  scopedTables.forEach((name) => {
-    const table = ctx.policy[name]
-    table.allowRead.always()
-    table.allowInsert.always()
-    table.allowUpdate.always()
-    table.allowDelete.always()
-  })
 })
