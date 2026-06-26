@@ -19,3 +19,5 @@ coverage/
 
 *storybook.log
 storybook-static
+
+.migration-stash/
