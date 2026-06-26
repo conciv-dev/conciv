@@ -4,8 +4,8 @@ import {useListCollection} from '@ark-ui/solid/combobox'
 import {Check, ChevronsUpDown} from 'lucide-solid'
 import type {HarnessModelInfo} from '@mandarax/protocol/chat-types'
 import {defineClient} from '@mandarax/api-client'
-import {createPersistedSignal} from './persisted-signal.js'
-import type {ComposerControlDef} from './widget-shell.js'
+import {createPersistedSignal} from '../lib/persisted-signal.js'
+import type {ComposerControlDef} from '../shell/widget-shell.js'
 
 // Bucket models by their `group` (provider/family), preserving first-seen order. Ungrouped
 // models fall under a single 'Models' heading.

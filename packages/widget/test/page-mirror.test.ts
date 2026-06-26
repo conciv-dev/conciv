@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest'
-import {mirrorsKind} from '../src/page-mirror.js'
+import {mirrorsKind} from '../src/page/page-mirror.js'
 
 // The mirror's testable contract is WHICH verbs animate: visual actions get the cursor+ring, silent
 // reads/lookups don't (a ring on a non-visual read is noise). The cursor/ring drawing itself is a

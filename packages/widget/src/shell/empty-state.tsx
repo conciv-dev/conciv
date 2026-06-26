@@ -1,6 +1,6 @@
 // The empty chat state (greeting + starter prompts). An extension paints the 'empty' slot above it.
 import {For, type Component, type JSX} from 'solid-js'
-import {ExtensionSurface, type ExtensionHostBag, type ExtensionInstance} from './extension-slots.js'
+import {ExtensionSurface, type ExtensionHostBag, type ExtensionInstance} from '../extension/extension-slots.js'
 
 const STARTERS = ['Explain this page', 'Change the primary color', "Why doesn't this layout fit?"]
 

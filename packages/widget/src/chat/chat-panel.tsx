@@ -3,7 +3,7 @@ import {Progress} from '@mandarax/ui-kit-system'
 import {useChat, fetchServerSentEvents, createChatClientOptions} from '@tanstack/ai-solid'
 import type {MessagePart, ToolCallPart, ToolResultPart, UIMessage} from '@tanstack/ai-client'
 import {apiError, type SessionClient} from '@mandarax/api-client'
-import {invalidateSessions} from './session-store-client.js'
+import {invalidateSessions} from '../client/session-store-client.js'
 import {createDebouncer} from '@tanstack/solid-pacer'
 import {GenUi} from './gen-ui.js'
 import {
@@ -25,13 +25,13 @@ import {
   tokenUsageToSnapshot,
   type UsageSnapshot,
 } from '@mandarax/protocol/usage-types'
-import type {ComposerActionDef, ComposerControlDef, PanelDef} from './widget-shell.js'
-import {GrabReference} from './react-grab/grab-reference.js'
+import type {ComposerActionDef, ComposerControlDef, PanelDef} from '../shell/widget-shell.js'
+import {GrabReference} from '../page/react-grab/grab-reference.js'
 import type {Grab, GrabApi} from '@mandarax/grab'
 import type {AnyExtension, ClientApi} from '@mandarax/extension'
-import {ExtensionSurface, type ExtensionHostBag} from './extension-slots.js'
-import {EmptyStateSlot} from './empty-state.js'
-import {grabApi} from './grab-api.js'
+import {ExtensionSurface, type ExtensionHostBag} from '../extension/extension-slots.js'
+import {EmptyStateSlot} from '../shell/empty-state.js'
+import {grabApi} from '../page/grab-api.js'
 
 // One message's tool-call ↔ tool-result pairing. Each tool-call renders one card (from
 // @mandarax/tool-ui) with its sibling result inline; the standalone result part is then hidden.

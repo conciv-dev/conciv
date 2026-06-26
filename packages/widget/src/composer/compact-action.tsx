@@ -1,5 +1,5 @@
 import {FoldVertical} from 'lucide-solid'
-import type {ComposerActionDef} from './widget-shell.js'
+import type {ComposerActionDef} from '../shell/widget-shell.js'
 
 // Compress the conversation. ctx.compact() runs the compaction turn OUT OF BAND, so the thread shows
 // only a boundary divider — no '/compact' command, no summary — matching Claude Code. Server-side

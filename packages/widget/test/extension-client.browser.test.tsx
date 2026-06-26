@@ -1,7 +1,7 @@
 import {describe, it, expect, afterEach, beforeEach} from 'vitest'
 import {render} from 'solid-js/web'
 import {page} from 'vitest/browser'
-import {ChatPanel} from '../src/chat-panel.js'
+import {ChatPanel} from '../src/chat/chat-panel.js'
 import {defineClient} from '@mandarax/api-client'
 import {sampleExtension, sampleClientProbe} from './fixtures/sample-extension.js'
 

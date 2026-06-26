@@ -1,5 +1,5 @@
 import {SquareTerminal} from 'lucide-solid'
-import type {ComposerActionDef} from './widget-shell.js'
+import type {ComposerActionDef} from '../shell/widget-shell.js'
 
 // "Open in <harness>": ask the server to launch the current session in the harness's CLI, carrying
 // the selected model. Server opened a terminal → done; otherwise copy the resume command to paste.

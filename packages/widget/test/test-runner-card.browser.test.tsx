@@ -4,7 +4,7 @@ import {page} from 'vitest/browser'
 import {collectToolRenderers, type AnyExtension} from '@mandarax/extension'
 import {defineClient} from '@mandarax/api-client'
 import testRunnerClient from '@mandarax/extension-test-runner/client'
-import {ChatPanel} from '../src/chat-panel.js'
+import {ChatPanel} from '../src/chat/chat-panel.js'
 
 // End-to-end in a real browser: the real ChatPanel hydrates a settled turn (served same-origin by
 // the chat-history-fixture vite middleware) whose chain carries a test_runner tool-call + result.

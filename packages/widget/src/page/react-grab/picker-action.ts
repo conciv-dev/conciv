@@ -1,6 +1,6 @@
 import {Crosshair} from 'lucide-solid'
 import {getReactGrabAdapter} from './adapter.js'
-import type {ComposerActionDef} from '../widget-shell.js'
+import type {ComposerActionDef} from '../../shell/widget-shell.js'
 
 // The first composer action: enter react-grab selection mode and route the grabbed element into the
 // composer that started the pick. stageGrab inserts the text context and shows the preview chip as

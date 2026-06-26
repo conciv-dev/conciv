@@ -1,7 +1,7 @@
 import {createSignal, onCleanup} from 'solid-js'
 import {delegateEvents} from 'solid-js/web'
-import styles from './styles.css?inline'
-import {registerWind4Properties} from './shadow.js'
+import styles from '../styles.css?inline'
+import {registerWind4Properties} from '../shadow.js'
 
 // Picture-in-Picture: pop a live DOM node into a separate OS window and re-dock it on close.
 // Adapted from TanStack Devtools' pip-context (MIT). Devtools copies document.styleSheets because
