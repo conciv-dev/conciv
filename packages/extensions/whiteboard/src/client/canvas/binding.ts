@@ -11,7 +11,6 @@ import type {IslandHandle} from '../../canvas/island-types.js'
 
 type SceneElement = OrderedExcalidrawElement
 type PendingRow = {id: string; kind: 'skeletons' | 'mermaid'; payload: JsonValue}
-type ElementRow = {id: string; elementId: string; data: JsonValue; version: number}
 
 const CAPTURE_NEVER: CaptureUpdateActionType = 'NEVER'
 const asScene = (data: JsonValue): SceneElement => data as unknown as SceneElement
@@ -72,9 +71,9 @@ export function useCanvasBinding(opts: {
     const rows = elements.data
     if (!rows) return
     appliedRemote.clear()
-    rows.forEach((row) => appliedRemote.set((row as ElementRow).elementId, (row as ElementRow).version))
+    rows.forEach((row) => appliedRemote.set(row.elementId, row.version))
     opts.handle.updateScene({
-      elements: rows.map((row) => asScene((row as ElementRow).data)),
+      elements: rows.map((row) => asScene(row.data)),
       captureUpdate: CAPTURE_NEVER,
     })
   })
@@ -83,15 +82,14 @@ export function useCanvasBinding(opts: {
     const rows = pending.data
     if (!rows) return
     rows.forEach((row) => {
-      const pendingRow = row as PendingRow
-      if (draining.has(pendingRow.id)) return
-      draining.add(pendingRow.id)
-      void drainPending(db(), opts.room(), pendingRow)
+      if (draining.has(row.id)) return
+      draining.add(row.id)
+      void drainPending(db(), opts.room(), row)
     })
   })
 
   return (next: readonly SceneElement[]): void => {
-    const current = (elements.data ?? []) as ElementRow[]
+    const current = elements.data ?? []
     const byElementId = new Map(current.map((row) => [row.elementId, row]))
     const live = next.filter((element) => !element.isDeleted)
     const liveIds = new Set(live.map((element) => element.id))
