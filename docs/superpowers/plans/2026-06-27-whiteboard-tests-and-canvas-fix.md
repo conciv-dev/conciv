@@ -8,9 +8,38 @@
 
 **Goal:** Rebuild the whiteboard package's test suite — all deleted — on the real testkit (a11y-driven, no hacks), then fix the canvas binding's echo/lag bug, proven RED→GREEN by those tests.
 
-**Architecture:** Pure unit tests stay plain. Server/tool behavior is driven through the testkit's real server + `callTool` (MCP over HTTP). UI behavior is driven through `getExtensionTestApi(whiteboard)` — real browser, real framework mount, `getByRole`/`getByText` only. The binding bug is reproduced by a failing drag/idle test before any production edit, then fixed in `island.tsx`.
+**Architecture:** Pure unit tests stay plain. Server/tool behavior is driven through the testkit's real server + `callTool` (MCP over HTTP). UI behavior is driven through `getExtensionTestApi(...)` — real browser, real framework mount, `getByRole`/`getByText` only. The binding bug is reproduced by a failing drag/idle test before any production edit, then fixed in `island.tsx`.
 
 **Tech Stack:** vitest (node runner), `@mandarax/extension-testkit`, `@playwright/test` `expect` (for locator assertions), the whiteboard's real MCP tools.
+
+## IMPLEMENTED TESTKIT — real API (this plan must use it verbatim)
+
+The testkit shipped (Plan 1, green) takes the extension as its **two real halves**, because a built-in
+extension is genuinely two builder objects sharing one `name`: the server half (`server.ts`, default
+export — tools + `.server()`, node-safe, NO `Component`) and the client half (`/client` entry — `Component`
+
+- `.client()`, browser, NO `.server()`). There is no single combined `whiteboard` object; the original
+  plan's `getExtensionTestApi(whiteboard)` was based on a wrong assumption.
+
+```ts
+import {expect} from '@playwright/test'
+import whiteboard from '@mandarax/extension-whiteboard' // SERVER half (start() mounts this)
+import {getExtensionTestApi} from '@mandarax/extension-testkit'
+
+const boot = () => getExtensionTestApi({server: whiteboard, clientEntry: '@mandarax/extension-whiteboard/client'})
+// → {page, callTool, session, apiBase, dispose}
+```
+
+- `node` test files import the SERVER default (`@mandarax/extension-whiteboard`) — node-safe, no Solid/JSX.
+- The browser host imports the CLIENT entry (`/client`) itself, by specifier; tests never import it into node.
+- The testkit ALSO renders one source-mapped fixture element (`aria-label="Comment target"`) for `grab`.
+  Whiteboard's own grab/comment flow still drives whiteboard's real overlay; the fixture is the pick target.
+- The testkit OWNS the session (`api.session`); tests never read localStorage for the room.
+- Open testkit-fit risks the 5-agent review must check: T4 assumes the session survives `page.reload()`
+  (the injected `<meta>` is static in the served HTML, so it does — confirm); T7 may need a second client
+  on the same `api.session`, which the testkit does NOT yet provide as a helper (a test can open a second
+  page via `playwright` against `api.apiBase` with the same session meta — but that is testkit-internal
+  knowledge; if T7 needs it, add a `secondClient()` to Plan 1, do not hand-roll in the whiteboard test).
 
 ## Global Constraints
 
