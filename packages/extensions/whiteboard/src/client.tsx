@@ -54,7 +54,7 @@ const whiteboard = defineExtension({
         config,
         open,
         previewId: previewIdOf(api.env.doc),
-        sessionId: () => api.client.sessionId() ?? '',
+        sessionId: () => api.activeSession() ?? '',
         registerComment,
       })
     }

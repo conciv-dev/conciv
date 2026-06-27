@@ -10,6 +10,7 @@ import {initPageBus} from './page/page-bus.js'
 import {makeDomPageDriver, type PageDriver} from './page/page-driver.js'
 import {installReactBridge} from './page/react-bridge.js'
 import * as reactBridge from './page/react-bridge.js'
+import {createSignal} from 'solid-js'
 import {defineClient} from '@mandarax/api-client'
 import {parseWidgetSettings, type WidgetSettings} from './client/widget-settings.js'
 import {applyThemeOverrides} from './lib/theme.js'
@@ -69,7 +70,8 @@ export function mountWidget(extensions: AnyExtension[]): void {
   // built-in like highlight works even when the chat probe below fails (plain app, no mandarax server).
   const allExtensions: AnyExtension[] = [highlight, ...extensions]
   const refs: Refs = {map: new Map(), n: 0}
-  installClientApi(makeWidgetClientApi({apiBase, refs}))
+  const [activeSession, setActiveSession] = createSignal<string | null>(null)
+  installClientApi(makeWidgetClientApi({apiBase, refs, activeSession}))
   const instances: ExtensionInstance[] = allExtensions.map((extension) => {
     const result = extension.__client?.()
     return {extension, clientValue: result?.value ?? {}, dispose: result?.dispose}
@@ -83,7 +85,7 @@ export function mountWidget(extensions: AnyExtension[]): void {
     .models()
     .then((models) => {
       const shell = createWidgetShell({settings})
-      shell.registerPanel(chatPanelDef(apiBase, models.harness.id, tools, instances))
+      shell.registerPanel(chatPanelDef(apiBase, models.harness.id, tools, instances, setActiveSession))
       shell.registerComposerAction(elementPickerAction)
       shell.registerComposerAction(newSessionAction)
       shell.registerComposerAction(compactAction)

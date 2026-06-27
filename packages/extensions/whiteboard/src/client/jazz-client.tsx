@@ -21,6 +21,7 @@ export function WhiteboardJazzProvider(props: {
           appId: props.config.appId,
           serverUrl: props.config.serverUrl,
           secret: secret(),
+          driver: {type: 'memory'},
         }))
         return (
           <JazzProvider client={client} fallback={props.fallback}>

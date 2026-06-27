@@ -6,7 +6,15 @@ import {apiError, type SessionClient} from '@mandarax/api-client'
 import {invalidateSessions} from '../client/session-store-client.js'
 import {createDebouncer} from '@tanstack/solid-pacer'
 import {GenUi} from './gen-ui.js'
-import {ToolCallCard, ChainOfThought, Reasoning, NowLine, nowTitle, type ToolViewCtx, type ToolCardEntry} from '@mandarax/tool-ui'
+import {
+  ToolCallCard,
+  ChainOfThought,
+  Reasoning,
+  NowLine,
+  nowTitle,
+  type ToolViewCtx,
+  type ToolCardEntry,
+} from '@mandarax/tool-ui'
 import {Markdown} from './markdown.js'
 import type {PendingApproval} from '../shell/approval-modal.js'
 import {ArrowRight, Square, SquarePen, FoldVertical} from 'lucide-solid'
@@ -327,6 +335,7 @@ export function ChatPanel(props: {
   client: SessionClient
   // The containing surface is visible/focused — focus the composer and hydrate on first show.
   active?: boolean
+  onActiveSession?: (id: string) => void
   // Live-region writer for switch/error announcements (owner provides one outside any inert pane).
   announce?: (msg: string, assertive?: boolean) => void
   // Reports whether the agent is thinking/streaming, so the shell can pulse the trigger.
@@ -574,6 +583,7 @@ export function ChatPanel(props: {
   createEffect(() => {
     const id = client.sessionId()
     if (!props.active || !id) return
+    props.onActiveSession?.(id)
     if (id === loadedSessionId.current) {
       requestAnimationFrame(() => inputEl?.focus())
       return
@@ -752,11 +762,7 @@ export function ChatPanel(props: {
         <Show
           when={chat.messages().length > 0}
           fallback={
-            <EmptyStateSlot
-              onStarter={(s) => void chat.sendMessage(s)}
-              instances={props.instances}
-              bag={hostBag}
-            />
+            <EmptyStateSlot onStarter={(s) => void chat.sendMessage(s)} instances={props.instances} bag={hostBag} />
           }
         >
           <Index each={coalesceTurns(chat.messages())}>
@@ -900,6 +906,7 @@ export function chatPanelDef(
   harnessId: string,
   tools: () => ToolCardEntry[],
   instances: ExtensionInstance[],
+  onActiveSession: (id: string) => void,
 ): PanelDef {
   return {
     id: 'chat',
@@ -911,6 +918,7 @@ export function chatPanelDef(
         harnessId={harnessId}
         client={ctx.client}
         active={ctx.active()}
+        onActiveSession={onActiveSession}
         announce={ctx.announce}
         onWorkingChange={ctx.onWorkingChange}
         onUsageChange={ctx.onUsageChange}

@@ -1,8 +1,11 @@
 import {describe, it, expect, afterEach, beforeEach} from 'vitest'
 import {render} from 'solid-js/web'
+import {createSignal} from 'solid-js'
 import {page} from 'vitest/browser'
 import {ChatPanel} from '../src/chat/chat-panel.js'
-import {defineClient} from '@mandarax/api-client'
+import {defineClient, type SessionClient} from '@mandarax/api-client'
+import {useClientApi} from '@mandarax/extension'
+import {SessionId} from '@mandarax/protocol/chat-types'
 import {sampleExtension, sampleClientProbe} from './fixtures/sample-extension.js'
 import {buildInstances} from './helpers/instances.js'
 import type {ExtensionInstance} from '../src/extension/extension-slots.js'
@@ -25,6 +28,30 @@ function mountPanel(instances: ExtensionInstance[]): () => void {
         harnessId="claude"
         client={defineClient({apiBase: API_BASE})}
         active={false}
+        instances={instances}
+      />
+    ),
+    host,
+  )
+  disposers.push(dispose)
+  return dispose
+}
+
+function mountActivePanel(
+  instances: ExtensionInstance[],
+  client: SessionClient,
+  onActiveSession: (id: string) => void,
+): () => void {
+  const host = document.createElement('div')
+  document.body.appendChild(host)
+  const dispose = render(
+    () => (
+      <ChatPanel
+        apiBase={API_BASE}
+        harnessId="claude"
+        client={client}
+        active={true}
+        onActiveSession={onActiveSession}
         instances={instances}
       />
     ),
@@ -64,6 +91,20 @@ describe('extension .client() lifecycle (real browser)', () => {
     for (const instance of instances) instance.dispose?.()
     expect(sampleClientProbe.closes).toBe(1)
     expect(sampleClientProbe.live).toBe(0)
+  })
+
+  it('the active chat panel drives the page ClientApi active session, and switching re-points it', async () => {
+    const first = SessionId.parse('mandarax_session_one')
+    const second = SessionId.parse('mandarax_session_two')
+    const [activeSession, setActiveSession] = createSignal<string | null>(null)
+    const client = defineClient({apiBase: API_BASE})
+    client.setSessionId(first)
+    mountActivePanel(buildInstances([sampleExtension], API_BASE, activeSession), client, setActiveSession)
+    await expect.element(page.getByText('sample status ready')).toBeVisible()
+    await expect.poll(() => useClientApi().activeSession()).toBe(first)
+
+    client.setSessionId(second)
+    await expect.poll(() => useClientApi().activeSession()).toBe(second)
   })
 
   it('shares ONE client across concurrent panels (mount-lifetime, not per-panel)', async () => {

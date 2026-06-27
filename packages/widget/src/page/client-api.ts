@@ -1,4 +1,4 @@
-import {defineClient, type RequestMeta} from '@mandarax/api-client'
+import type {RequestMeta} from '@mandarax/api-client'
 import type {ClientApi} from '@mandarax/extension'
 import type {LocateResult} from '@mandarax/protocol/page-introspect-types'
 import {OpenSourceResultSchema, type OpenSourceResult} from '@mandarax/protocol/page-types'
@@ -48,26 +48,36 @@ function elementAt(x: number, y: number): Element | null {
 
 async function openSource(apiBase: string, loc: LocateResult): Promise<OpenSourceResult> {
   const post = (path: string, body: unknown) =>
-    fetch(`${apiBase}${path}`, {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify(body)})
+    fetch(`${apiBase}${path}`, {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify(body),
+    })
   try {
     if (loc.source) {
       await post('/api/editor/open', {file: loc.source.file, line: loc.source.line})
       return 'opened'
     }
-    if (loc.frames.length) return OpenSourceResultSchema.parse(await (await post('/api/page/open-source', {frames: loc.frames})).json()).status
+    if (loc.frames.length)
+      return OpenSourceResultSchema.parse(await (await post('/api/page/open-source', {frames: loc.frames})).json())
+        .status
     return 'no-source'
   } catch {
     return 'failed'
   }
 }
 
-// The concrete ClientApi the widget hands to every extension's .client() at mount: the chat client plus
-// the page capabilities a page-control extension drives. Built once, server-independent.
-export function makeWidgetClientApi(deps: {apiBase: string; refs: Refs}): ClientApi {
+// The concrete ClientApi the widget hands to every extension's .client() at mount: the active chat
+// session id plus the page capabilities a page-control extension drives. Built once, server-independent.
+export function makeWidgetClientApi(deps: {
+  apiBase: string
+  refs: Refs
+  activeSession: () => string | null
+}): ClientApi {
   registerWind4Properties()
   return {
     apiBase: deps.apiBase,
-    client: defineClient({apiBase: deps.apiBase}),
+    activeSession: deps.activeSession,
     requestMeta: (): RequestMeta => ({}),
     page: {elementAt, describe, locate: (el) => locate(el, deps.refs)},
     openSource: (loc) => openSource(deps.apiBase, loc),

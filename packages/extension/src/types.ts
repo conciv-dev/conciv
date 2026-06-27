@@ -73,7 +73,7 @@ export type PageInspect = {
 // overlay surface, and the document/window environment.
 export type ClientApi = {
   apiBase: string
-  client: SessionClient
+  activeSession: () => string | null
   requestMeta: () => RequestMeta
   page: PageInspect
   openSource: (loc: LocateResult) => Promise<OpenSourceResult>
