@@ -70,6 +70,24 @@ describe('whiteboard canvas binding (it) — AI draws drain into the canvas, loc
     await page.close()
   })
 
+  it('drains an AI draw exactly once across two clients (no duplication)', async () => {
+    await callTool(state.stack!.core, sessionId('e2dup'), 'canvas.draw', {
+      elements: [{type: 'rectangle', x: 10, y: 10, width: 80, height: 60}],
+    })
+    const pageA = await state.browser!.newPage()
+    const pageB = await state.browser!.newPage()
+    await pageA.goto(`${state.page!.base}/?session=e2dup`)
+    await pageB.goto(`${state.page!.base}/?session=e2dup`)
+    await pageA.getByText('scene:1').waitFor({state: 'visible', timeout: 40_000})
+    await pageB.getByText('scene:1').waitFor({state: 'visible', timeout: 40_000})
+
+    expect(await readUntil(state.stack!.core, sessionId('e2dup'), 'rectangle')).toBe(true)
+    const read = parse(await callTool(state.stack!.core, sessionId('e2dup'), 'canvas.read', {}))
+    expect(read.elements.filter((element) => element.type === 'rectangle')).toHaveLength(1)
+    await pageA.close()
+    await pageB.close()
+  })
+
   it('persists a local draw into canvasElements the agent can read', async () => {
     const page = await state.browser!.newPage()
     await page.goto(`${state.page!.base}/?session=e2local`)
