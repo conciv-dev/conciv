@@ -1,5 +1,5 @@
-import {type Accessor, type Component, createComponent, type JSX, Show} from 'solid-js'
-import {Dynamic, render} from 'solid-js/web'
+import {createComponent, type JSX} from 'solid-js'
+import {render} from 'solid-js/web'
 import {installClientApi} from './extension-api.js'
 import {ExtensionRuntimeContext} from './runtime-context.js'
 import type {AnyExtension} from './define-extension.js'
@@ -13,23 +13,15 @@ export type MountedExtensionProps = {
 }
 
 export function MountedExtension(props: MountedExtensionProps): JSX.Element {
-  return createComponent(Show, {
-    get when() {
-      return props.extension.Component
+  const component = props.extension.Component
+  if (!component) return null
+  return createComponent(ExtensionRuntimeContext.Provider, {
+    get value() {
+      return {...props.hostContext, ...props.clientValue, currentSlot: props.slot}
     },
-    children: (component: Accessor<Component>) =>
-      createComponent(ExtensionRuntimeContext.Provider, {
-        get value() {
-          return {...props.hostContext, ...props.clientValue, currentSlot: props.slot}
-        },
-        get children() {
-          return createComponent(Dynamic, {
-            get component() {
-              return component()
-            },
-          })
-        },
-      }),
+    get children() {
+      return createComponent(component, {})
+    },
   })
 }
 
