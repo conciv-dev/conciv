@@ -94,8 +94,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       const tools = (extension.tools ?? []).flatMap((tool) => {
         const run = tool.__execute
         if (!run) return []
-        if (seenTools.has(tool.name)) throw new Error(`extension tool name collision: "${tool.name}"`)
-        seenTools.add(tool.name)
         return [
           {
             name: tool.name,
@@ -109,6 +107,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     }),
   )
   const extensionTools = mounted.flatMap((entry) => entry.tools)
+  extensionTools.forEach((tool) => {
+    if (seenTools.has(tool.name)) throw new Error(`extension tool name collision: "${tool.name}"`)
+    seenTools.add(tool.name)
+  })
   const disposers = mounted.flatMap((entry) => (entry.dispose ? [entry.dispose] : []))
   // Expose mandarax tools to the harness CLI via MCP-over-HTTP on the same server, bridged to the live
   // uiBus / page bus.
