@@ -46,8 +46,8 @@ const whiteboard = defineExtension({
       commentWriter = write
       pendingComments.splice(0).forEach(write)
     }
-    const start = async (): Promise<void> => {
-      if (disposeOverlay) return
+    let startPromise: Promise<void> | undefined
+    const doStart = async (): Promise<void> => {
       const config = await fetchJazzConfig(`${api.apiBase}/api/ext/whiteboard`)
       disposeOverlay = mountOverlay({
         api,
@@ -57,6 +57,10 @@ const whiteboard = defineExtension({
         sessionId: () => api.client.sessionId() ?? '',
         registerComment,
       })
+    }
+    const start = (): Promise<void> => {
+      if (!startPromise) startPromise = doStart()
+      return startPromise
     }
     const toggle = (): void => {
       void start()
