@@ -21,16 +21,22 @@ function ensureSurface(): HTMLElement {
   if (existing) return existing
   const container = document.createElement('div')
   container.setAttribute('data-effect-root', '')
+  container.style.pointerEvents = 'none'
   root.appendChild(container)
   return container
 }
 
+// The overlay host fills the viewport at max z-index but must NOT capture pointer events (the real
+// widget's effects host is pointer-events:none; its interactive children re-enable it). Otherwise it
+// sits over the Excalidraw canvas and swallows every click/drag.
 function createSurfaceHost(): HTMLElement {
   const el = document.createElement('div')
   el.setAttribute(SURFACE_ATTR, '')
+  el.setAttribute('aria-hidden', 'true')
   el.style.position = 'fixed'
   el.style.inset = '0'
   el.style.zIndex = '2147483000'
+  el.style.pointerEvents = 'none'
   document.body.appendChild(el)
   return el
 }
