@@ -42,6 +42,15 @@ async function readUntil(core: string, session: string, type: string): Promise<b
   return false
 }
 
+async function readGone(core: string, session: string, type: string): Promise<boolean> {
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const read = parse(await callTool(core, session, 'canvas.read', {}))
+    if (!read.elements.some((element) => element.type === type)) return true
+    await new Promise((resolve) => setTimeout(resolve, 250))
+  }
+  return false
+}
+
 async function readCountAtLeast(core: string, session: string, count: number): Promise<number> {
   let last = 0
   for (let attempt = 0; attempt < 40; attempt++) {
@@ -114,6 +123,22 @@ describe('whiteboard canvas binding (it) — AI draws drain into the canvas, loc
     await page.getByText('scene:1').waitFor({state: 'visible', timeout: 40_000})
 
     expect(await readUntil(stack().core, sessionId('e2local'), 'ellipse')).toBe(true)
+    await page.close()
+  })
+
+  it('removes a locally deleted element from canvasElements (B3)', async () => {
+    const page = await browser().newPage()
+    await page.goto(`${pageServer().base}/?session=e2del`)
+    await page.waitForFunction(() => (window as unknown as {__bindingReady?: boolean}).__bindingReady === true, {
+      timeout: 40_000,
+    })
+    await page.evaluate(() => (window as unknown as {drawLocal: () => void}).drawLocal())
+    await page.getByText('scene:1').waitFor({state: 'visible', timeout: 40_000})
+    expect(await readUntil(stack().core, sessionId('e2del'), 'ellipse')).toBe(true)
+
+    await page.evaluate(() => (window as unknown as {deleteLocal: () => void}).deleteLocal())
+    await page.getByText('scene:0').waitFor({state: 'visible', timeout: 40_000})
+    expect(await readGone(stack().core, sessionId('e2del'), 'ellipse')).toBe(true)
     await page.close()
   })
 

@@ -12,6 +12,7 @@ declare global {
     __CORE__: string
     __bindingReady: boolean
     drawLocal: () => void
+    deleteLocal: () => void
   }
 }
 
@@ -39,11 +40,15 @@ const tick = (): void => {
 }
 tick()
 
+let drawn: ReturnType<typeof convertToExcalidrawElements> = []
 window.drawLocal = () => {
-  const elements = convertToExcalidrawElements([{type: 'ellipse', x: 20, y: 20, width: 60, height: 40}], {
+  drawn = convertToExcalidrawElements([{type: 'ellipse', x: 20, y: 20, width: 60, height: 40}], {
     regenerateIds: true,
   })
-  handle.updateScene({elements})
+  handle.updateScene({elements: drawn})
+}
+window.deleteLocal = () => {
+  handle.updateScene({elements: drawn.map((element) => ({...element, isDeleted: true}))})
 }
 
 function Binding(props: {room: string}) {
