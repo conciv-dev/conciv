@@ -1,1 +1,3 @@
-export {default} from '@mandarax/plugin/rollup'
+import {unplugin} from '../plugin-instance.js'
+
+export default unplugin.rollup

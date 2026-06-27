@@ -1,5 +1,4 @@
 import {join} from 'node:path'
-import {fileURLToPath} from 'node:url'
 import {createRequire} from 'node:module'
 import type {Plugin, ViteDevServer} from 'vite'
 import {defineBundlerBridge, type BundlerBridge} from '@mandarax/protocol/bundler-types'
@@ -10,18 +9,15 @@ import type {MandaraxConfig} from '@mandarax/protocol/config-types'
 import {installMandaraxBinShim} from './bin-shim.js'
 import {viteConfig, viteResolve, viteGraph, viteTransform, viteUrls, type ViteLike} from './vite-tools.js'
 import {EXTENSIONS_ROUTE, makeWidgetInject, type Middleware} from './widget-middleware.js'
-import {addSourceToJsx} from './inject-source.js'
 import {makeOpenInEditor} from './open-editor.js'
-import {isExtensionModule, compileExtensionSolid} from './compile-extension.js'
-import {splitExtension} from './split-extension.js'
 import type {AnyExtension} from '@mandarax/extension'
+import {type Builtins, EXTENSIONS_VIRTUAL_ID, NO_BUILTINS, loadServerExtensions} from './extensions.js'
 import {
-  BUILTIN_CLIENT_ENTRIES,
-  EXTENSIONS_RESOLVED_ID,
-  EXTENSIONS_VIRTUAL_ID,
-  extensionsModuleSource,
-  loadServerExtensions,
-} from './extensions.js'
+  loadExtensionsModule,
+  mandaraxSolidConfig,
+  resolveExtensionsModule,
+  transformMandaraxModule,
+} from './vite-plumbing.js'
 
 const require = createRequire(import.meta.url)
 
@@ -54,15 +50,10 @@ function makeViteBridge(server: ViteLike): BundlerBridge {
   })
 }
 
-function mountWidget(
-  server: ViteDevServer,
-  previewId: string,
-  apiBase: string,
-  widgetConfig: MandaraxConfig['widget'],
-): void {
+function mountWidget(server: ViteDevServer, apiBase: string, widgetConfig: MandaraxConfig['widget']): void {
   server.middlewares.stack.unshift({
     route: '',
-    handle: makeWidgetInject(previewId, apiBase, widgetConfig),
+    handle: makeWidgetInject(apiBase, widgetConfig),
   })
   server.middlewares.use(makeExtensionsServe(server))
 }
@@ -125,7 +116,7 @@ function bootEngine(
 // widget middleware), injects the widget head tags, and stamps JSX with data-mandarax-source.
 // serve-only (no-op in prod builds). enforce:'pre' so the source transform sees raw JSX/TSX
 // before @vitejs/plugin-react compiles it away.
-export function makeViteHook(options: MandaraxConfig = {}): Plugin {
+export function makeViteHook(options: MandaraxConfig = {}, builtins: Builtins = NO_BUILTINS): Plugin {
   const hasWidget = widgetInstalled()
   let engine: Engine | null = null
   let root = process.cwd()
@@ -140,61 +131,37 @@ export function makeViteHook(options: MandaraxConfig = {}): Plugin {
     apply: 'serve',
     enforce: 'pre',
     config() {
-      // The widget + file-based extensions must share ONE solid + one @mandarax/extension instance
-      // (so an extension's useContext resolves the widget's Provider). dedupe collapses duplicate
-      // copies; exclude keeps Vite's dep optimizer from pre-bundling (re-inlining) them.
-      if (!hasWidget) return {}
-      return {
-        resolve: {dedupe: ['solid-js', '@mandarax/extension']},
-        optimizeDeps: {exclude: ['@mandarax/widget', '@mandarax/extension']},
-      }
+      return hasWidget ? mandaraxSolidConfig() : {}
     },
     configResolved(config) {
       root = config.root
       deferToTsd = config.plugins.some((p) => p.name === '@tanstack/devtools:inject-source')
     },
     resolveId(id) {
-      if (id === EXTENSIONS_VIRTUAL_ID) return EXTENSIONS_RESOLVED_ID
-      // Built-in client entries are the plugin's deps, not the app's; resolve them from the plugin so
-      // the app's node_modules need not declare them (a bare specifier wouldn't resolve under pnpm).
-      // import.meta.resolve (ESM, `import` condition) — the entries are esm-only, so require.resolve can't.
-      if (BUILTIN_CLIENT_ENTRIES.includes(id as (typeof BUILTIN_CLIENT_ENTRIES)[number]))
-        return fileURLToPath(import.meta.resolve(id))
-      return null
+      return resolveExtensionsModule(id)
     },
     load(id) {
-      return id === EXTENSIONS_RESOLVED_ID ? extensionsModuleSource() : null
+      return loadExtensionsModule(id, builtins.clientEntries)
     },
     transform(code, id, opts) {
-      if (options.enabled === false || id.includes('node_modules')) return null
-      // Extension files are a Solid zone for the CLIENT bundle: collapse every .server(fn) call +
-      // dead-code-eliminate its node imports (so server code never ships to the browser), then compile
-      // the JSX with Solid before the host's React transform runs (enforce:'pre'). The node half loads
-      // separately via jiti (loadServerContributions), collapsed the opposite way. Only this branch is
-      // async (returns a Promise); the source-stamp path below stays synchronous.
-      if (isExtensionModule(id)) {
-        return splitExtension(code, id, 'browser').then((split) =>
-          compileExtensionSolid(split?.code ?? code, id, opts?.ssr ?? false),
-        )
-      }
-      if (deferToTsd) return null
-      return addSourceToJsx(code, id, root)
+      if (options.enabled === false) return null
+      return transformMandaraxModule(code, id, opts?.ssr ?? false, {root, deferToTsd})
     },
     transformIndexHtml: {
       order: 'pre',
       handler(_html, ctx) {
         const cfg = resolveConfig(options, ctx.server?.config.root ?? process.cwd())
         if (!cfg.enabled || !engine || !hasWidget) return []
-        return htmlTags(engine.port, {previewId: cfg.previewId, widget: options.widget})
+        return htmlTags(engine.port, {widget: options.widget})
       },
     },
     async configureServer(server: ViteDevServer) {
       const cfg = resolveConfig(options, server.config.root)
       if (!cfg.enabled) return
-      const extensions = await loadServerExtensions(server.config.root)
+      const extensions = await loadServerExtensions(server.config.root, builtins.serverExtensions)
       engine = await bootEngine(server, options, installMandaraxBinShim(join(cfg.stateRoot, '.mandarax')), extensions)
       const booted = engine
-      if (hasWidget) mountWidget(server, cfg.previewId, `http://127.0.0.1:${booted.port}`, options.widget)
+      if (hasWidget) mountWidget(server, `http://127.0.0.1:${booted.port}`, options.widget)
       server.httpServer?.on('close', () => void booted.stop())
     },
   }

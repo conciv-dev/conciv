@@ -8,7 +8,6 @@ import {EXTENSIONS_ROUTE, type Middleware, makeWidgetInject} from '../src/core/w
 // widget + extensions through one Vite graph. A tiny http server runs the real middleware. No mocks.
 
 const ENTRY = `<script type="module" src="${EXTENSIONS_ROUTE}"></script>`
-const PREVIEW = 'local'
 const API_BASE = 'http://127.0.0.1:12345'
 
 // Run `mw` in front of `final` on a throwaway server; return its base URL.
@@ -33,7 +32,7 @@ describe('widget inject middleware (IT, real http)', () => {
   })
 
   it('injects the client entry into a streamed text/html response, before </head>', async () => {
-    const {server, base} = await startServer(makeWidgetInject(PREVIEW, API_BASE), (res) => {
+    const {server, base} = await startServer(makeWidgetInject(API_BASE), (res) => {
       res.setHeader('content-type', 'text/html')
       // Two writes + end — the way a streaming SSR renderer flushes its document.
       res.write('<!doctype html><html><head><title>app</title></head>')
@@ -51,7 +50,7 @@ describe('widget inject middleware (IT, real http)', () => {
   it('injects when headers arrive via writeHead(status, statusText, flat-array) + end(cb) (srvx shape)', async () => {
     // The exact shape TanStack Start's runtime (srvx) uses: a flat [k, v, …] header array and an
     // end() callback it awaits — if either is mishandled the body isn't rewritten or the request hangs.
-    const {server, base} = await startServer(makeWidgetInject(PREVIEW, API_BASE), (res) => {
+    const {server, base} = await startServer(makeWidgetInject(API_BASE), (res) => {
       res.writeHead(200, 'OK', ['content-type', 'text/html; charset=utf-8'])
       res.write('<!doctype html><html><head><title>app</title></head><body>hi</body></html>')
       res.end(() => {})
@@ -66,7 +65,7 @@ describe('widget inject middleware (IT, real http)', () => {
 
   it('injects the pw-widget config meta into the SSR html response (the path the site uses)', async () => {
     const widgetConfig = {quickTerminal: {hotkey: ['Alt+k']}}
-    const {server, base} = await startServer(makeWidgetInject(PREVIEW, API_BASE, widgetConfig), (res) => {
+    const {server, base} = await startServer(makeWidgetInject(API_BASE, widgetConfig), (res) => {
       res.setHeader('content-type', 'text/html')
       res.end('<!doctype html><html><head><title>app</title></head><body>hi</body></html>')
     })
@@ -78,7 +77,7 @@ describe('widget inject middleware (IT, real http)', () => {
   })
 
   it('passes non-html responses through untouched', async () => {
-    const {server, base} = await startServer(makeWidgetInject(PREVIEW, API_BASE), (res) => {
+    const {server, base} = await startServer(makeWidgetInject(API_BASE), (res) => {
       res.setHeader('content-type', 'application/json')
       res.end(JSON.stringify({ok: true}))
     })
@@ -90,7 +89,7 @@ describe('widget inject middleware (IT, real http)', () => {
 
   it('does not double-inject when the html already references the client entry', async () => {
     const preinjected = `<html><head>${ENTRY}</head><body>x</body></html>`
-    const {server, base} = await startServer(makeWidgetInject(PREVIEW, API_BASE), (res) => {
+    const {server, base} = await startServer(makeWidgetInject(API_BASE), (res) => {
       res.setHeader('content-type', 'text/html')
       res.end(preinjected)
     })

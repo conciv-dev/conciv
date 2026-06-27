@@ -13,11 +13,16 @@ export type ExtensionUnderTest = {
   clientEntry: string
 }
 
+export type SecondClient = {page: Page; close: () => Promise<void>}
+
 export type ExtensionTestApi = {
   page: Page
   callTool: CallTool
   session: string
   apiBase: string
+  // A second browser page on the SAME served host (same injected session → same room), for two-client
+  // CRDT behavior (echo, dedup, presence). Reuses the first page's browser context.
+  secondClient: () => Promise<SecondClient>
   dispose: () => Promise<void>
 }
 
@@ -32,6 +37,11 @@ export async function getExtensionTestApi(extension: ExtensionUnderTest): Promis
     callTool: makeCallTool(apiBase, session),
     session,
     apiBase,
+    secondClient: async () => {
+      const second = await page.context().newPage()
+      await second.goto(host.origin, {waitUntil: 'domcontentloaded'})
+      return {page: second, close: () => second.close()}
+    },
     dispose: async () => {
       await close()
       await host.close()

@@ -64,6 +64,8 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@mandarax/extension-test-runner": "workspace:^",
+    "@mandarax/extension-whiteboard": "workspace:^",
     "@mandarax/plugin": "workspace:^"
   },
   "devDependencies": {

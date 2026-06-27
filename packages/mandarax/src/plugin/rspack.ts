@@ -1,1 +1,3 @@
-export {default} from '@mandarax/plugin/rspack'
+import {unplugin} from '../plugin-instance.js'
+
+export default unplugin.rspack

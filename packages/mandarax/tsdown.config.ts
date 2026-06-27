@@ -15,5 +15,5 @@ export default defineConfig({
   format: 'esm',
   fixedExtension: false,
   dts: true,
-  external: [/^@mandarax\/mandarax-/, 'unplugin', 'vite', 'launch-editor', 'next'],
+  external: [/^@mandarax\//, 'unplugin', 'vite', 'launch-editor', 'next'],
 })

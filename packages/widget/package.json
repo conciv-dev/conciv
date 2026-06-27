@@ -68,7 +68,6 @@
   "devDependencies": {
     "@chromatic-com/storybook": "^5.2.1",
     "@mandarax/extension-test-runner": "workspace:^",
-    "@mandarax/extension-whiteboard": "workspace:^",
     "@mandarax/uno-preset": "workspace:*",
     "@storybook/addon-a11y": "^10.4.4",
     "@storybook/addon-docs": "^10.4.4",

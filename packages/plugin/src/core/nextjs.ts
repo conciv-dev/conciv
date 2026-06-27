@@ -37,6 +37,7 @@ export async function register(): Promise<void> {
     const options = JSON.parse(process.env.MANDARAX_OPTIONS ?? '{}') as MandaraxConfig
     if (options.enabled === false) return
     const {makeEngineBooter} = await import('./boot.js')
-    await makeEngineBooter(options, process.cwd())()
+    const {NO_BUILTINS} = await import('./extensions.js')
+    await makeEngineBooter(options, process.cwd(), NO_BUILTINS)()
   }
 }

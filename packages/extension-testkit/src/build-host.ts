@@ -4,22 +4,11 @@ import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {build, type Plugin} from 'vite'
 import solid from 'vite-plugin-solid'
-import {addSourceToJsx} from '@mandarax/plugin/source-inject'
+import {mandaraxBuildPlugin, NO_BUILTINS} from '@mandarax/plugin'
 
 const VIRTUAL_ID = 'virtual:mandarax-extension-under-test'
 const RESOLVED_VIRTUAL_ID = `\0${VIRTUAL_ID}`
 const hostDir = fileURLToPath(new URL('./host', import.meta.url))
-
-function sourceInjectPlugin(root: string): Plugin {
-  return {
-    name: 'mandarax-testkit-source-inject',
-    enforce: 'pre',
-    transform(code, id) {
-      const result = addSourceToJsx(code, id, root)
-      return result ? {code: result.code, map: result.map} : null
-    },
-  }
-}
 
 function extensionUnderTestPlugin(clientEntry: string): Plugin {
   return {
@@ -35,7 +24,7 @@ export async function buildHost(clientEntry: string): Promise<string> {
     root: hostDir,
     configFile: false,
     logLevel: 'silent',
-    plugins: [sourceInjectPlugin(hostDir), extensionUnderTestPlugin(clientEntry), solid()],
+    plugins: [mandaraxBuildPlugin(NO_BUILTINS), extensionUnderTestPlugin(clientEntry), solid()],
     build: {outDir, emptyOutDir: true, rollupOptions: {input: join(hostDir, 'index.html')}},
   })
   return outDir

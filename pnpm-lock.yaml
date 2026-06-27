@@ -630,6 +630,9 @@ importers:
       '@mandarax/core':
         specifier: workspace:^
         version: link:../../core
+      '@mandarax/extension-testkit':
+        specifier: workspace:^
+        version: link:../../extension-testkit
       '@mandarax/uno-preset':
         specifier: workspace:*
         version: link:../../uno-preset
@@ -724,6 +727,12 @@ importers:
 
   packages/mandarax:
     dependencies:
+      '@mandarax/extension-test-runner':
+        specifier: workspace:^
+        version: link:../extensions/test-runner
+      '@mandarax/extension-whiteboard':
+        specifier: workspace:^
+        version: link:../extensions/whiteboard
       '@mandarax/plugin':
         specifier: workspace:^
         version: link:../plugin
@@ -761,12 +770,6 @@ importers:
       '@mandarax/extension':
         specifier: workspace:^
         version: link:../extension
-      '@mandarax/extension-test-runner':
-        specifier: workspace:^
-        version: link:../extensions/test-runner
-      '@mandarax/extension-whiteboard':
-        specifier: workspace:^
-        version: link:../extensions/whiteboard
       '@mandarax/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -1287,9 +1290,6 @@ importers:
       '@mandarax/extension-test-runner':
         specifier: workspace:^
         version: link:../extensions/test-runner
-      '@mandarax/extension-whiteboard':
-        specifier: workspace:^
-        version: link:../extensions/whiteboard
       '@mandarax/uno-preset':
         specifier: workspace:*
         version: link:../uno-preset
