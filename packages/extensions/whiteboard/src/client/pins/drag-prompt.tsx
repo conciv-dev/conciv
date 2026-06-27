@@ -14,8 +14,22 @@ const PANEL =
 
 export function DragPrompt(props: DragPromptProps): JSX.Element {
   return (
-    <div role="dialog" aria-label="Pin drift" class={PANEL} style={{left: `${props.x + 16}px`, top: `${props.y}px`}}>
-      <Button variant="ghost" size="sm" class="justify-start" onClick={() => props.onDisconnect()}>
+    <div
+      role="dialog"
+      aria-label="Pin drift"
+      class={PANEL}
+      style={{left: `${props.x + 16}px`, top: `${props.y}px`}}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') props.onCancel()
+      }}
+    >
+      <Button
+        ref={(element) => queueMicrotask(() => element.focus())}
+        variant="ghost"
+        size="sm"
+        class="justify-start"
+        onClick={() => props.onDisconnect()}
+      >
         Disconnect from source
       </Button>
       <Button variant="ghost" size="sm" class="justify-start" onClick={() => props.onKeep()}>
