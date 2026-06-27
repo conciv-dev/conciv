@@ -39,32 +39,32 @@ export const commentCreateTool = defineTool<typeof CommentCreateInput, Whiteboar
     const now = new Date()
     const enriched = await enrichAnchor(ctx.cwd, input.anchor ?? null)
     await ctx.db
-      .insert(app.comments, {
-        previewId: request.previewId,
-        sessionId: request.sessionId,
-        cid: input.cid,
-        threadId: input.cid,
-        parts: input.parts as JsonValue,
-        authorKind: input.authorKind,
-        authorModel: input.authorModel ?? undefined,
-        status: 'open',
-        kind: input.kind,
-        anchor: (enriched.anchor ?? undefined) as JsonValue,
-        anchorFile: enriched.file ?? undefined,
-        anchorComponent: enriched.component ?? undefined,
-        anchorHash: enriched.hash ?? undefined,
-        createdAt: now,
-        updatedAt: now,
-      })
-      .wait({tier: 'edge'})
-    await ctx.db
-      .insert(app.pins, {
-        room: ctx.room(request),
-        cid: input.cid,
-        x: input.x,
-        y: input.y,
-        elementId: input.elementId ?? undefined,
-        pinState: 'locked',
+      .transaction((tx) => {
+        tx.insert(app.comments, {
+          previewId: request.previewId,
+          sessionId: request.sessionId,
+          cid: input.cid,
+          threadId: input.cid,
+          parts: input.parts as JsonValue,
+          authorKind: input.authorKind,
+          authorModel: input.authorModel ?? undefined,
+          status: 'open',
+          kind: input.kind,
+          anchor: (enriched.anchor ?? undefined) as JsonValue,
+          anchorFile: enriched.file ?? undefined,
+          anchorComponent: enriched.component ?? undefined,
+          anchorHash: enriched.hash ?? undefined,
+          createdAt: now,
+          updatedAt: now,
+        })
+        tx.insert(app.pins, {
+          room: ctx.room(request),
+          cid: input.cid,
+          x: input.x,
+          y: input.y,
+          elementId: input.elementId ?? undefined,
+          pinState: 'locked',
+        })
       })
       .wait({tier: 'edge'})
     return {cid: input.cid}
