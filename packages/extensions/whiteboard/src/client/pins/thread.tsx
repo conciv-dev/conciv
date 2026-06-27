@@ -105,7 +105,7 @@ export function Thread(props: ThreadProps): JSX.Element {
         {(comment) => (
           <article class="border-t border-pw-line pt-2 flex flex-col gap-1">
             <div class="text-[0.75rem] text-pw-text-3">{authorLabel(comment.authorKind)}</div>
-            <For each={comment.parts as unknown[]}>
+            <For each={Array.isArray(comment.parts) ? comment.parts : []}>
               {(part, index) => renderPart(part, `${comment.cid}-${index()}`, props.ctx)}
             </For>
           </article>
@@ -119,7 +119,7 @@ export function Thread(props: ThreadProps): JSX.Element {
             value={draft()}
             onInput={(event) => setDraft(event.currentTarget.value)}
             onKeyDown={(event) => {
-              if (event.key === 'Enter') send()
+              if (event.key === 'Enter' && !event.isComposing) send()
             }}
           />
           <Button size="sm" aria-label="Send reply" onClick={() => send()}>
