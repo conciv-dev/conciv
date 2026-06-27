@@ -529,6 +529,9 @@ importers:
       '@mandarax/extension':
         specifier: workspace:^
         version: link:../../extension
+      '@mandarax/grab':
+        specifier: workspace:^
+        version: link:../../grab
       '@mandarax/protocol':
         specifier: workspace:^
         version: link:../../protocol

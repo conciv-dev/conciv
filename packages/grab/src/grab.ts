@@ -17,11 +17,21 @@ export type ElementSource = {
   lineNumber: number | null
 }
 
+// The picked element's viewport box at pick time, so a consumer can place UI relative to it (e.g. a
+// canvas pin). Null when the element had no measurable box.
+export type ElementRect = {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 // What the human sees staged above the composer: the visual + its origin. This is composer draft
 // state, cleared on send.
 export type StagedGrab = {
   snapshot: ElementSnapshot
   source: ElementSource | null
+  rect: ElementRect | null
 }
 
 // One full pick: the agent-bound text context plus the staged visual. Produced once per grab.

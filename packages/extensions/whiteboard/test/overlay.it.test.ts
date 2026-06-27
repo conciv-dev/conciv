@@ -67,4 +67,36 @@ describe('whiteboard overlay (it) — pins render, thread opens, replies persist
     expect(seen).toBe(true)
     await page.close()
   })
+
+  it('creates a source-linked comment from an element pick the agent can list', {timeout: 120_000}, async () => {
+    const page = await state.browser!.newPage()
+    await page.goto(`${state.page!.base}/?session=e3pick`)
+    await page.waitForFunction(() => (window as unknown as {__commentReady?: boolean}).__commentReady === true, {
+      timeout: 40_000,
+    })
+
+    await page.evaluate(() =>
+      (window as unknown as {commentOnElement: (s: unknown, r: unknown) => void}).commentOnElement(
+        {componentName: 'App', filePath: 'src/App.tsx', lineNumber: 3},
+        {x: 100, y: 100, width: 80, height: 40},
+      ),
+    )
+    await page.locator('[aria-label="Human comment, open"]').waitFor({state: 'visible', timeout: 40_000})
+
+    let listed = false
+    for (let attempt = 0; attempt < 40 && !listed; attempt++) {
+      const result = JSON.parse(
+        String(
+          await callTool(state.stack!.core, sessionId('e3pick'), 'comment.list', {
+            scope: 'session',
+            file: 'src/App.tsx',
+          }),
+        ),
+      ) as {comments: {kind?: string}[]}
+      listed = result.comments.length > 0
+      if (!listed) await new Promise((resolve) => setTimeout(resolve, 250))
+    }
+    expect(listed).toBe(true)
+    await page.close()
+  })
 })

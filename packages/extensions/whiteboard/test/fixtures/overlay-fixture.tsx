@@ -1,10 +1,13 @@
 import type {ClientApi} from '@mandarax/extension'
+import type {ElementRect, ElementSource} from '@mandarax/grab'
 import {fetchJazzConfig} from '../../src/client/jazz-client.js'
-import {mountOverlay} from '../../src/client/overlay.js'
+import {mountOverlay, type CommentPick} from '../../src/client/overlay.js'
 
 declare global {
   interface Window {
     __CORE__: string
+    __commentReady: boolean
+    commentOnElement: (source: ElementSource | null, rect: ElementRect | null) => void
   }
 }
 
@@ -33,7 +36,20 @@ const api = {
   env: {reducedMotion: () => false, doc: document, win: window},
 } as unknown as ClientApi
 
+let commentWriter: ((pick: CommentPick) => void) | undefined
+window.commentOnElement = (source, rect) => commentWriter?.({source, rect})
+
 const config = await fetchJazzConfig(`${window.__CORE__}/api/ext/whiteboard`)
-mountOverlay({api, config, open: () => true, previewId: 'local', sessionId: () => session})
+mountOverlay({
+  api,
+  config,
+  open: () => true,
+  previewId: 'local',
+  sessionId: () => session,
+  registerComment: (write) => {
+    commentWriter = write
+    window.__commentReady = true
+  },
+})
 
 export {}

@@ -1,10 +1,10 @@
 import {Show, createRoot, createSignal, onCleanup, type JSX} from 'solid-js'
-import {Presentation} from 'lucide-solid'
+import {MessageSquarePlus, Presentation} from 'lucide-solid'
 import {defineExtension} from '@mandarax/extension'
 import {Button} from '@mandarax/ui-kit-system'
 import {WHITEBOARD_NAME, WHITEBOARD_PROMPT} from './shared/meta.js'
 import {fetchJazzConfig} from './client/jazz-client.js'
-import {mountOverlay} from './client/overlay.js'
+import {mountOverlay, type CommentPick} from './client/overlay.js'
 
 const previewIdOf = (doc: Document): string =>
   doc.querySelector('meta[name="pw-preview-id"]')?.getAttribute('content') ?? 'local'
@@ -12,10 +12,19 @@ const previewIdOf = (doc: Document): string =>
 function Component(): JSX.Element {
   const slot = whiteboard.useSlot()
   const toggle = whiteboard.useContext((context) => context.toggle)
+  const comment = whiteboard.useContext((context) => context.comment)
+  const grab = whiteboard.useContext((context) => context.grab)
+  const pickComment = async (): Promise<void> => {
+    const grabbed = await grab.comment()
+    if (grabbed) comment({source: grabbed.source, rect: grabbed.rect})
+  }
   return (
     <Show when={slot() === 'composer'}>
       <Button variant="ghost" size="icon" aria-label="Open the whiteboard canvas" onClick={() => toggle()}>
         <Presentation />
+      </Button>
+      <Button variant="ghost" size="icon" aria-label="Comment on an element" onClick={() => void pickComment()}>
+        <MessageSquarePlus />
       </Button>
     </Show>
   )
@@ -31,6 +40,12 @@ const whiteboard = defineExtension({
     const api = whiteboard.useClientApi()
     const [open, setOpen] = createSignal(false)
     let disposeOverlay: (() => void) | undefined
+    let commentWriter: ((pick: CommentPick) => void) | undefined
+    const pendingComments: CommentPick[] = []
+    const registerComment = (write: (pick: CommentPick) => void): void => {
+      commentWriter = write
+      pendingComments.splice(0).forEach(write)
+    }
     const start = async (): Promise<void> => {
       if (disposeOverlay) return
       const config = await fetchJazzConfig(`${api.apiBase}/api/ext/whiteboard`)
@@ -40,14 +55,21 @@ const whiteboard = defineExtension({
         open,
         previewId: previewIdOf(api.env.doc),
         sessionId: () => api.client.sessionId() ?? '',
+        registerComment,
       })
     }
     const toggle = (): void => {
       void start()
       setOpen((value) => !value)
     }
+    const comment = (pick: CommentPick): void => {
+      void start()
+      setOpen(true)
+      if (commentWriter) return commentWriter(pick)
+      pendingComments.push(pick)
+    }
     onCleanup(() => disposeOverlay?.())
-    return {value: {toggle, open}, dispose}
+    return {value: {toggle, open, comment}, dispose}
   }),
 )
 
