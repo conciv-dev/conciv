@@ -17,21 +17,41 @@ const CAPTURE_NEVER: CaptureUpdateActionType = 'NEVER'
 const asScene = (data: JsonValue): SceneElement => data as unknown as SceneElement
 const asJson = (element: ExcalidrawElement): JsonValue => element as unknown as JsonValue
 
+const toUuid = (bytes: Uint8Array): string => {
+  const hex = Array.from(bytes.slice(0, 16), (byte) => byte.toString(16).padStart(2, '0'))
+  return `${hex.slice(0, 4).join('')}-${hex.slice(4, 6).join('')}-${hex.slice(6, 8).join('')}-${hex.slice(8, 10).join('')}-${hex.slice(10, 16).join('')}`
+}
+
+const stableUuid = async (seed: string): Promise<string> => {
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-1', new TextEncoder().encode(seed)))
+  const bytes = digest.slice(0, 16)
+  bytes[6] = (bytes[6]! & 0x0f) | 0x50
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80
+  return toUuid(bytes)
+}
+
+const withStableIds = (skeletons: ExcalidrawElementSkeleton[], rowId: string): ExcalidrawElementSkeleton[] =>
+  skeletons.map((skeleton, index) => (skeleton.id ? skeleton : {...skeleton, id: `${rowId}-${index}`}))
+
 async function skeletonsOf(row: PendingRow): Promise<ExcalidrawElementSkeleton[]> {
   if (row.kind === 'mermaid') {
     const {parseMermaidToExcalidraw} = await import('@excalidraw/mermaid-to-excalidraw')
     const {source} = row.payload as unknown as {source: string}
-    return (await parseMermaidToExcalidraw(source, {maxEdges: 500})).elements
+    return withStableIds((await parseMermaidToExcalidraw(source, {maxEdges: 500})).elements, row.id)
   }
-  return (row.payload as unknown as {elements: ExcalidrawElementSkeleton[]}).elements
+  return withStableIds((row.payload as unknown as {elements: ExcalidrawElementSkeleton[]}).elements, row.id)
 }
 
 async function drainPending(db: Db, room: string, row: PendingRow): Promise<void> {
-  const elements = convertToExcalidrawElements(await skeletonsOf(row), {regenerateIds: true})
+  const elements = convertToExcalidrawElements(await skeletonsOf(row), {regenerateIds: false})
   await Promise.all(
-    elements.map((element: ExcalidrawElement) =>
+    elements.map(async (element: ExcalidrawElement, index: number) =>
       db
-        .insert(app.canvasElements, {room, elementId: element.id, data: asJson(element), version: element.version})
+        .upsert(
+          app.canvasElements,
+          {room, elementId: element.id, data: asJson(element), version: element.version},
+          {id: await stableUuid(`${row.id}:${index}`)},
+        )
         .wait({tier: 'edge'}),
     ),
   )
