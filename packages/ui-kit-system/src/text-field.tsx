@@ -9,11 +9,11 @@ const INPUT =
 export function TextField(props: JSX.InputHTMLAttributes<HTMLInputElement> & {label?: string}): JSX.Element {
   const [local, rest] = splitProps(props, ['label', 'class'])
   return (
-    <Field.Root class={ROOT}>
+    <Field.Root class={`${ROOT}  ${local.class ?? ''}`}>
       <Show when={local.label}>
         <Field.Label class={LABEL}>{local.label}</Field.Label>
       </Show>
-      <Field.Input class={`${INPUT}  ${local.class ?? ''}`} {...rest} />
+      <Field.Input class={INPUT} {...rest} />
     </Field.Root>
   )
 }
