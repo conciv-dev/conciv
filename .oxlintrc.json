@@ -1,7 +1,10 @@
 {
   "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxlint/configuration_schema.json",
   "plugins": ["typescript", "react", "unicorn"],
-  "jsPlugins": [{"name": "unocss", "specifier": "@unocss/eslint-plugin"}],
+  "jsPlugins": [
+    {"name": "unocss", "specifier": "@unocss/eslint-plugin"},
+    {"name": "playwright", "specifier": "eslint-plugin-playwright"}
+  ],
   "categories": {
     "correctness": "error",
     "suspicious": "warn"
@@ -65,6 +68,15 @@
       "files": ["apps/**"],
       "rules": {
         "unocss/order": "off"
+      }
+    },
+    {
+      "files": ["packages/extensions/**/test/**", "packages/extension-testkit/**/test/**"],
+      "rules": {
+        "playwright/no-raw-locators": "error",
+        "playwright/no-eval": "error",
+        "playwright/no-element-handle": "error",
+        "playwright/prefer-native-locators": "error"
       }
     }
   ],

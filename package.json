@@ -29,6 +29,7 @@
     "@mandarax/publish": "workspace:*",
     "@types/node": "^22.19.21",
     "@unocss/eslint-plugin": "66.7.2",
+    "eslint-plugin-playwright": "2.10.4",
     "fallow": "2.98.0",
     "netlify-cli": "^26.1.0",
     "oxfmt": "^0.54.0",
