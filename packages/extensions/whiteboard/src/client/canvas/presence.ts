@@ -7,6 +7,8 @@ import type {IslandHandle} from '../../canvas/island-types.js'
 export type Self = {sessionId: string; name: string; color: string}
 
 const THROTTLE_MS = 50
+const HEARTBEAT_MS = 5_000
+const STALE_MS = 15_000
 
 export function useCursorPresence(opts: {
   handle: IslandHandle
@@ -17,9 +19,11 @@ export function useCursorPresence(opts: {
   const peers = useAll(() => ({query: app.cursors.where({room: opts.room()})}))
 
   createEffect(() => {
+    const now = Date.now()
     const collaborators = new Map<SocketId, Collaborator>()
     ;(peers.data ?? [])
       .filter((cursor) => cursor.sessionId !== opts.self.sessionId)
+      .filter((cursor) => now - cursor.lastSeen.getTime() < STALE_MS)
       .forEach((cursor) =>
         collaborators.set(cursor.sessionId as SocketId, {
           username: cursor.name,
@@ -32,7 +36,11 @@ export function useCursorPresence(opts: {
 
   let rowId: string | undefined
   let last = 0
+  const heartbeat = setInterval(() => {
+    if (rowId) db().update(app.cursors, rowId, {lastSeen: new Date()})
+  }, HEARTBEAT_MS)
   onCleanup(() => {
+    clearInterval(heartbeat)
     if (rowId) db().delete(app.cursors, rowId)
   })
 
@@ -48,9 +56,10 @@ export function useCursorPresence(opts: {
         y,
         name: opts.self.name,
         color: opts.self.color,
+        lastSeen: new Date(),
       }).value.id
       return
     }
-    db().update(app.cursors, rowId, {x, y})
+    db().update(app.cursors, rowId, {x, y, lastSeen: new Date()})
   }
 }

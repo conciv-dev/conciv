@@ -51,5 +51,6 @@ export const app = schema.defineApp({
     y: col.float(),
     name: col.string(),
     color: col.string(),
+    lastSeen: col.timestamp(),
   }),
 })

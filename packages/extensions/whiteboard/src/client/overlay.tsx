@@ -21,13 +21,12 @@ export type CommentPick = {source: ElementSource | null; rect: ElementRect | nul
 
 const PALETTE = ['#e03131', '#2f9e44', '#1971c2', '#f08c00', '#9c36b5']
 
-function selfIdentity(): Self {
-  const sessionId = crypto.randomUUID()
-  return {
-    sessionId,
-    name: `Guest ${sessionId.slice(0, 4)}`,
-    color: PALETTE[Math.floor(Math.random() * PALETTE.length)]!,
-  }
+function selfIdentity(win: Window): Self {
+  const key = 'mandarax-whiteboard-presence-id'
+  const sessionId = win.sessionStorage.getItem(key) ?? crypto.randomUUID()
+  win.sessionStorage.setItem(key, sessionId)
+  const index = Array.from(sessionId).reduce((sum, char) => sum + char.charCodeAt(0), 0) % PALETTE.length
+  return {sessionId, name: `Guest ${sessionId.slice(0, 4)}`, color: PALETTE[index]!}
 }
 
 type MountOverlayOptions = {
@@ -157,7 +156,7 @@ export function mountOverlay(options: MountOverlayOptions): () => void {
             handle={handle}
             previewId={options.previewId}
             sessionId={options.sessionId}
-            self={selfIdentity()}
+            self={selfIdentity(options.api.env.win)}
             setWriter={(next) => {
               writer = next
               if (bufferedElements) next(bufferedElements)
