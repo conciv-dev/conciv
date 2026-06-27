@@ -19,7 +19,7 @@ extension is genuinely two builder objects sharing one `name`: the server half (
 export — tools + `.server()`, node-safe, NO `Component`) and the client half (`/client` entry — `Component`
 
 - `.client()`, browser, NO `.server()`). There is no single combined `whiteboard` object; the original
-  plan's `getExtensionTestApi(whiteboard)` was based on a wrong assumption.
+  plan's `getExtensionTestApi({server: whiteboard, clientEntry: '@mandarax/extension-whiteboard/client'})` was based on a wrong assumption.
 
 ```ts
 import {expect} from '@playwright/test'
@@ -85,7 +85,7 @@ const boot = () => getExtensionTestApi({server: whiteboard, clientEntry: '@manda
 **Files:**
 
 - Create: `packages/extensions/whiteboard/test/canvas-tools.it.test.ts`, `comment-tools.it.test.ts`, `element-reference.it.test.ts`, `server-config.it.test.ts`, `enrich-worker.it.test.ts`
-- Test helper: a thin local `boot()` that uses `getExtensionTestApi(whiteboard)` and uses only `{callTool, session, apiBase, dispose}` (ignores `page`) — server/tool behavior needs no browser interaction.
+- Test helper: a thin local `boot()` that uses `getExtensionTestApi({server: whiteboard, clientEntry: '@mandarax/extension-whiteboard/client'})` and uses only `{callTool, session, apiBase, dispose}` (ignores `page`) — server/tool behavior needs no browser interaction.
 
 **Interfaces:**
 
@@ -94,7 +94,10 @@ const boot = () => getExtensionTestApi({server: whiteboard, clientEntry: '@manda
 
 - [ ] **Step 1: Failing test (canvas-tools)** — drive the real canvas tools and assert via `callTool('canvas.read')`:
   ```ts
-  const {callTool, dispose} = await getExtensionTestApi(whiteboard)
+  const {callTool, dispose} = await getExtensionTestApi({
+    server: whiteboard,
+    clientEntry: '@mandarax/extension-whiteboard/client',
+  })
   await callTool('canvas.diagram', {mermaid: 'flowchart TD\n A-->B'})
   const read = (await callTool('canvas.read', {})) as {elements: unknown[]}
   expect(read.elements.length).toBeGreaterThan(0)
@@ -124,7 +127,7 @@ const boot = () => getExtensionTestApi({server: whiteboard, clientEntry: '@manda
   import {getExtensionTestApi} from '@mandarax/extension-testkit'
 
   test('drawing a rectangle creates a selectable shape', async () => {
-    const api = await getExtensionTestApi(whiteboard)
+    const api = await getExtensionTestApi({server: whiteboard, clientEntry: '@mandarax/extension-whiteboard/client'})
     await api.page.getByRole('button', {name: 'Open the whiteboard canvas'}).click()
     await api.page.getByRole('radio', {name: 'Rectangle'}).click()
     const vp = api.page.viewportSize() ?? {width: 1280, height: 720}
@@ -188,24 +191,50 @@ const boot = () => getExtensionTestApi({server: whiteboard, clientEntry: '@manda
 
 **This is the bug-reproduction task. The test MUST be RED on the current buggy `island.tsx` before Task 8 touches production code.**
 
-- [ ] **Step 1: Write the failing test** — build a small multi-element scene, drag one element, then assert the binding goes quiet WHILE IDLE (no echo loop) using only the external `callTool('canvas.read')` seam (versions are real data, not a page internal):
+**5-AGENT REVIEW VERDICT (TDD lens, HIGH): a fresh SINGLE-client room CONVERGES on the buggy code** (a lone client has no foreign `versionNonce` to reconcile against → Excalidraw does not bump the echoed element → the version-keyed filter at `island.tsx:106` matches → no re-write → quiet). A single-client test therefore passes GREEN on the broken code — a FALSE GREEN. Two clients on the same room ping-pong unbounded (each side's Excalidraw bumps the incoming element to win the nonce conflict → re-writes → the other bumps again). **So two-client is PRIMARY here, not a fallback.** This depends on the testkit `secondClient()` helper — see "Plan-1 testkit additions" at the bottom; implement that first.
+
+Also two VACUOUS-PASS traps the review found, which the assertions must close:
+
+- `canvas.read` returns `row.data` (the element JSON), NOT the `version` column, so `maxVersion` must read `element.version` from inside each `data` object. If `canvas.read` is empty (drain unfinished, or browser room ≠ callTool room), `Math.max(...[])` = `-Infinity` and `-Infinity === -Infinity` passes for the wrong reason. The `maxVersion` helper MUST throw on an empty read, never default to `0`/`-Infinity`.
+- Prove the scene is live and the rooms match BEFORE the idle sample: capture `baseline` before the drag and assert `afterDrag > baseline`. A drag that never moved the version (empty/wrong room) must fail loudly, not look like convergence.
+
+- [ ] **Step 1: Write the failing test** — drain a multi-element scene, open a SECOND client on the same `api.session` (`const b = await api.secondClient()`), drag one element on `api.page`, then assert the binding goes quiet WHILE IDLE using only `callTool('canvas.read')`:
+
   ```ts
   import {expect} from '@playwright/test'
-  // helper: maxVersion = max element.version from callTool('canvas.read', {})
-  const api = await getExtensionTestApi(whiteboard)
+
+  // Throws on empty so an empty/wrong-room read can never pass vacuously.
+  const maxVersion = async (api): Promise<number> => {
+    const {elements} = (await api.callTool('canvas.read', {})) as {elements: {version: number}[]}
+    if (elements.length === 0) throw new Error('canvas.read returned no elements — drain unfinished or room mismatch')
+    return Math.max(...elements.map((element) => element.version))
+  }
+
+  const api = await getExtensionTestApi({server: whiteboard, clientEntry: '@mandarax/extension-whiteboard/client'})
   await api.page.getByRole('button', {name: 'Open the whiteboard canvas'}).click()
   await api.callTool('canvas.diagram', {mermaid: 'flowchart TD\n A-->B\n B-->C\n C-->A'})
-  // wait for drain (poll canvas.read until elements > 0)
-  // drag one element with the real mouse (select-all, grab a known viewport point on the cluster)
-  // release, then sample maxVersion twice, 6s apart, with ZERO input between:
+  await expect
+    .poll(async () => ((await api.callTool('canvas.read', {})) as {elements: unknown[]}).elements.length)
+    .toBeGreaterThan(0)
+  const b = await api.secondClient() // SECOND client on the same room — the real CRDT echo condition
+  await b.page.getByRole('button', {name: 'Open the whiteboard canvas'}).click()
+
+  const baseline = await maxVersion(api)
+  // drag one element with the real mouse on api.page (select-all, grab a known viewport point on the cluster)
+  const afterDrag = await maxVersion(api)
+  expect(afterDrag, 'the drag registered and both clients see the same room').toBeGreaterThan(baseline)
+
+  // now sample twice, 6s apart, with ZERO input on either page:
   const first = await maxVersion(api)
   await api.page.waitForTimeout(6_000)
   const second = await maxVersion(api)
   expect(second, 'element versions stop advancing once idle (no echo loop)').toBe(first)
+  await b.close()
   await api.dispose()
   ```
-- [ ] **Step 2: Run it and CONFIRM RED** — `npx turbo build --filter=@mandarax/extension-whiteboard` then `npx vitest run test/drag-settle.it.test.ts`. Expected: FAIL — `second > first` (the version keeps climbing while idle).
-      **If it does NOT go RED (converges on the buggy code):** STOP. The fresh-room single-client scene may converge — the real loop needed sustained conditions. Escalate the reproduction before any fix: try (a) a second client on the same `api.session` (open a second page against `api.apiBase` with the same injected session — the classic CRDT two-client echo), or (b) more elements / a real drag DURING continuous cursor movement. Do NOT proceed to Task 8 until this test reproduces RED. Do NOT weaken the assertion to make it pass.
+
+- [ ] **Step 2: Run it and CONFIRM RED** — `npx turbo build --filter=@mandarax/extension-whiteboard` then `npx vitest run test/drag-settle.it.test.ts`. Expected: FAIL — `second > first` (the version keeps climbing while idle, two clients ping-ponging the nonce). The `afterDrag > baseline` guard must PASS (proving the scene is live) before the idle assertion fails.
+      **If `second === first` (no climb) even with two clients:** STOP — do not proceed to Task 8. Verify (a) the `secondClient()` page actually opened the SAME room (`b` drove the same `api.session`), (b) Excalidraw's reconcile is bumping the version on the nonce conflict (watch the first sample climb during the drag), (c) more elements / a drag during continuous cursor movement. Do NOT weaken `toBe(first)` to a tolerance — a correct fix yields exact equality.
 - [ ] **Step 3:** Once RED is confirmed, **commit the failing test** on its own (so the regression is recorded): `test(whiteboard): reproduce canvas echo loop on drag (RED)`. (Committing a known-RED test is intentional here; Task 8 turns it green in the next commit.)
 
 ---
@@ -239,6 +268,15 @@ const boot = () => getExtensionTestApi({server: whiteboard, clientEntry: '@manda
   const rowIds = new Map<string, string>()
 
   const applyRemote = (rows: readonly ElementRow[]): void => {
+    // CRITICAL (5-agent review, correctness lens): the !api buffer guard MUST come first. If we
+    // populate `applied`/`rowIds` before mount, the first-mount buffered flush then sees
+    // remoteChanged === false and never calls updateScene → the persisted/initial scene never
+    // renders (breaks persist + ai-draw). `applied` must mean "what Excalidraw currently displays",
+    // so only populate it once `api` exists.
+    if (!api) {
+      bufferedScene = rows
+      return
+    }
     const incoming = new Set(rows.map((row) => row.elementId))
     const remoteChanged =
       rows.some((row) => applied.get(row.elementId) !== contentKey(row.data)) ||
@@ -249,10 +287,6 @@ const boot = () => getExtensionTestApi({server: whiteboard, clientEntry: '@manda
       rowIds.set(row.elementId, row.id)
       applied.set(row.elementId, contentKey(row.data))
     })
-    if (!api) {
-      bufferedScene = rows
-      return
-    }
     if (!remoteChanged) return
     guard.applyingRemote = true
     api.updateScene({elements: rows.map((row) => asScene(row.data)), captureUpdate: CAPTURE_NEVER})
@@ -287,7 +321,7 @@ const boot = () => getExtensionTestApi({server: whiteboard, clientEntry: '@manda
   ```
   (Keep writing `version: element.version` to the row — the schema + `canvas.update` tool use it. Only the ECHO TEST changes from version to content.)
 - [ ] **Step 4: Build + verify Task 7 goes GREEN** — `npx turbo build --filter=@mandarax/extension-whiteboard`, then `npx vitest run test/drag-settle.it.test.ts`. Expected: PASS (`second === first`).
-- [ ] **Step 5: Verify NO regression** — `npx vitest run` for the whole whiteboard package (draw, persist, ai-draw, comment, tools, units). All green. Confirm `grep -rnE 'createEffect|useEffect' packages/extensions/whiteboard/src` → none, and no leftover `console.log`.
+- [ ] **Step 5: Verify NO regression** — `npx vitest run` for the whole whiteboard package (draw, persist, ai-draw, comment, tools, units). All green. **MUST explicitly re-run `persist.it.test.ts` AND `ai-draw.it.test.ts`** (5-agent review: the buffered-flush bug only surfaces there — a fresh empty room hides it, so passing `drag-settle` alone is NOT sufficient to declare GREEN). Confirm `grep -rnE 'createEffect|useEffect' packages/extensions/whiteboard/src` → none, and no leftover `console.log`.
 - [ ] **Step 6: Commit** `fix(whiteboard): content-keyed echo + applyRemote skips own echoes (kills drag loop)`.
 
 ---
@@ -312,3 +346,49 @@ Before Task 1, and only AFTER the testkit is implemented and green, dispatch **5
 5. **Testkit-fit lens** — do these tests only use the documented `getExtensionTestApi` surface? Any reliance on testkit internals or behavior the testkit plan didn't promise (e.g. session-survives-reload in T4, two-client in T7)? Flag testkit requirements back to plan 1.
 
 Collect all five reports, reconcile conflicts, update THIS plan inline for every confirmed finding, then begin Task 1.
+
+---
+
+## 5-Agent review — RECONCILED amendments (2026-06-28, DONE; this section is authoritative over anything above it)
+
+All five lenses ran against the IMPLEMENTED testkit. Reconciled outcome:
+
+### A. Critical correctness (inlined above)
+
+1. **Task 8 `applyRemote` guard order (correctness lens, HIGH)** — the `if (!api) {bufferedScene = rows; return}` MUST be the FIRST statement, before `applied`/`rowIds` are populated. Otherwise the first-mount buffered flush sees `remoteChanged === false` and never renders the persisted/initial scene → breaks persist + ai-draw. **Fixed inline in Task 8 Step 2.**
+2. **Task 7 single-client false GREEN (TDD lens, HIGH)** — a fresh single-client room converges on the buggy code. Two-client is now PRIMARY; `maxVersion` reads `data[].version` and throws on empty; `baseline`→`afterDrag>baseline` proves the room match. **Rewritten inline in Task 7.**
+3. **Task 8 Step 5** must explicitly re-run `persist` + `ai-draw` (the buffer bug only shows there). **Fixed inline.**
+
+### B. Plan-1 (testkit) additions REQUIRED before the dependent tasks (implement at point of need, TDD)
+
+1. **`secondClient(): Promise<{page, close}>`** on `ExtensionTestApi` — opens `api.page.context().newPage()` and navigates to the SAME served-host origin (NOT `apiBase`, which serves no HTML), so the second page re-reads the same injected session `<meta>` → same room. Needed by Task 7 (primary), the new B2 two-client de-dup task, and presence. Add to `get-extension-test-api.ts` (capture the served `host.origin`, expose a `secondClient` that reuses it).
+2. **Surface stylesheet + Wind4 `@property` injection** in `host-runtime.tsx ensureSurface` — the widget's `page/client-api.ts` injects `styles.css?inline` into the shadow root and calls `registerWind4Properties()` + sets `aria-hidden="true"` on the host; the testkit surface currently does none, so whiteboard's pin/comment/compose/thread overlay (UnoCSS utilities) renders UNSTYLED. `getByText`/`getByLabel` still match (Playwright pierces open shadow), but `toBeVisible()` can fail for elements whose box depends on the missing CSS. Implement only IF Task 6 actually fails for a styling reason (run it first); the injected styles must be the EXTENSION's styles, not necessarily the widget's — resolve during Task 6. This is a TESTKIT gap, never an overlay a11y fix.
+   - Corollary: the real widget sets `aria-hidden="true"` on the overlay host, so `getByRole` inside the overlay would pass in the testkit but FAIL in the real widget. **Task 6 assertions on the overlay MUST use `getByText`/`getByLabel`, not `getByRole`.**
+
+### C. Coverage amendments (coverage lens) — apply to the listed tasks
+
+- **Task 1:** MOVE `anchor-resolve.it.test.ts` OUT of Task 1 (it needs `bootStack`+`callTool`, it is NOT a pure module test) INTO Task 2. ADD `room.test.ts` (the `roomId` join + empty→`local:local` fallback). Keep the rest of T1 as pure units.
+- **Task 2:** ADD `comment.delete` → list-gone. STRENGTHEN `pin.setState`/`comment.move` to assert x/y/elementId preserved + locked→offset (port the old `pin-move.it`). RESTORE enrich `floating-unenriched` + `incremental-delta` cases (M4). ADD approval-metadata unit assertions (`canvasDelete`/`canvasClear`/`comment.delete`/`comment.resolve` carry `approval:'ask'`). ADD the `anchor.resolve` fresh/orphaned/moved drift cases moved from T1.
+- **Task 3:** ADD a `callTool('canvas.read')` assertion that the drawn rectangle is in `canvasElements` (type `rectangle`), not only the UI Delete button.
+- **Task 5:** STRENGTHEN mermaid to assert element count ≥3 via `canvas.read`; ADD a `canvas.connect` drain case (currently never drained anywhere).
+- **Task 6:** Use `getByLabel('Comment')` (real `aria-label`) not `getByRole('textbox')`; assert the post-submit comment text via the thread `getByText(...)` (dialog `aria-label="Comment thread"`). ADD the reverse direction (agent `comment.create` → UI pin renders) AND a UI reply round-trip (fill `Reply`, `Send reply`, then `comment.read` sees the text). Overlay assertions via `getByText`/`getByLabel` only (see B2 corollary).
+- **NEW Task (B3 local-delete, HIGH):** draw a rect via real mouse → select → press `Delete` → poll `callTool('canvas.read')` until the element is GONE. This is the ONLY test that exercises Task 8's removal / missing-key branch; without it the fix's delete path is unverified.
+- **NEW Task (B2 two-client de-dup, HIGH):** with `secondClient()`, AI-draw once, assert `canvas.read` rectangle count `=== 1` across both pages (no duplicate drain). This is the same echo family the fix targets.
+- **Presence cursors (E.4):** also needs `secondClient()`. Restore as a task if time permits (assert peer cursor visibility via `getByText`/`getByLabel`); LOWER priority than B2/B3.
+
+### D. Accepted coverage losses (with rationale — do NOT add test-only prod code)
+
+- **Pending-table enqueue / room-isolation / clear-clears-pending** (`canvasPending`): the old tests read the backend `db` directly (`ctx.db.all(canvasPending)`); the testkit deliberately exposes no backend-`db` seam, and adding one would be test-only prod surface (forbidden, `no-tool-registry-self-describe` / `no-test-ids-in-code`). The OBSERVABLE behavior (AI draw appears in the live scene) is covered end-to-end by Task 5 (drain) + B2 (de-dup). The `canvasPending` staging is an internal detail; its loss is accepted.
+- **Raw two-connection CRDT sync proof / `startJazzRunner` reachable** (`jazz-sync.it`, `jazz-runner.it`): now testkit-internal infrastructure, exercised implicitly by every IT that boots. Accepted.
+
+### E. Confirmed FITS (no action — recorded so the executor doesn't re-investigate)
+
+- Whiteboard mounts cleanly: its client `Component` reads `toggle`/`comment` (from its own `.client()` value) + `grab` (from the host bag); host-runtime provides everything `ClientApi`/the bag require. (testkit-fit lens, traced.)
+- Jazz boots with NO extra testkit config: memory driver is on the client (`jazz-client.tsx`), server uses a writable tmpdir `dataDir`. `/config` + cross-origin `/api/ext/whiteboard/*` pass CORS (loopback origin). (testkit-fit lens.)
+- Session survives `page.reload()`: `serve.ts` re-injects the session `<meta>` every request; browser room == callTool header room. (testkit-fit lens.)
+- The fix's echo-skip, deletion handling (`isDeleted` not volatile + missing-key branch), version persistence, and `VOLATILE_KEYS` completeness are all correct; cursors/heartbeat touch only collaborators, never element versions (so no timer-driven false-RED). (correctness + TDD lenses.)
+- All comment/pin a11y labels exist (compose `role=dialog "New comment"`, `aria-label="Comment"`/`"Add comment"`, pin `"<author> comment, <status>"`, thread `"Comment thread"`/`"Reply"`/`"Send reply"`). No a11y gap; no selector temptation. (anti-hack lens.)
+
+### F. Execution order with the amendments
+
+T1 (units, minus anchor-resolve, plus room.test) → T2 (tools, + anchor-resolve + comment.delete + geometry + enrich + approval) → T3 (draw + canvas.read) → T4 (persist) → T5 (ai-draw count≥3 + connect) → **Plan-1: add `secondClient()`** → T6 (comment-on-element, overlay via getByText/getByLabel; add surface styling only if it fails) → B3 (local-delete) → B2 (two-client de-dup) → T7 (RED, two-client) → T8 (fix, guard-order corrected) → presence (if time).
