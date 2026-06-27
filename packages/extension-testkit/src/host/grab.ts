@@ -1,0 +1,91 @@
+import type {ElementSource, Grab, GrabApi} from '@mandarax/grab'
+import type {LocateResult} from '@mandarax/protocol/page-introspect-types'
+import type {PageInspect} from '@mandarax/extension'
+
+const SOURCE_ATTR = 'data-mandarax-source'
+
+type SourceParts = {filePath: string; lineNumber: number | null; column: number | null}
+
+function parseSource(value: string): SourceParts {
+  const lastColon = value.lastIndexOf(':')
+  const firstColon = value.lastIndexOf(':', lastColon - 1)
+  const line = Number(value.slice(firstColon + 1, lastColon))
+  const column = Number(value.slice(lastColon + 1))
+  return {
+    filePath: value.slice(0, firstColon),
+    lineNumber: Number.isFinite(line) ? line : null,
+    column: Number.isFinite(column) ? column : null,
+  }
+}
+
+function sourceOf(element: Element): SourceParts | null {
+  const value = element.getAttribute(SOURCE_ATTR)
+  return value ? parseSource(value) : null
+}
+
+function toElementSource(parts: SourceParts): ElementSource {
+  return {componentName: null, filePath: parts.filePath, lineNumber: parts.lineNumber}
+}
+
+function toGrab(element: Element): Grab {
+  const box = element.getBoundingClientRect()
+  const parts = sourceOf(element)
+  return {
+    text: element.textContent ?? '',
+    snapshot: {node: element.cloneNode(true) as HTMLElement, width: box.width, height: box.height},
+    source: parts ? toElementSource(parts) : null,
+    rect: {x: box.x, y: box.y, width: box.width, height: box.height},
+  }
+}
+
+export function makeHostGrab(doc: Document): GrabApi {
+  let teardown: (() => void) | null = null
+
+  const pick = (): Promise<Grab | null> =>
+    new Promise((resolve) => {
+      const onClick = (event: Event) => {
+        const target = event.target as Element | null
+        const picked = target?.closest(`[${SOURCE_ATTR}]`)
+        if (!picked) return
+        event.preventDefault()
+        event.stopPropagation()
+        finish(toGrab(picked))
+      }
+      const finish = (grab: Grab | null) => {
+        doc.removeEventListener('click', onClick, true)
+        teardown = null
+        resolve(grab)
+      }
+      teardown = () => finish(null)
+      doc.addEventListener('click', onClick, true)
+    })
+
+  return {
+    pick,
+    comment: pick,
+    cancel: () => teardown?.(),
+    isActive: () => teardown !== null,
+    stage: () => {},
+  }
+}
+
+export function makeHostPage(doc: Document): PageInspect {
+  return {
+    elementAt: (x, y) => doc.elementFromPoint(x, y),
+    describe: (host) => {
+      const parts = sourceOf(host)
+      return {component: host.tagName.toLowerCase(), file: parts?.filePath ?? null}
+    },
+    locate: async (element): Promise<LocateResult | null> => {
+      const parts = sourceOf(element)
+      if (!parts || parts.lineNumber === null || parts.column === null) return null
+      return {
+        component: null,
+        stack: [],
+        frames: [],
+        owners: [],
+        source: {file: parts.filePath, line: parts.lineNumber, column: parts.column},
+      }
+    },
+  }
+}
