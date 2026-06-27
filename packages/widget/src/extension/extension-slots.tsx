@@ -1,6 +1,5 @@
-import {ErrorBoundary, For, Show, type JSX} from 'solid-js'
-import {Dynamic} from 'solid-js/web'
-import {ExtensionRuntimeContext} from '@mandarax/extension/runtime'
+import {ErrorBoundary, For, type JSX} from 'solid-js'
+import {MountedExtension} from '@mandarax/extension'
 import type {AnyExtension, ExtensionHostContext, ExtensionSlot} from '@mandarax/extension'
 
 export type ExtensionHostBag = Omit<ExtensionHostContext, 'currentSlot'>
@@ -15,17 +14,14 @@ export function ExtensionSurface(props: {
   return (
     <For each={props.instances}>
       {(instance) => (
-        <Show when={instance.extension.Component}>
-          {(component) => (
-            <ErrorBoundary fallback={null}>
-              <ExtensionRuntimeContext.Provider
-                value={{...props.bag, ...instance.clientValue, currentSlot: props.name}}
-              >
-                <Dynamic component={component()} />
-              </ExtensionRuntimeContext.Provider>
-            </ErrorBoundary>
-          )}
-        </Show>
+        <ErrorBoundary fallback={null}>
+          <MountedExtension
+            extension={instance.extension}
+            hostContext={props.bag}
+            clientValue={instance.clientValue}
+            slot={props.name}
+          />
+        </ErrorBoundary>
       )}
     </For>
   )

@@ -11,6 +11,8 @@ export type {ToolBuilder} from './define-tool.js'
 export {collectToolRenderers} from './collect-client.js'
 export {getExtensionApi, useClientApi, installClientApi} from './extension-api.js'
 export type {ExtensionApi, ExtensionId, Register} from './extension-api.js'
+export {MountedExtension, mountExtension} from './mount-extension.js'
+export type {MountedExtensionProps, MountExtensionOptions} from './mount-extension.js'
 export type {
   ClientApi,
   PageInspect,
