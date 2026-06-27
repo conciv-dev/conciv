@@ -15,6 +15,7 @@ import {useCanvasBinding} from './canvas/binding.js'
 import {useCursorPresence, type Self} from './canvas/presence.js'
 import {PinsLayer} from './pins/pins.js'
 import {Thread} from './pins/thread.js'
+import {Compose} from './pins/compose.js'
 
 export type CommentPick = {source: ElementSource | null; rect: ElementRect | null}
 
@@ -57,8 +58,10 @@ function Overlay(props: {
   const setCursor = useCursorPresence({handle: props.handle, room, self: props.self})
   props.setPointer((point) => setCursor(point.x, point.y))
   const [openCid, setOpenCid] = createSignal<string | null>(null)
+  const [composePick, setComposePick] = createSignal<CommentPick | null>(null)
+  props.registerComment(setComposePick)
 
-  props.registerComment((pick) => {
+  const createComment = (pick: CommentPick, text: string): void => {
     const cid = crypto.randomUUID()
     const now = new Date()
     const center = pick.rect
@@ -69,7 +72,7 @@ function Overlay(props: {
       sessionId: props.sessionId(),
       cid,
       threadId: cid,
-      parts: [] as JsonValue,
+      parts: [{type: 'text', text}] as JsonValue,
       authorKind: 'human',
       status: 'open',
       kind: pick.source ? 'source-linked' : 'floating',
@@ -81,12 +84,22 @@ function Overlay(props: {
       updatedAt: now,
     })
     db().insert(app.pins, {room: room(), cid, x: center.x, y: center.y, pinState: 'locked'})
+    setComposePick(null)
     setOpenCid(cid)
-  })
+  }
 
   return (
     <>
       <PinsLayer previewId={props.previewId} sessionId={props.sessionId()} onOpen={setOpenCid} />
+      <Show when={composePick()}>
+        {(pick) => (
+          <Compose
+            pick={pick()}
+            onSubmit={(text) => createComment(pick(), text)}
+            onCancel={() => setComposePick(null)}
+          />
+        )}
+      </Show>
       <Show when={openCid()}>
         {(cid) => (
           <Thread

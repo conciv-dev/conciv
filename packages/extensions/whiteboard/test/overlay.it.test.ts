@@ -81,6 +81,9 @@ describe('whiteboard overlay (it) — pins render, thread opens, replies persist
         {x: 100, y: 100, width: 80, height: 40},
       ),
     )
+    await page.locator('[role="dialog"][aria-label="New comment"]').waitFor({state: 'visible', timeout: 40_000})
+    await page.locator('[aria-label="Comment"]').fill('from the pick')
+    await page.locator('button[aria-label="Add comment"]').click()
     await page.locator('[aria-label="Human comment, open"]').waitFor({state: 'visible', timeout: 40_000})
 
     let listed = false
