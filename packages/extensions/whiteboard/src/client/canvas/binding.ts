@@ -45,18 +45,18 @@ export function useCanvasBinding(opts: {
   const db = useDb()
   const elements = useAll(() => ({query: app.canvasElements.where({room: opts.room()})}))
   const pending = useAll(() => ({query: app.canvasPending.where({room: opts.room()})}))
-  const guard = {applyingRemote: false}
+  const appliedRemote = new Map<string, number>()
   const draining = new Set<string>()
 
   createEffect(() => {
     const rows = elements.data
     if (!rows) return
-    guard.applyingRemote = true
+    appliedRemote.clear()
+    rows.forEach((row) => appliedRemote.set((row as ElementRow).elementId, (row as ElementRow).version))
     opts.handle.updateScene({
       elements: rows.map((row) => asScene((row as ElementRow).data)),
       captureUpdate: CAPTURE_NEVER,
     })
-    guard.applyingRemote = false
   })
 
   createEffect(() => {
@@ -71,12 +71,12 @@ export function useCanvasBinding(opts: {
   })
 
   return (next: readonly SceneElement[]): void => {
-    if (guard.applyingRemote) return
     const current = (elements.data ?? []) as ElementRow[]
     const byElementId = new Map(current.map((row) => [row.elementId, row]))
     const live = next.filter((element) => !element.isDeleted)
     const liveIds = new Set(live.map((element) => element.id))
     live.forEach((element) => {
+      if (appliedRemote.get(element.id) === element.version) return
       const existing = byElementId.get(element.id)
       if (!existing)
         return void db().insert(app.canvasElements, {
