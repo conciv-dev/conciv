@@ -244,3 +244,78 @@ Phases 0–2 of the **prior** (Yjs+trailbase) migration are committed on this br
 - **G3 removed:** clients write Jazz directly via `useDb`; no HTTP action routes, no proxy.
 - **Validate:** tool cards + full build/typecheck/tests (F.1), live smoke + cleanup + memory (F.2).
 - **Deferred (unchanged from prior plan):** drift doctor + `mandarax doctor` CLI, cross-store undo/redo, limits/empty-state/toasts/a11y/security IT/SKILL.md.
+
+---
+
+## Phase G — Post-review remediation (PR #12 adversarial review, 2026-06-27)
+
+Full finding list from the 5-slice adversarial review + the live comment bug. Ordered blockers → nits; nothing dropped. Each item: `file:line — fix`. Fix top-down; re-run the suite after each group.
+
+### G.0 — Live comment bug (user-reported: "added a comment, don't see it; it uses react-grab comments")
+
+- [ ] **G.0a [blocker] Wrong grab mode — react-grab is the element PICKER only; author in OUR UI.** `src/client.tsx:18` calls `grab.comment()` → react-grab's own comment/prompt UI (`packages/widget/src/page/react-grab/adapter.ts:79-82` → `api.comment()`). Switch to `grab.pick()` (element selection only). After the pick resolves with `{source, rect}`, open the whiteboard's OWN comment-authoring UI anchored to the picked element/pin. react-grab must never show its comment UI — selection is its only job.
+- [ ] **G.0a-2 [major] Author with our `@mandarax/ui-kit-system` components; don't create an empty row on pick.** `src/client/overlay.tsx:61-85` — `registerComment` immediately `db().insert(app.comments,{parts:[]})` + a pin, then opens `Thread`; a cancelled author leaves an empty source-linked comment + ghost pin. Build the add-comment popover/modal from OUR `@mandarax/ui-kit-system` primitives (`TextField`, ark `Popover`/`Dialog` with `EnvironmentProvider(shadowRoot)`) — never react-grab's UI and never a bespoke control ([[use-library-native-ui]]). Create the `comments` + `pins` rows only on submit. The existing `Thread` (our UI) stays for viewing/replying.
+- [ ] **G.0b [blocker] Whiteboard stylesheet never injected into the surface shadow root.** `src/client/overlay.tsx:105-116` injects only `@excalidraw/excalidraw/index.css`. The surface is a shadow root; the whiteboard's own UnoCSS `pw-` utilities (`PIN='size-6 … bg-pw-panel …'`, `pins.tsx:23`; thread/anchor classes) are never present there, so pins/thread render unstyled and effectively invisible. Inject the built whiteboard uno stylesheet (`?inline`) into the surface root alongside Excalidraw CSS. This is the same gap the test fixture papered over (see G.4 / M9).
+- [ ] **G.0c [major] Verify the grab promise resolves.** `packages/widget/src/page/grab-api.ts:8-16` resolves `pendingResolve` to `null` when `picking()` goes false; confirm the pick result is delivered before deactivate so `client.tsx:19` receives a non-null grab. Add a two-step IT: pick element → whiteboard pin appears.
+
+### G.1 — Blockers (data correctness + security)
+
+- [ ] **B1 [blocker] G1 room-scoping absent at data layer.** `src/shared/permissions.ts:7-13` — all tables `allow*.always()`, no row predicate; any direct Jazz client reads/overwrites/deletes every room. Scope each policy with `.where` keyed on row room/session vs the connecting identity. (Plan Phase B intent, skipped.)
+- [ ] **B2 [blocker] Multi-client element duplication.** `src/client/canvas/binding.ts:49,67-69` — per-client `draining` Set can't coordinate; both clients drain the same `canvasPending` row and `convertToExcalidrawElements({regenerateIds:true})` mints fresh ids → one duplicate per connected client. Make drain single-writer: claim the pending row via atomic state transition + `.wait` + re-read guard before converting.
+- [ ] **B3 [blocker] Deletes never sync; deleted elements resurrect.** `src/client/canvas/binding.ts:90` — Excalidraw `onChange` includes `isDeleted:true` elements, so the `!nextIds.has(...)` filter never removes the row and the upsert writes the tombstone back (re-rendered by the inbound effect). Treat `element.isDeleted===true` as a delete; diff off non-deleted incoming ids.
+
+### G.2 — Major
+
+- [ ] **M1 [major] Echo guard timing-wrong.** `binding.ts:48,51-60,74` — `guard.applyingRemote` set/reset synchronously around `updateScene`, but `onChange` fires async after reset; guard never suppresses the writer. Compare against a snapshot of last-applied remote ids+versions instead of a same-tick boolean.
+- [ ] **M2 [major] `dist/shared` packaging reads raw TS at runtime.** `package.json:40` copies `schema.ts`/`permissions.ts` into `dist/shared`; `src/server.ts:23` `deploy({schemaDir})` evaluates them as TS — works only because ITs run from `src/`, breaks under published Node. Emit transpiled `.js`+`.d.ts`, or resolve schemaDir to source the loader handles.
+- [ ] **M3 [major] Comment mutations session-blind.** `src/tool/comment/server.ts:25-28` (`commentByCid` uses `{previewId,cid}`) + `comment.list scope:'all'` (`:115`) — any session can reply/resolve/delete/read another's `cid`. Add `sessionId` to lookups or gate mutations to the owning session.
+- [ ] **M4 [major] Enrichment subscription O(N²) + global.** `src/server/jazz/enrich-worker.ts:25-32` — `db.subscribeAll(app.comments)` unfiltered; callback iterates `delta.all` per delta. Filter the subscription; iterate `delta.delta` row-changes.
+- [ ] **M5 [major] Mutable-closure plumbing.** `src/client/overlay.tsx:127-135,147-148` + `src/client.tsx:43-70` — `writer`/`pointer`/`commentWriter`/`pendingComments` reassigned via setter props during render, before the async `<Show>` Jazz gate resolves; pre-mount events dropped. Pass a `pendingPick`/handle accessor into the reactive graph; derive writer via signal/memo; drop `registerComment` + the buffer.
+- [ ] **M6 [major] Auto-open double-mount race.** `src/client.tsx:49-70` — fire-and-forget `start()`; `if(disposeOverlay)return` misses the in-flight window so two quick clicks mount two overlays. Dedupe on an in-flight `startPromise`.
+- [ ] **M7 [major] Cursor presence leaks ghosts.** `src/client/canvas/presence.ts:33-37,43-54` + `src/client/overlay.tsx:23-29` — no heartbeat/TTL (crash/reload orphans a `cursors` row forever); inbound effect has no staleness filter; identity is throwaway `crypto.randomUUID()` per mount. Add last-seen timestamp + filter stale peers; key presence on a stable id.
+- [ ] **M8 [major] MCP auto-run permission model changed silently.** `packages/harness/src/claude/args.ts:24-30` + `sdk.ts:86` — `--allowedTools 'mcp__mandarax'` removed from both transports; gating moved to a `PreToolUse` hook. Confirm intent; if non-`ask` tools must auto-run, the hook must allow them explicitly. Re-document.
+- [ ] **M9 [major] Overlay IT fakes its own CSS.** `test/fixtures/overlay-fixture.tsx:21-24` injects "functional CSS" sizing pins + positioning the thread, so the IT passes regardless of real styling — masked G.0b. Load the real built whiteboard stylesheet into the fixture; assert pins visible under production styles.
+
+### G.3 — Minor
+
+- [ ] `src/client/canvas/binding.ts:56,66,75` — hand-rolled `row as ElementRow/PendingRow` casts bypass Jazz's inferred row types; schema drift won't fail the build. Read inferred `useAll` row fields; keep the `as unknown as` only for the JsonValue↔Excalidraw field conversion.
+- [ ] `package.json:54` — `jazz-napi` added as a direct dep, never imported, undisclosed vs plan ([[ask-before-installing]]); already an optional transitive of `jazz-tools`. Remove or get approval + document.
+- [ ] `src/tool/comment/server.ts:42-46 vs 60-68` — comments scoped `{previewId,sessionId}`, pins by `room`; asymmetric keys diverge. Pick one scoping key.
+- [ ] `src/tool/comment/server.ts:41-69` — `comment.create` two non-atomic writes; pin-insert failure orphans the comment. Batch/transaction, or compensate by deleting the comment row on pin failure.
+- [ ] `src/tool/canvas/server.ts:83` — `canvas.update` ungated `Object.assign` on arbitrary element data while `canvas.delete` is gated. Decide intentionally; gate or document.
+- [ ] `src/shared/schema.ts:30-35` — dead columns `lastResolvedCommit`/`lastResolvedFileHash`/`resolvedBy`, never written. Populate (e.g. `resolvedBy` in `comment.resolve`) or remove.
+- [ ] `src/client/pins/pins.tsx:16-21` — hardcoded hex (`bg-[#4263eb]`) bypasses `pw-` semantic tokens; won't theme. Map to `pw-accent/success/warn/dim`.
+- [ ] `src/client/pins/pins.tsx:94` — `status as CommentStatus` unvalidated → unstyled pin on unexpected value. Narrow via `status in STATUS_FILL ? … : 'open'` or a zod enum.
+- [ ] `src/client/pins/drag-prompt.tsx:17` — `role="dialog"` gets no focus, not keyboard-reachable; pin drift is pointer-only. Focus first button on mount, handle Escape→cancel; add keyboard pin nudging or document the limitation.
+- [ ] `src/client/pins/thread.tsx:120-123` — reply sends on bare `Enter` incl. mid-IME-composition. Guard `event.key==='Enter' && !event.isComposing`.
+- [ ] `src/client/pins/thread.tsx:108` — `comment.parts as unknown[]` unchecked. `Array.isArray(comment.parts) ? comment.parts : []`.
+- [ ] `packages/ui-kit-system/src/text-field.tsx:16` — `class` forwarded to `Field.Input`, but callers (`thread.tsx:118 class="flex-1"`) expect it on the layout box; `flex-1` lands on the wrong element. Split: layout class → `Field.Root`, styling → `Field.Input`.
+- [ ] `test/helpers/boot-stack.ts:22` — `whiteboard as unknown as AnyExtension` masks an assignability gap absent in the real path (`packages/plugin/src/core/extensions.ts:22`). Fix the builder assignability (likely `Ctx` invariance) instead of casting.
+- [ ] `packages/core/src/app.ts` — tool-name collision dedup runs after `await extension.__server?.()`, so which extension throws on collision is order-dependent. Collect tools after all servers resolve, then dedup synchronously.
+- [ ] `src/client/overlay.tsx:116` — `void injectExcalidrawCss(doc)` fire-and-forget; CSS reject/late-resolve → unstyled canvas, no surfaced error. Await before mount or `.catch` to a toast.
+- [ ] `src/client/overlay.tsx:157-164` — redundant second `createRoot` for the visibility effect; `render()` already owns a reactive root. Move the visibility toggle into the component tree (keep the light-DOM `host` toggle, document why it stays imperative).
+- [ ] `src/client/jazz-client.tsx:20-24` — `createSolidJazzClient` built inside the `Show` render-callback, capturing `props.config` once; won't recreate on config/secret change. Build at component top-level with a reactive accessor, or document config is session-immutable.
+
+### G.4 — Nits + test coverage gaps
+
+- [ ] `test/fixtures/canvas-binding-fixture.tsx:36-39` — `tick()` self-reschedules `setTimeout` forever, never cleared. Stop on a flag or use the binding's scene signal.
+- [ ] `src/server/jazz/enrich-worker.ts:9,23`, `runner.ts:16` — `function`/`async function` decls vs the arrow-const style used elsewhere in the slice. Normalize to arrow consts.
+- [ ] `src/tool/comment/def.ts:32` + `server.ts:154-159` — `pin.setState` can set `pinState:'offset'` without writing `anchorX/anchorY`. Accept+write the offsets or document client-only.
+- [ ] JsonValue boundary casts repeated per file (`comment/server.ts:30,47,52,86`; `canvas/server.ts:46,60,72,83`; `enrich-worker.ts:14,30`) — wrap in a single `toJson(value:unknown):JsonValue` helper so the assertion lives in one place.
+- [ ] `src/anchor/load-resolver.ts:3-5` — multi-line `//` comment block violates the zero-comments rule. Remove.
+- [ ] **Coverage gap — multi-client canvas test.** Add a two-page IT: client A draws / AI draws → client B sees exactly one copy (guards B2); client A deletes an element → it disappears on B and stays gone after reload (guards B3). canvas-binding.it is single-page today, which is why B2/B3 shipped.
+- [ ] **Coverage gap — data-layer permission isolation.** Add an IT that connects a raw Jazz client scoped to room X and asserts it cannot read/write room Y rows (guards B1). Current G1 tests only the tool layer.
+- [ ] **Coverage gap — local-delete → canvasElements removal.** No test drives a local Excalidraw delete and asserts the row is gone (guards B3).
+- [ ] **Coverage gap — enrich-worker scaling/leak.** `enrich-worker.it.test.ts` covers happy path only; add a test that the `attempted` Set is pruned on row removal and the subscription doesn't rescan the whole table (guards M4).
+- [ ] **Coverage gap — pins visible under real CSS.** After G.0b/M9, add an IT asserting a pin is visible using the real whiteboard stylesheet (no injected functional CSS).
+
+### G.5 — Verified clean (no action — recorded so re-review doesn't re-litigate)
+
+- `@mandarax/grab` rect addition (`packages/grab/src/grab.ts`) + widget adapter — minimal, general, no whiteboard leak into core.
+- `@mandarax/extension` contract changes, uno wiring, vite externals — coherent and correct.
+- DOM split correct: Excalidraw island light DOM; Solid overlay + Ark shadow DOM with `EnvironmentProvider(shadowRoot)`.
+- No `any` / no `useEffect` in production; island error boundary is the one allowed class; no test hooks leak into `src/`.
+- Tests hit real engine + real vite build + real Chromium + real MCP (no mocks/jsdom). G2 approval gating asserted; presence is genuinely two-client; tool-layer G1 room scoping asserted.
+- `vitest.config.ts fileParallelism:false` — justified by per-file Jazz+browser resource contention; ports are unique (`getPort`/`engine.port`), not masking port races.
+
+**Checkpoint:** report Phase G. Do NOT merge PR #12 until G.0 + G.1 (blockers) are green with the new multi-client + permission-isolation ITs.
