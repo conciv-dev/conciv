@@ -137,13 +137,14 @@ export function mountOverlay(options: MountOverlayOptions): () => void {
   layer.style.cssText = 'position:fixed;inset:0;pointer-events:none;visibility:hidden'
   surfaceRoot.appendChild(layer)
 
-  let writer: (next: readonly OrderedExcalidrawElement[]) => void = () => {}
-  let pointer: (point: {x: number; y: number}) => void = () => {}
+  let writer: ((next: readonly OrderedExcalidrawElement[]) => void) | undefined
+  let bufferedElements: readonly OrderedExcalidrawElement[] | undefined
+  let pointer: ((point: {x: number; y: number}) => void) | undefined
   const handle = mountIsland({
     container: host,
     initialElements: [],
-    onUserChange: (elements) => writer(elements),
-    onPointer: (point) => pointer(point),
+    onUserChange: (elements) => (writer ? writer(elements) : (bufferedElements = elements)),
+    onPointer: (point) => pointer?.(point),
     theme: 'light',
   })
 
@@ -157,7 +158,11 @@ export function mountOverlay(options: MountOverlayOptions): () => void {
             previewId={options.previewId}
             sessionId={options.sessionId}
             self={selfIdentity()}
-            setWriter={(next) => (writer = next)}
+            setWriter={(next) => {
+              writer = next
+              if (bufferedElements) next(bufferedElements)
+              bufferedElements = undefined
+            }}
             setPointer={(next) => (pointer = next)}
             registerComment={options.registerComment}
           />
