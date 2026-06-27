@@ -7,6 +7,7 @@ import {app} from '../src/shared/schema.js'
 import permissions from '../src/shared/permissions.js'
 import {roomId} from '../src/shared/room.js'
 import {commentCreateTool, commentMoveTool, pinSetStateTool} from '../src/tool/comment/server.js'
+import {runServer} from './helpers/run-tool.js'
 import type {WhiteboardToolContext} from '../src/server/context.js'
 
 const schemaDir = fileURLToPath(new URL('../src/shared', import.meta.url))
@@ -49,7 +50,8 @@ const pin = async (cid: string) => (await state.ctx.db.all(app.pins.where({room,
 describe('comment.move / pin.setState (it) — agent pin geometry control', () => {
   it('moves a pin and flips its state, preserving the rest of the geometry', async () => {
     const cid = crypto.randomUUID()
-    await commentCreateTool.__execute!(
+    await runServer(
+      commentCreateTool,
       {
         cid,
         kind: 'floating',
@@ -64,10 +66,10 @@ describe('comment.move / pin.setState (it) — agent pin geometry control', () =
     )
     expect(await pin(cid)).toMatchObject({x: 100, y: 100, pinState: 'locked', elementId: 'el-1'})
 
-    await commentMoveTool.__execute!({cid, x: 250, y: 320}, state.ctx, request)
+    await runServer(commentMoveTool, {cid, x: 250, y: 320}, state.ctx, request)
     expect(await pin(cid)).toMatchObject({x: 250, y: 320, pinState: 'locked', elementId: 'el-1'})
 
-    await pinSetStateTool.__execute!({cid, pinState: 'offset'}, state.ctx, request)
+    await runServer(pinSetStateTool, {cid, pinState: 'offset'}, state.ctx, request)
     expect(await pin(cid)).toMatchObject({x: 250, y: 320, pinState: 'offset', elementId: 'el-1'})
   })
 })

@@ -15,6 +15,22 @@ import {
 const here = dirname(fileURLToPath(import.meta.url))
 const state: {stack?: Stack; browser?: Browser; built?: BuiltFixture; page?: FixturePage} = {}
 
+const stack = (): Stack => {
+  const value = state.stack
+  if (value === undefined) throw new Error('stack not ready')
+  return value
+}
+const browser = (): Browser => {
+  const value = state.browser
+  if (value === undefined) throw new Error('browser not ready')
+  return value
+}
+const pageServer = (): FixturePage => {
+  const value = state.page
+  if (value === undefined) throw new Error('page server not ready')
+  return value
+}
+
 beforeAll(async () => {
   state.stack = await bootStack()
   state.built = await buildSolidFixture(join(here, 'fixtures/overlay-fixture.tsx'))
@@ -32,7 +48,7 @@ afterAll(async () => {
 describe('whiteboard overlay (it) — pins render, thread opens, replies persist', () => {
   it('renders an agent pin, opens its thread, and persists a reply the agent reads', {timeout: 120_000}, async () => {
     const cid = crypto.randomUUID()
-    await callTool(state.stack!.core, sessionId('e3'), 'comment.create', {
+    await callTool(stack().core, sessionId('e3'), 'comment.create', {
       cid,
       kind: 'floating',
       parts: [{type: 'text', text: 'look here'}],
@@ -41,8 +57,8 @@ describe('whiteboard overlay (it) — pins render, thread opens, replies persist
       authorKind: 'ai',
     })
 
-    const page = await state.browser!.newPage()
-    await page.goto(`${state.page!.base}/?session=e3`)
+    const page = await browser().newPage()
+    await page.goto(`${pageServer().base}/?session=e3`)
     await page.locator('canvas').first().waitFor({state: 'attached', timeout: 40_000})
 
     const pin = page.locator('[aria-label="AI comment, open"]')
@@ -58,7 +74,7 @@ describe('whiteboard overlay (it) — pins render, thread opens, replies persist
 
     let seen = false
     for (let attempt = 0; attempt < 40 && !seen; attempt++) {
-      const read = JSON.parse(String(await callTool(state.stack!.core, sessionId('e3'), 'comment.read', {cid}))) as {
+      const read = JSON.parse(String(await callTool(stack().core, sessionId('e3'), 'comment.read', {cid}))) as {
         replies: {parts: {text?: string}[]}[]
       }
       seen = read.replies.some((reply) => reply.parts.some((part) => part.text === 'on it'))
@@ -69,8 +85,8 @@ describe('whiteboard overlay (it) — pins render, thread opens, replies persist
   })
 
   it('creates a source-linked comment from an element pick the agent can list', {timeout: 120_000}, async () => {
-    const page = await state.browser!.newPage()
-    await page.goto(`${state.page!.base}/?session=e3pick`)
+    const page = await browser().newPage()
+    await page.goto(`${pageServer().base}/?session=e3pick`)
     await page.waitForFunction(() => (window as unknown as {__commentReady?: boolean}).__commentReady === true, {
       timeout: 40_000,
     })
@@ -90,7 +106,7 @@ describe('whiteboard overlay (it) — pins render, thread opens, replies persist
     for (let attempt = 0; attempt < 40 && !listed; attempt++) {
       const result = JSON.parse(
         String(
-          await callTool(state.stack!.core, sessionId('e3pick'), 'comment.list', {
+          await callTool(stack().core, sessionId('e3pick'), 'comment.list', {
             scope: 'session',
             file: 'src/App.tsx',
           }),

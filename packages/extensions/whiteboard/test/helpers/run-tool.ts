@@ -1,8 +1,21 @@
 import {createMCPClient} from '@tanstack/ai-mcp'
+import type {ToolRequest} from '@mandarax/extension'
 import {MANDARAX_SESSION_HEADER} from '@mandarax/protocol/chat-types'
 
 export function sessionId(label: string): string {
   return `mandarax_${label}`
+}
+
+type ServerTool = {__execute?: (input: unknown, ctx?: unknown, request?: ToolRequest) => Promise<unknown>}
+
+export async function runServer(
+  tool: ServerTool,
+  input: unknown,
+  ctx: unknown,
+  request: ToolRequest,
+): Promise<unknown> {
+  if (!tool.__execute) throw new Error('tool has no server implementation')
+  return tool.__execute(input, ctx, request)
 }
 
 export async function callTool(core: string, session: string, name: string, input: unknown): Promise<unknown> {

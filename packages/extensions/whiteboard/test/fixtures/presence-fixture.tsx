@@ -19,7 +19,7 @@ const params = new URLSearchParams(location.search)
 const room = roomId('local', `mandarax_${params.get('room') ?? 'pres'}`)
 const self: Self = {sessionId: crypto.randomUUID(), name: params.get('name') ?? 'Guest', color: '#1971c2'}
 
-const host = document.getElementById('host')!
+const host = document.getElementById('host') ?? document.body
 const container = document.createElement('div')
 container.style.cssText = 'position:fixed;inset:0'
 host.appendChild(container)
@@ -67,7 +67,7 @@ render(
       )}
     </Show>
   ),
-  document.getElementById('app')!,
+  document.getElementById('app') ?? document.body,
 )
 
 export {}

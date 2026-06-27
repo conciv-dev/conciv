@@ -19,14 +19,14 @@ import {Compose} from './pins/compose.js'
 
 export type CommentPick = {source: ElementSource | null; rect: ElementRect | null}
 
-const PALETTE = ['#e03131', '#2f9e44', '#1971c2', '#f08c00', '#9c36b5']
+const PALETTE = ['#e03131', '#2f9e44', '#1971c2', '#f08c00', '#9c36b5'] as const
 
 function selfIdentity(win: Window): Self {
   const key = 'mandarax-whiteboard-presence-id'
   const sessionId = win.sessionStorage.getItem(key) ?? crypto.randomUUID()
   win.sessionStorage.setItem(key, sessionId)
   const index = Array.from(sessionId).reduce((sum, char) => sum + char.charCodeAt(0), 0) % PALETTE.length
-  return {sessionId, name: `Guest ${sessionId.slice(0, 4)}`, color: PALETTE[index]!}
+  return {sessionId, name: `Guest ${sessionId.slice(0, 4)}`, color: PALETTE[index] ?? PALETTE[0]}
 }
 
 type MountOverlayOptions = {

@@ -6,6 +6,7 @@ import {startJazzRunner, type JazzRunner} from '../src/server/jazz/runner.js'
 import {app} from '../src/shared/schema.js'
 import permissions from '../src/shared/permissions.js'
 import {roomId} from '../src/shared/room.js'
+import {runServer} from './helpers/run-tool.js'
 import {
   canvasClearDef,
   canvasConnectDef,
@@ -59,7 +60,8 @@ afterAll(async () => {
 
 describe('whiteboard canvas tools (it) — AI enqueues pending draws via the backend db', () => {
   it('canvas.draw enqueues a skeletons pending request scoped to the room (G1)', async () => {
-    await canvasDrawTool.__execute!(
+    await runServer(
+      canvasDrawTool,
       {elements: [{type: 'rectangle', x: 0, y: 0, width: 100, height: 100}]},
       state.ctx,
       request('draw'),
@@ -67,25 +69,25 @@ describe('whiteboard canvas tools (it) — AI enqueues pending draws via the bac
     const room = roomId('local', 'mandarax_draw')
     const pending = await state.ctx.db.all(app.canvasPending.where({room}))
     expect(pending).toHaveLength(1)
-    expect(pending[0]!.kind).toBe('skeletons')
-    expect((pending[0]!.payload as {elements: unknown[]}).elements).toHaveLength(1)
+    expect(pending[0]?.kind).toBe('skeletons')
+    expect((pending[0]?.payload as {elements: unknown[]} | undefined)?.elements).toHaveLength(1)
     const other = await state.ctx.db.all(app.canvasPending.where({room: roomId('local', 'mandarax_elsewhere')}))
     expect(other).toHaveLength(0)
   })
 
   it('canvas.diagram enqueues a mermaid pending request', async () => {
-    await canvasDiagramTool.__execute!({mermaid: 'graph TD; A-->B'}, state.ctx, request('diagram'))
+    await runServer(canvasDiagramTool, {mermaid: 'graph TD; A-->B'}, state.ctx, request('diagram'))
     const pending = await state.ctx.db.all(app.canvasPending.where({room: roomId('local', 'mandarax_diagram')}))
     expect(pending).toHaveLength(1)
-    expect(pending[0]!.kind).toBe('mermaid')
-    expect((pending[0]!.payload as {source: string}).source).toContain('A-->B')
+    expect(pending[0]?.kind).toBe('mermaid')
+    expect((pending[0]?.payload as {source: string} | undefined)?.source).toContain('A-->B')
   })
 
   it('canvas.connect enqueues a binding arrow', async () => {
-    await canvasConnectTool.__execute!({fromId: 'a', toId: 'b'}, state.ctx, request('connect'))
+    await runServer(canvasConnectTool, {fromId: 'a', toId: 'b'}, state.ctx, request('connect'))
     const pending = await state.ctx.db.all(app.canvasPending.where({room: roomId('local', 'mandarax_connect')}))
     expect(pending).toHaveLength(1)
-    expect((pending[0]!.payload as {elements: {type: string}[]}).elements[0]!.type).toBe('arrow')
+    expect((pending[0]?.payload as {elements: {type: string}[]} | undefined)?.elements[0]?.type).toBe('arrow')
   })
 
   it('canvas.update patches an existing element, canvas.delete removes it', async () => {
@@ -93,10 +95,10 @@ describe('whiteboard canvas tools (it) — AI enqueues pending draws via the bac
     await state.ctx.db
       .insert(app.canvasElements, {room, elementId: 'el-1', data: {type: 'rectangle'}, version: 1})
       .wait({tier: 'edge'})
-    await canvasUpdateTool.__execute!({elementId: 'el-1', patch: {x: 5}}, state.ctx, request('edit'))
+    await runServer(canvasUpdateTool, {elementId: 'el-1', patch: {x: 5}}, state.ctx, request('edit'))
     const [updated] = await state.ctx.db.all(app.canvasElements.where({room, elementId: 'el-1'}))
-    expect((updated!.data as {x: number}).x).toBe(5)
-    await canvasDeleteTool.__execute!({elementId: 'el-1'}, state.ctx, request('edit'))
+    expect((updated?.data as {x: number} | undefined)?.x).toBe(5)
+    await runServer(canvasDeleteTool, {elementId: 'el-1'}, state.ctx, request('edit'))
     expect(await state.ctx.db.all(app.canvasElements.where({room, elementId: 'el-1'}))).toHaveLength(0)
   })
 
@@ -105,8 +107,8 @@ describe('whiteboard canvas tools (it) — AI enqueues pending draws via the bac
     await state.ctx.db
       .insert(app.canvasElements, {room, elementId: 'el-c', data: {type: 'ellipse'}, version: 1})
       .wait({tier: 'edge'})
-    await canvasDrawTool.__execute!({elements: [{type: 'diamond', x: 0, y: 0}]}, state.ctx, request('clear'))
-    await canvasClearTool.__execute!({}, state.ctx, request('clear'))
+    await runServer(canvasDrawTool, {elements: [{type: 'diamond', x: 0, y: 0}]}, state.ctx, request('clear'))
+    await runServer(canvasClearTool, {}, state.ctx, request('clear'))
     expect(await state.ctx.db.all(app.canvasElements.where({room}))).toHaveLength(0)
     expect(await state.ctx.db.all(app.canvasPending.where({room}))).toHaveLength(0)
   })

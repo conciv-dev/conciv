@@ -24,8 +24,8 @@ const toUuid = (bytes: Uint8Array): string => {
 const stableUuid = async (seed: string): Promise<string> => {
   const digest = new Uint8Array(await crypto.subtle.digest('SHA-1', new TextEncoder().encode(seed)))
   const bytes = digest.slice(0, 16)
-  bytes[6] = (bytes[6]! & 0x0f) | 0x50
-  bytes[8] = (bytes[8]! & 0x3f) | 0x80
+  bytes[6] = ((bytes[6] ?? 0) & 0x0f) | 0x50
+  bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80
   return toUuid(bytes)
 }
 

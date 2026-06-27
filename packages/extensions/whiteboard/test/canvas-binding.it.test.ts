@@ -15,6 +15,22 @@ import {
 const here = dirname(fileURLToPath(import.meta.url))
 const state: {stack?: Stack; browser?: Browser; built?: BuiltFixture; page?: FixturePage} = {}
 
+const stack = (): Stack => {
+  const value = state.stack
+  if (value === undefined) throw new Error('stack not ready')
+  return value
+}
+const browser = (): Browser => {
+  const value = state.browser
+  if (value === undefined) throw new Error('browser not ready')
+  return value
+}
+const pageServer = (): FixturePage => {
+  const value = state.page
+  if (value === undefined) throw new Error('page server not ready')
+  return value
+}
+
 const parse = (result: unknown): {elements: {type: string}[]} => JSON.parse(String(result))
 
 async function readUntil(core: string, session: string, type: string): Promise<boolean> {
@@ -56,14 +72,14 @@ afterAll(async () => {
 
 describe('whiteboard canvas binding (it) — AI draws drain into the canvas, local edits persist', () => {
   it('drains an AI canvas.draw onto the canvas and back into canvasElements', async () => {
-    await callTool(state.stack!.core, sessionId('e2ai'), 'canvas.draw', {
+    await callTool(stack().core, sessionId('e2ai'), 'canvas.draw', {
       elements: [{type: 'rectangle', x: 10, y: 10, width: 80, height: 60}],
     })
-    const page = await state.browser!.newPage()
-    await page.goto(`${state.page!.base}/?session=e2ai`)
+    const page = await browser().newPage()
+    await page.goto(`${pageServer().base}/?session=e2ai`)
     await page.getByText('scene:1').waitFor({state: 'visible', timeout: 40_000})
 
-    expect(await readUntil(state.stack!.core, sessionId('e2ai'), 'rectangle')).toBe(true)
+    expect(await readUntil(stack().core, sessionId('e2ai'), 'rectangle')).toBe(true)
 
     await page.reload()
     await page.getByText('scene:1').waitFor({state: 'visible', timeout: 40_000})
@@ -71,43 +87,43 @@ describe('whiteboard canvas binding (it) — AI draws drain into the canvas, loc
   })
 
   it('drains an AI draw exactly once across two clients (no duplication)', async () => {
-    await callTool(state.stack!.core, sessionId('e2dup'), 'canvas.draw', {
+    await callTool(stack().core, sessionId('e2dup'), 'canvas.draw', {
       elements: [{type: 'rectangle', x: 10, y: 10, width: 80, height: 60}],
     })
-    const pageA = await state.browser!.newPage()
-    const pageB = await state.browser!.newPage()
-    await pageA.goto(`${state.page!.base}/?session=e2dup`)
-    await pageB.goto(`${state.page!.base}/?session=e2dup`)
+    const pageA = await browser().newPage()
+    const pageB = await browser().newPage()
+    await pageA.goto(`${pageServer().base}/?session=e2dup`)
+    await pageB.goto(`${pageServer().base}/?session=e2dup`)
     await pageA.getByText('scene:1').waitFor({state: 'visible', timeout: 40_000})
     await pageB.getByText('scene:1').waitFor({state: 'visible', timeout: 40_000})
 
-    expect(await readUntil(state.stack!.core, sessionId('e2dup'), 'rectangle')).toBe(true)
-    const read = parse(await callTool(state.stack!.core, sessionId('e2dup'), 'canvas.read', {}))
+    expect(await readUntil(stack().core, sessionId('e2dup'), 'rectangle')).toBe(true)
+    const read = parse(await callTool(stack().core, sessionId('e2dup'), 'canvas.read', {}))
     expect(read.elements.filter((element) => element.type === 'rectangle')).toHaveLength(1)
     await pageA.close()
     await pageB.close()
   })
 
   it('persists a local draw into canvasElements the agent can read', async () => {
-    const page = await state.browser!.newPage()
-    await page.goto(`${state.page!.base}/?session=e2local`)
+    const page = await browser().newPage()
+    await page.goto(`${pageServer().base}/?session=e2local`)
     await page.waitForFunction(() => (window as unknown as {__bindingReady?: boolean}).__bindingReady === true, {
       timeout: 40_000,
     })
     await page.evaluate(() => (window as unknown as {drawLocal: () => void}).drawLocal())
     await page.getByText('scene:1').waitFor({state: 'visible', timeout: 40_000})
 
-    expect(await readUntil(state.stack!.core, sessionId('e2local'), 'ellipse')).toBe(true)
+    expect(await readUntil(stack().core, sessionId('e2local'), 'ellipse')).toBe(true)
     await page.close()
   })
 
   it('renders an AI mermaid diagram as multiple elements', async () => {
-    await callTool(state.stack!.core, sessionId('e2mermaid'), 'canvas.diagram', {mermaid: 'graph TD; A-->B; B-->C'})
-    const page = await state.browser!.newPage()
-    await page.goto(`${state.page!.base}/?session=e2mermaid`)
+    await callTool(stack().core, sessionId('e2mermaid'), 'canvas.diagram', {mermaid: 'graph TD; A-->B; B-->C'})
+    const page = await browser().newPage()
+    await page.goto(`${pageServer().base}/?session=e2mermaid`)
     await page.locator('canvas').first().waitFor({state: 'attached', timeout: 40_000})
 
-    expect(await readCountAtLeast(state.stack!.core, sessionId('e2mermaid'), 3)).toBeGreaterThanOrEqual(3)
+    expect(await readCountAtLeast(stack().core, sessionId('e2mermaid'), 3)).toBeGreaterThanOrEqual(3)
     await page.close()
   })
 })

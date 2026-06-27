@@ -18,7 +18,7 @@ declare global {
 const params = new URLSearchParams(location.search)
 const room = roomId('local', `mandarax_${params.get('session') ?? 'e2'}`)
 
-const host = document.getElementById('host')!
+const host = document.getElementById('host') ?? document.body
 const container = document.createElement('div')
 container.style.cssText = 'position:fixed;inset:0'
 host.appendChild(container)
@@ -32,7 +32,7 @@ const handle = mountIsland({
   theme: 'light',
 })
 
-const count = document.getElementById('count')!
+const count = document.getElementById('count') ?? document.body
 const tick = (): void => {
   count.textContent = `scene:${handle.getSceneElements().length}`
   setTimeout(tick, 150)
@@ -64,7 +64,7 @@ render(
       )}
     </Show>
   ),
-  document.getElementById('app')!,
+  document.getElementById('app') ?? document.body,
 )
 
 export {}

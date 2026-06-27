@@ -140,18 +140,18 @@ export function PinsLayer(props: PinsLayerProps): JSX.Element {
                   setDrag(null)
                   if (!began) return
                   const moved =
-                    dragged &&
+                    dragged !== null &&
                     dragged.cid === pin.cid &&
                     (Math.abs(dragged.x - began.ox) > DRAG_THRESHOLD || Math.abs(dragged.y - began.oy) > DRAG_THRESHOLD)
-                  if (!moved) return props.onOpen(pin.cid)
+                  if (!dragged || !moved) return props.onOpen(pin.cid)
                   if (commentRow(pin.cid)?.kind === 'source-linked')
                     return void setPrompt({
                       cid: pin.cid,
-                      x: dragged!.x,
-                      y: dragged!.y,
+                      x: dragged.x,
+                      y: dragged.y,
                       origin: {x: began.ox, y: began.oy},
                     })
-                  movePin(pin.cid, {x: dragged!.x, y: dragged!.y})
+                  movePin(pin.cid, {x: dragged.x, y: dragged.y})
                 }}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') props.onOpen(pin.cid)
