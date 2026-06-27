@@ -56,32 +56,53 @@ afterAll(async () => {
   rmSync(state.cwd, {recursive: true, force: true})
 })
 
+const insertComment = (cid: string, kind: 'source-linked' | 'floating'): Promise<unknown> => {
+  const now = new Date()
+  const {line, column} = loc('<Widget')
+  return state.db
+    .insert(app.comments, {
+      previewId: 'local',
+      sessionId: 'mandarax_enrich',
+      cid,
+      threadId: cid,
+      parts: [{type: 'text', text: cid}],
+      authorKind: 'human',
+      status: 'open',
+      kind,
+      anchor: {source: {file: 'src/App.tsx', line, column}},
+      createdAt: now,
+      updatedAt: now,
+    })
+    .wait({tier: 'edge'})
+}
+
+const waitForHash = async (cid: string): Promise<string | undefined> => {
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const [row] = await state.db.all(app.comments.where({previewId: 'local', cid}))
+    if (row?.anchorHash) return row.anchorHash
+    await new Promise((resolve) => setTimeout(resolve, 250))
+  }
+  return undefined
+}
+
 describe('comment enrichment worker (it) — server enriches direct-written source anchors', () => {
   it('captures an AST hash on a source-linked comment written directly (no tool)', async () => {
-    const now = new Date()
-    const {line, column} = loc('<Widget')
-    await state.db
-      .insert(app.comments, {
-        previewId: 'local',
-        sessionId: 'mandarax_enrich',
-        cid: 'enrich-1',
-        threadId: 'enrich-1',
-        parts: [{type: 'text', text: 'enrich me'}],
-        authorKind: 'human',
-        status: 'open',
-        kind: 'source-linked',
-        anchor: {source: {file: 'src/App.tsx', line, column}},
-        createdAt: now,
-        updatedAt: now,
-      })
-      .wait({tier: 'edge'})
+    await insertComment('enrich-1', 'source-linked')
+    expect(await waitForHash('enrich-1')).toBeTruthy()
+  })
 
-    let hash: string | undefined
-    for (let attempt = 0; attempt < 40 && !hash; attempt++) {
-      const [row] = await state.db.all(app.comments.where({previewId: 'local', cid: 'enrich-1'}))
-      hash = row?.anchorHash ?? undefined
-      if (!hash) await new Promise((resolve) => setTimeout(resolve, 250))
-    }
-    expect(hash).toBeTruthy()
+  it('leaves a floating comment unenriched (subscription filtered to source-linked)', async () => {
+    await insertComment('floating-1', 'floating')
+    await insertComment('after-floating', 'source-linked')
+    expect(await waitForHash('after-floating')).toBeTruthy()
+    const [floating] = await state.db.all(app.comments.where({previewId: 'local', cid: 'floating-1'}))
+    expect(floating?.anchorHash).toBeFalsy()
+  })
+
+  it('enriches source-linked comments added after startup (incremental deltas)', async () => {
+    await insertComment('late-1', 'source-linked')
+    expect(await waitForHash('late-1')).toBeTruthy()
+    await insertComment('late-2', 'source-linked')
+    expect(await waitForHash('late-2')).toBeTruthy()
   })
 })
