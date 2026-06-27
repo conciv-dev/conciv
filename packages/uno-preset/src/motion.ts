@@ -22,7 +22,8 @@ export const motion = {
   'anim-fab-ring': 'animate-pw-fab-ring animate-duration-[1.6s] animate-ease-pw animate-iteration-count-infinite',
   'anim-now': 'animate-fade-in animate-duration-[220ms] animate-ease-pw',
   'anim-collapse-open': 'animate-pw-expand-height animate-duration-[200ms] animate-ease-pw',
-  'anim-collapse-closed': 'animate-pw-collapse-height animate-duration-[200ms] animate-ease-pw',
+  'anim-collapse-closed':
+    'animate-pw-collapse-height animate-duration-[200ms] animate-ease-pw animate-fill-mode-forwards',
   'anim-pulse': 'animate-pulse animate-duration-[1.4s]',
   'anim-skel': 'animate-pulse animate-duration-[1.2s]',
   'anim-test-rot': 'animate-spin animate-duration-[0.7s]',
