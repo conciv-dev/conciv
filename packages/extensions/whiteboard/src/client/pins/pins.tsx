@@ -14,10 +14,10 @@ export type PinsLayerProps = {
 type CommentStatus = 'open' | 'resolved' | 'drifted' | 'orphaned'
 
 const STATUS_FILL: Record<CommentStatus, string> = {
-  open: 'bg-[#4263eb]',
-  resolved: 'bg-[#2f9e44]',
-  drifted: 'bg-[#f08c00]',
-  orphaned: 'bg-[#868e96]',
+  open: 'bg-pw-accent',
+  resolved: 'bg-pw-success',
+  drifted: 'bg-pw-warn',
+  orphaned: 'bg-pw-dim',
 }
 
 const PIN =
