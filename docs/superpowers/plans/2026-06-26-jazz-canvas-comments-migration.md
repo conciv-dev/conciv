@@ -349,12 +349,15 @@ Full whiteboard suite green after the pass: **20 test files, 58 tests passing**;
 - **M2** `dist/shared` raw `.ts` is intended — `deploy` esbuilds it at runtime (esbuild is a jazz-tools dependency).
 - **M8** removing `--allowedTools mcp__mandarax` was required for G2 approvals; the permission route auto-allows non-`ask` tools. Tested.
 
+### Coverage gaps closed after the first pass (in the extension package, 61 tests total)
+
+- **M9 / pins-visible** — overlay fixture now generates the real `pw-` utilities with UnoCSS over the whiteboard src, injects them into the surface shadow root + hoists `@property` to head, and asserts the pin renders at its real size-6 dimensions (no more fake "functional CSS").
+- **enrich-worker scaling/filtering** — floating comments never enrich (filtered subscription), late-added source-linked comments still enrich (incremental deltas).
+
 ### Deferred / documented (intentional, low value or out of mechanical scope)
 
-- **M9 / pins-visible test** — the overlay fixture's "functional CSS" is test-fidelity only; a real CSS-pipeline test belongs in the widget package (which owns uno generation), not the whiteboard fixture.
 - **jazz-client reactive client creation** and **overlay second createRoot** — work as-is; reactive-redesign is optional polish, deferred to avoid destabilizing the passing binding.
 - **boot-stack `as unknown as AnyExtension`** — genuine type boundary (concrete ExtensionBuilder generics aren't covariantly assignable to AnyExtension; the built `.d.ts` widens it). Fixing needs reworking the production extension-contract variance — out of scope.
 - **pin.setState offset coords** — offset positioning is client/human-drag driven (pins.tsx); not adding speculative tool params.
 - **canvas.update approval** — left ungated intentionally (edits are reversible via undo/git; only delete/clear ask).
 - **jazz-napi dep**, **load-resolver comment**, **toJson helper**, **fixture tick interval** — left as-is (native binding present via jazz-tools; load-bearing comment consistent with codebase; not worth the churn/risk).
-- **enrich-worker scaling test** — remaining coverage gap.
