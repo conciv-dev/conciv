@@ -5,7 +5,7 @@ import viteReact from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import mandarax from '@mandarax/qu/plugin/vite'
 
-// Add the mandarax plugin — dev-only; override defaults via mandarax({harness, previewId, …}).
+// Add the mandarax plugin — dev-only; override defaults via mandarax({harness, sessionId, …}).
 export default defineConfig({
   resolve: {tsconfigPaths: true},
   plugins: [
