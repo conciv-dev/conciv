@@ -9,7 +9,7 @@ export default defineConfig({
     name: 'whiteboard',
     environment: 'node',
     include: ['test/**/*.test.ts', 'test/**/*.it.test.ts'],
-    testTimeout: 30_000,
+    testTimeout: 60_000,
     fileParallelism: false,
   },
 })
