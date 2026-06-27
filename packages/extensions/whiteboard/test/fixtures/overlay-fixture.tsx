@@ -6,6 +6,7 @@ import {mountOverlay, type CommentPick} from '../../src/client/overlay.js'
 declare global {
   interface Window {
     __CORE__: string
+    __SHADOW_CSS__: string
     __commentReady: boolean
     commentOnElement: (source: ElementSource | null, rect: ElementRect | null) => void
   }
@@ -18,10 +19,15 @@ const surfaceHost = document.createElement('div')
 surfaceHost.style.cssText = 'position:fixed;z-index:2147483000'
 document.body.appendChild(surfaceHost)
 const surfaceRoot = surfaceHost.attachShadow({mode: 'open'})
-const functional = document.createElement('style')
-functional.textContent =
-  'button,input{pointer-events:auto} [aria-label$="comment, open"]{width:24px;height:24px} [aria-label="Comment thread"]{position:fixed;right:1rem;bottom:1rem;min-width:18rem;background:#fff}'
-surfaceRoot.appendChild(functional)
+const style = document.createElement('style')
+style.textContent = window.__SHADOW_CSS__
+surfaceRoot.appendChild(style)
+const properties = window.__SHADOW_CSS__.match(/@property\s+[^{]+\{[^}]*\}/g)
+if (properties) {
+  const head = document.createElement('style')
+  head.textContent = properties.join('')
+  document.head.appendChild(head)
+}
 const surfaceContainer = document.createElement('div')
 surfaceRoot.appendChild(surfaceContainer)
 

@@ -1,7 +1,7 @@
 import {Show, createResource} from 'solid-js'
 import {render} from 'solid-js/web'
 import {convertToExcalidrawElements} from '@excalidraw/excalidraw'
-import type {OrderedExcalidrawElement} from '@excalidraw/excalidraw/element/types'
+import type {ExcalidrawElement, OrderedExcalidrawElement} from '@excalidraw/excalidraw/element/types'
 import {mountIsland} from '../../src/canvas/island.js'
 import {roomId} from '../../src/shared/room.js'
 import {WhiteboardJazzProvider, fetchJazzConfig} from '../../src/client/jazz-client.js'
@@ -40,7 +40,7 @@ const tick = (): void => {
 }
 tick()
 
-let drawn: ReturnType<typeof convertToExcalidrawElements> = []
+let drawn: ExcalidrawElement[] = []
 window.drawLocal = () => {
   drawn = convertToExcalidrawElements([{type: 'ellipse', x: 20, y: 20, width: 60, height: 40}], {
     regenerateIds: true,

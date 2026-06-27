@@ -6,6 +6,7 @@ import {bootStack, type Stack} from './helpers/boot-stack.js'
 import {callTool, sessionId} from './helpers/run-tool.js'
 import {
   buildSolidFixture,
+  generateShadowCss,
   removeFixtureDir,
   serveBuiltFixture,
   type BuiltFixture,
@@ -34,7 +35,7 @@ const pageServer = (): FixturePage => {
 beforeAll(async () => {
   state.stack = await bootStack()
   state.built = await buildSolidFixture(join(here, 'fixtures/overlay-fixture.tsx'))
-  state.page = await serveBuiltFixture(state.built, state.stack.core, '<div id="app"></div>')
+  state.page = await serveBuiltFixture(state.built, state.stack.core, '<div id="app"></div>', await generateShadowCss())
   state.browser = await chromium.launch()
 }, 120_000)
 
@@ -116,6 +117,28 @@ describe('whiteboard overlay (it) — pins render, thread opens, replies persist
       if (!listed) await new Promise((resolve) => setTimeout(resolve, 250))
     }
     expect(listed).toBe(true)
+    await page.close()
+  })
+
+  it('renders the pin at its real size under the production stylesheet', async () => {
+    const cid = crypto.randomUUID()
+    await callTool(stack().core, sessionId('e3css'), 'comment.create', {
+      cid,
+      kind: 'floating',
+      parts: [{type: 'text', text: 'sized'}],
+      x: 140,
+      y: 140,
+      authorKind: 'ai',
+    })
+    const page = await browser().newPage()
+    await page.goto(`${pageServer().base}/?session=e3css`)
+    const pin = page.locator('[aria-label="AI comment, open"]')
+    await pin.waitFor({state: 'visible', timeout: 40_000})
+    const box = await pin.boundingBox()
+    expect(box?.width).toBeGreaterThan(20)
+    expect(box?.width).toBeLessThan(40)
+    expect(box?.height).toBeGreaterThan(20)
+    expect(box?.height).toBeLessThan(40)
     await page.close()
   })
 })
