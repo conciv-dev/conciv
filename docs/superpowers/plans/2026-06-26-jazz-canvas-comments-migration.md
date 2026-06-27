@@ -320,3 +320,41 @@ Full finding list from the 5-slice adversarial review + the live comment bug. Or
 - `vitest.config.ts fileParallelism:false` — justified by per-file Jazz+browser resource contention; ports are unique (`getPort`/`engine.port`), not masking port races.
 
 **Checkpoint:** report Phase G. Do NOT merge PR #12 until G.0 + G.1 (blockers) are green with the new multi-client + permission-isolation ITs.
+
+---
+
+## Phase G — remediation status (executed 2026-06-27, one fix per commit)
+
+Full whiteboard suite green after the pass: **20 test files, 58 tests passing**; turbo typecheck/build green across core, ui-kit-system, plugin, widget.
+
+### Fixed (committed)
+
+- **G.0a** react-grab is the element picker only (`grab.pick()`), not its comment UI.
+- **G.0a-2** comments authored in our own `Compose` popover (`@mandarax/ui-kit-system`); rows created only on submit, no empty-row-on-pick.
+- **B2** deterministic idempotent drain (stable skeleton ids + `regenerateIds:false` + UUIDv5 upsert row id) — concurrent clients coalesce, no duplication. Covered by a new two-client IT.
+- **B3** isDeleted-aware writer — local deletes sync and stay gone. Covered by a new delete IT.
+- **M1** echo guard replaced with an elementId→version snapshot that survives the async onChange.
+- **M3** comment mutations scoped by sessionId.
+- **M4** enrichment is incremental (`delta.delta`, filtered subscription, attempted-Set pruned on removal).
+- **M5** canvas edits buffered until the writer registers (no silent drop).
+- **M6** overlay mount deduped on an in-flight start promise.
+- **M7** stale presence cursors expire (lastSeen heartbeat + filter); per-client id persisted in sessionStorage.
+- **Minors**: dead comment columns removed; pins use `pw-` tokens + validated status; thread reply guards IME + array parts; drag-prompt keyboard-reachable; injectExcalidrawCss failure toasts; `comment.create` is transactional; TextField layout class routed to the field root; binding reads inferred row types (no casts); `app.ts` tool dedup is deterministic.
+- **Style**: every non-null assertion (`x!`) removed from the package + ui-kit-system (banned). enrich-worker arrow consts. IT testTimeout raised above in-test waits.
+
+### Resolved by investigation (no code change needed — were false positives)
+
+- **B1** allow-all kept by user decision (localhost-only sync + anonymous local-first identities + privileged backend; real isolation = deferred per-room Groups).
+- **G.0b** surface shadow root already gets the whiteboard stylesheet (widget uno.config scans whiteboard src; `ensureSurface` injects it).
+- **M2** `dist/shared` raw `.ts` is intended — `deploy` esbuilds it at runtime (esbuild is a jazz-tools dependency).
+- **M8** removing `--allowedTools mcp__mandarax` was required for G2 approvals; the permission route auto-allows non-`ask` tools. Tested.
+
+### Deferred / documented (intentional, low value or out of mechanical scope)
+
+- **M9 / pins-visible test** — the overlay fixture's "functional CSS" is test-fidelity only; a real CSS-pipeline test belongs in the widget package (which owns uno generation), not the whiteboard fixture.
+- **jazz-client reactive client creation** and **overlay second createRoot** — work as-is; reactive-redesign is optional polish, deferred to avoid destabilizing the passing binding.
+- **boot-stack `as unknown as AnyExtension`** — genuine type boundary (concrete ExtensionBuilder generics aren't covariantly assignable to AnyExtension; the built `.d.ts` widens it). Fixing needs reworking the production extension-contract variance — out of scope.
+- **pin.setState offset coords** — offset positioning is client/human-drag driven (pins.tsx); not adding speculative tool params.
+- **canvas.update approval** — left ungated intentionally (edits are reversible via undo/git; only delete/clear ask).
+- **jazz-napi dep**, **load-resolver comment**, **toJson helper**, **fixture tick interval** — left as-is (native binding present via jazz-tools; load-bearing comment consistent with codebase; not worth the churn/risk).
+- **enrich-worker scaling test** — remaining coverage gap.
