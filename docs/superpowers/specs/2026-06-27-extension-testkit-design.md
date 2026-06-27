@@ -152,10 +152,19 @@ ITs. The pure unit tests (`schema`, `confine`, `oxc-capture`, resolvers) and the
 (`canvas-tools`, `comment-tools`, …, which already drive MCP over HTTP) are restored unchanged in
 spirit.
 
-## Open question for the framework extraction
+## Framework extraction — no circular dependency (verified)
 
-Extracting `mountExtension` from the widget into `@mandarax/extension` must not pull widget-only deps
-(react-bridge, shell) into the framework package. The mount helper takes `clientApi` + `hostContext`
-as inputs, so the widget keeps owning react-bridge/grab construction and the testkit owns its
-attribute-based versions — the shared helper only does the framework wiring (installClientApi +
-runtime-context provider + render `Component` into a slot).
+The shared `mountExtension` lifts the slot-render + `ExtensionRuntimeContext.Provider` wiring out of
+the widget's `packages/widget/src/extension/extension-slots.tsx` into `@mandarax/extension`. Both the
+widget and the testkit then call it. This introduces no cycle:
+
+- `@mandarax/grab` has zero dependencies, so `@mandarax/extension → @mandarax/grab` is one-way.
+- `installClientApi` (`extension-api.ts`) and `ExtensionRuntimeContext` (`runtime-context.ts`) already
+  live inside `@mandarax/extension`.
+- `extension-slots.tsx` already imports `ExtensionRuntimeContext` from `@mandarax/extension/runtime`,
+  so the dependency already points toward the framework. Moving the render logic in removes a
+  widget→framework edge; it cannot add a framework→widget edge.
+- Host capabilities (`grab`, `insert`, …) stay as **inputs** (the "bag"): the widget builds them from
+  react-bridge, the testkit builds them from `data-mandarax-source`. No widget-only code (react-bridge,
+  shell) moves into the framework — `mountExtension` only does framework wiring (installClientApi +
+  runtime-context provider + render `Component` into a slot).
