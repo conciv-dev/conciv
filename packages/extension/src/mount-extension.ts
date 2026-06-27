@@ -33,21 +33,24 @@ export function MountedExtension(props: MountedExtensionProps): JSX.Element {
   })
 }
 
-export type MountExtensionOptions = MountedExtensionProps & {
+export type MountExtensionOptions = {
   clientApi: ClientApi
+  hostContext: Omit<ExtensionHostContext, 'currentSlot'>
+  slot: ExtensionSlot
   root: HTMLElement
 }
 
-export function mountExtension(options: MountExtensionOptions): () => void {
+export function mountExtension(extension: AnyExtension, options: MountExtensionOptions): () => void {
   installClientApi(options.clientApi)
-  return render(
+  const client = extension.__client?.()
+  const clientValue = client?.value ?? {}
+  const disposeRender = render(
     () =>
-      createComponent(MountedExtension, {
-        extension: options.extension,
-        hostContext: options.hostContext,
-        clientValue: options.clientValue,
-        slot: options.slot,
-      }),
+      createComponent(MountedExtension, {extension, hostContext: options.hostContext, clientValue, slot: options.slot}),
     options.root,
   )
+  return () => {
+    disposeRender()
+    client?.dispose?.()
+  }
 }
