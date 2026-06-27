@@ -74,8 +74,9 @@ export function useCanvasBinding(opts: {
     if (guard.applyingRemote) return
     const current = (elements.data ?? []) as ElementRow[]
     const byElementId = new Map(current.map((row) => [row.elementId, row]))
-    const nextIds = new Set(next.map((element) => element.id))
-    next.forEach((element) => {
+    const live = next.filter((element) => !element.isDeleted)
+    const liveIds = new Set(live.map((element) => element.id))
+    live.forEach((element) => {
       const existing = byElementId.get(element.id)
       if (!existing)
         return void db().insert(app.canvasElements, {
@@ -87,6 +88,6 @@ export function useCanvasBinding(opts: {
       if (existing.version !== element.version)
         db().update(app.canvasElements, existing.id, {data: asJson(element), version: element.version})
     })
-    current.filter((row) => !nextIds.has(row.elementId)).forEach((row) => db().delete(app.canvasElements, row.id))
+    current.filter((row) => !liveIds.has(row.elementId)).forEach((row) => db().delete(app.canvasElements, row.id))
   }
 }
