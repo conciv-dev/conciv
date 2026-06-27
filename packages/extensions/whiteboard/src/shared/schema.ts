@@ -27,12 +27,9 @@ export const app = schema.defineApp({
     anchorFile: col.string().optional(),
     anchorComponent: col.string().optional(),
     anchorHash: col.string().optional(),
-    lastResolvedCommit: col.string().optional(),
-    lastResolvedFileHash: col.string().optional(),
     createdAt: col.timestamp(),
     updatedAt: col.timestamp(),
     resolvedAt: col.timestamp().optional(),
-    resolvedBy: col.string().optional(),
   }),
   pins: schema.table({
     room: col.string(),
