@@ -125,7 +125,7 @@ async function injectExcalidrawCss(doc: Document): Promise<void> {
 
 export function mountOverlay(options: MountOverlayOptions): () => void {
   const doc = options.api.env.doc
-  void injectExcalidrawCss(doc)
+  injectExcalidrawCss(doc).catch(() => options.api.toast('Could not load the whiteboard styles', 'error'))
 
   const host = doc.createElement('div')
   host.style.cssText = 'position:fixed;inset:0;z-index:2147482000;visibility:hidden'
