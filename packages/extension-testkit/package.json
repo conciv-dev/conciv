@@ -1,0 +1,38 @@
+{
+  "name": "@mandarax/extension-testkit",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Dev-only test harness: getExtensionTestApi(extension) mounts any mandarax extension in a real browser against a real spawned server through its real contract.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/get-extension-test-api.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@mandarax/core": "workspace:^",
+    "@mandarax/extension": "workspace:^",
+    "@mandarax/grab": "workspace:^",
+    "@mandarax/plugin": "workspace:^",
+    "@mandarax/protocol": "workspace:^",
+    "@playwright/test": "^1.60.0",
+    "@tanstack/ai-mcp": "^0.1.0",
+    "get-port": "^7.2.0",
+    "playwright": "^1.60.0",
+    "solid-js": "^1.9.13",
+    "vite": "^8.0.16",
+    "vite-plugin-solid": "^2.11.12"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.21",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.9.13"
+  }
+}
