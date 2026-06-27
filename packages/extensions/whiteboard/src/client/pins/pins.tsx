@@ -20,6 +20,9 @@ const STATUS_FILL: Record<CommentStatus, string> = {
   orphaned: 'bg-pw-dim',
 }
 
+const isStatus = (value: string | undefined): value is CommentStatus =>
+  value !== undefined && Object.hasOwn(STATUS_FILL, value)
+
 const PIN =
   'absolute size-6 rounded-[50%_50%_50%_0] border-2 border-white cursor-grab touch-none pointer-events-auto shadow-[0_1px_4px_rgba(0,0,0,0.3)] focus-ring'
 const ANCHOR_TAG =
@@ -91,7 +94,10 @@ export function PinsLayer(props: PinsLayerProps): JSX.Element {
     <>
       <For each={pins.data ?? []}>
         {(pin) => {
-          const status = (): CommentStatus => (commentRow(pin.cid)?.status as CommentStatus) ?? 'open'
+          const status = (): CommentStatus => {
+            const value = commentRow(pin.cid)?.status
+            return isStatus(value) ? value : 'open'
+          }
           const pos = (): {x: number; y: number} => posOf(pin.cid, pin.x, pin.y)
           let start: {px: number; py: number; ox: number; oy: number} | null = null
           return (
