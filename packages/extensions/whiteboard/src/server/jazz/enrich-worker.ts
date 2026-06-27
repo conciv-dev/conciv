@@ -6,7 +6,7 @@ import {enrichAnchor} from '../../tool/comment/anchor-enrich.js'
 
 const SourceAnchor = z.object({source: z.object({file: z.string()})})
 
-async function enrichRow(db: Db, cwd: string, id: string, anchor: JsonValue): Promise<void> {
+const enrichRow = async (db: Db, cwd: string, id: string, anchor: JsonValue): Promise<void> => {
   const enriched = await enrichAnchor(cwd, anchor)
   if (!enriched.hash) return
   await db
@@ -20,7 +20,7 @@ async function enrichRow(db: Db, cwd: string, id: string, anchor: JsonValue): Pr
     .wait({tier: 'edge'})
 }
 
-export function startCommentEnrichment(db: Db, cwd: string): () => void {
+export const startCommentEnrichment = (db: Db, cwd: string): (() => void) => {
   const attempted = new Set<string>()
   return db.subscribeAll(app.comments.where({kind: 'source-linked'}), (delta) => {
     delta.delta.forEach((change) => {
