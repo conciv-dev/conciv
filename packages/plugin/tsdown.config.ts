@@ -13,6 +13,7 @@ export default defineConfig({
     'src/esbuild.ts',
     'src/nextjs.ts',
     'src/nextjs-widget.ts',
+    'src/source-inject.ts',
   ],
   format: 'esm',
   fixedExtension: false,
