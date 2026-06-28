@@ -1,14 +1,35 @@
-import {splitProps, type ComponentProps, type JSX} from 'solid-js'
+import {createEffect, createMemo, createSignal, splitProps, type ComponentProps, type JSX} from 'solid-js'
 import {Popover} from '@mandarax/ui-kit-system'
+import {useChatContextOptional} from '../../store/chat-context.js'
 
 // The FAB + popover shell (replaces the widget's hand-rolled floating-ui popover). Thin wrapper over
-// the ui-kit-system Popover. openOnRunStart is a widget concern (it controls `open`); kept in the
-// prop surface for parity.
+// the ui-kit-system Popover. openOnRunStart auto-opens the modal on the idle→running edge (faithful
+// to assistant-ui's thread.runStart listener) when a <ChatProvider> is in scope.
 type RootProps = ComponentProps<typeof Popover.Root> & {openOnRunStart?: boolean}
 
 function Root(props: RootProps): JSX.Element {
-  const [, rest] = splitProps(props, ['openOnRunStart'])
-  return <Popover.Root {...rest} />
+  const [local, rest] = splitProps(props, ['openOnRunStart', 'open', 'onOpenChange', 'defaultOpen'])
+  const chat = useChatContextOptional()
+  const [internalOpen, setInternalOpen] = createSignal(local.defaultOpen ?? false)
+  const isRunning = createMemo(() => (chat ? chat.status() === 'streaming' || chat.status() === 'submitted' : false))
+  // Rising edge of run state opens the modal (assistant-ui's thread.runStart); previous flag tracked.
+  let wasRunning = isRunning()
+  createEffect(() => {
+    const running = isRunning()
+    if (local.openOnRunStart !== false && running && !wasRunning) setInternalOpen(true)
+    wasRunning = running
+  })
+  const open = () => (local.open === undefined ? internalOpen() : local.open)
+  return (
+    <Popover.Root
+      open={open()}
+      onOpenChange={(details) => {
+        setInternalOpen(details.open)
+        local.onOpenChange?.(details)
+      }}
+      {...rest}
+    />
+  )
 }
 
 function Trigger(props: ComponentProps<typeof Popover.Trigger>): JSX.Element {

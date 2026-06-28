@@ -1,5 +1,6 @@
-import {splitProps, type ComponentProps, type JSX} from 'solid-js'
+import {onCleanup, splitProps, type ComponentProps, type JSX} from 'solid-js'
 import {Menu} from '@mandarax/ui-kit-system'
+import {useActionBarInteraction} from '../action-bar/interaction-context.js'
 
 // Overflow menu over the ui-kit-system Menu (Ark headless). Shared shape with ThreadListItemMore.
 // Item carries a `value` (Ark needs it for keyboard nav) plus an onSelect run on activation.
@@ -7,7 +8,31 @@ import {Menu} from '@mandarax/ui-kit-system'
 type RootProps = ComponentProps<typeof Menu.Root>
 
 function Root(props: RootProps): JSX.Element {
-  return <Menu.Root {...props} />
+  const [local, rest] = splitProps(props, ['onOpenChange'])
+  const interaction = useActionBarInteraction()
+  let release: (() => void) | null = null
+  const setOpen = (open: boolean) => {
+    if (open) {
+      if (release) return
+      release = interaction?.acquireInteractionLock() ?? null
+      return
+    }
+    release?.()
+    release = null
+  }
+  onCleanup(() => {
+    release?.()
+    release = null
+  })
+  return (
+    <Menu.Root
+      onOpenChange={(details) => {
+        setOpen(details.open)
+        local.onOpenChange?.(details)
+      }}
+      {...rest}
+    />
+  )
 }
 
 function Trigger(props: ComponentProps<typeof Menu.Trigger>): JSX.Element {

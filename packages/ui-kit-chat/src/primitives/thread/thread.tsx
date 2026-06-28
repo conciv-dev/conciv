@@ -1,14 +1,4 @@
-import {
-  createEffect,
-  createMemo,
-  createSignal,
-  Index,
-  Show,
-  splitProps,
-  type Component,
-  type JSX,
-  type ParentProps,
-} from 'solid-js'
+import {createMemo, createSignal, Index, Show, splitProps, type Component, type JSX, type ParentProps} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import type {UIMessage} from '@tanstack/ai-client'
 import {Primitive, type Slottable} from '../util/primitive.js'
@@ -35,7 +25,6 @@ type ViewportProps = DivProps & {
 }
 
 function Viewport(props: ViewportProps): JSX.Element {
-  const chat = useChatContext()
   const [local, rest] = splitProps(props, [
     'autoScroll',
     'turnAnchor',
@@ -46,7 +35,6 @@ function Viewport(props: ViewportProps): JSX.Element {
   ])
   const [element, setElement] = createSignal<HTMLDivElement>()
   const {isAtBottom, scrollToBottom} = useThreadScroll(element, local)
-  createEffect(() => chat.setView('viewport', 'isAtBottom', isAtBottom()))
   return (
     <ViewportProvider value={{isAtBottom, scrollToBottom}}>
       <Primitive.div data-thread-viewport ref={(node) => setElement(node)} {...rest} />
@@ -112,6 +100,33 @@ function MessageByIndex(props: MessageByIndexProps): JSX.Element {
         const component = componentForRole(value.role, props.components)
         return (
           <MessageProvider value={{message: () => value, index: () => props.index, pairing, isLast}}>
+            <Show when={component}>{(resolved) => <Dynamic component={resolved()} />}</Show>
+          </MessageProvider>
+        )
+      }}
+    </Show>
+  )
+}
+
+type MessageByIdProps = {messageId: string; components: MessagesComponents}
+
+// Keys off the turn id so it stays attached across reordering/windowing (assistant-ui's
+// Unstable_MessageById). A missing id renders null rather than throwing.
+function Unstable_MessageById(props: MessageByIdProps): JSX.Element {
+  const thread = useThread()
+  const located = () => {
+    const index = thread.turns.findIndex((turn) => turn.key === props.messageId)
+    const turn = thread.turns[index]
+    return turn ? {turn, index} : undefined
+  }
+  return (
+    <Show when={located()} keyed>
+      {(value) => {
+        const pairing = createMemo(() => pairResults(value.turn.parts))
+        const isLast = () => value.index === thread.turns.length - 1
+        const component = componentForRole(value.turn.role, props.components)
+        return (
+          <MessageProvider value={{message: () => value.turn, index: () => value.index, pairing, isLast}}>
             <Show when={component}>{(resolved) => <Dynamic component={resolved()} />}</Show>
           </MessageProvider>
         )
@@ -201,6 +216,7 @@ export const Thread = Object.assign(Root, {
   ViewportFooter,
   Messages,
   MessageByIndex,
+  Unstable_MessageById,
   ScrollToBottom,
   Suggestion,
   Suggestions,

@@ -2,9 +2,10 @@ import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {useChat, type UseChatReturn} from '@tanstack/ai-solid'
-import {ChatProvider, useChatContext} from '../store/chat-context.js'
+import {ChatProvider} from '../store/chat-context.js'
 import {storyConnection, createTextChunks} from '../store/story-connection.js'
 import {Thread} from '../primitives/thread/thread.js'
+import {useThreadViewport} from '../primitives/thread/viewport-context.js'
 import {Message} from '../primitives/message/message.js'
 
 const meta: Meta = {title: 'behaviors/Scroll'}
@@ -12,8 +13,8 @@ export default meta
 type Story = StoryObj
 
 function AtBottomEcho(): JSX.Element {
-  const chat = useChatContext()
-  return <div>atBottom: {String(chat.view.viewport.isAtBottom)}</div>
+  const viewport = useThreadViewport()
+  return <div>atBottom: {String(viewport.isAtBottom())}</div>
 }
 
 function UserMessage(): JSX.Element {
@@ -46,8 +47,8 @@ function StreamingThread(props: {expose: (chat: UseChatReturn) => void}): JSX.El
             <div class="text-[0.75rem] text-pw-text-3">Ask to begin.</div>
           </Thread.Empty>
           <Thread.Messages components={{UserMessage, AssistantMessage}} />
+          <AtBottomEcho />
         </Thread.Viewport>
-        <AtBottomEcho />
       </Thread.Root>
     </ChatProvider>
   )

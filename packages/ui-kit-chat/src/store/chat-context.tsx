@@ -12,7 +12,6 @@ export type ViewState = {
   pinned: Record<string, boolean>
   hovering: string | null
   viewport: {
-    isAtBottom: boolean
     turnAnchor: 'top' | 'bottom'
     topAnchorTurn: {anchorId: string; targetId: string} | null
   }
@@ -34,7 +33,7 @@ export function ChatProvider(props: ParentProps<{chat: UseChatReturn}>): JSX.Ele
     collapsed: {},
     pinned: {},
     hovering: null,
-    viewport: {isAtBottom: true, turnAnchor: 'bottom', topAnchorTurn: null},
+    viewport: {turnAnchor: 'bottom', topAnchorTurn: null},
   })
 
   // GC orphaned view-state keys when the message list changes, so the bag never grows unbounded.
@@ -57,6 +56,12 @@ export function useChatContext(): ChatContextValue {
   const context = useContext(ChatContext)
   if (!context) throw new Error('useChatContext must be used within a <ChatProvider>')
   return context
+}
+
+// Non-throwing variant for shells (AssistantModal) that may render with the provider nested above
+// OR absent; returns undefined when no <ChatProvider> is in scope.
+export function useChatContextOptional(): ChatContextValue | undefined {
+  return useContext(ChatContext)
 }
 
 // isRunning is defined ONCE here — everything (ActionBar hideWhenRunning, Reload disabled, composer)

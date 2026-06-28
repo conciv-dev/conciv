@@ -1,5 +1,9 @@
+import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
+import {useChat} from '@tanstack/ai-solid'
+import {ChatProvider} from '../../store/chat-context.js'
+import {storyConnection, createTextChunks} from '../../store/story-connection.js'
 import {AssistantModal} from './assistant-modal.js'
 
 const meta: Meta = {title: 'primitives/AssistantModal'}
@@ -19,5 +23,38 @@ export const TriggerOpensPanel: Story = {
     const c = within(canvasElement)
     await userEvent.click(c.getByText('AI'))
     await waitFor(() => expect(c.getByText('The chat panel lives here.')).toBeVisible())
+  },
+}
+
+// openOnRunStart: starting a run (the idle→running edge) auto-opens the modal with no trigger click,
+// faithful to assistant-ui's thread.runStart listener.
+function RunStartFrame(): JSX.Element {
+  const chat = useChat({connection: storyConnection({chunks: createTextChunks('Working on it.'), chunkDelay: 5})})
+  return (
+    <ChatProvider chat={chat}>
+      <button type="button" onClick={() => void chat.sendMessage('go')}>
+        start run
+      </button>
+      <AssistantModal.Root openOnRunStart>
+        <AssistantModal.Trigger class="text-pw-on-accent rounded-pw-pill bg-pw-accent size-10">
+          AI
+        </AssistantModal.Trigger>
+        <AssistantModal.Content class="p-3 w-72">
+          <div class="text-[0.8125rem] text-pw-text">Panel opened by the run.</div>
+        </AssistantModal.Content>
+      </AssistantModal.Root>
+    </ChatProvider>
+  )
+}
+
+export const OpensOnRunStart: Story = {
+  render: () => <RunStartFrame />,
+  play: async ({canvasElement}) => {
+    const c = within(canvasElement)
+    // Closed until the run begins (content stays mounted but hidden).
+    await expect(c.getByText('Panel opened by the run.')).not.toBeVisible()
+    await userEvent.click(c.getByText('start run'))
+    // The run-start edge opens the modal without touching the trigger.
+    await waitFor(() => expect(c.getByText('Panel opened by the run.')).toBeVisible())
   },
 }

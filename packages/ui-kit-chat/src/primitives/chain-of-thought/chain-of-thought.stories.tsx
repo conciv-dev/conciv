@@ -18,9 +18,14 @@ export const TogglesCollapsed: Story = {
   ),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
+    // Anchor on the (always-mounted) trigger's collapsed state, then confirm the body is unmounted —
+    // the queryBy null can't pass prematurely because aria-expanded='false' proves the tree rendered.
+    const trigger = await waitFor(() => c.getByRole('button', {name: 'Reasoning'}))
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false')
     await expect(c.queryByText('Step 1: read the file')).toBeNull()
-    await userEvent.click(c.getByRole('button', {name: 'Reasoning'}))
+    await userEvent.click(trigger)
     await waitFor(() => expect(c.getByText('Step 1: read the file')).toBeVisible())
+    await expect(trigger).toHaveAttribute('aria-expanded', 'true')
   },
 }
 

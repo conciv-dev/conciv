@@ -4,6 +4,7 @@ import {useMessage} from '../message/message-context.js'
 import {createActionButton, type ActionButtonState} from '../util/create-action-button.js'
 import type {Turn} from '../../store/grouping.js'
 import {useActionHandlers} from './action-handlers.js'
+import {ActionBarInteractionProvider} from './interaction-context.js'
 
 function messageText(turn: Turn): string {
   return turn.parts
@@ -27,25 +28,42 @@ function messageMarkdown(turn: Turn): string {
 type RootProps = JSX.HTMLAttributes<HTMLDivElement> & {
   hideWhenRunning?: boolean
   autohide?: 'always' | 'not-last' | 'never'
-  autohideFloat?: 'always' | 'never'
+  autohideFloat?: 'always' | 'single-branch' | 'never'
 }
 
+type FloatStatus = 'hidden' | 'floating' | 'normal'
+
+// Faithful port of assistant-ui useActionBarFloatStatus: branchCount is 1 in our inert-branch model.
 function Root(props: RootProps): JSX.Element {
   const thread = useThread()
   const message = useMessage()
   const chat = useChatContext()
   const [local, rest] = splitProps(props, ['hideWhenRunning', 'autohide', 'autohideFloat'])
-  const hidden = () => {
-    if (local.hideWhenRunning && thread.isRunning) return true
-    const mode = local.autohide ?? 'never'
-    if (mode === 'always' && !(message.isLast() || chat.view.hovering === message.message().key)) return true
-    if (mode === 'not-last' && message.isLast()) return false
-    if (mode === 'not-last' && chat.view.hovering !== message.message().key) return true
-    return false
+  const [interactionCount, setInteractionCount] = createSignal(0)
+  const acquireInteractionLock = () => {
+    setInteractionCount((count) => count + 1)
+    let released = false
+    return () => {
+      if (released) return
+      released = true
+      setInteractionCount((count) => Math.max(0, count - 1))
+    }
+  }
+  const status = (): FloatStatus => {
+    if (local.hideWhenRunning && thread.isRunning) return 'hidden'
+    const autohide = local.autohide ?? 'never'
+    const autohideEnabled = autohide === 'always' || (autohide === 'not-last' && !message.isLast())
+    const visibleByInteraction = interactionCount() > 0 || chat.view.hovering === message.message().key
+    if (!autohideEnabled) return 'normal'
+    if (!visibleByInteraction) return 'hidden'
+    if (local.autohideFloat === 'always' || local.autohideFloat === 'single-branch') return 'floating'
+    return 'normal'
   }
   return (
-    <Show when={!hidden()}>
-      <div data-floating={local.autohideFloat === 'always' ? '' : undefined} {...rest} />
+    <Show when={status() !== 'hidden'}>
+      <ActionBarInteractionProvider value={{acquireInteractionLock}}>
+        <div data-floating={status() === 'floating' ? 'true' : undefined} {...rest} />
+      </ActionBarInteractionProvider>
     </Show>
   )
 }

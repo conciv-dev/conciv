@@ -55,7 +55,8 @@ export const GatedWithoutHandlers: Story = {
   render: () => <Queue withHandlers={false} />,
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    await expect(c.getByText('also add a test')).toBeVisible()
+    // Settle on the rendered queue row first; only then are the gated-null buttons a real assertion.
+    await waitFor(() => expect(c.getByText('also add a test')).toBeVisible())
     await expect(c.queryByRole('button', {name: 'Steer'})).toBeNull()
     await expect(c.queryByRole('button', {name: 'Remove from queue'})).toBeNull()
   },
