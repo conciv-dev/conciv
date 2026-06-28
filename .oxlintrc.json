@@ -78,6 +78,15 @@
         "playwright/no-element-handle": "error",
         "playwright/prefer-native-locators": "error"
       }
+    },
+    {
+      "files": ["packages/extensions/**/test/fixtures/**"],
+      "rules": {
+        "playwright/no-raw-locators": "off",
+        "playwright/no-eval": "off",
+        "playwright/no-element-handle": "off",
+        "playwright/prefer-native-locators": "off"
+      }
     }
   ],
   "ignorePatterns": ["dist", "build", "node_modules", ".turbo"]
