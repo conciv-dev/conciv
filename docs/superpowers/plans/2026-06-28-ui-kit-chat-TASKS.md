@@ -96,7 +96,8 @@ All four. No exceptions, no "mostly," no leaving the old chat-panel/tool-ui aliv
 
 ### Phase 1 — ui-kit-chat scaffold + ChatProvider/context
 
-- [ ] Package (package.json/tsconfig/uno/.storybook); `Primitive` slot shim; `createActionButton`; `ChatProvider`/`useChatContext` over the `useChat` return; `createMemo` views (`useThread`/`useComposer`); view-state bag; grouping ported (`coalesceTurns`/`groupSegments`/`pairResults`); `storyConnection` helper. Verify: a trivial story renders the real useChat behind storyConnection; typecheck clean.
+- [x] Package (package.json/tsconfig/uno/.storybook); `Primitive` slot shim; `createActionButton`; `ChatProvider`/`useChatContext` over the `useChat` return; `createMemo` views (`useThread`/`useComposer`); view-state bag; grouping ported (`coalesceTurns`/`groupSegments`/`pairResults`); `storyConnection` helper. Verify: a trivial story renders the real useChat behind storyConnection; typecheck clean.
+      Done: `@mandarax/ui-kit-chat` scaffolded (vite/vitest/uno/.storybook). `ChatProvider` wraps the real `UseChatReturn` verbatim + a `createStore` view-state bag (draft/collapsed-by-toolCallId/pinned/hover/viewport) with key GC; `useThread`/`useComposer` are getter/`createMemo` views (NO copied chat state). `storyConnection` = fake `ConnectConnectionAdapter` yielding chunks that mirror the repo's own `agui.ts` emitter (text/reasoning/tool/approval builders). **Story drives the REAL `useChat` end-to-end (storybook chromium GREEN), grouping unit 5/5 GREEN, typecheck/build/storybook all clean, oxlint 0/0.**
 
 ### Phase 2 — headless primitives (full API parity, API spec §2)
 
