@@ -26,14 +26,14 @@ const EDGE_PATTERN = /--+>|--+|-\.-+>|==+>|--[xo]/g
 
 export const canvasReadTool = defineTool<typeof CanvasReadInput, WhiteboardToolContext>(canvasReadDef).server(
   async (_input, ctx, request) => {
-    const rows = await ctx.db.all(app.canvasElements.where({room: ctx.room(request)}))
+    const rows = await ctx.db.all(app.canvasElements.where({room: ctx.room(request)}), {tier: 'global'})
     return {elements: rows.map((row) => row.data)}
   },
 )
 
 export const canvasExportTool = defineTool<typeof CanvasExportInput, WhiteboardToolContext>(canvasExportDef).server(
   async (_input, ctx, request) => {
-    const rows = await ctx.db.all(app.canvasElements.where({room: ctx.room(request)}))
+    const rows = await ctx.db.all(app.canvasElements.where({room: ctx.room(request)}), {tier: 'global'})
     return {elements: rows.map((row) => row.data)}
   },
 )
@@ -78,7 +78,10 @@ export const canvasConnectTool = defineTool<typeof CanvasConnectInput, Whiteboar
 
 export const canvasUpdateTool = defineTool<typeof CanvasUpdateInput, WhiteboardToolContext>(canvasUpdateDef).server(
   async (input, ctx, request) => {
-    const [current] = await ctx.db.all(app.canvasElements.where({room: ctx.room(request), elementId: input.elementId}))
+    const [current] = await ctx.db.all(
+      app.canvasElements.where({room: ctx.room(request), elementId: input.elementId}),
+      {tier: 'global'},
+    )
     if (!current) return {updated: false}
     const data = Object.assign({}, current.data, input.patch) as JsonValue
     await ctx.db.update(app.canvasElements, current.id, {data, version: current.version + 1}).wait({tier: 'edge'})
@@ -88,7 +91,9 @@ export const canvasUpdateTool = defineTool<typeof CanvasUpdateInput, WhiteboardT
 
 export const canvasDeleteTool = defineTool<typeof CanvasDeleteInput, WhiteboardToolContext>(canvasDeleteDef).server(
   async (input, ctx, request) => {
-    const rows = await ctx.db.all(app.canvasElements.where({room: ctx.room(request), elementId: input.elementId}))
+    const rows = await ctx.db.all(app.canvasElements.where({room: ctx.room(request), elementId: input.elementId}), {
+      tier: 'global',
+    })
     await Promise.all(rows.map((row) => ctx.db.delete(app.canvasElements, row.id).wait({tier: 'edge'})))
     return {deleted: input.elementId}
   },
@@ -97,8 +102,8 @@ export const canvasDeleteTool = defineTool<typeof CanvasDeleteInput, WhiteboardT
 export const canvasClearTool = defineTool<typeof CanvasClearInput, WhiteboardToolContext>(canvasClearDef).server(
   async (_input, ctx, request) => {
     const room = ctx.room(request)
-    const elements = await ctx.db.all(app.canvasElements.where({room}))
-    const pending = await ctx.db.all(app.canvasPending.where({room}))
+    const elements = await ctx.db.all(app.canvasElements.where({room}), {tier: 'global'})
+    const pending = await ctx.db.all(app.canvasPending.where({room}), {tier: 'global'})
     await Promise.all([
       ...elements.map((row) => ctx.db.delete(app.canvasElements, row.id).wait({tier: 'edge'})),
       ...pending.map((row) => ctx.db.delete(app.canvasPending, row.id).wait({tier: 'edge'})),

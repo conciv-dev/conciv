@@ -26,8 +26,8 @@ const StoredAnchor = z.object({
 })
 
 export const anchorResolveTool = defineTool<typeof AnchorResolveInput, WhiteboardToolContext>(anchorResolveDef).server(
-  async (input, ctx, request) => {
-    const [row] = await ctx.db.all(app.comments.where({previewId: request.previewId, cid: input.cid}))
+  async (input, ctx) => {
+    const [row] = await ctx.db.all(app.comments.where({cid: input.cid}), {tier: 'global'})
     if (!row) throw new Error(`comment ${input.cid} not found`)
     const parsed = StoredAnchor.safeParse(row.anchor)
     if (!parsed.success) return {status: 'orphaned'}

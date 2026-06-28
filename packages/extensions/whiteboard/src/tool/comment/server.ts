@@ -22,27 +22,27 @@ import {
   type PinSetStateInput,
 } from './def.js'
 
-const commentByCid = async (ctx: WhiteboardToolContext, previewId: string, sessionId: string, cid: string) => {
-  const [row] = await ctx.db.all(app.comments.where({previewId, sessionId, cid}))
+const commentByCid = async (ctx: WhiteboardToolContext, sessionId: string, cid: string) => {
+  const [row] = await ctx.db.all(app.comments.where({sessionId, cid}), {tier: 'global'})
   if (!row) throw new Error(`comment ${cid} not found`)
   return row
 }
 
 const pinByCid = async (ctx: WhiteboardToolContext, room: string, cid: string) => {
-  const [row] = await ctx.db.all(app.pins.where({room, cid}))
+  const [row] = await ctx.db.all(app.pins.where({room, cid}), {tier: 'global'})
   if (!row) throw new Error(`no pin for comment ${cid}`)
   return row
 }
 
 export const commentCreateTool = defineTool<typeof CommentCreateInput, WhiteboardToolContext>(commentCreateDef).server(
   async (input, ctx, request) => {
+    const sessionId = ctx.sessionId(request)
     const now = new Date()
     const enriched = await enrichAnchor(ctx.cwd, input.anchor ?? null)
     await ctx.db
       .transaction((tx) => {
         tx.insert(app.comments, {
-          previewId: request.previewId,
-          sessionId: request.sessionId,
+          sessionId,
           cid: input.cid,
           threadId: input.cid,
           parts: input.parts as JsonValue,
@@ -73,13 +73,13 @@ export const commentCreateTool = defineTool<typeof CommentCreateInput, Whiteboar
 
 export const commentReplyTool = defineTool<typeof CommentReplyInput, WhiteboardToolContext>(commentReplyDef).server(
   async (input, ctx, request) => {
-    const parent = await commentByCid(ctx, request.previewId, request.sessionId, input.cid)
+    const sessionId = ctx.sessionId(request)
+    const parent = await commentByCid(ctx, sessionId, input.cid)
     const now = new Date()
     const replyCid = crypto.randomUUID()
     await ctx.db
       .insert(app.comments, {
-        previewId: request.previewId,
-        sessionId: request.sessionId,
+        sessionId,
         cid: replyCid,
         threadId: parent.threadId,
         parentId: input.cid,
@@ -98,10 +98,9 @@ export const commentReplyTool = defineTool<typeof CommentReplyInput, WhiteboardT
 
 export const commentReadTool = defineTool<typeof CommentReadInput, WhiteboardToolContext>(commentReadDef).server(
   async (input, ctx, request) => {
-    const root = await commentByCid(ctx, request.previewId, request.sessionId, input.cid)
-    const thread = await ctx.db.all(
-      app.comments.where({previewId: request.previewId, sessionId: request.sessionId, threadId: root.threadId}),
-    )
+    const sessionId = ctx.sessionId(request)
+    const root = await commentByCid(ctx, sessionId, input.cid)
+    const thread = await ctx.db.all(app.comments.where({sessionId, threadId: root.threadId}), {tier: 'global'})
     const replies = thread
       .filter((row) => row.parentId)
       .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime())
@@ -111,11 +110,8 @@ export const commentReadTool = defineTool<typeof CommentReadInput, WhiteboardToo
 
 export const commentListTool = defineTool<typeof CommentListInput, WhiteboardToolContext>(commentListDef).server(
   async (input, ctx, request) => {
-    const scoped =
-      input.scope === 'session'
-        ? app.comments.where({previewId: request.previewId, sessionId: request.sessionId})
-        : app.comments.where({previewId: request.previewId})
-    const rows = await ctx.db.all(scoped)
+    const sessionId = ctx.sessionId(request)
+    const rows = await ctx.db.all(app.comments.where({sessionId}), {tier: 'global'})
     const top = rows
       .filter((row) => !row.parentId)
       .filter((row) => (input.file ? row.anchorFile === input.file : true))
@@ -128,7 +124,7 @@ export const commentResolveTool = defineTool<typeof CommentResolveInput, Whitebo
   commentResolveDef,
 ).server(async (input, ctx, request) => {
   const now = new Date()
-  const comment = await commentByCid(ctx, request.previewId, request.sessionId, input.cid)
+  const comment = await commentByCid(ctx, ctx.sessionId(request), input.cid)
   await ctx.db
     .update(app.comments, comment.id, {status: 'resolved', resolvedAt: now, updatedAt: now})
     .wait({tier: 'edge'})
@@ -137,9 +133,9 @@ export const commentResolveTool = defineTool<typeof CommentResolveInput, Whitebo
 
 export const commentDeleteTool = defineTool<typeof CommentDeleteInput, WhiteboardToolContext>(commentDeleteDef).server(
   async (input, ctx, request) => {
-    const comment = await commentByCid(ctx, request.previewId, request.sessionId, input.cid)
+    const comment = await commentByCid(ctx, ctx.sessionId(request), input.cid)
     await ctx.db.delete(app.comments, comment.id).wait({tier: 'edge'})
-    const pins = await ctx.db.all(app.pins.where({room: ctx.room(request), cid: input.cid}))
+    const pins = await ctx.db.all(app.pins.where({room: ctx.room(request), cid: input.cid}), {tier: 'global'})
     await Promise.all(pins.map((pin) => ctx.db.delete(app.pins, pin.id).wait({tier: 'edge'})))
     return {cid: input.cid, deleted: true}
   },
