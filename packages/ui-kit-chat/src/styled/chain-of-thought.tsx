@@ -1,6 +1,10 @@
-import {createSignal, Show, type JSX, type ParentProps} from 'solid-js'
+import {Show, type JSX, type ParentProps} from 'solid-js'
 import {Brain, ChevronDown} from 'lucide-solid'
 import {Collapsible} from '@mandarax/ui-kit-system'
+import {
+  ChainOfThought as ChainOfThoughtPrimitive,
+  useChainOfThought,
+} from '../primitives/chain-of-thought/chain-of-thought.js'
 import {SHIMMER} from './shimmer.js'
 import {FOCUS} from './classes.js'
 
@@ -21,7 +25,7 @@ const LINE = 'w-px flex-1 [background:var(--chat-line)]'
 const NODE_ROW = 'flex items-center shrink-0 mt-px text-[length:var(--chat-text-md)] [height:calc(1lh_+_1rem)]'
 
 // One step on the rail: an icon node (centered on the step's header line) + the connecting line below
-// it (except the last), then the step content (a Reasoning card, a tool card, …).
+// it (except the last), then the step content (a Reasoning card, a tool card, …). Presentational only.
 function Step(props: {icon: JSX.Element; last?: boolean; children: JSX.Element}): JSX.Element {
   return (
     <div class="flex gap-2.5">
@@ -38,17 +42,16 @@ function Step(props: {icon: JSX.Element; last?: boolean; children: JSX.Element})
   )
 }
 
-// The reasoning/tool chain of one answer, as a collapsible timeline (D9 process/answer rhythm). Open
-// while streaming (the "Working…" label shimmers); collapses to a quiet "Chain of Thought" summary.
-function Root(props: ChainOfThoughtProps): JSX.Element {
-  const [userOpen, setUserOpen] = createSignal(false)
-  const open = () => userOpen() || (props.streaming ?? false)
+// Binds the headless open-while-streaming state to the kit's Collapsible (the one disclosure
+// mechanism, D3). Open while streaming (the "Working…" label shimmers); collapses to a quiet summary.
+function Shell(props: ParentProps): JSX.Element {
+  const chain = useChainOfThought()
   return (
-    <Collapsible.Root open={open()} onOpenChange={(details) => setUserOpen(details.open)}>
+    <Collapsible.Root open={chain.open()} onOpenChange={(details) => chain.setOpen(details.open)}>
       <div class="flex flex-col gap-2 min-w-0 w-full">
         <Collapsible.Trigger class={TRIGGER}>
           <Brain size={16} class="text-[color:var(--chat-text-2)] shrink-0" />
-          <span class={props.streaming ? SHIMMER : ''}>{props.streaming ? 'Working…' : 'Chain of Thought'}</span>
+          <span class={chain.streaming() ? SHIMMER : ''}>{chain.streaming() ? 'Working…' : 'Chain of Thought'}</span>
           <ChevronDown size={16} class={CHEVRON} aria-hidden="true" />
         </Collapsible.Trigger>
         <Collapsible.Content>
@@ -56,6 +59,15 @@ function Root(props: ChainOfThoughtProps): JSX.Element {
         </Collapsible.Content>
       </div>
     </Collapsible.Root>
+  )
+}
+
+// The reasoning/tool chain of one answer, as a collapsible timeline (D9 process/answer rhythm).
+function Root(props: ChainOfThoughtProps): JSX.Element {
+  return (
+    <ChainOfThoughtPrimitive.Root streaming={props.streaming}>
+      <Shell>{props.children}</Shell>
+    </ChainOfThoughtPrimitive.Root>
   )
 }
 

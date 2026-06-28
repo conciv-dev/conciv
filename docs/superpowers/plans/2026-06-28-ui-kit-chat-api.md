@@ -460,6 +460,33 @@ namespace SelectionToolbar {
 function useSelectionToolbarInfo(): Accessor<{text: string; messageId: string; rect: DOMRect} | null>
 ```
 
+### 2.14 Tool vocabulary — `primitives/tools/*` + `styled/tools/*` (TWO-LAYER, added 2026-06-29)
+
+**Every tool card is two-layer, like every other component** — a correction to the original plan,
+which (drawing §2 from assistant-ui's headless `packages/react` only) listed NO tool cards and not
+even `ToolFallback` as primitives, so they were built styling-fused. The rule now:
+
+- **`primitives/tools/<tool>.tsx`** — headless: parsing + status + structure via a context + a
+  `use<Tool>()` hook. **No `--chat-*` classes, no presentational chrome.** Pure logic + slots.
+- **`styled/tools/<tool>.tsx`** (or `styled/tool-fallback.tsx`) — a thin wrapper that reads the
+  hook and adds tokens + the `CollapsibleCard` shell. The dispatched `ToolCardEntry.render` points
+  at the styled component.
+- **One shared `primitives/tools/tool-status.ts`** — `toolStatus(part, result): ToolStatus`
+  (`running|complete|error|approval`). Every card derives status here; never re-implemented.
+
+```ts
+// e.g. ApplyPatch (headless): Root provides {name, blocks, info, status, fileLabel}; Diffs renders
+//   one SolidPatchDiff per block (caller passes theme via options/class). useApplyPatch() reads it.
+// Bash (headless): Root provides {command, summary, output:{stdout,stderr,exitCode}, status,
+//   isError, hasOutput}; useBash(). ToolFallback (headless): Root provides {name, status, argsText,
+//   resultText, resultName}; useToolFallback().
+```
+
+> **Intentional deviation from assistant-ui:** with-opencode ships its tool cards styling-fused
+> (logic + Tailwind in one component). We are **stricter** — logic lives in `primitives/tools/*`,
+> styling in `styled/tools/*` — by explicit user mandate ("everything unstyled by default"). This
+> overrides faithfulness for the tool vocabulary only.
+
 ## 3. Behaviors (Phase 3) — `behaviors/`
 
 ```ts

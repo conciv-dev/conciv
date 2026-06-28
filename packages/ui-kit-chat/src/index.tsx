@@ -72,7 +72,10 @@ export {
 export {ActionBarMore} from './primitives/action-bar-more/action-bar-more.js'
 export {ActionBarMore as ThreadListItemMore} from './primitives/action-bar-more/action-bar-more.js'
 export {Attachment, AttachmentProvider, useAttachment} from './primitives/attachment/attachment.js'
-export {ChainOfThought as ChainOfThoughtPrimitive} from './primitives/chain-of-thought/chain-of-thought.js'
+export {
+  ChainOfThought as ChainOfThoughtPrimitive,
+  useChainOfThought,
+} from './primitives/chain-of-thought/chain-of-thought.js'
 export {
   BranchPicker as BranchPickerPrimitive,
   BranchProvider,
@@ -131,3 +134,19 @@ export {FollowUpSuggestions} from './styled/follow-up-suggestions.js'
 export {ToolGroup, type ToolGroupProps} from './styled/tool-group.js'
 export {AttachmentUI} from './styled/attachment-ui.js'
 export {ModelSelector, type StyledModelSelectorProps} from './styled/model-selector.js'
+export {ApplyPatchDiff} from './styled/tools/apply-patch-diff.js'
+export {BashCard} from './styled/tools/bash-card.js'
+// Tool-vocabulary headless primitives (logic + structure, no classes) — the styled cards wrap these.
+export {toolStatus, type ToolStatus} from './primitives/tools/tool-status.js'
+export {
+  ApplyPatch,
+  useApplyPatch,
+  patchTextOf,
+  patchInfo,
+  parseClaudePatchBlocks,
+  claudeBlockToUnifiedDiff,
+  type ApplyPatchBlock,
+  type ApplyPatchInfo,
+} from './primitives/tools/apply-patch.js'
+export {Bash, useBash, parseBashOutput, type BashOutput} from './primitives/tools/bash.js'
+export {ToolFallback as ToolFallbackPrimitive, useToolFallback} from './primitives/tools/tool-fallback.js'

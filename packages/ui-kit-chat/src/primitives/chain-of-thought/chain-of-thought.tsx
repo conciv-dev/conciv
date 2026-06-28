@@ -1,42 +1,40 @@
-import {createContext, createSignal, Show, splitProps, useContext, type JSX, type ParentProps} from 'solid-js'
-import {Primitive} from '../util/primitive.js'
+import {createContext, createSignal, splitProps, useContext, type Accessor, type JSX, type ParentProps} from 'solid-js'
 
 // A "chain" = the consecutive thinking + tool parts grouped by groupSegments. The Root owns the
-// collapse state (open while streaming, collapsible once settled). AccordionTrigger toggles; Parts
-// renders the chain body when open. View-state collapse can be wired by the styled layer.
-type ChainState = {open: () => boolean; toggle: () => void; streaming: () => boolean}
+// open-while-streaming STATE (open while streaming, collapsible once settled) and nothing else — the
+// actual disclosure animation is the styled layer's ONE mechanism (ui-kit Collapsible, D3). The styled
+// ChainOfThought binds this state to Collapsible; AccordionTrigger is a headless toggle for consumers
+// that don't use Collapsible.
+type ChainState = {
+  open: Accessor<boolean>
+  setOpen: (open: boolean) => void
+  toggle: () => void
+  streaming: Accessor<boolean>
+}
 
 const ChainContext = createContext<ChainState>()
 
-function useChain(): ChainState {
+export function useChainOfThought(): ChainState {
   const context = useContext(ChainContext)
   if (!context) throw new Error('ChainOfThought.* must be used within a ChainOfThought.Root')
   return context
 }
 
-type RootProps = JSX.HTMLAttributes<HTMLDivElement> & {defaultOpen?: boolean; streaming?: boolean}
+type RootProps = ParentProps<{defaultOpen?: boolean; streaming?: boolean}>
 
 function Root(props: RootProps): JSX.Element {
-  const [local, rest] = splitProps(props, ['defaultOpen', 'streaming'])
-  const [open, setOpen] = createSignal(local.defaultOpen ?? false)
+  const [userOpen, setUserOpen] = createSignal(props.defaultOpen ?? false)
   const state: ChainState = {
-    open: () => open() || (local.streaming ?? false),
-    toggle: () => setOpen((value) => !value),
-    streaming: () => local.streaming ?? false,
+    open: () => userOpen() || (props.streaming ?? false),
+    setOpen: (open) => setUserOpen(open),
+    toggle: () => setUserOpen((value) => !value),
+    streaming: () => props.streaming ?? false,
   }
-  return (
-    <ChainContext.Provider value={state}>
-      <Primitive.div
-        data-streaming={local.streaming ? '' : undefined}
-        data-state={state.open() ? 'open' : 'closed'}
-        {...rest}
-      />
-    </ChainContext.Provider>
-  )
+  return <ChainContext.Provider value={state}>{props.children}</ChainContext.Provider>
 }
 
 function AccordionTrigger(props: JSX.ButtonHTMLAttributes<HTMLButtonElement>): JSX.Element {
-  const chain = useChain()
+  const chain = useChainOfThought()
   const [local, rest] = splitProps(props, ['onClick'])
   return (
     <button
@@ -51,14 +49,4 @@ function AccordionTrigger(props: JSX.ButtonHTMLAttributes<HTMLButtonElement>): J
   )
 }
 
-function Parts(props: ParentProps<JSX.HTMLAttributes<HTMLDivElement>>): JSX.Element {
-  const chain = useChain()
-  const [local, rest] = splitProps(props, ['children'])
-  return (
-    <Show when={chain.open()}>
-      <Primitive.div {...rest}>{local.children}</Primitive.div>
-    </Show>
-  )
-}
-
-export const ChainOfThought = Object.assign(Root, {Root, AccordionTrigger, Parts})
+export const ChainOfThought = Object.assign(Root, {Root, AccordionTrigger})

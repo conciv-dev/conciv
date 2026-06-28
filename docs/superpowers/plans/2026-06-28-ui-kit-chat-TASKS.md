@@ -53,6 +53,8 @@ All four. No exceptions, no "mostly," no leaving the old chat-panel/tool-ui aliv
 - [ ] **Styled set neutral + themeable.** `packages/ui-kit-chat/src/theme/` ships neutral `--chat-*` tokens (light/dark) + a separate mandarax theme mapping to `--pw-*`. The styled components reference only `--chat-*`, never `--pw-*` directly.
 - [ ] **Storybook covers every component, all states.** Each primitive part, styled component, and tool card has a `.stories.tsx`; `grep` count of components == stories (data-coupled exemptions explicitly listed in the Phase 8b story index). Storybook builds.
 - [ ] **Code style (hard rules).** No `class ` declarations; no `: any`/`as ` casts; no non-null `!`; no IIFE; no internal barrel `index.ts` inside `primitives/`/`styled/` folders (the single package-entry `src/index.tsx` is allowed). `grep -rn ": any\| as [A-Z]\|!\." packages/ui-kit-chat/src` reviewed → none illegitimate.
+- [ ] **Unstyled by default — no fused logic in `styled/`.** Every domain behavior (parsing, status derivation, grouping, state) lives in a `primitives/*` headless layer; `styled/*` only adds `--chat-*` classes + slots over a primitive (or a ui-kit-system primitive for pure shells like CollapsibleCard/TooltipIconButton). No `styled/` file declares a parse/derive/status function. Spot-check: `grep -rnE "^function (parse|to[A-Z]|.*Status|claudeBlock|patchInfo)" packages/ui-kit-chat/src/styled` → none. Tool cards follow §2.14.
+- [ ] **No orphaned/duplicate primitives.** Every exported `*Primitive` is consumed by its styled counterpart (or is intentionally headless-only and documented). `toolStatus` is defined once (`primitives/tools/tool-status.ts`), not re-implemented per card. There is ONE disclosure mechanism (ui-kit Collapsible) — no second Show-based accordion shadowing it.
 - [ ] **No tests in example apps.** `git diff --name-only main...HEAD | grep apps/examples` shows no added/edited tests.
 - [ ] **Defects D1–D13 fixed** (plan §3/§10): the D1 regression IT passes (expand a wide tool card → assistant turn left/right edges unchanged, only height grows); tool cards collapsed-by-default + auto-expand on approval; one disclosure mechanism; no native `title=`; toast via ui-kit; top-anchor scroll; per-message ActionBar; no collapse-jump.
 
@@ -121,16 +123,18 @@ All four. No exceptions, no "mostly," no leaving the old chat-panel/tool-ui aliv
 
 ### Phase 4 — styled set (neutral/themeable)
 
-- [ ] 4a — Thread shell (assistant full-width/user bubble), Composer, TooltipIconButton.
-- [ ] 4b — ToolFallback/ToolGroup, Reasoning, ChainOfThought, AttachmentUI, Suggestions, ActionBar, BranchPicker.
-- [ ] 4c — ThreadList/ThreadListSidebar, Markdown (solid-streamdown) binding.
-- Verify: stories in light + dark; D1 (no width jump) visible in the Thread story.
+- [x] 4a — Thread shell (assistant full-width/user bubble), Composer, TooltipIconButton.
+      Done: Thread (process/answer turn split, D1 min-w-0 chain), Composer reworked to the widget's single-box layout (borderless textarea + actions row + send; TextArea `unstyled` variant kills the double border), TooltipIconButton. Commit ab71d8c.
+- [x] 4b — ToolFallback/ToolGroup, Reasoning, ChainOfThought, AttachmentUI, Suggestions, ActionBar, BranchPicker.
+      Done + polished: ChainOfThought rail/step timeline, CollapsibleCard chevron, Reasoning, ToolFallback/ToolGroup, AttachmentUI, FollowUpSuggestions, ActionBar (size-9), BranchPicker. Commits a191def + ab71d8c.
+- [x] 4c — Markdown (solid-streamdown) binding. **ThreadList/ThreadListSidebar deferred** (Phase 9 — widget uses a popover, not a sidebar; loop scope note).
+- Verify: stories in light + dark; D1 (no width jump) visible in the Thread story. **Done — thread.stories D1 play test + headless screenshots; vitest run deferred while storybook dev is live.**
 
 ### Phase 5 — tool vocabulary (ported from with-opencode, bound to tanstack parts)
 
 - [ ] 5a — apply-patch-diff (Pierre), bash-card, inline-tool (ToolCardEntry[] dispatch).
 - [ ] 5b — permission card (→ ToolCallPart.approval + addToolApprovalResponse + permissionDecision), reasoning-ghost, `defineToolkit` (returns `ToolCardEntry[]`); fold existing tool-ui cards. Ask UI = existing GenUi.
-- [ ] 5c — **ModelSelector (assistant-ui API parity, API spec Appendix A).** Headless `primitives/model-selector/` compound (Root/Trigger/Value/Content/Search/List/Empty/Group/Separator/Item/Effort + `createControllableSignal` util) over ui-kit-system Combobox/Popover; styled `styled/model-selector.tsx` (chat tokens + lucide, flat `ModelSelector` convenience). EXACT public API + types (`ModelOption`/`ModelSelectorEffortOption`/`DEFAULT_EFFORT_OPTIONS`/`resolveModelEffort`/`useModelSelectorEfforts`). Effort part gated (null until `HarnessModelInfo.efforts`). Deviations per Appendix A.3 (no `useAui` ModelContext → controlled `onValueChange`).
+- [x] 5c — **ModelSelector (assistant-ui API parity, API spec Appendix A).** Done (commit b5193ed): headless `primitives/model-selector/` compound (Root/Trigger/Value/Content/Search/List/Empty/Group/Separator/Item/Effort + `createControllableSignal` util) over ui-kit-system Combobox/Popover; styled `styled/model-selector.tsx` (chat tokens + lucide, flat `ModelSelector` convenience). EXACT public API + types (`ModelOption`/`ModelSelectorEffortOption`/`DEFAULT_EFFORT_OPTIONS`/`resolveModelEffort`/`useModelSelectorEfforts`). Effort part gated (null until `HarnessModelInfo.efforts`). Deviations per Appendix A.3 (no `useAui` ModelContext → controlled `onValueChange`).
 - Verify: each card has stories incl. running/complete/error/approval states. ModelSelector stories per Appendix A.5 (closed/open/filter/disabled/empty/effort/controlled; neutral+dark+mandarax; shadow-DOM open).
 
 ### Phase 6 — widget cutover + DELETE the old stack (plan §18 — this is where "used in the app" happens)
