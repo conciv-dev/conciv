@@ -1,7 +1,9 @@
 import {expect, test} from 'vitest'
 import type {Page} from 'playwright'
-import whiteboard from '@mandarax/extension-whiteboard'
+import whiteboard from '../src/server.js'
 import {getExtensionTestApi, type ExtensionTestApi} from '@mandarax/extension-testkit'
+
+const clientEntry = '@mandarax/extension-whiteboard/client'
 
 type CanvasElement = {x: number; width: number; height: number}
 const readElements = async (api: ExtensionTestApi): Promise<CanvasElement[]> =>
@@ -23,7 +25,7 @@ const drawRectangle = async (page: Page, cx: number, cy: number): Promise<void> 
 }
 
 test('a drawn rectangle keeps its real size and does not collapse to a point', async () => {
-  const api = await getExtensionTestApi({server: whiteboard, clientEntry: '@mandarax/extension-whiteboard/client'})
+  const api = await getExtensionTestApi({server: whiteboard, clientEntry})
   try {
     const {cx, cy} = await openCanvas(api.page)
     await drawRectangle(api.page, cx, cy)
@@ -37,7 +39,7 @@ test('a drawn rectangle keeps its real size and does not collapse to a point', a
 })
 
 test('dragging a rectangle moves it the full cursor distance, not a fraction', async () => {
-  const api = await getExtensionTestApi({server: whiteboard, clientEntry: '@mandarax/extension-whiteboard/client'})
+  const api = await getExtensionTestApi({server: whiteboard, clientEntry})
   try {
     const {cx, cy} = await openCanvas(api.page)
     await drawRectangle(api.page, cx, cy)

@@ -13,6 +13,7 @@ export {getExtensionApi, useClientApi, installClientApi} from './extension-api.j
 export type {ExtensionApi, ExtensionId, Register} from './extension-api.js'
 export {MountedExtension, mountExtension} from './mount-extension.js'
 export type {MountedExtensionProps, MountExtensionOptions} from './mount-extension.js'
+export {ensureEffectsSurface, openSource, EFFECTS_SURFACE_ATTR} from './client-host.js'
 export type {
   ClientApi,
   PageInspect,
