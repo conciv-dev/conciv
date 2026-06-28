@@ -13,6 +13,8 @@
     "src/**/*.stories.tsx",
     "src/**/fixtures.ts",
     "src/**/fixtures.tsx",
+    "src/**/*.fixtures.ts",
+    "src/**/*.fixtures.tsx",
     "src/**/story-connection.ts",
     "src/**/*.test.ts",
     "src/**/*.test.tsx"

@@ -7,13 +7,12 @@ import {ChatProvider} from '../../store/chat-context.js'
 import {storyConnection} from '../../store/story-connection.js'
 import {Thread} from '../thread/thread.js'
 import {Message} from '../message/message.js'
+import {SAMPLE_IMAGE_BASE64, SAMPLE_IMAGE_MIME} from '../../store/sample-image.fixtures.js'
 import {MessagePart, useMessagePartData, useMessagePartFile, useMessagePartSource} from './message-part.js'
 
 const meta: Meta = {title: 'primitives/MessagePart'}
 export default meta
 type Story = StoryObj
-
-const PIXEL = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='
 
 function ImageView(): JSX.Element {
   return <MessagePart.Image alt="attached" class="rounded-pw-sm size-12" />
@@ -35,7 +34,7 @@ export const ImagePart: Story = {
       role: 'user',
       parts: [
         {type: 'text', content: 'Here is the screenshot'},
-        {type: 'image', source: {type: 'data', value: PIXEL, mimeType: 'image/png'}},
+        {type: 'image', source: {type: 'data', value: SAMPLE_IMAGE_BASE64, mimeType: SAMPLE_IMAGE_MIME}},
       ],
     }
     onMount(() => chat.setMessages([message]))

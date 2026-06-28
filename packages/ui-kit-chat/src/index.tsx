@@ -114,3 +114,6 @@ export {CollapsibleCard, type CollapsibleCardProps} from './styled/collapsible-c
 export {TooltipIconButton, type TooltipIconButtonProps} from './styled/tooltip-icon-button.js'
 export {AssistantActionBar, UserActionBar} from './styled/action-bar.js'
 export {BranchPicker} from './styled/branch-picker.js'
+export {FollowUpSuggestions} from './styled/follow-up-suggestions.js'
+export {ToolGroup, type ToolGroupProps} from './styled/tool-group.js'
+export {AttachmentUI} from './styled/attachment-ui.js'
