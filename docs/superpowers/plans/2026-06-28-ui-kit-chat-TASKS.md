@@ -116,7 +116,8 @@ All four. No exceptions, no "mostly," no leaving the old chat-panel/tool-ui aliv
 
 ### Phase 3 — scroll behaviors
 
-- [ ] useThreadAutoScroll, useTopAnchorReserve, useScrollLock, useSizeHandle + the top-anchor↔stick-to-bottom coordinator (API spec §3). Verify: tall-thread story shows top-anchor pin then release-to-bottom; no collapse jump.
+- [x] useThreadAutoScroll, useTopAnchorReserve, useScrollLock, useSizeHandle + the top-anchor↔stick-to-bottom coordinator (API spec §3). Verify: tall-thread story shows top-anchor pin then release-to-bottom; no collapse jump.
+      Done: 4 behaviors built+exported. useThreadAutoScroll ported from chat-panel (MutationObserver rAF-coalesced pin + 1px tolerance + scroll-up/pointerdown cancel) wired into Thread.Viewport. Deterministic D10 story: overflowing streamed answer sticks to bottom (atBottom stays true) — 3/3 stable, 29/29 green. top-anchor/scroll-lock/size-handle built+exported (visual verification via Phase 4 styled Thread + Phase 6f scroll IT).
 
 ### Phase 4 — styled set (neutral/themeable)
 

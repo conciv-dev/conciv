@@ -70,6 +70,10 @@ export {
   type ThreadListActions,
 } from './primitives/thread-list/thread-list-context.js'
 export {AssistantModal} from './primitives/assistant-modal/assistant-modal.js'
+export {useThreadAutoScroll} from './behaviors/use-thread-auto-scroll.js'
+export {useTopAnchorReserve} from './behaviors/use-top-anchor-reserve.js'
+export {useScrollLock} from './behaviors/use-scroll-lock.js'
+export {useSizeHandle} from './behaviors/use-size-handle.js'
 export {Attachment, AttachmentProvider, useAttachment} from './primitives/attachment/attachment.js'
 export {
   ComposerHandlersProvider,

@@ -1,4 +1,14 @@
-import {createMemo, createSignal, Index, Show, splitProps, type Component, type JSX, type ParentProps} from 'solid-js'
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  Index,
+  Show,
+  splitProps,
+  type Component,
+  type JSX,
+  type ParentProps,
+} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import type {UIMessage} from '@tanstack/ai-client'
 import {Primitive, type Slottable} from '../util/primitive.js'
@@ -7,6 +17,7 @@ import {pairResults, type Turn} from '../../store/grouping.js'
 import {MessageProvider} from '../message/message-context.js'
 import {SuggestionProvider, type SuggestionData} from '../suggestion/suggestion.js'
 import {ViewportProvider, useThreadViewport} from './viewport-context.js'
+import {useThreadAutoScroll} from '../../behaviors/use-thread-auto-scroll.js'
 
 type DivProps = JSX.HTMLAttributes<HTMLDivElement> & Slottable<JSX.HTMLAttributes<HTMLDivElement>>
 
@@ -21,30 +32,14 @@ type ViewportProps = DivProps & {
 
 function Viewport(props: ViewportProps): JSX.Element {
   const chat = useChatContext()
-  const [local, rest] = splitProps(props, ['autoScroll', 'turnAnchor', 'onScroll'])
-  const [isAtBottom, setIsAtBottom] = createSignal(true)
-  let element: HTMLDivElement | undefined
-  const recompute = () => {
-    if (!element) return
-    const atBottom = element.scrollHeight - element.scrollTop - element.clientHeight < 40
-    setIsAtBottom(atBottom)
-    chat.setView('viewport', 'isAtBottom', atBottom)
-  }
-  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
-    if (element) element.scrollTo({top: element.scrollHeight, behavior})
-  }
+  const [local, rest] = splitProps(props, ['autoScroll', 'turnAnchor'])
+  const [element, setElement] = createSignal<HTMLDivElement>()
+  const autoScroll = () => local.autoScroll ?? (local.turnAnchor ?? 'bottom') !== 'top'
+  const {isAtBottom, scrollToBottom} = useThreadAutoScroll(element, {autoScroll})
+  createEffect(() => chat.setView('viewport', 'isAtBottom', isAtBottom()))
   return (
     <ViewportProvider value={{isAtBottom, scrollToBottom}}>
-      <Primitive.div
-        ref={(node) => {
-          element = node
-        }}
-        onScroll={(event) => {
-          recompute()
-          if (typeof local.onScroll === 'function') local.onScroll(event)
-        }}
-        {...rest}
-      />
+      <Primitive.div data-thread-viewport ref={(node) => setElement(node)} {...rest} />
     </ViewportProvider>
   )
 }
@@ -115,11 +110,17 @@ function MessageByIndex(props: MessageByIndexProps): JSX.Element {
   )
 }
 
-function ScrollToBottom(props: JSX.ButtonHTMLAttributes<HTMLButtonElement>): JSX.Element {
+function ScrollToBottom(props: JSX.ButtonHTMLAttributes<HTMLButtonElement> & {behavior?: ScrollBehavior}): JSX.Element {
   const viewport = useThreadViewport()
+  const [local, rest] = splitProps(props, ['behavior'])
   return (
     <Show when={!viewport.isAtBottom()}>
-      <button type="button" aria-label="Scroll to bottom" onClick={() => viewport.scrollToBottom()} {...props} />
+      <button
+        type="button"
+        aria-label="Scroll to bottom"
+        onClick={() => viewport.scrollToBottom(local.behavior ?? 'smooth')}
+        {...rest}
+      />
     </Show>
   )
 }
