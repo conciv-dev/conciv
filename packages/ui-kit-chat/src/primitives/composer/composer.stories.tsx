@@ -1,0 +1,71 @@
+import {type JSX} from 'solid-js'
+import type {Meta, StoryObj} from 'storybook-solidjs-vite'
+import {expect, within, userEvent, waitFor} from 'storybook/test'
+import {useChat} from '@tanstack/ai-solid'
+import {ChatProvider} from '../../store/chat-context.js'
+import {storyConnection, createTextChunks} from '../../store/story-connection.js'
+import {Thread} from '../thread/thread.js'
+import {Message} from '../message/message.js'
+import {Composer} from './composer.js'
+
+const meta: Meta = {title: 'primitives/Composer'}
+export default meta
+type Story = StoryObj
+
+function UserMessage(): JSX.Element {
+  return (
+    <Message.Root class="text-pw-on-accent px-3 py-1.5 rounded-pw-md bg-pw-accent self-end">
+      <Message.Parts />
+    </Message.Root>
+  )
+}
+
+function AssistantMessage(): JSX.Element {
+  return (
+    <Message.Root class="text-pw-text self-start">
+      <Message.Parts />
+    </Message.Root>
+  )
+}
+
+function ComposerApp(): JSX.Element {
+  const chat = useChat({connection: storyConnection({chunks: createTextChunks('Got it.'), chunkDelay: 2})})
+  return (
+    <ChatProvider chat={chat}>
+      <Thread.Root class="flex flex-col gap-2">
+        <Thread.Viewport class="flex flex-col gap-2 min-h-20">
+          <Thread.Messages components={{UserMessage, AssistantMessage}} />
+        </Thread.Viewport>
+        <Composer.Root class="flex gap-2 items-end">
+          <Composer.Input placeholder="Message…" class="flex-1" aria-label="Message" />
+          <Composer.Send class="text-pw-on-accent px-3 py-1.5 rounded-pw-md bg-pw-accent disabled:opacity-40">
+            Send
+          </Composer.Send>
+          <Composer.Cancel class="text-pw-text px-3 py-1.5 rounded-pw-md bg-pw-fill-strong">Stop</Composer.Cancel>
+        </Composer.Root>
+      </Thread.Root>
+    </ChatProvider>
+  )
+}
+
+export const TypeAndSend: Story = {
+  render: () => <ComposerApp />,
+  play: async ({canvasElement}) => {
+    const c = within(canvasElement)
+    const input = c.getByLabelText('Message')
+    await userEvent.type(input, 'fix the bug')
+    await userEvent.click(c.getByRole('button', {name: 'Send'}))
+    await waitFor(() => expect(c.getByText('fix the bug')).toBeVisible())
+    await waitFor(() => expect(c.getByText('Got it.')).toBeVisible(), {timeout: 4000})
+  },
+}
+
+export const EnterSubmits: Story = {
+  render: () => <ComposerApp />,
+  play: async ({canvasElement}) => {
+    const c = within(canvasElement)
+    const input = c.getByLabelText('Message')
+    await userEvent.type(input, 'ship it{Enter}')
+    await waitFor(() => expect(c.getByText('ship it')).toBeVisible())
+  },
+}

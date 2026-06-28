@@ -41,3 +41,19 @@ export {
   useMessagePartImage,
   useMessagePartToolCall,
 } from './primitives/message-part/message-part.js'
+export {Composer} from './primitives/composer/composer.js'
+export {
+  ComposerProvider,
+  useComposerContext,
+  type ComposerContextValue,
+  type AttachmentDraft,
+  type AttachmentPart,
+} from './primitives/composer/composer-context.js'
+export {ActionBar} from './primitives/action-bar/action-bar.js'
+export {
+  ActionHandlersProvider,
+  useActionHandlers,
+  type ActionHandlers,
+} from './primitives/action-bar/action-handlers.js'
+export {ActionBarMore} from './primitives/action-bar-more/action-bar-more.js'
+export {Attachment, AttachmentProvider, useAttachment} from './primitives/attachment/attachment.js'

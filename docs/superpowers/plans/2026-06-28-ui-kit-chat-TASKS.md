@@ -101,7 +101,8 @@ All four. No exceptions, no "mostly," no leaving the old chat-panel/tool-ui aliv
 
 ### Phase 2 — headless primitives (full API parity, API spec §2)
 
-- [ ] 2a — Thread (Root/Viewport/ViewportFooter/Messages/MessageByIndex/ScrollToBottom/Suggestion(s)/Empty/If), Message (Root/Parts/PartByIndex/Attachments/If/Error), MessagePart (Text/Image/InProgress).
+- [x] 2a — Thread (Root/Viewport/ViewportFooter/Messages/MessageByIndex/ScrollToBottom/Suggestion(s)/Empty/If), Message (Root/Parts/PartByIndex/Attachments/If/Error), MessagePart (Text/Image/InProgress).
+      Done: all three families built + exported over the coalesced-turn model; tool dispatch by `ToolCardEntry[]`; ToolProvider host-seam; stories drive REAL useChat (11/11 green).
 - [ ] 2b — Composer (Root/Input/Send/Cancel/AddAttachment/Attachments/AttachmentDropzone/If), ActionBar full (Copy/Reload/Edit/ExportMarkdown/Speak/Feedback, gated), ActionBarMore, Attachment (Root/Name/Remove/Thumb).
 - [ ] 2c — ChainOfThought, BranchPicker (inert), Suggestion, Error.
 - [ ] 2d — ThreadList/ThreadListItem/ThreadListItemMore (over session store), AssistantModal.
