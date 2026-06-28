@@ -1,4 +1,4 @@
-import {type JSX} from 'solid-js'
+import {createSignal, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {useChat} from '@tanstack/ai-solid'
@@ -6,6 +6,8 @@ import {ChatProvider} from '../../store/chat-context.js'
 import {storyConnection, createTextChunks} from '../../store/story-connection.js'
 import {Thread} from '../thread/thread.js'
 import {Message} from '../message/message.js'
+import {QueueItem, type QueuedMessage} from '../queue-item/queue-item.js'
+import {ComposerHandlersProvider} from './composer-handlers.js'
 import {Composer} from './composer.js'
 
 const meta: Meta = {title: 'primitives/Composer'}
@@ -67,5 +69,47 @@ export const EnterSubmits: Story = {
     const input = c.getByLabelText('Message')
     await userEvent.type(input, 'ship it{Enter}')
     await waitFor(() => expect(c.getByText('ship it')).toBeVisible())
+  },
+}
+
+// Composer.Queue maps the host-supplied pending queue, providing each entry to QueueItem.*; removing
+// an item via the gated Remove drops it from the host's queue and from the rendered list.
+function QueueApp(): JSX.Element {
+  const [queue, setQueue] = createSignal<QueuedMessage[]>([
+    {id: 'q1', text: 'also add a test'},
+    {id: 'q2', text: 'and update the docs'},
+  ])
+  return (
+    <ComposerHandlersProvider
+      value={{
+        queue,
+        removeQueued: (id) => setQueue((prev) => prev.filter((item) => item.id !== id)),
+        steerQueued: () => {},
+      }}
+    >
+      <div class="flex flex-col gap-1">
+        <Composer.Queue>
+          {() => (
+            <div class="text-[0.75rem] text-pw-text-2 flex gap-2 items-center">
+              <QueueItem.Text class="flex-1" />
+              <QueueItem.Remove class="text-pw-text-3">×</QueueItem.Remove>
+            </div>
+          )}
+        </Composer.Queue>
+      </div>
+    </ComposerHandlersProvider>
+  )
+}
+
+export const QueueMapsPendingMessages: Story = {
+  render: () => <QueueApp />,
+  play: async ({canvasElement}) => {
+    const c = within(canvasElement)
+    await waitFor(() => expect(c.getByText('also add a test')).toBeVisible())
+    await expect(c.getByText('and update the docs')).toBeVisible()
+    const [firstRemove] = c.getAllByRole('button', {name: 'Remove from queue'})
+    if (firstRemove) await userEvent.click(firstRemove)
+    await waitFor(() => expect(c.queryByText('also add a test')).toBeNull())
+    await expect(c.getByText('and update the docs')).toBeVisible()
   },
 }

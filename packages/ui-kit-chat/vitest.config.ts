@@ -8,11 +8,17 @@ import {playwright} from '@vitest/browser-playwright'
 // Storybook stories run as browser tests via the Storybook vitest addon — never jsdom.
 const dirname = typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 
+// Each storybook test file runs in its own headless chromium; vitest otherwise sizes the pool to the
+// core count, so a 12-core machine spawns ~11 browsers and pins every CPU. Cap it (overridable via
+// VITEST_MAX_WORKERS) so a local run stays well-behaved next to a running Storybook dev server.
+const maxWorkers = Number(process.env.VITEST_MAX_WORKERS ?? 3)
+
 const storybook = {
   extends: true as const,
   plugins: [storybookTest({configDir: path.join(dirname, '.storybook')})],
   test: {
     name: 'storybook',
+    maxWorkers,
     browser: {
       enabled: true,
       headless: true,
@@ -24,6 +30,7 @@ const storybook = {
 
 export default defineConfig({
   test: {
+    maxWorkers,
     projects: [
       {
         extends: true,

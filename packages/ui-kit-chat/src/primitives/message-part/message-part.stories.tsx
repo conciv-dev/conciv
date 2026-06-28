@@ -1,4 +1,4 @@
-import {onMount, type JSX} from 'solid-js'
+import {onMount, Show, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, waitFor} from 'storybook/test'
 import {useChat} from '@tanstack/ai-solid'
@@ -7,7 +7,7 @@ import {ChatProvider} from '../../store/chat-context.js'
 import {storyConnection} from '../../store/story-connection.js'
 import {Thread} from '../thread/thread.js'
 import {Message} from '../message/message.js'
-import {MessagePart} from './message-part.js'
+import {MessagePart, useMessagePartData, useMessagePartFile, useMessagePartSource} from './message-part.js'
 
 const meta: Meta = {title: 'primitives/MessagePart'}
 export default meta
@@ -94,5 +94,66 @@ export const InProgressWhileToolRuns: Story = {
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await waitFor(() => expect(c.getByText('running…')).toBeVisible())
+  },
+}
+
+// The narrowing accessors: File → DocumentPart, Data → StructuredOutputPart, Source → always null
+// (the agent emits no source parts, §7). Each runs per part; non-matching parts narrow to null.
+function AccessorProbes(): JSX.Element {
+  const file = useMessagePartFile()
+  const data = useMessagePartData()
+  const source = useMessagePartSource()
+  return (
+    <>
+      <Show when={file()}>
+        <span>file:present</span>
+      </Show>
+      <Show when={data()} keyed>
+        {(part) => <span>data:{part.status}</span>}
+      </Show>
+      <Show when={source()}>
+        <span>source:present</span>
+      </Show>
+    </>
+  )
+}
+
+function ProbeAssistant(): JSX.Element {
+  return (
+    <Message.Root class="text-pw-text flex flex-col gap-1 self-start">
+      <Message.Parts>{() => <AccessorProbes />}</Message.Parts>
+    </Message.Root>
+  )
+}
+
+export const PartAccessors: Story = {
+  render: () => {
+    const chat = useChat({connection: storyConnection()})
+    const message: UIMessage = {
+      id: 'a-parts',
+      role: 'assistant',
+      parts: [
+        {type: 'document', source: {type: 'data', value: '', mimeType: 'application/pdf'}},
+        {type: 'structured-output', status: 'complete', raw: '{"ok":true}'},
+        {type: 'text', content: 'done'},
+      ],
+    }
+    onMount(() => chat.setMessages([message]))
+    return (
+      <ChatProvider chat={chat}>
+        <Thread.Root>
+          <Thread.Viewport>
+            <Thread.Messages components={{AssistantMessage: ProbeAssistant}} />
+          </Thread.Viewport>
+        </Thread.Root>
+      </ChatProvider>
+    )
+  },
+  play: async ({canvasElement}) => {
+    const c = within(canvasElement)
+    await waitFor(() => expect(c.getByText('file:present')).toBeVisible())
+    await expect(c.getByText('data:complete')).toBeVisible()
+    // Source is always null → its slot never renders (anchored by the two above proving the tree settled).
+    await expect(c.queryByText('source:present')).toBeNull()
   },
 }

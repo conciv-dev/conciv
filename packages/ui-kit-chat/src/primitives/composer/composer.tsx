@@ -2,7 +2,6 @@ import {
   createEffect,
   createSignal,
   For,
-  Index,
   onMount,
   Show,
   splitProps,
@@ -348,12 +347,13 @@ function TriggerPopover(props: JSX.HTMLAttributes<HTMLDivElement>): JSX.Element 
 }
 
 // The pending-message queue (widget-owned). Maps the host's queue, providing each item to QueueItem.*.
+// For (keyed by item identity), not Index — adding/removing entries must mount/unmount the right row.
 function Queue(props: {children: (item: () => QueuedMessage) => JSX.Element}): JSX.Element {
   const handlers = useComposerHandlers()
   return (
-    <Index each={handlers.queue?.() ?? []}>
-      {(item) => <QueueItemProvider value={item()}>{props.children(item)}</QueueItemProvider>}
-    </Index>
+    <For each={handlers.queue?.() ?? []}>
+      {(item) => <QueueItemProvider value={item}>{props.children(() => item)}</QueueItemProvider>}
+    </For>
   )
 }
 
