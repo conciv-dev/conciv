@@ -17,7 +17,7 @@ import {pairResults, type Turn} from '../../store/grouping.js'
 import {MessageProvider} from '../message/message-context.js'
 import {SuggestionProvider, type SuggestionData} from '../suggestion/suggestion.js'
 import {ViewportProvider, useThreadViewport} from './viewport-context.js'
-import {useThreadAutoScroll} from '../../behaviors/use-thread-auto-scroll.js'
+import {useThreadScroll} from '../../behaviors/use-thread-scroll.js'
 
 type DivProps = JSX.HTMLAttributes<HTMLDivElement> & Slottable<JSX.HTMLAttributes<HTMLDivElement>>
 
@@ -28,14 +28,24 @@ function Root(props: DivProps): JSX.Element {
 type ViewportProps = DivProps & {
   autoScroll?: boolean
   turnAnchor?: 'top' | 'bottom'
+  topAnchorMessageClamp?: {tallerThan?: string; visibleHeight?: string}
+  scrollToBottomOnRunStart?: boolean
+  scrollToBottomOnInitialize?: boolean
+  scrollToBottomOnThreadSwitch?: boolean
 }
 
 function Viewport(props: ViewportProps): JSX.Element {
   const chat = useChatContext()
-  const [local, rest] = splitProps(props, ['autoScroll', 'turnAnchor'])
+  const [local, rest] = splitProps(props, [
+    'autoScroll',
+    'turnAnchor',
+    'topAnchorMessageClamp',
+    'scrollToBottomOnRunStart',
+    'scrollToBottomOnInitialize',
+    'scrollToBottomOnThreadSwitch',
+  ])
   const [element, setElement] = createSignal<HTMLDivElement>()
-  const autoScroll = () => local.autoScroll ?? (local.turnAnchor ?? 'bottom') !== 'top'
-  const {isAtBottom, scrollToBottom} = useThreadAutoScroll(element, {autoScroll})
+  const {isAtBottom, scrollToBottom} = useThreadScroll(element, local)
   createEffect(() => chat.setView('viewport', 'isAtBottom', isAtBottom()))
   return (
     <ViewportProvider value={{isAtBottom, scrollToBottom}}>

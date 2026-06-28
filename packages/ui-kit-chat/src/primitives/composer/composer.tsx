@@ -1,4 +1,15 @@
-import {createSignal, For, Show, splitProps, type JSX, type ParentProps, type ValidComponent} from 'solid-js'
+import {
+  createEffect,
+  createSignal,
+  For,
+  Index,
+  onMount,
+  Show,
+  splitProps,
+  type JSX,
+  type ParentProps,
+  type ValidComponent,
+} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import type {MultimodalContent} from '@tanstack/ai-client'
 import {TextArea, type TextAreaProps} from '@mandarax/ui-kit-system'
@@ -6,6 +17,7 @@ import {useChatContext, useComposer} from '../../store/chat-context.js'
 import {Primitive} from '../util/primitive.js'
 import {ComposerProvider, useComposerContext, type AttachmentDraft} from './composer-context.js'
 import {AttachmentProvider} from '../attachment/attachment.js'
+import {QueueItemProvider, type QueuedMessage} from '../queue-item/queue-item.js'
 import {createActionButton, type ActionButtonState} from '../util/create-action-button.js'
 import {useComposerHandlers} from './composer-handlers.js'
 
@@ -58,11 +70,38 @@ function Root(props: FormProps): JSX.Element {
 type InputProps = TextAreaProps & {
   submitMode?: 'enter' | 'ctrlEnter' | 'none'
   cancelOnEscape?: boolean
+  focusOnRunStart?: boolean
+  focusOnThreadSwitched?: boolean
+  addAttachmentOnPaste?: boolean
 }
 
 function Input(props: InputProps): JSX.Element {
+  const chat = useChatContext()
   const composer = useComposer()
-  const [local, rest] = splitProps(props, ['submitMode', 'cancelOnEscape', 'onKeyDown'])
+  const context = useComposerContext()
+  const [local, rest] = splitProps(props, [
+    'submitMode',
+    'cancelOnEscape',
+    'focusOnRunStart',
+    'focusOnThreadSwitched',
+    'addAttachmentOnPaste',
+    'onKeyDown',
+    'onPaste',
+    'ref',
+  ])
+  let element: HTMLTextAreaElement | undefined
+  const forwardRef = local.ref
+  const isRunning = () => chat.status() === 'streaming' || chat.status() === 'submitted'
+  // Focus the input the moment a run starts (assistant-ui unstable_focusOnRunStart) — edge-triggered.
+  createEffect<boolean>((wasRunning) => {
+    const running = isRunning()
+    if (local.focusOnRunStart && running && !wasRunning) element?.focus()
+    return running
+  }, false)
+  // A fresh composer for a switched thread takes focus (approximates focusOnThreadSwitched).
+  onMount(() => {
+    if (local.focusOnThreadSwitched) element?.focus()
+  })
   const onKeyDown = (event: KeyboardEvent & {currentTarget: HTMLTextAreaElement; target: Element}) => {
     if (typeof local.onKeyDown === 'function') local.onKeyDown(event)
     const mode = local.submitMode ?? 'enter'
@@ -78,11 +117,23 @@ function Input(props: InputProps): JSX.Element {
     event.preventDefault()
     event.currentTarget.form?.requestSubmit()
   }
+  const onPaste = async (event: ClipboardEvent & {currentTarget: HTMLTextAreaElement; target: Element}) => {
+    if (typeof local.onPaste === 'function') local.onPaste(event)
+    if (!local.addAttachmentOnPaste) return
+    const files = Array.from(event.clipboardData?.files ?? [])
+    if (files.length > 0) event.preventDefault()
+    for (const file of files) context.addAttachment(await fileToDraft(file))
+  }
   return (
     <TextArea
+      ref={(node) => {
+        element = node
+        if (typeof forwardRef === 'function') forwardRef(node)
+      }}
       value={composer.text()}
       onInput={(event) => composer.setText(event.currentTarget.value)}
       onKeyDown={onKeyDown}
+      onPaste={(event) => void onPaste(event)}
       {...rest}
     />
   )
@@ -296,6 +347,16 @@ function TriggerPopover(props: JSX.HTMLAttributes<HTMLDivElement>): JSX.Element 
   )
 }
 
+// The pending-message queue (widget-owned). Maps the host's queue, providing each item to QueueItem.*.
+function Queue(props: {children: (item: () => QueuedMessage) => JSX.Element}): JSX.Element {
+  const handlers = useComposerHandlers()
+  return (
+    <Index each={handlers.queue?.() ?? []}>
+      {(item) => <QueueItemProvider value={item()}>{props.children(item)}</QueueItemProvider>}
+    </Index>
+  )
+}
+
 export const Composer = Object.assign(Root, {
   Root,
   Input,
@@ -311,4 +372,5 @@ export const Composer = Object.assign(Root, {
   StopDictation,
   DictationTranscript,
   TriggerPopover,
+  Queue,
 })

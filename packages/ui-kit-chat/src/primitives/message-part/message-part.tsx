@@ -44,6 +44,32 @@ export function useMessagePartToolCall(): Accessor<ToolCallPart | null> {
   }
 }
 
+type DocumentPart = Extract<Part, {type: 'document'}>
+type StructuredOutputPart = Extract<Part, {type: 'structured-output'}>
+
+// assistant-ui's File maps to tanstack DocumentPart; Data maps to StructuredOutputPart (§1.1).
+export function useMessagePartFile(): Accessor<DocumentPart | null> {
+  const {part} = usePart()
+  return () => {
+    const value = part()
+    return value.type === 'document' ? value : null
+  }
+}
+
+export function useMessagePartData(): Accessor<StructuredOutputPart | null> {
+  const {part} = usePart()
+  return () => {
+    const value = part()
+    return value.type === 'structured-output' ? value : null
+  }
+}
+
+// tanstack has no `source` part (our agent emits none, §7); the accessor exists for parity and is
+// always null so the Source slot can be wired but renders nothing.
+export function useMessagePartSource(): Accessor<null> {
+  return () => null
+}
+
 function isTerminal(part: Part): boolean {
   if (part.type === 'tool-call') return part.state === 'complete' || part.state === 'approval-responded'
   if (part.type === 'tool-result') return part.state !== 'streaming'

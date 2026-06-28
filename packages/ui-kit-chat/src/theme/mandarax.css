@@ -1,0 +1,34 @@
+/* The mandarax theme layer: map the neutral --chat-* tokens onto the widget's --pw-* design tokens so
+   the styled set renders with the mandarax look (dark glass + magenta) inside the widget. Applied on
+   the chat root (the widget adds `chat-theme-mandarax`). The --pw-* tokens come from the widget host
+   (ui-kit-system/tokens.css). Styled components never reference --pw-* directly — only this mapping. */
+
+.chat-theme-mandarax {
+  --chat-bg: var(--pw-panel);
+  --chat-panel: var(--pw-panel);
+  --chat-glass: var(--pw-glass);
+  --chat-fill: var(--pw-fill);
+  --chat-fill-strong: var(--pw-fill-strong);
+  --chat-sunken: var(--pw-sunken);
+  --chat-text: var(--pw-text);
+  --chat-text-hi: var(--pw-text-hi);
+  --chat-text-2: var(--pw-text-2);
+  --chat-text-3: var(--pw-text-3);
+  --chat-accent: var(--pw-accent);
+  --chat-accent-hi: var(--pw-accent-hi);
+  --chat-accent-link: var(--pw-accent-link);
+  --chat-on-accent: var(--pw-on-accent);
+  --chat-danger: var(--pw-danger);
+  --chat-danger-line: var(--pw-danger-line);
+  --chat-success: var(--pw-success);
+  --chat-line: var(--pw-line);
+  --chat-line-soft: var(--pw-line-soft);
+  --chat-radius-sm: var(--pw-r-sm);
+  --chat-radius-md: var(--pw-r-md);
+  --chat-radius-lg: var(--pw-r-lg);
+  --chat-radius-pill: var(--pw-r-pill);
+  --chat-shadow-lg: var(--pw-shadow-lg);
+  --chat-ease: var(--pw-ease);
+  --chat-font: var(--pw-font);
+  --chat-mono: var(--pw-mono);
+}

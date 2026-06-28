@@ -1,35 +1,81 @@
 import {createEffect, onCleanup, type Accessor} from 'solid-js'
+import {
+  computeTopAnchorReserve,
+  computeTopAnchorTargetScrollTop,
+  createReserveElement,
+  createReserveObservers,
+  setReserveHeight,
+  snapScrollTop,
+} from './top-anchor.js'
 
-// Pin a new user turn (anchorEl) to the top of the viewport and reserve a spacer on the streaming
-// assistant target (targetEl) so the answer can scroll up into view as it grows. Re-pins on resize /
-// mutation. The clamp keeps the reserve from over/under-shooting (tallerThan / visibleHeight in px).
+export type TopAnchorClamp = {tallerThan: number; visibleHeight: number}
+
+// Faithful Solid port of assistant-ui's mountTopAnchorReserve. Appends a spacer <div> after the
+// streaming assistant target and, on every frame the layout changes, sizes the spacer + pins the
+// anchor (last user turn) to the top. Reads layout geometry only (never volatile scrollHeight while
+// streaming). Re-runs whenever the anchor/target/clamp accessors change.
 export function useTopAnchorReserve(args: {
   viewport: Accessor<HTMLElement | undefined>
   anchorEl: Accessor<HTMLElement | undefined>
   targetEl: Accessor<HTMLElement | undefined>
-  clamp: {tallerThan: number; visibleHeight: number}
+  clamp: Accessor<TopAnchorClamp | null>
 }): void {
-  createEffect(() => {
+  let reserve: HTMLElement | null = null
+  let lastScrolledAnchorId: string | undefined
+  let frame: number | null = null
+
+  const schedule = () => {
+    if (frame !== null) return
+    frame = requestAnimationFrame(() => {
+      frame = null
+      apply()
+    })
+  }
+  const observers = createReserveObservers(schedule)
+
+  const apply = () => {
     const viewport = args.viewport()
     const anchor = args.anchorEl()
-    if (!viewport || !anchor) return
-    const apply = () => {
-      const target = args.targetEl()
-      if (target) {
-        const reserve = Math.max(0, viewport.clientHeight - args.clamp.visibleHeight)
-        target.style.minHeight = `${reserve}px`
-      }
-      viewport.scrollTop = Math.max(0, anchor.offsetTop - 8)
-    }
-    apply()
-    const resize = new ResizeObserver(apply)
-    resize.observe(viewport)
     const target = args.targetEl()
-    if (target) resize.observe(target)
-    onCleanup(() => {
-      resize.disconnect()
-      const cleanupTarget = args.targetEl()
-      if (cleanupTarget) cleanupTarget.style.minHeight = ''
-    })
+    const clamp = args.clamp()
+    if (!viewport || !anchor || !target || !clamp) {
+      observers.disconnect()
+      if (reserve) {
+        setReserveHeight(reserve, 0)
+        reserve.remove()
+      }
+      return
+    }
+    reserve ??= createReserveElement()
+    if (reserve.parentElement !== target.parentElement || reserve.previousElementSibling !== target) {
+      target.after(reserve)
+    }
+    observers.observe(viewport, anchor, target)
+    const reserveChanged = setReserveHeight(reserve, computeTopAnchorReserve({viewport, anchor, reserve, ...clamp}))
+    if (reserveChanged) {
+      schedule()
+      return
+    }
+    const anchorId = anchor.dataset.messageId
+    if (anchorId !== undefined && lastScrolledAnchorId === anchorId) return
+    const targetScrollTop = snapScrollTop(computeTopAnchorTargetScrollTop({viewport, anchor, ...clamp}))
+    if (Math.abs(viewport.scrollTop - targetScrollTop) > 1)
+      viewport.scrollTo({top: targetScrollTop, behavior: 'smooth'})
+    if (anchorId !== undefined) lastScrolledAnchorId = anchorId
+  }
+
+  // Solid's reactive analogue of store.subscribe: re-schedule whenever the inputs change.
+  createEffect(() => {
+    args.viewport()
+    args.anchorEl()
+    args.targetEl()
+    args.clamp()
+    schedule()
+  })
+
+  onCleanup(() => {
+    if (frame !== null) cancelAnimationFrame(frame)
+    observers.disconnect()
+    reserve?.remove()
   })
 }

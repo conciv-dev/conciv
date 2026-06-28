@@ -1,4 +1,4 @@
-import {Index, Show, splitProps, type Component, type JSX, type ParentProps} from 'solid-js'
+import {createMemo, Index, Show, splitProps, type Component, type JSX, type ParentProps} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import type {MessagePart as Part, ThinkingPart, ToolCallPart} from '@tanstack/ai-client'
 import type {ToolCardEntry, ToolUIComponent} from '@mandarax/protocol/tool-view-types'
@@ -6,6 +6,9 @@ import {Primitive, type Slottable} from '../util/primitive.js'
 import {MessagePart} from '../message-part/message-part.js'
 import {useChatContext} from '../../store/chat-context.js'
 import {useToolCtx} from '../../store/tool-context.js'
+import {groupSegments, type Segment} from '../../store/grouping.js'
+import type {AttachmentDraft, AttachmentPart} from '../composer/composer-context.js'
+import {AttachmentProvider} from '../attachment/attachment.js'
 import {PartProvider, useMessage} from './message-context.js'
 
 type DivProps = JSX.HTMLAttributes<HTMLDivElement> & Slottable<JSX.HTMLAttributes<HTMLDivElement>>
@@ -17,6 +20,7 @@ function Root(props: DivProps): JSX.Element {
   return (
     <Primitive.div
       data-role={message.message().role}
+      data-message-id={message.message().key}
       onMouseEnter={(event) => {
         chat.setView('hovering', message.message().key)
         if (typeof local.onMouseEnter === 'function') local.onMouseEnter(event)
@@ -210,10 +214,147 @@ function MessageError(props: ParentProps): JSX.Element {
   )
 }
 
+// Attachments shown on a SENT user message = the message's non-text content parts (image/document/
+// audio/video), dispatched by type → Image/Document/File/Audio/Video/Attachment (assistant-ui's
+// MessageAttachments, bound to tanstack ContentParts).
+type AttachmentsComponents = {
+  Image?: Component
+  Document?: Component
+  Audio?: Component
+  Video?: Component
+  File?: Component
+  Attachment?: Component
+}
+
+function isAttachmentPart(part: Part): part is AttachmentPart {
+  return part.type === 'image' || part.type === 'document' || part.type === 'audio' || part.type === 'video'
+}
+
+function attachmentName(part: AttachmentPart, index: number): string {
+  const source = part.source
+  if (source.type === 'url') {
+    const tail = source.value.split('/').pop()
+    if (tail) return tail
+  }
+  return `${part.type}-${index + 1}`
+}
+
+function partToDraft(part: AttachmentPart, index: number): AttachmentDraft {
+  return {id: `attachment-${index}`, name: attachmentName(part, index), part}
+}
+
+function attachmentComponent(part: AttachmentPart, components: AttachmentsComponents): Component | undefined {
+  if (part.type === 'image') return components.Image ?? components.Attachment
+  if (part.type === 'document') return components.Document ?? components.File ?? components.Attachment
+  if (part.type === 'audio') return components.Audio ?? components.Attachment
+  return components.Video ?? components.Attachment
+}
+
+function Attachments(props: {components: AttachmentsComponents}): JSX.Element {
+  const message = useMessage()
+  const drafts = createMemo(() =>
+    message
+      .message()
+      .parts.filter(isAttachmentPart)
+      .map((part, index) => partToDraft(part, index)),
+  )
+  return (
+    <Index each={drafts()}>
+      {(draft) => (
+        <Show when={attachmentComponent(draft().part, props.components)}>
+          {(component) => (
+            <AttachmentProvider value={draft()}>
+              <Dynamic component={component()} />
+            </AttachmentProvider>
+          )}
+        </Show>
+      )}
+    </Index>
+  )
+}
+
+function AttachmentByIndex(props: {index: number; components: AttachmentsComponents}): JSX.Element {
+  const message = useMessage()
+  const draft = () => {
+    const parts = message.message().parts.filter(isAttachmentPart)
+    const part = parts[props.index]
+    return part ? partToDraft(part, props.index) : undefined
+  }
+  return (
+    <Show when={draft()} keyed>
+      {(value) => (
+        <Show when={attachmentComponent(value.part, props.components)}>
+          {(component) => (
+            <AttachmentProvider value={value}>
+              <Dynamic component={component()} />
+            </AttachmentProvider>
+          )}
+        </Show>
+      )}
+    </Show>
+  )
+}
+
+// Parts grouped into the chain/reply segments (consecutive thinking + tool parts fold into one chain;
+// a reply text breaks it — D9). Each group is wrapped in an optional Group/Layout component, its parts
+// rendered through the same dispatch as Message.Parts. assistant-ui's Unstable_PartsGrouped.
+type GroupedComponents = PartsComponents & {Group?: Component<ParentProps<{indices: number[]; kind: Segment['kind']}>>}
+
+function segmentIndices(segment: Segment): number[] {
+  return segment.kind === 'chain' ? segment.indices : [segment.index]
+}
+
+function GroupBody(props: {
+  indices: number[]
+  components: GroupedComponents
+  ctx: ReturnType<typeof useToolCtx>
+}): JSX.Element {
+  const message = useMessage()
+  return (
+    <Index each={props.indices}>
+      {(partIndex) => (
+        <Show when={message.message().parts[partIndex()]} keyed>
+          {(value) => (
+            <PartProvider value={{part: () => value, index: partIndex}}>
+              <DispatchPart part={() => value} components={props.components} ctx={props.ctx} />
+            </PartProvider>
+          )}
+        </Show>
+      )}
+    </Index>
+  )
+}
+
+function GroupedParts(props: {components?: GroupedComponents}): JSX.Element {
+  const message = useMessage()
+  const ctx = useToolCtx()
+  const components = props.components ?? {}
+  const segments = createMemo(() => groupSegments(message.message().parts))
+  return (
+    <Index each={segments()}>
+      {(segment) => (
+        <Show
+          when={components.Group}
+          fallback={<GroupBody indices={segmentIndices(segment())} components={components} ctx={ctx} />}
+        >
+          {(group) => (
+            <Dynamic component={group()} indices={segmentIndices(segment())} kind={segment().kind}>
+              <GroupBody indices={segmentIndices(segment())} components={components} ctx={ctx} />
+            </Dynamic>
+          )}
+        </Show>
+      )}
+    </Index>
+  )
+}
+
 export const Message = Object.assign(Root, {
   Root,
   Parts,
   PartByIndex,
+  Attachments,
+  AttachmentByIndex,
+  Unstable_PartsGrouped: GroupedParts,
   If,
   Error: MessageError,
 })

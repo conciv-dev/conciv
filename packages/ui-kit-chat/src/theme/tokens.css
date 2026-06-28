@@ -1,0 +1,57 @@
+/* Neutral, themeable chat tokens. The styled set references ONLY these --chat-* vars (never --pw-*).
+   Light is the default; add the `chat-theme-dark` class for the dark neutral set. The mandarax look
+   is a separate theme layer (theme/mandarax.css) that maps --chat-* onto the widget's --pw-* tokens. */
+
+:root,
+:host {
+  --chat-bg: #ffffff;
+  --chat-panel: #f6f7f9;
+  --chat-glass: rgba(246, 247, 249, 0.97);
+  --chat-fill: rgba(15, 18, 24, 0.04);
+  --chat-fill-strong: rgba(15, 18, 24, 0.08);
+  --chat-sunken: rgba(15, 18, 24, 0.05);
+  --chat-text: #1d2127;
+  --chat-text-hi: #0b0d10;
+  --chat-text-2: #565b63;
+  --chat-text-3: #868c95;
+  --chat-accent: #2563eb;
+  --chat-accent-hi: #1d4ed8;
+  --chat-accent-link: #3b82f6;
+  --chat-on-accent: #ffffff;
+  --chat-danger: #dc2626;
+  --chat-danger-line: rgba(220, 38, 38, 0.42);
+  --chat-success: #16a34a;
+  --chat-line: rgba(15, 18, 24, 0.12);
+  --chat-line-soft: rgba(15, 18, 24, 0.06);
+  --chat-radius-sm: 8px;
+  --chat-radius-md: 12px;
+  --chat-radius-lg: 18px;
+  --chat-radius-pill: 999px;
+  --chat-shadow-lg: 0 16px 44px rgba(15, 18, 24, 0.18);
+  --chat-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --chat-font: system-ui, -apple-system, sans-serif;
+  --chat-mono: ui-monospace, monospace;
+}
+
+.chat-theme-dark {
+  --chat-bg: #0f1115;
+  --chat-panel: #1a1d23;
+  --chat-glass: rgba(26, 29, 35, 0.97);
+  --chat-fill: rgba(255, 255, 255, 0.05);
+  --chat-fill-strong: rgba(255, 255, 255, 0.1);
+  --chat-sunken: rgba(0, 0, 0, 0.35);
+  --chat-text: #e6e8ec;
+  --chat-text-hi: #f6f8fb;
+  --chat-text-2: #a9aeb7;
+  --chat-text-3: #7c828c;
+  --chat-accent: #4f8cff;
+  --chat-accent-hi: #6ba0ff;
+  --chat-accent-link: #8db6ff;
+  --chat-on-accent: #0b0d10;
+  --chat-danger: #f1707a;
+  --chat-danger-line: rgba(241, 112, 122, 0.42);
+  --chat-success: #57d9a3;
+  --chat-line: rgba(255, 255, 255, 0.1);
+  --chat-line-soft: rgba(255, 255, 255, 0.06);
+  --chat-shadow-lg: 0 16px 44px rgba(0, 0, 0, 0.55);
+}
