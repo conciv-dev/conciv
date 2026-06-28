@@ -6,12 +6,19 @@ only when its verification passes.
 
 ## Pre-flight (DO THIS FIRST, before any code)
 
-- [ ] From the worktree, run the FULL suite and record a baseline: every package's unit/IT tests +
+- [x] From the worktree, run the FULL suite and record a baseline: every package's unit/IT tests +
       Storybook builds + `oxlint` + `turbo build`/`typecheck` — ALL GREEN. Paste the result list into
       the "Baseline" note below. If anything is red at baseline, STOP and report; do not start on a
       broken tree. (Tests must be green before start AND at the end — plan §19.)
 
-**Baseline (fill in):** _<command + green/red per package, captured before Phase 0>_
+**Baseline (captured 2026-06-28, worktree `worktree-ui-kit-chat`, commit b97c50e):**
+
+- `pnpm turbo run build` → **21/21 GREEN**
+- `pnpm turbo run typecheck` → **40/40 GREEN**
+- `npx oxlint` → **0 errors, 0 warnings** (cleared 39 pre-existing warnings in b97c50e: unocss order autofix, `.sort`→`.toSorted`, added internal `__client/__server/__render/__execute` to no-underscore-dangle allow list)
+- `pnpm turbo run test` → **39/39 GREEN** (incl. tool-ui 44 tests / widget 75 tests, all browser ITs + storybook play tests)
+- `pnpm turbo run build-storybook` → **23/23 GREEN**
+- Net baseline test counts to preserve: tool-ui 44, widget 75 (see ledger).
 
 ## Loop protocol
 
