@@ -12,6 +12,7 @@ import {groupSegments, type Segment} from '../store/grouping.js'
 import {Markdown} from './markdown.js'
 import {Reasoning} from './reasoning.js'
 import {ToolFallback} from './tool-fallback.js'
+import {PermissionCard} from './tools/permission-card.js'
 import {ChainOfThought} from './chain-of-thought.js'
 import {AssistantActionBar} from './action-bar.js'
 import {FOCUS} from './classes.js'
@@ -83,6 +84,7 @@ function ChainPart(props: {
               result={message.pairing().byCallId.get(part().id)}
               ctx={useToolCtx()}
             />
+            <PermissionCard part={part()} result={message.pairing().byCallId.get(part().id)} ctx={useToolCtx()} />
           </ChainOfThought.Step>
         )}
       </Match>

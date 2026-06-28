@@ -150,6 +150,8 @@ export {
 } from './primitives/tools/apply-patch.js'
 export {Bash, useBash, parseBashOutput, type BashOutput} from './primitives/tools/bash.js'
 export {ToolFallback as ToolFallbackPrimitive, useToolFallback} from './primitives/tools/tool-fallback.js'
+export {Permission, usePermission} from './primitives/tools/permission.js'
+export {PermissionCard} from './styled/tools/permission-card.js'
 export {inlineValue, shortenPath, basename, truncate, SUMMARY_KEYS} from './primitives/tools/inline-tool.js'
 export {defineToolkit} from './primitives/tools/define-toolkit.js'
 // Styled inline tool cards + factory.
