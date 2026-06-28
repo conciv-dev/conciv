@@ -25,18 +25,6 @@ const CURSOR_STALE_MS = 15_000
 const asScene = (data: JsonValue): SceneElement => data as unknown as SceneElement
 const asJson = (element: ExcalidrawElement): JsonValue => element as unknown as JsonValue
 
-const VOLATILE_KEYS = new Set(['version', 'versionNonce', 'updated'])
-const contentKey = (value: unknown): string =>
-  value === null || typeof value !== 'object'
-    ? JSON.stringify(value ?? null)
-    : Array.isArray(value)
-      ? `[${value.map(contentKey).join(',')}]`
-      : `{${Object.keys(value as Record<string, unknown>)
-          .filter((key) => !VOLATILE_KEYS.has(key))
-          .toSorted()
-          .map((key) => `${key}:${contentKey((value as Record<string, unknown>)[key])}`)
-          .join(',')}}`
-
 const toUuid = (bytes: Uint8Array): string => {
   const hex = Array.from(bytes.slice(0, 16), (byte) => byte.toString(16).padStart(2, '0'))
   return `${hex.slice(0, 4).join('')}-${hex.slice(4, 6).join('')}-${hex.slice(6, 8).join('')}-${hex.slice(8, 10).join('')}-${hex.slice(10, 16).join('')}`
@@ -92,7 +80,7 @@ export function Island(props: {
   let root: Root | undefined
   let api: ExcalidrawImperativeAPI | undefined
   const guard = {applyingRemote: false}
-  const applied = new Map<string, string>()
+  const versions = new Map<string, number>()
   const rowIds = new Map<string, string>()
   let bufferedScene: readonly ElementRow[] | undefined
 
@@ -103,13 +91,15 @@ export function Island(props: {
     }
     const incoming = new Set(rows.map((row) => row.elementId))
     const remoteChanged =
-      rows.some((row) => applied.get(row.elementId) !== contentKey(row.data)) ||
-      [...applied.keys()].some((elementId) => !incoming.has(elementId))
+      rows.some((row) => (versions.get(row.elementId) ?? -1) < row.version) ||
+      [...versions.keys()].some((elementId) => !incoming.has(elementId))
     rowIds.clear()
-    applied.clear()
+    versions.forEach((_version, elementId) => {
+      if (!incoming.has(elementId)) versions.delete(elementId)
+    })
     rows.forEach((row) => {
       rowIds.set(row.elementId, row.id)
-      applied.set(row.elementId, contentKey(row.data))
+      versions.set(row.elementId, Math.max(versions.get(row.elementId) ?? -1, row.version))
     })
     if (!remoteChanged) return
     guard.applyingRemote = true
@@ -119,13 +109,11 @@ export function Island(props: {
 
   const writeLocal = (next: readonly SceneElement[]): void => {
     if (guard.applyingRemote) return
-    const changed = next
-      .map((element) => ({element, key: contentKey(asJson(element))}))
-      .filter(({element, key}) => applied.get(element.id) !== key)
+    const changed = next.filter((element) => (versions.get(element.id) ?? -1) < element.version)
     if (!changed.length) return
-    changed.forEach(({element, key}) => {
+    changed.forEach((element) => {
+      versions.set(element.id, element.version)
       const rowId = rowIds.get(element.id)
-      applied.set(element.id, key)
       if (!rowId) {
         const {value} = db().insert(app.canvasElements, {
           room: props.room,
