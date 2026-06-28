@@ -31,14 +31,14 @@ export async function getExtensionTestApi(extension: ExtensionUnderTest): Promis
   const session = await resolveSession(apiBase)
   const outDir = await buildHost(extension.clientEntry)
   const host = await serveDir(outDir, {apiBase, session})
-  const {page, close} = await launch(host.origin)
+  const {page, context, close} = await launch(host.origin)
   return {
     page,
     callTool: makeCallTool(apiBase, session),
     session,
     apiBase,
     secondClient: async () => {
-      const second = await page.context().newPage()
+      const second = await context.newPage()
       await second.goto(host.origin, {waitUntil: 'domcontentloaded'})
       return {page: second, close: () => second.close()}
     },

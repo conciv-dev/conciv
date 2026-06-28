@@ -11,7 +11,13 @@ export function makeCallTool(apiBase: string, session: string): CallTool {
     try {
       const tool = (await mcp.tools()).find((entry) => entry.name === name)
       if (!tool?.execute) throw new Error(`tool ${name} not on /api/mcp`)
-      return await tool.execute(input)
+      const result = await tool.execute(input)
+      if (typeof result !== 'string') return result
+      try {
+        return JSON.parse(result)
+      } catch {
+        return result
+      }
     } finally {
       await mcp.close()
     }
