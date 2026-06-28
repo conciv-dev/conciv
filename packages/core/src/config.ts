@@ -8,7 +8,6 @@ export {defineConfig} from '@mandarax/protocol/config-types'
 export interface ResolvedMandaraxConfig {
   enabled: boolean
   widgetUrl: string | undefined
-  previewId: string
   stateRoot: string
   harness: string
   harnessBin: string | undefined
@@ -29,7 +28,6 @@ export function resolveConfig(options: MandaraxConfig, root: string): ResolvedMa
   return {
     enabled: options.enabled ?? true,
     widgetUrl: options.widgetUrl ?? env.MANDARAX_WIDGET_URL,
-    previewId: options.previewId ?? env.MANDARAX_PREVIEW_ID ?? 'local',
     stateRoot: options.stateRoot ?? env.MANDARAX_STATE_ROOT ?? root,
     harness: options.harness ?? env.MANDARAX_HARNESS ?? 'claude',
     harnessBin:

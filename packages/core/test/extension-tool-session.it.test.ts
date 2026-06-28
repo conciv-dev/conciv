@@ -7,14 +7,14 @@ import {startTestServer} from './helpers/server.js'
 
 const echo = defineTool({
   name: 'acme_echo_session',
-  description: 'Echo the request session + preview back',
+  description: 'Echo the request session back',
   inputSchema: z.object({}),
-}).server((_input, _ctx, request) => ({sessionId: request.sessionId, previewId: request.previewId}))
+}).server((_input, _ctx, request) => ({sessionId: request.sessionId}))
 
 const acme = defineExtension({name: 'acme', tools: [echo]})
 
 describe('/api/mcp threads the request session into extension tool execute', () => {
-  it('echoes the header session id and the config previewId', async () => {
+  it('echoes the header session id', async () => {
     const server = await startTestServer({extensions: [acme]})
     const mcp = await createMCPClient({
       transport: {type: 'http', url: `${server.base}/api/mcp`, headers: {[MANDARAX_SESSION_HEADER]: 'mandarax_x'}},
@@ -24,7 +24,6 @@ describe('/api/mcp threads the request session into extension tool execute', () 
       if (!echoTool?.execute) throw new Error('acme_echo_session not registered on /api/mcp')
       const result = JSON.stringify(await echoTool.execute({}))
       expect(result).toContain('mandarax_x')
-      expect(result).toContain(server.previewId)
     } finally {
       await mcp.close()
       await server.close()

@@ -63,7 +63,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   registerChatRoutes(app, {
     cwd: opts.cwd,
     stateRoot: opts.cfg.stateRoot,
-    previewId: opts.cfg.previewId,
     initialSessionId: opts.cfg.sessionId,
     harness,
     spawnHarness: opts.spawnHarness,
@@ -122,7 +121,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       open: (file, line) => opts.openInEditor(file, line),
     }),
     extensionTools,
-    opts.cfg.previewId,
   )
   if (opts.bridge) registerServerRoutes(app, opts.bridge)
   return {app, disposers}

@@ -48,7 +48,7 @@ export default defineConfig({
 
 `@mandarax/core` boots its own dev engine (the `/api/*` surface + the bundled widget) and the
 plugin injects the widget `<script>` into your HTML. Override defaults via
-`mandarax({harness, testRunner, previewId, widgetUrl, …})`. The widget probes `/api/chat/session`
+`mandarax({harness, testRunner, widgetUrl, …})`. The widget probes `/api/chat/session`
 on load and only shows the ✦ FAB when the dev-server routes are live, so it's inert on a plain
 preview.
 
@@ -76,7 +76,6 @@ pnpm --filter tanstack-start-example dev
 | `widgetUrl`    | `MANDARAX_WIDGET_URL` env | `<script src>` for the injected widget bundle. Omit to skip injection. |
 | `stateRoot`    | `process.cwd()`           | Root holding `.mandarax/{agent.lock,sessions,bin}`.                    |
 | `systemPrompt` | built-in                  | Appended to each agent turn.                                           |
-| `previewId`    | `"local"`                 | Correlates a resumable session.                                        |
 | `sessionId`    | –                         | Resume an existing thread.                                             |
 
 ## Routes (the wire contract)

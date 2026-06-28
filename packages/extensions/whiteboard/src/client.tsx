@@ -3,11 +3,7 @@ import {MessageSquarePlus, Presentation} from 'lucide-solid'
 import {defineExtension} from '@mandarax/extension'
 import {Button} from '@mandarax/ui-kit-system'
 import {WHITEBOARD_NAME, WHITEBOARD_PROMPT} from './shared/meta.js'
-import {fetchJazzConfig} from './client/jazz-client.js'
 import {mountOverlay, type CommentPick} from './client/overlay.js'
-
-const previewIdOf = (doc: Document): string =>
-  doc.querySelector('meta[name="pw-preview-id"]')?.getAttribute('content') ?? 'local'
 
 function Component(): JSX.Element {
   const slot = whiteboard.useSlot()
@@ -46,28 +42,15 @@ const whiteboard = defineExtension({
       commentWriter = write
       pendingComments.splice(0).forEach(write)
     }
-    let startPromise: Promise<void> | undefined
-    const doStart = async (): Promise<void> => {
-      const config = await fetchJazzConfig(`${api.apiBase}/api/ext/whiteboard`)
-      disposeOverlay = mountOverlay({
-        api,
-        config,
-        open,
-        previewId: previewIdOf(api.env.doc),
-        sessionId: () => api.activeSession() ?? '',
-        registerComment,
-      })
-    }
-    const start = (): Promise<void> => {
-      if (!startPromise) startPromise = doStart()
-      return startPromise
+    const start = (): void => {
+      if (!disposeOverlay) disposeOverlay = mountOverlay({api, open, registerComment})
     }
     const toggle = (): void => {
-      void start()
+      start()
       setOpen((value) => !value)
     }
     const comment = (pick: CommentPick): void => {
-      void start()
+      start()
       setOpen(true)
       if (commentWriter) return commentWriter(pick)
       pendingComments.push(pick)

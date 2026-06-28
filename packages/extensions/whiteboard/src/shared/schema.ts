@@ -13,7 +13,6 @@ export const app = schema.defineApp({
     payload: col.json(),
   }),
   comments: schema.table({
-    previewId: col.string(),
     sessionId: col.string(),
     cid: col.string(),
     threadId: col.string(),
@@ -43,7 +42,7 @@ export const app = schema.defineApp({
   }),
   cursors: schema.table({
     room: col.string(),
-    sessionId: col.string(),
+    peerId: col.string(),
     x: col.float(),
     y: col.float(),
     name: col.string(),

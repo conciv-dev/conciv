@@ -8,8 +8,7 @@ import {Button, TextField} from '@mandarax/ui-kit-system'
 import {app} from '../../shared/schema.js'
 
 export type ThreadProps = {
-  previewId: string
-  sessionId: string
+  room: string
   rootCid: string
   ctx: ToolViewCtx
   onClose: () => void
@@ -49,7 +48,7 @@ function renderPart(part: unknown, key: string, ctx: ToolViewCtx): JSX.Element {
 
 export function Thread(props: ThreadProps): JSX.Element {
   const db = useDb()
-  const comments = useAll(() => ({query: app.comments.where({previewId: props.previewId, sessionId: props.sessionId})}))
+  const comments = useAll(() => ({query: app.comments.where({sessionId: props.room})}))
   const root = createMemo(() => (comments.data ?? []).find((comment) => comment.cid === props.rootCid))
   const thread = createMemo(() => {
     const threadId = root()?.threadId
@@ -67,8 +66,7 @@ export function Thread(props: ThreadProps): JSX.Element {
     setDraft('')
     const now = new Date()
     db().insert(app.comments, {
-      previewId: props.previewId,
-      sessionId: props.sessionId,
+      sessionId: props.room,
       cid: crypto.randomUUID(),
       threadId: parent.threadId,
       parentId: props.rootCid,

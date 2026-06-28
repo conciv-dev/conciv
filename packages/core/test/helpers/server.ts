@@ -30,7 +30,6 @@ export type TestServerOpts = {
 export type TestServer = {
   base: string
   stateRoot: string
-  previewId: string
   // Normalize any id (none/ours/harness) to our mandarax_ id — the one-round-trip every client does first.
   resolve: (id?: string) => Promise<string>
   post: (path: string, body: unknown, sessionId?: string) => Promise<Response>
@@ -62,7 +61,6 @@ export async function startTestServer(opts: TestServerOpts = {}): Promise<TestSe
   const cfg: ResolvedMandaraxConfig = {
     enabled: true,
     widgetUrl: undefined,
-    previewId: 'it-preview',
     stateRoot,
     harness: harnessId,
     harnessBin: undefined,
@@ -105,5 +103,5 @@ export async function startTestServer(opts: TestServerOpts = {}): Promise<TestSe
     await server.close()
     rmSync(stateRoot, {recursive: true, force: true})
   }
-  return {base, stateRoot, previewId: cfg.previewId, resolve, post, postChat, getSession, getSessions, close}
+  return {base, stateRoot, resolve, post, postChat, getSession, getSessions, close}
 }

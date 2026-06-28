@@ -14,10 +14,9 @@ describe('defineConfig (generic typed factory)', () => {
 })
 
 describe('resolveConfig (generalized)', () => {
-  it('defaults: harness=claude, previewId=local', () => {
+  it('defaults: harness=claude, stateRoot=root', () => {
     const cfg = resolveConfig({}, '/root')
     expect(cfg.harness).toBe('claude')
-    expect(cfg.previewId).toBe('local')
     expect(cfg.stateRoot).toBe('/root')
     expect(typeof cfg.systemPrompt).toBe('string')
   })

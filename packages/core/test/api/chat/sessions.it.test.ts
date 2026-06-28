@@ -10,7 +10,7 @@ import {useFakeHarness} from '../../helpers/harness-mode.js'
 
 const fakeIt = it.runIf(useFakeHarness)
 
-// GET /api/chat/sessions joins the harness transcript list to the previewId map (origin/running/
+// GET /api/chat/sessions joins the harness transcript list to the session-record map (origin/running/
 // usage) — proven here against a REAL temp ~/.claude with seeded transcripts.
 
 const fakeClaude = fileURLToPath(new URL('../../fixtures/fake-claude.ts', import.meta.url))

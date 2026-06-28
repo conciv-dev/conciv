@@ -30,7 +30,6 @@ export interface MandaraxConfig {
   widgetUrl?: string
   /** Widget layouts + their options. Both layouts are enabled by default. */
   widget?: WidgetConfig
-  previewId?: string
   stateRoot?: string
   harness?: string
   harnessBin?: string

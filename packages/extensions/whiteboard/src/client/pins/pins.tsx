@@ -2,12 +2,10 @@ import {For, Show, createMemo, createSignal, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {useAll, useDb} from 'jazz-tools/solid'
 import {app} from '../../shared/schema.js'
-import {roomId} from '../../shared/room.js'
 import {DragPrompt} from './drag-prompt.js'
 
 export type PinsLayerProps = {
-  previewId: string
-  sessionId: string
+  room: string
   onOpen: (cid: string) => void
 }
 
@@ -39,9 +37,8 @@ type Prompt = {cid: string; x: number; y: number; origin: {x: number; y: number}
 
 export function PinsLayer(props: PinsLayerProps): JSX.Element {
   const db = useDb()
-  const room = (): string => roomId(props.previewId, props.sessionId)
-  const pins = useAll(() => ({query: app.pins.where({room: room()})}))
-  const comments = useAll(() => ({query: app.comments.where({previewId: props.previewId, sessionId: props.sessionId})}))
+  const pins = useAll(() => ({query: app.pins.where({room: props.room})}))
+  const comments = useAll(() => ({query: app.comments.where({sessionId: props.room})}))
   const byCid = createMemo(() => new Map((comments.data ?? []).map((comment) => [comment.cid, comment])))
 
   const [drag, setDrag] = createSignal<Drag | null>(null)

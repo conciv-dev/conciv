@@ -15,7 +15,6 @@ export type {SpawnHarness} from './turn.js'
 export type ChatRouteOpts = {
   cwd: string
   stateRoot: string
-  previewId: string // ties the persisted chat sessions to this preview (same preview → same chats)
   initialSessionId: string // the agent's handed-off harness id, '' if none
   harness: HarnessAdapter
   spawnHarness: SpawnHarness
@@ -50,7 +49,7 @@ export async function ensureAgentRecord(deps: ResolveDeps, harnessId: string): P
 export function registerChatRoutes(app: H3, opts: ChatRouteOpts): void {
   const uiBus = opts.uiBus
   const gate = makePermissionGate(uiBus, {risky: opts.riskyTools})
-  const store = createFsSessionStore({stateRoot: opts.stateRoot, previewId: opts.previewId})
+  const store = createFsSessionStore({stateRoot: opts.stateRoot})
 
   // Agent hand-off: ensure the handed-off harness id has a wrapping record before its first turn.
   // Best-effort at boot; the first resolve/turn re-creates it if this write loses a teardown race.

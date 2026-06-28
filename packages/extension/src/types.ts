@@ -27,7 +27,7 @@ export type ExtensionHostContext = ToolViewCtx &
     currentSlot: ExtensionSlot
   }
 
-export type ToolRequest = {sessionId: string; previewId: string}
+export type ToolRequest = {sessionId: string}
 
 export type ExtensionServerTool = {
   name: string

@@ -70,10 +70,10 @@ export function createSessionStore(storage: Storage, now: () => number = Date.no
   return makeStore(storage, now)
 }
 
-// fs: one file per session under <stateRoot>/.mandarax/sessions/<previewId>/ — atomic per session.
-export function createFsSessionStore(opts: {stateRoot: string; previewId: string; now?: () => number}): SessionStore {
+// fs: one file per session under <stateRoot>/.mandarax/sessions/ — atomic per session.
+export function createFsSessionStore(opts: {stateRoot: string; now?: () => number}): SessionStore {
   const storage = createStorage({
-    driver: fsDriver({base: `${opts.stateRoot}/.mandarax/sessions/${opts.previewId}`}),
+    driver: fsDriver({base: `${opts.stateRoot}/.mandarax/sessions`}),
   })
   return createSessionStore(storage, opts.now ?? Date.now)
 }

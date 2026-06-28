@@ -21,6 +21,8 @@ export function WhiteboardJazzProvider(props: {
           appId: props.config.appId,
           serverUrl: props.config.serverUrl,
           secret: secret(),
+          // In-memory cache, no OPFS offline store: this provider mounts above the session <Show> so it
+          // survives session switches, and reload re-syncs from the server dataDir (the source of truth).
           driver: {type: 'memory'},
         }))
         return (

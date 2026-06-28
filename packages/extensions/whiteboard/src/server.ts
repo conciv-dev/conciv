@@ -3,7 +3,6 @@ import {join} from 'node:path'
 import {deploy} from 'jazz-tools/dev'
 import {defineExtension, type ToolRequest} from '@mandarax/extension'
 import {WHITEBOARD_NAME, WHITEBOARD_PROMPT} from './shared/meta.js'
-import {roomId} from './shared/room.js'
 import {startJazzRunner} from './server/jazz/runner.js'
 import {createBackendDb} from './server/jazz/backend.js'
 import {startCommentEnrichment} from './server/jazz/enrich-worker.js'
@@ -28,11 +27,16 @@ export default defineExtension({
   })
   server.app.get('/config', () => ({serverUrl: runner.serverUrl, appId: runner.appId}))
   const stopEnrichment = startCommentEnrichment(backend.db, server.cwd)
+  const sessionId = (request: ToolRequest): string => {
+    if (!request.sessionId) throw new Error('whiteboard tools require an active session')
+    return request.sessionId
+  }
   return {
     context: {
       cwd: server.cwd,
       db: backend.db,
-      room: (request: ToolRequest) => roomId(request.previewId, request.sessionId),
+      sessionId,
+      room: sessionId,
     },
     dispose: async () => {
       stopEnrichment()
