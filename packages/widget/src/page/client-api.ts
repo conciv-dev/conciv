@@ -1,5 +1,6 @@
 import type {RequestMeta} from '@mandarax/api-client'
-import {EFFECTS_SURFACE_ATTR, ensureEffectsSurface, openSource, type ClientApi} from '@mandarax/extension'
+import type {ClientApi} from '@mandarax/extension'
+import {EFFECTS_SURFACE_ATTR, ensureEffectsSurface, openSource} from '@mandarax/extension/client'
 import {describe, locate} from './react-bridge.js'
 import {showToast} from './effect-toast.js'
 import type {Refs} from './page-snapshot.js'

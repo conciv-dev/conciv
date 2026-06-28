@@ -1,7 +1,7 @@
 import {render} from 'solid-js/web'
 import {defineClient, type RequestMeta} from '@mandarax/api-client'
 import {isSessionId} from '@mandarax/protocol/chat-types'
-import {ensureEffectsSurface, mountExtension, openSource} from '@mandarax/extension'
+import {ensureEffectsSurface, mountExtension, openSource} from '@mandarax/extension/client'
 import type {AnyExtension, ClientApi, ExtensionHostContext} from '@mandarax/extension'
 import {makeHostGrab, makeHostPage} from './grab.js'
 import {FixtureElement} from './fixture-element.js'

@@ -103,8 +103,11 @@ export function Island(props: {
     })
     if (!remoteChanged) return
     guard.applyingRemote = true
-    api.updateScene({elements: rows.map((row) => asScene(row.data)), captureUpdate: CAPTURE_NEVER})
-    guard.applyingRemote = false
+    try {
+      api.updateScene({elements: rows.map((row) => asScene(row.data)), captureUpdate: CAPTURE_NEVER})
+    } finally {
+      guard.applyingRemote = false
+    }
   }
 
   const writeLocal = (next: readonly SceneElement[]): void => {

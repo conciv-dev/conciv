@@ -392,3 +392,29 @@ All five lenses ran against the IMPLEMENTED testkit. Reconciled outcome:
 ### F. Execution order with the amendments
 
 T1 (units, minus anchor-resolve, plus room.test) → T2 (tools, + anchor-resolve + comment.delete + geometry + enrich + approval) → T3 (draw + canvas.read) → T4 (persist) → T5 (ai-draw count≥3 + connect) → **Plan-1: add `secondClient()`** → T6 (comment-on-element, overlay via getByText/getByLabel; add surface styling only if it fails) → B3 (local-delete) → B2 (two-client de-dup) → T7 (RED, two-client) → T8 (fix, guard-order corrected) → presence (if time).
+
+### G. Post-review deferred items (commit 745ae1a / review follow-up)
+
+The shipped canvas-sync fix keys the echo guard on `element.version` (the
+`contentKey` approach in an earlier draft regressed draws to `0x0` because the
+locally-computed key never matched the Jazz-roundtripped one — superseded).
+Three review findings are intentionally deferred:
+
+- **versionNonce tie-break (Important, deferred):** `applyRemote` skips
+  `updateScene` unless a row's `version` strictly exceeds what's applied, so two
+  clients reaching the _same_ `version` with different content can diverge until
+  some other element forces a full `updateScene` (Excalidraw then reconciles
+  internally). A naive nonce compare risks ping-pong; the correct fix tracks
+  `applied` from `api.getSceneElements()` after each `updateScene` so it reflects
+  the reconciled winner, and must ship with a `secondClient()` concurrent-edit
+  convergence test. Window is narrow in an active session; safe to defer.
+- **Soft-deleted row GC (Low, deferred):** user deletes are Excalidraw
+  soft-deletes (`isDeleted:true`, version++), so the Jazz row lingers forever.
+  Needs design (when is hard-delete safe mid-collab?) before implementing; a
+  naive sweep could delete live elements. The tool path already hard-deletes.
+- **Bare `vitest run` tests stale dist (Low, accepted):** the IT imports the
+  server from `../src` but the client as the built `/client` artifact. `turbo
+test` rebuilds first (`dependsOn: build`); a bare `vitest run` after editing
+  `island.tsx` tests stale `dist/client.js`. This matches the existing
+  "widget IT needs core built" convention; not worth a redundant double-build
+  `pretest` hook under turbo.
