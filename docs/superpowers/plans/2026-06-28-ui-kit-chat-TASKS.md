@@ -91,7 +91,8 @@ All four. No exceptions, no "mostly," no leaving the old chat-panel/tool-ui aliv
 
 ### Phase 0 — ui-kit-system base primitives
 
-- [ ] Tooltip, Menu, Popover, Toast, Avatar, Tabs, Switch wrappers + TextField autosize, each + `.stories.tsx`. Verify: stories render in Storybook (real browser); shadow-DOM safe via EnvironmentProvider.
+- [x] Tooltip, Menu, Popover, Toast, Avatar, Tabs, Switch wrappers + TextField autosize, each + `.stories.tsx`. Verify: stories render in Storybook (real browser); shadow-DOM safe via EnvironmentProvider.
+      Done: 7 Ark wrappers (Object.assign compound, `strategy:'fixed'` + `hidden data-[state=open]:block` for shadow-DOM safety) + `TextArea` autosize (ported chat-panel autoGrow, minRows/maxRows). 9 new stories, **ui-kit-system test 20/20 GREEN**, storybook builds, oxlint 0/0.
 
 ### Phase 1 — ui-kit-chat scaffold + ChatProvider/context
 
