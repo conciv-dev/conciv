@@ -88,7 +88,7 @@ export function Thread(props: ThreadProps): JSX.Element {
 
   return (
     <div role="dialog" aria-label="Comment thread" class={PANEL}>
-      <div class="flex justify-between items-center">
+      <div class="flex items-center justify-between">
         <strong class="text-pw-text">Thread</strong>
         <span class="flex gap-2">
           <Button variant="ghost" size="sm" aria-label="Resolve thread" onClick={() => resolve()}>
@@ -101,7 +101,7 @@ export function Thread(props: ThreadProps): JSX.Element {
       </div>
       <For each={thread()}>
         {(comment) => (
-          <article class="border-t border-pw-line pt-2 flex flex-col gap-1">
+          <article class="pt-2 border-t border-pw-line flex flex-col gap-1">
             <div class="text-[0.75rem] text-pw-text-3">{authorLabel(comment.authorKind)}</div>
             <For each={Array.isArray(comment.parts) ? comment.parts : []}>
               {(part, index) => renderPart(part, `${comment.cid}-${index()}`, props.ctx)}
@@ -110,7 +110,7 @@ export function Thread(props: ThreadProps): JSX.Element {
         )}
       </For>
       <Show when={root()}>
-        <div class="flex gap-2 items-end mt-1">
+        <div class="mt-1 flex gap-2 items-end">
           <TextField
             aria-label="Reply"
             class="flex-1"

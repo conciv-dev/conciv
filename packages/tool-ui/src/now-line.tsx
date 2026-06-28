@@ -11,7 +11,7 @@ export function NowLine(props: {title: string; onStop: () => void}): JSX.Element
         class="border-2 border-x-pw-line-2 border-b-pw-line-2 border-t-pw-accent rounded-pw-pill flex-none size-2.75 anim-tool-spin"
         aria-hidden="true"
       />
-      <span class="flex-auto min-w-0 whitespace-nowrap text-ellipsis anim-now overflow-hidden">{props.title}</span>
+      <span class="flex-auto min-w-0 whitespace-nowrap text-ellipsis overflow-hidden anim-now">{props.title}</span>
       <Show when={props.onStop}>
         <button
           class="text-[0.625rem] text-pw-text-2 border border-pw-line-2 rounded-pw-sm bg-pw-fill inline-flex flex-none size-5.5 cursor-pointer items-center justify-center hover:text-pw-danger hover:bg-pw-fill-strong focus-ring"

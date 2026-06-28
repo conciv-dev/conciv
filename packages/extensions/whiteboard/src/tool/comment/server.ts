@@ -103,7 +103,7 @@ export const commentReadTool = defineTool<typeof CommentReadInput, WhiteboardToo
     const thread = await ctx.db.all(app.comments.where({sessionId, threadId: root.threadId}), {tier: 'global'})
     const replies = thread
       .filter((row) => row.parentId)
-      .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime())
+      .toSorted((left, right) => left.createdAt.getTime() - right.createdAt.getTime())
     return {comment: root, replies}
   },
 )

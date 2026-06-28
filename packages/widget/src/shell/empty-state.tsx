@@ -12,7 +12,7 @@ const DefaultEmptyState: Component<{onStarter: (text: string) => void}> = (props
         {(s, i) => (
           <button
             type="button"
-            class="text-[0.8125rem] text-pw-text px-3.5 py-2.5 border border-pw-line rounded-pw-pill min-h-9.5 cursor-pointer bg-transparent anim-rise trans-input hover:border-pw-accent hover:bg-pw-accent-08 active:scale-[0.97]"
+            class="text-[0.8125rem] text-pw-text px-3.5 py-2.5 border border-pw-line rounded-pw-pill bg-transparent min-h-9.5 cursor-pointer trans-input anim-rise hover:border-pw-accent hover:bg-pw-accent-08 active:scale-[0.97]"
             style={{'animation-delay': `${100 + i() * 60}ms`}}
             onClick={() => props.onStarter(s)}
           >

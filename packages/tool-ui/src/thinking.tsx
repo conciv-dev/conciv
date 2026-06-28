@@ -39,13 +39,13 @@ export function ChainOfThought(props: {streaming?: boolean; durationMs?: number;
   const [pinned, setPinned] = createSignal<boolean>()
   const open = () => pinned() ?? Boolean(props.streaming)
   return (
-    <Collapsible.Root open={open()} onOpenChange={(details) => setPinned(details.open)} class="my-1.5 font-pw">
-      <Collapsible.Trigger class="flex items-center gap-1.75 w-full bg-transparent [border:0] py-0.5 px-0 [font:inherit] text-left cursor-pointer text-pw-text-3">
-        <span class="flex-none inline-flex text-pw-text-3" aria-hidden="true">
+    <Collapsible.Root open={open()} onOpenChange={(details) => setPinned(details.open)} class="font-pw my-1.5">
+      <Collapsible.Trigger class="text-pw-text-3 px-0 py-0.5 text-left bg-transparent flex gap-1.75 w-full cursor-pointer [border:0] [font:inherit] items-center">
+        <span class="text-pw-text-3 inline-flex flex-none" aria-hidden="true">
           <Brain size={14} />
         </span>
         <span
-          class="flex-auto min-w-0 text-[0.78125rem]"
+          class="text-[0.78125rem] flex-auto min-w-0"
           classList={{
             '[background:linear-gradient(90deg,var(--pw-dim)_0%,var(--pw-text-hi)_50%,var(--pw-dim)_100%)] [background-size:200%_100%] bg-clip-text text-transparent anim-think-shimmer motion-reduce:animate-none motion-reduce:text-pw-text-2':
               props.streaming,
@@ -54,13 +54,13 @@ export function ChainOfThought(props: {streaming?: boolean; durationMs?: number;
           {triggerLabel(props.streaming, props.durationMs)}
         </span>
         <ChevronDown
-          class="flex-none text-pw-text-3 trans-tf160 [[data-state=closed]_&]:[transform:rotate(-90deg)]"
+          class="text-pw-text-3 flex-none trans-tf160 [[data-state=closed]_&]:[transform:rotate(-90deg)]"
           size={14}
           aria-hidden="true"
         />
       </Collapsible.Trigger>
       <Collapsible.Content>
-        <div class="mt-1.25 pt-1 pb-0.5 pl-2.75 border-l border-l-pw-line-soft text-[0.8125rem] text-pw-text-2">
+        <div class="text-[0.8125rem] text-pw-text-2 mt-1.25 pb-0.5 pl-2.75 pt-1 border-l border-l-pw-line-soft">
           {props.children}
         </div>
       </Collapsible.Content>
@@ -76,8 +76,8 @@ export function Reasoning(props: {content: string}): JSX.Element {
         {(parsed) => (
           <For each={parsed()}>
             {(row) => (
-              <div class="flex items-start gap-2 py-0.5">
-                <span class="flex-none inline-flex items-center h-4.75 text-pw-accent-link" aria-hidden="true">
+              <div class="py-0.5 flex gap-2 items-start">
+                <span class="text-pw-accent-link inline-flex flex-none h-4.75 items-center" aria-hidden="true">
                   <Dynamic component={LABEL_ICONS[row.label]} size={13} />
                 </span>
                 <span class="sr-only">{row.label}: </span>
