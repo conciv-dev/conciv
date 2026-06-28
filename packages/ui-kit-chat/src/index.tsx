@@ -92,6 +92,19 @@ export {
 export {AssistantModal} from './primitives/assistant-modal/assistant-modal.js'
 export {QueueItem, QueueItemProvider, type QueuedMessage} from './primitives/queue-item/queue-item.js'
 export {
+  ModelSelector as ModelSelectorPrimitive,
+  useModelSelectorContext,
+  useModelSelectorEfforts,
+  resolveModelEffort,
+  DEFAULT_EFFORT_OPTIONS,
+  type ModelOption,
+  type ModelSelectorEffortOption,
+  type ModelSelectorRootProps,
+  type ModelSelectorTriggerProps,
+  type ModelSelectorValueProps,
+} from './primitives/model-selector/model-selector.js'
+export {createControllableSignal} from './primitives/util/create-controllable-signal.js'
+export {
   SelectionToolbar,
   useSelectionToolbarInfo,
   type SelectionInfo,
@@ -117,3 +130,4 @@ export {BranchPicker} from './styled/branch-picker.js'
 export {FollowUpSuggestions} from './styled/follow-up-suggestions.js'
 export {ToolGroup, type ToolGroupProps} from './styled/tool-group.js'
 export {AttachmentUI} from './styled/attachment-ui.js'
+export {ModelSelector, type StyledModelSelectorProps} from './styled/model-selector.js'

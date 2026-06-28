@@ -130,14 +130,15 @@ All four. No exceptions, no "mostly," no leaving the old chat-panel/tool-ui aliv
 
 - [ ] 5a — apply-patch-diff (Pierre), bash-card, inline-tool (ToolCardEntry[] dispatch).
 - [ ] 5b — permission card (→ ToolCallPart.approval + addToolApprovalResponse + permissionDecision), reasoning-ghost, `defineToolkit` (returns `ToolCardEntry[]`); fold existing tool-ui cards. Ask UI = existing GenUi.
-- Verify: each card has stories incl. running/complete/error/approval states.
+- [ ] 5c — **ModelSelector (assistant-ui API parity, API spec Appendix A).** Headless `primitives/model-selector/` compound (Root/Trigger/Value/Content/Search/List/Empty/Group/Separator/Item/Effort + `createControllableSignal` util) over ui-kit-system Combobox/Popover; styled `styled/model-selector.tsx` (chat tokens + lucide, flat `ModelSelector` convenience). EXACT public API + types (`ModelOption`/`ModelSelectorEffortOption`/`DEFAULT_EFFORT_OPTIONS`/`resolveModelEffort`/`useModelSelectorEfforts`). Effort part gated (null until `HarnessModelInfo.efforts`). Deviations per Appendix A.3 (no `useAui` ModelContext → controlled `onValueChange`).
+- Verify: each card has stories incl. running/complete/error/approval states. ModelSelector stories per Appendix A.5 (closed/open/filter/disabled/empty/effort/controlled; neutral+dark+mandarax; shadow-DOM open).
 
 ### Phase 6 — widget cutover + DELETE the old stack (plan §18 — this is where "used in the app" happens)
 
 - [ ] 6a — Add `@mandarax/ui-kit-chat` dep to widget. Rewrite `chat/chat-panel.tsx` to a thin container: `useChat` → `<ChatProvider>` → ui-kit-chat `<Thread>`/`<Composer>`; keep session load/switch/compact/divider/duration/approval wiring; delete all layout/grouping/tool-rendering from it.
 - [ ] 6b — Replace `chat/markdown.tsx` with ui-kit-chat `Markdown`; **delete** `chat/markdown.tsx`. Keep `chat/gen-ui.tsx`, render it via a thread slot.
 - [ ] 6c — Replace `shell/popover.tsx` (floating-ui) with ui-kit `Popover`/`AssistantModal`; **delete** it + drop `@floating-ui/dom`. `shell/approval-modal.tsx` → render ui-kit-chat `PermissionCard`. `shell/empty-state.tsx` → ui-kit-chat Empty/Welcome+Suggestions (keep EmptyStateSlot seam). `fab-robot` → AssistantModal.Trigger. Rewire `widget-shell.tsx` + `quick-terminal.tsx` to render ui-kit-chat threads.
-- [ ] 6d — Rewire composer: model/session selectors + session-info/new-session/compact/open-in-terminal into ui-kit-chat `Composer` slots.
+- [ ] 6d — Rewire composer: model/session selectors + session-info/new-session/compact/open-in-terminal into ui-kit-chat `Composer` slots. Rebuild `widget/src/composer/model-selector.tsx` on ui-kit-chat `ModelSelector` (Phase 5c; map `groupsOf`→`Group` blocks, `onValueChange`→`setRequestMeta({model})`); delete the hand-rolled Combobox markup.
 - [ ] 6e — **Absorb & delete `packages/tool-ui`**: move/replace every file per §18 into ui-kit-chat; migrate the 2 extension consumers (`whiteboard/.../pins/thread.tsx`, `test-runner/.../tool/card.tsx`) + their package.jsons to import from ui-kit-chat; `page-action`/`ui-chip` become widget-side `ToolCardEntry`s; then `rm -rf packages/tool-ui` and drop the dep from widget package.json/vite/styles.
 - [ ] 6f — Verify cutover: D1 regression IT; widget testkit green; whiteboard + test-runner extension ITs green; section C audit (no tool-ui, no floating-ui, app renders via ui-kit-chat) passes.
 

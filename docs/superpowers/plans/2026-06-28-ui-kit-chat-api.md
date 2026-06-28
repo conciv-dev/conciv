@@ -664,3 +664,136 @@ assistant-ui/*`, tool vocabulary `examples/with-opencode/components/tools/*`. ta
 `@tanstack/ai-client@0.16.3` `dist/esm/types.d.ts`, `@tanstack/ai@0.28.0` `dist/esm/client.d.ts`,
 `@tanstack/ai-solid@0.13.4` `dist/types.d.ts`. Existing widget grouping/pairing logic:
 `packages/widget/src/chat/chat-panel.tsx:41-270`.
+
+---
+
+## Appendix A — ModelSelector (assistant-ui API parity) — added 2026-06-29
+
+**Gap.** assistant-ui ships ModelSelector in `packages/ui/src/components/assistant-ui/model-selector.tsx`
+(a styled compound, NOT a headless `packages/react` primitive). The widget already has its own
+ad-hoc version (`packages/widget/src/composer/model-selector.tsx`, Ark Combobox). When the original
+§2 list was drawn it was scoped from the headless `packages/react` primitives only, so the
+model-selector — being a `packages/ui` styled component — was never enumerated. The §7 promise is
+"assistant-ui parity"; the cutover (TASKS §6d, "model/session selectors into ui-kit-chat Composer
+slots") needs it. **This appendix closes the gap: port it with the EXACT assistant-ui public API.**
+
+**Two-layer placement (the package standard, primitive + styled):**
+
+- `primitives/model-selector/model-selector.tsx` — headless compound. NO classes; icons supplied by
+  the caller as children (assistant-ui's hardcoded `ChevronDownIcon`/`CheckIcon` move to the styled
+  layer). Owns state + structure. Built on ui-kit-system base components only.
+- `styled/model-selector.tsx` — the styled compound + the flat convenience `ModelSelector`. Applies
+  `--chat-*` tokens + lucide `ChevronsUpDown`/`Check`; mirrors the widget's pill visual.
+
+### A.1 Public API — verbatim assistant-ui, Solid-translated (the contract)
+
+```ts
+// Types — identical to assistant-ui (icon?: ReactNode → JSX.Element). NOTE: NO `group` field;
+// grouping is consumer-composed via <ModelSelector.Group> (the widget maps its `group` field at
+// cutover), exactly like assistant-ui.
+type ModelSelectorEffortOption = {id: string; name: string}
+const DEFAULT_EFFORT_OPTIONS: readonly ModelSelectorEffortOption[] // [low, medium, high]
+type ModelOption = {
+  id: string
+  name: string
+  description?: string
+  icon?: JSX.Element
+  disabled?: boolean
+  keywords?: readonly string[] // extra terms matched by Search, beyond id+name
+  efforts?: boolean | readonly ModelSelectorEffortOption[] // true → DEFAULT_EFFORT_OPTIONS
+}
+
+// Compound parts — same names + same semantics as assistant-ui:
+namespace ModelSelector {
+  type Root = ParentProps<{
+    models: readonly ModelOption[]
+    value?: string
+    defaultValue?: string
+    onValueChange?: (value: string) => void
+    effort?: string
+    defaultEffort?: string
+    onEffortChange?: (effort: string) => void
+    open?: boolean
+    defaultOpen?: boolean
+    onOpenChange?: (open: boolean) => void
+  }> // controllable value/effort/open; defaultValue falls back to models[0]?.id (assistant-ui parity)
+  type Trigger = ButtonProps & {variant?: 'outline' | 'ghost' | 'muted'; size?: 'default' | 'sm' | 'lg'}
+  type Value = {placeholder?: JSX.Element; showEffort?: boolean; class?: string} // selectedModel name (+ effort)
+  type Content = DivProps & {align?: 'start' | 'center' | 'end'; sideOffset?: number} // default 'start', 6
+  type Search = JSX.InputHTMLAttributes<HTMLInputElement> & {placeholder?: string} // default 'Search models...'
+  type List = DivProps
+  type Empty = ParentProps<DivProps> // default child 'No models found.'
+  type Group = ParentProps<DivProps>
+  type Separator = DivProps
+  type Item = Omit<ButtonProps, 'value'> & {model: ModelOption; onSelect?: (value: string) => void}
+  type Effort = DivProps & {label?: JSX.Element} // default 'Thinking'; renders null when no efforts
+}
+
+// Flat convenience component (assistant-ui default composition):
+type ModelSelectorProps = Omit<ModelSelector.Root, 'children'> & {
+  searchable?: boolean
+  class?: string
+  contentClass?: string
+  variant?: 'outline' | 'ghost' | 'muted'
+  size?: 'default' | 'sm' | 'lg'
+}
+function ModelSelector(props: ModelSelectorProps): JSX.Element // = Root>Trigger+Content(Search?,List,Effort)
+
+// Helpers — exact assistant-ui surface:
+function resolveModelEffort(
+  models: readonly ModelOption[],
+  modelId: string | undefined,
+  effort: string | undefined,
+): string | undefined
+function useModelSelectorEfforts(): {
+  efforts?: readonly ModelSelectorEffortOption[]
+  effort?: string
+  setEffort: (e: string) => void
+}
+```
+
+### A.2 Implementation mapping (assistant-ui React → our ui-kit-system)
+
+| assistant-ui (React)                                             | ui-kit-chat (Solid)                                                                                                                                                                                                                                                             |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Popover` + cmdk `Command`                                       | ui-kit-system **Combobox** (Ark) — the search/filter/keyboard-nav list, as the widget already proved (`useListCollection` + `filter`).                                                                                                                                          |
+| `PopoverTrigger` (button)                                        | `Combobox.Control` + `Combobox.Trigger` (button pill, `openOnClick`, `role=combobox`).                                                                                                                                                                                          |
+| `CommandInput` (optional)                                        | `Combobox.Input` inside Content — rendered only when `Search` is composed (non-searchable omits it; list stays arrow-key navigable). Drive it as a PURE search box (`selectionBehavior:'clear'`, reset on open) so it never echoes the selected model — the widget's exact fix. |
+| `CommandItem` `keywords`/`onSelect`                              | `Combobox.Item` + `useListCollection` filter over `name`/`id`/`keywords`; pick → `setValue` + close.                                                                                                                                                                            |
+| `CommandGroup`/`CommandSeparator`                                | `Combobox.ItemGroup` / a styled divider `<div>`.                                                                                                                                                                                                                                |
+| `CommandEmpty`                                                   | `<Show when={collection().items.length === 0}>`.                                                                                                                                                                                                                                |
+| `useControllableState` (React)                                   | a small Solid `createControllableSignal({value, defaultValue, onChange})` in `primitives/util/` (prop-controlled vs internal signal; onChange via ref-free accessor).                                                                                                           |
+| `ModelSelectorModelContext` (`useAui().modelContext().register`) | **DROPPED** — we have no assistant-ui ModelContext. Selection is purely controlled: `onValueChange` is the only output; the host (widget `modelSelectorControl`) wires it to `setRequestMeta({model})`.                                                                         |
+
+### A.3 Deviations (explicit — the no-silent-deviation rule)
+
+1. **No `useAui` ModelContext registration.** Replaced by controlled `onValueChange` (see mapping).
+   Rationale: tanstack/AG-UI ships the model via `forwardedProps`, not an assistant-ui context.
+2. **`efforts` is gated/forward-looking.** `HarnessModelInfo` has no `efforts` field today, so
+   `ModelSelector.Effort` renders `null` in the live widget (assistant-ui's own `if (!efforts?.length)
+return null`). The part + types + helpers are built for parity; lighting it up = add `efforts` to
+   `HarnessModelSchema` + emit it from the harness (a future, separate task). Listed in §7 below.
+3. **Grouping by `HarnessModelInfo.group`** stays a consumer concern (the widget composes
+   `ModelSelector.Group` blocks via its existing `groupsOf`), exactly as assistant-ui leaves grouping
+   to the caller. `ModelOption` deliberately omits `group`.
+4. **Icons via the styled layer**, not hardcoded in the primitive (the primitive/styled split). Public
+   API unchanged.
+
+### A.4 §7 capability row (append to the table)
+
+| Capability                              | Status                                       | Detail                                                                                                                      |
+| --------------------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| ModelSelector.Effort (reasoning effort) | **built; gated (null until `efforts` data)** | `HarnessModelInfo` has no `efforts` yet → renders null; parity-complete API. Lights up when the harness advertises efforts. |
+
+### A.5 Verification
+
+- `primitives/model-selector/model-selector.stories.tsx` — REAL state (no mocks): closed/open,
+  searchable filter narrows the list, disabled item unselectable, Empty when filter matches nothing,
+  Effort row present when a model has `efforts` / absent otherwise, controlled `value` round-trips.
+- `styled/model-selector.stories.tsx` — neutral + dark + mandarax themes; the pill matches the widget
+  visual; opens in shadow-DOM (EnvironmentProvider) without rendering at 0,0 (Ark+shadow memory).
+- Exported from `src/index.tsx`; oxlint clean (Combobox/Popover only from ui-kit-system; Ark hooks
+  `useListCollection` allowed, no Ark component subpath).
+- Cutover: `packages/widget/src/composer/model-selector.tsx` is rebuilt on `@mandarax/ui-kit-chat`'s
+  `ModelSelector` (maps `groupsOf` → `Group` blocks; `onValueChange` → `setRequestMeta({model})`);
+  the old hand-rolled Combobox markup is deleted (TASKS §6d).
