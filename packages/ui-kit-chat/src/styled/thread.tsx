@@ -1,4 +1,4 @@
-import {createMemo, Index, Match, Show, Switch, type Component, type JSX} from 'solid-js'
+import {createContext, createMemo, Index, Match, Show, Switch, useContext, type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import type {MessagePart, ToolCallPart} from '@tanstack/ai-client'
 import type {ToolCardProps, ToolUIComponent} from '@mandarax/protocol/tool-view-types'
@@ -7,15 +7,12 @@ import {useToolCtx} from '../store/tool-context.js'
 import {Thread as ThreadPrimitive} from '../primitives/thread/thread.js'
 import {Message} from '../primitives/message/message.js'
 import {useMessage} from '../primitives/message/message-context.js'
-import {ActionBar} from '../primitives/action-bar/action-bar.js'
 import {groupSegments, type Segment} from '../store/grouping.js'
 import {Markdown} from './markdown.js'
 import {Reasoning} from './reasoning.js'
 import {ToolFallback} from './tool-fallback.js'
 import {ChainOfThought} from './chain-of-thought.js'
-
-const ACTION =
-  'inline-flex items-center justify-center size-7 rounded-[var(--chat-radius-sm)] [background:transparent] text-[color:var(--chat-text-3)] cursor-pointer hover:text-[color:var(--chat-text-hi)] hover:[background:var(--chat-fill-strong)] data-[copied]:text-[color:var(--chat-success)] disabled:opacity-40'
+import {AssistantActionBar} from './action-bar.js'
 
 export type ThreadComponents = {
   AssistantMessage?: Component
@@ -100,16 +97,7 @@ function AssistantTurn(props: {tool: ToolUIComponent}): JSX.Element {
         )}
       </Index>
       <Message.Error />
-      <Show when={!thread.isRunning || !message.isLast()}>
-        <ActionBar.Root class="flex gap-0.5 -mt-0.5">
-          <ActionBar.Copy class={ACTION} aria-label="Copy">
-            ⧉
-          </ActionBar.Copy>
-          <ActionBar.Reload class={ACTION} aria-label="Retry">
-            ↻
-          </ActionBar.Reload>
-        </ActionBar.Root>
-      </Show>
+      <AssistantActionBar />
     </Message.Root>
   )
 }
@@ -123,28 +111,48 @@ function UserTurn(): JSX.Element {
   )
 }
 
-export function Thread(props: ThreadProps): JSX.Element {
-  const tool = () => props.components?.ToolFallback ?? ToolFallback
-  const Assistant: Component = () => <AssistantTurn tool={tool()} />
-  const AssistantMessage = () =>
-    props.components?.AssistantMessage ? <Dynamic component={props.components.AssistantMessage} /> : <Assistant />
+// Thread config (the host's component overrides) flows via context so the message components stay at
+// module level — defining them inside Thread would recreate them each render (views over context, not props).
+type ThreadConfig = {tool: () => ToolUIComponent; assistant: () => Component | undefined}
+
+const ThreadConfigContext = createContext<ThreadConfig>({tool: () => ToolFallback, assistant: () => undefined})
+
+function AssistantMessageView(): JSX.Element {
+  const config = useContext(ThreadConfigContext)
   return (
-    <div class="flex flex-col h-full min-h-0 [color:var(--chat-text)] [font-family:var(--chat-font)]">
-      <ThreadPrimitive.Viewport class="px-3 py-3 flex flex-1 flex-col gap-3 min-h-0 overflow-y-auto">
-        <ThreadPrimitive.Empty>
-          <Show when={props.components?.Welcome} fallback={props.welcome}>
-            {(welcome) => <Dynamic component={welcome()} />}
-          </Show>
-        </ThreadPrimitive.Empty>
-        <ThreadPrimitive.Messages components={{UserMessage: UserTurn, AssistantMessage}} />
-        <ThreadPrimitive.ScrollToBottom class="text-[color:var(--chat-accent-link)] text-[0.6875rem] self-center bottom-1 sticky">
-          ↓ Latest
-        </ThreadPrimitive.ScrollToBottom>
-      </ThreadPrimitive.Viewport>
-      <Show when={props.composer}>
-        <div class="p-2 shrink-0 [border-top:1px_solid_var(--chat-line)]">{props.composer}</div>
-      </Show>
-    </div>
+    <Show when={config.assistant()} fallback={<AssistantTurn tool={config.tool()} />}>
+      {(component) => <Dynamic component={component()} />}
+    </Show>
+  )
+}
+
+const MESSAGES_COMPONENTS = {UserMessage: UserTurn, AssistantMessage: AssistantMessageView}
+
+export function Thread(props: ThreadProps): JSX.Element {
+  return (
+    <ThreadConfigContext.Provider
+      value={{
+        tool: () => props.components?.ToolFallback ?? ToolFallback,
+        assistant: () => props.components?.AssistantMessage,
+      }}
+    >
+      <div class="flex flex-col h-full min-h-0 [color:var(--chat-text)] [font-family:var(--chat-font)]">
+        <ThreadPrimitive.Viewport class="px-3 py-3 flex flex-1 flex-col gap-3 min-h-0 overflow-y-auto">
+          <ThreadPrimitive.Empty>
+            <Show when={props.components?.Welcome} fallback={props.welcome}>
+              {(welcome) => <Dynamic component={welcome()} />}
+            </Show>
+          </ThreadPrimitive.Empty>
+          <ThreadPrimitive.Messages components={MESSAGES_COMPONENTS} />
+          <ThreadPrimitive.ScrollToBottom class="text-[color:var(--chat-accent-link)] text-[0.6875rem] self-center bottom-1 sticky">
+            ↓ Latest
+          </ThreadPrimitive.ScrollToBottom>
+        </ThreadPrimitive.Viewport>
+        <Show when={props.composer}>
+          <div class="p-2 shrink-0 [border-top:1px_solid_var(--chat-line)]">{props.composer}</div>
+        </Show>
+      </div>
+    </ThreadConfigContext.Provider>
   )
 }
 

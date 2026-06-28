@@ -11,5 +11,11 @@ export const animation = {
     'pw-collapse-height': '{from{height:var(--height);opacity:1}to{height:var(--collapsed-height,0);opacity:0}}',
     // The "Thinking…" label's text-clip gradient sweep (background-position shift; pairs with bg-size 200%).
     'pw-think-shimmer': '{to{background-position:-200% 0}}',
+    // Ark Swap — each indicator animates on its data-state (scale + fade), per the Ark scale example.
+    'pw-swap-in': '{from{opacity:0;transform:scale(0.5)}to{opacity:1;transform:scale(1)}}',
+    'pw-swap-out': '{from{opacity:1;transform:scale(1)}to{opacity:0;transform:scale(0.5)}}',
+    // Ark Presence — mount/unmount fade + slight scale, driven by data-state (Ark waits for animationend).
+    'pw-presence-in': '{from{opacity:0;transform:scale(0.96)}to{opacity:1;transform:scale(1)}}',
+    'pw-presence-out': '{from{opacity:1;transform:scale(1)}to{opacity:0;transform:scale(0.96)}}',
   },
 } satisfies Theme['animation']

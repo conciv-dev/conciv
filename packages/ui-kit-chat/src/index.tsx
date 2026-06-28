@@ -63,7 +63,7 @@ export {
   type ComposerHandlers,
   type TriggerItem,
 } from './primitives/composer/composer-handlers.js'
-export {ActionBar as ActionBarPrimitive} from './primitives/action-bar/action-bar.js'
+export {ActionBar as ActionBarPrimitive, useCopied} from './primitives/action-bar/action-bar.js'
 export {
   ActionHandlersProvider,
   useActionHandlers,
@@ -73,7 +73,12 @@ export {ActionBarMore} from './primitives/action-bar-more/action-bar-more.js'
 export {ActionBarMore as ThreadListItemMore} from './primitives/action-bar-more/action-bar-more.js'
 export {Attachment, AttachmentProvider, useAttachment} from './primitives/attachment/attachment.js'
 export {ChainOfThought as ChainOfThoughtPrimitive} from './primitives/chain-of-thought/chain-of-thought.js'
-export {BranchPicker, BranchProvider, useBranch, type BranchState} from './primitives/branch-picker/branch-picker.js'
+export {
+  BranchPicker as BranchPickerPrimitive,
+  BranchProvider,
+  useBranch,
+  type BranchState,
+} from './primitives/branch-picker/branch-picker.js'
 export {Suggestion, SuggestionProvider, useSuggestion, type SuggestionData} from './primitives/suggestion/suggestion.js'
 export {Error as ErrorPrimitive} from './primitives/error/error.js'
 export {ThreadList, ThreadListItem} from './primitives/thread-list/thread-list.js'
@@ -107,3 +112,5 @@ export {ChainOfThought, type ChainOfThoughtProps} from './styled/chain-of-though
 export {ToolFallback} from './styled/tool-fallback.js'
 export {CollapsibleCard, type CollapsibleCardProps} from './styled/collapsible-card.js'
 export {TooltipIconButton, type TooltipIconButtonProps} from './styled/tooltip-icon-button.js'
+export {AssistantActionBar, UserActionBar} from './styled/action-bar.js'
+export {BranchPicker} from './styled/branch-picker.js'

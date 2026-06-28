@@ -24,6 +24,11 @@ export const motion = {
   'anim-collapse-open': 'animate-pw-expand-height animate-duration-[200ms] animate-ease-pw',
   'anim-collapse-closed':
     'animate-pw-collapse-height animate-duration-[200ms] animate-ease-pw animate-fill-mode-forwards',
+  // Ark Swap indicator + Presence node (scale+fade), driven by data-state open/closed.
+  'anim-swap-in': 'animate-pw-swap-in animate-duration-[200ms] animate-ease-pw-expo animate-fill-mode-both',
+  'anim-swap-out': 'animate-pw-swap-out animate-duration-[120ms] animate-ease-pw animate-fill-mode-both',
+  'anim-presence-in': 'animate-pw-presence-in animate-duration-[180ms] animate-ease-pw-expo animate-fill-mode-both',
+  'anim-presence-out': 'animate-pw-presence-out animate-duration-[120ms] animate-ease-pw animate-fill-mode-both',
   'anim-pulse': 'animate-pulse animate-duration-[1.4s]',
   'anim-skel': 'animate-pulse animate-duration-[1.2s]',
   'anim-test-rot': 'animate-spin animate-duration-[0.7s]',

@@ -15,7 +15,7 @@ export function TooltipIconButton(props: TooltipIconButtonProps): JSX.Element {
   const [local, rest] = splitProps(props, ['tooltip', 'side', 'class'])
   return (
     <Tooltip.Root positioning={{strategy: 'fixed', placement: local.side ?? 'top', gutter: 6}}>
-      <Tooltip.Trigger type="button" class={`${BUTTON}  ${local.class ?? ''}`} aria-label={local.tooltip} {...rest} />
+      <Tooltip.Trigger type="button" class={`${BUTTON}  ${local.class ?? ''}`} {...rest} aria-label={local.tooltip} />
       <Tooltip.Positioner>
         <Tooltip.Content>{local.tooltip}</Tooltip.Content>
       </Tooltip.Positioner>

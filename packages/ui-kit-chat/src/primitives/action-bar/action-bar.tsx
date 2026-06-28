@@ -1,10 +1,19 @@
-import {createSignal, Show, splitProps, type JSX} from 'solid-js'
+import {createContext, createSignal, Show, splitProps, useContext, type Accessor, type JSX} from 'solid-js'
+import {Primitive, type Slottable} from '../util/primitive.js'
 import {useChatContext, useThread} from '../../store/chat-context.js'
 import {useMessage} from '../message/message-context.js'
 import {createActionButton, type ActionButtonState} from '../util/create-action-button.js'
 import type {Turn} from '../../store/grouping.js'
 import {useActionHandlers} from './action-handlers.js'
 import {ActionBarInteractionProvider} from './interaction-context.js'
+
+// Copy exposes its copied flag (assistant-ui's s.message.isCopied) so a styled child — e.g. an Ark
+// Swap crossfading Copy↔Check — can read it. undefined when no Copy is in scope.
+const CopiedContext = createContext<Accessor<boolean>>()
+
+export function useCopied(): Accessor<boolean> {
+  return useContext(CopiedContext) ?? (() => false)
+}
 
 function messageText(turn: Turn): string {
   return turn.parts
@@ -74,28 +83,32 @@ const Reload = createActionButton('Reload', () => {
   return () => ({run: () => void chat.reload(), disabled: thread.isRunning})
 })
 
-const ExportMarkdown = createActionButton<{filename?: string; onExport?: (markdown: string) => void}>(
-  'Export markdown',
-  (args) => {
-    const message = useMessage()
-    return () => ({
-      run: () => {
-        const markdown = messageMarkdown(message.message())
-        if (args.onExport) {
-          args.onExport(markdown)
-          return
-        }
-        const blob = new Blob([markdown], {type: 'text/markdown'})
-        const url = URL.createObjectURL(blob)
-        const anchor = document.createElement('a')
-        anchor.href = url
-        anchor.download = args.filename ?? 'message.md'
-        anchor.click()
-        URL.revokeObjectURL(url)
-      },
-    })
-  },
-)
+type ExportArgs = {filename?: string; onExport?: (markdown: string) => void}
+
+// The export behavior as a hook so any surface (the ExportMarkdown button OR a styled menu item via
+// onSelect) can invoke it without nesting buttons or bridging element-typed handlers.
+export function useExportMarkdown(args: ExportArgs = {}): () => void {
+  const message = useMessage()
+  return () => {
+    const markdown = messageMarkdown(message.message())
+    if (args.onExport) {
+      args.onExport(markdown)
+      return
+    }
+    const blob = new Blob([markdown], {type: 'text/markdown'})
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = args.filename ?? 'message.md'
+    anchor.click()
+    URL.revokeObjectURL(url)
+  }
+}
+
+const ExportMarkdown = createActionButton<ExportArgs>('Export markdown', (args) => {
+  const run = useExportMarkdown(args)
+  return () => ({run: () => run()})
+})
 
 const Edit = createActionButton('Edit', () => {
   const message = useMessage()
@@ -128,18 +141,29 @@ const FeedbackNegative = createActionButton('Bad response', () => {
     handlers.onFeedback ? {run: () => handlers.onFeedback?.(message.message(), 'negative')} : null
 })
 
-type CopyProps = JSX.ButtonHTMLAttributes<HTMLButtonElement> & {copiedDuration?: number}
+type CopyProps = JSX.ButtonHTMLAttributes<HTMLButtonElement> &
+  Slottable<JSX.ButtonHTMLAttributes<HTMLButtonElement>> & {copiedDuration?: number}
 
 function Copy(props: CopyProps): JSX.Element {
   const message = useMessage()
   const [copied, setCopied] = createSignal(false)
   const [local, rest] = splitProps(props, ['copiedDuration'])
   const run = () => {
-    void navigator.clipboard.writeText(messageText(message.message()))
+    void navigator.clipboard.writeText(messageText(message.message())).catch(() => {})
     setCopied(true)
     setTimeout(() => setCopied(false), local.copiedDuration ?? 3000)
   }
-  return <button type="button" aria-label="Copy" data-copied={copied() ? '' : undefined} onClick={run} {...rest} />
+  return (
+    <CopiedContext.Provider value={copied}>
+      <Primitive.button
+        type="button"
+        aria-label="Copy"
+        data-copied={copied() ? '' : undefined}
+        onClick={run}
+        {...rest}
+      />
+    </CopiedContext.Provider>
+  )
 }
 
 export const ActionBar = Object.assign(Root, {
