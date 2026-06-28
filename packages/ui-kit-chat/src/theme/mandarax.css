@@ -4,6 +4,7 @@
    (ui-kit-system/tokens.css). Styled components never reference --pw-* directly — only this mapping. */
 
 .chat-theme-mandarax {
+  color-scheme: dark;
   --chat-bg: var(--pw-panel);
   --chat-panel: var(--pw-panel);
   --chat-glass: var(--pw-glass);

@@ -4,6 +4,7 @@
 
 :root,
 :host {
+  color-scheme: light;
   --chat-bg: #ffffff;
   --chat-panel: #f6f7f9;
   --chat-glass: rgba(246, 247, 249, 0.97);
@@ -13,10 +14,10 @@
   --chat-text: #1d2127;
   --chat-text-hi: #0b0d10;
   --chat-text-2: #565b63;
-  --chat-text-3: #868c95;
+  --chat-text-3: #6b717a;
   --chat-accent: #2563eb;
   --chat-accent-hi: #1d4ed8;
-  --chat-accent-link: #3b82f6;
+  --chat-accent-link: #2563eb;
   --chat-on-accent: #ffffff;
   --chat-danger: #dc2626;
   --chat-danger-line: rgba(220, 38, 38, 0.42);
@@ -31,9 +32,15 @@
   --chat-ease: cubic-bezier(0.22, 1, 0.36, 1);
   --chat-font: system-ui, -apple-system, sans-serif;
   --chat-mono: ui-monospace, monospace;
+  --chat-text-xs: 0.6875rem;
+  --chat-text-sm: 0.75rem;
+  --chat-text-md: 0.8125rem;
+  --chat-text-lg: 1rem;
+  --chat-focus: 0.125rem solid var(--chat-accent);
 }
 
 .chat-theme-dark {
+  color-scheme: dark;
   --chat-bg: #0f1115;
   --chat-panel: #1a1d23;
   --chat-glass: rgba(26, 29, 35, 0.97);
@@ -54,4 +61,25 @@
   --chat-line: rgba(255, 255, 255, 0.1);
   --chat-line-soft: rgba(255, 255, 255, 0.06);
   --chat-shadow-lg: 0 16px 44px rgba(0, 0, 0, 0.55);
+}
+
+/* Shiki dual-theme (markdown code fences): renders github-light by default; under a dark chat theme,
+   swap each token to the dark colors shiki stored in --shiki-dark / --shiki-dark-bg. */
+.chat-theme-dark .shiki,
+.chat-theme-dark .shiki span,
+.chat-theme-mandarax .shiki,
+.chat-theme-mandarax .shiki span {
+  color: var(--shiki-dark) !important;
+  background-color: var(--shiki-dark-bg) !important;
+}
+
+/* @pierre/diffs (tool-card code blocks) resolves its dual theme via CSS `color-scheme`, but sets
+   `color-scheme: light dark` on its own shadow host inside `@layer base` — which would follow the OS.
+   These unlayered rules beat that layered rule, pinning the diff theme to the chat theme instead. */
+diffs-container {
+  color-scheme: light;
+}
+.chat-theme-dark diffs-container,
+.chat-theme-mandarax diffs-container {
+  color-scheme: dark;
 }

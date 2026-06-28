@@ -20,11 +20,15 @@ export function TextField(props: JSX.InputHTMLAttributes<HTMLInputElement> & {la
 
 const TEXTAREA =
   'w-full resize-none font-pw text-[0.8125rem] rounded-pw-md bg-pw-fill text-pw-text [border:1px_solid_var(--pw-line)] py-2 px-3 focus-ring placeholder:text-pw-text-3'
+// Chrome-less variant: just the autosizing textarea, for callers that supply their own box (e.g. a composer).
+const TEXTAREA_BARE =
+  'w-full resize-none [background:transparent] [border:none] [font:inherit] focus-visible:outline-none'
 
 export type TextAreaProps = Omit<JSX.TextareaHTMLAttributes<HTMLTextAreaElement>, 'style'> & {
   minRows?: number
   maxRows?: number
   onHeightChange?: (height: number) => void
+  unstyled?: boolean
 }
 
 function rowsToPx(el: HTMLTextAreaElement, rows: number): number {
@@ -39,7 +43,16 @@ function rowsToPx(el: HTMLTextAreaElement, rows: number): number {
 }
 
 export function TextArea(props: TextAreaProps): JSX.Element {
-  const [local, rest] = splitProps(props, ['class', 'minRows', 'maxRows', 'onHeightChange', 'onInput', 'value', 'ref'])
+  const [local, rest] = splitProps(props, [
+    'class',
+    'minRows',
+    'maxRows',
+    'onHeightChange',
+    'onInput',
+    'value',
+    'ref',
+    'unstyled',
+  ])
   let el: HTMLTextAreaElement | undefined
   const grow = () => {
     if (!el) return
@@ -64,7 +77,7 @@ export function TextArea(props: TextAreaProps): JSX.Element {
         if (typeof forwardRef === 'function') forwardRef(node)
       }}
       rows={local.minRows ?? 1}
-      class={`${TEXTAREA}  ${local.class ?? ''}`}
+      class={`${local.unstyled ? TEXTAREA_BARE : TEXTAREA}  ${local.class ?? ''}`}
       value={local.value}
       onInput={(event) => {
         grow()

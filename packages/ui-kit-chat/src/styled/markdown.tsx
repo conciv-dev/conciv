@@ -11,9 +11,13 @@ import html from 'shiki/langs/html.mjs'
 import bash from 'shiki/langs/bash.mjs'
 import md from 'shiki/langs/markdown.mjs'
 import githubDark from 'shiki/themes/github-dark.mjs'
+import githubLight from 'shiki/themes/github-light.mjs'
 import {Streamdown} from '@mandarax/solid-streamdown'
 
-const THEME = 'github-dark'
+// Dual theme: shiki emits the light colors inline + the dark colors as `--shiki-dark` vars on each
+// token. tokens.css swaps to the dark vars under .chat-theme-dark / .chat-theme-mandarax, so code
+// blocks follow the chat theme instead of being permanently dark.
+const THEMES = {light: 'github-light', dark: 'github-dark'} as const
 
 // One async highlighter for the whole package; until ready, code renders as plain <pre>. Ported from
 // the widget's markdown.tsx (now deleted) — the single markdown renderer in the running widget.
@@ -33,7 +37,7 @@ function ensureHighlighter(): void {
   if (store.started) return
   store.started = true
   void createHighlighterCore({
-    themes: [githubDark],
+    themes: [githubLight, githubDark],
     langs: [ts, tsx, js, jsx, json, cssLang, html, bash, md],
     engine: createJavaScriptRegexEngine(),
   }).then((highlighter) => {
@@ -50,7 +54,7 @@ function codeBlock(code: string, lang: string | undefined, highlighter: Highligh
   if (!highlighter) return `<pre><code>${escapeHtml(code)}</code></pre>`
   const requested = (lang ?? '').trim().toLowerCase()
   const language = highlighter.getLoadedLanguages().includes(requested) ? requested : 'text'
-  return highlighter.codeToHtml(code, {lang: language, theme: THEME})
+  return highlighter.codeToHtml(code, {lang: language, themes: THEMES, defaultColor: 'light'})
 }
 
 export type MarkdownProps = {content: string; streaming?: boolean}

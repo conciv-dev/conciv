@@ -1,5 +1,6 @@
 import {createContext, createMemo, Index, Match, Show, Switch, useContext, type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
+import {ArrowDown, Brain, FilePen, FileText, List, Search, Terminal, Wrench} from 'lucide-solid'
 import type {MessagePart, ToolCallPart} from '@tanstack/ai-client'
 import type {ToolCardProps, ToolUIComponent} from '@mandarax/protocol/tool-view-types'
 import {useThread} from '../store/chat-context.js'
@@ -13,6 +14,7 @@ import {Reasoning} from './reasoning.js'
 import {ToolFallback} from './tool-fallback.js'
 import {ChainOfThought} from './chain-of-thought.js'
 import {AssistantActionBar} from './action-bar.js'
+import {FOCUS} from './classes.js'
 
 export type ThreadComponents = {
   AssistantMessage?: Component
@@ -36,19 +38,39 @@ function asText(part: MessagePart | undefined): Extract<MessagePart, {type: 'tex
   return part?.type === 'text' && part.content.trim().length > 0 ? part : null
 }
 
-function ChainPart(props: {part: MessagePart | undefined; tool: ToolUIComponent}): JSX.Element {
+// The rail node icon for a tool step, by tool name (falls back to a generic wrench).
+function toolStepIcon(name: string): JSX.Element {
+  const lower = name.toLowerCase()
+  const size = 13
+  if (/search|grep|find|lookup/.test(lower)) return <Search size={size} />
+  if (/write|edit|patch|create|append/.test(lower)) return <FilePen size={size} />
+  if (/read|cat|open|view|fetch|file/.test(lower)) return <FileText size={size} />
+  if (/bash|shell|exec|run|terminal|command/.test(lower)) return <Terminal size={size} />
+  if (/list|glob|dir|tree/.test(lower)) return <List size={size} />
+  return <Wrench size={size} />
+}
+
+function ChainPart(props: {part: MessagePart | undefined; tool: ToolUIComponent; last?: boolean}): JSX.Element {
   const message = useMessage()
   return (
     <Switch>
-      <Match when={asThinking(props.part)}>{(part) => <Reasoning text={part().content} />}</Match>
+      <Match when={asThinking(props.part)}>
+        {(part) => (
+          <ChainOfThought.Step icon={<Brain size={13} />} last={props.last}>
+            <Reasoning text={part().content} />
+          </ChainOfThought.Step>
+        )}
+      </Match>
       <Match when={asToolCall(props.part)}>
         {(part) => (
-          <Dynamic
-            component={props.tool}
-            part={part()}
-            result={message.pairing().byCallId.get(part().id)}
-            ctx={useToolCtx()}
-          />
+          <ChainOfThought.Step icon={toolStepIcon(part().name)} last={props.last}>
+            <Dynamic
+              component={props.tool}
+              part={part()}
+              result={message.pairing().byCallId.get(part().id)}
+              ctx={useToolCtx()}
+            />
+          </ChainOfThought.Step>
         )}
       </Match>
     </Switch>
@@ -81,7 +103,13 @@ function AssistantTurn(props: {tool: ToolUIComponent}): JSX.Element {
               {(chain) => (
                 <ChainOfThought streaming={thread.isRunning && message.isLast() && isLastSegment(segmentIndex)}>
                   <Index each={chain().indices}>
-                    {(partIndex) => <ChainPart part={parts()[partIndex()]} tool={props.tool} />}
+                    {(partIndex, partPosition) => (
+                      <ChainPart
+                        part={parts()[partIndex()]}
+                        tool={props.tool}
+                        last={partPosition === chain().indices.length - 1}
+                      />
+                    )}
                   </Index>
                 </ChainOfThought>
               )}
@@ -144,8 +172,11 @@ export function Thread(props: ThreadProps): JSX.Element {
             </Show>
           </ThreadPrimitive.Empty>
           <ThreadPrimitive.Messages components={MESSAGES_COMPONENTS} />
-          <ThreadPrimitive.ScrollToBottom class="text-[color:var(--chat-accent-link)] text-[0.6875rem] self-center bottom-1 sticky">
-            ↓ Latest
+          <ThreadPrimitive.ScrollToBottom
+            class={`text-[length:var(--chat-text-xs)] px-2 rounded-[var(--chat-radius-pill)] inline-flex gap-1 min-h-6 cursor-pointer [color:var(--chat-accent-link)] items-center self-center bottom-1 sticky hover:[background:var(--chat-fill-strong)] ${FOCUS}`}
+          >
+            <ArrowDown size={12} aria-hidden="true" />
+            Latest
           </ThreadPrimitive.ScrollToBottom>
         </ThreadPrimitive.Viewport>
         <Show when={props.composer}>

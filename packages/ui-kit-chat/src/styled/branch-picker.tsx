@@ -14,7 +14,7 @@ export function BranchPicker(props: {class?: string}): JSX.Element {
       <BranchPickerPrimitive.Previous
         render={(buttonProps) => (
           <TooltipIconButton {...buttonProps} tooltip="Previous" class="size-6">
-            <ChevronLeft size={0.875} />
+            <ChevronLeft size={14} />
           </TooltipIconButton>
         )}
       />
@@ -24,7 +24,7 @@ export function BranchPicker(props: {class?: string}): JSX.Element {
       <BranchPickerPrimitive.Next
         render={(buttonProps) => (
           <TooltipIconButton {...buttonProps} tooltip="Next" class="size-6">
-            <ChevronRight size={0.875} />
+            <ChevronRight size={14} />
           </TooltipIconButton>
         )}
       />
