@@ -132,7 +132,7 @@ All four. No exceptions, no "mostly," no leaving the old chat-panel/tool-ui aliv
 
 ### Phase 5 — tool vocabulary (ported from with-opencode, bound to tanstack parts)
 
-- [ ] 5a — apply-patch-diff (Pierre), bash-card, inline-tool (ToolCardEntry[] dispatch).
+- [x] 5a — apply-patch-diff (Pierre), bash-card, inline-tool (ToolCardEntry[] dispatch). **Done** (commits d68165c + f745abd): all two-layer (primitives/tools/_ logic + styled/tools/_ tokens, §2.14); SolidPatchDiff added to solid-diffs; defineToolkit→ToolCardEntry[]; styled Thread dispatches `tools` by name in the chain (was fallback-only). Screenshot-verified.
 - [ ] 5b — permission card (→ ToolCallPart.approval + addToolApprovalResponse + permissionDecision), reasoning-ghost, `defineToolkit` (returns `ToolCardEntry[]`); fold existing tool-ui cards. Ask UI = existing GenUi.
 - [x] 5c — **ModelSelector (assistant-ui API parity, API spec Appendix A).** Done (commit b5193ed): headless `primitives/model-selector/` compound (Root/Trigger/Value/Content/Search/List/Empty/Group/Separator/Item/Effort + `createControllableSignal` util) over ui-kit-system Combobox/Popover; styled `styled/model-selector.tsx` (chat tokens + lucide, flat `ModelSelector` convenience). EXACT public API + types (`ModelOption`/`ModelSelectorEffortOption`/`DEFAULT_EFFORT_OPTIONS`/`resolveModelEffort`/`useModelSelectorEfforts`). Effort part gated (null until `HarnessModelInfo.efforts`). Deviations per Appendix A.3 (no `useAui` ModelContext → controlled `onValueChange`).
 - Verify: each card has stories incl. running/complete/error/approval states. ModelSelector stories per Appendix A.5 (closed/open/filter/disabled/empty/effort/controlled; neutral+dark+mandarax; shadow-DOM open).

@@ -36,7 +36,7 @@ export function AttachmentUI(props: {removable?: boolean}): JSX.Element {
               </span>
             }
           >
-            {(src) => <img src={src()} alt="" class="size-full object-cover" />}
+            {(src) => <img src={src()} alt={draft.name} class="size-full object-cover" />}
           </Show>
         </Tooltip.Trigger>
         <Show when={props.removable}>

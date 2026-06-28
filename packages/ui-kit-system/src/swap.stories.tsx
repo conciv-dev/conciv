@@ -25,7 +25,8 @@ export const Default: Story = {
   },
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    await expect(c.getByText('off')).toBeVisible()
+    // The active indicator fades in via a 150ms opacity transition, so allow it to settle.
+    await waitFor(() => expect(c.getByText('off')).toBeVisible())
     await userEvent.click(c.getByRole('button'))
     await waitFor(() => expect(c.getByText('on')).toBeVisible())
   },

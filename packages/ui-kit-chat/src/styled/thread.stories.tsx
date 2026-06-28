@@ -72,10 +72,12 @@ function play(theme?: string): Story {
       // D1: record the assistant reply's left/right while the chain (and its wide tool card) is collapsed.
       const before = reply.getBoundingClientRect()
       // Expand the chain, then the wide tool card — content grows in HEIGHT only.
-      await userEvent.click(c.getByText('Steps'))
+      await userEvent.click(c.getByText('Chain of Thought'))
       await waitFor(() => expect(c.getByText('shell')).toBeVisible())
       await userEvent.click(c.getByText('shell'))
-      await waitFor(() => expect(c.getByText(/no matches/)).toBeVisible())
+      // The tool card's body (a Pierre diff) lives in a shadow root we can't query, so confirm the
+      // expand via the collapsible trigger's open state instead.
+      await waitFor(() => expect(c.getByRole('button', {name: /shell/})).toHaveAttribute('data-state', 'open'))
       const after = reply.getBoundingClientRect()
       // The wide tool card grows HEIGHT, never the turn's left/right edges (D1).
       expect(after.left).toBeCloseTo(before.left, 0)

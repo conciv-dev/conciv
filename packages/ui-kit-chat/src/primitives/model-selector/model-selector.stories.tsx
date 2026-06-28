@@ -21,7 +21,7 @@ export const Headless: Story = {
     return (
       <div style={{padding: '4rem'}}>
         <ModelSelector.Root models={MODELS} value={value()} onValueChange={setValue}>
-          <ModelSelector.Trigger />
+          <ModelSelector.Trigger aria-label="Select model" />
           <ModelSelector.Content class="hidden data-[state=open]:block">
             <ModelSelector.Search />
             <ModelSelector.Empty />
@@ -38,7 +38,8 @@ export const Headless: Story = {
     await userEvent.click(trigger)
     const search = await waitFor(() => c.getByPlaceholderText('Search models…'))
     await userEvent.type(search, 'bet')
-    await waitFor(() => expect(c.queryByText('Alpha')).toBeNull())
+    // Gamma (not the selected model, so it only appears in the list) filters out; Alpha stays in the trigger.
+    await waitFor(() => expect(c.queryByText('Gamma')).toBeNull())
     await userEvent.click(c.getByText('Beta'))
     await waitFor(() => expect(trigger).toHaveTextContent('Beta'))
   },
