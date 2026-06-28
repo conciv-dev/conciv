@@ -5,6 +5,7 @@ import {Primitive, type Slottable} from '../util/primitive.js'
 import {useChatContext, useComposer, useThread} from '../../store/chat-context.js'
 import {pairResults, type Turn} from '../../store/grouping.js'
 import {MessageProvider} from '../message/message-context.js'
+import {SuggestionProvider, type SuggestionData} from '../suggestion/suggestion.js'
 import {ViewportProvider, useThreadViewport} from './viewport-context.js'
 
 type DivProps = JSX.HTMLAttributes<HTMLDivElement> & Slottable<JSX.HTMLAttributes<HTMLDivElement>>
@@ -144,10 +145,8 @@ function Suggestion(props: SuggestionProps): JSX.Element {
   return <button type="button" onClick={activate} {...rest} />
 }
 
-export type SuggestionData = {title: string; label: string; prompt: string}
-
 type SuggestionsProps =
-  | {components: {Suggestion: Component<{suggestion: SuggestionData}>}; each: SuggestionData[]; children?: never}
+  | {components: {Suggestion: Component}; each: SuggestionData[]; children?: never}
   | {children: (suggestion: () => SuggestionData) => JSX.Element; each: SuggestionData[]; components?: never}
 
 function Suggestions(props: SuggestionsProps): JSX.Element {
@@ -156,9 +155,11 @@ function Suggestions(props: SuggestionsProps): JSX.Element {
   return (
     <Index each={props.each}>
       {(suggestion) => (
-        <Show when={itemComponent()} fallback={renderChildren ? renderChildren(suggestion) : null}>
-          {(component) => <Dynamic component={component()} suggestion={suggestion()} />}
-        </Show>
+        <SuggestionProvider value={suggestion()}>
+          <Show when={itemComponent()} fallback={renderChildren ? renderChildren(suggestion) : null}>
+            {(component) => <Dynamic component={component()} />}
+          </Show>
+        </SuggestionProvider>
       )}
     </Index>
   )

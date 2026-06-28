@@ -23,7 +23,11 @@ export {
   type ActionButtonProps,
 } from './primitives/util/create-action-button.js'
 export {ToolProvider, useToolCtx} from './store/tool-context.js'
-export {Thread, type MessagesComponents, type SuggestionData} from './primitives/thread/thread.js'
+export {Thread, type MessagesComponents} from './primitives/thread/thread.js'
+export {Suggestion, SuggestionProvider, useSuggestion, type SuggestionData} from './primitives/suggestion/suggestion.js'
+export {ChainOfThought} from './primitives/chain-of-thought/chain-of-thought.js'
+export {BranchPicker, BranchProvider, useBranch, type BranchState} from './primitives/branch-picker/branch-picker.js'
+export {Error} from './primitives/error/error.js'
 export {ViewportProvider, useThreadViewport, type ViewportContextValue} from './primitives/thread/viewport-context.js'
 export {Message, type PartsComponents} from './primitives/message/message.js'
 export {

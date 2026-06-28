@@ -11,8 +11,9 @@ import {
   createToolCallChunks,
   type StoryConnectionOptions,
 } from '../../store/story-connection.js'
-import {Thread, type SuggestionData} from './thread.js'
+import {Thread} from './thread.js'
 import {Message} from '../message/message.js'
+import {Suggestion, type SuggestionData} from '../suggestion/suggestion.js'
 
 const meta: Meta = {title: 'primitives/Thread'}
 export default meta
@@ -104,6 +105,18 @@ const STARTERS: SuggestionData[] = [
   {title: 'Add a test', label: 'for the bug', prompt: 'Add a test for the bug'},
 ]
 
+function StarterChip(): JSX.Element {
+  return (
+    <Suggestion.Trigger
+      send
+      class="text-[0.75rem] text-pw-text-2 px-2 py-1 border border-pw-line rounded-pw-md flex gap-1"
+    >
+      <Suggestion.Title class="text-pw-text" />
+      <Suggestion.Description />
+    </Suggestion.Trigger>
+  )
+}
+
 export const SuggestionsSendOnClick: Story = {
   render: () => {
     const chat = useChat({connection: storyConnection({chunks: createTextChunks('On it.'), chunkDelay: 1})})
@@ -113,20 +126,7 @@ export const SuggestionsSendOnClick: Story = {
           <Thread.Viewport class="flex flex-col gap-2">
             <Thread.Empty>
               <div class="flex gap-2">
-                <Thread.Suggestions
-                  each={STARTERS}
-                  components={{
-                    Suggestion: (props) => (
-                      <Thread.Suggestion
-                        prompt={props.suggestion.prompt}
-                        send
-                        class="text-[0.75rem] text-pw-text-2 px-2 py-1 border border-pw-line rounded-pw-md"
-                      >
-                        {props.suggestion.title} {props.suggestion.label}
-                      </Thread.Suggestion>
-                    ),
-                  }}
-                />
+                <Thread.Suggestions each={STARTERS} components={{Suggestion: StarterChip}} />
               </div>
             </Thread.Empty>
             <Thread.Messages components={{UserMessage, AssistantMessage}} />
@@ -137,7 +137,7 @@ export const SuggestionsSendOnClick: Story = {
   },
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    await userEvent.click(c.getByText(/Explain this error/))
+    await userEvent.click(c.getByText('Explain'))
     await waitFor(() => expect(c.getByText('Explain this error')).toBeVisible())
     await waitFor(() => expect(c.getByText('On it.')).toBeVisible(), {timeout: 4000})
   },

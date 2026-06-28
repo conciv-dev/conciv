@@ -103,8 +103,10 @@ All four. No exceptions, no "mostly," no leaving the old chat-panel/tool-ui aliv
 
 - [x] 2a — Thread (Root/Viewport/ViewportFooter/Messages/MessageByIndex/ScrollToBottom/Suggestion(s)/Empty/If), Message (Root/Parts/PartByIndex/Attachments/If/Error), MessagePart (Text/Image/InProgress).
       Done: all three families built + exported over the coalesced-turn model; tool dispatch by `ToolCardEntry[]`; ToolProvider host-seam; stories drive REAL useChat (11/11 green).
-- [ ] 2b — Composer (Root/Input/Send/Cancel/AddAttachment/Attachments/AttachmentDropzone/If), ActionBar full (Copy/Reload/Edit/ExportMarkdown/Speak/Feedback, gated), ActionBarMore, Attachment (Root/Name/Remove/Thumb).
-- [ ] 2c — ChainOfThought, BranchPicker (inert), Suggestion, Error.
+- [x] 2b — Composer (Root/Input/Send/Cancel/AddAttachment/Attachments/AttachmentDropzone/If), ActionBar full (Copy/Reload/Edit/ExportMarkdown/Speak/Feedback, gated), ActionBarMore, Attachment (Root/Name/Remove/Thumb).
+      Done: all four families built+exported; ActionBar gating via ActionHandlers context (Edit/Speak/Feedback null until handler — story asserts both states); Composer autosize + enter/ctrlEnter/esc; 17/17 green.
+- [x] 2c — ChainOfThought, BranchPicker (inert), Suggestion, Error.
+      Done: ChainOfThought (Root/AccordionTrigger/Parts, open-while-streaming); BranchPicker inert (count=1, hideWhenSingleBranch); Suggestion (Title/Description/Trigger over context); Error (Root role=alert/Message over chat.error()). 22/22 green incl. RUN_ERROR→error() story.
 - [ ] 2d — ThreadList/ThreadListItem/ThreadListItemMore (over session store), AssistantModal.
 - [ ] 2e — Composer extras (Quote/Dictate/TriggerPopover), QueueItem, SelectionToolbar.
 - Verify each: stories for every part covering all states via storyConnection; gated actions render null with no handler.
