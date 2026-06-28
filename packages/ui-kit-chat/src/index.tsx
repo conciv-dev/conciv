@@ -60,4 +60,26 @@ export {
   type ActionHandlers,
 } from './primitives/action-bar/action-handlers.js'
 export {ActionBarMore} from './primitives/action-bar-more/action-bar-more.js'
+export {ActionBarMore as ThreadListItemMore} from './primitives/action-bar-more/action-bar-more.js'
+export {ThreadList, ThreadListItem} from './primitives/thread-list/thread-list.js'
+export {
+  ThreadListProvider,
+  useThreadList,
+  ThreadListItemProvider,
+  useThreadListItem,
+  type ThreadListActions,
+} from './primitives/thread-list/thread-list-context.js'
+export {AssistantModal} from './primitives/assistant-modal/assistant-modal.js'
 export {Attachment, AttachmentProvider, useAttachment} from './primitives/attachment/attachment.js'
+export {
+  ComposerHandlersProvider,
+  useComposerHandlers,
+  type ComposerHandlers,
+  type TriggerItem,
+} from './primitives/composer/composer-handlers.js'
+export {QueueItem, QueueItemProvider, type QueuedMessage} from './primitives/queue-item/queue-item.js'
+export {
+  SelectionToolbar,
+  useSelectionToolbarInfo,
+  type SelectionInfo,
+} from './primitives/selection-toolbar/selection-toolbar.js'

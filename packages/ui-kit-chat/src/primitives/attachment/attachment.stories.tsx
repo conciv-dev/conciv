@@ -30,6 +30,7 @@ function Harness(): JSX.Element {
         editing: () => false,
         setEditing: () => {},
         dictating: () => false,
+        setDictating: () => {},
       }}
     >
       <div class="flex gap-2">

@@ -15,6 +15,7 @@ export type ComposerContextValue = {
   editing: Accessor<boolean>
   setEditing: (value: boolean) => void
   dictating: Accessor<boolean>
+  setDictating: (value: boolean) => void
 }
 
 const ComposerContext = createContext<ComposerContextValue>()

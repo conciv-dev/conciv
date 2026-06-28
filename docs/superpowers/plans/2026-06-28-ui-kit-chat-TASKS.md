@@ -107,9 +107,12 @@ All four. No exceptions, no "mostly," no leaving the old chat-panel/tool-ui aliv
       Done: all four families built+exported; ActionBar gating via ActionHandlers context (Edit/Speak/Feedback null until handler — story asserts both states); Composer autosize + enter/ctrlEnter/esc; 17/17 green.
 - [x] 2c — ChainOfThought, BranchPicker (inert), Suggestion, Error.
       Done: ChainOfThought (Root/AccordionTrigger/Parts, open-while-streaming); BranchPicker inert (count=1, hideWhenSingleBranch); Suggestion (Title/Description/Trigger over context); Error (Root role=alert/Message over chat.error()). 22/22 green incl. RUN_ERROR→error() story.
-- [ ] 2d — ThreadList/ThreadListItem/ThreadListItemMore (over session store), AssistantModal.
-- [ ] 2e — Composer extras (Quote/Dictate/TriggerPopover), QueueItem, SelectionToolbar.
+- [x] 2d — ThreadList/ThreadListItem/ThreadListItemMore (over session store), AssistantModal.
+      Done: ThreadList/Item over a neutral ThreadListProvider (host supplies sessions+actions); Delete/Archive gated; ThreadListItemMore aliases the Menu overflow; AssistantModal over ui-kit Popover. Stories green.
+- [x] 2e — Composer extras (Quote/Dictate/TriggerPopover), QueueItem, SelectionToolbar.
+      Done: Composer Dictate/StopDictation/DictationTranscript + @/slash TriggerPopover (gated via ComposerHandlers); QueueItem Text/Steer/Remove (gated); SelectionToolbar Root/Quote + useSelectionToolbarInfo. Gated-null + live paths story-covered.
 - Verify each: stories for every part covering all states via storyConnection; gated actions render null with no handler.
+  **Phase 2 complete: 16 story files / 28 tests GREEN, typecheck clean, oxlint 0/0. Full primitive API parity (§2) built + exported.**
 
 ### Phase 3 — scroll behaviors
 

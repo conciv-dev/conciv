@@ -6,6 +6,8 @@ import {useChatContext, useComposer} from '../../store/chat-context.js'
 import {Primitive} from '../util/primitive.js'
 import {ComposerProvider, useComposerContext, type AttachmentDraft} from './composer-context.js'
 import {AttachmentProvider} from '../attachment/attachment.js'
+import {createActionButton, type ActionButtonState} from '../util/create-action-button.js'
+import {useComposerHandlers} from './composer-handlers.js'
 
 type FormProps = JSX.HTMLAttributes<HTMLFormElement>
 
@@ -21,7 +23,7 @@ function Root(props: FormProps): JSX.Element {
   const [attachments, setAttachments] = createSignal<AttachmentDraft[]>([])
   const [quote, setQuote] = createSignal<string | null>(null)
   const [editing, setEditing] = createSignal(false)
-  const [dictating] = createSignal(false)
+  const [dictating, setDictating] = createSignal(false)
   const [local, rest] = splitProps(props, ['onSubmit'])
   const submit = (event: SubmitEvent & {currentTarget: HTMLFormElement; target: Element}) => {
     event.preventDefault()
@@ -45,6 +47,7 @@ function Root(props: FormProps): JSX.Element {
         editing,
         setEditing,
         dictating,
+        setDictating,
       }}
     >
       <Primitive.form onSubmit={submit} {...rest} />
@@ -221,6 +224,78 @@ function QuoteDismiss(props: JSX.ButtonHTMLAttributes<HTMLButtonElement>): JSX.E
   )
 }
 
+const Dictate = createActionButton('Dictate', () => {
+  const context = useComposerContext()
+  const handlers = useComposerHandlers()
+  return (): ActionButtonState | null =>
+    handlers.onStartDictation
+      ? {
+          run: () => {
+            context.setDictating(true)
+            handlers.onStartDictation?.()
+          },
+        }
+      : null
+})
+
+const StopDictation = createActionButton('Stop dictation', () => {
+  const context = useComposerContext()
+  const handlers = useComposerHandlers()
+  return (): ActionButtonState | null =>
+    context.dictating()
+      ? {
+          run: () => {
+            context.setDictating(false)
+            handlers.onStopDictation?.()
+          },
+        }
+      : null
+})
+
+function DictationTranscript(props: JSX.HTMLAttributes<HTMLSpanElement>): JSX.Element {
+  const handlers = useComposerHandlers()
+  return (
+    <Show when={handlers.transcript}>
+      {(transcript) => <Primitive.span {...props}>{transcript()()}</Primitive.span>}
+    </Show>
+  )
+}
+
+function trailingTrigger(text: string): {kind: '@' | '/'; query: string} | null {
+  const match = text.match(/(^|\s)([@/])([\w-]*)$/)
+  if (!match) return null
+  const kind = match[2]
+  if (kind !== '@' && kind !== '/') return null
+  return {kind, query: match[3] ?? ''}
+}
+
+function TriggerPopover(props: JSX.HTMLAttributes<HTMLDivElement>): JSX.Element {
+  const composer = useComposer()
+  const handlers = useComposerHandlers()
+  const items = () => {
+    if (!handlers.triggerItems) return []
+    const trigger = trailingTrigger(composer.text())
+    return trigger ? handlers.triggerItems(trigger.query, trigger.kind) : []
+  }
+  const choose = (insert: string) => {
+    const next = composer.text().replace(/([@/])([\w-]*)$/, insert)
+    composer.setText(next)
+  }
+  return (
+    <Show when={items().length > 0}>
+      <Primitive.div role="listbox" {...props}>
+        <For each={items()}>
+          {(item) => (
+            <button type="button" role="option" aria-selected="false" onClick={() => choose(item.insert)}>
+              {item.label}
+            </button>
+          )}
+        </For>
+      </Primitive.div>
+    </Show>
+  )
+}
+
 export const Composer = Object.assign(Root, {
   Root,
   Input,
@@ -232,4 +307,8 @@ export const Composer = Object.assign(Root, {
   If,
   Quote,
   QuoteDismiss,
+  Dictate,
+  StopDictation,
+  DictationTranscript,
+  TriggerPopover,
 })
