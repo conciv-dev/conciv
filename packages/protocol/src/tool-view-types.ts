@@ -1,3 +1,4 @@
+import type {Component} from 'solid-js'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 
 // The card-render contract shared by the renderer (@mandarax/tool-ui) and the authoring layer
@@ -41,3 +42,9 @@ export type ToolRenderContext<TArgs = unknown> = ToolViewCtx & {
   isPartial: boolean
   isError: boolean
 }
+
+// A tool's card component + the name(s) it renders. Self-describing entries dispatched by an ARRAY
+// matched by name (Pi/TanStack model) — NOT a name→component registry. defineToolkit returns
+// ToolCardEntry[]. The type-only solid-js import keeps protocol runtime-free (erased at build).
+export type ToolUIComponent = Component<ToolCardProps>
+export type ToolCardEntry = {names: string[]; render: ToolUIComponent; streamTitle?: string}
