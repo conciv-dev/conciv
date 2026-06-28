@@ -2,7 +2,7 @@ import {createContext, createMemo, Index, Match, Show, Switch, useContext, type 
 import {Dynamic} from 'solid-js/web'
 import {ArrowDown, Brain, FilePen, FileText, List, Search, Terminal, Wrench} from 'lucide-solid'
 import type {MessagePart, ToolCallPart} from '@tanstack/ai-client'
-import type {ToolCardProps, ToolUIComponent} from '@mandarax/protocol/tool-view-types'
+import type {ToolCardEntry, ToolCardProps, ToolUIComponent} from '@mandarax/protocol/tool-view-types'
 import {useThread} from '../store/chat-context.js'
 import {useToolCtx} from '../store/tool-context.js'
 import {Thread as ThreadPrimitive} from '../primitives/thread/thread.js'
@@ -24,6 +24,9 @@ export type ThreadComponents = {
 
 export type ThreadProps = {
   components?: ThreadComponents
+  // The tool vocabulary (from defineToolkit). Each chain tool-call dispatches to the entry whose
+  // names include part.name, falling back to ToolFallback.
+  tools?: ToolCardEntry[]
   welcome?: JSX.Element
   composer?: JSX.Element
 }
@@ -50,7 +53,17 @@ function toolStepIcon(name: string): JSX.Element {
   return <Wrench size={size} />
 }
 
-function ChainPart(props: {part: MessagePart | undefined; tool: ToolUIComponent; last?: boolean}): JSX.Element {
+// Dispatch a tool-call part to its card: the entry whose names include part.name, else the fallback.
+function resolveTool(name: string, entries: ToolCardEntry[], fallback: ToolUIComponent): ToolUIComponent {
+  return entries.find((entry) => entry.names.includes(name))?.render ?? fallback
+}
+
+function ChainPart(props: {
+  part: MessagePart | undefined
+  entries: ToolCardEntry[]
+  fallback: ToolUIComponent
+  last?: boolean
+}): JSX.Element {
   const message = useMessage()
   return (
     <Switch>
@@ -65,7 +78,7 @@ function ChainPart(props: {part: MessagePart | undefined; tool: ToolUIComponent;
         {(part) => (
           <ChainOfThought.Step icon={toolStepIcon(part().name)} last={props.last}>
             <Dynamic
-              component={props.tool}
+              component={resolveTool(part().name, props.entries, props.fallback)}
               part={part()}
               result={message.pairing().byCallId.get(part().id)}
               ctx={useToolCtx()}
@@ -80,7 +93,7 @@ function ChainPart(props: {part: MessagePart | undefined; tool: ToolUIComponent;
 // The assistant turn: full-width, no bubble (D1) with a min-w-0 chain so a wide tool card grows the
 // turn's HEIGHT, never its left/right edges. Consecutive thinking + tool parts fold into one chain
 // (D9); a reply text breaks it and renders as markdown.
-function AssistantTurn(props: {tool: ToolUIComponent}): JSX.Element {
+function AssistantTurn(props: {entries: ToolCardEntry[]; fallback: ToolUIComponent}): JSX.Element {
   const message = useMessage()
   const thread = useThread()
   const parts = () => message.message().parts
@@ -106,7 +119,8 @@ function AssistantTurn(props: {tool: ToolUIComponent}): JSX.Element {
                     {(partIndex, partPosition) => (
                       <ChainPart
                         part={parts()[partIndex()]}
-                        tool={props.tool}
+                        entries={props.entries}
+                        fallback={props.fallback}
                         last={partPosition === chain().indices.length - 1}
                       />
                     )}
@@ -141,14 +155,25 @@ function UserTurn(): JSX.Element {
 
 // Thread config (the host's component overrides) flows via context so the message components stay at
 // module level — defining them inside Thread would recreate them each render (views over context, not props).
-type ThreadConfig = {tool: () => ToolUIComponent; assistant: () => Component | undefined}
+type ThreadConfig = {
+  entries: () => ToolCardEntry[]
+  fallback: () => ToolUIComponent
+  assistant: () => Component | undefined
+}
 
-const ThreadConfigContext = createContext<ThreadConfig>({tool: () => ToolFallback, assistant: () => undefined})
+const ThreadConfigContext = createContext<ThreadConfig>({
+  entries: () => [],
+  fallback: () => ToolFallback,
+  assistant: () => undefined,
+})
 
 function AssistantMessageView(): JSX.Element {
   const config = useContext(ThreadConfigContext)
   return (
-    <Show when={config.assistant()} fallback={<AssistantTurn tool={config.tool()} />}>
+    <Show
+      when={config.assistant()}
+      fallback={<AssistantTurn entries={config.entries()} fallback={config.fallback()} />}
+    >
       {(component) => <Dynamic component={component()} />}
     </Show>
   )
@@ -160,7 +185,8 @@ export function Thread(props: ThreadProps): JSX.Element {
   return (
     <ThreadConfigContext.Provider
       value={{
-        tool: () => props.components?.ToolFallback ?? ToolFallback,
+        entries: () => props.tools ?? [],
+        fallback: () => props.components?.ToolFallback ?? ToolFallback,
         assistant: () => props.components?.AssistantMessage,
       }}
     >

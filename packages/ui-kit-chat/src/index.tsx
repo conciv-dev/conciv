@@ -150,3 +150,17 @@ export {
 } from './primitives/tools/apply-patch.js'
 export {Bash, useBash, parseBashOutput, type BashOutput} from './primitives/tools/bash.js'
 export {ToolFallback as ToolFallbackPrimitive, useToolFallback} from './primitives/tools/tool-fallback.js'
+export {inlineValue, shortenPath, basename, truncate, SUMMARY_KEYS} from './primitives/tools/inline-tool.js'
+export {defineToolkit} from './primitives/tools/define-toolkit.js'
+// Styled inline tool cards + factory.
+export {
+  inlineTool,
+  ReadInline,
+  EditInline,
+  WriteInline,
+  GrepInline,
+  GlobInline,
+  WebSearchInline,
+  WebFetchInline,
+  ToolCallInline,
+} from './styled/tools/inline-tool.js'
