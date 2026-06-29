@@ -82,10 +82,11 @@ All four. No exceptions, no "mostly," no leaving the old chat-panel/tool-ui aliv
 
 ## Test-deletion ledger (plan §19 — a test may be removed ONLY with an entry here)
 
-| Removed/renamed test                             | Why (subject gone / moved)        | Where its coverage lives now         |
-| ------------------------------------------------ | --------------------------------- | ------------------------------------ |
-| _(e.g.) tool-ui/src/cards/file-edit.stories.tsx_ | tool-ui absorbed into ui-kit-chat | _ui-kit-chat ApplyPatchDiff stories_ |
-| _…fill in as you go; no silent deletions…_       |                                   |                                      |
+| Removed/renamed test                                                                                                                                                | Why (subject gone / moved)                                                                                    | Where its coverage lives now                                                                                                                            |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tool-ui/src/cards/{file-edit,file-read,generic,page-action,search,shell,todo,ui-chip}.stories.tsx` + `done-card`/`now-line`/`shell`/`thinking`/`tool-call` stories | tool-ui package deleted in the cutover; concrete cards split to `@mandarax/ui-kit-chat-tools`                 | `ui-kit-chat-tools` story files per card (Bash/ApplyPatch/FileEdit/FileRead/Search/Todo/page-action/ui-chip) + ui-kit-chat ToolFallback/NowLine stories |
+| `tool-ui/test/now-title.test.ts`, `tool-ui/test/util.test.ts`                                                                                                       | helpers moved with the cards                                                                                  | `ui-kit-chat-tools` `now-title.ts` / `primitives/tools/tool-util.ts` (parseInput/resultText/etc), exercised via the tools stories                       |
+| `widget/test/__snapshots__/{computed-styles.json,shots/*.png}` (UPDATED, not deleted)                                                                               | chat redesign + tool-ui→ui-kit-chat DOM restructure moves element paths/computed styles; visual output stable | regenerated golden (`UPDATE_STYLE_SNAPSHOT=1`); modal-open + model-popover shots eyeballed correct; test green non-update                               |
 
 ---
 
