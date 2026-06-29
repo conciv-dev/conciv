@@ -9,6 +9,11 @@
    copy. tool-ui + the kit ship JS only — the widget generates THEIR utilities too by scanning their
    source (see uno.config.ts), so there's no per-package CSS to @import here. */
 @import '@mandarax/ui-kit-system/tokens.css';
+/* Neutral chat tokens (--chat-*) + the mandarax theme layer that maps them onto the widget's --pw-*.
+   @mandarax/ui-kit-chat's styled set references only --chat-*; the shell applies `chat-theme-mandarax`
+   on its container so the chat renders in the dark/magenta look. */
+@import '@mandarax/ui-kit-chat/theme/tokens.css';
+@import '@mandarax/ui-kit-chat/theme/mandarax.css';
 
 /* preview-widget styles, injected into the Shadow DOM root. Mirrors react-grab's
    design language (dark panel, magenta brand accent) so the comment UI reads as

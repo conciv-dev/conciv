@@ -10,7 +10,8 @@ export default defineConfig({
   content: {
     filesystem: [
       'src/**/*.{ts,tsx}',
-      '../tool-ui/src/**/*.{ts,tsx}',
+      '../ui-kit-chat/src/**/*.{ts,tsx}',
+      '../ui-kit-chat-tools/src/**/*.{ts,tsx}',
       '../ui-kit-system/src/**/*.{ts,tsx}',
       '../extensions/whiteboard/src/**/*.{ts,tsx}',
     ],

@@ -130,6 +130,9 @@ export function createWidgetShell(opts: {settings: WidgetSettings}): {
     },
     mount(rootEl) {
       const container = document.createElement('div')
+      // The chat styled set (ui-kit-chat) references --chat-* tokens; this maps them onto the widget's
+      // --pw-* (dark + magenta) for everything the shell renders.
+      container.className = 'chat-theme-mandarax'
       rootEl.appendChild(container)
       // Ark UI (Zag) resolves its DOM via the environment's root node; inside our open Shadow DOM it
       // must be told the shadow root, or element lookups hit `document`, find nothing, and popovers
