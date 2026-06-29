@@ -29,6 +29,9 @@ export {FileEditCard, fileEditTool} from './styled/tools/file-edit-card.js'
 export {SearchCard, searchTool} from './styled/tools/search-card.js'
 export {TodoCard, todoTool} from './styled/tools/todo-card.js'
 export {DoneCard} from './styled/done-card.js'
+export {PageActionCard, pageActionTool} from './styled/page-action-card.js'
+export {UiCard, uiTool} from './styled/ui-chip-card.js'
+export {formatHtml} from './page-format.js'
 export {
   inlineTool,
   ReadInline,
