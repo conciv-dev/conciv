@@ -1,12 +1,31 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, userEvent, within} from 'storybook/test'
 import {createSignal} from 'solid-js'
+import type {ToolCallPart} from '@tanstack/ai-client'
+import type {ToolViewCtx} from '@mandarax/protocol/tool-view-types'
 import {ApprovalModal, type PendingApproval} from './approval-modal.js'
 
 function Harness() {
   const [decided, setDecided] = createSignal('')
   const [approvals, setApprovals] = createSignal<PendingApproval[]>([])
-  setApprovals([{id: 'a1', title: 'ls -la /etc', decide: (ok) => (setDecided(`a1:${ok}`), setApprovals([]))}])
+  const part: ToolCallPart = {
+    type: 'tool-call',
+    id: 't1',
+    name: 'bash',
+    arguments: JSON.stringify({command: 'ls -la /etc'}),
+    state: 'approval-requested',
+    approval: {id: 'a1', needsApproval: true},
+  }
+  const ctx: ToolViewCtx = {
+    apiBase: '',
+    harnessId: 'claude',
+    sendMessage: () => {},
+    respondApproval: (id, approved) => {
+      setDecided(`${id}:${approved}`)
+      setApprovals([])
+    },
+  }
+  setApprovals([{id: 'a1', part, ctx, label: 'ls -la /etc'}])
   return (
     <div>
       <span data-testid="decided">{decided()}</span>

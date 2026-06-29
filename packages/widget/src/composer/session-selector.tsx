@@ -170,7 +170,7 @@ export function SessionSelector(props: {
   return (
     <Combobox.Root
       ids={{root: idPrefix}}
-      class={isPill ? 'flex min-w-0 flex-[1_1_auto]' : ''}
+      class={isPill ? 'inline-flex min-w-0 max-w-full' : ''}
       collection={collection()}
       value={valueArr()}
       inputValue={query()}
@@ -200,11 +200,11 @@ export function SessionSelector(props: {
         gutter: 6,
       }}
     >
-      <Combobox.Control class={isPill ? 'inline-flex min-w-0 flex-[1_1_auto]' : 'inline-flex min-w-0'}>
+      <Combobox.Control class="inline-flex min-w-0">
         <Combobox.Trigger
           class={`group text-[0.75rem] text-pw-text-2 border border-transparent rounded-pw-pill bg-transparent inline-flex gap-1.5 h-7 min-w-0 cursor-pointer trans-cbb items-center hover:text-pw-text-hi [&[aria-disabled=true]]:opacity-[0.55] [&[aria-disabled=true]]:cursor-not-allowed ${
             isPill
-              ? 'w-full py-0 pr-1.5 pl-2 hover:border-pw-line hover:bg-pw-fill-soft data-[state=open]:border-pw-line data-[state=open]:bg-pw-fill-soft data-[state=open]:text-pw-text-hi'
+              ? 'max-w-64 py-0 pr-1.5 pl-2 hover:border-pw-line hover:bg-pw-fill-soft data-[state=open]:border-pw-line data-[state=open]:bg-pw-fill-soft data-[state=open]:text-pw-text-hi'
               : 'p-0 font-pw-mono'
           }`}
           data-empty={canRename() ? undefined : ''}
@@ -216,7 +216,7 @@ export function SessionSelector(props: {
           </Show>
           <span class="min-w-0 truncate group-data-[empty]:text-pw-text-2">{triggerLabel()}</span>
           <ChevronDown
-            class="opacity-45 shrink-0 size-3.25 trans-tf-op group-data-[state=open]:opacity-90 group-hover:opacity-90 group-data-[state=open]:rotate-180"
+            class="opacity-45 shrink-0 size-3.25 [transition:rotate_160ms_var(--pw-ease),opacity_120ms_var(--pw-ease)] group-data-[state=open]:opacity-90 group-hover:opacity-90 group-data-[state=open]:rotate-180"
             aria-hidden="true"
           />
         </Combobox.Trigger>

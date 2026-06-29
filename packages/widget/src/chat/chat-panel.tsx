@@ -18,6 +18,7 @@ import {apiError, type SessionClient} from '@mandarax/api-client'
 import {invalidateSessions} from '../client/session-store-client.js'
 import {createDebouncer} from '@tanstack/solid-pacer'
 import {GenUi} from './gen-ui.js'
+import {ToolFallbackCard} from './tool-fallback-card.js'
 import type {PendingApproval} from '../shell/approval-modal.js'
 import {SquarePen, FoldVertical} from 'lucide-solid'
 import {EventType, type StreamChunk} from '@tanstack/ai'
@@ -204,18 +205,25 @@ export function ChatPanel(props: {
   const isThinking = () => chat.status() === 'submitted'
   const isStreaming = () => chat.status() === 'streaming'
 
+  // `answered` covers the window between a click and the stream flipping the part off
+  // `approval-requested`. The shared respondApproval marks it, so both the in-thread PermissionCard
+  // and the shell modal optimistically drop the prompt the instant either is clicked.
+  const [answered, setAnswered] = createSignal<readonly string[]>([])
+
   // Host-app seams the tool cards need: send a follow-up message, answer a native tool approval.
   const toolCtx: ToolViewCtx = {
     apiBase: props.apiBase,
     harnessId: props.harnessId,
     sendMessage: (text) => void chat.sendMessage(text),
-    respondApproval: (approvalId, approved) => void client.permissionDecision({approvalId, approved}).catch(() => {}),
+    respondApproval: (approvalId, approved) => {
+      setAnswered((prev) => (prev.includes(approvalId) ? prev : [...prev, approvalId]))
+      void client.permissionDecision({approvalId, approved}).catch(() => {})
+    },
   }
 
   // Pending native approvals for this thread, derived straight from the messages, reported up to the
-  // shell (which surfaces them in the modal while the panel is closed). `answered` covers the window
-  // between a click and the stream flipping the part off `approval-requested`.
-  const [answered, setAnswered] = createSignal<readonly string[]>([])
+  // shell as {part, ctx} (option B) so the modal renders the same ui-kit-chat PermissionCard the
+  // in-thread cards use, rather than a bespoke title/decide prompt.
   const pendingApprovals = createMemo<PendingApproval[]>(() =>
     chat
       .messages()
@@ -223,16 +231,7 @@ export function ChatPanel(props: {
       .map(asToolCallPart)
       .filter((p): p is ToolCallPart => !!p && p.state === 'approval-requested' && !!p.approval)
       .filter((p) => p.approval !== undefined && !answered().includes(p.approval.id))
-      .map((p) => ({
-        id: p.approval?.id ?? '',
-        title: nowTitle(p),
-        decide: (approved: boolean) => {
-          const id = p.approval?.id
-          if (!id) return
-          setAnswered((prev) => [...prev, id])
-          toolCtx.respondApproval?.(id, approved)
-        },
-      })),
+      .map((p) => ({id: p.approval?.id ?? '', part: p, ctx: toolCtx, label: nowTitle(p)})),
   )
   createEffect(() => props.onApprovalsChange?.(pendingApprovals()))
   onCleanup(() => props.onApprovalsChange?.([]))
@@ -468,6 +467,7 @@ export function ChatPanel(props: {
           <div class="flex flex-1 flex-col min-h-0">
             <Thread
               tools={props.tools?.()}
+              components={{ToolFallback: ToolFallbackCard}}
               turnPrefix={renderTurnPrefix}
               viewportFooter={
                 <>
