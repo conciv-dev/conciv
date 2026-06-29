@@ -62,7 +62,8 @@
   },
   "dependencies": {
     "@mandarax/extension": "workspace:^",
-    "@mandarax/tool-ui": "workspace:^",
+    "@mandarax/protocol": "workspace:^",
+    "@mandarax/ui-kit-chat": "workspace:^",
     "@mandarax/ui-kit-system": "workspace:^",
     "h3": "2.0.1-rc.22",
     "lucide-solid": "^1.18.0",

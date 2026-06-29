@@ -1,7 +1,8 @@
 import {createEffect, createSignal, For, onCleanup, Show, type JSX} from 'solid-js'
 import {Collapsible} from '@mandarax/ui-kit-system'
 import {ChevronRight, ExternalLink, FlaskConical, Sparkles} from 'lucide-solid'
-import {ToolCard, resultText, type ToolCardProps, type ToolViewCtx} from '@mandarax/tool-ui'
+import {ToolCard, resultText} from '@mandarax/ui-kit-chat'
+import type {ToolCardProps, ToolViewCtx} from '@mandarax/protocol/tool-view-types'
 import {
   TestEventSchema,
   TestRunResultSchema,
@@ -286,14 +287,7 @@ function TestIcon(): JSX.Element {
 
 export function TestCard(props: ToolCardProps): JSX.Element {
   return (
-    <ToolCard
-      accent="test"
-      Icon={TestIcon}
-      title="Ran tests"
-      part={props.part}
-      result={props.result}
-      durationMs={props.durationMs}
-    >
+    <ToolCard Icon={TestIcon} title="Ran tests" part={props.part} result={props.result}>
       <TestResults result={parseRunResult(props)} ctx={props.ctx} />
     </ToolCard>
   )

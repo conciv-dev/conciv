@@ -505,9 +505,12 @@ importers:
       '@mandarax/extension':
         specifier: workspace:^
         version: link:../../extension
-      '@mandarax/tool-ui':
+      '@mandarax/protocol':
         specifier: workspace:^
-        version: link:../../tool-ui
+        version: link:../../protocol
+      '@mandarax/ui-kit-chat':
+        specifier: workspace:^
+        version: link:../../ui-kit-chat
       '@mandarax/ui-kit-system':
         specifier: workspace:^
         version: link:../../ui-kit-system
@@ -524,9 +527,6 @@ importers:
       '@mandarax/core':
         specifier: workspace:^
         version: link:../../core
-      '@mandarax/protocol':
-        specifier: workspace:^
-        version: link:../../protocol
       '@mandarax/uno-preset':
         specifier: workspace:*
         version: link:../../uno-preset
@@ -584,9 +584,12 @@ importers:
       '@mandarax/protocol':
         specifier: workspace:^
         version: link:../../protocol
-      '@mandarax/tool-ui':
+      '@mandarax/ui-kit-chat':
         specifier: workspace:^
-        version: link:../../tool-ui
+        version: link:../../ui-kit-chat
+      '@mandarax/ui-kit-chat-tools':
+        specifier: workspace:^
+        version: link:../../ui-kit-chat-tools
       '@mandarax/ui-kit-system':
         specifier: workspace:^
         version: link:../../ui-kit-system

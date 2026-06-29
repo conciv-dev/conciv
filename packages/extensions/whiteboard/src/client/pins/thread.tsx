@@ -3,7 +3,8 @@ import {z} from 'zod'
 import {useAll, useDb} from 'jazz-tools/solid'
 import type {JsonValue} from 'jazz-tools'
 import type {ToolViewCtx} from '@mandarax/protocol/tool-view-types'
-import {ToolCallCard, builtinToolCards, type ToolCallCardProps} from '@mandarax/tool-ui'
+import {ToolCallCard, type ToolCallCardProps} from '@mandarax/ui-kit-chat'
+import {builtinToolCards} from '@mandarax/ui-kit-chat-tools'
 import {Button, TextField} from '@mandarax/ui-kit-system'
 import {app} from '../../shared/schema.js'
 
@@ -14,8 +15,9 @@ export type ThreadProps = {
   onClose: () => void
 }
 
+// chat-theme-mandarax maps the tool cards' --chat-* tokens onto the widget's --pw-* (dark + magenta).
 const PANEL =
-  'fixed right-4 bottom-4 w-90 max-w-[calc(100vw-2rem)] max-h-[70vh] overflow-auto pointer-events-auto bg-pw-panel text-pw-text border border-pw-line rounded-pw-lg shadow-pw-lg p-3 flex flex-col gap-2'
+  'chat-theme-mandarax fixed right-4 bottom-4 w-90 max-w-[calc(100vw-2rem)] max-h-[70vh] overflow-auto pointer-events-auto bg-pw-panel text-pw-text border border-pw-line rounded-pw-lg shadow-pw-lg p-3 flex flex-col gap-2'
 
 const TextPart = z.object({type: z.literal('text'), text: z.string()})
 const ToolPart = z.object({
