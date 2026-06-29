@@ -11,6 +11,7 @@ import {
 } from '../store/story-connection.js'
 import {Thread} from './thread.js'
 import {Composer} from './composer.js'
+import {NowLine} from './now-line.js'
 
 const meta: Meta = {title: 'styled/Thread'}
 export default meta
@@ -89,3 +90,48 @@ function play(theme?: string): Story {
 export const Neutral: Story = play()
 export const Dark: Story = play('chat-theme-dark')
 export const Mandarax: Story = play('chat-theme-mandarax')
+
+// The host-chrome slots the widget cutover drives: a divider before each turn (turnPrefix), a live
+// now-line in the viewport footer, an overlay, and a busy control replacing Send in the composer.
+function Divider(): JSX.Element {
+  return (
+    <div class="text-[color:var(--chat-text-3)] text-[length:var(--chat-text-xs)] self-center" role="separator">
+      New session
+    </div>
+  )
+}
+
+const renderDivider = (): JSX.Element => <Divider />
+
+function SlotsApp(): JSX.Element {
+  const chat = useChat({
+    connection: storyConnection({
+      chunks: [...createTextChunks('On it.')],
+      chunkDelay: 2,
+    }),
+  })
+  return (
+    <div class="chat-theme-dark rounded-[var(--chat-radius-lg)] h-96 w-96 [background:var(--chat-bg)] overflow-hidden">
+      <ChatProvider chat={chat}>
+        <Thread
+          turnPrefix={renderDivider}
+          viewportFooter={<NowLine title="Running pnpm test" onStop={() => chat.stop()} />}
+          composer={
+            <Composer
+              busy={<span class="text-[color:var(--chat-text-3)] text-[length:var(--chat-text-xs)]">Compacting…</span>}
+            />
+          }
+        />
+      </ChatProvider>
+    </div>
+  )
+}
+
+export const Slots: Story = {
+  render: () => <SlotsApp />,
+  play: async ({canvasElement}) => {
+    const c = within(canvasElement)
+    await expect(c.getByText('Running pnpm test')).toBeVisible()
+    await expect(c.getByText('Compacting…')).toBeVisible()
+  },
+}

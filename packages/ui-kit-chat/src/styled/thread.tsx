@@ -8,7 +8,7 @@ import {useToolCtx} from '../store/tool-context.js'
 import {Thread as ThreadPrimitive} from '../primitives/thread/thread.js'
 import {Message} from '../primitives/message/message.js'
 import {useMessage} from '../primitives/message/message-context.js'
-import {groupSegments, type Segment} from '../store/grouping.js'
+import {groupSegments, type Segment, type Turn} from '../store/grouping.js'
 import {Markdown} from './markdown.js'
 import {Reasoning} from './reasoning.js'
 import {ToolFallback} from './tool-fallback.js'
@@ -30,6 +30,14 @@ export type ThreadProps = {
   tools?: ToolCardEntry[]
   welcome?: JSX.Element
   composer?: JSX.Element
+  // Host chrome rendered before each turn, keyed off the coalesced Turn (start/end message indices) —
+  // the widget draws session/compaction dividers here.
+  turnPrefix?: (turn: Turn) => JSX.Element
+  // Host chrome rendered inside the viewport after the messages (scrolls with the thread): a
+  // generative-UI list, the live "now" line, a thinking indicator, error rows, tail dividers.
+  viewportFooter?: JSX.Element
+  // Absolutely-positioned chrome over the viewport (the widget's session-switch loading overlay).
+  overlay?: JSX.Element
 }
 
 function asThinking(part: MessagePart | undefined): Extract<MessagePart, {type: 'thinking'}> | null {
@@ -149,9 +157,12 @@ function AssistantTurn(props: {entries: ToolCardEntry[]; fallback: ToolUICompone
 // The user turn: a compact bubble pinned to the right (assistant-ui model).
 function UserTurn(): JSX.Element {
   return (
-    <Message.Root class="px-3 py-1.5 rounded-[var(--chat-radius-md)] max-w-[80%] [background:var(--chat-accent)] [color:var(--chat-on-accent)] [overflow-wrap:anywhere] self-end anim-msg">
-      <Message.Parts />
-    </Message.Root>
+    <>
+      <TurnPrefix />
+      <Message.Root class="px-3 py-1.5 rounded-[var(--chat-radius-md)] max-w-[80%] [background:var(--chat-accent)] [color:var(--chat-on-accent)] [overflow-wrap:anywhere] self-end anim-msg">
+        <Message.Parts />
+      </Message.Root>
+    </>
   )
 }
 
@@ -161,23 +172,35 @@ type ThreadConfig = {
   entries: () => ToolCardEntry[]
   fallback: () => ToolUIComponent
   assistant: () => Component | undefined
+  turnPrefix: () => ((turn: Turn) => JSX.Element) | undefined
 }
 
 const ThreadConfigContext = createContext<ThreadConfig>({
   entries: () => [],
   fallback: () => ToolFallback,
   assistant: () => undefined,
+  turnPrefix: () => undefined,
 })
+
+// Host chrome rendered before a turn (session/compaction dividers), keyed off the coalesced Turn.
+function TurnPrefix(): JSX.Element {
+  const config = useContext(ThreadConfigContext)
+  const message = useMessage()
+  return <Show when={config.turnPrefix()}>{(prefix) => prefix()(message.message())}</Show>
+}
 
 function AssistantMessageView(): JSX.Element {
   const config = useContext(ThreadConfigContext)
   return (
-    <Show
-      when={config.assistant()}
-      fallback={<AssistantTurn entries={config.entries()} fallback={config.fallback()} />}
-    >
-      {(component) => <Dynamic component={component()} />}
-    </Show>
+    <>
+      <TurnPrefix />
+      <Show
+        when={config.assistant()}
+        fallback={<AssistantTurn entries={config.entries()} fallback={config.fallback()} />}
+      >
+        {(component) => <Dynamic component={component()} />}
+      </Show>
+    </>
   )
 }
 
@@ -190,16 +213,23 @@ export function Thread(props: ThreadProps): JSX.Element {
         entries: () => props.tools ?? [],
         fallback: () => props.components?.ToolFallback ?? ToolFallback,
         assistant: () => props.components?.AssistantMessage,
+        turnPrefix: () => props.turnPrefix,
       }}
     >
       <div class="flex flex-col h-full min-h-0 [color:var(--chat-text)] [font-family:var(--chat-font)]">
-        <ThreadPrimitive.Viewport class="px-3 py-3 flex flex-1 flex-col gap-3 min-h-0 overflow-y-auto">
+        <ThreadPrimitive.Viewport
+          class="px-3 py-3 flex flex-1 flex-col gap-3 min-h-0 relative overflow-y-auto"
+          role="log"
+          aria-live="off"
+        >
           <ThreadPrimitive.Empty>
             <Show when={props.components?.Welcome} fallback={props.welcome}>
               {(welcome) => <Dynamic component={welcome()} />}
             </Show>
           </ThreadPrimitive.Empty>
           <ThreadPrimitive.Messages components={MESSAGES_COMPONENTS} />
+          <Show when={props.viewportFooter}>{props.viewportFooter}</Show>
+          {props.overlay}
           <ThreadPrimitive.ScrollToBottom
             class={`text-[length:var(--chat-text-xs)] px-2 rounded-[var(--chat-radius-pill)] inline-flex gap-1 min-h-6 cursor-pointer [color:var(--chat-accent-link)] items-center self-center bottom-1 sticky hover:[background:var(--chat-fill-strong)] ${FOCUS}`}
           >
