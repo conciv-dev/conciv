@@ -287,7 +287,7 @@ function TestIcon(): JSX.Element {
 
 export function TestCard(props: ToolCardProps): JSX.Element {
   return (
-    <ToolCard Icon={TestIcon} title="Ran tests" part={props.part} result={props.result}>
+    <ToolCard Icon={TestIcon} title="Ran tests" part={props.part} result={props.result} defaultOpen>
       <TestResults result={parseRunResult(props)} ctx={props.ctx} />
     </ToolCard>
   )

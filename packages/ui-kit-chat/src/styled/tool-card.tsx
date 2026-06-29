@@ -20,12 +20,13 @@ export function ToolCard(props: {
   part: ToolCallPart
   result: ToolResultPart | undefined
   meta?: string
+  defaultOpen?: boolean
   children?: JSX.Element
 }): JSX.Element {
   const status = () => toolStatus(props.part, props.result)
   return (
     <CollapsibleCard
-      defaultOpen={status() === 'approval'}
+      defaultOpen={props.defaultOpen ?? status() === 'approval'}
       header={
         <>
           <span class="text-[color:var(--chat-text-3)] inline-flex shrink-0 items-center" aria-hidden="true">
