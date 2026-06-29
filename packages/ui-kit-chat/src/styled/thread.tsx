@@ -12,7 +12,7 @@ import {groupSegments, type Segment, type Turn} from '../store/grouping.js'
 import {Markdown} from './markdown.js'
 import {Reasoning} from './reasoning.js'
 import {ToolFallback} from './tool-fallback.js'
-import {PermissionCard} from './tools/permission-card.js'
+import {ToolCallCard} from './tools/tool-call-card.js'
 import {ChainOfThought} from './chain-of-thought.js'
 import {AssistantActionBar} from './action-bar.js'
 import {FOCUS} from './classes.js'
@@ -62,11 +62,6 @@ function toolStepIcon(name: string): JSX.Element {
   return <Wrench size={size} />
 }
 
-// Dispatch a tool-call part to its card: the entry whose names include part.name, else the fallback.
-function resolveTool(name: string, entries: ToolCardEntry[], fallback: ToolUIComponent): ToolUIComponent {
-  return entries.find((entry) => entry.names.includes(name))?.render ?? fallback
-}
-
 function ChainPart(props: {
   part: MessagePart | undefined
   entries: ToolCardEntry[]
@@ -86,13 +81,13 @@ function ChainPart(props: {
       <Match when={asToolCall(props.part)}>
         {(part) => (
           <ChainOfThought.Step icon={toolStepIcon(part().name)} last={props.last}>
-            <Dynamic
-              component={resolveTool(part().name, props.entries, props.fallback)}
+            <ToolCallCard
               part={part()}
               result={message.pairing().byCallId.get(part().id)}
               ctx={useToolCtx()}
+              tools={() => props.entries}
+              fallback={props.fallback}
             />
-            <PermissionCard part={part()} result={message.pairing().byCallId.get(part().id)} ctx={useToolCtx()} />
           </ChainOfThought.Step>
         )}
       </Match>

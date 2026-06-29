@@ -1,4 +1,4 @@
-import {type JSX} from 'solid-js'
+import {Show, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import type {ToolCardEntry, ToolCardProps, ToolUIComponent} from '@mandarax/protocol/tool-view-types'
 import {ToolFallback} from '../tool-fallback.js'
@@ -12,12 +12,13 @@ export type ToolCallCardProps = ToolCardProps & {
 }
 
 // Render a tool-call part as a card: the entry whose names include this part's name, else the
-// fallback. The native approval prompt (PermissionCard) renders below whenever the call awaits
-// approval — uniform across every tool, since approval is a property of the call, not the card.
-// The single dispatcher shared by standalone consumers (whiteboard pins, etc.) and the styled Thread.
+// fallback. A MATCHED concrete card is a thin renderer that doesn't show approval, so the dispatcher
+// appends PermissionCard below it. The fallback (assistant-ui's ToolFallback) renders its own
+// approval prompt (ToolFallback.Approval), so we DON'T double it there. The single dispatcher shared
+// by standalone consumers (whiteboard pins, etc.) and the styled Thread.
 export function ToolCallCard(props: ToolCallCardProps): JSX.Element {
-  const render = (): ToolUIComponent =>
-    props.tools?.().find((entry) => entry.names.includes(props.part.name))?.render ?? props.fallback ?? ToolFallback
+  const matched = () => props.tools?.().find((entry) => entry.names.includes(props.part.name))
+  const render = (): ToolUIComponent => matched()?.render ?? props.fallback ?? ToolFallback
   return (
     <>
       <Dynamic
@@ -27,7 +28,9 @@ export function ToolCallCard(props: ToolCallCardProps): JSX.Element {
         ctx={props.ctx}
         durationMs={props.durationMs}
       />
-      <PermissionCard part={props.part} result={props.result} ctx={props.ctx} />
+      <Show when={matched()}>
+        <PermissionCard part={props.part} result={props.result} ctx={props.ctx} />
+      </Show>
     </>
   )
 }
