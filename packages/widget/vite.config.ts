@@ -8,6 +8,15 @@ import solid from 'vite-plugin-solid'
 // Vite graph, so both resolve to a SINGLE solid + a single ExtensionRuntimeContext — that is what lets
 // an extension's useContext() resolve the context the widget's Provider sets. Inlining would give each
 // its own copy and break it. The plugin is serve-only, so a host graph always provides the externals.
+// Match by prefix, never a hand-listed set: EVERY @mandarax/extension subpath (/client carries
+// MountedExtension + the Provider, /runtime, …) must externalize, or an inlined copy forks the
+// ExtensionRuntimeContext and every host surface throws "called outside provider".
+const isExternal = (id: string): boolean =>
+  id === 'solid-js' ||
+  id.startsWith('solid-js/') ||
+  id === '@mandarax/extension' ||
+  id.startsWith('@mandarax/extension/')
+
 export default defineConfig({
   // UnoCSS runs via @unocss/postcss (postcss.config.mjs) expanding `@unocss all;` in styles.css, not as a
   // vite plugin — its shadow-dom mode's placeholder rewrite is dropped by vite@8's rolldown build hooks.
@@ -26,7 +35,7 @@ export default defineConfig({
     emptyOutDir: true,
     sourcemap: true,
     rollupOptions: {
-      external: ['solid-js', 'solid-js/web', 'solid-js/store', '@mandarax/extension', '@mandarax/extension/runtime'],
+      external: isExternal,
     },
   },
 })
