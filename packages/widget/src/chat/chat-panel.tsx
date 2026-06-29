@@ -530,6 +530,7 @@ export function ChatPanel(props: {
                   </For>
                   <Composer
                     placeholder="Ask a question…"
+                    inputLabel="Message the mandarax agent"
                     inputRef={(el) => {
                       inputEl = el
                     }}

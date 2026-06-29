@@ -416,7 +416,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
 
       // The approval-requested event drove the part into part.approval → the approval bar renders ON
       // the card (not a separate GenUi gate). Allow/Deny live here now.
-      await page.getByText('Run this command?').waitFor({state: 'visible'})
+      await page.getByText('Run this action?').waitFor({state: 'visible'})
 
       // Allowing posts the decision OUT OF BAND (keyed by approval.id), unblocking the harness gate.
       const decision = page.waitForRequest((r) => r.url().includes('/api/chat/permission-decision'))
@@ -426,7 +426,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
       expect(body.approved).toBe(true)
 
       // Clicking optimistically clears the controls.
-      await page.getByText('Run this command?').waitFor({state: 'hidden'})
+      await page.getByText('Run this action?').waitFor({state: 'hidden'})
       await page.close()
     } finally {
       chatState.script = chatScript
@@ -686,11 +686,11 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'false'`, undefined, {timeout: 2000})
     await page.getByText('How can I help you today?').waitFor({state: 'visible'})
 
-    // Opening focuses the pane's composer.
+    // Opening focuses the pane's composer (the shadow root's active element is the composer textarea).
     await page.waitForFunction(
       () => {
-        const ae = document.querySelector('[data-mandarax-root]')?.shadowRoot?.activeElement
-        return ae?.tagName === 'TEXTAREA' && ae.hasAttribute('data-pw-input')
+        const active = document.querySelector('[data-mandarax-root]')?.shadowRoot?.activeElement
+        return active?.getAttribute('aria-label') === 'Message the mandarax agent'
       },
       undefined,
       {timeout: 2000},
@@ -862,7 +862,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     // Split adds a second pane, each with its own composer (its own session).
     await page.getByRole('button', {name: 'Split pane'}).click()
     await page.waitForFunction(`${countOf('[data-pw-qt-pane]')} === 2`, undefined, {timeout: 2000})
-    expect(await page.locator('[data-pw-qt-pane] [data-pw-input]').count()).toBe(2)
+    expect(await page.getByRole('textbox', {name: 'Message the mandarax agent'}).count()).toBe(2)
 
     // Each pane bar hosts its own session selector (bar variant) — one Session: trigger per pane.
     expect(await page.getByRole('button', {name: /^Session:/}).count()).toBe(2)

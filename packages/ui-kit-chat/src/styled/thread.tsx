@@ -69,6 +69,10 @@ function ChainPart(props: {
   last?: boolean
 }): JSX.Element {
   const message = useMessage()
+  // Capture the host ctx ONCE during render (inside the ToolProvider owner). Passing useToolCtx()
+  // inline makes Solid wrap it in a getter that re-runs in event handlers — where there's no owner,
+  // so useContext returns the inert default (no respondApproval) and approvals silently no-op.
+  const ctx = useToolCtx()
   return (
     <Switch>
       <Match when={asThinking(props.part)}>
@@ -84,7 +88,7 @@ function ChainPart(props: {
             <ToolCallCard
               part={part()}
               result={message.pairing().byCallId.get(part().id)}
-              ctx={useToolCtx()}
+              ctx={ctx}
               tools={() => props.entries}
               fallback={props.fallback}
             />

@@ -8,6 +8,8 @@ import {useComposer} from '../store/chat-context.js'
 // `inputRef` forwards the textarea element so the host can focus it (e.g. after staging a grab).
 export type ComposerProps = {
   placeholder?: string
+  // The textarea's accessible name (default "Message"); the host can give it a more descriptive label.
+  inputLabel?: string
   children?: JSX.Element
   busy?: JSX.Element
   inputRef?: (element: HTMLTextAreaElement) => void
@@ -25,11 +27,11 @@ function TrailingControls(): JSX.Element {
   const composer = useComposer()
   return (
     <>
-      <ComposerPrimitive.Cancel class={CANCEL} aria-label="Stop">
+      <ComposerPrimitive.Cancel class={CANCEL} aria-label="Stop generating">
         <Square size={14} fill="currentColor" aria-hidden="true" />
       </ComposerPrimitive.Cancel>
       <Show when={!composer.canCancel()}>
-        <ComposerPrimitive.Send class={SEND} aria-label="Send">
+        <ComposerPrimitive.Send class={SEND} aria-label="Send message">
           <ArrowUp size={18} aria-hidden="true" />
         </ComposerPrimitive.Send>
       </Show>
@@ -52,7 +54,7 @@ export function Composer(props: ComposerProps): JSX.Element {
           ref={props.inputRef}
           placeholder={props.placeholder ?? 'Message…'}
           class={INPUT}
-          aria-label="Message"
+          aria-label={props.inputLabel ?? 'Message'}
         />
         <div class="pt-0.5 flex gap-1 items-center">
           <Show when={props.children}>{props.children}</Show>
