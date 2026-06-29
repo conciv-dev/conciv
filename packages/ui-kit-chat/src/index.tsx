@@ -154,6 +154,21 @@ export {Permission, usePermission} from './primitives/tools/permission.js'
 export {PermissionCard} from './styled/tools/permission-card.js'
 export {inlineValue, shortenPath, basename, truncate, SUMMARY_KEYS} from './primitives/tools/inline-tool.js'
 export {defineToolkit} from './primitives/tools/define-toolkit.js'
+export {
+  parseInput,
+  resultText,
+  parseResultPayload,
+  stripReadLineNumbers,
+  formatDuration,
+} from './primitives/tools/tool-util.js'
+export {nowTitle} from './primitives/tools/now-title.js'
+export {FileRead, useFileRead} from './primitives/tools/file-read.js'
+export {Todo, useTodo, type TodoItem, type TodoItemStatus} from './primitives/tools/todo.js'
+export {FileReadCard, fileReadTool} from './styled/tools/file-read-card.js'
+export {TodoCard, todoTool} from './styled/tools/todo-card.js'
+export {NowLine} from './styled/now-line.js'
+export {DoneCard} from './styled/done-card.js'
+export {VirtualLines, type VirtualLinesProps} from './styled/virtual-lines.js'
 // Styled inline tool cards + factory.
 export {
   inlineTool,
