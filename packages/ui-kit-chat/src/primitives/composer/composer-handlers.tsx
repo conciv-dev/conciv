@@ -4,6 +4,9 @@ import {createContext, useContext, type Accessor} from 'solid-js'
 // renders null (§7). Dictation/trigger-popover/queue all light up only when the widget wires them.
 export type TriggerItem = {id: string; label: string; insert: string}
 export type ComposerHandlers = {
+  // Host override for send: when present, Composer.Root calls this with the trimmed draft (after
+  // clearing it) instead of the default sendMessage — the widget composes staged grab context here.
+  onSend?: (text: string) => void
   onStartDictation?: () => void
   onStopDictation?: () => void
   transcript?: Accessor<string>

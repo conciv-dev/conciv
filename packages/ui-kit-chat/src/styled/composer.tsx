@@ -5,7 +5,13 @@ import {useComposer} from '../store/chat-context.js'
 
 // `busy` replaces the trailing Send/Cancel group while a host-owned, out-of-band turn runs (the
 // widget's compaction spinner) — that work never flows through useChat, so canCancel can't gate it.
-export type ComposerProps = {placeholder?: string; children?: JSX.Element; busy?: JSX.Element}
+// `inputRef` forwards the textarea element so the host can focus it (e.g. after staging a grab).
+export type ComposerProps = {
+  placeholder?: string
+  children?: JSX.Element
+  busy?: JSX.Element
+  inputRef?: (element: HTMLTextAreaElement) => void
+}
 
 const BTN =
   'size-8.5 rounded-[var(--chat-radius-pill)] [border:none] cursor-pointer shrink-0 inline-flex items-center justify-center [transition:background-color_120ms,transform_120ms] [&:active:not(:disabled)]:scale-[0.92]'
@@ -43,6 +49,7 @@ export function Composer(props: ComposerProps): JSX.Element {
       <div class="px-1.5 pb-1.5 pt-1 rounded-[var(--chat-radius-md)] [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] [transition:border-color_120ms] focus-within:[border-color:var(--chat-accent)]">
         <ComposerPrimitive.Input
           unstyled
+          ref={props.inputRef}
           placeholder={props.placeholder ?? 'Message…'}
           class={INPUT}
           aria-label="Message"

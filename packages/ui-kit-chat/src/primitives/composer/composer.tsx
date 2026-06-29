@@ -31,6 +31,7 @@ function buildContent(text: string, attachments: AttachmentDraft[]): string | Mu
 function Root(props: FormProps): JSX.Element {
   const chat = useChatContext()
   const composer = useComposer()
+  const handlers = useComposerHandlers()
   const [attachments, setAttachments] = createSignal<AttachmentDraft[]>([])
   const [quote, setQuote] = createSignal<string | null>(null)
   const [editing, setEditing] = createSignal(false)
@@ -45,7 +46,9 @@ function Root(props: FormProps): JSX.Element {
     chat.setView('draft', '')
     setAttachments([])
     setQuote(null)
-    void chat.sendMessage(content)
+    // A host onSend owns dispatch (the widget prepends staged grab context); else send directly.
+    if (handlers.onSend) handlers.onSend(text)
+    else void chat.sendMessage(content)
   }
   return (
     <ComposerProvider
