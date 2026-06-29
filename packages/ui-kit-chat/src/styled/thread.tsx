@@ -89,6 +89,7 @@ function ChainPart(props: {
               part={part()}
               result={message.pairing().byCallId.get(part().id)}
               ctx={ctx}
+              durationMs={ctx.durationFor?.(part().id)}
               tools={() => props.entries}
               fallback={props.fallback}
             />

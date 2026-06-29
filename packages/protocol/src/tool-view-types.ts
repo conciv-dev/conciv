@@ -18,6 +18,7 @@ export type ToolViewCtx = {
   // Answer a native tanstack tool approval (part.state==='approval-requested'). The widget posts the
   // decision out-of-band to unblock the harness's gate; absent → no approval controls are rendered.
   respondApproval?: (approvalId: string, approved: boolean) => void
+  durationFor?: (toolCallId: string) => number | undefined
 }
 
 // The props every tool card receives: the tool-call part, its paired result, host actions, and the

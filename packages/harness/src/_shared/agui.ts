@@ -2,6 +2,7 @@ import type {ZodType} from 'zod'
 import {EventType, type StreamChunk, type ToolOutputState} from '@tanstack/ai'
 import type {HarnessDecodeOpts} from '@mandarax/protocol/harness-types'
 import {snapshotToTokenUsage, type UsageSnapshot} from '@mandarax/protocol/usage-types'
+import {aguiToolDurationFor} from '@mandarax/protocol/tool-timing'
 
 // Shared decoder spine: run lifecycle, line loop, parse, id minter, AG-UI chunk emitters.
 // An adapter supplies only its Zod event schema and a pure event→chunks `step`.
@@ -94,9 +95,19 @@ export async function* runAguiEvents<E>(
   }
   let usage: UsageSnapshot = {}
   let sawUsage = false
+  const callStarts = new Map<string, number>()
   yield {type: EventType.RUN_STARTED, threadId, runId}
   for await (const event of events) {
-    yield* step(event, {mint, onSessionId: opts.onSessionId})
+    for (const chunk of step(event, {mint, onSessionId: opts.onSessionId})) {
+      if (chunk.type === EventType.TOOL_CALL_START && chunk.toolCallId && !callStarts.has(chunk.toolCallId)) {
+        callStarts.set(chunk.toolCallId, Date.now())
+      }
+      yield chunk
+      if (chunk.type === EventType.TOOL_CALL_RESULT && chunk.toolCallId) {
+        const start = callStarts.get(chunk.toolCallId)
+        if (start !== undefined) yield aguiToolDurationFor(chunk.toolCallId, Date.now() - start)
+      }
+    }
     if (extractUsage) {
       const delta = extractUsage(event)
       if (delta) {

@@ -23,6 +23,7 @@ import type {PendingApproval} from '../shell/approval-modal.js'
 import {SquarePen, FoldVertical} from 'lucide-solid'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 import {MANDARAX_UI_EVENT, UiSpecSchema, type UiSpec} from '@mandarax/protocol/ui-types'
+import {MANDARAX_TOOL_DURATION_EVENT, ToolDurationSchema} from '@mandarax/protocol/tool-timing'
 import {
   MANDARAX_USAGE_EVENT,
   UsageSnapshotSchema,
@@ -156,12 +157,18 @@ export function ChatPanel(props: {
   const client = props.client
   const [genUi, setGenUi] = createSignal<UiSpec[]>([])
   const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
+  const [durations, setDurations] = createSignal<Record<string, number>>({})
   // The agent's `mandarax ui …` calls arrive as AG-UI CUSTOM events; render each in the thread.
   // Live usage updates arrive on the same channel (injected by core mid-turn).
   const onMandaraxUi = (eventType: string, data: unknown) => {
     if (eventType === MANDARAX_USAGE_EVENT) {
       const parsed = UsageSnapshotSchema.safeParse(data)
       if (parsed.success) setUsage((prev) => ({...prev, ...parsed.data}))
+      return
+    }
+    if (eventType === MANDARAX_TOOL_DURATION_EVENT) {
+      const parsed = ToolDurationSchema.safeParse(data)
+      if (parsed.success) setDurations((prev) => ({...prev, [parsed.data.toolCallId]: parsed.data.durationMs}))
       return
     }
     if (eventType !== MANDARAX_UI_EVENT) return
@@ -219,6 +226,7 @@ export function ChatPanel(props: {
       setAnswered((prev) => (prev.includes(approvalId) ? prev : [...prev, approvalId]))
       void client.permissionDecision({approvalId, approved}).catch(() => {})
     },
+    durationFor: (toolCallId) => durations()[toolCallId],
   }
 
   // Pending native approvals for this thread, derived straight from the messages, reported up to the
