@@ -1,135 +1,73 @@
-import {createSignal, For, onMount, Show, type JSX} from 'solid-js'
-import {Combobox} from '@mandarax/ui-kit-system'
-import {useListCollection} from '@ark-ui/solid/combobox'
-import {Check, ChevronsUpDown} from 'lucide-solid'
+import {createMemo, createSignal, For, onMount, Show, type JSX} from 'solid-js'
+import {ModelSelector, useModelSelectorContext, type ModelOption} from '@mandarax/ui-kit-chat'
 import type {HarnessModelInfo} from '@mandarax/protocol/chat-types'
 import {defineClient} from '@mandarax/api-client'
 import {createPersistedSignal} from '../lib/persisted-signal.js'
 import type {ComposerControlDef} from '../shell/widget-shell.js'
 
-// Bucket models by their `group` (provider/family), preserving first-seen order. Ungrouped
-// models fall under a single 'Models' heading.
-function groupsOf(models: ReadonlyArray<HarnessModelInfo>): {name: string; items: HarnessModelInfo[]}[] {
+// The composer's model picker IS @mandarax/ui-kit-chat's ModelSelector (the assistant-ui port). The
+// widget only maps its harness models onto ModelOption and owns the provider grouping — ModelOption is
+// provider-agnostic by design, so the bucketing is consumer-composed over the selector's filtered set.
+function toOption(model: HarnessModelInfo): ModelOption {
+  return {id: model.id, name: model.name, description: model.description, disabled: model.disabled}
+}
+
+function groupsOf(
+  options: readonly ModelOption[],
+  groupById: Map<string, string>,
+): {name: string; items: ModelOption[]}[] {
   const order: string[] = []
-  const byGroup = new Map<string, HarnessModelInfo[]>()
-  for (const m of models) {
-    const g = m.group ?? 'Models'
-    const bucket = byGroup.get(g)
-    if (bucket) bucket.push(m)
+  const byGroup = new Map<string, ModelOption[]>()
+  for (const option of options) {
+    const group = groupById.get(option.id) ?? 'Models'
+    const bucket = byGroup.get(group)
+    if (bucket) bucket.push(option)
     else {
-      byGroup.set(g, [m])
-      order.push(g)
+      byGroup.set(group, [option])
+      order.push(group)
     }
   }
   return order.map((name) => ({name, items: byGroup.get(name) ?? []}))
 }
 
-function matches(m: HarnessModelInfo, query: string): boolean {
-  if (!query) return true
-  return `${m.name} ${m.id} ${m.description ?? ''}`.toLowerCase().includes(query.toLowerCase())
+// Reads the selector's already-search-filtered models from context and renders them provider-grouped,
+// reusing ui-kit-chat's Group + Item (no Ark, no bespoke list here).
+function GroupedModelList(props: {models: ReadonlyArray<HarnessModelInfo>}): JSX.Element {
+  const context = useModelSelectorContext()
+  const groupById = createMemo(() => new Map(props.models.map((model) => [model.id, model.group ?? 'Models'])))
+  return (
+    <Show
+      when={context.filteredModels().length > 0}
+      fallback={<div class="text-xs text-pw-text-3 px-2 py-2.5">No models match</div>}
+    >
+      <For each={groupsOf(context.filteredModels(), groupById())}>
+        {(group) => (
+          <ModelSelector.Group label={group.name}>
+            <For each={group.items}>{(model) => <ModelSelector.Item model={model} />}</For>
+          </ModelSelector.Group>
+        )}
+      </For>
+    </Show>
+  )
 }
 
-// The composer's model picker: assistant-ui's Popover+Command pattern rebuilt on Ark UI's headless
-// Combobox (the Solid-capable, unstyled equivalent). The trigger shows the current model; opening
-// reveals a searchable, provider-grouped list. Disabled models render greyed and unselectable.
-export function ModelSelector(props: {
+function ModelPicker(props: {
   models: ReadonlyArray<HarnessModelInfo>
   value: string | null
   onChange: (id: string) => void
 }): JSX.Element {
-  // Ark's stable collection + built-in filter (per their Solid example). Rebuilding the collection
-  // per keystroke resets the combobox machine mid-interaction, which breaks positioning + clicks.
-  const {collection, filter} = useListCollection<HarnessModelInfo>({
-    initialItems: props.models.slice(),
-    filter: (_itemText, query, item) => matches(item, query),
-    itemToValue: (m) => m.id,
-    itemToString: (m) => m.name,
-    isItemDisabled: (m) => Boolean(m.disabled),
-  })
-  const selectedName = () => props.models.find((m) => m.id === props.value)?.name ?? 'Model'
-  // Drive the in-popover input as a PURE search box (controlled), so it never echoes the selected
-  // model — Ark would otherwise bind it to the value. The current model shows only on the trigger.
-  const [query, setQuery] = createSignal('')
-  const resetSearch = () => {
-    setQuery('')
-    filter('')
-  }
+  const options = createMemo(() => props.models.map(toOption))
   return (
-    <Combobox.Root
-      collection={collection()}
-      value={props.value ? [props.value] : []}
-      inputValue={query()}
-      onValueChange={(d) => {
-        const id = d.value[0]
-        if (id) props.onChange(id)
-        resetSearch()
-      }}
-      onInputValueChange={(d) => {
-        setQuery(d.inputValue)
-        filter(d.inputValue)
-      }}
-      onOpenChange={(d) => {
-        if (d.open) resetSearch()
-      }}
-      openOnClick
-      // 'clear' makes Ark blank the input after a pick (not echo the model name back into it), so
-      // selecting never leaves the list filtered down to the chosen row.
-      selectionBehavior="clear"
-      positioning={{strategy: 'fixed', placement: 'top-start', gutter: 6}}
-    >
-      {/* assistant-ui's Popover+Command shape: the Trigger is a button pill showing the current
-          model (not a text field); the search Input lives inside the popover Content. */}
-      <Combobox.Control class="inline-flex">
-        <Combobox.Trigger
-          class="text-xs text-pw-text-2 pl-2.5 pr-[0.4375rem] border border-pw-line rounded-pw-pill bg-pw-fill-soft inline-flex gap-1 h-7 max-w-42 cursor-pointer transition-[color,border-color,background-color] duration-[120ms] ease-pw items-center hover:text-pw-text-hi hover:border-pw-line-2 hover:bg-pw-fill-strong"
-          aria-label="Select model"
-          title="Select model"
-        >
-          <span class="truncate">{selectedName()}</span>
-          <ChevronsUpDown class="opacity-70 shrink-0 size-3.25" aria-hidden="true" />
-        </Combobox.Trigger>
-      </Combobox.Control>
-      <Combobox.Positioner>
-        <Combobox.Content class="p-1 border border-pw-line-2 rounded-pw-md bg-pw-panel flex-col max-h-80 w-64 hidden shadow-pw-lg z-10 focus-visible:outline-none data-[state=open]:flex data-[state=open]:anim-combo">
-          <Combobox.Input
-            class="text-[0.8125rem] text-pw-text mb-1 px-2 border-0 border-b border-b-pw-line-soft rounded-none bg-transparent h-8 w-full placeholder:text-pw-text-3 focus:outline-none"
-            placeholder="Search models…"
-          />
-          <div class="flex-1 overflow-y-auto">
-            <Show when={collection().items.length === 0}>
-              <div class="text-xs text-pw-text-3 px-2 py-2.5">No models match</div>
-            </Show>
-            <For each={groupsOf(collection().items)}>
-              {(group) => (
-                <Combobox.ItemGroup>
-                  <Combobox.ItemGroupLabel class="text-[0.6875rem] text-pw-text-3 tracking-[0.02em] font-semibold px-2 pb-0.5 pt-1.5 uppercase">
-                    {group.name}
-                  </Combobox.ItemGroupLabel>
-                  <For each={group.items}>
-                    {(m) => (
-                      <Combobox.Item
-                        item={m}
-                        class="text-pw-text px-2 py-[0.4375rem] rounded-pw-sm flex gap-2 cursor-pointer items-center data-[disabled]:text-pw-text-3 data-[highlighted]:text-pw-text-hi data-[highlighted]:bg-pw-fill-strong data-[disabled]:cursor-not-allowed"
-                      >
-                        <div class="flex flex-1 flex-col gap-px min-w-0">
-                          <Combobox.ItemText>{m.name}</Combobox.ItemText>
-                          <Show when={m.description}>
-                            <span class="text-[0.6875rem] text-pw-text-3">{m.description}</span>
-                          </Show>
-                        </div>
-                        <Combobox.ItemIndicator class="text-pw-accent ml-auto hidden data-[state=checked]:inline-flex">
-                          <Check class="size-3.75" aria-hidden="true" />
-                        </Combobox.ItemIndicator>
-                      </Combobox.Item>
-                    )}
-                  </For>
-                </Combobox.ItemGroup>
-              )}
-            </For>
-          </div>
-        </Combobox.Content>
-      </Combobox.Positioner>
-    </Combobox.Root>
+    <ModelSelector.Root models={options()} value={props.value ?? undefined} onValueChange={props.onChange}>
+      <ModelSelector.Trigger />
+      <ModelSelector.Content>
+        <ModelSelector.Search placeholder="Search models…" />
+        <div class="flex-1 overflow-y-auto">
+          <GroupedModelList models={props.models} />
+        </div>
+        <ModelSelector.Effort />
+      </ModelSelector.Content>
+    </ModelSelector.Root>
   )
 }
 
@@ -174,7 +112,7 @@ export const modelSelectorControl: ComposerControlDef = {
     })
     return (
       <Show when={models().length > 0}>
-        <ModelSelector models={models()} value={model()} onChange={select} />
+        <ModelPicker models={models()} value={model()} onChange={select} />
       </Show>
     )
   },

@@ -43,8 +43,8 @@
         "patterns": [
           {
             "group": ["@ark-ui", "@ark-ui/**"],
-            "importNames": ["Collapsible", "HoverCard", "ScrollArea", "Combobox", "Progress", "EnvironmentProvider"],
-            "message": "Import design-system components from @mandarax/ui-kit-system, not @ark-ui directly. Only ui-kit-system may wrap Ark UI components. (Headless hooks like useListCollection / useFilter may still be imported from @ark-ui.)"
+            "allowImportNames": ["useListCollection", "useFilter"],
+            "message": "Import Ark UI components from @mandarax/ui-kit-system, never @ark-ui directly — only ui-kit-system may wrap Ark UI. The headless hooks useListCollection / useFilter are the ONLY @ark-ui imports allowed elsewhere."
           }
         ]
       }
