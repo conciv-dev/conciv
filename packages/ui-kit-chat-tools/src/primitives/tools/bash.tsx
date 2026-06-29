@@ -1,6 +1,6 @@
 import {createContext, createMemo, useContext, type Accessor, type JSX} from 'solid-js'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import {toolStatus, type ToolStatus} from './tool-status.js'
+import {toolStatus, type ToolStatus} from '@mandarax/ui-kit-chat'
 
 // Headless bash/shell logic + structure (ported from with-opencode tool-ui-bash). Parses the command
 // args + the {stdout,stderr,exitCode} result; the styled layer (styled/tools/bash-card) adds tokens.

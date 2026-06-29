@@ -3,7 +3,7 @@ import {Dynamic} from 'solid-js/web'
 import {Circle, CircleCheckBig, CircleDashed, ListTodo, type LucideIcon} from 'lucide-solid'
 import type {ToolCardEntry, ToolCardProps} from '@mandarax/protocol/tool-view-types'
 import {Todo, useTodo, type TodoItemStatus} from '../../primitives/tools/todo.js'
-import {CollapsibleCard} from '../collapsible-card.js'
+import {CollapsibleCard} from '@mandarax/ui-kit-chat'
 
 const STATUS_ICON: Record<TodoItemStatus, LucideIcon> = {
   pending: CircleDashed,

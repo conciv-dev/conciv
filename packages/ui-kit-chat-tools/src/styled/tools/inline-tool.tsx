@@ -1,7 +1,7 @@
 import {Show, type JSX} from 'solid-js'
 import {Check, CircleAlert, CircleX, LoaderCircle} from 'lucide-solid'
 import type {ToolCardProps, ToolUIComponent} from '@mandarax/protocol/tool-view-types'
-import {toolStatus, type ToolStatus} from '../../primitives/tools/tool-status.js'
+import {toolStatus, type ToolStatus} from '@mandarax/ui-kit-chat'
 import {basename, inlineValue, shortenPath, SUMMARY_KEYS, truncate} from '../../primitives/tools/inline-tool.js'
 
 // Compact one-line tool display for the rail (ported from with-opencode tool-ui-inline). Thin --chat-*

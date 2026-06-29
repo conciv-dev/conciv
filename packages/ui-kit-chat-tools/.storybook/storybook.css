@@ -1,0 +1,13 @@
+@import '@unocss/reset/tailwind.css';
+@import '@mandarax/ui-kit-system/tokens.css';
+@import '@mandarax/ui-kit-chat/theme/tokens.css';
+@import '@mandarax/ui-kit-chat/theme/mandarax.css';
+@unocss all;
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

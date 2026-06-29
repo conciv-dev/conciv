@@ -1,8 +1,8 @@
 import {createContext, createMemo, useContext, type Accessor, type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import {parseInput, resultText, stripReadLineNumbers} from './tool-util.js'
-import {toolStatus, type ToolStatus} from './tool-status.js'
+import {parseInput, resultText, stripReadLineNumbers} from '@mandarax/ui-kit-chat'
+import {toolStatus, type ToolStatus} from '@mandarax/ui-kit-chat'
 
 // Headless file-read logic + structure (Read / mandarax_open). The styled layer adds tokens + the
 // code block. claude Read carries file_path + optional offset/limit; mandarax_open carries file +

@@ -3,7 +3,7 @@ import {FileText} from 'lucide-solid'
 import {SolidCodeBlock, type FileOptions} from '@mandarax/solid-diffs'
 import type {ToolCardEntry, ToolCardProps} from '@mandarax/protocol/tool-view-types'
 import {FileRead, useFileRead} from '../../primitives/tools/file-read.js'
-import {CollapsibleCard} from '../collapsible-card.js'
+import {CollapsibleCard} from '@mandarax/ui-kit-chat'
 
 // Dual theme + themeType:'system' so Pierre resolves the color via CSS color-scheme (pinned per chat
 // theme in tokens.css).

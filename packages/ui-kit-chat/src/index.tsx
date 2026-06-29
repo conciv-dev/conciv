@@ -134,25 +134,13 @@ export {FollowUpSuggestions} from './styled/follow-up-suggestions.js'
 export {ToolGroup, type ToolGroupProps} from './styled/tool-group.js'
 export {AttachmentUI} from './styled/attachment-ui.js'
 export {ModelSelector, type StyledModelSelectorProps} from './styled/model-selector.js'
-export {ApplyPatchDiff} from './styled/tools/apply-patch-diff.js'
-export {BashCard} from './styled/tools/bash-card.js'
-// Tool-vocabulary headless primitives (logic + structure, no classes) — the styled cards wrap these.
+// Generic tool-building primitives + dispatch mechanism. ui-kit-chat is tool-AGNOSTIC: it knows how
+// to derive status, render a fallback, and dispatch a tool-call to a card by name — never the
+// concrete tools (Bash/ApplyPatch/Search/…), which live in @mandarax/ui-kit-chat-tools.
 export {toolStatus, type ToolStatus} from './primitives/tools/tool-status.js'
-export {
-  ApplyPatch,
-  useApplyPatch,
-  patchTextOf,
-  patchInfo,
-  parseClaudePatchBlocks,
-  claudeBlockToUnifiedDiff,
-  type ApplyPatchBlock,
-  type ApplyPatchInfo,
-} from './primitives/tools/apply-patch.js'
-export {Bash, useBash, parseBashOutput, type BashOutput} from './primitives/tools/bash.js'
 export {ToolFallback as ToolFallbackPrimitive, useToolFallback} from './primitives/tools/tool-fallback.js'
 export {Permission, usePermission} from './primitives/tools/permission.js'
 export {PermissionCard} from './styled/tools/permission-card.js'
-export {inlineValue, shortenPath, basename, truncate, SUMMARY_KEYS} from './primitives/tools/inline-tool.js'
 export {defineToolkit} from './primitives/tools/define-toolkit.js'
 export {
   parseInput,
@@ -161,23 +149,7 @@ export {
   stripReadLineNumbers,
   formatDuration,
 } from './primitives/tools/tool-util.js'
-export {nowTitle} from './primitives/tools/now-title.js'
-export {FileRead, useFileRead} from './primitives/tools/file-read.js'
-export {Todo, useTodo, type TodoItem, type TodoItemStatus} from './primitives/tools/todo.js'
-export {FileReadCard, fileReadTool} from './styled/tools/file-read-card.js'
-export {TodoCard, todoTool} from './styled/tools/todo-card.js'
+export {ToolCard} from './styled/tool-card.js'
+export {ToolCallCard, type ToolCallCardProps} from './styled/tools/tool-call-card.js'
 export {NowLine} from './styled/now-line.js'
-export {DoneCard} from './styled/done-card.js'
 export {VirtualLines, type VirtualLinesProps} from './styled/virtual-lines.js'
-// Styled inline tool cards + factory.
-export {
-  inlineTool,
-  ReadInline,
-  EditInline,
-  WriteInline,
-  GrepInline,
-  GlobInline,
-  WebSearchInline,
-  WebFetchInline,
-  ToolCallInline,
-} from './styled/tools/inline-tool.js'
