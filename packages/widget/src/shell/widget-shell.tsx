@@ -1,4 +1,15 @@
-import {createEffect, createSignal, createUniqueId, For, onCleanup, Show, type Component, type JSX} from 'solid-js'
+import {
+  createEffect,
+  createSignal,
+  createUniqueId,
+  For,
+  getOwner,
+  onCleanup,
+  runWithOwner,
+  Show,
+  type Component,
+  type JSX,
+} from 'solid-js'
 import {render} from 'solid-js/web'
 import {EnvironmentProvider} from '@mandarax/ui-kit-system'
 import {ApprovalModal, type PendingApproval} from './approval-modal.js'
@@ -332,6 +343,11 @@ function ModalLayout(props: {
   const [panes, setPanes] = createSignal<ModalPane[]>([])
   createEffect(() => writeStorage('mandarax-active-session', activeId()))
   const apiBase = props.panel.apiBase ?? ''
+  // Panes mount from async resolves + event handlers (session switch), which run ownerless. Capture
+  // this component's owner so create() executes under it — otherwise the panel's Ark components miss
+  // the shadow-root EnvironmentProvider context and Zag's getById-based collapse measurement silently
+  // resolves against `document` (empty), so reasoning/tool collapsibles never animate ([[solid-usecontext-not-inline-prop]]).
+  const owner = getOwner()
 
   const mountPane = (id: SessionId) => {
     if (panes().some((p) => p.id === id)) return
@@ -340,18 +356,20 @@ function ModalLayout(props: {
     const [working, setWorking] = createSignal(false)
     const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
     const approvalKey = createUniqueId()
-    const content = props.panel.create({
-      active: () => props.open() && activeId() === id,
-      onWorkingChange: setWorking,
-      onUsageChange: setUsage,
-      onApprovalsChange: (items) => props.reportApprovals(approvalKey, items),
-      onSessionLabel: (name) => mergeSurface(id, makeSurfaceRow(id, name)),
-      client,
-      onNewSession: () => void activateNew(),
-      announce: props.announce,
-      composerActions: props.composerActions,
-      composerControls: props.composerControls,
-    })
+    const content = runWithOwner(owner, () =>
+      props.panel.create({
+        active: () => props.open() && activeId() === id,
+        onWorkingChange: setWorking,
+        onUsageChange: setUsage,
+        onApprovalsChange: (items) => props.reportApprovals(approvalKey, items),
+        onSessionLabel: (name) => mergeSurface(id, makeSurfaceRow(id, name)),
+        client,
+        onNewSession: () => void activateNew(),
+        announce: props.announce,
+        composerActions: props.composerActions,
+        composerControls: props.composerControls,
+      }),
+    )
     setPanes((prev) => [...prev, {id, content, working, usage}])
   }
   // Make a session active, mounting its pane on first visit.
