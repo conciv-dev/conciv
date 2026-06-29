@@ -81,7 +81,7 @@ function Trigger(): JSX.Element {
       </Show>
       <ChevronDown
         size={16}
-        class="text-[color:var(--chat-text-3)] shrink-0 [transition:transform_150ms_var(--chat-ease)] group-data-[state=open]:rotate-0 group-data-[state=closed]:-rotate-90"
+        class="text-[color:var(--chat-text-3)] shrink-0 [transition:rotate_150ms_var(--chat-ease)] group-data-[state=open]:rotate-0 group-data-[state=closed]:-rotate-90"
         aria-hidden="true"
       />
     </Collapsible.Trigger>

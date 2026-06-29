@@ -20,7 +20,7 @@ const ROOT =
   'w-full rounded-[var(--chat-radius-md)] [border:1px_solid_var(--chat-line)] [background:var(--chat-fill)] overflow-hidden'
 const TRIGGER = `group w-full flex items-center gap-2 px-3 py-2 text-[length:var(--chat-text-sm)] [color:var(--chat-text-2)] cursor-pointer select-none [background:transparent] hover:[background:var(--chat-fill-strong)] ${FOCUS_INSET}`
 const CHEVRON =
-  'size-3 shrink-0 ml-auto [transition:transform_200ms_var(--chat-ease)] group-data-[state=closed]:-rotate-90 group-data-[state=open]:rotate-0'
+  'size-3 shrink-0 ml-auto [transition:rotate_200ms_var(--chat-ease)] group-data-[state=closed]:-rotate-90 group-data-[state=open]:rotate-0'
 const BODY = 'flex flex-col gap-2 px-3 pt-3 pb-2 [border-top:1px_solid_var(--chat-line)]'
 
 export function ToolGroup(props: ToolGroupProps): JSX.Element {

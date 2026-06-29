@@ -13,7 +13,7 @@ export type ChainOfThoughtProps = ParentProps<{streaming?: boolean; durationMs?:
 const TRIGGER = `group flex items-center gap-2.5 w-full px-3.5 py-2 text-[length:var(--chat-text-lg)] font-medium text-[color:var(--chat-text)] cursor-pointer select-none [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] rounded-[var(--chat-radius-md)] [transition:background_140ms_var(--chat-ease)] hover:[background:var(--chat-fill-strong)] ${FOCUS}`
 // lucide chevron rotates around its own center (clean), unlike a text glyph: down when open, right when closed.
 const CHEVRON =
-  'ml-auto shrink-0 text-[color:var(--chat-text-3)] [transition:transform_150ms_var(--chat-ease)] group-data-[state=closed]:-rotate-90 group-data-[state=open]:rotate-0'
+  'ml-auto shrink-0 text-[color:var(--chat-text-3)] [transition:rotate_150ms_var(--chat-ease)] group-data-[state=closed]:-rotate-90 group-data-[state=open]:rotate-0'
 // The timeline node: a small ringed circle holding the step's icon, sat on the connecting rail line.
 const NODE =
   'shrink-0 size-[1.375rem] flex items-center justify-center rounded-full [background:var(--chat-bg)] [border:1px_solid_var(--chat-line)] text-[color:var(--chat-text-3)]'
