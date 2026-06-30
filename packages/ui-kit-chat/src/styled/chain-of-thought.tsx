@@ -10,7 +10,7 @@ import {FOCUS} from './classes.js'
 
 export type ChainOfThoughtProps = ParentProps<{streaming?: boolean; durationMs?: number}>
 
-const TRIGGER = `group flex items-center gap-2.5 w-full px-3.5 py-2 text-[length:var(--chat-text-lg)] font-medium text-[color:var(--chat-text)] cursor-pointer select-none [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] rounded-[var(--chat-radius-md)] [transition:background_140ms_var(--chat-ease)] hover:[background:var(--chat-fill-strong)] ${FOCUS}`
+const TRIGGER = `group flex items-center gap-2 w-full px-3 py-2 text-[length:var(--chat-text-md)] text-[color:var(--chat-text-2)] cursor-pointer select-none [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] rounded-[var(--chat-radius-md)] [transition:background_140ms_var(--chat-ease)] hover:[background:var(--chat-fill-strong)] ${FOCUS}`
 // lucide chevron rotates around its own center (clean), unlike a text glyph: down when open, right when closed.
 const CHEVRON =
   'ml-auto shrink-0 text-[color:var(--chat-text-3)] [transition:rotate_150ms_var(--chat-ease)] group-data-[state=closed]:-rotate-90 group-data-[state=open]:rotate-0'
@@ -50,9 +50,9 @@ function Shell(props: ParentProps): JSX.Element {
     <Collapsible.Root open={chain.open()} onOpenChange={(details) => chain.setOpen(details.open)}>
       <div class="flex flex-col gap-2 min-w-0 w-full">
         <Collapsible.Trigger class={TRIGGER}>
-          <Brain size={16} class="text-[color:var(--chat-text-2)] shrink-0" />
+          <Brain size={14} class="text-[color:var(--chat-text-3)] shrink-0" />
           <span class={chain.streaming() ? SHIMMER : ''}>{chain.streaming() ? 'Working…' : 'Chain of Thought'}</span>
-          <ChevronDown size={16} class={CHEVRON} aria-hidden="true" />
+          <ChevronDown size={14} class={CHEVRON} aria-hidden="true" />
         </Collapsible.Trigger>
         <Collapsible.Content>
           <div class="flex flex-col">{props.children}</div>
