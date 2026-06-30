@@ -23,11 +23,12 @@ export function useChainOfThought(): ChainState {
 type RootProps = ParentProps<{defaultOpen?: boolean; streaming?: boolean}>
 
 function Root(props: RootProps): JSX.Element {
-  const [userOpen, setUserOpen] = createSignal(props.defaultOpen ?? false)
+  const [userOpen, setUserOpen] = createSignal<boolean | undefined>(props.defaultOpen)
+  const open = () => userOpen() ?? props.streaming ?? false
   const state: ChainState = {
-    open: () => userOpen() || (props.streaming ?? false),
-    setOpen: (open) => setUserOpen(open),
-    toggle: () => setUserOpen((value) => !value),
+    open,
+    setOpen: (next) => setUserOpen(next),
+    toggle: () => setUserOpen(!open()),
     streaming: () => props.streaming ?? false,
   }
   return <ChainContext.Provider value={state}>{props.children}</ChainContext.Provider>
