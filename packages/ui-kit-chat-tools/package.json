@@ -6,7 +6,6 @@
     "ai-chat",
     "conciv",
     "solid-js",
-    "tool-ui",
     "ui-kit"
   ],
   "homepage": "https://github.com/conciv-dev/conciv/tree/main/packages/ui-kit-chat-tools#readme",

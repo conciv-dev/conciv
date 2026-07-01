@@ -6,7 +6,7 @@
 @import '@conciv/solid-streamdown/styles.css';
 /* Shared design tokens (from the ui-kit-system design system): single source of truth, scoped
    :host,:root so they resolve in this shadow root and in Storybook alike. The widget owns no token
-   copy. tool-ui + the kit ship JS only — the widget generates THEIR utilities too by scanning their
+   copy. The ui-kit packages ship JS only — the widget generates THEIR utilities too by scanning their
    source (see uno.config.ts), so there's no per-package CSS to @import here. */
 @import '@conciv/ui-kit-system/tokens.css';
 /* Neutral chat tokens (--chat-*) + the conciv theme layer that maps them onto the widget's --pw-*.
@@ -29,7 +29,7 @@
    arbitrary, often light, preview pages and must read as a distinct tool layer next
    to react-grab), so depth comes from hue-tinted shadow, not from glow. */
 
-/* Reset only: every --pw-* token comes from @conciv/tool-ui/tokens.css (imported above),
+/* Reset only: every --pw-* token comes from @conciv/ui-kit-system/tokens.css (imported above),
    the single source of truth shared with the tool cards and their Storybook. */
 :host {
   all: initial;
