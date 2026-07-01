@@ -1,4 +1,4 @@
-import {For, Show, createSignal, type JSX} from 'solid-js'
+import {For, Show, createEffect, createSignal, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {sceneToScreen, screenToScene} from '../../canvas/coords.js'
 import {useComments, type Comment} from '../model/comments.js'
@@ -38,6 +38,16 @@ export function PinsLayer(): JSX.Element {
   const model = useComments()
   const [drag, setDrag] = createSignal<Drag | null>(null)
   const [prompt, setPrompt] = createSignal<Prompt | null>(null)
+
+  // A moved pin keeps its drag position through the async pin write; clear it only once the committed
+  // scene coords catch up, so the pin never flashes back to its pre-drag spot (and a later remote move
+  // isn't masked by a stale drag).
+  createEffect(() => {
+    const dropped = drag()
+    if (!dropped) return
+    const pin = model.pins().find((row) => row.cid === dropped.cid)
+    if (pin && pin.x === dropped.x && pin.y === dropped.y) setDrag(null)
+  })
 
   const anchorLabel = (comment: Comment | undefined): string | null => {
     if (!comment?.anchorFile) return null
@@ -125,21 +135,25 @@ export function PinsLayer(): JSX.Element {
                         const began = start
                         const dragged = drag()
                         start = null
-                        setDrag(null)
                         if (!began) return
                         const moved =
                           dragged !== null &&
                           dragged.cid === pin.cid &&
                           (Math.abs(dragged.x - began.ox) > DRAG_THRESHOLD ||
                             Math.abs(dragged.y - began.oy) > DRAG_THRESHOLD)
-                        if (!dragged || !moved) return model.openThread(pin.cid)
-                        if (comment()?.kind === 'source-linked')
+                        if (!dragged || !moved) {
+                          setDrag(null)
+                          return model.openThread(pin.cid)
+                        }
+                        if (comment()?.kind === 'source-linked') {
+                          setDrag(null)
                           return void setPrompt({
                             cid: pin.cid,
                             x: dragged.x,
                             y: dragged.y,
                             origin: {x: began.ox, y: began.oy},
                           })
+                        }
                         model.movePin(pin.cid, {x: dragged.x, y: dragged.y})
                       }}
                       onKeyDown={(event) => {
