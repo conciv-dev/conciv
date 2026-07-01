@@ -16,7 +16,7 @@ widget.
 <Tab value="pnpm">
 
 ```bash
-pnpm add -D conciv
+pnpm add -D @conciv/it
 ```
 
 </Tab>
@@ -24,7 +24,7 @@ pnpm add -D conciv
 <Tab value="npm">
 
 ```bash
-npm install -D conciv
+npm install -D @conciv/it
 ```
 
 </Tab>
@@ -32,7 +32,7 @@ npm install -D conciv
 <Tab value="yarn">
 
 ```bash
-yarn add -D conciv
+yarn add -D @conciv/it
 ```
 
 </Tab>
@@ -46,7 +46,7 @@ yarn add -D conciv
 
 ```ts title="next.config.ts"
 import type {NextConfig} from 'next'
-import {withConciv} from 'conciv/plugin/nextjs'
+import {withConciv} from '@conciv/it/plugin/nextjs'
 
 const nextConfig: NextConfig = {}
 
@@ -59,11 +59,11 @@ export default withConciv(nextConfig)
 ### Add the instrumentation files
 
 ```ts title="instrumentation.ts"
-export {register} from 'conciv/plugin/nextjs'
+export {register} from '@conciv/it/plugin/nextjs'
 ```
 
 ```ts title="instrumentation-client.ts"
-import 'conciv/plugin/nextjs/widget'
+import '@conciv/it/plugin/nextjs/widget'
 ```
 
 </Step>

@@ -1,1 +1,1 @@
-import '@conciv/qu/plugin/nextjs/widget'
+import '@conciv/it/plugin/nextjs/widget'

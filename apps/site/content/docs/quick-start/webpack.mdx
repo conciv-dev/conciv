@@ -12,7 +12,7 @@ script yourself and point `widgetUrl` at the bundle.
 ### Install
 
 ```bash
-npm install -D conciv
+npm install -D @conciv/it
 ```
 
 </Step>
@@ -21,7 +21,7 @@ npm install -D conciv
 ### Add the plugin
 
 ```js title="webpack.config.js"
-const conciv = require('conciv/plugin/webpack')
+const conciv = require('@conciv/it/plugin/webpack')
 
 module.exports = {
   plugins: [conciv.default()],

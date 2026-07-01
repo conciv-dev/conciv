@@ -17,8 +17,8 @@
   "dependencies": {
     "@conciv/cli": "workspace:*",
     "@conciv/extension": "workspace:*",
+    "@conciv/it": "workspace:*",
     "@conciv/protocol": "workspace:*",
-    "@conciv/qu": "workspace:*",
     "@conciv/widget": "workspace:*",
     "@tailwindcss/vite": "^4.3.1",
     "@tanstack/react-devtools": "^0.10.5",

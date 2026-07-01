@@ -10,7 +10,7 @@ export const EXTENSIONS_RESOLVED_ID = '\0' + EXTENSIONS_VIRTUAL_ID
 
 // The built-in extensions a host wires into the plugin: their SERVER halves (the engine mounts) and
 // their CLIENT entry module specifiers (the widget bundle imports). The plugin itself is generic — it
-// never imports a concrete extension; @conciv/qu supplies the shipped built-ins, the testkit supplies
+// never imports a concrete extension; @conciv/it supplies the shipped built-ins, the testkit supplies
 // the extension under test.
 export type Builtins = {serverExtensions: readonly AnyExtension[]; clientEntries: readonly string[]}
 

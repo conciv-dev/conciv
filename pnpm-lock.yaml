@@ -63,9 +63,9 @@ importers:
 
   apps/examples/nextjs-app:
     dependencies:
-      '@conciv/qu':
+      '@conciv/it':
         specifier: workspace:*
-        version: link:../../../packages/conciv
+        version: link:../../../packages/it
       next:
         specifier: 16.2.9
         version: 16.2.9(@opentelemetry/api@1.9.0)(@playwright/test@1.60.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(sass@1.51.0)
@@ -103,12 +103,12 @@ importers:
       '@conciv/extension':
         specifier: workspace:*
         version: link:../../../packages/extension
+      '@conciv/it':
+        specifier: workspace:*
+        version: link:../../../packages/it
       '@conciv/protocol':
         specifier: workspace:*
         version: link:../../../packages/protocol
-      '@conciv/qu':
-        specifier: workspace:*
-        version: link:../../../packages/conciv
       '@conciv/widget':
         specifier: workspace:*
         version: link:../../../packages/widget
@@ -182,12 +182,12 @@ importers:
       '@conciv/cli':
         specifier: workspace:*
         version: link:../../packages/cli
+      '@conciv/it':
+        specifier: workspace:*
+        version: link:../../packages/it
       '@conciv/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
-      '@conciv/qu':
-        specifier: workspace:*
-        version: link:../../packages/conciv
       '@conciv/widget':
         specifier: workspace:*
         version: link:../../packages/widget
@@ -338,34 +338,6 @@ importers:
       vitest:
         specifier: ^4.1.8
         version: 4.1.8(@opentelemetry/api@1.9.0)(@types/node@22.19.21)(@vitest/browser-playwright@4.1.8)(@vitest/coverage-v8@4.1.8)(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
-
-  packages/conciv:
-    dependencies:
-      '@conciv/extension-test-runner':
-        specifier: workspace:^
-        version: link:../extensions/test-runner
-      '@conciv/extension-whiteboard':
-        specifier: workspace:^
-        version: link:../extensions/whiteboard
-      '@conciv/plugin':
-        specifier: workspace:^
-        version: link:../plugin
-      next:
-        specifier: ^15.3.0 || ^16.0.0
-        version: 16.2.9(@babel/core@7.29.7)(@opentelemetry/api@1.9.0)(@playwright/test@1.60.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(sass@1.51.0)
-      vite:
-        specifier: ^6.0.0 || ^7.0.0 || ^8.0.0
-        version: 8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(sass@1.51.0)(tsx@4.22.4)(yaml@2.9.0)
-    devDependencies:
-      '@types/node':
-        specifier: ^22.19.21
-        version: 22.19.21
-      tsdown:
-        specifier: ^0.22.2
-        version: 0.22.2(@arethetypeswrong/core@0.18.3)(oxc-resolver@11.20.0)(publint@0.3.21)(tsx@4.22.4)(typescript@6.0.3)
-      typescript:
-        specifier: ^6.0.3
-        version: 6.0.3
 
   packages/core:
     dependencies:
@@ -756,6 +728,34 @@ importers:
       vitest:
         specifier: ^4.1.8
         version: 4.1.8(@opentelemetry/api@1.9.0)(@types/node@22.19.21)(@vitest/browser-playwright@4.1.8)(@vitest/coverage-v8@4.1.8)(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+
+  packages/it:
+    dependencies:
+      '@conciv/extension-test-runner':
+        specifier: workspace:^
+        version: link:../extensions/test-runner
+      '@conciv/extension-whiteboard':
+        specifier: workspace:^
+        version: link:../extensions/whiteboard
+      '@conciv/plugin':
+        specifier: workspace:^
+        version: link:../plugin
+      next:
+        specifier: ^15.3.0 || ^16.0.0
+        version: 16.2.9(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.60.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(sass@1.51.0)
+      vite:
+        specifier: ^6.0.0 || ^7.0.0 || ^8.0.0
+        version: 8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(sass@1.51.0)(tsx@4.22.4)(yaml@2.9.0)
+    devDependencies:
+      '@types/node':
+        specifier: ^22.19.21
+        version: 22.19.21
+      tsdown:
+        specifier: ^0.22.2
+        version: 0.22.2(@arethetypeswrong/core@0.18.3)(oxc-resolver@11.20.0)(publint@0.3.21)(tsx@4.22.4)(typescript@6.0.3)
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
 
   packages/plugin:
     dependencies:
@@ -25031,7 +25031,6 @@ snapshots:
     transitivePeerDependencies:
       - '@babel/core'
       - babel-plugin-macros
-    optional: true
 
   next@16.2.9(@opentelemetry/api@1.9.0)(@playwright/test@1.60.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(sass@1.51.0):
     dependencies:

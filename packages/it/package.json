@@ -1,7 +1,7 @@
 {
-  "name": "@conciv/qu",
+  "name": "@conciv/it",
   "version": "0.0.0",
-  "description": "The conciv dev agent, one install. Re-exports the unplugin under conciv/plugin/* (vite, webpack, rspack, rollup, esbuild, nextjs).",
+  "description": "The conciv dev agent, one install. Re-exports the unplugin under @conciv/it/plugin/* (vite, webpack, rspack, rollup, esbuild, nextjs).",
   "keywords": [
     "ai",
     "conciv",
@@ -9,13 +9,13 @@
     "embeddable",
     "vite-plugin"
   ],
-  "homepage": "https://github.com/conciv-dev/conciv/tree/main/packages/conciv#readme",
+  "homepage": "https://github.com/conciv-dev/conciv/tree/main/packages/it#readme",
   "bugs": "https://github.com/conciv-dev/conciv/issues",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/conciv-dev/conciv.git",
-    "directory": "packages/conciv"
+    "directory": "packages/it"
   },
   "files": [
     "dist"

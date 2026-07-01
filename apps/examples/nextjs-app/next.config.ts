@@ -1,5 +1,5 @@
 import type {NextConfig} from 'next'
-import {withConciv} from '@conciv/qu/plugin/nextjs'
+import {withConciv} from '@conciv/it/plugin/nextjs'
 
 const nextConfig: NextConfig = {}
 

@@ -12,7 +12,7 @@ Rspack works like webpack. The entry boots the engine, and you inject the widget
 ### Install
 
 ```bash
-npm install -D conciv
+npm install -D @conciv/it
 ```
 
 </Step>
@@ -21,7 +21,7 @@ npm install -D conciv
 ### Add the plugin
 
 ```js title="rspack.config.js"
-const conciv = require('conciv/plugin/rspack')
+const conciv = require('@conciv/it/plugin/rspack')
 
 module.exports = {
   plugins: [conciv.default()],

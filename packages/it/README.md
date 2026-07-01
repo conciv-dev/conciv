@@ -1,4 +1,4 @@
-# @conciv/qu
+# @conciv/it
 
 The conciv dev agent, one install. Re-exports the unplugin under conciv/plugin/\* (vite, webpack, rspack, rollup, esbuild, nextjs).
 

@@ -139,7 +139,7 @@ Two built-ins show what the contract can do:
 
 | Package                                                              | What it is                                                                                                    |
 | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| [`@conciv/it`](./packages/conciv)                                    | **The one you install.** Thin umbrella: `@conciv/it/plugin/vite` (+ webpack/rspack/rollup/esbuild/nextjs).    |
+| [`@conciv/it`](./packages/it)                                        | **The one you install.** Thin umbrella: `@conciv/it/plugin/vite` (+ webpack/rspack/rollup/esbuild/nextjs).    |
 | [`@conciv/protocol`](./packages/protocol)                            | Shared wire types + `define*` factories (chat, generative UI, test, page, harness). Zero-runtime.             |
 | [`@conciv/core`](./packages/core)                                    | The framework-free h3 + srvx engine: every `/api/*` route, session, uiBus, harness + test registries.         |
 | [`@conciv/harness`](./packages/harness)                              | Harness adapters behind a capability interface: Claude + Codex, plus Gemini/opencode/Pi stubs.                |

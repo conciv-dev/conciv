@@ -1,1 +1,1 @@
-export {register} from '@conciv/qu/plugin/nextjs'
+export {register} from '@conciv/it/plugin/nextjs'

@@ -16,7 +16,7 @@ widget for you.
 <Tab value="pnpm">
 
 ```bash
-pnpm add -D conciv
+pnpm add -D @conciv/it
 ```
 
 </Tab>
@@ -24,7 +24,7 @@ pnpm add -D conciv
 <Tab value="npm">
 
 ```bash
-npm install -D conciv
+npm install -D @conciv/it
 ```
 
 </Tab>
@@ -32,7 +32,7 @@ npm install -D conciv
 <Tab value="yarn">
 
 ```bash
-yarn add -D conciv
+yarn add -D @conciv/it
 ```
 
 </Tab>
@@ -46,7 +46,7 @@ yarn add -D conciv
 
 ```ts title="vite.config.ts"
 import {defineConfig} from 'vite'
-import conciv from 'conciv/plugin/vite'
+import conciv from '@conciv/it/plugin/vite'
 
 export default defineConfig({
   plugins: [conciv()],

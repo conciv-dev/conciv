@@ -14,8 +14,8 @@
   },
   "dependencies": {
     "@conciv/cli": "workspace:*",
+    "@conciv/it": "workspace:*",
     "@conciv/protocol": "workspace:*",
-    "@conciv/qu": "workspace:*",
     "@conciv/widget": "workspace:*",
     "@fontsource-variable/geist": "^5.2.9",
     "@gsap/react": "^2.1.2",

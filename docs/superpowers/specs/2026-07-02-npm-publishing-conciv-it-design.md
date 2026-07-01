@@ -133,6 +133,13 @@ era changes; `conciv-publish` can grow a helper for it later. No custom versioni
 
 ## Release mechanism: GitHub Action + provenance
 
+> **SUPERSEDED (2026-07-02).** A hardened tokenless-OIDC `release.yml` already exists in the
+> repo. Do NOT add an `NPM_TOKEN` repo secret or a `--provenance` flag as described below — the
+> existing workflow authenticates via OIDC (`NPM_TOKEN: ''`) with automatic provenance. See the
+> "Current state" section of `docs/superpowers/plans/2026-07-02-npm-publishing-conciv-it.md`.
+> Also note: `changeset publish --dry-run` (referenced under Publish hygiene) is not a real flag;
+> use `changeset status` + `npm pack --dry-run`.
+
 - Add a `.github/workflows/release.yml` using `changesets/action`:
   - On push to `main`: if changesets are pending, open/refresh a "Version Packages" PR
     (runs `conciv-publish version`).

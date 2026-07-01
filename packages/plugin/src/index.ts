@@ -9,7 +9,7 @@ export {NO_BUILTINS} from './core/extensions.js'
 export {concivBuildPlugin} from './core/vite-plumbing.js'
 
 // The conciv unplugin factory, parameterized by the built-in extensions a host wires in (the plugin
-// itself imports no concrete extension — @conciv/qu supplies the shipped built-ins, the testkit the
+// itself imports no concrete extension — @conciv/it supplies the shipped built-ins, the testkit the
 // extension under test). vite = the rich hook (live viteBridge + widget middleware + boot). webpack/
 // rspack boot the engine bridge-less. rollup/esbuild: build-only no-ops.
 export function createConcivUnplugin(builtins: Builtins = NO_BUILTINS): UnpluginInstance<ConcivConfig | undefined> {
