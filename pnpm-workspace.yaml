@@ -4,6 +4,14 @@ packages:
   - apps/*
   - apps/examples/*
 
+# Force patched protobufjs (GHSA-wcpc-wj8m-hjx6 prototype pollution); pulled in transitively
+# via jazz-tools OpenTelemetry in the whiteboard extension.
+overrides:
+  protobufjs@<8.4.1: '>=8.4.1'
+  # lodash-es _.template code injection (GHSA-r5fr-rjxr-66jc); npm never shipped 4.17.24, the
+  # patched line is 4.18.x. Pulled in transitively via @excalidraw in the whiteboard extension.
+  lodash-es@<4.18.0: '>=4.18.1'
+
 # Supply-chain hardening (pnpm 11). Only these deps may run install/build scripts;
 # everything else is blocked by strictDepBuilds (default on in pnpm 11).
 # Dev-only tooling (netlify-cli and its native deps) is blocked - not needed to
