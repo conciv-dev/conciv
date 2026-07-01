@@ -2,7 +2,7 @@
 import {defineCommand, runMain} from 'citty'
 import {execa} from 'execa'
 import {findRoot} from './workspace-root.ts'
-import {assertValidTag, assertVersioned} from './guards.ts'
+import {assertPublicSet, assertValidTag, assertVersioned} from './guards.ts'
 
 // All orchestration runs from the workspace root so changeset/turbo see the whole monorepo.
 async function atRoot() {
@@ -34,6 +34,7 @@ const release = defineCommand({
   meta: {name: 'release', description: 'Build, validate, then publish to npm via changesets'},
   async run() {
     const {cwd, turbo, changeset} = await atRoot()
+    await assertPublicSet(cwd)
     await assertVersioned(cwd)
     await turbo('build', 'publint', 'attw')
     await changeset('publish')
@@ -45,7 +46,8 @@ const snapshot = defineCommand({
   args: {tag: {type: 'positional', default: 'beta', description: 'npm dist-tag, e.g. beta'}},
   async run({args}) {
     assertValidTag(args.tag)
-    const {turbo, changeset} = await atRoot()
+    const {cwd, turbo, changeset} = await atRoot()
+    await assertPublicSet(cwd)
     await changeset('version', '--snapshot', args.tag) // e.g. 0.1.0-beta-<timestamp>
     await turbo('build', 'publint', 'attw')
     await changeset('publish', '--tag', args.tag, '--no-git-checks')
