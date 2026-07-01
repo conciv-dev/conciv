@@ -2,19 +2,19 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Grow the generic `@mandarax/extension` contract so an extension can own namespaced HTTP routes + cleanup, inject typed context into its tools, receive a client argument, and declare typed config — proven against one throwaway fixture, no test-runner code touched.
+**Goal:** Grow the generic `@conciv/extension` contract so an extension can own namespaced HTTP routes + cleanup, inject typed context into its tools, receive a client argument, and declare typed config — proven against one throwaway fixture, no test-runner code touched.
 
-**Architecture:** Each runtime gap is "a factory that gets no argument today gets one." Add the argument at each internal call site (`__server`/`__execute`/`__client`), build what those args contain (only `route` is new), and move `.server()` from boot into `makeApp` (where `app`+`cwd` exist) — replacing `collectServerContributions` with two inline projections. Typed config is an open module-augmentation registry. h3 stays out of `@mandarax/extension` (route types there, route runtime in core).
+**Architecture:** Each runtime gap is "a factory that gets no argument today gets one." Add the argument at each internal call site (`__server`/`__execute`/`__client`), build what those args contain (only `route` is new), and move `.server()` from boot into `makeApp` (where `app`+`cwd` exist) — replacing `collectServerContributions` with two inline projections. Typed config is an open module-augmentation registry. h3 stays out of `@conciv/extension` (route types there, route runtime in core).
 
 **Tech Stack:** SolidJS, zod v4, h3 + srvx (server), TanStack AI tool defs, jiti (server-half load), tsdown (package build), vitest (unit/node IT), Playwright (browser IT), turborepo, oxlint/oxfmt.
 
 ## Global Constraints
 
-- **Dev-only forever.** mandarax never appears in a consumer's prod bundle. No artifact introduced here may be reachable by a consumer build; all delivery rides the dev-only plugin serve path.
+- **Dev-only forever.** conciv never appears in a consumer's prod bundle. No artifact introduced here may be reachable by a consumer build; all delivery rides the dev-only plugin serve path.
 - **No test-runner file touched.** This pass is the generic API only, proven by a fixture.
 - **Code style (HARD):** zero narration comments (one concise line max, matching neighbors), no `any`/casts, no IIFE, no `else`, functions not classes, map/reduce over if/else, names spelled out fully. Prefer generics over type-only deps.
 - **No mocks/stubs/jsdom.** Real `h3`/`srvx` servers, real MCP client, real browser (Playwright `browser.newPage()`).
-- **Build/typecheck/test via turbo:** `pnpm turbo <tasks> --filter=<pkg>`. Widget/core ITs need `@mandarax/core` (and the extension) built first.
+- **Build/typecheck/test via turbo:** `pnpm turbo <tasks> --filter=<pkg>`. Widget/core ITs need `@conciv/core` (and the extension) built first.
 - **v0, break freely** — no back-compat shims; update every call site in the same change.
 - **Run every command from the worktree** `/Users/dev/Public/web/aidx/.claude/worktrees/extension-api-rewrite`. Never `cd` to the main repo root.
 - The oxfmt pre-commit hook reflows files and aborts the first commit — re-add and commit again.
@@ -23,7 +23,7 @@
 
 ## File Structure
 
-**`@mandarax/extension` (the contract):**
+**`@conciv/extension` (the contract):**
 
 - Modify `packages/extension/src/define-tool.ts` — `defineTool<Schema, Ctx>`; `__execute(raw, ctx)`.
 - Modify `packages/extension/src/define-extension.ts` — generic `<Name, Schema>`; `parseConfig`; `.server((server) => ({context, dispose?}))`; `.client((client) => ({value, dispose?}))`; drop the `as unknown as` cast; fix `useContext` return type; 5-arg builder.
@@ -31,11 +31,11 @@
 - Delete `packages/extension/src/collect-server.ts` + its `index.ts` export (replaced by two-phase wiring in core).
 - Modify `packages/extension/src/index.ts` — export the new types; drop `collectServerContributions`.
 
-**`@mandarax/protocol`:**
+**`@conciv/protocol`:**
 
-- Modify `packages/protocol/src/config-types.ts` — `ExtensionConfigRegistry` interface + `MandaraxConfig.extensions`.
+- Modify `packages/protocol/src/config-types.ts` — `ExtensionConfigRegistry` interface + `ConcivConfig.extensions`.
 
-**`@mandarax/core`:**
+**`@conciv/core`:**
 
 - Create `packages/core/src/api/ws.ts` — `attachWebSocket(server, app, originAllowed)` (Task 3a).
 - Create `packages/core/src/extension-app.ts` — `makeExtensionApp(parent, name, originAllowed)` + `slug` (Task 3b).
@@ -43,14 +43,14 @@
 - Modify `packages/core/src/engine.ts` — call `attachWebSocket` after `serve(...)`.
 - Modify `packages/core/src/engine.ts` — accept `extensions: ExtensionBuilder[]`; Prompt-phase projection; await disposers in `stop`.
 - Modify `packages/core/src/api/mcp/mcp.ts` — call `execute(args)` (context closed over).
-- Modify `packages/core/src/config.ts` — `ResolvedMandaraxConfig.extensions` passthrough.
+- Modify `packages/core/src/config.ts` — `ResolvedConcivConfig.extensions` passthrough.
 
-**`@mandarax/plugin`:**
+**`@conciv/plugin`:**
 
 - Modify `packages/plugin/src/core/extensions.ts` — `loadServerExtensions(root): Promise<ExtensionBuilder[]>` (replaces `loadServerContributions`).
 - Modify `packages/plugin/src/core/boot.ts` + `vite.ts` — pass builders into `start`; `bootEngine` signature.
 
-**`@mandarax/widget` (Gap C):**
+**`@conciv/widget` (Gap C):**
 
 - Modify `packages/widget/src/chat-panel.tsx` — pass `ClientApi` into `__client(...)`; capture + dispose the returned `dispose`.
 - Modify `packages/widget/src/extension-slots.tsx` — instance carries `dispose`.
@@ -100,7 +100,7 @@ test('execute reparses raw input at the boundary', async () => {
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `pnpm --filter @mandarax/extension exec vitest run test/define-tool.test.ts`
+Run: `pnpm --filter @conciv/extension exec vitest run test/define-tool.test.ts`
 Expected: FAIL — `.server` execute arity (ctx) does not typecheck / `__execute` ignores 2nd arg.
 
 - [ ] **Step 3: Implement**
@@ -147,7 +147,7 @@ In `types.ts`, change `ExtensionTool.__execute?: (input: unknown) => Promise<unk
 
 - [ ] **Step 4: Run to verify it passes**
 
-Run: `pnpm --filter @mandarax/extension exec vitest run test/define-tool.test.ts`
+Run: `pnpm --filter @conciv/extension exec vitest run test/define-tool.test.ts`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -159,7 +159,7 @@ git commit -m "feat(extension): defineTool carries Ctx; __execute takes injected
 
 ---
 
-## Task 2: protocol — `ExtensionConfigRegistry` + `MandaraxConfig.extensions`
+## Task 2: protocol — `ExtensionConfigRegistry` + `ConcivConfig.extensions`
 
 **Files:**
 
@@ -168,14 +168,14 @@ git commit -m "feat(extension): defineTool carries Ctx; __execute takes injected
 
 **Interfaces:**
 
-- Produces: `interface ExtensionConfigRegistry {}` (augmentable); `MandaraxConfig.extensions?: {[Name in keyof ExtensionConfigRegistry]?: ExtensionConfigRegistry[Name]}`.
+- Produces: `interface ExtensionConfigRegistry {}` (augmentable); `ConcivConfig.extensions?: {[Name in keyof ExtensionConfigRegistry]?: ExtensionConfigRegistry[Name]}`.
 
 - [ ] **Step 1: Write the failing type test**
 
 ```ts
 // packages/protocol/test/config-types.test-d.ts
 import {expectTypeOf, test} from 'vitest'
-import type {MandaraxConfig, ExtensionConfigRegistry} from '../src/config-types.js'
+import type {ConcivConfig, ExtensionConfigRegistry} from '../src/config-types.js'
 
 declare module '../src/config-types.js' {
   interface ExtensionConfigRegistry {
@@ -184,24 +184,24 @@ declare module '../src/config-types.js' {
 }
 
 test('extensions field types from the registry', () => {
-  expectTypeOf<MandaraxConfig['extensions']>().toMatchTypeOf<{sample?: {flag?: boolean}} | undefined>()
+  expectTypeOf<ConcivConfig['extensions']>().toMatchTypeOf<{sample?: {flag?: boolean}} | undefined>()
 })
 ```
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `pnpm --filter @mandarax/protocol exec vitest --typecheck run test/config-types.test-d.ts`
+Run: `pnpm --filter @conciv/protocol exec vitest --typecheck run test/config-types.test-d.ts`
 Expected: FAIL — `extensions` / `ExtensionConfigRegistry` not exported.
 
 - [ ] **Step 3: Implement**
 
-In `packages/protocol/src/config-types.ts`, add above `MandaraxConfig`:
+In `packages/protocol/src/config-types.ts`, add above `ConcivConfig`:
 
 ```ts
 export interface ExtensionConfigRegistry {}
 ```
 
-and inside `interface MandaraxConfig`:
+and inside `interface ConcivConfig`:
 
 ```ts
   extensions?: {[Name in keyof ExtensionConfigRegistry]?: ExtensionConfigRegistry[Name]}
@@ -209,14 +209,14 @@ and inside `interface MandaraxConfig`:
 
 - [ ] **Step 4: Run to verify it passes**
 
-Run: `pnpm --filter @mandarax/protocol exec vitest --typecheck run test/config-types.test-d.ts`
+Run: `pnpm --filter @conciv/protocol exec vitest --typecheck run test/config-types.test-d.ts`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add packages/protocol/src/config-types.ts packages/protocol/test/config-types.test-d.ts
-git commit -m "feat(protocol): open ExtensionConfigRegistry + MandaraxConfig.extensions"
+git commit -m "feat(protocol): open ExtensionConfigRegistry + ConcivConfig.extensions"
 ```
 
 ---
@@ -239,11 +239,11 @@ git commit -m "feat(protocol): open ExtensionConfigRegistry + MandaraxConfig.ext
 
 - [ ] **Step 1: Write the failing ws IT** — boot a real srvx server with one h3 ws route (`defineWebSocketHandler` echoing messages); open a real `ws` client to `/__ws_probe`; assert echo round-trip; open a second with a non-loopback `Origin` header; assert the handshake is rejected. (Uses the `ws` package — a core devDep; if absent, add it with approval.)
 
-- [ ] **Step 2: Run to verify it fails** — `pnpm --filter @mandarax/core exec vitest run test/api/ws.it.test.ts` → FAIL (`attachWebSocket` not found; without it the route returns 426, never upgrades).
+- [ ] **Step 2: Run to verify it fails** — `pnpm --filter @conciv/core exec vitest run test/api/ws.it.test.ts` → FAIL (`attachWebSocket` not found; without it the route returns 426, never upgrades).
 
 - [ ] **Step 3: Implement** `attachWebSocket` per the interface (crossws node adapter, resolve via the h3 app, origin-guarded `upgrade`); declare `crossws` in `package.json`; call it in `engine.ts` right after `serve(...)`, passing `(origin) => originAllowed(origin, extraOrigins)`.
 
-- [ ] **Step 4: Run to verify it passes** — `pnpm turbo build --filter=@mandarax/core && pnpm --filter @mandarax/core exec vitest run test/api/ws.it.test.ts` → PASS.
+- [ ] **Step 4: Run to verify it passes** — `pnpm turbo build --filter=@conciv/core && pnpm --filter @conciv/core exec vitest run test/api/ws.it.test.ts` → PASS.
 
 - [ ] **Step 5: Commit** — `git commit -m "feat(core): ws transport — crossws on srvx node server, origin-guarded upgrade"`.
 
@@ -251,7 +251,7 @@ git commit -m "feat(protocol): open ExtensionConfigRegistry + MandaraxConfig.ext
 
 ## Task 3b: `makeExtensionApp` (core, guarded sub-H3) + api types (extension)
 
-> Extensions get a real, full h3 sub-app — every verb, middleware, `defineWebSocketHandler`, event streams — NOT a narrowed verb wrapper. It is a separate `H3` instance, so its `.use()` middleware sees only its own routes (isolation for free); core mounts it at `/api/ext/<slug>` via `withBase` and pre-installs the loopback origin guard on it so a sub-app route can't escape the guard. h3 enters `@mandarax/extension` as a TYPE-ONLY import (`import type {H3}`), erased at build — zero runtime in the browser bundle, honoring "h3 out of the contract" at runtime.
+> Extensions get a real, full h3 sub-app — every verb, middleware, `defineWebSocketHandler`, event streams — NOT a narrowed verb wrapper. It is a separate `H3` instance, so its `.use()` middleware sees only its own routes (isolation for free); core mounts it at `/api/ext/<slug>` via `withBase` and pre-installs the loopback origin guard on it so a sub-app route can't escape the guard. h3 enters `@conciv/extension` as a TYPE-ONLY import (`import type {H3}`), erased at build — zero runtime in the browser bundle, honoring "h3 out of the contract" at runtime.
 
 **Files:**
 
@@ -272,11 +272,11 @@ git commit -m "feat(protocol): open ExtensionConfigRegistry + MandaraxConfig.ext
 
 - [ ] **Step 1: Write the failing IT** — mount `makeExtensionApp(app, 'Test Runner', () => true)`; register on the returned sub-app a `get('/status', () => ({ok:true}))`, an SSE route via `sseStream`, and a `get('/ws', defineWebSocketHandler(echo))`; serve via srvx; assert GET serves at `/api/ext/test-runner/status`, SSE streams a frame, ws echoes; then assert a non-loopback `Origin` GET is rejected 403.
 
-- [ ] **Step 2: Run to verify it fails** — `pnpm --filter @mandarax/core exec vitest run test/api/extension-app.it.test.ts` → FAIL (`makeExtensionApp` not found).
+- [ ] **Step 2: Run to verify it fails** — `pnpm --filter @conciv/core exec vitest run test/api/extension-app.it.test.ts` → FAIL (`makeExtensionApp` not found).
 
 - [ ] **Step 3: Implement** `makeExtensionApp` + `slug` (lowercase, non-alphanumeric runs → `-`, trimmed) in `extension-app.ts`; add the `ServerApi`/`ServerResult`/`ClientApi` types (type-only `H3`) to `types.ts`; export from `index.ts`; add h3 as an extension devDep for the type-only import.
 
-- [ ] **Step 4: Run to verify it passes** — `pnpm turbo build --filter=@mandarax/extension && pnpm --filter @mandarax/core exec vitest run test/api/extension-app.it.test.ts` → PASS.
+- [ ] **Step 4: Run to verify it passes** — `pnpm turbo build --filter=@conciv/extension && pnpm --filter @conciv/core exec vitest run test/api/extension-app.it.test.ts` → PASS.
 
 - [ ] **Step 5: Commit** — `git commit -m "feat(extension): ServerApi.app is a guarded h3 sub-app mounted at /api/ext/<slug>/"`.
 
@@ -332,7 +332,7 @@ test('server factory receives api and returns context + dispose', () => {
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `pnpm --filter @mandarax/extension exec vitest run test/define-extension.test.ts`
+Run: `pnpm --filter @conciv/extension exec vitest run test/define-extension.test.ts`
 Expected: FAIL — `parseConfig` undefined; `.server` factory arg/return shape.
 
 - [ ] **Step 3: Implement the builder**
@@ -359,7 +359,7 @@ export type ConfigOf<Schema> = [Schema] extends [import('zod').ZodNever]
 
 - [ ] **Step 4: Run extension unit + typecheck**
 
-Run: `pnpm --filter @mandarax/extension exec vitest run && pnpm turbo typecheck --filter=@mandarax/extension`
+Run: `pnpm --filter @conciv/extension exec vitest run && pnpm turbo typecheck --filter=@conciv/extension`
 Expected: PASS.
 
 - [ ] **Step 5: Commit the contract change**
@@ -374,7 +374,7 @@ git commit -m "feat(extension): generic defineExtension (name/config/tools), .se
 ```ts
 // packages/core/test/fixtures/sample-server-extension.ts
 import {z} from 'zod'
-import {defineExtension, defineTool} from '@mandarax/extension'
+import {defineExtension, defineTool} from '@conciv/extension'
 
 const ping = defineTool<z.ZodObject<{n: z.ZodNumber}>, {factor: number}>({
   name: 'sample_mul',
@@ -431,12 +431,12 @@ test('extension route serves, tool runs against injected ctx, dispose on stop', 
 
 - [ ] **Step 7: Run to verify it fails**
 
-Run: `pnpm turbo build --filter=@mandarax/extension && pnpm --filter @mandarax/core exec vitest run test/api/extension-server.it.test.ts`
+Run: `pnpm turbo build --filter=@conciv/extension && pnpm --filter @conciv/core exec vitest run test/api/extension-server.it.test.ts`
 Expected: FAIL — `makeApp`/`start` do not accept `extensions` builders.
 
 - [ ] **Step 8: Implement the two-phase wiring**
 
-`config.ts`: add `extensions?: MandaraxConfig['extensions']` to `ResolvedMandaraxConfig` + `resolveConfig` passthrough.
+`config.ts`: add `extensions?: ConcivConfig['extensions']` to `ResolvedConcivConfig` + `resolveConfig` passthrough.
 
 `engine.ts`: `StartOpts.extensions?: ExtensionBuilder[]`; replace the prompt assembly at line 34 with the Prompt-phase projection; pass `extensions` (builders) + `cfg.extensions` into `MakeAppOpts`; capture `disposers` from `makeApp` and `await Promise.all(disposers.map((d) => d()))` in `stop` before `server.close()`.
 
@@ -486,7 +486,7 @@ const disposers = mounted.map((m) => m.dispose).filter((d): d is () => void | Pr
 
 - [ ] **Step 9: Run to verify it passes**
 
-Run: `pnpm turbo build typecheck --filter=@mandarax/extension --filter=@mandarax/core --filter=@mandarax/plugin && pnpm --filter @mandarax/core exec vitest run test/api/extension-server.it.test.ts`
+Run: `pnpm turbo build typecheck --filter=@conciv/extension --filter=@conciv/core --filter=@conciv/plugin && pnpm --filter @conciv/core exec vitest run test/api/extension-server.it.test.ts`
 Expected: PASS.
 
 - [ ] **Step 10: Commit the wiring**
@@ -520,11 +520,11 @@ import {expect, test} from 'vitest'
 // useContext((c) => c.subscribe) and that the server sees exactly one EventSource; unmount → source closes.
 ```
 
-- [ ] **Step 2: Run to verify it fails** — `pnpm turbo build --filter=@mandarax/core --filter=@mandarax/extension && pnpm --filter @mandarax/widget exec vitest run test/extension-client.browser.test.tsx` → FAIL (factory gets no arg; dispose dropped).
+- [ ] **Step 2: Run to verify it fails** — `pnpm turbo build --filter=@conciv/core --filter=@conciv/extension && pnpm --filter @conciv/widget exec vitest run test/extension-client.browser.test.tsx` → FAIL (factory gets no arg; dispose dropped).
 
 - [ ] **Step 3: Implement** — in `chat-panel.tsx`'s extension-instances memo, build `clientApi = {apiBase, client, requestMeta}` from the panel's existing host bag and call `ext.__client?.(clientApi)`; store `{extension, clientValue, dispose}`; `onCleanup(() => instances.forEach((i) => i.dispose?.()))`. `extension-slots.tsx`: `ExtensionInstance` gains optional `dispose`. Extend `sample-extension.tsx` with the `.client(api)` body.
 
-- [ ] **Step 4: Run to verify it passes** — same command → PASS; `pnpm turbo typecheck --filter=@mandarax/widget` green.
+- [ ] **Step 4: Run to verify it passes** — same command → PASS; `pnpm turbo typecheck --filter=@conciv/widget` green.
 
 - [ ] **Step 5: Commit** — `git commit -m "feat(widget): client factory receives ClientApi; capture + dispose it on unmount"`.
 
@@ -543,17 +543,17 @@ import {expect, test} from 'vitest'
 import {expectTypeOf, test} from 'vitest'
 import {z} from 'zod'
 import {defineExtension, defineTool, type RegisterExtension} from '../src/index.js'
-import type {MandaraxConfig} from '@mandarax/protocol/config-types'
+import type {ConcivConfig} from '@conciv/protocol/config-types'
 
 const cfgSchema = z.object({runner: z.enum(['vitest', 'jest']).default('vitest')})
 const ext = defineExtension({name: 'demo', configSchema: cfgSchema})
 
-declare module '@mandarax/protocol/config-types' {
+declare module '@conciv/protocol/config-types' {
   interface ExtensionConfigRegistry extends RegisterExtension<typeof ext> {}
 }
 
 test('config key + value type from the registry', () => {
-  expectTypeOf<NonNullable<MandaraxConfig['extensions']>['demo']>().toMatchTypeOf<
+  expectTypeOf<NonNullable<ConcivConfig['extensions']>['demo']>().toMatchTypeOf<
     {runner?: 'vitest' | 'jest'} | undefined
   >()
 })
@@ -570,7 +570,7 @@ test('extension context must satisfy the intersection of its tools Ctx', () => {
 })
 ```
 
-- [ ] **Step 2: Run to verify it fails** — `pnpm --filter @mandarax/extension exec vitest --typecheck run test/config-registry.test-d.ts` → FAIL until Task 4's generics are present (it passes once they are; if green immediately, confirm the `@ts-expect-error` actually fires by temporarily removing `factor`).
+- [ ] **Step 2: Run to verify it fails** — `pnpm --filter @conciv/extension exec vitest --typecheck run test/config-registry.test-d.ts` → FAIL until Task 4's generics are present (it passes once they are; if green immediately, confirm the `@ts-expect-error` actually fires by temporarily removing `factor`).
 
 - [ ] **Step 3: (No new impl)** — this task validates Tasks 2+4. If the negative case does not error, fix the `RequiredContext`/`ConfigOf` types in `types.ts` until it does.
 
@@ -582,7 +582,7 @@ test('extension context must satisfy the intersection of its tools Ctx', () => {
 
 ## Final gate
 
-- [ ] `pnpm turbo build typecheck lint test --filter=@mandarax/extension --filter=@mandarax/protocol --filter=@mandarax/core --filter=@mandarax/plugin --filter=@mandarax/widget` → all green.
+- [ ] `pnpm turbo build typecheck lint test --filter=@conciv/extension --filter=@conciv/protocol --filter=@conciv/core --filter=@conciv/plugin --filter=@conciv/widget` → all green.
 - [ ] Fixture node IT + widget browser IT pass; the type tests (config autocomplete, ctx intersection) pass.
 - [ ] No test-runner file changed (`git diff --name-only main... | grep -i test-runner` → only this plan / spec, no src).
 

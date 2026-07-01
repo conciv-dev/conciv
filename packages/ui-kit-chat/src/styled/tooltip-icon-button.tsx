@@ -1,5 +1,5 @@
 import {splitProps, type JSX} from 'solid-js'
-import {Tooltip} from '@mandarax/ui-kit-system'
+import {Tooltip} from '@conciv/ui-kit-system'
 
 // The most-reused atom: an icon button with a real Tooltip (no native title=, D4). Neutral-token
 // styled. Size is NOT baked in — the caller's size utility (e.g. size-7) must win, so it's the only

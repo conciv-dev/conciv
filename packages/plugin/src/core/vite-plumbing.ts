@@ -4,13 +4,13 @@ import {compileExtensionSolid, isExtensionModule} from './compile-extension.js'
 import {splitExtension} from './split-extension.js'
 import {type Builtins, EXTENSIONS_RESOLVED_ID, EXTENSIONS_VIRTUAL_ID, extensionsModuleSource} from './extensions.js'
 
-// The widget + extensions must share ONE solid + one @mandarax/extension instance (so an extension's
+// The widget + extensions must share ONE solid + one @conciv/extension instance (so an extension's
 // useContext resolves the widget's Provider): dedupe collapses duplicate copies; exclude keeps Vite's
 // dep optimizer from re-inlining them.
-export function mandaraxSolidConfig() {
+export function concivSolidConfig() {
   return {
-    resolve: {dedupe: ['solid-js', '@mandarax/extension']},
-    optimizeDeps: {exclude: ['@mandarax/widget', '@mandarax/extension']},
+    resolve: {dedupe: ['solid-js', '@conciv/extension']},
+    optimizeDeps: {exclude: ['@conciv/widget', '@conciv/extension']},
   }
 }
 
@@ -24,11 +24,11 @@ export function loadExtensionsModule(id: string, clientEntries: readonly string[
 
 export type TransformContext = {root: string; deferToTsd: boolean}
 
-// Extension files (mandarax/extensions/*) are a Solid zone for the client bundle: collapse every
+// Extension files (conciv/extensions/*) are a Solid zone for the client bundle: collapse every
 // .server(fn) call + dead-code-eliminate its node imports, then compile the JSX with Solid before the
-// host's React transform runs. Everything else gets the data-mandarax-source stamp (unless TanStack
+// host's React transform runs. Everything else gets the data-conciv-source stamp (unless TanStack
 // devtools' injector already owns it).
-export function transformMandaraxModule(
+export function transformConcivModule(
   code: string,
   id: string,
   ssr: boolean,
@@ -41,17 +41,17 @@ export function transformMandaraxModule(
   return addSourceToJsx(code, id, ctx.root)
 }
 
-// The shared mandarax build plumbing as a standalone Vite plugin: the solid/extension dedupe config,
-// the virtual:mandarax-extensions module, and the source-inject + extension transform. No engine boot
+// The shared conciv build plumbing as a standalone Vite plugin: the solid/extension dedupe config,
+// the virtual:conciv-extensions module, and the source-inject + extension transform. No engine boot
 // and no widget middleware (those are serve-only, in makeViteHook). The extension-testkit composes this
 // exact plugin so source injection + extension handling live in ONE place, never reimplemented.
-export function mandaraxBuildPlugin(builtins: Builtins): Plugin {
+export function concivBuildPlugin(builtins: Builtins): Plugin {
   let root = process.cwd()
   let deferToTsd = false
   return {
-    name: 'mandarax:build',
+    name: 'conciv:build',
     enforce: 'pre',
-    config: () => mandaraxSolidConfig(),
+    config: () => concivSolidConfig(),
     configResolved(config) {
       root = config.root
       deferToTsd = config.plugins.some((plugin) => plugin.name === '@tanstack/devtools:inject-source')
@@ -59,7 +59,7 @@ export function mandaraxBuildPlugin(builtins: Builtins): Plugin {
     resolveId: (id) => resolveExtensionsModule(id),
     load: (id) => loadExtensionsModule(id, builtins.clientEntries),
     transform(code, id, opts) {
-      return transformMandaraxModule(code, id, opts?.ssr ?? false, {root, deferToTsd})
+      return transformConcivModule(code, id, opts?.ssr ?? false, {root, deferToTsd})
     },
   }
 }

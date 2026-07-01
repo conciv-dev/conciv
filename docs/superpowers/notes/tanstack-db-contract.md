@@ -1,6 +1,6 @@
 # TanStack DB + native TrailBase integration — contract (characterized from real packages)
 
-Installed 2026-06-21 into `@mandarax/widget`: `@tanstack/db@0.6.9`, `@tanstack/solid-db@0.2.23`,
+Installed 2026-06-21 into `@conciv/widget`: `@tanstack/db@0.6.9`, `@tanstack/solid-db@0.2.23`,
 `@tanstack/trailbase-db-collection@0.1.87`, `trailbase@0.12.2`. Facts below are from the shipped
 `.d.ts` / dist, not docs (the docs site tracks newer/older builds and disagrees in places).
 

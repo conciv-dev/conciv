@@ -17,4 +17,4 @@ function findPluginDir(): string | null {
 }
 
 // Resolved once at module load; null if the plugin dir is missing (build/packaging slip).
-export const MANDARAX_PLUGIN_DIR = findPluginDir()
+export const CONCIV_PLUGIN_DIR = findPluginDir()

@@ -4,9 +4,9 @@ import {dirname, join} from 'node:path'
 import {tmpdir} from 'node:os'
 import {mkdtempSync} from 'node:fs'
 import {createMCPClient} from '@tanstack/ai-mcp'
-import {start, type Engine} from '@mandarax/core'
-import type {MandaraxConfig} from '@mandarax/core/config'
-import type {AnyExtension} from '@mandarax/extension'
+import {start, type Engine} from '@conciv/core'
+import type {ConcivConfig} from '@conciv/core/config'
+import type {AnyExtension} from '@conciv/extension'
 import testRunnerExtension from '../src/server.js'
 
 // Server-composition IT: boots the REAL engine (the public start() the CLI/plugin use) with the
@@ -16,7 +16,7 @@ import testRunnerExtension from '../src/server.js'
 // MCP registration, config selection, CORS, 422 mapping, dispose.
 
 // Test-side typing for this extension's per-extension config (the registry is declaration-merged).
-declare module '@mandarax/protocol/config-types' {
+declare module '@conciv/protocol/config-types' {
   interface ExtensionConfigRegistry {
     'test-runner': {runner?: 'vitest' | 'jest' | 'node-test' | 'playwright'}
   }
@@ -28,7 +28,7 @@ const route = '/api/ext/test-runner'
 // Widen to AnyExtension[] up front, exactly as the plugin does for its built-ins.
 const extensions: AnyExtension[] = [testRunnerExtension]
 
-async function boot(opts: {root?: string; extensions?: MandaraxConfig['extensions']} = {}): Promise<{
+async function boot(opts: {root?: string; extensions?: ConcivConfig['extensions']} = {}): Promise<{
   base: string
   engine: Engine
 }> {
@@ -111,8 +111,8 @@ describe('test-runner extension booted in the real engine (IT)', () => {
   it('maps a runner-unavailable failure to HTTP 422 on /run', async () => {
     // A real run whose child can't spawn (cwd does not exist) surfaces as runner-unavailable. The
     // state root is a real temp dir so the engine's own writes succeed; only the runner cwd is gone.
-    const stateRoot = mkdtempSync(join(tmpdir(), 'mandarax-it-state-'))
-    const missingRoot = join(mkdtempSync(join(tmpdir(), 'mandarax-it-root-')), 'absent')
+    const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-it-state-'))
+    const missingRoot = join(mkdtempSync(join(tmpdir(), 'conciv-it-root-')), 'absent')
     const engine = await start({
       options: {systemPrompt: false, stateRoot},
       root: missingRoot,

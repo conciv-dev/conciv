@@ -24,7 +24,7 @@ import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {chromium, type Browser, type Locator, type Page} from 'playwright'
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
-const widgetBundle = fs.readFileSync(path.join(dirname, '../dist/mandarax-widget.global.js'), 'utf8')
+const widgetBundle = fs.readFileSync(path.join(dirname, '../dist/conciv-widget.global.js'), 'utf8')
 const snapDir = path.join(dirname, '__snapshots__')
 const goldenPath = path.join(snapDir, 'computed-styles.json')
 const shotsDir = path.join(snapDir, 'shots')
@@ -222,17 +222,17 @@ function makeServer(): Server {
   return createServer((req: IncomingMessage, res: ServerResponse) => {
     const url = req.url ?? ''
     if (url.startsWith('/api/chat/session/resolve') && req.method === 'POST')
-      return writeJson(res, {sessionId: 'mandarax_new_1'})
+      return writeJson(res, {sessionId: 'conciv_new_1'})
     if (url.startsWith('/api/chat/sessions')) {
       return writeJson(res, {
         sessions: [
           {
             id: 'tok-aidx',
-            title: 'Made in mandarax',
+            title: 'Made in conciv',
             updatedAt: FIXED_NOW,
             messageCount: 3,
             running: false,
-            origin: 'mandarax',
+            origin: 'conciv',
             usage: null,
           },
           {
@@ -248,9 +248,9 @@ function makeServer(): Server {
       })
     }
     if (url.startsWith('/api/chat/session') && !url.startsWith('/api/chat/sessions')) {
-      const sid = req.headers['mandarax-session-id']
+      const sid = req.headers['conciv-session-id']
       return writeJson(res, {
-        sessionId: typeof sid === 'string' ? sid : 'mandarax_unknown',
+        sessionId: typeof sid === 'string' ? sid : 'conciv_unknown',
         harnessSessionId: null,
         name: null,
         origin: 'chat',
@@ -307,7 +307,7 @@ describe('widget chrome regression (real browser): computed styles + screenshots
       name: 'closed-fab',
       run: async (page) => {
         await page.goto(state.base)
-        const fab = page.getByRole('button', {name: 'Open mandarax chat'})
+        const fab = page.getByRole('button', {name: 'Open conciv chat'})
         await fab.waitFor({state: 'visible'})
         await page.waitForTimeout(600)
         return fab
@@ -317,19 +317,19 @@ describe('widget chrome regression (real browser): computed styles + screenshots
       name: 'modal-open',
       run: async (page) => {
         await page.goto(state.base)
-        const fab = page.getByRole('button', {name: 'Open mandarax chat'})
+        const fab = page.getByRole('button', {name: 'Open conciv chat'})
         await fab.click()
         await page.getByText('How can I help you today?').waitFor({state: 'visible'})
         await page.waitForTimeout(600)
-        // Anchor on the composer, not the FAB: once open the FAB's label flips to "Minimize mandarax chat".
-        return page.getByLabel('Message the mandarax agent').first()
+        // Anchor on the composer, not the FAB: once open the FAB's label flips to "Minimize conciv chat".
+        return page.getByLabel('Message the conciv agent').first()
       },
     },
     {
       name: 'model-popover',
       run: async (page) => {
         await page.goto(state.base)
-        const fab = page.getByRole('button', {name: 'Open mandarax chat'})
+        const fab = page.getByRole('button', {name: 'Open conciv chat'})
         await fab.click()
         await page.getByText('How can I help you today?').waitFor({state: 'visible'})
         const trigger = page.getByRole('button', {name: 'Select model'})
@@ -338,22 +338,22 @@ describe('widget chrome regression (real browser): computed styles + screenshots
         // Opus is not the default pill (sonnet is), so this row only exists once the popover is open.
         await page.getByText('Claude Opus 4.8', {exact: true}).waitFor({state: 'visible'})
         await page.waitForTimeout(400)
-        return page.getByLabel('Message the mandarax agent').first()
+        return page.getByLabel('Message the conciv agent').first()
       },
     },
     {
       name: 'session-popover',
       run: async (page) => {
         await page.goto(state.base)
-        const fab = page.getByRole('button', {name: 'Open mandarax chat'})
+        const fab = page.getByRole('button', {name: 'Open conciv chat'})
         await fab.click()
         await page.getByText('How can I help you today?').waitFor({state: 'visible'})
         const trigger = page.getByRole('button', {name: /^Session:/}).first()
         await trigger.waitFor({state: 'visible'})
         await trigger.click()
-        await page.getByText('Made in mandarax').waitFor({state: 'visible'})
+        await page.getByText('Made in conciv').waitFor({state: 'visible'})
         await page.waitForTimeout(400)
-        return page.getByLabel('Message the mandarax agent').first()
+        return page.getByLabel('Message the conciv agent').first()
       },
     },
     {
@@ -366,7 +366,7 @@ describe('widget chrome regression (real browser): computed styles + screenshots
         await page.keyboard.press('Control+k')
         await page.getByText('How can I help you today?').waitFor({state: 'visible'})
         await page.waitForTimeout(600)
-        return page.getByLabel('Message the mandarax agent').first()
+        return page.getByLabel('Message the conciv agent').first()
       },
     },
   ]

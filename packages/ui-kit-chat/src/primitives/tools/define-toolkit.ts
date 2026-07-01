@@ -1,4 +1,4 @@
-import type {ToolCardEntry, ToolUIComponent} from '@mandarax/protocol/tool-view-types'
+import type {ToolCardEntry, ToolUIComponent} from '@conciv/protocol/tool-view-types'
 
 // Our analogue of assistant-ui's defineToolkit: map tool name → its card, get back the self-describing
 // ToolCardEntry[] the Thread/Message dispatch matches by name (Pi/TanStack model — no name→component

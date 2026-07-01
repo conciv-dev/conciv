@@ -1,8 +1,8 @@
 import type {Component} from 'solid-js'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 
-// The card-render contract shared by the renderer (@mandarax/ui-kit-chat + ui-kit-chat-tools) and the
-// authoring layer (@mandarax/extension, whose defineTool(...).render() supplies a card). Lives in
+// The card-render contract shared by the renderer (@conciv/ui-kit-chat + ui-kit-chat-tools) and the
+// authoring layer (@conciv/extension, whose defineTool(...).render() supplies a card). Lives in
 // protocol so both sides depend on a leaf rather than each other (avoids a package cycle).
 
 // The color rail / accent a card renders under — a UI-local style, not a classification layer:

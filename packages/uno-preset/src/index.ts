@@ -17,7 +17,7 @@ import {shortcuts} from './shortcuts.js'
 // presetWind4 (TW v4-aligned): native animate-*/aria-*/sr-only/list-none replace hand-rolled mini gaps.
 export function presetAidx(): Preset {
   return {
-    name: '@mandarax/uno-preset',
+    name: '@conciv/uno-preset',
     // reset:false (packages own @unocss/reset); variablePrefix:'unx-' namespaces wind4's @property-registered --un-* vars (shadow.ts hoists them to <head>) so they can't collide with a host app's own UnoCSS.
     presets: [presetWind4({preflights: {reset: false}, variablePrefix: 'unx-'}), typography],
     theme: {colors, radius, font, ease, animation},

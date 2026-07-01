@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task (this project's house rule is to work inline, not via subagents). Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Promote the extension client surface from "theme + one button" to the full reach tiers — a reactive keyed UI store (`ui.setWidget/setHeader/setFooter/setStatus`), an open tool-renderer registry (`registerToolRenderer`), and a typed component-override registry (`ui.setComponent`) — then make the whole surface AI-legible with a computed catalog and a `mandarax_extensions` agent tool (`catalog`/`scaffold`/`validate`), a skill, and worked examples.
+**Goal:** Promote the extension client surface from "theme + one button" to the full reach tiers — a reactive keyed UI store (`ui.setWidget/setHeader/setFooter/setStatus`), an open tool-renderer registry (`registerToolRenderer`), and a typed component-override registry (`ui.setComponent`) — then make the whole surface AI-legible with a computed catalog and a `conciv_extensions` agent tool (`catalog`/`scaffold`/`validate`), a skill, and worked examples.
 
-**Architecture:** The authoring contract stays single-sourced in `@mandarax/extensions` (node-safe): it owns the `ClientApi`/`ServerApi` types, the `OverridableComponents` props interface (augmented by the widget at each component's site), the `OVERRIDABLE_COMPONENTS` metadata list, and the pure catalog/scaffold/validate functions. The widget owns the _runtime_ of the new surfaces: a module-level Solid signal store (`ui-store.tsx`), a component-override registry (`component-registry.tsx`), and the slot-rendering inside `ChatPanel`. The tool-renderer registry lives in `@mandarax/tool-ui` (where the dispatch `Switch` is today), replacing it with a `Dynamic` lookup. `mount.tsx` adapts the live shell + shadow root + registries into the public `mx` exactly as it does for `setTheme`/`registerComposerAction` today. The catalog is a projection computed from node-safe sources (`TOKENS`, `OVERRIDABLE_COMPONENTS`, the surface consts) — not the live browser registries, which a node-side MCP tool cannot import.
+**Architecture:** The authoring contract stays single-sourced in `@conciv/extensions` (node-safe): it owns the `ClientApi`/`ServerApi` types, the `OverridableComponents` props interface (augmented by the widget at each component's site), the `OVERRIDABLE_COMPONENTS` metadata list, and the pure catalog/scaffold/validate functions. The widget owns the _runtime_ of the new surfaces: a module-level Solid signal store (`ui-store.tsx`), a component-override registry (`component-registry.tsx`), and the slot-rendering inside `ChatPanel`. The tool-renderer registry lives in `@conciv/tool-ui` (where the dispatch `Switch` is today), replacing it with a `Dynamic` lookup. `mount.tsx` adapts the live shell + shadow root + registries into the public `mx` exactly as it does for `setTheme`/`registerComposerAction` today. The catalog is a projection computed from node-safe sources (`TOKENS`, `OVERRIDABLE_COMPONENTS`, the surface consts) — not the live browser registries, which a node-side MCP tool cannot import.
 
 **Tech Stack:** SolidJS (module-level signals, `Dynamic`, `ErrorBoundary`), TypeScript (declaration-merging for typed overrides), Vite lib build (multi-entry for a node-safe `tokens` export), tsdown (extensions bundle), `@tanstack/ai` `toolDefinition`, Storybook play-tests + Playwright real-browser ITs.
 
@@ -14,9 +14,9 @@
 - Production code: zero narration comments; prefer map/reduce over if/else; clear names; any necessary comment is one concise line.
 - Fully typed by the end: no `unknown`, no `any`, no type assertions/casts. Run whole-repo `pnpm turbo typecheck` before claiming done.
 - No node unit tests for behavior: verify UI in a real browser (Playwright `newPage()`, never `newContext()`) or Storybook play-tests. Native assertions only (`getByRole`/`getByText`/`toBeVisible`/aria); no `querySelector`/class selectors/`toBe(true)` on DOM. No jsdom/happy-dom. No mocks/stubs (real http server + real browser + real bundle). Pure functions (catalog/scaffold/validate) may use a vitest unit test — they are plain logic, not UI or LLM glue.
-- Keep extension logic in `@mandarax/extensions`; do not smear it across packages. The widget/tool-ui consume the contract; they do not redefine it.
+- Keep extension logic in `@conciv/extensions`; do not smear it across packages. The widget/tool-ui consume the contract; they do not redefine it.
 - Pre-release, no users: break APIs freely, no back-compat shims, update all call sites.
-- No new npm dependencies without asking. This slice adds only _workspace_ deps (`@mandarax/tool-ui` → extensions, type-only) — no third-party installs.
+- No new npm dependencies without asking. This slice adds only _workspace_ deps (`@conciv/tool-ui` → extensions, type-only) — no third-party installs.
 - Build/typecheck via turbo: `pnpm turbo build --filter=<pkg>` / `pnpm turbo typecheck`. Widget changes are served per-request, and the ITs read the _built_ global bundle — rebuild the widget before running a widget IT.
 - Run every command from the worktree path `/Users/dev/Public/web/aidx/.claude/worktrees/plugin-system-design`. Never `cd` to the main repo root.
 - Commit per logical step; the oxfmt pre-commit hook reflows files — re-stage and recommit after it runs. Commit messages end with:
@@ -27,8 +27,8 @@
 1. **Tool renderer co-located on the tool def (Task 2), Pi-faithful across our split.** Pi's `ToolDefinition` carries `renderCall`/`renderResult` and overrides a built-in by re-registering the same name (`built-in-tool-renderer.ts`). We can't co-locate in one runtime — `execute` is node/MCP, the renderer is a browser Solid component. The solve: `defineTool(...).server(execute).render(Component)` holds both halves on one object; `defineExtension({tools:[…]})` auto-wires execute server-side and the renderer client-side as the file loads in each runtime. The string `registerToolRenderer(name, Component)` is the substrate, not the authoring surface. Built-in renderer override = a render-only tool (no `.server`) keyed to the built-in name — strictly more capable than Pi (restyle a tool you don't own, because rendering is decoupled from execution).
 2. **Named override setters (Task 3), not a generic `setComponent(id)`.** Pi overrides surfaces with named, individually-typed setters (`setHeader`/`setFooter`/`setEditorComponent`), never a string-keyed generic registry. We follow it: `ui.setEmptyState(factory)` this slice, one named setter per surface going forward. This sidesteps the cross-package generic-typing/declaration-merging problem entirely — each setter is concretely typed in the contract.
 3. **Tools self-document into the prompt (Pi parity).** Pi tool defs carry `promptSnippet` (one-liner injected into the Available-tools section) + `promptGuidelines`. Our `defineTool` adopts both; `collectServerContributions` appends them when a tool is registered, so a tool documents itself instead of a separate manual `systemPrompt.append`.
-4. **New `mandarax_extensions` agent tool, not overloaded `mandarax_ui`.** `mandarax_ui` already exists as the in-chat interactive-UI tool (choices/confirm/diff/form) with its own schema. A dedicated `mandarax_extensions` tool with a `verb` discriminator (`catalog`/`scaffold`/`validate`) is cleaner. (Pi has no catalog tool — it relies on the typed API + `getAllTools()` introspection; our catalog is a justified net-add because our theming is token-level and our surface is visual, neither of which Pi exposes.)
-5. **Catalog computed from node-safe metadata, not live browser registries.** A node-side MCP tool can't import the widget's Solid registries. So the catalog reads node-safe sources: `TOKENS` (new `@mandarax/ui-kit-system/tokens` subpath), `OVERRIDABLE_COMPONENTS` + `CLIENT_SURFACES`/`SERVER_SURFACES` consts in `@mandarax/extensions`. Tokens stay single-source (one object → CSS + type + catalog). Registered server tools are already visible via MCP `tools/list`, so the catalog doesn't re-enumerate them.
+4. **New `conciv_extensions` agent tool, not overloaded `conciv_ui`.** `conciv_ui` already exists as the in-chat interactive-UI tool (choices/confirm/diff/form) with its own schema. A dedicated `conciv_extensions` tool with a `verb` discriminator (`catalog`/`scaffold`/`validate`) is cleaner. (Pi has no catalog tool — it relies on the typed API + `getAllTools()` introspection; our catalog is a justified net-add because our theming is token-level and our surface is visual, neither of which Pi exposes.)
+5. **Catalog computed from node-safe metadata, not live browser registries.** A node-side MCP tool can't import the widget's Solid registries. So the catalog reads node-safe sources: `TOKENS` (new `@conciv/ui-kit-system/tokens` subpath), `OVERRIDABLE_COMPONENTS` + `CLIENT_SURFACES`/`SERVER_SURFACES` consts in `@conciv/extensions`. Tokens stay single-source (one object → CSS + type + catalog). Registered server tools are already visible via MCP `tools/list`, so the catalog doesn't re-enumerate them.
 6. **Deferred (matches spec):** the two-sided event bus (`mx.on`) — Pi's `ExtensionEvent` union is the reference taxonomy for that later slice. A build-time `.client/.server` strip transform (the `__toolSide` marker) is a bundle-size optimization, not needed for correctness here; the file-convention split (`*.client.tsx`/`*.server.ts`) is the documented fallback when a renderer pulls a browser-only import.
 
 ---
@@ -38,7 +38,7 @@
 - `packages/extensions/src/contract.ts` **(modify)** — extend `ClientApi` with `ui.setWidget/setHeader/setFooter/setStatus`, `ui.setEmptyState`, `registerToolRenderer`; add `UiFactory`, `EmptyStateProps/Factory`, `ToolRenderer`, the `defineTool` builder (`.server`/`.render`), `defineExtension({tools})`. One responsibility: the authoring contract + types.
 - `packages/extensions/src/catalog.ts` **(create)** — `OVERRIDABLE_COMPONENTS`, `CLIENT_SURFACES`, `SERVER_SURFACES` consts; `buildCatalog()`, `scaffold(kind, opts)`, `validateSource(source)` pure functions; `Catalog`/`ScaffoldKind` types.
 - `packages/extensions/src/index.ts` **(modify)** — re-export the new types + catalog functions.
-- `packages/extensions/package.json` **(modify)** — add `@mandarax/tool-ui` (workspace, type-only use for `ToolCardProps`).
+- `packages/extensions/package.json` **(modify)** — add `@conciv/tool-ui` (workspace, type-only use for `ToolCardProps`).
 - `packages/ui-kit-system/vite.config.ts` **(modify)** — second lib entry so `dist/tokens.js` is emitted node-safe.
 - `packages/ui-kit-system/package.json` **(modify)** — add the `./tokens` subpath export.
 - `packages/widget/src/ui-store.tsx` **(create)** — the reactive keyed UI store (widgets/header/footer/statuses signals), the setter functions, and the slot components (`ExtHeaderSlot`, `ExtFooterSlot`, `ExtWidgetsSlot`, `ExtStatusSlot`), each error-boundaried.
@@ -49,13 +49,13 @@
 - `packages/tool-ui/src/registry.ts` **(create)** — `BUILTIN_TOOL_RENDERERS` map, the override signal, `registerToolRenderer`, `rendererFor`.
 - `packages/tool-ui/src/tool-call.tsx` **(modify)** — replace the `<Switch>` with a `<Dynamic component={rendererFor(name)}>`.
 - `packages/tool-ui/src/index.tsx` **(modify)** — export `registerToolRenderer`.
-- `packages/tools/src/extensions-tool.ts` **(create)** — the `mandarax_extensions` `toolDefinition` + input schema.
-- `packages/tools/src/server.ts` **(modify)** — register the new tool in `mandaraxTools(ctx)`.
+- `packages/tools/src/extensions-tool.ts` **(create)** — the `conciv_extensions` `toolDefinition` + input schema.
+- `packages/tools/src/server.ts` **(modify)** — register the new tool in `concivTools(ctx)`.
 - `packages/tool-ui/src/tool-call.stories.tsx` **(create)** — play-tests: a built-in routes through the registry; a registered custom renderer wins.
 - `packages/widget/test/extension-ui.it.test.ts` **(create)** — real-browser IT for the UI store (header/footer/status/widget) + `setComponent` override.
 - `packages/extensions/test/catalog.test.ts` **(create)** — pure-function tests: token projection, scaffold output parses, validate catches a bad token.
-- `apps/examples/tanstack-start/mandarax/extensions/blue.ts` **(modify)** — exercise the new client surface (status + a setComponent) so the example app typechecks against the real types.
-- `skills/mandarax-extensions/SKILL.md` **(create)** + `apps/examples/.../mandarax/extensions/` worked examples — AI legibility.
+- `apps/examples/tanstack-start/conciv/extensions/blue.ts` **(modify)** — exercise the new client surface (status + a setComponent) so the example app typechecks against the real types.
+- `skills/conciv-extensions/SKILL.md` **(create)** + `apps/examples/.../conciv/extensions/` worked examples — AI legibility.
 
 ---
 
@@ -75,7 +75,7 @@
   - `type UiFactory = () => JSX.Element`
   - `ClientApi.ui` gains: `setWidget: (key: string, factory: UiFactory | null) => void`, `setHeader: (factory: UiFactory | null) => void`, `setFooter: (factory: UiFactory | null) => void`, `setStatus: (key: string, text: string | null) => void`. (`null` removes.)
 - Produces (ui-store.tsx): `setExtWidget(key, factory)`, `setExtHeader(factory)`, `setExtFooter(factory)`, `setExtStatus(key, text)`, and slot components `ExtHeaderSlot()`, `ExtFooterSlot()`, `ExtWidgetsSlot()`, `ExtStatusSlot()` (each `(): JSX.Element`).
-- Consumes: `UiFactory` from `@mandarax/extensions`.
+- Consumes: `UiFactory` from `@conciv/extensions`.
 
 - [ ] **Step 1: Extend the contract**
 
@@ -111,7 +111,7 @@ export type ClientApi = {
 // setStatus. Module-level signals (one widget instance per page); slot components render them inside
 // the chat panel, each behind an error boundary so one bad factory can't crash the widget.
 import {createSignal, ErrorBoundary, For, Show, type JSX} from 'solid-js'
-import type {UiFactory} from '@mandarax/extensions'
+import type {UiFactory} from '@conciv/extensions'
 
 type Keyed<T> = {key: string; value: T}
 
@@ -229,14 +229,14 @@ Extend the `clientApi.ui` literal (lines 82-91) so `ui` reads:
 
 - [ ] **Step 5: Typecheck + build the widget**
 
-Run: `pnpm turbo build --filter=@mandarax/extensions && pnpm turbo build --filter=@mandarax/widget`
-Expected: both build clean (`dist/mandarax-widget.global.js` rebuilt with the store).
+Run: `pnpm turbo build --filter=@conciv/extensions && pnpm turbo build --filter=@conciv/widget`
+Expected: both build clean (`dist/conciv-widget.global.js` rebuilt with the store).
 
 - [ ] **Step 6: Write the failing IT**
 
 ```ts
 // packages/widget/test/extension-ui.it.test.ts
-// The widget driven in a REAL browser; an extension seeded via window.__MANDARAX__.queue paints a
+// The widget driven in a REAL browser; an extension seeded via window.__CONCIV__.queue paints a
 // header, footer, status, and keyed widget (factories return real DOM nodes — Solid inserts them, so
 // the page can author them in plain JS). Real bundle, real browser, native assertions.
 import fs from 'node:fs'
@@ -248,7 +248,7 @@ import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {chromium, type Browser} from 'playwright'
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
-const widgetBundle = fs.readFileSync(path.join(dirname, '../dist/mandarax-widget.global.js'), 'utf8')
+const widgetBundle = fs.readFileSync(path.join(dirname, '../dist/conciv-widget.global.js'), 'utf8')
 
 function pageHtml(): string {
   return `<!doctype html><html><head>
@@ -261,7 +261,7 @@ function pageHtml(): string {
         if (attrs) for (var k in attrs) el.setAttribute(k, attrs[k])
         return el
       }
-      window.__MANDARAX__ = { queue: [ {
+      window.__CONCIV__ = { queue: [ {
         id: 'acme',
         clientFn: function (mx) {
           mx.ui.setHeader(function () { return node('div', 'Acme banner') })
@@ -290,11 +290,11 @@ describe('widget extension UI store (it) — real browser', () => {
     server = createServer((req: IncomingMessage, res: ServerResponse) => {
       const url = req.url ?? ''
       if (url.startsWith('/api/chat/session/resolve') && req.method === 'POST') {
-        return writeJson(res, {sessionId: 'mandarax_new_1'})
+        return writeJson(res, {sessionId: 'conciv_new_1'})
       }
       if (url.startsWith('/api/chat/session') && !url.startsWith('/api/chat/sessions')) {
         return writeJson(res, {
-          sessionId: 'mandarax_new_1',
+          sessionId: 'conciv_new_1',
           harnessSessionId: null,
           name: null,
           origin: 'chat',
@@ -337,7 +337,7 @@ describe('widget extension UI store (it) — real browser', () => {
   it('paints header, footer, status, and a keyed widget from an extension', async () => {
     const page = await browser.newPage()
     await page.goto(state.base)
-    await page.getByRole('button', {name: 'Open mandarax chat'}).click()
+    await page.getByRole('button', {name: 'Open conciv chat'}).click()
     await page.getByText('How can I help you today?').waitFor({state: 'visible'})
     await expect(page.getByText('Acme banner')).toBeVisible()
     await expect(page.getByText('Acme footer')).toBeVisible()
@@ -350,12 +350,12 @@ describe('widget extension UI store (it) — real browser', () => {
 
 - [ ] **Step 7: Run the IT**
 
-Run: `pnpm --filter @mandarax/widget exec vitest run test/extension-ui.it.test.ts`
+Run: `pnpm --filter @conciv/widget exec vitest run test/extension-ui.it.test.ts`
 Expected: PASS — all four slots visible.
 
 - [ ] **Step 8: Regression + commit**
 
-Run: `pnpm --filter @mandarax/widget exec vitest run`
+Run: `pnpm --filter @conciv/widget exec vitest run`
 Expected: PASS (existing ITs unaffected).
 
 ```bash
@@ -387,7 +387,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 - Produces (registry.ts): `BUILTIN_TOOL_RENDERERS: Record<string, Component<ToolCardProps>>`, `registerToolRenderer(name: string, renderer: Component<ToolCardProps>): void`, `rendererFor(name: string): Component<ToolCardProps>`.
 - Produces (contract.ts): `ToolRenderer = Component<ToolCardProps>`; `ExtensionTool` (erased: `{name, description, inputSchema, promptSnippet?, promptGuidelines?, serverExecute?, clientRender?}`); `ToolBuilder<S>` with `.server(execute)` + `.render(component)`; `defineTool<S>(def) => ToolBuilder<S>`; `defineExtension({id, tools?})`; `ClientApi.registerToolRenderer`.
 - Produces (discovery.ts): `collectClientContributions(extensions) => {toolRenderers: {name: string; render: ToolRenderer}[]}`; `collectServerContributions` also drains `ext.tools`.
-- Consumes: `ToolCardProps` from `@mandarax/tool-ui`; the existing card components.
+- Consumes: `ToolCardProps` from `@conciv/tool-ui`; the existing card components.
 
 - [ ] **Step 1: Build the registry**
 
@@ -415,13 +415,13 @@ export const BUILTIN_TOOL_RENDERERS: Record<string, Component<ToolCardProps>> = 
   MultiEdit: FileEditCard,
   Write: FileEditCard,
   Read: FileReadCard,
-  mandarax_open: FileReadCard,
+  conciv_open: FileReadCard,
   Grep: SearchCard,
   Glob: SearchCard,
   TodoWrite: TodoCard,
-  mandarax_page: PageActionCard,
-  mandarax_ui: UiCard,
-  mandarax_test: TestCard,
+  conciv_page: PageActionCard,
+  conciv_ui: UiCard,
+  conciv_test: TestCard,
 }
 
 const [overrides, setOverrides] = createSignal<Record<string, Component<ToolCardProps>>>({})
@@ -477,13 +477,13 @@ export {registerToolRenderer, BUILTIN_TOOL_RENDERERS} from './registry.js'
 In `packages/extensions/package.json`, add to `dependencies`:
 
 ```json
-    "@mandarax/tool-ui": "workspace:^",
+    "@conciv/tool-ui": "workspace:^",
 ```
 
 In `packages/extensions/src/contract.ts`, add the import and turn `defineTool` into a builder carrying both halves. Add near the top:
 
 ```ts
-import type {ToolCardProps} from '@mandarax/tool-ui'
+import type {ToolCardProps} from '@conciv/tool-ui'
 
 // A client-side renderer for a tool's call/result cards (the browser half of a tool definition).
 export type ToolRenderer = Component<ToolCardProps>
@@ -554,7 +554,7 @@ Change `ServerApi.registerTool` to accept the builder result, accept `tools` on 
 ```
 
 ```ts
-// MandaraxExtension gains:
+// ConcivExtension gains:
   tools?: ExtensionTool[]
 ```
 
@@ -577,7 +577,7 @@ export function defineExtension(meta: {id: string; tools?: ExtensionTool[]}): Ex
 }
 ```
 
-In `packages/extensions/package.json`, the `@mandarax/tool-ui` workspace dep added above (Step 4 head) covers the `ToolCardProps` type import.
+In `packages/extensions/package.json`, the `@conciv/tool-ui` workspace dep added above (Step 4 head) covers the `ToolCardProps` type import.
 
 - [ ] **Step 5: Drain tools on both sides in discovery**
 
@@ -585,7 +585,7 @@ In `packages/extensions/src/discovery.ts`, make `collectServerContributions` als
 
 ```ts
 import type {
-  MandaraxExtension,
+  ConcivExtension,
   ServerApi,
   ExtensionServerContributions,
   ExtensionServerTool,
@@ -602,7 +602,7 @@ function addServerTool(tools: ExtensionServerTool[], systemPrompt: string[], t: 
   if (t.promptGuidelines?.length) systemPrompt.push(...t.promptGuidelines)
 }
 
-export function collectServerContributions(extensions: MandaraxExtension[]): ExtensionServerContributions {
+export function collectServerContributions(extensions: ConcivExtension[]): ExtensionServerContributions {
   const tools: ExtensionServerTool[] = []
   const systemPrompt: string[] = []
   const api: ServerApi = {
@@ -617,7 +617,7 @@ export function collectServerContributions(extensions: MandaraxExtension[]): Ext
 }
 
 // The client half of declared tools: each tool's renderer, keyed by name, for the renderer registry.
-export function collectClientContributions(extensions: MandaraxExtension[]): {
+export function collectClientContributions(extensions: ConcivExtension[]): {
   toolRenderers: {name: string; render: ToolRenderer}[]
 } {
   const toolRenderers: {name: string; render: ToolRenderer}[] = []
@@ -637,8 +637,8 @@ Keep `extensionsModuleSource()` unchanged. Export `collectClientContributions` f
 In `packages/widget/src/mount.tsx`, add imports:
 
 ```ts
-import {registerToolRenderer} from '@mandarax/tool-ui'
-import {collectClientContributions} from '@mandarax/extensions'
+import {registerToolRenderer} from '@conciv/tool-ui'
+import {collectClientContributions} from '@conciv/extensions'
 ```
 
 Add `registerToolRenderer` to the `clientApi` literal (imperative escape hatch, sibling of `registerComposerAction`):
@@ -650,7 +650,7 @@ Add `registerToolRenderer` to the `clientApi` literal (imperative escape hatch, 
 Change the `installExtensionGlobal` callback so applying an extension also drains its declared tool renderers:
 
 ```ts
-installExtensionGlobal((ext: MandaraxExtension) => {
+installExtensionGlobal((ext: ConcivExtension) => {
   ext.clientFn?.(clientApi)
   for (const t of collectClientContributions([ext]).toolRenderers) registerToolRenderer(t.name, t.render)
 })
@@ -658,7 +658,7 @@ installExtensionGlobal((ext: MandaraxExtension) => {
 
 - [ ] **Step 7: Update the sample extension to the new `defineTool` form**
 
-`apps/examples/tanstack-start/mandarax/extensions/blue.ts` uses inline `execute`; move it to `.server()` so the repo stays green:
+`apps/examples/tanstack-start/conciv/extensions/blue.ts` uses inline `execute`; move it to `.server()` so the repo stays green:
 
 ```ts
 mx.registerTool(
@@ -672,7 +672,7 @@ mx.registerTool(
 
 - [ ] **Step 8: Typecheck + build**
 
-Run: `pnpm turbo build --filter=@mandarax/tool-ui && pnpm turbo build --filter=@mandarax/extensions && pnpm turbo typecheck --filter=@mandarax/widget`
+Run: `pnpm turbo build --filter=@conciv/tool-ui && pnpm turbo build --filter=@conciv/extensions && pnpm turbo typecheck --filter=@conciv/widget`
 Expected: clean.
 
 - [ ] **Step 9: Write the play-test stories**
@@ -777,13 +777,13 @@ describe('co-located tool: server execute + client renderer from one definition'
 
 - [ ] **Step 11: Run the tests**
 
-Run: `pnpm turbo build --filter=@mandarax/extensions && pnpm --filter @mandarax/extensions exec vitest run test/discovery.test.ts && pnpm --filter @mandarax/tool-ui test`
+Run: `pnpm turbo build --filter=@conciv/extensions && pnpm --filter @conciv/extensions exec vitest run test/discovery.test.ts && pnpm --filter @conciv/tool-ui test`
 Expected: PASS — the auto-wire test (3) and the Storybook `Builtin`/`CustomRenderer` plus existing card stories.
 
 - [ ] **Step 12: Commit**
 
 ```bash
-git add packages/tool-ui/src/registry.ts packages/tool-ui/src/tool-call.tsx packages/tool-ui/src/index.tsx packages/tool-ui/src/tool-call.stories.tsx packages/extensions/src/contract.ts packages/extensions/src/discovery.ts packages/extensions/src/index.ts packages/extensions/package.json packages/extensions/test/discovery.test.ts packages/widget/src/mount.tsx apps/examples/tanstack-start/mandarax/extensions/blue.ts
+git add packages/tool-ui/src/registry.ts packages/tool-ui/src/tool-call.tsx packages/tool-ui/src/index.tsx packages/tool-ui/src/tool-call.stories.tsx packages/extensions/src/contract.ts packages/extensions/src/discovery.ts packages/extensions/src/index.ts packages/extensions/package.json packages/extensions/test/discovery.test.ts packages/widget/src/mount.tsx apps/examples/tanstack-start/conciv/extensions/blue.ts
 git commit -m "feat(extensions): co-located tool renderer (.render) + open renderer registry
 
 defineTool(...).server(execute).render(Component) carries both halves; declarative
@@ -806,7 +806,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 - Create: `packages/widget/src/empty-state.tsx` (default component + override signal + setter + slot)
 - Modify: `packages/widget/src/chat-panel.tsx` (the empty-state fallback + remove the moved `STARTERS`)
 - Modify: `packages/widget/src/mount.tsx`
-- Modify: `apps/examples/tanstack-start/mandarax/extensions/blue.ts` (contract typecheck proof)
+- Modify: `apps/examples/tanstack-start/conciv/extensions/blue.ts` (contract typecheck proof)
 - Test: append to `packages/widget/test/extension-ui.it.test.ts`
 
 **Interfaces:**
@@ -839,7 +839,7 @@ Add to `ClientApi.ui`:
 // Named, concretely-typed setter (Pi-style), not a generic id registry.
 import {createSignal, For, type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
-import type {EmptyStateProps, EmptyStateFactory} from '@mandarax/extensions'
+import type {EmptyStateProps, EmptyStateFactory} from '@conciv/extensions'
 
 const STARTERS = ['Explain this page', 'Change the primary color', "Why doesn't this layout fit?"]
 
@@ -904,7 +904,7 @@ and add to the `clientApi.ui` literal:
 
 - [ ] **Step 5: Typecheck + build the widget**
 
-Run: `pnpm turbo build --filter=@mandarax/extensions && pnpm turbo build --filter=@mandarax/widget`
+Run: `pnpm turbo build --filter=@conciv/extensions && pnpm turbo build --filter=@conciv/widget`
 Expected: clean.
 
 - [ ] **Step 6: Append the override case to the IT**
@@ -923,7 +923,7 @@ Then add the test:
 it('overrides the empty state via ui.setEmptyState', async () => {
   const page = await browser.newPage()
   await page.goto(state.base)
-  await page.getByRole('button', {name: 'Open mandarax chat'}).click()
+  await page.getByRole('button', {name: 'Open conciv chat'}).click()
   await expect(page.getByText('Custom welcome!')).toBeVisible()
   await expect(page.getByText('How can I help you today?')).toHaveCount(0)
   await page.close()
@@ -932,12 +932,12 @@ it('overrides the empty state via ui.setEmptyState', async () => {
 
 - [ ] **Step 7: Run the IT**
 
-Run: `pnpm --filter @mandarax/widget exec vitest run test/extension-ui.it.test.ts`
+Run: `pnpm --filter @conciv/widget exec vitest run test/extension-ui.it.test.ts`
 Expected: PASS — both the UI-store case and the empty-state override case.
 
 - [ ] **Step 8: Prove the contract from the example app**
 
-Add a `setStatus` call to `apps/examples/tanstack-start/mandarax/extensions/blue.ts`'s `.client` half so a real extension file exercises the new contract (the empty-state runtime override is proven by the IT; authoring a `setEmptyState` factory needs JSX, i.e. a `.tsx` file — out of scope for the `.ts` sample):
+Add a `setStatus` call to `apps/examples/tanstack-start/conciv/extensions/blue.ts`'s `.client` half so a real extension file exercises the new contract (the empty-state runtime override is proven by the IT; authoring a `setEmptyState` factory needs JSX, i.e. a `.tsx` file — out of scope for the `.ts` sample):
 
 ```ts
 mx.ui.setStatus('theme', 'Blue theme active')
@@ -949,7 +949,7 @@ Expected: clean — `mx.ui.setStatus` / the new contract resolves from a real ex
 - [ ] **Step 9: Commit**
 
 ```bash
-git add packages/extensions/src/contract.ts packages/widget/src/empty-state.tsx packages/widget/src/chat-panel.tsx packages/widget/src/mount.tsx packages/widget/test/extension-ui.it.test.ts apps/examples/tanstack-start/mandarax/extensions/blue.ts
+git add packages/extensions/src/contract.ts packages/widget/src/empty-state.tsx packages/widget/src/chat-panel.tsx packages/widget/src/mount.tsx packages/widget/test/extension-ui.it.test.ts apps/examples/tanstack-start/conciv/extensions/blue.ts
 git commit -m "feat(extensions): named component-override setter ui.setEmptyState (Pi-style)
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
@@ -957,7 +957,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ---
 
-## Task 4: Computed catalog + `mandarax_extensions` agent tool
+## Task 4: Computed catalog + `conciv_extensions` agent tool
 
 **Files:**
 
@@ -970,9 +970,9 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 **Interfaces:**
 
-- Produces (ui-kit): node-safe `@mandarax/ui-kit-system/tokens` export (`dist/tokens.js` + `dist/tokens.d.ts`).
+- Produces (ui-kit): node-safe `@conciv/ui-kit-system/tokens` export (`dist/tokens.js` + `dist/tokens.d.ts`).
 - Produces (catalog.ts): `OVERRIDABLE_COMPONENTS`, `CLIENT_SURFACES`, `SERVER_SURFACES` consts; `buildCatalog(): Catalog`; `scaffold(kind: ScaffoldKind, opts: {id: string}): string`; `validateSource(source: string): {ok: boolean; issues: {level: 'error' | 'warn'; message: string}[]}`; types `Catalog`, `ScaffoldKind`.
-- Produces (tools): `mandaraxExtensionsToolDef` + `ExtensionsInput` schema; a `mandaraxExtensionsServerTool()` registered in `mandaraxTools()`.
+- Produces (tools): `concivExtensionsToolDef` + `ExtensionsInput` schema; a `concivExtensionsServerTool()` registered in `concivTools()`.
 
 - [ ] **Step 1: Emit a node-safe tokens entry**
 
@@ -1001,16 +1001,16 @@ In `packages/ui-kit-system/package.json` `exports`, add:
 
 - [ ] **Step 2: Build ui-kit and confirm the node-safe entry**
 
-Run: `pnpm turbo build --filter=@mandarax/ui-kit-system`
+Run: `pnpm turbo build --filter=@conciv/ui-kit-system`
 Then confirm `packages/ui-kit-system/dist/tokens.js` exists and imports cleanly in node:
-Run: `node --input-type=module -e "import('@mandarax/ui-kit-system/tokens').then(m => console.log(Object.keys(m.TOKENS).length))"` (from a context resolving the workspace) — Expected: a number (e.g. `40`), no solid import error.
+Run: `node --input-type=module -e "import('@conciv/ui-kit-system/tokens').then(m => console.log(Object.keys(m.TOKENS).length))"` (from a context resolving the workspace) — Expected: a number (e.g. `40`), no solid import error.
 
 - [ ] **Step 3: Write the catalog tests (failing)**
 
 ```ts
 // packages/extensions/test/catalog.test.ts
 import {describe, expect, it} from 'vitest'
-import {TOKENS} from '@mandarax/ui-kit-system/tokens'
+import {TOKENS} from '@conciv/ui-kit-system/tokens'
 import {buildCatalog, scaffold, validateSource} from '../src/catalog.js'
 
 describe('extension catalog (pure projection)', () => {
@@ -1033,7 +1033,7 @@ describe('extension catalog (pure projection)', () => {
   })
 
   it('validate flags an unknown token name', () => {
-    const bad = `import {defineExtension} from '@mandarax/extensions'
+    const bad = `import {defineExtension} from '@conciv/extensions'
 export default defineExtension({id: 'x'}).client((mx) => { mx.ui.setTheme({'pw-not-real': 'red'}) })`
     const res = validateSource(bad)
     expect(res.ok).toBe(false)
@@ -1041,7 +1041,7 @@ export default defineExtension({id: 'x'}).client((mx) => { mx.ui.setTheme({'pw-n
   })
 
   it('validate passes a well-formed theme extension', () => {
-    const good = `import {defineExtension} from '@mandarax/extensions'
+    const good = `import {defineExtension} from '@conciv/extensions'
 export default defineExtension({id: 'x'}).client((mx) => { mx.ui.setTheme({'pw-accent': 'blue'}) })`
     expect(validateSource(good).ok).toBe(true)
   })
@@ -1050,7 +1050,7 @@ export default defineExtension({id: 'x'}).client((mx) => { mx.ui.setTheme({'pw-a
 
 - [ ] **Step 4: Run to verify failure**
 
-Run: `pnpm --filter @mandarax/extensions exec vitest run test/catalog.test.ts`
+Run: `pnpm --filter @conciv/extensions exec vitest run test/catalog.test.ts`
 Expected: FAIL — `Cannot find module '../src/catalog.js'`.
 
 - [ ] **Step 5: Implement the catalog**
@@ -1058,11 +1058,11 @@ Expected: FAIL — `Cannot find module '../src/catalog.js'`.
 ```ts
 // packages/extensions/src/catalog.ts
 // The extension catalog: a projection computed from node-safe sources (TOKENS, the overridable list,
-// the surface consts) so the mandarax_extensions agent tool can serialize it without importing the
+// the surface consts) so the conciv_extensions agent tool can serialize it without importing the
 // browser registries. scaffold writes typed skeletons; validateSource lints a draft against the
 // catalog (token + component ids) before it loads. Single-source for tokens holds (one TOKENS object
 // → CSS + ThemeTokens type + this list).
-import {TOKENS} from '@mandarax/ui-kit-system/tokens'
+import {TOKENS} from '@conciv/ui-kit-system/tokens'
 
 export const OVERRIDABLE_COMPONENTS = [
   {id: 'EmptyState', description: 'The empty chat state (greeting + starter prompts) shown before any messages.'},
@@ -1115,7 +1115,7 @@ export type Catalog = {
 export function buildCatalog(): Catalog {
   return {
     conventions: {
-      location: 'mandarax/extensions/*.{ts,tsx}',
+      location: 'conciv/extensions/*.{ts,tsx}',
       entry: 'export default defineExtension({id}).client(mx => …).server(mx => …)',
     },
     tokens: Object.entries(TOKENS).map(([name, def]) => ({
@@ -1134,13 +1134,13 @@ export function buildCatalog(): Catalog {
 export type ScaffoldKind = 'theme' | 'composer-action' | 'tool' | 'tool-renderer' | 'component' | 'full'
 
 const TEMPLATES: Record<ScaffoldKind, (id: string) => string> = {
-  theme: (id) => `import {defineExtension} from '@mandarax/extensions'
+  theme: (id) => `import {defineExtension} from '@conciv/extensions'
 
 export default defineExtension({id: '${id}'}).client((mx) => {
   mx.ui.setTheme({'pw-accent': '#2563eb'})
 })
 `,
-  'composer-action': (id) => `import {defineExtension} from '@mandarax/extensions'
+  'composer-action': (id) => `import {defineExtension} from '@conciv/extensions'
 import {Rocket} from 'lucide-solid'
 
 export default defineExtension({id: '${id}'}).client((mx) => {
@@ -1153,7 +1153,7 @@ export default defineExtension({id: '${id}'}).client((mx) => {
 })
 `,
   tool: (id) => `import {z} from 'zod'
-import {defineExtension, defineTool} from '@mandarax/extensions'
+import {defineExtension, defineTool} from '@conciv/extensions'
 
 const ${id}Do = defineTool({
   name: '${id}_do',
@@ -1164,7 +1164,7 @@ const ${id}Do = defineTool({
 export default defineExtension({id: '${id}', tools: [${id}Do]})
 `,
   'tool-renderer': (id) => `import {z} from 'zod'
-import {defineExtension, defineTool} from '@mandarax/extensions'
+import {defineExtension, defineTool} from '@conciv/extensions'
 
 // Co-locate the renderer with the tool: .render draws its card (browser), .server runs it (node).
 const ${id}Do = defineTool({
@@ -1177,14 +1177,14 @@ const ${id}Do = defineTool({
 
 export default defineExtension({id: '${id}', tools: [${id}Do]})
 `,
-  component: (id) => `import {defineExtension} from '@mandarax/extensions'
+  component: (id) => `import {defineExtension} from '@conciv/extensions'
 
 export default defineExtension({id: '${id}'}).client((mx) => {
   mx.ui.setEmptyState(() => <div>Welcome — ask me anything.</div>)
 })
 `,
   full: (id) => `import {z} from 'zod'
-import {defineExtension, defineTool} from '@mandarax/extensions'
+import {defineExtension, defineTool} from '@conciv/extensions'
 
 const ${id}Do = defineTool({
   name: '${id}_do',
@@ -1223,7 +1223,7 @@ export function validateSource(source: string): {ok: boolean; issues: {level: 'e
       if (!TOKEN_NAMES.has(key[1])) {
         issues.push({
           level: 'error',
-          message: `Unknown theme token '${key[1]}'. Run mandarax_extensions catalog for the token list.`,
+          message: `Unknown theme token '${key[1]}'. Run conciv_extensions catalog for the token list.`,
         })
       }
     }
@@ -1252,7 +1252,7 @@ export {
 
 - [ ] **Step 7: Run the catalog tests**
 
-Run: `pnpm turbo build --filter=@mandarax/extensions && pnpm --filter @mandarax/extensions exec vitest run test/catalog.test.ts`
+Run: `pnpm turbo build --filter=@conciv/extensions && pnpm --filter @conciv/extensions exec vitest run test/catalog.test.ts`
 Expected: PASS (5 tests).
 
 - [ ] **Step 8: Define + register the agent tool**
@@ -1269,10 +1269,10 @@ export const ExtensionsInput = z.object({
   source: z.string().optional(),
 })
 
-export const mandaraxExtensionsToolDef = toolDefinition({
-  name: 'mandarax_extensions',
+export const concivExtensionsToolDef = toolDefinition({
+  name: 'conciv_extensions',
   description:
-    'Author mandarax widget/agent extensions. verb=catalog dumps the customization surface (theme tokens, overridable components, client/server APIs); verb=scaffold returns a typed extension skeleton for a kind (theme|composer-action|tool|tool-renderer|component|full) + id; verb=validate lints draft source against the catalog. Write the returned code to mandarax/extensions/<id>.ts — it hot-reloads.',
+    'Author conciv widget/agent extensions. verb=catalog dumps the customization surface (theme tokens, overridable components, client/server APIs); verb=scaffold returns a typed extension skeleton for a kind (theme|composer-action|tool|tool-renderer|component|full) + id; verb=validate lints draft source against the catalog. Write the returned code to conciv/extensions/<id>.ts — it hot-reloads.',
   inputSchema: ExtensionsInput,
 })
 ```
@@ -1280,15 +1280,15 @@ export const mandaraxExtensionsToolDef = toolDefinition({
 In `packages/tools/src/server.ts`, add the imports:
 
 ```ts
-import {buildCatalog, scaffold, validateSource} from '@mandarax/extensions'
-import {mandaraxExtensionsToolDef, ExtensionsInput} from './extensions-tool.js'
+import {buildCatalog, scaffold, validateSource} from '@conciv/extensions'
+import {concivExtensionsToolDef, ExtensionsInput} from './extensions-tool.js'
 ```
 
 Add the server-tool factory (stateless — no `ctx`), mirroring the existing factories:
 
 ```ts
-function mandaraxExtensionsServerTool(): MandaraxServerTool {
-  const tool = mandaraxExtensionsToolDef.server(async (input) => {
+function concivExtensionsServerTool(): ConcivServerTool {
+  const tool = concivExtensionsToolDef.server(async (input) => {
     if (input.verb === 'catalog') return buildCatalog()
     if (input.verb === 'scaffold') {
       if (!input.kind || !input.id) throw new Error('scaffold needs {kind, id}')
@@ -1298,7 +1298,7 @@ function mandaraxExtensionsServerTool(): MandaraxServerTool {
     return validateSource(input.source)
   })
   const run = tool.execute
-  if (!run) throw new Error('mandarax_extensions: server tool has no execute')
+  if (!run) throw new Error('conciv_extensions: server tool has no execute')
   return {
     name: tool.name,
     description: tool.description,
@@ -1308,64 +1308,64 @@ function mandaraxExtensionsServerTool(): MandaraxServerTool {
 }
 ```
 
-Add `mandaraxExtensionsServerTool()` to the array returned by `mandaraxTools(ctx)`.
+Add `concivExtensionsServerTool()` to the array returned by `concivTools(ctx)`.
 
 - [ ] **Step 9: Typecheck, build, and prove via the MCP IT**
 
-Run: `pnpm turbo build --filter=@mandarax/tools && pnpm turbo typecheck --filter=@mandarax/tools`
+Run: `pnpm turbo build --filter=@conciv/tools && pnpm turbo typecheck --filter=@conciv/tools`
 Expected: clean.
 
-Add one assertion to the existing core MCP IT (`packages/core/test/api/mcp/mcp.it.test.ts`) that `tools/list` now includes `mandarax_extensions`, and a `tools/call` with `{verb:'catalog'}` returns a payload containing the `pw-accent` token. (Follow that file's existing request/response pattern — it already calls `tools/list` and `tools/call`.) Run:
+Add one assertion to the existing core MCP IT (`packages/core/test/api/mcp/mcp.it.test.ts`) that `tools/list` now includes `conciv_extensions`, and a `tools/call` with `{verb:'catalog'}` returns a payload containing the `pw-accent` token. (Follow that file's existing request/response pattern — it already calls `tools/list` and `tools/call`.) Run:
 
-Run: `pnpm --filter @mandarax/core exec vitest run test/api/mcp/mcp.it.test.ts`
+Run: `pnpm --filter @conciv/core exec vitest run test/api/mcp/mcp.it.test.ts`
 Expected: PASS — the new tool lists and `catalog` returns the token set.
 
 - [ ] **Step 10: Commit**
 
 ```bash
 git add packages/ui-kit-system/vite.config.ts packages/ui-kit-system/package.json packages/extensions/src/catalog.ts packages/extensions/src/index.ts packages/extensions/test/catalog.test.ts packages/tools/src/extensions-tool.ts packages/tools/src/server.ts packages/core/test/api/mcp/mcp.it.test.ts
-git commit -m "feat(extensions): computed catalog + mandarax_extensions tool (catalog/scaffold/validate)
+git commit -m "feat(extensions): computed catalog + conciv_extensions tool (catalog/scaffold/validate)
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
 
 ---
 
-## Task 5: `mandarax-extensions` skill + worked examples
+## Task 5: `conciv-extensions` skill + worked examples
 
 **Files:**
 
-- Create: `skills/mandarax-extensions/SKILL.md` (or the repo's established skills location — confirm in Step 1)
-- Create: `apps/examples/tanstack-start/mandarax/extensions/deploy-button.tsx` (worked example: composer action + status + tool renderer)
+- Create: `skills/conciv-extensions/SKILL.md` (or the repo's established skills location — confirm in Step 1)
+- Create: `apps/examples/tanstack-start/conciv/extensions/deploy-button.tsx` (worked example: composer action + status + tool renderer)
 - Modify: this slice's example `blue.ts` already exercises theme + tool + status
 
-**Interfaces:** Documentation only — no code contract. The skill teaches the `.client/.server` shape, where files live, the three reach tiers, the `mandarax_extensions catalog → scaffold → validate` loop, and links the examples.
+**Interfaces:** Documentation only — no code contract. The skill teaches the `.client/.server` shape, where files live, the three reach tiers, the `conciv_extensions catalog → scaffold → validate` loop, and links the examples.
 
 - [ ] **Step 1: Locate the skills convention**
 
 Run: `ls skills/ 2>/dev/null; ls .claude/skills 2>/dev/null; git -C . ls-files | grep -i 'SKILL.md' | head`
-Use whichever location the repo already uses for project skills. If none exists, create `skills/mandarax-extensions/SKILL.md`.
+Use whichever location the repo already uses for project skills. If none exists, create `skills/conciv-extensions/SKILL.md`.
 
 - [ ] **Step 2: Write the skill**
 
 ```markdown
 ---
-name: mandarax-extensions
-description: Author mandarax widget/agent extensions — theme, composer buttons, tool-call renderers, UI regions, component overrides, agent tools, and system-prompt text. Use when asked to customize or extend the mandarax chat widget or its embedded agent.
+name: conciv-extensions
+description: Author conciv widget/agent extensions — theme, composer buttons, tool-call renderers, UI regions, component overrides, agent tools, and system-prompt text. Use when asked to customize or extend the conciv chat widget or its embedded agent.
 ---
 
-# Authoring mandarax extensions
+# Authoring conciv extensions
 
-Extensions are TypeScript files in `mandarax/extensions/*.{ts,tsx}`, committed to the repo. Drop a
+Extensions are TypeScript files in `conciv/extensions/*.{ts,tsx}`, committed to the repo. Drop a
 file and it hot-reloads into the live widget (client) and the agent engine (server). No manual wiring.
 
 ## The loop
 
-1. `mandarax_extensions` with `verb: "catalog"` — see the surface (theme tokens, overridable
+1. `conciv_extensions` with `verb: "catalog"` — see the surface (theme tokens, overridable
    components, client/server APIs). Read it before writing.
-2. `mandarax_extensions` with `verb: "scaffold", kind, id` — get a typed skeleton.
-3. Edit it into `mandarax/extensions/<id>.ts`. The widget hot-reloads; screenshot to confirm.
-4. `mandarax_extensions` with `verb: "validate", source` — lint against the catalog before relying on it.
+2. `conciv_extensions` with `verb: "scaffold", kind, id` — get a typed skeleton.
+3. Edit it into `conciv/extensions/<id>.ts`. The widget hot-reloads; screenshot to confirm.
+4. `conciv_extensions` with `verb: "validate", source` — lint against the catalog before relying on it.
 
 ## Shape
 
@@ -1398,7 +1398,7 @@ Client `mx`: `ui.setTheme`, `ui.setWidget/setHeader/setFooter/setStatus`, `ui.se
 `registerComposerAction`, `registerToolRenderer` (escape hatch — prefer `.render` on the tool).
 Server `mx`: `registerTool(defineTool({…}).server(…))`, `systemPrompt.append(text)`.
 
-See `apps/examples/tanstack-start/mandarax/extensions/` for worked examples.
+See `apps/examples/tanstack-start/conciv/extensions/` for worked examples.
 ```
 
 (Match the repo's docs style: no em dashes, concise, example-first — see the docs-writing-style memory.)
@@ -1406,11 +1406,11 @@ See `apps/examples/tanstack-start/mandarax/extensions/` for worked examples.
 - [ ] **Step 3: Add a worked example**
 
 ```tsx
-// apps/examples/tanstack-start/mandarax/extensions/deploy-button.tsx
+// apps/examples/tanstack-start/conciv/extensions/deploy-button.tsx
 import {z} from 'zod'
 import {Rocket} from 'lucide-solid'
-import {defineExtension, defineTool} from '@mandarax/extensions'
-import type {ToolCardProps} from '@mandarax/tool-ui'
+import {defineExtension, defineTool} from '@conciv/extensions'
+import type {ToolCardProps} from '@conciv/tool-ui'
 
 // One definition: .server runs it (node), .render draws its card (browser), promptSnippet documents it.
 const deployRun = defineTool({
@@ -1438,7 +1438,7 @@ export default defineExtension({id: 'deploy', tools: [deployRun]}).client((mx) =
 Run: `pnpm turbo typecheck --filter=<example app package name>`
 Expected: clean (the worked example uses the real types).
 
-Then run the example app dev server and confirm in a real browser (per the existing `e2e/extensions.spec.ts` pattern, or manually): the Deploy composer button appears, `env: staging` shows as a status line, and `mandarax_extensions catalog` returns the surface. Extend `e2e/extensions.spec.ts` with an assertion that the Deploy button (`getByRole('button', {name: 'Deploy'})`) is visible.
+Then run the example app dev server and confirm in a real browser (per the existing `e2e/extensions.spec.ts` pattern, or manually): the Deploy composer button appears, `env: staging` shows as a status line, and `conciv_extensions catalog` returns the surface. Extend `e2e/extensions.spec.ts` with an assertion that the Deploy button (`getByRole('button', {name: 'Deploy'})`) is visible.
 
 Run: `pnpm --filter <example app package name> e2e`
 Expected: PASS.
@@ -1446,8 +1446,8 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add skills/mandarax-extensions/SKILL.md apps/examples/tanstack-start/mandarax/extensions/deploy-button.tsx apps/examples/tanstack-start/e2e/extensions.spec.ts
-git commit -m "docs(extensions): mandarax-extensions skill + worked examples
+git add skills/conciv-extensions/SKILL.md apps/examples/tanstack-start/conciv/extensions/deploy-button.tsx apps/examples/tanstack-start/e2e/extensions.spec.ts
+git commit -m "docs(extensions): conciv-extensions skill + worked examples
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
@@ -1468,12 +1468,12 @@ Expected: clean.
 
 - [ ] **Step 3: Targeted test sweep**
 
-Run: `pnpm --filter @mandarax/widget exec vitest run && pnpm --filter @mandarax/tool-ui test && pnpm --filter @mandarax/extensions exec vitest run && pnpm --filter @mandarax/core exec vitest run test/api/mcp/mcp.it.test.ts`
+Run: `pnpm --filter @conciv/widget exec vitest run && pnpm --filter @conciv/tool-ui test && pnpm --filter @conciv/extensions exec vitest run && pnpm --filter @conciv/core exec vitest run test/api/mcp/mcp.it.test.ts`
 Expected: PASS.
 
 - [ ] **Step 4: End-to-end against the running example**
 
-Boot `apps/examples/tanstack-start` (`pnpm dev` from its dir per the existing example workflow) and confirm in a real browser: blue accent + status line from `blue.ts`, the Deploy button + env status from `deploy-button.tsx`, and `mandarax_extensions catalog` returning the token list. Clean up the dev server when done.
+Boot `apps/examples/tanstack-start` (`pnpm dev` from its dir per the existing example workflow) and confirm in a real browser: blue accent + status line from `blue.ts`, the Deploy button + env status from `deploy-button.tsx`, and `conciv_extensions catalog` returning the token list. Clean up the dev server when done.
 
 ---
 
@@ -1484,10 +1484,10 @@ Boot `apps/examples/tanstack-start` (`pnpm dev` from its dir per the existing ex
   - Tool renderer: open registry + co-located `defineTool(...).render(Component)` + declarative `tools[]` auto-wiring ✓ (Task 2). Replaces `tool-call.tsx`'s Switch (`GenericCard` fallback). Pi-faithful given our server/client split (Design Note 1).
   - Component override: named typed setter `ui.setEmptyState(factory)` ✓ (Task 3) — Pi's named-setter model, not a generic `setComponent(id)` (Design Note 2).
   - Generated/computed catalog (tokens single-source projection + overridable + surfaces) ✓ (Task 4).
-  - `mandarax_extensions` catalog/scaffold/validate verbs ✓ (Task 4) — new tool, not `mandarax_ui` (Design Note 4).
+  - `conciv_extensions` catalog/scaffold/validate verbs ✓ (Task 4) — new tool, not `conciv_ui` (Design Note 4).
   - Tools self-document via `promptSnippet`/`promptGuidelines` ✓ (Task 2/4) — Pi parity (Design Note 3).
-  - `mandarax-extensions` skill + worked examples ✓ (Task 5).
+  - `conciv-extensions` skill + worked examples ✓ (Task 5).
   - Error isolation: each slot is error-boundaried ✓ (Task 1). The two-sided event bus (`mx.on`) is deferred (Design Note 6; Pi's `ExtensionEvent` union is the reference).
 - **Placeholder scan:** none — every code step carries full source. One deferred-to-runtime check remains: `Dynamic`'s prop-spread typing in `EmptyStateSlot`/the registry (the `<Dynamic component={…} {...props}/>` pattern), resolved at execution with the stated bind-first fallback. No declaration-merging / augmentation-visibility risk remains (named setters removed it).
-- **Type consistency:** `UiFactory` defined in Task 1 (contract.ts), consumed in `ui-store.tsx`. `EmptyStateProps`/`EmptyStateFactory` defined in Task 3 (contract.ts), consumed in `empty-state.tsx` + `mount.tsx`. `ToolRenderer`/`ExtensionTool`/`ToolBuilder`/`defineTool`/`defineExtension({tools})` defined in Task 2 (contract.ts); `ExtensionTool` drained in `discovery.ts` (`collectServerContributions` → `ExtensionServerTool`, `collectClientContributions` → renderers) and wired in `mount.tsx`. `ToolCardProps` imported from `@mandarax/tool-ui` in Task 2 (contract.ts), reused in scaffolds/examples. `registerToolRenderer(name, renderer)` identical in registry.ts, contract.ts, mount.tsx. `buildCatalog`/`scaffold`/`validateSource` identical in catalog.ts, tests, tool wrapper. `TOKENS` imported from the new `@mandarax/ui-kit-system/tokens` subpath everywhere node-side.
+- **Type consistency:** `UiFactory` defined in Task 1 (contract.ts), consumed in `ui-store.tsx`. `EmptyStateProps`/`EmptyStateFactory` defined in Task 3 (contract.ts), consumed in `empty-state.tsx` + `mount.tsx`. `ToolRenderer`/`ExtensionTool`/`ToolBuilder`/`defineTool`/`defineExtension({tools})` defined in Task 2 (contract.ts); `ExtensionTool` drained in `discovery.ts` (`collectServerContributions` → `ExtensionServerTool`, `collectClientContributions` → renderers) and wired in `mount.tsx`. `ToolCardProps` imported from `@conciv/tool-ui` in Task 2 (contract.ts), reused in scaffolds/examples. `registerToolRenderer(name, renderer)` identical in registry.ts, contract.ts, mount.tsx. `buildCatalog`/`scaffold`/`validateSource` identical in catalog.ts, tests, tool wrapper. `TOKENS` imported from the new `@conciv/ui-kit-system/tokens` subpath everywhere node-side.
 - **Single-source held:** tokens stay one object → CSS + `ThemeTokens` type + catalog `tokens[]`; adding a token updates all three. A tool is defined once (`defineTool`) and its execute/renderer/promptSnippet project to MCP + the renderer registry + the system prompt — no name typed twice. `OVERRIDABLE_COMPONENTS` is catalog-only metadata (named setters carry their own types in the contract).

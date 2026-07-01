@@ -1,5 +1,5 @@
 import type {Db} from 'jazz-tools/backend'
-import type {ToolRequest} from '@mandarax/extension'
+import type {ToolRequest} from '@conciv/extension'
 
 export type WhiteboardToolContext = {
   cwd: string

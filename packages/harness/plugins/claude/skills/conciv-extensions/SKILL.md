@@ -1,18 +1,18 @@
 ---
-name: mandarax-extensions
-description: Author mandarax widget/agent extensions — theme tokens, panel surfaces (header/footer/composer/empty/status/widget), tool-call renderers, agent tools, and system-prompt text. Use when asked to customize or extend the mandarax chat widget or its embedded agent.
+name: conciv-extensions
+description: Author conciv widget/agent extensions — theme tokens, panel surfaces (header/footer/composer/empty/status/widget), tool-call renderers, agent tools, and system-prompt text. Use when asked to customize or extend the conciv chat widget or its embedded agent.
 ---
 
-# Authoring mandarax extensions
+# Authoring conciv extensions
 
-Extensions are TypeScript files in `mandarax/extensions/*.{ts,tsx}`, committed to the repo. One file is one extension. A bundler transform splits each file: the browser bundle drops the `.server()` half, the node engine drops the `.client()`/`.render()` half. No global registry, no manual wiring.
+Extensions are TypeScript files in `conciv/extensions/*.{ts,tsx}`, committed to the repo. One file is one extension. A bundler transform splits each file: the browser bundle drops the `.server()` half, the node engine drops the `.client()`/`.render()` half. No global registry, no manual wiring.
 
 ## The loop
 
-1. `mandarax_extensions` with `verb: "catalog"` — see the surface (theme tokens, the six slots, client/server surfaces). Read it before writing.
-2. `mandarax_extensions` with `verb: "scaffold", kind, name` — get a typed skeleton.
-3. Write it to `mandarax/extensions/<name>.tsx` (or `.ts` for the no-JSX kinds: `theme`, `tool`). `.client()` and `Component` changes hot-reload into the live widget (screenshot to confirm); new or changed `.server()` tools and prompt text need a dev-server restart.
-4. `mandarax_extensions` with `verb: "validate", source` — lint against the catalog before relying on it.
+1. `conciv_extensions` with `verb: "catalog"` — see the surface (theme tokens, the six slots, client/server surfaces). Read it before writing.
+2. `conciv_extensions` with `verb: "scaffold", kind, name` — get a typed skeleton.
+3. Write it to `conciv/extensions/<name>.tsx` (or `.ts` for the no-JSX kinds: `theme`, `tool`). `.client()` and `Component` changes hot-reload into the live widget (screenshot to confirm); new or changed `.server()` tools and prompt text need a dev-server restart.
+4. `conciv_extensions` with `verb: "validate", source` — lint against the catalog before relying on it.
 
 ## Shape
 
@@ -76,7 +76,7 @@ Extra tools and prompt text can also come from `.server(() => ({tools, systemPro
 
 ## Solid zone
 
-The widget is SolidJS, so `Component` and `.render()` cards are Solid components. The mandarax plugin compiles `mandarax/extensions/**` with Solid even inside a React host app — write plain Solid JSX in a `.tsx` file, no pragma. For editor/typecheck correctness, give the dir its own tsconfig with `"jsx": "preserve"` + `"jsxImportSource": "solid-js"`.
+The widget is SolidJS, so `Component` and `.render()` cards are Solid components. The conciv plugin compiles `conciv/extensions/**` with Solid even inside a React host app — write plain Solid JSX in a `.tsx` file, no pragma. For editor/typecheck correctness, give the dir its own tsconfig with `"jsx": "preserve"` + `"jsxImportSource": "solid-js"`.
 
 A tool's `description`/`promptSnippet`/`promptGuidelines` and an extension's `systemPrompt` are appended to the agent system prompt as trusted text (you own the repo) — they are not sanitized user input. Keep a top-level `node:*` import only where it is referenced inside `.server()`, or the browser build breaks.
 

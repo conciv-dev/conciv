@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Run the mandarax dev agent inside a Next.js (App Router, Turbopack) app via three one-line convention touchpoints, plus a `create-next-app`-scaffolded example.
+**Goal:** Run the conciv dev agent inside a Next.js (App Router, Turbopack) app via three one-line convention touchpoints, plus a `create-next-app`-scaffolded example.
 
-**Architecture:** Next owns HTML rendering, so there is no bundler injection seam. Integration uses Next's framework conventions: `instrumentation.ts` `register()` boots the engine server-side; `instrumentation-client.ts` runs client code on every page to mount the widget; `withMandarax(nextConfig)` pins a fixed engine port and inlines it for the client via Next's `env`. No proxy, no React component, no BundlerBridge.
+**Architecture:** Next owns HTML rendering, so there is no bundler injection seam. Integration uses Next's framework conventions: `instrumentation.ts` `register()` boots the engine server-side; `instrumentation-client.ts` runs client code on every page to mount the widget; `withConciv(nextConfig)` pins a fixed engine port and inlines it for the client via Next's `env`. No proxy, no React component, no BundlerBridge.
 
 **Tech Stack:** TypeScript, pnpm workspaces, tsdown (plugin build), Next.js 16 (App Router + Turbopack), SolidJS widget, srvx/h3 engine, Playwright (smoke).
 
@@ -14,12 +14,12 @@
 
 ## File Structure
 
-- `packages/protocol/src/config-types.ts` — add `port?: number` to `MandaraxConfig`.
+- `packages/protocol/src/config-types.ts` — add `port?: number` to `ConcivConfig`.
 - `packages/core/src/engine.ts` — `StartOpts.port?: number`; `serve({port})`.
 - `packages/plugin/src/core/boot.ts` — forward `options.port` to `start`.
-- `packages/widget/src/mount.tsx` — resolve apiBase from `window.__MANDARAX_API_BASE__` fallback.
-- `packages/plugin/src/core/nextjs.ts` — NEW: `withMandarax` + `register`.
-- `packages/plugin/src/nextjs.ts` — NEW: server entry (re-exports `withMandarax`, `register`).
+- `packages/widget/src/mount.tsx` — resolve apiBase from `window.__CONCIV_API_BASE__` fallback.
+- `packages/plugin/src/core/nextjs.ts` — NEW: `withConciv` + `register`.
+- `packages/plugin/src/nextjs.ts` — NEW: server entry (re-exports `withConciv`, `register`).
 - `packages/plugin/src/nextjs-widget.ts` — NEW: client entry (sets apiBase, mounts widget).
 - `packages/plugin/package.json` — add `./nextjs` + `./nextjs/widget` exports, `next` peer dep.
 - `packages/plugin/tsdown.config.ts` — add the two new entries.
@@ -56,7 +56,7 @@ test('start boots on the requested fixed port', async () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @mandarax/core test -- engine-port`
+Run: `pnpm --filter @conciv/core test -- engine-port`
 Expected: FAIL — `port` is not an accepted option / engine boots on a random port (not 41799).
 
 - [ ] **Step 3: Add `port` to StartOpts and pass it to `serve`**
@@ -76,7 +76,7 @@ const server = serve({fetch: app.fetch, port: opts.port ?? 0, hostname: '127.0.0
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm --filter @mandarax/core test -- engine-port`
+Run: `pnpm --filter @conciv/core test -- engine-port`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
@@ -95,7 +95,7 @@ git commit -m "feat(core): start accepts a fixed port"
 - Modify: `packages/protocol/src/config-types.ts:4-16`
 - Modify: `packages/plugin/src/core/boot.ts:21-26`
 
-- [ ] **Step 1: Add `port` to MandaraxConfig**
+- [ ] **Step 1: Add `port` to ConcivConfig**
 
 In `packages/protocol/src/config-types.ts`, add inside the interface (after `testRunner`):
 
@@ -114,13 +114,13 @@ booting = start({
   root,
   port: options.port,
   launchEditor: openInEditor,
-  childEnv: (corePort) => ({...process.env, PATH: agentPath, MANDARAX_PORT: String(corePort)}),
+  childEnv: (corePort) => ({...process.env, PATH: agentPath, CONCIV_PORT: String(corePort)}),
 })
 ```
 
 - [ ] **Step 3: Typecheck both packages**
 
-Run: `pnpm --filter @mandarax/protocol typecheck && pnpm --filter @mandarax/plugin typecheck`
+Run: `pnpm --filter @conciv/protocol typecheck && pnpm --filter @conciv/plugin typecheck`
 Expected: PASS (no type errors)
 
 - [ ] **Step 4: Commit**
@@ -139,7 +139,7 @@ git commit -m "feat(protocol,plugin): plumb fixed port through config + booter"
 - Modify: `packages/widget/src/mount.tsx:11-19`, `:28-32`
 - Test: `packages/widget/test/api-base.test.ts`
 
-The Next client entry cannot inject a `<meta>` tag (no bundler HTML seam). It sets `window.__MANDARAX_API_BASE__` instead. The widget must prefer that global, falling back to the existing meta tag (Vite path unchanged).
+The Next client entry cannot inject a `<meta>` tag (no bundler HTML seam). It sets `window.__CONCIV_API_BASE__` instead. The widget must prefer that global, falling back to the existing meta tag (Vite path unchanged).
 
 - [ ] **Step 1: Write the failing test**
 
@@ -150,12 +150,12 @@ import {resolveApiBase} from '../src/mount.js'
 
 beforeEach(() => {
   document.head.innerHTML = ''
-  delete (window as Window & {__MANDARAX_API_BASE__?: string}).__MANDARAX_API_BASE__
+  delete (window as Window & {__CONCIV_API_BASE__?: string}).__CONCIV_API_BASE__
 })
 
-test('prefers window.__MANDARAX_API_BASE__ over the meta tag', () => {
+test('prefers window.__CONCIV_API_BASE__ over the meta tag', () => {
   document.head.innerHTML = '<meta name="pw-api-base" content="http://meta:1">'
-  ;(window as Window & {__MANDARAX_API_BASE__?: string}).__MANDARAX_API_BASE__ = 'http://global:2'
+  ;(window as Window & {__CONCIV_API_BASE__?: string}).__CONCIV_API_BASE__ = 'http://global:2'
   expect(resolveApiBase()).toBe('http://global:2')
 })
 
@@ -167,7 +167,7 @@ test('falls back to the meta tag when the global is unset', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @mandarax/widget test -- api-base`
+Run: `pnpm --filter @conciv/widget test -- api-base`
 Expected: FAIL — `resolveApiBase` is not exported.
 
 - [ ] **Step 3: Add the resolver and use it**
@@ -177,14 +177,14 @@ In `packages/widget/src/mount.tsx`, extend the global declaration and add `resol
 ```ts
 declare global {
   interface Window {
-    __MANDARAX_RENDER_TEST_CARD__?: () => void
-    __MANDARAX_API_BASE__?: string
+    __CONCIV_RENDER_TEST_CARD__?: () => void
+    __CONCIV_API_BASE__?: string
   }
 }
 
 // apiBase comes from a global (Next has no HTML-injection seam) or the meta tag (Vite path).
 export function resolveApiBase(): string {
-  return window.__MANDARAX_API_BASE__ ?? metaContent('pw-api-base')
+  return window.__CONCIV_API_BASE__ ?? metaContent('pw-api-base')
 }
 ```
 
@@ -196,7 +196,7 @@ const apiBase = resolveApiBase()
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm --filter @mandarax/widget test -- api-base`
+Run: `pnpm --filter @conciv/widget test -- api-base`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
@@ -208,67 +208,67 @@ git commit -m "feat(widget): resolve apiBase from window global, meta fallback"
 
 ---
 
-### Task 4: `withMandarax` + `register` core
+### Task 4: `withConciv` + `register` core
 
 **Files:**
 
 - Create: `packages/plugin/src/core/nextjs.ts`
 - Test: `packages/plugin/test/nextjs.test.ts`
 
-`withMandarax` is pure config transformation (testable). `register` boots the engine and is exercised by the example smoke (Task 7), not unit-tested here.
+`withConciv` is pure config transformation (testable). `register` boots the engine and is exercised by the example smoke (Task 7), not unit-tested here.
 
 - [ ] **Step 1: Write the failing test**
 
 ```ts
 // packages/plugin/test/nextjs.test.ts
 import {test, expect} from 'vitest'
-import {withMandarax, MANDARAX_DEFAULT_PORT} from '../src/core/nextjs.js'
+import {withConciv, CONCIV_DEFAULT_PORT} from '../src/core/nextjs.js'
 
-test('withMandarax inlines the default port for the client', () => {
-  const cfg = withMandarax({reactStrictMode: true})
+test('withConciv inlines the default port for the client', () => {
+  const cfg = withConciv({reactStrictMode: true})
   expect(cfg.reactStrictMode).toBe(true)
-  expect(cfg.env?.NEXT_PUBLIC_MANDARAX_PORT).toBe(String(MANDARAX_DEFAULT_PORT))
-  expect(JSON.parse(cfg.env?.MANDARAX_OPTIONS ?? '{}').port).toBe(MANDARAX_DEFAULT_PORT)
+  expect(cfg.env?.NEXT_PUBLIC_CONCIV_PORT).toBe(String(CONCIV_DEFAULT_PORT))
+  expect(JSON.parse(cfg.env?.CONCIV_OPTIONS ?? '{}').port).toBe(CONCIV_DEFAULT_PORT)
 })
 
-test('withMandarax honours an explicit port', () => {
-  const cfg = withMandarax({}, {port: 5000})
-  expect(cfg.env?.NEXT_PUBLIC_MANDARAX_PORT).toBe('5000')
+test('withConciv honours an explicit port', () => {
+  const cfg = withConciv({}, {port: 5000})
+  expect(cfg.env?.NEXT_PUBLIC_CONCIV_PORT).toBe('5000')
 })
 
-test('withMandarax is a no-op passthrough when disabled', () => {
-  const cfg = withMandarax({reactStrictMode: true}, {enabled: false})
-  expect(cfg.env?.NEXT_PUBLIC_MANDARAX_PORT).toBeUndefined()
+test('withConciv is a no-op passthrough when disabled', () => {
+  const cfg = withConciv({reactStrictMode: true}, {enabled: false})
+  expect(cfg.env?.NEXT_PUBLIC_CONCIV_PORT).toBeUndefined()
 })
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @mandarax/plugin test -- nextjs`
+Run: `pnpm --filter @conciv/plugin test -- nextjs`
 Expected: FAIL — `../src/core/nextjs.js` does not exist.
 
 - [ ] **Step 3: Implement `core/nextjs.ts`**
 
 ```ts
 // packages/plugin/src/core/nextjs.ts
-import type {MandaraxConfig} from '@mandarax/protocol/config-types'
+import type {ConcivConfig} from '@conciv/protocol/config-types'
 
-// Next owns HTML rendering, so mandarax integrates via conventions, not a bundler hook:
-// withMandarax pins a fixed engine port and inlines it for the client; register() boots the engine.
-export const MANDARAX_DEFAULT_PORT = 41700
+// Next owns HTML rendering, so conciv integrates via conventions, not a bundler hook:
+// withConciv pins a fixed engine port and inlines it for the client; register() boots the engine.
+export const CONCIV_DEFAULT_PORT = 41700
 
 type NextConfig = Record<string, unknown> & {env?: Record<string, string>}
 
-export function withMandarax<T extends NextConfig>(nextConfig: T = {} as T, options: MandaraxConfig = {}): T {
+export function withConciv<T extends NextConfig>(nextConfig: T = {} as T, options: ConcivConfig = {}): T {
   if (options.enabled === false) return nextConfig
-  const port = options.port ?? MANDARAX_DEFAULT_PORT
-  const resolved: MandaraxConfig = {...options, port}
+  const port = options.port ?? CONCIV_DEFAULT_PORT
+  const resolved: ConcivConfig = {...options, port}
   return {
     ...nextConfig,
     env: {
       ...nextConfig.env,
-      NEXT_PUBLIC_MANDARAX_PORT: String(port),
-      MANDARAX_OPTIONS: JSON.stringify(resolved),
+      NEXT_PUBLIC_CONCIV_PORT: String(port),
+      CONCIV_OPTIONS: JSON.stringify(resolved),
     },
   }
 }
@@ -277,7 +277,7 @@ export function withMandarax<T extends NextConfig>(nextConfig: T = {} as T, opti
 export async function register(): Promise<void> {
   if (process.env.NEXT_RUNTIME !== 'nodejs') return
   if (process.env.NODE_ENV === 'production') return
-  const options = JSON.parse(process.env.MANDARAX_OPTIONS ?? '{}') as MandaraxConfig
+  const options = JSON.parse(process.env.CONCIV_OPTIONS ?? '{}') as ConcivConfig
   if (options.enabled === false) return
   const {makeEngineBooter} = await import('./boot.js')
   await makeEngineBooter(options, process.cwd())()
@@ -286,14 +286,14 @@ export async function register(): Promise<void> {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm --filter @mandarax/plugin test -- nextjs`
+Run: `pnpm --filter @conciv/plugin test -- nextjs`
 Expected: PASS (3 tests)
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add packages/plugin/src/core/nextjs.ts packages/plugin/test/nextjs.test.ts
-git commit -m "feat(plugin): withMandarax config wrapper + instrumentation register"
+git commit -m "feat(plugin): withConciv config wrapper + instrumentation register"
 ```
 
 ---
@@ -309,8 +309,8 @@ git commit -m "feat(plugin): withMandarax config wrapper + instrumentation regis
 
 ```ts
 // packages/plugin/src/nextjs.ts
-export {withMandarax, register, MANDARAX_DEFAULT_PORT} from './core/nextjs.js'
-export type {MandaraxConfig} from '@mandarax/protocol/config-types'
+export {withConciv, register, CONCIV_DEFAULT_PORT} from './core/nextjs.js'
+export type {ConcivConfig} from '@conciv/protocol/config-types'
 ```
 
 - [ ] **Step 2: Create the client entry**
@@ -319,12 +319,12 @@ Imported from `instrumentation-client.ts`; runs client-side, on every page. Sets
 
 ```ts
 // packages/plugin/src/nextjs-widget.ts
-// Client entry for instrumentation-client.ts: mount the mandarax widget against the pinned engine port.
-const port = process.env.NEXT_PUBLIC_MANDARAX_PORT
+// Client entry for instrumentation-client.ts: mount the conciv widget against the pinned engine port.
+const port = process.env.NEXT_PUBLIC_CONCIV_PORT
 
 function startWidget(): void {
-  window.__MANDARAX_API_BASE__ = `http://127.0.0.1:${port}`
-  void import('@mandarax/widget')
+  window.__CONCIV_API_BASE__ = `http://127.0.0.1:${port}`
+  void import('@conciv/widget')
 }
 
 if (typeof window !== 'undefined' && port && process.env.NODE_ENV !== 'production') {
@@ -337,7 +337,7 @@ if (typeof window !== 'undefined' && port && process.env.NODE_ENV !== 'productio
 
 declare global {
   interface Window {
-    __MANDARAX_API_BASE__?: string
+    __CONCIV_API_BASE__?: string
   }
 }
 
@@ -382,14 +382,14 @@ Add a `peerDependenciesMeta` so `next` stays optional, and list `next` under `pe
 
 - [ ] **Step 5: Build the plugin and verify the new artifacts exist**
 
-Run: `pnpm --filter @mandarax/plugin build && ls packages/plugin/dist/nextjs.js packages/plugin/dist/nextjs-widget.js`
+Run: `pnpm --filter @conciv/plugin build && ls packages/plugin/dist/nextjs.js packages/plugin/dist/nextjs-widget.js`
 Expected: both files listed, build exits 0.
 
 - [ ] **Step 6: Commit**
 
 ```bash
 git add packages/plugin/src/nextjs.ts packages/plugin/src/nextjs-widget.ts packages/plugin/tsdown.config.ts packages/plugin/package.json
-git commit -m "feat(plugin): @mandarax/plugin/nextjs server + client entries"
+git commit -m "feat(plugin): @conciv/plugin/nextjs server + client entries"
 ```
 
 ---
@@ -417,7 +417,7 @@ Edit `apps/examples/nextjs-app/package.json` to add the workspace dependency, th
 
 ```json
   "dependencies": {
-    "@mandarax/plugin": "workspace:*"
+    "@conciv/plugin": "workspace:*"
   }
 ```
 
@@ -430,11 +430,11 @@ Replace `apps/examples/nextjs-app/next.config.ts` with:
 
 ```ts
 import type {NextConfig} from 'next'
-import {withMandarax} from '@mandarax/plugin/nextjs'
+import {withConciv} from '@conciv/plugin/nextjs'
 
 const nextConfig: NextConfig = {}
 
-export default withMandarax(nextConfig)
+export default withConciv(nextConfig)
 ```
 
 - [ ] **Step 4: Add the server instrumentation**
@@ -442,7 +442,7 @@ export default withMandarax(nextConfig)
 Create `apps/examples/nextjs-app/instrumentation.ts`:
 
 ```ts
-export {register} from '@mandarax/plugin/nextjs'
+export {register} from '@conciv/plugin/nextjs'
 ```
 
 - [ ] **Step 5: Add the client instrumentation**
@@ -450,7 +450,7 @@ export {register} from '@mandarax/plugin/nextjs'
 Create `apps/examples/nextjs-app/instrumentation-client.ts`:
 
 ```ts
-import '@mandarax/plugin/nextjs/widget'
+import '@conciv/plugin/nextjs/widget'
 ```
 
 - [ ] **Step 6: Verify the dev server boots and the engine answers**
@@ -463,7 +463,7 @@ Expected: dev server compiles; the curl returns a 200/JSON, proving the engine b
 
 ```bash
 git add apps/examples/nextjs-app
-git commit -m "feat(examples): Next.js App Router example wired to mandarax"
+git commit -m "feat(examples): Next.js App Router example wired to conciv"
 ```
 
 ---
@@ -518,9 +518,9 @@ test.afterAll(() => {
   dev?.kill('SIGTERM')
 })
 
-test('mandarax widget mounts into the shadow root', async ({page}) => {
+test('conciv widget mounts into the shadow root', async ({page}) => {
   await page.goto('http://127.0.0.1:3000')
-  const root = page.locator('[data-mandarax-root]')
+  const root = page.locator('[data-conciv-root]')
   await expect(root).toBeAttached({timeout: 15000})
 })
 ```
@@ -528,7 +528,7 @@ test('mandarax widget mounts into the shadow root', async ({page}) => {
 - [ ] **Step 3: Run the smoke test**
 
 Run: `pnpm --filter nextjs-app test:smoke`
-Expected: PASS — the `[data-mandarax-root]` element attaches, proving `instrumentation-client.ts` loaded the widget and it mounted against the pinned port.
+Expected: PASS — the `[data-conciv-root]` element attaches, proving `instrumentation-client.ts` loaded the widget and it mounted against the pinned port.
 
 - [ ] **Step 4: Commit**
 
@@ -545,7 +545,7 @@ git commit -m "test(examples): browser smoke for Next.js widget mount"
 
 - [ ] **Step 1: Vite path unchanged**
 
-Run: `pnpm --filter @mandarax/plugin test && pnpm --filter @mandarax/widget test`
+Run: `pnpm --filter @conciv/plugin test && pnpm --filter @conciv/widget test`
 Expected: all existing tests still pass.
 
 - [ ] **Step 2: Production build omits the widget/engine**
@@ -563,5 +563,5 @@ No code change expected. If verification surfaced a gap, fix it under the releva
 
 - **Package name in `--filter`:** `create-next-app` names the package after the directory (`nextjs-app`). Confirm via `apps/examples/nextjs-app/package.json` `name` before using `pnpm --filter`.
 - **The probe route:** Step 6 of Task 6 and Task 8 use the route `probeChatAvailable` hits. Open `packages/widget/src/chat-api.ts` to confirm the exact path and adjust the `curl`.
-- **`env` inlining caveat:** `withMandarax` relies on Next's `env` config to expose `NEXT_PUBLIC_MANDARAX_PORT` (client) and `MANDARAX_OPTIONS` (server `process.env`). If a future Next version stops inlining non-`NEXT_PUBLIC_` keys into the server runtime, move `MANDARAX_OPTIONS` reading to a `serverRuntimeConfig` or a generated file. Not expected for Next 15.3–16.
+- **`env` inlining caveat:** `withConciv` relies on Next's `env` config to expose `NEXT_PUBLIC_CONCIV_PORT` (client) and `CONCIV_OPTIONS` (server `process.env`). If a future Next version stops inlining non-`NEXT_PUBLIC_` keys into the server runtime, move `CONCIV_OPTIONS` reading to a `serverRuntimeConfig` or a generated file. Not expected for Next 15.3–16.
 - **No IIFEs, functions over classes, one-line comments** — per repo conventions; the code above follows them.

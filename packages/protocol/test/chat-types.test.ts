@@ -7,18 +7,18 @@ import {
   ResolveResponseSchema,
 } from '../src/chat-types.js'
 
-describe('SessionId (branded, mandarax_ prefix)', () => {
-  it('accepts an mandarax_ id', () => {
-    expect(SessionId.safeParse('mandarax_018f3a2b-4c5d-6e7f').success).toBe(true)
+describe('SessionId (branded, conciv_ prefix)', () => {
+  it('accepts an conciv_ id', () => {
+    expect(SessionId.safeParse('conciv_018f3a2b-4c5d-6e7f').success).toBe(true)
   })
-  it('rejects a non-mandarax id (a raw harness token)', () => {
+  it('rejects a non-conciv id (a raw harness token)', () => {
     expect(SessionId.safeParse('5d3f-claude-token').success).toBe(false)
   })
 })
 
 describe('isSessionId (branded guard)', () => {
-  it('narrows an mandarax_ string', () => {
-    expect(isSessionId('mandarax_018f3a2b-4c5d-6e7f')).toBe(true)
+  it('narrows an conciv_ string', () => {
+    expect(isSessionId('conciv_018f3a2b-4c5d-6e7f')).toBe(true)
   })
   it('rejects a raw harness token and non-strings', () => {
     expect(isSessionId('5d3f-claude-token')).toBe(false)
@@ -30,7 +30,7 @@ describe('isSessionId (branded guard)', () => {
 describe('SessionRecordSchema', () => {
   it('parses a new record (no harness id yet)', () => {
     const r = SessionRecordSchema.parse({
-      id: 'mandarax_1',
+      id: 'conciv_1',
       harnessSessionId: null,
       harnessKind: 'claude',
       origin: 'chat',
@@ -50,6 +50,6 @@ describe('ResolveRequestSchema', () => {
     expect(ResolveRequestSchema.parse({})).toEqual({})
   })
   it('echoes ResolveResponse with a branded id', () => {
-    expect(ResolveResponseSchema.parse({sessionId: 'mandarax_x'}).sessionId).toBe('mandarax_x')
+    expect(ResolveResponseSchema.parse({sessionId: 'conciv_x'}).sessionId).toBe('conciv_x')
   })
 })

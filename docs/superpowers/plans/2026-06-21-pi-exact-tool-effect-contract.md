@@ -2,18 +2,18 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace mandarax's builder-chain tool contract + effect registry with Pi's
+**Goal:** Replace conciv's builder-chain tool contract + effect registry with Pi's
 self-describing `ToolDefinition` API (zod + Solid swaps), restructure built-in tools into
 Pi's `createTool` switch/presets, and re-express effects as a small `defineEffect` shape
 carried by an **extension** — deleting the `page-effects.ts` registry. `highlight` ships as
 a bundled built-in extension applied via the existing `use()` pipe (no discovery loader, no
 effect switch).
 
-**Architecture:** `@mandarax/extensions` becomes the single source of the `ToolDefinition`
+**Architecture:** `@conciv/extensions` becomes the single source of the `ToolDefinition`
 / `EffectDefinition` shapes (Pi field names verbatim, four documented divergences). One
-loadable unit — the Extension — carries `tools?` and `effects?`. `@mandarax/tools` defines
-mandarax's own tools as `ToolDefinition`s with `execute` (assembled by a `createToolDefinition`
-switch that injects server ctx); `@mandarax/tool-ui` cards become render-only `ToolDefinition`s
+loadable unit — the Extension — carries `tools?` and `effects?`. `@conciv/tools` defines
+conciv's own tools as `ToolDefinition`s with `execute` (assembled by a `createToolDefinition`
+switch that injects server ctx); `@conciv/tool-ui` cards become render-only `ToolDefinition`s
 (no `execute`) matched by `name`/`names` to foreign harness tools. Built-in effects need no
 server ctx, so `highlight` is a plain extension carrying `effects:[highlightEffect]`, bundled
 and `use()`-applied like a user extension.
@@ -42,7 +42,7 @@ Playwright ITs), turborepo, oxlint/oxfmt, jiti (server extension load), Vite (`i
 
 ---
 
-## Phase 1 — Contract (`@mandarax/extensions`)
+## Phase 1 — Contract (`@conciv/extensions`)
 
 ### Task 1.1: `ToolDefinition` + render context + `defineTool`
 
@@ -85,7 +85,7 @@ describe('defineTool', () => {
 
 - [ ] **Step 2: Run it, verify it fails**
 
-Run: `pnpm --filter @mandarax/extensions exec vitest run test/contract.test.ts`
+Run: `pnpm --filter @conciv/extensions exec vitest run test/contract.test.ts`
 Expected: FAIL — `defineTool` not exported / type errors.
 
 - [ ] **Step 3: Implement in `contract.ts`** (replace `ExtensionTool`/`ToolBuilder`/`defineTool` builder)
@@ -138,7 +138,7 @@ export function defineTool<TParams extends z.ZodObject<z.ZodRawShape>, TResult =
 
 - [ ] **Step 4: Run test, verify it passes**
 
-Run: `pnpm --filter @mandarax/extensions exec vitest run test/contract.test.ts`
+Run: `pnpm --filter @conciv/extensions exec vitest run test/contract.test.ts`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -159,7 +159,7 @@ git commit -m "feat(extensions): Pi-shaped ToolDefinition + defineTool (zod+Soli
 **Interfaces:**
 
 - Consumes: protocol result types from Task 2.1 — author this task to import
-  `LocateResult`, `InspectResult`, `TreeResult` from `@mandarax/protocol/page-introspect-types`.
+  `LocateResult`, `InspectResult`, `TreeResult` from `@conciv/protocol/page-introspect-types`.
 - Produces: `EffectDefinition`, `EffectCtx`, `EffectSetupCtx`, `defineEffect`.
 
 - [ ] **Step 1: Write the failing test** (append)
@@ -174,12 +174,12 @@ describe('defineEffect', () => {
 })
 ```
 
-- [ ] **Step 2: Run, verify fails** — `pnpm --filter @mandarax/extensions exec vitest run test/contract.test.ts` → FAIL.
+- [ ] **Step 2: Run, verify fails** — `pnpm --filter @conciv/extensions exec vitest run test/contract.test.ts` → FAIL.
 
 - [ ] **Step 3: Implement** (add to `contract.ts`)
 
 ```ts
-import type {LocateResult, InspectResult, TreeResult} from '@mandarax/protocol/page-introspect-types'
+import type {LocateResult, InspectResult, TreeResult} from '@conciv/protocol/page-introspect-types'
 
 export interface EffectCtx {
   page: {
@@ -221,14 +221,14 @@ export function defineEffect(effect: EffectDefinition): EffectDefinition {
 
 **Files:**
 
-- Modify: `packages/extensions/src/contract.ts` (`MandaraxExtension`, `defineExtension`)
+- Modify: `packages/extensions/src/contract.ts` (`ConcivExtension`, `defineExtension`)
 - Modify: `packages/extensions/src/discovery.ts` (collect tools + effects)
 - Modify: `packages/extensions/src/index.ts`
 - Test: `packages/extensions/test/discovery.test.ts` (create)
 
 **Interfaces:**
 
-- Produces: `MandaraxExtension {id; tools?: ToolDefinition[]; effects?: EffectDefinition[]; clientFn?; serverFn?}`,
+- Produces: `ConcivExtension {id; tools?: ToolDefinition[]; effects?: EffectDefinition[]; clientFn?; serverFn?}`,
   `collectServerContributions(exts) => {tools: ToolDefinition[]; systemPrompt: string[]}`,
   `collectClientContributions(exts) => {tools: ToolDefinition[]; effects: EffectDefinition[]}`.
 
@@ -276,10 +276,10 @@ describe('collectors', () => {
 
 - [ ] **Step 2: Run, verify fails.**
 
-- [ ] **Step 3: Implement** — update `MandaraxExtension`/`defineExtension` to carry `effects?`, and rewrite `discovery.ts`:
+- [ ] **Step 3: Implement** — update `ConcivExtension`/`defineExtension` to carry `effects?`, and rewrite `discovery.ts`:
 
 ```ts
-export function collectServerContributions(extensions: MandaraxExtension[]) {
+export function collectServerContributions(extensions: ConcivExtension[]) {
   const tools: ToolDefinition[] = []
   const systemPrompt: string[] = []
   const add = (t: ToolDefinition) => {
@@ -294,7 +294,7 @@ export function collectServerContributions(extensions: MandaraxExtension[]) {
   return {tools, systemPrompt}
 }
 
-export function collectClientContributions(extensions: MandaraxExtension[]) {
+export function collectClientContributions(extensions: ConcivExtension[]) {
   const tools: ToolDefinition[] = []
   const effects: EffectDefinition[] = []
   for (const ext of extensions) {
@@ -310,7 +310,7 @@ export function collectClientContributions(extensions: MandaraxExtension[]) {
 
 ---
 
-## Phase 2 — Relocate page-introspection result types to `@mandarax/protocol`
+## Phase 2 — Relocate page-introspection result types to `@conciv/protocol`
 
 ### Task 2.1: move result types; re-export from react-bridge
 
@@ -367,32 +367,32 @@ export type {
   LocateResult,
   InspectResult,
   TreeResult,
-} from '@mandarax/protocol/page-introspect-types'
+} from '@conciv/protocol/page-introspect-types'
 ```
 
-- [ ] **Step 4: Verify** — `pnpm turbo build typecheck --filter=@mandarax/protocol --filter=@mandarax/widget --filter=@mandarax/extensions` → PASS.
+- [ ] **Step 4: Verify** — `pnpm turbo build typecheck --filter=@conciv/protocol --filter=@conciv/widget --filter=@conciv/extensions` → PASS.
 - [ ] **Step 5: Commit** — `refactor(protocol): own page-introspection result types (shared by widget + extensions)`
 
 ---
 
-## Phase 3 — mandarax's own tools become `ToolDefinition`s
+## Phase 3 — conciv's own tools become `ToolDefinition`s
 
-### Task 3.1: convert each mandarax tool def
+### Task 3.1: convert each conciv tool def
 
-**Files (each holds a `mandarax*ToolDef`):**
+**Files (each holds a `conciv*ToolDef`):**
 
 - Modify: `packages/tools/src/page.ts`, `ui.ts`, `test.ts`, `open.ts`, `extensions-tool.ts`
   (`effect.ts` is removed in Phase 6 — folded into the highlight extension's tool, see Task 6.2).
 - Modify: `packages/tools/src/server.ts`, `packages/tools/src/types.ts`
 - Test: `packages/tools/test/*` (existing, adjust to new shape)
 
-**Recipe (apply to each):** replace `mandaraxXToolDef = defineTool({...}).server(...)`-style with a
+**Recipe (apply to each):** replace `concivXToolDef = defineTool({...}).server(...)`-style with a
 single `defineTool({...})` object carrying `name`, `label`, `description`, `parameters` (the existing
 zod schema), `promptSnippet`/`promptGuidelines` where present, and `execute(input)` (the body that was
 in `.server()`). `server.ts` stops calling `.server(...)`; it reads `def.execute` directly:
 
 ```ts
-function toServerTool(def: ToolDefinition, run: (input: unknown) => Promise<unknown>): MandaraxServerTool {
+function toServerTool(def: ToolDefinition, run: (input: unknown) => Promise<unknown>): ConcivServerTool {
   return {
     name: def.name,
     description: def.description,
@@ -402,7 +402,7 @@ function toServerTool(def: ToolDefinition, run: (input: unknown) => Promise<unkn
 }
 ```
 
-`MandaraxServerTool` in `types.ts` stays (the MCP wire shape). The per-tool `ctx` wiring (`ctx.page`,
+`ConcivServerTool` in `types.ts` stays (the MCP wire shape). The per-tool `ctx` wiring (`ctx.page`,
 `ctx.injectUi`, `ctx.test`, `ctx.open`) moves into each def's `execute` via a factory
 `createXToolDefinition(ctx)` (Pi `create<Name>ToolDefinition` parity).
 
@@ -426,7 +426,7 @@ import {allToolNames, createToolDefinition, createAllToolDefinitions} from '../s
 const ctx = /* minimal stub ctx with no-op page/ui/test/open */ {} as never
 describe('tools index (pi mirror)', () => {
   it('createToolDefinition switches by name', () => {
-    expect(createToolDefinition('page', ctx).name).toBe('mandarax_page')
+    expect(createToolDefinition('page', ctx).name).toBe('conciv_page')
   })
   it('createAllToolDefinitions covers allToolNames', () => {
     expect(new Set(Object.keys(createAllToolDefinitions(ctx)))).toEqual(allToolNames)
@@ -440,7 +440,7 @@ describe('tools index (pi mirror)', () => {
 ```ts
 export type ToolName = 'page' | 'ui' | 'test' | 'open' | 'extensions'
 export const allToolNames: Set<ToolName> = new Set(['page', 'ui', 'test', 'open', 'extensions'])
-export function createToolDefinition(name: ToolName, ctx: MandaraxToolContext): ToolDefinition {
+export function createToolDefinition(name: ToolName, ctx: ConcivToolContext): ToolDefinition {
   switch (name) {
     case 'page':
       return createPageToolDefinition(ctx)
@@ -456,7 +456,7 @@ export function createToolDefinition(name: ToolName, ctx: MandaraxToolContext): 
       throw new Error(`Unknown tool: ${name}`)
   }
 }
-export function createAllToolDefinitions(ctx: MandaraxToolContext): Record<ToolName, ToolDefinition> {
+export function createAllToolDefinitions(ctx: ConcivToolContext): Record<ToolName, ToolDefinition> {
   return {
     page: createPageToolDefinition(ctx),
     ui: createUiToolDefinition(ctx),
@@ -469,12 +469,12 @@ export function createAllToolDefinitions(ctx: MandaraxToolContext): Record<ToolN
 
 `server.ts` builds its MCP tools from `Object.values(createAllToolDefinitions(ctx)).map((d) => toServerTool(d, d.execute!))`.
 
-- [ ] **Step 4: Run, verify passes.** + `pnpm turbo build --filter=@mandarax/tools`.
+- [ ] **Step 4: Run, verify passes.** + `pnpm turbo build --filter=@conciv/tools`.
 - [ ] **Step 5: Commit** — `refactor(tools): Pi-style index (ToolName, createToolDefinition switch, presets)`
 
 ---
 
-## Phase 4 — Render split in `@mandarax/tool-ui`
+## Phase 4 — Render split in `@conciv/tool-ui`
 
 ### Task 4.1: `ToolCallCard` calls `renderCall`/`renderResult`; cards become render-only `ToolDefinition`s
 
@@ -515,7 +515,7 @@ Pi-shaped (`(result, options, ctx)`), with host seams read from context, not the
       fall back to `GenericCard`. Honor `renderShell: 'self'`.
 - [ ] **Step 3:** migrate every card in `cards/*.tsx` per the recipe; `index.tsx` exports
       `builtinTools: ToolDefinition[]`.
-- [ ] **Step 4: Verify** — `SKIP_STORYBOOK_TESTS= pnpm --filter @mandarax/tool-ui test` (storybook browser) PASS.
+- [ ] **Step 4: Verify** — `SKIP_STORYBOOK_TESTS= pnpm --filter @conciv/tool-ui test` (storybook browser) PASS.
 - [ ] **Step 5: Commit** — `refactor(tool-ui): renderCall/renderResult split; cards are render-only ToolDefinitions`
 
 ---
@@ -531,7 +531,7 @@ Pi-shaped (`(result, options, ctx)`), with host seams read from context, not the
 
 **Interfaces:**
 
-- Consumes: `EffectDefinition`/`EffectCtx` from `@mandarax/extensions`.
+- Consumes: `EffectDefinition`/`EffectCtx` from `@conciv/extensions`.
 - Produces: `makeEffects(getEffects: () => readonly EffectDefinition[], ctx: Omit<EffectCtx,'disable'>, styles?: string) => {setEffect, toggleEffect, listEffects, dispose}`.
 
 - [ ] **Step 1: Failing test**
@@ -539,7 +539,7 @@ Pi-shaped (`(result, options, ctx)`), with host seams read from context, not the
 ```ts
 import {describe, expect, it} from 'vitest'
 import {makeEffects} from '../src/page-effects.js'
-import {defineEffect} from '@mandarax/extensions'
+import {defineEffect} from '@conciv/extensions'
 const ctx = /* seam ctx, page no-ops */ {
   page: {
     /*…*/
@@ -576,9 +576,9 @@ describe('makeEffects', () => {
 defineExtension({id: 'highlight', effects: [highlightEffect]})`. Bundled with the widget; NOT
   in a discovery dir.
 - Modify: `packages/widget/src/effects/highlight.tsx` — `import {defineEffect, type EffectCtx}
-from '@mandarax/extensions'`; rename the effect field `component`→`render`, add `label`; keep
+from '@conciv/extensions'`; rename the effect field `component`→`render`, add `label`; keep
   `setup` (Alt hotkey) unchanged.
-- **Decision (resolved):** `mandarax_page_effect` **stays a built-in tool** in `@mandarax/tools`.
+- **Decision (resolved):** `conciv_page_effect` **stays a built-in tool** in `@conciv/tools`.
   It is generic effect control (list/enable/disable/toggle over ALL effects), not highlight-specific,
   so it must NOT live in the highlight extension. The highlight extension contributes ONLY the effect.
 - Test: existing `effect-highlight.it.test.ts` (adjust import path/shape).
@@ -611,7 +611,7 @@ from '@mandarax/extensions'`; rename the effect field `component`→`render`, ad
 **Files:**
 
 - Modify: `packages/widget/src/page-effects.stories.tsx` (drive `makeEffects(() => [eff], ctx)`)
-- Keep: `packages/tools/src/effect.ts` as the built-in `mandarax_page_effect` tool (resolved: stays a built-in tool).
+- Keep: `packages/tools/src/effect.ts` as the built-in `conciv_page_effect` tool (resolved: stays a built-in tool).
 - Verify: whole branch.
 
 - [ ] **Step 1:** rewrite the stories to the array/getter form; run storybook tests → PASS.
@@ -620,10 +620,10 @@ from '@mandarax/extensions'`; rename the effect field `component`→`render`, ad
 Run from worktree root:
 
 ```bash
-SKIP_STORYBOOK_TESTS=1 pnpm turbo build typecheck lint test --filter=@mandarax/extensions --filter=@mandarax/protocol --filter=@mandarax/tools --filter=@mandarax/tool-ui --filter=@mandarax/widget --filter=@mandarax/plugin --filter=@mandarax/cli --filter=@mandarax/core
+SKIP_STORYBOOK_TESTS=1 pnpm turbo build typecheck lint test --filter=@conciv/extensions --filter=@conciv/protocol --filter=@conciv/tools --filter=@conciv/tool-ui --filter=@conciv/widget --filter=@conciv/plugin --filter=@conciv/cli --filter=@conciv/core
 ```
 
-Expected: all PASS. Then the real-browser widget ITs (`SKIP_STORYBOOK_TESTS=1 pnpm --filter @mandarax/widget test`) PASS, and storybook locally (`pnpm --filter @mandarax/widget test`) PASS.
+Expected: all PASS. Then the real-browser widget ITs (`SKIP_STORYBOOK_TESTS=1 pnpm --filter @conciv/widget test`) PASS, and storybook locally (`pnpm --filter @conciv/widget test`) PASS.
 
 - [ ] **Step 3: Commit** — `test(widget): effect stories on makeEffects; green end-to-end`
 
@@ -634,11 +634,11 @@ Expected: all PASS. Then the real-browser widget ITs (`SKIP_STORYBOOK_TESTS=1 pn
 - **Spec coverage:** contract (P1) ✓, result-type relocation (P1 §4 / P2) ✓, built-in tools Pi mirror
   (P3) ✓, render split (P4) ✓, effects as a bundled built-in extension + kill registry (P5) ✓,
   `execute` optional / render-only cards (P1.1, P4) ✓, `executionMode`+`TState` dropped (P1.1 — absent) ✓,
-  `names?` as the one mandarax-only field (P1.1) ✓.
+  `names?` as the one conciv-only field (P1.1) ✓.
 - **Resolved (grounded in real Pi):** Pi has no effects and ships no discoverable built-ins (its two
   discovery roots are both _user_ dirs), so the multi-root "discovery loader for built-in effects" is
   dropped — built-in effects ride a bundled extension via `use()` (no switch, no `createAllEffects`).
-  `mandarax_page_effect` stays a built-in tool (generic effect control). The `ToolHostCtx` Solid-context
+  `conciv_page_effect` stays a built-in tool (generic effect control). The `ToolHostCtx` Solid-context
   seam for render-only cards (Task 4.1) is the one item to confirm at the Phase-4 checkpoint — minimal
   context carrying `apiBase/sendMessage/openEditor/subscribeTestRunner/respondApproval/durationMs`.
 - **Type consistency:** `ToolDefinition`/`EffectDefinition`/`defineTool`/`defineEffect`/`makeEffects`

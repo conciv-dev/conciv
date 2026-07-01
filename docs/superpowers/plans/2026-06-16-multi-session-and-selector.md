@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make each surface a real, independent, concurrently-runnable agent session, then add a header **session selector** that lists every Claude session in the CWD (marking which were started by mandarax), switches between them, starts new ones, and renames them.
+**Goal:** Make each surface a real, independent, concurrently-runnable agent session, then add a header **session selector** that lists every Claude session in the CWD (marking which were started by conciv), switches between them, starts new ones, and renames them.
 
-**Architecture:** Identity is a client-minted id sent in an `mandarax-session-id` header (the **header id**). The server keys session state, lock, uiBus channel, and usage **all by the header id**; the list keys rows by harness token and joins back through the `previewId → {headerId: token}` map. `HarnessHistory.list(cwd, home?)` enumerates transcripts; an Ark Combobox `SessionSelector` (pill in the modal header, borderless `bar` variant in qt pane bars) drives switch/new/rename, fed by one shared client cache. Discovered (externally-started) sessions are referenced directly by harness token; the server seeds an unmapped transcript-backed id as its own resume token.
+**Architecture:** Identity is a client-minted id sent in an `conciv-session-id` header (the **header id**). The server keys session state, lock, uiBus channel, and usage **all by the header id**; the list keys rows by harness token and joins back through the `previewId → {headerId: token}` map. `HarnessHistory.list(cwd, home?)` enumerates transcripts; an Ark Combobox `SessionSelector` (pill in the modal header, borderless `bar` variant in qt pane bars) drives switch/new/rename, fed by one shared client cache. Discovered (externally-started) sessions are referenced directly by harness token; the server seeds an unmapped transcript-backed id as its own resume token.
 
 **Tech Stack:** TypeScript, Solid (widget), h3 + srvx (core), Zod, Ark UI Combobox (`@ark-ui/solid`), `@floating-ui/dom`, Vitest (unit + core IT), Playwright (widget IT, `browser.newPage()`).
 
@@ -14,15 +14,15 @@
 
 ### Canonical id model (READ FIRST — every task below depends on it)
 
-- **Header id is canonical for all live state.** It is what the client sends in `mandarax-session-id`: a
+- **Header id is canonical for all live state.** It is what the client sends in `conciv-session-id`: a
   client-minted uuid for a new session, the **harness token** for a discovered/external one. **Lock, uiBus
   channel, and usage are ALL keyed by the header id** — never re-keyed to the harness token mid-turn.
 - **The list keys rows by the harness token** (transcript filename). `GET /sessions` joins to live state
   through the `previewId → {headerId: token}` map (invert it: token → headerIds).
-- **`mandarax ui` (cross-process inject)** routes by the header id injected into the agent's spawn env
-  (`MANDARAX_SESSION_ID`) and echoed back as the header.
-- **`origin='mandarax'`** iff a token appears in the map under a key **≠ itself** (new session: `uuid→token`;
-  adopted external: `token→token`). This is true "started by mandarax" and never poisons on resume.
+- **`conciv ui` (cross-process inject)** routes by the header id injected into the agent's spawn env
+  (`CONCIV_SESSION_ID`) and echoed back as the header.
+- **`origin='conciv'`** iff a token appears in the map under a key **≠ itself** (new session: `uuid→token`;
+  adopted external: `token→token`). This is true "started by conciv" and never poisons on resume.
 
 ---
 
@@ -35,7 +35,7 @@ owned here (A6, A17–A19) with corrected bodies because the review found the fo
 **Execute in this order:**
 
 1. **Foundation Tasks 1, 2, 3, 4, 5** — verbatim from the 2026-06-15 plan. They deliver: protocol header
-   constants (`MANDARAX_SESSION_HEADER`, `DEFAULT_SESSION_ID`) + `harnessId`/`name` on `ChatSessionSchema` +
+   constants (`CONCIV_SESSION_HEADER`, `DEFAULT_SESSION_ID`) + `harnessId`/`name` on `ChatSessionSchema` +
    drop `ChatRequestSchema.sessionId` (Task 1); claude `nameFromTranscript` (Task 2); **per-session lock**
    `agent.<sessionId>.lock` (Task 3); session-store reshape to `previewId → {sessionId: token}` with
    `readSessions`/`writeSession`/`removeSession` (Task 4); `sessionIdFromHeaders` (Task 5).
@@ -65,7 +65,7 @@ The foundation's shown Task 6 rewrite of `turn.ts` drops the existing usage-writ
 
 ```ts
 import {existsSync} from 'node:fs'
-import {DEFAULT_SESSION_ID} from '@mandarax/protocol/chat-types'
+import {DEFAULT_SESSION_ID} from '@conciv/protocol/chat-types'
 import {readSessions} from '../../store/session-store.js'
 // ...
 const sessions = new Map<string, SessionState>()
@@ -129,7 +129,7 @@ async function* withLockRelease(src, stateRoot, sessionId): AsyncGenerator<Strea
 
 - [ ] **Step 5: Typecheck + test**
 
-Run: `pnpm turbo typecheck --filter=@mandarax/core && pnpm --filter @mandarax/core exec vitest run`
+Run: `pnpm turbo typecheck --filter=@conciv/core && pnpm --filter @conciv/core exec vitest run`
 Expected: PASS (existing resume + usage + 409 tests green).
 
 - [ ] **Step 6: Commit**
@@ -149,8 +149,8 @@ Today `ui-bus.ts` keeps one global `state.channel`; concurrent turns clobber it.
 
 - Modify: `packages/core/src/runtime/ui-bus.ts`
 - Modify: `packages/core/src/api/chat/turn.ts` (route `/ui` by header id; inject env)
-- Modify: the spawn path so the child env carries the turn's header id (`packages/core/src/engine.ts` / wherever `spawnHarness`/`childEnv` is built — search `MANDARAX_PORT`)
-- Modify: `packages/cli/src/cli-http.ts` (send `mandarax-session-id` from `process.env.MANDARAX_SESSION_ID`)
+- Modify: the spawn path so the child env carries the turn's header id (`packages/core/src/engine.ts` / wherever `spawnHarness`/`childEnv` is built — search `CONCIV_PORT`)
+- Modify: `packages/cli/src/cli-http.ts` (send `conciv-session-id` from `process.env.CONCIV_SESSION_ID`)
 - Test: `packages/core/test/runtime/ui-bus.test.ts` (create) + a core IT over HTTP
 
 - [ ] **Step 1: Write the failing unit test (registry routing)**
@@ -187,7 +187,7 @@ describe('uiBus per-session channels', () => {
 
 - [ ] **Step 2: Run it — confirm fail** (`run`/`inject` don't take a key).
 
-Run: `pnpm --filter @mandarax/core exec vitest run test/runtime/ui-bus.test.ts` → FAIL.
+Run: `pnpm --filter @conciv/core exec vitest run test/runtime/ui-bus.test.ts` → FAIL.
 
 - [ ] **Step 3: Rewrite `ui-bus.ts` to a per-header-id registry**
 
@@ -234,17 +234,17 @@ export function makeUiBus(): UiBus {
 
 - [ ] **Step 4: Give the agent its header id, route `/ui` by it**
 
-- In the spawn path (search for where `childEnv` / `MANDARAX_PORT` is set — `engine.ts`), make the child env per-turn and add `MANDARAX_SESSION_ID: <the turn's header id>`. This means `spawnHarness` must receive the header id (thread it from `turn.ts`'s `onSpawn`/spawn call).
-- In `packages/cli/src/cli-http.ts`, add `mandarax-session-id` from `process.env.MANDARAX_SESSION_ID` to the `/api/chat/ui` POST headers.
+- In the spawn path (search for where `childEnv` / `CONCIV_PORT` is set — `engine.ts`), make the child env per-turn and add `CONCIV_SESSION_ID: <the turn's header id>`. This means `spawnHarness` must receive the header id (thread it from `turn.ts`'s `onSpawn`/spawn call).
+- In `packages/cli/src/cli-http.ts`, add `conciv-session-id` from `process.env.CONCIV_SESSION_ID` to the `/api/chat/ui` POST headers.
 - In `turn.ts`, the `/api/chat/ui` handler: `const sessionId = sessionIdFromHeaders(event.req.headers); return {renderId: spec.renderId, injected: uiBus.inject(sessionId, spec)}`.
 
 - [ ] **Step 5: Add a core IT driving `/api/chat/ui` over HTTP**
 
-In `chat.it.test.ts` (or a new `ui-inject.it.test.ts`): start a turn for `h-a`, POST `/api/chat/ui` with the `mandarax-session-id: h-a` header, assert the SSE for `h-a` contains the CUSTOM event and a concurrent `h-b` turn's SSE does not. (This is the cross-process path the unit test can't cover.)
+In `chat.it.test.ts` (or a new `ui-inject.it.test.ts`): start a turn for `h-a`, POST `/api/chat/ui` with the `conciv-session-id: h-a` header, assert the SSE for `h-a` contains the CUSTOM event and a concurrent `h-b` turn's SSE does not. (This is the cross-process path the unit test can't cover.)
 
 - [ ] **Step 6: Run + typecheck**
 
-Run: `pnpm --filter @mandarax/core exec vitest run test/runtime/ui-bus.test.ts && pnpm turbo typecheck --filter=@mandarax/core`
+Run: `pnpm --filter @conciv/core exec vitest run test/runtime/ui-bus.test.ts && pnpm turbo typecheck --filter=@conciv/core`
 Expected: PASS.
 
 - [ ] **Step 7: Commit**
@@ -287,7 +287,7 @@ Import `readUsage` from `../../../src/store/usage-store.js`.
 
 - [ ] **Step 3: Run** → with A6's header-keyed write this should PASS; if it fails, the write is still keyed on a shared field — fix in A6 Step 3.
 
-Run: `pnpm --filter @mandarax/core exec vitest run test/api/chat/chat.it.test.ts`
+Run: `pnpm --filter @conciv/core exec vitest run test/api/chat/chat.it.test.ts`
 
 - [ ] **Step 4: Commit**
 
@@ -303,8 +303,8 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 **Files:** Modify `packages/widget/src/chat-panel.tsx` (the `compact` fetch).
 
 - [ ] **Step 1:** In `compact()`'s `fetch`, add the header: `headers: {'content-type': 'application/json', ...api.sessionHeaders()}`.
-- [ ] **Step 2:** `pnpm turbo typecheck --filter=@mandarax/widget` → PASS.
-- [ ] **Step 3: Commit** `git commit -m "fix(widget): compact turn carries the mandarax-session-id header\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"`
+- [ ] **Step 2:** `pnpm turbo typecheck --filter=@conciv/widget` → PASS.
+- [ ] **Step 3: Commit** `git commit -m "fix(widget): compact turn carries the conciv-session-id header\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"`
 
 ---
 
@@ -339,7 +339,7 @@ export const ChatSessionMetaSchema = z.object({
   updatedAt: z.number(),
   messageCount: z.number(),
   running: z.boolean(),
-  origin: z.enum(['mandarax', 'external']),
+  origin: z.enum(['conciv', 'external']),
   usage: UsageSnapshotSchema.nullable(),
 })
 export const ChatSessionsSchema = z.object({sessions: z.array(ChatSessionMetaSchema)})
@@ -350,8 +350,8 @@ export const RenameSessionSchema = z.object({sessionId: SessionId, title: z.stri
 
 - [ ] **Step 3: Typecheck**
 
-Run: `pnpm turbo typecheck --filter=@mandarax/protocol`
-Expected: PASS (protocol has no in-package consumer of `claudeHistory`; `list` is optional). Note: `@mandarax/harness` is unaffected because `list` is optional — B2 adds it.
+Run: `pnpm turbo typecheck --filter=@conciv/protocol`
+Expected: PASS (protocol has no in-package consumer of `claudeHistory`; `list` is optional). Note: `@conciv/harness` is unaffected because `list` is optional — B2 adds it.
 
 - [ ] **Step 4: Commit**
 
@@ -383,7 +383,7 @@ function seed(home: string, cwd: string, id: string, body: string, mtimeSec: num
 }
 
 it('lists newest-first with title + count', async () => {
-  const home = mkdtempSync(join(tmpdir(), 'mandarax-home-'))
+  const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
   const cwd = '/proj/x'
   seed(home, cwd, 'old', JSON.stringify({type: 'user', message: {content: 'first task'}}) + '\n', 1000)
   seed(
@@ -403,7 +403,7 @@ it('lists newest-first with title + count', async () => {
 })
 
 it('caps at 50 and does not read the 51st', async () => {
-  const home = mkdtempSync(join(tmpdir(), 'mandarax-home-'))
+  const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
   const cwd = '/proj/y'
   for (let i = 0; i < 51; i++)
     seed(
@@ -420,13 +420,13 @@ it('caps at 50 and does not read the 51st', async () => {
 })
 
 it('returns [] for a missing dir', async () => {
-  expect(await listSessions('/no/such', mkdtempSync(join(tmpdir(), 'mandarax-home-')))).toEqual([])
+  expect(await listSessions('/no/such', mkdtempSync(join(tmpdir(), 'conciv-home-')))).toEqual([])
 })
 ```
 
 - [ ] **Step 2: Run → FAIL** (`listSessions` not exported).
 
-Run: `pnpm --filter @mandarax/harness exec vitest run test/claude-history.test.ts`
+Run: `pnpm --filter @conciv/harness exec vitest run test/claude-history.test.ts`
 
 - [ ] **Step 3: Implement** (stat → sort → read top 50; first-line title type-narrowed; never throw)
 
@@ -511,7 +511,7 @@ Test: `withinProject('/proj', '../../etc/passwd')` → `false`; a normal uuid �
 
 - [ ] **Step 6: Run + typecheck**
 
-Run: `pnpm --filter @mandarax/harness exec vitest run test/claude-history.test.ts && pnpm turbo typecheck --filter=@mandarax/protocol --filter=@mandarax/harness`
+Run: `pnpm --filter @conciv/harness exec vitest run test/claude-history.test.ts && pnpm turbo typecheck --filter=@conciv/protocol --filter=@conciv/harness`
 Expected: PASS.
 
 - [ ] **Step 7: Commit**
@@ -541,7 +541,7 @@ import {join} from 'node:path'
 import {readTitle, writeTitle} from '../../src/store/session-titles-store.js'
 const dirs: string[] = []
 const tmp = () => {
-  const d = mkdtempSync(join(tmpdir(), 'mandarax-titles-'))
+  const d = mkdtempSync(join(tmpdir(), 'conciv-titles-'))
   dirs.push(d)
   return d
 }
@@ -666,9 +666,9 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 - [ ] **Step 1: Validate the header id in `session-id.ts`**
 
 ```ts
-import {MANDARAX_SESSION_HEADER, DEFAULT_SESSION_ID, SessionId} from '@mandarax/protocol/chat-types'
+import {CONCIV_SESSION_HEADER, DEFAULT_SESSION_ID, SessionId} from '@conciv/protocol/chat-types'
 export function sessionIdFromHeaders(headers: Headers): string {
-  const raw = headers.get(MANDARAX_SESSION_HEADER)?.trim()
+  const raw = headers.get(CONCIV_SESSION_HEADER)?.trim()
   if (!raw) return DEFAULT_SESSION_ID
   return SessionId.safeParse(raw).success ? raw : DEFAULT_SESSION_ID // bad → default, never a path
 }
@@ -682,17 +682,17 @@ export function sessionIdFromHeaders(headers: Headers): string {
 import {mkdtempSync, mkdirSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {encodeProjectDir} from '@mandarax/harness/claude/history' // or re-export
-import {ChatSessionsSchema} from '@mandarax/protocol/chat-types'
+import {encodeProjectDir} from '@conciv/harness/claude/history' // or re-export
+import {ChatSessionsSchema} from '@conciv/protocol/chat-types'
 
 it('lists sessions with origin/title/running joined to the map', async () => {
-  const home = mkdtempSync(join(tmpdir(), 'mandarax-home-'))
+  const home = mkdtempSync(join(tmpdir(), 'conciv-home-'))
   const cwd = process.cwd()
   const dir = join(home, '.claude', 'projects', encodeProjectDir(cwd))
   mkdirSync(dir, {recursive: true})
   writeFileSync(
-    join(dir, 'tok-mandarax.jsonl'),
-    JSON.stringify({type: 'user', message: {content: 'made in mandarax'}}) + '\n',
+    join(dir, 'tok-conciv.jsonl'),
+    JSON.stringify({type: 'user', message: {content: 'made in conciv'}}) + '\n',
   )
   writeFileSync(
     join(dir, 'tok-ext.jsonl'),
@@ -700,10 +700,10 @@ it('lists sessions with origin/title/running joined to the map', async () => {
   )
   const server = await startTestServer({cwd, claudeHome: home, spawnHarness: fakeSpawn()})
   state.server = server
-  // Map a client uuid -> tok-mandarax so origin resolves to 'mandarax'; tok-ext stays external.
-  writeSession(server.stateRoot, server.previewId, 'uuid-1', 'tok-mandarax')
+  // Map a client uuid -> tok-conciv so origin resolves to 'conciv'; tok-ext stays external.
+  writeSession(server.stateRoot, server.previewId, 'uuid-1', 'tok-conciv')
   const {sessions} = ChatSessionsSchema.parse(await (await server.getSessions()).json())
-  expect(sessions.find((s) => s.id === 'tok-mandarax')?.origin).toBe('mandarax')
+  expect(sessions.find((s) => s.id === 'tok-conciv')?.origin).toBe('conciv')
   expect(sessions.find((s) => s.id === 'tok-ext')?.origin).toBe('external')
 })
 
@@ -747,7 +747,7 @@ app.get('/api/chat/sessions', async () => {
       updatedAt: m.updatedAt,
       messageCount: m.messageCount,
       running: lockKeys.has(m.id) || headers.some((h) => lockKeys.has(h)),
-      origin: Object.entries(map).some(([k, v]) => v === m.id && k !== m.id) ? 'mandarax' : 'external',
+      origin: Object.entries(map).some(([k, v]) => v === m.id && k !== m.id) ? 'conciv' : 'external',
       usage: readUsage(deps.stateRoot, m.id) ?? headers.map((h) => readUsage(deps.stateRoot, h)).find(Boolean) ?? null,
     }
   })
@@ -784,7 +784,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 - [ ] **Step 1: Add the methods**
 
 ```ts
-import {ChatSessionsSchema, type ChatSessionMeta} from '@mandarax/protocol/chat-types'
+import {ChatSessionsSchema, type ChatSessionMeta} from '@conciv/protocol/chat-types'
 import {z} from 'zod'
 const RenameResp = z.object({ok: z.boolean(), title: z.string()})
 
@@ -824,7 +824,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ```ts
 import {createSignal} from 'solid-js'
-import type {ChatSessionMeta} from '@mandarax/protocol/chat-types'
+import type {ChatSessionMeta} from '@conciv/protocol/chat-types'
 import {createChatApi} from './chat-api.js'
 
 type Status = 'idle' | 'loading' | 'ready' | 'error'
@@ -895,7 +895,7 @@ Build against spec §5.2 (structure/variants), §5.5 (states), §6 (a11y), §7 (
 import {createSignal, createEffect, For, Show, onMount, type JSX} from 'solid-js'
 import {Combobox, useListCollection} from '@ark-ui/solid/combobox'
 import {Check, ChevronsUpDown, Sparkles, SquarePen, Plus} from 'lucide-solid'
-import type {ChatSessionMeta} from '@mandarax/protocol/chat-types'
+import type {ChatSessionMeta} from '@conciv/protocol/chat-types'
 import {sessions, status, loadSessions} from './session-store-client.js'
 
 export function SessionSelector(props: {
@@ -939,9 +939,9 @@ export function SessionSelector(props: {
        `status()==='error'`.
   3. **List** — Ark `Combobox.Item`s grouped by recency buckets (`Today`/`Yesterday`/`Earlier` from
      `updatedAt`) via `Combobox.ItemGroupLabel`. Row: title (ellipsis + `title`/`aria-label`), meta line as
-     an `aria-label` ("Edited … · N messages · started in mandarax/externally"; glyphs `aria-hidden`), check on
+     an `aria-label` ("Edited … · N messages · started in conciv/externally"; glyphs `aria-hidden`), check on
      `activeId()`, a `running` pulse dot when `lockedElsewhere(id)`, and the **origin marker** (`Sparkles`,
-     `aria-hidden`) on `origin==='mandarax'`.
+     `aria-hidden`) on `origin==='conciv'`.
   4. **States** — skeleton rows (`pw-session-skel`, `aria-busy`, `role="status"` "Loading sessions…") while
      `status()==='loading'`; `role="status"` empty lines ("No other sessions yet" / "No sessions match");
      error row + Retry.
@@ -964,7 +964,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 - [ ] **Step 1:** Add `pw-session-trigger`/`-bar`/`-item`/`-meta`/`-origin`/`-running`/`-skel`/`-empty`/`-error`/`-rename` per §5.2/§5.5. Touch targets ≥44px; disabled cue not color-only (grey + glyph + tooltip). `bar` variant: borderless, inherit mono; below a pane-width breakpoint (container query on `.pw-qt-pane`) collapse `ContextTracker` to ring-only.
 - [ ] **Step 2:** Add a shared `pw-combo-content[data-state=open|closed]` entrance (opacity + 4px translateY, ~120ms `var(--pw-ease)`); apply to BOTH the session popover and `model-selector` content (relax model-selector's `[hidden]`-removes so the close frame plays). Add `pw-session-skel` shimmer (1.2s linear). Add `.pw-chat-hydrating .pw-chat-msg{animation:none}`.
 - [ ] **Step 3:** In the existing `@media (prefers-reduced-motion: reduce)` block, add by name: `pw-session-skel`, `pw-combo-content`, `pw-chat-switching` (gentle-pulse substitute, like `pw-compact-pulse`), rename swap.
-- [ ] **Step 4:** `pnpm turbo build --filter=@mandarax/widget` → PASS. **Step 5: Commit**
+- [ ] **Step 4:** `pnpm turbo build --filter=@conciv/widget` → PASS. **Step 5: Commit**
 
 ```bash
 git add packages/widget/src
@@ -986,7 +986,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
       overlay (`role="status"`) while loading; move focus to it (don't orphan it) and re-disable composer.
 - [ ] **Step 3: Send-time 409** → a distinct `pw-chat-busy` inline state ("Busy in another pane"), not raw `chat.error()`; Retry once free.
 - [ ] **Step 4: Debounced `invalidateSessions(props.apiBase)` on turn-end** (when `isThinking()||isStreaming()` falls to false).
-- [ ] **Step 5:** `pnpm turbo typecheck build --filter=@mandarax/widget` → PASS. **Step 6: Commit**
+- [ ] **Step 5:** `pnpm turbo typecheck build --filter=@conciv/widget` → PASS. **Step 6: Commit**
 
 ```bash
 git add packages/widget/src/chat-panel.tsx
@@ -1002,7 +1002,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 - [ ] **Step 1: Modal** — replace the foundation's static label/`SessionInfoCard` trigger in `pw-chat-head` with `<SessionSelector variant="pill" …>` fed by the modal's `sessionId` signal; `onSwitch` sets it; `onNew` mints a fresh uuid. Add ONE shell-level polite + assertive live region OUTSIDE any pane; pass its writer as `announce`.
 - [ ] **Step 2: Quick-terminal** — replace the per-pane label with `<SessionSelector variant="bar" …>` fed by the pane's `sessionId` signal; wire the pane's working signal into `busy` (thread `onWorkingChange`, today a no-op there). `lockedElsewhere(id) = sessions().find((s)=>s.id===id)?.running && id!==activeId()`.
 - [ ] **Step 3: Surface merge + invalidate** — each surface calls `mergeSurface(token, row)` from its `onSessionLabel` (so a just-born session shows as one row); call `invalidateSessions(apiBase)` on pane add/close.
-- [ ] **Step 4:** `pnpm turbo typecheck build --filter=@mandarax/widget` → PASS. **Step 5: Commit**
+- [ ] **Step 4:** `pnpm turbo typecheck build --filter=@conciv/widget` → PASS. **Step 5: Commit**
 
 ```bash
 git add packages/widget/src/widget-shell.tsx packages/widget/src/quick-terminal.tsx
@@ -1017,11 +1017,11 @@ The widget IT has no harness / `~/.claude`; list/origin/seed correctness is prov
 
 **Files:** Modify `packages/widget/test/widget.it.test.ts`.
 
-- [ ] **Step 1: Extend the scripted server** with a `/api/chat/sessions` branch returning two canned rows (one `origin:'mandarax'`, one `'external'`, distinct titles) and a `/api/chat/sessions/title` 200, and per-session `/api/chat/history` keyed by the `mandarax-session-id` header.
-- [ ] **Step 2: Write the IT (`browser.newPage()`):** open modal → selector shows both rows; the `origin:'mandarax'` row shows the marker, the `external` one does not; click a row → a `/history` fetch fires with the new header and the thread swaps; "+ New session" → greeting + divider; rename → optimistic title shows; Tab from trigger→search→rename→rows never leaves the dialog; two mounted selectors don't share an `aria-controls` id. `page.close()`.
+- [ ] **Step 1: Extend the scripted server** with a `/api/chat/sessions` branch returning two canned rows (one `origin:'conciv'`, one `'external'`, distinct titles) and a `/api/chat/sessions/title` 200, and per-session `/api/chat/history` keyed by the `conciv-session-id` header.
+- [ ] **Step 2: Write the IT (`browser.newPage()`):** open modal → selector shows both rows; the `origin:'conciv'` row shows the marker, the `external` one does not; click a row → a `/history` fetch fires with the new header and the thread swaps; "+ New session" → greeting + divider; rename → optimistic title shows; Tab from trigger→search→rename→rows never leaves the dialog; two mounted selectors don't share an `aria-controls` id. `page.close()`.
 - [ ] **Step 3: Run the red step first** (against the pre-selector bundle the new assertions must fail), then implement-side already done → run green.
 
-Run: `pnpm --filter @mandarax/widget exec vitest run test/widget.it.test.ts`
+Run: `pnpm --filter @conciv/widget exec vitest run test/widget.it.test.ts`
 Expected: PASS.
 
 - [ ] **Step 4: Commit**
@@ -1036,7 +1036,7 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ### Task B13: Full gate
 
 - [ ] **Step 1:** `pnpm turbo typecheck build test` → PASS across all packages.
-- [ ] **Step 2: Manual smoke** — on a repo with several Claude sessions: modal selector lists them with origin markers (mandarax vs terminal), recency groups; switch loads history; rename persists across reload; split a qt pane onto a different session → both stream in parallel (no 409); generative-UI (`mandarax ui`) from a qt pane renders in the right pane; reduced-motion honored.
+- [ ] **Step 2: Manual smoke** — on a repo with several Claude sessions: modal selector lists them with origin markers (conciv vs terminal), recency groups; switch loads history; rename persists across reload; split a qt pane onto a different session → both stream in parallel (no 409); generative-UI (`conciv ui`) from a qt pane renders in the right pane; reduced-motion honored.
 - [ ] **Step 3: Final commit (if smoke fixes)**
 
 ```bash
@@ -1051,8 +1051,8 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ## Self-review notes
 
 - **Spec coverage:** list (B2/B5/B7/B8), origin marker (B5 join + B8 row), switch (B10/B11), new (B10/B11), rename (B3/B5/B6/B8), per-session concurrency + canonical id (A6/A17/A18/A19), `sessionId` validation + path containment (B2/B5), discovered-session seed (A6), shared cache + invalidation + surface union (B7/B10/B11), a11y/animation/states (B8/B9/B10 against §5.5/§6/§7), tests (A17/A18/B2/B3/B4/B5/B12). Foundation scaffolding (header transport, lock, popover, label, localStorage) = referenced Phase A tasks 1–5/7–16.
-- **Canonical-id consistency:** lock + uiBus + usage all keyed by header id (A6/A17/A18); list joins via the `previewId` map (B5); `mandarax ui` routes by the env-injected header id (A17); `origin` = key≠value (B5). No uuid/token split remains.
+- **Canonical-id consistency:** lock + uiBus + usage all keyed by header id (A6/A17/A18); list joins via the `previewId` map (B5); `conciv ui` routes by the env-injected header id (A17); `origin` = key≠value (B5). No uuid/token split remains.
 - **Type consistency:** `HarnessSessionMeta`/`listSessions` (B1/B2); `ChatSessionMeta`/`ChatSessions`/`SessionId`/`RenameSessionSchema` (B1) used in B5/B6/B7/B8; `readLocks` (B4)→B5; `readTitle`/`writeTitle` (B3)→B5; `sessions()`/`status`/`mergeSurface`/`invalidateSessions`/`applyTitle` (B7)→B8/B10/B11; `sessions()`/`renameSession()` (B6)→B7/B8.
 - **Verified externals:** `useListCollection` `initialItems` is read once; update via `set()` + re-`filter()` (checked against `@ark-ui/solid@5.37.1` source) — B8 Step 1.
-- **Adaptation points (not placeholders):** B5/B12 test-server helpers (`getSessions`, `claudeHome` forwarding, header-aware `post`/`postChat`) extend the foundation's Task 7 helpers — read those first. B8's exhaustive body is specified by spec §5.2/§5.5/§6/§7. The A17 spawn-env change touches whatever module builds `childEnv` (search `MANDARAX_PORT`).
+- **Adaptation points (not placeholders):** B5/B12 test-server helpers (`getSessions`, `claudeHome` forwarding, header-aware `post`/`postChat`) extend the foundation's Task 7 helpers — read those first. B8's exhaustive body is specified by spec §5.2/§5.5/§6/§7. The A17 spawn-env change touches whatever module builds `childEnv` (search `CONCIV_PORT`).
 - **Dependency:** Phase A precedes Phase B; B-tasks assume header transport, per-session map/lock, `Popover`, `SessionInfoCard`, and per-pane `sessionId` from Phase A.

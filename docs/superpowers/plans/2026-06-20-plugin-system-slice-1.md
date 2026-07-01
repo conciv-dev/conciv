@@ -4,7 +4,7 @@
 
 **Goal:** Ship the working spine of the extension system: design tokens become a single TypeScript source that projects to CSS + types, the widget gains a runtime theme-override seam, and a client extension contract (`defineExtension(...).client(mx => ...)`) lets an extension set theme tokens and add a composer button — proven end-to-end in a real-browser IT.
 
-**Architecture:** Extensions are trusted, file-based TS modules. This slice builds only the client half and registers extensions through a browser global (`window.__MANDARAX__`) drained at mount; the unplugin discovery/jiti/HMR loader, the server half, and the catalog tooling are separate follow-up plans. `mx.ui.setTheme` writes a `:host` override `<style>` into the widget's open shadow root after the base tokens; `mx.registerComposerAction` feeds the existing shell registry, made reactive so post-mount registration renders.
+**Architecture:** Extensions are trusted, file-based TS modules. This slice builds only the client half and registers extensions through a browser global (`window.__CONCIV__`) drained at mount; the unplugin discovery/jiti/HMR loader, the server half, and the catalog tooling are separate follow-up plans. `mx.ui.setTheme` writes a `:host` override `<style>` into the widget's open shadow root after the base tokens; `mx.registerComposerAction` feeds the existing shell registry, made reactive so post-mount registration renders.
 
 **Tech Stack:** SolidJS, TypeScript (Node native strip-types), Vite (lib build → ESM + IIFE global), UnoCSS via PostCSS, Vitest + Playwright (real-browser ITs), shadow DOM.
 
@@ -29,9 +29,9 @@
 - `packages/ui-kit-system/src/index.tsx` **(modify)** — export `TOKENS`, `renderTokensCss`, token types.
 - `packages/ui-kit-system/test/tokens.test.ts` **(create)** — projection test (token in `TOKENS` ⇒ var in rendered CSS) + committed-file-matches-render guard.
 - `packages/widget/src/theme.ts` **(create)** — `applyThemeOverrides(root, partial)`: inject/update the `:host` override style in the shadow root.
-- `packages/widget/src/extension.ts` **(create)** — `defineExtension`, the client `mx` builder, `MandaraxExtension`/`ClientApi` types, the registration queue (`window.__MANDARAX__`).
+- `packages/widget/src/extension.ts` **(create)** — `defineExtension`, the client `mx` builder, `ConcivExtension`/`ClientApi` types, the registration queue (`window.__CONCIV__`).
 - `packages/widget/src/widget-shell.tsx` **(modify)** — back `composerActions` with a signal so post-mount registration is reactive.
-- `packages/widget/src/mount.tsx` **(modify)** — expose `window.__MANDARAX__`, drain queued extensions, apply their client halves (theme + actions) to the shell + shadow root.
+- `packages/widget/src/mount.tsx` **(modify)** — expose `window.__CONCIV__`, drain queued extensions, apply their client halves (theme + actions) to the shell + shadow root.
 - `packages/widget/test/extension.it.test.ts` **(create)** — real-browser IT: a page registers an extension (blue accent + a composer button); assert the FAB/composer reflect it.
 
 ---
@@ -86,7 +86,7 @@ describe('design tokens single-source', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @mandarax/ui-kit-system exec vitest run test/tokens.test.ts`
+Run: `pnpm --filter @conciv/ui-kit-system exec vitest run test/tokens.test.ts`
 Expected: FAIL — `Cannot find module '../src/tokens.js'`.
 
 - [ ] **Step 3: Create `tokens.ts`**
@@ -95,7 +95,7 @@ Port every current declaration from `tokens.css` verbatim (same names, same valu
 
 ```ts
 // packages/ui-kit-system/src/tokens.ts
-// Single source of truth for mandarax design tokens; renderTokensCss() projects this to tokens.css.
+// Single source of truth for conciv design tokens; renderTokensCss() projects this to tokens.css.
 export const TOKENS = {
   'pw-hue': {
     value: '328',
@@ -167,7 +167,7 @@ writeFileSync(out, renderTokensCss(TOKENS))
 
 Add to `packages/ui-kit-system/package.json` `scripts`: `"gen:tokens": "node scripts/gen-tokens.ts"`. Then run it.
 
-Run: `pnpm --filter @mandarax/ui-kit-system run gen:tokens`
+Run: `pnpm --filter @conciv/ui-kit-system run gen:tokens`
 Expected: `src/tokens.css` rewritten; `git diff src/tokens.css` shows only formatting-equivalent changes (the leading doc comment is dropped — acceptable, the file is now generated).
 
 - [ ] **Step 6: Export from index**
@@ -180,7 +180,7 @@ export {TOKENS, renderTokensCss, type ThemeTokenName, type ThemeTokens} from './
 
 - [ ] **Step 7: Run tests + typecheck**
 
-Run: `pnpm --filter @mandarax/ui-kit-system exec vitest run test/tokens.test.ts && pnpm turbo typecheck --filter=@mandarax/ui-kit-system`
+Run: `pnpm --filter @conciv/ui-kit-system exec vitest run test/tokens.test.ts && pnpm turbo typecheck --filter=@conciv/ui-kit-system`
 Expected: PASS (3 tests), typecheck clean.
 
 - [ ] **Step 8: Commit**
@@ -203,14 +203,14 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 **Interfaces:**
 
-- Consumes: `ThemeTokens`, `ThemeTokenName` from `@mandarax/ui-kit-system`.
-- Produces: `applyThemeOverrides(root: ShadowRoot | Document, overrides: ThemeTokens): void` — idempotent; maintains one `<style data-mandarax-theme>` element holding a `:host { --name: value; … }` rule (`:root` when applied to a Document), merging successive calls.
+- Consumes: `ThemeTokens`, `ThemeTokenName` from `@conciv/ui-kit-system`.
+- Produces: `applyThemeOverrides(root: ShadowRoot | Document, overrides: ThemeTokens): void` — idempotent; maintains one `<style data-conciv-theme>` element holding a `:host { --name: value; … }` rule (`:root` when applied to a Document), merging successive calls.
 
 - [ ] **Step 1: Write the implementation**
 
 ```ts
 // packages/widget/src/theme.ts
-import type {ThemeTokens, ThemeTokenName} from '@mandarax/ui-kit-system'
+import type {ThemeTokens, ThemeTokenName} from '@conciv/ui-kit-system'
 
 const merged: ThemeTokens = {}
 
@@ -221,10 +221,10 @@ export function applyThemeOverrides(root: ShadowRoot | Document, overrides: Them
   const decls = (Object.keys(merged) as ThemeTokenName[]).map((name) => `  --${name}: ${merged[name]};`)
   const css = `${selector} {\n${decls.join('\n')}\n}`
   const host = root instanceof Document ? root.head : root
-  const existing = host.querySelector('style[data-mandarax-theme]')
+  const existing = host.querySelector('style[data-conciv-theme]')
   const style = existing ?? root.ownerDocument!.createElement('style')
   if (!existing) {
-    style.setAttribute('data-mandarax-theme', '')
+    style.setAttribute('data-conciv-theme', '')
     host.appendChild(style)
   }
   style.textContent = css
@@ -235,7 +235,7 @@ Note: `ShadowRoot.ownerDocument` is non-null in browsers; the `!` is correct her
 
 - [ ] **Step 2: Typecheck**
 
-Run: `pnpm turbo typecheck --filter=@mandarax/widget`
+Run: `pnpm turbo typecheck --filter=@conciv/widget`
 Expected: PASS (no consumers yet; this just compiles).
 
 - [ ] **Step 3: Commit**
@@ -287,12 +287,12 @@ Then in `mount(rootEl)` change the prop from `composerActions={() => composerAct
 
 - [ ] **Step 2: Typecheck**
 
-Run: `pnpm turbo typecheck --filter=@mandarax/widget`
+Run: `pnpm turbo typecheck --filter=@conciv/widget`
 Expected: PASS.
 
 - [ ] **Step 3: Build the widget and run the existing widget IT (regression guard)**
 
-Run: `pnpm turbo build --filter=@mandarax/widget && pnpm --filter @mandarax/widget exec vitest run test/widget.it.test.ts`
+Run: `pnpm turbo build --filter=@conciv/widget && pnpm --filter @conciv/widget exec vitest run test/widget.it.test.ts`
 Expected: PASS — the existing composer actions (element picker, new session, compact) still render and work.
 
 - [ ] **Step 4: Commit**
@@ -315,12 +315,12 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 **Interfaces:**
 
-- Consumes: `ThemeTokens` (`@mandarax/ui-kit-system`), `ComposerActionDef` (`./widget-shell.js`), `applyThemeOverrides` (`./theme.js`).
+- Consumes: `ThemeTokens` (`@conciv/ui-kit-system`), `ComposerActionDef` (`./widget-shell.js`), `applyThemeOverrides` (`./theme.js`).
 - Produces:
   - `type ClientApi = { ui: {setTheme: (t: ThemeTokens) => void}; registerComposerAction: (def: ComposerActionDef) => void }`
-  - `type MandaraxExtension = { id: string; client?: (mx: ClientApi) => void; server?: (mx: unknown) => void }`
-  - `defineExtension(meta: {id: string}): {client: (fn) => …; server: (fn) => …}` — chainable builder returning a `MandaraxExtension`; each of `.client`/`.server` stores its function and returns the same object so calls compose.
-  - `installExtensionGlobal(applyClient: (ext: MandaraxExtension) => void): void` — defines `window.__MANDARAX__ = { use }`, drains any pre-seeded `window.__MANDARAX__.queue`, and applies every future `use(ext)` live.
+  - `type ConcivExtension = { id: string; client?: (mx: ClientApi) => void; server?: (mx: unknown) => void }`
+  - `defineExtension(meta: {id: string}): {client: (fn) => …; server: (fn) => …}` — chainable builder returning a `ConcivExtension`; each of `.client`/`.server` stores its function and returns the same object so calls compose.
+  - `installExtensionGlobal(applyClient: (ext: ConcivExtension) => void): void` — defines `window.__CONCIV__ = { use }`, drains any pre-seeded `window.__CONCIV__.queue`, and applies every future `use(ext)` live.
 - Side effect: `mount.tsx` builds a `ClientApi` bound to the live shell + shadow root and registers it via `installExtensionGlobal`.
 
 - [ ] **Step 1: Write the extension module**
@@ -329,7 +329,7 @@ The builder keeps the registered functions on `clientFn`/`serverFn` (distinct fr
 
 ```ts
 // packages/widget/src/extension.ts
-import type {ThemeTokens} from '@mandarax/ui-kit-system'
+import type {ThemeTokens} from '@conciv/ui-kit-system'
 import type {ComposerActionDef} from './widget-shell.js'
 
 export type ClientApi = {
@@ -337,13 +337,13 @@ export type ClientApi = {
   registerComposerAction: (def: ComposerActionDef) => void
 }
 
-export type MandaraxExtension = {
+export type ConcivExtension = {
   id: string
   clientFn?: (mx: ClientApi) => void
   serverFn?: (mx: unknown) => void
 }
 
-export type ExtensionBuilder = MandaraxExtension & {
+export type ExtensionBuilder = ConcivExtension & {
   client: (fn: (mx: ClientApi) => void) => ExtensionBuilder
   server: (fn: (mx: unknown) => void) => ExtensionBuilder
 }
@@ -363,18 +363,18 @@ export function defineExtension(meta: {id: string}): ExtensionBuilder {
   return builder
 }
 
-type GlobalApi = {use: (ext: MandaraxExtension) => void; queue?: MandaraxExtension[]}
+type GlobalApi = {use: (ext: ConcivExtension) => void; queue?: ConcivExtension[]}
 
 declare global {
   interface Window {
-    __MANDARAX__?: GlobalApi
+    __CONCIV__?: GlobalApi
   }
 }
 
-// Define window.__MANDARAX__.use, drain anything pre-seeded, and apply each future use() live.
-export function installExtensionGlobal(applyClient: (ext: MandaraxExtension) => void): void {
-  const pending = window.__MANDARAX__?.queue ?? []
-  window.__MANDARAX__ = {use: applyClient}
+// Define window.__CONCIV__.use, drain anything pre-seeded, and apply each future use() live.
+export function installExtensionGlobal(applyClient: (ext: ConcivExtension) => void): void {
+  const pending = window.__CONCIV__?.queue ?? []
+  window.__CONCIV__ = {use: applyClient}
   for (const ext of pending) applyClient(ext)
 }
 ```
@@ -385,7 +385,7 @@ In `packages/widget/src/mount.tsx`: import the new module + `applyThemeOverrides
 
 ```ts
 import {applyThemeOverrides} from './theme.js'
-import {installExtensionGlobal, type ClientApi, type MandaraxExtension} from './extension.js'
+import {installExtensionGlobal, type ClientApi, type ConcivExtension} from './extension.js'
 ```
 
 Then, inside the `.then((models) => { … })` block, immediately after `shell.mount(root)` (currently line 76) and before `initPageBus(...)`, insert:
@@ -395,19 +395,19 @@ const clientApi: ClientApi = {
   ui: {setTheme: (tokens) => applyThemeOverrides(root, tokens)},
   registerComposerAction: (def) => shell.registerComposerAction(def),
 }
-installExtensionGlobal((ext: MandaraxExtension) => ext.clientFn?.(clientApi))
+installExtensionGlobal((ext: ConcivExtension) => ext.clientFn?.(clientApi))
 ```
 
 - [ ] **Step 3: Typecheck**
 
-Run: `pnpm turbo typecheck --filter=@mandarax/widget`
+Run: `pnpm turbo typecheck --filter=@conciv/widget`
 Expected: PASS.
 
 - [ ] **Step 4: Commit**
 
 ```bash
 git add packages/widget/src/extension.ts packages/widget/src/mount.tsx
-git commit -m "feat(widget): client extension contract + window.__MANDARAX__ registration
+git commit -m "feat(widget): client extension contract + window.__CONCIV__ registration
 
 Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 ```
@@ -422,15 +422,15 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 **Interfaces:**
 
-- Consumes: the built global bundle `dist/mandarax-widget.global.js` (exposes `window.__MANDARAX__`), the same scripted-server pattern as `widget.it.test.ts`.
+- Consumes: the built global bundle `dist/conciv-widget.global.js` (exposes `window.__CONCIV__`), the same scripted-server pattern as `widget.it.test.ts`.
 
-This IT serves a page that, after the widget bundle loads, registers an extension via `window.__MANDARAX__.use(...)`. The extension factory is authored inline in browser-evaluated JS (the test page), since the IT drives the real bundle — it does not import `defineExtension` in Node. The extension object is a plain `{id, clientFn}` (the wire shape `use` consumes); this proves the runtime contract without needing the builder in the page.
+This IT serves a page that, after the widget bundle loads, registers an extension via `window.__CONCIV__.use(...)`. The extension factory is authored inline in browser-evaluated JS (the test page), since the IT drives the real bundle — it does not import `defineExtension` in Node. The extension object is a plain `{id, clientFn}` (the wire shape `use` consumes); this proves the runtime contract without needing the builder in the page.
 
 - [ ] **Step 1: Write the failing test**
 
 ```ts
 // packages/widget/test/extension.it.test.ts
-// The widget driven in a REAL browser; a page registers an extension via window.__MANDARAX__ and we
+// The widget driven in a REAL browser; a page registers an extension via window.__CONCIV__ and we
 // assert the theme override + the added composer button take effect. Real bundle, real browser.
 import fs from 'node:fs'
 import path from 'node:path'
@@ -441,16 +441,16 @@ import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {chromium, type Browser} from 'playwright'
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
-const widgetBundle = fs.readFileSync(path.join(dirname, '../dist/mandarax-widget.global.js'), 'utf8')
+const widgetBundle = fs.readFileSync(path.join(dirname, '../dist/conciv-widget.global.js'), 'utf8')
 
-// Register an extension BEFORE the widget bundle runs by seeding window.__MANDARAX__.queue; the
+// Register an extension BEFORE the widget bundle runs by seeding window.__CONCIV__.queue; the
 // bundle's installExtensionGlobal drains it on mount. clientFn sets a blue accent and adds a button.
 function pageHtml(): string {
   return `<!doctype html><html><head>
     <meta name="pw-api-base" content="">
     <meta name="pw-widget" content='{"quickTerminal":false}'>
     <script>
-      window.__MANDARAX__ = { queue: [ {
+      window.__CONCIV__ = { queue: [ {
         id: 'acme',
         clientFn: function (mx) {
           mx.ui.setTheme({ 'pw-accent': 'rgb(37, 99, 235)' })
@@ -483,11 +483,11 @@ describe('widget extensions (it) — real browser', () => {
     server = createServer((req: IncomingMessage, res: ServerResponse) => {
       const url = req.url ?? ''
       if (url.startsWith('/api/chat/session/resolve') && req.method === 'POST') {
-        return writeJson(res, {sessionId: 'mandarax_new_1'})
+        return writeJson(res, {sessionId: 'conciv_new_1'})
       }
       if (url.startsWith('/api/chat/session') && !url.startsWith('/api/chat/sessions')) {
         return writeJson(res, {
-          sessionId: 'mandarax_new_1',
+          sessionId: 'conciv_new_1',
           harnessSessionId: null,
           name: null,
           origin: 'chat',
@@ -531,7 +531,7 @@ describe('widget extensions (it) — real browser', () => {
     const page = await browser.newPage()
     await page.goto(state.base)
 
-    const fab = page.getByRole('button', {name: 'Open mandarax chat'})
+    const fab = page.getByRole('button', {name: 'Open conciv chat'})
     await fab.waitFor({state: 'visible'})
 
     // The theme override set --pw-accent on :host; the FAB's text color reads from it.
@@ -549,17 +549,17 @@ describe('widget extensions (it) — real browser', () => {
 
 - [ ] **Step 2: Build the widget so the IT loads the latest bundle**
 
-Run: `pnpm turbo build --filter=@mandarax/widget`
-Expected: `dist/mandarax-widget.global.js` rebuilt with the extension global.
+Run: `pnpm turbo build --filter=@conciv/widget`
+Expected: `dist/conciv-widget.global.js` rebuilt with the extension global.
 
 - [ ] **Step 3: Run the IT to verify it passes**
 
-Run: `pnpm --filter @mandarax/widget exec vitest run test/extension.it.test.ts`
+Run: `pnpm --filter @conciv/widget exec vitest run test/extension.it.test.ts`
 Expected: PASS — accent is `rgb(37, 99, 235)`, the Deploy button is visible.
 
 - [ ] **Step 4: Run the full widget test suite (regression)**
 
-Run: `pnpm --filter @mandarax/widget exec vitest run`
+Run: `pnpm --filter @conciv/widget exec vitest run`
 Expected: PASS — the pre-existing ITs still pass.
 
 - [ ] **Step 5: Commit**
@@ -575,9 +575,9 @@ Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>"
 
 ## Follow-up plans (not in this slice)
 
-- **Plan 2 — Discovery & loading:** the unplugin scans `mandarax/extensions/*`, jiti-loads `.server` halves, assembles `.client` halves into a vite virtual entry injected after the widget script, with HMR; `mandarax.config.ts` `extensions` + a `"mandarax"` package.json manifest key; precedence layering.
-- **Plan 3 — Server half + tools:** `toolDefinition` re-export, `mx.tools.<name>.server(...)` + `registerTool` wired into `makeEngineBooter`/`@mandarax/core start`, `before_provider_request` + `systemPrompt.append`, the two-sided event bus.
-- **Plan 4 — Catalog + legibility:** the live `mandarax_ui catalog/scaffold/validate` verbs (computed from `TOKENS` + the component/event registries), the `mandarax-extensions` skill, `examples/extensions/`.
+- **Plan 2 — Discovery & loading:** the unplugin scans `conciv/extensions/*`, jiti-loads `.server` halves, assembles `.client` halves into a vite virtual entry injected after the widget script, with HMR; `conciv.config.ts` `extensions` + a `"conciv"` package.json manifest key; precedence layering.
+- **Plan 3 — Server half + tools:** `toolDefinition` re-export, `mx.tools.<name>.server(...)` + `registerTool` wired into `makeEngineBooter`/`@conciv/core start`, `before_provider_request` + `systemPrompt.append`, the two-sided event bus.
+- **Plan 4 — Catalog + legibility:** the live `conciv_ui catalog/scaffold/validate` verbs (computed from `TOKENS` + the component/event registries), the `conciv-extensions` skill, `examples/extensions/`.
 - **Plan 5 — Reach tiers 2-3:** `ui.setWidget/setHeader/setFooter/setStatus` reactive store, `registerToolRenderer` (open registry over `tool-call.tsx`'s `Switch`), `ui.setComponent` override registry, more client events.
 
 ---

@@ -1,6 +1,6 @@
 import type {StreamChunk} from '@tanstack/ai'
-import {aguiCustomFor, aguiApprovalRequestedFor, type ApprovalRequest, type UiSpec} from '@mandarax/protocol/ui-types'
-import {aguiUsageFor, type UsageSnapshot} from '@mandarax/protocol/usage-types'
+import {aguiCustomFor, aguiApprovalRequestedFor, type ApprovalRequest, type UiSpec} from '@conciv/protocol/ui-types'
+import {aguiUsageFor, type UsageSnapshot} from '@conciv/protocol/usage-types'
 
 // Merges agent-emitted generative-UI specs (POST /api/chat/ui) onto the live chat stream as
 // AG-UI CUSTOM events. Channels are keyed by the canonical header id, so concurrent turns each

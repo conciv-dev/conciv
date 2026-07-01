@@ -1,2 +1,2 @@
-export {withMandarax, register, MANDARAX_DEFAULT_PORT} from './core/nextjs.js'
-export type {MandaraxConfig} from '@mandarax/protocol/config-types'
+export {withConciv, register, CONCIV_DEFAULT_PORT} from './core/nextjs.js'
+export type {ConcivConfig} from '@conciv/protocol/config-types'

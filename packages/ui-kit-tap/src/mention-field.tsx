@@ -5,7 +5,7 @@ import {Paragraph} from '@tiptap/extension-paragraph'
 import {Text} from '@tiptap/extension-text'
 import {HardBreak} from '@tiptap/extension-hard-break'
 import {Mention} from '@tiptap/extension-mention'
-import {Avatar} from '@mandarax/ui-kit-system'
+import {Avatar} from '@conciv/ui-kit-system'
 
 export type MentionItem = {id: string; label: string}
 export type MentionSegment = {type: 'text'; text: string} | {type: 'mention'; id: string; label: string}

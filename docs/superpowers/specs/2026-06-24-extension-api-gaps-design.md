@@ -6,15 +6,15 @@ Supersedes the API-gap portions of `2026-06-23-test-runner-extension-and-api-gap
 
 ## Hard invariant (read first)
 
-mandarax is a **permanent dev-only plugin** (`apply:'serve'`). The consuming app's production bundle must contain **zero mandarax code** — no widget, no extensions, no built-ins. There is no production mount path and never will be. Nothing in this design may introduce an artifact that could be tree-shaken into a consumer's prod build; all extension delivery wires only through the dev-only plugin's serve path.
+conciv is a **permanent dev-only plugin** (`apply:'serve'`). The consuming app's production bundle must contain **zero conciv code** — no widget, no extensions, no built-ins. There is no production mount path and never will be. Nothing in this design may introduce an artifact that could be tree-shaken into a consumer's prod build; all extension delivery wires only through the dev-only plugin's serve path.
 
 ## Goal
 
-Grow the generic `@mandarax/extension` contract by the abilities a real, full-featured extension needs but cannot express today: a server factory that owns namespaced HTTP routes and a cleanup, injected context into tool `execute`, an argument into the client factory, and typed per-extension config. Prove all of it end to end against one throwaway fixture extension.
+Grow the generic `@conciv/extension` contract by the abilities a real, full-featured extension needs but cannot express today: a server factory that owns namespaced HTTP routes and a cleanup, injected context into tool `execute`, an argument into the client factory, and typed per-extension config. Prove all of it end to end against one throwaway fixture extension.
 
 **In scope:** the generic API only. No test-runner file is touched.
 
-**Deferred to the migration spec:** moving the test-runner into its own extension, relocating runner-domain types out of `@mandarax/protocol`, deleting test-runner code from core/widget, and the runtime built-in manifest (there are zero built-ins until then). Slice 0 (consolidate onto the singular `@mandarax/extension`) and the catalog rewrite already landed.
+**Deferred to the migration spec:** moving the test-runner into its own extension, relocating runner-domain types out of `@conciv/protocol`, deleting test-runner code from core/widget, and the runtime built-in manifest (there are zero built-ins until then). Slice 0 (consolidate onto the singular `@conciv/extension`) and the catalog rewrite already landed.
 
 ## Current state (verified against shipped source)
 
@@ -65,13 +65,13 @@ No new framework, no exotic runtime.
 - **Isolation, not amputation.** Because `server.app` is its own `H3` instance, an extension's `.use(...)` middleware sees only its own routes — it can't observe core's requests or other extensions'. A full raw _parent_ handle would leak everything; a scoped sub-app does not.
 - **Origin guard pre-installed.** Core installs the same loopback origin/host guard `registerCors` uses onto the sub-app before handing it over, so a sub-app route can't escape the guard. SSE responses bypass `.use` header-injection but the guard's request-time `403` still fires; SSE routes use core's `sseStream` for the CORS response headers.
 - **ws guarded at the handshake.** ws upgrades never run `.use` middleware, so the origin guard also lives in the crossws `upgrade` hook (transport below).
-- **Type-only h3 in the contract.** `ServerApi.app: H3` is an `import type {H3}` in `@mandarax/extension` — erased at build, zero runtime in the browser bundle, honoring "h3 out" at runtime. ws-using extensions bring their own `h3`/`crossws` deps to call `defineWebSocketHandler`.
+- **Type-only h3 in the contract.** `ServerApi.app: H3` is an `import type {H3}` in `@conciv/extension` — erased at build, zero runtime in the browser bundle, honoring "h3 out" at runtime. ws-using extensions bring their own `h3`/`crossws` deps to call `defineWebSocketHandler`.
 
 `slug(name)`: lowercase, non-alphanumeric runs to `-`, trimmed. Extension-name uniqueness (we throw on duplicate tool _and_ extension names) prevents two names slugging to the same prefix.
 
 ### ws transport (built once in core)
 
-srvx `0.11.16` does not upgrade ws and h3's `defineWebSocketHandler` only attaches a `.crossws` hook bag to a `426` response, so core wires the upgrade itself, ONCE: after `serve(...)`, `attachWebSocket(server, app, originAllowed)` hangs a `crossws/adapters/node` adapter on srvx's underlying node `http.Server` (`server.node.server`), resolves the matched h3 route's ws hooks, and refuses the handshake when the `Origin` is not loopback/allowed. After this, every extension's `server.app.get('/ws', defineWebSocketHandler(...))` works with no per-extension transport code. `crossws` is declared in `@mandarax/core` (installed transitively today).
+srvx `0.11.16` does not upgrade ws and h3's `defineWebSocketHandler` only attaches a `.crossws` hook bag to a `426` response, so core wires the upgrade itself, ONCE: after `serve(...)`, `attachWebSocket(server, app, originAllowed)` hangs a `crossws/adapters/node` adapter on srvx's underlying node `http.Server` (`server.node.server`), resolves the matched h3 route's ws hooks, and refuses the handshake when the `Origin` is not loopback/allowed. After this, every extension's `server.app.get('/ws', defineWebSocketHandler(...))` works with no per-extension transport code. `crossws` is declared in `@conciv/core` (installed transitively today).
 
 ## Gap B — tools receive injected context (typed)
 
@@ -109,12 +109,12 @@ Two real fixes: pass the argument, and **capture the returned `dispose`** — to
 
 An extension declares a zod `configSchema`; the parsed value flows into the server and client factories. Users set values in their config with full type-checking. The type surface is **open** — each extension self-registers via declaration merging; core keeps no central list of config shapes.
 
-The anchor interface lives in `@mandarax/protocol` (every extension depends on protocol; `MandaraxConfig` is here, so no cycle):
+The anchor interface lives in `@conciv/protocol` (every extension depends on protocol; `ConcivConfig` is here, so no cycle):
 
 ```ts
-// @mandarax/protocol/config-types.ts
+// @conciv/protocol/config-types.ts
 export interface ExtensionConfigRegistry {} // extensions merge into it
-export interface MandaraxConfig {
+export interface ConcivConfig {
   // …existing fields…
   extensions?: {[Name in keyof ExtensionConfigRegistry]?: ExtensionConfigRegistry[Name]}
 }
@@ -122,10 +122,10 @@ export interface MandaraxConfig {
 
 `defineConfig` stays the plain function it is today; `extensions` types itself from whatever has merged in.
 
-The author registers with one derived line — no `z.input`, no name retyping. `RegisterExtension` (from `@mandarax/extension`) pulls the name literal + `z.input` of the schema off the builder:
+The author registers with one derived line — no `z.input`, no name retyping. `RegisterExtension` (from `@conciv/extension`) pulls the name literal + `z.input` of the schema off the builder:
 
 ```ts
-// @mandarax/extension
+// @conciv/extension
 export type RegisterExtension<E extends {name: string; configSchema?: z.ZodType}> = E extends {
   name: infer Name extends string
   configSchema: infer Schema extends z.ZodType
@@ -141,7 +141,7 @@ export const testRunnerConfig = z.object({
 })
 export const testRunnerExtension = defineExtension({name: 'test-runner', configSchema: testRunnerConfig /* … */})
 
-declare module '@mandarax/protocol/config-types' {
+declare module '@conciv/protocol/config-types' {
   interface ExtensionConfigRegistry extends RegisterExtension<typeof testRunnerExtension> {}
 }
 ```
@@ -194,23 +194,23 @@ const disposers = mounted.map((m) => m.dispose).filter(Boolean)
 
 ## Where the new code lives
 
-- `@mandarax/extension`: the `ServerApi`/`ServerResult`/`ClientApi` **types** (`H3` type-only, erased at build), `RegisterExtension`, the generic `defineExtension`/`defineTool` changes, `parseConfig`, the 4-arg builder.
-- `@mandarax/core`: the runtime `makeExtensionApp(parent, name, originGuard)` (guarded sub-`H3` mounted via `withBase`), the one-time `attachWebSocket` ws transport (crossws on srvx's node server), and the two-phase wiring in `engine`/`makeApp`/`mcp.ts`. h3 stays out of `@mandarax/extension` at runtime (type-only).
-- `@mandarax/protocol`: `ExtensionConfigRegistry` + `MandaraxConfig.extensions`.
+- `@conciv/extension`: the `ServerApi`/`ServerResult`/`ClientApi` **types** (`H3` type-only, erased at build), `RegisterExtension`, the generic `defineExtension`/`defineTool` changes, `parseConfig`, the 4-arg builder.
+- `@conciv/core`: the runtime `makeExtensionApp(parent, name, originGuard)` (guarded sub-`H3` mounted via `withBase`), the one-time `attachWebSocket` ws transport (crossws on srvx's node server), and the two-phase wiring in `engine`/`makeApp`/`mcp.ts`. h3 stays out of `@conciv/extension` at runtime (type-only).
+- `@conciv/protocol`: `ExtensionConfigRegistry` + `ConcivConfig.extensions`.
 - **No new package.** Built-ins do not exist in this pass; when they do (migration), their manifest array lives in the dev-only plugin layer, never anywhere a consumer prod bundle could reach.
 
 ### Package layout (convention, applied at migration)
 
-- `packages/extension/` → `@mandarax/extension` — the contract (singular). Stays.
+- `packages/extension/` → `@conciv/extension` — the contract (singular). Stays.
 - `packages/extensions/` → a **grouping folder, not a package** (the legacy plural package was deleted in Workstream C, freeing the name). It holds every built-in extension, one package each.
-- `packages/extensions/<name>/` → `@mandarax/extension-<name>` (e.g. `packages/extensions/test-runner/` → `@mandarax/extension-test-runner`). npm scopes are flat, so the nesting is filesystem-only; the package name is `@mandarax/extension-<name>`.
+- `packages/extensions/<name>/` → `@conciv/extension-<name>` (e.g. `packages/extensions/test-runner/` → `@conciv/extension-test-runner`). npm scopes are flat, so the nesting is filesystem-only; the package name is `@conciv/extension-<name>`.
 - `pnpm-workspace.yaml` gains `packages/extensions/*` (today's `packages/*` harmlessly ignores the folder, which has no `package.json`).
 
 None of this lands in this pass — recorded so the migration follows it.
 
 ## Delivery — rides the landed split, no queue
 
-The split already deleted `installExtensionGlobal` / `__MANDARAX__.queue`. The fixture rides the existing arrays: server `start({extensions: [...]})`, client `mountWidget([fixture])` (the widget browser IT already mounts fixtures this way). Gap C needs no new delivery path.
+The split already deleted `installExtensionGlobal` / `__CONCIV__.queue`. The fixture rides the existing arrays: server `start({extensions: [...]})`, client `mountWidget([fixture])` (the widget browser IT already mounts fixtures this way). Gap C needs no new delivery path.
 
 ## Builder generics
 

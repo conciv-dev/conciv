@@ -1,17 +1,17 @@
 {
-  "name": "@mandarax/grab",
+  "name": "@conciv/grab",
   "version": "0.0.0",
-  "description": "The mandarax element-grab contract: the grab data types (Grab/StagedGrab/ElementSnapshot/ElementSource) and the GrabApi capability surface shared by the widget and the extension contract.",
+  "description": "The conciv element-grab contract: the grab data types (Grab/StagedGrab/ElementSnapshot/ElementSource) and the GrabApi capability surface shared by the widget and the extension contract.",
   "keywords": [
-    "grab",
-    "mandarax"
+    "conciv",
+    "grab"
   ],
-  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/grab#readme",
-  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
+  "homepage": "https://github.com/conciv-dev/conciv/tree/main/packages/grab#readme",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mandarax-dev/mandarax.git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
     "directory": "packages/grab"
   },
   "files": [

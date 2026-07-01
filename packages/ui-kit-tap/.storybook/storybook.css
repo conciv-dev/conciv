@@ -1,5 +1,5 @@
 @import '@unocss/reset/tailwind.css';
-@import '@mandarax/ui-kit-system/tokens.css';
+@import '@conciv/ui-kit-system/tokens.css';
 @unocss all;
 
 @media (prefers-reduced-motion: reduce) {

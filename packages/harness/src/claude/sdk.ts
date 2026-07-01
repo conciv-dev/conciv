@@ -1,9 +1,9 @@
 import {query, type Query, type SDKMessage, type SDKUserMessage, type Options} from '@anthropic-ai/claude-agent-sdk'
 import type {StreamChunk} from '@tanstack/ai'
-import type {HarnessRun, HarnessRunContext, HarnessTurn} from '@mandarax/protocol/harness-types'
+import type {HarnessRun, HarnessRunContext, HarnessTurn} from '@conciv/protocol/harness-types'
 import {imageRefs, mcpServerConfig} from './args.js'
 import {claudeMessagesToAgui} from './decode.js'
-import {MANDARAX_PLUGIN_DIR} from './plugin-dir.js'
+import {CONCIV_PLUGIN_DIR} from './plugin-dir.js'
 
 const IDLE_EVICT_MS = 5 * 60 * 1000
 
@@ -78,13 +78,13 @@ function buildOptions(turn: HarnessTurn, ctxRef: CtxRef): Options {
       const decision = await ctxRef.ctx.decide(toolName, input, toolUseID)
       return decision === 'allow'
         ? {behavior: 'allow', updatedInput: input}
-        : {behavior: 'deny', message: 'Denied by the user (mandarax chat gate)'}
+        : {behavior: 'deny', message: 'Denied by the user (conciv chat gate)'}
     },
   }
   if (turn.systemPrompt) options.systemPrompt = {type: 'preset', preset: 'claude_code', append: turn.systemPrompt}
   if (turn.model) options.model = turn.model
   if (turn.mcpUrl) options.mcpServers = mcpServerConfig(turn.mcpUrl, turn.sessionId)
-  if (MANDARAX_PLUGIN_DIR) options.plugins = [{type: 'local', path: MANDARAX_PLUGIN_DIR}]
+  if (CONCIV_PLUGIN_DIR) options.plugins = [{type: 'local', path: CONCIV_PLUGIN_DIR}]
   if (turn.resumeSessionId) options.resume = turn.resumeSessionId
   return options
 }

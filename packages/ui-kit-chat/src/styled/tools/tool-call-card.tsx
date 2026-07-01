@@ -1,6 +1,6 @@
 import {Show, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
-import type {ToolCardEntry, ToolCardProps, ToolUIComponent} from '@mandarax/protocol/tool-view-types'
+import type {ToolCardEntry, ToolCardProps, ToolUIComponent} from '@conciv/protocol/tool-view-types'
 import {ToolFallback} from '../tool-fallback.js'
 import {ToolDurationProvider} from '../../primitives/tools/tool-duration.js'
 import {PermissionCard} from './permission-card.js'

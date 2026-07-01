@@ -2,7 +2,7 @@ import {createContext, createMemo, Index, Match, Show, Switch, useContext, type 
 import {Dynamic} from 'solid-js/web'
 import {ArrowDown, Brain, FilePen, FileText, List, Search, Terminal, Wrench} from 'lucide-solid'
 import type {MessagePart, ToolCallPart} from '@tanstack/ai-client'
-import type {ToolCardEntry, ToolCardProps, ToolUIComponent} from '@mandarax/protocol/tool-view-types'
+import type {ToolCardEntry, ToolCardProps, ToolUIComponent} from '@conciv/protocol/tool-view-types'
 import {useThread} from '../store/chat-context.js'
 import {useToolCtx} from '../store/tool-context.js'
 import {Thread as ThreadPrimitive} from '../primitives/thread/thread.js'

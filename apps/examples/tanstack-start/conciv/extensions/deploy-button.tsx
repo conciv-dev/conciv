@@ -1,7 +1,7 @@
 import {z} from 'zod'
-import {defineExtension, defineTool} from '@mandarax/extension'
+import {defineExtension, defineTool} from '@conciv/extension'
 
-// Plain Solid JSX — the mandarax plugin compiles mandarax/extensions/** as a Solid zone, even inside
+// Plain Solid JSX — the conciv plugin compiles conciv/extensions/** as a Solid zone, even inside
 // this React host app. The Component branches on useSlot(): a composer button + a status line.
 const RocketIcon = (props: {class?: string}) => (
   <svg

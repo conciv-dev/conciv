@@ -1,5 +1,5 @@
 import {For, Show, type JSX} from 'solid-js'
-import {Avatar as AvatarBase, Menu as MenuBase, Tabs as TabsBase, Tooltip as TooltipBase} from '@mandarax/ui-kit-system'
+import {Avatar as AvatarBase, Menu as MenuBase, Tabs as TabsBase, Tooltip as TooltipBase} from '@conciv/ui-kit-system'
 
 // Whiteboard-local thin wrappers over the shared unstyled compound primitives. They hold the comment
 // UI's opinionated shapes (initials avatar, icon tooltip-button, virtual-anchor popover) that are too

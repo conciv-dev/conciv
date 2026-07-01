@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
 import ts from 'typescript'
-import {TOKENS} from '@mandarax/ui-kit-system/tokens'
+import {TOKENS} from '@conciv/ui-kit-system/tokens'
 import {buildCatalog, scaffold, validateSource, type ScaffoldKind} from '../src/catalog.js'
 
 describe('extension catalog (new contract projection)', () => {
@@ -49,7 +49,7 @@ describe('extension catalog (new contract projection)', () => {
   })
 
   it('validate flags an unknown theme token name', () => {
-    const bad = `import {defineExtension} from '@mandarax/extension'
+    const bad = `import {defineExtension} from '@conciv/extension'
 export default defineExtension({name: 'x', theme: {'pw-not-real': 'red'}})`
     const res = validateSource(bad)
     expect(res.ok).toBe(false)
@@ -57,7 +57,7 @@ export default defineExtension({name: 'x', theme: {'pw-not-real': 'red'}})`
   })
 
   it('validate passes a well-formed theme extension', () => {
-    const good = `import {defineExtension} from '@mandarax/extension'
+    const good = `import {defineExtension} from '@conciv/extension'
 export default defineExtension({name: 'x', theme: {'pw-accent': 'blue'}})`
     expect(validateSource(good).ok).toBe(true)
   })

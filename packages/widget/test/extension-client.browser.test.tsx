@@ -3,9 +3,9 @@ import {render} from 'solid-js/web'
 import {createSignal} from 'solid-js'
 import {page} from 'vitest/browser'
 import {ChatPanel} from '../src/chat/chat-panel.js'
-import {defineClient, type SessionClient} from '@mandarax/api-client'
-import {useClientApi} from '@mandarax/extension'
-import {SessionId} from '@mandarax/protocol/chat-types'
+import {defineClient, type SessionClient} from '@conciv/api-client'
+import {useClientApi} from '@conciv/extension'
+import {SessionId} from '@conciv/protocol/chat-types'
 import {sampleExtension, sampleClientProbe} from './fixtures/sample-extension.js'
 import {buildInstances} from './helpers/instances.js'
 import type {ExtensionInstance} from '../src/extension/extension-slots.js'
@@ -94,8 +94,8 @@ describe('extension .client() lifecycle (real browser)', () => {
   })
 
   it('the active chat panel drives the page ClientApi active session, and switching re-points it', async () => {
-    const first = SessionId.parse('mandarax_session_one')
-    const second = SessionId.parse('mandarax_session_two')
+    const first = SessionId.parse('conciv_session_one')
+    const second = SessionId.parse('conciv_session_two')
     const [activeSession, setActiveSession] = createSignal<string | null>(null)
     const client = defineClient({apiBase: API_BASE})
     client.setSessionId(first)

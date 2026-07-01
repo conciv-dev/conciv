@@ -53,7 +53,7 @@ const snapshot = defineCommand({
 })
 
 const main = defineCommand({
-  meta: {name: 'mandarax-publish', description: 'Release tooling for the aidx monorepo'},
+  meta: {name: 'conciv-publish', description: 'Release tooling for the aidx monorepo'},
   subCommands: {version, check, release, snapshot},
 })
 

@@ -1,10 +1,10 @@
-import type {WidgetConfig} from '@mandarax/protocol/config-types'
+import type {WidgetConfig} from '@conciv/protocol/config-types'
 
 export type HtmlTag = {tag: string; attrs: Record<string, string | boolean>; injectTo: 'head'}
 
 // The route the plugin's dev server serves the compiled extensions entry at (kept in sync with the
 // plugin's EXTENSIONS_ROUTE; core can't import the plugin, so the convention is duplicated here).
-const EXTENSIONS_ROUTE = '/@mandarax/extensions.js'
+const EXTENSIONS_ROUTE = '/@conciv/extensions.js'
 
 // <head> tags the bundler plugin injects: pw-api-base (cross-origin core server), the widget layout
 // config (pw-widget, JSON so nesting + hotkey arrays survive), + the widget script.

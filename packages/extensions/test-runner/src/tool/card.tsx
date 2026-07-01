@@ -1,8 +1,8 @@
 import {createEffect, createSignal, For, onCleanup, Show, type JSX} from 'solid-js'
-import {Collapsible} from '@mandarax/ui-kit-system'
+import {Collapsible} from '@conciv/ui-kit-system'
 import {ChevronRight, ExternalLink, FlaskConical, Sparkles} from 'lucide-solid'
-import {ToolCard, resultText} from '@mandarax/ui-kit-chat'
-import type {ToolCardProps, ToolViewCtx} from '@mandarax/protocol/tool-view-types'
+import {ToolCard, resultText} from '@conciv/ui-kit-chat'
+import type {ToolCardProps, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {
   TestEventSchema,
   TestRunResultSchema,

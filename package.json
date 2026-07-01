@@ -1,5 +1,5 @@
 {
-  "name": "@mandarax/monorepo",
+  "name": "@conciv/monorepo",
   "version": "0.0.0",
   "private": true,
   "description": "An embeddable AI dev agent for your running app — chat, page control, and live tests, injected into the page via a Vite plugin.",
@@ -16,17 +16,17 @@
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "changeset": "changeset",
-    "release:version": "mandarax-publish version",
-    "release:check": "mandarax-publish check",
-    "release": "mandarax-publish release",
-    "release:snapshot": "mandarax-publish snapshot"
+    "release:version": "conciv-publish version",
+    "release:check": "conciv-publish check",
+    "release": "conciv-publish release",
+    "release:snapshot": "conciv-publish snapshot"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.3",
     "@changesets/changelog-github": "^0.7.0",
     "@changesets/cli": "^2.31.0",
+    "@conciv/publish": "workspace:*",
     "@j178/prek": "^0.4.5",
-    "@mandarax/publish": "workspace:*",
     "@types/node": "^22.19.21",
     "@unocss/eslint-plugin": "66.7.2",
     "eslint-plugin-playwright": "2.10.4",

@@ -1,4 +1,4 @@
-import {installClientApi, type AnyExtension} from '@mandarax/extension'
+import {installClientApi, type AnyExtension} from '@conciv/extension'
 import {makeWidgetClientApi} from '../../src/page/client-api.js'
 import type {ExtensionInstance} from '../../src/extension/extension-slots.js'
 

@@ -10,35 +10,35 @@ Migrate the existing test-runner into the first fully in-house standalone extens
 
 The hard, non-negotiable goal:
 
-> **Zero test-runner code remains in `@mandarax/core` or `@mandarax/widget` (and none in `@mandarax/protocol`, `@mandarax/tools`, `@mandarax/tool-ui`, `@mandarax/harness`, `@mandarax/cli`).** Every part — the agent tool, the server routes, the SSE stream, the runner lifecycle, the system-prompt text, the result card UI, the CLI subcommand, and the user config — lives only in the test-runner extension. The test card still renders in chat, streams live, and exposes its Open / Fix actions. No feature regresses.
+> **Zero test-runner code remains in `@conciv/core` or `@conciv/widget` (and none in `@conciv/protocol`, `@conciv/tools`, `@conciv/tool-ui`, `@conciv/harness`, `@conciv/cli`).** Every part — the agent tool, the server routes, the SSE stream, the runner lifecycle, the system-prompt text, the result card UI, the CLI subcommand, and the user config — lives only in the test-runner extension. The test card still renders in chat, streams live, and exposes its Open / Fix actions. No feature regresses.
 
-Core stays thin: it knows nothing about test-running. It exposes a generic extension API (declare config, register namespaced HTTP routes, own server-side stateful objects, inject context into tools, open client transports, clean up). The test-runner extension owns the `@mandarax/test-runner` dependency.
+Core stays thin: it knows nothing about test-running. It exposes a generic extension API (declare config, register namespaced HTTP routes, own server-side stateful objects, inject context into tools, open client transports, clean up). The test-runner extension owns the `@conciv/test-runner` dependency.
 
 This validates the rewritten extension API against a real, full-featured extension: the parts that already fit (tool + card + prompt) prove the contract; the parts that do not fit define the API gaps below.
 
 ## What the test-runner is today (the surface to relocate)
 
-| Concern                                                                                                             | Current location                                                                                                                                                        |
-| ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Agent tool `mandarax_test` (`list`/`run`/`status`) def                                                              | `tools/src/test.ts`                                                                                                                                                     |
-| Tool → runner binding (`ctx.test`)                                                                                  | `core/src/app.ts:84`, `tools/src/server.ts` (`mandaraxTestServerTool`), `tools/src/types.ts:12` (`MandaraxToolContext.test`), `tools/src/defs.ts`, `tools/src/tools.ts` |
-| SSE stream + 5 routes (`/api/test-runner/*`)                                                                        | `core/src/api/test-runner/test-runner.ts`                                                                                                                               |
-| Runner lifecycle (`getRunner(cfg.testRunner).create(cwd)`)                                                          | `core/src/app.ts:3,8,47-51,56,76`; `core/package.json` dep on `@mandarax/test-runner`                                                                                   |
-| `testRunner` config field                                                                                           | `core/src/config.ts`, `protocol/src/config-types.ts`                                                                                                                    |
-| Runner-domain types (`TestEvent`, `TestRunResult`, `TestRunnerManager`, `TestRunnerAdapter`, `isRunnerUnavailable`) | `protocol/src/test-types.ts`, `protocol/src/runner-types.ts`                                                                                                            |
-| 422 mapping for runner-unavailable                                                                                  | `core/src/api/errors.ts:2,9` (imports `isRunnerUnavailable`)                                                                                                            |
-| Host seam `subscribeTestRunner?`                                                                                    | `protocol/src/tool-view-types.ts:23`, wired in `widget/src/chat-panel.tsx:459`                                                                                          |
-| Result card UI (live + static)                                                                                      | `tool-ui/src/cards/test.tsx` (real, in `builtinToolCards`); `widget/src/test-card.tsx` (browser-IT seam)                                                                |
-| Card registration                                                                                                   | `tool-ui/src/index.tsx` (`testTool`, `builtinToolCards`), `tool-ui/src/cards/test.stories.tsx`                                                                          |
-| Per-tool "now" title (`mandarax_test` → "Running tests")                                                            | `tool-ui/src/now-title.ts:65`                                                                                                                                           |
-| System-prompt line                                                                                                  | `harness/src/claude/system-prompt.ts:9`                                                                                                                                 |
-| **CLI subcommand `mandarax tools test list/status/run/open/stop`**                                                  | `cli/src/test.ts` (hits all 6 routes directly), registered in `cli/src/tools.ts:4,11`                                                                                   |
+| Concern                                                                                                             | Current location                                                                                                                                                    |
+| ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Agent tool `conciv_test` (`list`/`run`/`status`) def                                                                | `tools/src/test.ts`                                                                                                                                                 |
+| Tool → runner binding (`ctx.test`)                                                                                  | `core/src/app.ts:84`, `tools/src/server.ts` (`concivTestServerTool`), `tools/src/types.ts:12` (`ConcivToolContext.test`), `tools/src/defs.ts`, `tools/src/tools.ts` |
+| SSE stream + 5 routes (`/api/test-runner/*`)                                                                        | `core/src/api/test-runner/test-runner.ts`                                                                                                                           |
+| Runner lifecycle (`getRunner(cfg.testRunner).create(cwd)`)                                                          | `core/src/app.ts:3,8,47-51,56,76`; `core/package.json` dep on `@conciv/test-runner`                                                                                 |
+| `testRunner` config field                                                                                           | `core/src/config.ts`, `protocol/src/config-types.ts`                                                                                                                |
+| Runner-domain types (`TestEvent`, `TestRunResult`, `TestRunnerManager`, `TestRunnerAdapter`, `isRunnerUnavailable`) | `protocol/src/test-types.ts`, `protocol/src/runner-types.ts`                                                                                                        |
+| 422 mapping for runner-unavailable                                                                                  | `core/src/api/errors.ts:2,9` (imports `isRunnerUnavailable`)                                                                                                        |
+| Host seam `subscribeTestRunner?`                                                                                    | `protocol/src/tool-view-types.ts:23`, wired in `widget/src/chat-panel.tsx:459`                                                                                      |
+| Result card UI (live + static)                                                                                      | `tool-ui/src/cards/test.tsx` (real, in `builtinToolCards`); `widget/src/test-card.tsx` (browser-IT seam)                                                            |
+| Card registration                                                                                                   | `tool-ui/src/index.tsx` (`testTool`, `builtinToolCards`), `tool-ui/src/cards/test.stories.tsx`                                                                      |
+| Per-tool "now" title (`conciv_test` → "Running tests")                                                              | `tool-ui/src/now-title.ts:65`                                                                                                                                       |
+| System-prompt line                                                                                                  | `harness/src/claude/system-prompt.ts:9`                                                                                                                             |
+| **CLI subcommand `conciv tools test list/status/run/open/stop`**                                                    | `cli/src/test.ts` (hits all 6 routes directly), registered in `cli/src/tools.ts:4,11`                                                                               |
 
-`@mandarax/test-runner` (the runner adapters vitest/jest/node-test/playwright + the child driver) already is a standalone package. It stays; the extension depends on it. Its public API (`getRunner`, `TestRunnerManager`, the `ChildRunnerSpec` seam) is unchanged.
+`@conciv/test-runner` (the runner adapters vitest/jest/node-test/playwright + the child driver) already is a standalone package. It stays; the extension depends on it. Its public API (`getRunner`, `TestRunnerManager`, the `ChildRunnerSpec` seam) is unchanged.
 
 ## What already fits the API (validates the contract)
 
-- **Tool + card co-location:** `defineTool({name:'mandarax_test', inputSchema}).render(TestCard)`. `collectToolRenderers` registers the card by name; `mount.tsx:78` already spreads extension renderers ahead of built-ins (`[...collectToolRenderers(extensions()), ...builtinToolCards]`), so the extension card overrides any built-in by name.
+- **Tool + card co-location:** `defineTool({name:'conciv_test', inputSchema}).render(TestCard)`. `collectToolRenderers` registers the card by name; `mount.tsx:78` already spreads extension renderers ahead of built-ins (`[...collectToolRenderers(extensions()), ...builtinToolCards]`), so the extension card overrides any built-in by name.
 - **Server tool merge:** `collectServerContributions` merges the extension tool onto `/api/mcp` and drains `systemPrompt`.
 - **System prompt:** declarative `systemPrompt` field on `defineExtension` (kept declarative — see Gap 2).
 
@@ -82,7 +82,7 @@ function defineExtension<Schema extends z.ZodTypeAny = z.ZodNever, Tools extends
 // ConfigOf<Schema> = [Schema] extends [z.ZodNever] ? Record<never, never> : z.output<Schema>
 ```
 
-When `configSchema` is absent, `Config` defaults to `Record<never, never>` (not `never`), so `server.config` is `{}`. User config lives under `extensions['test-runner']` in the mandarax config; the host parses it with `schema.parse` (defaults applied) before invoking the factories. `cfg.testRunner` is **deleted** from core/protocol config.
+When `configSchema` is absent, `Config` defaults to `Record<never, never>` (not `never`), so `server.config` is `{}`. User config lives under `extensions['test-runner']` in the conciv config; the host parses it with `schema.parse` (defaults applied) before invoking the factories. `cfg.testRunner` is **deleted** from core/protocol config.
 
 ### Gap 2 — server factory: context in, namespaced routes out, cleanup return
 
@@ -120,7 +120,7 @@ A tool's `.server(execute)` gains a second argument: the context the owning exte
 
 ```ts
 const testTool = defineTool<typeof TestInput, {runner: TestRunnerManager}>({
-  name: 'mandarax_test',
+  name: 'conciv_test',
   description: 'Drive the live test runner: list tests, run a pattern, or check status.',
   inputSchema: TestInput, // z.object({action: z.enum([...]), pattern: z.string().optional()})
   nowTitle: 'Running tests',
@@ -144,7 +144,7 @@ Typing (corrected after review):
 
 Tools stay pure and unit-testable — dependencies are injected, not captured from a module singleton, and core never sees `runner`.
 
-`nowTitle` on `defineTool` lets the active-call title self-describe. `now-title.ts`'s `nowTitle(part)` signature changes to receive the matched tool entry (the dispatcher already has the tools array); `chat-panel.tsx` `activeCallTitle` threads it. This removes the `case 'mandarax_test'` from the central switch — the switch survives for the other built-in tools (retiring it fully is out of scope; `nowTitle` is the mechanism for later adoption).
+`nowTitle` on `defineTool` lets the active-call title self-describe. `now-title.ts`'s `nowTitle(part)` signature changes to receive the matched tool entry (the dispatcher already has the tools array); `chat-panel.tsx` `activeCallTitle` threads it. This removes the `case 'conciv_test'` from the central switch — the switch survives for the other built-in tools (retiring it fully is out of scope; `nowTitle` is the mechanism for later adoption).
 
 ### Gap 4 — client factory: context in, value + cleanup out
 
@@ -176,29 +176,29 @@ Lifecycle rules (the review's two real hazards):
 
 ## Type relocation — the dependency-cycle correction
 
-The runner-domain types **cannot move into the extension**: `@mandarax/test-runner` imports `TestEvent`/`TestRunResult`/`TestRunnerAdapter`/`TestRunnerManager`/`isRunnerUnavailable` from `@mandarax/protocol` pervasively (`driver.ts`, `registry.ts`, `child-protocol.ts`, every adapter), and the extension depends on `@mandarax/test-runner` — moving them to the extension inverts that into a cycle.
+The runner-domain types **cannot move into the extension**: `@conciv/test-runner` imports `TestEvent`/`TestRunResult`/`TestRunnerAdapter`/`TestRunnerManager`/`isRunnerUnavailable` from `@conciv/protocol` pervasively (`driver.ts`, `registry.ts`, `child-protocol.ts`, every adapter), and the extension depends on `@conciv/test-runner` — moving them to the extension inverts that into a cycle.
 
 Resolution:
 
-- **Runner-domain types + schemas move from `protocol` into `@mandarax/test-runner`** (its natural home; it already owns the runner contract). The runner package re-points its imports; the extension imports them from `@mandarax/test-runner`. Net: protocol sheds the runner domain, no cycle.
-- **The client-consumed schemas (`TestEvent`, `TestEventSchema`) must live in a pure, node-free entrypoint** of `@mandarax/test-runner` (e.g. `@mandarax/test-runner/events`), never the main export that pulls the child-spawn driver. This is mandatory for the strip transform (next section).
-- **`EditorOpenSchema`/`EditorOpen` are NOT test-runner** — they back the generic `mandarax_open` / `/api/editor/open` route that **stays in core**. They currently sit in `protocol/src/test-types.ts:11`. Carve them into a `protocol/src/editor-types.ts`; re-point `core/src/api/editor/editor.ts` and `widget/src/chat-panel.tsx`.
+- **Runner-domain types + schemas move from `protocol` into `@conciv/test-runner`** (its natural home; it already owns the runner contract). The runner package re-points its imports; the extension imports them from `@conciv/test-runner`. Net: protocol sheds the runner domain, no cycle.
+- **The client-consumed schemas (`TestEvent`, `TestEventSchema`) must live in a pure, node-free entrypoint** of `@conciv/test-runner` (e.g. `@conciv/test-runner/events`), never the main export that pulls the child-spawn driver. This is mandatory for the strip transform (next section).
+- **`EditorOpenSchema`/`EditorOpen` are NOT test-runner** — they back the generic `conciv_open` / `/api/editor/open` route that **stays in core**. They currently sit in `protocol/src/test-types.ts:11`. Carve them into a `protocol/src/editor-types.ts`; re-point `core/src/api/editor/editor.ts` and `widget/src/chat-panel.tsx`.
 - **`isRunnerUnavailable`/`runnerUnavailableError` move with the runner domain.** The 422 mapping currently in `core/src/api/errors.ts:9` (global handler) moves into the extension's route error handling — the `server.route` API maps a thrown runner-unavailable error to 422 within the extension's namespace, so core's global handler stops importing a runner symbol.
 
 ## Strip transform — client-safety (mandatory rules)
 
-The babel `.server`-strip pass only fails on a surviving top-level `node:*` import (`strip-server.ts:50`). `@mandarax/test-runner` and `h3` are **not** builtins, and the strip cannot see node imports reached transitively through them (base spec: transitive-util node imports are unsupported). So:
+The babel `.server`-strip pass only fails on a surviving top-level `node:*` import (`strip-server.ts:50`). `@conciv/test-runner` and `h3` are **not** builtins, and the strip cannot see node imports reached transitively through them (base spec: transitive-util node imports are unsupported). So:
 
-- The extension must import `getRunner` (and anything node) **only inside the `.server()` argument**, and import client schemas from the node-free `@mandarax/test-runner/events` entrypoint. A single `import {getRunner, TestEventSchema} from '@mandarax/test-runner'` would leave the import alive (because `TestEventSchema` is referenced client-side) and drag the node driver into the browser with **no build error**. Separate entrypoints prevent this.
-- The **Build IT is a hard CI gate**, not just a test: the emitted client chunk must contain no `@mandarax/test-runner` (main), `h3`, or `node:*` specifier; the server view must.
+- The extension must import `getRunner` (and anything node) **only inside the `.server()` argument**, and import client schemas from the node-free `@conciv/test-runner/events` entrypoint. A single `import {getRunner, TestEventSchema} from '@conciv/test-runner'` would leave the import alive (because `TestEventSchema` is referenced client-side) and drag the node driver into the browser with **no build error**. Separate entrypoints prevent this.
+- The **Build IT is a hard CI gate**, not just a test: the emitted client chunk must contain no `@conciv/test-runner` (main), `h3`, or `node:*` specifier; the server view must.
 
 ## Built-in pre-split build infrastructure (net-new, owned by a slice)
 
-The base spec's "built-ins ship pre-split via a `browser`/`node` conditional `exports` map" does not exist yet — neither `@mandarax/extension` nor `@mandarax/test-runner` has a `browser` condition, and the strip transform only runs over consumer source, not `node_modules`. The extension package must build two views: a babel-`stripServerHalf`-processed `dist/extension.browser.js` and the full `dist/extension.js`, wired via a `"browser"` export condition the widget bundler honors. This is owned explicitly by the package slice and proven by the Build IT.
+The base spec's "built-ins ship pre-split via a `browser`/`node` conditional `exports` map" does not exist yet — neither `@conciv/extension` nor `@conciv/test-runner` has a `browser` condition, and the strip transform only runs over consumer source, not `node_modules`. The extension package must build two views: a babel-`stripServerHalf`-processed `dist/extension.browser.js` and the full `dist/extension.js`, wired via a `"browser"` export condition the widget bundler honors. This is owned explicitly by the package slice and proven by the Build IT.
 
 ## The migrated extension package
 
-Package name **`@mandarax/extension-test-runner`** — this requires settling the existing lookalikes first: `packages/extension` (singular, the contract) and `packages/extensions` (plural, the legacy imperative catalog/discovery being removed by the base spec). The base spec already removes the plural package's contract; this work confirms `@mandarax/extension` (singular) is the one true contract package and adopts the convention that every built-in extension is `@mandarax/extension-<name>`. The naming decision is a prerequisite task, not an afterthought.
+Package name **`@conciv/extension-test-runner`** — this requires settling the existing lookalikes first: `packages/extension` (singular, the contract) and `packages/extensions` (plural, the legacy imperative catalog/discovery being removed by the base spec). The base spec already removes the plural package's contract; this work confirms `@conciv/extension` (singular) is the one true contract package and adopts the convention that every built-in extension is `@conciv/extension-<name>`. The naming decision is a prerequisite task, not an afterthought.
 
 Contents:
 
@@ -206,31 +206,31 @@ Contents:
 - `test-tool.ts` — `defineTool<…, {runner}>(...).server(execute).render(TestCard)`.
 - `test-card.tsx` + supporting components — `TestCard`/`TestResults` moved verbatim from `tool-ui/src/cards/test.tsx`, rewired to read `subscribeTests` + `openEditor` via `useContext`. Carries its own `parseJson` and `resultText` (or imports the latter from `tool-ui`).
 - `test.stories.tsx` — moved from tool-ui.
-- `cli.ts` (or contributes the CLI command) — the `mandarax tools test list/status/run/open/stop` subcommand, re-pointed to `/api/ext/test-runner/*`. **Behavior change to acknowledge:** these CLI commands now require the extension to be loaded; a clean-core install 404s them. (See Open items for whether the extension API exposes a CLI-contribution seam or the command ships with the extension package.)
+- `cli.ts` (or contributes the CLI command) — the `conciv tools test list/status/run/open/stop` subcommand, re-pointed to `/api/ext/test-runner/*`. **Behavior change to acknowledge:** these CLI commands now require the extension to be loaded; a clean-core install 404s them. (See Open items for whether the extension API exposes a CLI-contribution seam or the command ships with the extension package.)
 
-`openEditor` stays a generic host primitive (it backs `mandarax_open` and the file-read card too); the card reads it via `useContext`. It is NOT deleted from `ToolViewCtx`.
+`openEditor` stays a generic host primitive (it backs `conciv_open` and the file-read card too); the card reads it via `useContext`. It is NOT deleted from `ToolViewCtx`.
 
 ## Deletions (proving core/widget are clean)
 
-- `core/src/api/test-runner/` (whole dir) + its registration in `app.ts:76`, the `getRunner`/`requireRunner`/`TestRunnerAdapter` imports (`app.ts:3,8,47-51,56`), the `ctx.test` MCP branch (`app.ts:84-88`), and the `@mandarax/test-runner` dep in `core/package.json`.
+- `core/src/api/test-runner/` (whole dir) + its registration in `app.ts:76`, the `getRunner`/`requireRunner`/`TestRunnerAdapter` imports (`app.ts:3,8,47-51,56`), the `ctx.test` MCP branch (`app.ts:84-88`), and the `@conciv/test-runner` dep in `core/package.json`.
 - `isRunnerUnavailable` import + 422 mapping in `core/src/api/errors.ts:2,9` (moves into the extension).
 - `testRunner` field in `core/src/config.ts` + `protocol/src/config-types.ts`.
-- runner-domain types in `protocol/src/test-types.ts` + `protocol/src/runner-types.ts` (move to `@mandarax/test-runner`), the `tsdown.config.ts` entries and `package.json` export subpaths for them, **except** `EditorOpenSchema` (carved into `editor-types.ts`, stays).
+- runner-domain types in `protocol/src/test-types.ts` + `protocol/src/runner-types.ts` (move to `@conciv/test-runner`), the `tsdown.config.ts` entries and `package.json` export subpaths for them, **except** `EditorOpenSchema` (carved into `editor-types.ts`, stays).
 - `subscribeTestRunner?` from `protocol/src/tool-view-types.ts:23` and its wiring in `widget/src/chat-panel.tsx:459` (keep `openEditor`/`sendMessage`).
-- `tools/src/test.ts`, `mandaraxTestServerTool` + the `mandarax_test` entries in `tools/src/server.ts`/`defs.ts`/`tools.ts`, and `MandaraxToolContext.test` (`tools/src/types.ts:12`).
-- `tool-ui/src/cards/test.tsx`, `test.stories.tsx`, the `testTool`/`TestCard` exports + `builtinToolCards` entry in `tool-ui/src/index.tsx`, the `mandarax_test` case in `now-title.ts:65`.
-- `widget/src/test-card.tsx` and the `mountTestCardForTest` / `__MANDARAX_RENDER_TEST_CARD__` seam in `mount.tsx` (the browser IT moves to the extension and drives the real card).
+- `tools/src/test.ts`, `concivTestServerTool` + the `conciv_test` entries in `tools/src/server.ts`/`defs.ts`/`tools.ts`, and `ConcivToolContext.test` (`tools/src/types.ts:12`).
+- `tool-ui/src/cards/test.tsx`, `test.stories.tsx`, the `testTool`/`TestCard` exports + `builtinToolCards` entry in `tool-ui/src/index.tsx`, the `conciv_test` case in `now-title.ts:65`.
+- `widget/src/test-card.tsx` and the `mountTestCardForTest` / `__CONCIV_RENDER_TEST_CARD__` seam in `mount.tsx` (the browser IT moves to the extension and drives the real card).
 - the test-runner line in `harness/src/claude/system-prompt.ts:9`.
 - `cli/src/test.ts` + its registration in `cli/src/tools.ts:4,11` (moves to the extension).
-- Test cleanup (existing tests referencing relocated symbols): `core/test/api/test-runner/*`, `core/test/helpers/server.ts:68` (`testRunner:'vitest'`), `core/test/config.test.ts`, relevant `core/test/api/mcp` + `chat` ITs, `tools/test/test-tool.it.test.ts`, `widget/test/widget.it.test.ts` (the `__MANDARAX_RENDER_TEST_CARD__` driver), `protocol/test/define-runner.test.ts`, `cli/test/cli.it.test.ts:77`.
+- Test cleanup (existing tests referencing relocated symbols): `core/test/api/test-runner/*`, `core/test/helpers/server.ts:68` (`testRunner:'vitest'`), `core/test/config.test.ts`, relevant `core/test/api/mcp` + `chat` ITs, `tools/test/test-tool.it.test.ts`, `widget/test/widget.it.test.ts` (the `__CONCIV_RENDER_TEST_CARD__` driver), `protocol/test/define-runner.test.ts`, `cli/test/cli.it.test.ts:77`.
 
 ## Testing (real server, real browser, no mocks)
 
 - **Clean-core regression (the proof of the goal):** boot core with zero extensions — no `/api/ext/test-runner/*` (or legacy `/api/test-runner/*`) route exists, no `testRunner` config key is read, the `tool-view-types`/`tools`/`tool-ui` public surfaces contain no test-runner symbol, and a non-loopback `Origin` on an extension route is rejected 403.
-- **Node IT:** load the extension; `.server()` parses typed config; routes serve under `/api/ext/test-runner/*`; `mandarax_test` executes over `/api/mcp` against the injected `runner`; `dispose` calls `runner.stop()` on `engine.stop`.
+- **Node IT:** load the extension; `.server()` parses typed config; routes serve under `/api/ext/test-runner/*`; `conciv_test` executes over `/api/mcp` against the injected `runner`; `dispose` calls `runner.stop()` on `engine.stop`.
 - **Browser IT (moved from widget):** the live card subscribes via `.client()` SSE, renders streaming rows + spinner + collapse, run-end teardown keeps a later run from overwriting, Fix/Open actions fire, static render parses `TestRunResultSchema`; one panel rendering the card + a status-slot Component opens exactly one EventSource; HMR re-run does not duplicate it (`dispose` fires).
-- **Build IT (hard CI gate):** the extension's client chunk contains no `@mandarax/test-runner` main / `h3` / `node:*` import; the server view does.
-- **CLI IT:** with the extension loaded, `mandarax tools test run` (with `patterns`/`testNamePattern`/`failedOnly`) and `list?failed=1`/`status`/`open`/`stop` hit `/api/ext/test-runner/*` and round-trip; without the extension, the command reports a clean "not available" (not a raw 404 stack).
+- **Build IT (hard CI gate):** the extension's client chunk contains no `@conciv/test-runner` main / `h3` / `node:*` import; the server view does.
+- **CLI IT:** with the extension loaded, `conciv tools test run` (with `patterns`/`testNamePattern`/`failedOnly`) and `list?failed=1`/`status`/`open`/`stop` hit `/api/ext/test-runner/*` and round-trip; without the extension, the command reports a clean "not available" (not a raw 404 stack).
 - **Type tests:** `useContext(select)` narrows; the extension `context` is rejected at compile time if it omits a key a tool's declared `Ctx` requires.
 - **Story:** the moved `test.stories.tsx` renders static + live states.
 
@@ -240,13 +240,13 @@ Deletions must co-land with the removal of their last consumer; the `subscribeTe
 
 1. **API foundations (Gaps 1 + 3, server lifecycle).** `ExtensionBuilder<Config, Tools, ServerContext, ClientValue>` generics (drop the `as unknown as` cast), `defineTool<Schema, Ctx>`, `configSchema` on `defineExtension`, the two-phase server lifecycle in `engine`/`makeApp` (run `.server()` in the App phase, thread context into `mcp.ts` `execute(args, ctx)`, collect `dispose`), the namespaced `server.route` `{get, post, sse}` surface (sse = `sseStream`, namespace-enforced, registered after CORS). `nowTitle` on `defineTool` + `now-title.ts` threading. Unit + node IT against a fixture extension. No test-runner code touched yet.
 2. **Client factory context (Gap 4).** `.client(client => ...)` argument, per-panel single-run lifecycle, per-extension `value` merge into `ExtensionRuntimeContext`, tool-card subtree wrapped by the per-panel Provider. Browser IT against a fixture. `subscribeTestRunner` is **not** deleted here (its consumer still exists).
-3. **Protocol/type relocation.** Move runner-domain types + `isRunnerUnavailable` into `@mandarax/test-runner` (node-free `events` entrypoint for client schemas); carve `EditorOpenSchema` into `protocol/editor-types.ts`; re-point all importers. Settle the package-naming convention.
-4. **Atomic move + delete (the no-regression slice).** Create `@mandarax/extension-test-runner` (with pre-split build), move the tool/card/stories/CLI/route wiring/422-mapping into it, register it as a built-in, AND in the same change delete every core/widget/protocol/tools/tool-ui/cli/harness copy + `subscribeTestRunner` + the test files. Run the clean-core regression. This slice is where "no regressions" and "zero residue" are jointly proven; it must land as one coherent change.
+3. **Protocol/type relocation.** Move runner-domain types + `isRunnerUnavailable` into `@conciv/test-runner` (node-free `events` entrypoint for client schemas); carve `EditorOpenSchema` into `protocol/editor-types.ts`; re-point all importers. Settle the package-naming convention.
+4. **Atomic move + delete (the no-regression slice).** Create `@conciv/extension-test-runner` (with pre-split build), move the tool/card/stories/CLI/route wiring/422-mapping into it, register it as a built-in, AND in the same change delete every core/widget/protocol/tools/tool-ui/cli/harness copy + `subscribeTestRunner` + the test files. Run the clean-core regression. This slice is where "no regressions" and "zero residue" are jointly proven; it must land as one coherent change.
 5. **Authoring surface (folds into base-spec slice 5).** Update `catalog.ts` templates/`validateSource`, the scaffold, and `SKILL.md` to the new contract additions: `configSchema`, the `.server((input, ctx))` injected context, `nowTitle`, and `server.route`/`sse`. The agent-tool IT asserts the new surface.
 
 ## Open items (resolved during planning, not blocking design)
 
-1. Whether the extension API exposes a first-class **CLI-contribution seam** or built-in extensions just ship a CLI command file the CLI imports. (The test-runner needs `mandarax tools test`.)
+1. Whether the extension API exposes a first-class **CLI-contribution seam** or built-in extensions just ship a CLI command file the CLI imports. (The test-runner needs `conciv tools test`.)
 2. Exact `server.route` namespace prefix (`/api/ext/<name>/` proposed) and how the host derives `<name>` (extension `name` field, slugified).
 3. Whether per-extension config is a flat `extensions['name']` map or nested under a reserved key; align with the plugin discovery config in the base spec.
-4. Single home for runner-domain types: confirmed `@mandarax/test-runner` (with a node-free `events` subpath) over the extension, to avoid the cycle.
+4. Single home for runner-domain types: confirmed `@conciv/test-runner` (with a node-free `events` subpath) over the extension, to avoid the cycle.

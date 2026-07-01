@@ -5,7 +5,7 @@ Status: Approved for planning
 
 ## Summary
 
-Add image input to the mandarax chat composer: drag-and-drop, clipboard paste, an
+Add image input to the conciv chat composer: drag-and-drop, clipboard paste, an
 upload button, and multiple images per message. The whole feature is gated on a
 per-harness capability — a harness that cannot ingest images shows none of the
 new UI, and the composer behaves exactly as it does today.
@@ -94,10 +94,10 @@ plus its delivery path.
 
 ### Configurable limits
 
-`packages/protocol/src/config-types.ts` — extend `MandaraxConfig`:
+`packages/protocol/src/config-types.ts` — extend `ConcivConfig`:
 
 ```ts
-export interface MandaraxConfig {
+export interface ConcivConfig {
   // …existing…
   chat?: {
     images?: {
@@ -120,7 +120,7 @@ export const IMAGE_DEFAULTS = {
 } as const
 ```
 
-`@mandarax/core/config` resolves `config.chat.images` over `IMAGE_DEFAULTS`.
+`@conciv/core/config` resolves `config.chat.images` over `IMAGE_DEFAULTS`.
 
 ### Surfacing capability + limits to the widget
 

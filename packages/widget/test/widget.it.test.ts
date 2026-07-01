@@ -5,15 +5,15 @@
 // uses, so the widget's fetchServerSentEvents consumes it natively), a scripted test-runner
 // stream, and the page-bus (push a PageQuery, resolve from the widget's reply). Real transport,
 // real browser, real bundle, real driver — scripted fixtures, not mocks. The authoritative
-// harness→SSE and test-runner→SSE backends are proven by @mandarax/core's route ITs.
+// harness→SSE and test-runner→SSE backends are proven by @conciv/core's route ITs.
 import {Readable} from 'node:stream'
 import {createServer, type IncomingMessage, type Server, type ServerResponse} from 'node:http'
 import type {AddressInfo} from 'node:net'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {chromium, type Browser} from 'playwright'
 import {EventType, type StreamChunk, toServerSentEventsStream} from '@tanstack/ai'
-import {aguiApprovalRequestedFor} from '@mandarax/protocol/ui-types'
-import {aguiUsageFor, snapshotToTokenUsage} from '@mandarax/protocol/usage-types'
+import {aguiApprovalRequestedFor} from '@conciv/protocol/ui-types'
+import {aguiUsageFor, snapshotToTokenUsage} from '@conciv/protocol/usage-types'
 import {widgetBundle, readBody} from './it-fixture.js'
 
 const ASSISTANT_TEXT = 'Hello from aidx'
@@ -67,7 +67,7 @@ function globalBasePageHtml(globalBase: string): string {
   return `<!doctype html><html><head>
     <meta name="pw-api-base" content="http://127.0.0.1:1">
     <meta name="pw-widget" content='{"quickTerminal":false}'>
-    <script>window.__MANDARAX_API_BASE__ = ${JSON.stringify(globalBase)}</script>
+    <script>window.__CONCIV_API_BASE__ = ${JSON.stringify(globalBase)}</script>
   </head><body>
     <script>${widgetBundle}</script>
   </body></html>`
@@ -151,7 +151,7 @@ async function* mcpAccessScript(): AsyncGenerator<StreamChunk> {
   yield {type: EventType.TEXT_MESSAGE_START, messageId: 'm2', role: 'assistant'}
   yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'm2', delta: 'Proving it. Loading schema + test call.'}
   yield {type: EventType.TEXT_MESSAGE_END, messageId: 'm2'}
-  yield {type: EventType.TOOL_CALL_START, toolCallId: 'tc1', toolCallName: 'mandarax_page', toolName: 'mandarax_page'}
+  yield {type: EventType.TOOL_CALL_START, toolCallId: 'tc1', toolCallName: 'conciv_page', toolName: 'conciv_page'}
   yield {type: EventType.TOOL_CALL_ARGS, toolCallId: 'tc1', delta: '{"verb":"route"}'}
   yield {type: EventType.TOOL_CALL_END, toolCallId: 'tc1'}
   yield {
@@ -241,8 +241,8 @@ describe('aidx widget (it) — real browser, real SSE', () => {
   beforeAll(async () => {
     server = createServer((req: IncomingMessage, res: ServerResponse) => {
       const url = req.url ?? ''
-      // The one id-normalization seam: no id → mint a fresh mandarax_ id; an mandarax_ id → echo; a raw
-      // harness id (an unwrapped external row) → a deterministic mandarax_ wrapper (adoption). Stateful in
+      // The one id-normalization seam: no id → mint a fresh conciv_ id; an conciv_ id → echo; a raw
+      // harness id (an unwrapped external row) → a deterministic conciv_ wrapper (adoption). Stateful in
       // this closure, exactly like core's resolve.
       if (url.startsWith('/api/chat/session/resolve') && req.method === 'POST') {
         void readBody(req).then((body) => {
@@ -253,22 +253,22 @@ describe('aidx widget (it) — real browser, real SSE', () => {
               return undefined
             }
           })()
-          if (!id) return writeJson(res, {sessionId: `mandarax_new_${++state.mint}`})
-          if (id.startsWith('mandarax_')) return writeJson(res, {sessionId: id})
-          return writeJson(res, {sessionId: `mandarax_ext_${id}`})
+          if (!id) return writeJson(res, {sessionId: `conciv_new_${++state.mint}`})
+          if (id.startsWith('conciv_')) return writeJson(res, {sessionId: id})
+          return writeJson(res, {sessionId: `conciv_ext_${id}`})
         })
         return
       }
       // Probe → present, so the widget mounts the chat FAB + page-bus (production boot path).
-      // The adopted 'Made in mandarax' row resolves to mandarax_ext_tok-aidx, which reports a resumable
+      // The adopted 'Made in conciv' row resolves to conciv_ext_tok-aidx, which reports a resumable
       // session (a harness token) so ChatPanel hydrates its history. NB: exclude /sessions.
       if (url.startsWith('/api/chat/session') && !url.startsWith('/api/chat/sessions')) {
-        const sid = req.headers['mandarax-session-id']
-        const resumable = sid === 'mandarax_ext_tok-aidx'
+        const sid = req.headers['conciv-session-id']
+        const resumable = sid === 'conciv_ext_tok-aidx'
         return writeJson(res, {
-          sessionId: typeof sid === 'string' ? sid : 'mandarax_unknown',
+          sessionId: typeof sid === 'string' ? sid : 'conciv_unknown',
           harnessSessionId: resumable ? 'tok-aidx' : null,
-          name: resumable ? 'Made in mandarax' : null,
+          name: resumable ? 'Made in conciv' : null,
           origin: resumable ? 'external' : 'chat',
           cwd: '/app',
           lock: {held: false, role: null},
@@ -307,11 +307,11 @@ describe('aidx widget (it) — real browser, real SSE', () => {
           sessions: [
             {
               id: 'tok-aidx',
-              title: 'Made in mandarax',
+              title: 'Made in conciv',
               updatedAt: nowMs,
               messageCount: 3,
               running: false,
-              origin: 'mandarax',
+              origin: 'conciv',
               usage: null,
             },
             {
@@ -326,10 +326,10 @@ describe('aidx widget (it) — real browser, real SSE', () => {
           ],
         })
       }
-      // Per-session history keyed by our id: the adopted 'Made in mandarax' session loads a thread.
+      // Per-session history keyed by our id: the adopted 'Made in conciv' session loads a thread.
       if (url.startsWith('/api/chat/history')) {
-        const sid = req.headers['mandarax-session-id']
-        if (sid === 'mandarax_ext_tok-aidx') {
+        const sid = req.headers['conciv-session-id']
+        if (sid === 'conciv_ext_tok-aidx') {
           return writeJson(res, [{id: 'h1', role: 'assistant', parts: [{type: 'text', content: SWITCHED_REPLY}]}])
         }
         return writeJson(res, [])
@@ -397,7 +397,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
       await page.goto(state.base)
 
       // The FAB mounts only after the chat-availability probe resolves (production boot path).
-      const fab = page.getByRole('button', {name: 'Open mandarax chat'})
+      const fab = page.getByRole('button', {name: 'Open conciv chat'})
       await fab.waitFor({state: 'visible'})
       await fab.click()
 
@@ -405,7 +405,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
       await page.getByText('How can I help you today?').waitFor({state: 'visible'})
 
       // Send a message; the scripted AG-UI stream renders the assistant text.
-      const composer = page.getByLabel('Message the mandarax agent')
+      const composer = page.getByLabel('Message the conciv agent')
       await composer.fill('do something')
       await composer.press('Enter')
       await page.getByText(ASSISTANT_TEXT).waitFor({state: 'visible'})
@@ -436,15 +436,15 @@ describe('aidx widget (it) — real browser, real SSE', () => {
   it('New session: opens a fresh empty session (resolve); the prior session is preserved in a hidden pane', async () => {
     const page = await browser.newPage()
     await page.goto(state.base)
-    const fab = page.getByRole('button', {name: 'Open mandarax chat'})
+    const fab = page.getByRole('button', {name: 'Open conciv chat'})
     await fab.waitFor({state: 'visible'})
     await fab.click()
-    const composer = page.getByLabel('Message the mandarax agent')
+    const composer = page.getByLabel('Message the conciv agent')
     await composer.fill('do something')
     await composer.press('Enter')
     await page.getByText(ASSISTANT_TEXT).waitFor({state: 'visible'})
 
-    // Clicking New session resolves a fresh mandarax_ session and opens it as a new pane.
+    // Clicking New session resolves a fresh conciv_ session and opens it as a new pane.
     const reset = page.waitForRequest((r) => r.url().endsWith('/api/chat/session/resolve') && r.method() === 'POST')
     await page.getByRole('button', {name: 'Start a new session'}).click()
     await reset
@@ -458,16 +458,16 @@ describe('aidx widget (it) — real browser, real SSE', () => {
   it('Compress: marks a boundary and sends a compaction turn (intent rides the AG-UI envelope)', async () => {
     const page = await browser.newPage()
     await page.goto(state.base)
-    const fab = page.getByRole('button', {name: 'Open mandarax chat'})
+    const fab = page.getByRole('button', {name: 'Open conciv chat'})
     await fab.waitFor({state: 'visible'})
     await fab.click()
-    const composer = page.getByLabel('Message the mandarax agent')
+    const composer = page.getByLabel('Message the conciv agent')
     await composer.fill('do something')
     await composer.press('Enter')
     await page.getByText(ASSISTANT_TEXT).waitFor({state: 'visible'})
 
     // The compaction turn carries intent:'compact' — nested on forwardedProps/data like model, the
-    // exact spot @mandarax/core's turn route reads. The predicate skips the first (plain) send.
+    // exact spot @conciv/core's turn route reads. The predicate skips the first (plain) send.
     const compactReq = page.waitForRequest((r) => {
       if (!r.url().endsWith('/api/chat') || r.method() !== 'POST') return false
       const b = r.postDataJSON() as {forwardedProps?: {intent?: string}; data?: {intent?: string}}
@@ -500,10 +500,10 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     try {
       const page = await browser.newPage()
       await page.goto(state.base)
-      const fab = page.getByRole('button', {name: 'Open mandarax chat'})
+      const fab = page.getByRole('button', {name: 'Open conciv chat'})
       await fab.waitFor({state: 'visible'})
       await fab.click()
-      const composer = page.getByLabel('Message the mandarax agent')
+      const composer = page.getByLabel('Message the conciv agent')
       await composer.fill('do something')
       await composer.press('Enter')
       await page.getByText(ASSISTANT_TEXT).waitFor({state: 'visible'})
@@ -525,13 +525,13 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     }
   })
 
-  it('renders the context tracker from a streamed mandarax-usage event and shows the breakdown on hover', async () => {
+  it('renders the context tracker from a streamed conciv-usage event and shows the breakdown on hover', async () => {
     const page = await browser.newPage()
     await page.goto(state.base)
-    const fab = page.getByRole('button', {name: 'Open mandarax chat'})
+    const fab = page.getByRole('button', {name: 'Open conciv chat'})
     await fab.waitFor({state: 'visible'})
     await fab.click()
-    const composer = page.getByLabel('Message the mandarax agent')
+    const composer = page.getByLabel('Message the conciv agent')
     await composer.fill('do something')
     await composer.press('Enter')
     await page.getByText(ASSISTANT_TEXT).waitFor({state: 'visible'})
@@ -553,7 +553,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await page.setViewportSize({width: 1000, height: 800})
     await page.goto(`${state.base}/__position`)
 
-    const fab = page.getByRole('button', {name: 'Open mandarax chat'})
+    const fab = page.getByRole('button', {name: 'Open conciv chat'})
     await fab.waitFor({state: 'visible'})
     // The configured position pins the FAB to a corner (read the resolved inset, not a class).
     const corner = () =>
@@ -572,7 +572,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await page.mouse.up()
 
     // After the snap animation it commits the nearest preset and persists it.
-    await page.waitForFunction(() => localStorage.getItem('mandarax-fab-position') === 'bottom-right', undefined, {
+    await page.waitForFunction(() => localStorage.getItem('conciv-fab-position') === 'bottom-right', undefined, {
       timeout: 2000,
     })
     expect(await corner()).toMatchObject({bottom: '20px', right: '20px'})
@@ -583,7 +583,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     const page = await browser.newPage()
     await page.setViewportSize({width: 1000, height: 800})
     await page.goto(state.base)
-    const fab = page.getByRole('button', {name: 'Open mandarax chat'})
+    const fab = page.getByRole('button', {name: 'Open conciv chat'})
     await fab.waitFor({state: 'visible'})
     await fab.click()
     // Let the open animation settle so the handle's box is stable before we grab it.
@@ -601,7 +601,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await page.mouse.up()
     const after = (await panel.boundingBox())!.height
     expect(after).toBeGreaterThan(before + 80)
-    expect(Number(await page.evaluate(() => localStorage.getItem('mandarax-modal-height')))).toBeGreaterThan(before)
+    expect(Number(await page.evaluate(() => localStorage.getItem('conciv-modal-height')))).toBeGreaterThan(before)
 
     // Dragging the edge far past the collapse threshold closes the panel (Devtools behavior).
     const hb2 = (await page.getByRole('separator', {name: 'Resize chat height'}).boundingBox())!
@@ -612,7 +612,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await page.waitForFunction(
       () =>
         document
-          .querySelector('[data-mandarax-root]')
+          .querySelector('[data-conciv-root]')
           ?.shadowRoot?.querySelector('#pw-chat-panel')
           ?.getAttribute('aria-hidden') === 'true',
       undefined,
@@ -625,7 +625,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     const page = await browser.newPage()
     await page.setViewportSize({width: 1000, height: 800})
     await page.goto(state.base)
-    const fab = page.getByRole('button', {name: 'Open mandarax chat'})
+    const fab = page.getByRole('button', {name: 'Open conciv chat'})
     await fab.waitFor({state: 'visible'})
     await fab.click()
     await page.getByText('How can I help you today?').waitFor({state: 'visible'})
@@ -642,7 +642,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await page.mouse.up()
     const after = (await panel.boundingBox())!.width
     expect(after).toBeGreaterThan(before + 80)
-    expect(Number(await page.evaluate(() => localStorage.getItem('mandarax-modal-width')))).toBeGreaterThan(before)
+    expect(Number(await page.evaluate(() => localStorage.getItem('conciv-modal-width')))).toBeGreaterThan(before)
     await page.close()
   })
 
@@ -650,7 +650,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     const page = await browser.newPage()
     await page.setViewportSize({width: 1000, height: 800})
     await page.goto(state.base)
-    const fab = page.getByRole('button', {name: 'Open mandarax chat'})
+    const fab = page.getByRole('button', {name: 'Open conciv chat'})
     await fab.waitFor({state: 'visible'})
     await fab.click()
     await page.getByText('How can I help you today?').waitFor({state: 'visible'})
@@ -671,7 +671,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
 
   // Reads aria-hidden of a shadow-DOM element by selector (the widget lives in an open shadow root).
   const ariaHiddenOf = (sel: string) =>
-    `(() => document.querySelector('[data-mandarax-root]')?.shadowRoot?.querySelector('${sel}')?.getAttribute('aria-hidden'))()`
+    `(() => document.querySelector('[data-conciv-root]')?.shadowRoot?.querySelector('${sel}')?.getAttribute('aria-hidden'))()`
 
   it('drops the quick terminal on its hotkey and closes on Escape', async () => {
     const page = await browser.newPage()
@@ -689,8 +689,8 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     // Opening focuses the pane's composer (the shadow root's active element is the composer textarea).
     await page.waitForFunction(
       () => {
-        const active = document.querySelector('[data-mandarax-root]')?.shadowRoot?.activeElement
-        return active?.getAttribute('aria-label') === 'Message the mandarax agent'
+        const active = document.querySelector('[data-conciv-root]')?.shadowRoot?.activeElement
+        return active?.getAttribute('aria-label') === 'Message the conciv agent'
       },
       undefined,
       {timeout: 2000},
@@ -704,8 +704,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     // (and don't trip the aria-hidden-focus rule).
     const closedInert = await page.evaluate(
       () =>
-        (document.querySelector('[data-mandarax-root]')?.shadowRoot?.querySelector('[data-pw-qt]') as HTMLElement)
-          ?.inert,
+        (document.querySelector('[data-conciv-root]')?.shadowRoot?.querySelector('[data-pw-qt]') as HTMLElement)?.inert,
     )
     expect(closedInert).toBe(true)
     await page.close()
@@ -713,7 +712,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
 
   // Bounding rect (viewport coords) of a shadow-DOM element by selector.
   const rectOf = (sel: string) =>
-    `(() => { const el = document.querySelector('[data-mandarax-root]')?.shadowRoot?.querySelector('${sel}'); return el ? el.getBoundingClientRect() : null })()`
+    `(() => { const el = document.querySelector('[data-conciv-root]')?.shadowRoot?.querySelector('${sel}'); return el ? el.getBoundingClientRect() : null })()`
 
   it('closes the quick terminal via its close button — the sheet slides fully off-screen', async () => {
     const page = await browser.newPage()
@@ -772,7 +771,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     // assert the first pane contains the shadow root's active element (its own composer).
     await page.waitForFunction(
       () => {
-        const root = document.querySelector('[data-mandarax-root]')?.shadowRoot
+        const root = document.querySelector('[data-conciv-root]')?.shadowRoot
         const firstPane = root?.querySelector('[data-pw-qt-pane]')
         const active = root?.activeElement
         return !!firstPane && !!active && firstPane.contains(active)
@@ -788,7 +787,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'false'`, undefined, {timeout: 2000})
     await page.waitForFunction(
       () => {
-        const root = document.querySelector('[data-mandarax-root]')?.shadowRoot
+        const root = document.querySelector('[data-conciv-root]')?.shadowRoot
         const firstPane = root?.querySelector('[data-pw-qt-pane]')
         const active = root?.activeElement
         return !!firstPane && !!active && firstPane.contains(active)
@@ -803,7 +802,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     const page = await browser.newPage()
     await page.goto(`${state.base}/__both`)
 
-    const fab = page.getByRole('button', {name: 'Open mandarax chat'})
+    const fab = page.getByRole('button', {name: 'Open conciv chat'})
     await fab.waitFor({state: 'visible'})
     await fab.click()
     await page.waitForFunction(`${ariaHiddenOf('#pw-chat-panel')} === 'false'`, undefined, {timeout: 2000})
@@ -817,7 +816,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
 
   // Count of shadow-DOM elements matching a selector (the widget lives in an open shadow root).
   const countOf = (sel: string) =>
-    `(() => document.querySelector('[data-mandarax-root]')?.shadowRoot?.querySelectorAll('${sel}').length)()`
+    `(() => document.querySelector('[data-conciv-root]')?.shadowRoot?.querySelectorAll('${sel}').length)()`
 
   it('pops the quick terminal into a PiP window (styles travel) and re-docks on close', async () => {
     const page = await browser.newPage()
@@ -862,7 +861,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     // Split adds a second pane, each with its own composer (its own session).
     await page.getByRole('button', {name: 'Split pane'}).click()
     await page.waitForFunction(`${countOf('[data-pw-qt-pane]')} === 2`, undefined, {timeout: 2000})
-    expect(await page.getByRole('textbox', {name: 'Message the mandarax agent'}).count()).toBe(2)
+    expect(await page.getByRole('textbox', {name: 'Message the conciv agent'}).count()).toBe(2)
 
     // Each pane bar hosts its own session selector (bar variant) — one Session: trigger per pane.
     expect(await page.getByRole('button', {name: /^Session:/}).count()).toBe(2)
@@ -882,11 +881,11 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     try {
       const page = await browser.newPage()
       await page.goto(state.base)
-      const fab = page.getByRole('button', {name: 'Open mandarax chat'})
+      const fab = page.getByRole('button', {name: 'Open conciv chat'})
       await fab.waitFor({state: 'visible'})
       await fab.click()
       await page.getByText('How can I help you today?').waitFor({state: 'visible'})
-      const composer = page.getByLabel('Message the mandarax agent')
+      const composer = page.getByLabel('Message the conciv agent')
       await composer.fill('do you have access to aidx mcp?')
       await composer.press('Enter')
       await page.getByText(MCP_REPLY).waitFor({state: 'visible', timeout: 10_000})
@@ -902,11 +901,11 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     try {
       const page = await browser.newPage()
       await page.goto(state.base)
-      const fab = page.getByRole('button', {name: 'Open mandarax chat'})
+      const fab = page.getByRole('button', {name: 'Open conciv chat'})
       await fab.waitFor({state: 'visible'})
       await fab.click()
       await page.getByText('How can I help you today?').waitFor({state: 'visible'})
-      const composer = page.getByLabel('Message the mandarax agent')
+      const composer = page.getByLabel('Message the conciv agent')
       await composer.fill('first question')
       await composer.press('Enter')
       await page.getByText('Reply turn 1').waitFor({state: 'visible', timeout: 10_000})
@@ -925,7 +924,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
   it('model selector: picking a model closes the popover and never collapses the list to the chosen one', async () => {
     const page = await browser.newPage()
     await page.goto(state.base)
-    const fab = page.getByRole('button', {name: 'Open mandarax chat'})
+    const fab = page.getByRole('button', {name: 'Open conciv chat'})
     await fab.waitFor({state: 'visible'})
     await fab.click()
     await page.getByText('How can I help you today?').waitFor({state: 'visible'})
@@ -956,8 +955,8 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     // a REOPENED popover via Escape/outside-click is unreliable in this shadow-DOM Ark setup and left
     // the combobox holding focus, so the send must not depend on it.) The chosen model rides the next
     // turn's POST body; TanStack AI nests connection-body fields on the AG-UI envelope (forwardedProps
-    // /data) — the exact spot @mandarax/core's chat route reads.
-    const composer = page.getByLabel('Message the mandarax agent')
+    // /data) — the exact spot @conciv/core's chat route reads.
+    const composer = page.getByLabel('Message the conciv agent')
     const chatReq = page.waitForRequest((r) => r.url().endsWith('/api/chat') && r.method() === 'POST')
     await composer.fill('hi')
     await composer.press('Enter')
@@ -975,7 +974,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
   it('session selector: lists rows, marks aidx origin, switches by header, renames optimistically', async () => {
     const page = await browser.newPage()
     await page.goto(state.base)
-    const fab = page.getByRole('button', {name: 'Open mandarax chat'})
+    const fab = page.getByRole('button', {name: 'Open conciv chat'})
     await fab.waitFor({state: 'visible'})
     await fab.click()
     await page.getByText('How can I help you today?').waitFor({state: 'visible'})
@@ -986,16 +985,16 @@ describe('aidx widget (it) — real browser, real SSE', () => {
 
     // Both scripted rows render as options; each row's accessible name encodes origin ("started in
     // aidx" vs "started externally"), so origin is asserted natively, not via a marker class.
-    const aidxItem = page.getByRole('option', {name: /Made in mandarax/})
+    const aidxItem = page.getByRole('option', {name: /Made in conciv/})
     const extItem = page.getByRole('option', {name: /Made externally/})
     await aidxItem.waitFor({state: 'visible'})
     await extItem.waitFor({state: 'visible'})
-    expect(await page.getByRole('option', {name: /Made in mandarax[\s\S]*started in mandarax/}).count()).toBe(1)
+    expect(await page.getByRole('option', {name: /Made in conciv[\s\S]*started in conciv/}).count()).toBe(1)
     expect(await page.getByRole('option', {name: /Made externally[\s\S]*started externally/}).count()).toBe(1)
 
     // Selecting tok-aidx fires a /history fetch carrying the new header; the thread swaps in.
     const historyReq = page.waitForRequest(
-      (r) => r.url().includes('/api/chat/history') && r.headers()['mandarax-session-id'] === 'mandarax_ext_tok-aidx',
+      (r) => r.url().includes('/api/chat/history') && r.headers()['conciv-session-id'] === 'conciv_ext_tok-aidx',
     )
     await aidxItem.click()
     await historyReq
@@ -1018,7 +1017,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
   it('session selector: restores the active session across a page reload', async () => {
     const page = await browser.newPage()
     await page.goto(state.base)
-    const fab = page.getByRole('button', {name: 'Open mandarax chat'})
+    const fab = page.getByRole('button', {name: 'Open conciv chat'})
     await fab.waitFor({state: 'visible'})
     await fab.click()
     await page.getByText('How can I help you today?').waitFor({state: 'visible'})
@@ -1026,11 +1025,11 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     // Switch to the aidx session — this is the choice that must survive a refresh.
     const trigger = page.getByRole('button', {name: /^Session:/})
     await trigger.click()
-    await page.getByRole('option', {name: /Made in mandarax/}).waitFor({state: 'visible'})
+    await page.getByRole('option', {name: /Made in conciv/}).waitFor({state: 'visible'})
     const historyReq = page.waitForRequest(
-      (r) => r.url().includes('/api/chat/history') && r.headers()['mandarax-session-id'] === 'mandarax_ext_tok-aidx',
+      (r) => r.url().includes('/api/chat/history') && r.headers()['conciv-session-id'] === 'conciv_ext_tok-aidx',
     )
-    await page.getByRole('option', {name: /Made in mandarax/}).click()
+    await page.getByRole('option', {name: /Made in conciv/}).click()
     await historyReq
     await page.getByText(SWITCHED_REPLY).waitFor({state: 'visible'})
 
@@ -1039,17 +1038,17 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await fab.waitFor({state: 'visible'})
     await fab.click()
     // The trigger's label restores to the persisted session title.
-    await page.getByRole('button', {name: 'Session: Made in mandarax'}).waitFor({state: 'visible', timeout: 4000})
+    await page.getByRole('button', {name: 'Session: Made in conciv'}).waitFor({state: 'visible', timeout: 4000})
     // The restored session also re-hydrates its own thread.
     await page.getByText(SWITCHED_REPLY).waitFor({state: 'visible'})
     await page.close()
   })
 
-  it('uses window.__MANDARAX_API_BASE__ over the meta tag (Next.js injection path)', async () => {
+  it('uses window.__CONCIV_API_BASE__ over the meta tag (Next.js injection path)', async () => {
     const page = await browser.newPage()
     await page.goto(`${state.base}/__global-base`)
     // The meta base is a dead host; the FAB only mounts if the probe used the window global.
-    await page.getByRole('button', {name: 'Open mandarax chat'}).waitFor({state: 'visible'})
+    await page.getByRole('button', {name: 'Open conciv chat'}).waitFor({state: 'visible'})
     await page.close()
   })
 
@@ -1084,13 +1083,13 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     const page = await browser.newPage()
     await page.setViewportSize({width: 1000, height: 800})
     await page.goto(state.base)
-    const fab = page.getByRole('button', {name: 'Open mandarax chat'})
+    const fab = page.getByRole('button', {name: 'Open conciv chat'})
     await fab.waitFor({state: 'visible'})
     await fab.click()
     await page.getByText('How can I help you today?').waitFor({state: 'visible'})
 
     // The user's own prose is in the composer first; grabs must never pollute it.
-    const composer = page.getByLabel('Message the mandarax agent')
+    const composer = page.getByLabel('Message the conciv agent')
     await composer.fill('make these pop')
 
     const chips = page.locator('[data-pw-grab]')

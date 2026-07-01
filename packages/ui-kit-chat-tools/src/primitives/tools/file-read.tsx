@@ -1,11 +1,11 @@
 import {createContext, createMemo, useContext, type Accessor, type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import {parseInput, resultText, stripReadLineNumbers} from '@mandarax/ui-kit-chat'
-import {toolStatus, type ToolStatus} from '@mandarax/ui-kit-chat'
+import {parseInput, resultText, stripReadLineNumbers} from '@conciv/ui-kit-chat'
+import {toolStatus, type ToolStatus} from '@conciv/ui-kit-chat'
 
-// Headless file-read logic + structure (Read / mandarax_open). The styled layer adds tokens + the
-// code block. claude Read carries file_path + optional offset/limit; mandarax_open carries file +
+// Headless file-read logic + structure (Read / conciv_open). The styled layer adds tokens + the
+// code block. claude Read carries file_path + optional offset/limit; conciv_open carries file +
 // optional line and returns no contents (it just opens the editor).
 const ReadInput = z.object({
   file_path: z.string().optional(),
@@ -52,12 +52,12 @@ export function useFileRead(): FileReadContextValue {
 function Root(props: {part: ToolCallPart; result: ToolResultPart | undefined; children: JSX.Element}): JSX.Element {
   const input = createMemo(() => parseInput(ReadInput, props.part))
   const path = () => input()?.file_path ?? input()?.file ?? ''
-  const verb = () => (props.part.name === 'mandarax_open' ? 'Opened' : 'Read')
+  const verb = () => (props.part.name === 'conciv_open' ? 'Opened' : 'Read')
   const range = () => {
     const value = input()
     return value ? lineRange(value) : undefined
   }
-  const contents = () => (props.part.name === 'mandarax_open' ? '' : fileContents(resultText(props.result)))
+  const contents = () => (props.part.name === 'conciv_open' ? '' : fileContents(resultText(props.result)))
   const status = createMemo(() => toolStatus(props.part, props.result))
   return (
     <FileReadContext.Provider value={{path, verb, range, contents, status}}>{props.children}</FileReadContext.Provider>

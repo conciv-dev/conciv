@@ -1,11 +1,11 @@
 import {createMemo, createSignal, For, onMount, Show, type JSX} from 'solid-js'
-import {ModelSelector, useModelSelectorContext, type ModelOption} from '@mandarax/ui-kit-chat'
-import type {HarnessModelInfo} from '@mandarax/protocol/chat-types'
-import {defineClient} from '@mandarax/api-client'
+import {ModelSelector, useModelSelectorContext, type ModelOption} from '@conciv/ui-kit-chat'
+import type {HarnessModelInfo} from '@conciv/protocol/chat-types'
+import {defineClient} from '@conciv/api-client'
 import {createPersistedSignal} from '../lib/persisted-signal.js'
 import type {ComposerControlDef} from '../shell/widget-shell.js'
 
-// The composer's model picker IS @mandarax/ui-kit-chat's ModelSelector (the assistant-ui port). The
+// The composer's model picker IS @conciv/ui-kit-chat's ModelSelector (the assistant-ui port). The
 // widget only maps its harness models onto ModelOption and owns the provider grouping — ModelOption is
 // provider-agnostic by design, so the bucketing is consumer-composed over the selector's filtered set.
 function toOption(model: HarnessModelInfo): ModelOption {
@@ -73,7 +73,7 @@ function ModelPicker(props: {
 
 // Persist the user's pick across sessions. Keyed globally (one composer model at a time); a future
 // per-harness key can slot in here without touching the plugin contract.
-const MODEL_KEY = 'pw-mandarax-model'
+const MODEL_KEY = 'pw-conciv-model'
 
 // The composer-control plugin. Registered on the shell (mount.tsx), it fetches the active harness's
 // models, owns the selection (persisted), and ships it on every turn via ctx.setRequestMeta({model}).

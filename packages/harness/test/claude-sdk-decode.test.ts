@@ -1,7 +1,7 @@
 import {describe, it, expect} from 'vitest'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 import {claudeMessagesToAgui} from '../src/claude/decode.js'
-import type {UsageSnapshot} from '@mandarax/protocol/usage-types'
+import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 
 async function* messages(arr: unknown[]): AsyncGenerator<unknown> {
   for (const m of arr) yield m

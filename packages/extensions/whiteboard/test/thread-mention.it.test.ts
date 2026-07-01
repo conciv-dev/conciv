@@ -1,9 +1,9 @@
 import {test} from 'vitest'
 import type {Page} from 'playwright'
 import whiteboard from '../src/server.js'
-import {getExtensionTestApi} from '@mandarax/extension-testkit'
+import {getExtensionTestApi} from '@conciv/extension-testkit'
 
-const clientEntry = '@mandarax/extension-whiteboard/client'
+const clientEntry = '@conciv/extension-whiteboard/client'
 
 const openCanvas = async (page: Page): Promise<void> => {
   await page.getByRole('button', {name: 'Open the whiteboard canvas'}).click()

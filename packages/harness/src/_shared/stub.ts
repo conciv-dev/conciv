@@ -1,4 +1,4 @@
-import {defineHarness, type HarnessAdapter, type HarnessCapabilities} from '@mandarax/protocol/harness-types'
+import {defineHarness, type HarnessAdapter, type HarnessCapabilities} from '@conciv/protocol/harness-types'
 import type {StreamChunk} from '@tanstack/ai'
 
 // A capability-only harness stub: registered so listHarnesses() advertises it, but buildArgs/

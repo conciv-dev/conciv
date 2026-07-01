@@ -2,7 +2,7 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, userEvent, within} from 'storybook/test'
 import {createSignal} from 'solid-js'
 import type {ToolCallPart} from '@tanstack/ai-client'
-import type {ToolViewCtx} from '@mandarax/protocol/tool-view-types'
+import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {ApprovalModal, type PendingApproval} from './approval-modal.js'
 
 function Harness() {

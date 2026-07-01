@@ -32,8 +32,8 @@ export async function serveDir(dir: string, config: {apiBase: string; session: s
         if (rel.endsWith('.html')) {
           const html = buffer
             .toString('utf8')
-            .replaceAll('__MANDARAX_API_BASE__', config.apiBase)
-            .replaceAll('__MANDARAX_SESSION__', config.session)
+            .replaceAll('__CONCIV_API_BASE__', config.apiBase)
+            .replaceAll('__CONCIV_SESSION__', config.session)
           res.setHeader('content-type', 'text/html')
           res.end(html)
           return

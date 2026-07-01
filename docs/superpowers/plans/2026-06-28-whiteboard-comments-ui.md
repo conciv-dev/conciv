@@ -71,7 +71,7 @@ renders `theme="light"` with `viewBackgroundColor:'transparent'`.
 ## 3. Resolved decisions
 
 1. **Theme: dark.** Flip Excalidraw to `theme="dark"` AND add an opaque dark backdrop (§4).
-   Reuse `--pw-*`; accent stays mandarax magenta.
+   Reuse `--pw-*`; accent stays conciv magenta.
 2. **Read/unread: build the `reads` table now**, keyed to the dev's persisted Jazz account
    id (§5).
 3. **Canvas pan to a thread: in scope.** Pins migrate to scene coordinates (§6).
@@ -466,7 +466,7 @@ is a function, not a class. No `useEffect`: sequence via handlers and derived me
 ## 15. Build sequence
 
 Each step lands independently and is verified before the next. Tests live in
-`packages/extensions/whiteboard/test` via `@mandarax/extension-testkit` (real plugin + Jazz +
+`packages/extensions/whiteboard/test` via `@conciv/extension-testkit` (real plugin + Jazz +
 browser). Never add tests to the example app. ui-kit primitives are verified in Storybook.
 Assertions are role/text only. Agent-write echo is verified with `api.callTool(...)` then
 `api.page`; `secondClient` is used only for the dev's two-tab read-state durability.

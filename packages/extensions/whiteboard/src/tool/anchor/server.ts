@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {defineTool} from '@mandarax/extension'
+import {defineTool} from '@conciv/extension'
 import {app} from '../../shared/schema.js'
 import {loadResolver} from '../../anchor/load-resolver.js'
 import type {WhiteboardToolContext} from '../../server/context.js'

@@ -1,6 +1,6 @@
 /* Neutral, themeable chat tokens. The styled set references ONLY these --chat-* vars (never --pw-*).
-   Light is the default; add the `chat-theme-dark` class for the dark neutral set. The mandarax look
-   is a separate theme layer (theme/mandarax.css) that maps --chat-* onto the widget's --pw-* tokens. */
+   Light is the default; add the `chat-theme-dark` class for the dark neutral set. The conciv look
+   is a separate theme layer (theme/conciv.css) that maps --chat-* onto the widget's --pw-* tokens. */
 
 :root,
 :host {
@@ -67,8 +67,8 @@
    swap each token to the dark colors shiki stored in --shiki-dark / --shiki-dark-bg. */
 .chat-theme-dark .shiki,
 .chat-theme-dark .shiki span,
-.chat-theme-mandarax .shiki,
-.chat-theme-mandarax .shiki span {
+.chat-theme-conciv .shiki,
+.chat-theme-conciv .shiki span {
   color: var(--shiki-dark) !important;
   background-color: var(--shiki-dark-bg) !important;
 }
@@ -80,6 +80,6 @@ diffs-container {
   color-scheme: light;
 }
 .chat-theme-dark diffs-container,
-.chat-theme-mandarax diffs-container {
+.chat-theme-conciv diffs-container {
   color-scheme: dark;
 }

@@ -2,18 +2,18 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make `@mandarax/extension` extensions actually render in the widget (header/footer/composer/empty/status/widget slots) via a per-panel SolidJS Provider, and flow their server tools + system prompt to the engine — end to end, proven in a real browser.
+**Goal:** Make `@conciv/extension` extensions actually render in the widget (header/footer/composer/empty/status/widget slots) via a per-panel SolidJS Provider, and flow their server tools + system prompt to the engine — end to end, proven in a real browser.
 
 **Architecture:** The widget mounts each extension's single `Component` into every singleton slot inside an `ExtensionRuntimeContext.Provider`; the Component branches on `useSlot()` and reads the per-panel host bag via `useContext()`. Server halves are drained by a new `collectServerContributions` over the builder array. Extension tool-card renderers (`defineTool().render()`) still merge into the existing `tools` accessor — tool cards are NOT slots.
 
-**Tech Stack:** SolidJS (createContext/Provider/Dynamic), `@mandarax/extension` (slice 1 contract), `@mandarax/plugin` strip transform (slice 2), Playwright real-browser ITs, vitest node ITs.
+**Tech Stack:** SolidJS (createContext/Provider/Dynamic), `@conciv/extension` (slice 1 contract), `@conciv/plugin` strip transform (slice 2), Playwright real-browser ITs, vitest node ITs.
 
 ## Global Constraints
 
 - Production code: ZERO narration comments; functional style (map/reduce over if/else); no `else`; no `any`/casts beyond the one documented builder-return cast already in slice 1; full descriptive names (no `ExtCtx`/`mx`).
 - No classes, no IIFEs.
 - Tests: real browser (Playwright) / real server (`http.createServer`) / real MCP — NO jsdom, NO mocks/stubs. Native assertions (getByRole/getByText/toBeVisible), never querySelector/class selectors.
-- Widget ITs use `browser.newPage()` not `newContext()`; rebuild `@mandarax/core` + `@mandarax/widget` deps before running ITs.
+- Widget ITs use `browser.newPage()` not `newContext()`; rebuild `@conciv/core` + `@conciv/widget` deps before running ITs.
 - Run every command from the worktree `/Users/dev/Public/web/aidx/.claude/worktrees/extension-api-rewrite`.
 - Solid components must be hoisted `function` declarations where they reference the extension const.
 
@@ -25,7 +25,7 @@ Slice 3 is **substantially smaller than the spec's worst case**, because three f
 
 1. **No mount explosion.** Tool cards stayed on `defineTool().render()` (your call), so the slot set is only the ~6 fixed singleton slots — NOT `tool:*` × N tool calls. Mounting one Component into 6 slots × a few extensions is trivial; the reviewer's O(extensions × live-slots) concern was driven entirely by `tool:*`. So we mount the Component into each singleton slot and let it return `null` — exactly your original design — with no cost problem and no `slots` hint / build inference needed.
 
-2. **The host context is complete — types relocated to clean leaves (DONE).** The full `ExtensionHostContext` ships: `ToolViewCtx` + the composer bag (`insert`, `notify`, `setBusy`, `newSession`, `addDivider`, `compact`, `resetUsage`) + `client: SessionClient` + `requestMeta: () => RequestMeta` + `grab: GrabApi` + `currentSlot`. The widget-coupled types were extracted into two new leaves both `@mandarax/widget` and `@mandarax/extension` consume: **`@mandarax/api-client`** (the network seam — `transport` + `defineClient`/`SessionClient` + `RequestMeta`) and **`@mandarax/grab`** (the element-grab contract — `Grab`/`StagedGrab`/`ElementSnapshot`/`ElementSource` + `GrabApi`). No drift (`SessionClient` stays `ReturnType<typeof defineClient>` in the leaf), no cycle, nothing deferred.
+2. **The host context is complete — types relocated to clean leaves (DONE).** The full `ExtensionHostContext` ships: `ToolViewCtx` + the composer bag (`insert`, `notify`, `setBusy`, `newSession`, `addDivider`, `compact`, `resetUsage`) + `client: SessionClient` + `requestMeta: () => RequestMeta` + `grab: GrabApi` + `currentSlot`. The widget-coupled types were extracted into two new leaves both `@conciv/widget` and `@conciv/extension` consume: **`@conciv/api-client`** (the network seam — `transport` + `defineClient`/`SessionClient` + `RequestMeta`) and **`@conciv/grab`** (the element-grab contract — `Grab`/`StagedGrab`/`ElementSnapshot`/`ElementSource` + `GrabApi`). No drift (`SessionClient` stays `ReturnType<typeof defineClient>` in the leaf), no cycle, nothing deferred.
 
 3. **No built-in composer-action migration.** `elementPickerAction`/`newSessionAction`/`compactAction`/`openInTerminal`/`modelSelectorControl` stay registered shell-internally via `shell.registerComposerAction` (mount.tsx:89-93) — they are NOT extensions. (Extensions get grab via `grab.pick()`, which the widget implements over react-grab — the extension never constructs a `Grab`.)
 
@@ -37,13 +37,13 @@ What genuinely remains: (a) drain server contributions from the new builder shap
 
 ### v1 scope cuts (deferred, stated explicitly)
 
-- File-based user-extension discovery + virtual module → carried to a slice 3b; v1 proves built-in extensions passed via the engine array, injected for ITs through a `window.__MANDARAX__` builder queue.
+- File-based user-extension discovery + virtual module → carried to a slice 3b; v1 proves built-in extensions passed via the engine array, injected for ITs through a `window.__CONCIV__` builder queue.
 
 ### Done ahead of this plan (prerequisite relocations, committed)
 
-- `@mandarax/api-client` leaf created; `transport`/`defineClient`/`SessionClient`/`RequestMeta` moved out of widget; all 9 widget import sites repointed; tests moved.
-- `@mandarax/grab` leaf created; grab data types + `GrabApi` moved out of `widget/react-grab`; 5 widget importers repointed.
-- `ExtensionHostContext` (in `@mandarax/extension`) extended with `client`, `requestMeta`, `grab`; `addDivider` aligned to `(kind) => void`. Typecheck/build/lint green across all touched packages.
+- `@conciv/api-client` leaf created; `transport`/`defineClient`/`SessionClient`/`RequestMeta` moved out of widget; all 9 widget import sites repointed; tests moved.
+- `@conciv/grab` leaf created; grab data types + `GrabApi` moved out of `widget/react-grab`; 5 widget importers repointed.
+- `ExtensionHostContext` (in `@conciv/extension`) extended with `client`, `requestMeta`, `grab`; `addDivider` aligned to `(kind) => void`. Typecheck/build/lint green across all touched packages.
 
 ---
 
@@ -60,8 +60,8 @@ What genuinely remains: (a) drain server contributions from the new builder shap
 - `packages/widget/src/empty-state.tsx` — MODIFY: drop the override signal/`setEmptyStateOverride`; keep `DefaultEmptyState`; `EmptyStateSlot` becomes the `'empty'`-slot host.
 - `packages/widget/src/ui-store.tsx` — DELETE.
 - `packages/widget/src/extension-runtime.ts` — MODIFY: `installExtensionGlobal` now drains a queue of `ExtensionBuilder` objects into a signal the widget reads.
-- `packages/widget/src/mandarax-global.ts` — MODIFY: `use/queue` typed `ExtensionBuilder` (from `@mandarax/extension`) instead of `MandaraxExtension`.
-- `apps/examples/tanstack-start/mandarax/extensions/*` — MODIFY/CREATE: a real example extension on the new contract.
+- `packages/widget/src/conciv-global.ts` — MODIFY: `use/queue` typed `ExtensionBuilder` (from `@conciv/extension`) instead of `ConcivExtension`.
+- `apps/examples/tanstack-start/conciv/extensions/*` — MODIFY/CREATE: a real example extension on the new contract.
 - `packages/widget/test/extension.it.test.ts` — REWRITE: two-panel browser IT.
 
 ---
@@ -107,7 +107,7 @@ export {slotProbe}
 
 - [ ] **Step 3: Typecheck**
 
-Run: `pnpm --filter @mandarax/extension typecheck`
+Run: `pnpm --filter @conciv/extension typecheck`
 Expected: PASS (no output)
 
 - [ ] **Step 4: Commit**
@@ -173,7 +173,7 @@ describe('collectServerContributions', () => {
 
 - [ ] **Step 2: Run it to verify it fails**
 
-Run: `pnpm --filter @mandarax/extension exec vitest run test/collect-server.test.ts`
+Run: `pnpm --filter @conciv/extension exec vitest run test/collect-server.test.ts`
 Expected: FAIL — cannot find module `../src/collect-server.js`
 
 - [ ] **Step 3: Implement the collector**
@@ -223,13 +223,13 @@ export {collectServerContributions} from './collect-server.js'
 
 - [ ] **Step 5: Run tests**
 
-Run: `pnpm --filter @mandarax/extension exec vitest run test/collect-server.test.ts`
+Run: `pnpm --filter @conciv/extension exec vitest run test/collect-server.test.ts`
 Expected: PASS (3 tests)
 
 - [ ] **Step 6: Typecheck + commit**
 
 ```bash
-pnpm --filter @mandarax/extension typecheck
+pnpm --filter @conciv/extension typecheck
 git add packages/extension/src/collect-server.ts packages/extension/src/index.ts packages/extension/test/collect-server.test.ts
 git commit -m "feat(extension): collectServerContributions over builder array"
 ```
@@ -280,7 +280,7 @@ describe('collectToolRenderers', () => {
 
 - [ ] **Step 2: Run it to verify it fails**
 
-Run: `pnpm --filter @mandarax/extension exec vitest run test/collect-client.test.ts`
+Run: `pnpm --filter @conciv/extension exec vitest run test/collect-client.test.ts`
 Expected: FAIL — cannot find module
 
 - [ ] **Step 3: Implement**
@@ -309,8 +309,8 @@ export function collectToolRenderers(builders: ExtensionBuilder<object>[]): {nam
 In `packages/extension/src/index.ts`: `export {collectToolRenderers} from './collect-client.js'`
 
 ```bash
-pnpm --filter @mandarax/extension exec vitest run test/collect-client.test.ts
-pnpm --filter @mandarax/extension typecheck
+pnpm --filter @conciv/extension exec vitest run test/collect-client.test.ts
+pnpm --filter @conciv/extension typecheck
 git add packages/extension/src/collect-client.ts packages/extension/src/index.ts packages/extension/test/collect-client.test.ts
 git commit -m "feat(extension): collectToolRenderers over builder array"
 ```
@@ -326,7 +326,7 @@ git commit -m "feat(extension): collectToolRenderers over builder array"
 
 **Interfaces:**
 
-- Consumes: `ExtensionRuntimeContext` from `@mandarax/extension/runtime`; `ExtensionBuilder` from `@mandarax/extension`; `ExtensionHostContext`, `ExtensionSlot` from `@mandarax/extension`.
+- Consumes: `ExtensionRuntimeContext` from `@conciv/extension/runtime`; `ExtensionBuilder` from `@conciv/extension`; `ExtensionHostContext`, `ExtensionSlot` from `@conciv/extension`.
 - Produces:
   - `type ExtensionHostBag = Omit<ExtensionHostContext, 'currentSlot'>` (the per-panel bag minus the slot).
   - `ExtensionSlot(props: {name: ExtensionSlotName; extensions: ExtensionBuilder<object>[]; bag: ExtensionHostBag}): JSX.Element` — for each extension, runs its `clientFactory` once (memoized) and mounts its `Component` inside `<ExtensionRuntimeContext.Provider value={{...bag, ...clientValue, currentSlot: name}}>`, each behind an `ErrorBoundary`.
@@ -339,8 +339,8 @@ git commit -m "feat(extension): collectToolRenderers over builder array"
 ```tsx
 import {createMemo, ErrorBoundary, For, Show, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
-import {ExtensionRuntimeContext} from '@mandarax/extension/runtime'
-import type {ExtensionBuilder, ExtensionHostContext, ExtensionSlot as SlotName} from '@mandarax/extension'
+import {ExtensionRuntimeContext} from '@conciv/extension/runtime'
+import type {ExtensionBuilder, ExtensionHostContext, ExtensionSlot as SlotName} from '@conciv/extension'
 
 export type ExtensionHostBag = Omit<ExtensionHostContext, 'currentSlot'>
 
@@ -377,7 +377,7 @@ Note on lifecycle / HMR dispose: `clientFactory` is invoked inside `createMemo` 
 
 - [ ] **Step 2: Typecheck the widget (expect only pre-existing dep errors, none in this file)**
 
-Run: `pnpm turbo build --filter='@mandarax/widget^...' && pnpm --filter @mandarax/widget typecheck 2>&1 | grep extension-slots`
+Run: `pnpm turbo build --filter='@conciv/widget^...' && pnpm --filter @conciv/widget typecheck 2>&1 | grep extension-slots`
 Expected: no lines referencing `extension-slots.tsx`.
 
 - [ ] **Step 3: Commit**
@@ -407,7 +407,7 @@ Replace the slot imports (lines 34-35) `import {ExtHeaderSlot, ExtFooterSlot, Ex
 ```ts
 import {ExtensionSurface, type ExtensionHostBag} from './extension-slots.js'
 import {EmptyStateSlot} from './empty-state.js'
-import type {ExtensionBuilder} from '@mandarax/extension'
+import type {ExtensionBuilder} from '@conciv/extension'
 ```
 
 Add to the `ChatPanel` props type (near line 339-354): `extensions: () => ExtensionBuilder<object>[]`.
@@ -419,7 +419,7 @@ After `toolCtx` is constructed (after line 465) and after the closures `insert`/
 ```ts
 import {getReactGrabAdapter} from './react-grab/adapter.js'
 import {cancelPick} from './react-grab/picking.js'
-import type {GrabApi} from '@mandarax/grab'
+import type {GrabApi} from '@conciv/grab'
 
 const pickWith = (mode: 'activate' | 'comment'): Promise<Grab | null> =>
   new Promise((resolve) => {
@@ -485,7 +485,7 @@ and pass `extensions={extensions}` to `<ChatPanel .../>` in `create` (~892).
 
 - [ ] **Step 5: Typecheck (only after deps built)**
 
-Run: `pnpm --filter @mandarax/widget typecheck 2>&1 | tail -20`
+Run: `pnpm --filter @conciv/widget typecheck 2>&1 | tail -20`
 Expected: errors only about `ui-store.js` still imported by `mount.tsx` (fixed in Task 6) — none from `chat-panel.tsx` itself.
 
 - [ ] **Step 6: Commit**
@@ -501,7 +501,7 @@ git commit -m "feat(widget): render extension slots via ExtensionSurface + per-p
 
 **Files:**
 
-- Modify: `packages/widget/src/mount.tsx`, `packages/widget/src/empty-state.tsx`, `packages/widget/src/extension-runtime.ts`, `packages/widget/src/mandarax-global.ts`
+- Modify: `packages/widget/src/mount.tsx`, `packages/widget/src/empty-state.tsx`, `packages/widget/src/extension-runtime.ts`, `packages/widget/src/conciv-global.ts`
 - Delete: `packages/widget/src/ui-store.tsx`
 
 **Interfaces:**
@@ -509,13 +509,13 @@ git commit -m "feat(widget): render extension slots via ExtensionSurface + per-p
 - Consumes: `collectToolRenderers` (Task 3), `ExtensionSurface` (Task 4), `installExtensionGlobal` (rewired), `applyThemeOverrides`.
 - Produces: `mount.tsx` collects `extensions: ExtensionBuilder<object>[]` (built-ins arg + global queue), derives the tools accessor `() => [...collectToolRenderers(exts).map(toEntry), ...builtinToolCards]`, applies `extension.theme` for each, and passes `() => extensions` to `chatPanelDef`.
 
-- [ ] **Step 1: Rewrite `mandarax-global.ts`**
+- [ ] **Step 1: Rewrite `conciv-global.ts`**
 
 ```ts
 import type {ReactGrabAPI} from 'react-grab'
-import type {ExtensionBuilder} from '@mandarax/extension'
+import type {ExtensionBuilder} from '@conciv/extension'
 
-type MandaraxGlobal = {
+type ConcivGlobal = {
   use?: (extension: ExtensionBuilder<object>) => void
   queue?: ExtensionBuilder<object>[]
   registerPlugin?: ReactGrabAPI['registerPlugin']
@@ -524,7 +524,7 @@ type MandaraxGlobal = {
 
 declare global {
   interface Window {
-    __MANDARAX__?: MandaraxGlobal
+    __CONCIV__?: ConcivGlobal
   }
 }
 ```
@@ -533,15 +533,15 @@ declare global {
 
 ```ts
 import {createSignal, type Accessor} from 'solid-js'
-import type {ExtensionBuilder} from '@mandarax/extension'
-import './mandarax-global.js'
+import type {ExtensionBuilder} from '@conciv/extension'
+import './conciv-global.js'
 
 export function installExtensionGlobal(seed: ExtensionBuilder<object>[]): Accessor<ExtensionBuilder<object>[]> {
   const [extensions, setExtensions] = createSignal<ExtensionBuilder<object>[]>(seed)
   const add = (extension: ExtensionBuilder<object>) =>
     setExtensions((prev) => [...prev.filter((e) => e.name !== extension.name), extension])
-  for (const queued of window.__MANDARAX__?.queue ?? []) add(queued)
-  window.__MANDARAX__ = {...window.__MANDARAX__, use: add}
+  for (const queued of window.__CONCIV__?.queue ?? []) add(queued)
+  window.__CONCIV__ = {...window.__CONCIV__, use: add}
   return extensions
 }
 ```
@@ -552,8 +552,8 @@ Remove lines 78-85 (extToolCards/addToolCard) and 95-118 (clientApi/installExten
 
 ```ts
 import {installExtensionGlobal} from './extension-runtime.js'
-import {collectToolRenderers} from '@mandarax/extension'
-import {builtinToolCards, type ToolCardEntry} from '@mandarax/tool-ui'
+import {collectToolRenderers} from '@conciv/extension'
+import {builtinToolCards, type ToolCardEntry} from '@conciv/tool-ui'
 import {applyThemeOverrides} from './theme.js'
 ```
 
@@ -595,14 +595,14 @@ git rm packages/widget/src/ui-store.tsx
 
 - [ ] **Step 6: Build deps, typecheck the whole widget**
 
-Run: `pnpm turbo build --filter='@mandarax/widget^...' && pnpm --filter @mandarax/widget typecheck`
-Expected: PASS (no output). Fix any dangling `ui-store`/`MandaraxExtension`/`ClientApi` references the compiler flags.
+Run: `pnpm turbo build --filter='@conciv/widget^...' && pnpm --filter @conciv/widget typecheck`
+Expected: PASS (no output). Fix any dangling `ui-store`/`ConcivExtension`/`ClientApi` references the compiler flags.
 
 - [ ] **Step 7: Lint + commit**
 
 ```bash
-pnpm --filter @mandarax/widget lint
-git add packages/widget/src/mount.tsx packages/widget/src/empty-state.tsx packages/widget/src/extension-runtime.ts packages/widget/src/mandarax-global.ts
+pnpm --filter @conciv/widget lint
+git add packages/widget/src/mount.tsx packages/widget/src/empty-state.tsx packages/widget/src/extension-runtime.ts packages/widget/src/conciv-global.ts
 git commit -m "refactor(widget): declarative extension wiring, delete ui-store + clientApi"
 ```
 
@@ -612,31 +612,31 @@ git commit -m "refactor(widget): declarative extension wiring, delete ui-store +
 
 **Files:**
 
-- Modify: `packages/plugin/src/core/extensions.ts` (new loader using `@mandarax/extension`'s `collectServerContributions`)
+- Modify: `packages/plugin/src/core/extensions.ts` (new loader using `@conciv/extension`'s `collectServerContributions`)
 
 **Interfaces:**
 
-- Consumes: `collectServerContributions` from `@mandarax/extension` (Task 2); jiti (existing).
+- Consumes: `collectServerContributions` from `@conciv/extension` (Task 2); jiti (existing).
 - Produces: `loadServerContributions(root)` jiti-imports each discovered extension file's default export (now an `ExtensionBuilder`), and returns `collectServerContributions(builders)`. The engine path (`boot.ts`/`vite.ts` → `start({extensions})`) is unchanged because the return type `ExtensionServerContributions` is identical to the old one.
 
 - [ ] **Step 1: Repoint the loader**
 
-In `packages/plugin/src/core/extensions.ts`, change the import from `@mandarax/extensions` to `@mandarax/extension`, retype the jiti import as `{default?: ExtensionBuilder<object>}`, push `mod.default` into a `builders` array, and `return collectServerContributions(builders)`. Keep the `extensionFiles(root)` discovery and the jiti `solid-js` jsx config unchanged.
+In `packages/plugin/src/core/extensions.ts`, change the import from `@conciv/extensions` to `@conciv/extension`, retype the jiti import as `{default?: ExtensionBuilder<object>}`, push `mod.default` into a `builders` array, and `return collectServerContributions(builders)`. Keep the `extensionFiles(root)` discovery and the jiti `solid-js` jsx config unchanged.
 
-- [ ] **Step 2: Add `@mandarax/extension` as a plugin dependency**
+- [ ] **Step 2: Add `@conciv/extension` as a plugin dependency**
 
-In `packages/plugin/package.json` dependencies add `"@mandarax/extension": "workspace:^"`. Run `pnpm install`.
+In `packages/plugin/package.json` dependencies add `"@conciv/extension": "workspace:^"`. Run `pnpm install`.
 
 - [ ] **Step 3: Build deps, typecheck plugin**
 
-Run: `pnpm turbo build --filter='@mandarax/extension' && pnpm --filter @mandarax/plugin typecheck`
+Run: `pnpm turbo build --filter='@conciv/extension' && pnpm --filter @conciv/plugin typecheck`
 Expected: PASS.
 
 - [ ] **Step 4: Commit**
 
 ```bash
 git add packages/plugin/src/core/extensions.ts packages/plugin/package.json pnpm-lock.yaml
-git commit -m "feat(plugin): load server contributions from @mandarax/extension builders"
+git commit -m "feat(plugin): load server contributions from @conciv/extension builders"
 ```
 
 ---
@@ -645,8 +645,8 @@ git commit -m "feat(plugin): load server contributions from @mandarax/extension 
 
 **Files:**
 
-- Modify: `apps/examples/tanstack-start/mandarax/extensions/blue.tsx` (rename from `.ts`, new contract)
-- Reference: the app's `mandarax/extensions/tsconfig.json` (Solid jsx config — verify unchanged)
+- Modify: `apps/examples/tanstack-start/conciv/extensions/blue.tsx` (rename from `.ts`, new contract)
+- Reference: the app's `conciv/extensions/tsconfig.json` (Solid jsx config — verify unchanged)
 
 **Interfaces:**
 
@@ -654,11 +654,11 @@ git commit -m "feat(plugin): load server contributions from @mandarax/extension 
 
 - [ ] **Step 1: Write the example**
 
-`apps/examples/tanstack-start/mandarax/extensions/blue.tsx`:
+`apps/examples/tanstack-start/conciv/extensions/blue.tsx`:
 
 ```tsx
 import {z} from 'zod'
-import {defineExtension, defineTool} from '@mandarax/extension'
+import {defineExtension, defineTool} from '@conciv/extension'
 
 const draw = defineTool({
   name: 'draw',
@@ -693,14 +693,14 @@ Note: `data-pw-ext` hooks are interim test affordances; per repo policy (`no-tes
 
 - [ ] **Step 2: Typecheck the example dir**
 
-Run: `pnpm --filter <example-app> typecheck` (the app includes `mandarax/extensions` in its typecheck script).
+Run: `pnpm --filter <example-app> typecheck` (the app includes `conciv/extensions` in its typecheck script).
 Expected: PASS.
 
 - [ ] **Step 3: Commit**
 
 ```bash
-git add apps/examples/tanstack-start/mandarax/extensions/blue.tsx
-git rm apps/examples/tanstack-start/mandarax/extensions/blue.ts
+git add apps/examples/tanstack-start/conciv/extensions/blue.tsx
+git rm apps/examples/tanstack-start/conciv/extensions/blue.ts
 git commit -m "feat(example): blue extension on the declarative contract"
 ```
 
@@ -719,7 +719,7 @@ git commit -m "feat(example): blue extension on the declarative contract"
 
 - [ ] **Step 1: Write the browser IT (inject two builders, assert per-panel isolation)**
 
-Seed `window.__MANDARAX__ = {queue: [blueBuilder]}` before the widget script loads (the IT builds a minimal extension inline via `defineExtension`), mount two panels (modal + a second pane), then assert:
+Seed `window.__CONCIV__ = {queue: [blueBuilder]}` before the widget script loads (the IT builds a minimal extension inline via `defineExtension`), mount two panels (modal + a second pane), then assert:
 
 - header shows text `Blue`, status shows `Blue theme active`, the composer button labeled `Draw` is visible (`getByRole('button', {name: 'Draw'})`).
 - clicking `Draw` in panel B inserts `draw a square` into panel B's textarea and NOT panel A's (per-panel `insert` isolation — the core C4 regression guard).
@@ -733,7 +733,7 @@ Reuse the existing core MCP IT harness: boot the engine with `start({extensions:
 
 - [ ] **Step 3: Build core + widget, run the ITs**
 
-Run: `pnpm turbo build --filter='@mandarax/core' --filter='@mandarax/widget' && pnpm --filter @mandarax/widget test`
+Run: `pnpm turbo build --filter='@conciv/core' --filter='@conciv/widget' && pnpm --filter @conciv/widget test`
 Expected: PASS.
 
 - [ ] **Step 4: Remove the interim `data-pw-ext` hooks from the example, re-run**
@@ -743,7 +743,7 @@ Delete the `data-pw-ext` attributes from `blue.tsx`; confirm the IT still passes
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/widget/test/extension.it.test.ts apps/examples/tanstack-start/mandarax/extensions/blue.tsx
+git add packages/widget/test/extension.it.test.ts apps/examples/tanstack-start/conciv/extensions/blue.tsx
 git commit -m "test(widget): two-panel extension IT + node server-tool IT"
 ```
 

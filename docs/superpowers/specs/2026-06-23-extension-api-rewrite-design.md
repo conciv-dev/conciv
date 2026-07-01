@@ -19,7 +19,7 @@ Tool cards are **not** part of this slot model. They stay co-located on the tool
 ## Authoring contract
 
 ```ts
-import {defineExtension} from '@mandarax/extensions'
+import {defineExtension} from '@conciv/extensions'
 import {readDeploymentTargets} from 'node:fs'   // referenced only inside .server() -> stripped from client
 
 export const canvasExtension = defineExtension({
@@ -74,7 +74,7 @@ The Component is mounted **only into the slots an extension actually claims**, n
 `defineExtension(meta)` returns the extension object carrying `useSlot` and `useContext`. There are **no Component props**. Internally both hooks read one Solid context:
 
 ```ts
-// in the runtime (@mandarax/extensions client entry)
+// in the runtime (@conciv/extensions client entry)
 const ExtensionRuntimeContext = createContext<ExtensionHostContext>()
 ```
 
@@ -161,7 +161,7 @@ One file holds both halves. The transform produces two views:
 ### Discovery + loading
 
 - **User extensions:** auto-discovered at the path(s) given to the plugin config (glob). Each is transformed into server + client views.
-- **Built-in extensions:** imported by the consumer and handed to the engine via an array — `{extensions: [canvasExtension, ...]}`. Because npm imports resolve into `node_modules` (which the transform skips by design), `@mandarax/extensions` built-ins **ship pre-split at publish time** via a conditional `exports` map (`browser` condition → client view, `node`/`default` → full). There is no "same transform handles built-ins" shortcut.
+- **Built-in extensions:** imported by the consumer and handed to the engine via an array — `{extensions: [canvasExtension, ...]}`. Because npm imports resolve into `node_modules` (which the transform skips by design), `@conciv/extensions` built-ins **ship pre-split at publish time** via a conditional `exports` map (`browser` condition → client view, `node`/`default` → full). There is no "same transform handles built-ins" shortcut.
 - The client virtual module re-exports the client views; the widget imports it and mounts each extension's `Component` into its claimed slots.
 - **Bundler scope (v1):** the strip pass runs in unplugin's shared `transform` hook (portable). Client discovery/serving (the virtual module, the `import.meta.glob` expansion, the dev route, HMR) remain **Vite-first** — they use Vite-only primitives. Under webpack/rspack/esbuild the server engine boots and the host serves the client bundle; full client parity for those bundlers is out of scope for v1 and stated as such.
 
@@ -189,7 +189,7 @@ The extension context bag carries browser-side state only (per-panel host closur
 
 - `ClientApi` / `ServerApi` and every `register` method (`registerTool`, `registerComposerAction`, `ui.setWidget/setHeader/setFooter/setStatus/setEmptyState/setTheme`).
 - `ExtComposerAction` / `ComposerActionCtx` / `UiFactory` / `EmptyStateFactory` — collapsed into `Component` + `useSlot()` + `useContext()`.
-- The `MandaraxExtension` / `ExtensionBuilder` (old imperative) shapes, `collectClientContributions` / `toolRenderers`, the `window.__MANDARAX__.use/queue` install seam in `extension-runtime.ts` / `mandarax-global.ts` (replaced by the client virtual module + Provider; the browser ITs gain a new injection path through the array/virtual module), `ui-store.tsx` (the `setWidget/Header/Footer/Status` store).
+- The `ConcivExtension` / `ExtensionBuilder` (old imperative) shapes, `collectClientContributions` / `toolRenderers`, the `window.__CONCIV__.use/queue` install seam in `extension-runtime.ts` / `conciv-global.ts` (replaced by the client virtual module + Provider; the browser ITs gain a new injection path through the array/virtual module), `ui-store.tsx` (the `setWidget/Header/Footer/Status` store).
 - The `defineExtension({id})` field — renamed to `name`.
 
 ## What is kept
@@ -205,18 +205,18 @@ The extension context bag carries browser-side state only (per-panel host closur
 - Real-browser IT: the live test card (`subscribeTestRunner`) opens exactly one SSE connection per card and tears down on unmount; HMR re-run of `.client()` does not duplicate listeners (`dispose` fires).
 - Node IT: `.server()` contributes a tool to `/api/mcp` and executes; `systemPrompt` lands in the prompt file in deterministic order.
 - Build IT (real consumer bundler, transitive-util fixture): the emitted client chunk contains **no node import**; the server view does; a node-only symbol used by `.server()` is absent from the client chunk; a surviving top-level `node:*` import fails the build.
-- Agent-tool IT: `mandarax_extensions` catalog/scaffold/validate reflect the new contract.
+- Agent-tool IT: `conciv_extensions` catalog/scaffold/validate reflect the new contract.
 - No jsdom, no mocks — real server (`http.createServer`), real browser, real MCP.
 
 ## Implementation slices
 
 This is too large for one PR. Land in slices, each independently testable:
 
-1. **Contract + discovery** (`@mandarax/extensions`): new `defineExtension`/`useSlot`/`useContext`, the `ExtensionRuntimeContext`, builder generics, `.server()`/`.client()` return-object drain, keep `defineTool`/`.render`/`ExtensionServerTool`. Unit + node IT. Rewrite `blue.ts`/`deploy-button.tsx` as fixtures.
-2. **Build transform** (`@mandarax/plugin`): babel `.server`-strip pass + built-in pre-split + client virtual module + jiti server load. Build IT. Highest risk — isolate it.
+1. **Contract + discovery** (`@conciv/extensions`): new `defineExtension`/`useSlot`/`useContext`, the `ExtensionRuntimeContext`, builder generics, `.server()`/`.client()` return-object drain, keep `defineTool`/`.render`/`ExtensionServerTool`. Unit + node IT. Rewrite `blue.ts`/`deploy-button.tsx` as fixtures.
+2. **Build transform** (`@conciv/plugin`): babel `.server`-strip pass + built-in pre-split + client virtual module + jiti server load. Build IT. Highest risk — isolate it.
 3. **Widget slots** (`mount.tsx`, delete `ui-store.tsx`, rewire `empty-state.tsx`/`chat-panel.tsx`, per-panel `ExtensionRuntimeContext.Provider`, fold the composer bag + `ToolViewCtx` into `ExtensionHostContext`, the `status` slot). Browser IT (incl. two-panel).
 4. **tool-ui** stays mostly as-is (tool cards not moving); only the `tools` prop threading and any `ToolCardEntry` naming touched. Confirm no regression.
-5. **Agent tool + SKILL + scaffolds + catalog** (`@mandarax/tools` description, `catalog.ts` templates/validate, `SKILL.md`): rewrite to the new shape. Lands last once the authoring surface is frozen.
+5. **Agent tool + SKILL + scaffolds + catalog** (`@conciv/tools` description, `catalog.ts` templates/validate, `SKILL.md`): rewrite to the new shape. Lands last once the authoring surface is frozen.
 
 Core (`engine.ts`/`app.ts`/`mcp.ts`) needs no slice if `ExtensionServerContributions`/`ExtensionServerTool` are preserved — verify before slice 1.
 

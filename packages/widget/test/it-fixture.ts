@@ -11,7 +11,7 @@ import type {Page} from 'playwright'
 const dirname = path.dirname(fileURLToPath(import.meta.url))
 const require = createRequire(import.meta.url)
 
-export const widgetBundle = fs.readFileSync(path.join(dirname, '../dist/mandarax-widget.global.js'), 'utf8')
+export const widgetBundle = fs.readFileSync(path.join(dirname, '../dist/conciv-widget.global.js'), 'utf8')
 
 export async function buildFixture(): Promise<string> {
   const app = path.resolve(dirname, '../../../apps/examples/tanstack-start')
@@ -57,7 +57,7 @@ export function readBody(req: IncomingMessage): Promise<string> {
 type Driver = {execute: (q: Record<string, unknown>) => Promise<Record<string, unknown>>}
 export const drive = (page: Page, q: Record<string, unknown>): Promise<Record<string, unknown>> =>
   page.evaluate(
-    (query) => (window as unknown as {__MANDARAX_PAGE_DRIVER__: Driver}).__MANDARAX_PAGE_DRIVER__.execute(query),
+    (query) => (window as unknown as {__CONCIV_PAGE_DRIVER__: Driver}).__CONCIV_PAGE_DRIVER__.execute(query),
     q,
   )
 
@@ -66,5 +66,5 @@ export async function ready(page: Page): Promise<void> {
   await page.waitForFunction(() => document.querySelector('#card-count')?.textContent === 'count: 7', undefined, {
     timeout: 15_000,
   })
-  await page.waitForFunction(() => '__MANDARAX_PAGE_DRIVER__' in window, undefined, {timeout: 15_000})
+  await page.waitForFunction(() => '__CONCIV_PAGE_DRIVER__' in window, undefined, {timeout: 15_000})
 }

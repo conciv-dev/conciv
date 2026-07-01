@@ -53,13 +53,11 @@ describe('highlight extension (it): Alt-hold, hover, click, open', () => {
 
     // The esbuild fixture has no build-injected source attr; set one on the component host so the click
     // resolves via the fast path (the symbolication fallback is covered by core's open-source IT).
-    await page.evaluate(() =>
-      document.querySelector('#card')?.setAttribute('data-mandarax-source', '/src/Card.tsx:3:1'),
-    )
+    await page.evaluate(() => document.querySelector('#card')?.setAttribute('data-conciv-source', '/src/Card.tsx:3:1'))
 
     await page.keyboard.down('Alt')
     // The armed overlay renders a full-screen capture layer into the shared surface — wait for it.
-    await page.locator('[data-mandarax-capture]').waitFor({timeout: 5000})
+    await page.locator('[data-conciv-capture]').waitFor({timeout: 5000})
 
     const box = await page.locator('#card').boundingBox()
     if (!box) throw new Error('#card has no box')
@@ -81,9 +79,9 @@ describe('highlight extension (it): Alt-hold, hover, click, open', () => {
     await ready(page)
 
     await page.keyboard.down('Alt')
-    await page.locator('[data-mandarax-capture]').waitFor({timeout: 5000})
+    await page.locator('[data-conciv-capture]').waitFor({timeout: 5000})
     await page.keyboard.up('Alt')
-    await page.locator('[data-mandarax-capture]').waitFor({state: 'detached', timeout: 5000})
+    await page.locator('[data-conciv-capture]').waitFor({state: 'detached', timeout: 5000})
 
     const baseline = openSourceCalls.length + editorOpenCalls.length
     const box = await page.locator('#card-inc').boundingBox()

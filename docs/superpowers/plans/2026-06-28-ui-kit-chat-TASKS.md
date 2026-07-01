@@ -1,4 +1,4 @@
-# @mandarax/ui-kit-chat — execution checklist + Definition of Done
+# @conciv/ui-kit-chat — execution checklist + Definition of Done
 
 Loop source-of-truth. Plan: `2026-06-28-widget-chat-ui-redesign.md`. API spec:
 `2026-06-28-ui-kit-chat-api.md`. Work in a dedicated worktree; commit per task; check the box
@@ -32,7 +32,7 @@ only when its verification passes.
 
 ## DEFINITION OF DONE (the end goal)
 
-**THE GOAL IS THAT THE REAL WIDGET RUNS ON `@mandarax/ui-kit-chat` IN THE LIVE APP, AND THE
+**THE GOAL IS THAT THE REAL WIDGET RUNS ON `@conciv/ui-kit-chat` IN THE LIVE APP, AND THE
 OLD CHAT STACK IS DELETED.** Building the package + Storybook is NOT done. Done = the app
 actually imports and renders the chat through the new package, the old files are gone, and
 nothing regressed.
@@ -45,12 +45,12 @@ All four. No exceptions, no "mostly," no leaving the old chat-panel/tool-ui aliv
 
 - [ ] **No assistant-ui dependency.** `grep -rn "assistant-ui" packages/ui-kit-chat/{package.json,src}` → only comments referencing it as a doc reference, never an import or dep. `jq '.dependencies,.devDependencies,.peerDependencies' packages/ui-kit-chat/package.json` contains no `@assistant-ui/*`.
 - [ ] **No Ark _component_ imports outside ui-kit-system.** `oxlint` passes with zero `no-restricted-imports` errors. `grep -rn "@ark-ui/solid/" packages/ui-kit-chat/src packages/widget/src` shows ONLY headless hooks (`useListCollection`, `useFilter`) — never a component subpath.
-- [ ] **Base components come from ui-kit-system.** Every Tooltip/Menu/Popover/Toast/Avatar/Tabs/Switch/Collapsible/ScrollArea/Dialog/Combobox usage in ui-kit-chat imports from `@mandarax/ui-kit-system`.
+- [ ] **Base components come from ui-kit-system.** Every Tooltip/Menu/Popover/Toast/Avatar/Tabs/Switch/Collapsible/ScrollArea/Dialog/Combobox usage in ui-kit-chat imports from `@conciv/ui-kit-system`.
 - [ ] **Canonical tanstack data model, NO new domain types.** ui-kit-chat does not redefine `UIMessage`/`MessagePart`/`ToolCallPart`/`ToolResultPart`/`ThinkingPart` — `grep -rn "interface UIMessage\|type MessagePart\b\|interface ToolCallPart" packages/ui-kit-chat/src` → none; they're imported from `@tanstack/ai-client`.
 - [ ] **Real useChat, single source of truth, NO copied state.** `ChatProvider` stores the `useChat` return in context; `grep -rn "createStore" packages/ui-kit-chat/src/store` shows a store ONLY for the view-state bag (collapsed/pinned/hover/draft/viewport), never for messages/status.
 - [ ] **NO mocks of the runtime.** `grep -rn "mockChat\|vi.fn\|jest.fn" packages/ui-kit-chat/src` → none. Stories use the real `useChat` + `storyConnection` (a fake `ConnectionAdapter` yielding `StreamChunk`s, mirroring TanStack's `createMockConnectionAdapter`).
 - [ ] **Design/API parity with assistant-ui.** Every primitive family + part listed in API spec §2 (and the capability table §7) exists and is exported. ai-solid-ui was reference only — our shape is the assistant-ui compound API, not ai-solid-ui's.
-- [ ] **Styled set neutral + themeable.** `packages/ui-kit-chat/src/theme/` ships neutral `--chat-*` tokens (light/dark) + a separate mandarax theme mapping to `--pw-*`. The styled components reference only `--chat-*`, never `--pw-*` directly.
+- [ ] **Styled set neutral + themeable.** `packages/ui-kit-chat/src/theme/` ships neutral `--chat-*` tokens (light/dark) + a separate conciv theme mapping to `--pw-*`. The styled components reference only `--chat-*`, never `--pw-*` directly.
 - [ ] **Storybook covers every component, all states.** Each primitive part, styled component, and tool card has a `.stories.tsx`; `grep` count of components == stories (data-coupled exemptions explicitly listed in the Phase 8b story index). Storybook builds.
 - [ ] **Code style (hard rules).** No `class ` declarations; no `: any`/`as ` casts; no non-null `!`; no IIFE; no internal barrel `index.ts` inside `primitives/`/`styled/` folders (the single package-entry `src/index.tsx` is allowed). `grep -rn ": any\| as [A-Z]\|!\." packages/ui-kit-chat/src` reviewed → none illegitimate.
 - [ ] **Unstyled by default — no fused logic in `styled/`.** Every domain behavior (parsing, status derivation, grouping, state) lives in a `primitives/*` headless layer; `styled/*` only adds `--chat-*` classes + slots over a primitive (or a ui-kit-system primitive for pure shells like CollapsibleCard/TooltipIconButton). No `styled/` file declares a parse/derive/status function. Spot-check: `grep -rnE "^function (parse|to[A-Z]|.*Status|claudeBlock|patchInfo)" packages/ui-kit-chat/src/styled` → none. Tool cards follow §2.14.
@@ -60,17 +60,17 @@ All four. No exceptions, no "mostly," no leaving the old chat-panel/tool-ui aliv
 
 ### C. Cutover & old-code-removal audit (the "actually used + old code gone" gate — plan §18)
 
-- [ ] **Widget depends on the package.** `jq '.dependencies["@mandarax/ui-kit-chat"]' packages/widget/package.json` → present.
+- [ ] **Widget depends on the package.** `jq '.dependencies["@conciv/ui-kit-chat"]' packages/widget/package.json` → present.
 - [ ] **The app renders through it.** `mount.tsx`, `widget-shell.tsx`, `quick-terminal.tsx` render the chat via ui-kit-chat `Thread`/`Composer`; `chat-panel.tsx` is only a thin `useChat`+`ChatProvider` container (no layout/grouping/tool-rendering left in it).
-- [ ] **tool-ui is gone.** `ls packages/tool-ui` → does not exist. `grep -rn "@mandarax/tool-ui" packages --include=*.ts --include=*.tsx --include=*.json | grep -v node_modules | grep -v /dist/` → **zero**.
+- [ ] **tool-ui is gone.** `ls packages/tool-ui` → does not exist. `grep -rn "@conciv/tool-ui" packages --include=*.ts --include=*.tsx --include=*.json | grep -v node_modules | grep -v /dist/` → **zero**.
 - [ ] **Old widget files deleted/replaced per §18:** `packages/widget/src/chat/markdown.tsx` deleted (→ ui-kit-chat Markdown); `shell/popover.tsx` deleted + `grep -rn "@floating-ui/dom" packages/widget` → zero; `shell/empty-state.tsx` replaced by ui-kit-chat Empty/Welcome (EmptyStateSlot seam kept); `shell/approval-modal.tsx` renders ui-kit-chat `PermissionCard`.
-- [ ] **Extension consumers migrated.** `whiteboard/src/client/pins/thread.tsx` and `test-runner/src/tool/card.tsx` import from `@mandarax/ui-kit-chat` (not tool-ui); both package.jsons updated; both extension ITs pass.
+- [ ] **Extension consumers migrated.** `whiteboard/src/client/pins/thread.tsx` and `test-runner/src/tool/card.tsx` import from `@conciv/ui-kit-chat` (not tool-ui); both package.jsons updated; both extension ITs pass.
 - [ ] **No duplicate stacks.** There is exactly ONE disclosure mechanism, ONE toast, ONE tool-card renderer, ONE markdown renderer in the running widget (no old + new side by side).
 - [ ] **Composer controls rewired.** model/session selectors + session-info/new-session/compact/open-in-terminal actions render inside the ui-kit-chat `Composer` slots (not the old composer markup).
 
 ### D. Final acceptance gate (all green, from the worktree)
 
-- [ ] `pnpm turbo run build --filter=@mandarax/ui-kit-system --filter=@mandarax/ui-kit-chat --filter=@mandarax/widget` — passes.
+- [ ] `pnpm turbo run build --filter=@conciv/ui-kit-system --filter=@conciv/ui-kit-chat --filter=@conciv/widget` — passes.
 - [ ] `pnpm turbo run typecheck` (or the repo's typecheck task) — zero errors.
 - [ ] `oxlint` (repo lint) — zero errors/warnings, incl. `no-restricted-imports`.
 - [ ] Storybook builds for ui-kit-system AND ui-kit-chat (`pnpm turbo run build-storybook --filter=...`).
@@ -84,7 +84,7 @@ All four. No exceptions, no "mostly," no leaving the old chat-panel/tool-ui aliv
 
 | Removed/renamed test                                                                                                                                                | Why (subject gone / moved)                                                                                    | Where its coverage lives now                                                                                                                            |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tool-ui/src/cards/{file-edit,file-read,generic,page-action,search,shell,todo,ui-chip}.stories.tsx` + `done-card`/`now-line`/`shell`/`thinking`/`tool-call` stories | tool-ui package deleted in the cutover; concrete cards split to `@mandarax/ui-kit-chat-tools`                 | `ui-kit-chat-tools` story files per card (Bash/ApplyPatch/FileEdit/FileRead/Search/Todo/page-action/ui-chip) + ui-kit-chat ToolFallback/NowLine stories |
+| `tool-ui/src/cards/{file-edit,file-read,generic,page-action,search,shell,todo,ui-chip}.stories.tsx` + `done-card`/`now-line`/`shell`/`thinking`/`tool-call` stories | tool-ui package deleted in the cutover; concrete cards split to `@conciv/ui-kit-chat-tools`                   | `ui-kit-chat-tools` story files per card (Bash/ApplyPatch/FileEdit/FileRead/Search/Todo/page-action/ui-chip) + ui-kit-chat ToolFallback/NowLine stories |
 | `tool-ui/test/now-title.test.ts`, `tool-ui/test/util.test.ts`                                                                                                       | helpers moved with the cards                                                                                  | `ui-kit-chat-tools` `now-title.ts` / `primitives/tools/tool-util.ts` (parseInput/resultText/etc), exercised via the tools stories                       |
 | `widget/test/__snapshots__/{computed-styles.json,shots/*.png}` (UPDATED, not deleted)                                                                               | chat redesign + tool-ui→ui-kit-chat DOM restructure moves element paths/computed styles; visual output stable | regenerated golden (`UPDATE_STYLE_SNAPSHOT=1`); modal-open + model-popover shots eyeballed correct; test green non-update                               |
 
@@ -100,7 +100,7 @@ All four. No exceptions, no "mostly," no leaving the old chat-panel/tool-ui aliv
 ### Phase 1 — ui-kit-chat scaffold + ChatProvider/context
 
 - [x] Package (package.json/tsconfig/uno/.storybook); `Primitive` slot shim; `createActionButton`; `ChatProvider`/`useChatContext` over the `useChat` return; `createMemo` views (`useThread`/`useComposer`); view-state bag; grouping ported (`coalesceTurns`/`groupSegments`/`pairResults`); `storyConnection` helper. Verify: a trivial story renders the real useChat behind storyConnection; typecheck clean.
-      Done: `@mandarax/ui-kit-chat` scaffolded (vite/vitest/uno/.storybook). `ChatProvider` wraps the real `UseChatReturn` verbatim + a `createStore` view-state bag (draft/collapsed-by-toolCallId/pinned/hover/viewport) with key GC; `useThread`/`useComposer` are getter/`createMemo` views (NO copied chat state). `storyConnection` = fake `ConnectConnectionAdapter` yielding chunks that mirror the repo's own `agui.ts` emitter (text/reasoning/tool/approval builders). **Story drives the REAL `useChat` end-to-end (storybook chromium GREEN), grouping unit 5/5 GREEN, typecheck/build/storybook all clean, oxlint 0/0.**
+      Done: `@conciv/ui-kit-chat` scaffolded (vite/vitest/uno/.storybook). `ChatProvider` wraps the real `UseChatReturn` verbatim + a `createStore` view-state bag (draft/collapsed-by-toolCallId/pinned/hover/viewport) with key GC; `useThread`/`useComposer` are getter/`createMemo` views (NO copied chat state). `storyConnection` = fake `ConnectConnectionAdapter` yielding chunks that mirror the repo's own `agui.ts` emitter (text/reasoning/tool/approval builders). **Story drives the REAL `useChat` end-to-end (storybook chromium GREEN), grouping unit 5/5 GREEN, typecheck/build/storybook all clean, oxlint 0/0.**
 
 ### Phase 2 — headless primitives (full API parity, API spec §2)
 
@@ -136,11 +136,11 @@ All four. No exceptions, no "mostly," no leaving the old chat-panel/tool-ui aliv
 - [x] 5a — apply-patch-diff (Pierre), bash-card, inline-tool (ToolCardEntry[] dispatch). **Done** (commits d68165c + f745abd): all two-layer (primitives/tools/_ logic + styled/tools/_ tokens, §2.14); SolidPatchDiff added to solid-diffs; defineToolkit→ToolCardEntry[]; styled Thread dispatches `tools` by name in the chain (was fallback-only). Screenshot-verified.
 - [~] 5b — **PermissionCard done** (two-layer: primitives/tools/permission + styled/tools/permission-card; native-approval-hybrid via ctx.respondApproval; wired into the Thread chain so any approval-requested tool shows Allow/Deny; story Pending/Settled green). `defineToolkit` done in 5a. **ReasoningGhost SKIPPED — superseded** (DEVIATION, flagged): the chain already renders reasoning as a Brain rail node + carded `Reasoning` (the user's explicit "Reasoning = card" choice); adding assistant-ui's un-carded ghost would be an orphaned component. **Folding the remaining tool-ui cards** (file-edit/file-read/search/todo/page-action/ui-chip/generic) deferred to Phase 6e (cutover absorbs tool-ui). Ask UI = existing GenUi.
 - [x] 5c — **ModelSelector (assistant-ui API parity, API spec Appendix A).** Done (commit b5193ed): headless `primitives/model-selector/` compound (Root/Trigger/Value/Content/Search/List/Empty/Group/Separator/Item/Effort + `createControllableSignal` util) over ui-kit-system Combobox/Popover; styled `styled/model-selector.tsx` (chat tokens + lucide, flat `ModelSelector` convenience). EXACT public API + types (`ModelOption`/`ModelSelectorEffortOption`/`DEFAULT_EFFORT_OPTIONS`/`resolveModelEffort`/`useModelSelectorEfforts`). Effort part gated (null until `HarnessModelInfo.efforts`). Deviations per Appendix A.3 (no `useAui` ModelContext → controlled `onValueChange`).
-- Verify: each card has stories incl. running/complete/error/approval states. ModelSelector stories per Appendix A.5 (closed/open/filter/disabled/empty/effort/controlled; neutral+dark+mandarax; shadow-DOM open).
+- Verify: each card has stories incl. running/complete/error/approval states. ModelSelector stories per Appendix A.5 (closed/open/filter/disabled/empty/effort/controlled; neutral+dark+conciv; shadow-DOM open).
 
 ### Phase 6 — widget cutover + DELETE the old stack (plan §18 — this is where "used in the app" happens)
 
-- [ ] 6a — Add `@mandarax/ui-kit-chat` dep to widget. Rewrite `chat/chat-panel.tsx` to a thin container: `useChat` → `<ChatProvider>` → ui-kit-chat `<Thread>`/`<Composer>`; keep session load/switch/compact/divider/duration/approval wiring; delete all layout/grouping/tool-rendering from it.
+- [ ] 6a — Add `@conciv/ui-kit-chat` dep to widget. Rewrite `chat/chat-panel.tsx` to a thin container: `useChat` → `<ChatProvider>` → ui-kit-chat `<Thread>`/`<Composer>`; keep session load/switch/compact/divider/duration/approval wiring; delete all layout/grouping/tool-rendering from it.
 - [ ] 6b — Replace `chat/markdown.tsx` with ui-kit-chat `Markdown`; **delete** `chat/markdown.tsx`. Keep `chat/gen-ui.tsx`, render it via a thread slot.
 - [ ] 6c — Replace `shell/popover.tsx` (floating-ui) with ui-kit `Popover`/`AssistantModal`; **delete** it + drop `@floating-ui/dom`. `shell/approval-modal.tsx` → render ui-kit-chat `PermissionCard`. `shell/empty-state.tsx` → ui-kit-chat Empty/Welcome+Suggestions (keep EmptyStateSlot seam). `fab-robot` → AssistantModal.Trigger. Rewire `widget-shell.tsx` + `quick-terminal.tsx` to render ui-kit-chat threads.
 - [ ] 6d — Rewire composer: model/session selectors + session-info/new-session/compact/open-in-terminal into ui-kit-chat `Composer` slots. Rebuild `widget/src/composer/model-selector.tsx` on ui-kit-chat `ModelSelector` (Phase 5c; map `groupsOf`→`Group` blocks, `onValueChange`→`setRequestMeta({model})`); delete the hand-rolled Combobox markup.
@@ -149,7 +149,7 @@ All four. No exceptions, no "mostly," no leaving the old chat-panel/tool-ui aliv
 
 ### Phase 7 — theming
 
-- [ ] Neutral `--chat-*` tokens (light/dark) + mandarax theme layer (→ `--pw-*`); verify in widget shadow DOM (@property hoist).
+- [ ] Neutral `--chat-*` tokens (light/dark) + conciv theme layer (→ `--pw-*`); verify in widget shadow DOM (@property hoist).
 
 ### Phase 8 — polish + storybook sweep
 

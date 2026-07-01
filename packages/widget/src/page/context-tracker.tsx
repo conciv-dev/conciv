@@ -1,6 +1,6 @@
 import {Show, type JSX} from 'solid-js'
-import {HoverCard} from '@mandarax/ui-kit-system'
-import {contextUsedTokens, type UsageSnapshot} from '@mandarax/protocol/usage-types'
+import {HoverCard} from '@conciv/ui-kit-system'
+import {contextUsedTokens, type UsageSnapshot} from '@conciv/protocol/usage-types'
 
 const pct = new Intl.NumberFormat('en-US', {style: 'percent', maximumFractionDigits: 1})
 const compact = new Intl.NumberFormat('en-US', {notation: 'compact'})

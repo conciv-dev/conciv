@@ -13,7 +13,7 @@ import type {Plugin} from 'vite'
 //    vite.config.ts, the lib build) keeps the runner out of the build pipeline.
 //  - `widget-browser`: real-browser component tests that render the widget's own Solid source (compiled
 //    on the fly by vite-plugin-solid). The test module and the widget share ONE module graph so
-//    @mandarax/extension's runtime context is the same instance the Component reads via useContext.
+//    @conciv/extension's runtime context is the same instance the Component reads via useContext.
 //  - `storybook`: the widget's stories run as real browser tests via the Storybook vitest addon.
 // Never jsdom.
 const dirname = typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
@@ -45,7 +45,7 @@ const HISTORY = [
   },
 ]
 const SESSION = {
-  sessionId: 'mandarax_test',
+  sessionId: 'conciv_test',
   harnessSessionId: 'tok-test',
   name: 'Tests',
   origin: 'chat',
@@ -66,7 +66,7 @@ const chatHistoryFixture: Plugin = {
         res.setHeader('content-type', 'application/json')
         res.end(JSON.stringify(body))
       }
-      if (url.startsWith('/api/chat/session/resolve')) return json({sessionId: 'mandarax_test'})
+      if (url.startsWith('/api/chat/session/resolve')) return json({sessionId: 'conciv_test'})
       if (url.startsWith('/api/chat/sessions')) return json({sessions: []})
       if (url.startsWith('/api/chat/history')) return json(HISTORY)
       if (url.startsWith('/api/chat/session')) return json(SESSION)

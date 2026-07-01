@@ -5,8 +5,8 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {platform} from 'node:os'
 import {type H3, readValidatedBody} from 'h3'
-import type {HarnessAdapter, HarnessLaunchContext, HarnessLaunchResult} from '@mandarax/protocol/harness-types'
-import {ChatLaunchRequestSchema, type ChatLaunch} from '@mandarax/protocol/chat-types'
+import type {HarnessAdapter, HarnessLaunchContext, HarnessLaunchResult} from '@conciv/protocol/harness-types'
+import {ChatLaunchRequestSchema, type ChatLaunch} from '@conciv/protocol/chat-types'
 import type {SessionStore} from '../../store/session-store.js'
 import {sessionIdFromHeaders} from './session-id.js'
 
@@ -61,7 +61,7 @@ async function openUrl(url: string): Promise<HarnessLaunchResult> {
 async function spawnTerminal(command: string): Promise<boolean> {
   switch (platform()) {
     case 'darwin': {
-      const file = join(tmpdir(), `mandarax-launch-${randomUUID()}.command`)
+      const file = join(tmpdir(), `conciv-launch-${randomUUID()}.command`)
       // exec $SHELL keeps the window alive after the CLI exits, so errors stay visible.
       writeFileSync(file, `#!/bin/bash\n${command}\nexec $SHELL\n`)
       chmodSync(file, 0o755)

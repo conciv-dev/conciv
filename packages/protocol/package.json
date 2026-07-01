@@ -1,19 +1,19 @@
 {
-  "name": "@mandarax/protocol",
+  "name": "@conciv/protocol",
   "version": "0.0.0",
-  "description": "Wire types shared by the mandarax vite-plugin and widget.",
+  "description": "Wire types shared by the conciv vite-plugin and widget.",
   "keywords": [
     "ag-ui",
-    "mandarax",
+    "conciv",
     "protocol",
     "types"
   ],
-  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/protocol#readme",
-  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
+  "homepage": "https://github.com/conciv-dev/conciv/tree/main/packages/protocol#readme",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mandarax-dev/mandarax.git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
     "directory": "packages/protocol"
   },
   "files": [

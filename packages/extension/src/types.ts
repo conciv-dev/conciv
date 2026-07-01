@@ -1,12 +1,12 @@
 import type {H3} from 'h3'
 import type {Component, ComponentProps} from 'solid-js'
-import type {DialogApi, PopoverApi} from '@mandarax/ui-kit-system'
+import type {DialogApi, PopoverApi} from '@conciv/ui-kit-system'
 import type {z} from 'zod'
-import type {ToolCardProps, ToolViewCtx} from '@mandarax/protocol/tool-view-types'
-import type {RequestMeta, SessionClient} from '@mandarax/api-client'
-import type {GrabApi} from '@mandarax/grab'
-import type {LocateResult} from '@mandarax/protocol/page-introspect-types'
-import type {OpenSourceResult} from '@mandarax/protocol/page-types'
+import type {ToolCardProps, ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import type {RequestMeta, SessionClient} from '@conciv/api-client'
+import type {GrabApi} from '@conciv/grab'
+import type {LocateResult} from '@conciv/protocol/page-introspect-types'
+import type {OpenSourceResult} from '@conciv/protocol/page-types'
 
 export type ExtensionSlot = 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget'
 

@@ -13,11 +13,11 @@ const PROPERTY_RULE = /@property\s+--[\w-]+\s*\{[^}]*\}/g
 
 // Register them in `doc` (the host document, or a popped-out PiP window's document) once.
 export function registerWind4Properties(doc: Document = document): void {
-  if (doc.querySelector('style[data-mandarax-properties]')) return
+  if (doc.querySelector('style[data-conciv-properties]')) return
   const props = styles.match(PROPERTY_RULE)
   if (!props) return
   const style = doc.createElement('style')
-  style.setAttribute('data-mandarax-properties', '')
+  style.setAttribute('data-conciv-properties', '')
   style.textContent = props.join('')
   doc.head.appendChild(style)
 }
@@ -25,7 +25,7 @@ export function registerWind4Properties(doc: Document = document): void {
 export function createShadowRoot(): {host: HTMLElement; root: ShadowRoot} {
   registerWind4Properties()
   const host = document.createElement('div')
-  host.setAttribute('data-mandarax-root', '')
+  host.setAttribute('data-conciv-root', '')
   host.style.position = 'fixed'
   host.style.inset = '0'
   host.style.pointerEvents = 'none'

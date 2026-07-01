@@ -1,11 +1,11 @@
-import {CHAT_SYSTEM_PROMPT} from '@mandarax/harness/claude'
-import type {MandaraxConfig} from '@mandarax/protocol/config-types'
+import {CHAT_SYSTEM_PROMPT} from '@conciv/harness/claude'
+import type {ConcivConfig} from '@conciv/protocol/config-types'
 
-// The public config contract lives in @mandarax/protocol; core owns only resolution.
-export type {MandaraxConfig} from '@mandarax/protocol/config-types'
-export {defineConfig} from '@mandarax/protocol/config-types'
+// The public config contract lives in @conciv/protocol; core owns only resolution.
+export type {ConcivConfig} from '@conciv/protocol/config-types'
+export {defineConfig} from '@conciv/protocol/config-types'
 
-export interface ResolvedMandaraxConfig {
+export interface ResolvedConcivConfig {
   enabled: boolean
   widgetUrl: string | undefined
   stateRoot: string
@@ -13,7 +13,7 @@ export interface ResolvedMandaraxConfig {
   harnessBin: string | undefined
   sessionId: string
   systemPrompt: string
-  extensions: MandaraxConfig['extensions']
+  extensions: ConcivConfig['extensions']
 }
 
 // systemPrompt: false → '' (opt out); string → custom; true/undefined → our minimal default.
@@ -23,17 +23,17 @@ function resolveSystemPrompt(value: string | boolean | undefined): string {
   return CHAT_SYSTEM_PROMPT
 }
 
-export function resolveConfig(options: MandaraxConfig, root: string): ResolvedMandaraxConfig {
+export function resolveConfig(options: ConcivConfig, root: string): ResolvedConcivConfig {
   const env = process.env
   return {
     enabled: options.enabled ?? true,
-    widgetUrl: options.widgetUrl ?? env.MANDARAX_WIDGET_URL,
-    stateRoot: options.stateRoot ?? env.MANDARAX_STATE_ROOT ?? root,
-    harness: options.harness ?? env.MANDARAX_HARNESS ?? 'claude',
+    widgetUrl: options.widgetUrl ?? env.CONCIV_WIDGET_URL,
+    stateRoot: options.stateRoot ?? env.CONCIV_STATE_ROOT ?? root,
+    harness: options.harness ?? env.CONCIV_HARNESS ?? 'claude',
     harnessBin:
-      options.harnessBin ?? options.claudePath ?? env.MANDARAX_HARNESS_BIN ?? env.MANDARAX_CLAUDE_PATH ?? undefined,
+      options.harnessBin ?? options.claudePath ?? env.CONCIV_HARNESS_BIN ?? env.CONCIV_CLAUDE_PATH ?? undefined,
     sessionId:
-      options.sessionId ?? options.claudeSessionId ?? env.MANDARAX_SESSION_ID ?? env.MANDARAX_CLAUDE_SESSION_ID ?? '',
+      options.sessionId ?? options.claudeSessionId ?? env.CONCIV_SESSION_ID ?? env.CONCIV_CLAUDE_SESSION_ID ?? '',
     systemPrompt: resolveSystemPrompt(options.systemPrompt),
     extensions: options.extensions,
   }

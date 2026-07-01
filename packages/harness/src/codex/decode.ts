@@ -1,6 +1,6 @@
 import {z} from 'zod'
 import type {StreamChunk} from '@tanstack/ai'
-import type {HarnessDecodeOpts} from '@mandarax/protocol/harness-types'
+import type {HarnessDecodeOpts} from '@conciv/protocol/harness-types'
 import {
   runAgui,
   textMessage,

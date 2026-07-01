@@ -1,5 +1,5 @@
-# @mandarax/tools
+# @conciv/tools
 
-mandarax agent tools as @tanstack/ai toolDefinition().server() functions: ui, page, test.
+conciv agent tools as @tanstack/ai toolDefinition().server() functions: ui, page, test.
 
-Part of [mandarax](https://github.com/mandarax-dev/mandarax).
+Part of [conciv](https://github.com/conciv-dev/conciv).

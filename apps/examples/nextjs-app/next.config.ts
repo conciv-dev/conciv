@@ -1,6 +1,6 @@
 import type {NextConfig} from 'next'
-import {withMandarax} from '@mandarax/qu/plugin/nextjs'
+import {withConciv} from '@conciv/qu/plugin/nextjs'
 
 const nextConfig: NextConfig = {}
 
-export default withMandarax(nextConfig)
+export default withConciv(nextConfig)

@@ -1,7 +1,7 @@
 import {describe, it, expect} from 'vitest'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 import {claudeToAguiEvents} from '../src/claude/decode.js'
-import type {UsageSnapshot} from '@mandarax/protocol/usage-types'
+import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 
 async function* lines(arr: string[]): AsyncGenerator<string> {
   for (const l of arr) yield l
@@ -169,14 +169,14 @@ describe('claude decode — live text streaming', () => {
     expect(end.toolCallId).toBe('toolu_1')
   })
 
-  it('un-prefixes our own MCP tool name back to canonical (mcp__mandarax__mandarax_page → mandarax_page)', async () => {
+  it('un-prefixes our own MCP tool name back to canonical (mcp__conciv__conciv_page → conciv_page)', async () => {
     const out = await collect([
-      blockStart(0, {type: 'tool_use', id: 'toolu_3', name: 'mcp__mandarax__mandarax_page'}),
+      blockStart(0, {type: 'tool_use', id: 'toolu_3', name: 'mcp__conciv__conciv_page'}),
       blockStop(0),
     ])
     const start = ofType(out, EventType.TOOL_CALL_START)[0] as {toolName: string; toolCallName: string}
-    expect(start.toolName).toBe('mandarax_page')
-    expect(start.toolCallName).toBe('mandarax_page')
+    expect(start.toolName).toBe('conciv_page')
+    expect(start.toolCallName).toBe('conciv_page')
   })
 
   it('leaves a third-party MCP tool name prefixed (falls through to the generic card)', async () => {

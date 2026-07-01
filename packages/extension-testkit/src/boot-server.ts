@@ -1,13 +1,13 @@
 import {mkdtemp} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {start} from '@mandarax/core/engine'
-import type {AnyExtension} from '@mandarax/extension'
+import {start} from '@conciv/core/engine'
+import type {AnyExtension} from '@conciv/extension'
 
 export type BootedServer = {apiBase: string; stop: () => Promise<void>}
 
 export async function bootExtensionServer(extension: AnyExtension): Promise<BootedServer> {
-  const root = await mkdtemp(join(tmpdir(), 'mandarax-testkit-'))
+  const root = await mkdtemp(join(tmpdir(), 'conciv-testkit-'))
   const engine = await start({
     options: {stateRoot: root, systemPrompt: false},
     root,

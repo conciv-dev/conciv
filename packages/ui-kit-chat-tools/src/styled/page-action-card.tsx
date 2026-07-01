@@ -1,10 +1,10 @@
 import {Show, Switch, Match, For, type JSX} from 'solid-js'
 import {Keyboard, MousePointerClick, ScanSearch, Wand2, Target, MoveUpRight} from 'lucide-solid'
-import {SolidCodeBlock, type FileOptions} from '@mandarax/solid-diffs'
-import {PageInput} from '@mandarax/tools/defs'
-import {MUTATING_KINDS, mirrorsKind, type PageQueryKind} from '@mandarax/protocol/page-types'
-import {ToolCard, parseInput, resultText, parseResultPayload} from '@mandarax/ui-kit-chat'
-import type {ToolCardEntry, ToolCardProps} from '@mandarax/protocol/tool-view-types'
+import {SolidCodeBlock, type FileOptions} from '@conciv/solid-diffs'
+import {PageInput} from '@conciv/tools/defs'
+import {MUTATING_KINDS, mirrorsKind, type PageQueryKind} from '@conciv/protocol/page-types'
+import {ToolCard, parseInput, resultText, parseResultPayload} from '@conciv/ui-kit-chat'
+import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {formatHtml} from '../page-format.js'
 
 const CODE_OPTIONS: FileOptions<undefined> = {theme: {light: 'github-light', dark: 'github-dark'}, themeType: 'system'}
@@ -134,7 +134,7 @@ function asNodes(value: unknown): SnapNode[] | undefined {
 }
 
 // Element chip (mono pill) + a scrollable mono <pre> for raw read output. The accent tints are mixed
-// off --chat-accent (the mandarax theme maps it to the brand magenta).
+// off --chat-accent (the conciv theme maps it to the brand magenta).
 const ELCHIP =
   'inline-flex items-center gap-1.25 max-w-full min-w-0 [font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)] [color:var(--chat-accent-link)] [background:color-mix(in_oklch,var(--chat-accent)_10%,transparent)] [border:1px_solid_color-mix(in_oklch,var(--chat-accent)_42%,transparent)] rounded-[var(--chat-radius-pill)] py-0.5 px-2.25'
 const PAGE_OUT =
@@ -249,5 +249,5 @@ export function PageActionCard(props: ToolCardProps): JSX.Element {
   )
 }
 
-// This card renders the mandarax_page tool.
-export const pageActionTool: ToolCardEntry = {names: ['mandarax_page'], render: PageActionCard}
+// This card renders the conciv_page tool.
+export const pageActionTool: ToolCardEntry = {names: ['conciv_page'], render: PageActionCard}

@@ -9,7 +9,7 @@ Add two buttons to the chat composer's actions row:
 
 Both must be **harness-agnostic**: they work through the existing capability-detected harness contract, not Claude-specific calls, so any current or future harness (codex, gemini-cli, opencode, pi, …) participates by declaring a capability and a recipe — never by the widget special-casing a CLI.
 
-Target user: the developer using the in-page mandarax agent who wants to reset context or shrink a long conversation, mirroring Claude Code's `/clear` and `/compact` UX.
+Target user: the developer using the in-page conciv agent who wants to reset context or shrink a long conversation, mirroring Claude Code's `/clear` and `/compact` UX.
 
 ### Key UX decision (from product)
 

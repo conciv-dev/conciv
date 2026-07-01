@@ -1,17 +1,17 @@
 import {expectTypeOf, test} from 'vitest'
 import {z} from 'zod'
 import {defineExtension, defineTool, type RegisterExtension} from '../src/index.js'
-import type {MandaraxConfig} from '@mandarax/protocol/config-types'
+import type {ConcivConfig} from '@conciv/protocol/config-types'
 
 const cfgSchema = z.object({runner: z.enum(['vitest', 'jest']).default('vitest')})
 const demo = defineExtension({name: 'demo', configSchema: cfgSchema})
 
-declare module '@mandarax/protocol/config-types' {
+declare module '@conciv/protocol/config-types' {
   interface ExtensionConfigRegistry extends RegisterExtension<typeof demo> {}
 }
 
 test('config key + value type are derived from the registry (z.input — defaults optional)', () => {
-  expectTypeOf<NonNullable<MandaraxConfig['extensions']>['demo']>().toMatchTypeOf<
+  expectTypeOf<NonNullable<ConcivConfig['extensions']>['demo']>().toMatchTypeOf<
     {runner?: 'vitest' | 'jest'} | undefined
   >()
 })

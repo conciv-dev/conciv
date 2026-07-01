@@ -7,7 +7,7 @@ export type LocateResult = {
   stack: string[]
   frames: RawFrame[]
   owners: Owner[]
-  // When the element carries a build-injected source attribute (data-mandarax-source / data-tsd-source),
+  // When the element carries a build-injected source attribute (data-conciv-source / data-tsd-source),
   // the exact file:line:col is read directly — no owner-stack symbolication needed.
   source?: SourceLoc
 }

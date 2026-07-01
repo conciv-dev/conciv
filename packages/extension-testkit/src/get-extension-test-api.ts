@@ -1,5 +1,5 @@
 import type {Page} from 'playwright'
-import type {AnyExtension} from '@mandarax/extension'
+import type {AnyExtension} from '@conciv/extension'
 import {bootExtensionServer} from './boot-server.js'
 import {resolveSession} from './session.js'
 import {buildHost} from './build-host.js'

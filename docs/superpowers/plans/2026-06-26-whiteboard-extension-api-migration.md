@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:executing-plans. Implement task-by-task, TDD, checkpoint between phases. Work **inline** (no dispatched subagents — house rule [[work-inline-not-subagents]]). Steps use checkbox (`- [ ]`).
 
-**Goal:** Re-home `@mandarax/whiteboard` (canvas, comments, pins, anchoring) onto main's rewritten extension architecture: an extension owns its own H3 routes (`/api/ext/<name>/*`), tools carry an injected DI context + per-request session, overlays render via the client factory, and core has no effect/sync/db platform.
+**Goal:** Re-home `@conciv/whiteboard` (canvas, comments, pins, anchoring) onto main's rewritten extension architecture: an extension owns its own H3 routes (`/api/ext/<name>/*`), tools carry an injected DI context + per-request session, overlays render via the client factory, and core has no effect/sync/db platform.
 
-**Architecture:** Main replaced `@mandarax/extensions` with `@mandarax/extension`: `defineExtension({name, configSchema, tools, systemPrompt, Component}).client(factory).server(factory)`. `.server()` gets `{config, cwd, app: H3}` (sub-app at `/api/ext/<name>/*`) and returns `{context, dispose}`; tools execute with that context. `.client()` runs at widget mount, reads `useClientApi()`, renders overlays into `surface()`. Built-in extensions are workspace packages registered by hardcoded import in `packages/plugin/src/core/extensions.ts` (server `builtinExtensions` + `BUILTIN_CLIENT_ENTRIES` + `extensionsModuleSource()`); there is **no** `packages/*` auto-discovery. Main never had `sync`/`db` — we move that machinery **into the whiteboard extension**, hosted on its own `server.app`, and add session-threading + self-declared approval to the contract.
+**Architecture:** Main replaced `@conciv/extensions` with `@conciv/extension`: `defineExtension({name, configSchema, tools, systemPrompt, Component}).client(factory).server(factory)`. `.server()` gets `{config, cwd, app: H3}` (sub-app at `/api/ext/<name>/*`) and returns `{context, dispose}`; tools execute with that context. `.client()` runs at widget mount, reads `useClientApi()`, renders overlays into `surface()`. Built-in extensions are workspace packages registered by hardcoded import in `packages/plugin/src/core/extensions.ts` (server `builtinExtensions` + `BUILTIN_CLIENT_ENTRIES` + `extensionsModuleSource()`); there is **no** `packages/*` auto-discovery. Main never had `sync`/`db` — we move that machinery **into the whiteboard extension**, hosted on its own `server.app`, and add session-threading + self-declared approval to the contract.
 
 **Tech Stack:** Solid (widget), React 19 + `@excalidraw/excalidraw` 0.18.x (island, light DOM via `<Portal>`), Yjs + `y-websocket` + `y-indexeddb` (extension-owned WS on `server.app` via `attachWebSocket`/crossws), `@tanstack/db` + `@tanstack/solid-db` + `@tanstack/trailbase-db-collection` (extension-owned routes + a trailbase child supervised by `.server()`), `oxc-parser` + shell `git` (anchoring), h3, zod.
 
@@ -32,15 +32,15 @@ Architecture is sound; this v2 folds in the blockers they found. Confirmed: cont
 - **Commits:** TDD per step. `oxfmt` reformats on first commit — `git add -A` and re-run the SAME commit. **The pre-commit hook needs `prek`: run commits as `PATH="$PWD/node_modules/.bin:$PATH" git commit …`** (the hook hardcodes a stale prek path and falls back to PATH). End every message with:
   `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`
 - **Workflow:** every command from the worktree; never `cd` to the main repo. Kill dev servers by LISTEN pid only.
-- **Decided design (locked):** G1 thread `{sessionId, previewId}` into extension tool execute via `mcp.ts`; G2 reuse the native gate (tools self-declare `approval:'ask'`, generalize the one Bash line, drop blanket `allowedTools` on BOTH transports, CLI matcher `mcp__mandarax__.*`); G3 the client POSTs to the extension's own `/api/ext/whiteboard/*` action routes (server shares pure functions between MCP tools and routes); overlay = light-DOM `<Portal>` for Excalidraw + `surface()` (shadow) for pins/thread; session via `api.client.sessionId()`.
+- **Decided design (locked):** G1 thread `{sessionId, previewId}` into extension tool execute via `mcp.ts`; G2 reuse the native gate (tools self-declare `approval:'ask'`, generalize the one Bash line, drop blanket `allowedTools` on BOTH transports, CLI matcher `mcp__conciv__.*`); G3 the client POSTs to the extension's own `/api/ext/whiteboard/*` action routes (server shares pure functions between MCP tools and routes); overlay = light-DOM `<Portal>` for Excalidraw + `surface()` (shadow) for pins/thread; session via `api.client.sessionId()`.
 
 ---
 
 ## STATUS
 
-Not started. HEAD = `f7523a4` (this plan). Target = `origin/main` (63 commits ahead; deleted `@mandarax/extensions`, the effect system, `/api/tools/run`; rewrote contract; no core sync/db). Trial merge (from HEAD) gave 26 conflicts — but reviews found the real risk is **non-conflict** breakage (`plugin/services.ts`, shared test helpers, lost harness session header, rewritten `tool-ui`/`protocol`/`grab`). Re-run the trial merge at the start of Phase 0 to refresh the conflict set.
+Not started. HEAD = `f7523a4` (this plan). Target = `origin/main` (63 commits ahead; deleted `@conciv/extensions`, the effect system, `/api/tools/run`; rewrote contract; no core sync/db). Trial merge (from HEAD) gave 26 conflicts — but reviews found the real risk is **non-conflict** breakage (`plugin/services.ts`, shared test helpers, lost harness session header, rewritten `tool-ui`/`protocol`/`grab`). Re-run the trial merge at the start of Phase 0 to refresh the conflict set.
 
-**Deferred (out of scope here):** original-plan Phases 5–7 (drift doctor + `mandarax doctor` CLI, cross-store undo/redo, limits/empty-state/`solid-sonner` toasts/a11y/security IT/SKILL.md) were never started (no commits). They are NOT ported in this migration. Note for whoever picks them up: cross-store undo depended on a core `History` capability that main never had and this migration deletes — it must be re-homed into the extension or dropped; the `mandarax doctor` CLI must target main's rewritten CLI.
+**Deferred (out of scope here):** original-plan Phases 5–7 (drift doctor + `conciv doctor` CLI, cross-store undo/redo, limits/empty-state/`solid-sonner` toasts/a11y/security IT/SKILL.md) were never started (no commits). They are NOT ported in this migration. Note for whoever picks them up: cross-store undo depended on a core `History` capability that main never had and this migration deletes — it must be re-homed into the extension or dropped; the `conciv doctor` CLI must target main's rewritten CLI.
 
 ---
 
@@ -59,13 +59,13 @@ Not started. HEAD = `f7523a4` (this plan). Target = `origin/main` (63 commits ah
 
 ### Task 0.2: Delete `plugin/services.ts`; adopt main's boot
 
-**Why:** `services.ts` (`bootServices`) imports `@mandarax/core/{db,sync}`, `@mandarax/extensions`, `@mandarax/whiteboard` and boots the trailbase supervisor — it is NOT a merge conflict (main never had it) so it breaks the build silently. Main replaced it with `makeEngineBooter` + `loadServerExtensions` (no supervisor, no sync).
+**Why:** `services.ts` (`bootServices`) imports `@conciv/core/{db,sync}`, `@conciv/extensions`, `@conciv/whiteboard` and boots the trailbase supervisor — it is NOT a merge conflict (main never had it) so it breaks the build silently. Main replaced it with `makeEngineBooter` + `loadServerExtensions` (no supervisor, no sync).
 
 **Files:** Delete `packages/plugin/src/core/services.ts`; take main's `packages/plugin/src/core/{boot.ts,vite.ts,extensions.ts}`; remove any remaining `services`/`dbProxyTarget`/`syncHooks`/`bootServices` references (`grep -rn "bootServices\|dbProxyTarget\|syncHooks\|core/sync\|core/db" packages --include=*.ts`).
 
 - [ ] **Step 1:** `git rm packages/plugin/src/core/services.ts`; `git checkout origin/main -- packages/plugin/src/core/{boot.ts,vite.ts,extensions.ts}`.
 - [ ] **Step 2:** Grep for every remaining consumer of core sync/db across ALL packages (not just whiteboard): fix or remove. Confirmed consumers beyond whiteboard: `services.ts` (deleted). Verify none remain.
-- [ ] **Step 3:** Exclude whiteboard and run `pnpm install` then `pnpm turbo run typecheck --filter='!@mandarax/whiteboard'` — iterate until PASS.
+- [ ] **Step 3:** Exclude whiteboard and run `pnpm install` then `pnpm turbo run typecheck --filter='!@conciv/whiteboard'` — iterate until PASS.
 - [ ] **Step 4:** Commit the merge (`PATH=… git commit --no-edit`, append Co-Authored-By).
 
 **Checkpoint:** report conflict + non-conflict resolutions before Phase 1.
@@ -76,11 +76,11 @@ Not started. HEAD = `f7523a4` (this plan). Target = `origin/main` (63 commits ah
 
 ### Task 1.0: Re-apply the lost MCP session header (BOTH transports)
 
-**Why:** our `mandarax-session-id` header fix is gone on main (`args.ts`/`sdk.ts` send `{type:'http',url}` with no `headers`; `HarnessTurn` has no `sessionId`). Without it `mcp.ts` resolves `sessionId=''` → G1 room-routing breaks AND G2 `injectApproval` finds no channel → fails closed. This gates 1.1, 1.2, and every live check.
+**Why:** our `conciv-session-id` header fix is gone on main (`args.ts`/`sdk.ts` send `{type:'http',url}` with no `headers`; `HarnessTurn` has no `sessionId`). Without it `mcp.ts` resolves `sessionId=''` → G1 room-routing breaks AND G2 `injectApproval` finds no channel → fails closed. This gates 1.1, 1.2, and every live check.
 
-**Files:** `packages/protocol/src/harness-types.ts` (`HarnessTurn.sessionId?`), `packages/harness/src/_shared/text-adapter.ts` (set it from `deps.sessionId`), `packages/harness/src/claude/args.ts` (`mcpServerConfig(mcpUrl, sessionId)` → `headers:{[MANDARAX_SESSION_HEADER]: sessionId}`), `packages/harness/src/claude/sdk.ts` (same on `options.mcpServers`). Test: `packages/harness/test/claude-mcp-session.test.ts`.
+**Files:** `packages/protocol/src/harness-types.ts` (`HarnessTurn.sessionId?`), `packages/harness/src/_shared/text-adapter.ts` (set it from `deps.sessionId`), `packages/harness/src/claude/args.ts` (`mcpServerConfig(mcpUrl, sessionId)` → `headers:{[CONCIV_SESSION_HEADER]: sessionId}`), `packages/harness/src/claude/sdk.ts` (same on `options.mcpServers`). Test: `packages/harness/test/claude-mcp-session.test.ts`.
 
-- [ ] **Step 1:** Failing test — `mcpServerConfig(url,'mandarax_x').mandarax.headers['mandarax-session-id'] === 'mandarax_x'`; `buildClaudeArgs({...,sessionId})` `--mcp-config` JSON carries the header; header-less when no session.
+- [ ] **Step 1:** Failing test — `mcpServerConfig(url,'conciv_x').conciv.headers['conciv-session-id'] === 'conciv_x'`; `buildClaudeArgs({...,sessionId})` `--mcp-config` JSON carries the header; header-less when no session.
 - [ ] **Step 2:** Run, verify FAIL.
 - [ ] **Step 3:** Implement (shared `mcpServerConfig` helper used by both args.ts + sdk.ts; thread `HarnessTurn.sessionId` from the text adapter).
 - [ ] **Step 4:** Run PASS; commit.
@@ -91,18 +91,18 @@ Not started. HEAD = `f7523a4` (this plan). Target = `origin/main` (63 commits ah
 
 **Files:** `packages/extension/src/types.ts` (`ExtensionServerTool.execute: (input, request) => Promise<unknown>`), `packages/extension/src/define-tool.ts` (`__execute`/`ToolBuilder.server` execute → `(input, ctx, request)`), `packages/core/src/app.ts` (the per-tool wrapper becomes `execute: (input, request) => run(input, context, request)`), `packages/core/src/api/mcp/mcp.ts` (`buildServer` takes `request`; route reads `sessionIdFromHeaders` + `previewId`; `tool.execute(args, request)`), `packages/core/src/config.ts`/`engine.ts` (pass `cfg.previewId` into `registerMcpRoutes` — chat routes get it today, MCP does not). Test: `packages/core/test/extension-tool-session.it.test.ts`.
 
-- [ ] **Step 1:** Failing test — boot core with a one-tool extension whose execute echoes `request.sessionId`; MCP `tools/call` with header `mandarax-session-id: mandarax_x`; assert echo `mandarax_x` and `request.previewId === 'local'`.
+- [ ] **Step 1:** Failing test — boot core with a one-tool extension whose execute echoes `request.sessionId`; MCP `tools/call` with header `conciv-session-id: conciv_x`; assert echo `conciv_x` and `request.previewId === 'local'`.
 - [ ] **Step 2:** Run, verify FAIL.
 - [ ] **Step 3:** Implement the thread: `registerMcpRoutes(app, makeCtx, extensionTools, previewId)`; in the route, `const request = {sessionId: sessionIdFromHeaders(headers) ?? '', previewId}`; `buildServer(ctx, extensionTools, request)`; `tool.execute(args, request)`; widen the signatures through `app.ts` + `define-tool`.
 - [ ] **Step 4:** Run PASS; commit.
 
 ### Task 1.2: Self-declared approval via the existing native gate (G2)
 
-**Files:** `packages/extension/src/{define-tool,types}.ts` (`approval?: 'ask'` on the tool), `packages/core/src/api/chat/permission.ts` (`decide`: `allow` unless `(toolName==='Bash' && classifyCommand!=='allow') || risky.has(toolName)`), `packages/core/src/app.ts` (collect `mcp__mandarax__${tool.name}` for `approval:'ask'` tools → pass the prefixed set into `makePermissionGate`), `packages/harness/src/claude/sdk.ts` (drop `allowedTools:['mcp__mandarax']`), `packages/harness/src/claude/args.ts` (drop `--allowedTools mcp__mandarax`; `PreToolUse` matchers = `['Bash', 'mcp__mandarax__.*']`, update the "runs unprompted" comment). Tests: gate unit + `packages/harness/test/claude-mcp-session.test.ts` (matcher) + full-stack `extension-approval.it.test.ts`.
+**Files:** `packages/extension/src/{define-tool,types}.ts` (`approval?: 'ask'` on the tool), `packages/core/src/api/chat/permission.ts` (`decide`: `allow` unless `(toolName==='Bash' && classifyCommand!=='allow') || risky.has(toolName)`), `packages/core/src/app.ts` (collect `mcp__conciv__${tool.name}` for `approval:'ask'` tools → pass the prefixed set into `makePermissionGate`), `packages/harness/src/claude/sdk.ts` (drop `allowedTools:['mcp__conciv']`), `packages/harness/src/claude/args.ts` (drop `--allowedTools mcp__conciv`; `PreToolUse` matchers = `['Bash', 'mcp__conciv__.*']`, update the "runs unprompted" comment). Tests: gate unit + `packages/harness/test/claude-mcp-session.test.ts` (matcher) + full-stack `extension-approval.it.test.ts`.
 
-- [ ] **Step 1:** Failing gate unit test — `makePermissionGate(uiBus, {risky:new Set(['mcp__mandarax__canvas.delete'])})`: `decide('mcp__mandarax__canvas.delete',…)` injects; `decide('canvas.delete',…)` (unprefixed) does NOT (locks the prefixed-name form); safe tool returns `allow` without inject.
+- [ ] **Step 1:** Failing gate unit test — `makePermissionGate(uiBus, {risky:new Set(['mcp__conciv__canvas.delete'])})`: `decide('mcp__conciv__canvas.delete',…)` injects; `decide('canvas.delete',…)` (unprefixed) does NOT (locks the prefixed-name form); safe tool returns `allow` without inject.
 - [ ] **Step 2:** Run FAIL → implement → PASS.
-- [ ] **Step 3:** Harness matcher test — `PreToolUse` matchers include a regex that matches `mcp__mandarax__canvas.delete`; `buildOptions` no longer sets `allowedTools`. Implement → PASS; commit.
+- [ ] **Step 3:** Harness matcher test — `PreToolUse` matchers include a regex that matches `mcp__conciv__canvas.delete`; `buildOptions` no longer sets `allowedTools`. Implement → PASS; commit.
 - [ ] **Step 4:** Full-stack approval IT (the live residual) — real engine + a `approval:'ask'` extension tool; SDK-path turn; assert the native approval card renders on the MCP tool part (decode `cb.id` == `canUseTool` `toolUseID`) and a `/permission-decision` unblocks it. Scope note: verified on the SDK transport (default); CLI-hook path covered by the matcher fix.
 
 **Checkpoint:** report after Phase 1.
@@ -111,28 +111,28 @@ Not started. HEAD = `f7523a4` (this plan). Target = `origin/main` (63 commits ah
 
 ## Phase 2 — Scaffold the new extension package + register it + rewrite test helpers
 
-### Task 2.1: Create `packages/extensions/whiteboard` (`@mandarax/extension-whiteboard`)
+### Task 2.1: Create `packages/extensions/whiteboard` (`@conciv/extension-whiteboard`)
 
-**Files:** new `packages/extensions/whiteboard/package.json` mirroring `test-runner` (name `@mandarax/extension-whiteboard`; exports `.`→server view, `./client`→client view; deps incl. yjs/y-_/trailbase/@tanstack/_/excalidraw moved from core+whiteboard); `src/server.ts` (server `defineExtension(...).server(...)`), `src/client.ts` (`defineExtension(...).client(...)` + the `Register` augmentation). Move `packages/whiteboard/src/**` into `packages/extensions/whiteboard/src/**` (`git mv`).
+**Files:** new `packages/extensions/whiteboard/package.json` mirroring `test-runner` (name `@conciv/extension-whiteboard`; exports `.`→server view, `./client`→client view; deps incl. yjs/y-_/trailbase/@tanstack/_/excalidraw moved from core+whiteboard); `src/server.ts` (server `defineExtension(...).server(...)`), `src/client.ts` (`defineExtension(...).client(...)` + the `Register` augmentation). Move `packages/whiteboard/src/**` into `packages/extensions/whiteboard/src/**` (`git mv`).
 
 - [ ] **Step 1:** `git mv packages/whiteboard packages/extensions/whiteboard`; rename the package; split `index.ts` into `server.ts` + `client.ts` (mirror test-runner). Tools split into `tool/{def,server,client}` so the node (`.`) bundle stays Solid-free.
-- [ ] **Step 2:** `pnpm install`; `pnpm turbo run typecheck --filter @mandarax/extension-whiteboard` will FAIL (imports still reference deleted APIs) — that's expected; this task only establishes the package shell + exports. Commit the move.
+- [ ] **Step 2:** `pnpm install`; `pnpm turbo run typecheck --filter @conciv/extension-whiteboard` will FAIL (imports still reference deleted APIs) — that's expected; this task only establishes the package shell + exports. Commit the move.
 
 ### Task 2.2: Register whiteboard as a built-in
 
-**Files:** `packages/plugin/src/core/extensions.ts` (add `import whiteboard from '@mandarax/extension-whiteboard'` to `builtinExtensions`; add `'@mandarax/extension-whiteboard/client'` to `BUILTIN_CLIENT_ENTRIES`; add the client import to `extensionsModuleSource()`), `packages/plugin/package.json` + `packages/widget/package.json` (add the dep, mirror test-runner). Test: `packages/plugin/test/widget-inject.it.test.ts` (assert the emitted module imports the whiteboard client).
+**Files:** `packages/plugin/src/core/extensions.ts` (add `import whiteboard from '@conciv/extension-whiteboard'` to `builtinExtensions`; add `'@conciv/extension-whiteboard/client'` to `BUILTIN_CLIENT_ENTRIES`; add the client import to `extensionsModuleSource()`), `packages/plugin/package.json` + `packages/widget/package.json` (add the dep, mirror test-runner). Test: `packages/plugin/test/widget-inject.it.test.ts` (assert the emitted module imports the whiteboard client).
 
 - [ ] **Step 1:** Failing test — the virtual extensions module source includes the whiteboard client entry.
 - [ ] **Step 2:** Implement; PASS; commit.
 
 ### Task 2.3: Rewrite the shared whiteboard test helpers (prerequisite for all ITs)
 
-**Why:** `helpers/boot-stack.ts` imports `@mandarax/core/{db,sync}` + `collectServerContributions`; `helpers/run-tool.ts` POSTs `/api/tools/run` (deleted). All 13 whiteboard ITs depend on these.
+**Why:** `helpers/boot-stack.ts` imports `@conciv/core/{db,sync}` + `collectServerContributions`; `helpers/run-tool.ts` POSTs `/api/tools/run` (deleted). All 13 whiteboard ITs depend on these.
 
 **Files:** `packages/extensions/whiteboard/test/helpers/{boot-stack.ts,run-tool.ts,page.ts}`.
 
 - [ ] **Step 1:** Rewrite `boot-stack` to boot via core `start()` with whiteboard as a built-in extension (its `.server()` now owns sync/db); expose the engine base + the extension sub-app base.
-- [ ] **Step 2:** Rewrite `run-tool` to invoke a tool via MCP JSON-RPC `tools/call` carrying `mandarax-session-id` (the agent path), AND a `postAction(path, body)` helper for the G3 client routes.
+- [ ] **Step 2:** Rewrite `run-tool` to invoke a tool via MCP JSON-RPC `tools/call` carrying `conciv-session-id` (the agent path), AND a `postAction(path, body)` helper for the G3 client routes.
 - [ ] **Step 3:** Update `page.ts` relay to the new sync route path.
 - [ ] **Step 4:** Commit (no standalone test; proven by the ITs that consume them in Phases 3–5).
 
@@ -174,7 +174,7 @@ Not started. HEAD = `f7523a4` (this plan). Target = `origin/main` (63 commits ah
 
 **Files:** rewrite `src/tool/canvas/{def,server,client}.ts` (from `tools/canvas.ts`); keep `room.ts`. Test: rewrite `test/canvas-tools.it.test.ts` to the MCP path (session header → room) + `canvas.delete` triggers the gate (not a 403).
 
-- [ ] **Step 1:** Failing test — `canvas.draw` via MCP with `mandarax-session-id: mandarax_x` writes pending into `local:mandarax_x`; a client on that room receives it; `canvas.delete` is gated.
+- [ ] **Step 1:** Failing test — `canvas.draw` via MCP with `conciv-session-id: conciv_x` writes pending into `local:conciv_x`; a client on that room receives it; `canvas.delete` is gated.
 - [ ] **Step 2:** FAIL → implement (`roomOf(context.sync, request) = sync.room(roomId(request.previewId, request.sessionId))`; `canvas.delete`/`clear` declare `approval:'ask'`; keep the pending-queue draw model) → PASS; commit.
 
 ### Task 4.2: Port `comment.*` tools + extract pure action functions (for G3)
@@ -198,7 +198,7 @@ Not started. HEAD = `f7523a4` (this plan). Target = `origin/main` (63 commits ah
 **Files:** `src/tool/{anchor,element}/*` (use `context.cwd`; `confine.ts`/`oxc-capture.ts`/`git-track.ts`/`resolver.ts`/`load-resolver.ts` are pure — move unchanged). `src/server.ts`: `defineExtension({name:'whiteboard', tools:[...], systemPrompt}).server((server) => { start trail supervisor; build sync+db; mount /sync, db-proxy, and client-action routes; return {context:{sync,db,comments,cwd:server.cwd}, dispose: ()=>supervisor.stop()} })`. Tests: move `anchor`/`resolver`/`git-track`/`element-reference`/`confine`/`oxc-capture`/`room`/`schema`/`harness`/`mermaid` tests; retarget. `loads.it` retargeted.
 
 - [ ] **Step 1:** Wire `.server()`; `RequiredContext<Tools>` forces the context to satisfy every tool.
-- [ ] **Step 2:** `pnpm turbo run typecheck --filter @mandarax/extension-whiteboard` PASS.
+- [ ] **Step 2:** `pnpm turbo run typecheck --filter @conciv/extension-whiteboard` PASS.
 - [ ] **Step 3:** Run the moved server-side ITs (anchor/resolver/git-track/element/confine/oxc/room/schema/harness/mermaid/canvas-tools/comment\*/sync-route/db/loads) PASS; commit.
 
 **Checkpoint:** report after Phase 4.
@@ -217,7 +217,7 @@ Not started. HEAD = `f7523a4` (this plan). Target = `origin/main` (63 commits ah
 
 ### Task 5.2: Composer toggle (Component + slot + clientValue) + session follow
 
-**Files:** `src/client.ts` adds `Component` (renders the "Open the whiteboard canvas" button when `useSlot()==='composer'`, reading `useContext((c)=>c.toggle)`); `.client()` returns `{value:{toggle}, dispose}`; `declare module '@mandarax/extension'` augments `Register` so `useContext` is typed. Rewrite `pins/comment-action.tsx` from `ExtComposerAction`+`runTool` → a Component + `postAction` (G3). Tests: restore + retarget `comment-action.it`, `pins.it`, `pin-drag.it`.
+**Files:** `src/client.ts` adds `Component` (renders the "Open the whiteboard canvas" button when `useSlot()==='composer'`, reading `useContext((c)=>c.toggle)`); `.client()` returns `{value:{toggle}, dispose}`; `declare module '@conciv/extension'` augments `Register` so `useContext` is typed. Rewrite `pins/comment-action.tsx` from `ExtComposerAction`+`runTool` → a Component + `postAction` (G3). Tests: restore + retarget `comment-action.it`, `pins.it`, `pin-drag.it`.
 
 - [ ] **Step 1:** Failing — composer shows the button; click mounts the canvas; comment-action POSTs `/api/ext/whiteboard/comment`.
 - [ ] **Step 2:** FAIL → implement → PASS; commit.
@@ -245,7 +245,7 @@ Not started. HEAD = `f7523a4` (this plan). Target = `origin/main` (63 commits ah
 ### Task 6.2: Full suite + live
 
 - [ ] **Step 1:** `pnpm turbo run build` (all) + `pnpm turbo run typecheck` (all) PASS.
-- [ ] **Step 2:** `SKIP_STORYBOOK_TESTS=1 pnpm --filter @mandarax/extension-whiteboard exec vitest run` — all PASS.
+- [ ] **Step 2:** `SKIP_STORYBOOK_TESTS=1 pnpm --filter @conciv/extension-whiteboard exec vitest run` — all PASS.
 - [ ] **Step 3:** Widget ITs PASS: `canvas-overlay canvas-persist canvas-ai-draw comment-action pins pin-drag comments-collection extension-approval` + the restored client `sync-awareness`/`session-switch`/`client-sync`/`client-db` (port or, for the removed `runTool`/probe paths `client-api-runtool`/`probe-extension`, DELETE with a note).
 - [ ] **Step 4:** Rebuild server packages + restart dev (kill by LISTEN pid); open canvas via the composer button; agent draws → rectangle paints (G1 routing + re-applied header); agent `canvas.clear` → native approval card on the tool (G2) → decision resolves.
 - [ ] **Step 5:** Update memories ([[agent-mcp-needs-session-header]] still required; new memory "whiteboard owns sync/db on its sub-app"); update both plan STATUS sections.

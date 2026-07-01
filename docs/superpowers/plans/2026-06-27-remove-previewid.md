@@ -13,7 +13,7 @@
 2. **`roomId` helper deleted.** Once previewId is gone it collapses to the identity `sessionId => sessionId`, so the room value _is_ the `sessionId`. Callers use `request.sessionId` / `sessionId()` directly. (Pins/cursors/canvas still keep a `room` column; its value is the session id.)
 3. **Comments + pins scope per chat session.** Room = `sessionId`, so switching chat sessions switches the visible comment/pin set. This is the direct, intended consequence of dropping the preview scope.
 4. **Client is reactive.** `ClientApi.activeSession(): string | null` stays exactly as-is — the `| null` is honest. Session-bound UI is gated by a **`keyed`** `<Show>` whose function child narrows the id to `Accessor<NonNullable<string>>` (so the room value is passed through, never re-fabricated with `?? ''`); async loads (jazz config) run through `createResource` under `<Suspense>` with a real loading state, wrapped in an `<ErrorBoundary>` for config-fetch rejection. No `?? ''`, no `'local'`. (NB: the `ClientApi.client → activeSession()` plumbing is already landed uncommitted in the widget — Phases 1-6 below assume it as the new baseline.)
-5. **Server fails loud on empty session.** The whiteboard server context's session accessor throws when `request.sessionId` is empty (covers the real "agent forgot the `mandarax-session-id` header" bug — see memory `agent-mcp-needs-session-header`). This is whiteboard-local, not a core flag.
+5. **Server fails loud on empty session.** The whiteboard server context's session accessor throws when `request.sessionId` is empty (covers the real "agent forgot the `conciv-session-id` header" bug — see memory `agent-mcp-needs-session-header`). This is whiteboard-local, not a core flag.
 
 ---
 
@@ -79,9 +79,9 @@ Why this is the right shape:
 
 ## Phase 1 — Protocol + core config
 
-1. **`packages/protocol/src/config-types.ts`** — drop `previewId?` from `MandaraxConfig`.
-2. **`packages/core/src/config.ts`** — drop `previewId` field + its resolution line + `MANDARAX_PREVIEW_ID` env.
-3. **`packages/core/src/store/session-store.ts`** — `createFsSessionStore({stateRoot, now})`; base path `${stateRoot}/.mandarax/sessions` (drop the `/${previewId}` segment); fix the L73 comment.
+1. **`packages/protocol/src/config-types.ts`** — drop `previewId?` from `ConcivConfig`.
+2. **`packages/core/src/config.ts`** — drop `previewId` field + its resolution line + `CONCIV_PREVIEW_ID` env.
+3. **`packages/core/src/store/session-store.ts`** — `createFsSessionStore({stateRoot, now})`; base path `${stateRoot}/.conciv/sessions` (drop the `/${previewId}` segment); fix the L73 comment.
 
 ## Phase 2 — Core wiring + injection
 
@@ -131,16 +131,16 @@ Why this is the right shape:
 23. Whiteboard: delete `test/room.test.ts` (helper gone). Update `test/canvas-tools.it.test.ts`, `test/enrich-worker.it.test.ts`, `test/pin-move.it.test.ts` — request fixtures `{sessionId}`, no `previewId`, no `roomId`.
     - **Fixtures importing the deleted `roomId` (ALL must be updated, not just overlay — else `room.ts` deletion breaks the test build while greps stay green):**
       - `test/fixtures/overlay-fixture.tsx` — also drop the top-level `await fetchJazzConfig` + `config` prop (mountOverlay no longer takes `config`); make `session` a **settable signal** (start from URL, expose `window.setSession`) so switch/null can be driven; capture `toast` calls instead of stubbing to no-op.
-      - `test/fixtures/presence-fixture.tsx` (L5,19) — `roomId('local', 'mandarax_x')` → bare `'mandarax_x'`.
+      - `test/fixtures/presence-fixture.tsx` (L5,19) — `roomId('local', 'conciv_x')` → bare `'conciv_x'`.
       - `test/fixtures/canvas-binding-fixture.tsx` (L6,20) — same; make `room` settable to exercise re-subscribe on room change.
       - `test/fixtures/jazz-client-fixture.tsx` (L5,14) — same.
     - **New test cases:**
       - Unit on the new `server.ts` accessor: `ctx.room({sessionId:'X'})==='X'`; `ctx.sessionId({sessionId:''})` **throws** (targets the new impl, not the deleted helper).
-      - **MCP no-header IT (the real Decision-5 bug):** add a no-header variant to `test/helpers/run-tool.ts` (`callTool` always sends `mandarax-session-id`); call a comment tool over `/api/mcp` with the header omitted and assert an **error returns to the caller**, not a silent green result. This is the [[agent-mcp-needs-session-header]] failure that unit-throwing alone won't catch.
+      - **MCP no-header IT (the real Decision-5 bug):** add a no-header variant to `test/helpers/run-tool.ts` (`callTool` always sends `conciv-session-id`); call a comment tool over `/api/mcp` with the header omitted and assert an **error returns to the caller**, not a silent green result. This is the [[agent-mcp-needs-session-header]] failure that unit-throwing alone won't catch.
       - **Session-switch IT** (`overlay.it.test.ts` or new): mount with session A (pin A visible), flip `window.setSession` to B, assert A's pin disappears and B's pin appears (Decision 3 set-swap), AND assert the Excalidraw island is NOT remounted (set a JS expando on the element handle before switching, verify it survives — the `excalidraw-initialdata-clobbers-seed` / `excalidraw-needs-light-dom` reseed class is recurring).
       - Null-session loader: mount with `activeSession()===null`, assert `SessionPending` renders (role/text), set a session, assert board mounts.
       - No-server toast: point fixture at a dead/410 jazz-config endpoint, assert a `toast` fires (captured) and no pin/write occurs.
-24. Core: `test/config.test.ts`, `test/api/chat/sessions.it.test.ts`, `test/extension-tool-session.it.test.ts`, `test/helpers/server.ts` (drop `previewId` at L33/65/108 or `extension-tool-session.it.test.ts` won't typecheck; that test degrades to a pure session-echo — retitle it). **Add an fs-driver session-store test** asserting `createFsSessionStore({stateRoot})` writes under `${stateRoot}/.mandarax/sessions/` with NO nested preview segment — the existing `test/store/session-store.test.ts` uses the memory driver only and never covers the fs path being changed, so this is a NEW test, not an update.
+24. Core: `test/config.test.ts`, `test/api/chat/sessions.it.test.ts`, `test/extension-tool-session.it.test.ts`, `test/helpers/server.ts` (drop `previewId` at L33/65/108 or `extension-tool-session.it.test.ts` won't typecheck; that test degrades to a pure session-echo — retitle it). **Add an fs-driver session-store test** asserting `createFsSessionStore({stateRoot})` writes under `${stateRoot}/.conciv/sessions/` with NO nested preview segment — the existing `test/store/session-store.test.ts` uses the memory driver only and never covers the fs path being changed, so this is a NEW test, not an update.
     24b. **Real-browser e2e** (per [[whiteboard-bug-repro-real-app]] — package ITs bypass the plugin/Jazz wiring where previewId lived): add a spec in `apps/examples/tanstack-start/e2e/` that switches chat sessions through the real plugin and asserts the pin set swaps + Excalidraw stays mounted. NB the existing `whiteboard-draw.spec.ts` / `whiteboard-persist.spec.ts` don't read `previewId`, so removal won't break them, but they also don't cover switch/no-header.
 
 ## Phase 5b — Required cleanups (blocking)
@@ -163,7 +163,7 @@ grep -rn "previewId" packages --include="*.ts" --include="*.tsx" | grep -v node_
 grep -rn "roomId" packages/extensions/whiteboard | grep -v node_modules | grep -v dist                                              # 0  (catches the fixtures that import the deleted helper but contain no literal "previewId")
 grep -rn "'local'" packages/extensions/whiteboard/src packages/core/src/api/mcp packages/core/src/config.ts | grep -v node_modules  # 0
 pnpm turbo typecheck
-pnpm turbo test --filter=@mandarax/core --filter=whiteboard
+pnpm turbo test --filter=@conciv/core --filter=whiteboard
 ```
 
 > `grep===0` is necessary, not sufficient — it proves the literal string is gone but not that fixtures compile. The `pnpm turbo typecheck` + `test` runs are the real net (the `roomId` fixtures, the `mountOverlay` signature change, the `ToolRequest` reshape all surface only there). Rebuild before the example-app smoke (`dist/` still holds stale `roomId`/`previewId`).

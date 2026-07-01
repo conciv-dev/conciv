@@ -18,16 +18,16 @@ teardown`) and an agent tool to toggle effects by id, with the catalog auto-deri
 
 ## Interaction model
 
-- The **agent toggles** an effect on/off (`mandarax_page_effect`).
+- The **agent toggles** an effect on/off (`conciv_page_effect`).
 - While `highlight` is on, the **user hovers** to see the component outline + name/file label and
   **clicks** to open that component's source in their editor.
-- The agent never clicks elements through this feature — it already has `locate` + `mandarax_open`.
+- The agent never clicks elements through this feature — it already has `locate` + `conciv_open`.
 
 ## Layering principle (load-bearing)
 
 Most code is plain, framework-agnostic, and tested on its own (Storybook stories + real-browser ITs)
 with **no agent involvement**. The LLM-facing surface is a **thin pass-through**: the
-`mandarax_page_effect` tool and the `effect` bus handler only parse `{effect, action}` and delegate
+`conciv_page_effect` tool and the `effect` bus handler only parse `{effect, action}` and delegate
 to the already-tested registry. No behavior lives in the agent layer. This keeps the hardest-to-test
 path trivial and pushes all real logic into fast deterministic tests.
 
@@ -96,7 +96,7 @@ function listEffects(): {effects: {id: string; title: string; description: strin
   the surface is there so effect #2 (e.g. annotate, measure, grid overlay, a11y audit) isn't blocked
   on extending the platform.
 
-### 2. Protocol catalog (`@mandarax/protocol`) — single source of truth
+### 2. Protocol catalog (`@conciv/protocol`) — single source of truth
 
 ```ts
 export const PAGE_EFFECTS = [
@@ -111,7 +111,7 @@ export type PageEffectId = (typeof PAGE_EFFECTS)[number]['id']
 
 Everything derives from this array:
 
-- the `mandarax_page_effect` tool's `effect` **enum** (model can't name a non-existent effect);
+- the `conciv_page_effect` tool's `effect` **enum** (model can't name a non-existent effect);
 - the tool **description** (each id + description, inline, never stale);
 - `action: 'list'` returns the same catalog **+ live enabled-state**;
 - a **contract test** asserts the widget registry registers exactly these ids.
@@ -128,7 +128,7 @@ Everything derives from this array:
 ### 4. Agent tool (`packages/tools/src/...`) — thin adapter
 
 ```ts
-mandarax_page_effect({ effect?: PageEffectId, action: 'enable' | 'disable' | 'toggle' | 'list' })
+conciv_page_effect({ effect?: PageEffectId, action: 'enable' | 'disable' | 'toggle' | 'list' })
 ```
 
 Posts the `effect` page-bus query via `ctx.page(...)`. `list` needs no `effect`. Description is built
@@ -160,7 +160,7 @@ the JSX renders three parts, all derived from it:
 The widget already has `react-bridge.locate(el)` → `{source?, frames, component}`, which carries both
 source signals. On click, run `locate(hostEl)` and:
 
-1. **`source` present** (our vite-transformer `data-mandarax-source`) → POST `/api/editor/open
+1. **`source` present** (our vite-transformer `data-conciv-source`) → POST `/api/editor/open
 {file, line}`. Fast path, no symbolication, no extra round-trip.
 2. **`source` absent** but React-DevTools `frames` present → POST frames to a new thin endpoint
    `POST /api/page/open-source`, which runs the existing `symbolicateFrames(frames, root)` →
@@ -181,8 +181,8 @@ composing `symbolicateFrames` + `openInEditor`. Reused: `locate` (client), `symb
 ## Data flow
 
 ```
-agent: mandarax_page_effect(effect:"highlight", action:"enable")
-  → tools: mandarax_page_effect (thin) → ctx.page({kind:"effect", effect:"highlight", action:"enable"})
+agent: conciv_page_effect(effect:"highlight", action:"enable")
+  → tools: conciv_page_effect (thin) → ctx.page({kind:"effect", effect:"highlight", action:"enable"})
   → page-bus → widget DOM_HANDLERS.effect (thin) → setEffect("highlight", true)
   → registry → highlight.setup(ctx) → overlay live
 
@@ -192,7 +192,7 @@ user clicks → ctx.openSource(locate(hostEl))
   frames?  → POST /api/page/open-source {frames} → symbolicate → open  (fallback)
   → 'opened' | 'no-source' | 'failed' drives on-page feedback
 
-agent: mandarax_page_effect(effect:"highlight", action:"disable")
+agent: conciv_page_effect(effect:"highlight", action:"disable")
   → setEffect("highlight", false) → Solid dispose() → component subtree + listeners gone
 ```
 
@@ -210,7 +210,7 @@ agent: mandarax_page_effect(effect:"highlight", action:"disable")
 1. **Contract test (node, protocol):** `PAGE_EFFECTS` ids === tool enum === widget registry ids.
    Mirrors the existing verb-table ↔ handler contract test.
 2. **Widget Storybook story (browser, presentational):** render `<HighlightInspector ctx={seamCtx}/>`
-   directly over a fake nested app (fixture components with `data-mandarax-source`); `seamCtx` has a
+   directly over a fake nested app (fixture components with `data-conciv-source`); `seamCtx` has a
    spy `openSource` + scripted `server`, no backend. Drive via `play` — hover asserts box + label
    (`getByText`), click asserts the `openSource` seam got the right `file:line`, unmount asserts full
    teardown. Native assertions only. Doubles as the live demo. Registry idempotency cases fold in here.
@@ -223,7 +223,7 @@ agent: mandarax_page_effect(effect:"highlight", action:"disable")
 ## Out of scope / future
 
 - Additional effects (the registry exists to make these cheap).
-- Prod (the `data-mandarax-source` attr is dev-only; the widget is a dev tool, so the attribute fast
+- Prod (the `data-conciv-source` attr is dev-only; the widget is a dev tool, so the attribute fast
   path is the common case and symbolication covers the rest).
 
 ## Files touched (anticipated)
@@ -234,7 +234,7 @@ agent: mandarax_page_effect(effect:"highlight", action:"disable")
 - `packages/widget/src/effects/highlight.ts` — the effect.
 - `packages/widget/src/react-bridge.ts` — `componentHostAt(el)` + `describe(host)` helpers.
 - `packages/widget/src/page-handlers.ts` — `effect` handler (thin).
-- `packages/tools/src/` — `mandarax_page_effect` tool def (thin).
+- `packages/tools/src/` — `conciv_page_effect` tool def (thin).
 - `packages/core/src/api/page/` — `/api/page/open-source` endpoint (composes existing primitives).
 - Tests: protocol contract test, widget Storybook story, widget IT.
 

@@ -27,12 +27,12 @@ Pi. Reference: `earendil-works/pi` `packages/coding-agent/src/core/{tools,extens
 
 Verified against real Pi (`earendil-works/pi`, `packages/coding-agent/src/core`):
 
-| Pi                                                                          | mandarax                               | Why                                                                                                                                                             |
-| --------------------------------------------------------------------------- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `parameters: TSchema` (typebox)                                             | `parameters: z.ZodObject` (zod)        | zod is the schema lib across the repo; MCP SDK registers `.shape`                                                                                               |
-| `renderCall/renderResult => Component` (pi-tui, terminal `Theme`, `TState`) | `=> JSX.Element` (Solid, shadow DOM)   | we render a browser widget, not a terminal; Solid is reactive (no `theme`/`TState`/`lastComponent`)                                                             |
-| `execute(toolCallId, params, signal, onUpdate, ctx)` required, in-process   | `execute?(input)` server-side over MCP | tool execution runs in core/node behind MCP; **optional** so a render-only card can match a foreign harness tool                                                |
-| (no equivalent)                                                             | `names?: string[]`                     | mandarax cards render **foreign** harness tools and one card serves several (`['Edit','MultiEdit','Write']`); Pi tools own a single name so it never needs this |
+| Pi                                                                          | conciv                                 | Why                                                                                                                                                           |
+| --------------------------------------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `parameters: TSchema` (typebox)                                             | `parameters: z.ZodObject` (zod)        | zod is the schema lib across the repo; MCP SDK registers `.shape`                                                                                             |
+| `renderCall/renderResult => Component` (pi-tui, terminal `Theme`, `TState`) | `=> JSX.Element` (Solid, shadow DOM)   | we render a browser widget, not a terminal; Solid is reactive (no `theme`/`TState`/`lastComponent`)                                                           |
+| `execute(toolCallId, params, signal, onUpdate, ctx)` required, in-process   | `execute?(input)` server-side over MCP | tool execution runs in core/node behind MCP; **optional** so a render-only card can match a foreign harness tool                                              |
+| (no equivalent)                                                             | `names?: string[]`                     | conciv cards render **foreign** harness tools and one card serves several (`['Edit','MultiEdit','Write']`); Pi tools own a single name so it never needs this |
 
 All other Pi fields are adopted verbatim: `name`, `label`, `description`,
 `promptSnippet?`, `promptGuidelines?`, `renderShell?`, `prepareArguments?`, plus the
@@ -43,7 +43,7 @@ All other Pi fields are adopted verbatim: `name`, `label`, `description`,
 don't own (tools run server-side over MCP; the agent CLI schedules calls); `TState` is
 unneeded because Solid re-renders reactively.
 
-## New contract — `@mandarax/extensions`
+## New contract — `@conciv/extensions`
 
 ### `ToolDefinition` (Pi shape, zod + Solid)
 
@@ -94,10 +94,10 @@ Dropped from `ToolRenderContext` vs Pi (all TUI-only): `lastComponent`, `invalid
 `state`, `cwd`, `showImages`, `executionStarted`, `argsComplete`. Solid handles
 re-render reactively; shared call/result state uses a signal/context, not `state`.
 
-### `EffectDefinition` (a small mandarax-only overlay shape — Pi has no effects)
+### `EffectDefinition` (a small conciv-only overlay shape — Pi has no effects)
 
 Pi has **zero** concept of an effect (verified: the term appears nowhere in Pi's
-`ToolDefinition`/extension types). Effects are entirely mandarax — toggleable Solid page
+`ToolDefinition`/extension types). Effects are entirely conciv — toggleable Solid page
 overlays. An effect is a small self-describing object; `defineEffect` is **just an identity
 helper** (`(x) => x`), the exact parallel to `defineTool`. It is NOT a registry, NOT a
 switch, NOT assembly machinery:
@@ -117,13 +117,13 @@ export function defineEffect(effect: EffectDefinition): EffectDefinition {
 
 `EffectCtx` (the stable author API) and the page-introspection result types it exposes
 (`LocateResult`, `InspectResult`, `TreeResult`, …) move to shared packages so an effect
-file never imports widget internals — `EffectCtx` in `@mandarax/extensions`, the result
-types in `@mandarax/protocol`, the widget supplies the concrete ctx at render. `ctx.server`
+file never imports widget internals — `EffectCtx` in `@conciv/extensions`, the result
+types in `@conciv/protocol`, the widget supplies the concrete ctx at render. `ctx.server`
 is dropped (unused by any effect).
 
 ### Extension surface
 
-`MandaraxExtension` carries declarative `tools?: ToolDefinition[]` and
+`ConcivExtension` carries declarative `tools?: ToolDefinition[]` and
 `effects?: EffectDefinition[]`; `collectServerContributions` / `collectClientContributions`
 gather them. `defineExtension({id, tools, effects})`.
 
@@ -150,7 +150,7 @@ adapts a definition into the runtime tool the harness registers.
 This is Pi's hand-listed switch for built-ins — which Pi itself uses (`tools/index.ts`
 is a switch, not discovery). It is NOT a mutable registry: pure factory functions,
 exhaustive `switch`, no global state, no runtime mutation. The switch exists **for tools
-only**, because mandarax's tools need the server `ctx` injected (`injectUi/page/test/open`)
+only**, because conciv's tools need the server `ctx` injected (`injectUi/page/test/open`)
 exactly like Pi's tools need `cwd` — a static array can't carry injected ctx.
 
 **Effects get NO switch and NO `createAllEffects`.** An effect needs no server ctx (its
@@ -170,9 +170,9 @@ user"). There is no such pattern in Pi, so we drop it.
 
 What we actually do:
 
-- **User extensions:** the single `<root>/mandarax/extensions/` dir, as today. Server side
-  `readdirSync` + jiti; client side one `import.meta.glob`, feeding `window.__MANDARAX__.use()`.
-  (A global `~/.mandarax/extensions` root can be added later as a user convenience, mirroring
+- **User extensions:** the single `<root>/conciv/extensions/` dir, as today. Server side
+  `readdirSync` + jiti; client side one `import.meta.glob`, feeding `window.__CONCIV__.use()`.
+  (A global `~/.conciv/extensions` root can be added later as a user convenience, mirroring
   Pi's two user roots — out of scope here.)
 - **Built-in `highlight`** is a normal **extension** (`defineExtension({id:'highlight',
 effects:[highlightEffect]})`), bundled with the widget and applied through the **same
@@ -206,9 +206,9 @@ no back-compat shims — reshape every API and update every call site in the sam
 Mid-PR red is fine; the only gate is the branch is green (build + typecheck + lint + ITs)
 at the end. The phases below are a **build order**, not separate PRs:
 
-1. **Contract.** `@mandarax/extensions`: `ToolDefinition` (zod+Solid) + `defineTool`
+1. **Contract.** `@conciv/extensions`: `ToolDefinition` (zod+Solid) + `defineTool`
    identity + `ToolRenderContext`/`ToolRenderResultOptions`; `EffectDefinition`/
-   `defineEffect`; `MandaraxExtension.{tools,effects}`; `collect*` updated.
+   `defineEffect`; `ConcivExtension.{tools,effects}`; `collect*` updated.
 2. **Built-in tools.** `tools/index.ts` Pi mirror (`ToolName`, `createTool` switch,
    presets, `wrapToolDefinition`); delete the builder chain + `builtinToolCards`.
 3. **Render split.** `tool-ui` `ToolCallCard` calls `renderCall`/`renderResult`; migrate
@@ -222,7 +222,7 @@ at the end. The phases below are a **build order**, not separate PRs:
 
 ## Risks / open questions
 
-- **`@mandarax/tools` MCP server tools vs extension tools.** Both must end up as one
+- **`@conciv/tools` MCP server tools vs extension tools.** Both must end up as one
   `ToolDefinition` shape so core registers them uniformly; phases 1-2 reconcile them.
 - **Render split** is the riskiest change (touches every built-in card + the e2e tool
   card ITs). Validate against the real widget per [[playwright-networkidle-hangs-live-widget]].

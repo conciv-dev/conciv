@@ -1,6 +1,6 @@
 import {Show, splitProps, type JSX} from 'solid-js'
 import {ChevronDown, Loader} from 'lucide-solid'
-import {Collapsible} from '@mandarax/ui-kit-system'
+import {Collapsible} from '@conciv/ui-kit-system'
 import {SPIN, FOCUS_INSET} from './classes.js'
 import {SHIMMER} from './shimmer.js'
 

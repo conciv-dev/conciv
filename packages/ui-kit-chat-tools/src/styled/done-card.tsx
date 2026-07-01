@@ -1,6 +1,6 @@
 import {For, Show, type JSX} from 'solid-js'
 import {Check, Sparkles, X} from 'lucide-solid'
-import type {DoneCard as DoneData} from '@mandarax/protocol/done-types'
+import type {DoneCard as DoneData} from '@conciv/protocol/done-types'
 
 // The structured "done" card: the agent-authored roll-up (summary + files/page/tests). The prose
 // `message` is rendered by the normal text part, so this card shows only the structured fields.

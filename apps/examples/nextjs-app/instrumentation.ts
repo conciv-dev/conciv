@@ -1,1 +1,1 @@
-export {register} from '@mandarax/qu/plugin/nextjs'
+export {register} from '@conciv/qu/plugin/nextjs'

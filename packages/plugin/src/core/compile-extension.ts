@@ -3,11 +3,11 @@ import solid from 'babel-preset-solid'
 import typescript from '@babel/preset-typescript'
 
 // Extension files live in the consumer's repo and are compiled by the consumer's bundler — which may
-// be a React app. Their tool renderers / UI factories are Solid, so the mandarax plugin owns a "Solid
-// zone": it compiles mandarax/extensions/*.{tsx,jsx} with babel-preset-solid (matching the widget's
+// be a React app. Their tool renderers / UI factories are Solid, so the conciv plugin owns a "Solid
+// zone": it compiles conciv/extensions/*.{tsx,jsx} with babel-preset-solid (matching the widget's
 // compiler) at enforce:'pre', so the host's React transform afterward sees JSX-free Solid output.
 
-const EXTENSION_MODULE_RE = /[\\/]mandarax[\\/]extensions[\\/][^?]*\.(?:ts|tsx|js|jsx)(?:\?|$)/
+const EXTENSION_MODULE_RE = /[\\/]conciv[\\/]extensions[\\/][^?]*\.(?:ts|tsx|js|jsx)(?:\?|$)/
 
 export function isExtensionModule(id: string): boolean {
   return EXTENSION_MODULE_RE.test(id)

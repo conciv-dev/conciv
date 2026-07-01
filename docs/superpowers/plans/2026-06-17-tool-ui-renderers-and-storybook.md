@@ -1,12 +1,12 @@
-# Tool UI — Plan B: `@mandarax/tool-ui` package + renderers + Storybook
+# Tool UI — Plan B: `@conciv/tool-ui` package + renderers + Storybook
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** A new SolidJS package holding every tool renderer, keyed on `ToolKind`, each viewable in Storybook across all states. The widget (Plan C) consumes the registry.
 
-**Architecture:** `@mandarax/tool-ui` exports a `toolRenderers: Record<ToolKind, ToolRenderer>` map and a `ToolCardShell` that draws the header (icon + family rail + title + state) while each renderer draws the kind-specific body. Renderers are pure Solid components taking `{call, part, result, ctx}`; interactive needs (TestCard live stream, "fix") arrive via `ctx`. Shared `--pw-*` tokens move here so cards look identical in Storybook and the app.
+**Architecture:** `@conciv/tool-ui` exports a `toolRenderers: Record<ToolKind, ToolRenderer>` map and a `ToolCardShell` that draws the header (icon + family rail + title + state) while each renderer draws the kind-specific body. Renderers are pure Solid components taking `{call, part, result, ctx}`; interactive needs (TestCard live stream, "fix") arrive via `ctx`. Shared `--pw-*` tokens move here so cards look identical in Storybook and the app.
 
-**Tech Stack:** SolidJS, `@tanstack/ai-client` (`ToolCallPart`/`ToolResultPart`), `@mandarax/protocol` (`ClassifiedTool`), `storybook-solidjs-vite` (already a repo devDep), vite, vitest, oxfmt/oxlint.
+**Tech Stack:** SolidJS, `@tanstack/ai-client` (`ToolCallPart`/`ToolResultPart`), `@conciv/protocol` (`ClassifiedTool`), `storybook-solidjs-vite` (already a repo devDep), vite, vitest, oxfmt/oxlint.
 
 **Depends on:** Plan A (the `ToolKind`/`ClassifiedTool` contract). Conventions: functions not classes; no IIFEs; one-line comments; oxfmt. Visual reference: the approved mockup `.superpowers/brainstorm/.../narrow-modal.html` (family rails: page=magenta `--pw-accent`, code=teal `--pw-agent`, test=gold `--pw-warn`, read=purple, neutral=line).
 
@@ -41,7 +41,7 @@ Use them as the template; create the four files under `packages/tool-ui/` with t
 
 ```json
 {
-  "name": "@mandarax/tool-ui",
+  "name": "@conciv/tool-ui",
   "version": "0.0.0",
   "license": "MIT",
   "type": "module",
@@ -59,7 +59,7 @@ Use them as the template; create the four files under `packages/tool-ui/` with t
     "build-storybook": "storybook build"
   },
   "dependencies": {
-    "@mandarax/protocol": "workspace:*",
+    "@conciv/protocol": "workspace:*",
     "solid-js": "catalog:"
   },
   "devDependencies": {
@@ -82,7 +82,7 @@ the specifiers). `@tanstack/ai-client` is a devDep because renderers import only
 - [ ] **Step 2: Install + confirm the workspace links**
 
 Run: `pnpm install`
-Expected: `@mandarax/tool-ui` is linked; no peer errors.
+Expected: `@conciv/tool-ui` is linked; no peer errors.
 
 - [ ] **Step 3: Add the public entry stub**
 
@@ -103,7 +103,7 @@ fine — build/typecheck is gated at Task 10.)
 
 ```bash
 git add packages/tool-ui pnpm-lock.yaml
-git commit -m "chore(tool-ui): scaffold @mandarax/tool-ui package"
+git commit -m "chore(tool-ui): scaffold @conciv/tool-ui package"
 ```
 
 ---
@@ -120,7 +120,7 @@ palette/spacing/shadow variables, roughly lines 6-76). Move that block verbatim 
 Storybook light DOM:
 
 ```css
-/* tokens.css — shared mandarax design tokens; resolves in the widget shadow root and on :root */
+/* tokens.css — shared conciv design tokens; resolves in the widget shadow root and on :root */
 :host,
 :root {
   /* ...the moved --pw-* declarations... */
@@ -133,14 +133,14 @@ At the top of `packages/widget/src/styles.css`, replace the removed block with a
 widget bundle still ships the tokens:
 
 ```css
-@import '@mandarax/tool-ui/tokens.css';
+@import '@conciv/tool-ui/tokens.css';
 ```
 
-Add `"@mandarax/tool-ui": "workspace:*"` to `packages/widget/package.json` dependencies.
+Add `"@conciv/tool-ui": "workspace:*"` to `packages/widget/package.json` dependencies.
 
 - [ ] **Step 3: Verify the widget still builds with tokens resolved**
 
-Run: `pnpm turbo run build --filter=@mandarax/widget`
+Run: `pnpm turbo run build --filter=@conciv/widget`
 Expected: builds; the emitted CSS still contains `--pw-accent` (grep the dist css). If the widget's
 CSS pipeline does not resolve `@import` from a workspace package, instead copy `tokens.css` into the
 widget build inputs and import by relative path; note which approach was used.
@@ -149,7 +149,7 @@ widget build inputs and import by relative path; note which approach was used.
 
 ```bash
 git add packages/tool-ui/src/tokens.css packages/widget/src/styles.css packages/widget/package.json
-git commit -m "refactor(tokens): move --pw-* tokens into @mandarax/tool-ui"
+git commit -m "refactor(tokens): move --pw-* tokens into @conciv/tool-ui"
 ```
 
 ---
@@ -163,7 +163,7 @@ git commit -m "refactor(tokens): move --pw-* tokens into @mandarax/tool-ui"
 ```ts
 // packages/tool-ui/src/types.ts
 import type {JSX, Component} from 'solid-js'
-import type {ClassifiedTool} from '@mandarax/protocol/tool-types'
+import type {ClassifiedTool} from '@conciv/protocol/tool-types'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 
 // Actions a renderer may need from the host app (TestCard live stream, "fix this", etc).
@@ -191,7 +191,7 @@ export type ToolRenderer = {
 
 ```ts
 // packages/tool-ui/src/fixtures.ts
-import type {ClassifiedTool} from '@mandarax/protocol/tool-types'
+import type {ClassifiedTool} from '@conciv/protocol/tool-types'
 import type {ToolCallPart, ToolResultPart, ToolCallState} from '@tanstack/ai-client'
 
 export function call(over: Partial<ToolCallPart> = {}): ToolCallPart {
@@ -212,7 +212,7 @@ export const STATES: ToolCallState[] = ['input-streaming', 'input-complete', 'co
 ```tsx
 // packages/tool-ui/src/shell.tsx
 import {Show, type JSX, type Component} from 'solid-js'
-import type {ClassifiedTool} from '@mandarax/protocol/tool-types'
+import type {ClassifiedTool} from '@conciv/protocol/tool-types'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 
 // Glyph for the call/result lifecycle. `error` wins; else streaming spins; else done.
@@ -299,7 +299,7 @@ export function GlyphDot(): JSX.Element {
 
 ```tsx
 // packages/tool-ui/src/registry.tsx
-import type {ToolKind} from '@mandarax/protocol/tool-types'
+import type {ToolKind} from '@conciv/protocol/tool-types'
 import type {ToolRenderer} from './types.js'
 import {GenericBody, GlyphDot} from './cards/generic.js'
 
@@ -351,7 +351,7 @@ export const Streaming = () => (
 
 - [ ] **Step 6: Launch Storybook and eyeball it**
 
-Run: `pnpm --filter @mandarax/tool-ui storybook`
+Run: `pnpm --filter @conciv/tool-ui storybook`
 Open `http://localhost:6007`. Expected: the Shell stories render (Done/Error/Streaming) with the
 family rail + glyph; no console errors. Stop the server when satisfied.
 
@@ -426,7 +426,7 @@ plus an error story (`result('exit 1', {state:'error'})`) and a long-output stor
 
 - [ ] **Step 3: Eyeball + commit**
 
-Run: `pnpm --filter @mandarax/tool-ui storybook` → verify; then
+Run: `pnpm --filter @conciv/tool-ui storybook` → verify; then
 
 ```bash
 git add packages/tool-ui/src/cards/shell.tsx packages/tool-ui/src/cards/shell.stories.tsx packages/tool-ui/src/registry.tsx
@@ -609,17 +609,17 @@ export const parameters = {layout: 'fullscreen'}
 
 - [ ] **Step 2: Build Storybook headless**
 
-Run: `pnpm --filter @mandarax/tool-ui build-storybook`
+Run: `pnpm --filter @conciv/tool-ui build-storybook`
 Expected: builds with no errors; every renderer has at least one story.
 
 - [ ] **Step 3: Typecheck + build + test the package**
 
-Run: `pnpm turbo run typecheck build test --filter=@mandarax/tool-ui`
+Run: `pnpm turbo run typecheck build test --filter=@conciv/tool-ui`
 Expected: green. The `tsc` build (`tsconfig.build.json`) emits `dist/index.d.ts` and the css.
 
 - [ ] **Step 4: Lint + format**
 
-Run: `pnpm --filter @mandarax/tool-ui lint && pnpm format:check`
+Run: `pnpm --filter @conciv/tool-ui lint && pnpm format:check`
 Expected: clean.
 
 - [ ] **Step 5: Commit**
@@ -633,7 +633,7 @@ git commit -m "feat(tool-ui): Storybook config + all renderers verified"
 
 ## Self-review notes (author)
 
-- Spec coverage: creates `@mandarax/tool-ui` with the registry keyed on `ToolKind`, all nine
+- Spec coverage: creates `@conciv/tool-ui` with the registry keyed on `ToolKind`, all nine
   card kinds (full set per the locked decision), the renderer state contract (error/streaming/
   truncation), moved `TestCard`, moved tokens (`:host, :root` for shadow + Storybook), reflection
   card, now-line, done card, and a story per renderer. Widget wiring + the live on-page mirror are

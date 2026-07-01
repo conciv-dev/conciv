@@ -1,8 +1,8 @@
 @import '@unocss/reset/tailwind.css';
-@import '@mandarax/ui-kit-system/tokens.css';
+@import '@conciv/ui-kit-system/tokens.css';
 @import '../src/theme/tokens.css';
-@import '../src/theme/mandarax.css';
-@import '@mandarax/solid-streamdown/styles.css';
+@import '../src/theme/conciv.css';
+@import '@conciv/solid-streamdown/styles.css';
 @unocss all;
 
 @media (prefers-reduced-motion: reduce) {

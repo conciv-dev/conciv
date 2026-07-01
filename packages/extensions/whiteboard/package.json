@@ -1,21 +1,21 @@
 {
-  "name": "@mandarax/extension-whiteboard",
+  "name": "@conciv/extension-whiteboard",
   "version": "0.0.0",
-  "description": "The whiteboard built-in extension: an Excalidraw canvas the user and the AI share over the dev app, with source-anchored comments and pins, running on a self-hosted Jazz CRDT db on the @mandarax/extension contract.",
+  "description": "The whiteboard built-in extension: an Excalidraw canvas the user and the AI share over the dev app, with source-anchored comments and pins, running on a self-hosted Jazz CRDT db on the @conciv/extension contract.",
   "keywords": [
     "ai",
     "canvas",
+    "conciv",
     "excalidraw",
     "extension",
-    "mandarax",
     "whiteboard"
   ],
-  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/extensions/whiteboard#readme",
-  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
+  "homepage": "https://github.com/conciv-dev/conciv/tree/main/packages/extensions/whiteboard#readme",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mandarax-dev/mandarax.git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
     "directory": "packages/extensions/whiteboard"
   },
   "files": [
@@ -43,15 +43,15 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@conciv/extension": "workspace:^",
+    "@conciv/grab": "workspace:^",
+    "@conciv/protocol": "workspace:^",
+    "@conciv/ui-kit-chat": "workspace:^",
+    "@conciv/ui-kit-chat-tools": "workspace:^",
+    "@conciv/ui-kit-system": "workspace:^",
+    "@conciv/ui-kit-tap": "workspace:^",
     "@excalidraw/excalidraw": "^0.18.1",
     "@excalidraw/mermaid-to-excalidraw": "^1.1.4",
-    "@mandarax/extension": "workspace:^",
-    "@mandarax/grab": "workspace:^",
-    "@mandarax/protocol": "workspace:^",
-    "@mandarax/ui-kit-chat": "workspace:^",
-    "@mandarax/ui-kit-chat-tools": "workspace:^",
-    "@mandarax/ui-kit-system": "workspace:^",
-    "@mandarax/ui-kit-tap": "workspace:^",
     "h3": "2.0.1-rc.22",
     "jazz-napi": "2.0.0-alpha.52",
     "jazz-tools": "2.0.0-alpha.52",
@@ -63,9 +63,9 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@mandarax/core": "workspace:^",
-    "@mandarax/extension-testkit": "workspace:^",
-    "@mandarax/uno-preset": "workspace:*",
+    "@conciv/core": "workspace:^",
+    "@conciv/extension-testkit": "workspace:^",
+    "@conciv/uno-preset": "workspace:*",
     "@playwright/test": "^1.60.0",
     "@tanstack/ai-mcp": "^0.1.0",
     "@types/node": "^22.19.21",

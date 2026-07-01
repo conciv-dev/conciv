@@ -1,4 +1,4 @@
-import {defineTool} from '@mandarax/extension'
+import {defineTool} from '@conciv/extension'
 import {loadResolver} from '../../anchor/load-resolver.js'
 import type {WhiteboardToolContext} from '../../server/context.js'
 import {elementReferenceDef, type ElementReferenceInput} from './def.js'

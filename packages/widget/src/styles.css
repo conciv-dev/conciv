@@ -3,17 +3,17 @@
    `border-b` and bare buttons work with no per-element resets. tailwind.css (not -compat) because the
    widget owns all its elements; there's no host component-library button bg to preserve. First so tokens win. */
 @import '@unocss/reset/tailwind.css';
-@import '@mandarax/solid-streamdown/styles.css';
+@import '@conciv/solid-streamdown/styles.css';
 /* Shared design tokens (from the ui-kit-system design system): single source of truth, scoped
    :host,:root so they resolve in this shadow root and in Storybook alike. The widget owns no token
    copy. tool-ui + the kit ship JS only — the widget generates THEIR utilities too by scanning their
    source (see uno.config.ts), so there's no per-package CSS to @import here. */
-@import '@mandarax/ui-kit-system/tokens.css';
-/* Neutral chat tokens (--chat-*) + the mandarax theme layer that maps them onto the widget's --pw-*.
-   @mandarax/ui-kit-chat's styled set references only --chat-*; the shell applies `chat-theme-mandarax`
+@import '@conciv/ui-kit-system/tokens.css';
+/* Neutral chat tokens (--chat-*) + the conciv theme layer that maps them onto the widget's --pw-*.
+   @conciv/ui-kit-chat's styled set references only --chat-*; the shell applies `chat-theme-conciv`
    on its container so the chat renders in the dark/magenta look. */
-@import '@mandarax/ui-kit-chat/theme/tokens.css';
-@import '@mandarax/ui-kit-chat/theme/mandarax.css';
+@import '@conciv/ui-kit-chat/theme/tokens.css';
+@import '@conciv/ui-kit-chat/theme/conciv.css';
 
 /* preview-widget styles, injected into the Shadow DOM root. Mirrors react-grab's
    design language (dark panel, magenta brand accent) so the comment UI reads as
@@ -29,7 +29,7 @@
    arbitrary, often light, preview pages and must read as a distinct tool layer next
    to react-grab), so depth comes from hue-tinted shadow, not from glow. */
 
-/* Reset only: every --pw-* token comes from @mandarax/tool-ui/tokens.css (imported above),
+/* Reset only: every --pw-* token comes from @conciv/tool-ui/tokens.css (imported above),
    the single source of truth shared with the tool cards and their Storybook. */
 :host {
   all: initial;

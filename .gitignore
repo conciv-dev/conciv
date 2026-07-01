@@ -10,8 +10,8 @@ coverage/
 .superpowers/
 .design-ref/
 .playwright-cli/
-# mandarax runtime state the vite plugin writes into a consuming app's root
-.mandarax/
+# conciv runtime state the vite plugin writes into a consuming app's root
+.conciv/
 # stale runtime state from the old `aidx` tool name (pre-rename); never commit
 .aidx/
 # Claude Code local worktrees (git worktrees created under the repo)

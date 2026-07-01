@@ -1,9 +1,9 @@
 // A per-instance session client over the shared transport. The modal and each quick-terminal pane
 // own one; it carries this instance's branded SessionId on every request. The single comms seam —
-// only our mandarax_ id ever reaches the wire (resolve is the one route that takes a non-ours id, via body).
+// only our conciv_ id ever reaches the wire (resolve is the one route that takes a non-ours id, via body).
 import {createSignal} from 'solid-js'
 import {
-  MANDARAX_SESSION_HEADER,
+  CONCIV_SESSION_HEADER,
   type SessionId,
   ChatSessionSchema,
   ChatSessionsSchema,
@@ -17,7 +17,7 @@ import {
   RenameResponseSchema,
   OkSchema,
   PermissionDecisionSchema,
-} from '@mandarax/protocol/chat-types'
+} from '@conciv/protocol/chat-types'
 import {createTransport} from './transport.js'
 
 export function defineClient(opts: {apiBase: string}) {
@@ -25,7 +25,7 @@ export function defineClient(opts: {apiBase: string}) {
   // Only our branded id ever reaches the wire; null (not yet resolved) attaches no header.
   const sessionHeaders = (): Record<string, string> => {
     const id = sessionId()
-    return id ? {[MANDARAX_SESSION_HEADER]: id} : {}
+    return id ? {[CONCIV_SESSION_HEADER]: id} : {}
   }
   const t = createTransport({apiBase: opts.apiBase, headers: sessionHeaders})
   return {

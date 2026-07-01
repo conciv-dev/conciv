@@ -1,5 +1,5 @@
 import type {IncomingMessage, OutgoingHttpHeader, ServerResponse} from 'node:http'
-import type {WidgetConfig} from '@mandarax/protocol/config-types'
+import type {WidgetConfig} from '@conciv/protocol/config-types'
 
 // The widget injection + serving middlewares. Kept framework-agnostic (plain node http types)
 // so they work for SSR frameworks (TanStack Start) and plain index.html apps alike: the inject
@@ -8,9 +8,9 @@ import type {WidgetConfig} from '@mandarax/protocol/config-types'
 
 export type Middleware = (req: IncomingMessage, res: ServerResponse, next: (err?: unknown) => void) => void
 
-// Where the plugin serves the single client entry (the virtual:mandarax-extensions module, which
-// globs the extensions and imports the widget — both through Vite so solid + @mandarax/extension dedupe).
-export const EXTENSIONS_ROUTE = '/@mandarax/extensions.js'
+// Where the plugin serves the single client entry (the virtual:conciv-extensions module, which
+// globs the extensions and imports the widget — both through Vite so solid + @conciv/extension dedupe).
+export const EXTENSIONS_ROUTE = '/@conciv/extensions.js'
 
 function escapeAttr(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;')

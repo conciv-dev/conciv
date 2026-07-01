@@ -1,4 +1,4 @@
-import type {ThemeTokens, ThemeTokenName} from '@mandarax/ui-kit-system'
+import type {ThemeTokens, ThemeTokenName} from '@conciv/ui-kit-system'
 
 const merged: ThemeTokens = {}
 
@@ -10,10 +10,10 @@ export function applyThemeOverrides(root: ShadowRoot | Document, overrides: Them
   const css = `${selector} {\n${decls.join('\n')}\n}`
   const doc = root instanceof Document ? root : root.ownerDocument!
   const host = root instanceof Document ? root.head : root
-  const existing = host.querySelector('style[data-mandarax-theme]')
+  const existing = host.querySelector('style[data-conciv-theme]')
   const style = existing ?? doc.createElement('style')
   if (!existing) {
-    style.setAttribute('data-mandarax-theme', '')
+    style.setAttribute('data-conciv-theme', '')
     host.appendChild(style)
   }
   style.textContent = css

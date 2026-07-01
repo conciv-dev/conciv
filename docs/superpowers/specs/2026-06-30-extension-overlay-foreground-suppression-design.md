@@ -30,8 +30,8 @@ Overlays (dialogs, popovers) are the same kind of cross-cutting host concern. So
 provides the overlay primitives; because the host owns every overlay instance, it inherently knows
 when an extension is showing foreground UI, and can hide the chat widget. There is **no registration
 call, no claim/release token** for extensions to manage — using the only mechanism that shows an
-overlay *is* the signal. The widget reappears automatically when the last overlay closes, because
-suppression is *derived* from overlay open-state, not asserted.
+overlay _is_ the signal. The widget reappears automatically when the last overlay closes, because
+suppression is _derived_ from overlay open-state, not asserted.
 
 ## Scope
 
@@ -45,13 +45,13 @@ suppress the widget — you can chat alongside them. No multi-human concerns. No
 ## API
 
 Two host-owned overlay primitives on `ClientApi`, reusing the existing components' prop shapes via
-`ComponentProps` — no re-declared prop types. `@mandarax/extension` already depends on
-`@mandarax/ui-kit-system` (it imports `ThemeTokens` / `TOKENS` today), so the components are
+`ComponentProps` — no re-declared prop types. `@conciv/extension` already depends on
+`@conciv/ui-kit-system` (it imports `ThemeTokens` / `TOKENS` today), so the components are
 referenced directly:
 
 ```ts
-// @mandarax/extension/types.ts
-import {Dialog, Popover} from '@mandarax/ui-kit-system'
+// @conciv/extension/types.ts
+import {Dialog, Popover} from '@conciv/ui-kit-system'
 import type {Component, ComponentProps} from 'solid-js'
 
 export type ClientApi = {
@@ -93,7 +93,7 @@ there is no owner/context plumbing to get wrong.
 ## Host implementation (widget)
 
 A **signal-backed stack** of overlay layers, mirroring `react-grab/picking.ts` (a module-level
-reactive value imported and read by the shell — that read *is* the cross-component wire; no store is
+reactive value imported and read by the shell — that read _is_ the cross-component wire; no store is
 needed for the connection). The stack (not a keyed map) is the right structure: ordered by open, so it
 also yields "topmost" for Escape / focus-return / z-order later. A plain `createSignal<Layer[]>` (not
 `createStore`) lets layers be removed by reference identity, so no per-layer `id` is needed — a store
@@ -108,8 +108,8 @@ const [stack, setStack] = createSignal<Layer[]>([])
 const pushLayer = (layer: Layer): void => setStack((s) => [...s, layer])
 const removeLayer = (layer: Layer): void => setStack((s) => s.filter((l) => l !== layer))
 
-export const anyOpen = createMemo(() => stack().some((l) => l.isOpen()))      // suppression wire
-export const topOpen = createMemo(() => stack().findLast((l) => l.isOpen()))  // future Escape/focus
+export const anyOpen = createMemo(() => stack().some((l) => l.isOpen())) // suppression wire
+export const topOpen = createMemo(() => stack().findLast((l) => l.isOpen())) // future Escape/focus
 ```
 
 The `track()` wrapper pushes a layer on mount, removes it (by reference) on cleanup, and stores a live
@@ -191,7 +191,7 @@ overlapping surface is accounted for — migrated or explicitly left, with ratio
 ## Pick → compose handoff (no flicker)
 
 During `grab.pick()` the widget is suppressed by `picking()`. When the pick resolves, the compose
-`api.Popover` opens (a layer pushed → `anyOpen()` true), so suppression is continuous *except* for the
+`api.Popover` opens (a layer pushed → `anyOpen()` true), so suppression is continuous _except_ for the
 microtask between `picking()` clearing and the compose layer mounting.
 
 - Primary: the suppression rule keeps the existing `transition: opacity 140ms` on un-hide, which

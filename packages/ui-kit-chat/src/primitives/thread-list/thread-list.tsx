@@ -1,6 +1,6 @@
 import {For, Show, type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
-import type {ChatSessionMeta} from '@mandarax/protocol/chat-types'
+import type {ChatSessionMeta} from '@conciv/protocol/chat-types'
 import {Primitive} from '../util/primitive.js'
 import {createActionButton} from '../util/create-action-button.js'
 import {ThreadListItemProvider, useThreadList, useThreadListItem} from './thread-list-context.js'

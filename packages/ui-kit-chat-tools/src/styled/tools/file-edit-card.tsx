@@ -1,9 +1,9 @@
 import {Show, type JSX} from 'solid-js'
 import {FilePen} from 'lucide-solid'
-import {SolidFileDiff, type FileDiffOptions} from '@mandarax/solid-diffs'
-import type {ToolCardEntry, ToolCardProps} from '@mandarax/protocol/tool-view-types'
+import {SolidFileDiff, type FileDiffOptions} from '@conciv/solid-diffs'
+import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {FileEdit, useFileEdit} from '../../primitives/tools/file-edit.js'
-import {ToolCard} from '@mandarax/ui-kit-chat'
+import {ToolCard} from '@conciv/ui-kit-chat'
 
 const DIFF_OPTIONS: FileDiffOptions<undefined> = {
   theme: {light: 'github-light', dark: 'github-dark'},

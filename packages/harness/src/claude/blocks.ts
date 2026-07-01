@@ -16,13 +16,13 @@ export const ToolResultBlock = z.object({
   is_error: z.boolean().optional(),
 })
 
-// Claude namespaces MCP tools as `mcp__<server>__<tool>`. Our own tools ride the `mandarax` server
-// (see claude/args.ts allowlist), so un-prefix them back to the canonical name (mandarax_page, …)
+// Claude namespaces MCP tools as `mcp__<server>__<tool>`. Our own tools ride the `conciv` server
+// (see claude/args.ts allowlist), so un-prefix them back to the canonical name (conciv_page, …)
 // the rest of the stack decided on. Third-party MCP tools keep their prefixed name and hit the
 // generic card. Applied at every boundary that surfaces a tool name: live decode + transcript parse.
-const MANDARAX_MCP_PREFIX = 'mcp__mandarax__'
+const CONCIV_MCP_PREFIX = 'mcp__conciv__'
 export function canonicalToolName(name: string): string {
-  return name.startsWith(MANDARAX_MCP_PREFIX) ? name.slice(MANDARAX_MCP_PREFIX.length) : name
+  return name.startsWith(CONCIV_MCP_PREFIX) ? name.slice(CONCIV_MCP_PREFIX.length) : name
 }
 
 // A tool_result's content reaches us as either a plain string (claude built-ins like Bash) or an MCP

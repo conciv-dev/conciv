@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 >
-> **DEPENDENCY:** This plan REQUIRES `@mandarax/extension-testkit` (`getExtensionTestApi`) from `docs/superpowers/plans/2026-06-27-extension-testkit.md` to be implemented and green first.
+> **DEPENDENCY:** This plan REQUIRES `@conciv/extension-testkit` (`getExtensionTestApi`) from `docs/superpowers/plans/2026-06-27-extension-testkit.md` to be implemented and green first.
 >
 > **REVIEW GATE:** Before executing Task 1, dispatch 5 independent review agents (Opus) against THIS plan (see "Pre-execution review" at the bottom), incorporate their findings, and only then start.
 
@@ -10,7 +10,7 @@
 
 **Architecture:** Pure unit tests stay plain. Server/tool behavior is driven through the testkit's real server + `callTool` (MCP over HTTP). UI behavior is driven through `getExtensionTestApi(...)` — real browser, real framework mount, `getByRole`/`getByText` only. The binding bug is reproduced by a failing drag/idle test before any production edit, then fixed in `island.tsx`.
 
-**Tech Stack:** vitest (node runner), `@mandarax/extension-testkit`, `@playwright/test` `expect` (for locator assertions), the whiteboard's real MCP tools.
+**Tech Stack:** vitest (node runner), `@conciv/extension-testkit`, `@playwright/test` `expect` (for locator assertions), the whiteboard's real MCP tools.
 
 ## IMPLEMENTED TESTKIT — real API (this plan must use it verbatim)
 
@@ -19,18 +19,18 @@ extension is genuinely two builder objects sharing one `name`: the server half (
 export — tools + `.server()`, node-safe, NO `Component`) and the client half (`/client` entry — `Component`
 
 - `.client()`, browser, NO `.server()`). There is no single combined `whiteboard` object; the original
-  plan's `getExtensionTestApi({server: whiteboard, clientEntry: '@mandarax/extension-whiteboard/client'})` was based on a wrong assumption.
+  plan's `getExtensionTestApi({server: whiteboard, clientEntry: '@conciv/extension-whiteboard/client'})` was based on a wrong assumption.
 
 ```ts
 import {expect} from '@playwright/test'
-import whiteboard from '@mandarax/extension-whiteboard' // SERVER half (start() mounts this)
-import {getExtensionTestApi} from '@mandarax/extension-testkit'
+import whiteboard from '@conciv/extension-whiteboard' // SERVER half (start() mounts this)
+import {getExtensionTestApi} from '@conciv/extension-testkit'
 
-const boot = () => getExtensionTestApi({server: whiteboard, clientEntry: '@mandarax/extension-whiteboard/client'})
+const boot = () => getExtensionTestApi({server: whiteboard, clientEntry: '@conciv/extension-whiteboard/client'})
 // → {page, callTool, session, apiBase, dispose}
 ```
 
-- `node` test files import the SERVER default (`@mandarax/extension-whiteboard`) — node-safe, no Solid/JSX.
+- `node` test files import the SERVER default (`@conciv/extension-whiteboard`) — node-safe, no Solid/JSX.
 - The browser host imports the CLIENT entry (`/client`) itself, by specifier; tests never import it into node.
 - The testkit ALSO renders one source-mapped fixture element (`aria-label="Comment target"`) for `grab`.
   Whiteboard's own grab/comment flow still drives whiteboard's real overlay; the fixture is the pick target.
@@ -50,7 +50,7 @@ const boot = () => getExtensionTestApi({server: whiteboard, clientEntry: '@manda
 - No whiteboard tests in the example app. They live in `packages/extensions/whiteboard/test/`. (user rule)
 - No `createEffect`/`useEffect` in whiteboard src; sync via events + reactive bindings. Mutations + `updateScene` only in event/subscription callbacks, never a reactive scope. (session hard rule)
 - Production code: zero narration comments, functions not classes, no `any`/casts beyond the existing `as unknown as` bridge helpers, no IIFE, no `else`, no `x!`. (`code-style-hard-rules`, `no-non-null-assertion`)
-- **After ANY edit to `packages/extensions/whiteboard/src/**`, run `npx turbo build --filter=@mandarax/extension-whiteboard`** — the testkit (and the example app) mount BUILT dist; stale dist makes RED/GREEN meaningless. (session gotcha, `use-turbo-build`)
+- **After ANY edit to `packages/extensions/whiteboard/src/**`, run `npx turbo build --filter=@conciv/extension-whiteboard`** — the testkit (and the example app) mount BUILT dist; stale dist makes RED/GREEN meaningless. (session gotcha, `use-turbo-build`)
 - Work only from the worktree. Use `newPage()` not `newContext()`. Use `domcontentloaded` not `networkidle`. (`worktree-stay-in-worktree`, `widget-it-newpage-not-newcontext`, `playwright-networkidle-hangs-live-widget`)
 
 ## Starting state
@@ -85,18 +85,18 @@ const boot = () => getExtensionTestApi({server: whiteboard, clientEntry: '@manda
 **Files:**
 
 - Create: `packages/extensions/whiteboard/test/canvas-tools.it.test.ts`, `comment-tools.it.test.ts`, `element-reference.it.test.ts`, `server-config.it.test.ts`, `enrich-worker.it.test.ts`
-- Test helper: a thin local `boot()` that uses `getExtensionTestApi({server: whiteboard, clientEntry: '@mandarax/extension-whiteboard/client'})` and uses only `{callTool, session, apiBase, dispose}` (ignores `page`) — server/tool behavior needs no browser interaction.
+- Test helper: a thin local `boot()` that uses `getExtensionTestApi({server: whiteboard, clientEntry: '@conciv/extension-whiteboard/client'})` and uses only `{callTool, session, apiBase, dispose}` (ignores `page`) — server/tool behavior needs no browser interaction.
 
 **Interfaces:**
 
-- Consumes: `getExtensionTestApi` from `@mandarax/extension-testkit`, `whiteboard` default export.
+- Consumes: `getExtensionTestApi` from `@conciv/extension-testkit`, `whiteboard` default export.
 - Produces: per-file ITs that exercise the real tools over MCP.
 
 - [ ] **Step 1: Failing test (canvas-tools)** — drive the real canvas tools and assert via `callTool('canvas.read')`:
   ```ts
   const {callTool, dispose} = await getExtensionTestApi({
     server: whiteboard,
-    clientEntry: '@mandarax/extension-whiteboard/client',
+    clientEntry: '@conciv/extension-whiteboard/client',
   })
   await callTool('canvas.diagram', {mermaid: 'flowchart TD\n A-->B'})
   const read = (await callTool('canvas.read', {})) as {elements: unknown[]}
@@ -123,11 +123,11 @@ const boot = () => getExtensionTestApi({server: whiteboard, clientEntry: '@manda
 
   ```ts
   import {expect} from '@playwright/test'
-  import whiteboard from '@mandarax/extension-whiteboard'
-  import {getExtensionTestApi} from '@mandarax/extension-testkit'
+  import whiteboard from '@conciv/extension-whiteboard'
+  import {getExtensionTestApi} from '@conciv/extension-testkit'
 
   test('drawing a rectangle creates a selectable shape', async () => {
-    const api = await getExtensionTestApi({server: whiteboard, clientEntry: '@mandarax/extension-whiteboard/client'})
+    const api = await getExtensionTestApi({server: whiteboard, clientEntry: '@conciv/extension-whiteboard/client'})
     await api.page.getByRole('button', {name: 'Open the whiteboard canvas'}).click()
     await api.page.getByRole('radio', {name: 'Rectangle'}).click()
     const vp = api.page.viewportSize() ?? {width: 1280, height: 720}
@@ -210,7 +210,7 @@ Also two VACUOUS-PASS traps the review found, which the assertions must close:
     return Math.max(...elements.map((element) => element.version))
   }
 
-  const api = await getExtensionTestApi({server: whiteboard, clientEntry: '@mandarax/extension-whiteboard/client'})
+  const api = await getExtensionTestApi({server: whiteboard, clientEntry: '@conciv/extension-whiteboard/client'})
   await api.page.getByRole('button', {name: 'Open the whiteboard canvas'}).click()
   await api.callTool('canvas.diagram', {mermaid: 'flowchart TD\n A-->B\n B-->C\n C-->A'})
   await expect
@@ -233,7 +233,7 @@ Also two VACUOUS-PASS traps the review found, which the assertions must close:
   await api.dispose()
   ```
 
-- [ ] **Step 2: Run it and CONFIRM RED** — `npx turbo build --filter=@mandarax/extension-whiteboard` then `npx vitest run test/drag-settle.it.test.ts`. Expected: FAIL — `second > first` (the version keeps climbing while idle, two clients ping-ponging the nonce). The `afterDrag > baseline` guard must PASS (proving the scene is live) before the idle assertion fails.
+- [ ] **Step 2: Run it and CONFIRM RED** — `npx turbo build --filter=@conciv/extension-whiteboard` then `npx vitest run test/drag-settle.it.test.ts`. Expected: FAIL — `second > first` (the version keeps climbing while idle, two clients ping-ponging the nonce). The `afterDrag > baseline` guard must PASS (proving the scene is live) before the idle assertion fails.
       **If `second === first` (no climb) even with two clients:** STOP — do not proceed to Task 8. Verify (a) the `secondClient()` page actually opened the SAME room (`b` drove the same `api.session`), (b) Excalidraw's reconcile is bumping the version on the nonce conflict (watch the first sample climb during the drag), (c) more elements / a drag during continuous cursor movement. Do NOT weaken `toBe(first)` to a tolerance — a correct fix yields exact equality.
 - [ ] **Step 3:** Once RED is confirmed, **commit the failing test** on its own (so the regression is recorded): `test(whiteboard): reproduce canvas echo loop on drag (RED)`. (Committing a known-RED test is intentional here; Task 8 turns it green in the next commit.)
 
@@ -320,7 +320,7 @@ Also two VACUOUS-PASS traps the review found, which the assertions must close:
   }
   ```
   (Keep writing `version: element.version` to the row — the schema + `canvas.update` tool use it. Only the ECHO TEST changes from version to content.)
-- [ ] **Step 4: Build + verify Task 7 goes GREEN** — `npx turbo build --filter=@mandarax/extension-whiteboard`, then `npx vitest run test/drag-settle.it.test.ts`. Expected: PASS (`second === first`).
+- [ ] **Step 4: Build + verify Task 7 goes GREEN** — `npx turbo build --filter=@conciv/extension-whiteboard`, then `npx vitest run test/drag-settle.it.test.ts`. Expected: PASS (`second === first`).
 - [ ] **Step 5: Verify NO regression** — `npx vitest run` for the whole whiteboard package (draw, persist, ai-draw, comment, tools, units). All green. **MUST explicitly re-run `persist.it.test.ts` AND `ai-draw.it.test.ts`** (5-agent review: the buffered-flush bug only surfaces there — a fresh empty room hides it, so passing `drag-settle` alone is NOT sufficient to declare GREEN). Confirm `grep -rnE 'createEffect|useEffect' packages/extensions/whiteboard/src` → none, and no leftover `console.log`.
 - [ ] **Step 6: Commit** `fix(whiteboard): content-keyed echo + applyRemote skips own echoes (kills drag loop)`.
 

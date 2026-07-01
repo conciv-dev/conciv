@@ -89,7 +89,7 @@ function play(theme?: string): Story {
 
 export const Neutral: Story = play()
 export const Dark: Story = play('chat-theme-dark')
-export const Mandarax: Story = play('chat-theme-mandarax')
+export const Conciv: Story = play('chat-theme-conciv')
 
 // The host-chrome slots the widget cutover drives: a divider before each turn (turnPrefix), a live
 // now-line in the viewport footer, an overlay, and a busy control replacing Send in the composer.

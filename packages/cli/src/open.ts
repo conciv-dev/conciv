@@ -2,7 +2,7 @@ import {z} from 'zod'
 import {defineCommand} from 'citty'
 import {runAndPrint, type CliRequest} from './request.js'
 
-// `mandarax tools open <file> [--line n]` — open a source file in the user's editor.
+// `conciv tools open <file> [--line n]` — open a source file in the user's editor.
 const OpenArgs = z.object({file: z.string(), line: z.coerce.number().optional()})
 
 export function openRequest(raw: unknown): CliRequest {

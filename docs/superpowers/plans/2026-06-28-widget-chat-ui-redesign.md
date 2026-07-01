@@ -1,4 +1,4 @@
-# @mandarax/ui-kit-chat — chat UI package + widget redesign
+# @conciv/ui-kit-chat — chat UI package + widget redesign
 
 > **For agentic workers:** REQUIRED SUB-SKILL: use superpowers:subagent-driven-development
 > or superpowers:executing-plans. Phased build (Section 14); each task ends in an
@@ -7,9 +7,9 @@
 
 Status: design / decisions resolved 2026-06-28
 Date: 2026-06-28
-Owner: new `@mandarax/ui-kit-chat` + `@mandarax/ui-kit-system` + `@mandarax/widget`
+Owner: new `@conciv/ui-kit-chat` + `@conciv/ui-kit-system` + `@conciv/widget`
 
-**Goal:** Build `@mandarax/ui-kit-chat` — a clean-room SolidJS implementation of
+**Goal:** Build `@conciv/ui-kit-chat` — a clean-room SolidJS implementation of
 assistant-ui's chat API (headless compound primitives + a neutral, themeable styled set) —
 and rebuild the widget chat on top of it, fixing the chat UX defects (D1–D13) in the
 process.
@@ -19,10 +19,10 @@ widget calls tanstack `useChat` once (SSE/streaming/AG-UI unchanged) and passes 
 into `<ChatProvider chat={...}>`; ui-kit-chat's context holds that `UseChatReturn` verbatim
 (the single source of truth) plus a small view-state bag. Headless primitives read it via
 `createMemo`-derived views — **no copied/mirrored chat state, no separate store, no
-adapter object**. Base UI components come only from `@mandarax/ui-kit-system`. The styled
-set is neutral/token-driven; the mandarax look is a theme layer.
+adapter object**. Base UI components come only from `@conciv/ui-kit-system`. The styled
+set is neutral/token-driven; the conciv look is a theme layer.
 
-**Tech stack:** SolidJS, `@mandarax/ui-kit-system` (Ark-based), UnoCSS (presetWind4),
+**Tech stack:** SolidJS, `@conciv/ui-kit-system` (Ark-based), UnoCSS (presetWind4),
 `@ark-ui/solid` headless **hooks only**, `@pierre/diffs` (Solid) for code/diff,
 Streamdown/Solid for markdown. Reference (NOT a dependency): assistant-ui at
 `/Users/dev/Public/web/assistant-ui`.
@@ -31,14 +31,14 @@ Streamdown/Solid for markdown. Reference (NOT a dependency): assistant-ui at
 
 - **No assistant-ui dependency.** Clean-room. Learn from their source; ship our own code.
 - **No `@ark-ui` _component_ imports anywhere** (oxlint `no-restricted-imports`,
-  `.oxlintrc.json:36-58`). Base components come from `@mandarax/ui-kit-system`. Ark
+  `.oxlintrc.json:36-58`). Base components come from `@conciv/ui-kit-system`. Ark
   **headless hooks** (`useListCollection`, `useFilter`) are allowed.
 - **State = Solid primitives.** `createStore` + context for the chat store; `createMemo`/
   signals for derived state. No port of `@assistant-ui/store`/`core`.
 - **API parity** with assistant-ui: compound parts (`Thread.Root`, `Composer.Input`,
   `MessagePrimitive.*`, `ActionBarPrimitive.*`, …), `ThreadComponents` slot overrides, and
   `defineToolkit(name → component)`.
-- **Styled set = neutral + themeable** (token-driven light/dark); mandarax = a theme layer.
+- **Styled set = neutral + themeable** (token-driven light/dark); conciv = a theme layer.
 - **Storybook**: every component, all states + props.
 - **Code style** ([[code-style-hard-rules]]): functions not classes, no narration comments,
   no `any`/casts, no non-null `!`, no IIFE, no barrel re-export files. Compound namespaces
@@ -134,7 +134,7 @@ packages/ui-kit-chat/
                      branch-picker, thread-list, thread-list-sidebar, markdown (binding)
     tools/           apply-patch-diff, bash-card, inline-tool, permission-card,
                      reasoning-ghost, define-toolkit  (ask UI = existing GenUi)
-    theme/           neutral tokens (light/dark) + mandarax theme layer
+    theme/           neutral tokens (light/dark) + conciv theme layer
   .storybook/
 ```
 
@@ -204,7 +204,7 @@ with-opencode is a Next.js **browser** app (not the CLI `with-react-ink`); its t
 are ordinary DOM, directly portable to Solid. Port into `ui-kit-chat/tools/`:
 
 - **apply-patch-diff** ← `tool-ui-apply-patch.tsx`: Claude Code v2 patch → unified diff;
-  lift the parse functions verbatim, render via our `@mandarax/solid-diffs` (Pierre)
+  lift the parse functions verbatim, render via our `@conciv/solid-diffs` (Pierre)
   instead of React Pierre. ([[tool-card-visual-design]] — code always via Pierre.)
 - **bash-card** ← `tool-ui-bash.tsx`: collapsible `$ cmd` + stdout/stderr + exit-code.
 - **inline-tool** ← `tool-ui-inline.tsx`: `ToolCallShell` one-line rows (read/grep/glob/
@@ -216,7 +216,7 @@ are ordinary DOM, directly portable to Solid. Port into `ui-kit-chat/tools/`:
 - **data-part** ← `opencode-data-part.tsx`: render/suppress non-tool agent events.
 - **define-toolkit** ← `toolkit.tsx`: name→component map ([[tool-ui-tanstack-convention]]).
 
-Our existing `@mandarax/tool-ui` cards (page-action, file-edit/read, search, shell, todo)
+Our existing `@conciv/tool-ui` cards (page-action, file-edit/read, search, shell, todo)
 fold into this toolkit shape.
 
 ## 10. Defects this fixes (carried from the audit)
@@ -255,7 +255,7 @@ fold into this toolkit shape.
 ## 12. Theming
 
 `theme/` ships neutral semantic tokens (`--chat-*`) with light/dark defaults; the styled
-set references only those. A `mandarax` theme maps `--chat-*` → our `--pw-*`
+set references only those. A `conciv` theme maps `--chat-*` → our `--pw-*`
 (dark glass + magenta). Shadow-DOM `@property` hoist still applies
 ([[unocss-wind4-shadow-dom]]).
 
@@ -264,7 +264,7 @@ set references only those. A `mandarax` theme maps `--chat-*` → our `--pw-*`
 Every primitive part and styled component gets stories that run the REAL `useChat` behind a
 fake transport (`storyConnection` = fake `ConnectionAdapter` yielding `StreamChunk`s — §6.1); no server, no app, no
 mocks. Cover all states: empty/streaming/settled/error, tool running/complete/
-error/approval, single vs multi-branch, hover/focus/disabled, light + dark + mandarax
+error/approval, single vs multi-branch, hover/focus/disabled, light + dark + conciv
 themes. ([[no-test-ids-in-code]]; play funcs assert via roles/text.)
 
 ## 14. Build phases (task list)
@@ -291,7 +291,7 @@ tool-ui cards. (Ask/question UI = existing GenUi.)
 container over ui-kit-chat; remove hand-rolled notice/title/details; wire composer controls
 
 - extension slots + selectors; D1 regression IT.
-  **Phase 7 — theming:** neutral tokens + mandarax theme layer; verify in widget shadow DOM.
+  **Phase 7 — theming:** neutral tokens + conciv theme layer; verify in widget shadow DOM.
   **Phase 8 — polish + storybook sweep:** touch targets (44px)/states (D7/D8); Storybook
   coverage for all components/states; responsive (PiP, quick-terminal, ≥300px).
   **Phase 9 — future enhancements (primitives already built, just not lit):** the branch
@@ -320,7 +320,7 @@ unchanged, only height grows. Never the example app.
 4. **API parity** with assistant-ui (compound parts, slots, `defineToolkit`).
 5. Base components only from ui-kit-system (Ark hooks OK). Tooltip/Menu/Popover built in
    Phase 0 here (not gated on the whiteboard plan).
-6. Styled set = **neutral + themeable**; mandarax = theme layer. Primary tool reference =
+6. Styled set = **neutral + themeable**; conciv = theme layer. Primary tool reference =
    `with-opencode` (browser). Turn model: assistant full-width/no-bubble, user bubble; tool
    cards collapsed by default, auto-expand on `approval-requested`.
 7. **Build the FULL primitive API (assistant-ui parity).** Capability model (API spec §7):
@@ -499,42 +499,42 @@ task deliverable with its own stories.
 
 ## 18. Migration & replacement map — every existing part → its fate
 
-The end goal is **the real widget rendering through `@mandarax/ui-kit-chat` in the running
+The end goal is **the real widget rendering through `@conciv/ui-kit-chat` in the running
 app, with the old chat stack deleted.** Building the package is not done; _cutting over and
 removing the old code_ is. Below, every existing file and its disposition.
 Legend: **REPLACE→** (delete, render via the new component) · **MOVE→** (relocate into
 ui-kit-chat) · **REWIRE** (keep file, point it at ui-kit-chat) · **KEEP** (unchanged).
 
-### `packages/tool-ui/` — ABSORBED into `@mandarax/ui-kit-chat`, then the package is DELETED
+### `packages/tool-ui/` — ABSORBED into `@conciv/ui-kit-chat`, then the package is DELETED
 
-(types `ToolCardProps`/`ToolCardEntry` stay in `@mandarax/protocol/tool-view-types` — the shared home.)
+(types `ToolCardProps`/`ToolCardEntry` stay in `@conciv/protocol/tool-view-types` — the shared home.)
 
-| File                                          | Fate                                                                                              |
-| --------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `shell.tsx` (ToolCard chrome)                 | REPLACE→ ui-kit-chat styled `ToolFallback`/`ToolGroup`                                            |
-| `thinking.tsx` (ChainOfThought, Reasoning)    | REPLACE→ ui-kit-chat `ChainOfThought` + `Reasoning`                                               |
-| `tool-call.tsx` (route by name)               | REPLACE→ `Message.Parts` tools dispatch + `defineToolkit` (ToolCardEntry[])                       |
-| `approval-bar.tsx`                            | REPLACE→ ui-kit-chat `PermissionCard`                                                             |
-| `now-line.tsx` + `now-title.ts`               | MOVE→ ui-kit-chat styled "now line" (live tool indicator)                                         |
-| `done-card.tsx`                               | MOVE→ ui-kit-chat styled `DoneCard`                                                               |
-| `virtual-lines.tsx`                           | MOVE→ ui-kit-chat (fixed-row text virtualizer; kept)                                              |
-| `util.ts` / `diff-options.ts` / `fixtures.ts` | MOVE→ ui-kit-chat (`types.ts` → use protocol types)                                               |
-| `cards/file-edit.tsx`                         | REPLACE→ `ApplyPatchDiff` (Pierre)                                                                |
-| `cards/file-read.tsx`                         | MOVE→ ui-kit-chat `FileRead` card                                                                 |
-| `cards/shell.tsx`                             | REPLACE→ `BashCard`                                                                               |
-| `cards/search.tsx`                            | REPLACE→ `InlineTool` (web)                                                                       |
-| `cards/todo.tsx`                              | MOVE→ ui-kit-chat `Todo` card                                                                     |
-| `cards/generic.tsx`                           | REPLACE→ ui-kit-chat `ToolFallback`                                                               |
-| `cards/page-action.tsx`                       | MOVE→ **widget-side** `ToolCardEntry` (mandarax page tool, app-specific — not in the neutral lib) |
-| `cards/ui-chip.tsx`                           | MOVE→ widget-side `ToolCardEntry` (or drop if unused)                                             |
-| all `*.stories.tsx`                           | REPLACE→ ui-kit-chat stories (real useChat + storyConnection)                                     |
+| File                                          | Fate                                                                                            |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `shell.tsx` (ToolCard chrome)                 | REPLACE→ ui-kit-chat styled `ToolFallback`/`ToolGroup`                                          |
+| `thinking.tsx` (ChainOfThought, Reasoning)    | REPLACE→ ui-kit-chat `ChainOfThought` + `Reasoning`                                             |
+| `tool-call.tsx` (route by name)               | REPLACE→ `Message.Parts` tools dispatch + `defineToolkit` (ToolCardEntry[])                     |
+| `approval-bar.tsx`                            | REPLACE→ ui-kit-chat `PermissionCard`                                                           |
+| `now-line.tsx` + `now-title.ts`               | MOVE→ ui-kit-chat styled "now line" (live tool indicator)                                       |
+| `done-card.tsx`                               | MOVE→ ui-kit-chat styled `DoneCard`                                                             |
+| `virtual-lines.tsx`                           | MOVE→ ui-kit-chat (fixed-row text virtualizer; kept)                                            |
+| `util.ts` / `diff-options.ts` / `fixtures.ts` | MOVE→ ui-kit-chat (`types.ts` → use protocol types)                                             |
+| `cards/file-edit.tsx`                         | REPLACE→ `ApplyPatchDiff` (Pierre)                                                              |
+| `cards/file-read.tsx`                         | MOVE→ ui-kit-chat `FileRead` card                                                               |
+| `cards/shell.tsx`                             | REPLACE→ `BashCard`                                                                             |
+| `cards/search.tsx`                            | REPLACE→ `InlineTool` (web)                                                                     |
+| `cards/todo.tsx`                              | MOVE→ ui-kit-chat `Todo` card                                                                   |
+| `cards/generic.tsx`                           | REPLACE→ ui-kit-chat `ToolFallback`                                                             |
+| `cards/page-action.tsx`                       | MOVE→ **widget-side** `ToolCardEntry` (conciv page tool, app-specific — not in the neutral lib) |
+| `cards/ui-chip.tsx`                           | MOVE→ widget-side `ToolCardEntry` (or drop if unused)                                           |
+| all `*.stories.tsx`                           | REPLACE→ ui-kit-chat stories (real useChat + storyConnection)                                   |
 
 ### `packages/widget/src/chat/`
 
 | File                         | Fate                                                                                                                                                                                                                                                                                   |
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `chat-panel.tsx` (935 lines) | REPLACE→ a thin `chatPanelDef`/`ChatPanel` **container**: calls `useChat`, wraps in `<ChatProvider>`, renders ui-kit-chat `<Thread>`/`<Composer>`; keeps the session-load/switch/compact/divider/duration/approval **wiring**; deletes all layout/grouping/rendering (now ui-kit-chat) |
-| `gen-ui.tsx`                 | KEEP (mandarax GenUi over `MANDARAX_UI_EVENT`); rendered into a ui-kit-chat thread slot                                                                                                                                                                                                |
+| `gen-ui.tsx`                 | KEEP (conciv GenUi over `CONCIV_UI_EVENT`); rendered into a ui-kit-chat thread slot                                                                                                                                                                                                    |
 | `markdown.tsx`               | REPLACE→ ui-kit-chat `Markdown` (solid-streamdown binding); delete                                                                                                                                                                                                                     |
 
 ### `packages/widget/src/shell/`
@@ -556,26 +556,26 @@ ui-kit-chat) · **REWIRE** (keep file, point it at ui-kit-chat) · **KEEP** (unc
 | `model-selector.tsx`, `session-selector.tsx`                                                      | KEEP (already Ark Combobox) → REWIRE as ui-kit-chat `Composer` slot controls |
 | `session-info.tsx`, `new-session-action.tsx`, `compact-action.tsx`, `open-in-terminal-action.tsx` | REWIRE into the ui-kit-chat `Composer` action slot                           |
 
-### Consumers that MUST switch imports `@mandarax/tool-ui` → `@mandarax/ui-kit-chat`
+### Consumers that MUST switch imports `@conciv/tool-ui` → `@conciv/ui-kit-chat`
 
-| File                                                               | Action                                                                                    |
-| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| `packages/widget/src/mount.tsx`                                    | import tool cards/Thread from ui-kit-chat; `chatPanelDef` container                       |
-| `packages/widget/src/styles.css`, `vite.config.ts`, `package.json` | swap `@mandarax/tool-ui` dep → `@mandarax/ui-kit-chat`; drop tool-ui + `@floating-ui/dom` |
-| `packages/extensions/whiteboard/src/client/pins/thread.tsx`        | import `ToolCard`/types from ui-kit-chat (+ package.json)                                 |
-| `packages/extensions/test-runner/src/tool/card.tsx`                | import from ui-kit-chat (+ package.json)                                                  |
-| `packages/protocol/src/tool-view-types.ts`                         | KEEP (the shared `ToolCardProps`/`ToolCardEntry` type home)                               |
+| File                                                               | Action                                                                                |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| `packages/widget/src/mount.tsx`                                    | import tool cards/Thread from ui-kit-chat; `chatPanelDef` container                   |
+| `packages/widget/src/styles.css`, `vite.config.ts`, `package.json` | swap `@conciv/tool-ui` dep → `@conciv/ui-kit-chat`; drop tool-ui + `@floating-ui/dom` |
+| `packages/extensions/whiteboard/src/client/pins/thread.tsx`        | import `ToolCard`/types from ui-kit-chat (+ package.json)                             |
+| `packages/extensions/test-runner/src/tool/card.tsx`                | import from ui-kit-chat (+ package.json)                                              |
+| `packages/protocol/src/tool-view-types.ts`                         | KEEP (the shared `ToolCardProps`/`ToolCardEntry` type home)                           |
 
 ### Cutover acceptance (the real "used in the app" gate — see TASKS Definition of Done)
 
-- `grep -rn "@mandarax/tool-ui" packages --include=*.ts --include=*.tsx --include=*.json | grep -v node_modules | grep -v dist` → **zero** (package deleted, all consumers migrated).
+- `grep -rn "@conciv/tool-ui" packages --include=*.ts --include=*.tsx --include=*.json | grep -v node_modules | grep -v dist` → **zero** (package deleted, all consumers migrated).
 - `ls packages/tool-ui` → does not exist.
 - `grep -rn "@floating-ui/dom" packages/widget` → zero (popover replaced).
-- `packages/widget/package.json` depends on `@mandarax/ui-kit-chat`.
+- `packages/widget/package.json` depends on `@conciv/ui-kit-chat`.
 - `mount.tsx`/`widget-shell`/`quick-terminal` render the thread via ui-kit-chat components, not the old chat-panel/tool-ui internals.
 - The running example app shows the widget chat rendered by ui-kit-chat; widget testkit + extension ITs (whiteboard, test-runner) still pass.
 
-## 18.1 Complete `@mandarax/tool-ui` public surface + infra → new home (nothing left behind)
+## 18.1 Complete `@conciv/tool-ui` public surface + infra → new home (nothing left behind)
 
 Full export inventory (from `tool-ui/src/index.tsx`) — every symbol must land somewhere before delete:
 
@@ -586,12 +586,12 @@ Full export inventory (from `tool-ui/src/index.tsx`) — every symbol must land 
 | `ToolCard` (chrome), `GenericCard`                                                                                            | ui-kit-chat styled `ToolFallback`/`ToolGroup`                                                                                        |
 | `ApprovalBar`                                                                                                                 | ui-kit-chat `PermissionCard`                                                                                                         |
 | `ShellCard/shellTool`, `FileEditCard/fileEditTool`, `FileReadCard/fileReadTool`, `SearchCard/searchTool`, `TodoCard/todoTool` | ui-kit-chat tool vocabulary (BashCard/ApplyPatchDiff/FileRead/InlineTool/Todo), each as a `ToolCardEntry`                            |
-| `PageActionCard/pageActionTool`, `UiCard/uiTool`                                                                              | **widget-side** (mandarax-specific) `ToolCardEntry`s                                                                                 |
+| `PageActionCard/pageActionTool`, `UiCard/uiTool`                                                                              | **widget-side** (conciv-specific) `ToolCardEntry`s                                                                                   |
 | `ChainOfThought`, `Reasoning`                                                                                                 | ui-kit-chat ChainOfThought + Reasoning                                                                                               |
 | `NowLine`, `nowTitle`                                                                                                         | ui-kit-chat styled now-line + helper                                                                                                 |
 | `DoneCard`                                                                                                                    | ui-kit-chat styled DoneCard                                                                                                          |
 | `parseInput`, `resultText`, `toolGlyph`, `ToolGlyph`                                                                          | ui-kit-chat `util` (note: `parseInput` reads `part.arguments` — [[tanstack-part-input-empty]])                                       |
-| `ToolCardProps`, `ToolViewCtx`, `ToolAccent`, `ToolCardEntry` (types)                                                         | STAY in `@mandarax/protocol/tool-view-types` (the type home); consumers import from there                                            |
+| `ToolCardProps`, `ToolViewCtx`, `ToolAccent`, `ToolCardEntry` (types)                                                         | STAY in `@conciv/protocol/tool-view-types` (the type home); consumers import from there                                              |
 
 Infra that travels with the move (delete-blockers — handle BEFORE removing tool-ui):
 
@@ -601,7 +601,7 @@ Infra that travels with the move (delete-blockers — handle BEFORE removing too
 - **solid-diffs / solid-streamdown** consumers (`tool-ui/diff-options.ts`, `cards/file-read`, `cards/file-edit`, `cards/page-action`, `widget/chat/markdown.tsx`) → re-home into ui-kit-chat (diffs) + widget page-action (page reads).
 - **Stories**: every `tool-ui/**/*.stories.tsx` (shell, thinking, tool-call, done-card, now-line, all cards) → MOVE to ui-kit-chat stories (real useChat + storyConnection). Do not drop coverage.
 
-Updated cutover audit (add to TASKS §C): `grep -rn "tool-ui/tokens.css\|@mandarax/tool-ui" packages apps | grep -v node_modules | grep -v /dist/` → zero; `--pw-*` tokens still resolve in the running widget (visual check); `builtinToolCards` is assembled in `mount.tsx` from ui-kit-chat generics + widget page/ui entries.
+Updated cutover audit (add to TASKS §C): `grep -rn "tool-ui/tokens.css\|@conciv/tool-ui" packages apps | grep -v node_modules | grep -v /dist/` → zero; `--pw-*` tokens still resolve in the running widget (visual check); `builtinToolCards` is assembled in `mount.tsx` from ui-kit-chat generics + widget page/ui entries.
 
 ## 19. Test policy — green before, green after, every deletion accounted for
 
@@ -634,6 +634,6 @@ Captured from a full repo sweep. Every item here is accounted for in the TASKS d
 - `packages/widget/test/`: `widget.it.test.ts`, `page-mirror.test.ts`, `effect-highlight.it.test.ts`, `react-verbs.it.test.ts`, `widget-settings.test.ts`, `extension-client.browser.test.tsx`, `extension.browser.test.tsx`, `test-runner-card.browser.test.tsx`, `dehydrate.test.ts`, `style-regression.test.ts` (+ fixtures/helpers/snapshots).
 - `packages/harness/test/usage-through-chat.test.ts` (end-to-end chat), `packages/plugin/test/widget-inject.it.test.ts`, `packages/protocol/test/chat-types.test.ts` (types stay), `packages/extensions/test-runner/test/test-card.browser.test.tsx` + whiteboard ITs (consumers migrate to ui-kit-chat imports).
 
-**Insulated (verify, no change):** `apps/site`, `apps/examples/tanstack-start` depend only on `@mandarax/widget` — no tool-ui ref; confirm they build + the widget renders after cutover.
+**Insulated (verify, no change):** `apps/site`, `apps/examples/tanstack-start` depend only on `@conciv/widget` — no tool-ui ref; confirm they build + the widget renders after cutover.
 
-**Config refs to retarget:** `widget/uno.config.ts` glob `../tool-ui/src` → `../ui-kit-chat/src`; `widget/src/styles.css` `@import` of `@mandarax/tool-ui/tokens.css` → the re-homed tokens; `widget/vite.config.ts` js-beautify note travels with page-action. (No turbo.json / pnpm-workspace / storybook-glob refs to tool-ui exist — verified.)
+**Config refs to retarget:** `widget/uno.config.ts` glob `../tool-ui/src` → `../ui-kit-chat/src`; `widget/src/styles.css` `@import` of `@conciv/tool-ui/tokens.css` → the re-homed tokens; `widget/vite.config.ts` js-beautify note travels with page-action. (No turbo.json / pnpm-workspace / storybook-glob refs to tool-ui exist — verified.)

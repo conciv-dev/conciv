@@ -15,7 +15,7 @@ async function turnMessageIds(threadId: string): Promise<string[]> {
   const gen = runAgui(
     lines('{"type":"x"}'),
     looseSchema,
-    {onSessionId() {}, threadId, runId: 'mandarax-run'},
+    {onSessionId() {}, threadId, runId: 'conciv-run'},
     (_e, {mint}) => textMessage(mint('m'), 'hi'),
   )
   for await (const c of gen) out.push(c)

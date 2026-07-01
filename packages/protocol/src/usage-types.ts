@@ -16,7 +16,7 @@ export const UsageSnapshotSchema = z.object({
 export type UsageSnapshot = z.infer<typeof UsageSnapshotSchema>
 
 // Fields with no standard TokenUsage slot ride providerUsageDetails (one type keeps the mappers in sync).
-type MandaraxProviderUsage = {
+type ConcivProviderUsage = {
   modelId?: string
   contextWindow?: number
   totalCostUsd?: number
@@ -25,7 +25,7 @@ type MandaraxProviderUsage = {
 
 // Snapshot → native TokenUsage on RUN_FINISHED (survives chat(); CUSTOM chunks do not).
 export function snapshotToTokenUsage(s: UsageSnapshot): TokenUsage {
-  const provider: MandaraxProviderUsage = {
+  const provider: ConcivProviderUsage = {
     modelId: s.modelId,
     contextWindow: s.contextWindow,
     totalCostUsd: s.totalCostUsd,
@@ -43,7 +43,7 @@ export function snapshotToTokenUsage(s: UsageSnapshot): TokenUsage {
 
 // Inverse of snapshotToTokenUsage: read a RUN_FINISHED usage back into our display shape.
 export function tokenUsageToSnapshot(u: TokenUsage): UsageSnapshot {
-  const p = (u.providerUsageDetails ?? {}) as MandaraxProviderUsage
+  const p = (u.providerUsageDetails ?? {}) as ConcivProviderUsage
   return {
     modelId: p.modelId,
     contextWindow: p.contextWindow,
@@ -58,10 +58,10 @@ export function tokenUsageToSnapshot(u: TokenUsage): UsageSnapshot {
 }
 
 // Live usage carried to the widget mid-turn as an AG-UI CUSTOM event, injected by core post-chat()
-// (the same seam mandarax-ui uses). RUN_FINISHED.usage stays the canonical end-of-turn/persist value.
-export const MANDARAX_USAGE_EVENT = 'mandarax-usage'
+// (the same seam conciv-ui uses). RUN_FINISHED.usage stays the canonical end-of-turn/persist value.
+export const CONCIV_USAGE_EVENT = 'conciv-usage'
 export function aguiUsageFor(snapshot: UsageSnapshot): StreamChunk {
-  return {type: EventType.CUSTOM, name: MANDARAX_USAGE_EVENT, value: snapshot}
+  return {type: EventType.CUSTOM, name: CONCIV_USAGE_EVENT, value: snapshot}
 }
 
 // Context occupancy = prompt resident in the window (input + cache), excluding output; undefined when no tokens.

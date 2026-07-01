@@ -1,5 +1,5 @@
 import {type H3, readValidatedBody} from 'h3'
-import {OpenSourceSchema} from '@mandarax/protocol/page-types'
+import {OpenSourceSchema} from '@conciv/protocol/page-types'
 import {symbolicateFrames, type RawFrame} from '../../page/symbolicate.js'
 import type {OpenInEditor} from '../../editor/open.js'
 

@@ -1,4 +1,4 @@
-# Mandarax Plugin / Extension System — Design
+# Conciv Plugin / Extension System — Design
 
 Date: 2026-06-20
 Status: Approved design, pre-implementation
@@ -6,7 +6,7 @@ Branch: `worktree-plugin-system-design`
 
 ## Goal
 
-Let a consumer of the Mandarax widget — and the embedded AI agent (Claude) working in
+Let a consumer of the Conciv widget — and the embedded AI agent (Claude) working in
 their repo — customize and extend the widget freely: theme, composer buttons/controls,
 tool-call rendering, arbitrary UI surfaces, agent tools, and the system prompt. "Change
 the base color to blue" or "add a deploy button to the composer" should be something
@@ -54,8 +54,8 @@ half (runs in core/harness/node). Shared declarations (tool definitions, meta) s
 top so types flow into both halves. Each half is a function receiving a live Pi-style `mx`.
 
 ```ts
-// mandarax/extensions/acme.ts — Claude writes this, hot-reloaded, committed to git
-import { defineExtension, toolDefinition } from '@mandarax/widget'
+// conciv/extensions/acme.ts — Claude writes this, hot-reloaded, committed to git
+import { defineExtension, toolDefinition } from '@conciv/widget'
 import { z } from 'zod'
 
 const deploy = toolDefinition({
@@ -110,7 +110,7 @@ keyed setters + the missing seams. `[exists]` = present internally today, `[new]
   - `ui.setComponent(id, factory)` `[new]` — component-override (swizzle) registry
   - `ui.notify(msg)` `[exists]`
 - React: `on(event, (e, ctx) => …)` `[new bus]` — client events from the TanStack stream +
-  existing custom events (`MANDARAX_UI_EVENT`, `MANDARAX_USAGE_EVENT`): `message_start`,
+  existing custom events (`CONCIV_UI_EVENT`, `CONCIV_USAGE_EVENT`): `message_start`,
   `message_update`, `message_end`, `tool_call`, `tool_result`, `turn_start`, `turn_end`,
   `session_start`.
 - `ctx` capability bag (passed to `onClick` + handlers), reusing today's
@@ -120,7 +120,7 @@ apiBase, client, notify, newSession, compact }`.
 **Server `mx` (runs in core/harness):**
 
 - `tools.<name>.server(execute)` `[new wiring]` — implement a shared `toolDefinition`'s
-  execute; wired into the engine tool set at boot (`makeEngineBooter` → `@mandarax/core
+  execute; wired into the engine tool set at boot (`makeEngineBooter` → `@conciv/core
 start`)
 - `registerTool(serverTool)` `[new wiring]` — add an agent tool
 - `on(event, (e, ctx) => …)` `[new bus]` — server events from the turn pipeline:
@@ -159,11 +159,11 @@ One unplugin owns both sides. Mechanics adopt Pi's node model and add a thin bro
 
 Adopt Pi's model:
 
-- Auto-scan `mandarax/extensions/*.{ts,tsx}` (project) and a global location
-  (`~/.mandarax/extensions/*`).
-- Explicit paths + npm/git package extensions via a `"mandarax"` key in `package.json`
+- Auto-scan `conciv/extensions/*.{ts,tsx}` (project) and a global location
+  (`~/.conciv/extensions/*`).
+- Explicit paths + npm/git package extensions via a `"conciv"` key in `package.json`
   (mirrors Pi's `"pi"` key).
-- `mandarax.config.ts` may list extensions explicitly for deterministic order:
+- `conciv.config.ts` may list extensions explicitly for deterministic order:
   `export default defineConfig({ extensions: [acme, billing] })`.
 
 ### Loading split
@@ -174,7 +174,7 @@ Adopt Pi's model:
   join the tool set, `on(...)` handlers subscribe to the turn pipeline, `systemPrompt.append`
   augments the prompt. No strip-transform needed server-side.
 - **Client half = vite virtual entry + HMR.** The widget stays a served `<script>` that
-  exposes a registration global (`window.__MANDARAX__.use(ext)`). The unplugin assembles the
+  exposes a registration global (`window.__CONCIV__.use(ext)`). The unplugin assembles the
   consumer's `.client` halves into a vite **virtual entry** and injects it as a second
   `<script>` after the widget; on load it calls `use(ext)` per extension, driving the
   reactive UI store. HMR comes free from vite's module graph — the browser-side analog of
@@ -188,8 +188,8 @@ Adopt Pi's model:
 
 ### Precedence / merge
 
-Pi-style layering: CLI/explicit → global (`~/.mandarax`) → project (`.mandarax` /
-`mandarax/extensions`) → packages; deterministic order within. Additive registrations
+Pi-style layering: CLI/explicit → global (`~/.conciv`) → project (`.conciv` /
+`conciv/extensions`) → packages; deterministic order within. Additive registrations
 (actions, controls, panels, tool renderers, keyed widgets, server tools) **concatenate**;
 scalar overrides (theme tokens, `setComponent`, `setHeader/Footer`) are **last-wins**.
 Duplicate ids get numeric suffixes (Pi's `:1`/`:2`). The applied order is logged in dev.
@@ -242,7 +242,7 @@ verification script is needed**.
   serializes the same consts.
 - **Tools.** Already live values (`toolDefinition(...)`); catalog reads the registered set.
 
-`mandarax_ui catalog` computes the catalog on call by importing these real registries and
+`conciv_ui catalog` computes the catalog on call by importing these real registries and
 serializing them. Because the widget, the `mx` API, and the catalog all read the same
 modules, "out of date" isn't a state that exists. The only discipline, enforced by
 construction: a new surface is added **as a value in its registry**, with the type derived
@@ -254,17 +254,17 @@ the live tool; skip unless a docs artifact is wanted.)
 
 ### Skill, examples, tool verbs
 
-- **Skill `mandarax-extensions`** — conventions: the `.client/.server` shape, where files
+- **Skill `conciv-extensions`** — conventions: the `.client/.server` shape, where files
   live, the three reach tiers, links to examples.
 - **Worked examples `examples/extensions/`** — `blue-theme.ts`, `deploy-button.tsx`,
   `custom-tool-card.tsx`. LLMs copy examples more reliably than prose.
-- **`mandarax_ui` agent tool gains three verbs** (Claude already has the tool in-session):
+- **`conciv_ui` agent tool gains three verbs** (Claude already has the tool in-session):
   - `catalog` → dumps the computed catalog (Claude reads the surface)
-  - `scaffold <kind>` → writes a typed extension skeleton into `mandarax/extensions/`
+  - `scaffold <kind>` → writes a typed extension skeleton into `conciv/extensions/`
   - `validate <file>` → typechecks + schema-checks + dry-runs, returns structured errors
 - **Typed `defineExtension` + per-`register*` schema validation** → field-level errors.
 
-The loop, e.g. "make the base color blue": `mandarax_ui catalog` → sees token `accent`
+The loop, e.g. "make the base color blue": `conciv_ui catalog` → sees token `accent`
 (default magenta) → `scaffold theme` → writes `.client(mx => mx.ui.setTheme({
 accent:'#2563eb' }))` → HMR repaints → screenshot confirms → self-correct on any error. The
 catalog grounds step 1; HMR + `validate` close the loop. That loop is _why_ it reliably knows
@@ -300,7 +300,7 @@ Proves the whole spine end-to-end before adding breadth:
 - `mx.ui.setTheme` token seam (the `TOKENS` inversion: TS source → CSS + type + catalog)
 - one `registerComposerAction`
 - unplugin discovery + jiti (server) + vite virtual entry/HMR (client) wiring
-- the live `mandarax_ui catalog` verb
+- the live `conciv_ui catalog` verb
 - one browser IT
 
 That is "make it blue" and "add a button" working, hot-reloaded, catalog-discoverable. Then
@@ -311,6 +311,6 @@ skill + examples, package/global discovery + trust gate.
 
 - Trust gate for npm/git package extensions (`project_trust`).
 - Whether to ship a committed `catalog.json` docs artifact (default: no).
-- Global `~/.mandarax/extensions` layer (project layer first).
+- Global `~/.conciv/extensions` layer (project layer first).
 - `setEditorComponent`-style full-surface replacement beyond header/footer (Pi has it; add
   when a real need appears).

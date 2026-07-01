@@ -4,7 +4,7 @@
 
 **Goal:** Add a per-session model context/usage tracker (circular % ring + hover popover with token breakdown, cost, and turns) to the top bar of the chat modal and each quick-terminal pane.
 
-**Architecture:** Harnesses expose usage via one pure `UsageExtractor` function; the shared `runAgui` spine merges snapshots and emits an `mandarax-usage` AG-UI CUSTOM event. The widget's `ChatPanel` consumes it, reports it up via `onUsageChange`, and the shell/quick-terminal render a `ContextTracker` (built on a new reusable `HoverCard` component) in their top bars. Every field is optional, so harnesses that emit nothing degrade to a hidden tracker.
+**Architecture:** Harnesses expose usage via one pure `UsageExtractor` function; the shared `runAgui` spine merges snapshots and emits an `conciv-usage` AG-UI CUSTOM event. The widget's `ChatPanel` consumes it, reports it up via `onUsageChange`, and the shell/quick-terminal render a `ContextTracker` (built on a new reusable `HoverCard` component) in their top bars. Every field is optional, so harnesses that emit nothing degrade to a hidden tracker.
 
 **Tech Stack:** TypeScript, SolidJS, Zod, `@tanstack/ai` AG-UI StreamChunks, native HTML Popover API, pnpm + turborepo, vitest + Playwright (real-browser ITs, no jsdom).
 
@@ -12,23 +12,23 @@
 
 ## File Structure
 
-| File                                          | Responsibility                                                                            |
-| --------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `packages/protocol/src/usage-types.ts`        | NEW — `UsageSnapshot` schema, `MANDARAX_USAGE_EVENT`, `aguiUsageFor`, `contextUsedTokens` |
-| `packages/protocol/tsdown.config.ts`          | add `src/usage-types.ts` entry                                                            |
-| `packages/protocol/package.json`              | add `./usage-types` export                                                                |
-| `packages/harness/src/_shared/agui.ts`        | `UsageExtractor` type, `runAgui` 5th param, `definedOnly`/`sameUsage` helpers             |
-| `packages/harness/src/codex/decode.ts`        | `codexUsage` extractor + schema field                                                     |
-| `packages/harness/src/claude/decode.ts`       | `claudeUsage` extractor + schema fields                                                   |
-| `packages/widget/src/hover-card.tsx`          | NEW — reusable `HoverCard` popover component                                              |
-| `packages/widget/src/context-tracker.tsx`     | NEW — `ContextTracker` component                                                          |
-| `packages/widget/src/styles.css`              | `pw-ctx-*` + `pw-hovercard-*` styles                                                      |
-| `packages/widget/src/chat-panel.tsx`          | usage signal, `onCustomEvent` branch, `onUsageChange` prop                                |
-| `packages/widget/src/widget-shell.tsx`        | `PanelContext.onUsageChange`, render tracker in `pw-chat-head`                            |
-| `packages/widget/src/quick-terminal.tsx`      | per-pane usage signal, render tracker in `pw-qt-pane-bar`                                 |
-| `packages/harness/test/codex-decode.test.ts`  | codex usage extraction tests                                                              |
-| `packages/harness/test/claude-decode.test.ts` | NEW — claude usage extraction tests                                                       |
-| `packages/widget/test/widget.it.test.ts`      | tracker + hover-card browser IT                                                           |
+| File                                          | Responsibility                                                                          |
+| --------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `packages/protocol/src/usage-types.ts`        | NEW — `UsageSnapshot` schema, `CONCIV_USAGE_EVENT`, `aguiUsageFor`, `contextUsedTokens` |
+| `packages/protocol/tsdown.config.ts`          | add `src/usage-types.ts` entry                                                          |
+| `packages/protocol/package.json`              | add `./usage-types` export                                                              |
+| `packages/harness/src/_shared/agui.ts`        | `UsageExtractor` type, `runAgui` 5th param, `definedOnly`/`sameUsage` helpers           |
+| `packages/harness/src/codex/decode.ts`        | `codexUsage` extractor + schema field                                                   |
+| `packages/harness/src/claude/decode.ts`       | `claudeUsage` extractor + schema fields                                                 |
+| `packages/widget/src/hover-card.tsx`          | NEW — reusable `HoverCard` popover component                                            |
+| `packages/widget/src/context-tracker.tsx`     | NEW — `ContextTracker` component                                                        |
+| `packages/widget/src/styles.css`              | `pw-ctx-*` + `pw-hovercard-*` styles                                                    |
+| `packages/widget/src/chat-panel.tsx`          | usage signal, `onCustomEvent` branch, `onUsageChange` prop                              |
+| `packages/widget/src/widget-shell.tsx`        | `PanelContext.onUsageChange`, render tracker in `pw-chat-head`                          |
+| `packages/widget/src/quick-terminal.tsx`      | per-pane usage signal, render tracker in `pw-qt-pane-bar`                               |
+| `packages/harness/test/codex-decode.test.ts`  | codex usage extraction tests                                                            |
+| `packages/harness/test/claude-decode.test.ts` | NEW — claude usage extraction tests                                                     |
+| `packages/widget/test/widget.it.test.ts`      | tracker + hover-card browser IT                                                         |
 
 ---
 
@@ -48,7 +48,7 @@ Create `packages/protocol/test/usage-types.test.ts`:
 ```ts
 import {describe, it, expect} from 'vitest'
 import {EventType} from '@tanstack/ai'
-import {UsageSnapshotSchema, MANDARAX_USAGE_EVENT, aguiUsageFor, contextUsedTokens} from '../src/usage-types.js'
+import {UsageSnapshotSchema, CONCIV_USAGE_EVENT, aguiUsageFor, contextUsedTokens} from '../src/usage-types.js'
 
 describe('usage-types', () => {
   it('parses a partial snapshot (all fields optional)', () => {
@@ -61,10 +61,10 @@ describe('usage-types', () => {
     expect(UsageSnapshotSchema.safeParse({inputTokens: -1}).success).toBe(false)
   })
 
-  it('wraps a snapshot as a CUSTOM chunk named mandarax-usage', () => {
+  it('wraps a snapshot as a CUSTOM chunk named conciv-usage', () => {
     const chunk = aguiUsageFor({inputTokens: 5})
     expect(chunk.type).toBe(EventType.CUSTOM)
-    expect((chunk as {name: string}).name).toBe(MANDARAX_USAGE_EVENT)
+    expect((chunk as {name: string}).name).toBe(CONCIV_USAGE_EVENT)
     expect((chunk as {value: unknown}).value).toEqual({inputTokens: 5})
   })
 
@@ -82,7 +82,7 @@ describe('usage-types', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @mandarax/protocol exec vitest run test/usage-types.test.ts`
+Run: `pnpm --filter @conciv/protocol exec vitest run test/usage-types.test.ts`
 Expected: FAIL — cannot find module `../src/usage-types.js`.
 
 - [ ] **Step 3: Create the implementation**
@@ -111,11 +111,11 @@ export const UsageSnapshotSchema = z.object({
 export type UsageSnapshot = z.infer<typeof UsageSnapshotSchema>
 
 // The CUSTOM event name the widget listens for via useChat({onCustomEvent}).
-export const MANDARAX_USAGE_EVENT = 'mandarax-usage'
+export const CONCIV_USAGE_EVENT = 'conciv-usage'
 
 // Wrap a snapshot as the AG-UI CUSTOM StreamChunk injected into the live chat stream.
 export function aguiUsageFor(snapshot: UsageSnapshot): StreamChunk {
-  return {type: EventType.CUSTOM, name: MANDARAX_USAGE_EVENT, value: snapshot}
+  return {type: EventType.CUSTOM, name: CONCIV_USAGE_EVENT, value: snapshot}
 }
 
 // Context occupancy = the prompt resident in the window this turn (input + cache). Output
@@ -143,19 +143,19 @@ In `packages/protocol/package.json` `exports`, add after the `./page-types` bloc
 
 - [ ] **Step 5: Run test to verify it passes**
 
-Run: `pnpm --filter @mandarax/protocol exec vitest run test/usage-types.test.ts`
+Run: `pnpm --filter @conciv/protocol exec vitest run test/usage-types.test.ts`
 Expected: PASS (5 tests).
 
 - [ ] **Step 6: Build protocol so dependents can import the new subpath**
 
-Run: `pnpm turbo run build --filter=@mandarax/protocol`
+Run: `pnpm turbo run build --filter=@conciv/protocol`
 Expected: success; `packages/protocol/dist/usage-types.js` and `.d.ts` exist.
 
 - [ ] **Step 7: Commit**
 
 ```bash
 git add packages/protocol/src/usage-types.ts packages/protocol/test/usage-types.test.ts packages/protocol/tsdown.config.ts packages/protocol/package.json
-git commit -m "feat(protocol): normalized UsageSnapshot + mandarax-usage event"
+git commit -m "feat(protocol): normalized UsageSnapshot + conciv-usage event"
 ```
 
 ---
@@ -170,12 +170,12 @@ git commit -m "feat(protocol): normalized UsageSnapshot + mandarax-usage event"
 
 - [ ] **Step 1: Write the failing tests**
 
-Append to `packages/harness/test/codex-decode.test.ts` (inside the existing `describe('codex decode', …)` block, before its closing `})`). Also add the import at the top of the file: `import {MANDARAX_USAGE_EVENT} from '@mandarax/protocol/usage-types'`.
+Append to `packages/harness/test/codex-decode.test.ts` (inside the existing `describe('codex decode', …)` block, before its closing `})`). Also add the import at the top of the file: `import {CONCIV_USAGE_EVENT} from '@conciv/protocol/usage-types'`.
 
 ```ts
-it('emits an mandarax-usage CUSTOM chunk from turn.completed usage', async () => {
+it('emits an conciv-usage CUSTOM chunk from turn.completed usage', async () => {
   const got = await collect([THREAD, AGENT, DONE])
-  const usage = got.find((c) => c.type === EventType.CUSTOM && (c as {name?: string}).name === MANDARAX_USAGE_EVENT)
+  const usage = got.find((c) => c.type === EventType.CUSTOM && (c as {name?: string}).name === CONCIV_USAGE_EVENT)
   expect((usage as {value: {inputTokens: number; outputTokens: number}}).value).toEqual({
     inputTokens: 1,
     outputTokens: 2,
@@ -184,29 +184,27 @@ it('emits an mandarax-usage CUSTOM chunk from turn.completed usage', async () =>
 
 it('does not emit usage when no event carries it', async () => {
   const got = await collect([THREAD, AGENT])
-  expect(got.some((c) => c.type === EventType.CUSTOM && (c as {name?: string}).name === MANDARAX_USAGE_EVENT)).toBe(
-    false,
-  )
+  expect(got.some((c) => c.type === EventType.CUSTOM && (c as {name?: string}).name === CONCIV_USAGE_EVENT)).toBe(false)
 })
 
 it('emits usage only once when the snapshot does not change', async () => {
   const got = await collect([THREAD, DONE, DONE])
-  const usages = got.filter((c) => c.type === EventType.CUSTOM && (c as {name?: string}).name === MANDARAX_USAGE_EVENT)
+  const usages = got.filter((c) => c.type === EventType.CUSTOM && (c as {name?: string}).name === CONCIV_USAGE_EVENT)
   expect(usages).toHaveLength(1)
 })
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `pnpm --filter @mandarax/harness exec vitest run test/codex-decode.test.ts`
-Expected: FAIL — no CUSTOM `mandarax-usage` chunk is emitted.
+Run: `pnpm --filter @conciv/harness exec vitest run test/codex-decode.test.ts`
+Expected: FAIL — no CUSTOM `conciv-usage` chunk is emitted.
 
 - [ ] **Step 3: Add the extractor plumbing to the shared spine**
 
 In `packages/harness/src/_shared/agui.ts`, add the import at the top:
 
 ```ts
-import {aguiUsageFor, type UsageSnapshot} from '@mandarax/protocol/usage-types'
+import {aguiUsageFor, type UsageSnapshot} from '@conciv/protocol/usage-types'
 ```
 
 Add the type next to `Step` (after the `export type Step<E> = …` line):
@@ -214,7 +212,7 @@ Add the type next to `Step` (after the `export type Step<E> = …` line):
 ```ts
 // Optional per-harness usage mapping. PURE: decode one already-validated event into the
 // usage fields it carries (absolute values), or null when it carries none. The spine
-// merges successive partials (last-wins per defined field) and emits an `mandarax-usage`
+// merges successive partials (last-wins per defined field) and emits an `conciv-usage`
 // CUSTOM chunk whenever the merged snapshot changes. A harness that omits this emits no
 // usage — the widget tracker stays hidden, degrading cleanly.
 export type UsageExtractor<E> = (event: E) => Partial<UsageSnapshot> | null
@@ -244,8 +242,8 @@ export async function* runAgui<E>(
   step: Step<E>,
   extractUsage?: UsageExtractor<E>,
 ): AsyncGenerator<StreamChunk> {
-  const runId = opts.runId ?? 'mandarax-run'
-  const threadId = opts.threadId ?? 'mandarax-chat'
+  const runId = opts.runId ?? 'conciv-run'
+  const threadId = opts.threadId ?? 'conciv-chat'
   const counter = {n: 0}
   const mint: Mint = (prefix) => {
     counter.n += 1
@@ -278,7 +276,7 @@ export async function* runAgui<E>(
 In `packages/harness/src/codex/decode.ts`:
 
 Add to the existing import from `../_shared/agui.js`: append `type UsageExtractor` to the named imports.
-Add the protocol import at the top: `import type {UsageSnapshot} from '@mandarax/protocol/usage-types'`.
+Add the protocol import at the top: `import type {UsageSnapshot} from '@conciv/protocol/usage-types'`.
 
 Add `usage` to `CodexEventSchema` (it is already `.loose()`):
 
@@ -317,7 +315,7 @@ export function codexToAguiEvents(lines: AsyncIterable<string>, opts: HarnessDec
 
 - [ ] **Step 5: Run tests to verify they pass**
 
-Run: `pnpm --filter @mandarax/harness exec vitest run test/codex-decode.test.ts`
+Run: `pnpm --filter @conciv/harness exec vitest run test/codex-decode.test.ts`
 Expected: PASS (original 4 + new 3 tests).
 
 - [ ] **Step 6: Commit**
@@ -344,7 +342,7 @@ Create `packages/harness/test/claude-decode.test.ts`:
 import {describe, it, expect} from 'vitest'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 import {claudeToAguiEvents} from '../src/claude/decode.js'
-import {MANDARAX_USAGE_EVENT} from '@mandarax/protocol/usage-types'
+import {CONCIV_USAGE_EVENT} from '@conciv/protocol/usage-types'
 
 async function* lines(arr: string[]): AsyncGenerator<string> {
   for (const l of arr) yield l
@@ -356,7 +354,7 @@ async function collect(input: string[]): Promise<StreamChunk[]> {
 }
 function usageValues(chunks: StreamChunk[]): Array<Record<string, unknown>> {
   return chunks
-    .filter((c) => c.type === EventType.CUSTOM && (c as {name?: string}).name === MANDARAX_USAGE_EVENT)
+    .filter((c) => c.type === EventType.CUSTOM && (c as {name?: string}).name === CONCIV_USAGE_EVENT)
     .map((c) => (c as {value: Record<string, unknown>}).value)
 }
 
@@ -406,14 +404,14 @@ describe('claude decode — usage', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @mandarax/harness exec vitest run test/claude-decode.test.ts`
+Run: `pnpm --filter @conciv/harness exec vitest run test/claude-decode.test.ts`
 Expected: FAIL — no usage chunks emitted.
 
 - [ ] **Step 3: Extend the claude schema + add the extractor**
 
 In `packages/harness/src/claude/decode.ts`:
 
-Add the protocol import at the top: `import type {UsageSnapshot} from '@mandarax/protocol/usage-types'`.
+Add the protocol import at the top: `import type {UsageSnapshot} from '@conciv/protocol/usage-types'`.
 Add `type UsageExtractor` to the existing named imports from `../_shared/agui.js`.
 
 Replace `ClaudeEventSchema` with a version that carries the usage-bearing fields (still `.loose()`):
@@ -490,12 +488,12 @@ export function claudeToAguiEvents(lines: AsyncIterable<string>, opts: HarnessDe
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm --filter @mandarax/harness exec vitest run test/claude-decode.test.ts`
+Run: `pnpm --filter @conciv/harness exec vitest run test/claude-decode.test.ts`
 Expected: PASS (3 tests).
 
 - [ ] **Step 5: Typecheck the harness package**
 
-Run: `pnpm turbo run typecheck --filter=@mandarax/harness`
+Run: `pnpm turbo run typecheck --filter=@conciv/harness`
 Expected: success.
 
 - [ ] **Step 6: Commit**
@@ -644,7 +642,7 @@ export function HoverCard(props: {
 
 - [ ] **Step 2: Typecheck the widget package**
 
-Run: `pnpm turbo run typecheck --filter=@mandarax/widget`
+Run: `pnpm turbo run typecheck --filter=@conciv/widget`
 Expected: success.
 
 - [ ] **Step 3: Commit**
@@ -672,7 +670,7 @@ Create `packages/widget/src/context-tracker.tsx`:
 ```tsx
 import {Show, type JSX} from 'solid-js'
 import {HoverCard} from './hover-card.js'
-import {contextUsedTokens, type UsageSnapshot} from '@mandarax/protocol/usage-types'
+import {contextUsedTokens, type UsageSnapshot} from '@conciv/protocol/usage-types'
 
 const pct = new Intl.NumberFormat('en-US', {style: 'percent', maximumFractionDigits: 1})
 const compact = new Intl.NumberFormat('en-US', {notation: 'compact'})
@@ -897,7 +895,7 @@ Append to `packages/widget/src/styles.css`:
 
 - [ ] **Step 3: Typecheck the widget package**
 
-Run: `pnpm turbo run typecheck --filter=@mandarax/widget`
+Run: `pnpm turbo run typecheck --filter=@conciv/widget`
 Expected: success. (If `--pw-accent`/`--pw-font-mono` are undefined, the CSS fallbacks/`currentColor` still render; no typecheck impact.)
 
 - [ ] **Step 4: Commit**
@@ -920,14 +918,14 @@ git commit -m "feat(widget): ContextTracker component + styles"
 In `packages/widget/src/chat-panel.tsx`, change the protocol-ui import line to also pull usage types. Replace:
 
 ```ts
-import {MANDARAX_UI_EVENT, UiSpecSchema, type UiSpec} from '@mandarax/protocol/ui-types'
+import {CONCIV_UI_EVENT, UiSpecSchema, type UiSpec} from '@conciv/protocol/ui-types'
 ```
 
 with:
 
 ```ts
-import {MANDARAX_UI_EVENT, UiSpecSchema, type UiSpec} from '@mandarax/protocol/ui-types'
-import {MANDARAX_USAGE_EVENT, UsageSnapshotSchema, type UsageSnapshot} from '@mandarax/protocol/usage-types'
+import {CONCIV_UI_EVENT, UiSpecSchema, type UiSpec} from '@conciv/protocol/ui-types'
+import {CONCIV_USAGE_EVENT, UsageSnapshotSchema, type UsageSnapshot} from '@conciv/protocol/usage-types'
 ```
 
 - [ ] **Step 2: Add the prop**
@@ -947,23 +945,23 @@ After the `const [genUi, setGenUi] = createSignal<UiSpec[]>([])` line, add:
 const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
 ```
 
-Replace the `onMandaraxUi` handler so it also handles usage. Change its signature/body from:
+Replace the `onConcivUi` handler so it also handles usage. Change its signature/body from:
 
 ```ts
-  const onMandaraxUi = (eventType: string, data: unknown) => {
-    if (eventType !== MANDARAX_UI_EVENT) return
+  const onConcivUi = (eventType: string, data: unknown) => {
+    if (eventType !== CONCIV_UI_EVENT) return
 ```
 
 to:
 
 ```ts
-  const onMandaraxUi = (eventType: string, data: unknown) => {
-    if (eventType === MANDARAX_USAGE_EVENT) {
+  const onConcivUi = (eventType: string, data: unknown) => {
+    if (eventType === CONCIV_USAGE_EVENT) {
       const parsed = UsageSnapshotSchema.safeParse(data)
       if (parsed.success) setUsage((prev) => ({...prev, ...parsed.data}))
       return
     }
-    if (eventType !== MANDARAX_UI_EVENT) return
+    if (eventType !== CONCIV_UI_EVENT) return
 ```
 
 (The rest of the handler body is unchanged.)
@@ -983,7 +981,7 @@ In `chatPanelDef`, add `onUsageChange={ctx.onUsageChange}` to the `<ChatPanel ..
 
 - [ ] **Step 6: Typecheck**
 
-Run: `pnpm turbo run typecheck --filter=@mandarax/widget`
+Run: `pnpm turbo run typecheck --filter=@conciv/widget`
 Expected: FAIL — `ctx.onUsageChange` does not exist on `PanelContext` yet (fixed in Task 7). This confirms the wiring is connected; proceed to Task 7 before committing.
 
 - [ ] **Step 7: Commit (after Task 7 typecheck passes)**
@@ -1004,7 +1002,7 @@ At the top of `packages/widget/src/widget-shell.tsx`, add:
 
 ```ts
 import {ContextTracker} from './context-tracker.js'
-import type {UsageSnapshot} from '@mandarax/protocol/usage-types'
+import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 ```
 
 - [ ] **Step 2: Extend PanelContext**
@@ -1042,12 +1040,12 @@ In `ModalLayout`'s `<header class="pw-chat-head">`, insert the tracker between t
 
 - [ ] **Step 5: Typecheck the whole widget + commit Tasks 6 + 7**
 
-Run: `pnpm turbo run typecheck --filter=@mandarax/widget`
+Run: `pnpm turbo run typecheck --filter=@conciv/widget`
 Expected: success (the `QuickTerminalLayout.addPane` call to `props.panel.create` now lacks `onUsageChange` — if typecheck flags it, that is fixed in Task 8; if it passes because the missing property is caught only there, proceed to Task 8 and commit after).
 
 > Note: `PanelContext.onUsageChange` is required, so `quick-terminal.tsx`'s `create({…})` call will fail typecheck until Task 8. Do Task 8, then run the typecheck below and commit all three together.
 
-Run: `pnpm turbo run typecheck --filter=@mandarax/widget` (after Task 8)
+Run: `pnpm turbo run typecheck --filter=@conciv/widget` (after Task 8)
 Expected: success.
 
 ```bash
@@ -1069,7 +1067,7 @@ At the top of `packages/widget/src/quick-terminal.tsx`, add:
 
 ```ts
 import {ContextTracker} from './context-tracker.js'
-import type {UsageSnapshot} from '@mandarax/protocol/usage-types'
+import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 ```
 
 - [ ] **Step 2: Carry usage on each pane**
@@ -1117,7 +1115,7 @@ In the pane bar markup, insert the tracker after the session name span:
 
 - [ ] **Step 5: Typecheck + commit**
 
-Run: `pnpm turbo run typecheck --filter=@mandarax/widget`
+Run: `pnpm turbo run typecheck --filter=@conciv/widget`
 Expected: success.
 
 Commit happens with Tasks 6 + 7 (shared `PanelContext` change) — see Task 7 Step 5.
@@ -1135,7 +1133,7 @@ Commit happens with Tasks 6 + 7 (shared `PanelContext` change) — see Task 7 St
 In `packages/widget/test/widget.it.test.ts`, add to the protocol import line:
 
 ```ts
-import {aguiUsageFor} from '@mandarax/protocol/usage-types'
+import {aguiUsageFor} from '@conciv/protocol/usage-types'
 ```
 
 In `chatScript()`, add a usage CUSTOM event after the assistant text END and before the approval card:
@@ -1158,16 +1156,16 @@ In `chatScript()`, add a usage CUSTOM event after the assistant text END and bef
 
 - [ ] **Step 2: Write the failing test**
 
-Add a new `it(...)` inside the `describe('mandarax widget (it) …')` block:
+Add a new `it(...)` inside the `describe('conciv widget (it) …')` block:
 
 ```ts
-it('renders the context tracker from a streamed mandarax-usage event and shows the breakdown on hover', async () => {
+it('renders the context tracker from a streamed conciv-usage event and shows the breakdown on hover', async () => {
   const page = await browser.newPage()
   await page.goto(state.base)
-  const fab = page.getByRole('button', {name: 'Open mandarax chat'})
+  const fab = page.getByRole('button', {name: 'Open conciv chat'})
   await fab.waitFor({state: 'visible'})
   await fab.click()
-  const composer = page.getByLabel('Message the mandarax agent')
+  const composer = page.getByLabel('Message the conciv agent')
   await composer.fill('do something')
   await composer.press('Enter')
   await page.getByText(ASSISTANT_TEXT).waitFor({state: 'visible'})
@@ -1188,19 +1186,19 @@ it('renders the context tracker from a streamed mandarax-usage event and shows t
 
 (Uses the file's existing vitest `expect` on a string plus Playwright `waitFor` — matching the other tests; no Playwright web-first matchers, which are not available here.)
 
-- [ ] **Step 3: Build the widget bundle (the IT loads dist/mandarax-widget.global.js)**
+- [ ] **Step 3: Build the widget bundle (the IT loads dist/conciv-widget.global.js)**
 
-Run: `pnpm turbo run build --filter=@mandarax/widget`
-Expected: success; `packages/widget/dist/mandarax-widget.global.js` is rebuilt with the tracker.
+Run: `pnpm turbo run build --filter=@conciv/widget`
+Expected: success; `packages/widget/dist/conciv-widget.global.js` is rebuilt with the tracker.
 
 - [ ] **Step 4: Run the IT**
 
-Run: `pnpm --filter @mandarax/widget exec vitest run test/widget.it.test.ts -t "context tracker"`
-Expected: PASS. (If Playwright Chromium is missing, run `pnpm --filter @mandarax/widget exec playwright install chromium` first.)
+Run: `pnpm --filter @conciv/widget exec vitest run test/widget.it.test.ts -t "context tracker"`
+Expected: PASS. (If Playwright Chromium is missing, run `pnpm --filter @conciv/widget exec playwright install chromium` first.)
 
 - [ ] **Step 5: Run the full widget IT to confirm no regression**
 
-Run: `pnpm --filter @mandarax/widget exec vitest run test/widget.it.test.ts`
+Run: `pnpm --filter @conciv/widget exec vitest run test/widget.it.test.ts`
 Expected: PASS — the added usage event does not disturb the existing approval-gate test.
 
 - [ ] **Step 6: Commit**

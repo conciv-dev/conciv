@@ -1,9 +1,9 @@
-/* The mandarax theme layer: map the neutral --chat-* tokens onto the widget's --pw-* design tokens so
-   the styled set renders with the mandarax look (dark glass + magenta) inside the widget. Applied on
-   the chat root (the widget adds `chat-theme-mandarax`). The --pw-* tokens come from the widget host
+/* The conciv theme layer: map the neutral --chat-* tokens onto the widget's --pw-* design tokens so
+   the styled set renders with the conciv look (dark glass + magenta) inside the widget. Applied on
+   the chat root (the widget adds `chat-theme-conciv`). The --pw-* tokens come from the widget host
    (ui-kit-system/tokens.css). Styled components never reference --pw-* directly — only this mapping. */
 
-.chat-theme-mandarax {
+.chat-theme-conciv {
   color-scheme: dark;
   --chat-bg: var(--pw-panel);
   --chat-panel: var(--pw-panel);

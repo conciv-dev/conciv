@@ -1,8 +1,8 @@
 import {createSignal, createEffect, createRoot, Show, onCleanup, type JSX} from 'solid-js'
 import {render} from 'solid-js/web'
 import {createKeyHold} from '@tanstack/solid-hotkeys'
-import {defineExtension, type ClientApi} from '@mandarax/extension'
-import type {OpenSourceResult} from '@mandarax/protocol/page-types'
+import {defineExtension, type ClientApi} from '@conciv/extension'
+import type {OpenSourceResult} from '@conciv/protocol/page-types'
 
 // The built-in highlight-to-open-inspector extension, bundled with the widget. Holding Alt outlines the
 // element under the cursor; clicking opens its exact source line in the editor. Lives entirely in a
@@ -16,7 +16,7 @@ const isEditing = (): boolean => {
   return !!el && (el.isContentEditable || el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')
 }
 
-const SRC_SELECTOR = '[data-mandarax-source],[data-tsd-source]'
+const SRC_SELECTOR = '[data-conciv-source],[data-tsd-source]'
 const GLIDE = 'transition-[left,top,width,height] duration-[80ms] ease-pw-ease'
 const BOX =
   'fixed pointer-events-none rounded-pw-sm bg-pw-accent-08 [outline:2px_solid_var(--pw-accent)] shadow-[0_0_0_1px_var(--pw-accent-line),0_0_16px_var(--pw-accent-20)]'
@@ -90,7 +90,7 @@ function HighlightInspector(props: {api: ClientApi; onExit: () => void}): JSX.El
     // Decorative inspector overlay: aria-hidden so it never reaches the accessibility tree (the shared
     // effects host is no longer blanket-hidden). `contents` adds no box, so the fixed children are unmoved.
     <div aria-hidden="true" class="contents">
-      <div data-mandarax-capture class="cursor-crosshair inset-0 fixed" />
+      <div data-conciv-capture class="cursor-crosshair inset-0 fixed" />
       <div class={HINT}>
         Inspecting · click to open source ·{' '}
         <kbd class="text-[0.6875rem] text-pw-text-hi px-1 py-px border border-pw-line-2 rounded-pw-sm [font-family:inherit]">
@@ -159,7 +159,7 @@ highlight.client(() =>
   }),
 )
 
-declare module '@mandarax/extension' {
+declare module '@conciv/extension' {
   interface Register {
     highlight: {context: Record<never, never>}
   }

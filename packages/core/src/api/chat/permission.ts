@@ -72,7 +72,7 @@ export function registerPermissionRoutes(app: H3, gate: PermissionGate, gated: b
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
         permissionDecision: decision,
-        permissionDecisionReason: decision === 'allow' ? 'approved' : 'denied by the user (mandarax chat gate)',
+        permissionDecisionReason: decision === 'allow' ? 'approved' : 'denied by the user (conciv chat gate)',
       },
     }
   })

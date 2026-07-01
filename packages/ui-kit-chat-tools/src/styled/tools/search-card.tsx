@@ -1,8 +1,8 @@
 import {Show, type JSX} from 'solid-js'
 import {Search as SearchIcon} from 'lucide-solid'
-import type {ToolCardEntry, ToolCardProps} from '@mandarax/protocol/tool-view-types'
+import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {Search, useSearch} from '../../primitives/tools/search.js'
-import {ToolCard} from '@mandarax/ui-kit-chat'
+import {ToolCard} from '@conciv/ui-kit-chat'
 
 function Icon(): JSX.Element {
   return <SearchIcon size={14} />

@@ -1,7 +1,7 @@
 import {randomUUID} from 'node:crypto'
 import type {H3} from 'h3'
-import type {HarnessAdapter} from '@mandarax/protocol/harness-types'
-import type {SessionRecord} from '@mandarax/protocol/chat-types'
+import type {HarnessAdapter} from '@conciv/protocol/harness-types'
+import type {SessionRecord} from '@conciv/protocol/chat-types'
 import type {UiBus} from '../../runtime/ui-bus.js'
 import {createFsSessionStore} from '../../store/session-store.js'
 import {registerLaunchRoutes} from './launch.js'
@@ -26,13 +26,13 @@ export type ChatRouteOpts = {
   riskyTools?: ReadonlySet<string>
 }
 
-// Ensure a record exists for an agent hand-off: mandarax was launched with MANDARAX_SESSION_ID = a harness
+// Ensure a record exists for an agent hand-off: conciv was launched with CONCIV_SESSION_ID = a harness
 // id it didn't mint, so we wrap that id in an 'agent'-origin record (find-or-create, idempotent by
 // the harness id). The agent-origin twin of resolveSession's external-adopt branch.
 export async function ensureAgentRecord(deps: ResolveDeps, harnessId: string): Promise<SessionRecord> {
   const existing = await deps.store.findByHarnessId(harnessId)
   if (existing) return existing
-  const mint = deps.mintId ?? (() => `mandarax_${randomUUID()}`)
+  const mint = deps.mintId ?? (() => `conciv_${randomUUID()}`)
   return deps.store.create({
     id: mint(),
     harnessSessionId: harnessId,

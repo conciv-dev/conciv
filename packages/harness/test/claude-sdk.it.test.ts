@@ -1,7 +1,7 @@
 import {execSync} from 'node:child_process'
 import {describe, it, expect, afterEach} from 'vitest'
 import {EventType, type StreamChunk} from '@tanstack/ai'
-import type {HarnessRunContext, HarnessTurn} from '@mandarax/protocol/harness-types'
+import type {HarnessRunContext, HarnessTurn} from '@conciv/protocol/harness-types'
 import {claudeSdkRun, claudeSdkShutdown, __sdkStats, __sdkReset} from '../src/claude/sdk.js'
 
 function hasClaude(): boolean {

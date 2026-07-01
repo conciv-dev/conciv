@@ -1,5 +1,5 @@
-# @mandarax/core
+# @conciv/core
 
-The mandarax engine: a framework-free h3 + srvx server exposing the /\_\_pw HTTP surface, with a harness registry seam.
+The conciv engine: a framework-free h3 + srvx server exposing the /\_\_pw HTTP surface, with a harness registry seam.
 
-Part of [mandarax](https://github.com/mandarax-dev/mandarax).
+Part of [conciv](https://github.com/conciv-dev/conciv).

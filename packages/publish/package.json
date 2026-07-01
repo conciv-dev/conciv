@@ -1,16 +1,16 @@
 {
-  "name": "@mandarax/publish",
+  "name": "@conciv/publish",
   "version": "0.0.0",
   "private": true,
   "description": "Internal release tooling for the aidx monorepo: normalize package metadata, version, and publish via changesets. citty command tree.",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mandarax-dev/mandarax.git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
     "directory": "packages/publish"
   },
   "bin": {
-    "mandarax-publish": "./src/cli.ts"
+    "conciv-publish": "./src/cli.ts"
   },
   "type": "module",
   "scripts": {

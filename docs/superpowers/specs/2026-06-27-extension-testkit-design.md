@@ -24,7 +24,7 @@ production object: real spawned server (real Jazz), real Chromium, real framewor
 
 ## Public API
 
-New dev-only package `@mandarax/extension-testkit`, single export:
+New dev-only package `@conciv/extension-testkit`, single export:
 
 ```ts
 const api = await getExtensionTestApi(whiteboard)
@@ -77,17 +77,17 @@ server its `server.ts` starts. No part of this is stubbed.
 ### 2. Real session
 
 Resolve a real chat session against the running server (`POST /api/chat/session/resolve`) to obtain
-the real `mandarax_…` id. That id is the whiteboard room and the value the host `ClientApi.activeSession()`
+the real `conciv_…` id. That id is the whiteboard room and the value the host `ClientApi.activeSession()`
 will report. Returned as `api.session`.
 
 ### 3. Real framework mount (the minimal real host)
 
 The testkit must mount the extension the way the widget does — same framework code path, not a
 re-implementation. We **extract the widget's per-extension mount into a real shared helper in
-`@mandarax/extension`** so the widget and the testkit mount through identical code:
+`@conciv/extension`** so the widget and the testkit mount through identical code:
 
 ```ts
-// @mandarax/extension (new, used by BOTH widget and testkit)
+// @conciv/extension (new, used by BOTH widget and testkit)
 mountExtension(extension, {
   clientApi: ClientApi,
   hostContext: ExtensionHostContext,   // grab, insert, notify, harnessId, …
@@ -96,8 +96,8 @@ mountExtension(extension, {
 }): () => void
 ```
 
-The testkit serves a minimal real host HTML page (built by vite **with the mandarax source transform
-on**, so JSX carries real `data-mandarax-source`). In the browser that page:
+The testkit serves a minimal real host HTML page (built by vite **with the conciv source transform
+on**, so JSX carries real `data-conciv-source`). In the browser that page:
 
 - reads its `apiBase` + `session` from injected config the same way production reads `pw-api-base`
   (a meta tag the testkit stamps — host bootstrapping, not a test hook),
@@ -112,12 +112,12 @@ Playwright then drives those real buttons and the real canvas.
 ### 4. Real grab (no react-bridge, real source data)
 
 `grab.pick()` must return a real `{source, rect}`. The source ground truth is **not** the widget's
-`react-bridge` (that stays widget-internal); it is the `data-mandarax-source="path:line:col"`
-attribute the mandarax plugin stamps on JSX (`inject-source.ts`), which `locate` itself only reads.
+`react-bridge` (that stays widget-internal); it is the `data-conciv-source="path:line:col"`
+attribute the conciv plugin stamps on JSX (`inject-source.ts`), which `locate` itself only reads.
 
 The testkit host page renders **one real, source-mapped fixture element** (real component, built with
-the source transform, so it carries a real `data-mandarax-source`). The provided `grab.pick()`
-activates a real picker; when the test clicks that element, grab reads its real `data-mandarax-source`
+the source transform, so it carries a real `data-conciv-source`). The provided `grab.pick()`
+activates a real picker; when the test clicks that element, grab reads its real `data-conciv-source`
 together with `getBoundingClientRect()` and returns a real `Grab`. Same data the widget surfaces, no
 stub, no react-bridge dependency. The element's source is a real testkit file; tests assert the
 comment anchored to it.
@@ -128,7 +128,7 @@ resolution over the host `document`.
 ### 5. Real MCP
 
 `api.callTool(name, input)` opens a real MCP client (`@tanstack/ai-mcp`) to `apiBase/api/mcp` with the
-real `mandarax-session-id` header = `api.session`, and invokes the named tool. This is the real agent
+real `conciv-session-id` header = `api.session`, and invokes the named tool. This is the real agent
 path (the harness MCP seam), an external HTTP call — not a page internal.
 
 ### Teardown
@@ -155,16 +155,16 @@ spirit.
 ## Framework extraction — no circular dependency (verified)
 
 The shared `mountExtension` lifts the slot-render + `ExtensionRuntimeContext.Provider` wiring out of
-the widget's `packages/widget/src/extension/extension-slots.tsx` into `@mandarax/extension`. Both the
+the widget's `packages/widget/src/extension/extension-slots.tsx` into `@conciv/extension`. Both the
 widget and the testkit then call it. This introduces no cycle:
 
-- `@mandarax/grab` has zero dependencies, so `@mandarax/extension → @mandarax/grab` is one-way.
+- `@conciv/grab` has zero dependencies, so `@conciv/extension → @conciv/grab` is one-way.
 - `installClientApi` (`extension-api.ts`) and `ExtensionRuntimeContext` (`runtime-context.ts`) already
-  live inside `@mandarax/extension`.
-- `extension-slots.tsx` already imports `ExtensionRuntimeContext` from `@mandarax/extension/runtime`,
+  live inside `@conciv/extension`.
+- `extension-slots.tsx` already imports `ExtensionRuntimeContext` from `@conciv/extension/runtime`,
   so the dependency already points toward the framework. Moving the render logic in removes a
   widget→framework edge; it cannot add a framework→widget edge.
 - Host capabilities (`grab`, `insert`, …) stay as **inputs** (the "bag"): the widget builds them from
-  react-bridge, the testkit builds them from `data-mandarax-source`. No widget-only code (react-bridge,
+  react-bridge, the testkit builds them from `data-conciv-source`. No widget-only code (react-bridge,
   shell) moves into the framework — `mountExtension` only does framework wiring (installClientApi +
   runtime-context provider + render `Component` into a slot).

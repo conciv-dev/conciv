@@ -2,7 +2,7 @@ import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import type {ToolViewCtx} from '@mandarax/protocol/tool-view-types'
+import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {PageActionCard} from './page-action-card.js'
 
 const meta: Meta = {title: 'tools/PageActionCard'}
@@ -12,7 +12,7 @@ type Story = StoryObj
 const ctx: ToolViewCtx = {apiBase: '', harnessId: 'story', sendMessage: () => {}}
 
 function part(args: Record<string, unknown>, state: ToolCallPart['state'] = 'complete'): ToolCallPart {
-  return {type: 'tool-call', id: 'p1', name: 'mandarax_page', arguments: JSON.stringify(args), state}
+  return {type: 'tool-call', id: 'p1', name: 'conciv_page', arguments: JSON.stringify(args), state}
 }
 function result(payload: unknown, state: ToolResultPart['state'] = 'complete'): ToolResultPart {
   return {type: 'tool-result', toolCallId: 'p1', content: JSON.stringify(payload), state}
@@ -49,7 +49,7 @@ export const DomRead: Story = {
 export const Tree: Story = {
   render: () =>
     frame(
-      'chat-theme-mandarax',
+      'chat-theme-conciv',
       <PageActionCard
         part={part({verb: 'tree'})}
         result={result({

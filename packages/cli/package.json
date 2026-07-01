@@ -1,22 +1,22 @@
 {
-  "name": "@mandarax/cli",
+  "name": "@conciv/cli",
   "version": "0.0.0",
-  "description": "The mandarax agent-facing CLI: `mandarax tools` (drive the live page/vite/tests) and `mandarax ui` (render interactive UI in the chat). citty command tree, zod-validated args.",
+  "description": "The conciv agent-facing CLI: `conciv tools` (drive the live page/vite/tests) and `conciv ui` (render interactive UI in the chat). citty command tree, zod-validated args.",
   "keywords": [
     "ai-agent",
     "cli",
-    "mandarax"
+    "conciv"
   ],
-  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/cli#readme",
-  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
+  "homepage": "https://github.com/conciv-dev/conciv/tree/main/packages/cli#readme",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mandarax-dev/mandarax.git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
     "directory": "packages/cli"
   },
   "bin": {
-    "mandarax": "./dist/bin.js"
+    "conciv": "./dist/bin.js"
   },
   "files": [
     "dist"
@@ -38,7 +38,7 @@
   },
   "dependencies": {
     "@clack/prompts": "^1.5.1",
-    "@mandarax/protocol": "workspace:^",
+    "@conciv/protocol": "workspace:^",
     "citty": "^0.2.2",
     "consola": "^3.4.2",
     "zod": "^4.4.3"

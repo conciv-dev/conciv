@@ -1,4 +1,4 @@
 import {unplugin} from './index.js'
 
 export default unplugin.esbuild
-export type {MandaraxConfig} from '@mandarax/protocol/config-types'
+export type {ConcivConfig} from '@conciv/protocol/config-types'

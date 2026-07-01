@@ -41,7 +41,7 @@ type HarnessLaunchContext = {
   cwd: string
   sessionId: string | null
   model: string | null          // the model the widget currently has selected
-  mcpUrl: string | null         // the mandarax MCP-over-HTTP endpoint (for tool parity)
+  mcpUrl: string | null         // the conciv MCP-over-HTTP endpoint (for tool parity)
   openTerminal: (argv: string[]) => Promise<HarnessLaunchResult>
   openUrl: (url: string) => Promise<HarnessLaunchResult>
 }
@@ -60,7 +60,7 @@ launch: (ctx) => {
   if (ctx.sessionId) argv.push('--resume', ctx.sessionId)
   if (ctx.model) argv.push('--model', ctx.model)
   if (ctx.mcpUrl) argv.push(...claudeMcpArgs(ctx.mcpUrl)) // shared with buildClaudeArgs
-  if (MANDARAX_PLUGIN_DIR) argv.push('--plugin-dir', MANDARAX_PLUGIN_DIR)
+  if (CONCIV_PLUGIN_DIR) argv.push('--plugin-dir', CONCIV_PLUGIN_DIR)
   return ctx.openTerminal(argv)
 }
 // codex — codex [resume <id>] [-m <m>]  (+ MCP via codex's own mechanism, see verification)
@@ -72,11 +72,11 @@ launch: (ctx) => {
 - A harness with no interactive entry omits `launch` -> reported unsupported, button hidden.
 - `child_process` + shell-quoting stay in core; the harness only builds argv.
 
-## Carry-over (decided: model + mandarax MCP tools)
+## Carry-over (decided: model + conciv MCP tools)
 
 The launch POST carries the widget's current model; the server adds the same `mcpUrl` the chat turn
 uses. Both land on the launch context so the terminal session resumes on the same model AND has the
-same mandarax page tools (`mandarax_ui` / `mandarax_page` / `mandarax_test`) as the in-widget agent.
+same conciv page tools (`conciv_ui` / `conciv_page` / `conciv_test`) as the in-widget agent.
 
 Deliberately NOT carried: headless stream-json flags, the permission-hook `--settings` (its HTTP
 gate has no widget loop in a bare terminal), and the temp `--append-system-prompt-file` (may be gone).
@@ -162,11 +162,11 @@ Widget:
   interactive mode is what actually runs.
 - **codex:** `codex resume <id>` + `-m <model>` confirmed. Codex has NO `--mcp-config` flag - MCP is
   configured via `~/.codex/config.toml` or `-c` TOML overrides. So codex carry-over = model via
-  `-m`, and MCP only via `-c 'mcp_servers.mandarax…'` overrides (heavier) OR model-only for v1.
+  `-m`, and MCP only via `-c 'mcp_servers.conciv…'` overrides (heavier) OR model-only for v1.
 
 ## Open verifications (do at build time, before relying on them)
 
-- **MCP endpoint lifetime:** confirm the mandarax MCP-over-HTTP server is up for the dev server's
+- **MCP endpoint lifetime:** confirm the conciv MCP-over-HTTP server is up for the dev server's
   lifetime (not spun per-turn). If it is per-turn, a resumed terminal can't reach it -> degrade the
   MCP carry-over to model-only and note it.
 - **How the turn route derives `mcpUrl`:** thread the identical value into the launch route.
@@ -175,5 +175,5 @@ Widget:
 
 - `turbo` build + typecheck across the touched packages.
 - Manual: run the dev server, click the button, confirm the harness CLI opens in the terminal at the
-  right cwd, resumes the session, on the selected model, with the mandarax tools available; confirm the
+  right cwd, resumes the session, on the selected model, with the conciv tools available; confirm the
   copy fallback when `open` is forced to fail.

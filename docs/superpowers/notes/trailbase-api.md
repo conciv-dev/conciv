@@ -32,7 +32,7 @@ minimal valid config:
 
 ```textproto
 email {}
-server { application_name: "mandarax" logs_retention_sec: 604800 }
+server { application_name: "conciv" logs_retention_sec: 604800 }
 auth { auth_token_ttl_sec: 3600 refresh_token_ttl_sec: 2592000 }
 jobs {}
 record_apis: [

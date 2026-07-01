@@ -29,7 +29,7 @@ const corsOptions: CorsOptions = {
   origin: () => true,
   credentials: true,
   methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
-  allowHeaders: ['content-type', MANDARAX_SESSION_HEADER],
+  allowHeaders: ['content-type', CONCIV_SESSION_HEADER],
 }
 ```
 
@@ -49,8 +49,8 @@ one-line change.
 
 - CORS config: `packages/core/src/api/cors.ts` (excerpt above). SSE routes carry CORS headers
   separately via `corsHeadersFor` / `sseHeaders` (`packages/core/src/api/sse.ts`).
-- The widget already sends a custom header on session-scoped requests: `MANDARAX_SESSION_HEADER`
-  (`mandarax-session-id`), added by the widget's transport/session client
+- The widget already sends a custom header on session-scoped requests: `CONCIV_SESSION_HEADER`
+  (`conciv-session-id`), added by the widget's transport/session client
   (`packages/widget/src/transport.ts`, `session-client.ts`). A custom header already forces a CORS
   preflight — a useful property.
 - The widget learns the API base from an injected meta tag: `packages/core/src/widget-tags.ts` injects

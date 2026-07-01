@@ -136,7 +136,7 @@ export {AttachmentUI} from './styled/attachment-ui.js'
 export {ModelSelector, type StyledModelSelectorProps} from './styled/model-selector.js'
 // Generic tool-building primitives + dispatch mechanism. ui-kit-chat is tool-AGNOSTIC: it knows how
 // to derive status, render a fallback, and dispatch a tool-call to a card by name — never the
-// concrete tools (Bash/ApplyPatch/Search/…), which live in @mandarax/ui-kit-chat-tools.
+// concrete tools (Bash/ApplyPatch/Search/…), which live in @conciv/ui-kit-chat-tools.
 export {toolStatus, type ToolStatus} from './primitives/tools/tool-status.js'
 export {ToolDurationProvider, useToolCallDuration} from './primitives/tools/tool-duration.js'
 export {ToolFallback as ToolFallbackPrimitive, useToolFallback} from './primitives/tools/tool-fallback.js'

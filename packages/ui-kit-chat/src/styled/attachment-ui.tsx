@@ -1,6 +1,6 @@
 import {Show, type JSX} from 'solid-js'
 import {FileText, X} from 'lucide-solid'
-import {Tooltip} from '@mandarax/ui-kit-system'
+import {Tooltip} from '@conciv/ui-kit-system'
 import {Attachment, useAttachment} from '../primitives/attachment/attachment.js'
 import {FOCUS, FOCUS_INSET} from './classes.js'
 

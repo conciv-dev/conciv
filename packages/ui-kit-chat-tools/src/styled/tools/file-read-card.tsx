@@ -1,9 +1,9 @@
 import {Show, type JSX} from 'solid-js'
 import {FileText} from 'lucide-solid'
-import {SolidCodeBlock, type FileOptions} from '@mandarax/solid-diffs'
-import type {ToolCardEntry, ToolCardProps} from '@mandarax/protocol/tool-view-types'
+import {SolidCodeBlock, type FileOptions} from '@conciv/solid-diffs'
+import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {FileRead, useFileRead} from '../../primitives/tools/file-read.js'
-import {CollapsibleCard} from '@mandarax/ui-kit-chat'
+import {CollapsibleCard} from '@conciv/ui-kit-chat'
 
 // Dual theme + themeType:'system' so Pierre resolves the color via CSS color-scheme (pinned per chat
 // theme in tokens.css).
@@ -60,4 +60,4 @@ export function FileReadCard(props: ToolCardProps): JSX.Element {
   )
 }
 
-export const fileReadTool: ToolCardEntry = {names: ['Read', 'mandarax_open'], render: FileReadCard}
+export const fileReadTool: ToolCardEntry = {names: ['Read', 'conciv_open'], render: FileReadCard}

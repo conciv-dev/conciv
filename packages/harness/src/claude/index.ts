@@ -1,5 +1,5 @@
-import {defineHarness, type HarnessAdapter, type HarnessLaunchContext} from '@mandarax/protocol/harness-types'
-import {MANDARAX_PLUGIN_DIR} from './plugin-dir.js'
+import {defineHarness, type HarnessAdapter, type HarnessLaunchContext} from '@conciv/protocol/harness-types'
+import {CONCIV_PLUGIN_DIR} from './plugin-dir.js'
 import {buildClaudeArgs, buildClaudeCompactArgs, claudeMcpArgs} from './args.js'
 import {claudeToAguiEvents} from './decode.js'
 import {claudeHistory} from './history.js'
@@ -8,9 +8,9 @@ import {claudeSdkRun, claudeSdkShutdown} from './sdk.js'
 // The claude-specific default chat prompt; core reads it as its fallback systemPrompt.
 export {CHAT_SYSTEM_PROMPT} from './system-prompt.js'
 
-// Default: in-process Agent SDK transport (warm process per session). MANDARAX_CLAUDE_CLI forces the
+// Default: in-process Agent SDK transport (warm process per session). CONCIV_CLAUDE_CLI forces the
 // legacy `claude -p` spawn-per-turn path.
-const USE_SDK = !process.env.MANDARAX_CLAUDE_CLI
+const USE_SDK = !process.env.CONCIV_CLAUDE_CLI
 
 // Models the claude CLI accepts via --model. Aliases (opus/sonnet/haiku) track the latest of each
 // tier; the explicit Fable id is pinned. Listed newest-first within the Claude group.
@@ -26,7 +26,7 @@ const claudeLaunch = (ctx: HarnessLaunchContext) => {
   if (ctx.sessionId) argv.push('--resume', ctx.sessionId)
   if (ctx.model) argv.push('--model', ctx.model)
   if (ctx.mcpUrl) argv.push(...claudeMcpArgs(ctx.mcpUrl))
-  if (MANDARAX_PLUGIN_DIR) argv.push('--plugin-dir', MANDARAX_PLUGIN_DIR)
+  if (CONCIV_PLUGIN_DIR) argv.push('--plugin-dir', CONCIV_PLUGIN_DIR)
   return ctx.openTerminal(argv)
 }
 

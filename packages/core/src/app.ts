@@ -1,9 +1,9 @@
 import {H3} from 'h3'
-import type {HarnessAdapter, HarnessChild} from '@mandarax/protocol/harness-types'
-import type {BundlerBridge} from '@mandarax/protocol/bundler-types'
-import type {AnyExtension, ToolRequest} from '@mandarax/extension'
-import type {ResolvedMandaraxConfig} from './config.js'
-import {getHarness} from '@mandarax/harness'
+import type {HarnessAdapter, HarnessChild} from '@conciv/protocol/harness-types'
+import type {BundlerBridge} from '@conciv/protocol/bundler-types'
+import type {AnyExtension, ToolRequest} from '@conciv/extension'
+import type {ResolvedConcivConfig} from './config.js'
+import {getHarness} from '@conciv/harness'
 import {makeExtensionApp} from './extension-app.js'
 import {originAllowed, registerCors} from './api/cors.js'
 import {registerChatRoutes} from './api/chat/chat.js'
@@ -17,7 +17,7 @@ import {makeJournal} from './runtime/journal.js'
 import type {OpenInEditor} from './editor/open.js'
 
 export type MakeAppOpts = {
-  cfg: ResolvedMandaraxConfig
+  cfg: ResolvedConcivConfig
   cwd: string
   bridge?: BundlerBridge
   openInEditor: OpenInEditor
@@ -56,7 +56,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     (opts.extensions ?? [])
       .flatMap((extension) => extension.tools ?? [])
       .filter((tool) => tool.approval === 'ask')
-      .map((tool) => `mcp__mandarax__${tool.name}`),
+      .map((tool) => `mcp__conciv__${tool.name}`),
   )
 
   registerCors(app, opts.allowedOrigins ?? [])
@@ -111,7 +111,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     seenTools.add(tool.name)
   })
   const disposers = mounted.flatMap((entry) => (entry.dispose ? [entry.dispose] : []))
-  // Expose mandarax tools to the harness CLI via MCP-over-HTTP on the same server, bridged to the live
+  // Expose conciv tools to the harness CLI via MCP-over-HTTP on the same server, bridged to the live
   // uiBus / page bus.
   registerMcpRoutes(
     app,

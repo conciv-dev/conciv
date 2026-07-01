@@ -1,8 +1,8 @@
 {
-  "name": "@mandarax/extension-testkit",
+  "name": "@conciv/extension-testkit",
   "version": "0.0.0",
   "private": true,
-  "description": "Dev-only test harness: getExtensionTestApi(extension) mounts any mandarax extension in a real browser against a real spawned server through its real contract.",
+  "description": "Dev-only test harness: getExtensionTestApi(extension) mounts any conciv extension in a real browser against a real spawned server through its real contract.",
   "license": "MIT",
   "type": "module",
   "exports": {
@@ -14,13 +14,13 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@mandarax/api-client": "workspace:^",
-    "@mandarax/core": "workspace:^",
-    "@mandarax/extension": "workspace:^",
-    "@mandarax/grab": "workspace:^",
-    "@mandarax/plugin": "workspace:^",
-    "@mandarax/protocol": "workspace:^",
-    "@mandarax/ui-kit-system": "workspace:^",
+    "@conciv/api-client": "workspace:^",
+    "@conciv/core": "workspace:^",
+    "@conciv/extension": "workspace:^",
+    "@conciv/grab": "workspace:^",
+    "@conciv/plugin": "workspace:^",
+    "@conciv/protocol": "workspace:^",
+    "@conciv/ui-kit-system": "workspace:^",
     "@playwright/test": "^1.60.0",
     "@tanstack/ai-mcp": "^0.1.0",
     "get-port": "^7.2.0",

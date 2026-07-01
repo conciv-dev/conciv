@@ -1,6 +1,6 @@
-// The public mandarax config contract, shared by the engine + every plugin entry. Zero-runtime:
+// The public conciv config contract, shared by the engine + every plugin entry. Zero-runtime:
 // the type + an identity typed factory (mirrors defineHarness/defineRunner). Resolution + env
-// fallbacks live in @mandarax/core/config.
+// fallbacks live in @conciv/core/config.
 // Where the corner-modal trigger button sits. Draggable at runtime; this is the initial spot.
 export type TriggerPosition = 'top-left' | 'top-right' | 'middle-left' | 'middle-right' | 'bottom-left' | 'bottom-right'
 
@@ -23,7 +23,7 @@ export interface WidgetConfig {
 
 export interface ExtensionConfigRegistry {}
 
-export interface MandaraxConfig {
+export interface ConcivConfig {
   enabled?: boolean
   /** Per-extension config, keyed + typed by each extension's declaration-merged ExtensionConfigRegistry entry. */
   extensions?: {[Name in keyof ExtensionConfigRegistry]?: ExtensionConfigRegistry[Name]}
@@ -45,6 +45,6 @@ export interface MandaraxConfig {
   /** @deprecated use sessionId */ claudeSessionId?: string
 }
 
-export function defineConfig<T extends MandaraxConfig>(config: T): T {
+export function defineConfig<T extends ConcivConfig>(config: T): T {
   return config
 }

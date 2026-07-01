@@ -1,9 +1,9 @@
 import {render} from 'solid-js/web'
-import {defineClient, type RequestMeta} from '@mandarax/api-client'
-import {isSessionId} from '@mandarax/protocol/chat-types'
-import {ensureEffectsSurface, mountExtension, openSource} from '@mandarax/extension/client'
-import {Dialog, Popover} from '@mandarax/ui-kit-system'
-import type {AnyExtension, ClientApi, ExtensionHostContext} from '@mandarax/extension'
+import {defineClient, type RequestMeta} from '@conciv/api-client'
+import {isSessionId} from '@conciv/protocol/chat-types'
+import {ensureEffectsSurface, mountExtension, openSource} from '@conciv/extension/client'
+import {Dialog, Popover} from '@conciv/ui-kit-system'
+import type {AnyExtension, ClientApi, ExtensionHostContext} from '@conciv/extension'
 import {makeHostGrab, makeHostPage} from './grab.js'
 import {FixtureElement} from './fixture-element.js'
 
@@ -19,8 +19,8 @@ function showToast(message: string): void {
 }
 
 export function startHost(extension: AnyExtension): void {
-  const apiBase = metaContent('mandarax-api-base')
-  const session = metaContent('mandarax-session')
+  const apiBase = metaContent('conciv-api-base')
+  const session = metaContent('conciv-session')
   const client = defineClient({apiBase})
   if (isSessionId(session)) client.setSessionId(session)
   const clientApi: ClientApi = {

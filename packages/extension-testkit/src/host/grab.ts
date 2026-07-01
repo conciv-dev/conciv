@@ -1,8 +1,8 @@
-import type {ElementSource, Grab, GrabApi} from '@mandarax/grab'
-import type {LocateResult} from '@mandarax/protocol/page-introspect-types'
-import type {PageInspect} from '@mandarax/extension'
+import type {ElementSource, Grab, GrabApi} from '@conciv/grab'
+import type {LocateResult} from '@conciv/protocol/page-introspect-types'
+import type {PageInspect} from '@conciv/extension'
 
-const SOURCE_ATTR = 'data-mandarax-source'
+const SOURCE_ATTR = 'data-conciv-source'
 
 type SourceParts = {filePath: string; lineNumber: number | null; column: number | null}
 

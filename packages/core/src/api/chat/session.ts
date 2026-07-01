@@ -1,17 +1,17 @@
 import {randomUUID} from 'node:crypto'
 import {withoutTrailingSlash} from 'ufo'
 import {type H3, HTTPError, readValidatedBody} from 'h3'
-import {resolveHarnessModels} from '@mandarax/harness'
-import type {HarnessAdapter} from '@mandarax/protocol/harness-types'
-import type {ChatSession, ChatModels, ChatSessions, ChatSessionMeta} from '@mandarax/protocol/chat-types'
-import {RenameSessionSchema, ResolveRequestSchema, isSessionId} from '@mandarax/protocol/chat-types'
+import {resolveHarnessModels} from '@conciv/harness'
+import type {HarnessAdapter} from '@conciv/protocol/harness-types'
+import type {ChatSession, ChatModels, ChatSessions, ChatSessionMeta} from '@conciv/protocol/chat-types'
+import {RenameSessionSchema, ResolveRequestSchema, isSessionId} from '@conciv/protocol/chat-types'
 import type {SessionStore} from '../../store/session-store.js'
 import {readLock, readLocks} from '../../store/lock.js'
 import {readFileOrEmpty} from '../../fs.js'
 import {sessionIdFromHeaders} from './session-id.js'
 
-// The session/models/history/resolve/rename/delete routes. Every route keys off our mandarax_ id (the
-// MANDARAX_SESSION_HEADER); `resolve` is the ONLY route that accepts a raw harness id, normalizing it.
+// The session/models/history/resolve/rename/delete routes. Every route keys off our conciv_ id (the
+// CONCIV_SESSION_HEADER); `resolve` is the ONLY route that accepts a raw harness id, normalizing it.
 
 export type SessionRouteDeps = {
   cwd: string
@@ -34,11 +34,11 @@ export type ResolveDeps = {
 // seam. Fresh chat ids stay record-less until their first turn (turn.ts), so an abandoned New-session
 // never leaves a ghost "New session · 0 messages" row in the picker.
 export async function resolveSession(deps: ResolveDeps, body: {id?: string}): Promise<{sessionId: string}> {
-  const mint = deps.mintId ?? (() => `mandarax_${randomUUID()}`)
+  const mint = deps.mintId ?? (() => `conciv_${randomUUID()}`)
   if (body.id && isSessionId(body.id)) {
     const existing = await deps.store.get(body.id)
     if (existing) return {sessionId: existing.id}
-    // unknown mandarax id (lost record) → fall through and mint fresh
+    // unknown conciv id (lost record) → fall through and mint fresh
   } else if (body.id) {
     const wrapped = await deps.store.findByHarnessId(body.id)
     if (wrapped) return {sessionId: wrapped.id}
@@ -77,7 +77,7 @@ export async function sweepEmptyChatRecords(store: SessionStore, locked: Set<str
 // A harness transcript row (from harness.history.list) before joining to our records.
 export type HarnessRow = {id: string; derivedTitle: string; updatedAt: number; messageCount: number}
 
-// Read-only list = our records (id = mandarax_) ∪ unwrapped harness transcripts (id = raw harness id),
+// Read-only list = our records (id = conciv_) ∪ unwrapped harness transcripts (id = raw harness id),
 // joined to live transcript data + lock state. NEVER writes — records are minted only via resolve.
 // Scoped to the current cwd: records carry the cwd they were created in, and the harness transcript
 // list is already cwd-filtered by its caller, so the two halves agree on scope.
@@ -97,7 +97,7 @@ export async function buildSessionList(args: {
       updatedAt: h?.updatedAt ?? r.updatedAt,
       messageCount: h?.messageCount ?? 0,
       running: args.runningKeys.has(r.id),
-      origin: r.origin === 'external' ? 'external' : 'mandarax',
+      origin: r.origin === 'external' ? 'external' : 'conciv',
       usage: r.usage,
     } satisfies ChatSessionMeta
   })
@@ -138,7 +138,7 @@ function killLock(stateRoot: string, sessionId: string): void {
 }
 
 export function registerSessionRoutes(app: H3, deps: SessionRouteDeps): void {
-  // POST /api/chat/session/resolve → the only id-normalization seam: returns {sessionId: mandarax_}.
+  // POST /api/chat/session/resolve → the only id-normalization seam: returns {sessionId: conciv_}.
   app.post('/api/chat/session/resolve', async (event) => {
     const body = await readValidatedBody(event, ResolveRequestSchema)
     return resolveSession({store: deps.store, harnessKind: deps.harness.id, cwd: deps.cwd}, body)

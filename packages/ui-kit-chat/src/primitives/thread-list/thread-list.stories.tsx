@@ -1,7 +1,7 @@
 import {createSignal, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
-import type {ChatSessionMeta} from '@mandarax/protocol/chat-types'
+import type {ChatSessionMeta} from '@conciv/protocol/chat-types'
 import {ThreadList, ThreadListItem} from './thread-list.js'
 import {ThreadListProvider} from './thread-list-context.js'
 
@@ -10,7 +10,7 @@ export default meta
 type Story = StoryObj
 
 function session(id: string, title: string): ChatSessionMeta {
-  return {id, title, updatedAt: 0, messageCount: 3, running: false, origin: 'mandarax', usage: null}
+  return {id, title, updatedAt: 0, messageCount: 3, running: false, origin: 'conciv', usage: null}
 }
 
 function Row(): JSX.Element {

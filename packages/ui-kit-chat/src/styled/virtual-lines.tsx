@@ -1,5 +1,5 @@
 import {createSignal, For, type JSX} from 'solid-js'
-import {ScrollArea} from '@mandarax/ui-kit-system'
+import {ScrollArea} from '@conciv/ui-kit-system'
 import {createVirtualizer} from '@tanstack/solid-virtual'
 
 export type VirtualLinesProps = {

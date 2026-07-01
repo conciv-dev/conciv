@@ -21,7 +21,7 @@ export async function assertVersioned(cwd: string): Promise<void> {
       continue
     }
     if (!pkg.private && pkg.version === '0.0.0') {
-      throw new Error(`${pkg.name} is still 0.0.0 - run "mandarax-publish version" before publishing`)
+      throw new Error(`${pkg.name} is still 0.0.0 - run "conciv-publish version" before publishing`)
     }
   }
 }

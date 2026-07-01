@@ -5,12 +5,12 @@ describe('sessionIdFromHeaders', () => {
   it('returns null when no header (a new session)', () => {
     expect(sessionIdFromHeaders(new Headers())).toBeNull()
   })
-  it('returns the mandarax_ id from the header', () => {
-    const h = new Headers({'mandarax-session-id': 'mandarax_x'})
-    expect(sessionIdFromHeaders(h)).toBe('mandarax_x')
+  it('returns the conciv_ id from the header', () => {
+    const h = new Headers({'conciv-session-id': 'conciv_x'})
+    expect(sessionIdFromHeaders(h)).toBe('conciv_x')
   })
   it('throws 400 on a present-but-non-ours id (only our SessionId is accepted)', () => {
-    expect(() => sessionIdFromHeaders(new Headers({'mandarax-session-id': 'no spaces!'}))).toThrow()
-    expect(() => sessionIdFromHeaders(new Headers({'mandarax-session-id': 'raw-harness-token'}))).toThrow()
+    expect(() => sessionIdFromHeaders(new Headers({'conciv-session-id': 'no spaces!'}))).toThrow()
+    expect(() => sessionIdFromHeaders(new Headers({'conciv-session-id': 'raw-harness-token'}))).toThrow()
   })
 })

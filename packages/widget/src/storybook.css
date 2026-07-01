@@ -4,7 +4,7 @@
    expands `@unocss all;` live by scanning the widget's src (+ tool-ui's + the kit's, per uno.config).
    Component-level :host CSS is not loaded here; presentational stories rely on tokens + utilities. */
 @import '@unocss/reset/tailwind.css';
-@import '@mandarax/ui-kit-system/tokens.css';
+@import '@conciv/ui-kit-system/tokens.css';
 @unocss all;
 
 /* Honor reduced-motion in Storybook (the widget supplies its own blanket reset in its shadow root).

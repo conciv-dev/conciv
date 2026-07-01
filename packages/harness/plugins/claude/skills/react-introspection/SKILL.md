@@ -1,19 +1,19 @@
 ---
 name: react-introspection
-description: Use when the user asks about a React component on the live page, or you need to map a rendered element to its source file, read its props/hooks, dump the component tree, or find a component by name. Covers the mandarax_page tool's locate/inspect/tree/find verbs. Reach for this instead of poking __REACT_DEVTOOLS_GLOBAL_HOOK__ or fiber keys via the eval verb.
+description: Use when the user asks about a React component on the live page, or you need to map a rendered element to its source file, read its props/hooks, dump the component tree, or find a component by name. Covers the conciv_page tool's locate/inspect/tree/find verbs. Reach for this instead of poking __REACT_DEVTOOLS_GLOBAL_HOOK__ or fiber keys via the eval verb.
 ---
 
 # React introspection
 
-The live page is a React app. The `mandarax_page` MCP tool has four React verbs that read the fiber
+The live page is a React app. The `conciv_page` MCP tool has four React verbs that read the fiber
 tree directly (via bippy) and symbolicate through the dev server's source maps. Use them. Do NOT
 hand-roll fiber detection with the `eval` verb + `__REACT_DEVTOOLS_GLOBAL_HOOK__` or
 `__reactFiber$` keys — that is what these verbs already do, correctly and source-mapped.
 
-Call `mandarax_page` with a `verb` plus an element target: either a positional CSS `selector` or a
-`ref` (from the latest `mandarax_page` `snapshot`). Prefer `ref`; refs go stale on re-render.
+Call `conciv_page` with a `verb` plus an element target: either a positional CSS `selector` or a
+`ref` (from the latest `conciv_page` `snapshot`). Prefer `ref`; refs go stale on re-render.
 
-## Verbs (the `verb` argument to `mandarax_page`)
+## Verbs (the `verb` argument to `conciv_page`)
 
 - `locate` — resolve a rendered element to its component's source `file:line`. The "where does this
   come from?" verb. Reply is symbolicated to a real source location (e.g. `app/page.tsx:17`),
@@ -28,7 +28,7 @@ Call `mandarax_page` with a `verb` plus an element target: either a positional C
 
 ## Typical flow
 
-1. Ground yourself: call `mandarax_page` with `{verb: 'snapshot'}` to get refs, or
+1. Ground yourself: call `conciv_page` with `{verb: 'snapshot'}` to get refs, or
    `{verb: 'find', name: '<Component>'}` if the user named a component.
 2. `{verb: 'locate', ref: '<r>'}` to jump to the source `file:line`, then open and edit that real
    file directly.

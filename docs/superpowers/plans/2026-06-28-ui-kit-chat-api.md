@@ -1,4 +1,4 @@
-# @mandarax/ui-kit-chat — API spec (Solid, tanstack-native)
+# @conciv/ui-kit-chat — API spec (Solid, tanstack-native)
 
 Companion to `2026-06-28-widget-chat-ui-redesign.md`. The authoritative interface list to
 build against. **Canonical data model = `@tanstack/ai` / `@tanstack/ai-client`** (verbatim
@@ -155,18 +155,18 @@ interface UseChatReturn {
 | `ToolCallMessagePart` (args+result+approval bundled) | `ToolCallPart` **+** paired `ToolResultPart` (by `toolCallId`; pair via the existing `pairResults`, `chat-panel.tsx:41`)                |
 | tool `approval` + `respondToApproval`                | `ToolCallPart.approval` + `chat.addToolApprovalResponse({id,approved})` (+ our `client.permissionDecision`, [[native-approval-hybrid]]) |
 | `ImageMessagePart`/`FileMessagePart`/audio           | `ImagePart` / `DocumentPart` / `AudioPart`                                                                                              |
-| `DataMessagePart` / `GenerativeUIMessagePart`        | `StructuredOutputPart`, and our `GenUi` over `MANDARAX_UI_EVENT` custom events (`@mandarax/protocol/ui-types`)                          |
+| `DataMessagePart` / `GenerativeUIMessagePart`        | `StructuredOutputPart`, and our `GenUi` over `CONCIV_UI_EVENT` custom events (`@conciv/protocol/ui-types`)                              |
 | `MessageStatus` (per message)                        | derived from parts + `ChatClientState` (no per-message status type)                                                                     |
 | `MessagePartStatus`                                  | `ToolCallState` / `ToolResultState` / `StructuredOutputPart.status`                                                                     |
 | `SuggestionState`                                    | our starter shape `{ title; label; prompt }` (UI prop data, not a domain type)                                                          |
-| `ThreadListItemState`                                | our `ChatSessionMeta` (`@mandarax/protocol/chat-types`) via the session store                                                           |
+| `ThreadListItemState`                                | our `ChatSessionMeta` (`@conciv/protocol/chat-types`) via the session store                                                             |
 | `ComposerState`                                      | derived view (§6) over `useChat` + local draft signal                                                                                   |
 
 ## 2. Headless primitive props (Solid, tanstack-bound)
 
 Tool render component — **reuse the existing types, do not invent new ones**
 ([[tool-ui-tanstack-convention]], [[no-tool-registry-self-describe]]). Import `ToolCardProps`
-and `ToolCardEntry` from `@mandarax/protocol` (the live contract used by `chat-panel.tsx`):
+and `ToolCardEntry` from `@conciv/protocol` (the live contract used by `chat-panel.tsx`):
 
 ```ts
 // existing — do NOT redefine:
@@ -375,7 +375,7 @@ namespace Error {
 ### 2.10 ThreadList / ThreadListItem — `primitives/thread-list*/` (backed by our session store)
 
 ```ts
-// State = our ChatSessionMeta (@mandarax/protocol/chat-types). Actions = the existing session
+// State = our ChatSessionMeta (@conciv/protocol/chat-types). Actions = the existing session
 // store (session-store-client.ts): sessions(), loadSessions, invalidateSessions, applyTitle,
 // + api-client resolve()/rename(). NOT tanstack (tanstack has no thread list).
 namespace ThreadList {
@@ -582,11 +582,11 @@ function defineToolkit(...entries: ToolCardEntry[]): ToolCardEntry[] // identity
 type PermissionCardProps = {part: ToolCallPart; onDecision: (approved: boolean) => void}
 //   onDecision → chat.addToolApprovalResponse({ id: part.approval!.id, approved })
 //             and client.permissionDecision({ approvalId, approved })  ([[native-approval-hybrid]])
-// "Question"/ask UI = our existing GenUi over MANDARAX_UI_EVENT (UiSpec, @mandarax/protocol/ui-types) — see gen-ui.tsx.
+// "Question"/ask UI = our existing GenUi over CONCIV_UI_EVENT (UiSpec, @conciv/protocol/ui-types) — see gen-ui.tsx.
 ```
 
 with-opencode tool components we port (all `ToolUIComponent`, bound to `{part,result}`):
-`ApplyPatchDiff` (Claude v2-patch→unified diff via `@mandarax/solid-diffs`), `BashCard`
+`ApplyPatchDiff` (Claude v2-patch→unified diff via `@conciv/solid-diffs`), `BashCard`
 (stdout/stderr/exit), `InlineTool`/`ToolCallShell` (one-line read/grep/glob/web rows +
 generic fallback). The patch-parse functions are plain code — lift verbatim.
 
@@ -679,7 +679,7 @@ is deleted; the table says _when each becomes live_.
 | QueueItem                                        | **built; gated**                         | widget owns a local pending-message queue; primitives gate on its handlers.                                                                                                                                       |
 | **BranchPicker**                                 | **built; INERT (the one real gap)**      | `UIMessage` has no sibling/branch model → `branchCount===1` → renders nothing. Goes live only if we add a branch layer (sibling map in view-state + `setMessages` switch). The single genuinely-deferred feature. |
 | StructuredOutput part                            | **live**                                 | tanstack `StructuredOutputPart`.                                                                                                                                                                                  |
-| Generative UI (`MANDARAX_UI_EVENT` `GenUi`)      | **live**                                 | rendered out-of-band via custom events, not a message part.                                                                                                                                                       |
+| Generative UI (`CONCIV_UI_EVENT` `GenUi`)        | **live**                                 | rendered out-of-band via custom events, not a message part.                                                                                                                                                       |
 | Source message part                              | **n/a (no data)**                        | our agent emits no `source` parts; the `Source` slot exists but is never populated.                                                                                                                               |
 | JsonTreeView                                     | **not built**                            | args/results render as styled `<pre>` (parity); revisit only if `<pre>` proves insufficient.                                                                                                                      |
 
@@ -817,10 +817,10 @@ return null`). The part + types + helpers are built for parity; lighting it up =
 - `primitives/model-selector/model-selector.stories.tsx` — REAL state (no mocks): closed/open,
   searchable filter narrows the list, disabled item unselectable, Empty when filter matches nothing,
   Effort row present when a model has `efforts` / absent otherwise, controlled `value` round-trips.
-- `styled/model-selector.stories.tsx` — neutral + dark + mandarax themes; the pill matches the widget
+- `styled/model-selector.stories.tsx` — neutral + dark + conciv themes; the pill matches the widget
   visual; opens in shadow-DOM (EnvironmentProvider) without rendering at 0,0 (Ark+shadow memory).
 - Exported from `src/index.tsx`; oxlint clean (Combobox/Popover only from ui-kit-system; Ark hooks
   `useListCollection` allowed, no Ark component subpath).
-- Cutover: `packages/widget/src/composer/model-selector.tsx` is rebuilt on `@mandarax/ui-kit-chat`'s
+- Cutover: `packages/widget/src/composer/model-selector.tsx` is rebuilt on `@conciv/ui-kit-chat`'s
   `ModelSelector` (maps `groupsOf` → `Group` blocks; `onValueChange` → `setRequestMeta({model})`);
   the old hand-rolled Combobox markup is deleted (TASKS §6d).

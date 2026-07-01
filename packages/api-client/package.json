@@ -1,18 +1,18 @@
 {
-  "name": "@mandarax/api-client",
+  "name": "@conciv/api-client",
   "version": "0.0.0",
-  "description": "The mandarax network seam: the typed fetch/SSE transport and the per-session client (defineClient/SessionClient) shared by the widget and the extension contract.",
+  "description": "The conciv network seam: the typed fetch/SSE transport and the per-session client (defineClient/SessionClient) shared by the widget and the extension contract.",
   "keywords": [
     "client",
-    "mandarax",
+    "conciv",
     "transport"
   ],
-  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/api-client#readme",
-  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
+  "homepage": "https://github.com/conciv-dev/conciv/tree/main/packages/api-client#readme",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mandarax-dev/mandarax.git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
     "directory": "packages/api-client"
   },
   "files": [
@@ -37,7 +37,7 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "@mandarax/protocol": "workspace:^",
+    "@conciv/protocol": "workspace:^",
     "zod": "^4.4.3"
   },
   "devDependencies": {

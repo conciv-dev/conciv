@@ -1,4 +1,4 @@
-import {defineTool} from '@mandarax/extension'
+import {defineTool} from '@conciv/extension'
 import {testToolDef, TestInput} from './def.js'
 import {TestCard} from './card.js'
 

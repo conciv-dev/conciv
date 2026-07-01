@@ -1,20 +1,20 @@
 import {spawn} from 'node:child_process'
 import {serve} from 'srvx'
 import getPort from 'get-port'
-import type {HarnessChild} from '@mandarax/protocol/harness-types'
-import type {BundlerBridge} from '@mandarax/protocol/bundler-types'
-import type {AnyExtension} from '@mandarax/extension'
-import {getHarness} from '@mandarax/harness'
+import type {HarnessChild} from '@conciv/protocol/harness-types'
+import type {BundlerBridge} from '@conciv/protocol/bundler-types'
+import type {AnyExtension} from '@conciv/extension'
+import {getHarness} from '@conciv/harness'
 import {makeApp, type MakeAppOpts} from './app.js'
 import {attachWebSocket} from './api/ws.js'
 import {originAllowed} from './api/cors.js'
 import {makeEditorOpener} from './editor/open.js'
-import {resolveConfig, type MandaraxConfig, type ResolvedMandaraxConfig} from './config.js'
+import {resolveConfig, type ConcivConfig, type ResolvedConcivConfig} from './config.js'
 import {statePaths} from './state-paths.js'
 import {writeText} from './fs.js'
 
 export type StartOpts = {
-  options: MandaraxConfig
+  options: ConcivConfig
   root: string
   bridge?: BundlerBridge
   launchEditor: (file: string, line: number) => void
@@ -26,7 +26,7 @@ export type StartOpts = {
   extensions?: AnyExtension[]
 }
 
-export type Engine = {port: number; stop: () => Promise<void>; cfg: ResolvedMandaraxConfig}
+export type Engine = {port: number; stop: () => Promise<void>; cfg: ResolvedConcivConfig}
 
 export async function start(opts: StartOpts): Promise<Engine> {
   const cfg = resolveConfig(opts.options, opts.root)
@@ -53,7 +53,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
   const portRef = {port: 0}
   const harnessEnv = (sessionId?: string): NodeJS.ProcessEnv => {
     const baseEnv = opts.childEnv ? opts.childEnv(portRef.port) : process.env
-    return sessionId ? {...baseEnv, MANDARAX_SESSION_ID: sessionId} : baseEnv
+    return sessionId ? {...baseEnv, CONCIV_SESSION_ID: sessionId} : baseEnv
   }
 
   const spawnHarness = (args: string[], cwd: string, sessionId?: string): HarnessChild => {

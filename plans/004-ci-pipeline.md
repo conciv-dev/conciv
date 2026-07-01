@@ -114,7 +114,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install Playwright Chromium (widget browser tests)
-        run: pnpm --filter @mandarax/widget exec playwright install --with-deps chromium
+        run: pnpm --filter @conciv/widget exec playwright install --with-deps chromium
 
       - name: Format check
         run: pnpm format:check

@@ -1,5 +1,5 @@
-# @mandarax/harness
+# @conciv/harness
 
-Harness adapters (claude, codex, + stubs) behind the @mandarax/protocol HarnessAdapter contract.
+Harness adapters (claude, codex, + stubs) behind the @conciv/protocol HarnessAdapter contract.
 
-Part of [mandarax](https://github.com/mandarax-dev/mandarax).
+Part of [conciv](https://github.com/conciv-dev/conciv).

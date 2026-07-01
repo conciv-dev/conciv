@@ -1,4 +1,4 @@
-@mandarax/solid-streamdown
+@conciv/solid-streamdown
 
 This package contains source code derived from Streamdown, which is:
 
@@ -6,7 +6,7 @@ This package contains source code derived from Streamdown, which is:
   Licensed under the Apache License, Version 2.0.
   https://github.com/vercel/streamdown
 
-Modifications by mandarax:
+Modifications by conciv:
   - Ported from React to SolidJS (render layer rebuilt on solid-markdown).
   - src/parse-blocks.ts is derived from streamdown's lib/parse-blocks.tsx
     (block-splitting algorithm unchanged; TS lint pragmas removed,

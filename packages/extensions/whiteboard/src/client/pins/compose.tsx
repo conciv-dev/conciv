@@ -1,5 +1,5 @@
 import {createSignal, type JSX} from 'solid-js'
-import {Button, TextField} from '@mandarax/ui-kit-system'
+import {Button, TextField} from '@conciv/ui-kit-system'
 import {useComments, type ComposeTarget} from '../model/comments.js'
 
 const PANEL =

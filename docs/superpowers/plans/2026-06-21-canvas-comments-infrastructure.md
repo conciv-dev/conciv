@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - **Worktree:** all work in `.claude/worktrees/canvas-comments` (branch `worktree-canvas-comments`). Never `cd` elsewhere.
-- **`trail` is an external PATH binary**, spawned/supervised by core (like the `claude` harness). SQLite db under `<cwd>/.mandarax/trail/data/main.db`.
+- **`trail` is an external PATH binary**, spawned/supervised by core (like the `claude` harness). SQLite db under `<cwd>/.conciv/trail/data/main.db`.
 - **Browser never opens a socket to `trail`.** Browser ↔ core (gated by `api/cors.ts` + session token) ↔ `trail`. Core is the only direct trail client.
 - **`trail` record APIs:** UUID/integer PK required (TEXT PK rejected); declare with `enable_subscriptions: true` + `acl_world` CRUD (loopback-only trust). UUIDs serialize base64url; CREATE returns `{ids}`; LIST returns `{cursor,records}`; search via `filter[col][$like]`. Join key is a separate `cid TEXT UNIQUE` (client UUID).
 - **Code style:** functions not classes; no IIFEs; one-line comments only; oxfmt (no semicolons, single quotes); zero narration comments in prod code; map/reduce over if/else.
@@ -26,7 +26,7 @@
 
 # Part A — Complete Interface Catalog (final, verified)
 
-This is the whole platform surface. Tasks in Part C implement exactly these. Shared types live in `@mandarax/protocol` so `@mandarax/extensions` and `@mandarax/core` agree without a core→extensions cycle.
+This is the whole platform surface. Tasks in Part C implement exactly these. Shared types live in `@conciv/protocol` so `@conciv/extensions` and `@conciv/core` agree without a core→extensions cycle.
 
 ## A1. Extension contract additions (`packages/extensions/src/contract.ts`)
 
@@ -65,7 +65,7 @@ type ExtensionServerContributions = {
 }
 ```
 
-## A2. `mx.db` — server `LiveDb` + client `ClientDb` (shared types in `@mandarax/protocol/db-types`)
+## A2. `mx.db` — server `LiveDb` + client `ClientDb` (shared types in `@conciv/protocol/db-types`)
 
 ```ts
 // SERVER (core constructs; extension .server consumes)
@@ -110,7 +110,7 @@ type ClientCollectionSpec<TItem, TRecord> = {
 - `GET /api/records/v1/:name/subscribe/*` → forward as a **stream**: pipe trail's `text/event-stream` response body straight through (no buffering), carrying `sseHeaders(event)`.
 - Browser base URL handed to `initClient` is the core origin (same origin the widget already uses), so the `trailbase` client's `/api/records/v1/*` calls hit core.
 
-## A4. `mx.sync` — server + client (shared types in `@mandarax/protocol/sync-types`)
+## A4. `mx.sync` — server + client (shared types in `@conciv/protocol/sync-types`)
 
 ```ts
 // SERVER
@@ -151,7 +151,7 @@ Relay wire protocol (gated SSE+POST, `packages/core/src/sync/relay.ts`):
 
 ## A6. Shared protocol types (`packages/protocol/src/`)
 
-New: `db-types.ts` (LiveDb, ServerCollection, CollectionInfo, ClientDb, specs), `sync-types.ts` (SyncEngine, SyncRoom, SnapshotStore, ClientSync, ORIGIN). `@mandarax/extensions` imports these for `ServerApi`/`ClientApi`; `@mandarax/core` implements them. No core→extensions dependency.
+New: `db-types.ts` (LiveDb, ServerCollection, CollectionInfo, ClientDb, specs), `sync-types.ts` (SyncEngine, SyncRoom, SnapshotStore, ClientSync, ORIGIN). `@conciv/extensions` imports these for `ServerApi`/`ClientApi`; `@conciv/core` implements them. No core→extensions dependency.
 
 ## A7. canvas-comments extension contracts (catalogued now; BUILT in the follow-up consumer plan)
 
@@ -208,7 +208,7 @@ These prove the platform is sufficient: comments = one `mx.db` collection (cid j
 - `packages/widget/src/extension-runtime.ts` — supply `db`/`sync` into `ClientApi`; `runTool` into `ComposerActionCtx`.
 - `packages/core/src/engine.ts` + `packages/plugin/src/core/boot.ts` — construct services, thread through `start` + `loadServerContributions`.
 - Tests colocated per package (`*.it.test.ts` for real trail/browser).
-- `mandarax/extensions/__probe.ts` (test fixture only) — proves every interface.
+- `conciv/extensions/__probe.ts` (test fixture only) — proves every interface.
 
 ---
 
@@ -217,11 +217,11 @@ These prove the platform is sufficient: comments = one `mx.db` collection (cid j
 ## Task 1: Install gate + shared protocol types
 
 - [ ] **Step 1: Confirm install** — `yjs`, `y-indexeddb` (widget + core both need `yjs`; `y-indexeddb` widget-only). `@tanstack/*` + `trailbase` already installed. Confirm with user, then:
-  - `pnpm --filter @mandarax/core add yjs`
-  - `pnpm --filter @mandarax/widget add yjs y-indexeddb`
-  - `pnpm --filter @mandarax/widget add trailbase` is already present; add `trailbase` to core too: `pnpm --filter @mandarax/core add trailbase`.
+  - `pnpm --filter @conciv/core add yjs`
+  - `pnpm --filter @conciv/widget add yjs y-indexeddb`
+  - `pnpm --filter @conciv/widget add trailbase` is already present; add `trailbase` to core too: `pnpm --filter @conciv/core add trailbase`.
 - [ ] **Step 2: Create `packages/protocol/src/db-types.ts` and `sync-types.ts`** with the A2/A4/A6 types verbatim (pure types + the `ORIGIN` const). Export from `packages/protocol/src/index.ts` (or a subpath per the repo's export convention).
-- [ ] **Step 3: Typecheck** — `pnpm turbo typecheck --filter @mandarax/protocol` → passes.
+- [ ] **Step 3: Typecheck** — `pnpm turbo typecheck --filter @conciv/protocol` → passes.
 - [ ] **Step 4: Commit** — `git commit -m "feat(canvas-comments): shared db/sync protocol types + deps"`.
 
 ## Task 2: trail supervisor
@@ -309,7 +309,7 @@ These prove the platform is sufficient: comments = one `mx.db` collection (cid j
 
 - [ ] **Step 1: Failing test** — an extension `.server` calls `mx.db.collection`, `mx.sync.room`, `mx.on('session_start', …)`, `mx.approval('x.delete','ask')`; `collectServerContributions([ext], {db, sync})` exposes the handler + policy and the collection/room were declared (fakes for db/sync).
 - [ ] **Step 2: Run → fail.**
-- [ ] **Step 3: Implement** — extend `ServerApi`/`ClientApi`/`ComposerActionCtx` (import shared types from `@mandarax/protocol`); build the `api` in `collectServerContributions` from `services`; collect handlers/policies.
+- [ ] **Step 3: Implement** — extend `ServerApi`/`ClientApi`/`ComposerActionCtx` (import shared types from `@conciv/protocol`); build the `api` in `collectServerContributions` from `services`; collect handlers/policies.
 - [ ] **Step 4: Run → pass.**
 - [ ] **Step 5: Commit.**
 
@@ -326,14 +326,14 @@ These prove the platform is sufficient: comments = one `mx.db` collection (cid j
 **Files:** `packages/plugin/src/core/boot.ts`, `packages/core/src/engine.ts`, `packages/core/src/app.ts`, `packages/plugin/src/core/extensions.ts`.
 **Interfaces:** `loadServerContributions(root, {db, sync})`; `start({…, db, sync})` registers `registerDbProxy` + `registerSyncRelay`; widget runtime gets `createClientDb`/`createClientSync` wired into `ClientApi`.
 
-- [ ] **Step 1:** Construct in `boot.ts`: supervisor (dataDir `join(stateRoot,'.mandarax','trail')`, a chosen `trailPort`) → `createLiveDb` → `createSnapshotStore(db)` → `createSyncEngine({store})`; `loadServerContributions(root,{db,sync})` (declares collections/rooms, emits config+migrations) → `await supervisor.start()` (boot applies migrations) → `supervisor.onExit(()=>supervisor.start())` → `start({…, db, sync, extensions})`.
+- [ ] **Step 1:** Construct in `boot.ts`: supervisor (dataDir `join(stateRoot,'.conciv','trail')`, a chosen `trailPort`) → `createLiveDb` → `createSnapshotStore(db)` → `createSyncEngine({store})`; `loadServerContributions(root,{db,sync})` (declares collections/rooms, emits config+migrations) → `await supervisor.start()` (boot applies migrations) → `supervisor.onExit(()=>supervisor.start())` → `start({…, db, sync, extensions})`.
 - [ ] **Step 2:** `start`/`makeApp` calls `registerDbProxy(app, supervisor.baseUrl)` + `registerSyncRelay(app, engine, validateRoom)`. Widget `extension-runtime` builds `ClientApi.db = createClientDb(coreOrigin)`, `ClientApi.sync = createClientSync(coreOrigin, token)`.
 - [ ] **Step 3: Boot IT** — start the real plugin boot path against a temp project; assert `/api/records/v1/*` proxied, the relay answers, and the engine fired `session_start`.
 - [ ] **Step 4: Commit.**
 
 ## Task 12: probe extension — prove every interface end to end
 
-**Files:** test fixture `mandarax/extensions/__probe.ts` under a temp project + `packages/plugin/test/probe-extension.it.test.ts` (+ a browser IT for the client halves).
+**Files:** test fixture `conciv/extensions/__probe.ts` under a temp project + `packages/plugin/test/probe-extension.it.test.ts` (+ a browser IT for the client halves).
 **Interfaces:** consumes the full grown `mx` (server + client).
 
 - [ ] **Step 1: Failing full-stack IT** — the probe extension `.server`: declares a `probe_notes` collection (cid, body), a `probe` room, `mx.on('session_start', …)` (sets a flag), `mx.approval('probe.del','ask')`, and a `defineTool('probe.add', execute: i => collection.insert(i))`. `.client`: registers a composer action that `runTool('probe.add', …)` and reads the collection via `useLiveQuery`. The IT boots the real stack and asserts: agent-path `probe.add` row appears live in the browser collection; the canvas room syncs an update browser↔core; the `ask` tool is gated; `session_start` fired; `mx.db.list()` includes `probe_notes`.

@@ -1,19 +1,19 @@
 {
-  "name": "@mandarax/solid-streamdown",
+  "name": "@conciv/solid-streamdown",
   "version": "0.0.0",
   "description": "A SolidJS streaming-markdown renderer: a port of Vercel's streamdown (block memoization, incomplete-markdown handling, token fade-in) onto Solid + the unified pipeline. Encapsulated so the widget can swap it without churn.",
   "keywords": [
-    "mandarax",
+    "conciv",
     "markdown",
     "solid-js",
     "streaming"
   ],
-  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/solid-streamdown#readme",
-  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
+  "homepage": "https://github.com/conciv-dev/conciv/tree/main/packages/solid-streamdown#readme",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mandarax-dev/mandarax.git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
     "directory": "packages/solid-streamdown"
   },
   "files": [

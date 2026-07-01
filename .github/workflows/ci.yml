@@ -25,7 +25,7 @@ jobs:
         with:
           mode: firewall-free
       - run: sfw pnpm i --frozen-lockfile # Socket Firewall blocks known-malicious packages at install
-      - run: pnpm --filter @mandarax/widget exec playwright install --with-deps chromium # real-browser vitest tests
+      - run: pnpm --filter @conciv/widget exec playwright install --with-deps chromium # real-browser vitest tests
       # Only the publishable libraries; the example/site apps are private and not part of the release gate.
       # Single turbo run: build is deduped (once per package) and shared by typecheck/test.
       # SKIP_STORYBOOK_TESTS: storybook browser tests are skipped here (upstream cold-optimize race

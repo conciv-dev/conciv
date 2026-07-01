@@ -1,5 +1,5 @@
 import {createMemo, createEffect, createSignal, For, onCleanup, Show, type JSX} from 'solid-js'
-import {Progress} from '@mandarax/ui-kit-system'
+import {Progress} from '@conciv/ui-kit-system'
 import {useChat, fetchServerSentEvents, createChatClientOptions} from '@tanstack/ai-solid'
 import type {MessagePart, ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import {
@@ -12,9 +12,9 @@ import {
   pairResults,
   useComposer,
   type Turn,
-} from '@mandarax/ui-kit-chat'
-import {nowTitle} from '@mandarax/ui-kit-chat-tools'
-import {apiError, type SessionClient} from '@mandarax/api-client'
+} from '@conciv/ui-kit-chat'
+import {nowTitle} from '@conciv/ui-kit-chat-tools'
+import {apiError, type SessionClient} from '@conciv/api-client'
 import {invalidateSessions} from '../client/session-store-client.js'
 import {createDebouncer} from '@tanstack/solid-pacer'
 import {GenUi} from './gen-ui.js'
@@ -22,18 +22,18 @@ import {ToolFallbackCard} from './tool-fallback-card.js'
 import type {PendingApproval} from '../shell/approval-modal.js'
 import {SquarePen, FoldVertical} from 'lucide-solid'
 import {EventType, type StreamChunk} from '@tanstack/ai'
-import {MANDARAX_UI_EVENT, UiSpecSchema, type UiSpec} from '@mandarax/protocol/ui-types'
-import {MANDARAX_TOOL_DURATION_EVENT, ToolDurationSchema} from '@mandarax/protocol/tool-timing'
+import {CONCIV_UI_EVENT, UiSpecSchema, type UiSpec} from '@conciv/protocol/ui-types'
+import {CONCIV_TOOL_DURATION_EVENT, ToolDurationSchema} from '@conciv/protocol/tool-timing'
 import {
-  MANDARAX_USAGE_EVENT,
+  CONCIV_USAGE_EVENT,
   UsageSnapshotSchema,
   tokenUsageToSnapshot,
   type UsageSnapshot,
-} from '@mandarax/protocol/usage-types'
-import type {ToolViewCtx, ToolCardEntry} from '@mandarax/protocol/tool-view-types'
+} from '@conciv/protocol/usage-types'
+import type {ToolViewCtx, ToolCardEntry} from '@conciv/protocol/tool-view-types'
 import type {ComposerActionDef, ComposerControlDef, PanelDef} from '../shell/widget-shell.js'
 import {GrabReference} from '../page/react-grab/grab-reference.js'
-import type {Grab, GrabApi} from '@mandarax/grab'
+import type {Grab, GrabApi} from '@conciv/grab'
 import {ExtensionSurface, type ExtensionHostBag, type ExtensionInstance} from '../extension/extension-slots.js'
 import {EmptyStateSlot} from '../shell/empty-state.js'
 import {grabApi} from '../page/grab-api.js'
@@ -131,7 +131,7 @@ function DraftBridge(props: {onReady: (append: (text: string) => void) => void})
 }
 
 // One agent session: owns its useChat + generative-UI state, and renders the thread + composer
-// THROUGH @mandarax/ui-kit-chat (Thread/Composer). Layout-agnostic — the modal panel, a quick-terminal
+// THROUGH @conciv/ui-kit-chat (Thread/Composer). Layout-agnostic — the modal panel, a quick-terminal
 // pane, and a PiP body all render this same component. Chrome (header, open/close, FAB) lives in the
 // shell. The panel keeps all session/compaction/divider/approval/genUi wiring; grouping, layout, and
 // tool rendering live in the package.
@@ -158,20 +158,20 @@ export function ChatPanel(props: {
   const [genUi, setGenUi] = createSignal<UiSpec[]>([])
   const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
   const [durations, setDurations] = createSignal<Record<string, number>>({})
-  // The agent's `mandarax ui …` calls arrive as AG-UI CUSTOM events; render each in the thread.
+  // The agent's `conciv ui …` calls arrive as AG-UI CUSTOM events; render each in the thread.
   // Live usage updates arrive on the same channel (injected by core mid-turn).
-  const onMandaraxUi = (eventType: string, data: unknown) => {
-    if (eventType === MANDARAX_USAGE_EVENT) {
+  const onConcivUi = (eventType: string, data: unknown) => {
+    if (eventType === CONCIV_USAGE_EVENT) {
       const parsed = UsageSnapshotSchema.safeParse(data)
       if (parsed.success) setUsage((prev) => ({...prev, ...parsed.data}))
       return
     }
-    if (eventType === MANDARAX_TOOL_DURATION_EVENT) {
+    if (eventType === CONCIV_TOOL_DURATION_EVENT) {
       const parsed = ToolDurationSchema.safeParse(data)
       if (parsed.success) setDurations((prev) => ({...prev, [parsed.data.toolCallId]: parsed.data.durationMs}))
       return
     }
-    if (eventType !== MANDARAX_UI_EVENT) return
+    if (eventType !== CONCIV_UI_EVENT) return
     const parsed = UiSpecSchema.safeParse(data)
     if (!parsed.success) return
     const spec = parsed.data
@@ -196,7 +196,7 @@ export function ChatPanel(props: {
         body: requestMeta(),
       })),
     }),
-    onCustomEvent: onMandaraxUi,
+    onCustomEvent: onConcivUi,
     onChunk,
   })
   // Grabbed-element previews staged above the composer (cleared on send). The textarea holds only the
@@ -280,8 +280,8 @@ export function ChatPanel(props: {
   let prevStatus = ''
   createEffect(() => {
     const status = chat.status()
-    if (status === 'submitted') setLiveMsg('mandarax is thinking…')
-    else if (prevStatus === 'streaming' && status !== 'streaming') setLiveMsg('mandarax replied.')
+    if (status === 'submitted') setLiveMsg('conciv is thinking…')
+    else if (prevStatus === 'streaming' && status !== 'streaming') setLiveMsg('conciv replied.')
     prevStatus = status
   })
 
@@ -538,7 +538,7 @@ export function ChatPanel(props: {
                   </For>
                   <Composer
                     placeholder="Ask a question…"
-                    inputLabel="Message the mandarax agent"
+                    inputLabel="Message the conciv agent"
                     inputRef={(el) => {
                       inputEl = el
                     }}
@@ -594,7 +594,7 @@ export function chatPanelDef(
 ): PanelDef {
   return {
     id: 'chat',
-    title: 'mandarax',
+    title: 'conciv',
     apiBase,
     create: (ctx) => (
       <ChatPanel

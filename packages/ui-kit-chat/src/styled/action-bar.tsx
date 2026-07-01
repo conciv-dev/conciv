@@ -1,6 +1,6 @@
 import {type JSX} from 'solid-js'
 import {Check, Copy, Download, MoreHorizontal, Pencil, RefreshCw} from 'lucide-solid'
-import {Swap} from '@mandarax/ui-kit-system'
+import {Swap} from '@conciv/ui-kit-system'
 import {ActionBar, useCopied, useExportMarkdown} from '../primitives/action-bar/action-bar.js'
 import {ActionBarMore} from '../primitives/action-bar-more/action-bar-more.js'
 import {TooltipIconButton} from './tooltip-icon-button.js'

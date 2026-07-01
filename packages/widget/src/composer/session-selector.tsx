@@ -1,9 +1,9 @@
 import {createSignal, createEffect, For, Show, onMount, type JSX} from 'solid-js'
-import {Combobox} from '@mandarax/ui-kit-system'
+import {Combobox} from '@conciv/ui-kit-system'
 import {useListCollection} from '@ark-ui/solid/combobox'
 import {Check, ChevronDown, Sparkles, SquarePen, Plus} from 'lucide-solid'
-import type {ChatSessionMeta, SessionId} from '@mandarax/protocol/chat-types'
-import {defineClient} from '@mandarax/api-client'
+import type {ChatSessionMeta, SessionId} from '@conciv/protocol/chat-types'
+import {defineClient} from '@conciv/api-client'
 import {sessions, status, loadSessions, invalidateSessions, applyTitle} from '../client/session-store-client.js'
 
 // One id-prefix per mounted instance so two selectors under one shadow root never share Ark's
@@ -38,7 +38,7 @@ function relativeTime(updatedAt: number, now: number): string {
 }
 
 function metaLabel(s: ChatSessionMeta, now: number): string {
-  const origin = s.origin === 'mandarax' ? 'started in mandarax' : 'started externally'
+  const origin = s.origin === 'conciv' ? 'started in conciv' : 'started externally'
   return `Edited ${relativeTime(s.updatedAt, now)} · ${s.messageCount} messages · ${origin}`
 }
 
@@ -157,7 +157,7 @@ export function SessionSelector(props: {
     })
   }
 
-  // New session: resolve with no id → a fresh mandarax_ record, then make it active.
+  // New session: resolve with no id → a fresh conciv_ record, then make it active.
   const newSession = () => {
     void api.resolve().then(({sessionId}) => {
       props.onActivate(sessionId)
@@ -319,7 +319,7 @@ export function SessionSelector(props: {
                             Edited {relativeTime(s.updatedAt, now())} · {s.messageCount} messages
                           </span>
                         </div>
-                        <Show when={s.origin === 'mandarax'}>
+                        <Show when={s.origin === 'conciv'}>
                           <Sparkles class="text-pw-accent opacity-80 shrink-0 size-3.25" aria-hidden="true" />
                         </Show>
                         <Show when={props.lockedElsewhere(s.id)}>

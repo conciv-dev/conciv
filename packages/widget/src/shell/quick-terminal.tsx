@@ -11,9 +11,9 @@ import {anyOpen} from './dialogs.js'
 import {ContextTracker} from '../page/context-tracker.js'
 import {SessionSelector} from '../composer/session-selector.js'
 import {sessions, mergeSurface, makeSurfaceRow, invalidateSessions} from '../client/session-store-client.js'
-import {defineClient, type SessionClient} from '@mandarax/api-client'
-import {SessionId, isSessionId} from '@mandarax/protocol/chat-types'
-import type {UsageSnapshot} from '@mandarax/protocol/usage-types'
+import {defineClient, type SessionClient} from '@conciv/api-client'
+import {SessionId, isSessionId} from '@conciv/protocol/chat-types'
+import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 
 type Pane = {
   id: number
@@ -45,7 +45,7 @@ export function QuickTerminalLayout(props: {
     initial: Math.round(window.innerHeight * 0.52),
     min: 200,
     collapseAt: 120,
-    storageKey: 'mandarax-qt-height',
+    storageKey: 'conciv-qt-height',
     grow: () => 'down',
     onCollapse: () => props.setOpen(false),
   })
@@ -58,7 +58,7 @@ export function QuickTerminalLayout(props: {
   let sectionEl: HTMLElement | undefined
 
   // Persisted pane layout: one session id per pane, restored on reopen (which sessions, in order).
-  const PANES_KEY = 'mandarax-qt-panes'
+  const PANES_KEY = 'conciv-qt-panes'
   const readPaneIds = (): string[] =>
     readStorage(
       PANES_KEY,
@@ -82,7 +82,7 @@ export function QuickTerminalLayout(props: {
   }
 
   // Remember which pane was active (by position) so reopening focuses the same one.
-  const FOCUS_KEY = 'mandarax-qt-focused'
+  const FOCUS_KEY = 'conciv-qt-focused'
   const readFocusIndex = (): number =>
     readStorage(
       FOCUS_KEY,
@@ -104,7 +104,7 @@ export function QuickTerminalLayout(props: {
     const id = ++seq
     const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
     const [working, setWorking] = createSignal(false)
-    // Each pane owns its session client. Restore a persisted mandarax_ id, else resolve a fresh session.
+    // Each pane owns its session client. Restore a persisted conciv_ id, else resolve a fresh session.
     const client = defineClient({apiBase: props.panel.apiBase ?? ''})
     if (initialId && isSessionId(initialId)) client.setSessionId(SessionId.parse(initialId))
     else void client.resolve().then((r) => client.setSessionId(r.sessionId))
@@ -229,7 +229,7 @@ export function QuickTerminalLayout(props: {
       data-pw-suppressed={picking() || anyOpen() ? '' : undefined}
       style={{height: `${resize.size()}px`}}
       role="dialog"
-      aria-label="mandarax quick terminal"
+      aria-label="conciv quick terminal"
       aria-hidden={!props.open()}
     >
       <header class="px-4.5 py-3 border-b border-b-pw-line-soft flex shrink-0 gap-3 items-center">
@@ -248,7 +248,7 @@ export function QuickTerminalLayout(props: {
           class={CLOSE}
           aria-label="Pop out to a window"
           title="Picture-in-Picture"
-          onClick={() => sectionEl && pip.open(sectionEl, {title: 'mandarax quick terminal'})}
+          onClick={() => sectionEl && pip.open(sectionEl, {title: 'conciv quick terminal'})}
         >
           <PictureInPicture2 class="size-5 block" aria-hidden="true" />
         </button>

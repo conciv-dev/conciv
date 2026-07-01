@@ -20,7 +20,7 @@ In: infinite Excalidraw/Yjs canvas (draw/pan/zoom, transparent overlay, persist 
 **AI as a co-equal editor** (draws, comments, with a live presence cursor on the canvas); source-linked
 **and** floating comments (threads, parts/tool-ui, status); **source anchoring** (AST-hash + git
 line-tracking + DOM fallback, `AnchorResolver` seam); **doctor** (drift sweep + `session_start`
-auto-run + `mandarax doctor` CLI); **undo/redo** (one cross-store stack); approval gate; security
+auto-run + `conciv doctor` CLI); **undo/redo** (one cross-store stack); approval gate; security
 hardening; limits; empty state; notifications; a11y.
 
 This is the full feature. Later work is only new _capabilities_ (more canvas verbs, other frameworks'
@@ -57,25 +57,25 @@ canvas/comment-specific logic.
 ## Packaging & discovery — first-party, default-on
 
 The extension is its own monorepo package, **`packages/whiteboard`**, exporting a single
-`MandaraxExtension` (`defineExtension({id:'whiteboard', tools}).server(...).client(...)`). It ships
-**enabled by default** for every mandarax user — it is the product's flagship surface, not a sample.
+`ConcivExtension` (`defineExtension({id:'whiteboard', tools}).server(...).client(...)`). It ships
+**enabled by default** for every conciv user — it is the product's flagship surface, not a sample.
 
 The loader learns one new concept: **first-party (built-in) extensions applied alongside discovered
 project ones**, on both halves, using only the public API:
 
 - **Server:** `bootServices` / `loadServerContributions` prepend the built-in list to the discovered
   files: `collectServerContributions([...firstParty, ...discovered], services)`. `firstParty` is a
-  small explicit array importing `@mandarax/whiteboard`.
+  small explicit array importing `@conciv/whiteboard`.
 - **Client:** `mount.tsx` applies the built-in extensions' `clientFn(clientApi)` (and
   `collectClientContributions`) directly, in addition to the discovered virtual-module ones.
 
-A user can still ship their own extensions in `mandarax/extensions/`; canvas-comments simply always
+A user can still ship their own extensions in `conciv/extensions/`; canvas-comments simply always
 loads first. (Disabling/config is a later concern; default-on is the v1 behavior.)
 
 ## Architecture
 
 ```
-EXTENSION  @mandarax/whiteboard  (uses only the public mx API)
+EXTENSION  @conciv/whiteboard  (uses only the public mx API)
 ┌───────────────────────────────────────────────────────────────────────────┐
 │ .server(mx)                                  .client(mx)                     │
 │  • mx.db.collection('comments', …)            • overlay Effect: React island │
@@ -278,7 +278,7 @@ shell `git` (no new dep) unless the plan finds it insufficient.
 
 ## Doctor
 
-`mandarax doctor` (a `packages/cli` command) + an auto-run on `mx.on('session_start', …)`.
+`conciv doctor` (a `packages/cli` command) + an auto-run on `mx.on('session_start', …)`.
 
 - Sweeps comments; per comment runs `resolver.resolve()`. `fresh`→no-op · `moved`→re-anchor, keep
   `open` · `drifted`/`ambiguous`→flag + diff/candidates · `orphaned`→mark. **Skips `floating`.**
@@ -447,7 +447,7 @@ in a later slice for exact instance identity.
   (`comment.list({file, status})` is an MCP tool the agent calls); the auto-inject-on-file-touch push is
   deferred to a later slice (it needs a per-turn context hook the platform doesn't have, and pull is
   sufficient for the loop).
-- **tool-ui renderer reuse.** The first-party extension depends on `@mandarax/widget` and reuses its
+- **tool-ui renderer reuse.** The first-party extension depends on `@conciv/widget` and reuses its
   Solid `tool-ui` render-by-`part.name` pipeline for comment `parts`; no new platform surface.
 - **`session.switch`.** v1 scopes to the active session's room; cross-session "show all → switch" reuses
   the widget's existing session selector (the extension reads `ClientApi.sessionId` from #4 and asks the

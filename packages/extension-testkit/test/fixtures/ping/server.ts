@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {defineExtension, defineTool} from '@mandarax/extension'
+import {defineExtension, defineTool} from '@conciv/extension'
 
 const echo = defineTool({
   name: 'ping.echo',

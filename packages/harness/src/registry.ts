@@ -1,4 +1,4 @@
-import type {HarnessAdapter, HarnessModel} from '@mandarax/protocol/harness-types'
+import type {HarnessAdapter, HarnessModel} from '@conciv/protocol/harness-types'
 import {claude} from './claude/index.js'
 import {codex} from './codex/index.js'
 import {geminiCli} from './gemini-cli/index.js'

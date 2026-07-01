@@ -1,15 +1,15 @@
 ---
 title: Configuration
-description: The mandarax() options and the common ways to set them.
+description: The conciv() options and the common ways to set them.
 icon: Settings
 ---
 
 Pass options to the plugin. Every field is optional.
 
 ```ts title="vite.config.ts"
-import mandarax from 'mandarax/plugin/vite'
+import conciv from 'conciv/plugin/vite'
 
-mandarax({
+conciv({
   harness: 'claude',
   enabled: process.env.NODE_ENV !== 'production',
 })
@@ -25,14 +25,14 @@ mandarax({
     testRunner: {type: 'string', default: '"vitest"', description: 'Test runner adapter id.'},
     widgetUrl: {
       type: 'string',
-      default: 'MANDARAX_WIDGET_URL',
+      default: 'CONCIV_WIDGET_URL',
       description: 'Script src for the injected widget. Omit to skip injection.',
     },
     systemPrompt: {type: 'string', default: 'built-in', description: 'Appended to each agent turn.'},
     previewId: {type: 'string', default: '"local"', description: 'Correlates a resumable session.'},
     sessionId: {type: 'string', default: 'none', description: 'Resume an existing thread.'},
     port: {type: 'number', default: 'auto', description: 'Fixed engine port. Used by the Next.js integration.'},
-    stateRoot: {type: 'string', default: 'process.cwd()', description: 'Root holding the .mandarax state directory.'},
+    stateRoot: {type: 'string', default: 'process.cwd()', description: 'Root holding the .conciv state directory.'},
     widget: {
       type: 'object',
       default: 'both layouts on',
@@ -48,13 +48,13 @@ mandarax({
 ### Gate to dev only
 
 ```ts
-mandarax({enabled: process.env.NODE_ENV !== 'production'})
+conciv({enabled: process.env.NODE_ENV !== 'production'})
 ```
 
 ### Switch harness
 
 ```ts
-mandarax({harness: 'codex'})
+conciv({harness: 'codex'})
 ```
 
 See [Harnesses](/docs/harnesses) for the full list.
@@ -65,10 +65,10 @@ Two layouts ship, both on by default: the corner `modal` and the top drop-down `
 Configure or disable each under `widget`.
 
 ```ts
-mandarax({widget: {modal: {position: 'top-left'}}}) // move the corner button
-mandarax({widget: {quickTerminal: {hotkey: ['Mod+`', 'Control+k']}}}) // set the hotkey(s)
-mandarax({widget: {quickTerminal: false}}) // corner modal only
-mandarax({widget: {modal: false}}) // quick terminal only
+conciv({widget: {modal: {position: 'top-left'}}}) // move the corner button
+conciv({widget: {quickTerminal: {hotkey: ['Mod+`', 'Control+k']}}}) // set the hotkey(s)
+conciv({widget: {quickTerminal: false}}) // corner modal only
+conciv({widget: {modal: false}}) // quick terminal only
 ```
 
 `modal.position` is one of `top-left`, `top-right`, `middle-left`, `middle-right`, `bottom-left`,
@@ -78,13 +78,13 @@ mandarax({widget: {modal: false}}) // quick terminal only
 ### Override the binary
 
 ```ts
-mandarax({harnessBin: '/usr/local/bin/claude'})
+conciv({harnessBin: '/usr/local/bin/claude'})
 ```
 
 ### Custom system prompt
 
 ```ts
-mandarax({systemPrompt: 'Prefer Tailwind classes over inline styles.'})
+conciv({systemPrompt: 'Prefer Tailwind classes over inline styles.'})
 ```
 
 ### widgetUrl
@@ -93,5 +93,5 @@ On webpack and Rspack the plugin does not inject the widget. Set `widgetUrl` to 
 bundle so the script lands on your page.
 
 ```ts
-mandarax({widgetUrl: '/mandarax-widget.js'})
+conciv({widgetUrl: '/conciv-widget.js'})
 ```

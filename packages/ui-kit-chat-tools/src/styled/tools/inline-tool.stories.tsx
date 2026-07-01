@@ -2,7 +2,7 @@ import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import type {ToolViewCtx} from '@mandarax/protocol/tool-view-types'
+import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {EditInline, GrepInline, ReadInline, ToolCallInline} from './inline-tool.js'
 
 const meta: Meta = {title: 'styled/tools/InlineTool'}

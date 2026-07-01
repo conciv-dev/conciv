@@ -1,5 +1,5 @@
 import {type JSX} from 'solid-js'
-import {Button, Popover} from '@mandarax/ui-kit-system'
+import {Button, Popover} from '@conciv/ui-kit-system'
 
 export type DragPromptProps = {
   x: number

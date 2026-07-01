@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {createMCPClient} from '@tanstack/ai-mcp'
-import {defineExtension, defineTool} from '@mandarax/extension'
+import {defineExtension, defineTool} from '@conciv/extension'
 import {startTestServer} from '../../helpers/server.js'
 
 // A real extension's tool must register on the real /api/mcp alongside the built-ins and round-trip a
@@ -21,7 +21,7 @@ describe('/api/mcp extension tools', () => {
     const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
     try {
       const tools = await mcp.tools()
-      expect(tools.map((t) => t.name)).toEqual(expect.arrayContaining(['acme_draw', 'mandarax_ui']))
+      expect(tools.map((t) => t.name)).toEqual(expect.arrayContaining(['acme_draw', 'conciv_ui']))
       const drawTool = tools.find((t) => t.name === 'acme_draw')
       if (!drawTool?.execute) throw new Error('acme_draw not registered on /api/mcp')
       const result = await drawTool.execute({shape: 'square'})
@@ -32,13 +32,13 @@ describe('/api/mcp extension tools', () => {
     }
   }, 30_000)
 
-  it('mandarax_extensions scaffolds + validates on the new contract over /api/mcp', async () => {
+  it('conciv_extensions scaffolds + validates on the new contract over /api/mcp', async () => {
     const {base, close} = await startTestServer()
     const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
     try {
       const tools = await mcp.tools()
-      const ext = tools.find((t) => t.name === 'mandarax_extensions')
-      if (!ext?.execute) throw new Error('mandarax_extensions not registered on /api/mcp')
+      const ext = tools.find((t) => t.name === 'conciv_extensions')
+      if (!ext?.execute) throw new Error('conciv_extensions not registered on /api/mcp')
 
       const full = JSON.stringify(await ext.execute({verb: 'scaffold', kind: 'full', name: 'demo'}))
       expect(full).toContain('defineExtension({name:')

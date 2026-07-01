@@ -2,7 +2,7 @@
 
 Date: 2026-06-23
 Status: Approved (design, proven by spike)
-Supersedes the extension-delivery parts of `2026-06-23-extension-api-rewrite-design.md` (the `__MANDARAX__` queue / virtual-module path).
+Supersedes the extension-delivery parts of `2026-06-23-extension-api-rewrite-design.md` (the `__CONCIV__` queue / virtual-module path).
 
 ## Goal
 
@@ -71,17 +71,17 @@ Each just builds `[...builtinExtensions, ...userExtensions]`.
 **Server — `core/src/engine.ts` via `plugin/src/core/boot.ts` (+ `vite.ts`).** Node runs full modules; no strip needed.
 
 ```ts
-import {builtinExtensions} from '@mandarax/extensions-builtin'
-const userExtensions = await discoverUserExtensions(root) // jiti-glob of mandarax/extensions/*
+import {builtinExtensions} from '@conciv/extensions-builtin'
+const userExtensions = await discoverUserExtensions(root) // jiti-glob of conciv/extensions/*
 start({extensions: [...builtinExtensions, ...userExtensions]}) // engine drains .server() → routes + MCP tools
 ```
 
 **Client — `plugin` client entry → `widget/src/mount.tsx`.** The transform already stripped `.server()` before this is bundled.
 
 ```ts
-import {builtinExtensions} from '@mandarax/extensions-builtin'
-import {mountWidget} from '@mandarax/widget'
-const userExtensions = Object.values(import.meta.glob('/mandarax/extensions/*.{ts,tsx}', {eager: true}))
+import {builtinExtensions} from '@conciv/extensions-builtin'
+import {mountWidget} from '@conciv/widget'
+const userExtensions = Object.values(import.meta.glob('/conciv/extensions/*.{ts,tsx}', {eager: true}))
   .map((m) => m.default)
   .filter(Boolean)
 mountWidget([...builtinExtensions, ...userExtensions])
@@ -97,7 +97,7 @@ export function mountWidget(extensions: ExtensionBuilder[]): void {
 ## What is deleted (the "ugly stuff")
 
 - `widget/src/extension-runtime.ts` — `installExtensionGlobal` (whole file).
-- `widget/src/mandarax-global.ts` — the `use` / `queue` extension keys (the file survives only for react-grab's own `registerPlugin` keys, or is renamed grab-owned).
+- `widget/src/conciv-global.ts` — the `use` / `queue` extension keys (the file survives only for react-grab's own `registerPlugin` keys, or is renamed grab-owned).
 - `extensionsModuleSource()`'s queue dance (`plugin/src/core/extensions.ts`) — replaced by the import + `mountWidget([...])` entry above.
 - `mount.tsx` self-invocation + global read — replaced by exported `mountWidget(extensions)`.
 - `chat-panel.tsx` `extensions: () => ExtensionBuilder[]` accessor → plain `ExtensionBuilder[]` (no runtime `use()`, so no reactivity; HMR remounts).
@@ -107,11 +107,11 @@ export function mountWidget(extensions: ExtensionBuilder[]): void {
 - **Client:** the `unplugin` `transform` calls `splitExtension(code, id, 'browser')`. One factory → every bundler adapter.
 - **Server:** the engine's jiti loader (`plugin/src/core/extensions.ts`, `loadServerExtensions`) passes `splitExtension(code, id, 'node')` as jiti's `transform`, so the backend's extension modules drop `.client()`/`.render()` and their Solid/card imports.
 - **Replace** the current one-directional, hand-rolled `plugin/src/core/strip-server.ts` (`stripServerHalf`) with `splitExtension` (bidirectional, DCE-based).
-- **New dependency:** `babel-dead-code-elimination` on `@mandarax/plugin` (it ships `findReferencedIdentifiers` + `deadCodeElimination`). This needs an install — confirm before adding, per repo policy.
+- **New dependency:** `babel-dead-code-elimination` on `@conciv/plugin` (it ships `findReferencedIdentifiers` + `deadCodeElimination`). This needs an install — confirm before adding, per repo policy.
 
 ## Open points (not blocking)
 
-1. **Built-ins live in a package → bundlers skip `node_modules`.** The transform must `include` `@mandarax/extensions-builtin` (keeps single-file authoring) — vs pre-shipping it split. Decision: `include` it.
+1. **Built-ins live in a package → bundlers skip `node_modules`.** The transform must `include` `@conciv/extensions-builtin` (keeps single-file authoring) — vs pre-shipping it split. Decision: `include` it.
 2. **Cross-bundler user discovery.** `import.meta.glob` is vite-only; webpack/rspack/esbuild need a generated module. `discoverUserExtensions` (server, jiti) is already bundler-agnostic.
 3. **The collapse matches any `.server(`/`.client(`/`.render(` member call** within a file that imports the contract (the `defineExtension` content gate scopes it). Fine in practice; tighten to verified `defineExtension`/`defineTool` chains only if a real collision appears.
 

@@ -1,7 +1,7 @@
 @import '@unocss/reset/tailwind.css';
-@import '@mandarax/ui-kit-system/tokens.css';
-@import '@mandarax/ui-kit-chat/theme/tokens.css';
-@import '@mandarax/ui-kit-chat/theme/mandarax.css';
+@import '@conciv/ui-kit-system/tokens.css';
+@import '@conciv/ui-kit-chat/theme/tokens.css';
+@import '@conciv/ui-kit-chat/theme/conciv.css';
 @unocss all;
 
 @media (prefers-reduced-motion: reduce) {

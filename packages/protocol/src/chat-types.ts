@@ -6,7 +6,7 @@ import {UsageSnapshotSchema} from './usage-types.js'
 export type {StreamChunk, UIMessage, MessagePart} from '@tanstack/ai'
 
 // The HTTP header carrying our session id on every chat request.
-export const MANDARAX_SESSION_HEADER = 'mandarax-session-id'
+export const CONCIV_SESSION_HEADER = 'conciv-session-id'
 
 // An inline content part on a posted message. Text carries `content`; image carries a base64
 // data `source` (mimeType matches @tanstack/ai's ContentPartDataSource field name).
@@ -48,16 +48,16 @@ export const ChatRequestSchema = z.object({
 export type ChatMessage = z.infer<typeof ChatMessageSchema>
 export type ChatRequest = z.infer<typeof ChatRequestSchema>
 
-// Our session id — minted by the server, mandarax_ prefixed, branded so a raw harness id can't be
+// Our session id — minted by the server, conciv_ prefixed, branded so a raw harness id can't be
 // passed where ours is required.
 export const SessionId = z
   .string()
-  .regex(/^mandarax_[A-Za-z0-9_-]{1,128}$/)
-  .brand<'MandaraxSessionId'>()
+  .regex(/^conciv_[A-Za-z0-9_-]{1,128}$/)
+  .brand<'ConcivSessionId'>()
 export type SessionId = z.infer<typeof SessionId>
 
 // Runtime guard — narrows an unknown/raw string to our branded SessionId. The one place to decide
-// "is this ours" so callers never hand-roll a `.startsWith('mandarax_')` check.
+// "is this ours" so callers never hand-roll a `.startsWith('conciv_')` check.
 export function isSessionId(id: unknown): id is SessionId {
   return SessionId.safeParse(id).success
 }
@@ -145,7 +145,7 @@ export const ChatSessionMetaSchema = z.object({
   updatedAt: z.number(),
   messageCount: z.number(),
   running: z.boolean(),
-  origin: z.enum(['mandarax', 'external']),
+  origin: z.enum(['conciv', 'external']),
   usage: UsageSnapshotSchema.nullable(),
 })
 export const ChatSessionsSchema = z.object({sessions: z.array(ChatSessionMetaSchema)})

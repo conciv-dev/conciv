@@ -1,4 +1,4 @@
-import {TOKENS} from '@mandarax/ui-kit-system/tokens'
+import {TOKENS} from '@conciv/ui-kit-system/tokens'
 
 const SLOTS = [
   {name: 'header', description: 'Above the message list (panel header region).'},
@@ -72,7 +72,7 @@ export type Catalog = {
 export function buildCatalog(): Catalog {
   return {
     conventions: {
-      location: 'mandarax/extensions/*.{ts,tsx}',
+      location: 'conciv/extensions/*.{ts,tsx}',
       entry:
         'export default defineExtension({name, configSchema, tools}).client((client) => ({value})).server((server) => ({context, dispose}))',
     },
@@ -92,14 +92,14 @@ export function buildCatalog(): Catalog {
 export type ScaffoldKind = 'theme' | 'composer-action' | 'tool' | 'tool-renderer' | 'component' | 'full'
 
 const TEMPLATES: Record<ScaffoldKind, (name: string) => string> = {
-  theme: (name) => `import {defineExtension} from '@mandarax/extension'
+  theme: (name) => `import {defineExtension} from '@conciv/extension'
 
 export default defineExtension({
   name: '${name}',
   theme: {'pw-accent': '#2563eb'},
 })
 `,
-  'composer-action': (name) => `import {defineExtension} from '@mandarax/extension'
+  'composer-action': (name) => `import {defineExtension} from '@conciv/extension'
 
 const extension = defineExtension({name: '${name}', Component})
 
@@ -117,7 +117,7 @@ function Component() {
 }
 `,
   tool: (name) => `import {z} from 'zod'
-import {defineExtension, defineTool} from '@mandarax/extension'
+import {defineExtension, defineTool} from '@conciv/extension'
 
 const ${name}Do = defineTool({
   name: '${name}_do',
@@ -128,7 +128,7 @@ const ${name}Do = defineTool({
 export default defineExtension({name: '${name}', tools: [${name}Do]})
 `,
   'tool-renderer': (name) => `import {z} from 'zod'
-import {defineExtension, defineTool} from '@mandarax/extension'
+import {defineExtension, defineTool} from '@conciv/extension'
 
 const ${name}Do = defineTool({
   name: '${name}_do',
@@ -140,7 +140,7 @@ const ${name}Do = defineTool({
 
 export default defineExtension({name: '${name}', tools: [${name}Do]})
 `,
-  component: (name) => `import {defineExtension} from '@mandarax/extension'
+  component: (name) => `import {defineExtension} from '@conciv/extension'
 
 const extension = defineExtension({name: '${name}', Component})
 
@@ -153,7 +153,7 @@ function Component() {
 }
 `,
   full: (name) => `import {z} from 'zod'
-import {defineExtension, defineTool} from '@mandarax/extension'
+import {defineExtension, defineTool} from '@conciv/extension'
 
 const ${name}Do = defineTool({
   name: '${name}_do',
@@ -212,7 +212,7 @@ export function validateSource(source: string): {ok: boolean; issues: Issue[]} {
     if (!TOKEN_NAMES.has(name))
       issues.push({
         level: 'error',
-        message: `Unknown theme token '${name}'. Run mandarax_extensions catalog for the token list.`,
+        message: `Unknown theme token '${name}'. Run conciv_extensions catalog for the token list.`,
       })
     if (TOKEN_NAMES.has(name) && !OVERRIDABLE_TOKEN_NAMES.has(name))
       issues.push({

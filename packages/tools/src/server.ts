@@ -1,24 +1,24 @@
 import {randomUUID} from 'node:crypto'
-import {buildUiSpec} from '@mandarax/protocol/ui-types'
-import type {MandaraxServerTool, MandaraxToolContext} from './types.js'
-import {mandaraxPageToolDef, PageInput} from './page.js'
-import {mandaraxUiToolDef, UiInput} from './ui.js'
-import {mandaraxOpenToolDef, OpenInput} from './open.js'
-import {buildCatalog, scaffold, validateSource} from '@mandarax/extension/catalog'
-import {mandaraxExtensionsToolDef, ExtensionsInput} from './extensions-tool.js'
+import {buildUiSpec} from '@conciv/protocol/ui-types'
+import type {ConcivServerTool, ConcivToolContext} from './types.js'
+import {concivPageToolDef, PageInput} from './page.js'
+import {concivUiToolDef, UiInput} from './ui.js'
+import {concivOpenToolDef, OpenInput} from './open.js'
+import {buildCatalog, scaffold, validateSource} from '@conciv/extension/catalog'
+import {concivExtensionsToolDef, ExtensionsInput} from './extensions-tool.js'
 
 // Each factory instantiates its definition as a tanstack server tool (the def stays the single
 // source of truth — the future page agent instantiates the same def with `.client()`), then erases
-// the per-tool generics to the uniform MandaraxServerTool the MCP server iterates. The uniform execute
+// the per-tool generics to the uniform ConcivServerTool the MCP server iterates. The uniform execute
 // validates raw args against the concrete zod schema once at the boundary before running.
 
-function mandaraxUiServerTool(ctx: MandaraxToolContext): MandaraxServerTool {
-  const tool = mandaraxUiToolDef.server(async (input) => {
+function concivUiServerTool(ctx: ConcivToolContext): ConcivServerTool {
+  const tool = concivUiToolDef.server(async (input) => {
     const renderId = randomUUID()
     return {renderId, injected: ctx.injectUi(buildUiSpec(input, renderId))}
   })
   const run = tool.execute
-  if (!run) throw new Error('mandarax_ui: server tool has no execute')
+  if (!run) throw new Error('conciv_ui: server tool has no execute')
   return {
     name: tool.name,
     description: tool.description,
@@ -27,10 +27,10 @@ function mandaraxUiServerTool(ctx: MandaraxToolContext): MandaraxServerTool {
   }
 }
 
-function mandaraxPageServerTool(ctx: MandaraxToolContext): MandaraxServerTool {
-  const tool = mandaraxPageToolDef.server(async ({verb, ...input}) => ctx.page({kind: verb, ...input}))
+function concivPageServerTool(ctx: ConcivToolContext): ConcivServerTool {
+  const tool = concivPageToolDef.server(async ({verb, ...input}) => ctx.page({kind: verb, ...input}))
   const run = tool.execute
-  if (!run) throw new Error('mandarax_page: server tool has no execute')
+  if (!run) throw new Error('conciv_page: server tool has no execute')
   return {
     name: tool.name,
     description: tool.description,
@@ -39,13 +39,13 @@ function mandaraxPageServerTool(ctx: MandaraxToolContext): MandaraxServerTool {
   }
 }
 
-function mandaraxOpenServerTool(ctx: MandaraxToolContext): MandaraxServerTool {
-  const tool = mandaraxOpenToolDef.server(async ({file, line}) => {
+function concivOpenServerTool(ctx: ConcivToolContext): ConcivServerTool {
+  const tool = concivOpenToolDef.server(async ({file, line}) => {
     ctx.open(file, line)
     return {ok: true, file, ...(line === undefined ? {} : {line})}
   })
   const run = tool.execute
-  if (!run) throw new Error('mandarax_open: server tool has no execute')
+  if (!run) throw new Error('conciv_open: server tool has no execute')
   return {
     name: tool.name,
     description: tool.description,
@@ -55,8 +55,8 @@ function mandaraxOpenServerTool(ctx: MandaraxToolContext): MandaraxServerTool {
 }
 
 // Stateless (no ctx): catalog/scaffold/validate are pure projections of node-safe extension metadata.
-function mandaraxExtensionsServerTool(): MandaraxServerTool {
-  const tool = mandaraxExtensionsToolDef.server(async (input) => {
+function concivExtensionsServerTool(): ConcivServerTool {
+  const tool = concivExtensionsToolDef.server(async (input) => {
     if (input.verb === 'catalog') return buildCatalog()
     if (input.verb === 'scaffold') {
       if (!input.kind || !input.name) throw new Error('scaffold needs {kind, name}')
@@ -66,7 +66,7 @@ function mandaraxExtensionsServerTool(): MandaraxServerTool {
     return validateSource(input.source)
   })
   const run = tool.execute
-  if (!run) throw new Error('mandarax_extensions: server tool has no execute')
+  if (!run) throw new Error('conciv_extensions: server tool has no execute')
   return {
     name: tool.name,
     description: tool.description,
@@ -75,13 +75,8 @@ function mandaraxExtensionsServerTool(): MandaraxServerTool {
   }
 }
 
-// The mandarax tool list as bound server tools, in one place so the MCP server (and tests) get them
+// The conciv tool list as bound server tools, in one place so the MCP server (and tests) get them
 // with a single import.
-export function mandaraxTools(ctx: MandaraxToolContext): MandaraxServerTool[] {
-  return [
-    mandaraxUiServerTool(ctx),
-    mandaraxPageServerTool(ctx),
-    mandaraxOpenServerTool(ctx),
-    mandaraxExtensionsServerTool(),
-  ]
+export function concivTools(ctx: ConcivToolContext): ConcivServerTool[] {
+  return [concivUiServerTool(ctx), concivPageServerTool(ctx), concivOpenServerTool(ctx), concivExtensionsServerTool()]
 }

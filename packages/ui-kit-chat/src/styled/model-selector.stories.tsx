@@ -59,4 +59,4 @@ function build(theme?: string): Story {
 
 export const Neutral: Story = build()
 export const Dark: Story = build('chat-theme-dark')
-export const Mandarax: Story = build('chat-theme-mandarax')
+export const Conciv: Story = build('chat-theme-conciv')

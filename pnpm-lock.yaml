@@ -20,7 +20,7 @@ importers:
       '@j178/prek':
         specifier: ^0.4.5
         version: 0.4.5
-      '@mandarax/publish':
+      '@conciv/publish':
         specifier: workspace:*
         version: link:packages/publish
       '@types/node':
@@ -59,9 +59,9 @@ importers:
 
   apps/examples/nextjs-app:
     dependencies:
-      '@mandarax/qu':
+      '@conciv/qu':
         specifier: workspace:*
-        version: link:../../../packages/mandarax
+        version: link:../../../packages/conciv
       next:
         specifier: 16.2.9
         version: 16.2.9(@opentelemetry/api@1.9.0)(@playwright/test@1.60.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(sass@1.51.0)
@@ -93,19 +93,19 @@ importers:
 
   apps/examples/tanstack-start:
     dependencies:
-      '@mandarax/cli':
+      '@conciv/cli':
         specifier: workspace:*
         version: link:../../../packages/cli
-      '@mandarax/extension':
+      '@conciv/extension':
         specifier: workspace:*
         version: link:../../../packages/extension
-      '@mandarax/protocol':
+      '@conciv/protocol':
         specifier: workspace:*
         version: link:../../../packages/protocol
-      '@mandarax/qu':
+      '@conciv/qu':
         specifier: workspace:*
-        version: link:../../../packages/mandarax
-      '@mandarax/widget':
+        version: link:../../../packages/conciv
+      '@conciv/widget':
         specifier: workspace:*
         version: link:../../../packages/widget
       '@tailwindcss/vite':
@@ -181,16 +181,16 @@ importers:
       '@gsap/react':
         specifier: ^2.1.2
         version: 2.1.2(gsap@3.15.0)(react@19.2.7)
-      '@mandarax/cli':
+      '@conciv/cli':
         specifier: workspace:*
         version: link:../../packages/cli
-      '@mandarax/protocol':
+      '@conciv/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
-      '@mandarax/qu':
+      '@conciv/qu':
         specifier: workspace:*
-        version: link:../../packages/mandarax
-      '@mandarax/widget':
+        version: link:../../packages/conciv
+      '@conciv/widget':
         specifier: workspace:*
         version: link:../../packages/widget
       '@tanstack/react-router':
@@ -281,7 +281,7 @@ importers:
 
   packages/api-client:
     dependencies:
-      '@mandarax/protocol':
+      '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
       zod:
@@ -309,7 +309,7 @@ importers:
       '@clack/prompts':
         specifier: ^1.5.1
         version: 1.5.1
-      '@mandarax/protocol':
+      '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
       citty:
@@ -340,13 +340,13 @@ importers:
       '@jridgewell/trace-mapping':
         specifier: 0.3.31
         version: 0.3.31
-      '@mandarax/harness':
+      '@conciv/harness':
         specifier: workspace:^
         version: link:../harness
-      '@mandarax/protocol':
+      '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
-      '@mandarax/tools':
+      '@conciv/tools':
         specifier: workspace:^
         version: link:../tools
       '@modelcontextprotocol/sdk':
@@ -380,7 +380,7 @@ importers:
       '@jridgewell/gen-mapping':
         specifier: ^0.3.13
         version: 0.3.13
-      '@mandarax/extension':
+      '@conciv/extension':
         specifier: workspace:^
         version: link:../extension
       '@tanstack/ai-mcp':
@@ -410,16 +410,16 @@ importers:
 
   packages/extension:
     dependencies:
-      '@mandarax/api-client':
+      '@conciv/api-client':
         specifier: workspace:^
         version: link:../api-client
-      '@mandarax/grab':
+      '@conciv/grab':
         specifier: workspace:^
         version: link:../grab
-      '@mandarax/protocol':
+      '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
-      '@mandarax/ui-kit-system':
+      '@conciv/ui-kit-system':
         specifier: workspace:^
         version: link:../ui-kit-system
       zod:
@@ -447,25 +447,25 @@ importers:
 
   packages/extension-testkit:
     dependencies:
-      '@mandarax/api-client':
+      '@conciv/api-client':
         specifier: workspace:^
         version: link:../api-client
-      '@mandarax/core':
+      '@conciv/core':
         specifier: workspace:^
         version: link:../core
-      '@mandarax/extension':
+      '@conciv/extension':
         specifier: workspace:^
         version: link:../extension
-      '@mandarax/grab':
+      '@conciv/grab':
         specifier: workspace:^
         version: link:../grab
-      '@mandarax/plugin':
+      '@conciv/plugin':
         specifier: workspace:^
         version: link:../plugin
-      '@mandarax/protocol':
+      '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
-      '@mandarax/ui-kit-system':
+      '@conciv/ui-kit-system':
         specifier: workspace:^
         version: link:../ui-kit-system
       '@playwright/test':
@@ -505,16 +505,16 @@ importers:
 
   packages/extensions/test-runner:
     dependencies:
-      '@mandarax/extension':
+      '@conciv/extension':
         specifier: workspace:^
         version: link:../../extension
-      '@mandarax/protocol':
+      '@conciv/protocol':
         specifier: workspace:^
         version: link:../../protocol
-      '@mandarax/ui-kit-chat':
+      '@conciv/ui-kit-chat':
         specifier: workspace:^
         version: link:../../ui-kit-chat
-      '@mandarax/ui-kit-system':
+      '@conciv/ui-kit-system':
         specifier: workspace:^
         version: link:../../ui-kit-system
       h3:
@@ -527,10 +527,10 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
-      '@mandarax/core':
+      '@conciv/core':
         specifier: workspace:^
         version: link:../../core
-      '@mandarax/uno-preset':
+      '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../../uno-preset
       '@playwright/test':
@@ -578,25 +578,25 @@ importers:
       '@excalidraw/mermaid-to-excalidraw':
         specifier: ^1.1.4
         version: 1.1.4(react@19.2.7)(supports-color@10.2.2)
-      '@mandarax/extension':
+      '@conciv/extension':
         specifier: workspace:^
         version: link:../../extension
-      '@mandarax/grab':
+      '@conciv/grab':
         specifier: workspace:^
         version: link:../../grab
-      '@mandarax/protocol':
+      '@conciv/protocol':
         specifier: workspace:^
         version: link:../../protocol
-      '@mandarax/ui-kit-chat':
+      '@conciv/ui-kit-chat':
         specifier: workspace:^
         version: link:../../ui-kit-chat
-      '@mandarax/ui-kit-chat-tools':
+      '@conciv/ui-kit-chat-tools':
         specifier: workspace:^
         version: link:../../ui-kit-chat-tools
-      '@mandarax/ui-kit-system':
+      '@conciv/ui-kit-system':
         specifier: workspace:^
         version: link:../../ui-kit-system
-      '@mandarax/ui-kit-tap':
+      '@conciv/ui-kit-tap':
         specifier: workspace:^
         version: link:../../ui-kit-tap
       h3:
@@ -627,13 +627,13 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
-      '@mandarax/core':
+      '@conciv/core':
         specifier: workspace:^
         version: link:../../core
-      '@mandarax/extension-testkit':
+      '@conciv/extension-testkit':
         specifier: workspace:^
         version: link:../../extension-testkit
-      '@mandarax/uno-preset':
+      '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../../uno-preset
       '@playwright/test':
@@ -699,7 +699,7 @@ importers:
       '@anthropic-ai/claude-agent-sdk':
         specifier: ^0.3.179
         version: 0.3.179(@anthropic-ai/sdk@0.104.2(zod@4.4.3))(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(zod@4.4.3)
-      '@mandarax/protocol':
+      '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
       '@tanstack/ai':
@@ -725,15 +725,15 @@ importers:
         specifier: ^4.1.8
         version: 4.1.8(@opentelemetry/api@1.9.0)(@types/node@22.19.21)(@vitest/browser-playwright@4.1.8)(@vitest/coverage-v8@4.1.8)(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
 
-  packages/mandarax:
+  packages/conciv:
     dependencies:
-      '@mandarax/extension-test-runner':
+      '@conciv/extension-test-runner':
         specifier: workspace:^
         version: link:../extensions/test-runner
-      '@mandarax/extension-whiteboard':
+      '@conciv/extension-whiteboard':
         specifier: workspace:^
         version: link:../extensions/whiteboard
-      '@mandarax/plugin':
+      '@conciv/plugin':
         specifier: workspace:^
         version: link:../plugin
       next:
@@ -761,19 +761,19 @@ importers:
       '@babel/preset-typescript':
         specifier: ^7.29.7
         version: 7.29.7(@babel/core@7.29.7)
-      '@mandarax/cli':
+      '@conciv/cli':
         specifier: workspace:^
         version: link:../cli
-      '@mandarax/core':
+      '@conciv/core':
         specifier: workspace:^
         version: link:../core
-      '@mandarax/extension':
+      '@conciv/extension':
         specifier: workspace:^
         version: link:../extension
-      '@mandarax/protocol':
+      '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
-      '@mandarax/widget':
+      '@conciv/widget':
         specifier: workspace:^
         version: link:../widget
       babel-dead-code-elimination:
@@ -1006,10 +1006,10 @@ importers:
 
   packages/tools:
     dependencies:
-      '@mandarax/extension':
+      '@conciv/extension':
         specifier: workspace:^
         version: link:../extension
-      '@mandarax/protocol':
+      '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
       '@tanstack/ai':
@@ -1037,16 +1037,16 @@ importers:
       '@ark-ui/solid':
         specifier: ^5.37.1
         version: 5.37.1(solid-js@1.9.13)
-      '@mandarax/protocol':
+      '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
-      '@mandarax/solid-diffs':
+      '@conciv/solid-diffs':
         specifier: workspace:^
         version: link:../solid-diffs
-      '@mandarax/solid-streamdown':
+      '@conciv/solid-streamdown':
         specifier: workspace:^
         version: link:../solid-streamdown
-      '@mandarax/ui-kit-system':
+      '@conciv/ui-kit-system':
         specifier: workspace:^
         version: link:../ui-kit-system
       '@tanstack/ai-client':
@@ -1068,7 +1068,7 @@ importers:
       '@chromatic-com/storybook':
         specifier: ^5.2.1
         version: 5.2.1(storybook@10.4.4(@testing-library/dom@10.4.1)(@types/react@19.2.17)(prettier@3.8.4)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))
-      '@mandarax/uno-preset':
+      '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../uno-preset
       '@storybook/addon-a11y':
@@ -1134,19 +1134,19 @@ importers:
 
   packages/ui-kit-chat-tools:
     dependencies:
-      '@mandarax/protocol':
+      '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
-      '@mandarax/solid-diffs':
+      '@conciv/solid-diffs':
         specifier: workspace:^
         version: link:../solid-diffs
-      '@mandarax/tools':
+      '@conciv/tools':
         specifier: workspace:^
         version: link:../tools
-      '@mandarax/ui-kit-chat':
+      '@conciv/ui-kit-chat':
         specifier: workspace:^
         version: link:../ui-kit-chat
-      '@mandarax/ui-kit-system':
+      '@conciv/ui-kit-system':
         specifier: workspace:^
         version: link:../ui-kit-system
       js-beautify:
@@ -1165,7 +1165,7 @@ importers:
       '@chromatic-com/storybook':
         specifier: ^5.2.1
         version: 5.2.1(storybook@10.4.4(@testing-library/dom@10.4.1)(@types/react@19.2.17)(prettier@3.8.4)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))
-      '@mandarax/uno-preset':
+      '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../uno-preset
       '@storybook/addon-a11y':
@@ -1241,7 +1241,7 @@ importers:
       '@chromatic-com/storybook':
         specifier: ^5.2.1
         version: 5.2.1(storybook@10.4.4(@testing-library/dom@10.4.1)(@types/react@19.2.17)(prettier@3.8.4)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))
-      '@mandarax/uno-preset':
+      '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../uno-preset
       '@storybook/addon-a11y':
@@ -1301,7 +1301,7 @@ importers:
 
   packages/ui-kit-tap:
     dependencies:
-      '@mandarax/ui-kit-system':
+      '@conciv/ui-kit-system':
         specifier: workspace:*
         version: link:../ui-kit-system
       '@tiptap/core':
@@ -1329,7 +1329,7 @@ importers:
       '@chromatic-com/storybook':
         specifier: ^5.2.1
         version: 5.2.1(storybook@10.4.4(@testing-library/dom@10.4.1)(@types/react@19.2.17)(prettier@3.8.4)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))
-      '@mandarax/uno-preset':
+      '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../uno-preset
       '@storybook/addon-a11y':
@@ -1411,31 +1411,31 @@ importers:
       '@ark-ui/solid':
         specifier: ^5.37.1
         version: 5.37.1(solid-js@1.9.13)
-      '@mandarax/api-client':
+      '@conciv/api-client':
         specifier: workspace:^
         version: link:../api-client
-      '@mandarax/extension':
+      '@conciv/extension':
         specifier: workspace:^
         version: link:../extension
-      '@mandarax/grab':
+      '@conciv/grab':
         specifier: workspace:^
         version: link:../grab
-      '@mandarax/protocol':
+      '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
-      '@mandarax/solid-diffs':
+      '@conciv/solid-diffs':
         specifier: workspace:^
         version: link:../solid-diffs
-      '@mandarax/solid-streamdown':
+      '@conciv/solid-streamdown':
         specifier: workspace:^
         version: link:../solid-streamdown
-      '@mandarax/ui-kit-chat':
+      '@conciv/ui-kit-chat':
         specifier: workspace:^
         version: link:../ui-kit-chat
-      '@mandarax/ui-kit-chat-tools':
+      '@conciv/ui-kit-chat-tools':
         specifier: workspace:^
         version: link:../ui-kit-chat-tools
-      '@mandarax/ui-kit-system':
+      '@conciv/ui-kit-system':
         specifier: workspace:^
         version: link:../ui-kit-system
       '@tanstack/ai':
@@ -1478,10 +1478,10 @@ importers:
       '@chromatic-com/storybook':
         specifier: ^5.2.1
         version: 5.2.1(storybook@10.4.4(@testing-library/dom@10.4.1)(@types/react@19.2.17)(prettier@3.8.4)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))
-      '@mandarax/extension-test-runner':
+      '@conciv/extension-test-runner':
         specifier: workspace:^
         version: link:../extensions/test-runner
-      '@mandarax/uno-preset':
+      '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../uno-preset
       '@storybook/addon-a11y':

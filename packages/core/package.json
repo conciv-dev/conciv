@@ -1,21 +1,21 @@
 {
-  "name": "@mandarax/core",
+  "name": "@conciv/core",
   "version": "0.0.0",
-  "description": "The mandarax engine: a framework-free h3 + srvx server exposing the /__pw HTTP surface, with a harness registry seam.",
+  "description": "The conciv engine: a framework-free h3 + srvx server exposing the /__pw HTTP surface, with a harness registry seam.",
   "keywords": [
     "ai",
+    "conciv",
     "engine",
     "h3",
-    "mandarax",
     "server",
     "srvx"
   ],
-  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/core#readme",
-  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
+  "homepage": "https://github.com/conciv-dev/conciv/tree/main/packages/core#readme",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mandarax-dev/mandarax.git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
     "directory": "packages/core"
   },
   "files": [
@@ -52,10 +52,10 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@conciv/harness": "workspace:^",
+    "@conciv/protocol": "workspace:^",
+    "@conciv/tools": "workspace:^",
     "@jridgewell/trace-mapping": "0.3.31",
-    "@mandarax/harness": "workspace:^",
-    "@mandarax/protocol": "workspace:^",
-    "@mandarax/tools": "workspace:^",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@tanstack/ai": "^0.28.0",
     "crossws": "0.4.6",
@@ -67,8 +67,8 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@conciv/extension": "workspace:^",
     "@jridgewell/gen-mapping": "^0.3.13",
-    "@mandarax/extension": "workspace:^",
     "@tanstack/ai-mcp": "^0.1.0",
     "@types/node": "^22.19.21",
     "@types/ws": "^8.18.1",

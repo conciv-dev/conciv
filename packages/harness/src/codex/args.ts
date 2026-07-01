@@ -1,8 +1,8 @@
-import type {HarnessTurn} from '@mandarax/protocol/harness-types'
+import type {HarnessTurn} from '@conciv/protocol/harness-types'
 
 // Build the non-interactive `codex exec` argv: stream machine-readable JSON events to stdout and
 // allow workspace edits without interactive approval (codex governs risky ops via its own
-// sandbox, so mandarax wires no permission gate). codex exec has no system-prompt flag, so the
+// sandbox, so conciv wires no permission gate). codex exec has no system-prompt flag, so the
 // system prompt is prepended to the prompt upstream (systemPrompt:'none'); permissionUrl is
 // ignored. A prior session resumes via the `exec resume <id>` subcommand.
 export function buildCodexArgs(turn: HarnessTurn): string[] {

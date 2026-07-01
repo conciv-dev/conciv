@@ -90,7 +90,7 @@ The lock is released in a `finally` (search `releaseLock(stateRoot, sessionId)` 
 the stream-teardown helper). Imports at top: `import {acquireLock, readLock, releaseLock} from '../../store/lock.js'`.
 
 - `packages/core/test/store/lock.test.ts` — existing per-session lock tests; use as the pattern. It
-  uses `mkdtempSync(join(tmpdir(), 'mandarax-lock-'))` for isolated state roots and cleans up in
+  uses `mkdtempSync(join(tmpdir(), 'conciv-lock-'))` for isolated state roots and cleans up in
   `afterEach`. Current first test:
 
 ```ts
@@ -111,12 +111,12 @@ describe('per-session lock', () => {
 
 ## Commands you will need
 
-| Purpose        | Command                                             | Expected on success |
-| -------------- | --------------------------------------------------- | ------------------- |
-| Typecheck core | `pnpm turbo run typecheck --filter=@mandarax/core`  | exit 0              |
-| Core tests     | `pnpm turbo run test --filter=@mandarax/core`       | all pass            |
-| Lock test only | `pnpm --filter @mandarax/core exec vitest run lock` | lock tests pass     |
-| Lint core      | `pnpm --filter @mandarax/core lint`                 | exit 0              |
+| Purpose        | Command                                           | Expected on success |
+| -------------- | ------------------------------------------------- | ------------------- |
+| Typecheck core | `pnpm turbo run typecheck --filter=@conciv/core`  | exit 0              |
+| Core tests     | `pnpm turbo run test --filter=@conciv/core`       | all pass            |
+| Lock test only | `pnpm --filter @conciv/core exec vitest run lock` | lock tests pass     |
+| Lint core      | `pnpm --filter @conciv/core lint`                 | exit 0              |
 
 ## Scope
 
@@ -180,7 +180,7 @@ Note: there is still a tiny reclaim window for _stale_ locks (two callers both s
 that only happens after a crash and both would write the same "free→held" transition; the live-holder
 path — the one that matters — is now race-free via `wx`. Do not over-engineer this further.
 
-**Verify**: `pnpm turbo run typecheck --filter=@mandarax/core` → exit 0.
+**Verify**: `pnpm turbo run typecheck --filter=@conciv/core` → exit 0.
 
 ### Step 2: Acquire before spawning in the turn route
 
@@ -224,7 +224,7 @@ leak. Wrap the post-acquire body so any throw before the stream starts releases 
 Read the handler body and place the release so EVERY path after a successful acquire releases on
 failure. If the structure makes this awkward, that is a STOP condition — report the handler shape.
 
-**Verify**: `pnpm turbo run typecheck --filter=@mandarax/core` → exit 0; `pnpm --filter @mandarax/core lint` → exit 0.
+**Verify**: `pnpm turbo run typecheck --filter=@conciv/core` → exit 0; `pnpm --filter @conciv/core lint` → exit 0.
 
 ### Step 3: Add lock tests for double-acquire and stale reclaim
 
@@ -255,11 +255,11 @@ it('reclaims a stale lock whose holder pid is dead', () => {
 (If a chosen `deadPid` happens to be alive in the executor's environment, pick another clearly-dead pid
 and note it — `process.kill(pid, 0)` throwing means dead.)
 
-**Verify**: `pnpm --filter @mandarax/core exec vitest run lock` → all lock tests pass (existing + 2 new).
+**Verify**: `pnpm --filter @conciv/core exec vitest run lock` → all lock tests pass (existing + 2 new).
 
 ### Step 4: Full core verification
 
-**Verify**: `pnpm turbo run test --filter=@mandarax/core` → all pass.
+**Verify**: `pnpm turbo run test --filter=@conciv/core` → all pass.
 
 ## Test plan
 
@@ -268,7 +268,7 @@ and note it — `process.kill(pid, 0)` throwing means dead.)
 - Pattern: the existing `per-session lock` describe block in the same file.
 - Note: a true parallel-process race test is inherently flaky and is intentionally **not** added; the
   `wx` flag closes the race by construction. Say so in the commit message.
-- Verification: `pnpm turbo run test --filter=@mandarax/core` → all pass.
+- Verification: `pnpm turbo run test --filter=@conciv/core` → all pass.
 
 ## Done criteria
 
@@ -278,9 +278,9 @@ ALL must hold:
 - [ ] `turn.ts` acquires the lock at the top (the `if (!acquireLock(... process.pid ...))` throw) and no
       longer calls `acquireLock` inside `onSpawn` (`grep -n "acquireLock" packages/core/src/api/chat/turn.ts` shows exactly one call)
 - [ ] The lock is released on post-acquire failure paths (Step 2), not just the streaming `finally`
-- [ ] `pnpm turbo run typecheck --filter=@mandarax/core` exits 0
-- [ ] `pnpm turbo run test --filter=@mandarax/core` exits 0; the 2 new lock tests pass
-- [ ] `pnpm --filter @mandarax/core lint` exits 0
+- [ ] `pnpm turbo run typecheck --filter=@conciv/core` exits 0
+- [ ] `pnpm turbo run test --filter=@conciv/core` exits 0; the 2 new lock tests pass
+- [ ] `pnpm --filter @conciv/core lint` exits 0
 - [ ] Only the three in-scope files are modified
 - [ ] `plans/README.md` row for 003 updated
 

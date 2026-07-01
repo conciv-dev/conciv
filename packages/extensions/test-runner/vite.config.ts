@@ -3,7 +3,7 @@ import {defineConfig} from 'vite'
 import solid from 'vite-plugin-solid'
 
 // The browser view (client.ts + the Solid card) compiled by vite-plugin-solid. solid-js, zod,
-// lucide-solid, and the @mandarax workspace deps stay external — the host widget bundles them once
+// lucide-solid, and the @conciv workspace deps stay external — the host widget bundles them once
 // and dedupes solid-js. emptyOutDir:false so this lands beside the tsdown node outputs.
 export default defineConfig({
   plugins: [solid()],
@@ -14,7 +14,7 @@ export default defineConfig({
       fileName: () => 'client.js',
     },
     rollupOptions: {
-      external: [/^solid-js/, /^zod/, /^@mandarax\//, /^lucide-solid/],
+      external: [/^solid-js/, /^zod/, /^@conciv\//, /^lucide-solid/],
     },
     emptyOutDir: false,
     sourcemap: true,

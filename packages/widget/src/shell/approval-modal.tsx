@@ -1,8 +1,8 @@
 import {Show, type JSX} from 'solid-js'
-import {Dialog} from '@mandarax/ui-kit-system'
-import {PermissionCard} from '@mandarax/ui-kit-chat'
+import {Dialog} from '@conciv/ui-kit-system'
+import {PermissionCard} from '@conciv/ui-kit-chat'
 import type {ToolCallPart} from '@tanstack/ai-client'
-import type {ToolViewCtx} from '@mandarax/protocol/tool-view-types'
+import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 
 // A permission request awaiting the user's decision. ChatPanel derives one per `approval-requested`
 // tool-call part and reports the part + the host ctx up; the modal renders the shared ui-kit-chat

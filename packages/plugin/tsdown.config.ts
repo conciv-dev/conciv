@@ -1,7 +1,7 @@
 import {defineConfig} from 'tsdown'
 
 // One factory (index.ts) + a subpath entry per bundler, plus the Next.js entries (nextjs =
-// withMandarax/register, nextjs-widget = client mount). @mandarax/* + unplugin + vite + launch-editor
+// withConciv/register, nextjs-widget = client mount). @conciv/* + unplugin + vite + launch-editor
 // stay external (peer/host deps, never bundled).
 export default defineConfig({
   entry: [
@@ -17,5 +17,5 @@ export default defineConfig({
   format: 'esm',
   fixedExtension: false,
   dts: true,
-  external: [/^@mandarax\/mandarax-/, 'unplugin', 'vite', 'launch-editor'],
+  external: [/^@conciv\/conciv-/, 'unplugin', 'vite', 'launch-editor'],
 })

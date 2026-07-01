@@ -1,7 +1,7 @@
 import type {JSX} from 'solid-js'
 import {Wrench} from 'lucide-solid'
-import {ToolCard, ToolFallback, ToolFallbackPrimitive} from '@mandarax/ui-kit-chat'
-import type {ToolCardProps} from '@mandarax/protocol/tool-view-types'
+import {ToolCard, ToolFallback, ToolFallbackPrimitive} from '@conciv/ui-kit-chat'
+import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 
 // The widget's look for an unknown tool: ui-kit-chat's bordered ToolCard chrome (same as the concrete
 // cards, so the thread reads as one consistent set) wrapping the FAITHFUL ToolFallback body parts —

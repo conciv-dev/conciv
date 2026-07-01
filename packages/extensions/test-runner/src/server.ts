@@ -1,6 +1,6 @@
 import {getValidatedQuery, readValidatedBody, onError, HTTPError} from 'h3'
 import {z} from 'zod'
-import {defineExtension} from '@mandarax/extension'
+import {defineExtension} from '@conciv/extension'
 import {TEST_RUNNER_NAME, TEST_RUNNER_PROMPT, testRunnerConfig} from './shared/meta.js'
 import {testTool} from './tool/server.js'
 import {getRunner} from './runner/registry.js'

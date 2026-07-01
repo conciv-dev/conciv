@@ -16,7 +16,7 @@ export default defineConfig({
       fileName: () => 'client.js',
     },
     rollupOptions: {
-      external: [/^solid-js/, /^zod/, /^@mandarax\//, /^node:/, /^oxc-parser/],
+      external: [/^solid-js/, /^zod/, /^@conciv\//, /^node:/, /^oxc-parser/],
     },
     emptyOutDir: false,
     sourcemap: true,

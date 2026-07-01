@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Ship `@mandarax/extension-testkit` exporting `getExtensionTestApi(extension)`, so any extension is tested in a real browser, against a real spawned server, through its real contract — no mocks, no stubs, no `window.*` hooks, no example app.
+**Goal:** Ship `@conciv/extension-testkit` exporting `getExtensionTestApi(extension)`, so any extension is tested in a real browser, against a real spawned server, through its real contract — no mocks, no stubs, no `window.*` hooks, no example app.
 
-**Architecture:** A single async factory boots the extension's real server (core `start()`), serves a minimal real host page that mounts the extension through the real framework (a shared `mountExtension` lifted into `@mandarax/extension`) with a real `ClientApi` + `ExtensionHostContext`, launches Chromium, and returns `{page, callTool, session, apiBase, dispose}`. `grab` resolves real source from the `data-mandarax-source` attribute the mandarax plugin already stamps.
+**Architecture:** A single async factory boots the extension's real server (core `start()`), serves a minimal real host page that mounts the extension through the real framework (a shared `mountExtension` lifted into `@conciv/extension`) with a real `ClientApi` + `ExtensionHostContext`, launches Chromium, and returns `{page, callTool, session, apiBase, dispose}`. `grab` resolves real source from the `data-conciv-source` attribute the conciv plugin already stamps.
 
-**Tech Stack:** TypeScript (NodeNext), Solid, vite (build the host page), Playwright `chromium` (real browser), `@tanstack/ai-mcp` (real MCP), `@mandarax/core` `start()` (real server), vitest (runner).
+**Tech Stack:** TypeScript (NodeNext), Solid, vite (build the host page), Playwright `chromium` (real browser), `@tanstack/ai-mcp` (real MCP), `@conciv/core` `start()` (real server), vitest (runner).
 
 ## Global Constraints
 
@@ -33,7 +33,7 @@ packages/extension/src/
 packages/widget/src/extension/
   extension-slots.tsx        (MODIFY) call mountExtension instead of inlining the Provider+render
 
-packages/extension-testkit/   (NEW package: @mandarax/extension-testkit)
+packages/extension-testkit/   (NEW package: @conciv/extension-testkit)
   package.json
   tsconfig.json
   vitest.config.ts
@@ -44,7 +44,7 @@ packages/extension-testkit/   (NEW package: @mandarax/extension-testkit)
     call-tool.ts                makeCallTool(apiBase, session) → (name, input) => Promise<unknown>
     host/
       host-entry.tsx            browser entry: build real ClientApi + ExtensionHostContext, mountExtension
-      grab.ts                   real grab + page resolution over data-mandarax-source
+      grab.ts                   real grab + page resolution over data-conciv-source
       fixture-element.tsx       one real source-mapped element for grab to pick
     build-host.ts               vite build of host/ → a served dir
     serve.ts                    tiny node http static server for the built host dir
@@ -55,7 +55,7 @@ packages/extension-testkit/   (NEW package: @mandarax/extension-testkit)
 
 ---
 
-## Task 1: Extract `mountExtension` into `@mandarax/extension`
+## Task 1: Extract `mountExtension` into `@conciv/extension`
 
 **Files:**
 
@@ -130,7 +130,7 @@ packages/extension-testkit/   (NEW package: @mandarax/extension-testkit)
 
 - [ ] **Step 5: Refactor `extension-slots.tsx`** to call `mountExtension` for each instance/slot rather than inlining the Provider+render, keeping the widget's existing per-panel `bag` construction. Confirm `installClientApi` is still called exactly once at widget mount (do not double-install — if `mountExtension` installs it, remove the widget's separate `installClientApi` call, or make install idempotent; pick whichever the existing code supports and note it).
 
-- [ ] **Step 6: Run the test + widget build** — `npx vitest run test/mount-extension.it.test.ts` (PASS), then `npx turbo build --filter=@mandarax/extension --filter=@mandarax/widget` (clean).
+- [ ] **Step 6: Run the test + widget build** — `npx vitest run test/mount-extension.it.test.ts` (PASS), then `npx turbo build --filter=@conciv/extension --filter=@conciv/widget` (clean).
 
 - [ ] **Step 7: Commit**
   ```bash
@@ -140,7 +140,7 @@ packages/extension-testkit/   (NEW package: @mandarax/extension-testkit)
 
 ---
 
-## Task 2: Scaffold `@mandarax/extension-testkit`
+## Task 2: Scaffold `@conciv/extension-testkit`
 
 **Files:**
 
@@ -148,13 +148,13 @@ packages/extension-testkit/   (NEW package: @mandarax/extension-testkit)
 
 **Interfaces:**
 
-- Produces: an installable workspace package `@mandarax/extension-testkit` with `"test": "vitest run"`, NodeNext, depending on `@mandarax/core`, `@mandarax/extension`, `@mandarax/grab`, `@mandarax/protocol`, `@tanstack/ai-mcp`, `vite`, `solid-js`, `playwright`. **Before adding any dependency not already in the monorepo, ask the user.** (All listed are already used elsewhere in the repo — confirm with `grep` in other package.json files; if any is new, stop and ask.)
+- Produces: an installable workspace package `@conciv/extension-testkit` with `"test": "vitest run"`, NodeNext, depending on `@conciv/core`, `@conciv/extension`, `@conciv/grab`, `@conciv/protocol`, `@tanstack/ai-mcp`, `vite`, `solid-js`, `playwright`. **Before adding any dependency not already in the monorepo, ask the user.** (All listed are already used elsewhere in the repo — confirm with `grep` in other package.json files; if any is new, stop and ask.)
 
 - [ ] **Step 1:** Copy `packages/extensions/whiteboard/vitest.config.ts` as the template (node env, serial, `test/**/*.it.test.ts`). Set `name: 'extension-testkit'`.
-- [ ] **Step 2:** Write `package.json` mirroring another internal package's shape (`type: module`, exports `./src/get-extension-test-api.ts` or a built `dist` — match how `@mandarax/extension` exposes its entry). Single public export `getExtensionTestApi`.
-- [ ] **Step 3:** `tsconfig.json` extends the repo base (copy from `@mandarax/extension`).
+- [ ] **Step 2:** Write `package.json` mirroring another internal package's shape (`type: module`, exports `./src/get-extension-test-api.ts` or a built `dist` — match how `@conciv/extension` exposes its entry). Single public export `getExtensionTestApi`.
+- [ ] **Step 3:** `tsconfig.json` extends the repo base (copy from `@conciv/extension`).
 - [ ] **Step 4:** `pnpm install` at repo root to link the workspace package. Expected: resolves clean.
-- [ ] **Step 5: Commit** `chore(testkit): scaffold @mandarax/extension-testkit package`.
+- [ ] **Step 5: Commit** `chore(testkit): scaffold @conciv/extension-testkit package`.
 
 ---
 
@@ -167,7 +167,7 @@ packages/extension-testkit/   (NEW package: @mandarax/extension-testkit)
 
 **Interfaces:**
 
-- Consumes: `start` from `@mandarax/core/engine`, `AnyExtension`.
+- Consumes: `start` from `@conciv/core/engine`, `AnyExtension`.
 - Produces: `export async function bootExtensionServer(extension: AnyExtension): Promise<{apiBase: string; stop: () => Promise<void>}>`
 
 - [ ] **Step 1: Failing test** — boot whiteboard, assert `GET ${apiBase}/api/chat/models` responds 2xx (real server up), then `stop()`.
@@ -184,13 +184,13 @@ packages/extension-testkit/   (NEW package: @mandarax/extension-testkit)
   import {mkdtemp} from 'node:fs/promises'
   import {tmpdir} from 'node:os'
   import {join} from 'node:path'
-  import {start} from '@mandarax/core/engine'
-  import type {AnyExtension} from '@mandarax/extension'
+  import {start} from '@conciv/core/engine'
+  import type {AnyExtension} from '@conciv/extension'
 
   export async function bootExtensionServer(
     extension: AnyExtension,
   ): Promise<{apiBase: string; stop: () => Promise<void>}> {
-    const root = await mkdtemp(join(tmpdir(), 'mandarax-testkit-'))
+    const root = await mkdtemp(join(tmpdir(), 'conciv-testkit-'))
     const engine = await start({options: {stateRoot: root}, root, extensions: [extension], launchEditor: () => {}})
     return {apiBase: `http://localhost:${engine.port}`, stop: () => engine.stop()}
   }
@@ -214,7 +214,7 @@ packages/extension-testkit/   (NEW package: @mandarax/extension-testkit)
 
 - Produces: `export async function resolveSession(apiBase: string): Promise<string>`
 
-- [ ] **Step 1: Failing test** — boot server, `resolveSession(apiBase)` returns a string matching `/^mandarax_/`.
+- [ ] **Step 1: Failing test** — boot server, `resolveSession(apiBase)` returns a string matching `/^conciv_/`.
 - [ ] **Step 2: Verify fail.**
 - [ ] **Step 3: Implement** — `POST ${apiBase}/api/chat/session/resolve` with `{}` body, parse `{sessionId}`. Confirm the route + response shape against `packages/core/src/api/chat/session.ts` (`/api/chat/session/resolve`).
   ```ts
@@ -242,7 +242,7 @@ packages/extension-testkit/   (NEW package: @mandarax/extension-testkit)
 
 **Interfaces:**
 
-- Consumes: `createMCPClient` from `@tanstack/ai-mcp`, `MANDARAX_SESSION_HEADER` from `@mandarax/protocol/chat-types`.
+- Consumes: `createMCPClient` from `@tanstack/ai-mcp`, `CONCIV_SESSION_HEADER` from `@conciv/protocol/chat-types`.
 - Produces: `export function makeCallTool(apiBase: string, session: string): (name: string, input: unknown) => Promise<unknown>`
 
 - [ ] **Step 1: Failing test** — boot whiteboard, resolve session, `callTool('canvas.read', {})` returns `{elements: []}` (or the real shape) without throwing.
@@ -251,12 +251,12 @@ packages/extension-testkit/   (NEW package: @mandarax/extension-testkit)
 
   ```ts
   import {createMCPClient} from '@tanstack/ai-mcp'
-  import {MANDARAX_SESSION_HEADER} from '@mandarax/protocol/chat-types'
+  import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 
   export function makeCallTool(apiBase: string, session: string) {
     return async (name: string, input: unknown): Promise<unknown> => {
       const mcp = await createMCPClient({
-        transport: {type: 'http', url: `${apiBase}/api/mcp`, headers: {[MANDARAX_SESSION_HEADER]: session}},
+        transport: {type: 'http', url: `${apiBase}/api/mcp`, headers: {[CONCIV_SESSION_HEADER]: session}},
       })
       try {
         const tool = (await mcp.tools()).find((entry) => entry.name === name)
@@ -274,7 +274,7 @@ packages/extension-testkit/   (NEW package: @mandarax/extension-testkit)
 
 ---
 
-## Task 6: Real grab + source over `data-mandarax-source` (`host/grab.ts`, `host/fixture-element.tsx`)
+## Task 6: Real grab + source over `data-conciv-source` (`host/grab.ts`, `host/fixture-element.tsx`)
 
 **Files:**
 
@@ -287,12 +287,12 @@ packages/extension-testkit/   (NEW package: @mandarax/extension-testkit)
 
   ```ts
   // grab.ts
-  export function makeHostGrab(doc: Document): GrabApi // GrabApi from @mandarax/grab
-  export function makeHostPage(doc: Document): ClientApi['page'] // elementAt/describe/locate over data-mandarax-source
+  export function makeHostGrab(doc: Document): GrabApi // GrabApi from @conciv/grab
+  export function makeHostPage(doc: Document): ClientApi['page'] // elementAt/describe/locate over data-conciv-source
   ```
 
-- [ ] **Step 1:** `fixture-element.tsx` — a real Solid component rendering one labelled element (`aria-label="Comment target"`); because the host build runs the mandarax source transform (Task 7), it carries a real `data-mandarax-source`.
-- [ ] **Step 2:** `grab.ts` — `pick()` returns a Promise that resolves when the picked element is clicked, reading `element.getAttribute('data-mandarax-source')` (`path:line:col`) into `ElementSource` and `element.getBoundingClientRect()` into `ElementRect`, and building the `Grab` (`snapshot` = a real cloned node, `text`, `source`, `rect`). Match `GrabApi` exactly (`pick`, `comment`, `cancel`, `isActive`, `stage`) from `packages/grab/src/grab.ts`. Implement `pick`/`comment` to await a real click on the fixture element; `cancel`/`isActive`/`stage` real and minimal.
+- [ ] **Step 1:** `fixture-element.tsx` — a real Solid component rendering one labelled element (`aria-label="Comment target"`); because the host build runs the conciv source transform (Task 7), it carries a real `data-conciv-source`.
+- [ ] **Step 2:** `grab.ts` — `pick()` returns a Promise that resolves when the picked element is clicked, reading `element.getAttribute('data-conciv-source')` (`path:line:col`) into `ElementSource` and `element.getBoundingClientRect()` into `ElementRect`, and building the `Grab` (`snapshot` = a real cloned node, `text`, `source`, `rect`). Match `GrabApi` exactly (`pick`, `comment`, `cancel`, `isActive`, `stage`) from `packages/grab/src/grab.ts`. Implement `pick`/`comment` to await a real click on the fixture element; `cancel`/`isActive`/`stage` real and minimal.
 - [ ] **Step 3:** No standalone test — exercised by Task 8 (comment-on-element). Commit with Task 7.
 
 ---
@@ -318,7 +318,7 @@ packages/extension-testkit/   (NEW package: @mandarax/extension-testkit)
   ```
 
 - [ ] **Step 1:** `host-entry.tsx` (browser): read `apiBase` + `session` from injected `<meta>` (stamped into the served HTML, mirroring `pw-api-base`). Build the real `ClientApi` (`apiBase`, `activeSession: () => session`, real `surface` shadow host appended to `document.body`, `env: {doc, win, reducedMotion}`, `toast`, `page` from `makeHostPage`). Build `hostContext` bag (`grab` from `makeHostGrab`, plus the other `ExtensionHostContext` capabilities the extension reads — enumerate from `packages/extension/src/types.ts` / `catalog.ts`: `insert`, `notify`, `setBusy`, `newSession`, `harnessId`, `client`; provide real minimal implementations, e.g. `harnessId` from a meta, `insert`/`notify` real DOM/no-throw — **none stubbed to fake values; provide real behavior or omit if the contract allows optional**). Render the fixture element AND call `mountExtension(extension, {...})` with `slot: 'composer'`.
-- [ ] **Step 2:** `build-host.ts` — programmatic `vite.build` with the mandarax source-injection transform applied to the host entry (import `addSourceToJsx` usage from the plugin, or run the plugin's serve transform; confirm the exact transform entry in `packages/plugin/src/core/inject-source.ts`). Output to a temp dir; emit an `index.html` with the two `<meta>` placeholders.
+- [ ] **Step 2:** `build-host.ts` — programmatic `vite.build` with the conciv source-injection transform applied to the host entry (import `addSourceToJsx` usage from the plugin, or run the plugin's serve transform; confirm the exact transform entry in `packages/plugin/src/core/inject-source.ts`). Output to a temp dir; emit an `index.html` with the two `<meta>` placeholders.
 - [ ] **Step 3:** `serve.ts` — minimal `node:http` static file server over the build dir, substituting the real `apiBase`/`session` into the `<meta>` tags at request time. Return `{origin, close}`.
 - [ ] **Step 4:** `launch.ts` — `import {chromium} from 'playwright'`; `launch()`, `newPage()` (not `newContext`, per `widget-it-newpage-not-newcontext`), `goto(url, {waitUntil: 'domcontentloaded'})` (not `networkidle`, per `playwright-networkidle-hangs-live-widget`). Return `{page, close}`.
 - [ ] **Step 5: Commit** `feat(testkit): host entry, build, serve, launch` (with Task 6 files).
@@ -351,7 +351,7 @@ packages/extension-testkit/   (NEW package: @mandarax/extension-testkit)
 
   ```ts
   import {test, expect} from 'vitest' // or the package's runner
-  import whiteboard from '@mandarax/extension-whiteboard'
+  import whiteboard from '@conciv/extension-whiteboard'
   import {getExtensionTestApi} from '../src/get-extension-test-api.js'
 
   test('whiteboard mounts and opens its canvas', async () => {
@@ -371,9 +371,9 @@ packages/extension-testkit/   (NEW package: @mandarax/extension-testkit)
 
 ## Self-Review notes (addressed)
 
-- **Spec coverage:** server (T3), session (T4), framework mount/extraction (T1), grab over data-mandarax-source (T6), MCP (T5), host page (T7), single `getExtensionTestApi` (T8) — all mapped.
-- **`ExtensionHostContext` completeness — RESOLVED:** `host-runtime.tsx` enumerates the full bag = `ToolViewCtx` (`apiBase`, `harnessId`, `sendMessage`) + `ComposerActions` (`insert`/`notify`/`setBusy`/`newSession`/`addDivider`/`compact`/`resetUsage`) + `client` (real `defineClient`) + `requestMeta` + `grab` (real, over `data-mandarax-source`). Real values where a target exists (`client`, `grab`, `requestMeta`, `notify`→toast). **CONTRACT SMELL (raised, not stubbed):** `ComposerActions` ride the _universal_ `ExtensionHostContext`, so every extension+slot is handed composer verbs even when no composer is mounted (testkit, or a non-composer slot in the widget). The testkit gives them minimal real impls (no composer to act on); a cleaner contract would scope ComposerActions to the composer slot only.
-- **Source transform — RESOLVED:** the plugin's `apply:'serve'` hook is bypassed; `addSourceToJsx(code,id,root)` is a pure code→code transform now exposed as `@mandarax/plugin/source-inject` and wrapped as an `enforce:'pre'` plugin in the programmatic `vite.build` (runs before `vite-plugin-solid` compiles the JSX). Static build, no dev middleware needed. The extension under test reaches the browser build via a `virtual:mandarax-extension-under-test` module (mirrors the real plugin's `virtual:mandarax-extensions`).
+- **Spec coverage:** server (T3), session (T4), framework mount/extraction (T1), grab over data-conciv-source (T6), MCP (T5), host page (T7), single `getExtensionTestApi` (T8) — all mapped.
+- **`ExtensionHostContext` completeness — RESOLVED:** `host-runtime.tsx` enumerates the full bag = `ToolViewCtx` (`apiBase`, `harnessId`, `sendMessage`) + `ComposerActions` (`insert`/`notify`/`setBusy`/`newSession`/`addDivider`/`compact`/`resetUsage`) + `client` (real `defineClient`) + `requestMeta` + `grab` (real, over `data-conciv-source`). Real values where a target exists (`client`, `grab`, `requestMeta`, `notify`→toast). **CONTRACT SMELL (raised, not stubbed):** `ComposerActions` ride the _universal_ `ExtensionHostContext`, so every extension+slot is handed composer verbs even when no composer is mounted (testkit, or a non-composer slot in the widget). The testkit gives them minimal real impls (no composer to act on); a cleaner contract would scope ComposerActions to the composer slot only.
+- **Source transform — RESOLVED:** the plugin's `apply:'serve'` hook is bypassed; `addSourceToJsx(code,id,root)` is a pure code→code transform now exposed as `@conciv/plugin/source-inject` and wrapped as an `enforce:'pre'` plugin in the programmatic `vite.build` (runs before `vite-plugin-solid` compiles the JSX). Static build, no dev middleware needed. The extension under test reaches the browser build via a `virtual:conciv-extension-under-test` module (mirrors the real plugin's `virtual:conciv-extensions`).
 - **`expect` with locators — RESOLVED:** smoke imports `{expect}` from `@playwright/test`; works alongside vitest's `test`.
 - **API CORRECTION (vs spec):** `getExtensionTestApi` takes `{server: AnyExtension, clientEntry: string}`, NOT a single combined extension — built-ins are two builder objects (server.ts default + `/client`) and there is no combined object to pass. The testkit smoke uses a split `ping` fixture (server.ts + client.tsx), NOT whiteboard, to avoid a turbo devDep cycle (whiteboard's Plan-2 tests depend on the testkit).
 - **`mountExtension` double-install — RESOLVED:** the widget keeps its single `installClientApi` in `mount.tsx` and renders via the shared `MountedExtension` (which does NOT install); only the standalone `mountExtension` wrapper installs (+ runs `__client`), used solely by the testkit host. No double install.

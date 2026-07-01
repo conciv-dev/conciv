@@ -1,6 +1,6 @@
 ---
 title: Rspack
-description: Add mandarax to an Rspack app.
+description: Add conciv to an Rspack app.
 ---
 
 Rspack works like webpack. The entry boots the engine, and you inject the widget yourself with
@@ -12,7 +12,7 @@ Rspack works like webpack. The entry boots the engine, and you inject the widget
 ### Install
 
 ```bash
-npm install -D mandarax
+npm install -D conciv
 ```
 
 </Step>
@@ -21,10 +21,10 @@ npm install -D mandarax
 ### Add the plugin
 
 ```js title="rspack.config.js"
-const mandarax = require('mandarax/plugin/rspack')
+const conciv = require('conciv/plugin/rspack')
 
 module.exports = {
-  plugins: [mandarax.default()],
+  plugins: [conciv.default()],
 }
 ```
 
@@ -33,7 +33,7 @@ module.exports = {
 
 ### Inject the widget
 
-The widget bundle ships as `@mandarax/widget/global`. Serve it and set `widgetUrl` so the script is
+The widget bundle ships as `@conciv/widget/global`. Serve it and set `widgetUrl` so the script is
 added to your page. See [Configuration](/docs/configuration#widgeturl).
 
 </Step>

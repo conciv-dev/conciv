@@ -11,7 +11,7 @@ import {
 } from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import type {MultimodalContent} from '@tanstack/ai-client'
-import {TextArea, type TextAreaProps} from '@mandarax/ui-kit-system'
+import {TextArea, type TextAreaProps} from '@conciv/ui-kit-system'
 import {useChatContext, useComposer} from '../../store/chat-context.js'
 import {Primitive} from '../util/primitive.js'
 import {ComposerProvider, useComposerContext, type AttachmentDraft} from './composer-context.js'

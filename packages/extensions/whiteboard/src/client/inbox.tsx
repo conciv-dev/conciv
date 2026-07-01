@@ -1,7 +1,7 @@
 import {For, Show, createMemo, createSignal, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {Inbox as InboxIcon, ListFilter} from 'lucide-solid'
-import {RelativeTime, ScrollArea, TextField} from '@mandarax/ui-kit-system'
+import {RelativeTime, ScrollArea, TextField} from '@conciv/ui-kit-system'
 import {useComments, type Comment} from './model/comments.js'
 import {Avatar, Menu, MenuCheckboxItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, Tabs} from './ui.js'
 

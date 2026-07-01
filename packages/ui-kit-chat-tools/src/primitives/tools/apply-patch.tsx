@@ -1,7 +1,7 @@
 import {createContext, createMemo, For, useContext, type Accessor, type JSX} from 'solid-js'
-import {SolidPatchDiff, type FileDiffOptions} from '@mandarax/solid-diffs'
+import {SolidPatchDiff, type FileDiffOptions} from '@conciv/solid-diffs'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import {toolStatus, type ToolStatus} from '@mandarax/ui-kit-chat'
+import {toolStatus, type ToolStatus} from '@conciv/ui-kit-chat'
 
 // Headless apply_patch logic + structure (no classes). Claude Code's apply_patch uses a "v2" envelope
 // whose @@ markers are context-search strings, NOT unified-diff hunk headers; we convert each block to

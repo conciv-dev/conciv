@@ -21,5 +21,5 @@ export const Running: Story = {
 }
 
 export const NoStop: Story = {
-  render: () => frame('chat-theme-mandarax', <NowLine title="Reading widget-shell.tsx" />),
+  render: () => frame('chat-theme-conciv', <NowLine title="Reading widget-shell.tsx" />),
 }

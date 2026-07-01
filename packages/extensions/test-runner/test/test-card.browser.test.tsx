@@ -1,7 +1,7 @@
 import {describe, it, expect, afterEach} from 'vitest'
 import {render} from 'solid-js/web'
 import {page} from 'vitest/browser'
-import type {ToolViewCtx, ToolCardProps} from '@mandarax/protocol/tool-view-types'
+import type {ToolViewCtx, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {TestCard} from '../src/tool/card.js'
 
 // Real browser, real Solid (card source compiled on the fly), real Ark Collapsible + a real

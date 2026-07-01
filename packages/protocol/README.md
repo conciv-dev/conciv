@@ -1,5 +1,5 @@
-# @mandarax/protocol
+# @conciv/protocol
 
-Wire types shared by the mandarax vite-plugin and widget.
+Wire types shared by the conciv vite-plugin and widget.
 
-Part of [mandarax](https://github.com/mandarax-dev/mandarax).
+Part of [conciv](https://github.com/conciv-dev/conciv).

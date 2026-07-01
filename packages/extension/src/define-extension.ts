@@ -1,6 +1,6 @@
 import type {Component} from 'solid-js'
 import type {z} from 'zod'
-import type {ThemeTokens} from '@mandarax/ui-kit-system'
+import type {ThemeTokens} from '@conciv/ui-kit-system'
 import type {ToolBuilder} from './define-tool.js'
 import type {
   ClientApi,

@@ -11,7 +11,7 @@ session per preview:
 
 - `SessionState` is a single mutable `{sessionId}` holder per `registerChatRoutes`
   (`packages/core/src/api/chat/chat.ts:28`).
-- A single global lock (`<stateRoot>/.mandarax/agent.lock`) serializes all agent runs
+- A single global lock (`<stateRoot>/.conciv/agent.lock`) serializes all agent runs
   (`packages/core/src/store/lock.ts`).
 - The persisted map is `previewId → sessionId`
   (`packages/core/src/store/session-store.ts`).
@@ -39,7 +39,7 @@ Settled during brainstorming:
   lifecycle; the harness's own id is a server-internal resume token mapped under our id.
 - **Session vs surface:** a _session_ is the durable conversation; a _surface_ (pane, PiP,
   modal) holds a _reference_ to a session id. Sessions are not tied to panes.
-- **Transport:** the session id travels in an HTTP header, `mandarax-session-id`. Absent →
+- **Transport:** the session id travels in an HTTP header, `conciv-session-id`. Absent →
   the default session.
 
 ## Model
@@ -54,7 +54,7 @@ Settled during brainstorming:
 
 ### Wire contract — header based
 
-- Constant `MANDARAX_SESSION_HEADER = 'mandarax-session-id'`. The client sends it on every chat
+- Constant `CONCIV_SESSION_HEADER = 'conciv-session-id'`. The client sends it on every chat
   request: `POST /api/chat`, `GET /api/chat/session`, `GET /api/chat/history`,
   `POST /api/chat/permission-decision`, `POST /api/chat/ui`.
 - Server helper resolves `sessionId = header || DEFAULT_SESSION_ID` (a fixed constant id).
@@ -105,8 +105,8 @@ The server owns resume tokens; the client owns UI layout. Two stores:
 - Migration: v0, no users — reshape outright, no back-compat read of the old flat shape. Old
   files read as empty and get rewritten.
 
-**Client** — pane layout lives in `localStorage` (consistent with `mandarax-qt-height`,
-`mandarax-qt-focused`, `mandarax-fab-position`). Key `mandarax-qt-panes` holds the ordered list of pane
+**Client** — pane layout lives in `localStorage` (consistent with `conciv-qt-height`,
+`conciv-qt-focused`, `conciv-fab-position`). Key `conciv-qt-panes` holds the ordered list of pane
 session ids:
 
 ```json
@@ -149,7 +149,7 @@ client restores panes from its own list and hydrates each via the header.
 ## Concurrency & lock
 
 - `lock.ts` functions (`readLock` / `acquireLock` / `releaseLock` / path) gain a `sessionId`
-  param → `<stateRoot>/.mandarax/agent.<sessionId>.lock`. Independent sessions run in parallel.
+  param → `<stateRoot>/.conciv/agent.<sessionId>.lock`. Independent sessions run in parallel.
 - The `iterate` / `chat` role invariant ("two writers, one transcript") now holds per
   session, because an `iterate` run and a chat turn targeting the same harness session
   resolve to the same `sessionId` lock.
@@ -199,7 +199,7 @@ The label is a button that opens the session-info popover (below) with the full 
 - **Quick-terminal pane bar** — replaces the current hardcoded `session-{pane.id}` (a local
   counter, not the real session — a bug) with the label, truncated with ellipsis. Clicking
   it opens the popover anchored to the label.
-- **Modal header** — the shell header renders the same label as a subtitle beside the `mandarax`
+- **Modal header** — the shell header renders the same label as a subtitle beside the `conciv`
   brand, same truncation, same popover on click.
 
 Plumbing: the label is owned by `ChatPanel` (which holds the session id + api), since the
@@ -216,7 +216,7 @@ transcript exists, else `null`.
 ### Popover component
 
 A reusable Solid popover primitive at `packages/widget/src/popover.tsx`, built on
-`@floating-ui/dom` (promoted from a transitive dep to a direct `@mandarax/widget` dependency; the
+`@floating-ui/dom` (promoted from a transitive dep to a direct `@conciv/widget` dependency; the
 framework-agnostic `dom` package is the correct choice for Solid — the React wrapper already
 in the tree is not usable here).
 
@@ -241,8 +241,8 @@ No rename in this iteration (deferred — would need an editable field and a per
 ## Client
 
 - `ChatPanel` gains a `sessionId?` prop. `createChatApi({apiBase, sessionId})` sets the
-  `mandarax-session-id` header on every fetch and on the `fetchServerSentEvents` connection
-  (via its options thunk: `() => ({headers: {'mandarax-session-id': sessionId}, credentials: 'include'})`).
+  `conciv-session-id` header on every fetch and on the `fetchServerSentEvents` connection
+  (via its options thunk: `() => ({headers: {'conciv-session-id': sessionId}, credentials: 'include'})`).
   No prop → no header → default session.
 - Quick-terminal `addPane()` mints the session id (`crypto.randomUUID`) and passes it via
   `panel.create` ctx; the modal passes none.
@@ -250,7 +250,7 @@ No rename in this iteration (deferred — would need an editable field and a per
   it) and gates on `source !== 'new'` instead of a truthy harness token.
   `ChatHistorySchema`'s `sessionId` query param is dropped; `ChatSessionSchema.sessionId`
   keeps its shape but now means our id.
-- On reopen, the quick terminal reads the `mandarax-qt-panes` `localStorage` list and recreates
+- On reopen, the quick terminal reads the `conciv-qt-panes` `localStorage` list and recreates
   one pane per session id in order, each hydrating from its own transcript via the header. An
   empty/absent list seeds one fresh pane.
 - `addPane` mints a session id and appends it to the list; `closePane` removes it from the
@@ -290,5 +290,5 @@ Playwright using `browser.newPage()`.
 
 ## Dependencies
 
-- `@floating-ui/dom` promoted to a direct `@mandarax/widget` dependency (already present
+- `@floating-ui/dom` promoted to a direct `@conciv/widget` dependency (already present
   transitively; no new download).

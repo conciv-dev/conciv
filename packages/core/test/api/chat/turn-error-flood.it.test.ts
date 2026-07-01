@@ -1,8 +1,8 @@
 import {spawn} from 'node:child_process'
 import {afterEach, describe, expect, it} from 'vitest'
 import type {StreamChunk} from '@tanstack/ai'
-import {defineHarness, type HarnessChild} from '@mandarax/protocol/harness-types'
-import {registerHarness} from '@mandarax/harness'
+import {defineHarness, type HarnessChild} from '@conciv/protocol/harness-types'
+import {registerHarness} from '@conciv/harness'
 import {startTestServer, type SpawnHarness, type TestServer} from '../../helpers/server.js'
 
 const FAIL = 'harness exited with code 143'

@@ -1,6 +1,6 @@
 import {createStorage, type Storage} from 'unstorage'
 import fsDriver from 'unstorage/drivers/fs-lite'
-import {SessionRecordSchema, type SessionRecord, type SessionRecordInput} from '@mandarax/protocol/chat-types'
+import {SessionRecordSchema, type SessionRecord, type SessionRecordInput} from '@conciv/protocol/chat-types'
 
 // Domain interface — the only thing the rest of core imports. No storage primitives leak past it.
 // Inputs accept raw (unbranded) data; the schema validates + brands it, so reads return SessionRecord.
@@ -70,10 +70,10 @@ export function createSessionStore(storage: Storage, now: () => number = Date.no
   return makeStore(storage, now)
 }
 
-// fs: one file per session under <stateRoot>/.mandarax/sessions/ — atomic per session.
+// fs: one file per session under <stateRoot>/.conciv/sessions/ — atomic per session.
 export function createFsSessionStore(opts: {stateRoot: string; now?: () => number}): SessionStore {
   const storage = createStorage({
-    driver: fsDriver({base: `${opts.stateRoot}/.mandarax/sessions`}),
+    driver: fsDriver({base: `${opts.stateRoot}/.conciv/sessions`}),
   })
   return createSessionStore(storage, opts.now ?? Date.now)
 }

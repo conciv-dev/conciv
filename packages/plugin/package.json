@@ -1,22 +1,22 @@
 {
-  "name": "@mandarax/plugin",
+  "name": "@conciv/plugin",
   "version": "0.0.0",
-  "description": "The mandarax dev agent as an unplugin: vite (full — viteBridge + widget middleware + boot), webpack/rspack (boot the engine), rollup/esbuild (build-only no-ops). One factory, per-bundler subpath entries.",
+  "description": "The conciv dev agent as an unplugin: vite (full — viteBridge + widget middleware + boot), webpack/rspack (boot the engine), rollup/esbuild (build-only no-ops). One factory, per-bundler subpath entries.",
   "keywords": [
+    "conciv",
     "esbuild",
-    "mandarax",
     "nextjs",
     "rollup",
     "rspack",
     "vite-plugin",
     "webpack"
   ],
-  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/plugin#readme",
-  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
+  "homepage": "https://github.com/conciv-dev/conciv/tree/main/packages/plugin#readme",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mandarax-dev/mandarax.git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
     "directory": "packages/plugin"
   },
   "files": [
@@ -73,11 +73,11 @@
   "dependencies": {
     "@babel/core": "^7.29.7",
     "@babel/preset-typescript": "^7.29.7",
-    "@mandarax/cli": "workspace:^",
-    "@mandarax/core": "workspace:^",
-    "@mandarax/extension": "workspace:^",
-    "@mandarax/protocol": "workspace:^",
-    "@mandarax/widget": "workspace:^",
+    "@conciv/cli": "workspace:^",
+    "@conciv/core": "workspace:^",
+    "@conciv/extension": "workspace:^",
+    "@conciv/protocol": "workspace:^",
+    "@conciv/widget": "workspace:^",
     "babel-dead-code-elimination": "^1.0.12",
     "babel-preset-solid": "^1.9.12",
     "jiti": "^2.7.0",

@@ -1,8 +1,8 @@
 import {Show, type JSX} from 'solid-js'
 import {Terminal} from 'lucide-solid'
-import type {ToolCardProps} from '@mandarax/protocol/tool-view-types'
+import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {Bash, useBash} from '../../primitives/tools/bash.js'
-import {CollapsibleCard} from '@mandarax/ui-kit-chat'
+import {CollapsibleCard} from '@conciv/ui-kit-chat'
 
 // Styled bash card: a thin --chat-* / terminal wrapper over the headless Bash primitive (which owns
 // command/{stdout,stderr,exitCode} parsing + status).

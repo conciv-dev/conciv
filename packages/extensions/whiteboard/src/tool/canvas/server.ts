@@ -1,5 +1,5 @@
 import type {JsonValue} from 'jazz-tools'
-import {defineTool} from '@mandarax/extension'
+import {defineTool} from '@conciv/extension'
 import {app} from '../../shared/schema.js'
 import type {WhiteboardToolContext} from '../../server/context.js'
 import {

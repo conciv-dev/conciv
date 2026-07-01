@@ -9,7 +9,7 @@ split it into multiple panes that each run their own agent session.
 
 <ImageZoom
   src="/screenshots/quick-terminal.png"
-  alt="The mandarax quick terminal dropped over an app"
+  alt="The conciv quick terminal dropped over an app"
   width={1280}
   height={760}
 />
@@ -22,16 +22,16 @@ hit `Escape` to send it back up.
 Both layouts are on by default, so there is nothing to enable. To set the hotkey, pass an object:
 
 ```ts title="vite.config.ts"
-import mandarax from 'mandarax/plugin/vite'
+import conciv from 'conciv/plugin/vite'
 
-mandarax({widget: {quickTerminal: {hotkey: 'Mod+`'}}})
+conciv({widget: {quickTerminal: {hotkey: 'Mod+`'}}})
 ```
 
 `Mod` is Cmd on macOS and Ctrl on Windows or Linux, so one binding works everywhere. To disable
 the quick terminal and keep only the corner modal:
 
 ```ts
-mandarax({widget: {quickTerminal: false}})
+conciv({widget: {quickTerminal: false}})
 ```
 
 ## Hotkeys
@@ -39,9 +39,9 @@ mandarax({widget: {quickTerminal: false}})
 The `hotkey` field accepts a single binding or a list, and supports key combinations.
 
 ```ts
-mandarax({widget: {quickTerminal: {hotkey: 'Mod+`'}}}) // one binding
-mandarax({widget: {quickTerminal: {hotkey: ['Mod+`', 'Control+k']}}}) // either fires
-mandarax({widget: {quickTerminal: {hotkey: 'Alt+k'}}}) // a combo
+conciv({widget: {quickTerminal: {hotkey: 'Mod+`'}}}) // one binding
+conciv({widget: {quickTerminal: {hotkey: ['Mod+`', 'Control+k']}}}) // either fires
+conciv({widget: {quickTerminal: {hotkey: 'Alt+k'}}}) // a combo
 ```
 
 <Callout type="warn">

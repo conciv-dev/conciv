@@ -3,7 +3,7 @@ import {parseSync} from 'oxc-parser'
 import MagicString from 'magic-string'
 
 // Build-time JSX source injection (dev only): stamp every JSX element with
-// `data-mandarax-source="<relpath>:<line>:<col>"` so the widget's `locate` can read the exact source
+// `data-conciv-source="<relpath>:<line>:<col>"` so the widget's `locate` can read the exact source
 // off the DOM — no fiber/owner-stack symbolication. The owner-stack path remains the universal
 // fallback for non-Vite bundlers; this is just a fast/exact path where we control the compile.
 
@@ -64,7 +64,7 @@ function parseOpenings(file: string, code: string): Node[] | null {
 
 // Line/col for each JSX opening as it appears in the ORIGINAL on-disk source. Per-environment
 // build transforms (notably TanStack Start's SSR boilerplate) prepend code before our pre-transform
-// in one environment only, shifting every line and yielding divergent data-mandarax-source values
+// in one environment only, shifting every line and yielding divergent data-conciv-source values
 // between the SSR and client builds → a React hydration mismatch. The JSX tree itself is identical
 // across environments (only non-JSX top-level statements get inserted), so we match by document
 // order: the disk opening at index i is the same element as the code opening at index i. Returns
@@ -87,7 +87,7 @@ function hasSourceAttr(node: Node): boolean {
     Array.isArray(node.attributes) &&
     node.attributes.some(
       (a: Node) =>
-        a.type === 'JSXAttribute' && a.name?.type === 'JSXIdentifier' && a.name.name === 'data-mandarax-source',
+        a.type === 'JSXAttribute' && a.name?.type === 'JSXIdentifier' && a.name.name === 'data-conciv-source',
     )
   )
 }
@@ -102,7 +102,7 @@ export function addSourceToJsx(
   // Another source-injector (e.g. @tanstack/devtools-vite's data-tsd-source) already ran on this
   // code — re-stamping on the modified source yields wrong offsets and an SSR/client hydration
   // mismatch. `locate` reads their attribute anyway, so there's nothing to add here.
-  if (code.includes('data-tsd-source') || code.includes('data-mandarax-source')) return null
+  if (code.includes('data-tsd-source') || code.includes('data-conciv-source')) return null
   const rel = file.startsWith(root) ? file.slice(root.length).replace(/^\//, '') : file
   const openings = parseOpenings(file, code)
   if (!openings || openings.length === 0) return null
@@ -120,7 +120,7 @@ export function addSourceToJsx(
     if (hasSourceAttr(node)) continue
     const {line, column} = diskLocs ? (diskLocs[i] ?? loc(node.start)) : loc(node.start)
     // JSON.stringify the value so a path with quotes/specials can't break out of the attribute (XSS-safe).
-    const attr = ` data-mandarax-source=${JSON.stringify(`${rel}:${line}:${column}`)}`
+    const attr = ` data-conciv-source=${JSON.stringify(`${rel}:${line}:${column}`)}`
     s.appendLeft(node.selfClosing ? node.end - 2 : node.end - 1, attr)
     changed = true
   }

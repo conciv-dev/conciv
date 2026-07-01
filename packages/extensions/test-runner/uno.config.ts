@@ -1,4 +1,4 @@
-import {presetAidx} from '@mandarax/uno-preset'
+import {presetAidx} from '@conciv/uno-preset'
 import {defineConfig} from 'unocss'
 
 // The card renders pw-* utilities; the shared preset is the same source of truth as the widget +

@@ -1,6 +1,6 @@
 import {createSignal} from 'solid-js'
-import {ChatSessionsSchema, type ChatSessionMeta} from '@mandarax/protocol/chat-types'
-import {createTransport} from '@mandarax/api-client'
+import {ChatSessionsSchema, type ChatSessionMeta} from '@conciv/protocol/chat-types'
+import {createTransport} from '@conciv/api-client'
 
 // One shared client-side cache of the session list, so every mounted SessionSelector (modal pill +
 // each qt pane bar) reads the same rows from a single fetch. Surfaces contribute their just-born
@@ -59,7 +59,7 @@ export function makeSurfaceRow(id: string, name: string | null): ChatSessionMeta
     updatedAt: Date.now(),
     messageCount: 0,
     running: false,
-    origin: 'mandarax',
+    origin: 'conciv',
     usage: null,
   }
 }

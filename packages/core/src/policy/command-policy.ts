@@ -26,9 +26,9 @@ const GIT_READ_ONLY = new Set(['status', 'diff', 'log', 'show', 'branch'])
 export function classifyCommand(command: string): CommandPolicy {
   const c = command.trim()
   if (c === '') return 'ask'
-  // Shell composition (pipes, redirects, chaining, subshells) → ask, even for an mandarax command.
+  // Shell composition (pipes, redirects, chaining, subshells) → ask, even for an conciv command.
   if (/[;&|`$><\n]/.test(c)) return 'ask'
-  if (c.startsWith('mandarax tools') || c.startsWith('mandarax ui')) return 'allow'
+  if (c.startsWith('conciv tools') || c.startsWith('conciv ui')) return 'allow'
   const tokens = c.split(/\s+/)
   if (tokens[0] === 'git') return GIT_READ_ONLY.has(tokens[1] ?? '') ? 'allow' : 'ask'
   return READ_ONLY.has(tokens[0] ?? '') ? 'allow' : 'ask'

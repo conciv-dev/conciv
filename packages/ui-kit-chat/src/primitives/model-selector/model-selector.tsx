@@ -9,7 +9,7 @@ import {
   type JSX,
   type ParentProps,
 } from 'solid-js'
-import {Combobox} from '@mandarax/ui-kit-system'
+import {Combobox} from '@conciv/ui-kit-system'
 import {useListCollection} from '@ark-ui/solid/combobox'
 import {createControllableSignal} from '../util/create-controllable-signal.js'
 

@@ -1,9 +1,9 @@
 import {Show, type JSX} from 'solid-js'
 import {FileDiff} from 'lucide-solid'
-import {type FileDiffOptions} from '@mandarax/solid-diffs'
-import type {ToolCardProps} from '@mandarax/protocol/tool-view-types'
+import {type FileDiffOptions} from '@conciv/solid-diffs'
+import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {ApplyPatch, useApplyPatch} from '../../primitives/tools/apply-patch.js'
-import {CollapsibleCard} from '@mandarax/ui-kit-chat'
+import {CollapsibleCard} from '@conciv/ui-kit-chat'
 
 // Styled apply_patch card: a thin --chat-* wrapper over the headless ApplyPatch primitive (which owns
 // the v2-envelope parsing + status). Pierre themeType:'system' follows the chat theme.

@@ -1,7 +1,7 @@
 // The React verbs (inspect / drill-down / override) driven in a REAL browser against a REAL React
 // app. A tiny React fixture is bundled with esbuild (dev build → real reconciler + hooks), rendered
 // into the page alongside the built widget global, and we call the widget's OWN page driver
-// (window.__MANDARAX_PAGE_DRIVER__) — real bippy, real dehydrate, real fibers. No mocks, no example app.
+// (window.__CONCIV_PAGE_DRIVER__) — real bippy, real dehydrate, real fibers. No mocks, no example app.
 import {createServer, type IncomingMessage, type Server, type ServerResponse} from 'node:http'
 import type {AddressInfo} from 'node:net'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
@@ -62,7 +62,7 @@ describe('react verbs (it) — real browser, real React, real driver', () => {
       describe: (host: Element) => {component: string; file: string | null}
     }
     const out = await page.evaluate(() => {
-      const b = (window as unknown as {__MANDARAX_REACT_BRIDGE__: Bridge}).__MANDARAX_REACT_BRIDGE__
+      const b = (window as unknown as {__CONCIV_REACT_BRIDGE__: Bridge}).__CONCIV_REACT_BRIDGE__
       const leaf = document.querySelector('#card-inc')
       const host = leaf && b.componentHostAt(leaf)
       return host ? b.describe(host) : null
@@ -122,7 +122,7 @@ describe('react verbs (it) — real browser, real React, real driver', () => {
     const owners = out.owners as Array<Record<string, unknown>>
     expect(Array.isArray(owners)).toBe(true)
     expect(owners.some((o) => o.component === 'Card')).toBe(true)
-    // The fixture stamps #card with data-mandarax-source — locate reads it directly (the fast path).
+    // The fixture stamps #card with data-conciv-source — locate reads it directly (the fast path).
     const source = out.source as Record<string, unknown> | undefined
     expect(source).toBeTruthy()
     expect(String(source!.file)).toContain('fixture.tsx')

@@ -1,7 +1,7 @@
 import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within} from 'storybook/test'
-import type {DoneCard as DoneData} from '@mandarax/protocol/done-types'
+import type {DoneCard as DoneData} from '@conciv/protocol/done-types'
 import {DoneCard} from './done-card.js'
 
 const meta: Meta = {title: 'styled/DoneCard'}
@@ -31,7 +31,7 @@ export const Passed: Story = {
 
 export const Failed: Story = {
   render: () =>
-    frame('chat-theme-mandarax', <DoneCard data={{...data, testsPassed: false, pageActions: ['Clicked Submit']}} />),
+    frame('chat-theme-conciv', <DoneCard data={{...data, testsPassed: false, pageActions: ['Clicked Submit']}} />),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     await expect(c.getByText('tests failed')).toBeVisible()

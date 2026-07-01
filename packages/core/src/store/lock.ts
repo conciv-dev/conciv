@@ -4,7 +4,7 @@ import {z} from 'zod'
 import {readJson} from '../fs.js'
 import {statePaths} from '../state-paths.js'
 
-// A per-session `<stateRoot>/.mandarax/agent.<sessionId>.lock` that serializes one session's turns:
+// A per-session `<stateRoot>/.conciv/agent.<sessionId>.lock` that serializes one session's turns:
 // two processes appending to the same harness session at once corrupt its transcript, so only one
 // run per session may be live at a time (distinct sessions run in parallel). The file records the
 // holder's role + pid; a lock whose pid is dead is treated as free (crash recovery). Harness-agnostic.

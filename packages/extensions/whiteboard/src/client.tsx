@@ -1,7 +1,7 @@
 import {Show, createRoot, createSignal, onCleanup, type JSX} from 'solid-js'
 import {MessageSquarePlus, Presentation} from 'lucide-solid'
-import {defineExtension} from '@mandarax/extension'
-import {Button} from '@mandarax/ui-kit-system'
+import {defineExtension} from '@conciv/extension'
+import {Button} from '@conciv/ui-kit-system'
 import {WHITEBOARD_NAME, WHITEBOARD_PROMPT} from './shared/meta.js'
 import {mountOverlay, type CommentPick} from './client/overlay.js'
 

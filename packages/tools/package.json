@@ -1,18 +1,18 @@
 {
-  "name": "@mandarax/tools",
+  "name": "@conciv/tools",
   "version": "0.0.0",
-  "description": "mandarax agent tools as @tanstack/ai toolDefinition().server() functions: ui, page, test.",
+  "description": "conciv agent tools as @tanstack/ai toolDefinition().server() functions: ui, page, test.",
   "keywords": [
     "ai-tools",
-    "mandarax",
+    "conciv",
     "tool-definitions"
   ],
-  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/tools#readme",
-  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
+  "homepage": "https://github.com/conciv-dev/conciv/tree/main/packages/tools#readme",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mandarax-dev/mandarax.git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
     "directory": "packages/tools"
   },
   "files": [
@@ -41,8 +41,8 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "@mandarax/extension": "workspace:^",
-    "@mandarax/protocol": "workspace:^",
+    "@conciv/extension": "workspace:^",
+    "@conciv/protocol": "workspace:^",
     "@tanstack/ai": "^0.28.0",
     "zod": "^4.4.3"
   },

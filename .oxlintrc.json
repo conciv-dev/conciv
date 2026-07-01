@@ -17,11 +17,11 @@
       "warn",
       {
         "allow": [
-          "__MANDARAX__",
-          "__MANDARAX_API_BASE__",
-          "__MANDARAX_PAGE_DRIVER__",
-          "__MANDARAX_REACT_BRIDGE__",
-          "__MANDARAX_RENDER_TEST_CARD__",
+          "__CONCIV__",
+          "__CONCIV_API_BASE__",
+          "__CONCIV_PAGE_DRIVER__",
+          "__CONCIV_REACT_BRIDGE__",
+          "__CONCIV_RENDER_TEST_CARD__",
           "__REACT_GRAB_DISABLED__",
           "__sdkStats",
           "__sdkReset",
@@ -44,7 +44,7 @@
           {
             "group": ["@ark-ui", "@ark-ui/**"],
             "allowImportNames": ["useListCollection", "useFilter"],
-            "message": "Import Ark UI components from @mandarax/ui-kit-system, never @ark-ui directly — only ui-kit-system may wrap Ark UI. The headless hooks useListCollection / useFilter are the ONLY @ark-ui imports allowed elsewhere."
+            "message": "Import Ark UI components from @conciv/ui-kit-system, never @ark-ui directly — only ui-kit-system may wrap Ark UI. The headless hooks useListCollection / useFilter are the ONLY @ark-ui imports allowed elsewhere."
           }
         ]
       }

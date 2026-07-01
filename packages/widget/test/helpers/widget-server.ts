@@ -6,24 +6,24 @@ import {createServer, type IncomingMessage, type ServerResponse} from 'node:http
 const dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // The built widget global bundle the ITs inject into the page (real bundle, not a mock).
-export const widgetBundle = fs.readFileSync(path.join(dirname, '../../dist/mandarax-widget.global.js'), 'utf8')
+export const widgetBundle = fs.readFileSync(path.join(dirname, '../../dist/conciv-widget.global.js'), 'utf8')
 
 function writeJson(res: ServerResponse, body: unknown): void {
   res.writeHead(200, {'content-type': 'application/json', 'access-control-allow-origin': '*'})
   res.end(JSON.stringify(body))
 }
 
-// Stub the mandarax dev-server routes the widget probes on mount, and serve `html` as the document.
+// Stub the conciv dev-server routes the widget probes on mount, and serve `html` as the document.
 // A real http server (no mocks); returns its base URL + a close fn. Shared by the widget ITs.
 export async function startWidgetServer(html: string): Promise<{base: string; close: () => Promise<void>}> {
   const server = createServer((req: IncomingMessage, res: ServerResponse) => {
     const url = req.url ?? ''
     if (url.startsWith('/api/chat/session/resolve') && req.method === 'POST') {
-      return writeJson(res, {sessionId: 'mandarax_new_1'})
+      return writeJson(res, {sessionId: 'conciv_new_1'})
     }
     if (url.startsWith('/api/chat/session') && !url.startsWith('/api/chat/sessions')) {
       return writeJson(res, {
-        sessionId: 'mandarax_new_1',
+        sessionId: 'conciv_new_1',
         harnessSessionId: null,
         name: null,
         origin: 'chat',

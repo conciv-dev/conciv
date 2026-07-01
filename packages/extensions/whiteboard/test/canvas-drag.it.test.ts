@@ -1,9 +1,9 @@
 import {expect, test} from 'vitest'
 import type {Page} from 'playwright'
 import whiteboard from '../src/server.js'
-import {getExtensionTestApi, type ExtensionTestApi} from '@mandarax/extension-testkit'
+import {getExtensionTestApi, type ExtensionTestApi} from '@conciv/extension-testkit'
 
-const clientEntry = '@mandarax/extension-whiteboard/client'
+const clientEntry = '@conciv/extension-whiteboard/client'
 
 type CanvasElement = {x: number; width: number; height: number}
 const readElements = async (api: ExtensionTestApi): Promise<CanvasElement[]> =>

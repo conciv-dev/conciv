@@ -1,5 +1,5 @@
 import {createEffect, createMemo, createSignal, splitProps, type ComponentProps, type JSX} from 'solid-js'
-import {Popover} from '@mandarax/ui-kit-system'
+import {Popover} from '@conciv/ui-kit-system'
 import {useChatContextOptional} from '../../store/chat-context.js'
 
 // The FAB + popover shell (replaces the widget's hand-rolled floating-ui popover). Thin wrapper over

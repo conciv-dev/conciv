@@ -1,6 +1,6 @@
 import {z} from 'zod'
 import {EventType, type StreamChunk} from '@tanstack/ai'
-import type {HarnessDecodeOpts} from '@mandarax/protocol/harness-types'
+import type {HarnessDecodeOpts} from '@conciv/protocol/harness-types'
 import {TextBlock, ThinkingBlock, ToolUseBlock, ToolResultBlock, canonicalToolName, contentText} from './blocks.js'
 import {
   runAgui,
@@ -13,7 +13,7 @@ import {
   type Step,
   type UsageExtractor,
 } from '../_shared/agui.js'
-import type {UsageSnapshot} from '@mandarax/protocol/usage-types'
+import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 
 // Translate Claude's `--output-format stream-json` NDJSON into the AG-UI StreamChunk stream.
 // Only the event schema + the event→chunks mapping are claude-specific; the run lifecycle, line

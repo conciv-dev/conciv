@@ -1,11 +1,11 @@
 import {describe, it, expect} from 'vitest'
-import {scaffold} from '@mandarax/extension/catalog'
+import {scaffold} from '@conciv/extension/catalog'
 import {splitExtension} from '../src/core/split-extension.js'
 
-const ID = '/proj/mandarax/extensions/canvas.tsx'
+const ID = '/proj/conciv/extensions/canvas.tsx'
 
 const SOURCE = `import {readFileSync} from 'node:fs'
-import {defineExtension, defineTool} from '@mandarax/extension'
+import {defineExtension, defineTool} from '@conciv/extension'
 import {Card} from './card.js'
 
 const draw = defineTool({name: 'draw'})

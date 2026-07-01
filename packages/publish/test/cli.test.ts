@@ -7,7 +7,7 @@ test('accepts plain dist-tags', () => {
 })
 
 test('rejects flag-like or injecting tags (argument injection)', () => {
-  for (const bad of ['--otp=999', '--ignore=@mandarax/core', '-rm', '', 'Beta', 'a b', 'a;b']) {
+  for (const bad of ['--otp=999', '--ignore=@conciv/core', '-rm', '', 'Beta', 'a b', 'a;b']) {
     expect(() => assertValidTag(bad), bad).toThrow(/invalid dist-tag/)
   }
 })

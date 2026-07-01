@@ -32,7 +32,7 @@ describe('symbolicateFrame', () => {
     addMapping(gen, {generated: {line: 1, column: 0}, source: 'src/routes/index.tsx', original: {line: 5, column: 2}})
     const sectioned = {version: 3 as const, sections: [{offset: {line: 0, column: 0}, map: toEncodedMap(gen)}]}
     const b64 = Buffer.from(JSON.stringify(sectioned)).toString('base64')
-    const path = join(tmpdir(), `mandarax-sect-${Math.random().toString(36).slice(2)}.js`)
+    const path = join(tmpdir(), `conciv-sect-${Math.random().toString(36).slice(2)}.js`)
     await writeFile(path, `void 0;\n//# sourceMappingURL=data:application/json;base64,${b64}`)
     written.push(path)
     const loc = await symbolicateFrame({fileName: `file://${path}`, line: 1, column: 1}, ROOT)

@@ -1,7 +1,7 @@
 import {createMemo, Index, Show, splitProps, type Component, type JSX, type ParentProps} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import type {MessagePart as Part, ThinkingPart, ToolCallPart} from '@tanstack/ai-client'
-import type {ToolCardEntry, ToolUIComponent} from '@mandarax/protocol/tool-view-types'
+import type {ToolCardEntry, ToolUIComponent} from '@conciv/protocol/tool-view-types'
 import {Primitive, type Slottable} from '../util/primitive.js'
 import {MessagePart} from '../message-part/message-part.js'
 import {useChatContext} from '../../store/chat-context.js'

@@ -1,8 +1,8 @@
 import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {createMCPClient} from '@tanstack/ai-mcp'
-import {MANDARAX_SESSION_HEADER} from '@mandarax/protocol/chat-types'
-import {defineExtension, defineTool} from '@mandarax/extension'
+import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
+import {defineExtension, defineTool} from '@conciv/extension'
 import {startTestServer} from './helpers/server.js'
 
 const echo = defineTool({
@@ -17,13 +17,13 @@ describe('/api/mcp threads the request session into extension tool execute', () 
   it('echoes the header session id', async () => {
     const server = await startTestServer({extensions: [acme]})
     const mcp = await createMCPClient({
-      transport: {type: 'http', url: `${server.base}/api/mcp`, headers: {[MANDARAX_SESSION_HEADER]: 'mandarax_x'}},
+      transport: {type: 'http', url: `${server.base}/api/mcp`, headers: {[CONCIV_SESSION_HEADER]: 'conciv_x'}},
     })
     try {
       const echoTool = (await mcp.tools()).find((tool) => tool.name === 'acme_echo_session')
       if (!echoTool?.execute) throw new Error('acme_echo_session not registered on /api/mcp')
       const result = JSON.stringify(await echoTool.execute({}))
-      expect(result).toContain('mandarax_x')
+      expect(result).toContain('conciv_x')
     } finally {
       await mcp.close()
       await server.close()

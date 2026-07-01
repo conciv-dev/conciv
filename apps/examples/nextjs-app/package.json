@@ -9,7 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@mandarax/qu": "workspace:*",
+    "@conciv/qu": "workspace:*",
     "next": "16.2.9",
     "react": "19.2.4",
     "react-dom": "19.2.4"

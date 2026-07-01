@@ -1,8 +1,8 @@
 import {createContext, createMemo, useContext, type Accessor, type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import {parseInput} from '@mandarax/ui-kit-chat'
-import {toolStatus, type ToolStatus} from '@mandarax/ui-kit-chat'
+import {parseInput} from '@conciv/ui-kit-chat'
+import {toolStatus, type ToolStatus} from '@conciv/ui-kit-chat'
 
 // Headless file-edit logic (Edit / MultiEdit / Write). Edit/MultiEdit carry old_string/new_string;
 // Write carries content (a pure addition). The styled layer renders the before/after diff.

@@ -23,7 +23,7 @@ Our registry is the organized, harness-agnostic form of that switch.
 `packages/widget/src/chat-panel.tsx` renders every tool call through one generic `ToolCall`
 (name + status + collapsible JSON args) and `ToolResult` (collapsible raw output). The only
 rich case is the test runner, special-cased via `analyzeTests` into `TestCard`. Tool names
-are the raw harness names (claude's `Bash`, `Edit`, the `mandarax_*` MCP tools, `mcp__*`), read
+are the raw harness names (claude's `Bash`, `Edit`, the `conciv_*` MCP tools, `mcp__*`), read
 straight off `ToolCallPart.name`. There is no normalization, so any richer rendering keyed on
 raw names would only work for claude.
 
@@ -34,7 +34,7 @@ keyed on the canonical kind, never a raw CLI name. This is what makes the featur
 harness switches and the future page agent, and it honors AGENTS.md: "never special-case a
 CLI in core/widget."
 
-### 1. ToolKind taxonomy (`@mandarax/protocol`)
+### 1. ToolKind taxonomy (`@conciv/protocol`)
 
 ```
 type ToolKind =
@@ -42,11 +42,11 @@ type ToolKind =
   | 'file-edit'    // Edit / Write / MultiEdit / apply_patch
   | 'file-read'    // Read
   | 'search'       // Grep / Glob
-  | 'page-action'  // mandarax_page element verbs + future page agent actions
-  | 'test'         // mandarax_test
+  | 'page-action'  // conciv_page element verbs + future page agent actions
+  | 'test'         // conciv_test
   | 'todo'         // TodoWrite
   | 'fetch'        // WebFetch
-  | 'ui'           // mandarax_ui
+  | 'ui'           // conciv_ui
   | 'unknown'      // generic fallback
 ```
 
@@ -64,7 +64,7 @@ type ClassifiedTool = {
 ### 2. Classification: a pure function, run client-side (resolved by spike)
 
 Classification is a pure function `classify(name, input): ClassifiedTool`, one per harness, plus
-a shared `mandarax_*` classifier and a generic fallback. It runs **in the widget**, not in the
+a shared `conciv_*` classifier and a generic fallback. It runs **in the widget**, not in the
 harness stream. This was the original open question (how to carry the `ClassifiedTool` to the
 widget); the spike settled it decisively in favor of client-side classification:
 
@@ -72,7 +72,7 @@ widget); the spike settled it decisively in favor of client-side classification:
   handlers never touch metadata), and claude's `TOOL_CALL_START` has the name but NOT the input
   (args stream afterward as `TOOL_CALL_ARGS`, `decode.ts:104`). So metadata could never carry the
   input-derived `title`/`fields`. Also the client `ToolCallPart` doesn't even declare `metadata`,
-  and mandarax's wire converter drops it on persist.
+  and conciv's wire converter drops it on persist.
 - But the widget already has everything it needs on the part: `name`, and the args (accumulated
   into `arguments` and `parsedArguments`/`input` by the processor — `handleToolCallArgsEvent`).
   History reload carries the same (`claude/history.ts:54-58` emits `tool-call` with `name` +
@@ -87,10 +87,10 @@ in once the args complete.
 
 Where the classifiers live (AGENTS.md: "never special-case a CLI in core/widget"): each harness's
 classifier is a pure, node-dep-free function owned by its adapter and exposed through a
-browser-safe entry (`@mandarax/harness` classify barrel keyed by harness id); the `mandarax_*` classifier
-lives in `@mandarax/tools` (browser-safe). The widget calls `classify(harnessId, ...)` from that lib —
+browser-safe entry (`@conciv/harness` classify barrel keyed by harness id); the `conciv_*` classifier
+lives in `@conciv/tools` (browser-safe). The widget calls `classify(harnessId, ...)` from that lib —
 no CLI `if` in widget code; the per-CLI knowledge stays in the classifier modules. v1 ships the
-claude classifier + the `mandarax_*` classifier + the generic fallback; codex / gemini-cli / opencode
+claude classifier + the `conciv_*` classifier + the generic fallback; codex / gemini-cli / opencode
 / pi fall through to generic (still render, just without rich per-kind bodies) until added.
 
 ### 3. Widget tool-UI registry (keyed on ToolKind)
@@ -140,8 +140,8 @@ browser), registered with `clientTools(...)` + `createChatClientOptions({ tools,
 and executed automatically (the runtime emits `tool-input-available`, the client runs the impl
 by name, the output lands on `part.output`). Client tools receive a runtime `ctx.context`.
 
-mandarax's page actions are conceptually **client tools** (frontend tools): they execute in the
-browser against the live DOM. Today they are MCP `server` tools (`mandaraxPageToolDef.server(...)`)
+conciv's page actions are conceptually **client tools** (frontend tools): they execute in the
+browser against the live DOM. Today they are MCP `server` tools (`concivPageToolDef.server(...)`)
 because the CLI owns the loop and calls them over MCP, round-tripping through core to the
 widget. The rendering layer does not care which side executed: it renders from the tool-call
 part by name/kind either way.
@@ -165,7 +165,7 @@ tests). One card per action.
 
 ## Per-tool result renderers (full set, v1)
 
-All renderers live in the new `@mandarax/tool-ui` package (see below), each obeying the renderer
+All renderers live in the new `@conciv/tool-ui` package (see below), each obeying the renderer
 state contract above.
 
 - `shell` -> terminal block: command + output, exit-aware coloring. Horizontal scroll at narrow width.
@@ -173,14 +173,14 @@ state contract above.
 - `file-read` -> file path + line range.
 - `search` -> match list with counts.
 - `page-action` -> human label by verb ("Clicked X", "Typed \"...\" into Y") + element chip + on-page mirror.
-- `test` -> the `TestCard` (moved from the widget into `@mandarax/tool-ui`; still fed by the runner).
+- `test` -> the `TestCard` (moved from the widget into `@conciv/tool-ui`; still fed by the runner).
 - `todo` -> checklist with done/active/pending states.
 - `ui` -> a compact chip ("rendered a form/choices"); the interactive UI itself remains the
-  `GenUi` component driven by the separate `mandarax-ui` CUSTOM event, which stays in the widget.
+  `GenUi` component driven by the separate `conciv-ui` CUSTOM event, which stays in the widget.
 - `unknown` -> label + collapsible raw args/result.
 
 Family color rail: page = magenta accent, code = teal agent hue, test = gold, read = purple.
-Uses the existing `--pw-*` design tokens, which move into `@mandarax/tool-ui` as a shared tokens
+Uses the existing `--pw-*` design tokens, which move into `@conciv/tool-ui` as a shared tokens
 stylesheet (the widget imports it) so the cards render identically in Storybook and in the app.
 
 ## Reflection card (per step)
@@ -242,8 +242,8 @@ Wiring:
    (`appendStructuredOutputDelta` is not exported; there is no `structured-output:completed`
    wire event). `decode.ts` emits the chunks the `StreamProcessor` actually consumes:
    `CUSTOM name:'structured-output.start' {messageId}` -> the JSON via `TEXT_MESSAGE_CONTENT` ->
-   `CUSTOM name:'structured-output.complete' {messageId, object, raw}` (same CUSTOM pattern mandarax
-   already uses for `mandarax-ui`). The widget reads the resulting `structured-output` part. Do NOT
+   `CUSTOM name:'structured-output.complete' {messageId, object, raw}` (same CUSTOM pattern conciv
+   already uses for `conciv-ui`). The widget reads the resulting `structured-output` part. Do NOT
    depend on `useChat({ outputSchema })`: ai-client 0.16.3 `ChatClientBaseOptions` has no
    `outputSchema` field (doc-comment only); the part appears from the CUSTOM events regardless,
    and `outputSchema` would at most narrow the TS type of `part.data`.
@@ -265,12 +265,12 @@ Wiring:
 6. Both decoders converge on the same client surface: emit the CUSTOM chunks the `StreamProcessor`
    consumes — `CUSTOM 'structured-output.start' {messageId}` -> JSON via `TEXT_MESSAGE_CONTENT` ->
    `CUSTOM 'structured-output.complete' {messageId, object, raw}` (same CUSTOM pattern as
-   `mandarax-ui`; NOT the unexported `appendStructuredOutputDelta`). Do NOT depend on
+   `conciv-ui`; NOT the unexported `appendStructuredOutputDelta`). Do NOT depend on
    `useChat({ outputSchema })`: ai-client 0.16.3 `ChatClientBaseOptions` has no such field
    (doc-comment only); the part appears from the CUSTOM events regardless.
 
 Gating: a single config flag, default ON for capable harnesses (claude + codex). It lives in the
-mandarax config (`@mandarax/protocol` config-types, e.g. `doneCard: boolean`, default true) so it is
+conciv config (`@conciv/protocol` config-types, e.g. `doneCard: boolean`, default true) so it is
 trivially disabled in one place; when off, the harness args simply omit `--json-schema` /
 `--output-schema`, so there is NO done card and ZERO overhead — no forced tool, no extra turn, no
 schema-shaped answer; the turn behaves exactly as today. This is the important property: the whole
@@ -278,7 +278,7 @@ structured-output path (and its costs — claude's extra round-trip per message,
 final-answer-as-JSON) is bypassed by flipping one flag, not just hidden in the UI. The capability
 flag excludes gemini-cli / opencode / pi entirely. Because the off-switch fully bypasses the path,
 the risk of the feature is bounded: anyone hitting latency/answer-shape issues turns it off and is
-back to today's behavior. Residual: the full interaction inside mandarax's live turn pipeline
+back to today's behavior. Residual: the full interaction inside conciv's live turn pipeline
 (permission gate, usage, compaction) is not yet exercised end-to-end; the plan makes that an early
 real-run task.
 
@@ -292,7 +292,7 @@ stays compact. Verified in the brainstorm mockup at the real 390px width.
 
 ## Constraints and non-goals
 
-- Per-step structured reflection cannot be guaranteed without owning the model loop. mandarax
+- Per-step structured reflection cannot be guaranteed without owning the model loop. conciv
   delegates the loop to the harness CLI, which streams free-form reasoning between native tool
   calls. page-agent gets structured reflection via a forced macro-tool (`tool_choice` every
   step) only because it owns its loop. Matching that means a new harness that runs tanstack's
@@ -301,13 +301,13 @@ stays compact. Verified in the brainstorm mockup at the real 390px width.
   follow-up; this design ensures its page actions reuse the `page-action` card + mirror.
 - Not in scope: classifiers for codex / gemini-cli / opencode / pi (generic fallback for now).
 
-## Tools package refactor (`@mandarax/tools`)
+## Tools package refactor (`@conciv/tools`)
 
 The current tool layer is the wrong shape for this feature and should be refactored as part of
 it (v0, no back-compat shims per AGENTS.md). Problems today:
 
 - Each tool builds a tanstack `toolDefinition().server(exec)` then discards the typed
-  `ServerTool` to hand-roll an `MandaraxMcpTool = {name, description, inputSchema, run}`
+  `ServerTool` to hand-roll an `ConcivMcpTool = {name, description, inputSchema, run}`
   (`tools/src/types.ts`). `run` re-parses input with zod (`PageInput.parse`, `UiInput.parse`)
   although `.server(exec)` already validated. tanstack's tool system is reduced to a schema
   holder, with double validation and full type erasure.
@@ -317,31 +317,31 @@ it (v0, no back-compat shims per AGENTS.md). Problems today:
 
 Refactor:
 
-1. Tool definitions (`mandaraxPageToolDef`, `mandaraxUiToolDef`, ...) are the single source of truth and
+1. Tool definitions (`concivPageToolDef`, `concivUiToolDef`, ...) are the single source of truth and
    stay side-agnostic. The MCP server path instantiates `.server(exec)`; the future page agent
-   instantiates `.client(exec)` from the same def. Drop the `MandaraxMcpTool` re-wrap and the
+   instantiates `.client(exec)` from the same def. Drop the `ConcivMcpTool` re-wrap and the
    double zod parse; `core/src/api/mcp/mcp.ts` registers from the def's schema + the `.server`
    instance directly. (`McpServer.registerTool` still gets `inputSchema.shape`.)
 2. Co-locate the canonical classification with each def: a pure `classify(name, input):
 ClassifiedTool` (kind, title, family, fields) exported from the tools package, browser-safe so
-   the widget calls it directly. The mandarax\_\* tools classify identically on every harness; the
-   future client tools reuse the same function. Labels/kinds for mandarax tools are defined once.
-3. `mandarax_page` stays one tool (tool-slot economy) but its per-verb label/kind/family map becomes
+   the widget calls it directly. The conciv\_\* tools classify identically on every harness; the
+   future client tools reuse the same function. Labels/kinds for conciv tools are defined once.
+3. `conciv_page` stays one tool (tool-slot economy) but its per-verb label/kind/family map becomes
    first-class data next to the def, driving both the model-facing description and the UI.
-4. `MandaraxToolContext` (the runtime bridge) maps cleanly to tanstack's client-tool `ctx.context`
+4. `ConcivToolContext` (the runtime bridge) maps cleanly to tanstack's client-tool `ctx.context`
    for the future page agent; keep it a plain handle bag, no transport/CLI knowledge (already
    true).
 
-Blast radius is contained: `@mandarax/tools` (5 tool files + types) and `core/src/api/mcp/mcp.ts`,
+Blast radius is contained: `@conciv/tools` (5 tool files + types) and `core/src/api/mcp/mcp.ts`,
 plus the new harness classifiers. Existing tools ITs (`tools/test/*.it.test.ts`) are updated to
 the new shape.
 
-Note on ownership: only mandarax's own four tools are `toolDefinition`s. The harness CLI's built-in
-tools (`Bash`, `Read`, `Edit`, `Grep`, `TodoWrite`, ...) are defined inside the CLI, not by mandarax;
+Note on ownership: only conciv's own four tools are `toolDefinition`s. The harness CLI's built-in
+tools (`Bash`, `Read`, `Edit`, `Grep`, `TodoWrite`, ...) are defined inside the CLI, not by conciv;
 they arrive as tool-call events and are only classified for display. That asymmetry is the whole
 reason the classifier layer exists.
 
-## New package: `@mandarax/tool-ui` + Storybook
+## New package: `@conciv/tool-ui` + Storybook
 
 A dedicated package holds every tool renderer so adding one is centralized and each card is
 viewable in isolation. Storybook is already a repo devDependency (`storybook-solidjs-vite@10.3.0`
@@ -349,7 +349,7 @@ viewable in isolation. Storybook is already a repo devDependency (`storybook-sol
 - `storybook@10.4`, with the `.storybook` + `*.stories.tsx` pattern proven in
   `packages/solid-streamdown`); no new install.
 
-Contents of `@mandarax/tool-ui` (SolidJS):
+Contents of `@conciv/tool-ui` (SolidJS):
 
 - The `toolRenderers` registry keyed on `ToolKind`, and one component per kind (shell, file-edit,
   file-read, search, page-action, test [the moved `TestCard`], todo, ui chip, generic fallback).
@@ -362,36 +362,36 @@ Contents of `@mandarax/tool-ui` (SolidJS):
 
 Dependencies and boundaries (keep the node/browser split clean):
 
-- Types `ToolKind` / `ClassifiedTool` live in `@mandarax/protocol` (shared, no DOM).
-- Classifiers are PURE and browser-importable: the `mandarax_*` classifier in `@mandarax/tools`, each
-  harness classifier behind a node-dep-free `@mandarax/harness` classify entry. The widget imports
+- Types `ToolKind` / `ClassifiedTool` live in `@conciv/protocol` (shared, no DOM).
+- Classifiers are PURE and browser-importable: the `conciv_*` classifier in `@conciv/tools`, each
+  harness classifier behind a node-dep-free `@conciv/harness` classify entry. The widget imports
   them and classifies client-side (they are not run in the stream/decode).
-- Renderers live in `@mandarax/tool-ui` (browser/Solid; import only the `ClassifiedTool` type).
-  `@mandarax/widget` composes classify (active harness id) + the registry; the on-page mirror stays in
+- Renderers live in `@conciv/tool-ui` (browser/Solid; import only the `ClassifiedTool` type).
+  `@conciv/widget` composes classify (active harness id) + the registry; the on-page mirror stays in
   the widget (it needs the page driver).
 
-How to add a tool (the centralized recipe): add/confirm a `ToolKind` in `@mandarax/protocol`, a
-`classify` branch in `@mandarax/tools`, and a renderer + story in `@mandarax/tool-ui`. Three small,
+How to add a tool (the centralized recipe): add/confirm a `ToolKind` in `@conciv/protocol`, a
+`classify` branch in `@conciv/tools`, and a renderer + story in `@conciv/tool-ui`. Three small,
 obvious edits; the registry and Storybook pick it up.
 
 ## Components touched
 
-- `@mandarax/protocol`: `ToolKind`, `ClassifiedTool`, `structuredOutput` capability on
+- `@conciv/protocol`: `ToolKind`, `ClassifiedTool`, `structuredOutput` capability on
   `HarnessAdapter`, the all-required final-result schema, and the `doneCard` config flag
   (config-types, default true) that bypasses the whole structured-output path when off.
-- `@mandarax/harness`: a pure, browser-safe classify entry (claude classifier + generic; others
+- `@conciv/harness`: a pure, browser-safe classify entry (claude classifier + generic; others
   fall through), and `--json-schema`/`--output-schema` args + bespoke structured-output decode for
   claude/codex (read `result.structured_output` / route the codex `agent_message` JSON; emit the
   `structured-output.start/.complete` CUSTOM chunks; suppress claude's synthetic `StructuredOutput`
   tool). No tool-call metadata emission (classification is client-side).
-- `@mandarax/tools`: drop the `MandaraxMcpTool` re-wrap, instantiate `.server()` from the shared defs,
-  co-locate the pure browser-safe `classify(name, input)` for the mandarax\_\* tools, per-verb map for
-  `mandarax_page`.
-- `@mandarax/core`: `api/mcp/mcp.ts` registers tools from the def schema + `.server` instance
+- `@conciv/tools`: drop the `ConcivMcpTool` re-wrap, instantiate `.server()` from the shared defs,
+  co-locate the pure browser-safe `classify(name, input)` for the conciv\_\* tools, per-verb map for
+  `conciv_page`.
+- `@conciv/core`: `api/mcp/mcp.ts` registers tools from the def schema + `.server` instance
   directly (no `run`/re-parse indirection).
-- `@mandarax/tool-ui` (new): the `ToolKind` renderer registry + per-kind components, reflection card,
+- `@conciv/tool-ui` (new): the `ToolKind` renderer registry + per-kind components, reflection card,
   now-line, done card, moved `TestCard`, moved `--pw-*` tokens, `.storybook` + stories.
-- `@mandarax/widget`: classify client-side (active harness id) and render via the `@mandarax/tool-ui`
+- `@conciv/widget`: classify client-side (active harness id) and render via the `@conciv/tool-ui`
   registry from `PartView`, paired call+result rendering, the on-page mirror module (page DOM,
   hooked in `page-driver.execute`); `GenUi`/approval path unchanged.
 
@@ -434,14 +434,14 @@ folded into the sections above); 3, 5-7 are decisions for the plan.
    the whole final message becomes the JSON `agent_message` and the schema must be OpenAI-strict
    (all properties required, `additionalProperties:false` — a loose schema was rejected). Decoders
    are bespoke per harness; the portable schema is all-required. Folded into the structured-card
-   section. Residual (one real-run task in the plan, not a blocker): the interaction inside mandarax's
+   section. Residual (one real-run task in the plan, not a blocker): the interaction inside conciv's
    live turn pipeline (permission gate, usage, compaction) is not yet exercised end-to-end. Also
    to decide in the plan: where the on/off gating setting lives (per-session vs global).
 5. **Mirror scope + timing (small).** Which page verbs get the cursor/ring (find/locate/inspect
    are in `ELEMENT_KINDS` but are non-visual and probably should not animate), and whether the
    animation blocks the action (adds latency to every page action) or runs fire-and-forget (ring
    may not be visible before a fast click). Decide per-verb + a short, non-blocking animation.
-6. **Token scoping (small).** Moving `--pw-*` tokens into `@mandarax/tool-ui`: in the app they must
+6. **Token scoping (small).** Moving `--pw-*` tokens into `@conciv/tool-ui`: in the app they must
    resolve inside the widget shadow root; in Storybook they resolve on `:root`. The shared
    stylesheet must work in both scopes (define on `:host, :root`), a minor but real detail.
 7. **Reflection parsing heuristic (small).** "Parse structured lines if present, else restyle"

@@ -1,6 +1,6 @@
 {
   "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["mandarax/extensions"],
+  "exclude": ["conciv/extensions"],
   "compilerOptions": {
     "target": "ES2022",
     "jsx": "react-jsx",

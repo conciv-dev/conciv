@@ -28,7 +28,7 @@ extensible: extensions declare toolbar items the same declarative way they decla
 
 This builds on the (currently unmerged) `page-effects` branch, which introduces:
 
-- `defineEffect` / `EffectDefinition` / `EffectCtx` in `@mandarax/extensions`.
+- `defineEffect` / `EffectDefinition` / `EffectCtx` in `@conciv/extensions`.
 - `effects-host.ts` + `page-effects.ts` in the widget (effect registry, the `effect`
   page verb, `enable`/`disable`/`isEnabled`, `listEffects`).
 - Page-bus introspection on `EffectCtx.page` (`elementAt`, `componentHostAt`,
@@ -37,7 +37,7 @@ This builds on the (currently unmerged) `page-effects` branch, which introduces:
 This spec lands after page-effects merges, or rebased onto it. It reuses
 `EffectCtx.page` for element picking, so `react-grab` is no longer needed.
 
-## Contract additions (`@mandarax/extensions`)
+## Contract additions (`@conciv/extensions`)
 
 ```ts
 // A capability bag a toolbar item's render() receives. Mirrors EffectCtx.page plus
@@ -89,13 +89,13 @@ export function defineExtension(meta: {
 }): ExtensionBuilder
 ```
 
-`MandaraxExtension` gains `toolbar?: ToolbarItemDefinition[]`; `discovery.ts`
+`ConcivExtension` gains `toolbar?: ToolbarItemDefinition[]`; `discovery.ts`
 `collectClientContributions` collects `toolbarItems` alongside `effects`.
 
 `Grab` / `StagedGrab` / `ElementSnapshot` / `ElementSource` move from
-`widget/src/react-grab/grab-types.ts` **into the `@mandarax/extensions` contract**
+`widget/src/react-grab/grab-types.ts` **into the `@conciv/extensions` contract**
 (they are plain types the contract now references via `ToolbarCtx`). The widget
-imports them from `@mandarax/extensions` instead of its own `grab-types.ts`.
+imports them from `@conciv/extensions` instead of its own `grab-types.ts`.
 
 ## Platform: the dock
 
@@ -137,10 +137,10 @@ matching how `highlight-extension.ts` ships the highlight effect), registered in
 - **copy** — select an element → `ctx.clipboard.copy(referenceText)` +
   `ctx.toast('Copied')`.
 
-App authors add their own from `mandarax/extensions/*.ts`:
+App authors add their own from `conciv/extensions/*.ts`:
 
 ```ts
-import {defineExtension, defineToolbarItem} from '@mandarax/extensions'
+import {defineExtension, defineToolbarItem} from '@conciv/extensions'
 import {Crosshair} from 'lucide-solid'
 
 export default defineExtension({
@@ -170,8 +170,8 @@ export default defineExtension({
   `grab-reference.tsx` (the chip) as shared grab utilities.
 - Remove the composer crosshair button (`elementPickerAction` registration in
   `mount.tsx`); the toolbar `select` item supersedes it.
-- Remove `window.__MANDARAX__.registerPlugin`/`unregisterPlugin` and the
-  react-grab references in `mandarax-global.ts` / `widget-shell.ts`.
+- Remove `window.__CONCIV__.registerPlugin`/`unregisterPlugin` and the
+  react-grab references in `conciv-global.ts` / `widget-shell.ts`.
 
 ## Phasing
 

@@ -1,6 +1,6 @@
-# How to test a mandarax extension
+# How to test a conciv extension
 
-One way in: `getExtensionTestApi(extension)` from `@mandarax/extension-testkit`. It boots the real
+One way in: `getExtensionTestApi(extension)` from `@conciv/extension-testkit`. It boots the real
 server, mounts the extension in a real browser through the real framework, and hands back the only
 seams a test may touch:
 
@@ -93,7 +93,7 @@ never `toBe(true)`/`toBe(false)` derived from DOM. Assert what the user sees.
 ## Build before you run
 
 The testkit mounts the extension's BUILT `dist`. After ANY edit to the extension's `src`, run
-`npx turbo build --filter=@mandarax/extension-<name>` before running tests, or you are testing stale
+`npx turbo build --filter=@conciv/extension-<name>` before running tests, or you are testing stale
 code and RED/GREEN is meaningless.
 
 ## TDD

@@ -1,8 +1,8 @@
 import {createContext, createMemo, useContext, type Accessor, type JSX} from 'solid-js'
 import {z} from 'zod'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import {parseInput, resultText} from '@mandarax/ui-kit-chat'
-import {toolStatus, type ToolStatus} from '@mandarax/ui-kit-chat'
+import {parseInput, resultText} from '@conciv/ui-kit-chat'
+import {toolStatus, type ToolStatus} from '@conciv/ui-kit-chat'
 
 // Headless search logic (Grep / Glob). Grep carries pattern (+ optional path/glob); Glob carries
 // pattern. The styled layer renders the pattern title + match list.

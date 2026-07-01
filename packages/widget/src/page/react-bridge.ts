@@ -13,7 +13,7 @@ import {parseStack, hasDebugStack, getFallbackOwnerStack, formatOwnerStack} from
 import {installTracker} from './render-tracker.js'
 import {addRef, type Refs} from './page-snapshot.js'
 
-// Page-introspection result types live in @mandarax/protocol; re-exported so widget imports stay put.
+// Page-introspection result types live in @conciv/protocol; re-exported so widget imports stay put.
 export type {
   RawFrame,
   SourceLoc,
@@ -24,7 +24,7 @@ export type {
   LocateResult,
   InspectResult,
   TreeResult,
-} from '@mandarax/protocol/page-introspect-types'
+} from '@conciv/protocol/page-introspect-types'
 import type {
   RawFrame,
   SourceLoc,
@@ -34,7 +34,7 @@ import type {
   LocateResult,
   InspectResult,
   TreeResult,
-} from '@mandarax/protocol/page-introspect-types'
+} from '@conciv/protocol/page-introspect-types'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- bippy fibers are untyped internals
 type Fiber = any
@@ -119,8 +119,8 @@ function rawFrames(fiber: Fiber): RawFrame[] {
 // A build-injected source attribute on the element (or nearest ancestor that has one). Format is
 // "path:line:col"; the path may itself contain ':' (drive letters), so parse the trailing two.
 function sourceFromAttr(el: Element): SourceLoc | null {
-  const node = el.closest('[data-mandarax-source],[data-tsd-source]')
-  const raw = node?.getAttribute('data-mandarax-source') ?? node?.getAttribute('data-tsd-source')
+  const node = el.closest('[data-conciv-source],[data-tsd-source]')
+  const raw = node?.getAttribute('data-conciv-source') ?? node?.getAttribute('data-tsd-source')
   if (!raw) return null
   const parts = raw.split(':')
   const column = Number(parts.pop())

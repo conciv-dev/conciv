@@ -1,4 +1,4 @@
-# mandarax Adapter Architecture — Plan 5: Widget ↔ Engine Wiring (cross-origin + CORS)
+# conciv Adapter Architecture — Plan 5: Widget ↔ Engine Wiring (cross-origin + CORS)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:subagent-driven-development or superpowers:executing-plans. Steps use checkbox (`- [ ]`) syntax.
 >
@@ -60,7 +60,7 @@ h3 v2 CORS is built in (`handleCors`, `appendCorsHeaders`, `appendCorsPreflightH
 ### Task 5 — End-to-end verify in the example app (proves the fix)
 
 - [ ] Run `apps/examples/tanstack-start` dev (`vite dev --port 3000`). In a real browser (or playwright):
-  - Confirm the widget bundle loads from `/@mandarax/widget.js`.
+  - Confirm the widget bundle loads from `/@conciv/widget.js`.
   - Confirm `<meta name="pw-api-base">` is the engine origin (`http://127.0.0.1:<port>`), not empty.
   - Confirm `GET /api/chat/session` succeeds cross-origin (no CORS error in console).
   - Confirm the FAB mounts and the page-bus `EventSource` (`/api/page/stream`) connects.

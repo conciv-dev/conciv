@@ -34,7 +34,7 @@ not emit a window (codex today) simply omit it and the ring degrades to a token 
 Today `claude/decode.ts` and `codex/decode.ts` translate their CLI events into AG-UI
 `StreamChunk`s via the shared `runAgui` spine and drop all usage. `gemini-cli`, `opencode`,
 and `pi` are capability-only stubs. There is already a CUSTOM-event side channel
-(`aguiCustomFor` → `MANDARAX_UI_EVENT` → `useChat({onCustomEvent})`) used by generative UI; the
+(`aguiCustomFor` → `CONCIV_UI_EVENT` → `useChat({onCustomEvent})`) used by generative UI; the
 usage tracker reuses that exact pattern with a new event name.
 
 ## Architecture
@@ -49,8 +49,8 @@ claude/codex CLI stdout (NDJSON)
                   │ merge last-wins into running snapshot
                   │ emit on change
                   ▼
-        aguiUsageFor(snapshot)  ─▶  CUSTOM StreamChunk {name: "mandarax-usage"}
-                  │ (SSE transport, same as mandarax-ui)
+        aguiUsageFor(snapshot)  ─▶  CUSTOM StreamChunk {name: "conciv-usage"}
+                  │ (SSE transport, same as conciv-ui)
                   ▼
   ChatPanel.onCustomEvent ─▶ usage signal ─▶ onUsageChange(snapshot)
                   │
@@ -65,7 +65,7 @@ not replayed on resume, so a reopened session shows an empty tracker until its n
 
 ### 1. Protocol — `packages/protocol/src/usage-types.ts` (new)
 
-The wire contract. Mirrors `ui-types.ts` (`MANDARAX_UI_EVENT` / `aguiCustomFor`).
+The wire contract. Mirrors `ui-types.ts` (`CONCIV_UI_EVENT` / `aguiCustomFor`).
 
 ```ts
 import {z} from 'zod'
@@ -94,11 +94,11 @@ export const UsageSnapshotSchema = z.object({
 export type UsageSnapshot = z.infer<typeof UsageSnapshotSchema>
 
 // The CUSTOM event name the widget listens for via useChat({onCustomEvent}).
-export const MANDARAX_USAGE_EVENT = 'mandarax-usage'
+export const CONCIV_USAGE_EVENT = 'conciv-usage'
 
 // Wrap a snapshot as the AG-UI CUSTOM StreamChunk injected into the live chat stream.
 export function aguiUsageFor(snapshot: UsageSnapshot): StreamChunk {
-  return {type: EventType.CUSTOM, name: MANDARAX_USAGE_EVENT, value: snapshot}
+  return {type: EventType.CUSTOM, name: CONCIV_USAGE_EVENT, value: snapshot}
 }
 
 // Occupancy = the prompt actually resident in the window this turn (input + cache).
@@ -119,12 +119,12 @@ This is the **API a new harness implements**. One pure function. No `StreamChunk
 name, no merge or emit logic — the spine owns all of that.
 
 ```ts
-import type {UsageSnapshot} from '@mandarax/protocol/usage-types'
+import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 
 // Optional per-harness usage mapping. PURE: decode one already-validated event into the
 // usage fields it carries (absolute values), or null when the event carries none. The
 // shared spine merges successive partials (last-wins per defined field) and emits an
-// `mandarax-usage` CUSTOM chunk whenever the merged snapshot changes. A harness that omits
+// `conciv-usage` CUSTOM chunk whenever the merged snapshot changes. A harness that omits
 // this emits no usage at all — the widget tracker stays hidden, degrading cleanly.
 export type UsageExtractor<E> = (event: E) => Partial<UsageSnapshot> | null
 ```
@@ -236,7 +236,7 @@ class="pw-popover …">`. Reuses the existing `pw-popover` / `pw-pop-in` styles.
 ### 3c. Widget component — `packages/widget/src/context-tracker.tsx` (new)
 
 ```ts
-import type {UsageSnapshot} from '@mandarax/protocol/usage-types'
+import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 
 // The top-bar context tracker for one session. Renders nothing until the first snapshot
 // arrives. When contextWindow is known it shows a percentage ring; otherwise a raw token
@@ -289,8 +289,8 @@ existing `onCustomEvent` handler, and a reporting effect:
 ```ts
 const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
 const onCustom = (eventType: string, data: unknown) => {
-  if (eventType === MANDARAX_UI_EVENT) return onMandaraxUi(data)
-  if (eventType === MANDARAX_USAGE_EVENT) {
+  if (eventType === CONCIV_UI_EVENT) return onConcivUi(data)
+  if (eventType === CONCIV_USAGE_EVENT) {
     const parsed = UsageSnapshotSchema.safeParse(data)
     if (parsed.success) setUsage((prev) => ({...prev, ...parsed.data}))
   }
@@ -405,7 +405,7 @@ Every field is independently optional; nothing throws on absence.
 
 - **Node unit (`packages/harness/test`)**: extend `claude-decode` / `codex-decode` tests to
   feed an `assistant` + `result` (claude) / `turn.completed` (codex) line sequence and
-  assert the emitted `mandarax-usage` CUSTOM chunk(s) carry the normalized fields, including
+  assert the emitted `conciv-usage` CUSTOM chunk(s) carry the normalized fields, including
   last-wins merge and "emit only on change". Pure extractor functions are unit-tested
   directly.
 - **Widget IT (real browser, `browser.newPage()` per project convention; no jsdom)**:

@@ -1,4 +1,4 @@
-import type {ElementSnapshot} from '@mandarax/grab'
+import type {ElementSnapshot} from '@conciv/grab'
 
 export function captureElement(el: Element): Promise<ElementSnapshot> {
   // rAF: leave the click task and read at a settled layout boundary; caller awaits while pick is open.

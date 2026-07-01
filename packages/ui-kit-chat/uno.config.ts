@@ -1,4 +1,4 @@
-import {presetAidx} from '@mandarax/uno-preset'
+import {presetAidx} from '@conciv/uno-preset'
 import {defineConfig} from 'unocss'
 
 export default defineConfig({

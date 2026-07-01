@@ -1,19 +1,19 @@
 import {randomUUID} from 'node:crypto'
 import {writeFileSync} from 'node:fs'
 import {join} from 'node:path'
-import type {HarnessImage, HarnessTurn} from '@mandarax/protocol/harness-types'
-import {MANDARAX_SESSION_HEADER} from '@mandarax/protocol/chat-types'
-import {MANDARAX_PLUGIN_DIR} from './plugin-dir.js'
+import type {HarnessImage, HarnessTurn} from '@conciv/protocol/harness-types'
+import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
+import {CONCIV_PLUGIN_DIR} from './plugin-dir.js'
 
 type McpHttpServer = {type: 'http'; url: string; headers?: Record<string, string>}
 
-// The mandarax MCP-over-HTTP server entry. When a session is known the turn's session rides as a
+// The conciv MCP-over-HTTP server entry. When a session is known the turn's session rides as a
 // header so session-scoped tools (canvas.draw, comments) hit the room the widget joined; the
 // header-less form is for the interactive launch, which has no live room. Shared by the CLI args and
 // the SDK options so the two transports cannot drift.
-export function mcpServerConfig(mcpUrl: string, sessionId?: string): {mandarax: McpHttpServer} {
-  const mandarax: McpHttpServer = {type: 'http', url: mcpUrl}
-  return {mandarax: sessionId ? {...mandarax, headers: {[MANDARAX_SESSION_HEADER]: sessionId}} : mandarax}
+export function mcpServerConfig(mcpUrl: string, sessionId?: string): {conciv: McpHttpServer} {
+  const conciv: McpHttpServer = {type: 'http', url: mcpUrl}
+  return {conciv: sessionId ? {...conciv, headers: {[CONCIV_SESSION_HEADER]: sessionId}} : conciv}
 }
 
 export function claudeMcpArgs(mcpUrl: string, sessionId?: string): string[] {
@@ -26,7 +26,7 @@ function hookSettings(permissionUrl: string): string {
     hooks: {
       PreToolUse: [
         {matcher: 'Bash', hooks},
-        {matcher: 'mcp__mandarax__.*', hooks},
+        {matcher: 'mcp__conciv__.*', hooks},
       ],
     },
   })
@@ -46,7 +46,7 @@ export function imageRefs(images: HarnessImage[], cwd: string): string {
   return images
     .map((img) => {
       const ext = IMAGE_EXT[img.mediaType] ?? 'png'
-      const path = join(cwd, `.mandarax-img-${randomUUID()}.${ext}`)
+      const path = join(cwd, `.conciv-img-${randomUUID()}.${ext}`)
       writeFileSync(path, Buffer.from(img.dataBase64, 'base64'))
       return `@${path}`
     })
@@ -73,7 +73,7 @@ export function buildClaudeArgs(turn: HarnessTurn): string[] {
     turn.cwd,
   ]
   if (turn.mcpUrl) args.push(...claudeMcpArgs(turn.mcpUrl, turn.sessionId))
-  if (MANDARAX_PLUGIN_DIR) args.push('--plugin-dir', MANDARAX_PLUGIN_DIR)
+  if (CONCIV_PLUGIN_DIR) args.push('--plugin-dir', CONCIV_PLUGIN_DIR)
   if (turn.model) args.push('--model', turn.model)
   if (turn.permissionUrl) args.push('--settings', hookSettings(turn.permissionUrl))
   if (turn.systemPrompt) args.push('--append-system-prompt-file', turn.systemPrompt)

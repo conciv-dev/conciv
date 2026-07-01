@@ -1,8 +1,8 @@
 import type {ZodType} from 'zod'
 import {EventType, type StreamChunk, type ToolOutputState} from '@tanstack/ai'
-import type {HarnessDecodeOpts} from '@mandarax/protocol/harness-types'
-import {snapshotToTokenUsage, type UsageSnapshot} from '@mandarax/protocol/usage-types'
-import {aguiToolDurationFor} from '@mandarax/protocol/tool-timing'
+import type {HarnessDecodeOpts} from '@conciv/protocol/harness-types'
+import {snapshotToTokenUsage, type UsageSnapshot} from '@conciv/protocol/usage-types'
+import {aguiToolDurationFor} from '@conciv/protocol/tool-timing'
 
 // Shared decoder spine: run lifecycle, line loop, parse, id minter, AG-UI chunk emitters.
 // An adapter supplies only its Zod event schema and a pure event→chunks `step`.
@@ -83,8 +83,8 @@ export async function* runAguiEvents<E>(
   step: Step<E>,
   extractUsage?: UsageExtractor<E>,
 ): AsyncGenerator<StreamChunk> {
-  const runId = opts.runId ?? 'mandarax-run'
-  const threadId = opts.threadId ?? 'mandarax-chat'
+  const runId = opts.runId ?? 'conciv-run'
+  const threadId = opts.threadId ?? 'conciv-chat'
   // Scope minted ids to this turn (threadId is fresh per turn) so a later turn never reuses an
   // earlier turn's message id — a collision makes the widget update the old message in place
   // (reply renders above the question, or not at all) instead of appending a new one.

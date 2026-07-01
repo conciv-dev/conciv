@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {defineExtension, defineTool} from '@mandarax/extension'
+import {defineExtension, defineTool} from '@conciv/extension'
 
 // Isolation fixture: the Component touches a browser global and .client() throws — both would blow up
 // if the server load (jiti) executed them. The server only drains .server()/tools, so the load must

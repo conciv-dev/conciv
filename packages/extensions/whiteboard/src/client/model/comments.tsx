@@ -1,8 +1,8 @@
 import {createContext, createMemo, createSignal, onCleanup, useContext, type Accessor, type JSX} from 'solid-js'
 import {useAll, useDb, useSession} from 'jazz-tools/solid'
 import type {JsonValue} from 'jazz-tools'
-import type {ToolViewCtx} from '@mandarax/protocol/tool-view-types'
-import type {MentionSegment} from '@mandarax/ui-kit-tap'
+import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import type {MentionSegment} from '@conciv/ui-kit-tap'
 import {app} from '../../shared/schema.js'
 import {screenToScene, sceneToScreen, type Viewport} from '../../canvas/coords.js'
 

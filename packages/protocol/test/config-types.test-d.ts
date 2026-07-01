@@ -1,5 +1,5 @@
 import {expectTypeOf, test} from 'vitest'
-import type {MandaraxConfig} from '../src/config-types.js'
+import type {ConcivConfig} from '../src/config-types.js'
 
 declare module '../src/config-types.js' {
   interface ExtensionConfigRegistry {
@@ -8,5 +8,5 @@ declare module '../src/config-types.js' {
 }
 
 test('extensions field types from the registry', () => {
-  expectTypeOf<MandaraxConfig['extensions']>().toMatchTypeOf<{sample?: {flag?: boolean}} | undefined>()
+  expectTypeOf<ConcivConfig['extensions']>().toMatchTypeOf<{sample?: {flag?: boolean}} | undefined>()
 })

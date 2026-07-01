@@ -1,7 +1,7 @@
 import {defineConfig} from 'tsdown'
 
-// Umbrella package: thin re-exports of @mandarax/plugin. The plugin (and its host deps)
-// stay external — never bundled — so mandarax just forwards types and runtime to it.
+// Umbrella package: thin re-exports of @conciv/plugin. The plugin (and its host deps)
+// stay external — never bundled — so conciv just forwards types and runtime to it.
 export default defineConfig({
   entry: [
     'src/plugin/vite.ts',
@@ -15,5 +15,5 @@ export default defineConfig({
   format: 'esm',
   fixedExtension: false,
   dts: true,
-  external: [/^@mandarax\//, 'unplugin', 'vite', 'launch-editor', 'next'],
+  external: [/^@conciv\//, 'unplugin', 'vite', 'launch-editor', 'next'],
 })

@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:executing-plans. Implement task-by-task, TDD, checkpoint between phases. Work **inline** (no dispatched subagents — house rule for this project). Steps use checkbox (`- [ ]`) syntax.
 
-**Goal:** Ship `@mandarax/whiteboard` — a default-on first-party extension giving the user and the AI an equal, transparent, infinite Excalidraw canvas over the dev app, with source-anchored comments, a drift doctor, and one cross-store undo stack — built entirely on the shipped `mx` platform API.
+**Goal:** Ship `@conciv/whiteboard` — a default-on first-party extension giving the user and the AI an equal, transparent, infinite Excalidraw canvas over the dev app, with source-anchored comments, a drift doctor, and one cross-store undo stack — built entirely on the shipped `mx` platform API.
 
-**Architecture:** One monorepo package exporting a single `MandaraxExtension`. The data layer is **TanStack DB** (`mx.db`) for every durable/queryable thing (comment rows, parts, status, anchors). The **only** live CRDT surface is **Yjs** (`mx.sync`) for the canvas: drawing elements, pin geometry, ephemeral presence (awareness), and a `pending` queue the AI writes draws into. React appears in exactly **one file** — `island.tsx`, a dumb `<Excalidraw>` shim exposing an imperative handle; every line of feature logic lives outside React in plain TS + Solid.
+**Architecture:** One monorepo package exporting a single `ConcivExtension`. The data layer is **TanStack DB** (`mx.db`) for every durable/queryable thing (comment rows, parts, status, anchors). The **only** live CRDT surface is **Yjs** (`mx.sync`) for the canvas: drawing elements, pin geometry, ephemeral presence (awareness), and a `pending` queue the AI writes draws into. React appears in exactly **one file** — `island.tsx`, a dumb `<Excalidraw>` shim exposing an imperative handle; every line of feature logic lives outside React in plain TS + Solid.
 
 **Tech Stack:** Solid (widget), React 19 + `@excalidraw/excalidraw` 0.18.x (island only, **light DOM**), Yjs + `y-websocket` + `y-indexeddb` (`mx.sync`), `@tanstack/db` + `@tanstack/solid-db` + `@tanstack/trailbase-db-collection` over `trail` (`mx.db`), `oxc-parser` + shell `git` (anchoring), `solid-sonner` (toasts), zod, h3.
 
@@ -40,7 +40,7 @@ Phase 0 (platform: CORS PATCH, awareness on `mx.sync`, `{sessionId,previewId}` e
 4. **AI draw conversion happens in the BROWSER ISLAND, not the server.** `@excalidraw/excalidraw` cannot be imported in node (its prod build imports `roughjs/bin/rough` with no extension → native-node ESM fails — in the real dev engine too). So server `canvas.draw`/`canvas.diagram` are pure Yjs writes into a `pending` `Y.Map` (`{kind:'skeletons',elements}` or `{kind:'mermaid',source}`); `bindAiDraws` (browser) observes pending and converts via `convertToExcalidrawElements` / `parseMermaidToExcalidraw`. Apply the same rule to any future tool that would need Excalidraw at runtime. Tradeoff: AI draws materialize only when a tab is connected (pending persists in the snapshot until one is).
 5. **Solid components compiled by esbuild (the whiteboard test-fixture bundler) CANNOT use Solid JSX.** `index.ts` and `canvas-effect.ts` stay JSX-free `.ts` and lazy-`import()` any Solid/React piece. For Phase 3 `pins.tsx`/`thread.tsx` (Solid JSX): EITHER test them through the **full widget** (`packages/widget/test`, vite+solid build — Solid JSX compiles there) OR write them JSX-free like `zoom-controls` was. Do not try to esbuild-bundle Solid JSX in a whiteboard fixture.
 6. **Excalidraw `excalidrawAPI` fires BEFORE `initialData` settles** ([[excalidraw-initialdata-clobbers-seed]]). A scene seeded the instant the API arrives (the reopen seed) renders then gets reset to `initialData` one frame later — looked like "drawings vanish on reopen". `island.tsx` buffers scene writes in `pending` and flushes after one `requestAnimationFrame` (gated by `ready`). NOT viewport/scroll — scene went 1→0 across frames with dims/scroll fine; don't reach for scrollToContent. Repro: `packages/widget/test/canvas-persist.it.test.ts`.
-7. **IT homes:** whiteboard-local ITs (glue/sync/tools/presence/mermaid) live in `packages/whiteboard/test` using `helpers/{bootStack,page,run-tool}` — `page.ts` `bundleFixture` is esbuild (react alias + `IS_PREACT` define + `css?inline`→'' stub), `servePage(html, syncHooks)` mounts the relay, fixtures build their own `y-websocket` `WebsocketProvider` client and send a real `MANDARAX_SESSION_HEADER`. Full-widget end-to-end ITs (the effect toggled in the real widget) live in `packages/widget/test/canvas-effect.it.test.ts` via `serveWidgetAsset`. `y-websocket` is a whiteboard devDep for this; `wsBase('')` now resolves to same-origin.
+7. **IT homes:** whiteboard-local ITs (glue/sync/tools/presence/mermaid) live in `packages/whiteboard/test` using `helpers/{bootStack,page,run-tool}` — `page.ts` `bundleFixture` is esbuild (react alias + `IS_PREACT` define + `css?inline`→'' stub), `servePage(html, syncHooks)` mounts the relay, fixtures build their own `y-websocket` `WebsocketProvider` client and send a real `CONCIV_SESSION_HEADER`. Full-widget end-to-end ITs (the effect toggled in the real widget) live in `packages/widget/test/canvas-effect.it.test.ts` via `serveWidgetAsset`. `y-websocket` is a whiteboard devDep for this; `wsBase('')` now resolves to same-origin.
 
 ### Current file layout (Phases 0–2)
 
@@ -124,7 +124,7 @@ Phase 3+ adds: `schema.ts`, `tools/{comment,element,anchor,doctor-tool,history-t
 - Consumes: `mx.db` (`LiveDb` server / `ClientDb` client), the `cidKeyedApi` shim (already in `createClientDb`).
 
 - [ ] **Step 1: Failing IT** — booted real stack: `mx.db.list()` includes `comments`; a server `insert` then a `browser.newPage` `useLiveQuery` over `comments` renders the row. Realtime: a second server insert appears live.
-- [ ] **Step 2: FAIL. Step 3: Implement** the declarations. **Step 4: PASS.** Run: `SKIP_STORYBOOK_TESTS=1 pnpm --filter @mandarax/whiteboard test -- comments-collection`
+- [ ] **Step 2: FAIL. Step 3: Implement** the declarations. **Step 4: PASS.** Run: `SKIP_STORYBOOK_TESTS=1 pnpm --filter @conciv/whiteboard test -- comments-collection`
 - [ ] **Step 5: Commit** `feat(whiteboard): declare comments collection on mx.db`
 
 ---
@@ -168,9 +168,9 @@ Phase 3+ adds: `schema.ts`, `tools/{comment,element,anchor,doctor-tool,history-t
 **Interfaces:**
 
 - Produces:
-  - `thread.tsx` — a Solid panel: replies via `parent_id`; each comment/reply renders `parts[]` through `@mandarax/tool-ui`'s `ToolCallCard` (`props.tools?.().find(matches part.name)` → `renderCall`/`renderResult`; read `part.arguments` since `part.input` is often empty — [[tanstack-part-input-empty]], [[tool-ui-tanstack-convention]]). Pass the whiteboard tool definitions as the `tools` accessor. Reply box → `mx.runTool('comment.reply', …)`; resolve button → `mx.runTool('comment.resolve', …)` (`ask`, drives the widget-direct approval flow).
+  - `thread.tsx` — a Solid panel: replies via `parent_id`; each comment/reply renders `parts[]` through `@conciv/tool-ui`'s `ToolCallCard` (`props.tools?.().find(matches part.name)` → `renderCall`/`renderResult`; read `part.arguments` since `part.input` is often empty — [[tanstack-part-input-empty]], [[tool-ui-tanstack-convention]]). Pass the whiteboard tool definitions as the `tools` accessor. Reply box → `mx.runTool('comment.reply', …)`; resolve button → `mx.runTool('comment.resolve', …)` (`ask`, drives the widget-direct approval flow).
   - tools: `comment.list({scope:'session'|'all', file?, status?})`, `comment.read({cid})`, `comment.reply({cid, parts})`, `comment.resolve({cid})` `[ask]`, with `promptSnippet`/`promptGuidelines`.
-- Consumes: `@mandarax/tool-ui` `ToolCallCard` (`packages/tool-ui/src/index.tsx`), `mx.runTool`, the `comments` live query.
+- Consumes: `@conciv/tool-ui` `ToolCallCard` (`packages/tool-ui/src/index.tsx`), `mx.runTool`, the `comments` live query.
 
 - [ ] **Step 1: Failing IT** — `comment.create` then `comment.reply` (AI author) → the reply renders in the thread; a reply carrying a tool part renders the tool card (assert by the card's visible title/role). `comment.list({scope:'session'})` returns the session's comments.
 - [ ] **Step 2: FAIL. Step 3: Implement.** **Step 4: PASS.**
@@ -366,14 +366,14 @@ Phase 3+ adds: `schema.ts`, `tools/{comment,element,anchor,doctor-tool,history-t
 
 ---
 
-### Task 5.2: `mandarax doctor` CLI command
+### Task 5.2: `conciv doctor` CLI command
 
 **Files:** Create `packages/cli/src/doctor.ts`; Modify `packages/cli/src/bin.ts`; Test `packages/cli/test/doctor.it.test.ts`.
 
-**Interfaces:** a `mandarax doctor` command (citty, matching `packages/cli/src/*` which hit `cli-http`/`request.ts`) that calls `doctor.run` and prints `N fresh · M re-anchored · K drifted (review) · J orphaned`. Print + exit 0 unless `--strict` (exit 1 if drift > 0).
+**Interfaces:** a `conciv doctor` command (citty, matching `packages/cli/src/*` which hit `cli-http`/`request.ts`) that calls `doctor.run` and prints `N fresh · M re-anchored · K drifted (review) · J orphaned`. Print + exit 0 unless `--strict` (exit 1 if drift > 0).
 
 - [ ] **Step 1: Failing IT** — boot a stack with the whiteboard extension + a drifted comment; run the CLI; assert stdout contains the report line and drift count.
-- [ ] Step 2: FAIL. Step 3: implement. Step 4: PASS. Step 5: Commit `feat(cli): mandarax doctor command`.
+- [ ] Step 2: FAIL. Step 3: implement. Step 4: PASS. Step 5: Commit `feat(cli): conciv doctor command`.
 
 **Phase 5 exit gate:** drift detected on session start + on demand; join reconciled; CLI reports it; incremental re-resolution; one bad comment never throws.
 
@@ -429,7 +429,7 @@ When a session's canvas is empty, render a hand-drawn Excalidraw sketch ("Draw h
 
 ### Task 7.3: Notifications via solid-sonner
 
-> **INSTALL-APPROVAL GATE:** ASK to add `solid-sonner` to `packages/whiteboard` (or `@mandarax/widget`). Do not install until approved.
+> **INSTALL-APPROVAL GATE:** ASK to add `solid-sonner` to `packages/whiteboard` (or `@conciv/widget`). Do not install until approved.
 
 **Files:** Create `packages/whiteboard/src/notify.ts`; Modify relevant tools/effects; Test in `packages/widget/test`.
 

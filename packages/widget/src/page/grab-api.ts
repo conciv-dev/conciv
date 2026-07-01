@@ -1,7 +1,7 @@
 import {createEffect, createRoot} from 'solid-js'
 import {getReactGrabAdapter} from './react-grab/adapter.js'
 import {picking, cancelPick} from './react-grab/picking.js'
-import type {Grab, GrabApi} from '@mandarax/grab'
+import type {Grab, GrabApi} from '@conciv/grab'
 
 let pendingResolve: ((grab: Grab | null) => void) | null = null
 

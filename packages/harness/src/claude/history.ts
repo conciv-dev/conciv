@@ -2,8 +2,8 @@ import {readdir, stat, readFile} from 'node:fs/promises'
 import {homedir} from 'node:os'
 import {join, resolve, sep} from 'node:path'
 import {z} from 'zod'
-import type {MessagePart, UIMessage} from '@mandarax/protocol/chat-types'
-import type {HarnessHistory, HarnessSessionMeta} from '@mandarax/protocol/harness-types'
+import type {MessagePart, UIMessage} from '@conciv/protocol/chat-types'
+import type {HarnessHistory, HarnessSessionMeta} from '@conciv/protocol/harness-types'
 import {TextBlock, ThinkingBlock, ToolUseBlock, ToolResultBlock, canonicalToolName, contentText} from './blocks.js'
 
 // Where claude persists a session's JSONL transcript, and how to parse it into UIMessages.

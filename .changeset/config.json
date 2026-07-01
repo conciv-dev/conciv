@@ -3,11 +3,11 @@
   "changelog": [
     "@changesets/changelog-github",
     {
-      "repo": "mandarax-dev/mandarax"
+      "repo": "conciv-dev/conciv"
     }
   ],
   "commit": false,
-  "fixed": [["@mandarax/*"]],
+  "fixed": [["@conciv/*"]],
   "linked": [],
   "access": "public",
   "baseBranch": "main",

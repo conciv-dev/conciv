@@ -1,7 +1,7 @@
 import {z} from 'zod'
-import {defineExtension, defineTool} from '@mandarax/extension'
+import {defineExtension, defineTool} from '@conciv/extension'
 
-// A file-based mandarax extension: discovered from mandarax/extensions/, its Component painted into
+// A file-based conciv extension: discovered from conciv/extensions/, its Component painted into
 // the widget slots (client) and its tools + prompt fed to the agent engine (server), no manual wiring.
 const hello = defineTool({
   name: 'acme_hello',

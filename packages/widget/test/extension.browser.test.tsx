@@ -2,7 +2,7 @@ import {describe, it, expect, afterEach} from 'vitest'
 import {render} from 'solid-js/web'
 import {page} from 'vitest/browser'
 import {ChatPanel} from '../src/chat/chat-panel.js'
-import {defineClient} from '@mandarax/api-client'
+import {defineClient} from '@conciv/api-client'
 import {sampleExtension} from './fixtures/sample-extension.js'
 import {buildInstances} from './helpers/instances.js'
 
@@ -49,14 +49,14 @@ describe('extension rendering (real browser)', () => {
   it('useContext(select) gives the composer button a working insert into THIS panel', async () => {
     mountPanel()
     await page.getByRole('button', {name: 'Sample Draw'}).click()
-    await expect.element(page.getByRole('textbox', {name: 'Message the mandarax agent'})).toHaveValue('drew a square')
+    await expect.element(page.getByRole('textbox', {name: 'Message the conciv agent'})).toHaveValue('drew a square')
   })
 
   it('keeps insert isolated between two concurrent panels', async () => {
     mountPanel()
     mountPanel()
     // Two panels mounted; DOM order = mount order. Clicking panel B's button must insert into B only.
-    const textboxes = page.getByRole('textbox', {name: 'Message the mandarax agent'})
+    const textboxes = page.getByRole('textbox', {name: 'Message the conciv agent'})
     await page.getByRole('button', {name: 'Sample Draw'}).nth(1).click()
     await expect.element(textboxes.nth(1)).toHaveValue('drew a square')
     await expect.element(textboxes.nth(0)).toHaveValue('')

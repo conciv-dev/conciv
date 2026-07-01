@@ -1,5 +1,5 @@
 import {createSignal, Show, type JSX} from 'solid-js'
-import {defineExtension} from '@mandarax/extension'
+import {defineExtension} from '@conciv/extension'
 
 function Component(): JSX.Element {
   const grab = ping.useContext((context) => context.grab)

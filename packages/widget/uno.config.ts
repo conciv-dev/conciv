@@ -1,4 +1,4 @@
-import {presetAidx} from '@mandarax/uno-preset'
+import {presetAidx} from '@conciv/uno-preset'
 import {defineConfig} from 'unocss'
 
 export default defineConfig({
@@ -17,7 +17,7 @@ export default defineConfig({
       '../extensions/whiteboard/src/**/*.{ts,tsx}',
     ],
   },
-  // presets/theme/shortcuts come from the shared @mandarax/uno-preset (one source of truth). See its
+  // presets/theme/shortcuts come from the shared @conciv/uno-preset (one source of truth). See its
   // src/index.ts for the presetMini/typography/sr-only rationale.
   presets: [presetAidx()],
 })

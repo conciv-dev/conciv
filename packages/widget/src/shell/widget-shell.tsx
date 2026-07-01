@@ -11,9 +11,9 @@ import {
   type JSX,
 } from 'solid-js'
 import {render} from 'solid-js/web'
-import {EnvironmentProvider} from '@mandarax/ui-kit-system'
+import {EnvironmentProvider} from '@conciv/ui-kit-system'
 import {ApprovalModal, type PendingApproval} from './approval-modal.js'
-import type {TriggerPosition} from '@mandarax/protocol/config-types'
+import type {TriggerPosition} from '@conciv/protocol/config-types'
 import type {WidgetSettings} from '../client/widget-settings.js'
 import {createDraggablePosition} from '../lib/draggable-position.js'
 import {createResizable} from '../lib/resize.js'
@@ -27,12 +27,12 @@ import {ContextTracker} from '../page/context-tracker.js'
 import {SessionSelector} from '../composer/session-selector.js'
 import {sessions, mergeSurface, makeSurfaceRow} from '../client/session-store-client.js'
 import {readStorage, writeStorage} from '../lib/persisted-signal.js'
-import {defineClient, type SessionClient} from '@mandarax/api-client'
-import {SessionId, isSessionId} from '@mandarax/protocol/chat-types'
-import type {UsageSnapshot} from '@mandarax/protocol/usage-types'
-import type {Grab} from '@mandarax/grab'
+import {defineClient, type SessionClient} from '@conciv/api-client'
+import {SessionId, isSessionId} from '@conciv/protocol/chat-types'
+import type {UsageSnapshot} from '@conciv/protocol/usage-types'
+import type {Grab} from '@conciv/grab'
 
-// Read our persisted active id, accepting only a valid mandarax_ id (a stale/foreign value is dropped).
+// Read our persisted active id, accepting only a valid conciv_ id (a stale/foreign value is dropped).
 const parseActiveId = (raw: string): SessionId | undefined => (isSessionId(raw) ? SessionId.parse(raw) : undefined)
 
 // A registered content module the shell hosts, modeled on the TanStack Devtools plugin model.
@@ -48,7 +48,7 @@ export type PanelContext = {
   // The content reports its pending native approvals, so the shell can surface them in the modal
   // while the panel is closed.
   onApprovalsChange: (approvals: PendingApproval[]) => void
-  // This surface's session client — owns the active mandarax_ id, the single comms seam for the panel.
+  // This surface's session client — owns the active conciv_ id, the single comms seam for the panel.
   client: SessionClient
   // The content reports its resolved session name, so the chrome can surface a just-born row.
   onSessionLabel?: (name: string | null) => void
@@ -144,7 +144,7 @@ export function createWidgetShell(opts: {settings: WidgetSettings}): {
       const container = document.createElement('div')
       // The chat styled set (ui-kit-chat) references --chat-* tokens; this maps them onto the widget's
       // --pw-* (dark + magenta) for everything the shell renders.
-      container.className = 'chat-theme-mandarax'
+      container.className = 'chat-theme-conciv'
       rootEl.appendChild(container)
       // Ark UI (Zag) resolves its DOM via the environment's root node; inside our open Shadow DOM it
       // must be told the shadow root, or element lookups hit `document`, find nothing, and popovers
@@ -342,7 +342,7 @@ function ModalLayout(props: {
   // the active one shown. Switching is a pure view swap — it never tears down or kills a turn.
   const [activeId, setActiveId] = createSignal<SessionId | null>(null)
   const [panes, setPanes] = createSignal<ModalPane[]>([])
-  createEffect(() => writeStorage('mandarax-active-session', activeId()))
+  createEffect(() => writeStorage('conciv-active-session', activeId()))
   const apiBase = props.panel.apiBase ?? ''
   // Panes mount from async resolves + event handlers (session switch), which run ownerless. Capture
   // this component's owner so create() executes under it — otherwise the panel's Ark components miss
@@ -384,7 +384,7 @@ function ModalLayout(props: {
     activate(sessionId)
   }
   // Seed: restore the persisted active session, else resolve a fresh one up front.
-  const restored = readStorage('mandarax-active-session', parseActiveId, undefined)
+  const restored = readStorage('conciv-active-session', parseActiveId, undefined)
   if (restored) activate(restored)
   else void activateNew()
 
@@ -393,7 +393,7 @@ function ModalLayout(props: {
   const working = () => activePane()?.working() ?? false
   const usage = () => activePane()?.usage() ?? null
 
-  const fab = createDraggablePosition({initial: props.position, storageKey: 'mandarax-fab-position'})
+  const fab = createDraggablePosition({initial: props.position, storageKey: 'conciv-fab-position'})
   const pip = createPiP()
   let fabEl: HTMLButtonElement | undefined
   let panelEl: HTMLElement | undefined
@@ -414,14 +414,14 @@ function ModalLayout(props: {
     initial: 560,
     min: 240,
     collapseAt: 140,
-    storageKey: 'mandarax-modal-height',
+    storageKey: 'conciv-modal-height',
     grow: () => (anchoredBottom() ? 'up' : 'down'),
     onCollapse: () => closePanel(),
   })
   const resizeX = createResizable({
     initial: 480,
     min: 448,
-    storageKey: 'mandarax-modal-width',
+    storageKey: 'conciv-modal-width',
     grow: () => (anchoredRight() ? 'left' : 'right'),
   })
   const toggle = () => (props.open() ? closePanel() : props.onOpen())
@@ -460,7 +460,7 @@ function ModalLayout(props: {
         data-pw-suppressed={picking() || anyOpen() ? '' : undefined}
         style={{height: `${resizeY.size()}px`, width: `${resizeX.size()}px`}}
         role="dialog"
-        aria-label="mandarax chat agent"
+        aria-label="conciv chat agent"
         aria-hidden={!props.open()}
         id="pw-chat-panel"
         onKeyDown={onPanelKeyDown}
@@ -533,7 +533,7 @@ function ModalLayout(props: {
         data-pw-fab
         data-pw-suppressed={picking() || anyOpen() ? '' : undefined}
         style={fab.dragStyle()}
-        aria-label={props.open() ? 'Minimize mandarax chat' : 'Open mandarax chat'}
+        aria-label={props.open() ? 'Minimize conciv chat' : 'Open conciv chat'}
         aria-expanded={props.open()}
         aria-controls="pw-chat-panel"
         onPointerDown={fab.onPointerDown}

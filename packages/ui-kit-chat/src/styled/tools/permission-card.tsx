@@ -1,6 +1,6 @@
 import {Show, type JSX} from 'solid-js'
 import {Check, ShieldAlert, X} from 'lucide-solid'
-import type {ToolCardProps} from '@mandarax/protocol/tool-view-types'
+import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {Permission, usePermission} from '../../primitives/tools/permission.js'
 
 // Styled native-approval prompt: a thin --chat-* wrapper over the Permission primitive. Renders the

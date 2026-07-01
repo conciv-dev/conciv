@@ -1,29 +1,29 @@
 import {join} from 'node:path'
 import {createRequire} from 'node:module'
 import type {Plugin, ViteDevServer} from 'vite'
-import {defineBundlerBridge, type BundlerBridge} from '@mandarax/protocol/bundler-types'
-import {start, type Engine} from '@mandarax/core/engine'
-import {htmlTags} from '@mandarax/core/widget-tags'
-import {resolveConfig} from '@mandarax/core/config'
-import type {MandaraxConfig} from '@mandarax/protocol/config-types'
-import {installMandaraxBinShim} from './bin-shim.js'
+import {defineBundlerBridge, type BundlerBridge} from '@conciv/protocol/bundler-types'
+import {start, type Engine} from '@conciv/core/engine'
+import {htmlTags} from '@conciv/core/widget-tags'
+import {resolveConfig} from '@conciv/core/config'
+import type {ConcivConfig} from '@conciv/protocol/config-types'
+import {installConcivBinShim} from './bin-shim.js'
 import {viteConfig, viteResolve, viteGraph, viteTransform, viteUrls, type ViteLike} from './vite-tools.js'
 import {EXTENSIONS_ROUTE, makeWidgetInject, type Middleware} from './widget-middleware.js'
 import {makeOpenInEditor} from './open-editor.js'
-import type {AnyExtension} from '@mandarax/extension'
+import type {AnyExtension} from '@conciv/extension'
 import {type Builtins, EXTENSIONS_VIRTUAL_ID, NO_BUILTINS, loadServerExtensions} from './extensions.js'
 import {
   loadExtensionsModule,
-  mandaraxSolidConfig,
+  concivSolidConfig,
   resolveExtensionsModule,
-  transformMandaraxModule,
+  transformConcivModule,
 } from './vite-plumbing.js'
 
 const require = createRequire(import.meta.url)
 
 function widgetInstalled(): boolean {
   try {
-    require.resolve('@mandarax/widget')
+    require.resolve('@conciv/widget')
     return true
   } catch {
     return false
@@ -50,7 +50,7 @@ function makeViteBridge(server: ViteLike): BundlerBridge {
   })
 }
 
-function mountWidget(server: ViteDevServer, apiBase: string, widgetConfig: MandaraxConfig['widget']): void {
+function mountWidget(server: ViteDevServer, apiBase: string, widgetConfig: ConcivConfig['widget']): void {
   server.middlewares.stack.unshift({
     route: '',
     handle: makeWidgetInject(apiBase, widgetConfig),
@@ -97,7 +97,7 @@ function safeOrigin(url: string): string | null {
 
 function bootEngine(
   server: ViteDevServer,
-  options: MandaraxConfig,
+  options: ConcivConfig,
   agentPath: string,
   extensions: AnyExtension[],
 ): Promise<Engine> {
@@ -108,30 +108,30 @@ function bootEngine(
     launchEditor: makeOpenInEditor(server.config.root),
     allowedOrigins: devOrigins(server),
     extensions,
-    childEnv: (corePort) => ({...process.env, PATH: agentPath, MANDARAX_PORT: String(corePort)}),
+    childEnv: (corePort) => ({...process.env, PATH: agentPath, CONCIV_PORT: String(corePort)}),
   })
 }
 
-// The unplugin factory's rich `vite` hook: boots @mandarax/core (with the live viteBridge +
-// widget middleware), injects the widget head tags, and stamps JSX with data-mandarax-source.
+// The unplugin factory's rich `vite` hook: boots @conciv/core (with the live viteBridge +
+// widget middleware), injects the widget head tags, and stamps JSX with data-conciv-source.
 // serve-only (no-op in prod builds). enforce:'pre' so the source transform sees raw JSX/TSX
 // before @vitejs/plugin-react compiles it away.
-export function makeViteHook(options: MandaraxConfig = {}, builtins: Builtins = NO_BUILTINS): Plugin {
+export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO_BUILTINS): Plugin {
   const hasWidget = widgetInstalled()
   let engine: Engine | null = null
   let root = process.cwd()
   // When TanStack devtools' source injector is in the pipeline it stamps data-tsd-source (which
   // `locate` already reads), at its own position relative to the framework's per-environment
-  // transforms. mandarax stamping too then yields divergent line numbers between the SSR and client
+  // transforms. conciv stamping too then yields divergent line numbers between the SSR and client
   // builds → a React hydration mismatch. Defer to it: detected from the resolved plugin list (same
   // for both builds), so the decision is deterministic, not order/code dependent.
   let deferToTsd = false
   return {
-    name: 'mandarax',
+    name: 'conciv',
     apply: 'serve',
     enforce: 'pre',
     config() {
-      return hasWidget ? mandaraxSolidConfig() : {}
+      return hasWidget ? concivSolidConfig() : {}
     },
     configResolved(config) {
       root = config.root
@@ -145,7 +145,7 @@ export function makeViteHook(options: MandaraxConfig = {}, builtins: Builtins = 
     },
     transform(code, id, opts) {
       if (options.enabled === false) return null
-      return transformMandaraxModule(code, id, opts?.ssr ?? false, {root, deferToTsd})
+      return transformConcivModule(code, id, opts?.ssr ?? false, {root, deferToTsd})
     },
     transformIndexHtml: {
       order: 'pre',
@@ -159,7 +159,7 @@ export function makeViteHook(options: MandaraxConfig = {}, builtins: Builtins = 
       const cfg = resolveConfig(options, server.config.root)
       if (!cfg.enabled) return
       const extensions = await loadServerExtensions(server.config.root, builtins.serverExtensions)
-      engine = await bootEngine(server, options, installMandaraxBinShim(join(cfg.stateRoot, '.mandarax')), extensions)
+      engine = await bootEngine(server, options, installConcivBinShim(join(cfg.stateRoot, '.conciv')), extensions)
       const booted = engine
       if (hasWidget) mountWidget(server, `http://127.0.0.1:${booted.port}`, options.widget)
       server.httpServer?.on('close', () => void booted.stop())

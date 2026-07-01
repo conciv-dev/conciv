@@ -1,4 +1,4 @@
-import {defineExtension} from '@mandarax/extension'
+import {defineExtension} from '@conciv/extension'
 import {TEST_RUNNER_NAME, TEST_RUNNER_PROMPT, testRunnerConfig} from './shared/meta.js'
 import {testToolClient} from './tool/client.js'
 

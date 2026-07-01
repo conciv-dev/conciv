@@ -36,7 +36,7 @@ export type TestRunnerAdapter = {
 
 // A runner has nothing to run (no runner installed, or an unsupported API shape). Adapters throw
 // this; the route renders it as a 422 instead of a 500.
-const RUNNER_UNAVAILABLE_TAG = 'mandarax:runner-unavailable'
+const RUNNER_UNAVAILABLE_TAG = 'conciv:runner-unavailable'
 export type RunnerUnavailableError = Error & {[RUNNER_UNAVAILABLE_TAG]: true; available: false}
 
 export function runnerUnavailableError(runnerId: string, reason: string): RunnerUnavailableError {

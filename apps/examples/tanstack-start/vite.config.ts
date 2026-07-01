@@ -3,9 +3,9 @@ import {devtools} from '@tanstack/devtools-vite'
 import {tanstackStart} from '@tanstack/react-start/plugin/vite'
 import viteReact from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
-import mandarax from '@mandarax/qu/plugin/vite'
+import conciv from '@conciv/qu/plugin/vite'
 
-// Add the mandarax plugin — dev-only; override defaults via mandarax({harness, sessionId, …}).
+// Add the conciv plugin — dev-only; override defaults via conciv({harness, sessionId, …}).
 export default defineConfig({
   resolve: {tsconfigPaths: true},
   plugins: [
@@ -13,6 +13,6 @@ export default defineConfig({
     tailwindcss(),
     tanstackStart(),
     viteReact(),
-    mandarax({widget: {quickTerminal: {hotkey: 'Alt+k'}}}),
+    conciv({widget: {quickTerminal: {hotkey: 'Alt+k'}}}),
   ],
 })

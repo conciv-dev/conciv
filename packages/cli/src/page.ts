@@ -1,9 +1,9 @@
 import {z} from 'zod'
 import {defineCommand, type ArgDef, type ArgsDef, type SubCommandsDef} from 'citty'
-import {PAGE_QUERY_KINDS, type PageQueryKind} from '@mandarax/protocol/page-types'
+import {PAGE_QUERY_KINDS, type PageQueryKind} from '@conciv/protocol/page-types'
 import {compact, qs, runAndPrint, type CliRequest} from './request.js'
 
-// `mandarax tools page <verb>` — read and drive the live page. Each verb declares its HTTP
+// `conciv tools page <verb>` — read and drive the live page. Each verb declares its HTTP
 // method, whether it targets an element (positional <selector> or --ref), and which extra
 // flags carry params. The 33 leaf citty commands are GENERATED from this one table (× zod),
 // so adding a verb is a single row — never a hand-written command block.
@@ -163,7 +163,7 @@ export const pageCommand = defineCommand({
   subCommands: pageCommands(),
 })
 
-// The React-introspection subset, exposed under `mandarax tools react` as an alias of the same verbs —
+// The React-introspection subset, exposed under `conciv tools react` as an alias of the same verbs —
 // where agents intuitively reach for them. All resolve to the same /api/page/:verb endpoints.
 export const REACT_VERBS = [
   'inspect',

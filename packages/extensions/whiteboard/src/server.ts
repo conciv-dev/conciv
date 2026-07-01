@@ -1,7 +1,7 @@
 import {fileURLToPath} from 'node:url'
 import {join} from 'node:path'
 import {deploy} from 'jazz-tools/dev'
-import {defineExtension, type ToolRequest} from '@mandarax/extension'
+import {defineExtension, type ToolRequest} from '@conciv/extension'
 import {WHITEBOARD_NAME, WHITEBOARD_PROMPT} from './shared/meta.js'
 import {startJazzRunner} from './server/jazz/runner.js'
 import {createBackendDb} from './server/jazz/backend.js'
@@ -18,7 +18,7 @@ export default defineExtension({
   tools: [...canvasTools, ...commentTools, ...anchorTools, ...elementTools],
   systemPrompt: WHITEBOARD_PROMPT,
 }).server(async (server) => {
-  const runner = await startJazzRunner({dataDir: join(server.cwd, '.mandarax', 'whiteboard-jazz')})
+  const runner = await startJazzRunner({dataDir: join(server.cwd, '.conciv', 'whiteboard-jazz')})
   await deploy({serverUrl: runner.serverUrl, appId: runner.appId, adminSecret: runner.adminSecret, schemaDir})
   const backend = createBackendDb({
     appId: runner.appId,

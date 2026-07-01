@@ -23,7 +23,7 @@ describe('buildSessionList', () => {
   it('unions our records with unwrapped harness transcripts (no writes)', async () => {
     const store = memoryStore()
     await store.create({
-      id: 'mandarax_a',
+      id: 'conciv_a',
       harnessSessionId: 'tok-a',
       harnessKind: 'claude',
       origin: 'chat',
@@ -37,7 +37,7 @@ describe('buildSessionList', () => {
       {id: 'tok-ext', derivedTitle: 'External', updatedAt: 20, messageCount: 1},
     ]
     const rows = await buildSessionList({store, harnessList, runningKeys: new Set<string>(), cwd: '/app'})
-    const mine = rows.find((r) => r.id === 'mandarax_a')!
+    const mine = rows.find((r) => r.id === 'conciv_a')!
     const ext = rows.find((r) => r.id === 'tok-ext')!
     expect(mine.title).toBe('Mine') // our record wins
     expect(ext.origin).toBe('external') // unwrapped transcript shown under its harness id
@@ -46,24 +46,24 @@ describe('buildSessionList', () => {
 
   it('scopes records to the current cwd (trailing-slash tolerant)', async () => {
     const store = memoryStore()
-    await store.create(rec({id: 'mandarax_here', title: 'Here', cwd: '/app'}))
-    await store.create(rec({id: 'mandarax_there', title: 'There', cwd: '/other'}))
+    await store.create(rec({id: 'conciv_here', title: 'Here', cwd: '/app'}))
+    await store.create(rec({id: 'conciv_there', title: 'There', cwd: '/other'}))
     const rows = await buildSessionList({store, harnessList: [], runningKeys: new Set<string>(), cwd: '/app/'})
-    expect(rows.map((r) => r.id)).toEqual(['mandarax_here'])
+    expect(rows.map((r) => r.id)).toEqual(['conciv_here'])
   })
 })
 
 describe('sweepEmptyChatRecords', () => {
   it('deletes empty chat ghosts; keeps titled, tokened, external/agent, and locked', async () => {
     const store = memoryStore()
-    await store.create(rec({id: 'mandarax_ghost'})) // chat, null token, null title → swept
-    await store.create(rec({id: 'mandarax_titled', title: 'Kept'})) // user title → kept
-    await store.create(rec({id: 'mandarax_run', harnessSessionId: 'tok'})) // ran a turn → kept
-    await store.create(rec({id: 'mandarax_ext', origin: 'external'})) // external → kept
-    await store.create(rec({id: 'mandarax_agent', origin: 'agent'})) // agent → kept
-    await store.create(rec({id: 'mandarax_live'})) // empty but locked (in-flight first turn) → kept
-    await sweepEmptyChatRecords(store, new Set(['mandarax_live']))
+    await store.create(rec({id: 'conciv_ghost'})) // chat, null token, null title → swept
+    await store.create(rec({id: 'conciv_titled', title: 'Kept'})) // user title → kept
+    await store.create(rec({id: 'conciv_run', harnessSessionId: 'tok'})) // ran a turn → kept
+    await store.create(rec({id: 'conciv_ext', origin: 'external'})) // external → kept
+    await store.create(rec({id: 'conciv_agent', origin: 'agent'})) // agent → kept
+    await store.create(rec({id: 'conciv_live'})) // empty but locked (in-flight first turn) → kept
+    await sweepEmptyChatRecords(store, new Set(['conciv_live']))
     const ids = (await store.list()).map((r) => r.id).toSorted()
-    expect(ids).toEqual(['mandarax_agent', 'mandarax_ext', 'mandarax_live', 'mandarax_run', 'mandarax_titled'])
+    expect(ids).toEqual(['conciv_agent', 'conciv_ext', 'conciv_live', 'conciv_run', 'conciv_titled'])
   })
 })

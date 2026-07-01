@@ -2,7 +2,7 @@ import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import type {ToolViewCtx} from '@mandarax/protocol/tool-view-types'
+import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {BashCard} from './bash-card.js'
 
 const meta: Meta = {title: 'styled/tools/BashCard'}
@@ -57,7 +57,7 @@ export const Error: Story = {
 export const Running: Story = {
   render: () =>
     frame(
-      'chat-theme-mandarax',
+      'chat-theme-conciv',
       <BashCard part={part({command: 'sleep 5'}, 'input-complete')} result={undefined} ctx={ctx} />,
     ),
 }

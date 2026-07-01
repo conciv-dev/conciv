@@ -48,11 +48,11 @@ export function createPiP(): {
 
   const open = (node: HTMLElement, opts: {title?: string; width?: number; height?: number} = {}) => {
     if (win()) return
-    const w = window.open('', 'mandarax-pip', `width=${opts.width ?? 480},height=${opts.height ?? 620},popup`)
+    const w = window.open('', 'conciv-pip', `width=${opts.width ?? 480},height=${opts.height ?? 620},popup`)
     if (!w) return
     w.document.head.innerHTML = ''
     w.document.body.innerHTML = ''
-    w.document.title = opts.title ?? 'mandarax'
+    w.document.title = opts.title ?? 'conciv'
     w.document.body.style.margin = '0'
     // wind4's @property rules must register in the PiP document too (they don't register from the
     // shadow <style> below), else translate/opacity utilities collapse in the popped-out window.
@@ -74,7 +74,7 @@ export function createPiP(): {
 
     // Drop a placeholder where the node lived, then move it into the PiP shadow (appendChild across
     // documents auto-adopts the node — its Solid reactivity keeps working).
-    placeholder = node.ownerDocument.createComment('mandarax-pip')
+    placeholder = node.ownerDocument.createComment('conciv-pip')
     node.parentNode?.replaceChild(placeholder, node)
     wrap.appendChild(node)
     moved = node

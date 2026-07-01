@@ -1,7 +1,7 @@
-import {OpenSourceResultSchema, type OpenSourceResult} from '@mandarax/protocol/page-types'
-import type {LocateResult} from '@mandarax/protocol/page-introspect-types'
+import {OpenSourceResultSchema, type OpenSourceResult} from '@conciv/protocol/page-types'
+import type {LocateResult} from '@conciv/protocol/page-introspect-types'
 
-export const EFFECTS_SURFACE_ATTR = 'data-mandarax-effects'
+export const EFFECTS_SURFACE_ATTR = 'data-conciv-effects'
 
 // The host is NOT aria-hidden: extensions mount interactive UI here (whiteboard comments), which must
 // reach the accessibility tree. Purely decorative effects (e.g. the highlight overlay) mark their own

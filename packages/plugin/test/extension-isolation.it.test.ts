@@ -7,7 +7,7 @@ import {loadServerExtensions} from '../src/core/extensions.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 
-const ID = '/proj/mandarax/extensions/iso.tsx'
+const ID = '/proj/conciv/extensions/iso.tsx'
 
 // The exact CLIENT compile the vite hook runs on an extension file: split for the browser, then Solid.
 async function compileClient(source: string): Promise<string> {
@@ -22,7 +22,7 @@ describe('extension client/server isolation', () => {
     const client = await compileClient(
       `import {readFileSync} from 'node:fs'
 import {z} from 'zod'
-import {defineExtension, defineTool} from '@mandarax/extension'
+import {defineExtension, defineTool} from '@conciv/extension'
 const tool = defineTool({name: 'iso_tool', description: 'd', inputSchema: z.object({})})
   .server(() => readFileSync('/etc/secret-token', 'utf8'))
 const iso = defineExtension({name: 'iso', Component: Surface, tools: [tool]})

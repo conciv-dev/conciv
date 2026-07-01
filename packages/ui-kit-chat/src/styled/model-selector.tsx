@@ -1,5 +1,5 @@
 import {For, Show, splitProps, type JSX} from 'solid-js'
-import {Combobox} from '@mandarax/ui-kit-system'
+import {Combobox} from '@conciv/ui-kit-system'
 import {Check, ChevronsUpDown} from 'lucide-solid'
 import {
   ModelSelector as ModelSelectorPrimitive,

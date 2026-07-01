@@ -38,8 +38,8 @@ README.md; this file is the non-obvious operational rules.
 ## Testing
 
 - Widget UI is tested in a REAL browser (Playwright/Chromium), never jsdom/happy-dom.
-- Widget integration tests load the PREBUILT bundle (`packages/widget/dist/mandarax-widget.global.js`):
-  rebuild the widget (`pnpm turbo run build --filter=@mandarax/widget`) before running them, or you test
+- Widget integration tests load the PREBUILT bundle (`packages/widget/dist/conciv-widget.global.js`):
+  rebuild the widget (`pnpm turbo run build --filter=@conciv/widget`) before running them, or you test
   stale code.
 - In widget ITs use `browser.newPage()`, not `newContext()` (contexts leak and spike CPU/memory).
 - zod validates every HTTP boundary (`readValidatedBody`); add validation for new routes.

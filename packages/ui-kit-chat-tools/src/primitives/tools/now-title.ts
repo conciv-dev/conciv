@@ -25,7 +25,7 @@ function base(file: string): string {
   return file.split('/').slice(-1)[0] ?? file
 }
 
-// Present-tense verb labels for mandarax_page; mirrors the past-tense titles in the page-action card.
+// Present-tense verb labels for conciv_page; mirrors the past-tense titles in the page-action card.
 const PAGE_VERB: Record<string, string> = {
   click: 'Clicking',
   fill: 'Typing',
@@ -58,16 +58,16 @@ export function nowTitle(part: ToolCallPart, titleByName: Record<string, string>
     case 'Write':
       return h.file_path ? `Editing ${base(h.file_path)}` : 'Editing a file'
     case 'Read':
-    case 'mandarax_open':
+    case 'conciv_open':
       return h.file_path || h.path ? `Reading ${base(h.file_path ?? h.path ?? '')}` : 'Reading a file'
     case 'Grep':
     case 'Glob':
       return h.pattern ? `Searching ${clip(h.pattern, 32)}` : 'Searching'
     case 'TodoWrite':
       return 'Updating tasks'
-    case 'mandarax_ui':
+    case 'conciv_ui':
       return 'Rendering UI'
-    case 'mandarax_page':
+    case 'conciv_page':
       return (h.verb && PAGE_VERB[h.verb]) || 'Page action'
     default:
       return part.name

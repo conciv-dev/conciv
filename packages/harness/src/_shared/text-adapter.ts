@@ -2,8 +2,8 @@ import {createInterface} from 'node:readline'
 import type {Readable} from 'node:stream'
 import {normalizeSystemPrompts, type StreamChunk, type TextOptions} from '@tanstack/ai'
 import {BaseTextAdapter, type StructuredOutputOptions, type StructuredOutputResult} from '@tanstack/ai/adapters'
-import type {HarnessAdapter, HarnessChild, HarnessImage, HarnessTurn} from '@mandarax/protocol/harness-types'
-import type {UsageSnapshot} from '@mandarax/protocol/usage-types'
+import type {HarnessAdapter, HarnessChild, HarnessImage, HarnessTurn} from '@conciv/protocol/harness-types'
+import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 
 export type SpawnHarness = (args: string[], cwd: string) => HarnessChild
 

@@ -1,7 +1,7 @@
 import {expect, test} from 'vitest'
 import {z} from 'zod'
 import {createMCPClient} from '@tanstack/ai-mcp'
-import {defineExtension, defineTool} from '@mandarax/extension'
+import {defineExtension, defineTool} from '@conciv/extension'
 import {startTestServer} from '../helpers/server.js'
 
 function toolNamed(name: string) {

@@ -1,6 +1,6 @@
 # React Grab Element Picker — Composer Integration Plan (v2, rewritten for the post-quick-terminal widget)
 
-> **For workers:** Implement **inline** (no subagents — project convention). Steps use checkbox (`- [ ]`) syntax. Build/typecheck/lint via **turbo** (`pnpm turbo run … --filter=@mandarax/widget`), never manual dist rebuilds. Test UI in a real browser (Playwright), never jsdom.
+> **For workers:** Implement **inline** (no subagents — project convention). Steps use checkbox (`- [ ]`) syntax. Build/typecheck/lint via **turbo** (`pnpm turbo run … --filter=@conciv/widget`), never manual dist rebuilds. Test UI in a real browser (Playwright), never jsdom.
 
 > **Why v2:** The original plan (same filename, committed in `91d5fde`) targeted `packages/widget/src/chat-shell.tsx`, which has since been **deleted** and replaced by the quick-terminal refactor. The composer now lives in `ChatPanel` (`chat-panel.tsx`), the shell hosts panels via a registry (`widget-shell.tsx`), and `ChatPanel` is **multi-instance** (modal, each quick-terminal pane, PiP). The original implementation was prototyped in a now-deleted worktree and never committed, so **no code survives** — only this plan. This rewrite preserves the original's full feature set and re-maps it onto the current architecture, and makes the composer's extension model first-class.
 
@@ -14,17 +14,17 @@ Add an extensible **actions row** to the widget's chat composer. The first actio
 
 The user wants the composer "extensible with a plugin arch like react-grab." There are **two distinct, complementary layers** — keep them separate:
 
-1. **Composer actions** (buttons in the row next to the textarea) — an **mandarax shell registry**, `registerComposerAction(def)`, modeled exactly on the existing `registerPanel(def)` in `widget-shell.tsx`. This is _our_ UI surface. The element-picker is composer-action #1. Host apps and future features add buttons the same way panels are registered.
-2. **react-grab context-menu actions** (Copy/Style/Comment/Open + custom) — react-grab's **own plugin system**, reached via `window.__MANDARAX__.registerPlugin` bound to our headless instance. This is react-grab's page overlay, not our chat UI.
+1. **Composer actions** (buttons in the row next to the textarea) — an **conciv shell registry**, `registerComposerAction(def)`, modeled exactly on the existing `registerPanel(def)` in `widget-shell.tsx`. This is _our_ UI surface. The element-picker is composer-action #1. Host apps and future features add buttons the same way panels are registered.
+2. **react-grab context-menu actions** (Copy/Style/Comment/Open + custom) — react-grab's **own plugin system**, reached via `window.__CONCIV__.registerPlugin` bound to our headless instance. This is react-grab's page overlay, not our chat UI.
 
 These do not merge: composer buttons are not react-grab's model (it owns the page overlay/context-menu, not the chat composer), and react-grab plugins can't render into our Solid composer. Each layer extends its own surface.
 
 ## Architecture
 
-- Integrate `react-grab` as the selection/edit/context-menu **engine**; drive it from the mandarax composer. react-grab renders its overlay in the **light DOM** (its normal mode); we **hide its own toolbar** (`theme.toolbar.enabled:false`) and trigger it from the composer via its API (`api.activate()` for selection, `api.comment()` for prompt mode).
+- Integrate `react-grab` as the selection/edit/context-menu **engine**; drive it from the conciv composer. react-grab renders its overlay in the **light DOM** (its normal mode); we **hide its own toolbar** (`theme.toolbar.enabled:false`) and trigger it from the composer via its API (`api.activate()` for selection, `api.comment()` for prompt mode).
 - Every grab flow — plain select, Comment, Style-edit — converges on react-grab's internal `runCopyFlow`, so a **single hook (`transformCopyContent`)** captures the final content string.
 - **Multi-instance routing (new vs v1):** there is exactly **one** react-grab instance per page (it owns a single light-DOM overlay), but there are **N composers** (`ChatPanel` is created by the modal, by each quick-terminal pane, and by PiP). The grabbed content must land in the composer that _started_ the pick. We solve this with a **per-activation sink**: the adapter is a page-lifetime singleton, but `activate(onGrab)` rebinds the current sink immediately before entering selection mode. Because react-grab selection is modal (one pick at a time, auto-deactivates on click), there is no sink race. The invoking `ChatPanel` passes its own `insert` as the sink, so content routes back to the right textarea.
-- The widget's shadow-DOM chat UI and react-grab's light-DOM overlay coexist in the same document (no z-index conflict observed in the spike). The mandarax FAB stays the only visible launcher.
+- The widget's shadow-DOM chat UI and react-grab's light-DOM overlay coexist in the same document (no z-index conflict observed in the spike). The conciv FAB stays the only visible launcher.
 
 ## Tech Stack
 
@@ -46,18 +46,18 @@ TypeScript, `react-grab@^0.1.44` (widget dep; bundles `bippy`, already a widget 
 
 ## Build behavior (verified 2026-06-14 in the original spike; re-verify in Task 5)
 
-`pnpm turbo run build --filter=@mandarax/widget` succeeded for **both** formats with no Rollup error:
+`pnpm turbo run build --filter=@conciv/widget` succeeded for **both** formats with no Rollup error:
 
 - **ESM (`dist/mount.js`)**: react-grab is **code-split** into lazy chunks — true byte-laziness on this path.
-- **IIFE (`dist/mandarax-widget.global.js`, the injected global)**: cannot code-split, so react-grab is **inlined** — but execution is still deferred to first click (the import resolves an already-present module). Behavioral laziness + dev-only gating hold; only byte-laziness is lost. Acceptable: the widget is dev-only and already bundles `bippy`, `shiki`, `marked`. **No CDN/script-injection fallback required.**
+- **IIFE (`dist/conciv-widget.global.js`, the injected global)**: cannot code-split, so react-grab is **inlined** — but execution is still deferred to first click (the import resolves an already-present module). Behavioral laziness + dev-only gating hold; only byte-laziness is lost. Acceptable: the widget is dev-only and already bundles `bippy`, `shiki`, `marked`. **No CDN/script-injection fallback required.**
 
 ## Decisions (locked with user)
 
-- **Integrate react-grab** (not reimplement, not fork). Light-DOM overlay, mandarax FAB drives it.
+- **Integrate react-grab** (not reimplement, not fork). Light-DOM overlay, conciv FAB drives it.
 - **Composer extensibility = shell registry** (`registerComposerAction`), mirroring `registerPanel`. react-grab plugins are a separate layer for context-menu actions.
 - **Auto-insert on select**, into the composer of the panel that started the pick, for the user to edit before sending. Keep react-grab's Copy/Style/Comment/Open as-is. (A plain grab both writes the clipboard — react-grab default — _and_ inserts into the composer via our hook. The clipboard write is a harmless side effect.)
 - **Want all react-grab plugins:** Copy, Style-edit, Comment, Open all come along for free via the integrated context menu.
-- **Dev-only, lazy on first use.** The widget already mounts only when the mandarax dev routes answer. We `import('react-grab')` lazily on first **Select element** click; this also lets us set `__REACT_GRAB_DISABLED__` _before_ the module evaluates.
+- **Dev-only, lazy on first use.** The widget already mounts only when the conciv dev routes answer. We `import('react-grab')` lazily on first **Select element** click; this also lets us set `__REACT_GRAB_DISABLED__` _before_ the module evaluates.
 
 ## Shippable milestone
 
@@ -70,8 +70,8 @@ Tasks 0–5 deliver the headline (Select element → insert into the right compo
 **Files:** `packages/widget/package.json` (+ `pnpm-lock.yaml`).
 
 - [ ] **Step 1:** `pnpm -C packages/widget add react-grab` → `dependencies` gains `react-grab ^0.1.44`. (Was done in the deleted worktree; redo — it is **not** in the current `package.json`.)
-- [ ] **Step 2:** `pnpm turbo run typecheck --filter=@mandarax/widget` → PASS (confirms resolution; no usage yet).
-- [ ] **Step 3:** Commit: `build: add react-grab to @mandarax/widget for the element picker`.
+- [ ] **Step 2:** `pnpm turbo run typecheck --filter=@conciv/widget` → PASS (confirms resolution; no usage yet).
+- [ ] **Step 3:** Commit: `build: add react-grab to @conciv/widget for the element picker`.
 
 ---
 
@@ -110,7 +110,7 @@ async function create(): Promise<ReactGrabAdapter> {
   // mutable sink is race-free; activate()/comment() set it immediately before entering selection.
   let sink: ((content: string) => void) | null = null
   api.registerPlugin({
-    name: 'mandarax',
+    name: 'conciv',
     theme: {toolbar: {enabled: false}},
     hooks: {
       // Captures plain-select, Comment, and Style-edit content alike.
@@ -122,7 +122,7 @@ async function create(): Promise<ReactGrabAdapter> {
   })
   // Host-app extensibility (Task 7): register react-grab context-menu/toolbar actions + hooks
   // against OUR instance. A literal `export {registerPlugin} from 'react-grab'` would NOT work.
-  ;(window as unknown as {__MANDARAX__?: unknown}).__MANDARAX__ = {
+  ;(window as unknown as {__CONCIV__?: unknown}).__CONCIV__ = {
     registerPlugin: api.registerPlugin,
     unregisterPlugin: api.unregisterPlugin,
   }
@@ -142,7 +142,7 @@ async function create(): Promise<ReactGrabAdapter> {
 ```
 
 - [ ] **Step 1:** Write the module above.
-- [ ] **Step 2:** `pnpm turbo run typecheck --filter=@mandarax/widget` → PASS. If `init`/`registerPlugin`/hook types mismatch, reconcile against react-grab's shipped `.d.ts` (`Options.telemetry`, `Plugin.theme`, `PluginHooks.transformCopyContent` all existed per the spike).
+- [ ] **Step 2:** `pnpm turbo run typecheck --filter=@conciv/widget` → PASS. If `init`/`registerPlugin`/hook types mismatch, reconcile against react-grab's shipped `.d.ts` (`Options.telemetry`, `Plugin.theme`, `PluginHooks.transformCopyContent` all existed per the spike).
 
 ---
 
@@ -188,7 +188,7 @@ Add a registry on the shell that mirrors `registerPanel`, and thread the registe
   }
   ```
   In `createWidgetShell`: keep a `composerActions: ComposerActionDef[]`, return `registerComposerAction(def)` alongside `registerPanel`, and pass `composerActions: () => composerActions` into the `PanelContext` that `Shell` builds for `panel.create(ctx)`. The `Shell` component already forwards `ctx` from both `ModalLayout` and `QuickTerminalLayout` — extend the `PanelContext` they construct (`{active, onWorkingChange}` → add `composerActions`).
-- [ ] **Step 3:** `pnpm turbo run typecheck --filter=@mandarax/widget` → PASS (registry compiles, not yet rendered).
+- [ ] **Step 3:** `pnpm turbo run typecheck --filter=@conciv/widget` → PASS (registry compiles, not yet rendered).
 
 **Design notes:**
 
@@ -270,7 +270,7 @@ Add a registry on the shell that mirrors `registerPanel`, and thread the registe
 
   At the shell build site (where `registerPanel` is called): `shell.registerComposerAction(elementPickerAction)`.
 
-- [ ] **Step 5:** `pnpm turbo run typecheck --filter=@mandarax/widget` → PASS.
+- [ ] **Step 5:** `pnpm turbo run typecheck --filter=@conciv/widget` → PASS.
 
 **Design notes:**
 
@@ -331,10 +331,10 @@ The current composer (line ~1058) is a single flex row `[textarea(flex:1)][send]
 
 **Files:** none (build only).
 
-- [ ] **Step 1:** `pnpm turbo run build --filter=@mandarax/widget`.
-  - Expected: builds `dist/mount.js` (ES, react-grab code-split) and `dist/mandarax-widget.global.js` (IIFE, react-grab inlined). A Rollup **warning** about inlining the dynamic import in the IIFE output is acceptable.
+- [ ] **Step 1:** `pnpm turbo run build --filter=@conciv/widget`.
+  - Expected: builds `dist/mount.js` (ES, react-grab code-split) and `dist/conciv-widget.global.js` (IIFE, react-grab inlined). A Rollup **warning** about inlining the dynamic import in the IIFE output is acceptable.
   - If the IIFE build **errors** on the dynamic import: decide with evidence from the actual error (split the picker into the ES entry only, or runtime `<script>` injection of react-grab's own global). Per the spike this did **not** error.
-- [ ] **Step 2:** `pnpm turbo run lint --filter=@mandarax/widget` → PASS (oxlint).
+- [ ] **Step 2:** `pnpm turbo run lint --filter=@conciv/widget` → PASS (oxlint).
 - [ ] **Step 3:** Commit: `feat(widget): add an extensible composer actions row with a react-grab element picker`.
 
 ---
@@ -350,7 +350,7 @@ The current composer (line ~1058) is a single flex row `[textarea(flex:1)][send]
   - Click a source-mapped element (e.g. a Header link); assert this panel's textarea now contains the reference (`in Header` / selector).
   - Right-click an element while active; assert the context menu shows **Copy / Style / Comment / Open**.
 - [ ] **Step 3 (multi-instance):** Open a quick-terminal pane, run the pick from _that_ pane's composer; assert the reference lands in the **pane's** textarea, not the modal's. This guards the per-activation sink.
-- [ ] **Step 4:** `pnpm turbo run test --filter=@mandarax/widget` → PASS.
+- [ ] **Step 4:** `pnpm turbo run test --filter=@conciv/widget` → PASS.
 
 ---
 
@@ -359,21 +359,21 @@ The current composer (line ~1058) is a single flex row `[textarea(flex:1)][send]
 **Files:** widget README (or `apps/site` docs if that is where widget extension is documented — match existing convention).
 
 - [ ] **Step 1:** Document **composer actions** (our registry): `shell.registerComposerAction({id, label, icon, onClick})`, and that `onClick` receives `{insert, setBusy}` bound to the live composer. Example: a custom "Insert selector" button.
-- [ ] **Step 2:** Document **react-grab context-menu plugins** via `window.__MANDARAX__.registerPlugin(...)`, including the timing caveat (only live after the adapter initializes — i.e. after the first **Select element** click) and **why a literal re-export does not work**:
+- [ ] **Step 2:** Document **react-grab context-menu plugins** via `window.__CONCIV__.registerPlugin(...)`, including the timing caveat (only live after the adapter initializes — i.e. after the first **Select element** click) and **why a literal re-export does not work**:
   1. The widget bundles its own copy of react-grab inside the IIFE — a host's `import {registerPlugin} from 'react-grab'` is a _different module instance_.
   2. react-grab's top-level `registerPlugin` coordinates via `window.__REACT_GRAB__`, published only by react-grab's **auto-init** — which we disable and replace with our own `init()` that does not set that global.
 
-  So we bind an mandarax-branded API to _our_ instance instead:
+  So we bind an conciv-branded API to _our_ instance instead:
 
   ```js
   // host app, dev only — after the widget has initialized react-grab (first picker use):
-  window.__MANDARAX__?.registerPlugin({
+  window.__CONCIV__?.registerPlugin({
     name: 'my-action',
     actions: [{id: 'inspect', label: 'Inspect', onAction: (ctx) => console.dir(ctx.element)}],
   })
   ```
 
-- [ ] **Step 3 (optional):** If we want react-grab's _own_ `registerPlugin` to also resolve, publish our instance with `window.__REACT_GRAB__ = api` right after `init()`. Trade-off: re-introduces the react-grab-branded global. Default: **do not** — keep only `window.__MANDARAX__`.
+- [ ] **Step 3 (optional):** If we want react-grab's _own_ `registerPlugin` to also resolve, publish our instance with `window.__REACT_GRAB__ = api` right after `init()`. Trade-off: re-introduces the react-grab-branded global. Default: **do not** — keep only `window.__CONCIV__`.
 
 ---
 
@@ -381,6 +381,6 @@ The current composer (line ~1058) is a single flex row `[textarea(flex:1)][send]
 
 - **PiP cross-document:** when the chat is popped out to Picture-in-Picture (`pip.ts`), the composer lives in a **separate document**, while react-grab's overlay runs on the **main page**. A pick started from the PiP window would highlight the main page, and the grabbed text routes back into the PiP composer via the sink (works — the sink is a JS closure, document-agnostic), but the _highlight_ the user sees is on the parent window, not the PiP. Acceptable for v1; if confusing, hide the picker action when rendered inside PiP (the action context could carry a `surface` hint). Decide after seeing it in Task 6.
 - **Clipboard side effect:** a plain grab still writes the clipboard (react-grab default). Accepted per "keep Copy". Override `getContent` later if undesired.
-- **Non-React hosts:** selection + selector reference work; source-mapping and Style-edit degrade (react-grab handles the fallback). mandarax stays framework-agnostic.
-- **Two overlay systems:** react-grab (light DOM) + mandarax widget (shadow DOM) coexist; only the mandarax FAB is a visible launcher. No z-index conflict observed in the spike.
+- **Non-React hosts:** selection + selector reference work; source-mapping and Style-edit degrade (react-grab handles the fallback). conciv stays framework-agnostic.
+- **Two overlay systems:** react-grab (light DOM) + conciv widget (shadow DOM) coexist; only the conciv FAB is a visible launcher. No z-index conflict observed in the spike.
 - **Bundle size:** react-grab added to the dev-only widget global; `bippy` is shared (already a widget dep), so the incremental is react-grab's own minified code.

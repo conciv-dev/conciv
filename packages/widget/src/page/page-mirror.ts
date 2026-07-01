@@ -4,10 +4,10 @@
 // Fire-and-forget and short: it never blocks the action (zero added latency) and self-cleans. The
 // future first-party page agent emits the same page-action shape and reuses this unchanged.
 
-// mirrorsKind + the verb set are the single source of truth in @mandarax/protocol, shared with the
+// mirrorsKind + the verb set are the single source of truth in @conciv/protocol, shared with the
 // tool-ui card so its "shown on your page" note matches exactly what animates here.
 import {overlayLayer} from './overlay.js'
-export {mirrorsKind} from '@mandarax/protocol/page-types'
+export {mirrorsKind} from '@conciv/protocol/page-types'
 
 // Brand magenta, kept literal: the overlay lives outside the shadow root, so it can't resolve --pw-*.
 const ACCENT = '#ff40e0'
@@ -21,7 +21,7 @@ const CURSOR_SVG =
   `fill="${ACCENT}" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg>`
 
 // Marker to adopt a lingering cursor node after HMR/re-import, so there's only ever one on the page.
-const CURSOR_MARKER = 'data-mandarax-cursor'
+const CURSOR_MARKER = 'data-conciv-cursor'
 
 let cursorEl: HTMLDivElement | undefined
 let lastX = -40

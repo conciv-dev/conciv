@@ -1,8 +1,8 @@
 import type {SourceInfo} from 'react-grab'
 import {setPicking, setCancelPick} from './picking.js'
 import {captureElement} from './capture-element.js'
-import type {ElementSource, Grab} from '@mandarax/grab'
-import '../../mandarax-global.js'
+import type {ElementSource, Grab} from '@conciv/grab'
+import '../../conciv-global.js'
 
 // Lazy, dev-only integration of react-grab as the element-selection engine. Auto-init and the
 // react-grab toolbar are disabled; we drive it from the composer. Every grab (select/comment/
@@ -69,9 +69,9 @@ async function create(): Promise<ReactGrabAdapter> {
   }
   // Comment picks suppress react-grab's cursor label + success flash; copy picks keep them.
   const register = (quiet: boolean): void => {
-    api.unregisterPlugin('mandarax')
+    api.unregisterPlugin('conciv')
     api.registerPlugin({
-      name: 'mandarax',
+      name: 'conciv',
       theme: {
         toolbar: {enabled: false},
         elementLabel: {enabled: !quiet},
@@ -84,9 +84,9 @@ async function create(): Promise<ReactGrabAdapter> {
   // Let the pill abort the current pick (also covers Esc handling in the shell).
   setCancelPick(() => api.deactivate())
   // Host-app extensibility: register react-grab context-menu/toolbar actions + hooks against OUR
-  // instance. Merge onto the shared __MANDARAX__ namespace so extension use()/queue keys survive.
-  window.__MANDARAX__ = {
-    ...window.__MANDARAX__,
+  // instance. Merge onto the shared __CONCIV__ namespace so extension use()/queue keys survive.
+  window.__CONCIV__ = {
+    ...window.__CONCIV__,
     registerPlugin: api.registerPlugin,
     unregisterPlugin: api.unregisterPlugin,
   }

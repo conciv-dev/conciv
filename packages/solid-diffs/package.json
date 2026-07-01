@@ -1,19 +1,19 @@
 {
-  "name": "@mandarax/solid-diffs",
+  "name": "@conciv/solid-diffs",
   "version": "0.0.0",
-  "description": "SolidJS wrappers around @pierre/diffs: thin Solid components over the framework-agnostic FileDiff / File web-component renderers (Shiki-highlighted diffs + code), reusable across the mandarax UI.",
+  "description": "SolidJS wrappers around @pierre/diffs: thin Solid components over the framework-agnostic FileDiff / File web-component renderers (Shiki-highlighted diffs + code), reusable across the conciv UI.",
   "keywords": [
     "code-diff",
+    "conciv",
     "diff",
-    "mandarax",
     "solid-js"
   ],
-  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/solid-diffs#readme",
-  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
+  "homepage": "https://github.com/conciv-dev/conciv/tree/main/packages/solid-diffs#readme",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mandarax-dev/mandarax.git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
     "directory": "packages/solid-diffs"
   },
   "files": [

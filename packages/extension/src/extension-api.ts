@@ -13,7 +13,7 @@ export function installClientApi(api: ClientApi): void {
 export function useClientApi(): ClientApi {
   if (!installed)
     throw new Error(
-      '@mandarax/extension: ClientApi not installed yet — the widget installs it at mount before running client factories',
+      '@conciv/extension: ClientApi not installed yet — the widget installs it at mount before running client factories',
     )
   return installed
 }

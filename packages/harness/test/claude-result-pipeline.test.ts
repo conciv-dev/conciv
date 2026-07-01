@@ -54,7 +54,7 @@ describe('claude decode → StreamProcessor: tool results settle', () => {
   // event. The result part must reach 'complete' (else the card spins forever).
   it('settles a streamed tool call + user tool_result to a complete result part', async () => {
     const messages = await runThroughProcessor([
-      blockStart(0, {type: 'tool_use', id: 'toolu_1', name: 'mcp__mandarax__mandarax_page'}),
+      blockStart(0, {type: 'tool_use', id: 'toolu_1', name: 'mcp__conciv__conciv_page'}),
       blockDelta(0, {type: 'input_json_delta', partial_json: '{"verb":"tree"}'}),
       blockStop(0),
       userResult('toolu_1', '<page tree>'),
@@ -62,7 +62,7 @@ describe('claude decode → StreamProcessor: tool results settle', () => {
     const calls = toolCallParts(messages)
     const results = toolResultParts(messages)
     expect(calls).toHaveLength(1)
-    expect(calls[0]?.name).toBe('mandarax_page')
+    expect(calls[0]?.name).toBe('conciv_page')
     expect(results).toHaveLength(1)
     expect(results[0]?.toolCallId).toBe('toolu_1')
     expect(results[0]?.state).toBe('complete')
@@ -74,7 +74,7 @@ describe('claude decode → StreamProcessor: tool results settle', () => {
   it('unwraps the MCP content envelope to the clean payload (no double-encoded array)', async () => {
     const payload = {nodes: [{ref: 'v1', role: 'navigation', name: 'Home'}]}
     const messages = await runThroughProcessor([
-      blockStart(0, {type: 'tool_use', id: 'toolu_p', name: 'mcp__mandarax__mandarax_page'}),
+      blockStart(0, {type: 'tool_use', id: 'toolu_p', name: 'mcp__conciv__conciv_page'}),
       blockDelta(0, {type: 'input_json_delta', partial_json: '{"verb":"snapshot"}'}),
       blockStop(0),
       mcpUserResult('toolu_p', payload),

@@ -30,7 +30,7 @@ Widen both `execute` signatures to `(input, ctx: ToolExecuteCtx) => …`. `wrapT
 `EffectCtx` — see Extra A). In `mount.tsx`, set `clientApi.runTool = runTool`. **Header fix required:**
 `createRunTool` at line 115 is built with `() => ({})` (empty headers) so it sends NO session header;
 `run.ts` would then see `sessionId=''`. Wire it to the active session's headers (see Gap 4) so
-`MANDARAX_SESSION_HEADER` (`'mandarax-session-id'`, `packages/protocol/src/chat-types.ts:9`) is sent.
+`CONCIV_SESSION_HEADER` (`'conciv-session-id'`, `packages/protocol/src/chat-types.ts:9`) is sent.
 
 ## Gap 3 — no awareness handle on `mx.sync`
 
@@ -125,9 +125,9 @@ There is a working precedent for built-in extensions on **both** halves:
   the whiteboard extension here: call `whiteboard.clientFn?.(clientApi)` and apply its tools/effects the
   same way, before/independent of the discovered (`installExtensionGlobal`) ones.
 - **Server:** `packages/plugin/src/core/services.ts:22` calls `loadServerContributions(root, {db,sync})`,
-  which (`extensions.ts:32-47`) only loads discovered files under `mandarax/extensions/`. The plan
+  which (`extensions.ts:32-47`) only loads discovered files under `conciv/extensions/`. The plan
   prepends the built-in list: `collectServerContributions([...firstParty, ...discovered], services)`,
-  where `firstParty = [whiteboardExtension]` imported from `@mandarax/whiteboard`.
+  where `firstParty = [whiteboardExtension]` imported from `@conciv/whiteboard`.
 
 ## Extra C — react / react-dom are NOT installed (spec is wrong)
 
@@ -144,11 +144,11 @@ There is a working precedent for built-in extensions on **both** halves:
 ## react-grab fidelity (accepted limitation, confirmed)
 
 `LocateResult.source?: {file, line, column}` exists (`packages/protocol/src/page-introspect-types.ts:5-13`,
-populated from a build-injected `data-mandarax-source` attr, `react-bridge.ts:121-130,155`). So the
+populated from a build-injected `data-conciv-source` attr, `react-bridge.ts:121-130,155`). So the
 **source anchor** (file:line:col) is fully capturable. There is **no stable selector / React key / fiber
 path** exposed across the seam (`react-grab/grab-types.ts` `ElementSource = {componentName, filePath,
 lineNumber}` only — note: no column at the react-grab adapter layer; the column comes from the
-`data-mandarax-source` attr path, not from react-grab's `getSource`). So the **instance anchor** degrades
+`data-conciv-source` attr path, not from react-grab's `getSource`). So the **instance anchor** degrades
 to rect/position heuristics → the design's rule holds: flag `drifted` when ambiguous, never silently
 re-pin. `adapter.ts` exposes `activate(onGrab)` (select) and `comment(onGrab)` (prompt mode) — the
 composer "Comment" action will use the pick flow.

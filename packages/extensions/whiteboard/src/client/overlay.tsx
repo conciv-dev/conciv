@@ -1,8 +1,8 @@
 import {ErrorBoundary, Show, Suspense, createResource, onCleanup, onMount, type Accessor, type JSX} from 'solid-js'
 import {render} from 'solid-js/web'
-import {EnvironmentProvider} from '@mandarax/ui-kit-system'
-import type {ClientApi} from '@mandarax/extension'
-import type {ElementRect, ElementSource} from '@mandarax/grab'
+import {EnvironmentProvider} from '@conciv/ui-kit-system'
+import type {ClientApi} from '@conciv/extension'
+import type {ElementRect, ElementSource} from '@conciv/grab'
 import {Island, type Self} from '../canvas/island.js'
 import {WhiteboardJazzProvider, fetchJazzConfig} from './jazz-client.js'
 import {CommentsProvider, useComments, type ComposeTarget} from './model/comments.js'
@@ -27,12 +27,12 @@ const OverlayLoading = (): JSX.Element => <div class={NOTICE}>Loading the whiteb
 const SessionPending = (): JSX.Element => <div class={NOTICE}>Start a chat session to open the whiteboard.</div>
 
 function OverlayError(props: {error: unknown; onToast: ClientApi['toast']}): JSX.Element {
-  props.onToast('The whiteboard needs a running mandarax server', 'error')
+  props.onToast('The whiteboard needs a running conciv server', 'error')
   return <div class={NOTICE}>The whiteboard is unavailable.</div>
 }
 
 function selfIdentity(win: Window): Self {
-  const key = 'mandarax-whiteboard-presence-id'
+  const key = 'conciv-whiteboard-presence-id'
   const peerId = win.sessionStorage.getItem(key) ?? crypto.randomUUID()
   win.sessionStorage.setItem(key, peerId)
   const index = Array.from(peerId).reduce((sum, char) => sum + char.charCodeAt(0), 0) % PALETTE.length

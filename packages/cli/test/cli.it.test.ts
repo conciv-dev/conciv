@@ -24,16 +24,16 @@ beforeAll(async () => {
   })
   await new Promise<void>((r) => server.listen(0, '127.0.0.1', r))
   const addr = server.address()
-  process.env.MANDARAX_PORT = String(typeof addr === 'object' && addr ? addr.port : 0)
+  process.env.CONCIV_PORT = String(typeof addr === 'object' && addr ? addr.port : 0)
   state.server = server
 })
 
 afterAll(async () => {
   await new Promise<void>((r) => (state.server ? state.server.close(() => r()) : r()))
-  delete process.env.MANDARAX_PORT
+  delete process.env.CONCIV_PORT
 })
 
-describe('mandarax CLI (IT, real server)', () => {
+describe('conciv CLI (IT, real server)', () => {
   it('tools server graph → GET /api/server/graph with the file in the query string', async () => {
     await runCommand(toolsCommand, {rawArgs: ['server', 'graph', '/x.ts']})
     expect(state.last).toMatchObject({method: 'GET', url: '/api/server/graph?file=%2Fx.ts'})

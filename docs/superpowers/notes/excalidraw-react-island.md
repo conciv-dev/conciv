@@ -114,7 +114,7 @@ The island is the first `react-dom/client` root. Mounting mechanism, grounded in
 
 - The canvas is a `defineEffect`; `effect.render(ctx)` returns **Solid JSX** that is `render(...)`-ed into
   the shared effect shadow mount (`page-effects.ts:59`, into the `[data-effect-root]` container inside the
-  `[data-mandarax-effects]` host's shadow root, z-index `2147483000`).
+  `[data-conciv-effects]` host's shadow root, z-index `2147483000`).
 - Inside that Solid JSX: create a host `<div ref={el}>`; on mount, `createRoot(el)` (from
   `react-dom/client`) and `root.render(<ExcalidrawIsland onApi=… onChange=…/>)`. On Solid cleanup
   (`onCleanup`) and on `ctx.disable()`, call `root.unmount()`. One React root, lazy-imported.

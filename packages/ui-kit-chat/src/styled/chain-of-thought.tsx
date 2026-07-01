@@ -1,6 +1,6 @@
 import {Show, type JSX, type ParentProps} from 'solid-js'
 import {Brain, ChevronDown} from 'lucide-solid'
-import {Collapsible} from '@mandarax/ui-kit-system'
+import {Collapsible} from '@conciv/ui-kit-system'
 import {
   ChainOfThought as ChainOfThoughtPrimitive,
   useChainOfThought,

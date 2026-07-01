@@ -1,6 +1,6 @@
-// @mandarax/ui-kit-chat-tools — the concrete tool-card vocabulary. Each card is two-layer (headless
-// logic + styled wrapper) and built on @mandarax/ui-kit-chat's tool-building primitives
-// (CollapsibleCard / ToolCard / toolStatus / parseInput / ToolFallback) + @mandarax/ui-kit-system.
+// @conciv/ui-kit-chat-tools — the concrete tool-card vocabulary. Each card is two-layer (headless
+// logic + styled wrapper) and built on @conciv/ui-kit-chat's tool-building primitives
+// (CollapsibleCard / ToolCard / toolStatus / parseInput / ToolFallback) + @conciv/ui-kit-system.
 
 // Headless tool logic.
 export {Bash, useBash, parseBashOutput, type BashOutput} from './primitives/tools/bash.js'

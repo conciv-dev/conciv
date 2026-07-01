@@ -1,11 +1,11 @@
 import {Show, type JSX} from 'solid-js'
 import {LayoutTemplate} from 'lucide-solid'
-import {UiInput} from '@mandarax/tools/defs'
-import {ToolCard, parseInput} from '@mandarax/ui-kit-chat'
-import type {ToolCardEntry, ToolCardProps} from '@mandarax/protocol/tool-view-types'
+import {UiInput} from '@conciv/tools/defs'
+import {ToolCard, parseInput} from '@conciv/ui-kit-chat'
+import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 
-// A compact chip for mandarax_ui. The interactive UI itself stays the widget's GenUi (driven by the
-// separate mandarax-ui CUSTOM event); this card only notes that a UI was rendered.
+// A compact chip for conciv_ui. The interactive UI itself stays the widget's GenUi (driven by the
+// separate conciv-ui CUSTOM event); this card only notes that a UI was rendered.
 const LABEL: Record<'choices' | 'confirm' | 'diff' | 'form', string> = {
   choices: 'choices',
   confirm: 'a confirmation',
@@ -33,5 +33,5 @@ export function UiCard(props: ToolCardProps): JSX.Element {
   )
 }
 
-// This card renders the mandarax_ui tool.
-export const uiTool: ToolCardEntry = {names: ['mandarax_ui'], render: UiCard}
+// This card renders the conciv_ui tool.
+export const uiTool: ToolCardEntry = {names: ['conciv_ui'], render: UiCard}

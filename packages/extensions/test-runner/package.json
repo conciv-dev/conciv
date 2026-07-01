@@ -1,21 +1,21 @@
 {
-  "name": "@mandarax/extension-test-runner",
+  "name": "@conciv/extension-test-runner",
   "version": "0.0.0",
-  "description": "The test-runner built-in extension: runner-agnostic adapters (vitest today; jest/node-test/playwright via the ChildRunnerSpec seam) exposed through the @mandarax/extension contract — server routes, a test tool, and the live results card.",
+  "description": "The test-runner built-in extension: runner-agnostic adapters (vitest today; jest/node-test/playwright via the ChildRunnerSpec seam) exposed through the @conciv/extension contract — server routes, a test tool, and the live results card.",
   "keywords": [
+    "conciv",
     "extension",
     "jest",
-    "mandarax",
     "playwright",
     "test-runner",
     "vitest"
   ],
-  "homepage": "https://github.com/mandarax-dev/mandarax/tree/main/packages/extensions/test-runner#readme",
-  "bugs": "https://github.com/mandarax-dev/mandarax/issues",
+  "homepage": "https://github.com/conciv-dev/conciv/tree/main/packages/extensions/test-runner#readme",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mandarax-dev/mandarax.git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
     "directory": "packages/extensions/test-runner"
   },
   "files": [
@@ -61,18 +61,18 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "@mandarax/extension": "workspace:^",
-    "@mandarax/protocol": "workspace:^",
-    "@mandarax/ui-kit-chat": "workspace:^",
-    "@mandarax/ui-kit-system": "workspace:^",
+    "@conciv/extension": "workspace:^",
+    "@conciv/protocol": "workspace:^",
+    "@conciv/ui-kit-chat": "workspace:^",
+    "@conciv/ui-kit-system": "workspace:^",
     "h3": "2.0.1-rc.22",
     "lucide-solid": "^1.18.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@mandarax/core": "workspace:^",
-    "@mandarax/protocol": "workspace:^",
-    "@mandarax/uno-preset": "workspace:*",
+    "@conciv/core": "workspace:^",
+    "@conciv/protocol": "workspace:^",
+    "@conciv/uno-preset": "workspace:*",
     "@playwright/test": "^1.60.0",
     "@tanstack/ai-mcp": "^0.1.0",
     "@types/node": "^22.19.21",

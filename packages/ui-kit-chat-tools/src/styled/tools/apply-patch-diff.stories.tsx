@@ -2,7 +2,7 @@ import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
-import type {ToolViewCtx} from '@mandarax/protocol/tool-view-types'
+import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {ApplyPatchDiff} from './apply-patch-diff.js'
 
 const meta: Meta = {title: 'styled/tools/ApplyPatchDiff'}
@@ -46,7 +46,7 @@ export const Complete: Story = {
 
 export const Running: Story = {
   render: () =>
-    frame('chat-theme-mandarax', <ApplyPatchDiff part={part('input-streaming')} result={undefined} ctx={ctx} />),
+    frame('chat-theme-conciv', <ApplyPatchDiff part={part('input-streaming')} result={undefined} ctx={ctx} />),
 }
 
 export const Neutral: Story = {

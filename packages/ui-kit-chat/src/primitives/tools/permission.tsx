@@ -1,6 +1,6 @@
 import {createContext, createSignal, useContext, type Accessor, type JSX} from 'solid-js'
 import type {ToolCallPart} from '@tanstack/ai-client'
-import type {ToolViewCtx} from '@mandarax/protocol/tool-view-types'
+import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 
 // Headless native-approval logic ([[native-approval-hybrid]]): tanstack drives the part into
 // `approval-requested` (part.state + part.approval) from the harness's approval event; answering posts

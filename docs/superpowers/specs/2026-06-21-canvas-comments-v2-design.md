@@ -29,7 +29,7 @@ correction, decided with the user:
 3. **Two sync stories on purpose.** Canvas geometry needs true CRDT merge (Yjs). Comments are rows
    that need realtime + optimistic writes + FTS + instant agent replies (TrailBase + TanStack DB).
 4. **One durable store: TrailBase (SQLite).** `trail` is a Rust HTTP server over a single SQLite DB
-   in its `--data-dir` (`<cwd>/.mandarax/trail/`). All durable data lives there: comment rows + FTS5,
+   in its `--data-dir` (`<cwd>/.conciv/trail/`). All durable data lives there: comment rows + FTS5,
    **and** the canvas `.ybin` snapshot as a BLOB row. No second persistence mechanism (no unstorage
    fs for the canvas). Verified present: `trail v0.22.9`. The prior attempt deviated to `node:sqlite`;
    v2 uses the real binary.
@@ -40,7 +40,7 @@ correction, decided with the user:
 
 ## Principles (carried forward)
 
-1. **Local-first, on the user's disk.** Durable artifacts under `<cwd>/.mandarax/`, owned by local
+1. **Local-first, on the user's disk.** Durable artifacts under `<cwd>/.conciv/`, owned by local
    processes. The browser stays instantly responsive via an optimistic local cache; durable sync is
    background. Never the cloud.
 2. **AI and user reach the same capabilities — mutations symmetric, a few asymmetries by design:**
@@ -55,11 +55,11 @@ correction, decided with the user:
 ```
 USER'S MACHINE (all local, 127.0.0.1)
 ┌────────────────────────────────────────────────────────────────────────────┐
-│ mandarax core (Node) — the ONLY process the browser talks to                 │
+│ conciv core (Node) — the ONLY process the browser talks to                 │
 │                                                                              │
 │  CORE-OWNED SERVICES (generic, exposed on ServerApi, opt-in for any ext)     │
 │   • mx.db   — live collections: supervises `trail` (sole client, SQLite in    │
-│               .mandarax/trail/) + gated reverse-proxy of its Record API+stream│
+│               .conciv/trail/) + gated reverse-proxy of its Record API+stream│
 │   • mx.sync — Yjs room engine: snapshot persisted as a trail BLOB row         │
 │               + gated relay route (origin + host-loopback + per-session tok) │
 │   • event bus (session_start / tool_execution_start) · approval policy gate  │
@@ -157,7 +157,7 @@ type ServerCollection<T> = {
 
 **Shared + introspectable.** `mx.db` is one store shared by all extensions, not a per-extension silo.
 `mx.db.list()` returns every declared collection's name, table, JSON Schema, and FTS columns;
-`mx.db.get(name)` reaches another extension's collection. A built-in `mandarax_db catalog`-style tool
+`mx.db.get(name)` reaches another extension's collection. A built-in `conciv_db catalog`-style tool
 surfaces the same to the AI, so the agent knows what tables/schemas are queryable. Collection names
 are globally unique; declaring an existing name with a matching schema is idempotent (returns the same
 handle), with a mismatched schema is a clear error (no silent clobber).
@@ -211,7 +211,7 @@ collection (`mx.registerTool`), gates it (`mx.approval`), self-documents it (`mx
 through one coherent surface, server and client halves symmetrical. Core's own subsystems consume the
 same service interfaces, so nothing the extension can do is a private back door.
 
-The merged `@mandarax/extensions` `ServerApi` is `{registerTool, systemPrompt}`. v2 grows both halves:
+The merged `@conciv/extensions` `ServerApi` is `{registerTool, systemPrompt}`. v2 grows both halves:
 
 ```ts
 // .server(mx => …)
@@ -407,7 +407,7 @@ only the blob + promoted columns. Pin drift is UI-composed state, out of the res
 
 ## Doctor
 
-`mandarax doctor` (a `packages/cli` command) + an auto-run on `mx.on('session_start', …)`.
+`conciv doctor` (a `packages/cli` command) + an auto-run on `mx.on('session_start', …)`.
 
 - Sweeps comments; per comment runs `resolver.resolve()`. `fresh`→no-op · `moved`→re-anchor, keep
   `open` · `drifted`/`ambiguous`→flag + diff/candidates · `orphaned`→mark. **Skips `floating`**.
@@ -486,7 +486,7 @@ The single core-side `execute` records a `{label, inverse}` entry on a per-sessi
 
 ## Security
 
-Inherit mandarax's `cors.ts` defense on every new surface: Origin allowlist + **Host-header loopback
+Inherit conciv's `cors.ts` defense on every new surface: Origin allowlist + **Host-header loopback
 check** (unforgeable by page JS) + **per-session token** (DNS-rebinding defense).
 
 - **TrailBase is never exposed to the browser.** Binds `127.0.0.1`, reachable only by core. All sync
@@ -585,12 +585,12 @@ existing **`harness-logger`**. Structured, dev-visible, no telemetry egress.
   `SnapshotStore` seam backed by a trail BLOB table); the event
   bus; the shared `execute` chokepoint + generalized approval gate + undo stack. **Zero
   canvas/comment-specific logic.**
-- **`mandarax/extensions/canvas-comments/`** (the extension, discovered/loaded) — `.server`: tools,
+- **`conciv/extensions/canvas-comments/`** (the extension, discovered/loaded) — `.server`: tools,
   the `comments` collection declaration, the canvas room, the `AnchorResolver`, doctor, push/pull
   context. `.client`: the overlay Effect (React island), Solid pins/threads/zoom, the TanStack DB
   collection wiring, the composer action, renderers. (Final dir path follows the extension system's
   discovery convention; first-party extensions may live under a repo `extensions/` workspace.)
-- **`packages/cli`** — `mandarax doctor` over the core sweep.
+- **`packages/cli`** — `conciv doctor` over the core sweep.
 
 ## New dependencies (require approval before install — per house rule)
 

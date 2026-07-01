@@ -1,4 +1,4 @@
-// Single source of truth for mandarax design tokens; renderTokensCss() projects this to tokens.css.
+// Single source of truth for conciv design tokens; renderTokensCss() projects this to tokens.css.
 export const TOKENS = {
   'pw-hue': {
     value: '328',

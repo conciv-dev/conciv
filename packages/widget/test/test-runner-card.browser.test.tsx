@@ -1,9 +1,9 @@
 import {describe, it, expect, afterEach} from 'vitest'
 import {render} from 'solid-js/web'
 import {page} from 'vitest/browser'
-import {collectToolRenderers, type AnyExtension} from '@mandarax/extension'
-import {defineClient} from '@mandarax/api-client'
-import testRunnerClient from '@mandarax/extension-test-runner/client'
+import {collectToolRenderers, type AnyExtension} from '@conciv/extension'
+import {defineClient} from '@conciv/api-client'
+import testRunnerClient from '@conciv/extension-test-runner/client'
 import {ChatPanel} from '../src/chat/chat-panel.js'
 import {buildInstances} from './helpers/instances.js'
 

@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Task 6 (the highlight UI) additionally uses the **frontend-design** skill.
 
-**Goal:** Give the agent a `mandarax_page_effect` tool to toggle reversible, visual page effects, and ship the first effect — a hover inspector that outlines the React component under the cursor and opens its source in the editor on a user click.
+**Goal:** Give the agent a `conciv_page_effect` tool to toggle reversible, visual page effects, and ship the first effect — a hover inspector that outlines the React component under the cursor and opens its source in the editor on a user click.
 
-**Architecture:** A client-side effect registry in the widget where each effect is a Solid component, rendered into a style-isolated page-level shadow mount on enable and `dispose()`d on disable (Solid `onCleanup` = total teardown). The agent layer is a thin pass-through: `mandarax_page_effect` → page-bus `effect` kind → registry. A single `PAGE_EFFECTS` protocol catalog drives the tool enum, description, and a drift contract test. Click→open reuses both existing source paths (`data-mandarax-source` fast path; `symbolicateFrames` fallback via one new endpoint).
+**Architecture:** A client-side effect registry in the widget where each effect is a Solid component, rendered into a style-isolated page-level shadow mount on enable and `dispose()`d on disable (Solid `onCleanup` = total teardown). The agent layer is a thin pass-through: `conciv_page_effect` → page-bus `effect` kind → registry. A single `PAGE_EFFECTS` protocol catalog drives the tool enum, description, and a drift contract test. Click→open reuses both existing source paths (`data-conciv-source` fast path; `symbolicateFrames` fallback via one new endpoint).
 
 **Tech Stack:** SolidJS, UnoCSS, TypeScript, zod, `@tanstack/ai` tool defs, h3 (core server), bippy (react-bridge), Vitest + Storybook (browser tests via `@storybook/addon-vitest`), Playwright (widget ITs).
 
@@ -12,7 +12,7 @@
 
 - Functions, never classes. No IIFEs.
 - No comments narrating code; one concise line max where a comment earns its place.
-- Build/typecheck/test through turbo: `pnpm turbo run <task> --filter=@mandarax/<pkg>`. Never hand-rebuild dist.
+- Build/typecheck/test through turbo: `pnpm turbo run <task> --filter=@conciv/<pkg>`. Never hand-rebuild dist.
 - Tests use native assertions (`getByRole`/`getByText`/`toBeVisible`/aria) — never `querySelector`/class selectors/`toBe(true)` on DOM. No jsdom, no stubs/mocks — real browser via Storybook/Playwright, real servers via `http.createServer`.
 - Work entirely inside the worktree at `.claude/worktrees/page-effects`. Run every command from there.
 - The LLM-facing surface (tool def + `effect` bus handler) is a dumb adapter; all behavior is plain code proven by Storybook/IT.
@@ -56,7 +56,7 @@ describe('page effects protocol', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm --filter @mandarax/protocol exec vitest run test/page-effects.test.ts`
+Run: `pnpm --filter @conciv/protocol exec vitest run test/page-effects.test.ts`
 Expected: FAIL — `'effect'` not in kinds / `action` rejects `'enable'`.
 
 - [ ] **Step 3: Implement in `page-types.ts`**
@@ -71,7 +71,7 @@ Then append the catalog at the end of the file:
 
 ```ts
 // The agent-visible catalog of reversible page effects — the single source of truth. The
-// mandarax_page_effect tool's enum + description derive from this; the widget registry must register
+// conciv_page_effect tool's enum + description derive from this; the widget registry must register
 // exactly these ids (asserted by a contract test). Keep descriptions one line, user-facing.
 export const PAGE_EFFECTS = [
   {
@@ -88,12 +88,12 @@ export type PageEffectAction = 'enable' | 'disable' | 'toggle' | 'list'
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm --filter @mandarax/protocol exec vitest run test/page-effects.test.ts`
+Run: `pnpm --filter @conciv/protocol exec vitest run test/page-effects.test.ts`
 Expected: PASS (2 tests).
 
 - [ ] **Step 5: Build protocol so dependents see the new exports**
 
-Run: `pnpm turbo run build --filter=@mandarax/protocol`
+Run: `pnpm turbo run build --filter=@conciv/protocol`
 Expected: build succeeds, `dist/page-types.d.ts` includes `PAGE_EFFECTS`.
 
 - [ ] **Step 6: Commit**
@@ -226,7 +226,7 @@ export const RegistryLifecycle: Story = {
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `SKIP_STORYBOOK_TESTS= pnpm --filter @mandarax/widget exec vitest run --project storybook page-effects`
+Run: `SKIP_STORYBOOK_TESTS= pnpm --filter @conciv/widget exec vitest run --project storybook page-effects`
 Expected: FAIL — `./page-effects.js` has no exports.
 
 - [ ] **Step 3: Implement `page-effects.ts`**
@@ -234,7 +234,7 @@ Expected: FAIL — `./page-effects.js` has no exports.
 ```tsx
 import {render} from 'solid-js/web'
 import type {JSX} from 'solid-js'
-import {PAGE_EFFECTS, type PageEffectId} from '@mandarax/protocol/page-types'
+import {PAGE_EFFECTS, type PageEffectId} from '@conciv/protocol/page-types'
 import type {LocateResult, InspectResult, TreeResult} from './react-bridge.js'
 import type {Transport} from './transport.js'
 
@@ -266,7 +266,7 @@ const active = new Map<string, () => void>()
 let ctx: EffectCtx | undefined
 let mount: HTMLDivElement | undefined
 
-const MARKER = 'data-mandarax-effects'
+const MARKER = 'data-conciv-effects'
 
 // A page-level host with its OWN shadow root: page CSS can't bleed into effect overlays or back.
 // Lazily created; adopted by marker if a prior module instance left one (HMR-safe, like page-mirror).
@@ -337,12 +337,12 @@ export function __resetEffectsForTest(): void {
 
 - [ ] **Step 4: Run to verify it passes**
 
-Run: `SKIP_STORYBOOK_TESTS= pnpm --filter @mandarax/widget exec vitest run --project storybook page-effects`
+Run: `SKIP_STORYBOOK_TESTS= pnpm --filter @conciv/widget exec vitest run --project storybook page-effects`
 Expected: PASS (1 story test). Idempotent enable mounts one marker; disable removes it.
 
 - [ ] **Step 5: Typecheck**
 
-Run: `pnpm turbo run typecheck --filter=@mandarax/widget`
+Run: `pnpm turbo run typecheck --filter=@conciv/widget`
 Expected: PASS (depends on `LocateResult`/`InspectResult`/`TreeResult` exports already in `react-bridge.ts`, and `Transport` from `transport.ts`).
 
 - [ ] **Step 6: Commit**
@@ -365,13 +365,13 @@ git commit -m "feat(widget): reversible page-effect registry (Solid render/dispo
 
 - Produces: `componentHostAt(el: Element): Element | null` (nearest React-composite host element at/above `el`); `describe(host: Element): {component: string; file: string | null}` (sync display name + `sourceFromAttr` file).
 
-- [ ] **Step 1: Write the failing test** — add to the existing real-React IT (it already mounts the fixture + exposes `window.__MANDARAX_PAGE_DRIVER__`; add two assertions through a tiny exposed bridge). Append inside the existing `describe`:
+- [ ] **Step 1: Write the failing test** — add to the existing real-React IT (it already mounts the fixture + exposes `window.__CONCIV_PAGE_DRIVER__`; add two assertions through a tiny exposed bridge). Append inside the existing `describe`:
 
 ```ts
 it('componentHostAt resolves the nearest component host; describe reads name + source', async () => {
   const out = await page.evaluate(() => {
-    const b = (window as unknown as {__MANDARAX_REACT_BRIDGE__: typeof import('../src/react-bridge.js')})
-      .__MANDARAX_REACT_BRIDGE__
+    const b = (window as unknown as {__CONCIV_REACT_BRIDGE__: typeof import('../src/react-bridge.js')})
+      .__CONCIV_REACT_BRIDGE__
     const leaf = document.querySelector('#card-inc')!
     const host = b.componentHostAt(leaf)
     return host ? b.describe(host) : null
@@ -380,11 +380,11 @@ it('componentHostAt resolves the nearest component host; describe reads name + s
 })
 ```
 
-(If the fixture bundle does not yet expose the bridge global, add `;(window as any).__MANDARAX_REACT_BRIDGE__ = bridge` next to where `__MANDARAX_PAGE_DRIVER__` is set in the fixture/harness — one line.)
+(If the fixture bundle does not yet expose the bridge global, add `;(window as any).__CONCIV_REACT_BRIDGE__ = bridge` next to where `__CONCIV_PAGE_DRIVER__` is set in the fixture/harness — one line.)
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `pnpm --filter @mandarax/widget exec vitest run test/react-verbs.it.test.ts`
+Run: `pnpm --filter @conciv/widget exec vitest run test/react-verbs.it.test.ts`
 Expected: FAIL — `componentHostAt`/`describe` not exported.
 
 - [ ] **Step 3: Implement in `react-bridge.ts`** (reuse existing imports: `getFiberFromHostInstance`, `isCompositeFiber`, `getNearestHostFiber`, `getFiberStack`, `getDisplayName`, and the file-local `sourceFromAttr`)
@@ -414,7 +414,7 @@ export function describe(host: Element): {component: string; file: string | null
 
 - [ ] **Step 4: Run to verify it passes**
 
-Run: `pnpm turbo run build --filter=@mandarax/widget && pnpm --filter @mandarax/widget exec vitest run test/react-verbs.it.test.ts`
+Run: `pnpm turbo run build --filter=@conciv/widget && pnpm --filter @conciv/widget exec vitest run test/react-verbs.it.test.ts`
 Expected: PASS (build first — the IT loads the built global bundle).
 
 - [ ] **Step 5: Commit**
@@ -479,7 +479,7 @@ Note: this test runs in the `widget` (node) project but touches `document`/`rend
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `pnpm --filter @mandarax/widget exec vitest run page-effects-bus`
+Run: `pnpm --filter @conciv/widget exec vitest run page-effects-bus`
 Expected: FAIL — `DOM_HANDLERS.effect` undefined (`unknown page action effect`). If it fails instead with "document is not defined", convert this test to a Storybook story (browser) before continuing.
 
 - [ ] **Step 3: Add the handler in `page-handlers.ts`** (thin — pure delegation)
@@ -504,8 +504,8 @@ import {setEffect, toggleEffect, listEffects} from './page-effects.js'
 
 ```ts
 import {createTransport, type Transport} from './transport.js'
-import {EditorOpenSchema} from '@mandarax/protocol/test-types'
-import {OkSchema} from '@mandarax/protocol/chat-types'
+import {EditorOpenSchema} from '@conciv/protocol/test-types'
+import {OkSchema} from '@conciv/protocol/chat-types'
 import {
   componentHostAt,
   describe as describeHost,
@@ -573,14 +573,14 @@ export function initEffectsHost(deps: {apiBase: string; refs: Refs}): void {
 Add the `OpenSourceSchema`/`OpenSourceResultSchema` import (defined in Task 7's protocol step) at the top:
 
 ```ts
-import {OpenSourceSchema, OpenSourceResultSchema} from '@mandarax/protocol/page-types'
+import {OpenSourceSchema, OpenSourceResultSchema} from '@conciv/protocol/page-types'
 ```
 
 `elementAt` note: the real implementation must toggle the effects mount's `pointer-events` off around `document.elementFromPoint` so it returns the page element, not our overlay. Implement as:
 
 ```ts
       elementAt: (x, y) => {
-        const host = document.querySelector<HTMLElement>('[data-mandarax-effects]')
+        const host = document.querySelector<HTMLElement>('[data-conciv-effects]')
         const prev = host?.style.pointerEvents
         if (host) host.style.pointerEvents = 'none'
         const el = document.elementFromPoint(x, y)
@@ -600,7 +600,7 @@ initEffectsHost({apiBase: deps.apiBase ?? '', refs: driver.refs})
 
 - [ ] **Step 6: Run the test to verify it passes** (and typecheck)
 
-Run: `pnpm turbo run typecheck --filter=@mandarax/widget && pnpm --filter @mandarax/widget exec vitest run page-effects-bus`
+Run: `pnpm turbo run typecheck --filter=@conciv/widget && pnpm --filter @conciv/widget exec vitest run page-effects-bus`
 Expected: PASS. (Highlight effect import resolves once Task 6 lands — if running tasks in order, stub `highlightEffect` as `defineEffect({id:'highlight', component: () => null})` in `effects/highlight.ts` now and flesh it out in Task 6.)
 
 - [ ] **Step 7: Commit**
@@ -612,7 +612,7 @@ git commit -m "feat(widget): effect bus handler + EffectCtx construction"
 
 ---
 
-### Task 5: Agent tool `mandarax_page_effect` + contract test
+### Task 5: Agent tool `conciv_page_effect` + contract test
 
 **Files:**
 
@@ -622,18 +622,17 @@ git commit -m "feat(widget): effect bus handler + EffectCtx construction"
 
 **Interfaces:**
 
-- Consumes: `PAGE_EFFECT_IDS`, `PAGE_EFFECTS` (protocol). The server `page` context handle (same one `mandarax_page` uses).
-- Produces: `mandaraxPageEffectToolDef`, `EffectInput`.
+- Consumes: `PAGE_EFFECT_IDS`, `PAGE_EFFECTS` (protocol). The server `page` context handle (same one `conciv_page` uses).
+- Produces: `concivPageEffectToolDef`, `EffectInput`.
 
 - [ ] **Step 1: Write the failing contract test** (append to `packages/protocol/test/page-effects.test.ts`)
 
 ```ts
-import {mandaraxPageEffectToolDef} from '@mandarax/tools/defs'
+import {concivPageEffectToolDef} from '@conciv/tools/defs'
 
 it('tool enum matches the catalog ids (no drift)', () => {
-  const enumValues = (
-    mandaraxPageEffectToolDef.inputSchema.shape.effect as {unwrap: () => {options: string[]}}
-  ).unwrap().options
+  const enumValues = (concivPageEffectToolDef.inputSchema.shape.effect as {unwrap: () => {options: string[]}}).unwrap()
+    .options
   expect([...enumValues].sort()).toEqual(PAGE_EFFECTS.map((e) => e.id).sort())
 })
 ```
@@ -642,18 +641,18 @@ it('tool enum matches the catalog ids (no drift)', () => {
 
 ```ts
 import {describe, expect, it} from 'vitest'
-import {mandaraxTools} from '../src/tools.js'
+import {concivTools} from '../src/tools.js'
 
-describe('mandarax_page_effect tool', () => {
+describe('conciv_page_effect tool', () => {
   it('forwards effect+action to ctx.page as the effect verb', async () => {
     const calls: unknown[] = []
-    const tools = mandaraxTools({
+    const tools = concivTools({
       injectUi: () => true,
       page: async (q) => (calls.push(q), {effect: 'highlight', enabled: true}),
       test: async () => ({}),
       open: () => {},
     })
-    const tool = tools.find((t) => t.name === 'mandarax_page_effect')!
+    const tool = tools.find((t) => t.name === 'conciv_page_effect')!
     const result = await tool.execute({effect: 'highlight', action: 'enable'})
     expect(calls[0]).toMatchObject({kind: 'effect', effect: 'highlight', action: 'enable'})
     expect(result).toMatchObject({enabled: true})
@@ -663,7 +662,7 @@ describe('mandarax_page_effect tool', () => {
 
 - [ ] **Step 3: Run both to verify they fail**
 
-Run: `pnpm --filter @mandarax/tools exec vitest run page-effect-tool` then `pnpm --filter @mandarax/protocol exec vitest run page-effects`
+Run: `pnpm --filter @conciv/tools exec vitest run page-effect-tool` then `pnpm --filter @conciv/protocol exec vitest run page-effects`
 Expected: FAIL — tool/def not found.
 
 - [ ] **Step 4: Implement `effect.ts`**
@@ -671,7 +670,7 @@ Expected: FAIL — tool/def not found.
 ```ts
 import {z} from 'zod'
 import {toolDefinition} from '@tanstack/ai'
-import {PAGE_EFFECTS, PAGE_EFFECT_IDS} from '@mandarax/protocol/page-types'
+import {PAGE_EFFECTS, PAGE_EFFECT_IDS} from '@conciv/protocol/page-types'
 
 const catalog = PAGE_EFFECTS.map((e) => `${e.id} — ${e.description}`).join('; ')
 
@@ -680,25 +679,25 @@ export const EffectInput = z.object({
   action: z.enum(['enable', 'disable', 'toggle', 'list']),
 })
 
-export const mandaraxPageEffectToolDef = toolDefinition({
-  name: 'mandarax_page_effect',
+export const concivPageEffectToolDef = toolDefinition({
+  name: 'conciv_page_effect',
   description: `Toggle a reversible visual page effect for the USER (you enable it; the user interacts). action: enable|disable|toggle|list. Effects: ${catalog}. Use 'list' to see live state.`,
   inputSchema: EffectInput,
 })
 ```
 
-- [ ] **Step 5: Export + register.** In `tools.ts` add: `export {mandaraxPageEffectToolDef, EffectInput} from './effect.js'`. In `server.ts`, register a tool named `mandarax_page_effect` whose `execute({effect, action})` calls `ctx.page({kind: 'effect', effect, action})` (follow the exact pattern the `mandarax_page` tool uses there). Also ensure `./defs` subpath re-exports `mandaraxPageEffectToolDef` (mirror the other defs).
+- [ ] **Step 5: Export + register.** In `tools.ts` add: `export {concivPageEffectToolDef, EffectInput} from './effect.js'`. In `server.ts`, register a tool named `conciv_page_effect` whose `execute({effect, action})` calls `ctx.page({kind: 'effect', effect, action})` (follow the exact pattern the `conciv_page` tool uses there). Also ensure `./defs` subpath re-exports `concivPageEffectToolDef` (mirror the other defs).
 
 - [ ] **Step 6: Run to verify pass**
 
-Run: `pnpm turbo run build --filter=@mandarax/tools && pnpm --filter @mandarax/tools exec vitest run page-effect-tool && pnpm --filter @mandarax/protocol exec vitest run page-effects`
+Run: `pnpm turbo run build --filter=@conciv/tools && pnpm --filter @conciv/tools exec vitest run page-effect-tool && pnpm --filter @conciv/protocol exec vitest run page-effects`
 Expected: PASS (tool IT + contract).
 
 - [ ] **Step 7: Commit**
 
 ```bash
 git add packages/tools/src/effect.ts packages/tools/src/tools.ts packages/tools/src/server.ts packages/protocol/test/page-effects.test.ts packages/tools/test/page-effect-tool.it.test.ts
-git commit -m "feat(tools): mandarax_page_effect tool + catalog drift contract test"
+git commit -m "feat(tools): conciv_page_effect tool + catalog drift contract test"
 ```
 
 ---
@@ -728,7 +727,7 @@ import type {EffectCtx} from '../page-effects.js'
 
 function FakeApp() {
   return (
-    <button id="target" data-mandarax-source="/src/Foo.tsx:12:3">
+    <button id="target" data-conciv-source="/src/Foo.tsx:12:3">
       Foo
     </button>
   )
@@ -791,7 +790,7 @@ export const HoverAndClick: StoryObj = {
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `SKIP_STORYBOOK_TESTS= pnpm --filter @mandarax/widget exec vitest run --project storybook highlight`
+Run: `SKIP_STORYBOOK_TESTS= pnpm --filter @conciv/widget exec vitest run --project storybook highlight`
 Expected: FAIL — `./highlight.js` has no `HighlightInspector`.
 
 - [ ] **Step 3: Implement `highlight.ts`** using the spec Appendix as the structural reference (capture layer + `<Show>` box + label, `onPointerMove`→`elementAt`/`componentHostAt`/`describe`, `onClick`→`openSource`, scroll/resize via `onCleanup`). Apply the frontend-design skill's visual choices for the outline/label. End with:
@@ -802,12 +801,12 @@ export const highlightEffect = defineEffect({id: 'highlight', component: Highlig
 
 - [ ] **Step 4: Run to verify it passes**
 
-Run: `SKIP_STORYBOOK_TESTS= pnpm --filter @mandarax/widget exec vitest run --project storybook highlight`
+Run: `SKIP_STORYBOOK_TESTS= pnpm --filter @conciv/widget exec vitest run --project storybook highlight`
 Expected: PASS — hover shows the label, click routes the right source to `openSource`.
 
 - [ ] **Step 5: Visual check** — launch Storybook and eyeball the overlay:
 
-Run: `pnpm turbo run storybook --filter=@mandarax/widget` → open `widget/HighlightEffect`.
+Run: `pnpm turbo run storybook --filter=@conciv/widget` → open `widget/HighlightEffect`.
 Expected: a clean outline + readable label chip over the target; disabling unmounts cleanly.
 
 - [ ] **Step 6: Commit**
@@ -884,14 +883,14 @@ describe('POST /api/page/open-source', () => {
 
 - [ ] **Step 3: Run to verify it fails**
 
-Run: `pnpm --filter @mandarax/core exec vitest run open-source`
+Run: `pnpm --filter @conciv/core exec vitest run open-source`
 Expected: FAIL — module not found.
 
 - [ ] **Step 4: Implement `open-source.ts`**
 
 ```ts
 import {type H3, readValidatedBody} from 'h3'
-import {OpenSourceSchema} from '@mandarax/protocol/page-types'
+import {OpenSourceSchema} from '@conciv/protocol/page-types'
 import {symbolicateFrames, type RawFrame} from '../../page/symbolicate.js'
 import type {OpenInEditor} from '../../editor/open.js'
 
@@ -922,7 +921,7 @@ registerOpenSourceRoute(app, {openInEditor: opts.openInEditor, root: opts.root})
 
 - [ ] **Step 6: Run to verify it passes**
 
-Run: `pnpm turbo run typecheck --filter=@mandarax/core && pnpm --filter @mandarax/core exec vitest run open-source`
+Run: `pnpm turbo run typecheck --filter=@conciv/core && pnpm --filter @conciv/core exec vitest run open-source`
 Expected: PASS.
 
 - [ ] **Step 7: Commit**
@@ -944,13 +943,13 @@ git commit -m "feat(core): /api/page/open-source endpoint (symbolicate + open)"
 
 - Consumes: the built widget global, the React fixture, scripted `/api/editor/open` + `/api/page/open-source` endpoints (mirror `react-verbs.it.test.ts`'s `/__pw/*` scripting).
 
-- [ ] **Step 1: Write the IT** — boot a node http server serving the fixture page + the built global, scripting `/api/editor/open` and `/api/page/open-source` to record their bodies; drive a real `effect enable highlight` via `window.__MANDARAX_PAGE_DRIVER__`, dispatch a real hover + click on a fixture component carrying `data-mandarax-source`, assert `/api/editor/open` recorded the right `{file,line}` (fast path), then repeat on a component WITHOUT the attribute and assert `/api/page/open-source` was hit (fallback). Follow the exact harness shape in `react-verbs.it.test.ts` (esbuild fixture bundle, `browser.newPage()`, unique server port).
+- [ ] **Step 1: Write the IT** — boot a node http server serving the fixture page + the built global, scripting `/api/editor/open` and `/api/page/open-source` to record their bodies; drive a real `effect enable highlight` via `window.__CONCIV_PAGE_DRIVER__`, dispatch a real hover + click on a fixture component carrying `data-conciv-source`, assert `/api/editor/open` recorded the right `{file,line}` (fast path), then repeat on a component WITHOUT the attribute and assert `/api/page/open-source` was hit (fallback). Follow the exact harness shape in `react-verbs.it.test.ts` (esbuild fixture bundle, `browser.newPage()`, unique server port).
 
 ```ts
 // skeleton — fill server scripting + selectors from react-verbs.it.test.ts
 it('enables highlight, click opens source via the fast path', async () => {
   await page.evaluate(() =>
-    (window as any).__MANDARAX_PAGE_DRIVER__.execute({kind: 'effect', effect: 'highlight', action: 'enable'}),
+    (window as any).__CONCIV_PAGE_DRIVER__.execute({kind: 'effect', effect: 'highlight', action: 'enable'}),
   )
   await page.hover('#card-inc')
   await page.click('#card-inc')
@@ -960,7 +959,7 @@ it('enables highlight, click opens source via the fast path', async () => {
 
 - [ ] **Step 2: Run to verify it fails (then passes after wiring)**
 
-Run: `pnpm turbo run build --filter=@mandarax/widget && pnpm --filter @mandarax/widget exec vitest run effect-highlight`
+Run: `pnpm turbo run build --filter=@conciv/widget && pnpm --filter @conciv/widget exec vitest run effect-highlight`
 Expected: first FAIL (no recorded open), then PASS once selectors/scripting match the fixture.
 
 - [ ] **Step 3: Commit**
@@ -977,13 +976,13 @@ git commit -m "test(widget): e2e highlight enable→click→open (real browser, 
 - [ ] Run the full affected build/test through turbo:
 
 ```bash
-pnpm turbo run build typecheck lint --filter=@mandarax/protocol --filter=@mandarax/widget --filter=@mandarax/tools --filter=@mandarax/core
-SKIP_STORYBOOK_TESTS= pnpm --filter @mandarax/widget exec vitest run --project storybook
+pnpm turbo run build typecheck lint --filter=@conciv/protocol --filter=@conciv/widget --filter=@conciv/tools --filter=@conciv/core
+SKIP_STORYBOOK_TESTS= pnpm --filter @conciv/widget exec vitest run --project storybook
 ```
 
 Expected: all green. Storybook stories (page-effects, highlight) pass as browser tests.
 
-- [ ] Manual smoke: `pnpm turbo run storybook --filter=@mandarax/widget` → `widget/HighlightEffect` renders the inspector; toggling unmounts cleanly.
+- [ ] Manual smoke: `pnpm turbo run storybook --filter=@conciv/widget` → `widget/HighlightEffect` renders the inspector; toggling unmounts cleanly.
 
 ## Self-review notes (coverage map)
 
@@ -999,5 +998,5 @@ Expected: all green. Storybook stories (page-effects, highlight) pass as browser
 
 - `symbolicateFrames` return field names (`packages/core/src/page/symbolicate.ts:76`).
 - `makeApp` opts expose `root` + `openInEditor` (thread to `registerOpenSourceRoute`).
-- `server.ts` tool-registration pattern for wiring `mandarax_page_effect` → `ctx.page`.
+- `server.ts` tool-registration pattern for wiring `conciv_page_effect` → `ctx.page`.
 - Whether the Task 4 bus test needs to be a Storybook (browser) test (if node lacks `document`).

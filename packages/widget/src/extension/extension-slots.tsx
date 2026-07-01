@@ -1,6 +1,6 @@
 import {ErrorBoundary, For, type JSX} from 'solid-js'
-import {MountedExtension} from '@mandarax/extension/client'
-import type {AnyExtension, ExtensionHostContext, ExtensionSlot} from '@mandarax/extension'
+import {MountedExtension} from '@conciv/extension/client'
+import type {AnyExtension, ExtensionHostContext, ExtensionSlot} from '@conciv/extension'
 
 export type ExtensionHostBag = Omit<ExtensionHostContext, 'currentSlot'>
 

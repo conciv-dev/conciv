@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make mandarax drive every chat turn through `@tanstack/ai`'s `chat()`, with each harness wrapped as a complete `TextAdapter`, and mandarax's own tools (`ui`/`page`/`test`) exposed to the harness CLI as `@tanstack/ai` tools over an in-process MCP-over-HTTP server.
+**Goal:** Make conciv drive every chat turn through `@tanstack/ai`'s `chat()`, with each harness wrapped as a complete `TextAdapter`, and conciv's own tools (`ui`/`page`/`test`) exposed to the harness CLI as `@tanstack/ai` tools over an in-process MCP-over-HTTP server.
 
-**Architecture:** CLI-only. `chat()` is the stream orchestrator (lifecycle pass-through, middleware, message conversion); the harness CLI owns iteration and executes mandarax tools via MCP. `HarnessTextAdapter extends BaseTextAdapter` wraps any `HarnessAdapter` (built via the `harnessText(harness, deps)` factory function) — `chat()` and the adapter stay harness-agnostic; all CLI specifics live in the `HarnessAdapter`. (The class is a justified, narrow exception to functions-not-classes: it is the only cast-free way to satisfy the `TextAdapter` interface's `never`-typed `'~types'`.) `/api/mcp` is a streamable-HTTP MCP server built on `@modelcontextprotocol/sdk`'s **Web Standard** transport (`WebStandardStreamableHTTPServerTransport`), which takes a web `Request` and returns a `Response` — so it drops straight into an h3 route (`return transport.handleRequest(event.req)`) with no node-object bridge.
+**Architecture:** CLI-only. `chat()` is the stream orchestrator (lifecycle pass-through, middleware, message conversion); the harness CLI owns iteration and executes conciv tools via MCP. `HarnessTextAdapter extends BaseTextAdapter` wraps any `HarnessAdapter` (built via the `harnessText(harness, deps)` factory function) — `chat()` and the adapter stay harness-agnostic; all CLI specifics live in the `HarnessAdapter`. (The class is a justified, narrow exception to functions-not-classes: it is the only cast-free way to satisfy the `TextAdapter` interface's `never`-typed `'~types'`.) `/api/mcp` is a streamable-HTTP MCP server built on `@modelcontextprotocol/sdk`'s **Web Standard** transport (`WebStandardStreamableHTTPServerTransport`), which takes a web `Request` and returns a `Response` — so it drops straight into an h3 route (`return transport.handleRequest(event.req)`) with no node-object bridge.
 
 **Tech Stack:** `@tanstack/ai` 0.28 (`chat`, `TextAdapter` interface, `StreamChunk`, `TextOptions`, `normalizeSystemPrompts`, `toServerSentEventsStream`, `toolDefinition`), `@modelcontextprotocol/sdk` 1.29 (server: `McpServer`, `WebStandardStreamableHTTPServerTransport`), h3 (web `Request`/`Response`), zod, vitest (integration `*.it.test.ts`, real `claude` + real servers — no mocks/jsdom per repo convention).
 
@@ -41,13 +41,13 @@ abstract class BaseTextAdapter<TModel extends string, TProviderOptions extends R
 
 **New files**
 
-- `packages/tools/` — new package `@mandarax/tools`. The `toolDefinition().server()` registry.
+- `packages/tools/` — new package `@conciv/tools`. The `toolDefinition().server()` registry.
   - `packages/tools/package.json`, `tsconfig.json`, `tsdown.config.ts`
-  - `packages/tools/src/types.ts` — `MandaraxToolContext` (handles the tools bridge to)
-  - `packages/tools/src/ui.ts` — `mandaraxUiTool`
-  - `packages/tools/src/page.ts` — `mandaraxPageTool`
-  - `packages/tools/src/test.ts` — `mandaraxTestTool`
-  - `packages/tools/src/registry.ts` — `mandaraxTools(ctx): Tool[]`
+  - `packages/tools/src/types.ts` — `ConcivToolContext` (handles the tools bridge to)
+  - `packages/tools/src/ui.ts` — `concivUiTool`
+  - `packages/tools/src/page.ts` — `concivPageTool`
+  - `packages/tools/src/test.ts` — `concivTestTool`
+  - `packages/tools/src/registry.ts` — `concivTools(ctx): Tool[]`
 - `packages/harness/src/_shared/text-adapter.ts` — `HarnessTextAdapter`, `harnessText(harness, deps)`, `lastUserModelText`
 - `packages/core/src/api/mcp/mcp.ts` — `registerMcpRoutes(app, deps)` (the `/api/mcp` server)
 
@@ -56,12 +56,12 @@ abstract class BaseTextAdapter<TModel extends string, TProviderOptions extends R
 - `packages/protocol/src/harness-types.ts` — add `mcp` capability, `mcpUrl` turn field, decoder opts (`runId`/`threadId`/`logger`)
 - `packages/harness/src/_shared/agui.ts` — thread `runId`/`threadId`/`logger`; non-empty delta guard
 - `packages/harness/src/claude/index.ts` — `capabilities.mcp: 'http'`
-- `packages/harness/src/claude/args.ts` — inject `--mcp-config`; drop `Bash(mandarax ui:*)` / `Bash(mandarax tools:*)` allowedTools
+- `packages/harness/src/claude/args.ts` — inject `--mcp-config`; drop `Bash(conciv ui:*)` / `Bash(conciv tools:*)` allowedTools
 - `packages/harness/src/codex/index.ts` — `capabilities.mcp: 'http'` (+ codex args mcp flag, Task 12)
 - `packages/harness/src/{gemini-cli,opencode,pi}/index.ts` — `capabilities.mcp: 'none'`
 - `packages/core/src/api/chat/turn.ts` — route the turn through `chat()`
 - `packages/core/src/api/chat/chat.ts` + `packages/core/src/app.ts` — pass mcp url + register `/api/mcp`
-- `packages/harness/plugins/claude/skills/react-introspection/SKILL.md` — reference MCP tools, not `mandarax` CLI
+- `packages/harness/plugins/claude/skills/react-introspection/SKILL.md` — reference MCP tools, not `conciv` CLI
 
 ---
 
@@ -138,7 +138,7 @@ Add `deliverInput?: HarnessDeliverInput` to `HarnessAdapterBase`. Leave `Harness
 
 - [ ] **Step 2: Typecheck the protocol package**
 
-Run: `pnpm --filter @mandarax/protocol typecheck`
+Run: `pnpm --filter @conciv/protocol typecheck`
 Expected: FAIL — existing harness adapters don't yet set `mcp`, and `agui.ts`/`decode.ts` still use the old opts. These are fixed in later tasks; the protocol package itself compiles, but dependents break. Confirm the _protocol_ package's own `tsc` passes (the break is downstream).
 
 - [ ] **Step 3: Set `mcp` + `imageInput` on every adapter so the workspace typechecks again**
@@ -161,7 +161,7 @@ capabilities: {resume: true, permissionGate: 'hook', transcriptHistory: true, sy
 
 - [ ] **Step 4: Build protocol + typecheck harness**
 
-Run: `pnpm --filter @mandarax/protocol build && pnpm --filter @mandarax/harness typecheck`
+Run: `pnpm --filter @conciv/protocol build && pnpm --filter @conciv/harness typecheck`
 Expected: harness typecheck FAILs only in `_shared/agui.ts` / `claude/decode.ts` (decoder opts) — fixed in Task 2. No capability errors.
 
 - [ ] **Step 5: Commit**
@@ -219,7 +219,7 @@ describe('runAgui lifecycle', () => {
 
 - [ ] **Step 2: Run it to confirm it fails**
 
-Run: `pnpm --filter @mandarax/harness exec vitest run test/agui-lifecycle.it.test.ts`
+Run: `pnpm --filter @conciv/harness exec vitest run test/agui-lifecycle.it.test.ts`
 Expected: FAIL — `runAgui` ignores `runId`/`threadId` (uses hardcoded constants) and `textMessage` emits an empty delta.
 
 - [ ] **Step 3: Update `runAgui` and the emitters**
@@ -235,8 +235,8 @@ export async function* runAgui<E>(
   opts: HarnessDecodeOpts,
   step: Step<E>,
 ): AsyncGenerator<StreamChunk> {
-  const runId = opts.runId ?? 'mandarax-run'
-  const threadId = opts.threadId ?? 'mandarax-chat'
+  const runId = opts.runId ?? 'conciv-run'
+  const threadId = opts.threadId ?? 'conciv-chat'
   const counter = {n: 0}
   const mint: Mint = (prefix) => {
     counter.n += 1
@@ -253,7 +253,7 @@ export async function* runAgui<E>(
 }
 ```
 
-- Import `HarnessDecodeOpts` from `@mandarax/protocol/harness-types` and drop the local `SessionSink` type (replace its uses with `HarnessDecodeOpts`).
+- Import `HarnessDecodeOpts` from `@conciv/protocol/harness-types` and drop the local `SessionSink` type (replace its uses with `HarnessDecodeOpts`).
 - Guard the empty delta in `textMessage` and `reasoningMessage`:
 
 ```ts
@@ -272,12 +272,12 @@ In `packages/harness/src/claude/decode.ts` and `packages/harness/src/codex/decod
 
 - [ ] **Step 5: Run the test to confirm pass**
 
-Run: `pnpm --filter @mandarax/harness exec vitest run test/agui-lifecycle.it.test.ts`
+Run: `pnpm --filter @conciv/harness exec vitest run test/agui-lifecycle.it.test.ts`
 Expected: PASS (2 tests).
 
 - [ ] **Step 6: Typecheck harness + run existing harness tests for regressions**
 
-Run: `pnpm --filter @mandarax/harness typecheck && pnpm --filter @mandarax/harness test`
+Run: `pnpm --filter @conciv/harness typecheck && pnpm --filter @conciv/harness test`
 Expected: PASS — existing `harness.it.test.ts` / `codex-decode.test.ts` still green (they call decode with `{onSessionId}`, still valid).
 
 - [ ] **Step 7: Commit**
@@ -303,7 +303,7 @@ import {execSync} from 'node:child_process'
 import {spawn} from 'node:child_process'
 import {describe, expect, it} from 'vitest'
 import {chat, EventType, type StreamChunk} from '@tanstack/ai'
-import type {HarnessChild} from '@mandarax/protocol/harness-types'
+import type {HarnessChild} from '@conciv/protocol/harness-types'
 import {harnessText} from '../src/_shared/text-adapter.js'
 import {claude} from '../src/claude/index.js'
 
@@ -342,7 +342,7 @@ describe('harnessText adapter', () => {
 
 - [ ] **Step 2: Run it to confirm it fails**
 
-Run: `pnpm --filter @mandarax/harness exec vitest run test/text-adapter.it.test.ts`
+Run: `pnpm --filter @conciv/harness exec vitest run test/text-adapter.it.test.ts`
 Expected: FAIL — `harnessText` does not exist.
 
 - [ ] **Step 3: Implement the adapter**
@@ -354,7 +354,7 @@ import {createInterface} from 'node:readline'
 import type {Readable} from 'node:stream'
 import {normalizeSystemPrompts, type StreamChunk, type TextOptions} from '@tanstack/ai'
 import {BaseTextAdapter, type StructuredOutputOptions, type StructuredOutputResult} from '@tanstack/ai/adapters'
-import type {HarnessAdapter, HarnessChild, HarnessImage, HarnessTurn} from '@mandarax/protocol/harness-types'
+import type {HarnessAdapter, HarnessChild, HarnessImage, HarnessTurn} from '@conciv/protocol/harness-types'
 
 export type SpawnHarness = (args: string[], cwd: string) => HarnessChild
 
@@ -468,17 +468,17 @@ export function harnessText(harness: HarnessAdapter, deps: HarnessAdapterDeps): 
 
 - [ ] **Step 4: Export the adapter from the package root**
 
-- Confirm `@mandarax/harness` `package.json` `dependencies` includes `@tanstack/ai` (it does). No new dep.
-- Core imports `harnessText` from the `@mandarax/harness` root. The root (`.`) export maps to `dist/registry.js` (`packages/harness/package.json`), so add this line to `packages/harness/src/registry.ts` (no `package.json` change): `export {harnessText, HarnessTextAdapter, lastUserModelText, lastUserImages} from './_shared/text-adapter.js'`. Task 4 depends on this export existing.
+- Confirm `@conciv/harness` `package.json` `dependencies` includes `@tanstack/ai` (it does). No new dep.
+- Core imports `harnessText` from the `@conciv/harness` root. The root (`.`) export maps to `dist/registry.js` (`packages/harness/package.json`), so add this line to `packages/harness/src/registry.ts` (no `package.json` change): `export {harnessText, HarnessTextAdapter, lastUserModelText, lastUserImages} from './_shared/text-adapter.js'`. Task 4 depends on this export existing.
 
 - [ ] **Step 5: Run the test (requires `claude` on PATH + auth)**
 
-Run: `pnpm --filter @mandarax/harness exec vitest run test/text-adapter.it.test.ts`
+Run: `pnpm --filter @conciv/harness exec vitest run test/text-adapter.it.test.ts`
 Expected: PASS (or SKIP if no `claude`). One RUN_STARTED, one RUN_FINISHED, text contains PONG.
 
 - [ ] **Step 6: Typecheck**
 
-Run: `pnpm --filter @mandarax/harness typecheck`
+Run: `pnpm --filter @conciv/harness typecheck`
 Expected: PASS.
 
 - [ ] **Step 7: Commit**
@@ -511,7 +511,7 @@ it('streams exactly one run lifecycle pair through chat()', async () => {
 
 - [ ] **Step 2: Run it to confirm it fails or is unstable on the old path**
 
-Run: `pnpm --filter @mandarax/core exec vitest run test/api/chat/chat.it.test.ts`
+Run: `pnpm --filter @conciv/core exec vitest run test/api/chat/chat.it.test.ts`
 Expected: the new assertion may pass on the old path (decode emits the pair directly) — that's fine; it becomes the regression guard. If the helper doesn't exist, the test FAILs to compile. Build the minimal helper inline from the existing request code in the file.
 
 - [ ] **Step 3: Rewrite `registerTurnRoutes` to use `chat()`**
@@ -520,7 +520,7 @@ In `packages/core/src/api/chat/turn.ts`, replace the body of the `app.post('/api
 
 ```ts
 import {chat, toServerSentEventsStream, type StreamChunk} from '@tanstack/ai'
-import {harnessText} from '@mandarax/harness'
+import {harnessText} from '@conciv/harness'
 // … existing imports …
 
 app.post('/api/chat', async (event) => {
@@ -566,7 +566,7 @@ app.post('/api/chat', async (event) => {
 
 Notes (cast-free — repo rule forbids `as`):
 
-- `chatReq.messages` is already `UIMessage[]` (`@mandarax/protocol/chat-types` re-exports `UIMessage` from `@tanstack/ai`), and `chat()` accepts `Array<UIMessage | ModelMessage>`, so it passes with no cast. If `tsc` reports a mismatch, fix the _type_ of `ChatRequest['messages']` to be `UIMessage[]` — do not cast.
+- `chatReq.messages` is already `UIMessage[]` (`@conciv/protocol/chat-types` re-exports `UIMessage` from `@tanstack/ai`), and `chat()` accepts `Array<UIMessage | ModelMessage>`, so it passes with no cast. If `tsc` reports a mismatch, fix the _type_ of `ChatRequest['messages']` to be `UIMessage[]` — do not cast.
 - `chat()`'s streaming return is `AsyncIterable<StreamChunk>`, which `uiBus.run` accepts directly — no cast.
 - The `lastUserText` import + `mode === 'none'` prompt-prefix logic moves into the adapter (Task 3), so remove the now-unused `lastUserText` import from `turn.ts`.
 - The lock is acquired in `onSpawn` (after the child exists, so we still record the pid).
@@ -574,12 +574,12 @@ Notes (cast-free — repo rule forbids `as`):
 
 - [ ] **Step 4: Run the chat integration test**
 
-Run: `pnpm --filter @mandarax/core exec vitest run test/api/chat/chat.it.test.ts`
+Run: `pnpm --filter @conciv/core exec vitest run test/api/chat/chat.it.test.ts`
 Expected: PASS — one lifecycle pair; existing streaming assertions still green.
 
 - [ ] **Step 5: Typecheck core**
 
-Run: `pnpm --filter @mandarax/core typecheck`
+Run: `pnpm --filter @conciv/core typecheck`
 Expected: PASS.
 
 - [ ] **Step 6: Commit**
@@ -607,7 +607,7 @@ The composer/widget UI half stays in the chat-image-input plan; this task makes 
 
 - [ ] **Step 2: Run it to confirm it fails**
 
-Run: `pnpm --filter @mandarax/core exec vitest run test/api/mcp/claude-image.it.test.ts`
+Run: `pnpm --filter @conciv/core exec vitest run test/api/mcp/claude-image.it.test.ts`
 Expected: FAIL — `buildClaudeArgs` ignores images and uses `-p`, so claude never receives the image.
 
 - [ ] **Step 3: Branch `buildClaudeArgs` on images**
@@ -621,7 +621,7 @@ In `packages/harness/src/claude/args.ts`: when `turn.images?.length`, switch the
 Create `packages/harness/src/claude/deliver-input.ts`. When `turn.images?.length`, write one stream-json user message to `child.stdin` then end it:
 
 ```ts
-import type {HarnessChild, HarnessTurn} from '@mandarax/protocol/harness-types'
+import type {HarnessChild, HarnessTurn} from '@conciv/protocol/harness-types'
 
 // claude --input-format stream-json expects newline-delimited JSON user messages on stdin.
 // Verify the exact envelope against the installed claude (`claude --help`, stream-json input docs);
@@ -649,7 +649,7 @@ The `spawnHarness` in `packages/core/src/engine.ts` must pipe stdin (`stdio: ['p
 
 - [ ] **Step 6: Run the test**
 
-Run: `pnpm --filter @mandarax/core exec vitest run test/api/mcp/claude-image.it.test.ts`
+Run: `pnpm --filter @conciv/core exec vitest run test/api/mcp/claude-image.it.test.ts`
 Expected: PASS (or SKIP) — claude received and described the image.
 
 - [ ] **Step 7: Commit**
@@ -661,9 +661,9 @@ git commit -m "feat(harness): native image input for claude via stream-json stdi
 
 ---
 
-## Phase 2 — @mandarax/tools + /api/mcp + mandarax_ui (first tool end-to-end)
+## Phase 2 — @conciv/tools + /api/mcp + conciv_ui (first tool end-to-end)
 
-### Task 5: Scaffold @mandarax/tools with the mandarax_ui tool
+### Task 5: Scaffold @conciv/tools with the conciv_ui tool
 
 **Files:**
 
@@ -673,13 +673,13 @@ git commit -m "feat(harness): native image input for claude via stream-json stdi
 
 - [ ] **Step 1: Create the package manifest**
 
-`packages/tools/package.json` (mirror `@mandarax/harness`'s shape — tsdown build, per-subpath exports, `@tanstack/ai` + `zod` deps):
+`packages/tools/package.json` (mirror `@conciv/harness`'s shape — tsdown build, per-subpath exports, `@tanstack/ai` + `zod` deps):
 
 ```json
 {
-  "name": "@mandarax/tools",
+  "name": "@conciv/tools",
   "version": "0.0.0",
-  "description": "mandarax agent tools as @tanstack/ai toolDefinition().server() functions: ui, page, test.",
+  "description": "conciv agent tools as @tanstack/ai toolDefinition().server() functions: ui, page, test.",
   "license": "MIT",
   "type": "module",
   "files": ["dist"],
@@ -693,7 +693,7 @@ git commit -m "feat(harness): native image input for claude via stream-json stdi
     "test": "vitest run"
   },
   "dependencies": {
-    "@mandarax/protocol": "workspace:*",
+    "@conciv/protocol": "workspace:*",
     "@tanstack/ai": "^0.28.0",
     "zod": "^4.4.3"
   },
@@ -706,7 +706,7 @@ git commit -m "feat(harness): native image input for claude via stream-json stdi
 }
 ```
 
-Copy `tsconfig.json` and `tsdown.config.ts` from `packages/harness` (adjust entry to `src/registry.ts`). Add `@mandarax/tools` to the root `pnpm-workspace.yaml` if packages aren't globbed (check: it globs `packages/*`, so no change needed — verify).
+Copy `tsconfig.json` and `tsdown.config.ts` from `packages/harness` (adjust entry to `src/registry.ts`). Add `@conciv/tools` to the root `pnpm-workspace.yaml` if packages aren't globbed (check: it globs `packages/*`, so no change needed — verify).
 
 - [ ] **Step 2: Write the failing test**
 
@@ -714,17 +714,17 @@ Copy `tsconfig.json` and `tsdown.config.ts` from `packages/harness` (adjust entr
 
 ```ts
 import {describe, expect, it} from 'vitest'
-import {mandaraxTools} from '../src/registry.js'
+import {concivTools} from '../src/registry.js'
 
-describe('mandarax_ui tool', () => {
+describe('conciv_ui tool', () => {
   it('bridges to the ctx.injectUi sink and returns injected:true', async () => {
     const seen: unknown[] = []
-    const tools = mandaraxTools({
+    const tools = concivTools({
       injectUi: (spec) => (seen.push(spec), true),
       page: async () => ({}),
       test: async () => ({}),
     })
-    const ui = tools.find((t) => t.name === 'mandarax_ui')!
+    const ui = tools.find((t) => t.name === 'conciv_ui')!
     const result = await ui.execute({kind: 'confirm', question: 'ok?'}, {context: undefined})
     expect(seen).toHaveLength(1)
     expect(result).toMatchObject({injected: true})
@@ -736,7 +736,7 @@ describe('mandarax_ui tool', () => {
 
 - [ ] **Step 3: Run it to confirm it fails**
 
-Run: `pnpm --filter @mandarax/tools exec vitest run`
+Run: `pnpm --filter @conciv/tools exec vitest run`
 Expected: FAIL — package/exports don't exist yet.
 
 - [ ] **Step 4: Define the context type**
@@ -744,26 +744,26 @@ Expected: FAIL — package/exports don't exist yet.
 `packages/tools/src/types.ts`:
 
 ```ts
-import type {UiSpec} from '@mandarax/protocol/ui-types'
-import type {PageQuery} from '@mandarax/protocol/page-types'
+import type {UiSpec} from '@conciv/protocol/ui-types'
+import type {PageQuery} from '@conciv/protocol/page-types'
 
-export type MandaraxToolContext = {
+export type ConcivToolContext = {
   injectUi: (spec: UiSpec) => boolean
   page: (query: PageQuery) => Promise<unknown>
   test: (action: {kind: 'list' | 'run' | 'status'; pattern?: string}) => Promise<unknown>
 }
 ```
 
-- [ ] **Step 5: Implement the mandarax_ui tool**
+- [ ] **Step 5: Implement the conciv_ui tool**
 
-`packages/tools/src/ui.ts` — reuse `buildUiSpec` logic from `packages/cli/src/ui.ts` (move the pure `buildUiSpec` into `@mandarax/protocol/ui-types` or duplicate the small schema here; prefer importing a shared builder). Define with `toolDefinition`:
+`packages/tools/src/ui.ts` — reuse `buildUiSpec` logic from `packages/cli/src/ui.ts` (move the pure `buildUiSpec` into `@conciv/protocol/ui-types` or duplicate the small schema here; prefer importing a shared builder). Define with `toolDefinition`:
 
 ```ts
 import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
 import {toolDefinition} from '@tanstack/ai'
-import type {MandaraxToolContext} from './types.js'
-import {buildUiSpec} from '@mandarax/protocol/ui-types' // move buildUiSpec here in Step 5a
+import type {ConcivToolContext} from './types.js'
+import {buildUiSpec} from '@conciv/protocol/ui-types' // move buildUiSpec here in Step 5a
 
 const UiInput = z.object({
   kind: z.enum(['choices', 'confirm', 'diff', 'form']),
@@ -785,15 +785,15 @@ const UiInput = z.object({
     .optional(),
 })
 
-export const mandaraxUiToolDef = toolDefinition({
-  name: 'mandarax_ui',
+export const concivUiToolDef = toolDefinition({
+  name: 'conciv_ui',
   description:
     'Render real interactive UI (choices/confirm/diff/form) in the chat thread. Non-blocking: the user reply arrives as their next chat message.',
   inputSchema: UiInput,
 })
 
-export function mandaraxUiTool(ctx: MandaraxToolContext) {
-  return mandaraxUiToolDef.server(async (input) => {
+export function concivUiTool(ctx: ConcivToolContext) {
+  return concivUiToolDef.server(async (input) => {
     const renderId = randomUUID()
     const spec = buildUiSpec(input.kind, input, renderId)
     const injected = ctx.injectUi(spec)
@@ -802,37 +802,37 @@ export function mandaraxUiTool(ctx: MandaraxToolContext) {
 }
 ```
 
-- **Step 5a:** Move `buildUiSpec` (and `parseField`) from `packages/cli/src/ui.ts` into `packages/protocol/src/ui-types.ts`, export it, and re-import it in `cli/src/ui.ts` (so the CLI and the tool share one builder — DRY). Rebuild `@mandarax/protocol`.
+- **Step 5a:** Move `buildUiSpec` (and `parseField`) from `packages/cli/src/ui.ts` into `packages/protocol/src/ui-types.ts`, export it, and re-import it in `cli/src/ui.ts` (so the CLI and the tool share one builder — DRY). Rebuild `@conciv/protocol`.
 
 - [ ] **Step 6: Implement the registry**
 
 `packages/tools/src/registry.ts`:
 
 ```ts
-import type {MandaraxToolContext} from './types.js'
-import {mandaraxUiTool} from './ui.js'
-import {mandaraxPageTool} from './page.js' // added in Task 8
-import {mandaraxTestTool} from './test.js' // added in Task 9
+import type {ConcivToolContext} from './types.js'
+import {concivUiTool} from './ui.js'
+import {concivPageTool} from './page.js' // added in Task 8
+import {concivTestTool} from './test.js' // added in Task 9
 
-export type {MandaraxToolContext} from './types.js'
+export type {ConcivToolContext} from './types.js'
 
-export function mandaraxTools(ctx: MandaraxToolContext) {
-  return [mandaraxUiTool(ctx), mandaraxPageTool(ctx), mandaraxTestTool(ctx)]
+export function concivTools(ctx: ConcivToolContext) {
+  return [concivUiTool(ctx), concivPageTool(ctx), concivTestTool(ctx)]
 }
 ```
 
-For this task, temporarily export only `mandaraxUiTool(ctx)` and add the others in their tasks (or create thin stub `page.ts`/`test.ts` that throw "not implemented" so the file compiles — replace in Tasks 8/9).
+For this task, temporarily export only `concivUiTool(ctx)` and add the others in their tasks (or create thin stub `page.ts`/`test.ts` that throw "not implemented" so the file compiles — replace in Tasks 8/9).
 
 - [ ] **Step 7: Run the test**
 
-Run: `pnpm --filter @mandarax/tools exec vitest run && pnpm --filter @mandarax/tools typecheck`
+Run: `pnpm --filter @conciv/tools exec vitest run && pnpm --filter @conciv/tools typecheck`
 Expected: PASS.
 
 - [ ] **Step 8: Commit**
 
 ```bash
 git add packages/tools packages/protocol/src/ui-types.ts packages/cli/src/ui.ts
-git commit -m "feat(tools): @mandarax/tools package with mandarax_ui tool; share buildUiSpec via protocol"
+git commit -m "feat(tools): @conciv/tools package with conciv_ui tool; share buildUiSpec via protocol"
 ```
 
 ### Task 6: The /api/mcp streamable-HTTP server
@@ -847,18 +847,18 @@ git commit -m "feat(tools): @mandarax/tools package with mandarax_ui tool; share
 - [ ] **Step 1: Add the dependencies (user-approved)**
 
 ```bash
-pnpm --filter @mandarax/core add @modelcontextprotocol/sdk
-pnpm --filter @mandarax/core add -D @tanstack/ai-mcp   # TEST-ONLY MCP client for /api/mcp (no hand-rolled JSON-RPC)
+pnpm --filter @conciv/core add @modelcontextprotocol/sdk
+pnpm --filter @conciv/core add -D @tanstack/ai-mcp   # TEST-ONLY MCP client for /api/mcp (no hand-rolled JSON-RPC)
 ```
 
-Confirm a single version resolves and both server subpaths exist. Run: `pnpm --filter @mandarax/core exec node -e "Promise.all([import('@modelcontextprotocol/sdk/server/mcp.js'),import('@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js')]).then(([a,b])=>console.log('McpServer' in a, 'WebStandardStreamableHTTPServerTransport' in b))"`
+Confirm a single version resolves and both server subpaths exist. Run: `pnpm --filter @conciv/core exec node -e "Promise.all([import('@modelcontextprotocol/sdk/server/mcp.js'),import('@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js')]).then(([a,b])=>console.log('McpServer' in a, 'WebStandardStreamableHTTPServerTransport' in b))"`
 Expected: prints `true true` (verified against 1.29.0). If a subpath differs, find it: `ls node_modules/.pnpm/@modelcontextprotocol+sdk@*/node_modules/@modelcontextprotocol/sdk/dist/esm/server/`.
 
-> **Why `@tanstack/ai-mcp` is test-only:** it is a host-side MCP _client_ (for `chat()` to consume external MCP servers). In mandarax's production path the _CLI_ is the MCP client (via `--mcp-config`), so `chat()` never uses it. But our tests need an MCP client to exercise `/api/mcp` — `createMCPClient` is exactly that, so we use it instead of hand-rolling JSON-RPC.
+> **Why `@tanstack/ai-mcp` is test-only:** it is a host-side MCP _client_ (for `chat()` to consume external MCP servers). In conciv's production path the _CLI_ is the MCP client (via `--mcp-config`), so `chat()` never uses it. But our tests need an MCP client to exercise `/api/mcp` — `createMCPClient` is exactly that, so we use it instead of hand-rolling JSON-RPC.
 
 - [ ] **Step 2: Write the failing test (drive /api/mcp with the real MCP client)**
 
-`packages/core/test/api/mcp/mcp.it.test.ts` — boot the h3 app, connect a `@tanstack/ai-mcp` client to `/api/mcp`, call `mandarax_ui`, assert the uiBus sink fired. Mirror `chat.it.test.ts`'s server bootstrap for `startTestServer`.
+`packages/core/test/api/mcp/mcp.it.test.ts` — boot the h3 app, connect a `@tanstack/ai-mcp` client to `/api/mcp`, call `conciv_ui`, assert the uiBus sink fired. Mirror `chat.it.test.ts`'s server bootstrap for `startTestServer`.
 
 ```ts
 import {describe, expect, it} from 'vitest'
@@ -866,7 +866,7 @@ import {createMCPClient} from '@tanstack/ai-mcp'
 import {startTestServer} from '../../helpers/server.js' // create if absent, from chat.it.test.ts pattern
 
 describe('/api/mcp', () => {
-  it('runs mandarax_ui and bridges to uiBus', async () => {
+  it('runs conciv_ui and bridges to uiBus', async () => {
     const injected: unknown[] = []
     const {url, close} = await startTestServer({onInjectUi: (s: unknown) => (injected.push(s), true)})
     // Connect the TanStack MCP client to our server (http transport at `${url}/api/mcp`).
@@ -874,8 +874,8 @@ describe('/api/mcp', () => {
     const mcp = await createMCPClient({transport: {type: 'http', url: `${url}/api/mcp`}})
     // MCPClient exposes tools() → ServerTool[] (each with .execute), not a callTool() method.
     const tools = await mcp.tools()
-    const uiTool = tools.find((t) => t.name === 'mandarax_ui')
-    if (!uiTool) throw new Error('mandarax_ui not registered on /api/mcp')
+    const uiTool = tools.find((t) => t.name === 'conciv_ui')
+    if (!uiTool) throw new Error('conciv_ui not registered on /api/mcp')
     const result = await uiTool.execute({kind: 'confirm', question: 'ok?'})
     expect(injected).toHaveLength(1)
     expect(JSON.stringify(result)).toContain('renderId')
@@ -889,7 +889,7 @@ describe('/api/mcp', () => {
 
 - [ ] **Step 3: Run it to confirm it fails**
 
-Run: `pnpm --filter @mandarax/core exec vitest run test/api/mcp/mcp.it.test.ts`
+Run: `pnpm --filter @conciv/core exec vitest run test/api/mcp/mcp.it.test.ts`
 Expected: FAIL — `/api/mcp` returns 404.
 
 - [ ] **Step 4: Implement the MCP route (bridge SDK transport via srvx node access)**
@@ -900,13 +900,13 @@ Expected: FAIL — `/api/mcp` returns 404.
 import type {H3} from 'h3'
 import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js'
 import {WebStandardStreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
-import {mandaraxTools, type MandaraxToolContext} from '@mandarax/tools'
+import {concivTools, type ConcivToolContext} from '@conciv/tools'
 
-export function registerMcpRoutes(app: H3, ctx: MandaraxToolContext): void {
+export function registerMcpRoutes(app: H3, ctx: ConcivToolContext): void {
   app.post('/api/mcp', async (event) => {
-    const server = new McpServer({name: 'mandarax', version: '0.0.0'})
-    for (const tool of mandaraxTools(ctx)) {
-      // registerTool wants a Zod RAW SHAPE (not a z.object). Each mandarax tool's inputSchema is a
+    const server = new McpServer({name: 'conciv', version: '0.0.0'})
+    for (const tool of concivTools(ctx)) {
+      // registerTool wants a Zod RAW SHAPE (not a z.object). Each conciv tool's inputSchema is a
       // z.object, so pass its `.shape` — typed, no cast. The handler's `args` is inferred from the
       // shape and matches the tool's own execute() input; execute closes over `ctx` (the second
       // arg is the tool execution context — build the real value the @tanstack/ai type requires).
@@ -932,7 +932,7 @@ export function registerMcpRoutes(app: H3, ctx: MandaraxToolContext): void {
 
 Notes / verification (no casts — repo rule; if a type fights you, construct the real value or narrow, do NOT `as`):
 
-- `tool.inputSchema.shape` — confirm `mandarax` tools expose their `z.object`'s `.shape`. `toolDefinition({inputSchema: z.object(...)})` keeps the ZodObject; if the `Tool` type widens `inputSchema` to `SchemaInput`, store the raw shape on the tool (or export the shape alongside) so this stays cast-free.
+- `tool.inputSchema.shape` — confirm `conciv` tools expose their `z.object`'s `.shape`. `toolDefinition({inputSchema: z.object(...)})` keeps the ZodObject; if the `Tool` type widens `inputSchema` to `SchemaInput`, store the raw shape on the tool (or export the shape alongside) so this stays cast-free.
 - The `tool.execute(args, ctx)` second arg is `@tanstack/ai`'s `ToolExecutionContext`. Construct a real value (its fields are optional / `context` is the typed runtime context — `undefined` here since our tools close over `ctx`). Confirm the exact field names against the installed `ToolExecutionContext` type and fill them in; no cast.
 - No node-object bridge and no double-send concern: `handleRequest(event.req)` returns a `Response` that the h3 route returns directly. `event.req` is already a web `Request`.
 
@@ -943,20 +943,20 @@ In `packages/core/src/app.ts`, after the chat routes, register MCP with a contex
 ```ts
 import {registerMcpRoutes} from './api/mcp/mcp.js'
 // … inside makeApp, after registerChatRoutes/registerPageRoutes/registerTestRunnerRoutes.
-// page/test are throwing placeholders THIS task (the mandarax_ui test doesn't exercise them);
+// page/test are throwing placeholders THIS task (the conciv_ui test doesn't exercise them);
 // Task 8 replaces `page` with the real page-bus `ask`, Task 9 replaces `test` with the runner.
 registerMcpRoutes(app, {
   injectUi: (spec) => uiBus.inject(spec),
   page: async () => {
-    throw new Error('mandarax_page not wired until Task 8')
+    throw new Error('conciv_page not wired until Task 8')
   },
   test: async () => {
-    throw new Error('mandarax_test not wired until Task 9')
+    throw new Error('conciv_test not wired until Task 9')
   },
 })
 ```
 
-Run: `pnpm --filter @mandarax/core exec vitest run test/api/mcp/mcp.it.test.ts && pnpm --filter @mandarax/core typecheck`
+Run: `pnpm --filter @conciv/core exec vitest run test/api/mcp/mcp.it.test.ts && pnpm --filter @conciv/core typecheck`
 Expected: PASS — `injected` has 1 entry; result contains `renderId`.
 
 - [ ] **Step 6: Commit**
@@ -966,7 +966,7 @@ git add packages/core/src/api/mcp/mcp.ts packages/core/src/app.ts packages/core/
 git commit -m "feat(core): /api/mcp streamable-HTTP server bridging @tanstack/ai tools via MCP SDK"
 ```
 
-### Task 7: Claude calls mandarax_ui via MCP end-to-end (productionize the spike)
+### Task 7: Claude calls conciv_ui via MCP end-to-end (productionize the spike)
 
 **Files:**
 
@@ -975,7 +975,7 @@ git commit -m "feat(core): /api/mcp streamable-HTTP server bridging @tanstack/ai
 
 - [ ] **Step 1: Write the failing end-to-end test**
 
-`packages/core/test/api/mcp/claude-mcp.it.test.ts` — boot the real app, spawn real `claude` pointed at `/api/mcp`, send a chat turn instructing it to call `mandarax_ui`, assert the uiBus saw the inject. Skip if no `claude`. This is the spike, productionized.
+`packages/core/test/api/mcp/claude-mcp.it.test.ts` — boot the real app, spawn real `claude` pointed at `/api/mcp`, send a chat turn instructing it to call `conciv_ui`, assert the uiBus saw the inject. Skip if no `claude`. This is the spike, productionized.
 
 ```ts
 import {execSync} from 'node:child_process'
@@ -993,7 +993,7 @@ function hasClaude(): boolean {
 
 describe('claude → /api/mcp → uiBus', () => {
   it.skipIf(!hasClaude())(
-    'claude calls mandarax_ui and the inject reaches uiBus',
+    'claude calls conciv_ui and the inject reaches uiBus',
     async () => {
       const injected: unknown[] = []
       const {postChat, close} = await startTestServer({
@@ -1001,7 +1001,7 @@ describe('claude → /api/mcp → uiBus', () => {
         harness: 'claude',
         realSpawn: true,
       })
-      await postChat('Call the mandarax_ui tool with kind "confirm" and question "Proceed?". Then reply DONE.')
+      await postChat('Call the conciv_ui tool with kind "confirm" and question "Proceed?". Then reply DONE.')
       expect(injected.length).toBeGreaterThanOrEqual(1)
       await close()
     },
@@ -1012,8 +1012,8 @@ describe('claude → /api/mcp → uiBus', () => {
 
 - [ ] **Step 2: Run it to confirm it fails**
 
-Run: `pnpm --filter @mandarax/core exec vitest run test/api/mcp/claude-mcp.it.test.ts`
-Expected: FAIL — claude isn't told about the MCP server (`--mcp-config` not injected), so it can't call `mandarax_ui`.
+Run: `pnpm --filter @conciv/core exec vitest run test/api/mcp/claude-mcp.it.test.ts`
+Expected: FAIL — claude isn't told about the MCP server (`--mcp-config` not injected), so it can't call `conciv_ui`.
 
 - [ ] **Step 3: Inject `--mcp-config` and drop the Bash tool allowances**
 
@@ -1023,40 +1023,35 @@ In `packages/harness/src/claude/args.ts`:
 
 ```ts
 if (turn.mcpUrl) {
-  args.push('--mcp-config', JSON.stringify({mcpServers: {mandarax: {type: 'http', url: turn.mcpUrl}}}))
-  args.push(
-    '--allowedTools',
-    'mcp__mandarax__mandarax_ui',
-    'mcp__mandarax__mandarax_page',
-    'mcp__mandarax__mandarax_test',
-  )
+  args.push('--mcp-config', JSON.stringify({mcpServers: {conciv: {type: 'http', url: turn.mcpUrl}}}))
+  args.push('--allowedTools', 'mcp__conciv__conciv_ui', 'mcp__conciv__conciv_page', 'mcp__conciv__conciv_test')
 }
 ```
 
-- Remove the old `--allowedTools 'Bash(mandarax tools:*)' 'Bash(mandarax ui:*)'` entries from the base `args` array.
+- Remove the old `--allowedTools 'Bash(conciv tools:*)' 'Bash(conciv ui:*)'` entries from the base `args` array.
 
 - [ ] **Step 4: Run the end-to-end test**
 
-Run: `pnpm --filter @mandarax/core exec vitest run test/api/mcp/claude-mcp.it.test.ts`
+Run: `pnpm --filter @conciv/core exec vitest run test/api/mcp/claude-mcp.it.test.ts`
 Expected: PASS (or SKIP). The uiBus observed at least one inject from a real claude MCP call.
 
 - [ ] **Step 5: Typecheck + harness tests**
 
-Run: `pnpm --filter @mandarax/harness typecheck && pnpm --filter @mandarax/harness test`
-Expected: PASS — update any existing arg-builder assertion that referenced the removed `Bash(mandarax …)` allowances.
+Run: `pnpm --filter @conciv/harness typecheck && pnpm --filter @conciv/harness test`
+Expected: PASS — update any existing arg-builder assertion that referenced the removed `Bash(conciv …)` allowances.
 
 - [ ] **Step 6: Commit**
 
 ```bash
 git add packages/harness/src/claude/args.ts packages/core/test/api/mcp/claude-mcp.it.test.ts
-git commit -m "feat(harness): claude --mcp-config to /api/mcp; drop Bash(mandarax) allowances"
+git commit -m "feat(harness): claude --mcp-config to /api/mcp; drop Bash(conciv) allowances"
 ```
 
 ---
 
 ## Phase 3 — Migrate page + test tools; rewrite the skill
 
-### Task 8: mandarax_page tool wired to the page bus
+### Task 8: conciv_page tool wired to the page bus
 
 **Files:**
 
@@ -1075,17 +1070,17 @@ git commit -m "feat(harness): claude --mcp-config to /api/mcp; drop Bash(mandara
 
 ```ts
 import {describe, expect, it} from 'vitest'
-import {mandaraxTools} from '../src/registry.js'
+import {concivTools} from '../src/registry.js'
 
-describe('mandarax_page tool', () => {
+describe('conciv_page tool', () => {
   it('forwards the verb+args to ctx.page and returns its result', async () => {
     const calls: unknown[] = []
-    const tools = mandaraxTools({
+    const tools = concivTools({
       injectUi: () => true,
       page: async (q) => (calls.push(q), {ok: true}),
       test: async () => ({}),
     })
-    const page = tools.find((t) => t.name === 'mandarax_page')!
+    const page = tools.find((t) => t.name === 'conciv_page')!
     const result = await page.execute({verb: 'tree', ref: 'main'}, {context: undefined})
     expect(calls[0]).toMatchObject({kind: 'tree', ref: 'main'})
     expect(result).toMatchObject({ok: true})
@@ -1095,49 +1090,49 @@ describe('mandarax_page tool', () => {
 
 - [ ] **Step 3: Run it to confirm it fails**
 
-Run: `pnpm --filter @mandarax/tools exec vitest run test/page-tool.it.test.ts`
+Run: `pnpm --filter @conciv/tools exec vitest run test/page-tool.it.test.ts`
 Expected: FAIL — `page.ts` is the throwing stub.
 
-- [ ] **Step 4: Implement mandarax_page**
+- [ ] **Step 4: Implement conciv_page**
 
-`packages/tools/src/page.ts` — input schema mirrors `PageQueryInputSchema` + a `verb` field (the page-bus verbs: `tree`/`inspect`/`find`/`locate`/etc., from `@mandarax/protocol/page-types`):
+`packages/tools/src/page.ts` — input schema mirrors `PageQueryInputSchema` + a `verb` field (the page-bus verbs: `tree`/`inspect`/`find`/`locate`/etc., from `@conciv/protocol/page-types`):
 
 ```ts
 import {z} from 'zod'
 import {toolDefinition} from '@tanstack/ai'
-import {PageQueryKindSchema, PageQueryInputSchema} from '@mandarax/protocol/page-types'
-import type {MandaraxToolContext} from './types.js'
+import {PageQueryKindSchema, PageQueryInputSchema} from '@conciv/protocol/page-types'
+import type {ConcivToolContext} from './types.js'
 
 const PageInput = z.object({verb: PageQueryKindSchema}).and(PageQueryInputSchema)
 
-export const mandaraxPageToolDef = toolDefinition({
-  name: 'mandarax_page',
+export const concivPageToolDef = toolDefinition({
+  name: 'conciv_page',
   description: 'Inspect and drive the live page DOM/React tree: tree, inspect, find, locate, click, type, etc.',
   inputSchema: PageInput,
 })
 
-export function mandaraxPageTool(ctx: MandaraxToolContext) {
-  return mandaraxPageToolDef.server(async ({verb, ...input}) => ctx.page({kind: verb, ...input}))
+export function concivPageTool(ctx: ConcivToolContext) {
+  return concivPageToolDef.server(async ({verb, ...input}) => ctx.page({kind: verb, ...input}))
 }
 ```
 
 - [ ] **Step 5: Wire `page` in makeApp; restore the real registry**
 
-In `packages/core/src/app.ts`, replace the `page` placeholder with the captured `pageAsk`. In `packages/tools/src/registry.ts`, include `mandaraxPageTool(ctx)`.
+In `packages/core/src/app.ts`, replace the `page` placeholder with the captured `pageAsk`. In `packages/tools/src/registry.ts`, include `concivPageTool(ctx)`.
 
 - [ ] **Step 6: Run tool + MCP tests**
 
-Run: `pnpm --filter @mandarax/tools exec vitest run && pnpm --filter @mandarax/core exec vitest run test/api/mcp/mcp.it.test.ts`
+Run: `pnpm --filter @conciv/tools exec vitest run && pnpm --filter @conciv/core exec vitest run test/api/mcp/mcp.it.test.ts`
 Expected: PASS.
 
 - [ ] **Step 7: Commit**
 
 ```bash
 git add packages/tools/src/page.ts packages/tools/src/registry.ts packages/core/src/api/page/page.ts packages/core/src/app.ts packages/tools/test/page-tool.it.test.ts
-git commit -m "feat(tools): mandarax_page tool bridged to the live page bus"
+git commit -m "feat(tools): conciv_page tool bridged to the live page bus"
 ```
 
-### Task 9: mandarax_test tool wired to the runner
+### Task 9: conciv_test tool wired to the runner
 
 **Files:**
 
@@ -1151,17 +1146,17 @@ git commit -m "feat(tools): mandarax_page tool bridged to the live page bus"
 
 ```ts
 import {describe, expect, it} from 'vitest'
-import {mandaraxTools} from '../src/registry.js'
+import {concivTools} from '../src/registry.js'
 
-describe('mandarax_test tool', () => {
+describe('conciv_test tool', () => {
   it('forwards the action to ctx.test', async () => {
     const calls: unknown[] = []
-    const tools = mandaraxTools({
+    const tools = concivTools({
       injectUi: () => true,
       page: async () => ({}),
       test: async (a) => (calls.push(a), {tests: []}),
     })
-    const test = tools.find((t) => t.name === 'mandarax_test')!
+    const test = tools.find((t) => t.name === 'conciv_test')!
     const result = await test.execute({action: 'list'}, {context: undefined})
     expect(calls[0]).toMatchObject({kind: 'list'})
     expect(result).toMatchObject({tests: []})
@@ -1171,45 +1166,45 @@ describe('mandarax_test tool', () => {
 
 - [ ] **Step 2: Run it to confirm it fails**
 
-Run: `pnpm --filter @mandarax/tools exec vitest run test/test-tool.it.test.ts`
+Run: `pnpm --filter @conciv/tools exec vitest run test/test-tool.it.test.ts`
 Expected: FAIL — `test.ts` is the throwing stub.
 
-- [ ] **Step 3: Implement mandarax_test**
+- [ ] **Step 3: Implement conciv_test**
 
 `packages/tools/src/test.ts`:
 
 ```ts
 import {z} from 'zod'
 import {toolDefinition} from '@tanstack/ai'
-import type {MandaraxToolContext} from './types.js'
+import type {ConcivToolContext} from './types.js'
 
 const TestInput = z.object({action: z.enum(['list', 'run', 'status']), pattern: z.string().optional()})
 
-export const mandaraxTestToolDef = toolDefinition({
-  name: 'mandarax_test',
+export const concivTestToolDef = toolDefinition({
+  name: 'conciv_test',
   description: 'Drive the live test runner: list tests, run a pattern, or check status.',
   inputSchema: TestInput,
 })
 
-export function mandaraxTestTool(ctx: MandaraxToolContext) {
-  return mandaraxTestToolDef.server(async ({action, pattern}) => ctx.test({kind: action, pattern}))
+export function concivTestTool(ctx: ConcivToolContext) {
+  return concivTestToolDef.server(async ({action, pattern}) => ctx.test({kind: action, pattern}))
 }
 ```
 
 - [ ] **Step 4: Wire `test` in makeApp**
 
-In `packages/core/src/app.ts`, replace the `test` placeholder with a call into the runner. Map `{kind:'list'|'run'|'status'}` onto the runner's existing methods used by `registerTestRunnerRoutes` (reuse the same calls the routes make). Include `mandaraxTestTool(ctx)` in the registry.
+In `packages/core/src/app.ts`, replace the `test` placeholder with a call into the runner. Map `{kind:'list'|'run'|'status'}` onto the runner's existing methods used by `registerTestRunnerRoutes` (reuse the same calls the routes make). Include `concivTestTool(ctx)` in the registry.
 
 - [ ] **Step 5: Run tests + typecheck**
 
-Run: `pnpm --filter @mandarax/tools exec vitest run && pnpm --filter @mandarax/core typecheck`
+Run: `pnpm --filter @conciv/tools exec vitest run && pnpm --filter @conciv/core typecheck`
 Expected: PASS.
 
 - [ ] **Step 6: Commit**
 
 ```bash
 git add packages/tools/src/test.ts packages/tools/src/registry.ts packages/core/src/app.ts packages/tools/test/test-tool.it.test.ts
-git commit -m "feat(tools): mandarax_test tool bridged to the test runner"
+git commit -m "feat(tools): conciv_test tool bridged to the test runner"
 ```
 
 ### Task 10: Rewrite the react-introspection skill for MCP tools
@@ -1220,18 +1215,18 @@ git commit -m "feat(tools): mandarax_test tool bridged to the test runner"
 
 - [ ] **Step 1: Read the current skill and rewrite tool references**
 
-Replace every instruction that tells the agent to run `mandarax tools page …` / `mandarax ui …` via Bash with the MCP tool equivalents (`mandarax_page` with a `verb`, `mandarax_ui`). Keep the React-introspection guidance (locate/inspect/tree/find verbs) but route it through `mandarax_page`. Remove any mention of the Bash CLI for these tools.
+Replace every instruction that tells the agent to run `conciv tools page …` / `conciv ui …` via Bash with the MCP tool equivalents (`conciv_page` with a `verb`, `conciv_ui`). Keep the React-introspection guidance (locate/inspect/tree/find verbs) but route it through `conciv_page`. Remove any mention of the Bash CLI for these tools.
 
 - [ ] **Step 2: Verify the agent uses the MCP tool (reuse Task 7's e2e)**
 
-Run: `pnpm --filter @mandarax/core exec vitest run test/api/mcp/claude-mcp.it.test.ts`
+Run: `pnpm --filter @conciv/core exec vitest run test/api/mcp/claude-mcp.it.test.ts`
 Expected: PASS — still green; the skill change doesn't regress tool invocation.
 
 - [ ] **Step 3: Commit**
 
 ```bash
 git add packages/harness/plugins/claude/skills/react-introspection/SKILL.md
-git commit -m "docs(harness): rewrite react-introspection skill to use MCP tools, not the mandarax CLI"
+git commit -m "docs(harness): rewrite react-introspection skill to use MCP tools, not the conciv CLI"
 ```
 
 ### Task 11: Full build, typecheck, lint, format
@@ -1241,7 +1236,7 @@ git commit -m "docs(harness): rewrite react-introspection skill to use MCP tools
 - [ ] **Step 1: Build the workspace**
 
 Run: `pnpm build`
-Expected: all packages (now including `@mandarax/tools`) build. Add `@mandarax/tools` to any turbo pipeline filters if a task lists packages explicitly (check `turbo.json` — it globs, so likely no change).
+Expected: all packages (now including `@conciv/tools`) build. Add `@conciv/tools` to any turbo pipeline filters if a task lists packages explicitly (check `turbo.json` — it globs, so likely no change).
 
 - [ ] **Step 2: Typecheck + lint + format**
 
@@ -1270,6 +1265,6 @@ git commit -m "chore: build/lint/format fixups for tanstack-ai chat adapters"
 
 ## Self-review notes
 
-- **Spec coverage:** `@mandarax/tools` (T5,8,9) · `/api/mcp` via MCP SDK (T6) · complete adapter (`HarnessTextAdapter extends BaseTextAdapter`) + `structuredOutput` NotSupported (T3) · chat() routing + lifecycle pass-through (T2,T4) · `mcp` + `imageInput` caps + `mcpUrl`/`images`/`deliverInput` (T1) · native image delivery to claude (T4b, absorbed chat-image-input server-half) · `--mcp-config` + Bash drop (T7) · skill rewrite (T10) · claude-first sequencing (T7→T12). Composer/widget image UI stays in the chat-image-input plan. Codex `fileRef` image delivery: noted in T12 (verify), defaulting `false` until then.
+- **Spec coverage:** `@conciv/tools` (T5,8,9) · `/api/mcp` via MCP SDK (T6) · complete adapter (`HarnessTextAdapter extends BaseTextAdapter`) + `structuredOutput` NotSupported (T3) · chat() routing + lifecycle pass-through (T2,T4) · `mcp` + `imageInput` caps + `mcpUrl`/`images`/`deliverInput` (T1) · native image delivery to claude (T4b, absorbed chat-image-input server-half) · `--mcp-config` + Bash drop (T7) · skill rewrite (T10) · claude-first sequencing (T7→T12). Composer/widget image UI stays in the chat-image-input plan. Codex `fileRef` image delivery: noted in T12 (verify), defaulting `false` until then.
 - **Library types (no wheel-reinvention):** `BaseTextAdapter`/`TextOptions`/`StreamChunk`/`toServerSentEventsStream`/`normalizeSystemPrompts`/`toolDefinition` from `@tanstack/ai`; `McpServer`/`WebStandardStreamableHTTPServerTransport` from `@modelcontextprotocol/sdk`. The MCP server is fully web-standard (`Request`→`Response`), so it needs nothing from `srvx` beyond h3's existing `event.req` — no node-object bridge.
 - **Open verification points (flagged in-task, not placeholders):** (a) the `@tanstack/ai` `Tool` runtime property names (`name`/`description`/`inputSchema`/`execute`) used by the MCP registration loop — confirm against installed types in T6; (b) MCP SDK subpath import paths (`server/mcp.js`, `server/webStandardStreamableHttp.js`) — confirmed against 1.29.0 in T6 Step 1.

@@ -1,5 +1,5 @@
-# @mandarax/cli
+# @conciv/cli
 
-The mandarax agent-facing CLI: `mandarax tools` (drive the live page/vite/tests) and `mandarax ui` (render interactive UI in the chat). citty command tree, zod-validated args.
+The conciv agent-facing CLI: `conciv tools` (drive the live page/vite/tests) and `conciv ui` (render interactive UI in the chat). citty command tree, zod-validated args.
 
-Part of [mandarax](https://github.com/mandarax-dev/mandarax).
+Part of [conciv](https://github.com/conciv-dev/conciv).
