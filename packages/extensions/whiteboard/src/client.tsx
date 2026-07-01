@@ -42,8 +42,9 @@ const whiteboard = defineExtension({
       commentWriter = write
       pendingComments.splice(0).forEach(write)
     }
+    const close = (): void => void setOpen(false)
     const start = (): void => {
-      if (!disposeOverlay) disposeOverlay = mountOverlay({api, open, registerComment})
+      if (!disposeOverlay) disposeOverlay = mountOverlay({api, open, close, registerComment})
     }
     const toggle = (): void => {
       start()

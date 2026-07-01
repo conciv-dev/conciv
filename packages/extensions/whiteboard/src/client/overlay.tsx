@@ -1,4 +1,4 @@
-import {ErrorBoundary, Show, Suspense, createResource, type Accessor, type JSX} from 'solid-js'
+import {ErrorBoundary, Show, Suspense, createResource, onCleanup, onMount, type Accessor, type JSX} from 'solid-js'
 import {render} from 'solid-js/web'
 import {EnvironmentProvider} from '@mandarax/ui-kit-system'
 import type {ClientApi} from '@mandarax/extension'
@@ -42,6 +42,7 @@ function selfIdentity(win: Window): Self {
 type MountOverlayOptions = {
   api: ClientApi
   open: Accessor<boolean>
+  close: () => void
   registerComment: (write: (pick: CommentPick) => void) => void
 }
 
@@ -52,8 +53,25 @@ function CanvasView(props: {
   visible: Accessor<boolean>
   room: Accessor<string>
   self: Self
+  close: () => void
 }): JSX.Element {
   const model = useComments()
+  // Escape closes the canvas — but only when it's the sole thing open. Runs in the CAPTURE phase so it
+  // reads the overlay state BEFORE Ark's own Escape handler mutates it (otherwise a thread's Escape would
+  // clear openCid first and this would then also close the canvas). Skips when a thread/compose/inbox is
+  // open (they own their Escape) or the keypress is inside the Excalidraw editor (where Escape deselects).
+  onMount(() => {
+    const win = props.doc.defaultView
+    if (!win) return
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape' || !props.visible()) return
+      if (model.openCid() || model.composeTarget() || model.inboxOpen()) return
+      if ((event.target as Element | null)?.closest?.('.excalidraw')) return
+      props.close()
+    }
+    win.addEventListener('keydown', onKey, true)
+    onCleanup(() => win.removeEventListener('keydown', onKey, true))
+  })
   return (
     <>
       <Island
@@ -82,12 +100,13 @@ function Canvas(props: {
   visible: Accessor<boolean>
   room: Accessor<string>
   self: Self
+  close: () => void
   registerComment: (write: (pick: CommentPick) => void) => void
 }): JSX.Element {
   return (
     <CommentsProvider room={props.room} apiBase={props.api.apiBase} suppressWhile={props.api.suppressWhile}>
       <ComposeBridge registerComment={props.registerComment} />
-      <CanvasView doc={props.doc} visible={props.visible} room={props.room} self={props.self} />
+      <CanvasView doc={props.doc} visible={props.visible} room={props.room} self={props.self} close={props.close} />
     </CommentsProvider>
   )
 }
@@ -106,6 +125,7 @@ function Board(props: {
   doc: Document
   visible: Accessor<boolean>
   self: Self
+  close: () => void
   registerComment: (write: (pick: CommentPick) => void) => void
 }): JSX.Element {
   const [config] = createResource(() => fetchJazzConfig(`${props.api.apiBase}/api/ext/whiteboard`))
@@ -121,6 +141,7 @@ function Board(props: {
                 visible={props.visible}
                 room={() => session}
                 self={props.self}
+                close={props.close}
                 registerComment={props.registerComment}
               />
             )}
@@ -161,6 +182,7 @@ export function mountOverlay(options: MountOverlayOptions): () => void {
               doc={doc}
               visible={options.open}
               self={selfIdentity(options.api.env.win)}
+              close={options.close}
               registerComment={options.registerComment}
             />
           </Suspense>
