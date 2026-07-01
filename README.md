@@ -1,116 +1,179 @@
-# conciv
+<div align="center">
 
-An embeddable AI dev agent for your running app — **chat, page control, and live tests,
-injected into the page via a Vite plugin**.
+<a href="https://conciv.dev">
+  <img src="./.github/assets/hero.png" alt="conciv — an AI dev agent that lives inside your running app" width="860">
+</a>
 
-conciv boots a framework-free h3 engine (`@conciv/core`) behind a set of `/api/*` HTTP routes
-on its own dev port, spawns a headless harness (default `claude -p`), and injects a Solid widget
-into the previewed page. From the widget you can chat with the agent, watch it think and call
-tools, approve risky commands, answer agent-generated UI prompts, and see live test result cards
-— all without leaving the app you're building.
+<h1>✦&nbsp; conciv</h1>
 
-```
- ┌─────────────┐      /api/* (SSE + JSON)       ┌──────────────────┐
- │  browser    │ ◀──────────────────────────▶  │  @conciv/core   │
- │  widget     │   chat stream · page-bus ·     │  (h3 + srvx)     │
- │ (Solid,     │   test stream · approvals      │   → harness      │
- │  shadow DOM)│                                │   (claude/codex) │
- └─────────────┘                                └──────────────────┘
-   injected by @conciv/plugin (vite/webpack/…)
-```
+<p>
+  <strong>An AI dev agent that lives inside your running app.</strong>
+  <br>
+  Add one plugin. Then chat, let it drive the page, and run your tests —
+  <br>
+  without ever leaving the thing you're building.
+</p>
 
-> Status: early. Extracted from an internal preview tool and being generalized for any app.
+<p>
+  <a href="https://conciv.dev"><strong>Website</strong></a>
+  &nbsp;·&nbsp;
+  <a href="./apps/examples/tanstack-start"><strong>Example app</strong></a>
+  &nbsp;·&nbsp;
+  <a href="./apps/site/content/docs"><strong>Docs</strong></a>
+  &nbsp;·&nbsp;
+  <a href="https://github.com/conciv-dev/conciv/issues"><strong>Report a bug</strong></a>
+</p>
 
-## Packages
+<p>
+  <img alt="CI" src="https://img.shields.io/github/actions/workflow/status/conciv-dev/conciv/ci.yml?branch=main&label=CI&style=flat-square">
+  <img alt="License" src="https://img.shields.io/github/license/conciv-dev/conciv?color=3b82f6&style=flat-square">
+  <img alt="Node" src="https://img.shields.io/badge/node-%E2%89%A5%2022-3c873a?style=flat-square">
+  <img alt="Status" src="https://img.shields.io/badge/status-early-e8552d?style=flat-square">
+</p>
 
-| Package                                         | What it is                                                                                                                           |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| [`@conciv/protocol`](./packages/protocol)       | Shared wire types + `define*` factories (chat, generative UI, test, page, harness/runner/bundler, config). Zero-runtime.             |
-| [`@conciv/core`](./packages/core)               | The framework-free h3 + srvx engine: all `/api/*` routes, lock, session, uiBus, harness + test-runner registries, the BundlerBridge. |
-| [`@conciv/harness`](./packages/harness)         | Harness adapters behind a capability interface: claude + codex, plus gemini-cli/opencode/pi stubs.                                   |
-| [`@conciv/test-runner`](./packages/test-runner) | Test-runner adapters over a clean-child fd3 driver: vitest (full), jest/node-test/playwright (stubs).                                |
-| [`@conciv/plugin`](./packages/plugin)           | The dev agent as an unplugin: `@conciv/plugin/vite` (full), webpack/rspack/rollup/esbuild entries. Boots core + injects the widget.  |
-| [`@conciv/widget`](./packages/widget)           | The browser half: a Solid chat UI in an open Shadow DOM, the test card, and the page-control driver.                                 |
-| [`@conciv/cli`](./packages/cli)                 | The `conciv` CLI the agent calls from Bash: `tools server / page / test / open` + `ui`, against core's `/api/*` surface.             |
+</div>
+
+---
+
+## What is conciv?
+
+**conciv** puts an AI dev agent inside the app you are already running. Add one build plugin,
+and a ✦ button appears in your dev preview. Open it and you're talking to an agent that can
+**see the page you're building**, **drive it**, **edit your source**, and **run your tests** — all
+in the same window, without a second terminal or a context switch.
+
+It's **dev-only** (never shipped to production) and **harness-agnostic** — it drives a real coding
+CLI under the hood (Claude Code today, Codex and others behind one interface), so the agent is as
+capable as the tool you already trust.
+
+## Features
+
+- 💬 &nbsp;**Chat in-app** — talk to an agent that sees your running page, streams its reasoning, and calls tools live.
+- 🕹️ &nbsp;**Page control** — it grabs elements, clicks, fills, inspects React props/state, and live-edits the DOM to preview changes.
+- 🧪 &nbsp;**Live tests** — run Vitest and watch pass/fail result cards render right inside the app.
+- 🧩 &nbsp;**Extensions** — drop a `.tsx` file in `conciv/extensions/` and get a new agent tool with its own card and composer UI.
+- 🎨 &nbsp;**Shared whiteboard** — an Excalidraw canvas you and the AI draw on together, with source-anchored comments.
+- ✅ &nbsp;**Approvals** — risky or networked commands surface an Approve / Deny card before they run.
+- 🔌 &nbsp;**One plugin** — Vite, webpack, Rspack, Rollup, or esbuild. Dev-only, never in your production bundle.
+- 🤝 &nbsp;**Harness-agnostic** — Claude Code today; Codex and others behind a single capability interface.
+- 🌘 &nbsp;**Zero style leak** — the widget lives in an open Shadow DOM, isolated from your app's CSS.
+
+## How it works
+
+<div align="center">
+  <img src="./.github/assets/how-it-works.png" alt="Architecture: the browser widget talks to @conciv/core over /api/* (SSE + JSON); core spawns the harness (claude/codex); the plugin injects the widget" width="840">
+</div>
+
+`@conciv/plugin` boots a framework-free **h3** engine (`@conciv/core`) behind a set of `/api/*`
+routes on its own dev port, spawns a headless harness (default `claude -p`), and injects a Solid
+widget into your previewed page. The widget probes `/api/chat/session` on load and only shows the
+✦ button when the dev routes are live — so it stays inert on a plain preview.
 
 ## Quickstart
 
-Add the plugin to your app's `vite.config.ts` and serve the widget bundle:
+```sh
+npm i -D @conciv/it
+```
+
+Add the plugin to your app's `vite.config.ts`:
 
 ```ts
 import {defineConfig} from 'vite'
-import conciv from '@conciv/plugin/vite'
+import conciv from '@conciv/it/plugin/vite'
 
 export default defineConfig({
   plugins: [conciv()],
 })
 ```
 
-`@conciv/core` boots its own dev engine (the `/api/*` surface + the bundled widget) and the
-plugin injects the widget `<script>` into your HTML. Override defaults via
-`conciv({harness, testRunner, widgetUrl, …})`. The widget probes `/api/chat/session`
-on load and only shows the ✦ FAB when the dev-server routes are live, so it's inert on a plain
-preview.
+Make sure the [Claude Code CLI](https://claude.ai/code) (`claude`) is on your `PATH`, start your
+dev server, and click the ✦ button in the corner of your app.
 
-`claude` (the Claude Code CLI) must be on your `PATH` for the chat to answer.
+Override defaults via `conciv({harness, testRunner, widgetUrl, …})`. Other bundlers are one import
+away: `@conciv/it/plugin/webpack`, `/rspack`, `/rollup`, `/esbuild`, `/nextjs`.
 
-See [`apps/examples/tanstack-start`](./apps/examples/tanstack-start) for a complete, runnable
-host app:
+> [!NOTE]
+> conciv is **early** and not yet published to npm. To try it today, run the fully wired example:
+> [`apps/examples/tanstack-start`](./apps/examples/tanstack-start).
+
+## Extensions
+
+Teach the agent new tricks with a single file. Drop a `.tsx` into `conciv/extensions/` and it's
+discovered automatically — one `defineTool` gives the agent a callable tool (`.server` runs in
+node), a rendered result card, and optional widget UI (`.render` + `useSlot`), all typed
+end-to-end with zod:
+
+```tsx
+import {z} from 'zod'
+import {defineExtension, defineTool} from '@conciv/extension'
+
+const deployRun = defineTool({
+  name: 'deploy_run',
+  description: 'Deploy the current branch',
+  inputSchema: z.object({env: z.enum(['staging', 'prod'])}),
+})
+  .server(({env}) => ({url: `https://${env}.example.com`}))
+  .render((props) => <DeployCard {...props} />)
+
+export default defineExtension({name: 'deploy', tools: [deployRun]})
+```
+
+Extensions are plain Solid JSX (compiled as a Solid zone even inside a React host app) and ship
+with a real test harness: [`@conciv/extension-testkit`](./packages/extension-testkit) mounts any
+extension in a real browser against a real spawned server.
+
+Two built-ins show what the contract can do:
+
+- 🎨 &nbsp;[**Whiteboard**](./packages/extensions/whiteboard) — a shared Excalidraw canvas over your dev app. You sketch, the AI draws back (real editable elements, mermaid included), with source-anchored comments and pins on a self-hosted Jazz CRDT.
+- 🧪 &nbsp;[**Test runner**](./packages/extensions/test-runner) — runner-agnostic test execution (Vitest today) with live result cards in the thread.
+
+## Supported tools
+
+| Area          | Full support              | In progress                      |
+| ------------- | ------------------------- | -------------------------------- |
+| **Harnesses** | Claude Code (`claude -p`) | Codex, Gemini CLI, opencode, Pi  |
+| **Bundlers**  | Vite                      | webpack, Rspack, Rollup, esbuild |
+| **Tests**     | Vitest                    | Jest, `node:test`, Playwright    |
+
+## Packages
+
+| Package                                                              | What it is                                                                                                    |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| [`@conciv/it`](./packages/conciv)                                    | **The one you install.** Thin umbrella: `@conciv/it/plugin/vite` (+ webpack/rspack/rollup/esbuild/nextjs).    |
+| [`@conciv/protocol`](./packages/protocol)                            | Shared wire types + `define*` factories (chat, generative UI, test, page, harness). Zero-runtime.             |
+| [`@conciv/core`](./packages/core)                                    | The framework-free h3 + srvx engine: every `/api/*` route, session, uiBus, harness + test registries.         |
+| [`@conciv/harness`](./packages/harness)                              | Harness adapters behind a capability interface: Claude + Codex, plus Gemini/opencode/Pi stubs.                |
+| [`@conciv/test-runner`](./packages/test-runner)                      | Test-runner adapters over a clean-child fd3 driver: Vitest (full), Jest/node-test/Playwright (stubs).         |
+| [`@conciv/plugin`](./packages/plugin)                                | The dev agent as an unplugin: `vite` (full) + webpack/rspack/rollup/esbuild. Boots core + injects the widget. |
+| [`@conciv/widget`](./packages/widget)                                | The browser half: a Solid chat UI in an open Shadow DOM, the test card, and the page-control driver.          |
+| [`@conciv/cli`](./packages/cli)                                      | The `conciv` CLI the agent calls from Bash: `tools server / page / test / open` + `ui`.                       |
+| [`@conciv/extension`](./packages/extension)                          | The extension authoring contract: `defineExtension`/`defineTool` + typed `useSlot`/`useContext` hooks.        |
+| [`@conciv/extension-testkit`](./packages/extension-testkit)          | Mounts any extension in a real browser against a real spawned server, through its real contract.              |
+| [`@conciv/extension-whiteboard`](./packages/extensions/whiteboard)   | Built-in: the shared Excalidraw canvas with AI drawing and source-anchored comments.                          |
+| [`@conciv/extension-test-runner`](./packages/extensions/test-runner) | Built-in: runner-agnostic test execution with live result cards.                                              |
+
+## Documentation
+
+Full docs live at **[conciv.dev](https://conciv.dev)** and in
+[`apps/site/content/docs`](./apps/site/content/docs) — quick-start guides per bundler, usage
+(chat, page control, live tests, approvals), harness and test-runner configuration, and
+troubleshooting.
+
+## Contributing
+
+Issues and PRs are welcome. This is a young project moving fast — the best first step is to run the
+[example app](./apps/examples/tanstack-start), find something rough, and open an issue.
 
 ```sh
 pnpm install
-pnpm --filter tanstack-start-example dev
-# open the printed URL, click the ✦ button
+pnpm dev        # runs the tanstack-start example with conciv wired in
 ```
-
-## Configuration
-
-`conciv(options)` — every field is optional:
-
-| Option         | Default                 | Purpose                                                                |
-| -------------- | ----------------------- | ---------------------------------------------------------------------- |
-| `enabled`      | `true`                  | Mount the agent. Gate it on dev mode in real apps.                     |
-| `harness`      | `"claude"`              | Harness adapter id (`claude`, `codex`, …).                             |
-| `harnessBin`   | adapter `binName`       | Override the harness binary on `PATH`.                                 |
-| `testRunner`   | `"vitest"`              | Test-runner adapter id.                                                |
-| `widgetUrl`    | `CONCIV_WIDGET_URL` env | `<script src>` for the injected widget bundle. Omit to skip injection. |
-| `stateRoot`    | `process.cwd()`         | Root holding `.conciv/{agent.lock,sessions,bin}`.                      |
-| `systemPrompt` | built-in                | Appended to each agent turn.                                           |
-| `sessionId`    | –                       | Resume an existing thread.                                             |
-
-## Routes (the wire contract)
-
-All under the `/api` prefix on the core dev port:
-
-| Route                                                   | Method           | Purpose                                                                 |
-| ------------------------------------------------------- | ---------------- | ----------------------------------------------------------------------- |
-| `/api/chat`                                             | POST (SSE)       | The chat turn — AG-UI event stream.                                     |
-| `/api/chat/session`                                     | GET              | Current session + lock; the widget's availability probe.                |
-| `/api/chat/history`                                     | GET              | Hydrate a resumed thread.                                               |
-| `/api/chat/permission`, `/api/chat/permission-decision` | POST             | Risky-command gate (PreToolUse hook ⇄ widget allow/deny).               |
-| `/api/chat/ui`                                          | POST             | Inject agent-generated UI (`conciv ui …`).                              |
-| `/api/chat/stop`                                        | POST             | Cancel the active turn.                                                 |
-| `/api/test-runner/{list,run,status,stop,ui}`            | POST/GET         | Drive the out-of-process test runner.                                   |
-| `/api/test-runner/stream`                               | GET (SSE)        | Live test results.                                                      |
-| `/api/server/*`                                         | GET/POST         | BundlerBridge: config / resolve / graph / transform / reload / restart. |
-| `/api/page/*`                                           | GET (SSE) / POST | Page-bus: the agent reads and drives the live DOM.                      |
-| `/api/editor/open`                                      | POST             | Open a file in the editor.                                              |
-
-## Develop
-
-```sh
-pnpm install
-pnpm build        # turbo: protocol → plugin/widget
-pnpm typecheck
-pnpm test         # integration tests only (real servers/browsers, no mocks)
-pnpm lint         # oxlint
-pnpm format:check # oxfmt
-```
-
-Conventions: pnpm + turborepo; tsdown for node builds, vite (lib mode) for the widget;
-vitest; oxlint + oxfmt; strict TypeScript; no barrel files (per-module subpath exports);
-integration tests only (`*.it.test.ts`).
 
 ## License
 
-[MIT](./LICENSE)
+[MIT](./LICENSE) © conciv
+
+<div align="center">
+  <br>
+  <sub>Built with h3, Solid, and a real coding agent living in the page.</sub>
+</div>
