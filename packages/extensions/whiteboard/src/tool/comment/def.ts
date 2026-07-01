@@ -8,8 +8,8 @@ export const CommentCreateInput = z.object({
   kind: z.enum(['source-linked', 'floating']),
   parts: z.array(z.unknown()),
   anchor: z.unknown().optional(),
-  x: z.number(),
-  y: z.number(),
+  x: z.number().describe('Pin position: scene X coordinate (canvas space, as returned by canvas.read).'),
+  y: z.number().describe('Pin position: scene Y coordinate (canvas space, as returned by canvas.read).'),
   elementId: z.string().nullable().optional(),
   authorKind,
   authorModel: z.string().nullable().optional(),
@@ -28,7 +28,11 @@ export const CommentListInput = z.object({
 })
 export const CommentResolveInput = z.object({cid: z.string()})
 export const CommentDeleteInput = z.object({cid: z.string()})
-export const CommentMoveInput = z.object({cid: z.string(), x: z.number(), y: z.number()})
+export const CommentMoveInput = z.object({
+  cid: z.string(),
+  x: z.number().describe('New pin position: scene X coordinate (canvas space, as returned by canvas.read).'),
+  y: z.number().describe('New pin position: scene Y coordinate (canvas space, as returned by canvas.read).'),
+})
 export const PinSetStateInput = z.object({cid: z.string(), pinState: z.enum(['locked', 'offset'])})
 
 export const commentCreateDef = {
@@ -36,7 +40,8 @@ export const commentCreateDef = {
   description: 'Pin a comment to the canvas, optionally anchored to a source element.',
   inputSchema: CommentCreateInput,
   streamTitle: 'Leaving a comment',
-  promptSnippet: 'Use comment.create to leave a pinned note on the canvas for the user to see.',
+  promptSnippet:
+    'Use comment.create to leave a pinned note on the canvas for the user to see. x/y are scene coordinates in canvas space (use the x/y of an element from canvas.read to pin near it).',
 }
 
 export const commentReplyDef = {
@@ -70,17 +75,18 @@ export const commentResolveDef = {
 
 export const commentDeleteDef = {
   name: 'comment.delete',
-  description: 'Remove a comment and its canvas pin.',
+  description: 'Remove a comment; deleting a thread root removes the whole thread and its canvas pin.',
   inputSchema: CommentDeleteInput,
   approval: 'ask',
-  promptSnippet: 'Use comment.delete to remove a comment the user no longer wants.',
+  promptSnippet:
+    'Use comment.delete to remove a comment the user no longer wants; deleting the first comment removes the whole thread.',
 } as const
 
 export const commentMoveDef = {
   name: 'comment.move',
   description: 'Move a comment pin to new canvas coordinates.',
   inputSchema: CommentMoveInput,
-  promptSnippet: 'Use comment.move to reposition a comment pin on the canvas.',
+  promptSnippet: 'Use comment.move to reposition a comment pin on the canvas; x/y are scene coordinates.',
 }
 
 export const pinSetStateDef = {

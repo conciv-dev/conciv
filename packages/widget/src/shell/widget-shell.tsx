@@ -22,6 +22,7 @@ import {createPiP} from './pip.js'
 import {ChevronDown, Crosshair, PictureInPicture2} from 'lucide-solid'
 import {FabRobot} from './fab-robot.js'
 import {picking, cancelPick} from '../page/react-grab/picking.js'
+import {anyOpen} from './dialogs.js'
 import {ContextTracker} from '../page/context-tracker.js'
 import {SessionSelector} from '../composer/session-selector.js'
 import {sessions, mergeSurface, makeSurfaceRow} from '../client/session-store-client.js'
@@ -275,7 +276,7 @@ function focusablesIn(root: HTMLElement): HTMLElement[] {
 }
 
 // FAB + panel carry `data-pw-fab` / `data-pw-panel` hooks (the shared-state `[data-pw-*]
-// [data-pw-picking]` compound + PiP rules match on them). The mascot layers (pw-fab-rig / pw-rig-*)
+// [data-pw-suppressed]` compound + PiP rules match on them). The mascot layers (pw-fab-rig / pw-rig-*)
 // stay in CSS (embedded base64 PNGs). Everything else here is utilities.
 const FAB_POS: Record<TriggerPosition, string> = {
   'top-left': 'top-5 left-5',
@@ -299,7 +300,7 @@ const FAB_ATTN =
   "after:content-[''] after:absolute after:-inset-[0.1875rem] after:rounded-pw-pill after:border-2 after:border-pw-accent after:anim-fab-ring"
 const FAB_DRAGGING = 'transition-none z-[2147483647] cursor-grabbing'
 const PANEL_BASE =
-  'fixed w-95 max-w-[calc(100vw-2.5rem)] h-140 max-h-[calc(100vh-7.5rem)] flex flex-col bg-pw-glass border border-pw-line-soft rounded-pw-lg shadow-pw-lg text-pw-text font-normal text-[0.875rem] leading-[1.45] font-pw overflow-hidden'
+  'fixed w-120 max-w-[calc(100vw-2.5rem)] h-140 max-h-[calc(100vh-7.5rem)] flex flex-col bg-pw-glass border border-pw-line-soft rounded-pw-lg shadow-pw-lg text-pw-text font-normal text-[0.875rem] leading-[1.45] font-pw overflow-hidden'
 const PANEL_CLOSED = 'opacity-0 [transform:scale(0.96)_translateY(0.5rem)] pointer-events-none invisible trans-pop-out'
 const PANEL_OPEN = 'opacity-100 [transform:none] pointer-events-auto visible trans-pop-in'
 
@@ -418,8 +419,8 @@ function ModalLayout(props: {
     onCollapse: () => closePanel(),
   })
   const resizeX = createResizable({
-    initial: 380,
-    min: 300,
+    initial: 480,
+    min: 448,
     storageKey: 'mandarax-modal-width',
     grow: () => (anchoredRight() ? 'left' : 'right'),
   })
@@ -456,7 +457,7 @@ function ModalLayout(props: {
         }}
         class={panelClass(props.open(), fab.position())}
         data-pw-panel
-        data-pw-picking={picking() ? '' : undefined}
+        data-pw-suppressed={picking() || anyOpen() ? '' : undefined}
         style={{height: `${resizeY.size()}px`, width: `${resizeX.size()}px`}}
         role="dialog"
         aria-label="mandarax chat agent"
@@ -530,7 +531,7 @@ function ModalLayout(props: {
         }}
         class={fabClass(fabPulsing(), fab.position(), fab.dragging())}
         data-pw-fab
-        data-pw-picking={picking() ? '' : undefined}
+        data-pw-suppressed={picking() || anyOpen() ? '' : undefined}
         style={fab.dragStyle()}
         aria-label={props.open() ? 'Minimize mandarax chat' : 'Open mandarax chat'}
         aria-expanded={props.open()}

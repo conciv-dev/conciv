@@ -13,6 +13,7 @@ export default defineConfig({
       '../ui-kit-chat/src/**/*.{ts,tsx}',
       '../ui-kit-chat-tools/src/**/*.{ts,tsx}',
       '../ui-kit-system/src/**/*.{ts,tsx}',
+      '../ui-kit-tap/src/**/*.{ts,tsx}',
       '../extensions/whiteboard/src/**/*.{ts,tsx}',
     ],
   },

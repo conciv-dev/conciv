@@ -34,6 +34,47 @@ const pinByCid = async (ctx: WhiteboardToolContext, room: string, cid: string) =
   return row
 }
 
+const AGENT_COLOR = '#19c3b2'
+const AGENT_THROTTLE_MS = 50
+const lastPresence = new Map<string, number>()
+
+const toUuid = (bytes: Uint8Array): string => {
+  const hex = Array.from(bytes.slice(0, 16), (byte) => byte.toString(16).padStart(2, '0'))
+  return `${hex.slice(0, 4).join('')}-${hex.slice(4, 6).join('')}-${hex.slice(6, 8).join('')}-${hex.slice(8, 10).join('')}-${hex.slice(10, 16).join('')}`
+}
+const stableUuid = async (seed: string): Promise<string> => {
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-1', new TextEncoder().encode(seed)))
+  const bytes = digest.slice(0, 16)
+  bytes[6] = ((bytes[6] ?? 0) & 0x0f) | 0x50
+  bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80
+  return toUuid(bytes)
+}
+
+// Mark where the agent is acting as a presence cursor in scene coordinates, reusing the collaborator
+// render path. Keyed per session+model so repeated actions update one row; throttled against bursty turns;
+// the dev's client GCs it once stale (§12). Only called from coord-bearing actions.
+const markPresence = async (
+  ctx: WhiteboardToolContext,
+  request: Parameters<WhiteboardToolContext['model']>[0],
+  x: number,
+  y: number,
+): Promise<void> => {
+  const sessionId = ctx.sessionId(request)
+  const model = ctx.model(request)
+  const peerId = `agent:${model ?? 'ai'}`
+  const key = `${sessionId}:${peerId}`
+  const now = Date.now()
+  if (now - (lastPresence.get(key) ?? 0) < AGENT_THROTTLE_MS) return
+  lastPresence.set(key, now)
+  await ctx.db
+    .upsert(
+      app.cursors,
+      {room: sessionId, peerId, kind: 'agent', x, y, name: model ?? 'AI', color: AGENT_COLOR, lastSeen: new Date()},
+      {id: await stableUuid(key)},
+    )
+    .wait({tier: 'edge'})
+}
+
 export const commentCreateTool = defineTool<typeof CommentCreateInput, WhiteboardToolContext>(commentCreateDef).server(
   async (input, ctx, request) => {
     const sessionId = ctx.sessionId(request)
@@ -67,6 +108,7 @@ export const commentCreateTool = defineTool<typeof CommentCreateInput, Whiteboar
         })
       })
       .wait({tier: 'edge'})
+    await markPresence(ctx, request, input.x, input.y)
     return {cid: input.cid}
   },
 )
@@ -92,6 +134,8 @@ export const commentReplyTool = defineTool<typeof CommentReplyInput, WhiteboardT
         updatedAt: now,
       })
       .wait({tier: 'edge'})
+    const [pin] = await ctx.db.all(app.pins.where({room: ctx.room(request), cid: parent.threadId}), {tier: 'global'})
+    if (pin) await markPresence(ctx, request, pin.x, pin.y)
     return {cid: replyCid}
   },
 )
@@ -133,10 +177,17 @@ export const commentResolveTool = defineTool<typeof CommentResolveInput, Whitebo
 
 export const commentDeleteTool = defineTool<typeof CommentDeleteInput, WhiteboardToolContext>(commentDeleteDef).server(
   async (input, ctx, request) => {
-    const comment = await commentByCid(ctx, ctx.sessionId(request), input.cid)
-    await ctx.db.delete(app.comments, comment.id).wait({tier: 'edge'})
-    const pins = await ctx.db.all(app.pins.where({room: ctx.room(request), cid: input.cid}), {tier: 'global'})
-    await Promise.all(pins.map((pin) => ctx.db.delete(app.pins, pin.id).wait({tier: 'edge'})))
+    const sessionId = ctx.sessionId(request)
+    const comment = await commentByCid(ctx, sessionId, input.cid)
+    const isRoot = comment.threadId === comment.cid
+    const doomed = isRoot
+      ? await ctx.db.all(app.comments.where({sessionId, threadId: comment.threadId}), {tier: 'global'})
+      : [comment]
+    await Promise.all(doomed.map((row) => ctx.db.delete(app.comments, row.id).wait({tier: 'edge'})))
+    if (isRoot) {
+      const pins = await ctx.db.all(app.pins.where({room: ctx.room(request), cid: comment.cid}), {tier: 'global'})
+      await Promise.all(pins.map((pin) => ctx.db.delete(app.pins, pin.id).wait({tier: 'edge'})))
+    }
     return {cid: input.cid, deleted: true}
   },
 )
@@ -145,6 +196,7 @@ export const commentMoveTool = defineTool<typeof CommentMoveInput, WhiteboardToo
   async (input, ctx, request) => {
     const pin = await pinByCid(ctx, ctx.room(request), input.cid)
     await ctx.db.update(app.pins, pin.id, {x: input.x, y: input.y}).wait({tier: 'edge'})
+    await markPresence(ctx, request, input.x, input.y)
     return {cid: input.cid, x: input.x, y: input.y}
   },
 )

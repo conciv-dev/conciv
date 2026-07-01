@@ -5,6 +5,8 @@ import {describe, locate} from './react-bridge.js'
 import {showToast} from './effect-toast.js'
 import type {Refs} from './page-snapshot.js'
 import {registerWind4Properties} from '../shadow.js'
+import {Dialog, Popover} from '@mandarax/ui-kit-system'
+import {registerSuppressor, track} from '../shell/dialogs.js'
 import styles from '../styles.css?inline'
 
 // elementFromPoint, but blind to the overlay host itself so a hit-test lands on the user's app element.
@@ -33,6 +35,9 @@ export function makeWidgetClientApi(deps: {
     openSource: (loc) => openSource(deps.apiBase, loc),
     toast: showToast,
     surface: () => ensureEffectsSurface({styles}),
+    suppressWhile: (active) => registerSuppressor(active),
+    Dialog: () => track(Dialog),
+    Popover: () => Object.assign({}, Popover, {Root: track(Popover.Root)}),
     env: {reducedMotion: () => matchMedia('(prefers-reduced-motion: reduce)').matches, doc: document, win: window},
   }
 }

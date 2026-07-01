@@ -1,19 +1,22 @@
-import {ErrorBoundary, Show, Suspense, createResource, createSignal, type Accessor, type JSX} from 'solid-js'
+import {ErrorBoundary, Show, Suspense, createResource, type Accessor, type JSX} from 'solid-js'
 import {render} from 'solid-js/web'
-import {useDb} from 'jazz-tools/solid'
-import type {JsonValue} from 'jazz-tools'
 import {EnvironmentProvider} from '@mandarax/ui-kit-system'
 import type {ClientApi} from '@mandarax/extension'
 import type {ElementRect, ElementSource} from '@mandarax/grab'
-import type {ToolViewCtx} from '@mandarax/protocol/tool-view-types'
 import {Island, type Self} from '../canvas/island.js'
-import {app} from '../shared/schema.js'
 import {WhiteboardJazzProvider, fetchJazzConfig} from './jazz-client.js'
+import {CommentsProvider, useComments, type ComposeTarget} from './model/comments.js'
+import {Inbox, InboxToggle} from './inbox.js'
 import {PinsLayer} from './pins/pins.js'
-import {Thread} from './pins/thread.js'
+import {ThreadPopover} from './pins/thread.js'
 import {Compose} from './pins/compose.js'
 
 export type CommentPick = {source: ElementSource | null; rect: ElementRect | null}
+
+const toComposeTarget = (pick: CommentPick): ComposeTarget => ({
+  source: pick.source ? {file: pick.source.filePath, line: pick.source.lineNumber ?? null} : null,
+  screen: pick.rect ? {x: pick.rect.x + pick.rect.width / 2, y: pick.rect.y + pick.rect.height / 2} : {x: 80, y: 80},
+})
 
 const PALETTE = ['#e03131', '#2f9e44', '#1971c2', '#f08c00', '#9c36b5'] as const
 
@@ -42,73 +45,58 @@ type MountOverlayOptions = {
   registerComment: (write: (pick: CommentPick) => void) => void
 }
 
-type CanvasProps = {
+// The view layer: it reads everything it needs from the comments model and renders. The Island mounts
+// here so it never binds without a real session; the keyed <Show> below re-mounts it on session switch.
+function CanvasView(props: {
+  doc: Document
+  visible: Accessor<boolean>
+  room: Accessor<string>
+  self: Self
+}): JSX.Element {
+  const model = useComments()
+  return (
+    <>
+      <Island
+        doc={props.doc}
+        room={props.room()}
+        theme="dark"
+        self={props.self}
+        visible={props.visible()}
+        onViewport={model.setViewport}
+        registerPan={model.registerPan}
+      />
+      <Show when={props.visible()}>
+        <PinsLayer />
+        <Show when={model.composeTarget()}>{(target) => <Compose target={target()} />}</Show>
+        <ThreadPopover />
+        <InboxToggle />
+        <Inbox />
+      </Show>
+    </>
+  )
+}
+
+function Canvas(props: {
   api: ClientApi
   doc: Document
   visible: Accessor<boolean>
   room: Accessor<string>
   self: Self
   registerComment: (write: (pick: CommentPick) => void) => void
+}): JSX.Element {
+  return (
+    <CommentsProvider room={props.room} apiBase={props.api.apiBase} suppressWhile={props.api.suppressWhile}>
+      <ComposeBridge registerComment={props.registerComment} />
+      <CanvasView doc={props.doc} visible={props.visible} room={props.room} self={props.self} />
+    </CommentsProvider>
+  )
 }
 
-const threadCtx = (api: ClientApi): ToolViewCtx => ({apiBase: api.apiBase, harnessId: '', sendMessage: () => {}})
-
-// The Island mounts here so it never binds without a real session; the keyed <Show> above re-mounts
-// it on session switch, so its onCleanup tears down the old room's subscriptions and cursor row.
-function Canvas(props: CanvasProps): JSX.Element {
-  const db = useDb()
-  const [openCid, setOpenCid] = createSignal<string | null>(null)
-  const [composePick, setComposePick] = createSignal<CommentPick | null>(null)
-  props.registerComment(setComposePick)
-
-  const createComment = (pick: CommentPick, text: string): void => {
-    const cid = crypto.randomUUID()
-    const now = new Date()
-    const center = pick.rect
-      ? {x: pick.rect.x + pick.rect.width / 2, y: pick.rect.y + pick.rect.height / 2}
-      : {x: 80, y: 80}
-    db().insert(app.comments, {
-      sessionId: props.room(),
-      cid,
-      threadId: cid,
-      parts: [{type: 'text', text}] as JsonValue,
-      authorKind: 'human',
-      status: 'open',
-      kind: pick.source ? 'source-linked' : 'floating',
-      anchor: pick.source
-        ? ({source: {file: pick.source.filePath, line: pick.source.lineNumber ?? 1, column: 1}} as JsonValue)
-        : undefined,
-      anchorFile: pick.source?.filePath ?? undefined,
-      createdAt: now,
-      updatedAt: now,
-    })
-    db().insert(app.pins, {room: props.room(), cid, x: center.x, y: center.y, pinState: 'locked'})
-    setComposePick(null)
-    setOpenCid(cid)
-  }
-
-  return (
-    <>
-      <Island doc={props.doc} room={props.room()} theme="light" self={props.self} visible={props.visible()} />
-      <Show when={props.visible()}>
-        <PinsLayer room={props.room()} onOpen={setOpenCid} />
-        <Show when={composePick()}>
-          {(pick) => (
-            <Compose
-              pick={pick()}
-              onSubmit={(text) => createComment(pick(), text)}
-              onCancel={() => setComposePick(null)}
-            />
-          )}
-        </Show>
-        <Show when={openCid()}>
-          {(cid) => (
-            <Thread room={props.room()} rootCid={cid()} ctx={threadCtx(props.api)} onClose={() => setOpenCid(null)} />
-          )}
-        </Show>
-      </Show>
-    </>
-  )
+// Bridges the extension's "leave a comment" affordance to the model, inside the provider.
+function ComposeBridge(props: {registerComment: (write: (pick: CommentPick) => void) => void}): JSX.Element {
+  const model = useComments()
+  props.registerComment((pick) => model.startCompose(toComposeTarget(pick)))
+  return <></>
 }
 
 // Loads the jazz config under <Suspense>; a config-fetch reject throws to the <ErrorBoundary> above.
@@ -160,7 +148,7 @@ export function mountOverlay(options: MountOverlayOptions): () => void {
   // holds the shadow-DOM pin/comment UI (Ark popovers need the EnvironmentProvider shadow root).
   const surfaceRoot = options.api.surface()
   const layer = doc.createElement('div')
-  layer.style.cssText = 'position:fixed;inset:0;pointer-events:none'
+  layer.style.cssText = 'position:fixed;inset:0;pointer-events:none;font-family:var(--pw-font);color:var(--pw-text)'
   surfaceRoot.appendChild(layer)
 
   const disposeSolid = render(

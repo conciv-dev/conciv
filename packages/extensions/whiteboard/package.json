@@ -51,6 +51,7 @@
     "@mandarax/ui-kit-chat": "workspace:^",
     "@mandarax/ui-kit-chat-tools": "workspace:^",
     "@mandarax/ui-kit-system": "workspace:^",
+    "@mandarax/ui-kit-tap": "workspace:^",
     "h3": "2.0.1-rc.22",
     "jazz-napi": "2.0.0-alpha.52",
     "jazz-tools": "2.0.0-alpha.52",

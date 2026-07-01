@@ -121,6 +121,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       open: (file, line) => opts.openInEditor(file, line),
     }),
     extensionTools,
+    (sessionId) => uiBus.getModel(sessionId),
   )
   if (opts.bridge) registerServerRoutes(app, opts.bridge)
   return {app, disposers}

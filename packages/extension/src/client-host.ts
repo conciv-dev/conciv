@@ -3,10 +3,12 @@ import type {LocateResult} from '@mandarax/protocol/page-introspect-types'
 
 export const EFFECTS_SURFACE_ATTR = 'data-mandarax-effects'
 
+// The host is NOT aria-hidden: extensions mount interactive UI here (whiteboard comments), which must
+// reach the accessibility tree. Purely decorative effects (e.g. the highlight overlay) mark their own
+// subtree aria-hidden instead — an ancestor aria-hidden can't be undone by a descendant.
 function createEffectsHost(): HTMLElement {
   const host = document.createElement('div')
   host.setAttribute(EFFECTS_SURFACE_ATTR, '')
-  host.setAttribute('aria-hidden', 'true')
   host.style.position = 'fixed'
   host.style.zIndex = '2147483000'
   document.body.appendChild(host)

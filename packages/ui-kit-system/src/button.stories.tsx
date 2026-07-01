@@ -13,6 +13,7 @@ export const Variants: Story = {
       <Button variant="solid">Solid</Button>
       <Button variant="outline">Outline</Button>
       <Button variant="ghost">Ghost</Button>
+      <Button variant="danger">Danger</Button>
     </div>
   ),
   play: async ({canvasElement}) => {
@@ -20,6 +21,7 @@ export const Variants: Story = {
     await expect(c.getByRole('button', {name: 'Solid'})).toBeVisible()
     await expect(c.getByRole('button', {name: 'Outline'})).toBeVisible()
     await expect(c.getByRole('button', {name: 'Ghost'})).toBeVisible()
+    await expect(c.getByRole('button', {name: 'Danger'})).toBeVisible()
   },
 }
 

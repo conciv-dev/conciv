@@ -87,7 +87,9 @@ function HighlightInspector(props: {api: ClientApi; onExit: () => void}): JSX.El
   const glide = env.reducedMotion() ? '' : GLIDE
 
   return (
-    <>
+    // Decorative inspector overlay: aria-hidden so it never reaches the accessibility tree (the shared
+    // effects host is no longer blanket-hidden). `contents` adds no box, so the fixed children are unmoved.
+    <div aria-hidden="true" class="contents">
       <div data-mandarax-capture class="cursor-crosshair inset-0 fixed" />
       <div class={HINT}>
         Inspecting · click to open source ·{' '}
@@ -111,13 +113,15 @@ function HighlightInspector(props: {api: ClientApi; onExit: () => void}): JSX.El
             <div class={`${LABEL}  ${glide}`} style={{left: `${h().rect.left}px`, top: `${h().rect.top}px`}}>
               <span class="text-[0.6875rem] text-pw-accent font-pw-mono font-semibold">{`<${h().tag}>`}</span>
               <Show when={h().file}>
-                <span class="text-[0.6875rem] text-pw-text-2 font-pw-mono text-ellipsis overflow-hidden">{h().file}</span>
+                <span class="text-[0.6875rem] text-pw-text-2 font-pw-mono text-ellipsis overflow-hidden">
+                  {h().file}
+                </span>
               </Show>
             </div>
           </>
         )}
       </Show>
-    </>
+    </div>
   )
 }
 

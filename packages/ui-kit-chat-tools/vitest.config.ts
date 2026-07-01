@@ -26,9 +26,6 @@ const storybook = {
   },
 }
 
-export default defineConfig({
-  test: {
-    maxWorkers,
-    projects: process.env.SKIP_STORYBOOK_TESTS ? [] : [storybook],
-  },
-})
+export default defineConfig(
+  process.env.SKIP_STORYBOOK_TESTS ? {test: {passWithNoTests: true}} : {test: {maxWorkers, projects: [storybook]}},
+)

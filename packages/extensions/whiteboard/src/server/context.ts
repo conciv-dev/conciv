@@ -6,4 +6,5 @@ export type WhiteboardToolContext = {
   db: Db
   sessionId: (request: ToolRequest) => string
   room: (request: ToolRequest) => string
+  model: (request: ToolRequest) => string | null
 }

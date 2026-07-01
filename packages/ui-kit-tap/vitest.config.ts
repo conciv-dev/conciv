@@ -1,0 +1,27 @@
+import path from 'node:path'
+import {fileURLToPath} from 'node:url'
+import {defineConfig} from 'vitest/config'
+import {storybookTest} from '@storybook/addon-vitest/vitest-plugin'
+import {playwright} from '@vitest/browser-playwright'
+
+// Component behavior is covered by Storybook stories run as browser tests via the Storybook vitest
+// addon — never jsdom. TipTap needs a real DOM (contenteditable + selection), so the browser is required.
+const dirname = typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
+
+const storybook = {
+  extends: true as const,
+  plugins: [storybookTest({configDir: path.join(dirname, '.storybook')})],
+  test: {
+    name: 'storybook',
+    browser: {
+      enabled: true,
+      headless: true,
+      provider: playwright({}),
+      instances: [{browser: 'chromium'}],
+    },
+  },
+}
+
+export default defineConfig(
+  process.env.SKIP_STORYBOOK_TESTS ? {test: {passWithNoTests: true}} : {test: {projects: [storybook]}},
+)

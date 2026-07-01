@@ -1,0 +1,41 @@
+import {expect, test} from 'vitest'
+import type {Page} from 'playwright'
+import whiteboard from '../src/server.js'
+import {getExtensionTestApi} from '@mandarax/extension-testkit'
+
+const clientEntry = '@mandarax/extension-whiteboard/client'
+
+const openCanvas = async (page: Page): Promise<void> => {
+  await page.getByRole('button', {name: 'Open the whiteboard canvas'}).click()
+  await page.getByRole('radio', {name: 'Rectangle'}).waitFor()
+}
+
+// A comment authored by an agent is unread to the dev (its pin announces "unread"); opening the thread
+// marks it read via the persisted account id, and the pin drops the unread state. Proves the §5 reads
+// derivation end to end (and that the dev account id is plumbed through, since markRead needs it).
+test('an agent comment is unread until the dev opens it', async () => {
+  const api = await getExtensionTestApi({server: whiteboard, clientEntry})
+  try {
+    await openCanvas(api.page)
+    await api.callTool('comment.create', {
+      cid: crypto.randomUUID(),
+      kind: 'floating',
+      parts: [{type: 'text', text: 'please review'}],
+      x: 240,
+      y: 240,
+      authorKind: 'ai',
+      authorModel: 'Opus',
+    })
+
+    const unread = api.page.getByRole('button', {name: /comment, open, unread/})
+    await unread.waitFor({timeout: 15_000})
+
+    await unread.focus()
+    await unread.press('Enter')
+
+    await expect.poll(async () => api.page.getByRole('button', {name: /unread/}).count(), {timeout: 10_000}).toBe(0)
+    await api.page.getByRole('button', {name: /comment, open/}).waitFor()
+  } finally {
+    await api.dispose()
+  }
+})

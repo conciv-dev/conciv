@@ -47,7 +47,7 @@ describe('test-runner result in the chat transcript (real browser)', () => {
     // The hydrated turn renders text outside the chain; the tool card sits in the settled (collapsed)
     // chain, so expand it before asserting the card.
     await expect.element(page.getByText('Ran the tests.')).toBeVisible()
-    await page.getByRole('button', {name: 'Thought process'}).click()
+    await page.getByRole('button', {name: 'Chain of Thought'}).click()
 
     await expect.element(page.getByText('this fails on purpose').first()).toBeVisible()
     await expect.element(page.getByText('1 passed')).toBeVisible()

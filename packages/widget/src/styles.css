@@ -105,12 +105,12 @@
   animation: none;
 }
 
-/* While the element picker is active, the open surface (and FAB) become invisible AND
-   click-through, so the page underneath is fully reachable by react-grab's overlay. Compound
-   selectors keep specificity at parity with .pw-chat-open and win by source order. */
-[data-pw-panel][data-pw-picking],
-[data-pw-fab][data-pw-picking],
-[data-pw-qt][data-pw-picking] {
+/* While the element picker is active OR an extension holds a foreground overlay, the open surface
+   (and FAB) become invisible AND click-through, so the page / overlay underneath is fully reachable.
+   Compound selectors keep specificity at parity with .pw-chat-open and win by source order. */
+[data-pw-panel][data-pw-suppressed],
+[data-pw-fab][data-pw-suppressed],
+[data-pw-qt][data-pw-suppressed] {
   opacity: 0;
   pointer-events: none;
   transition: opacity 140ms var(--pw-ease);

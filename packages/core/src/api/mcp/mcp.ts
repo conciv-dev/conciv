@@ -33,11 +33,12 @@ export function registerMcpRoutes(
   app: H3,
   makeCtx: (sessionId: string) => MandaraxToolContext,
   extensionTools: ExtensionServerTool[] = [],
+  sessionModel: (sessionId: string) => string | null = () => null,
 ): void {
   app.post('/api/mcp', async (event) => {
     const sessionId = sessionIdFromHeaders(event.req.headers) ?? '' // '' = no live channel
     const ctx = makeCtx(sessionId)
-    const request: ToolRequest = {sessionId}
+    const request: ToolRequest = {sessionId, model: sessionModel(sessionId)}
     const transport = new WebStandardStreamableHTTPServerTransport({
       sessionIdGenerator: undefined,
       enableJsonResponse: true,

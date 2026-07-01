@@ -1,6 +1,6 @@
 import {splitProps, type JSX} from 'solid-js'
 
-export type ButtonVariant = 'solid' | 'ghost' | 'outline'
+export type ButtonVariant = 'solid' | 'ghost' | 'outline' | 'danger'
 export type ButtonSize = 'sm' | 'md' | 'icon'
 
 const BASE =
@@ -10,6 +10,7 @@ const VARIANT: Record<ButtonVariant, string> = {
   solid: 'bg-pw-accent text-pw-on-accent hover:bg-pw-accent-hi',
   ghost: 'bg-transparent text-pw-text-2 hover:text-pw-text hover:bg-pw-fill-strong',
   outline: 'bg-pw-fill text-pw-text [border-color:var(--pw-line)] hover:bg-pw-fill-strong',
+  danger: 'bg-pw-danger text-pw-on-accent hover:opacity-90',
 }
 
 const SIZE: Record<ButtonSize, string> = {

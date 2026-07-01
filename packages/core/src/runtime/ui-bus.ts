@@ -61,12 +61,26 @@ export type UiBus = {
   injectApproval: (sessionId: string, req: ApprovalRequest) => boolean
   // Inject a live usage snapshot onto the matching session's stream (no-op if no turn is active).
   injectUsage: (sessionId: string, usage: UsageSnapshot) => void
+  // Record the active turn's model for a session so out-of-band MCP tool calls (same session header)
+  // can label which agent acted. Cleared when the turn's stream ends.
+  setModel: (sessionId: string, model: string | null) => void
+  // The active turn's model for a session, or null when no turn is live.
+  getModel: (sessionId: string) => string | null
   // Run one chat turn for a session: merge Claude's events with injected UI events into one stream.
   run: (sessionId: string, claudeEvents: AsyncIterable<StreamChunk>) => AsyncGenerator<StreamChunk>
 }
 
 export function makeUiBus(): UiBus {
   const channels = new Map<string, Channel>()
+  const models = new Map<string, string | null>()
+
+  function setModel(sessionId: string, model: string | null): void {
+    models.set(sessionId, model)
+  }
+
+  function getModel(sessionId: string): string | null {
+    return models.get(sessionId) ?? null
+  }
 
   function inject(sessionId: string, spec: UiSpec): boolean {
     const channel = channels.get(sessionId)
@@ -105,12 +119,15 @@ export function makeUiBus(): UiBus {
         for await (const chunk of channel.iterate()) yield chunk
       } finally {
         // Only clear if still ours — a re-run for the same id may have replaced the channel.
-        if (channels.get(sessionId) === channel) channels.delete(sessionId)
+        if (channels.get(sessionId) === channel) {
+          channels.delete(sessionId)
+          models.delete(sessionId)
+        }
         await pump
       }
     }
     return drain()
   }
 
-  return {inject, injectApproval, injectUsage, run}
+  return {inject, injectApproval, injectUsage, setModel, getModel, run}
 }

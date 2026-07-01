@@ -7,6 +7,7 @@ import {readStorage, writeStorage} from '../lib/persisted-signal.js'
 import {createPiP} from './pip.js'
 import {ChevronUp, Columns2, PictureInPicture2, X} from 'lucide-solid'
 import {picking} from '../page/react-grab/picking.js'
+import {anyOpen} from './dialogs.js'
 import {ContextTracker} from '../page/context-tracker.js'
 import {SessionSelector} from '../composer/session-selector.js'
 import {sessions, mergeSurface, makeSurfaceRow, invalidateSessions} from '../client/session-store-client.js'
@@ -225,7 +226,7 @@ export function QuickTerminalLayout(props: {
       }}
       class={`text-sm text-pw-text leading-[1.45] font-normal font-pw will-change-transform border-b border-b-pw-line rounded-b-pw-lg bg-pw-glass flex flex-col pointer-events-auto transition-transform duration-300 ease-pw-expo shadow-pw-lg left-0 right-0 top-0 fixed backdrop-blur-[20px] backdrop-saturate-[1.4] after:accent-sweep after:opacity-55 after:h-px after:content-[''] after:inset-x-0 after:absolute after:-bottom-px ${props.open() ? 'translate-y-0' : '-translate-y-[101%]'}`}
       data-pw-qt
-      data-pw-picking={picking() ? '' : undefined}
+      data-pw-suppressed={picking() || anyOpen() ? '' : undefined}
       style={{height: `${resize.size()}px`}}
       role="dialog"
       aria-label="mandarax quick terminal"

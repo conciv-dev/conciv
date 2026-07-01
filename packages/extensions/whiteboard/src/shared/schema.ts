@@ -20,6 +20,9 @@ export const app = schema.defineApp({
     parts: col.json(),
     authorKind: col.enum('human', 'ai'),
     authorModel: col.string().optional(),
+    authorId: col.string().optional(),
+    authorName: col.string().optional(),
+    authorAvatar: col.string().optional(),
     status: col.enum('open', 'resolved', 'drifted', 'orphaned').default('open'),
     kind: col.enum('source-linked', 'floating'),
     anchor: col.json().optional(),
@@ -43,10 +46,17 @@ export const app = schema.defineApp({
   cursors: schema.table({
     room: col.string(),
     peerId: col.string(),
+    kind: col.enum('human', 'agent').default('human'),
     x: col.float(),
     y: col.float(),
     name: col.string(),
     color: col.string(),
     lastSeen: col.timestamp(),
+  }),
+  reads: schema.table({
+    sessionId: col.string(),
+    threadId: col.string(),
+    accountId: col.string(),
+    lastReadAt: col.timestamp(),
   }),
 })

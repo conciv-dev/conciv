@@ -37,6 +37,7 @@ export default defineExtension({
       db: backend.db,
       sessionId,
       room: sessionId,
+      model: (request) => request.model,
     },
     dispose: async () => {
       stopEnrichment()

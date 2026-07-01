@@ -31,3 +31,5 @@ export function Dialog(props: {
     </Ark.Root>
   )
 }
+
+export type DialogApi = typeof Dialog

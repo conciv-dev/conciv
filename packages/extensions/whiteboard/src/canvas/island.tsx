@@ -10,17 +10,25 @@ import type {ExcalidrawElement, OrderedExcalidrawElement} from '@excalidraw/exca
 import type {ExcalidrawElementSkeleton} from '@excalidraw/excalidraw/data/transform'
 import type {CaptureUpdateActionType} from '@excalidraw/excalidraw/store'
 import {app} from '../shared/schema.js'
+import type {Viewport} from './coords.js'
 
 export type Self = {peerId: string; name: string; color: string}
 
 type SceneElement = OrderedExcalidrawElement
 type ElementRow = {id: string; elementId: string; data: JsonValue; version: number}
 type PendingRow = {id: string; kind: 'skeletons' | 'mermaid'; payload: JsonValue}
-type CursorRow = {peerId: string; x: number; y: number; name: string; color: string; lastSeen: Date}
+type CursorRow = {
+  id: string
+  peerId: string
+  kind?: 'human' | 'agent'
+  x: number
+  y: number
+  name: string
+  color: string
+  lastSeen: Date
+}
 
 const CAPTURE_NEVER: CaptureUpdateActionType = 'NEVER'
-const CURSOR_THROTTLE_MS = 50
-const CURSOR_HEARTBEAT_MS = 5_000
 const CURSOR_STALE_MS = 15_000
 const asScene = (data: JsonValue): SceneElement => data as unknown as SceneElement
 const asJson = (element: ExcalidrawElement): JsonValue => element as unknown as JsonValue
@@ -74,11 +82,14 @@ export function Island(props: {
   theme: 'light' | 'dark'
   self: Self
   visible: boolean
+  onViewport?: (viewport: Viewport) => void
+  registerPan?: (panToScene: (sceneX: number, sceneY: number) => void) => void
 }): JSX.Element {
   const db = useDb()
   let container: HTMLDivElement | undefined
   let root: Root | undefined
   let api: ExcalidrawImperativeAPI | undefined
+  let unsubscribeScroll: (() => void) | undefined
   const guard = {applyingRemote: false}
   const versions = new Map<string, number>()
   const rowIds = new Map<string, string>()
@@ -166,27 +177,6 @@ export function Island(props: {
     return map
   }
 
-  let cursorRowId: string | undefined
-  let lastCursor = 0
-  const writeCursor = (x: number, y: number): void => {
-    const now = Date.now()
-    if (now - lastCursor < CURSOR_THROTTLE_MS) return
-    lastCursor = now
-    if (!cursorRowId) {
-      cursorRowId = db().insert(app.cursors, {
-        room: props.room,
-        peerId: props.self.peerId,
-        x,
-        y,
-        name: props.self.name,
-        color: props.self.color,
-        lastSeen: new Date(),
-      }).value.id
-      return
-    }
-    db().update(app.cursors, cursorRowId, {x, y, lastSeen: new Date()})
-  }
-
   const unsubscribeScene = db().subscribeAll(app.canvasElements.where({room: props.room}), ({all}) =>
     applyRemote(all as readonly ElementRow[]),
   )
@@ -197,18 +187,25 @@ export function Island(props: {
       void drainPending(row)
     }),
   )
-  const unsubscribeCursors = db().subscribeAll(app.cursors.where({room: props.room}), ({all}) =>
-    api?.updateScene({collaborators: collaboratorsFrom(all as readonly CursorRow[])}),
-  )
-  const heartbeat = setInterval(() => {
-    if (cursorRowId) db().update(app.cursors, cursorRowId, {lastSeen: new Date()})
-  }, CURSOR_HEARTBEAT_MS)
+  // The human cursor loop stays dormant (one dev, nothing to show); only AGENT presence rows render here.
+  // NEVER write from this handler — a db() call inside a Jazz subscription feeds back into it and storms
+  // re-renders. Stale agent rows are swept on a timer below instead.
+  let latestCursors: readonly CursorRow[] = []
+  const unsubscribeCursors = db().subscribeAll(app.cursors.where({room: props.room}), ({all}) => {
+    latestCursors = all as readonly CursorRow[]
+    api?.updateScene({collaborators: collaboratorsFrom(latestCursors)})
+  })
+  const sweepAgents = setInterval(() => {
+    const now = Date.now()
+    latestCursors
+      .filter((cursor) => cursor.kind === 'agent' && now - cursor.lastSeen.getTime() > CURSOR_STALE_MS)
+      .forEach((cursor) => db().delete(app.cursors, cursor.id))
+  }, CURSOR_STALE_MS)
   onCleanup(() => {
     unsubscribeScene()
     unsubscribePending()
     unsubscribeCursors()
-    clearInterval(heartbeat)
-    if (cursorRowId) db().delete(app.cursors, cursorRowId)
+    clearInterval(sweepAgents)
   })
 
   onMount(() => {
@@ -226,19 +223,42 @@ export function Island(props: {
           isCollaborating: true,
           excalidrawAPI: (instance: ExcalidrawImperativeAPI) => {
             api = instance
+            const pushViewport = (): void => {
+              const state = instance.getAppState()
+              props.onViewport?.({
+                scrollX: state.scrollX,
+                scrollY: state.scrollY,
+                zoom: state.zoom,
+                offsetLeft: state.offsetLeft,
+                offsetTop: state.offsetTop,
+              })
+            }
+            pushViewport()
+            unsubscribeScroll = instance.onScrollChange(() => pushViewport())
+            props.registerPan?.((sceneX, sceneY) => {
+              const state = instance.getAppState()
+              instance.updateScene({
+                appState: {
+                  scrollX: state.width / (2 * state.zoom.value) - sceneX,
+                  scrollY: state.height / (2 * state.zoom.value) - sceneY,
+                },
+                captureUpdate: CAPTURE_NEVER,
+              })
+            })
             if (bufferedScene) {
               applyRemote(bufferedScene)
               bufferedScene = undefined
             }
           },
           onChange: (elements: readonly OrderedExcalidrawElement[]) => writeLocal(elements),
-          onPointerUpdate: (payload: {pointer: {x: number; y: number}}) =>
-            writeCursor(payload.pointer.x, payload.pointer.y),
         }),
       ),
     )
   })
-  onCleanup(() => root?.unmount())
+  onCleanup(() => {
+    unsubscribeScroll?.()
+    root?.unmount()
+  })
 
   return (
     <Portal mount={props.doc.body}>

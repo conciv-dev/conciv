@@ -39,29 +39,48 @@ async function create(): Promise<ReactGrabAdapter> {
   // The current pick's destination. react-grab selection is modal (one pick at a time), so a single
   // mutable sink is race-free; activate()/comment() set it immediately before entering selection.
   let sink: GrabSink | null = null
-  api.registerPlugin({
-    name: 'mandarax',
-    theme: {toolbar: {enabled: false}},
-    hooks: {
-      // Shrink the chat surface to a "Picking…" pill while selection is active, so the page is
-      // reachable and react-grab's overlay (z-index max-int) doesn't fight our modal.
-      onActivate: () => setPicking(true),
-      onDeactivate: () => setPicking(false),
-      // Captures plain-select, Comment, and Style-edit content alike. Stays async so the pick stays
-      // open (element live) through the rAF capture + source lookup; both run before react-grab
-      // unfreezes the page. The text is returned unchanged — it's the agent-bound context.
-      transformCopyContent: async (content, elements) => {
-        const el = elements[0]
-        if (el) {
-          const box = el.getBoundingClientRect()
-          const rect = {x: box.x, y: box.y, width: box.width, height: box.height}
-          const [snapshot, info] = await Promise.all([captureElement(el), api.getSource(el)])
-          sink?.({text: content, snapshot, source: toElementSource(info), rect})
-        }
-        return content
-      },
+  // Comment picks reuse react-grab's selection UI but must not copy: onElementSelect intercepts and
+  // routes the element to our sink, so no clipboard write and no "Copying" label flash.
+  let intercept = false
+  const deliver = async (element: Element, text: string): Promise<void> => {
+    const box = element.getBoundingClientRect()
+    const rect = {x: box.x, y: box.y, width: box.width, height: box.height}
+    const [snapshot, info] = await Promise.all([captureElement(element), api.getSource(element)])
+    sink?.({text, snapshot, source: toElementSource(info), rect})
+  }
+  const hooks = {
+    // Shrink the chat surface to a "Picking…" pill while selection is active, so the page is
+    // reachable and react-grab's overlay (z-index max-int) doesn't fight our modal.
+    onActivate: () => setPicking(true),
+    onDeactivate: () => setPicking(false),
+    // Comment picks: capture the element and return true so react-grab skips its copy flow.
+    onElementSelect: (element: Element) => {
+      if (!intercept) return
+      void deliver(element, element.textContent ?? '')
+      return true
     },
-  })
+    // Plain-select and Style-edit converge here; the text is returned unchanged — it's the
+    // agent-bound context. Stays async so the element stays live through the capture.
+    transformCopyContent: async (content: string, elements: Element[]) => {
+      const el = elements[0]
+      if (el) await deliver(el, content)
+      return content
+    },
+  }
+  // Comment picks suppress react-grab's cursor label + success flash; copy picks keep them.
+  const register = (quiet: boolean): void => {
+    api.unregisterPlugin('mandarax')
+    api.registerPlugin({
+      name: 'mandarax',
+      theme: {
+        toolbar: {enabled: false},
+        elementLabel: {enabled: !quiet},
+        grabbedBoxes: {enabled: !quiet},
+      },
+      hooks,
+    })
+  }
+  register(false)
   // Let the pill abort the current pick (also covers Esc handling in the shell).
   setCancelPick(() => api.deactivate())
   // Host-app extensibility: register react-grab context-menu/toolbar actions + hooks against OUR
@@ -74,11 +93,15 @@ async function create(): Promise<ReactGrabAdapter> {
   return {
     activate: (onGrab) => {
       sink = onGrab
+      intercept = false
+      register(false)
       api.activate()
     },
     comment: (onGrab) => {
       sink = onGrab
-      api.comment()
+      intercept = true
+      register(true)
+      api.activate()
     },
     deactivate: () => api.deactivate(),
     isActive: () => api.isActive(),

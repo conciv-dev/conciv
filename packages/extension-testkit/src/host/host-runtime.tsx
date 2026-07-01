@@ -2,6 +2,7 @@ import {render} from 'solid-js/web'
 import {defineClient, type RequestMeta} from '@mandarax/api-client'
 import {isSessionId} from '@mandarax/protocol/chat-types'
 import {ensureEffectsSurface, mountExtension, openSource} from '@mandarax/extension/client'
+import {Dialog, Popover} from '@mandarax/ui-kit-system'
 import type {AnyExtension, ClientApi, ExtensionHostContext} from '@mandarax/extension'
 import {makeHostGrab, makeHostPage} from './grab.js'
 import {FixtureElement} from './fixture-element.js'
@@ -30,6 +31,9 @@ export function startHost(extension: AnyExtension): void {
     openSource: (loc) => openSource(apiBase, loc),
     toast: showToast,
     surface: () => ensureEffectsSurface(),
+    suppressWhile: () => () => {},
+    Dialog: () => Dialog,
+    Popover: () => Popover,
     env: {reducedMotion: () => false, doc: document, win: window},
   }
   const hostContext: Omit<ExtensionHostContext, 'currentSlot'> = {

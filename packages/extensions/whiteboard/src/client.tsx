@@ -11,7 +11,7 @@ function Component(): JSX.Element {
   const comment = whiteboard.useContext((context) => context.comment)
   const grab = whiteboard.useContext((context) => context.grab)
   const pickComment = async (): Promise<void> => {
-    const grabbed = await grab.pick()
+    const grabbed = await grab.comment()
     if (grabbed) comment({source: grabbed.source, rect: grabbed.rect})
   }
   return (

@@ -1,5 +1,6 @@
 import type {H3} from 'h3'
-import type {Component} from 'solid-js'
+import type {Component, ComponentProps} from 'solid-js'
+import type {DialogApi, PopoverApi} from '@mandarax/ui-kit-system'
 import type {z} from 'zod'
 import type {ToolCardProps, ToolViewCtx} from '@mandarax/protocol/tool-view-types'
 import type {RequestMeta, SessionClient} from '@mandarax/api-client'
@@ -27,7 +28,7 @@ export type ExtensionHostContext = ToolViewCtx &
     currentSlot: ExtensionSlot
   }
 
-export type ToolRequest = {sessionId: string}
+export type ToolRequest = {sessionId: string; model: string | null}
 
 export type ExtensionServerTool = {
   name: string
@@ -79,6 +80,19 @@ export type ClientApi = {
   openSource: (loc: LocateResult) => Promise<OpenSourceResult>
   toast: (message: string, tone?: 'info' | 'success' | 'error') => void
   surface: () => HTMLElement
+  // Register an open-state accessor so the host suppresses the chat shell (shrinks to a pill) while the
+  // extension's own overlay is open. Returns a disposer. Lets an extension drive suppression without
+  // rendering the host's Dialog/Popover (which, anchored inside the effects-surface shadow root, fail to
+  // position). Read reactively by the shell.
+  suppressWhile: (active: () => boolean) => () => void
+  Dialog: () => DialogApi
+  // Only the anchored-popover members the contract guarantees; typing the whole Ark compound drags
+  // CloseTrigger's resolution-mode-sensitive prop symbols across the .d.ts boundary and fails to align.
+  Popover: () => {
+    Root: Component<ComponentProps<PopoverApi['Root']>>
+    Positioner: Component<ComponentProps<PopoverApi['Positioner']>>
+    Content: Component<ComponentProps<PopoverApi['Content']>>
+  }
   env: {reducedMotion: () => boolean; doc: Document; win: Window}
 }
 

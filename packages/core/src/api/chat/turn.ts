@@ -144,6 +144,9 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
         abortController: abort,
         debug: harnessDebug,
       })
+      // Record this turn's model so out-of-band MCP tool calls (same session header) can label which
+      // agent acted; the bus clears it when the stream ends.
+      uiBus.setModel(sessionId, chatReq.model ?? chatReq.forwardedProps?.model ?? chatReq.data?.model ?? null)
       const merged = uiBus.run(sessionId, stream)
       const sse = toServerSentEventsStream(withLockRelease(merged, deps.store, deps.stateRoot, sessionId), abort)
       return new Response(sse, {status: 200, headers: sseHeaders(event)})

@@ -15,3 +15,4 @@ function Content(props: ComponentProps<typeof Ark.Content>) {
 }
 
 export const Popover = Object.assign({}, Ark, {Root, Content})
+export type PopoverApi = typeof Popover
