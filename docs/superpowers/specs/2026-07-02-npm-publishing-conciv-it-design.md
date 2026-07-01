@@ -67,21 +67,45 @@ extension-test-runner, extension-whiteboard.
 - `packages/tool-ui/` — orphan directory with **no `package.json`**. Its CSS was folded into
   the widget already. Delete it (or gate it) and remove the stale reference below.
 
-## Pre-publish blockers (found during the audit — must fix first)
+## Blockers — investigated and CLEARED (zero real blockers)
 
-1. `packages/widget/src/styles.css` imports `@conciv/tool-ui/tokens.css`, but no
-   `@conciv/tool-ui` package exists → would not resolve for a consumer. Repoint to the
-   widget's own tokens (or the correct kit package) and confirm the widget builds.
-2. Confirm the `@conciv/extensions` (plural) references seen in `core`/`plugin` dist are the
-   `virtual:conciv-extensions` module id only, not a real unresolvable dependency.
-3. Per public package, verify publish hygiene:
+Both flags from the first-pass audit were run down; neither is a real blocker.
+
+1. **`@conciv/tool-ui/tokens.css` — not a real import.** There is no `@import`/`import` of
+   `@conciv/tool-ui` anywhere in source. The real token import is
+   `@conciv/ui-kit-system/tokens.css` (exists, shipped from `src`). Every `tool-ui`
+   occurrence is stale text only: prose comments in `widget/src/styles.css` (lines 9, 32) and
+   `widget/uno.config.ts` (line 7), a stale `"tool-ui"` **keyword** (not a dep) in
+   `ui-kit-chat-tools/package.json`, sourcemap copies of those comments, and the orphan
+   `packages/tool-ui/` dir (no `package.json`, nothing depends on it). No consumer resolution
+   ever touches it.
+2. **`@conciv/extensions` — not a package import.** It is the served HTTP route string
+   `/@conciv/extensions.js` (`EXTENSIONS_ROUTE` in `core/widget-tags.ts` +
+   `plugin/.../widget-middleware.ts`). A package manager never resolves it; the first-pass
+   regex simply matched the URL.
+3. **`uno-preset` safe to privatize.** It is a `devDependency` only (build-time CSS preset)
+   for ui-kit-\* / widget / extensions; no runtime/peer dep and no public `dist` references it.
+
+Conclusion: the `@conciv/*` graph is publishable as-is. The items below are cosmetic cleanup,
+NOT gating — do them for hygiene, not to unblock publish.
+
+### Cosmetic cleanup (non-blocking)
+
+- Delete the orphan `packages/tool-ui/` directory.
+- Fix stale `tool-ui` comments in `widget/src/styles.css` + `widget/uno.config.ts`
+  (they now mean `@conciv/ui-kit-system`).
+- Drop the stale `"tool-ui"` keyword from `ui-kit-chat-tools/package.json`.
+
+### Publish hygiene (verify per public package)
+
+1. Manifest hygiene per public package:
    - `files` field ships `dist` only (no `src`, no `node_modules`).
    - `exports` map complete and correct; `types` present; `publishConfig.access = "public"`.
    - `README.md` + `LICENSE` present (LICENSE may be a workspace symlink — ensure it packs).
    - No `workspace:*`/`workspace:^` leaks into the published manifest (changesets rewrites
      these at `version` time to the concrete published range — verify in a dry pack).
    - `publint` and `attw --profile esm-only` clean.
-4. Whole-graph resolution smoke test: `changeset publish --dry-run` / `npm pack` each public
+2. Whole-graph resolution smoke test: `changeset publish --dry-run` / `npm pack` each public
    package and confirm no dangling `@conciv/*` specifier points at a private/nonexistent pkg.
 
 ## Versioning: Epoch SemVer (antfu), starting `0.0.1`
@@ -122,7 +146,7 @@ publish`) publishing with **npm provenance** (`--provenance`, `id-token: write`)
 
 ## Rollout order
 
-1. Fix pre-publish blockers (widget tokens ref, verify virtual ids).
+1. Cosmetic cleanup (delete orphan `tool-ui/`, fix stale `tool-ui` comments + keyword). Non-blocking.
 2. Rename qu → it (name + dir + references); build green; grep gate = 0.
 3. Apply public/private matrix; delete/privatize `tool-ui`; `uno-preset` private.
 4. Publish-hygiene pass per public package (files/exports/README/LICENSE/publint/attw).
