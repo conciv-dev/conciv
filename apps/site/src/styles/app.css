@@ -125,6 +125,19 @@ html > body[data-scroll-locked] {
   background: radial-gradient(120% 80% at 88% -10%, var(--od-accent-soft), transparent 55%), var(--od-paper);
 }
 
+.od-dots::before {
+  content: '';
+  position: absolute;
+  inset: 40px 0 0;
+  background-image: radial-gradient(circle, oklch(0.23 0.012 65 / 0.055) 1px, transparent 1px);
+  background-size: 22px 22px;
+  pointer-events: none;
+  mask-image: linear-gradient(180deg, transparent, #000 12%, #000 88%, transparent);
+}
+.dark .od-dots::before {
+  background-image: radial-gradient(circle, oklch(0.94 0.006 75 / 0.06) 1px, transparent 1px);
+}
+
 .od-underline {
   position: relative;
   white-space: nowrap;

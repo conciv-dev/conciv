@@ -1,4 +1,4 @@
-import {LazyMotion} from 'motion/react'
+import {LazyMotion, MotionConfig} from 'motion/react'
 import type {ReactNode} from 'react'
 
 const loadFeatures = () => import('./motion-features').then((mod) => mod.domAnimation)
@@ -6,7 +6,7 @@ const loadFeatures = () => import('./motion-features').then((mod) => mod.domAnim
 export function LandingMotion({children}: {children: ReactNode}) {
   return (
     <LazyMotion features={loadFeatures} strict>
-      {children}
+      <MotionConfig reducedMotion="user">{children}</MotionConfig>
     </LazyMotion>
   )
 }
