@@ -2,8 +2,8 @@ import {m} from 'motion/react'
 import {Tabs as TabsPrimitive} from 'radix-ui'
 import {ShikiMagicMovePrecompiled} from '@shikijs/magic-move/react'
 import {createContext, useContext, useRef, useState, type ReactNode} from 'react'
-import {Check, Copy} from 'lucide-react'
 import '@shikijs/magic-move/style.css'
+import {CopyButton} from './copy-button'
 import {cleanSnippet, type FrameworkSnippet} from './framework-snippets'
 import {MAGIC_MOVE_STEP_IDS, MAGIC_MOVE_STEPS, SNIPPET_TWOSLASH, type SnippetHover} from './framework-snippets.gen'
 
@@ -113,33 +113,18 @@ function FileBar() {
   return (
     <div className="flex items-center justify-between border-b px-3.5 py-2">
       <span className="font-mono text-[11px] text-muted-foreground">{active.file}</span>
-      <CopyButton />
+      <Copy />
     </div>
   )
 }
 
-function CopyButton() {
+function Copy() {
   const {active} = useFrameworkTabs()
-  const [copied, setCopied] = useState(false)
-  const copyable = cleanSnippet(active.code ?? '')
-
-  const copy = () => {
-    void navigator.clipboard.writeText(copyable)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1400)
-  }
-
   return (
-    <button
-      type="button"
-      onClick={copy}
-      aria-label="Copy config"
-      data-copied={copied}
-      className="group inline-grid size-7 place-items-center rounded-md border bg-background text-muted-foreground transition-colors hover:text-foreground active:scale-90"
-    >
-      <Copy className="col-start-1 row-start-1 size-3.5 scale-100 opacity-100 transition-all duration-200 group-data-[copied=true]:scale-50 group-data-[copied=true]:opacity-0" />
-      <Check className="col-start-1 row-start-1 size-3.5 scale-50 text-primary opacity-0 transition-all duration-200 group-data-[copied=true]:scale-100 group-data-[copied=true]:opacity-100" />
-    </button>
+    <CopyButton.Root text={cleanSnippet(active.code ?? '')}>
+      <CopyButton.Trigger label="Copy config" />
+      <CopyButton.Feedback />
+    </CopyButton.Root>
   )
 }
 
@@ -211,4 +196,4 @@ function Note() {
   )
 }
 
-export const FrameworkTabs = {Root, List, Trigger, Panel, FileBar, CopyButton, Code, Note}
+export const FrameworkTabs = {Root, List, Trigger, Panel, FileBar, Copy, Code, Note}
