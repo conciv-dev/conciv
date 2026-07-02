@@ -3,6 +3,7 @@ import {Tabs as TabsPrimitive} from 'radix-ui'
 import {ShikiMagicMovePrecompiled} from '@shikijs/magic-move/react'
 import {createContext, useContext, useRef, useState, type ReactNode} from 'react'
 import '@shikijs/magic-move/style.css'
+import {HoverCard, HoverCardContent, HoverCardTrigger} from '@/components/ui/hover-card'
 import {CopyButton} from './copy-button'
 import {cleanSnippet, type FrameworkSnippet} from './framework-snippets'
 import {MAGIC_MOVE_STEP_IDS, MAGIC_MOVE_STEPS, SNIPPET_TWOSLASH, type SnippetHover} from './framework-snippets.gen'
@@ -158,31 +159,46 @@ function Code() {
         onEnd={settle}
       />
       {anchors.map((anchor, index) => (
-        <span
-          key={index}
-          className="od-hover-anchor"
-          style={{left: anchor.left, top: anchor.top, width: anchor.width, height: anchor.height}}
-        >
-          {anchor.hover && (
-            <span className="twoslash-popup-container">
-              <code dangerouslySetInnerHTML={{__html: anchor.hover.html}} />
-              {anchor.hover.docs && <span className="twoslash-popup-docs">{anchor.hover.docs}</span>}
+        <HoverCard key={index} openDelay={150} closeDelay={250}>
+          <HoverCardTrigger asChild>
+            <span
+              className="od-hover-anchor"
+              style={{left: anchor.left, top: anchor.top, width: anchor.width, height: anchor.height}}
+            >
+              {anchor.caret === true && <span className="od-caret" />}
             </span>
-          )}
-          {anchor.caret === true && completion && (
-            <>
-              <span className="od-caret" />
-              <ul className="twoslash-completion-list">
+          </HoverCardTrigger>
+          <HoverCardContent
+            side="bottom"
+            align="start"
+            sideOffset={6}
+            className="od-popup w-auto max-w-[min(440px,80vw)] px-3.5 py-2.5 font-mono text-[11.5px] leading-[1.6]"
+          >
+            {anchor.hover && (
+              <>
+                <code
+                  className="block overflow-x-auto whitespace-pre"
+                  dangerouslySetInnerHTML={{__html: anchor.hover.html}}
+                />
+                {anchor.hover.docs && (
+                  <p className="mt-1.5 border-t border-dashed pt-1.5 font-sans text-muted-foreground">
+                    {anchor.hover.docs}
+                  </p>
+                )}
+              </>
+            )}
+            {anchor.caret === true && completion && (
+              <ul className="flex flex-col gap-0.5">
                 {completion.items.map((name) => (
-                  <li key={name}>
-                    <span className="twoslash-completions-matched">{completion.target}</span>
-                    <span className="twoslash-completions-unmatched">{name.slice(completion.target.length)}</span>
+                  <li key={name} className="rounded px-1.5 py-0.5 first:bg-accent">
+                    <span className="font-semibold text-primary">{completion.target}</span>
+                    <span className="text-muted-foreground">{name.slice(completion.target.length)}</span>
                   </li>
                 ))}
               </ul>
-            </>
-          )}
-        </span>
+            )}
+          </HoverCardContent>
+        </HoverCard>
       ))}
     </div>
   )
