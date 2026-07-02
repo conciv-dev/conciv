@@ -1,5 +1,18 @@
 # @conciv/plugin
 
+## 0.0.4
+
+### Patch Changes
+
+- [#8](https://github.com/conciv-dev/conciv/pull/8) [`9480816`](https://github.com/conciv-dev/conciv/commit/948081665656ee4fc149701c3206a17402b47299) Thanks [@omridevk](https://github.com/omridevk)! - Force-optimize the widget's CommonJS dependencies so the widget mounts on Vite 8 dev servers. The Vite plugin excludes `@conciv/widget`/`@conciv/extension` from `optimizeDeps` (to keep a single shared `solid-js` runtime between the widget and dynamically-compiled extensions), which also stops Vite's scanner from crawling their transitive deps. As a result the widget's CJS leaves — `partial-json` (via `@tanstack/ai`) and `js-beautify` (via `@conciv/ui-kit-chat-tools`) — were served raw, and cjs-module-lexer failed to detect their named/default exports (`partial-json` initializes exports with a chained `exports.a = … = exports.parse = void 0` the lexer can't read). The extensions module threw at import time and the widget never mounted, despite `/@conciv/extensions.js` serving and the engine booting. The plugin now adds those CJS leaves to `optimizeDeps.include` (gated on `@conciv/widget` being installed), so esbuild pre-bundles them with correct interop. This is Vite-dev-specific; webpack/rspack/esbuild/rollup bundle CJS natively and are unaffected. Zero config.
+
+- Updated dependencies []:
+  - @conciv/cli@0.0.4
+  - @conciv/core@0.0.4
+  - @conciv/extension@0.0.4
+  - @conciv/protocol@0.0.4
+  - @conciv/widget@0.0.4
+
 ## 0.0.3
 
 ### Patch Changes

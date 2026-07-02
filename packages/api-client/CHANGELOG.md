@@ -1,5 +1,12 @@
 # @conciv/api-client
 
+## 0.0.4
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/protocol@0.0.4
+
 ## 0.0.3
 
 ### Patch Changes

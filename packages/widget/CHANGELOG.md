@@ -1,5 +1,20 @@
 # @conciv/widget
 
+## 0.0.4
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/api-client@0.0.4
+  - @conciv/extension@0.0.4
+  - @conciv/grab@0.0.4
+  - @conciv/protocol@0.0.4
+  - @conciv/solid-diffs@0.0.4
+  - @conciv/solid-streamdown@0.0.4
+  - @conciv/ui-kit-chat@0.0.4
+  - @conciv/ui-kit-chat-tools@0.0.4
+  - @conciv/ui-kit-system@0.0.4
+
 ## 0.0.3
 
 ### Patch Changes
