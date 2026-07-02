@@ -1,5 +1,16 @@
 # @conciv/plugin
 
+## 0.0.2
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/cli@0.0.2
+  - @conciv/core@0.0.2
+  - @conciv/extension@0.0.2
+  - @conciv/protocol@0.0.2
+  - @conciv/widget@0.0.2
+
 ## 0.0.1
 
 ### Patch Changes
