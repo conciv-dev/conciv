@@ -10,7 +10,7 @@
     "server",
     "srvx"
   ],
-  "homepage": "https://github.com/conciv-dev/conciv/tree/main/packages/core#readme",
+  "homepage": "https://conciv.dev",
   "bugs": "https://github.com/conciv-dev/conciv/issues",
   "license": "MIT",
   "repository": {
