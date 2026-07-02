@@ -12,6 +12,7 @@ export type DemoState = {
 type Action =
   | {type: 'arm'; on: boolean}
   | {type: 'grab'; pickable: Pickable}
+  | {type: 'ungrab'}
   | {type: 'send'; message: Message}
   | {type: 'push'; message: Message}
   | {type: 'patch'}
@@ -25,6 +26,8 @@ function reducer(state: DemoState, action: Action): DemoState {
       return {...state, picking: action.on}
     case 'grab':
       return {...state, picking: false, grabbed: action.pickable}
+    case 'ungrab':
+      return {...state, grabbed: null}
     case 'send':
       return {
         ...state,

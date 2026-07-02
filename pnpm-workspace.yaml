@@ -26,6 +26,9 @@ allowBuilds:
   unrs-resolver: false
   protobufjs: false
   '@swc/core': false
+  # Node-side ONNX runtime pulled in by @huggingface/transformers; the site demo runs
+  # inference in the browser (onnxruntime-web), so the native binary is never used.
+  onnxruntime-node: false
 
 # Gate dependency *resolution* (lockfile updates on dev machines): don't pick npm
 # versions younger than 48h, so a poisoned release is likely yanked before it ever
