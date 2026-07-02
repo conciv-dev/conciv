@@ -125,6 +125,94 @@ html > body[data-scroll-locked] {
   background: radial-gradient(120% 80% at 88% -10%, var(--od-accent-soft), transparent 55%), var(--od-paper);
 }
 
+/* shiki dual theme + twoslash popups (landing snippets) */
+.od-snippet .shiki {
+  background-color: transparent !important;
+}
+.dark .od-snippet .shiki,
+.dark .od-snippet .shiki span {
+  color: var(--shiki-dark) !important;
+}
+.od-snippet .twoslash-hover {
+  position: relative;
+  border-bottom: 1px dotted oklch(0.52 0.014 65 / 0.5);
+}
+.od-snippet .twoslash-popup-container {
+  display: none;
+  position: absolute;
+  left: 0;
+  top: 100%;
+  margin-top: 6px;
+  z-index: 30;
+  background: var(--popover);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  box-shadow: 0 12px 28px -14px oklch(0.23 0.012 65 / 0.5);
+  white-space: pre;
+  font-size: 11.5px;
+  line-height: 1.6;
+  max-width: min(440px, 80vw);
+  overflow-x: auto;
+}
+.od-snippet .twoslash-hover:hover > .twoslash-popup-container {
+  display: block;
+}
+.od-snippet .twoslash-popup-docs {
+  border-top: 1px dashed var(--border);
+  margin-top: 6px;
+  padding-top: 6px;
+  white-space: normal;
+  color: var(--muted-foreground);
+}
+.od-snippet .twoslash-completion-cursor {
+  position: relative;
+  display: inline-block;
+  width: 2px;
+  height: 1.2em;
+  vertical-align: text-bottom;
+  background: var(--od-accent);
+}
+.od-snippet .twoslash-completion-list {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: -2px;
+  z-index: 30;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  min-width: 160px;
+  background: var(--popover);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 12px 28px -14px oklch(0.23 0.012 65 / 0.5);
+}
+.od-snippet .twoslash-completion-list li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 8px;
+  border-radius: 5px;
+  font-size: 11.5px;
+  color: var(--foreground);
+}
+.od-snippet .twoslash-completion-list li:first-child {
+  background: var(--accent);
+}
+.od-snippet .twoslash-completions-icon {
+  width: 11px;
+  height: 11px;
+  flex: none;
+  color: var(--od-accent);
+}
+.od-snippet .twoslash-completions-matched {
+  color: var(--od-accent);
+  font-weight: 600;
+}
+.od-snippet .twoslash-completions-unmatched {
+  color: var(--muted-foreground);
+}
+
 .od-dots::before {
   content: '';
   position: absolute;

@@ -1,5 +1,8 @@
 import type {ReactNode} from 'react'
 import {RobotFab} from './robot-fab'
+import {FrameworkTabs} from './framework-tabs'
+import {FRAMEWORK_SNIPPETS} from './framework-snippets'
+import {HIGHLIGHTED_SNIPPETS} from './framework-snippets.gen'
 
 function Code({children}: {children: ReactNode}) {
   return (
@@ -48,20 +51,15 @@ export function HowItWorks() {
               <span className="text-primary">$</span> npm i -D @conciv/it
             </Code>
           </Step>
-          <Step
-            number="2"
-            title="Add the plugin"
-            body="Vite shown — webpack, Rspack, Rollup, esbuild, and Next.js are one import away."
-          >
-            <Code>
-              <span className="text-muted-foreground">{'// vite.config.ts\n'}</span>
-              <span className="text-primary">import</span>
-              {' conciv '}
-              <span className="text-primary">from</span>
-              {" '@conciv/it/plugin/vite'\n\n"}
-              <span className="text-primary">export default</span>
-              {' defineConfig({\n  plugins: [conciv()],\n})'}
-            </Code>
+          <Step number="2" title="Add the plugin" body="Pick your build. Every entry is one import.">
+            <FrameworkTabs.Root snippets={FRAMEWORK_SNIPPETS} highlighted={HIGHLIGHTED_SNIPPETS}>
+              <FrameworkTabs.List />
+              <FrameworkTabs.Panel>
+                <FrameworkTabs.FileBar />
+                <FrameworkTabs.Code />
+                <FrameworkTabs.Note />
+              </FrameworkTabs.Panel>
+            </FrameworkTabs.Root>
           </Step>
           <Step
             number="3"

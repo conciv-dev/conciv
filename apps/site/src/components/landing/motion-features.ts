@@ -1,1 +1,1 @@
-export {domAnimation} from 'motion/react'
+export {domMax} from 'motion/react'
