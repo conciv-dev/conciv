@@ -1,11 +1,6 @@
 import type {RunArgs} from '../../runner/contract.js'
 import {defineChildRunner} from '../../runner/driver.js'
 
-// The vitest adapter: supplies the child script URL + native arg mapping (mirrors the old
-// inline manager's run/list arg builders). All spawn/read/cache lives in the shared driver.
-// Capabilities mirror the on-demand model: no persistent watch, no @vitest/ui server,
-// name-filter + failed-only flags accepted (failedOnly is a documented no-op on a fresh child).
-// Authored through defineChildRunner so the contract is inferred + dev-validated, never bare.
 export const vitest = defineChildRunner({
   id: 'vitest',
   capabilities: {watch: false, uiServer: false, filterByName: true, failedOnly: true},

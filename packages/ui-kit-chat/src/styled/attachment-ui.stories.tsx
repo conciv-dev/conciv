@@ -56,10 +56,10 @@ export const ImageAndFileTiles: Story = {
   render: () => <Frame />,
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    // The image tile renders its preview; both expose their name as an accessible label.
+
     await waitFor(() => expect(c.getByRole('img', {name: 'diagram.png'})).toBeVisible())
     await expect(c.getByRole('button', {name: 'Remove diagram.png'})).toBeInTheDocument()
-    // Removing the image drops its tile; the file tile remains.
+
     await userEvent.click(c.getByRole('button', {name: 'Remove diagram.png'}))
     await waitFor(() => expect(c.queryByRole('img', {name: 'diagram.png'})).toBeNull())
     await expect(c.getByRole('button', {name: 'Remove notes.pdf'})).toBeInTheDocument()

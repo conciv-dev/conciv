@@ -1,6 +1,3 @@
-// Focus rings + token gradients that don't map to a single theme scale. Composite values (outline,
-// box-shadow rings, linear-gradients) with their --pw-* var()s live here so component code stays
-// name-only: `focus-ring`, `focus-within:ring-accent`, `after:accent-sweep`, etc.
 import type {StaticShortcutMap} from 'unocss'
 
 export const effects = {

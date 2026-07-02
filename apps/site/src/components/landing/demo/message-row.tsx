@@ -2,7 +2,6 @@ import {Badge} from '@/components/ui/badge'
 import {cn} from '@/lib/utils'
 import type {Message} from './demo-data'
 
-// Non-breaking space + check, so the tick stays glued to the last word and never wraps alone.
 const CHECK = '\u00A0\u2713'
 
 export function MessageRow({message}: {message: Message}) {

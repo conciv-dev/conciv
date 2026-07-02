@@ -6,12 +6,6 @@ import {join} from 'node:path'
 import {makeApp} from '../../src/app.js'
 import {resolveConfig} from '../../src/config.js'
 
-// Real HTTP round-trip for the engine's CORS. The widget lives on the host app's origin
-// (e.g. http://localhost:3000) and talks to the standalone engine on its own port — cross-origin,
-// with credentials (`credentials: 'include'` / `withCredentials: true`). So every engine route
-// must echo the caller's Origin and set allow-credentials, and preflight must 204. A wildcard
-// `access-control-allow-origin: *` is INVALID with credentials and the browser blocks it.
-
 const ORIGIN = 'http://localhost:3000'
 const dirs: string[] = []
 

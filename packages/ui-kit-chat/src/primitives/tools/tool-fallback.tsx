@@ -3,11 +3,6 @@ import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {toolStatus, type ToolStatus} from './tool-status.js'
 
-// Headless generic-tool logic for the faithful ToolFallback compound (assistant-ui parity). Owns
-// status + args/result/error serialization; the styled sub-parts (Trigger/Args/Result/Error/Approval)
-// read this context. Reads part.arguments — tanstack never sets the public part.input
-// ([[tanstack-part-input-empty]]).
-
 function argsText(part: ToolCallPart): string {
   try {
     return JSON.stringify(JSON.parse(part.arguments || '{}'), null, 2)
@@ -22,7 +17,6 @@ function resultText(result: ToolResultPart | undefined): string {
   return JSON.stringify(result.content, null, 2)
 }
 
-// The error message for a failed call (assistant-ui's status.error), or undefined.
 function errorText(result: ToolResultPart | undefined): string | undefined {
   if (result?.state !== 'error') return undefined
   if (result.error) return typeof result.error === 'string' ? result.error : JSON.stringify(result.error)
@@ -38,7 +32,7 @@ type ToolFallbackContextValue = {
   status: Accessor<ToolStatus>
   argsText: Accessor<string>
   resultText: Accessor<string>
-  // A string result is plain text; anything else was JSON-stringified — drives shiki's language.
+
   resultName: Accessor<string>
   error: Accessor<string | undefined>
 }

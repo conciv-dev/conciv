@@ -26,8 +26,6 @@ export const TriggerOpensPanel: Story = {
   },
 }
 
-// openOnRunStart: starting a run (the idle→running edge) auto-opens the modal with no trigger click,
-// faithful to assistant-ui's thread.runStart listener.
 function RunStartFrame(): JSX.Element {
   const chat = useChat({connection: storyConnection({chunks: createTextChunks('Working on it.'), chunkDelay: 5})})
   return (
@@ -51,10 +49,10 @@ export const OpensOnRunStart: Story = {
   render: () => <RunStartFrame />,
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    // Closed until the run begins (content stays mounted but hidden).
+
     await expect(c.getByText('Panel opened by the run.')).not.toBeVisible()
     await userEvent.click(c.getByText('start run'))
-    // The run-start edge opens the modal without touching the trigger.
+
     await waitFor(() => expect(c.getByText('Panel opened by the run.')).toBeVisible())
   },
 }

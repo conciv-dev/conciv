@@ -1,6 +1,3 @@
-// Command policy for the PreToolUse gate: read-only commands run; anything else asks. Errs
-// toward asking (shell composition or non-allowlisted commands need approval).
-
 export type CommandPolicy = 'allow' | 'ask'
 
 const READ_ONLY = new Set([
@@ -20,13 +17,12 @@ const READ_ONLY = new Set([
   'true',
 ])
 
-// git subcommands that don't mutate the repo.
 const GIT_READ_ONLY = new Set(['status', 'diff', 'log', 'show', 'branch'])
 
 export function classifyCommand(command: string): CommandPolicy {
   const c = command.trim()
   if (c === '') return 'ask'
-  // Shell composition (pipes, redirects, chaining, subshells) → ask, even for an conciv command.
+
   if (/[;&|`$><\n]/.test(c)) return 'ask'
   if (c.startsWith('conciv tools') || c.startsWith('conciv ui')) return 'allow'
   const tokens = c.split(/\s+/)

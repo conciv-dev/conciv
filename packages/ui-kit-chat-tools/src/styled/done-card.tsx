@@ -2,9 +2,6 @@ import {For, Show, type JSX} from 'solid-js'
 import {Check, Sparkles, X} from 'lucide-solid'
 import type {DoneCard as DoneData} from '@conciv/protocol/done-types'
 
-// The structured "done" card: the agent-authored roll-up (summary + files/page/tests). The prose
-// `message` is rendered by the normal text part, so this card shows only the structured fields.
-// Neutral-token styled (references only --chat-*).
 const LABEL =
   'block text-[color:var(--chat-text-3)] text-[length:var(--chat-text-xs)] uppercase tracking-[0.04em] mb-0.75'
 const LIST =

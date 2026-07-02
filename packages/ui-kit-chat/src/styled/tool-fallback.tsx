@@ -9,11 +9,6 @@ import type {ToolStatus} from '../primitives/tools/tool-status.js'
 import {SHIMMER} from './shimmer.js'
 import {FOCUS} from './classes.js'
 
-// Faithful Solid port of assistant-ui's ToolFallback compound (packages/ui/.../tool-fallback.tsx): a
-// minimal text-trigger disclosure ("Used tool: <name>"), not a bordered card — the default fallback
-// for an unknown tool. Two-layer: the headless ToolFallbackPrimitive owns status/args/result/error;
-// these styled sub-parts read its context and add --chat-* tokens. Our status vocab
-// (running/complete/error/approval) maps onto assistant-ui's icon set.
 const STATUS_ICON: Record<ToolStatus, LucideIcon> = {
   running: LoaderCircle,
   complete: Check,
@@ -21,7 +16,6 @@ const STATUS_ICON: Record<ToolStatus, LucideIcon> = {
   approval: CircleAlert,
 }
 
-// Elapsed wall-clock, formatted exactly like assistant-ui (<1s / 1.2s / 12s / 1m 5s).
 function formatToolDuration(ms: number): string {
   if (ms < 1000) return '<1s'
   const seconds = ms / 1000
@@ -37,7 +31,6 @@ const BTN =
 const ALLOW = `${BTN} text-[color:var(--chat-on-accent)] [border-color:var(--chat-accent)] [background:var(--chat-accent)] hover:[background:var(--chat-accent-hi)]`
 const DENY = `${BTN} text-[color:var(--chat-text-2)] [border-color:var(--chat-line)] [background:var(--chat-fill)] hover:[color:var(--chat-danger)] hover:[background:var(--chat-fill-strong)]`
 
-// Auto-opens on approval; once the user toggles, their choice sticks (no effect — derived).
 function FallbackRoot(props: {children: JSX.Element}): JSX.Element {
   const tool = useToolFallback()
   const [userOpen, setUserOpen] = createSignal<boolean>()
@@ -156,8 +149,6 @@ function Approval(): JSX.Element {
   )
 }
 
-// The default fallback component (assistant-ui's ToolFallbackImpl shape): Trigger + Content with
-// Error, Args, the approval prompt (when the call awaits approval), then Result.
 function ToolFallbackImpl(props: ToolCardProps): JSX.Element {
   return (
     <ToolFallbackPrimitive.Root part={props.part} result={props.result} ctx={props.ctx} durationMs={props.durationMs}>
@@ -174,8 +165,6 @@ function ToolFallbackImpl(props: ToolCardProps): JSX.Element {
   )
 }
 
-// Compound: the default component + its composable sub-parts (assistant-ui parity). Sub-parts read
-// the headless context, so a manual composition wraps them in ToolFallbackPrimitive.Root.
 export const ToolFallback = Object.assign(ToolFallbackImpl, {
   Root: FallbackRoot,
   Trigger,

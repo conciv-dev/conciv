@@ -1,9 +1,6 @@
 import {z} from 'zod'
 import type {ToolCallPart} from '@tanstack/ai-client'
 
-// Loose hint schema: the few fields the morphing now-line surfaces. Each card validates its input
-// fully with its own schema; this is a transient present-tense label read off possibly-partial
-// streamed args, so unknown keys are ignored and a partial parse degrades to a generic phrase.
 const Hint = z.object({
   command: z.string().optional(),
   file_path: z.string().optional(),
@@ -25,7 +22,6 @@ function base(file: string): string {
   return file.split('/').slice(-1)[0] ?? file
 }
 
-// Present-tense verb labels for conciv_page; mirrors the past-tense titles in the page-action card.
 const PAGE_VERB: Record<string, string> = {
   click: 'Clicking',
   fill: 'Typing',
@@ -44,8 +40,6 @@ const PAGE_VERB: Record<string, string> = {
   eval: 'Running a script',
 }
 
-// The active tool call's label for the single live "now" line while a turn streams. An
-// extension-supplied streamTitle (keyed by tool name) wins over the built-in labels.
 export function nowTitle(part: ToolCallPart, titleByName: Record<string, string> = {}): string {
   const supplied = titleByName[part.name]
   if (supplied) return supplied

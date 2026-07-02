@@ -6,8 +6,6 @@ import {z} from 'zod'
 import {parseFailure, type Summary, type TestError, type TestRow, type TestCaseLike} from '../../shared/events.js'
 import {type ChildMessage} from '../../runner/child-protocol.js'
 
-// Out-of-process vitest runner logic. Pure module (no top-level exec) so importing it is inert;
-// the spawned entry is child.ts. The driver runs it as a clean child (NODE_OPTIONS stripped).
 type TestModuleLike = {
   moduleId: string
   ok: () => boolean
@@ -25,7 +23,6 @@ type VitestLike = {
 }
 type TestCaseWithDiagnostic = TestCaseLike & {diagnostic?: () => {duration?: number} | undefined}
 
-// fd 3 is the NDJSON channel (stdout/stderr carry vitest's noise); writeSync keeps order.
 function send(msg: ChildMessage): void {
   writeSync(3, JSON.stringify(msg) + '\n')
 }
@@ -62,8 +59,7 @@ const VitestNodeModuleSchema = z.object({createVitest: z.custom<CreateVitest>((v
 
 async function loadVitest(cwd: string, reporter: object): Promise<VitestLike> {
   const req = createRequire(join(cwd, 'noop.js'))
-  // vitest is the previewed app's dependency, resolved at runtime from its cwd (versions
-  // differ per app) — the deliberate exception to the repo's static-imports-only rule.
+
   const mod = await import(pathToFileURL(req.resolve('vitest/node')).href)
   const parsed = VitestNodeModuleSchema.safeParse(mod)
   if (!parsed.success) throw new Error('vitest/node did not expose createVitest')
@@ -102,7 +98,7 @@ function makeReporter(getVitest: () => VitestLike): object {
 
 async function runList(vitest: VitestLike, cwd: string, failedOnly: boolean): Promise<void> {
   const specs = await vitest.globTestSpecifications()
-  // A fresh child has no prior run state, so there are no known-failed files to narrow to.
+
   const files = specs.map((s) => ({file: s.moduleId, relPath: relative(cwd, s.moduleId)})).filter(() => !failedOnly)
   send({type: 'list', files})
 }
@@ -116,7 +112,6 @@ async function runTests(vitest: VitestLike, argv: string[]): Promise<void> {
   if (testNamePattern) vitest.resetGlobalTestNamePattern()
 }
 
-// Spawned entry point: drive a single list-or-run job, stream NDJSON on fd 3, then exit.
 export async function runChild(): Promise<void> {
   const argv = process.argv.slice(2)
   const mode = flagValue(argv, '--mode') ?? 'run'

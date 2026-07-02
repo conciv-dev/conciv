@@ -27,6 +27,7 @@
     "@changesets/cli": "^2.31.0",
     "@conciv/publish": "workspace:*",
     "@j178/prek": "^0.4.5",
+    "@oxlint/plugins": "^1.69.0",
     "@types/node": "^22.19.21",
     "@unocss/eslint-plugin": "66.7.2",
     "eslint-plugin-playwright": "2.10.4",

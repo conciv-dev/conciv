@@ -2,9 +2,6 @@ import {createContext, Show, splitProps, useContext, type JSX} from 'solid-js'
 import {createActionButton} from '../util/create-action-button.js'
 import {Primitive} from '../util/primitive.js'
 
-// tanstack UIMessage has NO sibling/branch model, so a branch is always {count:1, index:0}. Built for
-// API parity; with hideWhenSingleBranch it renders nothing. Goes live only if a branch layer is added
-// (sibling map in view-state + setMessages switch). The ONE genuinely-deferred feature (§7/§16.8).
 export type BranchState = {count: number; index: number; previous: () => void; next: () => void}
 
 const inert: BranchState = {count: 1, index: 0, previous: () => {}, next: () => {}}

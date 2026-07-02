@@ -14,13 +14,8 @@ import githubDark from 'shiki/themes/github-dark.mjs'
 import githubLight from 'shiki/themes/github-light.mjs'
 import {Streamdown} from '@conciv/solid-streamdown'
 
-// Dual theme: shiki emits the light colors inline + the dark colors as `--shiki-dark` vars on each
-// token. tokens.css swaps to the dark vars under .chat-theme-dark / .chat-theme-conciv, so code
-// blocks follow the chat theme instead of being permanently dark.
 const THEMES = {light: 'github-light', dark: 'github-dark'} as const
 
-// One async highlighter for the whole package; until ready, code renders as plain <pre>. Ported from
-// the widget's markdown.tsx (now deleted) — the single markdown renderer in the running widget.
 const store: {highlighter: HighlighterCore | null; started: boolean; listeners: Set<() => void>} = {
   highlighter: null,
   started: false,
@@ -59,8 +54,6 @@ function codeBlock(code: string, lang: string | undefined, highlighter: Highligh
 
 export type MarkdownProps = {content: string; streaming?: boolean}
 
-// Streaming markdown via @conciv/solid-streamdown. Token fade spans are present only while
-// streaming; once complete, it re-renders as clean static markup.
 export function Markdown(props: MarkdownProps): JSX.Element {
   const [highlighter, setHighlighter] = createSignal<HighlighterCore | null>(store.highlighter)
   onCleanup(subscribe(() => setHighlighter(() => store.highlighter)))

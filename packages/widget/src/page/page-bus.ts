@@ -1,7 +1,5 @@
-// Widget side of the page-bus: pure SSE transport. The dev server pushes PageQuery events
-// over /api/page/stream; we hand each to the PageDriver and POST the result back to
 // /api/page/reply. All page knowledge lives in the driver — swap it to change the
-// execution backend without touching transport.
+
 import {makeDomPageDriver, type PageDriver} from './page-driver.js'
 import {PageQuerySchema, PageReplySchema, type PageQuery} from '@conciv/protocol/page-types'
 import {OkSchema} from '@conciv/protocol/chat-types'

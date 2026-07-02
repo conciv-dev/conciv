@@ -48,18 +48,17 @@ export const CopyAndExport: Story = {
   render: () => <Frame />,
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    // The settled last turn's bar is visible (autohide=not-last, isLast → shown). waitFor lets the
-    // bar's presence-in animation settle before the visibility assertion.
+
     const copy = await waitFor(() => c.getByRole('button', {name: 'Copy'}))
     await waitFor(() => expect(copy).toBeVisible())
     await expect(copy).not.toHaveAttribute('data-copied')
     await userEvent.click(copy)
-    // After copying, the headless data-copied flag flips (drives the Swap to the check).
+
     await waitFor(() => expect(c.getByRole('button', {name: 'Copy'})).toHaveAttribute('data-copied'))
-    // The overflow menu opens to the Export action.
+
     await userEvent.click(c.getByRole('button', {name: 'More'}))
     await waitFor(() => expect(c.getByText('Export as Markdown')).toBeVisible())
-    // Refresh (reload) is present too.
+
     await expect(c.getByRole('button', {name: 'Refresh'})).toBeInTheDocument()
   },
 }

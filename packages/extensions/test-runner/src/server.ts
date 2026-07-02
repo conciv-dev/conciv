@@ -15,8 +15,6 @@ const RunArgsSchema = z.object({
   failedOnly: z.boolean().default(false),
 })
 
-// The server view: builds the runner manager from typed config, owns /api/ext/test-runner/* on its
-// sub-app, injects the manager into the tool, and stops the manager on dispose.
 export default defineExtension({
   name: TEST_RUNNER_NAME,
   configSchema: testRunnerConfig,
@@ -25,7 +23,7 @@ export default defineExtension({
 }).server((server) => {
   const adapter = getRunner(server.config.runner) ?? vitest
   const manager = adapter.create(server.cwd)
-  // A runner with nothing to run surfaces as a 422 (not a 500), scoped to this extension's routes.
+
   server.app.use(
     onError((error) => {
       const original = error.cause ?? error

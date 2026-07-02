@@ -6,7 +6,6 @@ export const NAV_LINKS: NavLink[] = [
   {to: '/form', label: 'Form'},
 ]
 
-// The nav link whose `to` matches the current path, or null.
 export function activeLink(pathname: string): NavLink | null {
   return NAV_LINKS.find((l) => l.to === pathname) ?? null
 }

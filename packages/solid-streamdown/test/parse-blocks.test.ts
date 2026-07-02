@@ -5,7 +5,6 @@ import {createAnimatePlugin} from '../src/animate.js'
 
 describe('parseMarkdownIntoBlocks', () => {
   it('splits top-level blocks (paragraph, heading, code) into separate strings', () => {
-    // marked emits whitespace ("\n\n") as its own block; the content blocks are what matter.
     const content = parseMarkdownIntoBlocks('# Title\n\nA paragraph.\n\n```ts\nconst x = 1\n```\n').filter((b) =>
       b.trim(),
     )
@@ -28,13 +27,12 @@ describe('parseMarkdownIntoBlocks', () => {
   it('only the last block changes as text grows (the streaming invariant)', () => {
     const a = parseMarkdownIntoBlocks('# Title\n\nfirst para\n\nsecond pa')
     const b = parseMarkdownIntoBlocks('# Title\n\nfirst para\n\nsecond para done')
-    // every block but the last is byte-identical across the two renders
+
     expect(b.slice(0, -1)).toEqual(a.slice(0, -1))
     expect(b.at(-1)).not.toBe(a.at(-1))
   })
 })
 
-// Run the rehype plugin directly on a hast tree — pure transform, no DOM needed.
 function paragraph(text: string): Root {
   return {
     type: 'root',
@@ -82,7 +80,7 @@ describe('createAnimatePlugin', () => {
 
   it('sets duration=0ms for already-shown chars and animates new chars', () => {
     const plugin = createAnimatePlugin()
-    plugin.setPrevContentLength('hello '.length) // first word already visible
+    plugin.setPrevContentLength('hello '.length)
     const out = runPlugin(plugin, paragraph('hello world'))
     expect(textAndSpans(out)).toEqual([
       {value: 'hello', animated: true, duration: '0ms'},

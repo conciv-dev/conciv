@@ -1,9 +1,6 @@
 import type {RunArgs} from '../../runner/contract.js'
 import {defineChildRunner} from '../../runner/driver.js'
 
-// The playwright adapter: spawns playwright/child.ts, which runs the app's `playwright test
-// --reporter=json` and maps the report to TestEvents. No watch, no failed-only memory on a
-// fresh child; name filter maps to playwright's -g.
 export const playwright = defineChildRunner({
   id: 'playwright',
   capabilities: {watch: false, uiServer: false, filterByName: true, failedOnly: false},

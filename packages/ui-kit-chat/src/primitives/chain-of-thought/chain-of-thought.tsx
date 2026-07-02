@@ -1,10 +1,5 @@
 import {createContext, createSignal, splitProps, useContext, type Accessor, type JSX, type ParentProps} from 'solid-js'
 
-// A "chain" = the consecutive thinking + tool parts grouped by groupSegments. The Root owns the
-// open-while-streaming STATE (open while streaming, collapsible once settled) and nothing else — the
-// actual disclosure animation is the styled layer's ONE mechanism (ui-kit Collapsible, D3). The styled
-// ChainOfThought binds this state to Collapsible; AccordionTrigger is a headless toggle for consumers
-// that don't use Collapsible.
 type ChainState = {
   open: Accessor<boolean>
   setOpen: (open: boolean) => void

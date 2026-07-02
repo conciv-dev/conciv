@@ -1,7 +1,5 @@
 import {createEffect, onCleanup, type Accessor} from 'solid-js'
 
-// Observe an element's content box and report size changes (ResizeObserver wrapper). Re-observes when
-// the element accessor changes.
 export function useSizeHandle(
   el: Accessor<HTMLElement | undefined>,
   onResize: (size: {width: number; height: number}) => void,

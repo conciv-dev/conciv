@@ -1,6 +1,5 @@
 import {type RefObject} from 'react'
 
-// A fake pointer that gsap glides toward the grab pill on mount to teach the first click.
 export function GhostCursor({cursorRef}: {cursorRef: RefObject<HTMLDivElement | null>}) {
   return (
     <div ref={cursorRef} aria-hidden className="pointer-events-none absolute left-0 top-0 z-30 opacity-0 drop-shadow">

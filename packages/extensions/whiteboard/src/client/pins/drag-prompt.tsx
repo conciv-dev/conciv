@@ -11,8 +11,6 @@ export type DragPromptProps = {
 
 const CONTENT = 'min-w-45 flex flex-col gap-0.5 p-1'
 
-// Anchored at the drop point. Rendered only while a drift is pending (PinsLayer's <Show>), so open
-// stays true; Ark dismissal (Escape / interact-outside) routes through onCancel.
 export function DragPrompt(props: DragPromptProps): JSX.Element {
   return (
     <Popover.Root

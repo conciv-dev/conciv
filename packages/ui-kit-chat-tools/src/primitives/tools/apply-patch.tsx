@@ -3,11 +3,6 @@ import {SolidPatchDiff, type FileDiffOptions} from '@conciv/solid-diffs'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import {toolStatus, type ToolStatus} from '@conciv/ui-kit-chat'
 
-// Headless apply_patch logic + structure (no classes). Claude Code's apply_patch uses a "v2" envelope
-// whose @@ markers are context-search strings, NOT unified-diff hunk headers; we convert each block to
-// a real single-file unified diff for Pierre (ported from assistant-ui with-opencode tool-ui-apply-patch).
-// The styled layer (styled/tools/apply-patch-diff) reads this context and adds tokens.
-
 export type ApplyPatchBlock = {type: 'Update' | 'Add' | 'Delete'; path: string; body: string}
 export type ApplyPatchInfo = {files: string[]; added: number; removed: number}
 
@@ -125,8 +120,6 @@ function Root(props: {part: ToolCallPart; result: ToolResultPart | undefined; ch
   )
 }
 
-// Renders each parsed block as a Pierre unified diff (one per block sidesteps getSingularPatch's
-// one-file limit). Diff theme/styling comes from the caller via `options` + `class`.
 function Diffs(props: {options?: FileDiffOptions<undefined>; class?: string}): JSX.Element {
   const context = useApplyPatch()
   return (

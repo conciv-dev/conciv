@@ -1,23 +1,14 @@
 import type {IncomingMessage, OutgoingHttpHeader, ServerResponse} from 'node:http'
 import type {WidgetConfig} from '@conciv/protocol/config-types'
 
-// The widget injection + serving middlewares. Kept framework-agnostic (plain node http types)
-// so they work for SSR frameworks (TanStack Start) and plain index.html apps alike: the inject
-// middleware rewrites the FINAL html response rather than relying on vite's transformIndexHtml
-// (which only fires for a static index.html). Both are plain connect-style middlewares.
-
 export type Middleware = (req: IncomingMessage, res: ServerResponse, next: (err?: unknown) => void) => void
 
-// Where the plugin serves the single client entry (the virtual:conciv-extensions module, which
-// globs the extensions and imports the widget — both through Vite so solid + @conciv/extension dedupe).
 export const EXTENSIONS_ROUTE = '/@conciv/extensions.js'
 
 function escapeAttr(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;')
 }
 
-// apiBase = the cross-origin engine origin the widget calls. widgetConfig is the layout config
-// (pw-widget), JSON-encoded so nesting + hotkey arrays survive; the widget reads + normalizes it.
 export function widgetTags(apiBase: string, widgetConfig?: WidgetConfig): string {
   return (
     `<meta name="pw-api-base" content="${escapeAttr(apiBase)}">` +
@@ -39,16 +30,12 @@ function toBuffer(chunk: unknown): Buffer | null {
   return null
 }
 
-// Coerce an unknown header value to OutgoingHttpHeader (string | number | string[]).
 function toHeaderValue(v: unknown): OutgoingHttpHeader {
   if (typeof v === 'string' || typeof v === 'number') return v
   if (Array.isArray(v) && v.every((x): x is string => typeof x === 'string')) return v
   return String(v)
 }
 
-// writeHead headers come in two shapes: an OutgoingHttpHeaders object, or a flat
-// [k, v, k, v, …] array (srvx / TanStack Start's runtime uses the array form). Normalize both
-// to [name, value] pairs.
 function headerPairs(headers: unknown): Array<[string, OutgoingHttpHeader]> {
   if (Array.isArray(headers)) {
     const pairs: Array<[string, OutgoingHttpHeader]> = []
@@ -77,13 +64,6 @@ function trailingCallback(args: ReadonlyArray<unknown>): (() => void) | undefine
   return typeof last === 'function' ? () => void last() : undefined
 }
 
-// Inject the widget into every text/html response by buffering the body and inserting the tags
-// before </head> (fallback </body>). The content-type often isn't known until late (SSR
-// runtimes call writeHead with a flat header array, then stream the body), so we BUFFER whenever
-// the type isn't yet definitively non-html and only decide at end() from the final headers.
-// writeHead's headers are applied via setHeader so a deferred flush still emits them. Non-html
-// responses (assets, SSE, JSON) stream through untouched, and a document already carrying the
-// widget (e.g. a static app where transformIndexHtml injected it) isn't re-injected.
 export function makeWidgetInject(apiBase: string, widgetConfig?: WidgetConfig): Middleware {
   const tags = widgetTags(apiBase, widgetConfig)
   return (_req, res, next) => {
@@ -91,11 +71,9 @@ export function makeWidgetInject(apiBase: string, widgetConfig?: WidgetConfig): 
     const realWrite = res.write
     const realEnd = res.end
     const realWriteHead = res.writeHead
-    // Forward to an original overloaded method without re-spreading into its overloads (which
-    // can't be typed without a cast) — Reflect.apply dispatches dynamically; R is inferred per call.
+
     const forward = <R>(fn: (...a: never[]) => R, args: unknown[]): R => Reflect.apply(fn, res, args)
-    // 'passthrough' once we know it's non-html (stream as-is); 'buffer' otherwise (html or still
-    // unknown — capture the body, decide at end). Latched on the first writeHead/write/end.
+
     const state: {mode: 'undecided' | 'buffer' | 'passthrough'} = {mode: 'undecided'}
     const isNonHtml = (ct: string): boolean => ct !== '' && !ct.includes('text/html')
     const ensureMode = (ctHint: string): void => {
@@ -104,14 +82,12 @@ export function makeWidgetInject(apiBase: string, widgetConfig?: WidgetConfig): 
       state.mode = isNonHtml(ct) ? 'passthrough' : 'buffer'
     }
 
-    // Patched methods typed via their own property type (contextual typing → no cast); passthrough
-    // forwards to the captured original via forward(). Restoring them in end() is assignment-compatible.
     const patchedWriteHead = (...args: unknown[]): ServerResponse => {
       const status = typeof args[0] === 'number' ? args[0] : res.statusCode
       const pairs = headerPairs(args.find((x, i) => i > 0 && x !== null && typeof x === 'object'))
       ensureMode(contentTypeFromPairs(pairs))
       if (state.mode === 'passthrough') return forward(realWriteHead, args)
-      // Buffer/defer: record status + headers so end() can flush them with the injected length.
+
       res.statusCode = status
       for (const [k, v] of pairs) res.setHeader(k, v)
       return res
@@ -136,12 +112,11 @@ export function makeWidgetInject(apiBase: string, widgetConfig?: WidgetConfig): 
       if (tail) chunks.push(tail)
       const cb = trailingCallback(args)
       const body = Buffer.concat(chunks).toString('utf8')
-      // Decide for real now that all headers are set. Only inject into actual html documents.
+
       const shouldInject =
         String(res.getHeader('content-type') ?? '').includes('text/html') && !body.includes(EXTENSIONS_ROUTE)
       const out = shouldInject ? injectInto(body, tags) : body
-      // Restore the originals before flushing: Node's end() calls this.write() internally, and
-      // re-entering our buffering write would swallow the body.
+
       res.write = realWrite
       res.end = realEnd
       res.writeHead = realWriteHead

@@ -13,7 +13,6 @@ export type SourceAnchor = {
   commit: string | null
 }
 
-// The oxc AST is the third-party branded-type boundary; we traverse it as loose records (localized).
 type OxcNode = Record<string, unknown>
 
 const asNode = (value: unknown): OxcNode | null =>
@@ -44,9 +43,6 @@ const tagOf = (element: OxcNode): string => {
   return (name ? str(name.name) : null) ?? '?'
 }
 
-// A whitespace/attribute-insensitive shape: the element's tag plus the recursive shape of its JSX
-// element children. Reindenting or editing attribute values leaves it unchanged; adding or removing a
-// nested element changes it.
 const structure = (element: OxcNode): string => {
   const children = Array.isArray(element.children) ? element.children : []
   const nested = children
@@ -119,8 +115,6 @@ export type ElementFingerprint = {
   snippet: string
 }
 
-// Every JSX element in the source with its structural fingerprint — the resolver searches these by
-// hash to relocate a node that moved within the file.
 export function scanElements(source: string): ElementFingerprint[] {
   const parsed = parseSync('anchor.tsx', source)
   const program = asNode(parsed.program)

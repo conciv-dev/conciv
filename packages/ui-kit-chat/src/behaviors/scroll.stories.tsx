@@ -33,7 +33,6 @@ function AssistantMessage(): JSX.Element {
   )
 }
 
-// A long reply that wraps to far more than the viewport height, so following it requires autoscroll.
 const LONG_REPLY = `${'The bug is a missing await. '.repeat(40)}END_OF_ANSWER`
 
 function StreamingThread(props: {expose: (chat: UseChatReturn) => void}): JSX.Element {
@@ -54,9 +53,6 @@ function StreamingThread(props: {expose: (chat: UseChatReturn) => void}): JSX.El
   )
 }
 
-// D10: a short thread starts at the bottom; the streamed answer overflows the viewport and the
-// thread sticks to the bottom (autoscroll follows), so the answer's tail stays in view and the
-// at-bottom flag never flips to false.
 export const SticksToBottomWhileStreaming: Story = {
   render: () => {
     let chat: UseChatReturn | undefined
@@ -75,11 +71,10 @@ export const SticksToBottomWhileStreaming: Story = {
   },
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    // Empty + fits the viewport → at the bottom.
+
     await waitFor(() => expect(c.getByText('atBottom: true')).toBeVisible())
     await userEvent.click(c.getByText('ask'))
-    // The overflowing answer streams in; sticking to the bottom keeps the at-bottom flag true and the
-    // answer's tail in view. If autoscroll had not followed, the flag would flip to false.
+
     await waitFor(() => expect(c.getByText(/END_OF_ANSWER/)).toBeVisible(), {timeout: 6000})
     await waitFor(() => expect(c.getByText('atBottom: true')).toBeVisible())
   },

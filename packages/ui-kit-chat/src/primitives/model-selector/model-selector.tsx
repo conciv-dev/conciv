@@ -13,10 +13,6 @@ import {Combobox} from '@conciv/ui-kit-system'
 import {useListCollection} from '@ark-ui/solid/combobox'
 import {createControllableSignal} from '../util/create-controllable-signal.js'
 
-// assistant-ui ModelSelector, ported verbatim (API spec Appendix A). Headless: no classes, icons via
-// the caller; the styled layer adds tokens + lucide. Built on ui-kit-system Combobox (Ark) — the
-// search/filter/keyboard-nav list that maps to assistant-ui's cmdk Command.
-
 export type ModelSelectorEffortOption = {id: string; name: string}
 
 export const DEFAULT_EFFORT_OPTIONS: readonly ModelSelectorEffortOption[] = [
@@ -48,8 +44,6 @@ function resolveEffort(
   return efforts?.some((option) => option.id === effort) ? effort : undefined
 }
 
-// The effort id if the selected model supports it, else undefined. Effort stays sticky across model
-// switches; this resolves what actually applies to the current model.
 export function resolveModelEffort(
   models: readonly ModelOption[],
   modelId: string | undefined,
@@ -83,8 +77,6 @@ export function useModelSelectorContext(): ModelSelectorContextValue {
   return context
 }
 
-// The selected model's effort levels + the active selection. Build a custom effort UI with this when
-// the built-in Effort layout does not fit. `efforts` is undefined for models without reasoning.
 export function useModelSelectorEfforts(): {
   efforts: Accessor<readonly ModelSelectorEffortOption[] | undefined>
   effort: Accessor<string | undefined>

@@ -2,9 +2,6 @@ import {fileURLToPath} from 'node:url'
 import {defineConfig} from 'vite'
 import solid from 'vite-plugin-solid'
 
-// Library build: Solid components compiled by vite-plugin-solid. solid-js stays a peer; the @conciv
-// workspace deps (incl. ui-kit-chat), the heavy @pierre/diffs + shiki tree, and js-beautify stay
-// external so the dist is thin and the host widget bundles each once.
 export default defineConfig({
   plugins: [solid()],
   build: {

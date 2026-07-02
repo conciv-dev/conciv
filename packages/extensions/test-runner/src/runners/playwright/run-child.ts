@@ -6,9 +6,6 @@ import type {Summary, TestError, TestRow} from '../../shared/events.js'
 import type {ChildMessage} from '../../runner/child-protocol.js'
 import {parsePlaywrightReport} from './report.js'
 
-// Out-of-process playwright runner logic. Pure module (no top-level exec); child.ts is the entry.
-// Spawns the app's `playwright test --reporter=json`, then maps the JSON report to TestEvents.
-
 function send(msg: ChildMessage): void {
   writeSync(3, JSON.stringify(msg) + '\n')
 }
@@ -24,21 +21,16 @@ function flagValues(argv: string[], name: string): string[] {
   })
 }
 
-// The previewed app's playwright CLI, resolved from its cwd (versions differ per app).
 function resolveCli(cwd: string): string {
   const req = createRequire(join(cwd, 'noop.js'))
   for (const id of ['playwright/cli', '@playwright/test/cli']) {
     try {
       return req.resolve(id)
-    } catch {
-      // try the next candidate
-    }
+    } catch {}
   }
   throw new Error('playwright not found in the app (install @playwright/test)')
 }
 
-// Run the CLI and return its JSON report (stdout) + stderr. Playwright exits non-zero on test
-// failures but still writes the report, so we resolve regardless of exit code.
 function runCli(cwd: string, cliArgs: string[]): Promise<{report: string; stderr: string}> {
   const cliPath = resolveCli(cwd)
   return new Promise((resolve, reject) => {
@@ -78,7 +70,7 @@ async function runTests(cwd: string, argv: string[]): Promise<void> {
 async function runList(cwd: string): Promise<void> {
   const {report, stderr} = await runCli(cwd, ['--list'])
   if (!report.trim().startsWith('{')) throw new Error(stderr.trim() || 'playwright produced no JSON report')
-  // Report paths are already rootDir-relative, so they are the relPath; absolutize for `file`.
+
   const files = [...new Set(parsePlaywrightReport(report).map((r) => r.file))]
   send({type: 'list', files: files.map((f) => ({file: join(cwd, f), relPath: f}))})
 }

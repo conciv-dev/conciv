@@ -10,9 +10,6 @@ const openCanvas = async (page: Page): Promise<void> => {
   await page.getByRole('radio', {name: 'Rectangle'}).waitFor()
 }
 
-// An agent leaves a comment, the dev clicks its pin, and the thread card renders the comment row and
-// the reply that a follow-up tool call adds — proving the controlled ThreadPopover (§8) reads the live
-// comments and that open focus lands on the composer.
 test('clicking a pin opens the thread card with its comment and replies', async () => {
   const api = await getExtensionTestApi({server: whiteboard, clientEntry})
   try {
@@ -28,7 +25,6 @@ test('clicking a pin opens the thread card with its comment and replies', async 
       authorModel: 'Opus',
     })
 
-    // Testkit skips UnoCSS, so the pin's pointer-events-auto is absent; open via keyboard (Enter -> onOpen).
     const pin = api.page.getByRole('button', {name: /comment, open/})
     await pin.waitFor({timeout: 15_000})
     await pin.focus()

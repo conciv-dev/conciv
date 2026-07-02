@@ -2,7 +2,6 @@ import {describe, it, expect} from 'vitest'
 import {defineHarness, type HarnessAdapter} from '@conciv/protocol/harness-types'
 import {registerHarness, getHarness, listHarnesses} from '../src/registry.js'
 
-// Even a throwaway test adapter goes through defineHarness (Constraint A).
 function stub(id: string): HarnessAdapter {
   return defineHarness({
     id,

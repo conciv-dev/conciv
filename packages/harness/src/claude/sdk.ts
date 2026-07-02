@@ -177,6 +177,6 @@ export const claudeSdkRun: HarnessRun = async function* (turn, ctx): AsyncGenera
 }
 
 export function claudeSdkShutdown(): void {
-  const ids = [...sessions.keys()] // snapshot: evict() mutates the map
+  const ids = [...sessions.keys()]
   for (const id of ids) evict(id)
 }

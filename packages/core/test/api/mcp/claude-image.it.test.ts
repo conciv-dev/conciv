@@ -2,7 +2,6 @@ import {describe, expect, it} from 'vitest'
 import {startTestServer} from '../../helpers/server.js'
 import {hasClaude, useFakeHarness} from '../../helpers/harness-mode.js'
 
-// A 4×4 solid-red PNG, base64.
 const PNG_RED_4x4 =
   'iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAEElEQVR4nGP4z8AARwzEcQCukw/x0F8jngAAAABJRU5ErkJggg=='
 

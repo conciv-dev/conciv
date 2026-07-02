@@ -11,8 +11,7 @@ describe('/api/mcp', () => {
       expect(tools.map((t) => t.name)).toEqual(expect.arrayContaining(['conciv_ui', 'conciv_page']))
       const uiTool = tools.find((t) => t.name === 'conciv_ui')
       if (!uiTool?.execute) throw new Error('conciv_ui not registered on /api/mcp')
-      // No active chat turn, so the inject has no stream to land on (injected:false) — but a
-      // renderId in the result proves /api/mcp → conciv_ui → buildUiSpec → uiBus ran end to end.
+
       const result = await uiTool.execute({kind: 'confirm', question: 'ok?'})
       expect(JSON.stringify(result)).toContain('renderId')
     } finally {
@@ -30,7 +29,7 @@ describe('/api/mcp', () => {
       const extTool = tools.find((t) => t.name === 'conciv_extensions')
       if (!extTool?.execute) throw new Error('conciv_extensions not registered on /api/mcp')
       const result = await extTool.execute({verb: 'catalog'})
-      // Structural, not a lone substring: the real catalog shape with the brand accent token.
+
       const json = JSON.stringify(result)
       expect(json).toContain('pw-accent')
       expect(json).toContain('clientSurfaces')

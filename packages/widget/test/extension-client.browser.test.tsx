@@ -10,11 +10,6 @@ import {sampleExtension, sampleClientProbe} from './fixtures/sample-extension.js
 import {buildInstances} from './helpers/instances.js'
 import type {ExtensionInstance} from '../src/extension/extension-slots.js'
 
-// The mount-time .client() lifecycle in a real browser: mountWidget installs the one ClientApi and runs
-// each extension's .client() ONCE (widget lifetime, not per panel), merging its value into useContext
-// and returning a dispose. The fixture's .client records opens / closes / live + the apiBase it read off
-// useClientApi(), so the real lifecycle is observed directly (no mocks). active={false} keeps chat from
-// hydrating.
 const API_BASE = 'http://probe.example'
 const disposers: (() => void)[] = []
 
@@ -76,7 +71,7 @@ afterEach(() => {
 describe('extension .client() lifecycle (real browser)', () => {
   it('runs .client once at mount and reads the apiBase off useClientApi()', async () => {
     mountPanel(buildInstances([sampleExtension], API_BASE))
-    // The value merged into useContext renders ("ready") — proves the client factory ran + merged.
+
     await expect.element(page.getByText('sample status ready')).toBeVisible()
     expect(sampleClientProbe.opens).toBe(1)
     expect(sampleClientProbe.live).toBe(1)

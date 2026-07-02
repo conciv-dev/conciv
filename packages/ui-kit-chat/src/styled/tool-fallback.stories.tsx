@@ -69,7 +69,7 @@ export const Approval: Story = {
   },
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    // Auto-opens on approval — the Allow/Deny prompt is visible without a click.
+
     await expect(c.getByRole('button', {name: 'Allow'})).toBeVisible()
     await expect(c.getByRole('button', {name: 'Deny'})).toBeVisible()
   },

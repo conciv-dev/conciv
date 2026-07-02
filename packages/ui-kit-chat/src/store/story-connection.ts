@@ -1,12 +1,6 @@
 import {EventType, type StreamChunk} from '@tanstack/ai'
 import type {ConnectConnectionAdapter} from '@tanstack/ai-client'
 
-// The Storybook seam: a fake ConnectionAdapter whose connect() yields canned AG-UI StreamChunks to
-// the REAL useChat — exactly how TanStack tests useChat itself (createMockConnectionAdapter). The
-// real stream processor / state machine / part assembly run offline. NO mocks of useChat. §6.1.
-// Chunk shapes mirror this repo's own server emitter (harness/_shared/agui.ts), so a story drives
-// the same code path as a live turn.
-
 export type StoryConnectionOptions = {
   chunks?: StreamChunk[]
   chunkDelay?: number

@@ -4,8 +4,6 @@ import {UiInput} from '@conciv/tools/defs'
 import {ToolCard, parseInput} from '@conciv/ui-kit-chat'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 
-// A compact chip for conciv_ui. The interactive UI itself stays the widget's GenUi (driven by the
-// separate conciv-ui CUSTOM event); this card only notes that a UI was rendered.
 const LABEL: Record<'choices' | 'confirm' | 'diff' | 'form', string> = {
   choices: 'choices',
   confirm: 'a confirmation',
@@ -33,5 +31,4 @@ export function UiCard(props: ToolCardProps): JSX.Element {
   )
 }
 
-// This card renders the conciv_ui tool.
 export const uiTool: ToolCardEntry = {names: ['conciv_ui'], render: UiCard}

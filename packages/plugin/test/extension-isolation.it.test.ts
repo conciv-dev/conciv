@@ -9,7 +9,6 @@ const here = dirname(fileURLToPath(import.meta.url))
 
 const ID = '/proj/conciv/extensions/iso.tsx'
 
-// The exact CLIENT compile the vite hook runs on an extension file: split for the browser, then Solid.
 async function compileClient(source: string): Promise<string> {
   const split = await splitExtension(source, ID, 'browser')
   const compiled = await compileExtensionSolid(split?.code ?? source, ID, false)
@@ -32,17 +31,15 @@ function Surface() {
   return <button data-client-marker>Go</button>
 }`,
     )
-    // The browser half survives...
+
     expect(client).toContain('data-client-marker')
-    // ...but the node import, its binding, and the secret path are gone.
+
     expect(client).not.toContain('node:fs')
     expect(client).not.toContain('readFileSync')
     expect(client).not.toContain('/etc/secret-token')
   })
 
   it('the server load never executes the client (Component / .client) halves', async () => {
-    // The fixture's Component touches a browser global and its .client() throws; jiti loading the file
-    // server-side must still collect iso_tool — proving neither client half runs during the server load.
     const builders = await loadServerExtensions(join(here, 'fixtures', 'iso-extensions'), [])
     expect(builders.flatMap((builder) => (builder.tools ?? []).map((tool) => tool.name))).toContain('iso_tool')
   })

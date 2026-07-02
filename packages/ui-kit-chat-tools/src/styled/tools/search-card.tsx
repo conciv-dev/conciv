@@ -27,7 +27,6 @@ function Body(): JSX.Element {
   )
 }
 
-// Styled search card: a thin --chat-* wrapper over the headless Search primitive.
 export function SearchCard(props: ToolCardProps): JSX.Element {
   return (
     <Search.Root part={props.part} result={props.result}>

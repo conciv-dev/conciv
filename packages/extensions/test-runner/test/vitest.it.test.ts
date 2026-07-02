@@ -6,14 +6,9 @@ import {makeChildManager, isRunnerUnavailable, type ChildRunnerSpec} from '../sr
 import {vitest as vitestAdapter} from '../src/runners/vitest/adapter.js'
 import {tsxSpawnFor, errorSpawnRunner} from './helpers.js'
 
-// Real out-of-process IT: makeChildManager spawns the actual vitest runner child (via tsx),
-// which embeds the fixture app's real vitest, runs it, and streams events back over fd 3.
-
 const fixture = join(dirname(fileURLToPath(import.meta.url)), 'fixtures/vitest-app')
 const childTs = new URL('../src/runners/vitest/child.ts', import.meta.url)
 
-// The driver needs a ChildRunnerSpec; the adapter exposes only create(). For ITs we declare a
-// spec mirroring the vitest adapter so we can inject the tsx spawn seam — authored via satisfies.
 const vitestSpec = {
   id: 'vitest',
   capabilities: {watch: false, uiServer: false, filterByName: true, failedOnly: true},
@@ -28,7 +23,6 @@ const vitestSpec = {
 } satisfies ChildRunnerSpec
 
 describe('vitest adapter against a real fixture app (IT)', () => {
-  // The published adapter authored through defineChildRunner is still vitest-shaped + registered.
   expect(vitestAdapter.id).toBe('vitest')
 
   const state: {mgr: TestRunnerManager | undefined} = {mgr: undefined}

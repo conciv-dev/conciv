@@ -1,11 +1,5 @@
-// The aidx widget driven in a REAL browser against a REAL local SSE server. A tiny Node
-// http server serves an HTML page that embeds the vite-built global bundle, and answers the
 // /api/* routes the widget speaks: the chat-availability probe, a scripted AG-UI chat stream
-// (encoded with TanStack AI's own toServerSentEventsStream — the exact encoder the dev server
-// uses, so the widget's fetchServerSentEvents consumes it natively), a scripted test-runner
-// stream, and the page-bus (push a PageQuery, resolve from the widget's reply). Real transport,
-// real browser, real bundle, real driver — scripted fixtures, not mocks. The authoritative
-// harness→SSE and test-runner→SSE backends are proven by @conciv/core's route ITs.
+
 import {Readable} from 'node:stream'
 import {createServer, type IncomingMessage, type Server, type ServerResponse} from 'node:http'
 import type {AddressInfo} from 'node:net'
@@ -22,12 +16,9 @@ const RISKY_COMMAND = 'rm -rf /tmp/scratch'
 const APPROVAL_ID = 'a1'
 const APPROVE_CALL_ID = 'tc-approve'
 const PAGE_QUERY = {requestId: 'pb1', kind: 'text', selector: '#probe'}
-// A react verb aimed at the non-React probe div: proves the verb routes through the driver to
-// the bippy bridge and degrades gracefully (no fiber) — the happy path is covered by example e2e.
+
 const LOCATE_QUERY = {requestId: 'pbL', kind: 'locate', selector: '#probe'}
 
-// Default fixture for the modal-focused tests: quick terminal off, so there's exactly one chat
-// composer/greeting in the DOM (both layouts render their own ChatPanel when enabled).
 function pageHtml(): string {
   return `<!doctype html><html><head>
     <meta name="pw-api-base" content="">
@@ -51,7 +42,6 @@ function pageHtml(): string {
   </body></html>`
 }
 
-// Fixture with a pw-widget meta so we can exercise the configured trigger position + drag-snap.
 function widgetConfigPageHtml(widgetJson: string): string {
   return `<!doctype html><html><head>
     <meta name="pw-api-base" content="">
@@ -62,7 +52,6 @@ function widgetConfigPageHtml(widgetJson: string): string {
   </body></html>`
 }
 
-// Next-style fixture: no usable meta base (dead host), apiBase supplied via window global instead.
 function globalBasePageHtml(globalBase: string): string {
   return `<!doctype html><html><head>
     <meta name="pw-api-base" content="http://127.0.0.1:1">
@@ -73,12 +62,9 @@ function globalBasePageHtml(globalBase: string): string {
   </body></html>`
 }
 
-// The default scripted turn: a text reply with live usage. Fast (no open-ended hold), so the many
-// tests that just need an assistant reply + usage tracker aren't kept in a loading state.
 async function* chatScript(): AsyncGenerator<StreamChunk> {
   yield {type: EventType.RUN_STARTED, threadId: 't', runId: 'r'}
-  // Live usage injected mid-turn (core does this from claude's message_start) — the tracker fills
-  // before the turn ends, via the widget's onCustomEvent handler.
+
   yield aguiUsageFor({
     modelId: 'claude-opus-4-8[1m]',
     contextWindow: 1000000,
@@ -107,11 +93,6 @@ async function* chatScript(): AsyncGenerator<StreamChunk> {
   }
 }
 
-// A turn that drives a risky Bash tool-call into tanstack's NATIVE approval-requested state via the
-// approval-requested CUSTOM event (the same event core's gate emits). The tool_use id IS the streamed
-// toolCallId, so the approval lands on that tool card. The stream is held open ~900ms (claude blocks
-// on its hook in reality) so the approval bar is observable and the out-of-band decision can post
-// before the turn settles.
 async function* approvalScript(): AsyncGenerator<StreamChunk> {
   yield {type: EventType.RUN_STARTED, threadId: 't', runId: 'r'}
   yield {type: EventType.TEXT_MESSAGE_START, messageId: 'm1', role: 'assistant'}
@@ -130,8 +111,6 @@ async function* approvalScript(): AsyncGenerator<StreamChunk> {
   yield {type: EventType.RUN_FINISHED, threadId: 't', runId: 'r', finishReason: 'stop'}
 }
 
-// A compaction turn: native /compact streams no assistant text. Held open ~700ms so the composer's
-// out-of-band fetch stays in flight long enough for the test to observe the Send-slot spinner.
 async function* compactScript(): AsyncGenerator<StreamChunk> {
   yield {type: EventType.RUN_STARTED, threadId: 't', runId: 'rc'}
   await new Promise((resolve) => setTimeout(resolve, 700))
@@ -140,9 +119,6 @@ async function* compactScript(): AsyncGenerator<StreamChunk> {
 
 const MCP_REPLY = 'MCP reply is visible'
 
-// The exact shape @tanstack/ai's chat() now streams: a generated threadId, an empty reasoning
-// block (START/END, no content — the empty-delta guard), text, MCP tool calls + results, then a
-// second text message. Reproduces "the bot replied but the chat shows nothing".
 async function* mcpAccessScript(): AsyncGenerator<StreamChunk> {
   const threadId = 'thread-1781448888530-xl65usg'
   yield {type: EventType.RUN_STARTED, threadId, runId: 'aidx-run'}
@@ -166,15 +142,11 @@ async function* mcpAccessScript(): AsyncGenerator<StreamChunk> {
   yield {type: EventType.RUN_FINISHED, threadId, runId: 'aidx-run', finishReason: 'stop'}
 }
 
-// Two turns that REUSE the same message ids (t1/m2) across turns — exactly what runAgui's
-// per-turn id counter produces. The second turn's text must still appear as its own reply.
 const collisionState = {n: 0}
 async function* collisionScript(): AsyncGenerator<StreamChunk> {
   collisionState.n += 1
   const text = `Reply turn ${collisionState.n}`
-  // What chat() produces post-fix: a fresh threadId per turn AND message ids scoped to it (runAgui
-  // prefixes minted ids with the threadId), so turn 2 never reuses turn 1's id and the widget
-  // appends a new message instead of overwriting the earlier one.
+
   const threadId = `thread-${collisionState.n}-generated`
   yield {type: EventType.RUN_STARTED, threadId, runId: 'aidx-run'}
   yield {type: EventType.REASONING_MESSAGE_START, messageId: `${threadId}-t1`, role: 'reasoning'}
@@ -185,9 +157,8 @@ async function* collisionScript(): AsyncGenerator<StreamChunk> {
   yield {type: EventType.RUN_FINISHED, threadId, runId: 'aidx-run', finishReason: 'stop'}
 }
 
-// Which script the next POST /api/chat serves; tests set it before sending.
 const chatState = {script: chatScript as () => AsyncGenerator<StreamChunk>}
-// HTTP status the next compaction turn returns; tests set it (e.g. 409) to simulate a busy session.
+
 const compactState = {status: 200}
 
 function writeChatStream(res: ServerResponse): void {
@@ -200,7 +171,6 @@ function writeChatStream(res: ServerResponse): void {
   Readable.fromWeb(sse as Parameters<typeof Readable.fromWeb>[0]).pipe(res)
 }
 
-// Stream a compaction turn (held open ~700ms by compactScript) so the widget's spinner is observable.
 function writeCompactStream(res: ServerResponse): void {
   res.writeHead(200, {
     'content-type': 'text/event-stream',
@@ -211,8 +181,6 @@ function writeCompactStream(res: ServerResponse): void {
   Readable.fromWeb(sse as Parameters<typeof Readable.fromWeb>[0]).pipe(res)
 }
 
-// Read a request body to a string.
-// Read the POST body and report whether it's a compaction turn (intent rides forwardedProps/data).
 function readChatIntent(req: IncomingMessage): Promise<string> {
   return new Promise((resolve) => {
     let body = ''
@@ -241,9 +209,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
   beforeAll(async () => {
     server = createServer((req: IncomingMessage, res: ServerResponse) => {
       const url = req.url ?? ''
-      // The one id-normalization seam: no id → mint a fresh conciv_ id; an conciv_ id → echo; a raw
-      // harness id (an unwrapped external row) → a deterministic conciv_ wrapper (adoption). Stateful in
-      // this closure, exactly like core's resolve.
+
       if (url.startsWith('/api/chat/session/resolve') && req.method === 'POST') {
         void readBody(req).then((body) => {
           const id = (() => {
@@ -259,9 +225,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
         })
         return
       }
-      // Probe → present, so the widget mounts the chat FAB + page-bus (production boot path).
-      // The adopted 'Made in conciv' row resolves to conciv_ext_tok-aidx, which reports a resumable
-      // session (a harness token) so ChatPanel hydrates its history. NB: exclude /sessions.
+
       if (url.startsWith('/api/chat/session') && !url.startsWith('/api/chat/sessions')) {
         const sid = req.headers['conciv-session-id']
         const resumable = sid === 'conciv_ext_tok-aidx'
@@ -326,7 +290,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
           ],
         })
       }
-      // Per-session history keyed by our id: the adopted 'Made in conciv' session loads a thread.
+
       if (url.startsWith('/api/chat/history')) {
         const sid = req.headers['conciv-session-id']
         if (sid === 'conciv_ext_tok-aidx') {
@@ -349,7 +313,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
       if (url === '/api/chat/permission-decision') return writeJson(res, {ok: true})
       if (url === '/api/editor/open') return writeJson(res, {ok: true})
       if (url === '/api/page/reply') return writeJson(res, {ok: true})
-      // Page-bus: as soon as the widget subscribes, push one query and keep the stream open.
+
       if (url === '/api/page/stream') {
         res.writeHead(200, {
           'content-type': 'text/event-stream',
@@ -396,36 +360,27 @@ describe('aidx widget (it) — real browser, real SSE', () => {
       const page = await browser.newPage()
       await page.goto(state.base)
 
-      // The FAB mounts only after the chat-availability probe resolves (production boot path).
       const fab = page.getByRole('button', {name: 'Open conciv chat'})
       await fab.waitFor({state: 'visible'})
       await fab.click()
 
-      // Empty thread → greeting + starters.
       await page.getByText('How can I help you today?').waitFor({state: 'visible'})
 
-      // Send a message; the scripted AG-UI stream renders the assistant text.
       const composer = page.getByLabel('Message the conciv agent')
       await composer.fill('do something')
       await composer.press('Enter')
       await page.getByText(ASSISTANT_TEXT).waitFor({state: 'visible'})
 
-      // The Bash tool-call renders as a shell card showing the command (proves part.arguments → typed
-      // input, since tanstack never populates part.input).
       await page.getByText(RISKY_COMMAND).first().waitFor({state: 'visible'})
 
-      // The approval-requested event drove the part into part.approval → the approval bar renders ON
-      // the card (not a separate GenUi gate). Allow/Deny live here now.
       await page.getByText('Run this action?').waitFor({state: 'visible'})
 
-      // Allowing posts the decision OUT OF BAND (keyed by approval.id), unblocking the harness gate.
       const decision = page.waitForRequest((r) => r.url().includes('/api/chat/permission-decision'))
       await page.getByRole('button', {name: 'Allow'}).click()
       const body = (await decision).postDataJSON() as {approvalId: string; approved: boolean}
       expect(body.approvalId).toBe(APPROVAL_ID)
       expect(body.approved).toBe(true)
 
-      // Clicking optimistically clears the controls.
       await page.getByText('Run this action?').waitFor({state: 'hidden'})
       await page.close()
     } finally {
@@ -444,12 +399,10 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await composer.press('Enter')
     await page.getByText(ASSISTANT_TEXT).waitFor({state: 'visible'})
 
-    // Clicking New session resolves a fresh conciv_ session and opens it as a new pane.
     const reset = page.waitForRequest((r) => r.url().endsWith('/api/chat/session/resolve') && r.method() === 'POST')
     await page.getByRole('button', {name: 'Start a new session'}).click()
     await reset
 
-    // The fresh pane shows the greeting; the prior reply is preserved but in the now-hidden pane.
     await page.getByText('How can I help you today?').waitFor({state: 'visible'})
     expect(await page.getByText(ASSISTANT_TEXT).isVisible()).toBe(false)
     await page.close()
@@ -466,8 +419,6 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await composer.press('Enter')
     await page.getByText(ASSISTANT_TEXT).waitFor({state: 'visible'})
 
-    // The compaction turn carries intent:'compact' — nested on forwardedProps/data like model, the
-    // exact spot @conciv/core's turn route reads. The predicate skips the first (plain) send.
     const compactReq = page.waitForRequest((r) => {
       if (!r.url().endsWith('/api/chat') || r.method() !== 'POST') return false
       const b = r.postDataJSON() as {forwardedProps?: {intent?: string}; data?: {intent?: string}}
@@ -476,20 +427,14 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await page.getByRole('button', {name: 'Compress the conversation'}).click()
     await compactReq
 
-    // While the turn is in flight (server holds the stream ~700ms): the Send button is replaced by the
-    // Ark progress spinner AND the divider reads "Compacting…" (NOT a premature "Context compacted").
     const spinner = page.getByRole('status', {name: /Compacting context/})
     await spinner.waitFor({state: 'visible'})
     expect(await spinner.count()).toBe(1)
     await page.getByRole('separator', {name: /Compacting/}).waitFor({state: 'visible'})
 
-    // Once it completes: the spinner goes away and the same divider flips to "Context compacted".
     await spinner.waitFor({state: 'hidden'})
     await page.getByRole('separator', {name: 'Context compacted'}).waitFor({state: 'visible'})
 
-    // Claude-Code parity: the compaction turn runs out of band, so the thread shows ONLY the divider —
-    // no '/compact' command bubble and no streamed summary (the assistant reply count stays at 1, from
-    // the first turn; the compact stream is drained and discarded).
     expect(await page.getByText('/compact').count()).toBe(0)
     expect(await page.getByText(ASSISTANT_TEXT).count()).toBe(1)
     await page.close()
@@ -512,12 +457,9 @@ describe('aidx widget (it) — real browser, real SSE', () => {
       await page.getByRole('button', {name: 'Compress the conversation'}).click()
       await compactReq
 
-      // The 409 settles: the optimistic boundary is REMOVED, never flipping to "Context compacted".
-      // (The fast-fail path adds then removes the divider in ms, so the transient "Compacting" state is
-      // not asserted — the regression is that the false "Context compacted" must never appear.)
       await page.getByRole('separator', {name: /Compacting/}).waitFor({state: 'hidden'})
       expect(await page.getByRole('separator', {name: 'Context compacted'}).count()).toBe(0)
-      // Scrollback intact: the prior assistant reply is still present.
+
       expect(await page.getByText(ASSISTANT_TEXT).count()).toBe(1)
       await page.close()
     } finally {
@@ -536,12 +478,10 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await composer.press('Enter')
     await page.getByText(ASSISTANT_TEXT).waitFor({state: 'visible'})
 
-    // The streamed usage snapshot drives the ring: 35,895 / 1,000,000 ≈ 3.6%.
     const trigger = page.getByRole('img', {name: 'Model context usage'})
     await trigger.waitFor({state: 'visible'})
     await page.getByText('3.6%').first().waitFor({state: 'visible'})
 
-    // Hovering opens the top-layer popover with the cost footer.
     await trigger.hover()
     await page.getByText('Total cost').waitFor({state: 'visible'})
     await page.getByText('$0.12').waitFor({state: 'visible'})
@@ -555,7 +495,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
 
     const fab = page.getByRole('button', {name: 'Open conciv chat'})
     await fab.waitFor({state: 'visible'})
-    // The configured position pins the FAB to a corner (read the resolved inset, not a class).
+
     const corner = () =>
       fab.evaluate((el) => {
         const c = getComputedStyle(el)
@@ -563,7 +503,6 @@ describe('aidx widget (it) — real browser, real SSE', () => {
       })
     expect(await corner()).toMatchObject({top: '20px', left: '20px'})
 
-    // Drag the FAB from the top-left toward the bottom-right corner.
     const box = await fab.boundingBox()
     if (!box) throw new Error('no FAB box')
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
@@ -571,7 +510,6 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await page.mouse.move(960, 770, {steps: 10})
     await page.mouse.up()
 
-    // After the snap animation it commits the nearest preset and persists it.
     await page.waitForFunction(() => localStorage.getItem('conciv-fab-position') === 'bottom-right', undefined, {
       timeout: 2000,
     })
@@ -586,13 +524,13 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     const fab = page.getByRole('button', {name: 'Open conciv chat'})
     await fab.waitFor({state: 'visible'})
     await fab.click()
-    // Let the open animation settle so the handle's box is stable before we grab it.
+
     await page.getByText('How can I help you today?').waitFor({state: 'visible'})
     await page.waitForTimeout(300)
 
     const panel = page.locator('#pw-chat-panel')
     const before = (await panel.boundingBox())!.height
-    // Bottom-anchored panel → the resize handle sits on its top edge; dragging up grows it.
+
     const handle = page.getByRole('separator', {name: 'Resize chat height'})
     const hb = (await handle.boundingBox())!
     await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2)
@@ -603,7 +541,6 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     expect(after).toBeGreaterThan(before + 80)
     expect(Number(await page.evaluate(() => localStorage.getItem('conciv-modal-height')))).toBeGreaterThan(before)
 
-    // Dragging the edge far past the collapse threshold closes the panel (Devtools behavior).
     const hb2 = (await page.getByRole('separator', {name: 'Resize chat height'}).boundingBox())!
     await page.mouse.move(hb2.x + hb2.width / 2, hb2.y + hb2.height / 2)
     await page.mouse.down()
@@ -633,7 +570,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
 
     const panel = page.locator('#pw-chat-panel')
     const before = (await panel.boundingBox())!.width
-    // Bottom-right anchored panel → the width handle is on its left edge; dragging left grows it.
+
     const handle = page.getByRole('separator', {name: 'Resize chat width'})
     const hb = (await handle.boundingBox())!
     await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2)
@@ -658,7 +595,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
 
     const panel = page.locator('#pw-chat-panel')
     const before = (await panel.boundingBox())!.height
-    // The height separator is keyboard-operable; bottom-anchored panel grows 'up' on ArrowUp (24px/step).
+
     const sep = page.getByRole('separator', {name: 'Resize chat height'})
     await sep.focus()
     await sep.press('ArrowUp')
@@ -669,7 +606,6 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await page.close()
   })
 
-  // Reads aria-hidden of a shadow-DOM element by selector (the widget lives in an open shadow root).
   const ariaHiddenOf = (sel: string) =>
     `(() => document.querySelector('[data-conciv-root]')?.shadowRoot?.querySelector('${sel}')?.getAttribute('aria-hidden'))()`
 
@@ -681,12 +617,10 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await sheet.waitFor({state: 'attached'})
     expect(await sheet.getAttribute('aria-hidden')).toBe('true')
 
-    // The configured hotkey drops the sheet.
     await page.keyboard.press('Control+k')
     await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'false'`, undefined, {timeout: 2000})
     await page.getByText('How can I help you today?').waitFor({state: 'visible'})
 
-    // Opening focuses the pane's composer (the shadow root's active element is the composer textarea).
     await page.waitForFunction(
       () => {
         const active = document.querySelector('[data-conciv-root]')?.shadowRoot?.activeElement
@@ -696,12 +630,9 @@ describe('aidx widget (it) — real browser, real SSE', () => {
       {timeout: 2000},
     )
 
-    // Escape raises it again.
     await page.keyboard.press('Escape')
     await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'true'`, undefined, {timeout: 2000})
 
-    // Closed, the off-screen sheet is inert so its composer/buttons leave the tab order
-    // (and don't trip the aria-hidden-focus rule).
     const closedInert = await page.evaluate(
       () =>
         (document.querySelector('[data-conciv-root]')?.shadowRoot?.querySelector('[data-pw-qt]') as HTMLElement)?.inert,
@@ -710,7 +641,6 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await page.close()
   })
 
-  // Bounding rect (viewport coords) of a shadow-DOM element by selector.
   const rectOf = (sel: string) =>
     `(() => { const el = document.querySelector('[data-conciv-root]')?.shadowRoot?.querySelector('${sel}'); return el ? el.getBoundingClientRect() : null })()`
 
@@ -720,13 +650,10 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     const sheet = page.locator('[data-pw-qt]')
     await sheet.waitFor({state: 'attached'})
 
-    // Drop the sheet; open, it occupies the top of the viewport (its top edge at y≈0).
     await page.keyboard.press('Control+k')
     await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'false'`, undefined, {timeout: 2000})
     await page.waitForFunction(`${rectOf('[data-pw-qt]')}?.top <= 1`, undefined, {timeout: 2000})
 
-    // Click Close (the user's own gesture, not Escape). The -translate-y-[101%] must take it fully
-    // above the viewport — otherwise the inert sheet stays painted over the page and feels "stuck".
     await page.getByRole('button', {name: 'Close quick terminal'}).click()
     await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'true'`, undefined, {timeout: 2000})
     await page.waitForFunction(`${rectOf('[data-pw-qt]')}?.bottom <= 0`, undefined, {timeout: 2000})
@@ -747,7 +674,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     const handle = page.getByRole('separator', {name: 'Resize quick terminal height'})
     const sb = (await sheet.boundingBox())!
     const hb = (await handle.boundingBox())!
-    // Top-anchored sheet → drag the bottom handle DOWN to grow it.
+
     await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2)
     await page.mouse.down()
     await page.mouse.move(hb.x + hb.width / 2, hb.y + 160, {steps: 8})
@@ -763,12 +690,10 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await page.keyboard.press('Control+k')
     await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'false'`, undefined, {timeout: 2000})
 
-    // Split into two panes, then focus the FIRST pane (the second is focused right after split).
     await page.getByRole('button', {name: 'Split pane'}).click()
     await page.waitForFunction(`${countOf('[data-pw-qt-pane]')} === 2`, undefined, {timeout: 2000})
     await page.locator('[data-pw-qt-pane]').first().dispatchEvent('pointerdown')
-    // Focus is no longer a marker class — the focused pane is the one that holds composer focus, so
-    // assert the first pane contains the shadow root's active element (its own composer).
+
     await page.waitForFunction(
       () => {
         const root = document.querySelector('[data-conciv-root]')?.shadowRoot
@@ -780,7 +705,6 @@ describe('aidx widget (it) — real browser, real SSE', () => {
       {timeout: 2000},
     )
 
-    // Close and reopen — focus returns to the first pane (index 0 persisted).
     await page.keyboard.press('Escape')
     await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'true'`, undefined, {timeout: 2000})
     await page.keyboard.press('Control+k')
@@ -807,14 +731,12 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await fab.click()
     await page.waitForFunction(`${ariaHiddenOf('#pw-chat-panel')} === 'false'`, undefined, {timeout: 2000})
 
-    // The hotkey opens the quick terminal and closes the modal.
     await page.keyboard.press('Control+k')
     await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'false'`, undefined, {timeout: 2000})
     await page.waitForFunction(`${ariaHiddenOf('#pw-chat-panel')} === 'true'`, undefined, {timeout: 2000})
     await page.close()
   })
 
-  // Count of shadow-DOM elements matching a selector (the widget lives in an open shadow root).
   const countOf = (sel: string) =>
     `(() => document.querySelector('[data-conciv-root]')?.shadowRoot?.querySelectorAll('${sel}').length)()`
 
@@ -825,24 +747,21 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await page.keyboard.press('Control+k')
     await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'false'`, undefined, {timeout: 2000})
 
-    // Clicking PiP opens a separate window and moves the live sheet into it.
     const [popup] = await Promise.all([
       page.waitForEvent('popup'),
       page.getByRole('button', {name: 'Pop out to a window'}).click(),
     ])
     await popup.waitForLoadState()
-    // The sheet now lives in the PiP window's shadow root, and its styles came along (system-ui,
-    // not the serif initial) — proving the shadow style text travelled.
+
     const inPip = await popup.evaluate(() => {
       const qt = document.querySelector('[data-pw-pip-host]')?.shadowRoot?.querySelector('[data-pw-qt]')
       return {present: !!qt, font: qt ? getComputedStyle(qt as Element).fontFamily : ''}
     })
     expect(inPip.present).toBe(true)
     expect(inPip.font).toContain('system-ui')
-    // It left a placeholder in the page (no [data-pw-qt] there while popped).
+
     expect(await page.evaluate(countOf('[data-pw-qt]'))).toBe(0)
 
-    // Closing the PiP window re-docks the sheet into the page.
     await popup.close()
     await page.waitForFunction(`${countOf('[data-pw-qt]')} === 1`, undefined, {timeout: 2000})
     await page.close()
@@ -855,22 +774,17 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await page.keyboard.press('Control+k')
     await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'false'`, undefined, {timeout: 2000})
 
-    // One pane on open.
     await page.waitForFunction(`${countOf('[data-pw-qt-pane]')} === 1`, undefined, {timeout: 2000})
 
-    // Split adds a second pane, each with its own composer (its own session).
     await page.getByRole('button', {name: 'Split pane'}).click()
     await page.waitForFunction(`${countOf('[data-pw-qt-pane]')} === 2`, undefined, {timeout: 2000})
     expect(await page.getByRole('textbox', {name: 'Message the conciv agent'}).count()).toBe(2)
 
-    // Each pane bar hosts its own session selector (bar variant) — one Session: trigger per pane.
     expect(await page.getByRole('button', {name: /^Session:/}).count()).toBe(2)
 
-    // Closing one pane leaves the other (reflowed).
     await page.getByRole('button', {name: 'Close pane'}).first().click()
     await page.waitForFunction(`${countOf('[data-pw-qt-pane]')} === 1`, undefined, {timeout: 2000})
 
-    // Closing the last pane closes the terminal.
     await page.getByRole('button', {name: 'Close pane'}).first().click()
     await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'true'`, undefined, {timeout: 2000})
     await page.close()
@@ -912,7 +826,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
       await composer.fill('second question')
       await composer.press('Enter')
       await page.getByText('Reply turn 2').waitFor({state: 'visible', timeout: 10_000})
-      // Turn 2 must NOT overwrite turn 1: both replies coexist as distinct messages.
+
       expect(await page.getByText('Reply turn 1').count()).toBe(1)
       expect(await page.getByText('Reply turn 2').count()).toBe(1)
       await page.close()
@@ -929,32 +843,20 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await fab.click()
     await page.getByText('How can I help you today?').waitFor({state: 'visible'})
 
-    // The pill shows the default model (sonnet) from /api/chat/models.
     const trigger = page.getByRole('button', {name: 'Select model'})
     await trigger.waitFor({state: 'visible'})
     expect(await trigger.textContent()).toContain('Claude Sonnet 4.6')
 
-    // Open it → all four models listed as options (Fable disabled but present). The Opus row exists
-    // only inside the open popover (the pill still shows Sonnet), so it doubles as the open sentinel.
     await trigger.click()
     await page.getByText('Claude Opus 4.8', {exact: true}).waitFor({state: 'visible'})
     expect(await page.getByRole('option').count()).toBe(4)
 
-    // Pick Opus.
     await page.getByText('Claude Opus 4.8', {exact: true}).click()
 
-    // The pill reflects the pick (the trigger's label span updates).
     await trigger.getByText('Claude Opus 4.8').waitFor({state: 'visible', timeout: 3000})
 
-    // THE BUG: selecting echoed the model name into the search box, filtering the open list down to
-    // just the picked row. Correct behavior is the popover CLOSES on select. Haiku lives only in the
-    // popover (never in the pill), so its disappearance proves the list closed — not just filtered.
     await page.getByText('Claude Haiku 4.5', {exact: true}).waitFor({state: 'hidden', timeout: 3000})
 
-    // Send NOW, right after the popover closed on select — a clean state with focus free. (Dismissing
-    // a REOPENED popover via Escape/outside-click is unreliable in this shadow-DOM Ark setup and left
-    // the combobox holding focus, so the send must not depend on it.) The chosen model rides the next
-    // turn's POST body; TanStack AI nests connection-body fields on the AG-UI envelope (forwardedProps
     // /data) — the exact spot @conciv/core's chat route reads.
     const composer = page.getByLabel('Message the conciv agent')
     const chatReq = page.waitForRequest((r) => r.url().endsWith('/api/chat') && r.method() === 'POST')
@@ -963,8 +865,6 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     const sent = (await chatReq).postDataJSON() as {forwardedProps?: {model?: string}; data?: {model?: string}}
     expect(sent.forwardedProps?.model ?? sent.data?.model).toBe('opus')
 
-    // Reopen → the full list is back (filter reset on close, nothing removed). Done last because it
-    // leaves the popover open; the page is closed right after.
     await trigger.click()
     await page.getByText('Claude Haiku 4.5', {exact: true}).waitFor({state: 'visible'})
     expect(await page.getByRole('option').count()).toBe(4)
@@ -979,12 +879,9 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await fab.click()
     await page.getByText('How can I help you today?').waitFor({state: 'visible'})
 
-    // Open the selector pill in the modal header (its label is `Session: <title>`).
     const trigger = page.getByRole('button', {name: /^Session:/})
     await trigger.click()
 
-    // Both scripted rows render as options; each row's accessible name encodes origin ("started in
-    // aidx" vs "started externally"), so origin is asserted natively, not via a marker class.
     const aidxItem = page.getByRole('option', {name: /Made in conciv/})
     const extItem = page.getByRole('option', {name: /Made externally/})
     await aidxItem.waitFor({state: 'visible'})
@@ -992,7 +889,6 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     expect(await page.getByRole('option', {name: /Made in conciv[\s\S]*started in conciv/}).count()).toBe(1)
     expect(await page.getByRole('option', {name: /Made externally[\s\S]*started externally/}).count()).toBe(1)
 
-    // Selecting tok-aidx fires a /history fetch carrying the new header; the thread swaps in.
     const historyReq = page.waitForRequest(
       (r) => r.url().includes('/api/chat/history') && r.headers()['conciv-session-id'] === 'conciv_ext_tok-aidx',
     )
@@ -1000,7 +896,6 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await historyReq
     await page.getByText(SWITCHED_REPLY).waitFor({state: 'visible'})
 
-    // Reopen, rename the now-active session — the optimistic title shows on the trigger immediately.
     await trigger.click()
     const renameBtn = page.getByRole('button', {name: 'Rename current session'})
     await renameBtn.waitFor({state: 'visible'})
@@ -1009,7 +904,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await rename.waitFor({state: 'visible'})
     await rename.fill('Renamed thread')
     await rename.press('Enter')
-    // The trigger's label flips to the new title optimistically.
+
     await page.getByRole('button', {name: 'Session: Renamed thread'}).waitFor({state: 'visible', timeout: 3000})
     await page.close()
   })
@@ -1022,7 +917,6 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await fab.click()
     await page.getByText('How can I help you today?').waitFor({state: 'visible'})
 
-    // Switch to the aidx session — this is the choice that must survive a refresh.
     const trigger = page.getByRole('button', {name: /^Session:/})
     await trigger.click()
     await page.getByRole('option', {name: /Made in conciv/}).waitFor({state: 'visible'})
@@ -1033,13 +927,12 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await historyReq
     await page.getByText(SWITCHED_REPLY).waitFor({state: 'visible'})
 
-    // Reload: the modal must reopen to the SAME session, not fall back to "New session".
     await page.reload()
     await fab.waitFor({state: 'visible'})
     await fab.click()
-    // The trigger's label restores to the persisted session title.
+
     await page.getByRole('button', {name: 'Session: Made in conciv'}).waitFor({state: 'visible', timeout: 4000})
-    // The restored session also re-hydrates its own thread.
+
     await page.getByText(SWITCHED_REPLY).waitFor({state: 'visible'})
     await page.close()
   })
@@ -1047,7 +940,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
   it('uses window.__CONCIV_API_BASE__ over the meta tag (Next.js injection path)', async () => {
     const page = await browser.newPage()
     await page.goto(`${state.base}/__global-base`)
-    // The meta base is a dead host; the FAB only mounts if the probe used the window global.
+
     await page.getByRole('button', {name: 'Open conciv chat'}).waitFor({state: 'visible'})
     await page.close()
   })
@@ -1088,22 +981,17 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await fab.click()
     await page.getByText('How can I help you today?').waitFor({state: 'visible'})
 
-    // The user's own prose is in the composer first; grabs must never pollute it.
     const composer = page.getByLabel('Message the conciv agent')
     await composer.fill('make these pop')
 
     const chips = page.locator('[data-pw-grab]')
-    // Enter selection via the composer action, then pick the styled target. react-grab lays a
-    // full-page overlay (z-index max) that intercepts pointer events and resolves the element under
-    // the point, so we drive raw mouse move+click at the target's coords rather than a locator click.
+
     const pick = async (expectCount: number) => {
       await page.getByRole('button', {name: 'Select an element from the page'}).click()
       await page.getByRole('button', {name: 'Cancel element pick'}).waitFor({state: 'visible'})
       const box = await page.locator('#grab-target').boundingBox()
       if (!box) throw new Error('no #grab-target box')
-      // Aim at the card's top-left padding (not its center, which now sits over the h3/p children)
-      // so react-grab resolves the card itself — the clone must include its heading to exercise the
-      // host-reset margin regression.
+
       const cx = box.x + 6
       const cy = box.y + 6
       await page.mouse.move(cx, cy)
@@ -1113,19 +1001,18 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     }
 
     await pick(1)
-    // The grab's text context did NOT land in the input — the textarea is still only the user's prose.
+
     expect(await composer.inputValue()).toBe('make these pop')
 
-    // The chip renders the live, styled clone scaled to fit.
     const scale = chips.first().locator('[data-pw-grab-scale]')
-    // The clone carries the original's inlined computed background (proves getComputedStyle inlining).
+
     const bg = await scale.evaluate((el) =>
       [...el.querySelectorAll('*')]
         .map((n) => getComputedStyle(n).backgroundColor)
         .find((c) => c === 'rgb(91, 58, 166)'),
     )
     expect(bg).toBe('rgb(91, 58, 166)')
-    // The ::before glyph survived as a scoped rule (cloneNode alone drops it).
+
     const pseudo = await scale.evaluate((el) => {
       for (const n of el.querySelectorAll('*')) {
         const c = getComputedStyle(n, '::before').content
@@ -1134,11 +1021,11 @@ describe('aidx widget (it) — real browser, real SSE', () => {
       return null
     })
     expect(pseudo).toContain('PRO')
-    // The real text node came through, and the layer is scaled (never upscaled past 1:1).
+
     expect(await scale.textContent()).toContain('Upgrade plan')
     const transform = await scale.evaluate((el) => getComputedStyle(el).transform)
     expect(transform === 'none' || transform.startsWith('matrix')).toBe(true)
-    // Regression: clone matches the source exactly, not our shadow DOM's UA heading margin/size or a stray border.
+
     const fit = await scale.evaluate((el) => {
       const h3 = el.querySelector('h3')
       const card = h3?.parentElement
@@ -1156,16 +1043,13 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     expect(fit?.borderTopWidth).toBe('0px')
     expect(fit?.overflow).toBeLessThanOrEqual(1)
 
-    // A second pick stacks a second chip (multi-grab is real, not last-wins).
     await pick(2)
     expect(await chips.count()).toBe(2)
 
-    // Removing one chip drops exactly that grab and leaves the typed prose intact.
     await chips.first().getByRole('button', {name: 'Remove grabbed element'}).click()
     expect(await chips.count()).toBe(1)
     expect(await composer.inputValue()).toBe('make these pop')
 
-    // Sending composes the remaining grab context with the message, then clears the chips.
     await composer.press('Enter')
     await chips.first().waitFor({state: 'hidden'})
     await page.close()

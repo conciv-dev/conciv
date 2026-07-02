@@ -1,6 +1,3 @@
-// Token fade-in rehype plugin, ported from Vercel's streamdown (Apache-2.0). See NOTICE.
-// Wraps each word/char of every text node in a <span data-sd-animate> carrying per-token CSS vars.
-// Already-shown tokens get --sd-duration:0ms so re-parsing the growing block never re-animates them.
 import type {Element, Node, Parent, Root, Text} from 'hast'
 import type {Pluggable} from 'unified'
 import {SKIP, visitParents} from 'unist-util-visit-parents'
@@ -9,9 +6,9 @@ export type AnimatePlugin = {
   name: 'animate'
   type: 'animate'
   rehypePlugin: Pluggable
-  // Char count from the previous run, used as prevContentLength on the next run.
+
   setPrevContentLength: (length: number) => void
-  // Total text-node chars from the last run, then resets to 0.
+
   getLastRenderCharCount: () => number
 }
 
@@ -21,9 +18,7 @@ export type AnimateOptions = {
   easing?: string
   sep?: 'word' | 'char'
   stagger?: number
-  // Upper bound on a token's stagger delay. Agents stream in large chunks (many new tokens in one
-  // render); without a cap the per-token delay grows unbounded and the caret floats far ahead of the
-  // still-invisible trailing tokens. Capping keeps any chunk fully faded within ~maxStagger+duration.
+
   maxStagger?: number
 }
 
@@ -101,7 +96,6 @@ type AnimateConfig = {
   maxStagger: number
 }
 
-// Persists for the plugin instance's lifetime; both the rehype closure and the API methods read it.
 type RenderState = {lastRenderCharCount: number; prevContentLength: number}
 
 function processTextNode(
@@ -132,7 +126,7 @@ function processTextNode(
     const partStart = counter.count
     counter.count += part.length
     if (WHITESPACE_ONLY_RE.test(part)) return {type: 'text', value: part} as Text
-    // Already-visible chars (before prevLen) skip the fade so re-parsing never re-animates them.
+
     const skipAnimation = prevLen > 0 && partStart < prevLen
     const delay = skipAnimation ? 0 : Math.min(counter.newIndex++ * config.stagger, config.maxStagger)
     return makeSpan(part, config.animation, config.duration, config.easing, skipAnimation, delay)
@@ -148,8 +142,7 @@ export function createAnimatePlugin(options?: AnimateOptions): AnimatePlugin {
     duration: options?.duration ?? 150,
     easing: options?.easing ?? 'ease',
     sep: options?.sep ?? 'word',
-    // Default 0: tokens in a render fade UNIFORMLY, not sequentially. Sequential stagger floats the
-    // caret over still-invisible (but layout-reserving) trailing tokens — worst on agents' big chunks.
+
     stagger: options?.stagger ?? 0,
     maxStagger: options?.maxStagger ?? 120,
   }

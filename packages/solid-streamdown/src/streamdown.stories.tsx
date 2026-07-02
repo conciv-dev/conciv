@@ -3,8 +3,6 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, waitFor, within} from 'storybook/test'
 import {Streamdown, type CaretVariant, type HighlightCode} from './streamdown.js'
 
-// A throwaway highlighter for the stories: escape + wrap. The widget plugs its real shiki into this
-// exact slot (the `highlightCode` prop) — the point here is to show the code-block override works.
 const escapeHtml = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 const demoHighlight: HighlightCode = (code, lang) =>
   `<pre class="sd-demo-code" data-lang="${lang ?? ''}"><code>${escapeHtml(code)}</code></pre>`
@@ -71,7 +69,6 @@ function logUser(user: User) {
 ![Placeholder](https://via.placeholder.com/150)
 `
 
-// Streams SAMPLE in one character-chunk at a time so the fade-in is visible in the Storybook canvas.
 function StreamingDemo(props: {
   full: string
   animated: boolean
@@ -86,12 +83,12 @@ function StreamingDemo(props: {
     setShown('')
     setDone(false)
     let i = 0
-    const step = Math.max(1, Math.round(full.length / 150)) // Slower for complex
+    const step = Math.max(1, Math.round(full.length / 150))
     const id = setInterval(() => {
       i += step
       setShown(full.slice(0, i))
       if (i >= full.length) {
-        setShown(full) // Ensure final state is exact
+        setShown(full)
         clearInterval(id)
         setDone(true)
       }
@@ -120,7 +117,6 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
-// Fully-rendered (no streaming): proves the markdown surface — headings, lists, code, tables.
 export const Static: Story = {
   render: (args) => (
     <Streamdown animated={false} highlightCode={demoHighlight}>
@@ -129,7 +125,7 @@ export const Static: Story = {
   ),
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
-    // Use regex to match text that might be split across spans
+
     await expect(canvas.getByText(/Streaming Markdown/)).toBeInTheDocument()
     await expect(canvas.getByText(/block-memoized rendering/)).toBeInTheDocument()
     await expect(canvasElement.querySelector('table')).toBeTruthy()
@@ -137,14 +133,11 @@ export const Static: Story = {
   },
 }
 
-// Streams token-by-token with a block caret; watch the fade-in. (Flicker suppression is covered
-// deterministically by the animate-plugin unit test.)
 export const Streaming: Story = {
   render: (args) => (
     <StreamingDemo full={args.children} animated={args.animated ?? true} caret="block" highlightCode={demoHighlight} />
   ),
   play: async ({canvasElement}) => {
-    // Animation on splits text into per-word spans, so assert against reconstructed textContent.
     await waitFor(() => expect(canvasElement.querySelector('[data-sd-animate]')).toBeTruthy(), {timeout: 4000})
     await waitFor(() => expect(canvasElement.textContent).toContain('Streaming Markdown'), {timeout: 10_000})
     await waitFor(() => expect(canvasElement.textContent).toContain('per-token animation'), {timeout: 10_000})
@@ -163,9 +156,6 @@ export const ComplexStreaming: Story = {
   ),
 }
 
-// Frozen mid-stream (isAnimating, never completes) with an earlier complete block + an hr + the
-// growing block. Proves the caret renders on the LAST block's ::after only — never on earlier blocks.
-// Guards against the recursive-::after regression that put a caret on every block's last leaf.
 export const CaretPlacement: Story = {
   render: () => (
     <Streamdown isAnimating caret="block" highlightCode={demoHighlight}>
@@ -175,20 +165,18 @@ export const CaretPlacement: Story = {
   play: async ({canvasElement}) => {
     const root = canvasElement.querySelector('.sd-root') as HTMLElement
     await waitFor(() => expect(root).toBeTruthy(), {timeout: 4000})
-    // The caret var rides the root.
+
     await waitFor(() => expect(getComputedStyle(root).getPropertyValue('--sd-caret')).toContain('▋'), {timeout: 4000})
     const blocks = root.querySelectorAll(':scope > *')
     const lastBlock = blocks[blocks.length - 1] as HTMLElement
-    // Caret renders on the LAST block's ::after, and the last block is the streaming paragraph.
+
     await expect(getComputedStyle(lastBlock, '::after').content).toContain('▋')
     await expect(lastBlock.textContent).toContain('Second paragraph')
-    // No caret on the earlier, completed block.
+
     await expect(getComputedStyle(blocks[0] as HTMLElement, '::after').content).not.toContain('▋')
   },
 }
 
-// The exact TEXT_MESSAGE_CONTENT deltas captured from a real conciv run that mis-rendered the caret.
-// The widget accumulates deltas and passes the growing string to <Markdown> each token, so we do the same.
 const WIDGET_DELTAS = [
   'Another long prose passage, no code.\n\n---\n\nIt occurs to me that what we are doing,',
   ' in the most literal sense, is filling a vessel and watching the level rise, and there',
@@ -234,7 +222,6 @@ const WIDGET_DELTAS = [
   ' next passage will follow this one exactly as this one followed the last.',
 ]
 
-// Replays WIDGET_DELTAS exactly like the widget: accumulate deltas, pass the growing string each token.
 function WidgetReplay(props: {stopAt?: number; speed?: number}): ReturnType<typeof Streamdown> {
   const [text, setText] = createSignal('')
   const [done, setDone] = createSignal(false)
@@ -260,14 +247,10 @@ function WidgetReplay(props: {stopAt?: number; speed?: number}): ReturnType<type
   )
 }
 
-// The full real-stream replay. Watch the caret as tokens land — it must stay inline at the end of the
-// last paragraph, never detach onto its own line.
 export const WidgetStream: Story = {
   render: () => <WidgetReplay />,
 }
 
-// Frozen at the exact first-delta state from the bug report (image #20): para + hr + a partial paragraph.
-// Asserts the caret renders inline on the LAST block (the streaming paragraph), not detached/elsewhere.
 export const WidgetStreamFrozen: Story = {
   render: () => (
     <Streamdown isAnimating caret="block" highlightCode={demoHighlight}>
@@ -277,13 +260,12 @@ export const WidgetStreamFrozen: Story = {
   play: async ({canvasElement}) => {
     const root = canvasElement.querySelector('.sd-root') as HTMLElement
     await waitFor(() => expect(root.textContent).toContain('doing'), {timeout: 4000})
-    // No stagger by default → tokens fade uniformly, never sequentially, so the caret never floats
-    // over an empty gap of still-invisible trailing tokens (the bug from image #20).
+
     const delays = Array.from(root.querySelectorAll('[data-sd-animate]')).map((s) =>
       Number(/--sd-delay:(\d+)ms/.exec((s as HTMLElement).getAttribute('style') ?? '')?.[1] ?? '0'),
     )
     await expect(Math.max(...delays, 0)).toBe(0)
-    // Caret renders inline on the LAST block (the streaming paragraph), never detached or elsewhere.
+
     const blocks = Array.from(root.querySelectorAll(':scope > *')) as HTMLElement[]
     const last = blocks.at(-1)!
     await expect(getComputedStyle(last, '::after').content).toContain('▋')
@@ -291,7 +273,6 @@ export const WidgetStreamFrozen: Story = {
   },
 }
 
-// Circle caret variant.
 export const CaretCircle: Story = {
   render: (args) => (
     <StreamingDemo full={args.children} animated={args.animated ?? true} caret="circle" highlightCode={demoHighlight} />
@@ -301,14 +282,12 @@ export const CaretCircle: Story = {
   },
 }
 
-// Animation off: new tokens appear instantly, no fade spans. Confirms the toggle.
 export const NoAnimation: Story = {
   render: (args) => <StreamingDemo full={args.children} animated={false} highlightCode={demoHighlight} />,
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
     await waitFor(() => expect(canvas.getByText(/Streaming Markdown/)).toBeInTheDocument(), {timeout: 10_000})
-    // Even when animated=false, we keep the span structure for stability, but duration is 0ms.
-    // So we check that it's NOT animating (duration: 0ms).
+
     const span = canvasElement.querySelector('[data-sd-animate]')
     if (span) {
       expect(span.getAttribute('style')).toContain('--sd-duration:0ms')
@@ -316,8 +295,6 @@ export const NoAnimation: Story = {
   },
 }
 
-// remend self-heals unterminated markdown: a half-streamed "**bold" renders as <strong>, not literal
-// asterisks. With parseIncompleteMarkdown=false it stays literal — the side-by-side proof.
 export const IncompleteMarkdown: Story = {
   render: () => (
     <div>
@@ -334,17 +311,14 @@ export const IncompleteMarkdown: Story = {
     </div>
   ),
   play: async ({canvasElement}) => {
-    // Healed: the dangling ** becomes <strong> (no literal asterisks).
     await waitFor(() => expect(canvasElement.querySelector('.sd-healed strong')).toBeTruthy())
     await expect(canvasElement.querySelector('.sd-healed')?.textContent ?? '').not.toContain('**')
-    // Raw: asterisks stay literal, no <strong>.
+
     await expect(canvasElement.querySelector('.sd-raw strong')).toBeFalsy()
     await expect(canvasElement.querySelector('.sd-raw')?.textContent ?? '').toContain('**bold')
   },
 }
 
-// Raw HTML (opt-in via allowRawHtml): allow-listed tags (<kbd>) render; dangerous ones (<script>)
-// are sanitized away. Off by default to keep parse5 out of the base bundle.
 export const RawHtml: Story = {
   render: () => (
     <Streamdown animated={false} allowRawHtml>
@@ -358,7 +332,6 @@ export const RawHtml: Story = {
   },
 }
 
-// harden neutralizes unsafe URLs: a javascript: link must not survive as an href.
 export const LinkSafety: Story = {
   render: () => (
     <Streamdown animated={false}>{'[click me](javascript:alert(1)) and [ok](https://example.com)'}</Streamdown>

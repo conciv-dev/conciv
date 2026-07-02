@@ -19,7 +19,6 @@ function strField(chunk: StreamChunk | undefined, key: string): string | undefin
   return typeof v === 'string' ? v : undefined
 }
 
-// Verbatim codex exec --json event lines (verified against the codex CLI docs).
 const THREAD = JSON.stringify({type: 'thread.started', thread_id: 'th-1'})
 const AGENT = JSON.stringify({
   type: 'item.completed',

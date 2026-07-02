@@ -4,15 +4,9 @@ import {z} from 'zod'
 import {readJson} from '../fs.js'
 import {statePaths} from '../state-paths.js'
 
-// A per-session `<stateRoot>/.conciv/agent.<sessionId>.lock` that serializes one session's turns:
-// two processes appending to the same harness session at once corrupt its transcript, so only one
-// run per session may be live at a time (distinct sessions run in parallel). The file records the
-// holder's role + pid; a lock whose pid is dead is treated as free (crash recovery). Harness-agnostic.
-
 export type LockRole = 'iterate' | 'chat'
 export type LockState = {held: boolean; role: LockRole | null; pid: number | null}
 
-// The on-disk lock-file shape. Validated with Zod (tolerant of extra/missing keys).
 const LockFileSchema = z.object({role: z.enum(['iterate', 'chat']).optional(), pid: z.number().optional()}).loose()
 
 export function readLock(stateRoot: string, sessionId: string): LockState {
@@ -21,20 +15,17 @@ export function readLock(stateRoot: string, sessionId: string): LockState {
   return {held: true, role: parsed.role ?? null, pid: parsed.pid}
 }
 
-// Acquire atomically: O_EXCL create is the mutex. If the file already exists, reclaim it only when
-// the recorded pid is dead (crash recovery); a live holder means we lost the race → false.
 export function acquireLock(stateRoot: string, sessionId: string, role: LockRole, pid: number): boolean {
   const path = statePaths(stateRoot).lockFor(sessionId)
   const body = JSON.stringify({role, pid, startedTs: Date.now()})
   mkdirSync(dirname(path), {recursive: true})
   try {
-    writeFileSync(path, body, {flag: 'wx'}) // wx = create + fail if exists (atomic)
+    writeFileSync(path, body, {flag: 'wx'})
     return true
   } catch {
-    // Exists. Reclaim iff the current holder is stale (dead pid); else we lost the race.
     if (readLock(stateRoot, sessionId).held) return false
     try {
-      writeFileSync(path, body) // overwrite the stale lock
+      writeFileSync(path, body)
       return true
     } catch {
       return false
@@ -42,9 +33,6 @@ export function acquireLock(stateRoot: string, sessionId: string, role: LockRole
   }
 }
 
-// Re-point an already-held lock at a new pid (the spawned child) without releasing it, so the stop
-// route's process.kill targets the child rather than the up-front holder (the dev server). The caller
-// must already hold the lock; this overwrites in place, it does not contend.
 export function updateLockPid(stateRoot: string, sessionId: string, role: LockRole, pid: number): void {
   writeFileSync(statePaths(stateRoot).lockFor(sessionId), JSON.stringify({role, pid, startedTs: Date.now()}))
 }
@@ -52,13 +40,9 @@ export function updateLockPid(stateRoot: string, sessionId: string, role: LockRo
 export function releaseLock(stateRoot: string, sessionId: string): void {
   try {
     rmSync(statePaths(stateRoot).lockFor(sessionId))
-  } catch {
-    // already gone
-  }
+  } catch {}
 }
 
-// Enumerate live session locks (header ids) by scanning the `agent.<id>.lock` files — drives the
-// selector's running indicator. Dead-pid (stale) locks are filtered out via readLock.
 export function readLocks(stateRoot: string): {key: string; role: LockRole | null; pid: number}[] {
   let files: string[]
   try {
@@ -77,7 +61,7 @@ export function readLocks(stateRoot: string): {key: string; role: LockRole | nul
 
 function pidAlive(pid: number): boolean {
   try {
-    process.kill(pid, 0) // signal 0 = existence check; throws ESRCH when the pid is gone
+    process.kill(pid, 0)
     return true
   } catch {
     return false

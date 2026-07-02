@@ -8,18 +8,10 @@ import {splitExtension} from './split-extension.js'
 export const EXTENSIONS_VIRTUAL_ID = 'virtual:conciv-extensions'
 export const EXTENSIONS_RESOLVED_ID = '\0' + EXTENSIONS_VIRTUAL_ID
 
-// The built-in extensions a host wires into the plugin: their SERVER halves (the engine mounts) and
-// their CLIENT entry module specifiers (the widget bundle imports). The plugin itself is generic — it
-// never imports a concrete extension; @conciv/it supplies the shipped built-ins, the testkit supplies
-// the extension under test.
 export type Builtins = {serverExtensions: readonly AnyExtension[]; clientEntries: readonly string[]}
 
 export const NO_BUILTINS: Builtins = {serverExtensions: [], clientEntries: []}
 
-// The single client entry the plugin serves through Vite (so the widget, every extension, solid-js and
-// @conciv/extension share ONE Vite graph + one ExtensionRuntimeContext). It imports each built-in's
-// client view, globs the file-based extensions (default export = an ExtensionBuilder, server half
-// already collapsed by the transform), and hands them all to mountWidget — no global, no queue.
 export function extensionsModuleSource(clientEntries: readonly string[]): string {
   const imports = clientEntries.map((entry, index) => `import builtin${index} from ${JSON.stringify(entry)}`)
   const builtinNames = clientEntries.map((_, index) => `builtin${index}`)
@@ -36,7 +28,6 @@ export function extensionsModuleSource(clientEntries: readonly string[]): string
 const EXTENSION_DIR = 'conciv/extensions'
 const EXTENSION_RE = /\.(?:ts|tsx|js|jsx)$/
 
-// Discover the extension files under <root>/conciv/extensions (none → empty list, no dir → empty).
 function extensionFiles(root: string): string[] {
   try {
     return readdirSync(join(root, EXTENSION_DIR))
@@ -47,10 +38,6 @@ function extensionFiles(root: string): string[] {
   }
 }
 
-// Load each extension's SERVER half and collect its contributions (extra agent tools + system prompt
-// text) for the engine. Each file is split for node first (collapse .client()/.render() + drop their
-// imports) so the backend never loads client/card/Solid code, then jiti evaluates the collapsed
-// source. jiti is bundler-agnostic; re-runs on dev-server (re)start, server edits need a restart.
 export async function loadServerExtensions(
   root: string,
   builtinServerExtensions: readonly AnyExtension[],

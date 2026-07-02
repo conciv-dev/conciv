@@ -1,5 +1,3 @@
-// The element ref registry + accessibility snapshot. Refs map snapshot node → live element
-// via WeakRef (no DOM mutation, no leak). Stale after re-render → re-snapshot.
 export type Refs = {map: Map<string, WeakRef<Element>>; n: number}
 export type SnapNode = {
   ref: string
@@ -82,8 +80,6 @@ function isInteresting(el: Element): boolean {
   return tag in ROLE_BY_TAG
 }
 
-// Walk a subtree, assigning a fresh ref to each interesting element. Resets the registry
-// so refs always belong to the latest snapshot.
 export function buildSnapshot(root: Element, refs: Refs): SnapNode[] {
   refs.map.clear()
   refs.n = 0
@@ -112,8 +108,6 @@ export function buildSnapshot(root: Element, refs: Refs): SnapNode[] {
   return out
 }
 
-// Register a single element in the ref registry without resetting it (used by react verbs,
-// which coexist with the last DOM snapshot's refs).
 export function addRef(el: Element, refs: Refs): string {
   refs.n += 1
   const ref = `v${refs.n}`

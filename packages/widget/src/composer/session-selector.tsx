@@ -6,17 +6,13 @@ import type {ChatSessionMeta, SessionId} from '@conciv/protocol/chat-types'
 import {defineClient} from '@conciv/api-client'
 import {sessions, status, loadSessions, invalidateSessions, applyTitle} from '../client/session-store-client.js'
 
-// One id-prefix per mounted instance so two selectors under one shadow root never share Ark's
-// aria-controls / activedescendant ids (a11y — §6).
 let instanceSeq = 0
 
-// Header icon buttons (rename / new): square ghost buttons that fill in on hover.
 const ACT =
   'inline-flex items-center justify-center size-7 shrink-0 [border:0] rounded-pw-sm bg-transparent text-pw-text-2 cursor-pointer hover:bg-pw-fill-strong hover:text-pw-text-hi [&[aria-disabled=true]]:opacity-50 [&[aria-disabled=true]]:cursor-not-allowed'
-// Loading skeleton row: a shimmering gradient swept by the pw-session-skel keyframes (kept in CSS).
+
 const SKEL = 'h-8 rounded-pw-sm skel-bg [background-size:200%_100%] anim-skel'
 
-// Recency bucket from a ms timestamp, relative to now. Recomputed reactively (not snapshotted).
 function bucketOf(updatedAt: number, now: number): 'Today' | 'Yesterday' | 'Earlier' {
   const day = 86_400_000
   const startOfToday = now - (now % day)
@@ -25,7 +21,6 @@ function bucketOf(updatedAt: number, now: number): 'Today' | 'Yesterday' | 'Earl
   return 'Earlier'
 }
 
-// A coarse absolute-ish relative label for the row's aria-label ("Edited 2 hours ago").
 function relativeTime(updatedAt: number, now: number): string {
   const s = Math.max(0, Math.round((now - updatedAt) / 1000))
   if (s < 60) return 'just now'
@@ -42,7 +37,6 @@ function metaLabel(s: ChatSessionMeta, now: number): string {
   return `Edited ${relativeTime(s.updatedAt, now)} · ${s.messageCount} messages · ${origin}`
 }
 
-// Sessions grouped by recency bucket, preserving the store's newest-first order within each bucket.
 function groupsOf(list: ChatSessionMeta[], now: number): {name: string; items: ChatSessionMeta[]}[] {
   const order: ('Today' | 'Yesterday' | 'Earlier')[] = ['Today', 'Yesterday', 'Earlier']
   const byBucket = new Map<string, ChatSessionMeta[]>()
@@ -58,18 +52,17 @@ function groupsOf(list: ChatSessionMeta[], now: number): {name: string; items: C
 export function SessionSelector(props: {
   variant: 'pill' | 'bar'
   apiBase: string
-  // The active session id, and a callback to make a (resolved) session active. The selector owns the
-  // resolve (adopting an external row id) + rename; the surface owns what "active" means.
+
   activeId: () => SessionId | null
   onActivate: (id: SessionId) => void
   lockedElsewhere: (id: string) => boolean
   announce: (msg: string, assertive?: boolean) => void
 }): JSX.Element {
   const idPrefix = `pw-session-${++instanceSeq}`
-  // Header-less: resolve takes the id in its body, rename takes the sessionId in its body.
+
   const api = defineClient({apiBase: props.apiBase})
   const activeId = () => props.activeId()
-  // Narrowed to a plain string[] for Ark's controlled value (drops null without a cast).
+
   const valueArr = (): string[] => {
     const id = activeId()
     return id ? [id] : []
@@ -82,8 +75,7 @@ export function SessionSelector(props: {
     itemToString: (s) => s.title,
     filter: (_text, q, item) => `${item.title} ${item.id}`.toLowerCase().includes(q.toLowerCase()),
   })
-  // VERIFIED (@ark-ui/solid 5.37.1): initialItems is read once; the only reactive update path is
-  // set(). set() also clears the filter text, so re-apply our query after. Don't recreate the hook.
+
   createEffect(() => {
     set(sessions())
     if (query()) filter(query())
@@ -97,13 +89,11 @@ export function SessionSelector(props: {
   const triggerLabel = () => activeRow()?.title || 'New session'
   const canRename = () => activeRow() !== null
 
-  // Inline rename state (header, not a row). Commit-once dedupes Enter+blur.
   const [renaming, setRenaming] = createSignal(false)
   const [draft, setDraft] = createSignal('')
   const [renameBusy, setRenameBusy] = createSignal(false)
   let searchEl: HTMLInputElement | undefined
-  // After a rename ends, land focus back in the search box (not the pencil) — otherwise clicking the
-  // search toggles Ark's openOnClick and closes the still-open popover, so it reads as "can't click".
+
   const focusSearch = () => requestAnimationFrame(() => searchEl?.focus())
   const startRename = () => {
     const row = activeRow()
@@ -119,14 +109,14 @@ export function SessionSelector(props: {
     if (!renaming()) return
     setRenaming(false)
     const row = activeRow()
-    const id = props.activeId() // the active row is always our id
+    const id = props.activeId()
     const next = draft().trim()
     if (!row || !id || !next || next === row.title) {
       focusSearch()
       return
     }
     const prev = row.title
-    applyTitle(id, next) // optimistic
+    applyTitle(id, next)
     setRenameBusy(true)
     void api
       .rename({sessionId: id, title: next})
@@ -135,7 +125,7 @@ export function SessionSelector(props: {
         props.announce(`Renamed to ${r.title}`)
       })
       .catch(() => {
-        applyTitle(id, prev) // rollback
+        applyTitle(id, prev)
         props.announce('Rename failed, reverted', true)
       })
       .finally(() => {
@@ -145,8 +135,6 @@ export function SessionSelector(props: {
     focusSearch()
   }
 
-  // Switch / open an external row: resolve its id to ours (adopting an external transcript), then
-  // hand it to the surface. resolve is the only call that may carry a non-ours row id.
   const select = (id: string) => {
     if (!id || id === activeId()) return
     const title = sessions().find((s) => s.id === id)?.title ?? id
@@ -157,7 +145,6 @@ export function SessionSelector(props: {
     })
   }
 
-  // New session: resolve with no id → a fresh conciv_ record, then make it active.
   const newSession = () => {
     void api.resolve().then(({sessionId}) => {
       props.onActivate(sessionId)
@@ -210,7 +197,7 @@ export function SessionSelector(props: {
           data-empty={canRename() ? undefined : ''}
           aria-label={`Session: ${triggerLabel()}`}
         >
-          {/* Leading marker: a status dot for a live session, an accent spark for a fresh one. */}
+          {}
           <Show when={canRename()} fallback={<Sparkles class="text-pw-accent shrink-0 size-3.25" aria-hidden="true" />}>
             <span class="rounded-[50%] bg-pw-accent shrink-0 size-1.75" aria-hidden="true" />
           </Show>
@@ -223,7 +210,7 @@ export function SessionSelector(props: {
       </Combobox.Control>
       <Combobox.Positioner>
         <Combobox.Content class="p-1 border border-pw-line-2 rounded-pw-md bg-pw-panel flex-col max-h-90 w-70 hidden shadow-pw-lg z-10 focus-visible:outline-none data-[state=open]:flex data-[state=open]:anim-combo">
-          {/* Header: search + rename + new + retry. Always in Tab order, OUTSIDE the listbox. */}
+          {}
           <div class="mb-1 border-b border-b-pw-line-soft flex gap-1 items-center">
             <Show
               when={!renaming()}

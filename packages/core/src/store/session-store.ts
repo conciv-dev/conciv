@@ -2,8 +2,6 @@ import {createStorage, type Storage} from 'unstorage'
 import fsDriver from 'unstorage/drivers/fs-lite'
 import {SessionRecordSchema, type SessionRecord, type SessionRecordInput} from '@conciv/protocol/chat-types'
 
-// Domain interface — the only thing the rest of core imports. No storage primitives leak past it.
-// Inputs accept raw (unbranded) data; the schema validates + brands it, so reads return SessionRecord.
 export type SessionStore = {
   create(record: Omit<SessionRecordInput, 'createdAt' | 'updatedAt'>): Promise<SessionRecord>
   get(id: string): Promise<SessionRecord | null>
@@ -13,11 +11,7 @@ export type SessionStore = {
   findByHarnessId(harnessSessionId: string): Promise<SessionRecord | null>
 }
 
-// `now` is injected so tests are deterministic and the store stays pure.
 function makeStore(storage: Storage, now: () => number): SessionStore {
-  // One promise chain per key serializes that session's read-modify-writes, so concurrent writes
-  // (e.g. onSessionId token + turn-end usage) never tear a non-atomic fs file. This is the "atomic
-  // per-session" guarantee; distinct sessions still proceed in parallel.
   const queues = new Map<string, Promise<unknown>>()
   const withKey = <T>(key: string, fn: () => Promise<T>): Promise<T> => {
     const run = (queues.get(key) ?? Promise.resolve()).then(fn, fn)
@@ -64,13 +58,10 @@ function makeStore(storage: Storage, now: () => number): SessionStore {
   }
 }
 
-// Build a store over any unstorage backend — the seam where the driver swaps (fs in prod, memory or
-// sqlite/redis later) without any caller or the domain interface changing.
 export function createSessionStore(storage: Storage, now: () => number = Date.now): SessionStore {
   return makeStore(storage, now)
 }
 
-// fs: one file per session under <stateRoot>/.conciv/sessions/ — atomic per session.
 export function createFsSessionStore(opts: {stateRoot: string; now?: () => number}): SessionStore {
   const storage = createStorage({
     driver: fsDriver({base: `${opts.stateRoot}/.conciv/sessions`}),

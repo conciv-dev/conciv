@@ -54,7 +54,6 @@ describe('symbolicateFrame', () => {
   })
 
   it('refuses a file:// frame outside the project root (path traversal)', async () => {
-    // Written to tmpdir, but root is a sibling dir → containment check fails → null.
     const path = await chunkWithInlineMap('app/page.tsx', 17, 4)
     const loc = await symbolicateFrame({fileName: `file://${path}`, line: 2, column: 1}, join(ROOT, 'nope-subdir'))
     expect(loc).toBeNull()

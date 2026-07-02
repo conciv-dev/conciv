@@ -78,7 +78,7 @@ export const LiveActionsOnly: Story = {
     await waitFor(() => expect(c.getByRole('button', {name: 'Copy'})).toBeVisible())
     await expect(c.getByRole('button', {name: 'Reload'})).toBeVisible()
     await expect(c.getByRole('button', {name: 'Export markdown'})).toBeVisible()
-    // Gated actions render null without a handler.
+
     await expect(c.queryByRole('button', {name: 'Edit'})).toBeNull()
     await expect(c.queryByRole('button', {name: 'Speak'})).toBeNull()
     await expect(c.queryByRole('button', {name: 'Good response'})).toBeNull()
@@ -95,8 +95,6 @@ export const GatedActionsLightUpWithHandlers: Story = {
   },
 }
 
-// autohide="not-last": a non-last message's bar is hidden until the message is hovered, then it floats
-// (data-floating) because autohideFloat covers our single-branch model. Faithful useActionBarFloatStatus.
 function FloatBar(): JSX.Element {
   return (
     <ActionBar.Root role="toolbar" autohide="not-last" autohideFloat="single-branch" class="flex gap-1">
@@ -142,7 +140,7 @@ export const AutohideFloatOnHover: Story = {
   render: () => <FloatFrame />,
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    // The assistant turn is not last (the user "thanks" follows) → its bar is hidden until hover.
+
     await waitFor(() => expect(c.getByText('Add the missing await on line 12.')).toBeVisible())
     await expect(c.queryByRole('toolbar')).toBeNull()
     await userEvent.hover(c.getByText('Add the missing await on line 12.'))

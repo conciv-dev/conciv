@@ -2,7 +2,6 @@ import type {ThemeTokens, ThemeTokenName} from '@conciv/ui-kit-system'
 
 const merged: ThemeTokens = {}
 
-// Inject/update one override <style> after the base tokens so plugin theme wins by source order.
 export function applyThemeOverrides(root: ShadowRoot | Document, overrides: ThemeTokens): void {
   Object.assign(merged, overrides)
   const selector = root instanceof Document ? ':root' : ':host'

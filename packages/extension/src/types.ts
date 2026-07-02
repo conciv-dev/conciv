@@ -60,18 +60,12 @@ export type ServerApi<Config> = {config: Config; cwd: string; app: H3}
 
 export type ServerResult<Context> = {context: Context; dispose?: () => void | Promise<void>}
 
-// Page introspection handed to a client extension: where the cursor is, what a host element is, and
-// the element's source location (the widget supplies the concrete react-bridge implementation).
 export type PageInspect = {
   elementAt: (x: number, y: number) => Element | null
   describe: (host: Element) => {component: string; file: string | null}
   locate: (el: Element) => Promise<LocateResult | null>
 }
 
-// What an extension's .client() factory receives. Runs once at widget mount (server-independent), so a
-// built-in like highlight works even when the chat probe fails. Beyond the chat client it carries the
-// page capabilities a page-control extension needs: introspection, open-in-editor, a toast, a shared
-// overlay surface, and the document/window environment.
 export type ClientApi = {
   apiBase: string
   activeSession: () => string | null
@@ -80,14 +74,10 @@ export type ClientApi = {
   openSource: (loc: LocateResult) => Promise<OpenSourceResult>
   toast: (message: string, tone?: 'info' | 'success' | 'error') => void
   surface: () => HTMLElement
-  // Register an open-state accessor so the host suppresses the chat shell (shrinks to a pill) while the
-  // extension's own overlay is open. Returns a disposer. Lets an extension drive suppression without
-  // rendering the host's Dialog/Popover (which, anchored inside the effects-surface shadow root, fail to
-  // position). Read reactively by the shell.
+
   suppressWhile: (active: () => boolean) => () => void
   Dialog: () => DialogApi
-  // Only the anchored-popover members the contract guarantees; typing the whole Ark compound drags
-  // CloseTrigger's resolution-mode-sensitive prop symbols across the .d.ts boundary and fails to align.
+
   Popover: () => {
     Root: Component<ComponentProps<PopoverApi['Root']>>
     Positioner: Component<ComponentProps<PopoverApi['Positioner']>>

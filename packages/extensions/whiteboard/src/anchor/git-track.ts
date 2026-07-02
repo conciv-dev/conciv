@@ -3,8 +3,6 @@ import {promisify} from 'node:util'
 
 const run = promisify(execFile)
 
-// Shell-free git: execFile (no shell), and every path arg goes after `--` as a single argv element so
-// a crafted file name can never become a flag.
 const git = async (root: string, args: string[]): Promise<string> => {
   const {stdout} = await run('git', args, {cwd: root, maxBuffer: 16 * 1024 * 1024})
   return stdout
@@ -33,9 +31,6 @@ export async function isCommittedClean(root: string, file: string): Promise<bool
 
 const HUNK = /^@@ -(\d+)(?:,(\d+))? \+\d+(?:,(\d+))? @@/
 
-// Map a 1-based line from `fromCommit` to its position at HEAD, commit-granular. Sums the line delta of
-// every hunk that lies entirely above the target; returns null if a hunk straddles the line (the line
-// itself was edited/removed, so it can't be cleanly relocated) or git can't diff the range.
 export async function mapLineAcrossCommits(opts: {
   root: string
   file: string

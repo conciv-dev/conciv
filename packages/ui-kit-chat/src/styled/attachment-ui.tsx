@@ -4,11 +4,9 @@ import {Tooltip} from '@conciv/ui-kit-system'
 import {Attachment, useAttachment} from '../primitives/attachment/attachment.js'
 import {FOCUS, FOCUS_INSET} from './classes.js'
 
-// assistant-ui's AttachmentUI tile: a square thumb (image preview or file-icon fallback) with the file
-// name in a tooltip; composer attachments also get a remove button. Neutral tokens.
 const TILE =
   'relative size-14 overflow-hidden rounded-[var(--chat-radius-md)] [border:1px_solid_var(--chat-line)] [background:var(--chat-fill)] cursor-default'
-// 24px hit target (WCAG 2.5.8) — the X glyph stays small, the button area meets the minimum.
+
 const REMOVE = `absolute end-0.5 top-0.5 inline-flex items-center justify-center size-6 rounded-[var(--chat-radius-pill)] [background:var(--chat-panel)] [color:var(--chat-text-2)] shadow-[var(--chat-shadow-lg)] cursor-pointer hover:[color:var(--chat-danger)] ${FOCUS}`
 
 function isImage(draft: ReturnType<typeof useAttachment>): boolean {

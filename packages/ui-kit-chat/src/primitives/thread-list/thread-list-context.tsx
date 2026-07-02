@@ -1,8 +1,6 @@
 import {createContext, useContext, type Accessor} from 'solid-js'
 import type {ChatSessionMeta} from '@conciv/protocol/chat-types'
 
-// ThreadList is backed by the host's session store (NOT tanstack — tanstack has no thread list). The
-// widget supplies sessions + actions through this context; the primitives stay neutral.
 export type ThreadListActions = {
   sessions: Accessor<ChatSessionMeta[]>
   archived?: Accessor<ChatSessionMeta[]>

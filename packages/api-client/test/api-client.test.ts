@@ -4,7 +4,6 @@ import type {AddressInfo} from 'node:net'
 import {SessionId} from '@conciv/protocol/chat-types'
 import {defineClient} from '../src/api-client.js'
 
-// Real server — NO mocks. Captures the last session header it actually received.
 let server: Server
 let base = ''
 let lastSessionHeader: string | null = null
@@ -25,11 +24,11 @@ afterAll(() => server.close())
 describe('defineClient (real server)', () => {
   it('resolve() returns the branded id; the header is attached only after setSessionId', async () => {
     const client = defineClient({apiBase: base})
-    expect((await client.resolve()).sessionId).toBe('conciv_x') // no header before set
+    expect((await client.resolve()).sessionId).toBe('conciv_x')
     expect(lastSessionHeader).toBeNull()
     client.setSessionId(SessionId.parse('conciv_x'))
     await client.sessions()
-    expect(lastSessionHeader).toBe('conciv_x') // server actually received our id
+    expect(lastSessionHeader).toBe('conciv_x')
     expect(client.chatStreamUrl()).toBe(`${base}/api/chat`)
   })
 })

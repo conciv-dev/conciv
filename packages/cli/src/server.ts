@@ -1,9 +1,6 @@
 import {defineCommand} from 'citty'
 import {qs, runAndPrint} from './request.js'
 
-// `conciv tools server <action>` — inspect & nudge the live dev server via the BundlerBridge.
-// citty validates arg shape (required positionals, booleans); each run builds its own request
-// against /api/server/* directly — no stringly-typed dispatcher in between.
 export const serverCommand = defineCommand({
   meta: {name: 'server', description: 'inspect & nudge the live dev server'},
   subCommands: {

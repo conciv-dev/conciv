@@ -10,9 +10,6 @@ import {
 import type {Refs} from './page-snapshot.js'
 import {mirrorPageAction, mirrorsKind} from './page-mirror.js'
 
-// The execution backend behind the page-bus. Owns the console buffer + ref registry and
-// dispatches each query to a handler. Swap this whole object to change the backend; pass
-// `handlers` overrides to swap a single verb.
 export type PageDriver = {execute: (query: PageQuery) => Promise<PageResult>; refs: Refs}
 
 export function makeDomPageDriver(
@@ -36,7 +33,7 @@ export function makeDomPageDriver(
       if (query.selector) return err(`no element for selector ${query.selector}`)
       return err('no target — pass --ref, --selector, or --name')
     }
-    // Mirror visual verbs on the real element before the handler runs (fire-and-forget, no latency).
+
     if (el && mirrorsKind(query.kind)) mirrorPageAction(el)
     try {
       return await handler({query, el, refs, consoleBuf})

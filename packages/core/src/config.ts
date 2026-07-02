@@ -1,7 +1,6 @@
 import {CHAT_SYSTEM_PROMPT} from '@conciv/harness/claude'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 
-// The public config contract lives in @conciv/protocol; core owns only resolution.
 export type {ConcivConfig} from '@conciv/protocol/config-types'
 export {defineConfig} from '@conciv/protocol/config-types'
 
@@ -16,7 +15,6 @@ export interface ResolvedConcivConfig {
   extensions: ConcivConfig['extensions']
 }
 
-// systemPrompt: false → '' (opt out); string → custom; true/undefined → our minimal default.
 function resolveSystemPrompt(value: string | boolean | undefined): string {
   if (value === false) return ''
   if (typeof value === 'string') return value

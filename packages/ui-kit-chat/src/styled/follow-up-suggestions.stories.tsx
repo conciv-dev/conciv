@@ -35,10 +35,10 @@ export const SettledThreadShowsPills: Story = {
   render: () => <Frame />,
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    // Non-empty + settled → the pills show.
+
     await waitFor(() => expect(c.getByRole('button', {name: 'Explain the fix'})).toBeVisible())
     await expect(c.getByRole('button', {name: 'Add a test'})).toBeVisible()
-    // Clicking a pill sends it.
+
     await userEvent.click(c.getByRole('button', {name: 'Explain the fix'}))
   },
 }

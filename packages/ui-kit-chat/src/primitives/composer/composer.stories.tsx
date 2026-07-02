@@ -72,8 +72,6 @@ export const EnterSubmits: Story = {
   },
 }
 
-// Composer.Queue maps the host-supplied pending queue, providing each entry to QueueItem.*; removing
-// an item via the gated Remove drops it from the host's queue and from the rendered list.
 function QueueApp(): JSX.Element {
   const [queue, setQueue] = createSignal<QueuedMessage[]>([
     {id: 'q1', text: 'also add a test'},

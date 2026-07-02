@@ -5,7 +5,6 @@ import {GenMapping, addMapping, toEncodedMap} from '@jridgewell/gen-mapping'
 
 const written: string[] = []
 
-// Write a temp chunk whose generated (line 2, col 0) maps to source:line:col via an inline data map.
 export async function chunkWithInlineMap(source: string, line: number, column: number): Promise<string> {
   const gen = new GenMapping()
   addMapping(gen, {generated: {line: 2, column: 0}, source, original: {line, column}})

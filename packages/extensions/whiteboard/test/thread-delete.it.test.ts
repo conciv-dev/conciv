@@ -10,8 +10,6 @@ const openCanvas = async (page: Page): Promise<void> => {
   await page.getByRole('radio', {name: 'Rectangle'}).waitFor()
 }
 
-// Deleting a thread root cascades: the root, every reply, and the canvas pin all disappear. Proves the
-// §10 server-side threadId cascade (the client header trash shares the same intent).
 test('deleting a thread root removes its replies and pin', async () => {
   const api = await getExtensionTestApi({server: whiteboard, clientEntry})
   try {

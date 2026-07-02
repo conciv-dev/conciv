@@ -1,8 +1,6 @@
 import {z} from 'zod'
 import {defineExtension, defineTool} from '@conciv/extension'
 
-// A file-based conciv extension: discovered from conciv/extensions/, its Component painted into
-// the widget slots (client) and its tools + prompt fed to the agent engine (server), no manual wiring.
 const hello = defineTool({
   name: 'acme_hello',
   description: 'Return a friendly greeting for a name',

@@ -1,8 +1,6 @@
 import {z} from 'zod'
 import {defineExtension, defineTool} from '@conciv/extension'
 
-// Plain Solid JSX — the conciv plugin compiles conciv/extensions/** as a Solid zone, even inside
-// this React host app. The Component branches on useSlot(): a composer button + a status line.
 const RocketIcon = (props: {class?: string}) => (
   <svg
     class={props.class}
@@ -18,8 +16,6 @@ const RocketIcon = (props: {class?: string}) => (
   </svg>
 )
 
-// One definition: .server runs it (node), .render draws its card (browser, props inferred from the
-// renderer type), promptSnippet documents it.
 const deployRun = defineTool({
   name: 'deploy_run',
   description: 'Deploy the current branch',

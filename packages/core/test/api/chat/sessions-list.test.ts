@@ -39,9 +39,9 @@ describe('buildSessionList', () => {
     const rows = await buildSessionList({store, harnessList, runningKeys: new Set<string>(), cwd: '/app'})
     const mine = rows.find((r) => r.id === 'conciv_a')!
     const ext = rows.find((r) => r.id === 'tok-ext')!
-    expect(mine.title).toBe('Mine') // our record wins
-    expect(ext.origin).toBe('external') // unwrapped transcript shown under its harness id
-    expect(await store.findByHarnessId('tok-ext')).toBeNull() // list did NOT write
+    expect(mine.title).toBe('Mine')
+    expect(ext.origin).toBe('external')
+    expect(await store.findByHarnessId('tok-ext')).toBeNull()
   })
 
   it('scopes records to the current cwd (trailing-slash tolerant)', async () => {
@@ -56,12 +56,12 @@ describe('buildSessionList', () => {
 describe('sweepEmptyChatRecords', () => {
   it('deletes empty chat ghosts; keeps titled, tokened, external/agent, and locked', async () => {
     const store = memoryStore()
-    await store.create(rec({id: 'conciv_ghost'})) // chat, null token, null title → swept
-    await store.create(rec({id: 'conciv_titled', title: 'Kept'})) // user title → kept
-    await store.create(rec({id: 'conciv_run', harnessSessionId: 'tok'})) // ran a turn → kept
-    await store.create(rec({id: 'conciv_ext', origin: 'external'})) // external → kept
-    await store.create(rec({id: 'conciv_agent', origin: 'agent'})) // agent → kept
-    await store.create(rec({id: 'conciv_live'})) // empty but locked (in-flight first turn) → kept
+    await store.create(rec({id: 'conciv_ghost'}))
+    await store.create(rec({id: 'conciv_titled', title: 'Kept'}))
+    await store.create(rec({id: 'conciv_run', harnessSessionId: 'tok'}))
+    await store.create(rec({id: 'conciv_ext', origin: 'external'}))
+    await store.create(rec({id: 'conciv_agent', origin: 'agent'}))
+    await store.create(rec({id: 'conciv_live'}))
     await sweepEmptyChatRecords(store, new Set(['conciv_live']))
     const ids = (await store.list()).map((r) => r.id).toSorted()
     expect(ids).toEqual(['conciv_agent', 'conciv_ext', 'conciv_live', 'conciv_run', 'conciv_titled'])

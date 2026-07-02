@@ -4,7 +4,6 @@ import type {AddressInfo} from 'node:net'
 import {z} from 'zod'
 import {createTransport} from '../src/transport.js'
 
-// Real server — NO mocks. It echoes the received session header so we assert what actually went over the wire.
 let server: Server
 let base = ''
 let lastBody = ''
@@ -49,6 +48,6 @@ describe('createTransport (real server)', () => {
       request: z.object({id: z.string().optional()}),
       response: z.object({ok: z.boolean(), echo: z.string().nullable()}),
     })()
-    expect(lastBody).toBe('{}') // not '' — the server's readValidatedBody needs an object, not a missing body
+    expect(lastBody).toBe('{}')
   })
 })

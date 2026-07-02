@@ -4,7 +4,6 @@ import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import {parseInput} from '@conciv/ui-kit-chat'
 import {toolStatus, type ToolStatus} from '@conciv/ui-kit-chat'
 
-// Headless to-do logic + structure (claude TodoWrite). The styled layer adds tokens + the checklist.
 export type TodoItemStatus = 'pending' | 'in_progress' | 'completed'
 export type TodoItem = {content: string; status: TodoItemStatus; activeForm?: string}
 

@@ -27,7 +27,7 @@ export const Default: Story = {
   },
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    // Anchor on the always-present Toggle, then confirm the node is present-but-hidden before toggling.
+
     const toggle = await waitFor(() => c.getByRole('button', {name: 'Toggle'}))
     await expect(c.getByText('Now you see me')).not.toBeVisible()
     await userEvent.click(toggle)

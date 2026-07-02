@@ -57,7 +57,7 @@ export const SelectAndCreate: Story = {
     await waitFor(() => expect(c.getByText('Active: s2')).toBeVisible())
     await userEvent.click(c.getByRole('button', {name: 'New chat'}))
     await waitFor(() => expect(c.getByText('Log: created')).toBeVisible())
-    // Delete is gated off (no remove handler) → not rendered.
+
     await expect(c.queryByRole('button', {name: 'Delete'})).toBeNull()
     await expect(c.getAllByRole('button', {name: 'Archive'}).length).toBe(2)
   },

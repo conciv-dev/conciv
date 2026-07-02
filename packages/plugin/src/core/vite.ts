@@ -30,8 +30,6 @@ function widgetInstalled(): boolean {
   }
 }
 
-// The Vite BundlerBridge: wraps the live dev server's accessors (vite-tools.ts) into the
-// bundler-agnostic interface core consumes. Vite-specific, so it lives in this package's vite hook.
 function makeViteBridge(server: ViteLike): BundlerBridge {
   return defineBundlerBridge({
     id: 'vite',
@@ -58,9 +56,6 @@ function mountWidget(server: ViteDevServer, apiBase: string, widgetConfig: Conci
   server.middlewares.use(makeExtensionsServe(server))
 }
 
-// Serve the compiled extensions entry by running the virtual module through vite's own pipeline
-// (resolveId/load above + import.meta.glob expansion + HMR wiring). Same dev origin as the page, so
-// the injected <script type=module> works for both static and SSR document responses.
 function makeExtensionsServe(server: ViteDevServer): Middleware {
   return (req, res, next) => {
     if ((req.url ?? '').split('?')[0] !== EXTENSIONS_ROUTE) {
@@ -81,8 +76,6 @@ function makeExtensionsServe(server: ViteDevServer): Middleware {
   }
 }
 
-// The dev server's own origins (esp. a LAN IP like http://192.168.1.5:5173) — loopback origins
-// are always allowed by the core CORS guard, so this only widens it to non-loopback dev hosts.
 function devOrigins(server: ViteDevServer): string[] {
   const urls = [...(server.resolvedUrls?.local ?? []), ...(server.resolvedUrls?.network ?? [])]
   return [...new Set(urls.map((u) => safeOrigin(u)).filter((o): o is string => o !== null))]
@@ -112,19 +105,11 @@ function bootEngine(
   })
 }
 
-// The unplugin factory's rich `vite` hook: boots @conciv/core (with the live viteBridge +
-// widget middleware), injects the widget head tags, and stamps JSX with data-conciv-source.
-// serve-only (no-op in prod builds). enforce:'pre' so the source transform sees raw JSX/TSX
-// before @vitejs/plugin-react compiles it away.
 export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO_BUILTINS): Plugin {
   const hasWidget = widgetInstalled()
   let engine: Engine | null = null
   let root = process.cwd()
-  // When TanStack devtools' source injector is in the pipeline it stamps data-tsd-source (which
-  // `locate` already reads), at its own position relative to the framework's per-environment
-  // transforms. conciv stamping too then yields divergent line numbers between the SSR and client
-  // builds → a React hydration mismatch. Defer to it: detected from the resolved plugin list (same
-  // for both builds), so the decision is deterministic, not order/code dependent.
+
   let deferToTsd = false
   return {
     name: 'conciv',

@@ -1,7 +1,3 @@
-// Render tracking: how many times each component re-rendered, why, and (when a profiling build
-// makes timings available) how long. One commit hook, installed once at startup but inert until a
-// `track start` flips the flag — so it costs a flag-check per commit when idle, and only walks the
-// rendered subtree while actively tracking.
 import {instrument, traverseRenderedFibers, getFiberId, getDisplayName, isCompositeFiber, getTimings} from 'bippy'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- bippy fibers are untyped internals
@@ -12,7 +8,7 @@ type Stat = {component: string; renders: number; lastReason: string; changedProp
 export type TrackReport = {
   tracking: boolean
   tracked: number
-  // React only records render durations under a profiling build / <Profiler>; false ⇒ timings omitted.
+
   timingsAvailable: boolean
   components: Array<{
     component: string
@@ -26,7 +22,6 @@ export type TrackReport = {
 
 const state = {tracking: false, installed: false, stats: new Map<number, Stat>()}
 
-// Shallow-diff a fiber's props against its previous render to name what changed.
 function changedProps(fiber: Fiber): string[] {
   const next = fiber.memoizedProps
   const prev = fiber.alternate?.memoizedProps
@@ -36,8 +31,6 @@ function changedProps(fiber: Fiber): string[] {
   return out
 }
 
-// Runs synchronously inside each commit. Cheap no-op until tracking is on. The prop diff MUST be
-// synchronous here — `alternate` is the correct previous render only at commit time.
 function onCommit(_rendererID: number, root: Fiber): void {
   if (!state.tracking) return
   traverseRenderedFibers(root, (fiber: Fiber) => {
@@ -55,8 +48,7 @@ function onCommit(_rendererID: number, root: Fiber): void {
     const mount = !fiber.alternate
     const cp = mount ? [] : changedProps(fiber)
     cur.changedProps = cp
-    // Own props changed → re-render is prop-driven; otherwise it's state/hooks/context or a parent
-    // re-render (cheaply indistinguishable without a hooks diff — kept honest rather than guessed).
+
     cur.lastReason = mount ? 'mount' : cp.length > 0 ? 'props' : 'state/hooks/parent'
     const timings = getTimings(fiber)
     const self = typeof timings?.selfTime === 'number' ? timings.selfTime : 0
@@ -65,7 +57,6 @@ function onCommit(_rendererID: number, root: Fiber): void {
   })
 }
 
-// Installed once (also installs the RDT hook early so React connects). Idempotent.
 export function installTracker(): void {
   if (state.installed) return
   state.installed = true

@@ -1,6 +1,5 @@
 import {join} from 'node:path'
 
-// The `.conciv/` layout under the state root, named in one place.
 export type StatePaths = {
   dir: string
   lockFor: (sessionId: string) => string

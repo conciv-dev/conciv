@@ -10,15 +10,15 @@ export type SpawnHarness = (args: string[], cwd: string) => HarnessChild
 export type HarnessAdapterDeps = {
   cwd: string
   spawnHarness: SpawnHarness
-  systemPrompt: string // resolved text or file path, per harness.capabilities.systemPrompt
+  systemPrompt: string
   resumeSessionId?: string | null
   permissionUrl?: string
   mcpUrl?: string
   onSessionId?: (id: string) => void
-  onUsage?: (usage: UsageSnapshot) => void // live usage mid-turn, for core to inject
-  onSpawn?: (child: HarnessChild) => void // route acquires the lock here
-  model?: string // selected model id, forwarded onto the turn for buildArgs
-  turnKind?: 'chat' | 'compact' // 'compact' → build a compaction turn (capable harnesses only)
+  onUsage?: (usage: UsageSnapshot) => void
+  onSpawn?: (child: HarnessChild) => void
+  model?: string
+  turnKind?: 'chat' | 'compact'
   sessionId?: string
   env?: Record<string, string | undefined>
   decide?: (toolName: string, input: unknown, toolUseId: string) => Promise<'allow' | 'deny'>
@@ -27,8 +27,6 @@ export type HarnessAdapterDeps = {
 type InputModalities = readonly ['text']
 type MsgMeta = {text: unknown; image: unknown; audio: unknown; video: unknown; document: unknown}
 
-// Latest user-turn text from chat()'s ModelMessage[] (content is string | null | ContentPart[]).
-// flatMap + the `type` discriminant narrows each part — no cast, no type-guard predicate.
 export function lastUserModelText(messages: TextOptions['messages']): string {
   const last = messages.findLast((m) => m.role === 'user')
   if (!last || last.content === null) return ''
@@ -36,8 +34,6 @@ export function lastUserModelText(messages: TextOptions['messages']): string {
   return last.content.flatMap((p) => (p.type === 'text' ? [p.content] : [])).join('\n')
 }
 
-// Image parts from the latest user turn. Narrow `type==='image'` then `source.type==='data'`
-// (the data source carries base64) — cast-free; `source.mimeType` is the verified field name.
 export function lastUserImages(messages: TextOptions['messages']): HarnessImage[] {
   const last = messages.findLast((m) => m.role === 'user')
   if (!last || last.content === null || typeof last.content === 'string') return []
@@ -52,9 +48,6 @@ async function* linesOf(stream: Readable): AsyncGenerator<string> {
   for await (const line of rl) yield line
 }
 
-// Extends BaseTextAdapter (the library's cast-free way to satisfy the never-typed `'~types'`).
-// A justified, narrow exception to functions-not-classes: a plain object cannot implement the
-// TextAdapter interface without a cast, which the no-casts rule forbids.
 export class HarnessTextAdapter extends BaseTextAdapter<string, Record<string, never>, InputModalities, MsgMeta> {
   readonly name: string
   private readonly harness: HarnessAdapter
@@ -106,8 +99,7 @@ export class HarnessTextAdapter extends BaseTextAdapter<string, Record<string, n
       })
       return
     }
-    // Native compaction iff the harness advertises it (and supplies the builder); otherwise the
-    // turn runs as a normal chat from the summarize prompt the route substituted in.
+
     const args =
       turn.kind === 'compact' && harness.capabilities.compaction && harness.buildCompactArgs
         ? harness.buildCompactArgs(turn)
@@ -115,7 +107,7 @@ export class HarnessTextAdapter extends BaseTextAdapter<string, Record<string, n
     const child = deps.spawnHarness(args, deps.cwd)
     deps.onSpawn?.(child)
     options.abortController?.signal.addEventListener('abort', () => child.kill())
-    await harness.deliverInput?.(child, turn) // e.g. claude native images → stream-json on stdin
+    await harness.deliverInput?.(child, turn)
     try {
       yield* harness.decode(linesOf(child.stdout), {
         onSessionId: (id) => deps.onSessionId?.(id),
@@ -139,7 +131,6 @@ export class HarnessTextAdapter extends BaseTextAdapter<string, Record<string, n
   }
 }
 
-// Factory wrapper so call sites read as functions; returns the adapter instance.
 export function harnessText(harness: HarnessAdapter, deps: HarnessAdapterDeps): HarnessTextAdapter {
   return new HarnessTextAdapter(harness, deps)
 }

@@ -1,11 +1,5 @@
-// Faithful Solid port of assistant-ui's top-anchor package (computeTopAnchorSlack / topAnchorUtils /
-// topAnchorTurn). Pure DOM math — no framework. Pins the last user turn to the top and reserves a
-// spacer below the streaming assistant turn so the answer scrolls up into view as it grows.
-
 type TopAnchorTurnMessage = {readonly id: string; readonly role: string}
 
-// Which two messages form the active top-anchor turn: the run's last user (anchor) + assistant
-// (target). Null when not running or the last pair isn't user→assistant.
 export function getActiveTopAnchorTurn(args: {
   isRunning: boolean
   messages: readonly TopAnchorTurnMessage[]
@@ -63,8 +57,6 @@ function getDocumentOffsetTop(element: HTMLElement): number {
   return top
 }
 
-// Layout geometry (offsetTop chain), not visual rects — so an anchor's entrance transform/animation
-// does not shift the scroll target while it settles.
 function getLayoutOffsetTop(element: HTMLElement, ancestor: HTMLElement): number {
   let top = 0
   let current: HTMLElement | null = element
@@ -79,9 +71,6 @@ function getLayoutOffsetTop(element: HTMLElement, ancestor: HTMLElement): number
 
 export type TopAnchorTarget = {viewport: HTMLElement; anchor: HTMLElement; tallerThan: number; visibleHeight: number}
 
-// Scroll position that pins the anchor to the top. Tall anchors are over-scrolled so only
-// visibleHeight remains, leaving room for the assistant below. Never reads viewport.scrollHeight
-// (volatile while the assistant streams).
 export function computeTopAnchorTargetScrollTop(options: TopAnchorTarget): number {
   const anchorTop = getLayoutOffsetTop(options.anchor, options.viewport)
   const anchorHeight = options.anchor.offsetHeight

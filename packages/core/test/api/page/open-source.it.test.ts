@@ -5,8 +5,6 @@ import {tmpdir} from 'node:os'
 import {registerOpenSourceRoute} from '../../../src/api/page/open-source.js'
 import {chunkWithInlineMap, cleanupChunks} from '../../page/fixtures.js'
 
-// Real HTTP round-trip: POST owner-stack frames → the route symbolicates them (against a temp chunk
-// with an inline source map, written to tmpdir = root) → opens the resolved file. No mocks.
 const state: {server?: Server} = {}
 
 afterEach(async () => {

@@ -2,9 +2,6 @@ import {createContext, useContext, type Accessor} from 'solid-js'
 import type {MessagePart} from '@tanstack/ai-client'
 import type {ResultPairing, Turn} from '../../store/grouping.js'
 
-// The current message (a coalesced Turn — the canonical render unit) provided by Thread.Messages /
-// Thread.MessageByIndex. Message.* parts read it; no copied data, the Turn is derived from
-// chat.messages() upstream.
 export type MessageContextValue = {
   message: Accessor<Turn>
   index: Accessor<number>
@@ -22,8 +19,6 @@ export function useMessage(): MessageContextValue {
   return context
 }
 
-// The current part within Message.Parts / Message.PartByIndex — read by MessagePart.* and the
-// part accessors.
 export type PartContextValue = {part: Accessor<MessagePart>; index: Accessor<number>}
 
 const PartContext = createContext<PartContextValue>()

@@ -1,13 +1,3 @@
-// A one-shot, JSON-safe serializer for arbitrary React values (props/state/hooks/context, eval
-// results). Ported in spirit from React DevTools' dehydrate (react-devtools-shared, MIT): same
-// type-detection + preview idea, but flattened — no bridge/rehydrate half, no Symbol metadata.
-//
-// Why this exists: JSON.stringify on React props throws on circular React-element children (and
-// silently drops functions), so the naive serializer collapsed everything to "[object Object]".
-// Here every value becomes JSON-stringifiable: terminal specials render as readable string
-// previews (`ƒ onClick`, `<Button />`, `123n`), and containers past the depth/breadth budget
-// collapse to a sentinel `{__conciv, size, preview}` so the agent knows what is drillable and how big.
-
 const REACT_ELEMENT = Symbol.for('react.element')
 const REACT_TRANSITIONAL_ELEMENT = Symbol.for('react.transitional.element')
 
@@ -16,11 +6,10 @@ export type DehydrateOptions = {
   maxItems?: number
   stringCap?: number
   maxNodes?: number
-  // Key-name pattern whose values are masked before serialization (tokens/PII never leave the page).
+
   redact?: RegExp | null
 }
 
-// A collapsed container: not expanded (depth/breadth/budget hit) but the agent can drill via path.
 export type Collapsed = {__conciv: string; size?: number; preview: string; name?: string}
 
 const DEFAULT_REDACT =
@@ -34,9 +23,6 @@ const DEFAULTS: Required<Omit<DehydrateOptions, 'redact'>> & {redact: RegExp | n
   redact: DEFAULT_REDACT,
 }
 
-// Walk a dot-path ("props.user.address", "hooks.0.value") into a raw value. Numeric segments index
-// arrays (a string index works on them too). found:false if any segment is missing, so the caller
-// reports a clear error instead of dehydrating `undefined`.
 export function navigatePath(root: unknown, path: string): {found: boolean; value: unknown} {
   let cur: unknown = root
   for (const seg of path.split('.')) {
@@ -79,7 +65,6 @@ function clampStr(s: string, cap: number): string {
   return s.length <= cap ? s : s.slice(0, cap) + '…'
 }
 
-// Mutable budget so the whole tree shares one node allowance — a wide shallow object can't blow up.
 type Budget = {nodes: number}
 
 export function dehydrate(value: unknown, options: DehydrateOptions = {}): unknown {
@@ -112,7 +97,6 @@ function walk(
     return `ƒ ${fn.name || 'anonymous'}()`
   }
 
-  // object-likes
   const obj = value as Record<string, unknown>
 
   if (typeof HTMLElement !== 'undefined' && value instanceof HTMLElement) {
@@ -134,8 +118,6 @@ function walk(
 
   if (Array.isArray(value)) return walkArray(value, depth, seen, budget, opts)
 
-  // plain object vs class instance: a non-plain prototype → collapse to a named preview (don't walk
-  // class internals — getters can throw or have side effects, and they're rarely what the agent wants).
   const proto = Object.getPrototypeOf(obj)
   const isPlain = proto === Object.prototype || proto === null
   if (!isPlain) {
@@ -201,7 +183,6 @@ function walkObject(
   return out
 }
 
-// Property access can throw (getters) — never let one bad key abort the whole serialization.
 function readKey(
   obj: Record<string, unknown>,
   key: string,

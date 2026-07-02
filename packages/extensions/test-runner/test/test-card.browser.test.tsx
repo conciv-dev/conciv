@@ -4,9 +4,6 @@ import {page} from 'vitest/browser'
 import type {ToolViewCtx, ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {TestCard} from '../src/tool/card.js'
 
-// Real browser, real Solid (card source compiled on the fly), real Ark Collapsible + a real
-// EventSource against the same-origin SSE fixture. No jsdom, no mocks of the card's transports.
-
 const FILE = '/proj/app/math.test.ts'
 const RESULT = {
   summary: {passed: 1, failed: 1, skipped: 0, durationMs: 5},

@@ -2,10 +2,6 @@ import {describe, it, expect} from 'vitest'
 import {StreamProcessor, type UIMessage, type MessagePart} from '@tanstack/ai'
 import {claudeToAguiEvents} from '../src/claude/decode.js'
 
-// End-to-end through the REAL tanstack StreamProcessor (no mocks): our decode of a claude
-// stream-json turn must produce events the processor settles into a 'complete'/'error' tool-result
-// part. A stuck spinner in the live widget = the processor never reaching that state here.
-
 async function* lines(arr: string[]): AsyncGenerator<string> {
   for (const l of arr) yield l
 }
@@ -37,8 +33,7 @@ const userResult = (toolUseId: string, content: string, isError?: boolean) =>
     type: 'user',
     message: {content: [{type: 'tool_result', tool_use_id: toolUseId, content, ...(isError ? {is_error: true} : {})}]},
   })
-// The REAL shape claude reports an MCP tool result as: content is a content-part array, and our MCP
-// server already JSON-stringified the page payload into the text part (core/api/mcp).
+
 const mcpUserResult = (toolUseId: string, payload: unknown) =>
   JSON.stringify({
     type: 'user',
@@ -50,8 +45,6 @@ const mcpUserResult = (toolUseId: string, payload: unknown) =>
   })
 
 describe('claude decode → StreamProcessor: tool results settle', () => {
-  // The live page-tool turn from the screenshot: a streamed MCP tool_use, then its result on a user
-  // event. The result part must reach 'complete' (else the card spins forever).
   it('settles a streamed tool call + user tool_result to a complete result part', async () => {
     const messages = await runThroughProcessor([
       blockStart(0, {type: 'tool_use', id: 'toolu_1', name: 'mcp__conciv__conciv_page'}),
@@ -68,9 +61,6 @@ describe('claude decode → StreamProcessor: tool results settle', () => {
     expect(results[0]?.state).toBe('complete')
   })
 
-  // The screenshot bug: an MCP page result arrives as a content-part array with the payload
-  // double-encoded inside. The decode boundary must unwrap it so the part holds the clean payload
-  // JSON ('{"nodes":...}'), not the escaped '[{"type":"text","text":"..."}]' array.
   it('unwraps the MCP content envelope to the clean payload (no double-encoded array)', async () => {
     const payload = {nodes: [{ref: 'v1', role: 'navigation', name: 'Home'}]}
     const messages = await runThroughProcessor([
@@ -83,9 +73,9 @@ describe('claude decode → StreamProcessor: tool results settle', () => {
     expect(results).toHaveLength(1)
     const content = results[0]?.content
     expect(typeof content).toBe('string')
-    // Not the escaped envelope…
+
     expect(content).not.toContain('"type":"text"')
-    // …the clean payload, round-trippable straight to the page result.
+
     expect(JSON.parse(content as string)).toEqual(payload)
   })
 

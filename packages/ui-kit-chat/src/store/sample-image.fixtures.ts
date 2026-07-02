@@ -1,6 +1,3 @@
-// A real 128x128 PNG (the conciv robot mascot), base64-encoded, so image stories show an actual
-// image — self-contained (CSP-safe, no network) and fed through the same data: source the runtime
-// builds. Excluded from the build (*.fixtures.ts); stories-only.
 export const SAMPLE_IMAGE_NAME = 'mascot.png'
 export const SAMPLE_IMAGE_MIME = 'image/png'
 export const SAMPLE_IMAGE_BASE64 =

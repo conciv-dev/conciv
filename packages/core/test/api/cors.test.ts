@@ -3,10 +3,6 @@ import {H3} from 'h3'
 import {serve, type Server} from 'srvx'
 import {registerCors, originAllowed} from '../../src/api/cors.js'
 
-// The CORS guard is the dev server's only defense against a malicious website fetching the
-// loopback API cross-origin (eval/override = code/state execution). Loopback + no-Origin pass;
-// public origins are actively rejected (403), not merely denied CORS headers.
-
 describe('originAllowed', () => {
   const none = new Set<string>()
   it('allows a missing Origin (non-browser caller: CLI, MCP)', () => {

@@ -6,20 +6,14 @@ import type {MessagePart, UIMessage} from '@conciv/protocol/chat-types'
 import type {HarnessHistory, HarnessSessionMeta} from '@conciv/protocol/harness-types'
 import {TextBlock, ThinkingBlock, ToolUseBlock, ToolResultBlock, canonicalToolName, contentText} from './blocks.js'
 
-// Where claude persists a session's JSONL transcript, and how to parse it into UIMessages.
-
-// Claude encodes the project dir by replacing every non-alphanumeric path char with '-'.
 export function encodeProjectDir(cwd: string): string {
   return cwd.replace(/[^a-zA-Z0-9]/g, '-')
 }
 
-// Where Claude persists a session's JSONL transcript:
-// ~/.claude/projects/<encoded-cwd>/<sessionId>.jsonl
 export function transcriptPath(cwd: string, sessionId: string, home: string = homedir()): string {
   return join(home, '.claude', 'projects', encodeProjectDir(cwd), `${sessionId}.jsonl`)
 }
 
-// Internal turns hidden from human-readable history (progress ticks, sentinels, reminders).
 const INTERNAL_MARKERS = ['VIBE_PROGRESS_TICK', 'NEEDS_INFO:', '<system-reminder>']
 
 const TranscriptRecordSchema = z
@@ -33,7 +27,6 @@ const TranscriptRecordSchema = z
   .loose()
 
 function partsFrom(content: unknown): MessagePart[] {
-  // claude stores user turns as a plain string and assistant turns as a content-block array.
   if (typeof content === 'string') return content ? [{type: 'text', content}] : []
   if (!Array.isArray(content)) return []
   const out: MessagePart[] = []
@@ -59,9 +52,7 @@ function partsFrom(content: unknown): MessagePart[] {
       })
       continue
     }
-    // claude stores tool_result blocks in the user turn that follows the call; parseHistory folds
-    // these onto the calling assistant message so they pair with their tool-call (the same shape the
-    // live StreamProcessor produces). is_error → tanstack result state 'error', else 'complete'.
+
     const result = ToolResultBlock.safeParse(part)
     if (result.success) {
       out.push({
@@ -92,11 +83,10 @@ function parseRecord(line: string): z.infer<typeof TranscriptRecordSchema> | nul
   }
 }
 
-// Parse a claude JSONL transcript into filtered, human-readable UIMessages.
 export function parseHistory(jsonl: string): UIMessage[] {
   const out: UIMessage[] = []
   const idState = {n: 0}
-  // Claude splits one assistant message (a single message.id) across consecutive lines; merge them.
+
   let openAssistantId: string | null = null
   for (const line of jsonl.split('\n')) {
     const trimmed = line.trim()
@@ -132,7 +122,6 @@ export function parseHistory(jsonl: string): UIMessage[] {
 
 const SummaryRecordSchema = z.object({type: z.literal('summary'), summary: z.string()}).loose()
 
-// The last `summary` record claude wrote for this transcript, or null if none.
 export function nameFromTranscript(jsonl: string): string | null {
   let name: string | null = null
   for (const line of jsonl.split('\n')) {
@@ -141,15 +130,11 @@ export function nameFromTranscript(jsonl: string): string | null {
     try {
       const parsed = SummaryRecordSchema.safeParse(JSON.parse(trimmed))
       if (parsed.success && parsed.data.summary) name = parsed.data.summary
-    } catch {
-      // not JSON — skip
-    }
+    } catch {}
   }
   return name
 }
 
-// Enrichment records: a 'system' init line carries the model; a 'result' line carries cumulative
-// usage. Both are .loose so unrelated fields don't trip parsing.
 const SystemRecordSchema = z.object({type: z.literal('system'), model: z.string().optional()}).loose()
 const ResultRecordSchema = z
   .object({
@@ -159,7 +144,6 @@ const ResultRecordSchema = z
   .loose()
 const StampedRecordSchema = z.object({timestamp: z.string().optional()}).loose()
 
-// The last text of any human-readable turn, condensed to one line (≤200 chars), or null.
 function lastMessageFrom(jsonl: string): string | null {
   let last: string | null = null
   for (const line of jsonl.split('\n')) {
@@ -176,9 +160,6 @@ function lastMessageFrom(jsonl: string): string | null {
   return last
 }
 
-// Parse a transcript into an enriched session row: title + count + model + token total + last
-// message + first-event timestamp. One pass over the lines for the cheap scalars; reuses the shared
-// parse helpers for title/count/last-message.
 export function parseSessionMeta(id: string, jsonl: string, mtime: number): HarnessSessionMeta {
   let model: string | null = null
   let totalTokens = 0
@@ -217,8 +198,6 @@ export function parseSessionMeta(id: string, jsonl: string, mtime: number): Harn
 
 const MAX_SESSIONS = 50
 
-// The first user line's text, condensed to a one-line title (≤80 chars). Reuses the same private
-// parseRecord/partsFrom helpers as parseHistory — no duplicate parsing.
 function titleFromHead(raw: string): string {
   for (const line of raw.split('\n')) {
     const t = line.trim()
@@ -234,9 +213,6 @@ function titleFromHead(raw: string): string {
   return ''
 }
 
-// Enumerate the cwd's claude sessions, newest first, capped at MAX_SESSIONS. Stat all transcripts,
-// sort by mtime, then read only the top N (title + message count). Never throws — a missing dir or
-// unreadable file yields [] / an empty entry.
 export async function listSessions(cwd: string, home: string = homedir()): Promise<HarnessSessionMeta[]> {
   const dir = join(home, '.claude', 'projects', encodeProjectDir(cwd))
   let names: string[]
@@ -265,13 +241,11 @@ export async function listSessions(cwd: string, home: string = homedir()): Promi
   )
 }
 
-// True iff the resolved transcript path stays inside the project dir (defense-in-depth vs traversal).
 export function withinProject(cwd: string, sessionId: string, home: string = homedir()): boolean {
   const root = resolve(join(home, '.claude', 'projects', encodeProjectDir(cwd)))
   return resolve(transcriptPath(cwd, sessionId, home)).startsWith(root + sep)
 }
 
-// Claude's HarnessHistory implementation.
 export const claudeHistory: HarnessHistory = {
   transcriptPath,
   parse: parseHistory,

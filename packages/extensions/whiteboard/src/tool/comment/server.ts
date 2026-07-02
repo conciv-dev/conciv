@@ -50,9 +50,6 @@ const stableUuid = async (seed: string): Promise<string> => {
   return toUuid(bytes)
 }
 
-// Mark where the agent is acting as a presence cursor in scene coordinates, reusing the collaborator
-// render path. Keyed per session+model so repeated actions update one row; throttled against bursty turns;
-// the dev's client GCs it once stale (§12). Only called from coord-bearing actions.
 const markPresence = async (
   ctx: WhiteboardToolContext,
   request: Parameters<WhiteboardToolContext['model']>[0],

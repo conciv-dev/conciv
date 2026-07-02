@@ -6,7 +6,6 @@ const meta: Meta<typeof SolidFileDiff> = {title: 'solid-diffs/FileDiff', compone
 export default meta
 type Story = StoryObj<typeof SolidFileDiff>
 
-// @pierre/diffs renders into the <diffs-container> open shadow root, so assert on its shadow text.
 async function shadowText(canvasElement: HTMLElement): Promise<string> {
   const host = canvasElement.querySelector('diffs-container')
   return host?.shadowRoot?.textContent ?? ''

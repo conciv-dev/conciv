@@ -9,7 +9,6 @@ import {Dialog, Popover} from '@conciv/ui-kit-system'
 import {registerSuppressor, track} from '../shell/dialogs.js'
 import styles from '../styles.css?inline'
 
-// elementFromPoint, but blind to the overlay host itself so a hit-test lands on the user's app element.
 function elementAt(x: number, y: number): Element | null {
   const host = document.querySelector<HTMLElement>(`[${EFFECTS_SURFACE_ATTR}]`)
   const prev = host?.style.pointerEvents
@@ -19,8 +18,6 @@ function elementAt(x: number, y: number): Element | null {
   return el
 }
 
-// The concrete ClientApi the widget hands to every extension's .client() at mount: the active chat
-// session id plus the page capabilities a page-control extension drives. Built once, server-independent.
 export function makeWidgetClientApi(deps: {
   apiBase: string
   refs: Refs

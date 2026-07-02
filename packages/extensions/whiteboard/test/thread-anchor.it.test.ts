@@ -12,10 +12,6 @@ const openCanvas = async (page: Page): Promise<void> => {
 
 const ANCHOR_NULL = 'thread anchor is null while open'
 
-// The human compose path (no callTool): the dev picks an element, types a comment, and submits it.
-// The thread must open anchored on the new pin without the anchor ever resolving null — a null anchor
-// regressed to Zag positioning the popover at the origin. Local Jazz registers the pin before Zag reads
-// getAnchorRect, so this guards the flow and the anchor invariant rather than the live render race.
 test('the human compose flow opens an anchored thread without a null anchor', async () => {
   const api = await getExtensionTestApi({server: whiteboard, clientEntry})
   const anchorWarnings: string[] = []
@@ -26,8 +22,7 @@ test('the human compose flow opens an anchored thread without a null anchor', as
   )
   try {
     await openCanvas(api.page)
-    // Testkit skips UnoCSS, so the canvas intercepts real clicks; drive the affordance and the pick
-    // programmatically and submit the compose field from the keyboard.
+
     await api.page
       .getByRole('button', {name: 'Comment on an element'})
       .evaluate((element: HTMLElement) => element.click())

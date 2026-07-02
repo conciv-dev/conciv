@@ -49,11 +49,6 @@ const serialize = (doc: JsonNode): MentionSegment[] => {
   return out
 }
 
-// A TipTap (ProseMirror) composer with @mentions. ProseMirror ships real shadow-DOM selection support,
-// so this works inside the comment overlay's shadow root where Slate/Lexical/textarea-caret tricks fail.
-// The editor element is created once and never re-rendered by Solid (a re-render breaks the suggestion
-// plugin); the participant listbox is a sibling the suggestion render hook drives via signals, so focus
-// never leaves the editor.
 export function MentionField(props: {
   items: (query: string) => MentionItem[]
   onSubmit: (segments: MentionSegment[]) => void
@@ -151,7 +146,7 @@ export function MentionField(props: {
   onCleanup(() => editor?.destroy())
 
   return (
-    <div class={`relative w-full ${props.class ?? ''}`}>
+    <div class={`w-full relative ${props.class ?? ''}`}>
       <div ref={(element) => (host = element)} class={EDITOR} />
       <Show when={empty() && props.placeholder}>{(text) => <span class={PLACEHOLDER}>{text()}</span>}</Show>
       <Show when={suggestion()}>

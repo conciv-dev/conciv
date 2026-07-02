@@ -1,7 +1,6 @@
 import {access} from 'node:fs/promises'
 import {dirname, join} from 'node:path'
 
-// Walk up from `start` until the directory holding pnpm-workspace.yaml is found.
 export async function findRoot(start: string): Promise<string> {
   let dir = start
   for (;;) {

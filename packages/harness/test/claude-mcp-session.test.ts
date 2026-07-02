@@ -5,9 +5,6 @@ import type {HarnessTurn} from '@conciv/protocol/harness-types'
 
 const base: HarnessTurn = {prompt: 'draw a box', cwd: '/repo', resumeSessionId: null, systemPrompt: ''}
 
-// The agent reaches canvas.draw (and every session-scoped tool) over MCP-over-HTTP. Without the session
-// header the server resolves sessionId '' and the AI writes into room `local:` while the widget canvas
-// watches `local:<session>` — the draw never appears. The MCP config MUST carry the turn's session.
 describe('claude MCP server config carries the turn session', () => {
   it('puts the conciv session header on the http server when a session is given', () => {
     const cfg = mcpServerConfig('http://x/api/mcp', 'conciv_abc')

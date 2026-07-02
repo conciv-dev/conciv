@@ -17,7 +17,7 @@ export const Route = createRootRoute({
       {title: TITLE},
       {name: 'description', content: DESCRIPTION},
       {name: 'theme-color', content: '#e0432a'},
-      // Open Graph
+
       {property: 'og:type', content: 'website'},
       {property: 'og:site_name', content: 'conciv'},
       {property: 'og:title', content: TITLE},
@@ -27,7 +27,7 @@ export const Route = createRootRoute({
       {property: 'og:image:width', content: '1200'},
       {property: 'og:image:height', content: '630'},
       {property: 'og:locale', content: 'en_US'},
-      // Twitter
+
       {name: 'twitter:card', content: 'summary_large_image'},
       {name: 'twitter:title', content: TITLE},
       {name: 'twitter:description', content: DESCRIPTION},

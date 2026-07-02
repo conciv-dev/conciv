@@ -26,8 +26,6 @@ const create = async (
   })
 }
 
-// The inbox lists every thread, "Mark all as read" clears the unread state, and clicking a feed item
-// opens that thread's card. Proves §10 over the shared model (feed + reads + selection).
 test('the inbox lists threads, marks all read, and opens a thread', async () => {
   const api = await getExtensionTestApi({server: whiteboard, clientEntry})
   try {

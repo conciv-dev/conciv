@@ -2,8 +2,6 @@ import {installClientApi, type AnyExtension} from '@conciv/extension'
 import {makeWidgetClientApi} from '../../src/page/client-api.js'
 import type {ExtensionInstance} from '../../src/extension/extension-slots.js'
 
-// Mirror mountWidget for the browser component tests: install the one ClientApi, then run each
-// extension's mount-time .client() into an instance. ChatPanel takes these instances directly.
 export function buildInstances(
   extensions: AnyExtension[],
   apiBase: string,

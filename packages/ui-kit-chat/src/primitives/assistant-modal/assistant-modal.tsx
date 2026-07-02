@@ -2,9 +2,6 @@ import {createEffect, createMemo, createSignal, splitProps, type ComponentProps,
 import {Popover} from '@conciv/ui-kit-system'
 import {useChatContextOptional} from '../../store/chat-context.js'
 
-// The FAB + popover shell (replaces the widget's hand-rolled floating-ui popover). Thin wrapper over
-// the ui-kit-system Popover. openOnRunStart auto-opens the modal on the idle→running edge (faithful
-// to assistant-ui's thread.runStart listener) when a <ChatProvider> is in scope.
 type RootProps = ComponentProps<typeof Popover.Root> & {openOnRunStart?: boolean}
 
 function Root(props: RootProps): JSX.Element {
@@ -12,7 +9,7 @@ function Root(props: RootProps): JSX.Element {
   const chat = useChatContextOptional()
   const [internalOpen, setInternalOpen] = createSignal(local.defaultOpen ?? false)
   const isRunning = createMemo(() => (chat ? chat.status() === 'streaming' || chat.status() === 'submitted' : false))
-  // Rising edge of run state opens the modal (assistant-ui's thread.runStart); previous flag tracked.
+
   let wasRunning = isRunning()
   createEffect(() => {
     const running = isRunning()

@@ -2,7 +2,6 @@ import {type H3, getValidatedQuery, readValidatedBody} from 'h3'
 import {z} from 'zod'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 
-// Mounted iff a BundlerBridge is provided. Core touches the bridge interface only — no bundler.
 export function registerServerRoutes(app: H3, bridge: BundlerBridge): void {
   app.get('/api/server/config', () => bridge.config())
 

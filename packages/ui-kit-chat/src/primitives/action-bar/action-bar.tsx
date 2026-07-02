@@ -7,8 +7,6 @@ import type {Turn} from '../../store/grouping.js'
 import {useActionHandlers} from './action-handlers.js'
 import {ActionBarInteractionProvider} from './interaction-context.js'
 
-// Copy exposes its copied flag (assistant-ui's s.message.isCopied) so a styled child — e.g. an Ark
-// Swap crossfading Copy↔Check — can read it. undefined when no Copy is in scope.
 const CopiedContext = createContext<Accessor<boolean>>()
 
 export function useCopied(): Accessor<boolean> {
@@ -42,7 +40,6 @@ type RootProps = JSX.HTMLAttributes<HTMLDivElement> & {
 
 type FloatStatus = 'hidden' | 'floating' | 'normal'
 
-// Faithful port of assistant-ui useActionBarFloatStatus: branchCount is 1 in our inert-branch model.
 function Root(props: RootProps): JSX.Element {
   const thread = useThread()
   const message = useMessage()
@@ -85,8 +82,6 @@ const Reload = createActionButton('Reload', () => {
 
 type ExportArgs = {filename?: string; onExport?: (markdown: string) => void}
 
-// The export behavior as a hook so any surface (the ExportMarkdown button OR a styled menu item via
-// onSelect) can invoke it without nesting buttons or bridging element-typed handlers.
 export function useExportMarkdown(args: ExportArgs = {}): () => void {
   const message = useMessage()
   return () => {

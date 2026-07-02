@@ -8,8 +8,6 @@ describe('claude → /api/mcp → uiBus', () => {
     async () => {
       const {resolve, postChat, close} = await startTestServer({harness: 'claude'})
       try {
-        // Real turn: claude calls the MCP tool, the inject merges onto the turn's SSE as an
-        // conciv-ui CUSTOM event carrying the question — observed in the streamed body, no seam.
         const body = await postChat(
           {
             role: 'user',

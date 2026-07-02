@@ -4,7 +4,6 @@ import {execa} from 'execa'
 import {findRoot} from './workspace-root.ts'
 import {assertPublicSet, assertValidTag, assertVersioned} from './guards.ts'
 
-// All orchestration runs from the workspace root so changeset/turbo see the whole monorepo.
 async function atRoot() {
   const cwd = await findRoot(process.cwd())
   const run = (file: string, args: string[]) => execa(file, args, {cwd, stdio: 'inherit'})
@@ -18,7 +17,7 @@ const version = defineCommand({
   async run() {
     const {run, changeset} = await atRoot()
     await changeset('version')
-    await run('pnpm', ['install', '--lockfile-only']) // changeset version does not touch the lockfile
+    await run('pnpm', ['install', '--lockfile-only'])
   },
 })
 
@@ -48,7 +47,7 @@ const snapshot = defineCommand({
     assertValidTag(args.tag)
     const {cwd, turbo, changeset} = await atRoot()
     await assertPublicSet(cwd)
-    await changeset('version', '--snapshot', args.tag) // e.g. 0.1.0-beta-<timestamp>
+    await changeset('version', '--snapshot', args.tag)
     await turbo('build', 'publint', 'attw')
     await changeset('publish', '--tag', args.tag, '--no-git-checks')
   },

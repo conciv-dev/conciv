@@ -6,9 +6,6 @@ import type {UiBus} from '../../runtime/ui-bus.js'
 import {makePending} from '../../pending.js'
 import {sessionIdFromHeaders} from './session-id.js'
 
-// The risky-Bash approval gate: safe commands run; risky ones surface a confirm card and block
-// until the user answers or the timeout fires (fail closed).
-
 const APPROVAL_TIMEOUT_MS = 120_000
 
 export type PermissionGate = {
@@ -37,36 +34,28 @@ export function makePermissionGate(uiBus: UiBus, options: PermissionGateOptions 
     toolUseId: string,
   ): Promise<'allow' | 'deny'> {
     if (!needsApproval(toolName, toolInput, risky)) return 'allow'
-    // Drive the matching tool-call part into its native approval-requested state (claude's tool_use_id
-    // is the streamed tanstack toolCallId), so approval renders ON the tool card. The decision returns
-    // out-of-band via /permission-decision and resolves this pending — claude blocks on its hook
-    // meanwhile, so the answer can't ride the one-way stream back.
+
     const approvalId = randomUUID()
     const injected = uiBus.injectApproval(sessionId, {toolCallId: toolUseId, toolName, input: toolInput, approvalId})
-    if (!injected) return 'deny' // no live chat stream to ask on → fail closed
+    if (!injected) return 'deny'
     try {
       return (await pending.await(approvalId, timeoutMs)) ? 'allow' : 'deny'
     } catch {
-      return 'deny' // timed out → fail closed
+      return 'deny'
     }
   }
 
   return {decide, resolve: pending.resolve}
 }
 
-// Mount the gate routes. `gated` is false for harnesses whose capabilities.permissionGate is
-// 'none' — then /permission always allows (no card), but the route stays mounted to fail safe.
-//   POST /api/chat/permission          → PreToolUse hook decision
-//   POST /api/chat/permission-decision → the widget's allow/deny, unblocking the gate
 export function registerPermissionRoutes(app: H3, gate: PermissionGate, gated: boolean): void {
   app.post('/api/chat/permission', async (event) => {
     const parsed = await readValidatedBody(event, HookBodySchema.safeParse)
     const toolName = parsed.success ? parsed.data.tool_name : ''
     const toolInput = parsed.success ? parsed.data.tool_input : undefined
-    // claude's PreToolUse payload carries tool_use_id, which equals the streamed tanstack toolCallId —
-    // the exact part the approval card must target. Verified against claude 2.x stream-json.
+
     const toolUseId = parsed.success ? parsed.data.tool_use_id : ''
-    const sessionId = sessionIdFromHeaders(event.req.headers) ?? '' // '' = no live channel → fail safe
+    const sessionId = sessionIdFromHeaders(event.req.headers) ?? ''
     const decision = gated ? await gate.decide(toolName, toolInput, sessionId, toolUseId) : 'allow'
     return {
       hookSpecificOutput: {

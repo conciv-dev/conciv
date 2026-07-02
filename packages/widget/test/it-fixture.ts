@@ -1,6 +1,3 @@
-// Shared real-browser IT harness: builds the React fixture bundle, serves it with the widget, and
-// drives the page tool over Playwright. Used by the page-driver IT suites so the scaffolding lives
-// in one place; each suite keeps its own server routes + assertions.
 import fs from 'node:fs'
 import path from 'node:path'
 import {fileURLToPath, pathToFileURL} from 'node:url'
@@ -37,7 +34,6 @@ export async function buildFixture(): Promise<string> {
   return built.text
 }
 
-// Widget script FIRST (installs the RDT hook), THEN the React fixture (so React connects to it).
 export function fixturePage(fixtureJs: string): string {
   return `<!doctype html><html><head><meta name="pw-api-base" content=""></head><body>
     <div id="react-root"></div>
@@ -61,7 +57,6 @@ export const drive = (page: Page, q: Record<string, unknown>): Promise<Record<st
     q,
   )
 
-// Fixture rendered (count visible) and the driver seam is live.
 export async function ready(page: Page): Promise<void> {
   await page.waitForFunction(() => document.querySelector('#card-count')?.textContent === 'count: 7', undefined, {
     timeout: 15_000,

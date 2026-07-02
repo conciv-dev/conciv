@@ -1,8 +1,6 @@
 import {createContext, useContext, type Accessor} from 'solid-js'
 import type {MessagePart} from '@tanstack/ai-client'
 
-// A staged attachment = a tanstack non-text ContentPart queued for the next sendMessage. Composer
-// owns this list (composer-local UI state, not chat data).
 export type AttachmentPart = Extract<MessagePart, {type: 'image' | 'audio' | 'video' | 'document'}>
 export type AttachmentDraft = {id: string; name: string; part: AttachmentPart}
 

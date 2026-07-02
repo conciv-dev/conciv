@@ -2,11 +2,6 @@ import {createContext, createSignal, useContext, type Accessor, type JSX} from '
 import type {ToolCallPart} from '@tanstack/ai-client'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 
-// Headless native-approval logic ([[native-approval-hybrid]]): tanstack drives the part into
-// `approval-requested` (part.state + part.approval) from the harness's approval event; answering posts
-// the decision out-of-band via ctx.respondApproval (→ the widget's client.permissionDecision), which
-// unblocks the gate. The live stream then settles the same part to complete/error. We optimistically
-// mark answered on click so the controls don't linger. No classes — styled/tools/permission-card adds them.
 type PermissionContextValue = {
   pending: Accessor<boolean>
   approve: () => void

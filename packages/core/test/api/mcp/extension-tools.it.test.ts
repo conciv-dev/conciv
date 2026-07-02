@@ -4,9 +4,6 @@ import {createMCPClient} from '@tanstack/ai-mcp'
 import {defineExtension, defineTool} from '@conciv/extension'
 import {startTestServer} from '../../helpers/server.js'
 
-// A real extension's tool must register on the real /api/mcp alongside the built-ins and round-trip a
-// call. No mocks — the production app + a real MCP client over http. Proves the full server path end to
-// end through the App-phase wiring.
 const draw = defineTool({
   name: 'acme_draw',
   description: 'Draw a shape on the canvas',

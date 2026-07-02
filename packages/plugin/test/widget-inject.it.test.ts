@@ -2,15 +2,9 @@ import {afterEach, describe, expect, it} from 'vitest'
 import {createServer, type Server, type ServerResponse} from 'node:http'
 import {EXTENSIONS_ROUTE, type Middleware, makeWidgetInject} from '../src/core/widget-middleware.js'
 
-// Real HTTP round-trip for the widget inject middleware. It must rewrite the FINAL html response
-// (the path SSR frameworks like TanStack Start exercise, where there's no static index.html for
-// vite's transformIndexHtml to touch), injecting the single client entry module — which loads the
-// widget + extensions through one Vite graph. A tiny http server runs the real middleware. No mocks.
-
 const ENTRY = `<script type="module" src="${EXTENSIONS_ROUTE}"></script>`
 const API_BASE = 'http://127.0.0.1:12345'
 
-// Run `mw` in front of `final` on a throwaway server; return its base URL.
 function startServer(mw: Middleware, final: (res: ServerResponse) => void): Promise<{server: Server; base: string}> {
   const server = createServer((req, res) => {
     mw(req, res, () => final(res))
@@ -34,7 +28,7 @@ describe('widget inject middleware (IT, real http)', () => {
   it('injects the client entry into a streamed text/html response, before </head>', async () => {
     const {server, base} = await startServer(makeWidgetInject(API_BASE), (res) => {
       res.setHeader('content-type', 'text/html')
-      // Two writes + end — the way a streaming SSR renderer flushes its document.
+
       res.write('<!doctype html><html><head><title>app</title></head>')
       res.write('<body><h1>hi</h1></body>')
       res.end('</html>')
@@ -48,8 +42,6 @@ describe('widget inject middleware (IT, real http)', () => {
   })
 
   it('injects when headers arrive via writeHead(status, statusText, flat-array) + end(cb) (srvx shape)', async () => {
-    // The exact shape TanStack Start's runtime (srvx) uses: a flat [k, v, …] header array and an
-    // end() callback it awaits — if either is mishandled the body isn't rewritten or the request hangs.
     const {server, base} = await startServer(makeWidgetInject(API_BASE), (res) => {
       res.writeHead(200, 'OK', ['content-type', 'text/html; charset=utf-8'])
       res.write('<!doctype html><html><head><title>app</title></head><body>hi</body></html>')

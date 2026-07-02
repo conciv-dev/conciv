@@ -9,7 +9,6 @@ async function* lines(...ls: string[]) {
 
 const looseSchema = z.object({type: z.string()}).loose()
 
-// Message ids minted by one turn, given its threadId.
 async function turnMessageIds(threadId: string): Promise<string[]> {
   const out: StreamChunk[] = []
   const gen = runAgui(
@@ -42,8 +41,7 @@ describe('runAgui lifecycle', () => {
   it('mints message ids unique across turns (no cross-turn collision)', async () => {
     const turn1 = await turnMessageIds('thread-AAA')
     const turn2 = await turnMessageIds('thread-BBB')
-    // A reused id makes the widget update an earlier turn's message instead of appending a new one
-    // (reply renders above the question / not at all). Distinct turns must mint distinct ids.
+
     const shared = turn1.filter((id) => turn2.includes(id))
     expect(shared).toEqual([])
   })

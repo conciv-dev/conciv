@@ -14,23 +14,22 @@ export type SpawnHarness = (args: string[], cwd: string, sessionId?: string) => 
 export type TestServerOpts = {
   harness?: string
   stateRoot?: string
-  // The project cwd makeApp serves (transcript lookups key off it). Defaults to the state root.
+
   cwd?: string
-  // Override the harness transcript home (~/.claude) so list/history read from a temp dir.
+
   claudeHome?: string
-  // Inject a (real or fake) harness spawn — the one seam makeApp takes from its host. Defaults to a
-  // real spawn of the resolved harness binary.
+
   spawnHarness?: SpawnHarness
-  // Extension builders whose .server() runs in makeApp (routes + injected tool ctx + dispose).
+
   extensions?: AnyExtension[]
-  // Per-extension user config keyed by extension name.
+
   extensionConfig?: Record<string, unknown>
 }
 
 export type TestServer = {
   base: string
   stateRoot: string
-  // Normalize any id (none/ours/harness) to our conciv_ id — the one-round-trip every client does first.
+
   resolve: (id?: string) => Promise<string>
   post: (path: string, body: unknown, sessionId?: string) => Promise<Response>
   postChat: (message: unknown, sessionId?: string) => Promise<string>
@@ -39,8 +38,6 @@ export type TestServer = {
   close: () => Promise<void>
 }
 
-// Real harness spawn with all three stdio piped (stdin lets the adapter deliver input). Mirrors
-// engine.ts's spawn — the only test-injected seam, exactly as production injects it into makeApp.
 function realSpawn(bin: string): SpawnHarness {
   return (args, cwd) => {
     const child = spawn(bin, args, {cwd, stdio: ['pipe', 'pipe', 'pipe']})
@@ -50,8 +47,6 @@ function realSpawn(bin: string): SpawnHarness {
   }
 }
 
-// Boot the REAL app (makeApp — the same factory production uses) over a real srvx server, with a
-// harness spawn injected. No bespoke route wiring: tests exercise the production composition.
 export async function startTestServer(opts: TestServerOpts = {}): Promise<TestServer> {
   const stateRoot = opts.stateRoot ?? mkdtempSync(join(tmpdir(), 'conciv-it-'))
   const harnessId = opts.harness ?? 'claude'

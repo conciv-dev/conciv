@@ -3,8 +3,6 @@ import {ChevronLeft, ChevronRight} from 'lucide-solid'
 import {BranchPicker as BranchPickerPrimitive} from '../primitives/branch-picker/branch-picker.js'
 import {TooltipIconButton} from './tooltip-icon-button.js'
 
-// Styled branch navigator — assistant-ui's BranchPicker. Inert in our model (tanstack has no sibling
-// branches), so with hideWhenSingleBranch it renders nothing until a branch layer exists. Kept for parity.
 export function BranchPicker(props: {class?: string}): JSX.Element {
   return (
     <BranchPickerPrimitive.Root

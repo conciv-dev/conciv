@@ -14,7 +14,6 @@ function Frame(props: {children: JSX.Element}): JSX.Element {
   return <div class="p-3 w-96 [background:var(--chat-bg)]">{props.children}</div>
 }
 
-// Streaming: open, the "Thinking…" label shimmers and the ghost text shows.
 export const Streaming: Story = {
   render: () => (
     <Frame>
@@ -30,7 +29,6 @@ export const Streaming: Story = {
   },
 }
 
-// Settled: collapsed to a quiet "Reasoning" summary; clicking expands the ghost text (animated).
 export const SettledCollapsedThenExpand: Story = {
   render: () => (
     <Frame>
@@ -46,7 +44,6 @@ export const SettledCollapsedThenExpand: Story = {
   },
 }
 
-// Open by default (e.g. when surfaced standalone).
 export const DefaultOpen: Story = {
   render: () => (
     <Frame>

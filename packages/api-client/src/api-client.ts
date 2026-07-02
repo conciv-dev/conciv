@@ -1,6 +1,3 @@
-// A per-instance session client over the shared transport. The modal and each quick-terminal pane
-// own one; it carries this instance's branded SessionId on every request. The single comms seam —
-// only our conciv_ id ever reaches the wire (resolve is the one route that takes a non-ours id, via body).
 import {createSignal} from 'solid-js'
 import {
   CONCIV_SESSION_HEADER,
@@ -22,7 +19,7 @@ import {createTransport} from './transport.js'
 
 export function defineClient(opts: {apiBase: string}) {
   const [sessionId, setSessionId] = createSignal<SessionId | null>(null)
-  // Only our branded id ever reaches the wire; null (not yet resolved) attaches no header.
+
   const sessionHeaders = (): Record<string, string> => {
     const id = sessionId()
     return id ? {[CONCIV_SESSION_HEADER]: id} : {}
@@ -31,10 +28,10 @@ export function defineClient(opts: {apiBase: string}) {
   return {
     sessionId,
     setSessionId,
-    // The AG-UI chat stream transport reads these (POST SSE handled by @tanstack/ai-client).
+
     chatStreamUrl: () => t.url('/api/chat'),
     chatHeaders: sessionHeaders,
-    // Every session-scoped request/response route lives here, inferred from the shared schemas.
+
     resolve: t.route({
       method: 'POST',
       path: '/api/chat/session/resolve',

@@ -3,10 +3,6 @@ import {defineCommand, type ArgDef, type ArgsDef, type SubCommandsDef} from 'cit
 import {PAGE_QUERY_KINDS, type PageQueryKind} from '@conciv/protocol/page-types'
 import {compact, qs, runAndPrint, type CliRequest} from './request.js'
 
-// `conciv tools page <verb>` — read and drive the live page. Each verb declares its HTTP
-// method, whether it targets an element (positional <selector> or --ref), and which extra
-// flags carry params. The 33 leaf citty commands are GENERATED from this one table (× zod),
-// so adding a verb is a single row — never a hand-written command block.
 export type VerbSpec = {method: 'GET' | 'POST'; targetsElement: boolean; flags: readonly string[]}
 
 export const PAGE_VERBS: Record<PageQueryKind, VerbSpec> = {
@@ -49,9 +45,6 @@ export const PAGE_VERBS: Record<PageQueryKind, VerbSpec> = {
   eval: {method: 'POST', targetsElement: false, flags: ['code']},
 }
 
-// One zod schema per field; a verb's allowed fields are picked from this map. Strings stay
-// strings; since/timeout coerce to numbers; position/state are enums — so a bad --state is
-// rejected with a clear error instead of being silently forwarded.
 const FIELD = {
   selector: z.string(),
   ref: z.string(),
@@ -81,7 +74,7 @@ function isFieldName(f: string): f is FieldName {
 }
 function allowedFields(verb: PageQueryKind): FieldName[] {
   const spec = PAGE_VERBS[verb]
-  // Element verbs target by selector, snapshot ref, OR React component name (whichever the agent has).
+
   const target: FieldName[] = spec.targetsElement ? ['selector', 'ref', 'name'] : []
   return [...target, ...spec.flags.filter(isFieldName)]
 }
@@ -91,8 +84,6 @@ function schemaFor(verb: PageQueryKind): z.ZodType<Record<string, unknown>> {
   return z.object(shape)
 }
 
-// Pure: raw args → the HTTP request. The verb's zod schema validates + strips to its allowed
-// fields. GET verbs carry params in the query string; POST verbs in a compact JSON body.
 export function pageRequest(verb: PageQueryKind, raw: unknown): CliRequest {
   const params = schemaFor(verb).parse(raw)
   const spec = PAGE_VERBS[verb]
@@ -129,7 +120,6 @@ function argsFor(verb: PageQueryKind): ArgsDef {
   return args
 }
 
-// One generated leaf command per verb (all hit /api/page/:verb, so the `react` alias group reuses them).
 function leafCommandsFor(verbs: readonly PageQueryKind[]): SubCommandsDef {
   return Object.fromEntries(
     verbs.map((verb) => [
@@ -143,7 +133,6 @@ function leafCommandsFor(verbs: readonly PageQueryKind[]): SubCommandsDef {
   )
 }
 
-// The generated leaf commands for every page verb, plus the non-query `changes` journal cmd.
 export function pageCommands(): SubCommandsDef {
   const changes = defineCommand({
     meta: {name: 'changes', description: 'list (or --clear) the live-edit journal'},
@@ -163,8 +152,6 @@ export const pageCommand = defineCommand({
   subCommands: pageCommands(),
 })
 
-// The React-introspection subset, exposed under `conciv tools react` as an alias of the same verbs —
-// where agents intuitively reach for them. All resolve to the same /api/page/:verb endpoints.
 export const REACT_VERBS = [
   'inspect',
   'tree',

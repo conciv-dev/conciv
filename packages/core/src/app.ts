@@ -22,23 +22,20 @@ export type MakeAppOpts = {
   bridge?: BundlerBridge
   openInEditor: OpenInEditor
   systemPromptFile?: string
-  // The effective system prompt text (base + extension appends); defaults to cfg.systemPrompt.
+
   systemPromptText?: string
-  // Discovered extension builders; their .server() factories run here, in the App phase.
+
   extensions?: AnyExtension[]
-  // Per-extension user config, keyed by extension name; parsed by each builder's parseConfig.
+
   extensionConfig?: Record<string, unknown>
   spawnHarness: (args: string[], cwd: string, sessionId?: string) => HarnessChild
   harnessEnv?: (sessionId?: string) => NodeJS.ProcessEnv
-  // Override the harness transcript home (claude: ~/.claude). For tests; defaults to homedir().
+
   claudeHome?: string
-  // Extra browser origins allowed to call the API (beyond loopback, which is always allowed) —
-  // e.g. a dev server bound to a LAN IP. The loopback default already covers localhost dev.
+
   allowedOrigins?: string[]
 }
 
-// Resolve a registered adapter or fall back to the built-in; throw if even that is missing
-// (a real misconfiguration — claude/vitest register at module load).
 function requireHarness(id: string): HarnessAdapter {
   const found = getHarness(id) ?? getHarness('claude')
   if (!found) throw new Error('no harness registered (built-in claude missing)')
@@ -111,8 +108,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     seenTools.add(tool.name)
   })
   const disposers = mounted.flatMap((entry) => (entry.dispose ? [entry.dispose] : []))
-  // Expose conciv tools to the harness CLI via MCP-over-HTTP on the same server, bridged to the live
-  // uiBus / page bus.
+
   registerMcpRoutes(
     app,
     (sessionId) => ({

@@ -18,7 +18,7 @@ export type AnchorResolver = {
   capture(target: PickedTarget): Promise<Anchor>
   resolve(anchor: Anchor): Promise<ResolveResult>
   reanchor(anchor: Anchor, target: PickedTarget): Promise<Anchor>
-  // Locate a JSX element by component/tag name (the AI's mouse-free targeting) → a PickedTarget.
+
   locate(file: string, component: string): Promise<PickedTarget | null>
 }
 

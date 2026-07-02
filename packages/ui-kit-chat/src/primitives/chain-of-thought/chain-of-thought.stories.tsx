@@ -7,7 +7,6 @@ const meta: Meta = {title: 'primitives/ChainOfThought'}
 export default meta
 type Story = StoryObj
 
-// Headless: the Root owns open-while-streaming state; a consumer renders the body off useChainOfThought.
 function Body(props: {children: JSX.Element}): JSX.Element {
   const chain = useChainOfThought()
   return (

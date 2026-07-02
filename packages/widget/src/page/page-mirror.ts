@@ -1,26 +1,15 @@
-// On-page mirror for page-action verbs: a cursor glide + highlight ring drawn on the real target
-// element just before the handler runs. Rendered into the PAGE DOM (document.body), OUTSIDE the
-// widget shadow root — like the page driver itself — so it overlays the user's app, not the panel.
-// Fire-and-forget and short: it never blocks the action (zero added latency) and self-cleans. The
-// future first-party page agent emits the same page-action shape and reuses this unchanged.
-
-// mirrorsKind + the verb set are the single source of truth in @conciv/protocol, shared with the
-// tool-ui card so its "shown on your page" note matches exactly what animates here.
 import {overlayLayer} from './overlay.js'
 export {mirrorsKind} from '@conciv/protocol/page-types'
 
-// Brand magenta, kept literal: the overlay lives outside the shadow root, so it can't resolve --pw-*.
 const ACCENT = '#ff40e0'
 const CURSOR_MS = 240
 const RING_MS = 420
 
-// Arrow-pointer glyph; tip at the SVG's top-left so translate(x,y) lands the hotspot on the target.
 const CURSOR_SVG =
   `<svg width="34" height="34" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">` +
   `<path d="M2 1.5 L2 17.5 L6.3 13.6 L9.2 20.2 L11.9 19 L9 12.5 L14.6 12.5 Z" ` +
   `fill="${ACCENT}" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/></svg>`
 
-// Marker to adopt a lingering cursor node after HMR/re-import, so there's only ever one on the page.
 const CURSOR_MARKER = 'data-conciv-cursor'
 
 let cursorEl: HTMLDivElement | undefined
@@ -75,8 +64,6 @@ function pulseRing(rect: DOMRect): void {
   anim.finished.then(() => ring.remove()).catch(() => ring.remove())
 }
 
-// Animate a cursor glide to the element's centre, then pulse a ring around it. Fire-and-forget: the
-// caller does not await this, so the action fires immediately and a fast click never stalls on it.
 export function mirrorPageAction(el: Element): void {
   if (typeof document === 'undefined' || !el.isConnected) return
   const rect = el.getBoundingClientRect()

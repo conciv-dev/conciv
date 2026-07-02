@@ -25,18 +25,15 @@ export type ThreadComponents = {
 
 export type ThreadProps = {
   components?: ThreadComponents
-  // The tool vocabulary (from defineToolkit). Each chain tool-call dispatches to the entry whose
-  // names include part.name, falling back to ToolFallback.
+
   tools?: ToolCardEntry[]
   welcome?: JSX.Element
   composer?: JSX.Element
-  // Host chrome rendered before each turn, keyed off the coalesced Turn (start/end message indices) —
-  // the widget draws session/compaction dividers here.
+
   turnPrefix?: (turn: Turn) => JSX.Element
-  // Host chrome rendered inside the viewport after the messages (scrolls with the thread): a
-  // generative-UI list, the live "now" line, a thinking indicator, error rows, tail dividers.
+
   viewportFooter?: JSX.Element
-  // Absolutely-positioned chrome over the viewport (the widget's session-switch loading overlay).
+
   overlay?: JSX.Element
 }
 
@@ -50,7 +47,6 @@ function asText(part: MessagePart | undefined): Extract<MessagePart, {type: 'tex
   return part?.type === 'text' && part.content.trim().length > 0 ? part : null
 }
 
-// The rail node icon for a tool step, by tool name (falls back to a generic wrench).
 function toolStepIcon(name: string): JSX.Element {
   const lower = name.toLowerCase()
   const size = 13
@@ -69,9 +65,7 @@ function ChainPart(props: {
   last?: boolean
 }): JSX.Element {
   const message = useMessage()
-  // Capture the host ctx ONCE during render (inside the ToolProvider owner). Passing useToolCtx()
-  // inline makes Solid wrap it in a getter that re-runs in event handlers — where there's no owner,
-  // so useContext returns the inert default (no respondApproval) and approvals silently no-op.
+
   const ctx = useToolCtx()
   return (
     <Switch>
@@ -100,9 +94,6 @@ function ChainPart(props: {
   )
 }
 
-// The assistant turn: full-width, no bubble (D1) with a min-w-0 chain so a wide tool card grows the
-// turn's HEIGHT, never its left/right edges. Consecutive thinking + tool parts fold into one chain
-// (D9); a reply text breaks it and renders as markdown.
 function AssistantTurn(props: {entries: ToolCardEntry[]; fallback: ToolUIComponent}): JSX.Element {
   const message = useMessage()
   const thread = useThread()
@@ -154,7 +145,6 @@ function AssistantTurn(props: {entries: ToolCardEntry[]; fallback: ToolUICompone
   )
 }
 
-// The user turn: a compact bubble pinned to the right (assistant-ui model).
 function UserTurn(): JSX.Element {
   return (
     <>
@@ -166,8 +156,6 @@ function UserTurn(): JSX.Element {
   )
 }
 
-// Thread config (the host's component overrides) flows via context so the message components stay at
-// module level — defining them inside Thread would recreate them each render (views over context, not props).
 type ThreadConfig = {
   entries: () => ToolCardEntry[]
   fallback: () => ToolUIComponent
@@ -182,7 +170,6 @@ const ThreadConfigContext = createContext<ThreadConfig>({
   turnPrefix: () => undefined,
 })
 
-// Host chrome rendered before a turn (session/compaction dividers), keyed off the coalesced Turn.
 function TurnPrefix(): JSX.Element {
   const config = useContext(ThreadConfigContext)
   const message = useMessage()
@@ -245,5 +232,4 @@ export function Thread(props: ThreadProps): JSX.Element {
   )
 }
 
-// Re-export the tool component shape so the widget can wire its toolkit through the Thread.
 export type {ToolCardProps}

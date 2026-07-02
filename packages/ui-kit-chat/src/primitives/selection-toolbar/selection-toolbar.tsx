@@ -4,7 +4,6 @@ import {Primitive} from '../util/primitive.js'
 
 export type SelectionInfo = {text: string; rect: DOMRect}
 
-// Tracks the current document text selection. Returns null when there is no non-empty selection.
 export function useSelectionToolbarInfo(): Accessor<SelectionInfo | null> {
   const [info, setInfo] = createSignal<SelectionInfo | null>(null)
   const update = () => {

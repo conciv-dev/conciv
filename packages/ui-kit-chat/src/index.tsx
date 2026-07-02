@@ -1,4 +1,3 @@
-// Store / context (the single source of truth = the real tanstack useChat return).
 export {
   ChatProvider,
   useChatContext,
@@ -19,7 +18,6 @@ export {
 } from './store/grouping.js'
 export {ToolProvider, useToolCtx} from './store/tool-context.js'
 
-// Utilities.
 export {Primitive, type Slottable} from './primitives/util/primitive.js'
 export {
   createActionButton,
@@ -27,7 +25,6 @@ export {
   type ActionButtonProps,
 } from './primitives/util/create-action-button.js'
 
-// Headless primitives (assistant-ui convention: `*Primitive` for the headless compound parts).
 export {Thread as ThreadPrimitive, type MessagesComponents} from './primitives/thread/thread.js'
 export {ViewportProvider, useThreadViewport, type ViewportContextValue} from './primitives/thread/viewport-context.js'
 export {Message as MessagePrimitive, type PartsComponents} from './primitives/message/message.js'
@@ -113,13 +110,11 @@ export {
   type SelectionInfo,
 } from './primitives/selection-toolbar/selection-toolbar.js'
 
-// Behaviors.
 export {useThreadAutoScroll} from './behaviors/use-thread-auto-scroll.js'
 export {useTopAnchorReserve} from './behaviors/use-top-anchor-reserve.js'
 export {useScrollLock} from './behaviors/use-scroll-lock.js'
 export {useSizeHandle} from './behaviors/use-size-handle.js'
 
-// Styled set (neutral, themeable — references only --chat-* tokens).
 export {Thread, type ThreadComponents, type ThreadProps} from './styled/thread.js'
 export {Composer, type ComposerProps} from './styled/composer.js'
 export {Markdown, type MarkdownProps} from './styled/markdown.js'
@@ -134,9 +129,7 @@ export {FollowUpSuggestions} from './styled/follow-up-suggestions.js'
 export {ToolGroup, type ToolGroupProps} from './styled/tool-group.js'
 export {AttachmentUI} from './styled/attachment-ui.js'
 export {ModelSelector, type StyledModelSelectorProps} from './styled/model-selector.js'
-// Generic tool-building primitives + dispatch mechanism. ui-kit-chat is tool-AGNOSTIC: it knows how
-// to derive status, render a fallback, and dispatch a tool-call to a card by name — never the
-// concrete tools (Bash/ApplyPatch/Search/…), which live in @conciv/ui-kit-chat-tools.
+
 export {toolStatus, type ToolStatus} from './primitives/tools/tool-status.js'
 export {ToolDurationProvider, useToolCallDuration} from './primitives/tools/tool-duration.js'
 export {ToolFallback as ToolFallbackPrimitive, useToolFallback} from './primitives/tools/tool-fallback.js'
