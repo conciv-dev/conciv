@@ -12,13 +12,15 @@ export function withConciv<T extends object>(
   if (options.enabled === false) return {...nextConfig, env: baseEnv}
   const port = options.port ?? CONCIV_DEFAULT_PORT
   const resolved: ConcivConfig = {...options, port}
+  const concivEnv = {
+    NEXT_PUBLIC_CONCIV_PORT: String(port),
+    CONCIV_OPTIONS: JSON.stringify(resolved),
+  }
+  process.env.NEXT_PUBLIC_CONCIV_PORT ??= concivEnv.NEXT_PUBLIC_CONCIV_PORT
+  process.env.CONCIV_OPTIONS ??= concivEnv.CONCIV_OPTIONS
   return {
     ...nextConfig,
-    env: {
-      ...baseEnv,
-      NEXT_PUBLIC_CONCIV_PORT: String(port),
-      CONCIV_OPTIONS: JSON.stringify(resolved),
-    },
+    env: {...baseEnv, ...concivEnv},
   }
 }
 
