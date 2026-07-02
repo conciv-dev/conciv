@@ -1,6 +1,6 @@
 {
   "name": "@conciv/api-client",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "The conciv network seam: the typed fetch/SSE transport and the per-session client (defineClient/SessionClient) shared by the widget and the extension contract.",
   "keywords": [
     "client",

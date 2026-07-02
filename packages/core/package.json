@@ -1,6 +1,6 @@
 {
   "name": "@conciv/core",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "The conciv engine: a framework-free h3 + srvx server exposing the /__pw HTTP surface, with a harness registry seam.",
   "keywords": [
     "ai",
