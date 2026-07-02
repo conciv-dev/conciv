@@ -1,3 +1,5 @@
+import {readFileSync} from 'node:fs'
+import {fileURLToPath} from 'node:url'
 import {afterEach, beforeEach, describe, expect, it} from 'vitest'
 import {withConciv, CONCIV_DEFAULT_PORT} from '../src/core/nextjs.js'
 
@@ -59,5 +61,10 @@ describe('withConciv process.env (Turbopack does not apply the next.config env k
     withConciv({}, {enabled: false, port: 6123})
     expect(process.env.NEXT_PUBLIC_CONCIV_PORT).toBeUndefined()
     expect(process.env.CONCIV_OPTIONS).toBeUndefined()
+  })
+
+  it('never assigns to a literal process.env.NEXT_PUBLIC_ member (bundlers inline it, breaking webpack)', () => {
+    const source = readFileSync(fileURLToPath(new URL('../src/core/nextjs.ts', import.meta.url)), 'utf8')
+    expect(source).not.toMatch(/process\.env\.NEXT_PUBLIC_\w+\s*(\?\?=|=[^=])/)
   })
 })

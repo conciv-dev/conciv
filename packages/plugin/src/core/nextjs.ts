@@ -16,8 +16,9 @@ export function withConciv<T extends object>(
     NEXT_PUBLIC_CONCIV_PORT: String(port),
     CONCIV_OPTIONS: JSON.stringify(resolved),
   }
-  process.env.NEXT_PUBLIC_CONCIV_PORT ??= concivEnv.NEXT_PUBLIC_CONCIV_PORT
-  process.env.CONCIV_OPTIONS ??= concivEnv.CONCIV_OPTIONS
+  for (const [key, value] of Object.entries(concivEnv)) {
+    if (process.env[key] === undefined) process.env[key] = value
+  }
   return {
     ...nextConfig,
     env: {...baseEnv, ...concivEnv},
