@@ -49,7 +49,7 @@ const Magnet: React.FC<MagnetProps> = ({
         setPosition({x: offsetX, y: offsetY})
       } else {
         setIsActive(false)
-        setPosition({x: 0, y: 0})
+        setPosition((prev) => (prev.x === 0 && prev.y === 0 ? prev : {x: 0, y: 0}))
       }
     }
 

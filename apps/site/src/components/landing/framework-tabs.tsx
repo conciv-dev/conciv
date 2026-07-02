@@ -1,7 +1,7 @@
 import {m} from 'motion/react'
 import {Tabs as TabsPrimitive} from 'radix-ui'
 import {ShikiMagicMovePrecompiled} from '@shikijs/magic-move/react'
-import {createContext, useContext, useRef, useState, type ReactNode} from 'react'
+import {createContext, useCallback, useContext, useRef, useState, type ReactNode} from 'react'
 import '@shikijs/magic-move/style.css'
 import {HoverCard, HoverCardContent, HoverCardTrigger} from '@/components/ui/hover-card'
 import {CopyButton} from './copy-button'
@@ -138,16 +138,21 @@ function Code() {
   const step = Math.max(0, MAGIC_MOVE_STEP_IDS.indexOf(active.id))
   const completion = SNIPPET_TWOSLASH.find((entry) => entry.id === active.id)?.completion ?? null
 
+  const twoslashRef = useRef(active.twoslash === true)
+  twoslashRef.current = active.twoslash === true
+
   const settle = () => {
     const container = containerRef.current
     if (!container) return
-    setAnchors(active.twoslash === true ? measureAnchors(container, activeIdRef.current) : [])
+    setAnchors(twoslashRef.current ? measureAnchors(container, activeIdRef.current) : [])
   }
+  const settleRef = useRef(settle)
+  settleRef.current = settle
 
-  const attach = (el: HTMLDivElement | null) => {
+  const attach = useCallback((el: HTMLDivElement | null) => {
     containerRef.current = el
-    if (el && active.twoslash === true) requestAnimationFrame(settle)
-  }
+    if (el && twoslashRef.current) requestAnimationFrame(() => settleRef.current())
+  }, [])
 
   return (
     <div ref={attach} className="od-snippet relative overflow-x-auto px-4 py-3.5 font-mono text-[12.5px] leading-[1.7]">

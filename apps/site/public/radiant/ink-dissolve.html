@@ -311,9 +311,11 @@
   var lastTime = 0;
   var paused = false;
 
+  var rafId = 0;
+
   function render(now) {
     if (paused) {
-      requestAnimationFrame(render);
+      rafId = 0;
       return;
     }
 
@@ -337,7 +339,7 @@
     gl.uniform2f(uMouse, smoothMouseX, smoothMouseY);
 
     gl.drawArrays(gl.TRIANGLES, 0, 3);
-    requestAnimationFrame(render);
+    rafId = requestAnimationFrame(render);
   }
 
   window.addEventListener('resize', function () {
@@ -346,13 +348,30 @@
 
   resize();
 
-  requestAnimationFrame(render);
+  rafId = requestAnimationFrame(render);
 
   // ── Visibility pause ──
+  var hidden = false;
+  var offscreen = false;
+
+  function applyPause() {
+    paused = hidden || offscreen;
+    if (!paused) {
+      lastTime = 0;
+      if (rafId === 0) rafId = requestAnimationFrame(render);
+    }
+  }
+
   document.addEventListener('visibilitychange', function() {
-    paused = document.hidden;
-    if (!paused) lastTime = 0;
+    hidden = document.hidden;
+    applyPause();
   });
+
+  // Pause when the iframe is scrolled out of the top-level viewport.
+  new IntersectionObserver(function(entries) {
+    offscreen = !entries[entries.length - 1].isIntersecting;
+    applyPause();
+  }).observe(canvas);
 
   // ── PostMessage API ──
   window.addEventListener('message', function(e) {
