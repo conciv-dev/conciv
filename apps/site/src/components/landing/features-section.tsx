@@ -1,5 +1,7 @@
 import {m, useMotionValue, useSpring, useTransform} from 'motion/react'
 import {useRef, useState, type ForwardRefExoticComponent, type RefAttributes} from 'react'
+import AnimatedContent from '@/components/AnimatedContent'
+import SplitText from '@/components/SplitText'
 import type {AnimatedIconHandle, AnimatedIconProps} from '@/components/ui/types'
 import MessageCircleIcon from '@/components/ui/message-circle-icon'
 import MousePointer2Icon from '@/components/ui/mouse-pointer-2-icon'
@@ -126,24 +128,33 @@ export function FeaturesSection() {
         <p className="mb-2.5 font-mono text-[11px] font-semibold uppercase tracking-[0.22em] text-primary">
           Capabilities
         </p>
-        <h2 className="od-display mb-2 text-[clamp(28px,3.4vw,40px)] font-bold tracking-[-0.025em] [text-wrap:balance]">
-          The whole dev loop, in the page
-        </h2>
+        <SplitText
+          text="The whole dev loop, in the page"
+          tag="h2"
+          splitType="words"
+          duration={0.7}
+          delay={40}
+          from={{opacity: 0, y: 22}}
+          to={{opacity: 1, y: 0}}
+          className="od-display mb-2 text-[clamp(28px,3.4vw,40px)] font-bold tracking-[-0.025em]"
+        />
         <p className="mb-10 max-w-[52ch] text-muted-foreground">
           Everything the agent can do happens right where you're looking — grounded on the real DOM, streamed into the
           thread.
         </p>
-        <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
-          {CAPABILITIES.map((capability) => (
-            <CapabilityCard
-              key={capability.title}
-              capability={capability}
-              dimmed={hovered !== null && hovered !== capability.title}
-              onHoverStart={() => setHovered(capability.title)}
-              onHoverEnd={() => setHovered(null)}
-            />
-          ))}
-        </div>
+        <AnimatedContent distance={44} duration={0.7} ease="power3.out" threshold={0.15}>
+          <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
+            {CAPABILITIES.map((capability) => (
+              <CapabilityCard
+                key={capability.title}
+                capability={capability}
+                dimmed={hovered !== null && hovered !== capability.title}
+                onHoverStart={() => setHovered(capability.title)}
+                onHoverEnd={() => setHovered(null)}
+              />
+            ))}
+          </div>
+        </AnimatedContent>
       </div>
     </section>
   )

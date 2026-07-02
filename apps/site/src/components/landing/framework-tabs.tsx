@@ -1,12 +1,36 @@
-import {AnimatePresence, m} from 'motion/react'
+import {m} from 'motion/react'
 import {Tabs as TabsPrimitive} from 'radix-ui'
-import {createContext, useContext, useState, type ReactNode} from 'react'
+import {ShikiMagicMovePrecompiled} from '@shikijs/magic-move/react'
+import {createContext, useContext, useRef, useState, type ReactNode} from 'react'
 import {Check, Copy} from 'lucide-react'
-import type {FrameworkSnippet} from './framework-snippets'
+import '@shikijs/magic-move/style.css'
+import {cleanSnippet, type FrameworkSnippet} from './framework-snippets'
+import {MAGIC_MOVE_STEP_IDS, MAGIC_MOVE_STEPS, SNIPPET_TWOSLASH, type SnippetHover} from './framework-snippets.gen'
+
+type Anchor = {left: number; top: number; width: number; height: number; hover?: SnippetHover; caret?: boolean}
+
+function measureAnchors(container: HTMLElement, snippetId: string): Anchor[] {
+  const info = SNIPPET_TWOSLASH.find((entry) => entry.id === snippetId)
+  if (!info) return []
+  const base = container.getBoundingClientRect()
+  const items = [...container.querySelectorAll<HTMLElement>('.shiki-magic-move-item')]
+  const nth = (target: string, occurrence: number) =>
+    items.filter((el) => el.textContent?.trim() === target)[occurrence]
+  const toBox = (el: HTMLElement) => {
+    const rect = el.getBoundingClientRect()
+    return {left: rect.left - base.left, top: rect.top - base.top, width: rect.width, height: rect.height}
+  }
+  const hovers = info.hovers.flatMap((hover) => {
+    const el = nth(hover.target, hover.occurrence)
+    return el ? [{...toBox(el), hover}] : []
+  })
+  const caretEl = info.completion ? nth(info.completion.target, 0) : undefined
+  const caret = caretEl ? [{...toBox(caretEl), caret: true}] : []
+  return [...hovers, ...caret]
+}
 
 type FrameworkTabsContextValue = {
   snippets: FrameworkSnippet[]
-  highlighted: Record<string, string>
   active: FrameworkSnippet
   select: (id: string) => void
 }
@@ -19,20 +43,12 @@ function useFrameworkTabs(): FrameworkTabsContextValue {
   return value
 }
 
-function Root({
-  snippets,
-  highlighted,
-  children,
-}: {
-  snippets: FrameworkSnippet[]
-  highlighted: Record<string, string>
-  children: ReactNode
-}) {
+function Root({snippets, children}: {snippets: FrameworkSnippet[]; children: ReactNode}) {
   const [activeId, setActiveId] = useState(snippets[0]?.id ?? '')
   const active = snippets.find((snippet) => snippet.id === activeId) ?? snippets[0]
 
   return (
-    <FrameworkTabsContext.Provider value={{snippets, highlighted, active, select: setActiveId}}>
+    <FrameworkTabsContext.Provider value={{snippets, active, select: setActiveId}}>
       <TabsPrimitive.Root value={activeId} onValueChange={setActiveId} className="min-w-0">
         {children}
       </TabsPrimitive.Root>
@@ -105,7 +121,7 @@ function FileBar() {
 function CopyButton() {
   const {active} = useFrameworkTabs()
   const [copied, setCopied] = useState(false)
-  const copyable = (active.code ?? '').replace(/\n\/\/\s*\^[?|].*$/gm, '')
+  const copyable = cleanSnippet(active.code ?? '')
 
   const copy = () => {
     void navigator.clipboard.writeText(copyable)
@@ -128,21 +144,62 @@ function CopyButton() {
 }
 
 function Code() {
-  const {active, highlighted} = useFrameworkTabs()
+  const {active} = useFrameworkTabs()
+  const [anchors, setAnchors] = useState<Anchor[]>([])
+  const containerRef = useRef<HTMLDivElement>(null)
+  const activeIdRef = useRef(active.id)
+  activeIdRef.current = active.id
+  const step = Math.max(0, MAGIC_MOVE_STEP_IDS.indexOf(active.id))
+  const completion = SNIPPET_TWOSLASH.find((entry) => entry.id === active.id)?.completion ?? null
+
+  const settle = () => {
+    const container = containerRef.current
+    if (!container) return
+    setAnchors(active.twoslash === true ? measureAnchors(container, activeIdRef.current) : [])
+  }
+
+  const attach = (el: HTMLDivElement | null) => {
+    containerRef.current = el
+    if (el && active.twoslash === true) requestAnimationFrame(settle)
+  }
+
   return (
-    <m.div layout className="relative overflow-hidden">
-      <AnimatePresence mode="popLayout" initial={false}>
-        <m.div
-          key={active.id}
-          initial={{opacity: 0, y: 8}}
-          animate={{opacity: 1, y: 0}}
-          exit={{opacity: 0, y: -6}}
-          transition={{duration: 0.22, ease: [0.22, 1, 0.36, 1]}}
-          className="od-snippet overflow-x-auto px-4 py-3.5 font-mono text-[12.5px] leading-[1.7]"
-          dangerouslySetInnerHTML={{__html: highlighted[active.id] ?? ''}}
-        />
-      </AnimatePresence>
-    </m.div>
+    <div ref={attach} className="od-snippet relative overflow-x-auto px-4 py-3.5 font-mono text-[12.5px] leading-[1.7]">
+      <ShikiMagicMovePrecompiled
+        steps={MAGIC_MOVE_STEPS}
+        step={step}
+        options={{duration: 500, stagger: 2, animateContainer: true, containerStyle: false}}
+        onStart={() => setAnchors([])}
+        onEnd={settle}
+      />
+      {anchors.map((anchor, index) => (
+        <span
+          key={index}
+          className="od-hover-anchor"
+          style={{left: anchor.left, top: anchor.top, width: anchor.width, height: anchor.height}}
+        >
+          {anchor.hover && (
+            <span className="twoslash-popup-container">
+              <code dangerouslySetInnerHTML={{__html: anchor.hover.html}} />
+              {anchor.hover.docs && <span className="twoslash-popup-docs">{anchor.hover.docs}</span>}
+            </span>
+          )}
+          {anchor.caret === true && completion && (
+            <>
+              <span className="od-caret" />
+              <ul className="twoslash-completion-list">
+                {completion.items.map((name) => (
+                  <li key={name}>
+                    <span className="twoslash-completions-matched">{completion.target}</span>
+                    <span className="twoslash-completions-unmatched">{name.slice(completion.target.length)}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </span>
+      ))}
+    </div>
   )
 }
 

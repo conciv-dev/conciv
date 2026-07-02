@@ -44,6 +44,7 @@ export function SiteFooter() {
         aria-hidden
         loading="lazy"
         tabIndex={-1}
+        sandbox="allow-scripts"
         className="od-footer-shader pointer-events-none absolute inset-0 size-full border-0 opacity-25 [mask-image:linear-gradient(200deg,transparent_35%,#000_78%)]"
       />
       <div className="relative mx-auto grid max-w-[1180px] gap-10 px-8 pb-10 pt-14 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">

@@ -1,8 +1,8 @@
 import type {ReactNode} from 'react'
+import AnimatedContent from '@/components/AnimatedContent'
 import {RobotFab} from './robot-fab'
 import {FrameworkTabs} from './framework-tabs'
 import {FRAMEWORK_SNIPPETS} from './framework-snippets'
-import {HIGHLIGHTED_SNIPPETS} from './framework-snippets.gen'
 
 function Code({children}: {children: ReactNode}) {
   return (
@@ -14,7 +14,13 @@ function Code({children}: {children: ReactNode}) {
 
 function Step({number, title, body, children}: {number: string; title: string; body: string; children?: ReactNode}) {
   return (
-    <div className="grid grid-cols-[88px_1fr] gap-6 border-t py-[30px] last:border-b">
+    <AnimatedContent
+      distance={36}
+      duration={0.65}
+      ease="power3.out"
+      threshold={0.2}
+      className="grid grid-cols-[88px_1fr] gap-6 border-t py-[30px] last:border-b"
+    >
       <div
         aria-hidden
         className="od-display text-[56px] font-extrabold leading-[0.9] tracking-[-0.04em] text-accent [-webkit-text-stroke:1.5px_var(--od-accent)]"
@@ -26,7 +32,7 @@ function Step({number, title, body, children}: {number: string; title: string; b
         <p className="mb-3 max-w-[46ch] text-[13.5px] text-muted-foreground">{body}</p>
         {children}
       </div>
-    </div>
+    </AnimatedContent>
   )
 }
 
@@ -52,7 +58,7 @@ export function HowItWorks() {
             </Code>
           </Step>
           <Step number="2" title="Add the plugin" body="Pick your build. Every entry is one import.">
-            <FrameworkTabs.Root snippets={FRAMEWORK_SNIPPETS} highlighted={HIGHLIGHTED_SNIPPETS}>
+            <FrameworkTabs.Root snippets={FRAMEWORK_SNIPPETS}>
               <FrameworkTabs.List />
               <FrameworkTabs.Panel>
                 <FrameworkTabs.FileBar />

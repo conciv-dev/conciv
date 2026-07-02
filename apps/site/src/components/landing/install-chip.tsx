@@ -1,5 +1,6 @@
 import {Check, Copy} from 'lucide-react'
 import {useRef, useState} from 'react'
+import Magnet from '@/components/Magnet'
 import {Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from '@/components/ui/tooltip'
 
 const COMMAND = 'npm i -D @conciv/it'
@@ -45,9 +46,11 @@ export function InstallChip() {
           </Tooltip>
         </TooltipProvider>
       </div>
-      <a href="/docs/quick-start" className="text-[13.5px] font-semibold text-primary hover:underline">
-        Quick start →
-      </a>
+      <Magnet padding={44} magnetStrength={3}>
+        <a href="/docs/quick-start" className="text-[13.5px] font-semibold text-primary hover:underline">
+          Quick start →
+        </a>
+      </Magnet>
     </div>
   )
 }

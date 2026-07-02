@@ -11,7 +11,7 @@ export function Transcript({
   viewportRef: RefObject<HTMLDivElement | null>
 }) {
   return (
-    <ScrollArea className="min-h-0 flex-1">
+    <ScrollArea className="min-h-0 flex-1" data-lenis-prevent>
       <div ref={viewportRef} className="flex flex-col gap-2.5 p-4">
         {messages.map((message, i) => (
           <MessageRow key={i} message={message} />

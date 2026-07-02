@@ -1,3 +1,11 @@
+const TWOSLASH_LINE = /^\/\/\s*(@noErrors|\^[?|])/
+
+export const cleanSnippet = (code: string) =>
+  code
+    .split('\n')
+    .filter((line) => !TWOSLASH_LINE.test(line.trim()))
+    .join('\n')
+
 export type FrameworkSnippet = {
   id: string
   label: string
