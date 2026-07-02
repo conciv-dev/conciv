@@ -1,13 +1,30 @@
+import {createRequire} from 'node:module'
 import type {Plugin} from 'vite'
 import {addSourceToJsx} from './inject-source.js'
 import {compileExtensionSolid, isExtensionModule} from './compile-extension.js'
 import {splitExtension} from './split-extension.js'
 import {type Builtins, EXTENSIONS_RESOLVED_ID, EXTENSIONS_VIRTUAL_ID, extensionsModuleSource} from './extensions.js'
 
+const require = createRequire(import.meta.url)
+
+export const WIDGET_CJS_DEPS = ['partial-json', 'js-beautify']
+
+export function widgetInstalled(): boolean {
+  try {
+    require.resolve('@conciv/widget')
+    return true
+  } catch {
+    return false
+  }
+}
+
 export function concivSolidConfig() {
   return {
     resolve: {dedupe: ['solid-js', '@conciv/extension']},
-    optimizeDeps: {exclude: ['@conciv/widget', '@conciv/extension']},
+    optimizeDeps: {
+      exclude: ['@conciv/widget', '@conciv/extension'],
+      include: widgetInstalled() ? [...WIDGET_CJS_DEPS] : [],
+    },
   }
 }
 

@@ -1,5 +1,4 @@
 import {join} from 'node:path'
-import {createRequire} from 'node:module'
 import type {Plugin, ViteDevServer} from 'vite'
 import {defineBundlerBridge, type BundlerBridge} from '@conciv/protocol/bundler-types'
 import {start, type Engine} from '@conciv/core/engine'
@@ -17,18 +16,8 @@ import {
   concivSolidConfig,
   resolveExtensionsModule,
   transformConcivModule,
+  widgetInstalled,
 } from './vite-plumbing.js'
-
-const require = createRequire(import.meta.url)
-
-function widgetInstalled(): boolean {
-  try {
-    require.resolve('@conciv/widget')
-    return true
-  } catch {
-    return false
-  }
-}
 
 function makeViteBridge(server: ViteLike): BundlerBridge {
   return defineBundlerBridge({
