@@ -8,14 +8,14 @@ repos:
     hooks:
       - id: oxfmt
         name: oxfmt (format staged files)
-        entry: pnpm exec oxfmt --write
+        entry: bash -c 'pnpm exec oxfmt --write "$@" && git add -- "$@"' --
         language: system
         pass_filenames: true
         files: '\.(m?[jt]sx?|c[jt]s|jsonc?|md)$'
         exclude: '^(.*/)?(dist|build|\.turbo)/'
       - id: oxlint
         name: oxlint (lint staged files)
-        entry: pnpm exec oxlint
+        entry: bash -c 'pnpm exec oxlint --fix "$@" && git add -- "$@"' --
         language: system
         pass_filenames: true
         files: '\.(m?[jt]sx?|c[jt]s)$'
