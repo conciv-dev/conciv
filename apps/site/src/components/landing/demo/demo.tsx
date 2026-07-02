@@ -9,6 +9,7 @@ import {Transcript} from './transcript'
 import {Composer} from './composer'
 import {AppPreview} from './app-preview'
 import {GhostCursor} from './ghost-cursor'
+import {SparkMark} from '../spark-mark'
 import {useDemo} from './use-demo'
 import {buildTurn, PICKABLES, pickScenario, type Scenario} from './demo-data'
 
@@ -125,7 +126,7 @@ export function Demo() {
       />
       <Card className="gap-0 overflow-hidden p-0 shadow-xl">
         <div className="flex items-center gap-2 border-b px-4 py-2.5">
-          <span className="text-base text-primary">✦</span>
+          <SparkMark className="text-base text-primary" />
           <span className="text-[13.5px] font-semibold">conciv</span>
           <Badge className="bg-accent font-mono text-[10px] uppercase tracking-wide text-accent-foreground">
             in your app

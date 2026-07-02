@@ -1,3 +1,5 @@
+import {SparkMark} from './spark-mark'
+
 const PRODUCT = [
   {label: 'Docs', href: '/docs'},
   {label: 'Quick start', href: '/docs/quick-start'},
@@ -50,7 +52,7 @@ export function SiteFooter() {
       <div className="relative mx-auto grid max-w-[1180px] gap-10 px-8 pb-10 pt-14 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1fr]">
         <div>
           <div className="od-display flex items-center gap-2 text-[19px] font-bold text-[oklch(0.94_0.006_75)]">
-            <span className="text-[oklch(0.7_0.19_32)]">✦</span> conciv
+            <SparkMark className="text-[oklch(0.7_0.19_32)]" /> conciv
           </div>
           <p className="mt-2.5 max-w-[30ch] text-[13px] text-[oklch(0.68_0.012_70)]">
             An AI dev agent that lives inside your running app. Dev-only, open source, harness-agnostic.

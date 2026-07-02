@@ -1,6 +1,7 @@
 import type {ReactNode} from 'react'
 import AnimatedContent from '@/components/AnimatedContent'
 import {RobotFab} from './robot-fab'
+import {SparkMark} from './spark-mark'
 import {FrameworkTabs} from './framework-tabs'
 import {FRAMEWORK_SNIPPETS} from './framework-snippets'
 
@@ -45,7 +46,7 @@ export function HowItWorks() {
             How it works
           </p>
           <h2 className="od-display mb-2 text-[clamp(28px,3.4vw,40px)] font-bold tracking-[-0.025em] [text-wrap:balance]">
-            From npm to <span className="text-primary">✦</span> in three steps
+            From npm to <SparkMark className="text-primary" /> in three steps
           </h2>
           <p className="max-w-[52ch] text-muted-foreground">
             No SaaS, no keys to paste, no second terminal. The agent you already trust, mounted in your dev build.
