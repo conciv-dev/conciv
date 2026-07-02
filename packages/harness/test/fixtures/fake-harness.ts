@@ -1,7 +1,3 @@
-// Real executable standing in for a harness CLI in ITs — spawned as a child to exercise the
-// true spawn → stdout-pipe → decode path. Replays a format-specific transcript selected by
-// CONCIV_FAKE_FORMAT (claude | codex). Echoes argv (CONCIV_TEST_ARGV_FILE) so a test can
-// assert resume; hangs until SIGTERM under CONCIV_FAKE_HANG to exercise Stop.
 import {writeFileSync} from 'node:fs'
 
 function claudeLines(): unknown[] {

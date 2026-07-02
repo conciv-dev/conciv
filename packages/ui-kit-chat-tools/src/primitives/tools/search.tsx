@@ -4,11 +4,8 @@ import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import {parseInput, resultText} from '@conciv/ui-kit-chat'
 import {toolStatus, type ToolStatus} from '@conciv/ui-kit-chat'
 
-// Headless search logic (Grep / Glob). Grep carries pattern (+ optional path/glob); Glob carries
-// pattern. The styled layer renders the pattern title + match list.
 const SearchInput = z.object({pattern: z.string().optional(), path: z.string().optional(), glob: z.string().optional()})
 
-// Count non-empty result lines as matches; 0 reads as "no matches".
 function matchCount(result: ToolResultPart | undefined): number {
   const text = resultText(result).trim()
   return text ? text.split('\n').filter((line) => line.trim().length > 0).length : 0

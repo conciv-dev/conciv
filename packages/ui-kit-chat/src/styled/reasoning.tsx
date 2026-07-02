@@ -4,9 +4,6 @@ import {SHIMMER} from './shimmer.js'
 
 export type ReasoningProps = {text: string; streaming?: boolean; defaultOpen?: boolean}
 
-// Reasoning / chain-of-thought ghost text in a collapsible card. While streaming the label shimmers;
-// once settled it collapses to a quiet "Reasoning" summary. Controlled like ChainOfThought: forced open
-// while streaming, then collapses on settle unless the user had opened it themselves.
 export function Reasoning(props: ReasoningProps): JSX.Element {
   const [userOpen, setUserOpen] = createSignal(props.defaultOpen ?? false)
   const open = () => userOpen() || (props.streaming ?? false)

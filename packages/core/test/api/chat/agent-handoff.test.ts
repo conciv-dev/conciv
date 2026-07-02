@@ -14,6 +14,6 @@ describe('ensureAgentRecord', () => {
       {store, harnessKind: 'claude', cwd: '/app', mintId: () => 'conciv_other'},
       'tok-init',
     )
-    expect(b.id).toBe('conciv_seed') // idempotent by harness id
+    expect(b.id).toBe('conciv_seed')
   })
 })

@@ -3,11 +3,6 @@ import {readStorage, writeStorage} from './persisted-signal.js'
 
 export type Grow = 'up' | 'down' | 'left' | 'right'
 
-// Edge-drag resize on one axis, adapted from TanStack Devtools' handleDragStart (MIT). Devtools
-// docks to an edge and resizes off the pointer delta, collapsing below a threshold. Ours floats in
-// a corner, so `grow` says which drag direction enlarges it: 'up'/'down' resize height (drag the
-// top/bottom edge), 'left'/'right' resize width (drag the left/right edge). Pick `grow` from which
-// edge is free (away from the anchored corner).
 export function createResizable(opts: {
   initial: number
   min: number
@@ -21,8 +16,6 @@ export function createResizable(opts: {
   onPointerDown: (e: PointerEvent) => void
   onKeyDown: (e: KeyboardEvent) => void
 } {
-  // Live size persists on commit (pointer-up / key step), not on every drag tick — so seed a plain
-  // signal from storage and write at the commit points below rather than write-through on set.
   const stored = readStorage(
     opts.storageKey,
     (raw) => {
@@ -43,7 +36,7 @@ export function createResizable(opts: {
     const grow = opts.grow()
     const horizontal = grow === 'left' || grow === 'right'
     const start = horizontal ? e.clientX : e.clientY
-    // 'down'/'right' grow as the pointer increases; 'up'/'left' grow as it decreases.
+
     const positive = grow === 'down' || grow === 'right'
 
     const move = (ev: PointerEvent) => {
@@ -67,8 +60,6 @@ export function createResizable(opts: {
     }
   }
 
-  // Keyboard resize: arrow keys nudge by a step, mirroring the drag direction (the key pointing
-  // toward `grow` enlarges). Persists like a drag does.
   const STEP = 24
   const onKeyDown = (e: KeyboardEvent) => {
     const grow = opts.grow()

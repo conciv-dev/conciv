@@ -3,8 +3,6 @@ import {Check, ShieldAlert, X} from 'lucide-solid'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {Permission, usePermission} from '../../primitives/tools/permission.js'
 
-// Styled native-approval prompt: a thin --chat-* wrapper over the Permission primitive. Renders the
-// shield + Allow/Deny controls only while the tool-call awaits approval; nothing otherwise.
 const BTN =
   'flex-none inline-flex items-center gap-1 py-1 px-2.5 rounded-[var(--chat-radius-sm)] [border:1px_solid] font-semibold text-[length:var(--chat-text-sm)] leading-none cursor-pointer'
 const DENY = `${BTN} text-[color:var(--chat-text-2)] [border-color:var(--chat-line)] [background:var(--chat-fill)] hover:[color:var(--chat-danger)] hover:[background:var(--chat-fill-strong)]`

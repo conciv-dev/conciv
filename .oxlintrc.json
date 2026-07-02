@@ -3,13 +3,15 @@
   "plugins": ["typescript", "react", "unicorn"],
   "jsPlugins": [
     {"name": "unocss", "specifier": "@unocss/eslint-plugin"},
-    {"name": "playwright", "specifier": "eslint-plugin-playwright"}
+    {"name": "playwright", "specifier": "eslint-plugin-playwright"},
+    {"name": "conciv", "specifier": "./tools/oxlint/no-comments.js"}
   ],
   "categories": {
     "correctness": "error",
     "suspicious": "warn"
   },
   "rules": {
+    "conciv/no-comments": "error",
     "unicorn/consistent-function-scoping": "off",
     "unicorn/require-module-specifiers": "off",
     "react/react-in-jsx-scope": "off",

@@ -1,7 +1,5 @@
 import type {H3Event} from 'h3'
 
-// Push-based SSE for the extension's own routes. Self-contained (no core dep): streamed Responses
-// bypass the host CORS middleware, so the loopback origin is reflected here per response.
 const BASE_SSE_HEADERS = {
   'content-type': 'text/event-stream',
   'cache-control': 'no-cache',

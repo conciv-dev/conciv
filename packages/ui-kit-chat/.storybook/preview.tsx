@@ -1,7 +1,6 @@
 import type {Preview} from 'storybook-solidjs-vite'
 import './storybook.css'
 
-// Stories render against the conciv dark panel so chat surfaces look exactly as in the widget.
 const preview: Preview = {
   parameters: {
     controls: {matchers: {color: /(background|color)$/i, date: /Date$/i}},

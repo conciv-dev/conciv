@@ -1,6 +1,3 @@
-// Debounced editor-opener for /api/open. The launcher is injected by the host (core depends on
-// none); the debounce stops the agent spamming editor tabs for the same file:line.
-
 export type LaunchFn = (file: string, line: number) => void
 
 export type OpenInEditor = (file: string, line?: number) => void

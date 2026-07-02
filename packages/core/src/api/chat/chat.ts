@@ -15,20 +15,17 @@ export type {SpawnHarness} from './turn.js'
 export type ChatRouteOpts = {
   cwd: string
   stateRoot: string
-  initialSessionId: string // the agent's handed-off harness id, '' if none
+  initialSessionId: string
   harness: HarnessAdapter
   spawnHarness: SpawnHarness
   harnessEnv?: (sessionId?: string) => NodeJS.ProcessEnv
-  systemPromptFile?: string // when systemPrompt==='file'
-  systemPromptText?: string // otherwise
-  claudeHome?: string // override the harness transcript home (tests); default homedir()
+  systemPromptFile?: string
+  systemPromptText?: string
+  claudeHome?: string
   uiBus: UiBus
   riskyTools?: ReadonlySet<string>
 }
 
-// Ensure a record exists for an agent hand-off: conciv was launched with CONCIV_SESSION_ID = a harness
-// id it didn't mint, so we wrap that id in an 'agent'-origin record (find-or-create, idempotent by
-// the harness id). The agent-origin twin of resolveSession's external-adopt branch.
 export async function ensureAgentRecord(deps: ResolveDeps, harnessId: string): Promise<SessionRecord> {
   const existing = await deps.store.findByHarnessId(harnessId)
   if (existing) return existing
@@ -45,19 +42,15 @@ export async function ensureAgentRecord(deps: ResolveDeps, harnessId: string): P
   })
 }
 
-// Wire the chat HTTP surface — composition only; behaviour lives in permission/session/turn/launch.
 export function registerChatRoutes(app: H3, opts: ChatRouteOpts): void {
   const uiBus = opts.uiBus
   const gate = makePermissionGate(uiBus, {risky: opts.riskyTools})
   const store = createFsSessionStore({stateRoot: opts.stateRoot})
 
-  // Agent hand-off: ensure the handed-off harness id has a wrapping record before its first turn.
-  // Best-effort at boot; the first resolve/turn re-creates it if this write loses a teardown race.
   if (opts.initialSessionId) {
     void ensureAgentRecord({store, harnessKind: opts.harness.id, cwd: opts.cwd}, opts.initialSessionId).catch(() => {})
   }
 
-  // Best-effort boot cleanup of legacy ghost records (empty chat sessions from the old eager resolve).
   void sweepEmptyChatRecords(store, new Set(readLocks(opts.stateRoot).map((l) => l.key))).catch(() => {})
 
   registerPermissionRoutes(app, gate, opts.harness.capabilities.permissionGate === 'hook')

@@ -2,7 +2,6 @@ import {createContext, useContext, type JSX} from 'solid-js'
 import {Primitive} from '../util/primitive.js'
 import {useComposerContext, type AttachmentDraft} from '../composer/composer-context.js'
 
-// The current attachment chip, provided by Composer.Attachments / Message.Attachments.
 const AttachmentContext = createContext<AttachmentDraft>()
 
 export const AttachmentProvider = AttachmentContext.Provider

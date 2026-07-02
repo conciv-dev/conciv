@@ -5,12 +5,8 @@ import type {HarnessChild} from '@conciv/protocol/harness-types'
 import {harnessText} from '../src/_shared/text-adapter.js'
 import {makeClaudeAdapter} from '../src/claude/index.js'
 
-// Exercises the stream-json decode path with scripted stdout, so force the CLI adapter — the default
-// `claude` is now the SDK transport whose run() would bypass the scripted spawn.
 const claude = makeClaudeAdapter(false)
 
-// Scripted claude stream-json stdout: a system init, an assistant turn carrying usage, then a
-// result with modelUsage. Mirrors the real claude CLI shape (verified against claude 2.1.177).
 const STDOUT =
   [
     JSON.stringify({type: 'system', subtype: 'init', session_id: 's1', model: 'claude-opus-4-8[1m]'}),
@@ -39,8 +35,6 @@ const spawnHarness = (): HarnessChild => ({
   kill: () => {},
 })
 
-// Regression guard for the real /api/chat path: usage rides RUN_FINISHED.usage (native), which
-// survives chat() — unlike an adapter-emitted CUSTOM chunk, which chat() drops.
 describe('usage survives chat() on RUN_FINISHED', () => {
   it('carries contextWindow through chat() on the terminal RUN_FINISHED', async () => {
     const adapter = harnessText(claude, {cwd: process.cwd(), spawnHarness, systemPrompt: '', onSpawn() {}})

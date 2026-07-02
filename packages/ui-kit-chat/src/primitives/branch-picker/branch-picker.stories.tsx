@@ -6,7 +6,6 @@ const meta: Meta = {title: 'primitives/BranchPicker'}
 export default meta
 type Story = StoryObj
 
-// Inert today: tanstack has no branch model, so count is always 1.
 export const InertSingleBranch: Story = {
   render: () => (
     <BranchPicker.Root class="text-[0.75rem] text-pw-text-2 flex gap-1 items-center">

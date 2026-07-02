@@ -2,9 +2,6 @@ import {onCleanup, splitProps, type ComponentProps, type JSX} from 'solid-js'
 import {Menu} from '@conciv/ui-kit-system'
 import {useActionBarInteraction} from '../action-bar/interaction-context.js'
 
-// Overflow menu over the ui-kit-system Menu (Ark headless). Shared shape with ThreadListItemMore.
-// Item carries a `value` (Ark needs it for keyboard nav) plus an onSelect run on activation.
-
 type RootProps = ComponentProps<typeof Menu.Root>
 
 function Root(props: RootProps): JSX.Element {

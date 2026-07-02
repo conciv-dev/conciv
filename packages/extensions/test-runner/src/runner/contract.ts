@@ -1,9 +1,6 @@
 import {z} from 'zod'
 import type {TestEvent, TestRunResult} from '../shared/events.js'
 
-// Runner-neutral test-runner contract. The route + the card consume TestEvent / TestRunResult
-// only — never a runner-specific type.
-
 export type RunArgs = {patterns?: string[]; testNamePattern?: string; failedOnly?: boolean}
 
 export type ListResult = {files: {file: string; relPath: string; lastState?: string}[]}
@@ -27,15 +24,12 @@ export type TestRunnerManager = {
   stop: () => Promise<void>
 }
 
-// Registry entry: `create(cwd)` lazily builds a TestRunnerManager for a working directory.
 export type TestRunnerAdapter = {
   id: string
   capabilities: TestRunnerCapabilities
   create: (cwd: string) => TestRunnerManager
 }
 
-// A runner has nothing to run (no runner installed, or an unsupported API shape). Adapters throw
-// this; the route renders it as a 422 instead of a 500.
 const RUNNER_UNAVAILABLE_TAG = 'conciv:runner-unavailable'
 export type RunnerUnavailableError = Error & {[RUNNER_UNAVAILABLE_TAG]: true; available: false}
 

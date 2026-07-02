@@ -5,7 +5,6 @@ import {createServer, type IncomingMessage, type ServerResponse} from 'node:http
 
 const dirname = path.dirname(fileURLToPath(import.meta.url))
 
-// The built widget global bundle the ITs inject into the page (real bundle, not a mock).
 export const widgetBundle = fs.readFileSync(path.join(dirname, '../../dist/conciv-widget.global.js'), 'utf8')
 
 function writeJson(res: ServerResponse, body: unknown): void {
@@ -13,8 +12,6 @@ function writeJson(res: ServerResponse, body: unknown): void {
   res.end(JSON.stringify(body))
 }
 
-// Stub the conciv dev-server routes the widget probes on mount, and serve `html` as the document.
-// A real http server (no mocks); returns its base URL + a close fn. Shared by the widget ITs.
 export async function startWidgetServer(html: string): Promise<{base: string; close: () => Promise<void>}> {
   const server = createServer((req: IncomingMessage, res: ServerResponse) => {
     const url = req.url ?? ''

@@ -13,7 +13,6 @@ import {parseStack, hasDebugStack, getFallbackOwnerStack, formatOwnerStack} from
 import {installTracker} from './render-tracker.js'
 import {addRef, type Refs} from './page-snapshot.js'
 
-// Page-introspection result types live in @conciv/protocol; re-exported so widget imports stay put.
 export type {
   RawFrame,
   SourceLoc,
@@ -39,47 +38,30 @@ import type {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- bippy fibers are untyped internals
 type Fiber = any
 
-// React's reconciler attaches these edit methods to the renderer it injects into the global hook
-// (dev builds only). bippy's injectOverrideMethods wrapper is unreliable across versions, so we
-// read them straight off the renderer.
 type Renderer = {
   overrideProps?: (fiber: Fiber, path: (string | number)[], value: unknown) => void
   overrideHookState?: (fiber: Fiber, id: number, path: (string | number)[], value: unknown) => void
   overrideContext?: (fiber: Fiber, contextType: unknown, path: (string | number)[], value: unknown) => void
 }
 
-// Install + instrument the React DevTools global hook as early as possible. React connects a
-// renderer to this hook only if it exists BEFORE react-dom initializes; without it, hook inspection
-// and the reconciler override methods are unavailable. The render tracker owns the single
-// `instrument` call (its commit hook is inert until tracking starts). Idempotent.
 export function installReactBridge(): void {
   try {
     installTracker()
-  } catch {
-    // A real DevTools already owns the hook, or a non-browser env — nothing to do.
-  }
+  } catch {}
 }
 
-// The first registered renderer (one per React root tree; multi-renderer apps are rare here).
 function getRenderer(): Renderer | null {
   const renderers = (getRDTHook() as {renderers?: Map<number, Renderer>} | undefined)?.renderers
   if (!renderers || renderers.size === 0) return null
   return [...renderers.values()][0] ?? null
 }
 
-// Read a fiber's hooks straight off its memoizedState linked list, naming them via React's dev-only
-// `_debugHookTypes`. The `id` is the positional index — exactly what the reconciler's
-// overrideHookState expects. `editable` (has an update queue) marks useState/useReducer. Note:
-// hooks that don't occupy a memoizedState node (e.g. useContext) can shift name alignment; value +
-// id stay correct, so override is reliable regardless.
 function readHooks(fiber: Fiber): HookNode[] {
   const types: string[] = Array.isArray(fiber._debugHookTypes) ? fiber._debugHookTypes : []
   const out: HookNode[] = []
   let node = fiber.memoizedState
   let i = 0
   while (node && i < 100) {
-    // Skip non-hook memoizedState (class components store state here, but we only call this for
-    // function components). A hook node has `next`/`queue`/`memoizedState` shape.
     out.push({id: i, name: types[i] ?? 'hook', value: node.memoizedState, editable: !!node.queue})
     node = node.next
     i++
@@ -89,7 +71,6 @@ function readHooks(fiber: Fiber): HookNode[] {
 
 const raf = (): Promise<void> => new Promise((r) => requestAnimationFrame(() => r()))
 
-// Fibers attach to DOM nodes only after hydration — retry across frames before giving up.
 async function fiberForEl(el: Element, tries = 20): Promise<Fiber | null> {
   for (let i = 0; i < tries; i++) {
     const f = getFiberFromHostInstance(el)
@@ -105,7 +86,6 @@ function compositeNames(fiber: Fiber): string[] {
     .map((f: Fiber) => getDisplayName(f) || '?')
 }
 
-// Raw owner-stack frames (chunk URL + line/col) for the engine to symbolicate. No in-browser resolution.
 function rawFrames(fiber: Fiber): RawFrame[] {
   const stack = hasDebugStack(fiber) ? fiber._debugStack.stack : getFallbackOwnerStack(fiber)
   return parseStack(formatOwnerStack(stack)).map((fr) => ({
@@ -116,8 +96,6 @@ function rawFrames(fiber: Fiber): RawFrame[] {
   }))
 }
 
-// A build-injected source attribute on the element (or nearest ancestor that has one). Format is
-// "path:line:col"; the path may itself contain ':' (drive letters), so parse the trailing two.
 function sourceFromAttr(el: Element): SourceLoc | null {
   const node = el.closest('[data-conciv-source],[data-tsd-source]')
   const raw = node?.getAttribute('data-conciv-source') ?? node?.getAttribute('data-tsd-source')
@@ -129,8 +107,6 @@ function sourceFromAttr(el: Element): SourceLoc | null {
   return file && Number.isFinite(line) && Number.isFinite(column) ? {file, line, column} : null
 }
 
-// The composite ancestor chain as inspectable refs, so the agent can walk up and inspect/edit the
-// component that actually owns the bug (capped — a deep tree shouldn't flood the reply).
 function ownerChain(fiber: Fiber, refs: Refs, limit = 12): Owner[] {
   const owners: Owner[] = []
   for (const f of getFiberStack(fiber)) {
@@ -150,8 +126,7 @@ export async function locate(el: Element, refs: Refs): Promise<LocateResult | nu
   const frames = rawFrames(fiber)
   const owners = ownerChain(fiber, refs)
   const source = sourceFromAttr(el)
-  // The owner-stack top frame names the component that renders the element (e.g. Home/App),
-  // unpolluted by framework dev wrappers that show up in the fiber-stack names.
+
   return {component: frames[0]?.fn ?? names[0] ?? null, stack: names, frames, owners, ...(source ? {source} : {})}
 }
 
@@ -172,8 +147,6 @@ export function describe(host: Element): {component: string; file: string | null
   return {component: (composite && getDisplayName(composite)) || '?', file: source ? source.file : null}
 }
 
-// Class component state lives on the instance (stateNode.state); function components have no
-// instance — their useState/useReducer values surface in the hooks tree instead.
 function classState(composite: Fiber): unknown {
   const inst = composite.stateNode
   return inst && typeof inst.setState === 'function' ? (inst.state ?? null) : null
@@ -182,11 +155,11 @@ function classState(composite: Fiber): unknown {
 export async function inspect(el: Element): Promise<InspectResult | null> {
   const found = await fiberForEl(el)
   if (!found) return null
-  // The host node's stored fiber can be a stale alternate after a re-render — normalize to current.
+
   const fiber = getLatestFiber(found)
   const composite = isCompositeFiber(fiber) ? fiber : getFiberStack(fiber).find((f: Fiber) => isCompositeFiber(f))
   if (!composite) return null
-  // Function-component hooks come off memoizedState; class components have none (state is separate).
+
   const hooks = composite.stateNode && typeof composite.stateNode.setState === 'function' ? [] : readHooks(composite)
   const host = getNearestHostFiber(composite)
   const hostEl = host?.stateNode instanceof Element ? host.stateNode : null
@@ -203,8 +176,6 @@ export async function inspect(el: Element): Promise<InspectResult | null> {
 export type OverrideTarget = 'props' | 'state' | 'hooks' | 'context'
 export type OverrideResult = {ok: true} | {error: string}
 
-// Immutable shallow-clone-along-path set (like React DevTools' copyWithSet): used for class props,
-// which React reads from a fresh object identity on the next forced render.
 function copyWithSet(obj: unknown, path: (string | number)[], value: unknown): unknown {
   if (path.length === 0) return value
   const [head, ...rest] = path
@@ -213,7 +184,6 @@ function copyWithSet(obj: unknown, path: (string | number)[], value: unknown): u
   return base
 }
 
-// In-place set along a path (class state is mutated then force-rendered, matching DevTools).
 function setInPlace(obj: Record<string, unknown>, path: (string | number)[], value: unknown): void {
   let cur: Record<string, unknown> = obj
   for (let i = 0; i < path.length - 1; i++) cur = cur[path[i] as string] as Record<string, unknown>
@@ -227,9 +197,6 @@ function composedFiber(fiber: Fiber): Fiber | undefined {
 const REACT_PROVIDER = Symbol.for('react.provider')
 const REACT_CONTEXT = Symbol.for('react.context')
 
-// The nearest context Provider above a fiber. Modern React context isn't editable at the consumer
-// (this.context / useContext re-read from the Provider every render), so overriding context means
-// overriding the Provider's `value` prop — which DOES propagate to all consumers.
 function findProvider(fiber: Fiber): Fiber | null {
   let f = fiber.return
   while (f) {
@@ -242,9 +209,6 @@ function findProvider(fiber: Fiber): Fiber | null {
   return null
 }
 
-// Live-edit a component's props/state/hooks/context. props (function components) + hooks + context
-// route through React's reconciler-injected override methods (the same ones React DevTools uses);
-// class props/state go through the instance directly. Ephemeral — overwritten on the next real render.
 export async function override(
   el: Element,
   target: OverrideTarget,
@@ -284,8 +248,7 @@ export async function override(
     renderer.overrideHookState(composite, hookId, path, value)
     return {ok: true}
   }
-  // context: edit the nearest Provider's `value` (the only thing that actually re-flows context to
-  // consumers — both useContext and class contextType re-read it each render).
+
   const provider = findProvider(composite)
   if (!provider) return {error: 'no context Provider found above this component'}
   if (!renderer?.overrideProps) return {error: 'React build does not support overrides (dev build required)'}
@@ -293,10 +256,6 @@ export async function override(
   return {ok: true}
 }
 
-// Build a component tree from the root host element's fiber subtree, assigning a ref per component
-// (mapped to its nearest host element so the agent can target it with other verbs). Bounded by
-// depth + node count so a real app (thousands of fibers) can't flood the agent's context: deeper /
-// over-cap components are dropped and counted on their nearest kept ancestor's `truncated`.
 export async function tree(
   root: Element,
   refs: Refs,
@@ -340,18 +299,11 @@ export async function tree(
   return {nodes: out, truncated}
 }
 
-// Find components by display name. Caps the returned refs (so a name matching hundreds of instances
-// can't flood context) while reporting the true total.
-// Every mounted React root's top fiber. bippy's _fiberRoots is populated by the commit hook (so it
-// covers any container + portals + multiple roots); fall back to scanning the DOM for a fiber if a
-// commit hasn't been observed yet.
 function reactRootFibers(): Fiber[] {
   const roots: Fiber[] = []
   try {
     for (const r of _fiberRoots as Iterable<{current?: Fiber}>) if (r?.current) roots.push(r.current)
-  } catch {
-    // _fiberRoots unavailable — fall through to the DOM scan.
-  }
+  } catch {}
   if (roots.length > 0) return roots
   for (const el of Array.from(document.querySelectorAll('*'))) {
     const key = Object.keys(el).find((k) => k.startsWith('__reactFiber') || k.startsWith('__reactContainer'))
@@ -363,8 +315,6 @@ function reactRootFibers(): Fiber[] {
   return []
 }
 
-// The nearest host element of the first component matching `name` — lets element verbs target a
-// component directly (inspect --name Composer) without a snapshot → ref round-trip.
 export function elementByName(name: string): Element | null {
   let result: Element | null = null
   for (const root of reactRootFibers()) {

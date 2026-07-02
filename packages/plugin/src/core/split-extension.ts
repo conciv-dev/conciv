@@ -1,11 +1,8 @@
 import {parseAsync, transformFromAstAsync, traverse, types as t} from '@babel/core'
 import {deadCodeElimination, findReferencedIdentifiers} from 'babel-dead-code-elimination'
 
-// The marker that makes a module an extension — its content, never a filename.
 const CONTRACT_MARKER = 'defineExtension'
 
-// Which chained calls to collapse per build target. The browser keeps .client()/.render() and drops
-// the server execute; the node engine keeps .server() and drops the client surface (Solid/cards).
 const STRIP_FOR: Record<SplitEnv, ReadonlySet<string>> = {
   browser: new Set(['server']),
   node: new Set(['client', 'render']),
@@ -13,9 +10,6 @@ const STRIP_FOR: Record<SplitEnv, ReadonlySet<string>> = {
 
 export type SplitEnv = 'browser' | 'node'
 
-// Collapse the wrong-side calls in a defineExtension/defineTool chain, then dead-code-eliminate the
-// now-orphaned imports — TanStack's pipeline: record referenced identifiers, replace each wrong-side
-// `obj.method(...)` with `obj`, then deadCodeElimination over only those original candidates.
 export async function splitExtension(
   code: string,
   id: string,

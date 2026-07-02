@@ -1,7 +1,3 @@
-// The React verbs (inspect / drill-down / override) driven in a REAL browser against a REAL React
-// app. A tiny React fixture is bundled with esbuild (dev build → real reconciler + hooks), rendered
-// into the page alongside the built widget global, and we call the widget's OWN page driver
-// (window.__CONCIV_PAGE_DRIVER__) — real bippy, real dehydrate, real fibers. No mocks, no example app.
 import {createServer, type IncomingMessage, type Server, type ServerResponse} from 'node:http'
 import type {AddressInfo} from 'node:net'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
@@ -17,8 +13,6 @@ describe('react verbs (it) — real browser, real React, real driver', () => {
     const fixtureJs = await buildFixture()
     const html = fixturePage(fixtureJs)
     server = createServer((req: IncomingMessage, res: ServerResponse) => {
-      // Any /api/* probe 404s so the widget mounts no chrome — but the driver seam + RDT hook are
-      // already live (set synchronously on bundle load, before the probe).
       if ((req.url ?? '').startsWith('/api/')) {
         res.writeHead(404)
         return res.end('{}')
@@ -46,9 +40,9 @@ describe('react verbs (it) — real browser, real React, real driver', () => {
     expect(out.component).toBe('Card')
     const props = out.props as Record<string, unknown>
     expect(props.label).toBe('Save')
-    expect(String(props.onAction)).toMatch(/^ƒ/) // function preview, not dropped
+    expect(String(props.onAction)).toMatch(/^ƒ/)
     expect(props.tags).toEqual(['a', 'b', 'c'])
-    // The whole reply must be JSON-clean — the original bug serialized props as "[object Object]".
+
     expect(JSON.stringify(out)).not.toContain('[object Object]')
     await page.close()
   })
@@ -122,7 +116,7 @@ describe('react verbs (it) — real browser, real React, real driver', () => {
     const owners = out.owners as Array<Record<string, unknown>>
     expect(Array.isArray(owners)).toBe(true)
     expect(owners.some((o) => o.component === 'Card')).toBe(true)
-    // The fixture stamps #card with data-conciv-source — locate reads it directly (the fast path).
+
     const source = out.source as Record<string, unknown> | undefined
     expect(source).toBeTruthy()
     expect(String(source!.file)).toContain('fixture.tsx')
@@ -232,8 +226,8 @@ describe('react verbs (it) — real browser, real React, real driver', () => {
     const comps = rep.components as Array<Record<string, unknown>>
     const card = comps.find((c) => c.component === 'Card')
     expect(card).toBeTruthy()
-    expect(card!.renders).toBe(3) // start was after mount → only the 3 state updates
-    expect(card!.lastReason).toBe('state/hooks/parent') // own state changed, no prop change
+    expect(card!.renders).toBe(3)
+    expect(card!.lastReason).toBe('state/hooks/parent')
     await page.close()
   })
 

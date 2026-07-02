@@ -12,10 +12,6 @@ import {useFakeHarness, hasClaude} from '../../helpers/harness-mode.js'
 
 const fakeIt = it.runIf(useFakeHarness)
 
-// Real process-boundary IT: the REAL app (makeApp) over a real srvx server, with a FAKE harness
-// spawn injected (fake-claude.ts emits canned stream-json the real claude decoder parses). Proves
-// the production spawn → AG-UI SSE → --resume path without a parallel app wiring.
-
 const fakeClaude = fileURLToPath(new URL('../../fixtures/fake-claude.ts', import.meta.url))
 const dirs: string[] = []
 
@@ -25,8 +21,6 @@ function tmp(): string {
   return d
 }
 
-// A fake-claude spawn (optionally capturing argv to a file for the --resume assertion, or emitting
-// the rich multi-block transcript via CONCIV_FAKE_RICH).
 function fakeSpawn(
   opts: {
     argvFile?: string
@@ -93,9 +87,9 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     state.server = server
     const body = await server.postChat(turn('hi'), await server.resolve())
     expect(body).toContain('RUN_STARTED')
-    expect(body).toContain('hello from fake') // consolidated assistant text must still render
+    expect(body).toContain('hello from fake')
     expect(body).toContain('RUN_FINISHED')
-    expect(body).toContain('conciv-usage') // live usage injected mid-stream
+    expect(body).toContain('conciv-usage')
   })
 
   fakeIt('persists turn-end usage so GET /api/chat/session returns it for the next open', async () => {
@@ -146,8 +140,7 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     const argvFile = join(tmp(), 'argv.json')
     const server = await startTestServer({spawnHarness: fakeSpawn({argvFile})})
     state.server = server
-    // The widget puts the model on the AG-UI envelope (forwardedProps), not top-level — this is the
-    // authoritative check that a selector switch reaches the real CLI (the agent can't self-report it).
+
     await (
       await server.post('/api/chat', {messages: [turn('hi')], forwardedProps: {model: 'haiku'}}, await server.resolve())
     ).text()
@@ -211,11 +204,11 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     const a = await server.resolve()
     const b = await server.resolve()
     await server.postChat(turn('hi'), a)
-    // b is a fresh session: its /session reports a null harness token before any turn.
+
     const beforeB = ChatSessionSchema.parse(await (await server.getSession(b)).json())
     expect(beforeB.harnessSessionId).toBeNull()
     expect(beforeB.origin).toBe('chat')
-    // a already ran a turn → it has the fake harness token.
+
     const afterA = ChatSessionSchema.parse(await (await server.getSession(a)).json())
     expect(afterA.harnessSessionId).toBe('sess-fake')
     expect(afterA.origin).toBe('chat')
@@ -241,13 +234,13 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     const b = await server.resolve()
     usageBySession[a] = 111
     usageBySession[b] = 222
-    await server.postChat(turn('hi'), a) // usage 111
-    await server.postChat(turn('yo'), b) // usage 222
+    await server.postChat(turn('hi'), a)
+    await server.postChat(turn('yo'), b)
     const ua = ChatSessionSchema.parse(await (await server.getSession(a)).json()).usage
     const ub = ChatSessionSchema.parse(await (await server.getSession(b)).json()).usage
     expect(ua?.inputTokens).toBe(111)
     expect(ub?.inputTokens).toBe(222)
-    expect(ua?.inputTokens).not.toBe(ub?.inputTokens) // no cross-write
+    expect(ua?.inputTokens).not.toBe(ub?.inputTokens)
   })
 
   fakeIt('routes POST /api/chat/ui to the live turn by our id (cross-process path)', async () => {
@@ -256,12 +249,11 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     state.server = server
     const a = await server.resolve()
     const b = await server.resolve()
-    // Start a turn for a but DON'T await it — the hang fake keeps the child alive, so a's lock
-    // stays held and its uiBus channel stays open while we inject.
+
     const turnPromise = server.postChat(turn('hi'), a).catch(() => '')
     const deadline = Date.now() + 5000
     while (!readLock(stateRoot, a).held && Date.now() < deadline) await new Promise((r) => setTimeout(r, 25))
-    // Give the SSE body its first pull so uiBus.run() has registered a's channel.
+
     let injectedA = false
     while (Date.now() < deadline) {
       const res = await server.post('/api/chat/ui', {kind: 'confirm', renderId: 'r-a', question: 'ok?'}, a)
@@ -270,10 +262,10 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
       await new Promise((r) => setTimeout(r, 25))
     }
     expect(injectedA).toBe(true)
-    // A different session with no live turn rejects the inject.
+
     const bRes = await server.post('/api/chat/ui', {kind: 'confirm', renderId: 'r-b', question: 'ok?'}, b)
     expect(((await bRes.json()) as {injected: boolean}).injected).toBe(false)
-    // Stop the hung turn so the server can close cleanly.
+
     await server.post('/api/chat/stop', {}, a)
     await turnPromise
   })

@@ -1,10 +1,6 @@
 import {For, Show, type JSX} from 'solid-js'
 import {Avatar as AvatarBase, Menu as MenuBase, Tabs as TabsBase, Tooltip as TooltipBase} from '@conciv/ui-kit-system'
 
-// Whiteboard-local thin wrappers over the shared unstyled compound primitives. They hold the comment
-// UI's opinionated shapes (initials avatar, icon tooltip-button, virtual-anchor popover) that are too
-// specific for ui-kit-system but recur across the thread + inbox views.
-
 const AVATAR_RING = '[box-shadow:0_0_0_2px_var(--pw-panel)]'
 const AVATAR_FALLBACK = 'text-[0.6875rem] font-semibold uppercase leading-none'
 
@@ -25,7 +21,6 @@ export function Avatar(props: {name: string; src?: string; class?: string}): JSX
   )
 }
 
-// The Ark Trigger is the interactive element; `label` is its accessible name and the tip text.
 export function Tooltip(props: {
   label: string
   children: JSX.Element
@@ -39,7 +34,7 @@ export function Tooltip(props: {
       <TooltipBase.Trigger
         aria-label={props.label}
         onClick={() => props.onClick?.()}
-        class={`inline-flex  ${props.triggerClass ?? ''}`}
+        class={`inline-flex ${props.triggerClass ?? ''}`}
       >
         {props.children}
       </TooltipBase.Trigger>
@@ -54,11 +49,9 @@ const MENU_LINE =
   'flex items-center gap-2 px-2 py-1.5 rounded-pw-sm text-[0.8125rem] text-pw-text cursor-pointer outline-none data-[highlighted]:bg-pw-fill'
 const MENU_DANGER =
   'text-pw-danger data-[highlighted]:text-pw-danger data-[highlighted]:[background:color-mix(in_oklch,var(--pw-danger)_15%,transparent)]'
-// No display utility: Ark hides an unchecked indicator with [hidden]; an author `display` rule pins every ✓ on.
+
 const MENU_INDICATOR = 'ml-auto text-pw-accent'
 
-// Menu shell: trigger + floating content. Plain items report through onSelect(value); checkbox/radio
-// items are self-contained. closeOnSelect:false keeps the menu open while toggling.
 export function Menu(props: {
   trigger: JSX.Element
   children: JSX.Element
@@ -155,7 +148,7 @@ export function Tabs(props: {
       onValueChange={(detail) => props.onValueChange?.(detail.value)}
       class={props.class}
     >
-      <TabsBase.List class="inline-flex items-center gap-1 [border:none]">
+      <TabsBase.List class="inline-flex gap-1 [border:none] items-center">
         <For each={props.tabs}>
           {(tab) => (
             <TabsBase.Trigger value={tab.value} class={TAB_TRIGGER} aria-label={tab.label}>

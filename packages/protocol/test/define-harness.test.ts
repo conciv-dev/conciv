@@ -5,7 +5,7 @@ const base = {
   id: 'x',
   binName: 'x',
   buildArgs: () => [],
-  // a no-op decoder; the invariant under test is capability/method consistency, not decode.
+
   decode: async function* () {},
 }
 
@@ -24,12 +24,9 @@ describe('defineHarness (generic typed factory; history↔transcriptHistory enfo
       },
     })
     expect(adapter.id).toBe('x')
-    // `in` checks key absence against the generic-preserved literal type — no widening, no cast.
+
     expect('history' in adapter).toBe(false)
   })
-
-  // A transcriptHistory:true adapter without a `history` is now a COMPILE error (the discriminated
-  // union requires it), so there is no runtime throw to test — the invalid case is unconstructable.
 
   it('accepts a transcriptHistory harness that provides a history implementation', () => {
     const adapter = defineHarness({

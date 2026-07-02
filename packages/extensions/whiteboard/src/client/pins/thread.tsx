@@ -24,11 +24,11 @@ const ToolPart = z.object({
 function renderPart(part: unknown, key: string, ctx: ToolViewCtx): JSX.Element {
   const text = TextPart.safeParse(part)
   if (text.success)
-    return <p class="text-[0.8125rem] leading-snug text-pw-text whitespace-pre-wrap">{text.data.text}</p>
+    return <p class="text-[0.8125rem] text-pw-text leading-snug whitespace-pre-wrap">{text.data.text}</p>
   const mention = MentionPart.safeParse(part)
   if (mention.success)
     return (
-      <span class="inline-flex items-center rounded-pw-sm bg-pw-accent-08 px-1 text-[0.8125rem] text-pw-accent-hi">
+      <span class="text-[0.8125rem] text-pw-accent-hi px-1 rounded-pw-sm bg-pw-accent-08 inline-flex items-center">
         @{mention.data.label}
       </span>
     )
@@ -53,10 +53,10 @@ function CommentRow(props: {comment: Comment}): JSX.Element {
   const model = useComments()
   const parts = (): unknown[] => (Array.isArray(props.comment.parts) ? props.comment.parts : [])
   return (
-    <article class="flex flex-col gap-1 px-3 py-2 border-t border-pw-line-soft first:border-t-0">
-      <div class="flex items-center gap-2">
+    <article class="px-3 py-2 border-t border-pw-line-soft flex flex-col gap-1 first:border-t-0">
+      <div class="flex gap-2 items-center">
         <Avatar name={model.displayName(props.comment)} src={props.comment.authorAvatar} class="size-6" />
-        <span class="text-[0.8125rem] font-medium text-pw-text truncate">{model.displayName(props.comment)}</span>
+        <span class="text-[0.8125rem] text-pw-text font-medium truncate">{model.displayName(props.comment)}</span>
         <RelativeTime value={props.comment.createdAt} class="text-[0.75rem] text-pw-text-3 shrink-0" />
         <Show when={model.ownedBySelf(props.comment)}>
           <span class="ml-auto">
@@ -64,7 +64,7 @@ function CommentRow(props: {comment: Comment}): JSX.Element {
               label="Comment actions"
               trigger={
                 <span
-                  class="inline-flex size-6 items-center justify-center rounded-pw-sm text-pw-text-3 [outline:none] data-[state=open]:bg-pw-fill focus-ring"
+                  class="text-pw-text-3 rounded-pw-sm inline-flex size-6 [outline:none] items-center justify-center data-[state=open]:bg-pw-fill focus-ring"
                   aria-label="Comment actions"
                 >
                   ⋯
@@ -79,7 +79,7 @@ function CommentRow(props: {comment: Comment}): JSX.Element {
           </span>
         </Show>
       </div>
-      <div class="flex flex-col gap-1 pl-8">
+      <div class="pl-8 flex flex-col gap-1">
         <For each={parts()}>{(part, index) => renderPart(part, `${props.comment.cid}-${index()}`, model.ctx)}</For>
       </div>
     </article>
@@ -89,7 +89,7 @@ function CommentRow(props: {comment: Comment}): JSX.Element {
 function ThreadHeader(props: {onRequestDelete: () => void}): JSX.Element {
   const model = useComments()
   return (
-    <header class="flex items-center gap-0.5 px-2 py-1.5 border-b border-pw-line-soft">
+    <header class="px-2 py-1.5 border-b border-pw-line-soft flex gap-0.5 items-center">
       <Tooltip
         label="Previous thread"
         placement="bottom"
@@ -130,8 +130,8 @@ function ThreadComposer(props: {onReady: (api: MentionFieldApi) => void}): JSX.E
   const [api, setApi] = createSignal<MentionFieldApi>()
   const [empty, setEmpty] = createSignal(true)
   return (
-    <div class="flex items-end gap-2 p-2 border-t border-pw-line-soft">
-      <Avatar name="You" class="size-6 shrink-0" />
+    <div class="p-2 border-t border-pw-line-soft flex gap-2 items-end">
+      <Avatar name="You" class="shrink-0 size-6" />
       <Show when={model.openCid()} keyed>
         {(cid) => (
           <div class="flex-1" data-thread={cid}>
@@ -153,7 +153,7 @@ function ThreadComposer(props: {onReady: (api: MentionFieldApi) => void}): JSX.E
         size="icon"
         aria-label="Send reply"
         disabled={empty()}
-        class="size-7 shrink-0 rounded-pw-pill"
+        class="rounded-pw-pill shrink-0 size-7"
         onClick={() => api()?.submit()}
       >
         ↑
@@ -179,7 +179,7 @@ export function ThreadPopover(): JSX.Element {
     >
       <Popover.Positioner>
         <Popover.Content
-          class="w-85 max-w-[calc(100vw-2rem)] max-sm:w-[calc(100vw-1rem)] flex flex-col overflow-hidden"
+          class="flex flex-col max-w-[calc(100vw-2rem)] w-85 overflow-hidden max-sm:w-[calc(100vw-1rem)]"
           aria-label="Comment thread"
         >
           <ThreadHeader onRequestDelete={() => setConfirmDelete(true)} />
@@ -189,7 +189,7 @@ export function ThreadPopover(): JSX.Element {
                 <strong class="text-pw-text">Delete this thread?</strong>
                 <p class="text-[0.8125rem] text-pw-text-2">This removes the comment, all its replies, and its pin.</p>
               </div>
-              <div class="flex justify-end gap-2">
+              <div class="flex gap-2 justify-end">
                 <Button variant="ghost" size="md" aria-label="Cancel" onClick={() => setConfirmDelete(false)}>
                   Cancel
                 </Button>

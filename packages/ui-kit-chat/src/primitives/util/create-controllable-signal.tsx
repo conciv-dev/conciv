@@ -1,8 +1,5 @@
 import {createSignal, type Accessor} from 'solid-js'
 
-// Solid translation of assistant-ui's useControllableState: a value that follows a prop when one is
-// supplied (controlled) and an internal signal otherwise (uncontrolled). `value`/`defaultValue` are
-// read through accessors so the prop stays reactive; `onChange` fires on every set, controlled or not.
 export function createControllableSignal<T>(props: {
   value: Accessor<T | undefined>
   defaultValue: Accessor<T | undefined>

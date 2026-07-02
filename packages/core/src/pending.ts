@@ -1,4 +1,3 @@
-// In-flight requests awaiting an out-of-band reply, each with a fail-closed timeout that rejects.
 const TIMEOUT_TAG = 'conciv:pending-timeout'
 export type PendingTimeout = Error & {[TIMEOUT_TAG]: true}
 
@@ -7,8 +6,8 @@ export function isPendingTimeout(e: unknown): e is PendingTimeout {
 }
 
 export type Pending<T> = {
-  await(id: string, timeoutMs: number): Promise<T> // rejects with a PendingTimeout after timeoutMs
-  resolve(id: string, value: T): void // no-op if the id is unknown (resolved or timed out)
+  await(id: string, timeoutMs: number): Promise<T>
+  resolve(id: string, value: T): void
   size(): number
 }
 

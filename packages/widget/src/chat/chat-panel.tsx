@@ -38,10 +38,8 @@ import {ExtensionSurface, type ExtensionHostBag, type ExtensionInstance} from '.
 import {EmptyStateSlot} from '../shell/empty-state.js'
 import {grabApi} from '../page/grab-api.js'
 
-// Width the staged grab preview scales to fit — sits comfortably inside the min (300px) panel width.
 const GRAB_PREVIEW_MAX_W = 280
 
-// Composer-action button (the element picker etc.); the only hand-styled control left in the panel.
 const ACT =
   'size-8.5 rounded-pw-pill [border:none] bg-transparent text-pw-text-2 cursor-pointer shrink-0 inline-flex items-center justify-center trans-color-bg hover:text-pw-text-hi hover:bg-pw-fill-strong'
 const ERROR = 'flex gap-2 items-center text-pw-danger text-[0.75rem]'
@@ -53,12 +51,10 @@ const DIVIDER_LABEL =
   'inline-flex items-center gap-1.25 text-[0.6875rem] font-medium tracking-[0.06em] [text-transform:uppercase]'
 const DOT = 'w-1.5 h-1.5 rounded-[50%] bg-pw-text-2'
 
-// A tool call is settled once its result lands (complete/error) or its own output is populated.
 function callSettled(part: ToolCallPart, result: ToolResultPart | undefined): boolean {
   return result?.state === 'complete' || result?.state === 'error' || part.output !== undefined
 }
 
-// The present-tense label of the most recent still-running tool call in a message, for the now-line.
 function activeCallTitle(parts: ReadonlyArray<MessagePart>, titleByName: Record<string, string>): string | null {
   const {byCallId} = pairResults(parts)
   let title: string | null = null
@@ -73,8 +69,6 @@ function asToolCallPart(part: MessagePart | undefined): ToolCallPart | null {
   return part?.type === 'tool-call' ? part : null
 }
 
-// A session boundary in the scrollback: a hairline rule with a quiet centered label. `pending` (a
-// compaction still running) shows "Compacting…" with a spinning icon so it never claims done early.
 function Divider(props: {kind: 'new' | 'compact'; pending?: boolean}): JSX.Element {
   const Icon = props.kind === 'new' ? SquarePen : FoldVertical
   const label = () => (props.kind === 'new' ? 'New session' : props.pending ? 'Compacting…' : 'Context compacted')
@@ -93,8 +87,6 @@ function Divider(props: {kind: 'new' | 'compact'; pending?: boolean}): JSX.Eleme
   )
 }
 
-// Shown in the Composer's send slot while a compaction runs (out of band, no numeric progress): an
-// indeterminate Ark Progress arc spun via CSS. The wrapper carries the live status for SR.
 function CompactSpinner(): JSX.Element {
   return (
     <div
@@ -122,19 +114,12 @@ function ThinkingBubble(): JSX.Element {
   )
 }
 
-// Bridges the composer draft (owned by ChatProvider's view-state, reachable only via useComposer
-// inside the provider) out to the panel's `insert` handler. Renders nothing.
 function DraftBridge(props: {onReady: (append: (text: string) => void) => void}): JSX.Element {
   const composer = useComposer()
   props.onReady((text) => composer.setText(composer.text() ? `${composer.text()}\n${text}` : text))
   return <></>
 }
 
-// One agent session: owns its useChat + generative-UI state, and renders the thread + composer
-// THROUGH @conciv/ui-kit-chat (Thread/Composer). Layout-agnostic — the modal panel, a quick-terminal
-// pane, and a PiP body all render this same component. Chrome (header, open/close, FAB) lives in the
-// shell. The panel keeps all session/compaction/divider/approval/genUi wiring; grouping, layout, and
-// tool rendering live in the package.
 export function ChatPanel(props: {
   apiBase: string
   harnessId: string
@@ -143,8 +128,7 @@ export function ChatPanel(props: {
   onActiveSession?: (id: string) => void
   announce?: (msg: string, assertive?: boolean) => void
   onWorkingChange?: (working: boolean) => void
-  // The tool cards to dispatch by name (built-ins + extension tools), passed by the host; the Thread
-  // matches each tool-call part to its card, falling back to ToolFallback.
+
   tools?: () => ToolCardEntry[]
   composerActions?: () => ComposerActionDef[]
   composerControls?: () => ComposerControlDef[]
@@ -158,8 +142,7 @@ export function ChatPanel(props: {
   const [genUi, setGenUi] = createSignal<UiSpec[]>([])
   const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
   const [durations, setDurations] = createSignal<Record<string, number>>({})
-  // The agent's `conciv ui …` calls arrive as AG-UI CUSTOM events; render each in the thread.
-  // Live usage updates arrive on the same channel (injected by core mid-turn).
+
   const onConcivUi = (eventType: string, data: unknown) => {
     if (eventType === CONCIV_USAGE_EVENT) {
       const parsed = UsageSnapshotSchema.safeParse(data)
@@ -181,11 +164,11 @@ export function ChatPanel(props: {
       return [...prev.filter((g) => g.renderId !== spec.renderId), spec]
     })
   }
-  // Usage rides RUN_FINISHED.usage (native AG-UI), read off the raw chunk stream.
+
   const onChunk = (chunk: StreamChunk) => {
     if (chunk.type === EventType.RUN_FINISHED && chunk.usage) setUsage(tokenUsageToSnapshot(chunk.usage))
   }
-  // Extra POST-body fields contributed by composer controls (e.g. the model selector's {model}).
+
   const [requestMeta, setRequestMeta] = createSignal<Record<string, unknown>>({})
   const mergeRequestMeta = (patch: Record<string, unknown>) => setRequestMeta((prev) => ({...prev, ...patch}))
   const chat = useChat({
@@ -199,9 +182,7 @@ export function ChatPanel(props: {
     onCustomEvent: onConcivUi,
     onChunk,
   })
-  // Grabbed-element previews staged above the composer (cleared on send). The textarea holds only the
-  // user's prose — each grab's text context is composed in at send time, so removing a chip drops
-  // exactly that grab and never touches what the user typed.
+
   const [grabs, setGrabs] = createSignal<Grab[]>([])
   const loadedSessionId = {current: null as string | null}
   const [switching, setSwitching] = createSignal(false)
@@ -212,12 +193,8 @@ export function ChatPanel(props: {
   const isThinking = () => chat.status() === 'submitted'
   const isStreaming = () => chat.status() === 'streaming'
 
-  // `answered` covers the window between a click and the stream flipping the part off
-  // `approval-requested`. The shared respondApproval marks it, so both the in-thread PermissionCard
-  // and the shell modal optimistically drop the prompt the instant either is clicked.
   const [answered, setAnswered] = createSignal<readonly string[]>([])
 
-  // Host-app seams the tool cards need: send a follow-up message, answer a native tool approval.
   const toolCtx: ToolViewCtx = {
     apiBase: props.apiBase,
     harnessId: props.harnessId,
@@ -229,9 +206,6 @@ export function ChatPanel(props: {
     durationFor: (toolCallId) => durations()[toolCallId],
   }
 
-  // Pending native approvals for this thread, derived straight from the messages, reported up to the
-  // shell as {part, ctx} (option B) so the modal renders the same ui-kit-chat PermissionCard the
-  // in-thread cards use, rather than a bespoke title/decide prompt.
   const pendingApprovals = createMemo<PendingApproval[]>(() =>
     chat
       .messages()
@@ -244,7 +218,6 @@ export function ChatPanel(props: {
   createEffect(() => props.onApprovalsChange?.(pendingApprovals()))
   onCleanup(() => props.onApprovalsChange?.([]))
 
-  // The single morphing "now" line: the most recent still-running tool call's title while streaming.
   const streamTitles = (): Record<string, string> =>
     Object.fromEntries(
       (props.tools?.() ?? []).flatMap((entry) =>
@@ -262,8 +235,6 @@ export function ChatPanel(props: {
   createEffect(() => props.onWorkingChange?.(isThinking() || isStreaming()))
   createEffect(() => props.onUsageChange?.(usage()))
 
-  // When a turn finishes, the harness may have minted/renamed the session — refresh the label and
-  // (debounced) the session list.
   const invalidate = createDebouncer(() => void invalidateSessions(props.apiBase), {wait: 400})
   let wasWorking = false
   createEffect(() => {
@@ -275,7 +246,6 @@ export function ChatPanel(props: {
     wasWorking = working
   })
 
-  // Screen-reader announcements. Status transitions only (streaming would flood a live region).
   const [liveMsg, setLiveMsg] = createSignal('')
   let prevStatus = ''
   createEffect(() => {
@@ -290,8 +260,6 @@ export function ChatPanel(props: {
     void chat.sendMessage(text)
   }
 
-  // Load (or switch to) a session's thread. First load just hydrates; a real switch stops any in-flight
-  // turn, shows the switching overlay, and load-then-swaps so the prior thread stays put on failure.
   const loadSession = async (id: string | null) => {
     const isSwitch = loadedSessionId.current !== null
     setSwitchError(false)
@@ -325,7 +293,6 @@ export function ChatPanel(props: {
 
   const focusInput = () => requestAnimationFrame(() => inputEl?.focus())
 
-  // First activation hydrates; thereafter a sessionId change drives an in-place reload.
   createEffect(() => {
     const id = client.sessionId()
     if (!props.active || !id) return
@@ -337,8 +304,6 @@ export function ChatPanel(props: {
     void loadSession(id).then(focusInput)
   })
 
-  // Compose each staged grab's element context ahead of the user's prose, then clear the chips. The
-  // composer cleared the draft already; we receive its trimmed text. Blocked while loading/compacting.
   const onSend = (text: string) => {
     const trimmed = text.trim()
     if (!trimmed || chat.isLoading() || compacting()) return
@@ -349,7 +314,6 @@ export function ChatPanel(props: {
     void chat.sendMessage(context ? `${context}\n\n${trimmed}` : trimmed)
   }
 
-  // Append inserted text (e.g. a grabbed element reference) into THIS composer for the user to edit.
   const insert = (text: string) => {
     appendDraft.current(text)
     focusInput()
@@ -360,7 +324,6 @@ export function ChatPanel(props: {
   }
   const removeGrab = (grab: Grab) => setGrabs((prev) => prev.filter((x) => x !== grab))
 
-  // Session boundaries drawn into the scrollback — the prior thread is never wiped, just separated.
   const dividerSeq = {n: 0}
   const [dividers, setDividers] = createSignal<{id: number; afterCount: number; kind: 'new' | 'compact'}[]>([])
   const addDivider = (kind: 'new' | 'compact'): number => {
@@ -374,7 +337,6 @@ export function ChatPanel(props: {
     dividers().filter((d) => d.afterCount >= start && d.afterCount <= end)
   const resetUsage = () => setUsage(null)
 
-  // In-place new session (quick-terminal): mark a divider, resolve a fresh id, pre-mark it loaded.
   const startNewSession = async () => {
     addDivider('new')
     const {sessionId} = await client.resolve()
@@ -383,8 +345,6 @@ export function ChatPanel(props: {
   }
   const doNewSession = () => (props.onNewSession ? props.onNewSession() : startNewSession())
 
-  // Compact the conversation OUT OF BAND (never through useChat): the divider is the only UI, like
-  // Claude Code's /compact. The stream MUST be read to the end (closing early aborts the child).
   const [pendingCompactId, setPendingCompactId] = createSignal<number | null>(null)
   const compacting = () => pendingCompactId() !== null
   const compact = async () => {
@@ -413,7 +373,6 @@ export function ChatPanel(props: {
     }
   }
 
-  // Transient notice above the composer (e.g. "command copied"); mirrored to the live region.
   const [notice, setNotice] = createSignal('')
   let noticeTimer: ReturnType<typeof setTimeout> | undefined
   const notify = (message: string) => {
@@ -442,7 +401,6 @@ export function ChatPanel(props: {
     )
   }
 
-  // The per-panel host context every extension Component reads via useContext().
   const grab: GrabApi = {...grabApi, stage: stageGrab}
   const hostBag: ExtensionHostBag = {
     ...toolCtx,
@@ -461,7 +419,7 @@ export function ChatPanel(props: {
   const renderDivider = (divider: {id: number; kind: 'new' | 'compact'}): JSX.Element => (
     <Divider kind={divider.kind} pending={divider.id === pendingCompactId()} />
   )
-  // Session dividers drawn before each turn (keyed off the coalesced Turn's message-index range).
+
   const renderTurnPrefix = (turn: Turn): JSX.Element => (
     <For each={dividersInRange(turn.start, turn.end)}>{renderDivider}</For>
   )
@@ -583,8 +541,6 @@ export function ChatPanel(props: {
   )
 }
 
-// The chat as a registerable shell panel. The modal hosts one; quick-terminal panes each create their
-// own (a fresh agent session per pane).
 export function chatPanelDef(
   apiBase: string,
   harnessId: string,

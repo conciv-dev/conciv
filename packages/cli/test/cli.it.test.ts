@@ -4,10 +4,6 @@ import {runCommand} from 'citty'
 import {toolsCommand} from '../src/tools.js'
 import {uiCommand} from '../src/ui.js'
 
-// Real end-to-end IT for the CLI: the actual citty commands parse argv, zod validates, the
-// builders produce a request, and native fetch sends it to a REAL http server that records
-// what arrived. No mocks — proves the full argv → zod → fetch → /api/* wire.
-
 type Captured = {method: string; url: string; body: unknown}
 const state = {server: undefined as Server | undefined, last: undefined as Captured | undefined}
 

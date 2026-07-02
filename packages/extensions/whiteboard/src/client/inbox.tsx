@@ -40,11 +40,11 @@ function FeedItem(props: {root: Comment}): JSX.Element {
       onClick={() => select()}
     >
       <span
-        class={`w-0.5 self-stretch rounded-pw-pill ${unread() ? 'bg-pw-accent' : 'bg-transparent'}`}
+        class={`rounded-pw-pill w-0.5 self-stretch ${unread() ? 'bg-pw-accent' : 'bg-transparent'}`}
         aria-hidden="true"
       />
-      <div class="flex-1 min-w-0 flex flex-col gap-1">
-        <div class="flex items-center gap-2">
+      <div class="flex flex-1 flex-col gap-1 min-w-0">
+        <div class="flex gap-2 items-center">
           <span class="flex">
             <For each={model.threadParticipants(props.root.cid)}>
               {(participant, index) => (
@@ -55,7 +55,7 @@ function FeedItem(props: {root: Comment}): JSX.Element {
           <span class={`text-[0.8125rem] truncate ${unread() ? 'font-semibold text-pw-text' : 'text-pw-text-2'}`}>
             {model.displayName(props.root)}
           </span>
-          <RelativeTime value={activity()} class="ml-auto shrink-0 text-[0.75rem] text-pw-text-3" />
+          <RelativeTime value={activity()} class="text-[0.75rem] text-pw-text-3 ml-auto shrink-0" />
         </div>
         <p class="text-[0.8125rem] text-pw-text-2 truncate">{textOf(props.root)}</p>
         <Show when={replies() > 0}>
@@ -77,7 +77,7 @@ export function InboxToggle(): JSX.Element {
         <InboxIcon size={16} />
         Comments
         <Show when={unread() > 0}>
-          <span class="inline-flex min-w-4 h-4 items-center justify-center rounded-pw-pill bg-pw-accent px-1 text-[0.6875rem] text-pw-on-accent">
+          <span class="text-[0.6875rem] text-pw-on-accent px-1 rounded-pw-pill bg-pw-accent inline-flex h-4 min-w-4 items-center justify-center">
             {unread()}
           </span>
         </Show>
@@ -104,13 +104,13 @@ export function Inbox(): JSX.Element {
   return (
     <Show when={model.inboxOpen()}>
       <aside class={PANEL} aria-label="Comments inbox">
-        <header class="flex items-center justify-between px-3 py-2 border-b border-pw-line-soft">
+        <header class="px-3 py-2 border-b border-pw-line-soft flex items-center justify-between">
           <Tabs value="comments" tabs={[{value: 'comments', label: 'Comments', trigger: <InboxIcon size={16} />}]} />
           <button type="button" aria-label="Close inbox" class={ICON_BTN} onClick={() => model.closeInbox()}>
             ✕
           </button>
         </header>
-        <div class="flex items-center gap-2 px-3 py-2">
+        <div class="px-3 py-2 flex gap-2 items-center">
           <TextField
             aria-label="Quick search"
             class="flex-1"
@@ -118,13 +118,13 @@ export function Inbox(): JSX.Element {
             value={search()}
             onInput={(event) => setSearch(event.currentTarget.value)}
           />
-          <kbd class="shrink-0 text-[0.75rem] text-pw-accent-hi">⌘3</kbd>
+          <kbd class="text-[0.75rem] text-pw-accent-hi shrink-0">⌘3</kbd>
         </div>
-        <div class="flex items-center justify-between px-3 py-1.5 border-b border-pw-line-soft">
+        <div class="px-3 py-1.5 border-b border-pw-line-soft flex items-center justify-between">
           <Menu
             label="Filter comments"
             trigger={
-              <span class={`${ICON_BTN} w-auto px-2 gap-1.5 text-[0.8125rem]`} aria-label="Filter comments">
+              <span class={`${ICON_BTN} text-[0.8125rem] px-2 gap-1.5 w-auto`} aria-label="Filter comments">
                 <ListFilter size={15} />
               </span>
             }
@@ -147,7 +147,7 @@ export function Inbox(): JSX.Element {
           </Menu>
           <button
             type="button"
-            class="inline-flex h-7 items-center rounded-pw-sm px-2 text-[0.75rem] text-pw-text-2 [outline:none] hover:bg-pw-fill focus-ring"
+            class="text-[0.75rem] text-pw-text-2 px-2 rounded-pw-sm inline-flex h-7 [outline:none] items-center hover:bg-pw-fill focus-ring"
             onClick={() => model.markAllRead()}
           >
             Mark all as read
@@ -159,7 +159,7 @@ export function Inbox(): JSX.Element {
               <Show
                 when={model.orderedThreads().length > 0}
                 fallback={
-                  <div class="flex flex-col gap-1 px-4 py-10 text-center">
+                  <div class="px-4 py-10 text-center flex flex-col gap-1">
                     <strong class="text-[0.8125rem] text-pw-text">No comments yet</strong>
                     <p class="text-[0.75rem] text-pw-text-3">Click an element or the canvas to leave one.</p>
                   </div>
@@ -168,7 +168,7 @@ export function Inbox(): JSX.Element {
                 <Show
                   when={feed().length > 0}
                   fallback={
-                    <p class="px-4 py-10 text-center text-[0.8125rem] text-pw-text-3">
+                    <p class="text-[0.8125rem] text-pw-text-3 px-4 py-10 text-center">
                       No comments match “{search()}”.
                     </p>
                   }

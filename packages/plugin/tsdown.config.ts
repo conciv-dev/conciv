@@ -1,8 +1,5 @@
 import {defineConfig} from 'tsdown'
 
-// One factory (index.ts) + a subpath entry per bundler, plus the Next.js entries (nextjs =
-// withConciv/register, nextjs-widget = client mount). @conciv/* + unplugin + vite + launch-editor
-// stay external (peer/host deps, never bundled).
 export default defineConfig({
   entry: [
     'src/index.ts',

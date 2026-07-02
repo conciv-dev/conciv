@@ -48,7 +48,7 @@ describe('claude decode — usage', () => {
     expect(p.contextWindow).toBe(1000000)
     expect(p.totalCostUsd).toBe(0.118)
     expect(p.numTurns).toBe(1)
-    expect(u?.promptTokens).toBe(18151) // carried from the assistant snapshot (last-wins merge)
+    expect(u?.promptTokens).toBe(18151)
   })
 
   it('omits usage when no assistant/result event carries it', async () => {
@@ -80,7 +80,6 @@ describe('claude decode — usage', () => {
   })
 })
 
-// Raw Anthropic SSE wrapped by --include-partial-messages.
 const streamEvent = (event: unknown) => JSON.stringify({type: 'stream_event', event})
 const blockStart = (index: number, content_block: unknown) =>
   streamEvent({type: 'content_block_start', index, content_block})
@@ -127,7 +126,7 @@ describe('claude decode — live text streaming', () => {
       blockStart(0, {type: 'text', text: ''}),
       blockDelta(0, {type: 'text_delta', text: 'hi'}),
       blockStop(0),
-      ASSISTANT, // consolidated duplicate of the same text
+      ASSISTANT,
     ])
     expect(ofType(out, EventType.TEXT_MESSAGE_START)).toHaveLength(1)
     const content = ofType(out, EventType.TEXT_MESSAGE_CONTENT)
@@ -144,7 +143,7 @@ describe('claude decode — live text streaming', () => {
     const out = await collect([
       blockStart(0, {type: 'thinking', thinking: ''}),
       blockDelta(0, {type: 'thinking_delta', thinking: 'hmm'}),
-      blockDelta(0, {type: 'signature_delta', signature: 'sig'}), // ignored
+      blockDelta(0, {type: 'signature_delta', signature: 'sig'}),
       blockStop(0),
     ])
     expect(ofType(out, EventType.REASONING_MESSAGE_START)).toHaveLength(1)

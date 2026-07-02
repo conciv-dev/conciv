@@ -4,26 +4,19 @@ import type {HarnessDecodeOpts} from '@conciv/protocol/harness-types'
 import {snapshotToTokenUsage, type UsageSnapshot} from '@conciv/protocol/usage-types'
 import {aguiToolDurationFor} from '@conciv/protocol/tool-timing'
 
-// Shared decoder spine: run lifecycle, line loop, parse, id minter, AG-UI chunk emitters.
-// An adapter supplies only its Zod event schema and a pure event→chunks `step`.
-
-// Mints monotonic message ids (`m1`, `t2`, `r3`, …) shared across a turn's messages.
 export type Mint = (prefix: string) => string
 
 export type StepContext = {mint: Mint; onSessionId: (id: string) => void}
 export type Step<E> = (event: E, ctx: StepContext) => Iterable<StreamChunk>
 
-// Pure per-harness usage map: one event → the usage fields it carries (absolute), or null. The spine merges these and attaches the result to RUN_FINISHED.
 export type UsageExtractor<E> = (event: E) => Partial<UsageSnapshot> | null
 
-// Drop undefined-valued keys so a partial never clobbers a known field with a blank.
 function definedOnly(delta: Partial<UsageSnapshot>): Partial<UsageSnapshot> {
   const out: Partial<UsageSnapshot> = {}
   for (const [k, v] of Object.entries(delta)) if (v !== undefined) (out as Record<string, unknown>)[k] = v
   return out
 }
 
-// Parse one NDJSON line and validate it against the schema; null on blank / unparseable / invalid.
 export function parseJsonLine<T>(line: string, schema: ZodType<T>): T | null {
   const trimmed = line.trim()
   if (!trimmed) return null
@@ -53,9 +46,6 @@ export function* toolCall(toolCallId: string, name: string, input: unknown): Gen
   yield {type: EventType.TOOL_CALL_END, toolCallId}
 }
 
-// `state` is tanstack/ai's ToolOutputState wire value: the StreamProcessor maps 'output-error' →
-// result part state 'error' and anything else → 'complete'. Omitting it silently rendered every
-// failed tool as a success, so each harness now passes its real outcome.
 export function* toolResult(
   messageId: string,
   toolCallId: string,
@@ -85,9 +75,7 @@ export async function* runAguiEvents<E>(
 ): AsyncGenerator<StreamChunk> {
   const runId = opts.runId ?? 'conciv-run'
   const threadId = opts.threadId ?? 'conciv-chat'
-  // Scope minted ids to this turn (threadId is fresh per turn) so a later turn never reuses an
-  // earlier turn's message id — a collision makes the widget update the old message in place
-  // (reply renders above the question, or not at all) instead of appending a new one.
+
   const counter = {n: 0}
   const mint: Mint = (prefix) => {
     counter.n += 1
@@ -117,7 +105,7 @@ export async function* runAguiEvents<E>(
       }
     }
   }
-  // Usage rides the native RunFinishedEvent.usage field; omitted when the harness reported nothing.
+
   yield {
     type: EventType.RUN_FINISHED,
     threadId,

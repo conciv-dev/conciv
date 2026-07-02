@@ -1,10 +1,5 @@
 import {defineConfig} from 'tsdown'
 
-// The node half of the extension: the server view (server.ts, "."), the runner registry + driver,
-// and each runner adapter. JSX-free, so tsdown builds it. The Solid client view (client.ts + the
-// card) is built by vite (vite.config.ts); all .d.ts come from `tsc -p tsconfig.build.json`.
-// Each runner's child.ts MUST stay its own output: the driver spawns it as a fresh process via
-// new URL('./child.js', import.meta.url), so it cannot be bundled into its adapter.
 export default defineConfig({
   entry: [
     'src/server.ts',

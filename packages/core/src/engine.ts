@@ -20,9 +20,9 @@ export type StartOpts = {
   launchEditor: (file: string, line: number) => void
   childEnv?: (corePort: number) => NodeJS.ProcessEnv
   port?: number
-  // Browser origins allowed to call the API beyond loopback (e.g. a dev server on a LAN IP).
+
   allowedOrigins?: string[]
-  // Discovered extension builders; their prompt text is projected here, .server() runs in makeApp.
+
   extensions?: AnyExtension[]
 }
 
@@ -31,8 +31,7 @@ export type Engine = {port: number; stop: () => Promise<void>; cfg: ResolvedConc
 export async function start(opts: StartOpts): Promise<Engine> {
   const cfg = resolveConfig(opts.options, opts.root)
   const paths = statePaths(cfg.stateRoot)
-  // The effective prompt = the configured base plus each extension's tool snippets + systemPrompt.
-  // Empty (systemPrompt:false and no appends) → don't write or pass a file, so none is injected.
+
   const systemPrompt = [
     cfg.systemPrompt,
     ...(opts.extensions ?? []).flatMap((ext) => [
@@ -78,7 +77,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     allowedOrigins: opts.allowedOrigins,
   }
   const {app, disposers} = await makeApp(appOpts)
-  // Explicit port (e.g. the Next.js integration) is used as-is; otherwise get-port finds a free one.
+
   const requestedPort = opts.port ?? (await getPort())
   const server = serve({fetch: app.fetch, port: requestedPort, hostname: '127.0.0.1'})
   await server.ready()
@@ -97,7 +96,6 @@ export async function start(opts: StartOpts): Promise<Engine> {
   }
 }
 
-// srvx exposes server.url, not server.port (HARD RULE 6) — parse it.
 function portOf(url: string | undefined): number {
   return Number(new URL(url ?? 'http://127.0.0.1:0').port)
 }

@@ -158,8 +158,6 @@ function Effort(props: {label?: JSX.Element}): JSX.Element {
   )
 }
 
-// assistant-ui's default composition: a trigger pill + a popover with optional search, the model
-// list, and the effort row. Mirrors the widget's model picker, on --chat-* tokens.
 function StyledModelSelector(props: StyledModelSelectorProps): JSX.Element {
   const [local, rest] = splitProps(props, ['searchable', 'class', 'contentClass', 'variant', 'size'])
   return (

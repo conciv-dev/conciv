@@ -3,9 +3,6 @@ import type {LocateResult} from '@conciv/protocol/page-introspect-types'
 
 export const EFFECTS_SURFACE_ATTR = 'data-conciv-effects'
 
-// The host is NOT aria-hidden: extensions mount interactive UI here (whiteboard comments), which must
-// reach the accessibility tree. Purely decorative effects (e.g. the highlight overlay) mark their own
-// subtree aria-hidden instead — an ancestor aria-hidden can't be undone by a descendant.
 function createEffectsHost(): HTMLElement {
   const host = document.createElement('div')
   host.setAttribute(EFFECTS_SURFACE_ATTR, '')

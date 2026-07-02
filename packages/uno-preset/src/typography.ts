@@ -1,11 +1,6 @@
 import presetTypography from '@unocss/preset-typography'
 
-// `prose` themed to the chat's compact base (markdown.tsx applies the prose-pw shortcut). Block margins
-// are pinned compact (prose's document-scale defaults are too tall for bubbles); Shiki paints code
-// blocks, so prose's inline-code backticks are suppressed and the inline-code chip kept.
 export const typography = presetTypography({
-  // Prose colours set as the scheme (so bare `prose` reads right) instead of var-overrides on prose-pw:
-  // body/headings/bold/code inherit the chat surface; links/quotes/borders/pre-bg use --pw-* tokens.
   colorScheme: {
     body: 'inherit',
     headings: 'inherit',

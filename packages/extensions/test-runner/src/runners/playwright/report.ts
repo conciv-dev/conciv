@@ -1,9 +1,6 @@
 import {z} from 'zod'
 import type {TestError, TestRow, TestState} from '../../shared/events.js'
 
-// Pure mapping of Playwright's `--reporter=json` report onto our wire types. Kept separate from
-// the spawning child so it's unit-testable without a browser.
-
 const ResultSchema = z
   .object({
     status: z.string(),
@@ -56,7 +53,6 @@ function rowFor(file: string, spec: z.infer<typeof SpecSchema>): TestRow {
   return {file, name: spec.title, state, durationMs: result?.duration ?? 0, error}
 }
 
-// Parse a Playwright JSON report into test rows; returns [] on an unparseable report.
 export function parsePlaywrightReport(raw: string): TestRow[] {
   let report: z.infer<typeof ReportSchema>
   try {

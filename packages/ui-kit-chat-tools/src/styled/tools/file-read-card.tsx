@@ -5,8 +5,6 @@ import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-type
 import {FileRead, useFileRead} from '../../primitives/tools/file-read.js'
 import {CollapsibleCard} from '@conciv/ui-kit-chat'
 
-// Dual theme + themeType:'system' so Pierre resolves the color via CSS color-scheme (pinned per chat
-// theme in tokens.css).
 const CODE_OPTIONS: FileOptions<undefined> = {theme: {light: 'github-light', dark: 'github-dark'}, themeType: 'system'}
 const CODE_CLASS =
   'text-[length:var(--chat-text-sm)] rounded-[var(--chat-radius-sm)] [background:var(--chat-sunken)] max-h-80 max-w-full block overflow-auto'
@@ -51,7 +49,6 @@ function Body(): JSX.Element {
   )
 }
 
-// Styled file-read card: a thin --chat-* wrapper over the headless FileRead primitive.
 export function FileReadCard(props: ToolCardProps): JSX.Element {
   return (
     <FileRead.Root part={props.part} result={props.result}>

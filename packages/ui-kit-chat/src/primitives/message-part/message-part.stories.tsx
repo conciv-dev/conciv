@@ -96,8 +96,6 @@ export const InProgressWhileToolRuns: Story = {
   },
 }
 
-// The narrowing accessors: File → DocumentPart, Data → StructuredOutputPart, Source → always null
-// (the agent emits no source parts, §7). Each runs per part; non-matching parts narrow to null.
 function AccessorProbes(): JSX.Element {
   const file = useMessagePartFile()
   const data = useMessagePartData()
@@ -152,7 +150,7 @@ export const PartAccessors: Story = {
     const c = within(canvasElement)
     await waitFor(() => expect(c.getByText('file:present')).toBeVisible())
     await expect(c.getByText('data:complete')).toBeVisible()
-    // Source is always null → its slot never renders (anchored by the two above proving the tree settled).
+
     await expect(c.queryByText('source:present')).toBeNull()
   },
 }

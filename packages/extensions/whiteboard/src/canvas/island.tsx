@@ -58,7 +58,6 @@ async function skeletonsOf(row: PendingRow): Promise<ExcalidrawElementSkeleton[]
   return withStableIds((row.payload as unknown as {elements: ExcalidrawElementSkeleton[]}).elements, row.id)
 }
 
-// React error boundary (the ONE class): a bad Excalidraw render can't crash the host widget.
 class IslandBoundary extends Component<{children: ReactNode}, {failed: boolean}> {
   override state = {failed: false}
   static getDerivedStateFromError(): {failed: boolean} {
@@ -70,12 +69,6 @@ class IslandBoundary extends Component<{children: ReactNode}, {failed: boolean}>
   }
 }
 
-// Ported from the Yjs binding (glue.ts / ai-draws.ts / presence.ts), Jazz subscriptions standing in for
-// Y.Map observers. Excalidraw owns the live scene; Jazz holds it. A `guard` flag distinguishes our own
-// updateScene echo (Jazz has no Yjs `txn.origin`), and the element-version map decides what genuinely
-// changed. `applyRemote` only ever calls updateScene — never a Jazz write — so the remote→scene path can
-// never re-enter the runtime. Writes happen only from `onChange` (Excalidraw's event), never a reactive
-// scope. `room` is constant for this mount; the parent keys the Island by session id.
 export function Island(props: {
   doc: Document
   room: string
@@ -142,8 +135,6 @@ export function Island(props: {
     })
   }
 
-  // AI-draw: convert the pending skeletons and write them as elements — the canvasElements subscription
-  // then shows them via applyRemote (exactly like ai-draws.ts wrote into the Y.Map under ORIGIN.AI).
   const draining = new Set<string>()
   const drainPending = async (row: PendingRow): Promise<void> => {
     const drawn = convertToExcalidrawElements(await skeletonsOf(row), {regenerateIds: false})
@@ -187,9 +178,7 @@ export function Island(props: {
       void drainPending(row)
     }),
   )
-  // The human cursor loop stays dormant (one dev, nothing to show); only AGENT presence rows render here.
-  // NEVER write from this handler — a db() call inside a Jazz subscription feeds back into it and storms
-  // re-renders. Stale agent rows are swept on a timer below instead.
+
   let latestCursors: readonly CursorRow[] = []
   const unsubscribeCursors = db().subscribeAll(app.cursors.where({room: props.room}), ({all}) => {
     latestCursors = all as readonly CursorRow[]

@@ -1,8 +1,5 @@
 import {z} from 'zod'
 
-// Runner-neutral wire types: the runner child emits these as NDJSON, the manager validates
-// with TestEventSchema, the card renders them. Schemas are the contract; types inferred.
-
 export const TestStateSchema = z.enum(['pass', 'fail', 'skip'])
 export type TestState = z.infer<typeof TestStateSchema>
 
@@ -30,7 +27,6 @@ export const FileStateSchema = z.object({
 })
 export type FileState = z.infer<typeof FileStateSchema>
 
-// One completed test; `run-end` carries the full list so a reloaded card rebuilds the tree.
 export const TestRowSchema = z.object({
   file: z.string(),
   name: z.string(),
@@ -40,7 +36,6 @@ export const TestRowSchema = z.object({
 })
 export type TestRow = z.infer<typeof TestRowSchema>
 
-// The result of `conciv tools test run` and the run route — the full self-contained tree.
 export const TestRunResultSchema = z.object({
   summary: SummarySchema,
   failures: z.array(TestErrorSchema),
@@ -75,7 +70,6 @@ export const TestEventSchema = z.discriminatedUnion('type', [
 ])
 export type TestEvent = z.infer<typeof TestEventSchema>
 
-// Structural subset of a Vitest v4 TestCase — in-process (not parsed wire data), so a TS type.
 export type TestCaseLike = {
   name: string
   module: {moduleId: string}

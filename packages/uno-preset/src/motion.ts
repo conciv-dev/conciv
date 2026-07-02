@@ -1,11 +1,6 @@
-// Motion registry: every animation + transition the UI uses, named once here so component code says
-// `anim-*` / `trans-*`. Animations map to presetWind4's built-in keyframes (animate-*) with our timing
-// applied via animate-duration/ease/delay utilities — no hand-rolled @keyframes. The only custom keyframe
-// is pw-fab-ring (a halo with no built-in equivalent), registered in the preset's theme.animation.
 import type {StaticShortcutMap} from 'unocss'
 
 export const motion = {
-  // Animations (presetWind4 built-ins + our timing; spin/pulse/bounce default to infinite)
   'anim-dot1': 'animate-pw-dot animate-duration-[1.2s] animate-iteration-count-infinite',
   'anim-dot2': 'animate-pw-dot animate-duration-[1.2s] animate-delay-[0.15s] animate-iteration-count-infinite',
   'anim-dot3': 'animate-pw-dot animate-duration-[1.2s] animate-delay-[0.3s] animate-iteration-count-infinite',
@@ -15,7 +10,7 @@ export const motion = {
   'anim-rise-d':
     'animate-fade-in-up animate-duration-[320ms] animate-ease-pw-expo animate-delay-[40ms] animate-fill-mode-both',
   'anim-switching': 'animate-pulse animate-duration-[1.2s]',
-  // Dropdown/popover open: opacity-only (NO transform) so it never fights Ark's positioner transform.
+
   'anim-combo': 'animate-fade-in animate-duration-[120ms] animate-ease-pw',
   'anim-compact': 'animate-spin animate-duration-[0.85s]',
   'anim-fab': 'animate-zoom-in animate-duration-[360ms] animate-ease-pw-expo animate-fill-mode-both',
@@ -24,8 +19,7 @@ export const motion = {
   'anim-collapse-open': 'animate-pw-expand-height animate-duration-[200ms] animate-ease-pw',
   'anim-collapse-closed':
     'animate-pw-collapse-height animate-duration-[200ms] animate-ease-pw animate-fill-mode-forwards',
-  // Ark Presence node (scale+fade), driven by data-state open/closed. (Swap crossfades with a plain
-  // CSS transition — it never unmounts, so it needs no animationend contract.)
+
   'anim-presence-in': 'animate-pw-presence-in animate-duration-[180ms] animate-ease-pw-expo animate-fill-mode-both',
   'anim-presence-out': 'animate-pw-presence-out animate-duration-[120ms] animate-ease-pw animate-fill-mode-both',
   'anim-pulse': 'animate-pulse animate-duration-[1.4s]',
@@ -35,7 +29,6 @@ export const motion = {
   'anim-think-shimmer':
     'animate-pw-think-shimmer animate-duration-[1.6s] animate-ease-linear animate-iteration-count-infinite',
 
-  // Transitions
   'trans-bg': '[transition:background-color_120ms_var(--pw-ease)]',
   'trans-bg-tf': '[transition:background-color_120ms_var(--pw-ease),transform_100ms_var(--pw-ease)]',
   'trans-border': '[transition:border-color_120ms_var(--pw-ease)]',

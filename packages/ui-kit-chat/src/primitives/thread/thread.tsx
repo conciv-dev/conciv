@@ -110,8 +110,6 @@ function MessageByIndex(props: MessageByIndexProps): JSX.Element {
 
 type MessageByIdProps = {messageId: string; components: MessagesComponents}
 
-// Keys off the turn id so it stays attached across reordering/windowing (assistant-ui's
-// Unstable_MessageById). A missing id renders null rather than throwing.
 function Unstable_MessageById(props: MessageByIdProps): JSX.Element {
   const thread = useThread()
   const located = () => {

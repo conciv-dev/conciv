@@ -5,7 +5,6 @@ import {describe, expect, it} from 'vitest'
 import {defineExtension} from '@conciv/extension'
 import {extensionsModuleSource, loadServerExtensions} from '../src/core/extensions.js'
 
-// The plugin is generic: it imports no concrete extension. A host (qu, the testkit) injects built-ins.
 const fixture = defineExtension({name: 'fixture-ext'})
 
 describe('generic extension wiring', () => {

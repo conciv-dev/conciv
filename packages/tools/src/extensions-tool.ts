@@ -4,7 +4,7 @@ import {toolDefinition} from '@tanstack/ai'
 export const ExtensionsInput = z.object({
   verb: z.enum(['catalog', 'scaffold', 'validate']),
   kind: z.enum(['theme', 'composer-action', 'tool', 'tool-renderer', 'component', 'full']).optional(),
-  // An extension name doubles as the filename and a JS identifier in scaffolds, so keep it identifier-safe.
+
   name: z
     .string()
     .regex(/^[a-zA-Z]\w*$/, 'name must start with a letter and contain only letters, digits, or _')

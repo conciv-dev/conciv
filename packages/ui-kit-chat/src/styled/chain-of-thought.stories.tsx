@@ -9,11 +9,8 @@ const meta: Meta = {title: 'styled/ChainOfThought'}
 export default meta
 type Story = StoryObj
 
-// py-2 mirrors a step card's header padding, so the rail node centers on the line the same way it
-// does for the real card steps in the thread.
 const STEP = 'py-2 text-[length:var(--chat-text-md)] [color:var(--chat-text-2)] [font-family:var(--chat-mono)]'
 
-// Steps render through ChainOfThought.Step (icon node + connecting rail line), exactly as the thread wires them.
 function Steps(): JSX.Element {
   return (
     <>
@@ -34,7 +31,6 @@ function Frame(props: {children: JSX.Element}): JSX.Element {
   return <div class="p-3 w-96 [background:var(--chat-bg)]">{props.children}</div>
 }
 
-// Streaming: the chain is open and the label shimmers ("Working…").
 export const Streaming: Story = {
   render: () => (
     <Frame>
@@ -47,14 +43,13 @@ export const Streaming: Story = {
     const c = within(canvasElement)
     const label = await waitFor(() => c.getByText('Working…'))
     await expect(label).toBeVisible()
-    // The shimmer animation is applied to the streaming label.
+
     await expect(getComputedStyle(label).animationName).toContain('pw-think-shimmer')
-    // Open while streaming → the steps are visible.
+
     await expect(c.getByText(/grep -rn/)).toBeVisible()
   },
 }
 
-// Settled: collapsed to a quiet "Steps" summary; clicking expands the chain (animated).
 export const SettledCollapsedThenExpand: Story = {
   render: () => (
     <Frame>
@@ -66,7 +61,7 @@ export const SettledCollapsedThenExpand: Story = {
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
     const trigger = await waitFor(() => c.getByText('Chain of Thought'))
-    // Collapsed → steps are mounted-but-hidden (Ark Collapsible).
+
     await expect(c.getByText(/grep -rn/)).not.toBeVisible()
     await userEvent.click(trigger)
     await waitFor(() => expect(c.getByText(/grep -rn/)).toBeVisible())

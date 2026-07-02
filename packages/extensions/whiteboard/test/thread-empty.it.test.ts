@@ -10,8 +10,6 @@ const openCanvas = async (page: Page): Promise<void> => {
   await page.getByRole('radio', {name: 'Rectangle'}).waitFor()
 }
 
-// Regression: an open thread whose root comment disappears must close the card, not leave a bare header
-// toolbar floating ("stays open"). The popover is gated on the root still existing.
 test('the thread card closes when its root comment is gone, leaving no empty header', async () => {
   const api = await getExtensionTestApi({server: whiteboard, clientEntry})
   try {

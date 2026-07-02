@@ -1,6 +1,3 @@
-// Vendored from Vercel's streamdown (Apache-2.0). See NOTICE.
-// Modified: TS lint pragmas dropped; otherwise the algorithm is unchanged. Framework-agnostic —
-// it only uses marked's Lexer, so it ports to Solid as-is.
 import {Lexer} from 'marked'
 
 const footnoteReferencePattern = /\[\^[\w-]{1,200}\](?!:)/
@@ -72,9 +69,6 @@ function countDoubleDollars(str: string): number {
   return count
 }
 
-// Split markdown into block strings via marked's Lexer, merging consecutive blocks that belong
-// together (unclosed HTML, unclosed math). The widget memoizes each block so only the growing
-// last block re-parses/re-highlights per streamed token.
 export function parseMarkdownIntoBlocks(markdown: string): string[] {
   const hasFootnoteReference = footnoteReferencePattern.test(markdown)
   const hasFootnoteDefinition = footnoteDefinitionPattern.test(markdown)

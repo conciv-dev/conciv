@@ -10,8 +10,6 @@ type ImagePart = Extract<Part, {type: 'image'}>
 type ToolCallPart = Extract<Part, {type: 'tool-call'}>
 type ToolResultPart = Extract<Part, {type: 'tool-result'}>
 
-// Narrowing accessors over the current part (the type guard narrows the value Solid hands back — no
-// `as` casts). Each re-reads usePart().part reactively.
 export function useMessagePartText(): Accessor<TextPart | null> {
   const {part} = usePart()
   return () => {
@@ -47,7 +45,6 @@ export function useMessagePartToolCall(): Accessor<ToolCallPart | null> {
 type DocumentPart = Extract<Part, {type: 'document'}>
 type StructuredOutputPart = Extract<Part, {type: 'structured-output'}>
 
-// assistant-ui's File maps to tanstack DocumentPart; Data maps to StructuredOutputPart (§1.1).
 export function useMessagePartFile(): Accessor<DocumentPart | null> {
   const {part} = usePart()
   return () => {
@@ -64,8 +61,6 @@ export function useMessagePartData(): Accessor<StructuredOutputPart | null> {
   }
 }
 
-// tanstack has no `source` part (our agent emits none, §7); the accessor exists for parity and is
-// always null so the Source slot can be wired but renders nothing.
 export function useMessagePartSource(): Accessor<null> {
   return () => null
 }

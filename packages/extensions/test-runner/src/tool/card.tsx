@@ -13,10 +13,6 @@ import {
   type TestEvent,
 } from '../shared/events.js'
 
-// The test-runner results card. Runner-blind: speaks TestEvent / TestRunResult only. result===null
-// → open the extension's namespaced SSE (via ctx.apiBase) and build the tree live; result!==null →
-// static render. Live stream + editor-open go through ctx.apiBase, so the card stays self-contained.
-
 type Row = {name: string; state: TestState | 'running'; error?: TestError}
 type FileGroup = {file: string; tests: Row[]}
 
@@ -137,7 +133,6 @@ function TestErrorBlock(props: {error: TestError; ctx: ToolViewCtx}): JSX.Elemen
   )
 }
 
-// The pure results tree. `result` null → live mode (open the namespaced SSE); otherwise static.
 export function TestResults(props: {result: TestRunResult | null; ctx: ToolViewCtx}): JSX.Element {
   const [groups, setGroups] = createSignal<FileGroup[]>([])
   const [summary, setSummary] = createSignal<Summary>(EMPTY_SUMMARY)

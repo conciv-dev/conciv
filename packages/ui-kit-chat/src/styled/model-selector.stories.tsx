@@ -42,16 +42,16 @@ function build(theme?: string): Story {
       await userEvent.click(trigger)
       const search = await waitFor(() => c.getByPlaceholderText('Search models…'))
       await expect(search).toBeVisible()
-      // The Effort row shows because Opus advertises reasoning efforts.
+
       await expect(c.getByRole('group', {name: 'Reasoning effort'})).toBeVisible()
-      // Search narrows the list to the keyword match.
+
       await userEvent.type(search, 'haiku')
       await waitFor(() => expect(c.queryByText('Claude Sonnet 4.6')).toBeNull())
       await expect(c.getByText('Claude Haiku 4.5')).toBeVisible()
-      // Picking a model updates the trigger and closes the popover.
+
       await userEvent.click(c.getByText('Claude Haiku 4.5'))
       await waitFor(() => expect(trigger).toHaveTextContent('Claude Haiku 4.5'))
-      // Haiku has no efforts → the trigger no longer carries an effort hint.
+
       await expect(trigger).not.toHaveTextContent('Medium')
     },
   }

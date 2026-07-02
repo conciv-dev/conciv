@@ -15,14 +15,9 @@ import {
 } from './contract.js'
 import {ChildMessageSchema, type ChildMessage} from './child-protocol.js'
 
-// Runner-agnostic driver: spawn the adapter's child as a clean process (NODE_OPTIONS/VIBE_*
-// stripped), read TestEvent NDJSON off fd 3, own cache/runBuffer/subscribe. Adapters supply a spec.
-
 export {isRunnerUnavailable, runnerUnavailableError} from './contract.js'
 export type {RunnerUnavailableError} from './contract.js'
 
-// What a child-spawning runner declares. Coupled to THIS driver, so it lives here (not in the
-// zero-runtime protocol package); authored through defineChildRunner, never a bare literal.
 export type ChildRunnerSpec = {
   id: string
   capabilities: TestRunnerCapabilities
@@ -31,7 +26,6 @@ export type ChildRunnerSpec = {
   buildListArgs: (failedOnly: boolean, cwd: string) => string[]
 }
 
-// Production spawns the built child; tests inject a tsx-based spawn. stdio[3] is the NDJSON channel.
 export type SpawnRunner = (args: string[], cwd: string) => ChildProcess
 export type MakeManagerOptions = {spawnRunner?: SpawnRunner}
 
@@ -43,17 +37,15 @@ export function makeChildManager(
   const unavailable = (reason: string) => runnerUnavailableError(spec.id, reason)
   const spawnRunner = options.spawnRunner ?? defaultSpawnRunner(spec.childUrl)
   const subscribers = new Set<(e: TestEvent) => void>()
-  // status()/emitSnapshot() answer from this between runs; updateCache is its only writer.
+
   const cache: {last: TestRunResult; files: Map<string, FileState>} = {
     last: {summary: EMPTY_SUMMARY, failures: [], tests: []},
     files: new Map(),
   }
-  // Full event sequence of the last run, replayed to late subscribers. Cleared at run-start.
+
   const runBuffer: TestEvent[] = []
   const lifecycle: {child: ChildProcess | null} = {child: null}
 
-  // Spawn one child, collect its messages, and (if onEvent is given) cache + forward each
-  // TestEvent live as it streams. Rejects with a runner-unavailable error on a failed child.
   function driveChild(args: string[], onEvent?: (e: TestEvent) => void): Promise<ChildMessage[]> {
     return new Promise((resolve, reject) => {
       const child = spawnRunner(args, cwd)
@@ -141,7 +133,6 @@ export function makeChildManager(
     lifecycle.child = null
   }
 
-  // Deferred: a resident UI server the on-demand model doesn't keep.
   async function openUiServer(): Promise<UiServerInfo> {
     return {available: false}
   }
@@ -149,8 +140,6 @@ export function makeChildManager(
   return {list, run, status, subscribeRaw, emitSnapshot, openUiServer, stop}
 }
 
-// Authoring factory for a child-spawning runner: wires create() to the driver and passes it
-// through the protocol's defineRunner so the published adapter contract is inferred + validated.
 export function defineChildRunner<T extends ChildRunnerSpec>(spec: T): TestRunnerAdapter {
   return defineRunner({
     id: spec.id,
@@ -159,7 +148,6 @@ export function defineChildRunner<T extends ChildRunnerSpec>(spec: T): TestRunne
   })
 }
 
-// A not-yet-implemented runner: present in the adapters array (so it advertises its capabilities) but create() throws.
 export function defineStubRunner(o: {
   id: string
   capabilities: TestRunnerCapabilities

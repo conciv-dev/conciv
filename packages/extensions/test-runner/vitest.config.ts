@@ -3,7 +3,6 @@ import {playwright} from '@vitest/browser-playwright'
 import {defineConfig} from 'vitest/config'
 import type {Plugin} from 'vite'
 
-// A canned run the live card subscribes to: snapshot, then a run that lands one pass + one fail.
 const FILE = '/proj/app/math.test.ts'
 const STREAM_EVENTS = [
   {type: 'snapshot', files: [], summary: {passed: 0, failed: 0, skipped: 0, durationMs: 0}, watching: false},
@@ -35,7 +34,6 @@ const STREAM_EVENTS = [
   },
 ]
 
-// A real same-origin SSE endpoint for the live-card browser test (real HTTP, real EventSource).
 const testRunnerStream: Plugin = {
   name: 'test-runner-stream-fixture',
   configureServer(server) {
@@ -50,7 +48,6 @@ export default defineConfig({
   test: {
     projects: [
       {
-        // Node ITs. Fixture apps under test/fixtures/** carry their own configs and MUST NOT collect here.
         test: {
           name: 'test-runner',
           include: ['test/**/*.it.test.ts'],
@@ -59,7 +56,6 @@ export default defineConfig({
         },
       },
       {
-        // Real-browser card tests: the card's own Solid source compiled on the fly, no jsdom.
         plugins: [solid(), testRunnerStream],
         test: {
           name: 'test-runner-browser',

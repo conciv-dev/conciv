@@ -5,8 +5,6 @@ import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import {ApplyPatch, useApplyPatch} from '../../primitives/tools/apply-patch.js'
 import {CollapsibleCard} from '@conciv/ui-kit-chat'
 
-// Styled apply_patch card: a thin --chat-* wrapper over the headless ApplyPatch primitive (which owns
-// the v2-envelope parsing + status). Pierre themeType:'system' follows the chat theme.
 const DIFF_OPTIONS: FileDiffOptions<undefined> = {
   theme: {light: 'github-light', dark: 'github-dark'},
   themeType: 'system',

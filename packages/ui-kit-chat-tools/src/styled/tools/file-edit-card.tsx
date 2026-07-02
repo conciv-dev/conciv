@@ -42,7 +42,6 @@ function Body(): JSX.Element {
   )
 }
 
-// Styled file-edit card: a thin --chat-* wrapper over the headless FileEdit primitive.
 export function FileEditCard(props: ToolCardProps): JSX.Element {
   return (
     <FileEdit.Root part={props.part} result={props.result}>

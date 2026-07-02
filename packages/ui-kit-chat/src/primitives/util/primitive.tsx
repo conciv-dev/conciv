@@ -1,9 +1,6 @@
 import {splitProps, type JSX, type ValidComponent} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 
-// Our slot escape hatch — NO Ark component. `as` swaps the rendered element/component; `render`
-// takes full control and receives the merged DOM props (assistant-ui's asChild, Solid-native). When
-// neither is set it renders the default intrinsic tag. API spec §0 / §A.2 util.
 export type Slottable<P> = {as?: ValidComponent; render?: (props: P) => JSX.Element}
 
 type DivProps = JSX.HTMLAttributes<HTMLDivElement> & Slottable<JSX.HTMLAttributes<HTMLDivElement>>

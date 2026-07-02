@@ -10,10 +10,6 @@ import {
 
 export type TopAnchorClamp = {tallerThan: number; visibleHeight: number}
 
-// Faithful Solid port of assistant-ui's mountTopAnchorReserve. Appends a spacer <div> after the
-// streaming assistant target and, on every frame the layout changes, sizes the spacer + pins the
-// anchor (last user turn) to the top. Reads layout geometry only (never volatile scrollHeight while
-// streaming). Re-runs whenever the anchor/target/clamp accessors change.
 export function useTopAnchorReserve(args: {
   viewport: Accessor<HTMLElement | undefined>
   anchorEl: Accessor<HTMLElement | undefined>
@@ -64,7 +60,6 @@ export function useTopAnchorReserve(args: {
     if (anchorId !== undefined) lastScrolledAnchorId = anchorId
   }
 
-  // Solid's reactive analogue of store.subscribe: re-schedule whenever the inputs change.
   createEffect(() => {
     args.viewport()
     args.anchorEl()

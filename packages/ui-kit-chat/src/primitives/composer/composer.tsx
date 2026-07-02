@@ -46,7 +46,7 @@ function Root(props: FormProps): JSX.Element {
     chat.setView('draft', '')
     setAttachments([])
     setQuote(null)
-    // A host onSend owns dispatch (the widget prepends staged grab context); else send directly.
+
     if (handlers.onSend) handlers.onSend(text)
     else void chat.sendMessage(content)
   }
@@ -94,13 +94,13 @@ function Input(props: InputProps): JSX.Element {
   let element: HTMLTextAreaElement | undefined
   const forwardRef = local.ref
   const isRunning = () => chat.status() === 'streaming' || chat.status() === 'submitted'
-  // Focus the input the moment a run starts (assistant-ui unstable_focusOnRunStart) — edge-triggered.
+
   createEffect<boolean>((wasRunning) => {
     const running = isRunning()
     if (local.focusOnRunStart && running && !wasRunning) element?.focus()
     return running
   }, false)
-  // A fresh composer for a switched thread takes focus (approximates focusOnThreadSwitched).
+
   onMount(() => {
     if (local.focusOnThreadSwitched) element?.focus()
   })
@@ -349,8 +349,6 @@ function TriggerPopover(props: JSX.HTMLAttributes<HTMLDivElement>): JSX.Element 
   )
 }
 
-// The pending-message queue (widget-owned). Maps the host's queue, providing each item to QueueItem.*.
-// For (keyed by item identity), not Index — adding/removing entries must mount/unmount the right row.
 function Queue(props: {children: (item: () => QueuedMessage) => JSX.Element}): JSX.Element {
   const handlers = useComposerHandlers()
   return (

@@ -2,25 +2,17 @@ import {createSignal, onCleanup, type JSX} from 'solid-js'
 import type {TriggerPosition} from '@conciv/protocol/config-types'
 import {readStorage, writeStorage} from './persisted-signal.js'
 
-// Headless positioning for a floating element: 6 corner/middle presets plus drag-to-reposition
-// that snaps to the nearest preset on release and persists the choice. Content-agnostic — the
-// modal FAB uses it, but anything floating can. Preset placement mirrors TanStack Devtools'
-// trigger positions (MIT); the snap-on-drop is ours.
-
 const MARGIN = 20
 const SNAP_MS = 280
-const SNAP_EASE = 'cubic-bezier(0.16, 1, 0.3, 1)' // ease-out-expo (matches --pw-ease-expo)
+const SNAP_EASE = 'cubic-bezier(0.16, 1, 0.3, 1)'
 const ALL: TriggerPosition[] = ['top-left', 'top-right', 'middle-left', 'middle-right', 'bottom-left', 'bottom-right']
 
-// The viewport anchor point (px) a preset resolves to — used to find the nearest on drop.
 function anchorOf(p: TriggerPosition, vw: number, vh: number): {x: number; y: number} {
   const x = p.endsWith('left') ? MARGIN : vw - MARGIN
   const y = p.startsWith('top') ? MARGIN : p.startsWith('middle') ? vh / 2 : vh - MARGIN
   return {x, y}
 }
 
-// The element CENTER a preset rests at, given the element size — the snap animation glides here so
-// it lands exactly on the preset class's resting spot (no jump at commit). Mirrors the CSS presets.
 function presetCenter(
   p: TriggerPosition,
   vw: number,
@@ -55,7 +47,6 @@ function reduceMotion(): boolean {
   }
 }
 
-// Validates a stored value against the known presets; an unknown string is rejected.
 function parsePosition(raw: string): TriggerPosition | undefined {
   return (ALL as string[]).includes(raw) ? (raw as TriggerPosition) : undefined
 }
@@ -63,16 +54,16 @@ function parsePosition(raw: string): TriggerPosition | undefined {
 export function createDraggablePosition(opts: {initial: TriggerPosition; storageKey: string}): {
   position: () => TriggerPosition
   dragging: () => boolean
-  // Inline style while dragging (follows the pointer); empty otherwise (the preset class places it).
+
   dragStyle: () => JSX.CSSProperties
   onPointerDown: (e: PointerEvent) => void
-  // Call from onClick; returns true when the click should be ignored because it was a drag.
+
   consumeClick: () => boolean
 } {
   const [position, setPosition] = createSignal<TriggerPosition>(
     readStorage(opts.storageKey, parsePosition, opts.initial),
   )
-  // Free-position the element by its center (px) while dragging, then while snapping. null = at rest.
+
   const [point, setPoint] = createSignal<{x: number; y: number} | null>(null)
   const [snapping, setSnapping] = createSignal(false)
   let suppressClick = false
@@ -109,12 +100,12 @@ export function createDraggablePosition(opts: {initial: TriggerPosition; storage
         setPoint(null)
         setSnapping(false)
       }
-      // Reduced motion: skip the glide and snap to the preset immediately.
+
       if (reduceMotion()) {
         commit()
         return
       }
-      // Glide from the drop point to the preset's resting center, then commit the preset class.
+
       setSnapping(true)
       setPoint(presetCenter(next, vw, vh, halfW, halfH))
       snapTimer = setTimeout(commit, SNAP_MS)
@@ -142,7 +133,7 @@ export function createDraggablePosition(opts: {initial: TriggerPosition; storage
       right: 'auto',
       bottom: 'auto',
       transform: 'translate(-50%, -50%)',
-      // No transition while following the pointer; ease to the corner on release.
+
       transition: snapping() ? `left ${SNAP_MS}ms ${SNAP_EASE}, top ${SNAP_MS}ms ${SNAP_EASE}` : 'none',
     }
   }

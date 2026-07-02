@@ -1,9 +1,6 @@
 import {describe, expect, it} from 'vitest'
 import {withConciv, CONCIV_DEFAULT_PORT} from '../src/core/nextjs.js'
 
-// withConciv is config plumbing: it pins the engine port, inlines it for the client via Next's `env`,
-// and carries the resolved options for register(). The real boot+mount path is proven by the
-// Next.js example app's browser e2e; here we lock the three config branches.
 describe('withConciv', () => {
   it('inlines the default port and keeps client + server in agreement', () => {
     const userConfig = {reactStrictMode: true}

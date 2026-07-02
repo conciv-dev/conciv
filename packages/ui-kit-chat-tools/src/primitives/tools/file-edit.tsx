@@ -4,8 +4,6 @@ import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import {parseInput} from '@conciv/ui-kit-chat'
 import {toolStatus, type ToolStatus} from '@conciv/ui-kit-chat'
 
-// Headless file-edit logic (Edit / MultiEdit / Write). Edit/MultiEdit carry old_string/new_string;
-// Write carries content (a pure addition). The styled layer renders the before/after diff.
 const EditInput = z.object({
   file_path: z.string().optional(),
   old_string: z.string().optional(),

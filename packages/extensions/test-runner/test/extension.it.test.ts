@@ -9,13 +9,8 @@ import type {ConcivConfig} from '@conciv/core/config'
 import type {AnyExtension} from '@conciv/extension'
 import testRunnerExtension from '../src/server.js'
 
-// Server-composition IT: boots the REAL engine (the public start() the CLI/plugin use) with the
-// test-runner extension over a real srvx server. The extension's .server() owns
 // /api/ext/test-runner/* and registers the test_runner tool on /api/mcp. Real subprocess execution
-// + live event streaming are covered by vitest.it.test.ts; here we prove the server wiring: routes,
-// MCP registration, config selection, CORS, 422 mapping, dispose.
 
-// Test-side typing for this extension's per-extension config (the registry is declaration-merged).
 declare module '@conciv/protocol/config-types' {
   interface ExtensionConfigRegistry {
     'test-runner': {runner?: 'vitest' | 'jest' | 'node-test' | 'playwright'}
@@ -25,7 +20,6 @@ declare module '@conciv/protocol/config-types' {
 const fixture = join(dirname(fileURLToPath(import.meta.url)), 'fixtures/vitest-app')
 const route = '/api/ext/test-runner'
 
-// Widen to AnyExtension[] up front, exactly as the plugin does for its built-ins.
 const extensions: AnyExtension[] = [testRunnerExtension]
 
 async function boot(opts: {root?: string; extensions?: ConcivConfig['extensions']} = {}): Promise<{
@@ -109,8 +103,6 @@ describe('test-runner extension booted in the real engine (IT)', () => {
   }, 30_000)
 
   it('maps a runner-unavailable failure to HTTP 422 on /run', async () => {
-    // A real run whose child can't spawn (cwd does not exist) surfaces as runner-unavailable. The
-    // state root is a real temp dir so the engine's own writes succeed; only the runner cwd is gone.
     const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-it-state-'))
     const missingRoot = join(mkdtempSync(join(tmpdir(), 'conciv-it-root-')), 'absent')
     const engine = await start({

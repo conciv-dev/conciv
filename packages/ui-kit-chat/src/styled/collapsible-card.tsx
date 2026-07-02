@@ -2,9 +2,6 @@ import {splitProps, type JSX} from 'solid-js'
 import {ChevronDown} from 'lucide-solid'
 import {Collapsible} from '@conciv/ui-kit-system'
 
-// The single disclosure mechanism for every styled card (ui-kit Collapsible → one animation path,
-// D3). Neutral-token styled. The chevron rotates via data-state; the body animates via the kit's
-// collapse keyframes (never a CSS transition — Zag tracks animationend).
 export type CollapsibleCardProps = {
   open?: boolean
   onOpenChange?: (open: boolean) => void

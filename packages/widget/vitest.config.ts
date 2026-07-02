@@ -6,16 +6,8 @@ import {storybookTest} from '@storybook/addon-vitest/vitest-plugin'
 import {playwright} from '@vitest/browser-playwright'
 import type {Plugin} from 'vite'
 
-// One vitest config, three projects:
-//  - `widget` (node): boots a tiny Node http server serving the real built global bundle + scripted
 //    /__pw/* endpoints, then drives the widget in a real Chromium via Playwright. Real transport, real
-//    browser, real bundle — scripted fixtures, no mocks. A dedicated config (taking precedence over
-//    vite.config.ts, the lib build) keeps the runner out of the build pipeline.
-//  - `widget-browser`: real-browser component tests that render the widget's own Solid source (compiled
-//    on the fly by vite-plugin-solid). The test module and the widget share ONE module graph so
-//    @conciv/extension's runtime context is the same instance the Component reads via useContext.
-//  - `storybook`: the widget's stories run as real browser tests via the Storybook vitest addon.
-// Never jsdom.
+
 const dirname = typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 
 const FILE = '/proj/app/math.test.ts'
@@ -55,8 +47,6 @@ const SESSION = {
   harness: {id: 'claude', name: 'Claude', canLaunch: false},
 }
 
-// A settled assistant turn whose chain holds a test_runner tool-call + its result — what the chat panel
-// hydrates from /api/chat/history. Same-origin, so the browser-mounted panel reaches it.
 const chatHistoryFixture: Plugin = {
   name: 'chat-history-fixture',
   configureServer(server) {
@@ -75,9 +65,6 @@ const chatHistoryFixture: Plugin = {
   },
 }
 
-// The Storybook browser project is skipped in CI (SKIP_STORYBOOK_TESTS=1): an upstream vitest/storybook
-// cold dep-optimize reload race fails it on CI's constrained runners. It runs locally via `pnpm test`.
-// TODO: re-enable in CI once the upstream issue is resolved.
 const storybook = {
   extends: true as const,
   plugins: [storybookTest({configDir: path.join(dirname, '.storybook')})],

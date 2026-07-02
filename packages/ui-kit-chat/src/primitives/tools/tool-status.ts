@@ -1,7 +1,5 @@
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 
-// The one place tool status is derived from a tanstack tool-call part + its paired result. Shared by
-// every tool card (ToolFallback / ApplyPatch / Bash / …) so the rule lives once, not per-card.
 export type ToolStatus = 'running' | 'complete' | 'error' | 'approval'
 
 export function toolStatus(part: ToolCallPart, result: ToolResultPart | undefined): ToolStatus {

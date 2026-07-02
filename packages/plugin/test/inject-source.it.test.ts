@@ -11,7 +11,6 @@ const ROOT = '/proj'
 const sourceValues = (code: string): string[] =>
   [...code.matchAll(/data-conciv-source="([^"]+)"/g)].map((m) => m[1] ?? '')
 
-// Run the conciv plugin's transform after configResolved with the given peer plugins present.
 function transformViaHook(peerPlugins: {name: string}[]): {code: string} | null {
   const hook = makeViteHook({enabled: true})
   const configResolved = hook.configResolved
@@ -38,7 +37,7 @@ describe('addSourceToJsx', () => {
     const out = addSourceToJsx(code, `${ROOT}/src/App.tsx`, ROOT)
     expect(out).not.toBeNull()
     expect(out!.code).toContain('data-conciv-source="src/App.tsx:1:24"')
-    expect(out!.code).toContain('className="x"') // original attrs preserved
+    expect(out!.code).toContain('className="x"')
   })
 
   it('handles self-closing elements', () => {
@@ -50,7 +49,7 @@ describe('addSourceToJsx', () => {
   it('skips Fragments', () => {
     const code = `export const C = () => <><span>x</span></>\n`
     const out = addSourceToJsx(code, `${ROOT}/src/C.tsx`, ROOT)
-    // the <span> gets stamped, the fragment does not
+
     expect(out!.code).toContain('<span data-conciv-source=')
     expect(out!.code).not.toContain('<> data-conciv-source')
   })
@@ -72,16 +71,11 @@ describe('addSourceToJsx', () => {
   it('JSON-escapes the path so a quote cannot break out of the attribute', () => {
     const code = `export const E = () => <div>q</div>\n`
     const out = addSourceToJsx(code, `${ROOT}/src/we"ird.tsx`, ROOT)
-    // the embedded quote is escaped, not a raw attribute breakout
+
     expect(out!.code).toContain('\\"')
     expect(out!.code).not.toContain('data-conciv-source="src/we"ird')
   })
 
-  // TanStack Start's SSR transform prepends server boilerplate BEFORE our enforce:'pre' transform
-  // in the server environment only, so the same element streams at one line number in the SSR build
-  // and another in the client build → a React hydration mismatch (the bug: head ":87" vs ":49"). The
-  // on-disk source is the single source of truth for positions, so the stamped line/col must reflect
-  // it regardless of upstream per-environment line shifts → identical in both builds.
   it('stamps line numbers from the on-disk source, stable across per-environment line shifts', () => {
     const dir = mkdtempSync(join(tmpdir(), 'conciv-inject-'))
     const raw = [
@@ -98,15 +92,14 @@ describe('addSourceToJsx', () => {
     const file = join(dir, 'App.tsx')
     writeFileSync(file, raw)
 
-    // client environment sees the raw source; server environment sees it with boilerplate prepended
     const client = addSourceToJsx(raw, file, dir)
     const server = addSourceToJsx('// injected by SSR transform\n'.repeat(12) + raw, file, dir)
 
     expect(client).not.toBeNull()
     expect(server).not.toBeNull()
-    // same elements, same on-disk line numbers in both builds (no shift) → no hydration mismatch
+
     expect(sourceValues(server!.code)).toEqual(sourceValues(client!.code))
-    expect(sourceValues(client!.code)).toContain('App.tsx:5:7') // <body>, line 5 in the original
+    expect(sourceValues(client!.code)).toContain('App.tsx:5:7')
   })
 })
 
@@ -116,10 +109,6 @@ describe('makeViteHook source injection', () => {
     expect(out?.code).toContain('data-conciv-source=')
   })
 
-  // TanStack devtools' inject-source already stamps data-tsd-source (which conciv's `locate` reads), and
-  // it runs at its own pipeline position — so conciv stamping too produces an SSR/client line-number
-  // mismatch (data-conciv-source ":49" vs ":87"). When devtools is in the pipeline, conciv must defer
-  // (config-time, deterministic across both builds) and add nothing.
   it('defers to @tanstack/devtools (no data-conciv-source) when its inject-source plugin is present', () => {
     const out = transformViaHook([reactPlugin, tsdInjectSource])
     expect(out).toBeNull()

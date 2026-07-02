@@ -19,9 +19,6 @@ function seed(home: string, cwd: string, id: string, body: string, mtimeSec: num
   utimesSync(p, mtimeSec, mtimeSec)
 }
 
-// claude records a user turn (from `-p "text"`) with message.content as a plain STRING, while
-// assistant turns use a content-block array. History must keep both — on refresh the widget
-// hydrates from this, and dropping string-content user messages makes only the AI's side show.
 describe('parseHistory', () => {
   it('keeps user messages whose content is a plain string', () => {
     const jsonl = [
@@ -41,9 +38,6 @@ describe('parseHistory', () => {
     expect(user?.parts).toContainEqual({type: 'text', content: 'what else can you do?'})
   })
 
-  // Claude splits one assistant message (a single message.id) across consecutive transcript lines:
-  // the thinking block on one line, the tool_use on the next. parseHistory must merge them into one
-  // UIMessage so the widget renders a single chain-of-thought, not a fragmented one per line.
   it('merges consecutive assistant records that share a message.id', () => {
     const jsonl = [
       JSON.stringify({type: 'user', message: {role: 'user', content: "what's on the page now?"}}),
@@ -127,7 +121,7 @@ describe('listSessions', () => {
       )
     const out = await listSessions(cwd, home)
     expect(out.length).toBe(50)
-    expect(out.some((s) => s.id === 's00')).toBe(false) // oldest dropped
+    expect(out.some((s) => s.id === 's00')).toBe(false)
     rmSync(home, {recursive: true, force: true})
   })
 

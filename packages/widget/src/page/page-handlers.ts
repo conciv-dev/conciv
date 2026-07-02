@@ -6,8 +6,6 @@ import {startTracking, stopTracking, report as trackReport} from './render-track
 
 export type ConsoleEntry = {level: string; ts: number; text: string}
 
-// Each handler receives the query, the resolved element (null for targetless verbs), and
-// the shared registry/console buffer. Pure dispatch — one small function per verb, swappable.
 export type PageContext = {
   query: PageQuery
   el: Element | null
@@ -18,12 +16,6 @@ export type PageHandler = (ctx: PageContext) => PageResult | Promise<PageResult>
 
 const CONSOLE_CAP = 200
 
-// A dev console forwarder (TanStack devtools + vite client-console) streams server logs into the
-// browser console and browser logs back to the terminal. Our patched console mounts last, so its
-// `original` IS that forwarder — re-emitting an already-forwarded line sends it round again, and the
-// two forwarders ping-pong one warning into an infinite, exponentially-nesting flood. We buffer every
-// line (so the agent still sees it) but skip re-emitting lines that already carry a forwarder marker,
-// which breaks the cycle without silencing real app logs.
 const FORWARD_MARKER = /\[vite\] \(client\)|\[Server\]/
 export function startConsoleBuffer(): ConsoleEntry[] {
   const buf: ConsoleEntry[] = []
@@ -48,15 +40,11 @@ export function startConsoleBuffer(): ConsoleEntry[] {
 export function resolveTarget(query: PageQuery, refs: Refs): Element | null {
   if (query.ref) return refs.map.get(query.ref)?.deref() ?? null
   if (query.selector) return document.querySelector(query.selector)
-  // Target a React component by name (resolves to the first match's nearest host element).
+
   if (query.name) return react.elementByName(query.name)
   return null
 }
 
-// JSON-safe a value for the reply (eval results, mostly). A top-level DOM element gets the rich
-// `describeElement` summary; everything else goes through the React-aware dehydrator, which is
-// circular-safe, keeps functions/elements/bigint as readable previews, and bounds depth/breadth
-// so a huge or cyclic object can't blow the reply (no more "[object Object]").
 export function serialize(value: unknown): unknown {
   if (value instanceof Element) return describeElement(value)
   return dehydrate(value)
@@ -80,9 +68,7 @@ function fireInput(el: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElemen
   el.dispatchEvent(new Event('input', {bubbles: true}))
   el.dispatchEvent(new Event('change', {bubbles: true}))
 }
-// Set value/checked through the element's prototype setter, bypassing React's per-instance
-// override that keeps its value-tracker in sync. Without this, a direct `el.value =` leaves the
-// tracker thinking nothing changed, so onChange never fires and controlled inputs revert on render.
+
 function setNative(el: Element, prop: 'value' | 'checked', value: string | boolean): void {
   const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), prop)?.set
   if (setter) setter.call(el, value)
@@ -91,8 +77,7 @@ function setNative(el: Element, prop: 'value' | 'checked', value: string | boole
 function isField(el: Element): el is HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement {
   return el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement
 }
-// Wrap an element verb so its handler gets a guaranteed-non-null Element (the driver already
-// short-circuits null for ELEMENT_KINDS) — no `!` assertions in the handlers.
+
 function onEl(fn: (el: Element, query: PageQuery) => PageResult): PageHandler {
   return ({el, query}) => (el ? fn(el, query) : err('no target element'))
 }
@@ -103,7 +88,6 @@ const INSERT_POS: Record<string, InsertPosition> = {
   append: 'beforeend',
 }
 
-// Verbs that need a resolved element; the driver short-circuits with a target error if null.
 export const ELEMENT_KINDS = new Set<PageQueryKind>([
   'text',
   'value',
@@ -132,7 +116,6 @@ export const ELEMENT_KINDS = new Set<PageQueryKind>([
 ])
 
 export const DOM_HANDLERS: Record<PageQueryKind, PageHandler> = {
-  // reads (targetless)
   route: () => ({
     pathname: location.pathname,
     search: location.search,
@@ -157,7 +140,7 @@ export const DOM_HANDLERS: Record<PageQueryKind, PageHandler> = {
     const root = query.selector ? document.querySelector(query.selector) : document.body
     return {nodes: root ? buildSnapshot(root, refs) : []}
   },
-  // react reads — fiber introspection via bippy (raw frames; the engine symbolicates locate)
+
   locate: async ({el, refs}: PageContext) => {
     const result = el ? await react.locate(el, refs) : null
     return result ?? err('no React fiber — element may be outside a React tree or not hydrated yet')
@@ -166,7 +149,7 @@ export const DOM_HANDLERS: Record<PageQueryKind, PageHandler> = {
     const result = el ? await react.inspect(el) : null
     if (!result) return err('no React fiber for element')
     const root = {props: result.props, state: result.state, hooks: result.hooks}
-    // Drill: navigate the raw value at `path`, then dehydrate THAT subtree (2 more levels from there).
+
     if (query.path) {
       const hit = navigatePath(root, query.path)
       if (!hit.found) return err(`path not found: ${query.path}`)
@@ -200,7 +183,7 @@ export const DOM_HANDLERS: Record<PageQueryKind, PageHandler> = {
   },
   find: ({query, refs}: PageContext) =>
     query.name ? react.find(query.name, refs) : err('find requires a component name (--name)'),
-  // Render tracking: start/stop a recording, or read the current report (filter by --name).
+
   track: ({query}: PageContext) => {
     const action = query.action ?? 'report'
     if (action === 'start') {
@@ -210,17 +193,17 @@ export const DOM_HANDLERS: Record<PageQueryKind, PageHandler> = {
     if (action === 'stop') return stopTracking()
     return trackReport({name: query.name})
   },
-  // Default: the real handler is injected by the widget (createEffectsHost) via PageDriver overrides.
+
   effect: () => err('effects not initialized'),
   wait: ({query}) =>
     query.selector
       ? waitFor(query.selector, query.state ?? 'visible', query.timeout ?? 5000)
       : err('wait requires a selector'),
-  // element reads
+
   text: onEl((el) => ({text: (el.textContent ?? '').slice(0, DOM_CAP)})),
   value: onEl((el) => ({value: isField(el) ? el.value : null})),
   attr: onEl((el, query) => ({value: el.getAttribute(query.name ?? '')})),
-  // actions
+
   click: onEl((el) => {
     if (!(el instanceof HTMLElement)) return err('click target is not an HTMLElement')
     el.click()
@@ -271,7 +254,7 @@ export const DOM_HANDLERS: Record<PageQueryKind, PageHandler> = {
     el.dispatchEvent(new KeyboardEvent('keyup', {key, bubbles: true}))
     return ok()
   }),
-  // edits
+
   setattr: onEl((el, query) => {
     el.setAttribute(query.name ?? '', query.value ?? '')
     return ok()
@@ -309,7 +292,7 @@ export const DOM_HANDLERS: Record<PageQueryKind, PageHandler> = {
     el.insertAdjacentHTML(INSERT_POS[query.position ?? 'append'] ?? 'beforeend', query.html ?? '')
     return ok()
   }),
-  // targetless mutations
+
   css: ({query}) => {
     const style = document.createElement('style')
     style.setAttribute('data-vibe-css', '')

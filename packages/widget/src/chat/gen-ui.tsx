@@ -1,10 +1,6 @@
 import {createSignal, For, Show, type JSX} from 'solid-js'
 import type {UiChoices, UiConfirm, UiDiff, UiForm, UiSpec} from '@conciv/protocol/ui-types'
 
-// Agent-generated UI rendered inline in the chat thread; the user's answer becomes the next
-// chat message (the resume turn cycle is the round-trip). Types come from @conciv/protocol.
-
-// Shared chrome composed as utility strings (not CSS classes) so the shapes stay reusable.
 const CARD = 'self-stretch flex flex-col gap-2.5 p-3 border border-pw-line rounded-pw-md bg-pw-fill-soft anim-msg-lg'
 const QUESTION = 'font-semibold text-pw-text'
 const DETAIL =
@@ -135,7 +131,6 @@ function Form(props: {spec: UiForm; onAnswer: (text: string) => void}): JSX.Elem
   )
 }
 
-// Dispatch a spec to its component; the if-chain narrows the discriminated union by `kind`.
 export function GenUi(props: {spec: UiSpec; onAnswer: (text: string) => void}): JSX.Element | null {
   const spec = props.spec
   if (spec.kind === 'choices') return <Choices spec={spec} onAnswer={props.onAnswer} />

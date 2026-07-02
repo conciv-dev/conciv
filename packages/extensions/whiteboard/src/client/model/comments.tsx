@@ -53,9 +53,6 @@ const newest = (dates: Date[]): Date | undefined =>
     undefined,
   )
 
-// The single source of truth for the comments overlay: subscriptions, selection, ordering, read-state,
-// viewport, the pin DOM registry, and every Jazz write. Views read it through useComments() and stay
-// presentational — no business logic, no prop-drilling.
 export function createCommentsModel(
   room: Accessor<string>,
   apiBase: string,

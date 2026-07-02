@@ -3,9 +3,6 @@ import {createStore, type SetStoreFunction} from 'solid-js/store'
 import type {UseChatReturn} from '@tanstack/ai-solid'
 import {coalesceTurns, type Turn} from './grouping.js'
 
-// View-state the runtime does NOT track: composer draft, per-card collapse (keyed by toolCallId so
-// it survives streaming id churn), chain-of-thought pin (keyed by messageId), message hover, and the
-// viewport anchor bag. A separate concern from chat data — the ONLY thing ui-kit-chat stores. §6.
 export type ViewState = {
   draft: string
   collapsed: Record<string, boolean>
@@ -17,8 +14,6 @@ export type ViewState = {
   }
 }
 
-// The context value IS the tanstack useChat return (single source of truth, no copy) plus the
-// view-state bag and its setter. No bespoke adapter, no mirrored chat state.
 export type ChatContextValue = UseChatReturn & {view: ViewState; setView: SetStoreFunction<ViewState>}
 
 const ChatContext = createContext<ChatContextValue>()
@@ -36,7 +31,6 @@ export function ChatProvider(props: ParentProps<{chat: UseChatReturn}>): JSX.Ele
     viewport: {turnAnchor: 'bottom', topAnchorTurn: null},
   })
 
-  // GC orphaned view-state keys when the message list changes, so the bag never grows unbounded.
   createEffect(() => {
     const liveCalls = new Set<string>()
     const liveMessages = new Set<string>()
@@ -58,14 +52,10 @@ export function useChatContext(): ChatContextValue {
   return context
 }
 
-// Non-throwing variant for shells (AssistantModal) that may render with the provider nested above
-// OR absent; returns undefined when no <ChatProvider> is in scope.
 export function useChatContextOptional(): ChatContextValue | undefined {
   return useContext(ChatContext)
 }
 
-// isRunning is defined ONCE here — everything (ActionBar hideWhenRunning, Reload disabled, composer)
-// reads it. Derived on read with createMemo; never stored.
 export function useThread(): {
   readonly isEmpty: boolean
   readonly isRunning: boolean

@@ -214,9 +214,6 @@ function MessageError(props: ParentProps): JSX.Element {
   )
 }
 
-// Attachments shown on a SENT user message = the message's non-text content parts (image/document/
-// audio/video), dispatched by type → Image/Document/File/Audio/Video/Attachment (assistant-ui's
-// MessageAttachments, bound to tanstack ContentParts).
 type AttachmentsComponents = {
   Image?: Component
   Document?: Component
@@ -295,9 +292,6 @@ function AttachmentByIndex(props: {index: number; components: AttachmentsCompone
   )
 }
 
-// Parts grouped into the chain/reply segments (consecutive thinking + tool parts fold into one chain;
-// a reply text breaks it — D9). Each group is wrapped in an optional Group/Layout component, its parts
-// rendered through the same dispatch as Message.Parts. assistant-ui's Unstable_PartsGrouped.
 type GroupedComponents = PartsComponents & {Group?: Component<ParentProps<{indices: number[]; kind: Segment['kind']}>>}
 
 function segmentIndices(segment: Segment): number[] {

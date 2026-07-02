@@ -15,10 +15,6 @@ import {
 } from '../_shared/agui.js'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 
-// Translate Claude's `--output-format stream-json` NDJSON into the AG-UI StreamChunk stream.
-// Only the event schema + the event→chunks mapping are claude-specific; the run lifecycle, line
-// loop, and chunk emitters live in ../_shared/agui.ts.
-
 const ClaudeEventSchema = z
   .object({
     type: z.string(),
@@ -35,7 +31,6 @@ const ClaudeEventSchema = z
   .loose()
 type ClaudeEvent = z.infer<typeof ClaudeEventSchema>
 
-// Emit the AG-UI chunks for one Claude assistant content block (validated per-block).
 function* blockChunks(part: unknown, mint: Mint): Generator<StreamChunk> {
   const text = TextBlock.safeParse(part)
   if (text.success) return yield* textMessage(mint('m'), text.data.text)
@@ -45,7 +40,6 @@ function* blockChunks(part: unknown, mint: Mint): Generator<StreamChunk> {
   if (tool.success) yield* toolCall(tool.data.id, canonicalToolName(tool.data.name), tool.data.input)
 }
 
-// Emit a tool result for each tool_result block in a Claude `user` event.
 function* toolResultChunks(content: unknown, mint: Mint): Generator<StreamChunk> {
   if (!Array.isArray(content)) return
   for (const part of content) {
@@ -61,10 +55,6 @@ function* toolResultChunks(content: unknown, mint: Mint): Generator<StreamChunk>
   }
 }
 
-// --include-partial-messages also wraps the raw Anthropic SSE content stream: each block opens
-// (content_block_start), streams deltas (content_block_delta), and closes (content_block_stop).
-// We mint one id per block index and split AG-UI START/CONTENT/END across those events, so text
-// renders live instead of arriving whole on the terminal `assistant` event.
 const StreamContentEvent = z
   .object({
     type: z.string(),
@@ -86,8 +76,6 @@ const StreamContentEvent = z
   .loose()
 type StreamContent = z.infer<typeof StreamContentEvent>
 
-// A content block opened by content_block_start, kept until its content_block_stop. `mid` is the
-// minted message id for text/thinking, or the tool_use id for a tool call.
 type OpenBlock = {kind: 'text' | 'thinking' | 'tool'; mid: string; sawArgs?: boolean}
 
 function* openBlock(
@@ -130,14 +118,11 @@ function* closeBlock(i: number, open: Map<number, OpenBlock>): Generator<StreamC
   if (block.kind === 'text') yield {type: EventType.TEXT_MESSAGE_END, messageId: block.mid}
   else if (block.kind === 'thinking') yield {type: EventType.REASONING_MESSAGE_END, messageId: block.mid}
   else {
-    if (!block.sawArgs) yield {type: EventType.TOOL_CALL_ARGS, toolCallId: block.mid, delta: '{}'} // keep accumulated args valid JSON
+    if (!block.sawArgs) yield {type: EventType.TOOL_CALL_ARGS, toolCallId: block.mid, delta: '{}'}
     yield {type: EventType.TOOL_CALL_END, toolCallId: block.mid}
   }
 }
 
-// Stateful per turn: the open-block map lives for one decode run (one chat turn). Once any block
-// has streamed, the terminal `assistant` event is a duplicate — suppress it. With partial messages
-// off (older claude), no block ever streams, so we fall back to emitting from `assistant`.
 function makeClaudeStep(): Step<ClaudeEvent> {
   const open = new Map<number, OpenBlock>()
   let streamed = false
@@ -173,8 +158,7 @@ const ClaudeUsage = z
   })
   .loose()
 const ClaudeModelUsage = z.object({contextWindow: z.number().optional()}).loose()
-// --include-partial-messages wraps the raw Anthropic SSE: message_start carries the full input
-// (context) at the very start of the response; message_delta carries cumulative output.
+
 const ClaudeStreamEvent = z
   .object({
     type: z.string(),
@@ -192,7 +176,6 @@ function tokensFrom(u: z.infer<typeof ClaudeUsage>): Partial<UsageSnapshot> {
   }
 }
 
-// modelUsage is keyed BY model id (e.g. "claude-opus-4-8[1m]"); a turn has one entry.
 function pickModelUsage(m: Record<string, unknown> | undefined): {modelId: string; entry: unknown} | null {
   if (!m) return null
   const [modelId] = Object.keys(m)
@@ -235,7 +218,6 @@ export function claudeToAguiEvents(lines: AsyncIterable<string>, opts: HarnessDe
   return runAgui(lines, ClaudeEventSchema, opts, makeClaudeStep(), claudeUsage)
 }
 
-// SDK transport: SDKMessage objects share the CLI stream-json shape, so reuse the same step + usage.
 export function claudeMessagesToAgui(
   messages: AsyncIterable<unknown>,
   opts: HarnessDecodeOpts,

@@ -1,6 +1,3 @@
-// End-to-end highlight extension in a real browser + real React, scripted server, no mocks. Highlight
-// is a built-in extension: holding Alt arms the inspector overlay, a click on a component opens its
-// source. No effect verb — the user drives it.
 import {createServer, type IncomingMessage, type Server, type ServerResponse} from 'node:http'
 import type {AddressInfo} from 'node:net'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
@@ -51,12 +48,10 @@ describe('highlight extension (it): Alt-hold, hover, click, open', () => {
     await page.goto(state.base)
     await ready(page)
 
-    // The esbuild fixture has no build-injected source attr; set one on the component host so the click
-    // resolves via the fast path (the symbolication fallback is covered by core's open-source IT).
     await page.evaluate(() => document.querySelector('#card')?.setAttribute('data-conciv-source', '/src/Card.tsx:3:1'))
 
     await page.keyboard.down('Alt')
-    // The armed overlay renders a full-screen capture layer into the shared surface — wait for it.
+
     await page.locator('[data-conciv-capture]').waitFor({timeout: 5000})
 
     const box = await page.locator('#card').boundingBox()
@@ -86,7 +81,7 @@ describe('highlight extension (it): Alt-hold, hover, click, open', () => {
     const baseline = openSourceCalls.length + editorOpenCalls.length
     const box = await page.locator('#card-inc').boundingBox()
     await page.mouse.click(box!.x + 5, box!.y + 5)
-    // Capture layer is gone → the click hits the app, not the inspector → no new open call.
+
     await new Promise((r) => setTimeout(r, 300))
     expect(openSourceCalls.length + editorOpenCalls.length).toBe(baseline)
     await page.close()

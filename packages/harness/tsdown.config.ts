@@ -1,7 +1,5 @@
 import {defineConfig} from 'tsdown'
 
-// Per-module entries (no barrel). registry.ts is the package entry ("."); each adapter's
-// <id>.ts is a subpath export. @tanstack/ai + @conciv/protocol stay external.
 export default defineConfig({
   entry: [
     'src/registry.ts',

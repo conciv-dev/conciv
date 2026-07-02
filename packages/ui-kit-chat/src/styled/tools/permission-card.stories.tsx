@@ -44,13 +44,12 @@ export const Pending: Story = {
     await expect(c.getByRole('group', {name: 'Approve this action?'})).toBeVisible()
     await expect(c.getByRole('button', {name: 'Deny'})).toBeVisible()
     await userEvent.click(c.getByRole('button', {name: 'Allow'}))
-    // Out-of-band decision fired, and the controls optimistically hide.
+
     await waitFor(() => expect(c.getByText('approved')).toBeVisible())
     await expect(c.queryByRole('button', {name: 'Allow'})).toBeNull()
   },
 }
 
-// No controls render once the part has settled (or there's no respondApproval seam).
 export const Settled: Story = {
   render: () =>
     frame(

@@ -2,9 +2,6 @@ import {createContext, createMemo, useContext, type Accessor, type JSX} from 'so
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import {toolStatus, type ToolStatus} from '@conciv/ui-kit-chat'
 
-// Headless bash/shell logic + structure (ported from with-opencode tool-ui-bash). Parses the command
-// args + the {stdout,stderr,exitCode} result; the styled layer (styled/tools/bash-card) adds tokens.
-
 export type BashOutput = {stdout?: string; stderr?: string; exitCode?: number}
 
 function argString(part: ToolCallPart, key: string): string {
@@ -23,9 +20,7 @@ export function parseBashOutput(result: ToolResultPart | undefined): BashOutput 
   try {
     const parsed = JSON.parse(content)
     if (parsed && typeof parsed === 'object') return parsed as BashOutput
-  } catch {
-    // plain text output
-  }
+  } catch {}
   return {stdout: content}
 }
 

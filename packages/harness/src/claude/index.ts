@@ -5,15 +5,10 @@ import {claudeToAguiEvents} from './decode.js'
 import {claudeHistory} from './history.js'
 import {claudeSdkRun, claudeSdkShutdown} from './sdk.js'
 
-// The claude-specific default chat prompt; core reads it as its fallback systemPrompt.
 export {CHAT_SYSTEM_PROMPT} from './system-prompt.js'
 
-// Default: in-process Agent SDK transport (warm process per session). CONCIV_CLAUDE_CLI forces the
-// legacy `claude -p` spawn-per-turn path.
 const USE_SDK = !process.env.CONCIV_CLAUDE_CLI
 
-// Models the claude CLI accepts via --model. Aliases (opus/sonnet/haiku) track the latest of each
-// tier; the explicit Fable id is pinned. Listed newest-first within the Claude group.
 const CLAUDE_MODELS = [
   {id: 'opus', name: 'Claude Opus 4.8', description: 'Most capable', group: 'Claude'},
   {id: 'sonnet', name: 'Claude Sonnet 4.6', description: 'Balanced speed + capability', group: 'Claude'},

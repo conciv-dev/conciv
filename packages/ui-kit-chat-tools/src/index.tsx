@@ -1,8 +1,3 @@
-// @conciv/ui-kit-chat-tools — the concrete tool-card vocabulary. Each card is two-layer (headless
-// logic + styled wrapper) and built on @conciv/ui-kit-chat's tool-building primitives
-// (CollapsibleCard / ToolCard / toolStatus / parseInput / ToolFallback) + @conciv/ui-kit-system.
-
-// Headless tool logic.
 export {Bash, useBash, parseBashOutput, type BashOutput} from './primitives/tools/bash.js'
 export {
   ApplyPatch,
@@ -21,7 +16,6 @@ export {Todo, useTodo, type TodoItem, type TodoItemStatus} from './primitives/to
 export {nowTitle} from './primitives/tools/now-title.js'
 export {inlineValue, shortenPath, basename, truncate, SUMMARY_KEYS} from './primitives/tools/inline-tool.js'
 
-// Styled tool cards + their self-describing entries.
 export {BashCard} from './styled/tools/bash-card.js'
 export {ApplyPatchDiff} from './styled/tools/apply-patch-diff.js'
 export {FileReadCard, fileReadTool} from './styled/tools/file-read-card.js'
@@ -44,5 +38,4 @@ export {
   ToolCallInline,
 } from './styled/tools/inline-tool.js'
 
-// The assembled generic vocabulary the host spreads with extension + app-specific entries.
 export {builtinToolCards} from './styled/tools/builtin-tool-cards.js'

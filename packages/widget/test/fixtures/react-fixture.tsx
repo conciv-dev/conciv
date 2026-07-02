@@ -1,7 +1,3 @@
-// A tiny REAL React app, bundled by esbuild and rendered into the IT page so bippy sees genuine
-// fibers (and React's dev reconciler exposes the override methods). Exercises the cases that broke
-// the old serializer: a function prop, a nested object, an array, a useState hook, and a class
-// component with state.
 import {Component, createContext, useState} from 'react'
 import {createRoot} from 'react-dom/client'
 

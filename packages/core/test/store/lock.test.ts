@@ -19,7 +19,7 @@ describe('per-session lock', () => {
     const root = tmp()
     expect(acquireLock(root, 'sess-a', 'chat', process.pid)).toBe(true)
     expect(readLock(root, 'sess-a').held).toBe(true)
-    // A different session is unaffected.
+
     expect(readLock(root, 'sess-b').held).toBe(false)
     expect(acquireLock(root, 'sess-b', 'chat', process.pid)).toBe(true)
     releaseLock(root, 'sess-a')
@@ -30,7 +30,7 @@ describe('per-session lock', () => {
   it('a second acquire on a held session fails (atomic, no double-acquire)', () => {
     const root = tmp()
     expect(acquireLock(root, 's', 'chat', process.pid)).toBe(true)
-    // process.pid is alive → the lock is genuinely held → second acquire must fail.
+
     expect(acquireLock(root, 's', 'iterate', process.pid)).toBe(false)
     releaseLock(root, 's')
     expect(acquireLock(root, 's', 'chat', process.pid)).toBe(true)
@@ -38,11 +38,11 @@ describe('per-session lock', () => {
 
   it('reclaims a stale lock whose holder pid is dead', () => {
     const root = tmp()
-    const deadPid = 2 ** 31 - 1 // a pid that is virtually certain to be dead
-    // Seed a stale lock by acquiring with a dead pid (readLock treats it as free).
+    const deadPid = 2 ** 31 - 1
+
     expect(acquireLock(root, 's', 'chat', deadPid)).toBe(true)
-    expect(readLock(root, 's').held).toBe(false) // dead pid ⇒ reads as free/stale
-    // A live caller can reclaim it.
+    expect(readLock(root, 's').held).toBe(false)
+
     expect(acquireLock(root, 's', 'chat', process.pid)).toBe(true)
     expect(readLock(root, 's').held).toBe(true)
   })

@@ -1,5 +1,3 @@
-// A single prompt→change scenario for a grabbed element. `apply` is a set of
-// gsap tween vars applied to the live element when the agent "patches" it.
 export type Scenario = {
   prompt: string
   inspect: string
@@ -14,8 +12,6 @@ export type Pickable = {
   scenarios: Scenario[]
 }
 
-// The sample "your app" elements that can be grabbed, each with a few varied
-// scenarios so every run of the demo feels a little different.
 export const PICKABLES: Record<string, Pickable> = {
   heading: {
     id: 'heading',
@@ -90,7 +86,6 @@ export type Message =
   | {kind: 'tool'; label: string; detail: string}
   | {kind: 'result'; text: string}
 
-// A beat on the gsap timeline; `patch` is the moment the live element changes.
 export type Beat = {at: number; message?: Message; patch?: boolean}
 
 export const GREETING: Message = {

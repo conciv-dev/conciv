@@ -7,13 +7,9 @@ import {registerPageRoutes} from '../../../src/api/page/page.js'
 import {makeJournal} from '../../../src/runtime/journal.js'
 import {chunkWithInlineMap, cleanupChunks} from '../../page/fixtures.js'
 
-// Real HTTP round-trip for the page-bus over the h3 app: a fetch-based SSE reader stands in
-// for the browser widget, answering each query by POSTing back. Exercises the true
-// subscribe → server push → widget reply → query-resolves path.
-
 async function startServer(): Promise<{server: Server; base: string}> {
   const app = new H3()
-  // Symbolication fixtures (chunkWithInlineMap) write to tmpdir, so that's the project root here.
+
   registerPageRoutes(app, {journal: makeJournal(), root: tmpdir()})
   const server = serve({fetch: app.fetch, port: 0, hostname: '127.0.0.1'})
   await server.ready()
@@ -38,8 +34,6 @@ const ChangesSchema = z.array(
   z.object({verb: z.string(), selector: z.string().optional(), args: z.record(z.string(), z.unknown())}),
 )
 
-// Subscribe to /api/page/stream as the widget would, answering each query by POSTing back.
-// Resolves once the stream is open; the returned handle ends the connection.
 async function pumpStream(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   base: string,
@@ -59,9 +53,7 @@ async function pumpStream(
         void postJson(`${base}/api/page/reply`, {requestId: query.requestId, data: answerFor(query.kind ?? '')})
       }
     }
-  } catch {
-    // aborted on teardown
-  }
+  } catch {}
 }
 
 async function connectWidget(base: string, answerFor: (kind: string) => unknown): Promise<{end: () => void}> {

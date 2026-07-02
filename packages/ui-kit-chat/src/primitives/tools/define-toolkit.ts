@@ -1,8 +1,5 @@
 import type {ToolCardEntry, ToolUIComponent} from '@conciv/protocol/tool-view-types'
 
-// Our analogue of assistant-ui's defineToolkit: map tool name → its card, get back the self-describing
-// ToolCardEntry[] the Thread/Message dispatch matches by name (Pi/TanStack model — no name→component
-// registry object passed around). `execute` is server-side here, so a toolkit entry is just the card.
 type ToolkitEntry = ToolUIComponent | {render: ToolUIComponent; streamTitle?: string}
 
 export function defineToolkit(map: Record<string, ToolkitEntry>): ToolCardEntry[] {

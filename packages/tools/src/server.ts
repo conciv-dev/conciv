@@ -7,11 +7,6 @@ import {concivOpenToolDef, OpenInput} from './open.js'
 import {buildCatalog, scaffold, validateSource} from '@conciv/extension/catalog'
 import {concivExtensionsToolDef, ExtensionsInput} from './extensions-tool.js'
 
-// Each factory instantiates its definition as a tanstack server tool (the def stays the single
-// source of truth — the future page agent instantiates the same def with `.client()`), then erases
-// the per-tool generics to the uniform ConcivServerTool the MCP server iterates. The uniform execute
-// validates raw args against the concrete zod schema once at the boundary before running.
-
 function concivUiServerTool(ctx: ConcivToolContext): ConcivServerTool {
   const tool = concivUiToolDef.server(async (input) => {
     const renderId = randomUUID()
@@ -54,7 +49,6 @@ function concivOpenServerTool(ctx: ConcivToolContext): ConcivServerTool {
   }
 }
 
-// Stateless (no ctx): catalog/scaffold/validate are pure projections of node-safe extension metadata.
 function concivExtensionsServerTool(): ConcivServerTool {
   const tool = concivExtensionsToolDef.server(async (input) => {
     if (input.verb === 'catalog') return buildCatalog()
@@ -75,8 +69,6 @@ function concivExtensionsServerTool(): ConcivServerTool {
   }
 }
 
-// The conciv tool list as bound server tools, in one place so the MCP server (and tests) get them
-// with a single import.
 export function concivTools(ctx: ConcivToolContext): ConcivServerTool[] {
   return [concivUiServerTool(ctx), concivPageServerTool(ctx), concivOpenServerTool(ctx), concivExtensionsServerTool()]
 }

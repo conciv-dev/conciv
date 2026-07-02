@@ -2,9 +2,6 @@ import {Show, type JSX} from 'solid-js'
 import {Square} from 'lucide-solid'
 import {FOCUS} from './classes.js'
 
-// The single live "now" line that replaces per-call running spinners while a turn streams. It shows
-// the active tool's title and a stop control; the host swaps `title` as the active call changes and
-// the CSS cross-fades it in place. Neutral-token styled (references only --chat-*).
 export function NowLine(props: {title: string; onStop?: () => void}): JSX.Element {
   return (
     <div class="text-[color:var(--chat-text)] text-[length:var(--chat-text-md)] px-2.75 py-1.75 rounded-[var(--chat-radius-pill)] flex gap-2.25 [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] [font-family:var(--chat-font)] items-center">

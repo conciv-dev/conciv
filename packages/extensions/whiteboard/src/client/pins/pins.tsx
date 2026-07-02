@@ -23,14 +23,12 @@ const UNREAD_DOT =
 const ANCHOR_TAG =
   'absolute font-pw-mono text-[0.625rem] text-pw-text-2 bg-pw-panel border border-pw-line rounded-pw-sm px-1 py-px pointer-events-none whitespace-nowrap'
 
-// Drag threshold in scene units; at zoom 1 it matches the old screen-pixel behavior.
 const DRAG_THRESHOLD = 4
 const AnchorLine = z.object({source: z.object({line: z.number().nullable().optional()})})
 const basename = (path: string): string => path.split('/').pop() ?? path
 const authorLabel = (kind: string | undefined): string =>
   kind === 'ai' ? 'AI' : kind === 'human' ? 'Human' : 'Unknown'
 
-// Pin positions are scene coordinates; `drag`/`prompt` carry the live scene position mid-drag.
 type Drag = {cid: string; x: number; y: number}
 type Prompt = {cid: string; x: number; y: number; origin: {x: number; y: number}}
 
@@ -39,9 +37,6 @@ export function PinsLayer(): JSX.Element {
   const [drag, setDrag] = createSignal<Drag | null>(null)
   const [prompt, setPrompt] = createSignal<Prompt | null>(null)
 
-  // A moved pin keeps its drag position through the async pin write; clear it only once the committed
-  // scene coords catch up, so the pin never flashes back to its pre-drag spot (and a later remote move
-  // isn't masked by a stale drag).
   createEffect(() => {
     const dropped = drag()
     if (!dropped) return
@@ -72,7 +67,6 @@ export function PinsLayer(): JSX.Element {
     setPrompt(null)
   }
 
-  // The dragged scene position for a pin, or its committed scene position.
   const sceneOf = (cid: string, x: number, y: number): {x: number; y: number} => {
     const dragged = drag()
     return dragged && dragged.cid === cid ? {x: dragged.x, y: dragged.y} : {x, y}
@@ -101,7 +95,7 @@ export function PinsLayer(): JSX.Element {
                 return (
                   <>
                     <Show when={pin.pinState === 'offset' && pin.anchorX != null && pin.anchorY != null}>
-                      <svg class="absolute inset-0 size-full pointer-events-none">
+                      <svg class="size-full pointer-events-none inset-0 absolute">
                         <line
                           x1={anchorPos().x}
                           y1={anchorPos().y}

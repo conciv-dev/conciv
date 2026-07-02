@@ -59,7 +59,6 @@ function UsageRow(props: {label: string; tokens?: number}): JSX.Element {
   )
 }
 
-// Per-session top-bar tracker; hidden until the first snapshot, ring when the window is known else a token count.
 export function ContextTracker(props: {usage: UsageSnapshot | null}): JSX.Element {
   const used = () => (props.usage ? contextUsedTokens(props.usage) : undefined)
   const maxTokens = () => props.usage?.contextWindow

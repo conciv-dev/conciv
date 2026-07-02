@@ -7,7 +7,6 @@ import {serveDir} from './serve.js'
 import {launch} from './launch.js'
 import {makeCallTool, type CallTool} from './call-tool.js'
 
-// The extension's two real halves: the server builder start() mounts + the client entry the host imports.
 export type ExtensionUnderTest = {
   server: AnyExtension
   clientEntry: string
@@ -20,8 +19,7 @@ export type ExtensionTestApi = {
   callTool: CallTool
   session: string
   apiBase: string
-  // A second browser page on the SAME served host (same injected session → same room), for two-client
-  // CRDT behavior (echo, dedup, presence). Reuses the first page's browser context.
+
   secondClient: () => Promise<SecondClient>
   dispose: () => Promise<void>
 }

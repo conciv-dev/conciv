@@ -13,8 +13,6 @@ const MODELS: ModelOption[] = [
   {id: 'c', name: 'Gamma', disabled: true},
 ]
 
-// Unstyled: the only CSS is the open/closed toggle Ark drives via data-state, so the play test can
-// see the content. List with no children auto-renders the filtered items.
 export const Headless: Story = {
   render: (): JSX.Element => {
     const [value, setValue] = createSignal('a')
@@ -38,7 +36,7 @@ export const Headless: Story = {
     await userEvent.click(trigger)
     const search = await waitFor(() => c.getByPlaceholderText('Search models…'))
     await userEvent.type(search, 'bet')
-    // Gamma (not the selected model, so it only appears in the list) filters out; Alpha stays in the trigger.
+
     await waitFor(() => expect(c.queryByText('Gamma')).toBeNull())
     await userEvent.click(c.getByText('Beta'))
     await waitFor(() => expect(trigger).toHaveTextContent('Beta'))

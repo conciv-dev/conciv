@@ -4,9 +4,6 @@ import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import {parseInput, resultText, stripReadLineNumbers} from '@conciv/ui-kit-chat'
 import {toolStatus, type ToolStatus} from '@conciv/ui-kit-chat'
 
-// Headless file-read logic + structure (Read / conciv_open). The styled layer adds tokens + the
-// code block. claude Read carries file_path + optional offset/limit; conciv_open carries file +
-// optional line and returns no contents (it just opens the editor).
 const ReadInput = z.object({
   file_path: z.string().optional(),
   file: z.string().optional(),
@@ -26,7 +23,6 @@ function lineRange(input: z.infer<typeof ReadInput>): string | undefined {
   return undefined
 }
 
-// Strip claude Read's "<lineno>\t" prefix and cap the line count so a huge file can't blow the thread.
 function fileContents(raw: string): string {
   if (!raw) return ''
   const lines = stripReadLineNumbers(raw).split('\n')

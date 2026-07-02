@@ -76,7 +76,7 @@ export const AttachmentByIndexShowsOne: Story = {
   render: attachmentsApp(FirstAttachmentUser),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    // Only the first attachment (the image) renders; the document is not.
+
     await waitFor(() => expect(c.getByText('diagram.png')).toBeVisible())
     await expect(c.queryByText('notes.pdf')).toBeNull()
   },
@@ -125,7 +125,7 @@ export const PartsGrouped: Story = {
   },
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    // The thinking + tool parts fold into one chain group; the reply text breaks into its own group.
+
     await waitFor(() => expect(c.getByText('group:chain')).toBeVisible())
     await expect(c.getByText('group:reply')).toBeVisible()
     await expect(c.getByText('weighing the options')).toBeVisible()

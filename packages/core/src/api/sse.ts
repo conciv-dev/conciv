@@ -7,12 +7,10 @@ const BASE_SSE_HEADERS = {
   connection: 'keep-alive',
 }
 
-// Streamed Responses bypass the global CORS middleware, so SSE endpoints carry CORS headers here.
 export function sseHeaders(event: H3Event): Record<string, string> {
   return {...BASE_SSE_HEADERS, ...corsHeadersFor(event)}
 }
 
-// Push-based SSE response: `start` emits `data:` frames and returns an unsubscribe run on cancel.
 export function sseStream(
   event: H3Event,
   openComment: string,

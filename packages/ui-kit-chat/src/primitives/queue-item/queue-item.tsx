@@ -3,8 +3,6 @@ import {Primitive} from '../util/primitive.js'
 import {createActionButton, type ActionButtonState} from '../util/create-action-button.js'
 import {useComposerHandlers} from '../composer/composer-handlers.js'
 
-// A locally-queued pending message (widget-owned). The widget renders a list, wrapping each item in
-// QueueItemProvider; Steer/Remove gate on the queue handlers (§7).
 export type QueuedMessage = {id: string; text: string}
 
 const QueueItemContext = createContext<QueuedMessage>()

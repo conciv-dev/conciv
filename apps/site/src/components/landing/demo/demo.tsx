@@ -20,7 +20,7 @@ export function Demo() {
   const viewportRef = useRef<HTMLDivElement>(null)
   const grabRef = useRef<HTMLButtonElement>(null)
   const ghostRef = useRef<HTMLDivElement>(null)
-  // The element + scenario chosen on the current grab, consumed by the send timeline.
+
   const active = useRef<{id: string; scenario: Scenario} | null>(null)
 
   const grabbedEl = (id: string) =>
@@ -28,7 +28,6 @@ export function Demo() {
 
   const reduced = () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-  // Ghost cursor glides to the grab pill on mount to teach the first click.
   useGSAP(
     () => {
       if (reduced() || !ghostRef.current || !grabRef.current) return
@@ -47,7 +46,6 @@ export function Demo() {
     {scope},
   )
 
-  // Pulse the grab pill while idle (not picking, nothing grabbed yet).
   useGSAP(
     () => {
       if (reduced() || !grabRef.current) return
@@ -64,7 +62,6 @@ export function Demo() {
     {scope, dependencies: [state.picking, state.grabbed?.id]},
   )
 
-  // Reveal the most recently added message and keep the transcript pinned to the bottom.
   useGSAP(
     () => {
       if (!viewportRef.current) return
@@ -74,7 +71,7 @@ export function Demo() {
         const last = rows[rows.length - 1]
         if (last) gsap.from(last, {autoAlpha: 0, y: 8, duration: 0.35, ease: 'power2.out'})
       }
-      // Direct assignment (not a gsap tween) so useGSAP's cleanup doesn't revert the scroll on the next message.
+
       if (viewport) viewport.scrollTop = viewport.scrollHeight
     },
     {scope, dependencies: [state.messages.length]},
@@ -90,7 +87,6 @@ export function Demo() {
   const {contextSafe} = useGSAP({scope})
 
   const onRestart = contextSafe(() => {
-    // Undo any inline styles gsap applied to grabbed elements.
     scope.current?.querySelectorAll('[data-pickable] > *').forEach((el) => gsap.set(el, {clearProps: 'all'}))
     active.current = null
     setInput('')

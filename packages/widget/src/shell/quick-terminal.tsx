@@ -23,14 +23,8 @@ type Pane = {
   working: () => boolean
 }
 
-// Bindings come from user config as plain strings; the library wants its template-literal hotkey
-// type. They're validated at runtime by the key matcher, so a cast is the right call here.
 type Bindable = Parameters<typeof createHotkey>[0]
 
-// Quick-terminal layout: a full-width sheet that drops from the top edge on a hotkey (iTerm2 /
-// Ghostty style), no page-dimming scrim, draggable height (shared resize primitive). It splits into
-// a horizontal row of panes; each pane is an independent agent session (its own ChatPanel). Closing
-// a pane reflows survivors; closing the last closes the sheet.
 export function QuickTerminalLayout(props: {
   panel: PanelDef
   composerActions: () => ComposerActionDef[]
@@ -57,7 +51,6 @@ export function QuickTerminalLayout(props: {
   let rowEl: HTMLDivElement | undefined
   let sectionEl: HTMLElement | undefined
 
-  // Persisted pane layout: one session id per pane, restored on reopen (which sessions, in order).
   const PANES_KEY = 'conciv-qt-panes'
   const readPaneIds = (): string[] =>
     readStorage(
@@ -74,14 +67,13 @@ export function QuickTerminalLayout(props: {
       ids.filter((x): x is string => Boolean(x)),
       JSON.stringify,
     )
-  // The current session id of each pane (null until its client resolves), for layout persistence.
+
   const paneIds = (): (string | null)[] => panes().map((p) => p.client.sessionId())
-  // Closing a pane deletes its server record so they don't accumulate orphans.
+
   const forgetSession = (client: SessionClient) => {
     if (client.sessionId()) void client.remove().catch(() => {})
   }
 
-  // Remember which pane was active (by position) so reopening focuses the same one.
   const FOCUS_KEY = 'conciv-qt-focused'
   const readFocusIndex = (): number =>
     readStorage(
@@ -104,18 +96,18 @@ export function QuickTerminalLayout(props: {
     const id = ++seq
     const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
     const [working, setWorking] = createSignal(false)
-    // Each pane owns its session client. Restore a persisted conciv_ id, else resolve a fresh session.
+
     const client = defineClient({apiBase: props.panel.apiBase ?? ''})
     if (initialId && isSessionId(initialId)) client.setSessionId(SessionId.parse(initialId))
     else void client.resolve().then((r) => client.setSessionId(r.sessionId))
-    // Each pane is its own session; it's the focused one that takes composer focus + hydrates.
+
     const approvalKey = createUniqueId()
     const content = props.panel.create({
       active: () => props.open() && focused() === id,
       onWorkingChange: setWorking,
       onUsageChange: setUsage,
       onApprovalsChange: (items) => props.reportApprovals(approvalKey, items),
-      // A just-born session shows in every selector before its file flushes (surface union).
+
       onSessionLabel: (name) => {
         const sid = client.sessionId()
         mergeSurface(sid, sid ? makeSurfaceRow(sid, name) : null)
@@ -138,38 +130,29 @@ export function QuickTerminalLayout(props: {
     writePaneIds(remaining.map((p) => p.client.sessionId()))
     void invalidateSessions(props.panel.apiBase ?? '')
     if (remaining.length === 0) {
-      props.setOpen(false) // last pane closes the terminal; re-seeded on next open
+      props.setOpen(false)
       return
     }
     const refocus = focused() === id
     setPanes(remaining)
     if (refocus) focusPane(remaining[remaining.length - 1]!.id)
-    // Clear any frozen widths from gutter drags so survivors redistribute (lone pane → full width).
+
     if (rowEl) for (const el of rowEl.querySelectorAll<HTMLElement>('[data-pw-qt-pane]')) el.style.flex = ''
   }
 
-  // Closed, the sheet only slides off-screen (it stays in the DOM to keep pane state), so mark it
-  // inert — otherwise its composer/buttons stay tabbable and trip the aria-hidden-focus rule.
   createEffect(() => {
     if (sectionEl) sectionEl.inert = !props.open()
   })
 
-  // Seed panes up front (not lazily on open) so each ChatPanel is mounted from the start — opening
-  // then only flips `active`, the same path the modal uses to focus its composer reliably. (A pane
-  // created inside the open handler races the mount + drop animation and misses focus.) Restore the
-  // saved layout (one pane per persisted session id); else seed one fresh pane.
   const savedIds = readPaneIds()
   if (savedIds.length > 0) for (const sid of savedIds) addPane(sid)
   else addPane()
 
-  // On open: restore focus to the last-active pane (persisted). Setting focused flips that pane's
-  // `active` true, and its ChatPanel focuses the composer.
   let wasOpen = false
   let restoreFocus: HTMLElement | null = null
   createEffect(() => {
     const open = props.open()
     if (open && !wasOpen) {
-      // Remember what had focus on the page so closing returns there (the sheet has no trigger).
       restoreFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
       const target = panes()[Math.min(readFocusIndex(), panes().length - 1)]
       if (target) setFocused(target.id)
@@ -180,7 +163,6 @@ export function QuickTerminalLayout(props: {
     wasOpen = open
   })
 
-  // Each configured binding toggles the sheet; Escape closes it; Mod+D splits while open.
   for (const binding of props.hotkeys) {
     createHotkey(binding as Bindable, () => props.setOpen(!props.open()))
   }
@@ -195,7 +177,6 @@ export function QuickTerminalLayout(props: {
     () => ({enabled: props.open()}),
   )
 
-  // Gutter drag: redistribute width between the two adjacent panes (ported from the mockup).
   const onGutterDown = (e: PointerEvent) => {
     e.preventDefault()
     const gutter = e.currentTarget as HTMLElement

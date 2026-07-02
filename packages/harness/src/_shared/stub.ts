@@ -1,8 +1,6 @@
 import {defineHarness, type HarnessAdapter, type HarnessCapabilities} from '@conciv/protocol/harness-types'
 import type {StreamChunk} from '@tanstack/ai'
 
-// A capability-only harness stub: registered so listHarnesses() advertises it, but buildArgs/
-// decode throw until a real adapter replaces it.
 export function defineStubHarness(o: {
   id: string
   binName: string

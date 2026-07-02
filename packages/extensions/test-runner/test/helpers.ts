@@ -3,8 +3,6 @@ import {createRequire} from 'node:module'
 import {fileURLToPath, pathToFileURL} from 'node:url'
 import type {SpawnRunner} from '../src/runner/driver.js'
 
-// ITs run the REAL adapter child via tsx (no build step) so they exercise the true
-// child-process path. tsxSpawnFor(childTsUrl) returns a SpawnRunner bound to that child.
 const require = createRequire(import.meta.url)
 const tsxEntry = pathToFileURL(require.resolve('tsx')).href
 
@@ -21,9 +19,6 @@ export function tsxSpawnFor(childTsUrl: URL): SpawnRunner {
   }
 }
 
-// Spawn seam whose child immediately emits the out-of-process failure signal (an `error` NDJSON
-// message on fd 3, exactly as a real child does when the app's runner can't init), so the driver
-// surfaces a typed RunnerUnavailableError — without faking the manager.
 export function errorSpawnRunner(reason: string): SpawnRunner {
   const payload = JSON.stringify({type: 'error', reason})
   return () =>

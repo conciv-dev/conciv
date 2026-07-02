@@ -4,8 +4,6 @@ import type {ToolCardProps, ToolUIComponent} from '@conciv/protocol/tool-view-ty
 import {toolStatus, type ToolStatus} from '@conciv/ui-kit-chat'
 import {basename, inlineValue, shortenPath, SUMMARY_KEYS, truncate} from '../../primitives/tools/inline-tool.js'
 
-// Compact one-line tool display for the rail (ported from with-opencode tool-ui-inline). Thin --chat-*
-// wrapper over the headless inline helpers.
 function StatusIcon(props: {status: ToolStatus}): JSX.Element {
   return (
     <Show when={props.status === 'complete'} fallback={<Pending status={props.status} />}>
@@ -48,7 +46,6 @@ function Shell(props: {name: string; status: ToolStatus; children?: JSX.Element}
   )
 }
 
-// Factory: a single-line card showing the first non-empty arg among `argKeys`, formatted.
 export function inlineTool(
   argKeys: string | readonly string[],
   format: (value: string) => string = truncate,
@@ -78,5 +75,4 @@ export const GlobInline = inlineTool('pattern')
 export const WebSearchInline = inlineTool('query')
 export const WebFetchInline = inlineTool('url')
 
-// Generic inline fallback for unknown/MCP tools — first matching summary key.
 export const ToolCallInline = inlineTool(SUMMARY_KEYS, truncate)

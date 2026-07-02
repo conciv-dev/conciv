@@ -11,7 +11,6 @@ const STATUS_ICON: Record<TodoItemStatus, LucideIcon> = {
   completed: CircleCheckBig,
 }
 
-// Row text vs dot tint differ per status (completed strikes text but the dot stays green).
 const ROW = 'flex items-start gap-1.75 py-0.5'
 const ROW_STATUS: Record<TodoItemStatus, string> = {
   pending: 'text-[color:var(--chat-text-2)]',
@@ -62,7 +61,6 @@ function Body(): JSX.Element {
   )
 }
 
-// Styled to-do card: a thin --chat-* wrapper over the headless Todo primitive.
 export function TodoCard(props: ToolCardProps): JSX.Element {
   return (
     <Todo.Root part={props.part} result={props.result}>

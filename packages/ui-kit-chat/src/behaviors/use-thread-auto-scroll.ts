@@ -1,11 +1,5 @@
 import {createEffect, createSignal, onCleanup, type Accessor} from 'solid-js'
 
-// Faithful Solid port of assistant-ui's useThreadViewportAutoScroll. A pending bottom-scroll intent
-// (planted by triggers, cleared when bottom is confirmed or the user scrolls up while content is
-// stable) decouples intent from scroll detection. Smooth scroll-to-bottom fires many midpoint scroll
-// events before landing — those must not flicker isAtBottom or clear intent mid-animation. On content
-// resize: honor pending intent (unless the top-anchor owns scrolling), else stick to bottom when
-// already at bottom.
 export function useThreadAutoScroll(
   viewport: Accessor<HTMLElement | undefined>,
   opts: {autoScroll: Accessor<boolean>; hasActiveTopAnchor?: Accessor<boolean>},
@@ -30,11 +24,8 @@ export function useThreadAutoScroll(
     const isInFlightDownwardScroll = !newIsAtBottom && last.scrollTop < div.scrollTop
     if (!isInFlightDownwardScroll) {
       if (newIsAtBottom) {
-        // newIsAtBottom is ambiguous when the viewport doesn't overflow — keep intent alive until
-        // content can actually scroll.
         if (div.scrollHeight > div.clientHeight + 1) intent.behavior = null
       } else if (last.scrollTop > div.scrollTop && last.scrollHeight === div.scrollHeight) {
-        // scrollHeight equality rules out content-driven shifts being misread as a user scroll-up.
         intent.behavior = null
       }
       const shouldUpdate = newIsAtBottom || intent.behavior === null
@@ -53,7 +44,6 @@ export function useThreadAutoScroll(
     last.observedClientHeight = clientHeight
     const behavior = intent.behavior
     if (behavior && opts.hasActiveTopAnchor?.()) {
-      // Let the top-anchor reserve own scrolling while a run starts, to avoid a bottom-scroll race.
       intent.behavior = null
     } else if (behavior) {
       scrollToBottom(behavior)
@@ -66,8 +56,7 @@ export function useThreadAutoScroll(
   createEffect(() => {
     const div = viewport()
     if (!div) return
-    // A pointer gesture invalidates pending bottom-scroll intent; otherwise an intent kept alive by a
-    // non-overflowing thread hijacks the next content growth (e.g. expanding a collapsible tool call).
+
     const cancelIntent = () => {
       intent.behavior = null
     }
@@ -75,8 +64,6 @@ export function useThreadAutoScroll(
     div.addEventListener('pointerdown', cancelIntent)
     const resizeObserver = new ResizeObserver(handleResize)
     const mutationObserver = new MutationObserver((mutations) => {
-      // Filter out style-only attribute mutations to avoid feedback loops with code that writes
-      // styles in response to viewport changes.
       if (mutations.some((mutation) => mutation.type !== 'attributes' || mutation.attributeName !== 'style')) {
         handleResize()
       }

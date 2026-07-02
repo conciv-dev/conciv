@@ -10,17 +10,12 @@ import {ChatLaunchRequestSchema, type ChatLaunch} from '@conciv/protocol/chat-ty
 import type {SessionStore} from '../../store/session-store.js'
 import {sessionIdFromHeaders} from './session-id.js'
 
-// "Open in <harness>": build the harness's launch context (carrying the same model + mcpUrl the
-// chat turn uses), let the harness pick its interactive argv, and open it in a local terminal.
-// Core owns ALL the open logic here; the harness only builds argv.
-
 export type LaunchRouteDeps = {
   cwd: string
   harness: HarnessAdapter
   store: SessionStore
 }
 
-//   POST /api/chat/launch → {supported, opened, command} — launches the header session's transcript
 export function registerLaunchRoutes(app: H3, deps: LaunchRouteDeps): void {
   app.post('/api/chat/launch', async (event): Promise<ChatLaunch> => {
     if (!deps.harness.launch) return {supported: false, opened: false, command: null}
@@ -41,8 +36,6 @@ export function registerLaunchRoutes(app: H3, deps: LaunchRouteDeps): void {
   })
 }
 
-// Run `argv` in an interactive terminal at cwd. The resolved command is the paste-able fallback;
-// `opened` reflects whether the per-OS terminal actually spawned.
 async function openTerminal(argv: string[], cwd: string): Promise<HarnessLaunchResult> {
   const command = `cd ${shellQuote(cwd)} && ${argv.map(shellQuote).join(' ')}`
   const opened = await spawnTerminal(command)
@@ -55,14 +48,11 @@ async function openUrl(url: string): Promise<HarnessLaunchResult> {
   return {opened, command: url}
 }
 
-// Open a fresh OS terminal running `command`. macOS writes a temp *.command and `open`s it (targeting
-// the user's terminal via $TERM_PROGRAM when known); Windows uses `start`; Linux tries the
-// Debian-alternatives `x-terminal-emulator`. Returns whether the child spawned.
 async function spawnTerminal(command: string): Promise<boolean> {
   switch (platform()) {
     case 'darwin': {
       const file = join(tmpdir(), `conciv-launch-${randomUUID()}.command`)
-      // exec $SHELL keeps the window alive after the CLI exits, so errors stay visible.
+
       writeFileSync(file, `#!/bin/bash\n${command}\nexec $SHELL\n`)
       chmodSync(file, 0o755)
       const app = macTerminalApp(process.env.TERM_PROGRAM)
@@ -77,8 +67,6 @@ async function spawnTerminal(command: string): Promise<boolean> {
   }
 }
 
-// Map $TERM_PROGRAM (inherited from the terminal that launched the dev server) to its app name.
-// null → `open <file>` uses the OS default .command handler.
 function macTerminalApp(termProgram: string | undefined): string | null {
   switch (termProgram) {
     case 'iTerm.app':
@@ -113,13 +101,10 @@ function urlOpener(url: string): [string, string[]] | null {
   }
 }
 
-// POSIX single-quote (cwd/args may contain spaces): close, escaped literal quote, reopen.
 function shellQuote(value: string): string {
   return `'${value.replace(/'/g, "'\\''")}'`
 }
 
-// Spawn detached + unref'd so the terminal outlives the dev server. Resolves true on 'spawn', false
-// if the binary is missing or spawning fails.
 function spawnDetached(bin: string, args: string[]): Promise<boolean> {
   return new Promise((resolve) => {
     const child = spawn(bin, args, {detached: true, stdio: 'ignore'})

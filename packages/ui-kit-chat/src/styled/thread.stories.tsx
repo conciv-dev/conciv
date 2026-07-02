@@ -70,17 +70,16 @@ function play(theme?: string): Story {
       await userEvent.click(c.getByText('ask'))
       await waitFor(() => expect(c.getByText('search for the symbol')).toBeVisible())
       const reply = await waitFor(() => c.getByText(/No matches — the symbol is unused/), {timeout: 5000})
-      // D1: record the assistant reply's left/right while the chain (and its wide tool card) is collapsed.
+
       const before = reply.getBoundingClientRect()
-      // Expand the chain, then the wide tool card — content grows in HEIGHT only.
+
       await userEvent.click(c.getByText('Chain of Thought'))
       await waitFor(() => expect(c.getByText('shell')).toBeVisible())
       await userEvent.click(c.getByText('shell'))
-      // The tool card's body (a Pierre diff) lives in a shadow root we can't query, so confirm the
-      // expand via the collapsible trigger's open state instead.
+
       await waitFor(() => expect(c.getByRole('button', {name: /shell/})).toHaveAttribute('data-state', 'open'))
       const after = reply.getBoundingClientRect()
-      // The wide tool card grows HEIGHT, never the turn's left/right edges (D1).
+
       expect(after.left).toBeCloseTo(before.left, 0)
       expect(after.right).toBeCloseTo(before.right, 0)
     },
@@ -91,8 +90,6 @@ export const Neutral: Story = play()
 export const Dark: Story = play('chat-theme-dark')
 export const Conciv: Story = play('chat-theme-conciv')
 
-// The host-chrome slots the widget cutover drives: a divider before each turn (turnPrefix), a live
-// now-line in the viewport footer, an overlay, and a busy control replacing Send in the composer.
 function Divider(): JSX.Element {
   return (
     <div class="text-[color:var(--chat-text-3)] text-[length:var(--chat-text-xs)] self-center" role="separator">

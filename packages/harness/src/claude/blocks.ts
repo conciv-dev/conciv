@@ -1,6 +1,5 @@
 import {z} from 'zod'
 
-// Claude content blocks, shared by the live stream decoder and the transcript parser.
 export const TextBlock = z.object({type: z.literal('text'), text: z.string()})
 export const ThinkingBlock = z.object({type: z.literal('thinking'), thinking: z.string()})
 export const ToolUseBlock = z.object({
@@ -16,21 +15,11 @@ export const ToolResultBlock = z.object({
   is_error: z.boolean().optional(),
 })
 
-// Claude namespaces MCP tools as `mcp__<server>__<tool>`. Our own tools ride the `conciv` server
-// (see claude/args.ts allowlist), so un-prefix them back to the canonical name (conciv_page, …)
-// the rest of the stack decided on. Third-party MCP tools keep their prefixed name and hit the
-// generic card. Applied at every boundary that surfaces a tool name: live decode + transcript parse.
 const CONCIV_MCP_PREFIX = 'mcp__conciv__'
 export function canonicalToolName(name: string): string {
   return name.startsWith(CONCIV_MCP_PREFIX) ? name.slice(CONCIV_MCP_PREFIX.length) : name
 }
 
-// A tool_result's content reaches us as either a plain string (claude built-ins like Bash) or an MCP
-// content-part array `[{type:'text',text}, …]` (our MCP tools — see core/api/mcp wrapping the payload
-// in {content:[{type:'text',text:JSON.stringify(result)}]}). Unwrap text parts back to their text so
-// the UI gets the clean payload, never the escaped `[{"type":"text",...}]` array. Non-text parts
-// (e.g. ToolSearch's tool_reference) have no text, so they keep their JSON form. Shared by the live
-// decoder and the transcript parser so both paths surface results identically.
 const TextContentPart = z.object({type: z.literal('text'), text: z.string()})
 export function contentText(raw: unknown): string {
   if (typeof raw === 'string') return raw

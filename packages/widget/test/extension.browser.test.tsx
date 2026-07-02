@@ -6,11 +6,6 @@ import {defineClient} from '@conciv/api-client'
 import {sampleExtension} from './fixtures/sample-extension.js'
 import {buildInstances} from './helpers/instances.js'
 
-// Real browser, real Solid, real ChatPanel + a real defineExtension fixture. The test module and the
-// widget share ONE vite module graph, so the Component's useContext resolves the SAME runtime context
-// the panel provides. The harness is never called — extension slots render independently of chat —
-// so there is nothing to stub. active={false} keeps the panel from hydrating a session. Instances are
-// built the way mountWidget does (one ClientApi, .client() run once), then handed to the panel.
 const disposers: (() => void)[] = []
 
 function mountPanel(): HTMLElement {
@@ -55,7 +50,7 @@ describe('extension rendering (real browser)', () => {
   it('keeps insert isolated between two concurrent panels', async () => {
     mountPanel()
     mountPanel()
-    // Two panels mounted; DOM order = mount order. Clicking panel B's button must insert into B only.
+
     const textboxes = page.getByRole('textbox', {name: 'Message the conciv agent'})
     await page.getByRole('button', {name: 'Sample Draw'}).nth(1).click()
     await expect.element(textboxes.nth(1)).toHaveValue('drew a square')

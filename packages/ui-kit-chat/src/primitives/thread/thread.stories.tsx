@@ -44,8 +44,6 @@ function AssistantMessage(): JSX.Element {
   )
 }
 
-// A live chat wired to the fake connection; `send` is exposed so play() drives the turn after mount
-// (mutating chat state during render drops Solid subscriptions — always send from play/handlers).
 function ThreadHarness(props: {options: StoryConnectionOptions; expose: (chat: UseChatReturn) => void}): JSX.Element {
   const chat = useChat({connection: storyConnection(props.options)})
   props.expose(chat)

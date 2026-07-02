@@ -1,10 +1,6 @@
 import {onMount, onCleanup, createEffect} from 'solid-js'
 import gsap from 'gsap'
 
-// Rigged FAB mascot. Three registered layers (head, eyes, antenna) animated as parts by GSAP. Motion
-// only on state change + while working — idle is dead still. Easing is expo/power with single
-// overshoots (no bounce/elastic). Principles: anticipation (dip before the pop), overshoot-then-
-// settle, antenna follow-through (secondary motion), fast-close/slow-open blink.
 type RigState = 'closed' | 'open' | 'work'
 
 export function FabRobot(props: {open: () => boolean; working: () => boolean}) {
@@ -17,7 +13,6 @@ export function FabRobot(props: {open: () => boolean; working: () => boolean}) {
   const reduce = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
   const parts = () => [headEl, eyesEl, antEl] as HTMLSpanElement[]
 
-  // resting poses (absolute transforms); open = a subtle "alert" lift, closed = neutral
   const setClosed = () => gsap.set(parts(), {clearProps: 'all'})
   const setOpenPose = () => {
     gsap.set(headEl as HTMLSpanElement, {yPercent: -2, rotation: 0, scaleX: 1, scaleY: 1})
@@ -30,8 +25,6 @@ export function FabRobot(props: {open: () => boolean; working: () => boolean}) {
     workTl = undefined
   }
 
-  // snappy entrance: anticipation dip -> pop up with overshoot + slight tilt -> settle; antenna and
-  // eyes follow through a beat late (secondary motion), each with a single overshoot then settle.
   const playOpen = () => {
     if (reduce()) return setOpenPose()
     gsap.killTweensOf(parts())
@@ -60,7 +53,6 @@ export function FabRobot(props: {open: () => boolean; working: () => boolean}) {
       .to(antEl as HTMLSpanElement, {rotation: -4, duration: 0.34, ease: 'power2.out'}, '<')
   }
 
-  // faster than the entrance (~70%): a small dip, then settle back to neutral. No overshoot.
   const playClose = () => {
     if (reduce()) return setClosed()
     gsap.killTweensOf(parts())
@@ -78,13 +70,11 @@ export function FabRobot(props: {open: () => boolean; working: () => boolean}) {
       .to(antEl as HTMLSpanElement, {rotation: 0, duration: 0.22, ease: 'power2.out'}, '<')
   }
 
-  // "thinking" loop around the open pose: head bob + antenna sway (sine), with a fast-close/slow-open
-  // blink once per cycle. Glow is CSS (filter) via [data-working], so it never fights these transforms.
   const startWork = () => {
     if (reduce()) return setClosed()
     stopWork()
     gsap.killTweensOf(parts())
-    setClosed() // think-loop bobs from neutral, so it reads the same whether the panel is open or closed
+    setClosed()
     workTl = gsap.timeline({repeat: -1})
     workTl
       .to(headEl as HTMLSpanElement, {yPercent: -5, duration: 1, ease: 'sine.inOut', yoyo: true, repeat: 1}, 0)
@@ -95,7 +85,6 @@ export function FabRobot(props: {open: () => boolean; working: () => boolean}) {
 
   const apply = (s: RigState) => {
     if (prev === undefined) {
-      // first paint: no animation, just rest in the right state
       if (s === 'work') startWork()
       else if (s === 'open') setOpenPose()
       else setClosed()
@@ -104,13 +93,11 @@ export function FabRobot(props: {open: () => boolean; working: () => boolean}) {
     }
     if (s === prev) return
     if (s === 'work') {
-      // working takes priority and can begin whether the panel is open or closed — never a pop
       startWork()
     } else if (s === 'closed') {
       stopWork()
       playClose()
     } else {
-      // open + not working: pop in from a closed panel, or settle up after working finishes
       if (prev === 'work') {
         stopWork()
         gsap.to(parts(), {duration: 0.3, ease: 'power2.out', onStart: setOpenPose})
@@ -130,7 +117,6 @@ export function FabRobot(props: {open: () => boolean; working: () => boolean}) {
   })
 
   createEffect(() => {
-    // working wins over open, so a closed panel still "thinks" while the agent runs
     apply(props.working() ? 'work' : props.open() ? 'open' : 'closed')
   })
 

@@ -1,6 +1,5 @@
 import {ThemeToggle} from './theme-toggle'
 
-// Flip to true once the repo is public to surface the GitHub link.
 const SHOW_GITHUB = false
 
 export function SiteNav() {

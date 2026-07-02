@@ -4,8 +4,6 @@ import {Collapsible} from '@conciv/ui-kit-system'
 import {SPIN, FOCUS_INSET} from './classes.js'
 import {SHIMMER} from './shimmer.js'
 
-// assistant-ui's ToolGroup: a collapsible that folds N consecutive tool calls under one "N tool calls"
-// trigger (chevron rotates via data-state; a shimmer plays while the group is still active). Neutral tokens.
 export type ToolGroupProps = {
   count: number
   active?: boolean

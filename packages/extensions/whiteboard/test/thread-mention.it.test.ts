@@ -10,10 +10,6 @@ const openCanvas = async (page: Page): Promise<void> => {
   await page.getByRole('radio', {name: 'Rectangle'}).waitFor()
 }
 
-// The TipTap composer runs inside the comment overlay's shadow root. Typing "@Op" must open the
-// participant listbox (ProseMirror's shadow-DOM selection support is why this works at all), selecting
-// inserts a mention chip, and submitting stores it so the rendered reply shows the @mention. Proves §11
-// end to end where a textarea-caret or Slate/Lexical approach would fail.
 test('the mention composer lists participants and stores a mention in the shadow overlay', async () => {
   const api = await getExtensionTestApi({server: whiteboard, clientEntry})
   try {
@@ -45,8 +41,6 @@ test('the mention composer lists participants and stores a mention in the shadow
 
     await api.page.keyboard.press('Enter')
 
-    // The submitted reply renders the stored mention part as a chip; the editor cleared, so the only
-    // remaining @Opus is the persisted comment.
     await api.page.getByText('ping').waitFor({timeout: 10_000})
     await api.page.getByText('@Opus').waitFor()
   } finally {

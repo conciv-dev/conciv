@@ -1,9 +1,6 @@
 import {describe, it, expect} from 'vitest'
 import {dehydrate, navigatePath} from '../src/page/dehydrate.js'
 
-// Pure serializer logic (no DOM): the cases that broke the old JSON.stringify path. Real React
-// elements / DOM are covered by the browser inspect IT; here we prove the hostile-value handling.
-
 describe('dehydrate', () => {
   it('keeps functions as readable previews instead of dropping them', () => {
     const out = dehydrate({onClick: function handleClick() {}, label: 'Save'}) as Record<string, unknown>

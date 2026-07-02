@@ -4,11 +4,6 @@ import {createKeyHold} from '@tanstack/solid-hotkeys'
 import {defineExtension, type ClientApi} from '@conciv/extension'
 import type {OpenSourceResult} from '@conciv/protocol/page-types'
 
-// The built-in highlight-to-open-inspector extension, bundled with the widget. Holding Alt outlines the
-// element under the cursor; clicking opens its exact source line in the editor. Lives entirely in a
-// .client() phase (runs at widget mount, server-independent) reading the page capabilities off
-// useClientApi() — no effect primitive, no page verb.
-
 type Hovered = {rect: DOMRect; tag: string; file: string | null; host: Element}
 
 const isEditing = (): boolean => {
@@ -87,8 +82,6 @@ function HighlightInspector(props: {api: ClientApi; onExit: () => void}): JSX.El
   const glide = env.reducedMotion() ? '' : GLIDE
 
   return (
-    // Decorative inspector overlay: aria-hidden so it never reaches the accessibility tree (the shared
-    // effects host is no longer blanket-hidden). `contents` adds no box, so the fixed children are unmoved.
     <div aria-hidden="true" class="contents">
       <div data-conciv-capture class="cursor-crosshair inset-0 fixed" />
       <div class={HINT}>
@@ -127,8 +120,6 @@ function HighlightInspector(props: {api: ClientApi; onExit: () => void}): JSX.El
 
 const highlight = defineExtension({name: 'highlight'})
 
-// Alt-hold drives an overlay rendered into the shared surface; click opens source, Esc exits. The whole
-// lifecycle is the client phase — no Component, so it runs at mount whether or not the chat server is up.
 highlight.client(() =>
   createRoot((dispose) => {
     const api = highlight.useClientApi()

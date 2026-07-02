@@ -15,7 +15,6 @@ export const HoursAgo: Story = {
   },
 }
 
-// A timestamp a hair in the future must not read as "in …" — it clamps to "now".
 export const JustNow: Story = {
   args: {value: ago(-500)},
   play: async ({canvasElement}) => {

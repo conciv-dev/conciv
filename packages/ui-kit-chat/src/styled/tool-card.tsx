@@ -6,9 +6,6 @@ import {formatDuration} from '../primitives/tools/tool-util.js'
 import {useToolCallDuration} from '../primitives/tools/tool-duration.js'
 import {CollapsibleCard} from './collapsible-card.js'
 
-// The flat titled tool-card chrome (redesign: no glass/rail — one CollapsibleCard). A header of
-// icon + title + optional meta + a status dot, with the kind-specific body as children. Shared by the
-// folded cards and by extension cards (test-runner) that render a custom body under a standard frame.
 const DOT: Record<ToolStatus, string> = {
   running: '[background:var(--chat-accent)] anim-pulse motion-reduce:[animation:none]',
   complete: '[background:var(--chat-success)]',

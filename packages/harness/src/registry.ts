@@ -21,13 +21,10 @@ export function listHarnesses(): HarnessAdapter[] {
   return [...registry.values()]
 }
 
-// Resolve an adapter's models, whether declared as a static list or a (possibly async) resolver.
-// A harness with no model choice returns [].
 export async function resolveHarnessModels(adapter: HarnessAdapter): Promise<HarnessModel[]> {
   const models = adapter.models
   if (!models) return []
   return typeof models === 'function' ? models() : models
 }
 
-// Bundled adapters self-register on import of the package entry.
 for (const adapter of [claude, codex, geminiCli, opencode, pi]) registerHarness(adapter)

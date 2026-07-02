@@ -1,7 +1,6 @@
 import type {ElementSnapshot} from '@conciv/grab'
 
 export function captureElement(el: Element): Promise<ElementSnapshot> {
-  // rAF: leave the click task and read at a settled layout boundary; caller awaits while pick is open.
   return new Promise((resolve) => {
     requestAnimationFrame(() => resolve(captureSync(el)))
   })
@@ -13,7 +12,7 @@ function captureSync(el: Element): ElementSnapshot {
   const rules: string[] = []
   inlineComputedStyles(el, clone, rules)
   neutralizeLayout(clone)
-  // Inert clone must not duplicate the live element's id (id styles are already inlined).
+
   clone.removeAttribute('id')
   clone.querySelectorAll('[id]').forEach((n) => n.removeAttribute('id'))
   const node = document.createElement('div')
@@ -26,15 +25,12 @@ function captureSync(el: Element): ElementSnapshot {
   return {node, width: rect.width, height: rect.height}
 }
 
-// Interaction props are meaningless in an inert snapshot and harmful (e.g. a copied `cursor: progress`).
 const SKIP_PROPS = new Set(['cursor', 'pointer-events', 'user-select', '-webkit-user-select'])
 
-// Pin EVERY property: diffing against tag defaults lets our shadow DOM's UA + markdown rules repaint skips.
 function inlineComputedStyles(src: Element, dst: HTMLElement, rules: string[]): void {
   const cs = getComputedStyle(src)
   let cssText = ''
   for (const prop of cs) {
-    // Custom props are already resolved into concrete properties.
     if (SKIP_PROPS.has(prop) || prop.startsWith('--')) continue
     cssText += `${prop}:${cs.getPropertyValue(prop)};`
   }
@@ -49,7 +45,6 @@ function inlineComputedStyles(src: Element, dst: HTMLElement, rules: string[]): 
   }
 }
 
-// cloneNode drops ::before/::after content (icons, glyphs); replay each as a scoped rule.
 let pseudoSeq = 0
 function capturePseudo(src: Element, dst: HTMLElement, rules: string[]): void {
   for (const pseudo of ['::before', '::after']) {
@@ -64,7 +59,6 @@ function capturePseudo(src: Element, dst: HTMLElement, rules: string[]): void {
   }
 }
 
-// The captured position/margins would fling the root off or reserve dead space in the small stage.
 function neutralizeLayout(root: HTMLElement): void {
   root.style.position = 'static'
   root.style.margin = '0'

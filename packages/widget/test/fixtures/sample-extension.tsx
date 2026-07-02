@@ -1,7 +1,6 @@
 import {z} from 'zod'
 import {defineExtension, defineTool} from '@conciv/extension'
 
-// Module-level probe so the browser test can observe the real .client() lifecycle across mount/unmount.
 export const sampleClientProbe = {opens: 0, closes: 0, live: 0, apiBase: ''}
 
 const draw = defineTool({

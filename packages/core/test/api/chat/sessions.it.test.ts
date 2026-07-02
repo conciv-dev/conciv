@@ -10,13 +10,9 @@ import {useFakeHarness} from '../../helpers/harness-mode.js'
 
 const fakeIt = it.runIf(useFakeHarness)
 
-// GET /api/chat/sessions joins the harness transcript list to the session-record map (origin/running/
-// usage) — proven here against a REAL temp ~/.claude with seeded transcripts.
-
 const fakeClaude = fileURLToPath(new URL('../../fixtures/fake-claude.ts', import.meta.url))
 const homes: string[] = []
 
-// Claude's project-dir encoding (mirrors claude/history.encodeProjectDir — trivial + stable).
 const encodeProjectDir = (cwd: string) => cwd.replace(/[^a-zA-Z0-9]/g, '-')
 
 function projectDir(home: string, cwd: string): string {
@@ -57,12 +53,12 @@ describe('GET /api/chat/sessions + rename (IT, real temp ~/.claude)', () => {
     const home = tmpHome()
     const cwd = process.cwd()
     const dir = projectDir(home, cwd)
-    // The fake harness mints 'sess-fake'; seed that transcript so our record joins it on title.
+
     seedTranscript(dir, 'sess-fake', 'made in conciv')
     seedTranscript(dir, 'tok-ext', 'made in terminal')
     const server = await startTestServer({cwd, claudeHome: home, spawnHarness: fakeSpawn()})
     state.server = server
-    // A chat-born session that runs a turn → record (origin chat) wrapping the minted 'sess-fake'.
+
     const id = await server.resolve()
     await server.postChat({id: 'm', role: 'user', parts: [{type: 'text', content: 'hi'}]}, id)
     const {sessions} = ChatSessionsSchema.parse(await (await server.getSessions()).json())
@@ -77,7 +73,7 @@ describe('GET /api/chat/sessions + rename (IT, real temp ~/.claude)', () => {
     seedTranscript(projectDir(home, cwd), 'tok-ext', 'made in terminal')
     const server = await startTestServer({cwd, claudeHome: home, spawnHarness: fakeSpawn()})
     state.server = server
-    // Adopt the external transcript → our conciv_ id, then rename by that id.
+
     const id = await server.resolve('tok-ext')
     await server.post('/api/chat/sessions/title', {sessionId: id, title: 'My title'})
     const {sessions} = ChatSessionsSchema.parse(await (await server.getSessions()).json())

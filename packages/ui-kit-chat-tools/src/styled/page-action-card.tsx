@@ -13,7 +13,6 @@ function readInput(props: ToolCardProps): ReturnType<typeof parseInput<typeof Pa
   return parseInput(PageInput, props.part)
 }
 
-// The element a page verb targets, in priority order.
 function target(input: ReturnType<typeof readInput>): string | undefined {
   return input?.selector || input?.name || input?.ref || undefined
 }
@@ -23,7 +22,6 @@ function isRead(verb: PageQueryKind | undefined): boolean {
   return verb !== undefined && !MUTATES.has(verb)
 }
 
-// Per-verb icon: keyboard for typing, pointer for clicks, scan for reads, wand for DOM edits.
 const TYPE_VERBS = new Set<PageQueryKind>(['fill', 'press'])
 const POINTER_VERBS = new Set<PageQueryKind>(['click', 'hover', 'check', 'uncheck', 'select', 'submit', 'scroll'])
 function VerbIcon(verb: PageQueryKind | undefined): JSX.Element {
@@ -33,7 +31,6 @@ function VerbIcon(verb: PageQueryKind | undefined): JSX.Element {
   return <Wand2 size={14} />
 }
 
-// Human label for a page verb — never the raw verb.
 function pageTitle(props: ToolCardProps): string {
   const input = readInput(props)
   const targetEl = target(input)
@@ -117,7 +114,6 @@ function pageTitle(props: ToolCardProps): string {
   }
 }
 
-// A snapshot/tree node, as buildSnapshot emits it (all fields best-effort).
 type SnapNode = {ref?: string; role?: string; name?: string; value?: string; state?: string[]}
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
@@ -133,16 +129,11 @@ function asNodes(value: unknown): SnapNode[] | undefined {
   return value.filter((node): node is SnapNode => typeof node === 'object' && node !== null)
 }
 
-// Element chip (mono pill) + a scrollable mono <pre> for raw read output. The accent tints are mixed
-// off --chat-accent (the conciv theme maps it to the brand magenta).
 const ELCHIP =
   'inline-flex items-center gap-1.25 max-w-full min-w-0 [font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)] [color:var(--chat-accent-link)] [background:color-mix(in_oklch,var(--chat-accent)_10%,transparent)] [border:1px_solid_color-mix(in_oklch,var(--chat-accent)_42%,transparent)] rounded-[var(--chat-radius-pill)] py-0.5 px-2.25'
 const PAGE_OUT =
   'm-0 w-full max-h-[13.75rem] overflow-auto [font-family:var(--chat-mono)] text-[length:var(--chat-text-xs)] [color:var(--chat-text-2)] [background:var(--chat-sunken)] [border:1px_solid_var(--chat-line-soft)] rounded-[var(--chat-radius-sm)] py-2 px-2.5 whitespace-pre'
 
-// Readable per-shape render of a page read result (already unwrapped + JSON-parsed by the harness +
-// parseResultPayload): an accessibility-node list, a DOM code block, plain text/value, else the
-// payload pretty-printed. Never the raw escaped MCP envelope.
 function PageResultView(props: {payload: unknown; raw: string}): JSX.Element {
   const record = () => asRecord(props.payload)
   const nodes = () => asNodes(record()?.nodes)
@@ -206,8 +197,7 @@ export function PageActionCard(props: ToolCardProps): JSX.Element {
   const verb = () => input()?.verb
   const targetEl = () => target(input())
   const payload = () => parseResultPayload(props.result)
-  // An error can arrive two ways: a real error result, or a 'complete' result whose payload is
-  // {error: "..."}. Surface both as the message.
+
   const errorMessage = (): string | undefined => {
     if (props.result?.state === 'error') return props.result.error ?? resultText(props.result)
     return asString(asRecord(payload())?.error)
@@ -249,5 +239,4 @@ export function PageActionCard(props: ToolCardProps): JSX.Element {
   )
 }
 
-// This card renders the conciv_page tool.
 export const pageActionTool: ToolCardEntry = {names: ['conciv_page'], render: PageActionCard}

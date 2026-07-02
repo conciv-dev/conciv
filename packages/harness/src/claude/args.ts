@@ -7,10 +7,6 @@ import {CONCIV_PLUGIN_DIR} from './plugin-dir.js'
 
 type McpHttpServer = {type: 'http'; url: string; headers?: Record<string, string>}
 
-// The conciv MCP-over-HTTP server entry. When a session is known the turn's session rides as a
-// header so session-scoped tools (canvas.draw, comments) hit the room the widget joined; the
-// header-less form is for the interactive launch, which has no live room. Shared by the CLI args and
-// the SDK options so the two transports cannot drift.
 export function mcpServerConfig(mcpUrl: string, sessionId?: string): {conciv: McpHttpServer} {
   const conciv: McpHttpServer = {type: 'http', url: mcpUrl}
   return {conciv: sessionId ? {...conciv, headers: {[CONCIV_SESSION_HEADER]: sessionId}} : conciv}
@@ -39,9 +35,6 @@ const IMAGE_EXT: Record<string, string> = {
   'image/webp': 'webp',
 }
 
-// claude ingests images via `@<path>` file references in the prompt (inline base64 over stream-json
-// is rejected by the CLI). Write each image under cwd (an allowed dir via --add-dir, so claude can
-// read it) and return the space-joined refs.
 export function imageRefs(images: HarnessImage[], cwd: string): string {
   return images
     .map((img) => {
@@ -53,9 +46,6 @@ export function imageRefs(images: HarnessImage[], cwd: string): string {
     .join(' ')
 }
 
-// The headless `claude -p` argv: stream-json, acceptEdits (git is the undo net), cwd allowed.
-// systemPrompt is delivered as a file — turn.systemPrompt is the path the chat route wrote.
-// Images are appended to the prompt as `@<temp-path>` file references (claude loads them).
 export function buildClaudeArgs(turn: HarnessTurn): string[] {
   const prompt = turn.images?.length ? `${turn.prompt}\n\n${imageRefs(turn.images, turn.cwd)}` : turn.prompt
   const args = [
@@ -64,8 +54,7 @@ export function buildClaudeArgs(turn: HarnessTurn): string[] {
     '--output-format',
     'stream-json',
     '--verbose',
-    // Emit the raw Anthropic SSE too: message_start carries the full context at turn start, so the
-    // widget's usage tracker fills live before the reply finishes.
+
     '--include-partial-messages',
     '--permission-mode',
     'acceptEdits',
@@ -81,11 +70,6 @@ export function buildClaudeArgs(turn: HarnessTurn): string[] {
   return args
 }
 
-// Compaction turn: claude's `/compact` slash command, sent as the prompt against the resumed
-// session. Validated headless (CLI 2.x): it streams a `compact_boundary` system event, writes the
-// summary into the transcript, and returns no assistant text — the UI shows only a boundary divider.
-// Reuses buildClaudeArgs so --resume/--model/MCP/plugin all carry over; the prompt is fixed and
-// images are irrelevant to a compaction.
 export function buildClaudeCompactArgs(turn: HarnessTurn): string[] {
   return buildClaudeArgs({...turn, prompt: '/compact', images: undefined})
 }

@@ -1,6 +1,5 @@
 import type {Theme} from '@unocss/preset-wind4'
 
-// Radius tokens → rounded-pw-* utilities.
 export const radius = {
   'pw-sm': 'var(--pw-r-sm)',
   'pw-md': 'var(--pw-r-md)',

@@ -7,11 +7,6 @@ import testRunnerClient from '@conciv/extension-test-runner/client'
 import {ChatPanel} from '../src/chat/chat-panel.js'
 import {buildInstances} from './helpers/instances.js'
 
-// End-to-end in a real browser: the real ChatPanel hydrates a settled turn (served same-origin by
-// the chat-history-fixture vite middleware) whose chain carries a test_runner tool-call + result.
-// The widget's tool-card pipeline (ToolCallCard → renderer-by-name) renders the extension's TestCard
-// in the transcript. Proves "the user sees test results as a card in chat". Real Solid, no jsdom.
-
 const extensions: AnyExtension[] = [testRunnerClient]
 const disposers: (() => void)[] = []
 
@@ -44,8 +39,6 @@ describe('test-runner result in the chat transcript (real browser)', () => {
       ),
     )
 
-    // The hydrated turn renders text outside the chain; the tool card sits in the settled (collapsed)
-    // chain, so expand it before asserting the card.
     await expect.element(page.getByText('Ran the tests.')).toBeVisible()
     await page.getByRole('button', {name: 'Chain of Thought'}).click()
 

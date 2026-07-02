@@ -25,10 +25,6 @@ function buildServer(ctx: ConcivToolContext, extensionTools: ExtensionServerTool
   return server
 }
 
-// Mount the MCP-over-HTTP server on core's existing h3 app. Web Standard transport: takes the
-// incoming web Request and returns a Response, so the route returns it directly — in-process, no
-// node-object bridge, no separate server. The ctx is built per request, bound to the caller's
-// header session id, so an agent's `conciv_ui` MCP tool injects onto its own turn's channel.
 export function registerMcpRoutes(
   app: H3,
   makeCtx: (sessionId: string) => ConcivToolContext,
@@ -36,7 +32,7 @@ export function registerMcpRoutes(
   sessionModel: (sessionId: string) => string | null = () => null,
 ): void {
   app.post('/api/mcp', async (event) => {
-    const sessionId = sessionIdFromHeaders(event.req.headers) ?? '' // '' = no live channel
+    const sessionId = sessionIdFromHeaders(event.req.headers) ?? ''
     const ctx = makeCtx(sessionId)
     const request: ToolRequest = {sessionId, model: sessionModel(sessionId)}
     const transport = new WebStandardStreamableHTTPServerTransport({

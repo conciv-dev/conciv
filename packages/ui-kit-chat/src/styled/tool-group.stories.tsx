@@ -23,7 +23,7 @@ export const CollapsedThenExpand: Story = {
   ),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    // The "3 tool calls" trigger shows; the body is mounted-but-hidden (Ark Collapsible) while collapsed.
+
     const trigger = await waitFor(() => c.getByText('3 tool calls'))
     await expect(trigger).toBeVisible()
     await expect(c.getByText('grep TODO')).not.toBeVisible()
@@ -42,7 +42,7 @@ export const SingularLabel: Story = {
   ),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    // Singular "1 tool call"; open by default so the card shows.
+
     await waitFor(() => expect(c.getByText('1 tool call')).toBeVisible())
     await expect(c.getByText('read README')).toBeVisible()
   },

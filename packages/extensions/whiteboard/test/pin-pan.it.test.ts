@@ -12,13 +12,9 @@ const openCanvas = async (page: Page): Promise<{cx: number; cy: number}> => {
   return {cx: width / 2, cy: height / 2}
 }
 
-// The pin's projected screen position is written to its inline top; read it to prove the projection.
 const projectedTop = (pin: Locator) => async (): Promise<number> =>
   pin.evaluate((element) => Number.parseFloat((element as HTMLElement).style.top) || 0)
 
-// A pin is stored in scene coordinates and projected to screen through the live Excalidraw viewport,
-// so panning the canvas must move the pin's projected position by the pan distance — it tracks the
-// board, not the viewport. Proves the §6 scene-coordinate migration end to end.
 test('a comment pin is projected to screen and tracks canvas pan', async () => {
   const api = await getExtensionTestApi({server: whiteboard, clientEntry})
   try {
@@ -37,8 +33,6 @@ test('a comment pin is projected to screen and tracks canvas pan', async () => {
     const top0 = await projectedTop(pin)()
     expect(top0).toBeGreaterThan(0)
 
-    // Plain wheel pans Excalidraw (ctrl+wheel would zoom); pan clear of the pin. The overlay layer is
-    // pointer-events:none, so the wheel reaches the canvas beneath it.
     await api.page.mouse.move(cx, cy)
     await api.page.mouse.wheel(0, 320)
 

@@ -4,11 +4,6 @@ import {defineCommand} from 'citty'
 import {buildUiSpec, parseField, type UiBuildInput, type UiFormField, type UiSpec} from '@conciv/protocol/ui-types'
 import {runRequest, type CliRequest} from './request.js'
 
-// `conciv ui <kind>` — render real interactive UI in the chat thread. The agent does NOT
-// block; the user's answer arrives as their next chat message. citty parses argv, zod
-// validates, the shared buildUiSpec (also used by the conciv_ui tool) produces the typed UiSpec.
-
-// Repeated flags (--option / --field) arrive as a string or string[]; normalise to a list.
 const list = z.preprocess((v) => (Array.isArray(v) ? v : v === undefined ? [] : [v]), z.array(z.string()))
 
 const ChoicesIn = z.object({question: z.string(), option: list})
@@ -16,7 +11,6 @@ const ConfirmIn = z.object({question: z.string(), detail: z.string().optional()}
 const DiffIn = z.object({file: z.string(), before: z.string(), after: z.string()})
 const FormIn = z.object({field: list, title: z.string().optional()})
 
-// Map citty-shaped CLI args to the shared builder's normalized input.
 function cliUiInput(kind: string, raw: unknown): UiBuildInput {
   if (kind === 'choices') {
     const p = ChoicesIn.parse(raw)

@@ -16,8 +16,6 @@ const openInbox = async (page: Page): Promise<void> => {
   await toggle.press('Enter')
 }
 
-// §16 edge states the inbox must handle: a teaching empty state, no reply-count on a single-comment
-// thread, and an explicit no-results state echoing the query.
 test('the inbox shows empty, single-comment, and no-results edge states', async () => {
   const api = await getExtensionTestApi({server: whiteboard, clientEntry})
   try {

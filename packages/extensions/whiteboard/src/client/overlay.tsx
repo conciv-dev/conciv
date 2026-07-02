@@ -46,8 +46,6 @@ type MountOverlayOptions = {
   registerComment: (write: (pick: CommentPick) => void) => void
 }
 
-// The view layer: it reads everything it needs from the comments model and renders. The Island mounts
-// here so it never binds without a real session; the keyed <Show> below re-mounts it on session switch.
 function CanvasView(props: {
   doc: Document
   visible: Accessor<boolean>
@@ -56,10 +54,7 @@ function CanvasView(props: {
   close: () => void
 }): JSX.Element {
   const model = useComments()
-  // Escape closes the canvas — but only when it's the sole thing open. Runs in the CAPTURE phase so it
-  // reads the overlay state BEFORE Ark's own Escape handler mutates it (otherwise a thread's Escape would
-  // clear openCid first and this would then also close the canvas). Skips when a thread/compose/inbox is
-  // open (they own their Escape) or the keypress is inside the Excalidraw editor (where Escape deselects).
+
   onMount(() => {
     const win = props.doc.defaultView
     if (!win) return
@@ -111,15 +106,12 @@ function Canvas(props: {
   )
 }
 
-// Bridges the extension's "leave a comment" affordance to the model, inside the provider.
 function ComposeBridge(props: {registerComment: (write: (pick: CommentPick) => void) => void}): JSX.Element {
   const model = useComments()
   props.registerComment((pick) => model.startCompose(toComposeTarget(pick)))
   return <></>
 }
 
-// Loads the jazz config under <Suspense>; a config-fetch reject throws to the <ErrorBoundary> above.
-// The session gate is keyed so Canvas (and its presence write identity) re-mounts on session switch.
 function Board(props: {
   api: ClientApi
   doc: Document
@@ -165,8 +157,6 @@ export function mountOverlay(options: MountOverlayOptions): () => void {
   const doc = options.api.env.doc
   injectExcalidrawCss(doc).catch(() => options.api.toast('Could not load the whiteboard styles', 'error'))
 
-  // The Excalidraw canvas owns its own light-DOM container (the Island's <Portal>); this surface only
-  // holds the shadow-DOM pin/comment UI (Ark popovers need the EnvironmentProvider shadow root).
   const surfaceRoot = options.api.surface()
   const layer = doc.createElement('div')
   layer.style.cssText = 'position:fixed;inset:0;pointer-events:none;font-family:var(--pw-font);color:var(--pw-text)'

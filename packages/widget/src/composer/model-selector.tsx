@@ -5,9 +5,6 @@ import {defineClient} from '@conciv/api-client'
 import {createPersistedSignal} from '../lib/persisted-signal.js'
 import type {ComposerControlDef} from '../shell/widget-shell.js'
 
-// The composer's model picker IS @conciv/ui-kit-chat's ModelSelector (the assistant-ui port). The
-// widget only maps its harness models onto ModelOption and owns the provider grouping — ModelOption is
-// provider-agnostic by design, so the bucketing is consumer-composed over the selector's filtered set.
 function toOption(model: HarnessModelInfo): ModelOption {
   return {id: model.id, name: model.name, description: model.description, disabled: model.disabled}
 }
@@ -30,8 +27,6 @@ function groupsOf(
   return order.map((name) => ({name, items: byGroup.get(name) ?? []}))
 }
 
-// Reads the selector's already-search-filtered models from context and renders them provider-grouped,
-// reusing ui-kit-chat's Group + Item (no Ark, no bespoke list here).
 function GroupedModelList(props: {models: ReadonlyArray<HarnessModelInfo>}): JSX.Element {
   const context = useModelSelectorContext()
   const groupById = createMemo(() => new Map(props.models.map((model) => [model.id, model.group ?? 'Models'])))
@@ -71,17 +66,11 @@ function ModelPicker(props: {
   )
 }
 
-// Persist the user's pick across sessions. Keyed globally (one composer model at a time); a future
-// per-harness key can slot in here without touching the plugin contract.
 const MODEL_KEY = 'pw-conciv-model'
 
-// The composer-control plugin. Registered on the shell (mount.tsx), it fetches the active harness's
-// models, owns the selection (persisted), and ships it on every turn via ctx.setRequestMeta({model}).
-// Renders nothing until models load AND the harness advertises at least one.
 export const modelSelectorControl: ComposerControlDef = {
   id: 'model-selector',
   create: (ctx) => {
-    // Models aren't session-scoped → a header-less client (never setSessionId).
     const client = defineClient({apiBase: ctx.apiBase})
     const [models, setModels] = createSignal<HarnessModelInfo[]>([])
     const [model, setModel] = createPersistedSignal<string | null>({
@@ -106,9 +95,7 @@ export const modelSelectorControl: ComposerControlDef = {
           const next = defaultModel ?? list.find((m) => !m.disabled)?.id ?? null
           if (next) select(next)
         })
-        .catch(() => {
-          // No /models route (older core / non-chat server) → selector stays hidden.
-        })
+        .catch(() => {})
     })
     return (
       <Show when={models().length > 0}>
