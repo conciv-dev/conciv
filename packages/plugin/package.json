@@ -1,6 +1,6 @@
 {
   "name": "@conciv/plugin",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "The conciv dev agent as an unplugin: vite (full — viteBridge + widget middleware + boot), webpack/rspack (boot the engine), rollup/esbuild (build-only no-ops). One factory, per-bundler subpath entries.",
   "keywords": [
     "conciv",

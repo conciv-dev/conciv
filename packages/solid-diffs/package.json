@@ -1,6 +1,6 @@
 {
   "name": "@conciv/solid-diffs",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "SolidJS wrappers around @pierre/diffs: thin Solid components over the framework-agnostic FileDiff / File web-component renderers (Shiki-highlighted diffs + code), reusable across the conciv UI.",
   "keywords": [
     "code-diff",

@@ -1,5 +1,18 @@
 # @conciv/extension-testkit
 
+## 0.0.4
+
+### Patch Changes
+
+- Updated dependencies [[`9480816`](https://github.com/conciv-dev/conciv/commit/948081665656ee4fc149701c3206a17402b47299)]:
+  - @conciv/plugin@0.0.4
+  - @conciv/api-client@0.0.4
+  - @conciv/core@0.0.4
+  - @conciv/extension@0.0.4
+  - @conciv/grab@0.0.4
+  - @conciv/protocol@0.0.4
+  - @conciv/ui-kit-system@0.0.4
+
 ## 0.0.3
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @conciv/core
 
+## 0.0.4
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/harness@0.0.4
+  - @conciv/protocol@0.0.4
+  - @conciv/tools@0.0.4
+
 ## 0.0.3
 
 ### Patch Changes
