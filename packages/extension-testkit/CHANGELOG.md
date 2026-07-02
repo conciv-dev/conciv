@@ -1,5 +1,20 @@
 # @conciv/extension-testkit
 
+## 0.0.5
+
+### Patch Changes
+
+- [`8cb9336`](https://github.com/conciv-dev/conciv/commit/8cb9336039f829d66166a2bb0635d97b84454139) Thanks [@omridevk](https://github.com/omridevk)! - new version with fixed deps
+
+- Updated dependencies [[`8cb9336`](https://github.com/conciv-dev/conciv/commit/8cb9336039f829d66166a2bb0635d97b84454139), [`d9e01e2`](https://github.com/conciv-dev/conciv/commit/d9e01e2d1b6bc5cc959274a7104cc66cd02c23fe)]:
+  - @conciv/api-client@0.0.5
+  - @conciv/core@0.0.5
+  - @conciv/extension@0.0.5
+  - @conciv/grab@0.0.5
+  - @conciv/plugin@0.0.5
+  - @conciv/protocol@0.0.5
+  - @conciv/ui-kit-system@0.0.5
+
 ## 0.0.4
 
 ### Patch Changes

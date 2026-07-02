@@ -1,5 +1,16 @@
 # @conciv/it
 
+## 0.0.5
+
+### Patch Changes
+
+- [`8cb9336`](https://github.com/conciv-dev/conciv/commit/8cb9336039f829d66166a2bb0635d97b84454139) Thanks [@omridevk](https://github.com/omridevk)! - new version with fixed deps
+
+- Updated dependencies [[`8cb9336`](https://github.com/conciv-dev/conciv/commit/8cb9336039f829d66166a2bb0635d97b84454139), [`d9e01e2`](https://github.com/conciv-dev/conciv/commit/d9e01e2d1b6bc5cc959274a7104cc66cd02c23fe)]:
+  - @conciv/extension-test-runner@0.0.5
+  - @conciv/extension-whiteboard@0.0.5
+  - @conciv/plugin@0.0.5
+
 ## 0.0.4
 
 ### Patch Changes
