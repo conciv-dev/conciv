@@ -16,6 +16,7 @@
     "@base-ui/react": "^1.6.0",
     "@conciv/cli": "workspace:*",
     "@conciv/it": "workspace:*",
+    "@conciv/mascot": "workspace:*",
     "@conciv/protocol": "workspace:*",
     "@conciv/widget": "workspace:*",
     "@fontsource-variable/geist": "^5.2.9",

@@ -1,0 +1,77 @@
+import type {ReactNode} from 'react'
+import {RobotFab} from './robot-fab'
+
+function Code({children}: {children: ReactNode}) {
+  return (
+    <pre className="overflow-x-auto rounded-[10px] border bg-card px-4 py-3 font-mono text-[12.5px] leading-[1.7]">
+      {children}
+    </pre>
+  )
+}
+
+function Step({number, title, body, children}: {number: string; title: string; body: string; children?: ReactNode}) {
+  return (
+    <div className="grid grid-cols-[88px_1fr] gap-6 border-t py-[30px] last:border-b">
+      <div
+        aria-hidden
+        className="od-display text-[56px] font-extrabold leading-[0.9] tracking-[-0.04em] text-accent [-webkit-text-stroke:1.5px_var(--od-accent)]"
+      >
+        {number}
+      </div>
+      <div>
+        <h3 className="mb-1.5 text-[17px] font-semibold tracking-[-0.01em]">{title}</h3>
+        <p className="mb-3 max-w-[46ch] text-[13.5px] text-muted-foreground">{body}</p>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+export function HowItWorks() {
+  return (
+    <section id="how" className="mx-auto max-w-[1180px] px-8 pb-24 pt-16">
+      <div className="grid items-start gap-16 md:grid-cols-[0.9fr_1.1fr]">
+        <div className="md:sticky md:top-12">
+          <p className="mb-2.5 font-mono text-[11px] font-semibold uppercase tracking-[0.22em] text-primary">
+            How it works
+          </p>
+          <h2 className="od-display mb-2 text-[clamp(28px,3.4vw,40px)] font-bold tracking-[-0.025em] [text-wrap:balance]">
+            From npm to <span className="text-primary">✦</span> in three steps
+          </h2>
+          <p className="max-w-[52ch] text-muted-foreground">
+            No SaaS, no keys to paste, no second terminal. The agent you already trust, mounted in your dev build.
+          </p>
+        </div>
+        <div>
+          <Step number="1" title="Install" body="One dev dependency. Nothing ships to production.">
+            <Code>
+              <span className="text-primary">$</span> npm i -D @conciv/it
+            </Code>
+          </Step>
+          <Step
+            number="2"
+            title="Add the plugin"
+            body="Vite shown — webpack, Rspack, Rollup, esbuild, and Next.js are one import away."
+          >
+            <Code>
+              <span className="text-muted-foreground">{'// vite.config.ts\n'}</span>
+              <span className="text-primary">import</span>
+              {' conciv '}
+              <span className="text-primary">from</span>
+              {" '@conciv/it/plugin/vite'\n\n"}
+              <span className="text-primary">export default</span>
+              {' defineConfig({\n  plugins: [conciv()],\n})'}
+            </Code>
+          </Step>
+          <Step
+            number="3"
+            title="Meet the robot"
+            body="Start your dev server. The mascot appears in the corner when the engine is live — click it and start talking to your app."
+          >
+            <RobotFab />
+          </Step>
+        </div>
+      </div>
+    </section>
+  )
+}

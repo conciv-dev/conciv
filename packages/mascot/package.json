@@ -1,0 +1,45 @@
+{
+  "name": "@conciv/mascot",
+  "version": "0.0.1",
+  "description": "The conciv robot mascot: the rigged layer assets and a framework-free GSAP rig (createFabRobotRig) shared by the widget FAB and the site.",
+  "keywords": [
+    "conciv",
+    "mascot"
+  ],
+  "homepage": "https://conciv.dev",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/mascot"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/rig.d.ts",
+      "import": "./dist/rig.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run --passWithNoTests",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only"
+  },
+  "dependencies": {
+    "gsap": "^3.15.0"
+  },
+  "devDependencies": {
+    "tsdown": "^0.22.2",
+    "typescript": "^6.0.3"
+  }
+}
