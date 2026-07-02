@@ -149,9 +149,16 @@ destroy()}` exported as a `@conciv/widget/mascot` subpath (assets + CSS included
   organic/noise shader iframe behind the dark footer, params tinted to tokens, lazy-loaded
   below the fold, visibility-paused, static fallback under reduced-motion. Cut in the polish
   pass if it fights the voice. Everywhere else: rejected (glowing WebGL wash = slop tell).
+- **How-it-works step 2 = framework tabs (decided 2026-07-03)**: animated tab switcher over
+  per-framework plugin snippets — real framework logos (grayscale at rest, color when
+  active), sliding indicator, animated panel swap with height easing, filename bar + copy
+  button. Code highlighting via **shiki** (repo standard) in a proper CodeBlock component.
+  Tabs: Vite, Next.js (+instrumentation note), webpack, Rspack; Rollup + esbuild render as
+  disabled tabs with a "soon" chip (documented build-only no-ops). Mockup carries two
+  variants (A sliding segment / B underline ink) pending user pick.
 - **Design mockup**: layout study artifact (hero unchanged / LogoLoop / SpotlightCards /
-  sticky how-it-works with real robot rig / dark footer), motion-spec annotations inline:
-  https://claude.ai/code/artifact/5f2afc6c-563e-4470-bd1a-fbfa9b81c6ea
+  sticky how-it-works with real robot rig + framework tabs / dark footer), motion-spec
+  annotations inline: https://claude.ai/code/artifact/5f2afc6c-563e-4470-bd1a-fbfa9b81c6ea
 
 Acceptance: no "coming soon"; copyable real install; GitHub visible; every nav link resolves
 (incl. `#how`); Beta signal present; hero demo loads a model on intent and applies a real
