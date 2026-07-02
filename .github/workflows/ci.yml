@@ -3,8 +3,6 @@ name: CI
 on:
   workflow_call: {}
   pull_request: {}
-  push:
-    branches: [main]
 
 permissions:
   contents: read
@@ -21,6 +19,22 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
+      # CI-gate caches. Safe ONLY while no workflow runs untrusted code on a trusted
+      # ref (no pull_request_target): GitHub scopes cache writes per-ref, so fork PRs
+      # cannot poison main's cache, and the publish job (release.yml) stays cache-free.
+      # Playwright Chromium: exact lockfile-hash key, NO restore-keys — a broad prefix
+      # would let a poisoned browser binary launder forward across lockfile changes.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+      # Turbo cache: scoped within a lockfile generation, so a dependency change
+      # discards prior cache instead of carrying (and laundering) it forward.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
       - uses: SocketDev/action@ba6de6cc0565af1f42295590380973573297e31f # v1.3.2
         with:
           mode: firewall-free
