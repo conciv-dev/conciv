@@ -6,7 +6,7 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "prepare": "prek install",
+    "prepare": "node -e \"process.exit(process.env.CI ? 0 : 1)\" || prek install",
     "dev": "turbo run dev --filter=tanstack-start-example",
     "dev:site": "turbo run dev --filter=site",
     "build": "turbo run build",
