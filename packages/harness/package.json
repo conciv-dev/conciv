@@ -1,6 +1,6 @@
 {
   "name": "@conciv/harness",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "Harness adapters (claude, codex, + stubs) behind the @conciv/protocol HarnessAdapter contract.",
   "keywords": [
     "ai",
