@@ -1,5 +1,18 @@
 # @conciv/plugin
 
+## 0.0.6
+
+### Patch Changes
+
+- [#12](https://github.com/conciv-dev/conciv/pull/12) [`6a30c91`](https://github.com/conciv-dev/conciv/commit/6a30c91c76a4ff1df456a14eca0f9d4a78744a57) Thanks [@omridevk](https://github.com/omridevk)! - Fix a crash on Next.js with the webpack bundler introduced by the Turbopack env fix. `withConciv` set the engine port via `process.env.NEXT_PUBLIC_CONCIV_PORT ??= ...`. Bundlers statically replace literal `process.env.NEXT_PUBLIC_*` member expressions with their values at build time — including in the instrumentation chunk — so webpack turned the assignment target into a string literal (`"41700" ??= ...`), a `SyntaxError: Invalid left-hand side in assignment` that crashed the instrumentation hook and took down the dev server (every route 404'd / connection refused). Turbopack didn't apply the replacement in that context, so it only surfaced under `next dev --webpack`. Assign through a computed key (`process.env[key] = ...`) instead, which bundlers don't inline. Verified: the widget now mounts on the real homepage under both Turbopack and webpack.
+
+- Updated dependencies []:
+  - @conciv/cli@0.0.6
+  - @conciv/core@0.0.6
+  - @conciv/extension@0.0.6
+  - @conciv/protocol@0.0.6
+  - @conciv/widget@0.0.6
+
 ## 0.0.5
 
 ### Patch Changes

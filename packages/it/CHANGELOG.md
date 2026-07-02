@@ -1,5 +1,14 @@
 # @conciv/it
 
+## 0.0.6
+
+### Patch Changes
+
+- Updated dependencies [[`6a30c91`](https://github.com/conciv-dev/conciv/commit/6a30c91c76a4ff1df456a14eca0f9d4a78744a57)]:
+  - @conciv/plugin@0.0.6
+  - @conciv/extension-whiteboard@0.0.6
+  - @conciv/extension-test-runner@0.0.6
+
 ## 0.0.5
 
 ### Patch Changes

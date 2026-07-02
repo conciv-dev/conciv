@@ -1,6 +1,6 @@
 {
   "name": "@conciv/it",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "The conciv dev agent, one install. Re-exports the unplugin under @conciv/it/plugin/* (vite, webpack, rspack, rollup, esbuild, nextjs).",
   "keywords": [
     "ai",

@@ -1,5 +1,15 @@
 # site
 
+## 0.0.6
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/it@0.0.6
+  - @conciv/cli@0.0.6
+  - @conciv/protocol@0.0.6
+  - @conciv/widget@0.0.6
+
 ## 0.0.5
 
 ### Patch Changes
