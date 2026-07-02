@@ -125,6 +125,16 @@ html > body[data-scroll-locked] {
   background: radial-gradient(120% 80% at 88% -10%, var(--od-accent-soft), transparent 55%), var(--od-paper);
 }
 
+/* footer: fixed warm-charcoal bookend, both themes */
+.od-footer {
+  background: radial-gradient(90% 120% at 80% 110%, oklch(0.7 0.19 32 / 0.1), transparent 60%), oklch(0.23 0.012 65);
+}
+@media (prefers-reduced-motion: reduce) {
+  .od-footer-shader {
+    display: none;
+  }
+}
+
 /* shiki dual theme + twoslash popups (landing snippets) */
 .od-snippet .shiki {
   background-color: transparent !important;

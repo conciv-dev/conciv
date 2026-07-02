@@ -4,6 +4,7 @@ import {LandingMotion} from './lazy-motion'
 import {BundlerBand} from './bundler-band'
 import {FeaturesSection} from './features-section'
 import {HowItWorks} from './how-it-works'
+import {SiteFooter} from './site-footer'
 
 export function LandingPage() {
   return (
@@ -14,6 +15,7 @@ export function LandingPage() {
         <BundlerBand />
         <FeaturesSection />
         <HowItWorks />
+        <SiteFooter />
       </div>
     </LandingMotion>
   )
