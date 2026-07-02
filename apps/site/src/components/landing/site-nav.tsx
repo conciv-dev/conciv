@@ -1,7 +1,5 @@
 import {ThemeToggle} from './theme-toggle'
 
-const SHOW_GITHUB = false
-
 export function SiteNav() {
   return (
     <nav className="mx-auto flex max-w-[1180px] items-center gap-7 px-8 py-[22px]">
@@ -11,14 +9,15 @@ export function SiteNav() {
       <a href="#how" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
         How it works
       </a>
-      {SHOW_GITHUB ? (
-        <a
-          href="https://github.com/conciv-dev/conciv"
-          className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-        >
-          GitHub
-        </a>
-      ) : null}
+      <a href="/docs" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
+        Docs
+      </a>
+      <a
+        href="https://github.com/conciv-dev/conciv"
+        className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+      >
+        GitHub
+      </a>
       <ThemeToggle />
     </nav>
   )
