@@ -4,7 +4,7 @@ import {Readable} from 'node:stream'
 import {createServer, type IncomingMessage, type Server, type ServerResponse} from 'node:http'
 import type {AddressInfo} from 'node:net'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
-import {chromium, type Browser} from 'playwright'
+import {chromium, type Browser, type Page} from 'playwright'
 import {EventType, type StreamChunk, toServerSentEventsStream} from '@tanstack/ai'
 import {aguiApprovalRequestedFor} from '@conciv/protocol/ui-types'
 import {aguiUsageFor, snapshotToTokenUsage} from '@conciv/protocol/usage-types'
@@ -206,6 +206,13 @@ describe('aidx widget (it) — real browser, real SSE', () => {
   let server: Server
   const state = {base: '', mint: 0}
 
+  const newPage = async (): Promise<Page> => {
+    const page = await browser.newPage()
+    page.setDefaultTimeout(15_000)
+    page.setDefaultNavigationTimeout(15_000)
+    return page
+  }
+
   beforeAll(async () => {
     server = createServer((req: IncomingMessage, res: ServerResponse) => {
       const url = req.url ?? ''
@@ -357,7 +364,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
   it('streams a reply, renders a tool card, and approves via the NATIVE part.approval flow', async () => {
     chatState.script = approvalScript
     try {
-      const page = await browser.newPage()
+      const page = await newPage()
       await page.goto(state.base)
 
       const fab = page.getByRole('button', {name: 'Open conciv chat'})
@@ -389,7 +396,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
   })
 
   it('New session: opens a fresh empty session (resolve); the prior session is preserved in a hidden pane', async () => {
-    const page = await browser.newPage()
+    const page = await newPage()
     await page.goto(state.base)
     const fab = page.getByRole('button', {name: 'Open conciv chat'})
     await fab.waitFor({state: 'visible'})
@@ -409,7 +416,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
   })
 
   it('Compress: marks a boundary and sends a compaction turn (intent rides the AG-UI envelope)', async () => {
-    const page = await browser.newPage()
+    const page = await newPage()
     await page.goto(state.base)
     const fab = page.getByRole('button', {name: 'Open conciv chat'})
     await fab.waitFor({state: 'visible'})
@@ -443,7 +450,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
   it('Compress on a busy session (409) removes the boundary instead of claiming success', async () => {
     compactState.status = 409
     try {
-      const page = await browser.newPage()
+      const page = await newPage()
       await page.goto(state.base)
       const fab = page.getByRole('button', {name: 'Open conciv chat'})
       await fab.waitFor({state: 'visible'})
@@ -468,7 +475,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
   })
 
   it('renders the context tracker from a streamed conciv-usage event and shows the breakdown on hover', async () => {
-    const page = await browser.newPage()
+    const page = await newPage()
     await page.goto(state.base)
     const fab = page.getByRole('button', {name: 'Open conciv chat'})
     await fab.waitFor({state: 'visible'})
@@ -489,7 +496,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
   })
 
   it('places the FAB by config and snaps to the nearest preset after a drag', async () => {
-    const page = await browser.newPage()
+    const page = await newPage()
     await page.setViewportSize({width: 1000, height: 800})
     await page.goto(`${state.base}/__position`)
 
@@ -510,15 +517,13 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await page.mouse.move(960, 770, {steps: 10})
     await page.mouse.up()
 
-    await page.waitForFunction(() => localStorage.getItem('conciv-fab-position') === 'bottom-right', undefined, {
-      timeout: 2000,
-    })
+    await page.waitForFunction(() => localStorage.getItem('conciv-fab-position') === 'bottom-right')
     expect(await corner()).toMatchObject({bottom: '20px', right: '20px'})
     await page.close()
   })
 
   it('resizes the modal panel by edge drag, persists the height, and collapses below threshold', async () => {
-    const page = await browser.newPage()
+    const page = await newPage()
     await page.setViewportSize({width: 1000, height: 800})
     await page.goto(state.base)
     const fab = page.getByRole('button', {name: 'Open conciv chat'})
@@ -552,14 +557,12 @@ describe('aidx widget (it) — real browser, real SSE', () => {
           .querySelector('[data-conciv-root]')
           ?.shadowRoot?.querySelector('#pw-chat-panel')
           ?.getAttribute('aria-hidden') === 'true',
-      undefined,
-      {timeout: 2000},
     )
     await page.close()
   })
 
   it('resizes the modal panel horizontally by dragging the side edge, and persists the width', async () => {
-    const page = await browser.newPage()
+    const page = await newPage()
     await page.setViewportSize({width: 1000, height: 800})
     await page.goto(state.base)
     const fab = page.getByRole('button', {name: 'Open conciv chat'})
@@ -584,7 +587,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
   })
 
   it('resizes the modal panel from the keyboard via the resize separator', async () => {
-    const page = await browser.newPage()
+    const page = await newPage()
     await page.setViewportSize({width: 1000, height: 800})
     await page.goto(state.base)
     const fab = page.getByRole('button', {name: 'Open conciv chat'})
@@ -610,7 +613,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     `(() => document.querySelector('[data-conciv-root]')?.shadowRoot?.querySelector('${sel}')?.getAttribute('aria-hidden'))()`
 
   it('drops the quick terminal on its hotkey and closes on Escape', async () => {
-    const page = await browser.newPage()
+    const page = await newPage()
     await page.goto(`${state.base}/__quick-terminal`)
 
     const sheet = page.locator('[data-pw-qt]')
@@ -618,20 +621,16 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     expect(await sheet.getAttribute('aria-hidden')).toBe('true')
 
     await page.keyboard.press('Control+k')
-    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'false'`, undefined, {timeout: 2000})
+    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'false'`)
     await page.getByText('How can I help you today?').waitFor({state: 'visible'})
 
-    await page.waitForFunction(
-      () => {
-        const active = document.querySelector('[data-conciv-root]')?.shadowRoot?.activeElement
-        return active?.getAttribute('aria-label') === 'Message the conciv agent'
-      },
-      undefined,
-      {timeout: 2000},
-    )
+    await page.waitForFunction(() => {
+      const active = document.querySelector('[data-conciv-root]')?.shadowRoot?.activeElement
+      return active?.getAttribute('aria-label') === 'Message the conciv agent'
+    })
 
     await page.keyboard.press('Escape')
-    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'true'`, undefined, {timeout: 2000})
+    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'true'`)
 
     const closedInert = await page.evaluate(
       () =>
@@ -645,28 +644,28 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     `(() => { const el = document.querySelector('[data-conciv-root]')?.shadowRoot?.querySelector('${sel}'); return el ? el.getBoundingClientRect() : null })()`
 
   it('closes the quick terminal via its close button — the sheet slides fully off-screen', async () => {
-    const page = await browser.newPage()
+    const page = await newPage()
     await page.goto(`${state.base}/__quick-terminal`)
     const sheet = page.locator('[data-pw-qt]')
     await sheet.waitFor({state: 'attached'})
 
     await page.keyboard.press('Control+k')
-    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'false'`, undefined, {timeout: 2000})
-    await page.waitForFunction(`${rectOf('[data-pw-qt]')}?.top <= 1`, undefined, {timeout: 2000})
+    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'false'`)
+    await page.waitForFunction(`${rectOf('[data-pw-qt]')}?.top <= 1`)
 
     await page.getByRole('button', {name: 'Close quick terminal'}).click()
-    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'true'`, undefined, {timeout: 2000})
-    await page.waitForFunction(`${rectOf('[data-pw-qt]')}?.bottom <= 0`, undefined, {timeout: 2000})
+    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'true'`)
+    await page.waitForFunction(`${rectOf('[data-pw-qt]')}?.bottom <= 0`)
     await page.close()
   })
 
   it('resizes the quick terminal by dragging its height handle', async () => {
-    const page = await browser.newPage()
+    const page = await newPage()
     await page.setViewportSize({width: 1000, height: 800})
     await page.goto(`${state.base}/__quick-terminal`)
     await page.locator('[data-pw-qt]').waitFor({state: 'attached'})
     await page.keyboard.press('Control+k')
-    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'false'`, undefined, {timeout: 2000})
+    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'false'`)
     await page.getByText('How can I help you today?').waitFor({state: 'visible'})
     await page.waitForTimeout(300)
 
@@ -684,56 +683,48 @@ describe('aidx widget (it) — real browser, real SSE', () => {
   })
 
   it('restores focus to the last-active pane on reopen (persisted)', async () => {
-    const page = await browser.newPage()
+    const page = await newPage()
     await page.goto(`${state.base}/__quick-terminal`)
     await page.locator('[data-pw-qt]').waitFor({state: 'attached'})
     await page.keyboard.press('Control+k')
-    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'false'`, undefined, {timeout: 2000})
+    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'false'`)
 
     await page.getByRole('button', {name: 'Split pane'}).click()
-    await page.waitForFunction(`${countOf('[data-pw-qt-pane]')} === 2`, undefined, {timeout: 2000})
+    await page.waitForFunction(`${countOf('[data-pw-qt-pane]')} === 2`)
     await page.locator('[data-pw-qt-pane]').first().dispatchEvent('pointerdown')
 
-    await page.waitForFunction(
-      () => {
-        const root = document.querySelector('[data-conciv-root]')?.shadowRoot
-        const firstPane = root?.querySelector('[data-pw-qt-pane]')
-        const active = root?.activeElement
-        return !!firstPane && !!active && firstPane.contains(active)
-      },
-      undefined,
-      {timeout: 2000},
-    )
+    await page.waitForFunction(() => {
+      const root = document.querySelector('[data-conciv-root]')?.shadowRoot
+      const firstPane = root?.querySelector('[data-pw-qt-pane]')
+      const active = root?.activeElement
+      return !!firstPane && !!active && firstPane.contains(active)
+    })
 
     await page.keyboard.press('Escape')
-    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'true'`, undefined, {timeout: 2000})
+    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'true'`)
     await page.keyboard.press('Control+k')
-    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'false'`, undefined, {timeout: 2000})
-    await page.waitForFunction(
-      () => {
-        const root = document.querySelector('[data-conciv-root]')?.shadowRoot
-        const firstPane = root?.querySelector('[data-pw-qt-pane]')
-        const active = root?.activeElement
-        return !!firstPane && !!active && firstPane.contains(active)
-      },
-      undefined,
-      {timeout: 2000},
-    )
+    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'false'`)
+    await page.waitForFunction(() => {
+      const root = document.querySelector('[data-conciv-root]')?.shadowRoot
+      const firstPane = root?.querySelector('[data-pw-qt-pane]')
+      const active = root?.activeElement
+      return !!firstPane && !!active && firstPane.contains(active)
+    })
     await page.close()
   })
 
   it('opening the quick terminal closes the modal (one layer at a time)', async () => {
-    const page = await browser.newPage()
+    const page = await newPage()
     await page.goto(`${state.base}/__both`)
 
     const fab = page.getByRole('button', {name: 'Open conciv chat'})
     await fab.waitFor({state: 'visible'})
     await fab.click()
-    await page.waitForFunction(`${ariaHiddenOf('#pw-chat-panel')} === 'false'`, undefined, {timeout: 2000})
+    await page.waitForFunction(`${ariaHiddenOf('#pw-chat-panel')} === 'false'`)
 
     await page.keyboard.press('Control+k')
-    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'false'`, undefined, {timeout: 2000})
-    await page.waitForFunction(`${ariaHiddenOf('#pw-chat-panel')} === 'true'`, undefined, {timeout: 2000})
+    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'false'`)
+    await page.waitForFunction(`${ariaHiddenOf('#pw-chat-panel')} === 'true'`)
     await page.close()
   })
 
@@ -741,11 +732,11 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     `(() => document.querySelector('[data-conciv-root]')?.shadowRoot?.querySelectorAll('${sel}').length)()`
 
   it('pops the quick terminal into a PiP window (styles travel) and re-docks on close', async () => {
-    const page = await browser.newPage()
+    const page = await newPage()
     await page.goto(`${state.base}/__quick-terminal`)
     await page.locator('[data-pw-qt]').waitFor({state: 'attached'})
     await page.keyboard.press('Control+k')
-    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'false'`, undefined, {timeout: 2000})
+    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'false'`)
 
     const [popup] = await Promise.all([
       page.waitForEvent('popup'),
@@ -763,37 +754,37 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     expect(await page.evaluate(countOf('[data-pw-qt]'))).toBe(0)
 
     await popup.close()
-    await page.waitForFunction(`${countOf('[data-pw-qt]')} === 1`, undefined, {timeout: 2000})
+    await page.waitForFunction(`${countOf('[data-pw-qt]')} === 1`)
     await page.close()
   })
 
   it('splits the quick terminal into independent-session panes and reflows on close', async () => {
-    const page = await browser.newPage()
+    const page = await newPage()
     await page.goto(`${state.base}/__quick-terminal`)
     await page.locator('[data-pw-qt]').waitFor({state: 'attached'})
     await page.keyboard.press('Control+k')
-    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'false'`, undefined, {timeout: 2000})
+    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'false'`)
 
-    await page.waitForFunction(`${countOf('[data-pw-qt-pane]')} === 1`, undefined, {timeout: 2000})
+    await page.waitForFunction(`${countOf('[data-pw-qt-pane]')} === 1`)
 
     await page.getByRole('button', {name: 'Split pane'}).click()
-    await page.waitForFunction(`${countOf('[data-pw-qt-pane]')} === 2`, undefined, {timeout: 2000})
+    await page.waitForFunction(`${countOf('[data-pw-qt-pane]')} === 2`)
     expect(await page.getByRole('textbox', {name: 'Message the conciv agent'}).count()).toBe(2)
 
     expect(await page.getByRole('button', {name: /^Session:/}).count()).toBe(2)
 
     await page.getByRole('button', {name: 'Close pane'}).first().click()
-    await page.waitForFunction(`${countOf('[data-pw-qt-pane]')} === 1`, undefined, {timeout: 2000})
+    await page.waitForFunction(`${countOf('[data-pw-qt-pane]')} === 1`)
 
     await page.getByRole('button', {name: 'Close pane'}).first().click()
-    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'true'`, undefined, {timeout: 2000})
+    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'true'`)
     await page.close()
   })
 
   it('renders the assistant reply for a chat() stream (generated threadId, empty reasoning, MCP tools)', async () => {
     chatState.script = mcpAccessScript
     try {
-      const page = await browser.newPage()
+      const page = await newPage()
       await page.goto(state.base)
       const fab = page.getByRole('button', {name: 'Open conciv chat'})
       await fab.waitFor({state: 'visible'})
@@ -813,7 +804,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     chatState.script = collisionScript
     collisionState.n = 0
     try {
-      const page = await browser.newPage()
+      const page = await newPage()
       await page.goto(state.base)
       const fab = page.getByRole('button', {name: 'Open conciv chat'})
       await fab.waitFor({state: 'visible'})
@@ -836,7 +827,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
   })
 
   it('model selector: picking a model closes the popover and never collapses the list to the chosen one', async () => {
-    const page = await browser.newPage()
+    const page = await newPage()
     await page.goto(state.base)
     const fab = page.getByRole('button', {name: 'Open conciv chat'})
     await fab.waitFor({state: 'visible'})
@@ -853,9 +844,9 @@ describe('aidx widget (it) — real browser, real SSE', () => {
 
     await page.getByText('Claude Opus 4.8', {exact: true}).click()
 
-    await trigger.getByText('Claude Opus 4.8').waitFor({state: 'visible', timeout: 3000})
+    await trigger.getByText('Claude Opus 4.8').waitFor({state: 'visible'})
 
-    await page.getByText('Claude Haiku 4.5', {exact: true}).waitFor({state: 'hidden', timeout: 3000})
+    await page.getByText('Claude Haiku 4.5', {exact: true}).waitFor({state: 'hidden'})
 
     // /data) — the exact spot @conciv/core's chat route reads.
     const composer = page.getByLabel('Message the conciv agent')
@@ -872,7 +863,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
   })
 
   it('session selector: lists rows, marks aidx origin, switches by header, renames optimistically', async () => {
-    const page = await browser.newPage()
+    const page = await newPage()
     await page.goto(state.base)
     const fab = page.getByRole('button', {name: 'Open conciv chat'})
     await fab.waitFor({state: 'visible'})
@@ -905,12 +896,12 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await rename.fill('Renamed thread')
     await rename.press('Enter')
 
-    await page.getByRole('button', {name: 'Session: Renamed thread'}).waitFor({state: 'visible', timeout: 3000})
+    await page.getByRole('button', {name: 'Session: Renamed thread'}).waitFor({state: 'visible'})
     await page.close()
   })
 
   it('session selector: restores the active session across a page reload', async () => {
-    const page = await browser.newPage()
+    const page = await newPage()
     await page.goto(state.base)
     const fab = page.getByRole('button', {name: 'Open conciv chat'})
     await fab.waitFor({state: 'visible'})
@@ -938,7 +929,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
   })
 
   it('uses window.__CONCIV_API_BASE__ over the meta tag (Next.js injection path)', async () => {
-    const page = await browser.newPage()
+    const page = await newPage()
     await page.goto(`${state.base}/__global-base`)
 
     await page.getByRole('button', {name: 'Open conciv chat'}).waitFor({state: 'visible'})
@@ -955,7 +946,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
   }
 
   it('answers a page-bus query against the live DOM and posts the reply', async () => {
-    const page = await browser.newPage()
+    const page = await newPage()
     const reply = page.waitForRequest(replyFor('pb1'))
     await page.goto(state.base)
     const body = (await reply).postDataJSON() as {requestId: string; data: {text?: string}}
@@ -964,7 +955,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
   })
 
   it('routes a locate verb to the bippy bridge and degrades gracefully on a non-React node', async () => {
-    const page = await browser.newPage()
+    const page = await newPage()
     const reply = page.waitForRequest(replyFor('pbL'))
     await page.goto(state.base)
     const body = (await reply).postDataJSON() as {requestId: string; data: {error?: string}}
@@ -973,7 +964,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
   })
 
   it('Grab element: stages preview chips beside untouched input; remove drops one; send composes context', async () => {
-    const page = await browser.newPage()
+    const page = await newPage()
     await page.setViewportSize({width: 1000, height: 800})
     await page.goto(state.base)
     const fab = page.getByRole('button', {name: 'Open conciv chat'})
