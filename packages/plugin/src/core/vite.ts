@@ -108,6 +108,7 @@ function bootEngine(
 export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO_BUILTINS): Plugin {
   const hasWidget = widgetInstalled()
   let engine: Engine | null = null
+  let apiBase: string | undefined
   let root = process.cwd()
 
   let deferToTsd = false
@@ -126,7 +127,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
       return resolveExtensionsModule(id)
     },
     load(id) {
-      return loadExtensionsModule(id, builtins.clientEntries)
+      return loadExtensionsModule(id, builtins.clientEntries, apiBase)
     },
     transform(code, id, opts) {
       if (options.enabled === false) return null
@@ -146,7 +147,8 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
       const extensions = await loadServerExtensions(server.config.root, builtins.serverExtensions)
       engine = await bootEngine(server, options, installConcivBinShim(join(cfg.stateRoot, '.conciv')), extensions)
       const booted = engine
-      if (hasWidget) mountWidget(server, `http://127.0.0.1:${booted.port}`, options.widget)
+      apiBase = `http://127.0.0.1:${booted.port}`
+      if (hasWidget) mountWidget(server, apiBase, options.widget)
       server.httpServer?.on('close', () => void booted.stop())
     },
   }

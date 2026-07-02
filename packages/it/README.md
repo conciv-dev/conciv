@@ -6,26 +6,22 @@ Part of [conciv](https://github.com/conciv-dev/conciv).
 
 ## Framework support
 
-The plugin boots the dev agent engine and serves `/@conciv/extensions.js` in any
-supported bundler. The in-page **widget** is auto-injected only where conciv can
-reach the served HTML document:
+Add `conciv()` to your bundler config — the plugin boots the dev agent engine and
+mounts the in-page **widget**. It reaches the page two ways, so it works whether or
+not the host lets a plugin edit the served HTML:
 
-| Setup                       | Engine boots | Widget auto-injects | Notes                                       |
-| --------------------------- | ------------ | ------------------- | ------------------------------------------- |
-| Vite (classic `index.html`) | ✅           | ✅                  | Injected via `transformIndexHtml`.          |
-| Next.js                     | ✅           | ✅                  | Uses fixed `port` so server + client agree. |
-| TanStack Start (nitro SSR)  | ✅           | ❌                  | Not yet supported — see below.              |
+| Setup                       | How the widget loads                                                     |
+| --------------------------- | ------------------------------------------------------------------------ |
+| Vite (classic `index.html`) | `transformIndexHtml` injects the loader `<script>` + `pw-api-base` meta. |
+| TanStack Start (± nitro)    | The extensions module is imported from the client entry (module graph).  |
+| Next.js                     | `plugin/nextjs/widget` client entry + fixed `port`.                      |
 
-### TanStack Start (not yet supported)
-
-Adding `conciv()` to `vite.config.ts` boots the engine and serves the extensions
-script, but the widget does **not** mount. Two gaps:
-
-1. The React-rendered nitro SSR document has no classic `index.html`, so neither
-   `transformIndexHtml` nor the response-buffering middleware injects the
-   `pw-api-base` / `pw-widget` meta tags or the loader `<script>`.
-2. `options.port` is honored only on the Next.js/`makeEngineBooter` path, so the
-   Vite engine binds a random port each boot — manual meta-tag wiring can't pin it.
-
-Tracking a nitro/h3 injection hook (or a dedicated TanStack Start adapter, like
-`plugin/nextjs/widget`) plus `port` support on the Vite path.
+For SSR hosts like TanStack Start (with or without the nitro server layer), the
+rendered document never passes through vite's HTML seam — no static `index.html`
+for `transformIndexHtml`, and the connect-stack response is discarded. So instead
+of editing HTML, conciv appends a dynamic `import` of its virtual extensions module
+to the framework's client entry and bakes the engine origin into that module
+(`window.__CONCIV_API_BASE__`, the same seam Next.js uses). No user config, no
+fixed port. See `apps/examples/tanstack-start` — its `widget-mount.e2e.test.ts`
+proves the widget mounts on both the classic and nitro stacks (toggle with
+`CONCIV_NITRO=1`).
