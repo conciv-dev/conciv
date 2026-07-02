@@ -1,5 +1,15 @@
 # @conciv/extension
 
+## 0.0.3
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/api-client@0.0.3
+  - @conciv/grab@0.0.3
+  - @conciv/protocol@0.0.3
+  - @conciv/ui-kit-system@0.0.3
+
 ## 0.0.2
 
 ### Patch Changes

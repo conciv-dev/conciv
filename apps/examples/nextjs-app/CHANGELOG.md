@@ -1,5 +1,12 @@
 # nextjs-app
 
+## 0.1.3
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/it@0.0.3
+
 ## 0.1.2
 
 ### Patch Changes
