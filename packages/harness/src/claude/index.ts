@@ -3,7 +3,8 @@ import {CONCIV_PLUGIN_DIR} from './plugin-dir.js'
 import {buildClaudeArgs, buildClaudeCompactArgs, claudeMcpArgs} from './args.js'
 import {claudeToAguiEvents} from './decode.js'
 import {claudeHistory} from './history.js'
-import {claudeSdkCommands, claudeSdkRun, claudeSdkShutdown} from './sdk.js'
+import {claudeSdkCommands, claudeSdkRelease, claudeSdkRun, claudeSdkShutdown} from './sdk.js'
+import {claudeTtyCommand} from './tty.js'
 
 export {CHAT_SYSTEM_PROMPT} from './system-prompt.js'
 
@@ -35,6 +36,7 @@ const claudeBase = {
   decode: claudeToAguiEvents,
   history: claudeHistory,
   launch: claudeLaunch,
+  tty: {command: claudeTtyCommand},
 } as const
 
 export function makeClaudeAdapter(useSdk: boolean): HarnessAdapter {
@@ -53,6 +55,7 @@ export function makeClaudeAdapter(useSdk: boolean): HarnessAdapter {
       },
       run: claudeSdkRun,
       shutdown: claudeSdkShutdown,
+      release: claudeSdkRelease,
       commands: claudeSdkCommands,
     })
   }
