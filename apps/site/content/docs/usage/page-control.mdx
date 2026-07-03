@@ -6,6 +6,16 @@ description: The agent reads and drives your live page, then persists to source.
 The agent works against the page you see. It takes a snapshot of the accessibility tree, acts on
 an element, waits for the page to settle, and snapshots again.
 
+Grab an element to point at what you mean: the crosshair in the composer picks any element on the
+page and pins it to your next message, source location included.
+
+<ImageZoom
+  src="/screenshots/grab-element.png"
+  alt="A grabbed heading pinned to the composer with its source location"
+  width={1920}
+  height={1080}
+/>
+
 ## Preview, then persist
 
 It can tweak the DOM and CSS live to show you an idea right away. These live edits are ephemeral.
@@ -13,6 +23,13 @@ The next hot reload wipes them, because they are not in your source.
 
 When you keep a change, the agent edits the real files so it survives a reload. It can open the
 exact source file in your editor too.
+
+<ImageZoom
+  src="/screenshots/page-control.png"
+  alt="The agent restyled the page heading live, with its tool calls visible in the thread"
+  width={1920}
+  height={1080}
+/>
 
 <Callout>
   Ask for something visible, like "make the heading larger". You see it instantly, then the agent offers to persist it
