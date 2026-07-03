@@ -1,9 +1,9 @@
 import react from '@vitejs/plugin-react'
 import {tanstackStart} from '@tanstack/react-start/plugin/vite'
+import {cloudflare} from '@cloudflare/vite-plugin'
 import {defineConfig} from 'vite'
 import tailwindcss from '@tailwindcss/vite'
 import mdx from 'fumadocs-mdx/vite'
-import netlify from '@netlify/vite-plugin-tanstack-start'
 import conciv from '@conciv/it/plugin/vite'
 
 export default defineConfig({
@@ -11,6 +11,7 @@ export default defineConfig({
     port: 3001,
   },
   plugins: [
+    cloudflare({viteEnvironment: {name: 'ssr'}}),
     mdx(),
     tailwindcss(),
     tanstackStart({
@@ -18,7 +19,6 @@ export default defineConfig({
         enabled: true,
       },
     }),
-    netlify(),
     react(),
     conciv({widget: {quickTerminal: {hotkey: ['Alt+k']}}}),
   ],

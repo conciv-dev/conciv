@@ -3,7 +3,7 @@ import {ScrollTrigger} from 'gsap/ScrollTrigger'
 import {ReactLenis, useLenis, type LenisRef} from 'lenis/react'
 import {useState, type ReactNode} from 'react'
 
-gsap.registerPlugin(ScrollTrigger)
+if (!import.meta.env.SSR) gsap.registerPlugin(ScrollTrigger)
 
 const prefersReducedMotion = () =>
   typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches

@@ -4,7 +4,7 @@ import {ScrollTrigger} from 'gsap/ScrollTrigger'
 import {SplitText as GSAPSplitText} from 'gsap/SplitText'
 import {useGSAP} from '@gsap/react'
 
-gsap.registerPlugin(ScrollTrigger, GSAPSplitText, useGSAP)
+if (!import.meta.env.SSR) gsap.registerPlugin(ScrollTrigger, GSAPSplitText, useGSAP)
 
 interface SplitTextProps {
   text: string

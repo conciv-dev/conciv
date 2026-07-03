@@ -19,6 +19,7 @@ overrides:
 allowBuilds:
   esbuild: true
   lightningcss: true
+  workerd: true
   '@parcel/watcher': false
   netlify-cli: false
   sharp: false
