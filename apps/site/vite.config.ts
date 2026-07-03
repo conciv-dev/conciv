@@ -22,6 +22,9 @@ export default defineConfig({
     react(),
     conciv({widget: {quickTerminal: {hotkey: ['Alt+k']}}}),
   ],
+  ssr: {
+    noExternal: ['gsap', '@gsap/react'],
+  },
   resolve: {
     tsconfigPaths: true,
     alias: {
