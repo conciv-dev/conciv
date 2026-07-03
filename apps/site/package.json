@@ -9,7 +9,7 @@
     "build": "vite build",
     "start": "vite preview",
     "preview": "vite preview",
-    "deploy": "wrangler deploy",
+    "deploy": "vite build && wrangler deploy",
     "cf-typegen": "wrangler types",
     "typecheck": "fumadocs-mdx && tsc --noEmit",
     "lint": "oxlint",
