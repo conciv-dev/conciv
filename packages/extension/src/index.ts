@@ -17,6 +17,7 @@ export type {
   ClientFactoryResult,
   ComposerActions,
   ConfigOf,
+  ExtensionCommand,
   ExtensionHostContext,
   ExtensionServerTool,
   ExtensionSlot,

@@ -37,6 +37,13 @@ export type ExtensionServerTool = {
   execute: (input: unknown, request: ToolRequest) => Promise<unknown>
 }
 
+export type ExtensionCommand = {
+  name: string
+  description: string
+  argumentHint?: string
+  prompt(args: string): string
+}
+
 export type ToolRenderer = Component<ToolCardProps>
 
 export type ExtensionTool = {
