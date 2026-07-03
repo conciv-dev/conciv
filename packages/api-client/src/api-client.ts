@@ -17,6 +17,7 @@ import {
   OkSchema,
   PermissionDecisionSchema,
 } from '@conciv/protocol/chat-types'
+import {SetModeRequestSchema, SetModeResponseSchema} from '@conciv/protocol/terminal-types'
 import {createTransport} from './transport.js'
 
 export function defineClient(opts: {apiBase: string}) {
@@ -59,6 +60,19 @@ export function defineClient(opts: {apiBase: string}) {
       response: ChatLaunchSchema,
     }),
     remove: t.route({method: 'DELETE', path: '/api/chat/session', response: OkSchema}),
+    mode: t.route({method: 'GET', path: '/api/chat/mode', response: SetModeResponseSchema}),
+    setMode: t.route({
+      method: 'POST',
+      path: '/api/chat/mode',
+      request: SetModeRequestSchema,
+      response: SetModeResponseSchema,
+    }),
+    ttyUrl: (cols: number, rows: number) => {
+      const id = sessionId()
+      const url = new URL(t.url(`/api/tty?session=${id ?? ''}&cols=${cols}&rows=${rows}`), window.location.href)
+      url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'
+      return url.toString()
+    },
     permissionDecision: t.route({
       method: 'POST',
       path: '/api/chat/permission-decision',
