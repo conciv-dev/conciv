@@ -15,6 +15,7 @@ describe('claude harness adapter', () => {
       compaction: false,
       systemPrompt: 'flag',
       mcp: 'http',
+      slashCommands: 'live',
       imageInput: 'fileRef',
     })
     expect(typeof claude.run).toBe('function')
@@ -29,6 +30,7 @@ describe('claude harness adapter', () => {
       compaction: true,
       systemPrompt: 'file',
       mcp: 'http',
+      slashCommands: 'none',
       imageInput: 'fileRef',
     })
     expect(cli.run).toBeUndefined()

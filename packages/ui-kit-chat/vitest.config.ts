@@ -29,10 +29,13 @@ export default defineConfig({
     projects: [
       {
         extends: true,
+        resolve: {conditions: ['browser', 'development']},
+        ssr: {resolve: {conditions: ['browser', 'development'], externalConditions: ['browser', 'development']}},
         test: {
           name: 'ui-kit-chat',
           environment: 'node',
           include: ['test/**/*.test.ts'],
+          server: {deps: {inline: ['solid-js']}},
         },
       },
       ...(process.env.SKIP_STORYBOOK_TESTS ? [] : [storybook]),

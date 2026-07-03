@@ -6,8 +6,11 @@ import type {ResolvedConcivConfig} from './config.js'
 import {getHarness} from '@conciv/harness'
 import {makeExtensionApp} from './extension-app.js'
 import {originAllowed, registerCors} from './api/cors.js'
+import {concivTools, type ConcivToolContext} from '@conciv/tools'
+import type {ChatTool} from '@conciv/protocol/chat-types'
 import {registerChatRoutes} from './api/chat/chat.js'
 import {registerMcpRoutes} from './api/mcp/mcp.js'
+import {registerToolsRoute} from './api/chat/tools-route.js'
 import {registerPageRoutes} from './api/page/page.js'
 import {registerOpenSourceRoute} from './api/page/open-source.js'
 import {registerServerRoutes} from './api/server/server.js'
@@ -99,7 +102,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
           },
         ]
       })
-      return {tools, dispose: result?.dispose}
+      return {extensionName: extension.name, tools, dispose: result?.dispose}
     }),
   )
   const extensionTools = mounted.flatMap((entry) => entry.tools)
@@ -109,16 +112,20 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   })
   const disposers = mounted.flatMap((entry) => (entry.dispose ? [entry.dispose] : []))
 
-  registerMcpRoutes(
-    app,
-    (sessionId) => ({
-      injectUi: (spec) => uiBus.inject(sessionId, spec),
-      page: (query) => page.ask(query),
-      open: (file, line) => opts.openInEditor(file, line),
-    }),
-    extensionTools,
-    (sessionId) => uiBus.getModel(sessionId),
-  )
+  const makeToolCtx = (sessionId: string): ConcivToolContext => ({
+    injectUi: (spec) => uiBus.inject(sessionId, spec),
+    page: (query) => page.ask(query),
+    open: (file, line) => opts.openInEditor(file, line),
+  })
+
+  registerMcpRoutes(app, makeToolCtx, extensionTools, (sessionId) => uiBus.getModel(sessionId))
+  const toolList: ChatTool[] = [
+    ...concivTools(makeToolCtx('')).map((tool) => ({name: tool.name, description: tool.description})),
+    ...mounted.flatMap((entry) =>
+      entry.tools.map((tool) => ({name: tool.name, description: tool.description, extension: entry.extensionName})),
+    ),
+  ]
+  registerToolsRoute(app, toolList)
   if (opts.bridge) registerServerRoutes(app, opts.bridge)
   return {app, disposers}
 }

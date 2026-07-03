@@ -111,9 +111,9 @@ The existing stub `Composer.TriggerPopover`, `TriggerItem {id, label, insert}` i
 
 Scope context (their `useTriggerPopoverScopeContext`) is exported as `useTriggerPopoverScope()` for the styled layer: `{open, query, categories, items, activeCategoryId, isSearchMode, isLoading, highlightedIndex, highlightedItemId, popoverId, selectItem, selectCategory, goBack, close, highlightIndex, handleKeyDown, setCursorPosition, registerSelectItemOverride}`.
 
-### Model (`src/primitives/composer/trigger/trigger-popover-model.ts`)
+### Model (`src/primitives/composer/trigger/`)
 
-One `createTriggerPopoverModel({char, adapter, behavior, text, setText, popoverId})` context model replaces their four tap-resources; per the views-over-context rule, all logic lives here, components stay thin.
+Four resource files mirror assistant-ui's decomposition exactly — `trigger-detection-resource.ts`, `trigger-navigation-resource.ts`, `trigger-keyboard-resource.ts`, `trigger-selection-resource.ts` — composed by a thin `createTriggerPopoverModel({char, adapter, behavior, isLoading, popoverId, text, setText})` in `trigger-popover-model.ts` (their `TriggerPopoverResource.ts`). Same unit boundaries, same responsibilities; hooks swapped for signals/memos/effects. The node vitest project resolves solid's client build (`ssr.resolve.conditions` + `server.deps.inline: ['solid-js']`) so the ported reactive code stays verbatim and unit-testable. One intentional divergence: selection sets the logical cursor past the inserted directive (no React-style synthetic `onSelect` fires after programmatic value changes, so upstream's implicit resync doesn't exist here).
 
 - **Detection**: `cursorPosition` signal; `detectTrigger(text, char, cursor)` pure function ported verbatim (backwards scan from cursor, abort on whitespace, trigger must be at text start or after whitespace) → memo `{offset, query} | null`.
 - **Navigation**: `activeCategoryId` signal, memos for `categories`, `categoryItems`, `searchResults` (search mode when a query is typed at top level, or always when the adapter has no categories; fallback search filters all `categoryItems` on id/label/description when the adapter lacks `search`), `navigableList`, `isSearchMode`. Category resets when the popover closes.

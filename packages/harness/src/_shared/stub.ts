@@ -4,7 +4,7 @@ import type {StreamChunk} from '@tanstack/ai'
 export function defineStubHarness(o: {
   id: string
   binName: string
-  capabilities: HarnessCapabilities & {transcriptHistory: false; compaction: false}
+  capabilities: HarnessCapabilities & {transcriptHistory: false; compaction: false; slashCommands: 'none'}
 }): HarnessAdapter {
   const notImplemented = (): never => {
     throw new Error(`${o.id} harness not implemented`)

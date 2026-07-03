@@ -10,6 +10,7 @@ export const opencode = defineStubHarness({
     compaction: false,
     systemPrompt: 'flag',
     mcp: 'none',
+    slashCommands: 'none',
     imageInput: false,
   },
 })

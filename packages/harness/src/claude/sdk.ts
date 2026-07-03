@@ -1,6 +1,19 @@
-import {query, type Query, type SDKMessage, type SDKUserMessage, type Options} from '@anthropic-ai/claude-agent-sdk'
+import {
+  query,
+  type Query,
+  type SDKMessage,
+  type SDKUserMessage,
+  type SlashCommand,
+  type Options,
+} from '@anthropic-ai/claude-agent-sdk'
 import type {StreamChunk} from '@tanstack/ai'
-import type {HarnessRun, HarnessRunContext, HarnessTurn} from '@conciv/protocol/harness-types'
+import type {
+  HarnessCommand,
+  HarnessCommandsContext,
+  HarnessRun,
+  HarnessRunContext,
+  HarnessTurn,
+} from '@conciv/protocol/harness-types'
 import {imageRefs, mcpServerConfig} from './args.js'
 import {claudeMessagesToAgui} from './decode.js'
 import {CONCIV_PLUGIN_DIR} from './plugin-dir.js'
@@ -148,9 +161,54 @@ async function* turnMessages(ws: WarmSession): AsyncGenerator<SDKMessage> {
       evict(ws.id)
       return
     }
+    if (res.value.type === 'system' && res.value.subtype === 'commands_changed')
+      commandsByCwd.set(ws.cwd, res.value.commands.map(toHarnessCommand))
     yield res.value
     if (res.value.type === 'result') return
   }
+}
+
+const commandsByCwd = new Map<string, HarnessCommand[]>()
+
+function toHarnessCommand(command: SlashCommand): HarnessCommand {
+  return {
+    name: command.name,
+    description: command.description,
+    ...(command.argumentHint ? {argumentHint: command.argumentHint} : {}),
+  }
+}
+
+export function __commandsCacheSet(cwd: string, commands: HarnessCommand[]): void {
+  commandsByCwd.set(cwd, commands)
+}
+
+async function probeCommands(ctx: HarnessCommandsContext): Promise<SlashCommand[]> {
+  const input = makeInputQueue()
+  const options: Options = {cwd: ctx.cwd, permissionMode: 'acceptEdits'}
+  if (ctx.mcpUrl) options.mcpServers = mcpServerConfig(ctx.mcpUrl, ctx.sessionId)
+  if (CONCIV_PLUGIN_DIR) options.plugins = [{type: 'local', path: CONCIV_PLUGIN_DIR}]
+  const probe = query({prompt: input.stream, options})
+  try {
+    return await probe.supportedCommands()
+  } finally {
+    input.end()
+    void probe.interrupt().catch(() => {})
+  }
+}
+
+export async function claudeSdkCommands(ctx: HarnessCommandsContext): Promise<HarnessCommand[]> {
+  const warm = ctx.sessionId ? sessions.get(ctx.sessionId) : undefined
+  const usable = warm && warm.cwd === ctx.cwd ? warm : undefined
+  if (usable) {
+    const commands = (await usable.query.supportedCommands()).map(toHarnessCommand)
+    commandsByCwd.set(ctx.cwd, commands)
+    return commands
+  }
+  const cached = commandsByCwd.get(ctx.cwd)
+  if (cached) return cached
+  const commands = (await probeCommands(ctx)).map(toHarnessCommand)
+  commandsByCwd.set(ctx.cwd, commands)
+  return commands
 }
 
 export const claudeSdkRun: HarnessRun = async function* (turn, ctx): AsyncGenerator<StreamChunk> {

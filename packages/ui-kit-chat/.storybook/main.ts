@@ -7,7 +7,9 @@ const config: StorybookConfig = {
 
   async viteFinal(storybookViteConfig) {
     const {mergeConfig} = await import('vite')
+    const {default: UnoCSS} = await import('unocss/vite')
     return mergeConfig(storybookViteConfig, {
+      plugins: [UnoCSS()],
       resolve: {dedupe: ['solid-js', 'solid-js/web', '@ark-ui/solid']},
       optimizeDeps: {
         include: ['@tanstack/ai-solid', '@tanstack/ai-client', '@tanstack/solid-virtual', 'lucide-solid'],

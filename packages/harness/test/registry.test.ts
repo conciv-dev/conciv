@@ -13,6 +13,7 @@ function stub(id: string): HarnessAdapter {
       compaction: false,
       systemPrompt: 'none',
       mcp: 'none',
+      slashCommands: 'none',
       imageInput: false,
     },
     buildArgs: () => [],

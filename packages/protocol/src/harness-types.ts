@@ -11,6 +11,8 @@ export type HarnessCapabilities = {
   systemPrompt: 'file' | 'flag' | 'none'
   mcp: 'http' | 'stdio' | 'none'
 
+  slashCommands: 'live' | 'files' | 'none'
+
   imageInput: 'native' | 'fileRef' | false
 }
 
@@ -19,6 +21,12 @@ export type HarnessImage = {mediaType: string; dataBase64: string}
 export type HarnessModel = {id: string; name: string; description?: string; group?: string; disabled?: boolean}
 
 export type HarnessModels = HarnessModel[] | (() => HarnessModel[] | Promise<HarnessModel[]>)
+
+export type HarnessCommand = {name: string; description?: string; argumentHint?: string}
+
+export type HarnessCommandsContext = {cwd: string; sessionId?: string; mcpUrl?: string}
+
+export type HarnessCommands = (ctx: HarnessCommandsContext) => Promise<HarnessCommand[]>
 
 export type HarnessTurn = {
   prompt: string
@@ -127,6 +135,10 @@ export type HarnessAdapter = HarnessAdapterBase &
   (
     | {capabilities: HarnessCapabilities & {compaction: true}; buildCompactArgs: HarnessArgsBuilder}
     | {capabilities: HarnessCapabilities & {compaction: false}; buildCompactArgs?: undefined}
+  ) &
+  (
+    | {capabilities: HarnessCapabilities & {slashCommands: 'live' | 'files'}; commands: HarnessCommands}
+    | {capabilities: HarnessCapabilities & {slashCommands: 'none'}; commands?: undefined}
   )
 
 export function defineHarness<T extends HarnessAdapter>(adapter: T): T {

@@ -3,7 +3,7 @@ import {CONCIV_PLUGIN_DIR} from './plugin-dir.js'
 import {buildClaudeArgs, buildClaudeCompactArgs, claudeMcpArgs} from './args.js'
 import {claudeToAguiEvents} from './decode.js'
 import {claudeHistory} from './history.js'
-import {claudeSdkRun, claudeSdkShutdown} from './sdk.js'
+import {claudeSdkCommands, claudeSdkRun, claudeSdkShutdown} from './sdk.js'
 
 export {CHAT_SYSTEM_PROMPT} from './system-prompt.js'
 
@@ -48,10 +48,12 @@ export function makeClaudeAdapter(useSdk: boolean): HarnessAdapter {
         compaction: false,
         systemPrompt: 'flag',
         mcp: 'http',
+        slashCommands: 'live',
         imageInput: 'fileRef',
       },
       run: claudeSdkRun,
       shutdown: claudeSdkShutdown,
+      commands: claudeSdkCommands,
     })
   }
   return defineHarness({
@@ -63,6 +65,7 @@ export function makeClaudeAdapter(useSdk: boolean): HarnessAdapter {
       compaction: true,
       systemPrompt: 'file',
       mcp: 'http',
+      slashCommands: 'none',
       imageInput: 'fileRef',
     },
     buildCompactArgs: buildClaudeCompactArgs,

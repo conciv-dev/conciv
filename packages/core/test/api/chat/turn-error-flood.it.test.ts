@@ -14,6 +14,7 @@ const baseCaps = {
   compaction: false,
   systemPrompt: 'none',
   mcp: 'none',
+  slashCommands: 'none',
   imageInput: false,
 } as const
 

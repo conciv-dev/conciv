@@ -3,7 +3,14 @@ import {withoutTrailingSlash} from 'ufo'
 import {type H3, HTTPError, readValidatedBody} from 'h3'
 import {resolveHarnessModels} from '@conciv/harness'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
-import type {ChatSession, ChatModels, ChatSessions, ChatSessionMeta} from '@conciv/protocol/chat-types'
+import type {
+  ChatSession,
+  ChatModels,
+  ChatSessions,
+  ChatSessionMeta,
+  ChatCommands,
+  ChatCommand,
+} from '@conciv/protocol/chat-types'
 import {RenameSessionSchema, ResolveRequestSchema, isSessionId} from '@conciv/protocol/chat-types'
 import type {SessionStore} from '../../store/session-store.js'
 import {readLock, readLocks} from '../../store/lock.js'
@@ -167,6 +174,23 @@ export function registerSessionRoutes(app: H3, deps: SessionRouteDeps): void {
     }
   })
 
+  app.get('/api/chat/commands', async (event): Promise<ChatCommands> => {
+    const commands = deps.harness.commands
+    if (!commands) return {commands: []}
+    const sessionId = sessionIdFromHeaders(event.req.headers) ?? undefined
+    const origin = `http://${event.req.headers.get('host') ?? '127.0.0.1:3000'}`
+    const mcpUrl = deps.harness.capabilities.mcp === 'http' ? `${origin}/api/mcp` : undefined
+    const list = await commands({cwd: deps.cwd, sessionId, mcpUrl})
+    return {
+      commands: list.map((command) => ({
+        name: command.name,
+        description: command.description ?? '',
+        ...(command.argumentHint ? {argumentHint: command.argumentHint} : {}),
+        source: commandSource(command.name),
+      })),
+    }
+  })
+
   app.get('/api/chat/history', async (event) => {
     if (!deps.harness.capabilities.transcriptHistory || !deps.harness.history) return []
     const sessionId = sessionIdFromHeaders(event.req.headers)
@@ -209,4 +233,10 @@ export function registerSessionRoutes(app: H3, deps: SessionRouteDeps): void {
     if (sessionId) killLock(deps.stateRoot, sessionId)
     return {ok: true}
   })
+}
+
+function commandSource(name: string): ChatCommand['source'] {
+  if (name.startsWith('mcp__')) return 'mcp'
+  if (name.includes(':')) return 'plugin'
+  return 'harness'
 }

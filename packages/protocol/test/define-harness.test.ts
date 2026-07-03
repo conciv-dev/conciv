@@ -20,6 +20,7 @@ describe('defineHarness (generic typed factory; history↔transcriptHistory enfo
         compaction: false,
         systemPrompt: 'none',
         mcp: 'none',
+        slashCommands: 'none',
         imageInput: false,
       },
     })
@@ -38,6 +39,7 @@ describe('defineHarness (generic typed factory; history↔transcriptHistory enfo
         compaction: false,
         systemPrompt: 'none',
         mcp: 'none',
+        slashCommands: 'none',
         imageInput: false,
       },
       history: {transcriptPath: () => '/p', parse: () => []},

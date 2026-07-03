@@ -9,6 +9,7 @@ export type ComposerProps = {
   inputLabel?: string
   children?: JSX.Element
   busy?: JSX.Element
+  popover?: JSX.Element
   inputRef?: (element: HTMLTextAreaElement) => void
 }
 
@@ -37,7 +38,8 @@ function TrailingControls(): JSX.Element {
 
 export function Composer(props: ComposerProps): JSX.Element {
   return (
-    <ComposerPrimitive.Root class="flex flex-col gap-1.5">
+    <ComposerPrimitive.Root class="flex flex-col gap-1.5 relative">
+      {props.popover}
       <div class="flex flex-wrap gap-1 empty:hidden">
         <ComposerPrimitive.Attachments />
       </div>

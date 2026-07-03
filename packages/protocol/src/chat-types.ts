@@ -108,6 +108,25 @@ export const ChatModelsSchema = z.object({
 export type HarnessModelInfo = z.infer<typeof HarnessModelSchema>
 export type ChatModels = z.infer<typeof ChatModelsSchema>
 
+export const ChatCommandSchema = z.object({
+  name: z.string(),
+  description: z.string(),
+  argumentHint: z.string().optional(),
+  source: z.enum(['harness', 'mcp', 'plugin']),
+})
+export const ChatCommandsSchema = z.object({commands: z.array(ChatCommandSchema)})
+export type ChatCommand = z.infer<typeof ChatCommandSchema>
+export type ChatCommands = z.infer<typeof ChatCommandsSchema>
+
+export const ChatToolSchema = z.object({
+  name: z.string(),
+  description: z.string(),
+  extension: z.string().optional(),
+})
+export const ChatToolsSchema = z.object({tools: z.array(ChatToolSchema)})
+export type ChatTool = z.infer<typeof ChatToolSchema>
+export type ChatTools = z.infer<typeof ChatToolsSchema>
+
 export const ChatHistorySchema = z.array(z.custom<UIMessage>((v) => v !== null && typeof v === 'object'))
 export type ChatHistory = z.infer<typeof ChatHistorySchema>
 

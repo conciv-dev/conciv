@@ -39,7 +39,14 @@ function CopySwap(): JSX.Element {
 
 export function AssistantActionBar(): JSX.Element {
   return (
-    <ActionBar.Root hideWhenRunning autohide="not-last" class="flex gap-0.5 anim-presence-in">
+    <ActionBar.Root
+      hideWhenRunning
+      autohide="not-last"
+      autohideFloat="always"
+      role="toolbar"
+      aria-label="Message actions"
+      class="flex gap-0.5 anim-presence-in data-[floating=true]:bottom-0 data-[floating=true]:left-0 data-[floating=true]:absolute"
+    >
       <ActionBar.Copy
         render={(props) => (
           <TooltipIconButton {...props} tooltip="Copy" class="size-9">
@@ -68,7 +75,14 @@ export function AssistantActionBar(): JSX.Element {
 
 export function UserActionBar(): JSX.Element {
   return (
-    <ActionBar.Root hideWhenRunning autohide="not-last" class="flex flex-col items-end anim-presence-in">
+    <ActionBar.Root
+      hideWhenRunning
+      autohide="not-last"
+      autohideFloat="always"
+      role="toolbar"
+      aria-label="Message actions"
+      class="flex flex-col items-end anim-presence-in data-[floating=true]:bottom-0 data-[floating=true]:right-0 data-[floating=true]:absolute"
+    >
       <ActionBar.Edit
         render={(props) => (
           <TooltipIconButton {...props} tooltip="Edit" class="size-9">

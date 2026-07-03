@@ -58,8 +58,28 @@ export {
   ComposerHandlersProvider,
   useComposerHandlers,
   type ComposerHandlers,
-  type TriggerItem,
 } from './primitives/composer/composer-handlers.js'
+export {
+  useTriggerPopoverScope,
+  useTriggerPopoverRootOptional,
+  useTriggerBehaviorRegistration,
+  type RegisteredTrigger,
+  type TriggerBehaviorRegistration,
+} from './primitives/composer/trigger/trigger-popover.js'
+export type {TriggerPopoverScope} from './primitives/composer/trigger/trigger-popover-model.js'
+export type {DetectedTrigger} from './primitives/composer/trigger/trigger-detection-resource.js'
+export {defaultDirectiveFormatter} from './primitives/composer/trigger/directive-formatter.js'
+export {detectTrigger} from './primitives/composer/trigger/detect-trigger.js'
+export type {
+  TriggerItem,
+  TriggerCategory,
+  TriggerAdapter,
+  DirectiveFormatter,
+  DirectiveSegment,
+  TriggerBehavior,
+  TriggerKeyEvent,
+  SelectItemOverride,
+} from './primitives/composer/trigger/types.js'
 export {ActionBar as ActionBarPrimitive, useCopied} from './primitives/action-bar/action-bar.js'
 export {
   ActionHandlersProvider,
@@ -110,6 +130,22 @@ export {
   type SelectionInfo,
 } from './primitives/selection-toolbar/selection-toolbar.js'
 
+export {
+  createSlashCommandAdapter,
+  type SlashCommand,
+  type SlashCommandAction,
+  type SlashCommandAdapterOptions,
+} from './behaviors/create-slash-command-adapter.js'
+export {
+  createMentionAdapter,
+  type Mention,
+  type MentionCategory,
+  type MentionAdapterOptions,
+  type MentionDirective,
+  type ModelContextTool,
+  type ModelContextToolsOptions,
+  type IconComponent,
+} from './behaviors/create-mention-adapter.js'
 export {useThreadAutoScroll} from './behaviors/use-thread-auto-scroll.js'
 export {useTopAnchorReserve} from './behaviors/use-top-anchor-reserve.js'
 export {useScrollLock} from './behaviors/use-scroll-lock.js'
