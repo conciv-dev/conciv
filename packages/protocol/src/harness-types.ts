@@ -1,6 +1,7 @@
 import type {Readable, Writable} from 'node:stream'
 import type {StreamChunk, UIMessage} from '@tanstack/ai'
 import type {UsageSnapshot} from './usage-types.js'
+import type {TtyCommand, TtyCommandOpts} from './terminal-types.js'
 
 export type HarnessCapabilities = {
   resume: boolean
@@ -125,6 +126,9 @@ type HarnessAdapterBase = {
 
   models?: HarnessModels
   defaultModel?: string
+
+  tty?: {command(opts: TtyCommandOpts): TtyCommand}
+  release?: (sessionId: string) => void
 }
 
 export type HarnessAdapter = HarnessAdapterBase &
