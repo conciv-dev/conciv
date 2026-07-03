@@ -123,6 +123,8 @@ export {
   type SelectionInfo,
 } from './primitives/selection-toolbar/selection-toolbar.js'
 
+export {createSlashCommandAdapter, type SlashCommandDef} from './behaviors/create-slash-command-adapter.js'
+export {createMentionAdapter, type MentionCategorySource} from './behaviors/create-mention-adapter.js'
 export {useThreadAutoScroll} from './behaviors/use-thread-auto-scroll.js'
 export {useTopAnchorReserve} from './behaviors/use-top-anchor-reserve.js'
 export {useScrollLock} from './behaviors/use-scroll-lock.js'
