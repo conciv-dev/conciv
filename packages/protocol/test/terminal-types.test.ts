@@ -1,13 +1,7 @@
 import {describe, expect, it} from 'vitest'
-import {SessionModeSchema, TtyClientControlSchema, TtyServerControlSchema} from '../src/terminal-types.js'
+import {TtyClientControlSchema, TtyServerControlSchema} from '../src/terminal-types.js'
 
 describe('terminal types', () => {
-  it('parses session modes', () => {
-    expect(SessionModeSchema.parse('chat')).toBe('chat')
-    expect(SessionModeSchema.parse('terminal')).toBe('terminal')
-    expect(SessionModeSchema.safeParse('tty').success).toBe(false)
-  })
-
   it('parses client control frames', () => {
     expect(TtyClientControlSchema.parse({type: 'resize', cols: 120, rows: 32})).toEqual({
       type: 'resize',

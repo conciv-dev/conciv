@@ -13,7 +13,7 @@ export type ExtensionSlot = 'header' | 'footer' | 'composer' | 'empty' | 'status
 
 export type ExtensionView = {id: string; label: string; icon?: Component<{class?: string}>; Component: Component}
 
-export type ExtensionViewHost = {setLocked(locked: boolean): void}
+export type ExtensionViewHost = {setLocked(locked: boolean): void; leave(): void}
 
 export type ComposerActions = {
   insert: (text: string) => void

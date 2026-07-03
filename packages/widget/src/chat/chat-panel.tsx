@@ -437,7 +437,7 @@ export function ChatPanel(props: {
     client,
     requestMeta,
     grab,
-    view: {setLocked: () => {}},
+    view: {setLocked: () => {}, leave: () => {}},
   }
 
   const renderActiveView = (): JSX.Element => {
@@ -446,7 +446,7 @@ export function ChatPanel(props: {
     return (
       <MountedView
         view={view}
-        hostContext={{...hostBag, view: {setLocked: setLockedFor(view.id)}}}
+        hostContext={{...hostBag, view: {setLocked: setLockedFor(view.id), leave: () => switchView('chat')}}}
         clientValue={view.instance.clientValue}
       />
     )

@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [solid()],
   resolve: {conditions: ['browser', 'development']},
   test: {
+    environment: 'node',
     maxWorkers: Number(process.env.VITEST_MAX_WORKERS ?? 3),
     include: ['test/**/*.test.tsx'],
     browser: {

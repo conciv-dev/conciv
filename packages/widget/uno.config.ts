@@ -10,6 +10,7 @@ export default defineConfig({
       '../ui-kit-system/src/**/*.{ts,tsx}',
       '../ui-kit-terminal/src/**/*.{ts,tsx}',
       '../ui-kit-tap/src/**/*.{ts,tsx}',
+      '../extensions/terminal/src/**/*.{ts,tsx}',
       '../extensions/whiteboard/src/**/*.{ts,tsx}',
     ],
   },
