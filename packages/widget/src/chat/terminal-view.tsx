@@ -1,7 +1,6 @@
 import {createEffect, type JSX} from 'solid-js'
 import {Terminal, createTerminalModel, type TerminalTheme} from '@conciv/ui-kit-terminal'
 import type {SessionClient} from '@conciv/api-client'
-import {ExtensionSurface, type ExtensionHostBag, type ExtensionInstance} from '../extension/extension-slots.js'
 
 const DEFAULT_COLS = 120
 const DEFAULT_ROWS = 32
@@ -19,8 +18,6 @@ function readTerminalTheme(element: Element): TerminalTheme {
 
 export function TerminalView(props: {
   client: SessionClient
-  instances: ExtensionInstance[]
-  bag: ExtensionHostBag
   onBusyChange: (busy: boolean) => void
   onBackToChat: () => void
 }): JSX.Element {
@@ -32,7 +29,6 @@ export function TerminalView(props: {
   createEffect(() => props.onBusyChange(model.busy()))
   return (
     <div ref={host} class="flex flex-col flex-1 min-h-0 anim-msg">
-      <ExtensionSurface name="terminal-header" instances={props.instances} bag={props.bag} />
       <Terminal model={model} onBackToChat={props.onBackToChat} class="flex-1 min-h-0" />
     </div>
   )

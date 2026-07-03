@@ -1,5 +1,6 @@
 import {createMemo, createEffect, createSignal, For, onCleanup, Show, type JSX} from 'solid-js'
-import {Progress} from '@conciv/ui-kit-system'
+import {Dynamic} from 'solid-js/web'
+import {Progress, Tabs} from '@conciv/ui-kit-system'
 import {useChat, fetchServerSentEvents, createChatClientOptions} from '@tanstack/ai-solid'
 import type {MessagePart, ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import {
@@ -21,8 +22,6 @@ import {invalidateSessions} from '../client/session-store-client.js'
 import {createDebouncer} from '@tanstack/solid-pacer'
 import {GenUi} from './gen-ui.js'
 import {ToolFallbackCard} from './tool-fallback-card.js'
-import {ModeToggle} from './mode-toggle.js'
-import {TerminalView} from './terminal-view.js'
 import type {PendingApproval} from '../shell/approval-modal.js'
 import {SquarePen, FoldVertical} from 'lucide-solid'
 import {EventType, type StreamChunk} from '@tanstack/ai'
@@ -35,11 +34,12 @@ import {
   type UsageSnapshot,
 } from '@conciv/protocol/usage-types'
 import type {ToolViewCtx, ToolCardEntry} from '@conciv/protocol/tool-view-types'
-import type {SessionMode} from '@conciv/protocol/terminal-types'
 import type {ComposerActionDef, ComposerControlDef, PanelDef} from '../shell/widget-shell.js'
 import {GrabReference} from '../page/react-grab/grab-reference.js'
 import type {Grab, GrabApi} from '@conciv/grab'
 import {ExtensionSurface, type ExtensionHostBag, type ExtensionInstance} from '../extension/extension-slots.js'
+import {collectViews} from '../extension/extension-views.js'
+import {MountedView} from '@conciv/extension/client'
 import {EmptyStateSlot} from '../shell/empty-state.js'
 import {grabApi} from '../page/grab-api.js'
 
@@ -306,6 +306,7 @@ export function ChatPanel(props: {
       focusInput()
       return
     }
+    setActiveView('chat')
     void loadSession(id).then(focusInput)
   })
 
@@ -380,42 +381,22 @@ export function ChatPanel(props: {
 
   const [notice, setNotice] = createSignal('')
 
-  const [mode, setMode] = createSignal<SessionMode>('chat')
-  const [terminalBusy, setTerminalBusy] = createSignal(false)
-  const [switchingMode, setSwitchingMode] = createSignal(false)
-  const modeBusy = () => isThinking() || isStreaming() || terminalBusy() || switchingMode()
+  const views = createMemo(() => collectViews(props.instances))
+  const [activeView, setActiveView] = createSignal('chat')
+  const [viewLocks, setViewLocks] = createSignal<Record<string, boolean>>({})
+  const setLockedFor = (id: string) => (locked: boolean) => setViewLocks((prev) => ({...prev, [id]: locked}))
+  const viewLocked = () => activeView() !== 'chat' && Boolean(viewLocks()[activeView()])
+  const leaveGuard = () => isThinking() || isStreaming() || viewLocked()
+  const currentView = () => views().find((view) => view.id === activeView())
 
-  createEffect(() => {
-    const id = client.sessionId()
-    if (!id) return
-    void client
-      .mode()
-      .then((current) => setMode(current.mode))
-      .catch(() => setMode('chat'))
-  })
-
-  const switchMode = async (next: SessionMode) => {
-    if (switchingMode() || next === mode()) return
-    setSwitchingMode(true)
-    try {
-      await client.setMode({mode: next})
-      setMode(next)
-      setNotice('')
-      if (next === 'chat') await loadSession(client.sessionId())
-      props.announce?.(next === 'terminal' ? 'Terminal mode' : 'Chat mode')
-    } catch (error) {
-      const status = (error as {status?: number}).status
-      setNotice(
-        status === 409
-          ? 'Session is busy — wait for the current turn to finish.'
-          : status === 400
-            ? 'This harness has no terminal mode.'
-            : 'Couldn’t switch modes. Try again.',
-      )
-    } finally {
-      setSwitchingMode(false)
-    }
+  const switchView = (next: string) => {
+    if (next === activeView()) return
+    setActiveView(next)
+    const view = views().find((candidate) => candidate.id === next)
+    props.announce?.(view ? view.label : 'Chat')
+    if (next === 'chat') void loadSession(client.sessionId())
   }
+
   let noticeTimer: ReturnType<typeof setTimeout> | undefined
   const notify = (message: string) => {
     setNotice(message)
@@ -456,6 +437,19 @@ export function ChatPanel(props: {
     client,
     requestMeta,
     grab,
+    view: {setLocked: () => {}},
+  }
+
+  const renderActiveView = (): JSX.Element => {
+    const view = currentView()
+    if (!view) return null
+    return (
+      <MountedView
+        view={view}
+        hostContext={{...hostBag, view: {setLocked: setLockedFor(view.id)}}}
+        clientValue={view.instance.clientValue}
+      />
+    )
   }
 
   const renderDivider = (divider: {id: number; kind: 'new' | 'compact'}): JSX.Element => (
@@ -474,21 +468,25 @@ export function ChatPanel(props: {
             <ExtensionSurface name="header" instances={props.instances} bag={hostBag} />
             <ExtensionSurface name="widget" instances={props.instances} bag={hostBag} />
             <div class="flex flex-1 flex-col min-h-0">
-              <div class="flex items-center justify-end px-2.5 pt-1.5">
-                <ModeToggle mode={mode()} busy={modeBusy()} onChange={(next) => void switchMode(next)} />
-              </div>
-              <Show
-                when={mode() === 'chat'}
-                fallback={
-                  <TerminalView
-                    client={client}
-                    instances={props.instances}
-                    bag={hostBag}
-                    onBusyChange={setTerminalBusy}
-                    onBackToChat={() => void switchMode('chat')}
-                  />
-                }
-              >
+              <Show when={views().length > 0}>
+                <Tabs.Root value={activeView()} onValueChange={(details) => switchView(details.value)} class="px-2.5">
+                  <Tabs.List>
+                    <Tabs.Trigger value="chat" disabled={leaveGuard()}>
+                      Chat
+                    </Tabs.Trigger>
+                    <For each={views()}>
+                      {(view) => (
+                        <Tabs.Trigger value={view.id} disabled={leaveGuard()}>
+                          <Show when={view.icon}>{(icon) => <Dynamic component={icon()} class="size-3.5" />}</Show>
+                          {view.label}
+                        </Tabs.Trigger>
+                      )}
+                    </For>
+                    <Tabs.Indicator />
+                  </Tabs.List>
+                </Tabs.Root>
+              </Show>
+              <Show when={!currentView()} fallback={renderActiveView()}>
                 <Thread
                   tools={props.tools?.()}
                   components={{ToolFallback: ToolFallbackCard}}

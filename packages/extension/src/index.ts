@@ -22,6 +22,8 @@ export type {
   ExtensionServerTool,
   ExtensionSlot,
   ExtensionTool,
+  ExtensionView,
+  ExtensionViewHost,
   RequiredContext,
   ServerApi,
   ServerResult,

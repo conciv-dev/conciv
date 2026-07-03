@@ -42,6 +42,7 @@ export const motion = {
   'trans-send': '[transition:transform_100ms_var(--pw-ease),background-color_120ms_var(--pw-ease)]',
   'trans-btn':
     '[transition:transform_100ms_var(--pw-ease),background-color_120ms_var(--pw-ease),border-color_120ms_var(--pw-ease),color_120ms_var(--pw-ease)]',
+  'trans-indicator': '[transition:left_240ms_var(--pw-ease-expo),width_240ms_var(--pw-ease-expo)]',
   'trans-lift': '[transition:transform_140ms_var(--pw-ease),box-shadow_140ms_var(--pw-ease)]',
   'trans-tf150': '[transition:transform_150ms_var(--pw-ease)]',
   'trans-tf160': '[transition:transform_160ms_var(--pw-ease)]',

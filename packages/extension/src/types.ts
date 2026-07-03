@@ -8,7 +8,11 @@ import type {GrabApi} from '@conciv/grab'
 import type {LocateResult} from '@conciv/protocol/page-introspect-types'
 import type {OpenSourceResult} from '@conciv/protocol/page-types'
 
-export type ExtensionSlot = 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget' | 'terminal-header'
+export type ExtensionSlot = 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget'
+
+export type ExtensionView = {id: string; label: string; icon?: Component<{class?: string}>; Component: Component}
+
+export type ExtensionViewHost = {setLocked(locked: boolean): void}
 
 export type ComposerActions = {
   insert: (text: string) => void
@@ -26,6 +30,7 @@ export type ExtensionHostContext = ToolViewCtx &
     requestMeta: () => RequestMeta
     grab: GrabApi
     currentSlot: ExtensionSlot
+    view: ExtensionViewHost
   }
 
 export type ToolRequest = {sessionId: string; model: string | null}
