@@ -134,6 +134,7 @@ export function FeaturesSection() {
           splitType="words"
           duration={0.7}
           delay={40}
+          textAlign="left"
           from={{opacity: 0, y: 22}}
           to={{opacity: 1, y: 0}}
           className="od-display mb-2 text-[clamp(28px,3.4vw,40px)] font-bold tracking-[-0.025em]"

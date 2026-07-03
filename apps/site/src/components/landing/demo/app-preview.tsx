@@ -9,10 +9,10 @@ export function AppPreview({picking, onPick}: {picking: boolean; onPick: (id: st
 
       <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
         <Pickable id="heading" picking={picking} onPick={onPick}>
-          <h3 className="od-display text-xl">Welcome back</h3>
+          <span className="od-display block text-xl">Welcome back</span>
         </Pickable>
         <Pickable id="sub" picking={picking} onPick={onPick}>
-          <p className="text-[12.5px] text-muted-foreground">Sign in to continue</p>
+          <span className="block text-[12.5px] text-muted-foreground">Sign in to continue</span>
         </Pickable>
         <Pickable id="cta" picking={picking} onPick={onPick}>
           <button type="button" className="od-cta" tabIndex={-1}>

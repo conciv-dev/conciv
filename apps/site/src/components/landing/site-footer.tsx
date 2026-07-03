@@ -21,9 +21,9 @@ const INSTALL = [
 function Column({title, links}: {title: string; links: {label: string; href: string}[]}) {
   return (
     <div>
-      <h5 className="mb-3.5 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-[oklch(0.68_0.012_70)]">
+      <p className="mb-3.5 font-mono text-[11px] font-semibold uppercase tracking-[0.14em] text-[oklch(0.68_0.012_70)]">
         {title}
-      </h5>
+      </p>
       {links.map((link) => (
         <a
           key={link.label}

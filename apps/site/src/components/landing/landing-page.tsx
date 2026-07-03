@@ -15,10 +15,12 @@ export function LandingPage() {
         <ClickSpark sparkColor="var(--od-accent)" sparkRadius={18} sparkCount={6} duration={420}>
           <div className="od-page min-h-screen">
             <SiteNav />
-            <Hero />
-            <BundlerBand />
-            <FeaturesSection />
-            <HowItWorks />
+            <main>
+              <Hero />
+              <BundlerBand />
+              <FeaturesSection />
+              <HowItWorks />
+            </main>
             <SiteFooter />
           </div>
         </ClickSpark>

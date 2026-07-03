@@ -54,6 +54,7 @@ export function Composer({
             onClick={onSend}
             size="icon"
             variant="default"
+            aria-label="Send"
             className="ml-auto bg-foreground text-background"
           >
             <ArrowUp className="size-4" />

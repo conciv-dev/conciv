@@ -19,9 +19,9 @@ export const PICKABLES: Record<string, Pickable> = {
     where: 'HomePage at routes/index.tsx:12:5',
     scenarios: [
       {
-        prompt: 'make the heading bigger and use our brand color',
+        prompt: 'make the heading bigger and red',
         inspect: 'h3 · "Welcome back"',
-        patchDetail: 'font-size 20 → 30 · color → brand',
+        patchDetail: 'font-size 20 → 30 · color → red',
         apply: {fontSize: 30, color: 'var(--od-accent)'},
       },
       {
@@ -44,9 +44,9 @@ export const PICKABLES: Record<string, Pickable> = {
         apply: {fontStyle: 'italic', opacity: 0.7},
       },
       {
-        prompt: 'tint the subtitle with the brand color',
+        prompt: 'make the subtitle red',
         inspect: 'p.sub',
-        patchDetail: 'color → brand',
+        patchDetail: 'color → red',
         apply: {color: 'var(--od-accent)'},
       },
     ],
@@ -70,10 +70,10 @@ export const PICKABLES: Record<string, Pickable> = {
         },
       },
       {
-        prompt: 'round the button fully and give it a soft glow',
+        prompt: 'change the text to "Let\'s go" and make it bold',
         inspect: 'button.cta',
-        patchDetail: 'radius → 999px · shadow → glow',
-        apply: {borderRadius: 999, boxShadow: '0 0 0 5px var(--od-accent-soft)'},
+        patchDetail: 'text → "Let\'s go" · weight → 700',
+        apply: {fontWeight: 700},
       },
     ],
   },

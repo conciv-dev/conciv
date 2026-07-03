@@ -14,7 +14,7 @@ export function SiteNav() {
       <a
         href="#how"
         onClick={smoothAnchor('#how')}
-        className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+        className="whitespace-nowrap text-sm font-medium text-muted-foreground transition-colors hover:text-foreground max-sm:hidden"
       >
         How it works
       </a>

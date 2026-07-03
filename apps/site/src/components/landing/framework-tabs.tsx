@@ -10,23 +10,44 @@ import {MAGIC_MOVE_STEP_IDS, MAGIC_MOVE_STEPS, SNIPPET_TWOSLASH, type SnippetHov
 
 type Anchor = {left: number; top: number; width: number; height: number; hover?: SnippetHover; caret?: boolean}
 
+const JOINED = /[\w$@]/
+
+function targetRects(items: HTMLElement[], target: string): DOMRect[] {
+  return items.flatMap((el) => {
+    const text = el.textContent ?? ''
+    const index = text.indexOf(target)
+    if (index === -1) return []
+    const before = text[index - 1]
+    const after = text[index + target.length]
+    if ((before && JOINED.test(before)) || (after && JOINED.test(after))) return []
+    const node = el.firstChild
+    if (node?.nodeType !== Node.TEXT_NODE || index + target.length > (node.textContent?.length ?? 0)) {
+      return [el.getBoundingClientRect()]
+    }
+    const range = document.createRange()
+    range.setStart(node, index)
+    range.setEnd(node, index + target.length)
+    return [range.getBoundingClientRect()]
+  })
+}
+
 function measureAnchors(container: HTMLElement, snippetId: string): Anchor[] {
   const info = SNIPPET_TWOSLASH.find((entry) => entry.id === snippetId)
   if (!info) return []
   const base = container.getBoundingClientRect()
   const items = [...container.querySelectorAll<HTMLElement>('.shiki-magic-move-item')]
-  const nth = (target: string, occurrence: number) =>
-    items.filter((el) => el.textContent?.trim() === target)[occurrence]
-  const toBox = (el: HTMLElement) => {
-    const rect = el.getBoundingClientRect()
-    return {left: rect.left - base.left, top: rect.top - base.top, width: rect.width, height: rect.height}
-  }
-  const hovers = info.hovers.flatMap((hover) => {
-    const el = nth(hover.target, hover.occurrence)
-    return el ? [{...toBox(el), hover}] : []
+  const toBox = (rect: DOMRect) => ({
+    left: rect.left - base.left,
+    top: rect.top - base.top,
+    width: rect.width,
+    height: rect.height,
   })
-  const caretEl = info.completion ? nth(info.completion.target, 0) : undefined
-  const caret = caretEl ? [{...toBox(caretEl), caret: true}] : []
+  const hovers = info.hovers.flatMap((hover) => {
+    const rect = targetRects(items, hover.target)[hover.occurrence]
+    return rect ? [{...toBox(rect), hover}] : []
+  })
+  const caretRect = info.completion ? targetRects(items, info.completion.target)[0] : undefined
+  const caret = caretRect ? [{...toBox(caretRect), caret: true}] : []
   return [...hovers, ...caret]
 }
 
@@ -59,15 +80,37 @@ function Root({snippets, children}: {snippets: FrameworkSnippet[]; children: Rea
 
 function List() {
   const {snippets} = useFrameworkTabs()
+  const [clipped, setClipped] = useState(false)
+  const observerRef = useRef<ResizeObserver | null>(null)
+
+  const attach = useCallback((el: HTMLDivElement | null) => {
+    observerRef.current?.disconnect()
+    observerRef.current = null
+    if (!el) return
+    const measure = () => setClipped(el.scrollWidth > el.clientWidth + 1)
+    observerRef.current = new ResizeObserver(measure)
+    observerRef.current.observe(el)
+    measure()
+  }, [])
+
   return (
-    <TabsPrimitive.List
-      aria-label="Frameworks"
-      className="mb-2.5 flex w-fit max-w-full gap-0.5 overflow-x-auto rounded-[10px] border bg-card p-[3px]"
-    >
-      {snippets.map((snippet) => (
-        <Trigger key={snippet.id} snippet={snippet} />
-      ))}
-    </TabsPrimitive.List>
+    <div className="relative mb-2.5 w-fit max-w-full">
+      <TabsPrimitive.List
+        ref={attach}
+        aria-label="Frameworks"
+        className="flex w-fit max-w-full gap-0.5 overflow-x-auto rounded-[10px] border bg-card p-[3px]"
+      >
+        {snippets.map((snippet) => (
+          <Trigger key={snippet.id} snippet={snippet} />
+        ))}
+      </TabsPrimitive.List>
+      {clipped && (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-y-[3px] right-[3px] w-8 rounded-r-[8px] bg-gradient-to-l from-card to-transparent"
+        />
+      )}
+    </div>
   )
 }
 

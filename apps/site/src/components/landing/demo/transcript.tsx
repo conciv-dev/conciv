@@ -5,9 +5,11 @@ import type {Message} from './demo-data'
 
 export function Transcript({
   messages,
+  hint,
   viewportRef,
 }: {
   messages: Message[]
+  hint: boolean
   viewportRef: RefObject<HTMLDivElement | null>
 }) {
   return (
@@ -16,6 +18,11 @@ export function Transcript({
         {messages.map((message, i) => (
           <MessageRow key={i} message={message} />
         ))}
+        {hint && (
+          <div className="font-mono text-[12px] text-muted-foreground/60">
+            try: grab the <span className="text-primary/70">Get started</span> button →
+          </div>
+        )}
       </div>
     </ScrollArea>
   )

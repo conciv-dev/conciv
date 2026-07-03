@@ -242,7 +242,11 @@ export function Demo() {
 
         <div className="grid h-[460px] grid-cols-1 sm:grid-cols-2">
           <div className="flex min-h-0 flex-col border-r">
-            <Transcript messages={state.messages} viewportRef={viewportRef} />
+            <Transcript
+              messages={state.messages}
+              hint={state.messages.length === 1 && !state.grabbed && !state.picking}
+              viewportRef={viewportRef}
+            />
             <Composer
               grabbed={state.grabbed}
               picking={state.picking}

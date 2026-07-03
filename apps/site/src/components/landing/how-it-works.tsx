@@ -1,5 +1,6 @@
-import type {ReactNode} from 'react'
+import {useRef, type ReactNode} from 'react'
 import AnimatedContent from '@/components/AnimatedContent'
+import VariableProximity from '@/components/VariableProximity'
 import {RobotFab} from './robot-fab'
 import {SparkMark} from './spark-mark'
 import {FrameworkTabs} from './framework-tabs'
@@ -28,7 +29,7 @@ function Step({number, title, body, children}: {number: string; title: string; b
       >
         {number}
       </div>
-      <div>
+      <div className="min-w-0">
         <h3 className="mb-1.5 text-[17px] font-semibold tracking-[-0.01em]">{title}</h3>
         <p className="mb-3 max-w-[46ch] text-[13.5px] text-muted-foreground">{body}</p>
         {children}
@@ -38,21 +39,40 @@ function Step({number, title, body, children}: {number: string; title: string; b
 }
 
 export function HowItWorks() {
+  const railRef = useRef<HTMLDivElement>(null)
+
   return (
     <section id="how" className="mx-auto max-w-[1180px] px-8 pb-24 pt-16">
       <div className="grid items-start gap-16 md:grid-cols-[0.9fr_1.1fr]">
-        <div className="md:sticky md:top-12">
+        <div ref={railRef} className="min-w-0 md:sticky md:top-12">
           <p className="mb-2.5 font-mono text-[11px] font-semibold uppercase tracking-[0.22em] text-primary">
             How it works
           </p>
           <h2 className="od-display mb-2 text-[clamp(28px,3.4vw,40px)] font-bold tracking-[-0.025em] [text-wrap:balance]">
-            From npm to <SparkMark className="text-primary" /> in three steps
+            <VariableProximity
+              label="From npm to"
+              containerRef={railRef}
+              fromFontVariationSettings="'wght' 700, 'opsz' 40"
+              toFontVariationSettings="'wght' 800, 'opsz' 96"
+              radius={72}
+              falloff="exponential"
+            />{' '}
+            <SparkMark className="text-primary" />
+            <span className="sr-only">conciv</span>{' '}
+            <VariableProximity
+              label="in three steps"
+              containerRef={railRef}
+              fromFontVariationSettings="'wght' 700, 'opsz' 40"
+              toFontVariationSettings="'wght' 800, 'opsz' 96"
+              radius={72}
+              falloff="exponential"
+            />
           </h2>
           <p className="max-w-[52ch] text-muted-foreground">
             No SaaS, no keys to paste, no second terminal. The agent you already trust, mounted in your dev build.
           </p>
         </div>
-        <div>
+        <div className="min-w-0">
           <Step number="1" title="Install" body="One dev dependency. Nothing ships to production.">
             <Code>
               <span className="text-primary">$</span> npm i -D @conciv/it
