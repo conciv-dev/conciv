@@ -8,10 +8,11 @@ export function Hero() {
       <div>
         <Badge
           variant="outline"
-          className="mb-5 gap-2 border-primary/30 font-mono text-[11.5px] uppercase tracking-[0.12em] text-primary"
+          className="mb-4 gap-2 border-primary/30 font-mono text-[11.5px] uppercase tracking-[0.12em] text-primary"
         >
           <span className="size-1.5 rounded-full bg-primary" /> Beta · Dev-only · Open source
         </Badge>
+        <p className="mb-3 font-mono text-[13px] font-semibold uppercase tracking-[0.3em] text-primary">Conceive it.</p>
         <h1 className="od-display mb-5 text-[clamp(40px,5.2vw,62px)] font-bold leading-[1.02] tracking-[-0.03em]">
           An AI dev agent that lives inside your <span className="od-underline">running app</span>.
         </h1>
