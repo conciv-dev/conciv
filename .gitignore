@@ -25,6 +25,3 @@ storybook-static
 **/.vitest-attachments/
 
 .migration-stash/
-
-# Local Netlify folder
-.netlify

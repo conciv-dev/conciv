@@ -14,14 +14,13 @@ overrides:
 
 # Supply-chain hardening (pnpm 11). Only these deps may run install/build scripts;
 # everything else is blocked by strictDepBuilds (default on in pnpm 11).
-# Dev-only tooling (netlify-cli and its native deps) is blocked - not needed to
-# build, test, or publish, and a blocked script is one less worm entry point.
+# Dev-only tooling and its native deps are blocked - not needed to build, test,
+# or publish, and a blocked script is one less worm entry point.
 allowBuilds:
   esbuild: true
   lightningcss: true
   workerd: true
   '@parcel/watcher': false
-  netlify-cli: false
   sharp: false
   unix-dgram: false
   unrs-resolver: false
