@@ -18,7 +18,7 @@ export type LogoItem =
       height?: number
     }
 
-export interface LogoLoopProps {
+interface LogoLoopProps {
   logos: LogoItem[]
   speed?: number
   direction?: 'left' | 'right' | 'up' | 'down'
@@ -484,5 +484,3 @@ export const LogoLoop = React.memo<LogoLoopProps>(
 )
 
 LogoLoop.displayName = 'LogoLoop'
-
-export default LogoLoop

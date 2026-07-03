@@ -1,7 +1,7 @@
 import {useReducer} from 'react'
 import {GREETING, type Message, type Pickable} from './demo-data'
 
-export type DemoState = {
+type DemoState = {
   picking: boolean
   grabbed: Pickable | null
   patched: boolean

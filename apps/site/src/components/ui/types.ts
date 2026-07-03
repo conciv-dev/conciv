@@ -6,19 +6,6 @@ export function scaledStrokeWidth(strokeWidth: number, viewBoxSize: number): num
   return strokeWidth * (viewBoxSize / 24)
 }
 
-export type IconEasing =
-  | 'linear'
-  | 'easeIn'
-  | 'easeOut'
-  | 'easeInOut'
-  | 'circIn'
-  | 'circOut'
-  | 'circInOut'
-  | 'backIn'
-  | 'backOut'
-  | 'backInOut'
-  | 'anticipate'
-
 export interface AnimatedIconProps extends Omit<
   SVGProps<SVGSVGElement>,
   | 'ref'

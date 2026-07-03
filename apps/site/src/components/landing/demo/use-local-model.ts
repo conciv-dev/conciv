@@ -1,7 +1,7 @@
 import {useRef, useState} from 'react'
 import {DEFAULT_MODEL, type ModelWorkerResponse, type RunResult} from './models'
 
-export type ModelStatus = 'idle' | 'loading' | 'ready' | 'error'
+type ModelStatus = 'idle' | 'loading' | 'ready' | 'error'
 
 type Pending = {resolve: (result: RunResult) => void; reject: (error: unknown) => void}
 
