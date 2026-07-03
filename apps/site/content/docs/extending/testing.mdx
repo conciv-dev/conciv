@@ -1,0 +1,80 @@
+---
+title: Testing extensions
+description: Mount your extension in a real browser against a real server.
+---
+
+`@conciv/extension-testkit` boots your extension's real server half, builds and serves its real
+client half, opens a real browser page, and hands you a typed API. No mocks, no stubs: the test
+exercises the same contract the widget uses.
+
+```ts title="test/deploy.it.ts"
+import {afterAll, beforeAll, expect, it} from 'vitest'
+import {getExtensionTestApi, type ExtensionTestApi} from '@conciv/extension-testkit'
+import deploy from '../conciv/extensions/deploy'
+
+let api: ExtensionTestApi
+
+beforeAll(async () => {
+  api = await getExtensionTestApi({
+    server: deploy,
+    clientEntry: 'conciv/extensions/deploy.tsx',
+  })
+})
+
+afterAll(() => api.dispose())
+
+it('deploys to staging', async () => {
+  const result = await api.callTool('deploy_run', {env: 'staging'})
+  expect(result).toMatchObject({env: 'staging'})
+})
+```
+
+## The test API
+
+<TypeTable
+  type={{
+    page: {type: 'Page', description: 'A Playwright page with your extension mounted. Assert with getByRole and getByText.'},
+    callTool: {
+      type: '(name, input) => Promise<unknown>',
+      description: 'Invoke a tool over the real HTTP API, exactly as the agent does.',
+    },
+    session: {type: 'string', description: 'The session id the harness resolved for this run.'},
+    apiBase: {type: 'string', description: 'The booted server origin, for raw requests to custom routes.'},
+    secondClient: {
+      type: '() => Promise<SecondClient>',
+      description: 'Open a second browser page on the same session. The way to test realtime sync.',
+    },
+    dispose: {type: '() => Promise<void>', description: 'Tear down browser, host, and server. Call in afterAll.'},
+  }}
+/>
+
+## Testing UI
+
+`page` is a normal Playwright page. Assert through roles and text, and use `waitFor` for
+visibility:
+
+```ts
+it('shows the deploy button in the composer', async () => {
+  await api.page.getByRole('button', {name: 'Deploy'}).waitFor()
+})
+```
+
+## Two clients, one canvas
+
+For collaborative features, `secondClient()` opens another page against the same session. What one
+client writes must appear in the other:
+
+```ts
+it('syncs across clients', async () => {
+  const second = await api.secondClient()
+  await api.callTool('deploy_run', {env: 'staging'})
+  await second.page.getByText('staging.example.com').waitFor()
+  await second.close()
+})
+```
+
+<Callout>
+  The whiteboard's own integration tests are written on this harness. Browse them in
+  [`packages/extensions/whiteboard/test`](https://github.com/conciv-dev/conciv/tree/main/packages/extensions/whiteboard/test)
+  for real-world patterns.
+</Callout>

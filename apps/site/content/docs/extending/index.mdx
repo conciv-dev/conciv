@@ -1,0 +1,84 @@
+---
+title: Overview
+description: Teach the agent new tricks with one file in conciv/extensions/.
+icon: Puzzle
+---
+
+An extension is one file that teaches the agent a new capability. Drop a `.tsx` into
+`conciv/extensions/` in your project root and it is discovered automatically, no registration,
+no config.
+
+```tsx title="conciv/extensions/deploy.tsx"
+import {z} from 'zod'
+import {defineExtension, defineTool} from '@conciv/extension'
+
+const deployRun = defineTool({
+  name: 'deploy_run',
+  description: 'Deploy the current branch',
+  inputSchema: z.object({env: z.enum(['staging', 'prod'])}),
+}).server(async ({env}) => ({url: `https://${env}.example.com`}))
+
+export default defineExtension({name: 'deploy', tools: [deployRun]})
+```
+
+Restart your dev server and ask the agent to deploy. It now has a `deploy_run` tool: typed input
+via zod, execution in node, and a result card in the thread.
+
+## One file, both sides
+
+The same file describes the server half and the browser half. The plugin splits it: `.server(...)`
+code runs in node next to your dev server, everything else is compiled into the widget as Solid
+JSX (even when your app is React). You never wire the two together; calling a tool from chat just
+works.
+
+```
+conciv/extensions/deploy.tsx
+        │
+        ├── server: tool execution, custom routes, long-lived processes
+        └── client: result cards, composer buttons, widget panels
+```
+
+## What an extension can carry
+
+<Cards>
+  <Card
+    title="Tools"
+    href="/docs/extending/tool-contract"
+    description="defineTool: typed input, node execution, a rendered result card, optional approval."
+  />
+  <Card
+    title="Widget UI"
+    href="/docs/extending/widget-ui"
+    description="A Component rendered into widget slots, with useSlot/useContext hooks and the client API."
+  />
+  <Card
+    title="A system prompt"
+    description="systemPrompt text that teaches the agent when and how to use your tools."
+  />
+  <Card
+    title="Config"
+    description="configSchema (zod) validated from the plugin options, available to your server code."
+  />
+</Cards>
+
+## Built-ins
+
+Two extensions ship with conciv and are on by default: the
+[whiteboard](/docs/usage/whiteboard) and the [test runner](/docs/usage/live-tests). They are
+built on this same contract, nothing private. Read them as worked examples in
+[Built-ins](/docs/extending/built-ins).
+
+## Next
+
+<Cards>
+  <Card
+    title="Your first extension"
+    href="/docs/extending/your-first-extension"
+    description="Build and run a deploy tool end to end."
+  />
+  <Card
+    title="Testing extensions"
+    href="/docs/extending/testing"
+    description="Mount your extension in a real browser against a real server."
+  />
+</Cards>

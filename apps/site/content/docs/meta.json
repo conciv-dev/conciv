@@ -1,13 +1,21 @@
 {
   "pages": [
+    "---Getting started---",
     "index",
-    "how-it-works",
     "quick-start",
-    "usage",
+    "how-it-works",
+    "---Using conciv---",
+    "...usage",
+    "---Extending conciv---",
+    "...extending",
+    "---Reference---",
     "configuration",
     "harnesses",
     "test-runners",
+    "cli",
+    "packages",
     "troubleshooting",
+    "---Examples---",
     "examples"
   ]
 }

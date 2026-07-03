@@ -36,13 +36,25 @@ export default defineConfig({
     description="Ask it to run your tests and watch results stream into a card."
   />
   <Card
+    title="Whiteboard"
+    href="/docs/usage/whiteboard"
+    description="A shared Excalidraw canvas. You sketch, the AI draws back real elements."
+  />
+  <Card
     title="Approvals"
     href="/docs/usage/approvals"
     description="Risky commands surface an Approve or Deny card before they run."
   />
+  <Card
+    title="Extensions"
+    href="/docs/extending"
+    description="Teach the agent new tools with one file in conciv/extensions/."
+  />
 </Cards>
 
-<Callout type="warn">conciv is early and dev only. The chat needs the `claude` CLI on your `PATH` to answer.</Callout>
+<Callout>
+  conciv is in beta and mounts in dev builds only. The chat needs a harness CLI on your `PATH`, `claude` by default.
+</Callout>
 
 ## Next
 
