@@ -1,0 +1,34 @@
+---
+title: Packages
+description: What each @conciv package is, and which ones you actually install.
+icon: Boxes
+---
+
+You install one package: [`@conciv/it`](https://github.com/conciv-dev/conciv/tree/main/packages/it).
+Everything else is internal wiring or opt-in authoring surface.
+
+## Install
+
+| Package | What it is |
+| --- | --- |
+| [`@conciv/it`](https://github.com/conciv-dev/conciv/tree/main/packages/it) | The umbrella you install. `@conciv/it/plugin/vite`, plus `/webpack`, `/rspack`, `/rollup`, `/esbuild`, `/nextjs`. |
+
+## Author against
+
+| Package | What it is |
+| --- | --- |
+| [`@conciv/extension`](https://github.com/conciv-dev/conciv/tree/main/packages/extension) | The extension contract: `defineExtension`, `defineTool`, `useSlot`/`useContext`. See [Extending](/docs/extending). |
+| [`@conciv/extension-testkit`](https://github.com/conciv-dev/conciv/tree/main/packages/extension-testkit) | Mounts any extension in a real browser against a real spawned server. See [Testing](/docs/extending/testing). |
+
+## Under the hood
+
+| Package | What it is |
+| --- | --- |
+| [`@conciv/plugin`](https://github.com/conciv-dev/conciv/tree/main/packages/plugin) | The unplugin that boots the engine and injects the widget into your dev build. |
+| [`@conciv/core`](https://github.com/conciv-dev/conciv/tree/main/packages/core) | The framework-free engine: every `/api/*` route, sessions, harness and test registries. |
+| [`@conciv/widget`](https://github.com/conciv-dev/conciv/tree/main/packages/widget) | The browser half: a Solid chat UI in an open shadow DOM, cards, and the page driver. |
+| [`@conciv/harness`](https://github.com/conciv-dev/conciv/tree/main/packages/harness) | Harness adapters: Claude and Codex, plus Gemini CLI, opencode, and Pi stubs. |
+| [`@conciv/cli`](https://github.com/conciv-dev/conciv/tree/main/packages/cli) | The [`conciv` CLI](/docs/cli) the agent calls from Bash. |
+| [`@conciv/protocol`](https://github.com/conciv-dev/conciv/tree/main/packages/protocol) | Shared wire types. Zero runtime. |
+| [`@conciv/extension-whiteboard`](https://github.com/conciv-dev/conciv/tree/main/packages/extensions/whiteboard) | Built-in: the [shared canvas](/docs/usage/whiteboard). |
+| [`@conciv/extension-test-runner`](https://github.com/conciv-dev/conciv/tree/main/packages/extensions/test-runner) | Built-in: [live test execution](/docs/usage/live-tests). |

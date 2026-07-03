@@ -256,32 +256,39 @@ export const DOM_HANDLERS: Record<PageQueryKind, PageHandler> = {
   }),
 
   setattr: onEl((el, query) => {
-    el.setAttribute(query.name ?? '', query.value ?? '')
+    if (!query.name) return err('setattr needs name (and value)')
+    el.setAttribute(query.name, query.value ?? '')
     return ok()
   }),
   removeattr: onEl((el, query) => {
-    el.removeAttribute(query.name ?? '')
+    if (!query.name) return err('removeattr needs name')
+    el.removeAttribute(query.name)
     return ok()
   }),
   addclass: onEl((el, query) => {
-    el.classList.add(query.class ?? '')
+    if (!query.class) return err('addclass needs class')
+    el.classList.add(query.class)
     return ok()
   }),
   removeclass: onEl((el, query) => {
-    el.classList.remove(query.class ?? '')
+    if (!query.class) return err('removeclass needs class')
+    el.classList.remove(query.class)
     return ok()
   }),
   setstyle: onEl((el, query) => {
     if (!(el instanceof HTMLElement)) return err('setstyle target is not an HTMLElement')
-    el.style.setProperty(query.prop ?? '', query.value ?? '')
+    if (!query.prop || query.value === undefined) return err('setstyle needs prop and value')
+    el.style.setProperty(query.prop, query.value)
     return ok()
   }),
   settext: onEl((el, query) => {
-    el.textContent = query.text ?? ''
+    if (query.text === undefined) return err('settext needs text')
+    el.textContent = query.text
     return ok()
   }),
   sethtml: onEl((el, query) => {
-    el.innerHTML = query.html ?? ''
+    if (query.html === undefined) return err('sethtml needs html')
+    el.innerHTML = query.html
     return ok()
   }),
   remove: onEl((el) => {
@@ -289,14 +296,16 @@ export const DOM_HANDLERS: Record<PageQueryKind, PageHandler> = {
     return ok()
   }),
   insert: onEl((el, query) => {
-    el.insertAdjacentHTML(INSERT_POS[query.position ?? 'append'] ?? 'beforeend', query.html ?? '')
+    if (!query.html) return err('insert needs html')
+    el.insertAdjacentHTML(INSERT_POS[query.position ?? 'append'] ?? 'beforeend', query.html)
     return ok()
   }),
 
   css: ({query}) => {
+    if (!query.text) return err('css needs text (a stylesheet string)')
     const style = document.createElement('style')
     style.setAttribute('data-vibe-css', '')
-    style.textContent = query.text ?? ''
+    style.textContent = query.text
     document.head.appendChild(style)
     return ok()
   },

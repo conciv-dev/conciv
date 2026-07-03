@@ -1,4 +1,4 @@
-import {createFileRoute, notFound, redirect} from '@tanstack/react-router'
+import {createFileRoute, notFound} from '@tanstack/react-router'
 import {DocsLayout} from 'fumadocs-ui/layouts/docs'
 import {createServerFn} from '@tanstack/react-start'
 import {slugsToMarkdownPath, source} from '@/lib/source'
@@ -12,16 +12,13 @@ import {
   ViewOptionsPopover,
 } from 'fumadocs-ui/layouts/docs/page'
 import {baseOptions} from '@/lib/layout.shared'
-import {docsEnabled, gitConfig} from '@/lib/shared'
+import {gitConfig} from '@/lib/shared'
 import {useFumadocsLoader} from 'fumadocs-core/source/client'
 import {Suspense} from 'react'
 import {useMDXComponents} from '@/components/mdx'
 
 export const Route = createFileRoute('/docs/$')({
   component: Page,
-  beforeLoad: () => {
-    if (!docsEnabled) throw redirect({to: '/'})
-  },
   loader: async ({params}) => {
     const slugs = params._splat?.split('/') ?? []
     const data = await serverLoader({data: slugs})

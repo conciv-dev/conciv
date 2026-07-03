@@ -13,6 +13,7 @@ export function Composer({
   onValueChange,
   onArm,
   onSend,
+  onUngrab,
   grabRef,
 }: {
   grabbed: Pickable | null
@@ -21,11 +22,12 @@ export function Composer({
   onValueChange: (v: string) => void
   onArm: () => void
   onSend: () => void
+  onUngrab: () => void
   grabRef: RefObject<HTMLButtonElement | null>
 }) {
   return (
     <div className="border-t p-3">
-      {grabbed ? <GrabReference pickable={grabbed} /> : null}
+      {grabbed ? <GrabReference pickable={grabbed} onUngrab={onUngrab} /> : null}
       <div className="flex flex-col gap-3 rounded-xl border bg-secondary p-3">
         <Input
           value={value}
@@ -52,6 +54,7 @@ export function Composer({
             onClick={onSend}
             size="icon"
             variant="default"
+            aria-label="Send"
             className="ml-auto bg-foreground text-background"
           >
             <ArrowUp className="size-4" />

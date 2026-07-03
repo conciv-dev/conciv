@@ -125,6 +125,70 @@ html > body[data-scroll-locked] {
   background: radial-gradient(120% 80% at 88% -10%, var(--od-accent-soft), transparent 55%), var(--od-paper);
 }
 
+/* footer: fixed warm-charcoal bookend, both themes */
+.od-footer {
+  background: radial-gradient(90% 120% at 80% 110%, oklch(0.7 0.19 32 / 0.1), transparent 60%), oklch(0.23 0.012 65);
+}
+@media (prefers-reduced-motion: reduce) {
+  .od-footer-shader {
+    display: none;
+  }
+}
+
+/* shiki dual theme + twoslash popups (landing snippets) */
+.od-snippet .shiki,
+.od-snippet .shiki-magic-move-container {
+  background-color: transparent !important;
+}
+.od-snippet .shiki-magic-move-container {
+  --smm-delay-container: 0;
+}
+.od-snippet pre.shiki,
+.od-snippet pre.shiki code {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  font: inherit;
+  line-height: inherit;
+  background: transparent !important;
+}
+.dark .od-snippet .shiki,
+.dark .od-snippet .shiki span,
+.dark .od-snippet .shiki-magic-move-container,
+.dark .od-snippet .shiki-magic-move-item {
+  color: var(--shiki-dark) !important;
+}
+.od-snippet .od-hover-anchor {
+  position: absolute;
+  border-bottom: 1px dotted oklch(0.52 0.014 65 / 0.5);
+  cursor: default;
+}
+.od-snippet .od-caret {
+  position: absolute;
+  right: -2px;
+  top: 8%;
+  width: 2px;
+  height: 84%;
+  background: var(--od-accent);
+}
+.dark .od-popup span {
+  color: var(--shiki-dark) !important;
+}
+
+.od-dots::before {
+  content: '';
+  position: absolute;
+  inset: 40px 0 0;
+  background-image: radial-gradient(circle, oklch(0.23 0.012 65 / 0.055) 1px, transparent 1px);
+  background-size: 22px 22px;
+  pointer-events: none;
+  mask-image: linear-gradient(180deg, transparent, #000 12%, #000 88%, transparent);
+}
+.dark .od-dots::before {
+  background-image: radial-gradient(circle, oklch(0.94 0.006 75 / 0.06) 1px, transparent 1px);
+}
+
 .od-underline {
   position: relative;
   white-space: nowrap;

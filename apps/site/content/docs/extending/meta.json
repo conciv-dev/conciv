@@ -1,0 +1,5 @@
+{
+  "title": "Extending",
+  "icon": "Puzzle",
+  "pages": ["index", "your-first-extension", "tool-contract", "widget-ui", "testing", "built-ins"]
+}

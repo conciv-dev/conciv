@@ -8,7 +8,7 @@ import {ImageZoom} from 'fumadocs-ui/components/image-zoom'
 import {Mermaid} from './mermaid'
 import type {MDXComponents} from 'mdx/types'
 
-export function getMDXComponents(components?: MDXComponents) {
+function getMDXComponents(components?: MDXComponents) {
   return {
     ...defaultMdxComponents,
     ...TabsComponents,

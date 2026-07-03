@@ -7,17 +7,12 @@ icon: Workflow
 conciv has three parts. The build plugin boots an engine and injects the widget. The widget runs in
 your page. The engine talks to a headless agent.
 
-```mermaid
-flowchart LR
-  P(["conciv"])
-  W["Browser widget<br/>(shadow DOM)"]
-  C["@conciv/core<br/>(engine)"]
-  H["Harness<br/>(claude / codex)"]
-  W <-->|"/api/* · SSE + JSON<br/>chat · page bus · tests · approvals"| C
-  C --> H
-  P -. injects .-> W
-  P -. boots .-> C
-```
+<ImageZoom
+  src="/diagrams/how-it-works.png"
+  alt="Architecture: the widget in your app talks to the core engine over /api/* (SSE); the engine drives your coding agent (claude, codex) on your machine"
+  width={2160}
+  height={1080}
+/>
 
 ## The parts
 
@@ -25,7 +20,7 @@ flowchart LR
   <Card title="Plugin" description="conciv boots the engine and injects the widget script into your dev build." />
   <Card
     title="Widget"
-    description="A chat UI in an open shadow DOM. It probes the engine and shows the ✦ button when dev routes are live."
+    description="A chat UI in an open shadow DOM. It probes the engine and shows the conciv button when dev routes are live."
   />
   <Card title="Engine" description="@conciv/core serves the chat, page, and test APIs on its own dev port." />
   <Card title="Harness" description="The headless agent process behind the chat, such as Claude Code." />

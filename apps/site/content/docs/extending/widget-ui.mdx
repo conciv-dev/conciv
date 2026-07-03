@@ -1,0 +1,108 @@
+---
+title: Widget UI
+description: 'Render into the widget: slots, hooks, and the client API.'
+---
+
+Beyond tool cards, an extension can render its own UI inside the widget: a composer button, a
+header control, a full panel. Attach a `Component` and pick where it shows with `useSlot`.
+
+<Callout>
+  Extension components are Solid JSX, even when your app is React. The plugin compiles
+  `conciv/extensions/*` as a Solid zone, so `Show`, signals, and stores all work as usual.
+</Callout>
+
+## Slots
+
+The widget mounts your `Component` once per slot and tells you where it currently is. Render
+nothing for slots you do not care about.
+
+```tsx title="conciv/extensions/deploy.tsx"
+import {Show} from 'solid-js'
+import {defineExtension} from '@conciv/extension'
+
+const deploy = defineExtension({name: 'deploy', tools: [deployRun]})
+
+function DeployButton() {
+  const slot = deploy.useSlot()
+  const context = deploy.useContext()
+  return (
+    <Show when={slot() === 'composer'}>
+      <button type="button" onClick={() => context.insert('deploy this branch to staging')}>
+        Deploy
+      </button>
+    </Show>
+  )
+}
+
+export default Object.assign(deploy, {Component: DeployButton})
+```
+
+Slots: `header`, `footer`, `composer`, `empty` (the blank-thread state), `status`, and `widget`
+(a free-floating layer).
+
+## `useContext`
+
+`useContext()` returns the host context: everything the widget gives your component. Pass a
+selector to subscribe to one slice.
+
+Composer actions, always available:
+
+<TypeTable
+  type={{
+    insert: {type: '(text: string) => void', description: 'Put text into the composer input.'},
+    notify: {type: '(message: string) => void', description: 'Post a passive notice into the thread.'},
+    setBusy: {type: '(busy: boolean) => void', description: 'Toggle the composer busy state.'},
+    newSession: {type: '() => void', description: 'Start a fresh chat session.'},
+    compact: {type: '() => void', description: 'Compact the current thread.'},
+  }}
+/>
+
+Plus `client` (the session API client), `requestMeta()` (session id and model for your own
+fetches), `grab` (the element-grab API), and `currentSlot`.
+
+## `.client(factory)`
+
+Extension-specific client state lives in a `.client(...)` factory. Its return value is merged into
+what `useContext()` returns, fully typed:
+
+```tsx
+const deploy = defineExtension({name: 'deploy', tools: [deployRun]}).client(() => {
+  const [lastUrl, setLastUrl] = createSignal<string | null>(null)
+  return {value: {lastUrl, setLastUrl}}
+})
+```
+
+Return `{value, dispose}`; `dispose` runs when the widget unmounts.
+
+## The client API
+
+`useClientApi()` (also exported standalone) is the widget-host surface:
+
+<TypeTable
+  type={{
+    toast: {type: '(message, tone?) => void', description: "Toast in the widget. Tones: 'info' | 'success' | 'error'."},
+    Dialog: {type: '() => DialogApi', description: 'Widget-styled dialog primitives.'},
+    Popover: {type: '() => PopoverApi', description: 'Widget-styled popover primitives.'},
+    page: {
+      type: 'PageInspect',
+      description: 'elementAt(x, y), describe(el) to component + file, locate(el) to a source location.',
+    },
+    openSource: {type: '(loc) => Promise<OpenSourceResult>', description: 'Open a located element in your editor.'},
+    surface: {type: '() => HTMLElement', description: 'The effects layer for free-floating UI.'},
+    env: {type: 'object', description: 'reducedMotion(), plus the doc and win the widget renders into.'},
+  }}
+/>
+
+## Mounting outside the widget
+
+The widget host does all of the above for you. For a custom host (or a test harness) the same
+machinery is exported from `@conciv/extension/client`:
+
+```ts
+import {mountExtension, MountedExtension} from '@conciv/extension/client'
+
+const dispose = mountExtension(extension, {clientApi, hostContext, slot: 'widget', root})
+```
+
+This is exactly what [the testkit](/docs/extending/testing) uses, so tested extensions run through
+their production mount path.

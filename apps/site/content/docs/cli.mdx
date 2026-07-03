@@ -1,0 +1,89 @@
+---
+title: CLI
+description: The conciv CLI the agent drives your app with. You can use it too.
+icon: SquareTerminal
+---
+
+The agent's hands are a CLI. When it inspects your page, clicks a button, or asks you a question,
+it is running `conciv` commands against the live dev server. The same binary is on your `PATH` in
+any repo with conciv installed, so everything the agent can do, you can script.
+
+```bash
+conciv tools page snapshot        # accessibility snapshot of the live page
+conciv tools page click --name SubmitButton
+conciv tools server urls          # where the dev server listens
+```
+
+Two command trees: `tools` talks to the running app, `ui` renders interactive cards in the chat
+thread.
+
+## `conciv tools`
+
+### `page`
+
+Read and drive the live page. Element-targeting verbs take a CSS selector positionally, or
+`--ref` (an element ref from the latest snapshot), or `--name` (a React component name).
+
+- **Read**: `route`, `dom`, `query`, `console`, `text`, `value`, `attr`, `exists`, `snapshot`,
+  `locate`, `css`
+- **Act**: `click`, `fill`, `select`, `check`, `uncheck`, `press`, `hover`, `scroll`, `submit`,
+  `wait`
+- **Edit live**: `setattr`, `removeattr`, `addclass`, `removeclass`, `setstyle`, `settext`,
+  `sethtml`, `remove`, `insert`, `eval`
+- **Journal**: `changes` lists every live edit made this session (`--clear` resets it)
+
+```bash
+conciv tools page snapshot
+conciv tools page text .price
+conciv tools page changes --clear
+```
+
+Live edits are ephemeral by design: they preview a change instantly, and the journal is how the
+agent knows what to persist to source afterwards. See
+[Page control](/docs/usage/page-control).
+
+### `react`
+
+Inspect and edit live React components by name: `inspect`, `tree`, `find`, `locate`, `override`,
+`track`.
+
+```bash
+conciv tools react inspect --name PricingCard
+conciv tools react override --name PricingCard --target props --path plan --json '"pro"'
+```
+
+`override` patches `props`, `state`, `hooks`, or `context` on the live instance. `track` records
+re-renders (`--action start | stop | report`).
+
+### `server`
+
+Ask the dev server about itself: `config`, `urls`, `resolve`, `graph`, `transform`, `reload`,
+`restart`.
+
+```bash
+conciv tools server resolve @/components/Button
+conciv tools server graph src/routes/index.tsx
+```
+
+### `open`
+
+Open a file in your editor, straight from a source location.
+
+## `conciv ui`
+
+Generative UI: each command renders a real control in the chat thread and blocks until you
+respond. This is how the agent asks instead of guessing.
+
+```bash
+conciv ui choices --question "Which theme?" --option light --option dark
+conciv ui confirm --question "Run the migration?" --detail "pnpm db:migrate"
+conciv ui diff --file src/app.css --before "$OLD" --after "$NEW"
+conciv ui form --title "New route" --field "path:Path:text" --field "layout:Layout:select:docs,blog"
+```
+
+The four cards are described in [Chat](/docs/usage/chat#generative-ui).
+
+<Callout>
+  Every command prints JSON, so outputs compose with `jq` in scripts the same way the agent
+  consumes them.
+</Callout>

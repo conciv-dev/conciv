@@ -28,7 +28,7 @@
   <img alt="CI" src="https://img.shields.io/github/actions/workflow/status/conciv-dev/conciv/ci.yml?branch=main&label=CI&style=flat-square">
   <img alt="License" src="https://img.shields.io/github/license/conciv-dev/conciv?color=3b82f6&style=flat-square">
   <img alt="Node" src="https://img.shields.io/badge/node-%E2%89%A5%2022-3c873a?style=flat-square">
-  <img alt="Status" src="https://img.shields.io/badge/status-early-e8552d?style=flat-square">
+  <img alt="Status" src="https://img.shields.io/badge/status-beta-e8552d?style=flat-square">
 </p>
 
 </div>
@@ -38,7 +38,7 @@
 ## What is conciv?
 
 **conciv** puts an AI dev agent inside the app you are already running. Add one build plugin,
-and a ✦ button appears in your dev preview. Open it and you're talking to an agent that can
+and a conciv button appears in your dev preview. Open it and you're talking to an agent that can
 **see the page you're building**, **drive it**, **edit your source**, and **run your tests** — all
 in the same window, without a second terminal or a context switch.
 
@@ -67,7 +67,7 @@ capable as the tool you already trust.
 `@conciv/plugin` boots a framework-free **h3** engine (`@conciv/core`) behind a set of `/api/*`
 routes on its own dev port, spawns a headless harness (default `claude -p`), and injects a Solid
 widget into your previewed page. The widget probes `/api/chat/session` on load and only shows the
-✦ button when the dev routes are live — so it stays inert on a plain preview.
+conciv button when the dev routes are live — so it stays inert on a plain preview.
 
 ## Quickstart
 
@@ -87,14 +87,10 @@ export default defineConfig({
 ```
 
 Make sure the [Claude Code CLI](https://claude.ai/code) (`claude`) is on your `PATH`, start your
-dev server, and click the ✦ button in the corner of your app.
+dev server, and click the conciv button in the corner of your app.
 
 Override defaults via `conciv({harness, testRunner, widgetUrl, …})`. Other bundlers are one import
 away: `@conciv/it/plugin/webpack`, `/rspack`, `/rollup`, `/esbuild`, `/nextjs`.
-
-> [!NOTE]
-> conciv is **early** and not yet published to npm. To try it today, run the fully wired example:
-> [`apps/examples/tanstack-start`](./apps/examples/tanstack-start).
 
 ## Extensions
 
@@ -125,15 +121,15 @@ extension in a real browser against a real spawned server.
 Two built-ins show what the contract can do:
 
 - 🎨 &nbsp;[**Whiteboard**](./packages/extensions/whiteboard) — a shared Excalidraw canvas over your dev app. You sketch, the AI draws back (real editable elements, mermaid included), with source-anchored comments and pins on a self-hosted Jazz CRDT.
-- 🧪 &nbsp;[**Test runner**](./packages/extensions/test-runner) — runner-agnostic test execution (Vitest today) with live result cards in the thread.
+- 🧪 &nbsp;[**Test runner**](./packages/extensions/test-runner) — runner-agnostic test execution (Vitest and Playwright) with live result cards in the thread.
 
 ## Supported tools
 
 | Area          | Full support              | In progress                      |
 | ------------- | ------------------------- | -------------------------------- |
-| **Harnesses** | Claude Code (`claude -p`) | Codex, Gemini CLI, opencode, Pi  |
+| **Harnesses** | Claude Code (`claude -p`), Codex | Gemini CLI, opencode, Pi         |
 | **Bundlers**  | Vite                      | webpack, Rspack, Rollup, esbuild |
-| **Tests**     | Vitest                    | Jest, `node:test`, Playwright    |
+| **Tests**     | Vitest, Playwright        | Jest, `node:test`                |
 
 ## Packages
 

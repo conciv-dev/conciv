@@ -1,0 +1,139 @@
+---
+title: Your first extension
+description: Build a deploy tool end to end, with a card in the thread.
+---
+
+You will give the agent a `deploy_run` tool: typed input, a node-side action, and a result card
+rendered in the chat. One file, about thirty lines.
+
+<Steps>
+
+<Step>
+
+### Create the file
+
+Extensions live in `conciv/extensions/` at your project root. Create it if it does not exist.
+
+```bash
+mkdir -p conciv/extensions
+```
+
+</Step>
+
+<Step>
+
+### Define the tool
+
+`defineTool` declares what the agent sees: a name, a description it uses to decide when to call
+the tool, and a zod schema for the input.
+
+```tsx title="conciv/extensions/deploy.tsx"
+import {z} from 'zod'
+import {defineExtension, defineTool} from '@conciv/extension'
+
+const deployRun = defineTool({
+  name: 'deploy_run',
+  description: 'Deploy the current branch to an environment.',
+  inputSchema: z.object({env: z.enum(['staging', 'prod'])}),
+})
+```
+
+</Step>
+
+<Step>
+
+### Add the server action
+
+`.server(...)` is the part that runs in node. The input arrives already parsed and typed from your
+schema. Whatever you return becomes the tool result the agent reads.
+
+```tsx
+const deployRun = defineTool({
+  name: 'deploy_run',
+  description: 'Deploy the current branch to an environment.',
+  inputSchema: z.object({env: z.enum(['staging', 'prod'])}),
+}).server(async ({env}) => {
+  const url = `https://${env}.example.com`
+  return {env, url}
+})
+```
+
+Real code would shell out to your deploy script here. Keep the return value small and structured;
+it is what the agent reasons about and what your card renders.
+
+</Step>
+
+<Step>
+
+### Render a card
+
+`.render(...)` replaces the generic result card with your own. Renderers are Solid components
+(even inside a React app; the plugin compiles extension files as a Solid zone) and receive the
+tool call `part` and its `result`.
+
+```tsx
+const deployRun = defineTool({
+  name: 'deploy_run',
+  description: 'Deploy the current branch to an environment.',
+  inputSchema: z.object({env: z.enum(['staging', 'prod'])}),
+})
+  .server(async ({env}) => {
+    const url = `https://${env}.example.com`
+    return {env, url}
+  })
+  .render((props) => {
+    const output = () => (typeof props.result?.content === 'string' ? props.result.content : undefined)
+    return <div>{output() ?? 'deploying…'}</div>
+  })
+```
+
+</Step>
+
+<Step>
+
+### Export the extension
+
+```tsx
+export default defineExtension({name: 'deploy', tools: [deployRun]})
+```
+
+</Step>
+
+<Step>
+
+### Run it
+
+Restart your dev server (server-side tool code loads at boot), open the chat, and ask:
+
+```text
+deploy this to staging
+```
+
+The agent calls `deploy_run` with `{env: 'staging'}`, your server code runs, and your card renders
+in the thread with the result.
+
+<ImageZoom
+  src="/screenshots/deploy-card.png"
+  alt="The agent deployed to staging through the custom deploy_run tool"
+  width={1920}
+  height={1080}
+/>
+
+</Step>
+
+</Steps>
+
+## Where to go next
+
+<Cards>
+  <Card
+    title="Tool contract"
+    href="/docs/extending/tool-contract"
+    description="Every defineTool field: prompts, approval, streaming titles, typed context."
+  />
+  <Card
+    title="Testing extensions"
+    href="/docs/extending/testing"
+    description="Prove the tool works in a real browser before the agent uses it."
+  />
+</Cards>

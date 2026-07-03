@@ -1,0 +1,127 @@
+---
+title: Tool contract
+description: 'The defineTool reference: fields, server execution, render, and typing.'
+---
+
+`defineTool` describes one agent-callable capability. The definition is what the agent sees; the
+chained `.server` and `.render` attach behavior.
+
+```tsx
+import {z} from 'zod'
+import {defineTool} from '@conciv/extension'
+
+const tool = defineTool({
+  name: 'deploy_run',
+  description: 'Deploy the current branch to an environment.',
+  inputSchema: z.object({env: z.enum(['staging', 'prod'])}),
+  approval: 'ask',
+})
+  .server(async (input, ctx, request) => ({ok: true}))
+  .render((props) => <div>done</div>)
+```
+
+## Definition fields
+
+<TypeTable
+  type={{
+    name: {type: 'string', description: 'The tool id the agent calls. Snake_case by convention.'},
+    description: {
+      type: 'string',
+      description: 'What the tool does. The agent uses this to decide when to call it, so write it for the model.',
+    },
+    inputSchema: {
+      type: 'z.ZodObject',
+      description: 'Zod schema for the input. Parsed before your server code runs; invalid calls never reach you.',
+    },
+    promptSnippet: {
+      type: 'string',
+      description: 'Optional line merged into the system prompt to advertise the tool.',
+    },
+    promptGuidelines: {
+      type: 'string[]',
+      description: 'Optional usage rules for the agent, rendered as bullet points in the prompt.',
+    },
+    streamTitle: {type: 'string', description: 'Optional label shown on the card while the call streams.'},
+    approval: {
+      type: "'ask'",
+      description: 'Surface an Approve / Deny card before every run. Omit for tools that are safe to run freely.',
+    },
+  }}
+/>
+
+## `.server(execute)`
+
+The node-side action. It receives three arguments:
+
+```ts
+.server(async (input, ctx, request) => { ... })
+```
+
+- `input` is already `inputSchema.parse`d, so it is fully typed.
+- `ctx` is the context your extension's `.server(...)` factory returned (see below). `unknown`
+  unless you type it.
+- `request` is `{sessionId: string; model: string | null}` for the calling chat session.
+
+The return value is the tool result. Return small structured data; the agent reads it verbatim.
+
+### Typed context
+
+Tools that need shared server state (a db handle, a child process manager) declare a context type,
+and the extension's server factory must provide it. The `RequiredContext` of all tools is enforced
+at the `defineExtension(...).server(...)` boundary:
+
+```tsx
+const inputSchema = z.object({by: z.number().default(1)})
+
+type Ctx = {counter: {next: () => number}}
+
+const bump = defineTool<typeof inputSchema, Ctx>({
+  name: 'bump',
+  description: 'Increment the counter.',
+  inputSchema,
+}).server((input, ctx) => ({value: ctx.counter.next()}))
+
+export default defineExtension({name: 'counter', tools: [bump]}).server(() => {
+  let value = 0
+  return {context: {counter: {next: () => ++value}}}
+})
+```
+
+## `.render(renderer)`
+
+Replaces the generic result card. The renderer is a Solid component receiving
+`{part, result, ctx, durationMs}`:
+
+- `part` is the tool call (id, name, arguments).
+- `result` is the tool result once it lands, `undefined` while running. Its `content` carries what
+  your server returned, `error` is set on failure.
+- `ctx` is the widget view context (theme, expansion state).
+
+## Extension-level server
+
+`defineExtension(...).server(factory)` runs once at engine boot. It receives
+`{config, cwd, app}`: your parsed `configSchema` config, the project root, and an
+[h3](https://h3.dev) sub-app mounted under your extension's API namespace for custom routes
+(SSE streams, uploads, anything a tool result cannot carry).
+
+```tsx
+export default defineExtension({name: 'metrics', configSchema, tools: [...]}).server((server) => {
+  server.app.get('/stream', (event) => openStream(event))
+  const poller = startPolling(server.config.interval)
+  return {context: {poller}, dispose: () => poller.stop()}
+})
+```
+
+Return `{context, dispose}`: `context` feeds your tools, `dispose` runs on shutdown.
+
+## Exports
+
+Everything above comes from one package:
+
+```ts
+import {defineExtension, defineTool} from '@conciv/extension'
+import type {ExtensionBuilder, ToolBuilder, ServerApi, ToolRequest} from '@conciv/extension'
+```
+
+Client-side building blocks (`mountExtension`, `useSlot`, `useContext`, the client API) are
+covered in [Widget UI](/docs/extending/widget-ui).

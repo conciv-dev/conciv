@@ -1,0 +1,40 @@
+---
+title: Built-ins
+description: The whiteboard and test runner, read as worked examples.
+---
+
+Two extensions ship inside conciv, on by default. Both are built on the public contract, nothing
+private, so they double as reference implementations.
+
+## Whiteboard
+
+[`@conciv/extension-whiteboard`](https://github.com/conciv-dev/conciv/tree/main/packages/extensions/whiteboard)
+is the [shared Excalidraw canvas](/docs/usage/whiteboard). It demonstrates the heavyweight end of
+the contract:
+
+- **Four tool groups** (`canvas`, `comment`, `anchor`, `element`) composed into one `tools` array,
+  each defined with `defineTool` and a typed shared context.
+- **A long-lived server process**: its `.server(...)` factory boots a self-hosted CRDT sync
+  server, deploys the schema, and returns `dispose` to shut everything down.
+- **Custom routes**: `server.app.get('/config', ...)` hands the client its sync endpoint.
+- **Composer UI**: its `Component` renders the whiteboard button with
+  `useSlot() === 'composer'`.
+- **Session scoping**: tools read `request.sessionId` so every chat session gets its own room.
+
+## Test runner
+
+[`@conciv/extension-test-runner`](https://github.com/conciv-dev/conciv/tree/main/packages/extensions/test-runner)
+powers [live tests](/docs/usage/live-tests). It shows the middleweight patterns:
+
+- **`configSchema`**: the plugin's `testRunner` option lands here, validated by zod.
+- **A runner registry**: adapters (Vitest, Playwright) behind one interface, picked from config.
+- **Server-sent events**: `server.app.get('/stream', ...)` streams live results to the card.
+- **Error mapping**: an `onError` hook converts "runner unavailable" into a structured 422 the
+  card can explain.
+- **`systemPrompt`**: teaches the agent to list tests before running vague requests.
+
+## Reading order
+
+Start with the test runner's `src/server.ts` (about fifty lines end to end), then the whiteboard's
+tool groups. Everything they import from `@conciv/extension` is documented in
+[Tool contract](/docs/extending/tool-contract) and [Widget UI](/docs/extending/widget-ui).

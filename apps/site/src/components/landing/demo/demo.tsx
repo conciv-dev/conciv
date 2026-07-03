@@ -1,20 +1,46 @@
 import {useRef, useState} from 'react'
 import {useGSAP} from '@gsap/react'
 import gsap from 'gsap'
-import {RotateCcw} from 'lucide-react'
+import {Check, RotateCcw} from 'lucide-react'
 import {Badge} from '@/components/ui/badge'
 import {Button} from '@/components/ui/button'
 import {Card} from '@/components/ui/card'
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@/components/ui/select'
 import {Transcript} from './transcript'
 import {Composer} from './composer'
 import {AppPreview} from './app-preview'
 import {GhostCursor} from './ghost-cursor'
+import {SparkMark} from '../spark-mark'
 import {useDemo} from './use-demo'
-import {buildTurn, PICKABLES, pickScenario, type Scenario} from './demo-data'
+import {useLocalModel} from './use-local-model'
+import {PICKABLES, pickScenario, type Scenario} from './demo-data'
+import {MODELS, type CssPatch} from './models'
+
+const kebab = (key: string) => key.replace(/[A-Z]/g, (match) => `-${match.toLowerCase()}`)
+
+const formatPatch = (patch: CssPatch) =>
+  Object.entries(patch)
+    .map(([key, value]) => `${kebab(key)} → ${value}`)
+    .join(' · ')
+
+const selectorFor = (el: HTMLElement | null) => {
+  if (!el) return 'element'
+  const firstClass = el.classList[0] ? `.${el.classList[0]}` : ''
+  return `${el.tagName.toLowerCase()}${firstClass}`
+}
+
+const cleanHtml = (el: HTMLElement | null, fallback: string) => {
+  if (!el) return fallback
+  const tag = el.tagName.toLowerCase()
+  return `<${tag}>${el.textContent?.trim() ?? ''}</${tag}>`
+}
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 export function Demo() {
   const [state, dispatch] = useDemo()
   const [input, setInput] = useState('')
+  const model = useLocalModel()
 
   const scope = useRef<HTMLDivElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -93,29 +119,69 @@ export function Demo() {
     dispatch({type: 'reset'})
   })
 
-  const onSend = contextSafe(() => {
-    const text = input.trim()
-    if (!text) return
+  const onUngrab = () => {
+    active.current = null
+    setInput('')
+    dispatch({type: 'ungrab'})
+  }
+
+  const applyPatch = contextSafe((el: HTMLElement | null, patch: CssPatch) => {
+    if (!el) return
+    if (reduced()) gsap.set(el, patch)
+    else gsap.to(el, {...patch, duration: 0.5, ease: 'power2.out'})
+  })
+
+  const runCannedTail = (scenario: Scenario, el: HTMLElement | null) => {
+    dispatch({type: 'push', message: {kind: 'tool', label: 'patch', detail: scenario.patchDetail}})
+    dispatch({type: 'patch'})
+    applyPatch(el, scenario.apply)
+    dispatch({type: 'push', message: {kind: 'result', text: 'done — 1 element changed, saved to source'}})
+  }
+
+  const runLocal = async (text: string) => {
     const current = active.current
+    const el = current ? grabbedEl(current.id) : null
     const scenario = current?.scenario ?? PICKABLES.cta.scenarios[0]
     dispatch({type: 'send', message: {kind: 'user', text, grabbedHtml: state.grabbed?.html}})
     setInput('')
-
-    const tl = gsap.timeline()
-    for (const beat of buildTurn(scenario)) {
-      tl.add(() => {
-        if (beat.message) dispatch({type: 'push', message: beat.message})
-        if (beat.patch) {
-          dispatch({type: 'patch'})
-          const el = current ? grabbedEl(current.id) : null
-          if (el) {
-            if (reduced()) gsap.set(el, scenario.apply)
-            else gsap.to(el, {...scenario.apply, duration: 0.5, ease: 'power2.out'})
-          }
-        }
-      }, beat.at)
+    if (!el) {
+      dispatch({type: 'push', message: {kind: 'result', text: 'grab an element first, then tell me what to change'}})
+      return
     }
-  })
+    const html = cleanHtml(el, state.grabbed?.html ?? '')
+    const downloading = model.status !== 'ready'
+    dispatch({
+      type: 'push',
+      message: {kind: 'think', text: downloading ? 'downloading the model (first run)…' : 'thinking locally…'},
+    })
+    await delay(300)
+    dispatch({type: 'push', message: {kind: 'agent', text: 'On it — editing right here in your browser.'}})
+    dispatch({type: 'push', message: {kind: 'tool', label: 'inspect', detail: selectorFor(el)}})
+    try {
+      const {patch, text: newText, ms} = await model.run(html, text)
+      const keys = Object.keys(patch)
+      const changes = keys.length + (newText ? 1 : 0)
+      if (!changes) {
+        runCannedTail(scenario, el)
+        return
+      }
+      const detail = [newText ? `text → "${newText}"` : '', formatPatch(patch)].filter(Boolean).join(' · ')
+      dispatch({type: 'push', message: {kind: 'tool', label: newText ? 'edit' : 'patch', detail}})
+      dispatch({type: 'patch'})
+      if (newText) el.textContent = newText
+      if (keys.length) applyPatch(el, patch)
+      dispatch({type: 'push', message: {kind: 'result', text: `done in ${Math.round(ms)}ms — ${changes} change(s)`}})
+    } catch {
+      runCannedTail(scenario, el)
+    }
+  }
+
+  const onSend = () => {
+    const text = input.trim()
+    if (!text) return
+    model.load()
+    void runLocal(text)
+  }
 
   return (
     <div className="relative" ref={scope}>
@@ -125,11 +191,39 @@ export function Demo() {
       />
       <Card className="gap-0 overflow-hidden p-0 shadow-xl">
         <div className="flex items-center gap-2 border-b px-4 py-2.5">
-          <span className="text-base text-primary">✦</span>
+          <SparkMark className="text-base text-primary" />
           <span className="text-[13.5px] font-semibold">conciv</span>
           <Badge className="bg-accent font-mono text-[10px] uppercase tracking-wide text-accent-foreground">
             in your app
           </Badge>
+          <Select value={model.selected} onValueChange={model.choose}>
+            <SelectTrigger
+              size="sm"
+              aria-label="Pick the local model"
+              className="max-sm:hidden h-6 gap-1 rounded-md px-2 py-0 font-mono text-[10px] text-muted-foreground [&_svg:not([class*='size-'])]:size-3"
+            >
+              <SelectValue>{MODELS.find((option) => option.id === model.selected)?.label}</SelectValue>
+            </SelectTrigger>
+            <SelectContent className="p-1 font-mono text-[11px]">
+              {MODELS.map((option) => (
+                <SelectItem key={option.id} value={option.id} className="py-1.5 pl-2.5 font-mono text-[11px]">
+                  {option.label} <span className="text-muted-foreground">({option.size})</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {model.status === 'loading' && (
+            <Badge className="bg-primary/10 font-mono text-[10px] tracking-wide text-primary">{model.percent}%</Badge>
+          )}
+          {model.status === 'ready' && (
+            <Badge className="gap-1 bg-primary/10 font-mono text-[10px] tracking-wide text-primary">
+              {model.device}
+              <Check className="size-3" />
+            </Badge>
+          )}
+          {model.status === 'error' && (
+            <Badge className="bg-destructive/10 font-mono text-[10px] tracking-wide text-destructive">offline</Badge>
+          )}
           {state.done ? (
             <Button
               type="button"
@@ -142,13 +236,17 @@ export function Demo() {
               Restart demo
             </Button>
           ) : (
-            <span className="ml-auto font-mono text-[12px] text-muted-foreground">live demo</span>
+            <span className="ml-auto whitespace-nowrap font-mono text-[12px] text-muted-foreground">live demo</span>
           )}
         </div>
 
         <div className="grid h-[460px] grid-cols-1 sm:grid-cols-2">
           <div className="flex min-h-0 flex-col border-r">
-            <Transcript messages={state.messages} viewportRef={viewportRef} />
+            <Transcript
+              messages={state.messages}
+              hint={state.messages.length === 1 && !state.grabbed && !state.picking}
+              viewportRef={viewportRef}
+            />
             <Composer
               grabbed={state.grabbed}
               picking={state.picking}
@@ -156,6 +254,7 @@ export function Demo() {
               onValueChange={setInput}
               onArm={() => dispatch({type: 'arm', on: !state.picking})}
               onSend={onSend}
+              onUngrab={onUngrab}
               grabRef={grabRef}
             />
           </div>

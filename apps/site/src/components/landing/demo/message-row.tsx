@@ -1,5 +1,6 @@
 import {Badge} from '@/components/ui/badge'
 import {cn} from '@/lib/utils'
+import {SparkMark} from '../spark-mark'
 import type {Message} from './demo-data'
 
 const CHECK = '\u00A0\u2713'
@@ -21,7 +22,7 @@ export function MessageRow({message}: {message: Message}) {
   if (message.kind === 'think') {
     return (
       <div className="od-msg font-mono text-[12.5px] text-muted-foreground/80">
-        {'✦'} {message.text}
+        <SparkMark /> {message.text}
       </div>
     )
   }

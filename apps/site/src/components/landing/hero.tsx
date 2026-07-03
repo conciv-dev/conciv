@@ -4,13 +4,13 @@ import {InstallChip} from './install-chip'
 
 export function Hero() {
   return (
-    <header className="mx-auto grid max-w-[1180px] items-center gap-14 px-8 pb-20 pt-10 md:grid-cols-[1fr_1.02fr]">
+    <header className="mx-auto grid max-w-[1180px] items-center gap-14 px-8 pb-12 pt-10 md:grid-cols-[1fr_1.02fr]">
       <div>
         <Badge
           variant="outline"
           className="mb-5 gap-2 border-primary/30 font-mono text-[11.5px] uppercase tracking-[0.12em] text-primary"
         >
-          <span className="size-1.5 rounded-full bg-primary" /> Dev-only · Open source
+          <span className="size-1.5 rounded-full bg-primary" /> Beta · Dev-only · Open source
         </Badge>
         <h1 className="od-display mb-5 text-[clamp(40px,5.2vw,62px)] font-bold leading-[1.02] tracking-[-0.03em]">
           An AI dev agent that lives inside your <span className="od-underline">running app</span>.
