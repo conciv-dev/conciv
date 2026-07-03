@@ -115,15 +115,21 @@ function Input(props: InputProps): JSX.Element {
   onMount(() => {
     if (local.focusOnThreadSwitched) element?.focus()
   })
-  const openTrigger = () => triggerRoot?.triggers().find((scope) => scope.open())
+  const openTrigger = () => triggerRoot?.triggers().find((trigger) => trigger.scope.open())
+  let composing = false
+  let lastCursorPosition = -1
   const syncCursor = (target: HTMLTextAreaElement) => {
+    if (composing) return
+    const position = target.selectionStart ?? target.value.length
+    if (position === lastCursorPosition) return
+    lastCursorPosition = position
     const triggers = triggerRoot?.triggers() ?? []
-    for (const scope of triggers) scope.setCursorPosition(target.selectionStart ?? target.value.length)
+    for (const trigger of triggers) trigger.scope.setCursorPosition(position)
   }
-  const CARET_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'])
   const onKeyDown = (event: KeyboardEvent & {currentTarget: HTMLTextAreaElement; target: Element}) => {
     if (typeof local.onKeyDown === 'function') local.onKeyDown(event)
-    if (openTrigger()?.handleKeyDown(event)) return
+    if (event.isComposing) return
+    if (openTrigger()?.scope.handleKeyDown(event)) return
     const mode = local.submitMode ?? 'enter'
     if ((local.cancelOnEscape ?? true) && event.key === 'Escape' && composer.canCancel()) {
       event.preventDefault()
@@ -155,9 +161,15 @@ function Input(props: InputProps): JSX.Element {
         composer.setText(event.currentTarget.value)
         syncCursor(event.currentTarget)
       }}
-      onKeyUp={(event) => {
-        if (CARET_KEYS.has(event.key)) syncCursor(event.currentTarget)
+      onCompositionStart={() => {
+        composing = true
       }}
+      onCompositionEnd={(event) => {
+        composing = false
+        syncCursor(event.currentTarget)
+      }}
+      onSelect={(event) => syncCursor(event.currentTarget)}
+      onKeyUp={(event) => syncCursor(event.currentTarget)}
       onClick={(event) => syncCursor(event.currentTarget)}
       onKeyDown={onKeyDown}
       onPaste={(event) => void onPaste(event)}

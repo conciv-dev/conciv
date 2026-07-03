@@ -1,55 +1,72 @@
-import type {Accessor} from 'solid-js'
 import type {TriggerAdapter, TriggerItem} from '../primitives/composer/trigger/types.js'
+import type {IconComponent} from './create-mention-adapter.js'
 
-export type SlashCommandDef = {
-  id: string
-  label?: string
-  description?: string
-  icon?: string
-  execute(): void
+export type SlashCommand = {
+  readonly id: string
+  readonly label?: string
+  readonly description?: string
+  readonly icon?: string
+  readonly execute: () => void
 }
 
-function toItem(command: SlashCommandDef): TriggerItem {
+export type SlashCommandAdapterOptions = {
+  readonly commands: readonly SlashCommand[]
+  readonly removeOnExecute?: boolean
+  readonly iconMap?: Record<string, IconComponent>
+  readonly fallbackIcon?: IconComponent
+}
+
+export type SlashCommandAction = {
+  readonly onExecute: (item: TriggerItem) => void
+  readonly removeOnExecute?: boolean
+}
+
+export function createSlashCommandAdapter(options: SlashCommandAdapterOptions): {
+  adapter: TriggerAdapter
+  action: SlashCommandAction
+  iconMap?: Record<string, IconComponent>
+  fallbackIcon?: IconComponent
+} {
+  const {commands, removeOnExecute} = options
+
+  const adapter: TriggerAdapter = {
+    categories: () => [],
+    categoryItems: () => [],
+    search: (query: string) => {
+      const lower = query.toLowerCase()
+      return commands.filter((command) => matchesQuery(command, lower)).map(toItem)
+    },
+  }
+
+  const action: SlashCommandAction = {
+    onExecute: (item) => {
+      commands.find((command) => command.id === item.id)?.execute()
+    },
+    ...(removeOnExecute === undefined ? {} : {removeOnExecute}),
+  }
+
+  return {
+    adapter,
+    action,
+    ...(options.iconMap ? {iconMap: options.iconMap} : {}),
+    ...(options.fallbackIcon ? {fallbackIcon: options.fallbackIcon} : {}),
+  }
+}
+
+function toItem(command: SlashCommand): TriggerItem {
   return {
     id: command.id,
     type: 'command',
     label: command.label ?? `/${command.id}`,
-    ...(command.description === undefined ? {} : {description: command.description}),
-    ...(command.icon === undefined ? {} : {metadata: {icon: command.icon}}),
+    ...(command.description !== undefined ? {description: command.description} : {}),
+    ...(command.icon !== undefined ? {metadata: {icon: command.icon}} : {}),
   }
 }
 
-function matches(command: SlashCommandDef, lower: string): boolean {
+function matchesQuery(command: SlashCommand, lower: string): boolean {
   if (!lower) return true
-  return (
-    command.id.toLowerCase().includes(lower) ||
-    (command.label?.toLowerCase().includes(lower) ?? false) ||
-    (command.description?.toLowerCase().includes(lower) ?? false)
-  )
-}
-
-export function createSlashCommandAdapter(options: {
-  commands: Accessor<readonly SlashCommandDef[]>
-  removeOnExecute?: boolean
-}): {adapter: TriggerAdapter; action: {onExecute: (item: TriggerItem) => void; removeOnExecute?: boolean}} {
-  const adapter: TriggerAdapter = {
-    categories: () => [],
-    categoryItems: () => [],
-    search: (query) => {
-      const lower = query.toLowerCase()
-      return options
-        .commands()
-        .filter((command) => matches(command, lower))
-        .map(toItem)
-    },
-  }
-  const action = {
-    onExecute: (item: TriggerItem) =>
-      options
-        .commands()
-        .find((command) => command.id === item.id)
-        ?.execute(),
-    ...(options.removeOnExecute === undefined ? {} : {removeOnExecute: options.removeOnExecute}),
-  }
-  return {adapter, action}
+  if (command.id.toLowerCase().includes(lower)) return true
+  if (command.label?.toLowerCase().includes(lower)) return true
+  if (command.description?.toLowerCase().includes(lower)) return true
+  return false
 }

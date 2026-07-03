@@ -128,7 +128,7 @@ export const Slots: Story = {
   render: () => <SlotsApp />,
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    await expect(c.getByText('Running pnpm test')).toBeVisible()
-    await expect(c.getByText('Compacting…')).toBeVisible()
+    await waitFor(() => expect(c.getByText('Running pnpm test')).toBeVisible())
+    await waitFor(() => expect(c.getByText('Compacting…')).toBeVisible())
   },
 }

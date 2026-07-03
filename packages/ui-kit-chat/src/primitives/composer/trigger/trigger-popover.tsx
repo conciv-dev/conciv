@@ -1,8 +1,11 @@
 import {
   children,
   createContext,
+  createEffect,
   createMemo,
   createSignal,
+  createUniqueId,
+  on,
   onCleanup,
   Show,
   splitProps,
@@ -16,13 +19,18 @@ import {useComposer} from '../../../store/chat-context.js'
 import {Primitive} from '../../util/primitive.js'
 import {defaultDirectiveFormatter} from './directive-formatter.js'
 import {createTriggerPopoverModel, type TriggerPopoverScope} from './trigger-popover-model.js'
-import type {DirectiveFormatter, TriggerAdapter, TriggerCategory, TriggerItem} from './types.js'
+import type {DirectiveFormatter, TriggerAdapter, TriggerBehavior, TriggerCategory, TriggerItem} from './types.js'
+
+export type RegisteredTrigger = {
+  readonly char: string
+  readonly scope: TriggerPopoverScope
+}
 
 type ActiveAria = {popoverId: string; highlightedItemId: string | undefined}
 
 type RootContextValue = {
-  register(scope: TriggerPopoverScope): () => void
-  triggers: Accessor<readonly TriggerPopoverScope[]>
+  register(trigger: RegisteredTrigger): () => void
+  triggers: Accessor<readonly RegisteredTrigger[]>
   activeAria: Accessor<ActiveAria | null>
 }
 
@@ -40,31 +48,48 @@ export function useTriggerPopoverScope(): TriggerPopoverScope {
   return scope
 }
 
-function warnOnCollision(existing: readonly TriggerPopoverScope[], char: string): void {
-  if (!DEV) return
-  for (const scope of existing) {
-    if (scope.char === char) console.warn(`[ui-kit-chat] Duplicate TriggerPopover for char "${char}".`)
-    if (scope.char !== char && (char.startsWith(scope.char) || scope.char.startsWith(char)))
-      console.warn(`[ui-kit-chat] Trigger prefix collision between "${scope.char}" and "${char}".`)
-  }
+export type TriggerBehaviorRegistration = {
+  register(behavior: TriggerBehavior): () => void
+}
+
+const TriggerBehaviorRegistrationContext = createContext<TriggerBehaviorRegistration>()
+
+export function useTriggerBehaviorRegistration(): TriggerBehaviorRegistration {
+  const registration = useContext(TriggerBehaviorRegistrationContext)
+  if (!registration)
+    throw new Error('TriggerPopover.Directive / TriggerPopover.Action must be rendered inside Composer.TriggerPopover')
+  return registration
 }
 
 function Root(props: ParentProps): JSX.Element {
-  const [triggers, setTriggers] = createSignal<readonly TriggerPopoverScope[]>([])
+  const [triggers, setTriggers] = createSignal<readonly RegisteredTrigger[]>([])
   const activeAria = createMemo<ActiveAria | null>(() => {
-    const openScope = triggers().find((scope) => scope.open())
-    return openScope ? {popoverId: openScope.popoverId, highlightedItemId: openScope.highlightedItemId()} : null
+    const openTrigger = triggers().find((trigger) => trigger.scope.open())
+    return openTrigger
+      ? {popoverId: openTrigger.scope.popoverId, highlightedItemId: openTrigger.scope.highlightedItemId()}
+      : null
   })
-  const value: RootContextValue = {
-    register: (scope) => {
-      warnOnCollision(triggers(), scope.char)
-      setTriggers((previous) => [...previous, scope])
-      return () => setTriggers((previous) => previous.filter((entry) => entry !== scope))
-    },
-    triggers,
-    activeAria,
+  const register = (trigger: RegisteredTrigger) => {
+    const existing = triggers()
+    if (existing.some((entry) => entry.char === trigger.char)) {
+      if (DEV)
+        console.warn(
+          `[ui-kit-chat] Duplicate TriggerPopover for char "${trigger.char}". Ignoring the second registration.`,
+        )
+      return () => {}
+    }
+    if (DEV) {
+      for (const entry of existing) {
+        if (trigger.char.startsWith(entry.char) || entry.char.startsWith(trigger.char))
+          console.warn(
+            `[ui-kit-chat] Trigger prefix collision between "${entry.char}" and "${trigger.char}". One char is a prefix of the other; only one will match reliably.`,
+          )
+      }
+    }
+    setTriggers((previous) => [...previous, trigger])
+    return () => setTriggers((previous) => previous.filter((entry) => entry !== trigger))
   }
-  return <RootContext.Provider value={value}>{props.children}</RootContext.Provider>
+  return <RootContext.Provider value={{register, triggers, activeAria}}>{props.children}</RootContext.Provider>
 }
 
 type TriggerPopoverProps = JSX.HTMLAttributes<HTMLDivElement> & {
@@ -99,31 +124,62 @@ function TriggerPopoverComponent(props: TriggerPopoverProps): JSX.Element {
   const root = useContext(RootContext)
   if (!root) throw new Error('Composer.TriggerPopover must be used within a Composer.TriggerPopoverRoot')
   const [local, rest] = splitProps(props, ['char', 'adapter', 'isLoading', 'children'])
+  const popoverId = createUniqueId()
+
+  const [behavior, setBehavior] = createSignal<TriggerBehavior | null>(null)
+  let registrationCount = 0
+  const registration: TriggerBehaviorRegistration = {
+    register: (next) => {
+      registrationCount += 1
+      if (DEV && registrationCount > 1)
+        console.warn(
+          `[ui-kit-chat] TriggerPopover "${local.char}" received more than one behavior child. Exactly one <TriggerPopover.Directive> or <TriggerPopover.Action> is allowed per TriggerPopover; the last registration wins.`,
+        )
+      setBehavior(() => next)
+      return () => {
+        registrationCount = Math.max(0, registrationCount - 1)
+        setBehavior((current) => (current === next ? null : current))
+      }
+    },
+  }
+
   const scope = createTriggerPopoverModel({
     char: local.char,
     adapter: () => local.adapter,
+    behavior: () => behavior() ?? undefined,
     isLoading: () => local.isLoading ?? false,
+    popoverId,
     text: composer.text,
     setText: composer.setText,
   })
-  onCleanup(root.register(scope))
+  onCleanup(root.register({char: local.char, scope}))
+
   return (
-    <ScopeContext.Provider value={scope}>
-      <TriggerPopoverBody scope={scope} {...rest}>
-        {local.children}
-      </TriggerPopoverBody>
-    </ScopeContext.Provider>
+    <TriggerBehaviorRegistrationContext.Provider value={registration}>
+      <ScopeContext.Provider value={scope}>
+        <TriggerPopoverBody scope={scope} {...rest}>
+          {local.children}
+        </TriggerPopoverBody>
+      </ScopeContext.Provider>
+    </TriggerBehaviorRegistrationContext.Provider>
   )
 }
 
 function Directive(props: {formatter?: DirectiveFormatter; onInserted?: (item: TriggerItem) => void}): JSX.Element {
-  const scope = useTriggerPopoverScope()
-  onCleanup(
-    scope.registerBehavior({
-      kind: 'directive',
-      formatter: () => props.formatter ?? defaultDirectiveFormatter,
-      onInserted: (item) => props.onInserted?.(item),
-    }),
+  const registration = useTriggerBehaviorRegistration()
+  createEffect(
+    on(
+      () => props.formatter,
+      (formatter) => {
+        onCleanup(
+          registration.register({
+            kind: 'directive',
+            formatter: formatter ?? defaultDirectiveFormatter,
+            onInserted: (item) => props.onInserted?.(item),
+          }),
+        )
+      },
+    ),
   )
   return <></>
 }
@@ -133,13 +189,17 @@ function Action(props: {
   onExecute: (item: TriggerItem) => void
   removeOnExecute?: boolean
 }): JSX.Element {
-  const scope = useTriggerPopoverScope()
-  onCleanup(
-    scope.registerBehavior({
-      kind: 'action',
-      formatter: () => props.formatter ?? defaultDirectiveFormatter,
-      onExecute: (item) => props.onExecute(item),
-      removeOnExecute: () => props.removeOnExecute ?? false,
+  const registration = useTriggerBehaviorRegistration()
+  createEffect(
+    on([() => props.formatter, () => props.removeOnExecute], ([formatter, removeOnExecute]) => {
+      onCleanup(
+        registration.register({
+          kind: 'action',
+          formatter: formatter ?? defaultDirectiveFormatter,
+          onExecute: (item) => props.onExecute(item),
+          ...(removeOnExecute === undefined ? {} : {removeOnExecute}),
+        }),
+      )
     }),
   )
   return <></>
@@ -167,8 +227,9 @@ type CategoryItemProps = JSX.ButtonHTMLAttributes<HTMLButtonElement> & {category
 function CategoryItem(props: CategoryItemProps): JSX.Element {
   const scope = useTriggerPopoverScope()
   const [local, rest] = splitProps(props, ['categoryId', 'onClick', 'onMouseMove'])
-  const index = () => scope.categories().findIndex((category) => category.id === local.categoryId)
-  const highlighted = () => !scope.isSearchMode() && !scope.activeCategoryId() && index() === scope.highlightedIndex()
+  const categoryIndex = () => scope.categories().findIndex((category) => category.id === local.categoryId)
+  const highlighted = () =>
+    !scope.activeCategoryId() && !scope.isSearchMode() && categoryIndex() === scope.highlightedIndex()
   return (
     <Primitive.button
       type="button"
@@ -182,7 +243,7 @@ function CategoryItem(props: CategoryItemProps): JSX.Element {
       }}
       onMouseMove={(event) => {
         if (typeof local.onMouseMove === 'function') local.onMouseMove(event)
-        scope.highlightIndex(index())
+        scope.highlightIndex(categoryIndex())
       }}
       {...rest}
     />
@@ -211,9 +272,9 @@ type ItemProps = JSX.ButtonHTMLAttributes<HTMLButtonElement> & {item: TriggerIte
 function Item(props: ItemProps): JSX.Element {
   const scope = useTriggerPopoverScope()
   const [local, rest] = splitProps(props, ['item', 'index', 'onClick', 'onMouseMove'])
-  const index = () => local.index ?? scope.items().findIndex((entry) => entry.id === local.item.id)
+  const itemIndex = () => local.index ?? scope.items().findIndex((entry) => entry.id === local.item.id)
   const highlighted = () =>
-    (scope.isSearchMode() || scope.activeCategoryId() !== null) && index() === scope.highlightedIndex()
+    (scope.isSearchMode() || scope.activeCategoryId() !== null) && itemIndex() === scope.highlightedIndex()
   return (
     <Primitive.button
       type="button"
@@ -227,7 +288,7 @@ function Item(props: ItemProps): JSX.Element {
       }}
       onMouseMove={(event) => {
         if (typeof local.onMouseMove === 'function') local.onMouseMove(event)
-        scope.highlightIndex(index())
+        scope.highlightIndex(itemIndex())
       }}
       {...rest}
     />

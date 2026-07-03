@@ -37,7 +37,11 @@ const slashFormatter: DirectiveFormatter = {
   parse: (text) => [{kind: 'text', text}],
 }
 
-function App(props: {adapter: TriggerAdapter; onExecute?: (item: TriggerItem) => void}): JSX.Element {
+function App(props: {
+  adapter: TriggerAdapter
+  onExecute?: (item: TriggerItem) => void
+  removeOnExecute?: boolean
+}): JSX.Element {
   const chat = useChat({connection: storyConnection()})
   return (
     <ChatProvider chat={chat}>
@@ -46,7 +50,11 @@ function App(props: {adapter: TriggerAdapter; onExecute?: (item: TriggerItem) =>
           <Composer.Input aria-label="Message" placeholder="Type / for commands" />
           <Composer.TriggerPopover char="/" adapter={props.adapter} class="border flex flex-col">
             {props.onExecute ? (
-              <Composer.TriggerPopover.Action formatter={slashFormatter} onExecute={props.onExecute} removeOnExecute />
+              <Composer.TriggerPopover.Action
+                formatter={slashFormatter}
+                onExecute={props.onExecute}
+                removeOnExecute={props.removeOnExecute}
+              />
             ) : (
               <Composer.TriggerPopover.Directive formatter={slashFormatter} />
             )}
@@ -89,6 +97,8 @@ export const OpensAndFilters: Story = {
     await waitFor(() => expect(canvas.getByRole('option', {name: '/usage'})).toBeVisible())
     expect(canvas.queryByRole('option', {name: '/compact'})).toBeNull()
     expect(input).toHaveAttribute('aria-expanded', 'true')
+    expect(input).toHaveAttribute('aria-haspopup', 'listbox')
+    expect(input).toHaveAttribute('aria-controls', canvas.getByRole('listbox').id)
   },
 }
 
@@ -102,6 +112,60 @@ export const KeyboardSelect: Story = {
     await userEvent.keyboard('{ArrowDown}{Enter}')
     await waitFor(() => expect((input as HTMLTextAreaElement).value).toBe('/usage '))
     expect(canvas.queryByRole('listbox')).toBeNull()
+    expect(input).not.toHaveAttribute('aria-expanded')
+  },
+}
+
+export const TabSelects: Story = {
+  render: () => <App adapter={flatAdapter} />,
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    const input = canvas.getByLabelText('Message')
+    await userEvent.type(input, '/')
+    await waitFor(() => expect(canvas.getByRole('option', {name: '/compact'})).toBeVisible())
+    await userEvent.keyboard('{Tab}')
+    await waitFor(() => expect((input as HTMLTextAreaElement).value).toBe('/compact '))
+  },
+}
+
+export const HighlightCyclesWithWraparound: Story = {
+  render: () => <App adapter={flatAdapter} />,
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    const input = canvas.getByLabelText('Message')
+    await userEvent.type(input, '/')
+    await waitFor(() => expect(canvas.getByRole('option', {name: '/compact'})).toBeVisible())
+    expect(canvas.getByRole('option', {name: '/compact'})).toHaveAttribute('aria-selected', 'true')
+    await userEvent.keyboard('{ArrowUp}')
+    await waitFor(() => expect(canvas.getByRole('option', {name: '/help'})).toHaveAttribute('aria-selected', 'true'))
+    expect(input).toHaveAttribute('aria-activedescendant', canvas.getByRole('option', {name: '/help'}).id)
+    await userEvent.keyboard('{ArrowDown}')
+    await waitFor(() => expect(canvas.getByRole('option', {name: '/compact'})).toHaveAttribute('aria-selected', 'true'))
+  },
+}
+
+export const HoverHighlights: Story = {
+  render: () => <App adapter={flatAdapter} />,
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    const input = canvas.getByLabelText('Message')
+    await userEvent.type(input, '/')
+    await waitFor(() => expect(canvas.getByRole('option', {name: '/usage'})).toBeVisible())
+    await userEvent.hover(canvas.getByRole('option', {name: '/usage'}))
+    await waitFor(() => expect(canvas.getByRole('option', {name: '/usage'})).toHaveAttribute('data-highlighted'))
+    expect(canvas.getByRole('option', {name: '/compact'})).not.toHaveAttribute('data-highlighted')
+  },
+}
+
+export const ShiftEnterInsertsNewlineAndStaysOpen: Story = {
+  render: () => <App adapter={flatAdapter} />,
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    const input = canvas.getByLabelText('Message')
+    await userEvent.type(input, '/co')
+    await waitFor(() => expect(canvas.getByRole('listbox')).toBeVisible())
+    await userEvent.keyboard('{Shift>}{Enter}{/Shift}')
+    await waitFor(() => expect((input as HTMLTextAreaElement).value).toBe('/co\n'))
   },
 }
 
@@ -115,6 +179,21 @@ export const EscapeCloses: Story = {
     await userEvent.keyboard('{Escape}')
     await waitFor(() => expect(canvas.queryByRole('listbox')).toBeNull())
     expect(input).not.toHaveAttribute('aria-expanded')
+    expect((input as HTMLTextAreaElement).value).toBe('/co')
+  },
+}
+
+export const CursorMoveOutsideTriggerCloses: Story = {
+  render: () => <App adapter={flatAdapter} />,
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    const input = canvas.getByLabelText('Message')
+    await userEvent.type(input, 'hi /co')
+    await waitFor(() => expect(canvas.getByRole('listbox')).toBeVisible())
+    await userEvent.keyboard('{ArrowLeft}{ArrowLeft}{ArrowLeft}{ArrowLeft}')
+    await waitFor(() => expect(canvas.queryByRole('listbox')).toBeNull())
+    await userEvent.keyboard('{End}')
+    await waitFor(() => expect(canvas.getByRole('listbox')).toBeVisible())
   },
 }
 
@@ -127,23 +206,43 @@ export const CategoriesDrillAndBack: Story = {
     await waitFor(() => expect(canvas.getByRole('option', {name: 'Session'})).toBeVisible())
     await userEvent.click(canvas.getByRole('option', {name: 'Session'}))
     await waitFor(() => expect(canvas.getByRole('option', {name: '/help'})).toBeVisible())
+    expect(canvas.getByRole('button', {name: 'Back'})).toBeVisible()
     input.focus()
     await userEvent.keyboard('{Backspace}')
     await waitFor(() => expect(canvas.getByRole('option', {name: 'Context'})).toBeVisible())
   },
 }
 
-export const ActionExecutes: Story = {
+export const CategoryKeyboardDrill: Story = {
+  render: () => <App adapter={categorizedAdapter} />,
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    const input = canvas.getByLabelText('Message')
+    await userEvent.type(input, '/')
+    await waitFor(() => expect(canvas.getByRole('option', {name: 'Session'})).toBeVisible())
+    await userEvent.keyboard('{ArrowDown}{Enter}')
+    await waitFor(() => expect(canvas.getByRole('option', {name: '/compact'})).toBeVisible())
+    await userEvent.click(canvas.getByRole('button', {name: 'Back'}))
+    await waitFor(() => expect(canvas.getByRole('option', {name: 'Session'})).toBeVisible())
+  },
+}
+
+export const TypedQueryEntersSearchModeFromCategories: Story = {
+  render: () => <App adapter={categorizedAdapter} />,
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    const input = canvas.getByLabelText('Message')
+    await userEvent.type(input, '/usa')
+    await waitFor(() => expect(canvas.getByRole('option', {name: '/usage'})).toBeVisible())
+    expect(canvas.queryByRole('option', {name: 'Session'})).toBeNull()
+    expect(canvas.queryByRole('button', {name: 'Back'})).toBeNull()
+  },
+}
+
+export const ActionExecutesAndRemoves: Story = {
   render: () => {
     const executed: string[] = []
-    return (
-      <App
-        adapter={flatAdapter}
-        onExecute={(item) => {
-          executed.push(item.id)
-        }}
-      />
-    )
+    return <App adapter={flatAdapter} onExecute={(item) => executed.push(item.id)} removeOnExecute />
   },
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
@@ -152,5 +251,43 @@ export const ActionExecutes: Story = {
     await waitFor(() => expect(canvas.getByRole('option', {name: '/compact'})).toBeVisible())
     await userEvent.click(canvas.getByRole('option', {name: '/compact'}))
     await waitFor(() => expect((input as HTMLTextAreaElement).value).toBe('hi '))
+    expect(canvas.queryByRole('listbox')).toBeNull()
+  },
+}
+
+export const ActionLeavesAuditChip: Story = {
+  render: () => <App adapter={flatAdapter} onExecute={() => {}} />,
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    const input = canvas.getByLabelText('Message')
+    await userEvent.type(input, '/comp')
+    await waitFor(() => expect(canvas.getByRole('option', {name: '/compact'})).toBeVisible())
+    await userEvent.click(canvas.getByRole('option', {name: '/compact'}))
+    await waitFor(() => expect((input as HTMLTextAreaElement).value).toBe('/compact '))
+  },
+}
+
+export const NoAdapterStaysClosed: Story = {
+  render: () => {
+    const chat = useChat({connection: storyConnection()})
+    return (
+      <ChatProvider chat={chat}>
+        <Composer.TriggerPopoverRoot>
+          <Composer.Root class="flex flex-col gap-1 relative">
+            <Composer.Input aria-label="Message" />
+            <Composer.TriggerPopover char="/">
+              <Composer.TriggerPopover.Directive formatter={slashFormatter} />
+            </Composer.TriggerPopover>
+          </Composer.Root>
+        </Composer.TriggerPopoverRoot>
+      </ChatProvider>
+    )
+  },
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    const input = canvas.getByLabelText('Message')
+    await userEvent.type(input, '/co')
+    expect(canvas.queryByRole('listbox')).toBeNull()
+    expect((input as HTMLTextAreaElement).value).toBe('/co')
   },
 }

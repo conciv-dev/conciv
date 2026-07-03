@@ -1,4 +1,15 @@
-import {createContext, createMemo, Index, Match, Show, Switch, useContext, type Component, type JSX} from 'solid-js'
+import {
+  children,
+  createContext,
+  createMemo,
+  Index,
+  Match,
+  Show,
+  Switch,
+  useContext,
+  type Component,
+  type JSX,
+} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {ArrowDown, Brain, FilePen, FileText, List, Search, Terminal, Wrench} from 'lucide-solid'
 import type {MessagePart, ToolCallPart} from '@tanstack/ai-client'
@@ -194,6 +205,7 @@ function AssistantMessageView(): JSX.Element {
 const MESSAGES_COMPONENTS = {UserMessage: UserTurn, AssistantMessage: AssistantMessageView}
 
 export function Thread(props: ThreadProps): JSX.Element {
+  const composerSlot = children(() => props.composer)
   return (
     <ThreadConfigContext.Provider
       value={{
@@ -224,8 +236,8 @@ export function Thread(props: ThreadProps): JSX.Element {
             Latest
           </ThreadPrimitive.ScrollToBottom>
         </ThreadPrimitive.Viewport>
-        <Show when={props.composer}>
-          <div class="p-2 shrink-0 [border-top:1px_solid_var(--chat-line)]">{props.composer}</div>
+        <Show when={composerSlot()}>
+          <div class="p-2 shrink-0 [border-top:1px_solid_var(--chat-line)]">{composerSlot()}</div>
         </Show>
       </div>
     </ThreadConfigContext.Provider>

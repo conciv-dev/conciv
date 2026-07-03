@@ -22,13 +22,8 @@ export type DirectiveFormatter = {
 }
 
 export type TriggerBehavior =
-  | {kind: 'directive'; formatter: () => DirectiveFormatter; onInserted?: (item: TriggerItem) => void}
-  | {
-      kind: 'action'
-      formatter: () => DirectiveFormatter
-      onExecute: (item: TriggerItem) => void
-      removeOnExecute?: () => boolean
-    }
+  | {kind: 'directive'; formatter: DirectiveFormatter; onInserted?: (item: TriggerItem) => void}
+  | {kind: 'action'; formatter: DirectiveFormatter; onExecute: (item: TriggerItem) => void; removeOnExecute?: boolean}
 
 export type TriggerKeyEvent = {readonly key: string; readonly shiftKey: boolean; preventDefault(): void}
 

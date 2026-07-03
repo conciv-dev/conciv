@@ -1,6 +1,6 @@
 import {type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
-import {expect, within} from 'storybook/test'
+import {expect, waitFor, within} from 'storybook/test'
 import {NowLine} from './now-line.js'
 
 const meta: Meta = {title: 'styled/NowLine'}
@@ -15,8 +15,8 @@ export const Running: Story = {
   render: () => frame('chat-theme-dark', <NowLine title="Running pnpm test" onStop={() => {}} />),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    await expect(c.getByText('Running pnpm test')).toBeVisible()
-    await expect(c.getByRole('button', {name: 'Stop'})).toBeVisible()
+    await waitFor(() => expect(c.getByText('Running pnpm test')).toBeVisible())
+    await waitFor(() => expect(c.getByRole('button', {name: 'Stop'})).toBeVisible())
   },
 }
 

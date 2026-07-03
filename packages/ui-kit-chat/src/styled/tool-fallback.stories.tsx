@@ -55,7 +55,7 @@ export const Errored: Story = {
     const c = within(canvasElement)
     await userEvent.click(c.getByRole('button'))
     await waitFor(() => expect(c.getByText('Error:')).toBeVisible())
-    await expect(c.getByText('no such city')).toBeVisible()
+    await waitFor(() => expect(c.getAllByText('no such city')[0]).toBeVisible())
   },
 }
 

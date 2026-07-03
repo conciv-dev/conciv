@@ -1,7 +1,7 @@
 import {createRoot, createSignal} from 'solid-js'
 import {describe, expect, it} from 'vitest'
 import {createTriggerPopoverModel} from '../src/primitives/composer/trigger/trigger-popover-model.js'
-import type {TriggerAdapter, TriggerItem} from '../src/primitives/composer/trigger/types.js'
+import type {TriggerAdapter, TriggerBehavior, TriggerItem} from '../src/primitives/composer/trigger/types.js'
 import {defaultDirectiveFormatter} from '../src/primitives/composer/trigger/directive-formatter.js'
 
 const FIRST: TriggerItem = {id: 'compact', type: 'command', label: '/compact', description: 'Compact the context'}
@@ -19,21 +19,24 @@ const categorizedAdapter: TriggerAdapter = {
 function setup(adapter: TriggerAdapter, initial = '') {
   return createRoot((dispose) => {
     const [text, setText] = createSignal(initial)
+    const [behavior, setBehavior] = createSignal<TriggerBehavior | undefined>(undefined)
     const model = createTriggerPopoverModel({
       char: '/',
       adapter: () => adapter,
+      behavior,
       isLoading: () => false,
+      popoverId: 'test-popover',
       text,
       setText,
     })
-    return {model, text, setText, dispose}
+    return {model, text, setText, setBehavior, dispose}
   })
 }
 
 const keyEvent = (key: string, shiftKey = false) => ({key, shiftKey, preventDefault: () => {}})
 
 describe('createTriggerPopoverModel', () => {
-  it('stays closed without a registered behavior', () => {
+  it('stays closed without a behavior', () => {
     const {model, setText, dispose} = setup(flatAdapter)
     setText('/co')
     model.setCursorPosition(3)
@@ -41,9 +44,9 @@ describe('createTriggerPopoverModel', () => {
     dispose()
   })
 
-  it('opens on trigger detection once a behavior registers, search mode for flat adapters', () => {
-    const {model, setText, dispose} = setup(flatAdapter)
-    model.registerBehavior({kind: 'directive', formatter: () => defaultDirectiveFormatter})
+  it('opens on trigger detection once a behavior is present, search mode for flat adapters', () => {
+    const {model, setText, setBehavior, dispose} = setup(flatAdapter)
+    setBehavior({kind: 'directive', formatter: defaultDirectiveFormatter})
     setText('/co')
     model.setCursorPosition(3)
     expect(model.open()).toBe(true)
@@ -53,8 +56,8 @@ describe('createTriggerPopoverModel', () => {
   })
 
   it('shows categories at top level and drills in', () => {
-    const {model, setText, dispose} = setup(categorizedAdapter)
-    model.registerBehavior({kind: 'directive', formatter: () => defaultDirectiveFormatter})
+    const {model, setText, setBehavior, dispose} = setup(categorizedAdapter)
+    setBehavior({kind: 'directive', formatter: defaultDirectiveFormatter})
     setText('/')
     model.setCursorPosition(1)
     expect(model.categories().map((category) => category.id)).toEqual(['general'])
@@ -66,15 +69,16 @@ describe('createTriggerPopoverModel', () => {
   })
 
   it('keyboard: arrows cycle with wraparound, Enter selects', () => {
-    const {model, text, setText, dispose} = setup(flatAdapter)
-    model.registerBehavior({
+    const {model, text, setText, setBehavior, dispose} = setup(flatAdapter)
+    setBehavior({
       kind: 'directive',
-      formatter: () => ({serialize: (item) => `/${item.id}`, parse: (value) => [{kind: 'text', text: value}]}),
+      formatter: {serialize: (item) => `/${item.id}`, parse: (value) => [{kind: 'text', text: value}]},
     })
     setText('/')
     model.setCursorPosition(1)
     expect(model.handleKeyDown(keyEvent('ArrowDown'))).toBe(true)
     expect(model.highlightedIndex()).toBe(1)
+    expect(model.highlightedItemId()).toBe('test-popover-option-usage')
     model.handleKeyDown(keyEvent('ArrowDown'))
     expect(model.highlightedIndex()).toBe(0)
     model.handleKeyDown(keyEvent('ArrowUp'))
@@ -82,21 +86,28 @@ describe('createTriggerPopoverModel', () => {
     model.handleKeyDown(keyEvent('ArrowUp'))
     model.handleKeyDown(keyEvent('Enter'))
     expect(text()).toBe('/compact ')
+    expect(model.open()).toBe(false)
     dispose()
   })
 
-  it('Shift+Enter is not consumed', () => {
-    const {model, setText, dispose} = setup(flatAdapter)
-    model.registerBehavior({kind: 'directive', formatter: () => defaultDirectiveFormatter})
+  it('Tab selects like Enter; Shift variants are not consumed', () => {
+    const {model, text, setText, setBehavior, dispose} = setup(flatAdapter)
+    setBehavior({
+      kind: 'directive',
+      formatter: {serialize: (item) => `/${item.id}`, parse: (value) => [{kind: 'text', text: value}]},
+    })
     setText('/')
     model.setCursorPosition(1)
     expect(model.handleKeyDown(keyEvent('Enter', true))).toBe(false)
+    expect(model.handleKeyDown(keyEvent('Tab', true))).toBe(false)
+    expect(model.handleKeyDown(keyEvent('Tab'))).toBe(true)
+    expect(text()).toBe('/compact ')
     dispose()
   })
 
   it('Backspace with empty query inside a category goes back and is consumed', () => {
-    const {model, setText, dispose} = setup(categorizedAdapter)
-    model.registerBehavior({kind: 'directive', formatter: () => defaultDirectiveFormatter})
+    const {model, setText, setBehavior, dispose} = setup(categorizedAdapter)
+    setBehavior({kind: 'directive', formatter: defaultDirectiveFormatter})
     setText('/')
     model.setCursorPosition(1)
     model.selectCategory('general')
@@ -105,14 +116,25 @@ describe('createTriggerPopoverModel', () => {
     dispose()
   })
 
+  it('keyboard Enter on a highlighted category drills in', () => {
+    const {model, setText, setBehavior, dispose} = setup(categorizedAdapter)
+    setBehavior({kind: 'directive', formatter: defaultDirectiveFormatter})
+    setText('/')
+    model.setCursorPosition(1)
+    model.handleKeyDown(keyEvent('Enter'))
+    expect(model.activeCategoryId()).toBe('general')
+    expect(model.items()).toHaveLength(2)
+    dispose()
+  })
+
   it('action behavior with removeOnExecute strips the trigger text and fires onExecute', () => {
-    const {model, text, setText, dispose} = setup(flatAdapter, 'hi /com')
+    const {model, text, setText, setBehavior, dispose} = setup(flatAdapter, 'hi /com')
     const executed: string[] = []
-    model.registerBehavior({
+    setBehavior({
       kind: 'action',
-      formatter: () => defaultDirectiveFormatter,
+      formatter: defaultDirectiveFormatter,
       onExecute: (item) => executed.push(item.id),
-      removeOnExecute: () => true,
+      removeOnExecute: true,
     })
     setText('hi /com')
     model.setCursorPosition(7)
@@ -122,9 +144,25 @@ describe('createTriggerPopoverModel', () => {
     dispose()
   })
 
+  it('action behavior without removeOnExecute leaves an audit chip and fires onExecute', () => {
+    const {model, text, setText, setBehavior, dispose} = setup(flatAdapter)
+    const executed: string[] = []
+    setBehavior({
+      kind: 'action',
+      formatter: {serialize: (item) => `/${item.id}`, parse: (value) => [{kind: 'text', text: value}]},
+      onExecute: (item) => executed.push(item.id),
+    })
+    setText('/com')
+    model.setCursorPosition(4)
+    model.selectItem(FIRST)
+    expect(executed).toEqual(['compact'])
+    expect(text()).toBe('/compact ')
+    dispose()
+  })
+
   it('close moves the cursor before the trigger so detection deactivates', () => {
-    const {model, setText, dispose} = setup(flatAdapter)
-    model.registerBehavior({kind: 'directive', formatter: () => defaultDirectiveFormatter})
+    const {model, setText, setBehavior, dispose} = setup(flatAdapter)
+    setBehavior({kind: 'directive', formatter: defaultDirectiveFormatter})
     setText('/co')
     model.setCursorPosition(3)
     model.close()
@@ -133,8 +171,8 @@ describe('createTriggerPopoverModel', () => {
   })
 
   it('select-item override intercepts insertion', () => {
-    const {model, text, setText, dispose} = setup(flatAdapter)
-    model.registerBehavior({kind: 'directive', formatter: () => defaultDirectiveFormatter})
+    const {model, text, setText, setBehavior, dispose} = setup(flatAdapter)
+    setBehavior({kind: 'directive', formatter: defaultDirectiveFormatter})
     const seen: string[] = []
     model.registerSelectItemOverride((item) => {
       seen.push(item.id)
@@ -145,6 +183,22 @@ describe('createTriggerPopoverModel', () => {
     model.selectItem(FIRST)
     expect(seen).toEqual(['compact'])
     expect(text()).toBe('/co')
+    dispose()
+  })
+
+  it('closing resets the active category', () => {
+    const {model, setText, setBehavior, dispose} = setup(categorizedAdapter)
+    setBehavior({kind: 'directive', formatter: defaultDirectiveFormatter})
+    setText('/')
+    model.setCursorPosition(1)
+    model.selectCategory('general')
+    expect(model.activeCategoryId()).toBe('general')
+    setText('')
+    model.setCursorPosition(0)
+    expect(model.open()).toBe(false)
+    setText('/')
+    model.setCursorPosition(1)
+    expect(model.activeCategoryId()).toBeNull()
     dispose()
   })
 })
