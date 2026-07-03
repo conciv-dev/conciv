@@ -230,10 +230,11 @@ export function Demo() {
               variant="ghost"
               size="sm"
               onClick={onRestart}
+              aria-label="Restart demo"
               className="ml-auto h-7 gap-1.5 px-2 font-mono text-[12px] text-muted-foreground hover:text-foreground"
             >
               <RotateCcw className="size-3.5" />
-              Restart demo
+              <span className="max-sm:hidden">Restart demo</span>
             </Button>
           ) : (
             <span className="ml-auto whitespace-nowrap font-mono text-[12px] text-muted-foreground">live demo</span>

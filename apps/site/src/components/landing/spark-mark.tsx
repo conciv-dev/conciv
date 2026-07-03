@@ -7,9 +7,10 @@ export function SparkMark({className}: {className?: string}) {
     <m.span
       className={cn('inline-flex align-[-0.08em]', className)}
       whileHover={{rotate: 180, scale: 1.2}}
+      whileTap={{rotate: 180, scale: 1.2}}
       transition={{type: 'spring', stiffness: 340, damping: 14}}
     >
-      <Sparkle aria-hidden className="size-[0.85em] fill-current" />
+      <Sparkle aria-hidden className="size-[0.85em] translate-y-[0.04em] fill-current" />
     </m.span>
   )
 }

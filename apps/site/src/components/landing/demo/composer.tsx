@@ -55,6 +55,7 @@ export function Composer({
             size="icon"
             variant="default"
             aria-label="Send"
+            disabled={!value.trim()}
             className="ml-auto bg-foreground text-background"
           >
             <ArrowUp className="size-4" />
