@@ -103,9 +103,15 @@ function TriggerPopoverBody(
 ): JSX.Element {
   const [local, rest] = splitProps(props, ['scope', 'children'])
   const resolved = children(() => local.children)
+  let listbox: HTMLDivElement | undefined
+  createEffect(() => {
+    const id = local.scope.highlightedItemId()
+    if (id) listbox?.querySelector(`#${CSS.escape(id)}`)?.scrollIntoView({block: 'nearest'})
+  })
   return (
     <Show when={local.scope.open()} fallback={resolved()}>
       <Primitive.div
+        ref={(node: HTMLDivElement) => (listbox = node)}
         role="listbox"
         id={local.scope.popoverId}
         aria-label="Suggestions"

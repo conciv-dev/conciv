@@ -4,9 +4,11 @@ import type {SessionClient} from '@conciv/api-client'
 import type {ChatCommand, ChatTool} from '@conciv/protocol/chat-types'
 
 const PANEL =
-  'absolute bottom-full start-0 z-50 mb-2 w-72 max-h-64 overflow-y-auto rounded-pw-md border border-pw-line bg-pw-panel shadow-lg flex flex-col py-1 font-pw'
+  'absolute bottom-full start-0 z-50 mb-2 w-72 overflow-hidden rounded-pw-md border border-pw-line bg-pw-panel shadow-lg flex flex-col font-pw'
 const OPTION =
   'flex w-full flex-col items-start gap-0.5 px-3 py-1.5 text-start [border:none] bg-transparent cursor-pointer text-pw-text data-[highlighted]:bg-pw-fill-strong'
+const OPTION_LABEL = 'w-full truncate text-[0.8125rem] font-medium'
+const OPTION_DESC = 'w-full line-clamp-2 text-[0.75rem] text-pw-text-3 leading-tight'
 const GROUP_HEADER =
   'px-3 pt-2 pb-1 text-[0.6875rem] font-medium tracking-[0.06em] [text-transform:uppercase] text-pw-text-3'
 
@@ -77,9 +79,9 @@ function GroupedList(props: {items: readonly TriggerItem[]}): JSX.Element {
             <div class={GROUP_HEADER}>{groupOf(item)}</div>
           </Show>
           <ComposerPrimitive.TriggerPopoverItem item={item} index={index()} class={OPTION}>
-            <span class="text-[0.8125rem] font-medium">{item.label}</span>
+            <span class={OPTION_LABEL}>{item.label}</span>
             <Show when={item.description}>
-              <span class="text-[0.75rem] text-pw-text-3 leading-tight">{item.description}</span>
+              <span class={OPTION_DESC}>{item.description}</span>
             </Show>
           </ComposerPrimitive.TriggerPopoverItem>
         </>
@@ -97,7 +99,7 @@ function TriggerMenu(props: {
     <Show when={props.items().length > 0}>
       <ComposerPrimitive.TriggerPopover char={props.char} adapter={groupedAdapter(props.items)} class={PANEL}>
         <ComposerPrimitive.TriggerPopover.Directive formatter={props.formatter} />
-        <ComposerPrimitive.TriggerPopoverItems class="flex flex-col">
+        <ComposerPrimitive.TriggerPopoverItems class="max-h-64 overflow-y-auto overscroll-contain py-1 flex flex-col">
           {(items) => <GroupedList items={items()} />}
         </ComposerPrimitive.TriggerPopoverItems>
       </ComposerPrimitive.TriggerPopover>
@@ -116,11 +118,19 @@ export function TriggerMenus(props: {
 }): JSX.Element {
   const [commands] = createResource(
     () => (props.active() ? props.turnCount() + 1 : null),
-    () => props.client.commands().then((payload) => payload.commands, () => []),
+    () =>
+      props.client.commands().then(
+        (payload) => payload.commands,
+        () => [],
+      ),
   )
   const [tools] = createResource(
     () => props.active(),
-    () => props.client.tools().then((payload) => payload.tools, () => []),
+    () =>
+      props.client.tools().then(
+        (payload) => payload.tools,
+        () => [],
+      ),
   )
   const commandItems = createMemo(() => sortByGroup((commands() ?? []).map(commandItem)))
   const toolItems = createMemo(() => sortByGroup((tools() ?? []).map(toolItem)))

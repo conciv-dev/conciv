@@ -267,6 +267,65 @@ export const ActionLeavesAuditChip: Story = {
   },
 }
 
+const MANY: TriggerItem[] = Array.from({length: 30}, (_, index) => ({
+  id: `cmd${index}`,
+  type: 'command',
+  label: `/cmd${index}`,
+}))
+const manyAdapter: TriggerAdapter = {
+  categories: () => [],
+  categoryItems: () => [],
+  search: (query) => MANY.filter((item) => item.id.includes(query.toLowerCase())),
+}
+
+export const KeyboardScrollsActiveItemIntoView: Story = {
+  render: () => {
+    const chat = useChat({connection: storyConnection()})
+    return (
+      <ChatProvider chat={chat}>
+        <Composer.TriggerPopoverRoot>
+          <Composer.Root class="flex flex-col gap-1 relative">
+            <Composer.Input aria-label="Message" />
+            <Composer.TriggerPopover
+              char="/"
+              adapter={manyAdapter}
+              class="border block"
+              style={{'max-height': '128px', 'overflow-y': 'auto'}}
+            >
+              <Composer.TriggerPopover.Directive formatter={slashFormatter} />
+              <Composer.TriggerPopoverItems>
+                {(items) => (
+                  <For each={items()}>
+                    {(item, index) => (
+                      <Composer.TriggerPopoverItem item={item} index={index()} class="shrink-0 h-6 block">
+                        {item.label}
+                      </Composer.TriggerPopoverItem>
+                    )}
+                  </For>
+                )}
+              </Composer.TriggerPopoverItems>
+            </Composer.TriggerPopover>
+          </Composer.Root>
+        </Composer.TriggerPopoverRoot>
+      </ChatProvider>
+    )
+  },
+  play: async ({canvasElement}) => {
+    const canvas = within(canvasElement)
+    const input = canvas.getByLabelText('Message')
+    await userEvent.type(input, '/')
+    const listbox = await waitFor(() => canvas.getByRole('listbox'))
+    expect(listbox.scrollTop).toBe(0)
+    for (let index = 0; index < 20; index += 1) await userEvent.keyboard('{ArrowDown}')
+    await waitFor(() => expect(listbox.scrollTop).toBeGreaterThan(0))
+    const active = canvas.getByRole('option', {name: '/cmd20'})
+    const listRect = listbox.getBoundingClientRect()
+    const activeRect = active.getBoundingClientRect()
+    expect(activeRect.bottom).toBeLessThanOrEqual(listRect.bottom + 1)
+    expect(activeRect.top).toBeGreaterThanOrEqual(listRect.top - 1)
+  },
+}
+
 export const NoAdapterStaysClosed: Story = {
   render: () => {
     const chat = useChat({connection: storyConnection()})
