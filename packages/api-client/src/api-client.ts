@@ -6,6 +6,8 @@ import {
   ChatSessionsSchema,
   ChatHistorySchema,
   ChatModelsSchema,
+  ChatCommandsSchema,
+  ChatToolsSchema,
   ChatLaunchSchema,
   ChatLaunchRequestSchema,
   RenameSessionSchema,
@@ -42,6 +44,8 @@ export function defineClient(opts: {apiBase: string}) {
     sessions: t.route({method: 'GET', path: '/api/chat/sessions', response: ChatSessionsSchema}),
     history: t.route({method: 'GET', path: '/api/chat/history', response: ChatHistorySchema}),
     models: t.route({method: 'GET', path: '/api/chat/models', response: ChatModelsSchema}),
+    commands: t.route({method: 'GET', path: '/api/chat/commands', response: ChatCommandsSchema}),
+    tools: t.route({method: 'GET', path: '/api/chat/tools', response: ChatToolsSchema}),
     rename: t.route({
       method: 'POST',
       path: '/api/chat/sessions/title',
