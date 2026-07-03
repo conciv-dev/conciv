@@ -4,7 +4,7 @@ import appCss from '@/styles/app.css?url'
 import {RootProvider} from 'fumadocs-ui/provider/tanstack'
 
 const SITE = 'https://conciv.dev'
-const TITLE = 'conciv — an AI dev agent inside your running app'
+const TITLE = 'conciv — Conceive it. An AI dev agent inside your running app'
 const DESCRIPTION =
   'conciv is a dev-only AI agent embedded in your running app. Grab any element, chat, and let it drive the page and run your tests — without leaving what you are building.'
 const OG_IMAGE = `${SITE}/og.png`
