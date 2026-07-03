@@ -120,6 +120,7 @@ function Input(props: InputProps): JSX.Element {
     const triggers = triggerRoot?.triggers() ?? []
     for (const scope of triggers) scope.setCursorPosition(target.selectionStart ?? target.value.length)
   }
+  const CARET_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'PageUp', 'PageDown'])
   const onKeyDown = (event: KeyboardEvent & {currentTarget: HTMLTextAreaElement; target: Element}) => {
     if (typeof local.onKeyDown === 'function') local.onKeyDown(event)
     if (openTrigger()?.handleKeyDown(event)) return
@@ -154,7 +155,9 @@ function Input(props: InputProps): JSX.Element {
         composer.setText(event.currentTarget.value)
         syncCursor(event.currentTarget)
       }}
-      onKeyUp={(event) => syncCursor(event.currentTarget)}
+      onKeyUp={(event) => {
+        if (CARET_KEYS.has(event.key)) syncCursor(event.currentTarget)
+      }}
       onClick={(event) => syncCursor(event.currentTarget)}
       onKeyDown={onKeyDown}
       onPaste={(event) => void onPaste(event)}

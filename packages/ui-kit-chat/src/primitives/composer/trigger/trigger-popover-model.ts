@@ -137,7 +137,15 @@ export function createTriggerPopoverModel(options: TriggerPopoverModelOptions): 
     const before = current.slice(0, detected.offset)
     const after = current.slice(detected.offset + options.char.length + detected.query.length)
     const padded = after.startsWith(' ') ? after : ` ${after}`
-    const insertDirective = () => options.setText(before + active.formatter().serialize(item) + padded)
+    const insertDirective = () => {
+      const serialized = active.formatter().serialize(item)
+      options.setText(before + serialized + padded)
+      setCursorPosition(before.length + serialized.length + 1)
+    }
+    const removeTrigger = () => {
+      options.setText(before + (after.startsWith(' ') ? after.slice(1) : after))
+      setCursorPosition(before.length)
+    }
     if (active.kind === 'directive') {
       insertDirective()
       active.onInserted?.(item)
@@ -145,7 +153,7 @@ export function createTriggerPopoverModel(options: TriggerPopoverModelOptions): 
       return
     }
     const remove = active.removeOnExecute?.() ?? false
-    if (remove) options.setText(before + (after.startsWith(' ') ? after.slice(1) : after))
+    if (remove) removeTrigger()
     if (!remove) insertDirective()
     active.onExecute(item)
     afterSelect()

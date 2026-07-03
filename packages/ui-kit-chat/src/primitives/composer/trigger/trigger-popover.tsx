@@ -1,4 +1,5 @@
 import {
+  children,
   createContext,
   createMemo,
   createSignal,
@@ -72,6 +73,27 @@ type TriggerPopoverProps = JSX.HTMLAttributes<HTMLDivElement> & {
   isLoading?: boolean
 }
 
+function TriggerPopoverBody(
+  props: Omit<JSX.HTMLAttributes<HTMLDivElement>, 'children'> & {scope: TriggerPopoverScope; children: JSX.Element},
+): JSX.Element {
+  const [local, rest] = splitProps(props, ['scope', 'children'])
+  const resolved = children(() => local.children)
+  return (
+    <Show when={local.scope.open()} fallback={resolved()}>
+      <Primitive.div
+        role="listbox"
+        id={local.scope.popoverId}
+        aria-label="Suggestions"
+        aria-activedescendant={local.scope.highlightedItemId()}
+        data-state="open"
+        {...rest}
+      >
+        {resolved()}
+      </Primitive.div>
+    </Show>
+  )
+}
+
 function TriggerPopoverComponent(props: TriggerPopoverProps): JSX.Element {
   const composer = useComposer()
   const root = useContext(RootContext)
@@ -87,18 +109,9 @@ function TriggerPopoverComponent(props: TriggerPopoverProps): JSX.Element {
   onCleanup(root.register(scope))
   return (
     <ScopeContext.Provider value={scope}>
-      <Show when={scope.open()} fallback={local.children}>
-        <Primitive.div
-          role="listbox"
-          id={scope.popoverId}
-          aria-label="Suggestions"
-          aria-activedescendant={scope.highlightedItemId()}
-          data-state="open"
-          {...rest}
-        >
-          {local.children}
-        </Primitive.div>
-      </Show>
+      <TriggerPopoverBody scope={scope} {...rest}>
+        {local.children}
+      </TriggerPopoverBody>
     </ScopeContext.Provider>
   )
 }
