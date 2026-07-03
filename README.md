@@ -7,6 +7,8 @@
 <h1>✦&nbsp; conciv</h1>
 
 <p>
+  <em>Conceive it.</em>
+  <br>
   <strong>An AI dev agent that lives inside your running app.</strong>
   <br>
   Add one plugin. Then chat, let it drive the page, and run your tests —
@@ -125,11 +127,11 @@ Two built-ins show what the contract can do:
 
 ## Supported tools
 
-| Area          | Full support              | In progress                      |
-| ------------- | ------------------------- | -------------------------------- |
+| Area          | Full support                     | In progress                      |
+| ------------- | -------------------------------- | -------------------------------- |
 | **Harnesses** | Claude Code (`claude -p`), Codex | Gemini CLI, opencode, Pi         |
-| **Bundlers**  | Vite                      | webpack, Rspack, Rollup, esbuild |
-| **Tests**     | Vitest, Playwright        | Jest, `node:test`                |
+| **Bundlers**  | Vite                             | webpack, Rspack, Rollup, esbuild |
+| **Tests**     | Vitest, Playwright               | Jest, `node:test`                |
 
 ## Packages
 
@@ -170,6 +172,8 @@ pnpm dev        # runs the tanstack-start example with conciv wired in
 [MIT](./LICENSE) © conciv
 
 <div align="center">
+  <br>
+  <sub><strong>conciv</strong> · as in <code>@conciv/it</code> — say it out loud.</sub>
   <br>
   <sub>Built with h3, Solid, and a real coding agent living in the page.</sub>
 </div>
