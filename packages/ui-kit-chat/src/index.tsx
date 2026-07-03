@@ -58,8 +58,21 @@ export {
   ComposerHandlersProvider,
   useComposerHandlers,
   type ComposerHandlers,
-  type TriggerItem,
 } from './primitives/composer/composer-handlers.js'
+export {useTriggerPopoverScope, useTriggerPopoverRootOptional} from './primitives/composer/trigger/trigger-popover.js'
+export type {TriggerPopoverScope} from './primitives/composer/trigger/trigger-popover-model.js'
+export {defaultDirectiveFormatter} from './primitives/composer/trigger/directive-formatter.js'
+export {detectTrigger} from './primitives/composer/trigger/detect-trigger.js'
+export type {
+  TriggerItem,
+  TriggerCategory,
+  TriggerAdapter,
+  DirectiveFormatter,
+  DirectiveSegment,
+  TriggerBehavior,
+  TriggerKeyEvent,
+  SelectItemOverride,
+} from './primitives/composer/trigger/types.js'
 export {ActionBar as ActionBarPrimitive, useCopied} from './primitives/action-bar/action-bar.js'
 export {
   ActionHandlersProvider,

@@ -19,6 +19,16 @@ import {AttachmentProvider} from '../attachment/attachment.js'
 import {QueueItemProvider, type QueuedMessage} from '../queue-item/queue-item.js'
 import {createActionButton, type ActionButtonState} from '../util/create-action-button.js'
 import {useComposerHandlers} from './composer-handlers.js'
+import {
+  TriggerPopover,
+  TriggerPopoverBack,
+  TriggerPopoverCategories,
+  TriggerPopoverCategoryItem,
+  TriggerPopoverItem,
+  TriggerPopoverItems,
+  TriggerPopoverRoot,
+  useTriggerPopoverRootOptional,
+} from './trigger/trigger-popover.js'
 
 type FormProps = JSX.HTMLAttributes<HTMLFormElement>
 
@@ -81,6 +91,7 @@ function Input(props: InputProps): JSX.Element {
   const chat = useChatContext()
   const composer = useComposer()
   const context = useComposerContext()
+  const triggerRoot = useTriggerPopoverRootOptional()
   const [local, rest] = splitProps(props, [
     'submitMode',
     'cancelOnEscape',
@@ -104,8 +115,14 @@ function Input(props: InputProps): JSX.Element {
   onMount(() => {
     if (local.focusOnThreadSwitched) element?.focus()
   })
+  const openTrigger = () => triggerRoot?.triggers().find((scope) => scope.open())
+  const syncCursor = (target: HTMLTextAreaElement) => {
+    const triggers = triggerRoot?.triggers() ?? []
+    for (const scope of triggers) scope.setCursorPosition(target.selectionStart ?? target.value.length)
+  }
   const onKeyDown = (event: KeyboardEvent & {currentTarget: HTMLTextAreaElement; target: Element}) => {
     if (typeof local.onKeyDown === 'function') local.onKeyDown(event)
+    if (openTrigger()?.handleKeyDown(event)) return
     const mode = local.submitMode ?? 'enter'
     if ((local.cancelOnEscape ?? true) && event.key === 'Escape' && composer.canCancel()) {
       event.preventDefault()
@@ -133,9 +150,18 @@ function Input(props: InputProps): JSX.Element {
         if (typeof forwardRef === 'function') forwardRef(node)
       }}
       value={composer.text()}
-      onInput={(event) => composer.setText(event.currentTarget.value)}
+      onInput={(event) => {
+        composer.setText(event.currentTarget.value)
+        syncCursor(event.currentTarget)
+      }}
+      onKeyUp={(event) => syncCursor(event.currentTarget)}
+      onClick={(event) => syncCursor(event.currentTarget)}
       onKeyDown={onKeyDown}
       onPaste={(event) => void onPaste(event)}
+      aria-haspopup={triggerRoot?.activeAria() ? 'listbox' : undefined}
+      aria-expanded={triggerRoot?.activeAria() ? true : undefined}
+      aria-controls={triggerRoot?.activeAria()?.popoverId}
+      aria-activedescendant={triggerRoot?.activeAria()?.highlightedItemId}
       {...rest}
     />
   )
@@ -314,41 +340,6 @@ function DictationTranscript(props: JSX.HTMLAttributes<HTMLSpanElement>): JSX.El
   )
 }
 
-function trailingTrigger(text: string): {kind: '@' | '/'; query: string} | null {
-  const match = text.match(/(^|\s)([@/])([\w-]*)$/)
-  if (!match) return null
-  const kind = match[2]
-  if (kind !== '@' && kind !== '/') return null
-  return {kind, query: match[3] ?? ''}
-}
-
-function TriggerPopover(props: JSX.HTMLAttributes<HTMLDivElement>): JSX.Element {
-  const composer = useComposer()
-  const handlers = useComposerHandlers()
-  const items = () => {
-    if (!handlers.triggerItems) return []
-    const trigger = trailingTrigger(composer.text())
-    return trigger ? handlers.triggerItems(trigger.query, trigger.kind) : []
-  }
-  const choose = (insert: string) => {
-    const next = composer.text().replace(/([@/])([\w-]*)$/, insert)
-    composer.setText(next)
-  }
-  return (
-    <Show when={items().length > 0}>
-      <Primitive.div role="listbox" {...props}>
-        <For each={items()}>
-          {(item) => (
-            <button type="button" role="option" aria-selected="false" onClick={() => choose(item.insert)}>
-              {item.label}
-            </button>
-          )}
-        </For>
-      </Primitive.div>
-    </Show>
-  )
-}
-
 function Queue(props: {children: (item: () => QueuedMessage) => JSX.Element}): JSX.Element {
   const handlers = useComposerHandlers()
   return (
@@ -372,6 +363,12 @@ export const Composer = Object.assign(Root, {
   Dictate,
   StopDictation,
   DictationTranscript,
+  TriggerPopoverRoot,
   TriggerPopover,
+  TriggerPopoverCategories,
+  TriggerPopoverCategoryItem,
+  TriggerPopoverItems,
+  TriggerPopoverItem,
+  TriggerPopoverBack,
   Queue,
 })
