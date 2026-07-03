@@ -1,7 +1,8 @@
+import {existsSync} from 'node:fs'
 import {H3} from 'h3'
 import type {HarnessAdapter, HarnessChild} from '@conciv/protocol/harness-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
-import type {AnyExtension, ToolRequest} from '@conciv/extension'
+import type {AnyExtension, ServerHarness, ServerSessions, ToolRequest} from '@conciv/extension'
 import type {ResolvedConcivConfig} from './config.js'
 import {getHarness} from '@conciv/harness'
 import {makeExtensionApp} from './extension-app.js'
@@ -10,6 +11,8 @@ import {concivTools, type ConcivToolContext} from '@conciv/tools'
 import type {ChatTool} from '@conciv/protocol/chat-types'
 import {registerChatRoutes} from './api/chat/chat.js'
 import {registerTtyRoutes} from './api/tty/tty.js'
+import {ensureChatRecord, recordMintedToken, resumeTokenFor} from './api/chat/turn.js'
+import {readLock} from './store/lock.js'
 import {createFsSessionStore} from './store/session-store.js'
 import {registerMcpRoutes} from './api/mcp/mcp.js'
 import {registerToolsRoute} from './api/chat/tools-route.js'
@@ -83,6 +86,21 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   registerOpenSourceRoute(app, {openInEditor: opts.openInEditor, root: opts.cwd})
 
   const guard = (origin: string | null) => originAllowed(origin, new Set(opts.allowedOrigins ?? []))
+  const serverSessions: ServerSessions = {
+    resumeToken: (sessionId) => resumeTokenFor(store, sessionId),
+    recordToken: async (sessionId, token) => {
+      await ensureChatRecord(store, sessionId, harness.id, opts.cwd)
+      await recordMintedToken(store, sessionId, token)
+    },
+    chatBusy: (sessionId) => readLock(opts.cfg.stateRoot, sessionId).held,
+  }
+  const history = harness.history
+  const serverHarness: ServerHarness = {
+    id: harness.id,
+    ttyCommand: harness.tty?.command,
+    release: harness.release,
+    transcriptExists: history ? (token) => existsSync(history.transcriptPath(opts.cwd, token)) : undefined,
+  }
   const seenTools = new Set<string>()
   const seenNames = new Set<string>()
   const mounted = await Promise.all(
@@ -93,6 +111,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         config: extension.parseConfig(opts.extensionConfig?.[extension.name]),
         cwd: opts.cwd,
         app: makeExtensionApp(app, extension.name, guard),
+        sessions: serverSessions,
+        harness: serverHarness,
       })
       const context = result?.context
       const tools = (extension.tools ?? []).flatMap((tool) => {

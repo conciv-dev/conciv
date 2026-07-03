@@ -7,6 +7,7 @@ import type {RequestMeta, SessionClient} from '@conciv/api-client'
 import type {GrabApi} from '@conciv/grab'
 import type {LocateResult} from '@conciv/protocol/page-introspect-types'
 import type {OpenSourceResult} from '@conciv/protocol/page-types'
+import type {TtyCommand, TtyCommandOpts} from '@conciv/protocol/terminal-types'
 
 export type ExtensionSlot = 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget'
 
@@ -68,7 +69,26 @@ export type ClientFactoryResult<ClientReturnValue extends object> = {
   dispose?: () => void
 }
 
-export type ServerApi<Config> = {config: Config; cwd: string; app: H3}
+export type ServerSessions = {
+  resumeToken(sessionId: string): Promise<string | null>
+  recordToken(sessionId: string, token: string): Promise<void>
+  chatBusy(sessionId: string): boolean
+}
+
+export type ServerHarness = {
+  id: string
+  ttyCommand?: (opts: TtyCommandOpts) => TtyCommand
+  release?: (sessionId: string) => void
+  transcriptExists?: (token: string) => boolean
+}
+
+export type ServerApi<Config> = {
+  config: Config
+  cwd: string
+  app: H3
+  sessions: ServerSessions
+  harness: ServerHarness
+}
 
 export type ServerResult<Context> = {context: Context; dispose?: () => void | Promise<void>}
 

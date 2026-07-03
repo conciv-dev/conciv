@@ -26,6 +26,8 @@ export type {
   ExtensionViewHost,
   RequiredContext,
   ServerApi,
+  ServerHarness,
+  ServerSessions,
   ServerResult,
   ToolRenderer,
   ToolRequest,
