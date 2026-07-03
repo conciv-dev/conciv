@@ -50,8 +50,13 @@ export type DirectiveFormatter = {
 }
 
 export type TriggerBehavior =
-  | {kind: 'directive'; formatter: DirectiveFormatter; onInserted?: (item: TriggerItem) => void}
-  | {kind: 'action'; formatter: DirectiveFormatter; onExecute: (item: TriggerItem) => void; removeOnExecute?: boolean}
+  | {kind: 'directive'; formatter: () => DirectiveFormatter; onInserted?: (item: TriggerItem) => void}
+  | {
+      kind: 'action'
+      formatter: () => DirectiveFormatter
+      onExecute: (item: TriggerItem) => void
+      removeOnExecute?: () => boolean
+    }
 ```
 
 `defaultDirectiveFormatter` ported verbatim: `:type[label]{name=id}` syntax, `{name=…}` omitted when `id === label`, bounded regex parse into segments.
@@ -149,12 +154,12 @@ export type ChatCommand = {
   name: string
   description: string
   argumentHint?: string
-  source: 'builtin' | 'skill' | 'mcp' | 'plugin'
+  source: 'harness' | 'mcp' | 'plugin'
 }
 export type ChatTool = {name: string; description: string; extension?: string}
 ```
 
-`source` is derived server-side from the command name shape (`mcp__server__prompt` → `mcp`, plugin-prefixed → `plugin`, known built-ins → `builtin`, rest → `skill`).
+`source` is derived server-side from the command name shape (`mcp__server__prompt` → `mcp`, `plugin:command` → `plugin`, rest → `harness`). Built-ins and skills are not reliably distinguishable from the SDK payload, so they share the `harness` source.
 
 ## Harness contract (`@conciv/protocol/harness-types`)
 
@@ -168,8 +173,10 @@ New adapter member, enforced by the same discriminated-union pattern as `compact
 
 ```ts
 export type HarnessCommand = {name: string; description?: string; argumentHint?: string}
-commands?(ctx: {cwd: string; sessionId?: string}): Promise<HarnessCommand[]>
+commands?(ctx: {cwd: string; sessionId?: string; mcpUrl?: string}): Promise<HarnessCommand[]>
 ```
+
+`mcpUrl` mirrors `HarnessTurn.mcpUrl` (`${origin}/api/mcp` when `capabilities.mcp === 'http'`) so a cold-cache probe session sees the same MCP prompt commands a real turn would.
 
 | Harness                | Mode                       | v1                                                                                                                                                                                                                                                                                                                          |
 | ---------------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
