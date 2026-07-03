@@ -10,3 +10,6 @@ pnpm dev
 # or
 yarn dev
 ```
+
+Deploys to [conciv.dev](https://conciv.dev) via Cloudflare Workers Builds on push to `main`
+(watch paths: `apps/site/**`, `packages/{mascot,it,protocol}/**`).
