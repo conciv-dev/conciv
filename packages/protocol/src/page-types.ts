@@ -92,16 +92,19 @@ export type PageWaitState = z.infer<typeof PageWaitStateSchema>
 export const PageQuerySchema = z.object({
   requestId: z.string().optional(),
   kind: PageQueryKindSchema,
-  selector: z.string().optional(),
-  ref: z.string().optional(),
+  selector: z.string().optional().describe('CSS selector for the target element'),
+  ref: z.string().optional().describe('element ref from the latest snapshot'),
   since: z.coerce.number().optional(),
-  value: z.string().optional(),
-  name: z.string().optional(),
-  class: z.string().optional(),
-  prop: z.string().optional(),
-  text: z.string().optional(),
-  html: z.string().optional(),
-  key: z.string().optional(),
+  value: z
+    .string()
+    .optional()
+    .describe('the value to set: input value for fill/select, CSS value for setstyle, attribute value for setattr'),
+  name: z.string().optional().describe('attribute name for setattr/removeattr/attr, or React component name'),
+  class: z.string().optional().describe('class name for addclass/removeclass'),
+  prop: z.string().optional().describe('CSS property name for setstyle, e.g. color or font-size'),
+  text: z.string().optional().describe('text for settext, or the full stylesheet string for css'),
+  html: z.string().optional().describe('HTML fragment for sethtml/insert'),
+  key: z.string().optional().describe('keyboard key for press, e.g. Enter'),
   position: PagePositionSchema.optional(),
   state: PageWaitStateSchema.optional(),
   timeout: z.coerce.number().optional(),
