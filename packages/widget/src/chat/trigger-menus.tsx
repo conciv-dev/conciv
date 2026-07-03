@@ -105,8 +105,8 @@ function TriggerMenu(props: {
   )
 }
 
-function sortByGroup(items: readonly TriggerItem[]): TriggerItem[] {
-  return [...items].sort((a, b) => groupOf(a).localeCompare(groupOf(b)))
+function sortByGroup(items: readonly TriggerItem[]): readonly TriggerItem[] {
+  return items.toSorted((a, b) => groupOf(a).localeCompare(groupOf(b)))
 }
 
 export function TriggerMenus(props: {
@@ -116,11 +116,11 @@ export function TriggerMenus(props: {
 }): JSX.Element {
   const [commands] = createResource(
     () => (props.active() ? props.turnCount() + 1 : null),
-    async () => (await props.client.commands()).commands,
+    () => props.client.commands().then((payload) => payload.commands, () => []),
   )
   const [tools] = createResource(
     () => props.active(),
-    async () => (await props.client.tools()).tools,
+    () => props.client.tools().then((payload) => payload.tools, () => []),
   )
   const commandItems = createMemo(() => sortByGroup((commands() ?? []).map(commandItem)))
   const toolItems = createMemo(() => sortByGroup((tools() ?? []).map(toolItem)))

@@ -27,6 +27,7 @@
           "__REACT_GRAB_DISABLED__",
           "__sdkStats",
           "__sdkReset",
+          "__commandsCacheSet",
           "__client",
           "__server",
           "__render",
