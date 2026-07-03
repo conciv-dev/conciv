@@ -73,6 +73,7 @@ export type ServerSessions = {
   resumeToken(sessionId: string): Promise<string | null>
   recordToken(sessionId: string, token: string): Promise<void>
   chatBusy(sessionId: string): boolean
+  model(sessionId: string): Promise<string | null>
 }
 
 export type ServerHarness = {

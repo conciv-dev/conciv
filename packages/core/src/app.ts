@@ -10,7 +10,6 @@ import {originAllowed, registerCors} from './api/cors.js'
 import {concivTools, type ConcivToolContext} from '@conciv/tools'
 import type {ChatTool} from '@conciv/protocol/chat-types'
 import {registerChatRoutes} from './api/chat/chat.js'
-import {registerTtyRoutes} from './api/tty/tty.js'
 import {ensureChatRecord, recordMintedToken, resumeTokenFor} from './api/chat/turn.js'
 import {readLock} from './store/lock.js'
 import {createFsSessionStore} from './store/session-store.js'
@@ -80,7 +79,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     riskyTools,
     store,
   })
-  const tty = registerTtyRoutes(app, {cwd: opts.cwd, stateRoot: opts.cfg.stateRoot, harness, store})
   const page = registerPageRoutes(app, {journal: makeJournal(), root: opts.cwd})
   registerEditorRoutes(app, opts.openInEditor)
   registerOpenSourceRoute(app, {openInEditor: opts.openInEditor, root: opts.cwd})
@@ -93,6 +91,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       await recordMintedToken(store, sessionId, token)
     },
     chatBusy: (sessionId) => readLock(opts.cfg.stateRoot, sessionId).held,
+    model: async (sessionId) => (await store.get(sessionId))?.model ?? null,
   }
   const history = harness.history
   const serverHarness: ServerHarness = {
@@ -135,7 +134,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     if (seenTools.has(tool.name)) throw new Error(`extension tool name collision: "${tool.name}"`)
     seenTools.add(tool.name)
   })
-  const disposers = [tty.dispose, ...mounted.flatMap((entry) => (entry.dispose ? [entry.dispose] : []))]
+  const disposers = mounted.flatMap((entry) => (entry.dispose ? [entry.dispose] : []))
 
   const makeToolCtx = (sessionId: string): ConcivToolContext => ({
     injectUi: (spec) => uiBus.inject(sessionId, spec),

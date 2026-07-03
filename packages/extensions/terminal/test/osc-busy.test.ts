@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {createOscBusyTracker} from '../../src/api/tty/osc-busy.js'
+import {createOscBusyTracker} from '../src/server/osc-busy.js'
 
 const ESC = '\u001b'
 const BEL = '\u0007'

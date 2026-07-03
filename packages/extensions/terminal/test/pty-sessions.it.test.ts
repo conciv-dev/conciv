@@ -1,6 +1,6 @@
 import {afterEach, describe, expect, it} from 'vitest'
 import type {TtyServerControl} from '@conciv/protocol/terminal-types'
-import {createTtySessions, type TtySessions, type TtySink} from '../../src/api/tty/pty-sessions.js'
+import {createTtySessions, type TtySessions, type TtySink} from '../src/server/pty-sessions.js'
 
 const BASH = {bin: 'bash', args: ['--noprofile', '--norc', '-i'], env: {TERM: 'xterm-256color', PS1: 'P> '}}
 
