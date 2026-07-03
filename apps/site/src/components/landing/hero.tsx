@@ -4,7 +4,7 @@ import {InstallChip} from './install-chip'
 
 export function Hero() {
   return (
-    <header className="mx-auto grid max-w-[1180px] items-center gap-14 px-8 pb-12 pt-10 md:grid-cols-[1fr_1.02fr]">
+    <header className="mx-auto grid max-w-[1180px] items-center gap-14 px-8 pb-12 pt-3 md:grid-cols-[1fr_1.02fr] md:pt-10">
       <div>
         <Badge
           variant="outline"
