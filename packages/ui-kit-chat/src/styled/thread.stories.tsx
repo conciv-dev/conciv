@@ -1,4 +1,4 @@
-import {type JSX} from 'solid-js'
+import {onMount, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {useChat, type UseChatReturn} from '@tanstack/ai-solid'
@@ -122,6 +122,41 @@ function SlotsApp(): JSX.Element {
       </ChatProvider>
     </div>
   )
+}
+
+function ShiftApp(): JSX.Element {
+  const chat = useChat({connection: storyConnection()})
+  onMount(() =>
+    chat.setMessages([
+      {id: 'a1', role: 'assistant', parts: [{type: 'text', content: 'First reply, older.'}]},
+      {id: 'u1', role: 'user', parts: [{type: 'text', content: 'and again'}]},
+      {id: 'a2', role: 'assistant', parts: [{type: 'text', content: 'Second reply, latest.'}]},
+    ]),
+  )
+  return (
+    <div class="chat-theme-dark rounded-[var(--chat-radius-lg)] h-96 w-96 [background:var(--chat-bg)] overflow-hidden">
+      <ChatProvider chat={chat}>
+        <Thread composer={<Composer />} />
+      </ChatProvider>
+    </div>
+  )
+}
+
+export const PreviousTurnActionsRevealOnHover: Story = {
+  render: () => <ShiftApp />,
+  play: async ({canvasElement}) => {
+    const c = within(canvasElement)
+    const older = await waitFor(() => c.getByText('First reply, older.'))
+    await waitFor(() => c.getByText('Second reply, latest.'))
+
+    await waitFor(() => expect(c.getAllByRole('button', {name: 'Copy'})).toHaveLength(1))
+
+    await userEvent.hover(older)
+    await waitFor(() => expect(c.getAllByRole('button', {name: 'Copy'})).toHaveLength(2))
+
+    await userEvent.unhover(older)
+    await waitFor(() => expect(c.getAllByRole('button', {name: 'Copy'})).toHaveLength(1))
+  },
 }
 
 export const Slots: Story = {
