@@ -13,6 +13,7 @@ export const codex = defineHarness({
     compaction: false,
     systemPrompt: 'none',
     mcp: 'http',
+    slashCommands: 'none',
     imageInput: false,
   },
   buildArgs: buildCodexArgs,
