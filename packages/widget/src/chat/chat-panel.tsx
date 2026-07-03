@@ -6,6 +6,7 @@ import {
   ChatProvider,
   ToolProvider,
   ComposerHandlersProvider,
+  ComposerPrimitive,
   Thread,
   Composer,
   NowLine,
@@ -13,6 +14,7 @@ import {
   useComposer,
   type Turn,
 } from '@conciv/ui-kit-chat'
+import {TriggerMenus} from './trigger-menus.js'
 import {nowTitle} from '@conciv/ui-kit-chat-tools'
 import {apiError, type SessionClient} from '@conciv/api-client'
 import {invalidateSessions} from '../client/session-store-client.js'
@@ -428,113 +430,124 @@ export function ChatPanel(props: {
     <ChatProvider chat={chat}>
       <ToolProvider value={toolCtx}>
         <ComposerHandlersProvider value={{onSend}}>
-          <ExtensionSurface name="header" instances={props.instances} bag={hostBag} />
-          <ExtensionSurface name="widget" instances={props.instances} bag={hostBag} />
-          <div class="flex flex-1 flex-col min-h-0">
-            <Thread
-              tools={props.tools?.()}
-              components={{ToolFallback: ToolFallbackCard}}
-              turnPrefix={renderTurnPrefix}
-              viewportFooter={
-                <>
-                  <For each={dividersAt(chat.messages().length)}>{renderDivider}</For>
-                  <For each={genUi()}>
-                    {(spec) => <GenUi spec={spec} onAnswer={(text) => answerGenUi(spec.renderId, text)} />}
-                  </For>
-                  <Show when={isThinking()}>
-                    <ThinkingBubble />
-                  </Show>
-                  <Show when={nowTitleText()}>{(title) => <NowLine title={title()} onStop={() => chat.stop()} />}</Show>
-                  <Show when={chat.error()}>
-                    {(error) => (
+          <ComposerPrimitive.TriggerPopoverRoot>
+            <ExtensionSurface name="header" instances={props.instances} bag={hostBag} />
+            <ExtensionSurface name="widget" instances={props.instances} bag={hostBag} />
+            <div class="flex flex-1 flex-col min-h-0">
+              <Thread
+                tools={props.tools?.()}
+                components={{ToolFallback: ToolFallbackCard}}
+                turnPrefix={renderTurnPrefix}
+                viewportFooter={
+                  <>
+                    <For each={dividersAt(chat.messages().length)}>{renderDivider}</For>
+                    <For each={genUi()}>
+                      {(spec) => <GenUi spec={spec} onAnswer={(text) => answerGenUi(spec.renderId, text)} />}
+                    </For>
+                    <Show when={isThinking()}>
+                      <ThinkingBubble />
+                    </Show>
+                    <Show when={nowTitleText()}>
+                      {(title) => <NowLine title={title()} onStop={() => chat.stop()} />}
+                    </Show>
+                    <Show when={chat.error()}>
+                      {(error) => (
+                        <div class={ERROR} role="alert">
+                          <span class="flex-1">{error().message}</span>
+                          <button type="button" class={RETRY} onClick={() => void chat.reload()}>
+                            Retry
+                          </button>
+                        </div>
+                      )}
+                    </Show>
+                    <Show when={switchError()}>
                       <div class={ERROR} role="alert">
-                        <span class="flex-1">{error().message}</span>
-                        <button type="button" class={RETRY} onClick={() => void chat.reload()}>
+                        <span class="flex-1">Couldn’t load that session</span>
+                        <button type="button" class={RETRY} onClick={() => void loadSession(client.sessionId())}>
                           Retry
                         </button>
                       </div>
-                    )}
+                    </Show>
+                  </>
+                }
+                overlay={
+                  <Show when={switching()}>
+                    <div
+                      class="bg-pw-panel-60 inset-0 absolute z-[5] anim-switching"
+                      role="status"
+                      aria-label="Loading session…"
+                      tabindex={-1}
+                    />
                   </Show>
-                  <Show when={switchError()}>
-                    <div class={ERROR} role="alert">
-                      <span class="flex-1">Couldn’t load that session</span>
-                      <button type="button" class={RETRY} onClick={() => void loadSession(client.sessionId())}>
-                        Retry
-                      </button>
-                    </div>
-                  </Show>
-                </>
-              }
-              overlay={
-                <Show when={switching()}>
-                  <div
-                    class="bg-pw-panel-60 inset-0 absolute z-[5] anim-switching"
-                    role="status"
-                    aria-label="Loading session…"
-                    tabindex={-1}
+                }
+                welcome={
+                  <EmptyStateSlot
+                    onStarter={(starter) => void chat.sendMessage(starter)}
+                    instances={props.instances}
+                    bag={hostBag}
                   />
-                </Show>
-              }
-              welcome={
-                <EmptyStateSlot
-                  onStarter={(starter) => void chat.sendMessage(starter)}
-                  instances={props.instances}
-                  bag={hostBag}
-                />
-              }
-              composer={
-                <>
-                  <ExtensionSurface name="status" instances={props.instances} bag={hostBag} />
-                  <ExtensionSurface name="footer" instances={props.instances} bag={hostBag} />
-                  <Show when={notice()}>
-                    <div class="text-[0.75rem] text-pw-text-2 leading-[1.4] font-medium font-pw px-2.5 py-2 border border-pw-line rounded-pw-md bg-pw-fill [word-break:break-word]">
-                      {notice()}
-                    </div>
-                  </Show>
-                  <For each={grabs()}>
-                    {(g) => <GrabReference grab={g} maxWidth={GRAB_PREVIEW_MAX_W} onRemove={() => removeGrab(g)} />}
-                  </For>
-                  <Composer
-                    placeholder="Ask a question…"
-                    inputLabel="Message the conciv agent"
-                    inputRef={(el) => {
-                      inputEl = el
-                    }}
-                    busy={compacting() ? <CompactSpinner /> : undefined}
-                  >
-                    <For each={props.composerActions?.() ?? []}>
-                      {(action) => {
-                        const Icon = action.icon
-                        return (
-                          <button
-                            type="button"
-                            class={ACT}
-                            aria-label={action.label}
-                            title={action.label}
-                            classList={{
-                              'opacity-60': busyAction() === action.id,
-                              'cursor-progress': busyAction() === action.id,
-                            }}
-                            onClick={() => runAction(action)}
-                          >
-                            <Icon class="size-5 block" />
-                          </button>
-                        )
+                }
+                composer={
+                  <>
+                    <ExtensionSurface name="status" instances={props.instances} bag={hostBag} />
+                    <ExtensionSurface name="footer" instances={props.instances} bag={hostBag} />
+                    <Show when={notice()}>
+                      <div class="text-[0.75rem] text-pw-text-2 leading-[1.4] font-medium font-pw px-2.5 py-2 border border-pw-line rounded-pw-md bg-pw-fill [word-break:break-word]">
+                        {notice()}
+                      </div>
+                    </Show>
+                    <For each={grabs()}>
+                      {(g) => <GrabReference grab={g} maxWidth={GRAB_PREVIEW_MAX_W} onRemove={() => removeGrab(g)} />}
+                    </For>
+                    <Composer
+                      placeholder="Ask a question…"
+                      inputLabel="Message the conciv agent"
+                      inputRef={(el) => {
+                        inputEl = el
                       }}
-                    </For>
-                    <ExtensionSurface name="composer" instances={props.instances} bag={hostBag} />
-                    <For each={props.composerControls?.() ?? []}>
-                      {(control) => control.create({apiBase: props.apiBase, setRequestMeta: mergeRequestMeta})}
-                    </For>
-                    <DraftBridge onReady={(append) => (appendDraft.current = append)} />
-                  </Composer>
-                </>
-              }
-            />
-          </div>
-          <div class="sr-only" role="status" aria-live="polite">
-            {liveMsg()}
-          </div>
+                      busy={compacting() ? <CompactSpinner /> : undefined}
+                      popover={
+                        <TriggerMenus
+                          client={client}
+                          active={() => props.active ?? true}
+                          turnCount={() => chat.messages().length}
+                        />
+                      }
+                    >
+                      <For each={props.composerActions?.() ?? []}>
+                        {(action) => {
+                          const Icon = action.icon
+                          return (
+                            <button
+                              type="button"
+                              class={ACT}
+                              aria-label={action.label}
+                              title={action.label}
+                              classList={{
+                                'opacity-60': busyAction() === action.id,
+                                'cursor-progress': busyAction() === action.id,
+                              }}
+                              onClick={() => runAction(action)}
+                            >
+                              <Icon class="size-5 block" />
+                            </button>
+                          )
+                        }}
+                      </For>
+                      <ExtensionSurface name="composer" instances={props.instances} bag={hostBag} />
+                      <For each={props.composerControls?.() ?? []}>
+                        {(control) => control.create({apiBase: props.apiBase, setRequestMeta: mergeRequestMeta})}
+                      </For>
+                      <DraftBridge onReady={(append) => (appendDraft.current = append)} />
+                    </Composer>
+                  </>
+                }
+              />
+            </div>
+            <div class="sr-only" role="status" aria-live="polite">
+              {liveMsg()}
+            </div>
+          </ComposerPrimitive.TriggerPopoverRoot>
         </ComposerHandlersProvider>
       </ToolProvider>
     </ChatProvider>
