@@ -9,6 +9,8 @@ import {originAllowed, registerCors} from './api/cors.js'
 import {concivTools, type ConcivToolContext} from '@conciv/tools'
 import type {ChatTool} from '@conciv/protocol/chat-types'
 import {registerChatRoutes} from './api/chat/chat.js'
+import {registerTtyRoutes} from './api/tty/tty.js'
+import {createFsSessionStore} from './store/session-store.js'
 import {registerMcpRoutes} from './api/mcp/mcp.js'
 import {registerToolsRoute} from './api/chat/tools-route.js'
 import {registerPageRoutes} from './api/page/page.js'
@@ -51,6 +53,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const app = new H3()
   const harness = requireHarness(opts.cfg.harness)
   const uiBus = makeUiBus()
+  const store = createFsSessionStore({stateRoot: opts.cfg.stateRoot})
 
   const riskyTools = new Set(
     (opts.extensions ?? [])
@@ -72,7 +75,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     claudeHome: opts.claudeHome,
     uiBus,
     riskyTools,
+    store,
   })
+  const tty = registerTtyRoutes(app, {cwd: opts.cwd, stateRoot: opts.cfg.stateRoot, harness, store})
   const page = registerPageRoutes(app, {journal: makeJournal(), root: opts.cwd})
   registerEditorRoutes(app, opts.openInEditor)
   registerOpenSourceRoute(app, {openInEditor: opts.openInEditor, root: opts.cwd})
@@ -110,7 +115,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     if (seenTools.has(tool.name)) throw new Error(`extension tool name collision: "${tool.name}"`)
     seenTools.add(tool.name)
   })
-  const disposers = mounted.flatMap((entry) => (entry.dispose ? [entry.dispose] : []))
+  const disposers = [tty.dispose, ...mounted.flatMap((entry) => (entry.dispose ? [entry.dispose] : []))]
 
   const makeToolCtx = (sessionId: string): ConcivToolContext => ({
     injectUi: (spec) => uiBus.inject(sessionId, spec),
