@@ -74,6 +74,12 @@ export function createTtySessions(opts?: {idleEvictMs?: number; replayCap?: numb
     for (const sink of entry.sinks) sink.control(frame)
   }
 
+  const spawnEnv = (command: TtyCommand): Record<string, string | undefined> => {
+    const prefixes = command.unsetEnvPrefixes ?? []
+    const kept = Object.entries(process.env).filter(([key]) => !prefixes.some((prefix) => key.startsWith(prefix)))
+    return {...Object.fromEntries(kept), ...command.env}
+  }
+
   const spawnPty = (entry: Entry, command: TtyCommand, cwd: string): void => {
     ensureSpawnHelperExecutable()
     try {
@@ -82,7 +88,7 @@ export function createTtySessions(opts?: {idleEvictMs?: number; replayCap?: numb
         cols: DEFAULT_COLS,
         rows: DEFAULT_ROWS,
         cwd,
-        env: {...process.env, ...command.env},
+        env: spawnEnv(command),
       })
     } catch (error) {
       entry.error = error instanceof Error ? error.message : String(error)

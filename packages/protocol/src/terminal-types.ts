@@ -3,7 +3,7 @@ import {z} from 'zod'
 export const SessionModeSchema = z.enum(['chat', 'terminal'])
 export type SessionMode = z.infer<typeof SessionModeSchema>
 
-export type TtyCommand = {bin: string; args: string[]; env: Record<string, string>}
+export type TtyCommand = {bin: string; args: string[]; env: Record<string, string>; unsetEnvPrefixes?: string[]}
 
 export type TtyCommandOpts = {
   cwd: string

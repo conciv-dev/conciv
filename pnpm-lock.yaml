@@ -1531,6 +1531,9 @@ importers:
       '@conciv/ui-kit-system':
         specifier: workspace:^
         version: link:../ui-kit-system
+      '@conciv/ui-kit-terminal':
+        specifier: workspace:^
+        version: link:../ui-kit-terminal
       '@tanstack/ai':
         specifier: ^0.28.0
         version: 0.28.0(@opentelemetry/api@1.9.1)

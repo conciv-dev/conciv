@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto'
+import {existsSync} from 'node:fs'
 import {type H3, HTTPError, defineWebSocketHandler, readValidatedBody} from 'h3'
 import type {Peer} from 'crossws'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
@@ -12,7 +13,7 @@ import {createTtySessions, type TtySink} from './pty-sessions.js'
 export type TtyRouteDeps = {
   cwd: string
   stateRoot: string
-  harness: Pick<HarnessAdapter, 'id' | 'tty' | 'release'>
+  harness: Pick<HarnessAdapter, 'id' | 'tty' | 'release' | 'history'>
   store: SessionStore
 }
 
@@ -41,10 +42,11 @@ export function registerTtyRoutes(app: H3, deps: TtyRouteDeps): {dispose(): void
       const harnessSessionId = existing ?? randomUUID()
       if (!existing) await recordMintedToken(deps.store, sessionId, harnessSessionId)
       const record = await deps.store.get(sessionId)
+      const resume = Boolean(existing) && transcriptExists(deps, harnessSessionId)
       deps.harness.release?.(sessionId)
       ttySessions.open(
         sessionId,
-        tty.command({cwd: deps.cwd, harnessSessionId, resume: Boolean(existing), model: record?.model}),
+        tty.command({cwd: deps.cwd, harnessSessionId, resume, model: record?.model}),
         deps.cwd,
       )
       modes.set(sessionId, 'terminal')
@@ -100,6 +102,12 @@ export function registerTtyRoutes(app: H3, deps: TtyRouteDeps): {dispose(): void
   )
 
   return {dispose: () => ttySessions.shutdown()}
+}
+
+function transcriptExists(deps: TtyRouteDeps, harnessSessionId: string): boolean {
+  const history = deps.harness.history
+  if (!history) return true
+  return existsSync(history.transcriptPath(deps.cwd, harnessSessionId))
 }
 
 function parseControl(text: string): {cols: number; rows: number} | null {

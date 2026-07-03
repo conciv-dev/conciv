@@ -8,7 +8,7 @@ import type {GrabApi} from '@conciv/grab'
 import type {LocateResult} from '@conciv/protocol/page-introspect-types'
 import type {OpenSourceResult} from '@conciv/protocol/page-types'
 
-export type ExtensionSlot = 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget'
+export type ExtensionSlot = 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget' | 'terminal-header'
 
 export type ComposerActions = {
   insert: (text: string) => void
