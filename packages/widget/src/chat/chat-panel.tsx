@@ -215,7 +215,10 @@ export function ChatPanel(props: {
   const onSnapshot = (data: unknown) => {
     const parsed = SnapshotSchema.safeParse(data)
     if (!parsed.success) return
-    chatRef.current?.setMessages(parsed.data.messages as UIMessage[])
+    const api = chatRef.current
+    if (!api) return
+    api.setMessages(parsed.data.messages as UIMessage[])
+    if (!parsed.data.generating && (api.isLoading() || api.sessionGenerating())) api.stop()
   }
   const chat = useChat({
     ...createChatClientOptions({connection}),
