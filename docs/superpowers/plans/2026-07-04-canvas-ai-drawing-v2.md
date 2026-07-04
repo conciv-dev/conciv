@@ -953,7 +953,7 @@ const performCommit = async (row: PendingRow): Promise<void> => {
 
 `ensureAgentCursor` upserts a `cursors` row `{room, peerId: 'agent:' + props.room, kind: 'agent', name: 'drawing…', color: '#8a86e8', x, y, lastSeen: new Date()}` and returns its row id; `moveAgentCursor` updates `x`, `y`, `lastSeen` on it. Look at how `writeLocal` performs updates for the exact `db().update` idiom. The upsert `{id}` reuse in `performCommit` preserves the same stable row ids the draft drain created, so `applyRemote` versioning stays coherent.
 
-The draft-row id equals the id used at drain time (`stableUuid`), and `upsert` into `canvasElements` with `{id: draft.id}` is safe because ids are unique per table row, not global — verified: `drainPending` uses `` await stableUuid(`${row.id}:${index}`) `` per element (`stableUuid` is async). Reuse the same helper.
+**CORRECTED (found in Task 6): Jazz object ids are GLOBAL, not per-table.** Reusing `draft.id` as the `canvasElements` upsert id fails at runtime: `WriteError("object <id> already exists in table canvasDraftElements, cannot upsert into canvasElements")`. The live row must get a DISTINCT deterministic id. The landed code uses `` await stableUuid(`commit:${draft.id}`) `` per element — deterministic (re-commit upserts the same live row) and collision-free. Because `stableUuid` is async, build the replay steps with `await Promise.all(ordered.map(async (draft) => ...))`, precomputing the live id before the step's synchronous `write()`.
 
 Skippability: register a one-shot pointerdown listener on the island container during replay that calls `handle.skip()`.
 
