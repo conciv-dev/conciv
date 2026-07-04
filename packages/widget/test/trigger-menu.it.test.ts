@@ -1,10 +1,10 @@
-import {Readable} from 'node:stream'
 import {createServer, type IncomingMessage, type Server, type ServerResponse} from 'node:http'
 import type {AddressInfo} from 'node:net'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {chromium, type Browser, type Page} from 'playwright'
-import {EventType, type StreamChunk, toServerSentEventsStream} from '@tanstack/ai'
+import {EventType, type StreamChunk} from '@tanstack/ai'
 import {widgetBundle, readBody} from './it-fixture.js'
+import {createAttachChat, type ChatPostBody} from './helpers/attach-chat.js'
 
 const COMMANDS_PAYLOAD = {
   commands: [
@@ -26,9 +26,19 @@ async function* replyScript(): AsyncGenerator<StreamChunk> {
   yield {type: EventType.RUN_FINISHED, threadId: 'thread-trigger', runId: 'aidx-run', finishReason: 'stop'}
 }
 
+const chat = createAttachChat({runFor: () => replyScript})
+
 function writeJson(res: ServerResponse, body: unknown): void {
   res.writeHead(200, {'content-type': 'application/json', 'access-control-allow-origin': '*'})
   res.end(JSON.stringify(body))
+}
+
+function writeSse(res: ServerResponse): void {
+  res.writeHead(200, {
+    'content-type': 'text/event-stream',
+    'cache-control': 'no-cache',
+    'access-control-allow-origin': '*',
+  })
 }
 
 function pageHtml(): string {
@@ -73,24 +83,27 @@ function handle(req: IncomingMessage, res: ServerResponse): void {
   if (url === '/api/chat' && req.method === 'POST') {
     void readBody(req).then((body) => {
       posts.push(body)
-      res.writeHead(200, {
-        'content-type': 'text/event-stream',
-        'cache-control': 'no-cache',
-        'access-control-allow-origin': '*',
-      })
-      const sse = toServerSentEventsStream(replyScript(), new AbortController())
-      Readable.fromWeb(sse as Parameters<typeof Readable.fromWeb>[0]).pipe(res)
+      const parsed = (() => {
+        try {
+          return JSON.parse(body) as ChatPostBody
+        } catch {
+          return {}
+        }
+      })()
+      chat.postChat('conciv_trigger_menu', parsed)
+      writeJson(res, {ok: true})
     })
+    return
+  }
+  if (url === '/api/chat/attach') {
+    writeSse(res)
+    chat.openAttach('conciv_trigger_menu', res)
     return
   }
   if (url === '/api/chat/permission-decision') return writeJson(res, {ok: true})
   if (url === '/api/page/reply') return writeJson(res, {ok: true})
   if (url === '/api/page/stream') {
-    res.writeHead(200, {
-      'content-type': 'text/event-stream',
-      'cache-control': 'no-cache',
-      'access-control-allow-origin': '*',
-    })
+    writeSse(res)
     return
   }
   res.writeHead(200, {'content-type': 'text/html'})

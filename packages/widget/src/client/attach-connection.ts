@@ -46,7 +46,7 @@ async function* parseSseChunks(body: ReadableStream<Uint8Array>, signal?: AbortS
 
 export function attachConnection(
   client: SessionClient,
-  opts: {retryDelayMs?: number} = {},
+  opts: {retryDelayMs?: number; requestMeta?: () => Record<string, unknown>} = {},
 ): SubscribeConnectionAdapter & {bump: () => void} {
   const retryDelayMs = opts.retryDelayMs ?? DEFAULT_RETRY_MS
   const current = {controller: null as AbortController | null}
@@ -62,7 +62,10 @@ export function attachConnection(
       credentials: 'include',
       signal,
       headers: {'content-type': 'application/json', ...client.chatHeaders()},
-      body: JSON.stringify({messages, forwardedProps: {...runContext?.forwardedProps, ...data}}),
+      body: JSON.stringify({
+        messages,
+        forwardedProps: {...opts.requestMeta?.(), ...runContext?.forwardedProps, ...data},
+      }),
     })
     if (!response.ok) throw apiError('/api/chat', response.status)
   }

@@ -51,6 +51,13 @@ describe('attachConnection', () => {
     expect(state.posts.at(-1)).toMatchObject({messages: [{id: 'u1'}], forwardedProps: {model: 'haiku'}})
   })
 
+  it('send merges requestMeta into forwardedProps under per-send data', async () => {
+    const client = defineClient({apiBase: state.base})
+    const adapter = attachConnection(client, {requestMeta: () => ({model: 'opus', intent: 'chat'})})
+    await adapter.send([{id: 'u2', role: 'user', parts: [{type: 'text', content: 'hi'}]}], {intent: 'compact'})
+    expect(state.posts.at(-1)).toMatchObject({forwardedProps: {model: 'opus', intent: 'compact'}})
+  })
+
   it('subscribe parses SSE chunks and reconnects after the stream ends', async () => {
     const client = defineClient({apiBase: state.base})
     const adapter = attachConnection(client, {retryDelayMs: 20})

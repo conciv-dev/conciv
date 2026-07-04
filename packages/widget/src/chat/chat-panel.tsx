@@ -1,7 +1,8 @@
-import {createMemo, createEffect, createSignal, For, onCleanup, Show, type JSX} from 'solid-js'
+import {createMemo, createEffect, createSignal, For, getOwner, onCleanup, runWithOwner, Show, type JSX} from 'solid-js'
 import {Progress} from '@conciv/ui-kit-system'
-import {useChat, fetchServerSentEvents, createChatClientOptions} from '@tanstack/ai-solid'
-import type {MessagePart, ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
+import {useChat, createChatClientOptions} from '@tanstack/ai-solid'
+import type {MessagePart, ToolCallPart, ToolResultPart, UIMessage} from '@tanstack/ai-client'
+import {attachConnection} from '../client/attach-connection.js'
 import {
   ChatProvider,
   ToolProvider,
@@ -24,7 +25,13 @@ import {ToolFallbackCard} from './tool-fallback-card.js'
 import type {PendingApproval} from '../shell/approval-modal.js'
 import {SquarePen, FoldVertical} from 'lucide-solid'
 import {EventType, type StreamChunk} from '@tanstack/ai'
-import {CONCIV_UI_EVENT, UiSpecSchema, type UiSpec} from '@conciv/protocol/ui-types'
+import {
+  CONCIV_UI_EVENT,
+  CONCIV_SNAPSHOT_EVENT,
+  SnapshotSchema,
+  UiSpecSchema,
+  type UiSpec,
+} from '@conciv/protocol/ui-types'
 import {CONCIV_TOOL_DURATION_EVENT, ToolDurationSchema} from '@conciv/protocol/tool-timing'
 import {
   CONCIV_USAGE_EVENT,
@@ -173,22 +180,28 @@ export function ChatPanel(props: {
 
   const [requestMeta, setRequestMeta] = createSignal<Record<string, unknown>>({})
   const mergeRequestMeta = (patch: Record<string, unknown>) => setRequestMeta((prev) => ({...prev, ...patch}))
+  const owner = getOwner()
+  const connection = attachConnection(client, {requestMeta: () => requestMeta()})
+  const chatRef = {current: null as ReturnType<typeof useChat> | null}
+  const onSnapshot = (data: unknown) => {
+    const parsed = SnapshotSchema.safeParse(data)
+    if (!parsed.success) return
+    chatRef.current?.setMessages(parsed.data.messages as UIMessage[])
+  }
   const chat = useChat({
-    ...createChatClientOptions({
-      connection: fetchServerSentEvents(client.chatStreamUrl(), () => ({
-        credentials: 'include',
-        headers: client.chatHeaders(),
-        body: requestMeta(),
-      })),
-    }),
-    onCustomEvent: onConcivUi,
+    ...createChatClientOptions({connection}),
+    get live() {
+      return props.active !== false
+    },
+    onCustomEvent: (eventType, data) => {
+      if (eventType === CONCIV_SNAPSHOT_EVENT) return onSnapshot(data)
+      onConcivUi(eventType, data)
+    },
     onChunk,
   })
+  chatRef.current = chat
 
   const [grabs, setGrabs] = createSignal<Grab[]>([])
-  const loadedSessionId = {current: null as string | null}
-  const [switching, setSwitching] = createSignal(false)
-  const [switchError, setSwitchError] = createSignal(false)
   let inputEl: HTMLTextAreaElement | undefined
   const appendDraft = {current: (_text: string) => {}}
 
@@ -262,48 +275,20 @@ export function ChatPanel(props: {
     void chat.sendMessage(text)
   }
 
-  const loadSession = async (id: string | null) => {
-    const isSwitch = loadedSessionId.current !== null
-    setSwitchError(false)
-    if (isSwitch) {
-      chat.stop()
-      setSwitching(true)
-      props.announce?.('Loading session…')
-    }
-    try {
-      const session = await client.session()
-      props.onSessionLabel?.(session.name)
-      setUsage(session.usage ?? null)
-      if (session.harnessSessionId === null) {
-        if (isSwitch) chat.setMessages([])
-        loadedSessionId.current = id
-        void invalidateSessions(props.apiBase)
-        return
-      }
-      const prior = await client.history()
-      if (isSwitch || prior.length > 0) chat.setMessages(prior)
-      loadedSessionId.current = id
-    } catch {
-      if (isSwitch) {
-        setSwitchError(true)
-        props.announce?.('Couldn’t load that session', true)
-      }
-    } finally {
-      setSwitching(false)
-    }
-  }
-
   const focusInput = () => requestAnimationFrame(() => inputEl?.focus())
 
   createEffect(() => {
     const id = client.sessionId()
     if (!props.active || !id) return
     props.onActiveSession?.(id)
-    if (id === loadedSessionId.current) {
-      focusInput()
-      return
-    }
-    void loadSession(id).then(focusInput)
+    focusInput()
+    void client
+      .session()
+      .then((session) => {
+        props.onSessionLabel?.(session.name)
+        setUsage((prev) => session.usage ?? prev)
+      })
+      .catch(() => {})
   })
 
   const onSend = (text: string) => {
@@ -342,19 +327,27 @@ export function ChatPanel(props: {
   const startNewSession = async () => {
     addDivider('new')
     const {sessionId} = await client.resolve()
-    loadedSessionId.current = sessionId
     client.setSessionId(sessionId)
+    connection.bump()
   }
   const doNewSession = () => (props.onNewSession ? props.onNewSession() : startNewSession())
 
   const [pendingCompactId, setPendingCompactId] = createSignal<number | null>(null)
   const compacting = () => pendingCompactId() !== null
+  const waitForIdle = () =>
+    new Promise<void>((resolve) =>
+      runWithOwner(owner, () =>
+        createEffect(() => {
+          if (!chat.sessionGenerating() && !chat.isLoading()) resolve()
+        }),
+      ),
+    )
   const compact = async () => {
     if (chat.isLoading() || compacting()) return
     const id = addDivider('compact')
     setPendingCompactId(id)
     try {
-      const res = await fetch(client.chatStreamUrl(), {
+      const response = await fetch(client.chatStreamUrl(), {
         method: 'POST',
         credentials: 'include',
         headers: {'content-type': 'application/json', ...client.chatHeaders()},
@@ -363,8 +356,9 @@ export function ChatPanel(props: {
           forwardedProps: {...requestMeta(), intent: 'compact'},
         }),
       })
-      if (!res.ok) throw apiError('/api/chat', res.status)
-      await res.body?.pipeTo(new WritableStream())
+      if (!response.ok) throw apiError('/api/chat', response.status)
+      await new Promise((resolve) => setTimeout(resolve, 100))
+      await waitForIdle()
       const session = await client.session()
       if (session.usage) setUsage(session.usage)
     } catch {
@@ -429,7 +423,15 @@ export function ChatPanel(props: {
   return (
     <ChatProvider chat={chat}>
       <ToolProvider value={toolCtx}>
-        <ComposerHandlersProvider value={{onSend}}>
+        <ComposerHandlersProvider
+          value={{
+            onSend,
+            onCancel: () => {
+              chat.stop()
+              void client.stop().catch(() => {})
+            },
+          }}
+        >
           <ComposerPrimitive.TriggerPopoverRoot>
             <ExtensionSurface name="header" instances={props.instances} bag={hostBag} />
             <ExtensionSurface name="widget" instances={props.instances} bag={hostBag} />
@@ -460,25 +462,7 @@ export function ChatPanel(props: {
                         </div>
                       )}
                     </Show>
-                    <Show when={switchError()}>
-                      <div class={ERROR} role="alert">
-                        <span class="flex-1">Couldn’t load that session</span>
-                        <button type="button" class={RETRY} onClick={() => void loadSession(client.sessionId())}>
-                          Retry
-                        </button>
-                      </div>
-                    </Show>
                   </>
-                }
-                overlay={
-                  <Show when={switching()}>
-                    <div
-                      class="bg-pw-panel-60 inset-0 absolute z-[5] anim-switching"
-                      role="status"
-                      aria-label="Loading session…"
-                      tabindex={-1}
-                    />
-                  </Show>
                 }
                 welcome={
                   <EmptyStateSlot
