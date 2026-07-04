@@ -47,6 +47,8 @@ const SESSION = {
   harness: {id: 'claude', name: 'Claude', canLaunch: false},
 }
 
+const SNAPSHOT = {type: 'CUSTOM', name: 'conciv-snapshot', value: {generating: false, messages: HISTORY}}
+
 const chatHistoryFixture: Plugin = {
   name: 'chat-history-fixture',
   configureServer(server) {
@@ -58,7 +60,12 @@ const chatHistoryFixture: Plugin = {
       }
       if (url.startsWith('/api/chat/session/resolve')) return json({sessionId: 'conciv_test'})
       if (url.startsWith('/api/chat/sessions')) return json({sessions: []})
-      if (url.startsWith('/api/chat/history')) return json(HISTORY)
+      if (url.startsWith('/api/chat/attach')) {
+        res.setHeader('content-type', 'text/event-stream')
+        res.setHeader('cache-control', 'no-cache')
+        res.write(`data: ${JSON.stringify(SNAPSHOT)}\n\n`)
+        return
+      }
       if (url.startsWith('/api/chat/session')) return json(SESSION)
       next()
     })
