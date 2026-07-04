@@ -305,9 +305,14 @@ export function ChatPanel(props: {
   const viewLocked = () => activeView() !== 'chat' && Boolean(viewLocks()[activeView()])
   const leaveGuard = () => isThinking() || isStreaming() || viewLocked()
   const currentView = () => views().find((view) => view.id === activeView())
+  const tabIndex = (id: string) => (id === 'chat' ? 0 : views().findIndex((view) => view.id === id) + 1)
+  const [slideDir, setSlideDir] = createSignal<'left' | 'right' | null>(null)
+  const slideClass = () =>
+    slideDir() === 'right' ? 'anim-tab-right' : slideDir() === 'left' ? 'anim-tab-left' : ''
 
   const switchView = (next: string) => {
     if (next === activeView()) return
+    setSlideDir(tabIndex(next) > tabIndex(activeView()) ? 'right' : 'left')
     setActiveView(next)
     const view = views().find((candidate) => candidate.id === next)
     props.announce?.(view ? view.label : 'Chat')
@@ -525,7 +530,7 @@ export function ChatPanel(props: {
               <Show
                 when={!currentView()}
                 fallback={
-                  <>
+                  <div class={`flex flex-1 flex-col min-h-0 ${slideClass()}`}>
                     <Show when={grabs().length > 0}>
                       <div class="px-2.5 pt-2 flex flex-wrap gap-2">
                         <For each={grabs()}>
@@ -548,10 +553,11 @@ export function ChatPanel(props: {
                       </div>
                     </Show>
                     {renderActiveView()}
-                  </>
+                  </div>
                 }
               >
                 <Thread
+                  class={slideClass()}
                   tools={props.tools?.()}
                   components={{ToolFallback: ToolFallbackCard}}
                   turnPrefix={renderTurnPrefix}

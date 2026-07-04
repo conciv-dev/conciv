@@ -22,6 +22,8 @@ export const motion = {
 
   'anim-presence-in': 'animate-pw-presence-in animate-duration-[180ms] animate-ease-pw-expo animate-fill-mode-both',
   'anim-presence-out': 'animate-pw-presence-out animate-duration-[120ms] animate-ease-pw animate-fill-mode-both',
+  'anim-tab-right': 'animate-pw-slide-in-right animate-duration-[200ms] animate-ease-pw-expo',
+  'anim-tab-left': 'animate-pw-slide-in-left animate-duration-[200ms] animate-ease-pw-expo',
   'anim-pulse': 'animate-pulse animate-duration-[1.4s]',
   'anim-skel': 'animate-pulse animate-duration-[1.2s]',
   'anim-test-rot': 'animate-spin animate-duration-[0.7s]',

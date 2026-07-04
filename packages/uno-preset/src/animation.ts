@@ -12,5 +12,8 @@ export const animation = {
 
     'pw-presence-in': '{from{opacity:0;transform:scale(0.96)}to{opacity:1;transform:scale(1)}}',
     'pw-presence-out': '{from{opacity:1;transform:scale(1)}to{opacity:0;transform:scale(0.96)}}',
+
+    'pw-slide-in-right': '{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:translateX(0)}}',
+    'pw-slide-in-left': '{from{opacity:0;transform:translateX(-14px)}to{opacity:1;transform:translateX(0)}}',
   },
 } satisfies Theme['animation']
