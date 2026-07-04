@@ -917,8 +917,6 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await page.getByText(SWITCHED_REPLY).waitFor({state: 'visible'})
 
     await page.reload()
-    await fab.waitFor({state: 'visible'})
-    await fab.click()
 
     await page.getByRole('button', {name: 'Session: Made in conciv'}).waitFor({state: 'visible', timeout: 4000})
 
