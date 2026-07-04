@@ -152,4 +152,69 @@ describe('turn hub', () => {
     expect(gotA.map((c) => c.type)).toContain(EventType.RUN_FINISHED)
     expect(gotB.map((c) => c.type)).toContain(EventType.RUN_FINISHED)
   })
+
+  it('drops a session once its turn ends with no subscribers', async () => {
+    const hub = makeTurnHub()
+    const gate = makeGate()
+    const pump = hub.start('s1', userMessage, gate.stream)
+    gate.push(started)
+    await new Promise((r) => setTimeout(r, 10))
+    expect(hub.trackedSessions()).toBe(1)
+    gate.push(finished)
+    gate.end()
+    await pump
+    expect(hub.trackedSessions()).toBe(0)
+  })
+
+  it('retains a session while a subscriber is attached and drops it when the last one leaves', async () => {
+    const hub = makeTurnHub()
+    const gate = makeGate()
+    const pump = hub.start('s1', userMessage, gate.stream)
+    gate.push(started)
+    const controller = new AbortController()
+    const {live} = hub.attach('s1', controller.signal)
+    const drain = (async () => {
+      for await (const chunk of live) void chunk
+    })()
+    gate.push(finished)
+    gate.end()
+    await pump
+    await new Promise((r) => setTimeout(r, 10))
+    expect(hub.trackedSessions()).toBe(1)
+    controller.abort()
+    await drain
+    expect(hub.trackedSessions()).toBe(0)
+  })
+
+  it('never evicts a session whose turn is still generating', async () => {
+    const hub = makeTurnHub()
+    const gate = makeGate()
+    const pump = hub.start('s1', userMessage, gate.stream)
+    gate.push(started)
+    const controller = new AbortController()
+    const {live} = hub.attach('s1', controller.signal)
+    const drain = (async () => {
+      for await (const chunk of live) void chunk
+    })()
+    controller.abort()
+    await drain
+    expect(hub.trackedSessions()).toBe(1)
+    gate.push(finished)
+    gate.end()
+    await pump
+    expect(hub.trackedSessions()).toBe(0)
+  })
+
+  it('does not accumulate entries across many sequential settled sessions', async () => {
+    const hub = makeTurnHub()
+    for (const index of Array.from({length: 50}, (_, i) => i)) {
+      const gate = makeGate()
+      const pump = hub.start(`s${index}`, userMessage, gate.stream)
+      gate.push(started)
+      gate.push(finished)
+      gate.end()
+      await pump
+    }
+    expect(hub.trackedSessions()).toBe(0)
+  })
 })

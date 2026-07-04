@@ -62,6 +62,7 @@ export type TurnHub = {
   pendingUserMessage: (sessionId: string) => UIMessage | null
   markStopped: (sessionId: string) => void
   attach: (sessionId: string, signal: AbortSignal) => {replay: StreamChunk[]; live: AsyncGenerator<StreamChunk>}
+  trackedSessions: () => number
 }
 
 export function makeTurnHub(): TurnHub {
@@ -79,6 +80,13 @@ export function makeTurnHub(): TurnHub {
     }
     sessions.set(sessionId, created)
     return created
+  }
+
+  function releaseIfIdle(sessionId: string, session: SessionRun): void {
+    if (session.generating) return
+    if (session.subscribers.size > 0) return
+    if (sessions.get(sessionId) !== session) return
+    sessions.delete(sessionId)
   }
 
   async function start(
@@ -105,6 +113,7 @@ export function makeTurnHub(): TurnHub {
       session.userMessage = null
       session.generating = false
       session.stopped = false
+      releaseIfIdle(sessionId, session)
     }
   }
 
@@ -115,6 +124,7 @@ export function makeTurnHub(): TurnHub {
     const detach = () => {
       session.subscribers.delete(subscriber)
       subscriber.close()
+      releaseIfIdle(sessionId, session)
     }
     signal.addEventListener('abort', detach, {once: true})
     if (signal.aborted) detach()
@@ -132,5 +142,6 @@ export function makeTurnHub(): TurnHub {
     markStopped,
     generating: (sessionId) => sessions.get(sessionId)?.generating ?? false,
     pendingUserMessage: (sessionId) => sessions.get(sessionId)?.userMessage ?? null,
+    trackedSessions: () => sessions.size,
   }
 }
