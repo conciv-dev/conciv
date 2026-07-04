@@ -6,6 +6,7 @@ import {
   For,
   getOwner,
   onCleanup,
+  onMount,
   runWithOwner,
   Show,
   type JSX,
@@ -57,6 +58,7 @@ import type {Grab, GrabApi} from '@conciv/grab'
 import {ExtensionSurface, type ExtensionHostBag, type ExtensionInstance} from '../extension/extension-slots.js'
 import {EmptyStateSlot} from '../shell/empty-state.js'
 import {grabApi} from '../page/grab-api.js'
+import {readPaneSnapshot, writePaneSnapshot, clearPaneSnapshot, type PaneSnapshot} from '../lib/ui-snapshot.js'
 
 const GRAB_PREVIEW_MAX_W = 280
 
@@ -135,9 +137,20 @@ function ThinkingBubble(): JSX.Element {
   )
 }
 
-function DraftBridge(props: {onReady: (append: (text: string) => void) => void}): JSX.Element {
+type ComposerStateApi = {
+  append: (text: string) => void
+  text: () => string
+  setText: (value: string) => void
+}
+
+function ComposerStateBridge(props: {onReady: (api: ComposerStateApi) => void}): JSX.Element {
   const composer = useComposer()
-  props.onReady((text) => composer.setText(composer.text() ? `${composer.text()}\n${text}` : text))
+  const api: ComposerStateApi = {
+    append: (text) => composer.setText(composer.text() ? `${composer.text()}\n${text}` : text),
+    text: composer.text,
+    setText: composer.setText,
+  }
+  onMount(() => props.onReady(api))
   return <></>
 }
 
@@ -217,9 +230,10 @@ export function ChatPanel(props: {
   })
   chatRef.current = chat
 
-  const [grabs, setGrabs] = createSignal<Grab[]>([])
+  const [grabs, setGrabs] = createSignal<(Grab | {text: string})[]>([])
   let inputEl: HTMLTextAreaElement | undefined
-  const appendDraft = {current: (_text: string) => {}}
+  let viewportEl: HTMLElement | undefined
+  const composerApi = {current: null as ComposerStateApi | null}
 
   const isThinking = () => chat.status() === 'submitted'
   const isStreaming = () => chat.status() === 'streaming'
@@ -319,17 +333,19 @@ export function ChatPanel(props: {
       .join('\n')
     setGrabs([])
     void chat.sendMessage(context ? `${context}\n\n${trimmed}` : trimmed)
+    clearPaneSnapshot(paneSessionId())
+    writeSnapshot()
   }
 
   const insert = (text: string) => {
-    appendDraft.current(text)
+    composerApi.current?.append(text)
     focusInput()
   }
   const stageGrab = (grab: Grab) => {
     setGrabs((prev) => [...prev, grab])
     focusInput()
   }
-  const removeGrab = (grab: Grab) => setGrabs((prev) => prev.filter((x) => x !== grab))
+  const removeGrab = (grab: Grab | {text: string}) => setGrabs((prev) => prev.filter((x) => x !== grab))
 
   const dividerSeq = {n: 0}
   const [dividers, setDividers] = createSignal<{id: number; afterCount: number; kind: 'new' | 'compact'}[]>([])
@@ -343,6 +359,76 @@ export function ChatPanel(props: {
   const dividersInRange = (start: number, end: number) =>
     dividers().filter((d) => d.afterCount >= start && d.afterCount <= end)
   const resetUsage = () => setUsage(null)
+
+  const paneSessionId = () => client.sessionId() ?? ''
+  const isInputFocused = (): boolean => {
+    if (!inputEl) return false
+    const root = inputEl.getRootNode()
+    if (root instanceof ShadowRoot) return root.activeElement === inputEl
+    return document.activeElement === inputEl
+  }
+  const snapshotPane = (): PaneSnapshot => {
+    const draft = composerApi.current?.text() ?? ''
+    return {
+      draft,
+      selectionStart: inputEl?.selectionStart ?? draft.length,
+      selectionEnd: inputEl?.selectionEnd ?? draft.length,
+      focused: isInputFocused(),
+      grabTexts: grabs().map((grab) => grab.text),
+      dividers: dividers(),
+      scrollTop: viewportEl?.scrollTop ?? null,
+    }
+  }
+  const writeSnapshot = () => writePaneSnapshot(paneSessionId(), snapshotPane())
+  const persist = createDebouncer(writeSnapshot, {wait: 150})
+
+  const restored = {done: false}
+  const restorePane = (api: ComposerStateApi, sessionId: string) => {
+    const snapshot = readPaneSnapshot(sessionId)
+    if (!snapshot) return
+    api.setText(snapshot.draft)
+    setGrabs(snapshot.grabTexts.map((text) => ({text})))
+    setDividers(snapshot.dividers)
+    dividerSeq.n = Math.max(0, ...snapshot.dividers.map((divider) => divider.id))
+    requestAnimationFrame(() => {
+      if (snapshot.scrollTop !== null && viewportEl) viewportEl.scrollTop = snapshot.scrollTop
+      if (!inputEl) return
+      inputEl.setSelectionRange(snapshot.selectionStart, snapshot.selectionEnd)
+      if (snapshot.focused) inputEl.focus()
+    })
+  }
+  const maybeRestore = () => {
+    if (restored.done) return
+    const api = composerApi.current
+    const sessionId = client.sessionId()
+    if (!api || !sessionId) return
+    restored.done = true
+    restorePane(api, sessionId)
+  }
+  createEffect(() => {
+    grabs()
+    dividers()
+    persist.maybeExecute()
+  })
+  createEffect(() => {
+    client.sessionId()
+    maybeRestore()
+  })
+  onMount(() => {
+    const schedule = () => persist.maybeExecute()
+    const inputEvents: string[] = ['input', 'select', 'keyup', 'click', 'focus', 'blur']
+    const target = inputEl
+    const viewport = viewportEl
+    if (target) for (const event of inputEvents) target.addEventListener(event, schedule)
+    if (viewport) viewport.addEventListener('scroll', schedule)
+    const onPageHide = () => writeSnapshot()
+    window.addEventListener('pagehide', onPageHide)
+    onCleanup(() => {
+      if (target) for (const event of inputEvents) target.removeEventListener(event, schedule)
+      if (viewport) viewport.removeEventListener('scroll', schedule)
+      window.removeEventListener('pagehide', onPageHide)
+    })
+  })
 
   const startNewSession = async () => {
     addDivider('new')
@@ -464,6 +550,9 @@ export function ChatPanel(props: {
                 tools={props.tools?.()}
                 components={{ToolFallback: ToolFallbackCard}}
                 turnPrefix={renderTurnPrefix}
+                viewportRef={(el) => {
+                  viewportEl = el
+                }}
                 viewportFooter={
                   <>
                     <For each={dividersAt(chat.messages().length)}>{renderDivider}</For>
@@ -552,7 +641,12 @@ export function ChatPanel(props: {
                       <For each={props.composerControls?.() ?? []}>
                         {(control) => control.create({apiBase: props.apiBase, setRequestMeta: mergeRequestMeta})}
                       </For>
-                      <DraftBridge onReady={(append) => (appendDraft.current = append)} />
+                      <ComposerStateBridge
+                        onReady={(api) => {
+                          composerApi.current = api
+                          maybeRestore()
+                        }}
+                      />
                     </Composer>
                   </>
                 }

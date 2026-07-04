@@ -45,6 +45,8 @@ export type ThreadProps = {
 
   viewportFooter?: JSX.Element
 
+  viewportRef?: (element: HTMLElement) => void
+
   overlay?: JSX.Element
 }
 
@@ -227,6 +229,7 @@ export function Thread(props: ThreadProps): JSX.Element {
     >
       <div class="flex flex-col h-full min-h-0 [color:var(--chat-text)] [font-family:var(--chat-font)]">
         <ThreadPrimitive.Viewport
+          ref={props.viewportRef}
           class="px-3 py-3 flex flex-1 flex-col gap-3 min-h-0 relative overflow-y-auto"
           role="log"
           aria-live="off"
