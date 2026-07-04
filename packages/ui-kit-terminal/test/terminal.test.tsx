@@ -51,6 +51,54 @@ describe('terminal primitives', () => {
     dispose()
   })
 
+  it('rail overlay sits beside the screen, not over it', async () => {
+    const model = createTerminalModel({url: () => 'ws://127.0.0.1:1/never'})
+    const {host, dispose} = mount(() => (
+      <TerminalPrimitive.Root model={model}>
+        <div style={{display: 'flex', 'flex-direction': 'row', width: '640px', height: '320px'}}>
+          <div style={{flex: '1', 'min-width': '0'}}>
+            <TerminalPrimitive.Screen />
+          </div>
+          <TerminalPrimitive.Overlay anchor="rail">
+            <p style={{width: '160px'}}>rail content</p>
+          </TerminalPrimitive.Overlay>
+        </div>
+      </TerminalPrimitive.Root>
+    ))
+    await flush()
+    const screen = host.querySelector('[data-terminal-screen]')
+    const overlay = host.querySelector('[data-terminal-overlay="rail"]')
+    if (!screen || !overlay) throw new Error('missing screen or overlay')
+    const screenBox = screen.getBoundingClientRect()
+    const overlayBox = overlay.getBoundingClientRect()
+    expect(host.textContent ?? '').toContain('rail content')
+    expect(overlayBox.left).toBeGreaterThanOrEqual(screenBox.right - 1)
+    dispose()
+  })
+
+  it('top-right overlay pins to the root corner above the screen', async () => {
+    const model = createTerminalModel({url: () => 'ws://127.0.0.1:1/never'})
+    const {host, dispose} = mount(() => (
+      <div style={{position: 'relative', width: '640px', height: '320px', display: 'flex'}}>
+        <TerminalPrimitive.Root model={model}>
+          <TerminalPrimitive.Screen />
+          <TerminalPrimitive.Overlay anchor="top-right">
+            <button type="button">corner action</button>
+          </TerminalPrimitive.Overlay>
+        </TerminalPrimitive.Root>
+      </div>
+    ))
+    await flush()
+    const overlay = host.querySelector('[data-terminal-overlay="top-right"]')
+    if (!overlay) throw new Error('missing overlay')
+    const hostBox = host.getBoundingClientRect()
+    const overlayBox = overlay.getBoundingClientRect()
+    expect(host.textContent ?? '').toContain('corner action')
+    expect(overlayBox.top - hostBox.top).toBeLessThan(40)
+    expect(hostBox.right - overlayBox.right).toBeLessThan(40)
+    dispose()
+  })
+
   it('shows the banner only after exit', async () => {
     const model = createTerminalModel({url: () => 'ws://127.0.0.1:1/never'})
     const {host, dispose} = mount(() => (

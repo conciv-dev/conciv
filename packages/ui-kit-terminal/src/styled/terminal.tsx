@@ -12,12 +12,22 @@ const BANNER =
 const BANNER_BUTTON =
   'py-1.5 px-2.5 rounded-[7px] [border:none] text-[0.6875rem] font-semibold cursor-pointer [background:var(--chat-accent,#4353ff)] [color:#fff]'
 
-export function Terminal(props: {model: TerminalModel; onBackToChat?: () => void; class?: string}): JSX.Element {
+export function Terminal(props: {
+  model: TerminalModel
+  onBackToChat?: () => void
+  class?: string
+  rail?: JSX.Element
+}): JSX.Element {
   const settled = () => props.model.status() === 'exited' || props.model.status() === 'error'
   return (
     <TerminalPrimitive.Root model={props.model} class={`${ROOT} ${props.class ?? ''}`}>
-      <div class={SCREEN_WRAP} style={{opacity: settled() ? '0.45' : '1'}}>
-        <TerminalPrimitive.Screen class={SCREEN} />
+      <div class="flex flex-row flex-1 min-h-0">
+        <div class={SCREEN_WRAP} style={{opacity: settled() ? '0.45' : '1'}}>
+          <TerminalPrimitive.Screen class={SCREEN} />
+        </div>
+        <Show when={props.rail}>
+          <TerminalPrimitive.Overlay anchor="rail">{props.rail}</TerminalPrimitive.Overlay>
+        </Show>
       </div>
       <Show when={props.model.status() === 'connecting'}>
         <div class={CONNECTING} role="status">

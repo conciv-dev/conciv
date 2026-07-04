@@ -66,4 +66,17 @@ function Banner(props: {children: (state: {code: number | null; message: string 
   )
 }
 
-export const TerminalPrimitive = {Root, Screen, Banner}
+const OVERLAY_ANCHOR_STYLE: Record<'rail' | 'top-right', JSX.CSSProperties> = {
+  rail: {display: 'flex', 'flex-direction': 'column', 'min-height': '0', 'flex-shrink': '0'},
+  'top-right': {position: 'absolute', top: '0.5rem', right: '0.5rem', 'z-index': '10'},
+}
+
+function Overlay(props: {anchor: 'rail' | 'top-right'; class?: string; children: JSX.Element}): JSX.Element {
+  return (
+    <div class={props.class} style={OVERLAY_ANCHOR_STYLE[props.anchor]} data-terminal-overlay={props.anchor}>
+      {props.children}
+    </div>
+  )
+}
+
+export const TerminalPrimitive = {Root, Screen, Banner, Overlay}
