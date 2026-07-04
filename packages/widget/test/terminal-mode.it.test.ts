@@ -143,6 +143,41 @@ describe('terminal extension e2e (real engine, real claude)', () => {
     await page.close()
   }, 240_000)
 
+  const maxTick = (buffer: string): number =>
+    (buffer.match(/TICK-(\d+)/g) ?? []).reduce((top, hit) => Math.max(top, Number(hit.slice(5))), 0)
+
+  it('Escape interrupts Claude while it is working', async () => {
+    const page = await browser.newPage()
+    await page.goto(state.base)
+    await page.getByRole('button', {name: 'Open conciv chat'}).click()
+    await page.getByRole('tab', {name: 'Terminal'}).first().click()
+    await page.locator('[data-terminal-screen]').first().click()
+    const booted = await untilBuffer(page, /trust this folder|auto mode on/, 60_000)
+    if (booted.includes('trust this folder')) {
+      await page.keyboard.press('Enter')
+      await untilBuffer(page, /auto mode on/, 60_000)
+    }
+
+    await page.keyboard.type(
+      'Use the Bash tool to run exactly this one command and nothing else: for i in $(seq 1 40); do echo TICK-$i; sleep 1; done',
+    )
+    await page.keyboard.press('Enter')
+    await untilBuffer(page, /TICK-3\b/, 60_000)
+    await page.locator('[data-terminal-screen]').first().click()
+    await page.keyboard.press('Escape')
+
+    await page.waitForTimeout(2000)
+    const tickAtEscape = maxTick(await bufferText(page))
+    await page.waitForTimeout(6000)
+    const tickLater = maxTick(await bufferText(page))
+    expect(
+      tickLater,
+      `Escape must interrupt the running command so its tick counter stops advancing (was ${tickAtEscape}, later ${tickLater})`,
+    ).toBe(tickAtEscape)
+
+    await page.close()
+  }, 120_000)
+
   it('renders the tab bar in the quick-terminal pane as well', async () => {
     const page = await browser.newPage()
     await page.goto(state.base)
