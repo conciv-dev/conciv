@@ -527,7 +527,7 @@ export function ChatPanel(props: {
                 fallback={
                   <>
                     <Show when={grabs().length > 0}>
-                      <div class="flex flex-wrap gap-2 px-2.5 pt-2">
+                      <div class="px-2.5 pt-2 flex flex-wrap gap-2">
                         <For each={grabs()}>
                           {(g) => (
                             <GrabReference
