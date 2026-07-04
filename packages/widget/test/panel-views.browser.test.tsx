@@ -1,5 +1,4 @@
 import {describe, it, expect, afterEach} from 'vitest'
-import {onMount} from 'solid-js'
 import {render} from 'solid-js/web'
 import {page} from 'vitest/browser'
 import {defineExtension} from '@conciv/extension'
@@ -31,7 +30,6 @@ const insertViewExtension = defineExtension({
 
 function InsertViewBody() {
   const ctx = insertViewExtension.useContext()
-  onMount(() => ctx.view.onInsert((text) => insertedTexts.push(text)))
   const stage = () => {
     const node = document.createElement('div')
     ctx.grab.stage({
@@ -41,10 +39,19 @@ function InsertViewBody() {
       rect: null,
     })
   }
+  const consume = () => {
+    for (const grab of ctx.grab.staged()) insertedTexts.push(grab.text)
+    ctx.grab.clear()
+  }
   return (
-    <button type="button" onClick={stage}>
-      stage grab
-    </button>
+    <>
+      <button type="button" onClick={stage}>
+        stage grab
+      </button>
+      <button type="button" onClick={consume}>
+        consume grabs
+      </button>
+    </>
   )
 }
 
@@ -108,13 +115,14 @@ describe('panel views (real browser)', () => {
     expect(document.body.textContent ?? '').not.toContain('probe-action')
   })
 
-  it('staged grabs render as tray cards above the view and Insert routes to the view handler', async () => {
+  it('staged grabs render as tray cards above the view with no manual Insert; the view consumes them on send', async () => {
     insertedTexts.splice(0)
     mountPanel([insertViewExtension])
     await page.getByRole('tab', {name: 'Insert View'}).click()
     await page.getByRole('button', {name: 'stage grab'}).click()
-    await expect.element(page.getByRole('button', {name: 'Insert'})).toBeVisible()
-    await page.getByRole('button', {name: 'Insert'}).click()
+    await expect.element(page.getByRole('button', {name: 'Remove grabbed element'})).toBeVisible()
+    expect(page.getByRole('button', {name: 'Insert'}).query()).toBeNull()
+    await page.getByRole('button', {name: 'consume grabs'}).click()
     expect(insertedTexts).toEqual(['grabbed-element-text'])
     expect(document.querySelector('[data-pw-grab]')).toBeNull()
   })

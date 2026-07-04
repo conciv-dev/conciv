@@ -28,6 +28,7 @@ export type TerminalModel = {
   focus(): void
   inject(text: string): void
   paste(text: string): void
+  sendInput(data: string): void
   __testReceiveControl(frame: TtyServerControl): void
 }
 
@@ -171,6 +172,9 @@ export function createTerminalModel(opts: TerminalModelOpts): TerminalModel {
       if (state.socket?.readyState === WebSocket.OPEN) state.socket.send(JSON.stringify({type: 'inject', text}))
     },
     paste: (text) => terminal.paste(text),
+    sendInput: (data) => {
+      if (state.socket?.readyState === WebSocket.OPEN) state.socket.send(data)
+    },
     __testReceiveControl: receiveControl,
   }
 }

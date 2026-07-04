@@ -45,15 +45,23 @@ function TerminalSurface(props: {ctx: ViewContext; generation: number; themeHost
     url: () => wsUrl(ctx.apiBase, ctx.client.sessionId(), DEFAULT_COLS, DEFAULT_ROWS),
     theme: () => readTerminalTheme(props.themeHost()),
   })
+  model.terminal.attachCustomKeyEventHandler((event) => {
+    if (event.type !== 'keydown' || event.key !== 'Enter') return true
+    if (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return true
+    const grabs = ctx.grab.staged()
+    if (grabs.length === 0) return true
+    model.paste(`\n\n${grabs.map((grab) => grab.text).join('\n\n')}`)
+    model.sendInput('\r')
+    ctx.grab.clear()
+    return false
+  })
   createEffect(() => {
     ctx.view.setLocked(model.busy())
     ctx.store.setBusy(model.busy())
   })
-  ctx.view.onInsert((text) => model.paste(text))
   onCleanup(() => {
     ctx.view.setLocked(false)
     ctx.store.setBusy(false)
-    ctx.view.onInsert(null)
   })
   const headers = () => ({...ctx.client.chatHeaders()})
   const railCtx: ToolViewCtx = {

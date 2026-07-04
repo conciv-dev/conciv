@@ -307,8 +307,7 @@ export function ChatPanel(props: {
   const currentView = () => views().find((view) => view.id === activeView())
   const tabIndex = (id: string) => (id === 'chat' ? 0 : views().findIndex((view) => view.id === id) + 1)
   const [slideDir, setSlideDir] = createSignal<'left' | 'right' | null>(null)
-  const slideClass = () =>
-    slideDir() === 'right' ? 'anim-tab-right' : slideDir() === 'left' ? 'anim-tab-left' : ''
+  const slideClass = () => (slideDir() === 'right' ? 'anim-tab-right' : slideDir() === 'left' ? 'anim-tab-left' : '')
 
   const switchView = (next: string) => {
     if (next === activeView()) return
@@ -430,7 +429,7 @@ export function ChatPanel(props: {
     )
   }
 
-  const grab: GrabApi = {...grabApi, stage: stageGrab}
+  const grab: GrabApi = {...grabApi, stage: stageGrab, staged: grabs, clear: () => setGrabs([])}
   const hostBag: ExtensionHostBag = {
     ...toolCtx,
     insert,
@@ -446,25 +445,14 @@ export function ChatPanel(props: {
     view: {setLocked: () => {}, leave: () => {}, onInsert: () => {}},
   }
 
-  const [viewInsertHandlers, setViewInsertHandlers] = createSignal<Record<string, (text: string) => void>>({})
   const viewHostContext = (view: PanelView) => ({
     ...hostBag,
     view: {
       setLocked: setLockedFor(view.id),
       leave: () => switchView('chat'),
-      onInsert: (handler: ((text: string) => void) | null) =>
-        setViewInsertHandlers((prev) => {
-          const next = {...prev}
-          if (handler) next[view.id] = handler
-          if (!handler) delete next[view.id]
-          return next
-        }),
+      onInsert: () => {},
     },
   })
-  const activeInsertHandler = () => {
-    const view = currentView()
-    return view ? viewInsertHandlers()[view.id] : undefined
-  }
 
   const renderActiveView = (): JSX.Element => {
     const view = currentView()
@@ -535,19 +523,7 @@ export function ChatPanel(props: {
                       <div class="px-2.5 pt-2 flex flex-wrap gap-2">
                         <For each={grabs()}>
                           {(g) => (
-                            <GrabReference
-                              grab={g}
-                              maxWidth={GRAB_PREVIEW_MAX_W}
-                              onRemove={() => removeGrab(g)}
-                              onInsert={
-                                activeInsertHandler()
-                                  ? () => {
-                                      activeInsertHandler()?.(g.text)
-                                      removeGrab(g)
-                                    }
-                                  : undefined
-                              }
-                            />
+                            <GrabReference grab={g} maxWidth={GRAB_PREVIEW_MAX_W} onRemove={() => removeGrab(g)} />
                           )}
                         </For>
                       </div>
