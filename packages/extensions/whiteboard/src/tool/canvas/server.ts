@@ -58,9 +58,30 @@ export const canvasSvgTool = defineTool<typeof CanvasSvgInput, WhiteboardToolCon
 )
 
 export const canvasExportTool = defineTool<typeof CanvasExportInput, WhiteboardToolContext>(canvasExportDef).server(
-  async (_input, ctx, request) => {
-    const rows = await ctx.db.all(app.canvasElements.where({room: ctx.room(request)}), {tier: 'global'})
-    return {elements: rows.map((row) => row.data)}
+  async (input, ctx, request) => {
+    const room = ctx.room(request)
+    if (input.format === 'json') {
+      const table = input.scope === 'draft' ? app.canvasDraftElements : app.canvasElements
+      const rows = await ctx.db.all(table.where({room}), {tier: 'global'})
+      return {elements: rows.map((row) => row.data)}
+    }
+    const requestId = crypto.randomUUID()
+    await ctx.db
+      .insert(app.canvasPending, {room, kind: 'export', stage: 'live', payload: {requestId, scope: input.scope} as JsonValue})
+      .wait({tier: 'edge'})
+    const deadline = Date.now() + 10_000
+    while (Date.now() < deadline) {
+      const replies = await ctx.db.all(app.canvasReplies.where({room, requestId}), {tier: 'global'})
+      const reply = replies[0]
+      if (reply) {
+        const payload = reply.payload as unknown as {dataBase64?: string; error?: string; reason?: string}
+        await ctx.db.delete(app.canvasReplies, reply.id).wait({tier: 'edge'})
+        if (payload.error) return {error: payload.error, reason: payload.reason ?? 'unknown', scope: input.scope}
+        return imageResult('image/png', payload.dataBase64 ?? '', {scope: input.scope})
+      }
+      await new Promise((resolve) => setTimeout(resolve, 250))
+    }
+    throw new Error('export timed out: no canvas tab is connected (canvas.preview works without one)')
   },
 )
 

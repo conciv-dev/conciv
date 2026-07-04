@@ -254,6 +254,44 @@ export function Island(props: {
     }
   }
 
+  const toBase64 = (bytes: Uint8Array): string => {
+    let binary = ''
+    for (let index = 0; index < bytes.length; index += 0x8000) {
+      binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000))
+    }
+    return btoa(binary)
+  }
+
+  const exportReply = async (scope: 'live' | 'draft' | 'both'): Promise<JsonValue> => {
+    const live = scope === 'draft' ? [] : (api?.getSceneElements() ?? [])
+    const draftRows =
+      scope === 'live' ? [] : await db().all(app.canvasDraftElements.where({room: props.room}), {tier: 'global'})
+    const drafts = draftRows.map((draft) => asScene((draft as unknown as ElementRow).data))
+    const {exportToBlob} = await import('@excalidraw/excalidraw')
+    const blob = await exportToBlob({
+      elements: [...live, ...drafts],
+      files: api?.getFiles() ?? {},
+      appState: {exportBackground: true, viewBackgroundColor: '#ffffff'},
+    })
+    return {dataBase64: toBase64(new Uint8Array(await blob.arrayBuffer()))} as JsonValue
+  }
+
+  const performExport = async (row: PendingRow): Promise<void> => {
+    const {requestId, scope} = row.payload as unknown as {requestId: string; scope: 'live' | 'draft' | 'both'}
+    const payload = await exportReply(scope).catch((error) => {
+      console.error(`[whiteboard] canvas.export render failed: ${String(error)}`)
+      return {error: 'export render failed', reason: String(error)} as JsonValue
+    })
+    try {
+      await db().insert(app.canvasReplies, {room: props.room, requestId, kind: 'export', payload}).wait({tier: 'edge'})
+    } finally {
+      await db()
+        .delete(app.canvasPending, row.id)
+        .wait({tier: 'edge'})
+        .catch((error) => console.error(`[whiteboard] deleting export pending ${row.id} failed: ${String(error)}`))
+    }
+  }
+
   const collaboratorsFrom = (rows: readonly CursorRow[]): Map<SocketId, Collaborator> => {
     const now = Date.now()
     const map = new Map<SocketId, Collaborator>()
@@ -277,9 +315,11 @@ export function Island(props: {
     (all as readonly PendingRow[]).forEach((row) => {
       if (draining.has(row.id)) return
       const drawable = row.kind === 'skeletons' || row.kind === 'mermaid' || row.kind === 'svg'
-      if (!drawable && row.kind !== 'commit') return
+      if (!drawable && row.kind !== 'commit' && row.kind !== 'export') return
       draining.add(row.id)
-      void (row.kind === 'commit' ? performCommit(row) : drainPending(row))
+      if (row.kind === 'commit') return void performCommit(row)
+      if (row.kind === 'export') return void performExport(row)
+      void drainPending(row)
     }),
   )
 

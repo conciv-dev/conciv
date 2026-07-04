@@ -24,7 +24,10 @@ export const CanvasConnectInput = z.object({fromId: z.string(), toId: z.string()
 export const CanvasUpdateInput = z.object({elementId: z.string(), patch: z.record(z.string(), z.unknown())})
 export const CanvasDeleteInput = z.object({elementId: z.string()})
 export const CanvasClearInput = z.object({})
-export const CanvasExportInput = z.object({})
+export const CanvasExportInput = z.object({
+  format: z.enum(['json', 'png']).default('json'),
+  scope: z.enum(['live', 'draft', 'both']).default('live'),
+})
 export const CanvasCommitInput = z.object({})
 export const CanvasDiscardInput = z.object({})
 export const CanvasPreviewInput = z.object({})
@@ -96,9 +99,10 @@ export const canvasClearDef = {
 
 export const canvasExportDef = {
   name: 'canvas.export',
-  description: 'Return the canvas scene as JSON (no image export in v1).',
+  description:
+    'Export the canvas: json returns elements; png returns a real Excalidraw rendering (requires an open canvas tab).',
   inputSchema: CanvasExportInput,
-  promptSnippet: 'Use canvas.export to capture the scene elements as JSON.',
+  promptSnippet: 'Use canvas.export with format png and scope draft for a ground-truth render before canvas.commit.',
 }
 
 export const canvasCommitDef = {
