@@ -10,11 +10,15 @@ import type {AnyExtension} from '@conciv/extension'
 
 const viewExtension = defineExtension({
   name: 'sample-view',
-  views: [{id: 'sample-view', label: 'Sample View', Component: SampleViewBody}],
+  views: [{id: 'sample-view', label: 'Sample View', Component: SampleViewBody, actions: SampleViewActions}],
 })
 
 function SampleViewBody() {
   return <div>sample view body</div>
+}
+
+function SampleViewActions() {
+  return <button type="button">probe-action</button>
 }
 
 const disposers: (() => void)[] = []
@@ -64,6 +68,17 @@ describe('panel views (real browser)', () => {
     await page.getByRole('tab', {name: 'Sample View'}).click()
     await expect.element(page.getByText('sample view body')).toBeVisible()
     expect(document.querySelector('textarea')).toBeNull()
+  })
+
+  it('renders view actions in the tab row only while the view is active', async () => {
+    mountPanel([viewExtension])
+    await expect.element(page.getByRole('tab', {name: 'Chat'})).toBeVisible()
+    expect(document.body.textContent ?? '').not.toContain('probe-action')
+    await page.getByRole('tab', {name: 'Sample View'}).click()
+    await expect.element(page.getByRole('button', {name: 'probe-action'})).toBeVisible()
+    await page.getByRole('tab', {name: 'Chat'}).click()
+    await expect.element(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
+    expect(document.body.textContent ?? '').not.toContain('probe-action')
   })
 
   it('keeps exactly one sliding indicator across switches', async () => {

@@ -11,7 +11,13 @@ import type {TtyCommand, TtyCommandOpts} from '@conciv/protocol/terminal-types'
 
 export type ExtensionSlot = 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget'
 
-export type ExtensionView = {id: string; label: string; icon?: Component<{class?: string}>; Component: Component}
+export type ExtensionView = {
+  id: string
+  label: string
+  icon?: Component<{class?: string}>
+  Component: Component
+  actions?: Component
+}
 
 export type ExtensionViewHost = {setLocked(locked: boolean): void; leave(): void}
 

@@ -38,7 +38,7 @@ import type {ComposerActionDef, ComposerControlDef, PanelDef} from '../shell/wid
 import {GrabReference} from '../page/react-grab/grab-reference.js'
 import type {Grab, GrabApi} from '@conciv/grab'
 import {ExtensionSurface, type ExtensionHostBag, type ExtensionInstance} from '../extension/extension-slots.js'
-import {collectViews} from '../extension/extension-views.js'
+import {collectViews, type PanelView} from '../extension/extension-views.js'
 import {MountedView} from '@conciv/extension/client'
 import {EmptyStateSlot} from '../shell/empty-state.js'
 import {grabApi} from '../page/grab-api.js'
@@ -322,6 +322,7 @@ export function ChatPanel(props: {
       focusInput()
       return
     }
+    if (currentView()) return
     setActiveView('chat')
     void loadSession(id).then(focusInput)
   })
@@ -440,16 +441,15 @@ export function ChatPanel(props: {
     view: {setLocked: () => {}, leave: () => {}},
   }
 
+  const viewHostContext = (view: PanelView) => ({
+    ...hostBag,
+    view: {setLocked: setLockedFor(view.id), leave: () => switchView('chat')},
+  })
+
   const renderActiveView = (): JSX.Element => {
     const view = currentView()
     if (!view) return null
-    return (
-      <MountedView
-        view={view}
-        hostContext={{...hostBag, view: {setLocked: setLockedFor(view.id), leave: () => switchView('chat')}}}
-        clientValue={view.instance.clientValue}
-      />
-    )
+    return <MountedView view={view} hostContext={viewHostContext(view)} clientValue={view.instance.clientValue} />
   }
 
   const renderDivider = (divider: {id: number; kind: 'new' | 'compact'}): JSX.Element => (
@@ -469,22 +469,43 @@ export function ChatPanel(props: {
             <ExtensionSurface name="widget" instances={props.instances} bag={hostBag} />
             <div class="flex flex-1 flex-col min-h-0">
               <Show when={views().length > 0}>
-                <Tabs.Root value={activeView()} onValueChange={(details) => switchView(details.value)} class="px-2.5">
-                  <Tabs.List>
-                    <Tabs.Trigger value="chat" disabled={leaveGuard()}>
-                      Chat
-                    </Tabs.Trigger>
-                    <For each={views()}>
-                      {(view) => (
-                        <Tabs.Trigger value={view.id} disabled={leaveGuard()}>
-                          <Show when={view.icon}>{(icon) => <Dynamic component={icon()} class="size-3.5" />}</Show>
-                          {view.label}
-                        </Tabs.Trigger>
-                      )}
-                    </For>
-                    <Tabs.Indicator />
-                  </Tabs.List>
-                </Tabs.Root>
+                <div class="flex items-center gap-2 px-2.5">
+                  <Tabs.Root
+                    value={activeView()}
+                    onValueChange={(details) => switchView(details.value)}
+                    class="flex-1 min-w-0"
+                  >
+                    <Tabs.List>
+                      <Tabs.Trigger value="chat" disabled={leaveGuard()}>
+                        Chat
+                      </Tabs.Trigger>
+                      <For each={views()}>
+                        {(view) => (
+                          <Tabs.Trigger value={view.id} disabled={leaveGuard()}>
+                            <Show when={view.icon}>{(icon) => <Dynamic component={icon()} class="size-3.5" />}</Show>
+                            {view.label}
+                          </Tabs.Trigger>
+                        )}
+                      </For>
+                      <Tabs.Indicator />
+                    </Tabs.List>
+                  </Tabs.Root>
+                  <Show when={currentView()}>
+                    {(view) => (
+                      <Show when={view().actions}>
+                        {(actions) => (
+                          <div class="flex items-center gap-1">
+                            <MountedView
+                              view={{...view(), Component: actions()}}
+                              hostContext={viewHostContext(view())}
+                              clientValue={view().instance.clientValue}
+                            />
+                          </div>
+                        )}
+                      </Show>
+                    )}
+                  </Show>
+                </div>
               </Show>
               <Show when={!currentView()} fallback={renderActiveView()}>
                 <Thread
