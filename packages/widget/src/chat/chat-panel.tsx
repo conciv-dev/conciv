@@ -233,6 +233,18 @@ export function ChatPanel(props: {
   })
   chatRef.current = chat
 
+  const lastSession = {id: null as string | null}
+  createEffect(() => {
+    const id = client.sessionId()
+    if (!id) return
+    if (lastSession.id === null || lastSession.id === id) {
+      lastSession.id = id
+      return
+    }
+    lastSession.id = id
+    connection.bump()
+  })
+
   const [grabs, setGrabs] = createSignal<(Grab | {text: string})[]>([])
   let inputEl: HTMLTextAreaElement | undefined
   let viewportEl: HTMLElement | undefined
@@ -306,6 +318,11 @@ export function ChatPanel(props: {
   createEffect(() => {
     if (disconnected()) props.announce?.('Reconnecting to conciv…')
   })
+
+  const visibleError = () => {
+    const err = chat.error()
+    return err && err.message !== 'stopped' ? err : undefined
+  }
 
   const answerGenUi = (renderId: string, text: string) => {
     setGenUi((prev) => prev.filter((g) => g.renderId !== renderId))
@@ -382,7 +399,11 @@ export function ChatPanel(props: {
       scrollTop: viewportEl?.scrollTop ?? null,
     }
   }
-  const writeSnapshot = () => writePaneSnapshot(paneSessionId(), snapshotPane())
+  const writeSnapshot = () => {
+    const id = client.sessionId()
+    if (!id) return
+    writePaneSnapshot(id, snapshotPane())
+  }
   const persist = createDebouncer(writeSnapshot, {wait: 150})
 
   const restored = {done: false}
@@ -436,8 +457,8 @@ export function ChatPanel(props: {
   const startNewSession = async () => {
     addDivider('new')
     const {sessionId} = await client.resolve()
+    persist.flush()
     client.setSessionId(sessionId)
-    connection.bump()
   }
   const doNewSession = () => (props.onNewSession ? props.onNewSession() : startNewSession())
 
@@ -568,7 +589,7 @@ export function ChatPanel(props: {
                     <Show when={nowTitleText()}>
                       {(title) => <NowLine title={title()} onStop={() => chat.stop()} />}
                     </Show>
-                    <Show when={chat.error()}>
+                    <Show when={visibleError()}>
                       {(error) => (
                         <div class={ERROR} role="alert">
                           <span class="flex-1">{error().message}</span>

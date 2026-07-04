@@ -756,6 +756,39 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await page.close()
   })
 
+  it('quick terminal: switching a pane session re-attaches to the new session and a send round-trips', async () => {
+    const page = await newPage()
+    await page.goto(`${state.base}/__quick-terminal`)
+    await page.locator('[data-pw-qt]').waitFor({state: 'attached'})
+    await page.keyboard.press('Control+k')
+    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'false'`)
+    await page.getByText('How can I help you today?').waitFor({state: 'visible'})
+
+    const trigger = page.getByRole('button', {name: /^Session:/})
+    await trigger.click()
+    const aidxItem = page.getByRole('option', {name: /Made in conciv/})
+    await aidxItem.waitFor({state: 'visible'})
+    const attachReq = page.waitForRequest(
+      (r) => r.url().includes('/api/chat/attach') && r.headers()['conciv-session-id'] === 'conciv_ext_tok-aidx',
+    )
+    await aidxItem.click()
+    await attachReq
+    await page.getByText(SWITCHED_REPLY).waitFor({state: 'visible'})
+
+    const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
+    const chatReq = page.waitForRequest(
+      (r) =>
+        r.url().endsWith('/api/chat') &&
+        r.method() === 'POST' &&
+        r.headers()['conciv-session-id'] === 'conciv_ext_tok-aidx',
+    )
+    await composer.fill('do something')
+    await composer.press('Enter')
+    await chatReq
+    await page.getByText(ASSISTANT_TEXT).waitFor({state: 'visible'})
+    await page.close()
+  })
+
   it('splits the quick terminal into independent-session panes and reflows on close', async () => {
     const page = await newPage()
     await page.goto(`${state.base}/__quick-terminal`)
