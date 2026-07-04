@@ -74,6 +74,12 @@ Six units. Each is independently buildable and testable.
 - Client: a collapsible `rail` overlay renders entries read-only with the existing `@conciv/ui-kit-chat` message primitives and `@conciv/ui-kit-chat-tools` tool cards — the exact renderers chat uses, so tool calls, diffs, and images appear chat-quality beside the raw TUI.
 - Mirror is display-only in v1: no approvals, no sending from the rail.
 
+## Verified by spike (2026-07-04, real claude v2.1.201 in a pty)
+
+- Claude wraps every TUI repaint in synchronized-update markers (`ESC[?2026h` / `ESC[?2026l`; 86 balanced pairs in one short session). The injector's frame tracking is grounded, with OSC 9;4 idle as the preferred flush point.
+- Transcript JSONL grows **incrementally during a turn** (4 of 5 growth events observed mid-turn), so the mirror pane can render tool cards live, not just per-turn.
+- `--resume <token> --model <other>` composes: the session resumed under the new model with full conversation memory intact. Model-chip respawn is safe.
+
 ## Error handling
 
 - `respawn` failure: error banner in the terminal body (existing pattern) + retry; the previous pty is already closed, so retry reopens.
