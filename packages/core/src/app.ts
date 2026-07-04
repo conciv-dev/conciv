@@ -17,6 +17,7 @@ import {registerServerRoutes} from './api/server/server.js'
 import {registerEditorRoutes} from './api/editor/editor.js'
 import {makeUiBus} from './runtime/ui-bus.js'
 import {makeJournal} from './runtime/journal.js'
+import {logError} from './runtime/harness-logger.js'
 import type {OpenInEditor} from './editor/open.js'
 
 export type MakeAppOpts = {
@@ -100,7 +101,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const disposers = mounted.flatMap((entry) => (entry.dispose ? [entry.dispose] : []))
   const turnEnds = mounted.flatMap((entry) => (entry.turnEnd ? [entry.turnEnd] : []))
   const onTurnEnd = async (sessionId: string): Promise<void> => {
-    await Promise.allSettled(turnEnds.map((hook) => hook(sessionId)))
+    const settled = await Promise.allSettled(turnEnds.map((hook) => hook(sessionId)))
+    settled.forEach((outcome) => {
+      if (outcome.status === 'rejected') logError(`[core] turn-end hook failed: ${String(outcome.reason)}`)
+    })
   }
   registerChatRoutes(app, {
     cwd: opts.cwd,
