@@ -45,17 +45,17 @@ Six units. Each is independently buildable and testable.
 ### 3. Overlay layer (tier 2)
 
 - `@conciv/ui-kit-terminal` grows compound primitives:
-  `Terminal.Overlay anchor="above-prompt" | "rail" | "top-right"` — DOM zones positioned around/over the grid.
+  `Terminal.Overlay anchor="rail" | "top-right"` — DOM zones positioned beside/over the grid. First consumer: the mirror pane (`rail`).
 - Overlays are **never line-anchored** (the TUI repaints constantly; buffer anchors churn). Zones are viewport-stable.
 - Overlays render arbitrary Solid components; the grid underneath stays untouched.
+- The grab tray deliberately does not use this layer — it is widget chrome above the view body (section 4).
 
 ### 4. Grab tray
 
-- The page element picker stays active while the terminal view is shown.
-- `ExtensionHostContext` exposes grab staging to views (same `GrabApi` the chat panel uses).
-- Staged grabs render as the existing `GrabReference` preview cards inside the `above-prompt` overlay.
-- **Insert** writes `grab.text` to the pty as a bracketed paste (stdin — always safe, no frame concerns). The TUI echoes it into the prompt; claude receives exactly what chat mode would have prepended.
-- Chat parity check: chat mode joins `grab.text` with the typed message (`chat-panel.tsx onSend`); the terminal path delivers the identical text.
+- Verified in code: the pick overlay and `stageGrab` live at shell level, and ChatPanel (owner of the `grabs` signal) stays mounted while a view is active — staging already works during terminal view, the cards are just not rendered anywhere visible.
+- The tray is **widget-owned chrome**, not part of the terminal extension: when a view is active and grabs exist, ChatPanel renders the same `GrabReference` cards in a strip above the view body. Identical component and styling to chat; `GrabReference` stays widget-internal.
+- Insert routing: `ExtensionHostContext.view` grows `onInsert(handler: (text: string) => void)`. The terminal view registers a handler that writes `grab.text` to the pty as a bracketed paste (stdin — always safe, no frame concerns). The card's Insert button calls the active view's handler and removes the grab; with no handler registered, no Insert button renders.
+- Chat parity check: chat mode joins `grab.text` with the typed message (`chat-panel.tsx onSend`); the terminal path delivers the identical text — the TUI echoes it into the prompt.
 
 ### 5. Stream injection (tier 1)
 
