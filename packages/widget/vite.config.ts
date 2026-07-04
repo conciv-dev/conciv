@@ -3,7 +3,7 @@ import {defineConfig} from 'vite'
 import solid from 'vite-plugin-solid'
 
 const isExternal = (id: string): boolean =>
-  id === 'solid-js' || id.startsWith('solid-js/') || id === '@conciv/extension' || id.startsWith('@conciv/extension/')
+  id === 'solid-js' || id.startsWith('solid-js/') || id.startsWith('@ark-ui/') || id.startsWith('@conciv/')
 
 export default defineConfig({
   plugins: [solid()],
