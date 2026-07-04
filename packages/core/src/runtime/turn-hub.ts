@@ -1,5 +1,4 @@
-import {EventType, type StreamChunk} from '@tanstack/ai'
-import type {ChatMessage} from '@conciv/protocol/chat-types'
+import {EventType, type StreamChunk, type UIMessage} from '@tanstack/ai'
 
 function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message
@@ -51,15 +50,17 @@ function makeSubscriber(): Subscriber {
 
 type SessionRun = {
   buffer: StreamChunk[]
-  userMessage: ChatMessage | null
+  userMessage: UIMessage | null
   generating: boolean
+  stopped: boolean
   subscribers: Set<Subscriber>
 }
 
 export type TurnHub = {
-  start: (sessionId: string, userMessage: ChatMessage | null, stream: AsyncIterable<StreamChunk>) => Promise<void>
+  start: (sessionId: string, userMessage: UIMessage | null, stream: AsyncIterable<StreamChunk>) => Promise<void>
   generating: (sessionId: string) => boolean
-  pendingUserMessage: (sessionId: string) => ChatMessage | null
+  pendingUserMessage: (sessionId: string) => UIMessage | null
+  markStopped: (sessionId: string) => void
   attach: (sessionId: string, signal: AbortSignal) => {replay: StreamChunk[]; live: AsyncGenerator<StreamChunk>}
 }
 
@@ -69,32 +70,41 @@ export function makeTurnHub(): TurnHub {
   function sessionFor(sessionId: string): SessionRun {
     const existing = sessions.get(sessionId)
     if (existing) return existing
-    const created: SessionRun = {buffer: [], userMessage: null, generating: false, subscribers: new Set()}
+    const created: SessionRun = {
+      buffer: [],
+      userMessage: null,
+      generating: false,
+      stopped: false,
+      subscribers: new Set(),
+    }
     sessions.set(sessionId, created)
     return created
   }
 
   async function start(
     sessionId: string,
-    userMessage: ChatMessage | null,
+    userMessage: UIMessage | null,
     stream: AsyncIterable<StreamChunk>,
   ): Promise<void> {
     const session = sessionFor(sessionId)
     session.buffer = []
     session.userMessage = userMessage
     session.generating = true
+    session.stopped = false
     try {
       for await (const chunk of stream) {
         session.buffer.push(chunk)
         for (const subscriber of session.subscribers) subscriber.push(chunk)
       }
     } catch (error) {
-      const runError = {type: EventType.RUN_ERROR, message: errorMessage(error)} as StreamChunk
+      const message = session.stopped ? 'stopped' : errorMessage(error)
+      const runError = {type: EventType.RUN_ERROR, message} as StreamChunk
       for (const subscriber of session.subscribers) subscriber.push(runError)
     } finally {
       session.buffer = []
       session.userMessage = null
       session.generating = false
+      session.stopped = false
     }
   }
 
@@ -111,9 +121,15 @@ export function makeTurnHub(): TurnHub {
     return {replay: [...session.buffer], live: subscriber.iterate()}
   }
 
+  function markStopped(sessionId: string): void {
+    const session = sessions.get(sessionId)
+    if (session?.generating) session.stopped = true
+  }
+
   return {
     start,
     attach,
+    markStopped,
     generating: (sessionId) => sessions.get(sessionId)?.generating ?? false,
     pendingUserMessage: (sessionId) => sessions.get(sessionId)?.userMessage ?? null,
   }

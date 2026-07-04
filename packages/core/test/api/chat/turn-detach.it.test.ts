@@ -17,12 +17,12 @@ function tmp(): string {
   return dir
 }
 
-function slowSpawn(releaseFile: string): SpawnHarness {
+function fakeSpawn(extraEnv: NodeJS.ProcessEnv): SpawnHarness {
   return (args, cwd) => {
     const child = spawn(process.execPath, [fakeClaude, ...args], {
       cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: {...process.env, CONCIV_FAKE_RELEASE_FILE: releaseFile},
+      env: {...process.env, ...extraEnv},
     })
     const {stdin, stdout, stderr} = child
     if (!stdout || !stderr) throw new Error('fake-claude did not expose stdout/stderr')
@@ -30,7 +30,16 @@ function slowSpawn(releaseFile: string): SpawnHarness {
   }
 }
 
+function slowSpawn(releaseFile: string): SpawnHarness {
+  return fakeSpawn({CONCIV_FAKE_RELEASE_FILE: releaseFile})
+}
+
+function hangSpawn(): SpawnHarness {
+  return fakeSpawn({CONCIV_FAKE_HANG: '1'})
+}
+
 const turn = (text: string) => ({id: 'u-live', role: 'user', parts: [{type: 'text', content: text}]})
+const contentTurn = (text: string) => ({role: 'user', content: text})
 
 describe('detached turns (IT)', () => {
   const state = {server: undefined as TestServer | undefined}
@@ -111,6 +120,55 @@ describe('detached turns (IT)', () => {
       if (!usage) await new Promise((r) => setTimeout(r, 50))
     }
     expect(usage).toBeTruthy()
+  })
+
+  fakeIt('attach during a content-form (parts-less) turn returns a snapshot with the user text, not 500', async () => {
+    const releaseFile = join(tmp(), 'release')
+    const server = await startTestServer({spawnHarness: slowSpawn(releaseFile)})
+    state.server = server
+    const id = await server.resolve()
+    const response = await server.post('/api/chat', {messages: [contentTurn('summarize this')]}, id)
+    expect(response.status).toBe(200)
+    const early = await server.attach(id, {until: 'first-half', timeoutMs: 3000})
+    expect(early).toContain('conciv-snapshot')
+    expect(early).toContain('"generating":true')
+    expect(early).toContain('summarize this')
+    writeFileSync(releaseFile, '')
+    const late = await server.attach(id, {until: 'RUN_FINISHED'})
+    expect(late).toContain('RUN_FINISHED')
+  })
+
+  fakeIt('a deliberate stop ends the turn with a clean terminal chunk, not a RUN_ERROR banner', async () => {
+    const server = await startTestServer({spawnHarness: hangSpawn()})
+    state.server = server
+    const id = await server.resolve()
+    await server.post('/api/chat', {messages: [turn('hang around')]}, id)
+    const controller = new AbortController()
+    const response = await fetch(`${server.base}/api/chat/attach`, {
+      headers: {'conciv-session-id': id},
+      signal: controller.signal,
+    })
+    const reader = response.body?.getReader()
+    if (!reader) throw new Error('attach returned no body')
+    const decoder = new TextDecoder()
+    let body = ''
+    const readUntilTerminal = async (): Promise<void> => {
+      const deadline = Date.now() + 8000
+      while (Date.now() < deadline) {
+        const {value, done} = await reader.read()
+        if (done) break
+        body += decoder.decode(value, {stream: true})
+        if (body.includes('RUN_FINISHED') || body.includes('RUN_ERROR')) break
+      }
+    }
+    const reading = readUntilTerminal()
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    await server.post('/api/chat/stop', {}, id)
+    await reading
+    controller.abort()
+    expect(body).toContain('RUN_FINISHED')
+    expect(body).not.toContain('RUN_ERROR')
+    expect(body).not.toContain('143')
   })
 
   fakeIt('attach on an idle session emits a snapshot with generating:false', async () => {

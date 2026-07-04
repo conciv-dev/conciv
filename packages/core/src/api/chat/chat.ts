@@ -62,6 +62,7 @@ export function registerChatRoutes(app: H3, opts: ChatRouteOpts): void {
     stateRoot: opts.stateRoot,
     store,
     harness: opts.harness,
+    hub,
     claudeHome: opts.claudeHome,
   })
   registerLaunchRoutes(app, {cwd: opts.cwd, harness: opts.harness, store})
