@@ -539,12 +539,18 @@ importers:
 
   packages/extensions/terminal:
     dependencies:
+      '@conciv/api-client':
+        specifier: workspace:^
+        version: link:../../api-client
       '@conciv/extension':
         specifier: workspace:^
         version: link:../../extension
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../../protocol
+      '@conciv/ui-kit-chat':
+        specifier: workspace:^
+        version: link:../../ui-kit-chat
       '@conciv/ui-kit-terminal':
         specifier: workspace:^
         version: link:../../ui-kit-terminal

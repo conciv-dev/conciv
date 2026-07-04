@@ -44,8 +44,10 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@conciv/api-client": "workspace:^",
     "@conciv/extension": "workspace:^",
     "@conciv/protocol": "workspace:^",
+    "@conciv/ui-kit-chat": "workspace:^",
     "@conciv/ui-kit-terminal": "workspace:^",
     "h3": "2.0.1-rc.22",
     "lucide-solid": "^1.18.0",
