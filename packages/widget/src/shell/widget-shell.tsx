@@ -276,6 +276,12 @@ export const CLOSE =
 
 const MODAL_PANE = 'flex-col flex-[1_1_auto] min-h-0'
 
+export function escapeInTerminal(scopeEl: HTMLElement | undefined): boolean {
+  const root = scopeEl?.getRootNode()
+  const active = root instanceof ShadowRoot ? root.activeElement : document.activeElement
+  return active instanceof Element && active.closest('[data-terminal-screen]') !== null
+}
+
 function panelClass(open: boolean, position: TriggerPosition): string {
   return `${PANEL_BASE} ${PANEL_POS[position]} ${open ? PANEL_OPEN : PANEL_CLOSED}`
 }
@@ -378,6 +384,7 @@ function ModalLayout(props: {
 
   const onPanelKeyDown = (e: KeyboardEvent) => {
     if (e.key === 'Escape') {
+      if (escapeInTerminal(panelEl)) return
       closePanel()
       return
     }

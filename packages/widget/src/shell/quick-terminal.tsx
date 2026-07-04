@@ -12,7 +12,7 @@ import {
 import {EnvironmentProvider} from '@conciv/ui-kit-system'
 import {TooltipIconButton} from '@conciv/ui-kit-chat'
 import {createHotkey} from '@tanstack/solid-hotkeys'
-import {type ComposerActionDef, type ComposerControlDef, type PanelDef} from './widget-shell.js'
+import {escapeInTerminal, type ComposerActionDef, type ComposerControlDef, type PanelDef} from './widget-shell.js'
 import type {PendingApproval} from './approval-modal.js'
 import {createResizable} from '../lib/resize.js'
 import {readStorage, writeStorage} from '../lib/persisted-signal.js'
@@ -194,7 +194,10 @@ export function QuickTerminalLayout(props: {
   }
   createHotkey(
     'Escape',
-    () => props.setOpen(false),
+    () => {
+      if (escapeInTerminal(sectionEl)) return
+      props.setOpen(false)
+    },
     () => ({enabled: props.open()}),
   )
   createHotkey(
