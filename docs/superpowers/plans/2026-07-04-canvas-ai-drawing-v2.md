@@ -10,6 +10,23 @@
 
 **Spec:** `docs/superpowers/specs/2026-07-04-canvas-ai-drawing-v2-design.md`
 
+## Execution Status
+
+- **Task 1: COMPLETE** — commit `6b776f8` on `worktree-canvas-drawing-v2`. Test + implementation landed exactly as specified below (one deviation: the probe extension is `defineExtension({name: 'turn-probe', tools: []})` — `defineExtension` has no required `configSchema` field). Start at Task 2.
+- Tasks 2–11: not started.
+
+## Verified Codebase Facts (read during Task 1 — trust these over guesses)
+
+- **Build before testing core:** `@conciv/core` tests import workspace deps from their built `dist`. Run `pnpm turbo build --filter @conciv/core...` once before the first core test run, or every file fails with `Failed to resolve entry for package "@conciv/harness"`. Same rule for the whiteboard: `pnpm turbo build --filter @conciv/extension-whiteboard...` before its ITs.
+- **Committing new files:** `git commit -- <paths>` rejects untracked paths. `git add <new files>` first, then the pathspec commit. Verify author on every commit: `git log -1 --format='%an %ae'` must show the `omridevk` noreply email (public repo).
+- **Testkit `callTool` is the MCP path**, not a direct execute call: `packages/extension-testkit/src/call-tool.ts` → `createMCPClient` (`@tanstack/ai-mcp`) → `POST /api/mcp` with the session header. String results get a `JSON.parse` attempt; non-strings return as-is. This matters for every image-returning tool test (Tasks 7–8): after Task 2, the MCP layer converts `ImageResult` markers into MCP content blocks, so `callTool` will NOT return the raw `{__concivImage}` marker.
+- **`ExtensionTestApi` fields** (`packages/extension-testkit/src/get-extension-test-api.ts`): `page`, `callTool`, `session` (the session id string — there is no `sessionId` field), `apiBase`, `secondClient()`, `dispose()`. It exposes no server context today; Task 9 adds that.
+- **Testkit boot chain** (for Task 9's accessor): `getExtensionTestApi` → `bootExtensionServer` (`boot-server.ts`) → `start()` from `@conciv/core/engine` (`packages/core/src/engine.ts`) → `makeApp` (`packages/core/src/app.ts`). The mounted `ServerResult.context` lives only inside `makeApp`'s `mounted` array; exposing it to tests means threading it through all four layers (see Task 9 Step 1).
+- **`packages/extension/src/index.ts`** is the single public export surface (`export {defineTool} from './define-tool.js'` at line 9) — Task 2's new exports go there.
+- **`packages/core/src/api/mcp/mcp.ts`**: `registerTool` is lines 11–19 and matches the shape Task 2 expects to replace.
+- **Island (`src/canvas/island.tsx`) symbols confirmed:** `ElementRow` (line 18), `PendingRow = {id: string; kind: 'skeletons' | 'mermaid'; payload: JsonValue}` (line 19), `asScene` (33), `stableUuid` (41 — **async**, awaited), `skeletonsOf` (52), `applyRemote` (91), `writeLocal` (117), `drainPending` (139 — seeds ids with `` stableUuid(`${row.id}:${index}`) ``), `sweepAgents` interval (187).
+- **Task 1 landed interfaces** (consume these as-is): `ServerResult<Context> = {context; turnEnd?: (sessionId: string) => void | Promise<void>; dispose?}` in `packages/extension/src/types.ts`; `makeApp` fires all `turnEnd` hooks via `Promise.allSettled` after each turn stream closes; `registerChatRoutes` now runs after extension mounting in `app.ts`.
+
 ## Global Constraints
 
 - Code style: zero comments, functions only (no classes), no `else`, no non-null assertion (`x!`), no `any`/casts beyond the file's existing `as unknown as` bridge idiom, no barrel files, no abbreviated identifiers.
@@ -36,7 +53,7 @@ Extension servers need a real lifecycle signal when a harness turn finishes (spe
 **Interfaces:**
 - Produces: `ServerResult<Context> = {context: Context; turnEnd?: (sessionId: string) => void | Promise<void>; dispose?: () => void | Promise<void>}`; `TurnDeps.onTurnEnd?: (sessionId: string) => Promise<void>`. Task 10 consumes `turnEnd` from the whiteboard extension.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/core/test/api/chat/turn-end.it.test.ts`:
 
@@ -73,12 +90,12 @@ describe('extension turn-end hook', () => {
 
 Adjust the `defineExtension` call to the actual minimal signature in `packages/extension/src/define-extension.ts` (read it first; if `configSchema` is not a field, drop it — the probe needs only `name`, empty `tools`, and a `.server()`).
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm --filter @conciv/core test -- test/api/chat/turn-end.it.test.ts`
 Expected: FAIL — `seen` is `[]` (no hook exists yet).
 
-- [ ] **Step 3: Extend ServerResult in the extension package**
+- [x] **Step 3: Extend ServerResult in the extension package**
 
 `packages/extension/src/types.ts` — replace the existing `ServerResult` line:
 
@@ -90,7 +107,7 @@ export type ServerResult<Context> = {
 }
 ```
 
-- [ ] **Step 4: Collect hooks in makeApp and thread to chat routes**
+- [x] **Step 4: Collect hooks in makeApp and thread to chat routes**
 
 `packages/core/src/app.ts` — in the `mounted` mapping, keep the hook next to `dispose`:
 
@@ -111,7 +128,7 @@ Pass `onTurnEnd` into the existing `registerChatRoutes(app, {...})` options obje
 
 **Ordering note:** `registerChatRoutes` is currently called before the `mounted` block. Move the `registerChatRoutes(...)` call to after the extension mounting block (the `riskyTools` computation stays where it is). Verify nothing between them depends on route registration order by running the core test suite in Step 7.
 
-- [ ] **Step 5: Thread through chat.ts and fire in turn.ts**
+- [x] **Step 5: Thread through chat.ts and fire in turn.ts**
 
 `packages/core/src/api/chat/chat.ts`: add `onTurnEnd?: (sessionId: string) => Promise<void>` to `ChatRouteOpts` and pass it into the `registerTurnRoutes(app, {...})` call at the existing call site (line ~65).
 
@@ -153,17 +170,17 @@ if (onTurnEnd) await onTurnEnd(sessionId).catch(() => {})
 
 Update the call site: `withLockRelease(merged, deps.store, deps.stateRoot, sessionId, deps.onTurnEnd)`.
 
-- [ ] **Step 6: Run the new test to verify it passes**
+- [x] **Step 6: Run the new test to verify it passes**
 
 Run: `pnpm --filter @conciv/core test -- test/api/chat/turn-end.it.test.ts`
 Expected: PASS
 
-- [ ] **Step 7: Run core + extension package suites and typecheck**
+- [x] **Step 7: Run core + extension package suites and typecheck**
 
 Run: `pnpm turbo typecheck --filter @conciv/core --filter @conciv/extension && pnpm --filter @conciv/core test`
 Expected: green (proves the route-registration reorder broke nothing).
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git commit --no-verify -m "feat(core): extension turn-end lifecycle hook" -- packages/extension/src/types.ts packages/core/src/app.ts packages/core/src/api/chat/chat.ts packages/core/src/api/chat/turn.ts packages/core/test/api/chat/turn-end.it.test.ts
@@ -177,7 +194,7 @@ Tools currently always return `content: [{type: 'text', ...}]` (`packages/core/s
 
 **Files:**
 - Create: `packages/extension/src/image-result.ts`
-- Modify: `packages/extension/src/index-exports` — whichever file currently re-exports `defineTool` for consumers (find with `grep -rn "export.*defineTool" packages/extension/src/`); add `imageResult`/`isImageResult` exports beside it. If exports come straight from `package.json` `exports` map entries per-file, add an entry for `image-result`.
+- Modify: `packages/extension/src/index.ts` — add `export {imageResult, isImageResult} from './image-result.js'` and `export type {ImageResult} from './image-result.js'` beside the existing `defineTool` export (line 9). (Verified: `index.ts` is the package's single export surface.)
 - Modify: `packages/core/src/api/mcp/mcp.ts`
 - Test: `packages/core/test/api/mcp/image-result.it.test.ts`
 
@@ -219,6 +236,8 @@ expect(result.content).toEqual([
   {type: 'text', text: JSON.stringify({width: 4})},
 ])
 ```
+
+The tanstack MCP client's `tool.execute()` may unwrap or reshape the raw MCP `content` array — assert on whatever it actually returns as long as the image block (`data` + `mimeType`) and the detail text are both present. **Record the exact observed client-side shape in a comment-free way: note it in this plan file under Task 7 Step 7 before moving on** — Tasks 7 and 8 assert on that same shape through the testkit's `callTool` (which uses this identical client).
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -553,7 +572,7 @@ test('rejected svg never reaches the canvas', async () => {
 })
 ```
 
-Check how `callTool` surfaces tool errors in `packages/extension-testkit/src/` (read `make-call-tool` source); if it resolves with an error payload instead of rejecting, assert on that payload shape instead of `rejects`.
+`callTool` (`packages/extension-testkit/src/call-tool.ts`) goes over MCP: the MCP server wraps a tool throw into an `isError` text result rather than a transport error, and the tanstack client may surface that as a resolved error payload instead of a rejection. Run the test once and look at what actually comes back for the `<div/>` input; if it resolves, assert the payload contains the `<svg` message text instead of using `rejects`.
 
 - [ ] **Step 2: Run to verify failure**
 
@@ -1001,7 +1020,7 @@ const performCommit = async (row: PendingRow): Promise<void> => {
 
 `ensureAgentCursor` upserts a `cursors` row `{room, peerId: 'agent:' + props.room, kind: 'agent', name: 'drawing…', color: '#8a86e8', x, y, lastSeen: new Date()}` and returns its row id; `moveAgentCursor` updates `x`, `y`, `lastSeen` on it. Look at how `writeLocal` performs updates for the exact `db().update` idiom. The upsert `{id}` reuse in `performCommit` preserves the same stable row ids the draft drain created, so `applyRemote` versioning stays coherent.
 
-The draft-row id equals the id used at drain time (`stableUuid`), and `upsert` into `canvasElements` with `{id: draft.id}` is safe because ids are unique per table row, not global — verify by reading `drainPending`; it uses `stableUuid(row.id + index)` per element. Reuse the same helper.
+The draft-row id equals the id used at drain time (`stableUuid`), and `upsert` into `canvasElements` with `{id: draft.id}` is safe because ids are unique per table row, not global — verified: `drainPending` uses `` await stableUuid(`${row.id}:${index}`) `` per element (`stableUuid` is async). Reuse the same helper.
 
 Skippability: register a one-shot pointerdown listener on the island container during replay that calls `handle.skip()`.
 
@@ -1243,7 +1262,7 @@ test('preview on an empty draft names the cause', async () => {
 })
 ```
 
-The testkit `callTool` goes through the extension execute path, not MCP, so the raw `ImageResult` marker shape is what returns — the MCP image-block conversion is already covered by Task 2's core IT.
+**Correction (verified):** the testkit `callTool` DOES go through MCP (`call-tool.ts` → `createMCPClient` → `/api/mcp`), so after Task 2 the raw `{__concivImage}` marker never reaches the test — the MCP layer converts it to an image content block first. Rewrite the first test's assertions against the client-side shape recorded in Task 2 Step 1: locate the image block in the result, assert `mimeType === 'image/png'`, base64-decode its `data`, and check the PNG magic bytes. The empty-draft test is unaffected (plain JSON result, parsed back to an object by `callTool`).
 
 Run: `pnpm --filter @conciv/extension-whiteboard test -- test/canvas-preview.it.test.ts`
 Expected: PASS
@@ -1322,6 +1341,8 @@ test('json export still returns elements', async () => {
   }
 })
 ```
+
+**Same MCP-shape correction as Task 7:** `callTool` returns the MCP-converted image content, not the raw `{__concivImage}` marker — write the PNG assertions against the client-side shape recorded in Task 2 Step 1 (image block's `mimeType` + PNG magic on decoded `data`).
 
 A timeout-path test (no tab connected) requires a testkit session without the client page; check whether `getExtensionTestApi` can start server-only — if it always opens the page, cover the timeout branch in a node test by calling the exported tool execute with a stub context whose `db.all` returns `[]` forever is a mock — skip it instead: the timeout branch is 5 lines and the error message is asserted by reading the code in review. Do not write a mocked test.
 
@@ -1458,7 +1479,14 @@ const read = async (api: {callTool: (name: string, input: unknown) => Promise<un
   ((await api.callTool('canvas.read', {scope})) as {elements: unknown[]}).elements
 ```
 
-The test needs the same `db` and room the tools use. The testkit exposes the mounted server context — read `packages/extension-testkit/src/get-extension-test-api.ts` to find how (it holds the `ServerResult`); if it exposes nothing, add a typed accessor `api.serverContext` to the testkit (it shares real plumbing by design — extending it is in-pattern; keep the change additive). Then:
+The test needs the same `db` and room the tools use. **Verified: the testkit exposes no server context today** — the mounted `ServerResult.context` lives only inside `makeApp`'s `mounted` array. Thread it out additively through the whole chain (the testkit shares real plumbing by design; no shortcuts):
+
+1. `packages/core/src/app.ts`: `MadeApp` gains `extensionContexts: Record<string, unknown>` built from `mounted` (`{[entry.extensionName]: context}`).
+2. `packages/core/src/engine.ts`: `start()` destructures it from `makeApp` and exposes it on the returned `Engine`.
+3. `packages/extension-testkit/src/boot-server.ts`: `BootedServer` gains `extensionContexts`, passed from `engine`.
+4. `packages/extension-testkit/src/get-extension-test-api.ts`: `ExtensionTestApi` gains `serverContext: unknown` — `extensionContexts[extension.server.name]`.
+
+Typecheck `@conciv/core` + `@conciv/extension-testkit` after; the Task 9 commit already includes `packages/extension-testkit/src` — add `packages/core/src/app.ts packages/core/src/engine.ts` to its pathspec. Then:
 
 ```ts
 test('turn end commits an abandoned draft', async () => {
@@ -1473,7 +1501,7 @@ test('turn end commits an abandoned draft', async () => {
     })
     await expect.poll(() => read(api, 'draft'), {timeout: 15_000}).toHaveLength(1)
     const context = api.serverContext as {db: unknown; room: (request: {sessionId: string}) => string}
-    const committed = await autoCommitDraft(context.db as never, api.sessionId)
+    const committed = await autoCommitDraft(context.db as never, api.session)
     expect(committed).toBe(true)
     await expect.poll(() => read(api, 'live'), {timeout: 15_000}).toHaveLength(1)
     expect(await read(api, 'draft')).toHaveLength(0)
@@ -1483,7 +1511,7 @@ test('turn end commits an abandoned draft', async () => {
 })
 ```
 
-Check the testkit for the real names of `api.sessionId` / session accessor and use those.
+Verified: the session id string is `api.session` (there is no `sessionId` field on `ExtensionTestApi`).
 
 - [ ] **Step 2: Run to verify failure**
 
