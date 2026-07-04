@@ -94,11 +94,8 @@ function resultsById(messages: UIMessage[]): Map<string, ToolResultPart> {
   return map
 }
 
-const RAIL_HEAD =
-  'flex items-center justify-between px-2.5 py-1.5 border-b border-pw-line-soft text-[0.6875rem] font-semibold text-pw-text-2'
-const ENTRY = 'px-2.5 py-1 min-w-0 anim-msg'
-const ENTRY_TEXT = 'text-[0.75rem] text-pw-text px-2.5 py-1 min-w-0 break-words anim-msg'
-const PLACEHOLDER = 'text-[0.6875rem] text-pw-text-3 px-2.5 py-3 leading-[1.5]'
+const PLACEHOLDER =
+  'text-[length:var(--chat-text-xs)] [color:var(--chat-text-3)] px-3 py-4 leading-[1.5] text-center'
 
 function partText(part: MessagePart): string {
   return 'content' in part && typeof part.content === 'string' ? part.content : ''
@@ -112,7 +109,25 @@ function statusDotClass(status: MirrorStatus): Record<string, boolean> {
   }
 }
 
-function MirrorEntry(props: {part: MessagePart; results: Map<string, ToolResultPart>; ctx: ToolViewCtx}): JSX.Element {
+function userText(message: UIMessage): string {
+  return message.parts
+    .filter((part) => part.type === 'text')
+    .map(partText)
+    .join('\n')
+    .trim()
+}
+
+function hasAssistantContent(message: UIMessage): boolean {
+  return message.parts.some(
+    (part) => (part.type === 'text' && partText(part).trim()) || part.type === 'thinking' || part.type === 'tool-call',
+  )
+}
+
+function AssistantPart(props: {
+  part: MessagePart
+  results: Map<string, ToolResultPart>
+  ctx: ToolViewCtx
+}): JSX.Element {
   const tool = () => asToolCall(props.part)
   const result = () => {
     const id = tool()?.id
@@ -120,30 +135,53 @@ function MirrorEntry(props: {part: MessagePart; results: Map<string, ToolResultP
   }
   return (
     <Switch>
-      <Match when={props.part.type === 'text' && partText(props.part)}>
-        <div class={ENTRY_TEXT}>
-          <Markdown content={partText(props.part)} />
-        </div>
+      <Match when={props.part.type === 'text' && partText(props.part).trim()}>
+        <Markdown content={partText(props.part)} />
       </Match>
-      <Match when={props.part.type === 'thinking' && partText(props.part)}>
-        <div class={ENTRY}>
-          <Reasoning text={partText(props.part)} />
-        </div>
+      <Match when={props.part.type === 'thinking' && partText(props.part).trim()}>
+        <Reasoning text={partText(props.part)} />
       </Match>
       <Match when={tool()}>
         {(part) => (
-          <div class={ENTRY}>
-            <ToolCallCard
-              part={part()}
-              result={result()}
-              ctx={props.ctx}
-              tools={() => builtinToolCards}
-              fallback={ToolFallback}
-            />
-          </div>
+          <ToolCallCard
+            part={part()}
+            result={result()}
+            ctx={props.ctx}
+            tools={() => builtinToolCards}
+            fallback={ToolFallback}
+          />
         )}
       </Match>
     </Switch>
+  )
+}
+
+function MirrorMessage(props: {
+  message: UIMessage
+  results: Map<string, ToolResultPart>
+  ctx: ToolViewCtx
+}): JSX.Element {
+  return (
+    <Show
+      when={props.message.role === 'user'}
+      fallback={
+        <Show when={hasAssistantContent(props.message)}>
+          <div class="flex flex-col gap-2 min-w-0 [color:var(--chat-text)] self-stretch anim-msg">
+            <For each={props.message.parts}>
+              {(part) => <AssistantPart part={part} results={props.results} ctx={props.ctx} />}
+            </For>
+          </div>
+        </Show>
+      }
+    >
+      <Show when={userText(props.message)}>
+        {(text) => (
+          <div class="text-[length:var(--chat-text-sm)] leading-[1.45] px-3 py-1.5 rounded-[var(--chat-radius-md)] max-w-[85%] [background:var(--chat-accent)] [color:var(--chat-on-accent)] [overflow-wrap:anywhere] self-end anim-msg">
+            {text()}
+          </div>
+        )}
+      </Show>
+    </Show>
   )
 }
 
@@ -153,7 +191,7 @@ function RailPlaceholder(props: {status: MirrorStatus}): JSX.Element {
       <Switch>
         <Match when={props.status === 'error'}>Can’t reach activity — retrying…</Match>
         <Match when={props.status === 'connecting'}>Connecting…</Match>
-        <Match when={props.status === 'open'}>Claude’s tool calls and edits appear here as it works.</Match>
+        <Match when={props.status === 'open'}>Claude’s replies, reasoning and tool calls appear here as it works.</Match>
       </Switch>
     </p>
   )
@@ -174,11 +212,14 @@ export function MirrorRail(props: {
   const results = createMemo(() => resultsById(messages()))
   const logId = createUniqueId()
   return (
-    <div class="flex flex-col min-h-0 min-w-0" classList={{'w-70 border-l border-pw-line': open()}}>
+    <div
+      class="flex flex-col min-h-0 min-w-0"
+      classList={{'w-[min(22rem,42vw)] [border-left:1px_solid_var(--chat-line)]': open()}}
+    >
       <Button
         variant="ghost"
         size="sm"
-        class="m-1 gap-1.5"
+        class="m-1 gap-1.5 self-start"
         aria-expanded={open()}
         aria-controls={logId}
         onClick={() => setOpen((value) => !value)}
@@ -188,33 +229,23 @@ export function MirrorRail(props: {
           classList={{'rotate-90': open()}}
           aria-hidden="true"
         />
+        <span class="rounded-full size-1.75" classList={statusDotClass(status())} aria-hidden="true" />
         Activity
         <Show when={messages().length > 0}>
-          <span class="text-pw-text-3">{messages().length}</span>
+          <span class="text-pw-text-3 tabular-nums">{messages().length}</span>
         </Show>
       </Button>
       <Show when={open()}>
-        <div class={RAIL_HEAD}>
-          <span class="flex gap-1.5 items-center">
-            <span class="rounded-full size-1.75" classList={statusDotClass(status())} aria-hidden="true" />
-            Activity
-          </span>
-          <span class="text-pw-text-3">{messages().length}</span>
-        </div>
         <div
           id={logId}
-          class="py-1 flex-1 overflow-y-auto"
+          class="px-3 py-3 flex flex-1 flex-col gap-3 min-h-0 [color:var(--chat-text)] [font-family:var(--chat-font)] overflow-y-auto"
           role="log"
           aria-label="Terminal activity"
           aria-live="polite"
         >
           <Show when={messages().length > 0} fallback={<RailPlaceholder status={status()} />}>
             <For each={messages()}>
-              {(message) => (
-                <For each={message.parts}>
-                  {(part) => <MirrorEntry part={part} results={results()} ctx={props.ctx} />}
-                </For>
-              )}
+              {(message) => <MirrorMessage message={message} results={results()} ctx={props.ctx} />}
             </For>
           </Show>
         </div>
