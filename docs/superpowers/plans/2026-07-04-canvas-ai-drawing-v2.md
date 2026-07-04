@@ -12,8 +12,9 @@
 
 ## Execution Status
 
-- **Task 1: COMPLETE** — commit `6b776f8` on `worktree-canvas-drawing-v2`. Test + implementation landed exactly as specified below (one deviation: the probe extension is `defineExtension({name: 'turn-probe', tools: []})` — `defineExtension` has no required `configSchema` field). Start at Task 2.
-- Tasks 2–11: not started.
+- **Task 1: COMPLETE** — commit `6b776f8`. Probe extension is `defineExtension({name: 'turn-probe', tools: []})` (no `configSchema` field). One retro-fit still owed: `onTurnEnd` in `app.ts` must log settled rejections (see the Production Error-Handling Bar retro-fit note; land it in Task 9).
+- **Task 2: COMPLETE** — commit `6f04996`. **Design changed from the original draft:** we do NOT invent a `{__concivImage}` marker. Extension tools return a tanstack **`ContentPart[]`** (their canonical tool-result type, `string | ContentPart[]`); `imageResult(mimeType, base64, detail?)` in `packages/extension/src/image-result.ts` builds `[{type:'image', source:{type:'data', value, mimeType}}, {type:'text', content}]`. The MCP layer detects it with tanstack's own `isContentPartArray` and maps each part to an MCP wire block; the tanstack MCP client (`mcpContentToTanstack`) maps back. `@tanstack/ai@^0.28.0` added to `@conciv/extension` deps. Serialization hardened (`safeStringify`/`stringifyDetail`), tool throws logged via new `logError` export in `harness-logger.ts`. `isImageResult`/`ImageResult` do NOT exist — anything downstream that referenced them uses `ContentPart[]` + `isContentPartArray` instead.
+- Tasks 3–11: not started.
 
 ## Verified Codebase Facts (read during Task 1 — trust these over guesses)
 
@@ -39,6 +40,23 @@
 - Package test command: `pnpm --filter @conciv/extension-whiteboard test -- <file>`; core: `pnpm --filter @conciv/core test -- <file>`.
 - New dependency allowed: `@takumi-rs/core` only. Nothing else without stopping.
 - All whiteboard paths below are relative to `packages/extensions/whiteboard`.
+
+## Production Error-Handling Bar (applies to EVERY task — non-negotiable)
+
+This feature is user-facing and async on every surface. No task is "done" if it is happy-path only. The memory `production-grade-bar` governs: error handling + recovery + logging on every async surface; loading/feedback state on every user-visible wait. Concrete rules for this plan:
+
+1. **No unguarded `JSON.stringify`.** It throws on circular refs and BigInt. At any boundary that serializes arbitrary/tool data, wrap in a helper that catches, logs, and returns a safe fallback string (see the landed `safeStringify` in `packages/core/src/api/mcp/mcp.ts` and `stringifyDetail` in `packages/extension/src/image-result.ts` — reuse that exact pattern).
+2. **Every `db.*(...).wait(...)`, `db.all(...)`, `db.insert/upsert/delete`, and every dynamic `import()` is a reject site.** Server tools: let genuine failures propagate (the MCP layer now logs tool throws and returns `isError`), but never leave shared state half-written — clean up on the failure path (`try/finally` around multi-write sequences). Island handlers: wrap in `try/catch`; a failure must never leave a stuck `canvasPending` row (delete or mark it) and must be logged.
+3. **No silent `.catch(() => {})`.** Swallowing is only allowed if the error is logged first. Replace every `.catch(() => {})` in the plan's code with `.catch((error) => logError(...))` (server: a `logError`-style stderr sink; island: `console.error` with a stable prefix).
+4. **Timeouts must name the true cause.** A poll that times out must distinguish "no canvas tab connected" from "the tab connected but the operation failed." An operation that fails browser-side must write an **error reply** the server surfaces verbatim — never let a real failure masquerade as a missing tab (see Task 8).
+5. **Batch writes use `Promise.allSettled`, not `Promise.all`,** when a partial result is still meaningful (e.g. discard): report what actually happened, log the rest.
+6. **`getComputedStyle`, `getTotalLength`, `getPointAtLength`, `parseFloat`, `.match()`** all return `NaN`/`null`/`0`/throw on degenerate input. Every numeric read gets a finite fallback; every optional match is `?? []`/`?? 0`; SVG geometry that can throw is guarded so one bad node cannot abort a whole conversion.
+7. **User-visible waits get feedback.** The agent-cursor "drawing…" state (Task 6) and any commit/export in flight must be observable; an empty/failed draft returns a structured `{error, reason}` or `{empty, reason}` the agent can read and recover from, never an opaque throw.
+8. **Each task adds at least one failure-path test** (rejected input, empty state, or a forced conversion error) — not only the happy path. Where a real failure cannot be driven without mocks (banned), assert the guard by reading it in review and note that explicitly.
+
+Each task below carries an **Error handling (required)** checklist of its specific failure surfaces. Treat those checkboxes as blocking.
+
+**Retro-fit to landed tasks:** Task 1's turn-end hook must log, not swallow — update `onTurnEnd` in `packages/core/src/app.ts` to log each settled rejection (`Promise.allSettled` results whose `status === 'rejected'` go through `logError`). Do this in the Task 9 commit (auto-commit is the first real `turnEnd` consumer).
 
 ---
 
@@ -191,119 +209,19 @@ git commit --no-verify -m "feat(core): extension turn-end lifecycle hook" -- pac
 
 ---
 
-### Task 2: Core MCP image results
+### Task 2: Core MCP image results — LANDED (commit `6f04996`)
 
-Tools currently always return `content: [{type: 'text', ...}]` (`packages/core/src/api/mcp/mcp.ts:16`). Fix at the core: a tool may return an image marker; the MCP layer emits a proper image content block so the model sees pixels.
+Tools return a tanstack `ContentPart[]` for multimodal output; the MCP layer maps it to wire content blocks so the model sees pixels. No bespoke marker.
 
-**Files:**
-- Create: `packages/extension/src/image-result.ts`
-- Modify: `packages/extension/src/index.ts` — add `export {imageResult, isImageResult} from './image-result.js'` and `export type {ImageResult} from './image-result.js'` beside the existing `defineTool` export (line 9). (Verified: `index.ts` is the package's single export surface.)
-- Modify: `packages/core/src/api/mcp/mcp.ts`
-- Test: `packages/core/test/api/mcp/image-result.it.test.ts`
+**What landed (consume these, do not re-derive):**
+- `packages/extension/src/image-result.ts`: `imageResult(mimeType, dataBase64, detail?): ContentPart[]` → `[{type:'image', source:{type:'data', value, mimeType}}]`, plus a `{type:'text', content}` part when `detail` is given (`detail` serialized by a throw-proof `stringifyDetail`). Uses `import type {ContentPart} from '@tanstack/ai'`.
+- `packages/extension/src/index.ts`: exports `imageResult` and re-exports `type ContentPart`. **No `isImageResult`, no `ImageResult` type** — downstream detection uses tanstack's `isContentPartArray`.
+- `packages/extension/package.json`: `@tanstack/ai@^0.28.0` added to dependencies.
+- `packages/core/src/api/mcp/mcp.ts`: `toContent(result)` → `isContentPartArray(result) ? result.map(partToContent) : [{type:'text', text: safeStringify(result)}]`; `partToContent` maps text→`{type:'text',text}`, image→`{type:'image',data:source.value,mimeType}`. `safeStringify` catches/logs/falls back. `registerTool` wraps `run(args)` in try/catch → `logError` + rethrow (preserves MCP `isError` for tool throws like `validateSvg`).
+- `packages/core/src/runtime/harness-logger.ts`: new `logError` export (stderr sink).
+- Test `packages/core/test/api/mcp/image-result.it.test.ts` asserts the client-transformed shape `[{type:'image', source:{type:'data', value, mimeType}}, {type:'text', content}]` — the same shape Tasks 7/8 assert through the testkit `callTool`.
 
-**Interfaces:**
-- Produces:
-
-```ts
-export type ImageResult = {__concivImage: {mimeType: string; dataBase64: string}; detail?: unknown}
-export function imageResult(mimeType: string, dataBase64: string, detail?: unknown): ImageResult
-export function isImageResult(value: unknown): value is ImageResult
-```
-
-Tasks 8 and 9 return `imageResult('image/png', base64, {...})` from whiteboard tools.
-
-- [ ] **Step 1: Write the failing test**
-
-`packages/core/test/api/mcp/image-result.it.test.ts` — follow the shape of `packages/core/test/api/mcp/extension-tools.it.test.ts` (read it first for the exact way it drives `/api/mcp` with an extension tool; reuse its client helper). The essential assertion:
-
-```ts
-import {describe, expect, it} from 'vitest'
-import {z} from 'zod'
-import {defineExtension, defineTool, imageResult} from '@conciv/extension'
-
-const PNG_RED_4x4 =
-  'iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAEElEQVR4nGP4z8AARwzEcQCukw/x0F8jngAAAABJRU5ErkJggg=='
-
-const snap = defineTool<z.ZodObject<{}>, unknown>({
-  name: 'probe.snap',
-  description: 'returns a png',
-  inputSchema: z.object({}),
-}).server(() => imageResult('image/png', PNG_RED_4x4, {width: 4}))
-```
-
-Register it via a probe extension on the test server (`defineExtension({name: 'image-probe', tools: [snap]})`), then get the tool through the same `createMCPClient(...).tools()` the existing test uses and call `tool.execute({})`. Per the verified client return shape (see Verified Codebase Facts), the client transforms MCP content, so assert:
-
-```ts
-expect(result).toEqual([
-  {type: 'image', source: {type: 'data', value: PNG_RED_4x4, mimeType: 'image/png'}},
-  {type: 'text', content: JSON.stringify({width: 4})},
-])
-```
-
-This is the client-transformed shape (`mcpContentToTanstack`), the same shape Tasks 7 and 8 assert on through the testkit's `callTool`.
-
-- [ ] **Step 2: Run test to verify it fails**
-
-Run: `pnpm --filter @conciv/core test -- test/api/mcp/image-result.it.test.ts`
-Expected: FAIL — content is a single text block containing the raw object.
-
-- [ ] **Step 3: Implement the marker in the extension package**
-
-`packages/extension/src/image-result.ts`:
-
-```ts
-export type ImageResult = {__concivImage: {mimeType: string; dataBase64: string}; detail?: unknown}
-
-export function imageResult(mimeType: string, dataBase64: string, detail?: unknown): ImageResult {
-  return {__concivImage: {mimeType, dataBase64}, detail}
-}
-
-export function isImageResult(value: unknown): value is ImageResult {
-  if (typeof value !== 'object' || value === null) return false
-  const marker = (value as {__concivImage?: {mimeType?: unknown; dataBase64?: unknown}}).__concivImage
-  return typeof marker?.mimeType === 'string' && typeof marker?.dataBase64 === 'string'
-}
-```
-
-Export both from the package's public entry (same file that exports `defineTool`).
-
-- [ ] **Step 4: Emit image content in the MCP layer**
-
-`packages/core/src/api/mcp/mcp.ts` — replace `registerTool`:
-
-```ts
-import {isImageResult} from '@conciv/extension'
-
-function toContent(result: unknown): {type: 'text'; text: string}[] | ({type: 'image'; data: string; mimeType: string} | {type: 'text'; text: string})[] {
-  if (isImageResult(result)) {
-    const text = result.detail === undefined ? [] : [{type: 'text' as const, text: JSON.stringify(result.detail)}]
-    return [{type: 'image' as const, data: result.__concivImage.dataBase64, mimeType: result.__concivImage.mimeType}, ...text]
-  }
-  return [{type: 'text', text: JSON.stringify(result)}]
-}
-
-function registerTool(server: McpServer, tool: RegistrableTool, run: (args: unknown) => Promise<unknown>): void {
-  server.registerTool(
-    tool.name,
-    {description: tool.description, inputSchema: tool.inputSchema.shape},
-    async (args) => ({content: toContent(await run(args))}),
-  )
-}
-```
-
-Simplify the return type annotation of `toContent` to whatever the MCP SDK's `CallToolResult['content']` type is if importable — prefer the SDK type over the inline union.
-
-- [ ] **Step 5: Run test to verify it passes**
-
-Run: `pnpm --filter @conciv/core test -- test/api/mcp/image-result.it.test.ts`
-Expected: PASS
-
-- [ ] **Step 6: Typecheck + commit**
-
-```bash
-pnpm turbo typecheck --filter @conciv/core --filter @conciv/extension
-git commit --no-verify -m "feat(core): mcp image content for tool results" -- packages/extension/src packages/core/src/api/mcp/mcp.ts packages/core/test/api/mcp/image-result.it.test.ts
-```
+Tasks 7 and 8 return `imageResult('image/png', base64, {...})` (signature unchanged from the original plan); everything downstream that the original draft described as `ImageResult`/`isImageResult` now uses `ContentPart[]` + `isContentPartArray`.
 
 ---
 
@@ -498,6 +416,11 @@ export const canvasSvgTool = defineTool<typeof CanvasSvgInput, WhiteboardToolCon
 ```
 
 - Add `canvasSvgTool` to the `canvasTools` array. Import `validateSvg` from `./svg-caps.js` and the new defs.
+
+- [ ] **Error handling (required)**
+  - `validateSvg` already throws descriptive errors; the caps test covers each branch. Its regex reads use `?? 0` — keep them.
+  - Every `ctx.db.insert(...).wait({tier:'edge'})` and `ctx.db.all(...)` in the new/edited tools is a reject site. Let genuine sync failures propagate (MCP logs + returns `isError` — landed in Task 2), but do NOT catch-and-swallow. Add one failure-path assertion to the caps or a server test: an oversized/invalid svg is rejected AND no `canvasPending` row is written (guard runs before the insert).
+  - `canvas.read` with `scope: 'draft'` before any draft exists must return `{elements: [], scope: 'draft'}`, never throw on an empty table.
 
 - [ ] **Step 7: Typecheck + full whiteboard suite**
 
@@ -790,6 +713,12 @@ const targetTable = row.stage === 'draft' ? app.canvasDraftElements : app.canvas
 
 and upsert into `targetTable`. Drawable kinds are `'skeletons' | 'mermaid' | 'svg'`; keep the subscription guard from Task 3 skipping `'export' | 'commit' | 'discard'` (Tasks 7–9 handle those).
 
+- [ ] **Error handling (required) — this is the highest-risk conversion surface**
+  - `svgToSkeletons` runs live DOM geometry on agent-authored SVG. Harden `svg-convert.ts`: `getTotalLength()`/`getPointAtLength()` can throw on a malformed `d` — wrap each `<path>` subpath conversion in `try/catch` so one bad node is skipped (logged via `console.error` with a stable prefix), not fatal to the whole drawing. Every `parseFloat`/`getComputedStyle` numeric read already needs a finite fallback (`|| 1`, `|| 0`) — verify none can inject `NaN` into a skeleton. `samplePoints` returning `null` is already handled; keep it.
+  - `skeletonsOf` for `svg` and `mermaid` can throw/reject (bad markup, `parseMermaidToExcalidraw` rejects on syntax errors, dynamic `import()` can fail). **`drainPending` must not fire-and-forget.** Today the subscription does `void drainPending(row)` — change to catch: on failure, `console.error` with the row id + kind, and **delete the offending `canvasPending` row** so it does not retry forever and wedge the draft. Never leave a stuck pending row.
+  - Add a failure-path IT: `canvas.svg` with structurally-valid-but-degenerate markup (a `<path d='M z'/>` garbage path) still resolves the tool, the bad node is dropped, other nodes in the same svg convert, and the pending row is drained (not stuck). Assert the draft ends non-empty for the good nodes and the pending table is empty.
+  - The existing `rejected svg never reaches the canvas` IT already covers the caps-reject path end to end (server rejects before any island work).
+
 - [ ] **Step 5: Run the IT to verify pass**
 
 Run: `pnpm --filter @conciv/extension-whiteboard test -- test/canvas-draft.it.test.ts`
@@ -1031,6 +960,15 @@ While any draft rows exist (subscribe to `canvasDraftElements`), keep the agent 
 
 Discard rows need no island work (server deletes directly) — keep skipping `'discard'` in the subscription, and delete the pending row server-side in the discard tool (already done in Step 4: discard never inserts a pending row; remove `'discard'` from the schema enum in Task 3? No — leave it; canvas.clear reuse may want it later. It stays unused by the island.)
 
+- [ ] **Error handling (required)**
+  - `performCommit` does N+ awaited writes then deletes. Wrap the whole body in `try/catch/finally`: if any `upsert`/`delete`/`wait` rejects, `console.error` it, and in `finally` still delete the `canvasPending` commit row so a failed commit does not replay on every subscription tick (infinite loop). A partial commit must not wedge the tab.
+  - `step.write()` does `void db().upsert(...)` — a fire-and-forget inside the rAF replay. Give it a `.catch((error) => console.error(...))` so a failed element write is logged, not silently lost mid-draw.
+  - Draft deletion uses `Promise.all` — switch to `Promise.allSettled` and log any rejected deletes; a single failed delete must not abort the commit-row cleanup.
+  - `canvas.commit` server tool already returns `{committed: false, reason: 'no draft'}` for the empty case and throws a descriptive timeout ("no canvas tab is connected to perform it") — keep both. The commit-timeout IT (empty-draft no-op) already asserts the structured no-op.
+  - `canvas.discard` server tool: its `Promise.all([...deletes])` must become `Promise.allSettled`; return `{discarded: <count actually deleted>}` and log the rest, so a partial DB failure still reports truthfully instead of throwing after having deleted half.
+  - `ensureAgentCursor`/`moveAgentCursor` writes can reject; wrap their call sites so a cursor-write failure degrades to "no cursor animation" rather than aborting the commit (the drawing still lands).
+  - Replay skippability listener (`pointerdown`) must be removed in a `finally` so it cannot leak across commits.
+
 - [ ] **Step 7: Run the IT to verify pass**
 
 Run: `pnpm --filter @conciv/extension-whiteboard test -- test/canvas-commit.it.test.ts`
@@ -1170,7 +1108,12 @@ Expected: PASS
 import {Renderer} from '@takumi-rs/core'
 import {container, image, percentage} from '@takumi-rs/helpers'
 
-const renderer = new Renderer()
+let renderer: Renderer | undefined
+
+function getRenderer(): Renderer {
+  if (!renderer) renderer = new Renderer()
+  return renderer
+}
 
 export async function renderDraftPng(svg: string, width: number, height: number): Promise<string> {
   const dataUri = `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`
@@ -1178,10 +1121,12 @@ export async function renderDraftPng(svg: string, width: number, height: number)
     style: {width: percentage(100), height: percentage(100), backgroundColor: '#ffffff'},
     children: [image({src: dataUri, width, height})],
   })
-  const buffer = await renderer.render(node, {width, height, format: 'png'})
+  const buffer = await getRenderer().render(node, {width, height, format: 'png'})
   return buffer.toString('base64')
 }
 ```
+
+Lazy init matters: constructing `Renderer` at module top-level means a takumi native-binding load failure (platform/arch mismatch) would throw at `import`, taking down the whole extension server, not just `canvas.preview`. Deferring it isolates the failure to a single tool call, where the tool below turns it into a structured, recoverable result.
 
 Def in `def.ts`:
 
@@ -1207,12 +1152,24 @@ export const canvasPreviewTool = defineTool<typeof CanvasPreviewInput, Whiteboar
     if (!rows.length) return {empty: true, reason: 'draft has no elements yet'}
     const elements = rows.map((row) => row.data as unknown as DraftElement)
     const {svg, width, height} = draftToSvg(elements)
-    return imageResult('image/png', await renderDraftPng(svg, width, height), {elements: rows.length})
+    try {
+      return imageResult('image/png', await renderDraftPng(svg, width, height), {elements: rows.length})
+    } catch (error) {
+      console.error(`[whiteboard] canvas.preview render failed: ${String(error)}`)
+      return {error: 'preview render failed', reason: String(error), elements: rows.length}
+    }
   },
 )
 ```
 
 Add `canvasPreviewTool` to `canvasTools`.
+
+- [ ] **Error handling (required)**
+  - **`Math.max(...xs)` / `Math.max(...ys)` in `draftToSvg` can throw `RangeError: Maximum call stack size exceeded`.** With 400 nodes sampled at up to ~220 points each, `xs`/`ys` reach ~88k entries — over the arg-spread limit. Replace the spreads with a reduce (`xs.reduce((max, value) => (value > max ? value : max), 400)`). Add a serializer test with a single line element carrying 50k points asserting `draftToSvg` returns finite `width`/`height` and does not throw.
+  - `renderDraftPng` rejects on a bad SVG or takumi failure; the tool wraps it in `try/catch`, logs, and returns `{error, reason, elements}` (done in the code above) so the agent gets a recoverable message instead of an opaque MCP error.
+  - `new Renderer()` is lazy (`getRenderer`) so a native-binding load failure is isolated to the tool call, not the server boot.
+  - `ctx.db.all(...)` reject propagates + is logged by the MCP layer; the empty-draft path returns `{empty, reason}`.
+  - Escaping: `draftToSvg`'s `escape()` covers `& < > '` in text; confirm element `text` with embedded quotes/brackets round-trips (add it to the serializer test).
 
 - [ ] **Step 7: Write and run the preview IT**
 
@@ -1393,9 +1350,10 @@ export const canvasExportTool = defineTool<typeof CanvasExportInput, WhiteboardT
       const replies = await ctx.db.all(app.canvasReplies.where({room, requestId}), {tier: 'global'})
       const reply = replies[0]
       if (reply) {
-        const {dataBase64} = reply.payload as unknown as {dataBase64: string}
+        const payload = reply.payload as unknown as {dataBase64?: string; error?: string; reason?: string}
         await ctx.db.delete(app.canvasReplies, reply.id).wait({tier: 'edge'})
-        return imageResult('image/png', dataBase64, {scope: input.scope})
+        if (payload.error) return {error: payload.error, reason: payload.reason ?? 'unknown', scope: input.scope}
+        return imageResult('image/png', payload.dataBase64 ?? '', {scope: input.scope})
       }
       await new Promise((resolve) => setTimeout(resolve, 250))
     }
@@ -1404,13 +1362,22 @@ export const canvasExportTool = defineTool<typeof CanvasExportInput, WhiteboardT
 )
 ```
 
+The reply carries EITHER `dataBase64` (success) OR `{error, reason}` (the tab connected but `exportToBlob` failed) — rule 4. A real render failure must come back as `{error, reason}`, never fall through to the "no canvas tab" timeout, which would be a lie when a tab is connected.
+
 - [ ] **Step 4: Island export handler**
 
 `src/canvas/island.tsx` — route `kind === 'export'` rows:
 
 ```ts
-const performExport = async (row: PendingRow): Promise<void> => {
-  const {requestId, scope} = row.payload as unknown as {requestId: string; scope: 'live' | 'draft' | 'both'}
+const toBase64 = (bytes: Uint8Array): string => {
+  let binary = ''
+  for (let index = 0; index < bytes.length; index += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000))
+  }
+  return btoa(binary)
+}
+
+const exportReply = async (requestId: string, scope: 'live' | 'draft' | 'both'): Promise<JsonValue> => {
   const live = scope === 'draft' ? [] : (api?.getSceneElements() ?? [])
   const draftRows =
     scope === 'live' ? [] : await db().all(app.canvasDraftElements.where({room: props.room}), {tier: 'global'})
@@ -1421,25 +1388,30 @@ const performExport = async (row: PendingRow): Promise<void> => {
     files: api?.getFiles() ?? {},
     appState: {exportBackground: true, viewBackgroundColor: '#ffffff'},
   })
-  const dataBase64 = btoa(String.fromCharCode(...new Uint8Array(await blob.arrayBuffer())))
-  await db()
-    .insert(app.canvasReplies, {room: props.room, requestId, kind: 'export', payload: {dataBase64} as JsonValue})
-    .wait({tier: 'edge'})
-  await db().delete(app.canvasPending, row.id).wait({tier: 'edge'})
+  return {dataBase64: toBase64(new Uint8Array(await blob.arrayBuffer()))} as JsonValue
 }
-```
 
-`String.fromCharCode(...bytes)` overflows the stack on large arrays — chunk it:
-
-```ts
-const toBase64 = (bytes: Uint8Array): string => {
-  let binary = ''
-  for (let index = 0; index < bytes.length; index += 0x8000) {
-    binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000))
+const performExport = async (row: PendingRow): Promise<void> => {
+  const {requestId, scope} = row.payload as unknown as {requestId: string; scope: 'live' | 'draft' | 'both'}
+  const payload = await exportReply(requestId, scope).catch((error) => {
+    console.error(`[whiteboard] canvas.export render failed: ${String(error)}`)
+    return {error: 'export render failed', reason: String(error)} as JsonValue
+  })
+  try {
+    await db().insert(app.canvasReplies, {room: props.room, requestId, kind: 'export', payload}).wait({tier: 'edge'})
+  } finally {
+    await db().delete(app.canvasPending, row.id).wait({tier: 'edge'}).catch((error) => console.error(String(error)))
   }
-  return btoa(binary)
 }
 ```
+
+The `exportToBlob`/`arrayBuffer`/`import()` path is a reject site; a failure writes an **error reply** (surfaced by the server as `{error, reason}`) instead of throwing and letting the server's poll time out with the misleading "no canvas tab connected". `String.fromCharCode(...bytes)` overflows the stack on large arrays, so `toBase64` chunks it. The pending row is deleted in `finally` so a failed export cannot replay forever.
+
+- [ ] **Error handling (required)**
+  - Export failure returns `{error, reason}`, never a silent timeout (asserted by reading the server branch in review; a forced browser failure is hard to drive without mocks — do not mock).
+  - `toBase64` chunking is mandatory (large canvases overflow the arg spread).
+  - Pending-row cleanup is in `finally`.
+  - The json-export path returns `{elements: [...]}` for an empty canvas (empty array, no throw).
 
 - [ ] **Step 5: Run the IT to verify pass**
 
@@ -1546,22 +1518,32 @@ export async function autoCommitDraft(db: Db, room: string): Promise<boolean> {
 
 - [ ] **Step 4: Wire into the extension server**
 
-`src/server.ts` — the `.server()` return gains the hook (room == sessionId):
+`src/server.ts` — the `.server()` return gains the hook (room == sessionId). **Do not swallow silently** (rule 3): a failed auto-commit means the user loses an abandoned draft, so it must be logged.
 
 ```ts
 return {
   context: {...},
-  turnEnd: (turnSessionId) => void autoCommitDraft(backend.db, turnSessionId).catch(() => {}),
+  turnEnd: (turnSessionId) =>
+    void autoCommitDraft(backend.db, turnSessionId).catch((error) =>
+      console.error(`[whiteboard] auto-commit on turn end failed for ${turnSessionId}: ${String(error)}`),
+    ),
   dispose: async () => {...},
 }
 ```
+
+- [x] **Step 4b: Retro-fit Task 1 — log turn-end hook rejections** — DONE during the hardening sweep (commit alongside plan hardening). `onTurnEnd` in `app.ts` now inspects the `Promise.allSettled` results and routes rejections through `logError`. Task 9 still adds `extensionContexts` to `MadeApp` in the same file, so keep `app.ts` in the commit pathspec.
+
+- [ ] **Error handling (required)**
+  - `autoCommitDraft`'s `db.all`/`db.insert().wait()` reject sites: the caller (`turnEnd`) logs; the function itself may propagate.
+  - The dedupe guard (`pendingCommits.length` short-circuit) prevents a second commit row if one is already queued — keep it; it is what stops turn-end from stacking commits.
+  - Empty draft returns `false` cleanly (no work, no error).
 
 - [ ] **Step 5: Run IT, full suite, commit**
 
 ```bash
 pnpm --filter @conciv/extension-whiteboard test -- test/canvas-autocommit.it.test.ts
 pnpm --filter @conciv/extension-whiteboard test
-git commit --no-verify -m "feat(whiteboard): auto-commit abandoned drafts on turn end" -- packages/extensions/whiteboard/src packages/extensions/whiteboard/test/canvas-autocommit.it.test.ts packages/extension-testkit/src
+git commit --no-verify -m "feat(whiteboard): auto-commit abandoned drafts on turn end" -- packages/extensions/whiteboard/src packages/extensions/whiteboard/test/canvas-autocommit.it.test.ts packages/extension-testkit/src packages/core/src/app.ts packages/core/src/engine.ts
 ```
 
 ---
