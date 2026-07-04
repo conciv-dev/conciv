@@ -1,5 +1,10 @@
-import type {StreamChunk} from '@tanstack/ai'
+import {EventType, type StreamChunk} from '@tanstack/ai'
 import type {ChatMessage} from '@conciv/protocol/chat-types'
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message
+  return String(error)
+}
 
 type Subscriber = {
   push: (chunk: StreamChunk) => void
@@ -83,6 +88,9 @@ export function makeTurnHub(): TurnHub {
         session.buffer.push(chunk)
         for (const subscriber of session.subscribers) subscriber.push(chunk)
       }
+    } catch (error) {
+      const runError = {type: EventType.RUN_ERROR, message: errorMessage(error)} as StreamChunk
+      for (const subscriber of session.subscribers) subscriber.push(runError)
     } finally {
       session.buffer = []
       session.userMessage = null

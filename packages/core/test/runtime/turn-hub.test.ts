@@ -8,10 +8,15 @@ const text = (delta: string): StreamChunk =>
   ({type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'm1', delta}) as StreamChunk
 const userMessage = {id: 'u1', role: 'user' as const, parts: [{type: 'text' as const, content: 'hi'}]}
 
-function makeGate(): {stream: AsyncIterable<StreamChunk>; push: (c: StreamChunk) => void; end: () => void} {
+function makeGate(): {
+  stream: AsyncIterable<StreamChunk>
+  push: (c: StreamChunk) => void
+  end: () => void
+  fail: (error: unknown) => void
+} {
   const queue: StreamChunk[] = []
   const waiters: (() => void)[] = []
-  const state = {done: false}
+  const state = {done: false, error: null as unknown}
   const wake = () => waiters.splice(0).forEach((w) => w())
   return {
     push: (c) => {
@@ -22,6 +27,10 @@ function makeGate(): {stream: AsyncIterable<StreamChunk>; push: (c: StreamChunk)
       state.done = true
       wake()
     },
+    fail: (error) => {
+      state.error = error
+      wake()
+    },
     stream: {
       async *[Symbol.asyncIterator]() {
         while (true) {
@@ -30,6 +39,7 @@ function makeGate(): {stream: AsyncIterable<StreamChunk>; push: (c: StreamChunk)
             yield next
             continue
           }
+          if (state.error) throw state.error
           if (state.done) return
           await new Promise<void>((resolve) => waiters.push(resolve))
         }
@@ -88,6 +98,30 @@ describe('turn hub', () => {
     await pump
     expect(collected.map((c) => c.type)).not.toContain(EventType.RUN_FINISHED)
     expect(hub.generating('s1')).toBe(false)
+  })
+
+  it('broadcasts a terminal RUN_ERROR when the run stream throws', async () => {
+    const hub = makeTurnHub()
+    const gate = makeGate()
+    const pump = hub.start('s1', userMessage, gate.stream)
+    const controller = new AbortController()
+    const {live} = hub.attach('s1', controller.signal)
+    const collected: StreamChunk[] = []
+    const drain = (async () => {
+      for await (const chunk of live) collected.push(chunk)
+    })()
+    gate.push(started)
+    gate.fail(new Error('harness exploded'))
+    await pump
+    await new Promise((r) => setTimeout(r, 10))
+    expect(collected.map((c) => c.type)).toEqual([EventType.RUN_STARTED, EventType.RUN_ERROR])
+    expect(collected.find((c) => c.type === EventType.RUN_ERROR)).toMatchObject({message: 'harness exploded'})
+    expect(hub.generating('s1')).toBe(false)
+    expect(hub.pendingUserMessage('s1')).toBe(null)
+    const after = hub.attach('s1', controller.signal)
+    expect(after.replay).toEqual([])
+    controller.abort()
+    await drain
   })
 
   it('fans out live chunks to two subscribers', async () => {
