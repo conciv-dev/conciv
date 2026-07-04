@@ -46,6 +46,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@conciv/uno-preset": "workspace:*",
     "@types/node": "^22.19.21",
     "@vitest/browser-playwright": "4.1.8",
     "playwright": "^1.60.0",
@@ -53,7 +54,8 @@
     "typescript": "^6.0.3",
     "vite": "^8.0.16",
     "vite-plugin-solid": "^2.11.12",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.8",
+    "unocss": "^66.7.2"
   },
   "peerDependencies": {
     "solid-js": "^1.9.13"

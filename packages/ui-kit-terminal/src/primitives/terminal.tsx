@@ -39,7 +39,7 @@ function injectCss(root: Node): void {
 
 function Screen(props: {class?: string}): JSX.Element {
   const model = useTerminal()
-  let element: HTMLDivElement | undefined
+  let element: HTMLDivElement | undefined = undefined
   onMount(() => {
     if (!element) return
     injectCss(element.getRootNode())

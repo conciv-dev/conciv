@@ -20,8 +20,8 @@ export function Terminal(props: {
 }): JSX.Element {
   const settled = () => props.model.status() === 'exited' || props.model.status() === 'error'
   return (
-    <TerminalPrimitive.Root model={props.model} class={`${ROOT} ${props.class ?? ''}`}>
-      <div class="flex flex-row flex-1 min-h-0">
+    <TerminalPrimitive.Root model={props.model} class={`${ROOT}  ${props.class ?? ''}`}>
+      <div class="flex flex-1 flex-row min-h-0">
         <div class={SCREEN_WRAP} style={{opacity: settled() ? '0.45' : '1'}}>
           <TerminalPrimitive.Screen class={SCREEN} />
         </div>
