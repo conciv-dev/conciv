@@ -93,9 +93,14 @@ export function TerminalPanelView(): JSX.Element {
     }),
   )
 
-  let host: HTMLDivElement | undefined
+  let host: HTMLDivElement | undefined = undefined
   return (
-    <div ref={host} class="flex flex-1 flex-col min-h-0 anim-msg">
+    <div
+      ref={(element) => {
+        host = element
+      }}
+      class="flex flex-1 flex-col min-h-0 anim-msg"
+    >
       <Show
         when={!opened.error}
         fallback={
