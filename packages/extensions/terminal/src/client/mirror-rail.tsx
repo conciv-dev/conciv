@@ -101,7 +101,7 @@ function MirrorEntry(props: {part: MessagePart; results: Map<string, ToolResultP
               aria-hidden="true"
             />
             <span class="font-semibold shrink-0">{part().name}</span>
-            <span class="truncate text-pw-text-3">{inlineValue(part(), SUMMARY_KEYS)}</span>
+            <span class="text-pw-text-3 truncate">{inlineValue(part(), SUMMARY_KEYS)}</span>
           </div>
         )}
       </Match>
@@ -127,7 +127,7 @@ export function MirrorRail(props: {apiBase: string; headers: () => Record<string
           <span>Activity</span>
           <span class="text-pw-text-3">{messages().length}</span>
         </div>
-        <div class="flex-1 overflow-y-auto py-1" role="log" aria-label="Terminal activity">
+        <div class="py-1 flex-1 overflow-y-auto" role="log" aria-label="Terminal activity">
           <For each={messages()}>
             {(message) => <For each={message.parts}>{(part) => <MirrorEntry part={part} results={results()} />}</For>}
           </For>
