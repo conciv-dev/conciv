@@ -469,7 +469,7 @@ export function ChatPanel(props: {
             <ExtensionSurface name="widget" instances={props.instances} bag={hostBag} />
             <div class="flex flex-1 flex-col min-h-0">
               <Show when={views().length > 0}>
-                <div class="flex items-center gap-2 px-2.5">
+                <div class="px-2.5 flex gap-2 items-center">
                   <Tabs.Root
                     value={activeView()}
                     onValueChange={(details) => switchView(details.value)}
@@ -494,7 +494,7 @@ export function ChatPanel(props: {
                     {(view) => (
                       <Show when={view().actions}>
                         {(actions) => (
-                          <div class="flex items-center gap-1">
+                          <div class="flex gap-1 items-center">
                             <MountedView
                               view={{...view(), Component: actions()}}
                               hostContext={viewHostContext(view())}
