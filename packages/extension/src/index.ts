@@ -8,6 +8,8 @@ export type {
 } from './define-extension.js'
 export {defineTool} from './define-tool.js'
 export type {ToolBuilder} from './define-tool.js'
+export {imageResult} from './image-result.js'
+export type {ContentPart} from '@tanstack/ai'
 export {collectToolRenderers} from './collect-client.js'
 export {getExtensionApi, useClientApi, installClientApi} from './extension-api.js'
 export type {ExtensionApi, ExtensionId, Register} from './extension-api.js'

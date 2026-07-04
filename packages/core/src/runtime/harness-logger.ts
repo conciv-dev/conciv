@@ -2,6 +2,8 @@ import type {DebugConfig, Logger} from '@tanstack/ai'
 
 const writeErr = (message: string): void => void process.stderr.write(`${message}\n`)
 
+export const logError = (message: string): void => writeErr(message)
+
 const harnessLogger: Logger = {
   debug: () => {},
   info: () => {},
