@@ -54,7 +54,15 @@ function Screen(props: {class?: string}): JSX.Element {
       model.disconnect()
     })
   })
-  return <div ref={element} class={props.class} data-terminal-screen />
+  return (
+    <div
+      ref={(node) => {
+        element = node
+      }}
+      class={props.class}
+      data-terminal-screen
+    />
+  )
 }
 
 function Banner(props: {children: (state: {code: number | null; message: string | null}) => JSX.Element}): JSX.Element {
