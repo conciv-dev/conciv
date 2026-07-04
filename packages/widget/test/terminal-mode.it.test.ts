@@ -1,5 +1,3 @@
-// widget bundle (with the terminal extension client) against a real engine running the terminal
-
 import {mkdtempSync, realpathSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
