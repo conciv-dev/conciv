@@ -36,8 +36,8 @@ function wsUrl(apiBase: string, sessionId: string | null, cols: number, rows: nu
 
 export function TerminalPanelView(): JSX.Element {
   const ctx = terminal.useContext()
-  const post = async (path: 'open' | 'close'): Promise<void> => {
-    const res = await fetch(terminalUrl(ctx.apiBase, path), {
+  const openTerminal = async (): Promise<void> => {
+    const res = await fetch(terminalUrl(ctx.apiBase, 'open'), {
       method: 'POST',
       credentials: 'include',
       headers: {'content-type': 'application/json', ...ctx.client.chatHeaders()},
@@ -45,11 +45,11 @@ export function TerminalPanelView(): JSX.Element {
     })
     if (!res.ok) {
       const busy = res.status === 409
-      throw new Error(busy ? 'Session is busy — wait for the current turn to finish.' : `terminal ${path} failed`)
+      throw new Error(busy ? 'Session is busy — wait for the current turn to finish.' : 'terminal open failed')
     }
   }
   const [opened, {refetch}] = createResource(async () => {
-    await post('open').catch((error: Error) => {
+    await openTerminal().catch((error: Error) => {
       ctx.notify(error.message)
       throw error
     })
@@ -62,10 +62,7 @@ export function TerminalPanelView(): JSX.Element {
     theme: () => readTerminalTheme(host ?? document.body),
   })
   createEffect(() => ctx.view.setLocked(model.busy()))
-  onCleanup(() => {
-    ctx.view.setLocked(false)
-    void post('close').catch(() => ctx.notify('Couldn’t close the terminal session.'))
-  })
+  onCleanup(() => ctx.view.setLocked(false))
 
   return (
     <div ref={host} class="flex flex-col flex-1 min-h-0 anim-msg">

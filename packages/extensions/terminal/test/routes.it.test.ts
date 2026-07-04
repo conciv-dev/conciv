@@ -79,6 +79,27 @@ describe('terminal extension routes', () => {
     client.ws.close()
   })
 
+  it('open is idempotent while the pty is alive — buffer survives a re-open', async () => {
+    const again = await fetch(`${base()}/api/ext/terminal/open`, {method: 'POST', headers, body: JSON.stringify({})})
+    expect(again.status).toBe(200)
+    const client = await connect(wsBase(), sessionId)
+    await until(() => client.received.join('').includes('ws-roundtrip-42'))
+    client.ws.close()
+  })
+
+  it('a chat turn on the session kills the pty', async () => {
+    ctx.server?.sessions.fireChatTurn(sessionId)
+    const ws = new WebSocket(`${wsBase()}/api/ext/terminal/tty?session=${sessionId}`)
+    const code = await new Promise<number>((resolve, reject) => {
+      ws.on('close', (c) => resolve(c))
+      ws.on('error', reject)
+    })
+    expect(code).toBe(4404)
+
+    const reopen = await fetch(`${base()}/api/ext/terminal/open`, {method: 'POST', headers, body: JSON.stringify({})})
+    expect(reopen.status).toBe(200)
+  })
+
   it('rejects ws for a session with no live pty', async () => {
     const other = `conciv_${randomUUID()}`
     const ws = new WebSocket(`${wsBase()}/api/ext/terminal/tty?session=${other}`)

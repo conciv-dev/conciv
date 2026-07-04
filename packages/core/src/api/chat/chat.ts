@@ -25,6 +25,7 @@ export type ChatRouteOpts = {
   uiBus: UiBus
   riskyTools?: ReadonlySet<string>
   store: SessionStore
+  onTurnStart?: (sessionId: string) => void
 }
 
 export async function ensureAgentRecord(deps: ResolveDeps, harnessId: string): Promise<SessionRecord> {
@@ -74,5 +75,6 @@ export function registerChatRoutes(app: H3, opts: ChatRouteOpts): void {
     systemPromptText: opts.systemPromptText,
     uiBus,
     store,
+    onTurnStart: opts.onTurnStart,
   })
 }

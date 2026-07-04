@@ -9,6 +9,7 @@ import {TERMINAL_NAME, TerminalOpenRequestSchema, type TerminalState} from './sh
 
 export default defineExtension({name: TERMINAL_NAME}).server((server) => {
   const ttySessions = createTtySessions()
+  server.sessions.onChatTurn((sessionId) => ttySessions.close(sessionId))
 
   const requireSession = (headers: Headers): string => {
     const raw = headers.get(CONCIV_SESSION_HEADER)?.trim()
@@ -25,6 +26,11 @@ export default defineExtension({name: TERMINAL_NAME}).server((server) => {
       throw new HTTPError({status: 400, message: `harness "${server.harness.id}" has no terminal mode`})
     }
     if (server.sessions.chatBusy(sessionId)) throw new HTTPError({status: 409, message: 'session busy'})
+    const alive = ttySessions.get(sessionId)
+    if (alive && !alive.exited()) {
+      if (size.cols && size.rows) alive.resize(size.cols, size.rows)
+      return {alive: true}
+    }
     const existing = await server.sessions.resumeToken(sessionId)
     const harnessSessionId = existing ?? randomUUID()
     if (!existing) await server.sessions.recordToken(sessionId, harnessSessionId)

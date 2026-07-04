@@ -64,6 +64,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       .map((tool) => `mcp__conciv__${tool.name}`),
   )
 
+  const chatTurnListeners: ((sessionId: string) => void)[] = []
+
   registerCors(app, opts.allowedOrigins ?? [])
   registerChatRoutes(app, {
     cwd: opts.cwd,
@@ -78,6 +80,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     uiBus,
     riskyTools,
     store,
+    onTurnStart: (sessionId) => chatTurnListeners.forEach((listener) => listener(sessionId)),
   })
   const page = registerPageRoutes(app, {journal: makeJournal(), root: opts.cwd})
   registerEditorRoutes(app, opts.openInEditor)
@@ -92,6 +95,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     },
     chatBusy: (sessionId) => readLock(opts.cfg.stateRoot, sessionId).held,
     model: async (sessionId) => (await store.get(sessionId))?.model ?? null,
+    onChatTurn: (listener) => chatTurnListeners.push(listener),
   }
   const history = harness.history
   const serverHarness: ServerHarness = {

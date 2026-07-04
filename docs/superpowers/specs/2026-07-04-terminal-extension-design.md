@@ -50,12 +50,13 @@ Rebuild terminal mode as `packages/extensions/terminal` — a built-in extension
 - Returning to the Chat tab re-fetches history (generic rehydration — any view may have advanced the conversation).
 - Active view resets to Chat per session load; a view whose extension disappears falls back to Chat.
 
-## Terminal view lifecycle
+## Terminal view lifecycle (amended 2026-07-04: pty keeps alive across tab switches)
 
-- Tab → terminal: view mounts → `POST open` (spinner while pending; 409 → toast + bounce back to Chat) → WS connect → replay repaints.
-- Tab → chat: guarded by lock (busy frames from OSC 9;4); view unmounts → `POST close` → chat rehydrates via history refetch.
-- pty crash/exit: exit/error control frame → banner state from v1 mockup ("Back to chat" action switches tabs).
-- Reopen widget while pty alive: `GET state` on view mount reveals the live pty; WS reconnect + replay (pty survives socket loss, 5-min idle evict unchanged).
+- Tab → terminal: view mounts → `POST open` (idempotent — a live pty is reused with an instant replay repaint; spinner while pending; 409 → toast + error banner with retry) → WS connect → replay repaints.
+- Tab → chat: guarded by lock (busy frames from OSC 9;4); view unmounts → WS disconnects only, the pty stays alive → chat rehydrates via history refetch.
+- Chat turn: core fires `sessions.onChatTurn(sessionId)` at turn start; the extension kills that session's pty first, so a chat claude and a pty claude never share the transcript.
+- pty crash/exit: exit/error control frame → banner state from v1 mockup ("Back to chat" action switches tabs via `view.leave()`).
+- Abandoned pty: no sinks + not busy → 5-min idle evict unchanged.
 
 ## Testing
 

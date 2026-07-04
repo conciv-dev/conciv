@@ -115,6 +115,9 @@ describe('terminal extension e2e (real engine, real claude)', () => {
       )
       .toBe(true)
 
+    await terminalTab.click()
+    await untilBuffer(page, /[⏺●] tty-it-check/, 10_000)
+
     await page.close()
   }, 240_000)
 

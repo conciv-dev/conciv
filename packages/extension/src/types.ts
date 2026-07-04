@@ -74,6 +74,7 @@ export type ServerSessions = {
   recordToken(sessionId: string, token: string): Promise<void>
   chatBusy(sessionId: string): boolean
   model(sessionId: string): Promise<string | null>
+  onChatTurn(listener: (sessionId: string) => void): void
 }
 
 export type ServerHarness = {

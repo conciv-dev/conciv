@@ -54,6 +54,7 @@ export type TurnDeps = {
   systemPromptText?: string
   uiBus: UiBus
   store: SessionStore
+  onTurnStart?: (sessionId: string) => void
 }
 
 export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
@@ -74,6 +75,7 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
     }
 
     try {
+      deps.onTurnStart?.(sessionId)
       await ensureChatRecord(deps.store, sessionId, harness.id, deps.cwd)
       const chatReq = await readValidatedBody(event, ChatRequestSchema)
 

@@ -11,14 +11,20 @@ declare global {
   }
 }
 
-export type FakeSessions = ServerSessions & {tokens: Map<string, string>; busy: Set<string>}
+export type FakeSessions = ServerSessions & {
+  tokens: Map<string, string>
+  busy: Set<string>
+  fireChatTurn: (sessionId: string) => void
+}
 
 export function fakeSessions(): FakeSessions {
   const tokens = new Map<string, string>()
   const busy = new Set<string>()
+  const listeners: ((sessionId: string) => void)[] = []
   return {
     tokens,
     busy,
+    fireChatTurn: (sessionId) => listeners.forEach((listener) => listener(sessionId)),
     resumeToken: (sessionId) => Promise.resolve(tokens.get(sessionId) ?? null),
     recordToken: (sessionId, token) => {
       tokens.set(sessionId, token)
@@ -26,6 +32,7 @@ export function fakeSessions(): FakeSessions {
     },
     chatBusy: (sessionId) => busy.has(sessionId),
     model: () => Promise.resolve(null),
+    onChatTurn: (listener) => listeners.push(listener),
   }
 }
 
