@@ -194,13 +194,18 @@ export const canvasDiscardTool = defineTool<typeof CanvasDiscardInput, Whiteboar
     const room = ctx.room(request)
     const drafts = await draftRows(ctx, room)
     const pendings = await ctx.db.all(app.canvasPending.where({room, stage: 'draft'}), {tier: 'global'})
-    const outcomes = await Promise.allSettled([
-      ...drafts.map((row) => ctx.db.delete(app.canvasDraftElements, row.id).wait({tier: 'edge'})),
-      ...pendings.map((row) => ctx.db.delete(app.canvasPending, row.id).wait({tier: 'edge'})),
-    ])
-    const failed = outcomes.filter((outcome) => outcome.status === 'rejected').length
-    if (failed) console.error(`[whiteboard] canvas.discard: ${failed} delete(s) failed`)
-    return {discarded: drafts.length - outcomes.slice(0, drafts.length).filter((o) => o.status === 'rejected').length}
+    try {
+      await ctx.db
+        .batch((batch) => {
+          drafts.forEach((row) => batch.delete(app.canvasDraftElements, row.id))
+          pendings.forEach((row) => batch.delete(app.canvasPending, row.id))
+        })
+        .wait({tier: 'edge'})
+      return {discarded: drafts.length}
+    } catch (error) {
+      console.error(`[whiteboard] canvas.discard batch failed: ${String(error)}`)
+      return {discarded: 0, error: 'discard failed', reason: String(error)}
+    }
   },
 )
 

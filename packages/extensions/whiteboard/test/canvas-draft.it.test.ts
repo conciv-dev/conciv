@@ -48,6 +48,21 @@ test('rejected svg never reaches the canvas', async () => {
   }
 })
 
+const DENSE_MANY_SUBPATHS = `<svg viewBox='0 0 100 100'><path d="${'M0 0 L5 5 '.repeat(2000)}" stroke='#000'/></svg>`
+
+test('a pathological many-subpath svg is capped, not exploded into thousands of writes', async () => {
+  const api = await getExtensionTestApi({server: whiteboard, clientEntry})
+  try {
+    await openCanvas(api.page)
+    await api.callTool('canvas.svg', {svg: DENSE_MANY_SUBPATHS, x: 0, y: 0, width: 200})
+    await expect.poll(() => readElements(api, 'draft'), {timeout: 20_000}).not.toHaveLength(0)
+    const draft = await readElements(api, 'draft')
+    expect(draft.length).toBeLessThanOrEqual(500)
+  } finally {
+    await api.dispose()
+  }
+})
+
 const BAD_PATH_AND_RECT =
   "<svg viewBox='0 0 100 100'><path d='M z'/><rect x='10' y='10' width='20' height='20' fill='#ccc'/></svg>"
 

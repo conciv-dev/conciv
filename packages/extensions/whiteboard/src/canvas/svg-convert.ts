@@ -6,6 +6,7 @@ type Style = {fill: string | null; stroke: string | null; strokeWidth: number}
 
 const NUMBER = /-?\d*\.?\d+(?:e[-+]?\d+)?/gi
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg'
+const MAX_ELEMENTS = 500
 
 function resolvedStyle(node: Element): Style {
   const style = getComputedStyle(node)
@@ -65,7 +66,8 @@ function convertPath(
 ): void {
   const parent = node.parentNode
   if (!parent) return
-  splitSubpaths(node.getAttribute('d') ?? '').forEach((subpath) => {
+  for (const subpath of splitSubpaths(node.getAttribute('d') ?? '')) {
+    if (sink.length >= MAX_ELEMENTS) return
     try {
       const probe = document.createElementNS(SVG_NAMESPACE, 'path')
       probe.setAttribute('d', subpath)
@@ -76,7 +78,7 @@ function convertPath(
     } catch (error) {
       console.error(`[whiteboard] svg path subpath skipped: ${String(error)}`)
     }
-  })
+  }
 }
 
 function convertNode(
@@ -87,6 +89,7 @@ function convertNode(
   roughness: number,
   sink: ExcalidrawElementSkeleton[],
 ): void {
+  if (sink.length >= MAX_ELEMENTS) return
   const tag = node.tagName
   if (tag === 'g' || tag === 'svg') {
     Array.from(node.children).forEach((child) => convertNode(child, matrix, scale, origin, roughness, sink))

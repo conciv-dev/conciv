@@ -157,17 +157,15 @@ export function Island(props: {
     const targetTable = row.stage === 'draft' ? app.canvasDraftElements : app.canvasElements
     try {
       const drawn = convertToExcalidrawElements(await skeletonsOf(row), {regenerateIds: false})
-      await Promise.all(
-        drawn.map(async (element: ExcalidrawElement, index: number) =>
-          db()
-            .upsert(
-              targetTable,
-              {room: props.room, elementId: element.id, data: asJson(element), version: element.version},
-              {id: await stableUuid(`${row.id}:${index}`)},
-            )
-            .wait({tier: 'edge'}),
-        ),
+      const rows = await Promise.all(
+        drawn.map(async (element: ExcalidrawElement, index: number) => ({
+          id: await stableUuid(`${row.id}:${index}`),
+          data: {room: props.room, elementId: element.id, data: asJson(element), version: element.version},
+        })),
       )
+      await db()
+        .batch((batch) => rows.forEach((entry: (typeof rows)[number]) => batch.upsert(targetTable, entry.data, {id: entry.id})))
+        .wait({tier: 'edge'})
     } catch (error) {
       console.error(`[whiteboard] draining pending ${row.kind} ${row.id} failed: ${String(error)}`)
     } finally {
@@ -238,11 +236,10 @@ export function Island(props: {
       container?.addEventListener('pointerdown', onPointerDown, {once: true})
       handle = replayDraft(steps, (x, y) => (cursorId ? moveAgentCursor(cursorId, x, y) : undefined))
       await handle.done
-      const deletions = await Promise.allSettled(
-        ordered.map((draft) => db().delete(app.canvasDraftElements, draft.id).wait({tier: 'edge'})),
-      )
-      const failed = deletions.filter((outcome) => outcome.status === 'rejected').length
-      if (failed) console.error(`[whiteboard] commit: ${failed} draft delete(s) failed`)
+      await db()
+        .batch((batch) => ordered.forEach((draft) => batch.delete(app.canvasDraftElements, draft.id)))
+        .wait({tier: 'edge'})
+        .catch((error) => console.error(`[whiteboard] commit draft cleanup failed: ${String(error)}`))
     } catch (error) {
       console.error(`[whiteboard] performCommit ${row.id} failed: ${String(error)}`)
     } finally {
