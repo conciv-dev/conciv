@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import WebSocket from 'ws'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
-import {startTerminalServer, type TerminalTestServer} from './helpers.js'
+import {recordingHarness, startTerminalServer, type TerminalTestServer} from './helpers.js'
 
 const until = async (cond: () => boolean, ms = 8000): Promise<void> => {
   const start = Date.now()
@@ -138,6 +138,45 @@ describe('terminal extension routes', () => {
 
   it('records the minted harness session token for later chat resume', () => {
     expect(ctx.server?.sessions.tokens.get(sessionId)).toMatch(/^[0-9a-f-]{36}$/)
+  })
+
+  it('spawns with model override, conciv mcp url, and session id', async () => {
+    const {harness, captured} = recordingHarness()
+    const dedicated = await startTerminalServer(harness)
+    try {
+      const res = await fetch(`${dedicated.base}/api/ext/terminal/open`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({model: 'claude-x'}),
+      })
+      expect(res.status).toBe(200)
+      expect(captured).toHaveLength(1)
+      expect(captured[0]?.model).toBe('claude-x')
+      expect(captured[0]?.mcpUrl).toMatch(/\/api\/mcp$/)
+      expect(captured[0]?.concivSessionId).toBe(sessionId)
+    } finally {
+      await dedicated.close()
+    }
+  })
+
+  it('injects a resumed marker when reopening an existing transcript', async () => {
+    const {harness} = recordingHarness()
+    const dedicated = await startTerminalServer({...harness, transcriptExists: () => true})
+    try {
+      dedicated.sessions.tokens.set(sessionId, randomUUID())
+      const res = await fetch(`${dedicated.base}/api/ext/terminal/open`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({}),
+      })
+      expect(res.status).toBe(200)
+      const wsBaseUrl = dedicated.wsBase
+      const client = await connect(wsBaseUrl, sessionId)
+      await until(() => client.received.join('').includes('— conciv: resumed session —'))
+      client.ws.close()
+    } finally {
+      await dedicated.close()
+    }
   })
 
   it('rejects open when the harness has no tty command', async () => {

@@ -3,6 +3,7 @@ import {serve, type Server} from 'srvx'
 import type {Hooks} from 'crossws'
 import nodeWebSocketAdapter from 'crossws/adapters/node'
 import type {ServerApi, ServerHarness, ServerSessions} from '@conciv/extension'
+import type {TtyCommandOpts} from '@conciv/protocol/terminal-types'
 import terminalExtension from '../src/server.js'
 
 declare global {
@@ -40,6 +41,22 @@ export const bashHarness: ServerHarness = {
   id: 'test-tty',
   ttyCommand: () => ({bin: 'bash', args: ['--noprofile', '--norc', '-i'], env: {TERM: 'xterm-256color', PS1: 'P> '}}),
   release: () => {},
+}
+
+export function recordingHarness(): {harness: ServerHarness; captured: TtyCommandOpts[]} {
+  const captured: TtyCommandOpts[] = []
+  const command = bashHarness.ttyCommand
+  if (!command) throw new Error('bash harness has no tty command')
+  return {
+    captured,
+    harness: {
+      ...bashHarness,
+      ttyCommand: (opts) => {
+        captured.push(opts)
+        return command(opts)
+      },
+    },
+  }
 }
 
 export type TerminalTestServer = {

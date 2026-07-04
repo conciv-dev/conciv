@@ -34,15 +34,17 @@ export default defineExtension({name: TERMINAL_NAME}).server((server) => {
     const existing = await server.sessions.resumeToken(sessionId)
     const harnessSessionId = existing ?? randomUUID()
     if (!existing) await server.sessions.recordToken(sessionId, harnessSessionId)
-    const model = await server.sessions.model(sessionId)
+    const model = size.model ?? (await server.sessions.model(sessionId))
     const resume = Boolean(existing) && (server.harness.transcriptExists?.(harnessSessionId) ?? true)
     server.harness.release?.(sessionId)
+    const mcpUrl = `${new URL(event.req.url).origin}/api/mcp`
     const session = ttySessions.open(
       sessionId,
-      ttyCommand({cwd: server.cwd, harnessSessionId, resume, model}),
+      ttyCommand({cwd: server.cwd, harnessSessionId, resume, model, mcpUrl, concivSessionId: sessionId}),
       server.cwd,
     )
     if (size.cols && size.rows) session.resize(size.cols, size.rows)
+    if (resume) session.inject('\u001b[2m— conciv: resumed session —\u001b[0m')
     return {alive: true}
   })
 

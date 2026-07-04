@@ -7,6 +7,8 @@ export type TtyCommandOpts = {
   harnessSessionId: string
   resume: boolean
   model?: string | null
+  mcpUrl?: string | null
+  concivSessionId?: string
 }
 
 export const TtyClientControlSchema = z.discriminatedUnion('type', [
