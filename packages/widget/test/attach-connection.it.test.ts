@@ -11,7 +11,13 @@ const started = {type: EventType.RUN_STARTED, threadId: 't', runId: 'r'} as Stre
 const finished = {type: EventType.RUN_FINISHED, threadId: 't', runId: 'r'} as StreamChunk
 
 describe('attachConnection', () => {
-  const state = {server: undefined as Server | undefined, base: '', posts: [] as unknown[], attachCount: 0}
+  const state = {
+    server: undefined as Server | undefined,
+    base: '',
+    posts: [] as unknown[],
+    attachCount: 0,
+    failAttach: false,
+  }
 
   beforeAll(async () => {
     state.server = createServer((req, res) => {
@@ -27,6 +33,11 @@ describe('attachConnection', () => {
       }
       if (req.url === '/api/chat/attach') {
         state.attachCount += 1
+        if (state.failAttach) {
+          res.statusCode = 500
+          res.end()
+          return
+        }
         res.setHeader('content-type', 'text/event-stream')
         res.write(chunkLines([started, finished]))
         res.end()
@@ -76,6 +87,26 @@ describe('attachConnection', () => {
     expect(seen.length).toBeGreaterThanOrEqual(4)
     expect(state.attachCount).toBeGreaterThanOrEqual(2)
     expect(seen[0]?.type).toBe(EventType.RUN_STARTED)
+  })
+
+  it('reports onConnectionChange false while attach fails and true once it recovers', async () => {
+    const client = defineClient({apiBase: state.base})
+    const changes: boolean[] = []
+    state.failAttach = true
+    const adapter = attachConnection(client, {retryDelayMs: 10, onConnectionChange: (c) => changes.push(c)})
+    const controller = new AbortController()
+    const drain = (async () => {
+      for await (const chunk of adapter.subscribe(controller.signal)) void chunk
+    })().catch(() => {})
+    const failDeadline = Date.now() + 2000
+    while (!changes.includes(false) && Date.now() < failDeadline) await new Promise((r) => setTimeout(r, 10))
+    state.failAttach = false
+    const okDeadline = Date.now() + 2000
+    while (!changes.includes(true) && Date.now() < okDeadline) await new Promise((r) => setTimeout(r, 10))
+    controller.abort()
+    await drain
+    expect(changes).toContain(false)
+    expect(changes).toContain(true)
   })
 
   it('does not accumulate abort listeners across reconnect cycles', async () => {

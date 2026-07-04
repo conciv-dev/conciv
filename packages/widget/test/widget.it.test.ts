@@ -8,7 +8,7 @@ import {EventType, type StreamChunk} from '@tanstack/ai'
 import {aguiApprovalRequestedFor} from '@conciv/protocol/ui-types'
 import {aguiUsageFor, snapshotToTokenUsage} from '@conciv/protocol/usage-types'
 import {widgetBundle, readBody} from './it-fixture.js'
-import {createAttachChat, type ChatPostBody} from './helpers/attach-chat.js'
+import {createAttachChat, parseBody, type ChatPostBody} from './helpers/attach-chat.js'
 
 const ASSISTANT_TEXT = 'Hello from aidx'
 const SWITCHED_REPLY = 'Reply from the switched session'
@@ -170,14 +170,6 @@ const chat = createAttachChat({
 
 function chatIntent(body: ChatPostBody): unknown {
   return body.forwardedProps?.intent ?? body.data?.intent
-}
-
-function parseBody(body: string): ChatPostBody {
-  try {
-    return JSON.parse(body) as ChatPostBody
-  } catch {
-    return {}
-  }
 }
 
 function sessionIdOf(req: IncomingMessage): string {

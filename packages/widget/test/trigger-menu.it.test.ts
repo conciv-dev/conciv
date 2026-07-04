@@ -4,7 +4,7 @@ import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {chromium, type Browser, type Page} from 'playwright'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 import {widgetBundle, readBody} from './it-fixture.js'
-import {createAttachChat, type ChatPostBody} from './helpers/attach-chat.js'
+import {createAttachChat, parseBody} from './helpers/attach-chat.js'
 
 const COMMANDS_PAYLOAD = {
   commands: [
@@ -83,14 +83,7 @@ function handle(req: IncomingMessage, res: ServerResponse): void {
   if (url === '/api/chat' && req.method === 'POST') {
     void readBody(req).then((body) => {
       posts.push(body)
-      const parsed = (() => {
-        try {
-          return JSON.parse(body) as ChatPostBody
-        } catch {
-          return {}
-        }
-      })()
-      chat.postChat('conciv_trigger_menu', parsed)
+      chat.postChat('conciv_trigger_menu', parseBody(body))
       writeJson(res, {ok: true})
     })
     return
