@@ -71,6 +71,22 @@ describe('detached turns (IT)', () => {
     expect(late).toContain('RUN_FINISHED')
   })
 
+  fakeIt('a dropped and re-opened attach sees the complete turn (reload simulation)', async () => {
+    const releaseFile = join(tmp(), 'release')
+    const server = await startTestServer({spawnHarness: slowSpawn(releaseFile)})
+    state.server = server
+    const id = await server.resolve()
+    await server.post('/api/chat', {messages: [turn('rebuild the page')]}, id)
+    const before = await server.attach(id, {until: 'first-half', timeoutMs: 3000})
+    expect(before).toContain('"generating":true')
+    expect(before).toContain('rebuild the page')
+    writeFileSync(releaseFile, '')
+    const after = await server.attach(id, {until: 'RUN_FINISHED'})
+    expect(after).toContain('first-half')
+    expect(after).toContain('second-half')
+    expect(after).toContain('RUN_FINISHED')
+  })
+
   fakeIt('the turn completes with zero subscribers and persists usage', async () => {
     const server = await startTestServer({
       spawnHarness: (args, cwd) => {
