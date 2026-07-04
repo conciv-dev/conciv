@@ -13,6 +13,7 @@ beforeAll(async () => {
     res.setHeader('content-type', 'application/json')
     if (req.url === '/api/chat/session/resolve') return void res.end(JSON.stringify({sessionId: 'conciv_x'}))
     if (req.url === '/api/chat/sessions') return void res.end(JSON.stringify({sessions: []}))
+    if (req.url === '/api/chat/stop') return void res.end(JSON.stringify({ok: true}))
     res.statusCode = 404
     res.end()
   })
@@ -30,5 +31,17 @@ describe('defineClient (real server)', () => {
     await client.sessions()
     expect(lastSessionHeader).toBe('conciv_x')
     expect(client.chatStreamUrl()).toBe(`${base}/api/chat`)
+  })
+
+  it('attachUrl() points at the attach endpoint', () => {
+    const client = defineClient({apiBase: base})
+    expect(client.attachUrl()).toBe(`${base}/api/chat/attach`)
+  })
+
+  it('stop() POSTs and returns ok with the session header', async () => {
+    const client = defineClient({apiBase: base})
+    client.setSessionId(SessionId.parse('conciv_x'))
+    expect((await client.stop()).ok).toBe(true)
+    expect(lastSessionHeader).toBe('conciv_x')
   })
 })

@@ -11,7 +11,7 @@ export function createTransport(opts: {apiBase: string; headers?: () => Record<s
   const base = opts.apiBase.replace(/\/+$/, '')
   const extra = opts.headers ?? (() => ({}))
   function route<Res extends z.ZodTypeAny>(spec: {
-    method: 'GET' | 'DELETE'
+    method: 'GET' | 'DELETE' | 'POST'
     path: string
     response: Res
   }): () => Promise<z.infer<Res>>
