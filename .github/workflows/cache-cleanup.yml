@@ -1,0 +1,39 @@
+name: Cache Cleanup
+
+# The Actions cache is capped at 10GB per repo; each PR run saves ~950MB
+# (pnpm + playwright + turbo) to its merge ref, where no other PR can read it.
+# Left alone, closed-PR caches pile up past the cap and LRU-evict main's warm
+# cache. Sweep them when a PR closes, plus daily for anything missed (fork-PR
+# close events carry a read-only token, so their deletes land in the sweep).
+
+on:
+  pull_request:
+    types: [closed]
+  schedule:
+    - cron: '17 3 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write # gh cache delete
+      pull-requests: read # PR state lookup
+    steps:
+      - run: |
+          gh api --paginate 'repos/{owner}/{repo}/actions/caches?per_page=100' \
+            --jq '.actions_caches[] | select(.ref | startswith("refs/pull/")) | "\(.id)\t\(.ref)"' |
+          while IFS=$'\t' read -r id ref; do
+            pr="${ref#refs/pull/}"
+            pr="${pr%/merge}"
+            state="$(gh pr view "$pr" --json state --jq .state 2>/dev/null || echo UNKNOWN)"
+            if [ "$state" != "OPEN" ]; then
+              echo "deleting cache $id ($ref, PR state: $state)"
+              gh cache delete "$id" || true
+            fi
+          done
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
