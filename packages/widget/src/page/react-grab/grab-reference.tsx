@@ -36,7 +36,12 @@ function sourceLabel(source: ElementSource): string {
   return source.componentName ? `${source.componentName} at ${where}` : where
 }
 
-export function GrabReference(props: {grab: StagedGrab; maxWidth: number; onRemove: () => void}): JSX.Element {
+export function GrabReference(props: {
+  grab: StagedGrab
+  maxWidth: number
+  onRemove: () => void
+  onInsert?: () => void
+}): JSX.Element {
   return (
     <div
       class="text-[0.6875rem] font-pw-mono mb-2 p-3 border-b border-r border-t border-y-pw-line border-l-[0.1875rem] border-l-pw-accent border-r-pw-line rounded-pw-md bg-pw-fill flex flex-col gap-2.5 items-start relative"
@@ -51,6 +56,17 @@ export function GrabReference(props: {grab: StagedGrab; maxWidth: number; onRemo
         <X class="size-5 block" aria-hidden="true" />
       </button>
       <ScaledSnapshot snapshot={props.grab.snapshot} maxWidth={props.maxWidth} />
+      <Show when={props.onInsert}>
+        {(insert) => (
+          <button
+            type="button"
+            class="py-1 px-2.5 rounded-pw-sm [border:none] text-[0.6875rem] font-semibold cursor-pointer bg-pw-accent text-white"
+            onClick={() => insert()()}
+          >
+            Insert
+          </button>
+        )}
+      </Show>
       <Show when={props.grab.source}>
         {(source) => (
           <span class="text-pw-text-2 flex gap-1.5 [word-break:break-all] items-center">

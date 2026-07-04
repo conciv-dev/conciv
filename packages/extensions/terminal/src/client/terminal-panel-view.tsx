@@ -48,9 +48,11 @@ function TerminalSurface(props: {ctx: ViewContext; generation: number; themeHost
     ctx.view.setLocked(model.busy())
     ctx.store.setBusy(model.busy())
   })
+  ctx.view.onInsert((text) => model.paste(text))
   onCleanup(() => {
     ctx.view.setLocked(false)
     ctx.store.setBusy(false)
+    ctx.view.onInsert(null)
   })
   return <Terminal model={model} onBackToChat={() => ctx.view.leave()} class="flex-1 min-h-0" />
 }

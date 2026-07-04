@@ -19,7 +19,11 @@ export type ExtensionView = {
   actions?: Component
 }
 
-export type ExtensionViewHost = {setLocked(locked: boolean): void; leave(): void}
+export type ExtensionViewHost = {
+  setLocked(locked: boolean): void
+  leave(): void
+  onInsert(handler: ((text: string) => void) | null): void
+}
 
 export type ComposerActions = {
   insert: (text: string) => void

@@ -36,6 +36,21 @@ describe('terminal primitives', () => {
     model.disconnect()
   })
 
+  it('paste routes through terminal input', async () => {
+    const model = createTerminalModel({url: () => 'ws://127.0.0.1:1/never'})
+    const received: string[] = []
+    model.terminal.onData((data) => received.push(data))
+    const {dispose} = mount(() => (
+      <TerminalPrimitive.Root model={model}>
+        <TerminalPrimitive.Screen />
+      </TerminalPrimitive.Root>
+    ))
+    await flush()
+    model.paste('grab text')
+    expect(received.join('')).toContain('grab text')
+    dispose()
+  })
+
   it('shows the banner only after exit', async () => {
     const model = createTerminalModel({url: () => 'ws://127.0.0.1:1/never'})
     const {host, dispose} = mount(() => (

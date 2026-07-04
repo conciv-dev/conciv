@@ -438,13 +438,28 @@ export function ChatPanel(props: {
     client,
     requestMeta,
     grab,
-    view: {setLocked: () => {}, leave: () => {}},
+    view: {setLocked: () => {}, leave: () => {}, onInsert: () => {}},
   }
 
+  const [viewInsertHandlers, setViewInsertHandlers] = createSignal<Record<string, (text: string) => void>>({})
   const viewHostContext = (view: PanelView) => ({
     ...hostBag,
-    view: {setLocked: setLockedFor(view.id), leave: () => switchView('chat')},
+    view: {
+      setLocked: setLockedFor(view.id),
+      leave: () => switchView('chat'),
+      onInsert: (handler: ((text: string) => void) | null) =>
+        setViewInsertHandlers((prev) => {
+          const next = {...prev}
+          if (handler) next[view.id] = handler
+          if (!handler) delete next[view.id]
+          return next
+        }),
+    },
   })
+  const activeInsertHandler = () => {
+    const view = currentView()
+    return view ? viewInsertHandlers()[view.id] : undefined
+  }
 
   const renderActiveView = (): JSX.Element => {
     const view = currentView()
@@ -507,7 +522,35 @@ export function ChatPanel(props: {
                   </Show>
                 </div>
               </Show>
-              <Show when={!currentView()} fallback={renderActiveView()}>
+              <Show
+                when={!currentView()}
+                fallback={
+                  <>
+                    <Show when={grabs().length > 0}>
+                      <div class="flex flex-wrap gap-2 px-2.5 pt-2">
+                        <For each={grabs()}>
+                          {(g) => (
+                            <GrabReference
+                              grab={g}
+                              maxWidth={GRAB_PREVIEW_MAX_W}
+                              onRemove={() => removeGrab(g)}
+                              onInsert={
+                                activeInsertHandler()
+                                  ? () => {
+                                      activeInsertHandler()?.(g.text)
+                                      removeGrab(g)
+                                    }
+                                  : undefined
+                              }
+                            />
+                          )}
+                        </For>
+                      </div>
+                    </Show>
+                    {renderActiveView()}
+                  </>
+                }
+              >
                 <Thread
                   tools={props.tools?.()}
                   components={{ToolFallback: ToolFallbackCard}}
