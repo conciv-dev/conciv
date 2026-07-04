@@ -1,4 +1,5 @@
 import {existsSync} from 'node:fs'
+import {readFile} from 'node:fs/promises'
 import {H3} from 'h3'
 import type {HarnessAdapter, HarnessChild} from '@conciv/protocol/harness-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
@@ -103,6 +104,12 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     ttyCommand: harness.tty?.command,
     release: harness.release,
     transcriptExists: history ? (token) => existsSync(history.transcriptPath(opts.cwd, token)) : undefined,
+    transcriptMessages: history
+      ? async (token) => {
+          const raw = await readFile(history.transcriptPath(opts.cwd, token), 'utf8').catch(() => '')
+          return raw ? history.parse(raw) : []
+        }
+      : undefined,
   }
   const seenTools = new Set<string>()
   const seenNames = new Set<string>()

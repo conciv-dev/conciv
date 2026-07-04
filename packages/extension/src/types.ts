@@ -8,6 +8,7 @@ import type {GrabApi} from '@conciv/grab'
 import type {LocateResult} from '@conciv/protocol/page-introspect-types'
 import type {OpenSourceResult} from '@conciv/protocol/page-types'
 import type {TtyCommand, TtyCommandOpts} from '@conciv/protocol/terminal-types'
+import type {UIMessage} from '@conciv/protocol/chat-types'
 
 export type ExtensionSlot = 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget'
 
@@ -92,6 +93,7 @@ export type ServerHarness = {
   ttyCommand?: (opts: TtyCommandOpts) => TtyCommand
   release?: (sessionId: string) => void
   transcriptExists?: (token: string) => boolean
+  transcriptMessages?: (token: string) => Promise<UIMessage[]>
 }
 
 export type ServerApi<Config> = {

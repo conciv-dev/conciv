@@ -1,6 +1,9 @@
 import {spawn} from 'node:child_process'
+import {mkdirSync, rmSync, writeFileSync} from 'node:fs'
+import {dirname} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {expect, test} from 'vitest'
+import {claude} from '@conciv/harness/claude'
 import {defineExtension, type ServerApi} from '@conciv/extension'
 import {acquireLock, releaseLock} from '../../src/store/lock.js'
 import {startTestServer, type SpawnHarness} from '../helpers/server.js'
@@ -43,6 +46,26 @@ test('extension server api exposes sessions + harness surfaces backed by the rea
     expect(server.harness.id).toBe('claude')
     expect(typeof server.harness.ttyCommand).toBe('function')
     expect(server.harness.transcriptExists?.('no-such-token')).toBe(false)
+
+    expect(await server.harness.transcriptMessages?.('no-such-token')).toEqual([])
+    const token = `surfaces-${process.pid}-${Math.random().toString(36).slice(2)}`
+    const history = claude.history
+    if (!history) throw new Error('claude adapter has no history surface')
+    const transcript = history.transcriptPath(server.cwd, token)
+    mkdirSync(dirname(transcript), {recursive: true})
+    writeFileSync(
+      transcript,
+      [
+        JSON.stringify({type: 'user', message: {role: 'user', content: 'what else can you do?'}}),
+        JSON.stringify({type: 'assistant', message: {role: 'assistant', content: [{type: 'text', text: 'Lots.'}]}}),
+      ].join('\n'),
+    )
+    try {
+      const messages = await server.harness.transcriptMessages?.(token)
+      expect(messages?.map((m) => m.role)).toEqual(['user', 'assistant'])
+    } finally {
+      rmSync(transcript, {force: true})
+    }
   } finally {
     await it.close()
   }
