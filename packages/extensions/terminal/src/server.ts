@@ -3,7 +3,7 @@ import {HTTPError, defineWebSocketHandler, readValidatedBody} from 'h3'
 import type {Peer} from 'crossws'
 import {defineExtension} from '@conciv/extension'
 import {CONCIV_SESSION_HEADER, isSessionId} from '@conciv/protocol/chat-types'
-import {TtyClientControlSchema} from '@conciv/protocol/terminal-types'
+import {TtyClientControlSchema, type TtyClientControl} from '@conciv/protocol/terminal-types'
 import {createTtySessions, type TtySink} from './server/pty-sessions.js'
 import {TERMINAL_NAME, TerminalOpenRequestSchema, type TerminalState} from './shared/protocol.js'
 
@@ -37,7 +37,11 @@ export default defineExtension({name: TERMINAL_NAME}).server((server) => {
     const model = await server.sessions.model(sessionId)
     const resume = Boolean(existing) && (server.harness.transcriptExists?.(harnessSessionId) ?? true)
     server.harness.release?.(sessionId)
-    const session = ttySessions.open(sessionId, ttyCommand({cwd: server.cwd, harnessSessionId, resume, model}), server.cwd)
+    const session = ttySessions.open(
+      sessionId,
+      ttyCommand({cwd: server.cwd, harnessSessionId, resume, model}),
+      server.cwd,
+    )
     if (size.cols && size.rows) session.resize(size.cols, size.rows)
     return {alive: true}
   })
@@ -84,8 +88,12 @@ export default defineExtension({name: TERMINAL_NAME}).server((server) => {
         if (!session) return
         const text = message.text()
         const control = parseControl(text)
-        if (control) {
+        if (control?.type === 'resize') {
           session.resize(control.cols, control.rows)
+          return
+        }
+        if (control?.type === 'inject') {
+          session.inject(control.text)
           return
         }
         session.write(text)
@@ -100,11 +108,11 @@ export default defineExtension({name: TERMINAL_NAME}).server((server) => {
   return {context: {}, dispose: () => ttySessions.shutdown()}
 })
 
-function parseControl(text: string): {cols: number; rows: number} | null {
+function parseControl(text: string): TtyClientControl | null {
   if (!text.startsWith('{')) return null
   try {
     const parsed = TtyClientControlSchema.safeParse(JSON.parse(text))
-    return parsed.success ? {cols: parsed.data.cols, rows: parsed.data.rows} : null
+    return parsed.success ? parsed.data : null
   } catch {
     return null
   }

@@ -23,6 +23,7 @@ export type TerminalModel = {
   connect(): void
   disconnect(): void
   fit(): void
+  inject(text: string): void
   __testReceiveControl(frame: TtyServerControl): void
 }
 
@@ -127,6 +128,9 @@ export function createTerminalModel(opts: TerminalModelOpts): TerminalModel {
     fit: () => {
       fitAddon.fit()
       sendResize()
+    },
+    inject: (text) => {
+      if (state.socket?.readyState === WebSocket.OPEN) state.socket.send(JSON.stringify({type: 'inject', text}))
     },
     __testReceiveControl: receiveControl,
   }

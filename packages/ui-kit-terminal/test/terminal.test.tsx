@@ -30,6 +30,12 @@ describe('terminal primitives', () => {
     dispose()
   })
 
+  it('inject is a safe no-op while disconnected', async () => {
+    const model = createTerminalModel({url: () => 'ws://127.0.0.1:1/never'})
+    expect(() => model.inject('note')).not.toThrow()
+    model.disconnect()
+  })
+
   it('shows the banner only after exit', async () => {
     const model = createTerminalModel({url: () => 'ws://127.0.0.1:1/never'})
     const {host, dispose} = mount(() => (

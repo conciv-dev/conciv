@@ -87,6 +87,16 @@ describe('terminal extension routes', () => {
     client.ws.close()
   })
 
+  it('inject control frame writes a marker readable by a reconnecting socket', async () => {
+    const client = await connect(wsBase(), sessionId)
+    client.ws.send(JSON.stringify({type: 'inject', text: 'conciv says hi'}))
+    await until(() => client.received.join('').includes('\r\nconciv says hi\r\n'))
+    client.ws.close()
+    const second = await connect(wsBase(), sessionId)
+    await until(() => second.received.join('').includes('\r\nconciv says hi\r\n'))
+    second.ws.close()
+  })
+
   it('a chat turn on the session kills the pty', async () => {
     ctx.server?.sessions.fireChatTurn(sessionId)
     const ws = new WebSocket(`${wsBase()}/api/ext/terminal/tty?session=${sessionId}`)

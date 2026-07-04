@@ -9,11 +9,14 @@ export type TtyCommandOpts = {
   model?: string | null
 }
 
-export const TtyClientControlSchema = z.object({
-  type: z.literal('resize'),
-  cols: z.number().int().min(2).max(500),
-  rows: z.number().int().min(2).max(500),
-})
+export const TtyClientControlSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('resize'),
+    cols: z.number().int().min(2).max(500),
+    rows: z.number().int().min(2).max(500),
+  }),
+  z.object({type: z.literal('inject'), text: z.string().min(1).max(4096)}),
+])
 export type TtyClientControl = z.infer<typeof TtyClientControlSchema>
 
 export const TtyServerControlSchema = z.discriminatedUnion('type', [
