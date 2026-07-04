@@ -551,9 +551,15 @@ importers:
       '@conciv/ui-kit-chat':
         specifier: workspace:^
         version: link:../../ui-kit-chat
+      '@conciv/ui-kit-chat-tools':
+        specifier: workspace:^
+        version: link:../../ui-kit-chat-tools
       '@conciv/ui-kit-terminal':
         specifier: workspace:^
         version: link:../../ui-kit-terminal
+      '@tanstack/ai-client':
+        specifier: ^0.16.3
+        version: 0.16.3(@opentelemetry/api@1.9.1)
       h3:
         specifier: 2.0.1-rc.22
         version: 2.0.1-rc.22(crossws@0.4.6(srvx@0.11.16))

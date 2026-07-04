@@ -2,6 +2,7 @@ import {createEffect, createResource, createSignal, on, onCleanup, Show, type JS
 import {Terminal, createTerminalModel, type TerminalTheme} from '@conciv/ui-kit-terminal'
 import type {ExtensionHostContext} from '@conciv/extension'
 import {terminal} from '../client.js'
+import {MirrorRail} from './mirror-rail.js'
 import type {TerminalStore} from './terminal-store.js'
 
 const DEFAULT_COLS = 120
@@ -54,7 +55,15 @@ function TerminalSurface(props: {ctx: ViewContext; generation: number; themeHost
     ctx.store.setBusy(false)
     ctx.view.onInsert(null)
   })
-  return <Terminal model={model} onBackToChat={() => ctx.view.leave()} class="flex-1 min-h-0" />
+  const headers = () => ({...ctx.client.chatHeaders()})
+  return (
+    <Terminal
+      model={model}
+      onBackToChat={() => ctx.view.leave()}
+      class="flex-1 min-h-0"
+      rail={<MirrorRail apiBase={ctx.apiBase} headers={headers} />}
+    />
+  )
 }
 
 export function TerminalPanelView(): JSX.Element {
