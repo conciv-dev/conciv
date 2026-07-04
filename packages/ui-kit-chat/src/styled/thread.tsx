@@ -117,6 +117,11 @@ function AssistantTurn(props: {entries: ToolCardEntry[]; fallback: ToolUICompone
   )
   const streamingAt = (index: number) => thread.isRunning && message.isLast() && index === lastTextIndex()
   const isLastSegment = (index: number) => index === segments().length - 1
+  const awaitsApproval = (indices: number[]) =>
+    indices.some((index) => {
+      const part = parts()[index]
+      return part?.type === 'tool-call' && part.state === 'approval-requested'
+    })
   const asChain = (segment: Segment) => (segment.kind === 'chain' ? segment : null)
   const asReply = (segment: Segment) => (segment.kind === 'reply' ? segment : null)
   return (
@@ -128,7 +133,10 @@ function AssistantTurn(props: {entries: ToolCardEntry[]; fallback: ToolUICompone
           <Switch>
             <Match when={asChain(segment())}>
               {(chain) => (
-                <ChainOfThought streaming={thread.isRunning && message.isLast() && isLastSegment(segmentIndex)}>
+                <ChainOfThought
+                  streaming={thread.isRunning && message.isLast() && isLastSegment(segmentIndex)}
+                  pinnedOpen={awaitsApproval(chain().indices)}
+                >
                   <Index each={chain().indices}>
                     {(partIndex, partPosition) => (
                       <ChainPart

@@ -86,6 +86,8 @@ The `cursors` table already supports `kind: 'agent'`.
 - Rewrite `promptSnippet`s to route by intent: `canvas.svg` for illustrations and organic shapes, `canvas.draw` for boxes and layout, `canvas.diagram` for structured graphs.
 - Teach the loop: draft → `canvas.preview` → self-critique → refine (repeat) → `canvas.export` (png, draft) as the final fidelity check → `canvas.commit`.
 - Composition guidance: establish big shapes first, layer detail, keep a limited palette, style with Excalidraw fields (`strokeColor`, `backgroundColor`, `fillStyle`, `strokeWidth`, `roughness`).
+- Style routing (spike stages 07–08): flat fills + clean outlines read as clipart — right for icons, diagrams, quick asks. For "draw me X" default to sketch technique: hatched shading, contour strokes, varied line weight, minimal fills. Same pipeline, different instruction; the spike owl proves the ceiling.
+- Redraw from reference (spike stage 10): when a reference image is available (user-dropped on canvas, present in the conversation), study it and author fresh semantic SVG matching its palette, pose, and structure. Never trace a bitmap into paths — traced output is uneditable patch soup. Output stays editable Excalidraw elements; every path keeps meaning.
 
 ### 7. Error handling
 
@@ -118,6 +120,6 @@ Each slice lands independently; slice 1 is useful on its own. Slices 2+3 togethe
 
 ## Out of scope
 
-- Image-generation APIs / bitmap output.
-- Excalidraw community libraries integration.
-- Ghost preview of the draft for the user.
+- Bitmap output on the canvas. Explored and rejected in the spike: the whiteboard's value is editable strokes. This includes diffusion-rendered images and traced vectorizations of them.
+- External image services (fal.ai etc.) — hard constraint, local-only product.
+- Local diffusion as a reference generator (validated in the spike: stable-diffusion.cpp on Metal, SD 1.5, ~30s/frame, img2img from the vector draft; output fed to the agent's eyes for semantic redraw, never to the canvas). Viable future optional extension, off by default; costs 2.1GB weights + binary distribution per machine. Reference-redraw itself ships in v1 via the prompt pack — it just needs a user-provided reference instead of a generated one.
