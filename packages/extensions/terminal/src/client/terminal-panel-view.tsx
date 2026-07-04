@@ -95,7 +95,7 @@ export function TerminalPanelView(): JSX.Element {
 
   let host: HTMLDivElement | undefined
   return (
-    <div ref={host} class="flex flex-col flex-1 min-h-0 anim-msg">
+    <div ref={host} class="flex flex-1 flex-col min-h-0 anim-msg">
       <Show
         when={!opened.error}
         fallback={
@@ -110,7 +110,7 @@ export function TerminalPanelView(): JSX.Element {
         <Show
           when={opened()}
           fallback={
-            <div class="flex flex-1 items-center justify-center text-[0.75rem] text-pw-text-2" role="status">
+            <div class="text-[0.75rem] text-pw-text-2 flex flex-1 items-center justify-center" role="status">
               connecting…
             </div>
           }
