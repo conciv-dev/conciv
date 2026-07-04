@@ -2,6 +2,16 @@ import {useRef, useState} from 'react'
 import {useGSAP} from '@gsap/react'
 import gsap from 'gsap'
 import {Check, RotateCcw} from 'lucide-react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import {Badge} from '@/components/ui/badge'
 import {Button} from '@/components/ui/button'
 import {Card} from '@/components/ui/card'
@@ -13,6 +23,7 @@ import {GhostCursor} from './ghost-cursor'
 import {SparkMark} from '../spark-mark'
 import {useDemo} from './use-demo'
 import {useLocalModel} from './use-local-model'
+import {useMeteredConnection} from './use-metered-connection'
 import {PICKABLES, pickScenario, type Scenario} from './demo-data'
 import {MODELS, type CssPatch} from './models'
 
@@ -40,7 +51,9 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 export function Demo() {
   const [state, dispatch] = useDemo()
   const [input, setInput] = useState('')
+  const [pendingText, setPendingText] = useState<string | null>(null)
   const model = useLocalModel()
+  const metered = useMeteredConnection()
 
   const scope = useRef<HTMLDivElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
@@ -179,9 +192,23 @@ export function Demo() {
   const onSend = () => {
     const text = input.trim()
     if (!text) return
+    if (metered && model.willDownload()) {
+      setPendingText(text)
+      return
+    }
     model.load()
     void runLocal(text)
   }
+
+  const onConfirmDownload = () => {
+    const text = pendingText
+    setPendingText(null)
+    if (!text) return
+    model.load()
+    void runLocal(text)
+  }
+
+  const selectedModel = MODELS.find((option) => option.id === model.selected)
 
   return (
     <div className="relative" ref={scope}>
@@ -264,6 +291,25 @@ export function Demo() {
       </Card>
 
       <GhostCursor cursorRef={ghostRef} />
+
+      <AlertDialog open={pendingText !== null} onOpenChange={(open) => setPendingText(open ? pendingText : null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Download over mobile data?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You look like you're on a mobile or data-saver connection. Running the demo downloads{' '}
+              {selectedModel?.label ?? 'the model'} ({selectedModel?.size ?? 'a few hundred MB'}) to your browser. It's
+              cached after the first run.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Not now</AlertDialogCancel>
+            <AlertDialogAction onClick={onConfirmDownload}>
+              Download {selectedModel?.size ?? 'anyway'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
