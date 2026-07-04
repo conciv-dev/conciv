@@ -9,7 +9,20 @@ export const app = schema.defineApp({
   }),
   canvasPending: schema.table({
     room: col.string(),
-    kind: col.enum('skeletons', 'mermaid'),
+    kind: col.enum('skeletons', 'mermaid', 'svg', 'export', 'commit', 'discard'),
+    stage: col.enum('draft', 'live').default('live'),
+    payload: col.json(),
+  }),
+  canvasDraftElements: schema.table({
+    room: col.string(),
+    elementId: col.string(),
+    data: col.json(),
+    version: col.int(),
+  }),
+  canvasReplies: schema.table({
+    room: col.string(),
+    requestId: col.string(),
+    kind: col.enum('export'),
     payload: col.json(),
   }),
   comments: schema.table({

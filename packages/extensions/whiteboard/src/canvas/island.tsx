@@ -16,7 +16,12 @@ export type Self = {peerId: string; name: string; color: string}
 
 type SceneElement = OrderedExcalidrawElement
 type ElementRow = {id: string; elementId: string; data: JsonValue; version: number}
-type PendingRow = {id: string; kind: 'skeletons' | 'mermaid'; payload: JsonValue}
+type PendingRow = {
+  id: string
+  kind: 'skeletons' | 'mermaid' | 'svg' | 'export' | 'commit' | 'discard'
+  stage?: 'draft' | 'live'
+  payload: JsonValue
+}
 type CursorRow = {
   id: string
   peerId: string
@@ -173,6 +178,7 @@ export function Island(props: {
   )
   const unsubscribePending = db().subscribeAll(app.canvasPending.where({room: props.room}), ({all}) =>
     (all as readonly PendingRow[]).forEach((row) => {
+      if (row.kind !== 'skeletons' && row.kind !== 'mermaid') return
       if (draining.has(row.id)) return
       draining.add(row.id)
       void drainPending(row)
