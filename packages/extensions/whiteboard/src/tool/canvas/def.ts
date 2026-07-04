@@ -27,6 +27,7 @@ export const CanvasClearInput = z.object({})
 export const CanvasExportInput = z.object({})
 export const CanvasCommitInput = z.object({})
 export const CanvasDiscardInput = z.object({})
+export const CanvasPreviewInput = z.object({})
 
 export const canvasReadDef = {
   name: 'canvas.read',
@@ -113,4 +114,13 @@ export const canvasDiscardDef = {
   description: 'Throw away the hidden draft without publishing anything.',
   inputSchema: CanvasDiscardInput,
   promptSnippet: 'Use canvas.discard to abandon a draft and start over.',
+}
+
+export const canvasPreviewDef = {
+  name: 'canvas.preview',
+  description:
+    'Fast server-side PNG of the current hidden draft (approximate: plain shapes, no hand-drawn strokes). Use between refinements; canvas.export png is the ground truth.',
+  inputSchema: CanvasPreviewInput,
+  streamTitle: 'Checking the draft',
+  promptSnippet: 'After drawing into the draft, call canvas.preview, critique the image, refine, repeat.',
 }

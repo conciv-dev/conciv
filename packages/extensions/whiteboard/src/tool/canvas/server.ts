@@ -1,8 +1,10 @@
 import type {JsonValue} from 'jazz-tools'
-import {defineTool} from '@conciv/extension'
+import {defineTool, imageResult} from '@conciv/extension'
 import {app} from '../../shared/schema.js'
 import type {WhiteboardToolContext} from '../../server/context.js'
 import {validateSvg} from './svg-caps.js'
+import {draftToSvg, type DraftElement} from './draft-svg.js'
+import {renderDraftPng} from './preview.js'
 import {
   canvasClearDef,
   canvasCommitDef,
@@ -12,6 +14,7 @@ import {
   canvasDiscardDef,
   canvasDrawDef,
   canvasExportDef,
+  canvasPreviewDef,
   canvasReadDef,
   canvasSvgDef,
   canvasUpdateDef,
@@ -23,6 +26,7 @@ import {
   type CanvasDiscardInput,
   type CanvasDrawInput,
   type CanvasExportInput,
+  type CanvasPreviewInput,
   type CanvasReadInput,
   type CanvasSvgInput,
   type CanvasUpdateInput,
@@ -179,9 +183,25 @@ export const canvasDiscardTool = defineTool<typeof CanvasDiscardInput, Whiteboar
   },
 )
 
+export const canvasPreviewTool = defineTool<typeof CanvasPreviewInput, WhiteboardToolContext>(canvasPreviewDef).server(
+  async (_input, ctx, request) => {
+    const rows = await ctx.db.all(app.canvasDraftElements.where({room: ctx.room(request)}), {tier: 'global'})
+    if (!rows.length) return {empty: true, reason: 'draft has no elements yet'}
+    const elements = rows.map((row) => row.data as unknown as DraftElement)
+    const {svg, width, height} = draftToSvg(elements)
+    try {
+      return imageResult('image/png', await renderDraftPng(svg, width, height), {elements: rows.length})
+    } catch (error) {
+      console.error(`[whiteboard] canvas.preview render failed: ${String(error)}`)
+      return {error: 'preview render failed', reason: String(error), elements: rows.length}
+    }
+  },
+)
+
 export const canvasTools = [
   canvasReadTool,
   canvasSvgTool,
+  canvasPreviewTool,
   canvasExportTool,
   canvasDrawTool,
   canvasDiagramTool,
