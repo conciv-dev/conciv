@@ -10,7 +10,7 @@ import type {SessionStore} from '../../store/session-store.js'
 import type {UiBus} from '../../runtime/ui-bus.js'
 import type {TurnHub} from '../../runtime/turn-hub.js'
 import type {PermissionGate} from './permission.js'
-import {toChatMessages} from './messages.js'
+import {toChatMessages, toPendingUserMessage} from './messages.js'
 import {sessionIdFromHeaders} from './session-id.js'
 import {harnessDebug} from '../../runtime/harness-logger.js'
 
@@ -129,8 +129,13 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
       uiBus.setModel(sessionId, chatReq.model ?? chatReq.forwardedProps?.model ?? chatReq.data?.model ?? null)
       const merged = uiBus.run(sessionId, stream)
       const lastUserMessage = chatReq.messages.findLast((message) => message.role === 'user') ?? null
+      const pendingUserMessage = lastUserMessage ? toPendingUserMessage(lastUserMessage) : null
       void deps.hub
-        .start(sessionId, lastUserMessage, withLockRelease(merged, deps.store, deps.stateRoot, sessionId, deps.onTurnEnd))
+        .start(
+          sessionId,
+          pendingUserMessage,
+          withLockRelease(merged, deps.store, deps.stateRoot, sessionId, deps.onTurnEnd),
+        )
         .catch(() => {})
       return {ok: true}
     } catch (e) {

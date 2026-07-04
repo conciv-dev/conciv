@@ -1,4 +1,4 @@
-import type {ContentPart, ModelMessage} from '@tanstack/ai'
+import type {ContentPart, ModelMessage, UIMessage} from '@tanstack/ai'
 import type {ChatMessage, ChatRequest} from '@conciv/protocol/chat-types'
 
 function messageText(m: ChatMessage): string {
@@ -43,4 +43,9 @@ export function toChatMessages(req: ChatRequest): ModelMessage[] {
 export function lastUserText(req: ChatRequest): string {
   const last = req.messages.filter((m) => m.role === 'user').at(-1)
   return last ? messageText(last) : ''
+}
+
+export function toPendingUserMessage(message: ChatMessage): UIMessage {
+  const id = 'id' in message && typeof message.id === 'string' ? message.id : 'conciv-pending-user'
+  return {id, role: 'user', parts: [{type: 'text', content: messageText(message)}]}
 }

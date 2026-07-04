@@ -1,6 +1,6 @@
 import type {H3} from 'h3'
 import {HTTPError} from 'h3'
-import {toServerSentEventsStream, type StreamChunk, type UIMessage} from '@tanstack/ai'
+import {toServerSentEventsStream, type StreamChunk} from '@tanstack/ai'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import type {ChatHistory} from '@conciv/protocol/chat-types'
 import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
@@ -30,12 +30,12 @@ export function registerAttachRoute(app: H3, deps: AttachDeps): void {
   app.get('/api/chat/attach', async (event) => {
     const sessionId = sessionIdFromHeaders(event.req.headers)
     if (!sessionId) throw new HTTPError({status: 400, message: 'no session'})
-    const history = await transcriptMessages(deps, sessionId)
     const abort = new AbortController()
     event.req.signal.addEventListener('abort', () => abort.abort())
-    const pending = deps.hub.pendingUserMessage(sessionId) as UIMessage | null
+    const pending = deps.hub.pendingUserMessage(sessionId)
     const generating = deps.hub.generating(sessionId)
     const {replay, live} = deps.hub.attach(sessionId, abort.signal)
+    const history = await transcriptMessages(deps, sessionId)
     const settled = settledMessages(history, pending ? userText(pending) : null)
     const messages = pending ? [...settled, pending] : settled
     async function* chunks(): AsyncGenerator<StreamChunk> {
