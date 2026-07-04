@@ -5,6 +5,7 @@ import {defineExtension} from '@conciv/extension'
 import {CONCIV_SESSION_HEADER, isSessionId} from '@conciv/protocol/chat-types'
 import {TtyClientControlSchema, type TtyClientControl} from '@conciv/protocol/terminal-types'
 import {createTtySessions, type TtySink} from './server/pty-sessions.js'
+import {watchMirror} from './server/mirror.js'
 import {TERMINAL_NAME, TerminalOpenRequestSchema, type TerminalState} from './shared/protocol.js'
 
 export default defineExtension({name: TERMINAL_NAME}).server((server) => {
@@ -59,6 +60,30 @@ export default defineExtension({name: TERMINAL_NAME}).server((server) => {
     const sessionId = requireSession(event.req.headers)
     const session = ttySessions.get(sessionId)
     return {alive: Boolean(session) && !session?.exited(), busy: session?.busy() ?? false}
+  })
+
+  server.app.get('/mirror', async (event) => {
+    const sessionId = requireSession(event.req.headers)
+    const token = await server.sessions.resumeToken(sessionId)
+    const transcriptMessages = server.harness.transcriptMessages
+    if (!token || !transcriptMessages) throw new HTTPError({status: 404, message: 'no transcript'})
+    const encoder = new TextEncoder()
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const stop = watchMirror({messages: () => transcriptMessages(token)}, (payload) => {
+          try {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`))
+          } catch {
+            stop()
+          }
+        })
+        event.req.signal.addEventListener('abort', stop)
+      },
+    })
+    return new Response(stream, {
+      status: 200,
+      headers: {'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive'},
+    })
   })
 
   const detachments = new WeakMap<Peer, () => void>()
