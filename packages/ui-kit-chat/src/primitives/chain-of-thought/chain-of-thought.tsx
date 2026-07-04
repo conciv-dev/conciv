@@ -15,11 +15,11 @@ export function useChainOfThought(): ChainState {
   return context
 }
 
-type RootProps = ParentProps<{defaultOpen?: boolean; streaming?: boolean}>
+type RootProps = ParentProps<{defaultOpen?: boolean; streaming?: boolean; pinnedOpen?: boolean}>
 
 function Root(props: RootProps): JSX.Element {
   const [userOpen, setUserOpen] = createSignal<boolean | undefined>(props.defaultOpen)
-  const open = () => userOpen() ?? props.streaming ?? false
+  const open = () => userOpen() ?? (props.streaming || props.pinnedOpen) ?? false
   const state: ChainState = {
     open,
     setOpen: (next) => setUserOpen(next),

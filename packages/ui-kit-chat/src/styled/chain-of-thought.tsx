@@ -8,7 +8,7 @@ import {
 import {SHIMMER} from './shimmer.js'
 import {FOCUS} from './classes.js'
 
-export type ChainOfThoughtProps = ParentProps<{streaming?: boolean; durationMs?: number}>
+export type ChainOfThoughtProps = ParentProps<{streaming?: boolean; pinnedOpen?: boolean; durationMs?: number}>
 
 const TRIGGER = `group flex items-center gap-2 w-full px-3 py-2 text-[length:var(--chat-text-md)] text-[color:var(--chat-text-2)] cursor-pointer select-none [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] rounded-[var(--chat-radius-md)] [transition:background_140ms_var(--chat-ease)] hover:[background:var(--chat-fill-strong)] ${FOCUS}`
 
@@ -57,7 +57,7 @@ function Shell(props: ParentProps): JSX.Element {
 
 function Root(props: ChainOfThoughtProps): JSX.Element {
   return (
-    <ChainOfThoughtPrimitive.Root streaming={props.streaming}>
+    <ChainOfThoughtPrimitive.Root streaming={props.streaming} pinnedOpen={props.pinnedOpen}>
       <Shell>{props.children}</Shell>
     </ChainOfThoughtPrimitive.Root>
   )
