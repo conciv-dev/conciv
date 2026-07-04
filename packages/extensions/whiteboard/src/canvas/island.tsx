@@ -10,6 +10,7 @@ import type {ExcalidrawElement, OrderedExcalidrawElement} from '@excalidraw/exca
 import type {ExcalidrawElementSkeleton} from '@excalidraw/excalidraw/data/transform'
 import type {CaptureUpdateActionType} from '@excalidraw/excalidraw/store'
 import {app} from '../shared/schema.js'
+import {replayDraft, type ReplayHandle} from './replay.js'
 import type {Viewport} from './coords.js'
 
 export type Self = {peerId: string; name: string; color: string}
@@ -177,6 +178,82 @@ export function Island(props: {
     }
   }
 
+  const agentPeerId = `agent:${props.room}`
+  const ensureAgentCursor = async (x: number, y: number): Promise<string> => {
+    const existing = (await db().all(app.cursors.where({room: props.room, peerId: agentPeerId}), {tier: 'global'}))[0]
+    if (existing) {
+      await db().update(app.cursors, existing.id, {x, y, lastSeen: new Date()}).wait({tier: 'edge'})
+      return existing.id
+    }
+    const write = db().insert(app.cursors, {
+      room: props.room,
+      peerId: agentPeerId,
+      kind: 'agent',
+      name: 'drawing…',
+      color: '#8a86e8',
+      x,
+      y,
+      lastSeen: new Date(),
+    })
+    await write.wait({tier: 'edge'})
+    return write.value.id
+  }
+
+  const moveAgentCursor = (cursorId: string, x: number, y: number): void =>
+    void db()
+      .update(app.cursors, cursorId, {x, y, lastSeen: new Date()})
+      .wait({tier: 'edge'})
+      .catch((error) => console.error(`[whiteboard] agent cursor move failed: ${String(error)}`))
+
+  const performCommit = async (row: PendingRow): Promise<void> => {
+    const drafts = await db().all(app.canvasDraftElements.where({room: props.room}), {tier: 'global'})
+    const ordered = drafts.map((draft) => draft as unknown as ElementRow)
+    let handle: ReplayHandle | undefined
+    const onPointerDown = (): void => handle?.skip()
+    try {
+      const steps = await Promise.all(
+        ordered.map(async (draft) => {
+          const data = draft.data as unknown as {x?: number; y?: number}
+          const liveId = await stableUuid(`commit:${draft.id}`)
+          return {
+            elementId: draft.elementId,
+            x: data.x ?? 0,
+            y: data.y ?? 0,
+            write: (): void =>
+              void db()
+                .upsert(
+                  app.canvasElements,
+                  {room: props.room, elementId: draft.elementId, data: draft.data, version: draft.version},
+                  {id: liveId},
+                )
+                .wait({tier: 'edge'})
+                .catch((error) => console.error(`[whiteboard] commit element write failed: ${String(error)}`)),
+          }
+        }),
+      )
+      const cursorId = await ensureAgentCursor(steps[0]?.x ?? 0, steps[0]?.y ?? 0).catch((error) => {
+        console.error(`[whiteboard] agent cursor create failed: ${String(error)}`)
+        return undefined
+      })
+      container?.addEventListener('pointerdown', onPointerDown, {once: true})
+      handle = replayDraft(steps, (x, y) => (cursorId ? moveAgentCursor(cursorId, x, y) : undefined))
+      await handle.done
+      const deletions = await Promise.allSettled(
+        ordered.map((draft) => db().delete(app.canvasDraftElements, draft.id).wait({tier: 'edge'})),
+      )
+      const failed = deletions.filter((outcome) => outcome.status === 'rejected').length
+      if (failed) console.error(`[whiteboard] commit: ${failed} draft delete(s) failed`)
+    } catch (error) {
+      console.error(`[whiteboard] performCommit ${row.id} failed: ${String(error)}`)
+    } finally {
+      container?.removeEventListener('pointerdown', onPointerDown)
+      await db()
+        .delete(app.canvasPending, row.id)
+        .wait({tier: 'edge'})
+        .catch((error) => console.error(`[whiteboard] deleting commit pending ${row.id} failed: ${String(error)}`))
+    }
+  }
+
   const collaboratorsFrom = (rows: readonly CursorRow[]): Map<SocketId, Collaborator> => {
     const now = Date.now()
     const map = new Map<SocketId, Collaborator>()
@@ -198,10 +275,11 @@ export function Island(props: {
   )
   const unsubscribePending = db().subscribeAll(app.canvasPending.where({room: props.room}), ({all}) =>
     (all as readonly PendingRow[]).forEach((row) => {
-      if (row.kind !== 'skeletons' && row.kind !== 'mermaid' && row.kind !== 'svg') return
       if (draining.has(row.id)) return
+      const drawable = row.kind === 'skeletons' || row.kind === 'mermaid' || row.kind === 'svg'
+      if (!drawable && row.kind !== 'commit') return
       draining.add(row.id)
-      void drainPending(row)
+      void (row.kind === 'commit' ? performCommit(row) : drainPending(row))
     }),
   )
 

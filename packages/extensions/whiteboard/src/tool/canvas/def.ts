@@ -25,6 +25,8 @@ export const CanvasUpdateInput = z.object({elementId: z.string(), patch: z.recor
 export const CanvasDeleteInput = z.object({elementId: z.string()})
 export const CanvasClearInput = z.object({})
 export const CanvasExportInput = z.object({})
+export const CanvasCommitInput = z.object({})
+export const CanvasDiscardInput = z.object({})
 
 export const canvasReadDef = {
   name: 'canvas.read',
@@ -96,4 +98,19 @@ export const canvasExportDef = {
   description: 'Return the canvas scene as JSON (no image export in v1).',
   inputSchema: CanvasExportInput,
   promptSnippet: 'Use canvas.export to capture the scene elements as JSON.',
+}
+
+export const canvasCommitDef = {
+  name: 'canvas.commit',
+  description: 'Publish the hidden draft to the shared canvas. The agent cursor performs the drawing for the user.',
+  inputSchema: CanvasCommitInput,
+  streamTitle: 'Publishing the drawing',
+  promptSnippet: 'Always finish a drawing with canvas.commit; until then the user sees nothing.',
+}
+
+export const canvasDiscardDef = {
+  name: 'canvas.discard',
+  description: 'Throw away the hidden draft without publishing anything.',
+  inputSchema: CanvasDiscardInput,
+  promptSnippet: 'Use canvas.discard to abandon a draft and start over.',
 }

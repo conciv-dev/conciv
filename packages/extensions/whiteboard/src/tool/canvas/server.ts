@@ -5,18 +5,22 @@ import type {WhiteboardToolContext} from '../../server/context.js'
 import {validateSvg} from './svg-caps.js'
 import {
   canvasClearDef,
+  canvasCommitDef,
   canvasConnectDef,
   canvasDeleteDef,
   canvasDiagramDef,
+  canvasDiscardDef,
   canvasDrawDef,
   canvasExportDef,
   canvasReadDef,
   canvasSvgDef,
   canvasUpdateDef,
   type CanvasClearInput,
+  type CanvasCommitInput,
   type CanvasConnectInput,
   type CanvasDeleteInput,
   type CanvasDiagramInput,
+  type CanvasDiscardInput,
   type CanvasDrawInput,
   type CanvasExportInput,
   type CanvasReadInput,
@@ -99,23 +103,29 @@ export const canvasConnectTool = defineTool<typeof CanvasConnectInput, Whiteboar
 
 export const canvasUpdateTool = defineTool<typeof CanvasUpdateInput, WhiteboardToolContext>(canvasUpdateDef).server(
   async (input, ctx, request) => {
-    const [current] = await ctx.db.all(
-      app.canvasElements.where({room: ctx.room(request), elementId: input.elementId}),
-      {tier: 'global'},
-    )
+    const room = ctx.room(request)
+    const [draft] = await ctx.db.all(app.canvasDraftElements.where({room, elementId: input.elementId}), {tier: 'global'})
+    const [live] = draft ? [] : await ctx.db.all(app.canvasElements.where({room, elementId: input.elementId}), {tier: 'global'})
+    const current = draft ?? live
     if (!current) return {updated: false}
+    const table = draft ? app.canvasDraftElements : app.canvasElements
     const data = Object.assign({}, current.data, input.patch) as JsonValue
-    await ctx.db.update(app.canvasElements, current.id, {data, version: current.version + 1}).wait({tier: 'edge'})
+    await ctx.db.update(table, current.id, {data, version: current.version + 1}).wait({tier: 'edge'})
     return {updated: true}
   },
 )
 
 export const canvasDeleteTool = defineTool<typeof CanvasDeleteInput, WhiteboardToolContext>(canvasDeleteDef).server(
   async (input, ctx, request) => {
-    const rows = await ctx.db.all(app.canvasElements.where({room: ctx.room(request), elementId: input.elementId}), {
-      tier: 'global',
-    })
-    await Promise.all(rows.map((row) => ctx.db.delete(app.canvasElements, row.id).wait({tier: 'edge'})))
+    const room = ctx.room(request)
+    const draftHits = await ctx.db.all(app.canvasDraftElements.where({room, elementId: input.elementId}), {tier: 'global'})
+    const table = draftHits.length ? app.canvasDraftElements : app.canvasElements
+    const rows = draftHits.length
+      ? draftHits
+      : await ctx.db.all(app.canvasElements.where({room, elementId: input.elementId}), {tier: 'global'})
+    const outcomes = await Promise.allSettled(rows.map((row) => ctx.db.delete(table, row.id).wait({tier: 'edge'})))
+    const failed = outcomes.filter((outcome) => outcome.status === 'rejected').length
+    if (failed) console.error(`[whiteboard] canvas.delete: ${failed} delete(s) failed for ${input.elementId}`)
     return {deleted: input.elementId}
   },
 )
@@ -133,6 +143,42 @@ export const canvasClearTool = defineTool<typeof CanvasClearInput, WhiteboardToo
   },
 )
 
+const draftRows = async (ctx: WhiteboardToolContext, room: string) =>
+  ctx.db.all(app.canvasDraftElements.where({room}), {tier: 'global'})
+
+export const canvasCommitTool = defineTool<typeof CanvasCommitInput, WhiteboardToolContext>(canvasCommitDef).server(
+  async (_input, ctx, request) => {
+    const room = ctx.room(request)
+    const drafts = await draftRows(ctx, room)
+    if (!drafts.length) return {committed: false, reason: 'no draft to commit'}
+    await ctx.db
+      .insert(app.canvasPending, {room, kind: 'commit', stage: 'live', payload: {} as JsonValue})
+      .wait({tier: 'edge'})
+    const deadline = Date.now() + 15_000
+    while (Date.now() < deadline) {
+      const remaining = await draftRows(ctx, room)
+      if (!remaining.length) return {committed: true, elements: drafts.length}
+      await new Promise((resolve) => setTimeout(resolve, 250))
+    }
+    throw new Error('commit timed out: no canvas tab is connected to perform it')
+  },
+)
+
+export const canvasDiscardTool = defineTool<typeof CanvasDiscardInput, WhiteboardToolContext>(canvasDiscardDef).server(
+  async (_input, ctx, request) => {
+    const room = ctx.room(request)
+    const drafts = await draftRows(ctx, room)
+    const pendings = await ctx.db.all(app.canvasPending.where({room, stage: 'draft'}), {tier: 'global'})
+    const outcomes = await Promise.allSettled([
+      ...drafts.map((row) => ctx.db.delete(app.canvasDraftElements, row.id).wait({tier: 'edge'})),
+      ...pendings.map((row) => ctx.db.delete(app.canvasPending, row.id).wait({tier: 'edge'})),
+    ])
+    const failed = outcomes.filter((outcome) => outcome.status === 'rejected').length
+    if (failed) console.error(`[whiteboard] canvas.discard: ${failed} delete(s) failed`)
+    return {discarded: drafts.length - outcomes.slice(0, drafts.length).filter((o) => o.status === 'rejected').length}
+  },
+)
+
 export const canvasTools = [
   canvasReadTool,
   canvasSvgTool,
@@ -143,4 +189,6 @@ export const canvasTools = [
   canvasUpdateTool,
   canvasDeleteTool,
   canvasClearTool,
+  canvasCommitTool,
+  canvasDiscardTool,
 ]
