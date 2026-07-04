@@ -141,9 +141,9 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     const server = await startTestServer({spawnHarness: fakeSpawn({argvFile})})
     state.server = server
 
-    await (
-      await server.post('/api/chat', {messages: [turn('hi')], forwardedProps: {model: 'haiku'}}, await server.resolve())
-    ).text()
+    const id = await server.resolve()
+    await server.post('/api/chat', {messages: [turn('hi')], forwardedProps: {model: 'haiku'}}, id)
+    await server.attach(id, {until: 'RUN_FINISHED'})
     const argv = z.array(z.string()).parse(JSON.parse(readFileSync(argvFile, 'utf8')))
     expect(argv).toContain('--model')
     expect(argv[argv.indexOf('--model') + 1]).toBe('haiku')
@@ -250,7 +250,7 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     const a = await server.resolve()
     const b = await server.resolve()
 
-    const turnPromise = server.postChat(turn('hi'), a).catch(() => '')
+    await server.post('/api/chat', {messages: [turn('hi')]}, a)
     const deadline = Date.now() + 5000
     while (!readLock(stateRoot, a).held && Date.now() < deadline) await new Promise((r) => setTimeout(r, 25))
 
@@ -267,6 +267,8 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     expect(((await bRes.json()) as {injected: boolean}).injected).toBe(false)
 
     await server.post('/api/chat/stop', {}, a)
-    await turnPromise
+    const releaseDeadline = Date.now() + 5000
+    while (readLock(stateRoot, a).held && Date.now() < releaseDeadline) await new Promise((r) => setTimeout(r, 25))
+    expect(readLock(stateRoot, a).held).toBe(false)
   })
 })
