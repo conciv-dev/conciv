@@ -139,6 +139,27 @@ describe('aidx widget reload continuity (it) — real browser, snapshot restore'
     await page.getByRole('dialog', {name: 'conciv chat agent'}).waitFor({state: 'visible'})
     await page.close()
   })
+
+  it('draft text, cursor position, and focus survive reload invisibly', async () => {
+    const page = await newPage()
+    await page.goto(state.base)
+    await page.getByRole('button', {name: 'Open conciv chat'}).click()
+    const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
+    await input.fill('fix the header layout')
+    await input.evaluate((el: HTMLTextAreaElement) => el.setSelectionRange(7, 7))
+    await page.reload({waitUntil: 'domcontentloaded'})
+    const restored = page.getByRole('textbox', {name: 'Message the conciv agent'})
+    await expect
+      .poll(() =>
+        restored.evaluate((el: HTMLTextAreaElement) => ({
+          value: el.value,
+          focused: (el.getRootNode() as ShadowRoot).activeElement === el,
+          selection: [el.selectionStart, el.selectionEnd],
+        })),
+      )
+      .toEqual({value: 'fix the header layout', focused: true, selection: [7, 7]})
+    await page.close()
+  })
 })
 
 describe('aidx widget reconnect feedback (it) — attach failure surfaces a reconnecting notice', () => {
