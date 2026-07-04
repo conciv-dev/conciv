@@ -46,7 +46,7 @@ function requireHarness(id: string): HarnessAdapter {
   return found
 }
 
-export type MadeApp = {app: H3; disposers: (() => void | Promise<void>)[]}
+export type MadeApp = {app: H3; disposers: (() => void | Promise<void>)[]; extensionContexts: Record<string, unknown>}
 
 export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const app = new H3()
@@ -90,8 +90,11 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
           },
         ]
       })
-      return {extensionName: extension.name, tools, dispose: result?.dispose, turnEnd: result?.turnEnd}
+      return {extensionName: extension.name, tools, context, dispose: result?.dispose, turnEnd: result?.turnEnd}
     }),
+  )
+  const extensionContexts: Record<string, unknown> = Object.fromEntries(
+    mounted.map((entry) => [entry.extensionName, entry.context]),
   )
   const extensionTools = mounted.flatMap((entry) => entry.tools)
   extensionTools.forEach((tool) => {
@@ -136,5 +139,5 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   ]
   registerToolsRoute(app, toolList)
   if (opts.bridge) registerServerRoutes(app, opts.bridge)
-  return {app, disposers}
+  return {app, disposers, extensionContexts}
 }

@@ -6,6 +6,7 @@ import {WHITEBOARD_NAME, WHITEBOARD_PROMPT} from './shared/meta.js'
 import {startJazzRunner} from './server/jazz/runner.js'
 import {createBackendDb} from './server/jazz/backend.js'
 import {startCommentEnrichment} from './server/jazz/enrich-worker.js'
+import {autoCommitDraft} from './server/auto-commit.js'
 import {canvasTools} from './tool/canvas/server.js'
 import {commentTools} from './tool/comment/server.js'
 import {anchorTools} from './tool/anchor/server.js'
@@ -39,6 +40,10 @@ export default defineExtension({
       room: sessionId,
       model: (request) => request.model,
     },
+    turnEnd: (turnSessionId) =>
+      void autoCommitDraft(backend.db, turnSessionId).catch((error) =>
+        console.error(`[whiteboard] auto-commit on turn end failed for ${turnSessionId}: ${String(error)}`),
+      ),
     dispose: async () => {
       stopEnrichment()
       await backend.shutdown()

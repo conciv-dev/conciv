@@ -19,13 +19,14 @@ export type ExtensionTestApi = {
   callTool: CallTool
   session: string
   apiBase: string
+  serverContext: unknown
 
   secondClient: () => Promise<SecondClient>
   dispose: () => Promise<void>
 }
 
 export async function getExtensionTestApi(extension: ExtensionUnderTest): Promise<ExtensionTestApi> {
-  const {apiBase, stop} = await bootExtensionServer(extension.server)
+  const {apiBase, extensionContexts, stop} = await bootExtensionServer(extension.server)
   const session = await resolveSession(apiBase)
   const outDir = await buildHost(extension.clientEntry)
   const host = await serveDir(outDir, {apiBase, session})
@@ -35,6 +36,7 @@ export async function getExtensionTestApi(extension: ExtensionUnderTest): Promis
     callTool: makeCallTool(apiBase, session),
     session,
     apiBase,
+    serverContext: extensionContexts[extension.server.name],
     secondClient: async () => {
       const second = await context.newPage()
       await second.goto(host.origin, {waitUntil: 'domcontentloaded'})
