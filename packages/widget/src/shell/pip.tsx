@@ -55,11 +55,21 @@ export function createPiP(): {
     host.setAttribute('data-pw-pip-host', '')
     w.document.body.appendChild(host)
     const root = host.attachShadow({mode: 'open'})
-    const style = w.document.createElement('style')
-    style.textContent = styles
-    root.appendChild(style)
+    const sourceRoot = node.getRootNode()
+    const sourceStyles = sourceRoot instanceof ShadowRoot ? [...sourceRoot.querySelectorAll('style')] : []
+    if (sourceStyles.length > 0) {
+      for (const sourceStyle of sourceStyles) root.appendChild(sourceStyle.cloneNode(true))
+    } else {
+      const style = w.document.createElement('style')
+      style.textContent = styles
+      root.appendChild(style)
+    }
+    const themeClasses: string[] = []
+    for (let ancestor = node.parentElement; ancestor; ancestor = ancestor.parentElement) {
+      themeClasses.push(...[...ancestor.classList].filter((name) => name.startsWith('chat-theme-')))
+    }
     const wrap = w.document.createElement('div')
-    wrap.className = PIP_WRAP
+    wrap.className = [PIP_WRAP, ...themeClasses].join(' ')
     root.appendChild(wrap)
 
     placeholder = node.ownerDocument.createComment('conciv-pip')

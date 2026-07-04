@@ -309,20 +309,22 @@ function ModalLayout(props: {
     const [working, setWorking] = createSignal(false)
     const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
     const approvalKey = createUniqueId()
-    const content = runWithOwner(owner, () =>
-      props.panel.create({
-        active: () => props.open() && activeId() === id,
-        onWorkingChange: setWorking,
-        onUsageChange: setUsage,
-        onApprovalsChange: (items) => props.reportApprovals(approvalKey, items),
-        onSessionLabel: (name) => mergeSurface(id, makeSurfaceRow(id, name)),
-        client,
-        onNewSession: () => void activateNew(),
-        announce: props.announce,
-        composerActions: props.composerActions,
-        composerControls: props.composerControls,
-      }),
-    )
+    const content = runWithOwner(owner, () => (
+      <EnvironmentProvider value={() => panelEl?.getRootNode() ?? document}>
+        {props.panel.create({
+          active: () => props.open() && activeId() === id,
+          onWorkingChange: setWorking,
+          onUsageChange: setUsage,
+          onApprovalsChange: (items) => props.reportApprovals(approvalKey, items),
+          onSessionLabel: (name) => mergeSurface(id, makeSurfaceRow(id, name)),
+          client,
+          onNewSession: () => void activateNew(),
+          announce: props.announce,
+          composerActions: props.composerActions,
+          composerControls: props.composerControls,
+        })}
+      </EnvironmentProvider>
+    ))
     setPanes((prev) => [...prev, {id, content, working, usage}])
   }
 
@@ -413,64 +415,66 @@ function ModalLayout(props: {
         id="pw-chat-panel"
         onKeyDown={onPanelKeyDown}
       >
-        <div
-          class={`${RESIZE}  ${RESIZE_Y}  ${anchoredBottom() ? 'top-0' : 'bottom-0'}`}
-          role="separator"
-          aria-orientation="horizontal"
-          aria-label="Resize chat height"
-          aria-valuemin={240}
-          aria-valuenow={Math.round(resizeY.size())}
-          tabindex={0}
-          onPointerDown={resizeY.onPointerDown}
-          onKeyDown={resizeY.onKeyDown}
-        />
-        <div
-          class={`${RESIZE}  ${RESIZE_X}  ${anchoredRight() ? 'left-0' : 'right-0'}`}
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize chat width"
-          aria-valuemin={300}
-          aria-valuenow={Math.round(resizeX.size())}
-          tabindex={0}
-          onPointerDown={resizeX.onPointerDown}
-          onKeyDown={resizeX.onKeyDown}
-        />
-        <header class={HEAD}>
-          <button
-            type="button"
-            class={CLOSE}
-            aria-label="Pop out to a window"
-            title="Picture-in-Picture"
-            onClick={() => panelEl && pip.open(panelEl, {title: props.panel.title})}
-          >
-            <PictureInPicture2 class="size-5 block" aria-hidden="true" />
-          </button>
-          <span class="tracking-[-0.01em] font-semibold">{props.panel.title}</span>
-          <SessionSelector
-            variant="pill"
-            apiBase={props.panel.apiBase ?? ''}
-            activeId={activeId}
-            onActivate={activate}
-            lockedElsewhere={(id) => (sessions().find((s) => s.id === id)?.running ?? false) && id !== activeId()}
-            announce={props.announce}
+        <EnvironmentProvider value={() => panelEl?.getRootNode() ?? document}>
+          <div
+            class={`${RESIZE}  ${RESIZE_Y}  ${anchoredBottom() ? 'top-0' : 'bottom-0'}`}
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label="Resize chat height"
+            aria-valuemin={240}
+            aria-valuenow={Math.round(resizeY.size())}
+            tabindex={0}
+            onPointerDown={resizeY.onPointerDown}
+            onKeyDown={resizeY.onKeyDown}
           />
-          <ContextTracker usage={usage()} />
-          <button type="button" class={`${CLOSE} ml-auto`} aria-label="Close chat" onClick={closePanel}>
-            <ChevronDown class="size-[1em] block" aria-hidden="true" />
-          </button>
-        </header>
-        {}
-        <For each={panes()}>
-          {(p) => (
-            <div
-              class={MODAL_PANE}
-              classList={{flex: activeId() === p.id, hidden: activeId() !== p.id}}
-              data-pw-modal-hidden={activeId() !== p.id ? '' : undefined}
+          <div
+            class={`${RESIZE}  ${RESIZE_X}  ${anchoredRight() ? 'left-0' : 'right-0'}`}
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize chat width"
+            aria-valuemin={300}
+            aria-valuenow={Math.round(resizeX.size())}
+            tabindex={0}
+            onPointerDown={resizeX.onPointerDown}
+            onKeyDown={resizeX.onKeyDown}
+          />
+          <header class={HEAD}>
+            <button
+              type="button"
+              class={CLOSE}
+              aria-label="Pop out to a window"
+              title="Picture-in-Picture"
+              onClick={() => panelEl && pip.open(panelEl, {title: props.panel.title})}
             >
-              {p.content}
-            </div>
-          )}
-        </For>
+              <PictureInPicture2 class="size-5 block" aria-hidden="true" />
+            </button>
+            <span class="tracking-[-0.01em] font-semibold">{props.panel.title}</span>
+            <SessionSelector
+              variant="pill"
+              apiBase={props.panel.apiBase ?? ''}
+              activeId={activeId}
+              onActivate={activate}
+              lockedElsewhere={(id) => (sessions().find((s) => s.id === id)?.running ?? false) && id !== activeId()}
+              announce={props.announce}
+            />
+            <ContextTracker usage={usage()} />
+            <button type="button" class={`${CLOSE} ml-auto`} aria-label="Close chat" onClick={closePanel}>
+              <ChevronDown class="size-[1em] block" aria-hidden="true" />
+            </button>
+          </header>
+          {}
+          <For each={panes()}>
+            {(p) => (
+              <div
+                class={MODAL_PANE}
+                classList={{flex: activeId() === p.id, hidden: activeId() !== p.id}}
+                data-pw-modal-hidden={activeId() !== p.id ? '' : undefined}
+              >
+                {p.content}
+              </div>
+            )}
+          </For>
+        </EnvironmentProvider>
       </section>
       <button
         type="button"
