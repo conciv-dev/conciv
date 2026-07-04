@@ -10,7 +10,14 @@ const skeleton = z
   })
   .passthrough()
 
-export const CanvasReadInput = z.object({})
+export const CanvasReadInput = z.object({scope: z.enum(['live', 'draft']).default('live')})
+export const CanvasSvgInput = z.object({
+  svg: z.string(),
+  x: z.number(),
+  y: z.number(),
+  width: z.number().optional(),
+  roughness: z.number().min(0).max(2).default(1),
+})
 export const CanvasDrawInput = z.object({elements: z.array(skeleton)})
 export const CanvasDiagramInput = z.object({mermaid: z.string()})
 export const CanvasConnectInput = z.object({fromId: z.string(), toId: z.string()})
@@ -21,14 +28,26 @@ export const CanvasExportInput = z.object({})
 
 export const canvasReadDef = {
   name: 'canvas.read',
-  description: 'List the current elements on the shared whiteboard canvas.',
+  description:
+    'List canvas elements. scope "live" (default) reads the published canvas; scope "draft" reads the hidden work-in-progress draft.',
   inputSchema: CanvasReadInput,
-  promptSnippet: 'Use canvas.read to see what is already drawn before adding more.',
+  promptSnippet: 'Use canvas.read to see what is already drawn before adding more; pass scope "draft" to inspect the draft.',
+}
+
+export const canvasSvgDef = {
+  name: 'canvas.svg',
+  description:
+    'Draw by writing SVG markup (paths, shapes, text, fills). Converted in the browser into editable Excalidraw elements. Drawings land in the hidden draft; commit publishes them.',
+  inputSchema: CanvasSvgInput,
+  streamTitle: 'Drawing on the canvas',
+  promptSnippet:
+    'Use canvas.svg for anything organic or illustrated: write SVG paths with layered fills, then iterate with canvas.preview before canvas.commit.',
 }
 
 export const canvasDrawDef = {
   name: 'canvas.draw',
-  description: 'Add Excalidraw element skeletons (rectangle, ellipse, diamond, text, arrow, line) to the canvas.',
+  description:
+    'Add Excalidraw element skeletons (rectangle, ellipse, diamond, text, arrow, line) to the hidden draft; commit publishes them.',
   inputSchema: CanvasDrawInput,
   streamTitle: 'Drawing on the canvas',
   promptSnippet: 'Use canvas.draw to sketch shapes and text for the user; pass an array of element skeletons.',
@@ -36,7 +55,7 @@ export const canvasDrawDef = {
 
 export const canvasDiagramDef = {
   name: 'canvas.diagram',
-  description: 'Render a Mermaid diagram (flowchart, sequence, class, ...) onto the canvas.',
+  description: 'Render a Mermaid diagram (flowchart, sequence, class, ...) into the hidden draft; commit publishes it.',
   inputSchema: CanvasDiagramInput,
   streamTitle: 'Drawing a diagram',
   promptSnippet: 'Use canvas.diagram with Mermaid source to render a structured diagram on the canvas.',

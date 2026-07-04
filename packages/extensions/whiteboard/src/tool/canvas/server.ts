@@ -2,6 +2,7 @@ import type {JsonValue} from 'jazz-tools'
 import {defineTool} from '@conciv/extension'
 import {app} from '../../shared/schema.js'
 import type {WhiteboardToolContext} from '../../server/context.js'
+import {validateSvg} from './svg-caps.js'
 import {
   canvasClearDef,
   canvasConnectDef,
@@ -10,6 +11,7 @@ import {
   canvasDrawDef,
   canvasExportDef,
   canvasReadDef,
+  canvasSvgDef,
   canvasUpdateDef,
   type CanvasClearInput,
   type CanvasConnectInput,
@@ -18,6 +20,7 @@ import {
   type CanvasDrawInput,
   type CanvasExportInput,
   type CanvasReadInput,
+  type CanvasSvgInput,
   type CanvasUpdateInput,
 } from './def.js'
 
@@ -25,9 +28,24 @@ const MAX_EDGES = 500
 const EDGE_PATTERN = /--+>|--+|-\.-+>|==+>|--[xo]/g
 
 export const canvasReadTool = defineTool<typeof CanvasReadInput, WhiteboardToolContext>(canvasReadDef).server(
-  async (_input, ctx, request) => {
-    const rows = await ctx.db.all(app.canvasElements.where({room: ctx.room(request)}), {tier: 'global'})
-    return {elements: rows.map((row) => row.data)}
+  async (input, ctx, request) => {
+    const table = input.scope === 'draft' ? app.canvasDraftElements : app.canvasElements
+    const rows = await ctx.db.all(table.where({room: ctx.room(request)}), {tier: 'global'})
+    return {elements: rows.map((row) => row.data), scope: input.scope}
+  },
+)
+
+export const canvasSvgTool = defineTool<typeof CanvasSvgInput, WhiteboardToolContext>(canvasSvgDef).server(
+  async (input, ctx, request) => {
+    validateSvg(input.svg)
+    const write = ctx.db.insert(app.canvasPending, {
+      room: ctx.room(request),
+      kind: 'svg',
+      stage: 'draft',
+      payload: {svg: input.svg, x: input.x, y: input.y, width: input.width ?? 400, roughness: input.roughness} as JsonValue,
+    })
+    await write.wait({tier: 'edge'})
+    return {pending: write.value.id}
   },
 )
 
@@ -43,6 +61,7 @@ export const canvasDrawTool = defineTool<typeof CanvasDrawInput, WhiteboardToolC
     const write = ctx.db.insert(app.canvasPending, {
       room: ctx.room(request),
       kind: 'skeletons',
+      stage: 'draft',
       payload: {elements: input.elements} as JsonValue,
     })
     await write.wait({tier: 'edge'})
@@ -57,6 +76,7 @@ export const canvasDiagramTool = defineTool<typeof CanvasDiagramInput, Whiteboar
     const write = ctx.db.insert(app.canvasPending, {
       room: ctx.room(request),
       kind: 'mermaid',
+      stage: 'draft',
       payload: {source: input.mermaid} as JsonValue,
     })
     await write.wait({tier: 'edge'})
@@ -69,6 +89,7 @@ export const canvasConnectTool = defineTool<typeof CanvasConnectInput, Whiteboar
     const write = ctx.db.insert(app.canvasPending, {
       room: ctx.room(request),
       kind: 'skeletons',
+      stage: 'draft',
       payload: {elements: [{type: 'arrow', x: 0, y: 0, start: {id: input.fromId}, end: {id: input.toId}}]} as JsonValue,
     })
     await write.wait({tier: 'edge'})
@@ -114,6 +135,7 @@ export const canvasClearTool = defineTool<typeof CanvasClearInput, WhiteboardToo
 
 export const canvasTools = [
   canvasReadTool,
+  canvasSvgTool,
   canvasExportTool,
   canvasDrawTool,
   canvasDiagramTool,
