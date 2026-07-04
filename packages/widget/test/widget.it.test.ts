@@ -382,6 +382,9 @@ describe('aidx widget (it) — real browser, real SSE', () => {
 
       await page.getByText('Run this action?').waitFor({state: 'visible'})
 
+      await page.getByText('Chain of Thought').waitFor({state: 'visible'})
+      await page.getByText(RISKY_COMMAND).first().waitFor({state: 'visible'})
+
       const decision = page.waitForRequest((r) => r.url().includes('/api/chat/permission-decision'))
       await page.getByRole('button', {name: 'Allow'}).click()
       const body = (await decision).postDataJSON() as {approvalId: string; approved: boolean}

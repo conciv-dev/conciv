@@ -69,6 +69,8 @@ export function useLocalModel() {
 
   const choose = (modelId: string) => setSelected(modelId)
 
+  const willDownload = () => status !== 'loading' && loadedRef.current !== selected
+
   const run = (html: string, instruction: string): Promise<RunResult> => {
     const worker = ensureWorker()
     const id = ++idRef.current
@@ -78,5 +80,5 @@ export function useLocalModel() {
     })
   }
 
-  return {status, percent, device, error, selected, load, choose, run}
+  return {status, percent, device, error, selected, load, choose, run, willDownload}
 }
