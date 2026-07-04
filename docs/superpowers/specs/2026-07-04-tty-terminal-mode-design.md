@@ -1,5 +1,7 @@
 # TTY Terminal Mode — Design
 
+> **Superseded by** `2026-07-04-terminal-extension-design.md` — terminal mode moved out of core into `packages/extensions/terminal`. The wire protocol, pty semantics, mockup, and fixes carry over.
+
 Date: 2026-07-04
 Status: approved (brainstorm with user)
 Mockup: `assets/2026-07-04-tty-terminal-mode-mockup.html` — **the approved visual reference; implementation must match it** (open in a browser to view the four panel states)

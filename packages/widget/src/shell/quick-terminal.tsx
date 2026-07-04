@@ -1,4 +1,4 @@
-import {createEffect, createSignal, createUniqueId, For, Show, type JSX} from 'solid-js'
+import {createEffect, createRoot, createSignal, createUniqueId, For, getOwner, onCleanup, Show, type JSX} from 'solid-js'
 import {createHotkey} from '@tanstack/solid-hotkeys'
 import {CLOSE, type ComposerActionDef, type ComposerControlDef, type PanelDef} from './widget-shell.js'
 import type {PendingApproval} from './approval-modal.js'
@@ -19,6 +19,7 @@ type Pane = {
   id: number
   client: SessionClient
   content: JSX.Element
+  dispose: () => void
   usage: () => UsageSnapshot | null
   working: () => boolean
 }
@@ -92,6 +93,8 @@ export function QuickTerminalLayout(props: {
     }
   }
 
+  const owner = getOwner()
+
   const addPane = (initialId?: string) => {
     const id = ++seq
     const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
@@ -102,22 +105,29 @@ export function QuickTerminalLayout(props: {
     else void client.resolve().then((r) => client.setSessionId(r.sessionId))
 
     const approvalKey = createUniqueId()
-    const content = props.panel.create({
-      active: () => props.open() && focused() === id,
-      onWorkingChange: setWorking,
-      onUsageChange: setUsage,
-      onApprovalsChange: (items) => props.reportApprovals(approvalKey, items),
+    const [content, dispose] = createRoot(
+      (disposePane) =>
+        [
+          props.panel.create({
+            active: () => props.open() && focused() === id,
+            onWorkingChange: setWorking,
+            onUsageChange: setUsage,
+            onApprovalsChange: (items) => props.reportApprovals(approvalKey, items),
 
-      onSessionLabel: (name) => {
-        const sid = client.sessionId()
-        mergeSurface(sid, sid ? makeSurfaceRow(sid, name) : null)
-      },
-      client,
-      announce: props.announce,
-      composerActions: props.composerActions,
-      composerControls: props.composerControls,
-    })
-    setPanes((ps) => [...ps, {id, client, content, usage, working}])
+            onSessionLabel: (name) => {
+              const sid = client.sessionId()
+              mergeSurface(sid, sid ? makeSurfaceRow(sid, name) : null)
+            },
+            client,
+            announce: props.announce,
+            composerActions: props.composerActions,
+            composerControls: props.composerControls,
+          }),
+          disposePane,
+        ] as const,
+      owner,
+    )
+    setPanes((ps) => [...ps, {id, client, content, dispose, usage, working}])
     writePaneIds(paneIds())
     void invalidateSessions(props.panel.apiBase ?? '')
     focusPane(id)
@@ -135,10 +145,15 @@ export function QuickTerminalLayout(props: {
     }
     const refocus = focused() === id
     setPanes(remaining)
+    target?.dispose()
     if (refocus) focusPane(remaining[remaining.length - 1]!.id)
 
     if (rowEl) for (const el of rowEl.querySelectorAll<HTMLElement>('[data-pw-qt-pane]')) el.style.flex = ''
   }
+
+  onCleanup(() => {
+    for (const pane of panes()) pane.dispose()
+  })
 
   createEffect(() => {
     if (sectionEl) sectionEl.inert = !props.open()

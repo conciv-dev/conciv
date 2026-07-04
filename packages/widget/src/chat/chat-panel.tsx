@@ -298,6 +298,22 @@ export function ChatPanel(props: {
 
   const focusInput = () => requestAnimationFrame(() => inputEl?.focus())
 
+  const views = createMemo(() => collectViews(props.instances))
+  const [activeView, setActiveView] = createSignal('chat')
+  const [viewLocks, setViewLocks] = createSignal<Record<string, boolean>>({})
+  const setLockedFor = (id: string) => (locked: boolean) => setViewLocks((prev) => ({...prev, [id]: locked}))
+  const viewLocked = () => activeView() !== 'chat' && Boolean(viewLocks()[activeView()])
+  const leaveGuard = () => isThinking() || isStreaming() || viewLocked()
+  const currentView = () => views().find((view) => view.id === activeView())
+
+  const switchView = (next: string) => {
+    if (next === activeView()) return
+    setActiveView(next)
+    const view = views().find((candidate) => candidate.id === next)
+    props.announce?.(view ? view.label : 'Chat')
+    if (next === 'chat') void loadSession(client.sessionId())
+  }
+
   createEffect(() => {
     const id = client.sessionId()
     if (!props.active || !id) return
@@ -380,22 +396,6 @@ export function ChatPanel(props: {
   }
 
   const [notice, setNotice] = createSignal('')
-
-  const views = createMemo(() => collectViews(props.instances))
-  const [activeView, setActiveView] = createSignal('chat')
-  const [viewLocks, setViewLocks] = createSignal<Record<string, boolean>>({})
-  const setLockedFor = (id: string) => (locked: boolean) => setViewLocks((prev) => ({...prev, [id]: locked}))
-  const viewLocked = () => activeView() !== 'chat' && Boolean(viewLocks()[activeView()])
-  const leaveGuard = () => isThinking() || isStreaming() || viewLocked()
-  const currentView = () => views().find((view) => view.id === activeView())
-
-  const switchView = (next: string) => {
-    if (next === activeView()) return
-    setActiveView(next)
-    const view = views().find((candidate) => candidate.id === next)
-    props.announce?.(view ? view.label : 'Chat')
-    if (next === 'chat') void loadSession(client.sessionId())
-  }
 
   let noticeTimer: ReturnType<typeof setTimeout> | undefined
   const notify = (message: string) => {
