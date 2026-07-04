@@ -60,19 +60,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   )
 
   registerCors(app, opts.allowedOrigins ?? [])
-  registerChatRoutes(app, {
-    cwd: opts.cwd,
-    stateRoot: opts.cfg.stateRoot,
-    initialSessionId: opts.cfg.sessionId,
-    harness,
-    spawnHarness: opts.spawnHarness,
-    harnessEnv: opts.harnessEnv,
-    systemPromptFile: opts.systemPromptFile,
-    systemPromptText: opts.systemPromptText ?? opts.cfg.systemPrompt,
-    claudeHome: opts.claudeHome,
-    uiBus,
-    riskyTools,
-  })
   const page = registerPageRoutes(app, {journal: makeJournal(), root: opts.cwd})
   registerEditorRoutes(app, opts.openInEditor)
   registerOpenSourceRoute(app, {openInEditor: opts.openInEditor, root: opts.cwd})
@@ -102,7 +89,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
           },
         ]
       })
-      return {extensionName: extension.name, tools, dispose: result?.dispose}
+      return {extensionName: extension.name, tools, dispose: result?.dispose, turnEnd: result?.turnEnd}
     }),
   )
   const extensionTools = mounted.flatMap((entry) => entry.tools)
@@ -111,6 +98,24 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     seenTools.add(tool.name)
   })
   const disposers = mounted.flatMap((entry) => (entry.dispose ? [entry.dispose] : []))
+  const turnEnds = mounted.flatMap((entry) => (entry.turnEnd ? [entry.turnEnd] : []))
+  const onTurnEnd = async (sessionId: string): Promise<void> => {
+    await Promise.allSettled(turnEnds.map((hook) => hook(sessionId)))
+  }
+  registerChatRoutes(app, {
+    cwd: opts.cwd,
+    stateRoot: opts.cfg.stateRoot,
+    initialSessionId: opts.cfg.sessionId,
+    harness,
+    spawnHarness: opts.spawnHarness,
+    harnessEnv: opts.harnessEnv,
+    systemPromptFile: opts.systemPromptFile,
+    systemPromptText: opts.systemPromptText ?? opts.cfg.systemPrompt,
+    claudeHome: opts.claudeHome,
+    uiBus,
+    riskyTools,
+    onTurnEnd,
+  })
 
   const makeToolCtx = (sessionId: string): ConcivToolContext => ({
     injectUi: (spec) => uiBus.inject(sessionId, spec),

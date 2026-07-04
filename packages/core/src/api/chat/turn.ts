@@ -54,6 +54,7 @@ export type TurnDeps = {
   systemPromptText?: string
   uiBus: UiBus
   store: SessionStore
+  onTurnEnd?: (sessionId: string) => Promise<void>
 }
 
 export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
@@ -127,7 +128,10 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
 
       uiBus.setModel(sessionId, chatReq.model ?? chatReq.forwardedProps?.model ?? chatReq.data?.model ?? null)
       const merged = uiBus.run(sessionId, stream)
-      const sse = toServerSentEventsStream(withLockRelease(merged, deps.store, deps.stateRoot, sessionId), abort)
+      const sse = toServerSentEventsStream(
+        withLockRelease(merged, deps.store, deps.stateRoot, sessionId, deps.onTurnEnd),
+        abort,
+      )
       return new Response(sse, {status: 200, headers: sseHeaders(event)})
     } catch (e) {
       releaseLock(deps.stateRoot, sessionId)
@@ -141,6 +145,7 @@ async function* withLockRelease(
   store: SessionStore,
   stateRoot: string,
   sessionId: string,
+  onTurnEnd?: (sessionId: string) => Promise<void>,
 ): AsyncGenerator<StreamChunk> {
   try {
     for await (const c of src) {
@@ -151,5 +156,6 @@ async function* withLockRelease(
     }
   } finally {
     releaseLock(stateRoot, sessionId)
+    if (onTurnEnd) await onTurnEnd(sessionId).catch(() => {})
   }
 }

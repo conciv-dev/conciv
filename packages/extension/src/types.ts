@@ -65,7 +65,11 @@ export type ClientFactoryResult<ClientReturnValue extends object> = {
 
 export type ServerApi<Config> = {config: Config; cwd: string; app: H3}
 
-export type ServerResult<Context> = {context: Context; dispose?: () => void | Promise<void>}
+export type ServerResult<Context> = {
+  context: Context
+  turnEnd?: (sessionId: string) => void | Promise<void>
+  dispose?: () => void | Promise<void>
+}
 
 export type PageInspect = {
   elementAt: (x: number, y: number) => Element | null
