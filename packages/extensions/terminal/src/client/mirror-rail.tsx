@@ -11,10 +11,12 @@ import {
   type JSX,
 } from 'solid-js'
 import type {MessagePart, UIMessage} from '@conciv/protocol/chat-types'
+import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import {ChevronRight} from 'lucide-solid'
 import {Button} from '@conciv/ui-kit-system'
-import {inlineValue, SUMMARY_KEYS} from '@conciv/ui-kit-chat-tools'
+import {Markdown, Reasoning, ToolCallCard, ToolFallback} from '@conciv/ui-kit-chat'
+import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
 
 const RETRY_BASE_MS = 1000
 const RETRY_MAX_MS = 15000
@@ -94,9 +96,8 @@ function resultsById(messages: UIMessage[]): Map<string, ToolResultPart> {
 
 const RAIL_HEAD =
   'flex items-center justify-between px-2.5 py-1.5 border-b border-pw-line-soft text-[0.6875rem] font-semibold text-pw-text-2'
-const ENTRY_TEXT = 'text-[0.75rem] text-pw-text px-2.5 py-1 break-words anim-msg'
-const ENTRY_THINKING = 'text-[0.75rem] text-pw-text-3 italic px-2.5 py-1 break-words anim-msg'
-const TOOL_ROW = 'flex items-center gap-1.5 text-[0.6875rem] text-pw-text-2 px-2.5 py-1 font-pw-mono anim-msg'
+const ENTRY = 'px-2.5 py-1 min-w-0 anim-msg'
+const ENTRY_TEXT = 'text-[0.75rem] text-pw-text px-2.5 py-1 min-w-0 break-words anim-msg'
 const PLACEHOLDER = 'text-[0.6875rem] text-pw-text-3 px-2.5 py-3 leading-[1.5]'
 
 function partText(part: MessagePart): string {
@@ -111,7 +112,7 @@ function statusDotClass(status: MirrorStatus): Record<string, boolean> {
   }
 }
 
-function MirrorEntry(props: {part: MessagePart; results: Map<string, ToolResultPart>}): JSX.Element {
+function MirrorEntry(props: {part: MessagePart; results: Map<string, ToolResultPart>; ctx: ToolViewCtx}): JSX.Element {
   const tool = () => asToolCall(props.part)
   const result = () => {
     const id = tool()?.id
@@ -119,26 +120,26 @@ function MirrorEntry(props: {part: MessagePart; results: Map<string, ToolResultP
   }
   return (
     <Switch>
-      <Match when={props.part.type === 'text'}>
-        <p class={ENTRY_TEXT}>{partText(props.part)}</p>
+      <Match when={props.part.type === 'text' && partText(props.part)}>
+        <div class={ENTRY_TEXT}>
+          <Markdown content={partText(props.part)} />
+        </div>
       </Match>
-      <Match when={props.part.type === 'thinking'}>
-        <p class={ENTRY_THINKING}>{partText(props.part)}</p>
+      <Match when={props.part.type === 'thinking' && partText(props.part)}>
+        <div class={ENTRY}>
+          <Reasoning text={partText(props.part)} />
+        </div>
       </Match>
       <Match when={tool()}>
         {(part) => (
-          <div class={TOOL_ROW}>
-            <span
-              class="rounded-full shrink-0 size-1.75"
-              classList={{
-                'bg-pw-success': result()?.state === 'complete',
-                'bg-pw-danger': result()?.state === 'error',
-                'bg-pw-accent anim-pulse': !result(),
-              }}
-              aria-hidden="true"
+          <div class={ENTRY}>
+            <ToolCallCard
+              part={part()}
+              result={result()}
+              ctx={props.ctx}
+              tools={() => builtinToolCards}
+              fallback={ToolFallback}
             />
-            <span class="font-semibold shrink-0 max-w-32 truncate">{part().name}</span>
-            <span class="text-pw-text-3 truncate">{inlineValue(part(), SUMMARY_KEYS)}</span>
           </div>
         )}
       </Match>
@@ -158,7 +159,11 @@ function RailPlaceholder(props: {status: MirrorStatus}): JSX.Element {
   )
 }
 
-export function MirrorRail(props: {apiBase: string; headers: () => Record<string, string>}): JSX.Element {
+export function MirrorRail(props: {
+  apiBase: string
+  headers: () => Record<string, string>
+  ctx: ToolViewCtx
+}): JSX.Element {
   const [open, setOpen] = createSignal(false)
   const [messages, setMessages] = createSignal<UIMessage[]>([])
   const [status, setStatus] = createSignal<MirrorStatus>('connecting')
@@ -205,7 +210,11 @@ export function MirrorRail(props: {apiBase: string; headers: () => Record<string
         >
           <Show when={messages().length > 0} fallback={<RailPlaceholder status={status()} />}>
             <For each={messages()}>
-              {(message) => <For each={message.parts}>{(part) => <MirrorEntry part={part} results={results()} />}</For>}
+              {(message) => (
+                <For each={message.parts}>
+                  {(part) => <MirrorEntry part={part} results={results()} ctx={props.ctx} />}
+                </For>
+              )}
             </For>
           </Show>
         </div>

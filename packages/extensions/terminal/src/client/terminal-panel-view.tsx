@@ -2,6 +2,7 @@ import {createEffect, createResource, createSignal, on, onCleanup, Show, type JS
 import {Terminal, createTerminalModel, type TerminalTheme} from '@conciv/ui-kit-terminal'
 import {Button} from '@conciv/ui-kit-system'
 import type {ExtensionHostContext} from '@conciv/extension'
+import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {terminal} from '../client.js'
 import {MirrorRail} from './mirror-rail.js'
 import type {TerminalStore} from './terminal-store.js'
@@ -55,12 +56,19 @@ function TerminalSurface(props: {ctx: ViewContext; generation: number; themeHost
     ctx.view.onInsert(null)
   })
   const headers = () => ({...ctx.client.chatHeaders()})
+  const railCtx: ToolViewCtx = {
+    apiBase: ctx.apiBase,
+    harnessId: ctx.harnessId,
+    sendMessage: () => {},
+    respondApproval: () => {},
+    durationFor: ctx.durationFor,
+  }
   return (
     <Terminal
       model={model}
       onBackToChat={() => ctx.view.leave()}
       class="flex-1 min-h-0"
-      rail={<MirrorRail apiBase={ctx.apiBase} headers={headers} />}
+      rail={<MirrorRail apiBase={ctx.apiBase} headers={headers} ctx={railCtx} />}
     />
   )
 }
