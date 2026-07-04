@@ -1,5 +1,6 @@
 import {createServer, type Server} from 'node:http'
 import type {AddressInfo} from 'node:net'
+import {setMaxListeners} from 'node:events'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 import {defineClient} from '@conciv/api-client'
@@ -68,5 +69,27 @@ describe('attachConnection', () => {
     expect(seen.length).toBeGreaterThanOrEqual(4)
     expect(state.attachCount).toBeGreaterThanOrEqual(2)
     expect(seen[0]?.type).toBe(EventType.RUN_STARTED)
+  })
+
+  it('does not accumulate abort listeners across reconnect cycles', async () => {
+    const client = defineClient({apiBase: state.base})
+    const adapter = attachConnection(client, {retryDelayMs: 10})
+    const controller = new AbortController()
+    setMaxListeners(5, controller.signal)
+    const warnings: Error[] = []
+    const onWarning = (warning: Error) => warnings.push(warning)
+    process.on('warning', onWarning)
+    const startCount = state.attachCount
+    const drain = (async () => {
+      for await (const chunk of adapter.subscribe(controller.signal)) void chunk
+    })().catch(() => {})
+    const deadline = Date.now() + 4000
+    while (state.attachCount - startCount < 15 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 10))
+    controller.abort()
+    await drain
+    process.off('warning', onWarning)
+    const maxListenerWarnings = warnings.filter((warning) => warning.name === 'MaxListenersExceededWarning')
+    expect(maxListenerWarnings).toEqual([])
+    expect(state.attachCount - startCount).toBeGreaterThanOrEqual(15)
   })
 })
