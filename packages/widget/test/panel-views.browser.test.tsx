@@ -1,4 +1,5 @@
 import {describe, it, expect, afterEach} from 'vitest'
+import {onMount} from 'solid-js'
 import {render} from 'solid-js/web'
 import {page} from 'vitest/browser'
 import {defineExtension} from '@conciv/extension'
@@ -19,6 +20,32 @@ function SampleViewBody() {
 
 function SampleViewActions() {
   return <button type="button">probe-action</button>
+}
+
+const insertedTexts: string[] = []
+
+const insertViewExtension = defineExtension({
+  name: 'insert-view',
+  views: [{id: 'insert-view', label: 'Insert View', Component: InsertViewBody}],
+})
+
+function InsertViewBody() {
+  const ctx = insertViewExtension.useContext()
+  onMount(() => ctx.view.onInsert((text) => insertedTexts.push(text)))
+  const stage = () => {
+    const node = document.createElement('div')
+    ctx.grab.stage({
+      text: 'grabbed-element-text',
+      snapshot: {node, width: 60, height: 20},
+      source: null,
+      rect: null,
+    })
+  }
+  return (
+    <button type="button" onClick={stage}>
+      stage grab
+    </button>
+  )
 }
 
 const disposers: (() => void)[] = []
@@ -79,6 +106,17 @@ describe('panel views (real browser)', () => {
     await page.getByRole('tab', {name: 'Chat'}).click()
     await expect.element(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible()
     expect(document.body.textContent ?? '').not.toContain('probe-action')
+  })
+
+  it('staged grabs render as tray cards above the view and Insert routes to the view handler', async () => {
+    insertedTexts.splice(0)
+    mountPanel([insertViewExtension])
+    await page.getByRole('tab', {name: 'Insert View'}).click()
+    await page.getByRole('button', {name: 'stage grab'}).click()
+    await expect.element(page.getByRole('button', {name: 'Insert'})).toBeVisible()
+    await page.getByRole('button', {name: 'Insert'}).click()
+    expect(insertedTexts).toEqual(['grabbed-element-text'])
+    expect(document.querySelector('[data-pw-grab]')).toBeNull()
   })
 
   it('keeps exactly one sliding indicator across switches', async () => {

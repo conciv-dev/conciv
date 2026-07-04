@@ -87,6 +87,11 @@ describe('terminal extension e2e (real engine, real claude)', () => {
     await expect.poll(() => panelList.locator('[data-part=indicator]').count()).toBe(1)
 
     await terminalTab.click()
+
+    await expect.poll(() => page.getByRole('button', {name: 'Start a new session'}).first().isVisible()).toBe(true)
+    await expect.poll(() => page.getByRole('button', {name: 'Open externally'}).first().isVisible()).toBe(true)
+    await expect.poll(() => page.getByRole('button', {name: 'Select model'}).first().isVisible()).toBe(true)
+
     await page.locator('[data-terminal-screen]').first().click()
     const booted = await untilBuffer(page, /trust this folder|auto mode on/, 60_000)
     if (booted.includes('trust this folder')) {
@@ -97,6 +102,11 @@ describe('terminal extension e2e (real engine, real claude)', () => {
     await page.keyboard.press('Enter')
     const settled = await untilBuffer(page, /[⏺●] tty-it-check/, 120_000)
     expect(settled).toContain('tty-it-check')
+
+    await page.getByRole('button', {name: 'Activity'}).first().click()
+    const mirrorLog = page.getByRole('log', {name: 'Terminal activity'}).first()
+    await expect.poll(async () => (await mirrorLog.textContent()) ?? '', {timeout: 10_000}).toContain('tty-it-check')
+    await page.getByRole('button', {name: 'Activity'}).first().click()
 
     await expect.poll(() => panelList.locator('[data-part=indicator]').count()).toBe(1)
 
@@ -117,6 +127,17 @@ describe('terminal extension e2e (real engine, real claude)', () => {
 
     await terminalTab.click()
     await untilBuffer(page, /[⏺●] tty-it-check/, 10_000)
+
+    await page.getByRole('button', {name: 'Select model'}).first().click()
+    const haiku = page.getByRole('option', {name: /haiku/i}).first()
+    await expect.poll(() => haiku.isVisible(), {timeout: 10_000}).toBe(true)
+    await haiku.click()
+    await untilBuffer(page, /— conciv: resumed session —/, 30_000)
+
+    await page.getByRole('button', {name: 'Start a new session'}).first().click()
+    await expect
+      .poll(() => page.getByRole('textbox', {name: 'Message the conciv agent'}).first().isVisible(), {timeout: 15_000})
+      .toBe(true)
 
     await page.close()
   }, 240_000)
