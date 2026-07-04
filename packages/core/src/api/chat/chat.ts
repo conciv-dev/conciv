@@ -9,6 +9,8 @@ import {makePermissionGate, registerPermissionRoutes} from './permission.js'
 import {readLocks} from '../../store/lock.js'
 import {registerSessionRoutes, sweepEmptyChatRecords, type ResolveDeps} from './session.js'
 import {registerTurnRoutes, type SpawnHarness} from './turn.js'
+import {registerAttachRoute} from './attach.js'
+import {makeTurnHub} from '../../runtime/turn-hub.js'
 
 export type {SpawnHarness} from './turn.js'
 
@@ -47,6 +49,7 @@ export function registerChatRoutes(app: H3, opts: ChatRouteOpts): void {
   const uiBus = opts.uiBus
   const gate = makePermissionGate(uiBus, {risky: opts.riskyTools})
   const store = createFsSessionStore({stateRoot: opts.stateRoot})
+  const hub = makeTurnHub()
 
   if (opts.initialSessionId) {
     void ensureAgentRecord({store, harnessKind: opts.harness.id, cwd: opts.cwd}, opts.initialSessionId).catch(() => {})
@@ -75,5 +78,7 @@ export function registerChatRoutes(app: H3, opts: ChatRouteOpts): void {
     uiBus,
     store,
     onTurnEnd: opts.onTurnEnd,
+    hub,
   })
+  registerAttachRoute(app, {cwd: opts.cwd, harness: opts.harness, store, hub})
 }

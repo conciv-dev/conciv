@@ -1,5 +1,5 @@
 import {type H3, HTTPError, readValidatedBody} from 'h3'
-import {chat, EventType, toServerSentEventsStream, type StreamChunk} from '@tanstack/ai'
+import {chat, EventType, type StreamChunk} from '@tanstack/ai'
 import {harnessText} from '@conciv/harness'
 import type {HarnessAdapter, HarnessChild} from '@conciv/protocol/harness-types'
 import {UiSpecSchema} from '@conciv/protocol/ui-types'
@@ -8,10 +8,10 @@ import {tokenUsageToSnapshot} from '@conciv/protocol/usage-types'
 import {acquireLock, releaseLock, updateLockPid} from '../../store/lock.js'
 import type {SessionStore} from '../../store/session-store.js'
 import type {UiBus} from '../../runtime/ui-bus.js'
+import type {TurnHub} from '../../runtime/turn-hub.js'
 import type {PermissionGate} from './permission.js'
 import {toChatMessages} from './messages.js'
 import {sessionIdFromHeaders} from './session-id.js'
-import {sseHeaders} from '../sse.js'
 import {harnessDebug} from '../../runtime/harness-logger.js'
 
 export const resumeTokenFor = async (store: SessionStore, id: string): Promise<string | null> =>
@@ -54,6 +54,7 @@ export type TurnDeps = {
   systemPromptText?: string
   uiBus: UiBus
   store: SessionStore
+  hub: TurnHub
   onTurnEnd?: (sessionId: string) => Promise<void>
 }
 
@@ -86,7 +87,6 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
       const mode = harness.capabilities.systemPrompt
       const sysText = mode === 'file' ? (deps.systemPromptFile ?? '') : (deps.systemPromptText ?? '')
       const abort = new AbortController()
-      event.req.signal.addEventListener('abort', () => abort.abort())
 
       const adapter = harnessText(harness, {
         cwd: deps.cwd,
@@ -128,11 +128,11 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
 
       uiBus.setModel(sessionId, chatReq.model ?? chatReq.forwardedProps?.model ?? chatReq.data?.model ?? null)
       const merged = uiBus.run(sessionId, stream)
-      const sse = toServerSentEventsStream(
-        withLockRelease(merged, deps.store, deps.stateRoot, sessionId, deps.onTurnEnd),
-        abort,
-      )
-      return new Response(sse, {status: 200, headers: sseHeaders(event)})
+      const lastUserMessage = chatReq.messages.findLast((message) => message.role === 'user') ?? null
+      void deps.hub
+        .start(sessionId, lastUserMessage, withLockRelease(merged, deps.store, deps.stateRoot, sessionId, deps.onTurnEnd))
+        .catch(() => {})
+      return {ok: true}
     } catch (e) {
       releaseLock(deps.stateRoot, sessionId)
       throw e

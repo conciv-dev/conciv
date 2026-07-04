@@ -1,0 +1,48 @@
+import type {H3} from 'h3'
+import {HTTPError} from 'h3'
+import {toServerSentEventsStream, type StreamChunk, type UIMessage} from '@tanstack/ai'
+import type {HarnessAdapter} from '@conciv/protocol/harness-types'
+import type {ChatHistory} from '@conciv/protocol/chat-types'
+import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
+import type {SessionStore} from '../../store/session-store.js'
+import type {TurnHub} from '../../runtime/turn-hub.js'
+import {readFileOrEmpty} from '../../fs.js'
+import {sessionIdFromHeaders} from './session-id.js'
+import {sseHeaders} from '../sse.js'
+import {settledMessages, userText} from './settled-history.js'
+
+export type AttachDeps = {
+  cwd: string
+  harness: HarnessAdapter
+  store: SessionStore
+  hub: TurnHub
+}
+
+async function transcriptMessages(deps: AttachDeps, sessionId: string): Promise<ChatHistory> {
+  if (!deps.harness.capabilities.transcriptHistory || !deps.harness.history) return []
+  const record = await deps.store.get(sessionId)
+  if (!record?.harnessSessionId) return []
+  const jsonl = readFileOrEmpty(deps.harness.history.transcriptPath(deps.cwd, record.harnessSessionId))
+  return jsonl ? deps.harness.history.parse(jsonl) : []
+}
+
+export function registerAttachRoute(app: H3, deps: AttachDeps): void {
+  app.get('/api/chat/attach', async (event) => {
+    const sessionId = sessionIdFromHeaders(event.req.headers)
+    if (!sessionId) throw new HTTPError({status: 400, message: 'no session'})
+    const history = await transcriptMessages(deps, sessionId)
+    const abort = new AbortController()
+    event.req.signal.addEventListener('abort', () => abort.abort())
+    const pending = deps.hub.pendingUserMessage(sessionId) as UIMessage | null
+    const generating = deps.hub.generating(sessionId)
+    const {replay, live} = deps.hub.attach(sessionId, abort.signal)
+    const settled = settledMessages(history, pending ? userText(pending) : null)
+    const messages = pending ? [...settled, pending] : settled
+    async function* chunks(): AsyncGenerator<StreamChunk> {
+      yield aguiSnapshotFor({generating, messages})
+      yield* replay
+      yield* live
+    }
+    return new Response(toServerSentEventsStream(chunks(), abort), {status: 200, headers: sseHeaders(event)})
+  })
+}

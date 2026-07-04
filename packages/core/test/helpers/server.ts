@@ -33,6 +33,7 @@ export type TestServer = {
   resolve: (id?: string) => Promise<string>
   post: (path: string, body: unknown, sessionId?: string) => Promise<Response>
   postChat: (message: unknown, sessionId?: string) => Promise<string>
+  attach: (sessionId: string, opts: {until: string; timeoutMs?: number}) => Promise<string>
   getSession: (sessionId?: string) => Promise<Response>
   getSessions: () => Promise<Response>
   close: () => Promise<void>
@@ -84,8 +85,33 @@ export async function startTestServer(opts: TestServerOpts = {}): Promise<TestSe
       headers: {'content-type': 'application/json', ...(sessionId ? {'conciv-session-id': sessionId} : {})},
       body: JSON.stringify(body),
     })
-  const postChat = async (message: unknown, sessionId?: string): Promise<string> =>
-    (await post('/api/chat', {messages: [message]}, sessionId)).text()
+  const attach = async (sessionId: string, options: {until: string; timeoutMs?: number}): Promise<string> => {
+    const controller = new AbortController()
+    const response = await fetch(`${base}/api/chat/attach`, {
+      headers: {'conciv-session-id': sessionId},
+      signal: controller.signal,
+    })
+    const reader = response.body?.getReader()
+    if (!reader) throw new Error('attach returned no body')
+    const decoder = new TextDecoder()
+    const deadline = Date.now() + (options.timeoutMs ?? 5000)
+    let text = ''
+    while (Date.now() < deadline) {
+      const {value, done} = await reader.read()
+      if (done) break
+      text += decoder.decode(value, {stream: true})
+      if (text.includes(options.until)) break
+    }
+    controller.abort()
+    return text
+  }
+  const postChat = async (message: unknown, sessionId?: string): Promise<string> => {
+    const id = sessionId ?? (await resolve())
+    const attached = attach(id, {until: 'RUN_FINISHED'})
+    const response = await post('/api/chat', {messages: [message]}, id)
+    if (!response.ok) return response.text()
+    return attached
+  }
   const getSession = (sessionId?: string): Promise<Response> =>
     fetch(`${base}/api/chat/session`, {headers: sessionId ? {'conciv-session-id': sessionId} : {}})
   const getSessions = (): Promise<Response> => fetch(`${base}/api/chat/sessions`)
@@ -98,5 +124,5 @@ export async function startTestServer(opts: TestServerOpts = {}): Promise<TestSe
     await server.close()
     rmSync(stateRoot, {recursive: true, force: true})
   }
-  return {base, stateRoot, resolve, post, postChat, getSession, getSessions, close}
+  return {base, stateRoot, resolve, post, postChat, attach, getSession, getSessions, close}
 }
