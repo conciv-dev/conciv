@@ -35,7 +35,7 @@ import {
 const MAX_EDGES = 500
 const EDGE_PATTERN = /--+>|--+|-\.-+>|==+>|--[xo]/g
 
-export const canvasReadTool = defineTool<typeof CanvasReadInput, WhiteboardToolContext>(canvasReadDef).server(
+const canvasReadTool = defineTool<typeof CanvasReadInput, WhiteboardToolContext>(canvasReadDef).server(
   async (input, ctx, request) => {
     const table = input.scope === 'draft' ? app.canvasDraftElements : app.canvasElements
     const rows = await ctx.db.all(table.where({room: ctx.room(request)}), {tier: 'global'})
@@ -43,7 +43,7 @@ export const canvasReadTool = defineTool<typeof CanvasReadInput, WhiteboardToolC
   },
 )
 
-export const canvasSvgTool = defineTool<typeof CanvasSvgInput, WhiteboardToolContext>(canvasSvgDef).server(
+const canvasSvgTool = defineTool<typeof CanvasSvgInput, WhiteboardToolContext>(canvasSvgDef).server(
   async (input, ctx, request) => {
     validateSvg(input.svg)
     const write = ctx.db.insert(app.canvasPending, {
@@ -57,7 +57,7 @@ export const canvasSvgTool = defineTool<typeof CanvasSvgInput, WhiteboardToolCon
   },
 )
 
-export const canvasExportTool = defineTool<typeof CanvasExportInput, WhiteboardToolContext>(canvasExportDef).server(
+const canvasExportTool = defineTool<typeof CanvasExportInput, WhiteboardToolContext>(canvasExportDef).server(
   async (input, ctx, request) => {
     const room = ctx.room(request)
     if (input.format === 'json') {
@@ -85,7 +85,7 @@ export const canvasExportTool = defineTool<typeof CanvasExportInput, WhiteboardT
   },
 )
 
-export const canvasDrawTool = defineTool<typeof CanvasDrawInput, WhiteboardToolContext>(canvasDrawDef).server(
+const canvasDrawTool = defineTool<typeof CanvasDrawInput, WhiteboardToolContext>(canvasDrawDef).server(
   async (input, ctx, request) => {
     const write = ctx.db.insert(app.canvasPending, {
       room: ctx.room(request),
@@ -98,7 +98,7 @@ export const canvasDrawTool = defineTool<typeof CanvasDrawInput, WhiteboardToolC
   },
 )
 
-export const canvasDiagramTool = defineTool<typeof CanvasDiagramInput, WhiteboardToolContext>(canvasDiagramDef).server(
+const canvasDiagramTool = defineTool<typeof CanvasDiagramInput, WhiteboardToolContext>(canvasDiagramDef).server(
   async (input, ctx, request) => {
     const edges = (input.mermaid.match(EDGE_PATTERN) ?? []).length
     if (edges > MAX_EDGES) throw new Error(`diagram exceeds ${MAX_EDGES} edges`)
@@ -113,7 +113,7 @@ export const canvasDiagramTool = defineTool<typeof CanvasDiagramInput, Whiteboar
   },
 )
 
-export const canvasConnectTool = defineTool<typeof CanvasConnectInput, WhiteboardToolContext>(canvasConnectDef).server(
+const canvasConnectTool = defineTool<typeof CanvasConnectInput, WhiteboardToolContext>(canvasConnectDef).server(
   async (input, ctx, request) => {
     const write = ctx.db.insert(app.canvasPending, {
       room: ctx.room(request),
@@ -126,7 +126,7 @@ export const canvasConnectTool = defineTool<typeof CanvasConnectInput, Whiteboar
   },
 )
 
-export const canvasUpdateTool = defineTool<typeof CanvasUpdateInput, WhiteboardToolContext>(canvasUpdateDef).server(
+const canvasUpdateTool = defineTool<typeof CanvasUpdateInput, WhiteboardToolContext>(canvasUpdateDef).server(
   async (input, ctx, request) => {
     const room = ctx.room(request)
     const [draft] = await ctx.db.all(app.canvasDraftElements.where({room, elementId: input.elementId}), {tier: 'global'})
@@ -140,7 +140,7 @@ export const canvasUpdateTool = defineTool<typeof CanvasUpdateInput, WhiteboardT
   },
 )
 
-export const canvasDeleteTool = defineTool<typeof CanvasDeleteInput, WhiteboardToolContext>(canvasDeleteDef).server(
+const canvasDeleteTool = defineTool<typeof CanvasDeleteInput, WhiteboardToolContext>(canvasDeleteDef).server(
   async (input, ctx, request) => {
     const room = ctx.room(request)
     const draftHits = await ctx.db.all(app.canvasDraftElements.where({room, elementId: input.elementId}), {tier: 'global'})
@@ -155,7 +155,7 @@ export const canvasDeleteTool = defineTool<typeof CanvasDeleteInput, WhiteboardT
   },
 )
 
-export const canvasClearTool = defineTool<typeof CanvasClearInput, WhiteboardToolContext>(canvasClearDef).server(
+const canvasClearTool = defineTool<typeof CanvasClearInput, WhiteboardToolContext>(canvasClearDef).server(
   async (_input, ctx, request) => {
     const room = ctx.room(request)
     const elements = await ctx.db.all(app.canvasElements.where({room}), {tier: 'global'})
@@ -171,7 +171,7 @@ export const canvasClearTool = defineTool<typeof CanvasClearInput, WhiteboardToo
 const draftRows = async (ctx: WhiteboardToolContext, room: string) =>
   ctx.db.all(app.canvasDraftElements.where({room}), {tier: 'global'})
 
-export const canvasCommitTool = defineTool<typeof CanvasCommitInput, WhiteboardToolContext>(canvasCommitDef).server(
+const canvasCommitTool = defineTool<typeof CanvasCommitInput, WhiteboardToolContext>(canvasCommitDef).server(
   async (_input, ctx, request) => {
     const room = ctx.room(request)
     const drafts = await draftRows(ctx, room)
@@ -189,7 +189,7 @@ export const canvasCommitTool = defineTool<typeof CanvasCommitInput, WhiteboardT
   },
 )
 
-export const canvasDiscardTool = defineTool<typeof CanvasDiscardInput, WhiteboardToolContext>(canvasDiscardDef).server(
+const canvasDiscardTool = defineTool<typeof CanvasDiscardInput, WhiteboardToolContext>(canvasDiscardDef).server(
   async (_input, ctx, request) => {
     const room = ctx.room(request)
     const drafts = await draftRows(ctx, room)
@@ -209,7 +209,7 @@ export const canvasDiscardTool = defineTool<typeof CanvasDiscardInput, Whiteboar
   },
 )
 
-export const canvasPreviewTool = defineTool<typeof CanvasPreviewInput, WhiteboardToolContext>(canvasPreviewDef).server(
+const canvasPreviewTool = defineTool<typeof CanvasPreviewInput, WhiteboardToolContext>(canvasPreviewDef).server(
   async (_input, ctx, request) => {
     const rows = await ctx.db.all(app.canvasDraftElements.where({room: ctx.room(request)}), {tier: 'global'})
     if (!rows.length) return {empty: true, reason: 'draft has no elements yet'}

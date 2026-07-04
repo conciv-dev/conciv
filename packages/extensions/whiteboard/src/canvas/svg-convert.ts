@@ -56,29 +56,121 @@ function splitSubpaths(data: string): string[] {
   return chunks && chunks.length > 1 ? chunks : [data]
 }
 
-function convertPath(
-  node: Element,
-  matrix: DOMMatrix,
-  scale: number,
-  origin: Origin,
-  roughness: number,
-  sink: ExcalidrawElementSkeleton[],
-): void {
+type ShapeContext = {matrix: DOMMatrix; scale: number; origin: Origin; roughness: number}
+type ShapeBuilder = (node: Element, context: ShapeContext) => ExcalidrawElementSkeleton[]
+
+const CONTAINERS = new Set(['g', 'svg'])
+
+const attrOf = (node: Element, name: string, fallback = '0'): number =>
+  parseFloat(node.getAttribute(name) ?? fallback) || 0
+
+function place(context: ShapeContext, x: number, y: number): Origin {
+  const at = applyMatrix(context.matrix, x, y)
+  return {x: at.x * context.scale - context.origin.x, y: at.y * context.scale - context.origin.y}
+}
+
+function nodeMatrix(node: Element, matrix: DOMMatrix): DOMMatrix {
+  const own = (node as SVGGraphicsElement).transform?.baseVal?.consolidate()?.matrix
+  return own ? matrix.multiply(own) : matrix
+}
+
+function buildRect(node: Element, context: ShapeContext): ExcalidrawElementSkeleton[] {
+  const at = place(context, attrOf(node, 'x'), attrOf(node, 'y'))
+  return [
+    {
+      type: 'rectangle',
+      x: at.x,
+      y: at.y,
+      width: attrOf(node, 'width') * context.matrix.a * context.scale,
+      height: attrOf(node, 'height') * context.matrix.d * context.scale,
+      ...styleFields(node, context.scale, context.roughness),
+    } as ExcalidrawElementSkeleton,
+  ]
+}
+
+function buildEllipse(node: Element, context: ShapeContext): ExcalidrawElementSkeleton[] {
+  const radiusAttr = node.tagName === 'circle' ? ['r', 'r'] : ['rx', 'ry']
+  const rx = attrOf(node, radiusAttr[0] ?? 'r')
+  const ry = attrOf(node, radiusAttr[1] ?? 'r')
+  const at = place(context, attrOf(node, 'cx') - rx, attrOf(node, 'cy') - ry)
+  return [
+    {
+      type: 'ellipse',
+      x: at.x,
+      y: at.y,
+      width: rx * 2 * context.matrix.a * context.scale,
+      height: ry * 2 * context.matrix.d * context.scale,
+      ...styleFields(node, context.scale, context.roughness),
+    } as ExcalidrawElementSkeleton,
+  ]
+}
+
+function buildText(node: Element, context: ShapeContext): ExcalidrawElementSkeleton[] {
+  const fontSize = (parseFloat(getComputedStyle(node).fontSize) || 16) * context.scale
+  const at = place(context, attrOf(node, 'x'), attrOf(node, 'y'))
+  return [
+    {
+      type: 'text',
+      x: at.x,
+      y: at.y - fontSize,
+      text: node.textContent ?? '',
+      fontSize,
+      strokeColor: resolvedStyle(node).fill ?? '#1e1e1e',
+    } as ExcalidrawElementSkeleton,
+  ]
+}
+
+function buildLine(node: Element, context: ShapeContext): ExcalidrawElementSkeleton[] {
+  const from = place(context, attrOf(node, 'x1'), attrOf(node, 'y1'))
+  const to = place(context, attrOf(node, 'x2'), attrOf(node, 'y2'))
+  return [lineFromPoints([[from.x, from.y], [to.x, to.y]], node, context.scale, context.roughness)]
+}
+
+function buildPolyline(node: Element, context: ShapeContext): ExcalidrawElementSkeleton[] {
+  const numbers = (node.getAttribute('points') ?? '').match(NUMBER)?.map(Number) ?? []
+  const pairs: number[][] = []
+  for (let index = 0; index + 1 < numbers.length; index += 2) {
+    const at = place(context, numbers[index] ?? 0, numbers[index + 1] ?? 0)
+    pairs.push([at.x, at.y])
+  }
+  if (node.tagName === 'polygon' && pairs.length) pairs.push([pairs[0]?.[0] ?? 0, pairs[0]?.[1] ?? 0])
+  return pairs.length > 1 ? [lineFromPoints(pairs, node, context.scale, context.roughness)] : []
+}
+
+function samplePathSubpath(node: Element, subpath: string, context: ShapeContext): ExcalidrawElementSkeleton | null {
   const parent = node.parentNode
-  if (!parent) return
+  if (!parent) return null
+  const probe = document.createElementNS(SVG_NAMESPACE, 'path')
+  probe.setAttribute('d', subpath)
+  parent.appendChild(probe)
+  const points = samplePoints(probe, context.matrix, context.scale, context.origin)
+  probe.remove()
+  return points ? lineFromPoints(points, node, context.scale, context.roughness) : null
+}
+
+function buildPath(node: Element, context: ShapeContext): ExcalidrawElementSkeleton[] {
+  const out: ExcalidrawElementSkeleton[] = []
   for (const subpath of splitSubpaths(node.getAttribute('d') ?? '')) {
-    if (sink.length >= MAX_ELEMENTS) return
+    if (out.length >= MAX_ELEMENTS) break
     try {
-      const probe = document.createElementNS(SVG_NAMESPACE, 'path')
-      probe.setAttribute('d', subpath)
-      parent.appendChild(probe)
-      const points = samplePoints(probe, matrix, scale, origin)
-      probe.remove()
-      if (points) sink.push(lineFromPoints(points, node, scale, roughness))
+      const line = samplePathSubpath(node, subpath, context)
+      if (line) out.push(line)
     } catch (error) {
       console.error(`[whiteboard] svg path subpath skipped: ${String(error)}`)
     }
   }
+  return out
+}
+
+const BUILDERS: Record<string, ShapeBuilder> = {
+  rect: buildRect,
+  circle: buildEllipse,
+  ellipse: buildEllipse,
+  text: buildText,
+  line: buildLine,
+  polyline: buildPolyline,
+  polygon: buildPolyline,
+  path: buildPath,
 }
 
 function convertNode(
@@ -91,80 +183,19 @@ function convertNode(
 ): void {
   if (sink.length >= MAX_ELEMENTS) return
   const tag = node.tagName
-  if (tag === 'g' || tag === 'svg') {
+  if (CONTAINERS.has(tag)) {
     Array.from(node.children).forEach((child) => convertNode(child, matrix, scale, origin, roughness, sink))
     return
   }
-  const own = (node as SVGGraphicsElement).transform?.baseVal?.consolidate()?.matrix
-  const current = own ? matrix.multiply(own) : matrix
-  const attr = (name: string, fallback = '0'): number => parseFloat(node.getAttribute(name) ?? fallback) || 0
-  if (tag === 'rect') {
-    const at = applyMatrix(current, attr('x'), attr('y'))
-    sink.push({
-      type: 'rectangle',
-      x: at.x * scale - origin.x,
-      y: at.y * scale - origin.y,
-      width: attr('width') * current.a * scale,
-      height: attr('height') * current.d * scale,
-      ...styleFields(node, scale, roughness),
-    } as ExcalidrawElementSkeleton)
-    return
-  }
-  if (tag === 'circle' || tag === 'ellipse') {
-    const rx = attr(tag === 'circle' ? 'r' : 'rx')
-    const ry = attr(tag === 'circle' ? 'r' : 'ry')
-    const at = applyMatrix(current, attr('cx') - rx, attr('cy') - ry)
-    sink.push({
-      type: 'ellipse',
-      x: at.x * scale - origin.x,
-      y: at.y * scale - origin.y,
-      width: rx * 2 * current.a * scale,
-      height: ry * 2 * current.d * scale,
-      ...styleFields(node, scale, roughness),
-    } as ExcalidrawElementSkeleton)
-    return
-  }
-  if (tag === 'text') {
-    const at = applyMatrix(current, attr('x'), attr('y'))
-    const fontSize = (parseFloat(getComputedStyle(node).fontSize) || 16) * scale
-    sink.push({
-      type: 'text',
-      x: at.x * scale - origin.x,
-      y: at.y * scale - origin.y - fontSize,
-      text: node.textContent ?? '',
-      fontSize,
-      strokeColor: resolvedStyle(node).fill ?? '#1e1e1e',
-    } as ExcalidrawElementSkeleton)
-    return
-  }
-  if (tag === 'line') {
-    const from = applyMatrix(current, attr('x1'), attr('y1'))
-    const to = applyMatrix(current, attr('x2'), attr('y2'))
-    sink.push(
-      lineFromPoints(
-        [
-          [from.x * scale - origin.x, from.y * scale - origin.y],
-          [to.x * scale - origin.x, to.y * scale - origin.y],
-        ],
-        node,
-        scale,
-        roughness,
-      ),
-    )
-    return
-  }
-  if (tag === 'polyline' || tag === 'polygon') {
-    const numbers = (node.getAttribute('points') ?? '').match(NUMBER)?.map(Number) ?? []
-    const pairs: number[][] = []
-    for (let index = 0; index + 1 < numbers.length; index += 2) {
-      const at = applyMatrix(current, numbers[index] ?? 0, numbers[index + 1] ?? 0)
-      pairs.push([at.x * scale - origin.x, at.y * scale - origin.y])
-    }
-    if (tag === 'polygon' && pairs.length) pairs.push([pairs[0]?.[0] ?? 0, pairs[0]?.[1] ?? 0])
-    if (pairs.length > 1) sink.push(lineFromPoints(pairs, node, scale, roughness))
-    return
-  }
-  if (tag === 'path') convertPath(node, current, scale, origin, roughness, sink)
+  const builder = BUILDERS[tag]
+  if (builder) builder(node, {matrix: nodeMatrix(node, matrix), scale, origin, roughness}).forEach((skeleton) => sink.push(skeleton))
+}
+
+function rootTransform(svg: SVGSVGElement, options: ConvertOptions): {scale: number; origin: Origin} {
+  const viewBox = svg.viewBox?.baseVal
+  const sourceWidth = viewBox?.width || parseFloat(svg.getAttribute('width') ?? '400') || 400
+  const scale = options.width / sourceWidth
+  return {scale, origin: {x: (viewBox?.x ?? 0) * scale - options.x, y: (viewBox?.y ?? 0) * scale - options.y}}
 }
 
 export function svgToSkeletons(svgMarkup: string, options: ConvertOptions): ExcalidrawElementSkeleton[] {
@@ -175,13 +206,10 @@ export function svgToSkeletons(svgMarkup: string, options: ConvertOptions): Exca
   if (!svg) throw new Error('no <svg> root found')
   document.body.appendChild(host)
   try {
-    const viewBox = svg.viewBox?.baseVal
-    const sourceWidth = viewBox?.width || parseFloat(svg.getAttribute('width') ?? '400') || 400
-    const scale = options.width / sourceWidth
-    const origin = {x: (viewBox?.x ?? 0) * scale - options.x, y: (viewBox?.y ?? 0) * scale - options.y}
+    const {scale, origin} = rootTransform(svg, options)
     const sink: ExcalidrawElementSkeleton[] = []
     convertNode(svg, svg.createSVGMatrix() as DOMMatrix, scale, origin, options.roughness, sink)
-    return sink
+    return sink.slice(0, MAX_ELEMENTS)
   } finally {
     host.remove()
   }

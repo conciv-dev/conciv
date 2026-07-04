@@ -1,20 +1,10 @@
 import {expect, test} from 'vitest'
-import type {Page} from 'playwright'
 import whiteboard from '../src/server.js'
 import {getExtensionTestApi} from '@conciv/extension-testkit'
-
-const clientEntry = '@conciv/extension-whiteboard/client'
-
-const openCanvas = async (page: Page): Promise<void> => {
-  await page.getByRole('button', {name: 'Open the whiteboard canvas'}).click()
-  await page.getByRole('radio', {name: 'Rectangle'}).waitFor()
-}
+import {clientEntry, openCanvas, readCanvas as read} from './canvas-it-helpers.js'
 
 const HOUSE =
   "<svg viewBox='0 0 100 100'><rect x='20' y='50' width='60' height='40' fill='#e8d9b0'/><path d='M 10 50 L 50 15 L 90 50 Z' fill='#c0533f'/></svg>"
-
-const read = async (api: {callTool: (name: string, input: unknown) => Promise<unknown>}, scope: string): Promise<unknown[]> =>
-  ((await api.callTool('canvas.read', {scope})) as {elements: unknown[]}).elements
 
 test('commit moves the whole draft to the live canvas', async () => {
   const api = await getExtensionTestApi({server: whiteboard, clientEntry})

@@ -1,6 +1,6 @@
 export const WHITEBOARD_NAME = 'whiteboard' as const
 
-export const WHITEBOARD_DRAWING_PROMPT = `
+const WHITEBOARD_DRAWING_PROMPT = `
 ## Drawing on the canvas
 
 Draw in a hidden draft; the user only sees committed work.

@@ -10,7 +10,7 @@ import type {ExcalidrawElement, OrderedExcalidrawElement} from '@excalidraw/exca
 import type {ExcalidrawElementSkeleton} from '@excalidraw/excalidraw/data/transform'
 import type {CaptureUpdateActionType} from '@excalidraw/excalidraw/store'
 import {app} from '../shared/schema.js'
-import {replayDraft, type ReplayHandle} from './replay.js'
+import {replayDraft, type ReplayHandle, type ReplayStep} from './replay.js'
 import type {Viewport} from './coords.js'
 
 export type Self = {peerId: string; name: string; color: string}
@@ -203,32 +203,38 @@ export function Island(props: {
       .wait({tier: 'edge'})
       .catch((error) => console.error(`[whiteboard] agent cursor move failed: ${String(error)}`))
 
+  const commitStep = async (draft: ElementRow): Promise<ReplayStep> => {
+    const data = draft.data as unknown as {x?: number; y?: number}
+    const liveId = await stableUuid(`commit:${draft.id}`)
+    return {
+      elementId: draft.elementId,
+      x: data.x ?? 0,
+      y: data.y ?? 0,
+      write: (): void =>
+        void db()
+          .upsert(
+            app.canvasElements,
+            {room: props.room, elementId: draft.elementId, data: draft.data, version: draft.version},
+            {id: liveId},
+          )
+          .wait({tier: 'edge'})
+          .catch((error) => console.error(`[whiteboard] commit element write failed: ${String(error)}`)),
+    }
+  }
+
+  const clearDraftRows = (ordered: readonly ElementRow[]): Promise<unknown> =>
+    db()
+      .batch((batch) => ordered.forEach((draft) => batch.delete(app.canvasDraftElements, draft.id)))
+      .wait({tier: 'edge'})
+      .catch((error) => console.error(`[whiteboard] commit draft cleanup failed: ${String(error)}`))
+
   const performCommit = async (row: PendingRow): Promise<void> => {
     const drafts = await db().all(app.canvasDraftElements.where({room: props.room}), {tier: 'global'})
     const ordered = drafts.map((draft) => draft as unknown as ElementRow)
     let handle: ReplayHandle | undefined
     const onPointerDown = (): void => handle?.skip()
     try {
-      const steps = await Promise.all(
-        ordered.map(async (draft) => {
-          const data = draft.data as unknown as {x?: number; y?: number}
-          const liveId = await stableUuid(`commit:${draft.id}`)
-          return {
-            elementId: draft.elementId,
-            x: data.x ?? 0,
-            y: data.y ?? 0,
-            write: (): void =>
-              void db()
-                .upsert(
-                  app.canvasElements,
-                  {room: props.room, elementId: draft.elementId, data: draft.data, version: draft.version},
-                  {id: liveId},
-                )
-                .wait({tier: 'edge'})
-                .catch((error) => console.error(`[whiteboard] commit element write failed: ${String(error)}`)),
-          }
-        }),
-      )
+      const steps = await Promise.all(ordered.map(commitStep))
       const cursorId = await ensureAgentCursor(steps[0]?.x ?? 0, steps[0]?.y ?? 0).catch((error) => {
         console.error(`[whiteboard] agent cursor create failed: ${String(error)}`)
         return undefined
@@ -236,10 +242,7 @@ export function Island(props: {
       container?.addEventListener('pointerdown', onPointerDown, {once: true})
       handle = replayDraft(steps, (x, y) => (cursorId ? moveAgentCursor(cursorId, x, y) : undefined))
       await handle.done
-      await db()
-        .batch((batch) => ordered.forEach((draft) => batch.delete(app.canvasDraftElements, draft.id)))
-        .wait({tier: 'edge'})
-        .catch((error) => console.error(`[whiteboard] commit draft cleanup failed: ${String(error)}`))
+      await clearDraftRows(ordered)
     } catch (error) {
       console.error(`[whiteboard] performCommit ${row.id} failed: ${String(error)}`)
     } finally {
@@ -259,14 +262,18 @@ export function Island(props: {
     return btoa(binary)
   }
 
-  const exportReply = async (scope: 'live' | 'draft' | 'both'): Promise<JsonValue> => {
+  const gatherExportElements = async (scope: 'live' | 'draft' | 'both'): Promise<SceneElement[]> => {
     const live = scope === 'draft' ? [] : (api?.getSceneElements() ?? [])
     const draftRows =
       scope === 'live' ? [] : await db().all(app.canvasDraftElements.where({room: props.room}), {tier: 'global'})
-    const drafts = draftRows.map((draft) => asScene((draft as unknown as ElementRow).data))
+    return [...live, ...draftRows.map((draft) => asScene((draft as unknown as ElementRow).data))]
+  }
+
+  const exportReply = async (scope: 'live' | 'draft' | 'both'): Promise<JsonValue> => {
+    const elements = await gatherExportElements(scope)
     const {exportToBlob} = await import('@excalidraw/excalidraw')
     const blob = await exportToBlob({
-      elements: [...live, ...drafts],
+      elements,
       files: api?.getFiles() ?? {},
       appState: {exportBackground: true, viewBackgroundColor: '#ffffff'},
     })

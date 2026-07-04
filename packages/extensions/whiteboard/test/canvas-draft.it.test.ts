@@ -1,25 +1,10 @@
 import {expect, test} from 'vitest'
-import type {Page} from 'playwright'
 import whiteboard from '../src/server.js'
 import {getExtensionTestApi} from '@conciv/extension-testkit'
-
-const clientEntry = '@conciv/extension-whiteboard/client'
-
-const openCanvas = async (page: Page): Promise<void> => {
-  await page.getByRole('button', {name: 'Open the whiteboard canvas'}).click()
-  await page.getByRole('radio', {name: 'Rectangle'}).waitFor()
-}
+import {clientEntry, openCanvas, readCanvas as readElements} from './canvas-it-helpers.js'
 
 const CAT_EAR =
   "<svg viewBox='0 0 100 100'><path d='M 10 90 L 50 10 L 90 90 Z' fill='#f0a860' stroke='#7a4a1e'/><rect x='20' y='20' width='10' height='10' fill='#1e1e1e'/></svg>"
-
-const readElements = async (
-  api: {callTool: (name: string, input: unknown) => Promise<unknown>},
-  scope: string,
-): Promise<unknown[]> => {
-  const result = (await api.callTool('canvas.read', {scope})) as {elements: unknown[]}
-  return result.elements
-}
 
 test('svg drawing lands in the draft, invisible until committed', async () => {
   const api = await getExtensionTestApi({server: whiteboard, clientEntry})
