@@ -19,7 +19,10 @@
 
 - **Build before testing core:** `@conciv/core` tests import workspace deps from their built `dist`. Run `pnpm turbo build --filter @conciv/core...` once before the first core test run, or every file fails with `Failed to resolve entry for package "@conciv/harness"`. Same rule for the whiteboard: `pnpm turbo build --filter @conciv/extension-whiteboard...` before its ITs.
 - **Committing new files:** `git commit -- <paths>` rejects untracked paths. `git add <new files>` first, then the pathspec commit. Verify author on every commit: `git log -1 --format='%an %ae'` must show the `omridevk` noreply email (public repo).
-- **Testkit `callTool` is the MCP path**, not a direct execute call: `packages/extension-testkit/src/call-tool.ts` → `createMCPClient` (`@tanstack/ai-mcp`) → `POST /api/mcp` with the session header. String results get a `JSON.parse` attempt; non-strings return as-is. This matters for every image-returning tool test (Tasks 7–8): after Task 2, the MCP layer converts `ImageResult` markers into MCP content blocks, so `callTool` will NOT return the raw `{__concivImage}` marker.
+- **Testkit `callTool` and the MCP client return shape (read from `@tanstack/ai-mcp` `dist/esm/tools.js`, `mcpContentToTanstack` + `makeMcpExecute`).** Both the core ITs (via `createMCPClient(...).tools()[n].execute(...)`) and the testkit `callTool` (`call-tool.ts` → same client) return the client-transformed content, never the raw MCP `{content}` envelope and never the raw `{__concivImage}` marker. Exact rules (our extension tools have no `outputSchema`, so `preferStructured` is always false):
+  - A tool result that serializes to a **single text block** collapses to the raw string. `callTool` then `JSON.parse`s it, so a plain object result (e.g. `{empty: true, reason: '...'}`) comes back as that parsed object.
+  - An **`imageResult(mime, base64, detail)`** (after Task 2 converts it to `[{type:'image', data, mimeType}, {type:'text', text: JSON.stringify(detail)}]`) comes back as the array `[{type: 'image', source: {type: 'data', value: <base64>, mimeType: <mime>}}, {type: 'text', content: <JSON.stringify(detail)>}]`. With no `detail`, it is the one-element array `[{type: 'image', source: {...}}]` (a lone non-text block does NOT collapse to a string). Locate the image block, read `source.value` for the base64, `source.mimeType` for the type.
+  - A tool that **throws** (e.g. `validateSvg`) produces an `isError` MCP result; the client rejects with `Error('MCP tool "<name>" returned an error: <thrown message>')`. So `await expect(callTool(...)).rejects.toThrow(/<pattern>/)` is correct, and the thrown tool message is embedded in that error string.
 - **`ExtensionTestApi` fields** (`packages/extension-testkit/src/get-extension-test-api.ts`): `page`, `callTool`, `session` (the session id string — there is no `sessionId` field), `apiBase`, `secondClient()`, `dispose()`. It exposes no server context today; Task 9 adds that.
 - **Testkit boot chain** (for Task 9's accessor): `getExtensionTestApi` → `bootExtensionServer` (`boot-server.ts`) → `start()` from `@conciv/core/engine` (`packages/core/src/engine.ts`) → `makeApp` (`packages/core/src/app.ts`). The mounted `ServerResult.context` lives only inside `makeApp`'s `mounted` array; exposing it to tests means threading it through all four layers (see Task 9 Step 1).
 - **`packages/extension/src/index.ts`** is the single public export surface (`export {defineTool} from './define-tool.js'` at line 9) — Task 2's new exports go there.
@@ -228,16 +231,16 @@ const snap = defineTool<z.ZodObject<{}>, unknown>({
 }).server(() => imageResult('image/png', PNG_RED_4x4, {width: 4}))
 ```
 
-Register it via a probe extension on the test server, invoke `tools/call` for `probe.snap` through the same MCP client the existing test uses, then:
+Register it via a probe extension on the test server (`defineExtension({name: 'image-probe', tools: [snap]})`), then get the tool through the same `createMCPClient(...).tools()` the existing test uses and call `tool.execute({})`. Per the verified client return shape (see Verified Codebase Facts), the client transforms MCP content, so assert:
 
 ```ts
-expect(result.content).toEqual([
-  {type: 'image', data: PNG_RED_4x4, mimeType: 'image/png'},
-  {type: 'text', text: JSON.stringify({width: 4})},
+expect(result).toEqual([
+  {type: 'image', source: {type: 'data', value: PNG_RED_4x4, mimeType: 'image/png'}},
+  {type: 'text', content: JSON.stringify({width: 4})},
 ])
 ```
 
-The tanstack MCP client's `tool.execute()` may unwrap or reshape the raw MCP `content` array — assert on whatever it actually returns as long as the image block (`data` + `mimeType`) and the detail text are both present. **Record the exact observed client-side shape in a comment-free way: note it in this plan file under Task 7 Step 7 before moving on** — Tasks 7 and 8 assert on that same shape through the testkit's `callTool` (which uses this identical client).
+This is the client-transformed shape (`mcpContentToTanstack`), the same shape Tasks 7 and 8 assert on through the testkit's `callTool`.
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -572,7 +575,7 @@ test('rejected svg never reaches the canvas', async () => {
 })
 ```
 
-`callTool` (`packages/extension-testkit/src/call-tool.ts`) goes over MCP: the MCP server wraps a tool throw into an `isError` text result rather than a transport error, and the tanstack client may surface that as a resolved error payload instead of a rejection. Run the test once and look at what actually comes back for the `<div/>` input; if it resolves, assert the payload contains the `<svg` message text instead of using `rejects`.
+Verified: a tool throw surfaces as a client rejection (`Error('MCP tool "canvas.svg" returned an error: markup must have an <svg> root')`), so the `rejects.toThrow(/<svg/i)` above is correct as written.
 
 - [ ] **Step 2: Run to verify failure**
 
@@ -1241,9 +1244,13 @@ test('preview returns a real png of the draft without any browser round-trip', a
     await expect
       .poll(async () => ((await api.callTool('canvas.read', {scope: 'draft'})) as {elements: unknown[]}).elements, {timeout: 15_000})
       .toHaveLength(1)
-    const result = (await api.callTool('canvas.preview', {})) as {__concivImage?: {mimeType: string; dataBase64: string}}
-    expect(result.__concivImage?.mimeType).toBe('image/png')
-    const header = Buffer.from(result.__concivImage?.dataBase64 ?? '', 'base64').subarray(0, 8)
+    const result = (await api.callTool('canvas.preview', {})) as Array<{
+      type: string
+      source?: {value: string; mimeType: string}
+    }>
+    const image = result.find((part) => part.type === 'image')
+    expect(image?.source?.mimeType).toBe('image/png')
+    const header = Buffer.from(image?.source?.value ?? '', 'base64').subarray(0, 8)
     expect([...header]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
   } finally {
     await api.dispose()
@@ -1262,7 +1269,7 @@ test('preview on an empty draft names the cause', async () => {
 })
 ```
 
-**Correction (verified):** the testkit `callTool` DOES go through MCP (`call-tool.ts` → `createMCPClient` → `/api/mcp`), so after Task 2 the raw `{__concivImage}` marker never reaches the test — the MCP layer converts it to an image content block first. Rewrite the first test's assertions against the client-side shape recorded in Task 2 Step 1: locate the image block in the result, assert `mimeType === 'image/png'`, base64-decode its `data`, and check the PNG magic bytes. The empty-draft test is unaffected (plain JSON result, parsed back to an object by `callTool`).
+The non-empty test asserts on the client-transformed image shape (`callTool` returns `mcpContentToTanstack` output — the image block carries base64 in `source.value`). The empty-draft test returns a plain `{empty, reason}` object because a single text block collapses to a string that `callTool` re-parses.
 
 Run: `pnpm --filter @conciv/extension-whiteboard test -- test/canvas-preview.it.test.ts`
 Expected: PASS
@@ -1319,11 +1326,13 @@ test('png export round-trips through the island with excalidraw rendering', asyn
     await expect
       .poll(async () => ((await api.callTool('canvas.read', {scope: 'draft'})) as {elements: unknown[]}).elements, {timeout: 15_000})
       .toHaveLength(1)
-    const result = (await api.callTool('canvas.export', {format: 'png', scope: 'draft'})) as {
-      __concivImage?: {mimeType: string; dataBase64: string}
-    }
-    expect(result.__concivImage?.mimeType).toBe('image/png')
-    const header = Buffer.from(result.__concivImage?.dataBase64 ?? '', 'base64').subarray(0, 8)
+    const result = (await api.callTool('canvas.export', {format: 'png', scope: 'draft'})) as Array<{
+      type: string
+      source?: {value: string; mimeType: string}
+    }>
+    const image = result.find((part) => part.type === 'image')
+    expect(image?.source?.mimeType).toBe('image/png')
+    const header = Buffer.from(image?.source?.value ?? '', 'base64').subarray(0, 8)
     expect([...header]).toEqual(PNG_MAGIC)
   } finally {
     await api.dispose()
@@ -1342,7 +1351,7 @@ test('json export still returns elements', async () => {
 })
 ```
 
-**Same MCP-shape correction as Task 7:** `callTool` returns the MCP-converted image content, not the raw `{__concivImage}` marker — write the PNG assertions against the client-side shape recorded in Task 2 Step 1 (image block's `mimeType` + PNG magic on decoded `data`).
+The png assertion reads the client-transformed image block (`source.value` base64), matching Task 7; the json export returns a plain object (single text block re-parsed by `callTool`).
 
 A timeout-path test (no tab connected) requires a testkit session without the client page; check whether `getExtensionTestApi` can start server-only — if it always opens the page, cover the timeout branch in a node test by calling the exported tool execute with a stub context whose `db.all` returns `[]` forever is a mock — skip it instead: the timeout branch is 5 lines and the error message is asserted by reading the code in review. Do not write a mocked test.
 
