@@ -1,7 +1,7 @@
 # Terminal View Augmentation — Design
 
 Date: 2026-07-04
-Status: approved (brainstorm with user, mockup-driven)
+Status: implemented (plan `docs/superpowers/plans/2026-07-04-terminal-view-augmentation.md`; note: "new session" follows shell pane semantics — fresh pane opens in chat view; the same-pane respawn path is exercised by the model chip)
 Builds on: `2026-07-04-terminal-extension-design.md` (the terminal extension itself). This spec covers what comes next: composer-action parity in the terminal view plus web-side augmentation of the TTY claude.
 
 ## Goal
