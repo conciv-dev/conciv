@@ -17,6 +17,7 @@ import {registerServerRoutes} from './api/server/server.js'
 import {registerEditorRoutes} from './api/editor/editor.js'
 import {makeUiBus} from './runtime/ui-bus.js'
 import {makeJournal} from './runtime/journal.js'
+import {logError} from './runtime/harness-logger.js'
 import type {OpenInEditor} from './editor/open.js'
 
 export type MakeAppOpts = {
@@ -45,7 +46,7 @@ function requireHarness(id: string): HarnessAdapter {
   return found
 }
 
-export type MadeApp = {app: H3; disposers: (() => void | Promise<void>)[]}
+export type MadeApp = {app: H3; disposers: (() => void | Promise<void>)[]; extensionContexts: Record<string, unknown>}
 
 export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const app = new H3()
@@ -60,19 +61,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   )
 
   registerCors(app, opts.allowedOrigins ?? [])
-  registerChatRoutes(app, {
-    cwd: opts.cwd,
-    stateRoot: opts.cfg.stateRoot,
-    initialSessionId: opts.cfg.sessionId,
-    harness,
-    spawnHarness: opts.spawnHarness,
-    harnessEnv: opts.harnessEnv,
-    systemPromptFile: opts.systemPromptFile,
-    systemPromptText: opts.systemPromptText ?? opts.cfg.systemPrompt,
-    claudeHome: opts.claudeHome,
-    uiBus,
-    riskyTools,
-  })
   const page = registerPageRoutes(app, {journal: makeJournal(), root: opts.cwd})
   registerEditorRoutes(app, opts.openInEditor)
   registerOpenSourceRoute(app, {openInEditor: opts.openInEditor, root: opts.cwd})
@@ -102,8 +90,11 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
           },
         ]
       })
-      return {extensionName: extension.name, tools, dispose: result?.dispose}
+      return {extensionName: extension.name, tools, context, dispose: result?.dispose, turnEnd: result?.turnEnd}
     }),
+  )
+  const extensionContexts: Record<string, unknown> = Object.fromEntries(
+    mounted.map((entry) => [entry.extensionName, entry.context]),
   )
   const extensionTools = mounted.flatMap((entry) => entry.tools)
   extensionTools.forEach((tool) => {
@@ -111,6 +102,27 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     seenTools.add(tool.name)
   })
   const disposers = mounted.flatMap((entry) => (entry.dispose ? [entry.dispose] : []))
+  const turnEnds = mounted.flatMap((entry) => (entry.turnEnd ? [entry.turnEnd] : []))
+  const onTurnEnd = async (sessionId: string): Promise<void> => {
+    const settled = await Promise.allSettled(turnEnds.map((hook) => hook(sessionId)))
+    settled.forEach((outcome) => {
+      if (outcome.status === 'rejected') logError(`[core] turn-end hook failed: ${String(outcome.reason)}`)
+    })
+  }
+  registerChatRoutes(app, {
+    cwd: opts.cwd,
+    stateRoot: opts.cfg.stateRoot,
+    initialSessionId: opts.cfg.sessionId,
+    harness,
+    spawnHarness: opts.spawnHarness,
+    harnessEnv: opts.harnessEnv,
+    systemPromptFile: opts.systemPromptFile,
+    systemPromptText: opts.systemPromptText ?? opts.cfg.systemPrompt,
+    claudeHome: opts.claudeHome,
+    uiBus,
+    riskyTools,
+    onTurnEnd,
+  })
 
   const makeToolCtx = (sessionId: string): ConcivToolContext => ({
     injectUi: (spec) => uiBus.inject(sessionId, spec),
@@ -127,5 +139,5 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   ]
   registerToolsRoute(app, toolList)
   if (opts.bridge) registerServerRoutes(app, opts.bridge)
-  return {app, disposers}
+  return {app, disposers, extensionContexts}
 }

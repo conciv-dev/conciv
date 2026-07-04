@@ -24,6 +24,7 @@ export type ChatRouteOpts = {
   claudeHome?: string
   uiBus: UiBus
   riskyTools?: ReadonlySet<string>
+  onTurnEnd?: (sessionId: string) => Promise<void>
 }
 
 export async function ensureAgentRecord(deps: ResolveDeps, harnessId: string): Promise<SessionRecord> {
@@ -73,5 +74,6 @@ export function registerChatRoutes(app: H3, opts: ChatRouteOpts): void {
     systemPromptText: opts.systemPromptText,
     uiBus,
     store,
+    onTurnEnd: opts.onTurnEnd,
   })
 }

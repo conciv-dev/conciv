@@ -53,6 +53,7 @@
     "@conciv/grab": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
+    "@tanstack/ai": "^0.28.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
