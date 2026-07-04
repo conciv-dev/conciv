@@ -6,7 +6,7 @@ test('prompt teaches the draft loop in order', () => {
   const loop = ['canvas.svg', 'canvas.preview', 'canvas.export', 'canvas.commit']
   const positions = loop.map((name) => WHITEBOARD_PROMPT.indexOf(name))
   positions.forEach((position) => expect(position).toBeGreaterThan(-1))
-  expect([...positions]).toEqual([...positions].sort((left, right) => left - right))
+  expect(positions).toEqual(positions.toSorted((left, right) => left - right))
 })
 
 test('prompt routes styles', () => {
