@@ -86,6 +86,9 @@ describe('terminal extension e2e (real engine, real claude)', () => {
 
     await terminalTab.click()
 
+    await expect
+      .poll(() => page.getByRole('button', {name: 'Select an element from the page'}).first().isVisible())
+      .toBe(true)
     await expect.poll(() => page.getByRole('button', {name: 'Start a new session'}).first().isVisible()).toBe(true)
     await expect.poll(() => page.getByRole('button', {name: 'Open externally'}).first().isVisible()).toBe(true)
     await expect.poll(() => page.getByRole('button', {name: 'Select model'}).first().isVisible()).toBe(true)

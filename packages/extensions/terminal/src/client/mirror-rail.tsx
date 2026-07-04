@@ -1,6 +1,7 @@
 import {createMemo, createSignal, For, Match, onCleanup, onMount, Show, Switch, type JSX} from 'solid-js'
 import type {MessagePart, UIMessage} from '@conciv/protocol/chat-types'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
+import {Button} from '@conciv/ui-kit-system'
 import {inlineValue, SUMMARY_KEYS} from '@conciv/ui-kit-chat-tools'
 
 export function connectMirror(
@@ -67,8 +68,6 @@ const RAIL_HEAD =
 const ENTRY_TEXT = 'text-[0.75rem] text-pw-text px-2.5 py-1 [word-break:break-word]'
 const ENTRY_THINKING = 'text-[0.75rem] text-pw-text-3 italic px-2.5 py-1 [word-break:break-word]'
 const TOOL_ROW = 'flex items-center gap-1.5 text-[0.71875rem] text-pw-text-2 px-2.5 py-1 font-pw-mono'
-const TOGGLE =
-  'text-[0.6875rem] font-semibold text-pw-text-2 px-2 py-1.5 bg-transparent [border:none] cursor-pointer hover:text-pw-text-hi'
 
 function partText(part: MessagePart): string {
   return 'content' in part && typeof part.content === 'string' ? part.content : ''
@@ -119,9 +118,9 @@ export function MirrorRail(props: {apiBase: string; headers: () => Record<string
   const results = createMemo(() => resultsById(messages()))
   return (
     <div class="flex flex-col min-h-0" classList={{'w-70 border-l border-pw-line': open()}}>
-      <button type="button" class={TOGGLE} aria-expanded={open()} onClick={() => setOpen((value) => !value)}>
+      <Button variant="ghost" size="sm" class="m-1" aria-expanded={open()} onClick={() => setOpen((value) => !value)}>
         Activity
-      </button>
+      </Button>
       <Show when={open()}>
         <div class={RAIL_HEAD}>
           <span>Activity</span>

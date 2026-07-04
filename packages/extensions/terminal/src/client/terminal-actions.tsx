@@ -1,13 +1,10 @@
 import {createMemo, createSignal, onMount, Show, For, type JSX} from 'solid-js'
-import {SquarePen, SquareTerminal} from 'lucide-solid'
-import {ModelSelector, useModelSelectorContext} from '@conciv/ui-kit-chat'
+import {Crosshair, SquarePen, SquareTerminal} from 'lucide-solid'
+import {ModelSelector, TooltipIconButton, useModelSelectorContext} from '@conciv/ui-kit-chat'
 import type {ModelOption} from '@conciv/ui-kit-chat'
 import type {HarnessModelInfo} from '@conciv/protocol/chat-types'
 import {defineClient} from '@conciv/api-client'
 import {terminal} from '../client.js'
-
-const ACT =
-  'inline-flex items-center justify-center size-7 shrink-0 [border:0] rounded-pw-sm bg-transparent text-pw-text-2 cursor-pointer hover:bg-pw-fill-strong hover:text-pw-text-hi disabled:opacity-50 disabled:cursor-not-allowed'
 
 const MODEL_KEY = 'pw-conciv-model'
 
@@ -68,8 +65,19 @@ export function TerminalActions(): JSX.Element {
       ctx.notify('Couldn’t open externally.')
     }
   }
+  const pickElement = async () => {
+    const picked = await ctx.grab.pick()
+    if (picked) ctx.grab.stage(picked)
+  }
   return (
     <>
+      <TooltipIconButton
+        tooltip="Select an element from the page"
+        class="shrink-0 size-7"
+        onClick={() => void pickElement()}
+      >
+        <Crosshair class="size-5 block" aria-hidden="true" />
+      </TooltipIconButton>
       <Show when={options().length > 0}>
         <ModelSelector.Root models={options()} value={ctx.store.spawnModel() ?? undefined} onValueChange={pickModel}>
           <ModelSelector.Trigger />
@@ -81,24 +89,22 @@ export function TerminalActions(): JSX.Element {
           </ModelSelector.Content>
         </ModelSelector.Root>
       </Show>
-      <button
-        type="button"
-        class={ACT}
-        aria-label="Start a new session"
+      <TooltipIconButton
+        tooltip="Start a new session"
+        class="shrink-0 size-7"
         disabled={busy()}
         onClick={() => ctx.newSession()}
       >
         <SquarePen class="size-5 block" aria-hidden="true" />
-      </button>
-      <button
-        type="button"
-        class={ACT}
-        aria-label="Open externally"
+      </TooltipIconButton>
+      <TooltipIconButton
+        tooltip="Open externally"
+        class="shrink-0 size-7"
         disabled={busy()}
         onClick={() => void openExternally()}
       >
         <SquareTerminal class="size-5 block" aria-hidden="true" />
-      </button>
+      </TooltipIconButton>
     </>
   )
 }

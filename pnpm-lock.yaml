@@ -554,6 +554,9 @@ importers:
       '@conciv/ui-kit-chat-tools':
         specifier: workspace:^
         version: link:../../ui-kit-chat-tools
+      '@conciv/ui-kit-system':
+        specifier: workspace:^
+        version: link:../../ui-kit-system
       '@conciv/ui-kit-terminal':
         specifier: workspace:^
         version: link:../../ui-kit-terminal
