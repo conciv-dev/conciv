@@ -1,12 +1,10 @@
-
-
 import {createServer, type IncomingMessage, type Server, type ServerResponse} from 'node:http'
 import type {AddressInfo} from 'node:net'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {chromium, type Browser, type Page} from 'playwright'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 import {widgetBundle, readBody} from './it-fixture.js'
-import {createAttachChat, type ChatPostBody} from './helpers/attach-chat.js'
+import {createAttachChat, parseBody} from './helpers/attach-chat.js'
 
 const USER_TEXT = 'run something'
 const BEFORE = 'streamed-before-reload '
@@ -90,14 +88,7 @@ describe('aidx widget reload continuity (it) — real browser, snapshot restore'
       if (url.startsWith('/api/chat/tools')) return writeJson(res, {tools: []})
       if (url === '/api/chat' && req.method === 'POST') {
         void readBody(req).then((body) => {
-          const parsed = (() => {
-            try {
-              return JSON.parse(body) as ChatPostBody
-            } catch {
-              return {}
-            }
-          })()
-          chat.postChat(sessionId, parsed)
+          chat.postChat(sessionId, parseBody(body))
           writeJson(res, {ok: true})
         })
         return
@@ -111,7 +102,7 @@ describe('aidx widget reload continuity (it) — real browser, snapshot restore'
         writeSse(res)
         return
       }
-      res.writeHead(200, {'content-type': 'text/html'})
+      res.writeHead(200, {'content-type': 'text/html; charset=utf-8'})
       res.end(pageHtml())
     })
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
@@ -137,6 +128,88 @@ describe('aidx widget reload continuity (it) — real browser, snapshot restore'
     await page.getByText('streamed-before-reload').waitFor({state: 'visible'})
     await page.getByText(/streamed-after-reload/).waitFor({state: 'visible'})
     expect(await page.getByText(/streamed-after-reload/).count()).toBeGreaterThan(0)
+    await page.close()
+  })
+})
+
+describe('aidx widget reconnect feedback (it) — attach failure surfaces a reconnecting notice', () => {
+  let browser: Browser
+  let server: Server
+  const state = {base: ''}
+  const attach = {mode: 'ok' as 'ok' | 'fail'}
+
+  const newPage = async (): Promise<Page> => {
+    const page = await browser.newPage()
+    page.setDefaultTimeout(15_000)
+    page.setDefaultNavigationTimeout(15_000)
+    return page
+  }
+
+  beforeAll(async () => {
+    server = createServer((req: IncomingMessage, res: ServerResponse) => {
+      const url = req.url ?? ''
+      if (url.startsWith('/api/chat/session/resolve') && req.method === 'POST') {
+        return writeJson(res, {sessionId: 'conciv_reconnect'})
+      }
+      if (url.startsWith('/api/chat/session') && !url.startsWith('/api/chat/sessions')) {
+        return writeJson(res, {
+          sessionId: 'conciv_reconnect',
+          harnessSessionId: null,
+          name: null,
+          origin: 'chat',
+          cwd: '/app',
+          lock: {held: false, role: null},
+          usage: null,
+          harness: {id: 'claude', name: 'Claude', canLaunch: false},
+        })
+      }
+      if (url.startsWith('/api/chat/sessions')) return writeJson(res, {sessions: []})
+      if (url.startsWith('/api/chat/models')) {
+        return writeJson(res, {
+          models: [{id: 'sonnet', name: 'Claude Sonnet 4.6', description: 'Balanced', group: 'Claude'}],
+          defaultModel: 'sonnet',
+          harness: {id: 'claude', name: 'Claude', canLaunch: false},
+        })
+      }
+      if (url.startsWith('/api/chat/commands')) return writeJson(res, {commands: []})
+      if (url.startsWith('/api/chat/tools')) return writeJson(res, {tools: []})
+      if (url === '/api/chat/attach') {
+        if (attach.mode === 'fail') {
+          res.writeHead(500, {'access-control-allow-origin': '*'})
+          res.end()
+          return
+        }
+        writeSse(res)
+        res.end()
+        return
+      }
+      if (url === '/api/page/stream') {
+        writeSse(res)
+        return
+      }
+      res.writeHead(200, {'content-type': 'text/html; charset=utf-8'})
+      res.end(pageHtml())
+    })
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+    state.base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+    browser = await chromium.launch()
+  }, 90_000)
+
+  afterAll(async () => {
+    await browser?.close()
+    server?.close()
+  })
+
+  it('shows a reconnecting notice while attach fails and clears it on recovery', async () => {
+    attach.mode = 'ok'
+    const page = await newPage()
+    await page.goto(state.base)
+    await page.getByRole('button', {name: 'Open conciv chat'}).click()
+    await page.getByRole('textbox', {name: 'Message the conciv agent'}).waitFor({state: 'visible'})
+    attach.mode = 'fail'
+    await page.getByText('Reconnecting…').waitFor({state: 'visible'})
+    attach.mode = 'ok'
+    await page.getByText('Reconnecting…').waitFor({state: 'detached'})
     await page.close()
   })
 })

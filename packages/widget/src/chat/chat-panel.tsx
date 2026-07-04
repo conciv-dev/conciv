@@ -1,4 +1,15 @@
-import {createMemo, createEffect, createSignal, For, getOwner, onCleanup, runWithOwner, Show, type JSX} from 'solid-js'
+import {
+  createMemo,
+  createEffect,
+  createRoot,
+  createSignal,
+  For,
+  getOwner,
+  onCleanup,
+  runWithOwner,
+  Show,
+  type JSX,
+} from 'solid-js'
 import {Progress} from '@conciv/ui-kit-system'
 import {useChat, createChatClientOptions} from '@tanstack/ai-solid'
 import type {MessagePart, ToolCallPart, ToolResultPart, UIMessage} from '@tanstack/ai-client'
@@ -52,6 +63,7 @@ const GRAB_PREVIEW_MAX_W = 280
 const ACT =
   'size-8.5 rounded-pw-pill [border:none] bg-transparent text-pw-text-2 cursor-pointer shrink-0 inline-flex items-center justify-center trans-color-bg hover:text-pw-text-hi hover:bg-pw-fill-strong'
 const ERROR = 'flex gap-2 items-center text-pw-danger text-[0.75rem]'
+const RECONNECT = 'flex gap-2 items-center text-pw-text-2 text-[0.75rem] anim-msg'
 const RETRY =
   'py-1.5 px-2.5 min-h-8 rounded-[0.4375rem] border border-pw-danger-line bg-transparent text-pw-danger cursor-pointer font-semibold text-[0.75rem] leading-none font-pw shrink-0 trans-bg hover:bg-pw-danger-14'
 const DIVIDER =
@@ -181,7 +193,11 @@ export function ChatPanel(props: {
   const [requestMeta, setRequestMeta] = createSignal<Record<string, unknown>>({})
   const mergeRequestMeta = (patch: Record<string, unknown>) => setRequestMeta((prev) => ({...prev, ...patch}))
   const owner = getOwner()
-  const connection = attachConnection(client, {requestMeta: () => requestMeta()})
+  const [disconnected, setDisconnected] = createSignal(false)
+  const connection = attachConnection(client, {
+    requestMeta: () => requestMeta(),
+    onConnectionChange: (connected) => setDisconnected(!connected),
+  })
   const chatRef = {current: null as ReturnType<typeof useChat> | null}
   const onSnapshot = (data: unknown) => {
     const parsed = SnapshotSchema.safeParse(data)
@@ -270,6 +286,10 @@ export function ChatPanel(props: {
     prevStatus = status
   })
 
+  createEffect(() => {
+    if (disconnected()) props.announce?.('Reconnecting to conciv…')
+  })
+
   const answerGenUi = (renderId: string, text: string) => {
     setGenUi((prev) => prev.filter((g) => g.renderId !== renderId))
     void chat.sendMessage(text)
@@ -337,9 +357,13 @@ export function ChatPanel(props: {
   const waitForIdle = () =>
     new Promise<void>((resolve) =>
       runWithOwner(owner, () =>
-        createEffect(() => {
-          if (!chat.sessionGenerating() && !chat.isLoading()) resolve()
-        }),
+        createRoot((dispose) =>
+          createEffect(() => {
+            if (chat.sessionGenerating() || chat.isLoading()) return
+            dispose()
+            resolve()
+          }),
+        ),
       ),
     )
   const compact = async () => {
@@ -475,6 +499,12 @@ export function ChatPanel(props: {
                   <>
                     <ExtensionSurface name="status" instances={props.instances} bag={hostBag} />
                     <ExtensionSurface name="footer" instances={props.instances} bag={hostBag} />
+                    <Show when={disconnected()}>
+                      <div class={RECONNECT} aria-hidden="true">
+                        <span class={`${DOT} anim-dot1`} />
+                        <span class="flex-1">Reconnecting…</span>
+                      </div>
+                    </Show>
                     <Show when={notice()}>
                       <div class="text-[0.75rem] text-pw-text-2 leading-[1.4] font-medium font-pw px-2.5 py-2 border border-pw-line rounded-pw-md bg-pw-fill [word-break:break-word]">
                         {notice()}

@@ -46,7 +46,11 @@ async function* parseSseChunks(body: ReadableStream<Uint8Array>, signal?: AbortS
 
 export function attachConnection(
   client: SessionClient,
-  opts: {retryDelayMs?: number; requestMeta?: () => Record<string, unknown>} = {},
+  opts: {
+    retryDelayMs?: number
+    requestMeta?: () => Record<string, unknown>
+    onConnectionChange?: (connected: boolean) => void
+  } = {},
 ): SubscribeConnectionAdapter & {bump: () => void} {
   const retryDelayMs = opts.retryDelayMs ?? DEFAULT_RETRY_MS
   const current = {controller: null as AbortController | null}
@@ -82,8 +86,13 @@ export function attachConnection(
           signal: controller.signal,
           headers: client.chatHeaders(),
         })
-        if (response.ok && response.body) yield* parseSseChunks(response.body, controller.signal)
+        if (!response.ok || !response.body) opts.onConnectionChange?.(false)
+        if (response.ok && response.body) {
+          opts.onConnectionChange?.(true)
+          yield* parseSseChunks(response.body, controller.signal)
+        }
       } catch {
+        if (!controller.signal.aborted) opts.onConnectionChange?.(false)
       } finally {
         signal?.removeEventListener('abort', onOuterAbort)
         current.controller = null

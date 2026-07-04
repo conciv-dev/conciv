@@ -23,6 +23,14 @@ type AttachConfig = {
   seed?: (sessionId: string) => ChatStubMessage[]
 }
 
+export function parseBody(body: string): ChatPostBody {
+  try {
+    return JSON.parse(body) as ChatPostBody
+  } catch {
+    return {}
+  }
+}
+
 const writeChunk = (res: ServerResponse, chunk: StreamChunk): void => {
   res.write(`data: ${JSON.stringify(chunk)}\n\n`)
 }
