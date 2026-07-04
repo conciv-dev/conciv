@@ -1,4 +1,5 @@
 import {EventType, type StreamChunk, type UIMessage} from '@tanstack/ai'
+import {makeRunView, type RunView} from './run-view.js'
 
 function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message
@@ -49,7 +50,7 @@ function makeSubscriber(): Subscriber {
 }
 
 type SessionRun = {
-  buffer: StreamChunk[]
+  view: RunView
   userMessage: UIMessage | null
   generating: boolean
   stopped: boolean
@@ -72,7 +73,7 @@ export function makeTurnHub(): TurnHub {
     const existing = sessions.get(sessionId)
     if (existing) return existing
     const created: SessionRun = {
-      buffer: [],
+      view: makeRunView(),
       userMessage: null,
       generating: false,
       stopped: false,
@@ -95,13 +96,13 @@ export function makeTurnHub(): TurnHub {
     stream: AsyncIterable<StreamChunk>,
   ): Promise<void> {
     const session = sessionFor(sessionId)
-    session.buffer = []
+    session.view.reset()
     session.userMessage = userMessage
     session.generating = true
     session.stopped = false
     try {
       for await (const chunk of stream) {
-        session.buffer.push(chunk)
+        session.view.record(chunk)
         for (const subscriber of session.subscribers) subscriber.push(chunk)
       }
     } catch (error) {
@@ -109,7 +110,7 @@ export function makeTurnHub(): TurnHub {
       const runError = {type: EventType.RUN_ERROR, message} as StreamChunk
       for (const subscriber of session.subscribers) subscriber.push(runError)
     } finally {
-      session.buffer = []
+      session.view.reset()
       session.userMessage = null
       session.generating = false
       session.stopped = false
@@ -128,7 +129,7 @@ export function makeTurnHub(): TurnHub {
     }
     signal.addEventListener('abort', detach, {once: true})
     if (signal.aborted) detach()
-    return {replay: [...session.buffer], live: subscriber.iterate()}
+    return {replay: session.view.snapshot(), live: subscriber.iterate()}
   }
 
   function markStopped(sessionId: string): void {
