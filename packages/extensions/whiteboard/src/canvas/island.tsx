@@ -60,6 +60,17 @@ async function skeletonsOf(row: PendingRow): Promise<ExcalidrawElementSkeleton[]
     const {source} = row.payload as unknown as {source: string}
     return withStableIds((await parseMermaidToExcalidraw(source, {maxEdges: 500})).elements, row.id)
   }
+  if (row.kind === 'svg') {
+    const {svgToSkeletons} = await import('./svg-convert.js')
+    const {svg, x, y, width, roughness} = row.payload as unknown as {
+      svg: string
+      x: number
+      y: number
+      width: number
+      roughness: number
+    }
+    return withStableIds(svgToSkeletons(svg, {x, y, width, roughness}), row.id)
+  }
   return withStableIds((row.payload as unknown as {elements: ExcalidrawElementSkeleton[]}).elements, row.id)
 }
 
@@ -142,19 +153,28 @@ export function Island(props: {
 
   const draining = new Set<string>()
   const drainPending = async (row: PendingRow): Promise<void> => {
-    const drawn = convertToExcalidrawElements(await skeletonsOf(row), {regenerateIds: false})
-    await Promise.all(
-      drawn.map(async (element: ExcalidrawElement, index: number) =>
-        db()
-          .upsert(
-            app.canvasElements,
-            {room: props.room, elementId: element.id, data: asJson(element), version: element.version},
-            {id: await stableUuid(`${row.id}:${index}`)},
-          )
-          .wait({tier: 'edge'}),
-      ),
-    )
-    await db().delete(app.canvasPending, row.id).wait({tier: 'edge'})
+    const targetTable = row.stage === 'draft' ? app.canvasDraftElements : app.canvasElements
+    try {
+      const drawn = convertToExcalidrawElements(await skeletonsOf(row), {regenerateIds: false})
+      await Promise.all(
+        drawn.map(async (element: ExcalidrawElement, index: number) =>
+          db()
+            .upsert(
+              targetTable,
+              {room: props.room, elementId: element.id, data: asJson(element), version: element.version},
+              {id: await stableUuid(`${row.id}:${index}`)},
+            )
+            .wait({tier: 'edge'}),
+        ),
+      )
+    } catch (error) {
+      console.error(`[whiteboard] draining pending ${row.kind} ${row.id} failed: ${String(error)}`)
+    } finally {
+      await db()
+        .delete(app.canvasPending, row.id)
+        .wait({tier: 'edge'})
+        .catch((error) => console.error(`[whiteboard] deleting pending ${row.id} failed: ${String(error)}`))
+    }
   }
 
   const collaboratorsFrom = (rows: readonly CursorRow[]): Map<SocketId, Collaborator> => {
@@ -178,7 +198,7 @@ export function Island(props: {
   )
   const unsubscribePending = db().subscribeAll(app.canvasPending.where({room: props.room}), ({all}) =>
     (all as readonly PendingRow[]).forEach((row) => {
-      if (row.kind !== 'skeletons' && row.kind !== 'mermaid') return
+      if (row.kind !== 'skeletons' && row.kind !== 'mermaid' && row.kind !== 'svg') return
       if (draining.has(row.id)) return
       draining.add(row.id)
       void drainPending(row)
