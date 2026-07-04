@@ -84,6 +84,19 @@ describe('pty sessions', () => {
     await until(() => controls.some((f) => f.type === 'error' || f.type === 'exit'))
   })
 
+  it('injects into live sinks and the replay buffer', async () => {
+    const sessions = make()
+    const s = sessions.open('s7', BASH, process.cwd())
+    const live = collect()
+    const detach = s.attach(live.sink)
+    s.inject('conciv marker')
+    await until(() => live.chunks.join('').includes('\r\nconciv marker\r\n'))
+    detach()
+    const late = collect()
+    s.attach(late.sink)
+    expect(late.chunks.join('')).toContain('\r\nconciv marker\r\n')
+  })
+
   it('evicts an idle session with no sinks', async () => {
     const sessions = make({idleEvictMs: 100})
     const s = sessions.open('s5', BASH, process.cwd())

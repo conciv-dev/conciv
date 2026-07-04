@@ -1,6 +1,7 @@
 import {spawn, type IPty} from 'node-pty'
 import type {TtyCommand, TtyServerControl} from '@conciv/protocol/terminal-types'
 import {createOscBusyTracker, type OscBusyTracker} from './osc-busy.js'
+import {createFrameInjector, type FrameInjector} from './frame-injector.js'
 import {ensureSpawnHelperExecutable} from './spawn-helper-fix.js'
 
 const IDLE_EVICT_MS = 5 * 60 * 1000
@@ -12,6 +13,7 @@ export type TtySink = {data(chunk: string): void; control(frame: TtyServerContro
 
 export type TtySession = {
   write(data: string): void
+  inject(text: string): void
   resize(cols: number, rows: number): void
   attach(sink: TtySink): () => void
   busy(): boolean
@@ -33,6 +35,7 @@ type Entry = {
   replaySize: number
   sinks: Set<TtySink>
   tracker: OscBusyTracker
+  injector: FrameInjector
   exit: {code: number} | null
   error: string | null
   idle: ReturnType<typeof setTimeout> | null
@@ -97,8 +100,7 @@ export function createTtySessions(opts?: {idleEvictMs?: number; replayCap?: numb
     }
     entry.pty.onData((chunk) => {
       entry.tracker.feed(chunk)
-      record(entry, chunk)
-      for (const sink of entry.sinks) sink.data(chunk)
+      entry.injector.feed(chunk)
     })
     entry.pty.onExit(({exitCode}) => {
       entry.exit = {code: exitCode}
@@ -112,6 +114,10 @@ export function createTtySessions(opts?: {idleEvictMs?: number; replayCap?: numb
       write: (data) => {
         const entry = entries.get(sessionId)
         if (entry && !entry.exit) entry.pty?.write(data)
+      },
+      inject: (text) => {
+        const entry = entries.get(sessionId)
+        if (entry && !entry.exit) entry.injector.inject(text)
       },
       resize: (cols, rows) => {
         const entry = entries.get(sessionId)
@@ -144,6 +150,10 @@ export function createTtySessions(opts?: {idleEvictMs?: number; replayCap?: numb
       replaySize: 0,
       sinks: new Set(),
       tracker: createOscBusyTracker(),
+      injector: createFrameInjector((chunk) => {
+        record(entry, chunk)
+        for (const sink of entry.sinks) sink.data(chunk)
+      }),
       exit: null,
       error: null,
       idle: null,
@@ -158,7 +168,7 @@ export function createTtySessions(opts?: {idleEvictMs?: number; replayCap?: numb
     get: (sessionId) => entries.get(sessionId)?.session,
     close: drop,
     shutdown: () => {
-      for (const id of [...entries.keys()]) drop(id)
+      for (const id of entries.keys()) drop(id)
     },
   }
 }
