@@ -97,6 +97,20 @@ describe('pty sessions', () => {
     expect(late.chunks.join('')).toContain('\r\nconciv marker\r\n')
   })
 
+  it('interrupt() sends ctrl-c that aborts the running foreground command', async () => {
+    const sessions = make()
+    const s = sessions.open('s8', BASH, process.cwd())
+    const {chunks, sink} = collect()
+    s.attach(sink)
+    s.write('sleep 30 && echo S$((5+5))P\r')
+    await until(() => chunks.join('').includes('sleep 30'))
+    await new Promise((r) => setTimeout(r, 300))
+    s.interrupt()
+    s.write('echo B$((3+3))K\r')
+    await until(() => chunks.join('').includes('B6K'), 3000)
+    expect(chunks.join('')).not.toContain('S10P')
+  })
+
   it('evicts an idle session with no sinks', async () => {
     const sessions = make({idleEvictMs: 100})
     const s = sessions.open('s5', BASH, process.cwd())

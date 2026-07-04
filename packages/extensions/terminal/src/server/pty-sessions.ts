@@ -4,6 +4,7 @@ import {createOscBusyTracker, type OscBusyTracker} from './osc-busy.js'
 import {createFrameInjector, type FrameInjector} from './frame-injector.js'
 import {ensureSpawnHelperExecutable} from './spawn-helper-fix.js'
 
+const INTERRUPT_BYTE = String.fromCharCode(3)
 const IDLE_EVICT_MS = 5 * 60 * 1000
 const REPLAY_CAP = 4 * 1024 * 1024
 const DEFAULT_COLS = 120
@@ -13,6 +14,7 @@ export type TtySink = {data(chunk: string): void; control(frame: TtyServerContro
 
 export type TtySession = {
   write(data: string): void
+  interrupt(): void
   inject(text: string): void
   resize(cols: number, rows: number): void
   attach(sink: TtySink): () => void
@@ -114,6 +116,10 @@ export function createTtySessions(opts?: {idleEvictMs?: number; replayCap?: numb
       write: (data) => {
         const entry = entries.get(sessionId)
         if (entry && !entry.exit) entry.pty?.write(data)
+      },
+      interrupt: () => {
+        const entry = entries.get(sessionId)
+        if (entry && !entry.exit) entry.pty?.write(INTERRUPT_BYTE)
       },
       inject: (text) => {
         const entry = entries.get(sessionId)

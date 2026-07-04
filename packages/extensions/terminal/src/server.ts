@@ -8,6 +8,8 @@ import {createTtySessions, type TtySink} from './server/pty-sessions.js'
 import {watchMirror} from './server/mirror.js'
 import {TERMINAL_NAME, TerminalOpenRequestSchema, type TerminalState} from './shared/protocol.js'
 
+const ESCAPE_KEY = String.fromCharCode(27)
+
 export default defineExtension({name: TERMINAL_NAME}).server((server) => {
   const ttySessions = createTtySessions()
   server.sessions.onChatTurn((sessionId) => ttySessions.close(sessionId))
@@ -121,6 +123,10 @@ export default defineExtension({name: TERMINAL_NAME}).server((server) => {
         }
         if (control?.type === 'inject') {
           session.inject(control.text)
+          return
+        }
+        if (text === ESCAPE_KEY && session.busy()) {
+          session.interrupt()
           return
         }
         session.write(text)
