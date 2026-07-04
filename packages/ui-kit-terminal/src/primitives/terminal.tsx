@@ -47,6 +47,7 @@ function Screen(props: {class?: string}): JSX.Element {
     element.__concivTerminal = {buffer: () => translateBuffer(model.terminal)}
     model.connect()
     model.fit()
+    model.focus()
     const observer = new ResizeObserver(() => model.fit())
     observer.observe(element)
     onCleanup(() => {
@@ -75,7 +76,7 @@ function Banner(props: {children: (state: {code: number | null; message: string 
 }
 
 const OVERLAY_ANCHOR_STYLE: Record<'rail' | 'top-right', JSX.CSSProperties> = {
-  rail: {display: 'flex', 'flex-direction': 'column', 'min-height': '0', 'flex-shrink': '0'},
+  rail: {display: 'flex', 'flex-direction': 'column', 'min-height': '0', 'min-width': '0', 'flex-shrink': '1'},
   'top-right': {position: 'absolute', top: '0.5rem', right: '0.5rem', 'z-index': '10'},
 }
 

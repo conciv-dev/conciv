@@ -1,5 +1,6 @@
 import {createEffect, createResource, createSignal, on, onCleanup, Show, type JSX} from 'solid-js'
 import {Terminal, createTerminalModel, type TerminalTheme} from '@conciv/ui-kit-terminal'
+import {Button} from '@conciv/ui-kit-system'
 import type {ExtensionHostContext} from '@conciv/extension'
 import {terminal} from '../client.js'
 import {MirrorRail} from './mirror-rail.js'
@@ -10,8 +11,6 @@ const DEFAULT_ROWS = 32
 
 const ERROR_BANNER =
   'flex items-center justify-between gap-2 m-2.5 py-2.5 px-3 rounded-[10px] text-[0.75rem] bg-pw-fill border border-pw-danger-line text-pw-text'
-const RETRY_BUTTON =
-  'py-1.5 px-2.5 rounded-[7px] [border:none] text-[0.6875rem] font-semibold cursor-pointer bg-pw-accent text-white'
 
 function readTerminalTheme(element: Element): TerminalTheme {
   const tokens = getComputedStyle(element)
@@ -78,7 +77,7 @@ export function TerminalPanelView(): JSX.Element {
     })
     if (!res.ok) {
       const busy = res.status === 409
-      throw new Error(busy ? 'Session is busy — wait for the current turn to finish.' : 'terminal open failed')
+      throw new Error(busy ? 'Session is busy — wait for the current turn to finish.' : 'Couldn’t open the terminal.')
     }
   }
   const [openKey, setOpenKey] = createSignal(1)
@@ -90,12 +89,23 @@ export function TerminalPanelView(): JSX.Element {
     return true
   })
 
+  const respawning = {current: false}
   const respawn = async (): Promise<void> => {
-    await fetch(terminalUrl(ctx.apiBase, 'close'), {method: 'POST', credentials: 'include', headers: headers()}).catch(
-      () => {},
-    )
-    await refetch()
-    setOpenKey((key) => key + 1)
+    if (respawning.current) return
+    respawning.current = true
+    ctx.store.setRespawning(true)
+    try {
+      await fetch(terminalUrl(ctx.apiBase, 'close'), {
+        method: 'POST',
+        credentials: 'include',
+        headers: headers(),
+      }).catch(() => {})
+      await refetch()
+      setOpenKey((key) => key + 1)
+    } finally {
+      respawning.current = false
+      ctx.store.setRespawning(false)
+    }
   }
 
   createEffect(
@@ -110,16 +120,16 @@ export function TerminalPanelView(): JSX.Element {
       ref={(element) => {
         host = element
       }}
-      class="flex flex-1 flex-col min-h-0 anim-msg"
+      class="flex flex-1 flex-col min-h-0"
     >
       <Show
         when={!opened.error}
         fallback={
           <div class={ERROR_BANNER} role="alert">
-            <span>Couldn’t open the terminal.</span>
-            <button type="button" class={RETRY_BUTTON} onClick={() => void refetch()}>
+            <span>{opened.error?.message ?? 'Couldn’t open the terminal.'}</span>
+            <Button variant="solid" size="sm" onClick={() => void refetch()}>
               Retry
-            </button>
+            </Button>
           </div>
         }
       >

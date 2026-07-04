@@ -7,11 +7,23 @@ export type TerminalStore = {
   bumpRespawn: () => void
   busy: () => boolean
   setBusy: (busy: boolean) => void
+  respawning: () => boolean
+  setRespawning: (respawning: boolean) => void
 }
 
 export function createTerminalStore(): TerminalStore {
   const [spawnModel, setSpawnModel] = createSignal<string | null>(null)
   const [respawnTick, setRespawnTick] = createSignal(0)
   const [busy, setBusy] = createSignal(false)
-  return {spawnModel, setSpawnModel, respawnTick, bumpRespawn: () => setRespawnTick((n) => n + 1), busy, setBusy}
+  const [respawning, setRespawning] = createSignal(false)
+  return {
+    spawnModel,
+    setSpawnModel,
+    respawnTick,
+    bumpRespawn: () => setRespawnTick((n) => n + 1),
+    busy,
+    setBusy,
+    respawning,
+    setRespawning,
+  }
 }

@@ -3,14 +3,14 @@ import {TerminalPrimitive} from '../primitives/terminal.js'
 import type {TerminalModel} from '../model.js'
 
 const ROOT = 'relative flex flex-col flex-1 min-h-0 [background:var(--chat-bg,#101014)]'
-const SCREEN_WRAP = 'flex flex-col flex-1 min-h-0 [transition:opacity_.2s]'
+const SCREEN_WRAP = 'flex flex-col flex-1 min-h-0 transition-opacity duration-200 motion-reduce:transition-none'
 const SCREEN = 'flex-1 min-h-0 p-2.5'
 const CONNECTING =
   'absolute inset-0 flex items-center justify-center text-[0.75rem] [color:var(--chat-text-muted,#8b8b96)]'
 const BANNER =
   'flex items-center justify-between gap-2 m-2.5 py-2.5 px-3 rounded-[10px] text-[0.75rem] [background:var(--chat-surface,#232329)] [border:1px_solid_var(--chat-border,#3a3a44)] [color:var(--chat-text,#d6d6de)]'
 const BANNER_BUTTON =
-  'py-1.5 px-2.5 rounded-[7px] [border:none] text-[0.6875rem] font-semibold cursor-pointer [background:var(--chat-accent,#4353ff)] [color:#fff]'
+  'py-1.5 px-2.5 rounded-[7px] border-0 text-[0.6875rem] font-semibold cursor-pointer [background:var(--chat-accent,#4353ff)] [color:#fff]'
 
 export function Terminal(props: {
   model: TerminalModel

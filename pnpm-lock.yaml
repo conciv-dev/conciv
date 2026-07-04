@@ -570,7 +570,7 @@ importers:
         version: 0.16.3(@opentelemetry/api@1.9.1)
       h3:
         specifier: 2.0.1-rc.22
-        version: 2.0.1-rc.22(crossws@0.4.6(srvx@0.11.16))
+        version: 2.0.1-rc.22(crossws@0.4.6(srvx@0.11.18))
       lucide-solid:
         specifier: ^1.18.0
         version: 1.18.0(solid-js@1.9.13)
@@ -592,13 +592,13 @@ importers:
         version: 8.18.1
       crossws:
         specifier: 0.4.6
-        version: 0.4.6(srvx@0.11.16)
+        version: 0.4.6(srvx@0.11.18)
       solid-js:
         specifier: ^1.9.13
         version: 1.9.13
       srvx:
         specifier: ^0.11.16
-        version: 0.11.16
+        version: 0.11.18
       tsdown:
         specifier: ^0.22.2
         version: 0.22.2(@arethetypeswrong/core@0.18.3)(oxc-resolver@11.20.0)(publint@0.3.21)(tsx@4.22.4)(typescript@6.0.3)
@@ -607,7 +607,7 @@ importers:
         version: 6.0.3
       unocss:
         specifier: ^66.7.2
-        version: 66.7.2(@unocss/postcss@66.7.2(postcss@8.5.15))(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+        version: 66.7.2(@unocss/postcss@66.7.2(postcss@8.5.16))(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
       vite:
         specifier: ^8.0.16
         version: 8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(sass@1.51.0)(tsx@4.22.4)(yaml@2.9.0)
@@ -1556,7 +1556,7 @@ importers:
         version: 6.0.3
       unocss:
         specifier: ^66.7.2
-        version: 66.7.2(@unocss/postcss@66.7.2(postcss@8.5.15))(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+        version: 66.7.2(@unocss/postcss@66.7.2(postcss@8.5.16))(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
       vite:
         specifier: ^8.0.16
         version: 8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(sass@1.51.0)(tsx@4.22.4)(yaml@2.9.0)

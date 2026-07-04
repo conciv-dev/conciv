@@ -10,8 +10,9 @@ import {
   type JSX,
 } from 'solid-js'
 import {EnvironmentProvider} from '@conciv/ui-kit-system'
+import {TooltipIconButton} from '@conciv/ui-kit-chat'
 import {createHotkey} from '@tanstack/solid-hotkeys'
-import {CLOSE, type ComposerActionDef, type ComposerControlDef, type PanelDef} from './widget-shell.js'
+import {type ComposerActionDef, type ComposerControlDef, type PanelDef} from './widget-shell.js'
 import type {PendingApproval} from './approval-modal.js'
 import {createResizable} from '../lib/resize.js'
 import {readStorage, writeStorage} from '../lib/persisted-signal.js'
@@ -116,30 +117,27 @@ export function QuickTerminalLayout(props: {
     else void client.resolve().then((r) => client.setSessionId(r.sessionId))
 
     const approvalKey = createUniqueId()
-    const [content, dispose] = createRoot(
-      (disposePane) =>
-        [
-          <EnvironmentProvider value={() => sectionEl?.getRootNode() ?? document}>
-            {props.panel.create({
-              active: () => props.open() && focused() === id,
-              onWorkingChange: setWorking,
-              onUsageChange: setUsage,
-              onApprovalsChange: (items) => props.reportApprovals(approvalKey, items),
-
-              onSessionLabel: (name) => {
-                const sid = client.sessionId()
-                mergeSurface(sid, sid ? makeSurfaceRow(sid, name) : null)
-              },
-              client,
-              announce: props.announce,
-              composerActions: props.composerActions,
-              composerControls: props.composerControls,
-            })}
-          </EnvironmentProvider>,
-          disposePane,
-        ] as const,
-      owner,
-    )
+    const [content, dispose] = createRoot((disposePane) => {
+      const node = (
+        <EnvironmentProvider value={() => sectionEl?.getRootNode() ?? document}>
+          {props.panel.create({
+            active: () => props.open() && focused() === id,
+            onWorkingChange: setWorking,
+            onUsageChange: setUsage,
+            onApprovalsChange: (items) => props.reportApprovals(approvalKey, items),
+            onSessionLabel: (name) => {
+              const sid = client.sessionId()
+              mergeSurface(sid, sid ? makeSurfaceRow(sid, name) : null)
+            },
+            client,
+            announce: props.announce,
+            composerActions: props.composerActions,
+            composerControls: props.composerControls,
+          })}
+        </EnvironmentProvider>
+      )
+      return [node, disposePane] as const
+    }, owner)
     setPanes((ps) => [...ps, {id, client, content, dispose, usage, working}])
     writePaneIds(paneIds())
     void invalidateSessions(props.panel.apiBase ?? '')
@@ -205,21 +203,24 @@ export function QuickTerminalLayout(props: {
     () => ({enabled: props.open()}),
   )
 
-  const onGutterDown = (e: PointerEvent) => {
-    e.preventDefault()
-    const gutter = e.currentTarget as HTMLElement
+  const PANE_MIN = 220
+
+  const resizeSplit = (gutter: HTMLElement, resolvePrev: (prevW: number, total: number) => number) => {
     const prev = gutter.previousElementSibling as HTMLElement | null
     const next = gutter.nextElementSibling as HTMLElement | null
     if (!prev || !next) return
-    const startX = e.clientX
     const prevW = prev.getBoundingClientRect().width
-    const nextW = next.getBoundingClientRect().width
-    const total = prevW + nextW
-    const move = (ev: PointerEvent) => {
-      const newPrev = Math.max(180, Math.min(total - 180, prevW + (ev.clientX - startX)))
-      prev.style.flex = `0 0 ${newPrev}px`
-      next.style.flex = '1 1 0'
-    }
+    const total = prevW + next.getBoundingClientRect().width
+    const newPrev = Math.max(PANE_MIN, Math.min(total - PANE_MIN, resolvePrev(prevW, total)))
+    prev.style.flex = `0 0 ${newPrev}px`
+    next.style.flex = '1 1 0'
+  }
+
+  const onGutterDown = (e: PointerEvent) => {
+    e.preventDefault()
+    const gutter = e.currentTarget as HTMLElement
+    const startX = e.clientX
+    const move = (ev: PointerEvent) => resizeSplit(gutter, (prevW) => prevW + (ev.clientX - startX))
     const up = () => {
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up)
@@ -228,12 +229,19 @@ export function QuickTerminalLayout(props: {
     window.addEventListener('pointerup', up)
   }
 
+  const onGutterKey = (e: KeyboardEvent) => {
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+    e.preventDefault()
+    const step = e.key === 'ArrowLeft' ? -24 : 24
+    resizeSplit(e.currentTarget as HTMLElement, (prevW) => prevW + step)
+  }
+
   return (
     <section
       ref={(el) => {
         sectionEl = el
       }}
-      class={`text-sm text-pw-text leading-[1.45] font-normal font-pw will-change-transform border-b border-b-pw-line rounded-b-pw-lg bg-pw-glass flex flex-col pointer-events-auto transition-transform duration-300 ease-pw-expo shadow-pw-lg left-0 right-0 top-0 fixed backdrop-blur-[20px] backdrop-saturate-[1.4] after:accent-sweep after:opacity-55 after:h-px after:content-[''] after:inset-x-0 after:absolute after:-bottom-px ${props.open() ? 'translate-y-0' : '-translate-y-[101%]'}`}
+      class={`text-sm text-pw-text leading-[1.45] font-normal font-pw will-change-transform border-b border-b-pw-line rounded-b-pw-lg bg-pw-glass flex flex-col pointer-events-auto transition-transform duration-300 ease-pw-expo shadow-pw-lg left-0 right-0 top-0 fixed backdrop-blur-[20px] backdrop-saturate-[1.4] after:accent-sweep after:opacity-55 after:h-px after:content-[''] motion-reduce:transition-none after:inset-x-0 after:absolute after:-bottom-px ${props.open() ? 'translate-y-0' : '-translate-y-[101%]'}`}
       data-pw-qt
       data-pw-suppressed={picking() || anyOpen() ? '' : undefined}
       style={{height: `${resize.size()}px`}}
@@ -242,38 +250,25 @@ export function QuickTerminalLayout(props: {
       aria-hidden={!props.open()}
     >
       <EnvironmentProvider value={() => sectionEl?.getRootNode() ?? document}>
-        <header class="px-4.5 py-3 border-b border-b-pw-line-soft flex shrink-0 gap-3 items-center">
-          <span class="tracking-[-0.01em] font-semibold flex gap-2 items-center">
-            <span class="text-base text-pw-accent" aria-hidden="true">
-              ✦
-            </span>
-            {props.panel.title}
-          </span>
+        <header class="px-4.5 py-3 border-b border-b-pw-line-soft flex shrink-0 gap-2.5 items-center">
+          <span class="tracking-[-0.01em] font-semibold flex gap-2 items-center">{props.panel.title}</span>
           <span class="text-[0.6875rem] text-pw-text-3 leading-none tracking-[0.08em] font-medium font-pw-mono px-2.25 py-1 border border-pw-line-2 rounded-pw-pill uppercase">
             quick terminal
           </span>
           <span class="flex-1" />
-          <button
-            type="button"
-            class={CLOSE}
-            aria-label="Pop out to a window"
-            title="Picture-in-Picture"
+          <TooltipIconButton
+            tooltip="Pop out to a window"
+            class="size-9.5"
             onClick={() => sectionEl && pip.open(sectionEl, {title: 'conciv quick terminal'})}
           >
             <PictureInPicture2 class="size-5 block" aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            class={CLOSE}
-            aria-label="Split pane"
-            title="Split pane (Mod+D)"
-            onClick={() => addPane()}
-          >
+          </TooltipIconButton>
+          <TooltipIconButton tooltip="Split pane (Mod+D)" class="size-9.5" onClick={() => addPane()}>
             <Columns2 class="size-5 block" aria-hidden="true" />
-          </button>
-          <button type="button" class={CLOSE} aria-label="Close quick terminal" onClick={() => props.setOpen(false)}>
-            <ChevronUp class="size-[1em] block" aria-hidden="true" />
-          </button>
+          </TooltipIconButton>
+          <TooltipIconButton tooltip="Close quick terminal" class="size-9.5" onClick={() => props.setOpen(false)}>
+            <ChevronUp class="size-5 block" aria-hidden="true" />
+          </TooltipIconButton>
         </header>
         <div
           class="flex flex-1 min-h-0 overflow-x-auto"
@@ -286,14 +281,18 @@ export function QuickTerminalLayout(props: {
               <>
                 <Show when={i() > 0}>
                   <div
-                    class="flex-[0_0_0.4375rem] cursor-col-resize relative before:bg-pw-line before:content-[''] before:transition-[background-color] before:duration-[120ms] before:ease-pw before:inset-x-[0.1875rem] before:inset-y-0 before:absolute hover:before:bg-pw-accent-line"
-                    aria-hidden="true"
+                    class="outline-none flex-[0_0_0.4375rem] cursor-col-resize relative before:bg-pw-line before:content-[''] before:transition-[background-color] before:duration-[120ms] before:ease-pw before:inset-x-[0.1875rem] before:inset-y-0 before:absolute focus-visible:before:bg-pw-accent hover:before:bg-pw-accent-line motion-reduce:before:transition-none"
+                    role="separator"
+                    aria-orientation="vertical"
+                    aria-label="Resize split panes"
+                    tabindex={0}
                     onPointerDown={onGutterDown}
+                    onKeyDown={onGutterKey}
                   />
                 </Show>
                 <div
                   data-pw-qt-pane
-                  class={`flex flex-1 flex-col min-h-0 min-w-55 transition-opacity duration-[160ms] ease-pw relative ${focused() === pane.id ? "before:content-[''] before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-pw-accent before:opacity-90" : 'opacity-[0.62]'}`}
+                  class={`flex flex-1 flex-col min-h-0 min-w-55 transition-opacity duration-[160ms] ease-pw relative motion-reduce:transition-none ${focused() === pane.id ? "before:content-[''] before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-pw-accent before:opacity-90" : 'opacity-[0.62]'}`}
                   onPointerDown={() => focusPane(pane.id)}
                   onFocusIn={() => {
                     if (focused() !== pane.id) focusPane(pane.id)
@@ -311,17 +310,16 @@ export function QuickTerminalLayout(props: {
                       announce={props.announce}
                     />
                     <ContextTracker usage={pane.usage()} />
-                    <button
-                      type="button"
-                      class="text-pw-text-3 leading-none ml-auto rounded-md inline-flex size-6 cursor-pointer transition-[color,background-color] duration-[120ms] ease-pw items-center justify-center hover:text-pw-text hover:bg-pw-fill-strong"
-                      aria-label="Close pane"
+                    <TooltipIconButton
+                      tooltip="Close pane"
+                      class="ml-auto size-6"
                       onClick={(e) => {
                         e.stopPropagation()
                         closePane(pane.id)
                       }}
                     >
                       <X size={14} aria-hidden="true" />
-                    </button>
+                    </TooltipIconButton>
                   </div>
                   {pane.content}
                 </div>
@@ -335,6 +333,7 @@ export function QuickTerminalLayout(props: {
           aria-orientation="horizontal"
           aria-label="Resize quick terminal height"
           aria-valuemin={200}
+          aria-valuemax={Math.round(window.innerHeight)}
           aria-valuenow={Math.round(resize.size())}
           tabindex={0}
           onPointerDown={resize.onPointerDown}

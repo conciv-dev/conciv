@@ -3,7 +3,9 @@ import {Terminal as Xterm, type ITheme} from '@xterm/xterm'
 import {FitAddon} from '@xterm/addon-fit'
 import {TtyServerControlSchema, type TtyServerControl} from '@conciv/protocol/terminal-types'
 
-const RETRY_MS = 1000
+const RETRY_BASE_MS = 500
+const RETRY_MAX_MS = 8000
+const RETRY_LIMIT = 6
 
 export type TerminalTheme = ITheme
 export type TerminalStatus = 'idle' | 'connecting' | 'open' | 'exited' | 'error'
@@ -23,6 +25,7 @@ export type TerminalModel = {
   connect(): void
   disconnect(): void
   fit(): void
+  focus(): void
   inject(text: string): void
   paste(text: string): void
   __testReceiveControl(frame: TtyServerControl): void
@@ -48,15 +51,22 @@ export function createTerminalModel(opts: TerminalModelOpts): TerminalModel {
     convertEol: false,
     scrollback: 5000,
     fontSize: opts.fontSize ?? 13,
+    screenReaderMode: true,
     theme: opts.theme?.(),
   })
   const fitAddon = new FitAddon()
   terminal.loadAddon(fitAddon)
 
-  const state: {socket: WebSocket | null; retry: ReturnType<typeof setTimeout> | null; stopped: boolean} = {
+  const state: {
+    socket: WebSocket | null
+    retry: ReturnType<typeof setTimeout> | null
+    stopped: boolean
+    attempts: number
+  } = {
     socket: null,
     retry: null,
     stopped: false,
+    attempts: 0,
   }
 
   const receiveControl = (frame: TtyServerControl): void => {
@@ -81,13 +91,32 @@ export function createTerminalModel(opts: TerminalModelOpts): TerminalModel {
 
   const settled = (): boolean => status() === 'exited' || status() === 'error' || state.stopped
 
+  const giveUp = (message: string): void => {
+    setErrorMessage(message)
+    setStatus('error')
+  }
+
+  const scheduleRetry = (): void => {
+    if (settled()) return
+    state.attempts += 1
+    if (state.attempts > RETRY_LIMIT) {
+      giveUp('Lost connection to the terminal.')
+      return
+    }
+    setStatus('connecting')
+    const delay = Math.min(RETRY_BASE_MS * 2 ** (state.attempts - 1), RETRY_MAX_MS)
+    state.retry = setTimeout(connect, delay)
+  }
+
   const connect = (): void => {
     if (state.socket || settled()) return
     setStatus('connecting')
-    const socket = new WebSocket(opts.url())
+    const socket = openSocket()
+    if (!socket) return
     socket.binaryType = 'arraybuffer'
     state.socket = socket
     socket.addEventListener('open', () => {
+      state.attempts = 0
       if (opts.theme) terminal.options.theme = opts.theme()
       setStatus('open')
       sendResize()
@@ -102,10 +131,17 @@ export function createTerminalModel(opts: TerminalModelOpts): TerminalModel {
     })
     socket.addEventListener('close', () => {
       state.socket = null
-      if (settled()) return
-      setStatus('connecting')
-      state.retry = setTimeout(connect, RETRY_MS)
+      scheduleRetry()
     })
+  }
+
+  const openSocket = (): WebSocket | null => {
+    try {
+      return new WebSocket(opts.url())
+    } catch {
+      giveUp('Could not reach the terminal.')
+      return null
+    }
   }
 
   terminal.onData((data) => {
@@ -130,6 +166,7 @@ export function createTerminalModel(opts: TerminalModelOpts): TerminalModel {
       fitAddon.fit()
       sendResize()
     },
+    focus: () => terminal.focus(),
     inject: (text) => {
       if (state.socket?.readyState === WebSocket.OPEN) state.socket.send(JSON.stringify({type: 'inject', text}))
     },
