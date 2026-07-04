@@ -29,6 +29,7 @@ const PUBLIC_PACKAGES = [
   '@conciv/ui-kit-tap',
   '@conciv/extension-test-runner',
   '@conciv/extension-whiteboard',
+  '@conciv/mascot',
 ]
 
 type Manifest = {name?: string; version?: string; private?: boolean}
