@@ -90,6 +90,7 @@ type InputProps = TextAreaProps & {
 function Input(props: InputProps): JSX.Element {
   const chat = useChatContext()
   const composer = useComposer()
+  const handlers = useComposerHandlers()
   const context = useComposerContext()
   const triggerRoot = useTriggerPopoverRootOptional()
   const [local, rest] = splitProps(props, [
@@ -126,6 +127,7 @@ function Input(props: InputProps): JSX.Element {
     const triggers = triggerRoot?.triggers() ?? []
     for (const trigger of triggers) trigger.scope.setCursorPosition(position)
   }
+  const cancelViaHandlers = () => (handlers.onCancel ? handlers.onCancel() : composer.cancel())
   const onKeyDown = (event: KeyboardEvent & {currentTarget: HTMLTextAreaElement; target: Element}) => {
     if (typeof local.onKeyDown === 'function') local.onKeyDown(event)
     if (event.isComposing) return
@@ -133,7 +135,7 @@ function Input(props: InputProps): JSX.Element {
     const mode = local.submitMode ?? 'enter'
     if ((local.cancelOnEscape ?? true) && event.key === 'Escape' && composer.canCancel()) {
       event.preventDefault()
-      composer.cancel()
+      cancelViaHandlers()
       return
     }
     if (event.key !== 'Enter' || event.isComposing) return
@@ -197,9 +199,11 @@ function Send(props: JSX.ButtonHTMLAttributes<HTMLButtonElement>): JSX.Element {
 
 function Cancel(props: JSX.ButtonHTMLAttributes<HTMLButtonElement>): JSX.Element {
   const composer = useComposer()
+  const handlers = useComposerHandlers()
+  const cancel = () => (handlers.onCancel ? handlers.onCancel() : composer.cancel())
   return (
     <Show when={composer.canCancel()}>
-      <button type="button" aria-label="Stop" onClick={() => composer.cancel()} {...props} />
+      <button type="button" aria-label="Stop" onClick={cancel} {...props} />
     </Show>
   )
 }
