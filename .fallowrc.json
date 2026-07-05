@@ -28,7 +28,7 @@
     "circular-dependencies": "warn"
   },
   "ignoreDependencies": ["@conciv/cli", "jazz-napi", "@oxlint/plugins"],
-  "ignoreUnresolvedImports": ["@conciv/*", "collections/*"],
+  "ignoreUnresolvedImports": ["collections/*"],
   "publicPackages": [
     "@conciv/api-client",
     "@conciv/core",
