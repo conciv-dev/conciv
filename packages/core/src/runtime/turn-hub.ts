@@ -100,21 +100,26 @@ export function makeTurnHub(): TurnHub {
     session.userMessage = userMessage
     session.generating = true
     session.stopped = false
+    let failed = false
     try {
       for await (const chunk of stream) {
         session.view.record(chunk)
         for (const subscriber of session.subscribers) subscriber.push(chunk)
       }
     } catch (error) {
+      failed = true
       const message = session.stopped ? 'stopped' : errorMessage(error)
       const runError = {type: EventType.RUN_ERROR, message} as StreamChunk
+      session.view.record(runError)
       for (const subscriber of session.subscribers) subscriber.push(runError)
     } finally {
-      session.view.reset()
       session.userMessage = null
       session.generating = false
       session.stopped = false
-      releaseIfIdle(sessionId, session)
+      if (!failed) {
+        session.view.reset()
+        releaseIfIdle(sessionId, session)
+      }
     }
   }
 

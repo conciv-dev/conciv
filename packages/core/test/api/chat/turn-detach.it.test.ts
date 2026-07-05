@@ -6,6 +6,7 @@ import {spawn} from 'node:child_process'
 import {fileURLToPath} from 'node:url'
 import {startTestServer, type SpawnHarness, type TestServer} from '../../helpers/server.js'
 import {useFakeHarness} from '../../helpers/harness-mode.js'
+import {readLock, releaseLock} from '../../../src/store/lock.js'
 
 const fakeIt = it.runIf(useFakeHarness)
 const fakeClaude = fileURLToPath(new URL('../../fixtures/fake-claude.ts', import.meta.url))
@@ -47,6 +48,22 @@ describe('detached turns (IT)', () => {
     if (state.server) await state.server.close()
     state.server = undefined
     for (const dir of dirs.splice(0)) rmSync(dir, {recursive: true, force: true})
+  })
+
+  fakeIt('rejects a resend while the prior turn is still generating even if its lock file is gone (stop-drain guard)', async () => {
+    const stateRoot = tmp()
+    const server = await startTestServer({stateRoot, spawnHarness: hangSpawn()})
+    state.server = server
+    const id = await server.resolve()
+    await server.post('/api/chat', {messages: [turn('hi')]}, id)
+    const deadline = Date.now() + 5000
+    while (!readLock(stateRoot, id).held && Date.now() < deadline) await new Promise((r) => setTimeout(r, 25))
+    expect(readLock(stateRoot, id).held).toBe(true)
+    releaseLock(stateRoot, id)
+    expect(readLock(stateRoot, id).held).toBe(false)
+    const resend = await server.post('/api/chat', {messages: [turn('again')]}, id)
+    expect(resend.status).toBe(409)
+    await server.post('/api/chat/stop', {}, id)
   })
 
   fakeIt('POST /api/chat returns ok JSON before the turn finishes', async () => {
