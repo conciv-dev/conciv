@@ -354,7 +354,6 @@ export function ChatPanel(props: {
     setGrabs([])
     void chat.sendMessage(context ? `${context}\n\n${trimmed}` : trimmed)
     clearPaneSnapshot(paneSessionId())
-    writeSnapshot()
   }
 
   const insert = (text: string) => {
@@ -406,10 +405,14 @@ export function ChatPanel(props: {
   }
   const persist = createDebouncer(writeSnapshot, {wait: 150})
 
-  const restored = {done: false}
+  const restored = new Set<string>()
   const restorePane = (api: ComposerStateApi, sessionId: string) => {
     const snapshot = readPaneSnapshot(sessionId)
-    if (!snapshot) return
+    if (!snapshot) {
+      api.setText('')
+      setGrabs([])
+      return
+    }
     api.setText(snapshot.draft)
     setGrabs(snapshot.grabTexts.map((text) => ({text})))
     setDividers(snapshot.dividers)
@@ -422,11 +425,11 @@ export function ChatPanel(props: {
     })
   }
   const maybeRestore = () => {
-    if (restored.done) return
     const api = composerApi.current
     const sessionId = client.sessionId()
     if (!api || !sessionId) return
-    restored.done = true
+    if (restored.has(sessionId)) return
+    restored.add(sessionId)
     restorePane(api, sessionId)
   }
   createEffect(() => {
@@ -476,6 +479,24 @@ export function ChatPanel(props: {
         ),
       ),
     )
+  const waitForGenerating = () =>
+    new Promise<void>((resolve) => {
+      const teardown = {dispose: () => {}}
+      const finish = () => {
+        clearTimeout(timer)
+        teardown.dispose()
+        resolve()
+      }
+      const timer = setTimeout(finish, 3000)
+      runWithOwner(owner, () =>
+        createRoot((dispose) => {
+          teardown.dispose = dispose
+          createEffect(() => {
+            if (chat.sessionGenerating()) finish()
+          })
+        }),
+      )
+    })
   const compact = async () => {
     if (chat.isLoading() || compacting()) return
     const id = addDivider('compact')
@@ -491,7 +512,7 @@ export function ChatPanel(props: {
         }),
       })
       if (!response.ok) throw apiError('/api/chat', response.status)
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      await waitForGenerating()
       await waitForIdle()
       const session = await client.session()
       if (session.usage) setUsage(session.usage)
