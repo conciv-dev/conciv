@@ -3,7 +3,7 @@ import {ModelSelector, useModelSelectorContext, type ModelOption} from '@conciv/
 import type {HarnessModelInfo} from '@conciv/protocol/chat-types'
 import {defineClient} from '@conciv/api-client'
 import {createPersistedSignal} from '../lib/persisted-signal.js'
-import type {ComposerControlDef} from '../shell/widget-shell.js'
+import type {ComposerControlDef} from '../shell/shell-contract.js'
 
 function toOption(model: HarnessModelInfo): ModelOption {
   return {id: model.id, name: model.name, description: model.description, disabled: model.disabled}
