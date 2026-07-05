@@ -9,7 +9,8 @@
     "packages/aidx/**",
     "apps/examples/**",
     "**/vitest.config.ts",
-    "**/*.stories.tsx"
+    "**/*.stories.tsx",
+    "**/*.test-d.ts"
   ],
   "duplicates": {
     "minOccurrences": 3
@@ -24,5 +25,33 @@
     "unused-dev-dependencies": "warn",
     "circular-dependencies": "warn"
   },
-  "ignoreUnresolvedImports": ["@conciv/*"]
+  "ignoreUnresolvedImports": ["@conciv/*"],
+  "publicPackages": [
+    "@conciv/api-client",
+    "@conciv/core",
+    "@conciv/extension",
+    "@conciv/extension-test-runner",
+    "@conciv/extension-whiteboard",
+    "@conciv/grab",
+    "@conciv/harness",
+    "@conciv/it",
+    "@conciv/mascot",
+    "@conciv/plugin",
+    "@conciv/protocol",
+    "@conciv/solid-diffs",
+    "@conciv/solid-streamdown",
+    "@conciv/tools",
+    "@conciv/ui-kit-chat",
+    "@conciv/ui-kit-chat-tools",
+    "@conciv/ui-kit-system",
+    "@conciv/ui-kit-tap",
+    "@conciv/widget"
+  ],
+  "ignoreExports": [
+    {
+      "file": "apps/site/src/components/ui/**",
+      "exports": ["*"]
+    }
+  ],
+  "entry": ["packages/extension-testkit/src/host/host-entry.tsx"]
 }
