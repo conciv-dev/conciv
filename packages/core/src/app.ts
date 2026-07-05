@@ -43,6 +43,8 @@ export type MakeAppOpts = {
   claudeHome?: string
 
   allowedOrigins?: string[]
+
+  harness?: HarnessAdapter
 }
 
 function requireHarness(id: string): HarnessAdapter {
@@ -55,7 +57,7 @@ export type MadeApp = {app: H3; disposers: (() => void | Promise<void>)[]; exten
 
 export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const app = new H3()
-  const harness = requireHarness(opts.cfg.harness)
+  const harness = opts.harness ?? requireHarness(opts.cfg.harness)
   const uiBus = makeUiBus()
   const store = createFsSessionStore({stateRoot: opts.cfg.stateRoot})
 
