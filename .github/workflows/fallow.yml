@@ -6,11 +6,13 @@ name: Fallow
 # package.json fallow devDependency (Ed25519 + SHA-256 verified).
 #
 # This job builds the PR (untrusted code) so fallow can resolve @conciv/* imports,
-# so it deliberately holds NO pull-requests: write token — a compromised build-time
-# dep could not touch PRs. Findings surface via workflow-command annotations (no
-# token) and SARIF -> Code Scanning (security-events: write only). It lives in its
-# own workflow rather than ci.yml, which is also called as a reusable workflow by
-# release.yml (a reusable workflow cannot request more than its caller's token grants).
+# so it deliberately holds ONLY contents: read — no write token of any kind, so a
+# compromised build-time dep has nothing to steal. Findings surface as inline PR
+# annotations via workflow commands (no token needed). SARIF/Code Scanning is not
+# used: `command: audit` emits a multi-run SARIF that recent CodeQL rejects, and it
+# would need security-events: write. It lives in its own workflow rather than ci.yml,
+# which is also called as a reusable workflow by release.yml (a reusable workflow
+# cannot request more than its caller's token grants).
 
 on:
   pull_request: {}
@@ -29,8 +31,7 @@ jobs:
     name: Fallow audit
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      security-events: write # upload SARIF to Code Scanning (NOT pull-requests: write)
+      contents: read # no write token: this job runs untrusted PR build code
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -61,4 +62,3 @@ jobs:
           fail-on-issues: 'false' # report-only during rollout
           auto-changed-since: 'true' # scope to the PR diff
           annotations: 'true' # inline PR annotations via workflow commands (no write token)
-          sarif: 'true' # upload to Code Scanning (security-events: write; free on public repos)
