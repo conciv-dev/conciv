@@ -5,7 +5,7 @@ import type {ModelOption} from '@conciv/ui-kit-chat'
 import {Button} from '@conciv/ui-kit-system'
 import type {HarnessModelInfo} from '@conciv/protocol/chat-types'
 import {defineClient} from '@conciv/api-client'
-import {terminal} from '../client.js'
+import {useTerminalContext} from './terminal-context.js'
 
 const MODEL_KEY = 'pw-conciv-model'
 
@@ -40,7 +40,7 @@ function ModelList(): JSX.Element {
 }
 
 export function TerminalActions(): JSX.Element {
-  const ctx = terminal.useContext()
+  const ctx = useTerminalContext()
   const api = defineClient({apiBase: ctx.apiBase})
   const busy = () => ctx.store.busy()
   const [models, {refetch}] = createResource(async () => {

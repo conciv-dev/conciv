@@ -3,7 +3,7 @@ import {Terminal, createTerminalModel, type TerminalTheme} from '@conciv/ui-kit-
 import {Button} from '@conciv/ui-kit-system'
 import type {ExtensionHostContext} from '@conciv/extension'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
-import {terminal} from '../client.js'
+import {useTerminalContext} from './terminal-context.js'
 import {MirrorRail} from './mirror-rail.js'
 import type {TerminalStore} from './terminal-store.js'
 
@@ -111,7 +111,7 @@ function TerminalSurface(props: {ctx: ViewContext; generation: number; themeHost
 }
 
 export function TerminalPanelView(): JSX.Element {
-  const ctx = terminal.useContext()
+  const ctx = useTerminalContext()
   const headers = () => ({'content-type': 'application/json', ...ctx.client.chatHeaders()})
   const openTerminal = async (): Promise<void> => {
     const res = await fetch(terminalUrl(ctx.apiBase, 'open'), {
