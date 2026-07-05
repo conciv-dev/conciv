@@ -23,5 +23,6 @@
     "unused-dependencies": "warn",
     "unused-dev-dependencies": "warn",
     "circular-dependencies": "warn"
-  }
+  },
+  "ignoreUnresolvedImports": ["@conciv/*"]
 }
