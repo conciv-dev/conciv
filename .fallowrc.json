@@ -25,7 +25,7 @@
     "unused-dev-dependencies": "warn",
     "circular-dependencies": "warn"
   },
-  "ignoreUnresolvedImports": ["@conciv/*"],
+  "ignoreUnresolvedImports": ["@conciv/*", "collections/*"],
   "publicPackages": [
     "@conciv/api-client",
     "@conciv/core",
@@ -50,6 +50,10 @@
   "ignoreExports": [
     {
       "file": "apps/site/src/components/ui/**",
+      "exports": ["*"]
+    },
+    {
+      "file": "packages/ui-kit-chat/src/styled/**",
       "exports": ["*"]
     }
   ],
