@@ -407,9 +407,6 @@ importers:
       '@conciv/extension':
         specifier: workspace:^
         version: link:../extension
-      '@conciv/harness-testkit':
-        specifier: workspace:^
-        version: link:../harness-testkit
       '@jridgewell/gen-mapping':
         specifier: ^0.3.13
         version: 0.3.13

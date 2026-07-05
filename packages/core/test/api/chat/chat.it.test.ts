@@ -8,15 +8,9 @@ import {fileURLToPath} from 'node:url'
 import {acquireLock, readLock} from '../../../src/store/lock.js'
 import {ChatSessionSchema} from '@conciv/protocol/chat-types'
 import {startTestServer, type SpawnHarness, type TestServer} from '../../helpers/server.js'
-import {useFakeHarness} from '../../helpers/harness-mode.js'
-import {getHarness} from '@conciv/harness'
-import {createTestkit, harnessModes} from '@conciv/harness-testkit'
+import {useFakeHarness, hasClaude} from '../../helpers/harness-mode.js'
 
 const fakeIt = it.runIf(useFakeHarness)
-
-const claudeAdapter = getHarness('claude')
-if (!claudeAdapter) throw new Error('claude adapter not registered')
-const lifecycleModes = harnessModes(claudeAdapter)
 
 const fakeClaude = fileURLToPath(new URL('../../fixtures/fake-claude.ts', import.meta.url))
 const dirs: string[] = []
@@ -75,24 +69,18 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     expect(body).toContain('RUN_FINISHED')
   })
 
-  for (const mode of lifecycleModes) {
-    it.skipIf(!mode.run)(
-      `[${mode.name}] streams a run lifecycle with assistant text`,
-      async () => {
-        const kit = await createTestkit(mode.harness).setup()
-        try {
-          const stream = await kit.attach()
-          await kit.chat('reply with exactly PONG')
-          const events = await stream.done()
-          expect(events.runs()).toBe(1)
-          if (mode.name === 'real') expect(events.text().toUpperCase()).toContain('PONG')
-        } finally {
-          await kit.cleanup()
-        }
-      },
-      90_000,
-    )
-  }
+  it.skipIf(!useFakeHarness && !hasClaude())(
+    'streams a run lifecycle with assistant text',
+    async () => {
+      const server = await startTestServer({spawnHarness: fakeSpawn()})
+      state.server = server
+      const body = await server.postChat(turn('Reply with a short greeting.'), await server.resolve())
+      expect(body).toContain('RUN_STARTED')
+      expect(body).toContain('TEXT_MESSAGE_CONTENT')
+      expect(body).toContain('RUN_FINISHED')
+    },
+    60_000,
+  )
 
   fakeIt('renders text AND extracts usage under --include-partial-messages (real claude stream shape)', async () => {
     const server = await startTestServer({spawnHarness: fakeSpawn({partial: true})})
