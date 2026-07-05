@@ -1,6 +1,6 @@
 {
   "name": "@conciv/ui-kit-system",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "The conciv design system: SolidJS primitives (Button + Ark-UI-based Collapsible, HoverCard, ScrollArea, Combobox, Progress) styled with the shared UnoCSS preset, so every surface looks and behaves identically. Each component is viewable in Storybook.",
   "keywords": [
     "ark-ui",

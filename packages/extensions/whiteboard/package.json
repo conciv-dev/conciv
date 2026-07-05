@@ -1,6 +1,6 @@
 {
   "name": "@conciv/extension-whiteboard",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "description": "The whiteboard built-in extension: an Excalidraw canvas the user and the AI share over the dev app, with source-anchored comments and pins, running on a self-hosted Jazz CRDT db on the @conciv/extension contract.",
   "keywords": [
     "ai",

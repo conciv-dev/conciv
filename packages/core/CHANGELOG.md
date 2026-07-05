@@ -1,5 +1,16 @@
 # @conciv/core
 
+## 0.0.7
+
+### Patch Changes
+
+- [#30](https://github.com/conciv-dev/conciv/pull/30) [`bbdfc69`](https://github.com/conciv-dev/conciv/commit/bbdfc6940e7c4a45d4a20fb04e12d8e407154bfb) Thanks [@omridevk](https://github.com/omridevk)! - Add homepage metadata (conciv.dev) and repository fields across manifests, and
+  publish the terminal packages (@conciv/ui-kit-terminal, @conciv/extension-terminal).
+- Updated dependencies []:
+  - @conciv/harness@0.0.7
+  - @conciv/protocol@0.0.7
+  - @conciv/tools@0.0.7
+
 ## 0.0.6
 
 ### Patch Changes
