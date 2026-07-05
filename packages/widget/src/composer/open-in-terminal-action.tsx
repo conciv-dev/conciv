@@ -1,5 +1,5 @@
 import {SquareTerminal} from 'lucide-solid'
-import type {ComposerActionDef} from '../shell/widget-shell.js'
+import type {ComposerActionDef} from '../shell/shell-contract.js'
 
 export function makeOpenInTerminalAction(harnessName: string): ComposerActionDef {
   return {

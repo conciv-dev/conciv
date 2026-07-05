@@ -52,7 +52,7 @@ import {
   type UsageSnapshot,
 } from '@conciv/protocol/usage-types'
 import type {ToolViewCtx, ToolCardEntry} from '@conciv/protocol/tool-view-types'
-import type {ComposerActionDef, ComposerControlDef, PanelDef} from '../shell/widget-shell.js'
+import type {ComposerActionDef, ComposerControlDef, PanelDef} from '../shell/shell-contract.js'
 import {GrabReference} from '../page/react-grab/grab-reference.js'
 import type {Grab, GrabApi} from '@conciv/grab'
 import {ExtensionSurface, type ExtensionHostBag, type ExtensionInstance} from '../extension/extension-slots.js'
