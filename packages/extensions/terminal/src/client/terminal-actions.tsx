@@ -57,27 +57,29 @@ export function TerminalActions(): JSX.Element {
     writeStoredModel(id)
     ctx.store.bumpRespawn()
   }
+  const applyLaunch = async (res: Awaited<ReturnType<typeof ctx.client.launch>>): Promise<void> => {
+    if (!res.supported || !res.command) {
+      ctx.notify('This harness can’t be opened in a terminal.')
+      return
+    }
+    if (res.opened) {
+      ctx.view.leave()
+      ctx.notify('Opened externally.')
+      return
+    }
+    await navigator.clipboard.writeText(res.command).then(
+      () => {
+        ctx.view.leave()
+        ctx.notify('Command copied — paste it in your terminal.')
+      },
+      () => ctx.notify(`Run in your terminal: ${res.command}`),
+    )
+  }
   const openExternally = async () => {
     if (opening()) return
     setOpening(true)
     try {
-      const res = await ctx.client.launch({model: ctx.store.spawnModel() ?? undefined})
-      if (!res.supported || !res.command) {
-        ctx.notify('This harness can’t be opened in a terminal.')
-        return
-      }
-      if (res.opened) {
-        ctx.view.leave()
-        ctx.notify('Opened externally.')
-        return
-      }
-      await navigator.clipboard.writeText(res.command).then(
-        () => {
-          ctx.view.leave()
-          ctx.notify('Command copied — paste it in your terminal.')
-        },
-        () => ctx.notify(`Run in your terminal: ${res.command}`),
-      )
+      await applyLaunch(await ctx.client.launch({model: ctx.store.spawnModel() ?? undefined}))
     } catch {
       ctx.notify('Couldn’t open externally.')
     } finally {

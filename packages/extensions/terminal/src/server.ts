@@ -4,11 +4,43 @@ import type {Peer} from 'crossws'
 import {defineExtension} from '@conciv/extension'
 import {CONCIV_SESSION_HEADER, isSessionId} from '@conciv/protocol/chat-types'
 import {TtyClientControlSchema, type TtyClientControl} from '@conciv/protocol/terminal-types'
-import {createTtySessions, type TtySink} from './server/pty-sessions.js'
+import {createTtySessions, type TtySession, type TtySink} from './server/pty-sessions.js'
 import {watchMirror} from './server/mirror.js'
-import {TERMINAL_NAME, TerminalOpenRequestSchema, type TerminalState} from './shared/protocol.js'
+import {
+  TERMINAL_NAME,
+  TerminalOpenRequestSchema,
+  type TerminalOpenRequest,
+  type TerminalState,
+} from './shared/protocol.js'
 
 const ESCAPE_KEY = String.fromCharCode(27)
+
+function reuseAlive(alive: TtySession | undefined, size: TerminalOpenRequest): boolean {
+  if (!alive || alive.exited()) return false
+  if (size.cols && size.rows) alive.resize(size.cols, size.rows)
+  return true
+}
+
+function applyControl(session: TtySession, control: TtyClientControl | null, text: string): boolean {
+  if (control?.type === 'resize') {
+    session.resize(control.cols, control.rows)
+    return true
+  }
+  if (control?.type === 'inject') {
+    session.inject(control.text)
+    return true
+  }
+  if (text === ESCAPE_KEY && session.busy()) {
+    session.interrupt()
+    return true
+  }
+  return false
+}
+
+function sessionFromPeer(peer: Peer, ttySessions: ReturnType<typeof createTtySessions>): TtySession | undefined {
+  const url = new URL(peer.request?.url ?? 'http://localhost/tty')
+  return ttySessions.get(url.searchParams.get('session') ?? '')
+}
 
 export default defineExtension({name: TERMINAL_NAME}).server((server) => {
   const ttySessions = createTtySessions()
@@ -21,6 +53,33 @@ export default defineExtension({name: TERMINAL_NAME}).server((server) => {
     return raw
   }
 
+  const resolveHarnessSession = async (sessionId: string): Promise<{harnessSessionId: string; resume: boolean}> => {
+    const existing = await server.sessions.resumeToken(sessionId)
+    const harnessSessionId = existing ?? randomUUID()
+    if (!existing) await server.sessions.recordToken(sessionId, harnessSessionId)
+    const resume = Boolean(existing) && (server.harness.transcriptExists?.(harnessSessionId) ?? true)
+    return {harnessSessionId, resume}
+  }
+
+  const openTtySession = async (
+    sessionId: string,
+    size: TerminalOpenRequest,
+    ttyCommand: NonNullable<typeof server.harness.ttyCommand>,
+    origin: string,
+  ): Promise<void> => {
+    const {harnessSessionId, resume} = await resolveHarnessSession(sessionId)
+    const model = size.model ?? (await server.sessions.model(sessionId))
+    server.harness.release?.(sessionId)
+    const mcpUrl = `${origin}/api/mcp`
+    const session = ttySessions.open(
+      sessionId,
+      ttyCommand({cwd: server.cwd, harnessSessionId, resume, model, mcpUrl, concivSessionId: sessionId}),
+      server.cwd,
+    )
+    if (size.cols && size.rows) session.resize(size.cols, size.rows)
+    if (resume) session.inject('\u001b[2m— conciv: resumed session —\u001b[0m')
+  }
+
   server.app.post('/open', async (event) => {
     const sessionId = requireSession(event.req.headers)
     const size = await readValidatedBody(event, TerminalOpenRequestSchema)
@@ -29,25 +88,8 @@ export default defineExtension({name: TERMINAL_NAME}).server((server) => {
       throw new HTTPError({status: 400, message: `harness "${server.harness.id}" has no terminal mode`})
     }
     if (server.sessions.chatBusy(sessionId)) throw new HTTPError({status: 409, message: 'session busy'})
-    const alive = ttySessions.get(sessionId)
-    if (alive && !alive.exited()) {
-      if (size.cols && size.rows) alive.resize(size.cols, size.rows)
-      return {alive: true}
-    }
-    const existing = await server.sessions.resumeToken(sessionId)
-    const harnessSessionId = existing ?? randomUUID()
-    if (!existing) await server.sessions.recordToken(sessionId, harnessSessionId)
-    const model = size.model ?? (await server.sessions.model(sessionId))
-    const resume = Boolean(existing) && (server.harness.transcriptExists?.(harnessSessionId) ?? true)
-    server.harness.release?.(sessionId)
-    const mcpUrl = `${new URL(event.req.url).origin}/api/mcp`
-    const session = ttySessions.open(
-      sessionId,
-      ttyCommand({cwd: server.cwd, harnessSessionId, resume, model, mcpUrl, concivSessionId: sessionId}),
-      server.cwd,
-    )
-    if (size.cols && size.rows) session.resize(size.cols, size.rows)
-    if (resume) session.inject('\u001b[2m— conciv: resumed session —\u001b[0m')
+    if (reuseAlive(ttySessions.get(sessionId), size)) return {alive: true}
+    await openTtySession(sessionId, size, ttyCommand, new URL(event.req.url).origin)
     return {alive: true}
   })
 
@@ -95,8 +137,7 @@ export default defineExtension({name: TERMINAL_NAME}).server((server) => {
     defineWebSocketHandler({
       open(peer) {
         const url = new URL(peer.request?.url ?? 'http://localhost/tty')
-        const sessionId = url.searchParams.get('session') ?? ''
-        const session = ttySessions.get(sessionId)
+        const session = ttySessions.get(url.searchParams.get('session') ?? '')
         if (!session) {
           peer.close(4404, 'no terminal for session')
           return
@@ -111,25 +152,10 @@ export default defineExtension({name: TERMINAL_NAME}).server((server) => {
         detachments.set(peer, session.attach(sink))
       },
       message(peer, message) {
-        const url = new URL(peer.request?.url ?? 'http://localhost/tty')
-        const sessionId = url.searchParams.get('session') ?? ''
-        const session = ttySessions.get(sessionId)
+        const session = sessionFromPeer(peer, ttySessions)
         if (!session) return
         const text = message.text()
-        const control = parseControl(text)
-        if (control?.type === 'resize') {
-          session.resize(control.cols, control.rows)
-          return
-        }
-        if (control?.type === 'inject') {
-          session.inject(control.text)
-          return
-        }
-        if (text === ESCAPE_KEY && session.busy()) {
-          session.interrupt()
-          return
-        }
-        session.write(text)
+        if (!applyControl(session, parseControl(text), text)) session.write(text)
       },
       close(peer) {
         detachments.get(peer)?.()

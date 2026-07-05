@@ -23,6 +23,64 @@ const RETRY_MAX_MS = 15000
 
 type MirrorStatus = 'connecting' | 'open' | 'error'
 
+function frameData(eventBlock: string): string {
+  return eventBlock
+    .split('\n')
+    .filter((line) => line.startsWith('data: '))
+    .map((line) => line.slice(6))
+    .join('')
+}
+
+function emitFrame(data: string, onMessages: (messages: UIMessage[]) => void): void {
+  if (!data) return
+  try {
+    const parsed: {messages: UIMessage[]} = JSON.parse(data)
+    onMessages(parsed.messages)
+  } catch {}
+}
+
+function dispatchFrames(buffered: {value: string}, onMessages: (messages: UIMessage[]) => void): void {
+  const events = buffered.value.split('\n\n')
+  buffered.value = events.pop() ?? ''
+  for (const eventBlock of events) emitFrame(frameData(eventBlock), onMessages)
+}
+
+async function pumpMirror(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  onMessages: (messages: UIMessage[]) => void,
+): Promise<void> {
+  const decoder = new TextDecoder()
+  const buffered = {value: ''}
+  for (;;) {
+    const {done, value} = await reader.read()
+    if (done) return
+    buffered.value += decoder.decode(value, {stream: true})
+    dispatchFrames(buffered, onMessages)
+  }
+}
+
+async function openMirror(
+  url: string,
+  headers: () => Record<string, string>,
+  signal: AbortSignal,
+  onMessages: (messages: UIMessage[]) => void,
+  onStatus: (status: MirrorStatus) => void,
+  onOpen: () => void,
+): Promise<void> {
+  onStatus('connecting')
+  const res = await fetch(url, {credentials: 'include', headers: headers(), signal})
+  if (!res.ok) throw new Error(`mirror responded ${res.status}`)
+  const reader = res.body?.getReader()
+  if (!reader) throw new Error('mirror has no body')
+  onStatus('open')
+  onOpen()
+  await pumpMirror(reader, onMessages)
+}
+
+function backoffDelay(attempts: number): number {
+  return Math.min(RETRY_BASE_MS * 2 ** (attempts - 1), RETRY_MAX_MS)
+}
+
 function connectMirror(
   url: string,
   headers: () => Record<string, string>,
@@ -31,45 +89,19 @@ function connectMirror(
 ): () => void {
   const controller = new AbortController()
   const state = {attempts: 0}
+  const runOnce = async (): Promise<void> => {
+    try {
+      await openMirror(url, headers, controller.signal, onMessages, onStatus, () => (state.attempts = 0))
+    } catch {
+      if (!controller.signal.aborted) onStatus('error')
+    }
+  }
   const consume = async (): Promise<void> => {
     while (!controller.signal.aborted) {
-      try {
-        onStatus('connecting')
-        const res = await fetch(url, {credentials: 'include', headers: headers(), signal: controller.signal})
-        if (!res.ok) throw new Error(`mirror responded ${res.status}`)
-        const reader = res.body?.getReader()
-        if (!reader) throw new Error('mirror has no body')
-        onStatus('open')
-        state.attempts = 0
-        const decoder = new TextDecoder()
-        const buffered = {value: ''}
-        for (;;) {
-          const {done, value} = await reader.read()
-          if (done) break
-          buffered.value += decoder.decode(value, {stream: true})
-          const events = buffered.value.split('\n\n')
-          buffered.value = events.pop() ?? ''
-          for (const eventBlock of events) {
-            const data = eventBlock
-              .split('\n')
-              .filter((line) => line.startsWith('data: '))
-              .map((line) => line.slice(6))
-              .join('')
-            if (!data) continue
-            try {
-              const parsed: {messages: UIMessage[]} = JSON.parse(data)
-              onMessages(parsed.messages)
-            } catch {}
-          }
-        }
-      } catch {
-        if (controller.signal.aborted) return
-        onStatus('error')
-      }
+      await runOnce()
       if (controller.signal.aborted) return
       state.attempts += 1
-      const delay = Math.min(RETRY_BASE_MS * 2 ** (state.attempts - 1), RETRY_MAX_MS)
-      await new Promise((resolve) => setTimeout(resolve, delay))
+      await new Promise((resolve) => setTimeout(resolve, backoffDelay(state.attempts)))
     }
   }
   void consume()
@@ -86,11 +118,10 @@ function asToolResult(part: MessagePart): ToolResultPart | null {
 
 function resultsById(messages: UIMessage[]): Map<string, ToolResultPart> {
   const map = new Map<string, ToolResultPart>()
-  for (const message of messages)
-    for (const part of message.parts) {
-      const result = asToolResult(part)
-      if (result?.toolCallId) map.set(result.toolCallId, result)
-    }
+  for (const part of messages.flatMap((message) => message.parts)) {
+    const result = asToolResult(part)
+    if (result?.toolCallId) map.set(result.toolCallId, result)
+  }
   return map
 }
 

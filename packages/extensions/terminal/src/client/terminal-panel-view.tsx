@@ -38,6 +38,23 @@ function wsUrl(apiBase: string, sessionId: string | null, cols: number, rows: nu
   return url.toString()
 }
 
+function isTerminalFocusLoss(event: Event): boolean {
+  return (
+    event instanceof FocusEvent &&
+    event.relatedTarget === null &&
+    event.target instanceof Element &&
+    event.target.closest('[data-terminal-screen]') !== null
+  )
+}
+
+function hasModifier(event: KeyboardEvent): boolean {
+  return event.shiftKey || event.ctrlKey || event.altKey || event.metaKey
+}
+
+function isPlainEnter(event: KeyboardEvent): boolean {
+  return event.type === 'keydown' && event.key === 'Enter' && !hasModifier(event)
+}
+
 type ViewContext = ExtensionHostContext & {store: TerminalStore}
 
 function TerminalSurface(props: {ctx: ViewContext; generation: number; themeHost: () => Element}): JSX.Element {
@@ -63,9 +80,7 @@ function TerminalSurface(props: {ctx: ViewContext; generation: number; themeHost
     const doc = props.themeHost().ownerDocument
     const root = props.themeHost().getRootNode()
     const onFocusOut = (event: Event): void => {
-      if (!(event instanceof FocusEvent) || event.relatedTarget !== null) return
-      const target = event.target
-      if (!(target instanceof Element) || !target.closest('[data-terminal-screen]')) return
+      if (!isTerminalFocusLoss(event)) return
       queueMicrotask(() => {
         if (doc.hasFocus()) model.focus()
       })
@@ -73,16 +88,18 @@ function TerminalSurface(props: {ctx: ViewContext; generation: number; themeHost
     root.addEventListener('focusout', onFocusOut, true)
     onCleanup(() => root.removeEventListener('focusout', onFocusOut, true))
   })
-  model.terminal.attachCustomKeyEventHandler((event) => {
-    if (event.type === 'keydown' && event.key === 'Escape') event.preventDefault()
-    if (event.type !== 'keydown' || event.key !== 'Enter') return true
-    if (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return true
+  const pasteStagedGrabs = (): boolean => {
     const grabs = ctx.grab.staged()
     if (grabs.length === 0) return true
     model.paste(`\n\n${grabs.map((grab) => grab.text).join('\n\n')}`)
     model.sendInput('\r')
     ctx.grab.clear()
     return false
+  }
+  model.terminal.attachCustomKeyEventHandler((event) => {
+    if (event.type === 'keydown' && event.key === 'Escape') event.preventDefault()
+    if (!isPlainEnter(event)) return true
+    return pasteStagedGrabs()
   })
   createEffect(() => {
     ctx.view.setLocked(model.busy())
