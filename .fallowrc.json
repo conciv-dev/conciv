@@ -27,6 +27,7 @@
     "unused-dev-dependencies": "warn",
     "circular-dependencies": "warn"
   },
+  "ignoreDependencies": ["@conciv/cli", "jazz-napi", "@oxlint/plugins"],
   "ignoreUnresolvedImports": ["@conciv/*", "collections/*"],
   "publicPackages": [
     "@conciv/api-client",
