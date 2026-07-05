@@ -7,6 +7,8 @@ export async function autoCommitDraft(db: Db, room: string): Promise<boolean> {
   if (!drafts.length) return false
   const pendingCommits = await db.all(app.canvasPending.where({room, kind: 'commit'}), {tier: 'global'})
   if (pendingCommits.length) return false
-  await db.insert(app.canvasPending, {room, kind: 'commit', stage: 'live', payload: {} as JsonValue}).wait({tier: 'edge'})
+  await db
+    .insert(app.canvasPending, {room, kind: 'commit', stage: 'live', payload: {} as JsonValue})
+    .wait({tier: 'edge'})
   return true
 }

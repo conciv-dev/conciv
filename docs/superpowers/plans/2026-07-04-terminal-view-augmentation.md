@@ -26,10 +26,12 @@
 ### Task 1: Frame-safe injector
 
 **Files:**
+
 - Create: `packages/extensions/terminal/src/server/frame-injector.ts`
 - Test: `packages/extensions/terminal/test/frame-injector.test.ts`
 
 **Interfaces:**
+
 - Consumes: nothing (pure).
 - Produces: `createFrameInjector(write: (chunk: string) => void): FrameInjector` with `FrameInjector = {feed(chunk: string): void; inject(text: string): void; pending(): number}`. `feed` forwards pty chunks to `write` verbatim and tracks synchronized-update state; `inject` sanitizes to SGR-only ANSI, queues, and flushes as `\r\n<text>\r\n` through the same `write` only when outside a `?2026` frame. Marker split across chunk boundaries must still be detected (carry tail like `osc-busy.ts`).
 
@@ -184,10 +186,12 @@ git commit -m "feat(terminal): frame-safe ANSI injector" -- packages/extensions/
 ### Task 2: Inject through pty sessions (replay-consistent)
 
 **Files:**
+
 - Modify: `packages/extensions/terminal/src/server/pty-sessions.ts`
 - Test: `packages/extensions/terminal/test/pty-sessions.it.test.ts` (append)
 
 **Interfaces:**
+
 - Consumes: `createFrameInjector`, `sanitizeInjection` from Task 1.
 - Produces: `TtySession.inject(text: string): void`. Injected bytes flow through the same record+broadcast path as pty output, so they land in the replay buffer and reach every attached sink.
 
@@ -276,12 +280,14 @@ git commit -m "feat(terminal): pty sessions inject via frame-safe chokepoint" --
 ### Task 3: Inject control frame — WS route + client model
 
 **Files:**
+
 - Modify: `packages/protocol/src/terminal-types.ts`
 - Modify: `packages/extensions/terminal/src/server.ts`
 - Modify: `packages/ui-kit-terminal/src/model.ts`
 - Test: `packages/extensions/terminal/test/routes.it.test.ts` (append), `packages/ui-kit-terminal/test/model.test.ts` (append; follow the file's existing WS-stub or `__test` conventions)
 
 **Interfaces:**
+
 - Consumes: `TtySession.inject` from Task 2.
 - Produces: `TtyClientControlSchema` becomes a discriminated union: `{type:'resize', cols, rows} | {type:'inject', text: string}` (text max 4096). `TerminalModel.inject(text: string): void` sends the JSON frame over the open socket.
 
@@ -384,6 +390,7 @@ git commit -m "feat(terminal): inject control frame end to end" -- packages/prot
 ### Task 4: MCP parity + model override at spawn
 
 **Files:**
+
 - Modify: `packages/protocol/src/terminal-types.ts` (`TtyCommandOpts`)
 - Modify: `packages/harness/src/claude/tty.ts`
 - Modify: `packages/extensions/terminal/src/shared/protocol.ts` (`TerminalOpenRequestSchema`)
@@ -391,6 +398,7 @@ git commit -m "feat(terminal): inject control frame end to end" -- packages/prot
 - Test: `packages/harness/test/claude-tty.test.ts` (or the existing tty unit test file — extend it), `packages/extensions/terminal/test/routes.it.test.ts` (append)
 
 **Interfaces:**
+
 - Consumes: `claudeMcpArgs(mcpUrl, sessionId)` from `packages/harness/src/claude/args.ts`.
 - Produces: `TtyCommandOpts` gains `mcpUrl?: string | null` and `concivSessionId?: string`. `TerminalOpenRequestSchema` gains `model?: string`. The open route passes `model: body.model ?? await sessions.model(sessionId)`, `mcpUrl: `${new URL(event.req.url).origin}/api/mcp``, and `concivSessionId: sessionId`.
 
@@ -502,11 +510,13 @@ git commit -m "feat(terminal): tty spawn gains conciv mcp config and model overr
 ### Task 5: `ExtensionView.actions` in the tab bar + view survives session switch
 
 **Files:**
+
 - Modify: `packages/extension/src/types.ts:14` (`ExtensionView`)
 - Modify: `packages/widget/src/chat/chat-panel.tsx` (tab row at 471-488, session effect at 317-327)
 - Test: `packages/widget/test/` — extend the existing panel-views widget IT (the one asserting tabs appear with a view-contributing extension)
 
 **Interfaces:**
+
 - Consumes: `MountedView` from `@conciv/extension/client` (props: `{view, hostContext, clientValue}`).
 - Produces: `ExtensionView = {id; label; icon?; Component; actions?: Component}`. Widget renders `actions` right-aligned in the tab row while that view is active, mounted with the same hostContext (including the working `view` host: `setLocked`/`leave`/`onInsert` — `onInsert` arrives in Task 7; until then keep the existing two members).
 
@@ -612,6 +622,7 @@ git commit -m "feat(widget): view-contributed tab-bar actions; views survive ses
 ### Task 6: Terminal action row (model chip · new session · open externally) + respawn
 
 **Files:**
+
 - Create: `packages/extensions/terminal/src/client/terminal-actions.tsx`
 - Create: `packages/extensions/terminal/src/client/terminal-store.ts`
 - Modify: `packages/extensions/terminal/src/client.tsx`
@@ -620,6 +631,7 @@ git commit -m "feat(widget): view-contributed tab-bar actions; views survive ses
 - Test: extend `packages/extensions/terminal` client tests if present; behavior lands in the widget IT (Task 12)
 
 **Interfaces:**
+
 - Consumes: `ctx.client` (`SessionClient`: `sessionId()`, `launch({model})`, `chatHeaders()`), `ctx.newSession`, `ctx.notify`, `ctx.view.leave`, `ModelSelector` from `@conciv/ui-kit-chat`, `defineClient` from `@conciv/api-client` (models list), open/close endpoints from the view.
 - Produces: shared client store `createTerminalStore(): TerminalStore` where `TerminalStore = {spawnModel: () => string | null; setSpawnModel(model: string | null): void; respawnTick: () => number; bumpRespawn(): void}` exposed via the extension client value; `TerminalActions` component registered as `views[0].actions`.
 
@@ -657,7 +669,9 @@ import {createTerminalStore} from './client/terminal-store.js'
 
 export const terminal = defineExtension({
   name: TERMINAL_NAME,
-  views: [{id: 'terminal', label: 'Terminal', icon: SquareTerminal, Component: TerminalPanelView, actions: TerminalActions}],
+  views: [
+    {id: 'terminal', label: 'Terminal', icon: SquareTerminal, Component: TerminalPanelView, actions: TerminalActions},
+  ],
 }).client(() => ({value: {store: createTerminalStore()}}))
 
 export default terminal
@@ -690,7 +704,12 @@ export function TerminalActions(): JSX.Element {
       .catch(() => {})
   })
   const options = createMemo((): ModelOption[] =>
-    models().map((model) => ({id: model.id, name: model.name, description: model.description, disabled: model.disabled})),
+    models().map((model) => ({
+      id: model.id,
+      name: model.name,
+      description: model.description,
+      disabled: model.disabled,
+    })),
   )
   const pickModel = (id: string) => {
     ctx.store.setSpawnModel(id)
@@ -726,10 +745,22 @@ export function TerminalActions(): JSX.Element {
           </ModelSelector.Content>
         </ModelSelector.Root>
       </Show>
-      <button type="button" class={ACT} aria-label="Start a new session" disabled={busy()} onClick={() => ctx.newSession()}>
+      <button
+        type="button"
+        class={ACT}
+        aria-label="Start a new session"
+        disabled={busy()}
+        onClick={() => ctx.newSession()}
+      >
         <SquarePen class="size-5 block" aria-hidden="true" />
       </button>
-      <button type="button" class={ACT} aria-label="Open externally" disabled={busy()} onClick={() => void openExternally()}>
+      <button
+        type="button"
+        class={ACT}
+        aria-label="Open externally"
+        disabled={busy()}
+        onClick={() => void openExternally()}
+      >
         <SquareTerminal class="size-5 block" aria-hidden="true" />
       </button>
     </>
@@ -778,6 +809,7 @@ git commit -m "feat(terminal): action row with model chip, new session, open ext
 ### Task 7: Grab tray above views + paste insert
 
 **Files:**
+
 - Modify: `packages/extension/src/types.ts:16` (`ExtensionViewHost`)
 - Modify: `packages/widget/src/page/react-grab/grab-reference.tsx` (optional Insert)
 - Modify: `packages/widget/src/chat/chat-panel.tsx` (tray render + insert registry)
@@ -786,6 +818,7 @@ git commit -m "feat(terminal): action row with model chip, new session, open ext
 - Test: widget IT (Task 12) covers the loop; add a model unit test for `paste`
 
 **Interfaces:**
+
 - Produces: `ExtensionViewHost = {setLocked(locked: boolean): void; leave(): void; onInsert(handler: ((text: string) => void) | null): void}`. `GrabReference` gains optional `onInsert?: () => void` rendering an "Insert into terminal"-labeled button. `TerminalModel.paste(text: string): void` calls `terminal.paste(text)` (xterm wraps in bracketed-paste when the TUI enabled `?2004h`, and routes through `onData` → WS → pty stdin).
 
 - [ ] **Step 1: Types** — `types.ts`:
@@ -903,10 +936,12 @@ git commit -m "feat(widget+terminal): grab tray above views with paste insert" -
 ### Task 8: Overlay primitive (`rail` / `top-right`)
 
 **Files:**
+
 - Modify: `packages/ui-kit-terminal/src/primitives/terminal.tsx`
 - Test: `packages/ui-kit-terminal/test/` — extend the primitives test file
 
 **Interfaces:**
+
 - Produces: `TerminalPrimitive.Overlay` — `{anchor: 'rail' | 'top-right'; class?: string; children: JSX.Element}`. `rail` renders as a flex sibling column beside the screen (Root already `relative flex`); `top-right` renders absolutely positioned inside Root. Never line-anchored.
 
 - [ ] **Step 1: Failing test** — render Root with an Overlay child per anchor and assert the overlay content is visible and, for `rail`, sits beside (not over) the screen: assert layout via bounding rects (`overlay.x >= screen.x + screen.width` for rail), not CSS properties.
@@ -915,8 +950,7 @@ git commit -m "feat(widget+terminal): grab tray above views with paste insert" -
 
 ```tsx
 function Overlay(props: {anchor: 'rail' | 'top-right'; class?: string; children: JSX.Element}): JSX.Element {
-  const anchorClass =
-    props.anchor === 'rail' ? 'flex flex-col min-h-0 shrink-0' : 'absolute top-2 right-2 z-10'
+  const anchorClass = props.anchor === 'rail' ? 'flex flex-col min-h-0 shrink-0' : 'absolute top-2 right-2 z-10'
   return (
     <div class={`${anchorClass} ${props.class ?? ''}`} data-terminal-overlay={props.anchor}>
       {props.children}
@@ -946,11 +980,13 @@ git commit -m "feat(ui-kit-terminal): overlay primitive with rail and top-right 
 ### Task 9: Harness transcript-messages surface
 
 **Files:**
+
 - Modify: `packages/extension/src/types.ts:80-85` (`ServerHarness`)
 - Modify: `packages/core/src/app.ts:101-106` (wire from `harness.history`)
 - Test: `packages/core/test/api/extension-server-surfaces.it.test.ts` (append)
 
 **Interfaces:**
+
 - Produces: `ServerHarness.transcriptMessages?: (token: string) => Promise<UIMessage[]>` — reads the transcript via `history.transcriptPath(cwd, token)` and parses with `history.parse` (the exact history-endpoint parser; no second parser). Returns `[]` when the file is missing.
 
 - [ ] **Step 1: Failing IT** — in the surfaces IT, write a fixture JSONL (two user/assistant lines in claude transcript format, mirroring fixtures already used by harness history tests) to `<claudeHome>/projects/<encoded-cwd>/<token>.jsonl`, then assert `serverHarness.transcriptMessages` resolves parsed messages with roles `['user','assistant']`. Note the existing IT helper realpaths tmp roots (claude transcript ITs need `realpathSync` on macOS tmp).
@@ -1006,11 +1042,13 @@ git commit -m "feat(core): harness transcriptMessages surface for extensions" --
 ### Task 10: Mirror SSE route
 
 **Files:**
+
 - Create: `packages/extensions/terminal/src/server/mirror.ts`
 - Modify: `packages/extensions/terminal/src/server.ts`
 - Test: `packages/extensions/terminal/test/mirror.it.test.ts`
 
 **Interfaces:**
+
 - Consumes: `server.sessions.resumeToken`, `server.harness.transcriptMessages` (Task 9).
 - Produces: `GET /api/ext/terminal/mirror` — SSE; emits `data: {messages: UIMessage[]}` on open and whenever the parsed message list changes (poll every 500ms, compare by `JSON.stringify` length + last id). Extension test fakes get `transcriptMessages` on `bashHarness`-style helpers.
 
@@ -1085,12 +1123,14 @@ git commit -m "feat(terminal): mirror SSE route streaming parsed transcript" -- 
 ### Task 11: Mirror rail client
 
 **Files:**
+
 - Create: `packages/extensions/terminal/src/client/mirror-rail.tsx`
 - Modify: `packages/extensions/terminal/src/client/terminal-panel-view.tsx`
 - Modify: `packages/extensions/terminal/package.json` (add `"@conciv/ui-kit-chat-tools": "workspace:*"` if tool summaries used)
 - Test: widget IT (Task 12) asserts a mirror card appears during a live turn
 
 **Interfaces:**
+
 - Consumes: `GET /mirror` SSE (Task 10), `TerminalPrimitive.Overlay` / styled `Terminal` (Task 8), `inlineValue`/`shortenPath` from `@conciv/ui-kit-chat-tools`.
 - Produces: `<MirrorRail apiBase headers />` — collapsible rail (default collapsed; toggle button labeled "Activity") rendering read-only entries: text parts as prose, thinking dimmed, tool-call parts as compact cards (name + `inlineValue` summary of parsed arguments), tool-results folded into their call card state.
 
@@ -1148,8 +1188,7 @@ type ToolResultInfo = {state: string}
 function resultsById(messages: UIMessage[]): Map<string, ToolResultInfo> {
   const map = new Map<string, ToolResultInfo>()
   for (const message of messages)
-    for (const part of message.parts)
-      if (part.type === 'tool-result') map.set(part.toolCallId, {state: part.state})
+    for (const part of message.parts) if (part.type === 'tool-result') map.set(part.toolCallId, {state: part.state})
   return map
 }
 
@@ -1162,7 +1201,8 @@ function argumentSummary(raw: string): string {
 }
 
 const RAIL = 'flex flex-col min-h-0 w-70 border-l border-pw-line bg-pw-panel'
-const RAIL_HEAD = 'flex items-center justify-between px-2.5 py-1.5 border-b border-pw-line-soft text-[0.6875rem] font-semibold text-pw-text-2'
+const RAIL_HEAD =
+  'flex items-center justify-between px-2.5 py-1.5 border-b border-pw-line-soft text-[0.6875rem] font-semibold text-pw-text-2'
 const ENTRY_TEXT = 'text-[0.75rem] text-pw-text px-2.5 py-1 [word-break:break-word]'
 const ENTRY_THINKING = 'text-[0.75rem] text-pw-text-3 italic px-2.5 py-1 [word-break:break-word]'
 const TOOL_ROW = 'flex items-center gap-1.5 text-[0.71875rem] text-pw-text-2 px-2.5 py-1 font-pw-mono'
@@ -1177,7 +1217,11 @@ function MirrorEntry(props: {part: MessagePart; results: Map<string, ToolResultI
     <div class={TOOL_ROW}>
       <span
         class="rounded-[50%] shrink-0 size-1.75"
-        classList={{'bg-pw-success': result()?.state === 'complete', 'bg-pw-danger': result()?.state === 'error', 'bg-pw-text-3': !result()}}
+        classList={{
+          'bg-pw-success': result()?.state === 'complete',
+          'bg-pw-danger': result()?.state === 'error',
+          'bg-pw-text-3': !result(),
+        }}
         aria-hidden="true"
       />
       <span class="font-semibold shrink-0">{part.name}</span>
@@ -1241,6 +1285,7 @@ git commit -m "feat(terminal): live mirror rail rendering transcript entries" --
 ### Task 12: Widget IT — full loop
 
 **Files:**
+
 - Modify: the existing terminal widget IT in `packages/widget/test/` (the real-claude terminal loop test added by the terminal extension work)
 
 **Interfaces:** consumes everything above through the real widget.

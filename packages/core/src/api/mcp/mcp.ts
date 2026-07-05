@@ -36,18 +36,14 @@ function toContent(result: unknown): (TextContent | ImageContent)[] {
 }
 
 function registerTool(server: McpServer, tool: RegistrableTool, run: (args: unknown) => Promise<unknown>): void {
-  server.registerTool(
-    tool.name,
-    {description: tool.description, inputSchema: tool.inputSchema.shape},
-    async (args) => {
-      try {
-        return {content: toContent(await run(args))}
-      } catch (error) {
-        logError(`[mcp] tool "${tool.name}" failed: ${String(error)}`)
-        throw error
-      }
-    },
-  )
+  server.registerTool(tool.name, {description: tool.description, inputSchema: tool.inputSchema.shape}, async (args) => {
+    try {
+      return {content: toContent(await run(args))}
+    } catch (error) {
+      logError(`[mcp] tool "${tool.name}" failed: ${String(error)}`)
+      throw error
+    }
+  })
 }
 
 function buildServer(ctx: ConcivToolContext, extensionTools: ExtensionServerTool[], request: ToolRequest): McpServer {

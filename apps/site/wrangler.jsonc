@@ -8,9 +8,9 @@
   "preview_urls": false,
   "routes": [
     {"pattern": "conciv.dev", "custom_domain": true},
-    {"pattern": "www.conciv.dev", "custom_domain": true}
+    {"pattern": "www.conciv.dev", "custom_domain": true},
   ],
   "observability": {
-    "enabled": true
-  }
+    "enabled": true,
+  },
 }

@@ -3,9 +3,28 @@ import {draftToSvg} from '../src/tool/canvas/draft-svg.js'
 
 test('serializes rectangle, ellipse, line points and text', () => {
   const {svg} = draftToSvg([
-    {type: 'rectangle', x: 10, y: 10, width: 40, height: 20, strokeColor: '#111', backgroundColor: '#eee', strokeWidth: 2},
+    {
+      type: 'rectangle',
+      x: 10,
+      y: 10,
+      width: 40,
+      height: 20,
+      strokeColor: '#111',
+      backgroundColor: '#eee',
+      strokeWidth: 2,
+    },
     {type: 'ellipse', x: 60, y: 10, width: 30, height: 30, strokeColor: '#222', backgroundColor: 'transparent'},
-    {type: 'line', x: 5, y: 5, points: [[0, 0], [10, 10], [20, 0]], strokeColor: '#333'},
+    {
+      type: 'line',
+      x: 5,
+      y: 5,
+      points: [
+        [0, 0],
+        [10, 10],
+        [20, 0],
+      ],
+      strokeColor: '#333',
+    },
     {type: 'text', x: 12, y: 40, text: 'hi', fontSize: 16, strokeColor: '#444'},
   ])
   expect(svg).toContain('<svg')
@@ -16,7 +35,18 @@ test('serializes rectangle, ellipse, line points and text', () => {
 })
 
 test('freedraw serializes like line', () => {
-  const {svg} = draftToSvg([{type: 'freedraw', x: 0, y: 0, points: [[0, 0], [5, 5]], strokeColor: '#000'}])
+  const {svg} = draftToSvg([
+    {
+      type: 'freedraw',
+      x: 0,
+      y: 0,
+      points: [
+        [0, 0],
+        [5, 5],
+      ],
+      strokeColor: '#000',
+    },
+  ])
   expect(svg).toContain("<polyline points='0,0 5,5'")
 })
 

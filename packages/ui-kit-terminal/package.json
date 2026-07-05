@@ -51,10 +51,10 @@
     "playwright": "^1.60.0",
     "solid-js": "^1.9.13",
     "typescript": "^6.0.3",
+    "unocss": "^66.7.2",
     "vite": "^8.0.16",
     "vite-plugin-solid": "^2.11.12",
-    "vitest": "^4.1.8",
-    "unocss": "^66.7.2"
+    "vitest": "^4.1.8"
   },
   "peerDependencies": {
     "solid-js": "^1.9.13"

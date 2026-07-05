@@ -33,7 +33,10 @@ it('deploys to staging', async () => {
 
 <TypeTable
   type={{
-    page: {type: 'Page', description: 'A Playwright page with your extension mounted. Assert with getByRole and getByText.'},
+    page: {
+      type: 'Page',
+      description: 'A Playwright page with your extension mounted. Assert with getByRole and getByText.',
+    },
     callTool: {
       type: '(name, input) => Promise<unknown>',
       description: 'Invoke a tool over the real HTTP API, exactly as the agent does.',

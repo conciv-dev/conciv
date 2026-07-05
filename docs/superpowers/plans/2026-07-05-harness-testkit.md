@@ -25,6 +25,7 @@
 ### Task 1: Scaffold `@conciv/harness-testkit`
 
 **Files:**
+
 - Create: `packages/harness-testkit/package.json`
 - Create: `packages/harness-testkit/tsconfig.json`
 - Create: `packages/harness-testkit/tsconfig.build.json`
@@ -33,6 +34,7 @@
 - Create: `packages/harness-testkit/test/smoke.test.ts`
 
 **Interfaces:**
+
 - Produces: a buildable, testable workspace package `@conciv/harness-testkit`.
 
 - [ ] **Step 1: Copy an existing node package's config as the template**
@@ -117,15 +119,19 @@ git commit -m "chore(harness-testkit): scaffold package" -- packages/harness-tes
 ### Task 2: `until` — the condition-wait primitive
 
 **Files:**
+
 - Modify: `packages/harness-testkit/src/until.ts`
 - Test: `packages/harness-testkit/test/until.test.ts`
 
 **Interfaces:**
+
 - Produces:
+
   ```ts
   type UntilOpts = {hangGuardMs?: number; settleFor?: number; failWhen?: () => boolean; intervalMs?: number}
   function until(predicate: () => boolean | Promise<boolean>, opts?: UntilOpts): Promise<void>
   ```
+
   Resolves when `predicate` is true (and, if `settleFor` set, has held true continuously that long). Rejects immediately if `failWhen` returns true. Rejects with a stall error after `hangGuardMs` (default 5000). Polls every `intervalMs` (default 10).
 
 - [ ] **Step 1: Write the failing tests**
@@ -214,13 +220,16 @@ git commit -m "feat(harness-testkit): until() condition wait with settleFor + fa
 ### Task 3: `makeRunStream` + `RunEvents` — push consumer over StreamChunks
 
 **Files:**
+
 - Create: `packages/harness-testkit/src/run-events.ts`
 - Create: `packages/harness-testkit/src/run-stream.ts`
 - Test: `packages/harness-testkit/test/run-stream.test.ts`
 
 **Interfaces:**
+
 - Consumes: `StreamChunk`, `EventType` from `@tanstack/ai`; `CONCIV_UI_EVENT`, `UiSpec` from `@conciv/protocol/ui-types`.
 - Produces:
+
   ```ts
   type RunEvents = {
     all: StreamChunk[]
@@ -237,6 +246,7 @@ git commit -m "feat(harness-testkit): until() condition wait with settleFor + fa
   }
   function makeRunStream(source: AsyncIterable<StreamChunk>): RunStream
   ```
+
   `waitFor` resolves on first match; rejects fast when a `RUN_FINISHED`/`RUN_ERROR` arrives or the source ends without a match; hang-guard (default 90000) only on a true stall. `done` drains to `RUN_FINISHED`.
 
 - [ ] **Step 1: Write the failing tests**
@@ -305,7 +315,9 @@ export function makeRunEvents(all: StreamChunk[]): RunEvents {
   return {
     all,
     text: () =>
-      all.flatMap((c) => (c.type === EventType.TEXT_MESSAGE_CONTENT ? [(c as {delta?: string}).delta ?? ''] : [])).join(''),
+      all
+        .flatMap((c) => (c.type === EventType.TEXT_MESSAGE_CONTENT ? [(c as {delta?: string}).delta ?? ''] : []))
+        .join(''),
     uiSpecs: () =>
       all.flatMap((c) =>
         c.type === EventType.CUSTOM && (c as {name?: string}).name === CONCIV_UI_EVENT
@@ -368,7 +380,13 @@ export function makeRunStream(source: AsyncIterable<StreamChunk>): RunStream {
       return (chunk as {value: UiSpec}).value
     },
     waitForText: async (substr) => {
-      await pump((chunk) => makeRunEvents([...seen, chunk]).text().includes(substr), 90_000)
+      await pump(
+        (chunk) =>
+          makeRunEvents([...seen, chunk])
+            .text()
+            .includes(substr),
+        90_000,
+      )
     },
     done: async (opts) => {
       const deadline = performance.now() + (opts?.hangGuardMs ?? 90_000)
@@ -399,11 +417,13 @@ git commit -m "feat(harness-testkit): push RunStream + typed RunEvents" -- packa
 ### Task 4: `hasClaude` + `callTool` (real MCP client)
 
 **Files:**
+
 - Create: `packages/harness-testkit/src/has-claude.ts`
 - Create: `packages/harness-testkit/src/call-tool.ts`
 - Test: `packages/harness-testkit/test/call-tool.test.ts`
 
 **Interfaces:**
+
 - Produces: `function hasClaude(): boolean`; `function makeCallTool(apiBase: string, session: string): (name: string, input: unknown) => Promise<unknown>`.
 
 - [ ] **Step 1: Implement `has-claude.ts`** (single source; the 3 copies get deleted in the follow-up plan)
@@ -480,16 +500,20 @@ git commit -m "feat(harness-testkit): hasClaude + real MCP callTool" -- packages
 ### Task 5: `scripted-run` — the two TestHarness seams
 
 **Files:**
+
 - Create: `packages/harness-testkit/src/scripted-run.ts`
 - Test: `packages/harness-testkit/test/scripted-run.test.ts`
 
 **Interfaces:**
+
 - Consumes: `HarnessRun`, `HarnessTurn`, `HarnessRunContext` from `@conciv/protocol/harness-types`; `EventType`, `StreamChunk` from `@tanstack/ai`.
 - Produces:
+
   ```ts
   type ScriptedRun = {run: HarnessRun; hold: () => void; release: () => void}
   function makeScriptedRun(opts?: {text?: string}): ScriptedRun
   ```
+
   `run` yields `RUN_STARTED`, optional `TEXT_MESSAGE_CONTENT(text)`, then — if held — waits for `release()` before yielding `RUN_FINISHED`. Default (not held): emits the full lifecycle immediately.
 
 - [ ] **Step 1: Write the failing tests**
@@ -579,16 +603,20 @@ git commit -m "feat(harness-testkit): scripted-run seam (injectable run + hold/r
 ### Task 6: `createTestHarness` — derive a deterministic harness from any adapter
 
 **Files:**
+
 - Create: `packages/harness-testkit/src/create-test-harness.ts`
 - Test: `packages/harness-testkit/test/create-test-harness.test.ts`
 
 **Interfaces:**
+
 - Consumes: `HarnessAdapter` from `@conciv/protocol/harness-types`; `makeScriptedRun` from Task 5.
 - Produces:
+
   ```ts
   type TestHarness = HarnessAdapter & {__scripted: ScriptedRun}
   function createTestHarness(real: HarnessAdapter): TestHarness
   ```
+
   Keeps every real field (id, capabilities, decode, history, tty, commands); replaces `run` with the scripted run and `shutdown`/`release` with no-ops. Exposes `__scripted` so the kit can drive hold/release.
 
 - [ ] **Step 1: Write the failing test**
@@ -650,10 +678,12 @@ git commit -m "feat(harness-testkit): createTestHarness derives a deterministic 
 ### Task 7: `makeApp` harness DI seam (production)
 
 **Files:**
+
 - Modify: `packages/core/src/app.ts` (`MakeAppOpts` + `requireHarness` call around line 48-58)
 - Test: `packages/core/test/app-harness-di.test.ts`
 
 **Interfaces:**
+
 - Produces: `MakeAppOpts` gains optional `harness?: HarnessAdapter`; `makeApp` uses `opts.harness ?? requireHarness(opts.cfg.harness)`.
 - Consumes (later): the testkit passes its `TestHarness` here.
 
@@ -675,12 +705,24 @@ describe('makeApp harness DI', () => {
     if (!real) throw new Error('no claude')
     const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-di-'))
     const marker = {seen: false}
-    const injected = {...real, get id() {
-      marker.seen = true
-      return real.id
-    }}
+    const injected = {
+      ...real,
+      get id() {
+        marker.seen = true
+        return real.id
+      },
+    }
     const {disposers} = await makeApp({
-      cfg: {enabled: true, widgetUrl: undefined, stateRoot, harness: 'claude', harnessBin: undefined, sessionId: '', systemPrompt: '', extensions: undefined},
+      cfg: {
+        enabled: true,
+        widgetUrl: undefined,
+        stateRoot,
+        harness: 'claude',
+        harnessBin: undefined,
+        sessionId: '',
+        systemPrompt: '',
+        extensions: undefined,
+      },
       cwd: stateRoot,
       openInEditor: () => {},
       spawnHarness: () => ({pid: -1, stdin: undefined, stdout: undefined, stderr: undefined, kill: () => {}}) as never,
@@ -709,7 +751,7 @@ In `packages/core/src/app.ts`, add to `MakeAppOpts`:
 Change the resolution in `makeApp` from `const harness = requireHarness(opts.cfg.harness)` to:
 
 ```ts
-  const harness = opts.harness ?? requireHarness(opts.cfg.harness)
+const harness = opts.harness ?? requireHarness(opts.cfg.harness)
 ```
 
 (`HarnessAdapter` is already imported at the top of `app.ts`.)
@@ -730,13 +772,16 @@ git commit -m "feat(core): accept an injected harness in makeApp (DI seam)" -- p
 ### Task 8: `createTestkit` — boot the real server, expose the verbs
 
 **Files:**
+
 - Create: `packages/harness-testkit/src/create-testkit.ts`
 - Modify: `packages/harness-testkit/src/testkit.ts` (export the public API)
 - Test: `packages/harness-testkit/test/create-testkit.it.test.ts`
 
 **Interfaces:**
+
 - Consumes: `makeApp` from `@conciv/core`, `getHarness` from `@conciv/harness`, `createTestHarness` (Task 6), `makeRunStream` (Task 3), `makeCallTool` (Task 4), the fake-claude spawn.
 - Produces:
+
   ```ts
   type Kit = {
     base: string
@@ -750,6 +795,7 @@ git commit -m "feat(core): accept an injected harness in makeApp (DI seam)" -- p
   type Testkit = {setup: () => Promise<Kit>}
   function createTestkit(harness: HarnessAdapter): Testkit
   ```
+
   `attach` connects to `/api/chat/attach` (fetch + SSE parse → `makeRunStream`). `invokeTool`: if the harness is a `TestHarness` (has `__scripted`), `hold()` the turn, send a trivial chat, `callTool` over real MCP, then `release()`; otherwise (real harness) send `opts.instruction` as the chat so real claude calls the tool.
 
 - [ ] **Step 1: Write the failing IT (fake harness, real server)**
@@ -826,14 +872,26 @@ const fakeClaude = fileURLToPath(new URL('../../core/test/fixtures/fake-claude.t
 function fakeSpawn(): (args: string[], cwd: string) => HarnessChild {
   return (args, cwd) => {
     const child = spawn(process.execPath, [fakeClaude, ...args], {cwd, stdio: ['pipe', 'pipe', 'pipe']})
-    return {pid: child.pid ?? -1, stdin: child.stdin ?? undefined, stdout: child.stdout ?? undefined, stderr: child.stderr ?? undefined, kill: () => child.kill('SIGTERM')}
+    return {
+      pid: child.pid ?? -1,
+      stdin: child.stdin ?? undefined,
+      stdout: child.stdout ?? undefined,
+      stderr: child.stderr ?? undefined,
+      kill: () => child.kill('SIGTERM'),
+    }
   }
 }
 
 function realSpawn(bin: string): (args: string[], cwd: string) => HarnessChild {
   return (args, cwd) => {
     const child = spawn(bin, args, {cwd, stdio: ['pipe', 'pipe', 'pipe']})
-    return {pid: child.pid ?? -1, stdin: child.stdin ?? undefined, stdout: child.stdout ?? undefined, stderr: child.stderr ?? undefined, kill: () => child.kill('SIGTERM')}
+    return {
+      pid: child.pid ?? -1,
+      stdin: child.stdin ?? undefined,
+      stdout: child.stdout ?? undefined,
+      stderr: child.stderr ?? undefined,
+      kill: () => child.kill('SIGTERM'),
+    }
   }
 }
 
@@ -877,7 +935,16 @@ export function createTestkit(harness: HarnessAdapter): Testkit {
       const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-kit-'))
       const spawnHarness = isTestHarness(harness) ? fakeSpawn() : realSpawn(harness.binName)
       const {app, disposers} = await makeApp({
-        cfg: {enabled: true, widgetUrl: undefined, stateRoot, harness: harness.id, harnessBin: undefined, sessionId: '', systemPrompt: '', extensions: undefined},
+        cfg: {
+          enabled: true,
+          widgetUrl: undefined,
+          stateRoot,
+          harness: harness.id,
+          harnessBin: undefined,
+          sessionId: '',
+          systemPrompt: '',
+          extensions: undefined,
+        },
         cwd: stateRoot,
         openInEditor: () => {},
         spawnHarness,
@@ -889,7 +956,11 @@ export function createTestkit(harness: HarnessAdapter): Testkit {
       const aborts: AbortController[] = []
 
       const post = (path: string, body: unknown, session?: string) =>
-        fetch(`${base}${path}`, {method: 'POST', headers: {'content-type': 'application/json', ...(session ? {[CONCIV_SESSION_HEADER]: session}: {})}, body: JSON.stringify(body)})
+        fetch(`${base}${path}`, {
+          method: 'POST',
+          headers: {'content-type': 'application/json', ...(session ? {[CONCIV_SESSION_HEADER]: session} : {})},
+          body: JSON.stringify(body),
+        })
       const resolve = async (id?: string) =>
         ((await (await post('/api/chat/session/resolve', id ? {id} : {})).json()) as {sessionId: string}).sessionId
       const activeSession = {id: ''}
@@ -906,13 +977,20 @@ export function createTestkit(harness: HarnessAdapter): Testkit {
           aborts.push(abort)
           const source = (async function* () {
             const id = await sessionFor(session)
-            const response = await fetch(`${base}/api/chat/attach`, {headers: {[CONCIV_SESSION_HEADER]: id}, signal: abort.signal})
+            const response = await fetch(`${base}/api/chat/attach`, {
+              headers: {[CONCIV_SESSION_HEADER]: id},
+              signal: abort.signal,
+            })
             yield* parseSse(response, abort.signal)
           })()
           return makeRunStream(source)
         },
         chat: async (content, session) => {
-          await post('/api/chat', {messages: [{id: 'm', role: 'user', parts: [{type: 'text', content}]}]}, await sessionFor(session))
+          await post(
+            '/api/chat',
+            {messages: [{id: 'm', role: 'user', parts: [{type: 'text', content}]}]},
+            await sessionFor(session),
+          )
         },
         invokeTool: async (name, input, opts, session) => {
           const id = await sessionFor(session)
@@ -922,7 +1000,11 @@ export function createTestkit(harness: HarnessAdapter): Testkit {
             await callTool(name, input, id)
             harness.__scripted.release()
           } else {
-            await post('/api/chat', {messages: [{id: 'm', role: 'user', parts: [{type: 'text', content: opts.instruction}]}]}, id)
+            await post(
+              '/api/chat',
+              {messages: [{id: 'm', role: 'user', parts: [{type: 'text', content: opts.instruction}]}]},
+              id,
+            )
           }
         },
         callTool,
@@ -967,10 +1049,12 @@ git commit -m "feat(harness-testkit): createTestkit boots the real server + push
 ### Task 9: Migrate `claude-mcp.it` — the proof (fake + real, one body)
 
 **Files:**
+
 - Modify: `packages/core/test/api/mcp/claude-mcp.it.test.ts` (full rewrite)
 - Modify: `packages/core/package.json` (add `@conciv/harness-testkit` devDependency)
 
 **Interfaces:**
+
 - Consumes: `createTestkit`, `createTestHarness`, `hasClaude` from `@conciv/harness-testkit`; `getHarness` from `@conciv/harness`.
 
 - [ ] **Step 1: Add the devDependency**
@@ -994,21 +1078,25 @@ const harnesses = [
 
 describe('claude → /api/mcp → uiBus', () => {
   for (const mode of harnesses) {
-    it.skipIf(!mode.run)(`[${mode.name}] conciv_ui injection lands on the live stream`, async () => {
-      const kit = await createTestkit(mode.harness).setup()
-      try {
-        const stream = kit.attach()
-        await kit.invokeTool(
-          'conciv_ui',
-          {kind: 'confirm', question: 'Proceed?'},
-          {instruction: 'Call the conciv_ui tool with kind confirm, question "Proceed?". Then reply DONE.'},
-        )
-        const spec = await stream.waitForUiSpec('Proceed?')
-        expect(spec.question).toBe('Proceed?')
-      } finally {
-        await kit.cleanup()
-      }
-    }, 90_000)
+    it.skipIf(!mode.run)(
+      `[${mode.name}] conciv_ui injection lands on the live stream`,
+      async () => {
+        const kit = await createTestkit(mode.harness).setup()
+        try {
+          const stream = kit.attach()
+          await kit.invokeTool(
+            'conciv_ui',
+            {kind: 'confirm', question: 'Proceed?'},
+            {instruction: 'Call the conciv_ui tool with kind confirm, question "Proceed?". Then reply DONE.'},
+          )
+          const spec = await stream.waitForUiSpec('Proceed?')
+          expect(spec.question).toBe('Proceed?')
+        } finally {
+          await kit.cleanup()
+        }
+      },
+      90_000,
+    )
   }
 })
 ```
@@ -1034,9 +1122,11 @@ git commit -m "test(core): migrate claude-mcp.it to harness-testkit (fake+real, 
 ### Task 10: Migrate `chat.it` "streams a run lifecycle"
 
 **Files:**
+
 - Modify: `packages/core/test/api/chat/chat.it.test.ts` (the `streams a run lifecycle with assistant text` test)
 
 **Interfaces:**
+
 - Consumes: `createTestkit`, `createTestHarness`, `hasClaude` from `@conciv/harness-testkit`.
 
 - [ ] **Step 1: Replace the dual-mode lifecycle test with the matrix**
@@ -1054,18 +1144,22 @@ for (const mode of [
   {name: 'fake', harness: createTestHarness(claudeAdapter), run: true},
   {name: 'real', harness: claudeAdapter, run: kitHasClaude()},
 ]) {
-  it.skipIf(!mode.run)(`[${mode.name}] streams a run lifecycle with assistant text`, async () => {
-    const kit = await createTestkit(mode.harness).setup()
-    try {
-      const stream = kit.attach()
-      await kit.chat('reply with exactly PONG')
-      const events = await stream.done()
-      expect(events.runs()).toBe(1)
-      if (mode.name === 'real') expect(events.text().toUpperCase()).toContain('PONG')
-    } finally {
-      await kit.cleanup()
-    }
-  }, 90_000)
+  it.skipIf(!mode.run)(
+    `[${mode.name}] streams a run lifecycle with assistant text`,
+    async () => {
+      const kit = await createTestkit(mode.harness).setup()
+      try {
+        const stream = kit.attach()
+        await kit.chat('reply with exactly PONG')
+        const events = await stream.done()
+        expect(events.runs()).toBe(1)
+        if (mode.name === 'real') expect(events.text().toUpperCase()).toContain('PONG')
+      } finally {
+        await kit.cleanup()
+      }
+    },
+    90_000,
+  )
 }
 ```
 
@@ -1097,7 +1191,7 @@ Not in this plan — track as `docs/superpowers/plans/2026-07-05-harness-testkit
 
 ## Self-Review
 
-- **Spec coverage:** Foundation (createTestHarness, createTestkit, RunStream, until, callTool, hasClaude) = Tasks 1-8. The two seams = Task 5. Kill-the-global DI seam = Task 7 (global *removal* deferred to follow-up to keep each step non-breaking). Proof migration (Layer B, fake+real, no snapshot) = Tasks 9-10. Broad migration + ban-list + scripts = explicitly deferred follow-up (spec's full-suite migration is a separable sweep).
+- **Spec coverage:** Foundation (createTestHarness, createTestkit, RunStream, until, callTool, hasClaude) = Tasks 1-8. The two seams = Task 5. Kill-the-global DI seam = Task 7 (global _removal_ deferred to follow-up to keep each step non-breaking). Proof migration (Layer B, fake+real, no snapshot) = Tasks 9-10. Broad migration + ban-list + scripts = explicitly deferred follow-up (spec's full-suite migration is a separable sweep).
 - **Placeholder scan:** No TBD/TODO; every code step has complete code. The one `condition未 met` typo in Task 2 Step 3 is flagged inline to write as ASCII.
 - **Type consistency:** `createTestHarness → TestHarness (__scripted)` consumed by `createTestkit` Task 8 (`isTestHarness`/`__scripted.hold/release`). `makeRunStream → RunStream` consumed by `attach`. `makeCallTool` signature consistent Tasks 4/8. `makeApp` `harness?` (Task 7) consumed by `createTestkit` (Task 8).
 - **Known verification points for the implementer:** (a) `@conciv/core` must export `makeApp` on an importable subpath — confirm/add before Task 8; (b) exact `catalog:` versions from `extension-testkit`; (c) `HarnessTurn` field names (`kind`, `resumeSessionId`) as used in Task 5 test — confirm against `harness-types.ts`.

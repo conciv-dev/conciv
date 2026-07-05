@@ -50,7 +50,13 @@ const canvasSvgTool = defineTool<typeof CanvasSvgInput, WhiteboardToolContext>(c
       room: ctx.room(request),
       kind: 'svg',
       stage: 'draft',
-      payload: {svg: input.svg, x: input.x, y: input.y, width: input.width ?? 400, roughness: input.roughness} as JsonValue,
+      payload: {
+        svg: input.svg,
+        x: input.x,
+        y: input.y,
+        width: input.width ?? 400,
+        roughness: input.roughness,
+      } as JsonValue,
     })
     await write.wait({tier: 'edge'})
     return {pending: write.value.id}
@@ -67,7 +73,12 @@ const canvasExportTool = defineTool<typeof CanvasExportInput, WhiteboardToolCont
     }
     const requestId = crypto.randomUUID()
     await ctx.db
-      .insert(app.canvasPending, {room, kind: 'export', stage: 'live', payload: {requestId, scope: input.scope} as JsonValue})
+      .insert(app.canvasPending, {
+        room,
+        kind: 'export',
+        stage: 'live',
+        payload: {requestId, scope: input.scope} as JsonValue,
+      })
       .wait({tier: 'edge'})
     const deadline = Date.now() + 10_000
     while (Date.now() < deadline) {
@@ -129,8 +140,12 @@ const canvasConnectTool = defineTool<typeof CanvasConnectInput, WhiteboardToolCo
 const canvasUpdateTool = defineTool<typeof CanvasUpdateInput, WhiteboardToolContext>(canvasUpdateDef).server(
   async (input, ctx, request) => {
     const room = ctx.room(request)
-    const [draft] = await ctx.db.all(app.canvasDraftElements.where({room, elementId: input.elementId}), {tier: 'global'})
-    const [live] = draft ? [] : await ctx.db.all(app.canvasElements.where({room, elementId: input.elementId}), {tier: 'global'})
+    const [draft] = await ctx.db.all(app.canvasDraftElements.where({room, elementId: input.elementId}), {
+      tier: 'global',
+    })
+    const [live] = draft
+      ? []
+      : await ctx.db.all(app.canvasElements.where({room, elementId: input.elementId}), {tier: 'global'})
     const current = draft ?? live
     if (!current) return {updated: false}
     const table = draft ? app.canvasDraftElements : app.canvasElements
@@ -143,7 +158,9 @@ const canvasUpdateTool = defineTool<typeof CanvasUpdateInput, WhiteboardToolCont
 const canvasDeleteTool = defineTool<typeof CanvasDeleteInput, WhiteboardToolContext>(canvasDeleteDef).server(
   async (input, ctx, request) => {
     const room = ctx.room(request)
-    const draftHits = await ctx.db.all(app.canvasDraftElements.where({room, elementId: input.elementId}), {tier: 'global'})
+    const draftHits = await ctx.db.all(app.canvasDraftElements.where({room, elementId: input.elementId}), {
+      tier: 'global',
+    })
     const table = draftHits.length ? app.canvasDraftElements : app.canvasElements
     const rows = draftHits.length
       ? draftHits

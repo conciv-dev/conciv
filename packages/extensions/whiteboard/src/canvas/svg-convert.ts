@@ -43,12 +43,23 @@ function samplePoints(pathNode: SVGPathElement, matrix: DOMMatrix, scale: number
   return points
 }
 
-function lineFromPoints(points: number[][], node: Element, scale: number, roughness: number): ExcalidrawElementSkeleton {
+function lineFromPoints(
+  points: number[][],
+  node: Element,
+  scale: number,
+  roughness: number,
+): ExcalidrawElementSkeleton {
   const [first] = points
   const firstX = first?.[0] ?? 0
   const firstY = first?.[1] ?? 0
   const shifted = points.map(([x = 0, y = 0]) => [x - firstX, y - firstY])
-  return {type: 'line', x: firstX, y: firstY, points: shifted, ...styleFields(node, scale, roughness)} as ExcalidrawElementSkeleton
+  return {
+    type: 'line',
+    x: firstX,
+    y: firstY,
+    points: shifted,
+    ...styleFields(node, scale, roughness),
+  } as ExcalidrawElementSkeleton
 }
 
 function splitSubpaths(data: string): string[] {
@@ -123,7 +134,17 @@ function buildText(node: Element, context: ShapeContext): ExcalidrawElementSkele
 function buildLine(node: Element, context: ShapeContext): ExcalidrawElementSkeleton[] {
   const from = place(context, attrOf(node, 'x1'), attrOf(node, 'y1'))
   const to = place(context, attrOf(node, 'x2'), attrOf(node, 'y2'))
-  return [lineFromPoints([[from.x, from.y], [to.x, to.y]], node, context.scale, context.roughness)]
+  return [
+    lineFromPoints(
+      [
+        [from.x, from.y],
+        [to.x, to.y],
+      ],
+      node,
+      context.scale,
+      context.roughness,
+    ),
+  ]
 }
 
 function buildPolyline(node: Element, context: ShapeContext): ExcalidrawElementSkeleton[] {
@@ -188,7 +209,10 @@ function convertNode(
     return
   }
   const builder = BUILDERS[tag]
-  if (builder) builder(node, {matrix: nodeMatrix(node, matrix), scale, origin, roughness}).forEach((skeleton) => sink.push(skeleton))
+  if (builder)
+    builder(node, {matrix: nodeMatrix(node, matrix), scale, origin, roughness}).forEach((skeleton) =>
+      sink.push(skeleton),
+    )
 }
 
 function rootTransform(svg: SVGSVGElement, options: ConvertOptions): {scale: number; origin: Origin} {

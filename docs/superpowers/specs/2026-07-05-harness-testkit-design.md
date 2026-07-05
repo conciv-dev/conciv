@@ -7,7 +7,7 @@ This spec has two halves that ship together:
 
 1. **`@conciv/harness-testkit`** — the foundation that makes server/harness integration tests
    deterministic and harness-agnostic.
-2. **A suite-wide waiting discipline** — the primitives and rules that remove the *other* flakiness
+2. **A suite-wide waiting discipline** — the primitives and rules that remove the _other_ flakiness
    sources (arbitrary sleeps, hand-rolled polling, negative-assertion races) so every test — node or
    browser — has a non-flaky way to wait.
 
@@ -15,14 +15,14 @@ This spec has two halves that ship together:
 
 Measured across all 141 test files:
 
-| Pattern | Where | Count | Fix |
-| --- | --- | --- | --- |
-| **Fixed snapshot window** — read the SSE for N ms, then assert on the text | `core/test/helpers/server.ts` `postChat` (5s); every core HTTP IT | ~15 ITs | `RunStream` (push consumer) |
-| **Arbitrary sleep** — `waitForTimeout(ms)` / `sleep(ms)` before asserting | widget + whiteboard browser tests | **52 calls / 6 files** | `until(predicate)` condition wait |
-| **Hand-rolled polling** — a local `until(cond, ms)` / `untilBuffer` deadline loop | terminal + widget tests | ~5 copies | one shared `until` with fail-fast |
-| **Negative assertion after a sleep** — sleep, then assert something did *not* appear | e.g. `trigger-menu.it` (`/co` → wait 300ms → expect no listbox) | a handful | settle-signal recipe (below) |
-| **Real-LLM variance / latency** — real claude slow or takes a ToolSearch detour | 5 real-claude ITs + `terminal-mode.it` | 6 tests | deterministic fake harness + `waitFor` + hang-guard |
-| **Transport/capability divergence** — fake path runs a different claude transport than prod | `CONCIV_CLAUDE_CLI` / `USE_SDK` global | global | derive fake from the real definition; kill the global |
+| Pattern                                                                                     | Where                                                             | Count                  | Fix                                                   |
+| ------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ---------------------- | ----------------------------------------------------- |
+| **Fixed snapshot window** — read the SSE for N ms, then assert on the text                  | `core/test/helpers/server.ts` `postChat` (5s); every core HTTP IT | ~15 ITs                | `RunStream` (push consumer)                           |
+| **Arbitrary sleep** — `waitForTimeout(ms)` / `sleep(ms)` before asserting                   | widget + whiteboard browser tests                                 | **52 calls / 6 files** | `until(predicate)` condition wait                     |
+| **Hand-rolled polling** — a local `until(cond, ms)` / `untilBuffer` deadline loop           | terminal + widget tests                                           | ~5 copies              | one shared `until` with fail-fast                     |
+| **Negative assertion after a sleep** — sleep, then assert something did _not_ appear        | e.g. `trigger-menu.it` (`/co` → wait 300ms → expect no listbox)   | a handful              | settle-signal recipe (below)                          |
+| **Real-LLM variance / latency** — real claude slow or takes a ToolSearch detour             | 5 real-claude ITs + `terminal-mode.it`                            | 6 tests                | deterministic fake harness + `waitFor` + hang-guard   |
+| **Transport/capability divergence** — fake path runs a different claude transport than prod | `CONCIV_CLAUDE_CLI` / `USE_SDK` global                            | global                 | derive fake from the real definition; kill the global |
 
 Not flaky and left alone: pure unit tests (`run-view`, `turn-hub`, `*-decode`), and `image-result.it`
 (real MCP client, no LLM). `networkidle` is already absent (good).
@@ -50,9 +50,9 @@ signal says it can never become true (run finished, stream closed, process exite
 Two functions, clean separation:
 
 ```ts
-const testHarness = createTestHarness(claude)   // sync, pure — real adapter + the two test seams
-const testkit = createTestkit(testHarness)      // sync — holds config
-const kit = await testkit.setup()               // async — boots the REAL server, returns live handle
+const testHarness = createTestHarness(claude) // sync, pure — real adapter + the two test seams
+const testkit = createTestkit(testHarness) // sync — holds config
+const kit = await testkit.setup() // async — boots the REAL server, returns live handle
 // kit.chat(...) / kit.callTool(...) / kit.attach() / kit.until(...)
 await kit.cleanup()
 ```
@@ -61,7 +61,7 @@ Fake vs real is which harness object you pass — no `mode` flag:
 
 ```ts
 describe.each([claude, createTestHarness(claude)])('conciv_ui', (harness) => {
-  const testkit = createTestkit(harness)         // real element = claude; fake = createTestHarness(claude)
+  const testkit = createTestkit(harness) // real element = claude; fake = createTestHarness(claude)
 })
 ```
 
@@ -78,7 +78,7 @@ spawn-only harnesses (codex) deterministic — no per-harness wire-protocol faki
 `createTestHarness(real)` returns `{...real, run: scriptedRun, shutdown, release}` exposing exactly:
 
 1. **Injectable run** — the turn emits a scripted `StreamChunk` sequence (default: `RUN_STARTED → text
-   → RUN_FINISHED`), or falls through to the real transport in real mode.
+→ RUN_FINISHED`), or falls through to the real transport in real mode.
 2. **Turn hold/release** — the scripted run stays open until signaled, so the kit can fire a real
    mid-turn action (call `conciv_ui` over the real MCP client → real injection into the live turn) and
    then release. This is what makes the injection test deterministic without faking the injection.
@@ -107,12 +107,16 @@ type RunStream = {
   waitFor(match: (e: StreamChunk) => boolean, opts?: {hangGuardMs?: number}): Promise<StreamChunk>
   waitForUiSpec(question?: string): Promise<UiSpec>
   waitForText(substr: string): Promise<void>
-  done(opts?: {hangGuardMs?: number}): Promise<RunEvents>   // drain to RUN_FINISHED
+  done(opts?: {hangGuardMs?: number}): Promise<RunEvents> // drain to RUN_FINISHED
 }
 type RunEvents = {
   all: StreamChunk[]
-  text(): string; uiSpecs(): UiSpec[]; toolCalls(): {name: string; args: string}[]
-  usage(): UsageSnapshot[]; errors(): string[]; runs(): number
+  text(): string
+  uiSpecs(): UiSpec[]
+  toolCalls(): {name: string; args: string}[]
+  usage(): UsageSnapshot[]
+  errors(): string[]
+  runs(): number
 }
 ```
 
@@ -214,5 +218,5 @@ returns zero, and the fixed-window snapshot in `server.ts` is gone. A lint rule 
 - **Negative assertions** — not solved by a primitive; handled per-case via the settle-signal recipe.
 - **Real-mode residual variance** — real claude can't be isolated (OAuth in the config dir, no API
   key); `waitFor` + hang-guard absorb latency; real mode is local-only and never gates CI.
-- **`settleFor` values** — quiescence windows are still numbers; they are guards on *stability*, not
+- **`settleFor` values** — quiescence windows are still numbers; they are guards on _stability_, not
   assertion windows, and should be as small as reliably holds. Document chosen values inline.

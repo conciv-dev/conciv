@@ -37,7 +37,8 @@ export const canvasReadDef = {
   description:
     'List canvas elements. scope "live" (default) reads the published canvas; scope "draft" reads the hidden work-in-progress draft.',
   inputSchema: CanvasReadInput,
-  promptSnippet: 'Use canvas.read to see what is already drawn before adding more; pass scope "draft" to inspect the draft.',
+  promptSnippet:
+    'Use canvas.read to see what is already drawn before adding more; pass scope "draft" to inspect the draft.',
 }
 
 export const canvasSvgDef = {

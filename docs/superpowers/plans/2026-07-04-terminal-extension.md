@@ -11,6 +11,7 @@
 ## Global Constraints
 
 Same as the v1 plan (functions only, zero comments, no else/non-null/any, unstyled+styled ui-kit split, real-everything tests, turbo builds, pathspec commits, prek-race workaround). Additions:
+
 - Mirror the whiteboard extension's package layout (`packages/extensions/whiteboard`) for the new extension: `package.json` exports (`.` server, `./client`), `server.ts`, `client.tsx`, `shared/`.
 - The v1 fixes are load-bearing and MUST survive the move byte-for-byte: spawn-helper exec-bit self-heal (`spawn-helper-fix.ts`), nested-CLAUDE-env stripping (`unsetEnvPrefixes` in `claude/tty.ts`), stale-resume-token transcript check.
 - ui-kit-system `Tabs` (`packages/ui-kit-system/src/tabs.tsx`) is the ONLY tab control — its `Indicator` slides via `--left`/`--width`; never build a hand-rolled toggle.
@@ -20,6 +21,7 @@ Same as the v1 plan (functions only, zero comments, no else/non-null/any, unstyl
 ### Task 1: Extension API — panel views + view lock
 
 **Files:**
+
 - Modify: `packages/extension/src/types.ts` (add `ExtensionView`, extend `ExtensionHostContext` with `view`)
 - Modify: `packages/extension/src/define-extension.ts` (meta field `views`, thread through builder)
 - Modify: `packages/widget/src/extension/extension-slots.tsx` or a new `packages/widget/src/extension/extension-views.ts` (collect views from instances)
@@ -29,6 +31,7 @@ Same as the v1 plan (functions only, zero comments, no else/non-null/any, unstyl
 - Test: `packages/widget/test/panel-views.test.ts` (or extend an existing widget component test file pattern if one covers ChatPanel)
 
 **Interfaces:**
+
 - Produces:
 
 ```ts
@@ -43,8 +46,16 @@ export function collectViews(instances: ExtensionInstance[]): (ExtensionView & {
 ```tsx
 <Tabs.Root value={activeView()} onValueChange={(d) => void switchView(d.value)}>
   <Tabs.List>
-    <Tabs.Trigger value="chat" disabled={leaveGuard()}>Chat</Tabs.Trigger>
-    <For each={views()}>{(v) => <Tabs.Trigger value={v.id} disabled={leaveGuard()}>{v.label}</Tabs.Trigger>}</For>
+    <Tabs.Trigger value="chat" disabled={leaveGuard()}>
+      Chat
+    </Tabs.Trigger>
+    <For each={views()}>
+      {(v) => (
+        <Tabs.Trigger value={v.id} disabled={leaveGuard()}>
+          {v.label}
+        </Tabs.Trigger>
+      )}
+    </For>
     <Tabs.Indicator />
   </Tabs.List>
 </Tabs.Root>
@@ -63,6 +74,7 @@ with `leaveGuard = () => working() || viewLocked()` (chat turn in flight, or the
 ### Task 2: Extension API — server sessions/harness surfaces
 
 **Files:**
+
 - Modify: `packages/extension/src/types.ts` (`ServerApi` grows `sessions` + `harness`)
 - Modify: `packages/core/src/app.ts` (build the surfaces from `store`, `readLock`, and the resolved harness adapter; pass into `extension.__server`)
 - Test: `packages/core/test/api/extension-server-surfaces.it.test.ts`
@@ -97,6 +109,7 @@ Core builds them in `makeApp`: `resumeToken`/`recordToken` delegate to the helpe
 ### Task 3: Create packages/extensions/terminal — server side (move from core)
 
 **Files:**
+
 - Create: `packages/extensions/terminal/package.json`, `tsconfig.json` (+ build config) — mirror `packages/extensions/test-runner` exactly; deps: `@conciv/extension`, `@conciv/protocol`, `node-pty`, `zod`; client export adds `@conciv/ui-kit-terminal`, `solid-js` peer
 - Move: `packages/core/src/api/tty/pty-sessions.ts` → `packages/extensions/terminal/src/server/pty-sessions.ts`
 - Move: `packages/core/src/api/tty/osc-busy.ts` → `packages/extensions/terminal/src/server/osc-busy.ts`
@@ -108,6 +121,7 @@ Core builds them in `makeApp`: `resumeToken`/`recordToken` delegate to the helpe
 - Modify: `packages/it/src/plugin-instance.ts` — register the builtin (server + client entry) beside whiteboard/test-runner
 
 **Interfaces (extension routes, session id via `?session=` or the conciv session header exactly as the moved route code already does):**
+
 - `POST /api/ext/terminal/open` body `{cols?, rows?}` → `{alive: true}`; 409 `sessions.chatBusy`; 400 no `harness.ttyCommand`. Token flow + stale-transcript self-heal move verbatim from the deleted `tty.ts` (swap direct imports for `server.sessions`/`server.harness`).
 - `POST /api/ext/terminal/close` → `{alive: false}`; 409 while pty busy.
 - `GET /api/ext/terminal/state` → `{alive: boolean, busy: boolean}`.
@@ -124,12 +138,14 @@ Core builds them in `makeApp`: `resumeToken`/`recordToken` delegate to the helpe
 ### Task 4: Terminal extension client — view registration
 
 **Files:**
+
 - Create: `packages/extensions/terminal/src/client.tsx` — extension `views: [{id: 'terminal', label: 'Terminal', icon: SquareTerminal, Component: TerminalPanelView}]`
 - Move+rework: `packages/widget/src/chat/terminal-view.tsx` → `packages/extensions/terminal/src/client/terminal-panel-view.tsx`
 - Delete: `packages/widget/src/chat/terminal-view.tsx`, api-client `mode`/`setMode`/`ttyUrl` (revert commit `4149a81` content)
 - Modify: `packages/widget/uno.config.ts` — content glob `'../extensions/terminal/src/**/*.{ts,tsx}'` (whiteboard already sets the precedent)
 
 **Interfaces:** `TerminalPanelView` (no props; everything from extension context):
+
 - `const ctx = terminal.useContext()` at render scope (never inline in handlers): `ctx.client` for session id + apiBase, `ctx.view.setLocked`, `ctx.notify` for 409 toasts.
 - On mount: `POST open` (fetch with conciv session header from `ctx.client.chatHeaders()`); pending → connecting state; failure → notify + render error banner with retry.
 - `createTerminalModel({url: () => wsUrl(ctx.client), theme: () => readTerminalTheme(host)})` — `readTerminalTheme` moves along (reads `--pw-*` tokens); `wsUrl` builds `/api/ext/terminal/tty?session=…&cols=…&rows=…` from `apiBase` with the ws/wss protocol swap (port the deleted `ttyUrl` helper here).
@@ -154,6 +170,7 @@ Core builds them in `makeApp`: `resumeToken`/`recordToken` delegate to the helpe
 ### Task 6: End-to-end widget IT + docs
 
 **Files:**
+
 - Rework: `packages/widget/test/terminal-mode.it.test.ts` (v1 Task 8 file if present, else create) — tabs via `getByRole('tab', …)`, indicator singleton assertion, full claude loop, quick-terminal pane coverage
 - Modify: superseded-note at the top of the v1 spec + plan; memory updates happen outside the repo
 

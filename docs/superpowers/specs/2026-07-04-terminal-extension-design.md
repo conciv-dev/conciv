@@ -17,6 +17,7 @@ Rebuild terminal mode as `packages/extensions/terminal` — a built-in extension
 ## What lives where
 
 **`packages/extensions/terminal`** (new, built-in):
+
 - `server.ts`: pty session service, OSC 9;4 busy tracker, spawn-helper exec-bit self-heal (all move verbatim from `packages/core/src/api/tty/`), plus routes on the extension sub-app:
   - `POST /api/ext/terminal/open` `{cols?, rows?}` → 409 while `sessions.chatBusy`; resolves/mints the harness session token via `sessions`, checks `harness.transcriptExists` to decide resume-vs-pin (stale-token self-heal), spawns via `harness.ttyCommand`, calls `harness.release` first.
   - `POST /api/ext/terminal/close` → 409 while terminal busy; kills the pty.
@@ -28,12 +29,14 @@ Rebuild terminal mode as `packages/extensions/terminal` — a built-in extension
 - Registered in `packages/it/src/plugin-instance.ts` builtins beside whiteboard/test-runner.
 
 **Stays as-is from v1 work:**
+
 - `@conciv/protocol/terminal-types`: `TtyCommand` (+`unsetEnvPrefixes`), `TtyCommandOpts`; harness adapter fields `tty`/`release`.
 - `packages/harness/src/claude/tty.ts` incl. nested-CLAUDE-env stripping (`CLAUDECODE`/`CLAUDE_CODE_*` markers suppress transcript persistence — proven empirically).
 - `@conciv/ui-kit-terminal` package (model, primitives, styled) — pure UI kit, consumed by the extension.
 - Core's session-store lift (`makeApp` owns the store, passes into chat routes).
 
 **Removed from v1 work:**
+
 - `packages/core/src/api/tty/*` and its registration in `app.ts` (moves to the extension).
 - `packages/widget/src/chat/mode-toggle.tsx` (replaced by the core tab bar on ui-kit-system Tabs).
 - `packages/widget/src/chat/terminal-view.tsx` (moves into the extension client).

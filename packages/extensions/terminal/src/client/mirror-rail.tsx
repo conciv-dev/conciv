@@ -125,8 +125,7 @@ function resultsById(messages: UIMessage[]): Map<string, ToolResultPart> {
   return map
 }
 
-const PLACEHOLDER =
-  'text-[length:var(--chat-text-xs)] [color:var(--chat-text-3)] px-3 py-4 leading-[1.5] text-center'
+const PLACEHOLDER = 'text-[length:var(--chat-text-xs)] [color:var(--chat-text-3)] px-3 py-4 leading-[1.5] text-center'
 
 function partText(part: MessagePart): string {
   return 'content' in part && typeof part.content === 'string' ? part.content : ''
@@ -222,7 +221,9 @@ function RailPlaceholder(props: {status: MirrorStatus}): JSX.Element {
       <Switch>
         <Match when={props.status === 'error'}>Can’t reach activity — retrying…</Match>
         <Match when={props.status === 'connecting'}>Connecting…</Match>
-        <Match when={props.status === 'open'}>Claude’s replies, reasoning and tool calls appear here as it works.</Match>
+        <Match when={props.status === 'open'}>
+          Claude’s replies, reasoning and tool calls appear here as it works.
+        </Match>
       </Switch>
     </p>
   )

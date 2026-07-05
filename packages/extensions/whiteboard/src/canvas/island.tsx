@@ -164,7 +164,9 @@ export function Island(props: {
         })),
       )
       await db()
-        .batch((batch) => rows.forEach((entry: (typeof rows)[number]) => batch.upsert(targetTable, entry.data, {id: entry.id})))
+        .batch((batch) =>
+          rows.forEach((entry: (typeof rows)[number]) => batch.upsert(targetTable, entry.data, {id: entry.id})),
+        )
         .wait({tier: 'edge'})
     } catch (error) {
       console.error(`[whiteboard] draining pending ${row.kind} ${row.id} failed: ${String(error)}`)

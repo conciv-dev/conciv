@@ -29,7 +29,7 @@
 - **Testkit boot chain** (for Task 9's accessor): `getExtensionTestApi` → `bootExtensionServer` (`boot-server.ts`) → `start()` from `@conciv/core/engine` (`packages/core/src/engine.ts`) → `makeApp` (`packages/core/src/app.ts`). The mounted `ServerResult.context` lives only inside `makeApp`'s `mounted` array; exposing it to tests means threading it through all four layers (see Task 9 Step 1).
 - **`packages/extension/src/index.ts`** is the single public export surface (`export {defineTool} from './define-tool.js'` at line 9) — Task 2's new exports go there.
 - **`packages/core/src/api/mcp/mcp.ts`**: `registerTool` is lines 11–19 and matches the shape Task 2 expects to replace.
-- **Island (`src/canvas/island.tsx`) symbols confirmed:** `ElementRow` (line 18), `PendingRow = {id: string; kind: 'skeletons' | 'mermaid'; payload: JsonValue}` (line 19), `asScene` (33), `stableUuid` (41 — **async**, awaited), `skeletonsOf` (52), `applyRemote` (91), `writeLocal` (117), `drainPending` (139 — seeds ids with `` stableUuid(`${row.id}:${index}`) ``), `sweepAgents` interval (187).
+- **Island (`src/canvas/island.tsx`) symbols confirmed:** `ElementRow` (line 18), `PendingRow = {id: string; kind: 'skeletons' | 'mermaid'; payload: JsonValue}` (line 19), `asScene` (33), `stableUuid` (41 — **async**, awaited), `skeletonsOf` (52), `applyRemote` (91), `writeLocal` (117), `drainPending` (139 — seeds ids with ``stableUuid(`${row.id}:${index}`)``), `sweepAgents` interval (187).
 - **Task 1 landed interfaces** (consume these as-is): `ServerResult<Context> = {context; turnEnd?: (sessionId: string) => void | Promise<void>; dispose?}` in `packages/extension/src/types.ts`; `makeApp` fires all `turnEnd` hooks via `Promise.allSettled` after each turn stream closes; `registerChatRoutes` now runs after extension mounting in `app.ts`.
 
 ## Global Constraints
@@ -66,6 +66,7 @@ Each task below carries an **Error handling (required)** checklist of its specif
 Extension servers need a real lifecycle signal when a harness turn finishes (spec: auto-commit). No hacks: extend `ServerResult`, thread through `makeApp` → `registerChatRoutes` → `registerTurnRoutes`, fire when the turn stream closes.
 
 **Files:**
+
 - Modify: `packages/extension/src/types.ts` (ServerResult)
 - Modify: `packages/core/src/app.ts` (collect hooks)
 - Modify: `packages/core/src/api/chat/chat.ts` (thread option)
@@ -73,6 +74,7 @@ Extension servers need a real lifecycle signal when a harness turn finishes (spe
 - Test: `packages/core/test/api/chat/turn-end.it.test.ts`
 
 **Interfaces:**
+
 - Produces: `ServerResult<Context> = {context: Context; turnEnd?: (sessionId: string) => void | Promise<void>; dispose?: () => void | Promise<void>}`; `TurnDeps.onTurnEnd?: (sessionId: string) => Promise<void>`. Task 10 consumes `turnEnd` from the whiteboard extension.
 
 - [x] **Step 1: Write the failing test**
@@ -215,6 +217,7 @@ git commit --no-verify -m "feat(core): extension turn-end lifecycle hook" -- pac
 Tools return a tanstack `ContentPart[]` for multimodal output; the MCP layer maps it to wire content blocks so the model sees pixels. No bespoke marker.
 
 **What landed (consume these, do not re-derive):**
+
 - `packages/extension/src/image-result.ts`: `imageResult(mimeType, dataBase64, detail?): ContentPart[]` → `[{type:'image', source:{type:'data', value, mimeType}}]`, plus a `{type:'text', content}` part when `detail` is given (`detail` serialized by a throw-proof `stringifyDetail`). Uses `import type {ContentPart} from '@tanstack/ai'`.
 - `packages/extension/src/index.ts`: exports `imageResult` and re-exports `type ContentPart`. **No `isImageResult`, no `ImageResult` type** — downstream detection uses tanstack's `isContentPartArray`.
 - `packages/extension/package.json`: `@tanstack/ai@^0.28.0` added to dependencies.
@@ -229,10 +232,12 @@ Tasks 7 and 8 return `imageResult('image/png', base64, {...})` (signature unchan
 ### Task 3: Whiteboard schema — stage, draft elements, replies
 
 **Files:**
+
 - Modify: `src/shared/schema.ts`
 - Test: existing suite (schema-only change)
 
 **Interfaces:**
+
 - Produces tables consumed by every later task:
   - `canvasPending` gains `stage: col.enum('draft', 'live').default('live')` and kinds `'skeletons' | 'mermaid' | 'svg' | 'export' | 'commit' | 'discard'`
   - `canvasDraftElements`: same shape as `canvasElements`
@@ -279,12 +284,14 @@ git commit --no-verify -m "feat(whiteboard): schema for draft stage, draft eleme
 ### Task 4: Server draft routing + `canvas.svg` tool + scoped read
 
 **Files:**
+
 - Modify: `src/tool/canvas/def.ts`
 - Modify: `src/tool/canvas/server.ts`
 - Create: `src/tool/canvas/svg-caps.ts`
 - Test: `test/canvas-svg-caps.test.ts` (node, no browser)
 
 **Interfaces:**
+
 - Consumes: schema tables from Task 3.
 - Produces:
   - `CanvasSvgInput = {svg: string, x: number, y: number, width?: number, roughness?: number}` → pending row `{kind: 'svg', stage: 'draft', payload: {svg, x, y, width, roughness}}`
@@ -318,7 +325,7 @@ test('rejects more than 400 drawable nodes', () => {
 })
 
 test('rejects markup without an svg root', () => {
-  expect(() => validateSvg("<div>nope</div>")).toThrow(/<svg/i)
+  expect(() => validateSvg('<div>nope</div>')).toThrow(/<svg/i)
 })
 
 test('rejects script and foreignObject', () => {
@@ -408,7 +415,13 @@ export const canvasSvgTool = defineTool<typeof CanvasSvgInput, WhiteboardToolCon
       room: ctx.room(request),
       kind: 'svg',
       stage: 'draft',
-      payload: {svg: input.svg, x: input.x, y: input.y, width: input.width ?? 400, roughness: input.roughness} as JsonValue,
+      payload: {
+        svg: input.svg,
+        x: input.x,
+        y: input.y,
+        width: input.width ?? 400,
+        roughness: input.roughness,
+      } as JsonValue,
     })
     await write.wait({tier: 'edge'})
     return {pending: write.value.id}
@@ -439,11 +452,13 @@ git commit --no-verify -m "feat(whiteboard): canvas.svg tool, draft staging, sco
 ### Task 5: Island draft drain + SVG conversion + invisibility IT
 
 **Files:**
+
 - Create: `src/canvas/svg-convert.ts`
 - Modify: `src/canvas/island.tsx`
 - Test: `test/canvas-draft.it.test.ts`
 
 **Interfaces:**
+
 - Consumes: pending rows `{kind: 'svg' | 'skeletons' | 'mermaid', stage}` from Task 4.
 - Produces: `svgToSkeletons(svgMarkup: string, options: {x: number; y: number; width: number; roughness: number}): ExcalidrawElementSkeleton[]` (browser-only, DOM APIs); draft rows drain into `canvasDraftElements`, live rows into `canvasElements`.
 
@@ -464,7 +479,8 @@ const openCanvas = async (page: Page): Promise<void> => {
   await page.getByRole('radio', {name: 'Rectangle'}).waitFor()
 }
 
-const CAT_EAR = "<svg viewBox='0 0 100 100'><path d='M 10 90 L 50 10 L 90 90 Z' fill='#f0a860' stroke='#7a4a1e'/><rect x='20' y='20' width='10' height='10' fill='#1e1e1e'/></svg>"
+const CAT_EAR =
+  "<svg viewBox='0 0 100 100'><path d='M 10 90 L 50 10 L 90 90 Z' fill='#f0a860' stroke='#7a4a1e'/><rect x='20' y='20' width='10' height='10' fill='#1e1e1e'/></svg>"
 
 const readElements = async (api: {callTool: (name: string, input: unknown) => Promise<unknown>}, scope: string) => {
   const result = (await api.callTool('canvas.read', {scope})) as {elements: unknown[]}
@@ -555,12 +571,23 @@ function samplePoints(pathNode: SVGPathElement, matrix: DOMMatrix, scale: number
   return points
 }
 
-function lineFromPoints(points: number[][], node: Element, scale: number, roughness: number): ExcalidrawElementSkeleton {
+function lineFromPoints(
+  points: number[][],
+  node: Element,
+  scale: number,
+  roughness: number,
+): ExcalidrawElementSkeleton {
   const [first] = points
   const firstX = first?.[0] ?? 0
   const firstY = first?.[1] ?? 0
   const shifted = points.map(([x = 0, y = 0]) => [x - firstX, y - firstY])
-  return {type: 'line', x: firstX, y: firstY, points: shifted, ...styleFields(node, scale, roughness)} as ExcalidrawElementSkeleton
+  return {
+    type: 'line',
+    x: firstX,
+    y: firstY,
+    points: shifted,
+    ...styleFields(node, scale, roughness),
+  } as ExcalidrawElementSkeleton
 }
 
 function splitSubpaths(data: string): string[] {
@@ -699,7 +726,13 @@ async function skeletonsOf(row: PendingRow): Promise<ExcalidrawElementSkeleton[]
   }
   if (row.kind === 'svg') {
     const {svgToSkeletons} = await import('./svg-convert.js')
-    const {svg, x, y, width, roughness} = row.payload as unknown as {svg: string; x: number; y: number; width: number; roughness: number}
+    const {svg, x, y, width, roughness} = row.payload as unknown as {
+      svg: string
+      x: number
+      y: number
+      width: number
+      roughness: number
+    }
     return withStableIds(svgToSkeletons(svg, {x, y, width, roughness}), row.id)
   }
   return withStableIds((row.payload as unknown as {elements: ExcalidrawElementSkeleton[]}).elements, row.id)
@@ -741,6 +774,7 @@ git commit --no-verify -m "feat(whiteboard): island svg conversion and draft dra
 ### Task 6: `canvas.commit` / `canvas.discard` + cursor replay
 
 **Files:**
+
 - Modify: `src/tool/canvas/def.ts` (two defs)
 - Modify: `src/tool/canvas/server.ts` (two tools)
 - Create: `src/canvas/replay.ts`
@@ -748,6 +782,7 @@ git commit --no-verify -m "feat(whiteboard): island svg conversion and draft dra
 - Test: `test/canvas-commit.it.test.ts`
 
 **Interfaces:**
+
 - Consumes: `canvasDraftElements`, pending kinds `'commit' | 'discard'`.
 - Produces:
   - `canvas.commit` input `{}` → inserts `{kind: 'commit', stage: 'live', payload: {}}`; returns `{committed: true}` after the island finishes (server polls `canvasDraftElements` until empty, 15s timeout) or `{committed: false, reason: 'no draft'}` when the draft is empty.
@@ -862,7 +897,9 @@ export const canvasCommitTool = defineTool<typeof CanvasCommitInput, WhiteboardT
     const room = ctx.room(request)
     const drafts = await draftRows(ctx, room)
     if (!drafts.length) return {committed: false, reason: 'no draft to commit'}
-    await ctx.db.insert(app.canvasPending, {room, kind: 'commit', stage: 'live', payload: {} as JsonValue}).wait({tier: 'edge'})
+    await ctx.db
+      .insert(app.canvasPending, {room, kind: 'commit', stage: 'live', payload: {} as JsonValue})
+      .wait({tier: 'edge'})
     const deadline = Date.now() + 15_000
     while (Date.now() < deadline) {
       const remaining = await draftRows(ctx, room)
@@ -953,7 +990,7 @@ const performCommit = async (row: PendingRow): Promise<void> => {
 
 `ensureAgentCursor` upserts a `cursors` row `{room, peerId: 'agent:' + props.room, kind: 'agent', name: 'drawing…', color: '#8a86e8', x, y, lastSeen: new Date()}` and returns its row id; `moveAgentCursor` updates `x`, `y`, `lastSeen` on it. Look at how `writeLocal` performs updates for the exact `db().update` idiom. The upsert `{id}` reuse in `performCommit` preserves the same stable row ids the draft drain created, so `applyRemote` versioning stays coherent.
 
-**CORRECTED (found in Task 6): Jazz object ids are GLOBAL, not per-table.** Reusing `draft.id` as the `canvasElements` upsert id fails at runtime: `WriteError("object <id> already exists in table canvasDraftElements, cannot upsert into canvasElements")`. The live row must get a DISTINCT deterministic id. The landed code uses `` await stableUuid(`commit:${draft.id}`) `` per element — deterministic (re-commit upserts the same live row) and collision-free. Because `stableUuid` is async, build the replay steps with `await Promise.all(ordered.map(async (draft) => ...))`, precomputing the live id before the step's synchronous `write()`.
+**CORRECTED (found in Task 6): Jazz object ids are GLOBAL, not per-table.** Reusing `draft.id` as the `canvasElements` upsert id fails at runtime: `WriteError("object <id> already exists in table canvasDraftElements, cannot upsert into canvasElements")`. The live row must get a DISTINCT deterministic id. The landed code uses ``await stableUuid(`commit:${draft.id}`)`` per element — deterministic (re-commit upserts the same live row) and collision-free. Because `stableUuid` is async, build the replay steps with `await Promise.all(ordered.map(async (draft) => ...))`, precomputing the live id before the step's synchronous `write()`.
 
 Skippability: register a one-shot pointerdown listener on the island container during replay that calls `handle.skip()`.
 
@@ -987,6 +1024,7 @@ git commit --no-verify -m "feat(whiteboard): commit/discard with cursor replay" 
 ### Task 7: `canvas.preview` — takumi inner loop
 
 **Files:**
+
 - Modify: `package.json` (dependency)
 - Create: `src/tool/canvas/draft-svg.ts` (element → SVG serializer)
 - Create: `src/tool/canvas/preview.ts` (compose + rasterize)
@@ -994,6 +1032,7 @@ git commit --no-verify -m "feat(whiteboard): commit/discard with cursor replay" 
 - Test: `test/canvas-draft-svg.test.ts` (node), `test/canvas-preview.it.test.ts`
 
 **Interfaces:**
+
 - Consumes: `canvasDraftElements` rows; `imageResult` from Task 2.
 - Produces:
   - `draftToSvg(elements: DraftElement[]): string` where `DraftElement = {type: string; x: number; y: number; width?: number; height?: number; points?: number[][]; text?: string; fontSize?: number; strokeColor?: string; backgroundColor?: string; strokeWidth?: number}`
@@ -1015,9 +1054,28 @@ import {draftToSvg} from '../src/tool/canvas/draft-svg.js'
 
 test('serializes rectangle, ellipse, line points and text', () => {
   const {svg} = draftToSvg([
-    {type: 'rectangle', x: 10, y: 10, width: 40, height: 20, strokeColor: '#111', backgroundColor: '#eee', strokeWidth: 2},
+    {
+      type: 'rectangle',
+      x: 10,
+      y: 10,
+      width: 40,
+      height: 20,
+      strokeColor: '#111',
+      backgroundColor: '#eee',
+      strokeWidth: 2,
+    },
     {type: 'ellipse', x: 60, y: 10, width: 30, height: 30, strokeColor: '#222', backgroundColor: 'transparent'},
-    {type: 'line', x: 5, y: 5, points: [[0, 0], [10, 10], [20, 0]], strokeColor: '#333'},
+    {
+      type: 'line',
+      x: 5,
+      y: 5,
+      points: [
+        [0, 0],
+        [10, 10],
+        [20, 0],
+      ],
+      strokeColor: '#333',
+    },
     {type: 'text', x: 12, y: 40, text: 'hi', fontSize: 16, strokeColor: '#444'},
   ])
   expect(svg).toContain('<svg')
@@ -1028,7 +1086,18 @@ test('serializes rectangle, ellipse, line points and text', () => {
 })
 
 test('freedraw serializes like line', () => {
-  const {svg} = draftToSvg([{type: 'freedraw', x: 0, y: 0, points: [[0, 0], [5, 5]], strokeColor: '#000'}])
+  const {svg} = draftToSvg([
+    {
+      type: 'freedraw',
+      x: 0,
+      y: 0,
+      points: [
+        [0, 0],
+        [5, 5],
+      ],
+      strokeColor: '#000',
+    },
+  ])
   expect(svg).toContain("<polyline points='0,0 5,5'")
 })
 
@@ -1086,8 +1155,16 @@ function nodeOf(element: DraftElement): string {
 }
 
 export function draftToSvg(elements: DraftElement[]): {svg: string; width: number; height: number} {
-  const xs = elements.flatMap((element) => [element.x, element.x + (element.width ?? 0), ...(element.points ?? []).map(([px = 0]) => element.x + px)])
-  const ys = elements.flatMap((element) => [element.y, element.y + (element.height ?? 0), ...(element.points ?? []).map(([, py = 0]) => element.y + py)])
+  const xs = elements.flatMap((element) => [
+    element.x,
+    element.x + (element.width ?? 0),
+    ...(element.points ?? []).map(([px = 0]) => element.x + px),
+  ])
+  const ys = elements.flatMap((element) => [
+    element.y,
+    element.y + (element.height ?? 0),
+    ...(element.points ?? []).map(([, py = 0]) => element.y + py),
+  ])
   const width = Math.round(Math.max(400, ...xs) + 40)
   const height = Math.round(Math.max(300, ...ys) + 40)
   const body = elements.map(nodeOf).join('')
@@ -1200,7 +1277,9 @@ test('preview returns a real png of the draft without any browser round-trip', a
       width: 200,
     })
     await expect
-      .poll(async () => ((await api.callTool('canvas.read', {scope: 'draft'})) as {elements: unknown[]}).elements, {timeout: 15_000})
+      .poll(async () => ((await api.callTool('canvas.read', {scope: 'draft'})) as {elements: unknown[]}).elements, {
+        timeout: 15_000,
+      })
       .toHaveLength(1)
     const result = (await api.callTool('canvas.preview', {})) as Array<{
       type: string
@@ -1243,12 +1322,14 @@ git commit --no-verify -m "feat(whiteboard): canvas.preview server-side draft re
 ### Task 8: `canvas.export` PNG round-trip
 
 **Files:**
+
 - Modify: `src/tool/canvas/def.ts` (export input)
 - Modify: `src/tool/canvas/server.ts` (export tool)
 - Modify: `src/canvas/island.tsx` (export handler)
 - Test: `test/canvas-export-png.it.test.ts`
 
 **Interfaces:**
+
 - Consumes: pending kind `'export'`, `canvasReplies`, `imageResult`.
 - Produces: `CanvasExportInput = {format: 'json' | 'png', scope: 'live' | 'draft' | 'both'}` (defaults `json`/`live`). PNG path: server inserts `{kind: 'export', stage: 'live', payload: {requestId, scope}}`, polls `canvasReplies.where({room, requestId})` every 250ms for 10s, returns `imageResult('image/png', payload.dataBase64, {scope})`, deletes the reply row. Timeout error message: `'export timed out: no canvas tab is connected (canvas.preview works without one)'`.
 
@@ -1282,7 +1363,9 @@ test('png export round-trips through the island with excalidraw rendering', asyn
       width: 200,
     })
     await expect
-      .poll(async () => ((await api.callTool('canvas.read', {scope: 'draft'})) as {elements: unknown[]}).elements, {timeout: 15_000})
+      .poll(async () => ((await api.callTool('canvas.read', {scope: 'draft'})) as {elements: unknown[]}).elements, {
+        timeout: 15_000,
+      })
       .toHaveLength(1)
     const result = (await api.callTool('canvas.export', {format: 'png', scope: 'draft'})) as Array<{
       type: string
@@ -1344,7 +1427,12 @@ export const canvasExportTool = defineTool<typeof CanvasExportInput, WhiteboardT
     }
     const requestId = crypto.randomUUID()
     await ctx.db
-      .insert(app.canvasPending, {room, kind: 'export', stage: 'live', payload: {requestId, scope: input.scope} as JsonValue})
+      .insert(app.canvasPending, {
+        room,
+        kind: 'export',
+        stage: 'live',
+        payload: {requestId, scope: input.scope} as JsonValue,
+      })
       .wait({tier: 'edge'})
     const deadline = Date.now() + 10_000
     while (Date.now() < deadline) {
@@ -1401,7 +1489,10 @@ const performExport = async (row: PendingRow): Promise<void> => {
   try {
     await db().insert(app.canvasReplies, {room: props.room, requestId, kind: 'export', payload}).wait({tier: 'edge'})
   } finally {
-    await db().delete(app.canvasPending, row.id).wait({tier: 'edge'}).catch((error) => console.error(String(error)))
+    await db()
+      .delete(app.canvasPending, row.id)
+      .wait({tier: 'edge'})
+      .catch((error) => console.error(String(error)))
   }
 }
 ```
@@ -1431,11 +1522,13 @@ git commit --no-verify -m "feat(whiteboard): canvas.export png via island round-
 ### Task 9: Auto-commit on turn end
 
 **Files:**
+
 - Create: `src/server/auto-commit.ts`
 - Modify: `src/server.ts`
 - Test: `test/canvas-autocommit.it.test.ts` (the testkit drives tools directly, not harness turns, so the test exercises `autoCommitDraft` itself; Task 1's core IT already proves the hook fires)
 
 **Interfaces:**
+
 - Consumes: `ServerResult.turnEnd` (Task 1), commit insert semantics (Task 6).
 - Produces: `autoCommitDraft(db: Db, room: string): Promise<boolean>` — inserts a commit pending row iff draft elements exist; returns whether it did.
 
@@ -1512,7 +1605,9 @@ export async function autoCommitDraft(db: Db, room: string): Promise<boolean> {
   if (!drafts.length) return false
   const pendingCommits = await db.all(app.canvasPending.where({room, kind: 'commit'}), {tier: 'global'})
   if (pendingCommits.length) return false
-  await db.insert(app.canvasPending, {room, kind: 'commit', stage: 'live', payload: {} as JsonValue}).wait({tier: 'edge'})
+  await db
+    .insert(app.canvasPending, {room, kind: 'commit', stage: 'live', payload: {} as JsonValue})
+    .wait({tier: 'edge'})
   return true
 }
 ```
@@ -1552,11 +1647,13 @@ git commit --no-verify -m "feat(whiteboard): auto-commit abandoned drafts on tur
 ### Task 10: Prompt pack
 
 **Files:**
+
 - Modify: `src/shared/meta.ts` (WHITEBOARD_PROMPT)
 - Modify: `src/tool/canvas/def.ts` (final snippet pass)
 - Test: `test/canvas-prompt.test.ts` (node)
 
 **Interfaces:**
+
 - Consumes: every tool from prior tasks (names must match exactly: `canvas.svg`, `canvas.preview`, `canvas.export`, `canvas.commit`, `canvas.discard`).
 
 - [ ] **Step 1: Write the failing test**
