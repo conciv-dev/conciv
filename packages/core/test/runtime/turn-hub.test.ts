@@ -48,6 +48,10 @@ function makeGate(): {
   }
 }
 
+async function drainInto(iter: AsyncGenerator<StreamChunk>, sink?: StreamChunk[]): Promise<void> {
+  for await (const chunk of iter) if (sink) sink.push(chunk)
+}
+
 describe('turn hub', () => {
   it('buffers the active run and replays it to a late subscriber', async () => {
     const hub = makeTurnHub()
@@ -62,9 +66,7 @@ describe('turn hub', () => {
     const {replay, live} = hub.attach('s1', controller.signal)
     expect(replay.map((c) => c.type)).toEqual([EventType.RUN_STARTED, EventType.TEXT_MESSAGE_CONTENT])
     const collected: StreamChunk[] = []
-    const drain = (async () => {
-      for await (const chunk of live) collected.push(chunk)
-    })()
+    const drain = drainInto(live, collected)
     gate.push(text('lo'))
     gate.push(finished)
     gate.end()
@@ -87,9 +89,7 @@ describe('turn hub', () => {
     const controller = new AbortController()
     const {live} = hub.attach('s1', controller.signal)
     const collected: StreamChunk[] = []
-    const drain = (async () => {
-      for await (const chunk of live) collected.push(chunk)
-    })()
+    const drain = drainInto(live, collected)
     controller.abort()
     await drain
     gate.push(text('after-abort'))
@@ -107,9 +107,7 @@ describe('turn hub', () => {
     const controller = new AbortController()
     const {live} = hub.attach('s1', controller.signal)
     const collected: StreamChunk[] = []
-    const drain = (async () => {
-      for await (const chunk of live) collected.push(chunk)
-    })()
+    const drain = drainInto(live, collected)
     gate.push(started)
     gate.fail(new Error('harness exploded'))
     await pump
@@ -155,12 +153,8 @@ describe('turn hub', () => {
     const subB = hub.attach('s1', b.signal)
     const gotA: StreamChunk[] = []
     const gotB: StreamChunk[] = []
-    const drainA = (async () => {
-      for await (const c of subA.live) gotA.push(c)
-    })()
-    const drainB = (async () => {
-      for await (const c of subB.live) gotB.push(c)
-    })()
+    const drainA = drainInto(subA.live, gotA)
+    const drainB = drainInto(subB.live, gotB)
     gate.push(finished)
     gate.end()
     await pump
@@ -192,9 +186,7 @@ describe('turn hub', () => {
     gate.push(started)
     const controller = new AbortController()
     const {live} = hub.attach('s1', controller.signal)
-    const drain = (async () => {
-      for await (const chunk of live) void chunk
-    })()
+    const drain = drainInto(live)
     gate.push(finished)
     gate.end()
     await pump
@@ -212,9 +204,7 @@ describe('turn hub', () => {
     gate.push(started)
     const controller = new AbortController()
     const {live} = hub.attach('s1', controller.signal)
-    const drain = (async () => {
-      for await (const chunk of live) void chunk
-    })()
+    const drain = drainInto(live)
     controller.abort()
     await drain
     expect(hub.trackedSessions()).toBe(1)
