@@ -26,7 +26,12 @@ export type StartOpts = {
   extensions?: AnyExtension[]
 }
 
-export type Engine = {port: number; stop: () => Promise<void>; cfg: ResolvedConcivConfig}
+export type Engine = {
+  port: number
+  stop: () => Promise<void>
+  cfg: ResolvedConcivConfig
+  extensionContexts: Record<string, unknown>
+}
 
 export async function start(opts: StartOpts): Promise<Engine> {
   const cfg = resolveConfig(opts.options, opts.root)
@@ -76,7 +81,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     harnessEnv,
     allowedOrigins: opts.allowedOrigins,
   }
-  const {app, disposers} = await makeApp(appOpts)
+  const {app, disposers, extensionContexts} = await makeApp(appOpts)
 
   const requestedPort = opts.port ?? (await getPort())
   const server = serve({fetch: app.fetch, port: requestedPort, hostname: '127.0.0.1'})
@@ -88,6 +93,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
   return {
     port,
     cfg,
+    extensionContexts,
     stop: async () => {
       await Promise.all(disposers.map((dispose) => dispose()))
       await getHarness(cfg.harness)?.shutdown?.()

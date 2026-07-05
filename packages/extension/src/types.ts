@@ -104,7 +104,11 @@ export type ServerApi<Config> = {
   harness: ServerHarness
 }
 
-export type ServerResult<Context> = {context: Context; dispose?: () => void | Promise<void>}
+export type ServerResult<Context> = {
+  context: Context
+  turnEnd?: (sessionId: string) => void | Promise<void>
+  dispose?: () => void | Promise<void>
+}
 
 export type PageInspect = {
   elementAt: (x: number, y: number) => Element | null

@@ -13,6 +13,7 @@ import type {
 } from '@conciv/protocol/chat-types'
 import {RenameSessionSchema, ResolveRequestSchema, isSessionId} from '@conciv/protocol/chat-types'
 import type {SessionStore} from '../../store/session-store.js'
+import type {TurnHub} from '../../runtime/turn-hub.js'
 import {readLock, readLocks} from '../../store/lock.js'
 import {readFileOrEmpty} from '../../fs.js'
 import {sessionIdFromHeaders} from './session-id.js'
@@ -22,6 +23,7 @@ export type SessionRouteDeps = {
   stateRoot: string
   store: SessionStore
   harness: HarnessAdapter
+  hub: TurnHub
   claudeHome?: string
 }
 
@@ -230,7 +232,10 @@ export function registerSessionRoutes(app: H3, deps: SessionRouteDeps): void {
 
   app.post('/api/chat/stop', (event) => {
     const sessionId = sessionIdFromHeaders(event.req.headers)
-    if (sessionId) killLock(deps.stateRoot, sessionId)
+    if (sessionId) {
+      deps.hub.markStopped(sessionId)
+      killLock(deps.stateRoot, sessionId)
+    }
     return {ok: true}
   })
 }

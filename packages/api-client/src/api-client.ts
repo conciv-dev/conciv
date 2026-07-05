@@ -32,6 +32,7 @@ export function defineClient(opts: {apiBase: string}) {
     setSessionId,
 
     chatStreamUrl: () => t.url('/api/chat'),
+    attachUrl: () => t.url('/api/chat/attach'),
     chatHeaders: sessionHeaders,
 
     resolve: t.route({
@@ -59,6 +60,7 @@ export function defineClient(opts: {apiBase: string}) {
       response: ChatLaunchSchema,
     }),
     remove: t.route({method: 'DELETE', path: '/api/chat/session', response: OkSchema}),
+    stop: t.route({method: 'POST', path: '/api/chat/stop', response: OkSchema}),
     permissionDecision: t.route({
       method: 'POST',
       path: '/api/chat/permission-decision',

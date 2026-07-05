@@ -1,4 +1,4 @@
-import {writeFileSync} from 'node:fs'
+import {existsSync, writeFileSync} from 'node:fs'
 
 const argv = process.argv.slice(2)
 const argvFile = process.env.CONCIV_TEST_ARGV_FILE
@@ -7,6 +7,34 @@ if (argvFile) writeFileSync(argvFile, JSON.stringify(argv))
 if (process.env.CONCIV_FAKE_HANG) {
   process.on('SIGTERM', () => process.exit(143))
   setInterval(() => {}, 1000)
+} else if (process.env.CONCIV_FAKE_RELEASE_FILE) {
+  const releaseFile = process.env.CONCIV_FAKE_RELEASE_FILE
+  const head = [
+    {type: 'system', subtype: 'init', session_id: 'sess-fake', model: 'claude-test'},
+    {type: 'stream_event', event: {type: 'content_block_start', index: 0, content_block: {type: 'text', text: ''}}},
+    {
+      type: 'stream_event',
+      event: {type: 'content_block_delta', index: 0, delta: {type: 'text_delta', text: 'first-half '}},
+    },
+  ]
+  for (const line of head) process.stdout.write(JSON.stringify(line) + '\n')
+  const waitForRelease = () => {
+    if (existsSync(releaseFile)) {
+      const tail = [
+        {
+          type: 'stream_event',
+          event: {type: 'content_block_delta', index: 0, delta: {type: 'text_delta', text: 'second-half'}},
+        },
+        {type: 'stream_event', event: {type: 'content_block_stop', index: 0}},
+        {type: 'assistant', message: {model: 'claude-test', content: [{type: 'text', text: 'first-half second-half'}]}},
+        {type: 'result', session_id: 'sess-fake', num_turns: 1, total_cost_usd: 0.001},
+      ]
+      for (const line of tail) process.stdout.write(JSON.stringify(line) + '\n')
+      process.exit(0)
+    }
+    setTimeout(waitForRelease, 20)
+  }
+  waitForRelease()
 } else if (process.env.CONCIV_FAKE_PARTIAL) {
   const lines = [
     {type: 'system', subtype: 'init', session_id: 'sess-fake', model: 'claude-test'},

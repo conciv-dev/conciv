@@ -27,6 +27,7 @@ import {ContextTracker} from '../page/context-tracker.js'
 import {SessionSelector} from '../composer/session-selector.js'
 import {sessions, mergeSurface, makeSurfaceRow} from '../client/session-store-client.js'
 import {readStorage, writeStorage} from '../lib/persisted-signal.js'
+import {readShellSnapshot, writeShellSnapshot} from '../lib/ui-snapshot.js'
 import {defineClient, type SessionClient} from '@conciv/api-client'
 import {SessionId, isSessionId} from '@conciv/protocol/chat-types'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
@@ -153,9 +154,13 @@ function Shell(props: {
   composerActions: () => ComposerActionDef[]
   composerControls: () => ComposerControlDef[]
 }): JSX.Element {
-  const [layer, setLayer] = createSignal<'modal' | 'quick' | null>(null)
+  const restoredShell = readShellSnapshot()
+  const [layer, setLayer] = createSignal<'modal' | 'quick' | null>(restoredShell?.layer ?? null)
   const setQuickOpen = (v: boolean) => setLayer((prev) => (v ? 'quick' : prev === 'quick' ? null : prev))
   const closeModal = () => setLayer((prev) => (prev === 'modal' ? null : prev))
+
+  const [modalPaneIds, setModalPaneIds] = createSignal<string[]>(restoredShell?.paneIds ?? [])
+  createEffect(() => writeShellSnapshot({layer: layer(), paneIds: modalPaneIds()}))
 
   const [politeMsg, setPoliteMsg] = createSignal('')
   const [assertiveMsg, setAssertiveMsg] = createSignal('')
@@ -187,6 +192,7 @@ function Shell(props: {
               position={props.settings.modal.position}
               announce={announce}
               reportApprovals={reportApprovals}
+              onPanesChange={setModalPaneIds}
               open={() => layer() === 'modal'}
               onOpen={() => setLayer('modal')}
               onClose={closeModal}
@@ -297,6 +303,7 @@ function ModalLayout(props: {
   position: TriggerPosition
   announce: (msg: string, assertive?: boolean) => void
   reportApprovals: (key: string, approvals: PendingApproval[]) => void
+  onPanesChange: (ids: string[]) => void
   open: () => boolean
   onOpen: () => void
   onClose: () => void
@@ -304,6 +311,7 @@ function ModalLayout(props: {
   const [activeId, setActiveId] = createSignal<SessionId | null>(null)
   const [panes, setPanes] = createSignal<ModalPane[]>([])
   createEffect(() => writeStorage('conciv-active-session', activeId()))
+  createEffect(() => props.onPanesChange(panes().map((pane) => pane.id)))
   const apiBase = props.panel.apiBase ?? ''
 
   const owner = getOwner()
@@ -344,9 +352,11 @@ function ModalLayout(props: {
     activate(sessionId)
   }
 
+  const restoredPanes = readShellSnapshot()?.paneIds ?? []
+  for (const id of restoredPanes.filter(isSessionId)) mountPane(id)
   const restored = readStorage('conciv-active-session', parseActiveId, undefined)
   if (restored) activate(restored)
-  else void activateNew()
+  if (!restored) void activateNew()
 
   const activePane = () => panes().find((p) => p.id === activeId())
   const working = () => activePane()?.working() ?? false

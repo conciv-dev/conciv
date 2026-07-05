@@ -123,3 +123,5 @@ Each slice lands independently; slice 1 is useful on its own. Slices 2+3 togethe
 - Bitmap output on the canvas. Explored and rejected in the spike: the whiteboard's value is editable strokes. This includes diffusion-rendered images and traced vectorizations of them.
 - External image services (fal.ai etc.) — hard constraint, local-only product.
 - Local diffusion as a reference generator (validated in the spike: stable-diffusion.cpp on Metal, SD 1.5, ~30s/frame, img2img from the vector draft; output fed to the agent's eyes for semantic redraw, never to the canvas). Viable future optional extension, off by default; costs 2.1GB weights + binary distribution per machine. Reference-redraw itself ships in v1 via the prompt pack — it just needs a user-provided reference instead of a generated one.
+- Excalidraw community libraries integration.
+- Ghost preview of the draft for the user.

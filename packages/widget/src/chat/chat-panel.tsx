@@ -1,8 +1,21 @@
-import {createMemo, createEffect, createSignal, For, onCleanup, Show, type JSX} from 'solid-js'
+import {
+  createMemo,
+  createEffect,
+  createRoot,
+  createSignal,
+  For,
+  getOwner,
+  onCleanup,
+  onMount,
+  runWithOwner,
+  Show,
+  type JSX,
+} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {Progress, Tabs} from '@conciv/ui-kit-system'
-import {useChat, fetchServerSentEvents, createChatClientOptions} from '@tanstack/ai-solid'
-import type {MessagePart, ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
+import {useChat, createChatClientOptions} from '@tanstack/ai-solid'
+import type {MessagePart, ToolCallPart, ToolResultPart, UIMessage} from '@tanstack/ai-client'
+import {attachConnection} from '../client/attach-connection.js'
 import {
   ChatProvider,
   ToolProvider,
@@ -25,7 +38,13 @@ import {ToolFallbackCard} from './tool-fallback-card.js'
 import type {PendingApproval} from '../shell/approval-modal.js'
 import {SquarePen, FoldVertical} from 'lucide-solid'
 import {EventType, type StreamChunk} from '@tanstack/ai'
-import {CONCIV_UI_EVENT, UiSpecSchema, type UiSpec} from '@conciv/protocol/ui-types'
+import {
+  CONCIV_UI_EVENT,
+  CONCIV_SNAPSHOT_EVENT,
+  SnapshotSchema,
+  UiSpecSchema,
+  type UiSpec,
+} from '@conciv/protocol/ui-types'
 import {CONCIV_TOOL_DURATION_EVENT, ToolDurationSchema} from '@conciv/protocol/tool-timing'
 import {
   CONCIV_USAGE_EVENT,
@@ -42,12 +61,14 @@ import {collectViews, type PanelView} from '../extension/extension-views.js'
 import {MountedView} from '@conciv/extension/client'
 import {EmptyStateSlot} from '../shell/empty-state.js'
 import {grabApi} from '../page/grab-api.js'
+import {readPaneSnapshot, writePaneSnapshot, clearPaneSnapshot, type PaneSnapshot} from '../lib/ui-snapshot.js'
 
 const GRAB_PREVIEW_MAX_W = 280
 
 const ACT =
   'size-8.5 rounded-pw-pill [border:none] bg-transparent text-pw-text-2 cursor-pointer shrink-0 inline-flex items-center justify-center trans-color-bg hover:text-pw-text-hi hover:bg-pw-fill-strong'
 const ERROR = 'flex gap-2 items-center text-pw-danger text-[0.75rem]'
+const RECONNECT = 'flex gap-2 items-center text-pw-text-2 text-[0.75rem] anim-msg'
 const RETRY =
   'py-1.5 px-2.5 min-h-8 rounded-[0.4375rem] border border-pw-danger-line bg-transparent text-pw-danger cursor-pointer font-semibold text-[0.75rem] leading-none font-pw shrink-0 trans-bg hover:bg-pw-danger-14'
 const DIVIDER =
@@ -119,9 +140,20 @@ function ThinkingBubble(): JSX.Element {
   )
 }
 
-function DraftBridge(props: {onReady: (append: (text: string) => void) => void}): JSX.Element {
+type ComposerStateApi = {
+  append: (text: string) => void
+  text: () => string
+  setText: (value: string) => void
+}
+
+function ComposerStateBridge(props: {onReady: (api: ComposerStateApi) => void}): JSX.Element {
   const composer = useComposer()
-  props.onReady((text) => composer.setText(composer.text() ? `${composer.text()}\n${text}` : text))
+  const api: ComposerStateApi = {
+    append: (text) => composer.setText(composer.text() ? `${composer.text()}\n${text}` : text),
+    text: composer.text,
+    setText: composer.setText,
+  }
+  onMount(() => props.onReady(api))
   return <></>
 }
 
@@ -176,24 +208,50 @@ export function ChatPanel(props: {
 
   const [requestMeta, setRequestMeta] = createSignal<Record<string, unknown>>({})
   const mergeRequestMeta = (patch: Record<string, unknown>) => setRequestMeta((prev) => ({...prev, ...patch}))
+  const owner = getOwner()
+  const [disconnected, setDisconnected] = createSignal(false)
+  const connection = attachConnection(client, {
+    requestMeta: () => requestMeta(),
+    onConnectionChange: (connected) => setDisconnected(!connected),
+  })
+  const chatRef = {current: null as ReturnType<typeof useChat> | null}
+  const onSnapshot = (data: unknown) => {
+    const parsed = SnapshotSchema.safeParse(data)
+    if (!parsed.success) return
+    const api = chatRef.current
+    if (!api) return
+    api.setMessages(parsed.data.messages as UIMessage[])
+    if (!parsed.data.generating && (api.isLoading() || api.sessionGenerating())) api.stop()
+  }
   const chat = useChat({
-    ...createChatClientOptions({
-      connection: fetchServerSentEvents(client.chatStreamUrl(), () => ({
-        credentials: 'include',
-        headers: client.chatHeaders(),
-        body: requestMeta(),
-      })),
-    }),
-    onCustomEvent: onConcivUi,
+    ...createChatClientOptions({connection}),
+    get live() {
+      return props.active !== false
+    },
+    onCustomEvent: (eventType, data) => {
+      if (eventType === CONCIV_SNAPSHOT_EVENT) return onSnapshot(data)
+      onConcivUi(eventType, data)
+    },
     onChunk,
   })
+  chatRef.current = chat
 
-  const [grabs, setGrabs] = createSignal<Grab[]>([])
-  const loadedSessionId = {current: null as string | null}
-  const [switching, setSwitching] = createSignal(false)
-  const [switchError, setSwitchError] = createSignal(false)
+  const lastSession = {id: null as string | null}
+  createEffect(() => {
+    const id = client.sessionId()
+    if (!id) return
+    if (lastSession.id === null || lastSession.id === id) {
+      lastSession.id = id
+      return
+    }
+    lastSession.id = id
+    connection.bump()
+  })
+
+  const [grabs, setGrabs] = createSignal<(Grab | {text: string})[]>([])
   let inputEl: HTMLTextAreaElement | undefined
-  const appendDraft = {current: (_text: string) => {}}
+  let viewportEl: HTMLElement | undefined
+  const composerApi = {current: null as ComposerStateApi | null}
 
   const isThinking = () => chat.status() === 'submitted'
   const isStreaming = () => chat.status() === 'streaming'
@@ -260,40 +318,18 @@ export function ChatPanel(props: {
     prevStatus = status
   })
 
+  createEffect(() => {
+    if (disconnected()) props.announce?.('Reconnecting to conciv…')
+  })
+
+  const visibleError = () => {
+    const err = chat.error()
+    return err && err.message !== 'stopped' ? err : undefined
+  }
+
   const answerGenUi = (renderId: string, text: string) => {
     setGenUi((prev) => prev.filter((g) => g.renderId !== renderId))
     void chat.sendMessage(text)
-  }
-
-  const loadSession = async (id: string | null) => {
-    const isSwitch = loadedSessionId.current !== null
-    setSwitchError(false)
-    if (isSwitch) {
-      chat.stop()
-      setSwitching(true)
-      props.announce?.('Loading session…')
-    }
-    try {
-      const session = await client.session()
-      props.onSessionLabel?.(session.name)
-      setUsage(session.usage ?? null)
-      if (session.harnessSessionId === null) {
-        if (isSwitch) chat.setMessages([])
-        loadedSessionId.current = id
-        void invalidateSessions(props.apiBase)
-        return
-      }
-      const prior = await client.history()
-      if (isSwitch || prior.length > 0) chat.setMessages(prior)
-      loadedSessionId.current = id
-    } catch {
-      if (isSwitch) {
-        setSwitchError(true)
-        props.announce?.('Couldn’t load that session', true)
-      }
-    } finally {
-      setSwitching(false)
-    }
   }
 
   const focusInput = () => requestAnimationFrame(() => inputEl?.focus())
@@ -315,20 +351,26 @@ export function ChatPanel(props: {
     setActiveView(next)
     const view = views().find((candidate) => candidate.id === next)
     props.announce?.(view ? view.label : 'Chat')
-    if (next === 'chat') void loadSession(client.sessionId())
+    if (next === 'chat') connection.bump()
   }
 
+  const seenSession = {id: null as string | null}
   createEffect(() => {
     const id = client.sessionId()
     if (!props.active || !id) return
     props.onActiveSession?.(id)
-    if (id === loadedSessionId.current) {
-      focusInput()
-      return
-    }
+    void client
+      .session()
+      .then((session) => {
+        props.onSessionLabel?.(session.name)
+        setUsage((prev) => session.usage ?? prev)
+      })
+      .catch(() => {})
+    const switched = seenSession.id !== null && seenSession.id !== id
+    seenSession.id = id
     if (currentView()) return
-    setActiveView('chat')
-    void loadSession(id).then(focusInput)
+    if (switched) setActiveView('chat')
+    focusInput()
   })
 
   const onSend = (text: string) => {
@@ -339,17 +381,18 @@ export function ChatPanel(props: {
       .join('\n')
     setGrabs([])
     void chat.sendMessage(context ? `${context}\n\n${trimmed}` : trimmed)
+    clearPaneSnapshot(paneSessionId())
   }
 
   const insert = (text: string) => {
-    appendDraft.current(text)
+    composerApi.current?.append(text)
     focusInput()
   }
   const stageGrab = (grab: Grab) => {
     setGrabs((prev) => [...prev, grab])
     focusInput()
   }
-  const removeGrab = (grab: Grab) => setGrabs((prev) => prev.filter((x) => x !== grab))
+  const removeGrab = (grab: Grab | {text: string}) => setGrabs((prev) => prev.filter((x) => x !== grab))
 
   const dividerSeq = {n: 0}
   const [dividers, setDividers] = createSignal<{id: number; afterCount: number; kind: 'new' | 'compact'}[]>([])
@@ -364,22 +407,130 @@ export function ChatPanel(props: {
     dividers().filter((d) => d.afterCount >= start && d.afterCount <= end)
   const resetUsage = () => setUsage(null)
 
+  const paneSessionId = () => client.sessionId() ?? ''
+  const isInputFocused = (): boolean => {
+    if (!inputEl) return false
+    const root = inputEl.getRootNode()
+    if (root instanceof ShadowRoot) return root.activeElement === inputEl
+    return document.activeElement === inputEl
+  }
+  const snapshotPane = (): PaneSnapshot => {
+    const draft = composerApi.current?.text() ?? ''
+    return {
+      draft,
+      selectionStart: inputEl?.selectionStart ?? draft.length,
+      selectionEnd: inputEl?.selectionEnd ?? draft.length,
+      focused: isInputFocused(),
+      grabTexts: grabs().map((grab) => grab.text),
+      dividers: dividers(),
+      scrollTop: viewportEl?.scrollTop ?? null,
+    }
+  }
+  const writeSnapshot = () => {
+    const id = client.sessionId()
+    if (!id) return
+    writePaneSnapshot(id, snapshotPane())
+  }
+  const persist = createDebouncer(writeSnapshot, {wait: 150})
+
+  const restored = new Set<string>()
+  const restorePane = (api: ComposerStateApi, sessionId: string) => {
+    const snapshot = readPaneSnapshot(sessionId)
+    if (!snapshot) {
+      api.setText('')
+      setGrabs([])
+      return
+    }
+    api.setText(snapshot.draft)
+    setGrabs(snapshot.grabTexts.map((text) => ({text})))
+    setDividers(snapshot.dividers)
+    dividerSeq.n = Math.max(0, ...snapshot.dividers.map((divider) => divider.id))
+    requestAnimationFrame(() => {
+      if (snapshot.scrollTop !== null && viewportEl) viewportEl.scrollTop = snapshot.scrollTop
+      if (!inputEl) return
+      inputEl.setSelectionRange(snapshot.selectionStart, snapshot.selectionEnd)
+      if (snapshot.focused) inputEl.focus()
+    })
+  }
+  const maybeRestore = () => {
+    const api = composerApi.current
+    const sessionId = client.sessionId()
+    if (!api || !sessionId) return
+    if (restored.has(sessionId)) return
+    restored.add(sessionId)
+    restorePane(api, sessionId)
+  }
+  createEffect(() => {
+    grabs()
+    dividers()
+    persist.maybeExecute()
+  })
+  createEffect(() => {
+    client.sessionId()
+    maybeRestore()
+  })
+  onMount(() => {
+    const schedule = () => persist.maybeExecute()
+    const inputEvents: string[] = ['input', 'select', 'keyup', 'click', 'focus', 'blur']
+    const target = inputEl
+    const viewport = viewportEl
+    if (target) for (const event of inputEvents) target.addEventListener(event, schedule)
+    if (viewport) viewport.addEventListener('scroll', schedule)
+    const onPageHide = () => writeSnapshot()
+    window.addEventListener('pagehide', onPageHide)
+    onCleanup(() => {
+      if (target) for (const event of inputEvents) target.removeEventListener(event, schedule)
+      if (viewport) viewport.removeEventListener('scroll', schedule)
+      window.removeEventListener('pagehide', onPageHide)
+    })
+  })
+
   const startNewSession = async () => {
     addDivider('new')
     const {sessionId} = await client.resolve()
-    loadedSessionId.current = sessionId
+    persist.flush()
     client.setSessionId(sessionId)
   }
   const doNewSession = () => (props.onNewSession ? props.onNewSession() : startNewSession())
 
   const [pendingCompactId, setPendingCompactId] = createSignal<number | null>(null)
   const compacting = () => pendingCompactId() !== null
+  const waitForIdle = () =>
+    new Promise<void>((resolve) =>
+      runWithOwner(owner, () =>
+        createRoot((dispose) =>
+          createEffect(() => {
+            if (chat.sessionGenerating() || chat.isLoading()) return
+            dispose()
+            resolve()
+          }),
+        ),
+      ),
+    )
+  const waitForGenerating = () =>
+    new Promise<void>((resolve) => {
+      const teardown = {dispose: () => {}}
+      const finish = () => {
+        clearTimeout(timer)
+        teardown.dispose()
+        resolve()
+      }
+      const timer = setTimeout(finish, 3000)
+      runWithOwner(owner, () =>
+        createRoot((dispose) => {
+          teardown.dispose = dispose
+          createEffect(() => {
+            if (chat.sessionGenerating()) finish()
+          })
+        }),
+      )
+    })
   const compact = async () => {
     if (chat.isLoading() || compacting()) return
     const id = addDivider('compact')
     setPendingCompactId(id)
     try {
-      const res = await fetch(client.chatStreamUrl(), {
+      const response = await fetch(client.chatStreamUrl(), {
         method: 'POST',
         credentials: 'include',
         headers: {'content-type': 'application/json', ...client.chatHeaders()},
@@ -388,8 +539,9 @@ export function ChatPanel(props: {
           forwardedProps: {...requestMeta(), intent: 'compact'},
         }),
       })
-      if (!res.ok) throw apiError('/api/chat', res.status)
-      await res.body?.pipeTo(new WritableStream())
+      if (!response.ok) throw apiError('/api/chat', response.status)
+      await waitForGenerating()
+      await waitForIdle()
       const session = await client.session()
       if (session.usage) setUsage(session.usage)
     } catch {
@@ -429,7 +581,12 @@ export function ChatPanel(props: {
     )
   }
 
-  const grab: GrabApi = {...grabApi, stage: stageGrab, staged: grabs, clear: () => setGrabs([])}
+  const grab: GrabApi = {
+    ...grabApi,
+    stage: stageGrab,
+    staged: () => grabs().flatMap((entry) => ('snapshot' in entry ? [entry] : [])),
+    clear: () => setGrabs([]),
+  }
   const hostBag: ExtensionHostBag = {
     ...toolCtx,
     insert,
@@ -471,7 +628,15 @@ export function ChatPanel(props: {
   return (
     <ChatProvider chat={chat}>
       <ToolProvider value={toolCtx}>
-        <ComposerHandlersProvider value={{onSend}}>
+        <ComposerHandlersProvider
+          value={{
+            onSend,
+            onCancel: () => {
+              chat.stop()
+              void client.stop().catch(() => {})
+            },
+          }}
+        >
           <ComposerPrimitive.TriggerPopoverRoot>
             <ExtensionSurface name="header" instances={props.instances} bag={hostBag} />
             <ExtensionSurface name="widget" instances={props.instances} bag={hostBag} />
@@ -537,6 +702,9 @@ export function ChatPanel(props: {
                   tools={props.tools?.()}
                   components={{ToolFallback: ToolFallbackCard}}
                   turnPrefix={renderTurnPrefix}
+                  viewportRef={(el) => {
+                    viewportEl = el
+                  }}
                   viewportFooter={
                     <>
                       <For each={dividersAt(chat.messages().length)}>{renderDivider}</For>
@@ -549,7 +717,7 @@ export function ChatPanel(props: {
                       <Show when={nowTitleText()}>
                         {(title) => <NowLine title={title()} onStop={() => chat.stop()} />}
                       </Show>
-                      <Show when={chat.error()}>
+                      <Show when={visibleError()}>
                         {(error) => (
                           <div class={ERROR} role="alert">
                             <span class="flex-1">{error().message}</span>
@@ -559,25 +727,7 @@ export function ChatPanel(props: {
                           </div>
                         )}
                       </Show>
-                      <Show when={switchError()}>
-                        <div class={ERROR} role="alert">
-                          <span class="flex-1">Couldn’t load that session</span>
-                          <button type="button" class={RETRY} onClick={() => void loadSession(client.sessionId())}>
-                            Retry
-                          </button>
-                        </div>
-                      </Show>
                     </>
-                  }
-                  overlay={
-                    <Show when={switching()}>
-                      <div
-                        class="bg-pw-panel-60 inset-0 absolute z-[5] anim-switching"
-                        role="status"
-                        aria-label="Loading session…"
-                        tabindex={-1}
-                      />
-                    </Show>
                   }
                   welcome={
                     <EmptyStateSlot
@@ -590,6 +740,12 @@ export function ChatPanel(props: {
                     <>
                       <ExtensionSurface name="status" instances={props.instances} bag={hostBag} />
                       <ExtensionSurface name="footer" instances={props.instances} bag={hostBag} />
+                      <Show when={disconnected()}>
+                        <div class={RECONNECT} aria-hidden="true">
+                          <span class={`${DOT} anim-dot1`} />
+                          <span class="flex-1">Reconnecting…</span>
+                        </div>
+                      </Show>
                       <Show when={notice()}>
                         <div class="text-[0.75rem] text-pw-text-2 leading-[1.4] font-medium font-pw px-2.5 py-2 border border-pw-line rounded-pw-md bg-pw-fill [word-break:break-word]">
                           {notice()}
@@ -637,7 +793,12 @@ export function ChatPanel(props: {
                         <For each={props.composerControls?.() ?? []}>
                           {(control) => control.create({apiBase: props.apiBase, setRequestMeta: mergeRequestMeta})}
                         </For>
-                        <DraftBridge onReady={(append) => (appendDraft.current = append)} />
+                        <ComposerStateBridge
+                          onReady={(api) => {
+                            composerApi.current = api
+                            maybeRestore()
+                          }}
+                        />
                       </Composer>
                     </>
                   }

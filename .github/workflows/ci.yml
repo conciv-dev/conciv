@@ -3,6 +3,12 @@ name: CI
 on:
   workflow_call: {}
   pull_request: {}
+  # Standalone run on main keeps the Actions caches (turbo/playwright/pnpm) warm
+  # for PRs, which can only restore from their own merge ref or main. Release.yml
+  # also calls this workflow, but its concurrency group cancels superseded runs on
+  # fast merge trains, so main's cache would otherwise go stale after every merge.
+  push:
+    branches: [main]
 
 permissions:
   contents: read

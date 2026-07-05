@@ -10,13 +10,19 @@ import type {ExcalidrawElement, OrderedExcalidrawElement} from '@excalidraw/exca
 import type {ExcalidrawElementSkeleton} from '@excalidraw/excalidraw/data/transform'
 import type {CaptureUpdateActionType} from '@excalidraw/excalidraw/store'
 import {app} from '../shared/schema.js'
+import {replayDraft, type ReplayHandle, type ReplayStep} from './replay.js'
 import type {Viewport} from './coords.js'
 
 export type Self = {peerId: string; name: string; color: string}
 
 type SceneElement = OrderedExcalidrawElement
 type ElementRow = {id: string; elementId: string; data: JsonValue; version: number}
-type PendingRow = {id: string; kind: 'skeletons' | 'mermaid'; payload: JsonValue}
+type PendingRow = {
+  id: string
+  kind: 'skeletons' | 'mermaid' | 'svg' | 'export' | 'commit' | 'discard'
+  stage?: 'draft' | 'live'
+  payload: JsonValue
+}
 type CursorRow = {
   id: string
   peerId: string
@@ -54,6 +60,17 @@ async function skeletonsOf(row: PendingRow): Promise<ExcalidrawElementSkeleton[]
     const {parseMermaidToExcalidraw} = await import('@excalidraw/mermaid-to-excalidraw')
     const {source} = row.payload as unknown as {source: string}
     return withStableIds((await parseMermaidToExcalidraw(source, {maxEdges: 500})).elements, row.id)
+  }
+  if (row.kind === 'svg') {
+    const {svgToSkeletons} = await import('./svg-convert.js')
+    const {svg, x, y, width, roughness} = row.payload as unknown as {
+      svg: string
+      x: number
+      y: number
+      width: number
+      roughness: number
+    }
+    return withStableIds(svgToSkeletons(svg, {x, y, width, roughness}), row.id)
   }
   return withStableIds((row.payload as unknown as {elements: ExcalidrawElementSkeleton[]}).elements, row.id)
 }
@@ -137,19 +154,146 @@ export function Island(props: {
 
   const draining = new Set<string>()
   const drainPending = async (row: PendingRow): Promise<void> => {
-    const drawn = convertToExcalidrawElements(await skeletonsOf(row), {regenerateIds: false})
-    await Promise.all(
-      drawn.map(async (element: ExcalidrawElement, index: number) =>
-        db()
+    const targetTable = row.stage === 'draft' ? app.canvasDraftElements : app.canvasElements
+    try {
+      const drawn = convertToExcalidrawElements(await skeletonsOf(row), {regenerateIds: false})
+      const rows = await Promise.all(
+        drawn.map(async (element: ExcalidrawElement, index: number) => ({
+          id: await stableUuid(`${row.id}:${index}`),
+          data: {room: props.room, elementId: element.id, data: asJson(element), version: element.version},
+        })),
+      )
+      await db()
+        .batch((batch) => rows.forEach((entry: (typeof rows)[number]) => batch.upsert(targetTable, entry.data, {id: entry.id})))
+        .wait({tier: 'edge'})
+    } catch (error) {
+      console.error(`[whiteboard] draining pending ${row.kind} ${row.id} failed: ${String(error)}`)
+    } finally {
+      await db()
+        .delete(app.canvasPending, row.id)
+        .wait({tier: 'edge'})
+        .catch((error) => console.error(`[whiteboard] deleting pending ${row.id} failed: ${String(error)}`))
+    }
+  }
+
+  const agentPeerId = `agent:${props.room}`
+  const ensureAgentCursor = async (x: number, y: number): Promise<string> => {
+    const existing = (await db().all(app.cursors.where({room: props.room, peerId: agentPeerId}), {tier: 'global'}))[0]
+    if (existing) {
+      await db().update(app.cursors, existing.id, {x, y, lastSeen: new Date()}).wait({tier: 'edge'})
+      return existing.id
+    }
+    const write = db().insert(app.cursors, {
+      room: props.room,
+      peerId: agentPeerId,
+      kind: 'agent',
+      name: 'drawing…',
+      color: '#8a86e8',
+      x,
+      y,
+      lastSeen: new Date(),
+    })
+    await write.wait({tier: 'edge'})
+    return write.value.id
+  }
+
+  const moveAgentCursor = (cursorId: string, x: number, y: number): void =>
+    void db()
+      .update(app.cursors, cursorId, {x, y, lastSeen: new Date()})
+      .wait({tier: 'edge'})
+      .catch((error) => console.error(`[whiteboard] agent cursor move failed: ${String(error)}`))
+
+  const commitStep = async (draft: ElementRow): Promise<ReplayStep> => {
+    const data = draft.data as unknown as {x?: number; y?: number}
+    const liveId = await stableUuid(`commit:${draft.id}`)
+    return {
+      elementId: draft.elementId,
+      x: data.x ?? 0,
+      y: data.y ?? 0,
+      write: (): void =>
+        void db()
           .upsert(
             app.canvasElements,
-            {room: props.room, elementId: element.id, data: asJson(element), version: element.version},
-            {id: await stableUuid(`${row.id}:${index}`)},
+            {room: props.room, elementId: draft.elementId, data: draft.data, version: draft.version},
+            {id: liveId},
           )
-          .wait({tier: 'edge'}),
-      ),
-    )
-    await db().delete(app.canvasPending, row.id).wait({tier: 'edge'})
+          .wait({tier: 'edge'})
+          .catch((error) => console.error(`[whiteboard] commit element write failed: ${String(error)}`)),
+    }
+  }
+
+  const clearDraftRows = (ordered: readonly ElementRow[]): Promise<unknown> =>
+    db()
+      .batch((batch) => ordered.forEach((draft) => batch.delete(app.canvasDraftElements, draft.id)))
+      .wait({tier: 'edge'})
+      .catch((error) => console.error(`[whiteboard] commit draft cleanup failed: ${String(error)}`))
+
+  const performCommit = async (row: PendingRow): Promise<void> => {
+    const drafts = await db().all(app.canvasDraftElements.where({room: props.room}), {tier: 'global'})
+    const ordered = drafts.map((draft) => draft as unknown as ElementRow)
+    let handle: ReplayHandle | undefined
+    const onPointerDown = (): void => handle?.skip()
+    try {
+      const steps = await Promise.all(ordered.map(commitStep))
+      const cursorId = await ensureAgentCursor(steps[0]?.x ?? 0, steps[0]?.y ?? 0).catch((error) => {
+        console.error(`[whiteboard] agent cursor create failed: ${String(error)}`)
+        return undefined
+      })
+      container?.addEventListener('pointerdown', onPointerDown, {once: true})
+      handle = replayDraft(steps, (x, y) => (cursorId ? moveAgentCursor(cursorId, x, y) : undefined))
+      await handle.done
+      await clearDraftRows(ordered)
+    } catch (error) {
+      console.error(`[whiteboard] performCommit ${row.id} failed: ${String(error)}`)
+    } finally {
+      container?.removeEventListener('pointerdown', onPointerDown)
+      await db()
+        .delete(app.canvasPending, row.id)
+        .wait({tier: 'edge'})
+        .catch((error) => console.error(`[whiteboard] deleting commit pending ${row.id} failed: ${String(error)}`))
+    }
+  }
+
+  const toBase64 = (bytes: Uint8Array): string => {
+    let binary = ''
+    for (let index = 0; index < bytes.length; index += 0x8000) {
+      binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000))
+    }
+    return btoa(binary)
+  }
+
+  const gatherExportElements = async (scope: 'live' | 'draft' | 'both'): Promise<SceneElement[]> => {
+    const live = scope === 'draft' ? [] : (api?.getSceneElements() ?? [])
+    const draftRows =
+      scope === 'live' ? [] : await db().all(app.canvasDraftElements.where({room: props.room}), {tier: 'global'})
+    return [...live, ...draftRows.map((draft) => asScene((draft as unknown as ElementRow).data))]
+  }
+
+  const exportReply = async (scope: 'live' | 'draft' | 'both'): Promise<JsonValue> => {
+    const elements = await gatherExportElements(scope)
+    const {exportToBlob} = await import('@excalidraw/excalidraw')
+    const blob = await exportToBlob({
+      elements,
+      files: api?.getFiles() ?? {},
+      appState: {exportBackground: true, viewBackgroundColor: '#ffffff'},
+    })
+    return {dataBase64: toBase64(new Uint8Array(await blob.arrayBuffer()))} as JsonValue
+  }
+
+  const performExport = async (row: PendingRow): Promise<void> => {
+    const {requestId, scope} = row.payload as unknown as {requestId: string; scope: 'live' | 'draft' | 'both'}
+    const payload = await exportReply(scope).catch((error) => {
+      console.error(`[whiteboard] canvas.export render failed: ${String(error)}`)
+      return {error: 'export render failed', reason: String(error)} as JsonValue
+    })
+    try {
+      await db().insert(app.canvasReplies, {room: props.room, requestId, kind: 'export', payload}).wait({tier: 'edge'})
+    } finally {
+      await db()
+        .delete(app.canvasPending, row.id)
+        .wait({tier: 'edge'})
+        .catch((error) => console.error(`[whiteboard] deleting export pending ${row.id} failed: ${String(error)}`))
+    }
   }
 
   const collaboratorsFrom = (rows: readonly CursorRow[]): Map<SocketId, Collaborator> => {
@@ -174,7 +318,11 @@ export function Island(props: {
   const unsubscribePending = db().subscribeAll(app.canvasPending.where({room: props.room}), ({all}) =>
     (all as readonly PendingRow[]).forEach((row) => {
       if (draining.has(row.id)) return
+      const drawable = row.kind === 'skeletons' || row.kind === 'mermaid' || row.kind === 'svg'
+      if (!drawable && row.kind !== 'commit' && row.kind !== 'export') return
       draining.add(row.id)
+      if (row.kind === 'commit') return void performCommit(row)
+      if (row.kind === 'export') return void performExport(row)
       void drainPending(row)
     }),
   )

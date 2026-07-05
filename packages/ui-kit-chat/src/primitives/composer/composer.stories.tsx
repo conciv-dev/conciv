@@ -1,6 +1,6 @@
 import {createSignal, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
-import {expect, within, userEvent, waitFor} from 'storybook/test'
+import {expect, fn, within, userEvent, waitFor} from 'storybook/test'
 import {useChat} from '@tanstack/ai-solid'
 import {ChatProvider} from '../../store/chat-context.js'
 import {storyConnection, createTextChunks} from '../../store/story-connection.js'
@@ -69,6 +69,53 @@ export const EnterSubmits: Story = {
     const input = c.getByLabelText('Message')
     await userEvent.type(input, 'ship it{Enter}')
     await waitFor(() => expect(c.getByText('ship it')).toBeVisible())
+  },
+}
+
+function CancelApp(props: {onCancel: () => void}): JSX.Element {
+  const chat = useChat({connection: storyConnection({chunks: createTextChunks('Got it.'), chunkDelay: 2000})})
+  return (
+    <ChatProvider chat={chat}>
+      <ComposerHandlersProvider value={{onCancel: props.onCancel}}>
+        <Composer.Root class="flex gap-2 items-end">
+          <Composer.Input placeholder="Message…" class="flex-1" aria-label="Message" />
+          <Composer.Send class="text-pw-on-accent px-3 py-1.5 rounded-pw-md bg-pw-accent disabled:opacity-40">
+            Send
+          </Composer.Send>
+          <Composer.Cancel class="text-pw-text px-3 py-1.5 rounded-pw-md bg-pw-fill-strong">Stop</Composer.Cancel>
+        </Composer.Root>
+      </ComposerHandlersProvider>
+    </ChatProvider>
+  )
+}
+
+const buttonCancelSpy = fn()
+
+export const CancelButtonRoutesThroughHandler: Story = {
+  render: () => <CancelApp onCancel={buttonCancelSpy} />,
+  play: async ({canvasElement}) => {
+    buttonCancelSpy.mockClear()
+    const c = within(canvasElement)
+    await userEvent.type(c.getByLabelText('Message'), 'run it{Enter}')
+    const stop = await waitFor(() => c.getByRole('button', {name: 'Stop'}))
+    await userEvent.click(stop)
+    await waitFor(() => expect(buttonCancelSpy).toHaveBeenCalledTimes(1))
+  },
+}
+
+const escapeCancelSpy = fn()
+
+export const EscapeRoutesThroughHandler: Story = {
+  render: () => <CancelApp onCancel={escapeCancelSpy} />,
+  play: async ({canvasElement}) => {
+    escapeCancelSpy.mockClear()
+    const c = within(canvasElement)
+    const input = c.getByLabelText('Message')
+    await userEvent.type(input, 'run it{Enter}')
+    await waitFor(() => c.getByRole('button', {name: 'Stop'}))
+    await userEvent.click(input)
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => expect(escapeCancelSpy).toHaveBeenCalledTimes(1))
   },
 }
 

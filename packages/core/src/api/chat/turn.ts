@@ -1,5 +1,5 @@
 import {type H3, HTTPError, readValidatedBody} from 'h3'
-import {chat, EventType, toServerSentEventsStream, type StreamChunk} from '@tanstack/ai'
+import {chat, EventType, type StreamChunk} from '@tanstack/ai'
 import {harnessText} from '@conciv/harness'
 import type {HarnessAdapter, HarnessChild} from '@conciv/protocol/harness-types'
 import {UiSpecSchema} from '@conciv/protocol/ui-types'
@@ -8,10 +8,10 @@ import {tokenUsageToSnapshot} from '@conciv/protocol/usage-types'
 import {acquireLock, releaseLock, updateLockPid} from '../../store/lock.js'
 import type {SessionStore} from '../../store/session-store.js'
 import type {UiBus} from '../../runtime/ui-bus.js'
+import type {TurnHub} from '../../runtime/turn-hub.js'
 import type {PermissionGate} from './permission.js'
-import {toChatMessages} from './messages.js'
+import {toChatMessages, toPendingUserMessage} from './messages.js'
 import {sessionIdFromHeaders} from './session-id.js'
-import {sseHeaders} from '../sse.js'
 import {harnessDebug} from '../../runtime/harness-logger.js'
 
 export const resumeTokenFor = async (store: SessionStore, id: string): Promise<string | null> =>
@@ -54,7 +54,9 @@ export type TurnDeps = {
   systemPromptText?: string
   uiBus: UiBus
   store: SessionStore
+  hub: TurnHub
   onTurnStart?: (sessionId: string) => void
+  onTurnEnd?: (sessionId: string) => Promise<void>
 }
 
 export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
@@ -69,6 +71,8 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
   app.post('/api/chat', async (event) => {
     const sessionId = sessionIdFromHeaders(event.req.headers)
     if (!sessionId) throw new HTTPError({status: 400, message: 'no session (resolve first)'})
+
+    if (deps.hub.generating(sessionId)) throw new HTTPError({status: 409, message: 'session busy'})
 
     if (!acquireLock(deps.stateRoot, sessionId, 'chat', process.pid)) {
       throw new HTTPError({status: 409, message: 'session busy'})
@@ -87,7 +91,6 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
       const mode = harness.capabilities.systemPrompt
       const sysText = mode === 'file' ? (deps.systemPromptFile ?? '') : (deps.systemPromptText ?? '')
       const abort = new AbortController()
-      event.req.signal.addEventListener('abort', () => abort.abort())
 
       const adapter = harnessText(harness, {
         cwd: deps.cwd,
@@ -129,8 +132,16 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
 
       uiBus.setModel(sessionId, chatReq.model ?? chatReq.forwardedProps?.model ?? chatReq.data?.model ?? null)
       const merged = uiBus.run(sessionId, stream)
-      const sse = toServerSentEventsStream(withLockRelease(merged, deps.store, deps.stateRoot, sessionId), abort)
-      return new Response(sse, {status: 200, headers: sseHeaders(event)})
+      const lastUserMessage = chatReq.messages.findLast((message) => message.role === 'user') ?? null
+      const pendingUserMessage = lastUserMessage ? toPendingUserMessage(lastUserMessage) : null
+      void deps.hub
+        .start(
+          sessionId,
+          pendingUserMessage,
+          withLockRelease(merged, deps.store, deps.stateRoot, sessionId, deps.onTurnEnd),
+        )
+        .catch(() => {})
+      return {ok: true}
     } catch (e) {
       releaseLock(deps.stateRoot, sessionId)
       throw e
@@ -143,6 +154,7 @@ async function* withLockRelease(
   store: SessionStore,
   stateRoot: string,
   sessionId: string,
+  onTurnEnd?: (sessionId: string) => Promise<void>,
 ): AsyncGenerator<StreamChunk> {
   try {
     for await (const c of src) {
@@ -153,5 +165,6 @@ async function* withLockRelease(
     }
   } finally {
     releaseLock(stateRoot, sessionId)
+    if (onTurnEnd) await onTurnEnd(sessionId).catch(() => {})
   }
 }

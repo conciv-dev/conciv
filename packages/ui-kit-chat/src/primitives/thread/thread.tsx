@@ -22,6 +22,7 @@ type ViewportProps = DivProps & {
   scrollToBottomOnRunStart?: boolean
   scrollToBottomOnInitialize?: boolean
   scrollToBottomOnThreadSwitch?: boolean
+  ref?: HTMLDivElement | ((element: HTMLDivElement) => void)
 }
 
 function Viewport(props: ViewportProps): JSX.Element {
@@ -32,12 +33,17 @@ function Viewport(props: ViewportProps): JSX.Element {
     'scrollToBottomOnRunStart',
     'scrollToBottomOnInitialize',
     'scrollToBottomOnThreadSwitch',
+    'ref',
   ])
   const [element, setElement] = createSignal<HTMLDivElement>()
   const {isAtBottom, scrollToBottom} = useThreadScroll(element, local)
+  const assignRef = (node: HTMLDivElement) => {
+    setElement(node)
+    if (typeof local.ref === 'function') local.ref(node)
+  }
   return (
     <ViewportProvider value={{isAtBottom, scrollToBottom}}>
-      <Primitive.div data-thread-viewport ref={(node) => setElement(node)} {...rest} />
+      <Primitive.div data-thread-viewport ref={assignRef} {...rest} />
     </ViewportProvider>
   )
 }
