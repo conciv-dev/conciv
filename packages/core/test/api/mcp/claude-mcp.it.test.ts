@@ -1,17 +1,12 @@
 import {describe, expect, it} from 'vitest'
 import {getHarness} from '@conciv/harness'
-import {createTestHarness, createTestkit, harnessAvailable} from '@conciv/harness-testkit'
+import {createTestkit, harnessModes} from '@conciv/harness-testkit'
 
 const claude = getHarness('claude')
 if (!claude) throw new Error('claude adapter not registered')
 
-const modes = [
-  {name: 'fake', harness: createTestHarness(claude), run: true},
-  {name: 'real', harness: claude, run: harnessAvailable(claude)},
-]
-
 describe('claude → /api/mcp → uiBus', () => {
-  for (const mode of modes) {
+  for (const mode of harnessModes(claude)) {
     it.skipIf(!mode.run)(
       `[${mode.name}] conciv_ui injection lands on the live stream`,
       async () => {
