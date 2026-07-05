@@ -789,6 +789,29 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await page.close()
   })
 
+  it('quick terminal: starting a new session in-place clears the prior session draft', async () => {
+    const page = await newPage()
+    await page.goto(`${state.base}/__quick-terminal`)
+    await page.locator('[data-pw-qt]').waitFor({state: 'attached'})
+    await page.keyboard.press('Control+k')
+    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'false'`)
+    await page.getByText('How can I help you today?').waitFor({state: 'visible'})
+
+    const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
+    await composer.fill('a draft that must not carry over')
+    await expect.poll(() => composer.inputValue()).toBe('a draft that must not carry over')
+
+    await page.getByRole('button', {name: /^Session:/}).click()
+    const resolveNew = page.waitForRequest(
+      (r) => r.url().endsWith('/api/chat/session/resolve') && r.method() === 'POST',
+    )
+    await page.getByRole('button', {name: 'New session', exact: true}).click()
+    await resolveNew
+
+    await expect.poll(() => composer.inputValue()).toBe('')
+    await page.close()
+  })
+
   it('splits the quick terminal into independent-session panes and reflows on close', async () => {
     const page = await newPage()
     await page.goto(`${state.base}/__quick-terminal`)
