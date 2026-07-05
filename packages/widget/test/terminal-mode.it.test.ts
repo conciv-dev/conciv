@@ -146,7 +146,7 @@ describe('terminal extension e2e (real engine, real claude)', () => {
   const maxTick = (buffer: string): number =>
     (buffer.match(/TICK-(\d+)/g) ?? []).reduce((top, hit) => Math.max(top, Number(hit.slice(5))), 0)
 
-  it('Escape interrupts Claude while it is working', async () => {
+  it('Escape interrupts Claude even when focus is outside the terminal', async () => {
     const page = await browser.newPage()
     await page.goto(state.base)
     await page.getByRole('button', {name: 'Open conciv chat'}).click()
@@ -163,7 +163,10 @@ describe('terminal extension e2e (real engine, real claude)', () => {
     )
     await page.keyboard.press('Enter')
     await untilBuffer(page, /TICK-3\b/, 60_000)
-    await page.locator('[data-terminal-screen]').first().click()
+    await page
+      .getByRole('button', {name: /Activity/})
+      .first()
+      .click()
     await page.keyboard.press('Escape')
 
     await page.waitForTimeout(2000)
@@ -174,6 +177,7 @@ describe('terminal extension e2e (real engine, real claude)', () => {
       tickLater,
       `Escape must interrupt the running command so its tick counter stops advancing (was ${tickAtEscape}, later ${tickLater})`,
     ).toBe(tickAtEscape)
+    await expect.poll(() => page.getByRole('tab', {name: 'Terminal'}).first().isVisible(), {timeout: 5_000}).toBe(true)
 
     await page.close()
   }, 120_000)

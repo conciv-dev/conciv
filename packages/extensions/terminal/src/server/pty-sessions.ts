@@ -5,6 +5,7 @@ import {createFrameInjector, type FrameInjector} from './frame-injector.js'
 import {ensureSpawnHelperExecutable} from './spawn-helper-fix.js'
 
 const INTERRUPT_BYTE = String.fromCharCode(3)
+const INTERRUPT_DEBOUNCE_MS = 1000
 const IDLE_EVICT_MS = 5 * 60 * 1000
 const REPLAY_CAP = 4 * 1024 * 1024
 const DEFAULT_COLS = 120
@@ -41,6 +42,7 @@ type Entry = {
   exit: {code: number} | null
   error: string | null
   idle: ReturnType<typeof setTimeout> | null
+  lastInterruptAt: number
 }
 
 export function createTtySessions(opts?: {idleEvictMs?: number; replayCap?: number}): TtySessions {
@@ -119,7 +121,11 @@ export function createTtySessions(opts?: {idleEvictMs?: number; replayCap?: numb
       },
       interrupt: () => {
         const entry = entries.get(sessionId)
-        if (entry && !entry.exit) entry.pty?.write(INTERRUPT_BYTE)
+        if (!entry || entry.exit) return
+        const now = Date.now()
+        if (now - entry.lastInterruptAt < INTERRUPT_DEBOUNCE_MS) return
+        entry.lastInterruptAt = now
+        entry.pty?.write(INTERRUPT_BYTE)
       },
       inject: (text) => {
         const entry = entries.get(sessionId)
@@ -136,6 +142,7 @@ export function createTtySessions(opts?: {idleEvictMs?: number; replayCap?: numb
           return () => {}
         }
         for (const chunk of entry.replay) sink.data(chunk)
+        sink.control({type: 'busy', busy: entry.tracker.busy()})
         if (entry.error) sink.control({type: 'error', message: entry.error})
         if (entry.exit && !entry.error) sink.control({type: 'exit', code: entry.exit.code})
         entry.sinks.add(sink)
@@ -163,7 +170,9 @@ export function createTtySessions(opts?: {idleEvictMs?: number; replayCap?: numb
       exit: null,
       error: null,
       idle: null,
+      lastInterruptAt: 0,
     }
+    entry.tracker.onChange((busy) => broadcast(entry, {type: 'busy', busy}))
     entries.set(sessionId, entry)
     spawnPty(entry, command, cwd)
     return session

@@ -1,4 +1,4 @@
-import {createEffect, createResource, createSignal, on, onCleanup, Show, type JSX} from 'solid-js'
+import {createEffect, createResource, createSignal, on, onCleanup, onMount, Show, type JSX} from 'solid-js'
 import {Terminal, createTerminalModel, type TerminalTheme} from '@conciv/ui-kit-terminal'
 import {Button} from '@conciv/ui-kit-system'
 import type {ExtensionHostContext} from '@conciv/extension'
@@ -7,6 +7,7 @@ import {terminal} from '../client.js'
 import {MirrorRail} from './mirror-rail.js'
 import type {TerminalStore} from './terminal-store.js'
 
+const ESCAPE_KEY = String.fromCharCode(27)
 const DEFAULT_COLS = 120
 const DEFAULT_ROWS = 32
 
@@ -44,6 +45,19 @@ function TerminalSurface(props: {ctx: ViewContext; generation: number; themeHost
   const model = createTerminalModel({
     url: () => wsUrl(ctx.apiBase, ctx.client.sessionId(), DEFAULT_COLS, DEFAULT_ROWS),
     theme: () => readTerminalTheme(props.themeHost()),
+  })
+  onMount(() => {
+    const win = props.themeHost().ownerDocument.defaultView
+    if (!win) return
+    const onEscape = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape' || !model.busy()) return
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      model.sendInput(ESCAPE_KEY)
+      model.focus()
+    }
+    win.addEventListener('keydown', onEscape, true)
+    onCleanup(() => win.removeEventListener('keydown', onEscape, true))
   })
   model.terminal.attachCustomKeyEventHandler((event) => {
     if (event.type !== 'keydown' || event.key !== 'Enter') return true

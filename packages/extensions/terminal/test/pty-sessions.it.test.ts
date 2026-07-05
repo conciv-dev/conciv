@@ -111,6 +111,49 @@ describe('pty sessions', () => {
     expect(chunks.join('')).not.toContain('S10P')
   })
 
+  it('broadcasts OSC 9;4 busy transitions to attached sinks', async () => {
+    const sessions = make()
+    const s = sessions.open('s9', BASH, process.cwd())
+    const {controls, sink} = collect()
+    s.attach(sink)
+    await until(() => controls.some((f) => f.type === 'busy' && !f.busy))
+    s.write('printf "\\033]9;4;1\\007"\r')
+    await until(() => controls.some((f) => f.type === 'busy' && f.busy))
+    await until(() => s.busy())
+    s.write('printf "\\033]9;4;0\\007"\r')
+    await until(() => !s.busy())
+    expect(controls.filter((f) => f.type === 'busy').map((f) => f.busy)).toEqual([false, true, false])
+  })
+
+  it('tells a late attacher the current busy state', async () => {
+    const sessions = make()
+    const s = sessions.open('s10', BASH, process.cwd())
+    const early = collect()
+    const detach = s.attach(early.sink)
+    s.write('printf "\\033]9;4;1\\007"\r')
+    await until(() => s.busy())
+    detach()
+    const late = collect()
+    s.attach(late.sink)
+    expect(late.controls.some((f) => f.type === 'busy' && f.busy)).toBe(true)
+  })
+
+  it('debounces rapid interrupts so a double-Escape cannot send two ctrl-c', async () => {
+    const sessions = make()
+    const s = sessions.open('s11', BASH, process.cwd())
+    const {chunks, sink} = collect()
+    s.attach(sink)
+    s.write('sleep 30\r')
+    await until(() => chunks.join('').includes('sleep 30'))
+    await new Promise((r) => setTimeout(r, 300))
+    s.interrupt()
+    s.interrupt()
+    s.write('echo D$((2+2))N\r')
+    await until(() => chunks.join('').includes('D4N'), 3000)
+    const echoed = chunks.join('').match(/\^C/g) ?? []
+    expect(echoed.length).toBe(1)
+  })
+
   it('evicts an idle session with no sinks', async () => {
     const sessions = make({idleEvictMs: 100})
     const s = sessions.open('s5', BASH, process.cwd())
