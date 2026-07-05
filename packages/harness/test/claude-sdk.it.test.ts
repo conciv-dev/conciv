@@ -1,17 +1,9 @@
-import {execSync} from 'node:child_process'
 import {describe, it, expect, afterEach} from 'vitest'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 import type {HarnessRunContext, HarnessTurn} from '@conciv/protocol/harness-types'
 import {claudeSdkRun, claudeSdkShutdown, __sdkStats, __sdkReset} from '../src/claude/sdk.js'
 
-function hasClaude(): boolean {
-  try {
-    execSync('command -v claude', {stdio: 'ignore'})
-    return true
-  } catch {
-    return false
-  }
-}
+const runReal = !process.env.CI
 
 function ctxFor(sessionId: string): HarnessRunContext {
   return {
@@ -43,7 +35,7 @@ async function runTurn(sessionId: string, prompt: string): Promise<string> {
 describe('claude SDK transport — warm session registry', () => {
   afterEach(() => __sdkReset())
 
-  it.skipIf(!hasClaude())(
+  it.skipIf(!runReal)(
     'reuses one warm process across turns, persists context, isolates sessions',
     async () => {
       const a = 'sess-A'

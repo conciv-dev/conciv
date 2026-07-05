@@ -1,16 +1,15 @@
 import {describe, it, expect, afterEach} from 'vitest'
-import {spawn} from 'node:child_process'
 import {mkdtempSync, mkdirSync, writeFileSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {fileURLToPath} from 'node:url'
 import {ChatSessionsSchema} from '@conciv/protocol/chat-types'
-import {startTestServer, type SpawnHarness, type TestServer} from '../../helpers/server.js'
-import {useFakeHarness} from '../../helpers/harness-mode.js'
+import {createTestkit, type Kit} from '@conciv/harness-testkit'
+import {bootCoreApp} from '../../helpers/boot.js'
+import {fakeClaudeSpawn} from '../../helpers/fake-claude.js'
+import {runTurn} from '../../helpers/turns.js'
+import {requireClaude} from '../../helpers/adapters.js'
 
-const fakeIt = it.runIf(useFakeHarness)
-
-const fakeClaude = fileURLToPath(new URL('../../fixtures/fake-claude.ts', import.meta.url))
+const claude = requireClaude()
 const homes: string[] = []
 
 const encodeProjectDir = (cwd: string) => cwd.replace(/[^a-zA-Z0-9]/g, '-')
@@ -28,40 +27,33 @@ function tmpHome(): string {
   homes.push(h)
   return h
 }
-function fakeSpawn(): SpawnHarness {
-  return (args, cwd) => {
-    const child = spawn(process.execPath, [fakeClaude, ...args], {
-      cwd,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      env: {...process.env},
-    })
-    const {stdin, stdout, stderr} = child
-    if (!stdout || !stderr) throw new Error('fake-claude did not expose stdout/stderr')
-    return {pid: child.pid ?? -1, stdin: stdin ?? undefined, stdout, stderr, kill: () => child.kill('SIGTERM')}
-  }
-}
 
 describe('GET /api/chat/sessions + rename (IT, real temp ~/.claude)', () => {
-  const state = {server: undefined as TestServer | undefined}
+  const state = {kit: undefined as Kit | undefined}
   afterEach(async () => {
-    if (state.server) await state.server.close()
-    state.server = undefined
+    if (state.kit) await state.kit.cleanup()
+    state.kit = undefined
     for (const h of homes.splice(0)) rmSync(h, {recursive: true, force: true})
   })
 
-  fakeIt('lists our records (origin conciv) joined to transcripts, plus unwrapped externals', async () => {
+  async function setup(home: string, cwd?: string): Promise<Kit> {
+    const kit = await createTestkit(claude, bootCoreApp({cwd, claudeHome: home, spawn: fakeClaudeSpawn()})).setup()
+    state.kit = kit
+    return kit
+  }
+
+  it('lists our records (origin conciv) joined to transcripts, plus unwrapped externals', async () => {
     const home = tmpHome()
     const cwd = process.cwd()
     const dir = projectDir(home, cwd)
 
     seedTranscript(dir, 'sess-fake', 'made in conciv')
     seedTranscript(dir, 'tok-ext', 'made in terminal')
-    const server = await startTestServer({cwd, claudeHome: home, spawnHarness: fakeSpawn()})
-    state.server = server
+    const kit = await setup(home, cwd)
 
-    const id = await server.resolve()
-    await server.postChat({id: 'm', role: 'user', parts: [{type: 'text', content: 'hi'}]}, id)
-    const {sessions} = ChatSessionsSchema.parse(await (await server.getSessions()).json())
+    const id = await kit.session()
+    await runTurn(kit, 'hi', id)
+    const {sessions} = ChatSessionsSchema.parse(await (await kit.get('/api/chat/sessions')).json())
     expect(sessions.find((s) => s.id === id)?.origin).toBe('conciv')
     expect(sessions.find((s) => s.id === id)?.title).toBe('made in conciv')
     expect(sessions.find((s) => s.id === 'tok-ext')?.origin).toBe('external')
@@ -71,19 +63,17 @@ describe('GET /api/chat/sessions + rename (IT, real temp ~/.claude)', () => {
     const home = tmpHome()
     const cwd = process.cwd()
     seedTranscript(projectDir(home, cwd), 'tok-ext', 'made in terminal')
-    const server = await startTestServer({cwd, claudeHome: home, spawnHarness: fakeSpawn()})
-    state.server = server
+    const kit = await setup(home, cwd)
 
-    const id = await server.resolve('tok-ext')
-    await server.post('/api/chat/sessions/title', {sessionId: id, title: 'My title'})
-    const {sessions} = ChatSessionsSchema.parse(await (await server.getSessions()).json())
+    const id = await kit.session('tok-ext')
+    await kit.post('/api/chat/sessions/title', {sessionId: id, title: 'My title'})
+    const {sessions} = ChatSessionsSchema.parse(await (await kit.get('/api/chat/sessions')).json())
     expect(sessions.find((s) => s.id === id)?.title).toBe('My title')
   })
 
   it('rejects a bad session id', async () => {
-    const server = await startTestServer({claudeHome: tmpHome(), spawnHarness: fakeSpawn()})
-    state.server = server
-    const res = await server.post('/api/chat/sessions/title', {sessionId: '../etc', title: 'x'})
+    const kit = await setup(tmpHome())
+    const res = await kit.post('/api/chat/sessions/title', {sessionId: '../etc', title: 'x'})
     expect(res.status).toBe(400)
   })
 })

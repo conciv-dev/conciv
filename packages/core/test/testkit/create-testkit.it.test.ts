@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest'
 import {getHarness} from '@conciv/harness'
-import {createTestkit} from '../src/create-testkit.js'
-import {harnessModes} from '../src/harness-modes.js'
+import {createTestkit, harnessModes} from '@conciv/harness-testkit'
+import {bootCoreApp} from '../helpers/boot.js'
 
 const claude = getHarness('claude')
 if (!claude) throw new Error('claude adapter not registered')
@@ -11,7 +11,7 @@ describe('createTestkit (real server)', () => {
     it.skipIf(!mode.run)(
       `[${mode.name}] streams a run lifecycle`,
       async () => {
-        const kit = await createTestkit(mode.harness).setup()
+        const kit = await createTestkit(mode.harness, bootCoreApp()).setup()
         try {
           const stream = await kit.attach()
           await kit.chat('reply with exactly PONG')
@@ -28,7 +28,7 @@ describe('createTestkit (real server)', () => {
     it.skipIf(!mode.run)(
       `[${mode.name}] conciv_ui injection lands on the live stream`,
       async () => {
-        const kit = await createTestkit(mode.harness).setup()
+        const kit = await createTestkit(mode.harness, bootCoreApp()).setup()
         try {
           const stream = await kit.attach()
           await kit.invokeTool(

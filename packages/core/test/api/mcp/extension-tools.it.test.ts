@@ -2,7 +2,7 @@ import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {createMCPClient} from '@tanstack/ai-mcp'
 import {defineExtension, defineTool} from '@conciv/extension'
-import {startTestServer} from '../../helpers/server.js'
+import {bootKit} from '../../helpers/boot.js'
 
 const draw = defineTool({
   name: 'acme_draw',
@@ -14,7 +14,8 @@ const acme = defineExtension({name: 'acme', tools: [draw]})
 
 describe('/api/mcp extension tools', () => {
   it('registers an extension tool and round-trips a call', async () => {
-    const {base, close} = await startTestServer({extensions: [acme]})
+    const kit = await bootKit({extensions: [acme]})
+    const {base, cleanup: close} = kit
     const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
     try {
       const tools = await mcp.tools()
@@ -30,7 +31,8 @@ describe('/api/mcp extension tools', () => {
   }, 30_000)
 
   it('conciv_extensions scaffolds + validates on the new contract over /api/mcp', async () => {
-    const {base, close} = await startTestServer()
+    const kit = await bootKit()
+    const {base, cleanup: close} = kit
     const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
     try {
       const tools = await mcp.tools()

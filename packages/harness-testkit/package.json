@@ -12,7 +12,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@conciv/core": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@tanstack/ai": "^0.28.0",
     "@tanstack/ai-mcp": "^0.1.0",

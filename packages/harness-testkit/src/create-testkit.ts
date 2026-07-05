@@ -6,7 +6,6 @@ import {serve, type Server} from 'srvx'
 import type {HarnessAdapter, HarnessChild} from '@conciv/protocol/harness-types'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import type {StreamChunk} from '@tanstack/ai'
-import {makeApp} from '@conciv/core/app'
 import {makeRunStream, type RunStream} from './run-stream.js'
 import {makeCallTool} from './call-tool.js'
 import type {TestHarness} from './create-test-harness.js'
@@ -47,38 +46,40 @@ async function* parseSse(response: Response, signal: AbortSignal): AsyncGenerato
   }
 }
 
+export type BootEnv = {
+  stateRoot: string
+  cwd: string
+  harness: HarnessAdapter
+  spawnHarness: (args: string[], cwd: string, sessionId?: string) => HarnessChild
+}
+export type BootedApp = {
+  fetch: (request: Request) => Response | Promise<Response>
+  dispose: () => Promise<void>
+}
+export type BootApp = (env: BootEnv) => Promise<BootedApp>
+
+export type ChatMessage = Record<string, unknown>
+
 export type Kit = {
   base: string
+  stateRoot: string
   session: (id?: string) => Promise<string>
-  attach: (session?: string) => Promise<RunStream>
-  chat: (content: string, session?: string) => Promise<void>
+  attach: (session?: string, opts?: {signal?: AbortSignal}) => Promise<RunStream>
+  chat: (input: string | ChatMessage, session?: string) => Promise<void>
+  post: (path: string, body: unknown, session?: string) => Promise<Response>
+  get: (path: string, session?: string) => Promise<Response>
   invokeTool: (name: string, input: unknown, opts: {instruction: string}, session?: string) => Promise<void>
   callTool: (name: string, input: unknown, session?: string) => Promise<unknown>
   cleanup: () => Promise<void>
 }
 export type Testkit = {setup: () => Promise<Kit>}
 
-export function createTestkit(harness: HarnessAdapter): Testkit {
+export function createTestkit(harness: HarnessAdapter, boot: BootApp): Testkit {
   return {
     setup: async () => {
       const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-kit-'))
       const spawnHarness = isTestHarness(harness) ? neverSpawn : realSpawn(harness.binName)
-      const {app, disposers} = await makeApp({
-        cfg: {
-          enabled: true,
-          widgetUrl: undefined,
-          stateRoot,
-          harness: harness.id,
-          harnessBin: undefined,
-          sessionId: '',
-          systemPrompt: '',
-          extensions: undefined,
-        },
-        cwd: stateRoot,
-        openInEditor: () => {},
-        spawnHarness,
-        harness,
-      })
+      const app = await boot({stateRoot, cwd: stateRoot, harness, spawnHarness})
       const server: Server = serve({fetch: app.fetch, port: 0, hostname: '127.0.0.1'})
       await server.ready()
       const base = new URL(server.url ?? '').origin
@@ -106,25 +107,35 @@ export function createTestkit(harness: HarnessAdapter): Testkit {
       const callTool = async (name: string, input: unknown, session?: string): Promise<unknown> =>
         makeCallTool(base, await sessionFor(session))(name, input)
 
-      const sendChat = (content: string, session: string): Promise<Response> =>
-        post('/api/chat', {messages: [{id: 'm', role: 'user', parts: [{type: 'text', content}]}]}, session)
+      const toMessage = (input: string | ChatMessage): ChatMessage =>
+        typeof input === 'string' ? {id: 'm', role: 'user', parts: [{type: 'text', content: input}]} : input
+
+      const sendChat = async (input: string | ChatMessage, session: string): Promise<void> => {
+        const response = await post('/api/chat', {messages: [toMessage(input)]}, session)
+        if (!response.ok) throw new Error(`chat: POST /api/chat ${response.status} - ${await response.text()}`)
+      }
 
       return {
         base,
+        stateRoot,
         session: (id) => resolve(id),
-        attach: async (session) => {
+        attach: async (session, opts) => {
           const abort = new AbortController()
           aborts.push(abort)
+          const signal = opts?.signal ? AbortSignal.any([abort.signal, opts.signal]) : abort.signal
           const id = await sessionFor(session)
           const response = await fetch(`${base}/api/chat/attach`, {
             headers: {[CONCIV_SESSION_HEADER]: id},
-            signal: abort.signal,
+            signal,
           })
-          return makeRunStream(parseSse(response, abort.signal))
+          return makeRunStream(parseSse(response, signal))
         },
-        chat: async (content, session) => {
-          await sendChat(content, await sessionFor(session))
+        chat: async (input, session) => {
+          await sendChat(input, await sessionFor(session))
         },
+        post,
+        get: async (path, session) =>
+          fetch(`${base}${path}`, {headers: session ? {[CONCIV_SESSION_HEADER]: session} : {}}),
         invokeTool: async (name, input, opts, session) => {
           const id = await sessionFor(session)
           if (isTestHarness(harness)) {
@@ -139,7 +150,7 @@ export function createTestkit(harness: HarnessAdapter): Testkit {
         callTool,
         cleanup: async () => {
           for (const abort of aborts) abort.abort()
-          await Promise.all(disposers.map((dispose) => dispose()))
+          await app.dispose()
           await server.close()
           rmSync(stateRoot, {recursive: true, force: true})
         },

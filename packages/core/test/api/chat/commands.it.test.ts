@@ -1,8 +1,8 @@
 import {describe, it, expect, afterEach} from 'vitest'
-import {registerHarness} from '@conciv/harness'
 import {defineHarness} from '@conciv/protocol/harness-types'
 import {ChatCommandsSchema, ChatToolsSchema} from '@conciv/protocol/chat-types'
-import {startTestServer, type TestServer} from '../../helpers/server.js'
+import type {Kit} from '@conciv/harness-testkit'
+import {bootKit} from '../../helpers/boot.js'
 
 const liveHarness = defineHarness({
   id: 'commands-live-test',
@@ -44,18 +44,15 @@ const noneHarness = defineHarness({
   },
 })
 
-registerHarness(liveHarness)
-registerHarness(noneHarness)
-
 describe('GET /api/chat/commands + /api/chat/tools (IT, real server)', () => {
-  const state = {server: undefined as TestServer | undefined}
+  const state = {server: undefined as Kit | undefined}
   afterEach(async () => {
-    if (state.server) await state.server.close()
+    if (state.server) await state.server.cleanup()
     state.server = undefined
   })
 
   it('serves harness commands with derived sources and the mcp url', async () => {
-    const server = await startTestServer({harness: 'commands-live-test'})
+    const server = await bootKit({}, liveHarness)
     state.server = server
     const response = await fetch(`${server.base}/api/chat/commands`)
     expect(response.status).toBe(200)
@@ -73,7 +70,7 @@ describe('GET /api/chat/commands + /api/chat/tools (IT, real server)', () => {
   })
 
   it('returns an empty list for a harness without slash commands', async () => {
-    const server = await startTestServer({harness: 'commands-none-test'})
+    const server = await bootKit({}, noneHarness)
     state.server = server
     const response = await fetch(`${server.base}/api/chat/commands`)
     expect(response.status).toBe(200)
@@ -81,7 +78,7 @@ describe('GET /api/chat/commands + /api/chat/tools (IT, real server)', () => {
   })
 
   it('serves the registered tool list', async () => {
-    const server = await startTestServer({harness: 'commands-none-test'})
+    const server = await bootKit({}, noneHarness)
     state.server = server
     const response = await fetch(`${server.base}/api/chat/tools`)
     expect(response.status).toBe(200)

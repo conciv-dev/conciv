@@ -7,6 +7,7 @@ export type RunEvents = {
   uiSpecs: () => UiSpec[]
   errors: () => string[]
   runs: () => number
+  custom: (name: string) => unknown[]
 }
 
 export function makeRunEvents(all: StreamChunk[]): RunEvents {
@@ -22,5 +23,7 @@ export function makeRunEvents(all: StreamChunk[]): RunEvents {
       }),
     errors: () => all.flatMap((chunk) => (chunk.type === EventType.RUN_ERROR ? [chunk.message] : [])),
     runs: () => all.filter((chunk) => chunk.type === EventType.RUN_FINISHED).length,
+    custom: (name) =>
+      all.flatMap((chunk) => (chunk.type === EventType.CUSTOM && chunk.name === name ? [chunk.value] : [])),
   }
 }

@@ -1,5 +1,13 @@
 export {until, type UntilOpts} from './until.js'
-export {createTestkit, type Kit, type Testkit} from './create-testkit.js'
+export {
+  createTestkit,
+  type BootApp,
+  type BootedApp,
+  type BootEnv,
+  type ChatMessage,
+  type Kit,
+  type Testkit,
+} from './create-testkit.js'
 export {createTestHarness, type TestHarness} from './create-test-harness.js'
 export {harnessAvailable} from './harness-available.js'
 export {harnessModes, type HarnessMode} from './harness-modes.js'

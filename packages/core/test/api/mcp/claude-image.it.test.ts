@@ -1,17 +1,19 @@
 import {describe, expect, it} from 'vitest'
-import {startTestServer} from '../../helpers/server.js'
-import {hasClaude, useFakeHarness} from '../../helpers/harness-mode.js'
+import {bootKit} from '../../helpers/boot.js'
+import {runTurn} from '../../helpers/turns.js'
+import {runReal} from '../../helpers/harness-mode.js'
 
 const PNG_RED_4x4 =
   'iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAEElEQVR4nGP4z8AARwzEcQCukw/x0F8jngAAAABJRU5ErkJggg=='
 
 describe('claude native image input', () => {
-  it.skipIf(!hasClaude() || useFakeHarness)(
+  it.skipIf(!runReal)(
     'delivers an image to claude so the model sees its pixels',
     async () => {
-      const {resolve, postChat, close} = await startTestServer({harness: 'claude'})
+      const kit = await bootKit()
       try {
-        const body = await postChat(
+        const events = await runTurn(
+          kit,
           {
             role: 'user',
             content: [
@@ -19,11 +21,11 @@ describe('claude native image input', () => {
               {type: 'image', source: {type: 'data', mimeType: 'image/png', value: PNG_RED_4x4}},
             ],
           },
-          await resolve(),
+          await kit.session(),
         )
-        expect(body.toLowerCase()).toContain('red')
+        expect(events.text().toLowerCase()).toContain('red')
       } finally {
-        await close()
+        await kit.cleanup()
       }
     },
     120_000,

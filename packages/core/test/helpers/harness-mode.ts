@@ -1,12 +1,1 @@
-import {execSync} from 'node:child_process'
-
-export const useFakeHarness = !!process.env.CONCIV_CLAUDE_CLI
-
-export function hasClaude(): boolean {
-  try {
-    execSync('command -v claude', {stdio: 'ignore'})
-    return true
-  } catch {
-    return false
-  }
-}
+export const runReal = !process.env.CI
