@@ -73,6 +73,28 @@ README.md; this file is the non-obvious operational rules.
   API and never "unused" — don't delete those. CI builds packages first so `@conciv/*` imports resolve
   against their dist-only exports; don't re-add an `ignoreUnresolvedImports: @conciv/*` hack.
 
+## Releasing (npm publish)
+
+- Publishing is CI-only, via OIDC trusted publishing (`.github/workflows/release.yml` runs
+  `changesets/action` with `id-token: write`, `NPM_TOKEN` empty). There is NO npm token for humans —
+  running `pnpm release` locally 404s (`E404` on the registry PUT). Never publish from a laptop.
+- The flow, end to end:
+  1. Land a PR that adds a changeset (`pnpm changeset`, or hand-write `.changeset/<name>.md`). Do NOT
+     run `release:version` or `release` yourself — those are the CI steps.
+  2. On merge to `main`, `changesets/action` opens a `chore: version packages` PR that runs
+     `pnpm release:version` (consumes changesets → bumps versions + CHANGELOGs, resyncs the lockfile).
+  3. Merging that version PR triggers `pnpm release` in CI: `turbo run build publint attw`, then
+     `changeset publish` to npm with provenance.
+- All `@conciv/*` share ONE version: `.changeset/config.json` sets `fixed: [["@conciv/*"]]`, so a single
+  changeset bumps the whole set in lockstep (currently the 0.0.x patch line). One changeset entry naming
+  any `@conciv/*` package is enough to release them all.
+- Adding a new PUBLISHED package (`private` unset/false)? Add its name to `PUBLIC_PACKAGES` in
+  `packages/publish/src/guards.ts` or `assertPublicSet` aborts the release on drift; give it
+  `homepage: https://conciv.dev` + a `repository` block with its `directory` (matches every public manifest).
+- Before opening a release PR: `pnpm typecheck && pnpm build && pnpm test`, run
+  `pnpm exec fallow audit --changed-since main --format json` and fix anything INTRODUCED (see the fallow
+  section). `pnpm release:check` (build + publint + attw) mirrors the CI validate step locally.
+
 ## Harness & runner adapters
 
 - `HarnessAdapter` is capability-typed (`packages/protocol/src/harness-types.ts`): `transcriptHistory:

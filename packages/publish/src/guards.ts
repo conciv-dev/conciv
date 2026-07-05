@@ -27,8 +27,10 @@ const PUBLIC_PACKAGES = [
   '@conciv/ui-kit-chat',
   '@conciv/ui-kit-chat-tools',
   '@conciv/ui-kit-tap',
+  '@conciv/ui-kit-terminal',
   '@conciv/extension-test-runner',
   '@conciv/extension-whiteboard',
+  '@conciv/extension-terminal',
   '@conciv/mascot',
 ]
 

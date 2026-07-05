@@ -2,6 +2,12 @@
   "name": "@conciv/harness-testkit",
   "version": "0.0.0",
   "private": true,
+  "homepage": "https://conciv.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/harness-testkit"
+  },
   "type": "module",
   "exports": {
     ".": "./src/testkit.ts"
