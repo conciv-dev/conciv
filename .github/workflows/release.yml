@@ -4,7 +4,12 @@ on:
   push:
     branches: [main]
 
-concurrency: ${{ github.workflow }}-${{ github.ref }}
+# Supersede a stale waiting/pending run instead of queueing behind it, so an
+# unapproved run can't wedge later merges. The newest run publishes every
+# still-unpublished package once approved, so cancelling older ones loses nothing.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 # Least privilege at the workflow level; the elevated grants live only on the
 # release job so the test job (which runs untrusted dep/test code) never shares

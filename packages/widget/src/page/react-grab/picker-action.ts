@@ -1,6 +1,6 @@
 import {Crosshair} from 'lucide-solid'
 import {getReactGrabAdapter} from './adapter.js'
-import type {ComposerActionDef} from '../../shell/widget-shell.js'
+import type {ComposerActionDef} from '../../shell/shell-contract.js'
 
 export const elementPickerAction: ComposerActionDef = {
   id: 'pick-element',

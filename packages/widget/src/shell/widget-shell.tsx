@@ -1,17 +1,6 @@
-import {
-  createEffect,
-  createSignal,
-  createUniqueId,
-  For,
-  getOwner,
-  onCleanup,
-  runWithOwner,
-  Show,
-  type Component,
-  type JSX,
-} from 'solid-js'
+import {createEffect, createSignal, For, onCleanup, Show, type JSX} from 'solid-js'
 import {render} from 'solid-js/web'
-import {EnvironmentProvider} from '@conciv/ui-kit-system'
+import {EnvironmentProvider, FocusTrap} from '@conciv/ui-kit-system'
 import {ApprovalModal, type PendingApproval} from './approval-modal.js'
 import type {TriggerPosition} from '@conciv/protocol/config-types'
 import type {WidgetSettings} from '../client/widget-settings.js'
@@ -22,81 +11,16 @@ import {createPiP} from './pip.js'
 import {ChevronDown, Crosshair, PictureInPicture2} from 'lucide-solid'
 import {FabRobot} from './fab-robot.js'
 import {picking, cancelPick} from '../page/react-grab/picking.js'
-import {anyOpen} from './dialogs.js'
+import {suppressedAttr} from './suppression.js'
 import {ContextTracker} from '../page/context-tracker.js'
 import {SessionSelector} from '../composer/session-selector.js'
-import {sessions, mergeSurface, makeSurfaceRow} from '../client/session-store-client.js'
-import {readStorage, writeStorage} from '../lib/persisted-signal.js'
-import {readShellSnapshot, writeShellSnapshot} from '../lib/ui-snapshot.js'
-import {defineClient, type SessionClient} from '@conciv/api-client'
-import {SessionId, isSessionId} from '@conciv/protocol/chat-types'
+import {sessions} from '../client/session-store-client.js'
+import {readShellSnapshotOrDefault, writeShellSnapshot} from '../lib/ui-snapshot.js'
+import type {SessionId} from '@conciv/protocol/chat-types'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
-import type {Grab} from '@conciv/grab'
-
-const parseActiveId = (raw: string): SessionId | undefined => (isSessionId(raw) ? SessionId.parse(raw) : undefined)
-
-export type PanelContext = {
-  active: () => boolean
-
-  onWorkingChange: (working: boolean) => void
-
-  onUsageChange: (usage: UsageSnapshot | null) => void
-
-  onApprovalsChange: (approvals: PendingApproval[]) => void
-
-  client: SessionClient
-
-  onSessionLabel?: (name: string | null) => void
-
-  onNewSession?: () => void | Promise<void>
-
-  announce?: (msg: string, assertive?: boolean) => void
-
-  composerActions: () => ComposerActionDef[]
-
-  composerControls: () => ComposerControlDef[]
-}
-export type PanelDef = {
-  id: string
-  title: string
-
-  apiBase?: string
-  create: (ctx: PanelContext) => JSX.Element
-}
-
-export type ComposerActionContext = {
-  insert: (text: string) => void
-
-  stageGrab: (grab: Grab) => void
-  setBusy: (busy: boolean) => void
-  apiBase: string
-
-  client: SessionClient
-
-  addDivider: (kind: 'new' | 'compact') => void
-  newSession: () => void | Promise<void>
-  resetUsage: () => void
-  compact: () => Promise<void>
-  notify: (message: string) => void
-  requestMeta: () => Record<string, unknown>
-}
-
-export type ComposerActionDef = {
-  id: string
-  label: string
-  icon: Component<{class?: string}>
-  onClick: (ctx: ComposerActionContext) => void | Promise<void>
-}
-
-export type ComposerControlContext = {
-  apiBase: string
-  setRequestMeta: (patch: Record<string, unknown>) => void
-}
-
-export type ComposerControlDef = {
-  id: string
-  create: (ctx: ComposerControlContext) => JSX.Element
-}
+import {createModalPanes, type ModalPane} from './modal-panes.js'
+import {escapeInTerminal} from './terminal-focus.js'
+import {CLOSE, type ComposerActionDef, type ComposerControlDef, type PanelDef} from './shell-contract.js'
 
 export function createWidgetShell(opts: {settings: WidgetSettings}): {
   registerPanel: (def: PanelDef) => void
@@ -154,12 +78,12 @@ function Shell(props: {
   composerActions: () => ComposerActionDef[]
   composerControls: () => ComposerControlDef[]
 }): JSX.Element {
-  const restoredShell = readShellSnapshot()
-  const [layer, setLayer] = createSignal<'modal' | 'quick' | null>(restoredShell?.layer ?? null)
+  const restoredShell = readShellSnapshotOrDefault()
+  const [layer, setLayer] = createSignal<'modal' | 'quick' | null>(restoredShell.layer)
   const setQuickOpen = (v: boolean) => setLayer((prev) => (v ? 'quick' : prev === 'quick' ? null : prev))
   const closeModal = () => setLayer((prev) => (prev === 'modal' ? null : prev))
 
-  const [modalPaneIds, setModalPaneIds] = createSignal<string[]>(restoredShell?.paneIds ?? [])
+  const [modalPaneIds, setModalPaneIds] = createSignal<string[]>(restoredShell.paneIds)
   createEffect(() => writeShellSnapshot({layer: layer(), paneIds: modalPaneIds()}))
 
   const [politeMsg, setPoliteMsg] = createSignal('')
@@ -238,14 +162,6 @@ function Shell(props: {
   )
 }
 
-type ModalPane = {id: SessionId; content: JSX.Element; working: () => boolean; usage: () => UsageSnapshot | null}
-
-function focusablesIn(root: HTMLElement): HTMLElement[] {
-  return Array.from(
-    root.querySelectorAll<HTMLElement>('button, textarea, input, select, a[href], [tabindex]:not([tabindex="-1"])'),
-  ).filter((el) => !el.hasAttribute('disabled') && !el.closest('[data-pw-modal-hidden]'))
-}
-
 const FAB_POS: Record<TriggerPosition, string> = {
   'top-left': 'top-5 left-5',
   'top-right': 'top-5 right-5',
@@ -277,16 +193,7 @@ const RESIZE_Y = 'left-0 right-0 h-2 cursor-ns-resize'
 const RESIZE_X = 'top-0 bottom-0 w-2 cursor-ew-resize'
 const HEAD = 'flex items-center gap-2.5 py-3 px-3.5 border-b border-b-pw-line-soft'
 
-export const CLOSE =
-  'bg-transparent [border:none] text-pw-text-2 text-[1.375rem] cursor-pointer inline-flex items-center justify-center size-9.5 rounded-[0.5625rem] trans-color-bg hover:text-pw-text hover:bg-pw-fill-strong'
-
 const MODAL_PANE = 'flex-col flex-[1_1_auto] min-h-0'
-
-export function escapeInTerminal(scopeEl: HTMLElement | undefined): boolean {
-  const root = scopeEl?.getRootNode()
-  const active = root instanceof ShadowRoot ? root.activeElement : document.activeElement
-  return active instanceof Element && active.closest('[data-terminal-screen]') !== null
-}
 
 function panelClass(open: boolean, position: TriggerPosition): string {
   return `${PANEL_BASE} ${PANEL_POS[position]} ${open ? PANEL_OPEN : PANEL_CLOSED}`
@@ -294,6 +201,101 @@ function panelClass(open: boolean, position: TriggerPosition): string {
 
 function fabClass(pulsing: boolean, position: TriggerPosition, dragging: boolean): string {
   return `${FAB_BASE} ${FAB_POS[position]}${pulsing ? ` ${FAB_ATTN}` : ''}${dragging ? ` ${FAB_DRAGGING}` : ''}`
+}
+
+function resizeEdgeY(anchoredBottom: boolean): string {
+  return anchoredBottom ? 'top-0' : 'bottom-0'
+}
+
+function resizeEdgeX(anchoredRight: boolean): string {
+  return anchoredRight ? 'left-0' : 'right-0'
+}
+
+function fabLabel(open: boolean): string {
+  return open ? 'Minimize conciv chat' : 'Open conciv chat'
+}
+
+function ModalHeader(props: {
+  title: string
+  apiBase: string
+  activeId: () => SessionId | null
+  onActivate: (id: SessionId) => void
+  usage: () => UsageSnapshot | null
+  announce: (msg: string, assertive?: boolean) => void
+  onPip: () => void
+  onClose: () => void
+}): JSX.Element {
+  return (
+    <header class={HEAD}>
+      <button
+        type="button"
+        class={CLOSE}
+        aria-label="Pop out to a window"
+        title="Picture-in-Picture"
+        onClick={props.onPip}
+      >
+        <PictureInPicture2 class="size-5 block" aria-hidden="true" />
+      </button>
+      <span class="tracking-[-0.01em] font-semibold">{props.title}</span>
+      <SessionSelector
+        variant="pill"
+        apiBase={props.apiBase}
+        activeId={props.activeId}
+        onActivate={props.onActivate}
+        lockedElsewhere={(id) => (sessions().find((s) => s.id === id)?.running ?? false) && id !== props.activeId()}
+        announce={props.announce}
+      />
+      <ContextTracker usage={props.usage()} />
+      <button type="button" class={`${CLOSE} ml-auto`} aria-label="Close chat" onClick={props.onClose}>
+        <ChevronDown class="size-[1em] block" aria-hidden="true" />
+      </button>
+    </header>
+  )
+}
+
+function ModalPaneList(props: {panes: () => ModalPane[]; activeId: () => SessionId | null}): JSX.Element {
+  return (
+    <For each={props.panes()}>
+      {(pane) => (
+        <div
+          class={MODAL_PANE}
+          classList={{flex: props.activeId() === pane.id, hidden: props.activeId() !== pane.id}}
+          data-pw-modal-hidden={props.activeId() !== pane.id ? '' : undefined}
+        >
+          {pane.content}
+        </div>
+      )}
+    </For>
+  )
+}
+
+function ShellFab(props: {
+  ref: (el: HTMLButtonElement) => void
+  open: () => boolean
+  working: () => boolean
+  fab: ReturnType<typeof createDraggablePosition>
+  onToggle: () => void
+}): JSX.Element {
+  return (
+    <button
+      type="button"
+      ref={props.ref}
+      class={fabClass(!props.open() && props.working(), props.fab.position(), props.fab.dragging())}
+      data-pw-fab
+      data-pw-suppressed={suppressedAttr()}
+      style={props.fab.dragStyle()}
+      aria-label={fabLabel(props.open())}
+      aria-expanded={props.open()}
+      aria-controls="pw-chat-panel"
+      onPointerDown={props.fab.onPointerDown}
+      onClick={() => {
+        if (!props.fab.consumeClick()) props.onToggle()
+      }}
+    >
+      {}
+      <FabRobot open={props.open} working={props.working} />
+    </button>
+  )
 }
 
 function ModalLayout(props: {
@@ -308,66 +310,20 @@ function ModalLayout(props: {
   onOpen: () => void
   onClose: () => void
 }): JSX.Element {
-  const [activeId, setActiveId] = createSignal<SessionId | null>(null)
-  const [panes, setPanes] = createSignal<ModalPane[]>([])
-  createEffect(() => writeStorage('conciv-active-session', activeId()))
-  createEffect(() => props.onPanesChange(panes().map((pane) => pane.id)))
-  const apiBase = props.panel.apiBase ?? ''
-
-  const owner = getOwner()
-
-  const mountPane = (id: SessionId) => {
-    if (panes().some((p) => p.id === id)) return
-    const client = defineClient({apiBase})
-    client.setSessionId(id)
-    const [working, setWorking] = createSignal(false)
-    const [usage, setUsage] = createSignal<UsageSnapshot | null>(null)
-    const approvalKey = createUniqueId()
-    const content = runWithOwner(owner, () => (
-      <EnvironmentProvider value={() => panelEl?.getRootNode() ?? document}>
-        {props.panel.create({
-          active: () => props.open() && activeId() === id,
-          onWorkingChange: setWorking,
-          onUsageChange: setUsage,
-          onApprovalsChange: (items) => props.reportApprovals(approvalKey, items),
-          onSessionLabel: (name) => mergeSurface(id, makeSurfaceRow(id, name)),
-          client,
-          onNewSession: () => void activateNew(),
-          announce: props.announce,
-          composerActions: props.composerActions,
-          composerControls: props.composerControls,
-        })}
-      </EnvironmentProvider>
-    ))
-    setPanes((prev) => [...prev, {id, content, working, usage}])
-  }
-
-  const activate = (id: SessionId) => {
-    mountPane(id)
-    setActiveId(id)
-  }
-
-  const activateNew = async () => {
-    const {sessionId} = await defineClient({apiBase}).resolve()
-    activate(sessionId)
-  }
-
-  const restoredPanes = readShellSnapshot()?.paneIds ?? []
-  for (const id of restoredPanes.filter(isSessionId)) mountPane(id)
-  const restored = readStorage('conciv-active-session', parseActiveId, undefined)
-  if (restored) activate(restored)
-  if (!restored) void activateNew()
-
-  const activePane = () => panes().find((p) => p.id === activeId())
-  const working = () => activePane()?.working() ?? false
-  const usage = () => activePane()?.usage() ?? null
+  const store = createModalPanes({
+    panel: props.panel,
+    open: props.open,
+    reportApprovals: props.reportApprovals,
+    announce: props.announce,
+    composerActions: props.composerActions,
+    composerControls: props.composerControls,
+  })
+  createEffect(() => props.onPanesChange(store.paneIds()))
 
   const fab = createDraggablePosition({initial: props.position, storageKey: 'conciv-fab-position'})
   const pip = createPiP()
   let fabEl: HTMLButtonElement | undefined
   let panelEl: HTMLElement | undefined
-
-  const fabPulsing = () => !props.open() && working()
 
   const anchoredBottom = () => fab.position().startsWith('bottom')
   const anchoredRight = () => fab.position().endsWith('right')
@@ -393,49 +349,31 @@ function ModalLayout(props: {
   const toggle = () => (props.open() ? closePanel() : props.onOpen())
 
   const onPanelKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      if (escapeInTerminal(panelEl)) return
-      e.preventDefault()
-      closePanel()
-      return
-    }
-    if (e.key !== 'Tab' || !panelEl) return
-    const items = focusablesIn(panelEl)
-    if (items.length === 0) return
-    const first = items[0]
-    const last = items[items.length - 1]
-    const root = panelEl.getRootNode()
-    const active = root instanceof ShadowRoot ? root.activeElement : null
-    if (e.shiftKey && active === first) {
-      e.preventDefault()
-      last?.focus()
-      return
-    }
-    if (!e.shiftKey && active === last) {
-      e.preventDefault()
-      first?.focus()
-    }
+    if (e.key !== 'Escape') return
+    if (escapeInTerminal(panelEl)) return
+    e.preventDefault()
+    closePanel()
   }
 
   return (
     <>
-      <section
-        ref={(el) => {
-          panelEl = el
-        }}
-        class={panelClass(props.open(), fab.position())}
-        data-pw-panel
-        data-pw-suppressed={picking() || anyOpen() ? '' : undefined}
-        style={{height: `${resizeY.size()}px`, width: `${resizeX.size()}px`}}
-        role="dialog"
-        aria-label="conciv chat agent"
-        aria-hidden={!props.open()}
-        id="pw-chat-panel"
-        onKeyDown={onPanelKeyDown}
-      >
-        <EnvironmentProvider value={() => panelEl?.getRootNode() ?? document}>
+      <FocusTrap disabled={!props.open()}>
+        <section
+          ref={(el) => {
+            panelEl = el
+          }}
+          class={panelClass(props.open(), fab.position())}
+          data-pw-panel
+          data-pw-suppressed={suppressedAttr()}
+          style={{height: `${resizeY.size()}px`, width: `${resizeX.size()}px`}}
+          role="dialog"
+          aria-label="conciv chat agent"
+          aria-hidden={!props.open()}
+          id="pw-chat-panel"
+          onKeyDown={onPanelKeyDown}
+        >
           <div
-            class={`${RESIZE}  ${RESIZE_Y}  ${anchoredBottom() ? 'top-0' : 'bottom-0'}`}
+            class={`${RESIZE}  ${RESIZE_Y}  ${resizeEdgeY(anchoredBottom())}`}
             role="separator"
             aria-orientation="horizontal"
             aria-label="Resize chat height"
@@ -446,7 +384,7 @@ function ModalLayout(props: {
             onKeyDown={resizeY.onKeyDown}
           />
           <div
-            class={`${RESIZE}  ${RESIZE_X}  ${anchoredRight() ? 'left-0' : 'right-0'}`}
+            class={`${RESIZE}  ${RESIZE_X}  ${resizeEdgeX(anchoredRight())}`}
             role="separator"
             aria-orientation="vertical"
             aria-label="Resize chat width"
@@ -456,64 +394,29 @@ function ModalLayout(props: {
             onPointerDown={resizeX.onPointerDown}
             onKeyDown={resizeX.onKeyDown}
           />
-          <header class={HEAD}>
-            <button
-              type="button"
-              class={CLOSE}
-              aria-label="Pop out to a window"
-              title="Picture-in-Picture"
-              onClick={() => panelEl && pip.open(panelEl, {title: props.panel.title})}
-            >
-              <PictureInPicture2 class="size-5 block" aria-hidden="true" />
-            </button>
-            <span class="tracking-[-0.01em] font-semibold">{props.panel.title}</span>
-            <SessionSelector
-              variant="pill"
-              apiBase={props.panel.apiBase ?? ''}
-              activeId={activeId}
-              onActivate={activate}
-              lockedElsewhere={(id) => (sessions().find((s) => s.id === id)?.running ?? false) && id !== activeId()}
-              announce={props.announce}
-            />
-            <ContextTracker usage={usage()} />
-            <button type="button" class={`${CLOSE} ml-auto`} aria-label="Close chat" onClick={closePanel}>
-              <ChevronDown class="size-[1em] block" aria-hidden="true" />
-            </button>
-          </header>
+          <ModalHeader
+            title={props.panel.title}
+            apiBase={store.apiBase}
+            activeId={store.activeId}
+            onActivate={store.activate}
+            usage={store.usage}
+            announce={props.announce}
+            onPip={() => panelEl && pip.open(panelEl, {title: props.panel.title})}
+            onClose={closePanel}
+          />
           {}
-          <For each={panes()}>
-            {(p) => (
-              <div
-                class={MODAL_PANE}
-                classList={{flex: activeId() === p.id, hidden: activeId() !== p.id}}
-                data-pw-modal-hidden={activeId() !== p.id ? '' : undefined}
-              >
-                {p.content}
-              </div>
-            )}
-          </For>
-        </EnvironmentProvider>
-      </section>
-      <button
-        type="button"
+          <ModalPaneList panes={store.panes} activeId={store.activeId} />
+        </section>
+      </FocusTrap>
+      <ShellFab
         ref={(el) => {
           fabEl = el
         }}
-        class={fabClass(fabPulsing(), fab.position(), fab.dragging())}
-        data-pw-fab
-        data-pw-suppressed={picking() || anyOpen() ? '' : undefined}
-        style={fab.dragStyle()}
-        aria-label={props.open() ? 'Minimize conciv chat' : 'Open conciv chat'}
-        aria-expanded={props.open()}
-        aria-controls="pw-chat-panel"
-        onPointerDown={fab.onPointerDown}
-        onClick={() => {
-          if (!fab.consumeClick()) toggle()
-        }}
-      >
-        {}
-        <FabRobot open={() => props.open()} working={working} />
-      </button>
+        open={props.open}
+        working={store.working}
+        fab={fab}
+        onToggle={toggle}
+      />
     </>
   )
 }

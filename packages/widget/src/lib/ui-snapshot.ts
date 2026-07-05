@@ -98,6 +98,10 @@ export function readShellSnapshot(): ShellSnapshot | null {
   }
 }
 
+export function readShellSnapshotOrDefault(): ShellSnapshot {
+  return readShellSnapshot() ?? {layer: null, paneIds: []}
+}
+
 export function writeShellSnapshot(snapshot: ShellSnapshot): void {
   try {
     sessionStorage.setItem(SHELL_KEY, JSON.stringify(snapshot))

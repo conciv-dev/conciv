@@ -1,5 +1,5 @@
 import {FoldVertical} from 'lucide-solid'
-import type {ComposerActionDef} from '../shell/widget-shell.js'
+import type {ComposerActionDef} from '../shell/shell-contract.js'
 
 export const compactAction: ComposerActionDef = {
   id: 'compact',

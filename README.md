@@ -141,7 +141,6 @@ Two built-ins show what the contract can do:
 | [`@conciv/protocol`](./packages/protocol)                            | Shared wire types + `define*` factories (chat, generative UI, test, page, harness). Zero-runtime.             |
 | [`@conciv/core`](./packages/core)                                    | The framework-free h3 + srvx engine: every `/api/*` route, session, uiBus, harness + test registries.         |
 | [`@conciv/harness`](./packages/harness)                              | Harness adapters behind a capability interface: Claude + Codex, plus Gemini/opencode/Pi stubs.                |
-| [`@conciv/test-runner`](./packages/test-runner)                      | Test-runner adapters over a clean-child fd3 driver: Vitest (full), Jest/node-test/Playwright (stubs).         |
 | [`@conciv/plugin`](./packages/plugin)                                | The dev agent as an unplugin: `vite` (full) + webpack/rspack/rollup/esbuild. Boots core + injects the widget. |
 | [`@conciv/widget`](./packages/widget)                                | The browser half: a Solid chat UI in an open Shadow DOM, the test card, and the page-control driver.          |
 | [`@conciv/cli`](./packages/cli)                                      | The `conciv` CLI the agent calls from Bash: `tools server / page / test / open` + `ui`.                       |

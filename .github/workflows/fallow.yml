@@ -1,35 +1,44 @@
 name: Fallow
 
-# Codebase-intelligence gate: changed-file dead code, complexity, duplication.
-# Report-only for now (fail-on-issues:false) — surfaces findings as PR comments
-# without blocking merges. Flip to true once the signal is tuned. Binary version
-# comes from the root package.json fallow devDependency (Ed25519 + SHA-256 verified).
-#
-# PR-only: this job needs pull-requests: write to post comments, so it lives in its
-# own workflow rather than ci.yml, which is also called as a reusable workflow by
-# release.yml (a reusable workflow cannot request more than its caller's token grants).
-
 on:
   pull_request: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
   fallow:
+    name: Fallow audit
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: write # sticky summary + inline review comments
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
-          fetch-depth: 0 # audit needs git history for changed-file attribution
+          fetch-depth: 0
           persist-credentials: false
-      - uses: fallow-rs/fallow@eaeb0634af797a69bae7600d2020dd99b33402ad # v2.100.0
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
+      - uses: SocketDev/action@ba6de6cc0565af1f42295590380973573297e31f
+        with:
+          mode: firewall-free
+      - run: sfw pnpm i --frozen-lockfile
+      - run: pnpm exec turbo run build --filter='./packages/*' --filter='./packages/extensions/*'
+      - uses: fallow-rs/fallow@eaeb0634af797a69bae7600d2020dd99b33402ad
         with:
           command: audit
-          fail-on-issues: 'false' # report-only during rollout
-          auto-changed-since: 'true' # scope to the PR diff
-          comment: 'true'
-          review-comments: 'true'
+          fail-on-issues: 'true'
+          auto-changed-since: 'true'
+          annotations: 'true'
