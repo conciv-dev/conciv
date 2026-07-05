@@ -21,9 +21,9 @@ import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
 const RETRY_BASE_MS = 1000
 const RETRY_MAX_MS = 15000
 
-export type MirrorStatus = 'connecting' | 'open' | 'error'
+type MirrorStatus = 'connecting' | 'open' | 'error'
 
-export function connectMirror(
+function connectMirror(
   url: string,
   headers: () => Record<string, string>,
   onMessages: (messages: UIMessage[]) => void,

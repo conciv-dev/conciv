@@ -18,7 +18,7 @@ export type FakeSessions = ServerSessions & {
   fireChatTurn: (sessionId: string) => void
 }
 
-export function fakeSessions(): FakeSessions {
+function fakeSessions(): FakeSessions {
   const tokens = new Map<string, string>()
   const busy = new Set<string>()
   const listeners: ((sessionId: string) => void)[] = []

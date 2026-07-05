@@ -9,7 +9,7 @@ export type FrameInjector = {
   pending(): number
 }
 
-export function sanitizeInjection(text: string): string {
+function sanitizeInjection(text: string): string {
   return text.replaceAll(ANSI_SEQUENCE, (sequence) => (SGR.test(sequence) ? sequence : ''))
 }
 

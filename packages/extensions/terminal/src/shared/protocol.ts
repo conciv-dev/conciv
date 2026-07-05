@@ -8,5 +8,5 @@ export const TerminalOpenRequestSchema = z.object({
   model: z.string().min(1).max(200).optional(),
 })
 
-export const TerminalStateSchema = z.object({alive: z.boolean(), busy: z.boolean()})
+const TerminalStateSchema = z.object({alive: z.boolean(), busy: z.boolean()})
 export type TerminalState = z.infer<typeof TerminalStateSchema>
