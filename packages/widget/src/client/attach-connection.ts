@@ -36,7 +36,10 @@ async function* parseSseChunks(body: ReadableStream<Uint8Array>, signal?: AbortS
           .filter((line) => line.startsWith('data:'))
           .map((line) => line.slice(5).trimStart())
           .join('\n')
-        if (data) yield JSON.parse(data) as StreamChunk
+        if (!data) continue
+        try {
+          yield JSON.parse(data) as StreamChunk
+        } catch {}
       }
     }
   } finally {
@@ -53,7 +56,7 @@ export function attachConnection(
   } = {},
 ): SubscribeConnectionAdapter & {bump: () => void} {
   const retryDelayMs = opts.retryDelayMs ?? DEFAULT_RETRY_MS
-  const current = {controller: null as AbortController | null}
+  const current = {controller: null as AbortController | null, reconnectNow: false}
 
   async function send(
     messages: Array<UIMessage> | Array<ModelMessage>,
@@ -98,9 +101,18 @@ export function attachConnection(
         current.controller = null
       }
       if (signal?.aborted) return
+      if (current.reconnectNow) {
+        current.reconnectNow = false
+        continue
+      }
       await delay(retryDelayMs, signal)
     }
   }
 
-  return {send, subscribe, bump: () => current.controller?.abort()}
+  const bump = () => {
+    current.reconnectNow = true
+    current.controller?.abort()
+  }
+
+  return {send, subscribe, bump}
 }

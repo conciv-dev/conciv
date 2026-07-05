@@ -1,4 +1,4 @@
-import {createServer, type Server} from 'node:http'
+import {createServer, type Server, type ServerResponse} from 'node:http'
 import type {AddressInfo} from 'node:net'
 import {setMaxListeners} from 'node:events'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
@@ -17,6 +17,8 @@ describe('attachConnection', () => {
     posts: [] as unknown[],
     attachCount: 0,
     failAttach: false,
+    holdAttach: false,
+    held: [] as ServerResponse[],
   }
 
   beforeAll(async () => {
@@ -39,6 +41,11 @@ describe('attachConnection', () => {
           return
         }
         res.setHeader('content-type', 'text/event-stream')
+        if (state.holdAttach) {
+          res.write(chunkLines([started]))
+          state.held.push(res)
+          return
+        }
         res.write(chunkLines([started, finished]))
         res.end()
         return
@@ -52,6 +59,8 @@ describe('attachConnection', () => {
   })
 
   afterAll(async () => {
+    for (const res of state.held) res.end()
+    state.held = []
     await new Promise((resolve) => state.server?.close(resolve))
   })
 
@@ -74,16 +83,17 @@ describe('attachConnection', () => {
     const adapter = attachConnection(client, {retryDelayMs: 20})
     const controller = new AbortController()
     const seen: StreamChunk[] = []
-    const drain = (async () => {
+    async function drain(): Promise<void> {
       for await (const chunk of adapter.subscribe(controller.signal)) {
         seen.push(chunk)
         if (seen.length >= 4) controller.abort()
       }
-    })().catch(() => {})
+    }
+    const drainPromise = drain().catch(() => {})
     const deadline = Date.now() + 3000
     while (seen.length < 4 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 20))
     controller.abort()
-    await drain
+    await drainPromise
     expect(seen.length).toBeGreaterThanOrEqual(4)
     expect(state.attachCount).toBeGreaterThanOrEqual(2)
     expect(seen[0]?.type).toBe(EventType.RUN_STARTED)
@@ -95,16 +105,17 @@ describe('attachConnection', () => {
     state.failAttach = true
     const adapter = attachConnection(client, {retryDelayMs: 10, onConnectionChange: (c) => changes.push(c)})
     const controller = new AbortController()
-    const drain = (async () => {
+    async function drain(): Promise<void> {
       for await (const chunk of adapter.subscribe(controller.signal)) void chunk
-    })().catch(() => {})
+    }
+    const drainPromise = drain().catch(() => {})
     const failDeadline = Date.now() + 2000
     while (!changes.includes(false) && Date.now() < failDeadline) await new Promise((r) => setTimeout(r, 10))
     state.failAttach = false
     const okDeadline = Date.now() + 2000
     while (!changes.includes(true) && Date.now() < okDeadline) await new Promise((r) => setTimeout(r, 10))
     controller.abort()
-    await drain
+    await drainPromise
     expect(changes).toContain(false)
     expect(changes).toContain(true)
   })
@@ -118,16 +129,44 @@ describe('attachConnection', () => {
     const onWarning = (warning: Error) => warnings.push(warning)
     process.on('warning', onWarning)
     const startCount = state.attachCount
-    const drain = (async () => {
+    async function drain(): Promise<void> {
       for await (const chunk of adapter.subscribe(controller.signal)) void chunk
-    })().catch(() => {})
+    }
+    const drainPromise = drain().catch(() => {})
     const deadline = Date.now() + 4000
     while (state.attachCount - startCount < 15 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 10))
     controller.abort()
-    await drain
+    await drainPromise
     process.off('warning', onWarning)
     const maxListenerWarnings = warnings.filter((warning) => warning.name === 'MaxListenersExceededWarning')
     expect(maxListenerWarnings).toEqual([])
     expect(state.attachCount - startCount).toBeGreaterThanOrEqual(15)
+  })
+
+  it('bump reconnects immediately without waiting out the retry backoff', async () => {
+    const client = defineClient({apiBase: state.base})
+    const retryDelayMs = 1000
+    const adapter = attachConnection(client, {retryDelayMs})
+    const controller = new AbortController()
+    state.holdAttach = true
+    const startCount = state.attachCount
+    async function drain(): Promise<void> {
+      for await (const chunk of adapter.subscribe(controller.signal)) void chunk
+    }
+    const drainPromise = drain().catch(() => {})
+    const firstDeadline = Date.now() + 2000
+    while (state.attachCount - startCount < 1 && Date.now() < firstDeadline) await new Promise((r) => setTimeout(r, 5))
+    expect(state.attachCount - startCount).toBe(1)
+    const bumpedAt = Date.now()
+    adapter.bump()
+    const reconnectDeadline = Date.now() + retryDelayMs
+    while (state.attachCount - startCount < 2 && Date.now() < reconnectDeadline)
+      await new Promise((r) => setTimeout(r, 5))
+    const elapsed = Date.now() - bumpedAt
+    controller.abort()
+    await drainPromise
+    state.holdAttach = false
+    expect(state.attachCount - startCount).toBe(2)
+    expect(elapsed).toBeLessThan(retryDelayMs / 2)
   })
 })
