@@ -48,7 +48,6 @@
   "dependencies": {
     "@ark-ui/solid": "^5.37.1",
     "@conciv/protocol": "workspace:^",
-    "@conciv/solid-diffs": "workspace:^",
     "@conciv/solid-streamdown": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
     "@tanstack/ai-client": "^0.16.3",

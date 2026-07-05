@@ -47,7 +47,6 @@
     "@conciv/ui-kit-system": "workspace:^",
     "js-beautify": "^1.15.4",
     "lucide-solid": "^1.18.0",
-    "shiki": "^4.2.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
