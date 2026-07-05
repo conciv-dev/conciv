@@ -50,7 +50,7 @@ export function startHost(extension: AnyExtension): void {
     client,
     requestMeta: () => ({}),
     grab: makeHostGrab(document),
-    view: {setLocked: () => {}, leave: () => {}},
+    view: {setLocked: () => {}, leave: () => {}, onInsert: () => {}},
   }
   const mountRoot = document.createElement('div')
   document.body.appendChild(mountRoot)
