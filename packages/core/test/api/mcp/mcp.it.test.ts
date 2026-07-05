@@ -1,10 +1,11 @@
 import {describe, expect, it} from 'vitest'
 import {createMCPClient} from '@tanstack/ai-mcp'
-import {startTestServer} from '../../helpers/server.js'
+import {bootKit} from '../../helpers/boot.js'
 
 describe('/api/mcp', () => {
   it('exposes conciv_ui and round-trips a call through the real app', async () => {
-    const {base, close} = await startTestServer()
+    const kit = await bootKit()
+    const {base, cleanup: close} = kit
     const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
     try {
       const tools = await mcp.tools()
@@ -21,7 +22,8 @@ describe('/api/mcp', () => {
   }, 30_000)
 
   it('exposes conciv_extensions and returns the token catalog', async () => {
-    const {base, close} = await startTestServer()
+    const kit = await bootKit()
+    const {base, cleanup: close} = kit
     const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
     try {
       const tools = await mcp.tools()

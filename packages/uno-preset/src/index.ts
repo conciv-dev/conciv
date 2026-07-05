@@ -16,6 +16,7 @@ export function presetAidx(): Preset {
     name: '@conciv/uno-preset',
 
     presets: [presetWind4({preflights: {reset: false}, variablePrefix: 'unx-'}), typography],
+    separators: [':'],
     theme: {colors, radius, font, ease, animation},
     shortcuts: {...shortcuts, ...motion, ...effects, ...shadows},
   }

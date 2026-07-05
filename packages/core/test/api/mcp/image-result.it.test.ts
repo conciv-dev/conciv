@@ -2,7 +2,7 @@ import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {createMCPClient} from '@tanstack/ai-mcp'
 import {defineExtension, defineTool, imageResult} from '@conciv/extension'
-import {startTestServer} from '../../helpers/server.js'
+import {bootKit} from '../../helpers/boot.js'
 
 const PNG_RED_4x4 =
   'iVBORw0KGgoAAAANSUhEUgAAAAQAAAAECAIAAAAmkwkpAAAAEElEQVR4nGP4z8AARwzEcQCukw/x0F8jngAAAABJRU5ErkJggg=='
@@ -17,7 +17,8 @@ const probe = defineExtension({name: 'image-probe', tools: [snap]})
 
 describe('/api/mcp image results', () => {
   it('returns an image content block for an imageResult tool', async () => {
-    const {base, close} = await startTestServer({extensions: [probe]})
+    const kit = await bootKit({extensions: [probe]})
+    const {base, cleanup: close} = kit
     const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
     try {
       const tool = (await mcp.tools()).find((entry) => entry.name === 'probe_snap')

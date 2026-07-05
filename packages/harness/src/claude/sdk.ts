@@ -238,3 +238,7 @@ export function claudeSdkShutdown(): void {
   const ids = [...sessions.keys()]
   for (const id of ids) evict(id)
 }
+
+export function claudeSdkRelease(sessionId: string): void {
+  evict(sessionId)
+}

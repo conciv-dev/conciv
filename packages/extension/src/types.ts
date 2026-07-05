@@ -7,8 +7,24 @@ import type {RequestMeta, SessionClient} from '@conciv/api-client'
 import type {GrabApi} from '@conciv/grab'
 import type {LocateResult} from '@conciv/protocol/page-introspect-types'
 import type {OpenSourceResult} from '@conciv/protocol/page-types'
+import type {TtyCommand, TtyCommandOpts} from '@conciv/protocol/terminal-types'
+import type {UIMessage} from '@conciv/protocol/chat-types'
 
 export type ExtensionSlot = 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget'
+
+export type ExtensionView = {
+  id: string
+  label: string
+  icon?: Component<{class?: string}>
+  Component: Component
+  actions?: Component
+}
+
+export type ExtensionViewHost = {
+  setLocked(locked: boolean): void
+  leave(): void
+  onInsert(handler: ((text: string) => void) | null): void
+}
 
 export type ComposerActions = {
   insert: (text: string) => void
@@ -26,6 +42,7 @@ export type ExtensionHostContext = ToolViewCtx &
     requestMeta: () => RequestMeta
     grab: GrabApi
     currentSlot: ExtensionSlot
+    view: ExtensionViewHost
   }
 
 export type ToolRequest = {sessionId: string; model: string | null}
@@ -63,7 +80,29 @@ export type ClientFactoryResult<ClientReturnValue extends object> = {
   dispose?: () => void
 }
 
-export type ServerApi<Config> = {config: Config; cwd: string; app: H3}
+export type ServerSessions = {
+  resumeToken(sessionId: string): Promise<string | null>
+  recordToken(sessionId: string, token: string): Promise<void>
+  chatBusy(sessionId: string): boolean
+  model(sessionId: string): Promise<string | null>
+  onChatTurn(listener: (sessionId: string) => void): void
+}
+
+export type ServerHarness = {
+  id: string
+  ttyCommand?: (opts: TtyCommandOpts) => TtyCommand
+  release?: (sessionId: string) => void
+  transcriptExists?: (token: string) => boolean
+  transcriptMessages?: (token: string) => Promise<UIMessage[]>
+}
+
+export type ServerApi<Config> = {
+  config: Config
+  cwd: string
+  app: H3
+  sessions: ServerSessions
+  harness: ServerHarness
+}
 
 export type ServerResult<Context> = {
   context: Context

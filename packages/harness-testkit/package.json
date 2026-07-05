@@ -1,0 +1,26 @@
+{
+  "name": "@conciv/harness-testkit",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/testkit.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@conciv/protocol": "workspace:^",
+    "@tanstack/ai": "^0.28.0",
+    "@tanstack/ai-mcp": "^0.1.0",
+    "srvx": "^0.11.18"
+  },
+  "devDependencies": {
+    "@conciv/harness": "workspace:^",
+    "@types/node": "^22.19.21",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  }
+}

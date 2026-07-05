@@ -1,20 +1,13 @@
-import {execSync, spawn} from 'node:child_process'
+import {spawn} from 'node:child_process'
 import {describe, expect, it} from 'vitest'
 import {chat, EventType, type StreamChunk} from '@tanstack/ai'
 import type {HarnessChild} from '@conciv/protocol/harness-types'
 import {harnessText} from '../src/_shared/text-adapter.js'
 import {makeClaudeAdapter} from '../src/claude/index.js'
 
-const claude = makeClaudeAdapter(false)
+const runReal = !process.env.CI
 
-function hasClaude(): boolean {
-  try {
-    execSync('command -v claude', {stdio: 'ignore'})
-    return true
-  } catch {
-    return false
-  }
-}
+const claude = makeClaudeAdapter(false)
 
 const spawnHarness = (args: string[], cwd: string): HarnessChild => {
   const child = spawn('claude', args, {cwd, stdio: ['pipe', 'pipe', 'pipe']})
@@ -28,7 +21,7 @@ const spawnHarness = (args: string[], cwd: string): HarnessChild => {
 }
 
 describe('harnessText adapter', () => {
-  it.skipIf(!hasClaude())(
+  it.skipIf(!runReal)(
     'drives claude through chat() with one lifecycle pair',
     async () => {
       const adapter = harnessText(claude, {cwd: process.cwd(), spawnHarness, systemPrompt: '', onSpawn() {}})

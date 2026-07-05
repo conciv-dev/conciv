@@ -2,7 +2,7 @@ import {expect, test} from 'vitest'
 import {z} from 'zod'
 import {createMCPClient} from '@tanstack/ai-mcp'
 import {defineExtension, defineTool} from '@conciv/extension'
-import {startTestServer} from '../helpers/server.js'
+import {bootKit} from '../helpers/boot.js'
 
 function toolNamed(name: string) {
   return defineTool({name, description: 'd', inputSchema: z.object({})}).server(() => ({ok: name}))
@@ -17,7 +17,8 @@ test('two extensions mount isolated namespaces; both routes serve and both tools
     server.app.get('/where', () => ({who: 'beta'}))
     return {context: {}}
   })
-  const {base, close} = await startTestServer({extensions: [alpha, beta]})
+  const kit = await bootKit({extensions: [alpha, beta]})
+  const {base, cleanup: close} = kit
   try {
     expect(((await (await fetch(`${base}/api/ext/alpha/where`)).json()) as {who: string}).who).toBe('alpha')
     expect(((await (await fetch(`${base}/api/ext/beta/where`)).json()) as {who: string}).who).toBe('beta')
@@ -33,12 +34,12 @@ test('two extensions mount isolated namespaces; both routes serve and both tools
 test('a tool-name collision across extensions is rejected at mount', async () => {
   const a = defineExtension({name: 'a', tools: [toolNamed('dup_tool')]})
   const b = defineExtension({name: 'b', tools: [toolNamed('dup_tool')]})
-  await expect(startTestServer({extensions: [a, b]})).rejects.toThrow(/collision/)
+  await expect(bootKit({extensions: [a, b]})).rejects.toThrow(/collision/)
 })
 
 test('an extension-name collision is rejected at mount', async () => {
   await expect(
-    startTestServer({extensions: [defineExtension({name: 'same'}), defineExtension({name: 'same'})]}),
+    bootKit({extensions: [defineExtension({name: 'same'}), defineExtension({name: 'same'})]}),
   ).rejects.toThrow(/collision/)
 })
 
@@ -50,7 +51,8 @@ test('parseConfig applies schema defaults when the user omits config', async () 
     server.app.get('/factor', () => ({factor: server.config.factor}))
     return {context: {}}
   })
-  const {base, close} = await startTestServer({extensions: [ext]})
+  const kit = await bootKit({extensions: [ext]})
+  const {base, cleanup: close} = kit
   try {
     expect(((await (await fetch(`${base}/api/ext/cfg/factor`)).json()) as {factor: number}).factor).toBe(7)
   } finally {
@@ -66,7 +68,8 @@ test('server.app serves non-GET verbs with a request body', async () => {
     })
     return {context: {}}
   })
-  const {base, close} = await startTestServer({extensions: [ext]})
+  const kit = await bootKit({extensions: [ext]})
+  const {base, cleanup: close} = kit
   try {
     const res = await fetch(`${base}/api/ext/echo/shout`, {
       method: 'POST',

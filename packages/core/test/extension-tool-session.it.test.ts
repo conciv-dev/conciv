@@ -3,7 +3,7 @@ import {z} from 'zod'
 import {createMCPClient} from '@tanstack/ai-mcp'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {defineExtension, defineTool} from '@conciv/extension'
-import {startTestServer} from './helpers/server.js'
+import {bootKit} from './helpers/boot.js'
 
 const echo = defineTool({
   name: 'acme_echo_session',
@@ -15,7 +15,7 @@ const acme = defineExtension({name: 'acme', tools: [echo]})
 
 describe('/api/mcp threads the request session into extension tool execute', () => {
   it('echoes the header session id', async () => {
-    const server = await startTestServer({extensions: [acme]})
+    const server = await bootKit({extensions: [acme]})
     const mcp = await createMCPClient({
       transport: {type: 'http', url: `${server.base}/api/mcp`, headers: {[CONCIV_SESSION_HEADER]: 'conciv_x'}},
     })
@@ -26,7 +26,7 @@ describe('/api/mcp threads the request session into extension tool execute', () 
       expect(result).toContain('conciv_x')
     } finally {
       await mcp.close()
-      await server.close()
+      await server.cleanup()
     }
   }, 30_000)
 })

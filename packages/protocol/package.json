@@ -41,6 +41,10 @@
       "types": "./dist/harness-types.d.ts",
       "import": "./dist/harness-types.js"
     },
+    "./terminal-types": {
+      "types": "./dist/terminal-types.d.ts",
+      "import": "./dist/terminal-types.js"
+    },
     "./bundler-types": {
       "types": "./dist/bundler-types.d.ts",
       "import": "./dist/bundler-types.js"

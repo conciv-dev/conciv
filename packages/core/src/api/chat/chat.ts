@@ -3,7 +3,7 @@ import type {H3} from 'h3'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import type {SessionRecord} from '@conciv/protocol/chat-types'
 import type {UiBus} from '../../runtime/ui-bus.js'
-import {createFsSessionStore} from '../../store/session-store.js'
+import type {SessionStore} from '../../store/session-store.js'
 import {registerLaunchRoutes} from './launch.js'
 import {makePermissionGate, registerPermissionRoutes} from './permission.js'
 import {readLocks} from '../../store/lock.js'
@@ -26,6 +26,8 @@ export type ChatRouteOpts = {
   claudeHome?: string
   uiBus: UiBus
   riskyTools?: ReadonlySet<string>
+  store: SessionStore
+  onTurnStart?: (sessionId: string) => void
   onTurnEnd?: (sessionId: string) => Promise<void>
 }
 
@@ -48,7 +50,7 @@ export async function ensureAgentRecord(deps: ResolveDeps, harnessId: string): P
 export function registerChatRoutes(app: H3, opts: ChatRouteOpts): void {
   const uiBus = opts.uiBus
   const gate = makePermissionGate(uiBus, {risky: opts.riskyTools})
-  const store = createFsSessionStore({stateRoot: opts.stateRoot})
+  const store = opts.store
   const hub = makeTurnHub()
 
   if (opts.initialSessionId) {
@@ -78,6 +80,7 @@ export function registerChatRoutes(app: H3, opts: ChatRouteOpts): void {
     systemPromptText: opts.systemPromptText,
     uiBus,
     store,
+    onTurnStart: opts.onTurnStart,
     onTurnEnd: opts.onTurnEnd,
     hub,
   })

@@ -6,6 +6,7 @@ import {createResizable} from '../lib/resize.js'
 import {createPiP} from './pip.js'
 import {ChevronUp, Columns2, PictureInPicture2, X} from 'lucide-solid'
 import {suppressedAttr} from './suppression.js'
+import {escapeInTerminal} from './terminal-focus.js'
 import {ContextTracker} from '../page/context-tracker.js'
 import {SessionSelector} from '../composer/session-selector.js'
 import {sessions} from '../client/session-store-client.js'
@@ -26,13 +27,17 @@ function bindQuickTerminalHotkeys(opts: {
   open: () => boolean
   setOpen: (v: boolean) => void
   addPane: () => void
+  suppressEscape?: () => boolean
 }): void {
   for (const binding of opts.hotkeys) {
     createHotkey(binding as Bindable, () => opts.setOpen(!opts.open()))
   }
   createHotkey(
     'Escape',
-    () => opts.setOpen(false),
+    () => {
+      if (opts.suppressEscape?.()) return
+      opts.setOpen(false)
+    },
     () => ({enabled: opts.open()}),
   )
   createHotkey(
@@ -202,6 +207,7 @@ export function QuickTerminalLayout(props: {
     open: props.open,
     setOpen: props.setOpen,
     addPane: store.addPane,
+    suppressEscape: () => escapeInTerminal(sectionEl),
   })
 
   return (

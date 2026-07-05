@@ -31,6 +31,10 @@
       "types": "./dist/engine.d.ts",
       "import": "./dist/engine.js"
     },
+    "./app": {
+      "types": "./dist/app.d.ts",
+      "import": "./dist/app.js"
+    },
     "./config": {
       "types": "./dist/config.d.ts",
       "import": "./dist/config.js"
@@ -68,6 +72,7 @@
   },
   "devDependencies": {
     "@conciv/extension": "workspace:^",
+    "@conciv/harness-testkit": "workspace:^",
     "@jridgewell/gen-mapping": "^0.3.13",
     "@tanstack/ai-mcp": "^0.1.0",
     "@types/node": "^22.19.21",

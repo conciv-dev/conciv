@@ -407,6 +407,9 @@ importers:
       '@conciv/extension':
         specifier: workspace:^
         version: link:../extension
+      '@conciv/harness-testkit':
+        specifier: workspace:^
+        version: link:../harness-testkit
       '@jridgewell/gen-mapping':
         specifier: ^0.3.13
         version: 0.3.13
@@ -532,6 +535,85 @@ importers:
       vitest:
         specifier: ^4.1.8
         version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.19.21)(@vitest/browser-playwright@4.1.8)(@vitest/coverage-v8@4.1.8)(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+
+  packages/extensions/terminal:
+    dependencies:
+      '@conciv/api-client':
+        specifier: workspace:^
+        version: link:../../api-client
+      '@conciv/extension':
+        specifier: workspace:^
+        version: link:../../extension
+      '@conciv/protocol':
+        specifier: workspace:^
+        version: link:../../protocol
+      '@conciv/ui-kit-chat':
+        specifier: workspace:^
+        version: link:../../ui-kit-chat
+      '@conciv/ui-kit-chat-tools':
+        specifier: workspace:^
+        version: link:../../ui-kit-chat-tools
+      '@conciv/ui-kit-system':
+        specifier: workspace:^
+        version: link:../../ui-kit-system
+      '@conciv/ui-kit-terminal':
+        specifier: workspace:^
+        version: link:../../ui-kit-terminal
+      '@tanstack/ai-client':
+        specifier: ^0.16.3
+        version: 0.16.3(@opentelemetry/api@1.9.1)
+      h3:
+        specifier: 2.0.1-rc.22
+        version: 2.0.1-rc.22(crossws@0.4.6(srvx@0.11.18))
+      lucide-solid:
+        specifier: ^1.18.0
+        version: 1.18.0(solid-js@1.9.13)
+      node-pty:
+        specifier: ^1.1.0
+        version: 1.1.0
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@conciv/uno-preset':
+        specifier: workspace:*
+        version: link:../../uno-preset
+      '@types/node':
+        specifier: ^22.19.21
+        version: 22.19.21
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.1
+      crossws:
+        specifier: 0.4.6
+        version: 0.4.6(srvx@0.11.18)
+      solid-js:
+        specifier: ^1.9.13
+        version: 1.9.13
+      srvx:
+        specifier: ^0.11.16
+        version: 0.11.18
+      tsdown:
+        specifier: ^0.22.2
+        version: 0.22.2(@arethetypeswrong/core@0.18.3)(oxc-resolver@11.20.0)(publint@0.3.21)(tsx@4.22.4)(typescript@6.0.3)
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      unocss:
+        specifier: ^66.7.2
+        version: 66.7.2(@unocss/postcss@66.7.2(postcss@8.5.16))(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+      vite:
+        specifier: ^8.0.16
+        version: 8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(sass@1.51.0)(tsx@4.22.4)(yaml@2.9.0)
+      vite-plugin-solid:
+        specifier: ^2.11.12
+        version: 2.11.12(@testing-library/jest-dom@6.9.1)(solid-js@1.9.13)(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+      vitest:
+        specifier: ^4.1.8
+        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.19.21)(@vitest/browser-playwright@4.1.8)(@vitest/coverage-v8@4.1.8)(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+      ws:
+        specifier: ^8.21.0
+        version: 8.21.0
 
   packages/extensions/test-runner:
     dependencies:
@@ -746,8 +828,39 @@ importers:
         specifier: ^4.1.8
         version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.19.21)(@vitest/browser-playwright@4.1.8)(@vitest/coverage-v8@4.1.8)(vite@8.1.3(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
 
+  packages/harness-testkit:
+    dependencies:
+      '@conciv/protocol':
+        specifier: workspace:^
+        version: link:../protocol
+      '@tanstack/ai':
+        specifier: ^0.28.0
+        version: 0.28.0(@opentelemetry/api@1.9.1)
+      '@tanstack/ai-mcp':
+        specifier: ^0.1.0
+        version: 0.1.0(@opentelemetry/api@1.9.1)(zod@4.4.3)
+      srvx:
+        specifier: ^0.11.18
+        version: 0.11.18
+    devDependencies:
+      '@conciv/harness':
+        specifier: workspace:^
+        version: link:../harness
+      '@types/node':
+        specifier: ^22.19.21
+        version: 22.20.0
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.8
+        version: 4.1.9(@opentelemetry/api@1.9.1)(@types/node@22.20.0)(@vitest/browser-playwright@4.1.8(playwright@1.61.1)(vite@8.1.3(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))(vitest@4.1.8))(@vitest/coverage-v8@4.1.8(@vitest/browser@4.1.8)(vitest@4.1.8))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+
   packages/it:
     dependencies:
+      '@conciv/extension-terminal':
+        specifier: workspace:^
+        version: link:../extensions/terminal
       '@conciv/extension-test-runner':
         specifier: workspace:^
         version: link:../extensions/test-runner
@@ -1418,6 +1531,49 @@ importers:
         specifier: ^4.1.8
         version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.19.21)(@vitest/browser-playwright@4.1.8)(@vitest/coverage-v8@4.1.8)(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
 
+  packages/ui-kit-terminal:
+    dependencies:
+      '@conciv/protocol':
+        specifier: workspace:^
+        version: link:../protocol
+      '@xterm/addon-fit':
+        specifier: ^0.11.0
+        version: 0.11.0
+      '@xterm/xterm':
+        specifier: ^6.0.0
+        version: 6.0.0
+    devDependencies:
+      '@conciv/uno-preset':
+        specifier: workspace:*
+        version: link:../uno-preset
+      '@types/node':
+        specifier: ^22.19.21
+        version: 22.19.21
+      '@vitest/browser-playwright':
+        specifier: 4.1.8
+        version: 4.1.8(playwright@1.60.0)(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))(vitest@4.1.8)
+      playwright:
+        specifier: ^1.60.0
+        version: 1.60.0
+      solid-js:
+        specifier: ^1.9.13
+        version: 1.9.13
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      unocss:
+        specifier: ^66.7.2
+        version: 66.7.2(@unocss/postcss@66.7.2(postcss@8.5.16))(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+      vite:
+        specifier: ^8.0.16
+        version: 8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(sass@1.51.0)(tsx@4.22.4)(yaml@2.9.0)
+      vite-plugin-solid:
+        specifier: ^2.11.12
+        version: 2.11.12(@testing-library/jest-dom@6.9.1)(solid-js@1.9.13)(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+      vitest:
+        specifier: ^4.1.8
+        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.19.21)(@vitest/browser-playwright@4.1.8)(@vitest/coverage-v8@4.1.8)(vite@8.0.16(@types/node@22.19.21)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+
   packages/uno-preset:
     dependencies:
       '@unocss/preset-typography':
@@ -1509,6 +1665,12 @@ importers:
       '@chromatic-com/storybook':
         specifier: ^5.2.1
         version: 5.2.1(storybook@10.4.4(@testing-library/dom@10.4.1)(@types/react@19.2.17)(prettier@3.8.4)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))
+      '@conciv/core':
+        specifier: workspace:^
+        version: link:../core
+      '@conciv/extension-terminal':
+        specifier: workspace:^
+        version: link:../extensions/terminal
       '@conciv/extension-test-runner':
         specifier: workspace:^
         version: link:../extensions/test-runner
@@ -6763,6 +6925,12 @@ packages:
     resolution: {integrity: sha512-kMwLlxUbduttIgaPdSkmEarFpP+mSY8FEm+QWMBRJwxOHWkri+cxd8KZHO9EMrB9vgUuz+5WEaCawaL5wGVoXg==}
     engines: {node: '>=18.0.0'}
 
+  '@xterm/addon-fit@0.11.0':
+    resolution: {integrity: sha512-jYcgT6xtVYhnhgxh3QgYDnnNMYTcf8ElbxxFzX0IZo+vabQqSPAjC3c1wJrKB5E19VwQei89QCiZZP86DCPF7g==}
+
+  '@xterm/xterm@6.0.0':
+    resolution: {integrity: sha512-TQwDdQGtwwDt+2cgKDLn0IRaSxYu1tSUjgKarSDkUM0ZNiSRXFpjxEsvc/Zgc5kq5omJ+V0a8/kIM2WD3sMOYg==}
+
   '@zag-js/accordion@1.41.2':
     resolution: {integrity: sha512-7G//V7svGGT8k5avw7bbQvbRC0Q/9QtX51b4iyAB1alR9E5mFd6Ch8q4njwcXClMQ7xePS3jUfVnzVGiRInEiQ==}
 
@@ -9975,6 +10143,9 @@ packages:
       zephyr-agent:
         optional: true
 
+  node-addon-api@7.1.1:
+    resolution: {integrity: sha512-5m3bsyrjFWE1xf7nz7YXdN4udnVtXK6/Yfgn5qnahL6bCkf2yKt4k3nuTKAtT4r3IG8JNR2ncsIMdZuAzJjHQQ==}
+
   node-domexception@1.0.0:
     resolution: {integrity: sha512-/jKZoMpw0F8GRwl4/eLROPA3cfcXtLApP0QzLmUT/HuPCZWyB7IY9ZrMeKw2O/nFIqPQB3PVM9aYm0F312AXDQ==}
     engines: {node: '>=10.5.0'}
@@ -10006,6 +10177,9 @@ packages:
 
   node-mock-http@1.0.4:
     resolution: {integrity: sha512-8DY+kFsDkNXy1sJglUfuODx1/opAGJGyrTuFqEoN90oRc2Vk0ZbD4K2qmKXBBEhZQzdKHIVfEJpDU8Ak2NJEvQ==}
+
+  node-pty@1.1.0:
+    resolution: {integrity: sha512-20JqtutY6JPXTUnL0ij1uad7Qe1baT46lyolh2sSENDd4sTzKZ4nmAFkeAARDKwmlLjPx6XKRlwRUxwjOy+lUg==}
 
   node-releases@2.0.47:
     resolution: {integrity: sha512-Uzmd6LXpouKo8EUK68IjH4+E01w/hXyV3R3g/geCJo+rXLNfh1xucB+LOzYEOQPSiUK3h/xZf0cQGcSsmyL2Og==}
@@ -17422,6 +17596,10 @@ snapshots:
       tslib: 2.8.1
     optional: true
 
+  '@xterm/addon-fit@0.11.0': {}
+
+  '@xterm/xterm@6.0.0': {}
+
   '@zag-js/accordion@1.41.2':
     dependencies:
       '@zag-js/anatomy': 1.41.2
@@ -21434,6 +21612,8 @@ snapshots:
       - uploadthing
       - wrangler
 
+  node-addon-api@7.1.1: {}
+
   node-domexception@1.0.0: {}
 
   node-emoji@2.2.0:
@@ -21463,6 +21643,10 @@ snapshots:
       formdata-polyfill: 4.0.10
 
   node-mock-http@1.0.4: {}
+
+  node-pty@1.1.0:
+    dependencies:
+      node-addon-api: 7.1.1
 
   node-releases@2.0.47: {}
 

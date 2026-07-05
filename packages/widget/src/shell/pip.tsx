@@ -18,6 +18,26 @@ const DELEGATED = [
 const PIP_WRAP =
   'fixed inset-0 flex [&>*]:!static [&>*]:!inset-auto [&>*]:!w-full [&>*]:!h-full [&>*]:!max-h-none [&>*]:!transform-none [&>*]:!opacity-100 [&>*]:!visible [&>*]:!pointer-events-auto [&>*]:!border-none [&>*]:!rounded-none [&>*]:!shadow-none [&_[role=separator]]:hidden'
 
+function copyStylesInto(root: ShadowRoot, node: HTMLElement, doc: Document): void {
+  const sourceRoot = node.getRootNode()
+  const sourceStyles = sourceRoot instanceof ShadowRoot ? [...sourceRoot.querySelectorAll('style')] : []
+  if (sourceStyles.length > 0) {
+    for (const sourceStyle of sourceStyles) root.appendChild(sourceStyle.cloneNode(true))
+    return
+  }
+  const style = doc.createElement('style')
+  style.textContent = styles
+  root.appendChild(style)
+}
+
+function themeClassesFor(node: HTMLElement): string[] {
+  const classes: string[] = []
+  for (let ancestor = node.parentElement; ancestor; ancestor = ancestor.parentElement) {
+    classes.push(...[...ancestor.classList].filter((name) => name.startsWith('chat-theme-')))
+  }
+  return classes
+}
+
 export function createPiP(): {
   active: () => boolean
   open: (node: HTMLElement, opts?: {title?: string; width?: number; height?: number}) => void
@@ -55,11 +75,9 @@ export function createPiP(): {
     host.setAttribute('data-pw-pip-host', '')
     w.document.body.appendChild(host)
     const root = host.attachShadow({mode: 'open'})
-    const style = w.document.createElement('style')
-    style.textContent = styles
-    root.appendChild(style)
+    copyStylesInto(root, node, w.document)
     const wrap = w.document.createElement('div')
-    wrap.className = PIP_WRAP
+    wrap.className = [PIP_WRAP, ...themeClassesFor(node)].join(' ')
     root.appendChild(wrap)
 
     placeholder = node.ownerDocument.createComment('conciv-pip')

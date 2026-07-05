@@ -1,5 +1,7 @@
 # TTY Terminal Mode Implementation Plan
 
+> **Superseded by** `../specs/2026-07-04-terminal-extension-design.md` + `2026-07-04-terminal-extension.md` (v2) — executed through Task 7; the remaining work landed via the v2 plan.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Header toggle in the widget chat panel that switches between the structured chat view and a live terminal streaming the exact TTY bytes of the harness CLI (claude first), same conversation across the toggle.

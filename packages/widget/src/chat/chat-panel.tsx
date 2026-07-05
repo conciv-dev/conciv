@@ -11,7 +11,8 @@ import {
   Show,
   type JSX,
 } from 'solid-js'
-import {Progress} from '@conciv/ui-kit-system'
+import {Dynamic} from 'solid-js/web'
+import {Progress, Tabs} from '@conciv/ui-kit-system'
 import {useChat, createChatClientOptions} from '@tanstack/ai-solid'
 import type {MessagePart, ToolCallPart, ToolResultPart, UIMessage} from '@tanstack/ai-client'
 import {attachConnection} from '../client/attach-connection.js'
@@ -56,6 +57,8 @@ import type {ComposerActionDef, ComposerControlDef, PanelDef} from '../shell/she
 import {GrabReference} from '../page/react-grab/grab-reference.js'
 import type {Grab, GrabApi} from '@conciv/grab'
 import {ExtensionSurface, type ExtensionHostBag, type ExtensionInstance} from '../extension/extension-slots.js'
+import {collectViews, type PanelView} from '../extension/extension-views.js'
+import {MountedView} from '@conciv/extension/client'
 import {EmptyStateSlot} from '../shell/empty-state.js'
 import {grabApi} from '../page/grab-api.js'
 import {readPaneSnapshot, writePaneSnapshot, clearPaneSnapshot, type PaneSnapshot} from '../lib/ui-snapshot.js'
@@ -331,11 +334,31 @@ export function ChatPanel(props: {
 
   const focusInput = () => requestAnimationFrame(() => inputEl?.focus())
 
+  const views = createMemo(() => collectViews(props.instances))
+  const [activeView, setActiveView] = createSignal('chat')
+  const [viewLocks, setViewLocks] = createSignal<Record<string, boolean>>({})
+  const setLockedFor = (id: string) => (locked: boolean) => setViewLocks((prev) => ({...prev, [id]: locked}))
+  const viewLocked = () => activeView() !== 'chat' && Boolean(viewLocks()[activeView()])
+  const leaveGuard = () => isThinking() || isStreaming() || viewLocked()
+  const currentView = () => views().find((view) => view.id === activeView())
+  const tabIndex = (id: string) => (id === 'chat' ? 0 : views().findIndex((view) => view.id === id) + 1)
+  const [slideDir, setSlideDir] = createSignal<'left' | 'right' | null>(null)
+  const slideClass = () => (slideDir() === 'right' ? 'anim-tab-right' : slideDir() === 'left' ? 'anim-tab-left' : '')
+
+  const switchView = (next: string) => {
+    if (next === activeView()) return
+    setSlideDir(tabIndex(next) > tabIndex(activeView()) ? 'right' : 'left')
+    setActiveView(next)
+    const view = views().find((candidate) => candidate.id === next)
+    props.announce?.(view ? view.label : 'Chat')
+    if (next === 'chat') connection.bump()
+  }
+
+  const seenSession = {id: null as string | null}
   createEffect(() => {
     const id = client.sessionId()
     if (!props.active || !id) return
     props.onActiveSession?.(id)
-    focusInput()
     void client
       .session()
       .then((session) => {
@@ -343,6 +366,11 @@ export function ChatPanel(props: {
         setUsage((prev) => session.usage ?? prev)
       })
       .catch(() => {})
+    const switched = seenSession.id !== null && seenSession.id !== id
+    seenSession.id = id
+    if (currentView()) return
+    if (switched) setActiveView('chat')
+    focusInput()
   })
 
   const onSend = (text: string) => {
@@ -525,6 +553,7 @@ export function ChatPanel(props: {
   }
 
   const [notice, setNotice] = createSignal('')
+
   let noticeTimer: ReturnType<typeof setTimeout> | undefined
   const notify = (message: string) => {
     setNotice(message)
@@ -552,7 +581,12 @@ export function ChatPanel(props: {
     )
   }
 
-  const grab: GrabApi = {...grabApi, stage: stageGrab}
+  const grab: GrabApi = {
+    ...grabApi,
+    stage: stageGrab,
+    staged: () => grabs().flatMap((entry) => ('snapshot' in entry ? [entry] : [])),
+    clear: () => setGrabs([]),
+  }
   const hostBag: ExtensionHostBag = {
     ...toolCtx,
     insert,
@@ -565,6 +599,22 @@ export function ChatPanel(props: {
     client,
     requestMeta,
     grab,
+    view: {setLocked: () => {}, leave: () => {}, onInsert: () => {}},
+  }
+
+  const viewHostContext = (view: PanelView) => ({
+    ...hostBag,
+    view: {
+      setLocked: setLockedFor(view.id),
+      leave: () => switchView('chat'),
+      onInsert: () => {},
+    },
+  })
+
+  const renderActiveView = (): JSX.Element => {
+    const view = currentView()
+    if (!view) return null
+    return <MountedView view={view} hostContext={viewHostContext(view)} clientValue={view.instance.clientValue} />
   }
 
   const renderDivider = (divider: {id: number; kind: 'new' | 'compact'}): JSX.Element => (
@@ -591,111 +641,169 @@ export function ChatPanel(props: {
             <ExtensionSurface name="header" instances={props.instances} bag={hostBag} />
             <ExtensionSurface name="widget" instances={props.instances} bag={hostBag} />
             <div class="flex flex-1 flex-col min-h-0">
-              <Thread
-                tools={props.tools?.()}
-                components={{ToolFallback: ToolFallbackCard}}
-                turnPrefix={renderTurnPrefix}
-                viewportRef={(el) => {
-                  viewportEl = el
-                }}
-                viewportFooter={
-                  <>
-                    <For each={dividersAt(chat.messages().length)}>{renderDivider}</For>
-                    <For each={genUi()}>
-                      {(spec) => <GenUi spec={spec} onAnswer={(text) => answerGenUi(spec.renderId, text)} />}
-                    </For>
-                    <Show when={isThinking()}>
-                      <ThinkingBubble />
-                    </Show>
-                    <Show when={nowTitleText()}>
-                      {(title) => <NowLine title={title()} onStop={() => chat.stop()} />}
-                    </Show>
-                    <Show when={visibleError()}>
-                      {(error) => (
-                        <div class={ERROR} role="alert">
-                          <span class="flex-1">{error().message}</span>
-                          <button type="button" class={RETRY} onClick={() => void chat.reload()}>
-                            Retry
-                          </button>
-                        </div>
-                      )}
-                    </Show>
-                  </>
-                }
-                welcome={
-                  <EmptyStateSlot
-                    onStarter={(starter) => void chat.sendMessage(starter)}
-                    instances={props.instances}
-                    bag={hostBag}
-                  />
-                }
-                composer={
-                  <>
-                    <ExtensionSurface name="status" instances={props.instances} bag={hostBag} />
-                    <ExtensionSurface name="footer" instances={props.instances} bag={hostBag} />
-                    <Show when={disconnected()}>
-                      <div class={RECONNECT} aria-hidden="true">
-                        <span class={`${DOT} anim-dot1`} />
-                        <span class="flex-1">Reconnecting…</span>
+              <Show when={views().length > 0}>
+                <div class="px-2.5 flex gap-2 items-center">
+                  <Tabs.Root
+                    value={activeView()}
+                    onValueChange={(details) => switchView(details.value)}
+                    class="flex-1 min-w-0"
+                  >
+                    <Tabs.List>
+                      <Tabs.Trigger value="chat" disabled={leaveGuard()}>
+                        Chat
+                      </Tabs.Trigger>
+                      <For each={views()}>
+                        {(view) => (
+                          <Tabs.Trigger value={view.id} disabled={leaveGuard()}>
+                            <Show when={view.icon}>{(icon) => <Dynamic component={icon()} class="size-3.5" />}</Show>
+                            {view.label}
+                          </Tabs.Trigger>
+                        )}
+                      </For>
+                      <Tabs.Indicator />
+                    </Tabs.List>
+                  </Tabs.Root>
+                  <Show when={currentView()}>
+                    {(view) => (
+                      <Show when={view().actions}>
+                        {(actions) => (
+                          <div class="flex gap-1 items-center">
+                            <MountedView
+                              view={{...view(), Component: actions()}}
+                              hostContext={viewHostContext(view())}
+                              clientValue={view().instance.clientValue}
+                            />
+                          </div>
+                        )}
+                      </Show>
+                    )}
+                  </Show>
+                </div>
+              </Show>
+              <Show
+                when={!currentView()}
+                fallback={
+                  <div class={`flex flex-1 flex-col min-h-0 ${slideClass()}`}>
+                    <Show when={grabs().length > 0}>
+                      <div class="px-2.5 pt-2 flex flex-wrap gap-2">
+                        <For each={grabs()}>
+                          {(g) => (
+                            <GrabReference grab={g} maxWidth={GRAB_PREVIEW_MAX_W} onRemove={() => removeGrab(g)} />
+                          )}
+                        </For>
                       </div>
                     </Show>
-                    <Show when={notice()}>
-                      <div class="text-[0.75rem] text-pw-text-2 leading-[1.4] font-medium font-pw px-2.5 py-2 border border-pw-line rounded-pw-md bg-pw-fill [word-break:break-word]">
-                        {notice()}
-                      </div>
-                    </Show>
-                    <For each={grabs()}>
-                      {(g) => <GrabReference grab={g} maxWidth={GRAB_PREVIEW_MAX_W} onRemove={() => removeGrab(g)} />}
-                    </For>
-                    <Composer
-                      placeholder="Ask a question…"
-                      inputLabel="Message the conciv agent"
-                      inputRef={(el) => {
-                        inputEl = el
-                      }}
-                      busy={compacting() ? <CompactSpinner /> : undefined}
-                      popover={
-                        <TriggerMenus
-                          client={client}
-                          active={() => props.active ?? true}
-                          turnCount={() => chat.messages().length}
-                        />
-                      }
-                    >
-                      <For each={props.composerActions?.() ?? []}>
-                        {(action) => {
-                          const Icon = action.icon
-                          return (
-                            <button
-                              type="button"
-                              class={ACT}
-                              aria-label={action.label}
-                              title={action.label}
-                              classList={{
-                                'opacity-60': busyAction() === action.id,
-                                'cursor-progress': busyAction() === action.id,
-                              }}
-                              onClick={() => runAction(action)}
-                            >
-                              <Icon class="size-5 block" />
+                    {renderActiveView()}
+                  </div>
+                }
+              >
+                <Thread
+                  class={slideClass()}
+                  tools={props.tools?.()}
+                  components={{ToolFallback: ToolFallbackCard}}
+                  turnPrefix={renderTurnPrefix}
+                  viewportRef={(el) => {
+                    viewportEl = el
+                  }}
+                  viewportFooter={
+                    <>
+                      <For each={dividersAt(chat.messages().length)}>{renderDivider}</For>
+                      <For each={genUi()}>
+                        {(spec) => <GenUi spec={spec} onAnswer={(text) => answerGenUi(spec.renderId, text)} />}
+                      </For>
+                      <Show when={isThinking()}>
+                        <ThinkingBubble />
+                      </Show>
+                      <Show when={nowTitleText()}>
+                        {(title) => <NowLine title={title()} onStop={() => chat.stop()} />}
+                      </Show>
+                      <Show when={visibleError()}>
+                        {(error) => (
+                          <div class={ERROR} role="alert">
+                            <span class="flex-1">{error().message}</span>
+                            <button type="button" class={RETRY} onClick={() => void chat.reload()}>
+                              Retry
                             </button>
-                          )
-                        }}
+                          </div>
+                        )}
+                      </Show>
+                    </>
+                  }
+                  welcome={
+                    <EmptyStateSlot
+                      onStarter={(starter) => void chat.sendMessage(starter)}
+                      instances={props.instances}
+                      bag={hostBag}
+                    />
+                  }
+                  composer={
+                    <>
+                      <ExtensionSurface name="status" instances={props.instances} bag={hostBag} />
+                      <ExtensionSurface name="footer" instances={props.instances} bag={hostBag} />
+                      <Show when={disconnected()}>
+                        <div class={RECONNECT} aria-hidden="true">
+                          <span class={`${DOT} anim-dot1`} />
+                          <span class="flex-1">Reconnecting…</span>
+                        </div>
+                      </Show>
+                      <Show when={notice()}>
+                        <div class="text-[0.75rem] text-pw-text-2 leading-[1.4] font-medium font-pw px-2.5 py-2 border border-pw-line rounded-pw-md bg-pw-fill [word-break:break-word]">
+                          {notice()}
+                        </div>
+                      </Show>
+                      <For each={grabs()}>
+                        {(g) => <GrabReference grab={g} maxWidth={GRAB_PREVIEW_MAX_W} onRemove={() => removeGrab(g)} />}
                       </For>
-                      <ExtensionSurface name="composer" instances={props.instances} bag={hostBag} />
-                      <For each={props.composerControls?.() ?? []}>
-                        {(control) => control.create({apiBase: props.apiBase, setRequestMeta: mergeRequestMeta})}
-                      </For>
-                      <ComposerStateBridge
-                        onReady={(api) => {
-                          composerApi.current = api
-                          maybeRestore()
+                      <Composer
+                        placeholder="Ask a question…"
+                        inputLabel="Message the conciv agent"
+                        inputRef={(el) => {
+                          inputEl = el
                         }}
-                      />
-                    </Composer>
-                  </>
-                }
-              />
+                        busy={compacting() ? <CompactSpinner /> : undefined}
+                        popover={
+                          <TriggerMenus
+                            client={client}
+                            active={() => props.active ?? true}
+                            turnCount={() => chat.messages().length}
+                          />
+                        }
+                      >
+                        <For each={props.composerActions?.() ?? []}>
+                          {(action) => {
+                            const Icon = action.icon
+                            return (
+                              <button
+                                type="button"
+                                class={ACT}
+                                aria-label={action.label}
+                                title={action.label}
+                                classList={{
+                                  'opacity-60': busyAction() === action.id,
+                                  'cursor-progress': busyAction() === action.id,
+                                }}
+                                onClick={() => runAction(action)}
+                              >
+                                <Icon class="size-5 block" />
+                              </button>
+                            )
+                          }}
+                        </For>
+                        <ExtensionSurface name="composer" instances={props.instances} bag={hostBag} />
+                        <For each={props.composerControls?.() ?? []}>
+                          {(control) => control.create({apiBase: props.apiBase, setRequestMeta: mergeRequestMeta})}
+                        </For>
+                        <ComposerStateBridge
+                          onReady={(api) => {
+                            composerApi.current = api
+                            maybeRestore()
+                          }}
+                        />
+                      </Composer>
+                    </>
+                  }
+                />
+              </Show>
             </div>
             <div class="sr-only" role="status" aria-live="polite">
               {liveMsg()}

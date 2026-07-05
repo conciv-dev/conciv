@@ -29,7 +29,7 @@ function startPick(mode: 'activate' | 'comment'): Promise<Grab | null> {
   })
 }
 
-export const grabApi: Omit<GrabApi, 'stage'> = {
+export const grabApi: Omit<GrabApi, 'stage' | 'staged' | 'clear'> = {
   pick: () => startPick('activate'),
   comment: () => startPick('comment'),
   cancel: cancelPick,

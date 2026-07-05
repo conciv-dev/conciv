@@ -64,6 +64,7 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@conciv/extension-terminal": "workspace:^",
     "@conciv/extension-test-runner": "workspace:^",
     "@conciv/extension-whiteboard": "workspace:^",
     "@conciv/plugin": "workspace:^"

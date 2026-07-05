@@ -66,6 +66,16 @@
       }
     },
     {
+      "files": [
+        "packages/extensions/terminal/src/server/**",
+        "packages/extensions/terminal/test/**",
+        "packages/ui-kit-terminal/**"
+      ],
+      "rules": {
+        "no-control-regex": "off"
+      }
+    },
+    {
       "files": ["packages/solid-streamdown/**"],
       "rules": {
         "unocss/order": "off"

@@ -9,6 +9,7 @@ import type {
   ExtensionCommand,
   ExtensionHostContext,
   ExtensionSlot,
+  ExtensionView,
   RequiredContext,
   ServerApi,
   ServerResult,
@@ -23,6 +24,7 @@ export type ExtensionMeta<Name extends string, Schema extends z.ZodType, Tools e
   configSchema?: Schema
   tools?: Tools
   commands?: readonly ExtensionCommand[]
+  views?: readonly ExtensionView[]
   Component?: Component
   systemPrompt?: string
   theme?: ThemeTokens
@@ -41,6 +43,7 @@ export type ExtensionBuilder<
   theme?: ThemeTokens
   tools?: Tools
   commands?: readonly ExtensionCommand[]
+  views?: readonly ExtensionView[]
   parseConfig: (raw: unknown) => ConfigOf<Schema>
   __client?(): ClientFactoryResult<ClientValue>
   __server?(server: ServerApi<ConfigOf<Schema>>): ServerResult<unknown> | Promise<ServerResult<unknown>>
@@ -92,6 +95,7 @@ export function defineExtension<
     theme: meta.theme,
     tools: meta.tools,
     commands: meta.commands,
+    views: meta.views,
     parseConfig: (raw: unknown) => parseExtensionConfig(meta.configSchema, raw),
     useClientApi,
     useSlot,

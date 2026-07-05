@@ -40,6 +40,7 @@ function toGrab(element: Element): Grab {
 
 export function makeHostGrab(doc: Document): GrabApi {
   let teardown: (() => void) | null = null
+  const stagedGrabs: Grab[] = []
 
   const pick = (): Promise<Grab | null> =>
     new Promise((resolve) => {
@@ -65,7 +66,9 @@ export function makeHostGrab(doc: Document): GrabApi {
     comment: pick,
     cancel: () => teardown?.(),
     isActive: () => teardown !== null,
-    stage: () => {},
+    stage: (grab) => void stagedGrabs.push(grab),
+    staged: () => stagedGrabs,
+    clear: () => void (stagedGrabs.length = 0),
   }
 }
 

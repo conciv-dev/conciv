@@ -37,6 +37,7 @@
     "@conciv/extension-whiteboard",
     "@conciv/grab",
     "@conciv/harness",
+    "@conciv/harness-testkit",
     "@conciv/it",
     "@conciv/mascot",
     "@conciv/plugin",

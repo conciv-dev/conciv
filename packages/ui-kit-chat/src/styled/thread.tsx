@@ -48,6 +48,8 @@ export type ThreadProps = {
   viewportRef?: (element: HTMLElement) => void
 
   overlay?: JSX.Element
+
+  class?: string
 }
 
 function asThinking(part: MessagePart | undefined): Extract<MessagePart, {type: 'thinking'}> | null {
@@ -227,7 +229,9 @@ export function Thread(props: ThreadProps): JSX.Element {
         turnPrefix: () => props.turnPrefix,
       }}
     >
-      <div class="flex flex-col h-full min-h-0 [color:var(--chat-text)] [font-family:var(--chat-font)]">
+      <div
+        class={`flex flex-col h-full min-h-0 [color:var(--chat-text)] [font-family:var(--chat-font)] ${props.class ?? ''}`}
+      >
         <ThreadPrimitive.Viewport
           ref={props.viewportRef}
           class="px-3 py-3 flex flex-1 flex-col gap-3 min-h-0 relative overflow-y-auto"

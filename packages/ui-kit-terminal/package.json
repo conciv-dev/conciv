@@ -1,0 +1,62 @@
+{
+  "name": "@conciv/ui-kit-terminal",
+  "version": "0.0.1",
+  "description": "Compound SolidJS terminal components for conciv tty mode: a headless xterm.js model + primitives (Root/Screen/Banner) plus a styled terminal surface.",
+  "keywords": [
+    "conciv",
+    "solid-js",
+    "terminal",
+    "tty",
+    "ui-kit",
+    "xterm"
+  ],
+  "homepage": "https://conciv.dev",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/ui-kit-terminal"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "vite build && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only"
+  },
+  "dependencies": {
+    "@conciv/protocol": "workspace:^",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0"
+  },
+  "devDependencies": {
+    "@conciv/uno-preset": "workspace:*",
+    "@types/node": "^22.19.21",
+    "@vitest/browser-playwright": "4.1.8",
+    "playwright": "^1.60.0",
+    "solid-js": "^1.9.13",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vite-plugin-solid": "^2.11.12",
+    "vitest": "^4.1.8",
+    "unocss": "^66.7.2"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.9.13"
+  }
+}

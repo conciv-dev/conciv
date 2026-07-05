@@ -19,6 +19,7 @@ import {readShellSnapshotOrDefault, writeShellSnapshot} from '../lib/ui-snapshot
 import type {SessionId} from '@conciv/protocol/chat-types'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 import {createModalPanes, type ModalPane} from './modal-panes.js'
+import {escapeInTerminal} from './terminal-focus.js'
 import {CLOSE, type ComposerActionDef, type ComposerControlDef, type PanelDef} from './shell-contract.js'
 
 export function createWidgetShell(opts: {settings: WidgetSettings}): {
@@ -348,7 +349,10 @@ function ModalLayout(props: {
   const toggle = () => (props.open() ? closePanel() : props.onOpen())
 
   const onPanelKeyDown = (e: KeyboardEvent) => {
-    if (e.key === 'Escape') closePanel()
+    if (e.key !== 'Escape') return
+    if (escapeInTerminal(panelEl)) return
+    e.preventDefault()
+    closePanel()
   }
 
   return (

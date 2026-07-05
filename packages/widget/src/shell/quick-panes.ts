@@ -1,4 +1,4 @@
-import {createEffect, createSignal, type JSX} from 'solid-js'
+import {createEffect, createSignal, getOwner, runWithOwner, type JSX} from 'solid-js'
 import {defineClient, type SessionClient} from '@conciv/api-client'
 import {SessionId, isSessionId} from '@conciv/protocol/chat-types'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
@@ -75,6 +75,7 @@ export function createQuickPanes(opts: {
   closePane: (id: number) => void
 } {
   const apiBase = opts.panel.apiBase ?? ''
+  const owner = getOwner()
   const [panes, setPanes] = createSignal<QuickPane[]>([])
   const [focused, setFocused] = createSignal(0)
   let seq = 0
@@ -104,6 +105,7 @@ export function createQuickPanes(opts: {
       announce: opts.announce,
       composerActions: opts.composerActions,
       composerControls: opts.composerControls,
+      build: (create) => runWithOwner(owner, create),
     })
     setPanes((ps) => [...ps, {id, client, content: pane.content, usage: pane.usage, working: pane.working}])
     writePaneIds(paneIds())

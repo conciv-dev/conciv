@@ -31,4 +31,6 @@ export type GrabApi = {
   cancel: () => void
   isActive: () => boolean
   stage: (grab: Grab) => void
+  staged: () => readonly Grab[]
+  clear: () => void
 }

@@ -1,14 +1,15 @@
 import {expect, test} from 'vitest'
 import {createMCPClient} from '@tanstack/ai-mcp'
-import {startTestServer} from '../helpers/server.js'
+import {bootKit} from '../helpers/boot.js'
 import {sampleServerExtension, sampleState} from '../fixtures/sample-server-extension.js'
 
 test('extension route serves typed config; tool runs against injected ctx; dispose on close', async () => {
   sampleState.disposed = false
-  const {base, close} = await startTestServer({
+  const kit = await bootKit({
     extensions: [sampleServerExtension],
     extensionConfig: {sample: {factor: 5}},
   })
+  const {base, cleanup: close} = kit
   try {
     const echo = (await (await fetch(`${base}/api/ext/sample/echo`)).json()) as {factor: number; cwd: string}
     expect(echo.factor).toBe(5)

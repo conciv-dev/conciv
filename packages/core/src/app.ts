@@ -1,7 +1,9 @@
+import {existsSync} from 'node:fs'
+import {readFile} from 'node:fs/promises'
 import {H3} from 'h3'
 import type {HarnessAdapter, HarnessChild} from '@conciv/protocol/harness-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
-import type {AnyExtension, ToolRequest} from '@conciv/extension'
+import type {AnyExtension, ServerHarness, ServerSessions, ToolRequest} from '@conciv/extension'
 import type {ResolvedConcivConfig} from './config.js'
 import {getHarness} from '@conciv/harness'
 import {makeExtensionApp} from './extension-app.js'
@@ -9,6 +11,9 @@ import {originAllowed, registerCors} from './api/cors.js'
 import {concivTools, type ConcivToolContext} from '@conciv/tools'
 import type {ChatTool} from '@conciv/protocol/chat-types'
 import {registerChatRoutes} from './api/chat/chat.js'
+import {ensureChatRecord, recordMintedToken, resumeTokenFor} from './api/chat/turn.js'
+import {readLock} from './store/lock.js'
+import {createFsSessionStore} from './store/session-store.js'
 import {registerMcpRoutes} from './api/mcp/mcp.js'
 import {registerToolsRoute} from './api/chat/tools-route.js'
 import {registerPageRoutes} from './api/page/page.js'
@@ -38,6 +43,8 @@ export type MakeAppOpts = {
   claudeHome?: string
 
   allowedOrigins?: string[]
+
+  harness?: HarnessAdapter
 }
 
 function requireHarness(id: string): HarnessAdapter {
@@ -50,8 +57,9 @@ export type MadeApp = {app: H3; disposers: (() => void | Promise<void>)[]; exten
 
 export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const app = new H3()
-  const harness = requireHarness(opts.cfg.harness)
+  const harness = opts.harness ?? requireHarness(opts.cfg.harness)
   const uiBus = makeUiBus()
+  const store = createFsSessionStore({stateRoot: opts.cfg.stateRoot})
 
   const riskyTools = new Set(
     (opts.extensions ?? [])
@@ -60,12 +68,37 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       .map((tool) => `mcp__conciv__${tool.name}`),
   )
 
+  const chatTurnListeners: ((sessionId: string) => void)[] = []
+
   registerCors(app, opts.allowedOrigins ?? [])
   const page = registerPageRoutes(app, {journal: makeJournal(), root: opts.cwd})
   registerEditorRoutes(app, opts.openInEditor)
   registerOpenSourceRoute(app, {openInEditor: opts.openInEditor, root: opts.cwd})
 
   const guard = (origin: string | null) => originAllowed(origin, new Set(opts.allowedOrigins ?? []))
+  const serverSessions: ServerSessions = {
+    resumeToken: (sessionId) => resumeTokenFor(store, sessionId),
+    recordToken: async (sessionId, token) => {
+      await ensureChatRecord(store, sessionId, harness.id, opts.cwd)
+      await recordMintedToken(store, sessionId, token)
+    },
+    chatBusy: (sessionId) => readLock(opts.cfg.stateRoot, sessionId).held,
+    model: async (sessionId) => (await store.get(sessionId))?.model ?? null,
+    onChatTurn: (listener) => chatTurnListeners.push(listener),
+  }
+  const history = harness.history
+  const serverHarness: ServerHarness = {
+    id: harness.id,
+    ttyCommand: harness.tty?.command,
+    release: harness.release,
+    transcriptExists: history ? (token) => existsSync(history.transcriptPath(opts.cwd, token)) : undefined,
+    transcriptMessages: history
+      ? async (token) => {
+          const raw = await readFile(history.transcriptPath(opts.cwd, token), 'utf8').catch(() => '')
+          return raw ? history.parse(raw) : []
+        }
+      : undefined,
+  }
   const seenTools = new Set<string>()
   const seenNames = new Set<string>()
   const mounted = await Promise.all(
@@ -76,6 +109,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         config: extension.parseConfig(opts.extensionConfig?.[extension.name]),
         cwd: opts.cwd,
         app: makeExtensionApp(app, extension.name, guard),
+        sessions: serverSessions,
+        harness: serverHarness,
       })
       const context = result?.context
       const tools = (extension.tools ?? []).flatMap((tool) => {
@@ -121,6 +156,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     claudeHome: opts.claudeHome,
     uiBus,
     riskyTools,
+    store,
+    onTurnStart: (sessionId) => chatTurnListeners.forEach((listener) => listener(sessionId)),
     onTurnEnd,
   })
 
