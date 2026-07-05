@@ -1,10 +1,15 @@
 import {describe, it, expect} from 'vitest'
-import {settledMessages} from '../../../src/api/chat/settled-history.js'
+import {settledMessages, userText} from '../../../src/api/chat/settled-history.js'
 
 const user = (id: string, text: string) => ({
   id,
   role: 'user' as const,
   parts: [{type: 'text' as const, content: text}],
+})
+const multiPartUser = (id: string, ...texts: string[]) => ({
+  id,
+  role: 'user' as const,
+  parts: texts.map((content) => ({type: 'text' as const, content})),
 })
 const assistant = (id: string, text: string) => ({
   id,
@@ -31,5 +36,11 @@ describe('settledMessages', () => {
   it('cuts at the LAST occurrence for repeated identical prompts', () => {
     const messages = [user('h1', 'go'), assistant('h2', 'done'), user('h3', 'go'), assistant('h4', 'part')]
     expect(settledMessages(messages, 'go')).toEqual([user('h1', 'go'), assistant('h2', 'done')])
+  })
+
+  it('truncates a multi-text-part user message (userText and the pending key agree on the separator)', () => {
+    const pending = multiPartUser('h3', 'line a', 'line b')
+    const messages = [user('h1', 'hi'), assistant('h2', 'hello'), pending, assistant('h4', 'partial…')]
+    expect(settledMessages(messages, userText(pending))).toEqual([user('h1', 'hi'), assistant('h2', 'hello')])
   })
 })

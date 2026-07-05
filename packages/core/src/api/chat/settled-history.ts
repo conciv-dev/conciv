@@ -8,7 +8,7 @@ export function userText(message: HistoryMessage): string {
   return message.parts
     .filter((part) => part.type === 'text')
     .map((part) => (typeof part.content === 'string' ? part.content : ''))
-    .join('')
+    .join('\n')
 }
 
 export function settledMessages(messages: ChatHistory, pendingUserText: string | null): ChatHistory {

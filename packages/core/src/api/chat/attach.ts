@@ -32,10 +32,10 @@ export function registerAttachRoute(app: H3, deps: AttachDeps): void {
     if (!sessionId) throw new HTTPError({status: 400, message: 'no session'})
     const abort = new AbortController()
     event.req.signal.addEventListener('abort', () => abort.abort())
+    const history = await transcriptMessages(deps, sessionId)
     const pending = deps.hub.pendingUserMessage(sessionId)
     const generating = deps.hub.generating(sessionId)
     const {replay, live} = deps.hub.attach(sessionId, abort.signal)
-    const history = await transcriptMessages(deps, sessionId)
     const settled = settledMessages(history, pending ? userText(pending) : null)
     const messages = pending ? [...settled, pending] : settled
     async function* chunks(): AsyncGenerator<StreamChunk> {

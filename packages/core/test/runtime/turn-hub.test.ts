@@ -119,9 +119,28 @@ describe('turn hub', () => {
     expect(hub.generating('s1')).toBe(false)
     expect(hub.pendingUserMessage('s1')).toBe(null)
     const after = hub.attach('s1', controller.signal)
-    expect(after.replay).toEqual([])
+    expect(after.replay.map((c) => c.type)).toEqual([EventType.RUN_STARTED, EventType.RUN_ERROR])
     controller.abort()
     await drain
+  })
+
+  it('preserves a terminal error for a client that attaches after a failed turn (reload-after-failure)', async () => {
+    const hub = makeTurnHub()
+    const gate = makeGate()
+    const pump = hub.start('s1', userMessage, gate.stream)
+    gate.push(started)
+    gate.push(text('half '))
+    gate.fail(new Error('boom'))
+    await pump
+    expect(hub.generating('s1')).toBe(false)
+    expect(hub.trackedSessions()).toBe(1)
+    const controller = new AbortController()
+    const {replay} = hub.attach('s1', controller.signal)
+    const errorChunk = replay.find((chunk) => chunk.type === EventType.RUN_ERROR)
+    expect(errorChunk).toMatchObject({message: 'boom'})
+    controller.abort()
+    await new Promise((r) => setTimeout(r, 10))
+    expect(hub.trackedSessions()).toBe(0)
   })
 
   it('fans out live chunks to two subscribers', async () => {

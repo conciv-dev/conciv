@@ -71,6 +71,8 @@ export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
     const sessionId = sessionIdFromHeaders(event.req.headers)
     if (!sessionId) throw new HTTPError({status: 400, message: 'no session (resolve first)'})
 
+    if (deps.hub.generating(sessionId)) throw new HTTPError({status: 409, message: 'session busy'})
+
     if (!acquireLock(deps.stateRoot, sessionId, 'chat', process.pid)) {
       throw new HTTPError({status: 409, message: 'session busy'})
     }
