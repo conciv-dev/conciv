@@ -1,14 +1,14 @@
 // /api/* routes the widget speaks: the chat-availability probe, a scripted AG-UI chat stream
 
-import {Readable} from 'node:stream'
 import {createServer, type IncomingMessage, type Server, type ServerResponse} from 'node:http'
 import type {AddressInfo} from 'node:net'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {chromium, type Browser, type Page} from 'playwright'
-import {EventType, type StreamChunk, toServerSentEventsStream} from '@tanstack/ai'
+import {EventType, type StreamChunk} from '@tanstack/ai'
 import {aguiApprovalRequestedFor} from '@conciv/protocol/ui-types'
 import {aguiUsageFor, snapshotToTokenUsage} from '@conciv/protocol/usage-types'
 import {widgetBundle, readBody} from './it-fixture.js'
+import {createAttachChat, parseBody, type ChatPostBody} from './helpers/attach-chat.js'
 
 const ASSISTANT_TEXT = 'Hello from aidx'
 const SWITCHED_REPLY = 'Reply from the switched session'
@@ -161,38 +161,27 @@ const chatState = {script: chatScript as () => AsyncGenerator<StreamChunk>}
 
 const compactState = {status: 200}
 
-function writeChatStream(res: ServerResponse): void {
+const SWITCHED_MESSAGE = {id: 'h1', role: 'assistant', parts: [{type: 'text', content: SWITCHED_REPLY}]}
+
+const chat = createAttachChat({
+  runFor: (_sessionId, body) => (chatIntent(body) === 'compact' ? compactScript : chatState.script),
+  seed: (sessionId) => (sessionId === 'conciv_ext_tok-aidx' ? [SWITCHED_MESSAGE] : []),
+})
+
+function chatIntent(body: ChatPostBody): unknown {
+  return body.forwardedProps?.intent ?? body.data?.intent
+}
+
+function sessionIdOf(req: IncomingMessage): string {
+  const header = req.headers['conciv-session-id']
+  return typeof header === 'string' ? header : 'conciv_unknown'
+}
+
+function writeSse(res: ServerResponse): void {
   res.writeHead(200, {
     'content-type': 'text/event-stream',
     'cache-control': 'no-cache',
     'access-control-allow-origin': '*',
-  })
-  const sse = toServerSentEventsStream(chatState.script(), new AbortController())
-  Readable.fromWeb(sse as Parameters<typeof Readable.fromWeb>[0]).pipe(res)
-}
-
-function writeCompactStream(res: ServerResponse): void {
-  res.writeHead(200, {
-    'content-type': 'text/event-stream',
-    'cache-control': 'no-cache',
-    'access-control-allow-origin': '*',
-  })
-  const sse = toServerSentEventsStream(compactScript(), new AbortController())
-  Readable.fromWeb(sse as Parameters<typeof Readable.fromWeb>[0]).pipe(res)
-}
-
-function readChatIntent(req: IncomingMessage): Promise<string> {
-  return new Promise((resolve) => {
-    let body = ''
-    req.on('data', (c) => (body += c))
-    req.on('end', () => {
-      try {
-        const j = JSON.parse(body) as {intent?: string; forwardedProps?: {intent?: string}; data?: {intent?: string}}
-        resolve(j.forwardedProps?.intent ?? j.data?.intent ?? j.intent ?? 'chat')
-      } catch {
-        resolve('chat')
-      }
-    })
   })
 }
 
@@ -306,15 +295,21 @@ describe('aidx widget (it) — real browser, real SSE', () => {
         return writeJson(res, [])
       }
       if (url === '/api/chat' && req.method === 'POST') {
-        void readChatIntent(req).then((intent) => {
-          if (intent !== 'compact') return writeChatStream(res)
-          if (compactState.status !== 200) {
+        void readBody(req).then((raw) => {
+          const body = parseBody(raw)
+          if (chatIntent(body) === 'compact' && compactState.status !== 200) {
             res.writeHead(compactState.status)
             res.end('{}')
             return
           }
-          return writeCompactStream(res)
+          chat.postChat(sessionIdOf(req), body)
+          writeJson(res, {ok: true})
         })
+        return
+      }
+      if (url === '/api/chat/attach') {
+        writeSse(res)
+        chat.openAttach(sessionIdOf(req), res)
         return
       }
       if (url === '/api/chat/permission-decision') return writeJson(res, {ok: true})
@@ -761,6 +756,62 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await page.close()
   })
 
+  it('quick terminal: switching a pane session re-attaches to the new session and a send round-trips', async () => {
+    const page = await newPage()
+    await page.goto(`${state.base}/__quick-terminal`)
+    await page.locator('[data-pw-qt]').waitFor({state: 'attached'})
+    await page.keyboard.press('Control+k')
+    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'false'`)
+    await page.getByText('How can I help you today?').waitFor({state: 'visible'})
+
+    const trigger = page.getByRole('button', {name: /^Session:/})
+    await trigger.click()
+    const aidxItem = page.getByRole('option', {name: /Made in conciv/})
+    await aidxItem.waitFor({state: 'visible'})
+    const attachReq = page.waitForRequest(
+      (r) => r.url().includes('/api/chat/attach') && r.headers()['conciv-session-id'] === 'conciv_ext_tok-aidx',
+    )
+    await aidxItem.click()
+    await attachReq
+    await page.getByText(SWITCHED_REPLY).waitFor({state: 'visible'})
+
+    const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
+    const chatReq = page.waitForRequest(
+      (r) =>
+        r.url().endsWith('/api/chat') &&
+        r.method() === 'POST' &&
+        r.headers()['conciv-session-id'] === 'conciv_ext_tok-aidx',
+    )
+    await composer.fill('do something')
+    await composer.press('Enter')
+    await chatReq
+    await page.getByText(ASSISTANT_TEXT).waitFor({state: 'visible'})
+    await page.close()
+  })
+
+  it('quick terminal: starting a new session in-place clears the prior session draft', async () => {
+    const page = await newPage()
+    await page.goto(`${state.base}/__quick-terminal`)
+    await page.locator('[data-pw-qt]').waitFor({state: 'attached'})
+    await page.keyboard.press('Control+k')
+    await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'false'`)
+    await page.getByText('How can I help you today?').waitFor({state: 'visible'})
+
+    const composer = page.getByRole('textbox', {name: 'Message the conciv agent'})
+    await composer.fill('a draft that must not carry over')
+    await expect.poll(() => composer.inputValue()).toBe('a draft that must not carry over')
+
+    await page.getByRole('button', {name: /^Session:/}).click()
+    const resolveNew = page.waitForRequest(
+      (r) => r.url().endsWith('/api/chat/session/resolve') && r.method() === 'POST',
+    )
+    await page.getByRole('button', {name: 'New session', exact: true}).click()
+    await resolveNew
+
+    await expect.poll(() => composer.inputValue()).toBe('')
+    await page.close()
+  })
+
   it('splits the quick terminal into independent-session panes and reflows on close', async () => {
     const page = await newPage()
     await page.goto(`${state.base}/__quick-terminal`)
@@ -883,11 +934,11 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     expect(await page.getByRole('option', {name: /Made in conciv[\s\S]*started in conciv/}).count()).toBe(1)
     expect(await page.getByRole('option', {name: /Made externally[\s\S]*started externally/}).count()).toBe(1)
 
-    const historyReq = page.waitForRequest(
-      (r) => r.url().includes('/api/chat/history') && r.headers()['conciv-session-id'] === 'conciv_ext_tok-aidx',
+    const attachReq = page.waitForRequest(
+      (r) => r.url().includes('/api/chat/attach') && r.headers()['conciv-session-id'] === 'conciv_ext_tok-aidx',
     )
     await aidxItem.click()
-    await historyReq
+    await attachReq
     await page.getByText(SWITCHED_REPLY).waitFor({state: 'visible'})
 
     await trigger.click()
@@ -914,16 +965,14 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     const trigger = page.getByRole('button', {name: /^Session:/})
     await trigger.click()
     await page.getByRole('option', {name: /Made in conciv/}).waitFor({state: 'visible'})
-    const historyReq = page.waitForRequest(
-      (r) => r.url().includes('/api/chat/history') && r.headers()['conciv-session-id'] === 'conciv_ext_tok-aidx',
+    const attachReq = page.waitForRequest(
+      (r) => r.url().includes('/api/chat/attach') && r.headers()['conciv-session-id'] === 'conciv_ext_tok-aidx',
     )
     await page.getByRole('option', {name: /Made in conciv/}).click()
-    await historyReq
+    await attachReq
     await page.getByText(SWITCHED_REPLY).waitFor({state: 'visible'})
 
     await page.reload()
-    await fab.waitFor({state: 'visible'})
-    await fab.click()
 
     await page.getByRole('button', {name: 'Session: Made in conciv'}).waitFor({state: 'visible', timeout: 4000})
 

@@ -4,6 +4,7 @@ import type {StreamChunk} from '@tanstack/ai'
 import {defineHarness, type HarnessChild} from '@conciv/protocol/harness-types'
 import {registerHarness} from '@conciv/harness'
 import {startTestServer, type SpawnHarness, type TestServer} from '../../helpers/server.js'
+import {readLock} from '../../../src/store/lock.js'
 
 const FAIL = 'harness exited with code 143'
 
@@ -60,7 +61,12 @@ async function failingTurn(opts: Parameters<typeof startTestServer>[0]): Promise
   try {
     server = await startTestServer(opts)
     const id = await server.resolve()
-    const body = await server.postChat({role: 'user', content: 'hi'}, id)
+    const response = await server.post('/api/chat', {messages: [{role: 'user', content: 'hi'}]}, id)
+    const body = await response.text()
+    const deadline = Date.now() + 5000
+    while (readLock(server.stateRoot, id).held && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 25))
+    }
     const seedCalls = calls.filter((c) => c.includes('chat run failed') || c.includes('tanstack-ai'))
     return {seedCalls, body}
   } finally {

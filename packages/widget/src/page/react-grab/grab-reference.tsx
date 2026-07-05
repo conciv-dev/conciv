@@ -1,6 +1,6 @@
 import {Show, type JSX} from 'solid-js'
 import {X} from 'lucide-solid'
-import type {ElementSnapshot, ElementSource, StagedGrab} from '@conciv/grab'
+import type {ElementSnapshot, ElementSource, Grab} from '@conciv/grab'
 
 function fitScale(width: number, maxWidth: number): number {
   if (width <= 0) return 1
@@ -36,7 +36,15 @@ function sourceLabel(source: ElementSource): string {
   return source.componentName ? `${source.componentName} at ${where}` : where
 }
 
-export function GrabReference(props: {grab: StagedGrab; maxWidth: number; onRemove: () => void}): JSX.Element {
+function stagedGrab(grab: Grab | {text: string}): Grab | null {
+  return 'snapshot' in grab ? grab : null
+}
+
+export function GrabReference(props: {
+  grab: Grab | {text: string}
+  maxWidth: number
+  onRemove: () => void
+}): JSX.Element {
   return (
     <div
       class="text-[0.6875rem] font-pw-mono mb-2 p-3 border-b border-r border-t border-y-pw-line border-l-[0.1875rem] border-l-pw-accent border-r-pw-line rounded-pw-md bg-pw-fill flex flex-col gap-2.5 items-start relative"
@@ -50,15 +58,24 @@ export function GrabReference(props: {grab: StagedGrab; maxWidth: number; onRemo
       >
         <X class="size-5 block" aria-hidden="true" />
       </button>
-      <ScaledSnapshot snapshot={props.grab.snapshot} maxWidth={props.maxWidth} />
-      <Show when={props.grab.source}>
-        {(source) => (
-          <span class="text-pw-text-2 flex gap-1.5 [word-break:break-all] items-center">
-            <span class="text-pw-accent" aria-hidden="true">
-              ↳
-            </span>{' '}
-            in {sourceLabel(source())}
-          </span>
+      <Show
+        when={stagedGrab(props.grab)}
+        fallback={<span class="text-pw-text-2 [word-break:break-all]">{props.grab.text}</span>}
+      >
+        {(grab) => (
+          <>
+            <ScaledSnapshot snapshot={grab().snapshot} maxWidth={props.maxWidth} />
+            <Show when={grab().source}>
+              {(source) => (
+                <span class="text-pw-text-2 flex gap-1.5 [word-break:break-all] items-center">
+                  <span class="text-pw-accent" aria-hidden="true">
+                    ↳
+                  </span>{' '}
+                  in {sourceLabel(source())}
+                </span>
+              )}
+            </Show>
+          </>
         )}
       </Show>
     </div>

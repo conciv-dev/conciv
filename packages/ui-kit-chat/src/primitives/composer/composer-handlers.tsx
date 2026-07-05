@@ -2,6 +2,7 @@ import {createContext, useContext, type Accessor} from 'solid-js'
 
 export type ComposerHandlers = {
   onSend?: (text: string) => void
+  onCancel?: () => void
   onStartDictation?: () => void
   onStopDictation?: () => void
   transcript?: Accessor<string>

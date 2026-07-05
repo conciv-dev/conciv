@@ -1,5 +1,6 @@
 import {z} from 'zod'
 import {EventType, type StreamChunk} from '@tanstack/ai'
+import {ChatHistorySchema} from './chat-types.js'
 
 const renderId = z.string().min(1)
 
@@ -59,6 +60,15 @@ export const CONCIV_UI_EVENT = 'conciv-ui'
 
 export function aguiCustomFor(spec: UiSpec): StreamChunk {
   return {type: EventType.CUSTOM, name: CONCIV_UI_EVENT, value: spec}
+}
+
+export const CONCIV_SNAPSHOT_EVENT = 'conciv-snapshot'
+
+export const SnapshotSchema = z.object({generating: z.boolean(), messages: ChatHistorySchema})
+export type Snapshot = z.infer<typeof SnapshotSchema>
+
+export function aguiSnapshotFor(snapshot: Snapshot): StreamChunk {
+  return {type: EventType.CUSTOM, name: CONCIV_SNAPSHOT_EVENT, value: snapshot}
 }
 
 // /api/chat/permission-decision: claude owns the loop and blocks on its PreToolUse hook, so the
