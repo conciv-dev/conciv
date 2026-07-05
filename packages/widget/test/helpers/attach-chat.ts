@@ -3,7 +3,7 @@ import {EventType, type StreamChunk, type UIMessage} from '@tanstack/ai'
 import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
 
 export type ChatStubMessage = {id: string; role: string; parts: Array<{type: string; content: string}>}
-export type ChatScript = () => AsyncGenerator<StreamChunk>
+type ChatScript = () => AsyncGenerator<StreamChunk>
 export type ChatPostBody = {
   messages?: ChatStubMessage[]
   forwardedProps?: Record<string, unknown>
