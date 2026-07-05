@@ -1,3 +1,4 @@
+import {execSync} from 'node:child_process'
 import {mkdtempSync, realpathSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
@@ -8,6 +9,16 @@ import {chromium, type Browser, type Page} from 'playwright'
 import {start, type Engine} from '@conciv/core'
 import terminalServer from '@conciv/extension-terminal'
 import {widgetBundle} from './it-fixture.js'
+
+function canRunRealClaude(): boolean {
+  if (process.env.CI) return false
+  try {
+    execSync('command -v claude', {stdio: 'ignore'})
+    return true
+  } catch {
+    return false
+  }
+}
 
 const PROMPT = 'reply with exactly the word tty-it-check and nothing else'
 
@@ -40,7 +51,7 @@ async function untilBuffer(page: Page, pattern: RegExp, ms: number): Promise<str
   return text.current
 }
 
-describe('terminal extension e2e (real engine, real claude)', () => {
+describe.skipIf(!canRunRealClaude())('terminal extension e2e (real engine, real claude)', () => {
   let browser: Browser
   let engine: Engine
   let server: Server
