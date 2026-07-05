@@ -10,7 +10,9 @@
     "apps/examples/**",
     "**/vitest.config.ts",
     "**/*.stories.tsx",
-    "**/*.test-d.ts"
+    "**/*.test-d.ts",
+    "**/*.fixtures.ts",
+    "packages/ui-kit-chat/src/store/story-connection.ts"
   ],
   "duplicates": {
     "minOccurrences": 3
