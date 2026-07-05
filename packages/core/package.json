@@ -72,6 +72,7 @@
   },
   "devDependencies": {
     "@conciv/extension": "workspace:^",
+    "@conciv/harness-testkit": "workspace:^",
     "@jridgewell/gen-mapping": "^0.3.13",
     "@tanstack/ai-mcp": "^0.1.0",
     "@types/node": "^22.19.21",
