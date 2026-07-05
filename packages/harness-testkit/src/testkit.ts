@@ -1,1 +1,6 @@
-export {until} from './until.js'
+export {until, type UntilOpts} from './until.js'
+export {createTestkit, type Kit, type Testkit} from './create-testkit.js'
+export {createTestHarness, type TestHarness} from './create-test-harness.js'
+export {harnessAvailable} from './harness-available.js'
+export type {RunStream} from './run-stream.js'
+export type {RunEvents} from './run-events.js'
