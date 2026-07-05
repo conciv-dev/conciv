@@ -59,7 +59,22 @@ function TerminalSurface(props: {ctx: ViewContext; generation: number; themeHost
     win.addEventListener('keydown', onEscape, true)
     onCleanup(() => win.removeEventListener('keydown', onEscape, true))
   })
+  onMount(() => {
+    const doc = props.themeHost().ownerDocument
+    const root = props.themeHost().getRootNode()
+    const onFocusOut = (event: Event): void => {
+      if (!(event instanceof FocusEvent) || event.relatedTarget !== null) return
+      const target = event.target
+      if (!(target instanceof Element) || !target.closest('[data-terminal-screen]')) return
+      queueMicrotask(() => {
+        if (doc.hasFocus()) model.focus()
+      })
+    }
+    root.addEventListener('focusout', onFocusOut, true)
+    onCleanup(() => root.removeEventListener('focusout', onFocusOut, true))
+  })
   model.terminal.attachCustomKeyEventHandler((event) => {
+    if (event.type === 'keydown' && event.key === 'Escape') event.preventDefault()
     if (event.type !== 'keydown' || event.key !== 'Enter') return true
     if (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return true
     const grabs = ctx.grab.staged()

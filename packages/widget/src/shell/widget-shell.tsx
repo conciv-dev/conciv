@@ -385,6 +385,7 @@ function ModalLayout(props: {
   const onPanelKeyDown = (e: KeyboardEvent) => {
     if (e.key === 'Escape') {
       if (escapeInTerminal(panelEl)) return
+      e.preventDefault()
       closePanel()
       return
     }

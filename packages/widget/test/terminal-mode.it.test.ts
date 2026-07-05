@@ -182,6 +182,47 @@ describe('terminal extension e2e (real engine, real claude)', () => {
     await page.close()
   }, 120_000)
 
+  const deepActive = (page: Page): Promise<string> =>
+    page.evaluate(() => {
+      let element = document.activeElement
+      while (element?.shadowRoot?.activeElement) element = element.shadowRoot.activeElement
+      return element ? element.className || element.tagName : 'none'
+    })
+
+  it('reclaims focus when the terminal loses it to nowhere during a turn', async () => {
+    const page = await browser.newPage()
+    await page.goto(state.base)
+    await page.getByRole('button', {name: 'Open conciv chat'}).click()
+    await page.getByRole('tab', {name: 'Terminal'}).first().click()
+    await page.locator('[data-terminal-screen]').first().click()
+    const booted = await untilBuffer(page, /trust this folder|auto mode on/, 60_000)
+    if (booted.includes('trust this folder')) {
+      await page.keyboard.press('Enter')
+      await untilBuffer(page, /auto mode on/, 60_000)
+    }
+
+    await page.keyboard.type(
+      'Use the Bash tool to run exactly this one command and nothing else: for i in $(seq 1 40); do echo TOCK-$i; sleep 1; done',
+    )
+    await page.keyboard.press('Enter')
+    await untilBuffer(page, /TOCK-2\b/, 60_000)
+    await page.evaluate(() => {
+      let element = document.activeElement
+      while (element?.shadowRoot?.activeElement) element = element.shadowRoot.activeElement
+      if (element instanceof HTMLElement) element.blur()
+    })
+    await expect.poll(() => deepActive(page), {timeout: 5_000}).toContain('xterm-helper-textarea')
+
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(2000)
+    const atEscape = (await bufferText(page)).match(/TOCK-(\d+)/g)?.length ?? 0
+    await page.waitForTimeout(5000)
+    const later = (await bufferText(page)).match(/TOCK-(\d+)/g)?.length ?? 0
+    expect(later, 'after focus reclaim, Escape must interrupt the running command').toBe(atEscape)
+
+    await page.close()
+  }, 120_000)
+
   it('renders the tab bar in the quick-terminal pane as well', async () => {
     const page = await browser.newPage()
     await page.goto(state.base)
