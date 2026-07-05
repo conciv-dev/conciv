@@ -3,7 +3,12 @@
   "version": "0.0.0",
   "private": true,
   "description": "An embeddable AI dev agent for your running app — chat, page control, and live tests, injected into the page via a Vite plugin.",
+  "homepage": "https://conciv.dev",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git"
+  },
   "type": "module",
   "scripts": {
     "prepare": "node -e \"process.exit(process.env.CI || process.env.GIT_INDEX_FILE ? 0 : 1)\" || prek install",

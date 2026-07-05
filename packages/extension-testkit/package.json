@@ -3,7 +3,13 @@
   "version": "0.0.6",
   "private": true,
   "description": "Dev-only test harness: getExtensionTestApi(extension) mounts any conciv extension in a real browser against a real spawned server through its real contract.",
+  "homepage": "https://conciv.dev",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/extension-testkit"
+  },
   "type": "module",
   "exports": {
     ".": "./src/get-extension-test-api.ts"

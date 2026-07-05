@@ -3,6 +3,7 @@
   "version": "0.0.6",
   "private": true,
   "description": "Internal release tooling for the aidx monorepo: normalize package metadata, version, and publish via changesets. citty command tree.",
+  "homepage": "https://conciv.dev",
   "license": "MIT",
   "repository": {
     "type": "git",
