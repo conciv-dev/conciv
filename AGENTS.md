@@ -59,6 +59,20 @@ README.md; this file is the non-obvious operational rules.
   network busy forever; wait for `domcontentloaded` (or a UI signal) instead.
 - zod validates every HTTP boundary (`readValidatedBody`); add validation for new routes.
 
+## Codebase analysis (fallow)
+
+- Before finishing a task, run `pnpm exec fallow audit --changed-since main --format json` and fix
+  anything it flags as INTRODUCED: dead code, unused exports/deps, duplication, complexity, circular
+  deps. Fallow builds the whole module graph, so it catches cross-file dead code and unused deps you
+  can't see from context. CI runs the same audit (`.github/workflows/fallow.yml`) and blocks on
+  newly-introduced findings.
+- Before deleting a supposedly-unused export/dep, verify with
+  `pnpm exec fallow dead-code --trace 'file.ts:Symbol'` (or `--trace-dependency <pkg>`). "USED but file
+  unreachable" means a missing entry point, not dead code.
+- Config is `.fallowrc.json`. `publicPackages` lists our published libraries whose exports are public
+  API and never "unused" — don't delete those. CI builds packages first so `@conciv/*` imports resolve
+  against their dist-only exports; don't re-add an `ignoreUnresolvedImports: @conciv/*` hack.
+
 ## Harness & runner adapters
 
 - `HarnessAdapter` is capability-typed (`packages/protocol/src/harness-types.ts`): `transcriptHistory:

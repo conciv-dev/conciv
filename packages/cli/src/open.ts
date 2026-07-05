@@ -4,7 +4,7 @@ import {runAndPrint, type CliRequest} from './request.js'
 
 const OpenArgs = z.object({file: z.string(), line: z.coerce.number().optional()})
 
-export function openRequest(raw: unknown): CliRequest {
+function openRequest(raw: unknown): CliRequest {
   const p = OpenArgs.parse(raw)
   return {method: 'POST', path: '/api/editor/open', body: {file: p.file, line: p.line}}
 }

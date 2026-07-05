@@ -37,10 +37,8 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "@clack/prompts": "^1.5.1",
     "@conciv/protocol": "workspace:^",
     "citty": "^0.2.2",
-    "consola": "^3.4.2",
     "zod": "^4.4.3"
   },
   "devDependencies": {
