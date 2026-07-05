@@ -1,11 +1,11 @@
-import {createServer, type IncomingMessage, type Server, type ServerResponse} from 'node:http'
-import type {AddressInfo} from 'node:net'
+import {type IncomingMessage, type Server, type ServerResponse} from 'node:http'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {chromium, type Browser, type Page} from 'playwright'
 import {EventType, type StreamChunk, type UIMessage} from '@tanstack/ai'
 import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
 import {widgetBundle, readBody} from './it-fixture.js'
 import {createAttachChat, parseBody} from './helpers/attach-chat.js'
+import {makeChatFixtureServer, writeJson, writeSse} from './helpers/chat-fixture-server.js'
 
 const USER_TEXT = 'run something'
 const BEFORE = 'streamed-before-reload '
@@ -31,19 +31,6 @@ function pageHtml(): string {
   </body></html>`
 }
 
-function writeJson(res: ServerResponse, body: unknown): void {
-  res.writeHead(200, {'content-type': 'application/json', 'access-control-allow-origin': '*'})
-  res.end(JSON.stringify(body))
-}
-
-function writeSse(res: ServerResponse): void {
-  res.writeHead(200, {
-    'content-type': 'text/event-stream',
-    'cache-control': 'no-cache',
-    'access-control-allow-origin': '*',
-  })
-}
-
 describe('aidx widget reload continuity (it) — real browser, snapshot restore', () => {
   let browser: Browser
   let server: Server
@@ -57,57 +44,27 @@ describe('aidx widget reload continuity (it) — real browser, snapshot restore'
     return page
   }
 
-  beforeAll(async () => {
-    server = createServer((req: IncomingMessage, res: ServerResponse) => {
-      const url = req.url ?? ''
-      const sessionId = (req.headers['conciv-session-id'] as string | undefined) ?? 'conciv_reload'
+  const routes = (req: IncomingMessage, res: ServerResponse, url: string): boolean => {
+    const sessionId = (req.headers['conciv-session-id'] as string | undefined) ?? 'conciv_reload'
+    if (url === '/api/chat' && req.method === 'POST') {
+      void readBody(req).then((body) => {
+        chat.postChat(sessionId, parseBody(body))
+        writeJson(res, {ok: true})
+      })
+      return true
+    }
+    if (url === '/api/chat/attach') {
+      writeSse(res)
+      chat.openAttach(sessionId, res)
+      return true
+    }
+    return false
+  }
 
-      if (url.startsWith('/api/chat/session/resolve') && req.method === 'POST') {
-        return writeJson(res, {sessionId: 'conciv_reload'})
-      }
-      if (url.startsWith('/api/chat/session') && !url.startsWith('/api/chat/sessions')) {
-        return writeJson(res, {
-          sessionId: 'conciv_reload',
-          harnessSessionId: null,
-          name: null,
-          origin: 'chat',
-          cwd: '/app',
-          lock: {held: false, role: null},
-          usage: null,
-          harness: {id: 'claude', name: 'Claude', canLaunch: false},
-        })
-      }
-      if (url.startsWith('/api/chat/sessions')) return writeJson(res, {sessions: []})
-      if (url.startsWith('/api/chat/models')) {
-        return writeJson(res, {
-          models: [{id: 'sonnet', name: 'Claude Sonnet 4.6', description: 'Balanced', group: 'Claude'}],
-          defaultModel: 'sonnet',
-          harness: {id: 'claude', name: 'Claude', canLaunch: false},
-        })
-      }
-      if (url.startsWith('/api/chat/commands')) return writeJson(res, {commands: []})
-      if (url.startsWith('/api/chat/tools')) return writeJson(res, {tools: []})
-      if (url === '/api/chat' && req.method === 'POST') {
-        void readBody(req).then((body) => {
-          chat.postChat(sessionId, parseBody(body))
-          writeJson(res, {ok: true})
-        })
-        return
-      }
-      if (url === '/api/chat/attach') {
-        writeSse(res)
-        chat.openAttach(sessionId, res)
-        return
-      }
-      if (url === '/api/page/stream') {
-        writeSse(res)
-        return
-      }
-      res.writeHead(200, {'content-type': 'text/html; charset=utf-8'})
-      res.end(pageHtml())
-    })
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
-    state.base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+  beforeAll(async () => {
+    const started = await makeChatFixtureServer({sessionId: 'conciv_reload', pageHtml, routes})
+    server = started.server
+    state.base = started.base
     browser = await chromium.launch()
   }, 90_000)
 
@@ -176,53 +133,22 @@ describe('aidx widget reconnect feedback (it) — attach failure surfaces a reco
     return page
   }
 
+  const routes = (_req: IncomingMessage, res: ServerResponse, url: string): boolean => {
+    if (url !== '/api/chat/attach') return false
+    if (attach.mode === 'fail') {
+      res.writeHead(500, {'access-control-allow-origin': '*'})
+      res.end()
+      return true
+    }
+    writeSse(res)
+    res.end()
+    return true
+  }
+
   beforeAll(async () => {
-    server = createServer((req: IncomingMessage, res: ServerResponse) => {
-      const url = req.url ?? ''
-      if (url.startsWith('/api/chat/session/resolve') && req.method === 'POST') {
-        return writeJson(res, {sessionId: 'conciv_reconnect'})
-      }
-      if (url.startsWith('/api/chat/session') && !url.startsWith('/api/chat/sessions')) {
-        return writeJson(res, {
-          sessionId: 'conciv_reconnect',
-          harnessSessionId: null,
-          name: null,
-          origin: 'chat',
-          cwd: '/app',
-          lock: {held: false, role: null},
-          usage: null,
-          harness: {id: 'claude', name: 'Claude', canLaunch: false},
-        })
-      }
-      if (url.startsWith('/api/chat/sessions')) return writeJson(res, {sessions: []})
-      if (url.startsWith('/api/chat/models')) {
-        return writeJson(res, {
-          models: [{id: 'sonnet', name: 'Claude Sonnet 4.6', description: 'Balanced', group: 'Claude'}],
-          defaultModel: 'sonnet',
-          harness: {id: 'claude', name: 'Claude', canLaunch: false},
-        })
-      }
-      if (url.startsWith('/api/chat/commands')) return writeJson(res, {commands: []})
-      if (url.startsWith('/api/chat/tools')) return writeJson(res, {tools: []})
-      if (url === '/api/chat/attach') {
-        if (attach.mode === 'fail') {
-          res.writeHead(500, {'access-control-allow-origin': '*'})
-          res.end()
-          return
-        }
-        writeSse(res)
-        res.end()
-        return
-      }
-      if (url === '/api/page/stream') {
-        writeSse(res)
-        return
-      }
-      res.writeHead(200, {'content-type': 'text/html; charset=utf-8'})
-      res.end(pageHtml())
-    })
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
-    state.base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+    const started = await makeChatFixtureServer({sessionId: 'conciv_reconnect', pageHtml, routes})
+    server = started.server
+    state.base = started.base
     browser = await chromium.launch()
   }, 90_000)
 
@@ -268,84 +194,55 @@ describe('aidx widget disconnect-settle reconcile (it) — a turn that settles d
     return page
   }
 
-  beforeAll(async () => {
-    server = createServer((req: IncomingMessage, res: ServerResponse) => {
-      const url = req.url ?? ''
-      if (url.startsWith('/api/chat/session/resolve') && req.method === 'POST') {
-        return writeJson(res, {sessionId: 'conciv_settle'})
-      }
-      if (url.startsWith('/api/chat/session') && !url.startsWith('/api/chat/sessions')) {
-        return writeJson(res, {
-          sessionId: 'conciv_settle',
-          harnessSessionId: null,
-          name: null,
-          origin: 'chat',
-          cwd: '/app',
-          lock: {held: false, role: null},
-          usage: null,
-          harness: {id: 'claude', name: 'Claude', canLaunch: false},
-        })
-      }
-      if (url.startsWith('/api/chat/sessions')) return writeJson(res, {sessions: []})
-      if (url.startsWith('/api/chat/models')) {
-        return writeJson(res, {
-          models: [{id: 'sonnet', name: 'Claude Sonnet 4.6', description: 'Balanced', group: 'Claude'}],
-          defaultModel: 'sonnet',
-          harness: {id: 'claude', name: 'Claude', canLaunch: false},
-        })
-      }
-      if (url.startsWith('/api/chat/commands')) return writeJson(res, {commands: []})
-      if (url.startsWith('/api/chat/tools')) return writeJson(res, {tools: []})
-      if (url === '/api/chat' && req.method === 'POST') {
-        void readBody(req).then((body) => {
-          run.posts += 1
-          const parsed = parseBody(body)
-          const last = (parsed.messages ?? []).filter((m) => m.role === 'user').at(-1)
-          run.userText = last?.parts?.map((p) => p.content).join('') ?? run.userText
-          writeJson(res, {ok: true})
-          const subscribers = [...run.subscribers]
-          if (run.posts === 1) {
-            for (const sub of subscribers) {
-              writeChunk(sub, {type: EventType.RUN_STARTED, threadId: 't', runId: 'r1'})
-              writeChunk(sub, {type: EventType.TEXT_MESSAGE_START, messageId: 'm1', role: 'assistant'})
-              writeChunk(sub, {type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'm1', delta: FIRST})
-            }
-            setTimeout(() => {
-              for (const sub of subscribers) {
-                run.subscribers.delete(sub)
-                sub.end()
-              }
-              run.dropped = true
-            }, 250)
-            return
-          }
+  const routes = (req: IncomingMessage, res: ServerResponse, url: string): boolean => {
+    if (url === '/api/chat' && req.method === 'POST') {
+      void readBody(req).then((body) => {
+        run.posts += 1
+        const parsed = parseBody(body)
+        const last = (parsed.messages ?? []).filter((m) => m.role === 'user').at(-1)
+        run.userText = last?.parts?.map((p) => p.content).join('') ?? run.userText
+        writeJson(res, {ok: true})
+        const subscribers = [...run.subscribers]
+        if (run.posts === 1) {
           for (const sub of subscribers) {
-            writeChunk(sub, {type: EventType.RUN_STARTED, threadId: 't', runId: 'r2'})
-            writeChunk(sub, {type: EventType.TEXT_MESSAGE_START, messageId: 'm2', role: 'assistant'})
-            writeChunk(sub, {type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'm2', delta: SECOND_REPLY})
-            writeChunk(sub, {type: EventType.TEXT_MESSAGE_END, messageId: 'm2'})
-            writeChunk(sub, {type: EventType.RUN_FINISHED, threadId: 't', runId: 'r2', finishReason: 'stop'})
+            writeChunk(sub, {type: EventType.RUN_STARTED, threadId: 't', runId: 'r1'})
+            writeChunk(sub, {type: EventType.TEXT_MESSAGE_START, messageId: 'm1', role: 'assistant'})
+            writeChunk(sub, {type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'm1', delta: FIRST})
           }
-        })
-        return
-      }
-      if (url === '/api/chat/attach') {
-        writeSse(res)
-        const messages = run.dropped ? [userMessage(), assistantFull()] : run.userText ? [userMessage()] : []
-        writeChunk(res, aguiSnapshotFor({generating: false, messages: messages as unknown as UIMessage[]}))
-        run.subscribers.add(res)
-        res.on('close', () => run.subscribers.delete(res))
-        return
-      }
-      if (url === '/api/page/stream') {
-        writeSse(res)
-        return
-      }
-      res.writeHead(200, {'content-type': 'text/html; charset=utf-8'})
-      res.end(pageHtml())
-    })
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
-    state.base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`
+          setTimeout(() => {
+            for (const sub of subscribers) {
+              run.subscribers.delete(sub)
+              sub.end()
+            }
+            run.dropped = true
+          }, 250)
+          return
+        }
+        for (const sub of subscribers) {
+          writeChunk(sub, {type: EventType.RUN_STARTED, threadId: 't', runId: 'r2'})
+          writeChunk(sub, {type: EventType.TEXT_MESSAGE_START, messageId: 'm2', role: 'assistant'})
+          writeChunk(sub, {type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'm2', delta: SECOND_REPLY})
+          writeChunk(sub, {type: EventType.TEXT_MESSAGE_END, messageId: 'm2'})
+          writeChunk(sub, {type: EventType.RUN_FINISHED, threadId: 't', runId: 'r2', finishReason: 'stop'})
+        }
+      })
+      return true
+    }
+    if (url === '/api/chat/attach') {
+      writeSse(res)
+      const messages = run.dropped ? [userMessage(), assistantFull()] : run.userText ? [userMessage()] : []
+      writeChunk(res, aguiSnapshotFor({generating: false, messages: messages as unknown as UIMessage[]}))
+      run.subscribers.add(res)
+      res.on('close', () => run.subscribers.delete(res))
+      return true
+    }
+    return false
+  }
+
+  beforeAll(async () => {
+    const started = await makeChatFixtureServer({sessionId: 'conciv_settle', pageHtml, routes})
+    server = started.server
+    state.base = started.base
     browser = await chromium.launch()
   }, 90_000)
 
