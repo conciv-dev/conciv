@@ -3,9 +3,9 @@ import {defineCommand, type ArgDef, type ArgsDef, type SubCommandsDef} from 'cit
 import {PAGE_QUERY_KINDS, type PageQueryKind} from '@conciv/protocol/page-types'
 import {compact, qs, runAndPrint, type CliRequest} from './request.js'
 
-export type VerbSpec = {method: 'GET' | 'POST'; targetsElement: boolean; flags: readonly string[]}
+type VerbSpec = {method: 'GET' | 'POST'; targetsElement: boolean; flags: readonly string[]}
 
-export const PAGE_VERBS: Record<PageQueryKind, VerbSpec> = {
+const PAGE_VERBS: Record<PageQueryKind, VerbSpec> = {
   route: {method: 'GET', targetsElement: false, flags: []},
   dom: {method: 'GET', targetsElement: true, flags: []},
   query: {method: 'GET', targetsElement: true, flags: []},
@@ -84,7 +84,7 @@ function schemaFor(verb: PageQueryKind): z.ZodType<Record<string, unknown>> {
   return z.object(shape)
 }
 
-export function pageRequest(verb: PageQueryKind, raw: unknown): CliRequest {
+function pageRequest(verb: PageQueryKind, raw: unknown): CliRequest {
   const params = schemaFor(verb).parse(raw)
   const spec = PAGE_VERBS[verb]
   if (spec.method === 'GET') return {method: 'GET', path: `/api/page/${verb}${qs(params)}`}
@@ -133,7 +133,7 @@ function leafCommandsFor(verbs: readonly PageQueryKind[]): SubCommandsDef {
   )
 }
 
-export function pageCommands(): SubCommandsDef {
+function pageCommands(): SubCommandsDef {
   const changes = defineCommand({
     meta: {name: 'changes', description: 'list (or --clear) the live-edit journal'},
     args: {clear: {type: 'boolean', description: 'reset the journal after listing'}},
@@ -152,7 +152,7 @@ export const pageCommand = defineCommand({
   subCommands: pageCommands(),
 })
 
-export const REACT_VERBS = [
+const REACT_VERBS = [
   'inspect',
   'tree',
   'find',

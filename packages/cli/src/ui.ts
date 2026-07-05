@@ -34,7 +34,7 @@ function cliUiInput(kind: string, raw: unknown): UiBuildInput {
   throw new Error(`unknown ui kind: ${kind}`)
 }
 
-export function uiRequest(spec: UiSpec): CliRequest {
+function uiRequest(spec: UiSpec): CliRequest {
   return {method: 'POST', path: '/api/chat/ui', body: {spec}}
 }
 
