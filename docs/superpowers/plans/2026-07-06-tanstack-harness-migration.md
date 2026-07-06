@@ -2,54 +2,64 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace our hand-rolled harness spawn/decode layer with TanStack AI sandbox harness adapters (`@tanstack/ai-claude-code`, `-codex`, `-opencode`, `-acp`), turning our three stub harnesses (pi, gemini-cli, opencode) into working ones and deleting the claude/codex decoders — while keeping our blocking permission gate, transcript history, TTY, launch, and slash-command sidecars.
+**Goal:** One chat path for every harness on TanStack AI 0.40: claude composed from `@tanstack/ai-claude-code`'s exported building blocks (their stream translator, our flags and blocking permission hook), codex/opencode/pi/gemini on the full TanStack harness adapters — deleting our decoders and the SDK run path outright. No compatibility branch, no upstream dependency.
 
-**Architecture:** Core already drives every turn through `chat({adapter: harnessText(harness, deps)})` (`packages/core/src/api/chat/turn.ts:134`). We add an optional `chatConfig` field to `HarnessAdapter`: when present, `turn.ts` uses the TanStack harness adapter it returns (plus `withSandbox(localProcessSandbox({dir: cwd}))` and a permission-gate middleware) instead of `harnessText`. Harnesses migrate one at a time; the fake testkit harness and any unmigrated harness keep using `harnessText`. Our blocking permission UX survives via the public `ToolBridgeProvisionerCapability` DI seam (claude/codex) and `onPermissionRequest` config (opencode/ACP). Conciv tools convert from MCP-served handlers to `chat()` `toolDefinition().server()` tools carried by the tool bridge.
+**Architecture:** `HarnessAdapter.chatConfig(deps)` becomes REQUIRED — it returns the TanStack text adapter for that harness, and `turn.ts` has exactly one code path: `chat({adapter, tools, middleware: [withSandbox(localProcess), withConcivGate], threadId})`. Claude's adapter is ours, built from `translateSdkStream` + `buildPrompt` + `SESSION_ID_EVENT` (all public exports of `@tanstack/ai-claude-code`) over our existing `buildClaudeArgs` command line — which already carries `--strict-mcp-config`, `--plugin-dir`, `--settings` (permission hook), `--append-system-prompt-file`, image refs, and `/compact`. The other four harnesses use `codexText` / `opencodeText` / `acpCompatible` as shipped; their in-sandbox agents get conciv tools over the tool bridge and our blocking gate via the public `ToolBridgeProvisionerCapability` override (codex) and `onPermissionRequest` (opencode/ACP). The testkit fake harness converts to a scripted text adapter in the same task that rewrites `turn.ts` — nothing keeps the old spawn/decode machinery alive.
 
 **Tech Stack:** `@tanstack/ai` 0.40.0, `@tanstack/ai-sandbox` 0.2.2, `@tanstack/ai-sandbox-local-process` 0.2.0, `@tanstack/ai-claude-code` / `-codex` / `-opencode` / `-acp` 0.2.1, `@tanstack/ai-client` 0.20.0, `@tanstack/ai-solid` 0.14.3, `@tanstack/ai-mcp` 0.2.3.
 
 ## Global Constraints
 
-- Repo rules apply to every task: functions not classes (the `BaseTextAdapter` subclass in `packages/harness/src/_shared/text-adapter.ts` stays the sole exception — it SURVIVES this migration because the testkit fake harness uses it), zero code comments, no `any`/`as`/non-null `!`, oxfmt (no semicolons, single quotes), strict TS.
-- Never hand-rebuild `dist/` — `pnpm turbo run build --filter=<pkg>`; `pnpm test` builds first.
-- New npm dependencies in this plan (`@tanstack/ai-sandbox`, `@tanstack/ai-sandbox-local-process`, `@tanstack/ai-claude-code`, `@tanstack/ai-codex`, `@tanstack/ai-opencode`, `@tanstack/ai-acp`) were approved as part of this migration; do not add any OTHER dependency without asking.
-- Tests: real processes, no mocks/stubs of our own plumbing (`no-stubs-or-mocks`); harness ITs use `@conciv/harness-testkit` (`BootApp`, `runReal = !CI`); tight timeouts sized to the real operation.
-- Commit with pathspec always: `git commit -- <paths>` (parallel-session safety). Commits use the omridevk noreply identity (repo-configured).
-- Before finishing any task that touches package graphs: `pnpm exec fallow audit --changed-since main --format json` — fix INTRODUCED findings.
-- All work happens in this worktree (`.claude/worktrees/tanstack-harness-migration`); run every command from the worktree root.
-- Verified upstream facts this plan relies on (do not re-litigate, but re-verify if `@tanstack/ai-*` versions differ from the ones pinned above):
-  - `localProcessSandbox({dir})` uses that exact dir in place and never removes it on destroy by default (`ai-sandbox-local-process/src/provider.ts`).
-  - `createToolBridgeCore.callTool` AWAITS `permission.resolve` — an unbounded async permission handler is supported (`ai-sandbox/src/tool-bridge.ts:155`).
-  - Harness adapters resolve their bridge via `getToolBridgeProvisioner(ctx) ?? nodeHttpBridgeProvisioner`; `provideToolBridgeProvisioner` is public (precedent: `withNgrokBridge`).
-  - claude-code provisions the bridge when `tools.length > 0 || permission !== undefined`; the permission tool exists only when a sandbox POLICY is attached. codex and acp provision only when `tools.length > 0`.
-  - Adapter `permissionMode` config beats policy-derived flags: `modelOptions?.permissionMode ?? config.permissionMode ?? policyFlags.permissionMode ?? 'bypassPermissions'`.
-  - claude-code CLI invocation today has NO `--strict-mcp-config` / `--plugin-dir` / arbitrary-flag support → Task 9 upstream PR gates the claude cutover (Task 10).
-  - Session id arrives as CUSTOM event `` `${adapterName}.session-id` `` with `value: {sessionId: string}`; resume via `modelOptions.sessionId`.
-  - Known accepted regressions (call them out in the PR description): usage arrives only on RUN_FINISHED (no mid-turn token ticker from migrated harnesses); harness prompts are text-only upstream (we inject image `@path` refs into the prompt text ourselves, Task 10).
+- Repo rules on every task: functions not classes — the sole class exception remains `packages/harness/src/_shared/text-adapter.ts`, REWRITTEN in Task 4 as the one `BaseTextAdapter` extension point (`makeTextAdapter`); zero code comments; no `any`/`as`/non-null `!`; oxfmt; strict TS.
+- This plan builds the finished product in one session, executed task-by-task in order: NO seams, NO dual paths, NO back-compat branches, NO deferred follow-ups. Old code is deleted in the same task that replaces it; nothing ships half-migrated.
+- NO upstream PRs, forks, vendored copies, or executable shims. Only their published exports and documented config.
+- Never hand-rebuild `dist/` — turbo only; `pnpm test` builds first.
+- Approved new dependencies for this plan: `@tanstack/ai-sandbox`, `@tanstack/ai-sandbox-local-process`, `@tanstack/ai-claude-code`, `@tanstack/ai-codex`, `@tanstack/ai-opencode`, `@tanstack/ai-acp`. Nothing else without asking.
+- Tests: real processes only (`no-stubs-or-mocks` covers our plumbing; a SCRIPTED adapter feeding recorded real NDJSON is data, not a mock); harness ITs via `@conciv/harness-testkit` (`runReal = !CI`); tight timeouts.
+- Commit with pathspec (`git commit -- <paths>`); omridevk noreply identity.
+- `pnpm exec fallow audit --changed-since main --format json` clean (no INTRODUCED) before finishing each task that changes the module graph.
+- Work happens only in this worktree (`.claude/worktrees/tanstack-harness-migration`).
+- Verified upstream facts (re-verify only if package versions move):
+  - `@tanstack/ai-claude-code` exports: `claudeCodeText`, `ClaudeCodeTextAdapter`, `translateSdkStream`, `TranslateContext`, `AgentSdkMessage`, `buildPrompt`, `BuiltPrompt`, `SESSION_ID_EVENT`, `stripMcpPrefix`, `BRIDGED_MCP_SERVER_NAME`, `CLAUDE_CODE_MODELS` (`packages/ai-claude-code/src/index.ts`).
+  - `translateSdkStream(messages: AsyncIterable<AgentSdkMessage>, ctx: TranslateContext)` turns claude `stream-json` NDJSON lines into AG-UI `StreamChunk`s including reasoning, partials, tool calls, usage-on-result, and emits the `claude-code.session-id` CUSTOM event.
+  - `localProcessSandbox({dir})` runs in that exact dir, never removes it on destroy by default.
+  - `createToolBridgeCore.callTool` AWAITS `permission.resolve` — unbounded async permission handlers are supported; `provideToolBridgeProvisioner` is public API (first-party precedent: `withNgrokBridge`).
+  - `opencodeText` config takes async `onPermissionRequest`; `acpCompatible` config takes async `onPermissionRequest`; codex has no interactive permission hook — it maps to native codex approval/sandbox settings only.
+  - codex/acp provision the tool bridge only when `chat()` `tools.length > 0` (we always pass conciv tools, so it always provisions).
+  - Session ids arrive as CUSTOM `` `${adapterName}.session-id` `` with `value: {sessionId: string}`; resume threads back via `modelOptions.sessionId`.
+- Accepted regressions to list in the PR: mid-turn usage ticker becomes end-of-turn for codex/opencode/ACP (claude keeps per-message usage only if `translateSdkStream` emits it — verify, do not assume); upstream harness prompts are text-only (claude images keep working via our `imageRefs` in `buildClaudeArgs`; other harnesses declare `imageInput: false`).
 
 ## Design Decisions (locked)
 
-1. **Integration seam:** optional `chatConfig?: (deps: HarnessChatDeps) => HarnessChatConfig` on `HarnessAdapterBase`. `turn.ts` branches: `chatConfig` present → TanStack adapter + sandbox middleware; absent → existing `harnessText` path. No flag day; fake testkit harness untouched.
-2. **Sandbox:** one `defineSandbox` per core app instance: `localProcessSandbox({dir: cwd})`, NO `workspace` (prevents any projection writes into the user's repo), `fileEvents: false` (widget doesn't consume `sandbox.file` events yet), `lifecycle: {reuse: 'thread', destroyOnComplete: false}`, `policy: defineSandboxPolicy({default: 'ask'})`. `chat()` gets `threadId: sessionId` so the sandbox instance key is stable per session.
-3. **Permission gate:** for claude/codex — `defineChatMiddleware` that wraps `nodeHttpBridgeProvisioner`, replacing `permission.resolve` with our blocking `gate.decide(...)`. For opencode/ACP — `onPermissionRequest` adapter config calling the same gate. Adapter config pins `permissionMode: 'default'` so prompts actually route to the gate.
-4. **Tools:** convert `@conciv/tools` `RegistrableTool`s + extension server tools into `toolDefinition().server()` chat tools (session captured by closure — kills the session-header hack for bridged tools). `/api/mcp` route STAYS (the `launch`-in-terminal path still points real CLIs at it); only the in-turn tool transport changes.
-5. **Cutover order:** codex → opencode → pi/gemini (ACP) → claude (last, gated on upstream `extraArgs` PR). Claude keeps the current SDK path until Task 10 flips it.
-6. **Sidecars stay ours:** `history.ts` (transcript parse/list), `tty.ts`, `launch`, `plugin-dir.ts`, `system-prompt.ts`, `claudeSdkCommands` (live slash commands), compaction fallback prompt (already handled in `turn.ts` for `compaction: false`).
+1. **No seams.** `chatConfig` is a required `HarnessAdapter` member. `harnessText`'s spawn/decode logic, `HarnessAdapter.buildArgs`/`decode`/`run`/`deliverInput`/`buildCompactArgs` protocol members, `claude/decode.ts`, `claude/sdk.ts` run path, `codex/decode.ts` all die inside this plan — most in the same task that obsoletes them.
+2. **Claude = composition, not their turnkey adapter.** Their `claudeCodeText` cannot express `--strict-mcp-config` / `--plugin-dir` / `--settings` hooks / `--append-system-prompt-file`, and we refuse upstream coupling. Our adapter: `buildClaudeArgs(turn)` (existing, already correct) → `spawnHarness` (existing) → readline → their `translateSdkStream`. Their tested translator replaces our `decode.ts` (233 lines) and the agent-sdk run path in `sdk.ts` (~230 of 244 lines). Bonus: the CLI path restores `compaction: true` (`buildClaudeCompactArgs`), which the current SDK default had lost.
+3. **Claude keeps its existing tool + permission transports:** conciv tools via `/api/mcp` (`claudeMcpArgs`, session header, `--strict-mcp-config`) and the blocking hook gate (`--settings hookSettings(permissionUrl)` → `/api/chat/permission` → `gate.decide`). Zero behavioral change, zero widget tool-card change for the flagship harness.
+4. **Other harnesses = full TanStack adapters** under `withSandbox(localProcessSandbox({dir: cwd}))`: conciv tools converted to `toolDefinition().server()` and bridged (session captured by closure); blocking gate via `onPermissionRequest` (opencode, ACP) and the bridge-provisioner wrap (available to any adapter that provisions a permission tool). Codex permission = native codex approval/sandbox settings (no interactive hook exists upstream); configure the most conservative mode that still functions and assert it in the IT.
+5. **Build order: claude FIRST** (Task 4, biggest deletion, no sandbox infra needed), then sandbox infra + codex/opencode/pi/gemini — all in this session. Claude does not wait on anything.
+6. **Sidecars stay ours:** `history.ts`, `tty.ts`, `launch`, `plugin-dir.ts`, `system-prompt.ts`, `claudeSdkCommands` (live slash commands — keeps `@anthropic-ai/claude-agent-sdk` as a commands-listing dep only), `/api/mcp` route (launch path + claude turns), compaction fallback prompt for harnesses without native compaction.
 
 ## File Structure (end state)
 
 ```
-packages/protocol/src/harness-types.ts        # + HarnessChatDeps, HarnessChatConfig, chatConfig field
-packages/core/src/api/chat/sandbox.ts         # NEW: defineSandbox wiring + withConcivGate middleware
-packages/core/src/api/chat/chat-tools.ts      # NEW: RegistrableTool -> toolDefinition converter, buildChatTools
-packages/core/src/api/chat/turn.ts            # chatConfig branch, session-id CUSTOM tap, image-ref injection
-packages/core/src/api/chat/stream-effects.ts  # NEW: extracted chunk-tap (session-id, usage) — unit-testable
-packages/harness/src/codex/index.ts           # chatConfig via codexText; decode.ts/args.ts DELETED
+packages/protocol/src/harness-types.ts        # HarnessChatDeps + required chatConfig; buildArgs/decode/run/deliverInput/buildCompactArgs REMOVED
+packages/harness/src/_shared/text-adapter.ts  # REWRITTEN: makeTextAdapter({name, chatStream}) — the single BaseTextAdapter extension point
+packages/harness/src/_shared/env.ts           # NEW: definedEntries
+packages/harness/src/_shared/acp.ts           # NEW: shared acpCompatible factory + permission handler
+packages/harness/src/claude/chat.ts           # NEW: composed claude adapter (buildClaudeArgs + spawn + translateSdkStream)
+packages/harness/src/claude/index.ts          # chatConfig: claudeChat; models/history/tty/launch/commands unchanged
+packages/harness/src/claude/decode.ts         # DELETED
+packages/harness/src/claude/sdk.ts            # TRIMMED to claudeSdkCommands (+ shutdown/release if commands need them)
+packages/harness/src/codex/{decode,args}.ts   # DELETED
+packages/harness/src/codex/index.ts           # chatConfig via codexText
 packages/harness/src/opencode/index.ts        # real harness via opencodeText (stub today)
 packages/harness/src/pi/index.ts              # real harness via acpCompatible (stub today)
 packages/harness/src/gemini-cli/index.ts      # real harness via acpCompatible (stub today)
-packages/harness/src/claude/index.ts          # chatConfig via claudeCodeText (Task 10); sdk.ts trimmed to commands
-packages/harness/src/claude/{decode,args}.ts  # DELETED in Task 11 (imageRefs moves to _shared/image-refs.ts)
+packages/harness/src/_shared/stub.ts          # stub chatConfig -> scripted RUN_ERROR adapter (binary-missing message)
+packages/core/src/api/chat/turn.ts            # ONE path: chat({adapter, tools, middleware, threadId}); session-id tap
+packages/core/src/api/chat/chat-tools.ts      # NEW: RegistrableTool -> toolDefinition converter
+packages/core/src/api/chat/sandbox.ts         # NEW: defineSandbox(localProcess) + withConcivGate middleware
+packages/core/src/api/chat/stream-effects.ts  # NEW: tapSessionId
+packages/harness-testkit/src/*                # fake harness returns scripted text adapter via makeTextAdapter
 ```
 
 ---
@@ -58,167 +68,108 @@ packages/harness/src/claude/{decode,args}.ts  # DELETED in Task 11 (imageRefs mo
 
 **Files:**
 
-- Modify: every `package.json` declaring `@tanstack/ai` (8: `packages/protocol`, `packages/core`, `packages/harness`, `packages/tools`, `packages/widget`, `packages/extension`, plus run the grep below for the authoritative list), `@tanstack/ai-client` (4), `@tanstack/ai-solid` (2), `@tanstack/ai-mcp` (2)
+- Modify: every `package.json` declaring `@tanstack/ai` (authoritative list: `grep -rl '"@tanstack/ai"' --include=package.json packages apps | grep -v node_modules`), plus those declaring `@tanstack/ai-client`, `@tanstack/ai-solid`, `@tanstack/ai-mcp`
 
 **Interfaces:**
 
-- Consumes: nothing (first task)
-- Produces: repo-wide `@tanstack/ai@^0.40.0`, `@tanstack/ai-client@^0.20.0`, `@tanstack/ai-solid@^0.14.3`, `@tanstack/ai-mcp@^0.2.3` — the peer-dep floor every later task needs
+- Produces: repo-wide `@tanstack/ai@^0.40.0`, `@tanstack/ai-client@^0.20.0`, `@tanstack/ai-solid@^0.14.3`, `@tanstack/ai-mcp@^0.2.3` — peer-dep floor for everything after
 
-All 16 symbols we import from `@tanstack/ai` were verified present in 0.40.0 source (`StreamChunk`, `EventType`, `UIMessage`, `toolDefinition`, `ContentPart`, `MessagePart`, `toServerSentEventsStream`, `ToolOutputState`, `TokenUsage`, `TextOptions`, `StreamProcessor`, `normalizeSystemPrompts`, `ModelMessage`, `Logger`, `isContentPartArray`, `DebugConfig`), so breakage should be type-shape drift, not missing APIs.
+All 16 symbols we import from `@tanstack/ai` are verified present in 0.40.0 (`StreamChunk`, `EventType`, `UIMessage`, `toolDefinition`, `ContentPart`, `MessagePart`, `toServerSentEventsStream`, `ToolOutputState`, `TokenUsage`, `TextOptions`, `StreamProcessor`, `normalizeSystemPrompts`, `ModelMessage`, `Logger`, `isContentPartArray`, `DebugConfig`) — expect type-shape drift, not missing APIs.
 
-- [ ] **Step 1: Bump manifests**
-
-```bash
-grep -rl '"@tanstack/ai"' --include=package.json packages apps | grep -v node_modules
-```
-
-In each listed manifest set:
-
-```json
-"@tanstack/ai": "^0.40.0"
-```
-
-and wherever present:
-
-```json
-"@tanstack/ai-client": "^0.20.0"
-"@tanstack/ai-solid": "^0.14.3"
-"@tanstack/ai-mcp": "^0.2.3"
-```
-
-- [ ] **Step 2: Install and typecheck**
-
-Run: `pnpm install && pnpm typecheck`
-Expected: likely type errors from 0.28→0.40 drift. Fix each at the call site (no `as`, no version pinning retreat). Common drift spots: `TextOptions` generics in `packages/harness/src/_shared/text-adapter.ts`, `chat()` option types in `packages/core/src/api/chat/turn.ts`, client event types in widget.
-
-- [ ] **Step 3: Full gates**
-
-Run: `pnpm build && pnpm test && pnpm lint`
-Expected: all green. If a widget IT fails, rebuild the widget bundle first (`pnpm turbo run build --filter=@conciv/widget`) — stale-bundle failures are not upgrade failures.
-
+- [ ] **Step 1: Bump manifests** to the versions above in every listed package.
+- [ ] **Step 2: Install + typecheck.** Run `pnpm install && pnpm typecheck`; fix drift at call sites (no casts). Likely spots: `TextOptions` generics in `_shared/text-adapter.ts`, `chat()` options in `core/src/api/chat/turn.ts`, client event types in widget.
+- [ ] **Step 3: Full gates.** `pnpm build && pnpm test && pnpm lint` green. Widget IT failures: rebuild widget bundle first (`pnpm turbo run build --filter=@conciv/widget`) before debugging.
 - [ ] **Step 4: Commit**
 
 ```bash
-git add -- '**/package.json' pnpm-lock.yaml packages
-git commit -m 'chore: upgrade @tanstack/ai stack to 0.40' -- '**/package.json' pnpm-lock.yaml packages
+git commit -m 'chore: upgrade @tanstack/ai stack to 0.40' -- '**/package.json' pnpm-lock.yaml packages apps
 ```
 
 ---
 
-### Task 2: `chatConfig` seam on HarnessAdapter
+### Task 2: `makeTextAdapter` — the one BaseTextAdapter extension point
 
 **Files:**
 
-- Modify: `packages/protocol/src/harness-types.ts`
-- Modify: `packages/core/src/api/chat/turn.ts:88-134`
-- Test: `packages/core/test/chat-config-seam.test.ts`
+- Rewrite: `packages/harness/src/_shared/text-adapter.ts`
+- Test: `packages/harness/test/make-text-adapter.test.ts`
 
 **Interfaces:**
 
-- Consumes: `AnyTextAdapter` type from `@tanstack/ai` (exported; used in `chat()`'s own signature)
+- Consumes: `BaseTextAdapter`, `TextOptions`, `StreamChunk` from `@tanstack/ai` / `@tanstack/ai/adapters`
 - Produces:
 
   ```ts
-  export type HarnessChatDeps = {
-    cwd: string
-    sessionId: string
-    resumeSessionId: string | null
-    model?: string
-    env: Record<string, string | undefined>
-    decide(toolName: string, input: unknown, toolUseId: string): Promise<'allow' | 'deny'>
-  }
-  export type HarnessChatConfig = {
-    adapter: AnyTextAdapter
-    modelOptions?: Record<string, unknown>
-  }
-  // on HarnessAdapterBase:
-  chatConfig?: (deps: HarnessChatDeps) => HarnessChatConfig
+  export type ChatStreamFn = (options: TextOptions<Record<string, never>>) => AsyncIterable<StreamChunk>
+  export function makeTextAdapter(name: string, chatStream: ChatStreamFn): AnyTextAdapter
   ```
 
-  Every later harness task implements `chatConfig`; Task 4 supplies the middleware `turn.ts` attaches next to it.
+  Claude's composed adapter (Task 4), the stub adapter (Task 5), and the testkit fake (Task 5) all build on this. The old `harnessText`/`HarnessTextAdapter` spawn-decode logic is NOT preserved here — this file becomes ~30 lines.
 
 - [ ] **Step 1: Write the failing test**
 
-`packages/core/test/chat-config-seam.test.ts` — a scripted `AnyTextAdapter` (a real `BaseTextAdapter` subclass is not allowed outside `_shared/text-adapter.ts`; use `harnessText` itself over a scripted stub harness for the fallback case, and for the chatConfig case build the adapter with the testkit's `createTestHarness` pattern). Assert both branches:
-
 ```ts
 import {expect, test} from 'vitest'
-import {EventType} from '@tanstack/ai'
-import {runTurnStream} from '../src/api/chat/turn.js'
+import {EventType, chat} from '@tanstack/ai'
+import {makeTextAdapter} from '../src/_shared/text-adapter.js'
 
-test('turn uses chatConfig adapter when present', async () => {
-  const seen: string[] = []
-  const harness = makeScriptedHarness({
-    chatConfig: (deps) => {
-      seen.push(deps.sessionId)
-      return {adapter: scriptedTextAdapter([textChunk('from-chatconfig')])}
-    },
+test('makeTextAdapter drives chat() with the provided stream fn', async () => {
+  const adapter = makeTextAdapter('scripted', async function* (options) {
+    yield* scriptedRunChunks(`echo:${lastUserText(options.messages)}`)
   })
-  const chunks = await collect(runTurnStream(harness, baseDeps({sessionId: 's1'})))
-  expect(seen).toEqual(['s1'])
+  const chunks = []
+  for await (const chunk of chat({adapter, messages: [{role: 'user', content: 'hi'}]})) chunks.push(chunk)
   expect(chunks.some((c) => c.type === EventType.TEXT_MESSAGE_CONTENT)).toBe(true)
-})
-
-test('turn falls back to harnessText without chatConfig', async () => {
-  const harness = makeScriptedHarness({})
-  const chunks = await collect(runTurnStream(harness, baseDeps({sessionId: 's2'})))
-  expect(chunks.length).toBeGreaterThan(0)
+  expect(chunks.at(-1)?.type).toBe(EventType.RUN_FINISHED)
 })
 ```
 
-Structure note: `turn.ts` today builds the stream inline inside the route handler. Extract the adapter-selection + `chat()` call into an exported `runTurnStream(harness, deps)` so it is unit-testable — that extraction is part of this task. `registerTurnRoutes` calls it; behavior identical.
+`scriptedRunChunks` emits the minimal legal AG-UI sequence (RUN_STARTED → TEXT_MESSAGE_START/CONTENT/END → RUN_FINISHED) — copy exact chunk shapes from `@tanstack/ai` types; keep it as a shared test helper in `packages/harness/test/helpers/scripted-chunks.ts` because Task 5's testkit conversion reuses it.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **Step 2: Run to verify FAIL** — `pnpm vitest run test/make-text-adapter --root packages/harness` (fails: `makeTextAdapter` not exported).
 
-Run: `pnpm vitest run test/chat-config-seam --root packages/core`
-Expected: FAIL — `runTurnStream` not exported / `chatConfig` not a known property.
-
-- [ ] **Step 3: Implement**
-
-`harness-types.ts`: add the two types + optional field to `HarnessAdapterBase` (import `type {AnyTextAdapter} from '@tanstack/ai'`).
-
-`turn.ts` inside the extracted `runTurnStream`:
+- [ ] **Step 3: Implement.** Keep the existing class (sole exception) but reduce it to delegation:
 
 ```ts
-const config = harness.chatConfig?.({
-  cwd: deps.cwd,
-  sessionId,
-  resumeSessionId,
-  model: requestedModel,
-  env: deps.harnessEnv?.(sessionId) ?? process.env,
-  decide: (toolName, input, toolUseId) => deps.gate.decide(toolName, input, sessionId, toolUseId),
-})
-const stream = config
-  ? chat({
-      adapter: config.adapter,
-      messages,
-      systemPrompts: sysText ? [sysText] : [],
-      threadId: sessionId,
-      modelOptions: config.modelOptions,
-      abortController: abort,
-      debug: harnessDebug,
-    })
-  : chat({
-      adapter: harnessText(harness, legacyDeps),
-      messages,
-      systemPrompts: sysText ? [sysText] : [],
-      abortController: abort,
-      debug: harnessDebug,
-    })
+import {BaseTextAdapter, type StructuredOutputOptions, type StructuredOutputResult} from '@tanstack/ai/adapters'
+import type {StreamChunk, TextOptions} from '@tanstack/ai'
+
+export type ChatStreamFn = (options: TextOptions<Record<string, never>>) => AsyncIterable<StreamChunk>
+
+type InputModalities = readonly ['text']
+type MsgMeta = {text: unknown; image: unknown; audio: unknown; video: unknown; document: unknown}
+
+class DelegatingTextAdapter extends BaseTextAdapter<string, Record<string, never>, InputModalities, MsgMeta> {
+  readonly name: string
+  private readonly stream: ChatStreamFn
+
+  constructor(name: string, stream: ChatStreamFn) {
+    super({}, name)
+    this.name = name
+    this.stream = stream
+  }
+
+  chatStream(options: TextOptions<Record<string, never>>): AsyncIterable<StreamChunk> {
+    return this.stream(options)
+  }
+
+  structuredOutput(_options: StructuredOutputOptions<Record<string, never>>): Promise<StructuredOutputResult<unknown>> {
+    return Promise.reject(new Error(`harness '${this.name}' does not support structured output`))
+  }
+}
+
+export function makeTextAdapter(name: string, stream: ChatStreamFn): DelegatingTextAdapter {
+  return new DelegatingTextAdapter(name, stream)
+}
 ```
 
-(Middleware and tools are added to the `config` branch in Tasks 3–4; keep this task minimal — the branch exists and compiles.)
+Leave `lastUserModelText`/`lastUserImages` exports in place for now (Task 4 consumes them; Task 8 deletes whatever is left unused).
 
-- [ ] **Step 4: Run test to verify it passes**
-
-Run: `pnpm vitest run test/chat-config-seam --root packages/core`
-Expected: PASS. Then `pnpm turbo run test --filter=@conciv/core` for no regressions (testkit fake harness must be green — it exercises the fallback branch).
-
+- [ ] **Step 4: Run** the new test + `pnpm turbo run test --filter=@conciv/harness`. Existing `harnessText` consumers still compile (old code untouched until Task 5).
 - [ ] **Step 5: Commit**
 
 ```bash
-git commit -m 'feat(harness): chatConfig seam for tanstack harness adapters' -- packages/protocol/src/harness-types.ts packages/core/src/api/chat/turn.ts packages/core/test/chat-config-seam.test.ts
+git commit -m 'refactor(harness): makeTextAdapter as the single BaseTextAdapter extension point' -- packages/harness/src/_shared/text-adapter.ts packages/harness/test
 ```
 
 ---
@@ -228,13 +179,13 @@ git commit -m 'feat(harness): chatConfig seam for tanstack harness adapters' -- 
 **Files:**
 
 - Create: `packages/core/src/api/chat/chat-tools.ts`
-- Modify: `packages/core/src/api/chat/turn.ts` (TurnDeps + pass `tools` to the chatConfig branch), `packages/core/src/app.ts` (thread the same `makeCtx`/`extensionTools` already given to `registerMcpRoutes` into `TurnDeps`)
+- Modify: `packages/core/src/app.ts` (thread the same `makeCtx` / `extensionTools` / `sessionModel` already given to `registerMcpRoutes` into `TurnDeps.tools`)
 - Test: `packages/core/test/chat-tools.test.ts`
 
 **Interfaces:**
 
-- Consumes: `RegistrableTool` shape from `packages/core/src/api/mcp/mcp.ts:11` (`{name, description, inputSchema: z.ZodObject, execute}`), `concivTools(ctx)` from `@conciv/tools`, `ExtensionServerTool` from `@conciv/extension`, `toContent`/`isContentPartArray` result conventions
-- Produces: `buildChatTools(sessionId: string): AnyTool[]` — Task 4's bridge serves these; Tasks 6–10 rely on them being passed to `chat({tools})`
+- Consumes: `RegistrableTool` shape (`packages/core/src/api/mcp/mcp.ts:11`), `concivTools(ctx)` from `@conciv/tools`, `ExtensionServerTool`/`ToolRequest` from `@conciv/extension`
+- Produces: `buildChatTools(makeCtx, extensionTools, sessionModel): (sessionId: string) => AnyTool[]` — Task 5 passes the result to `chat({tools})`; codex/opencode/ACP bridge these into their agents
 
 - [ ] **Step 1: Write the failing test**
 
@@ -249,15 +200,14 @@ test('converts a registrable tool and executes with parsed args', async () => {
     async (args) => ({echoed: args}),
   )
   expect(tool.name).toBe('echo_tool')
-  const result = await tool.execute({value: 'hi'}, minimalToolCallContext())
+  const result = await tool.execute({value: 'hi'}, minimalExecutionContext())
   expect(result).toEqual({echoed: {value: 'hi'}})
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+(`minimalExecutionContext()` = the smallest object `AnyTool.execute`'s second parameter accepts in 0.40 — read the type, construct it literally in the test helper.)
 
-Run: `pnpm vitest run test/chat-tools --root packages/core`
-Expected: FAIL — module not found.
+- [ ] **Step 2: Run to verify FAIL** — `pnpm vitest run test/chat-tools --root packages/core`.
 
 - [ ] **Step 3: Implement**
 
@@ -289,50 +239,276 @@ export function buildChatTools(
 }
 ```
 
-Wire in `app.ts`: build once next to the `registerMcpRoutes` call and put `tools: buildChatTools(makeCtx, extensionTools, sessionModel)` on `TurnDeps`. In `runTurnStream`'s chatConfig branch add `tools: deps.tools(sessionId)`.
+If `toolDefinition`'s Standard-Schema generic rejects our zod version, STOP and surface it — zod version changes need approval.
 
-Type friction warning: `toolDefinition` takes a Standard-Schema input; our zod version already backs `readValidatedBody` — if the generic complains, fix the tool TYPE, don't cast. If our zod major is incompatible with 0.40's standard-schema expectation, STOP and surface it (dependency change needs approval).
-
-- [ ] **Step 4: Run tests**
-
-Run: `pnpm vitest run test/chat-tools --root packages/core && pnpm turbo run test --filter=@conciv/core`
-Expected: PASS; `/api/mcp` untouched and still green.
-
+- [ ] **Step 4: Run tests** — new test + `pnpm turbo run test --filter=@conciv/core` (`/api/mcp` untouched, still green).
 - [ ] **Step 5: Commit**
 
 ```bash
-git commit -m 'feat(core): conciv tools as chat() tool definitions' -- packages/core/src/api/chat/chat-tools.ts packages/core/src/api/chat/turn.ts packages/core/src/app.ts packages/core/test/chat-tools.test.ts
+git commit -m 'feat(core): conciv tools as chat() tool definitions' -- packages/core/src/api/chat/chat-tools.ts packages/core/src/app.ts packages/core/test/chat-tools.test.ts
 ```
 
 ---
 
-### Task 4: Sandbox definition + blocking permission-gate middleware
+### Task 4: Claude composed adapter (their translator, our command)
+
+**Files:**
+
+- Create: `packages/harness/src/claude/chat.ts`
+- Modify: `packages/harness/src/claude/index.ts` (single variant: `chatConfig: claudeChatConfig`; delete `makeClaudeAdapter(useSdk)` dual construction), `packages/harness/package.json` (add `@tanstack/ai-claude-code@^0.2.1`)
+- Test: `packages/harness/test/claude-chat.test.ts` with a recorded fixture `packages/harness/test/fixtures/claude-stream.ndjson`
+
+**Interfaces:**
+
+- Consumes: `translateSdkStream`, `buildPrompt`, `AgentSdkMessage`, `TranslateContext` from `@tanstack/ai-claude-code`; `buildClaudeArgs`/`buildClaudeCompactArgs` from `./args.js` (existing — already emit `-p <prompt> --output-format stream-json --verbose --include-partial-messages --permission-mode acceptEdits --add-dir <cwd> --mcp-config <conciv> --strict-mcp-config --plugin-dir <dir> --settings <hook> --append-system-prompt-file <file> --resume <id>`); `makeTextAdapter` (Task 2); `HarnessChatDeps` (defined here, moved to protocol in Task 5 — see Step 3)
+- Produces: `claudeChatConfig(deps: HarnessChatDeps): HarnessChatConfig` — Task 5's `turn.ts` calls it; session id flows out via the `claude-code.session-id` CUSTOM event that `translateSdkStream` emits
+
+- [ ] **Step 1: Record the fixture.** Run real claude once and capture NDJSON (this is data for a scripted replay, not a mock of our code):
+
+```bash
+claude -p 'say the word pong and nothing else' --output-format stream-json --verbose --include-partial-messages > packages/harness/test/fixtures/claude-stream.ndjson
+```
+
+Sanity-check it contains `system:init` (session id), streamed `assistant` events, and a `result` line with usage.
+
+- [ ] **Step 2: Write the failing test**
+
+```ts
+import {createReadStream} from 'node:fs'
+import {expect, test} from 'vitest'
+import {EventType} from '@tanstack/ai'
+import {claudeChatStream} from '../src/claude/chat.js'
+
+test('composed adapter translates a real recorded stream', async () => {
+  const chunks = []
+  const stream = claudeChatStream(
+    {
+      cwd: process.cwd(),
+      sessionId: 's1',
+      resumeSessionId: null,
+      env: {},
+      kind: 'chat',
+      spawn: () => fixtureChild('test/fixtures/claude-stream.ndjson'),
+      decide: async () => 'allow',
+    },
+    minimalTextOptions('say pong'),
+  )
+  for await (const chunk of stream) chunks.push(chunk)
+  const sessionEvents = chunks.filter((c) => c.type === EventType.CUSTOM && c.name === 'claude-code.session-id')
+  expect(sessionEvents).toHaveLength(1)
+  expect(chunks.some((c) => c.type === EventType.TEXT_MESSAGE_CONTENT)).toBe(true)
+  expect(chunks.at(-1)?.type).toBe(EventType.RUN_FINISHED)
+})
+```
+
+`fixtureChild(path)` returns a `HarnessChild` whose `stdout` is `createReadStream(path)` — a real stream of real claude output.
+
+- [ ] **Step 3: Run to verify FAIL**, then implement `chat.ts`:
+
+```ts
+import {createInterface} from 'node:readline'
+import type {Readable} from 'node:stream'
+import type {StreamChunk, TextOptions} from '@tanstack/ai'
+import {buildPrompt, translateSdkStream, type AgentSdkMessage} from '@tanstack/ai-claude-code'
+import type {HarnessChatDeps, HarnessChild} from '@conciv/protocol/harness-types'
+import {makeTextAdapter, lastUserImages, lastUserModelText} from '../_shared/text-adapter.js'
+import {buildClaudeArgs, buildClaudeCompactArgs} from './args.js'
+
+async function* ndjson(stream: Readable): AsyncIterable<AgentSdkMessage> {
+  const lines = createInterface({input: stream, crlfDelay: Infinity})
+  for await (const line of lines) {
+    if (!line.trim()) continue
+    yield JSON.parse(line)
+  }
+}
+
+export async function* claudeChatStream(
+  deps: HarnessChatDeps,
+  options: TextOptions<Record<string, never>>,
+): AsyncIterable<StreamChunk> {
+  const {prompt, resume} = buildPrompt(options.messages, deps.resumeSessionId ?? undefined)
+  const turn = {
+    prompt,
+    cwd: deps.cwd,
+    resumeSessionId: resume ?? null,
+    systemPrompt: deps.systemPromptFile ?? '',
+    mcpUrl: deps.mcpUrl,
+    permissionUrl: deps.permissionUrl,
+    sessionId: deps.sessionId,
+    images: lastUserImages(options.messages),
+    model: deps.model,
+    kind: deps.kind,
+  }
+  const args = deps.kind === 'compact' ? buildClaudeCompactArgs(turn) : buildClaudeArgs(turn)
+  const child = deps.spawn(args, deps.cwd)
+  options.abortController?.signal.addEventListener('abort', () => child.kill())
+  yield* translateSdkStream(ndjson(child.stdout), {
+    model: deps.model ?? 'sonnet',
+    runId: options.runId ?? deps.sessionId,
+    threadId: options.threadId ?? deps.sessionId,
+    genId: () => crypto.randomUUID(),
+  })
+}
+
+export const claudeChatConfig = (deps: HarnessChatDeps) => ({
+  adapter: makeTextAdapter('claude-code', (options) => claudeChatStream(deps, options)),
+})
+```
+
+Field-verify `TranslateContext` against the installed dist types (`onSdkMessage` optional logger hook — wire it to `options.logger.provider` like their adapter does). `HarnessChatDeps` for this task lives in `packages/harness/src/claude/chat.ts` temporarily if protocol isn't updated yet — Task 5 moves it to `harness-types.ts`; keep the shape identical: `{cwd, sessionId, resumeSessionId, model?, env, kind, mcpUrl?, permissionUrl?, systemPromptFile?, spawn, decide}`.
+
+`index.ts` collapses to ONE `defineHarness` call: capabilities `{resume: true, permissionGate: 'hook', transcriptHistory: true, compaction: true, systemPrompt: 'file', mcp: 'http', slashCommands: 'live', imageInput: 'fileRef'}`, `chatConfig: claudeChatConfig`, `commands: claudeSdkCommands`, existing `models`/`history`/`launch`/`tty`. `USE_SDK` env switch deleted.
+
+- [ ] **Step 4: Run** — fixture test green; `pnpm turbo run test --filter=@conciv/harness`. Type errors in core (old `harnessText` still calling `harness.run`) are EXPECTED to stay green because index.ts keeps `decode: claudeToAguiEvents` only if the old path still type-requires it — if the discriminated union forces members Task 5 removes, land Tasks 4+5 as one commit series in the same PR and let Task 5's protocol change resolve it; do NOT re-introduce dual adapters to appease types.
+- [ ] **Step 5: Commit**
+
+```bash
+git commit -m 'feat(harness): claude adapter composed from @tanstack/ai-claude-code exports' -- packages/harness/src/claude packages/harness/package.json pnpm-lock.yaml packages/harness/test
+```
+
+---
+
+### Task 5: One turn path — protocol reshape, turn.ts rewrite, testkit + stub conversion
+
+**Files:**
+
+- Modify: `packages/protocol/src/harness-types.ts` — DELETE `HarnessArgsBuilder`, `HarnessDecoder`, `HarnessRun`, `HarnessDeliverInput`, `buildArgs`, `decode`, `run`, `deliverInput`, `buildCompactArgs` members and the compaction/slash-command union arms that reference them; ADD `HarnessChatDeps`, `HarnessChatConfig`, required `chatConfig`
+- Modify: `packages/core/src/api/chat/turn.ts` — single `chat()` path; `tapSessionId`; compact fallback prompt for harnesses with `compaction: false`
+- Create: `packages/core/src/api/chat/stream-effects.ts` (`tapSessionId`)
+- Modify: `packages/harness/src/_shared/stub.ts` — stub `chatConfig` returns `makeTextAdapter` emitting a RUN_ERROR chunk (`<binName> is not installed or not yet supported`)
+- Modify: `packages/harness-testkit/src/create-test-harness.ts` (+ whatever `scripted-run.ts` feeds it) — fake harness returns `chatConfig` built on `makeTextAdapter` + the Task 2 scripted-chunks helper
+- Test: `packages/core/test/stream-effects.test.ts`; the ENTIRE existing core testkit suite is the acceptance gate
+
+**Interfaces:**
+
+- Consumes: `makeTextAdapter` (Task 2), `buildChatTools` (Task 3), `claudeChatConfig` (Task 4)
+- Produces (in `harness-types.ts`):
+
+  ```ts
+  export type HarnessChatDeps = {
+    cwd: string
+    sessionId: string
+    resumeSessionId: string | null
+    model?: string
+    env: Record<string, string | undefined>
+    kind: 'chat' | 'compact'
+    mcpUrl?: string
+    permissionUrl?: string
+    systemPromptFile?: string
+    spawn(args: string[], cwd: string): HarnessChild
+    decide(toolName: string, input: unknown, toolUseId: string): Promise<'allow' | 'deny'>
+  }
+  export type HarnessChatConfig = {adapter: AnyTextAdapter; modelOptions?: Record<string, unknown>}
+  // required on HarnessAdapterBase:
+  chatConfig: (deps: HarnessChatDeps) => HarnessChatConfig
+  ```
+
+- [ ] **Step 1: Write the failing tap test**
+
+```ts
+import {expect, test} from 'vitest'
+import {EventType} from '@tanstack/ai'
+import {tapSessionId} from '../src/api/chat/stream-effects.js'
+
+test('captures session-id custom events from any adapter', () => {
+  const ids: string[] = []
+  for (const name of ['claude-code.session-id', 'codex.session-id']) {
+    tapSessionId(
+      {type: EventType.CUSTOM, name, value: {sessionId: name}, timestamp: 1, threadId: 't', runId: 'r'},
+      (id) => ids.push(id),
+    )
+  }
+  tapSessionId(
+    {type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'm', delta: 'x', timestamp: 1, threadId: 't', runId: 'r'},
+    (id) => ids.push(id),
+  )
+  expect(ids).toEqual(['claude-code.session-id', 'codex.session-id'])
+})
+```
+
+Implementation:
+
+```ts
+import {EventType, type StreamChunk} from '@tanstack/ai'
+
+export function tapSessionId(chunk: StreamChunk, onSessionId: (id: string) => void): void {
+  if (chunk.type !== EventType.CUSTOM || !chunk.name.endsWith('.session-id')) return
+  const value = chunk.value
+  if (typeof value === 'object' && value !== null && 'sessionId' in value && typeof value.sessionId === 'string') {
+    onSessionId(value.sessionId)
+  }
+}
+```
+
+- [ ] **Step 2: Reshape `harness-types.ts`.** Delete the run-path types/members listed above. Keep: capabilities (drop `compaction`'s union arm tying it to `buildCompactArgs` — compaction becomes a plain boolean the harness honors inside its own `chatConfig`), `models`, `defaultModel`, `launch`, `tty`, `release`/`shutdown` (still used by `claudeSdkCommands` lifecycle — verify with fallow trace, keep only if used), the `transcriptHistory`/`history` and `slashCommands`/`commands` unions.
+
+- [ ] **Step 3: Rewrite `runTurnStream` in `turn.ts`** (single path):
+
+```ts
+const config = harness.chatConfig({
+  cwd: deps.cwd,
+  sessionId,
+  resumeSessionId,
+  model: requestedModel,
+  env: deps.harnessEnv?.(sessionId) ?? process.env,
+  kind: turnKind,
+  mcpUrl: harness.capabilities.mcp === 'http' ? `${origin}/api/mcp` : undefined,
+  permissionUrl: harness.capabilities.permissionGate === 'hook' ? `${origin}/api/chat/permission` : undefined,
+  systemPromptFile: mode === 'file' ? deps.systemPromptFile : undefined,
+  spawn: (args, cwd) => deps.spawnHarness(args, cwd, sessionId),
+  decide: (toolName, input, toolUseId) => deps.gate.decide(toolName, input, sessionId, toolUseId),
+})
+const stream = chat({
+  adapter: config.adapter,
+  messages,
+  systemPrompts: mode === 'flag' && sysText ? [sysText] : [],
+  threadId: sessionId,
+  tools: deps.tools(sessionId),
+  modelOptions: config.modelOptions,
+  middleware: deps.chatMiddleware(sessionId),
+  abortController: abort,
+  debug: harnessDebug,
+})
+```
+
+`deps.chatMiddleware` is `() => []` until Task 6 wires the sandbox — keep the TurnDeps field now so Task 6 is additive. The compact-fallback block (`COMPACT_FALLBACK_PROMPT` when `!harness.capabilities.compaction`) stays exactly as is. In `withLockRelease`, add `tapSessionId(c, (id) => void recordMintedToken(store, sessionId, id).catch(() => {}))`. Delete `harnessText` import and the `HarnessTextAdapter` spawn/decode remnants from `text-adapter.ts` (`linesOf`, `HarnessAdapterDeps`, `harnessText`); `lastUserModelText`/`lastUserImages` stay (claude uses them).
+
+- [ ] **Step 4: Convert stub + testkit.** `stub.ts`:
+
+```ts
+chatConfig: () => ({
+  adapter: makeTextAdapter(id, async function* () {
+    yield* runErrorChunks(`${binName} is not installed or not yet supported`)
+  }),
+})
+```
+
+Testkit `create-test-harness.ts`: the fake's scripted turns become a `ChatStreamFn` yielding the same chunk sequences the old decode produced (reuse `scripted-chunks.ts`; the scripted content comes from the existing `scripted-run.ts` fixtures). Session-id emission becomes a CUSTOM `fake.session-id` chunk so the Task 5 tap covers the fake too — update any testkit assertion that relied on the old `onSessionId` callback.
+
+- [ ] **Step 5: The gate is the whole suite.** Run `pnpm typecheck && pnpm build && pnpm test`. Every existing core/testkit/extension IT must pass on the new single path (CI mode = fake harness; local = real claude through Task 4's adapter). Fix forward — reverting to the old path is not an option, it no longer exists.
+- [ ] **Step 6: Fallow + commit**
+
+```bash
+pnpm exec fallow audit --changed-since main --format json
+git commit -m 'refactor(core)!: single tanstack chat path for all harnesses' -- packages/protocol/src packages/core/src packages/core/test packages/harness/src packages/harness-testkit/src
+```
+
+---
+
+### Task 6: Sandbox infra + blocking gate middleware (for the bridged harnesses)
 
 **Files:**
 
 - Create: `packages/core/src/api/chat/sandbox.ts`
-- Modify: `packages/core/src/api/chat/turn.ts` (attach middleware in the chatConfig branch)
+- Modify: `packages/core/src/api/chat/turn.ts` (`deps.chatMiddleware` returns the real array), `packages/core/src/app.ts`, `packages/core/package.json` (add `@tanstack/ai-sandbox@^0.2.2`, `@tanstack/ai-sandbox-local-process@^0.2.0`)
 - Test: `packages/core/test/bridge-gate.it.test.ts`
 
 **Interfaces:**
 
-- Consumes: `PermissionGate.decide(toolName, input, sessionId, toolUseId)` (`packages/core/src/api/chat/permission.ts:12`); from `@tanstack/ai-sandbox`: `defineSandbox`, `defineSandboxPolicy`, `withSandbox`, `nodeHttpBridgeProvisioner`, `provideToolBridgeProvisioner`, types `ToolBridgeProvisioner`, `BridgePermission`, `PermissionToolResult`; from `@tanstack/ai`: `defineChatMiddleware`; from `@tanstack/ai-sandbox-local-process`: `localProcessSandbox`
-- Produces: `concivSandbox(cwd: string)` (memoized `defineSandbox` result) and `withConcivGate(gate: PermissionGate, sessionId: string)` (chat middleware) — Tasks 6 and 10 put both in the middleware array
+- Consumes: `PermissionGate.decide` (`permission.ts:12`); `defineSandbox`, `defineSandboxPolicy`, `withSandbox`, `nodeHttpBridgeProvisioner`, `provideToolBridgeProvisioner`, `ToolBridgeProvisioner` from `@tanstack/ai-sandbox`; `defineChatMiddleware` from `@tanstack/ai`; `localProcessSandbox`
+- Produces: `concivSandbox(cwd)` + `withConcivGate(gate, sessionId)`; `TurnDeps.chatMiddleware = (sessionId) => [withSandbox(concivSandbox(cwd)), withConcivGate(gate, sessionId)]` — required by Tasks 7–9 adapters (`requires: [SandboxCapability]`), inert for claude (its adapter declares no sandbox requirement and ignores the capability)
 
-- [ ] **Step 1: Add dependencies**
-
-In `packages/core/package.json`:
-
-```json
-"@tanstack/ai-sandbox": "^0.2.2",
-"@tanstack/ai-sandbox-local-process": "^0.2.0"
-```
-
-Run: `pnpm install`
-
-- [ ] **Step 2: Write the failing integration test**
-
-Real bridge, real HTTP, real (in-test) gate — no mocks. The test provisions through `withConcivGate`'s provisioner exactly as an adapter would, calls the permission tool over HTTP, and proves the call BLOCKS until the gate resolves:
+- [ ] **Step 1: Write the failing IT** — real `nodeHttpBridgeProvisioner`, real HTTP, prove the permission call BLOCKS until the gate resolves:
 
 ```ts
 import {expect, test} from 'vitest'
@@ -340,53 +516,40 @@ import {gateProvisioner} from '../src/api/chat/sandbox.js'
 
 test('permission tool blocks until gate decides, then allows', async () => {
   let release: (d: 'allow' | 'deny') => void = () => {}
-  const gate = {
-    decide: (toolName: string) =>
-      new Promise<'allow' | 'deny'>((resolve) => {
-        expect(toolName).toBe('Bash')
-        release = resolve
-      }),
-  }
-  const provisioner = gateProvisioner(gate, 'session-1')
-  const bridge = await provisioner.provision([], {
+  const gate = {decide: () => new Promise<'allow' | 'deny'>((resolve) => (release = resolve))}
+  const bridge = await gateProvisioner(gate, 'session-1').provision([], {
     provider: 'local-process',
     permission: {toolName: 'approval_prompt', resolve: () => ({behavior: 'deny', message: 'unused upstream resolver'})},
   })
-  const callPromise = callBridgeTool(bridge, 'approval_prompt', {tool_name: 'Bash', input: {command: 'rm -rf /'}})
-  await expect(Promise.race([callPromise, timeout(300)])).resolves.toBe('pending')
+  const call = callBridgeTool(bridge, 'approval_prompt', {tool_name: 'Bash', input: {command: 'rm -rf /'}})
+  await expect(Promise.race([call, settle(300, 'pending')])).resolves.toBe('pending')
   release('allow')
-  const result = await callPromise
-  expect(JSON.parse(result)).toEqual({behavior: 'allow'})
+  expect(JSON.parse(await call)).toEqual({behavior: 'allow'})
   await bridge.close()
 })
 ```
 
-`callBridgeTool` speaks MCP `tools/call` over `fetch` to `bridge.url` with `Authorization: Bearer ${bridge.token}` — copy the wire shape from `@tanstack/ai-sandbox`'s own bridge tests (`packages/ai-sandbox` in the tanstack repo has them; the scratchpad clone at `scratchpad/tanstack-ai` is a reference). `timeout(ms)` resolves `'pending'` — proves the call did not settle early.
+`callBridgeTool` speaks MCP `tools/call` over `fetch` to `bridge.url` with `Authorization: Bearer ${bridge.token}` (wire shape: `@modelcontextprotocol/sdk` client or a literal JSON-RPC POST — match what `startHostToolBridge` serves).
 
-- [ ] **Step 3: Run test to verify it fails**
-
-Run: `pnpm vitest run test/bridge-gate --root packages/core`
-Expected: FAIL — module not found.
-
-- [ ] **Step 4: Implement `sandbox.ts`**
+- [ ] **Step 2: Implement `sandbox.ts`**
 
 ```ts
+import {randomUUID} from 'node:crypto'
 import {defineChatMiddleware} from '@tanstack/ai'
 import {
   defineSandbox,
   defineSandboxPolicy,
   nodeHttpBridgeProvisioner,
   provideToolBridgeProvisioner,
-  type SandboxDefinition,
+  withSandbox,
   type ToolBridgeProvisioner,
 } from '@tanstack/ai-sandbox'
 import {localProcessSandbox} from '@tanstack/ai-sandbox-local-process'
-import {randomUUID} from 'node:crypto'
 import type {PermissionGate} from './permission.js'
 
-const sandboxes = new Map<string, SandboxDefinition>()
+const sandboxes = new Map<string, ReturnType<typeof defineSandbox>>()
 
-export function concivSandbox(cwd: string): SandboxDefinition {
+export function concivSandbox(cwd: string) {
   const existing = sandboxes.get(cwd)
   if (existing) return existing
   const definition = defineSandbox({
@@ -400,13 +563,13 @@ export function concivSandbox(cwd: string): SandboxDefinition {
   return definition
 }
 
-function permissionRequestFields(request: unknown): {toolName: string; input: unknown; toolUseId: string} {
-  const record = typeof request === 'object' && request !== null ? request : {}
-  const toolName = 'tool_name' in record && typeof record.tool_name === 'string' ? record.tool_name : 'tool'
-  const input = 'input' in record ? record.input : undefined
-  const toolUseId =
-    'tool_use_id' in record && typeof record.tool_use_id === 'string' ? record.tool_use_id : randomUUID()
-  return {toolName, input, toolUseId}
+function requestFields(request: unknown): {toolName: string; input: unknown; toolUseId: string} {
+  const record: Record<string, unknown> = typeof request === 'object' && request !== null ? {...request} : {}
+  return {
+    toolName: typeof record.tool_name === 'string' ? record.tool_name : 'tool',
+    input: record.input,
+    toolUseId: typeof record.tool_use_id === 'string' ? record.tool_use_id : randomUUID(),
+  }
 }
 
 export function gateProvisioner(gate: Pick<PermissionGate, 'decide'>, sessionId: string): ToolBridgeProvisioner {
@@ -418,7 +581,7 @@ export function gateProvisioner(gate: Pick<PermissionGate, 'decide'>, sessionId:
           ? {
               ...options.permission,
               resolve: async (request) => {
-                const {toolName, input, toolUseId} = permissionRequestFields(request)
+                const {toolName, input, toolUseId} = requestFields(request)
                 const decision = await gate.decide(toolName, input, sessionId, toolUseId)
                 return decision === 'allow' ? {behavior: 'allow'} : {behavior: 'deny', message: 'Denied by user'}
               },
@@ -438,185 +601,30 @@ export function withConcivGate(gate: Pick<PermissionGate, 'decide'>, sessionId: 
 }
 ```
 
-(Exact `ToolBridgeProvisioner`/`BridgePermission` option shapes: mirror `@tanstack/ai-sandbox`'s exported types; if `provision`'s second parameter type rejects the spread, align field-by-field rather than casting.)
+Wire `TurnDeps.chatMiddleware` in `app.ts`. Align field shapes with the installed `@tanstack/ai-sandbox` types field-by-field, never by cast.
 
-Wire in `runTurnStream`'s chatConfig branch:
-
-```ts
-middleware: [withSandbox(concivSandbox(deps.cwd)), withConcivGate(deps.gate, sessionId)],
-```
-
-- [ ] **Step 5: Run tests**
-
-Run: `pnpm vitest run test/bridge-gate --root packages/core && pnpm turbo run test --filter=@conciv/core`
-Expected: PASS, including the block-then-allow race assertion.
-
-- [ ] **Step 6: Commit**
+- [ ] **Step 3: Run** — the IT plus full core suite (claude path must be unaffected: middleware present but unused by our composed adapter).
+- [ ] **Step 4: Commit**
 
 ```bash
-git commit -m 'feat(core): local-process sandbox + blocking permission bridge gate' -- packages/core/src/api/chat/sandbox.ts packages/core/src/api/chat/turn.ts packages/core/package.json pnpm-lock.yaml packages/core/test/bridge-gate.it.test.ts
+git commit -m 'feat(core): local-process sandbox + blocking bridge permission gate' -- packages/core/src/api/chat/sandbox.ts packages/core/src/api/chat/turn.ts packages/core/src/app.ts packages/core/package.json pnpm-lock.yaml packages/core/test/bridge-gate.it.test.ts
 ```
 
 ---
 
-### Task 5: Stream effects — session-id CUSTOM tap + image refs
+### Task 7: Codex on `codexText`
 
 **Files:**
 
-- Create: `packages/core/src/api/chat/stream-effects.ts`
-- Create: `packages/harness/src/_shared/image-refs.ts` (move `imageRefs` + `IMAGE_EXT` from `packages/harness/src/claude/args.ts:30-46`, re-export from `args.ts` until Task 11 deletes it)
-- Modify: `packages/core/src/api/chat/turn.ts` (`withLockRelease` uses the tap; message pre-processing injects image refs)
-- Test: `packages/core/test/stream-effects.test.ts`
+- Modify: `packages/harness/src/codex/index.ts`; Delete: `packages/harness/src/codex/decode.ts`, `packages/harness/src/codex/args.ts`
+- Create: `packages/harness/src/_shared/env.ts`
+- Modify: `packages/harness/package.json` (add `@tanstack/ai-codex@^0.2.1`)
+- Test: `packages/harness/test/codex-chat-config.test.ts` + binary-gated IT in `packages/core/test/testkit/`
 
 **Interfaces:**
 
-- Consumes: `EventType.CUSTOM` chunks shaped `{name: `${string}.session-id`, value: {sessionId: string}}`; `recordMintedToken(store, id, token)` (`turn.ts:19`); `imageRefs(images, cwd)` writing `.conciv-img-<uuid>.<ext>` files and returning `@path` refs
-- Produces:
-
-  ```ts
-  export function tapSessionId(chunk: StreamChunk, onSessionId: (id: string) => void): void
-  export function injectImageRefs(messages: ModelMessage[], cwd: string): ModelMessage[]
-  ```
-
-  Task 6+ harnesses rely on `tapSessionId` for resume bookkeeping (the legacy `onSessionId` callback does not fire for tanstack adapters); Task 10 relies on `injectImageRefs` for claude `fileRef` images.
-
-- [ ] **Step 1: Write the failing tests**
-
-```ts
-import {expect, test} from 'vitest'
-import {EventType} from '@tanstack/ai'
-import {tapSessionId, injectImageRefs} from '../src/api/chat/stream-effects.js'
-
-test('captures any adapter session-id custom event', () => {
-  const ids: string[] = []
-  tapSessionId(
-    {
-      type: EventType.CUSTOM,
-      name: 'claude-code.session-id',
-      value: {sessionId: 'abc'},
-      timestamp: 1,
-      threadId: 't',
-      runId: 'r',
-    },
-    (id) => ids.push(id),
-  )
-  tapSessionId(
-    {
-      type: EventType.CUSTOM,
-      name: 'codex.session-id',
-      value: {sessionId: 'def'},
-      timestamp: 1,
-      threadId: 't',
-      runId: 'r',
-    },
-    (id) => ids.push(id),
-  )
-  expect(ids).toEqual(['abc', 'def'])
-})
-
-test('injects @path refs for image parts and strips them from content', () => {
-  const messages = [userMessageWithImage('describe this', PNG_BASE64)]
-  const out = injectImageRefs(messages, testCwd)
-  const text = lastUserText(out)
-  expect(text).toMatch(/describe this\n\n@.*\.conciv-img-.*\.png/)
-  expect(existsSync(text.split('@')[1].trim())).toBe(true)
-})
-```
-
-- [ ] **Step 2: Run tests to verify they fail**
-
-Run: `pnpm vitest run test/stream-effects --root packages/core`
-Expected: FAIL — module not found.
-
-- [ ] **Step 3: Implement**
-
-```ts
-import {EventType, type ModelMessage, type StreamChunk} from '@tanstack/ai'
-import {imageRefs} from '@conciv/harness/image-refs'
-
-export function tapSessionId(chunk: StreamChunk, onSessionId: (id: string) => void): void {
-  if (chunk.type !== EventType.CUSTOM) return
-  if (!chunk.name.endsWith('.session-id')) return
-  const value = chunk.value
-  if (typeof value === 'object' && value !== null && 'sessionId' in value && typeof value.sessionId === 'string') {
-    onSessionId(value.sessionId)
-  }
-}
-
-export function injectImageRefs(messages: ModelMessage[], cwd: string): ModelMessage[] {
-  return messages.map((message) => {
-    if (message.role !== 'user' || message.content === null || typeof message.content === 'string') return message
-    const images = message.content.flatMap((part) =>
-      part.type === 'image' && part.source.type === 'data'
-        ? [{mediaType: part.source.mimeType, dataBase64: part.source.value}]
-        : [],
-    )
-    if (!images.length) return message
-    const text = message.content.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join('\n')
-    return {...message, content: `${text}\n\n${imageRefs(images, cwd)}`}
-  })
-}
-```
-
-(`@conciv/harness/image-refs` needs a package export entry in `packages/harness/package.json` — same pattern as its existing subpath exports.)
-
-In `withLockRelease` add `tapSessionId(c, (id) => void recordMintedToken(store, sessionId, id).catch(() => {}))` beside the existing `RUN_FINISHED` usage persistence. In `runTurnStream`'s chatConfig branch, pass `messages: injectImageRefs(messages, deps.cwd)` when `harness.capabilities.imageInput === 'fileRef'`.
-
-- [ ] **Step 4: Run tests**
-
-Run: `pnpm vitest run test/stream-effects --root packages/core && pnpm turbo run test --filter=@conciv/core --filter=@conciv/harness`
-Expected: PASS.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git commit -m 'feat(core): session-id tap + image ref injection for tanstack harnesses' -- packages/core/src/api/chat/stream-effects.ts packages/core/src/api/chat/turn.ts packages/harness/src/_shared/image-refs.ts packages/harness/src/claude/args.ts packages/harness/package.json packages/core/test/stream-effects.test.ts
-```
-
----
-
-### Task 6: Codex cutover
-
-**Files:**
-
-- Modify: `packages/harness/src/codex/index.ts` (chatConfig; drop `buildArgs`/`decode` usage)
-- Delete: `packages/harness/src/codex/decode.ts`, `packages/harness/src/codex/args.ts`
-- Modify: `packages/harness/package.json` (add `@tanstack/ai-codex@^0.2.1`, `@tanstack/ai-sandbox` peer already via core middleware — adapter package only needs `-codex`)
-- Test: `packages/harness/test/codex-chat-config.test.ts`, plus a gated IT in `packages/core/test/testkit/`
-
-**Interfaces:**
-
-- Consumes: `codexText(model, config)` from `@tanstack/ai-codex`; `HarnessChatDeps` (Task 2)
-- Produces: `codex` HarnessAdapter with `chatConfig` — capabilities update: `resume: true`, `mcp` handled by bridge (set `mcp: 'none'` — the `mcpUrl` plumbing no longer applies to codex), `permissionGate: 'callback'`
-
-- [ ] **Step 1: Write the failing test**
-
-```ts
-import {expect, test} from 'vitest'
-import {codex} from '../src/codex/index.js'
-
-test('codex chatConfig resumes via modelOptions.sessionId', () => {
-  const config = codex.chatConfig?.({
-    cwd: '/repo',
-    sessionId: 's',
-    resumeSessionId: 'codex-thread-1',
-    model: 'gpt-5.3-codex',
-    env: {},
-    decide: async () => 'allow',
-  })
-  expect(config?.adapter.name).toBe('codex')
-  expect(config?.modelOptions).toMatchObject({sessionId: 'codex-thread-1'})
-})
-```
-
-- [ ] **Step 2: Run test to verify it fails**
-
-Run: `pnpm vitest run test/codex-chat-config --root packages/harness`
-Expected: FAIL.
-
-- [ ] **Step 3: Implement**
-
-Add once to `packages/harness/src/_shared/env.ts` (used again by Task 10):
+- Consumes: `codexText(model, config)`; `HarnessChatDeps`
+- Produces: codex `chatConfig`; `definedEntries` in `_shared/env.ts`:
 
 ```ts
 export function definedEntries(env: Record<string, string | undefined>): Record<string, string> {
@@ -624,74 +632,48 @@ export function definedEntries(env: Record<string, string | undefined>): Record<
 }
 ```
 
+- [ ] **Step 1: Failing test** — `codex.chatConfig(deps)` returns adapter named `codex` and `modelOptions.sessionId === deps.resumeSessionId`.
+- [ ] **Step 2: Implement**
+
 ```ts
 import {codexText} from '@tanstack/ai-codex'
-import {defineHarness, type HarnessChatDeps} from '@conciv/protocol/harness-types'
 import {definedEntries} from '../_shared/env.js'
 
 const codexChatConfig = (deps: HarnessChatDeps) => ({
   adapter: codexText(deps.model ?? 'gpt-5.3-codex', {cwd: deps.cwd, env: definedEntries(deps.env)}),
-  modelOptions: {...(deps.resumeSessionId ? {sessionId: deps.resumeSessionId} : {}), workingDirectory: deps.cwd},
+  modelOptions: {
+    workingDirectory: deps.cwd,
+    ...(deps.resumeSessionId ? {sessionId: deps.resumeSessionId} : {}),
+  },
 })
 ```
 
-Check the actual `CodexTextConfig`/provider-options field names against `node_modules/@tanstack/ai-codex/dist` before finalizing (`sessionId`, `workingDirectory`, `approvalPolicy`, `sandboxMode`, `skipGitRepoCheck` per upstream docs). Set `skipGitRepoCheck: true` only if the default breaks non-git cwds in the IT.
+Verify every config/modelOptions field name against the installed `@tanstack/ai-codex` dist types (`workingDirectory`, `approvalPolicy`, `sandboxMode`, `skipGitRepoCheck` exist per upstream docs); set the most conservative `sandboxMode`/`approvalPolicy` that lets the IT pass and record the choice in the harness file. Capabilities: `{resume: true, permissionGate: 'none', transcriptHistory: false, compaction: false, systemPrompt: 'flag', mcp: 'none', slashCommands: 'none', imageInput: false}` — codex has no interactive permission hook upstream; document that in the capability choice.
 
-- [ ] **Step 4: Gated integration test**
-
-In `packages/core/test/testkit/` add a codex turn IT following the existing testkit pattern (`harness-available.ts` gates on binary presence — skip when `codex` is not installed, run when present locally):
-prompt → expect a TEXT chunk and a RUN_FINISHED, then a second turn resuming and expect `resumeSessionId` threading (session record updated by the Task 5 tap).
-
-Run: `pnpm turbo run test --filter=@conciv/harness --filter=@conciv/core`
-Expected: PASS (IT skipped in CI, real locally if codex installed).
-
-- [ ] **Step 5: Fallow + commit**
-
-Run: `pnpm exec fallow audit --changed-since main --format json` — deleting `decode.ts`/`args.ts` must not leave INTRODUCED dead exports.
+- [ ] **Step 3: Binary-gated IT** (skip when `codex` missing — `harness-available.ts` pattern): one turn streams text + RUN_FINISHED; second turn resumes via the tapped session id.
+- [ ] **Step 4: Fallow (deleted decoder must leave no dead exports) + full suite.**
+- [ ] **Step 5: Commit**
 
 ```bash
-git commit -m 'feat(harness): codex on @tanstack/ai-codex adapter' -- packages/harness/src/codex packages/harness/package.json pnpm-lock.yaml packages/harness/test/codex-chat-config.test.ts packages/core/test/testkit
+git commit -m 'feat(harness): codex on @tanstack/ai-codex' -- packages/harness/src/codex packages/harness/src/_shared/env.ts packages/harness/package.json pnpm-lock.yaml packages/harness/test packages/core/test/testkit
 ```
 
 ---
 
-### Task 7: OpenCode — stub becomes real
+### Task 8: OpenCode on `opencodeText` (stub → real)
 
 **Files:**
 
-- Modify: `packages/harness/src/opencode/index.ts` (replace `defineStubHarness`)
-- Modify: `packages/harness/package.json` (add `@tanstack/ai-opencode@^0.2.1`)
+- Modify: `packages/harness/src/opencode/index.ts`, `packages/harness/package.json` (add `@tanstack/ai-opencode@^0.2.1`)
 - Test: `packages/harness/test/opencode-chat-config.test.ts`
 
 **Interfaces:**
 
-- Consumes: `opencodeText(model, config)` with `onPermissionRequest: (request) => Promise<'once' | 'always' | 'reject'>` (async handler REPLACES default policy; request shape `{id, sessionID, type, title, callID?}`)
-- Produces: real `opencode` HarnessAdapter (capabilities `resume: true`, `permissionGate: 'callback'`)
+- Consumes: `opencodeText(model, config)` with async `onPermissionRequest(request: {id, sessionID, type, title, callID?}) => 'once' | 'always' | 'reject'`
+- Produces: real opencode harness (`permissionGate: 'callback'`), exported `opencodePermissionHandler(decide)` for the unit test
 
-- [ ] **Step 1: Write the failing test**
-
-```ts
-test('opencode permission handler routes to gate and maps decisions', async () => {
-  const calls: string[] = []
-  const config = opencode.chatConfig?.({
-    ...baseDeps,
-    decide: async (toolName) => {
-      calls.push(toolName)
-      return toolName === 'bash' ? 'allow' : 'deny'
-    },
-  })
-  const handler = configuredPermissionHandler(config)
-  await expect(handler({id: '1', sessionID: 's', type: 'bash', title: 'run ls'})).resolves.toBe('once')
-  await expect(handler({id: '2', sessionID: 's', type: 'webfetch', title: 'fetch'})).resolves.toBe('reject')
-  expect(calls).toEqual(['bash', 'webfetch'])
-})
-```
-
-Export the handler factory (`opencodePermissionHandler(decide)`) so the test reaches it without spawning opencode.
-
-- [ ] **Step 2: Run test to verify it fails** — `pnpm vitest run test/opencode-chat-config --root packages/harness` → FAIL.
-
-- [ ] **Step 3: Implement**
+- [ ] **Step 1: Failing test** — handler maps gate `allow` → `'once'`, `deny` → `'reject'`, passes `request.type` as the tool name and `callID ?? id` as toolUseId.
+- [ ] **Step 2: Implement**
 
 ```ts
 import {opencodeText} from '@tanstack/ai-opencode'
@@ -699,12 +681,12 @@ import {opencodeText} from '@tanstack/ai-opencode'
 export function opencodePermissionHandler(decide: HarnessChatDeps['decide']) {
   return async (request: {id: string; sessionID: string; type: string; title: string; callID?: string}) => {
     const decision = await decide(request.type, {title: request.title}, request.callID ?? request.id)
-    return decision === 'allow' ? 'once' : 'reject'
+    return decision === 'allow' ? ('once' as const) : ('reject' as const)
   }
 }
 
 const opencodeChatConfig = (deps: HarnessChatDeps) => ({
-  adapter: opencodeText(deps.model ?? defaultModel, {
+  adapter: opencodeText(deps.model ?? defaultOpencodeModel, {
     directory: deps.cwd,
     onPermissionRequest: opencodePermissionHandler(deps.decide),
   }),
@@ -712,64 +694,39 @@ const opencodeChatConfig = (deps: HarnessChatDeps) => ({
 })
 ```
 
-Verify config field names (`directory` vs `cwd`) against `@tanstack/ai-opencode` dist types; pick a real default model id from its model-meta.
+Verify `directory` vs `cwd` and pick `defaultOpencodeModel` from the installed package's model metadata.
 
-- [ ] **Step 4: Run tests** — harness unit + core suite green.
-
-- [ ] **Step 5: Commit**
+- [ ] **Step 3: Run unit test + full suite; binary-gated IT if `opencode` present.**
+- [ ] **Step 4: Commit**
 
 ```bash
-git commit -m 'feat(harness): opencode real adapter via @tanstack/ai-opencode' -- packages/harness/src/opencode packages/harness/package.json pnpm-lock.yaml packages/harness/test/opencode-chat-config.test.ts
+git commit -m 'feat(harness): opencode real adapter via @tanstack/ai-opencode' -- packages/harness/src/opencode packages/harness/package.json pnpm-lock.yaml packages/harness/test
 ```
 
 ---
 
-### Task 8: pi + gemini-cli via acpCompatible
+### Task 9: pi + gemini-cli on `acpCompatible` (stubs → real)
 
 **Files:**
 
-- Modify: `packages/harness/src/pi/index.ts`, `packages/harness/src/gemini-cli/index.ts` (replace stubs)
-- Create: `packages/harness/src/_shared/acp.ts` (shared factory)
-- Modify: `packages/harness/package.json` (add `@tanstack/ai-acp@^0.2.1`)
+- Create: `packages/harness/src/_shared/acp.ts`
+- Modify: `packages/harness/src/pi/index.ts`, `packages/harness/src/gemini-cli/index.ts`, `packages/harness/package.json` (add `@tanstack/ai-acp@^0.2.1`)
 - Test: `packages/harness/test/acp-harnesses.test.ts`
 
 **Interfaces:**
 
-- Consumes: `acpCompatible({name, command, permissions, onPermissionRequest, refusalMessage})`; `command` receives `{model, harnessCwd, modelOptions}`; `onPermissionRequest: (request: AcpPermissionRequest) => Promise<AcpPermissionOutcome>` where outcome selects an option id (`{outcome: 'selected', optionId}` / `{outcome: 'cancelled'}`), request has `{toolCall: {title?, toolCallId, kind?}, options: [{optionId, kind: 'allow_once' | 'allow_always' | 'reject_once' | 'reject_always'}]}`
-- Produces: real `pi` and `geminiCli` HarnessAdapters (`resume: true`, `permissionGate: 'callback'`)
+- Consumes: `acpCompatible({name, command, permissions: 'interactive', onPermissionRequest})`; `AcpPermissionRequest` / `AcpPermissionOutcome` types imported from `@tanstack/ai-acp` (never redeclared)
+- Produces: `acpChatConfig(name, commandOf, defaultModel)` shared factory; real `pi` and `geminiCli` harnesses
 
-- [ ] **Step 1: Write the failing test**
-
-```ts
-test('acp permission handler picks allow_once on gate allow, reject_once on deny', async () => {
-  const handler = acpPermissionHandler(async () => 'allow')
-  const outcome = await handler({
-    sessionId: 's',
-    toolCall: {toolCallId: 'tc1', title: 'Edit file'},
-    options: [
-      {optionId: 'a', kind: 'allow_once'},
-      {optionId: 'r', kind: 'reject_once'},
-    ],
-  })
-  expect(outcome).toEqual({outcome: 'selected', optionId: 'a'})
-})
-
-test('gemini harness builds gemini --acp command', () => {
-  const config = geminiCli.chatConfig?.(baseDeps({model: 'gemini-2.5-pro'}))
-  expect(config?.adapter.name).toBe('gemini-cli')
-})
-```
-
-- [ ] **Step 2: Run to verify FAIL** — `pnpm vitest run test/acp-harnesses --root packages/harness`.
-
-- [ ] **Step 3: Implement `_shared/acp.ts`**
+- [ ] **Step 1: Failing test** — `acpPermissionHandler(async () => 'allow')` returns `{outcome: 'selected', optionId}` for the `allow_once` option; deny path picks `reject_once`; no matching option → `{outcome: 'cancelled'}`.
+- [ ] **Step 2: Implement `_shared/acp.ts`**
 
 ```ts
 import {acpCompatible} from '@tanstack/ai-acp'
-import type {HarnessChatDeps} from '@conciv/protocol/harness-types'
+import type {AcpPermissionOutcome, AcpPermissionRequest} from '@tanstack/ai-acp'
 
 export function acpPermissionHandler(decide: HarnessChatDeps['decide']) {
-  return async (request: AcpPermissionRequest) => {
+  return async (request: AcpPermissionRequest): Promise<AcpPermissionOutcome> => {
     const title = request.toolCall.title ?? request.toolCall.toolCallId
     const decision = await decide(title, {toolCall: request.toolCall}, request.toolCall.toolCallId)
     const wanted = decision === 'allow' ? ['allow_once', 'allow_always'] : ['reject_once', 'reject_always']
@@ -779,7 +736,7 @@ export function acpPermissionHandler(decide: HarnessChatDeps['decide']) {
 }
 
 export function acpChatConfig(name: string, commandOf: (model: string, cwd: string) => string, defaultModel: string) {
-  return (deps: HarnessChatDeps) => ({
+  return (deps: HarnessChatDeps): HarnessChatConfig => ({
     adapter: acpCompatible({
       name,
       command: ({model, harnessCwd}) => commandOf(model, harnessCwd),
@@ -791,154 +748,46 @@ export function acpChatConfig(name: string, commandOf: (model: string, cwd: stri
 }
 ```
 
-`pi/index.ts`: `acpChatConfig('pi', (m, cwd) => \`pi --acp -m ${m} --cwd ${cwd}\`, <verify pi's real model ids + --acp flag against ~/Public/web/pi-mono before finalizing>)`.
-`gemini-cli/index.ts`: `acpChatConfig('gemini-cli', (m, cwd) => \`gemini --acp -m ${m}\`, 'gemini-2.5-pro')`(verify`gemini --acp`accepts cwd via ACP`newSession` rather than a flag — acpCompatible passes cwd over the protocol).
+`pi/index.ts`: command from the real pi CLI — verify the ACP entry flag and model ids against `~/Public/web/pi-mono` before finalizing (do not guess flags). `gemini-cli/index.ts`: `gemini --acp` with model via ACP `newSession` (acpCompatible passes cwd/model over the protocol).
 
-The exact `AcpPermissionRequest`/`AcpPermissionOutcome` types are exported from `@tanstack/ai-acp` — import them, don't redeclare.
-
-- [ ] **Step 4: Run tests** — harness + core green; ITs gated on binary presence like Task 6.
-
-- [ ] **Step 5: Commit**
+- [ ] **Step 3: Run unit tests + full suite; binary-gated ITs where CLIs exist locally.**
+- [ ] **Step 4: Commit**
 
 ```bash
-git commit -m 'feat(harness): pi + gemini-cli real adapters via acpCompatible' -- packages/harness/src/pi packages/harness/src/gemini-cli packages/harness/src/_shared/acp.ts packages/harness/package.json pnpm-lock.yaml packages/harness/test/acp-harnesses.test.ts
+git commit -m 'feat(harness): pi + gemini-cli via acpCompatible' -- packages/harness/src/pi packages/harness/src/gemini-cli packages/harness/src/_shared/acp.ts packages/harness/package.json pnpm-lock.yaml packages/harness/test
 ```
 
 ---
 
-### Task 9: Upstream PR — `extraArgs` on ClaudeCodeTextConfig
-
-**Files (in a fork of tanstack/ai, NOT this repo):**
-
-- Modify: `packages/ai-claude-code/src/adapters/text.ts` (config field + `buildCommand` append)
-- Test: their existing adapter test file for `buildCommand`
-- Create: `.changeset/` entry per their contributing flow
-
-**Interfaces:**
-
-- Produces: released `@tanstack/ai-claude-code` accepting `extraArgs?: Array<string>` — Task 10 passes `['--strict-mcp-config', '--plugin-dir', CONCIV_PLUGIN_DIR]`. Task 10 is BLOCKED until this ships (or the fallback below is chosen).
-
-- [ ] **Step 1: Fork + branch, add config field**
-
-```ts
-/** Extra CLI flags appended verbatim to the `claude` command (e.g. `--strict-mcp-config`). */
-extraArgs?: Array<string>
-```
-
-In `buildCommand`, before `return`:
-
-```ts
-for (const arg of config.extraArgs ?? []) args.push(q(arg))
-```
-
-- [ ] **Step 2: Add their-style test** asserting `extraArgs: ['--strict-mcp-config']` lands in the built command string, run their `pnpm test` for the package, open the PR referencing the use case (host-mode local-process runs need `--strict-mcp-config` so user-level MCP servers don't shadow bridged tools).
-
-- [ ] **Step 3: Record the decision point.** If the PR is not merged within the sprint, choose explicitly (do not drift): (a) hold Task 10 (claude stays on the current SDK path — fully working today), or (b) cut over WITHOUT `--strict-mcp-config` and accept user-MCP shadowing (memory says this bit us: `claude --strict-mcp-config` note). Default: (a).
-
----
-
-### Task 10: Claude cutover (behind env flag, then default)
+### Task 10: Sweep — delete the corpses, docs, changeset
 
 **Files:**
 
-- Modify: `packages/harness/src/claude/index.ts` (add `chatConfig`, keep SDK path selectable), `packages/harness/package.json` (add `@tanstack/ai-claude-code@^0.2.1`)
-- Test: `packages/harness/test/claude-chat-config.test.ts` + testkit parity ITs in `packages/core/test/testkit/` (runReal gate)
+- Delete: `packages/harness/src/claude/decode.ts`, `packages/harness/src/claude/blocks.ts` (if its only consumer was decode — trace first), agent-sdk RUN portions of `packages/harness/src/claude/sdk.ts` (keep `claudeSdkCommands` + whatever `shutdown`/`release` it genuinely needs), `CONCIV_CLAUDE_CLI` pin in `packages/core/vitest.config.ts`, `SpawnHarness`-era leftovers in core no longer referenced
+- Modify: `AGENTS.md` (harness section: harness = `chatConfig` returning a TanStack text adapter + sidecars; text-adapter exception line updated to `makeTextAdapter`), `.changeset/tanstack-harness-migration.md` (one patch entry naming any `@conciv/*` package — fixed versioning releases the set)
 
-**Interfaces:**
-
-- Consumes: `claudeCodeText(model, config)` — config verified fields: `cwd`, `permissionMode`, `allowedTools`, `disallowedTools`, `addDirs`, `maxTurns`, `systemPromptMode`, `claudeExecutable`, `streamPartials`, `env`, `emitDiff`, plus `extraArgs` from Task 9; modelOptions: `sessionId`, `forkSession`, `maxTurns`, `permissionMode`, `allowedTools`, `disallowedTools`, `cwd`
-- Produces: claude on the TanStack adapter; `CONCIV_CLAUDE_TANSTACK=1` opts in during bake-off, flipped to default at the end of this task
-
-- [ ] **Step 1: Write the failing unit test**
-
-```ts
-test('claude chatConfig pins interactive permission mode and strict mcp', () => {
-  const config = makeClaudeChatConfig({
-    cwd: '/repo',
-    sessionId: 's',
-    resumeSessionId: 'r1',
-    model: 'sonnet',
-    env: {},
-    decide: async () => 'allow',
-  })
-  expect(config.adapter.name).toBe('claude-code')
-  expect(config.modelOptions).toMatchObject({sessionId: 'r1', permissionMode: 'default'})
-})
-```
-
-- [ ] **Step 2: Run to verify FAIL**, then implement:
-
-```ts
-import {claudeCodeText} from '@tanstack/ai-claude-code'
-
-export const makeClaudeChatConfig = (deps: HarnessChatDeps) => ({
-  adapter: claudeCodeText(deps.model ?? 'sonnet', {
-    cwd: deps.cwd,
-    permissionMode: 'default',
-    systemPromptMode: 'append',
-    emitDiff: false,
-    env: definedEntries(deps.env),
-    extraArgs: ['--strict-mcp-config', ...(CONCIV_PLUGIN_DIR ? ['--plugin-dir', CONCIV_PLUGIN_DIR] : [])],
-  }),
-  modelOptions: {permissionMode: 'default', ...(deps.resumeSessionId ? {sessionId: deps.resumeSessionId} : {})},
-})
-
-export function makeClaudeAdapter(useTanstack: boolean): HarnessAdapter {
-  // existing SDK/CLI variants stay; when useTanstack, defineHarness spreads claudeBase
-  // with chatConfig: makeClaudeChatConfig, capabilities: {...sdkCapabilities, permissionGate: 'callback', slashCommands: 'live', imageInput: 'fileRef'}
-}
-export const claude = makeClaudeAdapter(Boolean(process.env.CONCIV_CLAUDE_TANSTACK))
-```
-
-Note `compaction: false` (the `COMPACT_FALLBACK_PROMPT` path in `turn.ts` already covers compact intent — same as today's SDK mode). `commands: claudeSdkCommands` stays (live slash commands). `history`, `tty`, `launch` unchanged.
-
-- [ ] **Step 3: Parity ITs (testkit, runReal gate).** Extend `packages/core/test/testkit/` with a `CONCIV_CLAUDE_TANSTACK=1` mode run asserting, against real claude:
-  1. text turn streams TEXT chunks + RUN_FINISHED with usage,
-  2. second turn resumes (session record got the harness session id via the Task 5 tap),
-  3. a gated Bash command produces a pending permission in our gate and PROCEEDS after `allow` (reuse the existing permission IT pattern from the SDK path),
-  4. a conciv tool call round-trips through the bridge (tool event name arrives as `mcp__conciv-... `— assert against whatever the real event carries and confirm the widget tool-card mapping in `packages/widget` still matches; if names changed from the `/api/mcp` era, fix the mapping in the widget, not the name).
-
-Run: `pnpm turbo run test --filter=@conciv/core` locally (real claude), and CI (fake-only) stays green.
-
-- [ ] **Step 4: Flip the default** (`makeClaudeAdapter(!process.env.CONCIV_CLAUDE_SDK)` — inverted escape hatch), re-run the full suite + a manual `pnpm dev` smoke: chat turn, permission prompt, image paste, slash-command menu, session browser attach. Server restart required for harness edits (dev-loop rule).
-
+- [ ] **Step 1: Trace every deletion** — `pnpm exec fallow dead-code --trace 'packages/harness/src/claude/decode.ts:claudeToAguiEvents'` (and each candidate). "USED but file unreachable" = missing entry point, investigate before deleting.
+- [ ] **Step 2: Delete, typecheck after each removal.**
+- [ ] **Step 3: Full gates + fallow audit clean.** `pnpm typecheck && pnpm build && pnpm test && pnpm exec fallow audit --changed-since main --format json`.
+- [ ] **Step 4: Manual smoke** — `pnpm dev` (server restart, not reload, for harness/core changes): chat turn, risky-Bash permission prompt blocks then proceeds, image paste, slash-command menu, session browser attach, ESC interrupt.
 - [ ] **Step 5: Commit**
 
 ```bash
-git commit -m 'feat(harness): claude on @tanstack/ai-claude-code with blocking gate' -- packages/harness/src/claude packages/harness/package.json pnpm-lock.yaml packages/harness/test/claude-chat-config.test.ts packages/core/test/testkit
-```
-
----
-
-### Task 11: Deletions, fallow, docs
-
-**Files:**
-
-- Delete: `packages/harness/src/claude/decode.ts`, `packages/harness/src/claude/args.ts`, `packages/harness/src/claude/blocks.ts` (verify sole consumer was decode), SDK run/`release`/`shutdown` portions of `packages/harness/src/claude/sdk.ts` (keep `claudeSdkCommands`), `CONCIV_CLAUDE_CLI` handling in `packages/core/vitest.config.ts`
-- Modify: `packages/protocol/src/harness-types.ts` (drop now-unused `buildArgs`/`decode`/`deliverInput`/`buildCompactArgs`/`run` members IF no harness uses them — the testkit fake still needs the `harnessText` path, so keep exactly what it consumes and delete the rest), `packages/core/src/api/chat/turn.ts` (drop `spawnHarness` plumbing if unreferenced), `AGENTS.md` (harness section: adapters now come from `@tanstack/ai-*`; capability contract note updated)
-- Test: existing suites are the net
-
-- [ ] **Step 1: Trace before deleting.** For each candidate export: `pnpm exec fallow dead-code --trace 'packages/harness/src/claude/decode.ts:claudeToAguiEvents'` etc. "USED but file unreachable" means a missing entry point — investigate, don't delete.
-- [ ] **Step 2: Delete + fix types.** Run `pnpm typecheck` after each file removal; update `HarnessAdapter` capability unions so a `chatConfig` harness cannot also be forced to carry `buildArgs` (make `buildArgs` optional only when `chatConfig` is present — same discriminated-union style as `transcriptHistory`).
-- [ ] **Step 3: Full gates + fallow.** `pnpm typecheck && pnpm build && pnpm test && pnpm exec fallow audit --changed-since main --format json` — zero INTRODUCED.
-- [ ] **Step 4: Docs + changeset.** Update `AGENTS.md` harness bullet; add one changeset (`.changeset/tanstack-harness-migration.md`, patch bump, any `@conciv/*` name releases the fixed set).
-- [ ] **Step 5: Commit**
-
-```bash
-git commit -m 'refactor(harness): delete bespoke decoders superseded by tanstack adapters' -- packages/harness packages/protocol/src/harness-types.ts packages/core AGENTS.md .changeset
+git commit -m 'refactor(harness)!: delete bespoke decoders and SDK run path' -- packages/harness packages/core AGENTS.md .changeset
 ```
 
 ---
 
 ## Verification (whole plan)
 
-- `pnpm typecheck && pnpm build && pnpm test` green at EVERY task boundary — no task may leave the tree red.
-- Local real-harness pass before the PR: `pnpm turbo run test --filter=@conciv/core` with real `claude` installed (testkit `runReal`), plus manual widget smoke (`pnpm dev`, hard-reload rules apply; core/harness edits need a server restart).
-- `pnpm exec fallow audit --changed-since main --format json` clean.
-- PR description lists the two accepted regressions (mid-turn usage ticker, upstream text-only prompts worked around via fileRef injection) and links the Task 9 upstream PR.
+- Green `pnpm typecheck && pnpm build && pnpm test` at every task boundary except the acknowledged Task 4→5 pairing (they may land as one PR if the discriminated union forces it — noted in Task 4 Step 4).
+- Local real-claude testkit pass (`runReal`) after Tasks 4–5 and again after Task 10; widget smoke per Task 10 Step 4.
+- Tool-card check: claude tool names are unchanged (`/api/mcp` transport kept); for codex/opencode/ACP the bridged names may differ — assert what the IT actually observes and adjust the widget mapping (`packages/widget` tool-ui renders by `part.name`), never the tool names.
+- `pnpm exec fallow audit --changed-since main --format json` clean at the end.
 
-## Risks & Rollbacks
+## Risks
 
-- Every harness cutover is one commit and independently revertable; claude additionally sits behind an env flag until Step 4 of Task 10.
-- If `@tanstack/ai` 0.40 upgrade (Task 1) breaks the widget beyond a day's work, STOP and land the upgrade as its own PR first — nothing in Tasks 2+ depends on being co-located with it.
-- If the `provideToolBridgeProvisioner` seam changes upstream (it is public API but 0.x), the fallback for claude is the current SDK path (kept until Task 11) — do not ship a deny+re-run permission UX without explicit approval.
+- Task 5 deletes the old path; its gate is the entire existing suite on both fake and real modes — fix forward until green, do not land red.
+- Claude behavior risk is minimal by construction: same command line (`buildClaudeArgs` untouched), same permission hook, same MCP transport — only the NDJSON→chunks translation changes (ours → theirs). The recorded-fixture test pins the contract; if their translator mishandles a real stream shape, the fixture reproduces it offline.
+- codex/opencode/pi/gemini are stubs or near-stubs today — those tasks are strictly additive.
+- `@tanstack/ai-sandbox` is 0.x: `^0.2.2` stays within 0.2.x by semver-for-0.x rules; any future upgrade is deliberate, not incidental.
