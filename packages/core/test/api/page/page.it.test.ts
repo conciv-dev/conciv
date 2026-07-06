@@ -10,6 +10,15 @@ const ChangesSchema = z.array(
   z.object({verb: z.string(), selector: z.string().optional(), args: z.record(z.string(), z.unknown())}),
 )
 
+function answerLine(line: string, kit: Kit, answerFor: (kind: string) => unknown): void {
+  if (!line.startsWith('data:')) return
+  const payload = line.slice('data:'.length).trim()
+  if (!payload) return
+  const query: {requestId?: string; kind?: string} = JSON.parse(payload)
+  if (!query.requestId) return
+  void kit.post('/api/page/reply', {requestId: query.requestId, data: answerFor(query.kind ?? '')})
+}
+
 async function pumpStream(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   kit: Kit,
@@ -20,14 +29,7 @@ async function pumpStream(
     for (;;) {
       const {done, value} = await reader.read()
       if (done) break
-      for (const line of decoder.decode(value).split('\n')) {
-        if (!line.startsWith('data:')) continue
-        const payload = line.slice('data:'.length).trim()
-        if (!payload) continue
-        const query: {requestId?: string; kind?: string} = JSON.parse(payload)
-        if (!query.requestId) continue
-        void kit.post('/api/page/reply', {requestId: query.requestId, data: answerFor(query.kind ?? '')})
-      }
+      for (const line of decoder.decode(value).split('\n')) answerLine(line, kit, answerFor)
     }
   } catch {}
 }

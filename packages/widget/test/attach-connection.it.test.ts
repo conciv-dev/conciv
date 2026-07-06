@@ -11,6 +11,16 @@ const chunkLines = (chunks: StreamChunk[]) => chunks.map((c) => `data: ${JSON.st
 const started = {type: EventType.RUN_STARTED, threadId: 't', runId: 'r'} as StreamChunk
 const finished = {type: EventType.RUN_FINISHED, threadId: 't', runId: 'r'} as StreamChunk
 
+function drainAll(
+  adapter: {subscribe: (signal: AbortSignal) => AsyncIterable<unknown>},
+  signal: AbortSignal,
+): Promise<void> {
+  async function drain(): Promise<void> {
+    for await (const chunk of adapter.subscribe(signal)) void chunk
+  }
+  return drain().catch(() => {})
+}
+
 describe('attachConnection', () => {
   const state = {
     server: undefined as Server | undefined,
@@ -105,10 +115,7 @@ describe('attachConnection', () => {
     state.failAttach = true
     const adapter = attachConnection(client, {retryDelayMs: 10, onConnectionChange: (c) => changes.push(c)})
     const controller = new AbortController()
-    async function drain(): Promise<void> {
-      for await (const chunk of adapter.subscribe(controller.signal)) void chunk
-    }
-    const drainPromise = drain().catch(() => {})
+    const drainPromise = drainAll(adapter, controller.signal)
     await until(() => changes.includes(false), {hangGuardMs: 2000, intervalMs: 10})
     state.failAttach = false
     await until(() => changes.includes(true), {hangGuardMs: 2000, intervalMs: 10})
@@ -127,10 +134,7 @@ describe('attachConnection', () => {
     const onWarning = (warning: Error) => warnings.push(warning)
     process.on('warning', onWarning)
     const startCount = state.attachCount
-    async function drain(): Promise<void> {
-      for await (const chunk of adapter.subscribe(controller.signal)) void chunk
-    }
-    const drainPromise = drain().catch(() => {})
+    const drainPromise = drainAll(adapter, controller.signal)
     await until(() => state.attachCount - startCount >= 15, {hangGuardMs: 4000, intervalMs: 10})
     controller.abort()
     await drainPromise
@@ -147,10 +151,7 @@ describe('attachConnection', () => {
     const controller = new AbortController()
     state.holdAttach = true
     const startCount = state.attachCount
-    async function drain(): Promise<void> {
-      for await (const chunk of adapter.subscribe(controller.signal)) void chunk
-    }
-    const drainPromise = drain().catch(() => {})
+    const drainPromise = drainAll(adapter, controller.signal)
     await until(() => state.attachCount - startCount >= 1, {hangGuardMs: 2000, intervalMs: 5})
     expect(state.attachCount - startCount).toBe(1)
     const bumpedAt = Date.now()

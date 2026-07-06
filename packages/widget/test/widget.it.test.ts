@@ -196,6 +196,17 @@ function writeJson(res: ServerResponse, body: unknown): void {
   res.end(JSON.stringify(body))
 }
 
+async function settleAnimations(page: Page, selector: string): Promise<void> {
+  await page.locator(selector).evaluate((el) =>
+    Promise.all(
+      el
+        .getAnimations({subtree: true})
+        .filter((a) => a.effect?.getTiming().iterations !== Infinity)
+        .map((a) => a.finished),
+    ),
+  )
+}
+
 describe('aidx widget (it) — real browser, real SSE', () => {
   let browser: Browser
   let server: Server
@@ -536,14 +547,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await fab.click()
 
     await page.getByText('How can I help you today?').waitFor({state: 'visible'})
-    await page.locator('#pw-chat-panel').evaluate((el) =>
-      Promise.all(
-        el
-          .getAnimations({subtree: true})
-          .filter((a) => a.effect?.getTiming().iterations !== Infinity)
-          .map((a) => a.finished),
-      ),
-    )
+    await settleAnimations(page, '#pw-chat-panel')
 
     const panel = page.locator('#pw-chat-panel')
     const before = (await panel.boundingBox())!.height
@@ -581,14 +585,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await fab.waitFor({state: 'visible'})
     await fab.click()
     await page.getByText('How can I help you today?').waitFor({state: 'visible'})
-    await page.locator('#pw-chat-panel').evaluate((el) =>
-      Promise.all(
-        el
-          .getAnimations({subtree: true})
-          .filter((a) => a.effect?.getTiming().iterations !== Infinity)
-          .map((a) => a.finished),
-      ),
-    )
+    await settleAnimations(page, '#pw-chat-panel')
 
     const panel = page.locator('#pw-chat-panel')
     const before = (await panel.boundingBox())!.width
@@ -613,14 +610,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await fab.waitFor({state: 'visible'})
     await fab.click()
     await page.getByText('How can I help you today?').waitFor({state: 'visible'})
-    await page.locator('#pw-chat-panel').evaluate((el) =>
-      Promise.all(
-        el
-          .getAnimations({subtree: true})
-          .filter((a) => a.effect?.getTiming().iterations !== Infinity)
-          .map((a) => a.finished),
-      ),
-    )
+    await settleAnimations(page, '#pw-chat-panel')
 
     const panel = page.locator('#pw-chat-panel')
     const before = (await panel.boundingBox())!.height
@@ -693,14 +683,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await page.keyboard.press('Control+k')
     await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'false'`)
     await page.getByText('How can I help you today?').waitFor({state: 'visible'})
-    await page.locator('[data-pw-qt]').evaluate((el) =>
-      Promise.all(
-        el
-          .getAnimations({subtree: true})
-          .filter((a) => a.effect?.getTiming().iterations !== Infinity)
-          .map((a) => a.finished),
-      ),
-    )
+    await settleAnimations(page, '[data-pw-qt]')
 
     const sheet = page.locator('[data-pw-qt]')
     const handle = page.getByRole('separator', {name: 'Resize quick terminal height'})

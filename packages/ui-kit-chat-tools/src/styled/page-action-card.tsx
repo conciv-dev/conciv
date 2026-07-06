@@ -198,10 +198,12 @@ export function PageActionCard(props: ToolCardProps): JSX.Element {
   const targetEl = () => target(input())
   const payload = () => parseResultPayload(props.result)
 
-  const errorMessage = (): string | undefined => {
-    if (props.result?.state === 'error') return props.result.error ?? asString(payload()) ?? resultText(props.result)
-    return asString(asRecord(payload())?.error)
+  const failureText = (): string | undefined => {
+    const direct = props.result?.error ?? asString(payload())
+    return direct ?? resultText(props.result)
   }
+  const errorMessage = (): string | undefined =>
+    props.result?.state === 'error' ? failureText() : asString(asRecord(payload())?.error)
   const showResult = () => isRead(verb()) && resultText(props.result).length > 0
   const showMirror = () => {
     const value = verb()
