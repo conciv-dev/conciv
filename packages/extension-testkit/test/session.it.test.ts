@@ -1,7 +1,7 @@
 import {expect, test} from 'vitest'
 import ping from './fixtures/ping/server.js'
 import {bootExtensionServer} from '../src/boot-server.js'
-import {resolveSession} from '../src/session.js'
+import {resolveSession} from '@conciv/harness-testkit'
 
 test('resolves a real conciv session id', async () => {
   const {apiBase, stop} = await bootExtensionServer(ping)

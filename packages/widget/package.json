@@ -39,7 +39,8 @@
     "storybook": "storybook dev -p 6009",
     "build-storybook": "storybook build",
     "publint": "publint",
-    "attw": "attw --pack . --profile esm-only"
+    "attw": "attw --pack . --profile esm-only",
+    "test:e2e": "CONCIV_E2E=1 vitest run --project widget-e2e"
   },
   "dependencies": {
     "@ark-ui/solid": "^5.37.1",
@@ -70,6 +71,7 @@
     "@conciv/core": "workspace:^",
     "@conciv/extension-terminal": "workspace:^",
     "@conciv/extension-test-runner": "workspace:^",
+    "@conciv/harness-testkit": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
     "@storybook/addon-a11y": "^10.4.4",
     "@storybook/addon-docs": "^10.4.4",
@@ -77,9 +79,9 @@
     "@types/node": "^22.19.21",
     "@unocss/postcss": "^66.7.2",
     "@unocss/reset": "^66.7.2",
-    "@vitest/browser-playwright": "4.1.8",
+    "@vitest/browser-playwright": "4.1.9",
     "@vitest/coverage-v8": "4.1.8",
-    "playwright": "^1.60.0",
+    "playwright": "^1.61.1",
     "postcss": "^8.5.6",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",

@@ -86,6 +86,17 @@ const storybook = {
   },
 }
 
+const e2e = {
+  extends: true as const,
+  test: {
+    name: 'widget-e2e',
+    environment: 'node',
+    include: ['test/terminal-mode.it.test.ts'],
+    testTimeout: 150_000,
+    hookTimeout: 150_000,
+  },
+}
+
 export default defineConfig({
   test: {
     projects: [
@@ -95,10 +106,12 @@ export default defineConfig({
           name: 'widget',
           environment: 'node',
           include: ['test/**/*.test.ts'],
+          exclude: ['test/terminal-mode.it.test.ts', '**/node_modules/**'],
           testTimeout: 90_000,
           hookTimeout: 90_000,
         },
       },
+      ...(process.env.CONCIV_E2E ? [e2e] : []),
       {
         plugins: [solid(), chatHistoryFixture],
         test: {

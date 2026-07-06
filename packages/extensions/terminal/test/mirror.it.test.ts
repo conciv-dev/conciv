@@ -3,6 +3,7 @@ import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import type {UIMessage} from '@conciv/protocol/chat-types'
 import {bashHarness, startTerminalServer, type TerminalTestServer} from './helpers.js'
+import {until} from '@conciv/harness-testkit'
 
 function sseEvents(onPayload: (payload: {messages: UIMessage[]}) => void): (chunk: string) => void {
   const state = {buffer: ''}
@@ -18,14 +19,6 @@ function sseEvents(onPayload: (payload: {messages: UIMessage[]}) => void): (chun
         .join('')
       if (data) onPayload(JSON.parse(data) as {messages: UIMessage[]})
     }
-  }
-}
-
-const until = async (cond: () => boolean, ms = 5000): Promise<void> => {
-  const start = Date.now()
-  while (!cond()) {
-    if (Date.now() - start > ms) throw new Error('timeout')
-    await new Promise((r) => setTimeout(r, 25))
   }
 }
 

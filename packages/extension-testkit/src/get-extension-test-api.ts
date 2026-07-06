@@ -1,11 +1,10 @@
 import type {Page} from 'playwright'
 import type {AnyExtension} from '@conciv/extension'
 import {bootExtensionServer} from './boot-server.js'
-import {resolveSession} from './session.js'
+import {makeCallTool, resolveSession, type CallTool} from '@conciv/harness-testkit'
 import {buildHost} from './build-host.js'
 import {serveDir} from './serve.js'
 import {launch} from './launch.js'
-import {makeCallTool, type CallTool} from './call-tool.js'
 
 export type ExtensionUnderTest = {
   server: AnyExtension

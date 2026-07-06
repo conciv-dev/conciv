@@ -8,6 +8,7 @@ import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import type {StreamChunk} from '@tanstack/ai'
 import {makeRunStream, type RunStream} from './run-stream.js'
 import {makeCallTool} from './call-tool.js'
+import {resolveSession} from './session.js'
 import type {TestHarness} from './create-test-harness.js'
 
 function realSpawn(bin: string): (args: string[], cwd: string) => HarnessChild {
@@ -91,16 +92,7 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp): Testkit {
           headers: {'content-type': 'application/json', ...(session ? {[CONCIV_SESSION_HEADER]: session} : {})},
           body: JSON.stringify(body),
         })
-      const resolve = async (id?: string): Promise<string> => {
-        const res = await post('/api/chat/session/resolve', id ? {id} : {})
-        const parsed: unknown = await res.json()
-        if (typeof parsed !== 'object' || parsed === null || !('sessionId' in parsed)) {
-          throw new Error('resolve: response had no sessionId')
-        }
-        const {sessionId} = parsed
-        if (typeof sessionId !== 'string') throw new Error('resolve: sessionId was not a string')
-        return sessionId
-      }
+      const resolve = (id?: string): Promise<string> => resolveSession(base, id)
       const activeSession = {id: ''}
       const sessionFor = async (session?: string): Promise<string> => session ?? (activeSession.id ||= await resolve())
 

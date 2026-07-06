@@ -5,10 +5,21 @@ import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 import {defineClient} from '@conciv/api-client'
 import {attachConnection} from '../src/client/attach-connection.js'
+import {until} from '@conciv/harness-testkit/until'
 
 const chunkLines = (chunks: StreamChunk[]) => chunks.map((c) => `data: ${JSON.stringify(c)}\n\n`).join('')
 const started = {type: EventType.RUN_STARTED, threadId: 't', runId: 'r'} as StreamChunk
 const finished = {type: EventType.RUN_FINISHED, threadId: 't', runId: 'r'} as StreamChunk
+
+function drainAll(
+  adapter: {subscribe: (signal: AbortSignal) => AsyncIterable<unknown>},
+  signal: AbortSignal,
+): Promise<void> {
+  async function drain(): Promise<void> {
+    for await (const chunk of adapter.subscribe(signal)) void chunk
+  }
+  return drain().catch(() => {})
+}
 
 describe('attachConnection', () => {
   const state = {
@@ -90,8 +101,7 @@ describe('attachConnection', () => {
       }
     }
     const drainPromise = drain().catch(() => {})
-    const deadline = Date.now() + 3000
-    while (seen.length < 4 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 20))
+    await until(() => seen.length >= 4, {hangGuardMs: 3000, intervalMs: 20})
     controller.abort()
     await drainPromise
     expect(seen.length).toBeGreaterThanOrEqual(4)
@@ -105,15 +115,10 @@ describe('attachConnection', () => {
     state.failAttach = true
     const adapter = attachConnection(client, {retryDelayMs: 10, onConnectionChange: (c) => changes.push(c)})
     const controller = new AbortController()
-    async function drain(): Promise<void> {
-      for await (const chunk of adapter.subscribe(controller.signal)) void chunk
-    }
-    const drainPromise = drain().catch(() => {})
-    const failDeadline = Date.now() + 2000
-    while (!changes.includes(false) && Date.now() < failDeadline) await new Promise((r) => setTimeout(r, 10))
+    const drainPromise = drainAll(adapter, controller.signal)
+    await until(() => changes.includes(false), {hangGuardMs: 2000, intervalMs: 10})
     state.failAttach = false
-    const okDeadline = Date.now() + 2000
-    while (!changes.includes(true) && Date.now() < okDeadline) await new Promise((r) => setTimeout(r, 10))
+    await until(() => changes.includes(true), {hangGuardMs: 2000, intervalMs: 10})
     controller.abort()
     await drainPromise
     expect(changes).toContain(false)
@@ -129,12 +134,8 @@ describe('attachConnection', () => {
     const onWarning = (warning: Error) => warnings.push(warning)
     process.on('warning', onWarning)
     const startCount = state.attachCount
-    async function drain(): Promise<void> {
-      for await (const chunk of adapter.subscribe(controller.signal)) void chunk
-    }
-    const drainPromise = drain().catch(() => {})
-    const deadline = Date.now() + 4000
-    while (state.attachCount - startCount < 15 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 10))
+    const drainPromise = drainAll(adapter, controller.signal)
+    await until(() => state.attachCount - startCount >= 15, {hangGuardMs: 4000, intervalMs: 10})
     controller.abort()
     await drainPromise
     process.off('warning', onWarning)
@@ -150,18 +151,12 @@ describe('attachConnection', () => {
     const controller = new AbortController()
     state.holdAttach = true
     const startCount = state.attachCount
-    async function drain(): Promise<void> {
-      for await (const chunk of adapter.subscribe(controller.signal)) void chunk
-    }
-    const drainPromise = drain().catch(() => {})
-    const firstDeadline = Date.now() + 2000
-    while (state.attachCount - startCount < 1 && Date.now() < firstDeadline) await new Promise((r) => setTimeout(r, 5))
+    const drainPromise = drainAll(adapter, controller.signal)
+    await until(() => state.attachCount - startCount >= 1, {hangGuardMs: 2000, intervalMs: 5})
     expect(state.attachCount - startCount).toBe(1)
     const bumpedAt = Date.now()
     adapter.bump()
-    const reconnectDeadline = Date.now() + retryDelayMs
-    while (state.attachCount - startCount < 2 && Date.now() < reconnectDeadline)
-      await new Promise((r) => setTimeout(r, 5))
+    await until(() => state.attachCount - startCount >= 2, {hangGuardMs: retryDelayMs, intervalMs: 5})
     const elapsed = Date.now() - bumpedAt
     controller.abort()
     await drainPromise

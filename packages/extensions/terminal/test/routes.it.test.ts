@@ -3,14 +3,7 @@ import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import WebSocket from 'ws'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {recordingHarness, startTerminalServer, type TerminalTestServer} from './helpers.js'
-
-const until = async (cond: () => boolean, ms = 8000): Promise<void> => {
-  const start = Date.now()
-  while (!cond()) {
-    if (Date.now() - start > ms) throw new Error('timeout')
-    await new Promise((r) => setTimeout(r, 25))
-  }
-}
+import {until} from '@conciv/harness-testkit'
 
 type Client = {ws: WebSocket; received: string[]; controls: string[]}
 

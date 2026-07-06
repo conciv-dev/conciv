@@ -2,6 +2,7 @@ import {expect, test} from 'vitest'
 import type {Page} from 'playwright'
 import whiteboard from '../src/server.js'
 import {getExtensionTestApi, type ExtensionTestApi} from '@conciv/extension-testkit'
+import {until} from '@conciv/harness-testkit'
 
 const clientEntry = '@conciv/extension-whiteboard/client'
 
@@ -36,11 +37,11 @@ test('a drawn rectangle keeps its real size and does not collapse to a point', a
     await expect.poll(firstWidth(api), {timeout: 15_000, interval: 250}).toBeGreaterThan(100)
     const settled = (await readElements(api))[0]
     expect(settled?.height).toBeGreaterThan(60)
-    for (let sample = 0; sample < 4; sample += 1) {
-      await api.page.waitForTimeout(500)
-      const now = (await readElements(api))[0]
-      expect(now?.width).toBeGreaterThanOrEqual((settled?.width ?? 0) * 0.9)
-    }
+    await until(async () => ((await readElements(api))[0]?.width ?? 0) >= (settled?.width ?? 0) * 0.9, {
+      settleFor: 2000,
+      hangGuardMs: 8000,
+      intervalMs: 250,
+    })
   } finally {
     await api.dispose()
   }
