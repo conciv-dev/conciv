@@ -1,5 +1,16 @@
 # @conciv/plugin
 
+## 0.0.7
+
+### Patch Changes
+
+- Updated dependencies [[`bbdfc69`](https://github.com/conciv-dev/conciv/commit/bbdfc6940e7c4a45d4a20fb04e12d8e407154bfb)]:
+  - @conciv/core@0.0.7
+  - @conciv/widget@0.0.7
+  - @conciv/cli@0.0.7
+  - @conciv/extension@0.0.7
+  - @conciv/protocol@0.0.7
+
 ## 0.0.6
 
 ### Patch Changes
