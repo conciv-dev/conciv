@@ -35,6 +35,11 @@
     },
     "attw": {
       "dependsOn": ["build"]
+    },
+    "test:e2e": {
+      "dependsOn": ["^build", "build"],
+      "cache": false,
+      "env": ["CI", "CONCIV_E2E"]
     }
   }
 }

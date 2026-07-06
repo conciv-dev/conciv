@@ -1,10 +1,9 @@
 import {describe, expect, it} from 'vitest'
 import {render} from 'solid-js/web'
 import type {JSX} from 'solid-js'
+import {until} from '@conciv/harness-testkit/until'
 import {createTerminalModel, translateBuffer} from '../src/model.js'
 import {TerminalPrimitive} from '../src/primitives/terminal.js'
-
-const flush = () => new Promise((r) => setTimeout(r, 50))
 
 function mount(ui: () => JSX.Element): {host: HTMLElement; dispose: () => void} {
   const host = document.createElement('div')
@@ -23,9 +22,9 @@ describe('terminal primitives', () => {
         <TerminalPrimitive.Screen />
       </TerminalPrimitive.Root>
     ))
-    await flush()
+    await until(() => model.terminal.element != null)
     model.terminal.write('\u001b[31mhello-term\u001b[0m')
-    await flush()
+    await until(() => translateBuffer(model.terminal).includes('hello-term'))
     expect(translateBuffer(model.terminal)).toContain('hello-term')
     dispose()
   })
@@ -45,7 +44,7 @@ describe('terminal primitives', () => {
         <TerminalPrimitive.Screen />
       </TerminalPrimitive.Root>
     ))
-    await flush()
+    await until(() => model.terminal.element != null)
     model.paste('grab text')
     expect(received.join('')).toContain('grab text')
     dispose()
@@ -65,7 +64,7 @@ describe('terminal primitives', () => {
         </div>
       </TerminalPrimitive.Root>
     ))
-    await flush()
+    await until(() => model.terminal.element != null)
     const screen = host.querySelector('[data-terminal-screen]')
     const overlay = host.querySelector('[data-terminal-overlay="rail"]')
     if (!screen || !overlay) throw new Error('missing screen or overlay')
@@ -88,7 +87,7 @@ describe('terminal primitives', () => {
         </TerminalPrimitive.Root>
       </div>
     ))
-    await flush()
+    await until(() => model.terminal.element != null)
     const overlay = host.querySelector('[data-terminal-overlay="top-right"]')
     if (!overlay) throw new Error('missing overlay')
     const hostBox = host.getBoundingClientRect()
@@ -107,11 +106,10 @@ describe('terminal primitives', () => {
         <TerminalPrimitive.Banner>{(state) => <p>ended with {state.code}</p>}</TerminalPrimitive.Banner>
       </TerminalPrimitive.Root>
     ))
-    await flush()
+    await until(() => model.terminal.element != null)
     expect(host.textContent ?? '').not.toContain('ended with')
     model.__testReceiveControl({type: 'exit', code: 0})
-    await flush()
-    expect(host.textContent ?? '').toContain('ended with 0')
+    await until(() => (host.textContent ?? '').includes('ended with 0'))
     dispose()
   })
 
@@ -123,10 +121,9 @@ describe('terminal primitives', () => {
         <TerminalPrimitive.Banner>{(state) => <p>failed: {state.message}</p>}</TerminalPrimitive.Banner>
       </TerminalPrimitive.Root>
     ))
-    await flush()
+    await until(() => model.terminal.element != null)
     model.__testReceiveControl({type: 'error', message: 'spawn failed'})
-    await flush()
-    expect(host.textContent ?? '').toContain('failed: spawn failed')
+    await until(() => (host.textContent ?? '').includes('failed: spawn failed'))
     expect(model.status()).toBe('error')
     dispose()
   })

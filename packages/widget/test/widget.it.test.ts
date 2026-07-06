@@ -93,6 +93,8 @@ async function* chatScript(): AsyncGenerator<StreamChunk> {
   }
 }
 
+const fixtureGates = {approval: () => {}, compact: () => {}}
+
 async function* approvalScript(): AsyncGenerator<StreamChunk> {
   yield {type: EventType.RUN_STARTED, threadId: 't', runId: 'r'}
   yield {type: EventType.TEXT_MESSAGE_START, messageId: 'm1', role: 'assistant'}
@@ -107,13 +109,17 @@ async function* approvalScript(): AsyncGenerator<StreamChunk> {
     input: {command: RISKY_COMMAND},
     approvalId: APPROVAL_ID,
   })
-  await new Promise((resolve) => setTimeout(resolve, 900))
+  await new Promise<void>((resolve) => {
+    fixtureGates.approval = resolve
+  })
   yield {type: EventType.RUN_FINISHED, threadId: 't', runId: 'r', finishReason: 'stop'}
 }
 
 async function* compactScript(): AsyncGenerator<StreamChunk> {
   yield {type: EventType.RUN_STARTED, threadId: 't', runId: 'rc'}
-  await new Promise((resolve) => setTimeout(resolve, 700))
+  await new Promise<void>((resolve) => {
+    fixtureGates.compact = resolve
+  })
   yield {type: EventType.RUN_FINISHED, threadId: 't', runId: 'rc', finishReason: 'stop'}
 }
 
@@ -377,15 +383,15 @@ describe('aidx widget (it) — real browser, real SSE', () => {
 
       await page.getByText('Run this action?').waitFor({state: 'visible'})
 
-      await page.getByText('Chain of Thought').waitFor({state: 'visible'})
-      await page.getByText(RISKY_COMMAND).first().waitFor({state: 'visible'})
-
       const decision = page.waitForRequest((r) => r.url().includes('/api/chat/permission-decision'))
       await page.getByRole('button', {name: 'Allow'}).click()
       const body = (await decision).postDataJSON() as {approvalId: string; approved: boolean}
       expect(body.approvalId).toBe(APPROVAL_ID)
       expect(body.approved).toBe(true)
+      fixtureGates.approval()
 
+      await page.getByText('Chain of Thought').waitFor({state: 'visible'})
+      await page.getByText(RISKY_COMMAND).first().waitFor({state: 'visible'})
       await page.getByText('Run this action?').waitFor({state: 'hidden'})
       await page.close()
     } finally {
@@ -436,6 +442,7 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await spinner.waitFor({state: 'visible'})
     expect(await spinner.count()).toBe(1)
     await page.getByRole('separator', {name: /Compacting/}).waitFor({state: 'visible'})
+    fixtureGates.compact()
 
     await spinner.waitFor({state: 'hidden'})
     await page.getByRole('separator', {name: 'Context compacted'}).waitFor({state: 'visible'})
@@ -529,7 +536,14 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await fab.click()
 
     await page.getByText('How can I help you today?').waitFor({state: 'visible'})
-    await page.waitForTimeout(300)
+    await page.locator('#pw-chat-panel').evaluate((el) =>
+      Promise.all(
+        el
+          .getAnimations({subtree: true})
+          .filter((a) => a.effect?.getTiming().iterations !== Infinity)
+          .map((a) => a.finished),
+      ),
+    )
 
     const panel = page.locator('#pw-chat-panel')
     const before = (await panel.boundingBox())!.height
@@ -567,7 +581,14 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await fab.waitFor({state: 'visible'})
     await fab.click()
     await page.getByText('How can I help you today?').waitFor({state: 'visible'})
-    await page.waitForTimeout(300)
+    await page.locator('#pw-chat-panel').evaluate((el) =>
+      Promise.all(
+        el
+          .getAnimations({subtree: true})
+          .filter((a) => a.effect?.getTiming().iterations !== Infinity)
+          .map((a) => a.finished),
+      ),
+    )
 
     const panel = page.locator('#pw-chat-panel')
     const before = (await panel.boundingBox())!.width
@@ -592,7 +613,14 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await fab.waitFor({state: 'visible'})
     await fab.click()
     await page.getByText('How can I help you today?').waitFor({state: 'visible'})
-    await page.waitForTimeout(300)
+    await page.locator('#pw-chat-panel').evaluate((el) =>
+      Promise.all(
+        el
+          .getAnimations({subtree: true})
+          .filter((a) => a.effect?.getTiming().iterations !== Infinity)
+          .map((a) => a.finished),
+      ),
+    )
 
     const panel = page.locator('#pw-chat-panel')
     const before = (await panel.boundingBox())!.height
@@ -665,7 +693,14 @@ describe('aidx widget (it) — real browser, real SSE', () => {
     await page.keyboard.press('Control+k')
     await page.waitForFunction(`${ariaHiddenOf('[data-pw-qt]')} === 'false'`)
     await page.getByText('How can I help you today?').waitFor({state: 'visible'})
-    await page.waitForTimeout(300)
+    await page.locator('[data-pw-qt]').evaluate((el) =>
+      Promise.all(
+        el
+          .getAnimations({subtree: true})
+          .filter((a) => a.effect?.getTiming().iterations !== Infinity)
+          .map((a) => a.finished),
+      ),
+    )
 
     const sheet = page.locator('[data-pw-qt]')
     const handle = page.getByRole('separator', {name: 'Resize quick terminal height'})

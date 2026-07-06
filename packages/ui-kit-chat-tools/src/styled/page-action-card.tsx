@@ -199,7 +199,7 @@ export function PageActionCard(props: ToolCardProps): JSX.Element {
   const payload = () => parseResultPayload(props.result)
 
   const errorMessage = (): string | undefined => {
-    if (props.result?.state === 'error') return props.result.error ?? resultText(props.result)
+    if (props.result?.state === 'error') return props.result.error ?? asString(payload()) ?? resultText(props.result)
     return asString(asRecord(payload())?.error)
   }
   const showResult = () => isRead(verb()) && resultText(props.result).length > 0

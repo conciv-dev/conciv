@@ -3,6 +3,7 @@ import type {AddressInfo} from 'node:net'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {chromium, type Browser} from 'playwright'
 import {buildFixture, fixturePage, readBody, ready} from './it-fixture.js'
+import {until} from '@conciv/harness-testkit/until'
 
 describe('highlight extension (it): Alt-hold, hover, click, open', () => {
   let browser: Browser
@@ -82,7 +83,7 @@ describe('highlight extension (it): Alt-hold, hover, click, open', () => {
     const box = await page.locator('#card-inc').boundingBox()
     await page.mouse.click(box!.x + 5, box!.y + 5)
 
-    await new Promise((r) => setTimeout(r, 300))
+    await until(() => openSourceCalls.length + editorOpenCalls.length === baseline, {settleFor: 300, hangGuardMs: 2000})
     expect(openSourceCalls.length + editorOpenCalls.length).toBe(baseline)
     await page.close()
   })

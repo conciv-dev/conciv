@@ -34,7 +34,10 @@ export const Read: Story = {
     const c = within(canvasElement)
     await expect(c.getByText('Read src/math.ts')).toBeVisible()
     await userEvent.click(c.getByRole('button'))
-    await waitFor(() => expect(c.getByText(/return a \+ b/)).toBeVisible())
+    await waitFor(() => {
+      const container = canvasElement.querySelector('diffs-container')
+      expect(container?.shadowRoot?.textContent ?? '').toContain('return a + b')
+    })
   },
 }
 

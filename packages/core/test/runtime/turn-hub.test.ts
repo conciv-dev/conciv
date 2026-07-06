@@ -1,5 +1,6 @@
 import {describe, it, expect} from 'vitest'
 import {EventType, type StreamChunk} from '@tanstack/ai'
+import {until} from '@conciv/harness-testkit'
 import {makeTurnHub} from '../../src/runtime/turn-hub.js'
 
 const started: StreamChunk = {type: EventType.RUN_STARTED, threadId: 't', runId: 'r'} as StreamChunk
@@ -59,7 +60,12 @@ describe('turn hub', () => {
     const pump = hub.start('s1', userMessage, gate.stream)
     gate.push(started)
     gate.push(text('hel'))
-    await new Promise((r) => setTimeout(r, 10))
+    await until(() => {
+      const probe = new AbortController()
+      const buffered = hub.attach('s1', probe.signal).replay.length
+      probe.abort()
+      return buffered === 2
+    })
     expect(hub.generating('s1')).toBe(true)
     expect(hub.pendingUserMessage('s1')).toEqual(userMessage)
     const controller = new AbortController()
@@ -71,7 +77,7 @@ describe('turn hub', () => {
     gate.push(finished)
     gate.end()
     await pump
-    await new Promise((r) => setTimeout(r, 10))
+    await until(() => collected.length === 2)
     expect(collected.map((c) => c.type)).toEqual([EventType.TEXT_MESSAGE_CONTENT, EventType.RUN_FINISHED])
     expect(hub.generating('s1')).toBe(false)
     expect(hub.pendingUserMessage('s1')).toBe(null)
@@ -111,7 +117,7 @@ describe('turn hub', () => {
     gate.push(started)
     gate.fail(new Error('harness exploded'))
     await pump
-    await new Promise((r) => setTimeout(r, 10))
+    await until(() => collected.length === 2)
     expect(collected.map((c) => c.type)).toEqual([EventType.RUN_STARTED, EventType.RUN_ERROR])
     expect(collected.find((c) => c.type === EventType.RUN_ERROR)).toMatchObject({message: 'harness exploded'})
     expect(hub.generating('s1')).toBe(false)
@@ -137,7 +143,7 @@ describe('turn hub', () => {
     const errorChunk = replay.find((chunk) => chunk.type === EventType.RUN_ERROR)
     expect(errorChunk).toMatchObject({message: 'boom'})
     controller.abort()
-    await new Promise((r) => setTimeout(r, 10))
+    await until(() => hub.trackedSessions() === 0)
     expect(hub.trackedSessions()).toBe(0)
   })
 
@@ -146,7 +152,7 @@ describe('turn hub', () => {
     const gate = makeGate()
     const pump = hub.start('s1', userMessage, gate.stream)
     gate.push(started)
-    await new Promise((r) => setTimeout(r, 10))
+    await until(() => hub.generating('s1'))
     const a = new AbortController()
     const b = new AbortController()
     const subA = hub.attach('s1', a.signal)
@@ -158,7 +164,7 @@ describe('turn hub', () => {
     gate.push(finished)
     gate.end()
     await pump
-    await new Promise((r) => setTimeout(r, 10))
+    await until(() => gotA.length > 0 && gotB.length > 0)
     a.abort()
     b.abort()
     await Promise.all([drainA, drainB])
@@ -171,7 +177,7 @@ describe('turn hub', () => {
     const gate = makeGate()
     const pump = hub.start('s1', userMessage, gate.stream)
     gate.push(started)
-    await new Promise((r) => setTimeout(r, 10))
+    await until(() => hub.trackedSessions() === 1)
     expect(hub.trackedSessions()).toBe(1)
     gate.push(finished)
     gate.end()
@@ -190,8 +196,7 @@ describe('turn hub', () => {
     gate.push(finished)
     gate.end()
     await pump
-    await new Promise((r) => setTimeout(r, 10))
-    expect(hub.trackedSessions()).toBe(1)
+    await until(() => hub.trackedSessions() === 1, {settleFor: 50})
     controller.abort()
     await drain
     expect(hub.trackedSessions()).toBe(0)

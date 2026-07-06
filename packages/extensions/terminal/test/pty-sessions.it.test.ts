@@ -1,6 +1,7 @@
 import {afterEach, describe, expect, it} from 'vitest'
 import type {TtyServerControl} from '@conciv/protocol/terminal-types'
 import {createTtySessions, type TtySessions, type TtySink} from '../src/server/pty-sessions.js'
+import {until} from '@conciv/harness-testkit'
 
 const BASH = {bin: 'bash', args: ['--noprofile', '--norc', '-i'], env: {TERM: 'xterm-256color', PS1: 'P> '}}
 
@@ -10,14 +11,6 @@ function collect(): Collected {
   const chunks: string[] = []
   const controls: TtyServerControl[] = []
   return {chunks, controls, sink: {data: (c) => chunks.push(c), control: (f) => controls.push(f)}}
-}
-
-const until = async (cond: () => boolean, ms = 5000): Promise<void> => {
-  const start = Date.now()
-  while (!cond()) {
-    if (Date.now() - start > ms) throw new Error('timeout')
-    await new Promise((r) => setTimeout(r, 25))
-  }
 }
 
 describe('pty sessions', () => {
@@ -107,7 +100,7 @@ describe('pty sessions', () => {
     await new Promise((r) => setTimeout(r, 300))
     s.interrupt()
     s.write('echo B$((3+3))K\r')
-    await until(() => chunks.join('').includes('B6K'), 3000)
+    await until(() => chunks.join('').includes('B6K'), {hangGuardMs: 3000})
     expect(chunks.join('')).not.toContain('S10P')
   })
 
@@ -149,7 +142,7 @@ describe('pty sessions', () => {
     s.interrupt()
     s.interrupt()
     s.write('echo D$((2+2))N\r')
-    await until(() => chunks.join('').includes('D4N'), 3000)
+    await until(() => chunks.join('').includes('D4N'), {hangGuardMs: 3000})
     const echoed = chunks.join('').match(/\^C/g) ?? []
     expect(echoed.length).toBe(1)
   })
@@ -159,6 +152,6 @@ describe('pty sessions', () => {
     const s = sessions.open('s5', BASH, process.cwd())
     const detach = s.attach(collect().sink)
     detach()
-    await until(() => sessions.get('s5') === undefined, 3000)
+    await until(() => sessions.get('s5') === undefined, {hangGuardMs: 3000})
   })
 })

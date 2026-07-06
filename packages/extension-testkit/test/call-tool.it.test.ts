@@ -1,8 +1,8 @@
 import {expect, test} from 'vitest'
 import ping from './fixtures/ping/server.js'
 import {bootExtensionServer} from '../src/boot-server.js'
-import {resolveSession} from '../src/session.js'
-import {makeCallTool} from '../src/call-tool.js'
+import {resolveSession} from '@conciv/harness-testkit'
+import {makeCallTool} from '@conciv/harness-testkit'
 
 test('calls a real extension tool over MCP', async () => {
   const {apiBase, stop} = await bootExtensionServer(ping)

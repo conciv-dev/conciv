@@ -58,6 +58,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@conciv/harness-testkit": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
     "@types/node": "^22.19.21",
     "@types/ws": "^8.18.1",

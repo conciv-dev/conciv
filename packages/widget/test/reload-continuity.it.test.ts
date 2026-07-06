@@ -11,11 +11,15 @@ const USER_TEXT = 'run something'
 const BEFORE = 'streamed-before-reload '
 const AFTER = 'streamed-after-reload'
 
+const fixtureGates = {reload: () => {}}
+
 async function* reloadScript(): AsyncGenerator<StreamChunk> {
   yield {type: EventType.RUN_STARTED, threadId: 't', runId: 'r'}
   yield {type: EventType.TEXT_MESSAGE_START, messageId: 'm1', role: 'assistant'}
   yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'm1', delta: BEFORE}
-  await new Promise((resolve) => setTimeout(resolve, 800))
+  await new Promise<void>((resolve) => {
+    fixtureGates.reload = resolve
+  })
   yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'm1', delta: AFTER}
   yield {type: EventType.TEXT_MESSAGE_END, messageId: 'm1'}
   yield {type: EventType.RUN_FINISHED, threadId: 't', runId: 'r', finishReason: 'stop'}
@@ -81,6 +85,7 @@ describe('aidx widget reload continuity (it) — real browser, snapshot restore'
     await page.keyboard.press('Enter')
     await page.getByText('streamed-before-reload').waitFor({state: 'visible'})
     await page.reload({waitUntil: 'domcontentloaded'})
+    fixtureGates.reload()
     await page.getByText(USER_TEXT).waitFor({state: 'visible'})
     await page.getByText('streamed-before-reload').waitFor({state: 'visible'})
     await page.getByText(/streamed-after-reload/).waitFor({state: 'visible'})

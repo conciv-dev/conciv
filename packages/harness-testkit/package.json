@@ -10,7 +10,8 @@
   },
   "type": "module",
   "exports": {
-    ".": "./src/testkit.ts"
+    ".": "./src/testkit.ts",
+    "./until": "./src/until.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
