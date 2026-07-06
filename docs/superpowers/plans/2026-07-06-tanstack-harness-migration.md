@@ -4,7 +4,7 @@
 
 **Goal:** One chat path for every harness on TanStack AI 0.40: claude on `@tanstack/ai-claude-code`'s `claudeCodeText` harness adapter AS SHIPPED (amended 2026-07-06 after user override — the original "composition" framing is dead), codex/opencode/pi/gemini on the full TanStack harness adapters — deleting our decoders, our claude arg builder, and the SDK run path outright. No compatibility branch, no upstream dependency.
 
-**Architecture:** `HarnessAdapter.chatConfig(deps)` becomes REQUIRED — it returns the TanStack text adapter for that harness, and `turn.ts` has exactly one code path: `chat({adapter, tools, middleware: [withSandbox(concivSandbox(cwd)), withConcivGate(gate, sessionId)], threadId})`. ALL five harnesses run their published adapters inside the local-process sandbox. Claude = `claudeCodeText(model, config)` with config verified against the 0.2.1 source (their docs page still describes the pre-0.2 agent-sdk adapter — STALE, ignore it): `--strict-mcp-config` + `--plugin-dir` ride the `claudeExecutable` config string (their command is composed as a shell string `${exe} ${args}`), conciv tools ride `chat({tools})` → their MCP tool bridge (prefix stripped on the way out, widget `part.name` unchanged), the blocking permission gate rides our `provideToolBridgeProvisioner` override wrapping their `approval_prompt` resolver with `gate.decide` (verified: bridge `callTool` AWAITS `permission.resolve`), images ride a `prepareMessages` step that ports today's `imageRefs` (@path fileRefs under cwd), `/compact` rides through their `buildPrompt` verbatim as the trailing user message. The testkit fake harness converts to a scripted text adapter in the same task that rewrites `turn.ts` — nothing keeps the old spawn/decode machinery alive.
+**Architecture:** `HarnessAdapter.chatConfig(deps)` becomes REQUIRED — it returns the TanStack text adapter for that harness, and `turn.ts` has exactly one code path: `chat({adapter, tools, middleware: [withConcivSandbox(concivSandbox(cwd)), withConcivGate(gate, sessionId)], threadId})`. ALL five harnesses run their published adapters inside the local-process sandbox. Claude = `claudeCodeText(model, config)` with config verified against the 0.2.1 source (their docs page still describes the pre-0.2 agent-sdk adapter — STALE, ignore it): `--strict-mcp-config` + `--plugin-dir` ride the `claudeExecutable` config string (their command is composed as a shell string `${exe} ${args}`), conciv tools ride `chat({tools})` → their MCP tool bridge (prefix stripped on the way out, widget `part.name` unchanged), the blocking permission gate rides our `provideToolBridgeProvisioner` override wrapping their `approval_prompt` resolver with `gate.decide` (verified: bridge `callTool` AWAITS `permission.resolve`), images ride a `prepareMessages` step that ports today's `imageRefs` (@path fileRefs under cwd), `/compact` rides through their `buildPrompt` verbatim as the trailing user message. The testkit fake harness converts to a scripted text adapter in the same task that rewrites `turn.ts` — nothing keeps the old spawn/decode machinery alive.
 
 **Tech Stack:** `@tanstack/ai` 0.40.0, `@tanstack/ai-sandbox` 0.2.2, `@tanstack/ai-sandbox-local-process` 0.2.0, `@tanstack/ai-claude-code` / `-codex` / `-opencode` / `-acp` 0.2.1, `@tanstack/ai-client` 0.20.0, `@tanstack/ai-solid` 0.14.3, `@tanstack/ai-mcp` 0.2.3.
 
@@ -24,6 +24,7 @@
   - `claudeCodeText` 0.2.1 (re-verified against master source 2026-07-06; published same-day as `@tanstack/ai` 0.40.0 — the docs page still describes the dead pre-0.2 agent-sdk adapter with `canUseTool`/`settingSources`/`mcpServers`, IGNORE IT): config = `{cwd, permissionMode, allowedTools, disallowedTools, addDirs, maxTurns, systemPromptMode, claudeExecutable, streamPartials, env, emitDiff}`; `requires: [SandboxCapability]`; command composed as a SHELL STRING `${claudeExecutable} ${args}` (so `claudeExecutable` can carry extra flags); bridges `chat()` tools + an `approval_prompt` permission tool over `--mcp-config` (bearer token in a file, not argv) and wires `--permission-prompt-tool mcp__<bridge>__approval_prompt`; reads the tool-bridge provisioner via `getToolBridgeProvisioner` with `nodeHttpBridgeProvisioner` fallback (our override point); `buildPrompt` passes the trailing user message through verbatim (`/compact` works) and flattens history text-only; resume via `modelOptions.sessionId`; emits `claude-code.session-id` CUSTOM; permission tool exists only when a sandbox POLICY is defined (`concivSandbox` defines `default: 'ask'`).
   - `translateSdkStream(messages: AsyncIterable<AgentSdkMessage>, ctx: TranslateContext)` turns claude `stream-json` NDJSON lines into AG-UI `StreamChunk`s including reasoning, partials, tool calls, usage-on-result, and emits the `claude-code.session-id` CUSTOM event (used INTERNALLY by `claudeCodeText` — we no longer call it ourselves).
   - `localProcessSandbox({dir})` runs in that exact dir, never removes it on destroy by default.
+  - GOTCHA (found in Task 5): their `withSandbox` declares `provides: [SandboxCapability, ProjectionCapability]` but only provides the projection when `definition.workspace` is set — no workspace → `chat()` throws "declares it provides … but never called provide()"; an empty workspace would write `.tanstack-projected-*` marker files into our repo. Fix: our own `withConcivSandbox(definition)` middleware from their public exports (`provideSandbox` + `provideSandboxPolicy`), skipping the workspace/watcher/snapshot machinery we don't use. Public API only, ~12 lines, lives in `sandbox.ts`.
   - `createToolBridgeCore.callTool` AWAITS `permission.resolve` — unbounded async permission handlers are supported; `provideToolBridgeProvisioner` is public API (first-party precedent: `withNgrokBridge`).
   - `opencodeText` config takes async `onPermissionRequest`; `acpCompatible` config takes async `onPermissionRequest`; codex has no interactive permission hook — it maps to native codex approval/sandbox settings only.
   - codex/acp provision the tool bridge only when `chat()` `tools.length > 0` (we always pass conciv tools, so it always provisions).
@@ -386,14 +387,14 @@ git commit -m 'feat(core): local-process sandbox + blocking bridge permission ga
 - Consumes: `claudeCodeText`, `CLAUDE_CODE_MODELS` from `@tanstack/ai-claude-code`; `CONCIV_PLUGIN_DIR` from `./plugin-dir.js`; `imageRefs` from `./args.js` (args.ts otherwise untouched until Task 6 deletes it and moves `imageRefs` into `chat.ts`); `concivSandbox`/`withConcivGate` (Task 4, IT only); `HarnessChatDeps` (temporarily local to `chat.ts`; Task 6 moves it to protocol)
 - Produces: `claudeChatConfig(deps): HarnessChatConfig` — `{adapter, modelOptions, prepareMessages}`; session id flows out via the `claude-code.session-id` CUSTOM event their adapter emits
 
-- [ ] **Step 1: Write the failing unit tests** — `claude-chat-config.test.ts`:
+- [x] **Step 1: Write the failing unit tests** — `claude-chat-config.test.ts`:
   - `claudeExecutable(null)` = `claude --strict-mcp-config`; `claudeExecutable('/x/plugins')` also carries `--plugin-dir '/x/plugins'` (path single-quoted — it lands in a shell string)
   - `claudeChatConfig(deps).adapter.name === 'claude-code'` and `.model` = the resolved model
   - `modelOptions` carries `{cwd}` and `sessionId` only when `resumeSessionId` is set
   - `prepareMessages` on a `kind: 'compact'` turn rewrites the trailing user message to `/compact`
   - `prepareMessages` on a chat turn with image parts writes `.conciv-img-*` files under cwd and appends `@<path>` refs to the trailing user text (port of today's `imageRefs` behavior — reuse it from `./args.js`)
 
-- [ ] **Step 2: Run to verify FAIL, then implement `chat.ts`:**
+- [x] **Step 2: Run to verify FAIL, then implement `chat.ts`:**
 
 ```ts
 import {claudeCodeText} from '@tanstack/ai-claude-code'
@@ -426,22 +427,22 @@ Field-verify EVERYTHING against the installed `@tanstack/ai-claude-code` dist ty
 
 `index.ts` collapses to ONE `defineHarness` call (old `decode`/`buildArgs` members stay wired to the old path until Task 6): capabilities unchanged for now except the additions Task 6 formalizes; `chatConfig: claudeChatConfig`, `commands: claudeSdkCommands`, existing `models`/`history`/`launch`/`tty`.
 
-- [ ] **Step 3: Binary-gated IT** — `packages/core/test/claude-tanstack.it.test.ts` (`runReal = !CI`, real claude, real sandbox, real bridge):
+- [x] **Step 3: Binary-gated IT** — `packages/core/test/claude-tanstack.it.test.ts` (`runReal = !CI`, real claude, real sandbox, real bridge):
 
 ```ts
 const stream = chat({
   adapter: claude.chatConfig(deps).adapter,
   messages: [{role: 'user', content: 'reply with exactly PONG'}],
   tools: [echoTool],
-  middleware: [withSandbox(concivSandbox(dir)), withConcivGate(autoAllowGate, 's1')],
+  middleware: [withConcivSandbox(concivSandbox(dir)), withConcivGate(autoAllowGate, 's1')],
   modelOptions: claude.chatConfig(deps).modelOptions,
 })
 ```
 
 Assert: TEXT_MESSAGE_CONTENT streamed, final chunk RUN_FINISHED, exactly one `claude-code.session-id` CUSTOM event; a second `chat()` threading that session id back via `modelOptions.sessionId` resumes (claude recalls a token from turn 1). Tight timeouts (~30s per turn).
 
-- [ ] **Step 4: Run** — unit + IT green; `pnpm turbo run test --filter=@conciv/harness --filter=@conciv/core` (old path untouched, still green).
-- [ ] **Step 5: Commit**
+- [x] **Step 4: Run** — unit + IT green; `pnpm turbo run test --filter=@conciv/harness --filter=@conciv/core` (old path untouched, still green).
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -m 'feat(harness): claude on @tanstack/ai-claude-code claudeCodeText' -- packages/harness/src/claude packages/harness/src/_shared/env.ts packages/harness/package.json pnpm-lock.yaml packages/harness/test packages/core/test
@@ -545,7 +546,7 @@ const stream = chat({
   threadId: sessionId,
   tools: deps.tools(sessionId),
   modelOptions: config.modelOptions,
-  middleware: [withSandbox(concivSandbox(deps.cwd)), withConcivGate(deps.gate, sessionId)],
+  middleware: [withConcivSandbox(concivSandbox(deps.cwd)), withConcivGate(deps.gate, sessionId)],
   abortController: abort,
   debug: harnessDebug,
 })

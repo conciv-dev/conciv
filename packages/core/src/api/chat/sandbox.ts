@@ -4,7 +4,10 @@ import {
   defineSandbox,
   defineSandboxPolicy,
   nodeHttpBridgeProvisioner,
+  provideSandbox,
+  provideSandboxPolicy,
   provideToolBridgeProvisioner,
+  SandboxCapability,
   ToolBridgeProvisionerCapability,
   type SandboxDefinition,
   type ToolBridgeProvisioner,
@@ -83,6 +86,18 @@ export function withConcivGate(gate: Gate, sessionId: string) {
     provides: [ToolBridgeProvisionerCapability],
     setup(ctx) {
       provideToolBridgeProvisioner(ctx, gateProvisioner(gate, sessionId))
+    },
+  })
+}
+
+export function withConcivSandbox(definition: SandboxDefinition) {
+  return defineChatMiddleware({
+    name: 'conciv-sandbox',
+    provides: [SandboxCapability],
+    async setup(ctx) {
+      const handle = await definition.ensure({threadId: ctx.threadId, runId: ctx.runId, signal: ctx.signal})
+      provideSandbox(ctx, handle)
+      if (definition.policy) provideSandboxPolicy(ctx, definition.policy)
     },
   })
 }

@@ -1,14 +1,13 @@
-import {defineHarness, type HarnessAdapter, type HarnessLaunchContext} from '@conciv/protocol/harness-types'
+import {defineHarness, type HarnessLaunchContext} from '@conciv/protocol/harness-types'
 import {CONCIV_PLUGIN_DIR} from './plugin-dir.js'
 import {buildClaudeArgs, buildClaudeCompactArgs, claudeMcpArgs} from './args.js'
+import {claudeChatConfig} from './chat.js'
 import {claudeToAguiEvents} from './decode.js'
 import {claudeHistory} from './history.js'
-import {claudeSdkCommands, claudeSdkRelease, claudeSdkRun, claudeSdkShutdown} from './sdk.js'
+import {claudeSdkCommands} from './sdk.js'
 import {claudeTtyCommand} from './tty.js'
 
 export {CHAT_SYSTEM_PROMPT} from './system-prompt.js'
-
-const USE_SDK = !process.env.CONCIV_CLAUDE_CLI
 
 const CLAUDE_MODELS = [
   {id: 'opus', name: 'Claude Opus 4.8', description: 'Most capable', group: 'Claude'},
@@ -26,53 +25,28 @@ const claudeLaunch = (ctx: HarnessLaunchContext) => {
   return ctx.openTerminal(argv)
 }
 
-const claudeBase = {
+export const claude = defineHarness({
   id: 'claude',
   binName: 'claude',
   displayName: 'Claude',
   models: CLAUDE_MODELS,
   defaultModel: 'sonnet',
+  capabilities: {
+    resume: true,
+    permissionGate: 'hook',
+    transcriptHistory: true,
+    compaction: true,
+    systemPrompt: 'file',
+    mcp: 'http',
+    slashCommands: 'live',
+    imageInput: 'fileRef',
+  },
   buildArgs: buildClaudeArgs,
+  buildCompactArgs: buildClaudeCompactArgs,
   decode: claudeToAguiEvents,
+  chatConfig: claudeChatConfig,
+  commands: claudeSdkCommands,
   history: claudeHistory,
   launch: claudeLaunch,
   tty: {command: claudeTtyCommand},
-} as const
-
-export function makeClaudeAdapter(useSdk: boolean): HarnessAdapter {
-  if (useSdk) {
-    return defineHarness({
-      ...claudeBase,
-      capabilities: {
-        resume: true,
-        permissionGate: 'callback',
-        transcriptHistory: true,
-        compaction: false,
-        systemPrompt: 'flag',
-        mcp: 'http',
-        slashCommands: 'live',
-        imageInput: 'fileRef',
-      },
-      run: claudeSdkRun,
-      shutdown: claudeSdkShutdown,
-      release: claudeSdkRelease,
-      commands: claudeSdkCommands,
-    })
-  }
-  return defineHarness({
-    ...claudeBase,
-    capabilities: {
-      resume: true,
-      permissionGate: 'hook',
-      transcriptHistory: true,
-      compaction: true,
-      systemPrompt: 'file',
-      mcp: 'http',
-      slashCommands: 'none',
-      imageInput: 'fileRef',
-    },
-    buildCompactArgs: buildClaudeCompactArgs,
-  })
-}
-
-export const claude = makeClaudeAdapter(USE_SDK)
+})

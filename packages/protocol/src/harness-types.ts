@@ -1,5 +1,5 @@
 import type {Readable, Writable} from 'node:stream'
-import type {StreamChunk, UIMessage} from '@tanstack/ai'
+import type {AnyTextAdapter, ModelMessage, StreamChunk, UIMessage} from '@tanstack/ai'
 import type {UsageSnapshot} from './usage-types.js'
 import type {TtyCommand, TtyCommandOpts} from './terminal-types.js'
 
@@ -109,6 +109,22 @@ export type HarnessHistory = {
   list?(cwd: string, home?: string): HarnessSessionMeta[] | Promise<HarnessSessionMeta[]>
 }
 
+export type HarnessChatDeps = {
+  cwd: string
+  sessionId: string
+  resumeSessionId: string | null
+  model?: string
+  env: Record<string, string | undefined>
+  kind: 'chat' | 'compact'
+  decide(toolName: string, input: unknown, toolUseId: string): Promise<'allow' | 'deny'>
+}
+
+export type HarnessChatConfig = {
+  adapter: AnyTextAdapter
+  modelOptions?: Record<string, unknown>
+  prepareMessages?: (messages: ModelMessage[]) => ModelMessage[]
+}
+
 type HarnessAdapterBase = {
   id: string
   binName: string
@@ -117,6 +133,7 @@ type HarnessAdapterBase = {
 
   launch?: HarnessLaunch
   buildArgs: HarnessArgsBuilder
+  chatConfig?: (deps: HarnessChatDeps) => HarnessChatConfig
 
   buildCompactArgs?: HarnessArgsBuilder
   decode: HarnessDecoder

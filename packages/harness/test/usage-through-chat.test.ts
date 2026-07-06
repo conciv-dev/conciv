@@ -3,9 +3,9 @@ import {describe, expect, it} from 'vitest'
 import {chat, EventType, type StreamChunk} from '@tanstack/ai'
 import type {HarnessChild} from '@conciv/protocol/harness-types'
 import {harnessText} from '../src/_shared/text-adapter.js'
-import {makeClaudeAdapter} from '../src/claude/index.js'
+import {claude} from '../src/claude/index.js'
 
-const claude = makeClaudeAdapter(false)
+
 
 const STDOUT =
   [
