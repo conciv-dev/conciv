@@ -1,5 +1,6 @@
 import {randomUUID} from 'node:crypto'
 import type {H3} from 'h3'
+import type {AnyTool} from '@tanstack/ai'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import type {SessionRecord} from '@conciv/protocol/chat-types'
 import type {UiBus} from '../../runtime/ui-bus.js'
@@ -27,6 +28,7 @@ export type ChatRouteOpts = {
   uiBus: UiBus
   riskyTools?: ReadonlySet<string>
   store: SessionStore
+  tools: (sessionId: string) => AnyTool[]
   onTurnStart?: (sessionId: string) => void
   onTurnEnd?: (sessionId: string) => Promise<void>
 }
@@ -80,6 +82,7 @@ export function registerChatRoutes(app: H3, opts: ChatRouteOpts): void {
     systemPromptText: opts.systemPromptText,
     uiBus,
     store,
+    tools: opts.tools,
     onTurnStart: opts.onTurnStart,
     onTurnEnd: opts.onTurnEnd,
     hub,

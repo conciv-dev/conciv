@@ -1,5 +1,5 @@
 import {type H3, HTTPError, readValidatedBody} from 'h3'
-import {chat, EventType, type StreamChunk} from '@tanstack/ai'
+import {chat, EventType, type AnyTool, type StreamChunk} from '@tanstack/ai'
 import {harnessText} from '@conciv/harness'
 import type {HarnessAdapter, HarnessChild} from '@conciv/protocol/harness-types'
 import {UiSpecSchema} from '@conciv/protocol/ui-types'
@@ -55,6 +55,7 @@ export type TurnDeps = {
   uiBus: UiBus
   store: SessionStore
   hub: TurnHub
+  tools: (sessionId: string) => AnyTool[]
   onTurnStart?: (sessionId: string) => void
   onTurnEnd?: (sessionId: string) => Promise<void>
 }
