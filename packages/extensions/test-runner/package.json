@@ -74,7 +74,7 @@
     "@conciv/protocol": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
     "@playwright/test": "^1.61.1",
-    "@tanstack/ai-mcp": "^0.1.0",
+    "@tanstack/ai-mcp": "^0.2.3",
     "@types/node": "^22.19.21",
     "@vitest/browser-playwright": "4.1.9",
     "solid-js": "^1.9.13",

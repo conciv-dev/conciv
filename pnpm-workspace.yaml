@@ -57,6 +57,19 @@ minimumReleaseAge: 2880
 # regardless. Remove once it has aged out.
 minimumReleaseAgeExclude:
   - '@publint/pack'
+  # @tanstack/ai stack pinned by the 2026-07-06 tanstack-harness-migration plan (versions
+  # verified against the tanstack/ai repo); released same-day, excluded to unblock the
+  # migration. Drop once the pinned versions age past the window.
+  - '@tanstack/ai'
+  - '@tanstack/ai-client'
+  - '@tanstack/ai-solid'
+  - '@tanstack/ai-mcp'
+  - '@tanstack/ai-sandbox'
+  - '@tanstack/ai-sandbox-local-process'
+  - '@tanstack/ai-claude-code'
+  - '@tanstack/ai-codex'
+  - '@tanstack/ai-opencode'
+  - '@tanstack/ai-acp'
   # jazz-tools alpha moves faster than the 48h window; the whiteboard extension pins an exact
   # alpha (reviewed in the migration plan). Drop these once Jazz reaches a stable cadence.
   - 'jazz-tools'
