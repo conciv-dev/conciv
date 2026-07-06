@@ -75,6 +75,8 @@
     "@conciv/harness-testkit": "workspace:^",
     "@jridgewell/gen-mapping": "^0.3.13",
     "@tanstack/ai-mcp": "^0.2.3",
+    "@tanstack/ai-sandbox": "^0.2.2",
+    "@tanstack/ai-sandbox-local-process": "^0.2.0",
     "@types/node": "^22.19.21",
     "@types/ws": "^8.18.1",
     "tsdown": "^0.22.2",

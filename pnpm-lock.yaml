@@ -416,6 +416,12 @@ importers:
       '@tanstack/ai-mcp':
         specifier: ^0.2.3
         version: 0.2.3(@opentelemetry/api@1.9.1)(zod@4.4.3)
+      '@tanstack/ai-sandbox':
+        specifier: ^0.2.2
+        version: 0.2.2(@tanstack/ai@0.40.0(@opentelemetry/api@1.9.1))(zod@4.4.3)
+      '@tanstack/ai-sandbox-local-process':
+        specifier: ^0.2.0
+        version: 0.2.0(@tanstack/ai-sandbox@0.2.2(@tanstack/ai@0.40.0(@opentelemetry/api@1.9.1))(zod@4.4.3))
       '@types/node':
         specifier: ^22.19.21
         version: 22.20.0
@@ -5537,6 +5543,20 @@ packages:
   '@tanstack/ai-mcp@0.2.3':
     resolution: {integrity: sha512-21V7VfBoda9pqv3At2N1fFlxar51dtjdJnERurNn8+B6Q1Ef70p4VFgiE4F29+us5Q1qt5QE7meJRXX0/L2paA==}
     hasBin: true
+
+  '@tanstack/ai-sandbox-local-process@0.2.0':
+    resolution: {integrity: sha512-7HZoQmvJU3RfiVjlGJjJxT872R658RhMBbMtFtjmMAqDsDhF2wUJMtzrca8fCF0TYm0CXk0ds6p5+DyMic+s/g==}
+    peerDependencies:
+      '@tanstack/ai-sandbox': ^0.2.0
+
+  '@tanstack/ai-sandbox@0.2.2':
+    resolution: {integrity: sha512-zDf79Bs/LiibM+mrkuc1hobJoqDHI/jRAUA6X3Kqo1/D7B5dutB3+cxZqetwQEL/a95rexkG3nZFKVewoQeYuw==}
+    peerDependencies:
+      '@ngrok/ngrok': ^1.0.0
+      '@tanstack/ai': ^0.40.0
+    peerDependenciesMeta:
+      '@ngrok/ngrok':
+        optional: true
 
   '@tanstack/ai-solid@0.14.3':
     resolution: {integrity: sha512-98S3ew7HHfuJ7mYWT+DrxBGQsoXNLSpWhcEzqFpB3YstITm1GBFogS5FhRU71eMF7do28ZwQGVTuwwaQn5xmlw==}
@@ -15374,6 +15394,19 @@ snapshots:
     transitivePeerDependencies:
       - '@cfworker/json-schema'
       - '@opentelemetry/api'
+      - supports-color
+      - zod
+
+  '@tanstack/ai-sandbox-local-process@0.2.0(@tanstack/ai-sandbox@0.2.2(@tanstack/ai@0.40.0(@opentelemetry/api@1.9.1))(zod@4.4.3))':
+    dependencies:
+      '@tanstack/ai-sandbox': 0.2.2(@tanstack/ai@0.40.0(@opentelemetry/api@1.9.1))(zod@4.4.3)
+
+  '@tanstack/ai-sandbox@0.2.2(@tanstack/ai@0.40.0(@opentelemetry/api@1.9.1))(zod@4.4.3)':
+    dependencies:
+      '@modelcontextprotocol/sdk': 1.29.0(zod@4.4.3)
+      '@tanstack/ai': 0.40.0(@opentelemetry/api@1.9.1)
+    transitivePeerDependencies:
+      - '@cfworker/json-schema'
       - supports-color
       - zod
 

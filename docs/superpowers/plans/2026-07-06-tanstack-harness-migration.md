@@ -209,9 +209,9 @@ test('converts a registrable tool and executes with parsed args', async () => {
 
 (`minimalExecutionContext()` = the smallest object `AnyTool.execute`'s second parameter accepts in 0.40 — read the type, construct it literally in the test helper.)
 
-- [ ] **Step 2: Run to verify FAIL** — `pnpm vitest run test/chat-tools --root packages/core`.
+- [x] **Step 2: Run to verify FAIL** — `pnpm vitest run test/chat-tools --root packages/core`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 import {toolDefinition, type AnyTool} from '@tanstack/ai'
@@ -243,8 +243,8 @@ export function buildChatTools(
 
 If `toolDefinition`'s Standard-Schema generic rejects our zod version, STOP and surface it — zod version changes need approval.
 
-- [ ] **Step 4: Run tests** — new test + `pnpm turbo run test --filter=@conciv/core` (`/api/mcp` untouched, still green).
-- [ ] **Step 5: Commit**
+- [x] **Step 4: Run tests** — new test + `pnpm turbo run test --filter=@conciv/core` (`/api/mcp` untouched, still green).
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -m 'feat(core): conciv tools as chat() tool definitions' -- packages/core/src/api/chat/chat-tools.ts packages/core/src/app.ts packages/core/test/chat-tools.test.ts
@@ -267,7 +267,7 @@ No `turn.ts`/`app.ts` wiring in this task — Task 6 wires the middleware into t
 - Consumes: `PermissionGate.decide` (`permission.ts:12`); `defineSandbox`, `defineSandboxPolicy`, `withSandbox`, `nodeHttpBridgeProvisioner`, `provideToolBridgeProvisioner`, `ToolBridgeProvisioner` from `@tanstack/ai-sandbox`; `defineChatMiddleware` from `@tanstack/ai`; `localProcessSandbox`
 - Produces: `concivSandbox(cwd)`, `gateProvisioner(gate, sessionId)`, `withConcivGate(gate, sessionId)` — consumed by Task 5's claude IT and wired into `turn.ts` in Task 6; the same middleware pair serves codex/opencode/pi/gemini in Tasks 7–9
 
-- [ ] **Step 1: Write the failing IT** — real `nodeHttpBridgeProvisioner`, real HTTP, prove the permission call BLOCKS until the gate resolves:
+- [x] **Step 1: Write the failing IT** — real `nodeHttpBridgeProvisioner`, real HTTP, prove the permission call BLOCKS until the gate resolves:
 
 ```ts
 import {expect, test} from 'vitest'
@@ -290,7 +290,7 @@ test('permission tool blocks until gate decides, then allows', async () => {
 
 `callBridgeTool` speaks MCP `tools/call` over `fetch` to `bridge.url` with `Authorization: Bearer ${bridge.token}` (wire shape: `@modelcontextprotocol/sdk` client or a literal JSON-RPC POST — match what `startHostToolBridge` serves). Add a second test: a bridged TOOL call (not the permission tool) also routes through `gate.decide` before executing — this preserves today's `mcp__conciv__.*` hook gating for conciv tools.
 
-- [ ] **Step 2: Implement `sandbox.ts`**
+- [x] **Step 2: Implement `sandbox.ts`**
 
 ```ts
 import {randomUUID} from 'node:crypto'
@@ -362,8 +362,8 @@ export function withConcivGate(gate: Pick<PermissionGate, 'decide'>, sessionId: 
 
 `gatedTools(tools, gate, sessionId)` wraps each tool's `execute` in `await gate.decide(tool.name, args, sessionId, randomUUID())` (deny → throw a descriptive error the model sees) — field-verify the `AnyTool`/bridged-tool shape against the installed `@tanstack/ai-sandbox` dist types and preserve every other property untouched. `gate.decide` auto-allows non-risky tools, so wrapping everything is behavior-preserving. Align field shapes with the installed types field-by-field, never by cast.
 
-- [ ] **Step 3: Run** — the ITs plus full core suite (nothing else consumes the new module yet).
-- [ ] **Step 4: Commit**
+- [x] **Step 3: Run** — the ITs plus full core suite (nothing else consumes the new module yet).
+- [x] **Step 4: Commit**
 
 ```bash
 git commit -m 'feat(core): local-process sandbox + blocking bridge permission gate' -- packages/core/src/api/chat/sandbox.ts packages/core/package.json pnpm-lock.yaml packages/core/test/bridge-gate.it.test.ts
