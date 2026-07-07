@@ -1,6 +1,7 @@
 import {z} from 'zod'
+import {eq} from 'drizzle-orm'
 import {defineTool} from '@conciv/extension'
-import {app} from '../../shared/schema.js'
+import {comments} from '../../server/db/schema.js'
 import {loadResolver} from '../../anchor/load-resolver.js'
 import type {WhiteboardToolContext} from '../../server/context.js'
 import {anchorResolveDef, type AnchorResolveInput} from './def.js'
@@ -27,7 +28,7 @@ const StoredAnchor = z.object({
 
 export const anchorResolveTool = defineTool<typeof AnchorResolveInput, WhiteboardToolContext>(anchorResolveDef).server(
   async (input, ctx) => {
-    const [row] = await ctx.db.all(app.comments.where({cid: input.cid}), {tier: 'global'})
+    const [row] = await ctx.store.db.select().from(comments).where(eq(comments.cid, input.cid))
     if (!row) throw new Error(`comment ${input.cid} not found`)
     const parsed = StoredAnchor.safeParse(row.anchor)
     if (!parsed.success) return {status: 'orphaned'}
