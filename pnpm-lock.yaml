@@ -662,9 +662,6 @@ importers:
       '@hono/zod-validator':
         specifier: ^0.8.0
         version: 0.8.0(hono@4.12.27)(zod@4.4.3)
-      h3:
-        specifier: 2.0.1-rc.22
-        version: 2.0.1-rc.22(crossws@0.4.7(srvx@0.11.20))
       hono:
         specifier: ^4.12.0
         version: 4.12.27
