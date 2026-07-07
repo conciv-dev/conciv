@@ -74,7 +74,7 @@ export type HarnessSessionMeta = {
 }
 
 export type HarnessHistory = {
-  transcriptPath(cwd: string, sessionId: string): string
+  transcriptPath(cwd: string, sessionId: string, home?: string): string
   parse(raw: string): UIMessage[]
 
   nameFromTranscript?(raw: string): string | null

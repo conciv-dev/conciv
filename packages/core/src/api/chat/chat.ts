@@ -73,6 +73,7 @@ export function registerChatRoutes(app: H3, opts: ChatRouteOpts): void {
     stateRoot: opts.stateRoot,
     harness: opts.harness,
     harnessEnv: opts.harnessEnv,
+    claudeHome: opts.claudeHome,
     gate,
     systemPromptFile: opts.systemPromptFile,
     systemPromptText: opts.systemPromptText,
@@ -83,5 +84,5 @@ export function registerChatRoutes(app: H3, opts: ChatRouteOpts): void {
     onTurnEnd: opts.onTurnEnd,
     hub,
   })
-  registerAttachRoute(app, {cwd: opts.cwd, harness: opts.harness, store, hub})
+  registerAttachRoute(app, {cwd: opts.cwd, harness: opts.harness, store, hub, claudeHome: opts.claudeHome})
 }

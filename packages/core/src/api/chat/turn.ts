@@ -1,4 +1,4 @@
-import {readFileSync} from 'node:fs'
+import {existsSync, readFileSync} from 'node:fs'
 import {type H3, HTTPError, readValidatedBody} from 'h3'
 import {chat, EventType, type AnyTool, type ModelMessage, type StreamChunk, type TokenUsage} from '@tanstack/ai'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
@@ -18,6 +18,18 @@ import {harnessDebug} from '../../runtime/harness-logger.js'
 
 export const resumeTokenFor = async (store: SessionStore, id: string): Promise<string | null> =>
   (await store.get(id))?.harnessSessionId ?? null
+
+export function resumableToken(
+  harness: HarnessAdapter,
+  cwd: string,
+  token: string | null,
+  home?: string,
+): string | null {
+  if (!token) return null
+  const history = harness.history
+  if (!history) return token
+  return existsSync(history.transcriptPath(cwd, token, home)) ? token : null
+}
 export const recordMintedToken = (store: SessionStore, id: string, token: string): Promise<unknown> =>
   store.update(id, {harnessSessionId: token})
 
@@ -48,6 +60,7 @@ export type TurnDeps = {
   stateRoot: string
   harness: HarnessAdapter
   harnessEnv?: (sessionId?: string) => NodeJS.ProcessEnv
+  claudeHome?: string
   gate: PermissionGate
   systemPromptFile?: string
   systemPromptText?: string
@@ -96,7 +109,9 @@ async function buildTurnStream(
   abort: AbortController,
 ): Promise<AsyncIterable<StreamChunk>> {
   const turnKind = turnKindFor(chatReq)
-  const resumeSessionId = deps.harness.capabilities.resume ? await resumeTokenFor(deps.store, sessionId) : null
+  const resumeSessionId = deps.harness.capabilities.resume
+    ? resumableToken(deps.harness, deps.cwd, await resumeTokenFor(deps.store, sessionId), deps.claudeHome)
+    : null
   const config = deps.harness.chatConfig({
     cwd: deps.cwd,
     sessionId,
@@ -130,9 +145,7 @@ async function startTurn(deps: TurnDeps, sessionId: string, chatReq: ChatRequest
   const pendingUserMessage = lastUserMessage ? toPendingUserMessage(lastUserMessage) : null
   const modelId = requestedModel ?? deps.harness.defaultModel ?? null
   void deps.hub
-    .start(sessionId, pendingUserMessage, withLockRelease(merged, deps, sessionId, modelId, abort), () =>
-      abort.abort(),
-    )
+    .start(sessionId, pendingUserMessage, withLockRelease(merged, deps, sessionId, modelId, abort), () => abort.abort())
     .catch(() => {})
 }
 

@@ -16,13 +16,14 @@ export type AttachDeps = {
   harness: HarnessAdapter
   store: SessionStore
   hub: TurnHub
+  claudeHome?: string
 }
 
 async function transcriptMessages(deps: AttachDeps, sessionId: string): Promise<ChatHistory> {
   if (!deps.harness.capabilities.transcriptHistory || !deps.harness.history) return []
   const record = await deps.store.get(sessionId)
   if (!record?.harnessSessionId) return []
-  const jsonl = readFileOrEmpty(deps.harness.history.transcriptPath(deps.cwd, record.harnessSessionId))
+  const jsonl = readFileOrEmpty(deps.harness.history.transcriptPath(deps.cwd, record.harnessSessionId, deps.claudeHome))
   return jsonl ? deps.harness.history.parse(jsonl) : []
 }
 

@@ -110,7 +110,7 @@ export async function buildSessionList(args: {
 function nameFor(deps: SessionRouteDeps, token: string | null): string | null {
   const hist = deps.harness.history
   if (!token || !hist?.nameFromTranscript) return null
-  const raw = readFileOrEmpty(hist.transcriptPath(deps.cwd, token))
+  const raw = readFileOrEmpty(hist.transcriptPath(deps.cwd, token, deps.claudeHome))
   return raw ? hist.nameFromTranscript(raw) : null
 }
 
@@ -198,7 +198,9 @@ export function registerSessionRoutes(app: H3, deps: SessionRouteDeps): void {
     const sessionId = sessionIdFromHeaders(event.req.headers)
     const record = sessionId ? await deps.store.get(sessionId) : null
     if (!record?.harnessSessionId) return []
-    const jsonl = readFileOrEmpty(deps.harness.history.transcriptPath(deps.cwd, record.harnessSessionId))
+    const jsonl = readFileOrEmpty(
+      deps.harness.history.transcriptPath(deps.cwd, record.harnessSessionId, deps.claudeHome),
+    )
     return jsonl ? deps.harness.history.parse(jsonl) : []
   })
 

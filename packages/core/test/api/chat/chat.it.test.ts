@@ -1,8 +1,8 @@
 import {describe, it, expect, afterEach} from 'vitest'
 import {z} from 'zod'
-import {mkdtempSync, readFileSync, rmSync} from 'node:fs'
+import {mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
-import {join} from 'node:path'
+import {dirname, join} from 'node:path'
 import {EventType} from '@tanstack/ai'
 import {createTestkit, until, type Kit} from '@conciv/harness-testkit'
 import {acquireLock, readLock} from '../../../src/store/lock.js'
@@ -50,8 +50,8 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     for (const d of dirs.splice(0)) rmSync(d, {recursive: true, force: true})
   })
 
-  async function setup(fakeOpts: Parameters<typeof fakeEnv>[0] = {}): Promise<Kit> {
-    const kit = await createTestkit(claude, bootCoreApp({fakeClaude: {env: fakeEnv(fakeOpts)}})).setup()
+  async function setup(fakeOpts: Parameters<typeof fakeEnv>[0] = {}, claudeHome?: string): Promise<Kit> {
+    const kit = await createTestkit(claude, bootCoreApp({fakeClaude: {env: fakeEnv(fakeOpts)}, claudeHome})).setup()
     state.kit = kit
     return kit
   }
@@ -101,15 +101,30 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     expect(events.text()).toContain('RICH_REPLY_VISIBLE')
   })
 
-  it('passes --resume <captured session id> on the second turn', async () => {
+  it('passes --resume <captured session id> on the second turn once its transcript exists', async () => {
     const argvFile = join(tmp(), 'argv.json')
-    const kit = await setup({argvFile})
+    const claudeHome = tmp()
+    const kit = await setup({argvFile}, claudeHome)
     const id = await kit.session()
     await runTurn(kit, 'hi', id)
+    const transcript = claude.history?.transcriptPath(kit.stateRoot, 'sess-fake', claudeHome)
+    if (!transcript) throw new Error('claude harness lacks history')
+    mkdirSync(dirname(transcript), {recursive: true})
+    writeFileSync(transcript, '')
     await runTurn(kit, 'more', id)
     const argv = z.array(z.string()).parse(JSON.parse(readFileSync(argvFile, 'utf8')))
     expect(argv).toContain('--resume')
     expect(argv[argv.indexOf('--resume') + 1]).toBe('sess-fake')
+  })
+
+  it('drops a stale resume token whose transcript is missing (terminal pre-mints ids before claude writes one)', async () => {
+    const argvFile = join(tmp(), 'argv.json')
+    const kit = await setup({argvFile}, tmp())
+    const id = await kit.session()
+    await runTurn(kit, 'hi', id)
+    await runTurn(kit, 'more', id)
+    const argv = z.array(z.string()).parse(JSON.parse(readFileSync(argvFile, 'utf8')))
+    expect(argv).not.toContain('--resume')
   })
 
   it('passes --model <selected> to the spawned claude when the widget sends it via forwardedProps', async () => {
