@@ -31,7 +31,7 @@
 
 - Produces: `type ChangeMessage = {type: 'upsert'; row: unknown} | {type: 'delete'; key: string}`; `createChangeFeed(base, room): ChangeFeed` where `ChangeFeed = {subscribe(table, handler): () => void; onReconnect(handler): () => void; onCursor(handler): () => void; close(): void}`.
 
-- [ ] **Step 1: Write the change feed**
+- [x] **Step 1: Write the change feed**
 
 `change-feed.ts`:
 
@@ -100,12 +100,12 @@ export function createChangeFeed(base: string, room: string) {
 export type ChangeFeed = ReturnType<typeof createChangeFeed>
 ```
 
-- [ ] **Step 2: Typecheck**
+- [x] **Step 2: Typecheck**
 
 Run: `pnpm turbo run typecheck --filter=@conciv/extension-whiteboard`
 Expected: clean.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/extensions/whiteboard/src/client/change-feed.ts
@@ -127,7 +127,7 @@ git commit -m "feat(whiteboard): shared SSE change-feed (one EventSource, per-ta
   - `whiteboardCollectionOptions<Row extends {id: string}>({feed, base, room, table, schema})` → `CollectionConfig<Row, string>`.
   - `whiteboardElementOptions({feed, base, room, scope})` → `CollectionConfig<ElementRow, string, …, {write: (row: ElementRow) => void; cleanupStrategy: () => void}>` (exposes the paced drag writer + strategy cleanup on `utils`).
 
-- [ ] **Step 1: Write the factories**
+- [x] **Step 1: Write the factories**
 
 `whiteboard-collection.ts`:
 
@@ -364,7 +364,7 @@ export function whiteboardElementOptions(deps: {
 
 Note: the inline `sync`/`transaction` param types are written structurally to match `@tanstack/db`'s `SyncConfig`/mutation-handler params. At Step 2, if `createCollection(whiteboardCollectionOptions(...))` rejects the options, import the real `CollectionConfig`/`SyncConfig`/`InsertMutationFnParams` types from `@tanstack/db` and annotate the factory return/params with them (as `trailbase.ts` does) instead of the structural shapes — never cast. `rowUpdateMode: 'full'` because every SSE upsert and REST confirm carries the whole row.
 
-- [ ] **Step 2: Typecheck a throwaway wiring**
+- [x] **Step 2: Typecheck a throwaway wiring**
 
 Temporarily add to the bottom of `whiteboard-collection.ts` (delete before commit):
 
@@ -381,7 +381,7 @@ const _typecheck = (feed: ChangeFeed) => {
 Actually simpler — skip the throwaway; the real wiring is verified in Task 3. Run: `pnpm turbo run typecheck --filter=@conciv/extension-whiteboard`
 Expected: `whiteboard-collection.ts` compiles (not yet imported).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/extensions/whiteboard/src/client/whiteboard-collection.ts
@@ -402,7 +402,7 @@ git commit -m "feat(whiteboard): sync-collection option factories (createCollect
 - Consumes: `createChangeFeed`, `whiteboardCollectionOptions`, `whiteboardElementOptions`.
 - Produces: unchanged `WhiteboardDb`/`WhiteboardDbProvider`/`useWhiteboardDb` (element paced write now at `.utils.write`).
 
-- [ ] **Step 1: Rewrite `createWhiteboardDb` + imports**
+- [x] **Step 1: Rewrite `createWhiteboardDb` + imports**
 
 Replace the `db.tsx` top imports with:
 
@@ -466,7 +466,7 @@ export function createWhiteboardDb(base: string, room: string) {
 }
 ```
 
-- [ ] **Step 2: Move island's element writes to `utils.write`**
+- [x] **Step 2: Move island's element writes to `utils.write`**
 
 In `island.tsx`, `writeLocal`:
 
@@ -491,17 +491,17 @@ and `commitStep.write`:
         }),
 ```
 
-- [ ] **Step 3: Typecheck**
+- [x] **Step 3: Typecheck**
 
 Run: `pnpm turbo run typecheck --filter=@conciv/extension-whiteboard`
 Expected: clean. Fix any consumer fallout (`inbox.tsx`, `model/comments.tsx`, `pins/`, `overlay.tsx` use `.insert/.update/.delete/.state/.preload/useLiveQuery` — unchanged).
 
-- [ ] **Step 4: Fallow audit + drop now-unused deps**
+- [x] **Step 4: Fallow audit + drop now-unused deps**
 
 Run: `pnpm exec fallow audit --changed-since main --format json`
 Expected: zero INTRODUCED. `@tanstack/query-db-collection` and `@tanstack/query-core` are now unused — if fallow flags them, remove both from `packages/extensions/whiteboard/package.json`, run `pnpm install`, and re-run the audit.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/extensions/whiteboard/src/client/db.tsx packages/extensions/whiteboard/src/canvas/island.tsx packages/extensions/whiteboard/package.json pnpm-lock.yaml
@@ -514,26 +514,26 @@ git commit -m "refactor(whiteboard): db.tsx onto custom sync collections, drop q
 
 **Files:** none.
 
-- [ ] **Step 1: Build extension + widget**
+- [x] **Step 1: Build extension + widget**
 
 Run: `pnpm turbo run build --filter=@conciv/extension-whiteboard --filter=@conciv/widget`
 
-- [ ] **Step 2: Full whiteboard suite**
+- [x] **Step 2: Full whiteboard suite**
 
 Run: `pnpm --filter @conciv/extension-whiteboard exec vitest run`
 Expected: all 57 green. If a collection never readies → check `markReady()` in `load().finally`. If a just-written row flickers/vanishes → `confirm()` must use `begin({immediate:true})` and the collection must be subscribed (writer captured) before the mutation; collections are lazy, so ensure consumers `preload()`/subscribe (existing code already does via `useLiveQuery`/`preload`).
 
-- [ ] **Step 3: Typecheck + fallow (final gate)**
+- [x] **Step 3: Typecheck + fallow (final gate)**
 
 Run: `pnpm turbo run typecheck --filter=@conciv/extension-whiteboard`
 Run: `pnpm exec fallow audit --changed-since main --format json`
 Expected: clean; zero INTRODUCED.
 
-- [ ] **Step 4: Live verify**
+- [x] **Step 4: Live verify**
 
 `pnpm dev`; two tabs; draw in A → B follows; drag in A → B follows, Network ~1 `PUT /elements/live` per 50ms; comment + pin + resolve → both tabs; reload → persists. Kill dev server (LISTEN-safe) after.
 
-- [ ] **Step 5: Push**
+- [x] **Step 5: Push**
 
 ```bash
 git push
