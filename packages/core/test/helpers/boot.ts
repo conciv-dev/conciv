@@ -52,7 +52,7 @@ export function bootCoreApp(overrides: BootOverrides = {}): BootApp {
       ? (sessionId?: string): NodeJS.ProcessEnv => ({
           ...process.env,
           PATH: `${binDir}:${process.env.PATH ?? ''}`,
-          ...(fake?.env?.(sessionId) ?? {}),
+          ...fake?.env?.(sessionId),
         })
       : undefined
     const {app, disposers} = await makeApp({

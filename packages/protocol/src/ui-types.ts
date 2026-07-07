@@ -71,8 +71,6 @@ export function aguiSnapshotFor(snapshot: Snapshot): StreamChunk {
   return {type: EventType.CUSTOM, name: CONCIV_SNAPSHOT_EVENT, value: snapshot}
 }
 
-// /api/chat/permission-decision: claude owns the loop and blocks on its PreToolUse hook, so the
-
 export const APPROVAL_REQUESTED_EVENT = 'approval-requested'
 
 export type ApprovalRequest = {toolCallId: string; toolName: string; input: unknown; approvalId: string}

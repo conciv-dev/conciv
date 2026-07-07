@@ -144,19 +144,6 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     expect(await ok.json()).toEqual({renderId: 'r9', injected: false})
   })
 
-  it('PreToolUse gate allows non-Bash + safe Bash, denies risky Bash with no widget to ask', async () => {
-    const kit = await setup()
-    const DecisionSchema = z.object({hookSpecificOutput: z.object({permissionDecision: z.string()})})
-    const decisionFor = async (body: unknown): Promise<string> => {
-      const res = await kit.post('/api/chat/permission', body)
-      const json = DecisionSchema.parse(await res.json())
-      return json.hookSpecificOutput.permissionDecision
-    }
-    expect(await decisionFor({tool_name: 'Edit', tool_input: {file_path: 'a.ts'}})).toBe('allow')
-    expect(await decisionFor({tool_name: 'Bash', tool_input: {command: 'ls -la'}})).toBe('allow')
-    expect(await decisionFor({tool_name: 'Bash', tool_input: {command: 'rm -rf dist'}})).toBe('deny')
-  })
-
   it('refuses with 409 while a session lock is held by iterate', async () => {
     const kit = await setup()
     const id = await kit.session()

@@ -58,7 +58,7 @@ export function registerChatRoutes(app: H3, opts: ChatRouteOpts): void {
 
   void sweepEmptyChatRecords(store, new Set(readLocks(opts.stateRoot).map((l) => l.key))).catch(() => {})
 
-  registerPermissionRoutes(app, gate, opts.harness.capabilities.permissionGate === 'hook')
+  registerPermissionRoutes(app, gate)
   registerSessionRoutes(app, {
     cwd: opts.cwd,
     stateRoot: opts.stateRoot,

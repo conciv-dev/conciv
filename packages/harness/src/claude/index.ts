@@ -32,7 +32,7 @@ export const claude = defineHarness({
   defaultModel: 'sonnet',
   capabilities: {
     resume: true,
-    permissionGate: 'hook',
+    permissionGate: 'callback',
     transcriptHistory: true,
     compaction: true,
     systemPrompt: 'file',

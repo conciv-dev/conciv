@@ -589,8 +589,8 @@ git commit -m 'refactor(core)!: single tanstack chat path for all harnesses' -- 
 - Consumes: `codexText(model, config)`; `HarnessChatDeps`; `definedEntries` from `_shared/env.ts` (created in Task 5)
 - Produces: codex `chatConfig`
 
-- [ ] **Step 1: Failing test** — `codex.chatConfig(deps)` returns adapter named `codex` and `modelOptions.sessionId === deps.resumeSessionId`.
-- [ ] **Step 2: Implement**
+- [x] **Step 1: Failing test** — `codex.chatConfig(deps)` returns adapter named `codex` and `modelOptions.sessionId === deps.resumeSessionId`.
+- [x] **Step 2: Implement**
 
 ```ts
 import {codexText} from '@tanstack/ai-codex'
@@ -607,9 +607,9 @@ const codexChatConfig = (deps: HarnessChatDeps) => ({
 
 Verify every config/modelOptions field name against the installed `@tanstack/ai-codex` dist types (`workingDirectory`, `approvalPolicy`, `sandboxMode`, `skipGitRepoCheck` exist per upstream docs); set the most conservative `sandboxMode`/`approvalPolicy` that lets the IT pass and record the choice in the harness file. Capabilities: `{resume: true, permissionGate: 'none', transcriptHistory: false, compaction: false, systemPrompt: 'flag', mcp: 'none', slashCommands: 'none', imageInput: false}` — codex has no interactive permission hook upstream; document that in the capability choice.
 
-- [ ] **Step 3: Binary-gated IT** (skip when `codex` missing — `harness-available.ts` pattern): one turn streams text + RUN_FINISHED; second turn resumes via the tapped session id.
-- [ ] **Step 4: Fallow (deleted decoder must leave no dead exports) + full suite.**
-- [ ] **Step 5: Commit**
+- [x] **Step 3: Binary-gated IT** (skip when `codex` missing — `harness-available.ts` pattern): one turn streams text + RUN_FINISHED; second turn resumes via the tapped session id.
+- [x] **Step 4: Fallow (deleted decoder must leave no dead exports) + full suite.**
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -m 'feat(harness): codex on @tanstack/ai-codex' -- packages/harness/src/codex packages/harness/package.json pnpm-lock.yaml packages/harness/test packages/core/test/testkit
@@ -629,8 +629,8 @@ git commit -m 'feat(harness): codex on @tanstack/ai-codex' -- packages/harness/s
 - Consumes: `opencodeText(model, config)` with async `onPermissionRequest(request: {id, sessionID, type, title, callID?}) => 'once' | 'always' | 'reject'`
 - Produces: real opencode harness (`permissionGate: 'callback'`), exported `opencodePermissionHandler(decide)` for the unit test
 
-- [ ] **Step 1: Failing test** — handler maps gate `allow` → `'once'`, `deny` → `'reject'`, passes `request.type` as the tool name and `callID ?? id` as toolUseId.
-- [ ] **Step 2: Implement**
+- [x] **Step 1: Failing test** — handler maps gate `allow` → `'once'`, `deny` → `'reject'`, passes `request.type` as the tool name and `callID ?? id` as toolUseId.
+- [x] **Step 2: Implement**
 
 ```ts
 import {opencodeText} from '@tanstack/ai-opencode'
@@ -653,8 +653,8 @@ const opencodeChatConfig = (deps: HarnessChatDeps) => ({
 
 Verify `directory` vs `cwd` and pick `defaultOpencodeModel` from the installed package's model metadata.
 
-- [ ] **Step 3: Run unit test + full suite; binary-gated IT if `opencode` present.**
-- [ ] **Step 4: Commit**
+- [x] **Step 3: Run unit test + full suite; binary-gated IT if `opencode` present.**
+- [x] **Step 4: Commit**
 
 ```bash
 git commit -m 'feat(harness): opencode real adapter via @tanstack/ai-opencode' -- packages/harness/src/opencode packages/harness/package.json pnpm-lock.yaml packages/harness/test
@@ -663,6 +663,8 @@ git commit -m 'feat(harness): opencode real adapter via @tanstack/ai-opencode' -
 ---
 
 ### Task 9: pi + gemini-cli on `acpCompatible` (stubs → real)
+
+> Executed 2026-07-07: gemini-cli landed on acpCompatible (`gemini --acp`, flag verified against the published CLI). pi REMAINS A STUB — pi 0.66.1 has no ACP mode (only text/json/rpc; verified against `pi --help` and ~/Public/web/pi-mono) and no @tanstack/ai-pi package exists, so there is nothing to configure without composing a custom adapter. Open user decision: keep the stub or build a pi rpc adapter on makeTextAdapter.
 
 **Files:**
 
@@ -675,8 +677,8 @@ git commit -m 'feat(harness): opencode real adapter via @tanstack/ai-opencode' -
 - Consumes: `acpCompatible({name, command, permissions: 'interactive', onPermissionRequest})`; `AcpPermissionRequest` / `AcpPermissionOutcome` types imported from `@tanstack/ai-acp` (never redeclared)
 - Produces: `acpChatConfig(name, commandOf, defaultModel)` shared factory; real `pi` and `geminiCli` harnesses
 
-- [ ] **Step 1: Failing test** — `acpPermissionHandler(async () => 'allow')` returns `{outcome: 'selected', optionId}` for the `allow_once` option; deny path picks `reject_once`; no matching option → `{outcome: 'cancelled'}`.
-- [ ] **Step 2: Implement `_shared/acp.ts`**
+- [x] **Step 1: Failing test** — `acpPermissionHandler(async () => 'allow')` returns `{outcome: 'selected', optionId}` for the `allow_once` option; deny path picks `reject_once`; no matching option → `{outcome: 'cancelled'}`.
+- [x] **Step 2: Implement `_shared/acp.ts`**
 
 ```ts
 import {acpCompatible} from '@tanstack/ai-acp'
@@ -707,8 +709,8 @@ export function acpChatConfig(name: string, commandOf: (model: string, cwd: stri
 
 `pi/index.ts`: command from the real pi CLI — verify the ACP entry flag and model ids against `~/Public/web/pi-mono` before finalizing (do not guess flags). `gemini-cli/index.ts`: `gemini --acp` with model via ACP `newSession` (acpCompatible passes cwd/model over the protocol).
 
-- [ ] **Step 3: Run unit tests + full suite; binary-gated ITs where CLIs exist locally.**
-- [ ] **Step 4: Commit**
+- [x] **Step 3: Run unit tests + full suite; binary-gated ITs where CLIs exist locally.**
+- [x] **Step 4: Commit**
 
 ```bash
 git commit -m 'feat(harness): pi + gemini-cli via acpCompatible' -- packages/harness/src/pi packages/harness/src/gemini-cli packages/harness/src/_shared/acp.ts packages/harness/package.json pnpm-lock.yaml packages/harness/test
@@ -723,9 +725,9 @@ git commit -m 'feat(harness): pi + gemini-cli via acpCompatible' -- packages/har
 - Delete: `packages/harness/src/claude/blocks.ts` (if its only consumers were the deleted decode/args — trace first), agent-sdk RUN portions of `packages/harness/src/claude/sdk.ts` (keep `claudeSdkCommands` + whatever `shutdown`/`release` it genuinely needs), the `/api/chat/permission` hook route arm in `registerPermissionRoutes` (no harness declares `permissionGate: 'hook'` anymore — trace first), `CONCIV_CLAUDE_CLI` pin in `packages/core/vitest.config.ts`, `SpawnHarness`-era leftovers in core no longer referenced (`claude/decode.ts`, `claude/args.ts`, `codex/decode.ts`, `codex/args.ts` already died in Tasks 6–7)
 - Modify: `AGENTS.md` (harness section: harness = `chatConfig` returning a TanStack text adapter + sidecars; text-adapter exception line updated to `makeTextAdapter`), `.changeset/tanstack-harness-migration.md` (one patch entry naming any `@conciv/*` package — fixed versioning releases the set)
 
-- [ ] **Step 1: Trace every deletion** — `pnpm exec fallow dead-code --trace 'packages/harness/src/claude/blocks.ts:<symbol>'` (and each candidate). "USED but file unreachable" = missing entry point, investigate before deleting.
-- [ ] **Step 2: Delete, typecheck after each removal.**
-- [ ] **Step 3: Full gates + fallow audit clean.** `pnpm typecheck && pnpm build && pnpm test && pnpm exec fallow audit --changed-since main --format json`.
+- [x] **Step 1: Trace every deletion** — `pnpm exec fallow dead-code --trace 'packages/harness/src/claude/blocks.ts:<symbol>'` (and each candidate). "USED but file unreachable" = missing entry point, investigate before deleting.
+- [x] **Step 2: Delete, typecheck after each removal.**
+- [x] **Step 3: Full gates + fallow audit clean.** `pnpm typecheck && pnpm build && pnpm test && pnpm exec fallow audit --changed-since main --format json`.
 - [ ] **Step 4: Manual smoke** — `pnpm dev` (server restart, not reload, for harness/core changes): chat turn, risky-Bash permission prompt blocks then proceeds, image paste, slash-command menu, session browser attach, ESC interrupt.
 - [ ] **Step 5: Commit**
 

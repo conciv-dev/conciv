@@ -7,7 +7,7 @@ describe('claude harness adapter', () => {
     expect(claude.id).toBe('claude')
     expect(claude.capabilities).toEqual({
       resume: true,
-      permissionGate: 'hook',
+      permissionGate: 'callback',
       transcriptHistory: true,
       compaction: true,
       systemPrompt: 'file',

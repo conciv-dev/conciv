@@ -3,7 +3,7 @@ import type {TtyCommand, TtyCommandOpts} from './terminal-types.js'
 
 export type HarnessCapabilities = {
   resume: boolean
-  permissionGate: 'hook' | 'callback' | 'none'
+  permissionGate: 'callback' | 'none'
   transcriptHistory: boolean
 
   compaction: boolean
