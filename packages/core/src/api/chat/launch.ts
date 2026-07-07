@@ -4,7 +4,8 @@ import {writeFileSync, chmodSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {platform} from 'node:os'
-import {type H3, readValidatedBody} from 'h3'
+import {Hono} from 'hono'
+import {zValidator} from '@hono/zod-validator'
 import type {HarnessAdapter, HarnessLaunchContext, HarnessLaunchResult} from '@conciv/protocol/harness-types'
 import {ChatLaunchRequestSchema, type ChatLaunch} from '@conciv/protocol/chat-types'
 import type {SessionStore} from '../../store/session-store.js'
@@ -16,13 +17,16 @@ export type LaunchRouteDeps = {
   store: SessionStore
 }
 
-export function registerLaunchRoutes(app: H3, deps: LaunchRouteDeps): void {
-  app.post('/api/chat/launch', async (event): Promise<ChatLaunch> => {
-    if (!deps.harness.launch) return {supported: false, opened: false, command: null}
-    const {model} = await readValidatedBody(event, ChatLaunchRequestSchema)
-    const sessionId = sessionIdFromHeaders(event.req.headers)
+export function makeLaunchRoutes(deps: LaunchRouteDeps) {
+  return new Hono().post('/launch', zValidator('json', ChatLaunchRequestSchema), async (c) => {
+    if (!deps.harness.launch) {
+      const payload: ChatLaunch = {supported: false, opened: false, command: null}
+      return c.json(payload)
+    }
+    const {model} = c.req.valid('json')
+    const sessionId = sessionIdFromHeaders(c.req.raw.headers)
     const token = sessionId ? ((await deps.store.get(sessionId))?.harnessSessionId ?? null) : null
-    const origin = `http://${event.req.headers.get('host') ?? '127.0.0.1:3000'}`
+    const origin = `http://${c.req.header('host') ?? '127.0.0.1:3000'}`
     const ctx: HarnessLaunchContext = {
       cwd: deps.cwd,
       sessionId: token || null,
@@ -32,7 +36,8 @@ export function registerLaunchRoutes(app: H3, deps: LaunchRouteDeps): void {
       openUrl: (url) => openUrl(url),
     }
     const result = await deps.harness.launch(ctx)
-    return {supported: true, opened: result.opened, command: result.command}
+    const payload: ChatLaunch = {supported: true, opened: result.opened, command: result.command}
+    return c.json(payload)
   })
 }
 

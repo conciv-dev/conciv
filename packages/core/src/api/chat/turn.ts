@@ -1,9 +1,11 @@
 import {existsSync, readFileSync} from 'node:fs'
-import {type H3, HTTPError, readValidatedBody} from 'h3'
+import {Hono} from 'hono'
+import {HTTPException} from 'hono/http-exception'
+import {zValidator} from '@hono/zod-validator'
 import {chat, EventType, type AnyTool, type ModelMessage, type StreamChunk, type TokenUsage} from '@tanstack/ai'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import {UiSpecSchema} from '@conciv/protocol/ui-types'
-import {ChatRequestSchema, type ChatRequest} from '@conciv/protocol/chat-types'
+import {ChatRequestSchema, type ChatRequest, type Ok} from '@conciv/protocol/chat-types'
 import {aguiUsageFor, tokenUsageToSnapshot, type UsageSnapshot} from '@conciv/protocol/usage-types'
 import {acquireLock, releaseLock} from '../../store/lock.js'
 import type {SessionStore} from '../../store/session-store.js'
@@ -149,37 +151,37 @@ async function startTurn(deps: TurnDeps, sessionId: string, chatReq: ChatRequest
     .catch(() => {})
 }
 
-export function registerTurnRoutes(app: H3, deps: TurnDeps): void {
+export function makeTurnRoutes(deps: TurnDeps) {
   const {harness, uiBus} = deps
   const sysText = systemPromptText(deps, harness.capabilities.systemPrompt)
 
-  app.post('/api/chat/ui', async (event) => {
-    const spec = await readValidatedBody(event, UiSpecSchema)
-    const sessionId = sessionIdFromHeaders(event.req.headers)
-    return {renderId: spec.renderId, injected: sessionId ? uiBus.inject(sessionId, spec) : false}
-  })
+  return new Hono()
+    .post('/ui', zValidator('json', UiSpecSchema), (c) => {
+      const spec = c.req.valid('json')
+      const sessionId = sessionIdFromHeaders(c.req.raw.headers)
+      return c.json({renderId: spec.renderId, injected: sessionId ? uiBus.inject(sessionId, spec) : false})
+    })
+    .post('/', zValidator('json', ChatRequestSchema), async (c) => {
+      const sessionId = sessionIdFromHeaders(c.req.raw.headers)
+      if (!sessionId) throw new HTTPException(400, {message: 'no session (resolve first)'})
 
-  app.post('/api/chat', async (event) => {
-    const sessionId = sessionIdFromHeaders(event.req.headers)
-    if (!sessionId) throw new HTTPError({status: 400, message: 'no session (resolve first)'})
+      if (deps.hub.generating(sessionId)) throw new HTTPException(409, {message: 'session busy'})
 
-    if (deps.hub.generating(sessionId)) throw new HTTPError({status: 409, message: 'session busy'})
+      if (!acquireLock(deps.stateRoot, sessionId, 'chat', process.pid)) {
+        throw new HTTPException(409, {message: 'session busy'})
+      }
 
-    if (!acquireLock(deps.stateRoot, sessionId, 'chat', process.pid)) {
-      throw new HTTPError({status: 409, message: 'session busy'})
-    }
-
-    try {
-      deps.onTurnStart?.(sessionId)
-      await ensureChatRecord(deps.store, sessionId, harness.id, deps.cwd)
-      const chatReq = await readValidatedBody(event, ChatRequestSchema)
-      await startTurn(deps, sessionId, chatReq, sysText)
-      return {ok: true}
-    } catch (e) {
-      releaseLock(deps.stateRoot, sessionId)
-      throw e
-    }
-  })
+      try {
+        deps.onTurnStart?.(sessionId)
+        await ensureChatRecord(deps.store, sessionId, harness.id, deps.cwd)
+        await startTurn(deps, sessionId, c.req.valid('json'), sysText)
+        const payload: Ok = {ok: true}
+        return c.json(payload)
+      } catch (e) {
+        releaseLock(deps.stateRoot, sessionId)
+        throw e
+      }
+    })
 }
 
 function contextWindowFor(harness: HarnessAdapter, modelId: string | null): number | undefined {

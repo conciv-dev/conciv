@@ -1,6 +1,7 @@
 import {randomUUID} from 'node:crypto'
-import {type H3, readValidatedBody} from 'h3'
+import {Hono} from 'hono'
 import {z} from 'zod'
+import type {Ok} from '@conciv/protocol/chat-types'
 import {classifyCommand} from '../../policy/command-policy.js'
 import type {UiBus} from '../../runtime/ui-bus.js'
 import {makePending} from '../../pending.js'
@@ -47,11 +48,12 @@ export function makePermissionGate(uiBus: UiBus, options: PermissionGateOptions 
   return {decide, resolve: pending.resolve}
 }
 
-export function registerPermissionRoutes(app: H3, gate: PermissionGate): void {
-  app.post('/api/chat/permission-decision', async (event) => {
-    const parsed = await readValidatedBody(event, DecisionBodySchema.safeParse)
+export function makePermissionRoutes(gate: PermissionGate) {
+  return new Hono().post('/permission-decision', async (c) => {
+    const parsed = DecisionBodySchema.safeParse(await c.req.json().catch(() => ({})))
     if (parsed.success && parsed.data.approvalId) gate.resolve(parsed.data.approvalId, parsed.data.approved)
-    return {ok: true}
+    const payload: Ok = {ok: true}
+    return c.json(payload)
   })
 }
 

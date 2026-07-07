@@ -1,16 +1,16 @@
 import {randomUUID} from 'node:crypto'
-import type {H3} from 'h3'
+import {Hono} from 'hono'
 import type {AnyTool} from '@tanstack/ai'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import type {SessionRecord} from '@conciv/protocol/chat-types'
 import type {UiBus} from '../../runtime/ui-bus.js'
 import type {SessionStore} from '../../store/session-store.js'
-import {registerLaunchRoutes} from './launch.js'
-import {makePermissionGate, registerPermissionRoutes} from './permission.js'
+import {makeLaunchRoutes} from './launch.js'
+import {makePermissionGate, makePermissionRoutes} from './permission.js'
 import {readLocks} from '../../store/lock.js'
-import {registerSessionRoutes, sweepEmptyChatRecords, type ResolveDeps} from './session.js'
-import {registerTurnRoutes} from './turn.js'
-import {registerAttachRoute} from './attach.js'
+import {makeSessionRoutes, sweepEmptyChatRecords, type ResolveDeps} from './session.js'
+import {makeTurnRoutes} from './turn.js'
+import {makeAttachRoute} from './attach.js'
 import {makeTurnHub} from '../../runtime/turn-hub.js'
 
 export type ChatRouteOpts = {
@@ -46,7 +46,7 @@ export async function ensureAgentRecord(deps: ResolveDeps, harnessId: string): P
   })
 }
 
-export function registerChatRoutes(app: H3, opts: ChatRouteOpts): void {
+export function makeChatRoutes(opts: ChatRouteOpts) {
   const uiBus = opts.uiBus
   const gate = makePermissionGate(uiBus, {risky: opts.riskyTools})
   const store = opts.store
@@ -58,31 +58,38 @@ export function registerChatRoutes(app: H3, opts: ChatRouteOpts): void {
 
   void sweepEmptyChatRecords(store, new Set(readLocks(opts.stateRoot).map((l) => l.key))).catch(() => {})
 
-  registerPermissionRoutes(app, gate)
-  registerSessionRoutes(app, {
-    cwd: opts.cwd,
-    stateRoot: opts.stateRoot,
-    store,
-    harness: opts.harness,
-    hub,
-    claudeHome: opts.claudeHome,
-  })
-  registerLaunchRoutes(app, {cwd: opts.cwd, harness: opts.harness, store})
-  registerTurnRoutes(app, {
-    cwd: opts.cwd,
-    stateRoot: opts.stateRoot,
-    harness: opts.harness,
-    harnessEnv: opts.harnessEnv,
-    claudeHome: opts.claudeHome,
-    gate,
-    systemPromptFile: opts.systemPromptFile,
-    systemPromptText: opts.systemPromptText,
-    uiBus,
-    store,
-    tools: opts.tools,
-    onTurnStart: opts.onTurnStart,
-    onTurnEnd: opts.onTurnEnd,
-    hub,
-  })
-  registerAttachRoute(app, {cwd: opts.cwd, harness: opts.harness, store, hub, claudeHome: opts.claudeHome})
+  return new Hono()
+    .route('/', makePermissionRoutes(gate))
+    .route(
+      '/',
+      makeSessionRoutes({
+        cwd: opts.cwd,
+        stateRoot: opts.stateRoot,
+        store,
+        harness: opts.harness,
+        hub,
+        claudeHome: opts.claudeHome,
+      }),
+    )
+    .route('/', makeLaunchRoutes({cwd: opts.cwd, harness: opts.harness, store}))
+    .route(
+      '/',
+      makeTurnRoutes({
+        cwd: opts.cwd,
+        stateRoot: opts.stateRoot,
+        harness: opts.harness,
+        harnessEnv: opts.harnessEnv,
+        claudeHome: opts.claudeHome,
+        gate,
+        systemPromptFile: opts.systemPromptFile,
+        systemPromptText: opts.systemPromptText,
+        uiBus,
+        store,
+        tools: opts.tools,
+        onTurnStart: opts.onTurnStart,
+        onTurnEnd: opts.onTurnEnd,
+        hub,
+      }),
+    )
+    .route('/', makeAttachRoute({cwd: opts.cwd, harness: opts.harness, store, hub, claudeHome: opts.claudeHome}))
 }
