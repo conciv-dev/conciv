@@ -1,5 +1,6 @@
 import {randomUUID} from 'node:crypto'
 import {Hono} from 'hono'
+import {zValidator} from '@hono/zod-validator'
 import {z} from 'zod'
 import type {Ok} from '@conciv/protocol/chat-types'
 import {classifyCommand} from '../../policy/command-policy.js'
@@ -49,9 +50,9 @@ export function makePermissionGate(uiBus: UiBus, options: PermissionGateOptions 
 }
 
 export function makePermissionRoutes(gate: PermissionGate) {
-  return new Hono().post('/permission-decision', async (c) => {
-    const parsed = DecisionBodySchema.safeParse(await c.req.json().catch(() => ({})))
-    if (parsed.success && parsed.data.approvalId) gate.resolve(parsed.data.approvalId, parsed.data.approved)
+  return new Hono().post('/permission-decision', zValidator('json', DecisionBodySchema), (c) => {
+    const decision = c.req.valid('json')
+    if (decision.approvalId) gate.resolve(decision.approvalId, decision.approved)
     const payload: Ok = {ok: true}
     return c.json(payload)
   })

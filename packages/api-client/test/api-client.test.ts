@@ -1,7 +1,17 @@
-import {describe, it, expect, beforeAll, afterAll} from 'vitest'
+import {describe, it, expect, expectTypeOf, beforeAll, afterAll} from 'vitest'
 import {createServer, type Server} from 'node:http'
 import type {AddressInfo} from 'node:net'
-import {SessionId} from '@conciv/protocol/chat-types'
+import {hc} from 'hono/client'
+import type {InferResponseType} from 'hono/client'
+import type {AppType} from '@conciv/core'
+import type {z} from 'zod'
+import {
+  SessionId,
+  ChatSessionSchema,
+  ChatSessionsSchema,
+  ChatModelsSchema,
+  OkSchema,
+} from '@conciv/protocol/chat-types'
 import {defineClient} from '../src/api-client.js'
 
 let server: Server
@@ -43,5 +53,29 @@ describe('defineClient (real server)', () => {
     client.setSessionId(SessionId.parse('conciv_x'))
     expect((await client.stop()).ok).toBe(true)
     expect(lastSessionHeader).toBe('conciv_x')
+  })
+})
+
+describe('error + type contracts', () => {
+  it('rejects with ApiError carrying path and status on non-2xx', async () => {
+    const client = defineClient({apiBase: base})
+    await expect(client.models()).rejects.toMatchObject({path: '/api/chat/models', status: 404})
+  })
+})
+
+describe('hc response types match protocol schemas', () => {
+  const pin = hc<AppType>('http://x')
+
+  it('pins inferred route types to zod outputs', () => {
+    expectTypeOf<InferResponseType<typeof pin.api.chat.sessions.$get>>().toEqualTypeOf<
+      z.output<typeof ChatSessionsSchema>
+    >()
+    expectTypeOf<InferResponseType<typeof pin.api.chat.session.$get>>().toEqualTypeOf<
+      z.output<typeof ChatSessionSchema>
+    >()
+    expectTypeOf<InferResponseType<typeof pin.api.chat.stop.$post>>().toEqualTypeOf<z.output<typeof OkSchema>>()
+    expectTypeOf<InferResponseType<typeof pin.api.chat.models.$get>>().toEqualTypeOf<
+      z.output<typeof ChatModelsSchema>
+    >()
   })
 })
