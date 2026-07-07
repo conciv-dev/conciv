@@ -41,7 +41,7 @@ describe('widget inject middleware (IT, real http)', () => {
     expect(html).toContain('<h1>hi</h1>')
   })
 
-  it('injects when headers arrive via writeHead(status, statusText, flat-array) + end(cb) (srvx shape)', async () => {
+  it('injects when headers arrive via writeHead(status, statusText, flat-array) + end(cb) (flat-array writeHead shape)', async () => {
     const {server, base} = await startServer(makeWidgetInject(API_BASE), (res) => {
       res.writeHead(200, 'OK', ['content-type', 'text/html; charset=utf-8'])
       res.write('<!doctype html><html><head><title>app</title></head><body>hi</body></html>')
