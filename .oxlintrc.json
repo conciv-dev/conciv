@@ -106,5 +106,5 @@
       }
     }
   ],
-  "ignorePatterns": ["dist", "build", "node_modules", ".turbo"]
+  "ignorePatterns": ["dist", "build", "node_modules", ".turbo", "**/*.gen.ts", "**/test-results"]
 }
