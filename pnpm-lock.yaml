@@ -820,6 +820,9 @@ importers:
       '@tanstack/ai':
         specifier: ^0.40.0
         version: 0.40.0(@opentelemetry/api@1.9.1)
+      '@tanstack/ai-acp':
+        specifier: ^0.2.1
+        version: 0.2.1(@tanstack/ai-sandbox@0.2.2(@tanstack/ai@0.40.0(@opentelemetry/api@1.9.1))(zod@4.4.3))(@tanstack/ai@0.40.0(@opentelemetry/api@1.9.1))(zod@4.4.3)
       '@tanstack/ai-claude-code':
         specifier: ^0.2.1
         version: 0.2.1(@tanstack/ai-sandbox@0.2.2(@tanstack/ai@0.40.0(@opentelemetry/api@1.9.1))(zod@4.4.3))(@tanstack/ai@0.40.0(@opentelemetry/api@1.9.1))
@@ -1769,6 +1772,11 @@ packages:
 
   '@ag-ui/core@0.0.52':
     resolution: {integrity: sha512-Xo0bUaNV56EqylzcrAuhUkQX7et7+SZIrqZZtEByGwEq/I1EHny6ZMkWHLkKR7UNi0FJZwJyhKYmKJS3B2SEgA==}
+
+  '@agentclientprotocol/sdk@0.25.1':
+    resolution: {integrity: sha512-jx2rF3bdpGwZ75Q/meyEDLLbYmbtxk82Uh9hDCdxDvcEedBnNSF5hZAnL/kJR5VNz56JqwOmqnAqasC84MwwkQ==}
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0
 
   '@andrewbranch/untar.js@1.0.3':
     resolution: {integrity: sha512-Jh15/qVmrLGhkKJBdXlK1+9tY4lZruYjsgkDFj08ZmDiWVBLJcqkok7Z0/R0In+i1rScBpJlSvrTS2Lm41Pbnw==}
@@ -5545,6 +5553,12 @@ packages:
         optional: true
       react-dom:
         optional: true
+
+  '@tanstack/ai-acp@0.2.1':
+    resolution: {integrity: sha512-mXxMbLXCxCk83UKC1GRF0FZTMqUEehjDIwiY2AdCCMbya4mzsqhnh1MI4oXeAKMrA2mT1PzBc7BzaeyNu8Vk/w==}
+    peerDependencies:
+      '@tanstack/ai': ^0.40.0
+      '@tanstack/ai-sandbox': ^0.2.2
 
   '@tanstack/ai-claude-code@0.2.1':
     resolution: {integrity: sha512-WMzrEmrXaC36XXCllGKxJs3YPDnEiGAHtxJNTT5foYJw+bFSB0Yicmt1iOEP0iP+AQBG7KQXASVN433PgLZDVQ==}
@@ -11934,6 +11948,10 @@ snapshots:
     dependencies:
       zod: 3.25.76
 
+  '@agentclientprotocol/sdk@0.25.1(zod@4.4.3)':
+    dependencies:
+      zod: 4.4.3
+
   '@andrewbranch/untar.js@1.0.3': {}
 
   '@antfu/install-pkg@1.1.0':
@@ -15408,6 +15426,14 @@ snapshots:
     optionalDependencies:
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
+
+  '@tanstack/ai-acp@0.2.1(@tanstack/ai-sandbox@0.2.2(@tanstack/ai@0.40.0(@opentelemetry/api@1.9.1))(zod@4.4.3))(@tanstack/ai@0.40.0(@opentelemetry/api@1.9.1))(zod@4.4.3)':
+    dependencies:
+      '@agentclientprotocol/sdk': 0.25.1(zod@4.4.3)
+      '@tanstack/ai': 0.40.0(@opentelemetry/api@1.9.1)
+      '@tanstack/ai-sandbox': 0.2.2(@tanstack/ai@0.40.0(@opentelemetry/api@1.9.1))(zod@4.4.3)
+    transitivePeerDependencies:
+      - zod
 
   '@tanstack/ai-claude-code@0.2.1(@tanstack/ai-sandbox@0.2.2(@tanstack/ai@0.40.0(@opentelemetry/api@1.9.1))(zod@4.4.3))(@tanstack/ai@0.40.0(@opentelemetry/api@1.9.1))':
     dependencies:

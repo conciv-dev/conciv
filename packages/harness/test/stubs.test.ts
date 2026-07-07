@@ -1,12 +1,8 @@
 import {describe, it, expect} from 'vitest'
 import {chat, EventType, type StreamChunk} from '@tanstack/ai'
-import {geminiCli} from '../src/gemini-cli/index.js'
 import {pi} from '../src/pi/index.js'
 
-describe.each([
-  ['gemini-cli', geminiCli],
-  ['pi', pi],
-])('%s stub', (id, adapter) => {
+describe.each([['pi', pi]])('%s stub', (id, adapter) => {
   it('declares its id and capabilities', () => {
     expect(adapter.id).toBe(id)
     expect(adapter.capabilities).toBeDefined()
