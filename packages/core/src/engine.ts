@@ -1,7 +1,6 @@
 import {spawn} from 'node:child_process'
 import {serve} from 'srvx'
 import getPort from 'get-port'
-import type {HarnessChild} from '@conciv/protocol/harness-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {AnyExtension} from '@conciv/extension'
 import {getHarness} from '@conciv/harness'
@@ -60,14 +59,6 @@ export async function start(opts: StartOpts): Promise<Engine> {
     return sessionId ? {...baseEnv, CONCIV_SESSION_ID: sessionId} : baseEnv
   }
 
-  const spawnHarness = (args: string[], cwd: string, sessionId?: string): HarnessChild => {
-    const harnessBin = cfg.harnessBin ?? 'claude'
-    const child = spawn(harnessBin, args, {cwd, stdio: ['pipe', 'pipe', 'pipe'], env: harnessEnv(sessionId)})
-    const {stdin, stdout, stderr} = child
-    if (!stdin || !stdout || !stderr) throw new Error(`harness "${harnessBin}" did not expose stdio pipes`)
-    return {pid: child.pid ?? -1, stdin, stdout, stderr, kill: () => void child.kill('SIGTERM')}
-  }
-
   const appOpts: MakeAppOpts = {
     cfg,
     cwd: opts.root,
@@ -77,7 +68,6 @@ export async function start(opts: StartOpts): Promise<Engine> {
     systemPromptText: systemPrompt,
     extensions: opts.extensions,
     extensionConfig: cfg.extensions,
-    spawnHarness,
     harnessEnv,
     allowedOrigins: opts.allowedOrigins,
   }
@@ -96,7 +86,6 @@ export async function start(opts: StartOpts): Promise<Engine> {
     extensionContexts,
     stop: async () => {
       await Promise.all(disposers.map((dispose) => dispose()))
-      await getHarness(cfg.harness)?.shutdown?.()
       await server.close(true)
     },
   }

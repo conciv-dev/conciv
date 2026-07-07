@@ -15,10 +15,10 @@ describe('harness capability matrix', () => {
         }
       })
 
-      it('declares a non-empty id, binName, and a decode generator', () => {
+      it('declares a non-empty id, binName, and a chatConfig factory', () => {
         expect(adapter.id).toBeTruthy()
         expect(adapter.binName).toBeTruthy()
-        expect(typeof adapter.decode).toBe('function')
+        expect(typeof adapter.chatConfig).toBe('function')
       })
 
       it('permissionGate is one of hook|callback|none and systemPrompt one of file|flag|none', () => {

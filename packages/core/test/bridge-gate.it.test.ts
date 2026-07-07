@@ -27,15 +27,24 @@ const settle = (ms: number, value: string): Promise<string> =>
 
 test('permission tool blocks until gate decides, then allows', async () => {
   let release: (d: 'allow' | 'deny') => void = () => {}
-  const gate = {decide: () => new Promise<'allow' | 'deny'>((resolve) => (release = resolve))}
+  let markGateAsked: () => void = () => {}
+  const gateAsked = new Promise<void>((resolve) => (markGateAsked = resolve))
+  const gate = {
+    decide: () =>
+      new Promise<'allow' | 'deny'>((resolve) => {
+        release = resolve
+        markGateAsked()
+      }),
+  }
   const bridge = await gateProvisioner(gate, 'session-1').provision([], {
     provider: 'local-process',
     permission: {toolName: 'approval_prompt', resolve: () => ({behavior: 'deny', message: 'unused upstream resolver'})},
   })
   const call = callBridgeTool(bridge, 'approval_prompt', {tool_name: 'Bash', input: {command: 'rm -rf /'}})
   await expect(Promise.race([call, settle(300, 'pending')])).resolves.toBe('pending')
+  await gateAsked
   release('allow')
-  expect(JSON.parse(await call)).toEqual({behavior: 'allow'})
+  expect(JSON.parse(await call)).toEqual({behavior: 'allow', updatedInput: {command: 'rm -rf /'}})
   await bridge.close()
 })
 

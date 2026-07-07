@@ -1,28 +1,16 @@
-import {defineHarness} from '@conciv/protocol/harness-types'
-import {buildCodexArgs} from './args.js'
-import {codexToAguiEvents} from './decode.js'
+import {defineStubHarness} from '../_shared/stub.js'
 
-export const codex = defineHarness({
+export const codex = defineStubHarness({
   id: 'codex',
   binName: 'codex',
-  displayName: 'Codex',
   capabilities: {
-    resume: true,
+    resume: false,
     permissionGate: 'none',
     transcriptHistory: false,
     compaction: false,
     systemPrompt: 'none',
-    mcp: 'http',
+    mcp: 'none',
     slashCommands: 'none',
     imageInput: false,
-  },
-  buildArgs: buildCodexArgs,
-  decode: codexToAguiEvents,
-
-  launch: (ctx) => {
-    const argv = ['codex']
-    if (ctx.sessionId) argv.push('resume', ctx.sessionId)
-    if (ctx.model) argv.push('-m', ctx.model)
-    return ctx.openTerminal(argv)
   },
 })

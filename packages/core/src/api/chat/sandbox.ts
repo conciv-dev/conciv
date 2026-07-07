@@ -10,6 +10,8 @@ import {
   SandboxCapability,
   ToolBridgeProvisionerCapability,
   type SandboxDefinition,
+  type SandboxHandle,
+  type SandboxProcess,
   type ToolBridgeProvisioner,
 } from '@tanstack/ai-sandbox'
 import {localProcessSandbox} from '@tanstack/ai-sandbox-local-process'
@@ -72,7 +74,9 @@ export function gateProvisioner(gate: Gate, sessionId: string): ToolBridgeProvis
               resolve: async (request) => {
                 const {toolName, input, toolUseId} = requestFields(request)
                 const decision = await gate.decide(toolName, input, sessionId, toolUseId)
-                return decision === 'allow' ? {behavior: 'allow'} : {behavior: 'deny', message: 'Denied by user'}
+                return decision === 'allow'
+                  ? {behavior: 'allow', updatedInput: input ?? {}}
+                  : {behavior: 'deny', message: 'Denied by user'}
               },
             }
           : undefined,
@@ -90,13 +94,42 @@ export function withConcivGate(gate: Gate, sessionId: string) {
   })
 }
 
+function abortSafeProcess(inner: SandboxProcess): SandboxProcess {
+  return {
+    exec: inner.exec,
+    spawn: async (command, options) => {
+      const spawned = await inner.spawn(command, options)
+      if (!options?.signal?.aborted) return spawned
+      await spawned.kill()
+      return {...spawned, stdin: {write: () => Promise.resolve(), end: () => Promise.resolve()}}
+    },
+  }
+}
+
+function abortSafeHandle(handle: SandboxHandle): SandboxHandle {
+  return {
+    id: handle.id,
+    provider: handle.provider,
+    capabilities: handle.capabilities,
+    fs: handle.fs,
+    git: handle.git,
+    process: abortSafeProcess(handle.process),
+    ports: handle.ports,
+    env: handle.env,
+    destroy: () => handle.destroy(),
+    ...(handle.workspaceRoot !== undefined ? {workspaceRoot: handle.workspaceRoot} : {}),
+    ...(handle.snapshot ? {snapshot: handle.snapshot} : {}),
+    ...(handle.fork ? {fork: handle.fork} : {}),
+  }
+}
+
 export function withConcivSandbox(definition: SandboxDefinition) {
   return defineChatMiddleware({
     name: 'conciv-sandbox',
     provides: [SandboxCapability],
     async setup(ctx) {
       const handle = await definition.ensure({threadId: ctx.threadId, runId: ctx.runId, signal: ctx.signal})
-      provideSandbox(ctx, handle)
+      provideSandbox(ctx, abortSafeHandle(handle))
       if (definition.policy) provideSandboxPolicy(ctx, definition.policy)
     },
   })

@@ -6,7 +6,6 @@ import {defineExtension, type ServerApi} from '@conciv/extension'
 import {createTestkit, until} from '@conciv/harness-testkit'
 import {acquireLock, releaseLock} from '../../src/store/lock.js'
 import {bootCoreApp} from '../helpers/boot.js'
-import {fakeClaudeSpawn} from '../helpers/fake-claude.js'
 import {runTurn} from '../helpers/turns.js'
 
 test('extension server api exposes sessions + harness surfaces backed by the real store', async () => {
@@ -69,7 +68,7 @@ test('a chat turn fires onChatTurn listeners with the session id', async () => {
     captured.server = server
     return {context: {}}
   })
-  const kit = await createTestkit(claude, bootCoreApp({extensions: [probe], spawn: fakeClaudeSpawn()})).setup()
+  const kit = await createTestkit(claude, bootCoreApp({extensions: [probe], fakeClaude: {}})).setup()
   try {
     const server = captured.server
     if (!server) throw new Error('server api not captured')

@@ -6,7 +6,6 @@ import {EventType} from '@tanstack/ai'
 import {createTestkit, until, type Kit, type RunStream} from '@conciv/harness-testkit'
 import {readLock, releaseLock} from '../../../src/store/lock.js'
 import {bootCoreApp} from '../../helpers/boot.js'
-import {fakeClaudeSpawn} from '../../helpers/fake-claude.js'
 import {requireClaude} from '../../helpers/adapters.js'
 
 const claude = requireClaude()
@@ -37,7 +36,7 @@ describe('detached turns (IT)', () => {
   })
 
   async function setup(env: NodeJS.ProcessEnv = {}): Promise<Kit> {
-    const kit = await createTestkit(claude, bootCoreApp({spawn: fakeClaudeSpawn(env)})).setup()
+    const kit = await createTestkit(claude, bootCoreApp({fakeClaude: {env: () => env}})).setup()
     state.kit = kit
     return kit
   }

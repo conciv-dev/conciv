@@ -9,18 +9,15 @@ import {registerLaunchRoutes} from './launch.js'
 import {makePermissionGate, registerPermissionRoutes} from './permission.js'
 import {readLocks} from '../../store/lock.js'
 import {registerSessionRoutes, sweepEmptyChatRecords, type ResolveDeps} from './session.js'
-import {registerTurnRoutes, type SpawnHarness} from './turn.js'
+import {registerTurnRoutes} from './turn.js'
 import {registerAttachRoute} from './attach.js'
 import {makeTurnHub} from '../../runtime/turn-hub.js'
-
-export type {SpawnHarness} from './turn.js'
 
 export type ChatRouteOpts = {
   cwd: string
   stateRoot: string
   initialSessionId: string
   harness: HarnessAdapter
-  spawnHarness: SpawnHarness
   harnessEnv?: (sessionId?: string) => NodeJS.ProcessEnv
   systemPromptFile?: string
   systemPromptText?: string
@@ -75,7 +72,6 @@ export function registerChatRoutes(app: H3, opts: ChatRouteOpts): void {
     cwd: opts.cwd,
     stateRoot: opts.stateRoot,
     harness: opts.harness,
-    spawnHarness: opts.spawnHarness,
     harnessEnv: opts.harnessEnv,
     gate,
     systemPromptFile: opts.systemPromptFile,

@@ -1,6 +1,5 @@
 import type {StreamChunk} from '@tanstack/ai'
 import {aguiCustomFor, aguiApprovalRequestedFor, type ApprovalRequest, type UiSpec} from '@conciv/protocol/ui-types'
-import {aguiUsageFor, type UsageSnapshot} from '@conciv/protocol/usage-types'
 
 type Channel = {
   push: (chunk: StreamChunk) => void
@@ -51,8 +50,6 @@ export type UiBus = {
 
   injectApproval: (sessionId: string, req: ApprovalRequest) => boolean
 
-  injectUsage: (sessionId: string, usage: UsageSnapshot) => void
-
   setModel: (sessionId: string, model: string | null) => void
 
   getModel: (sessionId: string) => string | null
@@ -86,10 +83,6 @@ export function makeUiBus(): UiBus {
     return true
   }
 
-  function injectUsage(sessionId: string, usage: UsageSnapshot): void {
-    channels.get(sessionId)?.push(aguiUsageFor(usage))
-  }
-
   function run(sessionId: string, claudeEvents: AsyncIterable<StreamChunk>): AsyncGenerator<StreamChunk> {
     const channel = makeChannel()
     channels.set(sessionId, channel)
@@ -116,5 +109,5 @@ export function makeUiBus(): UiBus {
     return drain()
   }
 
-  return {inject, injectApproval, injectUsage, setModel, getModel, run}
+  return {inject, injectApproval, setModel, getModel, run}
 }

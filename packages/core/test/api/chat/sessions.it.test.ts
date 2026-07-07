@@ -5,7 +5,6 @@ import {join} from 'node:path'
 import {ChatSessionsSchema} from '@conciv/protocol/chat-types'
 import {createTestkit, type Kit} from '@conciv/harness-testkit'
 import {bootCoreApp} from '../../helpers/boot.js'
-import {fakeClaudeSpawn} from '../../helpers/fake-claude.js'
 import {runTurn} from '../../helpers/turns.js'
 import {requireClaude} from '../../helpers/adapters.js'
 
@@ -37,7 +36,7 @@ describe('GET /api/chat/sessions + rename (IT, real temp ~/.claude)', () => {
   })
 
   async function setup(home: string, cwd?: string): Promise<Kit> {
-    const kit = await createTestkit(claude, bootCoreApp({cwd, claudeHome: home, spawn: fakeClaudeSpawn()})).setup()
+    const kit = await createTestkit(claude, bootCoreApp({cwd, claudeHome: home, fakeClaude: {}})).setup()
     state.kit = kit
     return kit
   }

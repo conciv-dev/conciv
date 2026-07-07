@@ -1,7 +1,7 @@
 import {existsSync} from 'node:fs'
 import {readFile} from 'node:fs/promises'
 import {H3} from 'h3'
-import type {HarnessAdapter, HarnessChild} from '@conciv/protocol/harness-types'
+import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {AnyExtension, ServerHarness, ServerSessions, ToolRequest} from '@conciv/extension'
 import type {ResolvedConcivConfig} from './config.js'
@@ -38,7 +38,6 @@ export type MakeAppOpts = {
   extensions?: AnyExtension[]
 
   extensionConfig?: Record<string, unknown>
-  spawnHarness: (args: string[], cwd: string, sessionId?: string) => HarnessChild
   harnessEnv?: (sessionId?: string) => NodeJS.ProcessEnv
 
   claudeHome?: string
@@ -91,7 +90,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const serverHarness: ServerHarness = {
     id: harness.id,
     ttyCommand: harness.tty?.command,
-    release: harness.release,
     transcriptExists: history ? (token) => existsSync(history.transcriptPath(opts.cwd, token)) : undefined,
     transcriptMessages: history
       ? async (token) => {
@@ -157,7 +155,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     stateRoot: opts.cfg.stateRoot,
     initialSessionId: opts.cfg.sessionId,
     harness,
-    spawnHarness: opts.spawnHarness,
     harnessEnv: opts.harnessEnv,
     systemPromptFile: opts.systemPromptFile,
     systemPromptText: opts.systemPromptText ?? opts.cfg.systemPrompt,

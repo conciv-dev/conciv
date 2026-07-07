@@ -7,8 +7,7 @@ import {EventType} from '@tanstack/ai'
 import {createTestkit, until, type Kit} from '@conciv/harness-testkit'
 import {acquireLock, readLock} from '../../../src/store/lock.js'
 import {ChatSessionSchema} from '@conciv/protocol/chat-types'
-import {bootCoreApp, type SpawnHarness} from '../../helpers/boot.js'
-import {spawnFakeClaude} from '../../helpers/fake-claude.js'
+import {bootCoreApp} from '../../helpers/boot.js'
 import {countType, runTurn} from '../../helpers/turns.js'
 import {requireClaude} from '../../helpers/adapters.js'
 
@@ -22,7 +21,7 @@ function tmp(): string {
   return d
 }
 
-function fakeSpawn(
+function fakeEnv(
   opts: {
     argvFile?: string
     rich?: boolean
@@ -30,16 +29,16 @@ function fakeSpawn(
     hang?: boolean
     usageBySession?: Record<string, number>
   } = {},
-): SpawnHarness {
-  return (args, cwd, sessionId) => {
+): (sessionId?: string) => NodeJS.ProcessEnv {
+  return (sessionId) => {
     const inputTokens = opts.usageBySession?.[sessionId ?? '']
-    return spawnFakeClaude(args, cwd, {
+    return {
       ...(opts.argvFile ? {CONCIV_TEST_ARGV_FILE: opts.argvFile} : {}),
       ...(opts.rich ? {CONCIV_FAKE_RICH: '1'} : {}),
       ...(opts.partial ? {CONCIV_FAKE_PARTIAL: '1'} : {}),
       ...(opts.hang ? {CONCIV_FAKE_HANG: '1'} : {}),
       ...(inputTokens != null ? {CONCIV_FAKE_INPUT_TOKENS: String(inputTokens)} : {}),
-    })
+    }
   }
 }
 
@@ -51,8 +50,8 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     for (const d of dirs.splice(0)) rmSync(d, {recursive: true, force: true})
   })
 
-  async function setup(spawnOpts: Parameters<typeof fakeSpawn>[0] = {}): Promise<Kit> {
-    const kit = await createTestkit(claude, bootCoreApp({spawn: fakeSpawn(spawnOpts)})).setup()
+  async function setup(fakeOpts: Parameters<typeof fakeEnv>[0] = {}): Promise<Kit> {
+    const kit = await createTestkit(claude, bootCoreApp({fakeClaude: {env: fakeEnv(fakeOpts)}})).setup()
     state.kit = kit
     return kit
   }
@@ -129,12 +128,12 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     expect(argv[argv.indexOf('--model') + 1]).toBe('haiku')
   })
 
-  it('omits --model when no model is selected (CLI keeps its own default)', async () => {
+  it('passes the harness default model when no model is selected', async () => {
     const argvFile = join(tmp(), 'argv.json')
     const kit = await setup({argvFile})
     await runTurn(kit, 'hi', await kit.session())
     const argv = z.array(z.string()).parse(JSON.parse(readFileSync(argvFile, 'utf8')))
-    expect(argv).not.toContain('--model')
+    expect(argv[argv.indexOf('--model') + 1]).toBe('sonnet')
   })
 
   it('POST /api/chat/ui 400s on a malformed spec, reports injected:false with no active turn', async () => {
@@ -214,7 +213,7 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     expect(ua?.inputTokens).not.toBe(ub?.inputTokens)
   })
 
-  it('routes POST /api/chat/ui to the live turn by our id (cross-process path)', async () => {
+  it('routes POST /api/chat/ui to the live turn by our id (cross-process path)', {timeout: 15000}, async () => {
     const kit = await setup({hang: true})
     const a = await kit.session()
     const b = await kit.session()

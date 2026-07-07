@@ -1,10 +1,10 @@
-import {spawn} from 'node:child_process'
 import {afterEach, describe, expect, it} from 'vitest'
 import type {StreamChunk} from '@tanstack/ai'
-import {defineHarness, type HarnessAdapter, type HarnessChild} from '@conciv/protocol/harness-types'
+import {defineHarness, type HarnessAdapter} from '@conciv/protocol/harness-types'
+import {makeTextAdapter} from '@conciv/harness'
 import {createTestkit, until} from '@conciv/harness-testkit'
 import {readLock} from '../../../src/store/lock.js'
-import {bootCoreApp, type SpawnHarness} from '../../helpers/boot.js'
+import {bootCoreApp} from '../../helpers/boot.js'
 
 const FAIL = 'harness exited with code 143'
 
@@ -19,44 +19,24 @@ const baseCaps = {
   imageInput: false,
 } as const
 
-const fakeRun = defineHarness({
-  id: 'fake-run',
-  binName: 'true',
-  buildArgs: () => [],
-  decode: async function* () {},
-  run: () => failingGenerator(),
-  capabilities: baseCaps,
-})
-
-const fakeDecode = defineHarness({
-  id: 'fake-decode',
-  binName: 'true',
-  buildArgs: () => [],
-  decode: () => failingGenerator(),
-  capabilities: baseCaps,
-})
-
 async function* failingGenerator(): AsyncGenerator<StreamChunk> {
   await Promise.reject(new Error(FAIL))
   const none: StreamChunk[] = []
   yield* none
 }
 
-const noopSpawn: SpawnHarness = (): HarnessChild => {
-  const child = spawn('node', ['-e', ''], {stdio: ['pipe', 'pipe', 'pipe']})
-  const {stdin, stdout, stderr} = child
-  if (!stdin || !stdout || !stderr) throw new Error('child missing stdio pipes')
-  return {pid: child.pid ?? -1, stdin, stdout, stderr, kill: () => void child.kill('SIGTERM')}
-}
+const failingHarness = defineHarness({
+  id: 'fake-failing',
+  binName: 'true',
+  chatConfig: () => ({adapter: makeTextAdapter('fake-failing', () => failingGenerator())}),
+  capabilities: baseCaps,
+})
 
-async function failingTurn(
-  harness: HarnessAdapter,
-  spawnHarness?: SpawnHarness,
-): Promise<{seedCalls: string[]; body: string}> {
+async function failingTurn(harness: HarnessAdapter): Promise<{seedCalls: string[]; body: string}> {
   const original = console.error
   const calls: string[] = []
   console.error = (...args: unknown[]) => void calls.push(args.map((a) => String(a)).join(' '))
-  const kit = await createTestkit(harness, bootCoreApp({spawn: spawnHarness})).setup()
+  const kit = await createTestkit(harness, bootCoreApp()).setup()
   try {
     const id = await kit.session()
     const response = await kit.post('/api/chat', {messages: [{role: 'user', content: 'hi'}]}, id)
@@ -77,14 +57,8 @@ describe('a failed turn must not seed the dev-server console flood', () => {
     active = undefined
   })
 
-  it('SDK-shape run() failure does not call console.error', async () => {
-    const {seedCalls, body} = await failingTurn(fakeRun)
-    expect(seedCalls).toEqual([])
-    expect(body.length).toBeGreaterThan(0)
-  })
-
-  it('CLI-shape decode() failure does not call console.error', async () => {
-    const {seedCalls, body} = await failingTurn(fakeDecode, noopSpawn)
+  it('a chatStream failure does not call console.error', async () => {
+    const {seedCalls, body} = await failingTurn(failingHarness)
     expect(seedCalls).toEqual([])
     expect(body.length).toBeGreaterThan(0)
   })

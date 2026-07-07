@@ -1,10 +1,30 @@
+import {randomUUID} from 'node:crypto'
+import {writeFileSync} from 'node:fs'
+import {join} from 'node:path'
 import type {ModelMessage} from '@tanstack/ai'
 import {claudeCodeText} from '@tanstack/ai-claude-code'
-import type {HarnessChatConfig, HarnessChatDeps} from '@conciv/protocol/harness-types'
+import type {HarnessChatConfig, HarnessChatDeps, HarnessImage} from '@conciv/protocol/harness-types'
 import {definedEntries} from '../_shared/env.js'
 import {lastUserImages} from '../_shared/text-adapter.js'
 import {CONCIV_PLUGIN_DIR} from './plugin-dir.js'
-import {imageRefs} from './args.js'
+
+const IMAGE_EXT: Record<string, string> = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+}
+
+export function imageRefs(images: HarnessImage[], cwd: string): string {
+  return images
+    .map((img) => {
+      const ext = IMAGE_EXT[img.mediaType] ?? 'png'
+      const path = join(cwd, `.conciv-img-${randomUUID()}.${ext}`)
+      writeFileSync(path, Buffer.from(img.dataBase64, 'base64'))
+      return `@${path}`
+    })
+    .join(' ')
+}
 
 export function claudeExecutable(pluginDir: string | null): string {
   const flags = ['claude', '--strict-mcp-config']
@@ -34,14 +54,14 @@ function withImageRefs(messages: ModelMessage[], cwd: string): ModelMessage[] {
 
 export const claudeChatConfig = (deps: HarnessChatDeps): HarnessChatConfig => ({
   adapter: claudeCodeText(deps.model ?? 'sonnet', {
-    cwd: deps.cwd,
     permissionMode: 'acceptEdits',
     addDirs: [deps.cwd],
     claudeExecutable: claudeExecutable(CONCIV_PLUGIN_DIR),
     systemPromptMode: 'append',
+    emitDiff: false,
     env: definedEntries(deps.env),
   }),
-  modelOptions: {cwd: deps.cwd, ...(deps.resumeSessionId ? {sessionId: deps.resumeSessionId} : {})},
+  modelOptions: deps.resumeSessionId ? {sessionId: deps.resumeSessionId} : {},
   prepareMessages: (messages) =>
     deps.kind === 'compact' ? withLastUserText(messages, '/compact') : withImageRefs(messages, deps.cwd),
 })

@@ -32,12 +32,9 @@ describe('claudeChatConfig', () => {
     expect(config.adapter.model).toBe('opus')
   })
 
-  it('threads cwd and resume session id through modelOptions', () => {
-    expect(claudeChatConfig(deps()).modelOptions).toEqual({cwd: process.cwd()})
-    expect(claudeChatConfig(deps({resumeSessionId: 'r-9'})).modelOptions).toEqual({
-      cwd: process.cwd(),
-      sessionId: 'r-9',
-    })
+  it('threads the resume session id through modelOptions and leaves the workdir to the sandbox', () => {
+    expect(claudeChatConfig(deps()).modelOptions).toEqual({})
+    expect(claudeChatConfig(deps({resumeSessionId: 'r-9'})).modelOptions).toEqual({sessionId: 'r-9'})
   })
 
   it('rewrites a compact turn to /compact', () => {

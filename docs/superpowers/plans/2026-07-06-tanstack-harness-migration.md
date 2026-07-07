@@ -488,7 +488,7 @@ git commit -m 'feat(harness): claude on @tanstack/ai-claude-code claudeCodeText'
 
   No `spawn`/`mcpUrl`/`permissionUrl`/`systemPromptFile`: every adapter spawns its own CLI through the sandbox, tools/permissions ride the bridge, and the system prompt travels as TEXT via `chat()` `systemPrompts` (for claude their adapter maps it to `--append-system-prompt`; `turn.ts` reads `systemPromptFile` content once at route registration). `SpawnHarness` leaves `TurnDeps` entirely — `launch`/`tty` keep their own spawn paths.
 
-- [ ] **Step 1: Write the failing tap test**
+- [x] **Step 1: Write the failing tap test**
 
 ```ts
 import {expect, test} from 'vitest'
@@ -525,9 +525,9 @@ export function tapSessionId(chunk: StreamChunk, onSessionId: (id: string) => vo
 }
 ```
 
-- [ ] **Step 2: Reshape `harness-types.ts`.** Delete the run-path types/members listed above. Keep: capabilities (drop `compaction`'s union arm tying it to `buildCompactArgs` — compaction becomes a plain boolean the harness honors inside its own `chatConfig`), `models`, `defaultModel`, `launch`, `tty`, `release`/`shutdown` (still used by `claudeSdkCommands` lifecycle — verify with fallow trace, keep only if used), the `transcriptHistory`/`history` and `slashCommands`/`commands` unions.
+- [x] **Step 2: Reshape `harness-types.ts`.** Delete the run-path types/members listed above. Keep: capabilities (drop `compaction`'s union arm tying it to `buildCompactArgs` — compaction becomes a plain boolean the harness honors inside its own `chatConfig`), `models`, `defaultModel`, `launch`, `tty`, `release`/`shutdown` (still used by `claudeSdkCommands` lifecycle — verify with fallow trace, keep only if used), the `transcriptHistory`/`history` and `slashCommands`/`commands` unions.
 
-- [ ] **Step 3: Rewrite `runTurnStream` in `turn.ts`** (single path):
+- [x] **Step 3: Rewrite `runTurnStream` in `turn.ts`** (single path):
 
 ```ts
 const config = harness.chatConfig({
@@ -554,7 +554,7 @@ const stream = chat({
 
 `sysText` = the PROMPT TEXT for every harness now: `mode === 'file'` reads `deps.systemPromptFile`'s content (once, at `registerTurnRoutes` setup); `mode === 'text'` uses `deps.systemPromptText`. The middleware pair is inert for the fake/stub adapters (they declare no `requires` and never call `getSandbox`, so no sandbox process is created in fake-mode CI). The compact-fallback block (`COMPACT_FALLBACK_PROMPT` when `!harness.capabilities.compaction`) stays exactly as is — claude declares `compaction: true` and its `prepareMessages` maps the compact turn to `/compact`. In `withLockRelease`, add `tapSessionId(c, (id) => void recordMintedToken(store, sessionId, id).catch(() => {}))`. Delete `harnessText` import and the `HarnessTextAdapter` spawn/decode remnants from `text-adapter.ts` (`linesOf`, `HarnessAdapterDeps`, `harnessText`); `lastUserModelText`/`lastUserImages` move/stay wherever their remaining consumers (claude `prepareMessages`, testkit) need them — delete what ends up unconsumed.
 
-- [ ] **Step 4: Convert stub + testkit.** `stub.ts`:
+- [x] **Step 4: Convert stub + testkit.** `stub.ts`:
 
 ```ts
 chatConfig: () => ({
@@ -566,8 +566,8 @@ chatConfig: () => ({
 
 Testkit `create-test-harness.ts`: the fake's scripted turns become a `ChatStreamFn` yielding the same chunk sequences the old decode produced (reuse `scripted-chunks.ts`; the scripted content comes from the existing `scripted-run.ts` fixtures). Session-id emission becomes a CUSTOM `fake.session-id` chunk so this task's tap covers the fake too — update any testkit assertion that relied on the old `onSessionId` callback.
 
-- [ ] **Step 5: The gate is the whole suite.** Run `pnpm typecheck && pnpm build && pnpm test`. Every existing core/testkit/extension IT must pass on the new single path (CI mode = fake harness; local = real claude through Task 5's `claudeCodeText` config). Fix forward — reverting to the old path is not an option, it no longer exists.
-- [ ] **Step 6: Fallow + commit**
+- [x] **Step 5: The gate is the whole suite.** Run `pnpm typecheck && pnpm build && pnpm test`. Every existing core/testkit/extension IT must pass on the new single path (CI mode = fake harness; local = real claude through Task 5's `claudeCodeText` config). Fix forward — reverting to the old path is not an option, it no longer exists.
+- [x] **Step 6: Fallow + commit**
 
 ```bash
 pnpm exec fallow audit --changed-since main --format json

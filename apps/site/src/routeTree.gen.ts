@@ -8,13 +8,13 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import {Route as rootRouteImport} from './routes/__root'
-import {Route as LlmsDottxtRouteImport} from './routes/llms[.]txt'
-import {Route as LlmsFullDottxtRouteImport} from './routes/llms-full[.]txt'
-import {Route as IndexRouteImport} from './routes/index'
-import {Route as DocsChar123Char125DotmdRouteImport} from './routes/docs/{$}[.]md'
-import {Route as DocsSplatRouteImport} from './routes/docs/$'
-import {Route as ApiSearchRouteImport} from './routes/api/search'
+import { Route as rootRouteImport } from './routes/__root'
+import { Route as LlmsDottxtRouteImport } from './routes/llms[.]txt'
+import { Route as LlmsFullDottxtRouteImport } from './routes/llms-full[.]txt'
+import { Route as IndexRouteImport } from './routes/index'
+import { Route as DocsChar123Char125DotmdRouteImport } from './routes/docs/{$}[.]md'
+import { Route as DocsSplatRouteImport } from './routes/docs/$'
+import { Route as ApiSearchRouteImport } from './routes/api/search'
 
 const LlmsDottxtRoute = LlmsDottxtRouteImport.update({
   id: '/llms.txt',
@@ -74,10 +74,29 @@ export interface FileRoutesById {
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/llms-full.txt' | '/llms.txt' | '/api/search' | '/docs/$' | '/docs/{$}.md'
+  fullPaths:
+    | '/'
+    | '/llms-full.txt'
+    | '/llms.txt'
+    | '/api/search'
+    | '/docs/$'
+    | '/docs/{$}.md'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/llms-full.txt' | '/llms.txt' | '/api/search' | '/docs/$' | '/docs/{$}.md'
-  id: '__root__' | '/' | '/llms-full.txt' | '/llms.txt' | '/api/search' | '/docs/$' | '/docs/{$}.md'
+  to:
+    | '/'
+    | '/llms-full.txt'
+    | '/llms.txt'
+    | '/api/search'
+    | '/docs/$'
+    | '/docs/{$}.md'
+  id:
+    | '__root__'
+    | '/'
+    | '/llms-full.txt'
+    | '/llms.txt'
+    | '/api/search'
+    | '/docs/$'
+    | '/docs/{$}.md'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -144,10 +163,12 @@ const rootRouteChildren: RootRouteChildren = {
   DocsSplatRoute: DocsSplatRoute,
   DocsChar123Char125DotmdRoute: DocsChar123Char125DotmdRoute,
 }
-export const routeTree = rootRouteImport._addFileChildren(rootRouteChildren)._addFileTypes<FileRouteTypes>()
+export const routeTree = rootRouteImport
+  ._addFileChildren(rootRouteChildren)
+  ._addFileTypes<FileRouteTypes>()
 
-import type {getRouter} from './router.tsx'
-import type {startInstance} from './start.ts'
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
 declare module '@tanstack/react-start' {
   interface Register {
     ssr: true

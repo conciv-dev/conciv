@@ -1,8 +1,7 @@
 import {defineHarness, type HarnessLaunchContext} from '@conciv/protocol/harness-types'
 import {CONCIV_PLUGIN_DIR} from './plugin-dir.js'
-import {buildClaudeArgs, buildClaudeCompactArgs, claudeMcpArgs} from './args.js'
+import {claudeMcpArgs} from './args.js'
 import {claudeChatConfig} from './chat.js'
-import {claudeToAguiEvents} from './decode.js'
 import {claudeHistory} from './history.js'
 import {claudeSdkCommands} from './sdk.js'
 import {claudeTtyCommand} from './tty.js'
@@ -10,9 +9,9 @@ import {claudeTtyCommand} from './tty.js'
 export {CHAT_SYSTEM_PROMPT} from './system-prompt.js'
 
 const CLAUDE_MODELS = [
-  {id: 'opus', name: 'Claude Opus 4.8', description: 'Most capable', group: 'Claude'},
-  {id: 'sonnet', name: 'Claude Sonnet 4.6', description: 'Balanced speed + capability', group: 'Claude'},
-  {id: 'haiku', name: 'Claude Haiku 4.5', description: 'Fastest', group: 'Claude'},
+  {id: 'opus', name: 'Claude Opus 4.8', description: 'Most capable', group: 'Claude', contextWindow: 200000},
+  {id: 'sonnet', name: 'Claude Sonnet 4.6', description: 'Balanced speed + capability', group: 'Claude', contextWindow: 200000},
+  {id: 'haiku', name: 'Claude Haiku 4.5', description: 'Fastest', group: 'Claude', contextWindow: 200000},
   {id: 'claude-fable-5', name: 'Fable 5', description: 'Disabled', group: 'Claude', disabled: true},
 ]
 
@@ -41,9 +40,6 @@ export const claude = defineHarness({
     slashCommands: 'live',
     imageInput: 'fileRef',
   },
-  buildArgs: buildClaudeArgs,
-  buildCompactArgs: buildClaudeCompactArgs,
-  decode: claudeToAguiEvents,
   chatConfig: claudeChatConfig,
   commands: claudeSdkCommands,
   history: claudeHistory,
