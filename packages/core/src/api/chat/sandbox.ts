@@ -98,9 +98,18 @@ function abortSafeProcess(inner: SandboxProcess): SandboxProcess {
   return {
     exec: inner.exec,
     spawn: async (command, options) => {
-      const spawned = await inner.spawn(command, options)
-      if (!options?.signal?.aborted) return spawned
-      await spawned.kill()
+      const {signal, ...rest} = options ?? {}
+      const spawned = await inner.spawn(command, rest)
+      void spawned.wait().catch(() => {})
+      if (!signal) return spawned
+      const killIfLive = () => {
+        if (spawned.pid > 0) void spawned.kill()
+      }
+      if (!signal.aborted) {
+        signal.addEventListener('abort', killIfLive, {once: true})
+        return spawned
+      }
+      killIfLive()
       return {...spawned, stdin: {write: () => Promise.resolve(), end: () => Promise.resolve()}}
     },
   }
