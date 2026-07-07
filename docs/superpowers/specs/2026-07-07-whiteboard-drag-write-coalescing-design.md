@@ -2,11 +2,15 @@
 
 **Goal:** Stop the whiteboard emitting one `PUT /elements/live` per Excalidraw frame during a drag
 (~60/sec). Coalesce a drag into ~one persisted write per 50ms using TanStack DB's native paced
-mutations — no hand-rolled throttle, no protocol change.
+mutations — no hand-rolled throttle. Single-element drags need no protocol change; multi-select
+drags additionally collapse to one bulk write, which requires the bulk route to echo per-element
+version-gate winners (a response-shape change, no new endpoint).
 
-**Scope:** `packages/extensions/whiteboard/src/client/db.tsx` and
-`packages/extensions/whiteboard/src/canvas/island.tsx` only. Server, routes, store, schema
-unchanged.
+**Scope:** client — `packages/extensions/whiteboard/src/client/db.tsx`,
+`packages/extensions/whiteboard/src/canvas/island.tsx`; server — the element bulk path in
+`packages/extensions/whiteboard/src/server/db/store.ts` and
+`packages/extensions/whiteboard/src/server/routes.ts` (so multi-select drags collapse to one bulk
+write that still echoes per-element version-gate winners). Schema and the SSE feed unchanged.
 
 ## Root cause (read from source, not inferred)
 
@@ -69,10 +73,24 @@ const write = createPacedMutations<ElementRow>({
     collection.insert(row)
   },
   mutationFn: async ({transaction}) => {
-    await Promise.all(transaction.mutations.map((mutation) => putElement(mutation.modified)))
+    const rows = transaction.mutations.map((mutation) => mutation.modified)
+    if (rows.length === 1) return void (await putElement(rows[0]))
+    const response = await request(`${base}/elements/${scope}/bulk`, {
+      method: 'PUT',
+      body: JSON.stringify({rows}),
+    })
+    const {rows: saved} = z.object({rows: z.array(elementRow)}).parse(await response.json())
+    collection.utils.writeBatch(() => saved.forEach((row) => collection.utils.writeUpsert(row)))
   },
 })
 ```
+
+`mutationFn` branches on the merged-mutation count. A single-element drag (the common case) keeps
+the existing single `PUT /elements/:scope` via `putElement`, preserving its 409-winner handling
+untouched. A multi-select drag merges to N keys → **one** `PUT /elements/:scope/bulk` whose response
+echoes the authoritative row per input, and `writeBatch(writeUpsert)` reconciles all N locally in
+one pass (version-gate losers get corrected to the server winner, exactly as `putElement` does for
+the single case).
 
 Expose `write` on the returned collection so callers reach it as `db.canvasElements.write(row)`.
 Do **not** spread the collection (`{...collection}` drops its getters like `.state` and unbinds
@@ -117,12 +135,41 @@ version: draft.version})`.
 array; `dispose` (currently `source.close()`) also runs every disposer, so the 50ms throttle timer
 cannot outlive the room. `dispose` is already wired through `WhiteboardDbProvider`'s `onCleanup`.
 
-### Deferred (explicitly out of scope)
+### Server: bulk route echoes per-element winners
 
-Multi-select drag of N elements still issues N `PUT /elements/live` per 50ms window (one per merged
-key, each version-gated and row-echoed). Collapsing those into one `PUT /elements/:scope/bulk` is
-deferred: the bulk route returns `{written}`, not rows, so it cannot echo per-element 409 winners
-for `writeUpsert` reconciliation. Single-element drag — the common case — is fully coalesced.
+Today `store.upsertElements` (`store.ts:75-82`) returns only the version-gate **winners** (it drops
+rows whose incoming version lost), and the bulk route (`routes.ts:99-102`) collapses that to
+`{written: count}` — a shape no client reads (`drainPending` at `island.tsx:127` ignores the
+response body). To let the client `writeUpsert`-reconcile a multi-select drag, both change:
+
+- `upsertElements` returns the **authoritative row per input** — the accepted row when the write
+  wins, the current stored row when it loses — instead of dropping losers:
+
+```ts
+const upsertElements = async (scope: ElementScope, rows: ElementRow[]): Promise<ElementRow[]> => {
+  const resolved: ElementRow[] = []
+  for (const row of rows) {
+    const outcome = await upsertElement(scope, row)
+    resolved.push(outcome.ok ? outcome.row : outcome.current)
+  }
+  return resolved
+}
+```
+
+Emit behaviour is unchanged — `upsertElement` still emits an `upsert` event only when it actually
+writes (winners), so losers produce a return value for reconciliation but no SSE broadcast.
+
+- The bulk route returns the rows instead of a count:
+
+```ts
+app.put('/elements/:scope/bulk', async (event) => {
+  const {rows} = await readValidatedBody(event, z.object({rows: z.array(elementRow)}))
+  return {rows: await store.upsertElements(scopeOf(event), rows)}
+})
+```
+
+`drainPending`'s AI-draw seed (`island.tsx:127`) already ignores the response, so the shape change
+is safe there; the single-element `PUT /elements/:scope` route and its 409 contract are untouched.
 
 ## Error handling
 
@@ -133,15 +180,27 @@ not roll back.
 
 ## Testing
 
-Real browser (Playwright/Chromium), per repo rule — no jsdom. New IT in the whiteboard suite:
+**Server (Node, existing vitest suites):**
+
+- `test/store.test.ts` — extend the bulk case: a two-row batch where one row's version loses the
+  gate returns the current winner for that key (not a dropped/short array), and the winner for the
+  fresh key.
+- `test/routes.test.ts` — add a bulk-route case: `PUT /elements/:scope/bulk` returns
+  `{rows: ElementRow[]}` with one accepted row and one 409-winner row echoed back.
+
+**Client (real browser, Playwright/Chromium — no jsdom):** new IT in the whiteboard suite.
 
 1. Open the canvas in a page, draw one element.
 2. Drag it across the canvas for ~500ms while counting `PUT /elements/live` requests via
    `page.on('request')`.
 3. Assert the count is bounded (≈ ≤ 12; an unbatched drag at ~60fps over 500ms is ~30) **and**
    greater than 1 (proves trailing writes stream, not a single debounce).
-4. Open a second page on the same room; assert it receives the element at the final dragged
-   position (correctness — the existing cross-tab drag IT already covers this and must stay green).
+4. Multi-select case: select two elements, drag them together ~500ms; assert
+   `PUT /elements/live/bulk` requests fire (and no per-frame single `PUT /elements/live` storm),
+   bounded in count.
+5. Open a second page on the same room; assert it receives the element(s) at the final dragged
+   position (correctness — the existing cross-tab drag IT already covers the single case and must
+   stay green).
 
 The existing 22-file / 53-test whiteboard IT suite must pass unchanged. Rebuild the extension +
 widget before browser ITs (`pnpm turbo run build --filter=@conciv/extension-whiteboard
