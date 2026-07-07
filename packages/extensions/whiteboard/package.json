@@ -19,7 +19,8 @@
     "directory": "packages/extensions/whiteboard"
   },
   "files": [
-    "dist"
+    "dist",
+    "drizzle"
   ],
   "type": "module",
   "exports": {
