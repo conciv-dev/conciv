@@ -12,7 +12,7 @@ const openCanvas = async (page: Page): Promise<{cx: number; cy: number}> => {
   return {cx: width / 2, cy: height / 2}
 }
 
-test('moving over the open canvas does not storm Jazz sync (no write feedback loop)', async () => {
+test('moving over the open canvas does not storm the sync feed (no write feedback loop)', async () => {
   const api = await getExtensionTestApi({server: whiteboard, clientEntry})
   try {
     const {cx, cy} = await openCanvas(api.page)

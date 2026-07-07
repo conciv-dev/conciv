@@ -1,7 +1,7 @@
 {
   "name": "@conciv/extension-whiteboard",
   "version": "0.0.7",
-  "description": "The whiteboard built-in extension: an Excalidraw canvas the user and the AI share over the dev app, with source-anchored comments and pins, running on a self-hosted Jazz CRDT db on the @conciv/extension contract.",
+  "description": "The whiteboard built-in extension: an Excalidraw canvas the user and the AI share over the dev app, with source-anchored comments and pins, running on a local drizzle/libSQL db with an SSE-fed TanStack DB client on the @conciv/extension contract.",
   "keywords": [
     "ai",
     "canvas",
@@ -38,7 +38,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "tsdown && vite build && tsc -p tsconfig.build.json && mkdir -p dist/shared && cp src/shared/schema.ts src/shared/permissions.ts dist/shared/",
+    "build": "tsdown && vite build && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run"
@@ -62,8 +62,6 @@
     "@tanstack/solid-db": "^0.2.28",
     "drizzle-orm": "^0.45.2",
     "h3": "2.0.1-rc.22",
-    "jazz-napi": "2.0.0-alpha.52",
-    "jazz-tools": "2.0.0-alpha.52",
     "lucide-solid": "^1.18.0",
     "oxc-parser": "^0.127.0",
     "react": "^19.2.0",
