@@ -55,8 +55,8 @@ async function spawnTerminal(command: string): Promise<boolean> {
 
       writeFileSync(file, `#!/bin/bash\n${command}\nexec $SHELL\n`)
       chmodSync(file, 0o755)
-      const app = macTerminalApp(process.env.TERM_PROGRAM)
-      return spawnDetached('open', app ? ['-a', app, file] : [file])
+      const terminalApp = macTerminalApp(process.env.TERM_PROGRAM)
+      return spawnDetached('open', terminalApp ? ['-a', terminalApp, file] : [file])
     }
     case 'win32':
       return spawnDetached('cmd', ['/c', 'start', 'cmd', '/k', command])

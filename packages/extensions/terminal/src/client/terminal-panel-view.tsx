@@ -135,7 +135,6 @@ function TerminalSurface(props: {ctx: ViewContext; generation: number; themeHost
 
 export function TerminalPanelView(): JSX.Element {
   const ctx = useTerminalContext()
-  const headers = () => ({'content-type': 'application/json', ...ctx.client.chatHeaders()})
   const openTerminal = async (): Promise<void> => {
     const res = await terminalClient(ctx.apiBase).open.$post(
       {json: {cols: DEFAULT_COLS, rows: DEFAULT_ROWS, model: ctx.store.spawnModel() ?? undefined}},
