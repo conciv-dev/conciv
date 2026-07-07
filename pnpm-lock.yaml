@@ -586,9 +586,6 @@ importers:
       '@tanstack/ai-client':
         specifier: ^0.20.0
         version: 0.20.0(@opentelemetry/api@1.9.1)
-      h3:
-        specifier: 2.0.1-rc.22
-        version: 2.0.1-rc.22(crossws@0.4.6(srvx@0.11.20))
       hono:
         specifier: ^4.12.0
         version: 4.12.27
@@ -614,9 +611,6 @@ importers:
       '@types/ws':
         specifier: ^8.18.1
         version: 8.18.1
-      crossws:
-        specifier: 0.4.6
-        version: 0.4.6(srvx@0.11.20)
       solid-js:
         specifier: ^1.9.13
         version: 1.9.14
