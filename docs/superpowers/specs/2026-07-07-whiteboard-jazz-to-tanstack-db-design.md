@@ -93,8 +93,9 @@ pass `row.id` keep working. `cursors` gets no table.
 
 Timestamps are integer epoch millis. JSON columns are `text` with `{mode: 'json'}`.
 
-zod row schemas derive via `drizzle-zod` and are shared with the client from `src/shared/rows.ts`
-(types + zod only, no drizzle import on the client).
+zod row schemas are hand-written in `src/shared/rows.ts` (types + zod only, no drizzle import on
+the client); `schema.ts` carries compile-time assignability assertions between `$inferSelect` and
+the zod-inferred row types so the two cannot drift. `drizzle-zod` is not used.
 
 ### `src/server/db/store.ts` (replaces `src/server/jazz/backend.ts`, the `Db` type, and runner)
 
@@ -102,9 +103,13 @@ Factory `createStore(cwd)`:
 
 - opens `DatabaseSync`, runs drizzle migrations from the package's `drizzle/` dir
 - exposes per-table operations used by tools and routes today:
-  `list(table, where)`, `insert(table, row)`, `update(table, id, patch)`, `delete(table, id)`,
-  `upsertElement(table, row)` with version CAS, and transactional
-  `commitDraft(room)` / `discardDraft(room)` promoting or dropping draft rows atomically
+  `list(table, where)`, `insert(table, row)`, `update(table, id, patch)`, `remove(table, id)`,
+  and `upsertElement(table, row)` with version gating (accept only when incoming version beats the
+  stored one; reject returns the current row)
+- draft commit and discard stay client-performed, exactly as today: tools insert `canvas_pending`
+  rows, the connected browser drains them (skeleton/mermaid/svg conversion needs Excalidraw
+  libraries, and commit is a cursor-animated replay). The store only adds bulk element upsert and
+  bulk delete used by the drain
 - every accepted write emits `RowChange = {table, kind: 'upsert' | 'delete', room, row | key}` to
   subscribers; `onChange(listener)` returns unsubscribe
 - `subscribeAll`-style consumers (enrich worker) use `onChange` filtered by table
@@ -118,12 +123,14 @@ store calls. The `tier` concept disappears.
 
 All zod-validated (`readValidatedBody` convention):
 
-- `GET /state?room=` returns all rows for every table in one payload (initial load, one round trip)
+- `GET /rows/:table?room=` initial load per collection (localhost, seven tiny GETs are fine and
+  match query-collection `queryFn` one-to-one)
 - `POST /rows/:table` insert, `PUT /rows/:table/:id` update, `DELETE /rows/:table/:id`
 - `PUT /elements/:table` upsert with `{room, elementId, data, version}` (CAS; 409 on stale version
   with the current row in the body so the client can converge)
-- `POST /commit?room=` and `POST /discard?room=` map to store transactions
-- `POST /cursor` `{room, peerId, kind, x, y, name, color}` throttle-rebroadcast, not stored
+- `PUT /elements/:table/bulk` upsert many (browser pending-drain), `POST /elements/:table/bulk-delete`
+- `POST /cursor` `{room, peerId, kind, x, y, name, color}` throttle-rebroadcast, not stored; the
+  comment tools' server-side agent presence emits cursor events on the bus directly
 - `GET /changes?room=` SSE stream of `RowChange` + cursor events; heartbeat comment every 15s
 
 `GET /config` (Jazz serverUrl/appId) is deleted; the client only needs the extension base URL it
@@ -192,7 +199,7 @@ touches SQLite; no `cursors` table.
 
 Added to `@conciv/extension-whiteboard`:
 
-- runtime: `drizzle-orm`, `drizzle-zod`, `@tanstack/solid-db`, `@tanstack/query-db-collection`,
+- runtime: `drizzle-orm`, `@tanstack/db`, `@tanstack/solid-db`, `@tanstack/query-db-collection`,
   `@tanstack/query-core` (all pure JS)
 - dev: `drizzle-kit`
 
