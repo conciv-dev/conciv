@@ -1,4 +1,7 @@
-import {type H3, type H3Event, HTTPError, getValidatedQuery, getValidatedRouterParams, readValidatedBody} from 'h3'
+import {Hono} from 'hono'
+import {HTTPException} from 'hono/http-exception'
+import {streamSSE} from 'hono/streaming'
+import {zValidator} from '@hono/zod-validator'
 import {z} from 'zod'
 import {
   isMutating,
@@ -10,47 +13,53 @@ import {
 } from '@conciv/protocol/page-types'
 import type {Journal} from '../../runtime/journal.js'
 import {makePending} from '../../pending.js'
-import {sseStream} from '../sse.js'
 import {symbolicateFrames, type RawFrame} from '../../page/symbolicate.js'
 
-export function registerPageRoutes(app: H3, deps: {journal: Journal; root: string}): {ask: PageBus['ask']} {
+export function makePageRoutes(deps: {journal: Journal; root: string}) {
   const bus = makePageBus()
 
-  app.get('/api/page/stream', (event) => sseStream(event, 'page-bus open', (emit) => bus.subscribe(emit)))
-
-  app.post('/api/page/reply', async (event) => {
-    const {requestId, data} = await readValidatedBody(event, PageReplySchema)
-    bus.resolve(requestId, data)
-    return {ok: true}
-  })
-
-  app.get('/api/page/changes', () => deps.journal.list())
-  app.post('/api/page/changes/clear', () => {
-    deps.journal.clear()
-    return {ok: true}
-  })
-
-  async function handleVerb(event: H3Event): Promise<Record<string, unknown>> {
-    const {verb} = await getValidatedRouterParams(event, VerbParamsSchema)
-    const input =
-      event.req.method === 'POST'
-        ? await readValidatedBody(event, PageQueryInputSchema)
-        : await getValidatedQuery(event, PageQueryInputSchema)
+  async function runVerb(input: PageQueryInput, verb: PageQuery['kind']): Promise<Record<string, unknown>> {
     const data = await bus.ask({kind: verb, ...input})
     if (isMutating(verb)) {
       deps.journal.append({verb, ref: input.ref, selector: input.selector, args: pageArgs(input)}, Date.now())
     }
-
     if (verb === 'locate' && !data.source && Array.isArray(data.frames)) {
       return {...data, source: await symbolicateFrames(data.frames as RawFrame[], deps.root)}
     }
     return data
   }
 
-  app.get('/api/page/:verb', handleVerb)
-  app.post('/api/page/:verb', handleVerb)
+  const routes = new Hono()
+    .get('/stream', (c) =>
+      streamSSE(c, async (stream) => {
+        await stream.write(': page-bus open\n\n')
+        await new Promise<void>((resolve) => {
+          const unsubscribe = bus.subscribe((frame) => void stream.writeSSE({data: JSON.stringify(frame)}))
+          stream.onAbort(() => {
+            unsubscribe()
+            resolve()
+          })
+        })
+      }),
+    )
+    .post('/reply', zValidator('json', PageReplySchema), (c) => {
+      const {requestId, data} = c.req.valid('json')
+      bus.resolve(requestId, data)
+      return c.json({ok: true})
+    })
+    .get('/changes', (c) => c.json(deps.journal.list()))
+    .post('/changes/clear', (c) => {
+      deps.journal.clear()
+      return c.json({ok: true})
+    })
+    .get('/:verb', zValidator('param', VerbParamsSchema), zValidator('query', PageQueryInputSchema), async (c) =>
+      c.json(await runVerb(c.req.valid('query'), c.req.valid('param').verb)),
+    )
+    .post('/:verb', zValidator('param', VerbParamsSchema), zValidator('json', PageQueryInputSchema), async (c) =>
+      c.json(await runVerb(c.req.valid('json'), c.req.valid('param').verb)),
+    )
 
-  return {ask: bus.ask}
+  return {routes, ask: bus.ask}
 }
 
 type PageBus = {
@@ -70,7 +79,7 @@ function makePageBus(timeoutMs = 5000): PageBus {
   }
 
   async function ask(query: Omit<PageQuery, 'requestId'>): Promise<Record<string, unknown>> {
-    if (subscribers.size === 0) throw new HTTPError({status: 503, message: 'no widget connected'})
+    if (subscribers.size === 0) throw new HTTPException(503, {message: 'no widget connected'})
     idState.n += 1
     const requestId = `pq${idState.n}`
     const ms = typeof query.timeout === 'number' ? query.timeout + 1000 : timeoutMs
@@ -78,7 +87,7 @@ function makePageBus(timeoutMs = 5000): PageBus {
     try {
       return await pending.await(requestId, ms)
     } catch {
-      throw new HTTPError({status: 504, message: 'page did not reply (no widget connected?)'})
+      throw new HTTPException(504, {message: 'page did not reply (no widget connected?)'})
     }
   }
 
