@@ -47,9 +47,7 @@ jobs:
           mode: firewall-free
       - run: sfw pnpm i --frozen-lockfile # Socket Firewall blocks known-malicious packages at install
       - run: pnpm --filter @conciv/widget exec playwright install --with-deps chromium # real-browser vitest tests
-      - run: pnpm exec turbo run typecheck lint --filter='./packages/*' --filter='./packages/extensions/*' --concurrency=3
-      # serial: cold vite optimizers starve each other and flake the storybook browser tests on constrained runners (storybookjs/storybook#33875)
-      - run: pnpm exec turbo run test --filter='./packages/*' --filter='./packages/extensions/*' --concurrency=1
+      - run: pnpm exec turbo run typecheck lint test --filter='./packages/*' --filter='./packages/extensions/*' --concurrency=3
       # Enforce the no-comments rule everywhere (incl. apps/), without pulling the private apps into the build/test gate.
       - run: pnpm exec oxlint -A all -D conciv/no-comments
 

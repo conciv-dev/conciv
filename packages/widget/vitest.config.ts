@@ -77,6 +77,7 @@ const storybook = {
   plugins: [storybookTest({configDir: path.join(dirname, '.storybook')})],
   test: {
     name: 'storybook',
+    fileParallelism: false,
     browser: {
       enabled: true,
       headless: true,
