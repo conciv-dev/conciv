@@ -1,10 +1,11 @@
-import {serve} from 'srvx'
+import {serve} from '@hono/node-server'
+import {WebSocketServer} from 'ws'
 import getPort from 'get-port'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {AnyExtension} from '@conciv/extension'
 import {makeApp, type MakeAppOpts} from './app.js'
-import {attachWebSocket} from './api/ws.js'
-import {originAllowed} from './api/cors.js'
+
+export type {AppType} from './app.js'
 import {makeEditorOpener} from './editor/open.js'
 import {resolveConfig, type ConcivConfig, type ResolvedConcivConfig} from './config.js'
 import {statePaths} from './state-paths.js'
@@ -72,11 +73,17 @@ export async function start(opts: StartOpts): Promise<Engine> {
   const {app, disposers, extensionContexts} = await makeApp(appOpts)
 
   const requestedPort = opts.port ?? (await getPort())
-  const server = serve({fetch: app.fetch, port: requestedPort, hostname: '127.0.0.1'})
-  await server.ready()
-  const allowed = new Set(opts.allowedOrigins ?? [])
-  attachWebSocket(server, app, (origin) => originAllowed(origin, allowed))
-  const port = portOf(server.url)
+  const wss = new WebSocketServer({noServer: true})
+  const server = serve({
+    fetch: app.fetch,
+    port: requestedPort,
+    hostname: '127.0.0.1',
+    websocket: {server: wss},
+    overrideGlobalObjects: false,
+  })
+  await new Promise<void>((resolve) => server.once('listening', resolve))
+  const address = server.address()
+  const port = typeof address === 'object' && address !== null ? address.port : requestedPort
   portRef.port = port
   return {
     port,
@@ -84,11 +91,8 @@ export async function start(opts: StartOpts): Promise<Engine> {
     extensionContexts,
     stop: async () => {
       await Promise.all(disposers.map((dispose) => dispose()))
-      await server.close(true)
+      if ('closeAllConnections' in server) server.closeAllConnections()
+      await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
     },
   }
-}
-
-function portOf(url: string | undefined): number {
-  return Number(new URL(url ?? 'http://127.0.0.1:0').port)
 }

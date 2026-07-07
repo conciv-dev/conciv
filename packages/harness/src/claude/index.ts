@@ -10,7 +10,13 @@ export {CHAT_SYSTEM_PROMPT} from './system-prompt.js'
 
 const CLAUDE_MODELS = [
   {id: 'opus', name: 'Claude Opus 4.8', description: 'Most capable', group: 'Claude', contextWindow: 200000},
-  {id: 'sonnet', name: 'Claude Sonnet 4.6', description: 'Balanced speed + capability', group: 'Claude', contextWindow: 200000},
+  {
+    id: 'sonnet',
+    name: 'Claude Sonnet 4.6',
+    description: 'Balanced speed + capability',
+    group: 'Claude',
+    contextWindow: 200000,
+  },
   {id: 'haiku', name: 'Claude Haiku 4.5', description: 'Fastest', group: 'Claude', contextWindow: 200000},
   {id: 'claude-fable-5', name: 'Fable 5', description: 'Disabled', group: 'Claude', disabled: true},
 ]

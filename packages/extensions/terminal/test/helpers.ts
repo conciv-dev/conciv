@@ -1,16 +1,8 @@
-import {H3, withBase} from 'h3'
-import {serve, type Server} from 'srvx'
-import type {Hooks} from 'crossws'
-import nodeWebSocketAdapter from 'crossws/adapters/node'
+import {Hono} from 'hono'
+import {serveApp} from '@conciv/harness-testkit'
 import type {ServerApi, ServerHarness, ServerSessions} from '@conciv/extension'
 import type {TtyCommandOpts} from '@conciv/protocol/terminal-types'
 import terminalExtension from '../src/server.js'
-
-declare global {
-  interface Response {
-    crossws?: Partial<Hooks>
-  }
-}
 
 export type FakeSessions = ServerSessions & {
   tokens: Map<string, string>
@@ -67,24 +59,20 @@ export type TerminalTestServer = {
 }
 
 export async function startTerminalServer(harness: ServerHarness = bashHarness): Promise<TerminalTestServer> {
-  const app = new H3()
-  const sub = new H3()
-  app.use('/api/ext/terminal/**', withBase('/api/ext/terminal', sub.handler))
+  const app = new Hono()
   const sessions = fakeSessions()
-  const api: ServerApi<Record<never, never>> = {config: {}, cwd: process.cwd(), app: sub, sessions, harness}
+  const api: ServerApi<Record<never, never>> = {config: {}, cwd: process.cwd(), sessions, harness}
   const result = await terminalExtension.__server?.(api)
-  const server: Server = serve({fetch: app.fetch, port: 0, hostname: '127.0.0.1'})
-  await server.ready()
-  const adapter = nodeWebSocketAdapter({resolve: async (request) => (await app.fetch(request)).crossws ?? {}})
-  server.node?.server?.on('upgrade', (request, socket, head) => adapter.handleUpgrade(request, socket, head))
-  const base = new URL(server.url ?? '').origin
+  if (!(result?.app instanceof Hono)) throw new Error('terminal extension returned no hono app')
+  app.route('/api/ext/terminal', result.app)
+  const served = await serveApp(app.fetch)
   return {
-    base,
-    wsBase: base.replace('http', 'ws'),
+    base: served.base,
+    wsBase: served.wsBase,
     sessions,
     close: async () => {
       await result?.dispose?.()
-      await server.close(true)
+      await served.close()
     },
   }
 }

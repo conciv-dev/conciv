@@ -1,4 +1,6 @@
 import {createEffect, createResource, createSignal, on, onCleanup, onMount, Show, type JSX} from 'solid-js'
+import {hc} from 'hono/client'
+import type {TerminalAppType} from '../server.js'
 import {Terminal, createTerminalModel, type TerminalTheme} from '@conciv/ui-kit-terminal'
 import {Button} from '@conciv/ui-kit-system'
 import type {ExtensionHostContext} from '@conciv/extension'
@@ -27,6 +29,10 @@ function readTerminalTheme(element: Element): TerminalTheme {
 
 function terminalUrl(apiBase: string, path: string): string {
   return `${apiBase}/api/ext/terminal/${path}`
+}
+
+function terminalClient(apiBase: string) {
+  return hc<TerminalAppType>(`${apiBase}/api/ext/terminal`, {init: {credentials: 'include'}})
 }
 
 function wsUrl(apiBase: string, sessionId: string | null, cols: number, rows: number): string {
@@ -129,14 +135,11 @@ function TerminalSurface(props: {ctx: ViewContext; generation: number; themeHost
 
 export function TerminalPanelView(): JSX.Element {
   const ctx = useTerminalContext()
-  const headers = () => ({'content-type': 'application/json', ...ctx.client.chatHeaders()})
   const openTerminal = async (): Promise<void> => {
-    const res = await fetch(terminalUrl(ctx.apiBase, 'open'), {
-      method: 'POST',
-      credentials: 'include',
-      headers: headers(),
-      body: JSON.stringify({cols: DEFAULT_COLS, rows: DEFAULT_ROWS, model: ctx.store.spawnModel() ?? undefined}),
-    })
+    const res = await terminalClient(ctx.apiBase).open.$post(
+      {json: {cols: DEFAULT_COLS, rows: DEFAULT_ROWS, model: ctx.store.spawnModel() ?? undefined}},
+      {headers: ctx.client.chatHeaders()},
+    )
     if (!res.ok) {
       const busy = res.status === 409
       throw new Error(busy ? 'Session is busy — wait for the current turn to finish.' : 'Couldn’t open the terminal.')
@@ -157,11 +160,9 @@ export function TerminalPanelView(): JSX.Element {
     respawning.current = true
     ctx.store.setRespawning(true)
     try {
-      await fetch(terminalUrl(ctx.apiBase, 'close'), {
-        method: 'POST',
-        credentials: 'include',
-        headers: headers(),
-      }).catch(() => {})
+      await terminalClient(ctx.apiBase)
+        .close.$post(undefined, {headers: ctx.client.chatHeaders()})
+        .catch(() => {})
       await refetch()
       setOpenKey((key) => key + 1)
     } finally {

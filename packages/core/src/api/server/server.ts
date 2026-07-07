@@ -1,42 +1,43 @@
-import {type H3, getValidatedQuery, readValidatedBody} from 'h3'
+import {Hono} from 'hono'
+import {HTTPException} from 'hono/http-exception'
+import {zValidator} from '@hono/zod-validator'
 import {z} from 'zod'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
-
-export function registerServerRoutes(app: H3, bridge: BundlerBridge): void {
-  app.get('/api/server/config', () => bridge.config())
-
-  app.get('/api/server/resolve', async (event) => {
-    const {spec, importer} = await getValidatedQuery(event, ResolveQuerySchema)
-    return bridge.resolve(spec, importer)
-  })
-
-  app.get('/api/server/graph', async (event) => {
-    const {file} = await getValidatedQuery(event, FileQuerySchema)
-    return bridge.moduleGraph(file)
-  })
-
-  app.get('/api/server/transform', async (event) => {
-    const {url} = await getValidatedQuery(event, TransformQuerySchema)
-    return bridge.transform(url)
-  })
-
-  app.get('/api/server/urls', () => bridge.urls())
-
-  app.post('/api/server/reload', async (event) => {
-    const {file} = await readValidatedBody(event, ReloadBodySchema)
-    await bridge.reload(file)
-    return {ok: true}
-  })
-
-  app.post('/api/server/restart', async (event) => {
-    const {force} = await readValidatedBody(event, RestartBodySchema)
-    await bridge.restart(force)
-    return {ok: true}
-  })
-}
 
 const ResolveQuerySchema = z.object({spec: z.string(), importer: z.string().optional()})
 const FileQuerySchema = z.object({file: z.string()})
 const TransformQuerySchema = z.object({url: z.string()})
 const ReloadBodySchema = z.object({file: z.string()})
 const RestartBodySchema = z.object({force: z.boolean().default(false)})
+
+export type BundlerVars = {bundler: {bridge: () => BundlerBridge | undefined}}
+
+function requireBridge(bridge: () => BundlerBridge | undefined): BundlerBridge {
+  const found = bridge()
+  if (!found) throw new HTTPException(503, {message: 'no bundler bridge'})
+  return found
+}
+
+const app = new Hono<{Variables: BundlerVars}>()
+  .get('/config', (c) => c.json(requireBridge(c.var.bundler.bridge).config()))
+  .get('/resolve', zValidator('query', ResolveQuerySchema), async (c) => {
+    const {spec, importer} = c.req.valid('query')
+    return c.json(await requireBridge(c.var.bundler.bridge).resolve(spec, importer))
+  })
+  .get('/graph', zValidator('query', FileQuerySchema), async (c) =>
+    c.json(await requireBridge(c.var.bundler.bridge).moduleGraph(c.req.valid('query').file)),
+  )
+  .get('/transform', zValidator('query', TransformQuerySchema), async (c) =>
+    c.json(await requireBridge(c.var.bundler.bridge).transform(c.req.valid('query').url)),
+  )
+  .get('/urls', (c) => c.json(requireBridge(c.var.bundler.bridge).urls()))
+  .post('/reload', zValidator('json', ReloadBodySchema), async (c) => {
+    await requireBridge(c.var.bundler.bridge).reload(c.req.valid('json').file)
+    return c.json({ok: true})
+  })
+  .post('/restart', zValidator('json', RestartBodySchema), async (c) => {
+    await requireBridge(c.var.bundler.bridge).restart(c.req.valid('json').force)
+    return c.json({ok: true})
+  })
+
+export default app

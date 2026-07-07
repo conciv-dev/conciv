@@ -4,37 +4,37 @@ import {writeFileSync, chmodSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {platform} from 'node:os'
-import {type H3, readValidatedBody} from 'h3'
-import type {HarnessAdapter, HarnessLaunchContext, HarnessLaunchResult} from '@conciv/protocol/harness-types'
+import {Hono} from 'hono'
+import {zValidator} from '@hono/zod-validator'
+import type {HarnessLaunchContext, HarnessLaunchResult} from '@conciv/protocol/harness-types'
 import {ChatLaunchRequestSchema, type ChatLaunch} from '@conciv/protocol/chat-types'
-import type {SessionStore} from '../../store/session-store.js'
+import type {ChatEnv} from './chat-env.js'
 import {sessionIdFromHeaders} from './session-id.js'
 
-export type LaunchRouteDeps = {
-  cwd: string
-  harness: HarnessAdapter
-  store: SessionStore
-}
+const app = new Hono<ChatEnv>().post('/launch', zValidator('json', ChatLaunchRequestSchema), async (c) => {
+  const deps = c.var.chat
+  if (!deps.harness.launch) {
+    const payload: ChatLaunch = {supported: false, opened: false, command: null}
+    return c.json(payload)
+  }
+  const {model} = c.req.valid('json')
+  const sessionId = sessionIdFromHeaders(c.req.raw.headers)
+  const token = sessionId ? ((await deps.store.get(sessionId))?.harnessSessionId ?? null) : null
+  const origin = `http://${c.req.header('host') ?? '127.0.0.1:3000'}`
+  const ctx: HarnessLaunchContext = {
+    cwd: deps.cwd,
+    sessionId: token || null,
+    model: model ?? null,
+    mcpUrl: deps.harness.capabilities.mcp === 'http' ? `${origin}/api/mcp` : null,
+    openTerminal: (argv) => openTerminal(argv, deps.cwd),
+    openUrl: (url) => openUrl(url),
+  }
+  const result = await deps.harness.launch(ctx)
+  const payload: ChatLaunch = {supported: true, opened: result.opened, command: result.command}
+  return c.json(payload)
+})
 
-export function registerLaunchRoutes(app: H3, deps: LaunchRouteDeps): void {
-  app.post('/api/chat/launch', async (event): Promise<ChatLaunch> => {
-    if (!deps.harness.launch) return {supported: false, opened: false, command: null}
-    const {model} = await readValidatedBody(event, ChatLaunchRequestSchema)
-    const sessionId = sessionIdFromHeaders(event.req.headers)
-    const token = sessionId ? ((await deps.store.get(sessionId))?.harnessSessionId ?? null) : null
-    const origin = `http://${event.req.headers.get('host') ?? '127.0.0.1:3000'}`
-    const ctx: HarnessLaunchContext = {
-      cwd: deps.cwd,
-      sessionId: token || null,
-      model: model ?? null,
-      mcpUrl: deps.harness.capabilities.mcp === 'http' ? `${origin}/api/mcp` : null,
-      openTerminal: (argv) => openTerminal(argv, deps.cwd),
-      openUrl: (url) => openUrl(url),
-    }
-    const result = await deps.harness.launch(ctx)
-    return {supported: true, opened: result.opened, command: result.command}
-  })
-}
+export default app
 
 async function openTerminal(argv: string[], cwd: string): Promise<HarnessLaunchResult> {
   const command = `cd ${shellQuote(cwd)} && ${argv.map(shellQuote).join(' ')}`
@@ -55,8 +55,8 @@ async function spawnTerminal(command: string): Promise<boolean> {
 
       writeFileSync(file, `#!/bin/bash\n${command}\nexec $SHELL\n`)
       chmodSync(file, 0o755)
-      const app = macTerminalApp(process.env.TERM_PROGRAM)
-      return spawnDetached('open', app ? ['-a', app, file] : [file])
+      const terminalApp = macTerminalApp(process.env.TERM_PROGRAM)
+      return spawnDetached('open', terminalApp ? ['-a', terminalApp, file] : [file])
     }
     case 'win32':
       return spawnDetached('cmd', ['/c', 'start', 'cmd', '/k', command])

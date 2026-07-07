@@ -1,5 +1,6 @@
 import {fileURLToPath} from 'node:url'
 import {join} from 'node:path'
+import {Hono} from 'hono'
 import {deploy} from 'jazz-tools/dev'
 import {defineExtension, type ToolRequest} from '@conciv/extension'
 import {WHITEBOARD_NAME, WHITEBOARD_PROMPT} from './shared/meta.js'
@@ -14,6 +15,12 @@ import {elementTools} from './tool/element/server.js'
 
 const schemaDir = fileURLToPath(new URL('./shared', import.meta.url))
 
+type WhiteboardEnv = {Variables: {whiteboard: {serverUrl: string; appId: string}}}
+
+const app = new Hono<WhiteboardEnv>().get('/config', (c) => c.json(c.var.whiteboard))
+
+export type WhiteboardAppType = typeof app
+
 export default defineExtension({
   name: WHITEBOARD_NAME,
   tools: [...canvasTools, ...commentTools, ...anchorTools, ...elementTools],
@@ -26,7 +33,6 @@ export default defineExtension({
     serverUrl: runner.serverUrl,
     backendSecret: runner.backendSecret,
   })
-  server.app.get('/config', () => ({serverUrl: runner.serverUrl, appId: runner.appId}))
   const stopEnrichment = startCommentEnrichment(backend.db, server.cwd)
   const sessionId = (request: ToolRequest): string => {
     if (!request.sessionId) throw new Error('whiteboard tools require an active session')
@@ -40,6 +46,12 @@ export default defineExtension({
       room: sessionId,
       model: (request) => request.model,
     },
+    app: new Hono<WhiteboardEnv>()
+      .use(async (c, next) => {
+        c.set('whiteboard', {serverUrl: runner.serverUrl, appId: runner.appId})
+        await next()
+      })
+      .route('/', app),
     turnEnd: (turnSessionId) =>
       void autoCommitDraft(backend.db, turnSessionId).catch((error) =>
         console.error(`[whiteboard] auto-commit on turn end failed for ${turnSessionId}: ${String(error)}`),

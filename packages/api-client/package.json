@@ -38,9 +38,11 @@
   },
   "dependencies": {
     "@conciv/protocol": "workspace:^",
+    "hono": "^4.12.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@conciv/core": "workspace:^",
     "@types/node": "^22.19.21",
     "solid-js": "^1.9.13",
     "tsdown": "^0.22.2",

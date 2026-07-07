@@ -5,5 +5,5 @@
   "bracketSpacing": false,
   "printWidth": 120,
   "trailingComma": "all",
-  "ignorePatterns": ["dist", "build", ".turbo"]
+  "ignorePatterns": ["dist", "build", ".turbo", "**/*.gen.ts", "**/test-results"]
 }

@@ -1,24 +1,26 @@
 import {expect, test} from 'vitest'
-import {H3, defineWebSocketHandler} from 'h3'
-import {serve} from 'srvx'
+import {Hono} from 'hono'
+import {upgradeWebSocket} from '@hono/node-server'
 import WebSocket from 'ws'
-import {attachWebSocket} from '../../src/api/ws.js'
+import {serveApp} from '@conciv/harness-testkit'
 import {originAllowed} from '../../src/api/cors.js'
 
 test('ws upgrades and echoes; non-loopback origin is rejected', async () => {
-  const app = new H3()
+  const app = new Hono()
+  app.use('/__ws_probe', async (c, next) => {
+    if (!originAllowed(c.req.header('origin') ?? null, new Set())) return c.text('forbidden origin', 403)
+    await next()
+  })
   app.get(
     '/__ws_probe',
-    defineWebSocketHandler({
-      message: (peer, message) => {
-        peer.send(`echo:${message.text()}`)
+    upgradeWebSocket(() => ({
+      onMessage(event, ws) {
+        ws.send(`echo:${String(event.data)}`)
       },
-    }),
+    })),
   )
-  const server = serve({fetch: app.fetch, port: 0, hostname: '127.0.0.1'})
-  await server.ready()
-  attachWebSocket(server, app, (origin) => originAllowed(origin, new Set()))
-  const wsUrl = `${new URL(server.url ?? '').origin.replace('http', 'ws')}/__ws_probe`
+  const served = await serveApp(app.fetch)
+  const wsUrl = `${served.wsBase}/__ws_probe`
   try {
     const echo = await new Promise<string>((resolve, reject) => {
       const client = new WebSocket(wsUrl)
@@ -40,6 +42,6 @@ test('ws upgrades and echoes; non-loopback origin is rejected', async () => {
     })
     expect(rejected).toBe(true)
   } finally {
-    await server.close(true)
+    await served.close()
   }
 }, 30_000)

@@ -9,7 +9,13 @@ const fakeAdapter: AnyTextAdapter = {
   '~types': {
     providerOptions: {},
     inputModalities: ['text'],
-    messageMetadataByModality: {text: undefined, image: undefined, audio: undefined, video: undefined, document: undefined},
+    messageMetadataByModality: {
+      text: undefined,
+      image: undefined,
+      audio: undefined,
+      video: undefined,
+      document: undefined,
+    },
     toolCapabilities: [],
     toolCallMetadata: undefined,
     systemPromptMetadata: undefined,

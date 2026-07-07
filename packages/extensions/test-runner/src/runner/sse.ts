@@ -1,34 +1,19 @@
-import type {H3Event} from 'h3'
-
-const BASE_SSE_HEADERS = {
-  'content-type': 'text/event-stream',
-  'cache-control': 'no-cache',
-  connection: 'keep-alive',
-}
-
-function sseHeaders(event: H3Event): Record<string, string> {
-  const origin = event.req.headers.get('origin')
-  const cors: Record<string, string> = origin
-    ? {'access-control-allow-origin': origin, 'access-control-allow-credentials': 'true', vary: 'origin'}
-    : {}
-  return {...BASE_SSE_HEADERS, ...cors}
-}
+import type {Context} from 'hono'
+import {streamSSE} from 'hono/streaming'
 
 export function sseStream(
-  event: H3Event,
+  c: Context,
   openComment: string,
   start: (emit: (data: unknown) => void) => () => void,
 ): Response {
-  const encoder = new TextEncoder()
-  let unsubscribe = () => {}
-  const stream = new ReadableStream<Uint8Array>({
-    start(controller) {
-      controller.enqueue(encoder.encode(`: ${openComment}\n\n`))
-      unsubscribe = start((data) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`)))
-    },
-    cancel() {
-      unsubscribe()
-    },
+  return streamSSE(c, async (stream) => {
+    await stream.write(`: ${openComment}\n\n`)
+    await new Promise<void>((resolve) => {
+      const unsubscribe = start((data) => void stream.writeSSE({data: JSON.stringify(data)}))
+      stream.onAbort(() => {
+        unsubscribe()
+        resolve()
+      })
+    })
   })
-  return new Response(stream, {status: 200, headers: sseHeaders(event)})
 }

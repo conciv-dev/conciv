@@ -1,4 +1,4 @@
-import type {H3} from 'h3'
+import {Hono} from 'hono'
 import type {z} from 'zod'
 import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js'
 import {WebStandardStreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js'
@@ -53,21 +53,24 @@ function buildServer(ctx: ConcivToolContext, extensionTools: ExtensionServerTool
   return server
 }
 
-export function registerMcpRoutes(
-  app: H3,
-  makeCtx: (sessionId: string) => ConcivToolContext,
-  extensionTools: ExtensionServerTool[] = [],
-  sessionModel: (sessionId: string) => string | null = () => null,
-): void {
-  app.post('/api/mcp', async (event) => {
-    const sessionId = sessionIdFromHeaders(event.req.headers) ?? ''
-    const ctx = makeCtx(sessionId)
-    const request: ToolRequest = {sessionId, model: sessionModel(sessionId)}
-    const transport = new WebStandardStreamableHTTPServerTransport({
-      sessionIdGenerator: undefined,
-      enableJsonResponse: true,
-    })
-    await buildServer(ctx, extensionTools, request).connect(transport)
-    return transport.handleRequest(event.req)
-  })
+export type McpVars = {
+  mcp: {
+    makeCtx: (sessionId: string) => ConcivToolContext
+    extensionTools: ExtensionServerTool[]
+    sessionModel: (sessionId: string) => string | null
+  }
 }
+
+const app = new Hono<{Variables: McpVars}>().post('/', async (c) => {
+  const sessionId = sessionIdFromHeaders(c.req.raw.headers) ?? ''
+  const ctx = c.var.mcp.makeCtx(sessionId)
+  const request: ToolRequest = {sessionId, model: c.var.mcp.sessionModel(sessionId)}
+  const transport = new WebStandardStreamableHTTPServerTransport({
+    sessionIdGenerator: undefined,
+    enableJsonResponse: true,
+  })
+  await buildServer(ctx, c.var.mcp.extensionTools, request).connect(transport)
+  return transport.handleRequest(c.req.raw)
+})
+
+export default app

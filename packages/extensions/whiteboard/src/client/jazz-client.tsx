@@ -1,10 +1,12 @@
 import {Show, type JSX} from 'solid-js'
+import {hc} from 'hono/client'
 import {JazzProvider, createSolidJazzClient, useLocalFirstAuth} from 'jazz-tools/solid'
+import type {WhiteboardAppType} from '../server.js'
 
 export type JazzConfig = {serverUrl: string; appId: string}
 
 export async function fetchJazzConfig(extBase: string): Promise<JazzConfig> {
-  const response = await fetch(`${extBase}/config`)
+  const response = await hc<WhiteboardAppType>(extBase).config.$get()
   return response.json()
 }
 

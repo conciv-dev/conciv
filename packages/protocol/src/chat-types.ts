@@ -155,3 +155,25 @@ export const ChatLaunchSchema = z.object({
   command: z.string().nullable(),
 })
 export type ChatLaunch = z.infer<typeof ChatLaunchSchema>
+
+export type RequestMeta = Record<string, unknown>
+
+export type SessionClient = {
+  sessionId: () => SessionId | null
+  setSessionId: (id: SessionId | null) => void
+  chatStreamUrl: () => string
+  attachUrl: () => string
+  chatHeaders: () => Record<string, string>
+  resolve: (body?: z.input<typeof ResolveRequestSchema>) => Promise<z.output<typeof ResolveResponseSchema>>
+  session: () => Promise<z.output<typeof ChatSessionSchema>>
+  sessions: () => Promise<z.output<typeof ChatSessionsSchema>>
+  history: () => Promise<z.output<typeof ChatHistorySchema>>
+  models: () => Promise<z.output<typeof ChatModelsSchema>>
+  commands: () => Promise<z.output<typeof ChatCommandsSchema>>
+  tools: () => Promise<z.output<typeof ChatToolsSchema>>
+  rename: (body: z.input<typeof RenameSessionSchema>) => Promise<z.output<typeof RenameResponseSchema>>
+  launch: (body?: z.input<typeof ChatLaunchRequestSchema>) => Promise<z.output<typeof ChatLaunchSchema>>
+  remove: () => Promise<z.output<typeof OkSchema>>
+  stop: () => Promise<z.output<typeof OkSchema>>
+  permissionDecision: (body: z.input<typeof PermissionDecisionSchema>) => Promise<z.output<typeof OkSchema>>
+}

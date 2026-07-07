@@ -1,6 +1,6 @@
 import {createSignal} from 'solid-js'
-import {ChatSessionsSchema, type ChatSessionMeta} from '@conciv/protocol/chat-types'
-import {createTransport} from '@conciv/api-client'
+import type {ChatSessionMeta} from '@conciv/protocol/chat-types'
+import {defineClient} from '@conciv/api-client'
 
 type Status = 'idle' | 'loading' | 'ready' | 'error'
 const [fetched, setFetched] = createSignal<ChatSessionMeta[]>([])
@@ -12,12 +12,8 @@ let inflight: Promise<void> | null = null
 function refetch(apiBase: string): Promise<void> {
   setStatus('loading')
 
-  const list = createTransport({apiBase}).route({
-    method: 'GET',
-    path: '/api/chat/sessions',
-    response: ChatSessionsSchema,
-  })
-  inflight = list()
+  inflight = defineClient({apiBase})
+    .sessions()
     .then((r) => {
       setFetched(r.sessions)
       setStatus('ready')

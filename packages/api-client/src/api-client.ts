@@ -1,7 +1,10 @@
 import {createSignal} from 'solid-js'
+import {hc} from 'hono/client'
+import type {AppType} from '@conciv/core'
 import {
   CONCIV_SESSION_HEADER,
   type SessionId,
+  type SessionClient,
   ChatSessionSchema,
   ChatSessionsSchema,
   ChatHistorySchema,
@@ -9,70 +12,77 @@ import {
   ChatCommandsSchema,
   ChatToolsSchema,
   ChatLaunchSchema,
-  ChatLaunchRequestSchema,
-  RenameSessionSchema,
-  ResolveRequestSchema,
   ResolveResponseSchema,
   RenameResponseSchema,
   OkSchema,
-  PermissionDecisionSchema,
 } from '@conciv/protocol/chat-types'
-import {createTransport} from './transport.js'
+import {PageReplySchema} from '@conciv/protocol/page-types'
+import type {z} from 'zod'
 
-export function defineClient(opts: {apiBase: string}) {
+export type ApiError = Error & {path: string; status: number}
+export function apiError(path: string, status: number): ApiError {
+  return Object.assign(new Error(`${path} → ${status}`), {path, status})
+}
+
+type ParseableResponse = {ok: boolean; status: number; url: string; json: () => Promise<unknown>}
+
+async function parsed<Output>(
+  request: Promise<ParseableResponse>,
+  schema: {parse: (value: unknown) => Output},
+): Promise<Output> {
+  const response = await request
+  if (!response.ok) throw apiError(new URL(response.url).pathname, response.status)
+  return schema.parse(await response.json())
+}
+
+function trimBase(apiBase: string): string {
+  return apiBase.replace(/\/+$/, '')
+}
+
+export function defineClient(opts: {apiBase: string}): SessionClient {
   const [sessionId, setSessionId] = createSignal<SessionId | null>(null)
 
   const sessionHeaders = (): Record<string, string> => {
     const id = sessionId()
     return id ? {[CONCIV_SESSION_HEADER]: id} : {}
   }
-  const t = createTransport({apiBase: opts.apiBase, headers: sessionHeaders})
+  const base = trimBase(opts.apiBase)
+  const chat = hc<AppType>(base, {init: {credentials: 'include'}, headers: sessionHeaders}).api.chat
   return {
     sessionId,
     setSessionId,
 
-    chatStreamUrl: () => t.url('/api/chat'),
-    attachUrl: () => t.url('/api/chat/attach'),
+    chatStreamUrl: () => `${base}/api/chat`,
+    attachUrl: () => `${base}/api/chat/attach`,
     chatHeaders: sessionHeaders,
 
-    resolve: t.route({
-      method: 'POST',
-      path: '/api/chat/session/resolve',
-      request: ResolveRequestSchema,
-      response: ResolveResponseSchema,
-    }),
-    session: t.route({method: 'GET', path: '/api/chat/session', response: ChatSessionSchema}),
-    sessions: t.route({method: 'GET', path: '/api/chat/sessions', response: ChatSessionsSchema}),
-    history: t.route({method: 'GET', path: '/api/chat/history', response: ChatHistorySchema}),
-    models: t.route({method: 'GET', path: '/api/chat/models', response: ChatModelsSchema}),
-    commands: t.route({method: 'GET', path: '/api/chat/commands', response: ChatCommandsSchema}),
-    tools: t.route({method: 'GET', path: '/api/chat/tools', response: ChatToolsSchema}),
-    rename: t.route({
-      method: 'POST',
-      path: '/api/chat/sessions/title',
-      request: RenameSessionSchema,
-      response: RenameResponseSchema,
-    }),
-    launch: t.route({
-      method: 'POST',
-      path: '/api/chat/launch',
-      request: ChatLaunchRequestSchema,
-      response: ChatLaunchSchema,
-    }),
-    remove: t.route({method: 'DELETE', path: '/api/chat/session', response: OkSchema}),
-    stop: t.route({method: 'POST', path: '/api/chat/stop', response: OkSchema}),
-    permissionDecision: t.route({
-      method: 'POST',
-      path: '/api/chat/permission-decision',
-      request: PermissionDecisionSchema,
-      response: OkSchema,
-    }),
+    resolve: (body) => parsed(chat.session.resolve.$post({json: body ?? {}}), ResolveResponseSchema),
+    session: () => parsed(chat.session.$get(), ChatSessionSchema),
+    sessions: () => parsed(chat.sessions.$get(), ChatSessionsSchema),
+    history: () => parsed(chat.history.$get(), ChatHistorySchema),
+    models: () => parsed(chat.models.$get(), ChatModelsSchema),
+    commands: () => parsed(chat.commands.$get(), ChatCommandsSchema),
+    tools: () => parsed(chat.tools.$get(), ChatToolsSchema),
+    rename: (body) => parsed(chat.sessions.title.$post({json: body}), RenameResponseSchema),
+    launch: (body) => parsed(chat.launch.$post({json: body ?? {}}), ChatLaunchSchema),
+    remove: () => parsed(chat.session.$delete(), OkSchema),
+    stop: () => parsed(chat.stop.$post(), OkSchema),
+    permissionDecision: (body) => parsed(chat['permission-decision'].$post({json: body}), OkSchema),
   }
 }
 
-export type SessionClient = ReturnType<typeof defineClient>
+export type PageBusClient = {
+  reply: (body: z.input<typeof PageReplySchema>) => Promise<z.output<typeof OkSchema>>
+  stream: () => EventSource
+}
 
-export {createTransport, apiError} from './transport.js'
-export type {ApiError} from './transport.js'
+export function definePageBusClient(opts: {apiBase: string}): PageBusClient {
+  const base = trimBase(opts.apiBase)
+  const page = hc<AppType>(base, {init: {credentials: 'include'}}).api.page
+  return {
+    reply: (body) => parsed(page.reply.$post({json: body}), OkSchema),
+    stream: () => new EventSource(`${base}/api/page/stream`, {withCredentials: true}),
+  }
+}
 
-export type RequestMeta = Record<string, unknown>
+export type {SessionClient, RequestMeta} from '@conciv/protocol/chat-types'
