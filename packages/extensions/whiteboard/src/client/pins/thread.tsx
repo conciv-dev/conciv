@@ -55,16 +55,16 @@ function CommentRow(props: {comment: Comment}): JSX.Element {
   return (
     <article class="px-3 py-2 border-t border-pw-line-soft flex flex-col gap-1 first:border-t-0">
       <div class="flex gap-2 items-center">
-        <Avatar name={model.displayName(props.comment)} src={props.comment.authorAvatar} class="size-6" />
+        <Avatar name={model.displayName(props.comment)} src={props.comment.authorAvatar ?? undefined} class="size-6" />
         <span class="text-[0.8125rem] text-pw-text font-medium truncate">{model.displayName(props.comment)}</span>
-        <RelativeTime value={props.comment.createdAt} class="text-[0.75rem] text-pw-text-3 shrink-0" />
+        <RelativeTime value={new Date(props.comment.createdAt)} class="text-[0.75rem] text-pw-text-3 shrink-0" />
         <Show when={model.ownedBySelf(props.comment)}>
           <span class="ml-auto">
             <Menu
               label="Comment actions"
               trigger={
                 <span
-                  class="text-pw-text-3 rounded-pw-sm inline-flex size-6 [outline:none] items-center justify-center data-[state=open]:bg-pw-fill focus-ring"
+                  class="text-pw-text-3 rounded-pw-sm inline-flex size-6 [outline:none] focus-ring items-center justify-center data-[state=open]:bg-pw-fill"
                   aria-label="Comment actions"
                 >
                   ⋯

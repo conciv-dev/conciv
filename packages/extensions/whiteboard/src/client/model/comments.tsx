@@ -1,38 +1,13 @@
 import {createContext, createMemo, createSignal, onCleanup, useContext, type Accessor, type JSX} from 'solid-js'
-import {useAll, useDb, useSession} from 'jazz-tools/solid'
-import type {JsonValue} from 'jazz-tools'
+import {useLiveQuery} from '@tanstack/solid-db'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import type {MentionSegment} from '@conciv/ui-kit-tap'
-import {app} from '../../shared/schema.js'
+import {useWhiteboardDb} from '../db.js'
+import type {CommentRow, JsonValue, PinRow} from '../../shared/rows.js'
 import {screenToScene, sceneToScreen, type Viewport} from '../../canvas/coords.js'
 
-export type Comment = {
-  id: string
-  cid: string
-  threadId: string
-  parentId?: string
-  parts: JsonValue
-  authorKind: 'human' | 'ai'
-  authorModel?: string
-  authorId?: string
-  authorName?: string
-  authorAvatar?: string
-  status: 'open' | 'resolved' | 'drifted' | 'orphaned'
-  kind: 'source-linked' | 'floating'
-  anchor?: JsonValue
-  anchorFile?: string
-  createdAt: Date
-  updatedAt: Date
-}
-export type Pin = {
-  id: string
-  cid: string
-  x: number
-  y: number
-  pinState: 'locked' | 'offset'
-  anchorX?: number
-  anchorY?: number
-}
+export type Comment = CommentRow
+export type Pin = PinRow
 export type Participant = {id: string; label: string}
 export type CommentSource = {file: string; line: number | null} | null
 export type ComposeTarget = {source: CommentSource; screen: {x: number; y: number}}
@@ -47,27 +22,23 @@ const toParts = (segments: MentionSegment[]): JsonValue =>
       : {type: 'text', text: segment.text},
   ) as unknown as JsonValue
 
-const newest = (dates: Date[]): Date | undefined =>
-  dates.reduce<Date | undefined>(
-    (latest, date) => (date.getTime() > (latest?.getTime() ?? -1) ? date : latest),
-    undefined,
-  )
+const newest = (dates: number[]): number | undefined =>
+  dates.reduce<number | undefined>((latest, date) => (date > (latest ?? -1) ? date : latest), undefined)
 
 export function createCommentsModel(
   room: Accessor<string>,
   apiBase: string,
   suppressWhile: (active: () => boolean) => () => void,
 ) {
-  const db = useDb()
-  const session = useSession()
-  const accountId = (): string | undefined => session()?.user_id
+  const db = useWhiteboardDb()
+  const accountId = (): string => db.accountId()
   const ctx: ToolViewCtx = {apiBase, harnessId: '', sendMessage: () => {}}
 
-  const commentRows = useAll(() => ({query: app.comments.where({sessionId: room()})}))
-  const pinRows = useAll(() => ({query: app.pins.where({room: room()})}))
-  const readRows = useAll(() => ({query: app.reads.where({sessionId: room()})}))
-  const comments = (): Comment[] => (commentRows.data ?? []) as Comment[]
-  const pins = (): Pin[] => (pinRows.data ?? []) as Pin[]
+  const commentRows = useLiveQuery((q) => q.from({row: db.comments}))
+  const pinRows = useLiveQuery((q) => q.from({row: db.pins}))
+  const readRows = useLiveQuery((q) => q.from({row: db.reads}))
+  const comments = (): CommentRow[] => commentRows() ?? []
+  const pins = (): PinRow[] => pinRows() ?? []
 
   const [openCid, setOpenCid] = createSignal<string | null>(null)
   const [viewport, setViewport] = createSignal<Viewport>()
@@ -87,12 +58,12 @@ export function createCommentsModel(
     if (!threadId) return []
     return comments()
       .filter((comment) => comment.threadId === threadId)
-      .toSorted((left, right) => left.createdAt.getTime() - right.createdAt.getTime())
+      .toSorted((left, right) => left.createdAt - right.createdAt)
   }
   const roots = createMemo(() => comments().filter((comment) => !comment.parentId))
   const orderedThreads = createMemo(() => {
     const visible = roots().filter((root) => showResolved() || root.status !== 'resolved')
-    const byDate = visible.toSorted((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
+    const byDate = visible.toSorted((left, right) => right.createdAt - left.createdAt)
     return sortMode() === 'date'
       ? byDate
       : byDate.toSorted((left, right) => Number(isUnread(right.cid)) - Number(isUnread(left.cid)))
@@ -109,7 +80,7 @@ export function createCommentsModel(
     return [...seen.values()]
   }
   const replyCount = (cid: string): number => Math.max(0, threadOf(cid).length - 1)
-  const lastActivityAt = (cid: string): Date | undefined => newest(threadOf(cid).map((comment) => comment.createdAt))
+  const lastActivityAt = (cid: string): number | undefined => newest(threadOf(cid).map((comment) => comment.createdAt))
 
   const participants = createMemo<Participant[]>(() => {
     const seen = new Map<string, Participant>()
@@ -137,9 +108,9 @@ export function createCommentsModel(
   const ownedBySelf = (comment: Comment): boolean =>
     comment.authorKind === 'human' && comment.authorId != null && comment.authorId === accountId()
 
-  const readAt = (threadId: string): Date | undefined =>
-    (readRows.data ?? []).find((row) => row.threadId === threadId && row.accountId === accountId())?.lastReadAt
-  const newestForeign = (threadId: string): Date | undefined =>
+  const readAt = (threadId: string): number | undefined =>
+    (readRows() ?? []).find((row) => row.threadId === threadId && row.accountId === accountId())?.lastReadAt
+  const newestForeign = (threadId: string): number | undefined =>
     newest(
       comments()
         .filter((comment) => comment.threadId === threadId && !ownedBySelf(comment))
@@ -149,15 +120,14 @@ export function createCommentsModel(
     const foreign = newestForeign(threadId)
     if (!foreign) return false
     const since = readAt(threadId)
-    return !since || foreign.getTime() > since.getTime()
+    return !since || foreign > since
   }
   const markRead = (threadId: string): void => {
     const self = accountId()
     if (!self) return
-    const existing = (readRows.data ?? []).find((row) => row.threadId === threadId && row.accountId === self)
-    const now = new Date()
-    if (existing) db().update(app.reads, existing.id, {lastReadAt: now})
-    else db().insert(app.reads, {sessionId: room(), threadId, accountId: self, lastReadAt: now})
+    const existing = (readRows() ?? []).find((row) => row.threadId === threadId && row.accountId === self)
+    if (existing) return void db.reads.update(existing.id, (draft) => void (draft.lastReadAt = Date.now()))
+    db.reads.insert({id: crypto.randomUUID(), sessionId: room(), threadId, accountId: self, lastReadAt: Date.now()})
   }
   const markAllRead = (): void => orderedThreads().forEach((thread) => markRead(thread.cid))
 
@@ -179,11 +149,16 @@ export function createCommentsModel(
 
   const movePin = (cid: string, patch: Partial<Pick<Pin, 'x' | 'y' | 'pinState' | 'anchorX' | 'anchorY'>>): void => {
     const pin = pins().find((row) => row.cid === cid)
-    if (pin) db().update(app.pins, pin.id, patch)
+    if (pin) db.pins.update(pin.id, (draft) => Object.assign(draft, patch))
   }
   const detachAnchor = (cid: string): void => {
     const comment = rootOf(cid)
-    if (comment) db().update(app.comments, comment.id, {kind: 'floating', anchor: undefined, anchorFile: undefined})
+    if (comment)
+      db.comments.update(comment.id, (draft) => {
+        draft.kind = 'floating'
+        draft.anchor = null
+        draft.anchorFile = null
+      })
   }
 
   const registerPin = (cid: string, element: HTMLButtonElement | null): void => {
@@ -219,26 +194,44 @@ export function createCommentsModel(
   const cancelCompose = (): void => void setComposeTarget(null)
   const createComment = (target: ComposeTarget, text: string): void => {
     const cid = crypto.randomUUID()
-    const now = new Date()
+    const now = Date.now()
     const view = viewport()
     const center = view ? screenToScene(view, target.screen.x, target.screen.y) : target.screen
-    db().insert(app.comments, {
+    db.comments.insert({
+      id: crypto.randomUUID(),
       sessionId: room(),
       cid,
       threadId: cid,
+      parentId: null,
       parts: [{type: 'text', text}] as JsonValue,
       authorKind: 'human',
+      authorModel: null,
       authorId: accountId(),
+      authorName: null,
+      authorAvatar: null,
       status: 'open',
       kind: target.source ? 'source-linked' : 'floating',
       anchor: target.source
         ? ({source: {file: target.source.file, line: target.source.line ?? 1, column: 1}} as JsonValue)
-        : undefined,
-      anchorFile: target.source?.file ?? undefined,
+        : null,
+      anchorFile: target.source?.file ?? null,
+      anchorComponent: null,
+      anchorHash: null,
       createdAt: now,
       updatedAt: now,
+      resolvedAt: null,
     })
-    db().insert(app.pins, {room: room(), cid, x: center.x, y: center.y, pinState: 'locked'})
+    db.pins.insert({
+      id: crypto.randomUUID(),
+      room: room(),
+      cid,
+      x: center.x,
+      y: center.y,
+      elementId: null,
+      pinState: 'locked',
+      anchorX: null,
+      anchorY: null,
+    })
     setComposeTarget(null)
     openThread(cid)
     setPendingAnchor(target.screen)
@@ -247,26 +240,39 @@ export function createCommentsModel(
   const reply = (segments: MentionSegment[]): void => {
     const parent = rootOf(openCid() ?? '')
     if (!parent || segments.length === 0) return
-    const now = new Date()
-    db().insert(app.comments, {
+    const now = Date.now()
+    db.comments.insert({
+      id: crypto.randomUUID(),
       sessionId: room(),
       cid: crypto.randomUUID(),
       threadId: parent.threadId,
       parentId: parent.cid,
       parts: toParts(segments),
       authorKind: 'human',
+      authorModel: null,
       authorId: accountId(),
+      authorName: null,
+      authorAvatar: null,
       status: 'open',
       kind: 'floating',
+      anchor: null,
+      anchorFile: null,
+      anchorComponent: null,
+      anchorHash: null,
       createdAt: now,
       updatedAt: now,
+      resolvedAt: null,
     })
   }
   const resolve = (): void => {
     const parent = rootOf(openCid() ?? '')
     if (!parent) return
-    const now = new Date()
-    db().update(app.comments, parent.id, {status: 'resolved', resolvedAt: now, updatedAt: now})
+    const now = Date.now()
+    db.comments.update(parent.id, (draft) => {
+      draft.status = 'resolved'
+      draft.resolvedAt = now
+      draft.updatedAt = now
+    })
     closeThread()
   }
   const deleteThread = (): void => {
@@ -274,14 +280,14 @@ export function createCommentsModel(
     if (!parent) return
     comments()
       .filter((comment) => comment.threadId === parent.threadId)
-      .forEach((comment) => db().delete(app.comments, comment.id))
+      .forEach((comment) => db.comments.delete(comment.id))
     const pin = pins().find((row) => row.cid === parent.cid)
-    if (pin) db().delete(app.pins, pin.id)
+    if (pin) db.pins.delete(pin.id)
     closeThread()
   }
   const removeComment = (comment: Comment): void => {
     if (comment.cid === comment.threadId) return deleteThread()
-    db().delete(app.comments, comment.id)
+    db.comments.delete(comment.id)
   }
 
   const toggleInbox = (): void => void setInboxOpen((value) => !value)

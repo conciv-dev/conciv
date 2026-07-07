@@ -27,7 +27,7 @@ function FeedItem(props: {root: Comment}): JSX.Element {
   const model = useComments()
   const unread = (): boolean => model.isUnread(props.root.cid)
   const replies = (): number => model.replyCount(props.root.cid)
-  const activity = (): Date => model.lastActivityAt(props.root.cid) ?? props.root.createdAt
+  const activity = (): number => model.lastActivityAt(props.root.cid) ?? props.root.createdAt
   const select = (): void => {
     model.panToThread(props.root.cid)
     model.openThread(props.root.cid)
@@ -55,7 +55,7 @@ function FeedItem(props: {root: Comment}): JSX.Element {
           <span class={`text-[0.8125rem] truncate ${unread() ? 'font-semibold text-pw-text' : 'text-pw-text-2'}`}>
             {model.displayName(props.root)}
           </span>
-          <RelativeTime value={activity()} class="text-[0.75rem] text-pw-text-3 ml-auto shrink-0" />
+          <RelativeTime value={new Date(activity())} class="text-[0.75rem] text-pw-text-3 ml-auto shrink-0" />
         </div>
         <p class="text-[0.8125rem] text-pw-text-2 truncate">{textOf(props.root)}</p>
         <Show when={replies() > 0}>
@@ -147,7 +147,7 @@ export function Inbox(): JSX.Element {
           </Menu>
           <button
             type="button"
-            class="text-[0.75rem] text-pw-text-2 px-2 rounded-pw-sm inline-flex h-7 [outline:none] items-center hover:bg-pw-fill focus-ring"
+            class="text-[0.75rem] text-pw-text-2 px-2 rounded-pw-sm inline-flex h-7 [outline:none] focus-ring items-center hover:bg-pw-fill"
             onClick={() => model.markAllRead()}
           >
             Mark all as read
