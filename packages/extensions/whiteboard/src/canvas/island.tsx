@@ -308,10 +308,11 @@ export function Island(props: {
                 captureUpdate: CAPTURE_NEVER,
               })
             })
-            if (bufferedScene) {
+            requestAnimationFrame(() => {
+              if (!bufferedScene) return
               applyRemote(bufferedScene)
               bufferedScene = undefined
-            }
+            })
           },
           onChange: (elements: readonly OrderedExcalidrawElement[]) => writeLocal(elements),
         }),
