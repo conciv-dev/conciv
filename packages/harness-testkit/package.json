@@ -23,11 +23,13 @@
     "@hono/node-server": "^2.0.8",
     "@tanstack/ai": "^0.40.0",
     "@tanstack/ai-mcp": "^0.2.3",
-    "hono": "^4.12.0"
+    "hono": "^4.12.0",
+    "ws": "^8.21.0"
   },
   "devDependencies": {
     "@conciv/harness": "workspace:^",
     "@types/node": "^22.19.21",
+    "@types/ws": "^8.18.1",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"
   }

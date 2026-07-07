@@ -1,7 +1,8 @@
 import {expect, test} from 'vitest'
 import {Hono} from 'hono'
-import {serve, upgradeWebSocket} from '@hono/node-server'
-import WebSocket, {WebSocketServer} from 'ws'
+import {upgradeWebSocket} from '@hono/node-server'
+import WebSocket from 'ws'
+import {serveApp} from '@conciv/harness-testkit'
 import {originAllowed} from '../../src/api/cors.js'
 
 test('ws upgrades and echoes; non-loopback origin is rejected', async () => {
@@ -18,12 +19,8 @@ test('ws upgrades and echoes; non-loopback origin is rejected', async () => {
       },
     })),
   )
-  const wss = new WebSocketServer({noServer: true})
-  const server = serve({fetch: app.fetch, port: 0, hostname: '127.0.0.1', websocket: {server: wss}})
-  await new Promise<void>((resolve) => server.once('listening', resolve))
-  const address = server.address()
-  const port = typeof address === 'object' && address !== null ? address.port : 0
-  const wsUrl = `ws://127.0.0.1:${port}/__ws_probe`
+  const served = await serveApp(app.fetch)
+  const wsUrl = `${served.wsBase}/__ws_probe`
   try {
     const echo = await new Promise<string>((resolve, reject) => {
       const client = new WebSocket(wsUrl)
@@ -45,7 +42,6 @@ test('ws upgrades and echoes; non-loopback origin is rejected', async () => {
     })
     expect(rejected).toBe(true)
   } finally {
-    if ('closeAllConnections' in server) server.closeAllConnections()
-    await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
+    await served.close()
   }
 }, 30_000)

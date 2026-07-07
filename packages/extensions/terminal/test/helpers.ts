@@ -1,6 +1,5 @@
 import {Hono} from 'hono'
-import {serve, type ServerType} from '@hono/node-server'
-import {WebSocketServer} from 'ws'
+import {serveApp} from '@conciv/harness-testkit'
 import type {ServerApi, ServerHarness, ServerSessions} from '@conciv/extension'
 import type {TtyCommandOpts} from '@conciv/protocol/terminal-types'
 import terminalExtension from '../src/server.js'
@@ -66,19 +65,14 @@ export async function startTerminalServer(harness: ServerHarness = bashHarness):
   const result = await terminalExtension.__server?.(api)
   if (!(result?.app instanceof Hono)) throw new Error('terminal extension returned no hono app')
   app.route('/api/ext/terminal', result.app)
-  const wss = new WebSocketServer({noServer: true})
-  const server: ServerType = serve({fetch: app.fetch, port: 0, hostname: '127.0.0.1', websocket: {server: wss}})
-  await new Promise<void>((resolve) => server.once('listening', resolve))
-  const address = server.address()
-  const base = `http://127.0.0.1:${typeof address === 'object' && address !== null ? address.port : 0}`
+  const served = await serveApp(app.fetch)
   return {
-    base,
-    wsBase: base.replace('http', 'ws'),
+    base: served.base,
+    wsBase: served.wsBase,
     sessions,
     close: async () => {
       await result?.dispose?.()
-      if ('closeAllConnections' in server) server.closeAllConnections()
-      await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
+      await served.close()
     },
   }
 }

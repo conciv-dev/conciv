@@ -1,8 +1,9 @@
 import {expect, test} from 'vitest'
 import {Hono} from 'hono'
 import {streamSSE} from 'hono/streaming'
-import {serve, upgradeWebSocket} from '@hono/node-server'
-import WebSocket, {WebSocketServer} from 'ws'
+import {upgradeWebSocket} from '@hono/node-server'
+import WebSocket from 'ws'
+import {serveApp} from '@conciv/harness-testkit'
 import {slug} from '../../src/extension-app.js'
 import {corsMiddleware, type CorsVars} from '../../src/api/cors.js'
 
@@ -39,12 +40,8 @@ test('extension sub-app serves GET + SSE + ws under /api/ext/<slug>/; bad origin
     })
     .use(corsMiddleware())
     .route(`/api/ext/${slug('Test Runner')}`, mounted)
-  const wss = new WebSocketServer({noServer: true})
-  const server = serve({fetch: app.fetch, port: 0, hostname: '127.0.0.1', websocket: {server: wss}})
-  await new Promise<void>((resolve) => server.once('listening', resolve))
-  const address = server.address()
-  const port = typeof address === 'object' && address !== null ? address.port : 0
-  const base = `http://127.0.0.1:${port}`
+  const served = await serveApp(app.fetch)
+  const base = served.base
   try {
     expect(await (await fetch(`${base}/api/ext/test-runner/status`)).json()).toEqual({ok: true, label: 'live'})
 
@@ -53,7 +50,7 @@ test('extension sub-app serves GET + SSE + ws under /api/ext/<slug>/; bad origin
     expect(new TextDecoder().decode(frame.value)).toContain('tick')
 
     const echo = await new Promise<string>((resolve, reject) => {
-      const client = new WebSocket(`${base.replace('http', 'ws')}/api/ext/test-runner/ws`)
+      const client = new WebSocket(`${served.wsBase}/api/ext/test-runner/ws`)
       client.on('open', () => client.send('hi'))
       client.on('message', (data) => {
         resolve(String(data))
@@ -66,7 +63,6 @@ test('extension sub-app serves GET + SSE + ws under /api/ext/<slug>/; bad origin
     const forbidden = await fetch(`${base}/api/ext/test-runner/status`, {headers: {origin: 'http://evil.com'}})
     expect(forbidden.status).toBe(403)
   } finally {
-    if ('closeAllConnections' in server) server.closeAllConnections()
-    await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
+    await served.close()
   }
 }, 30_000)

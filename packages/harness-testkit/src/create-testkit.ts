@@ -1,7 +1,7 @@
 import {mkdtempSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {serve, type ServerType} from '@hono/node-server'
+import {serveApp} from './serve-app.js'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import type {StreamChunk} from '@tanstack/ai'
@@ -65,10 +65,8 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp): Testkit {
     setup: async () => {
       const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-kit-'))
       const app = await boot({stateRoot, cwd: stateRoot, harness})
-      const server: ServerType = serve({fetch: app.fetch, port: 0, hostname: '127.0.0.1'})
-      await new Promise<void>((resolvePort) => server.once('listening', resolvePort))
-      const address = server.address()
-      const base = `http://127.0.0.1:${typeof address === 'object' && address !== null ? address.port : 0}`
+      const served = await serveApp(app.fetch)
+      const base = served.base
       const aborts: AbortController[] = []
 
       const post = (path: string, body: unknown, session?: string): Promise<Response> =>
@@ -128,10 +126,7 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp): Testkit {
         cleanup: async () => {
           for (const abort of aborts) abort.abort()
           await app.dispose()
-          if ('closeAllConnections' in server) server.closeAllConnections()
-          await new Promise<void>((resolveClose, rejectClose) =>
-            server.close((error) => (error ? rejectClose(error) : resolveClose())),
-          )
+          await served.close()
           rmSync(stateRoot, {recursive: true, force: true})
         },
       }

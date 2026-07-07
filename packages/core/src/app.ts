@@ -58,6 +58,27 @@ function requireHarness(id: string): HarnessAdapter {
   return found
 }
 
+function narrowExtensionApp(name: string, app: unknown): Hono | null {
+  if (app === undefined) return null
+  if (!(app instanceof Hono)) throw new Error(`extension "${name}" returned a non-hono app`)
+  return app
+}
+
+function buildExtensionTools(extension: AnyExtension, context: unknown) {
+  return (extension.tools ?? []).flatMap((tool) => {
+    const run = tool.__execute
+    if (!run) return []
+    return [
+      {
+        name: tool.name,
+        description: tool.description,
+        inputSchema: tool.inputSchema,
+        execute: (input: unknown, request: ToolRequest) => run(input, context, request),
+      },
+    ]
+  })
+}
+
 export type CoreVars = CorsVars &
   PageVars &
   OpenSourceVars &
@@ -155,26 +176,11 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         sessions: serverSessions,
         harness: serverHarness,
       })
-      if (result?.app !== undefined && !(result.app instanceof Hono)) {
-        throw new Error(`extension "${extension.name}" returned a non-hono app`)
-      }
       const context = result?.context
-      const tools = (extension.tools ?? []).flatMap((tool) => {
-        const run = tool.__execute
-        if (!run) return []
-        return [
-          {
-            name: tool.name,
-            description: tool.description,
-            inputSchema: tool.inputSchema,
-            execute: (input: unknown, request: ToolRequest) => run(input, context, request),
-          },
-        ]
-      })
       return {
         extensionName: extension.name,
-        app: result?.app instanceof Hono ? result.app : null,
-        tools,
+        app: narrowExtensionApp(extension.name, result?.app),
+        tools: buildExtensionTools(extension, context),
         context,
         dispose: result?.dispose,
         turnEnd: result?.turnEnd,
