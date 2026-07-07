@@ -1,5 +1,4 @@
-import {serve} from '@hono/node-server'
-import {WebSocketServer} from 'ws'
+import {serveHono} from '@conciv/serve'
 import getPort from 'get-port'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {AnyExtension} from '@conciv/extension'
@@ -73,17 +72,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
   const {app, disposers, extensionContexts} = await makeApp(appOpts)
 
   const requestedPort = opts.port ?? (await getPort())
-  const wss = new WebSocketServer({noServer: true})
-  const server = serve({
-    fetch: app.fetch,
-    port: requestedPort,
-    hostname: '127.0.0.1',
-    websocket: {server: wss},
-    overrideGlobalObjects: false,
-  })
-  await new Promise<void>((resolve) => server.once('listening', resolve))
-  const address = server.address()
-  const port = typeof address === 'object' && address !== null ? address.port : requestedPort
+  const {port, close} = await serveHono({fetch: app.fetch, port: requestedPort})
   portRef.port = port
   return {
     port,
@@ -91,8 +80,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     extensionContexts,
     stop: async () => {
       await Promise.all(disposers.map((dispose) => dispose()))
-      if ('closeAllConnections' in server) server.closeAllConnections()
-      await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
+      await close()
     },
   }
 }

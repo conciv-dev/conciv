@@ -1,5 +1,5 @@
 import {describe, it, expect, afterEach} from 'vitest'
-import {serve, type ServerType} from '@hono/node-server'
+import {serveApp, type ServedApp} from '@conciv/harness-testkit'
 import {mkdtempSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
@@ -15,7 +15,7 @@ function tmp(): string {
   return d
 }
 
-async function startServer(): Promise<{server: ServerType; base: string}> {
+async function startServer(): Promise<{served: ServedApp; base: string}> {
   const root = tmp()
   const cfg = resolveConfig({}, root)
   const {app} = await makeApp({
@@ -23,27 +23,21 @@ async function startServer(): Promise<{server: ServerType; base: string}> {
     cwd: root,
     openInEditor: () => {},
   })
-  const server = serve({fetch: app.fetch, port: 0, hostname: '127.0.0.1'})
-  await new Promise<void>((resolve) => server.once('listening', resolve))
-  const address = server.address()
-  return {server, base: `http://127.0.0.1:${typeof address === 'object' && address !== null ? address.port : 0}`}
+  const served = await serveApp(app.fetch)
+  return {served, base: served.base}
 }
 
 describe('engine CORS (IT, real http, cross-origin + credentials)', () => {
-  const state = {server: undefined as ServerType | undefined}
+  const state = {served: undefined as ServedApp | undefined}
   afterEach(async () => {
-    const server = state.server
-    if (server) {
-      if ('closeAllConnections' in server) server.closeAllConnections()
-      await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
-    }
-    state.server = undefined
+    await state.served?.close()
+    state.served = undefined
     for (const d of dirs.splice(0)) rmSync(d, {recursive: true, force: true})
   })
 
   it('answers the preflight (OPTIONS) for the probe route with 204 + echoed origin + credentials', async () => {
-    const {server, base} = await startServer()
-    state.server = server
+    const {served, base} = await startServer()
+    state.served = served
     const res = await fetch(`${base}/api/chat/models`, {
       method: 'OPTIONS',
       headers: {
@@ -58,8 +52,8 @@ describe('engine CORS (IT, real http, cross-origin + credentials)', () => {
   })
 
   it('preflight for a session-scoped request allows the conciv-session-id header + DELETE', async () => {
-    const {server, base} = await startServer()
-    state.server = server
+    const {served, base} = await startServer()
+    state.served = served
     const res = await fetch(`${base}/api/chat/session`, {
       method: 'OPTIONS',
       headers: {
@@ -75,8 +69,8 @@ describe('engine CORS (IT, real http, cross-origin + credentials)', () => {
   })
 
   it('echoes CORS headers on the actual probe GET /api/chat/models (never *)', async () => {
-    const {server, base} = await startServer()
-    state.server = server
+    const {served, base} = await startServer()
+    state.served = served
     const res = await fetch(`${base}/api/chat/models`, {headers: {origin: ORIGIN}})
     expect(res.status).toBe(200)
     const allowOrigin = res.headers.get('access-control-allow-origin')
@@ -86,8 +80,8 @@ describe('engine CORS (IT, real http, cross-origin + credentials)', () => {
   })
 
   it('echoes CORS headers on the SSE stream (page/stream), not a wildcard', async () => {
-    const {server, base} = await startServer()
-    state.server = server
+    const {served, base} = await startServer()
+    state.served = served
     const ctrl = new AbortController()
     const res = await fetch(`${base}/api/page/stream`, {headers: {origin: ORIGIN}, signal: ctrl.signal})
     expect(res.headers.get('content-type')).toContain('text/event-stream')
