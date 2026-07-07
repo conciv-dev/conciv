@@ -1,0 +1,49 @@
+{
+  "name": "@conciv/serve",
+  "version": "0.0.7",
+  "description": "conciv's @hono/node-server serve() wrapper — bakes overrideGlobalObjects:false so a co-hosted engine never clobbers the host's global Response/Request.",
+  "keywords": [
+    "conciv",
+    "hono",
+    "server"
+  ],
+  "homepage": "https://conciv.dev",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/serve"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/serve.d.ts",
+      "import": "./dist/serve.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.0.8",
+    "hono": "^4.12.0",
+    "ws": "^8.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.21",
+    "@types/ws": "^8.18.1",
+    "tsdown": "^0.22.2",
+    "typescript": "^6.0.3"
+  }
+}
