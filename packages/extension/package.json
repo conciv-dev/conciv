@@ -54,6 +54,7 @@
     "@conciv/protocol": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
     "@tanstack/ai": "^0.40.0",
+    "hono": "^4.12.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

@@ -20,8 +20,10 @@
   },
   "dependencies": {
     "@conciv/protocol": "workspace:^",
+    "@hono/node-server": "^2.0.8",
     "@tanstack/ai": "^0.40.0",
     "@tanstack/ai-mcp": "^0.2.3",
+    "hono": "^4.12.0",
     "srvx": "^0.11.18"
   },
   "devDependencies": {

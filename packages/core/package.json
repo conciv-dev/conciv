@@ -59,6 +59,8 @@
     "@conciv/harness": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/tools": "workspace:^",
+    "@hono/node-server": "^2.0.8",
+    "@hono/zod-validator": "^0.8.0",
     "@jridgewell/trace-mapping": "0.3.31",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@tanstack/ai": "^0.40.0",
@@ -67,9 +69,11 @@
     "crossws": "0.4.6",
     "get-port": "^7.1.0",
     "h3": "2.0.1-rc.22",
+    "hono": "^4.12.0",
     "srvx": "^0.11.18",
     "ufo": "^1.6.4",
     "unstorage": "^1.17.5",
+    "ws": "^8.21.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
@@ -82,7 +86,6 @@
     "tsdown": "^0.22.2",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.8",
-    "ws": "^8.21.0"
+    "vitest": "^4.1.8"
   }
 }
