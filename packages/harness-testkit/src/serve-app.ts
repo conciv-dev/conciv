@@ -9,7 +9,7 @@ export type ServedApp = {
 
 export async function serveApp(fetch: (request: Request) => Response | Promise<Response>): Promise<ServedApp> {
   const wss = new WebSocketServer({noServer: true})
-  const server = serve({fetch, port: 0, hostname: '127.0.0.1', websocket: {server: wss}})
+  const server = serve({fetch, port: 0, hostname: '127.0.0.1', websocket: {server: wss}, overrideGlobalObjects: false})
   await new Promise<void>((resolve) => server.once('listening', resolve))
   const address = server.address()
   const port = typeof address === 'object' && address !== null ? address.port : 0

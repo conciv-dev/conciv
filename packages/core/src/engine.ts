@@ -74,7 +74,13 @@ export async function start(opts: StartOpts): Promise<Engine> {
 
   const requestedPort = opts.port ?? (await getPort())
   const wss = new WebSocketServer({noServer: true})
-  const server = serve({fetch: app.fetch, port: requestedPort, hostname: '127.0.0.1', websocket: {server: wss}})
+  const server = serve({
+    fetch: app.fetch,
+    port: requestedPort,
+    hostname: '127.0.0.1',
+    websocket: {server: wss},
+    overrideGlobalObjects: false,
+  })
   await new Promise<void>((resolve) => server.once('listening', resolve))
   const address = server.address()
   const port = typeof address === 'object' && address !== null ? address.port : requestedPort
