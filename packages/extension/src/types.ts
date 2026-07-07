@@ -1,9 +1,9 @@
-import type {H3} from 'h3'
+import type {Hono} from 'hono'
 import type {Component, ComponentProps} from 'solid-js'
 import type {DialogApi, PopoverApi} from '@conciv/ui-kit-system'
 import type {z} from 'zod'
 import type {ToolCardProps, ToolViewCtx} from '@conciv/protocol/tool-view-types'
-import type {RequestMeta, SessionClient} from '@conciv/api-client'
+import type {RequestMeta, SessionClient} from '@conciv/protocol/chat-types'
 import type {GrabApi} from '@conciv/grab'
 import type {LocateResult} from '@conciv/protocol/page-introspect-types'
 import type {OpenSourceResult} from '@conciv/protocol/page-types'
@@ -99,7 +99,7 @@ export type ServerHarness = {
 export type ServerApi<Config> = {
   config: Config
   cwd: string
-  app: H3
+  app: Hono
   sessions: ServerSessions
   harness: ServerHarness
 }

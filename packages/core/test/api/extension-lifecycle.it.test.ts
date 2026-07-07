@@ -10,11 +10,11 @@ function toolNamed(name: string) {
 
 test('two extensions mount isolated namespaces; both routes serve and both tools register', async () => {
   const alpha = defineExtension({name: 'alpha', tools: [toolNamed('alpha_do')]}).server((server) => {
-    server.app.get('/where', () => ({who: 'alpha'}))
+    server.app.get('/where', (c) => c.json({who: 'alpha'}))
     return {context: {}}
   })
   const beta = defineExtension({name: 'beta', tools: [toolNamed('beta_do')]}).server((server) => {
-    server.app.get('/where', () => ({who: 'beta'}))
+    server.app.get('/where', (c) => c.json({who: 'beta'}))
     return {context: {}}
   })
   const kit = await bootKit({extensions: [alpha, beta]})
@@ -48,7 +48,7 @@ test('parseConfig applies schema defaults when the user omits config', async () 
     name: 'cfg',
     configSchema: z.object({factor: z.number().default(7)}),
   }).server((server) => {
-    server.app.get('/factor', () => ({factor: server.config.factor}))
+    server.app.get('/factor', (c) => c.json({factor: server.config.factor}))
     return {context: {}}
   })
   const kit = await bootKit({extensions: [ext]})
@@ -62,9 +62,9 @@ test('parseConfig applies schema defaults when the user omits config', async () 
 
 test('server.app serves non-GET verbs with a request body', async () => {
   const ext = defineExtension({name: 'echo'}).server((server) => {
-    server.app.post('/shout', async (event) => {
-      const body = (await event.req.json()) as {text: string}
-      return {shouted: body.text.toUpperCase()}
+    server.app.post('/shout', async (c) => {
+      const body = (await c.req.json()) as {text: string}
+      return c.json({shouted: body.text.toUpperCase()})
     })
     return {context: {}}
   })

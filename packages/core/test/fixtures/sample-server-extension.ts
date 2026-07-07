@@ -16,7 +16,7 @@ export const sampleServerExtension = defineExtension({
   configSchema: sampleConfig,
   tools: [multiply],
 }).server((server) => {
-  server.app.get('/echo', () => ({factor: server.config.factor, cwd: server.cwd}))
+  server.app.get('/echo', (c) => c.json({factor: server.config.factor, cwd: server.cwd}))
   return {
     context: {factor: server.config.factor},
     dispose: () => {

@@ -1,35 +1,37 @@
 import {expect, test} from 'vitest'
-import {H3, defineWebSocketHandler} from 'h3'
-import {serve} from 'srvx'
-import WebSocket from 'ws'
-import {makeExtensionApp} from '../../src/extension-app.js'
-import {attachWebSocket} from '../../src/api/ws.js'
+import {Hono} from 'hono'
+import {streamSSE} from 'hono/streaming'
+import {serve, upgradeWebSocket} from '@hono/node-server'
+import WebSocket, {WebSocketServer} from 'ws'
+import {makeExtensionApp, slug} from '../../src/extension-app.js'
 import {originAllowed} from '../../src/api/cors.js'
-import {sseStream} from '../../src/api/sse.js'
 
 test('extension sub-app serves GET + SSE + ws under /api/ext/<slug>/; bad origin rejected', async () => {
-  const app = new H3()
+  const app = new Hono()
   const guard = (origin: string | null) => originAllowed(origin, new Set())
-  const sub = makeExtensionApp(app, 'Test Runner', guard)
-  sub.get('/status', () => ({ok: true}))
-  sub.get('/stream', (event) =>
-    sseStream(event, 'ok', (emit) => {
-      emit({tick: 1})
-      return () => {}
+  const sub = makeExtensionApp(guard)
+  sub.get('/status', (c) => c.json({ok: true}))
+  sub.get('/stream', (c) =>
+    streamSSE(c, async (stream) => {
+      await stream.writeSSE({data: JSON.stringify({tick: 1})})
+      await new Promise<void>((resolve) => stream.onAbort(resolve))
     }),
   )
   sub.get(
     '/ws',
-    defineWebSocketHandler({
-      message: (peer, message) => {
-        peer.send(`echo:${message.text()}`)
+    upgradeWebSocket(() => ({
+      onMessage(event, ws) {
+        ws.send(`echo:${String(event.data)}`)
       },
-    }),
+    })),
   )
-  const server = serve({fetch: app.fetch, port: 0, hostname: '127.0.0.1'})
-  await server.ready()
-  attachWebSocket(server, app, guard)
-  const base = new URL(server.url ?? '').origin
+  app.route(`/api/ext/${slug('Test Runner')}`, sub)
+  const wss = new WebSocketServer({noServer: true})
+  const server = serve({fetch: app.fetch, port: 0, hostname: '127.0.0.1', websocket: {server: wss}})
+  await new Promise<void>((resolve) => server.once('listening', resolve))
+  const address = server.address()
+  const port = typeof address === 'object' && address !== null ? address.port : 0
+  const base = `http://127.0.0.1:${port}`
   try {
     expect(await (await fetch(`${base}/api/ext/test-runner/status`)).json()).toEqual({ok: true})
 
@@ -51,6 +53,7 @@ test('extension sub-app serves GET + SSE + ws under /api/ext/<slug>/; bad origin
     const forbidden = await fetch(`${base}/api/ext/test-runner/status`, {headers: {origin: 'http://evil.com'}})
     expect(forbidden.status).toBe(403)
   } finally {
-    await server.close(true)
+    if ('closeAllConnections' in server) server.closeAllConnections()
+    await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
   }
 }, 30_000)

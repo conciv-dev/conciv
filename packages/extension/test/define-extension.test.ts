@@ -16,7 +16,7 @@ test('server factory receives api and returns context + dispose', () => {
     inputSchema: z.object({n: z.number()}),
   }).server((input, ctx) => input.n * ctx.factor)
   const ext = defineExtension({name: 'm', tools: [tool]}).server((server) => {
-    server.app.get('/ping', () => ({ok: true}))
+    server.app.get('/ping', (c) => c.json({ok: true}))
     return {context: {factor: 10}, dispose: () => {}}
   })
   expect(ext.__server).toBeTypeOf('function')
