@@ -16,13 +16,13 @@ import {
   type ElementRow,
 } from '../shared/rows.js'
 
+const jsonHeaders = (init?: RequestInit): HeadersInit | undefined =>
+  init?.body ? {'content-type': 'application/json'} : undefined
+
 const request = async (input: string, init?: RequestInit): Promise<Response> => {
-  const response = await fetch(input, {
-    ...init,
-    headers: init?.body ? {'content-type': 'application/json'} : undefined,
-  })
-  if (!response.ok && response.status !== 409) throw new Error(`whiteboard api ${response.status}: ${input}`)
-  return response
+  const response = await fetch(input, {...init, headers: jsonHeaders(init)})
+  if (response.ok || response.status === 409) return response
+  throw new Error(`whiteboard api ${response.status}: ${input}`)
 }
 
 const accountId = (): string => {

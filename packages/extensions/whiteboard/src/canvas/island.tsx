@@ -192,12 +192,19 @@ export function Island(props: {
     return btoa(binary)
   }
 
-  const gatherExportElements = async (scope: 'live' | 'draft' | 'both'): Promise<SceneElement[]> => {
-    const live = scope === 'draft' ? [] : (api?.getSceneElements() ?? [])
-    if (scope !== 'live') await db.canvasDraftElements.preload()
-    const draftRows = scope === 'live' ? [] : [...db.canvasDraftElements.state.values()]
-    return [...live, ...draftRows.map((draft) => asScene(draft.data))]
+  const liveExportElements = (scope: 'live' | 'draft' | 'both'): readonly SceneElement[] =>
+    scope === 'draft' ? [] : (api?.getSceneElements() ?? [])
+
+  const draftExportElements = async (scope: 'live' | 'draft' | 'both'): Promise<SceneElement[]> => {
+    if (scope === 'live') return []
+    await db.canvasDraftElements.preload()
+    return [...db.canvasDraftElements.state.values()].map((draft) => asScene(draft.data))
   }
+
+  const gatherExportElements = async (scope: 'live' | 'draft' | 'both'): Promise<SceneElement[]> => [
+    ...liveExportElements(scope),
+    ...(await draftExportElements(scope)),
+  ]
 
   const exportReply = async (scope: 'live' | 'draft' | 'both'): Promise<JsonValue> => {
     const elements = await gatherExportElements(scope)
