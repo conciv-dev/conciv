@@ -104,7 +104,10 @@ export async function buildSessionList(args: {
   return [...ours, ...unwrapped].toSorted((a, b) => b.updatedAt - a.updatedAt)
 }
 
-function nameFor(deps: {cwd: string; harness: HarnessAdapter; claudeHome?: string}, token: string | null): string | null {
+function nameFor(
+  deps: {cwd: string; harness: HarnessAdapter; claudeHome?: string},
+  token: string | null,
+): string | null {
   const hist = deps.harness.history
   if (!token || !hist?.nameFromTranscript) return null
   const raw = readFileOrEmpty(hist.transcriptPath(deps.cwd, token, deps.claudeHome))

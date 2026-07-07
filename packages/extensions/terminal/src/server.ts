@@ -65,7 +65,12 @@ async function resolveHarnessSession(
   return {harnessSessionId, resume}
 }
 
-async function openTtySession(runtime: TerminalRuntime, sessionId: string, size: TerminalOpenRequest, origin: string): Promise<void> {
+async function openTtySession(
+  runtime: TerminalRuntime,
+  sessionId: string,
+  size: TerminalOpenRequest,
+  origin: string,
+): Promise<void> {
   const {server, tty} = runtime
   const ttyCommand = server.harness.ttyCommand
   if (!ttyCommand) throw new HTTPException(400, {message: `harness "${server.harness.id}" has no terminal mode`})

@@ -5,13 +5,7 @@ import {hc} from 'hono/client'
 import type {InferResponseType} from 'hono/client'
 import type {AppType} from '@conciv/core'
 import type {z} from 'zod'
-import {
-  SessionId,
-  ChatSessionSchema,
-  ChatSessionsSchema,
-  ChatModelsSchema,
-  OkSchema,
-} from '@conciv/protocol/chat-types'
+import {SessionId, ChatSessionSchema, ChatSessionsSchema, ChatModelsSchema, OkSchema} from '@conciv/protocol/chat-types'
 import {defineClient} from '../src/api-client.js'
 
 let server: Server

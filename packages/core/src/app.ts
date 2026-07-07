@@ -62,9 +62,7 @@ export type CoreVars = CorsVars &
   PageVars &
   OpenSourceVars &
   EditorVars &
-  ToolsVars &
-  {chat: ChatRuntime} &
-  McpVars &
+  ToolsVars & {chat: ChatRuntime} & McpVars &
   BundlerVars
 
 function composeRoutes(vars: CoreVars) {

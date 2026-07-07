@@ -53,16 +53,11 @@ export function makePermissionGate(uiBus: UiBus, options: PermissionGateOptions 
   return {decide, resolve: pending.resolve}
 }
 
-const app = new Hono<ChatEnv>().post(
-  '/permission-decision',
-  zValidator('json', DecisionBodySchema),
-  (c) => {
-    const decision = c.req.valid('json')
-    if (decision.approvalId) c.var.chat.gate.resolve(decision.approvalId, decision.approved)
-    const payload: Ok = {ok: true}
-    return c.json(payload)
-  },
-)
+const app = new Hono<ChatEnv>().post('/permission-decision', zValidator('json', DecisionBodySchema), (c) => {
+  const decision = c.req.valid('json')
+  if (decision.approvalId) c.var.chat.gate.resolve(decision.approvalId, decision.approved)
+  const payload: Ok = {ok: true}
+  return c.json(payload)
+})
 
 export default app
-

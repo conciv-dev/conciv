@@ -11,32 +11,28 @@ import {ChatLaunchRequestSchema, type ChatLaunch} from '@conciv/protocol/chat-ty
 import type {ChatEnv} from './chat-env.js'
 import {sessionIdFromHeaders} from './session-id.js'
 
-const app = new Hono<ChatEnv>().post(
-  '/launch',
-  zValidator('json', ChatLaunchRequestSchema),
-  async (c) => {
-    const deps = c.var.chat
-    if (!deps.harness.launch) {
-      const payload: ChatLaunch = {supported: false, opened: false, command: null}
-      return c.json(payload)
-    }
-    const {model} = c.req.valid('json')
-    const sessionId = sessionIdFromHeaders(c.req.raw.headers)
-    const token = sessionId ? ((await deps.store.get(sessionId))?.harnessSessionId ?? null) : null
-    const origin = `http://${c.req.header('host') ?? '127.0.0.1:3000'}`
-    const ctx: HarnessLaunchContext = {
-      cwd: deps.cwd,
-      sessionId: token || null,
-      model: model ?? null,
-      mcpUrl: deps.harness.capabilities.mcp === 'http' ? `${origin}/api/mcp` : null,
-      openTerminal: (argv) => openTerminal(argv, deps.cwd),
-      openUrl: (url) => openUrl(url),
-    }
-    const result = await deps.harness.launch(ctx)
-    const payload: ChatLaunch = {supported: true, opened: result.opened, command: result.command}
+const app = new Hono<ChatEnv>().post('/launch', zValidator('json', ChatLaunchRequestSchema), async (c) => {
+  const deps = c.var.chat
+  if (!deps.harness.launch) {
+    const payload: ChatLaunch = {supported: false, opened: false, command: null}
     return c.json(payload)
-  },
-)
+  }
+  const {model} = c.req.valid('json')
+  const sessionId = sessionIdFromHeaders(c.req.raw.headers)
+  const token = sessionId ? ((await deps.store.get(sessionId))?.harnessSessionId ?? null) : null
+  const origin = `http://${c.req.header('host') ?? '127.0.0.1:3000'}`
+  const ctx: HarnessLaunchContext = {
+    cwd: deps.cwd,
+    sessionId: token || null,
+    model: model ?? null,
+    mcpUrl: deps.harness.capabilities.mcp === 'http' ? `${origin}/api/mcp` : null,
+    openTerminal: (argv) => openTerminal(argv, deps.cwd),
+    openUrl: (url) => openUrl(url),
+  }
+  const result = await deps.harness.launch(ctx)
+  const payload: ChatLaunch = {supported: true, opened: result.opened, command: result.command}
+  return c.json(payload)
+})
 
 export default app
 
