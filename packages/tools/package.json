@@ -43,7 +43,7 @@
   "dependencies": {
     "@conciv/extension": "workspace:^",
     "@conciv/protocol": "workspace:^",
-    "@tanstack/ai": "^0.28.0",
+    "@tanstack/ai": "^0.40.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

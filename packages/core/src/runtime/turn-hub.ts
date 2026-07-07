@@ -54,11 +54,18 @@ type SessionRun = {
   userMessage: UIMessage | null
   generating: boolean
   stopped: boolean
+  abort: (() => void) | null
   subscribers: Set<Subscriber>
+  token: object
 }
 
 export type TurnHub = {
-  start: (sessionId: string, userMessage: UIMessage | null, stream: AsyncIterable<StreamChunk>) => Promise<void>
+  start: (
+    sessionId: string,
+    userMessage: UIMessage | null,
+    stream: AsyncIterable<StreamChunk>,
+    abort?: () => void,
+  ) => Promise<void>
   generating: (sessionId: string) => boolean
   pendingUserMessage: (sessionId: string) => UIMessage | null
   markStopped: (sessionId: string) => void
@@ -77,7 +84,9 @@ export function makeTurnHub(): TurnHub {
       userMessage: null,
       generating: false,
       stopped: false,
+      abort: null,
       subscribers: new Set(),
+      token: {},
     }
     sessions.set(sessionId, created)
     return created
@@ -90,33 +99,58 @@ export function makeTurnHub(): TurnHub {
     sessions.delete(sessionId)
   }
 
-  async function start(
-    sessionId: string,
-    userMessage: UIMessage | null,
-    stream: AsyncIterable<StreamChunk>,
-  ): Promise<void> {
-    const session = sessionFor(sessionId)
+  function beginRun(session: SessionRun, userMessage: UIMessage | null, abort?: () => void): object {
+    const token = {}
+    session.token = token
     session.view.reset()
     session.userMessage = userMessage
     session.generating = true
     session.stopped = false
+    session.abort = abort ?? null
+    return token
+  }
+
+  function settleRun(session: SessionRun, token: object): void {
+    if (session.token !== token) return
+    session.userMessage = null
+    session.generating = false
+    session.stopped = false
+    session.abort = null
+  }
+
+  function relay(session: SessionRun, token: object, chunk: StreamChunk): void {
+    session.view.record(chunk)
+    const terminal = chunk.type === EventType.RUN_FINISHED || chunk.type === EventType.RUN_ERROR
+    if (terminal) settleRun(session, token)
+    for (const subscriber of session.subscribers) subscriber.push(chunk)
+    if (terminal && session.token === token) session.view.reset()
+  }
+
+  function relayFailure(session: SessionRun, token: object, error: unknown): void {
+    const message = session.stopped ? 'stopped' : errorMessage(error)
+    const runError = {type: EventType.RUN_ERROR, message} as StreamChunk
+    session.view.record(runError)
+    settleRun(session, token)
+    for (const subscriber of session.subscribers) subscriber.push(runError)
+  }
+
+  async function start(
+    sessionId: string,
+    userMessage: UIMessage | null,
+    stream: AsyncIterable<StreamChunk>,
+    abort?: () => void,
+  ): Promise<void> {
+    const session = sessionFor(sessionId)
+    const token = beginRun(session, userMessage, abort)
     let failed = false
     try {
-      for await (const chunk of stream) {
-        session.view.record(chunk)
-        for (const subscriber of session.subscribers) subscriber.push(chunk)
-      }
+      for await (const chunk of stream) relay(session, token, chunk)
     } catch (error) {
       failed = true
-      const message = session.stopped ? 'stopped' : errorMessage(error)
-      const runError = {type: EventType.RUN_ERROR, message} as StreamChunk
-      session.view.record(runError)
-      for (const subscriber of session.subscribers) subscriber.push(runError)
+      relayFailure(session, token, error)
     } finally {
-      session.userMessage = null
-      session.generating = false
-      session.stopped = false
-      if (!failed) {
+      settleRun(session, token)
+      if (!failed && session.token === token) {
         session.view.reset()
         releaseIfIdle(sessionId, session)
       }
@@ -139,7 +173,9 @@ export function makeTurnHub(): TurnHub {
 
   function markStopped(sessionId: string): void {
     const session = sessions.get(sessionId)
-    if (session?.generating) session.stopped = true
+    if (!session?.generating) return
+    session.stopped = true
+    session.abort?.()
   }
 
   return {

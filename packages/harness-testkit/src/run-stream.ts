@@ -58,7 +58,8 @@ export function makeRunStream(source: AsyncIterable<StreamChunk>): RunStream {
     while (true) {
       const found = seen.find(match)
       if (found !== undefined) return found
-      if (seen.slice(liveStart).some(isTerminal)) throw new Error('run-stream: run finished without a matching event')
+      if (seen.slice(liveStart).some(isTerminal))
+        throw new Error(`run-stream: run finished without a matching event (seen: ${summarize(seen)})`)
       if (collector.ended) throw new Error(endMessage('run-stream: source ended without a matching event'))
       if (performance.now() > deadline)
         throw new Error(`run-stream: stall - no matching event within ${hangGuardMs}ms (seen: ${summarize(seen)})`)

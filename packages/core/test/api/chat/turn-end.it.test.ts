@@ -2,7 +2,6 @@ import {describe, expect, it} from 'vitest'
 import {defineExtension} from '@conciv/extension'
 import {createTestkit, until} from '@conciv/harness-testkit'
 import {bootCoreApp} from '../../helpers/boot.js'
-import {fakeClaudeSpawn} from '../../helpers/fake-claude.js'
 import {runTurn} from '../../helpers/turns.js'
 import {requireClaude} from '../../helpers/adapters.js'
 
@@ -15,7 +14,7 @@ describe('extension turn-end hook', () => {
       context: {},
       turnEnd: (sessionId: string) => void seen.push(sessionId),
     }))
-    const kit = await createTestkit(claude, bootCoreApp({spawn: fakeClaudeSpawn(), extensions: [probe]})).setup()
+    const kit = await createTestkit(claude, bootCoreApp({fakeClaude: {}, extensions: [probe]})).setup()
     try {
       const sessionId = await kit.session()
       await runTurn(kit, 'hi', sessionId)

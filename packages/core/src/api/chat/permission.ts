@@ -4,7 +4,6 @@ import {z} from 'zod'
 import {classifyCommand} from '../../policy/command-policy.js'
 import type {UiBus} from '../../runtime/ui-bus.js'
 import {makePending} from '../../pending.js'
-import {sessionIdFromHeaders} from './session-id.js'
 
 const APPROVAL_TIMEOUT_MS = 120_000
 
@@ -48,24 +47,7 @@ export function makePermissionGate(uiBus: UiBus, options: PermissionGateOptions 
   return {decide, resolve: pending.resolve}
 }
 
-export function registerPermissionRoutes(app: H3, gate: PermissionGate, gated: boolean): void {
-  app.post('/api/chat/permission', async (event) => {
-    const parsed = await readValidatedBody(event, HookBodySchema.safeParse)
-    const toolName = parsed.success ? parsed.data.tool_name : ''
-    const toolInput = parsed.success ? parsed.data.tool_input : undefined
-
-    const toolUseId = parsed.success ? parsed.data.tool_use_id : ''
-    const sessionId = sessionIdFromHeaders(event.req.headers) ?? ''
-    const decision = gated ? await gate.decide(toolName, toolInput, sessionId, toolUseId) : 'allow'
-    return {
-      hookSpecificOutput: {
-        hookEventName: 'PreToolUse',
-        permissionDecision: decision,
-        permissionDecisionReason: decision === 'allow' ? 'approved' : 'denied by the user (conciv chat gate)',
-      },
-    }
-  })
-
+export function registerPermissionRoutes(app: H3, gate: PermissionGate): void {
   app.post('/api/chat/permission-decision', async (event) => {
     const parsed = await readValidatedBody(event, DecisionBodySchema.safeParse)
     if (parsed.success && parsed.data.approvalId) gate.resolve(parsed.data.approvalId, parsed.data.approved)
@@ -73,10 +55,5 @@ export function registerPermissionRoutes(app: H3, gate: PermissionGate, gated: b
   })
 }
 
-const HookBodySchema = z.object({
-  tool_name: z.string().default(''),
-  tool_input: z.unknown().optional(),
-  tool_use_id: z.string().default(''),
-})
 const DecisionBodySchema = z.object({approvalId: z.string().optional(), approved: z.boolean().default(false)})
 const BashInputSchema = z.object({command: z.string()})

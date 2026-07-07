@@ -1,5 +1,6 @@
 import {describe, it, expect, afterEach} from 'vitest'
 import {defineHarness} from '@conciv/protocol/harness-types'
+import {makeTextAdapter} from '@conciv/harness'
 import {ChatCommandsSchema, ChatToolsSchema} from '@conciv/protocol/chat-types'
 import type {Kit} from '@conciv/harness-testkit'
 import {bootKit} from '../../helpers/boot.js'
@@ -7,8 +8,7 @@ import {bootKit} from '../../helpers/boot.js'
 const liveHarness = defineHarness({
   id: 'commands-live-test',
   binName: 'true',
-  buildArgs: () => [],
-  async *decode() {},
+  chatConfig: () => ({adapter: makeTextAdapter('commands-test', async function* () {})}),
   capabilities: {
     resume: false,
     permissionGate: 'none',
@@ -30,8 +30,7 @@ const liveHarness = defineHarness({
 const noneHarness = defineHarness({
   id: 'commands-none-test',
   binName: 'true',
-  buildArgs: () => [],
-  async *decode() {},
+  chatConfig: () => ({adapter: makeTextAdapter('commands-test', async function* () {})}),
   capabilities: {
     resume: false,
     permissionGate: 'none',

@@ -1,5 +1,6 @@
 import {randomUUID} from 'node:crypto'
 import type {H3} from 'h3'
+import type {AnyTool} from '@tanstack/ai'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import type {SessionRecord} from '@conciv/protocol/chat-types'
 import type {UiBus} from '../../runtime/ui-bus.js'
@@ -8,18 +9,15 @@ import {registerLaunchRoutes} from './launch.js'
 import {makePermissionGate, registerPermissionRoutes} from './permission.js'
 import {readLocks} from '../../store/lock.js'
 import {registerSessionRoutes, sweepEmptyChatRecords, type ResolveDeps} from './session.js'
-import {registerTurnRoutes, type SpawnHarness} from './turn.js'
+import {registerTurnRoutes} from './turn.js'
 import {registerAttachRoute} from './attach.js'
 import {makeTurnHub} from '../../runtime/turn-hub.js'
-
-export type {SpawnHarness} from './turn.js'
 
 export type ChatRouteOpts = {
   cwd: string
   stateRoot: string
   initialSessionId: string
   harness: HarnessAdapter
-  spawnHarness: SpawnHarness
   harnessEnv?: (sessionId?: string) => NodeJS.ProcessEnv
   systemPromptFile?: string
   systemPromptText?: string
@@ -27,6 +25,7 @@ export type ChatRouteOpts = {
   uiBus: UiBus
   riskyTools?: ReadonlySet<string>
   store: SessionStore
+  tools: (sessionId: string) => AnyTool[]
   onTurnStart?: (sessionId: string) => void
   onTurnEnd?: (sessionId: string) => Promise<void>
 }
@@ -59,7 +58,7 @@ export function registerChatRoutes(app: H3, opts: ChatRouteOpts): void {
 
   void sweepEmptyChatRecords(store, new Set(readLocks(opts.stateRoot).map((l) => l.key))).catch(() => {})
 
-  registerPermissionRoutes(app, gate, opts.harness.capabilities.permissionGate === 'hook')
+  registerPermissionRoutes(app, gate)
   registerSessionRoutes(app, {
     cwd: opts.cwd,
     stateRoot: opts.stateRoot,
@@ -73,16 +72,17 @@ export function registerChatRoutes(app: H3, opts: ChatRouteOpts): void {
     cwd: opts.cwd,
     stateRoot: opts.stateRoot,
     harness: opts.harness,
-    spawnHarness: opts.spawnHarness,
     harnessEnv: opts.harnessEnv,
+    claudeHome: opts.claudeHome,
     gate,
     systemPromptFile: opts.systemPromptFile,
     systemPromptText: opts.systemPromptText,
     uiBus,
     store,
+    tools: opts.tools,
     onTurnStart: opts.onTurnStart,
     onTurnEnd: opts.onTurnEnd,
     hub,
   })
-  registerAttachRoute(app, {cwd: opts.cwd, harness: opts.harness, store, hub})
+  registerAttachRoute(app, {cwd: opts.cwd, harness: opts.harness, store, hub, claudeHome: opts.claudeHome})
 }

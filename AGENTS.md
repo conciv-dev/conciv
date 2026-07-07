@@ -33,8 +33,8 @@ README.md; this file is the non-obvious operational rules.
 
 ## Code style
 
-- Functions, not classes. (Sole exception: the `BaseTextAdapter` subclass in
-  `packages/harness/src/_shared/text-adapter.ts`, which the library's typing forces.)
+- Functions, not classes. (Sole exception: the `BaseTextAdapter` subclass behind `makeTextAdapter`
+  in `packages/harness/src/_shared/text-adapter.ts`, which the library's typing forces.)
 - No IIFEs unless explicitly required.
 - Zero code comments in TS/JS (only tool directives like `@ts-`/`eslint-` survive). The
   `conciv/no-comments` lint rule autofix-DELETES anything else — don't write comments and let lint
@@ -97,9 +97,16 @@ README.md; this file is the non-obvious operational rules.
 
 ## Harness & runner adapters
 
+- A harness is `chatConfig(deps)` returning a published `@tanstack/ai-*` text adapter (+ optional
+  `modelOptions`/`prepareMessages`) plus sidecars (`models`, `history`, `launch`, `tty`, `commands`).
+  Turns run through `chat()` with the conciv sandbox + permission-gate middleware; never spawn or
+  decode a CLI yourself, and never special-case a CLI in core/widget.
 - `HarnessAdapter` is capability-typed (`packages/protocol/src/harness-types.ts`): `transcriptHistory:
-true` ⇒ `history` required; `compaction: true` ⇒ `buildCompactArgs` required — enforced at compile
-  time. Add a harness by satisfying the capability contract; never special-case a CLI in core/widget.
+true` ⇒ `history` required; `slashCommands` ≠ `'none'` ⇒ `commands` required — enforced at compile
+  time. Add a harness by satisfying the capability contract.
+- Harness workdirs are sandbox-virtual: the local-process sandbox root IS the cwd and adapters
+  default to `/workspace`. Never pass a host-absolute cwd into an adapter config — it nests a junk
+  `Users/...` tree inside the workspace and runs the CLI there.
 - Test runners follow the same registry/stub pattern.
 
 ## Extension landmines

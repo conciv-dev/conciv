@@ -4,6 +4,5 @@ export default defineConfig({
   test: {
     include: ['test/**/*.test.ts'],
     exclude: ['test/fixtures/**', 'node_modules/**', 'dist/**'],
-    env: {CONCIV_CLAUDE_CLI: '1'},
   },
 })

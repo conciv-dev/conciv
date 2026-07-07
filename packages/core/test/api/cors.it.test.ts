@@ -22,9 +22,6 @@ async function startServer(): Promise<{server: Server; base: string}> {
     cfg,
     cwd: root,
     openInEditor: () => {},
-    spawnHarness: () => {
-      throw new Error('spawnHarness must not be called by these read-only CORS probes')
-    },
   })
   const server = serve({fetch: app.fetch, port: 0, hostname: '127.0.0.1'})
   await server.ready()

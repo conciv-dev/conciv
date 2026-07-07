@@ -51,7 +51,7 @@
     "@conciv/ui-kit-chat-tools": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
     "@conciv/ui-kit-terminal": "workspace:^",
-    "@tanstack/ai-client": "^0.16.3",
+    "@tanstack/ai-client": "^0.20.0",
     "h3": "2.0.1-rc.22",
     "lucide-solid": "^1.18.0",
     "node-pty": "^1.1.0",

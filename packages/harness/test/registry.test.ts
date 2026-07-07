@@ -1,6 +1,7 @@
 import {describe, it, expect} from 'vitest'
 import {defineHarness, type HarnessAdapter} from '@conciv/protocol/harness-types'
 import {registerHarness, getHarness, listHarnesses} from '../src/registry.js'
+import {makeTextAdapter} from '../src/_shared/text-adapter.js'
 
 function stub(id: string): HarnessAdapter {
   return defineHarness({
@@ -16,9 +17,7 @@ function stub(id: string): HarnessAdapter {
       slashCommands: 'none',
       imageInput: false,
     },
-    buildArgs: () => [],
-    // eslint-disable-next-line require-yield
-    async *decode() {},
+    chatConfig: () => ({adapter: makeTextAdapter(id, async function* () {})}),
   })
 }
 

@@ -6,7 +6,6 @@ import {EventType} from '@tanstack/ai'
 import {createTestkit, until, type Kit, type RunStream} from '@conciv/harness-testkit'
 import {readLock, releaseLock} from '../../../src/store/lock.js'
 import {bootCoreApp} from '../../helpers/boot.js'
-import {fakeClaudeSpawn} from '../../helpers/fake-claude.js'
 import {requireClaude} from '../../helpers/adapters.js'
 
 const claude = requireClaude()
@@ -37,7 +36,7 @@ describe('detached turns (IT)', () => {
   })
 
   async function setup(env: NodeJS.ProcessEnv = {}): Promise<Kit> {
-    const kit = await createTestkit(claude, bootCoreApp({spawn: fakeClaudeSpawn(env)})).setup()
+    const kit = await createTestkit(claude, bootCoreApp({fakeClaude: {env: () => env}})).setup()
     state.kit = kit
     return kit
   }
@@ -137,18 +136,38 @@ describe('detached turns (IT)', () => {
     expect(events.runs()).toBe(1)
   })
 
-  it('a deliberate stop ends the turn with a clean terminal chunk, not a RUN_ERROR banner', async () => {
-    const kit = await setupHang()
-    const id = await kit.session()
-    const stream = await kit.attach(id)
-    await kit.post('/api/chat', {messages: [turn('hang around')]}, id)
-    await stream.waitFor((c) => c.type === EventType.RUN_STARTED, {hangGuardMs: 5000})
-    await kit.post('/api/chat/stop', {}, id)
-    const events = await stream.done({hangGuardMs: 8000})
-    expect(events.runs()).toBe(1)
-    expect(events.errors()).toEqual([])
-    expect(events.text()).not.toContain('143')
-  })
+  it(
+    'a deliberate stop ends the turn with a clean terminal chunk, not a RUN_ERROR banner',
+    {timeout: 15_000},
+    async () => {
+      const kit = await setupHang()
+      const id = await kit.session()
+      const stream = await kit.attach(id)
+      await kit.post('/api/chat', {messages: [turn('hang around')]}, id)
+      await stream.waitFor((c) => c.type === EventType.RUN_STARTED, {hangGuardMs: 5000})
+      await kit.post('/api/chat/stop', {}, id)
+      const events = await stream.done({hangGuardMs: 8000})
+      expect(events.runs()).toBe(1)
+      expect(events.errors()).toEqual([])
+      expect(events.text()).not.toContain('143')
+    },
+  )
+
+  it(
+    'a stop still ends the turn when the harness child ignores the kill (bounded stop grace)',
+    {timeout: 20_000},
+    async () => {
+      const kit = await setup({CONCIV_FAKE_HANG: '1', CONCIV_FAKE_IGNORE_TERM: '1'})
+      const id = await kit.session()
+      const stream = await kit.attach(id)
+      await kit.post('/api/chat', {messages: [turn('hang forever')]}, id)
+      await stream.waitFor((c) => c.type === EventType.RUN_STARTED, {hangGuardMs: 5000})
+      await kit.post('/api/chat/stop', {}, id)
+      const events = await stream.done({hangGuardMs: 10_000})
+      expect(events.runs()).toBe(1)
+      expect(events.errors()).toEqual([])
+    },
+  )
 
   it('attach on an idle session emits a snapshot with generating:false', async () => {
     const kit = await setupSlow(join(tmp(), 'never'))

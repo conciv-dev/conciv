@@ -1,12 +1,27 @@
 import {describe, it, expect} from 'vitest'
+import type {AnyTextAdapter} from '@tanstack/ai'
 import {defineHarness} from '../src/harness-types.js'
+
+const fakeAdapter: AnyTextAdapter = {
+  kind: 'text',
+  name: 'fake',
+  model: 'fake',
+  '~types': {
+    providerOptions: {},
+    inputModalities: ['text'],
+    messageMetadataByModality: {text: undefined, image: undefined, audio: undefined, video: undefined, document: undefined},
+    toolCapabilities: [],
+    toolCallMetadata: undefined,
+    systemPromptMetadata: undefined,
+  },
+  chatStream: async function* () {},
+  structuredOutput: () => Promise.reject(new Error('fake adapter')),
+}
 
 const base = {
   id: 'x',
   binName: 'x',
-  buildArgs: () => [],
-
-  decode: async function* () {},
+  chatConfig: () => ({adapter: fakeAdapter}),
 }
 
 describe('defineHarness (generic typed factory; history↔transcriptHistory enforced by the type)', () => {

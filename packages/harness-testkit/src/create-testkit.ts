@@ -1,28 +1,14 @@
-import {spawn} from 'node:child_process'
 import {mkdtempSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {serve, type Server} from 'srvx'
-import type {HarnessAdapter, HarnessChild} from '@conciv/protocol/harness-types'
+import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import type {StreamChunk} from '@tanstack/ai'
 import {makeRunStream, type RunStream} from './run-stream.js'
 import {makeCallTool} from './call-tool.js'
 import {resolveSession} from './session.js'
 import type {TestHarness} from './create-test-harness.js'
-
-function realSpawn(bin: string): (args: string[], cwd: string) => HarnessChild {
-  return (args, cwd) => {
-    const child = spawn(bin, args, {cwd, stdio: ['pipe', 'pipe', 'pipe']})
-    const {stdin, stdout, stderr} = child
-    if (!stdin || !stdout || !stderr) throw new Error(`harness "${bin}" did not expose stdio pipes`)
-    return {pid: child.pid ?? -1, stdin, stdout, stderr, kill: () => void child.kill('SIGTERM')}
-  }
-}
-
-function neverSpawn(): HarnessChild {
-  throw new Error('createTestkit: a scripted harness must not spawn a process')
-}
 
 function isTestHarness(harness: HarnessAdapter): harness is TestHarness {
   return '__scripted' in harness
@@ -51,7 +37,6 @@ export type BootEnv = {
   stateRoot: string
   cwd: string
   harness: HarnessAdapter
-  spawnHarness: (args: string[], cwd: string, sessionId?: string) => HarnessChild
 }
 export type BootedApp = {
   fetch: (request: Request) => Response | Promise<Response>
@@ -79,8 +64,7 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp): Testkit {
   return {
     setup: async () => {
       const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-kit-'))
-      const spawnHarness = isTestHarness(harness) ? neverSpawn : realSpawn(harness.binName)
-      const app = await boot({stateRoot, cwd: stateRoot, harness, spawnHarness})
+      const app = await boot({stateRoot, cwd: stateRoot, harness})
       const server: Server = serve({fetch: app.fetch, port: 0, hostname: '127.0.0.1'})
       await server.ready()
       const base = new URL(server.url ?? '').origin

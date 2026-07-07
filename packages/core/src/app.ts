@@ -1,7 +1,7 @@
 import {existsSync} from 'node:fs'
 import {readFile} from 'node:fs/promises'
 import {H3} from 'h3'
-import type {HarnessAdapter, HarnessChild} from '@conciv/protocol/harness-types'
+import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {AnyExtension, ServerHarness, ServerSessions, ToolRequest} from '@conciv/extension'
 import type {ResolvedConcivConfig} from './config.js'
@@ -11,6 +11,7 @@ import {originAllowed, registerCors} from './api/cors.js'
 import {concivTools, type ConcivToolContext} from '@conciv/tools'
 import type {ChatTool} from '@conciv/protocol/chat-types'
 import {registerChatRoutes} from './api/chat/chat.js'
+import {buildChatTools} from './api/chat/chat-tools.js'
 import {ensureChatRecord, recordMintedToken, resumeTokenFor} from './api/chat/turn.js'
 import {readLock} from './store/lock.js'
 import {createFsSessionStore} from './store/session-store.js'
@@ -37,7 +38,6 @@ export type MakeAppOpts = {
   extensions?: AnyExtension[]
 
   extensionConfig?: Record<string, unknown>
-  spawnHarness: (args: string[], cwd: string, sessionId?: string) => HarnessChild
   harnessEnv?: (sessionId?: string) => NodeJS.ProcessEnv
 
   claudeHome?: string
@@ -90,11 +90,12 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const serverHarness: ServerHarness = {
     id: harness.id,
     ttyCommand: harness.tty?.command,
-    release: harness.release,
-    transcriptExists: history ? (token) => existsSync(history.transcriptPath(opts.cwd, token)) : undefined,
+    transcriptExists: history
+      ? (token) => existsSync(history.transcriptPath(opts.cwd, token, opts.claudeHome))
+      : undefined,
     transcriptMessages: history
       ? async (token) => {
-          const raw = await readFile(history.transcriptPath(opts.cwd, token), 'utf8').catch(() => '')
+          const raw = await readFile(history.transcriptPath(opts.cwd, token, opts.claudeHome), 'utf8').catch(() => '')
           return raw ? history.parse(raw) : []
         }
       : undefined,
@@ -144,12 +145,18 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       if (outcome.status === 'rejected') logError(`[core] turn-end hook failed: ${String(outcome.reason)}`)
     })
   }
+  const makeToolCtx = (sessionId: string): ConcivToolContext => ({
+    injectUi: (spec) => uiBus.inject(sessionId, spec),
+    page: (query) => page.ask(query),
+    open: (file, line) => opts.openInEditor(file, line),
+  })
+  const sessionModel = (sessionId: string): string | null => uiBus.getModel(sessionId)
+
   registerChatRoutes(app, {
     cwd: opts.cwd,
     stateRoot: opts.cfg.stateRoot,
     initialSessionId: opts.cfg.sessionId,
     harness,
-    spawnHarness: opts.spawnHarness,
     harnessEnv: opts.harnessEnv,
     systemPromptFile: opts.systemPromptFile,
     systemPromptText: opts.systemPromptText ?? opts.cfg.systemPrompt,
@@ -157,17 +164,12 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     uiBus,
     riskyTools,
     store,
+    tools: buildChatTools(makeToolCtx, extensionTools, sessionModel),
     onTurnStart: (sessionId) => chatTurnListeners.forEach((listener) => listener(sessionId)),
     onTurnEnd,
   })
 
-  const makeToolCtx = (sessionId: string): ConcivToolContext => ({
-    injectUi: (spec) => uiBus.inject(sessionId, spec),
-    page: (query) => page.ask(query),
-    open: (file, line) => opts.openInEditor(file, line),
-  })
-
-  registerMcpRoutes(app, makeToolCtx, extensionTools, (sessionId) => uiBus.getModel(sessionId))
+  registerMcpRoutes(app, makeToolCtx, extensionTools, sessionModel)
   const toolList: ChatTool[] = [
     ...concivTools(makeToolCtx('')).map((tool) => ({name: tool.name, description: tool.description})),
     ...mounted.flatMap((entry) =>

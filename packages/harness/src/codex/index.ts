@@ -1,6 +1,15 @@
-import {defineHarness} from '@conciv/protocol/harness-types'
-import {buildCodexArgs} from './args.js'
-import {codexToAguiEvents} from './decode.js'
+import {codexText, CODEX_MODELS} from '@tanstack/ai-codex'
+import {defineHarness, type HarnessChatConfig, type HarnessChatDeps} from '@conciv/protocol/harness-types'
+import {definedEntries} from '../_shared/env.js'
+
+const codexChatConfig = (deps: HarnessChatDeps): HarnessChatConfig => ({
+  adapter: codexText(deps.model ?? 'gpt-5.5', {
+    sandboxMode: 'workspace-write',
+    approvalPolicy: 'never',
+    env: definedEntries(deps.env),
+  }),
+  modelOptions: deps.resumeSessionId ? {sessionId: deps.resumeSessionId} : {},
+})
 
 export const codex = defineHarness({
   id: 'codex',
@@ -11,14 +20,14 @@ export const codex = defineHarness({
     permissionGate: 'none',
     transcriptHistory: false,
     compaction: false,
-    systemPrompt: 'none',
-    mcp: 'http',
+    systemPrompt: 'flag',
+    mcp: 'none',
     slashCommands: 'none',
     imageInput: false,
   },
-  buildArgs: buildCodexArgs,
-  decode: codexToAguiEvents,
-
+  chatConfig: codexChatConfig,
+  models: ['gpt-5.5', ...CODEX_MODELS].map((id) => ({id, name: id, group: 'Codex'})),
+  defaultModel: 'gpt-5.5',
   launch: (ctx) => {
     const argv = ['codex']
     if (ctx.sessionId) argv.push('resume', ctx.sessionId)
