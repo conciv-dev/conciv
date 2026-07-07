@@ -36,7 +36,7 @@
 - Consumes: `upsertElement(scope, row): Promise<{ok: true; row: ElementRow} | {ok: false; current: ElementRow}>` (unchanged), `ElementRow = {room: string; elementId: string; data: JsonValue; version: number}`.
 - Produces: `upsertElements(scope: ElementScope, rows: ElementRow[]): Promise<ElementRow[]>` now returning the **authoritative row per input** (accepted row when the write wins, current stored row when it loses) — one entry per input row, order preserved. Bulk route `PUT /elements/:scope/bulk` returns `{rows: ElementRow[]}`.
 
-- [ ] **Step 1: Write the failing store test**
+- [x] **Step 1: Write the failing store test**
 
 Add to `packages/extensions/whiteboard/test/store.test.ts`, inside the `describe('whiteboard store', …)` block (after the existing `bulk upsert and bulk delete` test):
 
@@ -54,7 +54,7 @@ it('bulk upsert returns the authoritative row per input, winner on conflict', as
 })
 ```
 
-- [ ] **Step 2: Write the failing routes test**
+- [x] **Step 2: Write the failing routes test**
 
 Add to `packages/extensions/whiteboard/test/routes.test.ts`, inside the `describe('whiteboard routes', …)` block (after the `element upsert 409s…` test). It reuses the file's existing `put` helper and `base`:
 
@@ -75,12 +75,12 @@ it('bulk PUT echoes the authoritative row per input, winner on conflict', async 
 })
 ```
 
-- [ ] **Step 3: Run the tests to verify they fail**
+- [x] **Step 3: Run the tests to verify they fail**
 
 Run: `pnpm --filter @conciv/extension-whiteboard exec vitest run test/store.test.ts test/routes.test.ts`
 Expected: FAIL — store returns `[e2]` (length 1, loser dropped); routes returns `{written: 1}` (no `rows`).
 
-- [ ] **Step 4: Change `upsertElements` to return the authoritative row per input**
+- [x] **Step 4: Change `upsertElements` to return the authoritative row per input**
 
 In `packages/extensions/whiteboard/src/server/db/store.ts`, replace the `upsertElements` helper (currently lines 75-82):
 
@@ -95,7 +95,7 @@ const upsertElements = async (scope: ElementScope, rows: ElementRow[]): Promise<
 }
 ```
 
-- [ ] **Step 5: Change the bulk route to return rows**
+- [x] **Step 5: Change the bulk route to return rows**
 
 In `packages/extensions/whiteboard/src/server/routes.ts`, replace the bulk route (currently lines 99-102):
 
@@ -106,7 +106,7 @@ app.put('/elements/:scope/bulk', async (event) => {
 })
 ```
 
-- [ ] **Step 6: Run the server tests + typecheck**
+- [x] **Step 6: Run the server tests + typecheck**
 
 Run: `pnpm --filter @conciv/extension-whiteboard exec vitest run test/store.test.ts test/routes.test.ts`
 Expected: PASS (the two new cases plus all pre-existing store/routes cases, incl. the unchanged `bulk upsert and bulk delete cover the pending drain` which still sees length 2 for two fresh rows).
@@ -114,7 +114,7 @@ Expected: PASS (the two new cases plus all pre-existing store/routes cases, incl
 Run: `pnpm turbo run typecheck --filter=@conciv/extension-whiteboard`
 Expected: clean.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/extensions/whiteboard/src/server/db/store.ts packages/extensions/whiteboard/src/server/routes.ts packages/extensions/whiteboard/test/store.test.ts packages/extensions/whiteboard/test/routes.test.ts
@@ -136,7 +136,7 @@ git commit -m "feat(whiteboard): bulk element route echoes per-input version win
 - Consumes: from Task 1, `PUT /elements/:scope/bulk` → `{rows: ElementRow[]}`. From `@tanstack/solid-db`: `createPacedMutations<TVariables, T>({onMutate, mutationFn, strategy}) => (variables) => Transaction`, `throttleStrategy({wait, leading?, trailing?})`. From the collection: `collection.has(key)`, `collection.update(key, draft => …)`, `collection.insert(row)`, `collection.utils.writeUpsert(row)`, `collection.utils.writeBatch(fn)`.
 - Produces: `db.canvasElements` / `db.canvasDraftElements` gain a `write(row: ElementRow): void` method (the sole insert/update entry). `createWhiteboardDb`'s `dispose` also runs every element strategy's `cleanup`.
 
-- [ ] **Step 1: Write the failing IT**
+- [x] **Step 1: Write the failing IT**
 
 Create `packages/extensions/whiteboard/test/canvas-drag-batching.it.test.ts`:
 
@@ -255,13 +255,13 @@ const [s0, s1] = startXs
 return x0 !== undefined && x1 !== undefined && s0 !== undefined && s1 !== undefined && x0 - s0 > 100 && x1 - s1 > 100
 ```
 
-- [ ] **Step 2: Build extension + widget, run the IT to verify it fails**
+- [x] **Step 2: Build extension + widget, run the IT to verify it fails**
 
 Run: `pnpm turbo run build --filter=@conciv/extension-whiteboard --filter=@conciv/widget`
 Run: `pnpm --filter @conciv/extension-whiteboard exec vitest run test/canvas-drag-batching.it.test.ts`
 Expected: FAIL — with today's per-frame path the single-drag test sees `counts.single` far above 15 (one PUT per rapid move), and the multi-select test sees `counts.bulk === 0`.
 
-- [ ] **Step 3: Add the paced-mutation imports**
+- [x] **Step 3: Add the paced-mutation imports**
 
 In `packages/extensions/whiteboard/src/client/db.tsx`, extend the `@tanstack/solid-db` import (line 3):
 
@@ -269,7 +269,7 @@ In `packages/extensions/whiteboard/src/client/db.tsx`, extend the `@tanstack/sol
 import {createCollection, createPacedMutations, throttleStrategy} from '@tanstack/solid-db'
 ```
 
-- [ ] **Step 4: Add a `disposers` array to `createWhiteboardDb`**
+- [x] **Step 4: Add a `disposers` array to `createWhiteboardDb`**
 
 In `db.tsx`, immediately after `const source = new EventSource(...)` near the top of `createWhiteboardDb` body, add:
 
@@ -277,7 +277,7 @@ In `db.tsx`, immediately after `const source = new EventSource(...)` near the to
 const disposers: Array<() => void> = []
 ```
 
-- [ ] **Step 5: Replace the element collection factory with the paced writer**
+- [x] **Step 5: Replace the element collection factory with the paced writer**
 
 In `db.tsx`, replace the whole `elementCollection` factory (currently ~119-166) with:
 
@@ -347,7 +347,7 @@ const elementCollection = (scope: 'live' | 'draft', table: 'canvasElements' | 'c
 }
 ```
 
-- [ ] **Step 6: Run element strategy cleanup in `dispose`**
+- [x] **Step 6: Run element strategy cleanup in `dispose`**
 
 In `db.tsx`, change the returned `dispose` (currently `dispose: () => source.close()`) to:
 
@@ -358,12 +358,12 @@ In `db.tsx`, change the returned `dispose` (currently `dispose: () => source.clo
     },
 ```
 
-- [ ] **Step 7: Typecheck the client change**
+- [x] **Step 7: Typecheck the client change**
 
 Run: `pnpm turbo run typecheck --filter=@conciv/extension-whiteboard`
 Expected: clean. If oxlint's `no-non-null-assertion` flags the IT's poll predicate, apply the narrowed form shown in Step 1's note. If `createPacedMutations<ElementRow, ElementRow>` mistypes `mutation.modified`, confirm both generics are `ElementRow` (first = `onMutate` variables, second = transaction row type).
 
-- [ ] **Step 8: Point `writeLocal` at the paced writer**
+- [x] **Step 8: Point `writeLocal` at the paced writer**
 
 In `packages/extensions/whiteboard/src/canvas/island.tsx`, replace the body of `writeLocal` (currently ~100-114):
 
@@ -379,7 +379,7 @@ const writeLocal = (next: readonly SceneElement[]): void => {
 }
 ```
 
-- [ ] **Step 9: Point the commit step at the paced writer**
+- [x] **Step 9: Point the commit step at the paced writer**
 
 In `island.tsx`, replace the `write:` field of `commitStep` (currently the `has`/`update`/`insert` branch ~150-159) with:
 
@@ -393,7 +393,7 @@ In `island.tsx`, replace the `write:` field of `commitStep` (currently the `has`
         }),
 ```
 
-- [ ] **Step 10: Typecheck, rebuild, run the IT**
+- [x] **Step 10: Typecheck, rebuild, run the IT**
 
 Run: `pnpm turbo run typecheck --filter=@conciv/extension-whiteboard`
 Expected: clean (no remaining `db.canvasElements.update`/`.insert`/`.has` callers in `island.tsx`; confirm with `grep -n "canvasElements\.\(insert\|update\|has\)" packages/extensions/whiteboard/src/canvas/island.tsx` → no matches).
@@ -402,17 +402,17 @@ Run: `pnpm turbo run build --filter=@conciv/extension-whiteboard --filter=@conci
 Run: `pnpm --filter @conciv/extension-whiteboard exec vitest run test/canvas-drag-batching.it.test.ts`
 Expected: PASS — `counts.single` in (1, 15] for the single drag, `counts.bulk > 0` and `counts.single <= 2` for the multi-select drag, both elements moved > 100px.
 
-- [ ] **Step 11: Run the full whiteboard suite (behavior-parity gate)**
+- [x] **Step 11: Run the full whiteboard suite (behavior-parity gate)**
 
 Run: `pnpm --filter @conciv/extension-whiteboard exec vitest run`
 Expected: the pre-existing 53 tests still pass, plus the 2 new server cases (Task 1) and 2 new IT cases. Pay special attention to `canvas-drag.it.test.ts`, `canvas-autocommit.it.test.ts`, `canvas-commit.it.test.ts`, `canvas-draft.it.test.ts` — they exercise `writeLocal` and the commit path now routed through `write()`.
 
-- [ ] **Step 12: Fallow audit**
+- [x] **Step 12: Fallow audit**
 
 Run: `pnpm exec fallow audit --changed-since main --format json`
 Expected: zero INTRODUCED findings. (Removing `onInsert`/`onUpdate` should not orphan anything — `putElement` is still used by `mutationFn`; the single `PUT /elements/:scope` route stays reachable via `mutationFn`'s single-element branch and `routes.test.ts`.)
 
-- [ ] **Step 13: Commit**
+- [x] **Step 13: Commit**
 
 ```bash
 git add packages/extensions/whiteboard/src/client/db.tsx packages/extensions/whiteboard/src/canvas/island.tsx packages/extensions/whiteboard/test/canvas-drag-batching.it.test.ts
