@@ -48,17 +48,35 @@ Example apps under `apps/*` are out of scope and untouched.
 
 ## Package dependency graph (verified)
 
-- `@conciv/api-client` → `@conciv/protocol` only.
-- `@conciv/extension` → `@conciv/api-client` (imports `SessionClient`, `RequestMeta` types).
-- `@conciv/core` → `@conciv/extension` (so `core → extension → api-client`; core does **not** import
-  api-client directly).
-- `@conciv/widget` → `@conciv/api-client`, `@conciv/protocol`, **and `@conciv/core`** (already).
+Today:
 
-Implication for RPC type placement: the widget importing core's `AppType` is **not** a new cycle
-(`widget → core` already exists). The only cycle risk is
-`extension → api-client → core → extension`. It is avoided by keeping `@conciv/api-client`
-**AppType-neutral**: it exports a generic `hc` wrapper and the widget binds `hc<AppType>()` importing
-`AppType` from core directly. `api-client` never imports `core`.
+- `@conciv/api-client` → `@conciv/protocol` only.
+- `@conciv/extension` → `@conciv/api-client` (imports `SessionClient`, `RequestMeta` types — nothing
+  else).
+- `@conciv/core` → `@conciv/extension`.
+- `@conciv/widget` → `@conciv/api-client` + `@conciv/protocol` (dependencies), `@conciv/core`
+  (devDependency, types only — core is a server package and must never enter the widget bundle).
+- `defineClient` is called by the widget, `extensions/terminal` (`terminal-actions.tsx`),
+  `extension-testkit` (host-runtime), and widget/api-client tests.
+
+Constraint this creates: extensions can never name `Client<AppType>` (needs core;
+`extension → core → extension` is a hard cycle). So the client type extensions receive must be a
+flat, hand-declared interface living below core.
+
+Target graph:
+
+- `SessionClient` and `RequestMeta` become explicit interfaces in `@conciv/protocol` (plain function
+  types, no solid-js import). `@conciv/extension` drops its `@conciv/api-client` dependency.
+- `@conciv/api-client` gains a **devDependency (type-only import)** on `@conciv/core` for `AppType`.
+  Acyclic: `api-client → core → extension → protocol`.
+- `defineClient`'s declared return type is the protocol `SessionClient` interface, so `AppType`
+  never appears in api-client's published `.d.ts` — hc types are compiled away at build time
+  (Hono's own recommended perf pattern for large apps).
+
+Full deletion of api-client was considered and rejected: it is the only package sitting above core
+(can see `AppType`) yet below widget/terminal/testkit; deleting it would duplicate the hc binding +
+session header + response validation in three places and force an hc-shaped hand-written type into
+protocol.
 
 ## Design
 
@@ -140,10 +158,18 @@ Response { crossws } }` augmentation and the manual `server.node.server.on('upgr
   export type AppType = typeof routes
   ```
 
-- **Client**: delete `packages/api-client/src/transport.ts`'s route table and the hand-rolled
-  `defineClient` route list. `@conciv/api-client` keeps only AppType-neutral pieces: a generic `hc`
-  factory wrapper, the session-header signal, and the SSE `EventSource` helper. The widget binds
-  `hc<AppType>()` with `AppType` imported from `@conciv/core`.
+- **`AppType` must be static**, which imposes two rules:
+  - The bridge routes (`/api/server/*`, today mounted only `if (opts.bridge)`) are always chained;
+    handlers guard on bridge presence and return 503 when absent.
+  - Extension sub-apps (mounted dynamically at `/api/ext/<slug>`) are excluded from `AppType`.
+    Extensions talk to their own routes with their own fetch/EventSource, as today.
+
+- **Client**: delete `packages/api-client/src/transport.ts` (hand-rolled route table).
+  `defineClient` stays in `@conciv/api-client` as the single client factory, reimplemented over
+  `hc<AppType>()` internally (`AppType` via type-only import from core). It keeps the session-header
+  signal and the SSE `EventSource` helper, exposes the same flat methods, and its return type is
+  pinned to the protocol `SessionClient` interface. All existing `defineClient({apiBase})` call
+  sites (widget, extensions/terminal, extension-testkit, tests) keep working unchanged.
 - **Response validation kept**: a thin wrapper re-parses `res.json()` through the existing
   `@conciv/protocol` zod schemas. `expectTypeOf` pins the hc-inferred response type equal to the zod
   output type so the two cannot drift. This preserves the production-grade guarantee that a malformed
@@ -156,8 +182,8 @@ Response { crossws } }` augmentation and the manual `server.node.server.on('upgr
 
 - `ServerApi.app: H3` → `ServerApi.app: Hono`.
 - Extension route handlers migrate `readValidatedBody` → `zValidator` + `c.req.valid`.
-- `SessionClient` stays a structural type in `@conciv/api-client` (AppType-neutral), so extensions do
-  not transitively pull in `core`.
+- `SessionClient` and `RequestMeta` move to `@conciv/protocol` as explicit interfaces;
+  `@conciv/extension` imports them from there and drops its `@conciv/api-client` dependency.
 - Consumers to update: `extensions/terminal` (server `/tty` + SSE, client `defineClient` usage),
   `extensions/test-runner` (server routes + SSE), `extension-testkit` host-runtime.
 
@@ -181,8 +207,10 @@ it. Only the `event` → `c` accessor changes. It is not part of the RPC surface
 - `packages/core/src`: `app.ts`, `extension-app.ts`, `engine.ts`, and all of
   `api/**` (`cors.ts`, `ws.ts` [delete], `sse.ts` [delete], `chat/*`, `mcp/mcp.ts`, `page/*`,
   `server/server.ts`, `editor/editor.ts`).
-- `packages/api-client/src`: `transport.ts` (route table deleted), `api-client.ts` (hc-based).
-- `packages/extension/src/types.ts`: `app` type + `SessionClient` placement.
+- `packages/api-client/src`: `transport.ts` deleted, `api-client.ts` rewritten over `hc`.
+- `packages/protocol/src`: new `SessionClient` / `RequestMeta` interfaces.
+- `packages/extension/src/types.ts`: `app` type swap + client types imported from protocol;
+  api-client dependency removed from its manifest.
 - `packages/extensions/terminal/src`: `server.ts`, `runner`/client SSE + WS.
 - `packages/extensions/test-runner/src`: `server.ts`, `runner/sse.ts`.
 - `packages/harness-testkit/src/create-testkit.ts`.
