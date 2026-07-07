@@ -11,7 +11,7 @@ import {createPiP} from './pip.js'
 import {ChevronDown, Crosshair, PictureInPicture2} from 'lucide-solid'
 import {FabRobot} from './fab-robot.js'
 import {picking, cancelPick} from '../page/react-grab/picking.js'
-import {suppressedAttr} from './suppression.js'
+import {focusTrapDisabled, suppressedAttr} from './suppression.js'
 import {ContextTracker} from '../page/context-tracker.js'
 import {SessionSelector} from '../composer/session-selector.js'
 import {sessions} from '../client/session-store-client.js'
@@ -357,7 +357,7 @@ function ModalLayout(props: {
 
   return (
     <>
-      <FocusTrap disabled={!props.open()}>
+      <FocusTrap disabled={focusTrapDisabled(props.open())}>
         <section
           ref={(el) => {
             panelEl = el
