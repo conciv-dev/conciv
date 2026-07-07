@@ -103,7 +103,7 @@ export function Island(props: {
     if (!changed.length) return
     changed.forEach((element) => {
       versions.set(element.id, element.version)
-      db.canvasElements.write({
+      db.canvasElements.utils.write({
         room: props.room,
         elementId: element.id,
         data: asJson(element),
@@ -146,7 +146,7 @@ export function Island(props: {
       x: data.x ?? 0,
       y: data.y ?? 0,
       write: (): void =>
-        db.canvasElements.write({
+        db.canvasElements.utils.write({
           room: props.room,
           elementId: draft.elementId,
           data: draft.data,

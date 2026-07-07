@@ -1,29 +1,8 @@
 import {createContext, createSignal, onCleanup, useContext, type JSX} from 'solid-js'
-import {QueryClient} from '@tanstack/query-core'
-import {createCollection, createPacedMutations, throttleStrategy} from '@tanstack/solid-db'
-import {queryCollectionOptions} from '@tanstack/query-db-collection'
-import {z} from 'zod'
-import {
-  changeOf,
-  commentRow,
-  cursorEvent,
-  elementRow,
-  pendingRow,
-  pinRow,
-  readRow,
-  replyRow,
-  type CursorEvent,
-  type ElementRow,
-} from '../shared/rows.js'
-
-const jsonHeaders = (init?: RequestInit): HeadersInit | undefined =>
-  init?.body ? {'content-type': 'application/json'} : undefined
-
-const request = async (input: string, init?: RequestInit): Promise<Response> => {
-  const response = await fetch(input, {...init, headers: jsonHeaders(init)})
-  if (response.ok || response.status === 409) return response
-  throw new Error(`whiteboard api ${response.status}: ${input}`)
-}
+import {createCollection} from '@tanstack/solid-db'
+import {commentRow, pendingRow, pinRow, readRow, replyRow, type CursorEvent} from '../shared/rows.js'
+import {createChangeFeed} from './change-feed.js'
+import {whiteboardCollectionOptions, whiteboardElementOptions} from './whiteboard-collection.js'
 
 const accountId = (): string => {
   const key = 'conciv-whiteboard-account-id'
@@ -34,199 +13,50 @@ const accountId = (): string => {
   return fresh
 }
 
-const messageData = (event: Event): string | undefined =>
-  event instanceof MessageEvent && typeof event.data === 'string' ? event.data : undefined
-
-const deferUntilReady = (collection: {isReady(): boolean; onFirstReady(callback: () => void): void}) => {
-  const queue: Array<() => void> = []
-  let ready = false
-  collection.onFirstReady(() => {
-    ready = true
-    queue.splice(0).forEach((apply) => apply())
-  })
-  return (apply: () => void): void => {
-    if (ready || collection.isReady()) return apply()
-    queue.push(apply)
-  }
-}
-
 export function createWhiteboardDb(base: string, room: string) {
-  const queryClient = new QueryClient()
-  const source = new EventSource(`${base}/changes?room=${encodeURIComponent(room)}`)
-  const disposers: Array<() => void> = []
+  const feed = createChangeFeed(base, room)
 
-  const idCollection = <Row extends {id: string}>(table: string, schema: z.ZodType<Row>) => {
-    const rows = z.array(schema)
-    const change = changeOf(schema)
-    const collection = createCollection(
-      queryCollectionOptions({
-        queryKey: [table, room],
-        queryClient,
-        queryFn: async () =>
-          rows.parse(await (await request(`${base}/${table}?room=${encodeURIComponent(room)}`)).json()),
-        getKey: (row: Row) => row.id,
-        onInsert: async ({transaction}) => {
-          const saved = await Promise.all(
-            transaction.mutations.map(async (mutation) =>
-              schema.parse(
-                await (
-                  await request(`${base}/${table}`, {method: 'POST', body: JSON.stringify(mutation.modified)})
-                ).json(),
-              ),
-            ),
-          )
-          collection.utils.writeBatch(() => saved.forEach((row) => collection.utils.writeUpsert(row)))
-          return {refetch: false}
-        },
-        onUpdate: async ({transaction}) => {
-          const saved = await Promise.all(
-            transaction.mutations.map(async (mutation) =>
-              schema.parse(
-                await (
-                  await request(`${base}/${table}/${String(mutation.key)}`, {
-                    method: 'PUT',
-                    body: JSON.stringify(mutation.changes),
-                  })
-                ).json(),
-              ),
-            ),
-          )
-          collection.utils.writeBatch(() => saved.forEach((row) => collection.utils.writeUpsert(row)))
-          return {refetch: false}
-        },
-        onDelete: async ({transaction}) => {
-          await Promise.all(
-            transaction.mutations.map((mutation) =>
-              request(`${base}/${table}/${String(mutation.key)}`, {method: 'DELETE'}),
-            ),
-          )
-          return {refetch: false}
-        },
-      }),
-    )
-    const onReady = deferUntilReady(collection)
-    source.addEventListener(table, (event) => {
-      const data = messageData(event)
-      if (!data) return
-      const message = change.parse(JSON.parse(data))
-      onReady(() => {
-        if (message.type === 'delete') return void collection.utils.writeDelete(message.key)
-        collection.utils.writeUpsert(message.row)
-      })
-    })
-    return collection
-  }
-
-  const elementCollection = (scope: 'live' | 'draft', table: 'canvasElements' | 'canvasDraftElements') => {
-    const rows = z.array(elementRow)
-    const change = changeOf(elementRow)
-    const conflict = z.object({current: elementRow})
-    const bulkResult = z.object({rows: z.array(elementRow)})
-    const putElement = async (row: ElementRow): Promise<void> => {
-      const response = await request(`${base}/elements/${scope}`, {method: 'PUT', body: JSON.stringify(row)})
-      const saved =
-        response.status === 409
-          ? conflict.parse(await response.json()).current
-          : elementRow.parse(await response.json())
-      collection.utils.writeUpsert(saved)
-    }
-    const collection = createCollection(
-      queryCollectionOptions({
-        queryKey: [table, room],
-        queryClient,
-        queryFn: async () =>
-          rows.parse(await (await request(`${base}/elements/${scope}?room=${encodeURIComponent(room)}`)).json()),
-        getKey: (row: ElementRow) => row.elementId,
-        onDelete: async ({transaction}) => {
-          await request(`${base}/elements/${scope}/bulk-delete`, {
-            method: 'POST',
-            body: JSON.stringify({room, elementIds: transaction.mutations.map((mutation) => String(mutation.key))}),
-          })
-          return {refetch: false}
-        },
-      }),
-    )
-    const strategy = throttleStrategy({wait: 50, leading: true, trailing: true})
-    disposers.push(strategy.cleanup)
-    const pacedWrite = createPacedMutations<ElementRow, ElementRow>({
-      strategy,
-      onMutate: (row) => {
-        if (collection.has(row.elementId))
-          return void collection.update(row.elementId, (draft) => {
-            draft.data = row.data
-            draft.version = row.version
-          })
-        collection.insert(row)
-      },
-      mutationFn: async ({transaction}) => {
-        const modified = transaction.mutations.map((mutation) => mutation.modified)
-        const [first] = modified
-        if (modified.length === 1 && first) return void (await putElement(first))
-        const response = await request(`${base}/elements/${scope}/bulk`, {
-          method: 'PUT',
-          body: JSON.stringify({rows: modified}),
-        })
-        const saved = bulkResult.parse(await response.json()).rows
-        collection.utils.writeBatch(() => saved.forEach((row) => collection.utils.writeUpsert(row)))
-      },
-    })
-    const onReady = deferUntilReady(collection)
-    source.addEventListener(table, (event) => {
-      const data = messageData(event)
-      if (!data) return
-      const message = change.parse(JSON.parse(data))
-      onReady(() => {
-        if (message.type === 'delete') return void collection.utils.writeDelete(message.key)
-        collection.utils.writeUpsert(message.row)
-      })
-    })
-    return Object.assign(collection, {write: (row: ElementRow): void => void pacedWrite(row)})
-  }
-
-  const collections = {
-    canvasElements: elementCollection('live', 'canvasElements'),
-    canvasDraftElements: elementCollection('draft', 'canvasDraftElements'),
-    canvasPending: idCollection('canvasPending', pendingRow),
-    canvasReplies: idCollection('canvasReplies', replyRow),
-    comments: idCollection('comments', commentRow),
-    pins: idCollection('pins', pinRow),
-    reads: idCollection('reads', readRow),
-  }
+  const comments = createCollection(
+    whiteboardCollectionOptions({feed, base, room, table: 'comments', schema: commentRow}),
+  )
+  const pins = createCollection(whiteboardCollectionOptions({feed, base, room, table: 'pins', schema: pinRow}))
+  const reads = createCollection(whiteboardCollectionOptions({feed, base, room, table: 'reads', schema: readRow}))
+  const canvasPending = createCollection(
+    whiteboardCollectionOptions({feed, base, room, table: 'canvasPending', schema: pendingRow}),
+  )
+  const canvasReplies = createCollection(
+    whiteboardCollectionOptions({feed, base, room, table: 'canvasReplies', schema: replyRow}),
+  )
+  const canvasElements = createCollection(whiteboardElementOptions({feed, base, room, scope: 'live'}))
+  const canvasDraftElements = createCollection(whiteboardElementOptions({feed, base, room, scope: 'draft'}))
 
   const [cursors, setCursors] = createSignal<Map<string, CursorEvent>>(new Map())
-  source.addEventListener('cursor', (event) => {
-    const data = messageData(event)
-    if (!data) return
-    const cursor = cursorEvent.parse(JSON.parse(data))
-    setCursors((previous) => new Map(previous).set(cursor.peerId, cursor))
-  })
-
-  let dropped = false
-  source.addEventListener('error', () => {
-    dropped = true
-  })
-  source.addEventListener('open', () => {
-    if (!dropped) return
-    dropped = false
-    Object.values(collections).forEach((collection) => void collection.utils.refetch())
-  })
+  feed.onCursor((cursor) => setCursors((previous) => new Map(previous).set(cursor.peerId, cursor)))
 
   const postCursor = (cursor: Omit<CursorEvent, 'room' | 'lastSeen'>): void =>
-    void request(`${base}/cursor`, {
+    void fetch(`${base}/cursor`, {
       method: 'POST',
+      headers: {'content-type': 'application/json'},
       body: JSON.stringify({...cursor, room, lastSeen: Date.now()}),
     }).catch(() => undefined)
 
   return {
-    ...collections,
+    comments,
+    pins,
+    reads,
+    canvasPending,
+    canvasReplies,
+    canvasElements,
+    canvasDraftElements,
     cursors,
     postCursor,
     accountId,
     base,
     room,
     dispose: () => {
-      disposers.forEach((cleanup) => cleanup())
-      source.close()
+      canvasElements.utils.cleanupStrategy()
+      canvasDraftElements.utils.cleanupStrategy()
+      feed.close()
     },
   }
 }

@@ -56,8 +56,6 @@
     "@libsql/client": "^0.17.4",
     "@takumi-rs/core": "^1.8.7",
     "@takumi-rs/helpers": "^1.8.7",
-    "@tanstack/query-core": "^5.101.2",
-    "@tanstack/query-db-collection": "^1.0.46",
     "@tanstack/solid-db": "^0.2.28",
     "drizzle-orm": "^0.45.2",
     "h3": "2.0.1-rc.22",
