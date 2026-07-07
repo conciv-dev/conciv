@@ -37,6 +37,19 @@ const accountId = (): string => {
 const messageData = (event: Event): string | undefined =>
   event instanceof MessageEvent && typeof event.data === 'string' ? event.data : undefined
 
+const deferUntilReady = (collection: {isReady(): boolean; onFirstReady(callback: () => void): void}) => {
+  const queue: Array<() => void> = []
+  let ready = false
+  collection.onFirstReady(() => {
+    ready = true
+    queue.splice(0).forEach((apply) => apply())
+  })
+  return (apply: () => void): void => {
+    if (ready || collection.isReady()) return apply()
+    queue.push(apply)
+  }
+}
+
 export function createWhiteboardDb(base: string, room: string) {
   const queryClient = new QueryClient()
   const source = new EventSource(`${base}/changes?room=${encodeURIComponent(room)}`)
@@ -90,12 +103,15 @@ export function createWhiteboardDb(base: string, room: string) {
         },
       }),
     )
+    const onReady = deferUntilReady(collection)
     source.addEventListener(table, (event) => {
       const data = messageData(event)
       if (!data) return
       const message = change.parse(JSON.parse(data))
-      if (message.type === 'delete') return collection.utils.writeDelete(message.key)
-      collection.utils.writeUpsert(message.row)
+      onReady(() => {
+        if (message.type === 'delete') return void collection.utils.writeDelete(message.key)
+        collection.utils.writeUpsert(message.row)
+      })
     })
     return collection
   }
@@ -136,12 +152,15 @@ export function createWhiteboardDb(base: string, room: string) {
         },
       }),
     )
+    const onReady = deferUntilReady(collection)
     source.addEventListener(table, (event) => {
       const data = messageData(event)
       if (!data) return
       const message = change.parse(JSON.parse(data))
-      if (message.type === 'delete') return collection.utils.writeDelete(message.key)
-      collection.utils.writeUpsert(message.row)
+      onReady(() => {
+        if (message.type === 'delete') return void collection.utils.writeDelete(message.key)
+        collection.utils.writeUpsert(message.row)
+      })
     })
     return collection
   }

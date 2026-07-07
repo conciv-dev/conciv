@@ -1,10 +1,10 @@
-import {ErrorBoundary, Show, Suspense, createResource, onCleanup, onMount, type Accessor, type JSX} from 'solid-js'
+import {ErrorBoundary, Show, Suspense, onCleanup, onMount, type Accessor, type JSX} from 'solid-js'
 import {render} from 'solid-js/web'
 import {EnvironmentProvider} from '@conciv/ui-kit-system'
 import type {ClientApi} from '@conciv/extension'
 import type {ElementRect, ElementSource} from '@conciv/grab'
 import {Island, type Self} from '../canvas/island.js'
-import {WhiteboardJazzProvider, fetchJazzConfig} from './jazz-client.js'
+import {WhiteboardDbProvider} from './db.js'
 import {CommentsProvider, useComments, type ComposeTarget} from './model/comments.js'
 import {Inbox, InboxToggle} from './inbox.js'
 import {PinsLayer} from './pins/pins.js'
@@ -120,25 +120,20 @@ function Board(props: {
   close: () => void
   registerComment: (write: (pick: CommentPick) => void) => void
 }): JSX.Element {
-  const [config] = createResource(() => fetchJazzConfig(`${props.api.apiBase}/api/ext/whiteboard`))
   return (
-    <Show when={config()} keyed>
-      {(jazzConfig) => (
-        <WhiteboardJazzProvider config={jazzConfig} fallback={<OverlayLoading />}>
-          <Show when={props.api.activeSession()} keyed fallback={<SessionPending />}>
-            {(session) => (
-              <Canvas
-                api={props.api}
-                doc={props.doc}
-                visible={props.visible}
-                room={() => session}
-                self={props.self}
-                close={props.close}
-                registerComment={props.registerComment}
-              />
-            )}
-          </Show>
-        </WhiteboardJazzProvider>
+    <Show when={props.api.activeSession()} keyed fallback={<SessionPending />}>
+      {(session) => (
+        <WhiteboardDbProvider base={`${props.api.apiBase}/api/ext/whiteboard`} room={session}>
+          <Canvas
+            api={props.api}
+            doc={props.doc}
+            visible={props.visible}
+            room={() => session}
+            self={props.self}
+            close={props.close}
+            registerComment={props.registerComment}
+          />
+        </WhiteboardDbProvider>
       )}
     </Show>
   )

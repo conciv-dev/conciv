@@ -32,7 +32,7 @@ export function registerCors(app: H3, allowedOrigins: string[] = []): void {
   const corsOptions: CorsOptions = {
     origin: (origin) => originAllowed(origin, extra),
     credentials: true,
-    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowHeaders: ['content-type', CONCIV_SESSION_HEADER],
   }
   app.use((event, next) => {
