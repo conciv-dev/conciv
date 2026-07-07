@@ -90,7 +90,7 @@ writeBatch}`. Mutation handlers may return `{refetch: false}` after direct-writi
 
 - Modify: `packages/extensions/whiteboard/package.json` (via pnpm)
 
-- [ ] **Step 1: Add dependencies** (run from the worktree root; `--filter` targets the package)
+- [x] **Step 1: Add dependencies** (run from the worktree root; `--filter` targets the package)
 
 ```bash
 pnpm --filter @conciv/extension-whiteboard add drizzle-orm@latest @libsql/client @tanstack/db @tanstack/solid-db @tanstack/query-db-collection @tanstack/query-core h3@2.0.1-rc.22
@@ -101,7 +101,7 @@ Expected in `package.json`: `drizzle-orm` ^0.45.x, `@libsql/client` ^0.17.x, `dr
 ^0.31.x (devDep), h3 pinned exactly `2.0.1-rc.22` (matches core/terminal/test-runner — the old
 Jazz server never imported h3, so whiteboard gains it now).
 
-- [ ] **Step 2: Probe the libSQL driver end-to-end**
+- [x] **Step 2: Probe the libSQL driver end-to-end**
 
 Run from `packages/extensions/whiteboard` (write the file, run it, delete it):
 
@@ -128,7 +128,7 @@ Expected: `rows [{"id":"a","data":"{\"x\":1}"}]`, `rowsAffected 1`. If `drizzle-
 does not resolve, the installed drizzle-orm is not the stable 0.45 line — fix the install, do
 NOT reach for the rc.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/extensions/whiteboard/package.json pnpm-lock.yaml
@@ -156,7 +156,7 @@ git commit -m "chore(whiteboard): add drizzle+libsql and tanstack db deps" -- pa
   `CursorEvent`, `JsonValue`, and `changeOf(rowSchema)` (rows.ts). Every later task imports row
   TYPES from `../shared/rows.js` and TABLES from `./db/schema.js`.
 
-- [ ] **Step 1: Write the wire schemas**
+- [x] **Step 1: Write the wire schemas**
 
 `src/shared/rows.ts` — the wire truth. Nullable drizzle columns are `.nullable()` here (NOT
 `.optional()` — rows carry explicit nulls end-to-end):
@@ -262,7 +262,7 @@ export type ReadRow = z.infer<typeof readRow>
 export type CursorEvent = z.infer<typeof cursorEvent>
 ```
 
-- [ ] **Step 2: Write the drizzle schema**
+- [x] **Step 2: Write the drizzle schema**
 
 `src/server/db/schema.ts` — exports tables only (row types come from rows.ts; the test in Step 4
 pins them equal):
@@ -359,7 +359,7 @@ export const reads = sqliteTable('reads', {
 })
 ```
 
-- [ ] **Step 3: Generate the migration**
+- [x] **Step 3: Generate the migration**
 
 `drizzle.config.ts` (package root):
 
@@ -386,7 +386,7 @@ composite `PRIMARY KEY(room, element_id)` on both element tables.
 Add `"drizzle"` to the `files` array in `packages/extensions/whiteboard/package.json` (the
 migration ships with the npm package).
 
-- [ ] **Step 4: Write the test — wire parse + compile-time drizzle equivalence**
+- [x] **Step 4: Write the test — wire parse + compile-time drizzle equivalence**
 
 `test/rows.test.ts`. The `expectTypeOf` block is the contract that the zod wire schemas and the
 drizzle tables never drift — a column added/renamed/re-typed on one side only fails `typecheck`
@@ -458,7 +458,7 @@ describe('wire schemas', () => {
 })
 ```
 
-- [ ] **Step 5: Run the test + typecheck**
+- [x] **Step 5: Run the test + typecheck**
 
 ```bash
 pnpm --filter @conciv/extension-whiteboard exec vitest run test/rows.test.ts
@@ -469,7 +469,7 @@ Expected: 4 tests PASS; typecheck clean (turbo builds workspace deps first — a
 `pnpm --filter ... typecheck` in a fresh worktree fails on unbuilt `@conciv/*` dists). If an
 `expectTypeOf` line fails, fix the drizzle or zod side that drifted — never delete the check.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add packages/extensions/whiteboard/src/shared/rows.ts packages/extensions/whiteboard/src/server/db/schema.ts packages/extensions/whiteboard/drizzle.config.ts packages/extensions/whiteboard/drizzle packages/extensions/whiteboard/test/rows.test.ts packages/extensions/whiteboard/package.json
@@ -501,7 +501,7 @@ through the helpers because every write must emit a change event. Each helper na
 concrete table — no table-name dispatch, which is exactly why drizzle's inference holds with
 zero casts.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `test/store.test.ts`:
 
@@ -596,7 +596,7 @@ describe('whiteboard store', () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```bash
 pnpm --filter @conciv/extension-whiteboard exec vitest run test/store.test.ts
@@ -604,7 +604,7 @@ pnpm --filter @conciv/extension-whiteboard exec vitest run test/store.test.ts
 
 Expected: FAIL (cannot resolve `../src/server/db/store.js`).
 
-- [ ] **Step 3: Write the store**
+- [x] **Step 3: Write the store**
 
 `src/server/db/store.ts`. Every helper is concrete; `returning().get()` gives back the stored
 row (defaults applied), which is what gets emitted and returned — so callers and SSE listeners
@@ -851,7 +851,7 @@ Note the `id` requirement: id-table inserts REQUIRE a caller-supplied `id`
 (`crypto.randomUUID()` at call sites) — TanStack DB needs client-generated keys, so the server
 never invents ids.
 
-- [ ] **Step 4: Run tests + typecheck**
+- [x] **Step 4: Run tests + typecheck**
 
 ```bash
 pnpm --filter @conciv/extension-whiteboard exec vitest run test/store.test.ts test/rows.test.ts
@@ -861,7 +861,7 @@ pnpm turbo run typecheck --filter=@conciv/extension-whiteboard
 Expected: PASS (9 tests), clean typecheck. If `.returning().get()` types don't line up with the
 wire types, the schema/rows drifted — fix there, never cast here.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/extensions/whiteboard/src/server/db/store.ts packages/extensions/whiteboard/test/store.test.ts
@@ -898,7 +898,7 @@ git commit -m "feat(whiteboard): libsql store with typed change bus and concrete
     `{type: 'upsert', row}` | `{type: 'delete', key}`; event `cursor` with a `CursorEvent`
     payload; opening `pushComment` prime; 15s `ping` heartbeat.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `test/routes.test.ts` — real h3 app over real HTTP, no mocks:
 
@@ -1047,7 +1047,7 @@ describe('whiteboard routes', () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```bash
 pnpm --filter @conciv/extension-whiteboard exec vitest run test/routes.test.ts
@@ -1055,7 +1055,7 @@ pnpm --filter @conciv/extension-whiteboard exec vitest run test/routes.test.ts
 
 Expected: FAIL (cannot resolve `../src/server/routes.js`).
 
-- [ ] **Step 3: Implement routes**
+- [x] **Step 3: Implement routes**
 
 `src/server/routes.ts`. Each table's routes are written out explicitly against its concrete
 store helpers/tables — no `:table` param, no dispatch map:
@@ -1200,7 +1200,7 @@ Route order note: register `/elements/:scope/bulk` handlers work because h3 matc
 specific literal segment; if PUT `/elements/:scope` shadows `/elements/:scope/bulk` in practice,
 register the `bulk` routes FIRST — the test's bulk coverage in Task 8 (drain IT) will catch it.
 
-- [ ] **Step 4: Run tests + typecheck**
+- [x] **Step 4: Run tests + typecheck**
 
 ```bash
 pnpm --filter @conciv/extension-whiteboard exec vitest run test/routes.test.ts
@@ -1209,7 +1209,7 @@ pnpm turbo run typecheck --filter=@conciv/extension-whiteboard
 
 Expected: 6 tests PASS in a few seconds (the `pushComment` prime prevents the undici stall).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/extensions/whiteboard/src/server/routes.ts packages/extensions/whiteboard/test/routes.test.ts
@@ -1258,7 +1258,7 @@ concrete drizzle):
 | `new Date()` in rows / `.getTime()` comparisons                 | `Date.now()` / plain number comparisons                                                                     |
 | optional field `?? undefined`                                   | `?? null` (columns are nullable, not optional)                                                              |
 
-- [ ] **Step 1: Rewrite `context.ts`**
+- [x] **Step 1: Rewrite `context.ts`**
 
 ```ts
 import type {ToolRequest} from '@conciv/extension'
@@ -1273,7 +1273,7 @@ export type WhiteboardToolContext = {
 }
 ```
 
-- [ ] **Step 2: Rewrite `server.ts`**
+- [x] **Step 2: Rewrite `server.ts`**
 
 ```ts
 import {join} from 'node:path'
@@ -1316,7 +1316,7 @@ export default defineExtension({
 
 (The `/config` route and the Jazz runner/deploy/backend plumbing die with this file.)
 
-- [ ] **Step 3: Rewrite `auto-commit.ts`**
+- [x] **Step 3: Rewrite `auto-commit.ts`**
 
 ```ts
 import {and, eq} from 'drizzle-orm'
@@ -1336,7 +1336,7 @@ export async function autoCommitDraft(store: Store, room: string): Promise<boole
 }
 ```
 
-- [ ] **Step 4: Write `enrich-worker.ts`, delete `src/server/jazz/`**
+- [x] **Step 4: Write `enrich-worker.ts`, delete `src/server/jazz/`**
 
 The change-bus event already carries the typed `CommentRow` — no re-parsing needed:
 
@@ -1381,7 +1381,7 @@ git rm -r packages/extensions/whiteboard/src/server/jazz
 (If `enrichAnchor`'s return fields are typed `string | null | undefined`, the `?? null`
 normalizes them; check `anchor-enrich.ts` signatures and match exactly.)
 
-- [ ] **Step 5: Rewrite the three tool servers with the translation table**
+- [x] **Step 5: Rewrite the three tool servers with the translation table**
 
 `tool/canvas/server.ts` — all 12 tools, imports gain
 `import {and, eq} from 'drizzle-orm'` + `import {canvasPending, canvasReplies} from '../../server/db/schema.js'`
@@ -1513,7 +1513,7 @@ const [row] = await ctx.store.db.select().from(comments).where(eq(comments.cid, 
 
 (`tool/element/server.ts` has no db usage — just confirm it still compiles.)
 
-- [ ] **Step 6: Typecheck + unit tests + grep**
+- [x] **Step 6: Typecheck + unit tests + grep**
 
 ```bash
 pnpm turbo run typecheck --filter=@conciv/extension-whiteboard
@@ -1523,7 +1523,7 @@ git grep -n "jazz" -- packages/extensions/whiteboard/src/server packages/extensi
 
 Expected: clean typecheck, unit tests PASS, grep returns NOTHING.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add -A packages/extensions/whiteboard/src/server packages/extensions/whiteboard/src/tool packages/extensions/whiteboard/src/server.ts
@@ -1561,7 +1561,7 @@ WhiteboardDbProvider(props: {base: string; room: string; children: JSX.Element})
 useWhiteboardDb(): WhiteboardDb
 ```
 
-- [ ] **Step 1: Implement `src/client/db.tsx`**
+- [x] **Step 1: Implement `src/client/db.tsx`**
 
 The documented query-collection pattern: `queryFn` = initial room load; SSE listeners apply
 deltas via `utils.writeUpsert`/`writeDelete`; mutation handlers persist via REST, write the
@@ -1786,7 +1786,7 @@ the partial) because the server's versioned upsert wants complete rows; on 409 t
 the winning row into the synced store and its optimistic overlay drops — last-writer-wins with
 no error surfaced. That is the spec'd conflict policy.
 
-- [ ] **Step 2: Typecheck**
+- [x] **Step 2: Typecheck**
 
 ```bash
 pnpm turbo run typecheck --filter=@conciv/extension-whiteboard
@@ -1797,7 +1797,7 @@ member name differs, STOP and re-read
 `node_modules/@tanstack/query-db-collection/dist/*.d.ts` — fix against the real API, do not
 loosen types.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/extensions/whiteboard/src/client/db.tsx
@@ -1923,14 +1923,14 @@ Excalidraw ones — keep them, nothing else gains a cast.)
    `const activity = (): number => model.lastActivityAt(props.root.cid) ?? props.root.createdAt`
    (any further `Date` math there becomes number math — the typecheck finds every site).
 
-- [ ] **Step 1: Apply the changes above**
-- [ ] **Step 2: Typecheck, fix all fallout in pins/thread/inbox until clean**
+- [x] **Step 1: Apply the changes above**
+- [x] **Step 2: Typecheck, fix all fallout in pins/thread/inbox until clean**
 
 ```bash
 pnpm turbo run typecheck --filter=@conciv/extension-whiteboard
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/extensions/whiteboard/src/client
@@ -2133,9 +2133,9 @@ function Board(props: {
 }
 ```
 
-- [ ] **Step 1: Apply island changes**
-- [ ] **Step 2: Apply overlay changes, `git rm packages/extensions/whiteboard/src/client/jazz-client.tsx`**
-- [ ] **Step 3: Typecheck, build, run the full IT suite (behavior-parity gate)**
+- [x] **Step 1: Apply island changes**
+- [x] **Step 2: Apply overlay changes, `git rm packages/extensions/whiteboard/src/client/jazz-client.tsx`**
+- [x] **Step 3: Typecheck, build, run the full IT suite (behavior-parity gate)**
 
 ```bash
 pnpm turbo run typecheck --filter=@conciv/extension-whiteboard
@@ -2148,7 +2148,7 @@ Expected: every existing IT passes unchanged — `canvas-draft`, `canvas-commit`
 `inbox*`, `thread*`, `pin-pan`. Debug loop: `console.error` the SSE deltas server-side and dump
 `store.db` state in the test process. Keep waits tight; do not raise IT timeouts to pass.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add -A packages/extensions/whiteboard/src
@@ -2165,13 +2165,13 @@ git commit -m "feat(whiteboard): island + overlay on tanstack db, jazz client go
   `packages/extensions/whiteboard/src/shared/permissions.ts`
 - Modify: `packages/extensions/whiteboard/package.json`
 
-- [ ] **Step 1: Delete files**
+- [x] **Step 1: Delete files**
 
 ```bash
 git rm packages/extensions/whiteboard/src/shared/schema.ts packages/extensions/whiteboard/src/shared/permissions.ts
 ```
 
-- [ ] **Step 2: Package cleanup**
+- [x] **Step 2: Package cleanup**
 
 - Remove `jazz-tools` and `jazz-napi` from `dependencies`.
 - `build` script: drop the
@@ -2184,7 +2184,7 @@ git rm packages/extensions/whiteboard/src/shared/schema.ts packages/extensions/w
 pnpm install
 ```
 
-- [ ] **Step 3: Anti-pattern grep — prove the old path is gone**
+- [x] **Step 3: Anti-pattern grep — prove the old path is gone**
 
 ```bash
 git grep -in "jazz" -- packages/extensions/whiteboard
@@ -2193,7 +2193,7 @@ git grep -rn "useAll\|useDb\|subscribeAll\|jazz-tools" -- packages/extensions/wh
 
 Expected: zero hits in code. Green tests alone don't prove adoption — the grep does.
 
-- [ ] **Step 4: Full gate**
+- [x] **Step 4: Full gate**
 
 ```bash
 pnpm typecheck && pnpm build && pnpm --filter @conciv/extension-whiteboard test
@@ -2201,7 +2201,7 @@ pnpm typecheck && pnpm build && pnpm --filter @conciv/extension-whiteboard test
 
 Expected: all green.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A packages/extensions/whiteboard pnpm-lock.yaml
@@ -2216,7 +2216,7 @@ git commit -m "feat(whiteboard)!: drop jazz — drizzle/libsql + tanstack db is 
 
 - Create: `.changeset/whiteboard-tanstack-db.md`
 
-- [ ] **Step 1: Fallow audit**
+- [x] **Step 1: Fallow audit**
 
 ```bash
 pnpm exec fallow audit --changed-since main --format json
@@ -2226,7 +2226,7 @@ Fix everything flagged INTRODUCED (dead exports from deleted Jazz plumbing are t
 hits). Before deleting any flagged export:
 `pnpm exec fallow dead-code --trace 'file.ts:Symbol'`.
 
-- [ ] **Step 2: Full monorepo gate**
+- [x] **Step 2: Full monorepo gate**
 
 ```bash
 pnpm typecheck && pnpm build && pnpm test
@@ -2234,7 +2234,7 @@ pnpm typecheck && pnpm build && pnpm test
 
 Expected: green.
 
-- [ ] **Step 3: Changeset**
+- [x] **Step 3: Changeset**
 
 `.changeset/whiteboard-tanstack-db.md`:
 
@@ -2251,7 +2251,7 @@ last-writer-wins.
 
 (Fixed versioning: one changeset bumps all `@conciv/*` in lockstep.)
 
-- [ ] **Step 4: Commit + verify against the live app**
+- [x] **Step 4: Commit + verify against the live app**
 
 ```bash
 git add .changeset/whiteboard-tanstack-db.md
