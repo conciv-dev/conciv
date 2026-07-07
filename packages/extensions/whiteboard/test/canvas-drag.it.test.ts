@@ -3,6 +3,7 @@ import type {Page} from 'playwright'
 import whiteboard from '../src/server.js'
 import {getExtensionTestApi, type ExtensionTestApi} from '@conciv/extension-testkit'
 import {until} from '@conciv/harness-testkit'
+import {openCanvas} from './canvas-it-helpers.js'
 
 const clientEntry = '@conciv/extension-whiteboard/client'
 
@@ -13,13 +14,6 @@ const readElements = async (api: ExtensionTestApi): Promise<CanvasElement[]> =>
 const firstWidth = (api: ExtensionTestApi) => async (): Promise<number> => (await readElements(api))[0]?.width ?? 0
 const firstDeltaX = (api: ExtensionTestApi, fromX: number) => async (): Promise<number> =>
   ((await readElements(api))[0]?.x ?? fromX) - fromX
-
-const openCanvas = async (page: Page): Promise<{cx: number; cy: number}> => {
-  await page.getByRole('button', {name: 'Open the whiteboard canvas'}).click()
-  await page.getByRole('radio', {name: 'Rectangle'}).waitFor()
-  const {width, height} = page.viewportSize() ?? {width: 1280, height: 720}
-  return {cx: width / 2, cy: height / 2}
-}
 
 const drawRectangle = async (page: Page, cx: number, cy: number): Promise<void> => {
   await page.getByRole('radio', {name: 'Rectangle'}).click({force: true})
