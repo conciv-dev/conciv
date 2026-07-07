@@ -103,13 +103,12 @@ export function Island(props: {
     if (!changed.length) return
     changed.forEach((element) => {
       versions.set(element.id, element.version)
-      const row = {room: props.room, elementId: element.id, data: asJson(element), version: element.version}
-      if (db.canvasElements.has(element.id))
-        return void db.canvasElements.update(element.id, (draft) => {
-          draft.data = row.data
-          draft.version = row.version
-        })
-      db.canvasElements.insert(row)
+      db.canvasElements.write({
+        room: props.room,
+        elementId: element.id,
+        data: asJson(element),
+        version: element.version,
+      })
     })
   }
 
@@ -146,19 +145,13 @@ export function Island(props: {
       elementId: draft.elementId,
       x: data.x ?? 0,
       y: data.y ?? 0,
-      write: (): void => {
-        if (db.canvasElements.has(draft.elementId))
-          return void db.canvasElements.update(draft.elementId, (target) => {
-            target.data = draft.data
-            target.version = draft.version
-          })
-        db.canvasElements.insert({
+      write: (): void =>
+        db.canvasElements.write({
           room: props.room,
           elementId: draft.elementId,
           data: draft.data,
           version: draft.version,
-        })
-      },
+        }),
     }
   }
 

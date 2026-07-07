@@ -1,6 +1,6 @@
 import {createContext, createSignal, onCleanup, useContext, type JSX} from 'solid-js'
 import {QueryClient} from '@tanstack/query-core'
-import {createCollection} from '@tanstack/solid-db'
+import {createCollection, createPacedMutations, throttleStrategy} from '@tanstack/solid-db'
 import {queryCollectionOptions} from '@tanstack/query-db-collection'
 import {z} from 'zod'
 import {
@@ -53,6 +53,7 @@ const deferUntilReady = (collection: {isReady(): boolean; onFirstReady(callback:
 export function createWhiteboardDb(base: string, room: string) {
   const queryClient = new QueryClient()
   const source = new EventSource(`${base}/changes?room=${encodeURIComponent(room)}`)
+  const disposers: Array<() => void> = []
 
   const idCollection = <Row extends {id: string}>(table: string, schema: z.ZodType<Row>) => {
     const rows = z.array(schema)
@@ -120,6 +121,7 @@ export function createWhiteboardDb(base: string, room: string) {
     const rows = z.array(elementRow)
     const change = changeOf(elementRow)
     const conflict = z.object({current: elementRow})
+    const bulkResult = z.object({rows: z.array(elementRow)})
     const putElement = async (row: ElementRow): Promise<void> => {
       const response = await request(`${base}/elements/${scope}`, {method: 'PUT', body: JSON.stringify(row)})
       const saved =
@@ -135,14 +137,6 @@ export function createWhiteboardDb(base: string, room: string) {
         queryFn: async () =>
           rows.parse(await (await request(`${base}/elements/${scope}?room=${encodeURIComponent(room)}`)).json()),
         getKey: (row: ElementRow) => row.elementId,
-        onInsert: async ({transaction}) => {
-          for (const mutation of transaction.mutations) await putElement(mutation.modified)
-          return {refetch: false}
-        },
-        onUpdate: async ({transaction}) => {
-          for (const mutation of transaction.mutations) await putElement(mutation.modified)
-          return {refetch: false}
-        },
         onDelete: async ({transaction}) => {
           await request(`${base}/elements/${scope}/bulk-delete`, {
             method: 'POST',
@@ -152,6 +146,30 @@ export function createWhiteboardDb(base: string, room: string) {
         },
       }),
     )
+    const strategy = throttleStrategy({wait: 50, leading: true, trailing: true})
+    disposers.push(strategy.cleanup)
+    const pacedWrite = createPacedMutations<ElementRow, ElementRow>({
+      strategy,
+      onMutate: (row) => {
+        if (collection.has(row.elementId))
+          return void collection.update(row.elementId, (draft) => {
+            draft.data = row.data
+            draft.version = row.version
+          })
+        collection.insert(row)
+      },
+      mutationFn: async ({transaction}) => {
+        const modified = transaction.mutations.map((mutation) => mutation.modified)
+        const [first] = modified
+        if (modified.length === 1 && first) return void (await putElement(first))
+        const response = await request(`${base}/elements/${scope}/bulk`, {
+          method: 'PUT',
+          body: JSON.stringify({rows: modified}),
+        })
+        const saved = bulkResult.parse(await response.json()).rows
+        collection.utils.writeBatch(() => saved.forEach((row) => collection.utils.writeUpsert(row)))
+      },
+    })
     const onReady = deferUntilReady(collection)
     source.addEventListener(table, (event) => {
       const data = messageData(event)
@@ -162,7 +180,7 @@ export function createWhiteboardDb(base: string, room: string) {
         collection.utils.writeUpsert(message.row)
       })
     })
-    return collection
+    return Object.assign(collection, {write: (row: ElementRow): void => void pacedWrite(row)})
   }
 
   const collections = {
@@ -206,7 +224,10 @@ export function createWhiteboardDb(base: string, room: string) {
     accountId,
     base,
     room,
-    dispose: () => source.close(),
+    dispose: () => {
+      disposers.forEach((cleanup) => cleanup())
+      source.close()
+    },
   }
 }
 
