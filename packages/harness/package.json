@@ -66,6 +66,7 @@
     "@tanstack/ai": "^0.40.0",
     "@tanstack/ai-claude-code": "^0.2.1",
     "@tanstack/ai-codex": "^0.2.1",
+    "@tanstack/ai-opencode": "^0.2.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {

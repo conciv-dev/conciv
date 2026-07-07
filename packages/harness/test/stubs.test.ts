@@ -1,12 +1,10 @@
 import {describe, it, expect} from 'vitest'
 import {chat, EventType, type StreamChunk} from '@tanstack/ai'
 import {geminiCli} from '../src/gemini-cli/index.js'
-import {opencode} from '../src/opencode/index.js'
 import {pi} from '../src/pi/index.js'
 
 describe.each([
   ['gemini-cli', geminiCli],
-  ['opencode', opencode],
   ['pi', pi],
 ])('%s stub', (id, adapter) => {
   it('declares its id and capabilities', () => {

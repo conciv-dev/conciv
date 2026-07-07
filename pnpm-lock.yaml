@@ -826,6 +826,9 @@ importers:
       '@tanstack/ai-codex':
         specifier: ^0.2.1
         version: 0.2.1(@tanstack/ai-sandbox@0.2.2(@tanstack/ai@0.40.0(@opentelemetry/api@1.9.1))(zod@4.4.3))(@tanstack/ai@0.40.0(@opentelemetry/api@1.9.1))
+      '@tanstack/ai-opencode':
+        specifier: ^0.2.1
+        version: 0.2.1(@tanstack/ai-sandbox@0.2.2(@tanstack/ai@0.40.0(@opentelemetry/api@1.9.1))(zod@4.4.3))(@tanstack/ai@0.40.0(@opentelemetry/api@1.9.1))
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -3053,6 +3056,9 @@ packages:
   '@oozcitak/util@10.0.0':
     resolution: {integrity: sha512-hAX0pT/73190NLqBPPWSdBVGtbY6VOhWYK3qqHqtXQ1gK7kS2yz4+ivsN07hpJ6I3aeMtKP6J6npsEKOAzuTLA==}
     engines: {node: '>=20.0'}
+
+  '@opencode-ai/sdk@1.17.13':
+    resolution: {integrity: sha512-VItOGjMzRQx3zypwmeFLNhCiIx32kxS7FqzIJvVZLfyNGCifs3rfGC9qzNKWcxQo4SjNvAw++v4gWWU6Inv+JQ==}
 
   '@opentelemetry/api-logs@0.216.0':
     resolution: {integrity: sha512-KmGTgvxTJ0J01d4mOeX1wMV5NUTNf9HebIuOOGDfIn0a/IrnXIQbOnlylDyl9tkDv4h0DUpdI/GqCdLzfTkUXg==}
@@ -5561,6 +5567,12 @@ packages:
   '@tanstack/ai-mcp@0.2.3':
     resolution: {integrity: sha512-21V7VfBoda9pqv3At2N1fFlxar51dtjdJnERurNn8+B6Q1Ef70p4VFgiE4F29+us5Q1qt5QE7meJRXX0/L2paA==}
     hasBin: true
+
+  '@tanstack/ai-opencode@0.2.1':
+    resolution: {integrity: sha512-DwjzOLTTQcpydfVpTSkSOqjgVYrMGAP0UuRBeQThJW88kqP4CIevTBm5P3PX/fTFXbMN/OTBnVzo4sbnYZPLUg==}
+    peerDependencies:
+      '@tanstack/ai': ^0.40.0
+      '@tanstack/ai-sandbox': ^0.2.2
 
   '@tanstack/ai-sandbox-local-process@0.2.0':
     resolution: {integrity: sha512-7HZoQmvJU3RfiVjlGJjJxT872R658RhMBbMtFtjmMAqDsDhF2wUJMtzrca8fCF0TYm0CXk0ds6p5+DyMic+s/g==}
@@ -13358,6 +13370,10 @@ snapshots:
 
   '@oozcitak/util@10.0.0': {}
 
+  '@opencode-ai/sdk@1.17.13':
+    dependencies:
+      cross-spawn: 7.0.6
+
   '@opentelemetry/api-logs@0.216.0':
     dependencies:
       '@opentelemetry/api': 1.9.1
@@ -15424,6 +15440,12 @@ snapshots:
       - '@opentelemetry/api'
       - supports-color
       - zod
+
+  '@tanstack/ai-opencode@0.2.1(@tanstack/ai-sandbox@0.2.2(@tanstack/ai@0.40.0(@opentelemetry/api@1.9.1))(zod@4.4.3))(@tanstack/ai@0.40.0(@opentelemetry/api@1.9.1))':
+    dependencies:
+      '@opencode-ai/sdk': 1.17.13
+      '@tanstack/ai': 0.40.0(@opentelemetry/api@1.9.1)
+      '@tanstack/ai-sandbox': 0.2.2(@tanstack/ai@0.40.0(@opentelemetry/api@1.9.1))(zod@4.4.3)
 
   '@tanstack/ai-sandbox-local-process@0.2.0(@tanstack/ai-sandbox@0.2.2(@tanstack/ai@0.40.0(@opentelemetry/api@1.9.1))(zod@4.4.3))':
     dependencies:
