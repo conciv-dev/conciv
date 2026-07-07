@@ -73,12 +73,12 @@ export const createStore = async (dataDir: string) => {
   }
 
   const upsertElements = async (scope: ElementScope, rows: ElementRow[]): Promise<ElementRow[]> => {
-    const written: ElementRow[] = []
+    const resolved: ElementRow[] = []
     for (const row of rows) {
       const outcome = await upsertElement(scope, row)
-      if (outcome.ok) written.push(outcome.row)
+      resolved.push(outcome.ok ? outcome.row : outcome.current)
     }
-    return written
+    return resolved
   }
 
   const deleteElement = async (scope: ElementScope, room: string, elementId: string): Promise<boolean> => {

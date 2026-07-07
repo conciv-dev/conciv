@@ -98,7 +98,7 @@ export const registerRoutes = (app: H3, store: Store): void => {
   })
   app.put('/elements/:scope/bulk', async (event) => {
     const {rows} = await readValidatedBody(event, z.object({rows: z.array(elementRow)}))
-    return {written: (await store.upsertElements(scopeOf(event), rows)).length}
+    return {rows: await store.upsertElements(scopeOf(event), rows)}
   })
   app.post('/elements/:scope/bulk-delete', async (event) => {
     const {room, elementIds} = await readValidatedBody(

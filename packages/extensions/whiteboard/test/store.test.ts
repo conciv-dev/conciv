@@ -67,6 +67,18 @@ describe('whiteboard store', () => {
     expect(await store.listElements('draft', 'r1')).toHaveLength(0)
   })
 
+  it('bulk upsert returns the authoritative row per input, winner on conflict', async () => {
+    const store = await open()
+    await store.upsertElement('live', {room: 'r1', elementId: 'e1', data: {v: 1}, version: 5})
+    const resolved = await store.upsertElements('live', [
+      {room: 'r1', elementId: 'e1', data: {v: 2}, version: 3},
+      {room: 'r1', elementId: 'e2', data: {v: 9}, version: 1},
+    ])
+    expect(resolved).toHaveLength(2)
+    expect(resolved[0]).toEqual({room: 'r1', elementId: 'e1', data: {v: 1}, version: 5})
+    expect(resolved[1]).toEqual({room: 'r1', elementId: 'e2', data: {v: 9}, version: 1})
+  })
+
   it('broadcasts cursor events without persisting', async () => {
     const store = await open()
     const events: WhiteboardEvent[] = []

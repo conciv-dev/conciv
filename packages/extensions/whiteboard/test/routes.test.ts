@@ -89,6 +89,21 @@ describe('whiteboard routes', () => {
     expect(await (await fetch(`${base}/elements/live?room=r1`)).json()).toHaveLength(1)
   })
 
+  it('bulk PUT echoes the authoritative row per input, winner on conflict', async () => {
+    expect((await put('/elements/live', {room: 'rb', elementId: 'b1', data: {v: 1}, version: 5})).status).toBe(200)
+    const response = await put('/elements/live/bulk', {
+      rows: [
+        {room: 'rb', elementId: 'b1', data: {v: 2}, version: 3},
+        {room: 'rb', elementId: 'b2', data: {v: 9}, version: 1},
+      ],
+    })
+    expect(response.status).toBe(200)
+    const {rows} = (await response.json()) as {rows: unknown[]}
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toEqual({room: 'rb', elementId: 'b1', data: {v: 1}, version: 5})
+    expect(rows[1]).toEqual({room: 'rb', elementId: 'b2', data: {v: 9}, version: 1})
+  })
+
   it('rejects an invalid body with 400', async () => {
     expect((await put('/elements/live', {room: 'r1'})).status).toBe(400)
     expect((await post('/pins', {id: 'x'})).status).toBe(400)
