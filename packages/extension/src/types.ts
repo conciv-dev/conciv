@@ -1,4 +1,3 @@
-import type {Hono} from 'hono'
 import type {Component, ComponentProps} from 'solid-js'
 import type {DialogApi, PopoverApi} from '@conciv/ui-kit-system'
 import type {z} from 'zod'
@@ -99,13 +98,13 @@ export type ServerHarness = {
 export type ServerApi<Config> = {
   config: Config
   cwd: string
-  app: Hono
   sessions: ServerSessions
   harness: ServerHarness
 }
 
 export type ServerResult<Context> = {
   context: Context
+  app?: unknown
   turnEnd?: (sessionId: string) => void | Promise<void>
   dispose?: () => void | Promise<void>
 }

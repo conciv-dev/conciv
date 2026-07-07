@@ -1,5 +1,6 @@
 import {expect, test} from 'vitest'
 import {z} from 'zod'
+import {Hono} from 'hono'
 import {createMCPClient} from '@tanstack/ai-mcp'
 import {defineExtension, defineTool} from '@conciv/extension'
 import {bootKit} from '../helpers/boot.js'
@@ -9,14 +10,14 @@ function toolNamed(name: string) {
 }
 
 test('two extensions mount isolated namespaces; both routes serve and both tools register', async () => {
-  const alpha = defineExtension({name: 'alpha', tools: [toolNamed('alpha_do')]}).server((server) => {
-    server.app.get('/where', (c) => c.json({who: 'alpha'}))
-    return {context: {}}
-  })
-  const beta = defineExtension({name: 'beta', tools: [toolNamed('beta_do')]}).server((server) => {
-    server.app.get('/where', (c) => c.json({who: 'beta'}))
-    return {context: {}}
-  })
+  const alpha = defineExtension({name: 'alpha', tools: [toolNamed('alpha_do')]}).server(() => ({
+    context: {},
+    app: new Hono().get('/where', (c) => c.json({who: 'alpha'})),
+  }))
+  const beta = defineExtension({name: 'beta', tools: [toolNamed('beta_do')]}).server(() => ({
+    context: {},
+    app: new Hono().get('/where', (c) => c.json({who: 'beta'})),
+  }))
   const kit = await bootKit({extensions: [alpha, beta]})
   const {base, cleanup: close} = kit
   try {
@@ -47,10 +48,10 @@ test('parseConfig applies schema defaults when the user omits config', async () 
   const ext = defineExtension({
     name: 'cfg',
     configSchema: z.object({factor: z.number().default(7)}),
-  }).server((server) => {
-    server.app.get('/factor', (c) => c.json({factor: server.config.factor}))
-    return {context: {}}
-  })
+  }).server((server) => ({
+    context: {},
+    app: new Hono().get('/factor', (c) => c.json({factor: server.config.factor})),
+  }))
   const kit = await bootKit({extensions: [ext]})
   const {base, cleanup: close} = kit
   try {
@@ -61,13 +62,13 @@ test('parseConfig applies schema defaults when the user omits config', async () 
 }, 30_000)
 
 test('server.app serves non-GET verbs with a request body', async () => {
-  const ext = defineExtension({name: 'echo'}).server((server) => {
-    server.app.post('/shout', async (c) => {
+  const ext = defineExtension({name: 'echo'}).server(() => ({
+    context: {},
+    app: new Hono().post('/shout', async (c) => {
       const body = (await c.req.json()) as {text: string}
       return c.json({shouted: body.text.toUpperCase()})
-    })
-    return {context: {}}
-  })
+    }),
+  }))
   const kit = await bootKit({extensions: [ext]})
   const {base, cleanup: close} = kit
   try {

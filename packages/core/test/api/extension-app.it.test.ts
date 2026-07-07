@@ -3,21 +3,20 @@ import {Hono} from 'hono'
 import {streamSSE} from 'hono/streaming'
 import {serve, upgradeWebSocket} from '@hono/node-server'
 import WebSocket, {WebSocketServer} from 'ws'
-import {makeExtensionApp, slug} from '../../src/extension-app.js'
-import {originAllowed} from '../../src/api/cors.js'
+import {slug} from '../../src/extension-app.js'
+import {corsMiddleware, type CorsVars} from '../../src/api/cors.js'
 
-test('extension sub-app serves GET + SSE + ws under /api/ext/<slug>/; bad origin rejected', async () => {
-  const app = new Hono()
-  const guard = (origin: string | null) => originAllowed(origin, new Set())
-  const sub = makeExtensionApp(guard)
-  sub.get('/status', (c) => c.json({ok: true}))
-  sub.get('/stream', (c) =>
+type ProbeEnv = {Variables: {probe: {label: string}} & CorsVars}
+
+const probeApp = new Hono<ProbeEnv>()
+  .get('/status', (c) => c.json({ok: true, label: c.var.probe.label}))
+  .get('/stream', (c) =>
     streamSSE(c, async (stream) => {
       await stream.writeSSE({data: JSON.stringify({tick: 1})})
       await new Promise<void>((resolve) => stream.onAbort(resolve))
     }),
   )
-  sub.get(
+  .get(
     '/ws',
     upgradeWebSocket(() => ({
       onMessage(event, ws) {
@@ -25,7 +24,21 @@ test('extension sub-app serves GET + SSE + ws under /api/ext/<slug>/; bad origin
       },
     })),
   )
-  app.route(`/api/ext/${slug('Test Runner')}`, sub)
+
+test('extension sub-app serves GET + SSE + ws under /api/ext/<slug>/; bad origin rejected', async () => {
+  const mounted = new Hono<ProbeEnv>()
+    .use(async (c, next) => {
+      c.set('probe', {label: 'live'})
+      await next()
+    })
+    .route('/', probeApp)
+  const app = new Hono<{Variables: CorsVars}>()
+    .use(async (c, next) => {
+      c.set('cors', {allowedOrigins: []})
+      await next()
+    })
+    .use(corsMiddleware())
+    .route(`/api/ext/${slug('Test Runner')}`, mounted)
   const wss = new WebSocketServer({noServer: true})
   const server = serve({fetch: app.fetch, port: 0, hostname: '127.0.0.1', websocket: {server: wss}})
   await new Promise<void>((resolve) => server.once('listening', resolve))
@@ -33,7 +46,7 @@ test('extension sub-app serves GET + SSE + ws under /api/ext/<slug>/; bad origin
   const port = typeof address === 'object' && address !== null ? address.port : 0
   const base = `http://127.0.0.1:${port}`
   try {
-    expect(await (await fetch(`${base}/api/ext/test-runner/status`)).json()).toEqual({ok: true})
+    expect(await (await fetch(`${base}/api/ext/test-runner/status`)).json()).toEqual({ok: true, label: 'live'})
 
     const stream = await fetch(`${base}/api/ext/test-runner/stream`)
     const frame = await stream.body!.getReader().read()

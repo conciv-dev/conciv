@@ -15,60 +15,15 @@ import type {Journal} from '../../runtime/journal.js'
 import {makePending} from '../../pending.js'
 import {symbolicateFrames, type RawFrame} from '../../page/symbolicate.js'
 
-export function makePageRoutes(deps: {journal: Journal; root: string}) {
-  const bus = makePageBus()
-
-  async function runVerb(input: PageQueryInput, verb: PageQuery['kind']): Promise<Record<string, unknown>> {
-    const data = await bus.ask({kind: verb, ...input})
-    if (isMutating(verb)) {
-      deps.journal.append({verb, ref: input.ref, selector: input.selector, args: pageArgs(input)}, Date.now())
-    }
-    if (verb === 'locate' && !data.source && Array.isArray(data.frames)) {
-      return {...data, source: await symbolicateFrames(data.frames as RawFrame[], deps.root)}
-    }
-    return data
-  }
-
-  const routes = new Hono()
-    .get('/stream', (c) =>
-      streamSSE(c, async (stream) => {
-        await stream.write(': page-bus open\n\n')
-        await new Promise<void>((resolve) => {
-          const unsubscribe = bus.subscribe((frame) => void stream.writeSSE({data: JSON.stringify(frame)}))
-          stream.onAbort(() => {
-            unsubscribe()
-            resolve()
-          })
-        })
-      }),
-    )
-    .post('/reply', zValidator('json', PageReplySchema), (c) => {
-      const {requestId, data} = c.req.valid('json')
-      bus.resolve(requestId, data)
-      return c.json({ok: true})
-    })
-    .get('/changes', (c) => c.json(deps.journal.list()))
-    .post('/changes/clear', (c) => {
-      deps.journal.clear()
-      return c.json({ok: true})
-    })
-    .get('/:verb', zValidator('param', VerbParamsSchema), zValidator('query', PageQueryInputSchema), async (c) =>
-      c.json(await runVerb(c.req.valid('query'), c.req.valid('param').verb)),
-    )
-    .post('/:verb', zValidator('param', VerbParamsSchema), zValidator('json', PageQueryInputSchema), async (c) =>
-      c.json(await runVerb(c.req.valid('json'), c.req.valid('param').verb)),
-    )
-
-  return {routes, ask: bus.ask}
-}
-
-type PageBus = {
+export type PageBus = {
   ask: (query: Omit<PageQuery, 'requestId'>) => Promise<Record<string, unknown>>
   resolve: (requestId: string, data: Record<string, unknown>) => void
   subscribe: (emit: (frame: unknown) => void) => () => void
 }
 
-function makePageBus(timeoutMs = 5000): PageBus {
+export type PageVars = {page: {journal: Journal; root: string; bus: PageBus}}
+
+export function makePageBus(timeoutMs = 5000): PageBus {
   const pending = makePending<Record<string, unknown>>()
   const subscribers = new Set<(frame: unknown) => void>()
   const idState = {n: 0}
@@ -100,3 +55,50 @@ function pageArgs(input: PageQueryInput): Record<string, unknown> {
 }
 
 const VerbParamsSchema = z.object({verb: PageQueryKindSchema})
+
+async function runVerb(
+  env: PageVars['page'],
+  input: PageQueryInput,
+  verb: PageQuery['kind'],
+): Promise<Record<string, unknown>> {
+  const data = await env.bus.ask({kind: verb, ...input})
+  if (isMutating(verb)) {
+    env.journal.append({verb, ref: input.ref, selector: input.selector, args: pageArgs(input)}, Date.now())
+  }
+  if (verb === 'locate' && !data.source && Array.isArray(data.frames)) {
+    return {...data, source: await symbolicateFrames(data.frames as RawFrame[], env.root)}
+  }
+  return data
+}
+
+const app = new Hono<{Variables: PageVars}>()
+  .get('/stream', (c) =>
+    streamSSE(c, async (stream) => {
+      await stream.write(': page-bus open\n\n')
+      await new Promise<void>((resolve) => {
+        const unsubscribe = c.var.page.bus.subscribe((frame) => void stream.writeSSE({data: JSON.stringify(frame)}))
+        stream.onAbort(() => {
+          unsubscribe()
+          resolve()
+        })
+      })
+    }),
+  )
+  .post('/reply', zValidator('json', PageReplySchema), (c) => {
+    const {requestId, data} = c.req.valid('json')
+    c.var.page.bus.resolve(requestId, data)
+    return c.json({ok: true})
+  })
+  .get('/changes', (c) => c.json(c.var.page.journal.list()))
+  .post('/changes/clear', (c) => {
+    c.var.page.journal.clear()
+    return c.json({ok: true})
+  })
+  .get('/:verb', zValidator('param', VerbParamsSchema), zValidator('query', PageQueryInputSchema), async (c) =>
+    c.json(await runVerb(c.var.page, c.req.valid('query'), c.req.valid('param').verb)),
+  )
+  .post('/:verb', zValidator('param', VerbParamsSchema), zValidator('json', PageQueryInputSchema), async (c) =>
+    c.json(await runVerb(c.var.page, c.req.valid('json'), c.req.valid('param').verb)),
+  )
+
+export default app

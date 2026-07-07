@@ -28,19 +28,21 @@ function hostAllowed(host: string | null): boolean {
   return LOOPBACK_HOSTS.has(hostname)
 }
 
-export function corsMiddleware(allowedOrigins: string[] = []): MiddlewareHandler {
-  const extra = new Set(allowedOrigins)
-  const corsHandler = cors({
-    origin: (origin) => (originAllowed(origin, extra) ? origin : ''),
-    credentials: true,
-    allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['content-type', CONCIV_SESSION_HEADER],
-  })
+export type CorsVars = {cors: {allowedOrigins: string[]}}
+
+export function corsMiddleware(): MiddlewareHandler<{Variables: CorsVars}> {
   return async (c, next) => {
+    const extra = new Set(c.var.cors.allowedOrigins)
     const origin = c.req.header('origin') ?? null
     if (!originAllowed(origin, extra) || !hostAllowed(c.req.header('host') ?? null)) {
       return c.text('forbidden origin', 403)
     }
+    const corsHandler = cors({
+      origin: (candidate) => (originAllowed(candidate, extra) ? candidate : ''),
+      credentials: true,
+      allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+      allowHeaders: ['content-type', CONCIV_SESSION_HEADER],
+    })
     return corsHandler(c, next)
   }
 }

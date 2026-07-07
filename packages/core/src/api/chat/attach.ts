@@ -1,11 +1,9 @@
 import {Hono} from 'hono'
 import {HTTPException} from 'hono/http-exception'
 import {toServerSentEventsStream, type StreamChunk} from '@tanstack/ai'
-import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import type {ChatHistory} from '@conciv/protocol/chat-types'
 import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
-import type {SessionStore} from '../../store/session-store.js'
-import type {TurnHub} from '../../runtime/turn-hub.js'
+import type {ChatEnv, ChatRuntime} from './chat-env.js'
 import {readFileOrEmpty} from '../../fs.js'
 import {sessionIdFromHeaders} from './session-id.js'
 import {settledMessages, userText} from './settled-history.js'
@@ -16,15 +14,7 @@ const SSE_HEADERS = {
   connection: 'keep-alive',
 }
 
-export type AttachDeps = {
-  cwd: string
-  harness: HarnessAdapter
-  store: SessionStore
-  hub: TurnHub
-  claudeHome?: string
-}
-
-async function transcriptMessages(deps: AttachDeps, sessionId: string): Promise<ChatHistory> {
+async function transcriptMessages(deps: ChatRuntime, sessionId: string): Promise<ChatHistory> {
   if (!deps.harness.capabilities.transcriptHistory || !deps.harness.history) return []
   const record = await deps.store.get(sessionId)
   if (!record?.harnessSessionId) return []
@@ -32,10 +22,10 @@ async function transcriptMessages(deps: AttachDeps, sessionId: string): Promise<
   return jsonl ? deps.harness.history.parse(jsonl) : []
 }
 
-export function makeAttachRoute(deps: AttachDeps) {
-  return new Hono().get('/attach', async (c) => {
-    const sessionId = sessionIdFromHeaders(c.req.raw.headers)
-    if (!sessionId) throw new HTTPException(400, {message: 'no session'})
+const app = new Hono<ChatEnv>().get('/attach', async (c) => {
+  const deps = c.var.chat
+  const sessionId = sessionIdFromHeaders(c.req.raw.headers)
+  if (!sessionId) throw new HTTPException(400, {message: 'no session'})
     const abort = new AbortController()
     c.req.raw.signal.addEventListener('abort', () => abort.abort())
     const history = await transcriptMessages(deps, sessionId)
@@ -49,6 +39,7 @@ export function makeAttachRoute(deps: AttachDeps) {
       yield* replay
       yield* live
     }
-    return new Response(toServerSentEventsStream(chunks(), abort), {status: 200, headers: SSE_HEADERS})
-  })
-}
+  return new Response(toServerSentEventsStream(chunks(), abort), {status: 200, headers: SSE_HEADERS})
+})
+
+export default app

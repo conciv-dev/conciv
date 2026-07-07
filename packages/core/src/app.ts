@@ -4,26 +4,30 @@ import {Hono} from 'hono'
 import {HTTPException} from 'hono/http-exception'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
-import type {AnyExtension, ExtensionServerTool, ServerHarness, ServerSessions, ToolRequest} from '@conciv/extension'
+import type {AnyExtension, ServerHarness, ServerSessions, ToolRequest} from '@conciv/extension'
 import type {ResolvedConcivConfig} from './config.js'
 import {getHarness} from '@conciv/harness'
-import {makeExtensionApp, slug} from './extension-app.js'
-import {corsMiddleware, originAllowed} from './api/cors.js'
+import {slug} from './extension-app.js'
+import {corsMiddleware, type CorsVars} from './api/cors.js'
 import {concivTools, type ConcivToolContext} from '@conciv/tools'
 import type {ChatTool} from '@conciv/protocol/chat-types'
-import {makeChatRoutes, type ChatRouteOpts} from './api/chat/chat.js'
+import chatApp, {ensureAgentRecord} from './api/chat/chat.js'
+import type {ChatRuntime} from './api/chat/chat-env.js'
+import {makePermissionGate} from './api/chat/permission.js'
 import {buildChatTools} from './api/chat/chat-tools.js'
-import {ensureChatRecord, recordMintedToken, resumeTokenFor} from './api/chat/turn.js'
-import {readLock} from './store/lock.js'
+import {ensureChatRecord, recordMintedToken, resolveSystemText, resumeTokenFor} from './api/chat/turn.js'
+import {sweepEmptyChatRecords} from './api/chat/session.js'
+import {readLock, readLocks} from './store/lock.js'
 import {createFsSessionStore} from './store/session-store.js'
-import {makeMcpRoutes} from './api/mcp/mcp.js'
-import {makeToolsRoute} from './api/chat/tools-route.js'
-import {makePageRoutes} from './api/page/page.js'
-import {makeOpenSourceRoute} from './api/page/open-source.js'
-import {makeServerRoutes} from './api/server/server.js'
-import {makeEditorRoutes} from './api/editor/editor.js'
+import mcpApp, {type McpVars} from './api/mcp/mcp.js'
+import toolsApp, {type ToolsVars} from './api/chat/tools-route.js'
+import pageApp, {makePageBus, type PageVars} from './api/page/page.js'
+import openSourceApp, {type OpenSourceVars} from './api/page/open-source.js'
+import bundlerApp, {type BundlerVars} from './api/server/server.js'
+import editorApp, {type EditorVars} from './api/editor/editor.js'
 import {makeUiBus} from './runtime/ui-bus.js'
 import {makeJournal} from './runtime/journal.js'
+import {makeTurnHub} from './runtime/turn-hub.js'
 import {logError} from './runtime/harness-logger.js'
 import type {OpenInEditor} from './editor/open.js'
 
@@ -54,36 +58,41 @@ function requireHarness(id: string): HarnessAdapter {
   return found
 }
 
-type ComposeDeps = {
-  allowedOrigins: string[]
-  cwd: string
-  openInEditor: OpenInEditor
-  page: ReturnType<typeof makePageRoutes>
-  toolList: ChatTool[]
-  chat: ChatRouteOpts
-  mcp: {
-    makeCtx: (sessionId: string) => ConcivToolContext
-    extensionTools: ExtensionServerTool[]
-    sessionModel: (sessionId: string) => string | null
-  }
-  bridge: () => BundlerBridge | undefined
-}
+export type CoreVars = CorsVars &
+  PageVars &
+  OpenSourceVars &
+  EditorVars &
+  ToolsVars &
+  {chat: ChatRuntime} &
+  McpVars &
+  BundlerVars
 
-function composeRoutes(deps: ComposeDeps) {
-  return new Hono()
+function composeRoutes(vars: CoreVars) {
+  return new Hono<{Variables: CoreVars}>()
     .onError((error, c) => {
       if (error instanceof HTTPException) return c.json({message: error.message}, error.status)
       logError(`[core] unhandled route error: ${String(error)}`)
       return c.json({message: 'internal error'}, 500)
     })
-    .use(corsMiddleware(deps.allowedOrigins))
-    .route('/api/page', makeOpenSourceRoute({openInEditor: deps.openInEditor, root: deps.cwd}))
-    .route('/api/page', deps.page.routes)
-    .route('/api/editor', makeEditorRoutes(deps.openInEditor))
-    .route('/api/chat/tools', makeToolsRoute(deps.toolList))
-    .route('/api/chat', makeChatRoutes(deps.chat))
-    .route('/api/mcp', makeMcpRoutes(deps.mcp.makeCtx, deps.mcp.extensionTools, deps.mcp.sessionModel))
-    .route('/api/server', makeServerRoutes(deps.bridge))
+    .use(async (c, next) => {
+      c.set('cors', vars.cors)
+      c.set('page', vars.page)
+      c.set('openSource', vars.openSource)
+      c.set('editor', vars.editor)
+      c.set('tools', vars.tools)
+      c.set('chat', vars.chat)
+      c.set('mcp', vars.mcp)
+      c.set('bundler', vars.bundler)
+      await next()
+    })
+    .use(corsMiddleware())
+    .route('/api/page', openSourceApp)
+    .route('/api/page', pageApp)
+    .route('/api/editor', editorApp)
+    .route('/api/chat/tools', toolsApp)
+    .route('/api/chat', chatApp)
+    .route('/api/mcp', mcpApp)
+    .route('/api/server', bundlerApp)
 }
 
 export type AppType = ReturnType<typeof composeRoutes>
@@ -98,19 +107,20 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const harness = opts.harness ?? requireHarness(opts.cfg.harness)
   const uiBus = makeUiBus()
   const store = createFsSessionStore({stateRoot: opts.cfg.stateRoot})
-
-  const riskyTools = new Set(
-    (opts.extensions ?? [])
-      .flatMap((extension) => extension.tools ?? [])
-      .filter((tool) => tool.approval === 'ask')
-      .map((tool) => `mcp__conciv__${tool.name}`),
-  )
+  const gate = makePermissionGate(uiBus, {
+    risky: new Set(
+      (opts.extensions ?? [])
+        .flatMap((extension) => extension.tools ?? [])
+        .filter((tool) => tool.approval === 'ask')
+        .map((tool) => `mcp__conciv__${tool.name}`),
+    ),
+  })
+  const hub = makeTurnHub()
 
   const chatTurnListeners: ((sessionId: string) => void)[] = []
 
-  const page = makePageRoutes({journal: makeJournal(), root: opts.cwd})
+  const pageBus = makePageBus()
 
-  const guard = (origin: string | null) => originAllowed(origin, new Set(opts.allowedOrigins ?? []))
   const serverSessions: ServerSessions = {
     resumeToken: (sessionId) => resumeTokenFor(store, sessionId),
     recordToken: async (sessionId, token) => {
@@ -141,14 +151,15 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     (opts.extensions ?? []).map(async (extension) => {
       if (seenNames.has(extension.name)) throw new Error(`extension name collision: "${extension.name}"`)
       seenNames.add(extension.name)
-      const sub = makeExtensionApp(guard)
       const result = await extension.__server?.({
         config: extension.parseConfig(opts.extensionConfig?.[extension.name]),
         cwd: opts.cwd,
-        app: sub,
         sessions: serverSessions,
         harness: serverHarness,
       })
+      if (result?.app !== undefined && !(result.app instanceof Hono)) {
+        throw new Error(`extension "${extension.name}" returned a non-hono app`)
+      }
       const context = result?.context
       const tools = (extension.tools ?? []).flatMap((tool) => {
         const run = tool.__execute
@@ -162,7 +173,14 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
           },
         ]
       })
-      return {extensionName: extension.name, sub, tools, context, dispose: result?.dispose, turnEnd: result?.turnEnd}
+      return {
+        extensionName: extension.name,
+        app: result?.app instanceof Hono ? result.app : null,
+        tools,
+        context,
+        dispose: result?.dispose,
+        turnEnd: result?.turnEnd,
+      }
     }),
   )
   const extensionContexts: Record<string, unknown> = Object.fromEntries(
@@ -183,7 +201,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   }
   const makeToolCtx = (sessionId: string): ConcivToolContext => ({
     injectUi: (spec) => uiBus.inject(sessionId, spec),
-    page: (query) => page.ask(query),
+    page: (query) => pageBus.ask(query),
     open: (file, line) => opts.openInEditor(file, line),
   })
   const sessionModel = (sessionId: string): string | null => uiBus.getModel(sessionId)
@@ -195,33 +213,44 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     ),
   ]
 
-  const app = composeRoutes({
-    allowedOrigins: opts.allowedOrigins ?? [],
+  const chatRuntime: ChatRuntime = {
     cwd: opts.cwd,
-    openInEditor: opts.openInEditor,
-    page,
-    toolList,
-    chat: {
-      cwd: opts.cwd,
-      stateRoot: opts.cfg.stateRoot,
-      initialSessionId: opts.cfg.sessionId,
-      harness,
-      harnessEnv: opts.harnessEnv,
-      systemPromptFile: opts.systemPromptFile,
-      systemPromptText: opts.systemPromptText ?? opts.cfg.systemPrompt,
-      claudeHome: opts.claudeHome,
-      uiBus,
-      riskyTools,
-      store,
-      tools: buildChatTools(makeToolCtx, extensionTools, sessionModel),
-      onTurnStart: (sessionId) => chatTurnListeners.forEach((listener) => listener(sessionId)),
-      onTurnEnd,
-    },
+    stateRoot: opts.cfg.stateRoot,
+    harness,
+    harnessEnv: opts.harnessEnv,
+    claudeHome: opts.claudeHome,
+    systemText: resolveSystemText(
+      {systemPromptFile: opts.systemPromptFile, systemPromptText: opts.systemPromptText ?? opts.cfg.systemPrompt},
+      harness.capabilities.systemPrompt,
+    ),
+    gate,
+    uiBus,
+    store,
+    hub,
+    tools: buildChatTools(makeToolCtx, extensionTools, sessionModel),
+    onTurnStart: (sessionId) => chatTurnListeners.forEach((listener) => listener(sessionId)),
+    onTurnEnd,
+  }
+
+  if (opts.cfg.sessionId) {
+    void ensureAgentRecord({store, harnessKind: harness.id, cwd: opts.cwd}, opts.cfg.sessionId).catch(() => {})
+  }
+  void sweepEmptyChatRecords(store, new Set(readLocks(opts.cfg.stateRoot).map((l) => l.key))).catch(() => {})
+
+  const app = composeRoutes({
+    cors: {allowedOrigins: opts.allowedOrigins ?? []},
+    page: {journal: makeJournal(), root: opts.cwd, bus: pageBus},
+    openSource: {open: opts.openInEditor, root: opts.cwd},
+    editor: {open: opts.openInEditor},
+    tools: {list: toolList},
+    chat: chatRuntime,
     mcp: {makeCtx: makeToolCtx, extensionTools, sessionModel},
-    bridge: () => opts.bridge,
+    bundler: {bridge: () => opts.bridge},
   })
 
-  mounted.forEach((entry) => app.route(`/api/ext/${slug(entry.extensionName)}`, entry.sub))
+  mounted.forEach((entry) => {
+    if (entry.app) app.route(`/api/ext/${slug(entry.extensionName)}`, entry.app)
+  })
 
   return {app, disposers, extensionContexts}
 }

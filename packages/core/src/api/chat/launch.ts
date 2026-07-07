@@ -6,19 +6,16 @@ import {join} from 'node:path'
 import {platform} from 'node:os'
 import {Hono} from 'hono'
 import {zValidator} from '@hono/zod-validator'
-import type {HarnessAdapter, HarnessLaunchContext, HarnessLaunchResult} from '@conciv/protocol/harness-types'
+import type {HarnessLaunchContext, HarnessLaunchResult} from '@conciv/protocol/harness-types'
 import {ChatLaunchRequestSchema, type ChatLaunch} from '@conciv/protocol/chat-types'
-import type {SessionStore} from '../../store/session-store.js'
+import type {ChatEnv} from './chat-env.js'
 import {sessionIdFromHeaders} from './session-id.js'
 
-export type LaunchRouteDeps = {
-  cwd: string
-  harness: HarnessAdapter
-  store: SessionStore
-}
-
-export function makeLaunchRoutes(deps: LaunchRouteDeps) {
-  return new Hono().post('/launch', zValidator('json', ChatLaunchRequestSchema), async (c) => {
+const app = new Hono<ChatEnv>().post(
+  '/launch',
+  zValidator('json', ChatLaunchRequestSchema),
+  async (c) => {
+    const deps = c.var.chat
     if (!deps.harness.launch) {
       const payload: ChatLaunch = {supported: false, opened: false, command: null}
       return c.json(payload)
@@ -38,8 +35,10 @@ export function makeLaunchRoutes(deps: LaunchRouteDeps) {
     const result = await deps.harness.launch(ctx)
     const payload: ChatLaunch = {supported: true, opened: result.opened, command: result.command}
     return c.json(payload)
-  })
-}
+  },
+)
+
+export default app
 
 async function openTerminal(argv: string[], cwd: string): Promise<HarnessLaunchResult> {
   const command = `cd ${shellQuote(cwd)} && ${argv.map(shellQuote).join(' ')}`

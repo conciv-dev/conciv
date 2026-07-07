@@ -9,9 +9,7 @@ import {ChatRequestSchema, type ChatRequest, type Ok} from '@conciv/protocol/cha
 import {aguiUsageFor, tokenUsageToSnapshot, type UsageSnapshot} from '@conciv/protocol/usage-types'
 import {acquireLock, releaseLock} from '../../store/lock.js'
 import type {SessionStore} from '../../store/session-store.js'
-import type {UiBus} from '../../runtime/ui-bus.js'
-import type {TurnHub} from '../../runtime/turn-hub.js'
-import type {PermissionGate} from './permission.js'
+import type {ChatEnv, ChatRuntime} from './chat-env.js'
 import {concivSandbox, withConcivGate, withConcivSandbox} from './sandbox.js'
 import {tapSessionId} from './stream-effects.js'
 import {toChatMessages, toPendingUserMessage} from './messages.js'
@@ -57,34 +55,24 @@ export const ensureChatRecord = async (
 const COMPACT_FALLBACK_PROMPT =
   'Summarize our conversation so far as concisely as you can: the key decisions, the current state, and any open threads, so we can continue with less context.'
 
-export type TurnDeps = {
-  cwd: string
-  stateRoot: string
-  harness: HarnessAdapter
-  harnessEnv?: (sessionId?: string) => NodeJS.ProcessEnv
-  claudeHome?: string
-  gate: PermissionGate
-  systemPromptFile?: string
-  systemPromptText?: string
-  uiBus: UiBus
-  store: SessionStore
-  hub: TurnHub
-  tools: (sessionId: string) => AnyTool[]
-  onTurnStart?: (sessionId: string) => void
-  onTurnEnd?: (sessionId: string) => Promise<void>
-}
+export type SystemPromptSources = {systemPromptFile?: string; systemPromptText?: string}
 
-function systemPromptText(deps: TurnDeps, mode: HarnessAdapter['capabilities']['systemPrompt']): string {
+export function resolveSystemText(
+  sources: SystemPromptSources,
+  mode: HarnessAdapter['capabilities']['systemPrompt'],
+): string {
   if (mode === 'none') return ''
-  if (mode === 'file' && deps.systemPromptFile) {
+  if (mode === 'file' && sources.systemPromptFile) {
     try {
-      return readFileSync(deps.systemPromptFile, 'utf8')
+      return readFileSync(sources.systemPromptFile, 'utf8')
     } catch {
-      return deps.systemPromptText ?? ''
+      return sources.systemPromptText ?? ''
     }
   }
-  return deps.systemPromptText ?? ''
+  return sources.systemPromptText ?? ''
 }
+
+type TurnDeps = ChatRuntime
 
 function requestedModelFor(chatReq: ChatRequest): string | undefined {
   return chatReq.model ?? chatReq.forwardedProps?.model ?? chatReq.data?.model
@@ -137,9 +125,9 @@ async function buildTurnStream(
   })
 }
 
-async function startTurn(deps: TurnDeps, sessionId: string, chatReq: ChatRequest, sysText: string): Promise<void> {
+async function startTurn(deps: TurnDeps, sessionId: string, chatReq: ChatRequest): Promise<void> {
   const abort = new AbortController()
-  const stream = await buildTurnStream(deps, sysText, sessionId, chatReq, abort)
+  const stream = await buildTurnStream(deps, deps.systemText, sessionId, chatReq, abort)
   const requestedModel = requestedModelFor(chatReq) ?? null
   deps.uiBus.setModel(sessionId, requestedModel)
   const merged = deps.uiBus.run(sessionId, stream)
@@ -151,38 +139,36 @@ async function startTurn(deps: TurnDeps, sessionId: string, chatReq: ChatRequest
     .catch(() => {})
 }
 
-export function makeTurnRoutes(deps: TurnDeps) {
-  const {harness, uiBus} = deps
-  const sysText = systemPromptText(deps, harness.capabilities.systemPrompt)
+const app = new Hono<ChatEnv>()
+  .post('/ui', zValidator('json', UiSpecSchema), (c) => {
+    const spec = c.req.valid('json')
+    const sessionId = sessionIdFromHeaders(c.req.raw.headers)
+    return c.json({renderId: spec.renderId, injected: sessionId ? c.var.chat.uiBus.inject(sessionId, spec) : false})
+  })
+  .post('/', zValidator('json', ChatRequestSchema), async (c) => {
+    const deps = c.var.chat
+    const sessionId = sessionIdFromHeaders(c.req.raw.headers)
+    if (!sessionId) throw new HTTPException(400, {message: 'no session (resolve first)'})
 
-  return new Hono()
-    .post('/ui', zValidator('json', UiSpecSchema), (c) => {
-      const spec = c.req.valid('json')
-      const sessionId = sessionIdFromHeaders(c.req.raw.headers)
-      return c.json({renderId: spec.renderId, injected: sessionId ? uiBus.inject(sessionId, spec) : false})
-    })
-    .post('/', zValidator('json', ChatRequestSchema), async (c) => {
-      const sessionId = sessionIdFromHeaders(c.req.raw.headers)
-      if (!sessionId) throw new HTTPException(400, {message: 'no session (resolve first)'})
+    if (deps.hub.generating(sessionId)) throw new HTTPException(409, {message: 'session busy'})
 
-      if (deps.hub.generating(sessionId)) throw new HTTPException(409, {message: 'session busy'})
+    if (!acquireLock(deps.stateRoot, sessionId, 'chat', process.pid)) {
+      throw new HTTPException(409, {message: 'session busy'})
+    }
 
-      if (!acquireLock(deps.stateRoot, sessionId, 'chat', process.pid)) {
-        throw new HTTPException(409, {message: 'session busy'})
-      }
+    try {
+      deps.onTurnStart?.(sessionId)
+      await ensureChatRecord(deps.store, sessionId, deps.harness.id, deps.cwd)
+      await startTurn(deps, sessionId, c.req.valid('json'))
+      const payload: Ok = {ok: true}
+      return c.json(payload)
+    } catch (e) {
+      releaseLock(deps.stateRoot, sessionId)
+      throw e
+    }
+  })
 
-      try {
-        deps.onTurnStart?.(sessionId)
-        await ensureChatRecord(deps.store, sessionId, harness.id, deps.cwd)
-        await startTurn(deps, sessionId, c.req.valid('json'), sysText)
-        const payload: Ok = {ok: true}
-        return c.json(payload)
-      } catch (e) {
-        releaseLock(deps.stateRoot, sessionId)
-        throw e
-      }
-    })
-}
+export default app
 
 function contextWindowFor(harness: HarnessAdapter, modelId: string | null): number | undefined {
   const models = harness.models

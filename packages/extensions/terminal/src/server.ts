@@ -1,9 +1,10 @@
 import {randomUUID} from 'node:crypto'
+import {Hono} from 'hono'
 import {HTTPException} from 'hono/http-exception'
 import {streamSSE} from 'hono/streaming'
 import {zValidator} from '@hono/zod-validator'
 import {upgradeWebSocket} from '@hono/node-server'
-import {defineExtension} from '@conciv/extension'
+import {defineExtension, type ServerApi} from '@conciv/extension'
 import {CONCIV_SESSION_HEADER, isSessionId} from '@conciv/protocol/chat-types'
 import {TtyClientControlSchema, type TtyClientControl} from '@conciv/protocol/terminal-types'
 import {createTtySessions, type TtySession, type TtySink} from './server/pty-sessions.js'
@@ -16,6 +17,13 @@ import {
 } from './shared/protocol.js'
 
 const ESCAPE_KEY = String.fromCharCode(27)
+
+type TerminalRuntime = {
+  server: ServerApi<Record<never, never>>
+  tty: ReturnType<typeof createTtySessions>
+}
+
+type TerminalEnv = {Variables: {terminal: TerminalRuntime}}
 
 function reuseAlive(alive: TtySession | undefined, size: TerminalOpenRequest): boolean {
   if (!alive || alive.exited()) return false
@@ -39,72 +47,70 @@ function applyControl(session: TtySession, control: TtyClientControl | null, tex
   return false
 }
 
-export default defineExtension({name: TERMINAL_NAME}).server((server) => {
-  const ttySessions = createTtySessions()
-  server.sessions.onChatTurn((sessionId) => ttySessions.close(sessionId))
+function requireSession(headers: Headers): string {
+  const raw = headers.get(CONCIV_SESSION_HEADER)?.trim()
+  if (!raw) throw new HTTPException(400, {message: 'no session (resolve first)'})
+  if (!isSessionId(raw)) throw new HTTPException(400, {message: 'invalid session id (must be ours)'})
+  return raw
+}
 
-  const requireSession = (headers: Headers): string => {
-    const raw = headers.get(CONCIV_SESSION_HEADER)?.trim()
-    if (!raw) throw new HTTPException(400, {message: 'no session (resolve first)'})
-    if (!isSessionId(raw)) throw new HTTPException(400, {message: 'invalid session id (must be ours)'})
-    return raw
-  }
+async function resolveHarnessSession(
+  {server}: TerminalRuntime,
+  sessionId: string,
+): Promise<{harnessSessionId: string; resume: boolean}> {
+  const existing = await server.sessions.resumeToken(sessionId)
+  const harnessSessionId = existing ?? randomUUID()
+  if (!existing) await server.sessions.recordToken(sessionId, harnessSessionId)
+  const resume = Boolean(existing) && (server.harness.transcriptExists?.(harnessSessionId) ?? true)
+  return {harnessSessionId, resume}
+}
 
-  const resolveHarnessSession = async (sessionId: string): Promise<{harnessSessionId: string; resume: boolean}> => {
-    const existing = await server.sessions.resumeToken(sessionId)
-    const harnessSessionId = existing ?? randomUUID()
-    if (!existing) await server.sessions.recordToken(sessionId, harnessSessionId)
-    const resume = Boolean(existing) && (server.harness.transcriptExists?.(harnessSessionId) ?? true)
-    return {harnessSessionId, resume}
-  }
+async function openTtySession(runtime: TerminalRuntime, sessionId: string, size: TerminalOpenRequest, origin: string): Promise<void> {
+  const {server, tty} = runtime
+  const ttyCommand = server.harness.ttyCommand
+  if (!ttyCommand) throw new HTTPException(400, {message: `harness "${server.harness.id}" has no terminal mode`})
+  const {harnessSessionId, resume} = await resolveHarnessSession(runtime, sessionId)
+  const model = size.model ?? (await server.sessions.model(sessionId))
+  server.harness.release?.(sessionId)
+  const mcpUrl = `${origin}/api/mcp`
+  const session = tty.open(
+    sessionId,
+    ttyCommand({cwd: server.cwd, harnessSessionId, resume, model, mcpUrl, concivSessionId: sessionId}),
+    server.cwd,
+  )
+  if (size.cols && size.rows) session.resize(size.cols, size.rows)
+  if (resume) session.inject('\u001b[2m— conciv: resumed session —\u001b[0m')
+}
 
-  const openTtySession = async (
-    sessionId: string,
-    size: TerminalOpenRequest,
-    ttyCommand: NonNullable<typeof server.harness.ttyCommand>,
-    origin: string,
-  ): Promise<void> => {
-    const {harnessSessionId, resume} = await resolveHarnessSession(sessionId)
-    const model = size.model ?? (await server.sessions.model(sessionId))
-    server.harness.release?.(sessionId)
-    const mcpUrl = `${origin}/api/mcp`
-    const session = ttySessions.open(
-      sessionId,
-      ttyCommand({cwd: server.cwd, harnessSessionId, resume, model, mcpUrl, concivSessionId: sessionId}),
-      server.cwd,
-    )
-    if (size.cols && size.rows) session.resize(size.cols, size.rows)
-    if (resume) session.inject('\u001b[2m— conciv: resumed session —\u001b[0m')
-  }
-
-  server.app.post('/open', zValidator('json', TerminalOpenRequestSchema), async (c) => {
+const app = new Hono<TerminalEnv>()
+  .post('/open', zValidator('json', TerminalOpenRequestSchema), async (c) => {
+    const {server, tty} = c.var.terminal
     const sessionId = requireSession(c.req.raw.headers)
     const size = c.req.valid('json')
-    const ttyCommand = server.harness.ttyCommand
-    if (!ttyCommand) {
+    if (!server.harness.ttyCommand) {
       throw new HTTPException(400, {message: `harness "${server.harness.id}" has no terminal mode`})
     }
     if (server.sessions.chatBusy(sessionId)) throw new HTTPException(409, {message: 'session busy'})
-    if (reuseAlive(ttySessions.get(sessionId), size)) return c.json({alive: true})
-    await openTtySession(sessionId, size, ttyCommand, new URL(c.req.url).origin)
+    if (reuseAlive(tty.get(sessionId), size)) return c.json({alive: true})
+    await openTtySession(c.var.terminal, sessionId, size, new URL(c.req.url).origin)
     return c.json({alive: true})
   })
-
-  server.app.post('/close', (c) => {
+  .post('/close', (c) => {
+    const {tty} = c.var.terminal
     const sessionId = requireSession(c.req.raw.headers)
-    if (ttySessions.get(sessionId)?.busy()) throw new HTTPException(409, {message: 'terminal busy'})
-    ttySessions.close(sessionId)
+    if (tty.get(sessionId)?.busy()) throw new HTTPException(409, {message: 'terminal busy'})
+    tty.close(sessionId)
     return c.json({alive: false})
   })
-
-  server.app.get('/state', (c) => {
+  .get('/state', (c) => {
+    const {tty} = c.var.terminal
     const sessionId = requireSession(c.req.raw.headers)
-    const session = ttySessions.get(sessionId)
+    const session = tty.get(sessionId)
     const payload: TerminalState = {alive: Boolean(session) && !session?.exited(), busy: session?.busy() ?? false}
     return c.json(payload)
   })
-
-  server.app.get('/mirror', async (c) => {
+  .get('/mirror', async (c) => {
+    const {server} = c.var.terminal
     const sessionId = requireSession(c.req.raw.headers)
     const token = await server.sessions.resumeToken(sessionId)
     const transcriptMessages = server.harness.transcriptMessages
@@ -121,12 +127,12 @@ export default defineExtension({name: TERMINAL_NAME}).server((server) => {
       })
     })
   })
-
-  server.app.get(
+  .get(
     '/tty',
     upgradeWebSocket((c) => {
+      const {tty} = c.var.terminal
       const url = new URL(c.req.url)
-      const sessionOf = () => ttySessions.get(url.searchParams.get('session') ?? '')
+      const sessionOf = () => tty.get(url.searchParams.get('session') ?? '')
       let detach: (() => void) | null = null
       return {
         onOpen(_event, ws) {
@@ -158,7 +164,22 @@ export default defineExtension({name: TERMINAL_NAME}).server((server) => {
     }),
   )
 
-  return {context: {}, dispose: () => ttySessions.shutdown()}
+export type TerminalAppType = typeof app
+
+export default defineExtension({name: TERMINAL_NAME}).server((server) => {
+  const tty = createTtySessions()
+  server.sessions.onChatTurn((sessionId) => tty.close(sessionId))
+  const runtime: TerminalRuntime = {server, tty}
+  return {
+    context: {},
+    app: new Hono<TerminalEnv>()
+      .use(async (c, next) => {
+        c.set('terminal', runtime)
+        await next()
+      })
+      .route('/', app),
+    dispose: () => tty.shutdown(),
+  }
 })
 
 function parseControl(text: string): TtyClientControl | null {

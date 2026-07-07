@@ -19,19 +19,10 @@ import type {
 } from '@conciv/protocol/chat-types'
 import {RenameSessionSchema, ResolveRequestSchema, isSessionId} from '@conciv/protocol/chat-types'
 import type {SessionStore} from '../../store/session-store.js'
-import type {TurnHub} from '../../runtime/turn-hub.js'
+import type {ChatEnv} from './chat-env.js'
 import {readLock, readLocks} from '../../store/lock.js'
 import {readFileOrEmpty} from '../../fs.js'
 import {sessionIdFromHeaders} from './session-id.js'
-
-export type SessionRouteDeps = {
-  cwd: string
-  stateRoot: string
-  store: SessionStore
-  harness: HarnessAdapter
-  hub: TurnHub
-  claudeHome?: string
-}
 
 export type ResolveDeps = {
   store: SessionStore
@@ -113,7 +104,7 @@ export async function buildSessionList(args: {
   return [...ours, ...unwrapped].toSorted((a, b) => b.updatedAt - a.updatedAt)
 }
 
-function nameFor(deps: SessionRouteDeps, token: string | null): string | null {
+function nameFor(deps: {cwd: string; harness: HarnessAdapter; claudeHome?: string}, token: string | null): string | null {
   const hist = deps.harness.history
   if (!token || !hist?.nameFromTranscript) return null
   const raw = readFileOrEmpty(hist.transcriptPath(deps.cwd, token, deps.claudeHome))
@@ -128,135 +119,144 @@ function killLock(stateRoot: string, sessionId: string): void {
   } catch {}
 }
 
-export function makeSessionRoutes(deps: SessionRouteDeps) {
-  return new Hono()
-    .post('/session/resolve', zValidator('json', ResolveRequestSchema), async (c) => {
-      const resolved = await resolveSession(
-        {store: deps.store, harnessKind: deps.harness.id, cwd: deps.cwd},
-        c.req.valid('json'),
-      )
-      const payload: ResolveResponse = {sessionId: resolved.sessionId as ResolveResponse['sessionId']}
-      return c.json(payload)
-    })
-    .get('/session', async (c) => {
-      const sessionId = sessionIdFromHeaders(c.req.raw.headers)
-      if (!sessionId) throw new HTTPException(400, {message: 'no session'})
-      const harness = {
-        id: deps.harness.id,
-        name: deps.harness.displayName ?? deps.harness.id,
-        canLaunch: Boolean(deps.harness.launch),
-      }
-      const record = await deps.store.get(sessionId)
-      if (!record) {
-        const payload: ChatSession = {
-          sessionId: sessionId as ChatSession['sessionId'],
-          harnessSessionId: null,
-          name: null,
-          origin: 'chat',
-          cwd: deps.cwd,
-          lock: {held: false, role: null},
-          usage: null,
-          harness,
-        }
-        return c.json(payload)
-      }
-      const lock = readLock(deps.stateRoot, record.id)
+const app = new Hono<ChatEnv>()
+  .post('/session/resolve', zValidator('json', ResolveRequestSchema), async (c) => {
+    const deps = c.var.chat
+    const resolved = await resolveSession(
+      {store: deps.store, harnessKind: deps.harness.id, cwd: deps.cwd},
+      c.req.valid('json'),
+    )
+    const payload: ResolveResponse = {sessionId: resolved.sessionId as ResolveResponse['sessionId']}
+    return c.json(payload)
+  })
+  .get('/session', async (c) => {
+    const deps = c.var.chat
+    const sessionId = sessionIdFromHeaders(c.req.raw.headers)
+    if (!sessionId) throw new HTTPException(400, {message: 'no session'})
+    const harness = {
+      id: deps.harness.id,
+      name: deps.harness.displayName ?? deps.harness.id,
+      canLaunch: Boolean(deps.harness.launch),
+    }
+    const record = await deps.store.get(sessionId)
+    if (!record) {
       const payload: ChatSession = {
-        sessionId: record.id as ChatSession['sessionId'],
-        harnessSessionId: record.harnessSessionId,
-        name: record.title ?? nameFor(deps, record.harnessSessionId),
-        origin: record.origin,
+        sessionId: sessionId as ChatSession['sessionId'],
+        harnessSessionId: null,
+        name: null,
+        origin: 'chat',
         cwd: deps.cwd,
-        lock: {held: lock.held, role: lock.role},
-        usage: record.usage,
+        lock: {held: false, role: null},
+        usage: null,
         harness,
       }
       return c.json(payload)
-    })
-    .get('/models', async (c) => {
-      const models = await resolveHarnessModels(deps.harness)
-      const defaultModel = deps.harness.defaultModel ?? models[0]?.id ?? null
-      const payload: ChatModels = {
-        models,
-        defaultModel,
-        harness: {
-          id: deps.harness.id,
-          name: deps.harness.displayName ?? deps.harness.id,
-          canLaunch: Boolean(deps.harness.launch),
-        },
-      }
+    }
+    const lock = readLock(deps.stateRoot, record.id)
+    const payload: ChatSession = {
+      sessionId: record.id as ChatSession['sessionId'],
+      harnessSessionId: record.harnessSessionId,
+      name: record.title ?? nameFor(deps, record.harnessSessionId),
+      origin: record.origin,
+      cwd: deps.cwd,
+      lock: {held: lock.held, role: lock.role},
+      usage: record.usage,
+      harness,
+    }
+    return c.json(payload)
+  })
+  .get('/models', async (c) => {
+    const deps = c.var.chat
+    const models = await resolveHarnessModels(deps.harness)
+    const defaultModel = deps.harness.defaultModel ?? models[0]?.id ?? null
+    const payload: ChatModels = {
+      models,
+      defaultModel,
+      harness: {
+        id: deps.harness.id,
+        name: deps.harness.displayName ?? deps.harness.id,
+        canLaunch: Boolean(deps.harness.launch),
+      },
+    }
+    return c.json(payload)
+  })
+  .get('/commands', async (c) => {
+    const deps = c.var.chat
+    const commands = deps.harness.commands
+    if (!commands) {
+      const payload: ChatCommands = {commands: []}
       return c.json(payload)
-    })
-    .get('/commands', async (c) => {
-      const commands = deps.harness.commands
-      if (!commands) {
-        const payload: ChatCommands = {commands: []}
-        return c.json(payload)
-      }
-      const sessionId = sessionIdFromHeaders(c.req.raw.headers) ?? undefined
-      const origin = `http://${c.req.header('host') ?? '127.0.0.1:3000'}`
-      const mcpUrl = deps.harness.capabilities.mcp === 'http' ? `${origin}/api/mcp` : undefined
-      const list = await commands({cwd: deps.cwd, sessionId, mcpUrl})
-      const payload: ChatCommands = {
-        commands: list.map((command) => ({
-          name: command.name,
-          description: command.description ?? '',
-          ...(command.argumentHint ? {argumentHint: command.argumentHint} : {}),
-          source: commandSource(command.name),
-        })),
-      }
-      return c.json(payload)
-    })
-    .get('/history', async (c) => {
-      const empty: ChatHistory = []
-      if (!deps.harness.capabilities.transcriptHistory || !deps.harness.history) return c.json(empty)
-      const sessionId = sessionIdFromHeaders(c.req.raw.headers)
-      const record = sessionId ? await deps.store.get(sessionId) : null
-      if (!record?.harnessSessionId) return c.json(empty)
-      const jsonl = readFileOrEmpty(
-        deps.harness.history.transcriptPath(deps.cwd, record.harnessSessionId, deps.claudeHome),
-      )
-      const payload: ChatHistory = jsonl ? deps.harness.history.parse(jsonl) : []
-      return c.json(payload)
-    })
-    .get('/sessions', async (c) => {
-      const hist = deps.harness.history
-      const harnessList =
-        deps.harness.capabilities.transcriptHistory && hist?.list ? await hist.list(deps.cwd, deps.claudeHome) : []
-      const runningKeys = new Set(readLocks(deps.stateRoot).map((l) => l.key))
-      const sessions = await buildSessionList({store: deps.store, harnessList, runningKeys, cwd: deps.cwd})
-      const payload: ChatSessions = {sessions}
-      return c.json(payload)
-    })
-    .post('/sessions/title', zValidator('json', RenameSessionSchema), async (c) => {
-      const {sessionId, title} = c.req.valid('json')
-      const clean = title
-        .replace(/\p{Cc}/gu, '')
-        .replace(/\s+/g, ' ')
-        .trim()
-        .slice(0, 120)
-      await deps.store.update(sessionId, {title: clean})
-      const payload: RenameResponse = {ok: true, title: clean}
-      return c.json(payload)
-    })
-    .delete('/session', async (c) => {
-      const sessionId = sessionIdFromHeaders(c.req.raw.headers)
-      if (!sessionId) throw new HTTPException(400, {message: 'no session'})
+    }
+    const sessionId = sessionIdFromHeaders(c.req.raw.headers) ?? undefined
+    const origin = `http://${c.req.header('host') ?? '127.0.0.1:3000'}`
+    const mcpUrl = deps.harness.capabilities.mcp === 'http' ? `${origin}/api/mcp` : undefined
+    const list = await commands({cwd: deps.cwd, sessionId, mcpUrl})
+    const payload: ChatCommands = {
+      commands: list.map((command) => ({
+        name: command.name,
+        description: command.description ?? '',
+        ...(command.argumentHint ? {argumentHint: command.argumentHint} : {}),
+        source: commandSource(command.name),
+      })),
+    }
+    return c.json(payload)
+  })
+  .get('/history', async (c) => {
+    const deps = c.var.chat
+    const empty: ChatHistory = []
+    if (!deps.harness.capabilities.transcriptHistory || !deps.harness.history) return c.json(empty)
+    const sessionId = sessionIdFromHeaders(c.req.raw.headers)
+    const record = sessionId ? await deps.store.get(sessionId) : null
+    if (!record?.harnessSessionId) return c.json(empty)
+    const jsonl = readFileOrEmpty(
+      deps.harness.history.transcriptPath(deps.cwd, record.harnessSessionId, deps.claudeHome),
+    )
+    const payload: ChatHistory = jsonl ? deps.harness.history.parse(jsonl) : []
+    return c.json(payload)
+  })
+  .get('/sessions', async (c) => {
+    const deps = c.var.chat
+    const hist = deps.harness.history
+    const harnessList =
+      deps.harness.capabilities.transcriptHistory && hist?.list ? await hist.list(deps.cwd, deps.claudeHome) : []
+    const runningKeys = new Set(readLocks(deps.stateRoot).map((l) => l.key))
+    const sessions = await buildSessionList({store: deps.store, harnessList, runningKeys, cwd: deps.cwd})
+    const payload: ChatSessions = {sessions}
+    return c.json(payload)
+  })
+  .post('/sessions/title', zValidator('json', RenameSessionSchema), async (c) => {
+    const deps = c.var.chat
+    const {sessionId, title} = c.req.valid('json')
+    const clean = title
+      .replace(/\p{Cc}/gu, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 120)
+    await deps.store.update(sessionId, {title: clean})
+    const payload: RenameResponse = {ok: true, title: clean}
+    return c.json(payload)
+  })
+  .delete('/session', async (c) => {
+    const deps = c.var.chat
+    const sessionId = sessionIdFromHeaders(c.req.raw.headers)
+    if (!sessionId) throw new HTTPException(400, {message: 'no session'})
+    killLock(deps.stateRoot, sessionId)
+    await deps.store.delete(sessionId)
+    const payload: Ok = {ok: true}
+    return c.json(payload)
+  })
+  .post('/stop', (c) => {
+    const deps = c.var.chat
+    const sessionId = sessionIdFromHeaders(c.req.raw.headers)
+    if (sessionId) {
+      deps.hub.markStopped(sessionId)
       killLock(deps.stateRoot, sessionId)
-      await deps.store.delete(sessionId)
-      const payload: Ok = {ok: true}
-      return c.json(payload)
-    })
-    .post('/stop', (c) => {
-      const sessionId = sessionIdFromHeaders(c.req.raw.headers)
-      if (sessionId) {
-        deps.hub.markStopped(sessionId)
-        killLock(deps.stateRoot, sessionId)
-      }
-      const payload: Ok = {ok: true}
-      return c.json(payload)
-    })
-}
+    }
+    const payload: Ok = {ok: true}
+    return c.json(payload)
+  })
+
+export default app
 
 function commandSource(name: string): ChatCommand['source'] {
   if (name.startsWith('mcp__')) return 'mcp'

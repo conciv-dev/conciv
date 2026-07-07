@@ -1,6 +1,15 @@
 import {describe, it, expect} from 'vitest'
 import {Hono} from 'hono'
-import {corsMiddleware, originAllowed} from '../../src/api/cors.js'
+import {corsMiddleware, originAllowed, type CorsVars} from '../../src/api/cors.js'
+
+function corsApp(allowed: string[] = []) {
+  return new Hono<{Variables: CorsVars}>()
+    .use(async (c, next) => {
+      c.set('cors', {allowedOrigins: allowed})
+      await next()
+    })
+    .use(corsMiddleware())
+}
 
 describe('originAllowed', () => {
   const none = new Set<string>()
@@ -22,11 +31,8 @@ describe('originAllowed', () => {
 })
 
 describe('corsMiddleware', () => {
-  function makeApp(allowed: string[] = []): Hono {
-    const app = new Hono()
-    app.use(corsMiddleware(allowed))
-    app.get('/api/ping', (c) => c.json({ok: true}))
-    return app
+  function makeApp(allowed: string[] = []) {
+    return corsApp(allowed).get('/api/ping', (c) => c.json({ok: true}))
   }
 
   it('403s a cross-origin (public site) request', async () => {
