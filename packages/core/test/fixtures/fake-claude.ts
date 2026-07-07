@@ -21,7 +21,8 @@ if (process.env.CONCIV_TEST_PROMPT_FILE) writeFileSync(process.env.CONCIV_TEST_P
 
 if (process.env.CONCIV_FAKE_HANG) {
   emit([{type: 'system', subtype: 'init', session_id: 'sess-fake', model: 'claude-test'}])
-  process.on('SIGTERM', () => process.exit(143))
+  const onTerm = process.env.CONCIV_FAKE_IGNORE_TERM ? () => {} : () => process.exit(143)
+  process.on('SIGTERM', onTerm)
   setInterval(() => {}, 1000)
 } else if (process.env.CONCIV_FAKE_RELEASE_FILE) {
   const releaseFile = process.env.CONCIV_FAKE_RELEASE_FILE

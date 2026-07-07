@@ -16,12 +16,12 @@ const deps = (over: Partial<HarnessChatDeps> = {}): HarnessChatDeps => ({
 })
 
 describe('claudeExecutable', () => {
-  it('always carries --strict-mcp-config', () => {
-    expect(claudeExecutable(null)).toBe('claude --strict-mcp-config')
+  it('always carries exec (so the sandbox kill hits claude, not a wrapper shell) and --strict-mcp-config', () => {
+    expect(claudeExecutable(null)).toBe('exec claude --strict-mcp-config')
   })
 
   it('adds a quoted --plugin-dir when a plugin dir exists', () => {
-    expect(claudeExecutable('/x/plug ins')).toBe("claude --strict-mcp-config --plugin-dir '/x/plug ins'")
+    expect(claudeExecutable('/x/plug ins')).toBe("exec claude --strict-mcp-config --plugin-dir '/x/plug ins'")
   })
 })
 

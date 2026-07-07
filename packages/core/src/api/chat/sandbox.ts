@@ -94,16 +94,27 @@ export function withConcivGate(gate: Gate, sessionId: string) {
   })
 }
 
+const SIGKILL_ESCALATION_MS = 2000
+
 function abortSafeProcess(inner: SandboxProcess): SandboxProcess {
   return {
     exec: inner.exec,
     spawn: async (command, options) => {
       const {signal, ...rest} = options ?? {}
       const spawned = await inner.spawn(command, rest)
-      void spawned.wait().catch(() => {})
+      const live = {value: true}
+      const settle = () => {
+        live.value = false
+      }
+      void spawned.wait().then(settle, settle)
       if (!signal) return spawned
       const killIfLive = () => {
-        if (spawned.pid > 0) void spawned.kill()
+        if (spawned.pid <= 0 || !live.value) return
+        void spawned.kill()
+        const escalate = setTimeout(() => {
+          if (live.value) void spawned.kill('SIGKILL')
+        }, SIGKILL_ESCALATION_MS)
+        escalate.unref?.()
       }
       if (!signal.aborted) {
         signal.addEventListener('abort', killIfLive, {once: true})
