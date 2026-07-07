@@ -728,8 +728,8 @@ git commit -m 'feat(harness): pi + gemini-cli via acpCompatible' -- packages/har
 - [x] **Step 1: Trace every deletion** — `pnpm exec fallow dead-code --trace 'packages/harness/src/claude/blocks.ts:<symbol>'` (and each candidate). "USED but file unreachable" = missing entry point, investigate before deleting.
 - [x] **Step 2: Delete, typecheck after each removal.**
 - [x] **Step 3: Full gates + fallow audit clean.** `pnpm typecheck && pnpm build && pnpm test && pnpm exec fallow audit --changed-since main --format json`.
-- [ ] **Step 4: Manual smoke** — `pnpm dev` (server restart, not reload, for harness/core changes): chat turn, risky-Bash permission prompt blocks then proceeds, image paste, slash-command menu, session browser attach, ESC interrupt.
-- [ ] **Step 5: Commit**
+- [x] **Step 4: Manual smoke** — `pnpm dev` (server restart, not reload, for harness/core changes): chat turn, risky-Bash permission prompt blocks then proceeds, image paste, slash-command menu, session browser attach, ESC interrupt. (Playwright-driven; caught and fixed two dist-only regressions: core bundled a private `@tanstack/ai-sandbox` copy — SandboxCapability identity mismatch broke every `chat()` turn under `pnpm dev`, fixed by moving the sandbox packages to real dependencies + a dist-externals guard test; and `permissionMode: 'acceptEdits'` let claude auto-run write Bash without consulting the approval bridge — fixed to `'default'`. Image paste is a pre-existing gap on main, not a migration break: the styled composer never passes `addAttachmentOnPaste` and `onSend(text)` drops attachments.)
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -m 'refactor(harness)!: delete bespoke decoders and SDK run path' -- packages/harness packages/core AGENTS.md .changeset

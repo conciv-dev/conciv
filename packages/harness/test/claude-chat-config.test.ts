@@ -32,6 +32,11 @@ describe('claudeChatConfig', () => {
     expect(config.adapter.model).toBe('opus')
   })
 
+  it('keeps permissionMode default so claude consults the approval_prompt bridge (acceptEdits silently runs write commands)', () => {
+    const config = claudeChatConfig(deps())
+    expect(Reflect.get(config.adapter, 'adapterConfig')).toMatchObject({permissionMode: 'default'})
+  })
+
   it('threads the resume session id through modelOptions and leaves the workdir to the sandbox', () => {
     expect(claudeChatConfig(deps()).modelOptions).toEqual({})
     expect(claudeChatConfig(deps({resumeSessionId: 'r-9'})).modelOptions).toEqual({sessionId: 'r-9'})
@@ -50,8 +55,7 @@ describe('claudeChatConfig', () => {
   it('writes image parts to @path fileRefs under cwd', () => {
     const dir = mkdtempSync(join(tmpdir(), 'claude-chat-'))
     const config = claudeChatConfig(deps({cwd: dir}))
-    const pixel =
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+    const pixel = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
     const prepared = config.prepareMessages?.([
       {
         role: 'user',
