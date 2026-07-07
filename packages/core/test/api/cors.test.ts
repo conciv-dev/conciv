@@ -1,7 +1,6 @@
-import {describe, it, expect, afterEach} from 'vitest'
-import {H3} from 'h3'
-import {serve, type Server} from 'srvx'
-import {registerCors, originAllowed} from '../../src/api/cors.js'
+import {describe, it, expect} from 'vitest'
+import {Hono} from 'hono'
+import {corsMiddleware, originAllowed} from '../../src/api/cors.js'
 
 describe('originAllowed', () => {
   const none = new Set<string>()
@@ -22,38 +21,27 @@ describe('originAllowed', () => {
   })
 })
 
-describe('registerCors middleware (real http)', () => {
-  let server: Server | undefined
-  afterEach(async () => {
-    await server?.close(true)
-    server = undefined
-  })
-
-  async function start(allowed: string[] = []): Promise<string> {
-    const app = new H3()
-    registerCors(app, allowed)
-    app.get('/api/ping', () => ({ok: true}))
-    server = serve({fetch: app.fetch, port: 0, hostname: '127.0.0.1'})
-    await server.ready()
-    return new URL(server.url ?? '').origin
+describe('corsMiddleware', () => {
+  function makeApp(allowed: string[] = []): Hono {
+    const app = new Hono()
+    app.use(corsMiddleware(allowed))
+    app.get('/api/ping', (c) => c.json({ok: true}))
+    return app
   }
 
   it('403s a cross-origin (public site) request', async () => {
-    const base = await start()
-    const res = await fetch(`${base}/api/ping`, {headers: {origin: 'https://evil.com'}})
+    const res = await makeApp().request('http://127.0.0.1/api/ping', {headers: {origin: 'https://evil.com'}})
     expect(res.status).toBe(403)
   })
 
   it('allows a loopback-origin request and reflects the origin', async () => {
-    const base = await start()
-    const res = await fetch(`${base}/api/ping`, {headers: {origin: 'http://localhost:5173'}})
+    const res = await makeApp().request('http://127.0.0.1/api/ping', {headers: {origin: 'http://localhost:5173'}})
     expect(res.status).toBe(200)
     expect(res.headers.get('access-control-allow-origin')).toBe('http://localhost:5173')
   })
 
   it('allows a no-Origin request (CLI/MCP)', async () => {
-    const base = await start()
-    const res = await fetch(`${base}/api/ping`)
+    const res = await makeApp().request('http://127.0.0.1/api/ping')
     expect(res.status).toBe(200)
   })
 })
