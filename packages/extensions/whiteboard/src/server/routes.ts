@@ -1,133 +1,163 @@
-import {createEventStream, getQuery, getRouterParam, HTTPError, readValidatedBody} from 'h3'
-import type {H3, H3Event} from 'h3'
+import {Hono} from 'hono'
+import {HTTPException} from 'hono/http-exception'
+import {streamSSE} from 'hono/streaming'
+import {zValidator} from '@hono/zod-validator'
 import {eq} from 'drizzle-orm'
 import {z} from 'zod'
 import {commentRow, cursorEvent, elementRow, pendingRow, pinRow, readRow, replyRow} from '../shared/rows.js'
 import {canvasPending, canvasReplies, comments, pins, reads} from './db/schema.js'
-import type {ElementScope, Store} from './db/store.js'
+import type {Store} from './db/store.js'
 
-const roomQuery = (event: H3Event): string => {
-  const room = getQuery(event).room
-  if (typeof room !== 'string' || !room) throw new HTTPError({status: 400, message: 'room required'})
-  return room
-}
+export type WhiteboardEnv = {Variables: {whiteboard: {store: Store}}}
 
-const idParam = (event: H3Event): string => {
-  const id = getRouterParam(event, 'id')
-  if (!id) throw new HTTPError({status: 400, message: 'id required'})
-  return id
-}
-
-const scopeOf = (event: H3Event): ElementScope => {
-  const parsed = z.enum(['live', 'draft']).safeParse(getRouterParam(event, 'scope'))
-  if (!parsed.success) throw new HTTPError({status: 400, message: 'bad scope'})
-  return parsed.data
-}
+const roomQuery = z.object({room: z.string().min(1)})
+const scopeParam = z.object({scope: z.enum(['live', 'draft'])})
+const bulkBody = z.object({rows: z.array(elementRow)})
+const bulkDeleteBody = z.object({room: z.string(), elementIds: z.array(z.string())})
 
 const found = <Row>(row: Row | undefined): Row => {
-  if (!row) throw new HTTPError({status: 404, message: 'row not found'})
+  if (!row) throw new HTTPException(404, {message: 'row not found'})
   return row
 }
 
-export const registerRoutes = (app: H3, store: Store): void => {
-  app.get('/comments', (event) =>
-    store.db
-      .select()
-      .from(comments)
-      .where(eq(comments.sessionId, roomQuery(event))),
+export const whiteboardApp = new Hono<WhiteboardEnv>()
+  .get('/comments', zValidator('query', roomQuery), async (c) =>
+    c.json(
+      await c.var.whiteboard.store.db
+        .select()
+        .from(comments)
+        .where(eq(comments.sessionId, c.req.valid('query').room)),
+    ),
   )
-  app.post('/comments', async (event) => store.insertComment(await readValidatedBody(event, commentRow)))
-  app.put('/comments/:id', async (event) =>
-    found(await store.updateComment(idParam(event), await readValidatedBody(event, commentRow.partial()))),
+  .post('/comments', zValidator('json', commentRow), async (c) =>
+    c.json(await c.var.whiteboard.store.insertComment(c.req.valid('json'))),
   )
-  app.delete('/comments/:id', async (event) => ({deleted: await store.deleteComment(idParam(event))}))
+  .put('/comments/:id', zValidator('json', commentRow.partial()), async (c) =>
+    c.json(found(await c.var.whiteboard.store.updateComment(c.req.param('id'), c.req.valid('json')))),
+  )
+  .delete('/comments/:id', async (c) =>
+    c.json({deleted: await c.var.whiteboard.store.deleteComment(c.req.param('id'))}),
+  )
 
-  app.get('/pins', (event) =>
-    store.db
-      .select()
-      .from(pins)
-      .where(eq(pins.room, roomQuery(event))),
+  .get('/pins', zValidator('query', roomQuery), async (c) =>
+    c.json(
+      await c.var.whiteboard.store.db
+        .select()
+        .from(pins)
+        .where(eq(pins.room, c.req.valid('query').room)),
+    ),
   )
-  app.post('/pins', async (event) => store.insertPin(await readValidatedBody(event, pinRow)))
-  app.put('/pins/:id', async (event) =>
-    found(await store.updatePin(idParam(event), await readValidatedBody(event, pinRow.partial()))),
+  .post('/pins', zValidator('json', pinRow), async (c) =>
+    c.json(await c.var.whiteboard.store.insertPin(c.req.valid('json'))),
   )
-  app.delete('/pins/:id', async (event) => ({deleted: await store.deletePin(idParam(event))}))
+  .put('/pins/:id', zValidator('json', pinRow.partial()), async (c) =>
+    c.json(found(await c.var.whiteboard.store.updatePin(c.req.param('id'), c.req.valid('json')))),
+  )
+  .delete('/pins/:id', async (c) => c.json({deleted: await c.var.whiteboard.store.deletePin(c.req.param('id'))}))
 
-  app.get('/reads', (event) =>
-    store.db
-      .select()
-      .from(reads)
-      .where(eq(reads.sessionId, roomQuery(event))),
+  .get('/reads', zValidator('query', roomQuery), async (c) =>
+    c.json(
+      await c.var.whiteboard.store.db
+        .select()
+        .from(reads)
+        .where(eq(reads.sessionId, c.req.valid('query').room)),
+    ),
   )
-  app.post('/reads', async (event) => store.insertRead(await readValidatedBody(event, readRow)))
-  app.put('/reads/:id', async (event) =>
-    found(await store.updateRead(idParam(event), await readValidatedBody(event, readRow.partial()))),
+  .post('/reads', zValidator('json', readRow), async (c) =>
+    c.json(await c.var.whiteboard.store.insertRead(c.req.valid('json'))),
   )
-  app.delete('/reads/:id', async (event) => ({deleted: await store.deleteRead(idParam(event))}))
+  .put('/reads/:id', zValidator('json', readRow.partial()), async (c) =>
+    c.json(found(await c.var.whiteboard.store.updateRead(c.req.param('id'), c.req.valid('json')))),
+  )
+  .delete('/reads/:id', async (c) => c.json({deleted: await c.var.whiteboard.store.deleteRead(c.req.param('id'))}))
 
-  app.get('/canvasPending', (event) =>
-    store.db
-      .select()
-      .from(canvasPending)
-      .where(eq(canvasPending.room, roomQuery(event))),
+  .get('/canvasPending', zValidator('query', roomQuery), async (c) =>
+    c.json(
+      await c.var.whiteboard.store.db
+        .select()
+        .from(canvasPending)
+        .where(eq(canvasPending.room, c.req.valid('query').room)),
+    ),
   )
-  app.post('/canvasPending', async (event) => store.insertPending(await readValidatedBody(event, pendingRow)))
-  app.put('/canvasPending/:id', async (event) =>
-    found(await store.updatePending(idParam(event), await readValidatedBody(event, pendingRow.partial()))),
+  .post('/canvasPending', zValidator('json', pendingRow), async (c) =>
+    c.json(await c.var.whiteboard.store.insertPending(c.req.valid('json'))),
   )
-  app.delete('/canvasPending/:id', async (event) => ({deleted: await store.deletePending(idParam(event))}))
+  .put('/canvasPending/:id', zValidator('json', pendingRow.partial()), async (c) =>
+    c.json(found(await c.var.whiteboard.store.updatePending(c.req.param('id'), c.req.valid('json')))),
+  )
+  .delete('/canvasPending/:id', async (c) =>
+    c.json({deleted: await c.var.whiteboard.store.deletePending(c.req.param('id'))}),
+  )
 
-  app.get('/canvasReplies', (event) =>
-    store.db
-      .select()
-      .from(canvasReplies)
-      .where(eq(canvasReplies.room, roomQuery(event))),
+  .get('/canvasReplies', zValidator('query', roomQuery), async (c) =>
+    c.json(
+      await c.var.whiteboard.store.db
+        .select()
+        .from(canvasReplies)
+        .where(eq(canvasReplies.room, c.req.valid('query').room)),
+    ),
   )
-  app.post('/canvasReplies', async (event) => store.insertReply(await readValidatedBody(event, replyRow)))
-  app.put('/canvasReplies/:id', async (event) =>
-    found(await store.updateReply(idParam(event), await readValidatedBody(event, replyRow.partial()))),
+  .post('/canvasReplies', zValidator('json', replyRow), async (c) =>
+    c.json(await c.var.whiteboard.store.insertReply(c.req.valid('json'))),
   )
-  app.delete('/canvasReplies/:id', async (event) => ({deleted: await store.deleteReply(idParam(event))}))
+  .put('/canvasReplies/:id', zValidator('json', replyRow.partial()), async (c) =>
+    c.json(found(await c.var.whiteboard.store.updateReply(c.req.param('id'), c.req.valid('json')))),
+  )
+  .delete('/canvasReplies/:id', async (c) =>
+    c.json({deleted: await c.var.whiteboard.store.deleteReply(c.req.param('id'))}),
+  )
 
-  app.get('/elements/:scope', (event) => store.listElements(scopeOf(event), roomQuery(event)))
-  app.put('/elements/:scope', async (event) => {
-    const outcome = await store.upsertElement(scopeOf(event), await readValidatedBody(event, elementRow))
-    if (!outcome.ok) throw new HTTPError({status: 409, body: {current: outcome.current}})
-    return outcome.row
+  .get('/elements/:scope', zValidator('param', scopeParam), zValidator('query', roomQuery), async (c) =>
+    c.json(await c.var.whiteboard.store.listElements(c.req.valid('param').scope, c.req.valid('query').room)),
+  )
+  .put('/elements/:scope', zValidator('param', scopeParam), zValidator('json', elementRow), async (c) => {
+    const outcome = await c.var.whiteboard.store.upsertElement(c.req.valid('param').scope, c.req.valid('json'))
+    if (!outcome.ok) return c.json({current: outcome.current}, 409)
+    return c.json(outcome.row)
   })
-  app.put('/elements/:scope/bulk', async (event) => {
-    const {rows} = await readValidatedBody(event, z.object({rows: z.array(elementRow)}))
-    return {rows: await store.upsertElements(scopeOf(event), rows)}
-  })
-  app.post('/elements/:scope/bulk-delete', async (event) => {
-    const {room, elementIds} = await readValidatedBody(
-      event,
-      z.object({room: z.string(), elementIds: z.array(z.string())}),
-    )
-    return {deleted: await store.deleteElements(scopeOf(event), room, elementIds)}
+  .put('/elements/:scope/bulk', zValidator('param', scopeParam), zValidator('json', bulkBody), async (c) =>
+    c.json({rows: await c.var.whiteboard.store.upsertElements(c.req.valid('param').scope, c.req.valid('json').rows)}),
+  )
+  .post(
+    '/elements/:scope/bulk-delete',
+    zValidator('param', scopeParam),
+    zValidator('json', bulkDeleteBody),
+    async (c) => {
+      const {room, elementIds} = c.req.valid('json')
+      return c.json({
+        deleted: await c.var.whiteboard.store.deleteElements(c.req.valid('param').scope, room, elementIds),
+      })
+    },
+  )
+
+  .post('/cursor', zValidator('json', cursorEvent), async (c) => {
+    c.var.whiteboard.store.cursor(c.req.valid('json'))
+    return c.json({ok: true})
   })
 
-  app.post('/cursor', async (event) => {
-    store.cursor(await readValidatedBody(event, cursorEvent))
-    return {ok: true}
-  })
-
-  app.get('/changes', (event) => {
-    const room = roomQuery(event)
-    const stream = createEventStream(event)
-    void stream.pushComment('whiteboard changes open')
-    const unsubscribe = store.onEvent((change) => {
-      if (change.room !== room) return
-      if (change.table === 'cursor') return void stream.push({event: 'cursor', data: JSON.stringify(change.cursor)})
-      const payload = change.type === 'upsert' ? {type: 'upsert', row: change.row} : {type: 'delete', key: change.key}
-      void stream.push({event: change.table, data: JSON.stringify(payload)})
+  .get('/changes', zValidator('query', roomQuery), (c) => {
+    const {store} = c.var.whiteboard
+    const room = c.req.valid('query').room
+    return streamSSE(c, async (stream) => {
+      await stream.write(': whiteboard changes open\n\n')
+      await new Promise<void>((resolve) => {
+        const unsubscribe = store.onEvent((change) => {
+          if (change.room !== room) return
+          if (change.table === 'cursor') {
+            return void stream.writeSSE({event: 'cursor', data: JSON.stringify(change.cursor)})
+          }
+          const payload =
+            change.type === 'upsert' ? {type: 'upsert', row: change.row} : {type: 'delete', key: change.key}
+          void stream.writeSSE({event: change.table, data: JSON.stringify(payload)})
+        })
+        const heartbeat = setInterval(() => void stream.writeSSE({event: 'ping', data: '{}'}), 15_000)
+        stream.onAbort(() => {
+          clearInterval(heartbeat)
+          unsubscribe()
+          resolve()
+        })
+      })
     })
-    const heartbeat = setInterval(() => void stream.push({event: 'ping', data: '{}'}), 15_000)
-    stream.onClosed(() => {
-      clearInterval(heartbeat)
-      unsubscribe()
-    })
-    return stream.send()
   })
-}
+
+export type WhiteboardAppType = typeof whiteboardApp

@@ -1,26 +1,29 @@
 import {mkdtempSync, realpathSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {H3, serve} from 'h3'
+import {Hono} from 'hono'
+import {serveApp, type ServedApp} from '@conciv/harness-testkit'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {createStore, type Store} from '../src/server/db/store.js'
-import {registerRoutes} from '../src/server/routes.js'
+import {whiteboardApp, type WhiteboardEnv} from '../src/server/routes.js'
 
 let store: Store
 let base = ''
-let server: ReturnType<typeof serve>
+let served: ServedApp
 
 beforeAll(async () => {
   store = await createStore(realpathSync(mkdtempSync(join(tmpdir(), 'wb-routes-'))))
-  const app = new H3()
-  registerRoutes(app, store)
-  server = serve(app, {port: 0})
-  const {url} = await server.ready()
-  if (!url) throw new Error('server has no url')
-  base = `http://127.0.0.1:${new URL(url).port}`
+  const app = new Hono<WhiteboardEnv>()
+    .use(async (c, next) => {
+      c.set('whiteboard', {store})
+      await next()
+    })
+    .route('/', whiteboardApp)
+  served = await serveApp(app.fetch)
+  base = served.base
 })
 afterAll(async () => {
-  await server.close()
+  await served.close()
   store.close()
 })
 

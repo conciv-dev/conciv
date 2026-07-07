@@ -1,5 +1,5 @@
 import {describe, it, expect, afterEach} from 'vitest'
-import {serve, type Server} from 'srvx'
+import {serve, type ServerType} from '@hono/node-server'
 import {mkdtempSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
@@ -15,7 +15,7 @@ function tmp(): string {
   return d
 }
 
-async function startServer(): Promise<{server: Server; base: string}> {
+async function startServer(): Promise<{server: ServerType; base: string}> {
   const root = tmp()
   const cfg = resolveConfig({}, root)
   const {app} = await makeApp({
@@ -24,14 +24,19 @@ async function startServer(): Promise<{server: Server; base: string}> {
     openInEditor: () => {},
   })
   const server = serve({fetch: app.fetch, port: 0, hostname: '127.0.0.1'})
-  await server.ready()
-  return {server, base: new URL(server.url ?? '').origin}
+  await new Promise<void>((resolve) => server.once('listening', resolve))
+  const address = server.address()
+  return {server, base: `http://127.0.0.1:${typeof address === 'object' && address !== null ? address.port : 0}`}
 }
 
 describe('engine CORS (IT, real http, cross-origin + credentials)', () => {
-  const state = {server: undefined as Server | undefined}
+  const state = {server: undefined as ServerType | undefined}
   afterEach(async () => {
-    if (state.server) await state.server.close()
+    const server = state.server
+    if (server) {
+      if ('closeAllConnections' in server) server.closeAllConnections()
+      await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())))
+    }
     state.server = undefined
     for (const d of dirs.splice(0)) rmSync(d, {recursive: true, force: true})
   })

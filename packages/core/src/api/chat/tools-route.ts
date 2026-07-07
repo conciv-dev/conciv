@@ -1,6 +1,11 @@
-import type {H3} from 'h3'
+import {Hono} from 'hono'
 import type {ChatTool, ChatTools} from '@conciv/protocol/chat-types'
 
-export function registerToolsRoute(app: H3, tools: ChatTool[]): void {
-  app.get('/api/chat/tools', (): ChatTools => ({tools}))
-}
+export type ToolsVars = {tools: {list: ChatTool[]}}
+
+const app = new Hono<{Variables: ToolsVars}>().get('/', (c) => {
+  const payload: ChatTools = {tools: c.var.tools.list}
+  return c.json(payload)
+})
+
+export default app

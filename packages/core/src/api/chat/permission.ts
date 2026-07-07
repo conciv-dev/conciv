@@ -1,11 +1,17 @@
 import {randomUUID} from 'node:crypto'
-import {type H3, readValidatedBody} from 'h3'
+import {Hono} from 'hono'
+import {zValidator} from '@hono/zod-validator'
 import {z} from 'zod'
+import type {Ok} from '@conciv/protocol/chat-types'
+import type {ChatEnv} from './chat-env.js'
 import {classifyCommand} from '../../policy/command-policy.js'
 import type {UiBus} from '../../runtime/ui-bus.js'
 import {makePending} from '../../pending.js'
 
 const APPROVAL_TIMEOUT_MS = 120_000
+
+const DecisionBodySchema = z.object({approvalId: z.string().optional(), approved: z.boolean().default(false)})
+const BashInputSchema = z.object({command: z.string()})
 
 export type PermissionGate = {
   decide(toolName: string, toolInput: unknown, sessionId: string, toolUseId: string): Promise<'allow' | 'deny'>
@@ -47,13 +53,11 @@ export function makePermissionGate(uiBus: UiBus, options: PermissionGateOptions 
   return {decide, resolve: pending.resolve}
 }
 
-export function registerPermissionRoutes(app: H3, gate: PermissionGate): void {
-  app.post('/api/chat/permission-decision', async (event) => {
-    const parsed = await readValidatedBody(event, DecisionBodySchema.safeParse)
-    if (parsed.success && parsed.data.approvalId) gate.resolve(parsed.data.approvalId, parsed.data.approved)
-    return {ok: true}
-  })
-}
+const app = new Hono<ChatEnv>().post('/permission-decision', zValidator('json', DecisionBodySchema), (c) => {
+  const decision = c.req.valid('json')
+  if (decision.approvalId) c.var.chat.gate.resolve(decision.approvalId, decision.approved)
+  const payload: Ok = {ok: true}
+  return c.json(payload)
+})
 
-const DecisionBodySchema = z.object({approvalId: z.string().optional(), approved: z.boolean().default(false)})
-const BashInputSchema = z.object({command: z.string()})
+export default app

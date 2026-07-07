@@ -1,7 +1,7 @@
 import {join} from 'node:path'
 import type {Plugin, ViteDevServer} from 'vite'
 import {defineBundlerBridge, type BundlerBridge} from '@conciv/protocol/bundler-types'
-import {start, type Engine} from '@conciv/core/engine'
+import type {Engine} from '@conciv/core/engine'
 import {htmlTags} from '@conciv/core/widget-tags'
 import {resolveConfig} from '@conciv/core/config'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
@@ -77,12 +77,13 @@ function safeOrigin(url: string): string | null {
   }
 }
 
-function bootEngine(
+async function bootEngine(
   server: ViteDevServer,
   options: ConcivConfig,
   agentPath: string,
   extensions: AnyExtension[],
 ): Promise<Engine> {
+  const {start} = await import('@conciv/core/engine')
   return start({
     options,
     root: server.config.root,

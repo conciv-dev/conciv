@@ -13,7 +13,8 @@ const dir = realpathSync(mkdtempSync(join(tmpdir(), 'gemini-tanstack-')))
 describe('gemini-cli through acpCompatible + conciv sandbox/gate', () => {
   it.skipIf(!runReal)(
     'streams a real turn and resumes the session',
-    () => assertTurnAndResume({harness: geminiCli, dir, sessionId: 'it-gemini-1', sessionEvent: 'gemini-cli.session-id'}),
+    () =>
+      assertTurnAndResume({harness: geminiCli, dir, sessionId: 'it-gemini-1', sessionEvent: 'gemini-cli.session-id'}),
     180_000,
   )
 })

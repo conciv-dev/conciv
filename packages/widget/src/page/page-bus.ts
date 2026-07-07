@@ -1,9 +1,8 @@
 // /api/page/reply. All page knowledge lives in the driver — swap it to change the
 
 import {makeDomPageDriver, type PageDriver} from './page-driver.js'
-import {PageQuerySchema, PageReplySchema, type PageQuery} from '@conciv/protocol/page-types'
-import {OkSchema} from '@conciv/protocol/chat-types'
-import {createTransport} from '@conciv/api-client'
+import {PageQuerySchema, type PageQuery} from '@conciv/protocol/page-types'
+import {definePageBusClient} from '@conciv/api-client'
 
 function parseQuery(raw: string): PageQuery | null {
   try {
@@ -15,10 +14,9 @@ function parseQuery(raw: string): PageQuery | null {
 }
 
 export function initPageBus(deps: {apiBase?: string; driver?: PageDriver} = {}): void {
-  const t = createTransport({apiBase: deps.apiBase ?? ''})
+  const bus = definePageBusClient({apiBase: deps.apiBase ?? ''})
   const driver = deps.driver ?? makeDomPageDriver()
-  const reply = t.route({method: 'POST', path: '/api/page/reply', request: PageReplySchema, response: OkSchema})
-  const source = t.eventSource('/api/page/stream')
+  const source = bus.stream()
 
   source.addEventListener('message', (ev) => {
     const query = parseQuery(ev.data)
@@ -26,7 +24,7 @@ export function initPageBus(deps: {apiBase?: string; driver?: PageDriver} = {}):
     const requestId = query.requestId
     void (async () => {
       const data = await driver.execute(query)
-      void reply({requestId, data}).catch(() => {})
+      void bus.reply({requestId, data}).catch(() => {})
     })()
   })
 }

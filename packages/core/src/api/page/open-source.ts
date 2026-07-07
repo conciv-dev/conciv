@@ -1,21 +1,28 @@
-import {type H3, readValidatedBody} from 'h3'
+import {Hono} from 'hono'
+import {zValidator} from '@hono/zod-validator'
 import {OpenSourceSchema} from '@conciv/protocol/page-types'
 import {symbolicateFrames, type RawFrame} from '../../page/symbolicate.js'
 import type {OpenInEditor} from '../../editor/open.js'
 
-export function registerOpenSourceRoute(app: H3, deps: {openInEditor: OpenInEditor; root: string}): void {
-  app.post('/api/page/open-source', async (event) => {
-    const {frames} = await readValidatedBody(event, OpenSourceSchema)
+export type OpenSourceVars = {openSource: {open: OpenInEditor; root: string}}
+
+const app = new Hono<{Variables: OpenSourceVars}>().post(
+  '/open-source',
+  zValidator('json', OpenSourceSchema),
+  async (c) => {
+    const {frames} = c.req.valid('json')
     const resolved: RawFrame[] = frames
       .filter((f): f is typeof f & {fileName: string} => typeof f.fileName === 'string')
       .map((f) => ({fileName: f.fileName, line: f.line ?? 0, column: f.column, fn: f.fn}))
-    const source = await symbolicateFrames(resolved, deps.root)
-    if (!source) return {status: 'no-source' as const}
+    const source = await symbolicateFrames(resolved, c.var.openSource.root)
+    if (!source) return c.json({status: 'no-source' as const})
     try {
-      deps.openInEditor(source.file, source.line)
-      return {status: 'opened' as const}
+      c.var.openSource.open(source.file, source.line)
+      return c.json({status: 'opened' as const})
     } catch {
-      return {status: 'failed' as const}
+      return c.json({status: 'failed' as const})
     }
-  })
-}
+  },
+)
+
+export default app

@@ -1,4 +1,5 @@
-import {handleCors, type CorsOptions, type H3, type H3Event} from 'h3'
+import {cors} from 'hono/cors'
+import type {MiddlewareHandler} from 'hono'
 import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]'])
@@ -27,28 +28,21 @@ function hostAllowed(host: string | null): boolean {
   return LOOPBACK_HOSTS.has(hostname)
 }
 
-export function registerCors(app: H3, allowedOrigins: string[] = []): void {
-  const extra = new Set(allowedOrigins)
-  const corsOptions: CorsOptions = {
-    origin: (origin) => originAllowed(origin, extra),
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['content-type', CONCIV_SESSION_HEADER],
-  }
-  app.use((event, next) => {
-    const origin = event.req.headers.get('origin')
+export type CorsVars = {cors: {allowedOrigins: string[]}}
 
-    if (!originAllowed(origin, extra) || !hostAllowed(event.req.headers.get('host'))) {
-      return new Response('forbidden origin', {status: 403})
+export function corsMiddleware(): MiddlewareHandler<{Variables: CorsVars}> {
+  return async (c, next) => {
+    const extra = new Set(c.var.cors.allowedOrigins)
+    const origin = c.req.header('origin') ?? null
+    if (!originAllowed(origin, extra) || !hostAllowed(c.req.header('host') ?? null)) {
+      return c.text('forbidden origin', 403)
     }
-    const res = handleCors(event, corsOptions)
-    return res === false ? next() : res
-  })
-}
-
-export function corsHeadersFor(event: H3Event): Record<string, string> {
-  const origin = event.req.headers.get('origin')
-  return origin
-    ? {'access-control-allow-origin': origin, 'access-control-allow-credentials': 'true', vary: 'origin'}
-    : {}
+    const corsHandler = cors({
+      origin: (candidate) => (originAllowed(candidate, extra) ? candidate : ''),
+      credentials: true,
+      allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+      allowHeaders: ['content-type', CONCIV_SESSION_HEADER],
+    })
+    return corsHandler(c, next)
+  }
 }

@@ -1,34 +1,12 @@
 import {randomUUID} from 'node:crypto'
-import type {H3} from 'h3'
-import type {AnyTool} from '@tanstack/ai'
-import type {HarnessAdapter} from '@conciv/protocol/harness-types'
+import {Hono} from 'hono'
 import type {SessionRecord} from '@conciv/protocol/chat-types'
-import type {UiBus} from '../../runtime/ui-bus.js'
-import type {SessionStore} from '../../store/session-store.js'
-import {registerLaunchRoutes} from './launch.js'
-import {makePermissionGate, registerPermissionRoutes} from './permission.js'
-import {readLocks} from '../../store/lock.js'
-import {registerSessionRoutes, sweepEmptyChatRecords, type ResolveDeps} from './session.js'
-import {registerTurnRoutes} from './turn.js'
-import {registerAttachRoute} from './attach.js'
-import {makeTurnHub} from '../../runtime/turn-hub.js'
-
-export type ChatRouteOpts = {
-  cwd: string
-  stateRoot: string
-  initialSessionId: string
-  harness: HarnessAdapter
-  harnessEnv?: (sessionId?: string) => NodeJS.ProcessEnv
-  systemPromptFile?: string
-  systemPromptText?: string
-  claudeHome?: string
-  uiBus: UiBus
-  riskyTools?: ReadonlySet<string>
-  store: SessionStore
-  tools: (sessionId: string) => AnyTool[]
-  onTurnStart?: (sessionId: string) => void
-  onTurnEnd?: (sessionId: string) => Promise<void>
-}
+import type {ChatEnv} from './chat-env.js'
+import launch from './launch.js'
+import permission from './permission.js'
+import session, {type ResolveDeps} from './session.js'
+import turn from './turn.js'
+import attach from './attach.js'
 
 export async function ensureAgentRecord(deps: ResolveDeps, harnessId: string): Promise<SessionRecord> {
   const existing = await deps.store.findByHarnessId(harnessId)
@@ -46,43 +24,12 @@ export async function ensureAgentRecord(deps: ResolveDeps, harnessId: string): P
   })
 }
 
-export function registerChatRoutes(app: H3, opts: ChatRouteOpts): void {
-  const uiBus = opts.uiBus
-  const gate = makePermissionGate(uiBus, {risky: opts.riskyTools})
-  const store = opts.store
-  const hub = makeTurnHub()
+const app = new Hono<ChatEnv>()
+  .route('/', permission)
+  .route('/', session)
+  .route('/', launch)
+  .route('/', turn)
+  .route('/', attach)
 
-  if (opts.initialSessionId) {
-    void ensureAgentRecord({store, harnessKind: opts.harness.id, cwd: opts.cwd}, opts.initialSessionId).catch(() => {})
-  }
-
-  void sweepEmptyChatRecords(store, new Set(readLocks(opts.stateRoot).map((l) => l.key))).catch(() => {})
-
-  registerPermissionRoutes(app, gate)
-  registerSessionRoutes(app, {
-    cwd: opts.cwd,
-    stateRoot: opts.stateRoot,
-    store,
-    harness: opts.harness,
-    hub,
-    claudeHome: opts.claudeHome,
-  })
-  registerLaunchRoutes(app, {cwd: opts.cwd, harness: opts.harness, store})
-  registerTurnRoutes(app, {
-    cwd: opts.cwd,
-    stateRoot: opts.stateRoot,
-    harness: opts.harness,
-    harnessEnv: opts.harnessEnv,
-    claudeHome: opts.claudeHome,
-    gate,
-    systemPromptFile: opts.systemPromptFile,
-    systemPromptText: opts.systemPromptText,
-    uiBus,
-    store,
-    tools: opts.tools,
-    onTurnStart: opts.onTurnStart,
-    onTurnEnd: opts.onTurnEnd,
-    hub,
-  })
-  registerAttachRoute(app, {cwd: opts.cwd, harness: opts.harness, store, hub, claudeHome: opts.claudeHome})
-}
+export default app
+export type ChatAppType = typeof app
