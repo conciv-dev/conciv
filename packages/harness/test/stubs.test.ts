@@ -3,13 +3,11 @@ import {chat, EventType, type StreamChunk} from '@tanstack/ai'
 import {geminiCli} from '../src/gemini-cli/index.js'
 import {opencode} from '../src/opencode/index.js'
 import {pi} from '../src/pi/index.js'
-import {codex} from '../src/codex/index.js'
 
 describe.each([
   ['gemini-cli', geminiCli],
   ['opencode', opencode],
   ['pi', pi],
-  ['codex', codex],
 ])('%s stub', (id, adapter) => {
   it('declares its id and capabilities', () => {
     expect(adapter.id).toBe(id)
