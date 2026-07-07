@@ -458,9 +458,6 @@ importers:
 
   packages/extension:
     dependencies:
-      '@conciv/api-client':
-        specifier: workspace:^
-        version: link:../api-client
       '@conciv/grab':
         specifier: workspace:^
         version: link:../grab
