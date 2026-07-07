@@ -1,4 +1,5 @@
-import {changeOf, cursorEvent, elementRow, type CursorEvent} from '../shared/rows.js'
+import {z} from 'zod'
+import {cursorEvent, type CursorEvent} from '../shared/rows.js'
 
 export type ChangeMessage = {type: 'upsert'; row: unknown} | {type: 'delete'; key: string}
 type Handler = (message: ChangeMessage) => void
@@ -6,7 +7,10 @@ type Handler = (message: ChangeMessage) => void
 const parseData = (event: Event): string | undefined =>
   event instanceof MessageEvent && typeof event.data === 'string' ? event.data : undefined
 
-const feedMessage = changeOf(elementRow)
+const feedMessage = z.discriminatedUnion('type', [
+  z.object({type: z.literal('upsert'), row: z.unknown()}),
+  z.object({type: z.literal('delete'), key: z.string()}),
+])
 
 export function createChangeFeed(base: string, room: string) {
   const source = new EventSource(`${base}/changes?room=${encodeURIComponent(room)}`)

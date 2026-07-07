@@ -7,7 +7,7 @@ import type {
 } from '@tanstack/solid-db'
 import {z} from 'zod'
 import {elementRow, type ElementRow} from '../shared/rows.js'
-import type {ChangeFeed} from './change-feed.js'
+import type {ChangeFeed, ChangeMessage} from './change-feed.js'
 
 const jsonHeaders = (init?: RequestInit): HeadersInit | undefined =>
   init?.body ? {'content-type': 'application/json'} : undefined
@@ -20,8 +20,57 @@ const request = async (input: string, init?: RequestInit): Promise<Response> => 
 
 type SyncParams<Row extends object> = Parameters<SyncConfig<Row, string>[`sync`]>[0]
 
-const elementTableOf = (scope: 'live' | 'draft'): 'canvasElements' | 'canvasDraftElements' =>
-  scope === 'draft' ? 'canvasDraftElements' : 'canvasElements'
+const buildSync = <Row extends object>(deps: {
+  feed: ChangeFeed
+  table: string
+  loadUrl: string
+  parseRow: (row: unknown) => Row
+  keyOf: (row: Row) => string
+  onReady: (params: SyncParams<Row>) => void
+}): SyncConfig<Row, string> => {
+  const {feed, table, loadUrl, parseRow, keyOf, onReady} = deps
+  const rowList = z.array(z.unknown())
+  return {
+    rowUpdateMode: 'full',
+    sync: (params) => {
+      onReady(params)
+      let ready = false
+      const buffer: ChangeMessage[] = []
+      const apply = (message: ChangeMessage): void => {
+        params.begin()
+        if (message.type === 'delete') params.write({type: 'delete', key: message.key})
+        if (message.type === 'upsert') {
+          const row = parseRow(message.row)
+          params.write({type: params.collection.has(keyOf(row)) ? 'update' : 'insert', value: row})
+        }
+        params.commit()
+      }
+      const load = async (replace: boolean): Promise<void> => {
+        const loaded = rowList.parse(await (await request(loadUrl)).json()).map(parseRow)
+        params.begin()
+        if (replace) params.truncate()
+        loaded.forEach((row) => params.write({type: 'insert', value: row}))
+        params.commit()
+      }
+      const start = async (replace: boolean): Promise<void> => {
+        ready = false
+        await load(replace)
+        ready = true
+        buffer.splice(0).forEach(apply)
+      }
+      const off = feed.subscribe(table, (message) => {
+        if (!ready) return void buffer.push(message)
+        apply(message)
+      })
+      const offReconnect = feed.onReconnect(() => void start(true))
+      void start(false).finally(() => params.markReady())
+      return () => {
+        off()
+        offReconnect()
+      }
+    },
+  }
+}
 
 export function whiteboardCollectionOptions<Row extends {id: string}>(deps: {
   feed: ChangeFeed
@@ -31,7 +80,6 @@ export function whiteboardCollectionOptions<Row extends {id: string}>(deps: {
   schema: z.ZodType<Row>
 }) {
   const {feed, base, room, table, schema} = deps
-  const rows = z.array(schema)
   let ctx: SyncParams<Row> | undefined
 
   const confirm = (row: Row): void => {
@@ -47,39 +95,17 @@ export function whiteboardCollectionOptions<Row extends {id: string}>(deps: {
     ctx.commit()
   }
 
-  const sync: SyncConfig<Row, string> = {
-    rowUpdateMode: 'full',
-    sync: (params) => {
-      ctx = params
-      const load = async (replace: boolean): Promise<void> => {
-        const loaded = rows.parse(await (await request(`${base}/${table}?room=${encodeURIComponent(room)}`)).json())
-        params.begin()
-        if (replace) params.truncate()
-        loaded.forEach((row) => params.write({type: 'insert', value: row}))
-        params.commit()
-      }
-      const off = feed.subscribe(table, (message) => {
-        params.begin()
-        if (message.type === 'delete') params.write({type: 'delete', key: message.key})
-        if (message.type === 'upsert') {
-          const row = schema.parse(message.row)
-          params.write({type: params.collection.has(row.id) ? 'update' : 'insert', value: row})
-        }
-        params.commit()
-      })
-      const offReconnect = feed.onReconnect(() => void load(true))
-      void load(false).finally(() => params.markReady())
-      return () => {
-        off()
-        offReconnect()
-      }
-    },
-  }
-
   return {
     id: `${table}:${room}`,
     getKey: (row: Row) => row.id,
-    sync,
+    sync: buildSync<Row>({
+      feed,
+      table,
+      loadUrl: `${base}/${table}?room=${encodeURIComponent(room)}`,
+      parseRow: (row) => schema.parse(row),
+      keyOf: (row) => row.id,
+      onReady: (params) => void (ctx = params),
+    }),
     onInsert: async ({transaction}: InsertMutationFnParams<Row, string>) => {
       for (const mutation of transaction.mutations) {
         const saved = schema.parse(
@@ -120,8 +146,7 @@ export function whiteboardElementOptions(deps: {
   scope: 'live' | 'draft'
 }) {
   const {feed, base, room, scope} = deps
-  const table = elementTableOf(scope)
-  const rows = z.array(elementRow)
+  const table = scope === 'draft' ? 'canvasDraftElements' : 'canvasElements'
   const conflict = z.object({current: elementRow})
   const bulkResult = z.object({rows: z.array(elementRow)})
   let ctx: SyncParams<ElementRow> | undefined
@@ -163,41 +188,17 @@ export function whiteboardElementOptions(deps: {
     },
   })
 
-  const sync: SyncConfig<ElementRow, string> = {
-    rowUpdateMode: 'full',
-    sync: (params) => {
-      ctx = params
-      const load = async (replace: boolean): Promise<void> => {
-        const loaded = rows.parse(
-          await (await request(`${base}/elements/${scope}?room=${encodeURIComponent(room)}`)).json(),
-        )
-        params.begin()
-        if (replace) params.truncate()
-        loaded.forEach((row) => params.write({type: 'insert', value: row}))
-        params.commit()
-      }
-      const off = feed.subscribe(table, (message) => {
-        params.begin()
-        if (message.type === 'delete') params.write({type: 'delete', key: message.key})
-        if (message.type === 'upsert') {
-          const row = elementRow.parse(message.row)
-          params.write({type: params.collection.has(row.elementId) ? 'update' : 'insert', value: row})
-        }
-        params.commit()
-      })
-      const offReconnect = feed.onReconnect(() => void load(true))
-      void load(false).finally(() => params.markReady())
-      return () => {
-        off()
-        offReconnect()
-      }
-    },
-  }
-
   return {
     id: `${table}:${room}`,
     getKey: (row: ElementRow) => row.elementId,
-    sync,
+    sync: buildSync<ElementRow>({
+      feed,
+      table,
+      loadUrl: `${base}/elements/${scope}?room=${encodeURIComponent(room)}`,
+      parseRow: (row) => elementRow.parse(row),
+      keyOf: (row) => row.elementId,
+      onReady: (params) => void (ctx = params),
+    }),
     onDelete: async ({transaction}: DeleteMutationFnParams<ElementRow, string>) => {
       await request(`${base}/elements/${scope}/bulk-delete`, {
         method: 'POST',
