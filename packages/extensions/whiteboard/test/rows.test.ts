@@ -15,9 +15,42 @@ import type {canvasElements, canvasPending, canvasReplies, comments, pins, reads
 
 describe('wire schemas', () => {
   it('parses an element row and rejects a bad version', () => {
-    const row = {room: 'r1', elementId: 'e1', data: {type: 'rectangle'}, version: 3}
+    const row = {
+      room: 'r1',
+      elementId: 'e1',
+      data: {type: 'rectangle'},
+      version: 3,
+      ownerKind: 'human',
+      ownerId: 'u1',
+      ownerName: 'Guest 00',
+      ownerModel: null,
+      lastEditedByKind: 'human',
+      lastEditedById: 'u1',
+      lastEditedByName: 'Guest 00',
+      lastEditedByModel: null,
+    }
     expect(elementRow.parse(row)).toEqual(row)
     expect(() => elementRow.parse({...row, version: 'x'})).toThrow()
+  })
+
+  it('accepts an ai-owned element row and rejects one missing author fields', () => {
+    const ok = elementRow.safeParse({
+      room: 'r',
+      elementId: 'e',
+      data: {},
+      version: 1,
+      ownerKind: 'ai',
+      ownerId: null,
+      ownerName: null,
+      ownerModel: 'opus',
+      lastEditedByKind: 'ai',
+      lastEditedById: null,
+      lastEditedByName: null,
+      lastEditedByModel: 'opus',
+    })
+    expect(ok.success).toBe(true)
+    const bad = elementRow.safeParse({room: 'r', elementId: 'e', data: {}, version: 1})
+    expect(bad.success).toBe(false)
   })
 
   it('parses a comment row with explicit nulls and epoch-millis timestamps', () => {

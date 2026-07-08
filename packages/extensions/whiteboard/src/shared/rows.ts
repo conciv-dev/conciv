@@ -11,6 +11,14 @@ export const elementRow = z.object({
   elementId: z.string(),
   data: json,
   version: z.number().int(),
+  ownerKind: z.enum(['human', 'ai']),
+  ownerId: z.string().nullable(),
+  ownerName: z.string().nullable(),
+  ownerModel: z.string().nullable(),
+  lastEditedByKind: z.enum(['human', 'ai']),
+  lastEditedById: z.string().nullable(),
+  lastEditedByName: z.string().nullable(),
+  lastEditedByModel: z.string().nullable(),
 })
 
 export const pendingRow = z.object({
