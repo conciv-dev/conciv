@@ -17,6 +17,7 @@ export {
   type ResultPairing,
 } from './store/grouping.js'
 export {ToolProvider, useToolCtx} from './store/tool-context.js'
+export {chatBusy, guardChat, type GuardedChat} from './store/chat-busy.js'
 
 export {Primitive, type Slottable} from './primitives/util/primitive.js'
 export {

@@ -2,6 +2,7 @@ import {createContext, createEffect, createMemo, useContext, type Accessor, type
 import {createStore, type SetStoreFunction} from 'solid-js/store'
 import type {UseChatReturn} from '@tanstack/ai-solid'
 import {coalesceTurns, type Turn} from './grouping.js'
+import {chatBusy} from './chat-busy.js'
 
 export type ViewState = {
   draft: string
@@ -64,7 +65,7 @@ export function useThread(): {
 } {
   const chat = useChatContext()
   const turns = createMemo(() => coalesceTurns(chat.messages()))
-  const isRunning = createMemo(() => chat.status() === 'streaming' || chat.status() === 'submitted')
+  const isRunning = createMemo(() => chatBusy(chat))
   return {
     get isEmpty() {
       return turns().length === 0
@@ -91,7 +92,7 @@ export function useComposer(): {
   cancel: () => void
 } {
   const chat = useChatContext()
-  const isRunning = createMemo(() => chat.status() === 'streaming' || chat.status() === 'submitted')
+  const isRunning = createMemo(() => chatBusy(chat))
   const text = () => chat.view.draft
   const isEmpty = () => chat.view.draft.trim().length === 0
   const canSend = () => !isEmpty() && !isRunning()
