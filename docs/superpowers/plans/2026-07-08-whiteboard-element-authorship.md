@@ -538,17 +538,33 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>" -- \
 
 ---
 
-## Task 6: Capability-token middleware + authority on element routes
+## Task 6: Capability classify-middleware + authority on element routes
+
+**Design note (read first):** The widget is **cross-origin** to the API (`widget-tags.ts` sets
+`pw-api-base` to `http://127.0.0.1:${corePort}`; core runs CORS), so signed cookies are the wrong tool.
+Hono's `bearerAuth` also does not fit — it *rejects* on mismatch, but we need *classify-not-reject* (an
+authorityless browser write to an AI-owned element must still succeed; the store is the decider). So this
+task adds a tiny custom classify-middleware, and the capability is delivered to the browser through the
+existing meta-tag bootstrap (like `pw-api-base`), **not** a fetchable endpoint (an endpoint would let the
+agent's curl read the token). The capability is minted in `createStore` and exposed as `store.capability`.
 
 **Files:**
-- Modify: `packages/extensions/whiteboard/src/server/routes.ts` (env Variables, middleware, element write routes)
-- Modify: `packages/extensions/whiteboard/src/server.ts` (mint token, set on `whiteboard` context var, expose to client via bootstrap)
+- Modify: `packages/extensions/whiteboard/src/server/routes.ts` (env Variables, classify-middleware, element write routes)
+- Modify: `packages/core/src/widget-tags.ts` (inject `pw-whiteboard-cap` meta tag)
+- Modify: `packages/core/src/app.ts` (pass the whiteboard store's capability into `htmlTags` opts)
 - Test: `packages/extensions/whiteboard/test/routes.test.ts`
 
 **Interfaces:**
 - Consumes: `Caller` (Task 3); the store's new `caller`-aware methods (Task 4).
-- Produces: element write routes require header `x-whiteboard-cap`; `authority` derived to `'human'` when it matches the per-store capability, else `'untrusted'`; `GET /capability` returns the token to the browser (same-origin, 127.0.0.1-bound).
-- The store carries the capability so routes can compare: add `store.capability: string` (a random minted in `createStore`).
+- Produces: element write routes read header `x-whiteboard-cap`; `authority` classified to `'human'` when it equals `store.capability`, else `'untrusted'`. The capability reaches the browser via the `pw-whiteboard-cap` meta tag (host page — the sandboxed agent never receives it). There is deliberately **no** `GET /capability`.
+- The store carries the capability so routes can compare: `store.capability: string` (random minted in `createStore`).
+
+**Note on wiring the meta tag:** `htmlTags(corePort, {widget})` currently has no access to extension
+state. Confirm by reading `app.ts` how `htmlTags` is called and thread the whiteboard capability through
+its opts (e.g. `htmlTags(corePort, {widget, whiteboardCapability})`), reading the mounted whiteboard
+store's `capability`. If `htmlTags` is called before extensions mount, mint the capability in `app.ts`
+and pass the SAME value into both the whiteboard extension config and `htmlTags` instead of minting it in
+`createStore`. Verify the call order before writing the code for this step.
 
 - [ ] **Step 1: Add `capability` to the store.** In `store.ts` `createStore`, add `const capability = randomUUID()` (import `randomUUID` from `node:crypto`) and return it on the store object. (Fold this micro-change here so the route test can rely on it.)
 
@@ -621,11 +637,9 @@ Update the three element write routes to pass a `Caller`:
   })
 ```
 
-Add a capability route (outside `/elements/*`, so it needs no header):
-
-```ts
-  .get('/capability', (c) => c.json({capability: c.var.whiteboard.store.capability}))
-```
+Do **not** add a `GET /capability` route — the agent could fetch it. The browser receives the token via
+the `pw-whiteboard-cap` meta tag (wired in `widget-tags.ts`/`app.ts` per this task's Files list) and
+sends it as `x-whiteboard-cap` (Task 8 handles the client side).
 
 - [ ] **Step 5: Run to verify it passes**
 
@@ -640,6 +654,8 @@ git commit -m "feat(whiteboard): capability-token authority on element routes
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>" -- \
   packages/extensions/whiteboard/src/server/routes.ts \
   packages/extensions/whiteboard/src/server/db/store.ts \
+  packages/core/src/widget-tags.ts \
+  packages/core/src/app.ts \
   packages/extensions/whiteboard/test/routes.test.ts
 ```
 
@@ -803,7 +819,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>" -- \
 
 - [ ] **Step 1: Read the three files** to locate: the `request(...)` fetch wrapper in `whiteboard-collection.ts`, the `writeLocal(elements)` path and the commit `bulk` fetch in `island.tsx`, and the guest-identity factory in `overlay.tsx`. Confirm exact symbol names (the caveman grep mangles them; use the editor/Read).
 
-- [ ] **Step 2: Fetch + cache the capability once** at collection setup (a `GET ${base}/capability`), and have the shared `request` wrapper attach `x-whiteboard-cap`. On human writes, tag each row with the guest identity as both `owner` (only meaningful on insert; the store preserves it) and `lastEditedBy`.
+- [ ] **Step 2: Read the capability from the `pw-whiteboard-cap` meta tag** at collection setup (same way the client already reads `pw-api-base` — locate that reader and mirror it), cache it, and have the shared `request` wrapper attach it as the `x-whiteboard-cap` header. Do NOT fetch it from an endpoint. On human writes, tag each row with the guest identity as both `owner` (only meaningful on insert; the store preserves it) and `lastEditedBy`.
 
 - [ ] **Step 3: Stamp AI-origin rows** in the commit-conversion path (`island.tsx` where draft skeletons/pending convert to elements and PUT to `/elements/live/bulk`): set `ownerKind: 'ai'`, `ownerModel` from the pending/session model, `lastEditedByKind: 'ai'`.
 

@@ -112,12 +112,18 @@ handler. Split cleanly:
   Every path — HTTP routes, `canvas.update`, `canvas.delete`, `canvas.clear`, a forged `curl` — calls
   the store, so none can skip it. AI writes to its own (`ownerKind === 'ai'`) rows pass freely.
 
-- **Authority derivation = Hono middleware at the HTTP boundary.** The browser holds a per-server-boot
-  **capability token** (random, minted in server memory, injected into the served page bootstrap, never
-  written to a workspace file the sandboxed agent can read). A `bearerAuth`-style middleware on the
-  `/elements/*` write routes validates it and does `c.set('authority', valid ? 'human' : 'untrusted')`
-  (typed `Variables`). The route passes `c.get('authority')` into the store call. The AI's `curl` has
-  no token → `untrusted` → the store rejects any human-owned mutation/delete.
+- **Authority derivation = a small Hono classify-middleware at the HTTP boundary.** The browser holds a
+  per-server-boot **capability token** (random, minted in server memory) delivered through the codebase's
+  existing browser-only bootstrap channel: a `pw-whiteboard-cap` `<meta>` tag injected alongside
+  `pw-api-base`/`pw-widget` in `widget-tags.ts` (the host page the sandboxed agent never receives — not a
+  fetchable endpoint; there is deliberately **no** `GET /capability`, which the agent could just call).
+  The widget reads the meta tag and sends the token as an `x-whiteboard-cap` header on element writes. A
+  middleware on `/elements/*` classifies — `c.set('authority', header === capability ? 'human' :
+  'untrusted')` (typed `Variables`) — and the route passes `c.get('authority')` into the store. We do
+  **not** use `bearerAuth` (it rejects on mismatch; we need classify-not-reject, since an authorityless
+  browser write to an AI-owned element must still succeed and the store is the decider) nor signed
+  cookies (the widget is cross-origin to the API — see `widget-tags.ts` `pw-api-base` + CORS — so
+  cross-origin cookies on http-localhost are the wrong tool).
 
 - **AI authority is set in code, not from input.** The `canvas.*` handlers call the store with a literal
   `authority: 'ai'`. The AI cannot make a handler claim `'human'` — there is no input path to it.
@@ -138,9 +144,14 @@ the enforcement point.
 
 ## Trust boundary — how far "AI can't hack around it" holds
 
-- In-process tool calls: unforgeable (`authority: 'ai'` is literal in the handler).
-- HTTP (incl. `curl` from the agent's Bash): bounded by the capability token the agent never receives;
-  tokenless human-owned writes are rejected at the store.
+- In-process MCP tool calls (the agent's everyday, silent path): **the real protection** —
+  unforgeable, `authority: 'ai'` is literal in the handler, the store hard-blocks human-owned mutation
+  without an approval token. No prompt-dependence.
+- HTTP capability token: **defense-in-depth, not an absolute wall.** On one localhost box the agent
+  could, via `curl`, try to read the host page and replay the header. Two things bound that: `curl`
+  requires the agent's Bash tool, which is permission-gated (`command-policy.ts`) — not silent — and the
+  token rides the browser-only meta-tag bootstrap, not a fetchable endpoint. We do not claim it defeats
+  a determined, user-approved `curl`; the store guard on the MCP path is what makes the guarantee.
 - **The ultimate floor is sandbox filesystem isolation.** The libSQL file lives under `stateRoot`. If
   the agent's sandbox exposes `stateRoot` as writable, the agent could open the sqlite file directly and
   `DELETE` rows beneath the store — no app-layer control can stop that. The sandbox must not mount
