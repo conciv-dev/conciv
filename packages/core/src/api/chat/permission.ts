@@ -16,6 +16,7 @@ const BashInputSchema = z.object({command: z.string()})
 export type PermissionGate = {
   decide(toolName: string, toolInput: unknown, sessionId: string, toolUseId: string): Promise<'allow' | 'deny'>
   resolve(approvalId: string, approved: boolean): void
+  request(sessionId: string, detail: {toolName: string; input: unknown; toolCallId?: string}): Promise<boolean>
 }
 
 export type PermissionGateOptions = {risky?: ReadonlySet<string>; timeoutMs?: number}
@@ -50,7 +51,26 @@ export function makePermissionGate(uiBus: UiBus, options: PermissionGateOptions 
     }
   }
 
-  return {decide, resolve: pending.resolve}
+  async function request(
+    sessionId: string,
+    detail: {toolName: string; input: unknown; toolCallId?: string},
+  ): Promise<boolean> {
+    const approvalId = randomUUID()
+    const injected = uiBus.injectApproval(sessionId, {
+      toolCallId: detail.toolCallId ?? approvalId,
+      toolName: detail.toolName,
+      input: detail.input,
+      approvalId,
+    })
+    if (!injected) return false
+    try {
+      return await pending.await(approvalId, timeoutMs)
+    } catch {
+      return false
+    }
+  }
+
+  return {decide, resolve: pending.resolve, request}
 }
 
 const app = new Hono<ChatEnv>().post('/permission-decision', zValidator('json', DecisionBodySchema), (c) => {

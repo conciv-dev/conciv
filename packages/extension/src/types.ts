@@ -100,6 +100,7 @@ export type ServerApi<Config> = {
   cwd: string
   sessions: ServerSessions
   harness: ServerHarness
+  approvals: {request(sessionId: string, detail: {toolName: string; input: unknown}): Promise<boolean>}
 }
 
 export type ServerResult<Context> = {

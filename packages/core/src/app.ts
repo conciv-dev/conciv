@@ -175,6 +175,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         cwd: opts.cwd,
         sessions: serverSessions,
         harness: serverHarness,
+        approvals: {request: (sessionId, detail) => gate.request(sessionId, detail)},
       })
       const context = result?.context
       return {
