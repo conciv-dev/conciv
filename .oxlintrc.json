@@ -43,6 +43,13 @@
     "no-restricted-imports": [
       "error",
       {
+        "paths": [
+          {
+            "name": "@hono/node-server",
+            "importNames": ["serve", "createAdaptorServer", "getRequestListener"],
+            "message": "Import serveHono from @conciv/serve, never @hono/node-server's serve — the wrapper bakes overrideGlobalObjects:false so a co-hosted engine never clobbers the host's global Response/Request (which breaks SSR realms, e.g. nitro rendering [object Response]). upgradeWebSocket may be imported directly."
+          }
+        ],
         "patterns": [
           {
             "group": ["@ark-ui", "@ark-ui/**"],
@@ -61,6 +68,12 @@
   "overrides": [
     {
       "files": ["packages/ui-kit-system/**"],
+      "rules": {
+        "no-restricted-imports": "off"
+      }
+    },
+    {
+      "files": ["packages/serve/**"],
       "rules": {
         "no-restricted-imports": "off"
       }
