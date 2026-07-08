@@ -243,17 +243,22 @@ export function Island(props: {
   const sceneSubscription = db.canvasElements.subscribeChanges(() => applyRemote(snapshotElements()), {
     includeInitialState: true,
   })
+  const pendingHandlers: Partial<Record<PendingRow['kind'], (row: PendingRow) => Promise<void>>> = {
+    skeletons: drainPending,
+    mermaid: drainPending,
+    svg: drainPending,
+    commit: performCommit,
+    export: performExport,
+  }
+  const drainRow = (row: PendingRow): void => {
+    if (draining.has(row.id)) return
+    const handler = pendingHandlers[row.kind]
+    if (!handler) return
+    draining.add(row.id)
+    void handler(row)
+  }
   const pendingSubscription = db.canvasPending.subscribeChanges(
-    () =>
-      [...db.canvasPending.state.values()].forEach((row) => {
-        if (draining.has(row.id)) return
-        const drawable = row.kind === 'skeletons' || row.kind === 'mermaid' || row.kind === 'svg'
-        if (!drawable && row.kind !== 'commit' && row.kind !== 'export') return
-        draining.add(row.id)
-        if (row.kind === 'commit') return void performCommit(row)
-        if (row.kind === 'export') return void performExport(row)
-        void drainPending(row)
-      }),
+    () => [...db.canvasPending.state.values()].forEach(drainRow),
     {includeInitialState: true},
   )
 

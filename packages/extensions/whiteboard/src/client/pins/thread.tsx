@@ -21,6 +21,22 @@ const ToolPart = z.object({
   output: z.unknown().optional(),
 })
 
+function renderToolPart(tool: z.output<typeof ToolPart>, key: string, ctx: ToolViewCtx): JSX.Element {
+  const callPart: ToolCallCardProps['part'] = {
+    type: 'tool-call',
+    id: key,
+    name: tool.name,
+    arguments: JSON.stringify(tool.arguments ?? {}),
+    state: 'complete',
+    output: tool.output,
+  }
+  const result: ToolCallCardProps['result'] =
+    tool.output === undefined
+      ? undefined
+      : {type: 'tool-result', toolCallId: key, content: JSON.stringify(tool.output), state: 'complete'}
+  return <ToolCallCard part={callPart} result={result} ctx={ctx} tools={() => builtinToolCards} />
+}
+
 function renderPart(part: unknown, key: string, ctx: ToolViewCtx): JSX.Element {
   const text = TextPart.safeParse(part)
   if (text.success)
@@ -33,20 +49,8 @@ function renderPart(part: unknown, key: string, ctx: ToolViewCtx): JSX.Element {
       </span>
     )
   const tool = ToolPart.safeParse(part)
-  if (!tool.success) return <pre class="text-[0.6875rem] text-pw-text-3 overflow-auto">{JSON.stringify(part)}</pre>
-  const callPart: ToolCallCardProps['part'] = {
-    type: 'tool-call',
-    id: key,
-    name: tool.data.name,
-    arguments: JSON.stringify(tool.data.arguments ?? {}),
-    state: 'complete',
-    output: tool.data.output,
-  }
-  const result: ToolCallCardProps['result'] =
-    tool.data.output === undefined
-      ? undefined
-      : {type: 'tool-result', toolCallId: key, content: JSON.stringify(tool.data.output), state: 'complete'}
-  return <ToolCallCard part={callPart} result={result} ctx={ctx} tools={() => builtinToolCards} />
+  if (tool.success) return renderToolPart(tool.data, key, ctx)
+  return <pre class="text-[0.6875rem] text-pw-text-3 overflow-auto">{JSON.stringify(part)}</pre>
 }
 
 function CommentRow(props: {comment: Comment}): JSX.Element {
