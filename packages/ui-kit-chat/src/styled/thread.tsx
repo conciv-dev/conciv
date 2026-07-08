@@ -246,12 +246,14 @@ export function Thread(props: ThreadProps): JSX.Element {
           <ThreadPrimitive.Messages components={MESSAGES_COMPONENTS} />
           <Show when={props.viewportFooter}>{props.viewportFooter}</Show>
           {props.overlay}
-          <ThreadPrimitive.ScrollToBottom
-            class={`text-[length:var(--chat-text-xs)] px-2 rounded-[var(--chat-radius-pill)] inline-flex gap-1 min-h-6 cursor-pointer [color:var(--chat-accent-link)] items-center self-center bottom-1 sticky hover:[background:var(--chat-fill-strong)] ${FOCUS}`}
-          >
-            <ArrowDown size={12} aria-hidden="true" />
-            Latest
-          </ThreadPrimitive.ScrollToBottom>
+          <div class="h-0 pointer-events-none self-center bottom-2 sticky z-10 overflow-visible">
+            <ThreadPrimitive.ScrollToBottom
+              class={`text-[length:var(--chat-text-xs)] px-2 rounded-[var(--chat-radius-pill)] inline-flex gap-1 min-h-6 cursor-pointer pointer-events-auto [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] [color:var(--chat-accent-link)] [transition:opacity_120ms_var(--chat-ease)] items-center bottom-0 left-1/2 absolute data-[at-bottom]:opacity-0 data-[at-bottom]:invisible -translate-x-1/2 hover:[background:var(--chat-fill-strong)] ${FOCUS}`}
+            >
+              <ArrowDown size={12} aria-hidden="true" />
+              Latest
+            </ThreadPrimitive.ScrollToBottom>
+          </div>
         </ThreadPrimitive.Viewport>
         <Show when={composerSlot()}>
           <div class="p-2 shrink-0 [border-top:1px_solid_var(--chat-line)]">{composerSlot()}</div>

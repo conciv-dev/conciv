@@ -148,7 +148,6 @@ export {
 } from './behaviors/create-mention-adapter.js'
 export {useThreadAutoScroll} from './behaviors/use-thread-auto-scroll.js'
 export {useTopAnchorReserve} from './behaviors/use-top-anchor-reserve.js'
-export {useScrollLock} from './behaviors/use-scroll-lock.js'
 export {useSizeHandle} from './behaviors/use-size-handle.js'
 
 export {Thread, type ThreadComponents, type ThreadProps} from './styled/thread.js'

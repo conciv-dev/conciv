@@ -1,12 +1,22 @@
 import {createEffect, createSignal, onCleanup, type Accessor} from 'solid-js'
 
+export const POSITION_HOLD_MS = 350
+const SCROLL_HOLD_ATTR = 'data-scroll-hold'
+
+export type ThreadAutoScroll = {
+  isAtBottom: Accessor<boolean>
+  scrollToBottom: (behavior?: ScrollBehavior) => void
+  holdPosition: (durationMs?: number) => void
+}
+
 export function useThreadAutoScroll(
   viewport: Accessor<HTMLElement | undefined>,
   opts: {autoScroll: Accessor<boolean>; hasActiveTopAnchor?: Accessor<boolean>},
-): {isAtBottom: Accessor<boolean>; scrollToBottom: (behavior?: ScrollBehavior) => void} {
+): ThreadAutoScroll {
   const [isAtBottom, setIsAtBottom] = createSignal(true)
   const intent = {behavior: null as ScrollBehavior | null}
   const last = {scrollTop: 0, scrollHeight: 0, observedScrollHeight: 0, observedClientHeight: 0}
+  const holding = () => viewport()?.hasAttribute(SCROLL_HOLD_ATTR) ?? false
 
   const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
     const div = viewport()
@@ -15,9 +25,46 @@ export function useThreadAutoScroll(
     div.scrollTo({top: div.scrollHeight, behavior})
   }
 
+  let releaseHold: (() => void) | undefined
+  onCleanup(() => releaseHold?.())
+  const holdPosition = (durationMs: number = POSITION_HOLD_MS) => {
+    const div = viewport()
+    if (!div) return
+    releaseHold?.()
+    intent.behavior = null
+    const top = div.scrollTop
+    div.setAttribute(SCROLL_HOLD_ATTR, '')
+    const pin = () => {
+      div.scrollTop = top
+    }
+    div.addEventListener('scroll', pin)
+    const timer = setTimeout(() => releaseHold?.(), durationMs)
+    releaseHold = () => {
+      clearTimeout(timer)
+      div.removeEventListener('scroll', pin)
+      div.removeAttribute(SCROLL_HOLD_ATTR)
+      releaseHold = undefined
+    }
+  }
+
+  const recomputeIsAtBottom = () => {
+    const div = viewport()
+    if (!div) return
+    const wasAtBottom = isAtBottom()
+    const newIsAtBottom =
+      Math.abs(div.scrollHeight - div.scrollTop - div.clientHeight) <= 1 || div.scrollHeight <= div.clientHeight
+    if (newIsAtBottom !== wasAtBottom) setIsAtBottom(newIsAtBottom)
+    last.scrollTop = div.scrollTop
+    last.scrollHeight = div.scrollHeight
+  }
+
   const handleScroll = () => {
     const div = viewport()
     if (!div) return
+    if (holding()) {
+      recomputeIsAtBottom()
+      return
+    }
     const wasAtBottom = isAtBottom()
     const newIsAtBottom =
       Math.abs(div.scrollHeight - div.scrollTop - div.clientHeight) <= 1 || div.scrollHeight <= div.clientHeight
@@ -42,6 +89,10 @@ export function useThreadAutoScroll(
     if (scrollHeight === last.observedScrollHeight && clientHeight === last.observedClientHeight) return
     last.observedScrollHeight = scrollHeight
     last.observedClientHeight = clientHeight
+    if (holding()) {
+      recomputeIsAtBottom()
+      return
+    }
     const behavior = intent.behavior
     if (behavior && opts.hasActiveTopAnchor?.()) {
       intent.behavior = null
@@ -79,5 +130,5 @@ export function useThreadAutoScroll(
     })
   })
 
-  return {isAtBottom, scrollToBottom}
+  return {isAtBottom, scrollToBottom, holdPosition}
 }

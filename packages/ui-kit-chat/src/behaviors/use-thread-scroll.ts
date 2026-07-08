@@ -1,6 +1,6 @@
 import {createEffect, createMemo, createSignal, onMount, type Accessor} from 'solid-js'
 import {useChatContext} from '../store/chat-context.js'
-import {useThreadAutoScroll} from './use-thread-auto-scroll.js'
+import {useThreadAutoScroll, type ThreadAutoScroll} from './use-thread-auto-scroll.js'
 import {useTopAnchorReserve, type TopAnchorClamp} from './use-top-anchor-reserve.js'
 import {getActiveTopAnchorTurn, parseCssLength} from './top-anchor.js'
 
@@ -22,7 +22,7 @@ function messageElement(viewport: HTMLElement | undefined, id: string | undefine
 export function useThreadScroll(
   viewport: Accessor<HTMLElement | undefined>,
   options: ThreadScrollOptions,
-): {isAtBottom: Accessor<boolean>; scrollToBottom: (behavior?: ScrollBehavior) => void} {
+): ThreadAutoScroll {
   const chat = useChatContext()
   const topAnchored = () => (options.turnAnchor ?? 'bottom') === 'top'
   const isRunning = () => chat.status() === 'streaming' || chat.status() === 'submitted'

@@ -36,13 +36,13 @@ function Viewport(props: ViewportProps): JSX.Element {
     'ref',
   ])
   const [element, setElement] = createSignal<HTMLDivElement>()
-  const {isAtBottom, scrollToBottom} = useThreadScroll(element, local)
+  const {isAtBottom, scrollToBottom, holdPosition} = useThreadScroll(element, local)
   const assignRef = (node: HTMLDivElement) => {
     setElement(node)
     if (typeof local.ref === 'function') local.ref(node)
   }
   return (
-    <ViewportProvider value={{isAtBottom, scrollToBottom}}>
+    <ViewportProvider value={{isAtBottom, scrollToBottom, holdPosition}}>
       <Primitive.div data-thread-viewport ref={assignRef} {...rest} />
     </ViewportProvider>
   )
@@ -143,14 +143,14 @@ function ScrollToBottom(props: JSX.ButtonHTMLAttributes<HTMLButtonElement> & {be
   const viewport = useThreadViewport()
   const [local, rest] = splitProps(props, ['behavior'])
   return (
-    <Show when={!viewport.isAtBottom()}>
-      <button
-        type="button"
-        aria-label="Scroll to bottom"
-        onClick={() => viewport.scrollToBottom(local.behavior ?? 'smooth')}
-        {...rest}
-      />
-    </Show>
+    <button
+      type="button"
+      aria-label="Scroll to bottom"
+      {...rest}
+      disabled={viewport.isAtBottom()}
+      data-at-bottom={viewport.isAtBottom() ? '' : undefined}
+      onClick={() => viewport.scrollToBottom(local.behavior ?? 'smooth')}
+    />
   )
 }
 

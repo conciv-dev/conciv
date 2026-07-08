@@ -1,6 +1,7 @@
 import {splitProps, type JSX} from 'solid-js'
 import {ChevronDown} from 'lucide-solid'
 import {Collapsible} from '@conciv/ui-kit-system'
+import {useOptionalThreadViewport} from '../primitives/thread/viewport-context.js'
 
 export type CollapsibleCardProps = {
   open?: boolean
@@ -21,11 +22,15 @@ export function CollapsibleCard(
   props: CollapsibleCardProps & {header: JSX.Element; children: JSX.Element},
 ): JSX.Element {
   const [local] = splitProps(props, ['open', 'onOpenChange', 'defaultOpen', 'class', 'header', 'children'])
+  const viewport = useOptionalThreadViewport()
   return (
     <Collapsible.Root
       open={local.open}
       defaultOpen={local.defaultOpen}
-      onOpenChange={(details) => local.onOpenChange?.(details.open)}
+      onOpenChange={(details) => {
+        viewport?.holdPosition()
+        local.onOpenChange?.(details.open)
+      }}
     >
       <div class={`${CARD}  ${local.class ?? ''}`}>
         <Collapsible.Trigger class={TRIGGER}>
