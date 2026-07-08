@@ -6,6 +6,7 @@ import {serveApp, type ServedApp} from '@conciv/harness-testkit'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {createStore, type Store} from '../src/server/db/store.js'
 import {whiteboardApp, type WhiteboardEnv} from '../src/server/routes.js'
+import {elementRowFixture} from './canvas-it-helpers.js'
 
 let store: Store
 let base = ''
@@ -84,7 +85,7 @@ describe('whiteboard routes', () => {
   })
 
   it('element upsert 409s on stale version with the winner top-level', async () => {
-    const row = {room: 'r1', elementId: 'e1', data: {type: 'rectangle'}, version: 2}
+    const row = elementRowFixture({room: 'r1', elementId: 'e1', data: {type: 'rectangle'}, version: 2})
     expect((await put('/elements/live', row)).status).toBe(200)
     const stale = await put('/elements/live', {...row, version: 1})
     expect(stale.status).toBe(409)
@@ -93,18 +94,20 @@ describe('whiteboard routes', () => {
   })
 
   it('bulk PUT echoes the authoritative row per input, winner on conflict', async () => {
-    expect((await put('/elements/live', {room: 'rb', elementId: 'b1', data: {v: 1}, version: 5})).status).toBe(200)
+    expect(
+      (await put('/elements/live', elementRowFixture({room: 'rb', elementId: 'b1', data: {v: 1}, version: 5}))).status,
+    ).toBe(200)
     const response = await put('/elements/live/bulk', {
       rows: [
-        {room: 'rb', elementId: 'b1', data: {v: 2}, version: 3},
-        {room: 'rb', elementId: 'b2', data: {v: 9}, version: 1},
+        elementRowFixture({room: 'rb', elementId: 'b1', data: {v: 2}, version: 3}),
+        elementRowFixture({room: 'rb', elementId: 'b2', data: {v: 9}, version: 1}),
       ],
     })
     expect(response.status).toBe(200)
     const {rows} = (await response.json()) as {rows: unknown[]}
     expect(rows).toHaveLength(2)
-    expect(rows[0]).toEqual({room: 'rb', elementId: 'b1', data: {v: 1}, version: 5})
-    expect(rows[1]).toEqual({room: 'rb', elementId: 'b2', data: {v: 9}, version: 1})
+    expect(rows[0]).toEqual(elementRowFixture({room: 'rb', elementId: 'b1', data: {v: 1}, version: 5}))
+    expect(rows[1]).toEqual(elementRowFixture({room: 'rb', elementId: 'b2', data: {v: 9}, version: 1}))
   })
 
   it('rejects an invalid body with 400', async () => {

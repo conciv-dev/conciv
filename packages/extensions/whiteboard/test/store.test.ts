@@ -5,7 +5,7 @@ import {eq} from 'drizzle-orm'
 import {afterEach, describe, expect, it} from 'vitest'
 import {createStore, type Store, type WhiteboardEvent} from '../src/server/db/store.js'
 import {comments} from '../src/server/db/schema.js'
-import type {ElementRow} from '../src/shared/rows.js'
+import {elementRowFixture as el} from './canvas-it-helpers.js'
 
 const stores: Store[] = []
 const open = async (): Promise<Store> => {
@@ -13,20 +13,6 @@ const open = async (): Promise<Store> => {
   stores.push(store)
   return store
 }
-
-const el = (
-  overrides: Partial<ElementRow> & Pick<ElementRow, 'room' | 'elementId' | 'data' | 'version'>,
-): ElementRow => ({
-  ownerKind: 'human',
-  ownerId: null,
-  ownerName: null,
-  ownerModel: null,
-  lastEditedByKind: 'human',
-  lastEditedById: null,
-  lastEditedByName: null,
-  lastEditedByModel: null,
-  ...overrides,
-})
 afterEach(() => stores.splice(0).forEach((store) => store.close()))
 
 describe('whiteboard store', () => {

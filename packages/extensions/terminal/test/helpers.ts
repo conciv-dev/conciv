@@ -61,7 +61,13 @@ export type TerminalTestServer = {
 export async function startTerminalServer(harness: ServerHarness = bashHarness): Promise<TerminalTestServer> {
   const app = new Hono()
   const sessions = fakeSessions()
-  const api: ServerApi<Record<never, never>> = {config: {}, cwd: process.cwd(), sessions, harness}
+  const api: ServerApi<Record<never, never>> = {
+    config: {},
+    cwd: process.cwd(),
+    sessions,
+    harness,
+    approvals: {request: async () => false},
+  }
   const result = await terminalExtension.__server?.(api)
   if (!(result?.app instanceof Hono)) throw new Error('terminal extension returned no hono app')
   app.route('/api/ext/terminal', result.app)

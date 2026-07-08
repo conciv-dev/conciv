@@ -7,6 +7,7 @@ import {createStore, type Store} from '../src/server/db/store.js'
 import type {ElementRow} from '../src/shared/rows.js'
 import type {WhiteboardToolContext} from '../src/server/context.js'
 import {canvasTools} from '../src/tool/canvas/server.js'
+import {elementRowFixture} from './canvas-it-helpers.js'
 
 const stores: Store[] = []
 const open = async (): Promise<Store> => {
@@ -16,20 +17,18 @@ const open = async (): Promise<Store> => {
 }
 afterEach(() => stores.splice(0).forEach((store) => store.close()))
 
-const el = (kind: 'human' | 'ai'): ElementRow => ({
-  room: 'r',
-  elementId: 'e1',
-  data: {n: 1},
-  version: 1,
-  ownerKind: kind,
-  ownerId: kind === 'human' ? 'u1' : null,
-  ownerName: kind === 'human' ? 'Guest 00' : null,
-  ownerModel: kind === 'ai' ? 'opus' : null,
-  lastEditedByKind: kind,
-  lastEditedById: kind === 'human' ? 'u1' : null,
-  lastEditedByName: kind === 'human' ? 'Guest 00' : null,
-  lastEditedByModel: kind === 'ai' ? 'opus' : null,
-})
+const el = (kind: 'human' | 'ai'): ElementRow =>
+  elementRowFixture({
+    room: 'r',
+    elementId: 'e1',
+    data: {n: 1},
+    version: 1,
+    ownerKind: kind,
+    ownerName: kind === 'human' ? 'Guest 00' : null,
+    ownerModel: kind === 'ai' ? 'opus' : null,
+    lastEditedByKind: kind,
+    lastEditedByModel: kind === 'ai' ? 'opus' : null,
+  })
 
 const request: ToolRequest = {sessionId: 's', model: 'opus'}
 

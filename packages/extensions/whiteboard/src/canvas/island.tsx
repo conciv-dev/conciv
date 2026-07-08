@@ -79,15 +79,17 @@ export function Island(props: {
   let bufferedScene: readonly ElementRow[] | undefined
   const [chip, setChip] = createSignal<AuthorChip | null>(null)
 
+  const soleSelectedId = (ids: Readonly<Record<string, boolean>>): string | undefined => {
+    const active = Object.entries(ids).filter(([, on]) => on)
+    return active.length === 1 ? active[0]?.[0] : undefined
+  }
+
   const refreshChip = (): void => {
     if (!api) return void setChip(null)
     const state = api.getAppState()
-    const selected = Object.entries(state.selectedElementIds)
-      .filter(([, active]) => active)
-      .map(([id]) => id)
-    if (selected.length !== 1) return void setChip(null)
-    const element = api.getSceneElements().find((candidate: SceneElement) => candidate.id === selected[0])
-    const row = [...db.canvasElements.state.values()].find((candidate) => candidate.elementId === selected[0])
+    const selectedId = soleSelectedId(state.selectedElementIds)
+    const element = api.getSceneElements().find((candidate: SceneElement) => candidate.id === selectedId)
+    const row = [...db.canvasElements.state.values()].find((candidate) => candidate.elementId === selectedId)
     if (!element || !row) return void setChip(null)
     const viewport: Viewport = {
       scrollX: state.scrollX,
