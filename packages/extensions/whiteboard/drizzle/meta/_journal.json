@@ -8,6 +8,13 @@
       "when": 1783432567948,
       "tag": "0000_whiteboard-init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1783530834062,
+      "tag": "0001_damp_nightcrawler",
+      "breakpoints": true
     }
   ]
 }

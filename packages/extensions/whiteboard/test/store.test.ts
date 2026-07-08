@@ -5,6 +5,7 @@ import {eq} from 'drizzle-orm'
 import {afterEach, describe, expect, it} from 'vitest'
 import {createStore, type Store, type WhiteboardEvent} from '../src/server/db/store.js'
 import {comments} from '../src/server/db/schema.js'
+import type {ElementRow} from '../src/shared/rows.js'
 
 const stores: Store[] = []
 const open = async (): Promise<Store> => {
@@ -12,6 +13,20 @@ const open = async (): Promise<Store> => {
   stores.push(store)
   return store
 }
+
+const el = (
+  overrides: Partial<ElementRow> & Pick<ElementRow, 'room' | 'elementId' | 'data' | 'version'>,
+): ElementRow => ({
+  ownerKind: 'human',
+  ownerId: null,
+  ownerName: null,
+  ownerModel: null,
+  lastEditedByKind: 'human',
+  lastEditedById: null,
+  lastEditedByName: null,
+  lastEditedByModel: null,
+  ...overrides,
+})
 afterEach(() => stores.splice(0).forEach((store) => store.close()))
 
 describe('whiteboard store', () => {
@@ -47,7 +62,7 @@ describe('whiteboard store', () => {
 
   it('gates element upserts by version', async () => {
     const store = await open()
-    const base = {room: 'r1', elementId: 'e1', data: {type: 'rectangle'}, version: 2}
+    const base = el({room: 'r1', elementId: 'e1', data: {type: 'rectangle'}, version: 2})
     expect((await store.upsertElement('live', base)).ok).toBe(true)
     const stale = await store.upsertElement('live', {...base, version: 1, data: {type: 'ellipse'}})
     expect(stale.ok).toBe(false)
@@ -59,8 +74,8 @@ describe('whiteboard store', () => {
   it('bulk upsert and bulk delete cover the pending drain', async () => {
     const store = await open()
     const rows = [
-      {room: 'r1', elementId: 'e1', data: {}, version: 1},
-      {room: 'r1', elementId: 'e2', data: {}, version: 1},
+      el({room: 'r1', elementId: 'e1', data: {}, version: 1}),
+      el({room: 'r1', elementId: 'e2', data: {}, version: 1}),
     ]
     expect(await store.upsertElements('draft', rows)).toHaveLength(2)
     expect(await store.deleteElements('draft', 'r1', ['e1', 'e2'])).toBe(2)
@@ -69,14 +84,14 @@ describe('whiteboard store', () => {
 
   it('bulk upsert returns the authoritative row per input, winner on conflict', async () => {
     const store = await open()
-    await store.upsertElement('live', {room: 'r1', elementId: 'e1', data: {v: 1}, version: 5})
+    await store.upsertElement('live', el({room: 'r1', elementId: 'e1', data: {v: 1}, version: 5}))
     const resolved = await store.upsertElements('live', [
-      {room: 'r1', elementId: 'e1', data: {v: 2}, version: 3},
-      {room: 'r1', elementId: 'e2', data: {v: 9}, version: 1},
+      el({room: 'r1', elementId: 'e1', data: {v: 2}, version: 3}),
+      el({room: 'r1', elementId: 'e2', data: {v: 9}, version: 1}),
     ])
     expect(resolved).toHaveLength(2)
-    expect(resolved[0]).toEqual({room: 'r1', elementId: 'e1', data: {v: 1}, version: 5})
-    expect(resolved[1]).toEqual({room: 'r1', elementId: 'e2', data: {v: 9}, version: 1})
+    expect(resolved[0]).toEqual(el({room: 'r1', elementId: 'e1', data: {v: 1}, version: 5}))
+    expect(resolved[1]).toEqual(el({room: 'r1', elementId: 'e2', data: {v: 9}, version: 1}))
   })
 
   it('broadcasts cursor events without persisting', async () => {
@@ -91,7 +106,7 @@ describe('whiteboard store', () => {
   it('persists across reopen from the same dataDir', async () => {
     const dir = realpathSync(mkdtempSync(join(tmpdir(), 'wb-persist-')))
     const first = await createStore(dir)
-    await first.upsertElement('live', {room: 'r1', elementId: 'e1', data: {}, version: 1})
+    await first.upsertElement('live', el({room: 'r1', elementId: 'e1', data: {}, version: 1}))
     first.close()
     const second = await createStore(dir)
     stores.push(second)
