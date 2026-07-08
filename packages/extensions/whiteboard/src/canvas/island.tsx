@@ -73,6 +73,27 @@ export function Island(props: {
   const versions = new Map<string, number>()
   let bufferedScene: readonly ElementRow[] | undefined
 
+  const humanAuthor = () => ({
+    ownerKind: 'human' as const,
+    ownerId: props.self.peerId,
+    ownerName: props.self.name,
+    ownerModel: null,
+    lastEditedByKind: 'human' as const,
+    lastEditedById: props.self.peerId,
+    lastEditedByName: props.self.name,
+    lastEditedByModel: null,
+  })
+  const aiAuthor = {
+    ownerKind: 'ai' as const,
+    ownerId: null,
+    ownerName: null,
+    ownerModel: null,
+    lastEditedByKind: 'ai' as const,
+    lastEditedById: null,
+    lastEditedByName: null,
+    lastEditedByModel: null,
+  }
+
   const applyRemote = (rows: readonly ElementRow[]): void => {
     if (!api) {
       bufferedScene = rows
@@ -108,6 +129,7 @@ export function Island(props: {
         elementId: element.id,
         data: asJson(element),
         version: element.version,
+        ...humanAuthor(),
       })
     })
   }
@@ -121,6 +143,7 @@ export function Island(props: {
         elementId: element.id,
         data: asJson(element),
         version: element.version,
+        ...aiAuthor,
       }))
       const scope = row.stage === 'draft' ? 'draft' : 'live'
       await fetch(`${db.base}/elements/${scope}/bulk`, {
@@ -151,6 +174,14 @@ export function Island(props: {
           elementId: draft.elementId,
           data: draft.data,
           version: draft.version,
+          ownerKind: draft.ownerKind,
+          ownerId: draft.ownerId,
+          ownerName: draft.ownerName,
+          ownerModel: draft.ownerModel,
+          lastEditedByKind: draft.lastEditedByKind,
+          lastEditedById: draft.lastEditedById,
+          lastEditedByName: draft.lastEditedByName,
+          lastEditedByModel: draft.lastEditedByModel,
         }),
     }
   }
