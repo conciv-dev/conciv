@@ -9,6 +9,8 @@ import {z} from 'zod'
 import {elementRow, type ElementRow} from '../shared/rows.js'
 import type {ChangeFeed, ChangeMessage} from './change-feed.js'
 
+export const ELEMENT_WRITE_THROTTLE_MS = 50
+
 const jsonHeaders = (init?: RequestInit): HeadersInit | undefined =>
   init?.body ? {'content-type': 'application/json'} : undefined
 
@@ -164,7 +166,7 @@ export function whiteboardElementOptions(deps: {
     confirm(saved)
   }
 
-  const strategy = throttleStrategy({wait: 50, leading: true, trailing: true})
+  const strategy = throttleStrategy({wait: ELEMENT_WRITE_THROTTLE_MS, leading: true, trailing: true})
   const pacedWrite = createPacedMutations<ElementRow, ElementRow>({
     strategy,
     onMutate: (row) => {

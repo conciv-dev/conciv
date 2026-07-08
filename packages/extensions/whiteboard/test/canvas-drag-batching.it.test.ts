@@ -2,7 +2,10 @@ import {expect, test} from 'vitest'
 import type {Page} from 'playwright'
 import whiteboard from '../src/server.js'
 import {getExtensionTestApi, type ExtensionTestApi} from '@conciv/extension-testkit'
+import {ELEMENT_WRITE_THROTTLE_MS} from '../src/client/whiteboard-collection.js'
 import {openCanvas} from './canvas-it-helpers.js'
+
+const flushBudget = (elapsedMs: number): number => Math.ceil(elapsedMs / ELEMENT_WRITE_THROTTLE_MS) + 2
 
 const clientEntry = '@conciv/extension-whiteboard/client'
 
@@ -50,12 +53,13 @@ test('a single-element drag coalesces per-frame writes into few throttled PUTs',
     const startX = (await readElements(api))[0]?.x ?? 0
     await api.page.getByRole('radio', {name: 'Selection'}).click({force: true})
     const counts = putCounts(api.page)
+    const dragStartedAt = Date.now()
     await dragBursts(api.page, cx, cy, 40)
     await expect
       .poll(async () => ((await readElements(api))[0]?.x ?? startX) - startX, {timeout: 8_000, interval: 250})
       .toBeGreaterThan(180)
     expect(counts.single).toBeGreaterThan(1)
-    expect(counts.single).toBeLessThanOrEqual(35)
+    expect(counts.single).toBeLessThanOrEqual(flushBudget(Date.now() - dragStartedAt))
     expect(counts.bulk).toBe(0)
   } finally {
     await api.dispose()
@@ -76,6 +80,7 @@ test('a multi-select drag collapses to bulk PUTs, not a single-PUT storm', async
     await api.page.mouse.move(cx + 300, cy + 140, {steps: 10})
     await api.page.mouse.up()
     const counts = putCounts(api.page)
+    const dragStartedAt = Date.now()
     await dragBursts(api.page, cx - 170, cy, 26)
     await expect
       .poll(
@@ -96,7 +101,7 @@ test('a multi-select drag collapses to bulk PUTs, not a single-PUT storm', async
       )
       .toBe(true)
     expect(counts.bulk).toBeGreaterThan(0)
-    expect(counts.single).toBeLessThanOrEqual(2)
+    expect(counts.single + counts.bulk).toBeLessThanOrEqual(flushBudget(Date.now() - dragStartedAt))
   } finally {
     await api.dispose()
   }
