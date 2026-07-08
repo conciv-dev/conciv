@@ -24,8 +24,6 @@ storybook-static
 **/test/__screenshots__/
 **/.vitest-attachments/
 
-# playwright run output (regenerated per run, never committed)
-**/test-results/
 
 # per-turn MCP bridge configs the tanstack claude adapter writes into cwd (cleaned up after each turn)
 .tanstack-mcp-bridge-*.json
