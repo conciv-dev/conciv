@@ -17,10 +17,10 @@ describe('permission gate request', () => {
   it('injects an approval and resolves to the user decision', async () => {
     const uiBus = makeUiBus()
     const sessionId = 's1'
-    async function* keepOpen(): AsyncGenerator<StreamChunk> {
-      await new Promise<never>(() => {})
+    const neverEnding: AsyncIterable<StreamChunk> = {
+      [Symbol.asyncIterator]: () => ({next: () => new Promise<IteratorResult<StreamChunk>>(() => {})}),
     }
-    const drain = uiBus.run(sessionId, keepOpen())
+    const drain = uiBus.run(sessionId, neverEnding)
     const gate = makePermissionGate(uiBus, {timeoutMs: 2000})
     const decision = gate.request(sessionId, {toolName: 'canvas.update', input: {elementId: 'e'}})
     const first = await drain.next()
