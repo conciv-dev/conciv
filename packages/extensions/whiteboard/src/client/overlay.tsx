@@ -42,8 +42,10 @@ function selfIdentity(win: Window): Self {
 type MountOverlayOptions = {
   api: ClientApi
   open: Accessor<boolean>
+  canvasOpen: Accessor<boolean>
   close: () => void
   registerComment: (write: (pick: CommentPick) => void) => void
+  onComposeSettled: (outcome: 'added' | 'cancelled') => void
 }
 
 function CanvasView(props: {
@@ -55,14 +57,17 @@ function CanvasView(props: {
 }): JSX.Element {
   const model = useComments()
 
+  const overlayBusy = (): boolean => model.openCid() !== null || model.composeTarget() !== null || model.inboxOpen()
+  const insideExcalidraw = (event: KeyboardEvent): boolean =>
+    Boolean((event.target as Element | null)?.closest?.('.excalidraw'))
+  const escapeClosesCanvas = (event: KeyboardEvent): boolean =>
+    event.key === 'Escape' && props.visible() && !overlayBusy() && !insideExcalidraw(event)
+
   onMount(() => {
     const win = props.doc.defaultView
     if (!win) return
     const onKey = (event: KeyboardEvent): void => {
-      if (event.key !== 'Escape' || !props.visible()) return
-      if (model.openCid() || model.composeTarget() || model.inboxOpen()) return
-      if ((event.target as Element | null)?.closest?.('.excalidraw')) return
-      props.close()
+      if (escapeClosesCanvas(event)) props.close()
     }
     win.addEventListener('keydown', onKey, true)
     onCleanup(() => win.removeEventListener('keydown', onKey, true))
@@ -80,11 +85,11 @@ function CanvasView(props: {
       />
       <Show when={props.visible()}>
         <PinsLayer />
-        <Show when={model.composeTarget()}>{(target) => <Compose target={target()} />}</Show>
         <ThreadPopover />
         <InboxToggle />
         <Inbox />
       </Show>
+      <Show when={model.composeTarget()}>{(target) => <Compose target={target()} />}</Show>
     </>
   )
 }
@@ -93,13 +98,21 @@ function Canvas(props: {
   api: ClientApi
   doc: Document
   visible: Accessor<boolean>
+  canvasOpen: Accessor<boolean>
   room: Accessor<string>
   self: Self
   close: () => void
   registerComment: (write: (pick: CommentPick) => void) => void
+  onComposeSettled: (outcome: 'added' | 'cancelled') => void
 }): JSX.Element {
   return (
-    <CommentsProvider room={props.room} apiBase={props.api.apiBase} suppressWhile={props.api.suppressWhile}>
+    <CommentsProvider
+      room={props.room}
+      apiBase={props.api.apiBase}
+      suppressWhile={props.api.suppressWhile}
+      canvasOpen={props.canvasOpen}
+      onComposeSettled={props.onComposeSettled}
+    >
       <ComposeBridge registerComment={props.registerComment} />
       <CanvasView doc={props.doc} visible={props.visible} room={props.room} self={props.self} close={props.close} />
     </CommentsProvider>
@@ -116,9 +129,11 @@ function Board(props: {
   api: ClientApi
   doc: Document
   visible: Accessor<boolean>
+  canvasOpen: Accessor<boolean>
   self: Self
   close: () => void
   registerComment: (write: (pick: CommentPick) => void) => void
+  onComposeSettled: (outcome: 'added' | 'cancelled') => void
 }): JSX.Element {
   return (
     <Show when={props.api.activeSession()} keyed fallback={<SessionPending />}>
@@ -128,10 +143,12 @@ function Board(props: {
             api={props.api}
             doc={props.doc}
             visible={props.visible}
+            canvasOpen={props.canvasOpen}
             room={() => session}
             self={props.self}
             close={props.close}
             registerComment={props.registerComment}
+            onComposeSettled={props.onComposeSettled}
           />
         </WhiteboardDbProvider>
       )}
@@ -166,9 +183,11 @@ export function mountOverlay(options: MountOverlayOptions): () => void {
               api={options.api}
               doc={doc}
               visible={options.open}
+              canvasOpen={options.canvasOpen}
               self={selfIdentity(options.api.env.win)}
               close={options.close}
               registerComment={options.registerComment}
+              onComposeSettled={options.onComposeSettled}
             />
           </Suspense>
         </ErrorBoundary>

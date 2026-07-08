@@ -3,7 +3,7 @@ import {render} from 'solid-js/web'
 import {createSignal} from 'solid-js'
 import {FocusTrap} from '@conciv/ui-kit-system'
 import {registerSuppressor} from '../src/shell/dialogs.js'
-import {focusTrapDisabled} from '../src/shell/suppression.js'
+import {focusTrapDisabled, suppressedAttr} from '../src/shell/suppression.js'
 
 const disposers: (() => void)[] = []
 afterEach(() => {
@@ -49,10 +49,22 @@ describe('panel focus trap vs extension layers', () => {
     const {inside, outside} = mountTrap(() => true)
     await expect.poll(() => document.activeElement).toBe(inside())
     setLayerOpen(true)
+    expect(suppressedAttr()).toBe('')
     outside.focus()
     await expect.poll(() => document.activeElement).toBe(outside)
     outside.blur()
     setLayerOpen(false)
     await expect.poll(() => document.activeElement).toBe(inside())
+  })
+
+  it('a focus-yield layer disarms the trap without hiding the panel', async () => {
+    const [layerOpen, setLayerOpen] = createSignal(false)
+    disposers.push(registerSuppressor(layerOpen, false))
+    const {inside, outside} = mountTrap(() => true)
+    await expect.poll(() => document.activeElement).toBe(inside())
+    setLayerOpen(true)
+    expect(suppressedAttr()).toBe(undefined)
+    outside.focus()
+    await expect.poll(() => document.activeElement).toBe(outside)
   })
 })

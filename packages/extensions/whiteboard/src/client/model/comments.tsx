@@ -29,6 +29,8 @@ export function createCommentsModel(
   room: Accessor<string>,
   apiBase: string,
   suppressWhile: (active: () => boolean) => () => void,
+  canvasOpen: Accessor<boolean>,
+  onComposeSettled: (outcome: 'added' | 'cancelled') => void,
 ) {
   const db = useWhiteboardDb()
   const accountId = (): string => db.accountId()
@@ -68,13 +70,13 @@ export function createCommentsModel(
       ? byDate
       : byDate.toSorted((left, right) => Number(isUnread(right.cid)) - Number(isUnread(left.cid)))
   })
+  const aiLabel = (comment: Comment): string => comment.authorName ?? comment.authorModel ?? 'AI'
+  const participantKey = (comment: Comment): string =>
+    comment.authorKind === 'ai' ? `ai:${aiLabel(comment)}` : (comment.authorId ?? 'human')
   const threadParticipants = (cid: string): Participant[] => {
     const seen = new Map<string, Participant>()
     threadOf(cid).forEach((comment) => {
-      const key =
-        comment.authorKind === 'ai'
-          ? `ai:${comment.authorName ?? comment.authorModel ?? 'AI'}`
-          : (comment.authorId ?? 'human')
+      const key = participantKey(comment)
       if (!seen.has(key)) seen.set(key, {id: key, label: displayName(comment)})
     })
     return [...seen.values()]
@@ -82,29 +84,28 @@ export function createCommentsModel(
   const replyCount = (cid: string): number => Math.max(0, threadOf(cid).length - 1)
   const lastActivityAt = (cid: string): number | undefined => newest(threadOf(cid).map((comment) => comment.createdAt))
 
+  const humanParticipant = (comment: Comment, self: string): Participant | null =>
+    comment.authorId
+      ? {id: comment.authorId, label: comment.authorId === self ? 'You' : (comment.authorName ?? 'Human')}
+      : null
+  const participantOf = (comment: Comment, self: string): Participant | null =>
+    comment.authorKind === 'ai'
+      ? {id: `ai:${aiLabel(comment)}`, label: aiLabel(comment)}
+      : humanParticipant(comment, self)
   const participants = createMemo<Participant[]>(() => {
     const seen = new Map<string, Participant>()
     const self = accountId()
     if (self) seen.set(self, {id: self, label: 'You'})
     comments().forEach((comment) => {
-      if (comment.authorKind === 'ai') {
-        const label = comment.authorName ?? comment.authorModel ?? 'AI'
-        seen.set(`ai:${label}`, {id: `ai:${label}`, label})
-      } else if (comment.authorId) {
-        seen.set(comment.authorId, {
-          id: comment.authorId,
-          label: comment.authorId === self ? 'You' : (comment.authorName ?? 'Human'),
-        })
-      }
+      const entry = participantOf(comment, self)
+      if (entry) seen.set(entry.id, entry)
     })
     return [...seen.values()]
   })
+  const humanLabel = (comment: Comment): string =>
+    comment.authorId && comment.authorId === accountId() ? 'You' : (comment.authorName ?? 'Human')
   const displayName = (comment: Comment): string =>
-    comment.authorKind === 'ai'
-      ? (comment.authorName ?? comment.authorModel ?? 'AI')
-      : comment.authorId && comment.authorId === accountId()
-        ? 'You'
-        : (comment.authorName ?? 'Human')
+    comment.authorKind === 'ai' ? aiLabel(comment) : humanLabel(comment)
   const ownedBySelf = (comment: Comment): boolean =>
     comment.authorKind === 'human' && comment.authorId != null && comment.authorId === accountId()
 
@@ -169,21 +170,27 @@ export function createCommentsModel(
     const cid = openCid()
     return cid ? (pinEls.get(cid) ?? null) : null
   }
-  const anchorRect = (): Rect | null => {
+  const pinElementRect = (): Rect | null => {
     const rect = openPinEl()?.getBoundingClientRect()
-    if (rect) return {x: rect.x, y: rect.y, width: rect.width, height: rect.height}
+    return rect ? {x: rect.x, y: rect.y, width: rect.width, height: rect.height} : null
+  }
+  const pinSceneRect = (): Rect | null => {
     const cid = openCid()
     const pin = cid ? pins().find((row) => row.cid === cid) : undefined
     const view = viewport()
-    if (pin && view) {
-      const point = sceneToScreen(view, pin.x, pin.y)
-      return {x: point.x, y: point.y, width: 0, height: 0}
-    }
+    if (!pin || !view) return null
+    const point = sceneToScreen(view, pin.x, pin.y)
+    return {x: point.x, y: point.y, width: 0, height: 0}
+  }
+  const pendingRect = (): Rect | null => {
     const pending = pendingAnchor()
-    if (pending) return {x: pending.x, y: pending.y, width: 0, height: 0}
-    if (cid) console.warn('whiteboard: thread anchor is null while open; the popover will misposition to 0,0')
+    return pending ? {x: pending.x, y: pending.y, width: 0, height: 0} : null
+  }
+  const missingAnchor = (): null => {
+    if (openCid()) console.warn('whiteboard: thread anchor is null while open; the popover will misposition to 0,0')
     return null
   }
+  const anchorRect = (): Rect | null => pinElementRect() ?? pinSceneRect() ?? pendingRect() ?? missingAnchor()
   const registerPan = (fn: (sceneX: number, sceneY: number) => void): void => void (panFn = fn)
   const panToThread = (cid: string): void => {
     const pin = pins().find((row) => row.cid === cid)
@@ -191,12 +198,14 @@ export function createCommentsModel(
   }
 
   const startCompose = (target: ComposeTarget): void => void setComposeTarget(target)
-  const cancelCompose = (): void => void setComposeTarget(null)
-  const createComment = (target: ComposeTarget, text: string): void => {
-    const cid = crypto.randomUUID()
+  const cancelCompose = (): void => {
+    setComposeTarget(null)
+    onComposeSettled('cancelled')
+  }
+  const anchorOf = (source: CommentSource): JsonValue | null =>
+    source ? ({source: {file: source.file, line: source.line ?? 1, column: 1}} as JsonValue) : null
+  const newComment = (target: ComposeTarget, cid: string, text: string): void => {
     const now = Date.now()
-    const view = viewport()
-    const center = view ? screenToScene(view, target.screen.x, target.screen.y) : target.screen
     db.comments.insert({
       id: crypto.randomUUID(),
       sessionId: room(),
@@ -211,9 +220,7 @@ export function createCommentsModel(
       authorAvatar: null,
       status: 'open',
       kind: target.source ? 'source-linked' : 'floating',
-      anchor: target.source
-        ? ({source: {file: target.source.file, line: target.source.line ?? 1, column: 1}} as JsonValue)
-        : null,
+      anchor: anchorOf(target.source),
       anchorFile: target.source?.file ?? null,
       anchorComponent: null,
       anchorHash: null,
@@ -221,6 +228,10 @@ export function createCommentsModel(
       updatedAt: now,
       resolvedAt: null,
     })
+  }
+  const newPin = (target: ComposeTarget, cid: string): void => {
+    const view = viewport()
+    const center = view ? screenToScene(view, target.screen.x, target.screen.y) : target.screen
     db.pins.insert({
       id: crypto.randomUUID(),
       room: room(),
@@ -232,9 +243,19 @@ export function createCommentsModel(
       anchorX: null,
       anchorY: null,
     })
-    setComposeTarget(null)
+  }
+  const revealThread = (target: ComposeTarget, cid: string): void => {
+    if (!canvasOpen()) return
     openThread(cid)
     setPendingAnchor(target.screen)
+  }
+  const createComment = (target: ComposeTarget, text: string): void => {
+    const cid = crypto.randomUUID()
+    newComment(target, cid, text)
+    newPin(target, cid)
+    setComposeTarget(null)
+    revealThread(target, cid)
+    onComposeSettled('added')
   }
 
   const reply = (segments: MentionSegment[]): void => {
@@ -347,9 +368,17 @@ export function CommentsProvider(props: {
   room: Accessor<string>
   apiBase: string
   suppressWhile: (active: () => boolean) => () => void
+  canvasOpen: Accessor<boolean>
+  onComposeSettled: (outcome: 'added' | 'cancelled') => void
   children: JSX.Element
 }): JSX.Element {
-  const model = createCommentsModel(props.room, props.apiBase, props.suppressWhile)
+  const model = createCommentsModel(
+    props.room,
+    props.apiBase,
+    props.suppressWhile,
+    props.canvasOpen,
+    props.onComposeSettled,
+  )
   return <CommentsContext.Provider value={model}>{props.children}</CommentsContext.Provider>
 }
 

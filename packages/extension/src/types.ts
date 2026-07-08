@@ -125,6 +125,7 @@ export type ClientApi = {
   surface: () => HTMLElement
 
   suppressWhile: (active: () => boolean) => () => void
+  yieldFocusWhile: (active: () => boolean) => () => void
   Dialog: () => DialogApi
 
   Popover: () => {
