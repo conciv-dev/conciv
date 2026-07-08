@@ -9,10 +9,14 @@ function Component(): JSX.Element {
   const slot = whiteboard.useSlot()
   const toggle = whiteboard.useContext((context) => context.toggle)
   const comment = whiteboard.useContext((context) => context.comment)
+  const pickStarted = whiteboard.useContext((context) => context.pickStarted)
+  const pickAborted = whiteboard.useContext((context) => context.pickAborted)
   const grab = whiteboard.useContext((context) => context.grab)
   const pickComment = async (): Promise<void> => {
-    const grabbed = await grab.comment()
-    if (grabbed) comment({source: grabbed.source, rect: grabbed.rect})
+    pickStarted()
+    const grabbed = await grab.comment().catch(() => null)
+    if (!grabbed) return pickAborted()
+    comment({source: grabbed.source, rect: grabbed.rect})
   }
   return (
     <Show when={slot() === 'composer'}>
@@ -35,6 +39,8 @@ const whiteboard = defineExtension({
   createRoot((dispose) => {
     const api = whiteboard.useClientApi()
     const [open, setOpen] = createSignal(false)
+    const [pickPhase, setPickPhase] = createSignal<'idle' | 'picking' | 'composing'>('idle')
+    const visible = (): boolean => open() && pickPhase() === 'idle'
     let disposeOverlay: (() => void) | undefined
     let commentWriter: ((pick: CommentPick) => void) | undefined
     const pendingComments: CommentPick[] = []
@@ -43,21 +49,33 @@ const whiteboard = defineExtension({
       pendingComments.splice(0).forEach(write)
     }
     const close = (): void => void setOpen(false)
+    const onComposeSettled = (outcome: 'added' | 'cancelled'): void => {
+      setPickPhase('idle')
+      if (outcome === 'added' && !open()) api.toast('Comment added to the whiteboard', 'success')
+    }
     const start = (): void => {
-      if (!disposeOverlay) disposeOverlay = mountOverlay({api, open, close, registerComment})
+      if (!disposeOverlay)
+        disposeOverlay = mountOverlay({api, open: visible, canvasOpen: open, close, registerComment, onComposeSettled})
     }
     const toggle = (): void => {
       start()
+      setPickPhase('idle')
       setOpen((value) => !value)
     }
+    const pickStarted = (): void => {
+      start()
+      setPickPhase('picking')
+    }
+    const pickAborted = (): void => void setPickPhase('idle')
     const comment = (pick: CommentPick): void => {
       start()
-      setOpen(true)
+      setPickPhase('composing')
       if (commentWriter) return commentWriter(pick)
       pendingComments.push(pick)
     }
     onCleanup(() => disposeOverlay?.())
-    return {value: {toggle, open, comment}, dispose}
+    onCleanup(api.yieldFocusWhile(visible))
+    return {value: {toggle, open, comment, pickStarted, pickAborted}, dispose}
   }),
 )
 

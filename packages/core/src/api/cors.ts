@@ -40,7 +40,7 @@ export function corsMiddleware(): MiddlewareHandler<{Variables: CorsVars}> {
     const corsHandler = cors({
       origin: (candidate) => (originAllowed(candidate, extra) ? candidate : ''),
       credentials: true,
-      allowMethods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+      allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowHeaders: ['content-type', CONCIV_SESSION_HEADER],
     })
     return corsHandler(c, next)

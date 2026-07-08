@@ -1,6 +1,7 @@
-import type {JsonValue} from 'jazz-tools'
+import {and, eq} from 'drizzle-orm'
 import {defineTool, imageResult} from '@conciv/extension'
-import {app} from '../../shared/schema.js'
+import type {JsonValue} from '../../shared/rows.js'
+import {canvasPending, canvasReplies} from '../../server/db/schema.js'
 import type {WhiteboardToolContext} from '../../server/context.js'
 import {validateSvg} from './svg-caps.js'
 import {draftToSvg, type DraftElement} from './draft-svg.js'
@@ -37,8 +38,7 @@ const EDGE_PATTERN = /--+>|--+|-\.-+>|==+>|--[xo]/g
 
 const canvasReadTool = defineTool<typeof CanvasReadInput, WhiteboardToolContext>(canvasReadDef).server(
   async (input, ctx, request) => {
-    const table = input.scope === 'draft' ? app.canvasDraftElements : app.canvasElements
-    const rows = await ctx.db.all(table.where({room: ctx.room(request)}), {tier: 'global'})
+    const rows = await ctx.store.listElements(input.scope, ctx.room(request))
     return {elements: rows.map((row) => row.data), scope: input.scope}
   },
 )
@@ -46,7 +46,8 @@ const canvasReadTool = defineTool<typeof CanvasReadInput, WhiteboardToolContext>
 const canvasSvgTool = defineTool<typeof CanvasSvgInput, WhiteboardToolContext>(canvasSvgDef).server(
   async (input, ctx, request) => {
     validateSvg(input.svg)
-    const write = ctx.db.insert(app.canvasPending, {
+    const pending = await ctx.store.insertPending({
+      id: crypto.randomUUID(),
       room: ctx.room(request),
       kind: 'svg',
       stage: 'draft',
@@ -58,8 +59,7 @@ const canvasSvgTool = defineTool<typeof CanvasSvgInput, WhiteboardToolContext>(c
         roughness: input.roughness,
       } as JsonValue,
     })
-    await write.wait({tier: 'edge'})
-    return {pending: write.value.id}
+    return {pending: pending.id}
   },
 )
 
@@ -67,26 +67,26 @@ const canvasExportTool = defineTool<typeof CanvasExportInput, WhiteboardToolCont
   async (input, ctx, request) => {
     const room = ctx.room(request)
     if (input.format === 'json') {
-      const table = input.scope === 'draft' ? app.canvasDraftElements : app.canvasElements
-      const rows = await ctx.db.all(table.where({room}), {tier: 'global'})
+      const rows = await ctx.store.listElements(input.scope === 'draft' ? 'draft' : 'live', room)
       return {elements: rows.map((row) => row.data)}
     }
     const requestId = crypto.randomUUID()
-    await ctx.db
-      .insert(app.canvasPending, {
-        room,
-        kind: 'export',
-        stage: 'live',
-        payload: {requestId, scope: input.scope} as JsonValue,
-      })
-      .wait({tier: 'edge'})
+    await ctx.store.insertPending({
+      id: crypto.randomUUID(),
+      room,
+      kind: 'export',
+      stage: 'live',
+      payload: {requestId, scope: input.scope},
+    })
     const deadline = Date.now() + 10_000
     while (Date.now() < deadline) {
-      const replies = await ctx.db.all(app.canvasReplies.where({room, requestId}), {tier: 'global'})
-      const reply = replies[0]
+      const [reply] = await ctx.store.db
+        .select()
+        .from(canvasReplies)
+        .where(and(eq(canvasReplies.room, room), eq(canvasReplies.requestId, requestId)))
       if (reply) {
         const payload = reply.payload as unknown as {dataBase64?: string; error?: string; reason?: string}
-        await ctx.db.delete(app.canvasReplies, reply.id).wait({tier: 'edge'})
+        await ctx.store.deleteReply(reply.id)
         if (payload.error) return {error: payload.error, reason: payload.reason ?? 'unknown', scope: input.scope}
         return imageResult('image/png', payload.dataBase64 ?? '', {scope: input.scope})
       }
@@ -98,14 +98,14 @@ const canvasExportTool = defineTool<typeof CanvasExportInput, WhiteboardToolCont
 
 const canvasDrawTool = defineTool<typeof CanvasDrawInput, WhiteboardToolContext>(canvasDrawDef).server(
   async (input, ctx, request) => {
-    const write = ctx.db.insert(app.canvasPending, {
+    const pending = await ctx.store.insertPending({
+      id: crypto.randomUUID(),
       room: ctx.room(request),
       kind: 'skeletons',
       stage: 'draft',
       payload: {elements: input.elements} as JsonValue,
     })
-    await write.wait({tier: 'edge'})
-    return {pending: write.value.id}
+    return {pending: pending.id}
   },
 )
 
@@ -113,44 +113,42 @@ const canvasDiagramTool = defineTool<typeof CanvasDiagramInput, WhiteboardToolCo
   async (input, ctx, request) => {
     const edges = (input.mermaid.match(EDGE_PATTERN) ?? []).length
     if (edges > MAX_EDGES) throw new Error(`diagram exceeds ${MAX_EDGES} edges`)
-    const write = ctx.db.insert(app.canvasPending, {
+    const pending = await ctx.store.insertPending({
+      id: crypto.randomUUID(),
       room: ctx.room(request),
       kind: 'mermaid',
       stage: 'draft',
-      payload: {source: input.mermaid} as JsonValue,
+      payload: {source: input.mermaid},
     })
-    await write.wait({tier: 'edge'})
-    return {pending: write.value.id}
+    return {pending: pending.id}
   },
 )
 
 const canvasConnectTool = defineTool<typeof CanvasConnectInput, WhiteboardToolContext>(canvasConnectDef).server(
   async (input, ctx, request) => {
-    const write = ctx.db.insert(app.canvasPending, {
+    const pending = await ctx.store.insertPending({
+      id: crypto.randomUUID(),
       room: ctx.room(request),
       kind: 'skeletons',
       stage: 'draft',
-      payload: {elements: [{type: 'arrow', x: 0, y: 0, start: {id: input.fromId}, end: {id: input.toId}}]} as JsonValue,
+      payload: {elements: [{type: 'arrow', x: 0, y: 0, start: {id: input.fromId}, end: {id: input.toId}}]},
     })
-    await write.wait({tier: 'edge'})
-    return {pending: write.value.id}
+    return {pending: pending.id}
   },
 )
 
 const canvasUpdateTool = defineTool<typeof CanvasUpdateInput, WhiteboardToolContext>(canvasUpdateDef).server(
   async (input, ctx, request) => {
     const room = ctx.room(request)
-    const [draft] = await ctx.db.all(app.canvasDraftElements.where({room, elementId: input.elementId}), {
-      tier: 'global',
-    })
-    const [live] = draft
-      ? []
-      : await ctx.db.all(app.canvasElements.where({room, elementId: input.elementId}), {tier: 'global'})
+    const draft = (await ctx.store.listElements('draft', room)).find((row) => row.elementId === input.elementId)
+    const live = draft
+      ? undefined
+      : (await ctx.store.listElements('live', room)).find((row) => row.elementId === input.elementId)
     const current = draft ?? live
     if (!current) return {updated: false}
-    const table = draft ? app.canvasDraftElements : app.canvasElements
+    const scope = draft ? 'draft' : 'live'
     const data = Object.assign({}, current.data, input.patch) as JsonValue
-    await ctx.db.update(table, current.id, {data, version: current.version + 1}).wait({tier: 'edge'})
+    await ctx.store.upsertElement(scope, {room, elementId: input.elementId, data, version: current.version + 1})
     return {updated: true}
   },
 )
@@ -158,16 +156,9 @@ const canvasUpdateTool = defineTool<typeof CanvasUpdateInput, WhiteboardToolCont
 const canvasDeleteTool = defineTool<typeof CanvasDeleteInput, WhiteboardToolContext>(canvasDeleteDef).server(
   async (input, ctx, request) => {
     const room = ctx.room(request)
-    const draftHits = await ctx.db.all(app.canvasDraftElements.where({room, elementId: input.elementId}), {
-      tier: 'global',
-    })
-    const table = draftHits.length ? app.canvasDraftElements : app.canvasElements
-    const rows = draftHits.length
-      ? draftHits
-      : await ctx.db.all(app.canvasElements.where({room, elementId: input.elementId}), {tier: 'global'})
-    const outcomes = await Promise.allSettled(rows.map((row) => ctx.db.delete(table, row.id).wait({tier: 'edge'})))
-    const failed = outcomes.filter((outcome) => outcome.status === 'rejected').length
-    if (failed) console.error(`[whiteboard] canvas.delete: ${failed} delete(s) failed for ${input.elementId}`)
+    const draftHit = (await ctx.store.listElements('draft', room)).some((row) => row.elementId === input.elementId)
+    const scope = draftHit ? 'draft' : 'live'
+    await ctx.store.deleteElement(scope, room, input.elementId)
     return {deleted: input.elementId}
   },
 )
@@ -175,30 +166,27 @@ const canvasDeleteTool = defineTool<typeof CanvasDeleteInput, WhiteboardToolCont
 const canvasClearTool = defineTool<typeof CanvasClearInput, WhiteboardToolContext>(canvasClearDef).server(
   async (_input, ctx, request) => {
     const room = ctx.room(request)
-    const elements = await ctx.db.all(app.canvasElements.where({room}), {tier: 'global'})
-    const pending = await ctx.db.all(app.canvasPending.where({room}), {tier: 'global'})
-    await Promise.all([
-      ...elements.map((row) => ctx.db.delete(app.canvasElements, row.id).wait({tier: 'edge'})),
-      ...pending.map((row) => ctx.db.delete(app.canvasPending, row.id).wait({tier: 'edge'})),
-    ])
+    const elements = await ctx.store.listElements('live', room)
+    await ctx.store.deleteElements(
+      'live',
+      room,
+      elements.map((row) => row.elementId),
+    )
+    for (const row of await ctx.store.db.select().from(canvasPending).where(eq(canvasPending.room, room)))
+      await ctx.store.deletePending(row.id)
     return {cleared: elements.length}
   },
 )
 
-const draftRows = async (ctx: WhiteboardToolContext, room: string) =>
-  ctx.db.all(app.canvasDraftElements.where({room}), {tier: 'global'})
-
 const canvasCommitTool = defineTool<typeof CanvasCommitInput, WhiteboardToolContext>(canvasCommitDef).server(
   async (_input, ctx, request) => {
     const room = ctx.room(request)
-    const drafts = await draftRows(ctx, room)
+    const drafts = await ctx.store.listElements('draft', room)
     if (!drafts.length) return {committed: false, reason: 'no draft to commit'}
-    await ctx.db
-      .insert(app.canvasPending, {room, kind: 'commit', stage: 'live', payload: {} as JsonValue})
-      .wait({tier: 'edge'})
+    await ctx.store.insertPending({id: crypto.randomUUID(), room, kind: 'commit', stage: 'live', payload: {}})
     const deadline = Date.now() + 15_000
     while (Date.now() < deadline) {
-      const remaining = await draftRows(ctx, room)
+      const remaining = await ctx.store.listElements('draft', room)
       if (!remaining.length) return {committed: true, elements: drafts.length}
       await new Promise((resolve) => setTimeout(resolve, 250))
     }
@@ -209,18 +197,21 @@ const canvasCommitTool = defineTool<typeof CanvasCommitInput, WhiteboardToolCont
 const canvasDiscardTool = defineTool<typeof CanvasDiscardInput, WhiteboardToolContext>(canvasDiscardDef).server(
   async (_input, ctx, request) => {
     const room = ctx.room(request)
-    const drafts = await draftRows(ctx, room)
-    const pendings = await ctx.db.all(app.canvasPending.where({room, stage: 'draft'}), {tier: 'global'})
+    const drafts = await ctx.store.listElements('draft', room)
+    const pendings = await ctx.store.db
+      .select()
+      .from(canvasPending)
+      .where(and(eq(canvasPending.room, room), eq(canvasPending.stage, 'draft')))
     try {
-      await ctx.db
-        .batch((batch) => {
-          drafts.forEach((row) => batch.delete(app.canvasDraftElements, row.id))
-          pendings.forEach((row) => batch.delete(app.canvasPending, row.id))
-        })
-        .wait({tier: 'edge'})
+      await ctx.store.deleteElements(
+        'draft',
+        room,
+        drafts.map((row) => row.elementId),
+      )
+      for (const row of pendings) await ctx.store.deletePending(row.id)
       return {discarded: drafts.length}
     } catch (error) {
-      console.error(`[whiteboard] canvas.discard batch failed: ${String(error)}`)
+      console.error(`[whiteboard] canvas.discard failed: ${String(error)}`)
       return {discarded: 0, error: 'discard failed', reason: String(error)}
     }
   },
@@ -228,7 +219,7 @@ const canvasDiscardTool = defineTool<typeof CanvasDiscardInput, WhiteboardToolCo
 
 const canvasPreviewTool = defineTool<typeof CanvasPreviewInput, WhiteboardToolContext>(canvasPreviewDef).server(
   async (_input, ctx, request) => {
-    const rows = await ctx.db.all(app.canvasDraftElements.where({room: ctx.room(request)}), {tier: 'global'})
+    const rows = await ctx.store.listElements('draft', ctx.room(request))
     if (!rows.length) return {empty: true, reason: 'draft has no elements yet'}
     const elements = rows.map((row) => row.data as unknown as DraftElement)
     const {svg, width, height} = draftToSvg(elements)

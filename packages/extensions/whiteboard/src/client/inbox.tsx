@@ -23,11 +23,17 @@ const partText = (part: unknown): string => {
 const textOf = (comment: Comment): string =>
   (Array.isArray(comment.parts) ? comment.parts : []).map(partText).join(' ').trim()
 
+const stripeClass = (unread: boolean): string =>
+  `rounded-pw-pill w-0.5 self-stretch ${unread ? 'bg-pw-accent' : 'bg-transparent'}`
+const nameClass = (unread: boolean): string =>
+  `text-[0.8125rem] truncate ${unread ? 'font-semibold text-pw-text' : 'text-pw-text-2'}`
+const avatarClass = (index: number): string => (index > 0 ? 'size-5 -ml-1.5' : 'size-5')
+
 function FeedItem(props: {root: Comment}): JSX.Element {
   const model = useComments()
   const unread = (): boolean => model.isUnread(props.root.cid)
   const replies = (): number => model.replyCount(props.root.cid)
-  const activity = (): Date => model.lastActivityAt(props.root.cid) ?? props.root.createdAt
+  const activity = (): number => model.lastActivityAt(props.root.cid) ?? props.root.createdAt
   const select = (): void => {
     model.panToThread(props.root.cid)
     model.openThread(props.root.cid)
@@ -39,23 +45,16 @@ function FeedItem(props: {root: Comment}): JSX.Element {
       class={FEED_ITEM}
       onClick={() => select()}
     >
-      <span
-        class={`rounded-pw-pill w-0.5 self-stretch ${unread() ? 'bg-pw-accent' : 'bg-transparent'}`}
-        aria-hidden="true"
-      />
+      <span class={stripeClass(unread())} aria-hidden="true" />
       <div class="flex flex-1 flex-col gap-1 min-w-0">
         <div class="flex gap-2 items-center">
           <span class="flex">
             <For each={model.threadParticipants(props.root.cid)}>
-              {(participant, index) => (
-                <Avatar name={participant.label} class={index() > 0 ? 'size-5 -ml-1.5' : 'size-5'} />
-              )}
+              {(participant, index) => <Avatar name={participant.label} class={avatarClass(index())} />}
             </For>
           </span>
-          <span class={`text-[0.8125rem] truncate ${unread() ? 'font-semibold text-pw-text' : 'text-pw-text-2'}`}>
-            {model.displayName(props.root)}
-          </span>
-          <RelativeTime value={activity()} class="text-[0.75rem] text-pw-text-3 ml-auto shrink-0" />
+          <span class={nameClass(unread())}>{model.displayName(props.root)}</span>
+          <RelativeTime value={new Date(activity())} class="text-[0.75rem] text-pw-text-3 ml-auto shrink-0" />
         </div>
         <p class="text-[0.8125rem] text-pw-text-2 truncate">{textOf(props.root)}</p>
         <Show when={replies() > 0}>
@@ -147,7 +146,7 @@ export function Inbox(): JSX.Element {
           </Menu>
           <button
             type="button"
-            class="text-[0.75rem] text-pw-text-2 px-2 rounded-pw-sm inline-flex h-7 [outline:none] items-center hover:bg-pw-fill focus-ring"
+            class="text-[0.75rem] text-pw-text-2 px-2 rounded-pw-sm inline-flex h-7 [outline:none] focus-ring items-center hover:bg-pw-fill"
             onClick={() => model.markAllRead()}
           >
             Mark all as read

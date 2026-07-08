@@ -1,14 +1,15 @@
-import type {Db} from 'jazz-tools/backend'
-import type {JsonValue} from 'jazz-tools'
-import {app} from '../shared/schema.js'
+import {and, eq} from 'drizzle-orm'
+import {canvasPending} from './db/schema.js'
+import type {Store} from './db/store.js'
 
-export async function autoCommitDraft(db: Db, room: string): Promise<boolean> {
-  const drafts = await db.all(app.canvasDraftElements.where({room}), {tier: 'global'})
+export async function autoCommitDraft(store: Store, room: string): Promise<boolean> {
+  const drafts = await store.listElements('draft', room)
   if (!drafts.length) return false
-  const pendingCommits = await db.all(app.canvasPending.where({room, kind: 'commit'}), {tier: 'global'})
+  const pendingCommits = await store.db
+    .select()
+    .from(canvasPending)
+    .where(and(eq(canvasPending.room, room), eq(canvasPending.kind, 'commit')))
   if (pendingCommits.length) return false
-  await db
-    .insert(app.canvasPending, {room, kind: 'commit', stage: 'live', payload: {} as JsonValue})
-    .wait({tier: 'edge'})
+  await store.insertPending({id: crypto.randomUUID(), room, kind: 'commit', stage: 'live', payload: {}})
   return true
 }

@@ -32,6 +32,7 @@ export function startHost(extension: AnyExtension): void {
     toast: showToast,
     surface: () => ensureEffectsSurface(),
     suppressWhile: () => () => {},
+    yieldFocusWhile: () => () => {},
     Dialog: () => Dialog,
     Popover: () => Popover,
     env: {reducedMotion: () => false, doc: document, win: window},

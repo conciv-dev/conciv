@@ -33,6 +33,7 @@ export function makeWidgetClientApi(deps: {
     toast: showToast,
     surface: () => ensureEffectsSurface({styles}),
     suppressWhile: (active) => registerSuppressor(active),
+    yieldFocusWhile: (active) => registerSuppressor(active, false),
     Dialog: () => track(Dialog),
     Popover: () => Object.assign({}, Popover, {Root: track(Popover.Root)}),
     env: {reducedMotion: () => matchMedia('(prefers-reduced-motion: reduce)').matches, doc: document, win: window},

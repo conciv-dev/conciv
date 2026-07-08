@@ -1,6 +1,7 @@
-import type {JsonValue} from 'jazz-tools'
+import {and, eq} from 'drizzle-orm'
 import {defineTool} from '@conciv/extension'
-import {app} from '../../shared/schema.js'
+import {json, type JsonValue} from '../../shared/rows.js'
+import {comments, pins} from '../../server/db/schema.js'
 import type {WhiteboardToolContext} from '../../server/context.js'
 import {enrichAnchor} from './anchor-enrich.js'
 import {
@@ -23,13 +24,19 @@ import {
 } from './def.js'
 
 const commentByCid = async (ctx: WhiteboardToolContext, sessionId: string, cid: string) => {
-  const [row] = await ctx.db.all(app.comments.where({sessionId, cid}), {tier: 'global'})
+  const [row] = await ctx.store.db
+    .select()
+    .from(comments)
+    .where(and(eq(comments.sessionId, sessionId), eq(comments.cid, cid)))
   if (!row) throw new Error(`comment ${cid} not found`)
   return row
 }
 
 const pinByCid = async (ctx: WhiteboardToolContext, room: string, cid: string) => {
-  const [row] = await ctx.db.all(app.pins.where({room, cid}), {tier: 'global'})
+  const [row] = await ctx.store.db
+    .select()
+    .from(pins)
+    .where(and(eq(pins.room, room), eq(pins.cid, cid)))
   if (!row) throw new Error(`no pin for comment ${cid}`)
   return row
 }
@@ -38,24 +45,12 @@ const AGENT_COLOR = '#19c3b2'
 const AGENT_THROTTLE_MS = 50
 const lastPresence = new Map<string, number>()
 
-const toUuid = (bytes: Uint8Array): string => {
-  const hex = Array.from(bytes.slice(0, 16), (byte) => byte.toString(16).padStart(2, '0'))
-  return `${hex.slice(0, 4).join('')}-${hex.slice(4, 6).join('')}-${hex.slice(6, 8).join('')}-${hex.slice(8, 10).join('')}-${hex.slice(10, 16).join('')}`
-}
-const stableUuid = async (seed: string): Promise<string> => {
-  const digest = new Uint8Array(await crypto.subtle.digest('SHA-1', new TextEncoder().encode(seed)))
-  const bytes = digest.slice(0, 16)
-  bytes[6] = ((bytes[6] ?? 0) & 0x0f) | 0x50
-  bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80
-  return toUuid(bytes)
-}
-
-const markPresence = async (
+const markPresence = (
   ctx: WhiteboardToolContext,
   request: Parameters<WhiteboardToolContext['model']>[0],
   x: number,
   y: number,
-): Promise<void> => {
+): void => {
   const sessionId = ctx.sessionId(request)
   const model = ctx.model(request)
   const peerId = `agent:${model ?? 'ai'}`
@@ -63,49 +58,57 @@ const markPresence = async (
   const now = Date.now()
   if (now - (lastPresence.get(key) ?? 0) < AGENT_THROTTLE_MS) return
   lastPresence.set(key, now)
-  await ctx.db
-    .upsert(
-      app.cursors,
-      {room: sessionId, peerId, kind: 'agent', x, y, name: model ?? 'AI', color: AGENT_COLOR, lastSeen: new Date()},
-      {id: await stableUuid(key)},
-    )
-    .wait({tier: 'edge'})
+  ctx.store.cursor({
+    room: sessionId,
+    peerId,
+    kind: 'agent',
+    x,
+    y,
+    name: model ?? 'AI',
+    color: AGENT_COLOR,
+    lastSeen: now,
+  })
 }
 
 export const commentCreateTool = defineTool<typeof CommentCreateInput, WhiteboardToolContext>(commentCreateDef).server(
   async (input, ctx, request) => {
     const sessionId = ctx.sessionId(request)
-    const now = new Date()
+    const now = Date.now()
     const enriched = await enrichAnchor(ctx.cwd, input.anchor ?? null)
-    await ctx.db
-      .transaction((tx) => {
-        tx.insert(app.comments, {
-          sessionId,
-          cid: input.cid,
-          threadId: input.cid,
-          parts: input.parts as JsonValue,
-          authorKind: input.authorKind,
-          authorModel: input.authorModel ?? undefined,
-          status: 'open',
-          kind: input.kind,
-          anchor: (enriched.anchor ?? undefined) as JsonValue,
-          anchorFile: enriched.file ?? undefined,
-          anchorComponent: enriched.component ?? undefined,
-          anchorHash: enriched.hash ?? undefined,
-          createdAt: now,
-          updatedAt: now,
-        })
-        tx.insert(app.pins, {
-          room: ctx.room(request),
-          cid: input.cid,
-          x: input.x,
-          y: input.y,
-          elementId: input.elementId ?? undefined,
-          pinState: 'locked',
-        })
-      })
-      .wait({tier: 'edge'})
-    await markPresence(ctx, request, input.x, input.y)
+    await ctx.store.insertComment({
+      id: crypto.randomUUID(),
+      sessionId,
+      cid: input.cid,
+      threadId: input.cid,
+      parentId: null,
+      parts: input.parts as JsonValue,
+      authorKind: input.authorKind,
+      authorModel: input.authorModel ?? null,
+      authorId: null,
+      authorName: null,
+      authorAvatar: null,
+      status: 'open',
+      kind: input.kind,
+      anchor: json.nullable().parse(enriched.anchor ?? null),
+      anchorFile: enriched.file ?? null,
+      anchorComponent: enriched.component ?? null,
+      anchorHash: enriched.hash ?? null,
+      createdAt: now,
+      updatedAt: now,
+      resolvedAt: null,
+    })
+    await ctx.store.insertPin({
+      id: crypto.randomUUID(),
+      room: ctx.room(request),
+      cid: input.cid,
+      x: input.x,
+      y: input.y,
+      elementId: input.elementId ?? null,
+      pinState: 'locked',
+      anchorX: null,
+      anchorY: null,
+    })
+    markPresence(ctx, request, input.x, input.y)
     return {cid: input.cid}
   },
 )
@@ -114,25 +117,35 @@ export const commentReplyTool = defineTool<typeof CommentReplyInput, WhiteboardT
   async (input, ctx, request) => {
     const sessionId = ctx.sessionId(request)
     const parent = await commentByCid(ctx, sessionId, input.cid)
-    const now = new Date()
+    const now = Date.now()
     const replyCid = crypto.randomUUID()
-    await ctx.db
-      .insert(app.comments, {
-        sessionId,
-        cid: replyCid,
-        threadId: parent.threadId,
-        parentId: input.cid,
-        parts: input.parts as JsonValue,
-        authorKind: input.authorKind ?? 'ai',
-        authorModel: input.authorModel ?? undefined,
-        status: 'open',
-        kind: 'floating',
-        createdAt: now,
-        updatedAt: now,
-      })
-      .wait({tier: 'edge'})
-    const [pin] = await ctx.db.all(app.pins.where({room: ctx.room(request), cid: parent.threadId}), {tier: 'global'})
-    if (pin) await markPresence(ctx, request, pin.x, pin.y)
+    await ctx.store.insertComment({
+      id: crypto.randomUUID(),
+      sessionId,
+      cid: replyCid,
+      threadId: parent.threadId,
+      parentId: input.cid,
+      parts: input.parts as JsonValue,
+      authorKind: input.authorKind ?? 'ai',
+      authorModel: input.authorModel ?? null,
+      authorId: null,
+      authorName: null,
+      authorAvatar: null,
+      status: 'open',
+      kind: 'floating',
+      anchor: null,
+      anchorFile: null,
+      anchorComponent: null,
+      anchorHash: null,
+      createdAt: now,
+      updatedAt: now,
+      resolvedAt: null,
+    })
+    const [pin] = await ctx.store.db
+      .select()
+      .from(pins)
+      .where(and(eq(pins.room, ctx.room(request)), eq(pins.cid, parent.threadId)))
+    if (pin) markPresence(ctx, request, pin.x, pin.y)
     return {cid: replyCid}
   },
 )
@@ -141,10 +154,11 @@ export const commentReadTool = defineTool<typeof CommentReadInput, WhiteboardToo
   async (input, ctx, request) => {
     const sessionId = ctx.sessionId(request)
     const root = await commentByCid(ctx, sessionId, input.cid)
-    const thread = await ctx.db.all(app.comments.where({sessionId, threadId: root.threadId}), {tier: 'global'})
-    const replies = thread
-      .filter((row) => row.parentId)
-      .toSorted((left, right) => left.createdAt.getTime() - right.createdAt.getTime())
+    const thread = await ctx.store.db
+      .select()
+      .from(comments)
+      .where(and(eq(comments.sessionId, sessionId), eq(comments.threadId, root.threadId)))
+    const replies = thread.filter((row) => row.parentId).toSorted((left, right) => left.createdAt - right.createdAt)
     return {comment: root, replies}
   },
 )
@@ -152,7 +166,7 @@ export const commentReadTool = defineTool<typeof CommentReadInput, WhiteboardToo
 export const commentListTool = defineTool<typeof CommentListInput, WhiteboardToolContext>(commentListDef).server(
   async (input, ctx, request) => {
     const sessionId = ctx.sessionId(request)
-    const rows = await ctx.db.all(app.comments.where({sessionId}), {tier: 'global'})
+    const rows = await ctx.store.db.select().from(comments).where(eq(comments.sessionId, sessionId))
     const top = rows
       .filter((row) => !row.parentId)
       .filter((row) => (input.file ? row.anchorFile === input.file : true))
@@ -164,11 +178,9 @@ export const commentListTool = defineTool<typeof CommentListInput, WhiteboardToo
 export const commentResolveTool = defineTool<typeof CommentResolveInput, WhiteboardToolContext>(
   commentResolveDef,
 ).server(async (input, ctx, request) => {
-  const now = new Date()
+  const now = Date.now()
   const comment = await commentByCid(ctx, ctx.sessionId(request), input.cid)
-  await ctx.db
-    .update(app.comments, comment.id, {status: 'resolved', resolvedAt: now, updatedAt: now})
-    .wait({tier: 'edge'})
+  await ctx.store.updateComment(comment.id, {status: 'resolved', resolvedAt: now, updatedAt: now})
   return {cid: input.cid, status: 'resolved'}
 })
 
@@ -178,12 +190,18 @@ export const commentDeleteTool = defineTool<typeof CommentDeleteInput, Whiteboar
     const comment = await commentByCid(ctx, sessionId, input.cid)
     const isRoot = comment.threadId === comment.cid
     const doomed = isRoot
-      ? await ctx.db.all(app.comments.where({sessionId, threadId: comment.threadId}), {tier: 'global'})
+      ? await ctx.store.db
+          .select()
+          .from(comments)
+          .where(and(eq(comments.sessionId, sessionId), eq(comments.threadId, comment.threadId)))
       : [comment]
-    await Promise.all(doomed.map((row) => ctx.db.delete(app.comments, row.id).wait({tier: 'edge'})))
+    for (const row of doomed) await ctx.store.deleteComment(row.id)
     if (isRoot) {
-      const pins = await ctx.db.all(app.pins.where({room: ctx.room(request), cid: comment.cid}), {tier: 'global'})
-      await Promise.all(pins.map((pin) => ctx.db.delete(app.pins, pin.id).wait({tier: 'edge'})))
+      const doomedPins = await ctx.store.db
+        .select()
+        .from(pins)
+        .where(and(eq(pins.room, ctx.room(request)), eq(pins.cid, comment.cid)))
+      for (const pin of doomedPins) await ctx.store.deletePin(pin.id)
     }
     return {cid: input.cid, deleted: true}
   },
@@ -192,8 +210,8 @@ export const commentDeleteTool = defineTool<typeof CommentDeleteInput, Whiteboar
 export const commentMoveTool = defineTool<typeof CommentMoveInput, WhiteboardToolContext>(commentMoveDef).server(
   async (input, ctx, request) => {
     const pin = await pinByCid(ctx, ctx.room(request), input.cid)
-    await ctx.db.update(app.pins, pin.id, {x: input.x, y: input.y}).wait({tier: 'edge'})
-    await markPresence(ctx, request, input.x, input.y)
+    await ctx.store.updatePin(pin.id, {x: input.x, y: input.y})
+    markPresence(ctx, request, input.x, input.y)
     return {cid: input.cid, x: input.x, y: input.y}
   },
 )
@@ -201,7 +219,7 @@ export const commentMoveTool = defineTool<typeof CommentMoveInput, WhiteboardToo
 export const pinSetStateTool = defineTool<typeof PinSetStateInput, WhiteboardToolContext>(pinSetStateDef).server(
   async (input, ctx, request) => {
     const pin = await pinByCid(ctx, ctx.room(request), input.cid)
-    await ctx.db.update(app.pins, pin.id, {pinState: input.pinState}).wait({tier: 'edge'})
+    await ctx.store.updatePin(pin.id, {pinState: input.pinState})
     return {cid: input.cid, pinState: input.pinState}
   },
 )

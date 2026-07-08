@@ -75,18 +75,21 @@ export async function buildSessionList(args: {
 }): Promise<ChatSessionMeta[]> {
   const records = (await args.store.list()).filter((r) => sameCwd(r.cwd, args.cwd))
   const byHarness = new Map(records.filter((r) => r.harnessSessionId).map((r) => [r.harnessSessionId as string, r]))
-  const ours = records.map((r) => {
-    const h = r.harnessSessionId ? args.harnessList.find((x) => x.id === r.harnessSessionId) : undefined
+  const harnessOf = (r: (typeof records)[number]): HarnessRow | undefined =>
+    r.harnessSessionId ? args.harnessList.find((x) => x.id === r.harnessSessionId) : undefined
+  const recordMeta = (r: (typeof records)[number], h: HarnessRow | undefined): ChatSessionMeta => {
+    const merged = h ?? {derivedTitle: 'New session', updatedAt: r.updatedAt, messageCount: 0}
     return {
       id: r.id,
-      title: r.title ?? h?.derivedTitle ?? 'New session',
-      updatedAt: h?.updatedAt ?? r.updatedAt,
-      messageCount: h?.messageCount ?? 0,
+      title: r.title ?? merged.derivedTitle,
+      updatedAt: merged.updatedAt,
+      messageCount: merged.messageCount,
       running: args.runningKeys.has(r.id),
       origin: r.origin === 'external' ? 'external' : 'conciv',
       usage: r.usage,
-    } satisfies ChatSessionMeta
-  })
+    }
+  }
+  const ours = records.map((r) => recordMeta(r, harnessOf(r)))
   const unwrapped = args.harnessList
     .filter((h) => !byHarness.has(h.id))
     .map(
