@@ -1,4 +1,4 @@
-import {createEffect, onCleanup, onMount, type JSX} from 'solid-js'
+import {createEffect, createSignal, onCleanup, onMount, Show, type JSX} from 'solid-js'
 import {Portal} from 'solid-js/web'
 import {Component, createElement, type ReactNode} from 'react'
 import {createRoot, type Root} from 'react-dom/client'
@@ -10,7 +10,12 @@ import type {CaptureUpdateActionType} from '@excalidraw/excalidraw/store'
 import {useWhiteboardDb} from '../client/db.js'
 import type {CursorEvent, ElementRow, JsonValue, PendingRow} from '../shared/rows.js'
 import {replayDraft, type ReplayHandle, type ReplayStep} from './replay.js'
-import type {Viewport} from './coords.js'
+import {sceneToScreen, type Viewport} from './coords.js'
+
+type AuthorChip = {label: string; kind: 'human' | 'ai'; x: number; y: number}
+
+const authorLabel = (row: ElementRow): string =>
+  row.ownerKind === 'ai' ? (row.ownerModel ? `AI · ${row.ownerModel}` : 'AI') : (row.ownerName ?? 'Guest')
 
 export type Self = {peerId: string; name: string; color: string}
 
@@ -72,6 +77,28 @@ export function Island(props: {
   const guard = {applyingRemote: false}
   const versions = new Map<string, number>()
   let bufferedScene: readonly ElementRow[] | undefined
+  const [chip, setChip] = createSignal<AuthorChip | null>(null)
+
+  const refreshChip = (): void => {
+    if (!api) return void setChip(null)
+    const state = api.getAppState()
+    const selected = Object.entries(state.selectedElementIds)
+      .filter(([, active]) => active)
+      .map(([id]) => id)
+    if (selected.length !== 1) return void setChip(null)
+    const element = api.getSceneElements().find((candidate: SceneElement) => candidate.id === selected[0])
+    const row = [...db.canvasElements.state.values()].find((candidate) => candidate.elementId === selected[0])
+    if (!element || !row) return void setChip(null)
+    const viewport: Viewport = {
+      scrollX: state.scrollX,
+      scrollY: state.scrollY,
+      zoom: state.zoom,
+      offsetLeft: state.offsetLeft,
+      offsetTop: state.offsetTop,
+    }
+    const point = sceneToScreen(viewport, element.x, element.y)
+    setChip({label: authorLabel(row), kind: row.ownerKind, x: point.x, y: point.y - 6})
+  }
 
   const humanAuthor = () => ({
     ownerKind: 'human' as const,
@@ -326,7 +353,10 @@ export function Island(props: {
               })
             }
             pushViewport()
-            unsubscribeScroll = instance.onScrollChange(() => pushViewport())
+            unsubscribeScroll = instance.onScrollChange(() => {
+              pushViewport()
+              refreshChip()
+            })
             props.registerPan?.((sceneX, sceneY) => {
               const state = instance.getAppState()
               instance.updateScene({
@@ -343,7 +373,10 @@ export function Island(props: {
               bufferedScene = undefined
             })
           },
-          onChange: (elements: readonly OrderedExcalidrawElement[]) => writeLocal(elements),
+          onChange: (elements: readonly OrderedExcalidrawElement[]) => {
+            writeLocal(elements)
+            refreshChip()
+          },
         }),
       ),
     )
@@ -364,6 +397,31 @@ export function Island(props: {
           visibility: props.visible ? 'visible' : 'hidden',
         }}
       />
+      <Show when={props.visible && chip()}>
+        {(current) => (
+          <div
+            aria-label={`Drawn by ${current().label}`}
+            style={{
+              position: 'fixed',
+              left: `${current().x}px`,
+              top: `${current().y}px`,
+              transform: 'translateY(-100%)',
+              'z-index': '2147482001',
+              'pointer-events': 'none',
+              background: current().kind === 'ai' ? '#8a86e8' : '#334155',
+              color: '#ffffff',
+              padding: '2px 8px',
+              'border-radius': '999px',
+              'font-size': '11px',
+              'font-weight': '600',
+              'white-space': 'nowrap',
+              'box-shadow': '0 1px 3px rgba(0, 0, 0, 0.3)',
+            }}
+          >
+            {current().label}
+          </div>
+        )}
+      </Show>
     </Portal>
   )
 }
