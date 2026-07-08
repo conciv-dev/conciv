@@ -1,7 +1,8 @@
 import {and, eq} from 'drizzle-orm'
-import {defineTool, imageResult} from '@conciv/extension'
-import type {JsonValue} from '../../shared/rows.js'
+import {defineTool, imageResult, type ToolRequest} from '@conciv/extension'
+import type {ElementRow, JsonValue} from '../../shared/rows.js'
 import {canvasPending, canvasReplies} from '../../server/db/schema.js'
+import type {ElementScope} from '../../server/db/store.js'
 import type {WhiteboardToolContext} from '../../server/context.js'
 import {validateSvg} from './svg-caps.js'
 import {draftToSvg, type DraftElement} from './draft-svg.js'
@@ -35,6 +36,40 @@ import {
 
 const MAX_EDGES = 500
 const EDGE_PATTERN = /--+>|--+|-\.-+>|==+>|--[xo]/g
+
+type LocatedElement = {row: ElementRow; scope: ElementScope}
+
+const locateElement = async (
+  ctx: WhiteboardToolContext,
+  room: string,
+  elementId: string,
+): Promise<LocatedElement | null> => {
+  const draft = (await ctx.store.listElements('draft', room)).find((row) => row.elementId === elementId)
+  if (draft) return {row: draft, scope: 'draft'}
+  const live = (await ctx.store.listElements('live', room)).find((row) => row.elementId === elementId)
+  return live ? {row: live, scope: 'live'} : null
+}
+
+const approvedToEdit = (
+  ctx: WhiteboardToolContext,
+  request: ToolRequest,
+  toolName: string,
+  input: unknown,
+  targets: readonly ElementRow[],
+): Promise<boolean> =>
+  targets.some((row) => row.ownerKind === 'human')
+    ? ctx.requestApproval(request, {toolName, input})
+    : Promise.resolve(true)
+
+const aiEdited = (row: ElementRow, data: JsonValue, model: string | null): ElementRow => ({
+  ...row,
+  data,
+  version: row.version + 1,
+  lastEditedByKind: 'ai',
+  lastEditedById: null,
+  lastEditedByName: null,
+  lastEditedByModel: model,
+})
 
 const canvasReadTool = defineTool<typeof CanvasReadInput, WhiteboardToolContext>(canvasReadDef).server(
   async (input, ctx, request) => {
@@ -139,26 +174,11 @@ const canvasConnectTool = defineTool<typeof CanvasConnectInput, WhiteboardToolCo
 
 const canvasUpdateTool = defineTool<typeof CanvasUpdateInput, WhiteboardToolContext>(canvasUpdateDef).server(
   async (input, ctx, request) => {
-    const room = ctx.room(request)
-    const draft = (await ctx.store.listElements('draft', room)).find((row) => row.elementId === input.elementId)
-    const live = draft
-      ? undefined
-      : (await ctx.store.listElements('live', room)).find((row) => row.elementId === input.elementId)
-    const current = draft ?? live
-    if (!current) return {updated: false}
-    if (current.ownerKind === 'human' && !(await ctx.requestApproval(request, {toolName: 'canvas.update', input})))
-      return {updated: false, blocked: true}
-    const scope = draft ? 'draft' : 'live'
-    const data = Object.assign({}, current.data, input.patch) as JsonValue
-    await ctx.store.upsertElement(scope, {
-      ...current,
-      data,
-      version: current.version + 1,
-      lastEditedByKind: 'ai',
-      lastEditedById: null,
-      lastEditedByName: null,
-      lastEditedByModel: ctx.model(request),
-    })
+    const found = await locateElement(ctx, ctx.room(request), input.elementId)
+    if (!found) return {updated: false}
+    if (!(await approvedToEdit(ctx, request, 'canvas.update', input, [found.row]))) return {updated: false, blocked: true}
+    const data = Object.assign({}, found.row.data, input.patch) as JsonValue
+    await ctx.store.upsertElement(found.scope, aiEdited(found.row, data, ctx.model(request)))
     return {updated: true}
   },
 )
@@ -166,14 +186,10 @@ const canvasUpdateTool = defineTool<typeof CanvasUpdateInput, WhiteboardToolCont
 const canvasDeleteTool = defineTool<typeof CanvasDeleteInput, WhiteboardToolContext>(canvasDeleteDef).server(
   async (input, ctx, request) => {
     const room = ctx.room(request)
-    const draftHit = (await ctx.store.listElements('draft', room)).find((row) => row.elementId === input.elementId)
-    const current =
-      draftHit ?? (await ctx.store.listElements('live', room)).find((row) => row.elementId === input.elementId)
-    if (!current) return {deleted: null}
-    if (current.ownerKind === 'human' && !(await ctx.requestApproval(request, {toolName: 'canvas.delete', input})))
-      return {deleted: null, blocked: true}
-    const scope = draftHit ? 'draft' : 'live'
-    await ctx.store.deleteElement(scope, room, input.elementId)
+    const found = await locateElement(ctx, room, input.elementId)
+    if (!found) return {deleted: null}
+    if (!(await approvedToEdit(ctx, request, 'canvas.delete', input, [found.row]))) return {deleted: null, blocked: true}
+    await ctx.store.deleteElement(found.scope, room, input.elementId)
     return {deleted: input.elementId}
   },
 )
@@ -182,9 +198,7 @@ const canvasClearTool = defineTool<typeof CanvasClearInput, WhiteboardToolContex
   async (_input, ctx, request) => {
     const room = ctx.room(request)
     const elements = await ctx.store.listElements('live', room)
-    const hasHuman = elements.some((row) => row.ownerKind === 'human')
-    if (hasHuman && !(await ctx.requestApproval(request, {toolName: 'canvas.clear', input: {}})))
-      return {cleared: 0, blocked: true}
+    if (!(await approvedToEdit(ctx, request, 'canvas.clear', {}, elements))) return {cleared: 0, blocked: true}
     await ctx.store.deleteElements(
       'live',
       room,
