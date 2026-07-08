@@ -117,15 +117,41 @@ last so it can be trimmed if the plan runs long.
 
 ## Testing
 
-Real-browser Playwright integration tests (never jsdom), loading the prebuilt widget bundle:
+Three layers, all against real infrastructure (no mocks), following the package's existing patterns.
+Run cheapest-first: store → API → browser.
+
+### 1. Store / DB (`test/store.test.ts`, real libSQL via `createStore(tmpdir)`)
+
+The owner invariant is the load-bearing guarantee, so it is tested at the store where it lives:
+
+- Insert an element with `ownerKind: 'ai'` → row persists `owner*` and `lastEditedBy*`.
+- Upsert the same `elementId` again (higher version) with `lastEditedBy: {human,...}` → `ownerKind`
+  unchanged, `lastEditedByKind` now `'human'`, `version` advanced.
+- Upsert with an incoming `ownerKind` that differs from the stored one → stored `owner*` still wins
+  (the update set-clause never touches `owner*`).
+- `emit` still fires the typed `upsert` event carrying the author fields.
+- `zod ↔ drizzle` type parity for the new columns is pinned with `expectTypeOf` in `test/rows.test.ts`.
+
+### 2. API / HTTP routes (`test/routes.test.ts`, real Hono app via `serveApp` + real `fetch`)
+
+- `PUT /elements/:scope` with author fields → 200, `GET` returns them; second PUT preserves `owner`.
+- `PUT /elements/:scope/bulk` → every returned row carries author fields.
+- `elementRow` zod validation rejects a body missing `ownerKind`/`lastEditedByKind` (400) — the HTTP
+  boundary stays validated.
+- 409 version-conflict response still round-trips the stored row's author fields.
+
+Note: the AI guard (`requestApproval`) is exercised at the tool-handler / browser layer, not these raw
+routes — the routes are the browser's write path and are not where the approval decision lives.
+
+### 3. Browser integration (`test/*.it.test.ts`, Playwright/Chromium, prebuilt widget bundle)
 
 - Human draws an element → row `ownerKind = 'human'`, name = guest name.
 - AI `canvas.draw` + `canvas.commit` → row `ownerKind = 'ai'`, `ownerModel` set.
-- AI `canvas.update` on a human element → approval prompt appears; deny leaves element unchanged;
+- AI `canvas.update` on a human element → approval prompt appears; deny leaves the element unchanged;
   allow applies the patch and flips `lastEditedByKind` to `'ai'` while `ownerKind` stays `'human'`.
 - AI `canvas.update`/`canvas.delete` on its own (AI-owned) element → no prompt, applies immediately.
 - AI `canvas.clear` with a human element present → prompt; with only AI elements → no prompt.
-- Store-level: updating an existing row never changes `ownerKind` (invariant test).
+- Author chip renders the owner on select/hover (assert visible text/role, never CSS internals).
 
 ## Rollback
 
