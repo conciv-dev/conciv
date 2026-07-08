@@ -1,7 +1,18 @@
 # Whiteboard element authorship + AI-can't-touch-human guard
 
 Date: 2026-07-08
-Status: approved (design), pending implementation plan
+Status: descoped for implementation — see the plan at
+`docs/superpowers/plans/2026-07-08-whiteboard-element-authorship.md`
+
+> **Descope note (2026-07-08):** the store-level authorization, caller/authority argument, HTTP
+> capability token, and Hono classify-middleware described below are **deferred**. A proper core-level
+> security mechanism will come later; the raw-FS/HTTP bypass is tracked in issue #47. The shipped
+> feature is: author columns (owner + lastEditedBy), owner immutability in the store, and the AI asking
+> for **approval at the tool handler** before it edits/deletes a human-owned element — reusing the
+> existing (assistant-ui-shaped) `injectApproval` → `ApprovalModal` → `respondApproval` pipeline via a
+> small `PermissionGate.request` → `ServerApi.approvals` hook. The "Enforcement — authorization at the
+> store" and "Trust boundary" / capability sections below are retained as the design record for that
+> future work, not this implementation.
 
 ## Problem
 
