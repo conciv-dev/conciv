@@ -3,7 +3,14 @@ import {z} from 'zod'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {ToolCallCard, type ToolCallCardProps} from '@conciv/ui-kit-chat'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
-import {Button, Dialog as DialogKit, Popover as PopoverKit, RelativeTime, ScrollArea} from '@conciv/ui-kit-system'
+import {
+  Button,
+  Dialog as DialogKit,
+  Popover as PopoverKit,
+  RelativeTime,
+  ScrollArea,
+  TooltipIconButton,
+} from '@conciv/ui-kit-system'
 import {MentionField, type MentionFieldApi} from '@conciv/ui-kit-tap'
 import {useComments, type Comment} from '../model/comments.js'
 import {Avatar, Menu, MenuItem, Tooltip} from '../ui.js'
@@ -153,15 +160,15 @@ function ThreadComposer(props: {onReady: (api: MentionFieldApi) => void}): JSX.E
           </div>
         )}
       </Show>
-      <Button
-        size="icon"
-        aria-label="Send reply"
+      <TooltipIconButton
+        variant="solid"
+        tooltip="Send reply"
         disabled={empty()}
         class="rounded-pw-pill shrink-0 size-7"
         onClick={() => api()?.submit()}
       >
         ↑
-      </Button>
+      </TooltipIconButton>
     </div>
   )
 }

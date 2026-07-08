@@ -1,9 +1,8 @@
 import {type JSX} from 'solid-js'
 import {Check, Copy, Download, MoreHorizontal, Pencil, RefreshCw} from 'lucide-solid'
-import {Swap} from '@conciv/ui-kit-system'
+import {Swap, TooltipIconButton} from '@conciv/ui-kit-system'
 import {ActionBar, useCopied, useExportMarkdown} from '../primitives/action-bar/action-bar.js'
 import {ActionBarMore} from '../primitives/action-bar-more/action-bar-more.js'
-import {TooltipIconButton} from './tooltip-icon-button.js'
 import {FOCUS, HIGHLIGHT} from './classes.js'
 
 const ICON = 16

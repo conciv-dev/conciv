@@ -5,6 +5,7 @@ import type {PendingApproval} from './approval-modal.js'
 import {createResizable} from '../lib/resize.js'
 import {createPiP} from './pip.js'
 import {ChevronUp, Columns2, PictureInPicture2, X} from 'lucide-solid'
+import {TooltipIconButton} from '@conciv/ui-kit-system'
 import {suppressedAttr} from './suppression.js'
 import {escapeInTerminal} from './terminal-focus.js'
 import {ContextTracker} from '../page/context-tracker.js'
@@ -97,12 +98,12 @@ function QuickTerminalHeader(props: {
       >
         <PictureInPicture2 class="size-5 block" aria-hidden="true" />
       </button>
-      <button type="button" class={CLOSE} aria-label="Split pane" title="Split pane (Mod+D)" onClick={props.onSplit}>
+      <TooltipIconButton tooltip="Split pane (Mod+D)" class={CLOSE} onClick={props.onSplit}>
         <Columns2 class="size-5 block" aria-hidden="true" />
-      </button>
-      <button type="button" class={CLOSE} aria-label="Close quick terminal" onClick={props.onClose}>
+      </TooltipIconButton>
+      <TooltipIconButton tooltip="Close quick terminal" class={CLOSE} onClick={props.onClose}>
         <ChevronUp class="size-[1em] block" aria-hidden="true" />
-      </button>
+      </TooltipIconButton>
     </header>
   )
 }

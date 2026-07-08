@@ -1,6 +1,6 @@
 import {createEffect, createSignal, For, onCleanup, Show, type JSX} from 'solid-js'
 import {render} from 'solid-js/web'
-import {EnvironmentProvider, FocusTrap} from '@conciv/ui-kit-system'
+import {EnvironmentProvider, FocusTrap, TooltipIconButton} from '@conciv/ui-kit-system'
 import {ApprovalModal, type PendingApproval} from './approval-modal.js'
 import type {TriggerPosition} from '@conciv/protocol/config-types'
 import type {WidgetSettings} from '../client/widget-settings.js'
@@ -227,15 +227,9 @@ function ModalHeader(props: {
 }): JSX.Element {
   return (
     <header class={HEAD}>
-      <button
-        type="button"
-        class={CLOSE}
-        aria-label="Pop out to a window"
-        title="Picture-in-Picture"
-        onClick={props.onPip}
-      >
+      <TooltipIconButton tooltip="Pop out to a window" class={CLOSE} onClick={props.onPip}>
         <PictureInPicture2 class="size-5 block" aria-hidden="true" />
-      </button>
+      </TooltipIconButton>
       <span class="tracking-[-0.01em] font-semibold">{props.title}</span>
       <SessionSelector
         variant="pill"
@@ -246,9 +240,9 @@ function ModalHeader(props: {
         announce={props.announce}
       />
       <ContextTracker usage={props.usage()} />
-      <button type="button" class={`${CLOSE} ml-auto`} aria-label="Close chat" onClick={props.onClose}>
+      <TooltipIconButton tooltip="Close chat" class={`${CLOSE} ml-auto`} onClick={props.onClose}>
         <ChevronDown class="size-[1em] block" aria-hidden="true" />
-      </button>
+      </TooltipIconButton>
     </header>
   )
 }

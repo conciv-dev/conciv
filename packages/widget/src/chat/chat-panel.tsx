@@ -12,7 +12,7 @@ import {
   type JSX,
 } from 'solid-js'
 import {Dynamic} from 'solid-js/web'
-import {Progress, Tabs} from '@conciv/ui-kit-system'
+import {Progress, Tabs, TooltipIconButton} from '@conciv/ui-kit-system'
 import {useChat, createChatClientOptions} from '@tanstack/ai-solid'
 import type {MessagePart, ToolCallPart, ToolResultPart, UIMessage} from '@tanstack/ai-client'
 import {attachConnection} from '../client/attach-connection.js'
@@ -25,6 +25,7 @@ import {
   Composer,
   NowLine,
   pairResults,
+  guardChat,
   useComposer,
   type Turn,
 } from '@conciv/ui-kit-chat'
@@ -223,17 +224,19 @@ export function ChatPanel(props: {
     api.setMessages(parsed.data.messages as UIMessage[])
     if (!parsed.data.generating && (api.isLoading() || api.sessionGenerating())) api.stop()
   }
-  const chat = useChat({
-    ...createChatClientOptions({connection}),
-    get live() {
-      return props.active !== false
-    },
-    onCustomEvent: (eventType, data) => {
-      if (eventType === CONCIV_SNAPSHOT_EVENT) return onSnapshot(data)
-      onConcivUi(eventType, data)
-    },
-    onChunk,
-  })
+  const chat = guardChat(
+    useChat({
+      ...createChatClientOptions({connection}),
+      get live() {
+        return props.active !== false
+      },
+      onCustomEvent: (eventType, data) => {
+        if (eventType === CONCIV_SNAPSHOT_EVENT) return onSnapshot(data)
+        onConcivUi(eventType, data)
+      },
+      onChunk,
+    }),
+  )
   chatRef.current = chat
 
   const lastSession = {id: null as string | null}
@@ -526,7 +529,7 @@ export function ChatPanel(props: {
       )
     })
   const compact = async () => {
-    if (chat.isLoading() || compacting()) return
+    if (chat.isBusy() || compacting()) return
     const id = addDivider('compact')
     setPendingCompactId(id)
     try {
@@ -773,19 +776,13 @@ export function ChatPanel(props: {
                           {(action) => {
                             const Icon = action.icon
                             return (
-                              <button
-                                type="button"
-                                class={ACT}
-                                aria-label={action.label}
-                                title={action.label}
-                                classList={{
-                                  'opacity-60': busyAction() === action.id,
-                                  'cursor-progress': busyAction() === action.id,
-                                }}
+                              <TooltipIconButton
+                                tooltip={action.label}
+                                class={`${ACT}  ${busyAction() === action.id ? 'opacity-60 cursor-progress' : ''}`}
                                 onClick={() => runAction(action)}
                               >
                                 <Icon class="size-5 block" />
-                              </button>
+                              </TooltipIconButton>
                             )
                           }}
                         </For>

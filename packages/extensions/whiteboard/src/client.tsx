@@ -1,7 +1,7 @@
 import {Show, createRoot, createSignal, onCleanup, type JSX} from 'solid-js'
 import {MessageSquarePlus, Presentation} from 'lucide-solid'
 import {defineExtension} from '@conciv/extension'
-import {Button} from '@conciv/ui-kit-system'
+import {TooltipIconButton} from '@conciv/ui-kit-system'
 import {WHITEBOARD_NAME, WHITEBOARD_PROMPT} from './shared/meta.js'
 import {mountOverlay, type CommentPick} from './client/overlay.js'
 
@@ -20,12 +20,12 @@ function Component(): JSX.Element {
   }
   return (
     <Show when={slot() === 'composer'}>
-      <Button variant="ghost" size="icon" aria-label="Open the whiteboard canvas" onClick={() => toggle()}>
+      <TooltipIconButton tooltip="Open the whiteboard canvas" class="size-9.5" onClick={() => toggle()}>
         <Presentation />
-      </Button>
-      <Button variant="ghost" size="icon" aria-label="Comment on an element" onClick={() => void pickComment()}>
+      </TooltipIconButton>
+      <TooltipIconButton tooltip="Comment on an element" class="size-9.5" onClick={() => void pickComment()}>
         <MessageSquarePlus />
-      </Button>
+      </TooltipIconButton>
     </Show>
   )
 }

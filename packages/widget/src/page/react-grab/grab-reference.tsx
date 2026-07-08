@@ -1,5 +1,6 @@
 import {Show, type JSX} from 'solid-js'
 import {X} from 'lucide-solid'
+import {TooltipIconButton} from '@conciv/ui-kit-system'
 import type {ElementSnapshot, ElementSource, Grab} from '@conciv/grab'
 
 function fitScale(width: number, maxWidth: number): number {
@@ -50,14 +51,13 @@ export function GrabReference(props: {
       class="text-[0.6875rem] font-pw-mono mb-2 p-3 border-b border-r border-t border-y-pw-line border-l-[0.1875rem] border-l-pw-accent border-r-pw-line rounded-pw-md bg-pw-fill flex flex-col gap-2.5 items-start relative"
       data-pw-grab
     >
-      <button
-        type="button"
+      <TooltipIconButton
         class="text-pw-text-2 rounded-pw-pill bg-transparent inline-flex size-6 cursor-pointer [border:none] trans-color-bg items-center right-1.5 top-1.5 justify-center absolute hover:text-pw-text-hi hover:bg-pw-line"
-        aria-label="Remove grabbed element"
+        tooltip="Remove grabbed element"
         onClick={() => props.onRemove()}
       >
         <X class="size-5 block" aria-hidden="true" />
-      </button>
+      </TooltipIconButton>
       <Show
         when={stagedGrab(props.grab)}
         fallback={<span class="text-pw-text-2 [word-break:break-all]">{props.grab.text}</span>}

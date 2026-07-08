@@ -1,7 +1,7 @@
 import {type JSX} from 'solid-js'
 import {ChevronLeft, ChevronRight} from 'lucide-solid'
 import {BranchPicker as BranchPickerPrimitive} from '../primitives/branch-picker/branch-picker.js'
-import {TooltipIconButton} from './tooltip-icon-button.js'
+import {TooltipIconButton} from '@conciv/ui-kit-system'
 
 export function BranchPicker(props: {class?: string}): JSX.Element {
   return (

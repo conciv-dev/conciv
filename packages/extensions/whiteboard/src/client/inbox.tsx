@@ -1,7 +1,7 @@
 import {For, Show, createMemo, createSignal, type JSX} from 'solid-js'
 import {z} from 'zod'
 import {Inbox as InboxIcon, ListFilter} from 'lucide-solid'
-import {RelativeTime, ScrollArea, TextField} from '@conciv/ui-kit-system'
+import {RelativeTime, ScrollArea, TextField, TooltipIconButton} from '@conciv/ui-kit-system'
 import {useComments, type Comment} from './model/comments.js'
 import {Avatar, Menu, MenuCheckboxItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, Tabs} from './ui.js'
 
@@ -105,9 +105,9 @@ export function Inbox(): JSX.Element {
       <aside class={PANEL} aria-label="Comments inbox">
         <header class="px-3 py-2 border-b border-pw-line-soft flex items-center justify-between">
           <Tabs value="comments" tabs={[{value: 'comments', label: 'Comments', trigger: <InboxIcon size={16} />}]} />
-          <button type="button" aria-label="Close inbox" class={ICON_BTN} onClick={() => model.closeInbox()}>
+          <TooltipIconButton tooltip="Close inbox" class={ICON_BTN} onClick={() => model.closeInbox()}>
             ✕
-          </button>
+          </TooltipIconButton>
         </header>
         <div class="px-3 py-2 flex gap-2 items-center">
           <TextField

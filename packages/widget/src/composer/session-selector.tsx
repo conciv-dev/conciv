@@ -1,5 +1,5 @@
 import {createSignal, createEffect, For, Show, onMount, type JSX} from 'solid-js'
-import {Combobox} from '@conciv/ui-kit-system'
+import {Combobox, TooltipIconButton} from '@conciv/ui-kit-system'
 import {useListCollection} from '@ark-ui/solid/combobox'
 import {Check, ChevronDown, Sparkles, SquarePen, Plus} from 'lucide-solid'
 import type {ChatSessionMeta, SessionId} from '@conciv/protocol/chat-types'
@@ -242,18 +242,17 @@ export function SessionSelector(props: {
                 placeholder="Search sessions…"
                 ref={(el) => (searchEl = el)}
               />
-              <button
-                type="button"
+              <TooltipIconButton
+                tooltip="Rename current session"
                 class={ACT}
-                aria-label="Rename current session"
                 aria-disabled={!canRename()}
                 onClick={() => canRename() && startRename()}
               >
                 <SquarePen class="size-5 block" aria-hidden="true" />
-              </button>
-              <button type="button" class={ACT} aria-label="New session" onClick={() => newSession()}>
+              </TooltipIconButton>
+              <TooltipIconButton tooltip="New session" class={ACT} onClick={() => newSession()}>
                 <Plus class="size-5 block" aria-hidden="true" />
-              </button>
+              </TooltipIconButton>
             </Show>
           </div>
           <div class="flex-1 overflow-y-auto">
