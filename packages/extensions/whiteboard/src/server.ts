@@ -22,8 +22,10 @@ export default defineExtension({
     if (!request.sessionId) throw new Error('whiteboard tools require an active session')
     return request.sessionId
   }
+  const requestApproval = (request: ToolRequest, detail: {toolName: string; input: unknown}): Promise<boolean> =>
+    request.sessionId ? server.approvals.request(request.sessionId, detail) : Promise.resolve(false)
   return {
-    context: {cwd: server.cwd, store, sessionId, room: sessionId, model: (request) => request.model},
+    context: {cwd: server.cwd, store, sessionId, room: sessionId, model: (request) => request.model, requestApproval},
     app: new Hono<WhiteboardEnv>()
       .use(async (c, next) => {
         c.set('whiteboard', {store})

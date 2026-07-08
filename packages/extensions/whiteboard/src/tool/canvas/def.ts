@@ -86,17 +86,15 @@ export const canvasDeleteDef = {
   name: 'canvas.delete',
   description: 'Remove an element from the canvas by elementId.',
   inputSchema: CanvasDeleteInput,
-  approval: 'ask',
-  promptSnippet: 'Use canvas.delete to remove an element. Destructive; the user is asked to confirm.',
-} as const
+  promptSnippet: 'Use canvas.delete to remove an element. Removing a human-drawn element asks the user first.',
+}
 
 export const canvasClearDef = {
   name: 'canvas.clear',
   description: 'Remove every element from the canvas.',
   inputSchema: CanvasClearInput,
-  approval: 'ask',
-  promptSnippet: 'Use canvas.clear to wipe the canvas. Destructive; the user is asked to confirm.',
-} as const
+  promptSnippet: 'Use canvas.clear to wipe the canvas. Asks the user first when any human-drawn element is present.',
+}
 
 export const canvasExportDef = {
   name: 'canvas.export',

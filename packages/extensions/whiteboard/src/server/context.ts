@@ -7,4 +7,5 @@ export type WhiteboardToolContext = {
   sessionId: (request: ToolRequest) => string
   room: (request: ToolRequest) => string
   model: (request: ToolRequest) => string | null
+  requestApproval: (request: ToolRequest, detail: {toolName: string; input: unknown}) => Promise<boolean>
 }
