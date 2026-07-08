@@ -67,9 +67,28 @@ export const createStore = async (dataDir: string) => {
     await db
       .insert(table)
       .values(row)
-      .onConflictDoUpdate({target: [table.room, table.elementId], set: {data: row.data, version: row.version}})
-    emit({table: elementTableName(scope), room: row.room, type: 'upsert', row})
-    return {ok: true, row}
+      .onConflictDoUpdate({
+        target: [table.room, table.elementId],
+        set: {
+          data: row.data,
+          version: row.version,
+          lastEditedByKind: row.lastEditedByKind,
+          lastEditedById: row.lastEditedById,
+          lastEditedByName: row.lastEditedByName,
+          lastEditedByModel: row.lastEditedByModel,
+        },
+      })
+    const saved: ElementRow = current
+      ? {
+          ...row,
+          ownerKind: current.ownerKind,
+          ownerId: current.ownerId,
+          ownerName: current.ownerName,
+          ownerModel: current.ownerModel,
+        }
+      : row
+    emit({table: elementTableName(scope), room: row.room, type: 'upsert', row: saved})
+    return {ok: true, row: saved}
   }
 
   const upsertElements = async (scope: ElementScope, rows: ElementRow[]): Promise<ElementRow[]> => {

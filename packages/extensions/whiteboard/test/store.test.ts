@@ -103,6 +103,39 @@ describe('whiteboard store', () => {
     expect(events[0]?.table).toBe('cursor')
   })
 
+  it('preserves owner on update and advances lastEditedBy', async () => {
+    const store = await open()
+    await store.upsertElement(
+      'live',
+      el({
+        room: 'r',
+        elementId: 'e1',
+        data: {n: 1},
+        version: 1,
+        ownerId: 'u1',
+        ownerName: 'Guest 00',
+      }),
+    )
+    const edit = el({
+      room: 'r',
+      elementId: 'e1',
+      data: {n: 2},
+      version: 2,
+      ownerKind: 'ai',
+      ownerModel: 'opus',
+      lastEditedByKind: 'ai',
+      lastEditedByModel: 'opus',
+    })
+    const outcome = await store.upsertElement('live', edit)
+    expect(outcome.ok).toBe(true)
+    const rows = await store.listElements('live', 'r')
+    expect(rows[0]?.ownerKind).toBe('human')
+    expect(rows[0]?.ownerName).toBe('Guest 00')
+    expect(rows[0]?.lastEditedByKind).toBe('ai')
+    expect(rows[0]?.lastEditedByModel).toBe('opus')
+    expect(rows[0]?.version).toBe(2)
+  })
+
   it('persists across reopen from the same dataDir', async () => {
     const dir = realpathSync(mkdtempSync(join(tmpdir(), 'wb-persist-')))
     const first = await createStore(dir)
