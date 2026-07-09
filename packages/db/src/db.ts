@@ -10,7 +10,8 @@ export type ConcivDb = ReturnType<typeof openDb>
 
 export function openDb(stateRoot: string) {
   mkdirSync(`${stateRoot}/.conciv`, {recursive: true})
-  const client = new DatabaseSync(`${stateRoot}/.conciv/conciv.db`)
+  const client = new DatabaseSync(`${stateRoot}/.conciv/conciv.db`, {timeout: 5000})
+  client.exec('PRAGMA journal_mode = WAL')
   const db = drizzle({client})
   migrate(db, {migrationsFolder})
   return db

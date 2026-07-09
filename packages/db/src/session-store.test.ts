@@ -64,6 +64,17 @@ describe('drizzle session store', () => {
     expect(hits).toBe(2)
   })
 
+  it('two connections on one stateRoot interleave writes (WAL + busy timeout)', async () => {
+    const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-db-multi-'))
+    const first = makeSessionStore({db: openDb(stateRoot), now: () => 1})
+    const second = makeSessionStore({db: openDb(stateRoot), now: () => 2})
+    await first.create(record('conciv_a'))
+    await second.create(record('conciv_b'))
+    await first.update('conciv_b', {title: 'from-first'})
+    expect((await second.list()).map((r) => r.id).toSorted()).toEqual(['conciv_a', 'conciv_b'])
+    expect((await second.get('conciv_b'))?.title).toBe('from-first')
+  })
+
   it('drizzle row type matches SessionRecord (id brand applied by zod parse)', () => {
     expectTypeOf<Omit<typeof sessions.$inferSelect, 'id'>>().toEqualTypeOf<Omit<SessionRecord, 'id'>>()
     expectTypeOf<(typeof sessions.$inferSelect)['id']>().toEqualTypeOf<string>()
