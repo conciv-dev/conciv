@@ -1,6 +1,6 @@
 import {implement} from '@orpc/server'
 import {contract, type SessionMeta} from '@conciv/contract'
-import type {SessionStore} from '@conciv/db'
+import type {SessionStore, UiState} from '@conciv/db'
 import {readLocks} from '../store/lock.js'
 import {buildSessionList} from '../api/chat/session.js'
 import type {ChatRuntime} from '../api/chat/chat-env.js'
@@ -12,6 +12,7 @@ export type RpcDeps = {
   store: SessionStore
   buildSessionList: () => Promise<SessionMeta[]>
   live: LiveFeed
+  uiState: UiState
 }
 
 export async function rpcSessionList(chat: ChatRuntime): Promise<SessionMeta[]> {
@@ -66,22 +67,25 @@ export function makeRpcRouter(deps: RpcDeps) {
       }),
     },
     drafts: {
-      get: os.drafts.get.handler(() => {
-        throw new Error('implemented in task 5')
+      get: os.drafts.get.handler(({input}) => deps.uiState.getDraft(input.sessionId)),
+      set: os.drafts.set.handler(async ({input}) => {
+        await deps.uiState.setDraft(input)
+        return {ok: true as const}
       }),
-      set: os.drafts.set.handler(() => {
-        throw new Error('implemented in task 5')
-      }),
-      live: os.drafts.live.handler(() => {
-        throw new Error('implemented in task 5')
+      live: os.drafts.live.handler(async function* ({input, signal}) {
+        yield await deps.uiState.getDraft(input.sessionId)
+        for await (const _ of deps.live.subscribe(signal ?? new AbortController().signal)) {
+          yield await deps.uiState.getDraft(input.sessionId)
+        }
       }),
     },
     markers: {
-      list: os.markers.list.handler(() => {
-        throw new Error('implemented in task 5')
-      }),
-      live: os.markers.live.handler(() => {
-        throw new Error('implemented in task 5')
+      list: os.markers.list.handler(({input}) => deps.uiState.listMarkers(input.sessionId)),
+      live: os.markers.live.handler(async function* ({input, signal}) {
+        yield await deps.uiState.listMarkers(input.sessionId)
+        for await (const _ of deps.live.subscribe(signal ?? new AbortController().signal)) {
+          yield await deps.uiState.listMarkers(input.sessionId)
+        }
       }),
     },
     chat: {

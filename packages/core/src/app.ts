@@ -18,7 +18,7 @@ import {buildChatTools} from './api/chat/chat-tools.js'
 import {ensureChatRecord, recordMintedToken, resolveSystemText, resumeTokenFor} from './api/chat/turn.js'
 import {sweepEmptyChatRecords} from './api/chat/session.js'
 import {readLock, readLocks} from './store/lock.js'
-import {makeSessionStore, openDb} from '@conciv/db'
+import {makeSessionStore, makeUiState, openDb} from '@conciv/db'
 import mcpApp, {type McpVars} from './api/mcp/mcp.js'
 import toolsApp, {type ToolsVars} from './api/chat/tools-route.js'
 import pageApp, {makePageBus, type PageVars} from './api/page/page.js'
@@ -146,6 +146,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const live = makeLiveFeed()
   store.watch(() => live.pulse())
   chatTurnListeners.push(() => live.pulse())
+  const uiState = makeUiState(db)
+  uiState.watch(() => live.pulse())
 
   const pageBus = makePageBus()
 
@@ -251,7 +253,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   }
   void sweepEmptyChatRecords(store, new Set(readLocks(opts.cfg.stateRoot).map((l) => l.key))).catch(() => {})
 
-  const rpc = makeRpcRouter({store, buildSessionList: () => rpcSessionList(chatRuntime), live})
+  const rpc = makeRpcRouter({store, buildSessionList: () => rpcSessionList(chatRuntime), live, uiState})
 
   const app = composeRoutes(
     {
