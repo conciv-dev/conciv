@@ -1,3 +1,5 @@
 export * from './rows.js'
 export * from './collections.js'
+export {extensionTableName, ExtensionTableSpecSchema, type ExtensionTableSpec} from './table-names.js'
+export {uuidv7Base64} from './uuid.js'
 export {stateError, isStateError, type StateError, type StateErrorCode} from './errors.js'

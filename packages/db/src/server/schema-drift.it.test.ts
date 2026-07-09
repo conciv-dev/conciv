@@ -44,8 +44,9 @@ describe('zod schemas match the real sqlite schema', () => {
       const dbNames = columns.map((column) => column.name).toSorted()
       const zodNames = Object.keys(schema.shape).toSorted()
       expect(dbNames).toEqual(zodNames)
+      const fields: Record<string, z.ZodType | undefined> = schema.shape
       for (const column of columns) {
-        const field = schema.shape[column.name]
+        const field = fields[column.name]
         if (!field) throw new Error(`no zod field for ${table}.${column.name}`)
         const acceptsNull = field.safeParse(null).success
         expect({column: `${table}.${column.name}`, acceptsNull}).toEqual({

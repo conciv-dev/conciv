@@ -4,6 +4,7 @@ import {ensureTrailBinary} from './binary.js'
 import {startTrailBase} from './lifecycle.js'
 import {recordsClient, type RecordsClient} from './records.js'
 import {createTrailBaseSessionStore, type SessionStore} from './session-store.js'
+import type {ExtensionTableSpec} from './extension-tables.js'
 
 export type StatePlane = {
   url: string
@@ -18,9 +19,16 @@ export async function startStatePlane(opts: {
   port: number
   cacheDir?: string
   now?: () => number
+  extensionTables?: ExtensionTableSpec[]
 }): Promise<StatePlane> {
   const binary = await ensureTrailBinary({cacheDir: opts.cacheDir ?? join(homedir(), '.cache/conciv/trailbase')})
-  const server = await startTrailBase({binary, dataDir: opts.dataDir, port: opts.port, dev: true})
+  const server = await startTrailBase({
+    binary,
+    dataDir: opts.dataDir,
+    port: opts.port,
+    dev: true,
+    extensionTables: opts.extensionTables,
+  })
   return {
     url: server.url,
     port: server.port,

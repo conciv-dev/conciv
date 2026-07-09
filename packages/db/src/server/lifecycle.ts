@@ -1,6 +1,7 @@
 import {spawn} from 'node:child_process'
 import {prepareDepot} from './depot.js'
 import {isStateError, stateError} from '../errors.js'
+import type {ExtensionTableSpec} from './extension-tables.js'
 
 async function waitHealthy(url: string, timeoutMs: number): Promise<void> {
   const deadline = Date.now() + timeoutMs
@@ -19,8 +20,9 @@ export async function startTrailBase(opts: {
   dataDir: string
   port: number
   dev?: boolean
+  extensionTables?: ExtensionTableSpec[]
 }): Promise<{port: number; url: string; stop(): Promise<void>}> {
-  prepareDepot({dataDir: opts.dataDir})
+  prepareDepot({dataDir: opts.dataDir, extensionTables: opts.extensionTables})
   const url = `http://127.0.0.1:${opts.port}`
   const args = ['--data-dir', opts.dataDir, 'run', '-a', `127.0.0.1:${opts.port}`, ...(opts.dev ? ['--dev'] : [])]
   const child = spawn(opts.binary, args, {stdio: ['ignore', 'ignore', 'pipe']})
