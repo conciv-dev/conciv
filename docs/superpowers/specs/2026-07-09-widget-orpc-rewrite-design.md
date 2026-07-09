@@ -135,11 +135,12 @@ package is rendering (relocates) or the page driver (inherently client).
 ## The widget is a router app
 
 The widget is a TanStack Solid Router app (`@tanstack/solid-router`, pinned alongside
-`@tanstack/history`) mounted in the shadow root. Routes replace every layout state machine; the
-router's history is a **custom localStorage-persisted history** we write against
+`@tanstack/history`) mounted in the shadow root. Routes replace every layout state machine; when
+embedded, the router's history is a **custom localStorage-persisted history** we write against
 `@tanstack/history`'s `createHistory` — same shape as `createMemoryHistory` (entries + index), but
 the store is localStorage. The widget never touches the host page's URL or history; restoration
-after reload is intrinsic to the history, not a feature we build.
+after reload is intrinsic to the history, not a feature we build. The history is injected at the
+entry, so the standalone app (see package map) runs the same routes on browser history.
 
 Route tree:
 
@@ -186,14 +187,21 @@ and error boundaries with retry; the fab renders instantly.
 - `contract`: oRPC contract + zod schemas (client and server both import it).
 - `client`: data access, zero UI — oRPC client factory, TanStack Query options, Solid hooks,
   the ~15-line `useChat` connection bridge.
-- `app`: the widget — TanStack Solid Router app: route tree above, custom localStorage history,
-  chat pane assembly, chrome components (fab wiring, panel geometry, quick layer, PiP). Consumes
-  `client` hooks and `ui-kit-*` components only.
+- `apps/conciv` (private, never published — apps/, not packages/; scaffolded with
+  `npx @tanstack/cli create --router-only --framework solid`): the conciv app — TanStack Solid
+  Router app: route tree above, chat pane assembly, chrome components (fab wiring, panel geometry,
+  quick layer, PiP). Consumes `client` hooks and `ui-kit-*` components only. Two entries:
+  standalone (`index.html` + vite dev server, browser history, real URLs — the dev loop becomes
+  HMR instead of rebuild-bundle-then-hard-reload) and a library export
+  (`createWidgetRouter(config)` + root component) consumed by embed. History, root element, and
+  environment are injected at the entry: embed passes the custom localStorage history + shadow
+  root; standalone passes browser history + document.
 - `page`: DOM execution half of the page plane (react-bridge pre-hydration global is its private,
   versioned concern).
-- `embed`: entry + bundle artifact (~10 lines: create router, mount into shadow root) + vite
-  bundling config, externals (every `@conciv/extension/*` subpath + shared Ark/Solid deps) and the
-  mount-externals guard test.
+- `embed` (packages/, published — it IS the artifact): entry + bundle (~10 lines: create the
+  custom localStorage history, create the router from `apps/conciv`'s export, mount into the
+  shadow root) + vite bundling config that inlines the private app, externals (every
+  `@conciv/extension/*` subpath + shared Ark/Solid deps) and the mount-externals guard test.
 - `ui-kit-system`, `ui-kit-chat`, `ui-kit-chat-tools`, `ui-kit-terminal`, `mascot`: generic
   components only, no conciv data wiring (`FabRobot` visuals in `mascot`; drag/resize/PiP-host/
   announcer primitives in `ui-kit-system`; `GenUi`/`ToolFallbackCard`/trigger menus in
@@ -207,7 +215,7 @@ and error boundaries with retry; the fab renders instantly.
 ## Testing and rollout
 
 Order: contract + core storage/oRPC mount → backend changes 1–6 with ITs → `client` →
-`app` (routes + custom history, component moves into ui-kits alongside) → `page` + `embed` →
+`apps/conciv` (routes + custom history, component moves into ui-kits alongside) → `page` + `embed` →
 rewire built-in extensions (terminal, test-runner, whiteboard) →
 `git rm -r packages/widget packages/api-client` in the same task.
 
