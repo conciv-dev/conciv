@@ -23,8 +23,8 @@ Client code may do exactly three things:
 1. **Render server rows and message parts.** Live queries and `useChat` output. Pure display
    derivations (day-bucketing, grouping, filtering visible items) are allowed inside components.
 2. **Forward user intents.** One typed procedure call per gesture: `send`, `rename`, `compact`,
-   `newSession`, `setModel`, `respondApproval`, `stop`, `closeSession`, `focusPane`. Fire and
-   forget; results come back as synced rows or message parts, never as client bookkeeping.
+   `newSession`, `setModel`, `respondApproval`, `stop`, `closeSession`. Fire and forget; results
+   come back as synced rows or message parts, never as client bookkeeping.
 3. **Physical device concerns** that cannot leave the browser: focus, scroll physics, drag/resize,
    animation, and DOM execution for the page driver (the hands; the brain that decides what to
    query lives server-side behind the page bus).
@@ -98,9 +98,10 @@ download/supervision, `@tanstack/trailbase-db-collection`, records HTTP API).
 2. **Engine writes session rows.** `sessions` (id, title, status: idle|thinking|streaming|
    compacting, model, usage snapshot, origin, messageCount, updatedAt) updated by core during
    turns. Kills every `on*Change` callback chain and the client session cache.
-3. **Server-owned per-session UI state.** `drafts` (text, selection, grabs), `markers` (afterTurn,
-   kind: new|compact), `panes` (layer, sessionId, order, focused). Written via intents; read via
-   live queries. Kills `ui-snapshot.ts`, divider machinery, pane restore parsing.
+3. **Server-owned per-session UI state.** `drafts` (text, selection, grabs) and `markers`
+   (afterTurn, kind: new|compact). Written via intents; read via live queries. Kills
+   `ui-snapshot.ts` and the divider machinery. Layout state (open layer, pane set, focus) is NOT a
+   table: it is navigation state owned by the router's persisted history (see the router section).
 4. **Compaction server-side.** `sessions.compact` procedure: core runs the /compact turn, sets
    `status='compacting'`, writes the marker, updates usage. Client renders a spinner off status.
 5. **Model policy server-side.** `sessions.model` column; core validates against the harness list,
@@ -111,69 +112,103 @@ download/supervision, `@tanstack/trailbase-db-collection`, records HTTP API).
 
 ## Deletion ledger (client code → what deletes it)
 
-| Client code                                                                            | Lines | Deleted by   |
-| -------------------------------------------------------------------------------------- | ----- | ------------ |
-| `client/attach-connection.ts`                                                          | 118   | change 1     |
-| `chat-panel.tsx` onSnapshot/chatRef/guardChat/lastSession/seenSession/reconnect        | ~115  | change 1     |
-| `client/session-store-client.ts`                                                       | 70    | change 2     |
-| `chat-panel.tsx` usage/duration parsing, wasWorking, invalidation, on\*Change emission | ~80   | changes 2, 6 |
-| `shell/pane-content.ts` (callback catcher)                                             | 39    | change 2     |
-| `shell/shell-contract.ts` (registration types)                                         | 71    | changes 2, 5 |
-| `modal-panes.ts` + `quick-panes.ts` threading/restore/persistence                      | ~200  | changes 2, 3 |
-| `lib/ui-snapshot.ts`                                                                   | 110   | change 3     |
-| `chat-panel.tsx` snapshot/restore/persist block + divider machinery                    | ~125  | change 3     |
-| `chat-panel.tsx` compact + waitForIdle/waitForGenerating                               | ~65   | change 4     |
-| `composer/*` requestMeta/persisted-signal/busy juggling                                | ~135  | changes 4, 5 |
-| `session-selector.tsx` store wiring/status machine/rename revert                       | ~90   | change 2     |
-| `chat-panel.tsx` onConcivUi demux + genUi buffer + durations                           | ~55   | change 6     |
-| `page/page-bus.ts` + `api-client` bus/fetch wrappers                                   | ~150  | oRPC         |
+| Client code                                                                            | Lines | Deleted by        |
+| -------------------------------------------------------------------------------------- | ----- | ----------------- |
+| `client/attach-connection.ts`                                                          | 118   | change 1          |
+| `chat-panel.tsx` onSnapshot/chatRef/guardChat/lastSession/seenSession/reconnect        | ~115  | change 1          |
+| `client/session-store-client.ts`                                                       | 70    | change 2          |
+| `chat-panel.tsx` usage/duration parsing, wasWorking, invalidation, on\*Change emission | ~80   | changes 2, 6      |
+| `shell/pane-content.ts` (callback catcher)                                             | 39    | change 2          |
+| `shell/shell-contract.ts` (registration types)                                         | 71    | changes 2, 5      |
+| `modal-panes.ts` + `quick-panes.ts` threading/restore/persistence                      | ~200  | change 2 + router |
+| `lib/ui-snapshot.ts`                                                                   | 110   | change 3          |
+| `chat-panel.tsx` snapshot/restore/persist block + divider machinery                    | ~125  | change 3          |
+| `chat-panel.tsx` compact + waitForIdle/waitForGenerating                               | ~65   | change 4          |
+| `composer/*` requestMeta/persisted-signal/busy juggling                                | ~135  | changes 4, 5      |
+| `session-selector.tsx` store wiring/status machine/rename revert                       | ~90   | change 2          |
+| `chat-panel.tsx` onConcivUi demux + genUi buffer + durations                           | ~55   | change 6          |
+| `page/page-bus.ts` + `api-client` bus/fetch wrappers                                   | ~150  | oRPC              |
 
 Of ~2,100 lines of client state/orchestration, ~250 survive (≈90% deleted). The remainder of the
 package is rendering (relocates) or the page driver (inherently client).
 
-## Component homes (embed owns none)
+## The widget is a router app
 
-| Component                                                                                                                               | Home                                                                                                  |
-| --------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `FabRobot`                                                                                                                              | `@conciv/mascot` (its rig/assets already live there)                                                  |
-| `QuickTerminalLayout`                                                                                                                   | `@conciv/ui-kit-terminal`                                                                             |
-| Floating panel, drag position, resize handles, PiP host, live-region announcer                                                          | `@conciv/ui-kit-system`                                                                               |
-| Chat panel assembly (~120 lines of primitives), `SessionSelector`, `ModelSelector`, `ContextTracker`, `ApprovalModal`/HUD, panel header | `@conciv/ui-kit-chat` styled layer                                                                    |
-| `GenUi`, `ToolFallbackCard`, `TriggerMenus`                                                                                             | `ui-kit-chat` / `ui-kit-chat-tools`                                                                   |
-| Extension slots/views host                                                                                                              | `@conciv/extension` (beside `mountExtension`)                                                         |
-| Page driver, react-bridge, grab picker, mirror, dehydrate                                                                               | `@conciv/page`, mostly as-is; the react-bridge pre-hydration global is its private, versioned concern |
+The widget is a TanStack Solid Router app (`@tanstack/solid-router`, pinned alongside
+`@tanstack/history`) mounted in the shadow root. Routes replace every layout state machine; the
+router's history is a **custom localStorage-persisted history** we write against
+`@tanstack/history`'s `createHistory` — same shape as `createMemoryHistory` (entries + index), but
+the store is localStorage. The widget never touches the host page's URL or history; restoration
+after reload is intrinsic to the history, not a feature we build.
 
-`@conciv/embed` is a composition root only (~100 lines): read meta config, construct the oRPC
-client + TanStack Query client + `PageAgent` + extension instances, render the imported tree into
-the shadow root. JSX component definitions inside embed are a review smell. The bundle
-externalizes every `@conciv/extension/*` subpath and shared Ark/Solid deps (mount-externals test
-moves here).
+Route tree:
+
+| Route                     | Renders                                                                                                                                                      |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `__root`                  | Chrome present on every route: fab, approval HUD, live-region announcer; providers (`EnvironmentProvider(shadowRoot)` → theme → query client → host context) |
+| `/` (index)               | Closed state — fab only                                                                                                                                      |
+| `/panel`                  | Floating panel layout (drag/resize/anchor geometry)                                                                                                          |
+| `/panel/$sessionId`       | Chat pane                                                                                                                                                    |
+| `/panel/$sessionId/$view` | Extension view tab (whiteboard, terminal, …)                                                                                                                 |
+| `/quick`                  | Quick terminal: drop-down multi-pane layer                                                                                                                   |
+| `/pip/$sessionId`         | Picture-in-picture surface (style cloning, `EnvironmentProvider(pipDocument)`)                                                                               |
+
+What the router owns that we no longer hand-build: layer/pane/restore signals and their
+sessionStorage parsers (custom history), active session threading (`$sessionId` path param),
+view-tab switching + slide transitions (route navigation), leave-guards while streaming or a view
+is locked (`useBlocker`), Esc-to-close (`history.back()`), data preloading (route loaders call
+TanStack Query `queryOptions`). Each pane's `useChat` lives in its route component; session switch
+is mount/unmount, never connection surgery.
+
+**Quick terminal, fully covered:**
+
+- `/quick` search params are the pane state, typed and zod-validated:
+  `?panes=<sessionId[]>&focus=<index>`. Persisted by the custom history like everything else, so
+  the quick layer reopens with the same panes and focus.
+- Hotkey (from `settings.quickTerminal.hotkeys`) navigates to `/quick` / `history.back()`. When
+  `quickTerminal.enabled` is false the hotkey is not registered and a `beforeLoad` guard redirects
+  `/quick` → `/`.
+- Add pane = `sessions.create` intent → navigate with the returned id appended to `panes`. Close
+  pane = navigate with it removed (+ `closeSession` intent); last pane closed navigates `/`.
+- Focus capture on open and restore to the previously-focused host element on close stay as
+  device concerns in the route component; Esc inside an xterm still goes to the terminal first
+  (existing `terminal-focus` behavior).
+- Side-by-side panes render `<For each={search.panes}>`, each owning its `useChat`.
+
+No `register*` APIs anywhere. Extension contributions are data collected from manifests; extension
+views are the `$view` route param. All async data resolves through TanStack Query with skeletons
+and error boundaries with retry; the fab renders instantly.
 
 ## Final package map
 
-- `core`: all logic. Hono + oRPC mount, turn hub, sqlite via drizzle, session/draft/marker/pane
+- `core`: all logic. Hono + oRPC mount, turn hub, sqlite via drizzle, session/draft/marker
   writers, compaction, model policy, page-bus brain, gen-UI as parts.
 - `contract`: oRPC contract + zod schemas (client and server both import it).
-- `ui-kit-system`, `ui-kit-chat`, `ui-kit-chat-tools`, `ui-kit-terminal`, `mascot`: every component.
-- `page`: DOM execution half of the page plane.
-- `embed`: bootstrap.
+- `client`: data access, zero UI — oRPC client factory, TanStack Query options, Solid hooks,
+  the ~15-line `useChat` connection bridge.
+- `app`: the widget — TanStack Solid Router app: route tree above, custom localStorage history,
+  chat pane assembly, chrome components (fab wiring, panel geometry, quick layer, PiP). Consumes
+  `client` hooks and `ui-kit-*` components only.
+- `page`: DOM execution half of the page plane (react-bridge pre-hydration global is its private,
+  versioned concern).
+- `embed`: entry + bundle artifact (~10 lines: create router, mount into shadow root) + vite
+  bundling config, externals (every `@conciv/extension/*` subpath + shared Ark/Solid deps) and the
+  mount-externals guard test.
+- `ui-kit-system`, `ui-kit-chat`, `ui-kit-chat-tools`, `ui-kit-terminal`, `mascot`: generic
+  components only, no conciv data wiring (`FabRobot` visuals in `mascot`; drag/resize/PiP-host/
+  announcer primitives in `ui-kit-system`; `GenUi`/`ToolFallbackCard`/trigger menus in
+  `ui-kit-chat`(`-tools`); xterm stays `ui-kit-terminal` — the quick layer is app chrome, not a
+  terminal).
 - `extension`: manifest contract + client host; extensions add oRPC routers server-side.
 - Deleted: `packages/widget`, `packages/api-client`, the TrailBase `@conciv/db` plane (replaced by
   core-internal drizzle + contract procedures).
 - `publish/guards.ts` `PUBLIC_PACKAGES` updated to match.
 
-## Composition, not registration
-
-No `register*` APIs anywhere. Embed renders a static JSX tree; extension contributions are data
-collected from manifests. Panes render `<For each={usePanes()}>`; each pane owns its `useChat`;
-session switch is component swapping, never connection surgery. Provider order at the root:
-`EnvironmentProvider(shadowRoot)` → theme → query client → host context. All async data resolves
-through TanStack Query with skeletons and error boundaries with retry; the fab renders instantly.
-
 ## Testing and rollout
 
-Order: contract + core storage/oRPC mount → backend changes 1–6 with ITs → component moves into
-ui-kits → `page` + `embed` → rewire built-in extensions (terminal, test-runner, whiteboard) →
+Order: contract + core storage/oRPC mount → backend changes 1–6 with ITs → `client` →
+`app` (routes + custom history, component moves into ui-kits alongside) → `page` + `embed` →
+rewire built-in extensions (terminal, test-runner, whiteboard) →
 `git rm -r packages/widget packages/api-client` in the same task.
 
 - Core ITs: real sqlite file, real oRPC client, event-iterator resume (kill and re-attach
@@ -183,6 +218,9 @@ ui-kits → `page` + `embed` → rewire built-in extensions (terminal, test-runn
 - Drizzle↔zod pins: `expectTypeOf` type tests in the contract package.
 - Widget ITs move to `embed`: real browser against the prebuilt bundle, `browser.newPage()`,
   `domcontentloaded` (never `networkidle`).
+- `app` tests: real browser (never jsdom); route navigation, quick-terminal search-param
+  round-trips, and history persistence drive assertions through visible behavior, with the
+  contract mocked via `implement(contract)`.
 - Gates: `pnpm typecheck && pnpm build && pnpm test`, `fallow audit --changed-since main` clean of
   INTRODUCED findings.
 
@@ -191,7 +229,10 @@ ui-kits → `page` + `embed` → rewire built-in extensions (terminal, test-runn
 - oRPC maturity: verify the Hono adapter body-parse proxy and event-iterator resume against our
   Hono version early (first spike of the implementation plan).
 - Event-iterator fan-out: one iterator per open browser tab per stream; core already handles
-  multi-subscriber replay in `turn-hub`; sessions/panes live streams reuse the same pattern.
+  multi-subscriber replay in `turn-hub`; the sessions live stream reuses the same pattern.
+- `@tanstack/solid-router` is newer than the React adapter; pin router + `@tanstack/history`
+  versions and cover the custom localStorage history with unit tests (entries/index round-trip,
+  corrupted-storage fallback to `/`).
 - `node:sqlite` is flagged experimental on Node 22 (`--experimental-sqlite`); every entry point
   that opens the db (core server, vitest, CI) must carry the flag until the Node floor rises.
 - Draft typing latency: composer input is local UI state while focused; the drafts row is a
