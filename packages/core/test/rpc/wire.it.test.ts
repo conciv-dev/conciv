@@ -4,6 +4,8 @@ import {tmpdir} from 'node:os'
 import {join, dirname} from 'node:path'
 import {afterEach, describe, expect, it} from 'vitest'
 import {EventType} from '@tanstack/ai'
+import {CONCIV_UI_EVENT} from '@conciv/protocol/ui-types'
+import {CONCIV_TOOL_DURATION_EVENT} from '@conciv/protocol/tool-timing'
 import {createTestHarness, type Kit, type TestHarness} from '@conciv/harness-testkit'
 import {requireClaude} from '../helpers/adapters.js'
 import {bootKit} from '../helpers/boot.js'
@@ -184,5 +186,38 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     await expect(kit.rpc.page.reply({requestId: 'pq-nope', data: {}})).rejects.toMatchObject({
       code: 'UNKNOWN_REQUEST',
     })
+  })
+
+  it('gen-ui custom events injected mid-turn replay to a late attach', async () => {
+    const {kit, harness} = await bootWire()
+    const sessionId = await kit.session()
+    harness.__scripted.hold()
+    await kit.rpc.chat.send({sessionId, text: 'draw'})
+    const injected = await kit.post(
+      '/api/chat/ui',
+      {renderId: 'r1', kind: 'choices', question: 'pick one', options: ['a', 'b']},
+      sessionId,
+    )
+    expect(injected.status).toBe(200)
+    const late = await kit.attach(sessionId)
+    harness.__scripted.release()
+    const events = await late.done({hangGuardMs: 10_000})
+    expect(events.custom(CONCIV_UI_EVENT).length).toBeGreaterThan(0)
+  })
+
+  it('tool durations ride the turn stream after a real in-stream tool call', async () => {
+    const opened: string[] = []
+    const harness = createTestHarness(requireClaude())
+    const kit = await bootKit({openInEditor: (file) => opened.push(file)}, harness)
+    cleanups.push(() => kit.cleanup())
+    const sessionId = await kit.session()
+    const stream = await kit.attach(sessionId)
+    harness.__scripted.scriptToolCall('conciv_open', {file: 'src/from-tool.ts'})
+    await kit.rpc.chat.send({sessionId, text: 'open the file'})
+    await stream.done({hangGuardMs: 10_000})
+    const events = await stream.done({hangGuardMs: 10_000})
+    expect(opened).toEqual(['src/from-tool.ts'])
+    const durations = events.custom(CONCIV_TOOL_DURATION_EVENT)
+    expect(durations.length).toBe(1)
   })
 })

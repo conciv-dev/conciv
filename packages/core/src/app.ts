@@ -241,7 +241,9 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     uiBus,
     store,
     hub,
-    tools: buildChatTools(makeToolCtx, extensionTools, sessionModel),
+    tools: buildChatTools(makeToolCtx, extensionTools, sessionModel, (sessionId, chunk) =>
+      uiBus.injectChunk(sessionId, chunk),
+    ),
     onTurnStart: (sessionId) => chatTurnListeners.forEach((listener) => listener(sessionId)),
     onTurnEnd,
   }

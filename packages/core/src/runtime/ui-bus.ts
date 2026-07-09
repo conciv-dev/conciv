@@ -48,6 +48,8 @@ function makeChannel(): Channel {
 export type UiBus = {
   inject: (sessionId: string, spec: UiSpec) => boolean
 
+  injectChunk: (sessionId: string, chunk: StreamChunk) => boolean
+
   injectApproval: (sessionId: string, req: ApprovalRequest) => boolean
 
   setModel: (sessionId: string, model: string | null) => void
@@ -70,9 +72,13 @@ export function makeUiBus(): UiBus {
   }
 
   function inject(sessionId: string, spec: UiSpec): boolean {
+    return injectChunk(sessionId, aguiCustomFor(spec))
+  }
+
+  function injectChunk(sessionId: string, chunk: StreamChunk): boolean {
     const channel = channels.get(sessionId)
     if (!channel) return false
-    channel.push(aguiCustomFor(spec))
+    channel.push(chunk)
     return true
   }
 
@@ -109,5 +115,5 @@ export function makeUiBus(): UiBus {
     return drain()
   }
 
-  return {inject, injectApproval, setModel, getModel, run}
+  return {inject, injectChunk, injectApproval, setModel, getModel, run}
 }
