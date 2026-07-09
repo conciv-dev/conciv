@@ -1,7 +1,7 @@
 {
   "name": "@conciv/plugin",
   "version": "0.0.7",
-  "description": "The conciv dev agent as an unplugin: vite (full — viteBridge + widget middleware + boot), webpack/rspack (boot the engine), rollup/esbuild (build-only no-ops). One factory, per-bundler subpath entries.",
+  "description": "The conciv dev agent as an unplugin: vite (full \u2014 viteBridge + widget middleware + boot), webpack/rspack (boot the engine), rollup/esbuild (build-only no-ops). One factory, per-bundler subpath entries.",
   "keywords": [
     "conciv",
     "esbuild",
@@ -77,7 +77,6 @@
     "@conciv/core": "workspace:^",
     "@conciv/extension": "workspace:^",
     "@conciv/protocol": "workspace:^",
-    "@conciv/widget": "workspace:^",
     "babel-dead-code-elimination": "^1.0.12",
     "babel-preset-solid": "^1.9.12",
     "jiti": "^2.7.0",

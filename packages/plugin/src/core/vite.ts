@@ -16,7 +16,6 @@ import {
   concivSolidConfig,
   resolveExtensionsModule,
   transformConcivModule,
-  widgetInstalled,
 } from './vite-plumbing.js'
 
 function makeViteBridge(server: ViteLike): BundlerBridge {
@@ -96,7 +95,6 @@ async function bootEngine(
 }
 
 export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO_BUILTINS): Plugin {
-  const hasWidget = widgetInstalled()
   let engine: Engine | null = null
   let apiBase: string | undefined
   let root = process.cwd()
@@ -107,7 +105,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
     apply: 'serve',
     enforce: 'pre',
     config() {
-      return hasWidget ? concivSolidConfig() : {}
+      return concivSolidConfig()
     },
     configResolved(config) {
       root = config.root
@@ -127,7 +125,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
       order: 'pre',
       handler(_html, ctx) {
         const cfg = resolveConfig(options, ctx.server?.config.root ?? process.cwd())
-        if (!cfg.enabled || !engine || !hasWidget) return []
+        if (!cfg.enabled || !engine) return []
         return htmlTags(engine.port, {widget: options.widget})
       },
     },
@@ -138,7 +136,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
       engine = await bootEngine(server, options, installConcivBinShim(join(cfg.stateRoot, '.conciv')), extensions)
       const booted = engine
       apiBase = `http://127.0.0.1:${booted.port}`
-      if (hasWidget) mountWidget(server, apiBase, options.widget)
+      mountWidget(server, apiBase, options.widget)
       server.httpServer?.on('close', () => void booted.stop())
     },
   }

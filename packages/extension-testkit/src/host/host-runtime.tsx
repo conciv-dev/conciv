@@ -1,6 +1,6 @@
 import {render} from 'solid-js/web'
-import {defineClient, type RequestMeta} from '@conciv/api-client'
-import {isSessionId} from '@conciv/protocol/chat-types'
+import {isSessionId, type RequestMeta} from '@conciv/protocol/chat-types'
+import {makeRpcSessionClient} from './rpc-session-client.js'
 import {ensureEffectsSurface, mountExtension, openSource} from '@conciv/extension/client'
 import {Dialog, Popover} from '@conciv/ui-kit-system'
 import type {AnyExtension, ClientApi, ExtensionHostContext} from '@conciv/extension'
@@ -21,7 +21,7 @@ function showToast(message: string): void {
 export function startHost(extension: AnyExtension): void {
   const apiBase = metaContent('conciv-api-base')
   const session = metaContent('conciv-session')
-  const client = defineClient({apiBase})
+  const client = makeRpcSessionClient({apiBase})
   if (isSessionId(session)) client.setSessionId(session)
   const clientApi: ClientApi = {
     apiBase,

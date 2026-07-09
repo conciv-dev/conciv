@@ -4,7 +4,6 @@ import {ModelSelector, useModelSelectorContext} from '@conciv/ui-kit-chat'
 import type {ModelOption} from '@conciv/ui-kit-chat'
 import {Button, TooltipIconButton} from '@conciv/ui-kit-system'
 import type {HarnessModelInfo} from '@conciv/protocol/chat-types'
-import {defineClient} from '@conciv/api-client'
 import {useTerminalContext} from './terminal-context.js'
 
 const MODEL_KEY = 'pw-conciv-model'
@@ -41,10 +40,9 @@ function ModelList(): JSX.Element {
 
 export function TerminalActions(): JSX.Element {
   const ctx = useTerminalContext()
-  const api = defineClient({apiBase: ctx.apiBase})
   const busy = () => ctx.store.busy()
   const [models, {refetch}] = createResource(async () => {
-    const {models: list} = await api.models()
+    const {models: list} = await ctx.client.models()
     const stored = ctx.store.spawnModel() ?? readStoredModel()
     ctx.store.setSpawnModel(stored && list.some((model) => model.id === stored) ? stored : null)
     return list
