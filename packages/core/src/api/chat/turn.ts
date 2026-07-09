@@ -175,7 +175,9 @@ const app = new Hono<ChatEnv>()
       return c.json(payload)
     } catch (e) {
       releaseLock(deps.stateRoot, sessionId)
-      await deps.store.setStatus(sessionId, 'idle').catch((error) => logError(`[core] status reset failed: ${String(error)}`))
+      await deps.store
+        .setStatus(sessionId, 'idle')
+        .catch((error) => logError(`[core] status reset failed: ${String(error)}`))
       throw e
     }
   })
@@ -202,7 +204,8 @@ const app = new Hono<ChatEnv>()
         deps,
         sessionId,
         chatReq,
-        () => void deps.markers.settle(settled).catch((error) => logError(`[core] marker settle failed: ${String(error)}`)),
+        () =>
+          void deps.markers.settle(settled).catch((error) => logError(`[core] marker settle failed: ${String(error)}`)),
       )
       const payload: Ok = {ok: true}
       return c.json(payload)
@@ -268,16 +271,24 @@ function lockReleaser(deps: TurnDeps, sessionId: string): () => void {
     if (!lock.held) return
     lock.held = false
     releaseLock(deps.stateRoot, sessionId)
-    void deps.store.setStatus(sessionId, 'idle').catch((error) => logError(`[core] status reset failed: ${String(error)}`))
+    void deps.store
+      .setStatus(sessionId, 'idle')
+      .catch((error) => logError(`[core] status reset failed: ${String(error)}`))
   }
 }
 
-function streamingFlipper(deps: TurnDeps, sessionId: string, turnKind: 'chat' | 'compact'): (chunkType: string) => void {
+function streamingFlipper(
+  deps: TurnDeps,
+  sessionId: string,
+  turnKind: 'chat' | 'compact',
+): (chunkType: string) => void {
   const state = {flipped: turnKind === 'compact'}
   return (chunkType) => {
     if (state.flipped || !STREAM_STARTERS.has(chunkType)) return
     state.flipped = true
-    void deps.store.setStatus(sessionId, 'streaming').catch((error) => logError(`[core] status flip failed: ${String(error)}`))
+    void deps.store
+      .setStatus(sessionId, 'streaming')
+      .catch((error) => logError(`[core] status flip failed: ${String(error)}`))
   }
 }
 

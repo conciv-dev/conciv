@@ -62,7 +62,12 @@ export function useSession(sessionId: () => string | null): LiveRow<SessionRow> 
 
 export function useDraft(sessionId: () => string): LiveRow<DraftRow> {
   const {drafts} = useStateCollections()
-  return useLiveQuery((q) => q.from({draft: drafts}).where(({draft}) => eq(draft.session_id, sessionId())).findOne())
+  return useLiveQuery((q) =>
+    q
+      .from({draft: drafts})
+      .where(({draft}) => eq(draft.session_id, sessionId()))
+      .findOne(),
+  )
 }
 
 export function useMarkers(sessionId: () => string): LiveRows<MarkerRow> {

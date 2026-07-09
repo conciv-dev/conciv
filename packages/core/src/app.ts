@@ -94,7 +94,8 @@ export type CoreVars = CorsVars &
 function composeRoutes(vars: CoreVars) {
   return new Hono<{Variables: CoreVars}>()
     .onError((error, c) => {
-      if (error instanceof HTTPException) return c.json({message: error.message, code: `http.${error.status}`}, error.status)
+      if (error instanceof HTTPException)
+        return c.json({message: error.message, code: `http.${error.status}`}, error.status)
       if (isConcivError(error)) {
         logError(`[core] ${error.scope}/${error.code}: ${error.message} ${JSON.stringify(error.details)}`)
         return Response.json(clientPayload(error, process.env.NODE_ENV !== 'production'), {status: error.httpStatus})
