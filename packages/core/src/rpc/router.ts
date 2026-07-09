@@ -1,9 +1,13 @@
 import {implement} from '@orpc/server'
 import {contract, type SessionMeta} from '@conciv/contract'
 import type {SessionStore, UiState} from '@conciv/db'
+import type {ChatCommands, ChatLaunch, ChatTool, HarnessModelInfo} from '@conciv/protocol/chat-types'
 import {readLocks} from '../store/lock.js'
-import {buildSessionList} from '../api/chat/session.js'
+import {buildSessionList, resolveSession} from '../api/chat/session.js'
+import {ensureChatRecord} from '../api/chat/turn.js'
 import type {ChatRuntime} from '../api/chat/chat-env.js'
+import type {OpenInEditor} from '../editor/open.js'
+import type {OpenSourceFrames, OpenSourceStatus} from '../api/page/open-source.js'
 import type {LiveFeed} from './live.js'
 
 export type RpcContext = {request: Request}
@@ -13,6 +17,25 @@ export type RpcDeps = {
   buildSessionList: () => Promise<SessionMeta[]>
   live: LiveFeed
   uiState: UiState
+  harnessModels: () => Promise<{models: HarnessModelInfo[]; defaultModel: string | null}>
+  harnessMeta: {id: string; name: string; canLaunch: boolean}
+  harnessKind: string
+  cwd: string
+  markStopped: (sessionId: string) => void
+  killLock: (sessionId: string) => void
+  launch: (opts: {sessionId: string; model?: string; origin: string}) => Promise<ChatLaunch>
+  commands: (opts: {sessionId?: string; origin: string}) => Promise<ChatCommands>
+  tools: ChatTool[]
+  openInEditor: OpenInEditor
+  openFromFrames: (frames: OpenSourceFrames) => Promise<OpenSourceStatus>
+}
+
+function cleanTitle(title: string): string {
+  return title
+    .replace(/\p{Cc}/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 120)
 }
 
 export async function rpcSessionList(chat: ChatRuntime): Promise<SessionMeta[]> {
@@ -41,29 +64,52 @@ export function makeRpcRouter(deps: RpcDeps) {
           yield await deps.buildSessionList()
         }
       }),
-      create: os.sessions.create.handler(() => {
-        throw new Error('implemented in task 6')
+      create: os.sessions.create.handler(async () => {
+        const {sessionId} = await resolveSession(
+          {store: deps.store, harnessKind: deps.harnessKind, cwd: deps.cwd},
+          {},
+        )
+        await ensureChatRecord(deps.store, sessionId, deps.harnessKind, deps.cwd)
+        await deps.uiState.addMarker({sessionId, afterTurn: 0, kind: 'new'})
+        return {sessionId}
       }),
-      resolve: os.sessions.resolve.handler(() => {
-        throw new Error('implemented in task 6')
+      resolve: os.sessions.resolve.handler(async ({input}) => {
+        const {sessionId} = await resolveSession(
+          {store: deps.store, harnessKind: deps.harnessKind, cwd: deps.cwd},
+          input,
+        )
+        return {sessionId}
       }),
-      launch: os.sessions.launch.handler(() => {
-        throw new Error('implemented in task 6')
+      launch: os.sessions.launch.handler(({input, context}) =>
+        deps.launch({sessionId: input.sessionId, model: input.model, origin: new URL(context.request.url).origin}),
+      ),
+      rename: os.sessions.rename.handler(async ({input, errors}) => {
+        if (!(await deps.store.get(input.sessionId))) throw errors.NOT_FOUND()
+        const title = cleanTitle(input.title)
+        await deps.store.update(input.sessionId, {title})
+        return {title}
       }),
-      rename: os.sessions.rename.handler(() => {
-        throw new Error('implemented in task 6')
+      remove: os.sessions.remove.handler(async ({input}) => {
+        deps.killLock(input.sessionId)
+        await deps.store.delete(input.sessionId)
+        await deps.uiState.deleteFor(input.sessionId)
+        return {ok: true as const}
       }),
-      remove: os.sessions.remove.handler(() => {
-        throw new Error('implemented in task 6')
-      }),
-      setModel: os.sessions.setModel.handler(() => {
-        throw new Error('implemented in task 6')
+      setModel: os.sessions.setModel.handler(async ({input, errors}) => {
+        if (!(await deps.store.get(input.sessionId))) throw errors.NOT_FOUND()
+        const {models} = await deps.harnessModels()
+        const found = models.find((model) => model.id === input.model && !model.disabled)
+        if (!found) throw errors.UNKNOWN_MODEL()
+        await deps.store.update(input.sessionId, {model: input.model})
+        return {model: input.model}
       }),
       compact: os.sessions.compact.handler(() => {
         throw new Error('implemented in task 7')
       }),
-      stop: os.sessions.stop.handler(() => {
-        throw new Error('implemented in task 6')
+      stop: os.sessions.stop.handler(({input}) => {
+        deps.markStopped(input.sessionId)
+        deps.killLock(input.sessionId)
+        return {ok: true as const}
       }),
     },
     drafts: {
@@ -108,23 +154,21 @@ export function makeRpcRouter(deps: RpcDeps) {
       }),
     },
     editor: {
-      open: os.editor.open.handler(() => {
-        throw new Error('implemented in task 6')
+      open: os.editor.open.handler(({input}) => {
+        deps.openInEditor(input.file, input.line)
+        return {ok: true as const}
       }),
-      openFromFrames: os.editor.openFromFrames.handler(() => {
-        throw new Error('implemented in task 6')
-      }),
+      openFromFrames: os.editor.openFromFrames.handler(({input}) => deps.openFromFrames(input.frames)),
     },
     meta: {
-      models: os.meta.models.handler(() => {
-        throw new Error('implemented in task 6')
+      models: os.meta.models.handler(async () => {
+        const {models, defaultModel} = await deps.harnessModels()
+        return {models, defaultModel, harness: deps.harnessMeta}
       }),
-      commands: os.meta.commands.handler(() => {
-        throw new Error('implemented in task 6')
-      }),
-      tools: os.meta.tools.handler(() => {
-        throw new Error('implemented in task 6')
-      }),
+      commands: os.meta.commands.handler(({input, context}) =>
+        deps.commands({sessionId: input.sessionId, origin: new URL(context.request.url).origin}),
+      ),
+      tools: os.meta.tools.handler(() => ({tools: deps.tools})),
     },
   })
 }

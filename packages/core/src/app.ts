@@ -16,15 +16,15 @@ import type {ChatRuntime} from './api/chat/chat-env.js'
 import {makePermissionGate} from './api/chat/permission.js'
 import {buildChatTools} from './api/chat/chat-tools.js'
 import {ensureChatRecord, recordMintedToken, resolveSystemText, resumeTokenFor} from './api/chat/turn.js'
-import {sweepEmptyChatRecords} from './api/chat/session.js'
+import {killLock, listCommands, sweepEmptyChatRecords} from './api/chat/session.js'
+import {launchHarness} from './api/chat/launch.js'
+import {resolveHarnessModels} from '@conciv/harness'
 import {readLock, readLocks} from './store/lock.js'
 import {makeSessionStore, makeUiState, openDb} from '@conciv/db'
 import mcpApp, {type McpVars} from './api/mcp/mcp.js'
-import toolsApp, {type ToolsVars} from './api/chat/tools-route.js'
 import pageApp, {makePageBus, type PageVars} from './api/page/page.js'
-import openSourceApp, {type OpenSourceVars} from './api/page/open-source.js'
+import {openSourceFromFrames} from './api/page/open-source.js'
 import bundlerApp, {type BundlerVars} from './api/server/server.js'
-import editorApp, {type EditorVars} from './api/editor/editor.js'
 import {makeRpcRouter, rpcSessionList} from './rpc/router.js'
 import {rpcMiddleware} from './rpc/mount.js'
 import {makeLiveFeed} from './rpc/live.js'
@@ -82,12 +82,7 @@ function buildExtensionTools(extension: AnyExtension, context: unknown) {
   })
 }
 
-export type CoreVars = CorsVars &
-  PageVars &
-  OpenSourceVars &
-  EditorVars &
-  ToolsVars & {chat: ChatRuntime} & McpVars &
-  BundlerVars
+export type CoreVars = CorsVars & PageVars & {chat: ChatRuntime} & McpVars & BundlerVars
 
 function composeRoutes(vars: CoreVars, rpc: ReturnType<typeof makeRpcRouter>) {
   return new Hono<{Variables: CoreVars}>()
@@ -99,9 +94,6 @@ function composeRoutes(vars: CoreVars, rpc: ReturnType<typeof makeRpcRouter>) {
     .use(async (c, next) => {
       c.set('cors', vars.cors)
       c.set('page', vars.page)
-      c.set('openSource', vars.openSource)
-      c.set('editor', vars.editor)
-      c.set('tools', vars.tools)
       c.set('chat', vars.chat)
       c.set('mcp', vars.mcp)
       c.set('bundler', vars.bundler)
@@ -109,10 +101,7 @@ function composeRoutes(vars: CoreVars, rpc: ReturnType<typeof makeRpcRouter>) {
     })
     .use(corsMiddleware())
     .use('/rpc/*', rpcMiddleware(rpc))
-    .route('/api/page', openSourceApp)
     .route('/api/page', pageApp)
-    .route('/api/editor', editorApp)
-    .route('/api/chat/tools', toolsApp)
     .route('/api/chat', chatApp)
     .route('/api/mcp', mcpApp)
     .route('/api/server', bundlerApp)
@@ -253,15 +242,31 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   }
   void sweepEmptyChatRecords(store, new Set(readLocks(opts.cfg.stateRoot).map((l) => l.key))).catch(() => {})
 
-  const rpc = makeRpcRouter({store, buildSessionList: () => rpcSessionList(chatRuntime), live, uiState})
+  const rpc = makeRpcRouter({
+    store,
+    buildSessionList: () => rpcSessionList(chatRuntime),
+    live,
+    uiState,
+    harnessModels: async () => {
+      const models = await resolveHarnessModels(harness)
+      return {models, defaultModel: harness.defaultModel ?? models[0]?.id ?? null}
+    },
+    harnessMeta: {id: harness.id, name: harness.displayName ?? harness.id, canLaunch: Boolean(harness.launch)},
+    harnessKind: harness.id,
+    cwd: opts.cwd,
+    markStopped: (sessionId) => hub.markStopped(sessionId),
+    killLock: (sessionId) => killLock(opts.cfg.stateRoot, sessionId),
+    launch: (launchOpts) => launchHarness(chatRuntime, launchOpts),
+    commands: (commandOpts) => listCommands(chatRuntime, commandOpts),
+    tools: toolList,
+    openInEditor: opts.openInEditor,
+    openFromFrames: (frames) => openSourceFromFrames(frames, opts.cwd, opts.openInEditor),
+  })
 
   const app = composeRoutes(
     {
       cors: {allowedOrigins: opts.allowedOrigins ?? []},
       page: {journal: makeJournal(), root: opts.cwd, bus: pageBus},
-      openSource: {open: opts.openInEditor, root: opts.cwd},
-      editor: {open: opts.openInEditor},
-      tools: {list: toolList},
       chat: chatRuntime,
       mcp: {makeCtx: makeToolCtx, extensionTools, sessionModel},
       bundler: {bridge: () => opts.bridge},

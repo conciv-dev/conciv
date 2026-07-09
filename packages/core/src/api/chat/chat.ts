@@ -2,9 +2,8 @@ import {randomUUID} from 'node:crypto'
 import {Hono} from 'hono'
 import type {SessionRecord} from '@conciv/protocol/chat-types'
 import type {ChatEnv} from './chat-env.js'
-import launch from './launch.js'
 import permission from './permission.js'
-import session, {type ResolveDeps} from './session.js'
+import {type ResolveDeps} from './session.js'
 import turn from './turn.js'
 import attach from './attach.js'
 
@@ -24,12 +23,7 @@ export async function ensureAgentRecord(deps: ResolveDeps, harnessId: string): P
   })
 }
 
-const app = new Hono<ChatEnv>()
-  .route('/', permission)
-  .route('/', session)
-  .route('/', launch)
-  .route('/', turn)
-  .route('/', attach)
+const app = new Hono<ChatEnv>().route('/', permission).route('/', turn).route('/', attach)
 
 export default app
 export type ChatAppType = typeof app

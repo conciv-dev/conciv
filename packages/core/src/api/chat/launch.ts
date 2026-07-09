@@ -4,37 +4,27 @@ import {writeFileSync, chmodSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {platform} from 'node:os'
-import {Hono} from 'hono'
-import {zValidator} from '@hono/zod-validator'
 import type {HarnessLaunchContext, HarnessLaunchResult} from '@conciv/protocol/harness-types'
-import {ChatLaunchRequestSchema, type ChatLaunch} from '@conciv/protocol/chat-types'
-import type {ChatEnv} from './chat-env.js'
-import {sessionIdFromHeaders} from './session-id.js'
+import type {ChatLaunch} from '@conciv/protocol/chat-types'
+import type {ChatRuntime} from './chat-env.js'
 
-const app = new Hono<ChatEnv>().post('/launch', zValidator('json', ChatLaunchRequestSchema), async (c) => {
-  const deps = c.var.chat
-  if (!deps.harness.launch) {
-    const payload: ChatLaunch = {supported: false, opened: false, command: null}
-    return c.json(payload)
-  }
-  const {model} = c.req.valid('json')
-  const sessionId = sessionIdFromHeaders(c.req.raw.headers)
-  const token = sessionId ? ((await deps.store.get(sessionId))?.harnessSessionId ?? null) : null
-  const origin = `http://${c.req.header('host') ?? '127.0.0.1:3000'}`
+export async function launchHarness(
+  deps: ChatRuntime,
+  opts: {sessionId: string | null; model?: string; origin: string},
+): Promise<ChatLaunch> {
+  if (!deps.harness.launch) return {supported: false, opened: false, command: null}
+  const token = opts.sessionId ? ((await deps.store.get(opts.sessionId))?.harnessSessionId ?? null) : null
   const ctx: HarnessLaunchContext = {
     cwd: deps.cwd,
     sessionId: token || null,
-    model: model ?? null,
-    mcpUrl: deps.harness.capabilities.mcp === 'http' ? `${origin}/api/mcp` : null,
+    model: opts.model ?? null,
+    mcpUrl: deps.harness.capabilities.mcp === 'http' ? `${opts.origin}/api/mcp` : null,
     openTerminal: (argv) => openTerminal(argv, deps.cwd),
     openUrl: (url) => openUrl(url),
   }
   const result = await deps.harness.launch(ctx)
-  const payload: ChatLaunch = {supported: true, opened: result.opened, command: result.command}
-  return c.json(payload)
-})
-
-export default app
+  return {supported: true, opened: result.opened, command: result.command}
+}
 
 async function openTerminal(argv: string[], cwd: string): Promise<HarnessLaunchResult> {
   const command = `cd ${shellQuote(cwd)} && ${argv.map(shellQuote).join(' ')}`

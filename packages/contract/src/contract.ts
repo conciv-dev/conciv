@@ -35,10 +35,7 @@ export const contract = {
       .output(z.object({model: z.string()})),
     compact: oc.errors(busy).input(SessionIdInput).output(Ok),
     stop: oc.input(SessionIdInput).output(Ok),
-    launch: oc
-      .errors({UNSUPPORTED: {message: 'harness cannot launch'}})
-      .input(SessionIdInput.extend({model: z.string().optional()}))
-      .output(ChatLaunchSchema),
+    launch: oc.input(SessionIdInput.extend({model: z.string().optional()})).output(ChatLaunchSchema),
   },
   drafts: {
     get: oc.input(SessionIdInput).output(DraftRowSchema.nullable()),
