@@ -1,21 +1,10 @@
-import {describe, it, expect, beforeAll, afterAll, beforeEach} from 'vitest'
-import type {StatePlane} from '@conciv/state/server'
-import {startTestStore} from '../../helpers/state-plane.js'
+import {describe, it, expect} from 'vitest'
+import {useTestStorePlane} from '../../helpers/state-plane.js'
 import {resolveSession} from '../../../src/api/chat/session.js'
 
-let plane: StatePlane
+const plane = useTestStorePlane()
 
-beforeAll(async () => {
-  plane = await startTestStore()
-}, 120000)
-
-afterAll(async () => plane.stop())
-
-beforeEach(async () => {
-  for (const record of await plane.store.list()) await plane.store.delete(record.id)
-})
-
-const deps = (store = plane.store) => ({store, harnessKind: 'claude', cwd: '/app', mintId: () => 'conciv_new'})
+const deps = (store = plane().store) => ({store, harnessKind: 'claude', cwd: '/app', mintId: () => 'conciv_new'})
 
 describe('resolveSession', () => {
   it('no id → mints a fresh id WITHOUT persisting (lazy birth on first turn)', async () => {
@@ -32,7 +21,7 @@ describe('resolveSession', () => {
     expect(await d.store.get('conciv_gone')).toBeNull()
   })
   it('our id → returns it unchanged', async () => {
-    const store = plane.store
+    const store = plane().store
     await store.create({
       id: 'conciv_a',
       harnessSessionId: null,

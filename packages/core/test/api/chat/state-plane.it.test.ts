@@ -86,11 +86,19 @@ describe('engine state plane', () => {
     })
     expect(response.status).toBe(200)
     await waitForIdleRow(engine, sessionId, 30000)
-    const markers = await fetchRecords(engine, 'markers', {session_id: sessionId})
-    expect(markers).toHaveLength(1)
-    const marker = z.object({kind: z.string(), pending: z.number()}).parse(markers[0])
-    expect(marker.kind).toBe('compact')
-    expect(marker.pending).toBe(0)
+    const MarkerSchema = z.object({kind: z.string(), pending: z.number()})
+    const deadline = Date.now() + 10000
+    const settledMarker = async (): Promise<{kind: string; pending: number} | null> => {
+      const markers = await fetchRecords(engine, 'markers', {session_id: sessionId})
+      expect(markers).toHaveLength(1)
+      const marker = MarkerSchema.parse(markers[0])
+      if (marker.pending === 0 || Date.now() > deadline) return marker
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      return settledMarker()
+    }
+    const marker = await settledMarker()
+    expect(marker?.kind).toBe('compact')
+    expect(marker?.pending).toBe(0)
     await engine.stop()
   }, 60000)
 })

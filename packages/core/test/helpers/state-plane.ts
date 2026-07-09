@@ -3,6 +3,7 @@ import {createRequire} from 'node:module'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {fileURLToPath, pathToFileURL} from 'node:url'
+import {afterAll, beforeAll, beforeEach} from 'vitest'
 import getPort from 'get-port'
 import {startStatePlane, type StatePlane} from '@conciv/state/server'
 import {start, type Engine, type StartOpts} from '../../src/engine.js'
@@ -22,6 +23,23 @@ export function fakeClaudeBinDir(stateRoot: string): string {
 
 export async function startTestStore(now?: () => number): Promise<StatePlane> {
   return startStatePlane({dataDir: mkdtempSync(join(tmpdir(), 'conciv-depot-')), port: await getPort(), now})
+}
+
+export function useTestStorePlane(now?: () => number): () => StatePlane {
+  const holder: {plane: StatePlane | undefined} = {plane: undefined}
+  const plane = () => {
+    if (!holder.plane) throw new Error('state plane not started (beforeAll has not run)')
+    return holder.plane
+  }
+  beforeAll(async () => {
+    holder.plane = await startTestStore(now)
+  }, 120000)
+  afterAll(async () => holder.plane?.stop())
+  beforeEach(async () => {
+    const store = plane().store
+    for (const record of await store.list()) await store.delete(record.id)
+  })
+  return plane
 }
 
 export async function startTestEngine(overrides: Partial<StartOpts> = {}): Promise<Engine> {

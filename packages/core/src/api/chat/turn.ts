@@ -272,6 +272,15 @@ function lockReleaser(deps: TurnDeps, sessionId: string): () => void {
   }
 }
 
+function streamingFlipper(deps: TurnDeps, sessionId: string, turnKind: 'chat' | 'compact'): (chunkType: string) => void {
+  const state = {flipped: turnKind === 'compact'}
+  return (chunkType) => {
+    if (state.flipped || !STREAM_STARTERS.has(chunkType)) return
+    state.flipped = true
+    void deps.store.setStatus(sessionId, 'streaming').catch((error) => logError(`[core] status flip failed: ${String(error)}`))
+  }
+}
+
 async function* withLockRelease(
   src: AsyncIterable<StreamChunk>,
   deps: TurnDeps,
@@ -282,16 +291,13 @@ async function* withLockRelease(
   onSettled?: () => void,
 ): AsyncGenerator<StreamChunk> {
   const release = lockReleaser(deps, sessionId)
+  const flipToStreaming = streamingFlipper(deps, sessionId, turnKind)
   try {
     let finished = false
-    let streamed = false
     for await (const raw of src) {
       const {chunk, usage} = mapTurnChunk(raw, deps, sessionId, modelId, abort.signal.aborted)
       finished = finished || chunk.type === EventType.RUN_FINISHED
-      if (!streamed && turnKind !== 'compact' && STREAM_STARTERS.has(chunk.type)) {
-        streamed = true
-        void deps.store.setStatus(sessionId, 'streaming').catch((error) => logError(`[core] status flip failed: ${String(error)}`))
-      }
+      flipToStreaming(chunk.type)
       if (usage) {
         yield aguiUsageFor(usage)
         await deps.store.update(sessionId, {usage})
