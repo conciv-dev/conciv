@@ -1,12 +1,6 @@
 import {SessionRecordSchema, type SessionRecord, type SessionRecordInput} from '@conciv/protocol/chat-types'
 import {recordsClient} from './records.js'
-import {
-  SessionRowSchema,
-  sessionRecordToRow,
-  sessionRowToRecord,
-  type SessionRowInput,
-  type SessionStatus,
-} from '../rows.js'
+import {sessionRecordToRow, sessionRowToRecord, type SessionRowInput, type SessionStatus} from '../rows.js'
 import {stateError} from '../errors.js'
 
 export type SessionStore = {
@@ -30,21 +24,28 @@ const COLUMN_FOR: Record<string, keyof SessionRowInput> = {
   createdAt: 'created_at',
 }
 
-function patchedColumns(patch: Partial<SessionRecordInput>, row: SessionRowInput): Record<string, unknown> {
+function copyColumn<K extends keyof SessionRowInput>(
+  out: Partial<SessionRowInput>,
+  row: SessionRowInput,
+  column: K,
+): void {
+  out[column] = row[column]
+}
+
+function patchedColumns(patch: Partial<SessionRecordInput>, row: SessionRowInput): Partial<SessionRowInput> {
   const columns = Object.keys(patch).flatMap((key) => {
     const column = COLUMN_FOR[key]
     return column === undefined ? [] : [column]
   })
-  return Object.fromEntries([...columns.map((column) => [column, row[column]]), ['updated_at', row.updated_at]])
+  const out: Partial<SessionRowInput> = {updated_at: row.updated_at}
+  for (const column of columns) copyColumn(out, row, column)
+  return out
 }
 
 export function createTrailBaseSessionStore(opts: {baseUrl: string; now?: () => number}): SessionStore {
   const now = opts.now ?? Date.now
   const client = recordsClient(opts.baseUrl)
-  const rowFor = async (sessionId: string) => {
-    const raw = await client.getBy('sessions', 'session_id', sessionId)
-    return raw === null ? null : SessionRowSchema.parse(raw)
-  }
+  const rowFor = (sessionId: string) => client.getBy('sessions', 'session_id', sessionId)
   const mustRow = async (sessionId: string) => {
     const row = await rowFor(sessionId)
     if (!row) throw stateError('record-not-found', `session ${sessionId} not found`, {api: 'sessions', sessionId})
@@ -76,13 +77,10 @@ export function createTrailBaseSessionStore(opts: {baseUrl: string; now?: () => 
       const row = await rowFor(id)
       if (row) await client.remove('sessions', row.id)
     },
-    list: async () => {
-      const rows = await client.list('sessions')
-      return rows.map((raw) => sessionRowToRecord(SessionRowSchema.parse(raw)))
-    },
+    list: async () => (await client.list('sessions')).map(sessionRowToRecord),
     findByHarnessId: async (harnessSessionId) => {
-      const raw = await client.getBy('sessions', 'harness_session_id', harnessSessionId)
-      return raw === null ? null : sessionRowToRecord(SessionRowSchema.parse(raw))
+      const row = await client.getBy('sessions', 'harness_session_id', harnessSessionId)
+      return row === null ? null : sessionRowToRecord(row)
     },
     setStatus: async (id, status) => {
       const row = await mustRow(id)

@@ -44,6 +44,29 @@ export const MarkerRowSchema = z.object({
 })
 export type MarkerRow = z.infer<typeof MarkerRowSchema>
 
+export type CoreTableName = 'sessions' | 'drafts' | 'markers'
+
+type RowMap = {
+  sessions: z.infer<typeof SessionRowSchema>
+  drafts: z.infer<typeof DraftRowSchema>
+  markers: z.infer<typeof MarkerRowSchema>
+}
+
+type RowInputMap = {
+  sessions: z.input<typeof SessionRowSchema>
+  drafts: z.input<typeof DraftRowSchema>
+  markers: z.input<typeof MarkerRowSchema>
+}
+
+export type RowFor<K extends CoreTableName> = RowMap[K]
+export type RowInputFor<K extends CoreTableName> = Omit<RowInputMap[K], 'id'>
+
+export const TABLES: {[K in CoreTableName]: {schema: z.ZodType<RowMap[K], RowInputMap[K]>}} = {
+  sessions: {schema: SessionRowSchema},
+  drafts: {schema: DraftRowSchema},
+  markers: {schema: MarkerRowSchema},
+}
+
 export function sessionRecordToRow(record: SessionRecord): SessionRowInput {
   return {
     session_id: record.id,

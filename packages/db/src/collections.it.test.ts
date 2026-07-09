@@ -25,7 +25,12 @@ describe('sessions collection', () => {
     const writer = recordsClient(server.url)
     await writer.create('sessions', {
       session_id: 'conciv_aaaaaaaa-1111-4222-8333-444444444444',
+      harness_session_id: null,
       harness_kind: 'claude',
+      origin: 'chat',
+      title: null,
+      model: null,
+      usage: null,
       cwd: '/tmp',
       created_at: 1,
       updated_at: 1,
