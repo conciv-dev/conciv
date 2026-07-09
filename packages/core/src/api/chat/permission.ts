@@ -52,4 +52,3 @@ export function makePermissionGate(uiBus: UiBus, options: PermissionGateOptions 
 
   return {decide, resolve: pending.resolve}
 }
-

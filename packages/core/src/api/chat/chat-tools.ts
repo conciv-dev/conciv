@@ -35,8 +35,18 @@ export function buildChatTools(
         }
       }
     return [
-      ...concivTools(ctx).map((tool) => toChatTool(tool, timed((args) => tool.execute(args)))),
-      ...extensionTools.map((tool) => toChatTool(tool, timed((args) => tool.execute(args, request)))),
+      ...concivTools(ctx).map((tool) =>
+        toChatTool(
+          tool,
+          timed((args) => tool.execute(args)),
+        ),
+      ),
+      ...extensionTools.map((tool) =>
+        toChatTool(
+          tool,
+          timed((args) => tool.execute(args, request)),
+        ),
+      ),
     ]
   }
 }

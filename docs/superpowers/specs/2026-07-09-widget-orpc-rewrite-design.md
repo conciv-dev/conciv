@@ -54,14 +54,14 @@ Client data layer is the official oRPC TanStack Query integration (Solid is supp
   `UNKNOWN_MODEL`, `UNSUPPORTED`, `UNKNOWN_REQUEST`) so the client renders semantics ("session
   busy" → disable send), never string-matching.
 
-| Today                                            | Becomes                                                                                |
-| ------------------------------------------------ | -------------------------------------------------------------------------------------- |
-| `@conciv/api-client` hand-written fetch wrappers | Deleted. Typed oRPC client from the contract.                                          |
-| Per-route `zValidator` wiring in core            | Contract schemas validate both directions.                                             |
-| `/attach` hand-rolled SSE + client parse loop    | `chat.attach` event iterator yielding native TanStack AI `StreamChunk`s.               |
+| Today                                            | Becomes                                                                                                                            |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `@conciv/api-client` hand-written fetch wrappers | Deleted. Typed oRPC client from the contract.                                                                                      |
+| Per-route `zValidator` wiring in core            | Contract schemas validate both directions.                                                                                         |
+| `/attach` hand-rolled SSE + client parse loop    | `chat.attach` event iterator yielding native TanStack AI `StreamChunk`s.                                                           |
 | Page bus `EventSource` + JSON parse + reply POST | `page.queries` event iterator + `page.reply` procedure (not resumable: dropped in-flight queries time out at the asker, as today). |
-| Models/commands/tools/config GET routes          | Contract queries via TanStack Query.                                                   |
-| Sessions list GET + client cache                 | `sessions.live` event iterator + `liveOptions`.                                        |
+| Models/commands/tools/config GET routes          | Contract queries via TanStack Query.                                                                                               |
+| Sessions list GET + client cache                 | `sessions.live` event iterator + `liveOptions`.                                                                                    |
 
 **Chat plane stays native TanStack AI.** The transport is an oRPC event iterator, but the payload
 is TanStack AI's own `StreamChunk` stream and the client is `useChat` fed by a ~15-line connection

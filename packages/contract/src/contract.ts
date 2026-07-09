@@ -48,12 +48,18 @@ export const contract = {
   },
   chat: {
     attach: oc.input(SessionIdInput).output(eventIterator(StreamChunkSchema)),
-    send: oc.errors(busy).input(SessionIdInput.extend({text: z.string().min(1)})).output(Ok),
+    send: oc
+      .errors(busy)
+      .input(SessionIdInput.extend({text: z.string().min(1)}))
+      .output(Ok),
     permissionDecision: oc.input(PermissionDecisionSchema).output(Ok),
   },
   page: {
     queries: oc.output(eventIterator(z.object({requestId: z.string(), query: z.unknown()}))),
-    reply: oc.errors({UNKNOWN_REQUEST: {message: 'no pending request'}}).input(PageReplySchema).output(Ok),
+    reply: oc
+      .errors({UNKNOWN_REQUEST: {message: 'no pending request'}})
+      .input(PageReplySchema)
+      .output(Ok),
   },
   editor: {
     open: oc.input(z.object({file: z.string(), line: z.number().int().min(1).optional()})).output(Ok),

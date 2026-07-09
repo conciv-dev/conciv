@@ -46,7 +46,10 @@ function cleanTitle(title: string): string {
     .slice(0, 120)
 }
 
-export async function rpcSessionList(chat: ChatRuntime, compacting: (sessionId: string) => boolean): Promise<SessionMeta[]> {
+export async function rpcSessionList(
+  chat: ChatRuntime,
+  compacting: (sessionId: string) => boolean,
+): Promise<SessionMeta[]> {
   const hist = chat.harness.history
   const harnessList =
     chat.harness.capabilities.transcriptHistory && hist?.list ? await hist.list(chat.cwd, chat.claudeHome) : []
@@ -73,10 +76,7 @@ export function makeRpcRouter(deps: RpcDeps) {
         }
       }),
       create: os.sessions.create.handler(async () => {
-        const {sessionId} = await resolveSession(
-          {store: deps.store, harnessKind: deps.harnessKind, cwd: deps.cwd},
-          {},
-        )
+        const {sessionId} = await resolveSession({store: deps.store, harnessKind: deps.harnessKind, cwd: deps.cwd}, {})
         await ensureChatRecord(deps.store, sessionId, deps.harnessKind, deps.cwd)
         await deps.uiState.addMarker({sessionId, afterTurn: 0, kind: 'new'})
         return {sessionId}

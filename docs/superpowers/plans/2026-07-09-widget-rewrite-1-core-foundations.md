@@ -26,7 +26,7 @@
 
 ## Route disposition (the delete-the-widget ledger)
 
-Audited 2026-07-10 against `packages/api-client/src/api-client.ts` + a full network sweep of `packages/widget/src` (grab/ui-kit-* verified network-free). Every CLIENT→core call becomes an oRPC procedure in `@conciv/contract`; plan 4 deletes the REST routes.
+Audited 2026-07-10 against `packages/api-client/src/api-client.ts` + a full network sweep of `packages/widget/src` (grab/ui-kit-\* verified network-free). Every CLIENT→core call becomes an oRPC procedure in `@conciv/contract`; plan 4 deletes the REST routes.
 
 - Client comms → oRPC (this plan): resolve, session-detail (subsumed by `sessions.list`/`live` metas — name/usage/status/model; the extra lock.role/cwd/harness fields are unconsumed), sessions list, models, commands, tools, rename, launch, remove, stop, permission-decision, send (`POST /api/chat`), attach (SSE), page stream/reply, editor open, open-source frames symbolication (`editor.openFromFrames`). `GET /api/chat/history` has zero widget callers (history rides the attach snapshot) — delete in plan 4, no procedure.
 - NOT client comms, stays as-is: `/api/mcp` (MCP protocol endpoint the harness CLI connects to — foreign wire format, can never be oRPC); `/api/ext/<slug>/*` + terminal WS (extension phase, deferred); `/api/chat/ui`, `/api/page/:verb`, `/api/page/changes(+clear)`, `/api/server/*` (consumed only by the `conciv` CLI — agent↔server loopback tooling, not the widget; plan 4 ledger decides port-or-delete).
@@ -599,12 +599,18 @@ export const contract = {
   },
   chat: {
     attach: oc.input(SessionIdInput).output(eventIterator(StreamChunkSchema)),
-    send: oc.errors(busy).input(SessionIdInput.extend({text: z.string().min(1)})).output(Ok),
+    send: oc
+      .errors(busy)
+      .input(SessionIdInput.extend({text: z.string().min(1)}))
+      .output(Ok),
     permissionDecision: oc.input(PermissionDecisionSchema).output(Ok),
   },
   page: {
     queries: oc.output(eventIterator(z.object({requestId: z.string(), query: z.unknown()}))),
-    reply: oc.errors({UNKNOWN_REQUEST: {message: 'no pending request'}}).input(PageReplySchema).output(Ok),
+    reply: oc
+      .errors({UNKNOWN_REQUEST: {message: 'no pending request'}})
+      .input(PageReplySchema)
+      .output(Ok),
   },
   editor: {
     open: oc.input(z.object({file: z.string(), line: z.number().int().min(1).optional()})).output(Ok),
@@ -1139,7 +1145,6 @@ export type UiState = {
 (`clearDraft` is Task 8's server-side draft consumption on send — review M2; `deleteFor` removes the session's draft + marker rows on `sessions.remove` — review M1, since the schema has no FK cascade. Both `emit()`.)
 
 ```ts
-
 export function makeUiState(db: ConcivDb, now: () => number = Date.now): UiState {
   const listeners = new Set<() => void>()
   const emit = () => listeners.forEach((listener) => listener())
@@ -1836,7 +1841,7 @@ Replaces the dropped extension-oRPC task (extension comms stay Hono, deferred ph
 
 - [ ] **Step 1: Delete the packages.** `git rm -r packages/widget packages/api-client`; prune both from `PUBLIC_PACKAGES` in `packages/publish/src/guards.ts` and from any turbo/e2e wiring that references them (grep `@conciv/widget` and `@conciv/api-client` across the repo, including `.github/workflows`).
 - [ ] **Step 2: Fix collateral consumers.** `packages/extensions/terminal/src/client/terminal-actions.tsx` and `packages/extension-testkit/src/host/host-runtime.tsx` import `@conciv/api-client` — rewire them to a minimal local shim over the oRPC client or inline fetches against `/rpc` (extensions phase does it properly; here just keep them compiling). `packages/plugin` widget-middleware serves the widget bundle — stub or gate the middleware (the new client arrives in plan 3; until then the plugin serves no UI).
-- [ ] **Step 3: Delete client-facing REST routes.** Remove from `composeRoutes`/route files: `/api/chat` (turn POST, attach, session*, models, commands, history, sessions, title, stop, launch, permission-decision), `/api/editor/open`, `/api/page/open-source`, `/api/page/stream`, `/api/page/reply`. KEEP: `/api/mcp` (MCP protocol), `/api/ext/*` (extensions), `/api/chat/ui` + `/api/page/:verb` + `/api/page/changes*` + `/api/server/*` (conciv CLI agent tooling). Where a route file also hosts shared logic (`launch.ts` helpers, `session.ts` `resolveSession`/`buildSessionList`/`killLock`/`listCommands`, `open-source.ts` symbolication adapter, `attach.ts` `attachStream`), keep the functions, delete the Hono apps.
+- [ ] **Step 3: Delete client-facing REST routes.** Remove from `composeRoutes`/route files: `/api/chat` (turn POST, attach, session*, models, commands, history, sessions, title, stop, launch, permission-decision), `/api/editor/open`, `/api/page/open-source`, `/api/page/stream`, `/api/page/reply`. KEEP: `/api/mcp` (MCP protocol), `/api/ext/*`(extensions),`/api/chat/ui`+`/api/page/:verb`+`/api/page/changes*`+`/api/server/*` (conciv CLI agent tooling). Where a route file also hosts shared logic (`launch.ts`helpers,`session.ts` `resolveSession`/`buildSessionList`/`killLock`/`listCommands`, `open-source.ts`symbolication adapter,`attach.ts` `attachStream`), keep the functions, delete the Hono apps.
 - [ ] **Step 3b: Re-home the red core ITs (route deletion fallout, known set from Task 6).** `packages/harness-testkit`'s session bootstrap calls the deleted REST resolve — port it to `/rpc/sessions/resolve` via the typed oRPC client (testkit may depend on `@conciv/contract`). Then triage the failing files: `chat.it.test.ts`, `sessions.it.test.ts`, `commands.it.test.ts`, `turn-detach.it.test.ts`, `turn-end.it.test.ts`, `turn-error-flood.it.test.ts`, `create-testkit.it.test.ts`, `extension-server-surfaces.it.test.ts`, `cors.it.test.ts` (probes deleted `/api/chat/models` — probe `/rpc` instead) — rewrite each against the rpc surface where the behavior still exists, delete where the test only exercised a deleted route.
 - [ ] **Step 4: Gates.** `pnpm typecheck && pnpm build && pnpm test` green (widget tests are gone with the package); `pnpm exec fallow audit --changed-since main` — the sweep will surface newly-dead exports (unstorage memory driver, session-id header helpers, SSE utilities); delete what fallow flags INTRODUCED-dead, verifying each with `--trace`.
 - [ ] **Step 5: Commit** with pathspec covering the deleted trees + touched packages.
