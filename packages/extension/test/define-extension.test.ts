@@ -22,3 +22,15 @@ test('server factory receives api and returns context + app + dispose', () => {
   })
   expect(ext.__server).toBeTypeOf('function')
 })
+
+test('carries tables, composer actions and controls through the builder', () => {
+  const ext = defineExtension({
+    name: 'decls',
+    tables: [{name: 'notes', columns: 'body TEXT'}],
+    composerActions: [{id: 'a', label: 'A', icon: () => null, run: () => {}}],
+    controls: [{id: 'c', Component: () => null}],
+  })
+  expect(ext.tables).toHaveLength(1)
+  expect(ext.composerActions?.[0]?.id).toBe('a')
+  expect(ext.controls?.[0]?.id).toBe('c')
+})

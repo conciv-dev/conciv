@@ -49,10 +49,13 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@conciv/db": "workspace:^",
+    "@conciv/errors": "workspace:^",
     "@conciv/grab": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
     "@tanstack/ai": "^0.40.0",
+    "@tanstack/db": "0.6.14",
     "hono": "^4.12.0",
     "zod": "^4.4.3"
   },

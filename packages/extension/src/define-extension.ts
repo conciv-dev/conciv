@@ -16,6 +16,7 @@ import type {
 } from './types.js'
 import {useExtensionRuntimeContext} from './runtime-context.js'
 import {useClientApi} from './extension-api.js'
+import type {ComposerActionDecl, ComposerControlDecl, ExtensionTableDecl} from './host-types.js'
 
 export type AnyToolBuilder = ToolBuilder<z.ZodObject<z.ZodRawShape>, unknown>
 
@@ -25,6 +26,9 @@ export type ExtensionMeta<Name extends string, Schema extends z.ZodType, Tools e
   tools?: Tools
   commands?: readonly ExtensionCommand[]
   views?: readonly ExtensionView[]
+  tables?: readonly ExtensionTableDecl[]
+  composerActions?: readonly ComposerActionDecl[]
+  controls?: readonly ComposerControlDecl[]
   Component?: Component
   systemPrompt?: string
   theme?: ThemeTokens
@@ -44,6 +48,9 @@ export type ExtensionBuilder<
   tools?: Tools
   commands?: readonly ExtensionCommand[]
   views?: readonly ExtensionView[]
+  tables?: readonly ExtensionTableDecl[]
+  composerActions?: readonly ComposerActionDecl[]
+  controls?: readonly ComposerControlDecl[]
   parseConfig: (raw: unknown) => ConfigOf<Schema>
   __client?(): ClientFactoryResult<ClientValue>
   __server?(server: ServerApi<ConfigOf<Schema>>): ServerResult<unknown> | Promise<ServerResult<unknown>>
@@ -96,6 +103,9 @@ export function defineExtension<
     tools: meta.tools,
     commands: meta.commands,
     views: meta.views,
+    tables: meta.tables,
+    composerActions: meta.composerActions,
+    controls: meta.controls,
     parseConfig: (raw: unknown) => parseExtensionConfig(meta.configSchema, raw),
     useClientApi,
     useSlot,

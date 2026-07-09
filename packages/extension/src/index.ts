@@ -6,6 +6,16 @@ export type {
   ExtensionMeta,
   RegisterExtension,
 } from './define-extension.js'
+export type {
+  ComposerActionDecl,
+  ComposerControlDecl,
+  ExtensionTableDecl,
+  HostApi,
+  HostChat,
+  HostState,
+  HostUi,
+  PageAgent,
+} from './host-types.js'
 export {defineTool} from './define-tool.js'
 export type {ToolBuilder} from './define-tool.js'
 export {imageResult} from './image-result.js'
