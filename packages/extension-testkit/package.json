@@ -22,6 +22,7 @@
   "dependencies": {
     "@conciv/api-client": "workspace:^",
     "@conciv/core": "workspace:^",
+    "@conciv/db": "workspace:^",
     "@conciv/extension": "workspace:^",
     "@conciv/grab": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",

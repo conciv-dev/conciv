@@ -571,6 +571,9 @@ importers:
       '@conciv/core':
         specifier: workspace:^
         version: link:../core
+      '@conciv/db':
+        specifier: workspace:^
+        version: link:../db
       '@conciv/extension':
         specifier: workspace:^
         version: link:../extension

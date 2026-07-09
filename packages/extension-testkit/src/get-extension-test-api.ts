@@ -25,10 +25,10 @@ export type ExtensionTestApi = {
 }
 
 export async function getExtensionTestApi(extension: ExtensionUnderTest): Promise<ExtensionTestApi> {
-  const {apiBase, extensionContexts, stop} = await bootExtensionServer(extension.server)
+  const {apiBase, stateBase, extensionContexts, stop} = await bootExtensionServer(extension.server)
   const session = await resolveSession(apiBase)
   const outDir = await buildHost(extension.clientEntry)
-  const host = await serveDir(outDir, {apiBase, session})
+  const host = await serveDir(outDir, {apiBase, session, stateBase})
   const {page, context, close} = await launch(host.origin)
   return {
     page,

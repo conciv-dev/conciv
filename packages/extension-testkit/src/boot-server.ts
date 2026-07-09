@@ -6,6 +6,7 @@ import type {AnyExtension} from '@conciv/extension'
 
 export type BootedServer = {
   apiBase: string
+  stateBase: string
   extensionContexts: Record<string, unknown>
   stop: () => Promise<void>
 }
@@ -20,6 +21,7 @@ export async function bootExtensionServer(extension: AnyExtension): Promise<Boot
   })
   return {
     apiBase: `http://127.0.0.1:${engine.port}`,
+    stateBase: `http://127.0.0.1:${engine.statePort}`,
     extensionContexts: engine.extensionContexts,
     stop: () => engine.stop(),
   }

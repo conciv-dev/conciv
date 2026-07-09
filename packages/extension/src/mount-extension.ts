@@ -2,6 +2,8 @@ import {createComponent, type JSX} from 'solid-js'
 import {render} from 'solid-js/web'
 import {installClientApi} from './extension-api.js'
 import {ExtensionRuntimeContext} from './runtime-context.js'
+import {HostProvider} from './host.js'
+import type {HostApi} from './host-types.js'
 import type {AnyExtension} from './define-extension.js'
 import type {ClientApi, ExtensionHostContext, ExtensionSlot, ExtensionView} from './types.js'
 
@@ -47,17 +49,32 @@ export type MountExtensionOptions = {
   hostContext: Omit<ExtensionHostContext, 'currentSlot'>
   slot: ExtensionSlot
   root: HTMLElement
+  host?: HostApi
 }
 
 export function mountExtension(extension: AnyExtension, options: MountExtensionOptions): () => void {
   installClientApi(options.clientApi)
   const client = extension.__client?.()
   const clientValue = client?.value ?? {}
-  const disposeRender = render(
-    () =>
-      createComponent(MountedExtension, {extension, hostContext: options.hostContext, clientValue, slot: options.slot}),
-    options.root,
-  )
+  const mounted = () =>
+    createComponent(MountedExtension, {
+      extension,
+      hostContext: options.hostContext,
+      clientValue,
+      slot: options.slot,
+    })
+  const disposeRender = render(() => {
+    const host = options.host
+    return host
+      ? createComponent(HostProvider, {
+          host,
+          slot: options.slot,
+          get children() {
+            return mounted()
+          },
+        })
+      : mounted()
+  }, options.root)
   return () => {
     disposeRender()
     client?.dispose?.()

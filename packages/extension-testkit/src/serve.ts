@@ -17,7 +17,10 @@ const MIME: Record<string, string> = {
 
 export type ServedHost = {origin: string; close: () => Promise<void>}
 
-export async function serveDir(dir: string, config: {apiBase: string; session: string}): Promise<ServedHost> {
+export async function serveDir(
+  dir: string,
+  config: {apiBase: string; session: string; stateBase: string},
+): Promise<ServedHost> {
   const port = await getPort()
   const server = createServer((req, res) => {
     const path = (req.url ?? '/').split('?')[0] ?? '/'
@@ -34,6 +37,7 @@ export async function serveDir(dir: string, config: {apiBase: string; session: s
             .toString('utf8')
             .replaceAll('__CONCIV_API_BASE__', config.apiBase)
             .replaceAll('__CONCIV_SESSION__', config.session)
+            .replaceAll('__CONCIV_STATE_BASE__', config.stateBase)
           res.setHeader('content-type', 'text/html')
           res.end(html)
           return
