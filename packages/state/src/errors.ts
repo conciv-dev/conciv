@@ -1,4 +1,4 @@
-import {defineErrors, type ConcivError} from '@conciv/errors'
+import {isConcivError, makeError, type ConcivError, type UserCode, type UserDetails} from '@conciv/errors'
 
 export type StateErrorCode =
   | 'unsupported-platform'
@@ -10,20 +10,39 @@ export type StateErrorCode =
   | 'record-not-found'
   | 'missing-provider'
 
-const scoped = defineErrors<StateErrorCode>({
-  scope: 'state',
-  userMessages: {
-    'unsupported-platform': 'conciv does not support this platform yet',
-    'download-failed': 'could not download the conciv state server',
-    'unpack-failed': 'could not install the conciv state server',
-    'install-raced': 'could not install the conciv state server',
-    'server-unhealthy': 'the conciv state server failed to start',
-    'records-request-failed': 'saving conciv state failed',
-    'record-not-found': 'session not found',
-    'missing-provider': 'conciv state is not available in this view',
-  },
-  httpStatus: {'record-not-found': 404, 'records-request-failed': 502},
-})
-export const stateError = scoped.error
-export const isStateError = scoped.is
-export type StateError = ConcivError<StateErrorCode>
+const USER_CODES: Record<StateErrorCode, UserCode> = {
+  'unsupported-platform': 'state.unsupported-platform',
+  'download-failed': 'state.download-failed',
+  'unpack-failed': 'state.unpack-failed',
+  'install-raced': 'state.install-raced',
+  'server-unhealthy': 'state.server-unhealthy',
+  'records-request-failed': 'state.records-request-failed',
+  'record-not-found': 'state.record-not-found',
+  'missing-provider': 'state.missing-provider',
+}
+
+const STATUS_CODES: Partial<Record<StateErrorCode, number>> = {
+  'record-not-found': 404,
+  'records-request-failed': 502,
+}
+
+const CATEGORIES: Partial<Record<StateErrorCode, 'user' | 'internal'>> = {
+  'record-not-found': 'user',
+}
+
+export type StateError = ConcivError
+
+export function stateError(code: StateErrorCode, message: string, details: UserDetails = {}): StateError {
+  return makeError({
+    message,
+    code,
+    userCode: USER_CODES[code],
+    category: CATEGORIES[code] ?? 'internal',
+    statusCode: STATUS_CODES[code],
+    details,
+  })
+}
+
+export function isStateError(error: unknown): error is StateError {
+  return isConcivError(error) && error.userCode.startsWith('state.')
+}

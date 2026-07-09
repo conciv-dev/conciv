@@ -1,6 +1,9 @@
-import {chmodSync, existsSync, mkdirSync, renameSync, rmSync, writeFileSync} from 'node:fs'
+import {createWriteStream} from 'node:fs'
+import {chmod, mkdir, rename, rm, stat} from 'node:fs/promises'
 import {join} from 'node:path'
-import {spawnSync} from 'node:child_process'
+import {pipeline} from 'node:stream/promises'
+import extract from 'extract-zip'
+import {decorateError} from '@conciv/errors'
 import {stateError} from '../errors.js'
 
 export const TRAILBASE_VERSION = 'v0.30.0'
@@ -20,42 +23,56 @@ function assetName(version: string): string {
   return `trailbase_${version}_${asset}.zip`
 }
 
+async function pathExists(path: string): Promise<boolean> {
+  return stat(path).then(
+    () => true,
+    () => false,
+  )
+}
+
+async function download(url: string, to: string): Promise<void> {
+  const response = await fetch(url).catch((error: Error) => {
+    throw decorateError({error, code: 'download-failed', userCode: 'state.download-failed', details: {url}})
+  })
+  if (!response.ok || !response.body) {
+    throw stateError('download-failed', `trailbase download failed: ${response.status}`, {status: response.status, url})
+  }
+  await pipeline(response.body, createWriteStream(to))
+}
+
+async function promote(staging: string, dir: string, executable: string): Promise<void> {
+  const won = await rename(staging, dir).then(
+    () => true,
+    () => false,
+  )
+  if (won) return
+  await rm(staging, {recursive: true, force: true})
+  if (!(await pathExists(executable))) {
+    throw stateError('install-raced', 'trailbase: install race lost and binary still missing', {executable})
+  }
+}
+
 export async function ensureTrailBinary(opts: {cacheDir: string; version?: string}): Promise<string> {
   const version = opts.version ?? TRAILBASE_VERSION
   const dir = join(opts.cacheDir, version)
   const binaryName = process.platform === 'win32' ? 'trail.exe' : 'trail'
   const executable = join(dir, binaryName)
-  if (existsSync(executable)) return executable
+  if (await pathExists(executable)) return executable
   const staging = `${dir}.staging-${process.pid}`
-  mkdirSync(staging, {recursive: true})
-  const asset = assetName(version)
-  const url = `https://github.com/trailbaseio/trailbase/releases/download/${version}/${asset}`
-  const response = await fetch(url)
-  if (!response.ok) {
-    throw stateError('download-failed', `trailbase download failed: ${response.status}`, {status: response.status, url})
-  }
-  const zipPath = join(staging, asset)
-  writeFileSync(zipPath, new Uint8Array(await response.arrayBuffer()))
-  const unzip = spawnSync('unzip', ['-o', '-q', zipPath, '-d', staging])
-  if (unzip.status !== 0) {
-    const tar = spawnSync('tar', ['-xf', zipPath, '-C', staging])
-    if (tar.status !== 0) {
-      throw stateError('unpack-failed', 'trailbase: could not unpack (need unzip or bsdtar)', {
-        unzip: String(unzip.stderr ?? ''),
-        tar: String(tar.stderr ?? ''),
-        zipPath,
-      })
-    }
-  }
-  rmSync(zipPath)
-  chmodSync(join(staging, binaryName), 0o755)
+  await mkdir(staging, {recursive: true})
   try {
-    renameSync(staging, dir)
-  } catch {
-    rmSync(staging, {recursive: true, force: true})
-    if (!existsSync(executable)) {
-      throw stateError('install-raced', 'trailbase: install race lost and binary still missing', {executable})
-    }
+    const asset = assetName(version)
+    const zipPath = join(staging, asset)
+    await download(`https://github.com/trailbaseio/trailbase/releases/download/${version}/${asset}`, zipPath)
+    await extract(zipPath, {dir: staging}).catch((error: Error) => {
+      throw decorateError({error, code: 'unpack-failed', userCode: 'state.unpack-failed', details: {zipPath}})
+    })
+    await rm(zipPath)
+    await chmod(join(staging, binaryName), 0o755)
+  } catch (error) {
+    await rm(staging, {recursive: true, force: true})
+    throw error
   }
+  await promote(staging, dir, executable)
   return executable
 }

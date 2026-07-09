@@ -1,5 +1,5 @@
 import {initClient} from 'trailbase'
-import {stateError} from '../errors.js'
+import {decorateError} from '@conciv/errors'
 
 export type RecordsClient = {
   list(api: string, filter?: Record<string, string>): Promise<unknown[]>
@@ -12,9 +12,16 @@ export type RecordsClient = {
 async function guarded<T>(api: string, action: string, run: () => Promise<T>): Promise<T> {
   try {
     return await run()
-  } catch (error) {
-    const status = error instanceof Error && 'status' in error ? error.status : undefined
-    throw stateError('records-request-failed', `trailbase ${action} ${api}: ${String(error)}`, {api, action, status})
+  } catch (caught) {
+    const error = caught instanceof Error ? caught : new Error(String(caught))
+    const status = 'status' in error ? error.status : undefined
+    throw decorateError({
+      error,
+      code: 'records-request-failed',
+      userCode: 'state.records-request-failed',
+      statusCode: 502,
+      details: {api, action, status},
+    })
   }
 }
 

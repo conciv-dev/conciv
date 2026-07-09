@@ -1,6 +1,6 @@
 import {spawn} from 'node:child_process'
 import {prepareDepot} from './depot.js'
-import {stateError} from '../errors.js'
+import {isStateError, stateError} from '../errors.js'
 
 async function waitHealthy(url: string, timeoutMs: number): Promise<void> {
   const deadline = Date.now() + timeoutMs
@@ -34,7 +34,11 @@ export async function startTrailBase(opts: {
     await waitHealthy(url, 30000)
   } catch (error) {
     child.kill('SIGKILL')
-    throw stateError('server-unhealthy', `${String(error)}\n${stderr.join('')}`, {url, stderr: stderr.join('')})
+    if (isStateError(error)) {
+      error.details.stderr = stderr.join('')
+      throw error
+    }
+    throw stateError('server-unhealthy', String(error), {url, stderr: stderr.join('')})
   }
   return {
     port: opts.port,
