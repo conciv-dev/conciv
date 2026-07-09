@@ -1,9 +1,8 @@
 # Widget rewrite: UI-only client, oRPC everywhere, core owns all logic
 
 Status: approved design, pending implementation plan.
-Supersedes: `2026-07-09-widget-rewrite-design.md` (TrailBase + TanStack DB domain plane). The user
-dropped TrailBase later the same day in favor of a single comms stack; the `@conciv/db` TrailBase
-work on `feat/widget-rewrite` is replaced by this design.
+Supersedes: `2026-07-09-widget-rewrite-design.md` (previous same-day design; the abandoned work on
+`feat/widget-rewrite` is replaced by this design).
 
 ## Why
 
@@ -68,27 +67,32 @@ re-modeled as rows; approvals stay derived from message parts; TanStack AI remai
 feature parity.
 
 Extensions contribute their own oRPC routers (their existing `server(cfg)` hook), mounted under
-`/rpc/ext/<id>`; their client components consume a typed client for their router. This replaces
-the TrailBase `ext_<id>_*` table story.
+`/rpc/ext/<id>`; their client components consume a typed client for their router.
 
-## Storage: core-owned sqlite via drizzle
+## Storage: `@conciv/db` package (drizzle on node:sqlite)
 
-Core owns one sqlite file in conciv's state dir. Access through **drizzle ORM** on the built-in
-**`node:sqlite` driver** (`drizzle-orm/node-sqlite` + `DatabaseSync`): zero install-time
-dependency, no native compile, no prebuilt binaries; stable drizzle only (never `@rc`). Node 22
-needs `--experimental-sqlite` (already Node >= 22 in this repo; vitest gets it via `execArgv`).
+All persistence lives in a dedicated **`packages/db`** (`@conciv/db`): the drizzle table schemas,
+the sqlite open + migrate (`openDb`), and the row stores (`makeSessionStore`, `makeUiState`). It
+is the ONLY package that imports drizzle; core consumes its exported functions and never touches
+drizzle or `node:sqlite` directly. One sqlite file in conciv's state dir, opened once per process.
+
+Driver: **drizzle ORM** on the built-in **`node:sqlite`** (`drizzle-orm/node-sqlite` +
+`DatabaseSync`): zero install-time dependency, no native compile, no prebuilt binaries.
+drizzle-orm and drizzle-kit are pinned EXACT to `1.0.0-rc.4` — the node-sqlite driver ships only
+in the 1.0 line (latest stable 0.45.2 lacks it; verified 2026-07-09); swap to `1.0.0` stable when
+released. Node 22 needs `--experimental-sqlite` (already Node >= 22 in this repo; vitest gets it
+via `execArgv`).
 Row types: drizzle tables are the source of truth; zod schemas
 in the contract are pinned to them with `expectTypeOf` type tests; columns are explicit-null, no
-implicit undefined. Migrations run at core boot (drizzle-kit generated SQL, applied
-programmatically). Extension tables are namespaced (`ext_<id>_*`) and migrated from manifest
-declarations at boot.
+implicit undefined. Migrations run at boot inside `openDb` (drizzle-kit generated SQL, committed
+in `packages/db/drizzle/`, applied programmatically). Extension tables are namespaced
+(`ext_<id>_*`) and migrated from manifest declarations at boot.
 
 No sidecar process, no records API, no second sync protocol. Live queries are core pushing rows
 over event iterators after its own writes (single writer, so invalidation is trivial: the writer
-emits).
+emits — the stores expose `watch(listener)` for exactly this).
 
-Replaces: `store/session-store.ts` (unstorage fs-lite) and the entire TrailBase plane (binary
-download/supervision, `@tanstack/trailbase-db-collection`, records HTTP API).
+Replaces: `store/session-store.ts` (unstorage fs-lite).
 
 ## Backend changes (each one deletes client code)
 
@@ -184,8 +188,10 @@ and error boundaries with retry; the fab renders instantly.
 
 ## Final package map
 
-- `core`: all logic. Hono + oRPC mount, turn hub, sqlite via drizzle, session/draft/marker
-  writers, compaction, model policy, page-bus brain, gen-UI as parts.
+- `core`: all logic. Hono + oRPC mount, turn hub, compaction, model policy, page-bus brain,
+  gen-UI as parts. Persistence only through `@conciv/db` (`openDb` + store functions).
+- `db`: all persistence — drizzle table schemas, sqlite open + committed migrations,
+  session/draft/marker stores with `watch`. The only package that imports drizzle.
 - `contract`: oRPC contract + zod schemas (client and server both import it).
 - `client`: data access, zero UI — oRPC client factory, TanStack Query options, Solid hooks,
   the ~15-line `useChat` connection bridge.
@@ -213,8 +219,8 @@ and error boundaries with retry; the fab renders instantly.
   `ui-kit-chat`(`-tools`); xterm stays `ui-kit-terminal` — the quick layer is app chrome, not a
   terminal).
 - `extension`: manifest contract + client host; extensions add oRPC routers server-side.
-- Deleted: `packages/widget`, `packages/api-client`, the TrailBase `@conciv/db` plane (replaced by
-  core-internal drizzle + contract procedures).
+- Deleted: `packages/widget`, `packages/api-client`, and the old REST chat/session routes
+  (replaced by contract procedures backed by `@conciv/db`).
 - `publish/guards.ts` `PUBLIC_PACKAGES` updated to match.
 
 ## Testing and rollout

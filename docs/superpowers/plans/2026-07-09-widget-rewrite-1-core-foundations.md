@@ -4,7 +4,7 @@
 
 **Goal:** Give core the typed oRPC surface and drizzle-backed storage that the new `apps/conciv` client will consume, while the legacy widget keeps working on the old REST routes until Plan 4 deletes them.
 
-**Architecture:** New `@conciv/contract` package (oRPC contract + zod schemas) imported by both sides. Core opens one sqlite file via drizzle on `node:sqlite`, replaces the unstorage session store behind the same `SessionStore` interface, and mounts an oRPC `RPCHandler` at `/rpc/*` on the existing Hono app. Live data (sessions list, chat stream, page queries) are oRPC event iterators fed by the existing `turn-hub`/`page-bus`/store writes. Compaction and model policy move server-side as procedures.
+**Architecture:** New `@conciv/contract` package (oRPC contract + zod schemas) imported by both sides. New `@conciv/db` package owns ALL persistence (drizzle schemas, `openDb` + migrations, `makeSessionStore`/`makeUiState` stores) — the only package importing drizzle; core opens the db through it once per process, replaces the unstorage session store behind the same `SessionStore` interface, and mounts an oRPC `RPCHandler` at `/rpc/*` on the existing Hono app. Live data (sessions list, chat stream, page queries) are oRPC event iterators fed by the existing `turn-hub`/`page-bus`/store writes. Compaction and model policy move server-side as procedures.
 
 **Tech Stack:** oRPC (`@orpc/contract`, `@orpc/server`, `@orpc/client`), drizzle-orm (stable) on `node:sqlite`, Hono, zod v4, vitest, TanStack AI `StreamChunk`s.
 
@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - Node >= 22; `node:sqlite` requires `--experimental-sqlite` on every entry point that opens the db (core dev server, vitest via `execArgv`, CI).
-- drizzle-orm stable only, never `@rc`.
+- drizzle-orm + drizzle-kit pinned EXACT `1.0.0-rc.4` (user-approved 2026-07-09: the node-sqlite driver ships only in the 1.0 line, no stable release has it; move to `1.0.0` stable when released). Only `@conciv/db` may import drizzle.
 - Functions, not classes. Zero code comments in TS. No `any`/`as`/non-null `!`. No IIFEs. No barrel files beyond existing package entrypoints. oxfmt style (no semicolons, single quotes).
 - Never re-model chat messages as rows: `chat.attach` carries TanStack AI `StreamChunk`s verbatim.
 - Old REST routes stay mounted and green throughout this plan (the shipped widget still uses them); they are deleted in Plan 4.
@@ -197,34 +197,39 @@ git commit -m "feat(contract): @conciv/contract package with session/draft/marke
 
 ---
 
-### Task 2: Drizzle storage in core (schema, db open, migrations, SessionStore impl)
+### Task 2: `@conciv/db` package (drizzle schema, openDb, migrations, SessionStore impl)
 
 **Files:**
 
-- Create: `packages/core/src/store/schema.ts`
-- Create: `packages/core/src/store/db.ts`
-- Create: `packages/core/src/store/drizzle-session-store.ts`
-- Create: `packages/core/drizzle.config.ts`
-- Create: `packages/core/drizzle/` (generated SQL migrations, committed)
-- Modify: `packages/core/src/app.ts:128` (swap `createFsSessionStore` → `createDrizzleSessionStore`)
-- Modify: `packages/core/vitest.config.ts` (add `--experimental-sqlite` to `test.execArgv` — read the file first; if `execArgv` is unsupported in this vitest major, use `poolOptions.forks.execArgv`)
-- Test: `packages/core/src/store/drizzle-session-store.test.ts`
+- Create: `packages/db/package.json` / `tsconfig.json` / `tsdown.config.ts` / `vitest.config.ts` (mirror `packages/contract` scaffold; vitest needs `--experimental-sqlite` via `poolOptions.forks.execArgv` or `test.execArgv` — check the installed vitest major)
+- Create: `packages/db/src/schema.ts`
+- Create: `packages/db/src/db.ts`
+- Create: `packages/db/src/session-store.ts`
+- Create: `packages/db/src/index.ts` (package entrypoint: rows + open + stores)
+- Create: `packages/db/drizzle.config.ts`
+- Create: `packages/db/drizzle/` (generated SQL migrations, committed)
+- Modify: `packages/core/src/app.ts:128` (swap `createFsSessionStore` → `openDb` + `makeSessionStore`)
+- Modify: `packages/core/vitest.config.ts` (add `--experimental-sqlite` the same way, and include `src/**/*.test.ts` — the current config only includes `test/**`)
+- Modify: `packages/publish/src/guards.ts` (add `@conciv/db` to `PUBLIC_PACKAGES` — public `@conciv/core` depends on it)
+- Test: `packages/db/src/session-store.test.ts`
 
-**Interfaces:**
+**Interfaces (locked with the user 2026-07-09):**
 
-- Consumes: `SessionStore` type from `packages/core/src/store/session-store.ts` (unchanged: `create/get/update/delete/list/findByHarnessId`).
-- Produces: `openCoreDb(stateRoot: string): CoreDb` (drizzle instance + migrate-on-open), `createDrizzleSessionStore(opts: {stateRoot: string; now?: () => number}): SessionStore & {watch(listener: () => void): () => void}`, drizzle tables `sessions`, `drafts`, `markers` exported from `schema.ts`. The `watch` callback fires after every successful create/update/delete — Task 4's live iterator depends on it.
+- Consumes: `SessionRecord`/`SessionRecordInput` + `SessionRecordSchema` from `@conciv/protocol/chat-types`. Core's `SessionStore` type (`packages/core/src/store/session-store.ts`) stays for legacy REST plumbing; db's store satisfies it structurally.
+- Produces (from `@conciv/db`): `openDb(stateRoot: string): ConcivDb` (drizzle instance + migrate-on-open, one `DatabaseSync` per process), `makeSessionStore(opts: {db: ConcivDb; now?: () => number}): SessionStore` where db's `SessionStore` = core's shape + `watch(listener: () => void): () => void`, drizzle tables `sessions`, `drafts`, `markers` from `schema.ts`. The `watch` callback fires after every successful create/update/delete — Task 4's live iterator depends on it.
 
-- [ ] **Step 1: Install deps**
+- [ ] **Step 1: Scaffold + install deps**
 
-Run: `cd packages/core && pnpm add drizzle-orm && pnpm add -D drizzle-kit`
-Then confirm the driver exists in the installed version:
+Scaffold `packages/db` mirroring `packages/contract` (tsdown build, publint/attw scripts, `homepage`/`repository` blocks, version matching the fixed set).
+Run: `cd packages/db && pnpm add drizzle-orm@1.0.0-rc.4 --save-exact && pnpm add '@conciv/protocol@workspace:^' '@conciv/contract@workspace:^' && pnpm add -D drizzle-kit@1.0.0-rc.4 --save-exact typescript vitest tsdown @types/node`
+Then confirm the driver exists:
 Run: `ls node_modules/drizzle-orm/node-sqlite`
-Expected: directory listing with `index.d.ts`. If missing, the installed drizzle is too old — check `npm view drizzle-orm version` and require >= the first version shipping `node-sqlite`.
+Expected: `index.d.ts` + `migrator.d.ts` present (verified: rc.4 ships both; `drizzle({client})` — the rc line has NO `schema` config option, plain query builder only).
+Remove core's direct drizzle deps if present (`pnpm remove drizzle-orm drizzle-kit` in `packages/core`) and add `pnpm add '@conciv/db@workspace:^'` there.
 
 - [ ] **Step 2: Write the schema**
 
-`packages/core/src/store/schema.ts` — sessions mirrors `SessionRecordSchema` from `@conciv/protocol/chat-types` (open that file and match every field; the list below is from today's reading) plus nothing extra; drafts/markers mirror `@conciv/contract` rows:
+`packages/db/src/schema.ts` — sessions mirrors `SessionRecordSchema` from `@conciv/protocol/chat-types` (open that file and match every field; the list below is from today's reading) plus nothing extra; drafts/markers mirror `@conciv/contract` rows:
 
 ```ts
 import {integer, sqliteTable, text} from 'drizzle-orm/sqlite-core'
@@ -263,22 +268,22 @@ Check `SessionRecordSchema`'s `origin` enum values in `packages/protocol/src/cha
 
 - [ ] **Step 3: db open + migrations**
 
-`packages/core/drizzle.config.ts`:
+`packages/db/drizzle.config.ts`:
 
 ```ts
 import {defineConfig} from 'drizzle-kit'
 
 export default defineConfig({
   dialect: 'sqlite',
-  schema: './src/store/schema.ts',
+  schema: './src/schema.ts',
   out: './drizzle',
 })
 ```
 
-Run: `cd packages/core && pnpm exec drizzle-kit generate`
-Expected: `packages/core/drizzle/0000_*.sql` created. Commit these files with the task.
+Run: `cd packages/db && pnpm exec drizzle-kit generate --output json`
+Expected: `{"status":"ok",...}` and `packages/db/drizzle/0000_*.sql` created. Commit these files (plus `drizzle/meta/`) with the task.
 
-`packages/core/src/store/db.ts`:
+`packages/db/src/db.ts` (verified against installed rc.4: migrator at `drizzle-orm/node-sqlite/migrator`, sync `migrate(db, {migrationsFolder})`; `drizzle({client})` — no `schema` option in the 1.0 line):
 
 ```ts
 import {mkdirSync} from 'node:fs'
@@ -286,35 +291,33 @@ import {DatabaseSync} from 'node:sqlite'
 import {drizzle} from 'drizzle-orm/node-sqlite'
 import {migrate} from 'drizzle-orm/node-sqlite/migrator'
 import {fileURLToPath} from 'node:url'
-import * as schema from './schema.js'
 
-const migrationsFolder = fileURLToPath(new URL('../../drizzle', import.meta.url))
+const migrationsFolder = fileURLToPath(new URL('../drizzle', import.meta.url))
 
-export type CoreDb = ReturnType<typeof openCoreDb>
+export type ConcivDb = ReturnType<typeof openDb>
 
-export function openCoreDb(stateRoot: string) {
+export function openDb(stateRoot: string) {
   mkdirSync(`${stateRoot}/.conciv`, {recursive: true})
   const client = new DatabaseSync(`${stateRoot}/.conciv/conciv.db`)
-  const db = drizzle({client, schema})
+  const db = drizzle({client})
   migrate(db, {migrationsFolder})
   return db
 }
 ```
 
-Verify the exact `drizzle-orm/node-sqlite` and migrator import paths against the installed package:
-Run: `cat node_modules/drizzle-orm/node-sqlite/index.d.ts | head -20` and `ls node_modules/drizzle-orm/node-sqlite`
-Adjust imports to what actually ships (the migrator may live at `drizzle-orm/node-sqlite/migrator` or require the sync `migrate` variant — use what the types say).
+(`../drizzle` resolves from `dist/` to the package-root `drizzle/` folder; ship it via `files: ["dist", "drizzle"]` in package.json.)
 
 - [ ] **Step 4: Write the failing store test**
 
-`packages/core/src/store/drizzle-session-store.test.ts` — port the behavioral contract from the existing fs store; use a temp dir via `node:fs.mkdtempSync` (never `/tmp` hardcoded):
+`packages/db/src/session-store.test.ts` — port the behavioral contract from core's existing fs store; use a temp dir via `node:fs.mkdtempSync` (never `/tmp` hardcoded):
 
 ```ts
 import {mkdtempSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {describe, expect, it} from 'vitest'
-import {createDrizzleSessionStore} from './drizzle-session-store.js'
+import {openDb} from './db.js'
+import {makeSessionStore} from './session-store.js'
 
 const record = (id: string) => ({
   id,
@@ -328,7 +331,7 @@ const record = (id: string) => ({
 })
 
 describe('drizzle session store', () => {
-  const make = () => createDrizzleSessionStore({stateRoot: mkdtempSync(join(tmpdir(), 'conciv-db-')), now: () => 42})
+  const make = () => makeSessionStore({db: openDb(mkdtempSync(join(tmpdir(), 'conciv-db-'))), now: () => 42})
 
   it('create then get round-trips', async () => {
     const store = make()
@@ -377,28 +380,35 @@ describe('drizzle session store', () => {
 
 - [ ] **Step 5: Run test to verify it fails**
 
-Run: `pnpm --filter @conciv/core exec vitest run src/store/drizzle-session-store.test.ts`
+Run: `pnpm --filter @conciv/db exec vitest run src/session-store.test.ts`
 Expected: FAIL — module not found. If the failure is `node:sqlite` unavailable instead, the vitest `execArgv` change from the Files list is missing — do it now.
 
 - [ ] **Step 6: Implement the store**
 
-`packages/core/src/store/drizzle-session-store.ts`:
+`packages/db/src/session-store.ts` (`SessionStore` is db's own type: core's shape + `watch`; core's legacy type is satisfied structurally):
 
 ```ts
 import {eq} from 'drizzle-orm'
 import {SessionRecordSchema, type SessionRecord, type SessionRecordInput} from '@conciv/protocol/chat-types'
-import type {SessionStore} from './session-store.js'
-import {openCoreDb, type CoreDb} from './db.js'
+import type {ConcivDb} from './db.js'
 import {sessions} from './schema.js'
 
-export type WatchedSessionStore = SessionStore & {watch(listener: () => void): () => void}
+export type SessionStore = {
+  create(record: Omit<SessionRecordInput, 'createdAt' | 'updatedAt'>): Promise<SessionRecord>
+  get(id: string): Promise<SessionRecord | null>
+  update(id: string, patch: Partial<SessionRecordInput>): Promise<SessionRecord>
+  delete(id: string): Promise<void>
+  list(): Promise<SessionRecord[]>
+  findByHarnessId(harnessSessionId: string): Promise<SessionRecord | null>
+  watch(listener: () => void): () => void
+}
 
 function rowToRecord(row: typeof sessions.$inferSelect): SessionRecord {
   return SessionRecordSchema.parse(row)
 }
 
-export function createDrizzleSessionStore(opts: {stateRoot: string; now?: () => number}): WatchedSessionStore {
-  const db: CoreDb = openCoreDb(opts.stateRoot)
+export function makeSessionStore(opts: {db: ConcivDb; now?: () => number}): SessionStore {
+  const db = opts.db
   const now = opts.now ?? Date.now
   const listeners = new Set<() => void>()
   const emit = () => listeners.forEach((listener) => listener())
@@ -444,7 +454,7 @@ If `usage` (json column) comes back as a string or the zod parse rejects it, add
 
 - [ ] **Step 7: Run tests to verify they pass**
 
-Run: `pnpm --filter @conciv/core exec vitest run src/store/drizzle-session-store.test.ts`
+Run: `pnpm --filter @conciv/db exec vitest run src/session-store.test.ts`
 Expected: PASS (5 tests)
 
 - [ ] **Step 8: Swap the store in `makeApp` + pin types**
@@ -458,12 +468,13 @@ const store = createFsSessionStore({stateRoot: opts.cfg.stateRoot})
 with:
 
 ```ts
-const store = createDrizzleSessionStore({stateRoot: opts.cfg.stateRoot})
+const db = openDb(opts.cfg.stateRoot)
+const store = makeSessionStore({db})
 ```
 
-and update the import (keep `session-store.ts` — the `SessionStore` type and `createSessionStore` used by tests still live there; `createFsSessionStore` is deleted only if nothing else imports it — check with `grep -rn createFsSessionStore packages apps --include='*.ts'` and delete it plus its unstorage deps if this was the only caller; run `pnpm exec fallow dead-code --trace 'packages/core/src/store/session-store.ts:createFsSessionStore'` to confirm).
+importing both from `@conciv/db` (keep `session-store.ts` — the `SessionStore` type and `createSessionStore` used by tests still live there; `createFsSessionStore` is deleted only if nothing else imports it — check with `grep -rn createFsSessionStore packages apps --include='*.ts'` and delete it plus its unstorage deps if this was the only caller; run `pnpm exec fallow dead-code --trace 'packages/core/src/store/session-store.ts:createFsSessionStore'` to confirm).
 
-Add a type pin test in `packages/core/src/store/drizzle-session-store.test.ts`:
+Add a type pin test in `packages/db/src/session-store.test.ts`:
 
 ```ts
 import {expectTypeOf} from 'vitest'
@@ -479,12 +490,12 @@ If json/nullable columns make `toEqualTypeOf` too strict to hold exactly, use `t
 
 - [ ] **Step 9: Full core test run + commit**
 
-Run: `pnpm turbo run test --filter=@conciv/core`
+Run: `pnpm turbo run test --filter=@conciv/db --filter=@conciv/core`
 Expected: PASS, including every pre-existing chat/session test (they now run on drizzle).
 
 ```bash
-git add packages/core/src/store packages/core/drizzle packages/core/drizzle.config.ts packages/core/src/app.ts packages/core/vitest.config.ts packages/core/package.json pnpm-lock.yaml
-git commit -m "feat(core): drizzle on node:sqlite replaces unstorage session store" -- packages/core pnpm-lock.yaml
+git add packages/db packages/core/src packages/core/vitest.config.ts packages/core/package.json packages/publish/src/guards.ts pnpm-lock.yaml
+git commit -m "feat(db): @conciv/db — drizzle on node:sqlite replaces unstorage session store" -- packages/db packages/core packages/publish pnpm-lock.yaml
 ```
 
 ---
@@ -582,11 +593,11 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {describe, expect, it} from 'vitest'
 import {call} from '@orpc/server'
-import {createDrizzleSessionStore} from '../store/drizzle-session-store.js'
+import {makeSessionStore, openDb} from '@conciv/db'
 import {makeRpcRouter, type RpcDeps} from './router.js'
 
 function makeDeps(): RpcDeps {
-  const store = createDrizzleSessionStore({stateRoot: mkdtempSync(join(tmpdir(), 'conciv-rpc-'))})
+  const store = makeSessionStore({db: openDb(mkdtempSync(join(tmpdir(), 'conciv-rpc-')))})
   return {
     store,
     buildSessionList: async () =>
@@ -639,10 +650,10 @@ Expected: FAIL — `./router.js` not found
 ```ts
 import {implement} from '@orpc/server'
 import {contract, type SessionMeta} from '@conciv/contract'
-import type {WatchedSessionStore} from '../store/drizzle-session-store.js'
+import type {SessionStore} from '@conciv/db'
 
 export type RpcDeps = {
-  store: WatchedSessionStore
+  store: SessionStore
   buildSessionList: () => Promise<SessionMeta[]>
 }
 
@@ -966,29 +977,29 @@ git commit -m "feat(core): sessions.live event iterator on store watch + turn pu
 
 **Files:**
 
-- Create: `packages/core/src/store/ui-state.ts`
+- Create: `packages/db/src/ui-state.ts` (exported from `@conciv/db`)
 - Modify: `packages/core/src/rpc/router.ts` (real `drafts.*`, `markers.*` handlers; `RpcDeps` gains `uiState`)
 - Modify: `packages/core/src/app.ts` (construct `uiState`, pulse `live` on writes)
-- Test: `packages/core/src/store/ui-state.test.ts`, additions to `packages/core/src/rpc/router.test.ts`
+- Test: `packages/db/src/ui-state.test.ts`, additions to `packages/core/src/rpc/router.test.ts`
 
-**Interfaces:**
+**Interfaces (locked with the user 2026-07-09):**
 
-- Produces: `makeUiState(db: CoreDb, now?: () => number): UiState` where `UiState = {getDraft(sessionId): Promise<DraftRow | null>; setDraft(input: Omit<DraftRow,'updatedAt'>): Promise<void>; listMarkers(sessionId): Promise<MarkerRow[]>; addMarker(input: Omit<MarkerRow,'id'>): Promise<MarkerRow>; watch(listener: () => void): () => void}`. Marker ids: `crypto.randomUUID()` (never hand-rolled).
-- Consumes: `drafts`/`markers` tables (Task 2), `CoreDb`.
+- Produces: `makeUiState(db: ConcivDb, now?: () => number): UiState` where `UiState = {getDraft(sessionId): Promise<DraftRow | null>; setDraft(input: Omit<DraftRow,'updatedAt'>): Promise<void>; listMarkers(sessionId): Promise<MarkerRow[]>; addMarker(input: Omit<MarkerRow,'id'>): Promise<MarkerRow>; watch(listener: () => void): () => void}`. Marker ids: `crypto.randomUUID()` (never hand-rolled).
+- Consumes: `drafts`/`markers` tables (Task 2), `ConcivDb`.
 
 - [ ] **Step 1: Write the failing test**
 
-`packages/core/src/store/ui-state.test.ts`:
+`packages/db/src/ui-state.test.ts`:
 
 ```ts
 import {mkdtempSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {describe, expect, it} from 'vitest'
-import {openCoreDb} from './db.js'
+import {openDb} from './db.js'
 import {makeUiState} from './ui-state.js'
 
-const make = () => makeUiState(openCoreDb(mkdtempSync(join(tmpdir(), 'conciv-ui-'))), () => 7)
+const make = () => makeUiState(openDb(mkdtempSync(join(tmpdir(), 'conciv-ui-'))), () => 7)
 
 describe('ui-state', () => {
   it('draft get is null until set, then upserts', async () => {
@@ -1023,16 +1034,16 @@ describe('ui-state', () => {
 
 - [ ] **Step 2: Run to verify failure**
 
-Run: `pnpm --filter @conciv/core exec vitest run src/store/ui-state.test.ts`
+Run: `pnpm --filter @conciv/db exec vitest run src/ui-state.test.ts`
 Expected: FAIL — module not found
 
-- [ ] **Step 3: Implement `ui-state.ts`**
+- [ ] **Step 3: Implement `ui-state.ts`** (in `packages/db/src`)
 
 ```ts
 import {randomUUID} from 'node:crypto'
 import {asc, eq} from 'drizzle-orm'
 import type {DraftRow, MarkerRow} from '@conciv/contract'
-import type {CoreDb} from './db.js'
+import type {ConcivDb} from './db.js'
 import {drafts, markers} from './schema.js'
 
 export type UiState = {
@@ -1043,7 +1054,7 @@ export type UiState = {
   watch: (listener: () => void) => () => void
 }
 
-export function makeUiState(db: CoreDb, now: () => number = Date.now): UiState {
+export function makeUiState(db: ConcivDb, now: () => number = Date.now): UiState {
   const listeners = new Set<() => void>()
   const emit = () => listeners.forEach((listener) => listener())
   return {
@@ -1072,7 +1083,7 @@ export function makeUiState(db: CoreDb, now: () => number = Date.now): UiState {
 }
 ```
 
-Note: `openCoreDb` is now called twice if the store and uiState each open it — refactor in `app.ts` to open once: `const db = openCoreDb(opts.cfg.stateRoot)` and change `createDrizzleSessionStore` to accept `{db, now}` (update Task 2's tests to construct via `openCoreDb` too). Keep one `DatabaseSync` per process.
+Note: `app.ts` already opens the db once (Task 2 Step 8: `const db = openDb(...)`); reuse that instance for `makeUiState(db)`. Keep one `DatabaseSync` per process.
 
 - [ ] **Step 4: Run tests, wire router handlers**
 
