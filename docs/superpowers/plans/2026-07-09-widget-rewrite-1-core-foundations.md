@@ -48,7 +48,7 @@ Audited 2026-07-10 against `packages/api-client/src/api-client.ts` + a full netw
 
 - Produces: `SessionMetaSchema`/`SessionMeta` (extends today's `ChatSessionMeta` with `status`), `SessionStatusSchema` (`'idle' | 'running' | 'compacting'`), `DraftRowSchema`/`DraftRow`, `MarkerRowSchema`/`MarkerRow`. All later tasks import row types from here.
 
-- [ ] **Step 1: Scaffold the package**
+- [x] **Step 1: Scaffold the package**
 
 `packages/contract/package.json` (mirror `packages/protocol/package.json` fields — same `repository` block with `"directory": "packages/contract"`, `homepage: https://conciv.dev`, license MIT, `"type": "module"`):
 
@@ -84,7 +84,7 @@ Then verify the eventIterator export location before writing code:
 Run: `grep -r "eventIterator" node_modules/@orpc/contract/dist/*.d.* | head -3`
 Expected: an exported `eventIterator` function. If absent, check `node_modules/@orpc/server` the same way and import it from there in Task 3.
 
-- [ ] **Step 2: Write the failing test**
+- [x] **Step 2: Write the failing test**
 
 `packages/contract/src/rows.test.ts`:
 
@@ -126,12 +126,12 @@ describe('row schemas', () => {
 })
 ```
 
-- [ ] **Step 3: Run test to verify it fails**
+- [x] **Step 3: Run test to verify it fails**
 
 Run: `pnpm --filter @conciv/contract exec vitest run src/rows.test.ts`
 Expected: FAIL — cannot resolve `./rows.js`
 
-- [ ] **Step 4: Implement `rows.ts`**
+- [x] **Step 4: Implement `rows.ts`**
 
 ```ts
 import {z} from 'zod'
@@ -191,16 +191,16 @@ Create `packages/contract/src/index.ts`:
 export * from './rows.js'
 ```
 
-- [ ] **Step 5: Run test to verify it passes**
+- [x] **Step 5: Run test to verify it passes**
 
 Run: `pnpm --filter @conciv/contract exec vitest run src/rows.test.ts`
 Expected: PASS (3 tests)
 
-- [ ] **Step 6: Register the package for release**
+- [x] **Step 6: Register the package for release**
 
 Modify `packages/publish/src/guards.ts`: add `'@conciv/contract'` to `PUBLIC_PACKAGES` (keep the array sorted the way it currently is — read the file first).
 
-- [ ] **Step 7: Typecheck and commit**
+- [x] **Step 7: Typecheck and commit**
 
 Run: `pnpm turbo run build --filter=@conciv/contract && pnpm --filter @conciv/contract typecheck`
 Expected: exit 0
@@ -233,7 +233,7 @@ git commit -m "feat(contract): @conciv/contract package with session/draft/marke
 - Consumes: `SessionRecord`/`SessionRecordInput` + `SessionRecordSchema` from `@conciv/protocol/chat-types`. Core's `SessionStore` type (`packages/core/src/store/session-store.ts`) stays for legacy REST plumbing; db's store satisfies it structurally.
 - Produces (from `@conciv/db`): `openDb(stateRoot: string): ConcivDb` (drizzle instance + migrate-on-open, one `DatabaseSync` per process), `makeSessionStore(opts: {db: ConcivDb; now?: () => number}): SessionStore` where db's `SessionStore` = core's shape + `watch(listener: () => void): () => void`, drizzle tables `sessions`, `drafts`, `markers` from `schema.ts`. The `watch` callback fires after every successful create/update/delete — Task 4's live iterator depends on it.
 
-- [ ] **Step 1: Scaffold + install deps**
+- [x] **Step 1: Scaffold + install deps**
 
 Scaffold `packages/db` mirroring `packages/contract` (tsdown build, publint/attw scripts, `homepage`/`repository` blocks, version matching the fixed set).
 Run: `cd packages/db && pnpm add drizzle-orm@1.0.0-rc.4 --save-exact && pnpm add '@conciv/protocol@workspace:^' '@conciv/contract@workspace:^' && pnpm add -D drizzle-kit@1.0.0-rc.4 --save-exact typescript vitest tsdown @types/node`
@@ -242,7 +242,7 @@ Run: `ls node_modules/drizzle-orm/node-sqlite`
 Expected: `index.d.ts` + `migrator.d.ts` present (verified: rc.4 ships both; `drizzle({client})` — the rc line has NO `schema` config option, plain query builder only).
 Remove core's direct drizzle deps if present (`pnpm remove drizzle-orm drizzle-kit` in `packages/core`) and add `pnpm add '@conciv/db@workspace:^'` there.
 
-- [ ] **Step 2: Write the schema**
+- [x] **Step 2: Write the schema**
 
 `packages/db/src/schema.ts` — sessions mirrors `SessionRecordSchema` from `@conciv/protocol/chat-types` (open that file and match every field; the list below is from today's reading) plus nothing extra; drafts/markers mirror `@conciv/contract` rows:
 
@@ -281,7 +281,7 @@ export const markers = sqliteTable('markers', {
 
 Check `SessionRecordSchema`'s `origin` enum values in `packages/protocol/src/chat-types.ts` and copy them exactly into the `enum:` above.
 
-- [ ] **Step 3: db open + migrations**
+- [x] **Step 3: db open + migrations**
 
 `packages/db/drizzle.config.ts`:
 
@@ -322,7 +322,7 @@ export function openDb(stateRoot: string) {
 
 (`../drizzle` resolves from `dist/` to the package-root `drizzle/` folder; ship it via `files: ["dist", "drizzle"]` in package.json.)
 
-- [ ] **Step 4: Write the failing store test**
+- [x] **Step 4: Write the failing store test**
 
 `packages/db/src/session-store.test.ts` — port the behavioral contract from core's existing fs store; use a temp dir via `node:fs.mkdtempSync` (never `/tmp` hardcoded):
 
@@ -393,12 +393,12 @@ describe('drizzle session store', () => {
 })
 ```
 
-- [ ] **Step 5: Run test to verify it fails**
+- [x] **Step 5: Run test to verify it fails**
 
 Run: `pnpm --filter @conciv/db exec vitest run src/session-store.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 6: Implement the store**
+- [x] **Step 6: Implement the store**
 
 `packages/db/src/session-store.ts` (`SessionStore` is db's own type: core's shape + `watch`; core's legacy type is satisfied structurally):
 
@@ -467,12 +467,12 @@ export function makeSessionStore(opts: {db: ConcivDb; now?: () => number}): Sess
 
 If `usage` (json column) comes back as a string or the zod parse rejects it, add drizzle `$type<...>()` on the column or map the field explicitly in `rowToRecord` — the test from Step 4 is the arbiter.
 
-- [ ] **Step 7: Run tests to verify they pass**
+- [x] **Step 7: Run tests to verify they pass**
 
 Run: `pnpm --filter @conciv/db exec vitest run src/session-store.test.ts`
 Expected: PASS (5 tests)
 
-- [ ] **Step 8: Swap the store in `makeApp` + pin types**
+- [x] **Step 8: Swap the store in `makeApp` + pin types**
 
 In `packages/core/src/app.ts` line 128 replace:
 
@@ -503,7 +503,7 @@ it('drizzle row type matches SessionRecord', () => {
 
 If json/nullable columns make `toEqualTypeOf` too strict to hold exactly, use `toMatchObjectType` and pin the divergent fields individually — do not weaken to `toMatchTypeOf` on the whole record without pinning `usage`, `origin`, and nullability.
 
-- [ ] **Step 9: Full core test run + commit**
+- [x] **Step 9: Full core test run + commit**
 
 Run: `pnpm turbo run test --filter=@conciv/db --filter=@conciv/core`
 Expected: PASS, including every pre-existing chat/session test (they now run on drizzle).
@@ -513,7 +513,7 @@ git add packages/db packages/core/src packages/core/vitest.config.ts packages/co
 git commit -m "feat(db): @conciv/db — drizzle on node:sqlite replaces unstorage session store" -- packages/db packages/core packages/publish pnpm-lock.yaml
 ```
 
-- [ ] **Step 10 (review amendment M5): cross-process hardening**
+- [x] **Step 10 (review amendment M5): cross-process hardening**
 
 Core's lock system supports FOREIGN processes on the same stateRoot (`store/lock.ts` stores pids; `session.ts` `killLock` SIGTERMs them) — two `DatabaseSync` writers on a rollback-journal db throw `SQLITE_BUSY` immediately. In `openDb`, after constructing the client: `client.exec('PRAGMA journal_mode = WAL')` and `client.exec('PRAGMA busy_timeout = 5000')` (verify the exact DatabaseSync API — a `timeout` constructor option may exist; use what the installed `@types/node` says). Add a `packages/db` test opening TWO `openDb` instances on the same stateRoot and interleaving writes — both succeed.
 
@@ -535,12 +535,12 @@ Core's lock system supports FOREIGN processes on the same stateRoot (`store/lock
 - Consumes: `SessionMetaSchema`, `DraftRowSchema`, `MarkerRowSchema` (Task 1); `WatchedSessionStore` (Task 2); `ChatRuntime` (`packages/core/src/api/chat/chat-env.ts`).
 - Produces: `contract` object (namespaces: `sessions`, `drafts`, `markers`, `chat`, `page`, `meta`) exported from `@conciv/contract`; `makeRpcRouter(deps: RpcDeps)` and `mountRpc(app: Hono, router: ReturnType<typeof makeRpcRouter>)` in core. `RpcDeps = {chat: ChatRuntime; store: WatchedSessionStore; buildSessionList(): Promise<SessionMeta[]>}` — later tasks extend `RpcDeps`, never add globals.
 
-- [ ] **Step 1: Install oRPC server deps**
+- [x] **Step 1: Install oRPC server deps**
 
 Run: `cd packages/core && pnpm add @orpc/server @conciv/contract@workspace:^`
 Run: `cd packages/contract && pnpm add @orpc/contract` (if not already from Task 1)
 
-- [ ] **Step 2: Define the contract**
+- [x] **Step 2: Define the contract**
 
 `packages/contract/src/contract.ts` — contract v3, the COMPLETE client surface (adversarial-review outcome 2026-07-10; every widget→core call maps here, see the route-disposition ledger). `eventIterator` verified exported from `@orpc/contract`. Reuse protocol schemas — never redeclare shapes that exist (`ChatModelsSchema`, `ChatCommandsSchema`, `ChatToolsSchema`, `ChatLaunchSchema`, `PermissionDecisionSchema` from `@conciv/protocol/chat-types`; `OpenSourceSchema`/`OpenSourceResultSchema` + `PageReplySchema` from `@conciv/protocol/page-types` — open both files and confirm exact names first). Same for `rows.ts`: import `UsageSnapshotSchema` from `@conciv/protocol/usage-types` instead of the current duplicated copy.
 
@@ -633,7 +633,7 @@ export * from './rows.js'
 export * from './contract.js'
 ```
 
-- [ ] **Step 3: Write the failing router test**
+- [x] **Step 3: Write the failing router test**
 
 `packages/core/src/rpc/router.test.ts` — use oRPC's `call` for direct invocation; build minimal deps with the drizzle store from Task 2 in a temp dir. The `chat` runtime stub uses the real `makeTurnHub` and a minimal fake harness — copy the fake-harness pattern from an existing core test (grep: `grep -rln 'makeTurnHub\|fakeHarness\|stubHarness' packages/core/src --include='*.test.ts'` and reuse that helper; if none exists, the only fields `sessions.list` needs are `store` and `buildSessionList`):
 
@@ -688,12 +688,12 @@ describe('rpc router', () => {
 
 Note: `RpcDeps` starts as `{store; buildSessionList}` here and gains `chat`, `pageBus`, etc. in later tasks — each task extends the type and this test's `makeDeps` in place.
 
-- [ ] **Step 4: Run test to verify it fails**
+- [x] **Step 4: Run test to verify it fails**
 
 Run: `pnpm --filter @conciv/core exec vitest run src/rpc/router.test.ts`
 Expected: FAIL — `./router.js` not found
 
-- [ ] **Step 5: Implement router + mount**
+- [x] **Step 5: Implement router + mount**
 
 `packages/core/src/rpc/router.ts`:
 
@@ -839,7 +839,7 @@ where `rpcSessionList` is a small function in `router.ts` that reuses `buildSess
 
 The `makeApp` wiring is an explicit step, not an afterthought (the working tree currently has `composeRoutes(vars, rpc)` signature-changed but `makeApp` still calling it with one argument — it does not compile until this lands): construct `const rpc = makeRpcRouter({store, buildSessionList: () => rpcSessionList(chatRuntime)})` after `chatRuntime` and pass it to `composeRoutes`.
 
-- [ ] **Step 6: Run tests**
+- [x] **Step 6: Run tests**
 
 Run: `pnpm --filter @conciv/core exec vitest run src/rpc/router.test.ts`
 Expected: PASS
@@ -847,7 +847,7 @@ Expected: PASS
 Run: `pnpm turbo run test --filter=@conciv/core`
 Expected: PASS — old routes unaffected.
 
-- [ ] **Step 7: HTTP smoke test through Hono**
+- [x] **Step 7: HTTP smoke test through Hono**
 
 Append to `router.test.ts` a fetch-level test with `testClient`-style direct `app.request` (mirror how existing core route tests invoke the Hono app — grep `app.request(` in `packages/core/src`):
 
@@ -866,7 +866,7 @@ it('mounts at /rpc/* over HTTP', async () => {
 
 `makeTestApp` lives in `packages/core/src/rpc/test-app.ts` and calls the real `makeApp` with a fake harness + temp stateRoot — copy the construction from the closest existing `makeApp`-based test (grep `makeApp(` under `packages/core/src`); if the oRPC RPC protocol requires a different body envelope for procedure calls, assert only `status !== 404` here (the typed-client IT in Task 8 covers the real protocol).
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add packages/contract/src packages/core/src/rpc packages/core/src/app.ts packages/core/package.json packages/contract/package.json pnpm-lock.yaml
@@ -889,7 +889,7 @@ git commit -m "feat(core): oRPC contract + RPCHandler mounted at /rpc/*" -- pack
 - Produces: `makeLiveFeed(): {pulse(): void; subscribe(signal: AbortSignal): AsyncGenerator<void>}` — a coalescing notifier: `pulse()` during an in-flight wait coalesces to one wake-up. `RpcDeps` gains `live: ReturnType<typeof makeLiveFeed>`.
 - Consumes: `store.watch` (Task 2), `chatTurnListeners`/`onTurnEnd` wiring in `app.ts` (read `makeApp` lines 139–205 first).
 
-- [ ] **Step 1: Write the failing feed test**
+- [x] **Step 1: Write the failing feed test**
 
 `packages/core/src/rpc/live.test.ts`:
 
@@ -926,12 +926,12 @@ describe('live feed', () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm --filter @conciv/core exec vitest run src/rpc/live.test.ts`
 Expected: FAIL — `./live.js` not found
 
-- [ ] **Step 3: Implement the feed**
+- [x] **Step 3: Implement the feed**
 
 `packages/core/src/rpc/live.ts` — REVIEW AMENDMENT C4: the original waiter-only sketch had a lost-update race (a `pulse()` landing while a subscriber is awake — i.e. mid-`buildSessionList` — found no waiter and was dropped forever). Each subscriber carries a `dirty` flag: `pulse()` marks every subscriber dirty and wakes the waiting ones; the loop re-emits until clean. One abort listener per subscription (not per iteration), cleanup in `finally`:
 
@@ -980,12 +980,12 @@ export function makeLiveFeed(): LiveFeed {
 
 Tests must include the race case: pulse while the consumer is mid-emission (i.e. between receiving a yield and awaiting the next one — simulate with an async consumer body that `await`s a tick inside the `for await` before looping) and assert the write still produces a subsequent emission. Also assert unsubscribe-on-abort leaves `subscribers` empty (export a test-only `size()` or assert via no further wakes).
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pnpm --filter @conciv/core exec vitest run src/rpc/live.test.ts`
 Expected: PASS
 
-- [ ] **Step 5: Wire `sessions.live` and the pulse sources**
+- [x] **Step 5: Wire `sessions.live` and the pulse sources**
 
 In `router.ts`, `RpcDeps` gains `live: LiveFeed`; replace the `sessions.live` handler:
 
@@ -1010,7 +1010,7 @@ chatTurnListeners.push(() => live.pulse())
 
 and pulse on turn end by appending inside `onTurnEnd` after the settled loop: `live.pulse()`. Pass `live` into `makeRpcRouter`.
 
-- [ ] **Step 6: Router-level test**
+- [x] **Step 6: Router-level test**
 
 Append to `router.test.ts` (extend `makeDeps` with `live: makeLiveFeed()`):
 
@@ -1049,7 +1049,7 @@ it('sessions.live re-emits after a store write', async () => {
 Run: `pnpm --filter @conciv/core exec vitest run src/rpc/router.test.ts`
 Expected: PASS
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add packages/core/src/rpc packages/core/src/app.ts
@@ -1072,7 +1072,7 @@ git commit -m "feat(core): sessions.live event iterator on store watch + turn pu
 - Produces: `makeUiState(db: ConcivDb, now?: () => number): UiState` where `UiState = {getDraft(sessionId): Promise<DraftRow | null>; setDraft(input: Omit<DraftRow,'updatedAt'>): Promise<void>; listMarkers(sessionId): Promise<MarkerRow[]>; addMarker(input: Omit<MarkerRow,'id'>): Promise<MarkerRow>; watch(listener: () => void): () => void}`. Marker ids: `crypto.randomUUID()` (never hand-rolled).
 - Consumes: `drafts`/`markers` tables (Task 2), `ConcivDb`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/db/src/ui-state.test.ts`:
 
@@ -1117,12 +1117,12 @@ describe('ui-state', () => {
 })
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pnpm --filter @conciv/db exec vitest run src/ui-state.test.ts`
 Expected: FAIL — module not found
 
-- [ ] **Step 3: Implement `ui-state.ts`** (in `packages/db/src`)
+- [x] **Step 3: Implement `ui-state.ts`** (in `packages/db/src`)
 
 ```ts
 import {randomUUID} from 'node:crypto'
@@ -1176,7 +1176,7 @@ export function makeUiState(db: ConcivDb, now: () => number = Date.now): UiState
 
 Note: `app.ts` already opens the db once (Task 2 Step 8: `const db = openDb(...)`); reuse that instance for `makeUiState(db)`. Keep one `DatabaseSync` per process.
 
-- [ ] **Step 4: Run tests, wire router handlers**
+- [x] **Step 4: Run tests, wire router handlers**
 
 Run: `pnpm --filter @conciv/db exec vitest run src/ui-state.test.ts`
 Expected: PASS
@@ -1215,7 +1215,7 @@ Append router tests exercising `drafts.set` → `drafts.get`, `drafts.live` re-e
 Run: `pnpm --filter @conciv/core exec vitest run src/rpc/router.test.ts`
 Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add packages/db/src packages/core/src/rpc packages/core/src/app.ts
@@ -1237,7 +1237,7 @@ git commit -m "feat(db,core): drafts + markers rows with intents and live iterat
 - Consumes: `resolveSession(deps, body)` from `packages/core/src/api/chat/session.ts:34`; `ensureChatRecord` from `turn.ts:36`; `hub.markStopped`; `killLock` semantics from `session.ts` (SIGTERM a foreign-pid lock holder — extract/export it); `resolveHarnessModels` from `@conciv/harness`; the `/commands` route's assembly in `session.ts` (needs `mcpUrl` built from the request origin — read it from the RPC context's `request`); `harness.launch`; `opts.openInEditor`; the open-source route's `symbolicateFrames` flow (`packages/core/src/api/page/open-source.ts` — reuse, do not duplicate); `uiState.addMarker` + `uiState.deleteFor` (Task 5).
 - Produces: ALL remaining non-chat, non-page procedures working: `create`, `resolve` (external adoption via `resolveSession`), `rename` (sanitize: strip control chars, collapse whitespace, cap 120 — port the REST route's clean()), `remove` (= `killLock` + `store.delete` + `uiState.deleteFor`), `setModel` (validates against harness model list, persists `store.update(id, {model})` — turns read it in Task 8; unknown/disabled → typed `UNKNOWN_MODEL` error), `stop` (= `hub.markStopped` + `killLock` — cross-process stop must work), `launch` (typed `UNSUPPORTED` when harness can't launch), `editor.open`, `editor.openFromFrames`, `meta.models`, `meta.commands` (origin from context request), `meta.tools` (same list the REST tools route serves). `sessions.create` writes a `{kind: 'new', afterTurn: 0}` marker.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `router.test.ts` (extend `makeDeps` with the fields the handlers below need; for the harness use the same fake-harness helper found in Task 3 Step 3, exposing `models: [{id: 'm1', name: 'M1'}, {id: 'm2', name: 'M2', disabled: true}]` and `defaultModel: 'm1'`):
 
@@ -1281,12 +1281,12 @@ it('sessions.remove deletes the record', async () => {
 })
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pnpm --filter @conciv/core exec vitest run src/rpc/router.test.ts`
 Expected: the four new tests FAIL with `implemented in task 6`
 
-- [ ] **Step 3: Implement the handlers**
+- [x] **Step 3: Implement the handlers**
 
 `RpcDeps` gains `harnessModels: () => Promise<{models: Array<{id: string; disabled?: boolean}>; defaultModel: string | null}>`, `harnessMeta: {id: string; name: string; canLaunch: boolean}`, `harnessKind: string`, `cwd: string`, `markStopped: (sessionId: string) => void`, `killLock: (sessionId: string) => void`, `launch: (sessionId: string, model?: string) => Promise<ChatLaunch>`, `commands: (opts: {sessionId?: string; origin: string}) => Promise<ChatCommands>`, `tools: ChatTool[]`, `openInEditor: OpenInEditor`, `openFromFrames: (frames: RawFrame[]) => Promise<OpenSourceResult>` — each wired in `app.ts` from what the corresponding REST route uses today (launch/commands/tools/open-source: open the routes and lift their assembly; do NOT reimplement symbolication or command sourcing). In `router.ts`:
 
@@ -1356,7 +1356,7 @@ Wire in `app.ts`: `harnessModels` reuses whatever the existing GET `/models` rou
 
 Additional Step 1 tests beyond the four above: `sessions.resolve` with `{}` mints, with a known id returns it, with a foreign harness id adopts (origin `external`); `sessions.stop` calls both `markStopped` and `killLock` (spy deps); `sessions.remove` clears draft+marker rows; `rename` sanitizes (`'  a\n\tb  '` → `'a b'`) and rejects >120; `meta.commands` receives the origin derived from the context request; `editor.open` forwards file+line to a spy.
 
-- [ ] **Step 4: Run tests + commit**
+- [x] **Step 4: Run tests + commit**
 
 Run: `pnpm --filter @conciv/core exec vitest run src/rpc/router.test.ts`
 Expected: PASS
@@ -1382,11 +1382,11 @@ git commit -m "feat(core): session intents + model policy + meta.models over rpc
 - Consumes: `startTurn`-equivalent flow. `startTurn` is not exported from `turn.ts` — export it (it is pure given `deps, sessionId, chatReq`) and reuse; also `acquireLock`/`releaseLock` from `store/lock.js`, `hub.generating`, `uiState.addMarker`, `compacting` state.
 - Produces: `makeCompactor(deps: {chat: ChatRuntime; uiState: UiState; onChange(): void}): {run(sessionId: string): Promise<void>; compacting(sessionId: string): boolean}`. `buildSessionList` maps `status: 'compacting'` from `compacting()` (update the mapper from Task 3) so the client spinner is pure render.
 
-- [ ] **Step 1: Export `startTurn` from `turn.ts`**
+- [x] **Step 1: Export `startTurn` from `turn.ts`**
 
 Change `async function startTurn(` to `export async function startTurn(` in `packages/core/src/api/chat/turn.ts:128`. Run `pnpm --filter @conciv/core typecheck` — exit 0.
 
-- [ ] **Step 2: Write the failing IT**
+- [x] **Step 2: Write the failing IT**
 
 `packages/core/src/api/chat/compact.it.test.ts` — drive with the fake harness used by existing turn tests (find it: `grep -rln 'chatConfig' packages/core/src --include='*.test.ts' packages/harness-testkit/src 2>/dev/null | head -5`; `@conciv/harness-testkit` is already a core devDep per `packages/widget/package.json` sibling usage — confirm in `packages/core/package.json` and add if missing). The fake harness must emit a complete tiny turn (RUN_STARTED → text → RUN_FINISHED):
 
@@ -1410,7 +1410,7 @@ describe('compactor', () => {
 
 `makeCompactFixture` builds a real `ChatRuntime` around the fake harness + drizzle store in a temp dir — assemble it exactly like `makeApp` does (Task 3's `test-app.ts` already constructs one; extract the runtime construction there into a shared `packages/core/src/rpc/test-fixtures.ts` and reuse).
 
-- [ ] **Step 3: Run to verify failure, implement**
+- [x] **Step 3: Run to verify failure, implement**
 
 Run: `pnpm --filter @conciv/core exec vitest run src/api/chat/compact.it.test.ts`
 Expected: FAIL — `./compact.js` not found
@@ -1502,7 +1502,7 @@ compact: os.sessions.compact.handler(async ({input, errors}) => {
 
 In `app.ts`: `const compactor = makeCompactor({chat: chatRuntime, uiState, onChange: () => live.pulse()})`.
 
-- [ ] **Step 4: Run tests + commit**
+- [x] **Step 4: Run tests + commit**
 
 Run: `pnpm --filter @conciv/core exec vitest run src/api/chat/compact.it.test.ts src/rpc/router.test.ts`
 Expected: PASS
@@ -1529,7 +1529,7 @@ git commit -m "feat(core): server-side compaction procedure with compacting stat
 - Produces: `attachStream(deps: ChatRuntime, sessionId: string, signal: AbortSignal): AsyncGenerator<StreamChunk>` exported from `attach.ts`; rpc `chat.attach`/`chat.send`/`chat.permissionDecision` handlers. Plan 2's client bridge consumes `chat.attach` verbatim.
 - SEND SEMANTICS (binding): (a) busy → typed `BUSY` error; (b) the session's draft is consumed server-side — grab texts prepended to the outgoing user text, row cleared after the turn starts, live pulsed (the client composer never orchestrates grabs); (c) HISTORY RULE (review C3): when `harness.capabilities.resume` is false OR no resumable transcript token exists, the server rebuilds `messages` from `transcriptMessages(...)` + the new user text before `startTurn` — otherwise non-resume harnesses (pi) get amnesiac turns. Pin with an IT using a fake harness with `resume: false` asserting the adapter received prior turns.
 
-- [ ] **Step 1: Extract `attachStream` from the route**
+- [x] **Step 1: Extract `attachStream` from the route**
 
 In `packages/core/src/api/chat/attach.ts`, lift the body of the GET handler into:
 
@@ -1570,7 +1570,7 @@ const app = new Hono<ChatEnv>().get('/attach', async (c) => {
 
 Run: `pnpm turbo run test --filter=@conciv/core` — the existing attach ITs must stay green before proceeding.
 
-- [ ] **Step 2: Write the failing rpc IT**
+- [x] **Step 2: Write the failing rpc IT**
 
 `packages/core/src/rpc/chat-rpc.it.test.ts` (fixture from Task 7; fake harness emits RUN_STARTED → TEXT_MESSAGE chunks → RUN_FINISHED):
 
@@ -1607,12 +1607,12 @@ describe('chat over rpc', () => {
 
 (`types[0]` is the AG-UI snapshot custom event — confirm the exact chunk type `aguiSnapshotFor` produces by reading `packages/protocol/src/ui-types.ts` and assert on that; `holdTurnOpen` makes the fake harness stall until released — implement it in the fixture with a promise the fake adapter awaits before emitting RUN_FINISHED.)
 
-- [ ] **Step 3: Run to verify failure**
+- [x] **Step 3: Run to verify failure**
 
 Run: `pnpm --filter @conciv/core exec vitest run src/rpc/chat-rpc.it.test.ts`
 Expected: FAIL with `implemented in task 8`
 
-- [ ] **Step 4: Implement the handlers**
+- [x] **Step 4: Implement the handlers**
 
 In `router.ts` (`RpcDeps` gains `chat: ChatRuntime`, `sendTurn: (sessionId: string, text: string) => Promise<void>`, and `decidePermission: (approvalId: string, approved: boolean) => void` wired to the gate exactly as the REST `/permission-decision` route does):
 
@@ -1671,7 +1671,7 @@ const sendTurn = async (sessionId: string, text: string): Promise<void> => {
 
 (Match `ChatRequest`'s exact zod shape from `@conciv/protocol/chat-types` — if `forwardedProps.model` is not in the schema, pass `model` at the top level; `requestedModelFor` in `turn.ts:77` accepts both. Verify the exact resumability check against `turn.ts`'s own `resumableToken` logic — reuse its helper rather than reimplementing; the shape above is directional. The history rebuild is review C3: without it, non-resume harnesses receive one-message context.)
 
-- [ ] **Step 5 (review amendment C2): wire-level IT with the real typed client**
+- [x] **Step 5 (review amendment C2): wire-level IT with the real typed client**
 
 `packages/core/src/rpc/wire.it.test.ts` — the ONLY test in the plan that exercises the actual RPC wire (serializer envelope, event-iterator streaming through `RPCHandler` → Hono → `c.newResponse`, disconnect propagation). Install `pnpm add -D @orpc/client` in core. Build a client whose fetch is bound to the Hono app:
 
@@ -1688,7 +1688,7 @@ const client: ContractRouterClient<typeof contract> = createORPCClient(link)
 Run: `pnpm --filter @conciv/core exec vitest run src/rpc/wire.it.test.ts`
 Expected: PASS
 
-- [ ] **Step 6: Run tests + full suite + commit**
+- [x] **Step 6: Run tests + full suite + commit**
 
 Run: `pnpm --filter @conciv/core exec vitest run src/rpc/chat-rpc.it.test.ts src/rpc/wire.it.test.ts`
 Expected: PASS
@@ -1716,7 +1716,7 @@ git commit -m "feat(core): chat.attach/send/permissionDecision — native Stream
 - Consumes: the existing `PageBus` (`makePageBus()` in `app.ts:141`) — whatever subscribe/next mechanism its SSE route uses today, reuse it; do NOT build a second bus.
 - Produces: `page.queries` yielding `{requestId, query}` objects (today's SSE `data:` payload, parsed), `page.reply` resolving the pending `ask`.
 
-- [ ] **Step 1: Read `page.ts` and write the failing test**
+- [x] **Step 1: Read `page.ts` and write the failing test**
 
 Open `packages/core/src/api/page/page.ts`; identify (a) how the SSE route obtains queries from the bus (an emitter/queue) and (b) the reply POST handler. Then append to `router.test.ts`:
 
@@ -1738,12 +1738,12 @@ it('page.ask round-trips through queries iterator + reply', async () => {
 
 (Adjust `ask` input/resolution shape to the real `PageBus` API from step 1's reading — the query kinds live in `@conciv/protocol/page-types`.)
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `pnpm --filter @conciv/core exec vitest run src/rpc/router.test.ts`
 Expected: new test FAILS with `implemented in task 9`
 
-- [ ] **Step 3: Implement handlers**
+- [x] **Step 3: Implement handlers**
 
 `RpcDeps` gains `pageBus: ReturnType<typeof makePageBus>`. The handlers adapt the bus's existing subscribe/reply mechanics (exact code depends on step 1's reading; the shape):
 
@@ -1766,7 +1766,7 @@ page: {
 
 If `makePageBus` exposes no `stream(signal)` async-iterable today (the SSE route probably wires an emitter inline), add one to the bus using the Task 4 `makeLiveFeed` waiter pattern with a queue — inside `page.ts`, exported alongside the existing API, leaving the SSE route untouched.
 
-- [ ] **Step 4: Run tests + commit**
+- [x] **Step 4: Run tests + commit**
 
 Run: `pnpm --filter @conciv/core exec vitest run src/rpc/router.test.ts`
 Expected: PASS
@@ -1791,7 +1791,7 @@ git commit -m "feat(core): page bus queries/reply over oRPC" -- packages/core/sr
 - Consumes: `uiBus.run` merge (read `packages/core/src/runtime/ui-bus.ts` fully first), `hub` replay (`turn-hub.ts` `view.record`).
 - Produces: guarantee: every custom event the panel used to demux (`conciv.ui`, tool-duration, usage) is (a) emitted inside the turn stream and (b) replayed to a late `chat.attach` while the run is still live. Gen-UI/tool-timing rendering as parts is client-side work (Plan 2/3); server-side the chunks are already in-stream — this task pins it.
 
-- [ ] **Step 1: Write the failing/verifying IT**
+- [x] **Step 1: Write the failing/verifying IT**
 
 Append to `chat-rpc.it.test.ts` — fake harness turn includes one tool call; the conciv tool context `injectUi` fires a gen-ui spec mid-turn:
 
@@ -1818,7 +1818,7 @@ it('custom events (gen-ui) ride the stream and replay to a late attach', async (
 
 (Pin the exact event name from `packages/protocol/src/ui-types.ts` `CONCIV_UI_EVENT` — import and assert equality, not `includes`.)
 
-- [ ] **Step 2: Run, fix whatever it exposes**
+- [x] **Step 2: Run, fix whatever it exposes**
 
 Run: `pnpm --filter @conciv/core exec vitest run src/rpc/chat-rpc.it.test.ts`
 If it passes immediately: the server side was already complete (uiBus merges into the stream, hub records replay) — keep the test as the regression pin.
@@ -1826,7 +1826,7 @@ If replay misses the injected event: the gap is in `turn-hub.ts` `view.record` v
 
 For tool durations: run the grep from Files. If nothing server-side emits `CONCIV_TOOL_DURATION_EVENT` (it may be emitted by tool middleware already), add emission where tool results resolve in `buildChatTools` (`packages/core/src/api/chat/chat-tools.ts`) by measuring wall time around `execute` and injecting via `uiBus.inject(sessionId, ...)` with the `ToolDurationSchema` payload from `@conciv/protocol/tool-timing` — then extend the IT to assert a duration event follows the tool result.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add packages/core/src
@@ -1839,12 +1839,12 @@ git commit -m "test(core): pin custom-event replay through attach; tool duration
 
 Replaces the dropped extension-oRPC task (extension comms stay Hono, deferred phase — do not modify `packages/extension`'s comms). With the oRPC surface complete (Tasks 3-10), delete the old client plane in one sweep:
 
-- [ ] **Step 1: Delete the packages.** `git rm -r packages/widget packages/api-client`; prune both from `PUBLIC_PACKAGES` in `packages/publish/src/guards.ts` and from any turbo/e2e wiring that references them (grep `@conciv/widget` and `@conciv/api-client` across the repo, including `.github/workflows`).
-- [ ] **Step 2: Fix collateral consumers.** `packages/extensions/terminal/src/client/terminal-actions.tsx` and `packages/extension-testkit/src/host/host-runtime.tsx` import `@conciv/api-client` — rewire them to a minimal local shim over the oRPC client or inline fetches against `/rpc` (extensions phase does it properly; here just keep them compiling). `packages/plugin` widget-middleware serves the widget bundle — stub or gate the middleware (the new client arrives in plan 3; until then the plugin serves no UI).
-- [ ] **Step 3: Delete client-facing REST routes.** Remove from `composeRoutes`/route files: `/api/chat` (turn POST, attach, session*, models, commands, history, sessions, title, stop, launch, permission-decision), `/api/editor/open`, `/api/page/open-source`, `/api/page/stream`, `/api/page/reply`. KEEP: `/api/mcp` (MCP protocol), `/api/ext/*`(extensions),`/api/chat/ui`+`/api/page/:verb`+`/api/page/changes*`+`/api/server/*` (conciv CLI agent tooling). Where a route file also hosts shared logic (`launch.ts`helpers,`session.ts` `resolveSession`/`buildSessionList`/`killLock`/`listCommands`, `open-source.ts`symbolication adapter,`attach.ts` `attachStream`), keep the functions, delete the Hono apps.
-- [ ] **Step 3b: Re-home the red core ITs (route deletion fallout, known set from Task 6).** `packages/harness-testkit`'s session bootstrap calls the deleted REST resolve — port it to `/rpc/sessions/resolve` via the typed oRPC client (testkit may depend on `@conciv/contract`). Then triage the failing files: `chat.it.test.ts`, `sessions.it.test.ts`, `commands.it.test.ts`, `turn-detach.it.test.ts`, `turn-end.it.test.ts`, `turn-error-flood.it.test.ts`, `create-testkit.it.test.ts`, `extension-server-surfaces.it.test.ts`, `cors.it.test.ts` (probes deleted `/api/chat/models` — probe `/rpc` instead) — rewrite each against the rpc surface where the behavior still exists, delete where the test only exercised a deleted route.
-- [ ] **Step 4: Gates.** `pnpm typecheck && pnpm build && pnpm test` green (widget tests are gone with the package); `pnpm exec fallow audit --changed-since main` — the sweep will surface newly-dead exports (unstorage memory driver, session-id header helpers, SSE utilities); delete what fallow flags INTRODUCED-dead, verifying each with `--trace`.
-- [ ] **Step 5: Commit** with pathspec covering the deleted trees + touched packages.
+- [x] **Step 1: Delete the packages.** `git rm -r packages/widget packages/api-client`; prune both from `PUBLIC_PACKAGES` in `packages/publish/src/guards.ts` and from any turbo/e2e wiring that references them (grep `@conciv/widget` and `@conciv/api-client` across the repo, including `.github/workflows`).
+- [x] **Step 2: Fix collateral consumers.** `packages/extensions/terminal/src/client/terminal-actions.tsx` and `packages/extension-testkit/src/host/host-runtime.tsx` import `@conciv/api-client` — rewire them to a minimal local shim over the oRPC client or inline fetches against `/rpc` (extensions phase does it properly; here just keep them compiling). `packages/plugin` widget-middleware serves the widget bundle — stub or gate the middleware (the new client arrives in plan 3; until then the plugin serves no UI).
+- [x] **Step 3: Delete client-facing REST routes.** Remove from `composeRoutes`/route files: `/api/chat` (turn POST, attach, session*, models, commands, history, sessions, title, stop, launch, permission-decision), `/api/editor/open`, `/api/page/open-source`, `/api/page/stream`, `/api/page/reply`. KEEP: `/api/mcp` (MCP protocol), `/api/ext/*`(extensions),`/api/chat/ui`+`/api/page/:verb`+`/api/page/changes*`+`/api/server/*` (conciv CLI agent tooling). Where a route file also hosts shared logic (`launch.ts`helpers,`session.ts` `resolveSession`/`buildSessionList`/`killLock`/`listCommands`, `open-source.ts`symbolication adapter,`attach.ts` `attachStream`), keep the functions, delete the Hono apps.
+- [x] **Step 3b: Re-home the red core ITs (route deletion fallout, known set from Task 6).** `packages/harness-testkit`'s session bootstrap calls the deleted REST resolve — port it to `/rpc/sessions/resolve` via the typed oRPC client (testkit may depend on `@conciv/contract`). Then triage the failing files: `chat.it.test.ts`, `sessions.it.test.ts`, `commands.it.test.ts`, `turn-detach.it.test.ts`, `turn-end.it.test.ts`, `turn-error-flood.it.test.ts`, `create-testkit.it.test.ts`, `extension-server-surfaces.it.test.ts`, `cors.it.test.ts` (probes deleted `/api/chat/models` — probe `/rpc` instead) — rewrite each against the rpc surface where the behavior still exists, delete where the test only exercised a deleted route.
+- [x] **Step 4: Gates.** `pnpm typecheck && pnpm build && pnpm test` green (widget tests are gone with the package); `pnpm exec fallow audit --changed-since main` — the sweep will surface newly-dead exports (unstorage memory driver, session-id header helpers, SSE utilities); delete what fallow flags INTRODUCED-dead, verifying each with `--trace`.
+- [x] **Step 5: Commit** with pathspec covering the deleted trees + touched packages.
 
 The original extension-oRPC task body is preserved below for the future extensions phase, unchecked and inert.
 
@@ -1947,22 +1947,22 @@ git commit -m "feat(core,extension): extensions contribute oRPC routers at /rpc/
 
 - No new files; whole-repo verification.
 
-- [ ] **Step 1: No placeholder handlers remain**
+- [x] **Step 1: No placeholder handlers remain**
 
 Run: `grep -n 'implemented in task' packages/core/src/rpc/router.ts`
 Expected: no output. Any hit means a task above was skipped — go back.
 
-- [ ] **Step 2: Whole-project gates**
+- [x] **Step 2: Whole-project gates**
 
 Run: `pnpm typecheck && pnpm build && pnpm test`
 Expected: exit 0 — including every pre-existing widget/core/extension test (old REST surface untouched). KNOWN pre-existing failure on this machine (fails identically on main, live-LLM environmental): `packages/core/test/api/mcp/claude-image.it.test.ts` — does not gate this plan; everything else must be green.
 
-- [ ] **Step 3: Fallow audit**
+- [x] **Step 3: Fallow audit**
 
 Run: `pnpm exec fallow audit --changed-since main --format json`
 Expected: zero INTRODUCED findings. Dead-code hits on `createFsSessionStore`/unstorage remnants mean Task 2 Step 8's cleanup was incomplete — verify with `pnpm exec fallow dead-code --trace` before deleting.
 
-- [ ] **Step 4: Commit any gate fixes**
+- [x] **Step 4: Commit any gate fixes**
 
 ```bash
 git add -A packages/core packages/contract packages/extension

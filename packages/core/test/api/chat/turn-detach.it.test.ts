@@ -40,6 +40,14 @@ describe('detached turns (IT)', () => {
   const setupSlow = (releaseFile: string) => setup({CONCIV_FAKE_RELEASE_FILE: releaseFile})
   const setupHang = () => setup({CONCIV_FAKE_HANG: '1'})
 
+  async function startSlowTurn(text: string): Promise<{kit: Kit; id: string; releaseFile: string}> {
+    const releaseFile = join(tmp(), 'release')
+    const kit = await setupSlow(releaseFile)
+    const id = await kit.session()
+    await kit.rpc.chat.send({sessionId: id, text})
+    return {kit, id, releaseFile}
+  }
+
   it('rejects a resend while the prior turn is still generating even if its lock file is gone (stop-drain guard)', async () => {
     const kit = await setupHang()
     const id = await kit.session()
@@ -63,10 +71,7 @@ describe('detached turns (IT)', () => {
   })
 
   it('a mid-run attach replays from RUN_STARTED and continues live', async () => {
-    const releaseFile = join(tmp(), 'release')
-    const kit = await setupSlow(releaseFile)
-    const id = await kit.session()
-    await kit.rpc.chat.send({sessionId: id, text: 'hi'})
+    const {kit, id, releaseFile} = await startSlowTurn('hi')
     const early = await kit.attach(id)
     const snapshot = await waitForSnapshot(early)
     expect(snapshot).toContain('"generating":true')
@@ -82,10 +87,7 @@ describe('detached turns (IT)', () => {
   })
 
   it('a dropped and re-opened attach sees the complete turn (reload simulation)', async () => {
-    const releaseFile = join(tmp(), 'release')
-    const kit = await setupSlow(releaseFile)
-    const id = await kit.session()
-    await kit.rpc.chat.send({sessionId: id, text: 'rebuild the page'})
+    const {kit, id, releaseFile} = await startSlowTurn('rebuild the page')
     const drop = new AbortController()
     const before = await kit.attach(id, {signal: drop.signal})
     const snapshot = await waitForSnapshot(before)
@@ -115,10 +117,7 @@ describe('detached turns (IT)', () => {
   })
 
   it('attach during a running turn returns a snapshot with the user text, not 500', async () => {
-    const releaseFile = join(tmp(), 'release')
-    const kit = await setupSlow(releaseFile)
-    const id = await kit.session()
-    await kit.rpc.chat.send({sessionId: id, text: 'summarize this'})
+    const {kit, id, releaseFile} = await startSlowTurn('summarize this')
     const early = await kit.attach(id)
     const snapshot = await waitForSnapshot(early)
     expect(snapshot).toContain('"generating":true')

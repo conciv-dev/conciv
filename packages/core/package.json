@@ -79,7 +79,6 @@
     "@conciv/harness-testkit": "workspace:^",
     "@hono/node-server": "^2.0.8",
     "@jridgewell/gen-mapping": "^0.3.13",
-    "@orpc/client": "^1.14.7",
     "@tanstack/ai-mcp": "^0.2.3",
     "@types/node": "^22.19.21",
     "@types/ws": "^8.18.1",
