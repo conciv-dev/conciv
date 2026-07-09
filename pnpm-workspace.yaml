@@ -7,9 +7,6 @@ packages:
 # Force patched protobufjs (GHSA-wcpc-wj8m-hjx6 prototype pollution); pulled in transitively
 # via jazz-tools OpenTelemetry in the whiteboard extension.
 overrides:
-  # @tanstack/trailbase-db-collection declares trailbase ^0.10.0 but only uses its TYPES (no
-  # runtime import); unify on our patched 0.13.0 so RecordApi is one nominal type everywhere.
-  trailbase: 0.13.0
   protobufjs@<8.4.1: '>=8.4.1'
   # lodash-es _.template code injection (GHSA-r5fr-rjxr-66jc); npm never shipped 4.17.24, the
   # patched line is 4.18.x. Pulled in transitively via @excalidraw in the whiteboard extension.
@@ -82,5 +79,3 @@ minimumReleaseAgeExclude:
   - '@garden-co/jazz-napi-darwin-x64'
   - '@garden-co/jazz-napi-linux-x64-gnu'
   - '@garden-co/jazz-napi-win32-x64-msvc'
-patchedDependencies:
-  trailbase@0.13.0: patches/trailbase@0.13.0.patch
