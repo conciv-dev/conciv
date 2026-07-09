@@ -24,6 +24,8 @@ export async function buildHost(clientEntry: string): Promise<string> {
     root: hostDir,
     configFile: false,
     logLevel: 'silent',
+    mode: 'production',
+    define: {'import.meta.env.DEV': 'false', 'import.meta.env.PROD': 'true'},
     plugins: [concivBuildPlugin(NO_BUILTINS), extensionUnderTestPlugin(clientEntry), solid()],
     build: {outDir, emptyOutDir: true, rollupOptions: {input: join(hostDir, 'index.html')}},
   })

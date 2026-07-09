@@ -20,14 +20,15 @@ export async function startStatePlane(opts: {
   cacheDir?: string
   now?: () => number
   extensionTables?: ExtensionTableSpec[]
+  allowedOrigins?: string[]
 }): Promise<StatePlane> {
   const binary = await ensureTrailBinary({cacheDir: opts.cacheDir ?? join(homedir(), '.cache/conciv/trailbase')})
   const server = await startTrailBase({
     binary,
     dataDir: opts.dataDir,
     port: opts.port,
-    dev: true,
     extensionTables: opts.extensionTables,
+    allowedOrigins: opts.allowedOrigins,
   })
   return {
     url: server.url,

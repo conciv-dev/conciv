@@ -1,4 +1,5 @@
 import type {Page} from 'playwright'
+import getPort from 'get-port'
 import type {AnyExtension} from '@conciv/extension'
 import {bootExtensionServer} from './boot-server.js'
 import {makeCallTool, resolveSession, type CallTool} from '@conciv/harness-testkit'
@@ -25,10 +26,14 @@ export type ExtensionTestApi = {
 }
 
 export async function getExtensionTestApi(extension: ExtensionUnderTest): Promise<ExtensionTestApi> {
-  const {apiBase, stateBase, extensionContexts, stop} = await bootExtensionServer(extension.server)
+  const hostPort = await getPort()
+  const hostOrigin = `http://127.0.0.1:${hostPort}`
+  const {apiBase, stateBase, extensionContexts, stop} = await bootExtensionServer(extension.server, {
+    allowedOrigins: [hostOrigin],
+  })
   const session = await resolveSession(apiBase)
   const outDir = await buildHost(extension.clientEntry)
-  const host = await serveDir(outDir, {apiBase, session, stateBase})
+  const host = await serveDir(outDir, {apiBase, session, stateBase, port: hostPort})
   const {page, context, close} = await launch(host.origin)
   return {
     page,

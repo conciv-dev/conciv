@@ -63,7 +63,12 @@ export async function start(opts: StartOpts): Promise<Engine> {
   const extensionTables = (opts.extensions ?? []).flatMap((extension) =>
     (extension.tables ?? []).map((table) => ({extension: extension.name, name: table.name, columns: table.columns})),
   )
-  const plane = await startStatePlane({dataDir: paths.trailDir, port: await getPort(), extensionTables})
+  const plane = await startStatePlane({
+    dataDir: paths.trailDir,
+    port: await getPort(),
+    extensionTables,
+    allowedOrigins: opts.allowedOrigins,
+  })
   try {
     const appOpts: MakeAppOpts = {
       cfg,

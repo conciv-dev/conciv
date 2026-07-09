@@ -16,4 +16,17 @@ describe('trailbase lifecycle', () => {
     expect(await response.json()).toEqual({total_count: 0, records: []})
     await server.stop()
   }, 120000)
+
+  it('limits cors to the allowed origins when given', async () => {
+    const binary = await ensureTrailBinary({cacheDir: join(homedir(), '.cache/conciv/trailbase')})
+    const dataDir = mkdtempSync(join(tmpdir(), 'traildepot-cors-'))
+    const port = await getPort()
+    const allowed = 'http://127.0.0.1:4242'
+    const server = await startTrailBase({binary, dataDir, port, allowedOrigins: [allowed]})
+    const good = await fetch(`${server.url}/api/healthcheck`, {headers: {origin: allowed}})
+    const evil = await fetch(`${server.url}/api/healthcheck`, {headers: {origin: 'http://evil.example'}})
+    expect(good.headers.get('access-control-allow-origin')).toBe(allowed)
+    expect(evil.headers.get('access-control-allow-origin')).toBeNull()
+    await server.stop()
+  }, 120000)
 })

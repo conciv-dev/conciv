@@ -19,9 +19,9 @@ export type ServedHost = {origin: string; close: () => Promise<void>}
 
 export async function serveDir(
   dir: string,
-  config: {apiBase: string; session: string; stateBase: string},
+  config: {apiBase: string; session: string; stateBase: string; port?: number},
 ): Promise<ServedHost> {
-  const port = await getPort()
+  const port = config.port ?? (await getPort())
   const server = createServer((req, res) => {
     const path = (req.url ?? '/').split('?')[0] ?? '/'
     const rel =

@@ -21,10 +21,20 @@ export async function startTrailBase(opts: {
   port: number
   dev?: boolean
   extensionTables?: ExtensionTableSpec[]
+  allowedOrigins?: string[]
 }): Promise<{port: number; url: string; stop(): Promise<void>}> {
   prepareDepot({dataDir: opts.dataDir, extensionTables: opts.extensionTables})
   const url = `http://127.0.0.1:${opts.port}`
-  const args = ['--data-dir', opts.dataDir, 'run', '-a', `127.0.0.1:${opts.port}`, ...(opts.dev ? ['--dev'] : [])]
+  const corsArgs = (opts.allowedOrigins ?? []).flatMap((origin) => ['--cors-allowed-origins', origin])
+  const args = [
+    '--data-dir',
+    opts.dataDir,
+    'run',
+    '-a',
+    `127.0.0.1:${opts.port}`,
+    ...(opts.dev ? ['--dev'] : []),
+    ...corsArgs,
+  ]
   const child = spawn(opts.binary, args, {stdio: ['ignore', 'ignore', 'pipe']})
   const stderr: string[] = []
   child.stderr.on('data', (chunk: Buffer) => {

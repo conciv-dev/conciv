@@ -11,13 +11,17 @@ export type BootedServer = {
   stop: () => Promise<void>
 }
 
-export async function bootExtensionServer(extension: AnyExtension): Promise<BootedServer> {
+export async function bootExtensionServer(
+  extension: AnyExtension,
+  opts: {allowedOrigins?: string[]} = {},
+): Promise<BootedServer> {
   const root = await mkdtemp(join(tmpdir(), 'conciv-testkit-'))
   const engine = await start({
     options: {stateRoot: root, systemPrompt: false},
     root,
     extensions: [extension],
     launchEditor: () => {},
+    allowedOrigins: opts.allowedOrigins,
   })
   return {
     apiBase: `http://127.0.0.1:${engine.port}`,
