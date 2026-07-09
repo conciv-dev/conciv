@@ -61,8 +61,11 @@ Client data layer is the official oRPC TanStack Query integration (Solid is supp
 
 **Chat plane stays native TanStack AI.** The transport is an oRPC event iterator, but the payload
 is TanStack AI's own `StreamChunk` stream and the client is `useChat` fed by a ~15-line connection
-adapter bridging the typed iterator. Messages are never re-modeled as rows; approvals stay derived
-from message parts; TanStack AI remains conciv's AI feature parity.
+adapter bridging the typed iterator. Server side is oRPC's documented AI-streaming pattern
+(`async function*` handler that `yield*`s an existing async iterable — see the openai-streaming
+example): `chat.attach` is essentially `yield snapshot; yield* hub.attach(...)`. Messages are never
+re-modeled as rows; approvals stay derived from message parts; TanStack AI remains conciv's AI
+feature parity.
 
 Extensions contribute their own oRPC routers (their existing `server(cfg)` hook), mounted under
 `/rpc/ext/<id>`; their client components consume a typed client for their router. This replaces
@@ -174,11 +177,12 @@ ui-kits → `page` + `embed` → rewire built-in extensions (terminal, test-runn
 `git rm -r packages/widget packages/api-client` in the same task.
 
 - Core ITs: real sqlite file, real oRPC client, event-iterator resume (kill and re-attach
-  mid-turn).
+  mid-turn). Procedure-level tests use oRPC's `call()` for direct invocation, no HTTP.
+- `extension-testkit` fake host: `implement(contract)` mock handlers — contract-typed test doubles
+  instead of a hand-built fake server.
 - Drizzle↔zod pins: `expectTypeOf` type tests in the contract package.
 - Widget ITs move to `embed`: real browser against the prebuilt bundle, `browser.newPage()`,
   `domcontentloaded` (never `networkidle`).
-- `extension-testkit` provides a fake host (typed oRPC client against an in-memory handler).
 - Gates: `pnpm typecheck && pnpm build && pnpm test`, `fallow audit --changed-since main` clean of
   INTRODUCED findings.
 
