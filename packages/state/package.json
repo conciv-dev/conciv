@@ -1,0 +1,62 @@
+{
+  "name": "@conciv/state",
+  "version": "0.0.7",
+  "description": "conciv domain-state plane: TrailBase schema and lifecycle, TanStack DB collection factories, and Solid hooks shared by core, surface, and extensions.",
+  "homepage": "https://conciv.dev",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/state"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "import": "./dist/server/index.js"
+    },
+    "./solid": {
+      "types": "./dist/solid/index.d.ts",
+      "import": "./dist/solid/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run --passWithNoTests",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only"
+  },
+  "dependencies": {
+    "@conciv/errors": "workspace:*",
+    "@conciv/protocol": "workspace:*",
+    "@tanstack/db": "0.6.14",
+    "@tanstack/solid-db": "^0.2.28",
+    "@tanstack/trailbase-db-collection": "^0.1.92",
+    "trailbase": "^0.13.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.21",
+    "get-port": "^7.2.0",
+    "solid-js": "^1.9.13",
+    "tsdown": "^0.22.2",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.9.0"
+  }
+}

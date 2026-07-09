@@ -453,6 +453,18 @@ importers:
         specifier: ^8.21.0
         version: 8.21.0
 
+  packages/errors:
+    devDependencies:
+      tsdown:
+        specifier: ^0.22.2
+        version: 0.22.2(@arethetypeswrong/core@0.18.3)(oxc-resolver@11.20.0)(publint@0.3.21)(tsx@4.22.4)(typescript@6.0.3)
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.8
+        version: 4.1.9(@opentelemetry/api@1.9.1)(@types/node@22.20.0)(@vitest/browser-playwright@4.1.9)(@vitest/coverage-v8@4.1.8)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+
   packages/extension:
     dependencies:
       '@conciv/grab':
@@ -1220,6 +1232,49 @@ importers:
       vite-plugin-solid:
         specifier: ^2.11.12
         version: 2.11.12(@testing-library/jest-dom@6.9.1)(solid-js@1.9.14)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+      vitest:
+        specifier: ^4.1.8
+        version: 4.1.9(@opentelemetry/api@1.9.1)(@types/node@22.20.0)(@vitest/browser-playwright@4.1.9)(@vitest/coverage-v8@4.1.8)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+
+  packages/state:
+    dependencies:
+      '@conciv/errors':
+        specifier: workspace:*
+        version: link:../errors
+      '@conciv/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@tanstack/db':
+        specifier: 0.6.14
+        version: 0.6.14(typescript@6.0.3)
+      '@tanstack/solid-db':
+        specifier: ^0.2.28
+        version: 0.2.28(solid-js@1.9.14)(typescript@6.0.3)
+      '@tanstack/trailbase-db-collection':
+        specifier: ^0.1.92
+        version: 0.1.92(typescript@6.0.3)
+      trailbase:
+        specifier: ^0.13.0
+        version: 0.13.0
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: ^22.19.21
+        version: 22.20.0
+      get-port:
+        specifier: ^7.2.0
+        version: 7.2.0
+      solid-js:
+        specifier: ^1.9.13
+        version: 1.9.14
+      tsdown:
+        specifier: ^0.22.2
+        version: 0.22.2(@arethetypeswrong/core@0.18.3)(oxc-resolver@11.20.0)(publint@0.3.21)(tsx@4.22.4)(typescript@6.0.3)
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
       vitest:
         specifier: ^4.1.8
         version: 4.1.9(@opentelemetry/api@1.9.1)(@types/node@22.20.0)(@vitest/browser-playwright@4.1.9)(@vitest/coverage-v8@4.1.8)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
@@ -6370,6 +6425,11 @@ packages:
   '@tanstack/store@0.9.3':
     resolution: {integrity: sha512-8reSzl/qGWGGVKhBoxXPMWzATSbZLZFWhwBAFO9NAyp0TxzfBP0mIrGb8CP8KrQTmvzXlR/vFPPUrHTLBGyFyw==}
 
+  '@tanstack/trailbase-db-collection@0.1.92':
+    resolution: {integrity: sha512-layhKuaORvVkDGLGDcNGDERLKSRp2GySLt0s2e5lmC3/aV5WjuCSJZAn3hKFGF32PRm6hfKkR4M7d2ZGxO2seQ==}
+    peerDependencies:
+      typescript: '>=4.7'
+
   '@tanstack/virtual-core@3.17.1':
     resolution: {integrity: sha512-VZyW2Uiml5tmBZwPGrSD3Sz73OxzljQMCmzYHsUTPEuTsERf5xwa+uWb01xEzkz3ZSYTjj8NEb/mKHvgKxyZdA==}
 
@@ -6714,6 +6774,9 @@ packages:
     resolution: {integrity: sha512-PJFXFS4ZJKiJ9Qiuix6Dz/OwEIqHD7Dme1UwZhTK11vR+5dqW2ACbdndWQexBzCx+CPuMe5WBYQWCsFyGlQLlQ==}
     peerDependencies:
       typescript: '*'
+
+  '@ungap/raw-json@0.4.4':
+    resolution: {integrity: sha512-mUDobz3DeEItDmI34Hg+eL9hTTJSZbIvsvGAr42YoK4IyS7SWKmF5Xa0pI8RWFZSijL8QmfvCNH3s8HYJNxKaw==}
 
   '@ungap/structured-clone@1.3.1':
     resolution: {integrity: sha512-mUFwbeTqrVgDQxFveS+df2yfap6iuP20NAKAsBt5jDEoOTDew+zwLAOilHCeQJOVSvmgCX4ogqIrA0mnyr08yQ==}
@@ -9003,6 +9066,10 @@ packages:
     resolution: {integrity: sha512-3hN7NaskYvMDLQY55gnW3NQ+mesEAepTqlg+VEbj7zzqEMBVNhzcGYYeqFo/TlYz6eQiFcp1HcsCZO+nGgS8zg==}
     engines: {node: '>=6.9.0'}
 
+  geojson@0.5.0:
+    resolution: {integrity: sha512-/Bx5lEn+qRF4TfQ5aLu6NH+UKtvIv7Lhc487y/c8BdludrCTpiWf9wyI0RTyqg49MFefIAvFDuEi5Dfd/zgNxQ==}
+    engines: {node: '>= 0.10'}
+
   get-caller-file@2.0.5:
     resolution: {integrity: sha512-DyFP3BM/3YHTQOCUL/w0OZHR0lpKeGrxotcHWcqNEdnltqFwXVfhEBQ94eIo34AfQpo0rGki4cyIiftY06h2Fg==}
     engines: {node: 6.* || 8.* || >= 10.*}
@@ -9681,6 +9748,10 @@ packages:
   jsx-ast-utils@3.3.5:
     resolution: {integrity: sha512-ZZow9HBI5O6EPgSJLUb8n2NKgmVWTwCvHGwFuJlMjvLFqlGG6pjirPhtdsseaLZjSibD8eegzmYpUZwoIlj2cQ==}
     engines: {node: '>=4.0'}
+
+  jwt-decode@4.0.0:
+    resolution: {integrity: sha512-+KJGIyHgkGuIq3IEBNftfhW/LfWhXUIY6OmyVWjliu5KH1y0fw7VQ8YndE2O4qZdMSd9SqbnC8GOcZEy0Om7sA==}
+    engines: {node: '>=18'}
 
   katex@0.16.47:
     resolution: {integrity: sha512-Eeo8Ys1doU1z+x8AZsPpQu+p/QcZBI5PeOo7QGQdy2x2m0MU/hYagBbGOmXwr5KVbEfVuWv9LpnQWeehogurjg==}
@@ -11596,6 +11667,12 @@ packages:
   tr46@0.0.3:
     resolution: {integrity: sha512-N3WMsuqV66lT30CrXNbEjx4GEwlow3v6rr4mCcv6prnfwhS01rkgyFdjPNBYd9br7LpXV1+Emh01fHnq2Gdgrw==}
 
+  trailbase@0.10.0:
+    resolution: {integrity: sha512-IGIofZQWU3RRUZVXIAztWQ1vBabtbcuFFLZhTLj5gtZOIR2ml/levQgKaWNE+RhcDsFE/pD1gf+tfHVfrC9NGw==}
+
+  trailbase@0.13.0:
+    resolution: {integrity: sha512-lpEhXbsOHqgnd1sa0Q8+GoiljzqpQ8nQ3sHA95PrmtAoio7Htiz3XNacLzU2Sg7LPNwdNmp0hMSBSVN4HpN4Bg==}
+
   tree-kill@1.2.2:
     resolution: {integrity: sha512-L0Orpi8qGpRG//Nd+H90vFB+3iHnue1zSSGmNOOCh1GLJ7rUKVwV2HvijphGQS2UmhUZewS9VgvxYIdgr+fG1A==}
     hasBin: true
@@ -12052,6 +12129,10 @@ packages:
 
   util-deprecate@1.0.2:
     resolution: {integrity: sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw==}
+
+  uuid@13.0.2:
+    resolution: {integrity: sha512-vzi9uRZ926x4XV73S/4qQaTwPXM2JBj6/6lI/byHH1jOpCzb0zDbfytgA9LcN/hzb2l7WQSQnxITOVx5un/wGw==}
+    hasBin: true
 
   uuid@14.0.1:
     resolution: {integrity: sha512-6ZxzVpzDXDa3bJWaHilVayA+BH/1zmxCJoVgvmqJnid/gPoKHxUrS/aC/T6LGQtNHT+XHG9fXPJB4d+IrU30Ew==}
@@ -16710,6 +16791,17 @@ snapshots:
 
   '@tanstack/store@0.9.3': {}
 
+  '@tanstack/trailbase-db-collection@0.1.92(typescript@6.0.3)':
+    dependencies:
+      '@standard-schema/spec': 1.1.0
+      '@tanstack/db': 0.6.14(typescript@6.0.3)
+      '@tanstack/store': 0.9.3
+      debug: 4.4.3
+      trailbase: 0.10.0
+      typescript: 6.0.3
+    transitivePeerDependencies:
+      - supports-color
+
   '@tanstack/virtual-core@3.17.1': {}
 
   '@tanstack/virtual-file-routes@1.162.0': {}
@@ -17161,6 +17253,8 @@ snapshots:
       typescript: 6.0.3
     transitivePeerDependencies:
       - supports-color
+
+  '@ungap/raw-json@0.4.4': {}
 
   '@ungap/structured-clone@1.3.1': {}
 
@@ -19989,6 +20083,8 @@ snapshots:
 
   gensync@1.0.0-beta.2: {}
 
+  geojson@0.5.0: {}
+
   get-caller-file@2.0.5: {}
 
   get-east-asian-width@1.6.0: {}
@@ -20693,6 +20789,8 @@ snapshots:
       array.prototype.flat: 1.3.3
       object.assign: 4.1.7
       object.values: 1.2.1
+
+  jwt-decode@4.0.0: {}
 
   katex@0.16.47:
     dependencies:
@@ -23310,6 +23408,22 @@ snapshots:
 
   tr46@0.0.3: {}
 
+  trailbase@0.10.0:
+    dependencies:
+      '@types/geojson': 7946.0.16
+      '@ungap/raw-json': 0.4.4
+      geojson: 0.5.0
+      jwt-decode: 4.0.0
+      uuid: 13.0.2
+
+  trailbase@0.13.0:
+    dependencies:
+      '@types/geojson': 7946.0.16
+      '@ungap/raw-json': 0.4.4
+      geojson: 0.5.0
+      jwt-decode: 4.0.0
+      uuid: 14.0.1
+
   tree-kill@1.2.2: {}
 
   trim-lines@3.0.1: {}
@@ -23693,6 +23807,8 @@ snapshots:
       react: 19.2.7
 
   util-deprecate@1.0.2: {}
+
+  uuid@13.0.2: {}
 
   uuid@14.0.1: {}
 
