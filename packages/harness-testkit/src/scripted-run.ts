@@ -33,7 +33,7 @@ export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
     const toolCall = queuedToolCalls.shift()
     if (toolCall) {
       const toolCallId = `tc-${deps.sessionId}`
-      yield {type: EventType.TOOL_CALL_START, toolCallId, toolCallName: toolCall.name}
+      yield {type: EventType.TOOL_CALL_START, toolCallId, toolCallName: toolCall.name, toolName: toolCall.name}
       yield {type: EventType.TOOL_CALL_ARGS, toolCallId, delta: JSON.stringify(toolCall.input)}
       yield {type: EventType.TOOL_CALL_END, toolCallId}
       yield {type: EventType.RUN_FINISHED, threadId: 'scripted', runId: 'scripted', finishReason: 'tool_calls'}
