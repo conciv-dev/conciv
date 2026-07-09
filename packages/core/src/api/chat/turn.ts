@@ -14,7 +14,7 @@ import {concivSandbox, withConcivGate, withConcivSandbox} from './sandbox.js'
 import {tapSessionId} from './stream-effects.js'
 import {toChatMessages, toPendingUserMessage} from './messages.js'
 import {sessionIdFromHeaders} from './session-id.js'
-import {harnessDebug} from '../../runtime/harness-logger.js'
+import {harnessDebug, logError} from '../../runtime/harness-logger.js'
 
 export const resumeTokenFor = async (store: SessionStore, id: string): Promise<string | null> =>
   (await store.get(id))?.harnessSessionId ?? null
@@ -135,7 +135,12 @@ async function startTurn(deps: TurnDeps, sessionId: string, chatReq: ChatRequest
   const pendingUserMessage = lastUserMessage ? toPendingUserMessage(lastUserMessage) : null
   const modelId = requestedModel ?? deps.harness.defaultModel ?? null
   void deps.hub
-    .start(sessionId, pendingUserMessage, withLockRelease(merged, deps, sessionId, modelId, abort), () => abort.abort())
+    .start(
+      sessionId,
+      pendingUserMessage,
+      withLockRelease(merged, deps, sessionId, modelId, abort, turnKindFor(chatReq)),
+      () => abort.abort(),
+    )
     .catch(() => {})
 }
 
@@ -159,11 +164,13 @@ const app = new Hono<ChatEnv>()
     try {
       deps.onTurnStart?.(sessionId)
       await ensureChatRecord(deps.store, sessionId, deps.harness.id, deps.cwd)
+      await deps.store.setStatus(sessionId, turnKindFor(c.req.valid('json')) === 'compact' ? 'compacting' : 'thinking')
       await startTurn(deps, sessionId, c.req.valid('json'))
       const payload: Ok = {ok: true}
       return c.json(payload)
     } catch (e) {
       releaseLock(deps.stateRoot, sessionId)
+      await deps.store.setStatus(sessionId, 'idle').catch((error) => logError(`[core] status reset failed: ${String(error)}`))
       throw e
     }
   })
@@ -207,12 +214,20 @@ function mapTurnChunk(
   return {chunk: mapped, usage}
 }
 
+const STREAM_STARTERS = new Set<string>([
+  EventType.TEXT_MESSAGE_CONTENT,
+  EventType.TEXT_MESSAGE_CHUNK,
+  EventType.TOOL_CALL_START,
+  EventType.TOOL_CALL_CHUNK,
+])
+
 function lockReleaser(deps: TurnDeps, sessionId: string): () => void {
   const lock = {held: true}
   return () => {
     if (!lock.held) return
     lock.held = false
     releaseLock(deps.stateRoot, sessionId)
+    void deps.store.setStatus(sessionId, 'idle').catch((error) => logError(`[core] status reset failed: ${String(error)}`))
   }
 }
 
@@ -222,13 +237,19 @@ async function* withLockRelease(
   sessionId: string,
   modelId: string | null,
   abort: AbortController,
+  turnKind: 'chat' | 'compact',
 ): AsyncGenerator<StreamChunk> {
   const release = lockReleaser(deps, sessionId)
   try {
     let finished = false
+    let streamed = false
     for await (const raw of src) {
       const {chunk, usage} = mapTurnChunk(raw, deps, sessionId, modelId, abort.signal.aborted)
       finished = finished || chunk.type === EventType.RUN_FINISHED
+      if (!streamed && turnKind !== 'compact' && STREAM_STARTERS.has(chunk.type)) {
+        streamed = true
+        void deps.store.setStatus(sessionId, 'streaming').catch((error) => logError(`[core] status flip failed: ${String(error)}`))
+      }
       if (usage) {
         yield aguiUsageFor(usage)
         await deps.store.update(sessionId, {usage})
