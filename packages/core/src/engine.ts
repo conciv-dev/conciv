@@ -60,7 +60,10 @@ export async function start(opts: StartOpts): Promise<Engine> {
     return sessionId ? {...baseEnv, CONCIV_SESSION_ID: sessionId} : baseEnv
   }
 
-  const plane = await startStatePlane({dataDir: paths.trailDir, port: await getPort()})
+  const extensionTables = (opts.extensions ?? []).flatMap((extension) =>
+    (extension.tables ?? []).map((table) => ({extension: extension.name, name: table.name, columns: table.columns})),
+  )
+  const plane = await startStatePlane({dataDir: paths.trailDir, port: await getPort(), extensionTables})
   try {
     const appOpts: MakeAppOpts = {
       cfg,
