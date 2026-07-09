@@ -55,11 +55,11 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@conciv/db": "workspace:^",
     "@conciv/errors": "workspace:^",
     "@conciv/harness": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/serve": "workspace:^",
-    "@conciv/state": "workspace:^",
     "@conciv/tools": "workspace:^",
     "@hono/zod-validator": "^0.8.0",
     "@jridgewell/trace-mapping": "0.3.31",

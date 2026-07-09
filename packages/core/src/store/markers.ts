@@ -1,4 +1,4 @@
-import type {RecordsClient} from '@conciv/state/server'
+import type {RecordsClient} from '@conciv/db/server'
 import type {MarkerWriter} from '../api/chat/chat-env.js'
 
 export function markerWriter(records: RecordsClient): MarkerWriter {

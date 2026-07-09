@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest'
 import {z} from 'zod'
 import {CONCIV_SESSION_HEADER, ResolveResponseSchema} from '@conciv/protocol/chat-types'
-import {SessionRowSchema, type SessionRow} from '@conciv/state'
+import {SessionRowSchema, type SessionRow} from '@conciv/db'
 import {startTestEngine} from '../../helpers/state-plane.js'
 import type {Engine} from '../../../src/engine.js'
 

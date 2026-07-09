@@ -1,1 +1,1 @@
-export type {SessionStore} from '@conciv/state/server'
+export type {SessionStore} from '@conciv/db/server'

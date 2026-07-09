@@ -4,11 +4,11 @@
 
 **Goal:** Rewrite the extension contract around one doorway — `useHost()`/`useSlot()` hooks over a `HostApi` of four planes (state, chat, ui, page) — plus a capability-typed manifest that can declare `ext_<id>_*` TrailBase tables, registered into core's state plane at boot.
 
-**Architecture:** The v2 contract is ADDITIVE in this plan: new `HostProvider`/`useHost`/`useSlot` from `@conciv/extension/client` and new manifest fields (`tables`, `composerActions`, `controls`) land alongside the v1 `ExtensionHostContext`/`mountExtension` world, which `packages/widget` still consumes. Plan 3 (`@conciv/surface`) builds the real host on v2; Plan 4 rewires the built-in extensions and deletes v1 together with the widget. Extension tables ride Plan 1's state plane: `@conciv/state` generates their migrations + record APIs, core's engine collects declarations from manifests and passes them to `startStatePlane`. `@conciv/extension-testkit` gains a fake host implementing the hook API against the real engine-spawned TrailBase.
+**Architecture:** The v2 contract is ADDITIVE in this plan: new `HostProvider`/`useHost`/`useSlot` from `@conciv/extension/client` and new manifest fields (`tables`, `composerActions`, `controls`) land alongside the v1 `ExtensionHostContext`/`mountExtension` world, which `packages/widget` still consumes. Plan 3 (`@conciv/surface`) builds the real host on v2; Plan 4 rewires the built-in extensions and deletes v1 together with the widget. Extension tables ride Plan 1's state plane: `@conciv/db` generates their migrations + record APIs, core's engine collects declarations from manifests and passes them to `startStatePlane`. `@conciv/extension-testkit` gains a fake host implementing the hook API against the real engine-spawned TrailBase.
 
-**Spec:** `docs/superpowers/specs/2026-07-09-widget-rewrite-design.md` (sections "Host access: hooks only", "Composition, not registration", "Testing and rollout"). Depends on Plan 1 (landed: PR #49) — `@conciv/state`, `startStatePlane`, `Engine.statePort`.
+**Spec:** `docs/superpowers/specs/2026-07-09-widget-rewrite-design.md` (sections "Host access: hooks only", "Composition, not registration", "Testing and rollout"). Depends on Plan 1 (landed: PR #49) — `@conciv/db`, `startStatePlane`, `Engine.statePort`.
 
-**Tech Stack:** Solid context (no JSX in `@conciv/extension` — `createComponent`, same rule as `@conciv/state/solid`), TanStack DB `Collection` types, `@conciv/state` collection factories, `@conciv/errors` for every throw, TrailBase v0.30.0 (already pinned).
+**Tech Stack:** Solid context (no JSX in `@conciv/extension` — `createComponent`, same rule as `@conciv/db/solid`), TanStack DB `Collection` types, `@conciv/db` collection factories, `@conciv/errors` for every throw, TrailBase v0.30.0 (already pinned).
 
 ## Global Constraints
 
@@ -16,30 +16,30 @@
 - oxfmt style: no semicolons, single quotes, no bracket spacing, trailing commas, printWidth 120.
 - Every throw in code this plan touches goes through `@conciv/errors` (`makeError` for new errors, `decorateError` to brand a caught one; package wrappers like `stateError` sit on top) — a bare `new Error` is a defect. New client-facing codes are added to the central `UserCode` union in `packages/errors/src/user-codes.ts`. Exception: test files and test helpers may throw bare `Error` (existing repo practice).
 - `@tanstack/db` must be pinned EXACT `"0.6.14"` wherever added (no caret — two copies break `Collection` assignability; verified in Plan 1).
-- No new npm dependency beyond those named here: `@conciv/extension` gains `@conciv/state` (workspace), `@conciv/errors` (workspace), `@tanstack/db` (exact 0.6.14). Nothing else.
+- No new npm dependency beyond those named here: `@conciv/extension` gains `@conciv/db` (workspace), `@conciv/errors` (workspace), `@tanstack/db` (exact 0.6.14). Nothing else.
 - v1 contract (`ExtensionHostContext`, `mountExtension`, `ClientApi`, `getExtensionApi`) is NOT modified or deleted — `packages/widget` and the three built-in extensions must keep compiling and passing untouched. Plan 4 deletes v1.
 - No stubs/mocks for state: integration tests run the real downloaded TrailBase binary (Plan 1 harness). The testkit fake host's chat plane is a RECORDING implementation (spec-sanctioned "fake host implementing the hook API") — it records calls observably in the DOM; everything else in the fake host is real (real state plane, real Ark dialog/popover, real grab).
 - Commit after every task with pathspecs (`git commit -- <paths>`). Known prek `next-index-*.lock.lock` race: recover with `pnpm exec oxfmt --write <files>` then `git commit --no-verify`.
-- Build via turbo. `pnpm --filter @conciv/state exec vitest run <file>` style for single-file runs.
+- Build via turbo. `pnpm --filter @conciv/db exec vitest run <file>` style for single-file runs.
 - Deviation rule: if a TrailBase/TanStack behavior contradicts a note here, the integration test is the arbiter — fix the constant/impl, keep the assertion meaning, note the deviation in the final summary.
 
 ---
 
-### Task 1: `@conciv/state` — extension tables + uuidv7 ids + table-factory
+### Task 1: `@conciv/db` — extension tables + uuidv7 ids + table-factory
 
 **Files:**
 
-- Create: `packages/state/src/server/extension-tables.ts`
-- Create: `packages/state/src/server/extension-tables.test.ts`
-- Create: `packages/state/src/uuid.ts`
-- Create: `packages/state/src/uuid.test.ts`
-- Create: `packages/state/src/server/extension-tables.it.test.ts`
+- Create: `packages/db/src/server/extension-tables.ts`
+- Create: `packages/db/src/server/extension-tables.test.ts`
+- Create: `packages/db/src/uuid.ts`
+- Create: `packages/db/src/uuid.test.ts`
+- Create: `packages/db/src/server/extension-tables.it.test.ts`
 - Modify: `packages/errors/src/user-codes.ts` (add `'state.invalid-table'` to `UserCode` + `USER_MESSAGES`)
-- Modify: `packages/state/src/errors.ts` (add `invalid-table` to `StateErrorCode` + `USER_CODES`)
-- Modify: `packages/state/src/server/depot.ts` (`prepareDepot` gains `extensionTables`, export `recordApiConfig`)
-- Modify: `packages/state/src/server/plane.ts` (`startStatePlane` gains `extensionTables`)
-- Modify: `packages/state/src/collections.ts` (add `extensionTableCollection`, `makeTableFactory`)
-- Modify: `packages/state/src/server/index.ts`, `packages/state/src/index.ts` (exports)
+- Modify: `packages/db/src/errors.ts` (add `invalid-table` to `StateErrorCode` + `USER_CODES`)
+- Modify: `packages/db/src/server/depot.ts` (`prepareDepot` gains `extensionTables`, export `recordApiConfig`)
+- Modify: `packages/db/src/server/plane.ts` (`startStatePlane` gains `extensionTables`)
+- Modify: `packages/db/src/collections.ts` (add `extensionTableCollection`, `makeTableFactory`)
+- Modify: `packages/db/src/server/index.ts`, `packages/db/src/index.ts` (exports)
 
 **Interfaces:**
 
@@ -55,7 +55,7 @@
 
 - [ ] **Step 1: Failing unit tests**
 
-`packages/state/src/server/extension-tables.test.ts`:
+`packages/db/src/server/extension-tables.test.ts`:
 
 ```ts
 import {describe, expect, it} from 'vitest'
@@ -106,7 +106,7 @@ describe('extension tables', () => {
 })
 ```
 
-`packages/state/src/uuid.test.ts`:
+`packages/db/src/uuid.test.ts`:
 
 ```ts
 import {describe, expect, it} from 'vitest'
@@ -132,13 +132,13 @@ describe('uuidv7Base64', () => {
 
 - [ ] **Step 2: Run both, expect FAIL** (`./extension-tables.js` / `./uuid.js` not found)
 
-Run: `pnpm --filter @conciv/state exec vitest run src/server/extension-tables.test.ts src/uuid.test.ts`
+Run: `pnpm --filter @conciv/db exec vitest run src/server/extension-tables.test.ts src/uuid.test.ts`
 
 - [ ] **Step 3: Implement**
 
-Add to `packages/errors/src/user-codes.ts` — extend `UserCode` with `'state.invalid-table'` and `USER_MESSAGES` with `'state.invalid-table': 'extension declared an invalid table'`. Add to `packages/state/src/errors.ts` — extend `StateErrorCode` with `'invalid-table'` and `USER_CODES` with `'invalid-table': 'state.invalid-table'`.
+Add to `packages/errors/src/user-codes.ts` — extend `UserCode` with `'state.invalid-table'` and `USER_MESSAGES` with `'state.invalid-table': 'extension declared an invalid table'`. Add to `packages/db/src/errors.ts` — extend `StateErrorCode` with `'invalid-table'` and `USER_CODES` with `'invalid-table': 'state.invalid-table'`.
 
-`packages/state/src/server/extension-tables.ts`:
+`packages/db/src/server/extension-tables.ts`:
 
 ```ts
 import {stateError} from '../errors.js'
@@ -146,13 +146,20 @@ import {stateError} from '../errors.js'
 export type ExtensionTableSpec = {extension: string; name: string; columns: string}
 
 function slug(text: string): string {
-  return text.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
 }
 
 function assertIdentifier(kind: string, raw: string): string {
   const slugged = slug(raw)
   if (!/^[a-z][a-z0-9_]*$/.test(slugged)) {
-    throw stateError('invalid-table', `extension table ${kind} ${JSON.stringify(raw)} slugs to ${JSON.stringify(slugged)}`, {kind, raw, slugged})
+    throw stateError(
+      'invalid-table',
+      `extension table ${kind} ${JSON.stringify(raw)} slugs to ${JSON.stringify(slugged)}`,
+      {kind, raw, slugged},
+    )
   }
   return slugged
 }
@@ -188,7 +195,7 @@ export function extensionMigrationFilename(spec: ExtensionTableSpec): string {
 
 Why hash-versioned filenames: TrailBase applies migrations by numeric filename order and tracks them by filename, so the name must be stable across boots and INDEPENDENT of the order extensions appear in config (reordering must not rename an applied migration). `1790000000 + (hash % 1e8)` keeps every extension migration sorted after the conciv base `U1783545917` while staying deterministic per table. Collisions between two distinct tables are theoretically possible (1e8 space) — the engine IT registers two tables and would surface it; accepted for v0.
 
-`packages/state/src/uuid.ts`:
+`packages/db/src/uuid.ts`:
 
 ```ts
 export function uuidv7Base64(now: () => number = Date.now): string {
@@ -203,13 +210,15 @@ export function uuidv7Base64(now: () => number = Date.now): string {
   bytes[5] = ts & 0xff
   bytes[6] = ((bytes[6] ?? 0) & 0x0f) | 0x70
   bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80
-  return btoa(String.fromCharCode(...bytes)).replaceAll('+', '-').replaceAll('/', '_')
+  return btoa(String.fromCharCode(...bytes))
+    .replaceAll('+', '-')
+    .replaceAll('/', '_')
 }
 ```
 
 (Node >= 22 and browsers both have global `crypto.getRandomValues` and `btoa`. The `==` padding stays — TrailBase record ids observed in Plan 1 carry it: `AZ9DoWFmdZCnwINWnCVR_g==`.)
 
-`packages/state/src/server/depot.ts` changes — export the record-api snippet builder and thread extension tables through:
+`packages/db/src/server/depot.ts` changes — export the record-api snippet builder and thread extension tables through:
 
 ```ts
 export function recordApiConfig(name: string): string {
@@ -257,7 +266,7 @@ export function prepareDepot(opts: {dataDir: string; extensionTables?: Extension
 
 (The idempotence probe is ` name: "x"` with a leading space — `table_name: "x"` contains `name: "x"` as a substring; learned in Plan 1.)
 
-`packages/state/src/server/plane.ts` — add `extensionTables?: ExtensionTableSpec[]` to the opts type and pass it through: `startTrailBase` does NOT change; instead move the `prepareDepot` call: `startTrailBase` currently calls `prepareDepot({dataDir})` itself. Give `startTrailBase` an optional `extensionTables` opt and forward:
+`packages/db/src/server/plane.ts` — add `extensionTables?: ExtensionTableSpec[]` to the opts type and pass it through: `startTrailBase` does NOT change; instead move the `prepareDepot` call: `startTrailBase` currently calls `prepareDepot({dataDir})` itself. Give `startTrailBase` an optional `extensionTables` opt and forward:
 
 ```ts
 export async function startTrailBase(opts: {
@@ -291,15 +300,15 @@ export async function startStatePlane(opts: {
   ...
 ```
 
-`packages/state/src/collections.ts` — append:
+`packages/db/src/collections.ts` — append:
 
 ```ts
 import {extensionTableName} from './server/extension-tables.js'
 ```
 
-WAIT — `collections.ts` is browser-facing; `server/extension-tables.ts` imports `stateError` only (no node APIs), so the import is safe, but keep the dependency direction clean instead: move `extensionTableName`/`slug`/`assertIdentifier` into a NEW shared module `packages/state/src/table-names.ts` (no node imports), and have `server/extension-tables.ts` re-export it plus keep the sql/filename builders (which are also node-free but server-only in spirit). Concretely:
+WAIT — `collections.ts` is browser-facing; `server/extension-tables.ts` imports `stateError` only (no node APIs), so the import is safe, but keep the dependency direction clean instead: move `extensionTableName`/`slug`/`assertIdentifier` into a NEW shared module `packages/db/src/table-names.ts` (no node imports), and have `server/extension-tables.ts` re-export it plus keep the sql/filename builders (which are also node-free but server-only in spirit). Concretely:
 
-`packages/state/src/table-names.ts`:
+`packages/db/src/table-names.ts`:
 
 ```ts
 import {stateError} from './errors.js'
@@ -307,13 +316,20 @@ import {stateError} from './errors.js'
 export type ExtensionTableSpec = {extension: string; name: string; columns: string}
 
 function slug(text: string): string {
-  return text.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
 }
 
 function assertIdentifier(kind: string, raw: string): string {
   const slugged = slug(raw)
   if (!/^[a-z][a-z0-9_]*$/.test(slugged)) {
-    throw stateError('invalid-table', `extension table ${kind} ${JSON.stringify(raw)} slugs to ${JSON.stringify(slugged)}`, {kind, raw, slugged})
+    throw stateError(
+      'invalid-table',
+      `extension table ${kind} ${JSON.stringify(raw)} slugs to ${JSON.stringify(slugged)}`,
+      {kind, raw, slugged},
+    )
   }
   return slugged
 }
@@ -325,7 +341,7 @@ export function extensionTableName(spec: Pick<ExtensionTableSpec, 'extension' | 
 
 `server/extension-tables.ts` then contains only `extensionTableSql`, `extensionMigrationFilename`, re-exports `extensionTableName` and `type ExtensionTableSpec` from `../table-names.js`.
 
-`packages/state/src/collections.ts` — append:
+`packages/db/src/collections.ts` — append:
 
 ```ts
 import {extensionTableName} from './table-names.js'
@@ -361,16 +377,16 @@ export function makeTableFactory(client: StateClient, extension: string): (name:
 
 (The cache exists because `createCollection` with a duplicate `id` in one runtime is an error; every `table('x')` call must return the same instance.)
 
-Exports: add to `packages/state/src/index.ts`: `export {extensionTableName, type ExtensionTableSpec} from './table-names.js'` and `export {uuidv7Base64} from './uuid.js'` (collections re-exported via the existing `export * from './collections.js'`). Add to `packages/state/src/server/index.ts`: `export {extensionTableSql, extensionMigrationFilename, extensionTableName, type ExtensionTableSpec} from './extension-tables.js'`.
+Exports: add to `packages/db/src/index.ts`: `export {extensionTableName, type ExtensionTableSpec} from './table-names.js'` and `export {uuidv7Base64} from './uuid.js'` (collections re-exported via the existing `export * from './collections.js'`). Add to `packages/db/src/server/index.ts`: `export {extensionTableSql, extensionMigrationFilename, extensionTableName, type ExtensionTableSpec} from './extension-tables.js'`.
 
 - [ ] **Step 4: Run unit tests, expect PASS**
 
-Run: `pnpm --filter @conciv/state exec vitest run src/server/extension-tables.test.ts src/uuid.test.ts src/server/depot.test.ts`
+Run: `pnpm --filter @conciv/db exec vitest run src/server/extension-tables.test.ts src/uuid.test.ts src/server/depot.test.ts`
 Expected: PASS (existing depot tests still green — `prepareDepot` with no `extensionTables` behaves exactly as before).
 
 - [ ] **Step 5: Failing IT — extension table served + explicit uuidv7 id accepted**
 
-`packages/state/src/server/extension-tables.it.test.ts`:
+`packages/db/src/server/extension-tables.it.test.ts`:
 
 ```ts
 import {beforeAll, afterAll, describe, expect, it} from 'vitest'
@@ -411,16 +427,16 @@ describe('extension tables over the record api', () => {
 })
 ```
 
-Run: `pnpm --filter @conciv/state exec vitest run src/server/extension-tables.it.test.ts`
+Run: `pnpm --filter @conciv/db exec vitest run src/server/extension-tables.it.test.ts`
 Expected first run: FAIL only if the implementation is wrong — this step lands after Step 3, so expect PASS. If TrailBase rejects the explicit id (400 in `records-request-failed` details), the IT is the arbiter: adjust `uuidv7Base64` output format (candidates: unpadded base64url, plain UUID string `xxxxxxxx-xxxx-...`) until create succeeds AND the read-back id round-trips; keep the assertion meaning (client-chosen id survives).
 
 - [ ] **Step 6: Typecheck + commit**
 
-Run: `pnpm --filter @conciv/state run typecheck && pnpm turbo run build --filter=@conciv/state`
+Run: `pnpm --filter @conciv/db run typecheck && pnpm turbo run build --filter=@conciv/db`
 
 ```bash
-git add packages/state/src
-git commit -m 'feat(state): extension tables, uuidv7 ids, table collection factory' -- packages/state/src
+git add packages/db/src
+git commit -m 'feat(state): extension tables, uuidv7 ids, table collection factory' -- packages/db/src
 ```
 
 ---
@@ -433,12 +449,12 @@ git commit -m 'feat(state): extension tables, uuidv7 ids, table collection facto
 - Create: `packages/extension/test/manifest-v2.test-d.ts`
 - Modify: `packages/extension/src/define-extension.ts`
 - Modify: `packages/extension/src/index.ts`
-- Modify: `packages/extension/package.json` (deps: `@conciv/state` workspace:^, `@conciv/errors` workspace:^, `@tanstack/db` exact `0.6.14`)
+- Modify: `packages/extension/package.json` (deps: `@conciv/db` workspace:^, `@conciv/errors` workspace:^, `@tanstack/db` exact `0.6.14`)
 - Modify: `packages/extension/test/define-extension.test.ts` (extend)
 
 **Interfaces:**
 
-- Consumes: `Collection` type from `@tanstack/db`; `StateClient`, `sessionsCollection` types from `@conciv/state`; `DialogApi`, `PopoverApi` from `@conciv/ui-kit-system`; `GrabApi`, `LocateResult`, `OpenSourceResult` (already imported in v1 types).
+- Consumes: `Collection` type from `@tanstack/db`; `StateClient`, `sessionsCollection` types from `@conciv/db`; `DialogApi`, `PopoverApi` from `@conciv/ui-kit-system`; `GrabApi`, `LocateResult`, `OpenSourceResult` (already imported in v1 types).
 - Produces (used by Tasks 3–5 and Plan 3):
   - `HostState`, `HostChat`, `HostUi`, `PageAgent`, `HostApi` (in `host-types.ts`)
   - `ExtensionTableDecl = {name: string; columns: string}`
@@ -446,7 +462,7 @@ git commit -m 'feat(state): extension tables, uuidv7 ids, table collection facto
   - `ComposerControlDecl = {id: string; Component: Component}`
   - `ExtensionMeta`/`ExtensionBuilder` carry `tables`/`composerActions`/`controls` through; `AnyExtension` unchanged in name.
 
-Capability typing note: the spec's "declaring `views` requires view components; declaring `tables` requires migrations" is enforced STRUCTURALLY — `ExtensionView.Component` is already a required field, and a `tables` declaration IS its migration (`@conciv/state` generates the DDL from `columns`; an extension cannot declare a table without the thing that materializes it). `ComposerActionDecl.run`/`icon` and `ComposerControlDecl.Component` are required fields for the same reason. The test-d file pins all of this at compile time — that is the HarnessAdapter-style guarantee with none of the conditional-union machinery (nothing here is mutually exclusive the way `transcriptHistory`/`history` are).
+Capability typing note: the spec's "declaring `views` requires view components; declaring `tables` requires migrations" is enforced STRUCTURALLY — `ExtensionView.Component` is already a required field, and a `tables` declaration IS its migration (`@conciv/db` generates the DDL from `columns`; an extension cannot declare a table without the thing that materializes it). `ComposerActionDecl.run`/`icon` and `ComposerControlDecl.Component` are required fields for the same reason. The test-d file pins all of this at compile time — that is the HarnessAdapter-style guarantee with none of the conditional-union machinery (nothing here is mutually exclusive the way `transcriptHistory`/`history` are).
 
 - [ ] **Step 1: Failing type tests**
 
@@ -499,7 +515,7 @@ import type {DialogApi, PopoverApi} from '@conciv/ui-kit-system'
 import type {GrabApi} from '@conciv/grab'
 import type {LocateResult} from '@conciv/protocol/page-introspect-types'
 import type {OpenSourceResult} from '@conciv/protocol/page-types'
-import type {ExtensionTableCollection, StateClient, sessionsCollection} from '@conciv/state'
+import type {ExtensionTableCollection, StateClient, sessionsCollection} from '@conciv/db'
 
 export type ExtensionTableDecl = {name: string; columns: string}
 
@@ -595,7 +611,7 @@ export type {
 
 ```json
 "@conciv/errors": "workspace:^",
-"@conciv/state": "workspace:^",
+"@conciv/db": "workspace:^",
 "@tanstack/db": "0.6.14",
 ```
 
@@ -623,7 +639,7 @@ it('carries tables, composer actions and controls through the builder', () => {
 
 - [ ] **Step 5: Run, expect PASS**
 
-Run: `pnpm turbo run build --filter=@conciv/state && pnpm --filter @conciv/extension run typecheck && pnpm --filter @conciv/extension test`
+Run: `pnpm turbo run build --filter=@conciv/db && pnpm --filter @conciv/extension run typecheck && pnpm --filter @conciv/extension test`
 
 - [ ] **Step 6: Commit**
 
@@ -691,7 +707,7 @@ const extensionTables = (opts.extensions ?? []).flatMap((extension) =>
 const plane = await startStatePlane({dataDir: paths.trailDir, port: await getPort(), extensionTables})
 ```
 
-(`ExtensionTableSpec` needs no import — the literal is structurally typed. If tsc wants the type, import `type {ExtensionTableSpec} from '@conciv/state/server'`.)
+(`ExtensionTableSpec` needs no import — the literal is structurally typed. If tsc wants the type, import `type {ExtensionTableSpec} from '@conciv/db/server'`.)
 
 - [ ] **Step 4: Run IT, expect PASS**
 
@@ -807,7 +823,7 @@ export function isExtensionError(error: unknown): error is ExtensionError {
 }
 ```
 
-`packages/extension/src/host.ts` (plain `.ts`, `createComponent` — no JSX, same constraint as Plan 1's `@conciv/state/solid`):
+`packages/extension/src/host.ts` (plain `.ts`, `createComponent` — no JSX, same constraint as Plan 1's `@conciv/db/solid`):
 
 ```ts
 import {createComponent, createContext, useContext, type JSX} from 'solid-js'
@@ -884,11 +900,11 @@ git commit -m 'feat(extension): HostProvider + useHost/useSlot doorway' -- packa
 - Create: `packages/extension-testkit/test/fixtures/host-api/server.ts`
 - Create: `packages/extension-testkit/test/fixtures/host-api/client.tsx`
 - Create: `packages/extension-testkit/test/host-api.it.test.ts`
-- Modify: `packages/extension-testkit/package.json` (dep `@conciv/state` workspace:^ if not already pulled transitively — add explicitly)
+- Modify: `packages/extension-testkit/package.json` (dep `@conciv/db` workspace:^ if not already pulled transitively — add explicitly)
 
 **Interfaces:**
 
-- Consumes: `stateClient`, `sessionsCollection`, `makeTableFactory`, `uuidv7Base64` from `@conciv/state` (Task 1); `HostProvider`, `HostApi` (Task 4); `Engine.statePort` via `bootExtensionServer` (Plan 1 + Task 3).
+- Consumes: `stateClient`, `sessionsCollection`, `makeTableFactory`, `uuidv7Base64` from `@conciv/db` (Task 1); `HostProvider`, `HostApi` (Task 4); `Engine.statePort` via `bootExtensionServer` (Plan 1 + Task 3).
 - Produces: any fixture extension client can call `useHost()` in the testkit browser host; `host.state` is the REAL TrailBase plane of the booted engine; `host.chat` records calls into a `role=log` element (assertable via Playwright); `host.ui`/`host.page` are the existing real implementations rearranged.
 
 - [ ] **Step 1: Plumb the state base URL**
@@ -962,7 +978,7 @@ const disposeRender = render(() => {
 Add imports and the `HostApi` construction inside `startHost` (keep everything that exists; the v1 `hostContext` stays for v1 fixtures):
 
 ```ts
-import {stateClient, sessionsCollection, makeTableFactory} from '@conciv/state'
+import {stateClient, sessionsCollection, makeTableFactory} from '@conciv/db'
 import type {HostApi} from '@conciv/extension'
 import {Dialog, Popover} from '@conciv/ui-kit-system'
 
@@ -1034,7 +1050,7 @@ import {createSignal, For} from 'solid-js'
 import {z} from 'zod'
 import {defineExtension, type ExtensionTableDecl} from '@conciv/extension'
 import {useHost, useSlot} from '@conciv/extension/client'
-import {uuidv7Base64} from '@conciv/state'
+import {uuidv7Base64} from '@conciv/db'
 
 const tables: readonly ExtensionTableDecl[] = [
   {name: 'notes', columns: `session_id TEXT NOT NULL, body TEXT NOT NULL DEFAULT ''`},
@@ -1055,7 +1071,11 @@ function Fixture() {
       <output data-slot>{slot()}</output>
       <button
         onClick={() => {
-          notes.insert({id: uuidv7Base64(), session_id: host.state.activeSession() ?? 'conciv_none', body: 'from-client'})
+          notes.insert({
+            id: uuidv7Base64(),
+            session_id: host.state.activeSession() ?? 'conciv_none',
+            body: 'from-client',
+          })
         }}
       >
         add note
@@ -1072,7 +1092,7 @@ function Fixture() {
 export default defineExtension({name: 'host-api-fixture', tables, Component: Fixture})
 ```
 
-(`toArrayWhenReady` + manual refresh instead of `useLiveQuery` keeps this fixture dependency-light — the hook path is `@conciv/state/solid`'s covered surface from Plan 1. The signal is refreshed by explicit user action, so no reactive-write-in-render hazard.)
+(`toArrayWhenReady` + manual refresh instead of `useLiveQuery` keeps this fixture dependency-light — the hook path is `@conciv/db/solid`'s covered surface from Plan 1. The signal is refreshed by explicit user action, so no reactive-write-in-render hazard.)
 
 - [ ] **Step 5: Failing IT**
 
@@ -1115,7 +1135,7 @@ ADAPT NOTE: if the existing testkit tests use raw Playwright assertions (`expect
 
 - [ ] **Step 6: Run, expect FAIL, then make it pass**
 
-Run: `pnpm turbo run build --filter=@conciv/extension --filter=@conciv/state && pnpm --filter @conciv/extension-testkit test -- host-api`
+Run: `pnpm turbo run build --filter=@conciv/extension --filter=@conciv/db && pnpm --filter @conciv/extension-testkit test -- host-api`
 Expected first failure mode: mount works but `useHost` throws `missing-host` if the `host` option never reached `mountExtension`, or table 404 if Task 3's registration missed the fixture — both are wiring bugs, not design changes. Iterate until PASS. Keep the whole testkit suite green: `pnpm turbo run test --filter=@conciv/extension-testkit`.
 
 - [ ] **Step 7: Commit**
@@ -1141,7 +1161,7 @@ Expected: green except the known pre-existing environmental failures (core: `gem
 - [ ] **Step 2: Fallow audit**
 
 Run: `pnpm exec fallow audit --changed-since main --format json`
-Expected: zero INTRODUCED findings. `@conciv/extension` and `@conciv/state` are `publicPackages`, so the not-yet-consumed v2 exports (`HostProvider`, `useHost`, `ComposerActionDecl`, `makeTableFactory`, …) are public API, not dead code. If duplication flags the two fixture `columns` strings, extract a shared fixture constant rather than suppressing.
+Expected: zero INTRODUCED findings. `@conciv/extension` and `@conciv/db` are `publicPackages`, so the not-yet-consumed v2 exports (`HostProvider`, `useHost`, `ComposerActionDecl`, `makeTableFactory`, …) are public API, not dead code. If duplication flags the two fixture `columns` strings, extract a shared fixture constant rather than suppressing.
 
 - [ ] **Step 3: Changeset**
 
@@ -1150,11 +1170,11 @@ Expected: zero INTRODUCED findings. `@conciv/extension` and `@conciv/state` are 
 ```markdown
 ---
 '@conciv/extension': patch
-'@conciv/state': patch
+'@conciv/db': patch
 '@conciv/core': patch
 ---
 
-Extension contract v2: one doorway (HostProvider + useHost/useSlot) over a four-plane HostApi (state, chat, ui, page); manifest gains tables/composerActions/controls declarations. Extensions can declare ext_<id>_* TrailBase tables — @conciv/state generates their migrations and record APIs, core registers them at boot, and clients get cached TanStack DB collections via table(). extension-testkit now provides a fake host implementing the hook API against the real state plane.
+Extension contract v2: one doorway (HostProvider + useHost/useSlot) over a four-plane HostApi (state, chat, ui, page); manifest gains tables/composerActions/controls declarations. Extensions can declare ext*<id>*\* TrailBase tables — @conciv/db generates their migrations and record APIs, core registers them at boot, and clients get cached TanStack DB collections via table(). extension-testkit now provides a fake host implementing the hook API against the real state plane.
 ```
 
 - [ ] **Step 4: Commit**

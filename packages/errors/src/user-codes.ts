@@ -8,6 +8,7 @@ export type UserCode =
   | 'state.records-request-failed'
   | 'state.record-not-found'
   | 'state.missing-provider'
+  | 'state.invalid-table'
   | 'core.internal'
 
 export const USER_MESSAGES: Record<UserCode, string> = {
@@ -20,5 +21,6 @@ export const USER_MESSAGES: Record<UserCode, string> = {
   'state.records-request-failed': 'saving conciv state failed',
   'state.record-not-found': 'session not found',
   'state.missing-provider': 'conciv state is not available in this view',
+  'state.invalid-table': 'extension declared an invalid table',
   'core.internal': 'something went wrong',
 }

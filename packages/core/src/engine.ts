@@ -1,6 +1,6 @@
 import {serveHono} from '@conciv/serve'
 import getPort from 'get-port'
-import {startStatePlane} from '@conciv/state/server'
+import {startStatePlane} from '@conciv/db/server'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {AnyExtension} from '@conciv/extension'
 import {makeApp, type MakeAppOpts} from './app.js'

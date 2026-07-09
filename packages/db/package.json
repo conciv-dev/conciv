@@ -1,5 +1,5 @@
 {
-  "name": "@conciv/state",
+  "name": "@conciv/db",
   "version": "0.0.7",
   "description": "conciv domain-state plane: TrailBase schema and lifecycle, TanStack DB collection factories, and Solid hooks shared by core, surface, and extensions.",
   "homepage": "https://conciv.dev",
@@ -8,7 +8,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/conciv-dev/conciv.git",
-    "directory": "packages/state"
+    "directory": "packages/db"
   },
   "files": [
     "dist"

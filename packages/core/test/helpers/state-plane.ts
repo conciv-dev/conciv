@@ -5,7 +5,7 @@ import {join} from 'node:path'
 import {fileURLToPath, pathToFileURL} from 'node:url'
 import {afterAll, beforeAll, beforeEach} from 'vitest'
 import getPort from 'get-port'
-import {startStatePlane, type StatePlane} from '@conciv/state/server'
+import {startStatePlane, type StatePlane} from '@conciv/db/server'
 import {start, type Engine, type StartOpts} from '../../src/engine.js'
 
 const require = createRequire(import.meta.url)

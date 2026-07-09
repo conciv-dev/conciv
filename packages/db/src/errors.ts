@@ -10,6 +10,7 @@ export type StateErrorCode =
   | 'records-request-failed'
   | 'record-not-found'
   | 'missing-provider'
+  | 'invalid-table'
 
 const USER_CODES: Record<StateErrorCode, UserCode> = {
   'unsupported-platform': 'state.unsupported-platform',
@@ -21,6 +22,7 @@ const USER_CODES: Record<StateErrorCode, UserCode> = {
   'records-request-failed': 'state.records-request-failed',
   'record-not-found': 'state.record-not-found',
   'missing-provider': 'state.missing-provider',
+  'invalid-table': 'state.invalid-table',
 }
 
 const STATUS_CODES: Partial<Record<StateErrorCode, number>> = {

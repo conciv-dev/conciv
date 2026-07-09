@@ -45,7 +45,7 @@
     "@conciv/protocol",
     "@conciv/solid-diffs",
     "@conciv/solid-streamdown",
-    "@conciv/state",
+    "@conciv/db",
     "@conciv/tools",
     "@conciv/ui-kit-chat",
     "@conciv/ui-kit-chat-tools",

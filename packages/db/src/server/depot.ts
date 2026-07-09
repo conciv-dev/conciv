@@ -1,5 +1,11 @@
 import {existsSync, mkdirSync, readFileSync, writeFileSync, appendFileSync} from 'node:fs'
 import {join} from 'node:path'
+import {
+  extensionMigrationFilename,
+  extensionTableName,
+  extensionTableSql,
+  type ExtensionTableSpec,
+} from './extension-tables.js'
 
 export const MIGRATION_FILENAME = 'U1783545917__conciv.sql'
 
@@ -39,7 +45,10 @@ CREATE TABLE markers (
 ) STRICT;
 `
 
-const api = (name: string) => `record_apis: [
+const CORE_APIS = ['sessions', 'drafts', 'markers']
+
+export function recordApiConfig(name: string): string {
+  return `record_apis: [
   {
     name: "${name}"
     table_name: "${name}"
@@ -48,24 +57,45 @@ const api = (name: string) => `record_apis: [
   }
 ]
 `
+}
 
-export const RECORD_API_CONFIG = ['sessions', 'drafts', 'markers'].map(api).join('')
+export const RECORD_API_CONFIG = CORE_APIS.map(recordApiConfig).join('')
 
 export const BASE_CONFIG = `server {
   application_name: "conciv"
 }
 `
 
-export function prepareDepot(opts: {dataDir: string}): void {
-  const migrationsDir = join(opts.dataDir, 'migrations/main')
+function writeIfMissing(path: string, content: string): void {
+  if (!existsSync(path)) writeFileSync(path, content)
+}
+
+function writeMigrations(dataDir: string, tables: ExtensionTableSpec[]): void {
+  const migrationsDir = join(dataDir, 'migrations/main')
   mkdirSync(migrationsDir, {recursive: true})
-  const migration = join(migrationsDir, MIGRATION_FILENAME)
-  if (!existsSync(migration)) writeFileSync(migration, MIGRATION_SQL)
-  const configPath = join(opts.dataDir, 'config.textproto')
+  writeIfMissing(join(migrationsDir, MIGRATION_FILENAME), MIGRATION_SQL)
+  for (const spec of tables) {
+    writeIfMissing(join(migrationsDir, extensionMigrationFilename(spec)), extensionTableSql(spec))
+  }
+}
+
+function declaredApi(config: string, name: string): boolean {
+  return config.includes(` name: "${name}"`)
+}
+
+function ensureRecordApis(dataDir: string, apiNames: string[]): void {
+  const configPath = join(dataDir, 'config.textproto')
   if (!existsSync(configPath)) {
-    writeFileSync(configPath, `${BASE_CONFIG}${RECORD_API_CONFIG}`)
+    writeFileSync(configPath, `${BASE_CONFIG}${apiNames.map(recordApiConfig).join('')}`)
     return
   }
   const existing = readFileSync(configPath, 'utf8')
-  if (!existing.includes('name: "sessions"')) appendFileSync(configPath, RECORD_API_CONFIG)
+  const missing = apiNames.filter((name) => !declaredApi(existing, name))
+  if (missing.length > 0) appendFileSync(configPath, missing.map(recordApiConfig).join(''))
+}
+
+export function prepareDepot(opts: {dataDir: string; extensionTables?: ExtensionTableSpec[]}): void {
+  const tables = opts.extensionTables ?? []
+  writeMigrations(opts.dataDir, tables)
+  ensureRecordApis(opts.dataDir, [...CORE_APIS, ...tables.map(extensionTableName)])
 }
