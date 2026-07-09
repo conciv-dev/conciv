@@ -35,6 +35,11 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+      # TrailBase binary for core/state integration tests: version-pinned key, bump with TRAILBASE_VERSION.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/conciv/trailbase
+          key: trailbase-v0.30.0-${{ runner.os }}
       # Turbo cache: scoped within a lockfile generation, so a dependency change
       # discards prior cache instead of carrying (and laundering) it forward.
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0

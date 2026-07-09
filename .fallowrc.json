@@ -32,6 +32,7 @@
   "publicPackages": [
     "@conciv/api-client",
     "@conciv/core",
+    "@conciv/errors",
     "@conciv/extension",
     "@conciv/extension-test-runner",
     "@conciv/extension-whiteboard",
@@ -44,6 +45,7 @@
     "@conciv/protocol",
     "@conciv/solid-diffs",
     "@conciv/solid-streamdown",
+    "@conciv/state",
     "@conciv/tools",
     "@conciv/ui-kit-chat",
     "@conciv/ui-kit-chat-tools",
