@@ -2,7 +2,6 @@ import {describe, it, expect, afterEach} from 'vitest'
 import {mkdtempSync, mkdirSync, writeFileSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {ChatSessionsSchema} from '@conciv/protocol/chat-types'
 import {createTestkit, type Kit} from '@conciv/harness-testkit'
 import {bootCoreApp} from '../../helpers/boot.js'
 import {runTurn} from '../../helpers/turns.js'
@@ -27,7 +26,7 @@ function tmpHome(): string {
   return h
 }
 
-describe('GET /api/chat/sessions + rename (IT, real temp ~/.claude)', () => {
+describe('sessions.list + rename over rpc (IT, real temp ~/.claude)', () => {
   const state = {kit: undefined as Kit | undefined}
   afterEach(async () => {
     if (state.kit) await state.kit.cleanup()
@@ -52,7 +51,7 @@ describe('GET /api/chat/sessions + rename (IT, real temp ~/.claude)', () => {
 
     const id = await kit.session()
     await runTurn(kit, 'hi', id)
-    const {sessions} = ChatSessionsSchema.parse(await (await kit.get('/api/chat/sessions')).json())
+    const sessions = await kit.rpc.sessions.list(undefined)
     expect(sessions.find((s) => s.id === id)?.origin).toBe('conciv')
     expect(sessions.find((s) => s.id === id)?.title).toBe('made in conciv')
     expect(sessions.find((s) => s.id === 'tok-ext')?.origin).toBe('external')
@@ -65,14 +64,15 @@ describe('GET /api/chat/sessions + rename (IT, real temp ~/.claude)', () => {
     const kit = await setup(home, cwd)
 
     const id = await kit.session('tok-ext')
-    await kit.post('/api/chat/sessions/title', {sessionId: id, title: 'My title'})
-    const {sessions} = ChatSessionsSchema.parse(await (await kit.get('/api/chat/sessions')).json())
+    await kit.rpc.sessions.rename({sessionId: id, title: 'My title'})
+    const sessions = await kit.rpc.sessions.list(undefined)
     expect(sessions.find((s) => s.id === id)?.title).toBe('My title')
   })
 
-  it('rejects a bad session id', async () => {
+  it('rejects a rename for an unknown session id', async () => {
     const kit = await setup(tmpHome())
-    const res = await kit.post('/api/chat/sessions/title', {sessionId: '../etc', title: 'x'})
-    expect(res.status).toBe(400)
+    await expect(kit.rpc.sessions.rename({sessionId: '../etc', title: 'x'})).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    })
   })
 })

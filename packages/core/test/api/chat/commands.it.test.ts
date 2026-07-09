@@ -1,7 +1,6 @@
 import {describe, it, expect, afterEach} from 'vitest'
 import {defineHarness} from '@conciv/protocol/harness-types'
 import {makeTextAdapter} from '@conciv/harness'
-import {ChatCommandsSchema, ChatToolsSchema} from '@conciv/protocol/chat-types'
 import type {Kit} from '@conciv/harness-testkit'
 import {bootKit} from '../../helpers/boot.js'
 
@@ -43,7 +42,7 @@ const noneHarness = defineHarness({
   },
 })
 
-describe('GET /api/chat/commands + /api/chat/tools (IT, real server)', () => {
+describe('meta.commands + meta.tools over rpc (IT, real server)', () => {
   const state = {server: undefined as Kit | undefined}
   afterEach(async () => {
     if (state.server) await state.server.cleanup()
@@ -53,9 +52,7 @@ describe('GET /api/chat/commands + /api/chat/tools (IT, real server)', () => {
   it('serves harness commands with derived sources and the mcp url', async () => {
     const server = await bootKit({}, liveHarness)
     state.server = server
-    const response = await fetch(`${server.base}/api/chat/commands`)
-    expect(response.status).toBe(200)
-    const payload = ChatCommandsSchema.parse(await response.json())
+    const payload = await server.rpc.meta.commands({})
     const byName = new Map(payload.commands.map((command) => [command.name, command]))
     expect(byName.get('compact')).toEqual({
       name: 'compact',
@@ -71,17 +68,13 @@ describe('GET /api/chat/commands + /api/chat/tools (IT, real server)', () => {
   it('returns an empty list for a harness without slash commands', async () => {
     const server = await bootKit({}, noneHarness)
     state.server = server
-    const response = await fetch(`${server.base}/api/chat/commands`)
-    expect(response.status).toBe(200)
-    expect(ChatCommandsSchema.parse(await response.json())).toEqual({commands: []})
+    expect(await server.rpc.meta.commands({})).toEqual({commands: []})
   })
 
   it('serves the registered tool list', async () => {
     const server = await bootKit({}, noneHarness)
     state.server = server
-    const response = await fetch(`${server.base}/api/chat/tools`)
-    expect(response.status).toBe(200)
-    const payload = ChatToolsSchema.parse(await response.json())
+    const payload = await server.rpc.meta.tools(undefined)
     expect(payload.tools.length).toBeGreaterThan(0)
     for (const tool of payload.tools) {
       expect(tool.name.length).toBeGreaterThan(0)

@@ -10,36 +10,23 @@ const ChangesSchema = z.array(
   z.object({verb: z.string(), selector: z.string().optional(), args: z.record(z.string(), z.unknown())}),
 )
 
-function answerLine(line: string, kit: Kit, answerFor: (kind: string) => unknown): void {
-  if (!line.startsWith('data:')) return
-  const payload = line.slice('data:'.length).trim()
-  if (!payload) return
-  const query: {requestId?: string; kind?: string} = JSON.parse(payload)
-  if (!query.requestId) return
-  void kit.post('/api/page/reply', {requestId: query.requestId, data: answerFor(query.kind ?? '')})
-}
-
-async function pumpStream(
-  reader: ReadableStreamDefaultReader<Uint8Array>,
+async function connectWidget(
   kit: Kit,
-  answerFor: (kind: string) => unknown,
-): Promise<void> {
-  const decoder = new TextDecoder()
-  try {
-    for (;;) {
-      const {done, value} = await reader.read()
-      if (done) break
-      for (const line of decoder.decode(value).split('\n')) answerLine(line, kit, answerFor)
-    }
-  } catch {}
-}
-
-async function connectWidget(kit: Kit, answerFor: (kind: string) => unknown): Promise<{end: () => void}> {
+  answerFor: (kind: string) => Record<string, unknown>,
+): Promise<{end: () => void}> {
   const ctrl = new AbortController()
-  const res = await fetch(`${kit.base}/api/page/stream`, {signal: ctrl.signal})
-  const body = res.body
-  if (!body) throw new Error('page-stream had no body')
-  void pumpStream(body.getReader(), kit, answerFor)
+  const iterator = await kit.rpc.page.queries(undefined, {signal: ctrl.signal})
+  void (async () => {
+    try {
+      for await (const {requestId, query} of iterator) {
+        const kind =
+          typeof query === 'object' && query !== null && 'kind' in query && typeof query.kind === 'string'
+            ? query.kind
+            : ''
+        void kit.rpc.page.reply({requestId, data: answerFor(kind)}).catch(() => {})
+      }
+    } catch {}
+  })()
   return {end: () => ctrl.abort()}
 }
 

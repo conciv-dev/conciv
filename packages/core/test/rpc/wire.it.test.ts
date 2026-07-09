@@ -51,7 +51,13 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     const {kit, harness} = await bootWire()
     const sessionId = await kit.session()
     const stream = await kit.attach(sessionId)
-    await kit.rpc.drafts.set({sessionId, text: 'draft-text', selectionStart: 0, selectionEnd: 0, grabs: ['<div id="grabbed"/>']})
+    await kit.rpc.drafts.set({
+      sessionId,
+      text: 'draft-text',
+      selectionStart: 0,
+      selectionEnd: 0,
+      grabs: ['<div id="grabbed"/>'],
+    })
     await kit.rpc.chat.send({sessionId, text: 'about the grabbed element'})
     await stream.done({hangGuardMs: 10_000})
     const lastTurn = harness.__turnMessages.at(-1)
@@ -144,7 +150,9 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
 
   it('editor.open reaches the injected editor opener', async () => {
     const opened: Array<{file: string; line?: number}> = []
-    const {kit} = await bootWire({openInEditor: (file, line) => opened.push({file, ...(line === undefined ? {} : {line})})})
+    const {kit} = await bootWire({
+      openInEditor: (file, line) => opened.push({file, ...(line === undefined ? {} : {line})}),
+    })
     await kit.rpc.editor.open({file: 'src/thing.ts', line: 3})
     expect(opened).toEqual([{file: 'src/thing.ts', line: 3}])
   })

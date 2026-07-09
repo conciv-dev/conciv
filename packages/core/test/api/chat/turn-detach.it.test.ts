@@ -17,9 +17,6 @@ function tmp(): string {
   return dir
 }
 
-const turn = (text: string) => ({id: 'u-live', role: 'user', parts: [{type: 'text', content: text}]})
-const contentTurn = (text: string) => ({role: 'user', content: text})
-
 async function waitForSnapshot(stream: RunStream): Promise<string> {
   const chunk = await stream.waitFor((c) => c.type === EventType.CUSTOM && c.name === 'conciv-snapshot', {
     hangGuardMs: 5000,
@@ -46,23 +43,20 @@ describe('detached turns (IT)', () => {
   it('rejects a resend while the prior turn is still generating even if its lock file is gone (stop-drain guard)', async () => {
     const kit = await setupHang()
     const id = await kit.session()
-    await kit.post('/api/chat', {messages: [turn('hi')]}, id)
+    await kit.rpc.chat.send({sessionId: id, text: 'hi'})
     await until(() => readLock(kit.stateRoot, id).held, {hangGuardMs: 5000})
     releaseLock(kit.stateRoot, id)
     expect(readLock(kit.stateRoot, id).held).toBe(false)
-    const resend = await kit.post('/api/chat', {messages: [turn('again')]}, id)
-    expect(resend.status).toBe(409)
-    await kit.post('/api/chat/stop', {}, id)
+    await expect(kit.rpc.chat.send({sessionId: id, text: 'again'})).rejects.toMatchObject({code: 'BUSY'})
+    await kit.rpc.sessions.stop({sessionId: id})
   })
 
-  it('POST /api/chat returns ok JSON before the turn finishes', async () => {
+  it('chat.send resolves ok before the turn finishes', async () => {
     const releaseFile = join(tmp(), 'release')
     const kit = await setupSlow(releaseFile)
     const id = await kit.session()
     const stream = await kit.attach(id)
-    const response = await kit.post('/api/chat', {messages: [turn('hi')]}, id)
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ok: true})
+    expect(await kit.rpc.chat.send({sessionId: id, text: 'hi'})).toEqual({ok: true})
     writeFileSync(releaseFile, '')
     const events = await stream.done()
     expect(events.runs()).toBe(1)
@@ -72,7 +66,7 @@ describe('detached turns (IT)', () => {
     const releaseFile = join(tmp(), 'release')
     const kit = await setupSlow(releaseFile)
     const id = await kit.session()
-    await kit.post('/api/chat', {messages: [turn('hi')]}, id)
+    await kit.rpc.chat.send({sessionId: id, text: 'hi'})
     const early = await kit.attach(id)
     const snapshot = await waitForSnapshot(early)
     expect(snapshot).toContain('"generating":true')
@@ -91,7 +85,7 @@ describe('detached turns (IT)', () => {
     const releaseFile = join(tmp(), 'release')
     const kit = await setupSlow(releaseFile)
     const id = await kit.session()
-    await kit.post('/api/chat', {messages: [turn('rebuild the page')]}, id)
+    await kit.rpc.chat.send({sessionId: id, text: 'rebuild the page'})
     const drop = new AbortController()
     const before = await kit.attach(id, {signal: drop.signal})
     const snapshot = await waitForSnapshot(before)
@@ -110,22 +104,21 @@ describe('detached turns (IT)', () => {
   it('the turn completes with zero subscribers and persists usage', async () => {
     const kit = await setup()
     const id = await kit.session()
-    await kit.post('/api/chat', {messages: [turn('hi')]}, id)
+    await kit.rpc.chat.send({sessionId: id, text: 'hi'})
     await until(
       async () => {
-        const session = (await (await kit.get('/api/chat/session', id)).json()) as {usage: unknown}
-        return Boolean(session.usage)
+        const metas = await kit.rpc.sessions.list(undefined)
+        return Boolean(metas.find((meta) => meta.id === id)?.usage)
       },
       {hangGuardMs: 5000},
     )
   })
 
-  it('attach during a content-form (parts-less) turn returns a snapshot with the user text, not 500', async () => {
+  it('attach during a running turn returns a snapshot with the user text, not 500', async () => {
     const releaseFile = join(tmp(), 'release')
     const kit = await setupSlow(releaseFile)
     const id = await kit.session()
-    const response = await kit.post('/api/chat', {messages: [contentTurn('summarize this')]}, id)
-    expect(response.status).toBe(200)
+    await kit.rpc.chat.send({sessionId: id, text: 'summarize this'})
     const early = await kit.attach(id)
     const snapshot = await waitForSnapshot(early)
     expect(snapshot).toContain('"generating":true')
@@ -143,9 +136,9 @@ describe('detached turns (IT)', () => {
       const kit = await setupHang()
       const id = await kit.session()
       const stream = await kit.attach(id)
-      await kit.post('/api/chat', {messages: [turn('hang around')]}, id)
+      await kit.rpc.chat.send({sessionId: id, text: 'hang around'})
       await stream.waitFor((c) => c.type === EventType.RUN_STARTED, {hangGuardMs: 5000})
-      await kit.post('/api/chat/stop', {}, id)
+      await kit.rpc.sessions.stop({sessionId: id})
       const events = await stream.done({hangGuardMs: 8000})
       expect(events.runs()).toBe(1)
       expect(events.errors()).toEqual([])
@@ -160,9 +153,9 @@ describe('detached turns (IT)', () => {
       const kit = await setup({CONCIV_FAKE_HANG: '1', CONCIV_FAKE_IGNORE_TERM: '1'})
       const id = await kit.session()
       const stream = await kit.attach(id)
-      await kit.post('/api/chat', {messages: [turn('hang forever')]}, id)
+      await kit.rpc.chat.send({sessionId: id, text: 'hang forever'})
       await stream.waitFor((c) => c.type === EventType.RUN_STARTED, {hangGuardMs: 5000})
-      await kit.post('/api/chat/stop', {}, id)
+      await kit.rpc.sessions.stop({sessionId: id})
       const events = await stream.done({hangGuardMs: 10_000})
       expect(events.runs()).toBe(1)
       expect(events.errors()).toEqual([])

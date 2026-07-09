@@ -6,7 +6,6 @@ import {dirname, join} from 'node:path'
 import {EventType} from '@tanstack/ai'
 import {createTestkit, until, type Kit} from '@conciv/harness-testkit'
 import {acquireLock, readLock} from '../../../src/store/lock.js'
-import {ChatSessionSchema} from '@conciv/protocol/chat-types'
 import {bootCoreApp} from '../../helpers/boot.js'
 import {countType, runTurn} from '../../helpers/turns.js'
 import {requireClaude} from '../../helpers/adapters.js'
@@ -42,7 +41,7 @@ function fakeEnv(
   }
 }
 
-describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
+describe('chat over rpc (IT, real makeApp + fake-claude spawn)', () => {
   const state = {kit: undefined as Kit | undefined}
   afterEach(async () => {
     if (state.kit) await state.kit.cleanup()
@@ -56,7 +55,12 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     return kit
   }
 
-  it('streams TanStack AG-UI SSE from a real claude child', async () => {
+  async function metaFor(kit: Kit, id: string) {
+    const metas = await kit.rpc.sessions.list(undefined)
+    return metas.find((meta) => meta.id === id)
+  }
+
+  it('streams TanStack AG-UI chunks from a real claude child', async () => {
     const kit = await setup()
     const events = await runTurn(kit, 'hi', await kit.session())
     expect(countType(events, EventType.RUN_STARTED)).toBe(1)
@@ -73,16 +77,14 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     expect(events.custom('conciv-usage').length).toBeGreaterThan(0)
   })
 
-  it('persists turn-end usage so GET /api/chat/session returns it for the next open', async () => {
+  it('persists turn-end usage onto the session meta for the next open', async () => {
     const kit = await setup()
     const id = await kit.session()
     await runTurn(kit, 'hi', id)
-    const session = (await (await kit.get('/api/chat/session', id)).json()) as {
-      usage?: {contextWindow?: number; inputTokens?: number; cacheReadTokens?: number}
-    }
-    expect(session.usage?.contextWindow).toBe(200000)
-    expect(session.usage?.inputTokens).toBe(100)
-    expect(session.usage?.cacheReadTokens).toBe(40)
+    const meta = await metaFor(kit, id)
+    expect(meta?.usage?.contextWindow).toBe(200000)
+    expect(meta?.usage?.inputTokens).toBe(100)
+    expect(meta?.usage?.cacheReadTokens).toBe(40)
   })
 
   it('streams exactly one run lifecycle pair through chat()', async () => {
@@ -127,16 +129,13 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     expect(argv).not.toContain('--resume')
   })
 
-  it('passes --model <selected> to the spawned claude when the widget sends it via forwardedProps', async () => {
+  it('passes --model <selected> to the spawned claude once sessions.setModel persists it', async () => {
     const argvFile = join(tmp(), 'argv.json')
     const kit = await setup({argvFile})
-    const id = await kit.session()
+    const {sessionId: id} = await kit.rpc.sessions.create(undefined)
     const stream = await kit.attach(id)
-    await kit.post(
-      '/api/chat',
-      {messages: [{id: 'm', role: 'user', parts: [{type: 'text', content: 'hi'}]}], forwardedProps: {model: 'haiku'}},
-      id,
-    )
+    await kit.rpc.sessions.setModel({sessionId: id, model: 'haiku'})
+    await kit.rpc.chat.send({sessionId: id, text: 'hi'})
     await stream.done()
     const argv = z.array(z.string()).parse(JSON.parse(readFileSync(argvFile, 'utf8')))
     expect(argv).toContain('--model')
@@ -159,44 +158,38 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     expect(await ok.json()).toEqual({renderId: 'r9', injected: false})
   })
 
-  it('refuses with 409 while a session lock is held by iterate', async () => {
+  it('reports BUSY while a session lock is held by iterate', async () => {
     const kit = await setup()
     const id = await kit.session()
     acquireLock(kit.stateRoot, id, 'iterate', process.pid)
-    const res = await kit.post('/api/chat', {messages: []}, id)
-    expect(res.status).toBe(409)
+    await expect(kit.rpc.chat.send({sessionId: id, text: 'hi'})).rejects.toMatchObject({code: 'BUSY'})
   })
 
-  it('rejects a turn with no resolved session (400)', async () => {
+  it('rejects a send with an empty message', async () => {
     const kit = await setup()
-    const res = await kit.post('/api/chat', {
-      messages: [{id: 'm', role: 'user', parts: [{type: 'text', content: 'hi'}]}],
-    })
-    expect(res.status).toBe(400)
+    const id = await kit.session()
+    await expect(kit.rpc.chat.send({sessionId: id, text: ''})).rejects.toThrow()
   })
 
-  it('keeps per-session resume independent under distinct ids', async () => {
+  it('keeps per-session state independent under distinct ids', async () => {
     const kit = await setup()
     const a = await kit.session()
     const b = await kit.session()
     await runTurn(kit, 'hi', a)
-
-    const beforeB = ChatSessionSchema.parse(await (await kit.get('/api/chat/session', b)).json())
-    expect(beforeB.harnessSessionId).toBeNull()
-    expect(beforeB.origin).toBe('chat')
-
-    const afterA = ChatSessionSchema.parse(await (await kit.get('/api/chat/session', a)).json())
-    expect(afterA.harnessSessionId).toBe('sess-fake')
-    expect(afterA.origin).toBe('chat')
+    const metaA = await metaFor(kit, a)
+    const metaB = await metaFor(kit, b)
+    expect(metaA?.usage).not.toBeNull()
+    expect(metaB?.usage ?? null).toBeNull()
   })
 
-  it('does NOT 409 a second session while a different one would be busy', async () => {
+  it('does NOT reject a second session while a different one is busy', async () => {
     const kit = await setup()
     const a = await kit.session()
     const b = await kit.session()
     acquireLock(kit.stateRoot, a, 'chat', process.pid)
-    const res = await kit.post('/api/chat', {messages: []}, b)
-    expect(res.status).toBe(200)
+    const stream = await kit.attach(b)
+    await kit.rpc.chat.send({sessionId: b, text: 'hi'})
+    await stream.done()
   })
 
   it('persists usage onto each session record, not a shared pointer', async () => {
@@ -208,8 +201,8 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     usageBySession[b] = 222
     await runTurn(kit, 'hi', a)
     await runTurn(kit, 'yo', b)
-    const ua = ChatSessionSchema.parse(await (await kit.get('/api/chat/session', a)).json()).usage
-    const ub = ChatSessionSchema.parse(await (await kit.get('/api/chat/session', b)).json()).usage
+    const ua = (await metaFor(kit, a))?.usage
+    const ub = (await metaFor(kit, b))?.usage
     expect(ua?.inputTokens).toBe(111)
     expect(ub?.inputTokens).toBe(222)
     expect(ua?.inputTokens).not.toBe(ub?.inputTokens)
@@ -220,7 +213,7 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     const a = await kit.session()
     const b = await kit.session()
 
-    await kit.post('/api/chat', {messages: [{id: 'm', role: 'user', parts: [{type: 'text', content: 'hi'}]}]}, a)
+    await kit.rpc.chat.send({sessionId: a, text: 'hi'})
     await until(() => readLock(kit.stateRoot, a).held, {hangGuardMs: 5000})
 
     await until(
@@ -234,7 +227,7 @@ describe('chat routes (IT, real makeApp + fake-claude spawn)', () => {
     const bRes = await kit.post('/api/chat/ui', {kind: 'confirm', renderId: 'r-b', question: 'ok?'}, b)
     expect(((await bRes.json()) as {injected: boolean}).injected).toBe(false)
 
-    await kit.post('/api/chat/stop', {}, a)
+    await kit.rpc.sessions.stop({sessionId: a})
     await until(() => !readLock(kit.stateRoot, a).held, {hangGuardMs: 5000})
   })
 })
