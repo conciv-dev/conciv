@@ -1,0 +1,56 @@
+diff --git a/dist/src/client.d.ts b/dist/src/client.d.ts
+index 265dce56772bb5f74743087489286e34fa4abb4b..2819ee24cb7faa6cb2c4f7dfcc72c7aa7833eab6 100644
+--- a/dist/src/client.d.ts
++++ b/dist/src/client.d.ts
+@@ -1,6 +1,6 @@
+-import { RecordApi, RecordId, CreateOperation, UpdateOperation, DeleteOperation } from './record_api';
+-import { Transport } from './transport';
+-export type { Transport } from './transport';
++import { RecordApi, RecordId, CreateOperation, UpdateOperation, DeleteOperation } from './record_api.js';
++import { Transport } from './transport.js';
++export type { Transport } from './transport.js';
+ export type User = {
+     id: string;
+     email: string | null;
+diff --git a/dist/src/index.d.ts b/dist/src/index.d.ts
+index ff0e0a9ec8dcb2d6d666c5a31d1f29113c0379ca..abcaae01f955d1bed74035545f3858cfe2f3b719 100644
+--- a/dist/src/index.d.ts
++++ b/dist/src/index.d.ts
+@@ -1,5 +1,5 @@
+-export * from './client';
+-export * from './record_api';
++export * from './client.js';
++export * from './record_api.js';
+ declare function base64Decode(base64: string): Uint8Array;
+ export declare function urlSafeBase64Decode(base64: string): Uint8Array;
+ declare function base64Encode(bytes: Uint8Array): string;
+diff --git a/dist/src/record_api.d.ts b/dist/src/record_api.d.ts
+index f22b9be6f2a1f67db6e1098d77f422df00f66fbf..7b33fb14b9646984d7d5798683fd2df4ad2537bb 100644
+--- a/dist/src/record_api.d.ts
++++ b/dist/src/record_api.d.ts
+@@ -1,5 +1,5 @@
+ import { FeatureCollection } from 'geojson';
+-import { Client } from './client';
++import { Client } from './client.js';
+ export interface FileUpload {
+     content_type?: null | string;
+     filename?: null | string;
+diff --git a/package.json b/package.json
+index 1c5a6e91fc60756ca5ddc4da61f88e4c53318f95..99f0744d8fec3716e066c61ddb192d7b2f1e33bc 100644
+--- a/package.json
++++ b/package.json
+@@ -49,11 +49,11 @@
+     "format": "prettier -w src tests",
+     "test": "vitest run && vite-node tests/integration_test_runner.ts"
+   },
+-  "types": "./dist/index.d.ts",
++  "types": "./dist/src/index.d.ts",
+   "exports": {
+     ".": {
+-      "default": "./dist/index.js",
+-      "types": "./dist/index.d.ts"
++      "types": "./dist/src/index.d.ts",
++      "default": "./dist/index.js"
+     }
+   }
+ }

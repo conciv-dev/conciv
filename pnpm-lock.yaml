@@ -5,6 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
+  trailbase: 0.13.0
   protobufjs@<8.4.1: '>=8.4.1'
   lodash-es@<4.18.0: '>=4.18.1'
   nanoid@<3.3.8: '>=3.3.8 <4'
@@ -12,6 +13,9 @@ overrides:
   postcss@<8.5.10: '>=8.5.10 <9'
   esbuild@>=0.27.3 <0.28.1: '>=0.28.1'
   '@opentelemetry/core@<2.8.0': '>=2.8.0 <3'
+
+patchedDependencies:
+  trailbase@0.13.0: af3f19d43b3d2efe55128517b81e00de4d8aea2248f1b9e6778389477e99bd16
 
 importers:
 
@@ -1260,8 +1264,8 @@ importers:
         specifier: ^2.0.1
         version: 2.0.1
       trailbase:
-        specifier: ^0.13.0
-        version: 0.13.0
+        specifier: 0.13.0
+        version: 0.13.0(patch_hash=af3f19d43b3d2efe55128517b81e00de4d8aea2248f1b9e6778389477e99bd16)
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -11682,9 +11686,6 @@ packages:
   tr46@0.0.3:
     resolution: {integrity: sha512-N3WMsuqV66lT30CrXNbEjx4GEwlow3v6rr4mCcv6prnfwhS01rkgyFdjPNBYd9br7LpXV1+Emh01fHnq2Gdgrw==}
 
-  trailbase@0.10.0:
-    resolution: {integrity: sha512-IGIofZQWU3RRUZVXIAztWQ1vBabtbcuFFLZhTLj5gtZOIR2ml/levQgKaWNE+RhcDsFE/pD1gf+tfHVfrC9NGw==}
-
   trailbase@0.13.0:
     resolution: {integrity: sha512-lpEhXbsOHqgnd1sa0Q8+GoiljzqpQ8nQ3sHA95PrmtAoio7Htiz3XNacLzU2Sg7LPNwdNmp0hMSBSVN4HpN4Bg==}
 
@@ -12079,10 +12080,6 @@ packages:
 
   util-deprecate@1.0.2:
     resolution: {integrity: sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw==}
-
-  uuid@13.0.2:
-    resolution: {integrity: sha512-vzi9uRZ926x4XV73S/4qQaTwPXM2JBj6/6lI/byHH1jOpCzb0zDbfytgA9LcN/hzb2l7WQSQnxITOVx5un/wGw==}
-    hasBin: true
 
   uuid@14.0.1:
     resolution: {integrity: sha512-6ZxzVpzDXDa3bJWaHilVayA+BH/1zmxCJoVgvmqJnid/gPoKHxUrS/aC/T6LGQtNHT+XHG9fXPJB4d+IrU30Ew==}
@@ -16750,7 +16747,7 @@ snapshots:
       '@tanstack/db': 0.6.14(typescript@6.0.3)
       '@tanstack/store': 0.9.3
       debug: 4.4.3
-      trailbase: 0.10.0
+      trailbase: 0.13.0(patch_hash=af3f19d43b3d2efe55128517b81e00de4d8aea2248f1b9e6778389477e99bd16)
       typescript: 6.0.3
     transitivePeerDependencies:
       - supports-color
@@ -23373,15 +23370,7 @@ snapshots:
 
   tr46@0.0.3: {}
 
-  trailbase@0.10.0:
-    dependencies:
-      '@types/geojson': 7946.0.16
-      '@ungap/raw-json': 0.4.4
-      geojson: 0.5.0
-      jwt-decode: 4.0.0
-      uuid: 13.0.2
-
-  trailbase@0.13.0:
+  trailbase@0.13.0(patch_hash=af3f19d43b3d2efe55128517b81e00de4d8aea2248f1b9e6778389477e99bd16):
     dependencies:
       '@types/geojson': 7946.0.16
       '@ungap/raw-json': 0.4.4
@@ -23756,8 +23745,6 @@ snapshots:
       react: 19.2.7
 
   util-deprecate@1.0.2: {}
-
-  uuid@13.0.2: {}
 
   uuid@14.0.1: {}
 
