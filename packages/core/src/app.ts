@@ -18,6 +18,7 @@ import {buildChatTools} from './api/chat/chat-tools.js'
 import {ensureChatRecord, recordMintedToken, resolveSystemText, resumeTokenFor} from './api/chat/turn.js'
 import {killLock, listCommands, sweepEmptyChatRecords} from './api/chat/session.js'
 import {launchHarness} from './api/chat/launch.js'
+import {makeCompactor} from './api/chat/compact.js'
 import {resolveHarnessModels} from '@conciv/harness'
 import {readLock, readLocks} from './store/lock.js'
 import {makeSessionStore, makeUiState, openDb} from '@conciv/db'
@@ -242,9 +243,11 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   }
   void sweepEmptyChatRecords(store, new Set(readLocks(opts.cfg.stateRoot).map((l) => l.key))).catch(() => {})
 
+  const compactor = makeCompactor({chat: chatRuntime, uiState, onChange: () => live.pulse()})
+
   const rpc = makeRpcRouter({
     store,
-    buildSessionList: () => rpcSessionList(chatRuntime),
+    buildSessionList: () => rpcSessionList(chatRuntime, compactor.compacting),
     live,
     uiState,
     harnessModels: async () => {
@@ -261,6 +264,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     tools: toolList,
     openInEditor: opts.openInEditor,
     openFromFrames: (frames) => openSourceFromFrames(frames, opts.cwd, opts.openInEditor),
+    chat: chatRuntime,
+    compactor,
   })
 
   const app = composeRoutes(

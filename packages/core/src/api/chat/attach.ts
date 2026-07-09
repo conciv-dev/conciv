@@ -14,7 +14,7 @@ const SSE_HEADERS = {
   connection: 'keep-alive',
 }
 
-async function transcriptMessages(deps: ChatRuntime, sessionId: string): Promise<ChatHistory> {
+export async function transcriptMessages(deps: ChatRuntime, sessionId: string): Promise<ChatHistory> {
   if (!deps.harness.capabilities.transcriptHistory || !deps.harness.history) return []
   const record = await deps.store.get(sessionId)
   if (!record?.harnessSessionId) return []

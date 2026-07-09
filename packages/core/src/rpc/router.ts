@@ -5,6 +5,7 @@ import type {ChatCommands, ChatLaunch, ChatTool, HarnessModelInfo} from '@conciv
 import {readLocks} from '../store/lock.js'
 import {buildSessionList, resolveSession} from '../api/chat/session.js'
 import {ensureChatRecord} from '../api/chat/turn.js'
+import {SESSION_BUSY, type Compactor} from '../api/chat/compact.js'
 import type {ChatRuntime} from '../api/chat/chat-env.js'
 import type {OpenInEditor} from '../editor/open.js'
 import type {OpenSourceFrames, OpenSourceStatus} from '../api/page/open-source.js'
@@ -28,6 +29,8 @@ export type RpcDeps = {
   tools: ChatTool[]
   openInEditor: OpenInEditor
   openFromFrames: (frames: OpenSourceFrames) => Promise<OpenSourceStatus>
+  chat: ChatRuntime
+  compactor: Compactor
 }
 
 function cleanTitle(title: string): string {
@@ -38,7 +41,7 @@ function cleanTitle(title: string): string {
     .slice(0, 120)
 }
 
-export async function rpcSessionList(chat: ChatRuntime): Promise<SessionMeta[]> {
+export async function rpcSessionList(chat: ChatRuntime, compacting: (sessionId: string) => boolean): Promise<SessionMeta[]> {
   const hist = chat.harness.history
   const harnessList =
     chat.harness.capabilities.transcriptHistory && hist?.list ? await hist.list(chat.cwd, chat.claudeHome) : []
@@ -47,7 +50,7 @@ export async function rpcSessionList(chat: ChatRuntime): Promise<SessionMeta[]> 
   const models = new Map<string, string | null>((await chat.store.list()).map((record) => [record.id, record.model]))
   return metas.map((meta) => ({
     ...meta,
-    status: meta.running ? ('running' as const) : ('idle' as const),
+    status: compacting(meta.id) ? ('compacting' as const) : meta.running ? ('running' as const) : ('idle' as const),
     model: models.get(meta.id) ?? null,
   }))
 }
@@ -103,8 +106,17 @@ export function makeRpcRouter(deps: RpcDeps) {
         await deps.store.update(input.sessionId, {model: input.model})
         return {model: input.model}
       }),
-      compact: os.sessions.compact.handler(() => {
-        throw new Error('implemented in task 7')
+      compact: os.sessions.compact.handler(async ({input, errors}) => {
+        if (deps.compactor.compacting(input.sessionId) || deps.chat.hub.generating(input.sessionId)) {
+          throw errors.BUSY()
+        }
+        try {
+          await deps.compactor.run(input.sessionId)
+        } catch (error) {
+          if (error instanceof Error && error.message === SESSION_BUSY) throw errors.BUSY()
+          throw error
+        }
+        return {ok: true as const}
       }),
       stop: os.sessions.stop.handler(({input}) => {
         deps.markStopped(input.sessionId)

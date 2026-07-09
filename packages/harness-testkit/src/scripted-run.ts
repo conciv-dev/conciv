@@ -12,7 +12,10 @@ export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
   const hold = () => {
     gate.held = true
   }
-  const release = () => gate.release()
+  const release = () => {
+    gate.held = false
+    gate.release()
+  }
   const chatStream = async function* (deps: HarnessChatDeps): AsyncGenerator<StreamChunk> {
     yield {type: EventType.RUN_STARTED, threadId: 'scripted', runId: 'scripted'}
     yield {

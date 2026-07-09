@@ -1,0 +1,45 @@
+import {mkdtempSync} from 'node:fs'
+import {tmpdir} from 'node:os'
+import {join} from 'node:path'
+import {getHarness} from '@conciv/harness'
+import {createTestHarness, type TestHarness} from '@conciv/harness-testkit'
+import {makeSessionStore, makeUiState, openDb, type SessionStore, type UiState} from '@conciv/db'
+import {makeUiBus} from '../runtime/ui-bus.js'
+import {makeTurnHub} from '../runtime/turn-hub.js'
+import {makePermissionGate} from '../api/chat/permission.js'
+import {ensureChatRecord} from '../api/chat/turn.js'
+import type {ChatRuntime} from '../api/chat/chat-env.js'
+
+export type ChatFixture = {
+  chat: ChatRuntime
+  store: SessionStore
+  uiState: UiState
+  harness: TestHarness
+  sessionId: string
+  stateRoot: string
+}
+
+export async function makeChatFixture(opts: {seedSession?: boolean} = {}): Promise<ChatFixture> {
+  const real = getHarness('claude')
+  if (!real) throw new Error('claude harness missing')
+  const harness = createTestHarness(real)
+  const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-fixture-'))
+  const db = openDb(stateRoot)
+  const store = makeSessionStore({db})
+  const uiState = makeUiState(db)
+  const uiBus = makeUiBus()
+  const chat: ChatRuntime = {
+    cwd: stateRoot,
+    stateRoot,
+    harness,
+    systemText: '',
+    gate: makePermissionGate(uiBus),
+    uiBus,
+    store,
+    hub: makeTurnHub(),
+    tools: () => [],
+  }
+  const sessionId = 'conciv_fixture'
+  if (opts.seedSession !== false) await ensureChatRecord(store, sessionId, harness.id, stateRoot)
+  return {chat, store, uiState, harness, sessionId, stateRoot}
+}

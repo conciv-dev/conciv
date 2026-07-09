@@ -125,7 +125,7 @@ async function buildTurnStream(
   })
 }
 
-async function startTurn(deps: TurnDeps, sessionId: string, chatReq: ChatRequest): Promise<void> {
+export async function startTurn(deps: TurnDeps, sessionId: string, chatReq: ChatRequest): Promise<void> {
   const abort = new AbortController()
   const stream = await buildTurnStream(deps, deps.systemText, sessionId, chatReq, abort)
   const requestedModel = requestedModelFor(chatReq) ?? null

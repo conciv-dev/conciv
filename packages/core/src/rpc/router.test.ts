@@ -1,10 +1,9 @@
-import {mkdtempSync} from 'node:fs'
-import {tmpdir} from 'node:os'
-import {join} from 'node:path'
 import {describe, expect, it} from 'vitest'
 import {call} from '@orpc/server'
-import {makeSessionStore, makeUiState, openDb} from '@conciv/db'
+import {makeCompactor} from '../api/chat/compact.js'
+import type {TestHarness} from '@conciv/harness-testkit'
 import {makeLiveFeed} from './live.js'
+import {makeChatFixture} from './test-fixtures.js'
 import {makeRpcRouter, type RpcContext, type RpcDeps} from './router.js'
 
 const rpcContext = (): {context: RpcContext} => ({context: {request: new Request('http://conciv.test/rpc')}})
@@ -16,16 +15,19 @@ type DepSpies = {
   launched: Array<{sessionId: string; model?: string; origin: string}>
 }
 
-function makeDeps(): RpcDeps & {spies: DepSpies} {
-  const db = openDb(mkdtempSync(join(tmpdir(), 'conciv-rpc-')))
-  const store = makeSessionStore({db})
+async function makeDeps(): Promise<RpcDeps & {spies: DepSpies; harness: TestHarness}> {
+  const fixture = await makeChatFixture({seedSession: false})
+  const {store, uiState, chat, harness} = fixture
   const live = makeLiveFeed()
-  const uiState = makeUiState(db)
   store.watch(() => live.pulse())
   uiState.watch(() => live.pulse())
+  const compactor = makeCompactor({chat, uiState, onChange: () => live.pulse()})
   const spies: DepSpies = {stopped: [], killed: [], opened: [], launched: []}
   return {
     spies,
+    harness,
+    chat,
+    compactor,
     store,
     live,
     uiState,
@@ -68,7 +70,7 @@ function makeDeps(): RpcDeps & {spies: DepSpies} {
 
 describe('rpc router', () => {
   it('sessions.list returns metas from the store', async () => {
-    const deps = makeDeps()
+    const deps = await makeDeps()
     await deps.store.create({
       id: 'conciv_a',
       harnessSessionId: null,
@@ -86,7 +88,7 @@ describe('rpc router', () => {
   })
 
   it('sessions.live re-emits after a store write and detaches on abort', async () => {
-    const deps = makeDeps()
+    const deps = await makeDeps()
     const router = makeRpcRouter(deps)
     const abort = new AbortController()
     const iterator = await call(router.sessions.live, undefined, {...rpcContext(), signal: abort.signal})
@@ -115,7 +117,7 @@ describe('rpc router', () => {
   })
 
   it('drafts.set round-trips through drafts.get', async () => {
-    const deps = makeDeps()
+    const deps = await makeDeps()
     const router = makeRpcRouter(deps)
     await call(
       router.drafts.set,
@@ -128,7 +130,7 @@ describe('rpc router', () => {
   })
 
   it('drafts.live re-emits after a set and detaches on abort', async () => {
-    const deps = makeDeps()
+    const deps = await makeDeps()
     const router = makeRpcRouter(deps)
     const abort = new AbortController()
     const iterator = await call(router.drafts.live, {sessionId: 'conciv_d'}, {...rpcContext(), signal: abort.signal})
@@ -151,7 +153,7 @@ describe('rpc router', () => {
   })
 
   it('markers.live first emission lists existing markers', async () => {
-    const deps = makeDeps()
+    const deps = await makeDeps()
     const router = makeRpcRouter(deps)
     await deps.uiState.addMarker({sessionId: 'conciv_m', afterTurn: 0, kind: 'new'})
     const abort = new AbortController()
@@ -164,7 +166,7 @@ describe('rpc router', () => {
   })
 
   it('sessions.create mints a record and a new-marker', async () => {
-    const deps = makeDeps()
+    const deps = await makeDeps()
     const router = makeRpcRouter(deps)
     const {sessionId} = await call(router.sessions.create, undefined, rpcContext())
     expect(sessionId).toMatch(/^conciv_/)
@@ -174,7 +176,7 @@ describe('rpc router', () => {
   })
 
   it('sessions.resolve adopts a foreign harness id as external', async () => {
-    const deps = makeDeps()
+    const deps = await makeDeps()
     const router = makeRpcRouter(deps)
     const {sessionId} = await call(router.sessions.resolve, {id: 'harness-token-1'}, rpcContext())
     expect(sessionId).toMatch(/^conciv_/)
@@ -186,7 +188,7 @@ describe('rpc router', () => {
   })
 
   it('sessions.rename sanitizes and persists the title', async () => {
-    const deps = makeDeps()
+    const deps = await makeDeps()
     const router = makeRpcRouter(deps)
     const {sessionId} = await call(router.sessions.create, undefined, rpcContext())
     const renamed = await call(router.sessions.rename, {sessionId, title: '  a  b  '}, rpcContext())
@@ -196,7 +198,7 @@ describe('rpc router', () => {
   })
 
   it('sessions.setModel rejects unknown and disabled models with typed errors', async () => {
-    const deps = makeDeps()
+    const deps = await makeDeps()
     const router = makeRpcRouter(deps)
     const {sessionId} = await call(router.sessions.create, undefined, rpcContext())
     await expect(call(router.sessions.setModel, {sessionId, model: 'nope'}, rpcContext())).rejects.toMatchObject({code: 'UNKNOWN_MODEL'})
@@ -207,7 +209,7 @@ describe('rpc router', () => {
   })
 
   it('sessions.remove kills the lock and clears rows', async () => {
-    const deps = makeDeps()
+    const deps = await makeDeps()
     const router = makeRpcRouter(deps)
     const {sessionId} = await call(router.sessions.create, undefined, rpcContext())
     await call(router.drafts.set, {sessionId, text: 'x', selectionStart: 0, selectionEnd: 0, grabs: []}, rpcContext())
@@ -219,7 +221,7 @@ describe('rpc router', () => {
   })
 
   it('sessions.stop marks stopped and kills the lock', async () => {
-    const deps = makeDeps()
+    const deps = await makeDeps()
     const router = makeRpcRouter(deps)
     await call(router.sessions.stop, {sessionId: 'conciv_s'}, rpcContext())
     expect(deps.spies.stopped).toEqual(['conciv_s'])
@@ -227,7 +229,7 @@ describe('rpc router', () => {
   })
 
   it('sessions.launch forwards model and request origin', async () => {
-    const deps = makeDeps()
+    const deps = await makeDeps()
     const router = makeRpcRouter(deps)
     const result = await call(router.sessions.launch, {sessionId: 'conciv_l', model: 'm1'}, rpcContext())
     expect(result.opened).toBe(true)
@@ -235,21 +237,21 @@ describe('rpc router', () => {
   })
 
   it('editor.open forwards file and line', async () => {
-    const deps = makeDeps()
+    const deps = await makeDeps()
     const router = makeRpcRouter(deps)
     await call(router.editor.open, {file: 'src/x.ts', line: 12}, rpcContext())
     expect(deps.spies.opened).toEqual([{file: 'src/x.ts', line: 12}])
   })
 
   it('editor.openFromFrames returns the symbolication status', async () => {
-    const deps = makeDeps()
+    const deps = await makeDeps()
     const router = makeRpcRouter(deps)
     const result = await call(router.editor.openFromFrames, {frames: [{fileName: 'a.js', line: 1}]}, rpcContext())
     expect(result.status).toBe('opened')
   })
 
   it('meta.models and meta.commands and meta.tools serve harness data', async () => {
-    const deps = makeDeps()
+    const deps = await makeDeps()
     const router = makeRpcRouter(deps)
     const models = await call(router.meta.models, undefined, rpcContext())
     expect(models.defaultModel).toBe('m1')
@@ -258,6 +260,28 @@ describe('rpc router', () => {
     expect(commands.commands[0]?.name).toBe('echo-http://conciv.test')
     const tools = await call(router.meta.tools, undefined, rpcContext())
     expect(tools.tools.map((tool) => tool.name)).toEqual(['conciv_page'])
+  })
+
+  it('sessions.compact runs a compact turn and writes the marker', async () => {
+    const deps = await makeDeps()
+    const router = makeRpcRouter(deps)
+    const {sessionId} = await call(router.sessions.create, undefined, rpcContext())
+    const result = await call(router.sessions.compact, {sessionId}, rpcContext())
+    expect(result.ok).toBe(true)
+    const kinds = (await deps.uiState.listMarkers(sessionId)).map((marker) => marker.kind)
+    expect(kinds).toContain('compact')
+  })
+
+  it('sessions.compact reports BUSY while a compact is active', async () => {
+    const deps = await makeDeps()
+    const router = makeRpcRouter(deps)
+    const {sessionId} = await call(router.sessions.create, undefined, rpcContext())
+    deps.harness.__scripted.hold()
+    const first = call(router.sessions.compact, {sessionId}, rpcContext())
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await expect(call(router.sessions.compact, {sessionId}, rpcContext())).rejects.toMatchObject({code: 'BUSY'})
+    deps.harness.__scripted.release()
+    await first
   })
 
   it('mounts at /rpc/* over HTTP', async () => {
