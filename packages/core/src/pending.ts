@@ -7,7 +7,7 @@ export function isPendingTimeout(e: unknown): e is PendingTimeout {
 
 export type Pending<T> = {
   await(id: string, timeoutMs: number): Promise<T>
-  resolve(id: string, value: T): void
+  resolve(id: string, value: T): boolean
   size(): number
 }
 
@@ -28,8 +28,11 @@ export function makePending<T>(): Pending<T> {
     })
   }
 
-  function resolve(id: string, value: T): void {
-    waiters.get(id)?.(value)
+  function resolve(id: string, value: T): boolean {
+    const waiter = waiters.get(id)
+    if (!waiter) return false
+    waiter(value)
+    return true
   }
 
   return {await: awaitReply, resolve, size: () => waiters.size}

@@ -301,7 +301,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     chat: chatRuntime,
     compactor,
     sendTurn,
-    decidePermission: (approvalId, approved) => gate.resolve(approvalId, approved),
+    decidePermission: (approvalId, approved) => void gate.resolve(approvalId, approved),
+    pageBus,
   })
 
   const app = composeRoutes(

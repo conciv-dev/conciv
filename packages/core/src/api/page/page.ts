@@ -1,13 +1,11 @@
 import {Hono} from 'hono'
 import {HTTPException} from 'hono/http-exception'
-import {streamSSE} from 'hono/streaming'
 import {zValidator} from '@hono/zod-validator'
 import {z} from 'zod'
 import {
   isMutating,
   PageQueryInputSchema,
   PageQueryKindSchema,
-  PageReplySchema,
   type PageQuery,
   type PageQueryInput,
 } from '@conciv/protocol/page-types'
@@ -17,7 +15,7 @@ import {symbolicateFrames, type RawFrame} from '../../page/symbolicate.js'
 
 export type PageBus = {
   ask: (query: Omit<PageQuery, 'requestId'>) => Promise<Record<string, unknown>>
-  resolve: (requestId: string, data: Record<string, unknown>) => void
+  resolve: (requestId: string, data: Record<string, unknown>) => boolean
   subscribe: (emit: (frame: unknown) => void) => () => void
 }
 
@@ -49,6 +47,44 @@ export function makePageBus(timeoutMs = 5000): PageBus {
   return {ask, resolve: pending.resolve, subscribe}
 }
 
+function frameRequestId(frame: unknown): string | null {
+  if (typeof frame !== 'object' || frame === null) return null
+  if (!('requestId' in frame) || typeof frame.requestId !== 'string') return null
+  return frame.requestId
+}
+
+export async function* pageQueryStream(
+  bus: PageBus,
+  signal: AbortSignal,
+): AsyncGenerator<{requestId: string; query: unknown}> {
+  const queue: unknown[] = []
+  const waiter = {wake: () => {}}
+  const unsubscribe = bus.subscribe((frame) => {
+    queue.push(frame)
+    waiter.wake()
+  })
+  const onAbort = () => waiter.wake()
+  signal.addEventListener('abort', onAbort, {once: true})
+  try {
+    while (!signal.aborted) {
+      const frame = queue.shift()
+      if (frame !== undefined) {
+        const requestId = frameRequestId(frame)
+        if (requestId !== null) yield {requestId, query: frame}
+        continue
+      }
+      await new Promise<void>((resolve) => {
+        waiter.wake = resolve
+        if (queue.length > 0 || signal.aborted) resolve()
+      })
+      waiter.wake = () => {}
+    }
+  } finally {
+    unsubscribe()
+    signal.removeEventListener('abort', onAbort)
+  }
+}
+
 function pageArgs(input: PageQueryInput): Record<string, unknown> {
   const {ref: _ref, selector: _selector, since: _since, ...rest} = input
   return Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined))
@@ -72,23 +108,6 @@ async function runVerb(
 }
 
 const app = new Hono<{Variables: PageVars}>()
-  .get('/stream', (c) =>
-    streamSSE(c, async (stream) => {
-      await stream.write(': page-bus open\n\n')
-      await new Promise<void>((resolve) => {
-        const unsubscribe = c.var.page.bus.subscribe((frame) => void stream.writeSSE({data: JSON.stringify(frame)}))
-        stream.onAbort(() => {
-          unsubscribe()
-          resolve()
-        })
-      })
-    }),
-  )
-  .post('/reply', zValidator('json', PageReplySchema), (c) => {
-    const {requestId, data} = c.req.valid('json')
-    c.var.page.bus.resolve(requestId, data)
-    return c.json({ok: true})
-  })
   .get('/changes', (c) => c.json(c.var.page.journal.list()))
   .post('/changes/clear', (c) => {
     c.var.page.journal.clear()

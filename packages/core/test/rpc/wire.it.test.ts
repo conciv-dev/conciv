@@ -159,4 +159,30 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     const result = await kit.rpc.chat.permissionDecision({approvalId: 'none-pending', approved: false})
     expect(result.ok).toBe(true)
   })
+
+  it('page queries stream to the rpc subscriber and reply resolves the asker', async () => {
+    const {kit} = await bootWire()
+    const abort = new AbortController()
+    const iterator = await kit.rpc.page.queries(undefined, {signal: abort.signal})
+    const firstPromise = iterator.next()
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    const verbResponse = kit.post('/api/page/snapshot', {})
+    const first = await firstPromise
+    if (first.done) throw new Error('page.queries ended before a query arrived')
+    expect(first.value.requestId).toBeTruthy()
+    const replied = await kit.rpc.page.reply({requestId: first.value.requestId, data: {ok: true, value: 'snap'}})
+    expect(replied.ok).toBe(true)
+    const response = await verbResponse
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ok: true, value: 'snap'})
+    abort.abort()
+    await iterator.return(undefined).catch(() => {})
+  })
+
+  it('page.reply on an unknown request id reports UNKNOWN_REQUEST', async () => {
+    const {kit} = await bootWire()
+    await expect(kit.rpc.page.reply({requestId: 'pq-nope', data: {}})).rejects.toMatchObject({
+      code: 'UNKNOWN_REQUEST',
+    })
+  })
 })

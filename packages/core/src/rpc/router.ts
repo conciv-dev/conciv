@@ -7,6 +7,7 @@ import {buildSessionList, resolveSession} from '../api/chat/session.js'
 import {ensureChatRecord} from '../api/chat/turn.js'
 import {SESSION_BUSY, type Compactor} from '../api/chat/compact.js'
 import {attachStream} from '../api/chat/attach.js'
+import {pageQueryStream, type PageBus} from '../api/page/page.js'
 import type {ChatRuntime} from '../api/chat/chat-env.js'
 import type {OpenInEditor} from '../editor/open.js'
 import type {OpenSourceFrames, OpenSourceStatus} from '../api/page/open-source.js'
@@ -34,6 +35,7 @@ export type RpcDeps = {
   compactor: Compactor
   sendTurn: (sessionId: string, text: string) => Promise<void>
   decidePermission: (approvalId: string, approved: boolean) => void
+  pageBus: PageBus
 }
 
 function cleanTitle(title: string): string {
@@ -175,11 +177,12 @@ export function makeRpcRouter(deps: RpcDeps) {
       }),
     },
     page: {
-      queries: os.page.queries.handler(() => {
-        throw new Error('implemented in task 9')
+      queries: os.page.queries.handler(async function* ({signal}) {
+        yield* pageQueryStream(deps.pageBus, signal ?? new AbortController().signal)
       }),
-      reply: os.page.reply.handler(() => {
-        throw new Error('implemented in task 9')
+      reply: os.page.reply.handler(({input, errors}) => {
+        if (!deps.pageBus.resolve(input.requestId, input.data)) throw errors.UNKNOWN_REQUEST()
+        return {ok: true as const}
       }),
     },
     editor: {
