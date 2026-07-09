@@ -1,3 +1,6 @@
 export {MountedExtension, MountedView, mountExtension} from './mount-extension.js'
 export type {MountedExtensionProps, MountedViewProps, MountExtensionOptions} from './mount-extension.js'
 export {ensureEffectsSurface, openSource, EFFECTS_SURFACE_ATTR} from './client-host.js'
+export {HostProvider, useHost, useSlot} from './host.js'
+export {extensionError, isExtensionError, type ExtensionError, type ExtensionErrorCode} from './errors.js'
+export type {HostApi, HostChat, HostState, HostUi, PageAgent} from './host-types.js'

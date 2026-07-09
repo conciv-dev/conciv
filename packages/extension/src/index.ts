@@ -44,3 +44,5 @@ export type {
   ToolRenderer,
   ToolRequest,
 } from './types.js'
+export {HostProvider, useHost, useSlot} from './host.js'
+export {extensionError, isExtensionError, type ExtensionError, type ExtensionErrorCode} from './errors.js'
