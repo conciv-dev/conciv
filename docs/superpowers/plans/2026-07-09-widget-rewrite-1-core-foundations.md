@@ -16,7 +16,7 @@
 - drizzle-orm + drizzle-kit pinned EXACT `1.0.0-rc.4` (user-approved 2026-07-09: the node-sqlite driver ships only in the 1.0 line, no stable release has it; move to `1.0.0` stable when released). Only `@conciv/db` may import drizzle.
 - Functions, not classes. Zero code comments in TS. No `any`/`as`/non-null `!`. No IIFEs. No barrel files beyond existing package entrypoints. oxfmt style (no semicolons, single quotes).
 - Never re-model chat messages as rows: `chat.attach` carries TanStack AI `StreamChunk`s verbatim.
-- Old REST routes stay mounted and green throughout this plan (the shipped widget still uses them); they are deleted in Plan 4.
+- REVOKED 2026-07-10 (user): ~~old REST routes stay mounted throughout~~ — nothing ships mid-phase; BREAK OLD STUFF FREELY. Mid-plan red tests/builds are acceptable and expected; only Task 12's final gates are binding. Client-facing REST routes AND `packages/widget` + `packages/api-client` are deleted in THIS plan (Task 11 demolition). Per-task "full suite green" checks are advisory for the touched package only. Plan 4 shrinks to page-split + final cleanup.
 - Build/typecheck via turbo: `pnpm turbo run build --filter=<pkg>`, `pnpm typecheck`.
 - Commit with pathspec always: `git commit -- <paths>` (parallel sessions active in this repo).
 - Run `pnpm exec fallow audit --changed-since main --format json` before finishing; fix INTRODUCED findings.
@@ -815,7 +815,7 @@ export function rpcMiddleware(router: ReturnType<typeof makeRpcRouter>): Middlew
 }
 ```
 
-Immediately after the first handler compiles, add the SIGNAL-DELIVERY assertion test (review M7 — the entire live/attach cleanup story depends on it): drive one event-iterator procedure over `app.request` (or `call` if it forwards signals), abort the client side, assert the handler observed `signal.aborted === true` (e.g. a test-only iterator that records it). If the installed `@orpc/server` does NOT hand handlers an `AbortSignal`, STOP the plan and re-design cleanup before Tasks 4/5/8 — do not paper over with `signal ?? new AbortController().signal`. Additionally every live handler wraps its loop in `try/finally` and detaches its subscription in `finally` (works even when only `iterator.return()` fires), so cleanup never depends solely on the signal.
+SIGNAL/CLEANUP verification (review M7) uses oRPC's DOCUMENTED testing surfaces only (per the testing guide: `call`/`createRouterClient` in-process, `createORPCClient`+`RPCLink` for wire — never hand-rolled probe apps): Task 4's router test drives `sessions.live` via `call(..., {signal})`, aborts, and asserts iteration ends AND the feed detached its subscriber; Task 8's wire IT repeats the abort over HTTP with the real client. If those show the installed `@orpc/server` does NOT deliver an `AbortSignal` to handlers, STOP and re-design cleanup — do not paper over with `signal ?? new AbortController().signal`. Additionally every live handler wraps its loop in `try/finally` and detaches its subscription in `finally` (works even when only `iterator.return()` fires), so cleanup never depends solely on the signal.
 
 In `packages/core/src/app.ts` `composeRoutes`, thread the router in: change `composeRoutes(vars)` to `composeRoutes(vars, rpc)` with `rpc: ReturnType<typeof makeRpcRouter>` and add before the `/api/*` routes:
 
@@ -1830,11 +1830,17 @@ git commit -m "test(core): pin custom-event replay through attach; tool duration
 
 ---
 
-### Task 11: DROPPED — extension oRPC routers deferred (user decision 2026-07-10)
+### Task 11: DEMOLITION — delete client-facing REST + packages/widget + packages/api-client (user decision 2026-07-10)
 
-Extension comms stay on their existing Hono apps at `/api/ext/<slug>` for now; the whole extension-oRPC story (server routers at `/rpc/ext/<slug>`, typed extension clients, the host bag's session-id exposure, the `requestMeta` lane) moves to a dedicated later phase. Plan 4's deletion ledger must treat `/api/ext/*`, the terminal WS, and the extension host's use of `editor.open`/`editor.openFromFrames` (via `client-host.ts`) as SURVIVING surfaces. Do not modify `packages/extension` in this plan.
+Replaces the dropped extension-oRPC task (extension comms stay Hono, deferred phase — do not modify `packages/extension`'s comms). With the oRPC surface complete (Tasks 3-10), delete the old client plane in one sweep:
 
-The original task body is preserved below for the future phase, unchecked and inert.
+- [ ] **Step 1: Delete the packages.** `git rm -r packages/widget packages/api-client`; prune both from `PUBLIC_PACKAGES` in `packages/publish/src/guards.ts` and from any turbo/e2e wiring that references them (grep `@conciv/widget` and `@conciv/api-client` across the repo, including `.github/workflows`).
+- [ ] **Step 2: Fix collateral consumers.** `packages/extensions/terminal/src/client/terminal-actions.tsx` and `packages/extension-testkit/src/host/host-runtime.tsx` import `@conciv/api-client` — rewire them to a minimal local shim over the oRPC client or inline fetches against `/rpc` (extensions phase does it properly; here just keep them compiling). `packages/plugin` widget-middleware serves the widget bundle — stub or gate the middleware (the new client arrives in plan 3; until then the plugin serves no UI).
+- [ ] **Step 3: Delete client-facing REST routes.** Remove from `composeRoutes`/route files: `/api/chat` (turn POST, attach, session*, models, commands, history, sessions, title, stop, launch, permission-decision), `/api/editor/open`, `/api/page/open-source`, `/api/page/stream`, `/api/page/reply`. KEEP: `/api/mcp` (MCP protocol), `/api/ext/*` (extensions), `/api/chat/ui` + `/api/page/:verb` + `/api/page/changes*` + `/api/server/*` (conciv CLI agent tooling). Where a route file also hosts shared logic (`launch.ts` helpers, `session.ts` `resolveSession`/`buildSessionList`/`killLock`/`listCommands`, `open-source.ts` symbolication adapter, `attach.ts` `attachStream`), keep the functions, delete the Hono apps.
+- [ ] **Step 4: Gates.** `pnpm typecheck && pnpm build && pnpm test` green (widget tests are gone with the package); `pnpm exec fallow audit --changed-since main` — the sweep will surface newly-dead exports (unstorage memory driver, session-id header helpers, SSE utilities); delete what fallow flags INTRODUCED-dead, verifying each with `--trace`.
+- [ ] **Step 5: Commit** with pathspec covering the deleted trees + touched packages.
+
+The original extension-oRPC task body is preserved below for the future extensions phase, unchecked and inert.
 
 <details>
 <summary>Deferred original Task 11 content</summary>
