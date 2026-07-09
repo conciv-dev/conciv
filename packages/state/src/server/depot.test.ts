@@ -12,7 +12,7 @@ describe('prepareDepot', () => {
     const sql = readFileSync(join(dir, 'migrations/main', MIGRATION_FILENAME), 'utf8')
     expect(sql).toContain('CREATE TABLE sessions')
     const config = readFileSync(join(dir, 'config.textproto'), 'utf8')
-    expect(config.match(/name: "sessions"/g)).toHaveLength(1)
+    expect(config.match(/ name: "sessions"/g)).toHaveLength(1)
     expect(existsSync(join(dir, 'migrations/main'))).toBe(true)
   })
 })
