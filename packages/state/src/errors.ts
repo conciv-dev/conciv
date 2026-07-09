@@ -3,6 +3,7 @@ import {isConcivError, makeError, type ConcivError, type UserCode, type UserDeta
 export type StateErrorCode =
   | 'unsupported-platform'
   | 'download-failed'
+  | 'checksum-mismatch'
   | 'unpack-failed'
   | 'install-raced'
   | 'server-unhealthy'
@@ -13,6 +14,7 @@ export type StateErrorCode =
 const USER_CODES: Record<StateErrorCode, UserCode> = {
   'unsupported-platform': 'state.unsupported-platform',
   'download-failed': 'state.download-failed',
+  'checksum-mismatch': 'state.checksum-mismatch',
   'unpack-failed': 'state.unpack-failed',
   'install-raced': 'state.install-raced',
   'server-unhealthy': 'state.server-unhealthy',

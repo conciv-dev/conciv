@@ -1,6 +1,7 @@
 export type UserCode =
   | 'state.unsupported-platform'
   | 'state.download-failed'
+  | 'state.checksum-mismatch'
   | 'state.unpack-failed'
   | 'state.install-raced'
   | 'state.server-unhealthy'
@@ -12,6 +13,7 @@ export type UserCode =
 export const USER_MESSAGES: Record<UserCode, string> = {
   'state.unsupported-platform': 'conciv does not support this platform yet',
   'state.download-failed': 'could not download the conciv state server',
+  'state.checksum-mismatch': 'the downloaded conciv state server failed integrity verification',
   'state.unpack-failed': 'could not install the conciv state server',
   'state.install-raced': 'could not install the conciv state server',
   'state.server-unhealthy': 'the conciv state server failed to start',
