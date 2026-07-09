@@ -136,11 +136,13 @@ package is rendering (relocates) or the page driver (inherently client).
 
 The widget is a TanStack Solid Router app (`@tanstack/solid-router`, pinned alongside
 `@tanstack/history`) mounted in the shadow root. Routes replace every layout state machine; when
-embedded, the router's history is a **custom localStorage-persisted history** we write against
-`@tanstack/history`'s `createHistory` — same shape as `createMemoryHistory` (entries + index), but
-the store is localStorage. The widget never touches the host page's URL or history; restoration
-after reload is intrinsic to the history, not a feature we build. The history is injected at the
-entry, so the standalone app (see package map) runs the same routes on browser history.
+embedded, the router's history comes from **`@conciv/storage-history`** — its own package: a
+custom Web-Storage-persisted history written against `@tanstack/history`'s `createHistory`, same
+shape as `createMemoryHistory` (entries + index) but the store is localStorage (storage injectable
+for tests/sessionStorage). Being a dedicated package makes the history swappable without touching
+the app. The widget never touches the host page's URL or history; restoration after reload is
+intrinsic to the history, not a feature we build. The history is injected at the entry, so the
+standalone app (see package map) runs the same routes on browser history.
 
 Route tree:
 
@@ -187,6 +189,9 @@ and error boundaries with retry; the fab renders instantly.
 - `contract`: oRPC contract + zod schemas (client and server both import it).
 - `client`: data access, zero UI — oRPC client factory, TanStack Query options, Solid hooks,
   the ~15-line `useChat` connection bridge.
+- `storage-history`: the custom Web-Storage-persisted `@tanstack/history` implementation, alone in
+  its package so the history strategy is swappable (entries/index round-trip and corrupted-storage
+  fallback unit-tested here). Depends only on `@tanstack/history`.
 - `apps/conciv` (private, never published — apps/, not packages/; scaffolded with
   `npx @tanstack/cli create --router-only --framework solid`): the conciv app — TanStack Solid
   Router app: route tree above, chat pane assembly, chrome components (fab wiring, panel geometry,
@@ -199,8 +204,8 @@ and error boundaries with retry; the fab renders instantly.
 - `page`: DOM execution half of the page plane (react-bridge pre-hydration global is its private,
   versioned concern).
 - `embed` (packages/, published — it IS the artifact): entry + bundle (~10 lines: create the
-  custom localStorage history, create the router from `apps/conciv`'s export, mount into the
-  shadow root) + vite bundling config that inlines the private app, externals (every
+  history via `@conciv/storage-history`, create the router from `apps/conciv`'s export, mount into
+  the shadow root) + vite bundling config that inlines the private app, externals (every
   `@conciv/extension/*` subpath + shared Ark/Solid deps) and the mount-externals guard test.
 - `ui-kit-system`, `ui-kit-chat`, `ui-kit-chat-tools`, `ui-kit-terminal`, `mascot`: generic
   components only, no conciv data wiring (`FabRobot` visuals in `mascot`; drag/resize/PiP-host/
