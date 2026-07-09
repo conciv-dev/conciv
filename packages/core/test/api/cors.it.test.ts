@@ -1,13 +1,23 @@
-import {describe, it, expect, afterEach} from 'vitest'
+import {describe, it, expect, afterEach, beforeAll, afterAll} from 'vitest'
 import {serveApp, type ServedApp} from '@conciv/harness-testkit'
 import {mkdtempSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
+import type {StatePlane} from '@conciv/state/server'
 import {makeApp} from '../../src/app.js'
 import {resolveConfig} from '../../src/config.js'
+import {startTestStore} from '../helpers/state-plane.js'
 
 const ORIGIN = 'http://localhost:3000'
 const dirs: string[] = []
+
+let plane: StatePlane
+
+beforeAll(async () => {
+  plane = await startTestStore()
+}, 120000)
+
+afterAll(async () => plane.stop())
 
 function tmp(): string {
   const d = mkdtempSync(join(tmpdir(), 'conciv-cors-it-'))
@@ -22,6 +32,7 @@ async function startServer(): Promise<{served: ServedApp; base: string}> {
     cfg,
     cwd: root,
     openInEditor: () => {},
+    store: plane.store,
   })
   const served = await serveApp(app.fetch)
   return {served, base: served.base}

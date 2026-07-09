@@ -17,8 +17,9 @@ import {makePermissionGate} from './api/chat/permission.js'
 import {buildChatTools} from './api/chat/chat-tools.js'
 import {ensureChatRecord, recordMintedToken, resolveSystemText, resumeTokenFor} from './api/chat/turn.js'
 import {sweepEmptyChatRecords} from './api/chat/session.js'
+import {clientPayload, isConcivError} from '@conciv/errors'
 import {readLock, readLocks} from './store/lock.js'
-import {createFsSessionStore} from './store/session-store.js'
+import type {SessionStore} from './store/session-store.js'
 import mcpApp, {type McpVars} from './api/mcp/mcp.js'
 import toolsApp, {type ToolsVars} from './api/chat/tools-route.js'
 import pageApp, {makePageBus, type PageVars} from './api/page/page.js'
@@ -50,6 +51,8 @@ export type MakeAppOpts = {
   allowedOrigins?: string[]
 
   harness?: HarnessAdapter
+
+  store: SessionStore
 }
 
 function requireHarness(id: string): HarnessAdapter {
@@ -89,9 +92,13 @@ export type CoreVars = CorsVars &
 function composeRoutes(vars: CoreVars) {
   return new Hono<{Variables: CoreVars}>()
     .onError((error, c) => {
-      if (error instanceof HTTPException) return c.json({message: error.message}, error.status)
+      if (error instanceof HTTPException) return c.json({message: error.message, code: `http.${error.status}`}, error.status)
+      if (isConcivError(error)) {
+        logError(`[core] ${error.scope}/${error.code}: ${error.message} ${JSON.stringify(error.details)}`)
+        return Response.json(clientPayload(error, process.env.NODE_ENV !== 'production'), {status: error.httpStatus})
+      }
       logError(`[core] unhandled route error: ${String(error)}`)
-      return c.json({message: 'internal error'}, 500)
+      return c.json({message: 'internal error', code: 'core.internal'}, 500)
     })
     .use(async (c, next) => {
       c.set('cors', vars.cors)
@@ -125,7 +132,7 @@ export type MadeApp = {
 export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const harness = opts.harness ?? requireHarness(opts.cfg.harness)
   const uiBus = makeUiBus()
-  const store = createFsSessionStore({stateRoot: opts.cfg.stateRoot})
+  const store = opts.store
   const gate = makePermissionGate(uiBus, {
     risky: new Set(
       (opts.extensions ?? [])

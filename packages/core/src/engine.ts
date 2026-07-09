@@ -1,5 +1,6 @@
 import {serveHono} from '@conciv/serve'
 import getPort from 'get-port'
+import {startStatePlane} from '@conciv/state/server'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {AnyExtension} from '@conciv/extension'
 import {makeApp, type MakeAppOpts} from './app.js'
@@ -25,6 +26,7 @@ export type StartOpts = {
 
 export type Engine = {
   port: number
+  statePort: number
   stop: () => Promise<void>
   cfg: ResolvedConcivConfig
   extensionContexts: Record<string, unknown>
@@ -57,30 +59,39 @@ export async function start(opts: StartOpts): Promise<Engine> {
     return sessionId ? {...baseEnv, CONCIV_SESSION_ID: sessionId} : baseEnv
   }
 
-  const appOpts: MakeAppOpts = {
-    cfg,
-    cwd: opts.root,
-    bridge: opts.bridge,
-    openInEditor,
-    systemPromptFile: systemPrompt ? paths.systemPrompt : undefined,
-    systemPromptText: systemPrompt,
-    extensions: opts.extensions,
-    extensionConfig: cfg.extensions,
-    harnessEnv,
-    allowedOrigins: opts.allowedOrigins,
-  }
-  const {app, disposers, extensionContexts} = await makeApp(appOpts)
+  const plane = await startStatePlane({dataDir: paths.trailDir, port: await getPort()})
+  try {
+    const appOpts: MakeAppOpts = {
+      cfg,
+      cwd: opts.root,
+      bridge: opts.bridge,
+      openInEditor,
+      systemPromptFile: systemPrompt ? paths.systemPrompt : undefined,
+      systemPromptText: systemPrompt,
+      extensions: opts.extensions,
+      extensionConfig: cfg.extensions,
+      harnessEnv,
+      allowedOrigins: opts.allowedOrigins,
+      store: plane.store,
+    }
+    const {app, disposers, extensionContexts} = await makeApp(appOpts)
 
-  const requestedPort = opts.port ?? (await getPort())
-  const {port, close} = await serveHono({fetch: app.fetch, port: requestedPort})
-  portRef.port = port
-  return {
-    port,
-    cfg,
-    extensionContexts,
-    stop: async () => {
-      await Promise.all(disposers.map((dispose) => dispose()))
-      await close()
-    },
+    const requestedPort = opts.port ?? (await getPort())
+    const {port, close} = await serveHono({fetch: app.fetch, port: requestedPort})
+    portRef.port = port
+    return {
+      port,
+      statePort: plane.port,
+      cfg,
+      extensionContexts,
+      stop: async () => {
+        await Promise.all(disposers.map((dispose) => dispose()))
+        await close()
+        await plane.stop()
+      },
+    }
+  } catch (error) {
+    await plane.stop()
+    throw error
   }
 }

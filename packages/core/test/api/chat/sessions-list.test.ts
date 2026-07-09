@@ -1,6 +1,19 @@
-import {describe, it, expect} from 'vitest'
+import {describe, it, expect, beforeAll, afterAll, beforeEach} from 'vitest'
+import type {StatePlane} from '@conciv/state/server'
 import {buildSessionList, sweepEmptyChatRecords} from '../../../src/api/chat/session.js'
-import {memoryStore} from '../../helpers/memory-store.js'
+import {startTestStore} from '../../helpers/state-plane.js'
+
+let plane: StatePlane
+
+beforeAll(async () => {
+  plane = await startTestStore()
+}, 120000)
+
+afterAll(async () => plane.stop())
+
+beforeEach(async () => {
+  for (const record of await plane.store.list()) await plane.store.delete(record.id)
+})
 
 const rec = (over: {
   id: string
@@ -21,7 +34,7 @@ const rec = (over: {
 
 describe('buildSessionList', () => {
   it('unions our records with unwrapped harness transcripts (no writes)', async () => {
-    const store = memoryStore()
+    const store = plane.store
     await store.create({
       id: 'conciv_a',
       harnessSessionId: 'tok-a',
@@ -45,7 +58,7 @@ describe('buildSessionList', () => {
   })
 
   it('scopes records to the current cwd (trailing-slash tolerant)', async () => {
-    const store = memoryStore()
+    const store = plane.store
     await store.create(rec({id: 'conciv_here', title: 'Here', cwd: '/app'}))
     await store.create(rec({id: 'conciv_there', title: 'There', cwd: '/other'}))
     const rows = await buildSessionList({store, harnessList: [], runningKeys: new Set<string>(), cwd: '/app/'})
@@ -55,7 +68,7 @@ describe('buildSessionList', () => {
 
 describe('sweepEmptyChatRecords', () => {
   it('deletes empty chat ghosts; keeps titled, tokened, external/agent, and locked', async () => {
-    const store = memoryStore()
+    const store = plane.store
     await store.create(rec({id: 'conciv_ghost'}))
     await store.create(rec({id: 'conciv_titled', title: 'Kept'}))
     await store.create(rec({id: 'conciv_run', harnessSessionId: 'tok'}))

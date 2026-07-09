@@ -1,10 +1,19 @@
-import {describe, it, expect} from 'vitest'
-import {memoryStore} from '../../helpers/memory-store.js'
+import {describe, it, expect, beforeAll, afterAll} from 'vitest'
+import type {StatePlane} from '@conciv/state/server'
+import {startTestStore} from '../../helpers/state-plane.js'
 import {ensureAgentRecord} from '../../../src/api/chat/chat.js'
+
+let plane: StatePlane
+
+beforeAll(async () => {
+  plane = await startTestStore()
+}, 120000)
+
+afterAll(async () => plane.stop())
 
 describe('ensureAgentRecord', () => {
   it('wraps an initial harness id as an conciv_ record (origin agent), idempotent', async () => {
-    const store = memoryStore()
+    const store = plane.store
     const a = await ensureAgentRecord(
       {store, harnessKind: 'claude', cwd: '/app', mintId: () => 'conciv_seed'},
       'tok-init',

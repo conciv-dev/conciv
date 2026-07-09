@@ -1,16 +1,29 @@
-import {describe, it, expect} from 'vitest'
+import {describe, it, expect, beforeAll, afterAll, beforeEach} from 'vitest'
 import {mkdtempSync, rmSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {getHarness} from '@conciv/harness'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
-import {memoryStore} from '../../helpers/memory-store.js'
+import type {StatePlane} from '@conciv/state/server'
+import {startTestStore} from '../../helpers/state-plane.js'
 import {requireClaude} from '../../helpers/adapters.js'
+
+let plane: StatePlane
+
+beforeAll(async () => {
+  plane = await startTestStore()
+}, 120000)
+
+afterAll(async () => plane.stop())
+
+beforeEach(async () => {
+  for (const record of await plane.store.list()) await plane.store.delete(record.id)
+})
 import {resumeTokenFor, recordMintedToken, ensureChatRecord, resumableToken} from '../../../src/api/chat/turn.js'
 
 describe('turn session helpers', () => {
   it('resumeTokenFor returns the stored harness token (null when new)', async () => {
-    const store = memoryStore()
+    const store = plane.store
     await store.create({
       id: 'conciv_a',
       harnessSessionId: null,
@@ -27,7 +40,7 @@ describe('turn session helpers', () => {
   })
 
   it('ensureChatRecord lazily births a chat record with a null token', async () => {
-    const store = memoryStore()
+    const store = plane.store
     expect(await store.get('conciv_b')).toBeNull()
     await ensureChatRecord(store, 'conciv_b', 'claude', '/app')
     const rec = await store.get('conciv_b')
@@ -37,7 +50,7 @@ describe('turn session helpers', () => {
   })
 
   it('ensureChatRecord is idempotent: never clobbers an existing record', async () => {
-    const store = memoryStore()
+    const store = plane.store
     await ensureChatRecord(store, 'conciv_b', 'claude', '/app')
     await recordMintedToken(store, 'conciv_b', 'tok-1')
     await ensureChatRecord(store, 'conciv_b', 'claude', '/app')

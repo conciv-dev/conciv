@@ -1,6 +1,12 @@
 import {SessionRecordSchema, type SessionRecord, type SessionRecordInput} from '@conciv/protocol/chat-types'
 import {recordsClient} from './records.js'
-import {SessionRowSchema, sessionRecordToRow, sessionRowToRecord, type SessionStatus} from '../rows.js'
+import {
+  SessionRowSchema,
+  sessionRecordToRow,
+  sessionRowToRecord,
+  type SessionRowInput,
+  type SessionStatus,
+} from '../rows.js'
 import {stateError} from '../errors.js'
 
 export type SessionStore = {
@@ -11,6 +17,25 @@ export type SessionStore = {
   list(): Promise<SessionRecord[]>
   findByHarnessId(harnessSessionId: string): Promise<SessionRecord | null>
   setStatus(id: string, status: SessionStatus): Promise<void>
+}
+
+const COLUMN_FOR: Record<string, keyof SessionRowInput> = {
+  harnessSessionId: 'harness_session_id',
+  harnessKind: 'harness_kind',
+  origin: 'origin',
+  title: 'title',
+  model: 'model',
+  usage: 'usage',
+  cwd: 'cwd',
+  createdAt: 'created_at',
+}
+
+function patchedColumns(patch: Partial<SessionRecordInput>, row: SessionRowInput): Record<string, unknown> {
+  const columns = Object.keys(patch).flatMap((key) => {
+    const column = COLUMN_FOR[key]
+    return column === undefined ? [] : [column]
+  })
+  return Object.fromEntries([...columns.map((column) => [column, row[column]]), ['updated_at', row.updated_at]])
 }
 
 export function createTrailBaseSessionStore(opts: {baseUrl: string; now?: () => number}): SessionStore {
@@ -44,7 +69,7 @@ export function createTrailBaseSessionStore(opts: {baseUrl: string; now?: () => 
         id: row.session_id,
         updatedAt: now(),
       })
-      await client.update('sessions', row.id, sessionRecordToRow(merged))
+      await client.update('sessions', row.id, patchedColumns(patch, sessionRecordToRow(merged)))
       return merged
     },
     delete: async (id) => {

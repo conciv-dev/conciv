@@ -45,4 +45,26 @@ describe('trailbase session store', () => {
     await store.delete(id)
     expect(await store.get(id)).toBeNull()
   })
+
+  it('concurrent updates to different fields do not clobber each other', async () => {
+    const store = createTrailBaseSessionStore({baseUrl: server.url, now: () => 7})
+    const raceId = SessionId.parse('conciv_66666666-7777-4888-8999-aaaaaaaaaaaa')
+    await store.create({
+      id: raceId,
+      harnessSessionId: null,
+      harnessKind: 'claude',
+      origin: 'chat',
+      title: null,
+      model: null,
+      usage: null,
+      cwd: '/tmp/x',
+    })
+    await Promise.all([
+      store.update(raceId, {harnessSessionId: 'h-race'}),
+      store.update(raceId, {usage: {inputTokens: 9}}),
+    ])
+    const record = await store.get(raceId)
+    expect(record?.harnessSessionId).toBe('h-race')
+    expect(record?.usage).toEqual({inputTokens: 9})
+  })
 })

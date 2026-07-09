@@ -1,10 +1,20 @@
-import {describe, expect, it} from 'vitest'
+import {describe, expect, it, beforeAll, afterAll} from 'vitest'
 import {mkdtempSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {getHarness} from '@conciv/harness'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
+import type {StatePlane} from '@conciv/state/server'
 import {makeApp} from '../src/app.js'
+import {startTestStore} from './helpers/state-plane.js'
+
+let plane: StatePlane
+
+beforeAll(async () => {
+  plane = await startTestStore()
+}, 120000)
+
+afterAll(async () => plane.stop())
 
 describe('makeApp harness DI', () => {
   it('uses the injected harness over the registry lookup', async () => {
@@ -33,6 +43,7 @@ describe('makeApp harness DI', () => {
       cwd: stateRoot,
       openInEditor: () => {},
       harness: injected,
+      store: plane.store,
     })
     await Promise.all(disposers.map((dispose) => dispose()))
     rmSync(stateRoot, {recursive: true, force: true})
