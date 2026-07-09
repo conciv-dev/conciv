@@ -8,6 +8,7 @@ export type StateErrorCode =
   | 'server-unhealthy'
   | 'records-request-failed'
   | 'record-not-found'
+  | 'missing-provider'
 
 const scoped = defineErrors<StateErrorCode>({
   scope: 'state',
@@ -19,6 +20,7 @@ const scoped = defineErrors<StateErrorCode>({
     'server-unhealthy': 'the conciv state server failed to start',
     'records-request-failed': 'saving conciv state failed',
     'record-not-found': 'session not found',
+    'missing-provider': 'conciv state is not available in this view',
   },
   httpStatus: {'record-not-found': 404, 'records-request-failed': 502},
 })
