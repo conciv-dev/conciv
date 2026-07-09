@@ -1,0 +1,55 @@
+{
+  "name": "@conciv/db",
+  "version": "0.0.7",
+  "description": "conciv persistence: drizzle schemas, sqlite open + migrations, and row stores on node:sqlite.",
+  "keywords": [
+    "conciv",
+    "drizzle",
+    "sqlite"
+  ],
+  "homepage": "https://conciv.dev",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/db"
+  },
+  "files": [
+    "dist",
+    "drizzle"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only"
+  },
+  "dependencies": {
+    "@conciv/contract": "workspace:^",
+    "@conciv/protocol": "workspace:^",
+    "drizzle-orm": "1.0.0-rc.4"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.0",
+    "drizzle-kit": "1.0.0-rc.4",
+    "tsdown": "^0.22.2",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10"
+  },
+  "engines": {
+    "node": ">=22.13"
+  }
+}

@@ -18,6 +18,7 @@ const PUBLIC_PACKAGES = [
   '@conciv/harness',
   '@conciv/protocol',
   '@conciv/contract',
+  '@conciv/db',
   '@conciv/api-client',
   '@conciv/grab',
   '@conciv/tools',

@@ -80,8 +80,10 @@ Driver: **drizzle ORM** on the built-in **`node:sqlite`** (`drizzle-orm/node-sql
 `DatabaseSync`): zero install-time dependency, no native compile, no prebuilt binaries.
 drizzle-orm and drizzle-kit are pinned EXACT to `1.0.0-rc.4` — the node-sqlite driver ships only
 in the 1.0 line (latest stable 0.45.2 lacks it; verified 2026-07-09); swap to `1.0.0` stable when
-released. Node 22 needs `--experimental-sqlite` (already Node >= 22 in this repo; vitest gets it
-via `execArgv`).
+released. `node:sqlite` is unflagged since Node 22.13 (emits an ExperimentalWarning only), so the
+repo's Node floor is `>=22.13` and no `--experimental-sqlite` flag is threaded anywhere — critical
+because the core engine loads inside the HOST app's vite process, whose node flags we don't
+control.
 Row types: drizzle tables are the source of truth; zod schemas
 in the contract are pinned to them with `expectTypeOf` type tests; columns are explicit-null, no
 implicit undefined. Migrations run at boot inside `openDb` (drizzle-kit generated SQL, committed
@@ -252,8 +254,8 @@ rewire built-in extensions (terminal, test-runner, whiteboard) →
 - `@tanstack/solid-router` is newer than the React adapter; pin router + `@tanstack/history`
   versions and cover the custom localStorage history with unit tests (entries/index round-trip,
   corrupted-storage fallback to `/`).
-- `node:sqlite` is flagged experimental on Node 22 (`--experimental-sqlite`); every entry point
-  that opens the db (core server, vitest, CI) must carry the flag until the Node floor rises.
+- `node:sqlite` still emits an ExperimentalWarning (harmless); it is unflagged since Node 22.13,
+  which is the repo's engines floor — no node flags needed on any entry point.
 - Draft typing latency: composer input is local UI state while focused; the drafts row is a
   debounced intent. Reconciliation rule: server row only replaces local text when the composer is
   not focused.

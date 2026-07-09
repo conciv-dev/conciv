@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Node >= 22; `node:sqlite` requires `--experimental-sqlite` on every entry point that opens the db (core dev server, vitest via `execArgv`, CI).
+- Node floor raised to >= 22.13 (root `engines` + `@conciv/db` engines): `node:sqlite` is unflagged there (ExperimentalWarning only) — no `--experimental-sqlite` anywhere, which matters because the core engine runs inside the HOST app's vite process whose node flags we don't control.
 - drizzle-orm + drizzle-kit pinned EXACT `1.0.0-rc.4` (user-approved 2026-07-09: the node-sqlite driver ships only in the 1.0 line, no stable release has it; move to `1.0.0` stable when released). Only `@conciv/db` may import drizzle.
 - Functions, not classes. Zero code comments in TS. No `any`/`as`/non-null `!`. No IIFEs. No barrel files beyond existing package entrypoints. oxfmt style (no semicolons, single quotes).
 - Never re-model chat messages as rows: `chat.attach` carries TanStack AI `StreamChunk`s verbatim.
@@ -201,7 +201,7 @@ git commit -m "feat(contract): @conciv/contract package with session/draft/marke
 
 **Files:**
 
-- Create: `packages/db/package.json` / `tsconfig.json` / `tsdown.config.ts` / `vitest.config.ts` (mirror `packages/contract` scaffold; vitest needs `--experimental-sqlite` via `poolOptions.forks.execArgv` or `test.execArgv` — check the installed vitest major)
+- Create: `packages/db/package.json` / `tsconfig.json` / `tsdown.config.ts` / `vitest.config.ts` (mirror `packages/contract` scaffold; plain node environment — no execArgv needed on Node >= 22.13)
 - Create: `packages/db/src/schema.ts`
 - Create: `packages/db/src/db.ts`
 - Create: `packages/db/src/session-store.ts`
@@ -209,7 +209,7 @@ git commit -m "feat(contract): @conciv/contract package with session/draft/marke
 - Create: `packages/db/drizzle.config.ts`
 - Create: `packages/db/drizzle/` (generated SQL migrations, committed)
 - Modify: `packages/core/src/app.ts:128` (swap `createFsSessionStore` → `openDb` + `makeSessionStore`)
-- Modify: `packages/core/vitest.config.ts` (add `--experimental-sqlite` the same way, and include `src/**/*.test.ts` — the current config only includes `test/**`)
+- Modify: `packages/core/vitest.config.ts` (include `src/**/*.test.ts` — the current config only includes `test/**`)
 - Modify: `packages/publish/src/guards.ts` (add `@conciv/db` to `PUBLIC_PACKAGES` — public `@conciv/core` depends on it)
 - Test: `packages/db/src/session-store.test.ts`
 

@@ -73,20 +73,20 @@ discipline.
 
 Insert / update (stamp `owner` on insert, `lastEditedBy` always — all via `upsertElement`):
 
-| # | Site | Caller | Author source |
-|---|------|--------|---------------|
-| 1 | `PUT /elements/:scope` → `upsertElement` | browser | human onChange → guest identity; AI draft-commit conversion → `{ai, model}` |
-| 2 | `PUT /elements/:scope/bulk` → `upsertElements` | browser | same |
-| 3 | `canvas.update` → `upsertElement` | AI (server) | `lastEditedBy = {ai, model}`; `owner` preserved by store |
+| #   | Site                                           | Caller      | Author source                                                               |
+| --- | ---------------------------------------------- | ----------- | --------------------------------------------------------------------------- |
+| 1   | `PUT /elements/:scope` → `upsertElement`       | browser     | human onChange → guest identity; AI draft-commit conversion → `{ai, model}` |
+| 2   | `PUT /elements/:scope/bulk` → `upsertElements` | browser     | same                                                                        |
+| 3   | `canvas.update` → `upsertElement`              | AI (server) | `lastEditedBy = {ai, model}`; `owner` preserved by store                    |
 
 Delete (guard when target `ownerKind === 'human'`):
 
-| # | Site | Caller | Guard |
-|---|------|--------|-------|
-| 4 | `POST /elements/:scope/bulk-delete` → `deleteElements` | browser | none (human action) |
-| 5 | `canvas.delete` → `deleteElement` | AI | approval if owner human |
-| 6 | `canvas.clear` → `deleteElements(live)` | AI | approval if any live element is human-owned |
-| 7 | `canvas.discard` → `deleteElements(draft)` | AI | none (AI's own draft) |
+| #   | Site                                                   | Caller  | Guard                                       |
+| --- | ------------------------------------------------------ | ------- | ------------------------------------------- |
+| 4   | `POST /elements/:scope/bulk-delete` → `deleteElements` | browser | none (human action)                         |
+| 5   | `canvas.delete` → `deleteElement`                      | AI      | approval if owner human                     |
+| 6   | `canvas.clear` → `deleteElements(live)`                | AI      | approval if any live element is human-owned |
+| 7   | `canvas.discard` → `deleteElements(draft)`             | AI      | none (AI's own draft)                       |
 
 The browser tags each row's author before PUT. Because the store preserves `owner` on update, a human
 `onChange` re-sending an element never clobbers its original owner; it only advances `lastEditedBy`.

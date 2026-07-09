@@ -18,7 +18,7 @@ import {buildChatTools} from './api/chat/chat-tools.js'
 import {ensureChatRecord, recordMintedToken, resolveSystemText, resumeTokenFor} from './api/chat/turn.js'
 import {sweepEmptyChatRecords} from './api/chat/session.js'
 import {readLock, readLocks} from './store/lock.js'
-import {createFsSessionStore} from './store/session-store.js'
+import {makeSessionStore, openDb} from '@conciv/db'
 import mcpApp, {type McpVars} from './api/mcp/mcp.js'
 import toolsApp, {type ToolsVars} from './api/chat/tools-route.js'
 import pageApp, {makePageBus, type PageVars} from './api/page/page.js'
@@ -125,7 +125,8 @@ export type MadeApp = {
 export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const harness = opts.harness ?? requireHarness(opts.cfg.harness)
   const uiBus = makeUiBus()
-  const store = createFsSessionStore({stateRoot: opts.cfg.stateRoot})
+  const db = openDb(opts.cfg.stateRoot)
+  const store = makeSessionStore({db})
   const gate = makePermissionGate(uiBus, {
     risky: new Set(
       (opts.extensions ?? [])

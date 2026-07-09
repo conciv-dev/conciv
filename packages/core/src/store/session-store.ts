@@ -1,5 +1,4 @@
-import {createStorage, type Storage} from 'unstorage'
-import fsDriver from 'unstorage/drivers/fs-lite'
+import {type Storage} from 'unstorage'
 import {SessionRecordSchema, type SessionRecord, type SessionRecordInput} from '@conciv/protocol/chat-types'
 
 export type SessionStore = {
@@ -60,11 +59,4 @@ function makeStore(storage: Storage, now: () => number): SessionStore {
 
 export function createSessionStore(storage: Storage, now: () => number = Date.now): SessionStore {
   return makeStore(storage, now)
-}
-
-export function createFsSessionStore(opts: {stateRoot: string; now?: () => number}): SessionStore {
-  const storage = createStorage({
-    driver: fsDriver({base: `${opts.stateRoot}/.conciv/sessions`}),
-  })
-  return createSessionStore(storage, opts.now ?? Date.now)
 }

@@ -1,9 +1,4 @@
-import {existsSync} from 'node:fs'
-import {mkdtempSync, rmSync} from 'node:fs'
-import {tmpdir} from 'node:os'
-import {join} from 'node:path'
-import {afterEach, describe, it, expect} from 'vitest'
-import {createFsSessionStore} from '../../src/store/session-store.js'
+import {describe, it, expect} from 'vitest'
 import {memoryStore} from '../helpers/memory-store.js'
 
 const base = {harnessKind: 'claude', origin: 'chat' as const, cwd: '/app'}
@@ -40,19 +35,5 @@ describe('SessionStore (memory driver)', () => {
     const store = memoryStore()
     await store.create({id: 'conciv_a', harnessSessionId: 'tok-ext', title: null, model: null, usage: null, ...base})
     expect((await store.findByHarnessId('tok-ext'))?.id).toBe('conciv_a')
-  })
-})
-
-describe('createFsSessionStore (fs driver path)', () => {
-  const roots: string[] = []
-  afterEach(() => roots.splice(0).forEach((dir) => rmSync(dir, {recursive: true, force: true})))
-
-  it('writes session files directly under <stateRoot>/.conciv/sessions with no preview segment', async () => {
-    const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-fs-'))
-    roots.push(stateRoot)
-    const store = createFsSessionStore({stateRoot})
-    await store.create({id: 'conciv_a', harnessSessionId: null, title: null, model: null, usage: null, ...base})
-    expect(existsSync(join(stateRoot, '.conciv', 'sessions'))).toBe(true)
-    expect((await store.get('conciv_a'))?.id).toBe('conciv_a')
   })
 })

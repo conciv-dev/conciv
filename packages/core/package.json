@@ -55,6 +55,8 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@conciv/contract": "workspace:^",
+    "@conciv/db": "workspace:^",
     "@conciv/harness": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/serve": "workspace:^",
@@ -62,6 +64,7 @@
     "@hono/zod-validator": "^0.8.0",
     "@jridgewell/trace-mapping": "0.3.31",
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@orpc/server": "^1.14.7",
     "@tanstack/ai": "^0.40.0",
     "@tanstack/ai-sandbox": "^0.2.2",
     "@tanstack/ai-sandbox-local-process": "^0.2.0",

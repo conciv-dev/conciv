@@ -13,6 +13,8 @@ overrides:
   esbuild@>=0.27.3 <0.28.1: '>=0.28.1'
   '@opentelemetry/core@<2.8.0': '>=2.8.0 <3'
 
+packageExtensionsChecksum: sha256-Q9Y+385/u+hcPMq2eGrGI7fdWnT8ahbZXY5nF78Vniw=
+
 importers:
 
   .:
@@ -391,10 +393,16 @@ importers:
         version: 6.0.3
       vitest:
         specifier: ^4.1.10
-        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.0)(@vitest/browser-playwright@4.1.9)(vite@8.1.3(@types/node@26.1.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.0)(@vitest/browser-playwright@4.1.9(playwright@1.61.1)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))(vitest@4.1.9))(vite@8.1.3(@types/node@26.1.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
 
   packages/core:
     dependencies:
+      '@conciv/contract':
+        specifier: workspace:^
+        version: link:../contract
+      '@conciv/db':
+        specifier: workspace:^
+        version: link:../db
       '@conciv/harness':
         specifier: workspace:^
         version: link:../harness
@@ -416,6 +424,9 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(zod@4.4.3)
+      '@orpc/server':
+        specifier: ^1.14.7
+        version: 1.14.7(@opentelemetry/api@1.9.1)(crossws@0.4.7(srvx@0.11.20))(ws@8.21.0)
       '@tanstack/ai':
         specifier: ^0.40.0
         version: 0.40.0(@opentelemetry/api@1.9.1)
@@ -477,6 +488,34 @@ importers:
       ws:
         specifier: ^8.21.0
         version: 8.21.0
+
+  packages/db:
+    dependencies:
+      '@conciv/contract':
+        specifier: workspace:^
+        version: link:../contract
+      '@conciv/protocol':
+        specifier: workspace:^
+        version: link:../protocol
+      drizzle-orm:
+        specifier: 1.0.0-rc.4
+        version: 1.0.0-rc.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(zod@4.4.3)
+    devDependencies:
+      '@types/node':
+        specifier: ^26.1.0
+        version: 26.1.0
+      drizzle-kit:
+        specifier: 1.0.0-rc.4
+        version: 1.0.0-rc.4(drizzle-orm@1.0.0-rc.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(zod@4.4.3))
+      tsdown:
+        specifier: ^0.22.2
+        version: 0.22.2(@arethetypeswrong/core@0.18.3)(oxc-resolver@11.20.0)(publint@0.3.21)(tsx@4.22.4)(typescript@6.0.3)
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.0)(@vitest/browser-playwright@4.1.9(playwright@1.61.1)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))(vitest@4.1.9))(vite@8.1.3(@types/node@26.1.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
 
   packages/extension:
     dependencies:
@@ -2258,6 +2297,9 @@ packages:
   '@drizzle-team/brocli@0.10.2':
     resolution: {integrity: sha512-z33Il7l5dKjUgGULTqBsQBQwckHh5AbIuxhdsIxDDiZAzBOrZO6q9ogcWC65kU382AfynTfgNumVcNIjuIua6w==}
 
+  '@drizzle-team/brocli@0.12.0':
+    resolution: {integrity: sha512-mlUE+rZ8CatQekLhnaiN91Iemdd+e2gFKooGlnRB3oPTL3VghLfX24dx7HrzMNeC1JrIB/0kpsfyty3f5HNfxQ==}
+
   '@ecies/ciphers@0.2.6':
     resolution: {integrity: sha512-patgsRPKGkhhoBjETV4XxD0En4ui5fbX0hzayqI3M8tvNMGUoUvmyYAIWwlxBc1KX5cturfqByYdj5bYGRpN9g==}
     engines: {bun: '>=1', deno: '>=2.7.10', node: '>=16'}
@@ -3258,6 +3300,10 @@ packages:
   '@jridgewell/trace-mapping@0.3.9':
     resolution: {integrity: sha512-3Belt6tdc8bPgAtbcmdtNJlirVoTmEb5e2gC94PnkwEW9jI6CAHUeoG85tjWP5WquqfavoMtMwiG4P926ZKKuQ==}
 
+  '@js-temporal/polyfill@0.5.1':
+    resolution: {integrity: sha512-hloP58zRVCRSpgDxmqCWJNlizAlUgJFqG2ypq79DCvyv9tHjRYMDOcPFjzfl/A1/YxDvRCZz8wvZvmapQnKwFQ==}
+    engines: {node: '>=12'}
+
   '@libsql/client@0.17.4':
     resolution: {integrity: sha512-lYayFWasDV78A+TjlEhr6ubb3odBV6OHjb+wdp8VQcyWWAEIjuwbCHaraEUS4m4yWoo0BvZo96It4VdzZRmRWw==}
 
@@ -3547,6 +3593,20 @@ packages:
   '@orpc/contract@1.14.7':
     resolution: {integrity: sha512-LVAzjOfwW+5L4z5hGOkGGsocFF4URLmQBujrvUr6/TLeDmiiY2kB89jyJ793U40ol9/Ba935g/b0pBajiQhPWA==}
 
+  '@orpc/interop@1.14.7':
+    resolution: {integrity: sha512-2evzgNl6CMh5MZ3xHLHYX01siGZCQu9E6mcuPTSM3G7wQKG9ozvtGjAiH6dBWKfNUQRAavjJpQVoEW9LJ5VICA==}
+
+  '@orpc/server@1.14.7':
+    resolution: {integrity: sha512-bN38rwVELPx/AEHnOIKlJz0Vo2OnuzGpCMdMtspqKoiposkpB4jqx2CMFZCMzj4ew43m+sUSUmbQZ001Q4fgTA==}
+    peerDependencies:
+      crossws: '>=0.3.4'
+      ws: '>=8.18.1'
+    peerDependenciesMeta:
+      crossws:
+        optional: true
+      ws:
+        optional: true
+
   '@orpc/shared@1.14.7':
     resolution: {integrity: sha512-uEvbm+IGxUyQMpVYufU5mEPflyZoF1Nh2yFBqHgmu5QycXZ5GGb5GdwtMa+IE8WXZSHQ4wOgftBNtzGfX/rBIg==}
     peerDependencies:
@@ -3555,8 +3615,22 @@ packages:
       '@opentelemetry/api':
         optional: true
 
+  '@orpc/standard-server-aws-lambda@1.14.7':
+    resolution: {integrity: sha512-Ov+xeJqga0S6346mxZ8xAyZVHudXDSnl9sKgZKYa1jmp8KV221Q9yYV7c2fmNE5NmDr+uNZS9nmUtB38Fz08mA==}
+
+  '@orpc/standard-server-fastify@1.14.7':
+    resolution: {integrity: sha512-f5TXZ/qU/L0mMpJ4sz3/YvBrXqKj4d5cgfx8uriA1sSqMTyuadYXp75pywnW6WQ8tuJ9rARVj35l7mx7K6VvpQ==}
+    peerDependencies:
+      fastify: '>=5.6.1'
+    peerDependenciesMeta:
+      fastify:
+        optional: true
+
   '@orpc/standard-server-fetch@1.14.7':
     resolution: {integrity: sha512-bkp9pDDX36enqVC5Q2+o4fofPFR9COI9FpdhLI3mGlQuV6NT9ZBjrscXv57hUPTc7g0aKDOzjiAo0NHoCfZc+g==}
+
+  '@orpc/standard-server-node@1.14.7':
+    resolution: {integrity: sha512-5ESH31uBbIkW3FyVmTz6cbdTAxm+y8gDhE7lXC3B6+SuZrNBetaPZmv9FjhyGHm2tIKUCjZfcf1bzXmCUV0vEw==}
 
   '@orpc/standard-server-peer@1.14.7':
     resolution: {integrity: sha512-5YzX7goqeg5cZv+R58SCZHKo0Jk9CiHgepzJYM5oQYoLbdqoxGC4yZG12sqwN/CTX7nZkE2nnbfk6l3+YD/reg==}
@@ -8327,6 +8401,12 @@ packages:
     resolution: {integrity: sha512-7OZcmQUrdGI+DUNNsKBn1aW8qSoKuTH7d0mYgSP8bAzdFzKoovxEFnoGQp2dVs82EOJeYycqRtciopszwUf8bw==}
     hasBin: true
 
+  drizzle-kit@1.0.0-rc.4:
+    resolution: {integrity: sha512-KZCpjRyu+oYHLj/UJogfFlOkWhHVkaEI2EOT1U3NDVXUzLoTyPjqwFxwOrlQxsY6jzRyxcz4EacqboGfhEeYrA==}
+    hasBin: true
+    peerDependencies:
+      drizzle-orm: '*'
+
   drizzle-orm@0.45.2:
     resolution: {integrity: sha512-kY0BSaTNYWnoDMVoyY8uxmyHjpJW1geOmBMdSSicKo9CIIWkSxMIj2rkeSR51b8KAPB7m+qysjuHme5nKP+E5Q==}
     peerDependencies:
@@ -8417,6 +8497,152 @@ packages:
       sql.js:
         optional: true
       sqlite3:
+        optional: true
+
+  drizzle-orm@1.0.0-rc.4:
+    resolution: {integrity: sha512-BT+pf+qoiYHqltoA88Jmf6ilGMXPlpfE0hEJKc2adRtMCAl25Swk/t5gXcWxZNAwdtf3F5gCd2FpeOyP/pT0Hw==}
+    peerDependencies:
+      '@aws-sdk/client-rds-data': '>=3'
+      '@cloudflare/workers-types': '>=4'
+      '@effect/sql-d1': '>=4.0.0-beta.83 || >=4.0.0'
+      '@effect/sql-libsql': '>=4.0.0-beta.83 || >=4.0.0'
+      '@effect/sql-mysql2': '>=4.0.0-beta.83 || >=4.0.0'
+      '@effect/sql-pg': '>=4.0.0-beta.83 || >=4.0.0'
+      '@effect/sql-pglite': '>=4.0.0-beta.83 || >=4.0.0'
+      '@effect/sql-sqlite-bun': '>=4.0.0-beta.83 || >=4.0.0'
+      '@effect/sql-sqlite-do': '>=4.0.0-beta.83 || >=4.0.0'
+      '@effect/sql-sqlite-node': '>=4.0.0-beta.83 || >=4.0.0'
+      '@effect/sql-sqlite-wasm': '>=4.0.0-beta.83 || >=4.0.0'
+      '@electric-sql/pglite': '>=0.2.0'
+      '@libsql/client': '>=0.10.0'
+      '@libsql/client-wasm': '>=0.10.0'
+      '@neondatabase/serverless': '>=0.10.0'
+      '@op-engineering/op-sqlite': '>=2'
+      '@opentelemetry/api': ^1.4.1
+      '@planetscale/database': '>=1.13'
+      '@sinclair/typebox': '>=0.34.8'
+      '@sqlitecloud/drivers': '>=1.0.653'
+      '@tidbcloud/serverless': '*'
+      '@tursodatabase/database': '>=0.6.0-pre.28 || >=0.6.0'
+      '@tursodatabase/database-common': '>=0.6.0-pre.28 || >=0.6.0'
+      '@tursodatabase/database-wasm': '>=0.6.0-pre.28 || >=0.6.0'
+      '@tursodatabase/serverless': '>=1.1.3'
+      '@tursodatabase/sync': '>=0.6.0-pre.28 || >=0.6.0'
+      '@types/better-sqlite3': '*'
+      '@types/mssql': ^9.1.4
+      '@types/pg': '*'
+      '@types/sql.js': '*'
+      '@upstash/redis': '>=1.34.7'
+      '@vercel/postgres': '>=0.8.0'
+      '@xata.io/client': '*'
+      arktype: '>=2.0.0'
+      better-sqlite3: '>=9.3.0'
+      bun-types: '*'
+      effect: '>=4.0.0-beta.83 || >=4.0.0'
+      expo-sqlite: '>=14.0.0'
+      mssql: ^11.0.1
+      mysql2: '>=2'
+      pg: '>=8'
+      postgres: '>=3'
+      sql.js: '>=1'
+      sqlite3: '>=5'
+      typebox: '>=1.0.0'
+      valibot: '>=1.0.0-beta.7'
+      zod: ^3.25.0 || ^4.0.0
+    peerDependenciesMeta:
+      '@aws-sdk/client-rds-data':
+        optional: true
+      '@cloudflare/workers-types':
+        optional: true
+      '@effect/sql-d1':
+        optional: true
+      '@effect/sql-libsql':
+        optional: true
+      '@effect/sql-mysql2':
+        optional: true
+      '@effect/sql-pg':
+        optional: true
+      '@effect/sql-pglite':
+        optional: true
+      '@effect/sql-sqlite-bun':
+        optional: true
+      '@effect/sql-sqlite-do':
+        optional: true
+      '@effect/sql-sqlite-node':
+        optional: true
+      '@effect/sql-sqlite-wasm':
+        optional: true
+      '@electric-sql/pglite':
+        optional: true
+      '@libsql/client':
+        optional: true
+      '@libsql/client-wasm':
+        optional: true
+      '@neondatabase/serverless':
+        optional: true
+      '@op-engineering/op-sqlite':
+        optional: true
+      '@opentelemetry/api':
+        optional: true
+      '@planetscale/database':
+        optional: true
+      '@sinclair/typebox':
+        optional: true
+      '@sqlitecloud/drivers':
+        optional: true
+      '@tidbcloud/serverless':
+        optional: true
+      '@tursodatabase/database':
+        optional: true
+      '@tursodatabase/database-common':
+        optional: true
+      '@tursodatabase/database-wasm':
+        optional: true
+      '@tursodatabase/serverless':
+        optional: true
+      '@tursodatabase/sync':
+        optional: true
+      '@types/better-sqlite3':
+        optional: true
+      '@types/mssql':
+        optional: true
+      '@types/pg':
+        optional: true
+      '@types/sql.js':
+        optional: true
+      '@upstash/redis':
+        optional: true
+      '@vercel/postgres':
+        optional: true
+      '@xata.io/client':
+        optional: true
+      arktype:
+        optional: true
+      better-sqlite3:
+        optional: true
+      bun-types:
+        optional: true
+      effect:
+        optional: true
+      expo-sqlite:
+        optional: true
+      mssql:
+        optional: true
+      mysql2:
+        optional: true
+      pg:
+        optional: true
+      postgres:
+        optional: true
+      sql.js:
+        optional: true
+      sqlite3:
+        optional: true
+      typebox:
+        optional: true
+      valibot:
+        optional: true
+      zod:
         optional: true
 
   dts-resolver@3.0.0:
@@ -9706,6 +9932,9 @@ packages:
   js-yaml@4.3.0:
     resolution: {integrity: sha512-1td788aAnnZ5qs7V2QIRl1owjtYpbKt749Y3xauqQgwIIGF/xXWz1wMTEBx5O3LK3lXLVuqXPdPxj2BoFHaW9Q==}
     hasBin: true
+
+  jsbi@4.3.2:
+    resolution: {integrity: sha512-9fqMSQbhJykSeii05nxKl4m6Eqn2P6rOlYiS+C5Dr/HPIU/7yZxu5qzbs40tgaFORiw2Amd0mirjxatXYMkIew==}
 
   jsesc@3.1.0:
     resolution: {integrity: sha512-/sM3dO2FOzXjKQhJuo0Q173wf2KOo8t4I8vHy6lF9poUp7bKT0/NHE8fPX23PwfhnykfqnC2xRxOnVw5XuGIaA==}
@@ -13178,6 +13407,8 @@ snapshots:
 
   '@drizzle-team/brocli@0.10.2': {}
 
+  '@drizzle-team/brocli@0.12.0': {}
+
   '@ecies/ciphers@0.2.6(@noble/ciphers@1.3.0)':
     dependencies:
       '@noble/ciphers': 1.3.0
@@ -13894,6 +14125,10 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
+  '@js-temporal/polyfill@0.5.1':
+    dependencies:
+      jsbi: 4.3.2
+
   '@libsql/client@0.17.4':
     dependencies:
       '@libsql/core': 0.17.4
@@ -14279,6 +14514,28 @@ snapshots:
     transitivePeerDependencies:
       - '@opentelemetry/api'
 
+  '@orpc/interop@1.14.7': {}
+
+  '@orpc/server@1.14.7(@opentelemetry/api@1.9.1)(crossws@0.4.7(srvx@0.11.20))(ws@8.21.0)':
+    dependencies:
+      '@orpc/client': 1.14.7(@opentelemetry/api@1.9.1)
+      '@orpc/contract': 1.14.7(@opentelemetry/api@1.9.1)
+      '@orpc/interop': 1.14.7
+      '@orpc/shared': 1.14.7(@opentelemetry/api@1.9.1)
+      '@orpc/standard-server': 1.14.7(@opentelemetry/api@1.9.1)
+      '@orpc/standard-server-aws-lambda': 1.14.7(@opentelemetry/api@1.9.1)
+      '@orpc/standard-server-fastify': 1.14.7(@opentelemetry/api@1.9.1)
+      '@orpc/standard-server-fetch': 1.14.7(@opentelemetry/api@1.9.1)
+      '@orpc/standard-server-node': 1.14.7(@opentelemetry/api@1.9.1)
+      '@orpc/standard-server-peer': 1.14.7(@opentelemetry/api@1.9.1)
+      cookie: 1.1.1
+    optionalDependencies:
+      crossws: 0.4.7(srvx@0.11.20)
+      ws: 8.21.0
+    transitivePeerDependencies:
+      - '@opentelemetry/api'
+      - fastify
+
   '@orpc/shared@1.14.7(@opentelemetry/api@1.9.1)':
     dependencies:
       radash: 12.1.1
@@ -14286,10 +14543,35 @@ snapshots:
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
 
+  '@orpc/standard-server-aws-lambda@1.14.7(@opentelemetry/api@1.9.1)':
+    dependencies:
+      '@orpc/shared': 1.14.7(@opentelemetry/api@1.9.1)
+      '@orpc/standard-server': 1.14.7(@opentelemetry/api@1.9.1)
+      '@orpc/standard-server-fetch': 1.14.7(@opentelemetry/api@1.9.1)
+      '@orpc/standard-server-node': 1.14.7(@opentelemetry/api@1.9.1)
+    transitivePeerDependencies:
+      - '@opentelemetry/api'
+
+  '@orpc/standard-server-fastify@1.14.7(@opentelemetry/api@1.9.1)':
+    dependencies:
+      '@orpc/shared': 1.14.7(@opentelemetry/api@1.9.1)
+      '@orpc/standard-server': 1.14.7(@opentelemetry/api@1.9.1)
+      '@orpc/standard-server-node': 1.14.7(@opentelemetry/api@1.9.1)
+    transitivePeerDependencies:
+      - '@opentelemetry/api'
+
   '@orpc/standard-server-fetch@1.14.7(@opentelemetry/api@1.9.1)':
     dependencies:
       '@orpc/shared': 1.14.7(@opentelemetry/api@1.9.1)
       '@orpc/standard-server': 1.14.7(@opentelemetry/api@1.9.1)
+    transitivePeerDependencies:
+      - '@opentelemetry/api'
+
+  '@orpc/standard-server-node@1.14.7(@opentelemetry/api@1.9.1)':
+    dependencies:
+      '@orpc/shared': 1.14.7(@opentelemetry/api@1.9.1)
+      '@orpc/standard-server': 1.14.7(@opentelemetry/api@1.9.1)
+      '@orpc/standard-server-fetch': 1.14.7(@opentelemetry/api@1.9.1)
     transitivePeerDependencies:
       - '@opentelemetry/api'
 
@@ -19309,11 +19591,27 @@ snapshots:
       esbuild: 0.25.12
       tsx: 4.22.4
 
+  drizzle-kit@1.0.0-rc.4(drizzle-orm@1.0.0-rc.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(zod@4.4.3)):
+    dependencies:
+      '@drizzle-team/brocli': 0.12.0
+      '@js-temporal/polyfill': 0.5.1
+      drizzle-orm: 1.0.0-rc.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(zod@4.4.3)
+      esbuild: 0.25.12
+      get-tsconfig: 4.14.0
+      jiti: 2.7.0
+
   drizzle-orm@0.45.2(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1):
     optionalDependencies:
       '@electric-sql/pglite': 0.3.16
       '@libsql/client': 0.17.4
       '@opentelemetry/api': 1.9.1
+
+  drizzle-orm@1.0.0-rc.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(zod@4.4.3):
+    optionalDependencies:
+      '@electric-sql/pglite': 0.3.16
+      '@libsql/client': 0.17.4
+      '@opentelemetry/api': 1.9.1
+      zod: 4.4.3
 
   dts-resolver@3.0.0(oxc-resolver@11.20.0):
     optionalDependencies:
@@ -20874,6 +21172,8 @@ snapshots:
   js-yaml@4.3.0:
     dependencies:
       argparse: 2.0.1
+
+  jsbi@4.3.2: {}
 
   jsesc@3.1.0: {}
 
@@ -24012,7 +24312,7 @@ snapshots:
     optionalDependencies:
       vite: 8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(sass@1.51.0)(tsx@4.22.4)(yaml@2.9.0)
 
-  vitest@4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.0)(@vitest/browser-playwright@4.1.9)(vite@8.1.3(@types/node@26.1.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0)):
+  vitest@4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.0)(@vitest/browser-playwright@4.1.9(playwright@1.61.1)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))(vitest@4.1.9))(vite@8.1.3(@types/node@26.1.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0)):
     dependencies:
       '@vitest/expect': 4.1.10
       '@vitest/mocker': 4.1.10(vite@8.1.3(@types/node@26.1.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
