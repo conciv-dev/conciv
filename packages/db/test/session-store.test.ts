@@ -3,9 +3,9 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {describe, expect, expectTypeOf, it} from 'vitest'
 import type {SessionRecord} from '@conciv/protocol/chat-types'
-import {openDb} from './db.js'
-import {makeSessionStore} from './session-store.js'
-import {sessions} from './schema.js'
+import {openDb} from '../src/db.js'
+import {makeSessionStore} from '../src/session-store.js'
+import {sessions} from '../src/schema.js'
 
 const record = (id: string) => ({
   id,

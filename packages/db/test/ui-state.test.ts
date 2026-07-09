@@ -2,8 +2,8 @@ import {mkdtempSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {describe, expect, it} from 'vitest'
-import {openDb} from './db.js'
-import {makeUiState} from './ui-state.js'
+import {openDb} from '../src/db.js'
+import {makeUiState} from '../src/ui-state.js'
 
 const make = () => makeUiState(openDb(mkdtempSync(join(tmpdir(), 'conciv-ui-'))), () => 7)
 

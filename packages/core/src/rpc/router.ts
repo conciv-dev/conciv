@@ -6,6 +6,7 @@ import {readLocks} from '../store/lock.js'
 import {buildSessionList, resolveSession} from '../api/chat/session.js'
 import {ensureChatRecord} from '../api/chat/turn.js'
 import {SESSION_BUSY, type Compactor} from '../api/chat/compact.js'
+import {attachStream} from '../api/chat/attach.js'
 import type {ChatRuntime} from '../api/chat/chat-env.js'
 import type {OpenInEditor} from '../editor/open.js'
 import type {OpenSourceFrames, OpenSourceStatus} from '../api/page/open-source.js'
@@ -31,6 +32,8 @@ export type RpcDeps = {
   openFromFrames: (frames: OpenSourceFrames) => Promise<OpenSourceStatus>
   chat: ChatRuntime
   compactor: Compactor
+  sendTurn: (sessionId: string, text: string) => Promise<void>
+  decidePermission: (approvalId: string, approved: boolean) => void
 }
 
 function cleanTitle(title: string): string {
@@ -147,14 +150,28 @@ export function makeRpcRouter(deps: RpcDeps) {
       }),
     },
     chat: {
-      attach: os.chat.attach.handler(() => {
-        throw new Error('implemented in task 8')
+      attach: os.chat.attach.handler(async function* ({input, signal}) {
+        const abort = new AbortController()
+        signal?.addEventListener('abort', () => abort.abort(), {once: true})
+        try {
+          yield* await attachStream(deps.chat, input.sessionId, abort.signal)
+        } finally {
+          abort.abort()
+        }
       }),
-      send: os.chat.send.handler(() => {
-        throw new Error('implemented in task 8')
+      send: os.chat.send.handler(async ({input, errors}) => {
+        if (deps.chat.hub.generating(input.sessionId)) throw errors.BUSY()
+        try {
+          await deps.sendTurn(input.sessionId, input.text)
+        } catch (error) {
+          if (error instanceof Error && error.message === SESSION_BUSY) throw errors.BUSY()
+          throw error
+        }
+        return {ok: true as const}
       }),
-      permissionDecision: os.chat.permissionDecision.handler(() => {
-        throw new Error('implemented in task 8')
+      permissionDecision: os.chat.permissionDecision.handler(({input}) => {
+        deps.decidePermission(input.approvalId, input.approved)
+        return {ok: true as const}
       }),
     },
     page: {

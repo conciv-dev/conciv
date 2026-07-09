@@ -19,8 +19,11 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@conciv/contract": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/serve": "workspace:^",
+    "@orpc/client": "^1.14.7",
+    "@orpc/contract": "^1.14.7",
     "@tanstack/ai": "^0.40.0",
     "@tanstack/ai-mcp": "^0.2.3"
   },

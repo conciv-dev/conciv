@@ -10,17 +10,25 @@ import {getHarness} from '@conciv/harness'
 import {slug} from './extension-app.js'
 import {corsMiddleware, type CorsVars} from './api/cors.js'
 import {concivTools, type ConcivToolContext} from '@conciv/tools'
-import type {ChatTool} from '@conciv/protocol/chat-types'
+import {ChatMessageSchema, type ChatTool} from '@conciv/protocol/chat-types'
 import chatApp, {ensureAgentRecord} from './api/chat/chat.js'
 import type {ChatRuntime} from './api/chat/chat-env.js'
 import {makePermissionGate} from './api/chat/permission.js'
 import {buildChatTools} from './api/chat/chat-tools.js'
-import {ensureChatRecord, recordMintedToken, resolveSystemText, resumeTokenFor} from './api/chat/turn.js'
+import {
+  ensureChatRecord,
+  recordMintedToken,
+  resolveSystemText,
+  resumableToken,
+  resumeTokenFor,
+  startTurn,
+} from './api/chat/turn.js'
+import {transcriptMessages} from './api/chat/attach.js'
 import {killLock, listCommands, sweepEmptyChatRecords} from './api/chat/session.js'
 import {launchHarness} from './api/chat/launch.js'
-import {makeCompactor} from './api/chat/compact.js'
+import {makeCompactor, SESSION_BUSY} from './api/chat/compact.js'
 import {resolveHarnessModels} from '@conciv/harness'
-import {readLock, readLocks} from './store/lock.js'
+import {acquireLock, readLock, readLocks, releaseLock} from './store/lock.js'
 import {makeSessionStore, makeUiState, openDb} from '@conciv/db'
 import mcpApp, {type McpVars} from './api/mcp/mcp.js'
 import pageApp, {makePageBus, type PageVars} from './api/page/page.js'
@@ -245,6 +253,32 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const compactor = makeCompactor({chat: chatRuntime, uiState, onChange: () => live.pulse()})
 
+  const sendTurn = async (sessionId: string, text: string): Promise<void> => {
+    if (chatRuntime.hub.generating(sessionId)) throw new Error(SESSION_BUSY)
+    if (!acquireLock(opts.cfg.stateRoot, sessionId, 'chat', process.pid)) throw new Error(SESSION_BUSY)
+    try {
+      chatRuntime.onTurnStart?.(sessionId)
+      await ensureChatRecord(store, sessionId, harness.id, opts.cwd)
+      const draft = await uiState.getDraft(sessionId)
+      const grabsPrefix = draft && draft.grabs.length > 0 ? `${draft.grabs.join('\n')}\n` : ''
+      const model = (await store.get(sessionId))?.model ?? undefined
+      const resumable =
+        harness.capabilities.resume &&
+        resumableToken(harness, opts.cwd, await resumeTokenFor(store, sessionId), opts.claudeHome) !== null
+      const history = resumable
+        ? []
+        : (await transcriptMessages(chatRuntime, sessionId)).map((message) => ChatMessageSchema.parse(message))
+      await startTurn(chatRuntime, sessionId, {
+        messages: [...history, {role: 'user', content: `${grabsPrefix}${text}`}],
+        ...(model ? {forwardedProps: {model}} : {}),
+      })
+      await uiState.clearDraft(sessionId)
+    } catch (error) {
+      releaseLock(opts.cfg.stateRoot, sessionId)
+      throw error
+    }
+  }
+
   const rpc = makeRpcRouter({
     store,
     buildSessionList: () => rpcSessionList(chatRuntime, compactor.compacting),
@@ -266,6 +300,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     openFromFrames: (frames) => openSourceFromFrames(frames, opts.cwd, opts.openInEditor),
     chat: chatRuntime,
     compactor,
+    sendTurn,
+    decidePermission: (approvalId, approved) => gate.resolve(approvalId, approved),
   })
 
   const app = composeRoutes(

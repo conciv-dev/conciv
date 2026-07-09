@@ -1,18 +1,9 @@
-import {Hono} from 'hono'
-import {HTTPException} from 'hono/http-exception'
-import {toServerSentEventsStream, type StreamChunk} from '@tanstack/ai'
+import {type StreamChunk} from '@tanstack/ai'
 import type {ChatHistory} from '@conciv/protocol/chat-types'
 import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
-import type {ChatEnv, ChatRuntime} from './chat-env.js'
+import type {ChatRuntime} from './chat-env.js'
 import {readFileOrEmpty} from '../../fs.js'
-import {sessionIdFromHeaders} from './session-id.js'
 import {settledMessages, userText} from './settled-history.js'
-
-const SSE_HEADERS = {
-  'content-type': 'text/event-stream',
-  'cache-control': 'no-cache',
-  connection: 'keep-alive',
-}
 
 export async function transcriptMessages(deps: ChatRuntime, sessionId: string): Promise<ChatHistory> {
   if (!deps.harness.capabilities.transcriptHistory || !deps.harness.history) return []
@@ -22,16 +13,15 @@ export async function transcriptMessages(deps: ChatRuntime, sessionId: string): 
   return jsonl ? deps.harness.history.parse(jsonl) : []
 }
 
-const app = new Hono<ChatEnv>().get('/attach', async (c) => {
-  const deps = c.var.chat
-  const sessionId = sessionIdFromHeaders(c.req.raw.headers)
-  if (!sessionId) throw new HTTPException(400, {message: 'no session'})
-  const abort = new AbortController()
-  c.req.raw.signal.addEventListener('abort', () => abort.abort())
+export async function attachStream(
+  deps: ChatRuntime,
+  sessionId: string,
+  signal: AbortSignal,
+): Promise<AsyncGenerator<StreamChunk>> {
   const history = await transcriptMessages(deps, sessionId)
   const pending = deps.hub.pendingUserMessage(sessionId)
   const generating = deps.hub.generating(sessionId)
-  const {replay, live} = deps.hub.attach(sessionId, abort.signal)
+  const {replay, live} = deps.hub.attach(sessionId, signal)
   const settled = settledMessages(history, pending ? userText(pending) : null)
   const messages = pending ? [...settled, pending] : settled
   async function* chunks(): AsyncGenerator<StreamChunk> {
@@ -39,7 +29,5 @@ const app = new Hono<ChatEnv>().get('/attach', async (c) => {
     yield* replay
     yield* live
   }
-  return new Response(toServerSentEventsStream(chunks(), abort), {status: 200, headers: SSE_HEADERS})
-})
-
-export default app
+  return chunks()
+}

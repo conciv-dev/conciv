@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {DraftRowSchema, MarkerRowSchema, SessionMetaSchema} from './rows.js'
+import {DraftRowSchema, MarkerRowSchema, SessionMetaSchema} from '../src/rows.js'
 
 describe('row schemas', () => {
   it('parses a session meta with status', () => {

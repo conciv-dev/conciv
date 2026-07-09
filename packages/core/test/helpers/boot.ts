@@ -19,6 +19,7 @@ export type BootOverrides = {
   claudeHome?: string
   extensions?: AnyExtension[]
   extensionConfig?: Record<string, unknown>
+  openInEditor?: (file: string, line?: number) => void
 }
 
 function fakeClaudeBinDir(stateRoot: string): string {
@@ -58,7 +59,7 @@ export function bootCoreApp(overrides: BootOverrides = {}): BootApp {
     const {app, disposers} = await makeApp({
       cfg,
       cwd: overrides.cwd ?? env.cwd,
-      openInEditor: () => {},
+      openInEditor: overrides.openInEditor ?? (() => {}),
       harness: env.harness,
       harnessEnv,
       claudeHome: overrides.claudeHome,

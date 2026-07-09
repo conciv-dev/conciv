@@ -3,7 +3,6 @@ type Subscriber = {dirty: boolean; wake: () => void}
 export type LiveFeed = {
   pulse: () => void
   subscribe: (signal: AbortSignal) => AsyncGenerator<void>
-  size: () => number
 }
 
 export function makeLiveFeed(): LiveFeed {
@@ -40,5 +39,5 @@ export function makeLiveFeed(): LiveFeed {
     }
   }
 
-  return {pulse, subscribe, size: () => subscribers.size}
+  return {pulse, subscribe}
 }

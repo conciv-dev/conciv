@@ -4,11 +4,11 @@ import {join} from 'node:path'
 import {getHarness} from '@conciv/harness'
 import {createTestHarness, type TestHarness} from '@conciv/harness-testkit'
 import {makeSessionStore, makeUiState, openDb, type SessionStore, type UiState} from '@conciv/db'
-import {makeUiBus} from '../runtime/ui-bus.js'
-import {makeTurnHub} from '../runtime/turn-hub.js'
-import {makePermissionGate} from '../api/chat/permission.js'
-import {ensureChatRecord} from '../api/chat/turn.js'
-import type {ChatRuntime} from '../api/chat/chat-env.js'
+import {makeUiBus} from '../../src/runtime/ui-bus.js'
+import {makeTurnHub} from '../../src/runtime/turn-hub.js'
+import {makePermissionGate} from '../../src/api/chat/permission.js'
+import {ensureChatRecord} from '../../src/api/chat/turn.js'
+import type {ChatRuntime} from '../../src/api/chat/chat-env.js'
 
 export type ChatFixture = {
   chat: ChatRuntime

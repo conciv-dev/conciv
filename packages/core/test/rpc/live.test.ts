@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {makeLiveFeed} from './live.js'
+import {makeLiveFeed} from '../../src/rpc/live.js'
 
 async function nextTick(): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, 0))
@@ -49,19 +49,18 @@ describe('live feed', () => {
     expect(seen).toEqual([1, 2])
   })
 
-  it('removes the subscriber on abort', async () => {
+  it('ends the loop when aborted while waiting', async () => {
     const feed = makeLiveFeed()
     const abort = new AbortController()
+    const seen: number[] = []
     const consumer = (async () => {
       for await (const _ of feed.subscribe(abort.signal)) {
-        break
+        seen.push(1)
       }
     })()
     await nextTick()
-    feed.pulse()
-    await consumer
     abort.abort()
-    await nextTick()
-    expect(feed.size()).toBe(0)
+    await consumer
+    expect(seen).toEqual([])
   })
 })

@@ -139,34 +139,11 @@ export async function startTurn(deps: TurnDeps, sessionId: string, chatReq: Chat
     .catch(() => {})
 }
 
-const app = new Hono<ChatEnv>()
-  .post('/ui', zValidator('json', UiSpecSchema), (c) => {
-    const spec = c.req.valid('json')
-    const sessionId = sessionIdFromHeaders(c.req.raw.headers)
-    return c.json({renderId: spec.renderId, injected: sessionId ? c.var.chat.uiBus.inject(sessionId, spec) : false})
-  })
-  .post('/', zValidator('json', ChatRequestSchema), async (c) => {
-    const deps = c.var.chat
-    const sessionId = sessionIdFromHeaders(c.req.raw.headers)
-    if (!sessionId) throw new HTTPException(400, {message: 'no session (resolve first)'})
-
-    if (deps.hub.generating(sessionId)) throw new HTTPException(409, {message: 'session busy'})
-
-    if (!acquireLock(deps.stateRoot, sessionId, 'chat', process.pid)) {
-      throw new HTTPException(409, {message: 'session busy'})
-    }
-
-    try {
-      deps.onTurnStart?.(sessionId)
-      await ensureChatRecord(deps.store, sessionId, deps.harness.id, deps.cwd)
-      await startTurn(deps, sessionId, c.req.valid('json'))
-      const payload: Ok = {ok: true}
-      return c.json(payload)
-    } catch (e) {
-      releaseLock(deps.stateRoot, sessionId)
-      throw e
-    }
-  })
+const app = new Hono<ChatEnv>().post('/ui', zValidator('json', UiSpecSchema), (c) => {
+  const spec = c.req.valid('json')
+  const sessionId = sessionIdFromHeaders(c.req.raw.headers)
+  return c.json({renderId: spec.renderId, injected: sessionId ? c.var.chat.uiBus.inject(sessionId, spec) : false})
+})
 
 export default app
 
