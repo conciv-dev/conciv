@@ -27,6 +27,7 @@ import bundlerApp, {type BundlerVars} from './api/server/server.js'
 import editorApp, {type EditorVars} from './api/editor/editor.js'
 import {makeRpcRouter, rpcSessionList} from './rpc/router.js'
 import {rpcMiddleware} from './rpc/mount.js'
+import {makeLiveFeed} from './rpc/live.js'
 import {makeUiBus} from './runtime/ui-bus.js'
 import {makeJournal} from './runtime/journal.js'
 import {makeTurnHub} from './runtime/turn-hub.js'
@@ -142,6 +143,10 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const chatTurnListeners: ((sessionId: string) => void)[] = []
 
+  const live = makeLiveFeed()
+  store.watch(() => live.pulse())
+  chatTurnListeners.push(() => live.pulse())
+
   const pageBus = makePageBus()
 
   const serverSessions: ServerSessions = {
@@ -206,6 +211,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     settled.forEach((outcome) => {
       if (outcome.status === 'rejected') logError(`[core] turn-end hook failed: ${String(outcome.reason)}`)
     })
+    live.pulse()
   }
   const makeToolCtx = (sessionId: string): ConcivToolContext => ({
     injectUi: (spec) => uiBus.inject(sessionId, spec),
@@ -245,7 +251,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   }
   void sweepEmptyChatRecords(store, new Set(readLocks(opts.cfg.stateRoot).map((l) => l.key))).catch(() => {})
 
-  const rpc = makeRpcRouter({store, buildSessionList: () => rpcSessionList(chatRuntime)})
+  const rpc = makeRpcRouter({store, buildSessionList: () => rpcSessionList(chatRuntime), live})
 
   const app = composeRoutes(
     {

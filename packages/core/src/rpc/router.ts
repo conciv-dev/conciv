@@ -4,12 +4,14 @@ import type {SessionStore} from '@conciv/db'
 import {readLocks} from '../store/lock.js'
 import {buildSessionList} from '../api/chat/session.js'
 import type {ChatRuntime} from '../api/chat/chat-env.js'
+import type {LiveFeed} from './live.js'
 
 export type RpcContext = {request: Request}
 
 export type RpcDeps = {
   store: SessionStore
   buildSessionList: () => Promise<SessionMeta[]>
+  live: LiveFeed
 }
 
 export async function rpcSessionList(chat: ChatRuntime): Promise<SessionMeta[]> {
@@ -32,8 +34,11 @@ export function makeRpcRouter(deps: RpcDeps) {
   return os.router({
     sessions: {
       list: os.sessions.list.handler(() => deps.buildSessionList()),
-      live: os.sessions.live.handler(async function* () {
+      live: os.sessions.live.handler(async function* ({signal}) {
         yield await deps.buildSessionList()
+        for await (const _ of deps.live.subscribe(signal ?? new AbortController().signal)) {
+          yield await deps.buildSessionList()
+        }
       }),
       create: os.sessions.create.handler(() => {
         throw new Error('implemented in task 6')
