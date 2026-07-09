@@ -125,7 +125,12 @@ async function buildTurnStream(
   })
 }
 
-async function startTurn(deps: TurnDeps, sessionId: string, chatReq: ChatRequest): Promise<void> {
+async function startTurn(
+  deps: TurnDeps,
+  sessionId: string,
+  chatReq: ChatRequest,
+  onSettled?: () => void,
+): Promise<void> {
   const abort = new AbortController()
   const stream = await buildTurnStream(deps, deps.systemText, sessionId, chatReq, abort)
   const requestedModel = requestedModelFor(chatReq) ?? null
@@ -138,7 +143,7 @@ async function startTurn(deps: TurnDeps, sessionId: string, chatReq: ChatRequest
     .start(
       sessionId,
       pendingUserMessage,
-      withLockRelease(merged, deps, sessionId, modelId, abort, turnKindFor(chatReq)),
+      withLockRelease(merged, deps, sessionId, modelId, abort, turnKindFor(chatReq), onSettled),
       () => abort.abort(),
     )
     .catch(() => {})
@@ -172,6 +177,42 @@ const app = new Hono<ChatEnv>()
       releaseLock(deps.stateRoot, sessionId)
       await deps.store.setStatus(sessionId, 'idle').catch((error) => logError(`[core] status reset failed: ${String(error)}`))
       throw e
+    }
+  })
+  .post('/compact', async (c) => {
+    const deps = c.var.chat
+    const sessionId = sessionIdFromHeaders(c.req.raw.headers)
+    if (!sessionId) throw new HTTPException(400, {message: 'no session (resolve first)'})
+    if (deps.hub.generating(sessionId)) throw new HTTPException(409, {message: 'session busy'})
+    if (!acquireLock(deps.stateRoot, sessionId, 'chat', process.pid)) {
+      throw new HTTPException(409, {message: 'session busy'})
+    }
+    let markerId: string | null = null
+    try {
+      deps.onTurnStart?.(sessionId)
+      await ensureChatRecord(deps.store, sessionId, deps.harness.id, deps.cwd)
+      markerId = await deps.markers.create(sessionId, 'compact', 0)
+      await deps.store.setStatus(sessionId, 'compacting')
+      const chatReq: ChatRequest = ChatRequestSchema.parse({
+        messages: [{role: 'user', content: '/compact'}],
+        intent: 'compact',
+      })
+      const settled = markerId
+      await startTurn(
+        deps,
+        sessionId,
+        chatReq,
+        () => void deps.markers.settle(settled).catch((error) => logError(`[core] marker settle failed: ${String(error)}`)),
+      )
+      const payload: Ok = {ok: true}
+      return c.json(payload)
+    } catch (error) {
+      releaseLock(deps.stateRoot, sessionId)
+      if (markerId) {
+        await deps.markers.remove(markerId).catch((e) => logError(`[core] marker cleanup failed: ${String(e)}`))
+      }
+      await deps.store.setStatus(sessionId, 'idle').catch((e) => logError(`[core] status reset failed: ${String(e)}`))
+      throw error
     }
   })
 
@@ -238,6 +279,7 @@ async function* withLockRelease(
   modelId: string | null,
   abort: AbortController,
   turnKind: 'chat' | 'compact',
+  onSettled?: () => void,
 ): AsyncGenerator<StreamChunk> {
   const release = lockReleaser(deps, sessionId)
   try {
@@ -263,6 +305,7 @@ async function* withLockRelease(
     }
   } finally {
     release()
+    onSettled?.()
     if (deps.onTurnEnd) await deps.onTurnEnd(sessionId).catch(() => {})
   }
 }

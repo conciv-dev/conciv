@@ -3,6 +3,7 @@ import type {AnyExtension} from '@conciv/extension'
 import {createTestkit, type BootApp, type Kit} from '@conciv/harness-testkit'
 import {makeApp} from '../../src/app.js'
 import type {ResolvedConcivConfig} from '../../src/config.js'
+import {markerWriter} from '../../src/store/markers.js'
 import {requireClaude} from './adapters.js'
 import {fakeClaudeBinDir, startTestStore} from './state-plane.js'
 
@@ -50,6 +51,7 @@ export function bootCoreApp(overrides: BootOverrides = {}): BootApp {
       extensions: overrides.extensions,
       extensionConfig: overrides.extensionConfig,
       store: plane.store,
+      markers: markerWriter(plane.records),
     })
     return {
       fetch: app.fetch,

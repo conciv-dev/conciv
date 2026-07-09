@@ -12,7 +12,7 @@ import {corsMiddleware, type CorsVars} from './api/cors.js'
 import {concivTools, type ConcivToolContext} from '@conciv/tools'
 import type {ChatTool} from '@conciv/protocol/chat-types'
 import chatApp, {ensureAgentRecord} from './api/chat/chat.js'
-import type {ChatRuntime} from './api/chat/chat-env.js'
+import type {ChatRuntime, MarkerWriter} from './api/chat/chat-env.js'
 import {makePermissionGate} from './api/chat/permission.js'
 import {buildChatTools} from './api/chat/chat-tools.js'
 import {ensureChatRecord, recordMintedToken, resolveSystemText, resumeTokenFor} from './api/chat/turn.js'
@@ -53,6 +53,8 @@ export type MakeAppOpts = {
   harness?: HarnessAdapter
 
   store: SessionStore
+
+  markers: MarkerWriter
 }
 
 function requireHarness(id: string): HarnessAdapter {
@@ -237,6 +239,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     gate,
     uiBus,
     store,
+    markers: opts.markers,
     hub,
     tools: buildChatTools(makeToolCtx, extensionTools, sessionModel),
     onTurnStart: (sessionId) => chatTurnListeners.forEach((listener) => listener(sessionId)),

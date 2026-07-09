@@ -5,6 +5,12 @@ import type {SessionStore} from '../../store/session-store.js'
 import type {TurnHub} from '../../runtime/turn-hub.js'
 import type {PermissionGate} from './permission.js'
 
+export type MarkerWriter = {
+  create(sessionId: string, kind: 'new' | 'compact', afterTurn: number): Promise<string>
+  settle(id: string): Promise<void>
+  remove(id: string): Promise<void>
+}
+
 export type ChatRuntime = {
   cwd: string
   stateRoot: string
@@ -15,6 +21,7 @@ export type ChatRuntime = {
   gate: PermissionGate
   uiBus: UiBus
   store: SessionStore
+  markers: MarkerWriter
   hub: TurnHub
   tools: (sessionId: string) => AnyTool[]
   onTurnStart?: (sessionId: string) => void

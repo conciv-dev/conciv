@@ -6,6 +6,7 @@ import {join} from 'node:path'
 import type {StatePlane} from '@conciv/state/server'
 import {makeApp} from '../../src/app.js'
 import {resolveConfig} from '../../src/config.js'
+import {markerWriter} from '../../src/store/markers.js'
 import {startTestStore} from '../helpers/state-plane.js'
 
 const ORIGIN = 'http://localhost:3000'
@@ -33,6 +34,7 @@ async function startServer(): Promise<{served: ServedApp; base: string}> {
     cwd: root,
     openInEditor: () => {},
     store: plane.store,
+    markers: markerWriter(plane.records),
   })
   const served = await serveApp(app.fetch)
   return {served, base: served.base}

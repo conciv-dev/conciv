@@ -74,4 +74,23 @@ describe('engine state plane', () => {
     expect((await fetchSessionRow(engine, sessionId))?.status).toBe('idle')
     await engine.stop()
   }, 30000)
+
+  it('compacts server-side: marker written, status walks compacting -> idle', async () => {
+    const engine = await startTestEngine()
+    const sessionId = await resolveSession(engine)
+    await postChat(engine, sessionId, 'hello')
+    await waitForIdleRow(engine, sessionId, 30000)
+    const response = await fetch(`http://127.0.0.1:${engine.port}/api/chat/compact`, {
+      method: 'POST',
+      headers: {[CONCIV_SESSION_HEADER]: sessionId},
+    })
+    expect(response.status).toBe(200)
+    await waitForIdleRow(engine, sessionId, 30000)
+    const markers = await fetchRecords(engine, 'markers', {session_id: sessionId})
+    expect(markers).toHaveLength(1)
+    const marker = z.object({kind: z.string(), pending: z.number()}).parse(markers[0])
+    expect(marker.kind).toBe('compact')
+    expect(marker.pending).toBe(0)
+    await engine.stop()
+  }, 60000)
 })

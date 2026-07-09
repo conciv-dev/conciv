@@ -6,6 +6,7 @@ import {getHarness} from '@conciv/harness'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import type {StatePlane} from '@conciv/state/server'
 import {makeApp} from '../src/app.js'
+import {markerWriter} from '../src/store/markers.js'
 import {startTestStore} from './helpers/state-plane.js'
 
 let plane: StatePlane
@@ -44,6 +45,7 @@ describe('makeApp harness DI', () => {
       openInEditor: () => {},
       harness: injected,
       store: plane.store,
+      markers: markerWriter(plane.records),
     })
     await Promise.all(disposers.map((dispose) => dispose()))
     rmSync(stateRoot, {recursive: true, force: true})

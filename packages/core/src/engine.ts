@@ -9,6 +9,7 @@ export type {AppType} from './app.js'
 import {makeEditorOpener} from './editor/open.js'
 import {resolveConfig, type ConcivConfig, type ResolvedConcivConfig} from './config.js'
 import {statePaths} from './state-paths.js'
+import {markerWriter} from './store/markers.js'
 import {writeText} from './fs.js'
 
 export type StartOpts = {
@@ -73,6 +74,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
       harnessEnv,
       allowedOrigins: opts.allowedOrigins,
       store: plane.store,
+      markers: markerWriter(plane.records),
     }
     const {app, disposers, extensionContexts} = await makeApp(appOpts)
 
