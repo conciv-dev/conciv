@@ -46,15 +46,20 @@ Client data layer is the official oRPC TanStack Query integration (Solid is supp
 - Queries: `useQuery(orpc.x.queryOptions(...))`.
 - Intents: `mutationOptions()`.
 - Live data: event iterators consumed via `liveOptions` (latest value) or `streamedOptions`
-  (append). Iterators carry `withEventMeta` ids; the retry plugin resumes from `lastEventId`, which
-  kills the reconnect/`bump()` class of bugs.
+  (append). Reconnect design (revised 2026-07-10): NO `lastEventId` resume anywhere — `chat.attach`
+  is snapshot-first (the first chunk replays settled history, hub replay covers the in-flight
+  turn), so a reconnect is simply a fresh attach; the other live iterators re-emit current state on
+  first yield. This kills the reconnect/`bump()` class of bugs without event-id bookkeeping.
+- Errors are part of the contract: procedures declare typed errors (`BUSY`, `NOT_FOUND`,
+  `UNKNOWN_MODEL`, `UNSUPPORTED`, `UNKNOWN_REQUEST`) so the client renders semantics ("session
+  busy" → disable send), never string-matching.
 
 | Today                                            | Becomes                                                                                |
 | ------------------------------------------------ | -------------------------------------------------------------------------------------- |
 | `@conciv/api-client` hand-written fetch wrappers | Deleted. Typed oRPC client from the contract.                                          |
 | Per-route `zValidator` wiring in core            | Contract schemas validate both directions.                                             |
 | `/attach` hand-rolled SSE + client parse loop    | `chat.attach` event iterator yielding native TanStack AI `StreamChunk`s.               |
-| Page bus `EventSource` + JSON parse + reply POST | `page.queries` event iterator (typed `PageQuery`) + `page.reply` procedure, resumable. |
+| Page bus `EventSource` + JSON parse + reply POST | `page.queries` event iterator + `page.reply` procedure (not resumable: dropped in-flight queries time out at the asker, as today). |
 | Models/commands/tools/config GET routes          | Contract queries via TanStack Query.                                                   |
 | Sessions list GET + client cache                 | `sessions.live` event iterator + `liveOptions`.                                        |
 
@@ -67,7 +72,10 @@ re-modeled as rows; approvals stay derived from message parts; TanStack AI remai
 feature parity.
 
 Extensions contribute their own oRPC routers (their existing `server(cfg)` hook), mounted under
-`/rpc/ext/<id>`; their client components consume a typed client for their router.
+`/rpc/ext/<id>`; their client components consume a typed client for their router. **DEFERRED
+(2026-07-10): extension comms stay on their Hono apps at `/api/ext/<id>` for now — the extension
+oRPC story is its own later phase.** The plan-1 contract still covers the extension HOST's two
+core calls (`editor.open`, `editor.openFromFrames`).
 
 ## Storage: `@conciv/db` package (drizzle on node:sqlite)
 

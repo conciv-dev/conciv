@@ -21,6 +21,17 @@
 - Commit with pathspec always: `git commit -- <paths>` (parallel sessions active in this repo).
 - Run `pnpm exec fallow audit --changed-since main --format json` before finishing; fix INTRODUCED findings.
 - New deps were user-mandated (oRPC, drizzle). Install with `pnpm add` in the owning package only; no other new deps without asking.
+- Existing on-disk unstorage session JSON (`<stateRoot>/.conciv/sessions/*`) is intentionally DROPPED by the sqlite swap — no data migration (pre-release v0, user-confirmed rule).
+- Extension comms are DEFERRED to a later phase (user decision 2026-07-10): extensions keep their Hono apps at `/api/ext/<slug>`; no extension oRPC work in this plan.
+
+## Route disposition (the delete-the-widget ledger)
+
+Audited 2026-07-10 against `packages/api-client/src/api-client.ts` + a full network sweep of `packages/widget/src` (grab/ui-kit-* verified network-free). Every CLIENT→core call becomes an oRPC procedure in `@conciv/contract`; plan 4 deletes the REST routes.
+
+- Client comms → oRPC (this plan): resolve, session-detail (subsumed by `sessions.list`/`live` metas — name/usage/status/model; the extra lock.role/cwd/harness fields are unconsumed), sessions list, models, commands, tools, rename, launch, remove, stop, permission-decision, send (`POST /api/chat`), attach (SSE), page stream/reply, editor open, open-source frames symbolication (`editor.openFromFrames`). `GET /api/chat/history` has zero widget callers (history rides the attach snapshot) — delete in plan 4, no procedure.
+- NOT client comms, stays as-is: `/api/mcp` (MCP protocol endpoint the harness CLI connects to — foreign wire format, can never be oRPC); `/api/ext/<slug>/*` + terminal WS (extension phase, deferred); `/api/chat/ui`, `/api/page/:verb`, `/api/page/changes(+clear)`, `/api/server/*` (consumed only by the `conciv` CLI — agent↔server loopback tooling, not the widget; plan 4 ledger decides port-or-delete).
+- Plan-4 collateral (record now): `packages/extensions/terminal/src/client/terminal-actions.tsx` and `packages/extension-testkit/src/host/host-runtime.tsx` import `@conciv/api-client` directly — they must move to the new client (or the extension host bag) before `git rm packages/api-client`; `PUBLIC_PACKAGES` prunes it then. The extension host bag must keep exposing the session id (extensions authenticate `/api/ext/*` with it today via `chatHeaders()`). The widget boot channel (`window.__CONCIV_API_BASE__` + `pw-widget` meta settings injection) is a plan-3 concern for `apps/conciv`/`embed`. The client-side `pw-conciv-model` localStorage bootstrap is superseded by the server model column (plan 2 decision).
+- Deliberately NOT in the contract: a `requestMeta`/`forwardedProps` passthrough lane on `chat.send` — verified unused today (only producers were model → `sessions.setModel` and compact-intent → `sessions.compact`); it is extension-facing surface and lands (or dies) with the extension phase.
 
 ---
 
@@ -53,13 +64,17 @@
   "files": ["dist"],
   "publishConfig": {"access": "public"},
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsdown",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only"
   }
 }
 ```
+
+(AS BUILT: protocol's actual pattern is tsdown, not `tsc -p tsconfig.build.json`; public packages also carry publint/attw scripts — Task 1 was executed this way.)
 
 Copy `tsconfig.json`/`tsconfig.build.json`/`vitest.config.ts` from `packages/protocol` (it is the closest pure-types sibling; check its exact build setup first with `ls packages/protocol`). Then:
 
@@ -381,7 +396,7 @@ describe('drizzle session store', () => {
 - [ ] **Step 5: Run test to verify it fails**
 
 Run: `pnpm --filter @conciv/db exec vitest run src/session-store.test.ts`
-Expected: FAIL — module not found. If the failure is `node:sqlite` unavailable instead, the vitest `execArgv` change from the Files list is missing — do it now.
+Expected: FAIL — module not found.
 
 - [ ] **Step 6: Implement the store**
 
@@ -498,6 +513,10 @@ git add packages/db packages/core/src packages/core/vitest.config.ts packages/co
 git commit -m "feat(db): @conciv/db — drizzle on node:sqlite replaces unstorage session store" -- packages/db packages/core packages/publish pnpm-lock.yaml
 ```
 
+- [ ] **Step 10 (review amendment M5): cross-process hardening**
+
+Core's lock system supports FOREIGN processes on the same stateRoot (`store/lock.ts` stores pids; `session.ts` `killLock` SIGTERMs them) — two `DatabaseSync` writers on a rollback-journal db throw `SQLITE_BUSY` immediately. In `openDb`, after constructing the client: `client.exec('PRAGMA journal_mode = WAL')` and `client.exec('PRAGMA busy_timeout = 5000')` (verify the exact DatabaseSync API — a `timeout` constructor option may exist; use what the installed `@types/node` says). Add a `packages/db` test opening TWO `openDb` instances on the same stateRoot and interleaving writes — both succeed.
+
 ---
 
 ### Task 3: Contract procedures + oRPC mount in core
@@ -523,32 +542,56 @@ Run: `cd packages/contract && pnpm add @orpc/contract` (if not already from Task
 
 - [ ] **Step 2: Define the contract**
 
-`packages/contract/src/contract.ts` (if Task 1's grep showed `eventIterator` living in `@orpc/server`, import it from there and add that dep to contract):
+`packages/contract/src/contract.ts` — contract v3, the COMPLETE client surface (adversarial-review outcome 2026-07-10; every widget→core call maps here, see the route-disposition ledger). `eventIterator` verified exported from `@orpc/contract`. Reuse protocol schemas — never redeclare shapes that exist (`ChatModelsSchema`, `ChatCommandsSchema`, `ChatToolsSchema`, `ChatLaunchSchema`, `PermissionDecisionSchema` from `@conciv/protocol/chat-types`; `OpenSourceSchema`/`OpenSourceResultSchema` + `PageReplySchema` from `@conciv/protocol/page-types` — open both files and confirm exact names first). Same for `rows.ts`: import `UsageSnapshotSchema` from `@conciv/protocol/usage-types` instead of the current duplicated copy.
+
+Typed errors (review M4): REST's 409/400 semantics must survive — declare errors on the contract and throw the typed constructors in handlers; router tests assert `code`, never message regex. Use oRPC's `.errors({...})` (verify exact API in `node_modules/@orpc/contract`).
 
 ```ts
 import {oc, eventIterator} from '@orpc/contract'
 import {z} from 'zod'
 import type {StreamChunk} from '@tanstack/ai'
+import {
+  ChatCommandsSchema,
+  ChatLaunchSchema,
+  ChatModelsSchema,
+  ChatToolsSchema,
+  PermissionDecisionSchema,
+} from '@conciv/protocol/chat-types'
+import {OpenSourceSchema, OpenSourceResultSchema, PageReplySchema} from '@conciv/protocol/page-types'
 import {DraftRowSchema, MarkerRowSchema, SessionMetaSchema} from './rows.js'
 
 const StreamChunkSchema = z.custom<StreamChunk>((value) => typeof value === 'object' && value !== null)
-
 const SessionIdInput = z.object({sessionId: z.string()})
+const Ok = z.object({ok: z.literal(true)})
+const busy = {BUSY: {message: 'session busy'}}
+const notFound = {NOT_FOUND: {message: 'session not found'}}
 
 export const contract = {
   sessions: {
     list: oc.output(z.array(SessionMetaSchema)),
     live: oc.output(eventIterator(z.array(SessionMetaSchema))),
     create: oc.output(SessionIdInput),
-    rename: oc.input(SessionIdInput.extend({title: z.string().min(1)})).output(z.object({title: z.string()})),
-    remove: oc.input(SessionIdInput).output(z.object({ok: z.literal(true)})),
-    setModel: oc.input(SessionIdInput.extend({model: z.string()})).output(z.object({model: z.string()})),
-    compact: oc.input(SessionIdInput).output(z.object({ok: z.literal(true)})),
-    stop: oc.input(SessionIdInput).output(z.object({ok: z.literal(true)})),
+    resolve: oc.input(z.object({id: z.string().optional()})).output(SessionIdInput),
+    rename: oc
+      .errors(notFound)
+      .input(SessionIdInput.extend({title: z.string().min(1).max(120)}))
+      .output(z.object({title: z.string()})),
+    remove: oc.input(SessionIdInput).output(Ok),
+    setModel: oc
+      .errors({...notFound, UNKNOWN_MODEL: {message: 'unknown or disabled model'}})
+      .input(SessionIdInput.extend({model: z.string()}))
+      .output(z.object({model: z.string()})),
+    compact: oc.errors(busy).input(SessionIdInput).output(Ok),
+    stop: oc.input(SessionIdInput).output(Ok),
+    launch: oc
+      .errors({UNSUPPORTED: {message: 'harness cannot launch'}})
+      .input(SessionIdInput.extend({model: z.string().optional()}))
+      .output(ChatLaunchSchema),
   },
   drafts: {
     get: oc.input(SessionIdInput).output(DraftRowSchema.nullable()),
-    set: oc.input(DraftRowSchema.omit({updatedAt: true})).output(z.object({ok: z.literal(true)})),
+    set: oc.input(DraftRowSchema.omit({updatedAt: true})).output(Ok),
+    live: oc.input(SessionIdInput).output(eventIterator(DraftRowSchema.nullable())),
   },
   markers: {
     list: oc.input(SessionIdInput).output(z.array(MarkerRowSchema)),
@@ -556,25 +599,26 @@ export const contract = {
   },
   chat: {
     attach: oc.input(SessionIdInput).output(eventIterator(StreamChunkSchema)),
-    send: oc.input(SessionIdInput.extend({text: z.string().min(1)})).output(z.object({ok: z.literal(true)})),
+    send: oc.errors(busy).input(SessionIdInput.extend({text: z.string().min(1)})).output(Ok),
+    permissionDecision: oc.input(PermissionDecisionSchema).output(Ok),
   },
   page: {
     queries: oc.output(eventIterator(z.object({requestId: z.string(), query: z.unknown()}))),
-    reply: oc.input(z.object({requestId: z.string(), data: z.unknown()})).output(z.object({ok: z.literal(true)})),
+    reply: oc.errors({UNKNOWN_REQUEST: {message: 'no pending request'}}).input(PageReplySchema).output(Ok),
+  },
+  editor: {
+    open: oc.input(z.object({file: z.string(), line: z.number().int().min(1).optional()})).output(Ok),
+    openFromFrames: oc.input(OpenSourceSchema).output(OpenSourceResultSchema),
   },
   meta: {
-    models: oc.output(
-      z.object({
-        models: z.array(z.unknown()),
-        defaultModel: z.string().nullable(),
-        harness: z.object({id: z.string(), name: z.string(), canLaunch: z.boolean()}),
-      }),
-    ),
+    models: oc.output(ChatModelsSchema),
+    commands: oc.input(z.object({sessionId: z.string().optional()})).output(ChatCommandsSchema),
+    tools: oc.output(ChatToolsSchema),
   },
 }
 ```
 
-Before finalizing `meta.models`, open `packages/protocol/src/chat-types.ts` and replace the three `z.unknown()`/loose shapes with the real `ChatModels` field schemas (`HarnessModelInfo` etc.) — the contract must be exact, `z.unknown()` is only acceptable for `page.queries.query` (it is validated by `PageQuerySchema` where it is consumed, and typed page schemas move into the contract in Plan 4).
+Contract semantics to encode as docblocks (they bind Plan 2's client): `chat.send` consumes the session's draft server-side (prepends grab texts, clears the row, pulses live — review M2) so the composer never orchestrates; `drafts.live` exists because two surfaces can edit one session (panel + quick pane + PiP) and the spec's focus-reconciliation rule needs a push feed (M3); `chat.attach` is snapshot-first — reconnect = fresh attach, NO lastEventId resume by design (the snapshot replays settled history + live replay covers the in-flight turn); `page.queries` is NOT resumable — a dropped in-flight query times out at the asker, same as today's SSE. `z.unknown()` remains ONLY for `page.queries.query` (validated by `PageQuerySchema` at the consumer; typed page schemas move into the contract when the page plane splits in Plan 4).
 
 Update `packages/contract/src/index.ts`:
 
@@ -669,6 +713,12 @@ export function makeRpcRouter(deps: RpcDeps) {
       create: os.sessions.create.handler(() => {
         throw new Error('implemented in task 6')
       }),
+      resolve: os.sessions.resolve.handler(() => {
+        throw new Error('implemented in task 6')
+      }),
+      launch: os.sessions.launch.handler(() => {
+        throw new Error('implemented in task 6')
+      }),
       rename: os.sessions.rename.handler(() => {
         throw new Error('implemented in task 6')
       }),
@@ -692,6 +742,9 @@ export function makeRpcRouter(deps: RpcDeps) {
       set: os.drafts.set.handler(() => {
         throw new Error('implemented in task 5')
       }),
+      live: os.drafts.live.handler(() => {
+        throw new Error('implemented in task 5')
+      }),
     },
     markers: {
       list: os.markers.list.handler(() => {
@@ -708,6 +761,9 @@ export function makeRpcRouter(deps: RpcDeps) {
       send: os.chat.send.handler(() => {
         throw new Error('implemented in task 8')
       }),
+      permissionDecision: os.chat.permissionDecision.handler(() => {
+        throw new Error('implemented in task 8')
+      }),
     },
     page: {
       queries: os.page.queries.handler(() => {
@@ -717,8 +773,22 @@ export function makeRpcRouter(deps: RpcDeps) {
         throw new Error('implemented in task 9')
       }),
     },
+    editor: {
+      open: os.editor.open.handler(() => {
+        throw new Error('implemented in task 6')
+      }),
+      openFromFrames: os.editor.openFromFrames.handler(() => {
+        throw new Error('implemented in task 6')
+      }),
+    },
     meta: {
       models: os.meta.models.handler(() => {
+        throw new Error('implemented in task 6')
+      }),
+      commands: os.meta.commands.handler(() => {
+        throw new Error('implemented in task 6')
+      }),
+      tools: os.meta.tools.handler(() => {
         throw new Error('implemented in task 6')
       }),
     },
@@ -728,7 +798,7 @@ export function makeRpcRouter(deps: RpcDeps) {
 
 (`throw` placeholders are compile-time-complete and each is retired by the named task in this same plan — the plan is not done while any remain. The exact `implement`/`os.router` composition API must be checked against `node_modules/@orpc/server` types; adjust mechanically if the version differs.)
 
-`packages/core/src/rpc/mount.ts` — Hono middleware per the oRPC Hono adapter, with the body-parse caveat handled by letting oRPC read the raw request (core has no body-consuming middleware ahead of it — verify by reading `composeRoutes`; the cors middleware does not read bodies):
+`packages/core/src/rpc/mount.ts` — Hono middleware per the oRPC Hono adapter, with the body-parse caveat handled by letting oRPC read the raw request (core has no body-consuming middleware ahead of it — verified; the cors middleware does not read bodies). The RPC context carries the raw Request: `meta.commands` needs the request origin to build `mcpUrl` (today `session.ts` reads the `host` header) — declare `RpcContext = {request: Request}` on the implementer (`implement(contract).$context<RpcContext>()`) so handlers can reach it:
 
 ```ts
 import {RPCHandler} from '@orpc/server/fetch'
@@ -738,12 +808,14 @@ import type {makeRpcRouter} from './router.js'
 export function rpcMiddleware(router: ReturnType<typeof makeRpcRouter>): MiddlewareHandler {
   const handler = new RPCHandler(router)
   return async (c, next) => {
-    const {matched, response} = await handler.handle(c.req.raw, {prefix: '/rpc', context: {}})
+    const {matched, response} = await handler.handle(c.req.raw, {prefix: '/rpc', context: {request: c.req.raw}})
     if (matched && response) return c.newResponse(response.body, response)
     await next()
   }
 }
 ```
+
+Immediately after the first handler compiles, add the SIGNAL-DELIVERY assertion test (review M7 — the entire live/attach cleanup story depends on it): drive one event-iterator procedure over `app.request` (or `call` if it forwards signals), abort the client side, assert the handler observed `signal.aborted === true` (e.g. a test-only iterator that records it). If the installed `@orpc/server` does NOT hand handlers an `AbortSignal`, STOP the plan and re-design cleanup before Tasks 4/5/8 — do not paper over with `signal ?? new AbortController().signal`. Additionally every live handler wraps its loop in `try/finally` and detaches its subscription in `finally` (works even when only `iterator.return()` fires), so cleanup never depends solely on the signal.
 
 In `packages/core/src/app.ts` `composeRoutes`, thread the router in: change `composeRoutes(vars)` to `composeRoutes(vars, rpc)` with `rpc: ReturnType<typeof makeRpcRouter>` and add before the `/api/*` routes:
 
@@ -758,6 +830,8 @@ const rpc = makeRpcRouter({store, buildSessionList: () => rpcSessionList(chatRun
 ```
 
 where `rpcSessionList` is a small function in `router.ts` that reuses `buildSessionList` from `packages/core/src/api/chat/session.ts` (it needs `store`, the harness list, running locks, and cwd — copy how the existing GET `/sessions` route in `session.ts` assembles those arguments, and map the result to `SessionMeta` by adding `status: 'idle' | 'running'` from the same `runningKeys` set and `model` from the record).
+
+The `makeApp` wiring is an explicit step, not an afterthought (the working tree currently has `composeRoutes(vars, rpc)` signature-changed but `makeApp` still calling it with one argument — it does not compile until this lands): construct `const rpc = makeRpcRouter({store, buildSessionList: () => rpcSessionList(chatRuntime)})` after `chatRuntime` and pass it to `composeRoutes`.
 
 - [ ] **Step 6: Run tests**
 
@@ -853,47 +927,52 @@ Expected: FAIL — `./live.js` not found
 
 - [ ] **Step 3: Implement the feed**
 
-`packages/core/src/rpc/live.ts` (same waiter pattern as `makeSubscriber` in `packages/core/src/runtime/turn-hub.ts:15` — read it first and mirror the style):
+`packages/core/src/rpc/live.ts` — REVIEW AMENDMENT C4: the original waiter-only sketch had a lost-update race (a `pulse()` landing while a subscriber is awake — i.e. mid-`buildSessionList` — found no waiter and was dropped forever). Each subscriber carries a `dirty` flag: `pulse()` marks every subscriber dirty and wakes the waiting ones; the loop re-emits until clean. One abort listener per subscription (not per iteration), cleanup in `finally`:
 
 ```ts
-type Waiter = () => void
+type Subscriber = {dirty: boolean; wake: () => void}
 
 export type LiveFeed = {pulse: () => void; subscribe: (signal: AbortSignal) => AsyncGenerator<void>}
 
 export function makeLiveFeed(): LiveFeed {
-  const waiters = new Set<Waiter>()
-  const pending = new Set<Waiter>()
+  const subscribers = new Set<Subscriber>()
 
   function pulse(): void {
-    for (const wake of [...waiters]) {
-      waiters.delete(wake)
-      pending.add(wake)
-      wake()
+    for (const subscriber of subscribers) {
+      subscriber.dirty = true
+      subscriber.wake()
     }
   }
 
   async function* subscribe(signal: AbortSignal): AsyncGenerator<void> {
-    while (!signal.aborted) {
-      await new Promise<void>((resolve) => {
-        const wake: Waiter = () => resolve()
-        waiters.add(wake)
-        signal.addEventListener(
-          'abort',
-          () => {
-            waiters.delete(wake)
-            resolve()
-          },
-          {once: true},
-        )
-      })
-      if (signal.aborted) return
-      yield
+    const subscriber: Subscriber = {dirty: false, wake: () => {}}
+    subscribers.add(subscriber)
+    const onAbort = () => subscriber.wake()
+    signal.addEventListener('abort', onAbort, {once: true})
+    try {
+      while (!signal.aborted) {
+        if (subscriber.dirty) {
+          subscriber.dirty = false
+          yield
+          continue
+        }
+        await new Promise<void>((resolve) => {
+          subscriber.wake = resolve
+          if (subscriber.dirty || signal.aborted) resolve()
+        })
+        subscriber.wake = () => {}
+      }
+    } finally {
+      subscribers.delete(subscriber)
+      signal.removeEventListener('abort', onAbort)
     }
   }
 
   return {pulse, subscribe}
 }
 ```
+
+Tests must include the race case: pulse while the consumer is mid-emission (i.e. between receiving a yield and awaiting the next one — simulate with an async consumer body that `await`s a tick inside the `for await` before looping) and assert the write still produces a subsequent emission. Also assert unsubscribe-on-abort leaves `subscribers` empty (export a test-only `size()` or assert via no further wakes).
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -1049,10 +1128,17 @@ import {drafts, markers} from './schema.js'
 export type UiState = {
   getDraft: (sessionId: string) => Promise<DraftRow | null>
   setDraft: (input: Omit<DraftRow, 'updatedAt'>) => Promise<void>
+  clearDraft: (sessionId: string) => Promise<void>
   listMarkers: (sessionId: string) => Promise<MarkerRow[]>
   addMarker: (input: Omit<MarkerRow, 'id'>) => Promise<MarkerRow>
+  deleteFor: (sessionId: string) => Promise<void>
   watch: (listener: () => void) => () => void
 }
+```
+
+(`clearDraft` is Task 8's server-side draft consumption on send — review M2; `deleteFor` removes the session's draft + marker rows on `sessions.remove` — review M1, since the schema has no FK cascade. Both `emit()`.)
+
+```ts
 
 export function makeUiState(db: ConcivDb, now: () => number = Date.now): UiState {
   const listeners = new Set<() => void>()
@@ -1087,10 +1173,10 @@ Note: `app.ts` already opens the db once (Task 2 Step 8: `const db = openDb(...)
 
 - [ ] **Step 4: Run tests, wire router handlers**
 
-Run: `pnpm --filter @conciv/core exec vitest run src/store/ui-state.test.ts`
+Run: `pnpm --filter @conciv/db exec vitest run src/ui-state.test.ts`
 Expected: PASS
 
-In `router.ts` (`RpcDeps` gains `uiState: UiState`):
+In `router.ts` (`RpcDeps` gains `uiState: UiState`); the `?? new AbortController().signal` fallback is only legal AFTER Task 3's signal-delivery assertion proved signals arrive; every live handler detaches in `finally` (Task 3 amendment M7):
 
 ```ts
 drafts: {
@@ -1098,6 +1184,12 @@ drafts: {
   set: os.drafts.set.handler(async ({input}) => {
     await deps.uiState.setDraft(input)
     return {ok: true as const}
+  }),
+  live: os.drafts.live.handler(async function* ({input, signal}) {
+    yield await deps.uiState.getDraft(input.sessionId)
+    for await (const _ of deps.live.subscribe(signal ?? new AbortController().signal)) {
+      yield await deps.uiState.getDraft(input.sessionId)
+    }
   }),
 },
 markers: {
@@ -1113,7 +1205,7 @@ markers: {
 
 In `app.ts`: `const uiState = makeUiState(db)` and `uiState.watch(() => live.pulse())`; pass into `makeRpcRouter`.
 
-Append router tests exercising `drafts.set` → `drafts.get` and `markers.live` first emission via `call` (same shape as Task 4 Step 6).
+Append router tests exercising `drafts.set` → `drafts.get`, `drafts.live` re-emission after a `setDraft`, and `markers.live` first emission via `call` (same shape as Task 4 Step 6). Also unit-test `clearDraft` + `deleteFor` in `ui-state.test.ts`.
 
 Run: `pnpm --filter @conciv/core exec vitest run src/rpc/router.test.ts`
 Expected: PASS
@@ -1121,24 +1213,24 @@ Expected: PASS
 - [ ] **Step 5: Commit**
 
 ```bash
-git add packages/core/src/store packages/core/src/rpc packages/core/src/app.ts
-git commit -m "feat(core): drafts + markers rows with intents and live iterators" -- packages/core/src
+git add packages/db/src packages/core/src/rpc packages/core/src/app.ts
+git commit -m "feat(db,core): drafts + markers rows with intents and live iterators" -- packages/db packages/core/src
 ```
 
 ---
 
-### Task 6: Session intents (`create`/`rename`/`remove`/`setModel`/`stop`) + `meta.models` + model policy
+### Task 6: Session intents (`create`/`resolve`/`rename`/`remove`/`setModel`/`stop`/`launch`) + `editor.*` + `meta.*` (review amendments C1, M1)
 
 **Files:**
 
 - Modify: `packages/core/src/rpc/router.ts`
-- Modify: `packages/core/src/app.ts` (extend `RpcDeps` wiring: `harness`, `hub`, `resolveSession`, `stateRoot`)
+- Modify: `packages/core/src/app.ts` (extend `RpcDeps` wiring: harness accessors, `killLock`, `openInEditor`, `symbolicateFrames` deps, commands accessor, `stateRoot`)
 - Test: additions to `packages/core/src/rpc/router.test.ts`
 
 **Interfaces:**
 
-- Consumes: `resolveSession(deps, body)` from `packages/core/src/api/chat/session.ts:34`; `ensureChatRecord` from `turn.ts:36`; `hub.markStopped`; `resolveHarnessModels` from `@conciv/harness` (see `session.ts` imports); `uiState.addMarker` (Task 5).
-- Produces: working intent procedures; `sessions.setModel` validates against the harness model list and persists to the session record (`store.update(id, {model})`) — turns read it in Task 8. `sessions.create` writes a `{kind: 'new', afterTurn: 0}` marker.
+- Consumes: `resolveSession(deps, body)` from `packages/core/src/api/chat/session.ts:34`; `ensureChatRecord` from `turn.ts:36`; `hub.markStopped`; `killLock` semantics from `session.ts` (SIGTERM a foreign-pid lock holder — extract/export it); `resolveHarnessModels` from `@conciv/harness`; the `/commands` route's assembly in `session.ts` (needs `mcpUrl` built from the request origin — read it from the RPC context's `request`); `harness.launch`; `opts.openInEditor`; the open-source route's `symbolicateFrames` flow (`packages/core/src/api/page/open-source.ts` — reuse, do not duplicate); `uiState.addMarker` + `uiState.deleteFor` (Task 5).
+- Produces: ALL remaining non-chat, non-page procedures working: `create`, `resolve` (external adoption via `resolveSession`), `rename` (sanitize: strip control chars, collapse whitespace, cap 120 — port the REST route's clean()), `remove` (= `killLock` + `store.delete` + `uiState.deleteFor`), `setModel` (validates against harness model list, persists `store.update(id, {model})` — turns read it in Task 8; unknown/disabled → typed `UNKNOWN_MODEL` error), `stop` (= `hub.markStopped` + `killLock` — cross-process stop must work), `launch` (typed `UNSUPPORTED` when harness can't launch), `editor.open`, `editor.openFromFrames`, `meta.models`, `meta.commands` (origin from context request), `meta.tools` (same list the REST tools route serves). `sessions.create` writes a `{kind: 'new', afterTurn: 0}` marker.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1191,7 +1283,7 @@ Expected: the four new tests FAIL with `implemented in task 6`
 
 - [ ] **Step 3: Implement the handlers**
 
-`RpcDeps` gains `harnessModels: () => Promise<{models: Array<{id: string; disabled?: boolean}>; defaultModel: string | null}>`, `harnessMeta: {id: string; name: string; canLaunch: boolean}`, `harnessKind: string`, `cwd: string`, `markStopped: (sessionId: string) => void`. In `router.ts`:
+`RpcDeps` gains `harnessModels: () => Promise<{models: Array<{id: string; disabled?: boolean}>; defaultModel: string | null}>`, `harnessMeta: {id: string; name: string; canLaunch: boolean}`, `harnessKind: string`, `cwd: string`, `markStopped: (sessionId: string) => void`, `killLock: (sessionId: string) => void`, `launch: (sessionId: string, model?: string) => Promise<ChatLaunch>`, `commands: (opts: {sessionId?: string; origin: string}) => Promise<ChatCommands>`, `tools: ChatTool[]`, `openInEditor: OpenInEditor`, `openFromFrames: (frames: RawFrame[]) => Promise<OpenSourceResult>` — each wired in `app.ts` from what the corresponding REST route uses today (launch/commands/tools/open-source: open the routes and lift their assembly; do NOT reimplement symbolication or command sourcing). In `router.ts`:
 
 ```ts
 create: os.sessions.create.handler(async () => {
@@ -1200,12 +1292,19 @@ create: os.sessions.create.handler(async () => {
   await deps.uiState.addMarker({sessionId, afterTurn: 0, kind: 'new'})
   return {sessionId}
 }),
+resolve: os.sessions.resolve.handler(async ({input}) => {
+  const {sessionId} = await resolveSession({store: deps.store, harnessKind: deps.harnessKind, cwd: deps.cwd}, input)
+  return {sessionId}
+}),
+launch: os.sessions.launch.handler(({input, errors}) => deps.launch(input.sessionId, input.model)),
 rename: os.sessions.rename.handler(async ({input}) => {
-  const next = await deps.store.update(input.sessionId, {title: input.title})
+  const next = await deps.store.update(input.sessionId, {title: cleanTitle(input.title)})
   return {title: next.title ?? input.title}
 }),
 remove: os.sessions.remove.handler(async ({input}) => {
+  deps.killLock(input.sessionId)
   await deps.store.delete(input.sessionId)
+  await deps.uiState.deleteFor(input.sessionId)
   return {ok: true as const}
 }),
 setModel: os.sessions.setModel.handler(async ({input, errors}) => {
@@ -1217,22 +1316,40 @@ setModel: os.sessions.setModel.handler(async ({input, errors}) => {
 }),
 stop: os.sessions.stop.handler(({input}) => {
   deps.markStopped(input.sessionId)
+  deps.killLock(input.sessionId)
   return {ok: true as const}
 }),
 ```
 
+(`cleanTitle` ports the REST rename sanitization from `session.ts`: strip control chars, collapse whitespace, cap 120.)
+
 and:
 
 ```ts
+editor: {
+  open: os.editor.open.handler(async ({input}) => {
+    await deps.openInEditor(input.file, input.line)
+    return {ok: true as const}
+  }),
+  openFromFrames: os.editor.openFromFrames.handler(({input}) => deps.openFromFrames(input.frames)),
+},
 meta: {
   models: os.meta.models.handler(async () => {
     const {models, defaultModel} = await deps.harnessModels()
     return {models, defaultModel, harness: deps.harnessMeta}
   }),
+  commands: os.meta.commands.handler(({input, context}) =>
+    deps.commands({sessionId: input.sessionId, origin: new URL(context.request.url).origin}),
+  ),
+  tools: os.meta.tools.handler(() => ({tools: deps.tools})),
 },
 ```
 
-Wire in `app.ts`: `harnessModels` reuses whatever the existing GET `/models` route in `session.ts` calls (`resolveHarnessModels(harness, ...)` — open `session.ts` lines 80+ and reuse the exact call), `harnessMeta` copies the fields that route returns today, `markStopped: (sessionId) => hub.markStopped(sessionId)`. The existing `rename` REST route also invalidates/parses — port only the store side; the REST route stays untouched.
+(`context.request` exists because Task 3 declared `RpcContext = {request: Request}` and `mount.ts` passes it.)
+
+Wire in `app.ts`: `harnessModels` reuses whatever the existing GET `/models` route in `session.ts` calls (`resolveHarnessModels(harness, ...)` — open `session.ts` lines 80+ and reuse the exact call), `harnessMeta` copies the fields that route returns today, `markStopped: (sessionId) => hub.markStopped(sessionId)`, `killLock` extracted/exported from `session.ts`, `launch`/`commands` lift the corresponding REST route bodies, `tools` is the same `toolList` already built in `makeApp`, `openInEditor: opts.openInEditor`, `openFromFrames` lifts the open-source route's symbolicate+open flow. The existing REST routes stay untouched.
+
+Additional Step 1 tests beyond the four above: `sessions.resolve` with `{}` mints, with a known id returns it, with a foreign harness id adopts (origin `external`); `sessions.stop` calls both `markStopped` and `killLock` (spy deps); `sessions.remove` clears draft+marker rows; `rename` sanitizes (`'  a\n\tb  '` → `'a b'`) and rejects >120; `meta.commands` receives the origin derived from the context request; `editor.open` forwards file+line to a spy.
 
 - [ ] **Step 4: Run tests + commit**
 
@@ -1297,7 +1414,7 @@ Expected: FAIL — `./compact.js` not found
 
 ```ts
 import type {ChatRuntime} from './chat-env.js'
-import type {UiState} from '../../store/ui-state.js'
+import type {UiState} from '@conciv/db'
 import {startTurn} from './turn.js'
 import {acquireLock, releaseLock} from '../../store/lock.js'
 
@@ -1311,6 +1428,7 @@ export function makeCompactor(deps: {chat: ChatRuntime; uiState: UiState; onChan
     if (chat.hub.generating(sessionId) || active.has(sessionId)) throw new Error('session busy')
     if (!acquireLock(chat.stateRoot, sessionId, 'chat', process.pid)) throw new Error('session busy')
     active.add(sessionId)
+    chat.onTurnStart?.(sessionId)
     deps.onChange()
     try {
       await deps.uiState.addMarker({sessionId, afterTurn: 0, kind: 'compact'})
@@ -1366,11 +1484,14 @@ await deps.uiState.addMarker({sessionId, afterTurn: history.length, kind: 'compa
 Router wiring (`RpcDeps` gains `compactor: Compactor`):
 
 ```ts
-compact: os.sessions.compact.handler(async ({input}) => {
+compact: os.sessions.compact.handler(async ({input, errors}) => {
+  if (deps.compactor.compacting(input.sessionId) || deps.chat.hub.generating(input.sessionId)) throw errors.BUSY()
   await deps.compactor.run(input.sessionId)
   return {ok: true as const}
 }),
 ```
+
+(The busy check maps to the contract's typed `BUSY` error — assert `code === 'BUSY'` in the test, never a message regex.)
 
 `buildSessionList` mapper: `status: deps.compactor.compacting(id) ? 'compacting' : running ? 'running' : 'idle'`.
 
@@ -1388,18 +1509,20 @@ git commit -m "feat(core): server-side compaction procedure with compacting stat
 
 ---
 
-### Task 8: `chat.attach` + `chat.send` (native TanStack AI over oRPC)
+### Task 8: `chat.attach` + `chat.send` + `chat.permissionDecision` (native TanStack AI over oRPC) — review amendments C1-C3, M2, M4
 
 **Files:**
 
 - Modify: `packages/core/src/api/chat/attach.ts` (export the snapshot+stream assembly as a function)
 - Modify: `packages/core/src/rpc/router.ts`
-- Test: `packages/core/src/rpc/chat-rpc.it.test.ts`
+- Modify: `packages/core/package.json` (devDep `@orpc/client` for the wire-level IT)
+- Test: `packages/core/src/rpc/chat-rpc.it.test.ts` (in-process) + `packages/core/src/rpc/wire.it.test.ts` (HTTP-level, typed client)
 
 **Interfaces:**
 
-- Consumes: `transcriptMessages`, `aguiSnapshotFor`, `settledMessages`/`userText` (all in/near `attach.ts` — read it), `hub.attach`, `startTurn` (Task 7), lock acquire flow from the chat POST route (`turn.ts:148-169`).
-- Produces: `attachStream(deps: ChatRuntime, sessionId: string, signal: AbortSignal): AsyncGenerator<StreamChunk>` exported from `attach.ts`; rpc `chat.attach`/`chat.send` handlers. Plan 2's client bridge consumes `chat.attach` verbatim.
+- Consumes: `transcriptMessages`, `aguiSnapshotFor`, `settledMessages`/`userText` (all in/near `attach.ts` — read it), `hub.attach`, `startTurn` (Task 7), lock acquire flow from the chat POST route (`turn.ts:148-169`), `gate` (permission resolution — read `permission.ts`, the REST `/permission-decision` handler shows the call), `uiState.getDraft`/`clearDraft` (Task 5).
+- Produces: `attachStream(deps: ChatRuntime, sessionId: string, signal: AbortSignal): AsyncGenerator<StreamChunk>` exported from `attach.ts`; rpc `chat.attach`/`chat.send`/`chat.permissionDecision` handlers. Plan 2's client bridge consumes `chat.attach` verbatim.
+- SEND SEMANTICS (binding): (a) busy → typed `BUSY` error; (b) the session's draft is consumed server-side — grab texts prepended to the outgoing user text, row cleared after the turn starts, live pulsed (the client composer never orchestrates grabs); (c) HISTORY RULE (review C3): when `harness.capabilities.resume` is false OR no resumable transcript token exists, the server rebuilds `messages` from `transcriptMessages(...)` + the new user text before `startTurn` — otherwise non-resume harnesses (pi) get amnesiac turns. Pin with an IT using a fake harness with `resume: false` asserting the adapter received prior turns.
 
 - [ ] **Step 1: Extract `attachStream` from the route**
 
@@ -1486,21 +1609,32 @@ Expected: FAIL with `implemented in task 8`
 
 - [ ] **Step 4: Implement the handlers**
 
-In `router.ts` (`RpcDeps` gains `chat: ChatRuntime` and `sendTurn: (sessionId: string, text: string) => Promise<void>`):
+In `router.ts` (`RpcDeps` gains `chat: ChatRuntime`, `sendTurn: (sessionId: string, text: string) => Promise<void>`, and `decidePermission: (approvalId: string, approved: boolean) => void` wired to the gate exactly as the REST `/permission-decision` route does):
 
 ```ts
 chat: {
   attach: os.chat.attach.handler(async function* ({input, signal}) {
     const abort = new AbortController()
     signal?.addEventListener('abort', () => abort.abort(), {once: true})
-    yield* await attachStream(deps.chat, input.sessionId, abort.signal)
+    try {
+      yield* await attachStream(deps.chat, input.sessionId, abort.signal)
+    } finally {
+      abort.abort()
+    }
   }),
-  send: os.chat.send.handler(async ({input}) => {
+  send: os.chat.send.handler(async ({input, errors}) => {
+    if (deps.chat.hub.generating(input.sessionId)) throw errors.BUSY()
     await deps.sendTurn(input.sessionId, input.text)
+    return {ok: true as const}
+  }),
+  permissionDecision: os.chat.permissionDecision.handler(({input}) => {
+    deps.decidePermission(input.approvalId, input.approved)
     return {ok: true as const}
   }),
 },
 ```
+
+Test `permissionDecision` end-to-end: fake harness stalls on a gated tool mid-turn, the IT resolves it via the procedure, the turn completes.
 
 `sendTurn` lives in `app.ts` beside the runtime construction and mirrors the chat POST route's flow exactly (busy check → lock → `onTurnStart` → `ensureChatRecord` → `startTurn` with a `ChatRequest` of `{messages: [{role: 'user', content: text}], forwardedProps: {model: <session record model>}}`); the session's stored `model` (Task 6) rides `forwardedProps.model` so `requestedModelFor` picks it up unchanged:
 
@@ -1511,11 +1645,18 @@ const sendTurn = async (sessionId: string, text: string): Promise<void> => {
   try {
     chatRuntime.onTurnStart?.(sessionId)
     await ensureChatRecord(chatRuntime.store, sessionId, harness.id, opts.cwd)
-    const model = (await chatRuntime.store.get(sessionId))?.model ?? undefined
+    const draft = await uiState.getDraft(sessionId)
+    const grabs = draft?.grabs?.length ? `${draft.grabs.join('\n')}\n` : ''
+    const userText = `${grabs}${text}`
+    const record = await chatRuntime.store.get(sessionId)
+    const model = record?.model ?? undefined
+    const resumable = harness.capabilities.resume && (await resumeTokenFor(chatRuntime.store, sessionId)) !== null
+    const history = resumable ? [] : await transcriptMessages(chatRuntime, sessionId)
     await startTurn(chatRuntime, sessionId, {
-      messages: [{role: 'user', content: text}],
+      messages: [...history, {role: 'user', content: userText}],
       ...(model ? {forwardedProps: {model}} : {}),
     })
+    await uiState.clearDraft(sessionId)
   } catch (error) {
     releaseLock(chatRuntime.stateRoot, sessionId)
     throw error
@@ -1523,18 +1664,35 @@ const sendTurn = async (sessionId: string, text: string): Promise<void> => {
 }
 ```
 
-(Match `ChatRequest`'s exact zod shape from `@conciv/protocol/chat-types` — if `forwardedProps.model` is not in the schema, pass `model` at the top level; `requestedModelFor` in `turn.ts:77` accepts both.)
+(Match `ChatRequest`'s exact zod shape from `@conciv/protocol/chat-types` — if `forwardedProps.model` is not in the schema, pass `model` at the top level; `requestedModelFor` in `turn.ts:77` accepts both. Verify the exact resumability check against `turn.ts`'s own `resumableToken` logic — reuse its helper rather than reimplementing; the shape above is directional. The history rebuild is review C3: without it, non-resume harnesses receive one-message context.)
 
-- [ ] **Step 5: Run tests + full suite + commit**
+- [ ] **Step 5 (review amendment C2): wire-level IT with the real typed client**
 
-Run: `pnpm --filter @conciv/core exec vitest run src/rpc/chat-rpc.it.test.ts`
+`packages/core/src/rpc/wire.it.test.ts` — the ONLY test in the plan that exercises the actual RPC wire (serializer envelope, event-iterator streaming through `RPCHandler` → Hono → `c.newResponse`, disconnect propagation). Install `pnpm add -D @orpc/client` in core. Build a client whose fetch is bound to the Hono app:
+
+```ts
+import {createORPCClient} from '@orpc/client'
+import {RPCLink} from '@orpc/client/fetch'
+
+const link = new RPCLink({url: 'http://conciv.test/rpc', fetch: (request) => app.request(request)})
+const client: ContractRouterClient<typeof contract> = createORPCClient(link)
+```
+
+(Verify exact `RPCLink` options + client typing against `node_modules/@orpc/client` — adjust mechanically.) Assert, over HTTP: (a) `client.chat.send` then `client.chat.attach` streams snapshot → chunks → RUN_FINISHED with `StreamChunk` payloads intact through the serializer; (b) `client.sessions.live` re-emits after a store write; (c) aborting the client signal detaches the server subscriber (`hub` subscriber count back to zero — expose a test hook or observe via no further writes); (d) a typed error (`BUSY`) round-trips with its `code`.
+
+Run: `pnpm --filter @conciv/core exec vitest run src/rpc/wire.it.test.ts`
+Expected: PASS
+
+- [ ] **Step 6: Run tests + full suite + commit**
+
+Run: `pnpm --filter @conciv/core exec vitest run src/rpc/chat-rpc.it.test.ts src/rpc/wire.it.test.ts`
 Expected: PASS
 Run: `pnpm turbo run test --filter=@conciv/core`
 Expected: PASS
 
 ```bash
-git add packages/core/src/api/chat/attach.ts packages/core/src/rpc packages/core/src/app.ts
-git commit -m "feat(core): chat.attach + chat.send — native StreamChunks over oRPC" -- packages/core/src
+git add packages/core/src/api/chat/attach.ts packages/core/src/rpc packages/core/src/app.ts packages/core/package.json pnpm-lock.yaml
+git commit -m "feat(core): chat.attach/send/permissionDecision — native StreamChunks over oRPC + wire IT" -- packages/core pnpm-lock.yaml
 ```
 
 ---
@@ -1591,12 +1749,15 @@ page: {
       yield {requestId: query.requestId, query}
     }
   }),
-  reply: os.page.reply.handler(({input}) => {
-    deps.pageBus.reply(input.requestId, input.data)
+  reply: os.page.reply.handler(({input, errors}) => {
+    const accepted = deps.pageBus.reply(input.requestId, input.data)
+    if (accepted === false) throw errors.UNKNOWN_REQUEST()
     return {ok: true as const}
   }),
 },
 ```
+
+(The contract's `page.reply` input is `PageReplySchema` from `@conciv/protocol/page-types` — no cast needed on `data`; if the bus's resolve doesn't report unknown ids today, have the adapter return a boolean rather than swallowing. `page.queries` is NOT resumable by design — a dropped in-flight query times out at the asker exactly like today's SSE; documented in the contract docblock.)
 
 If `makePageBus` exposes no `stream(signal)` async-iterable today (the SSE route probably wires an emitter inline), add one to the bus using the Task 4 `makeLiveFeed` waiter pattern with a queue — inside `page.ts`, exported alongside the existing API, leaving the SSE route untouched.
 
@@ -1669,7 +1830,14 @@ git commit -m "test(core): pin custom-event replay through attach; tool duration
 
 ---
 
-### Task 11: Extension oRPC routers under `/rpc/ext/<slug>`
+### Task 11: DROPPED — extension oRPC routers deferred (user decision 2026-07-10)
+
+Extension comms stay on their existing Hono apps at `/api/ext/<slug>` for now; the whole extension-oRPC story (server routers at `/rpc/ext/<slug>`, typed extension clients, the host bag's session-id exposure, the `requestMeta` lane) moves to a dedicated later phase. Plan 4's deletion ledger must treat `/api/ext/*`, the terminal WS, and the extension host's use of `editor.open`/`editor.openFromFrames` (via `client-host.ts`) as SURVIVING surfaces. Do not modify `packages/extension` in this plan.
+
+The original task body is preserved below for the future phase, unchecked and inert.
+
+<details>
+<summary>Deferred original Task 11 content</summary>
 
 **Files:**
 
@@ -1757,6 +1925,8 @@ git add packages/core/src packages/extension/src packages/extension/package.json
 git commit -m "feat(core,extension): extensions contribute oRPC routers at /rpc/ext/<slug>" -- packages/core packages/extension pnpm-lock.yaml
 ```
 
+</details>
+
 ---
 
 ### Task 12: Plan-wide gates
@@ -1773,7 +1943,7 @@ Expected: no output. Any hit means a task above was skipped — go back.
 - [ ] **Step 2: Whole-project gates**
 
 Run: `pnpm typecheck && pnpm build && pnpm test`
-Expected: exit 0 — including every pre-existing widget/core/extension test (old REST surface untouched).
+Expected: exit 0 — including every pre-existing widget/core/extension test (old REST surface untouched). KNOWN pre-existing failure on this machine (fails identically on main, live-LLM environmental): `packages/core/test/api/mcp/claude-image.it.test.ts` — does not gate this plan; everything else must be green.
 
 - [ ] **Step 3: Fallow audit**
 
@@ -1791,6 +1961,8 @@ git commit -m "chore(core): widget-rewrite plan 1 gates — typecheck, tests, fa
 
 ## Self-review notes (kept for the executor)
 
-- **Spec coverage in this plan:** contract package ✓ (T1, T3), drizzle/node:sqlite storage ✓ (T2), oRPC Hono mount + body caveat ✓ (T3), sessions.live ✓ (T4), drafts/markers ✓ (T5), intents + model policy ✓ (T6), compaction ✓ (T7), native chat over oRPC ✓ (T8), page bus ✓ (T9), custom-event/parts server guarantee ✓ (T10), extension routers ✓ (T11). Deliberately NOT here (later plans): `client`/`storage-history` packages, TanStack Query integration, `apps/conciv`, `embed`, page package split, widget/api-client deletion, old REST route removal, `PUBLIC_PACKAGES` pruning for deleted packages.
-- **oRPC API surfaces** (handler signatures, `eventIterator` export home, RPC wire envelope, `call` options) were written from the docs; the installed major may differ mechanically — every task that touches them starts with a `node_modules` types check. Adjust call-sites, not the architecture.
-- **Type consistency:** `RpcDeps` grows monotonically across T3→T11: `store`, `buildSessionList`, `live`, `uiState`, `harnessModels`, `harnessMeta`, `harnessKind`, `cwd`, `markStopped`, `compactor`, `chat`, `sendTurn`, `pageBus`. `test-fixtures.ts` (T7) is the single fixture home; T3's `test-app.ts` folds into it when created.
+- **Adversarial review 2026-07-10 (two independent agents: client-comms audit + plan soundness) folded in:** contract v3 is the COMPLETE client surface (see route-disposition ledger); Task 11 dropped (extensions deferred); C1 orphaned procedures now owned by T6/T8; C2 wire-level IT added (T8 Step 5); C3 history rebuild for non-resume harnesses (T8); C4 live-feed dirty-flag redesign (T4); M1 killLock + row cleanup (T6); M2 server-side draft consumption (T8); M3 drafts.live (T5); M4 typed errors (T3 contract); M5 WAL + busy_timeout (T2 Step 10); M7 signal assertion + finally-detach (T3); M8 compactor onTurnStart (T7).
+- **Spec coverage in this plan:** contract package ✓ (T1, T3), drizzle/node:sqlite storage in `@conciv/db` ✓ (T2), oRPC Hono mount + body caveat ✓ (T3), sessions.live ✓ (T4), drafts/markers (+live) ✓ (T5), intents + model policy + resolve/launch/editor/meta ✓ (T6), compaction ✓ (T7), native chat + permission decisions over oRPC + wire IT ✓ (T8), page bus ✓ (T9), custom-event/parts server guarantee ✓ (T10). Deliberately NOT here (later plans/phases): extension oRPC (deferred phase), `client`/`storage-history` packages, TanStack Query integration, `apps/conciv`, `embed`, page package split, widget/api-client deletion, old REST route removal, `PUBLIC_PACKAGES` pruning for deleted packages.
+- **oRPC API surfaces** (handler signatures, `eventIterator` export home, RPC wire envelope, `call` options, `.errors` API, `RPCLink` options) were written from the docs; the installed major may differ mechanically — every task that touches them starts with a `node_modules` types check. Adjust call-sites, not the architecture.
+- **Type consistency:** `RpcDeps` grows monotonically across T3→T9: `store`, `buildSessionList`, `live`, `uiState`, `harnessModels`, `harnessMeta`, `harnessKind`, `cwd`, `markStopped`, `killLock`, `launch`, `commands`, `tools`, `openInEditor`, `openFromFrames`, `compactor`, `chat`, `sendTurn`, `decidePermission`, `pageBus`. The implementer carries `RpcContext = {request: Request}`. `test-fixtures.ts` (T7) is the single fixture home; T3's `test-app.ts` folds into it when created.
+- **Working-tree state when this revision landed:** T1+T2 committed; T3 partially applied (contract v2 code, router placeholders, mount, app.ts half-wired — DOES NOT COMPILE until T3's makeApp wiring step). First execution move: reconcile the working tree to contract v3 (this doc), then finish T3.
