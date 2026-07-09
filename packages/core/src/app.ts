@@ -25,6 +25,8 @@ import pageApp, {makePageBus, type PageVars} from './api/page/page.js'
 import openSourceApp, {type OpenSourceVars} from './api/page/open-source.js'
 import bundlerApp, {type BundlerVars} from './api/server/server.js'
 import editorApp, {type EditorVars} from './api/editor/editor.js'
+import {makeRpcRouter, rpcSessionList} from './rpc/router.js'
+import {rpcMiddleware} from './rpc/mount.js'
 import {makeUiBus} from './runtime/ui-bus.js'
 import {makeJournal} from './runtime/journal.js'
 import {makeTurnHub} from './runtime/turn-hub.js'
@@ -86,7 +88,7 @@ export type CoreVars = CorsVars &
   ToolsVars & {chat: ChatRuntime} & McpVars &
   BundlerVars
 
-function composeRoutes(vars: CoreVars) {
+function composeRoutes(vars: CoreVars, rpc: ReturnType<typeof makeRpcRouter>) {
   return new Hono<{Variables: CoreVars}>()
     .onError((error, c) => {
       if (error instanceof HTTPException) return c.json({message: error.message}, error.status)
@@ -105,6 +107,7 @@ function composeRoutes(vars: CoreVars) {
       await next()
     })
     .use(corsMiddleware())
+    .use('/rpc/*', rpcMiddleware(rpc))
     .route('/api/page', openSourceApp)
     .route('/api/page', pageApp)
     .route('/api/editor', editorApp)
@@ -242,16 +245,21 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   }
   void sweepEmptyChatRecords(store, new Set(readLocks(opts.cfg.stateRoot).map((l) => l.key))).catch(() => {})
 
-  const app = composeRoutes({
-    cors: {allowedOrigins: opts.allowedOrigins ?? []},
-    page: {journal: makeJournal(), root: opts.cwd, bus: pageBus},
-    openSource: {open: opts.openInEditor, root: opts.cwd},
-    editor: {open: opts.openInEditor},
-    tools: {list: toolList},
-    chat: chatRuntime,
-    mcp: {makeCtx: makeToolCtx, extensionTools, sessionModel},
-    bundler: {bridge: () => opts.bridge},
-  })
+  const rpc = makeRpcRouter({store, buildSessionList: () => rpcSessionList(chatRuntime)})
+
+  const app = composeRoutes(
+    {
+      cors: {allowedOrigins: opts.allowedOrigins ?? []},
+      page: {journal: makeJournal(), root: opts.cwd, bus: pageBus},
+      openSource: {open: opts.openInEditor, root: opts.cwd},
+      editor: {open: opts.openInEditor},
+      tools: {list: toolList},
+      chat: chatRuntime,
+      mcp: {makeCtx: makeToolCtx, extensionTools, sessionModel},
+      bundler: {bridge: () => opts.bridge},
+    },
+    rpc,
+  )
 
   mounted.forEach((entry) => {
     if (entry.app) app.route(`/api/ext/${slug(entry.extensionName)}`, entry.app)

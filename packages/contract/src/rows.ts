@@ -1,19 +1,10 @@
 import {z} from 'zod'
+import {UsageSnapshotSchema} from '@conciv/protocol/usage-types'
 
 export const SessionStatusSchema = z.enum(['idle', 'running', 'compacting'])
 export type SessionStatus = z.infer<typeof SessionStatusSchema>
 
-export const UsageSnapshotSchema = z.object({
-  modelId: z.string().optional(),
-  contextWindow: z.number().int().nonnegative().optional(),
-  inputTokens: z.number().int().nonnegative().optional(),
-  outputTokens: z.number().int().nonnegative().optional(),
-  cacheReadTokens: z.number().int().nonnegative().optional(),
-  cacheWriteTokens: z.number().int().nonnegative().optional(),
-  reasoningTokens: z.number().int().nonnegative().optional(),
-  totalCostUsd: z.number().nonnegative().optional(),
-  numTurns: z.number().int().nonnegative().optional(),
-})
+export {UsageSnapshotSchema}
 export type UsageSnapshot = z.infer<typeof UsageSnapshotSchema>
 
 export const SessionMetaSchema = z.object({
