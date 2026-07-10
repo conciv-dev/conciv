@@ -1,6 +1,6 @@
 import {expect, test} from 'vitest'
 import {z} from 'zod'
-import {buildChatTools, toChatTool} from '../src/chat/chat-tools.js'
+import {buildChatTools, toChatTool} from '../src/chat/tools.js'
 
 test('converts a registrable tool and executes with parsed args', async () => {
   const tool = toChatTool(

@@ -1,7 +1,7 @@
 import {mkdtemp} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {start} from '@conciv/core/engine'
+import {start} from '@conciv/core/start'
 import type {AnyExtension} from '@conciv/extension'
 
 export type BootedServer = {

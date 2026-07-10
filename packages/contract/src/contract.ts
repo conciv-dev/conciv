@@ -22,7 +22,6 @@ const notFound = {NOT_FOUND: {message: 'session not found'}}
 export const contract = {
   sessions: {
     list: oc.output(z.array(SessionMetaSchema)),
-    live: oc.output(eventIterator(z.array(SessionMetaSchema))),
     create: oc.output(SessionIdInput),
     resolve: oc.input(z.object({id: z.string().optional()})).output(SessionIdInput),
     rename: oc
@@ -41,11 +40,9 @@ export const contract = {
   drafts: {
     get: oc.input(SessionIdInput).output(DraftRowSchema.nullable()),
     set: oc.input(DraftRowSchema.omit({updatedAt: true})).output(Ok),
-    live: oc.input(SessionIdInput).output(eventIterator(DraftRowSchema.nullable())),
   },
   markers: {
     list: oc.input(SessionIdInput).output(z.array(MarkerRowSchema)),
-    live: oc.input(SessionIdInput).output(eventIterator(z.array(MarkerRowSchema))),
   },
   chat: {
     attach: oc.input(SessionIdInput).output(eventIterator(StreamChunkSchema)),

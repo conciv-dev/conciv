@@ -7,7 +7,7 @@ import {isContentPartArray, type ContentPart} from '@tanstack/ai'
 import type {ExtensionServerTool, ToolRequest} from '@conciv/extension'
 import {HTTPException} from 'hono/http-exception'
 import {CONCIV_SESSION_HEADER, isSessionId} from '@conciv/protocol/chat-types'
-import {logError} from '../../runtime/harness-logger.js'
+import {logError} from '../debug.js'
 
 export function sessionIdFromHeaders(headers: Headers): string | null {
   const raw = headers.get(CONCIV_SESSION_HEADER)?.trim()

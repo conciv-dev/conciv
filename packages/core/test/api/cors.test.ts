@@ -1,6 +1,6 @@
 import {describe, it, expect} from 'vitest'
 import {Hono} from 'hono'
-import {corsMiddleware, originAllowed, type CorsVars} from '../../src/api/cors.js'
+import {corsMiddleware, originAllowed, type CorsVars} from '../../src/cors.js'
 
 function corsApp(allowed: string[] = []) {
   return new Hono<{Variables: CorsVars}>()

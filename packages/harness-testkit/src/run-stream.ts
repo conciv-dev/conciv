@@ -81,14 +81,11 @@ export function makeRunStream(source: AsyncIterable<StreamChunk>): RunStream {
   return {
     waitFor: (match, opts) => waitFor(match, opts?.hangGuardMs ?? 90_000),
     waitForToolCall: async (name, opts) => {
-      const matched = await waitFor(
-        (chunk) =>
-          chunk.type === EventType.TOOL_CALL_END &&
-          collectToolCalls(seen, name).some((call) => call.toolCallId === chunk.toolCallId),
+      await waitFor(
+        (chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT && collectToolCalls(seen, name).length > 0,
         opts?.hangGuardMs ?? 90_000,
       )
-      const toolCallId = matched.type === EventType.TOOL_CALL_END ? matched.toolCallId : ''
-      const call = collectToolCalls([...seen], name).find((entry) => entry.toolCallId === toolCallId)
+      const call = collectToolCalls([...seen], name).at(-1)
       if (!call) throw new Error('run-stream: matched tool call disappeared from the collected stream')
       return call
     },

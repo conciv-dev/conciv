@@ -1,5 +1,23 @@
-import type {ContentPart, ModelMessage, UIMessage} from '@tanstack/ai'
-import type {ChatMessage, ChatRequest} from '@conciv/protocol/chat-types'
+import type {ContentPart, ModelMessage} from '@tanstack/ai'
+import type {ChatHistory, ChatMessage} from '@conciv/protocol/chat-types'
+
+type Part = {type: string; content?: unknown}
+type HistoryMessage = {role: string; parts: ReadonlyArray<Part>}
+
+export function userText(message: HistoryMessage): string {
+  if (message.role !== 'user') return ''
+  return message.parts
+    .filter((part) => part.type === 'text')
+    .map((part) => (typeof part.content === 'string' ? part.content : ''))
+    .join('\n')
+}
+
+export function settledMessages(messages: ChatHistory, pendingUserText: string | null): ChatHistory {
+  if (pendingUserText === null) return messages
+  const index = messages.findLastIndex((message) => userText(message as HistoryMessage) === pendingUserText)
+  if (index === -1) return messages
+  return messages.slice(0, index)
+}
 
 function messageText(m: ChatMessage): string {
   if (typeof m.content === 'string') return m.content
@@ -36,16 +54,6 @@ function modelRole(role: string): 'user' | 'assistant' | 'tool' {
   return 'user'
 }
 
-export function toChatMessages(req: ChatRequest): ModelMessage[] {
-  return req.messages.map((m) => ({role: modelRole(m.role), content: modelContent(m)}))
-}
-
-export function lastUserText(req: ChatRequest): string {
-  const last = req.messages.filter((m) => m.role === 'user').at(-1)
-  return last ? messageText(last) : ''
-}
-
-export function toPendingUserMessage(message: ChatMessage): UIMessage {
-  const id = 'id' in message && typeof message.id === 'string' ? message.id : 'conciv-pending-user'
-  return {id, role: 'user', parts: [{type: 'text', content: messageText(message)}]}
+export function toModelMessages(messages: ChatMessage[]): ModelMessage[] {
+  return messages.map((m) => ({role: modelRole(m.role), content: modelContent(m)}))
 }

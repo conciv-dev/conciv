@@ -95,6 +95,14 @@ export function replyFor(db: ConcivDb, id: string, key: string): unknown | null 
   return rows[0]?.value ?? null
 }
 
+export function runSessions(db: ConcivDb): string[] {
+  return db
+    .selectDistinct({sessionId: runMessages.sessionId})
+    .from(runMessages)
+    .all()
+    .map((row) => row.sessionId)
+}
+
 export function clearRunState(db: ConcivDb, id: string): void {
   db.delete(runs).where(eq(runs.sessionId, id)).run()
   db.delete(runMessages).where(eq(runMessages.sessionId, id)).run()

@@ -1,7 +1,6 @@
 import {mkdtempSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
-import {makeSessionStore, openDb, type SessionStore} from '@conciv/db'
+import {openDb, type ConcivDb} from '@conciv/db'
 
-export const memoryStore = (now: () => number = () => 1): SessionStore =>
-  makeSessionStore({db: openDb(mkdtempSync(join(tmpdir(), 'conciv-store-'))), now})
+export const testDb = (): ConcivDb => openDb(mkdtempSync(join(tmpdir(), 'conciv-store-')))

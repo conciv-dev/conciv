@@ -23,12 +23,12 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/engine.d.ts",
-      "import": "./dist/engine.js"
+      "types": "./dist/start.d.ts",
+      "import": "./dist/start.js"
     },
-    "./engine": {
-      "types": "./dist/engine.d.ts",
-      "import": "./dist/engine.js"
+    "./start": {
+      "types": "./dist/start.d.ts",
+      "import": "./dist/start.js"
     },
     "./app": {
       "types": "./dist/app.d.ts",
@@ -67,7 +67,8 @@
     "get-port": "^7.1.0",
     "hono": "^4.12.0",
     "ufo": "^1.6.4",
-    "zod": "^4.4.3"
+    "zod": "^4.4.3",
+    "drizzle-orm": "1.0.0-rc.4"
   },
   "devDependencies": {
     "@conciv/extension": "workspace:^",

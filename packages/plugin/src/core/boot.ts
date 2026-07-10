@@ -1,5 +1,5 @@
 import {join} from 'node:path'
-import {start, type Engine} from '@conciv/core/engine'
+import {start, type Engine} from '@conciv/core/start'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {installConcivBinShim} from './bin-shim.js'
 import {makeOpenInEditor} from './open-editor.js'

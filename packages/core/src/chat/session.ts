@@ -1,26 +1,47 @@
 import {randomUUID} from 'node:crypto'
+import {and, eq, isNull} from 'drizzle-orm'
 import {withoutTrailingSlash} from 'ufo'
 import type {ChatCommand, ChatCommands, ChatSessionMeta, SessionRecord} from '@conciv/protocol/chat-types'
-import {isSessionId} from '@conciv/protocol/chat-types'
-import type {SessionStore} from '@conciv/db'
-import type {ChatRuntime} from './chat-env.js'
+import {isSessionId, SessionRecordSchema} from '@conciv/protocol/chat-types'
+import {sessions, type ConcivDb} from '@conciv/db'
+import type {ChatDeps} from './runtime.js'
 
 export type ResolveDeps = {
-  store: SessionStore
+  db: ConcivDb
   harnessKind: string
   cwd: string
   mintId?: () => string
 }
 
+export async function sessionById(db: ConcivDb, id: string): Promise<SessionRecord | null> {
+  const rows = await db.select().from(sessions).where(eq(sessions.id, id))
+  return rows[0] ? SessionRecordSchema.parse(rows[0]) : null
+}
+
+export async function sessionByHarnessId(db: ConcivDb, harnessSessionId: string): Promise<SessionRecord | null> {
+  const rows = await db.select().from(sessions).where(eq(sessions.harnessSessionId, harnessSessionId))
+  return rows[0] ? SessionRecordSchema.parse(rows[0]) : null
+}
+
+export async function createSession(
+  db: ConcivDb,
+  input: Omit<SessionRecord, 'createdAt' | 'updatedAt' | 'id'> & {id: string},
+): Promise<SessionRecord> {
+  const now = Date.now()
+  const record = SessionRecordSchema.parse({...input, createdAt: now, updatedAt: now})
+  await db.insert(sessions).values(record)
+  return record
+}
+
 export async function resolveSession(deps: ResolveDeps, body: {id?: string}): Promise<{sessionId: string}> {
   const mint = deps.mintId ?? (() => `conciv_${randomUUID()}`)
   if (body.id && isSessionId(body.id)) {
-    const existing = await deps.store.get(body.id)
+    const existing = await sessionById(deps.db, body.id)
     if (existing) return {sessionId: existing.id}
   } else if (body.id) {
-    const wrapped = await deps.store.findByHarnessId(body.id)
+    const wrapped = await sessionByHarnessId(deps.db, body.id)
     if (wrapped) return {sessionId: wrapped.id}
-    const adopted = await deps.store.create({
+    const adopted = await createSession(deps.db, {
       id: mint(),
       harnessSessionId: body.id,
       harnessKind: deps.harnessKind,
@@ -36,10 +57,10 @@ export async function resolveSession(deps: ResolveDeps, body: {id?: string}): Pr
 }
 
 export async function ensureAgentRecord(deps: ResolveDeps, harnessId: string): Promise<SessionRecord> {
-  const existing = await deps.store.findByHarnessId(harnessId)
+  const existing = await sessionByHarnessId(deps.db, harnessId)
   if (existing) return existing
   const mint = deps.mintId ?? (() => `conciv_${randomUUID()}`)
-  return deps.store.create({
+  return createSession(deps.db, {
     id: mint(),
     harnessSessionId: harnessId,
     harnessKind: deps.harnessKind,
@@ -53,24 +74,21 @@ export async function ensureAgentRecord(deps: ResolveDeps, harnessId: string): P
 
 const sameCwd = (a: string, b: string): boolean => withoutTrailingSlash(a) === withoutTrailingSlash(b)
 
-export async function sweepEmptyChatRecords(store: SessionStore): Promise<void> {
-  const records = await store.list()
-  for (const r of records) {
-    if (r.origin === 'chat' && r.harnessSessionId === null && r.title === null) {
-      await store.delete(r.id)
-    }
-  }
+export async function sweepEmptyChatRecords(db: ConcivDb): Promise<void> {
+  await db
+    .delete(sessions)
+    .where(and(eq(sessions.origin, 'chat'), isNull(sessions.harnessSessionId), isNull(sessions.title)))
 }
 
 export type HarnessRow = {id: string; derivedTitle: string; updatedAt: number; messageCount: number}
 
 export async function buildSessionList(args: {
-  store: SessionStore
+  db: ConcivDb
   harnessList: HarnessRow[]
   running: (sessionId: string) => boolean
   cwd: string
 }): Promise<ChatSessionMeta[]> {
-  const records = (await args.store.list()).filter((r) => sameCwd(r.cwd, args.cwd))
+  const records = (await args.db.select().from(sessions)).filter((r) => sameCwd(r.cwd, args.cwd))
   const byHarness = new Map(records.filter((r) => r.harnessSessionId).map((r) => [r.harnessSessionId as string, r]))
   const harnessOf = (r: (typeof records)[number]): HarnessRow | undefined =>
     r.harnessSessionId ? args.harnessList.find((x) => x.id === r.harnessSessionId) : undefined
@@ -105,7 +123,7 @@ export async function buildSessionList(args: {
 }
 
 export async function listCommands(
-  deps: ChatRuntime,
+  deps: ChatDeps,
   opts: {sessionId?: string; origin: string},
 ): Promise<ChatCommands> {
   const commands = deps.harness.commands

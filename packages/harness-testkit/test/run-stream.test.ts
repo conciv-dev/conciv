@@ -19,19 +19,25 @@ const text = (delta: string): StreamChunk =>
 const started = {type: EventType.RUN_STARTED, threadId: 't', runId: 'r'} as StreamChunk
 const finished = {type: EventType.RUN_FINISHED, threadId: 't', runId: 'r'} as StreamChunk
 
-const toolCall = (toolCallId: string, name: string, args: unknown): StreamChunk[] => [
-  {type: EventType.TOOL_CALL_START, toolCallId, toolCallName: name, toolName: name},
-  {type: EventType.TOOL_CALL_ARGS, toolCallId, delta: JSON.stringify(args)},
-  {type: EventType.TOOL_CALL_END, toolCallId},
-]
+const snapshot = (parts: unknown[]): StreamChunk =>
+  ({type: EventType.MESSAGES_SNAPSHOT, messages: [{id: 'a1', role: 'assistant', parts}]}) as StreamChunk
+
+const textPart = (content: string): unknown => ({type: 'text', content})
+
+const toolCallPart = (id: string, name: string, args: unknown): unknown => ({
+  type: 'tool-call',
+  id,
+  name,
+  arguments: JSON.stringify(args),
+  state: 'input-complete',
+})
 
 describe('makeRunStream', () => {
   it('waitForToolCall resolves with parsed input when the call lands mid-stream', async () => {
     const run = makeRunStream(
       scripted([
         started,
-        text('thinking'),
-        ...toolCall('tc-1', 'conciv_ui', {kind: 'confirm', question: 'Proceed?'}),
+        snapshot([textPart('thinking'), toolCallPart('tc-1', 'conciv_ui', {kind: 'confirm', question: 'Proceed?'})]),
         finished,
       ]),
     )
@@ -40,7 +46,9 @@ describe('makeRunStream', () => {
   })
 
   it('waitForToolCall rejects fast when the run finishes without that tool', async () => {
-    const run = makeRunStream(scripted([started, ...toolCall('tc-1', 'conciv_open', {file: 'a.ts'}), finished]))
+    const run = makeRunStream(
+      scripted([started, snapshot([toolCallPart('tc-1', 'conciv_open', {file: 'a.ts'})]), finished]),
+    )
     await expect(run.waitForToolCall('conciv_ui')).rejects.toThrow(/finished|without/i)
   })
 
@@ -48,8 +56,10 @@ describe('makeRunStream', () => {
     const run = makeRunStream(
       scripted([
         started,
-        ...toolCall('tc-1', 'conciv_open', {file: 'a.ts'}),
-        ...toolCall('tc-2', 'conciv_ui', {kind: 'confirm', question: 'Proceed?'}),
+        snapshot([
+          toolCallPart('tc-1', 'conciv_open', {file: 'a.ts'}),
+          toolCallPart('tc-2', 'conciv_ui', {kind: 'confirm', question: 'Proceed?'}),
+        ]),
         finished,
       ]),
     )
@@ -61,7 +71,7 @@ describe('makeRunStream', () => {
   })
 
   it('done drains to RUN_FINISHED and exposes typed queries', async () => {
-    const run = makeRunStream(scripted([started, text('hello '), text('world'), finished]))
+    const run = makeRunStream(scripted([started, snapshot([textPart('hello ')]), snapshot([textPart('hello world')]), finished]))
     const events = await run.done()
     expect(events.text()).toBe('hello world')
     expect(events.runs()).toBe(1)
@@ -94,7 +104,7 @@ describe('makeRunStream', () => {
     const run = makeRunStream(
       scripted([
         started,
-        ...toolCall('tc-1', 'conciv_ui', {kind: 'confirm', question: 'Proceed?'}),
+        snapshot([toolCallPart('tc-1', 'conciv_ui', {kind: 'confirm', question: 'Proceed?'})]),
         text('tail'),
         finished,
       ]),
@@ -115,9 +125,9 @@ describe('makeRunStream', () => {
     const run = makeRunStream(
       scripted([
         started,
-        ...toolCall('tc-1', 'conciv_ui', {kind: 'confirm', question: 'Proceed?'}),
+        snapshot([toolCallPart('tc-1', 'conciv_ui', {kind: 'confirm', question: 'Proceed?'})]),
         intermediate,
-        text('after'),
+        snapshot([textPart('after')]),
         finished,
       ]),
     )
@@ -127,7 +137,7 @@ describe('makeRunStream', () => {
 
   it('an old-turn RUN_FINISHED in history does not fail a new waiter', async () => {
     const run = makeRunStream(
-      parked([started, finished, started, ...toolCall('tc-2', 'conciv_ui', {kind: 'confirm', question: 'Again?'})]),
+      parked([started, finished, started, snapshot([toolCallPart('tc-2', 'conciv_ui', {kind: 'confirm', question: 'Again?'})])]),
     )
     await run.done()
     const call = await run.waitForToolCall('conciv_ui')

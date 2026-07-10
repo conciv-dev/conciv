@@ -7,28 +7,27 @@ import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {AnyExtension, ServerHarness, ServerSessions, ToolRequest} from '@conciv/extension'
 import type {ResolvedConcivConfig} from './config.js'
 import {getHarness} from '@conciv/harness'
-import {corsMiddleware, type CorsVars} from './api/cors.js'
+import {corsMiddleware, type CorsVars} from './cors.js'
 import {concivTools, type ConcivToolContext} from '@conciv/tools'
 import type {ChatTool} from '@conciv/protocol/chat-types'
 import {ensureAgentRecord, sweepEmptyChatRecords} from './chat/session.js'
-import type {ChatRuntime} from './chat/chat-env.js'
-import {makePermissionGate} from './chat/permission.js'
-import {buildChatTools} from './chat/chat-tools.js'
-import {ensureChatRecord, recordMintedToken, resolveSystemText, resumeTokenFor} from './chat/turn.js'
+import type {ChatDeps} from './chat/runtime.js'
+import {makeChanges} from './chat/changes.js'
+import {makeConcivSandbox} from './chat/sandbox.js'
+import {buildChatTools} from './chat/tools.js'
+import {askUi} from './chat/wait.js'
+import {ensureChatRecord, recordMintedToken, resolveSystemText, resumeTokenFor} from './chat/run.js'
 import {makeCompactor} from './chat/compact.js'
-import {makeSendTurn} from './chat/send-turn.js'
-import {makeSessionStore, makeUiState, openDb} from '@conciv/db'
-import mcpApp, {type McpVars} from './api/mcp/mcp.js'
-import pageApp, {makePageBus, type PageVars} from './api/page/page.js'
-import {openSourceFromFrames} from './api/page/open-source.js'
-import bundlerApp, {type BundlerVars} from './api/server/server.js'
+import {makeSend} from './chat/send.js'
+import {modelOf, openDb, statusOf} from '@conciv/db'
+import mcpApp, {type McpVars} from './mcp/mcp.js'
+import pageApp, {makePageBus, type PageVars} from './page/page.js'
+import {openSourceFromFrames} from './page/open-source.js'
+import bundlerApp, {type BundlerVars} from './bundler/bundler.js'
 import {makeRpcRouter} from './rpc/router.js'
 import {rpcMiddleware} from './rpc/mount.js'
-import {makeLiveFeed} from './rpc/live.js'
-import {makeUiAsks, UI_ASK_TIMEOUT_MS} from './runtime/ui-asks.js'
-import {makeJournal} from './runtime/journal.js'
-import {makeTurnHub} from './runtime/turn-hub.js'
-import {logError} from './runtime/harness-logger.js'
+import {makeJournal} from './page/journal.js'
+import {logError} from './debug.js'
 import type {OpenInEditor} from './editor/open.js'
 
 export type MakeAppOpts = {
@@ -86,7 +85,7 @@ function buildExtensionTools(extension: AnyExtension, context: unknown) {
   })
 }
 
-export type CoreVars = CorsVars & PageVars & {chat: ChatRuntime} & McpVars & BundlerVars
+export type CoreVars = CorsVars & PageVars & {chat: ChatDeps} & McpVars & BundlerVars
 
 function composeRoutes(vars: CoreVars, rpc: ReturnType<typeof makeRpcRouter>) {
   return new Hono<{Variables: CoreVars}>()
@@ -120,38 +119,28 @@ export type MadeApp = {
 
 export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const harness = opts.harness ?? requireHarness(opts.cfg.harness)
-  const uiAsks = makeUiAsks()
-  const hub = makeTurnHub({onChunk: (sessionId, chunk) => uiAsks.observe(sessionId, chunk)})
   const db = openDb(opts.cfg.stateRoot)
-  const store = makeSessionStore({db})
-  const gate = makePermissionGate(hub.inject, {
-    risky: new Set(
-      (opts.extensions ?? [])
-        .flatMap((extension) => extension.tools ?? [])
-        .filter((tool) => tool.approval === 'ask')
-        .map((tool) => `mcp__conciv__${tool.name}`),
-    ),
-  })
+  const changes = makeChanges()
+  const risky = new Set(
+    (opts.extensions ?? [])
+      .flatMap((extension) => extension.tools ?? [])
+      .filter((tool) => tool.approval === 'ask')
+      .map((tool) => `mcp__conciv__${tool.name}`),
+  )
 
-  const chatTurnListeners: ((sessionId: string) => void)[] = []
-
-  const live = makeLiveFeed()
-  store.watch(() => live.pulse())
-  chatTurnListeners.push(() => live.pulse())
-  const uiState = makeUiState(db)
-  uiState.watch(() => live.pulse())
+  const runStartListeners: ((sessionId: string) => void)[] = []
 
   const pageBus = makePageBus()
 
   const serverSessions: ServerSessions = {
-    resumeToken: (sessionId) => resumeTokenFor(store, sessionId),
+    resumeToken: (sessionId) => resumeTokenFor(db, sessionId),
     recordToken: async (sessionId, token) => {
-      await ensureChatRecord(store, sessionId, harness.id, opts.cwd)
-      await recordMintedToken(store, sessionId, token)
+      await ensureChatRecord(db, sessionId, harness.id, opts.cwd)
+      await recordMintedToken(db, sessionId, token)
     },
-    chatBusy: (sessionId) => hub.generating(sessionId),
-    model: async (sessionId) => (await store.get(sessionId))?.model ?? null,
-    onChatTurn: (listener) => chatTurnListeners.push(listener),
+    chatBusy: (sessionId) => statusOf(db, sessionId) !== 'idle',
+    model: async (sessionId) => modelOf(db, sessionId),
+    onChatTurn: (listener) => runStartListeners.push(listener),
   }
   const history = harness.history
   const serverHarness: ServerHarness = {
@@ -200,20 +189,18 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   })
   const disposers = mounted.flatMap((entry) => (entry.dispose ? [entry.dispose] : []))
   const turnEnds = mounted.flatMap((entry) => (entry.turnEnd ? [entry.turnEnd] : []))
-  const onTurnEnd = async (sessionId: string): Promise<void> => {
-    uiAsks.endTurn(sessionId)
+  const onRunEnd = async (sessionId: string): Promise<void> => {
     const settled = await Promise.allSettled(turnEnds.map((hook) => hook(sessionId)))
     settled.forEach((outcome) => {
       if (outcome.status === 'rejected') logError(`[core] turn-end hook failed: ${String(outcome.reason)}`)
     })
-    live.pulse()
   }
   const makeToolCtx = (sessionId: string): ConcivToolContext => ({
-    askUi: () => uiAsks.ask(sessionId, UI_ASK_TIMEOUT_MS),
+    askUi: () => askUi({db, changes}, sessionId),
     page: (query) => pageBus.ask(query),
     open: (file, line) => opts.openInEditor(file, line),
   })
-  const sessionModel = (sessionId: string): string | null => hub.model(sessionId)
+  const sessionModel = (sessionId: string): string | null => modelOf(db, sessionId)
 
   const toolList: ChatTool[] = [
     ...concivTools(makeToolCtx('')).map((tool) => ({name: tool.name, description: tool.description})),
@@ -222,7 +209,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     ),
   ]
 
-  const chatRuntime: ChatRuntime = {
+  const chatDeps: ChatDeps = {
     cwd: opts.cwd,
     stateRoot: opts.cfg.stateRoot,
     harness,
@@ -232,31 +219,29 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       {systemPromptFile: opts.systemPromptFile, systemPromptText: opts.systemPromptText ?? opts.cfg.systemPrompt},
       harness.capabilities.systemPrompt,
     ),
-    gate,
-    uiAsks,
-    store,
-    hub,
+    sandbox: makeConcivSandbox(opts.cwd),
+    db,
+    changes,
+    risky,
     tools: buildChatTools(makeToolCtx, extensionTools, sessionModel),
-    onTurnStart: (sessionId) => chatTurnListeners.forEach((listener) => listener(sessionId)),
-    onTurnEnd,
+    onRunStart: (sessionId) => runStartListeners.forEach((listener) => listener(sessionId)),
+    onRunEnd,
   }
 
   if (opts.cfg.sessionId) {
-    void ensureAgentRecord({store, harnessKind: harness.id, cwd: opts.cwd}, opts.cfg.sessionId).catch(() => {})
+    void ensureAgentRecord({db, harnessKind: harness.id, cwd: opts.cwd}, opts.cfg.sessionId).catch(() => {})
   }
-  void sweepEmptyChatRecords(store).catch(() => {})
+  void sweepEmptyChatRecords(db).catch(() => {})
 
-  const compactor = makeCompactor({chat: chatRuntime, uiState, onChange: () => live.pulse()})
+  const compactor = makeCompactor(chatDeps)
 
-  const sendTurn = makeSendTurn(chatRuntime, uiState)
+  const send = makeSend(chatDeps)
 
   const rpc = makeRpcRouter({
-    chat: chatRuntime,
-    live,
-    uiState,
+    chat: chatDeps,
     tools: toolList,
     compactor,
-    sendTurn,
+    send,
     openInEditor: opts.openInEditor,
     openFromFrames: (frames) => openSourceFromFrames(frames, opts.cwd, opts.openInEditor),
     pageBus,
@@ -266,7 +251,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     {
       cors: {allowedOrigins: opts.allowedOrigins ?? []},
       page: {journal: makeJournal(), root: opts.cwd, bus: pageBus},
-      chat: chatRuntime,
+      chat: chatDeps,
       mcp: {makeCtx: makeToolCtx, extensionTools, sessionModel},
       bundler: {bridge: () => opts.bridge},
     },

@@ -1,34 +1,38 @@
-import type {UiState} from '@conciv/db'
-import type {ChatRuntime} from './chat-env.js'
-import {startTurn} from './turn.js'
+import {randomUUID} from 'node:crypto'
+import {claimRun, markers, releaseRun, type ConcivDb} from '@conciv/db'
+import type {ChatDeps} from './runtime.js'
+import {toModelMessages} from './history.js'
+import {startRun} from './run.js'
 import {transcriptMessages} from './attach.js'
 
 export const SESSION_BUSY = 'session busy'
 
-export type Compactor = {run: (sessionId: string) => Promise<void>; compacting: (sessionId: string) => boolean}
+export type Compactor = {run: (sessionId: string) => Promise<void>}
 
-export function makeCompactor(deps: {chat: ChatRuntime; uiState: UiState; onChange: () => void}): Compactor {
-  const active = new Set<string>()
+async function addCompactMarker(db: ConcivDb, sessionId: string, afterTurn: number): Promise<void> {
+  await db.insert(markers).values({id: randomUUID(), sessionId, afterTurn, kind: 'compact'})
+}
 
+export function makeCompactor(deps: ChatDeps): Compactor {
   async function run(sessionId: string): Promise<void> {
-    const chat = deps.chat
-    if (!chat.hub.reserve(sessionId)) throw new Error(SESSION_BUSY)
-    active.add(sessionId)
-    chat.onTurnStart?.(sessionId)
-    deps.onChange()
+    if (!claimRun(deps.db, sessionId, 'compact')) throw new Error(SESSION_BUSY)
+    deps.changes.notify()
     try {
-      const history = await transcriptMessages(chat, sessionId)
-      await deps.uiState.addMarker({sessionId, afterTurn: history.length, kind: 'compact'})
-      await startTurn(chat, sessionId, {
-        messages: [{role: 'user', content: '/compact'}],
-        forwardedProps: {intent: 'compact'},
-      })
-    } finally {
-      chat.hub.release(sessionId)
-      active.delete(sessionId)
-      deps.onChange()
+      deps.onRunStart?.(sessionId)
+      const history = await transcriptMessages(deps, sessionId)
+      await addCompactMarker(deps.db, sessionId, history.length)
+      deps.changes.notify()
+    } catch (error) {
+      releaseRun(deps.db, sessionId, null)
+      deps.changes.notify()
+      throw error
     }
+    await startRun(deps, sessionId, {
+      messages: toModelMessages([{role: 'user', content: '/compact'}]),
+      model: null,
+      kind: 'compact',
+    })
   }
 
-  return {run, compacting: (sessionId) => active.has(sessionId)}
+  return {run}
 }

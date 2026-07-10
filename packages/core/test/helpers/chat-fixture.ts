@@ -3,17 +3,15 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {getHarness} from '@conciv/harness'
 import {createTestHarness, type TestHarness} from '@conciv/harness-testkit'
-import {makeSessionStore, makeUiState, openDb, type SessionStore, type UiState} from '@conciv/db'
-import {makeUiAsks} from '../../src/runtime/ui-asks.js'
-import {makeTurnHub} from '../../src/runtime/turn-hub.js'
-import {makePermissionGate} from '../../src/chat/permission.js'
-import {ensureChatRecord} from '../../src/chat/turn.js'
-import type {ChatRuntime} from '../../src/chat/chat-env.js'
+import {openDb, type ConcivDb} from '@conciv/db'
+import {makeChanges} from '../../src/chat/changes.js'
+import {makeConcivSandbox} from '../../src/chat/sandbox.js'
+import {ensureChatRecord} from '../../src/chat/run.js'
+import type {ChatDeps} from '../../src/chat/runtime.js'
 
 export type ChatFixture = {
-  chat: ChatRuntime
-  store: SessionStore
-  uiState: UiState
+  chat: ChatDeps
+  db: ConcivDb
   harness: TestHarness
   sessionId: string
   stateRoot: string
@@ -25,22 +23,18 @@ export async function makeChatFixture(opts: {seedSession?: boolean} = {}): Promi
   const harness = createTestHarness(real)
   const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-fixture-'))
   const db = openDb(stateRoot)
-  const store = makeSessionStore({db})
-  const uiState = makeUiState(db)
-  const uiAsks = makeUiAsks()
-  const hub = makeTurnHub({onChunk: (sessionId, chunk) => uiAsks.observe(sessionId, chunk)})
-  const chat: ChatRuntime = {
+  const chat: ChatDeps = {
     cwd: stateRoot,
     stateRoot,
     harness,
     systemText: '',
-    gate: makePermissionGate(hub.inject),
-    uiAsks,
-    store,
-    hub,
+    sandbox: makeConcivSandbox(stateRoot),
+    db,
+    changes: makeChanges(),
+    risky: new Set<string>(),
     tools: () => [],
   }
   const sessionId = 'conciv_fixture'
-  if (opts.seedSession !== false) await ensureChatRecord(store, sessionId, harness.id, stateRoot)
-  return {chat, store, uiState, harness, sessionId, stateRoot}
+  if (opts.seedSession !== false) await ensureChatRecord(db, sessionId, harness.id, stateRoot)
+  return {chat, db, harness, sessionId, stateRoot}
 }

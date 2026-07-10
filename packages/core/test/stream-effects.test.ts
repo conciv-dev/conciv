@@ -1,6 +1,6 @@
 import {expect, test} from 'vitest'
 import {EventType} from '@tanstack/ai'
-import {tapSessionId} from '../src/chat/turn.js'
+import {tapSessionId} from '../src/chat/run.js'
 
 test('captures session-id custom events from any adapter', () => {
   const ids: string[] = []

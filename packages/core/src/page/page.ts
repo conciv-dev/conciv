@@ -9,9 +9,9 @@ import {
   type PageQuery,
   type PageQueryInput,
 } from '@conciv/protocol/page-types'
-import type {Journal} from '../../runtime/journal.js'
-import {makePending} from '../../pending.js'
-import {symbolicateFrames, type RawFrame} from '../../page/symbolicate.js'
+import type {Journal} from './journal.js'
+import {makePending} from './pending.js'
+import {symbolicateFrames, type RawFrame} from './symbolicate.js'
 
 export type PageBus = {
   ask: (query: Omit<PageQuery, 'requestId'>) => Promise<Record<string, unknown>>

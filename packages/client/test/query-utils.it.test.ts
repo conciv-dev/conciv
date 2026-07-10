@@ -1,6 +1,5 @@
 import {afterEach, describe, expect, it} from 'vitest'
-import {MutationObserver, QueryClient, QueryObserver} from '@tanstack/solid-query'
-import {until} from '@conciv/harness-testkit/until'
+import {MutationObserver, QueryClient} from '@tanstack/solid-query'
 import {makeRpcClient, type SessionMeta} from '@conciv/contract'
 import {makeQueryUtils} from '../src/query-utils.js'
 import {bootClientKit, type ClientKit} from './helpers/boot.js'
@@ -41,20 +40,11 @@ describe('makeQueryUtils', () => {
     expect(renamed.title).toBe('named by mutation')
   })
 
-  it('experimental_liveOptions re-emit when the server pushes a sessions change', async () => {
+  it('a refetch after a rename sees the change (live lists are gone by design)', async () => {
     const {sessionId, rpc, utils, queryClient} = await bootQueryFixture()
-    const observer = new QueryObserver<SessionMeta[]>(queryClient, {
-      ...utils.sessions.live.experimental_liveOptions(),
-      retry: true,
-    })
-    const titles: string[][] = []
-    const unsubscribe = observer.subscribe((result) => {
-      if (result.data) titles.push(result.data.map((meta) => meta.title))
-    })
-    await until(() => titles.length > 0, {hangGuardMs: 5000})
-    await rpc.sessions.rename({sessionId, title: 'live-renamed'})
-    await until(() => (titles.at(-1) ?? []).includes('live-renamed'), {hangGuardMs: 5000})
-    unsubscribe()
-    expect(titles.at(-1)).toContain('live-renamed')
+    await rpc.sessions.rename({sessionId, title: 'refetch-renamed'})
+    await queryClient.invalidateQueries()
+    const sessions = await queryClient.fetchQuery(utils.sessions.list.queryOptions())
+    expect(sessions.map((meta: SessionMeta) => meta.title)).toContain('refetch-renamed')
   })
 })

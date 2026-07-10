@@ -44,7 +44,9 @@ describe('chatConnection', () => {
       (chunk) => chunk.type === EventType.RUN_FINISHED,
     )
     abort.abort()
-    expect(seen.map((chunk) => chunk.type)).toContain(EventType.TEXT_MESSAGE_CONTENT)
+    const snapshots = seen.filter((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT)
+    expect(snapshots.length).toBeGreaterThan(0)
+    expect(JSON.stringify(snapshots.at(-1))).toContain('"role":"assistant"')
     expect(seen.at(-1)?.type).toBe(EventType.RUN_FINISHED)
   })
 

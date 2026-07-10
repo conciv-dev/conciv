@@ -1,5 +1,6 @@
 import {randomUUID} from 'node:crypto'
-import {defineChatMiddleware, type AnyTool} from '@tanstack/ai'
+import {z} from 'zod'
+import {defineChatMiddleware, EventType, type AnyTool, type StreamProcessor} from '@tanstack/ai'
 import {
   defineSandbox,
   defineSandboxPolicy,
@@ -15,24 +16,91 @@ import {
   type ToolBridgeProvisioner,
 } from '@tanstack/ai-sandbox'
 import {localProcessSandbox} from '@tanstack/ai-sandbox-local-process'
-import type {PermissionGate} from './permission.js'
+import {aguiApprovalRequestedFor} from '@conciv/protocol/ui-types'
+import type {ConcivDb} from '@conciv/db'
+import {nextChange, type Changes} from './changes.js'
+import {awaitReply, toolCallParts, PART_WAIT_TIMEOUT_MS} from './wait.js'
+import {classifyCommand} from './policy.js'
+
+export type PermissionGate = {
+  decide(toolName: string, toolInput: unknown, sessionId: string, toolUseId: string): Promise<'allow' | 'deny'>
+}
 
 type Gate = Pick<PermissionGate, 'decide'>
 
-const sandboxes = new Map<string, SandboxDefinition>()
+const APPROVAL_TIMEOUT_MS = 120_000
 
-export function concivSandbox(cwd: string): SandboxDefinition {
-  const existing = sandboxes.get(cwd)
-  if (existing) return existing
-  const definition = defineSandbox({
+const BashInputSchema = z.object({command: z.string()})
+
+function needsApproval(toolName: string, toolInput: unknown, risky: ReadonlySet<string>): boolean {
+  if (risky.has(toolName)) return true
+  if (toolName !== 'Bash') return false
+  const parsed = BashInputSchema.safeParse(toolInput)
+  return classifyCommand(parsed.success ? parsed.data.command : '') !== 'allow'
+}
+
+export type RunGateDeps = {
+  sessionId: string
+  processor: StreamProcessor
+  db: ConcivDb
+  changes: Changes
+  risky: ReadonlySet<string>
+  timeoutMs?: number
+  partWaitMs?: number
+}
+
+async function ensureToolCallPart(deps: RunGateDeps, toolName: string, toolUseId: string): Promise<void> {
+  const deadline = Date.now() + (deps.partWaitMs ?? PART_WAIT_TIMEOUT_MS)
+  const abort = new AbortController()
+  const folded = () => toolCallParts(deps.processor.getMessages()).some((part) => part.id === toolUseId)
+  try {
+    while (!folded() && Date.now() < deadline) {
+      await Promise.race([
+        nextChange(deps.changes, abort.signal),
+        new Promise((resolve) => setTimeout(resolve, Math.min(250, deadline - Date.now()))),
+      ])
+    }
+  } finally {
+    abort.abort()
+  }
+  if (folded()) return
+  deps.processor.processChunk({
+    type: EventType.TOOL_CALL_START,
+    toolCallId: toolUseId,
+    toolCallName: toolName,
+    toolName,
+  })
+  deps.processor.processChunk({type: EventType.TOOL_CALL_END, toolCallId: toolUseId})
+}
+
+export function makeRunGate(deps: RunGateDeps): PermissionGate {
+  return {
+    decide: async (toolName, toolInput, _sessionId, toolUseId) => {
+      if (!needsApproval(toolName, toolInput, deps.risky)) return 'allow'
+      const approvalId = randomUUID()
+      await ensureToolCallPart(deps, toolName, toolUseId)
+      deps.processor.processChunk(
+        aguiApprovalRequestedFor({toolCallId: toolUseId, toolName, input: toolInput, approvalId}),
+      )
+      const approved = await awaitReply(
+        {db: deps.db, changes: deps.changes},
+        deps.sessionId,
+        approvalId,
+        deps.timeoutMs ?? APPROVAL_TIMEOUT_MS,
+      )
+      return approved === true ? 'allow' : 'deny'
+    },
+  }
+}
+
+export function makeConcivSandbox(cwd: string): SandboxDefinition {
+  return defineSandbox({
     id: 'conciv',
     provider: localProcessSandbox({dir: cwd}),
     policy: defineSandboxPolicy({default: 'ask'}),
     fileEvents: false,
     lifecycle: {reuse: 'thread', destroyOnComplete: false},
   })
-  sandboxes.set(cwd, definition)
-  return definition
 }
 
 function requestFields(request: {tool_name?: string; input?: unknown}): {

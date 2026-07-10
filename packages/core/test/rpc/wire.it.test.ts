@@ -11,6 +11,21 @@ import {bootKit} from '../helpers/boot.js'
 
 type WireContext = {kit: Kit; harness: TestHarness}
 
+function uiCallIdOf(messages: unknown): string | null {
+  if (!Array.isArray(messages)) return null
+  for (const message of messages) {
+    if (typeof message !== 'object' || message === null || !('parts' in message)) continue
+    const parts = message.parts
+    if (!Array.isArray(parts)) continue
+    for (const part of parts) {
+      if (typeof part !== 'object' || part === null) continue
+      if ('name' in part && part.name === 'conciv_ui' && 'id' in part && typeof part.id === 'string') return part.id
+    }
+  }
+  return null
+}
+
+
 const cleanups: (() => Promise<void>)[] = []
 afterEach(async () => {
   for (const cleanup of cleanups.splice(0)) await cleanup()
@@ -114,26 +129,13 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     expect(texts.at(-1)).toContain('second question')
   })
 
-  it('sessions.live re-emits after a create and stops on abort (M7 wire gate)', async () => {
+  it('sessions.list reflects a create on refetch (live lists are gone by design)', async () => {
     const {kit} = await bootWire()
-    const abort = new AbortController()
-    const iterator = await kit.rpc.sessions.live(undefined, {signal: abort.signal})
-    const emissions: number[] = []
-    const consumer = (async () => {
-      try {
-        for await (const metas of iterator) {
-          emissions.push(metas.length)
-          if (emissions.length === 2) abort.abort()
-        }
-      } catch (error) {
-        if (!(error instanceof Error && error.name === 'AbortError')) throw error
-      }
-    })()
-    await new Promise((resolve) => setTimeout(resolve, 25))
-    await kit.rpc.sessions.create(undefined)
-    await consumer
-    expect(emissions.length).toBeGreaterThanOrEqual(2)
-    expect(emissions.at(-1)).toBeGreaterThan(0)
+    const before = await kit.rpc.sessions.list(undefined)
+    const {sessionId} = await kit.rpc.sessions.create(undefined)
+    const after = await kit.rpc.sessions.list(undefined)
+    expect(before.map((meta) => meta.id)).not.toContain(sessionId)
+    expect(after.map((meta) => meta.id)).toContain(sessionId)
   })
 
   it('session intents round-trip over the wire', async () => {
@@ -225,22 +227,24 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     })
   })
 
-  it('conciv_ui blocks the turn until chat.uiReply lands the answer as the tool result', async () => {
+  it('conciv_ui blocks the run until chat.uiReply lands the answer as the tool result', async () => {
     const {kit, harness} = await bootWire()
     const sessionId = await kit.session()
     const stream = await kit.attach(sessionId)
     harness.__scripted.scriptToolCall('conciv_ui', {kind: 'confirm', question: 'Proceed?'})
     await kit.rpc.chat.send({sessionId, text: 'ask me'})
-    const start = await stream.waitFor(
-      (chunk) => chunk.type === EventType.TOOL_CALL_START && chunk.toolCallName === 'conciv_ui',
+    const snapshot = await stream.waitFor(
+      (chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT && uiCallIdOf(chunk.messages) !== null,
       {hangGuardMs: 10_000},
     )
-    if (start.type !== EventType.TOOL_CALL_START) throw new Error('matched chunk was not a tool-call start')
-    await kit.rpc.chat.uiReply({sessionId, toolCallId: start.toolCallId, value: 'yes'})
+    if (snapshot.type !== EventType.MESSAGES_SNAPSHOT) throw new Error('matched chunk was not a snapshot')
+    const toolCallId = uiCallIdOf(snapshot.messages)
+    if (!toolCallId) throw new Error('no conciv_ui part in the snapshot')
+    await kit.rpc.chat.uiReply({sessionId, toolCallId, value: 'yes'})
     const events = await stream.done({hangGuardMs: 10_000})
-    const result = events.all.find((chunk) => chunk.type === EventType.TOOL_CALL_RESULT)
-    if (!result || result.type !== EventType.TOOL_CALL_RESULT) throw new Error('no TOOL_CALL_RESULT in the stream')
-    expect(JSON.parse(result.content)).toEqual({answered: true, value: 'yes'})
+    const last = events.all.findLast((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT)
+    if (!last || last.type !== EventType.MESSAGES_SNAPSHOT) throw new Error('no final snapshot')
+    expect(JSON.stringify(last.messages)).toContain('"answered":true')
   })
 
   it('chat.uiReply on an unknown toolCallId reports UNKNOWN_REQUEST', async () => {
@@ -251,18 +255,20 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     })
   })
 
-  it('a pending conciv_ui question replays its tool-call part to a late attach', async () => {
+  it('a pending conciv_ui question shows its tool-call part to a late attach', async () => {
     const {kit, harness} = await bootWire()
     const sessionId = await kit.session()
     harness.__scripted.scriptToolCall('conciv_ui', {kind: 'confirm', question: 'Proceed?'})
     await kit.rpc.chat.send({sessionId, text: 'ask me'})
     const late = await kit.attach(sessionId)
-    const start = await late.waitFor(
-      (chunk) => chunk.type === EventType.TOOL_CALL_START && chunk.toolCallName === 'conciv_ui',
+    const snapshot = await late.waitFor(
+      (chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT && uiCallIdOf(chunk.messages) !== null,
       {hangGuardMs: 10_000},
     )
-    if (start.type !== EventType.TOOL_CALL_START) throw new Error('matched chunk was not a tool-call start')
-    await kit.rpc.chat.uiReply({sessionId, toolCallId: start.toolCallId, value: 'yes'})
+    if (snapshot.type !== EventType.MESSAGES_SNAPSHOT) throw new Error('matched chunk was not a snapshot')
+    const toolCallId = uiCallIdOf(snapshot.messages)
+    if (!toolCallId) throw new Error('no conciv_ui part in the snapshot')
+    await kit.rpc.chat.uiReply({sessionId, toolCallId, value: 'yes'})
     await late.done({hangGuardMs: 10_000})
   })
 
