@@ -13,13 +13,9 @@ test('converts a registrable tool and executes with parsed args', async () => {
 })
 
 test('buildChatTools yields conciv + extension tools bound to the session', async () => {
-  const seen: string[] = []
   const tools = buildChatTools(
-    (sessionId) => ({
-      injectUi: () => {
-        seen.push(`ui:${sessionId}`)
-        return true
-      },
+    () => ({
+      askUi: async () => ({answered: false, note: ''}),
       page: async () => ({ok: false as const, error: 'none'}),
       open: () => {},
     }),

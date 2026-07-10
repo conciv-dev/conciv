@@ -1,30 +1,10 @@
-import {z} from 'zod'
 import {toolDefinition} from '@tanstack/ai'
-
-export const UiInput = z.object({
-  kind: z.enum(['choices', 'confirm', 'diff', 'form']),
-  question: z.string().optional(),
-  detail: z.string().optional(),
-  options: z.array(z.string()).optional(),
-  file: z.string().optional(),
-  before: z.string().optional(),
-  after: z.string().optional(),
-  title: z.string().optional(),
-  fields: z
-    .array(
-      z.object({
-        name: z.string(),
-        label: z.string(),
-        type: z.enum(['text', 'select']),
-        options: z.array(z.string()).optional(),
-      }),
-    )
-    .optional(),
-})
+import {UiAnswerSchema, UiInputSchema} from '@conciv/protocol/ui-types'
 
 export const concivUiToolDef = toolDefinition({
   name: 'conciv_ui',
   description:
-    'Render real interactive UI (choices/confirm/diff/form) in the chat thread. Non-blocking: the user reply arrives as their next chat message.',
-  inputSchema: UiInput,
+    'Ask the user a question with real interactive UI (choices/confirm/diff/form) rendered in the chat thread. Blocks until they answer: the result carries their answer. If they do not answer within the wait window, the result says so and their answer may arrive as a later message instead.',
+  inputSchema: UiInputSchema,
+  outputSchema: UiAnswerSchema,
 })

@@ -31,6 +31,7 @@ import {makeRpcRouter, rpcSessionList} from './rpc/router.js'
 import {rpcMiddleware} from './rpc/mount.js'
 import {makeLiveFeed} from './rpc/live.js'
 import {makeUiBus} from './runtime/ui-bus.js'
+import {makeUiAsks, UI_ASK_TIMEOUT_MS} from './runtime/ui-asks.js'
 import {makeJournal} from './runtime/journal.js'
 import {makeTurnHub} from './runtime/turn-hub.js'
 import {logError} from './runtime/harness-logger.js'
@@ -119,7 +120,8 @@ export type MadeApp = {
 
 export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const harness = opts.harness ?? requireHarness(opts.cfg.harness)
-  const uiBus = makeUiBus()
+  const uiAsks = makeUiAsks()
+  const uiBus = makeUiBus({onChunk: (sessionId, chunk) => uiAsks.observe(sessionId, chunk)})
   const db = openDb(opts.cfg.stateRoot)
   const store = makeSessionStore({db})
   const gate = makePermissionGate(uiBus, {
@@ -200,6 +202,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const disposers = mounted.flatMap((entry) => (entry.dispose ? [entry.dispose] : []))
   const turnEnds = mounted.flatMap((entry) => (entry.turnEnd ? [entry.turnEnd] : []))
   const onTurnEnd = async (sessionId: string): Promise<void> => {
+    uiAsks.endTurn(sessionId)
     const settled = await Promise.allSettled(turnEnds.map((hook) => hook(sessionId)))
     settled.forEach((outcome) => {
       if (outcome.status === 'rejected') logError(`[core] turn-end hook failed: ${String(outcome.reason)}`)
@@ -207,7 +210,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     live.pulse()
   }
   const makeToolCtx = (sessionId: string): ConcivToolContext => ({
-    injectUi: (spec) => uiBus.inject(sessionId, spec),
+    askUi: () => uiAsks.ask(sessionId, UI_ASK_TIMEOUT_MS),
     page: (query) => pageBus.ask(query),
     open: (file, line) => opts.openInEditor(file, line),
   })

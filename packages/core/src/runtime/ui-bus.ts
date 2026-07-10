@@ -59,7 +59,7 @@ export type UiBus = {
   run: (sessionId: string, claudeEvents: AsyncIterable<StreamChunk>) => AsyncGenerator<StreamChunk>
 }
 
-export function makeUiBus(): UiBus {
+export function makeUiBus(opts: {onChunk?: (sessionId: string, chunk: StreamChunk) => void} = {}): UiBus {
   const channels = new Map<string, Channel>()
   const models = new Map<string, string | null>()
 
@@ -95,7 +95,10 @@ export function makeUiBus(): UiBus {
 
     async function pumpEvents(): Promise<void> {
       try {
-        for await (const chunk of claudeEvents) channel.push(chunk)
+        for await (const chunk of claudeEvents) {
+          opts.onChunk?.(sessionId, chunk)
+          channel.push(chunk)
+        }
       } finally {
         channel.close()
       }

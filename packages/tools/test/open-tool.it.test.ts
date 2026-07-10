@@ -5,7 +5,7 @@ describe('conciv_open tool', () => {
   it('forwards file + line to ctx.open', async () => {
     const calls: Array<[string, number | undefined]> = []
     const tools = concivTools({
-      injectUi: () => true,
+      askUi: async () => ({answered: false, note: ''}),
       page: async () => ({}),
       open: (file, line) => calls.push([file, line]),
     })
