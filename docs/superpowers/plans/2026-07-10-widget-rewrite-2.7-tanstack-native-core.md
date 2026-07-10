@@ -19,8 +19,17 @@
 - Known non-gating red: `test/api/mcp/claude-image.it.test.ts` and `test/codex-tanstack.it.test.ts` (environmental live-LLM).
 - Mid-plan suites MAY be red between Tasks 4–6; each task's own listed suites must be green at its end, whole-world gates bind only in Task 9.
 - drizzle stays EXACT `1.0.0-rc.4`. Before touching migrations run `pnpm dlx @tanstack/intent@latest load drizzle-kit#drizzle-migrations` and follow it.
-- The oRPC contract (`packages/contract/src/contract.ts`) does NOT change. Only what flows through `attach` changes shape (snapshots + synthesized lifecycle instead of raw deltas).
+- ~~The oRPC contract does NOT change~~ AMENDED (v2, below): contract v4 — `drafts.live` and `sessions.live` are DELETED; `chat.attach` is the ONLY event iterator in the entire contract. What flows through `attach` changes shape (snapshots + synthesized lifecycle instead of raw deltas).
 - The approval CUSTOM-event payload does NOT change (soundness finding S2 killed the ai-sandbox event swap): `aguiApprovalRequestedFor` and its `{toolCallId, toolName, input, approval: {id}}` shape STAY in protocol; `packages/ui-kit-chat` is untouched by this plan.
+
+## Amendment v2 (2026-07-11, user-locked: "per-session SSE for watching, plain verbs for doing")
+
+Plan 2.8 (server-side TanStack DB persisted collections) was authored, adversarially reviewed, and SUPERSEDED same-day — its doc holds the decision record. This plan re-becomes the execution plan, with ONE scope change:
+
+1. **Contract v4** (`packages/contract/src/contract.ts`): DELETE `drafts.live` and `sessions.live` event iterators. `chat.attach` is the only stream on the wire. Every other surface is plain request/response; the client refetches (after its own mutations, on attach lifecycle chunks, on tab focus). Fold into Task 2: contract edit + delete the router live handlers (instead of rewiring them) + ripple worklist `grep -rn "\.live" packages/contract/src packages/client/src packages/*/test --include='*.ts'` — client hooks over the deleted iterators become plain query calls (TanStack Query invalidation; `chatConnection` untouched); wire tests pinning drafts/sessions live streams die with the endpoints.
+2. **Task 2 rescope**: `makeChanges()` unchanged as written, but it is the CHAT-PLANE doorbell only — wire `store.watch(notify)` (status transitions feed attach + watchForStop) and `runState.watch(notify)` (runMessages feed attach; replies feed awaitReply). `uiState.watch` is NOT wired (drafts/markers no longer feed any live surface). Consumers: `attach`, `awaitReply`, `watchForStop` — nothing else may subscribe.
+3. Harness CUSTOM chunks (`*.session-id`, `sandbox.file`, `file.changed` — tanstack.com/ai sandbox/events) are consumed server-side only (`tapSessionId`) and never cross the attach wire; plan-3 adds a dedicated surface if file events are ever wanted.
+4. Ledger addition from the 2.8 reviews that applies here too: `packages/core/test/helpers/memory-store.ts` + its four suites (`sessions-list`, `agent-handoff`, `turn-session`, `resolve`) touch stores — verify they stay green in Task 1/4 sweeps; AGENTS.md security pointers update BOTH paths in Task 7 (`chat/sandbox.ts` AND `chat/policy.ts`).
 
 ## Verified API facts (2026-07-10, read from installed node_modules; corrected by the soundness review — do NOT re-derive)
 
@@ -168,7 +177,9 @@ it('messages and replies round-trip; run rows survive until the next claim', () 
   expect(runState.replyFor('s1', 'call_1')).toBeNull()
 })
 
-it('watch fires on every write', () => { /* setMessages, reply, clear → 3 fires (same shape as session-store watch test) */ })
+it('watch fires on every write', () => {
+  /* setMessages, reply, clear → 3 fires (same shape as session-store watch test) */
+})
 
 it('openDb boot sweep resets stuck runs', () => {
   /* open db A: create + claimRun + setMessages + reply; openDb same stateRoot again:

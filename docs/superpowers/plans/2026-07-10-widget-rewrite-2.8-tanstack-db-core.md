@@ -1,4 +1,6 @@
-# Widget Rewrite Plan 2.8: TanStack DB Core — persisted collections, the wait, and the restructure
+# [SUPERSEDED 2026-07-11] Widget Rewrite Plan 2.8: TanStack DB Core — persisted collections, the wait, and the restructure
+
+> **SUPERSEDED — do not execute.** User re-locked on 2026-07-11: server-side TanStack DB (this plan's foundation) is dropped; execution returns to plan 2.7 (drizzle rows) with Amendment v2 (contract v4: `attach` is the only stream; drafts/sessions `.live` deleted). Kept as the decision record: the spike results, both adversarial reviews (driver-concurrency CRITICAL, libsql typing, per-token coalescing), and why the pivot was reverted (a transaction-serializing driver + weeks-old persistence packages bought nothing the 15-line change signal doesn't). TanStack DB enters CLIENT-side in plan 3 (queryCollectionOptions + attach direct-writes).
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -26,7 +28,10 @@
 
 ## Verified API facts (2026-07-10; spiked against installed packages in-session — do NOT re-derive)
 
-- `@tanstack/db-sqlite-persistence-core@0.2.6` exports `persistedCollectionOptions`, `createSQLiteCorePersistenceAdapter({driver, schemaVersion?, schemaMismatchPolicy?})`, `SingleProcessCoordinator` (no-op coordinator, always leader — correct for one server process), and the `SQLiteDriver` interface: `{exec(sql): Promise<void>; query<T>(sql, params?): Promise<ReadonlyArray<T>>; run(sql, params?): Promise<void>; transaction<T>(fn): Promise<T>}` — all async; wrapping libsql's sync calls in async functions is the intended shape (spiked: write → durable → reboot → rehydrated).
+- `@tanstack/db-sqlite-persistence-core@0.2.6` exports `persistedCollectionOptions`, `createSQLiteCorePersistenceAdapter({driver, schemaVersion?, schemaMismatchPolicy?})`, `SingleProcessCoordinator` (no-op coordinator, always leader — correct for one server process), and the `SQLiteDriver` interface: `{exec(sql): Promise<void>; query<T>(sql, params?): Promise<ReadonlyArray<T>>; run(sql, params?): Promise<void>; transaction<T>(fn): Promise<T>}` — all async (spiked: write → durable → reboot → rehydrated).
+- **DRIVER CONCURRENCY (review-CRITICAL; do not simplify away):** each collection has its OWN `ApplyMutex` (`persisted.js:98-110`) — writes serialize within a collection but NOT across collections, and all five share one connection. One committed tx = `driver.transaction()` wrapping ~9 sequential awaited statements (`sqlite-core-adapter.js:795-972`); every `await` yields, letting another collection fire `BEGIN IMMEDIATE` on the same connection → "cannot start a transaction within a transaction", the rejected persistence ROLLS BACK the optimistic mutation, and a stale row RESURRECTS marked `$synced` (empirically proven with the naive driver: 2 of 3 same-tick collection writes LOST). The driver MUST replicate the reference `BetterSqlite3SQLiteDriver` machinery (`node-driver.js`): a promise-chain queue serializing ALL top-level `exec/query/run/transaction`, PLUS an `AsyncLocalStorage` transaction context so statements INSIDE a transaction bypass the queue (else the outer transaction deadlocks its own inner statements), plus savepoint-based nested `transaction()`.
+- **Driver typing (review-MAJOR):** libsql is `export = Database`; the instance type is `Database.Database` (bare `Database` as a type is TS2709). `prepare().all(...)` is variadic (spread params correct) but returns `unknown[]` — returning it as `SQLiteDriver.query<T>`'s `ReadonlyArray<T>` REQUIRES a cast in every formulation (verified tsc; the reference driver ships the same cast internally). This is the plan's ONE sanctioned `as`, confined to `driver.ts` (library-forced, same class of exception as AGENTS.md's `BaseTextAdapter`).
+- A rejected persistence promise rolls the optimistic in-memory state BACK (memory and disk stay consistent — the hazard is silent write loss, not divergence). `queryOnce` reads in-memory state and does NOT force a load — returns empty before `preload()`; safe everywhere post-`openConcivDb` (which awaits all preloads), never call during construction.
 - `@tanstack/node-db-sqlite-persistence` is NOT usable: its `database:` option is typed `InstanceType<typeof BetterSqlite3>` and libsql's `Database` type is NOT assignable (statement generics differ; verified by tsc). No-`as` rule ⇒ we ship our own driver. `libsql@0.5.29` is a better-sqlite3-style SYNC API (`new Database(path)`, `.prepare().all/run`, `.exec`), prebuilt binaries, no node-gyp, no node flags.
 - Local-only persisted collections (`persistedCollectionOptions({id, getKey, schema, persistence, schemaVersion})` — NO `sync` key): mutations auto-persist through wrapped `onInsert/onUpdate/onDelete`; `id` is REQUIRED (random UUID per boot otherwise — data appears lost); `schemaMismatchPolicy` for sync-absent mode defaults to ERROR on version bump — pass `'reset'` explicitly.
 - Collection API (spiked): `await collection.preload()` before first use; `get(key)` SYNC in-memory read; `size`; `toArray`; `insert/update/delete` return a tx with `isPersisted.promise` (await = durability point; unawaited writes MUST attach `.catch` — unhandled rejection risk); `update('missing', ...)` THROWS `UpdateKeyNotFoundError`, `delete('missing')` THROWS `DeleteKeyNotFoundError` — guard with `get()` first.
@@ -61,7 +66,8 @@ export type ConcivDb = {
   requestStop(id: string): boolean // running|compacting → stopping
   setRunMessages(sessionId: string, messages: unknown[]): Promise<void> // upsert, stamps updatedAt; returns the caught persistence promise — await = durability point, ignore = fire-and-forget
   writeReply(sessionId: string, key: string, value: unknown): Promise<void> // upsert under the composite key; same promise contract
-  close(): void
+  flush(): Promise<void> // drains the driver's write queue to idle (tests + shutdown barriers)
+  close(): Promise<void> // flush() then database.close() — never close under in-flight writes
 }
 
 export type RunMessagesRow = {sessionId: string; messages: unknown[]; updatedAt: number}
@@ -103,6 +109,8 @@ Deliberate consequences (binding):
 - `chat.permissionDecision` (no sessionId in contract input) routes by scanning `db.runMessages.toArray` for the row whose messages contain a tool-call part with `approval.id === approvalId`; unmatched decisions are a no-op `{ok: true}`.
 - `UNKNOWN_REQUEST` for `uiReply` = no pending `conciv_ui` tool-call part with that `toolCallId` in the session's run messages.
 - Composer queue-vs-disable while running is a plan-3 client decision; the server only offers the atomic claim.
+- Harness CUSTOM chunks (`*.session-id`, `sandbox.file`, `file.changed`, code-mode progress — see tanstack.com/ai sandbox/events) are consumed SERVER-SIDE only (`tapSessionId` matches `.endsWith('.session-id')` via a type predicate) and do NOT cross the attach wire (snapshot-only). Nothing consumes file events today; if plan-3 wants them, add a dedicated live rpc surface — do not leak raw chunks back into attach.
+- ONE sanctioned `as` cast in the repo gains a second member: `driver.ts`'s `query<T>` over libsql's `unknown[]` return (library-forced, verified impossible without it; joins `BaseTextAdapter` in the AGENTS.md exception list — update AGENTS.md's code-style section in Task 1).
 - Boot sweep inside `openConcivDb` (after preload): every session with `status !== 'idle'` → `'idle'`; delete ALL runMessages + replies rows (`lastError` survives — per-run news, cleared by the next `claimRun`).
 
 ---
@@ -114,7 +122,7 @@ Deliberate consequences (binding):
 - Create: `packages/db/src/driver.ts` (libsql `SQLiteDriver`), `packages/db/src/rows.ts` (`RunMessagesRowSchema`, `ReplyRowSchema`, `replyId()`)
 - Rewrite: `packages/db/src/db.ts` (`openConcivDb`: database + persistence + five collections + preload + boot sweep + claim family + helpers + close), `packages/db/src/index.ts`
 - Delete: `packages/db/src/schema.ts`, `packages/db/src/session-store.ts`, `packages/db/src/ui-state.ts`, `packages/db/drizzle/` (whole folder), `packages/db/drizzle.config.ts`, `packages/db/test/session-store.test.ts`, `packages/db/test/ui-state.test.ts`
-- Modify: `packages/db/package.json` (drop `drizzle-orm` + `drizzle-kit` + the `node:sqlite` reliance; add exact `@tanstack/db@0.6.14`, `@tanstack/db-sqlite-persistence-core@0.2.6`, `libsql@0.5.29`), root `package.json` (`intent.skills`: remove `drizzle-kit`)
+- Modify: `packages/db/package.json` — deps: drop `drizzle-orm` + `drizzle-kit`, add exact `@tanstack/db@0.6.14`, `@tanstack/db-sqlite-persistence-core@0.2.6`, `libsql@0.5.29`; metadata: rewrite `description` (no "drizzle"/"node:sqlite" wording), drop `"drizzle"` from `keywords`, remove `"drizzle"` from `files` (the folder dies — a stale glob fails publint in release validate). Root `package.json` (`intent.skills`: remove `drizzle-kit`). Add `@conciv/db` to `.fallowrc.json` `publicPackages` (published package; Task 1 reshapes its whole export surface)
 - Modify: `packages/protocol/src/chat-types.ts` (`SessionStatusSchema` + the three `SessionRecordSchema` fields with input defaults)
 - Test: `packages/db/test/db.test.ts` (new, replaces both deleted suites)
 
@@ -221,42 +229,81 @@ describe('conciv db on tanstack persisted collections', () => {
     const first = await openConcivDb(stateRoot, {now: () => 1})
     first.sessions.insert({...record('conciv_z'), title: 'keep'})
     first.claimRun('conciv_z', 'chat')
-    await first.setRunMessages('conciv_z', [{id: 'm1'}])
-    await first.writeReply('conciv_z', 'k', true)
-    first.close()
+    first.setRunMessages('conciv_z', [{id: 'm1'}])
+    first.writeReply('conciv_z', 'k', true)
+    await first.close()
     const second = await openConcivDb(stateRoot, {now: () => 2})
     expect(second.sessions.get('conciv_z')?.title).toBe('keep')
     expect(second.sessions.get('conciv_z')?.status).toBe('idle')
     expect(second.sessions.get('conciv_z')?.lastError).toBeNull()
     expect(second.runMessages.get('conciv_z')).toBeUndefined()
     expect(second.replies.get('conciv_z/k')).toBeUndefined()
-    second.close()
+    await second.close()
+  })
+
+  it('same-tick multi-collection writes all survive flush + reboot (queue pin)', async () => {
+    const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-db-queue-'))
+    const first = await openConcivDb(stateRoot, {now: () => 1})
+    first.sessions.insert(record('conciv_q'))
+    first.sessions.update('conciv_q', (draft) => {
+      draft.title = 'queued'
+      draft.updatedAt = 2
+    })
+    first.setRunMessages('conciv_q', [{id: 'm1'}])
+    first.writeReply('conciv_q', 'k', true)
+    await first.flush()
+    await first.close()
+    const second = await openConcivDb(stateRoot, {now: () => 3})
+    expect(second.sessions.get('conciv_q')?.title).toBe('queued')
+    await second.close()
   })
 })
 ```
 
 - [ ] **Step 2: Run to verify failure** — `pnpm --filter @conciv/db exec vitest run` fails on missing `openConcivDb`.
-- [ ] **Step 3: Implement.** `driver.ts`:
+- [ ] **Step 3: Implement.** `driver.ts` — mirrors the reference `BetterSqlite3SQLiteDriver` machinery (queue + AsyncLocalStorage transaction context; the naive queueless version corrupts multi-collection writes — see Verified facts). Exports `flushDriver` for the db-level `flush()`:
 
 ```ts
+import {AsyncLocalStorage} from 'node:async_hooks'
 import type Database from 'libsql'
 import type {SQLiteDriver} from '@tanstack/db-sqlite-persistence-core'
 
-export function makeLibsqlDriver(database: Database): SQLiteDriver {
-  const driver: SQLiteDriver = {
-    exec: async (sql) => {
-      database.exec(sql)
-    },
-    query: async (sql, params = []) => database.prepare(sql).all(...params),
-    run: async (sql, params = []) => {
-      database.prepare(sql).run(...params)
-    },
-    transaction: async (fn) => runTransaction(database, driver, fn),
+type LibsqlDriver = SQLiteDriver & {idle: () => Promise<void>}
+
+export function makeLibsqlDriver(database: Database.Database): LibsqlDriver {
+  const inTransaction = new AsyncLocalStorage<boolean>()
+  const state = {queue: Promise.resolve()}
+  const enqueue = <T>(op: () => Promise<T>): Promise<T> => {
+    if (inTransaction.getStore()) return op()
+    const chained = state.queue.then(op)
+    state.queue = chained.then(noop, noop)
+    return chained
+  }
+  const rows = <T>(sql: string, params: ReadonlyArray<unknown>) =>
+    database.prepare(sql).all(...params) as ReadonlyArray<T>
+  const driver: LibsqlDriver = {
+    exec: (sql) =>
+      enqueue(async () => {
+        database.exec(sql)
+      }),
+    query: <T>(sql: string, params: ReadonlyArray<unknown> = []) => enqueue(async () => rows<T>(sql, params)),
+    run: (sql, params = []) =>
+      enqueue(async () => {
+        database.prepare(sql).run(...params)
+      }),
+    transaction: (fn) => enqueue(() => inTransaction.run(true, () => runTransaction(database, driver, fn))),
+    idle: () => state.queue.then(noop),
   }
   return driver
 }
 
-async function runTransaction<T>(database: Database, driver: SQLiteDriver, fn: (d: SQLiteDriver) => Promise<T>) {
+function noop(): void {}
+
+async function runTransaction<T>(
+  database: Database.Database,
+  driver: SQLiteDriver,
+  fn: (d: SQLiteDriver) => Promise<T>,
+) {
   database.exec('BEGIN IMMEDIATE')
   try {
     const result = await fn(driver)
@@ -269,7 +316,41 @@ async function runTransaction<T>(database: Database, driver: SQLiteDriver, fn: (
 }
 ```
 
-(Check libsql's `.d.ts` for the exact `prepare().all(...params)` typing — spread vs single array arg — and match it; the spike used spread successfully at runtime.)
+Notes pinned by review: `Database.Database` is the instance type (bare `Database` is a namespace — TS2709); `.all(...params)` spread matches libsql's variadic typing; the `as ReadonlyArray<T>` in `rows` is THE one sanctioned cast (no formulation compiles without it); statements inside a transaction bypass the queue via the AsyncLocalStorage marker (else the transaction deadlocks its own inner statements); nested `transaction()` inside a transaction is not exercised by this adapter — if tsc demands `transactionWithDriver`, alias it to `transaction`.
+
+- [ ] **Step 3b: Driver test** `packages/db/test/driver.test.ts` — pins the concurrency machinery:
+
+```ts
+it('serializes concurrent transactions across awaits; inner statements bypass the queue', async () => {
+  const driver = makeLibsqlDriver(new Database(':memory:'))
+  await driver.exec('CREATE TABLE t (n INTEGER)')
+  await Promise.all(
+    [1, 2, 3].map((n) =>
+      driver.transaction(async (tx) => {
+        await tx.run('INSERT INTO t VALUES (?)', [n])
+        await new Promise((resolve) => setTimeout(resolve, 5))
+        await tx.run('INSERT INTO t VALUES (?)', [n * 10])
+      }),
+    ),
+  )
+  const counted = await driver.query<{n: number}>('SELECT count(*) AS n FROM t')
+  expect(counted[0]?.n).toBe(6)
+})
+
+it('a failed transaction rolls back and the queue keeps serving', async () => {
+  const driver = makeLibsqlDriver(new Database(':memory:'))
+  await driver.exec('CREATE TABLE t (n INTEGER)')
+  await expect(
+    driver.transaction(async (tx) => {
+      await tx.run('INSERT INTO t VALUES (1)')
+      throw new Error('boom')
+    }),
+  ).rejects.toThrow('boom')
+  const counted = await driver.query<{n: number}>('SELECT count(*) AS n FROM t')
+  expect(counted[0]?.n).toBe(0)
+  await driver.run('INSERT INTO t VALUES (2)')
+})
+```
 
 `rows.ts`: zod schemas for the two new row shapes + `replyId(sessionId, key)` = `` `${sessionId}/${key}` ``. `db.ts` sketch (complete the obvious parallels):
 
@@ -338,8 +419,17 @@ claimRun: (id, kind) => {
 **Files:**
 
 - Delete: `packages/core/src/rpc/live.ts`, `packages/core/test/rpc/live.test.ts`
-- Modify: `packages/core/src/app.ts` (openConcivDb await; `store`/`uiState` locals become `db`; pulse wiring deleted), `packages/core/src/rpc/router.ts` (RpcDeps: `live`+`uiState`+`chat.store` → `db: ConcivDb`; every handler body), `packages/core/src/chat/chat-env.ts` (`ChatRuntime.store` → `db`), `packages/core/src/chat/session.ts`, `packages/core/src/chat/turn.ts`, `packages/core/src/chat/send-turn.ts`, `packages/core/src/chat/compact.ts` (mechanical `store.`/`uiState.` → collection ops)
-- Test: `packages/core/test/rpc/*` behavior ITs stay green unchanged (they drive the wire); fixture helpers that constructed stores now call `openConcivDb`
+- Modify: `packages/core/src/app.ts` (openConcivDb await; `store`/`uiState` locals become `db`; pulse wiring deleted), `packages/core/src/rpc/router.ts` (RpcDeps: `live`+`uiState`+`chat.store` → `db: ConcivDb`; every handler body), `packages/core/src/chat/chat-env.ts` (`ChatRuntime.store` → `db`), `packages/core/src/chat/session.ts` (`ResolveDeps.store: SessionStore` → `db`; `resolveSession`/`ensureAgentRecord`/`sweepEmptyChatRecords`/`buildSessionList` all take it), `packages/core/src/chat/turn.ts`, `packages/core/src/chat/send-turn.ts`, `packages/core/src/chat/compact.ts` (mechanical `store.`/`uiState.` → collection ops)
+- Rewrite: `packages/core/test/helpers/memory-store.ts` — imports the deleted `makeSessionStore`/`openDb`/`SessionStore`; becomes a thin `openConcivDb(mkdtemp…)` helper. Its four consuming suites migrate here: `packages/core/test/sessions-list.test.ts`, `packages/core/test/agent-handoff.test.ts`, `packages/core/test/turn-session.test.ts`, `packages/core/test/resolve.test.ts`
+- Test: `packages/core/test/rpc/*` behavior ITs stay green unchanged (they drive the wire)
+
+**`store.create` return-value trap:** `session.ts` consumes the CREATED ROW (`const adopted = await deps.store.create(...); return adopted.id`; `agent-handoff.test.ts` asserts `origin === 'agent'`), but `collection.insert()` returns a TX, not the row. The rewrite is parse-first:
+
+```ts
+const record = SessionRecordSchema.parse({...input, createdAt: now(), updatedAt: now()})
+db.sessions.insert(record)
+return record
+```
 
 **Mechanical rewrite table (apply everywhere; Task 2 is done when `grep -rn "SessionStore\|UiState\|makeSessionStore\|makeUiState\|makeLiveFeed\|pulse()" packages/core/src` is EMPTY):**
 
@@ -524,7 +614,7 @@ export function makeRunGate(gateDeps: {
 
 - Rewrite: `packages/core/src/chat/attach.ts`
 - Modify: `packages/core/src/rpc/router.ts` (`chat.attach` handler; `rpcSessionList` status from the column, `'stopping'→'running'` on the wire; `compacting` from status — `Compactor.compacting` deleted)
-- Modify: `packages/harness-testkit/src/run-stream.ts` + `run-events.ts` — FULL re-derivation: `text()` = concatenated text parts of the LAST snapshot's assistant messages; `toolCalls(name?)` = tool-call parts of the last snapshot; `waitForToolCall(name)` = waitFor a snapshot containing the part; `custom(name?)` — CUSTOM chunks no longer cross the wire: re-derive consumers from part states or delete the helper if orphaned (grep first); generic `waitFor(predicate)`/`waitForText` KEEP operating on raw received chunks (snapshots + lifecycle ARE chunks) but every existing call site passing `TOOL_CALL_*`/`TEXT_MESSAGE_*`/`CUSTOM` predicates must be re-pointed — worklist: `grep -rn "TOOL_CALL_\|TEXT_MESSAGE_\|EventType.CUSTOM" packages/*/test packages/harness-testkit/src --include='*.ts'`
+- Modify: `packages/harness-testkit/src/run-stream.ts` + `run-events.ts` — FULL re-derivation: `text()` = concatenated text parts of the LAST snapshot's assistant messages; `toolCalls(name?)` = tool-call parts of the last snapshot; `waitForToolCall(name)` = waitFor a snapshot containing the part; `custom(name?)` — CUSTOM chunks no longer cross the wire: re-derive consumers from part states or delete the helper if orphaned (grep first); generic `waitFor(predicate)`/`waitForText` KEEP operating on raw received chunks (snapshots + lifecycle ARE chunks) but every existing call site passing `TOOL_CALL_*`/`TEXT_MESSAGE_*`/`CUSTOM` predicates must be re-pointed — worklist: `grep -rn "TOOL_CALL_\|TEXT_MESSAGE_\|EventType.CUSTOM" packages/*/test packages/harness-testkit/src --include='*.ts'`. EMIT-SIDE HITS STAY: `packages/harness-testkit/src/scripted-run.ts` (the fake harness PRODUCES the raw stream the server folds), `packages/harness/test/helpers/scripted-chunks.ts`, `packages/harness/test/*` (adapter unit tests, pre-wire) — only wire-CONSUMING assertions repoint
 - Modify: `packages/core/test/rpc/wire.it.test.ts` (incl. the `conciv_ui` IT reading `TOOL_CALL_RESULT.content` — assertion moves to the final snapshot's tool-result part), `packages/client/test/*` (re-pin to snapshots; `chatConnection`/`useChatSession` PROD code unchanged)
 - Test: new attach IT (below)
 
@@ -564,7 +654,7 @@ Same map as plan 2.7 (no behavior change; suites stay green):
 - `rpc/router.ts` split by contract namespace: `rpc/sessions.ts`, `rpc/chat.ts`, `rpc/router.ts` (compose + page/editor/meta), `rpc/mount.ts`, `rpc/changes.ts`
 - Identifier renames: `TurnDeps→ChatDeps` (Task 4), `onTurnStart/End→onRunStart/End` (extension `ServerSessions.onChatTurn` STAYS — public extension API, plan-4 ledger), RpcDeps `sendTurn` → `send`
 - Test tree mirrors: `test/chat/*`, `test/rpc/*`; `test/runtime/` dissolves; `packages/core/test/stream-effects.test.ts` imports `tapSessionId` from `../src/chat/turn.js` — re-point to `chat/run.js`
-- `AGENTS.md` security-section pointer (`api/chat/permission.ts` → `chat/sandbox.ts`)
+- `AGENTS.md` security-section pointers — BOTH: `api/chat/permission.ts` → `chat/sandbox.ts` AND `policy/command-policy.ts` → `chat/policy.ts`
 
 - [ ] Move + fix imports (tsc guides) → full core+plugin+ripple suites green → Commit `refactor!(core): the locked file map — api/runtime/store/policy dissolve, run vocabulary`.
 
@@ -586,7 +676,7 @@ Run end writes `messageCount`/`updatedAt` (Task 4), so OUR records are a `queryO
 - [ ] `pnpm typecheck && pnpm build && pnpm test` (environmental reds excepted)
 - [ ] `pnpm exec fallow audit --changed-since main --format json` — zero INTRODUCED
 - [ ] Anti-pattern greps, ALL empty:
-      `grep -rn "drizzle" packages package.json --include='*.ts' --include='*.json' | grep -v node_modules` (empty)
+      `grep -rn "drizzle" packages/db packages/core package.json --include='*.ts' --include='*.json'` (empty — `packages/extensions/whiteboard` is EXEMPT: it legitimately runs its own drizzle/libsql db, untouched by this plan)
       `grep -rn "makeSessionStore\|SessionStore\|makeUiState\|UiState\b\|RunState\b" packages/*/src --include='*.ts'` (empty)
       `grep -rn "makeTurnHub\|TurnHub\|makeUiAsks\|UiAsks\|makeLiveFeed\|pulse()" packages/core/src --include='*.ts'` (empty)
       `grep -rn "makePending" packages/core/src --include='*.ts' | grep -v page/` (empty)
