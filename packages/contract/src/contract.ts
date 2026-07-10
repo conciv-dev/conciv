@@ -8,6 +8,7 @@ import {
   ChatToolsSchema,
   PermissionDecisionSchema,
 } from '@conciv/protocol/chat-types'
+import {UiAnswerValueSchema} from '@conciv/protocol/ui-types'
 import {OpenSourceResultSchema, OpenSourceSchema, PageReplySchema} from '@conciv/protocol/page-types'
 import {DraftRowSchema, MarkerRowSchema, SessionMetaSchema} from './rows.js'
 
@@ -53,6 +54,10 @@ export const contract = {
       .input(SessionIdInput.extend({text: z.string().min(1)}))
       .output(Ok),
     permissionDecision: oc.input(PermissionDecisionSchema).output(Ok),
+    uiReply: oc
+      .errors({UNKNOWN_REQUEST: {message: 'no pending ui question'}})
+      .input(SessionIdInput.extend({toolCallId: z.string(), value: UiAnswerValueSchema}))
+      .output(Ok),
   },
   page: {
     queries: oc.output(eventIterator(z.object({requestId: z.string(), query: z.unknown()}))),

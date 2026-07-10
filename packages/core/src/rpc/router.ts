@@ -2,6 +2,7 @@ import {implement} from '@orpc/server'
 import {contract, type SessionMeta} from '@conciv/contract'
 import type {SessionStore, UiState} from '@conciv/db'
 import type {ChatCommands, ChatLaunch, ChatTool, HarnessModelInfo} from '@conciv/protocol/chat-types'
+import type {UiAnswerValue} from '@conciv/protocol/ui-types'
 import {readLocks} from '../store/lock.js'
 import {buildSessionList, resolveSession} from '../api/chat/session.js'
 import {ensureChatRecord} from '../api/chat/turn.js'
@@ -35,6 +36,7 @@ export type RpcDeps = {
   compactor: Compactor
   sendTurn: (sessionId: string, text: string) => Promise<void>
   decidePermission: (approvalId: string, approved: boolean) => void
+  uiReply: (sessionId: string, toolCallId: string, value: UiAnswerValue) => boolean
   pageBus: PageBus
 }
 
@@ -173,6 +175,10 @@ export function makeRpcRouter(deps: RpcDeps) {
       }),
       permissionDecision: os.chat.permissionDecision.handler(({input}) => {
         deps.decidePermission(input.approvalId, input.approved)
+        return {ok: true as const}
+      }),
+      uiReply: os.chat.uiReply.handler(({input, errors}) => {
+        if (!deps.uiReply(input.sessionId, input.toolCallId, input.value)) throw errors.UNKNOWN_REQUEST()
         return {ok: true as const}
       }),
     },

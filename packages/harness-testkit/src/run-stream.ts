@@ -10,7 +10,8 @@ export type RunStream = {
 }
 
 function isTerminal(chunk: StreamChunk): boolean {
-  return chunk.type === EventType.RUN_FINISHED || chunk.type === EventType.RUN_ERROR
+  if (chunk.type === EventType.RUN_ERROR) return true
+  return chunk.type === EventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls'
 }
 
 function uiSpecMatch(question?: string): (chunk: StreamChunk) => boolean {
@@ -75,7 +76,10 @@ export function makeRunStream(source: AsyncIterable<StreamChunk>): RunStream {
       while (doneCursor.index < seen.length) {
         const index = doneCursor.index
         doneCursor.index += 1
-        if (seen[index]?.type === EventType.RUN_FINISHED) return makeRunEvents(seen.slice(0, doneCursor.index))
+        const chunk = seen[index]
+        if (chunk?.type === EventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls') {
+          return makeRunEvents(seen.slice(0, doneCursor.index))
+        }
       }
       if (collector.ended) return makeRunEvents([...seen])
       if (performance.now() > deadline)

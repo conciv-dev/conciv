@@ -276,6 +276,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     compactor,
     sendTurn,
     decidePermission: (approvalId, approved) => void gate.resolve(approvalId, approved),
+    uiReply: (sessionId, toolCallId, value) => uiAsks.reply(sessionId, toolCallId, value),
     pageBus,
   })
 

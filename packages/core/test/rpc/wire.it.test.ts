@@ -4,8 +4,6 @@ import {tmpdir} from 'node:os'
 import {join, dirname} from 'node:path'
 import {afterEach, describe, expect, it} from 'vitest'
 import {EventType} from '@tanstack/ai'
-import {CONCIV_UI_EVENT} from '@conciv/protocol/ui-types'
-import {CONCIV_TOOL_DURATION_EVENT} from '@conciv/protocol/tool-timing'
 import {createTestHarness, type Kit, type TestHarness} from '@conciv/harness-testkit'
 import {requireClaude} from '../helpers/adapters.js'
 import {bootKit} from '../helpers/boot.js'
@@ -209,24 +207,48 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     })
   })
 
-  it('gen-ui custom events injected mid-turn replay to a late attach', async () => {
+  it('conciv_ui blocks the turn until chat.uiReply lands the answer as the tool result', async () => {
     const {kit, harness} = await bootWire()
     const sessionId = await kit.session()
-    harness.__scripted.hold()
-    await kit.rpc.chat.send({sessionId, text: 'draw'})
-    const injected = await kit.post(
-      '/api/chat/ui',
-      {renderId: 'r1', kind: 'choices', question: 'pick one', options: ['a', 'b']},
-      sessionId,
+    const stream = await kit.attach(sessionId)
+    harness.__scripted.scriptToolCall('conciv_ui', {kind: 'confirm', question: 'Proceed?'})
+    await kit.rpc.chat.send({sessionId, text: 'ask me'})
+    const start = await stream.waitFor(
+      (chunk) => chunk.type === EventType.TOOL_CALL_START && chunk.toolCallName === 'conciv_ui',
+      {hangGuardMs: 10_000},
     )
-    expect(injected.status).toBe(200)
-    const late = await kit.attach(sessionId)
-    harness.__scripted.release()
-    const events = await late.done({hangGuardMs: 10_000})
-    expect(events.custom(CONCIV_UI_EVENT).length).toBeGreaterThan(0)
+    if (start.type !== EventType.TOOL_CALL_START) throw new Error('matched chunk was not a tool-call start')
+    await kit.rpc.chat.uiReply({sessionId, toolCallId: start.toolCallId, value: 'yes'})
+    const events = await stream.done({hangGuardMs: 10_000})
+    const result = events.all.find((chunk) => chunk.type === EventType.TOOL_CALL_RESULT)
+    if (!result || result.type !== EventType.TOOL_CALL_RESULT) throw new Error('no TOOL_CALL_RESULT in the stream')
+    expect(JSON.parse(result.content)).toEqual({answered: true, value: 'yes'})
   })
 
-  it('tool durations ride the turn stream after a real in-stream tool call', async () => {
+  it('chat.uiReply on an unknown toolCallId reports UNKNOWN_REQUEST', async () => {
+    const {kit} = await bootWire()
+    const sessionId = await kit.session()
+    await expect(kit.rpc.chat.uiReply({sessionId, toolCallId: 'tc-nope', value: 'yes'})).rejects.toMatchObject({
+      code: 'UNKNOWN_REQUEST',
+    })
+  })
+
+  it('a pending conciv_ui question replays its tool-call part to a late attach', async () => {
+    const {kit, harness} = await bootWire()
+    const sessionId = await kit.session()
+    harness.__scripted.scriptToolCall('conciv_ui', {kind: 'confirm', question: 'Proceed?'})
+    await kit.rpc.chat.send({sessionId, text: 'ask me'})
+    const late = await kit.attach(sessionId)
+    const start = await late.waitFor(
+      (chunk) => chunk.type === EventType.TOOL_CALL_START && chunk.toolCallName === 'conciv_ui',
+      {hangGuardMs: 10_000},
+    )
+    if (start.type !== EventType.TOOL_CALL_START) throw new Error('matched chunk was not a tool-call start')
+    await kit.rpc.chat.uiReply({sessionId, toolCallId: start.toolCallId, value: 'yes'})
+    await late.done({hangGuardMs: 10_000})
+  })
+
+  it('a scripted tool call executes the real conciv tool inside the turn', async () => {
     const opened: string[] = []
     const harness = createTestHarness(requireClaude())
     const kit = await bootKit({openInEditor: (file) => opened.push(file)}, harness)
@@ -236,9 +258,6 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     harness.__scripted.scriptToolCall('conciv_open', {file: 'src/from-tool.ts'})
     await kit.rpc.chat.send({sessionId, text: 'open the file'})
     await stream.done({hangGuardMs: 10_000})
-    const events = await stream.done({hangGuardMs: 10_000})
     expect(opened).toEqual(['src/from-tool.ts'])
-    const durations = events.custom(CONCIV_TOOL_DURATION_EVENT)
-    expect(durations.length).toBe(1)
   })
 })

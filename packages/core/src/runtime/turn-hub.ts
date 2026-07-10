@@ -120,7 +120,9 @@ export function makeTurnHub(): TurnHub {
 
   function relay(session: SessionRun, token: object, chunk: StreamChunk): void {
     session.view.record(chunk)
-    const terminal = chunk.type === EventType.RUN_FINISHED || chunk.type === EventType.RUN_ERROR
+    const terminal =
+      chunk.type === EventType.RUN_ERROR ||
+      (chunk.type === EventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls')
     if (terminal) settleRun(session, token)
     for (const subscriber of session.subscribers) subscriber.push(chunk)
     if (terminal && session.token === token) session.view.reset()

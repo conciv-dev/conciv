@@ -163,7 +163,8 @@ function usageSnapshotFor(deps: TurnDeps, modelId: string | null, usage: TokenUs
 }
 
 function isTerminal(chunk: StreamChunk): boolean {
-  return chunk.type === EventType.RUN_FINISHED || chunk.type === EventType.RUN_ERROR
+  if (chunk.type === EventType.RUN_ERROR) return true
+  return chunk.type === EventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls'
 }
 
 function stopFinishedFor(sessionId: string): StreamChunk {
@@ -205,7 +206,7 @@ async function* withLockRelease(
     let finished = false
     for await (const raw of src) {
       const {chunk, usage} = mapTurnChunk(raw, deps, sessionId, modelId, abort.signal.aborted)
-      finished = finished || chunk.type === EventType.RUN_FINISHED
+      finished = finished || (chunk.type === EventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls')
       if (usage) {
         yield aguiUsageFor(usage)
         await deps.store.update(sessionId, {usage})
