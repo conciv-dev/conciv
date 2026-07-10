@@ -231,4 +231,73 @@ describe('turn hub', () => {
     }
     expect(hub.trackedSessions()).toBe(0)
   })
+
+  it('inject reaches only the matching generating session and is refused otherwise', async () => {
+    const hub = makeTurnHub()
+    const injected: StreamChunk = {type: EventType.CUSTOM, name: 'approval-requested', value: {}} as StreamChunk
+    expect(hub.inject('s1', injected)).toBe(false)
+    const gateA = makeGate()
+    const gateB = makeGate()
+    const pumpA = hub.start('s1', userMessage, gateA.stream)
+    const pumpB = hub.start('s2', userMessage, gateB.stream)
+    gateA.push(started)
+    gateB.push(started)
+    const controllerA = new AbortController()
+    const controllerB = new AbortController()
+    const seenA: StreamChunk[] = []
+    const seenB: StreamChunk[] = []
+    const drainA = drainInto(hub.attach('s1', controllerA.signal).live, seenA)
+    const drainB = drainInto(hub.attach('s2', controllerB.signal).live, seenB)
+    expect(hub.inject('s1', injected)).toBe(true)
+    await until(() => seenA.some((c) => c.type === EventType.CUSTOM))
+    expect(seenB.some((c) => c.type === EventType.CUSTOM)).toBe(false)
+    const late = new AbortController()
+    expect(hub.attach('s1', late.signal).replay.map((c) => c.type)).toContain(EventType.CUSTOM)
+    late.abort()
+    for (const gate of [gateA, gateB]) {
+      gate.push(finished)
+      gate.end()
+    }
+    await Promise.all([pumpA, pumpB])
+    controllerA.abort()
+    controllerB.abort()
+    await Promise.all([drainA, drainB])
+  })
+
+  it('hands every relayed chunk to the onChunk observer with its session id', async () => {
+    const seen: Array<{sessionId: string; type: string}> = []
+    const hub = makeTurnHub({onChunk: (sessionId, chunk) => seen.push({sessionId, type: chunk.type})})
+    const gate = makeGate()
+    const pump = hub.start('s9', userMessage, gate.stream)
+    gate.push(started)
+    gate.push(text('hi'))
+    gate.push(finished)
+    gate.end()
+    await pump
+    expect(seen).toEqual([
+      {sessionId: 's9', type: EventType.RUN_STARTED},
+      {sessionId: 's9', type: EventType.TEXT_MESSAGE_CONTENT},
+      {sessionId: 's9', type: EventType.RUN_FINISHED},
+    ])
+  })
+
+  it('reserve blocks a second reservation until released or the run settles', async () => {
+    const hub = makeTurnHub()
+    expect(hub.reserve('s1')).toBe(true)
+    expect(hub.reserve('s1')).toBe(false)
+    expect(hub.generating('s1')).toBe(true)
+    hub.release('s1')
+    expect(hub.generating('s1')).toBe(false)
+    expect(hub.trackedSessions()).toBe(0)
+    expect(hub.reserve('s1')).toBe(true)
+    const gate = makeGate()
+    const pump = hub.start('s1', userMessage, gate.stream)
+    expect(hub.reserve('s1')).toBe(false)
+    gate.push(started)
+    gate.push(finished)
+    gate.end()
+    await pump
+    expect(hub.reserve('s1')).toBe(true)
+    hub.release('s1')
+  })
 })

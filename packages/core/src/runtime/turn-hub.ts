@@ -1,5 +1,4 @@
 import {EventType, type StreamChunk, type UIMessage} from '@tanstack/ai'
-import {makeRunView, type RunView} from './run-view.js'
 
 function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message
@@ -50,8 +49,9 @@ function makeSubscriber(): Subscriber {
 }
 
 type SessionRun = {
-  view: RunView
+  buffer: StreamChunk[]
   userMessage: UIMessage | null
+  model: string | null
   generating: boolean
   reserved: boolean
   stopped: boolean
@@ -69,6 +69,9 @@ export type TurnHub = {
     stream: AsyncIterable<StreamChunk>,
     abort?: () => void,
   ) => Promise<void>
+  inject: (sessionId: string, chunk: StreamChunk) => boolean
+  setModel: (sessionId: string, model: string | null) => void
+  model: (sessionId: string) => string | null
   generating: (sessionId: string) => boolean
   pendingUserMessage: (sessionId: string) => UIMessage | null
   markStopped: (sessionId: string) => void
@@ -76,15 +79,16 @@ export type TurnHub = {
   trackedSessions: () => number
 }
 
-export function makeTurnHub(): TurnHub {
+export function makeTurnHub(opts: {onChunk?: (sessionId: string, chunk: StreamChunk) => void} = {}): TurnHub {
   const sessions = new Map<string, SessionRun>()
 
   function sessionFor(sessionId: string): SessionRun {
     const existing = sessions.get(sessionId)
     if (existing) return existing
     const created: SessionRun = {
-      view: makeRunView(),
+      buffer: [],
       userMessage: null,
+      model: null,
       generating: false,
       reserved: false,
       stopped: false,
@@ -120,7 +124,7 @@ export function makeTurnHub(): TurnHub {
   function beginRun(session: SessionRun, userMessage: UIMessage | null, abort?: () => void): object {
     const token = {}
     session.token = token
-    session.view.reset()
+    session.buffer = []
     session.userMessage = userMessage
     session.generating = true
     session.reserved = false
@@ -137,20 +141,21 @@ export function makeTurnHub(): TurnHub {
     session.abort = null
   }
 
-  function relay(session: SessionRun, token: object, chunk: StreamChunk): void {
-    session.view.record(chunk)
+  function relay(sessionId: string, session: SessionRun, token: object, chunk: StreamChunk): void {
+    session.buffer.push(chunk)
+    opts.onChunk?.(sessionId, chunk)
     const terminal =
       chunk.type === EventType.RUN_ERROR ||
       (chunk.type === EventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls')
     if (terminal) settleRun(session, token)
     for (const subscriber of session.subscribers) subscriber.push(chunk)
-    if (terminal && session.token === token) session.view.reset()
+    if (terminal && session.token === token) session.buffer = []
   }
 
   function relayFailure(session: SessionRun, token: object, error: unknown): void {
     const message = session.stopped ? 'stopped' : errorMessage(error)
     const runError = {type: EventType.RUN_ERROR, message} as StreamChunk
-    session.view.record(runError)
+    session.buffer.push(runError)
     settleRun(session, token)
     for (const subscriber of session.subscribers) subscriber.push(runError)
   }
@@ -165,17 +170,25 @@ export function makeTurnHub(): TurnHub {
     const token = beginRun(session, userMessage, abort)
     let failed = false
     try {
-      for await (const chunk of stream) relay(session, token, chunk)
+      for await (const chunk of stream) relay(sessionId, session, token, chunk)
     } catch (error) {
       failed = true
       relayFailure(session, token, error)
     } finally {
       settleRun(session, token)
       if (!failed && session.token === token) {
-        session.view.reset()
+        session.buffer = []
         releaseIfIdle(sessionId, session)
       }
     }
+  }
+
+  function inject(sessionId: string, chunk: StreamChunk): boolean {
+    const session = sessions.get(sessionId)
+    if (!session?.generating) return false
+    session.buffer.push(chunk)
+    for (const subscriber of session.subscribers) subscriber.push(chunk)
+    return true
   }
 
   function attach(sessionId: string, signal: AbortSignal): {replay: StreamChunk[]; live: AsyncGenerator<StreamChunk>} {
@@ -189,7 +202,7 @@ export function makeTurnHub(): TurnHub {
     }
     signal.addEventListener('abort', detach, {once: true})
     if (signal.aborted) detach()
-    return {replay: session.view.snapshot(), live: subscriber.iterate()}
+    return {replay: [...session.buffer], live: subscriber.iterate()}
   }
 
   function markStopped(sessionId: string): void {
@@ -203,8 +216,13 @@ export function makeTurnHub(): TurnHub {
     reserve,
     release,
     start,
+    inject,
     attach,
     markStopped,
+    setModel: (sessionId, model) => {
+      sessionFor(sessionId).model = model
+    },
+    model: (sessionId) => sessions.get(sessionId)?.model ?? null,
     generating: (sessionId) => {
       const session = sessions.get(sessionId)
       return (session?.generating ?? false) || (session?.reserved ?? false)

@@ -1,6 +1,5 @@
 import type {AnyTool} from '@tanstack/ai'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
-import type {UiBus} from '../runtime/ui-bus.js'
 import type {UiAsks} from '../runtime/ui-asks.js'
 import type {SessionStore} from '@conciv/db'
 import type {TurnHub} from '../runtime/turn-hub.js'
@@ -14,7 +13,6 @@ export type ChatRuntime = {
   claudeHome?: string
   systemText: string
   gate: PermissionGate
-  uiBus: UiBus
   uiAsks: UiAsks
   store: SessionStore
   hub: TurnHub

@@ -27,7 +27,6 @@ import bundlerApp, {type BundlerVars} from './api/server/server.js'
 import {makeRpcRouter} from './rpc/router.js'
 import {rpcMiddleware} from './rpc/mount.js'
 import {makeLiveFeed} from './rpc/live.js'
-import {makeUiBus} from './runtime/ui-bus.js'
 import {makeUiAsks, UI_ASK_TIMEOUT_MS} from './runtime/ui-asks.js'
 import {makeJournal} from './runtime/journal.js'
 import {makeTurnHub} from './runtime/turn-hub.js'
@@ -117,10 +116,10 @@ export type MadeApp = {
 export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const harness = opts.harness ?? requireHarness(opts.cfg.harness)
   const uiAsks = makeUiAsks()
-  const uiBus = makeUiBus({onChunk: (sessionId, chunk) => uiAsks.observe(sessionId, chunk)})
+  const hub = makeTurnHub({onChunk: (sessionId, chunk) => uiAsks.observe(sessionId, chunk)})
   const db = openDb(opts.cfg.stateRoot)
   const store = makeSessionStore({db})
-  const gate = makePermissionGate(uiBus, {
+  const gate = makePermissionGate(hub.inject, {
     risky: new Set(
       (opts.extensions ?? [])
         .flatMap((extension) => extension.tools ?? [])
@@ -128,7 +127,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         .map((tool) => `mcp__conciv__${tool.name}`),
     ),
   })
-  const hub = makeTurnHub()
 
   const chatTurnListeners: ((sessionId: string) => void)[] = []
 
@@ -210,7 +208,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     page: (query) => pageBus.ask(query),
     open: (file, line) => opts.openInEditor(file, line),
   })
-  const sessionModel = (sessionId: string): string | null => uiBus.getModel(sessionId)
+  const sessionModel = (sessionId: string): string | null => hub.model(sessionId)
 
   const toolList: ChatTool[] = [
     ...concivTools(makeToolCtx('')).map((tool) => ({name: tool.name, description: tool.description})),
@@ -230,7 +228,6 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       harness.capabilities.systemPrompt,
     ),
     gate,
-    uiBus,
     uiAsks,
     store,
     hub,

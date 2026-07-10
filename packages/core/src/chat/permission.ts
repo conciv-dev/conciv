@@ -1,7 +1,8 @@
 import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
+import type {StreamChunk} from '@tanstack/ai'
+import {aguiApprovalRequestedFor} from '@conciv/protocol/ui-types'
 import {classifyCommand} from '../policy/command-policy.js'
-import type {UiBus} from '../runtime/ui-bus.js'
 import {makePending} from '../pending.js'
 
 const APPROVAL_TIMEOUT_MS = 120_000
@@ -15,6 +16,8 @@ export type PermissionGate = {
 
 export type PermissionGateOptions = {risky?: ReadonlySet<string>; timeoutMs?: number}
 
+export type InjectChunk = (sessionId: string, chunk: StreamChunk) => boolean
+
 function needsApproval(toolName: string, toolInput: unknown, risky: ReadonlySet<string>): boolean {
   if (risky.has(toolName)) return true
   if (toolName !== 'Bash') return false
@@ -22,7 +25,7 @@ function needsApproval(toolName: string, toolInput: unknown, risky: ReadonlySet<
   return classifyCommand(parsed.success ? parsed.data.command : '') !== 'allow'
 }
 
-export function makePermissionGate(uiBus: UiBus, options: PermissionGateOptions = {}): PermissionGate {
+export function makePermissionGate(inject: InjectChunk, options: PermissionGateOptions = {}): PermissionGate {
   const pending = makePending<boolean>()
   const risky = options.risky ?? new Set<string>()
   const timeoutMs = options.timeoutMs ?? APPROVAL_TIMEOUT_MS
@@ -36,8 +39,8 @@ export function makePermissionGate(uiBus: UiBus, options: PermissionGateOptions 
     if (!needsApproval(toolName, toolInput, risky)) return 'allow'
 
     const approvalId = randomUUID()
-    const injected = uiBus.injectApproval(sessionId, {toolCallId: toolUseId, toolName, input: toolInput, approvalId})
-    if (!injected) return 'deny'
+    const chunk = aguiApprovalRequestedFor({toolCallId: toolUseId, toolName, input: toolInput, approvalId})
+    if (!inject(sessionId, chunk)) return 'deny'
     try {
       return (await pending.await(approvalId, timeoutMs)) ? 'allow' : 'deny'
     } catch {

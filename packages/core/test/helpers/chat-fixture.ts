@@ -4,7 +4,6 @@ import {join} from 'node:path'
 import {getHarness} from '@conciv/harness'
 import {createTestHarness, type TestHarness} from '@conciv/harness-testkit'
 import {makeSessionStore, makeUiState, openDb, type SessionStore, type UiState} from '@conciv/db'
-import {makeUiBus} from '../../src/runtime/ui-bus.js'
 import {makeUiAsks} from '../../src/runtime/ui-asks.js'
 import {makeTurnHub} from '../../src/runtime/turn-hub.js'
 import {makePermissionGate} from '../../src/chat/permission.js'
@@ -28,18 +27,17 @@ export async function makeChatFixture(opts: {seedSession?: boolean} = {}): Promi
   const db = openDb(stateRoot)
   const store = makeSessionStore({db})
   const uiState = makeUiState(db)
-  const uiBus = makeUiBus()
   const uiAsks = makeUiAsks()
+  const hub = makeTurnHub({onChunk: (sessionId, chunk) => uiAsks.observe(sessionId, chunk)})
   const chat: ChatRuntime = {
     cwd: stateRoot,
     stateRoot,
     harness,
     systemText: '',
-    gate: makePermissionGate(uiBus),
-    uiBus,
+    gate: makePermissionGate(hub.inject),
     uiAsks,
     store,
-    hub: makeTurnHub(),
+    hub,
     tools: () => [],
   }
   const sessionId = 'conciv_fixture'

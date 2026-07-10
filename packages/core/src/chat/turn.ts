@@ -122,13 +122,13 @@ async function buildTurnStream(
 export function startTurn(deps: TurnDeps, sessionId: string, chatReq: ChatRequest): Promise<void> {
   const abort = new AbortController()
   const requestedModel = requestedModelFor(chatReq) ?? null
-  deps.uiBus.setModel(sessionId, requestedModel)
+  deps.hub.setModel(sessionId, requestedModel)
   const lastUserMessage = chatReq.messages.findLast((message) => message.role === 'user') ?? null
   const pendingUserMessage = lastUserMessage ? toPendingUserMessage(lastUserMessage) : null
   const modelId = requestedModel ?? deps.harness.defaultModel ?? null
   async function* run(): AsyncGenerator<StreamChunk> {
     const stream = await buildTurnStream(deps, deps.systemText, sessionId, chatReq, abort)
-    yield* withTurnEffects(deps.uiBus.run(sessionId, stream), deps, sessionId, modelId, abort)
+    yield* withTurnEffects(stream, deps, sessionId, modelId, abort)
   }
   return deps.hub.start(sessionId, pendingUserMessage, run(), () => abort.abort())
 }
