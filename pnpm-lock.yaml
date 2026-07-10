@@ -350,9 +350,6 @@ importers:
       '@tanstack/ai':
         specifier: ^0.40.0
         version: 0.40.0(@opentelemetry/api@1.9.1)
-      '@tanstack/ai-client':
-        specifier: ^0.20.0
-        version: 0.20.0(@opentelemetry/api@1.9.1)
       '@tanstack/ai-solid':
         specifier: ^0.14.3
         version: 0.14.3(@opentelemetry/api@1.9.1)(@tanstack/ai@0.40.0(@opentelemetry/api@1.9.1))(solid-js@1.9.14)
@@ -372,9 +369,9 @@ importers:
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../harness-testkit
-      '@conciv/protocol':
-        specifier: workspace:^
-        version: link:../protocol
+      '@tanstack/ai-client':
+        specifier: ^0.20.0
+        version: 0.20.0(@opentelemetry/api@1.9.1)
       '@tanstack/solid-query':
         specifier: ^5.101.2
         version: 5.101.2(solid-js@1.9.14)

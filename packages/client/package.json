@@ -41,7 +41,6 @@
     "@orpc/client": "1.14.7",
     "@orpc/tanstack-query": "^1.14.7",
     "@tanstack/ai": "^0.40.0",
-    "@tanstack/ai-client": "^0.20.0",
     "@tanstack/ai-solid": "^0.14.3",
     "@tanstack/query-core": "^5.80.2",
     "solid-js": "^1.9.13"
@@ -50,7 +49,7 @@
     "@conciv/core": "workspace:^",
     "@conciv/harness": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
-    "@conciv/protocol": "workspace:^",
+    "@tanstack/ai-client": "^0.20.0",
     "@tanstack/solid-query": "^5.101.2",
     "tsdown": "^0.22.2",
     "typescript": "^6.0.3",

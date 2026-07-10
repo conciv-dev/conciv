@@ -11,13 +11,23 @@ afterEach(async () => {
   kit = undefined
 })
 
+type QueryFixture = {
+  sessionId: string
+  rpc: ReturnType<typeof makeRpcClient>
+  utils: ReturnType<typeof makeQueryUtils>
+  queryClient: QueryClient
+}
+
+async function bootQueryFixture(): Promise<QueryFixture> {
+  kit = await bootClientKit()
+  const rpc = makeRpcClient(kit.base)
+  const {sessionId} = await rpc.sessions.create(undefined)
+  return {sessionId, rpc, utils: makeQueryUtils(rpc), queryClient: new QueryClient()}
+}
+
 describe('makeQueryUtils', () => {
   it('queryOptions fetch through the real wire', async () => {
-    kit = await bootClientKit()
-    const rpc = makeRpcClient(kit.base)
-    const {sessionId} = await rpc.sessions.create(undefined)
-    const utils = makeQueryUtils(rpc)
-    const queryClient = new QueryClient()
+    const {sessionId, utils, queryClient} = await bootQueryFixture()
     const sessions = await queryClient.fetchQuery(utils.sessions.list.queryOptions())
     expect(sessions.map((meta: SessionMeta) => meta.id)).toContain(sessionId)
     const models = await queryClient.fetchQuery(utils.meta.models.queryOptions())
@@ -25,22 +35,14 @@ describe('makeQueryUtils', () => {
   })
 
   it('mutationOptions execute intents', async () => {
-    kit = await bootClientKit()
-    const rpc = makeRpcClient(kit.base)
-    const {sessionId} = await rpc.sessions.create(undefined)
-    const utils = makeQueryUtils(rpc)
-    const queryClient = new QueryClient()
+    const {sessionId, utils, queryClient} = await bootQueryFixture()
     const rename = new MutationObserver(queryClient, utils.sessions.rename.mutationOptions())
     const renamed = await rename.mutate({sessionId, title: 'named by mutation'})
     expect(renamed.title).toBe('named by mutation')
   })
 
   it('experimental_liveOptions re-emit when the server pushes a sessions change', async () => {
-    kit = await bootClientKit()
-    const rpc = makeRpcClient(kit.base)
-    const {sessionId} = await rpc.sessions.create(undefined)
-    const utils = makeQueryUtils(rpc)
-    const queryClient = new QueryClient()
+    const {sessionId, rpc, utils, queryClient} = await bootQueryFixture()
     const observer = new QueryObserver<SessionMeta[]>(queryClient, {
       ...utils.sessions.live.experimental_liveOptions(),
       retry: true,
