@@ -68,11 +68,12 @@ describe('chat over rpc (IT, real makeApp + fake-claude spawn)', () => {
 
   it('renders text AND extracts usage under --include-partial-messages (real claude stream shape)', async () => {
     const kit = await setup({partial: true})
-    const events = await runTurn(kit, 'hi', await kit.session())
+    const id = await kit.session()
+    const events = await runTurn(kit, 'hi', id)
     expect(countType(events, EventType.RUN_STARTED)).toBe(1)
     expect(events.text()).toContain('hello from fake')
     expect(events.runs()).toBe(1)
-    expect(events.custom('conciv-usage').length).toBeGreaterThan(0)
+    expect((await metaFor(kit, id))?.usage?.inputTokens).toBeGreaterThan(0)
   })
 
   it('persists turn-end usage onto the session meta for the next open', async () => {

@@ -78,7 +78,7 @@ describe('run view', () => {
       toolStart('tc1', 'conciv_page'),
       toolArgs('tc1', '{"verb":"route"}'),
       toolEnd('tc1'),
-      custom('conciv-ui'),
+      custom('ext-marker'),
       finished,
     ]
     expect(messagesFrom(materialize(raw))).toEqual(messagesFrom(raw))
@@ -126,7 +126,7 @@ describe('run view', () => {
       toolStart('tc1', 'conciv_page'),
       toolArgs('tc1', '{"a":1}'),
       toolEnd('tc1'),
-      custom('conciv-usage'),
+      custom('ext-marker'),
       finished,
     ]
     expect(materialize(raw)).toEqual(raw)
