@@ -1,6 +1,6 @@
 import {asc, eq} from 'drizzle-orm'
 import {resolveHarnessModels} from '@conciv/harness'
-import {drafts, markers} from '@conciv/db'
+import {drafts, markers, navigation} from '@conciv/db'
 import {listCommands} from '../chat/session.js'
 import {pageQueryStream} from '../page/page.js'
 import {chatRouter} from './chat.js'
@@ -28,6 +28,18 @@ export function makeRpcRouter(deps: RpcDeps) {
       list: os.markers.list.handler(({input}) =>
         db.select().from(markers).where(eq(markers.sessionId, input.sessionId)).orderBy(asc(markers.afterTurn)),
       ),
+    },
+    navigation: {
+      get: os.navigation.get.handler(async () => {
+        const rows = await db.select().from(navigation).where(eq(navigation.id, 'navigation'))
+        const row = rows[0]
+        return row ? {entries: row.entries, index: row.index} : null
+      }),
+      set: os.navigation.set.handler(async ({input}) => {
+        const row = {id: 'navigation', entries: input.entries, index: input.index, updatedAt: Date.now()}
+        await db.insert(navigation).values(row).onConflictDoUpdate({target: navigation.id, set: row})
+        return {ok: true as const}
+      }),
     },
     page: {
       queries: os.page.queries.handler(async function* ({signal}) {

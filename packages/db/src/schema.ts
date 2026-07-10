@@ -1,4 +1,5 @@
 import {integer, sqliteTable, text} from 'drizzle-orm/sqlite-core'
+import type {NavigationEntry} from '@conciv/protocol/chat-types'
 import type {UsageSnapshot} from '@conciv/protocol/usage-types'
 
 export const sessions = sqliteTable('sessions', {
@@ -20,6 +21,13 @@ export const drafts = sqliteTable('drafts', {
   selectionStart: integer('selection_start').notNull(),
   selectionEnd: integer('selection_end').notNull(),
   grabs: text('grabs', {mode: 'json'}).$type<string[]>().notNull(),
+  updatedAt: integer('updated_at').notNull(),
+})
+
+export const navigation = sqliteTable('navigation', {
+  id: text('id').primaryKey().default('navigation'),
+  entries: text('entries', {mode: 'json'}).$type<NavigationEntry[]>().notNull(),
+  index: integer('index').notNull(),
   updatedAt: integer('updated_at').notNull(),
 })
 

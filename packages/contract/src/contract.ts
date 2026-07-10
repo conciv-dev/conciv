@@ -6,6 +6,7 @@ import {
   ChatLaunchSchema,
   ChatModelsSchema,
   ChatToolsSchema,
+  NavigationStateSchema,
   PermissionDecisionSchema,
 } from '@conciv/protocol/chat-types'
 import {UiAnswerValueSchema} from '@conciv/protocol/ui-types'
@@ -43,6 +44,10 @@ export const contract = {
   },
   markers: {
     list: oc.input(SessionIdInput).output(z.array(MarkerRowSchema)),
+  },
+  navigation: {
+    get: oc.output(NavigationStateSchema.nullable()),
+    set: oc.input(NavigationStateSchema).output(Ok),
   },
   chat: {
     attach: oc.input(SessionIdInput).output(eventIterator(StreamChunkSchema)),

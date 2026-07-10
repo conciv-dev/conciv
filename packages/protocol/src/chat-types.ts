@@ -75,6 +75,15 @@ export type Ok = z.infer<typeof OkSchema>
 export const PermissionDecisionSchema = z.object({approvalId: z.string(), approved: z.boolean()})
 export type PermissionDecision = z.infer<typeof PermissionDecisionSchema>
 
+export const NavigationEntrySchema = z.object({href: z.string(), state: z.unknown().optional()})
+export type NavigationEntry = z.infer<typeof NavigationEntrySchema>
+
+export const NavigationStateSchema = z.object({
+  entries: z.array(NavigationEntrySchema),
+  index: z.number(),
+})
+export type NavigationState = z.infer<typeof NavigationStateSchema>
+
 export const HarnessModelSchema = z.object({
   id: z.string(),
   name: z.string(),

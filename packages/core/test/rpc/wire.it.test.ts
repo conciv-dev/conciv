@@ -25,7 +25,6 @@ function uiCallIdOf(messages: unknown): string | null {
   return null
 }
 
-
 const cleanups: (() => Promise<void>)[] = []
 afterEach(async () => {
   for (const cleanup of cleanups.splice(0)) await cleanup()
@@ -160,6 +159,20 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     expect(result.ok).toBe(true)
     const kinds = (await kit.rpc.markers.list({sessionId})).map((marker) => marker.kind)
     expect(kinds).toContain('compact')
+  })
+
+  it('navigation set → get round-trips the app URL stack including per-entry state', async () => {
+    const {kit} = await bootWire()
+    expect(await kit.rpc.navigation.get(undefined)).toBeNull()
+    const state = {
+      entries: [{href: '/'}, {href: '/panel/s1/chat', state: {key: 'k1', __TSR_index: 1, usr: {from: 'fab'}}}],
+      index: 1,
+    }
+    await kit.rpc.navigation.set(state)
+    expect(await kit.rpc.navigation.get(undefined)).toEqual(state)
+    const replaced = {entries: [{href: '/quick'}], index: 0}
+    await kit.rpc.navigation.set(replaced)
+    expect(await kit.rpc.navigation.get(undefined)).toEqual(replaced)
   })
 
   it('editor.open reaches the injected editor opener', async () => {
