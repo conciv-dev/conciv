@@ -51,6 +51,7 @@
     "@conciv/harness": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/protocol": "workspace:^",
+    "@tanstack/solid-query": "^5.101.2",
     "tsdown": "^0.22.2",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"
