@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
 import {makeUiBus} from '../src/runtime/ui-bus.js'
-import {makePermissionGate} from '../src/api/chat/permission.js'
+import {makePermissionGate} from '../src/chat/permission.js'
 
 describe('permission gate: self-declared risky tools', () => {
   const risky = new Set(['mcp__conciv__canvas.delete'])

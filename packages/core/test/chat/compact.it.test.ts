@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
-import {makeChatFixture} from '../../helpers/chat-fixture.js'
-import {makeCompactor} from '../../../src/api/chat/compact.js'
+import {makeChatFixture} from '../helpers/chat-fixture.js'
+import {makeCompactor} from '../../src/chat/compact.js'
 
 describe('compactor', () => {
   it('runs a compact turn, writes marker, flips compacting during the run', async () => {

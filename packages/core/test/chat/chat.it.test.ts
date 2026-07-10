@@ -5,10 +5,10 @@ import {tmpdir} from 'node:os'
 import {dirname, join} from 'node:path'
 import {EventType} from '@tanstack/ai'
 import {createTestkit, type Kit} from '@conciv/harness-testkit'
-import {acquireLock} from '../../../src/store/lock.js'
-import {bootCoreApp} from '../../helpers/boot.js'
-import {countType, runTurn} from '../../helpers/turns.js'
-import {requireClaude} from '../../helpers/adapters.js'
+import {acquireLock} from '../../src/store/lock.js'
+import {bootCoreApp} from '../helpers/boot.js'
+import {countType, runTurn} from '../helpers/turns.js'
+import {requireClaude} from '../helpers/adapters.js'
 
 const claude = requireClaude()
 

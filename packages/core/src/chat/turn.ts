@@ -3,13 +3,13 @@ import {chat, EventType, type ModelMessage, type StreamChunk, type TokenUsage} f
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import type {ChatRequest} from '@conciv/protocol/chat-types'
 import {tokenUsageToSnapshot, type UsageSnapshot} from '@conciv/protocol/usage-types'
-import {releaseLock} from '../../store/lock.js'
-import type {SessionStore} from '../../store/session-store.js'
+import {releaseLock} from '../store/lock.js'
+import type {SessionStore} from '../store/session-store.js'
 import type {ChatRuntime} from './chat-env.js'
 import {concivSandbox, withConcivGate, withConcivSandbox} from './sandbox.js'
 import {tapSessionId} from './stream-effects.js'
 import {toChatMessages, toPendingUserMessage} from './messages.js'
-import {harnessDebug} from '../../runtime/harness-logger.js'
+import {harnessDebug} from '../runtime/harness-logger.js'
 
 export const resumeTokenFor = async (store: SessionStore, id: string): Promise<string | null> =>
   (await store.get(id))?.harnessSessionId ?? null

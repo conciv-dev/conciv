@@ -4,9 +4,9 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {EventType} from '@tanstack/ai'
 import {createTestkit, until, type Kit, type RunStream} from '@conciv/harness-testkit'
-import {readLock, releaseLock} from '../../../src/store/lock.js'
-import {bootCoreApp} from '../../helpers/boot.js'
-import {requireClaude} from '../../helpers/adapters.js'
+import {readLock, releaseLock} from '../../src/store/lock.js'
+import {bootCoreApp} from '../helpers/boot.js'
+import {requireClaude} from '../helpers/adapters.js'
 
 const claude = requireClaude()
 const dirs: string[] = []

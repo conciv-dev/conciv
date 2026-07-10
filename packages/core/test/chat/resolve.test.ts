@@ -1,6 +1,6 @@
 import {describe, it, expect} from 'vitest'
-import {memoryStore} from '../../helpers/memory-store.js'
-import {resolveSession} from '../../../src/api/chat/session.js'
+import {memoryStore} from '../helpers/memory-store.js'
+import {resolveSession} from '../../src/chat/session.js'
 
 const deps = (store = memoryStore()) => ({store, harnessKind: 'claude', cwd: '/app', mintId: () => 'conciv_new'})
 

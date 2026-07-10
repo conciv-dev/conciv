@@ -2,7 +2,7 @@ import {type StreamChunk} from '@tanstack/ai'
 import type {ChatHistory} from '@conciv/protocol/chat-types'
 import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
 import type {ChatRuntime} from './chat-env.js'
-import {readFileOrEmpty} from '../../fs.js'
+import {readFileOrEmpty} from '../fs.js'
 import {settledMessages, userText} from './settled-history.js'
 
 export async function transcriptMessages(deps: ChatRuntime, sessionId: string): Promise<ChatHistory> {

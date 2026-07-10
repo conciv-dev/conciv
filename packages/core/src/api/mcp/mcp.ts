@@ -5,7 +5,7 @@ import {WebStandardStreamableHTTPServerTransport} from '@modelcontextprotocol/sd
 import {concivTools, type ConcivToolContext} from '@conciv/tools'
 import {isContentPartArray, type ContentPart} from '@tanstack/ai'
 import type {ExtensionServerTool, ToolRequest} from '@conciv/extension'
-import {sessionIdFromHeaders} from '../chat/session-id.js'
+import {sessionIdFromHeaders} from '../../chat/session-id.js'
 import {logError} from '../../runtime/harness-logger.js'
 
 type RegistrableTool = {name: string; description: string; inputSchema: z.ZodObject<z.ZodRawShape>}

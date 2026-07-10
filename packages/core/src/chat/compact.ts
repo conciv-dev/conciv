@@ -2,7 +2,7 @@ import type {UiState} from '@conciv/db'
 import type {ChatRuntime} from './chat-env.js'
 import {startTurn} from './turn.js'
 import {transcriptMessages} from './attach.js'
-import {acquireLock, releaseLock} from '../../store/lock.js'
+import {acquireLock, releaseLock} from '../store/lock.js'
 
 export const SESSION_BUSY = 'session busy'
 

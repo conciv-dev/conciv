@@ -1,7 +1,7 @@
 import {expect} from 'vitest'
 import {chat, EventType, type StreamChunk} from '@tanstack/ai'
 import type {HarnessAdapter, HarnessChatDeps} from '@conciv/protocol/harness-types'
-import {concivSandbox, withConcivGate, withConcivSandbox} from '../../src/api/chat/sandbox.js'
+import {concivSandbox, withConcivGate, withConcivSandbox} from '../../src/chat/sandbox.js'
 
 const autoAllowGate = {decide: async () => 'allow' as const}
 

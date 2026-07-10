@@ -1,9 +1,9 @@
 import {describe, expect, it} from 'vitest'
 import {defineExtension} from '@conciv/extension'
 import {createTestkit, until} from '@conciv/harness-testkit'
-import {bootCoreApp} from '../../helpers/boot.js'
-import {runTurn} from '../../helpers/turns.js'
-import {requireClaude} from '../../helpers/adapters.js'
+import {bootCoreApp} from '../helpers/boot.js'
+import {runTurn} from '../helpers/turns.js'
+import {requireClaude} from '../helpers/adapters.js'
 
 const claude = requireClaude()
 

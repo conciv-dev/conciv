@@ -3,9 +3,9 @@ import {mkdtempSync, mkdirSync, writeFileSync, rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {createTestkit, type Kit} from '@conciv/harness-testkit'
-import {bootCoreApp} from '../../helpers/boot.js'
-import {runTurn} from '../../helpers/turns.js'
-import {requireClaude} from '../../helpers/adapters.js'
+import {bootCoreApp} from '../helpers/boot.js'
+import {runTurn} from '../helpers/turns.js'
+import {requireClaude} from '../helpers/adapters.js'
 
 const claude = requireClaude()
 const homes: string[] = []

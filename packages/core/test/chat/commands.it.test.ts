@@ -2,7 +2,7 @@ import {describe, it, expect, afterEach} from 'vitest'
 import {defineHarness} from '@conciv/protocol/harness-types'
 import {makeTextAdapter} from '@conciv/harness'
 import type {Kit} from '@conciv/harness-testkit'
-import {bootKit} from '../../helpers/boot.js'
+import {bootKit} from '../helpers/boot.js'
 
 const liveHarness = defineHarness({
   id: 'commands-live-test',

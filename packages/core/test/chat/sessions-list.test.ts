@@ -1,6 +1,6 @@
 import {describe, it, expect} from 'vitest'
-import {buildSessionList, sweepEmptyChatRecords} from '../../../src/api/chat/session.js'
-import {memoryStore} from '../../helpers/memory-store.js'
+import {buildSessionList, sweepEmptyChatRecords} from '../../src/chat/session.js'
+import {memoryStore} from '../helpers/memory-store.js'
 
 const rec = (over: {
   id: string

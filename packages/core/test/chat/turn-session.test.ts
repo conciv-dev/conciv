@@ -4,9 +4,9 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {getHarness} from '@conciv/harness'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
-import {memoryStore} from '../../helpers/memory-store.js'
-import {requireClaude} from '../../helpers/adapters.js'
-import {resumeTokenFor, recordMintedToken, ensureChatRecord, resumableToken} from '../../../src/api/chat/turn.js'
+import {memoryStore} from '../helpers/memory-store.js'
+import {requireClaude} from '../helpers/adapters.js'
+import {resumeTokenFor, recordMintedToken, ensureChatRecord, resumableToken} from '../../src/chat/turn.js'
 
 describe('turn session helpers', () => {
   it('resumeTokenFor returns the stored harness token (null when new)', async () => {

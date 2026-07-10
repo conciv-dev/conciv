@@ -1,8 +1,8 @@
 import {randomUUID} from 'node:crypto'
 import {z} from 'zod'
-import {classifyCommand} from '../../policy/command-policy.js'
-import type {UiBus} from '../../runtime/ui-bus.js'
-import {makePending} from '../../pending.js'
+import {classifyCommand} from '../policy/command-policy.js'
+import type {UiBus} from '../runtime/ui-bus.js'
+import {makePending} from '../pending.js'
 
 const APPROVAL_TIMEOUT_MS = 120_000
 

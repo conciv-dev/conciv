@@ -1,6 +1,6 @@
 import {ChatMessageSchema, type ChatMessage} from '@conciv/protocol/chat-types'
 import type {UiState} from '@conciv/db'
-import {acquireLock, releaseLock} from '../../store/lock.js'
+import {acquireLock, releaseLock} from '../store/lock.js'
 import type {ChatRuntime} from './chat-env.js'
 import {SESSION_BUSY} from './compact.js'
 import {transcriptMessages} from './attach.js'

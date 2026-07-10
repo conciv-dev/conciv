@@ -1,6 +1,6 @@
 import {describe, it, expect} from 'vitest'
-import {memoryStore} from '../../helpers/memory-store.js'
-import {ensureAgentRecord} from '../../../src/api/chat/chat.js'
+import {memoryStore} from '../helpers/memory-store.js'
+import {ensureAgentRecord} from '../../src/chat/chat.js'
 
 describe('ensureAgentRecord', () => {
   it('wraps an initial harness id as an conciv_ record (origin agent), idempotent', async () => {

@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest'
-import {settledMessages, userText} from '../../../src/api/chat/settled-history.js'
+import {settledMessages, userText} from '../../src/chat/settled-history.js'
 
 const user = (id: string, text: string) => ({
   id,
