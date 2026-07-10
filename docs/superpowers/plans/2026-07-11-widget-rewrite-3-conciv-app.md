@@ -20,7 +20,7 @@
 - Tests: REAL browser (Playwright/Chromium) — never jsdom/happy-dom; `browser.newPage()` never `newContext()`; wait for `domcontentloaded` or UI signals, NEVER `networkidle` (attach SSE never idles); assertions via roles/text/visibility, never classes/computed styles/test-ids. NO doubles/shims: app tests boot a REAL served core app via `@conciv/harness-testkit` (`createFakeHarness` for scripted runs; the spec's stale "implement(contract) mocks" line is superseded by the plan-2 lock — testkit provides everything except the BootApp leaf).
 - Every Solid package's vitest config pins `test: {environment: 'node'}` (vite-plugin-solid injects jsdom otherwise and the run exits 1).
 - Embed bundle externalizes EVERY `@conciv/extension/*` subpath + shared Ark/Solid deps — port the mount-externals guard test; a second bundled copy splits context and popovers render at 0,0.
-- Contract v4.1: the ONLY contract/core/db change this plan makes is Task 0's `navigation` row + `navigation.get`/`navigation.set` verbs, TYPED as `NavigationStateSchema = z.object({entries: z.array(z.string()), index: z.number()})` (protocol) — the app's URL stack, no widget vocabulary, core never interprets beyond storage. Anything else touching contract/core is a STOP-and-ask.
+- Contract v4.1: the ONLY contract/core/db change this plan makes is Task 0's `navigation` row + `navigation.get`/`navigation.set` verbs, TYPED as `NavigationStateSchema` (protocol): `{entries: [{href, state?}], index}` — the app's URL stack WITH per-entry history state (full TanStack Router parity: `navigate({state})`, stable location keys for scroll restoration — browsers persist `history.state` across reloads and so do we). Core never interprets it beyond storage. Anything else touching contract/core is a STOP-and-ask.
 - Commit per task with pathspec. `pnpm exec fallow audit --changed-since main --format json` zero INTRODUCED at the end. Known non-gating red: claude-image + codex live ITs.
 - Publish decisions (locked): `@conciv/embed` is the ONLY new published package — add to `PUBLIC_PACKAGES` in `packages/publish/src/guards.ts` + `.fallowrc.json` `publicPackages` + homepage/repository fields, and REMOVE the stale `@conciv/widget`/`@conciv/api-client` entries still in `.fallowrc.json`. `@conciv/page` is PRIVATE (embed inlines it exactly like the app). `apps/conciv` stays private, never published, the repo rule forbids tests under `apps/examples/*` ONLY — `apps/conciv/test` node unit tests (pure parsers, settings) are fine; behavioral coverage lives in `packages/embed`'s real-browser ITs against the prebuilt global bundle.
 
@@ -57,7 +57,10 @@ export type AppData = {
 }
 
 // Task 0 — the app's URL in OUR db (user-locked; modeled as navigation, not "layout"): contract v4.1
-// protocol: NavigationStateSchema = z.object({entries: z.array(z.string()), index: z.number()})
+// protocol: NavigationStateSchema = z.object({
+//   entries: z.array(z.object({href: z.string(), state: z.unknown().optional()})),   // state = ParsedHistoryState (key + __TSR_index + user state) — JSON-safe by TSR contract
+//   index: z.number(),
+// })   — full router parity: browsers persist history.state per entry across reloads; so do we
 // contract: navigation: {get: oc.output(NavigationStateSchema.nullable()), set: oc.input(NavigationStateSchema).output(Ok)}
 // @conciv/db schema.ts: navigation table (id text pk default 'navigation', entries json string[], index integer, updatedAt) — plain CRUD row, rpc handlers inline drizzle
 // embed: dbStorage adapter satisfying storage-history's injectable Storage — hydrated ONCE at boot (async entry), debounced write-behind
@@ -90,6 +93,8 @@ Behavior contracts carried verbatim from the old widget (each is a test target):
 - [ ] Contract + table + handlers + IT; `pnpm turbo run test --filter=@conciv/db --filter=@conciv/core` green; commit.
 
 ### Task 1: scaffold `apps/conciv` + wire the injected entries
+
+**Also (user-locked full-router-parity):** amend `@conciv/storage-history` — `Persisted` widens from `{entries: string[], index}` to `{entries: [{href, state?}], index}`; persist the `states` array it already keeps in memory instead of minting fresh keys on rehydrate; `isPersisted` guard accepts the new shape (old/corrupt → `{entries: [{href: '/'}], index: 0}`); unit tests: `navigate({state})` payload + location keys survive a simulated reload.
 
 **Files:** Create `apps/conciv` (scaffold), then adapt: `src/router.ts` (`createConcivRouter`), `src/entry-standalone.tsx` (browser history + document, vite dev server `index.html`), route skeletons `src/routes/{__root,index,panel,panel.$sessionId,panel.$sessionId.$view,quick,pip.$sessionId}.tsx` with placeholder outlets; `vitest.config.ts` pinning `environment: 'node'`; package.json private, deps.
 
