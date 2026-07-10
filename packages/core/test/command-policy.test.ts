@@ -9,9 +9,9 @@ describe('classifyCommand', () => {
     expect(classifyCommand('rm -rf dist')).toBe('ask')
   })
 
-  it('allows the agent CLIs, but still gates them when composed with a pipe or redirect', () => {
+  it('allows the agent CLI, but still gates it when composed with a pipe or redirect', () => {
     expect(classifyCommand('conciv tools page snapshot')).toBe('allow')
     expect(classifyCommand('conciv tools page changes | tee evil.txt')).toBe('ask')
-    expect(classifyCommand('conciv ui confirm --question x > out')).toBe('ask')
+    expect(classifyCommand('conciv ui confirm --question x')).toBe('ask')
   })
 })

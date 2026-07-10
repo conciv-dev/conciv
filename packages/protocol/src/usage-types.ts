@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {EventType, type StreamChunk, type TokenUsage} from '@tanstack/ai'
+import type {TokenUsage} from '@tanstack/ai'
 
 export const UsageSnapshotSchema = z.object({
   modelId: z.string().optional(),
@@ -51,11 +51,6 @@ export function tokenUsageToSnapshot(u: TokenUsage): UsageSnapshot {
     totalCostUsd: p.totalCostUsd,
     numTurns: p.numTurns,
   }
-}
-
-export const CONCIV_USAGE_EVENT = 'conciv-usage'
-export function aguiUsageFor(snapshot: UsageSnapshot): StreamChunk {
-  return {type: EventType.CUSTOM, name: CONCIV_USAGE_EVENT, value: snapshot}
 }
 
 export function contextUsedTokens(s: UsageSnapshot): number | undefined {

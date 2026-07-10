@@ -1,5 +1,5 @@
 import type {StreamChunk} from '@tanstack/ai'
-import {aguiCustomFor, aguiApprovalRequestedFor, type ApprovalRequest, type UiSpec} from '@conciv/protocol/ui-types'
+import {aguiApprovalRequestedFor, type ApprovalRequest} from '@conciv/protocol/ui-types'
 
 type Channel = {
   push: (chunk: StreamChunk) => void
@@ -46,10 +46,6 @@ function makeChannel(): Channel {
 }
 
 export type UiBus = {
-  inject: (sessionId: string, spec: UiSpec) => boolean
-
-  injectChunk: (sessionId: string, chunk: StreamChunk) => boolean
-
   injectApproval: (sessionId: string, req: ApprovalRequest) => boolean
 
   setModel: (sessionId: string, model: string | null) => void
@@ -69,17 +65,6 @@ export function makeUiBus(opts: {onChunk?: (sessionId: string, chunk: StreamChun
 
   function getModel(sessionId: string): string | null {
     return models.get(sessionId) ?? null
-  }
-
-  function inject(sessionId: string, spec: UiSpec): boolean {
-    return injectChunk(sessionId, aguiCustomFor(spec))
-  }
-
-  function injectChunk(sessionId: string, chunk: StreamChunk): boolean {
-    const channel = channels.get(sessionId)
-    if (!channel) return false
-    channel.push(chunk)
-    return true
   }
 
   function injectApproval(sessionId: string, req: ApprovalRequest): boolean {
@@ -118,5 +103,5 @@ export function makeUiBus(opts: {onChunk?: (sessionId: string, chunk: StreamChun
     return drain()
   }
 
-  return {inject, injectChunk, injectApproval, setModel, getModel, run}
+  return {injectApproval, setModel, getModel, run}
 }

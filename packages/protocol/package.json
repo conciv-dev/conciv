@@ -68,10 +68,6 @@
     "./tool-view-types": {
       "types": "./dist/tool-view-types.d.ts",
       "import": "./dist/tool-view-types.js"
-    },
-    "./tool-timing": {
-      "types": "./dist/tool-timing.d.ts",
-      "import": "./dist/tool-timing.js"
     }
   },
   "publishConfig": {

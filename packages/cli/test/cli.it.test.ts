@@ -2,7 +2,6 @@ import {describe, it, expect, beforeAll, afterAll} from 'vitest'
 import {createServer, type Server} from 'node:http'
 import {runCommand} from 'citty'
 import {toolsCommand} from '../src/tools.js'
-import {uiCommand} from '../src/ui.js'
 
 type Captured = {method: string; url: string; body: unknown}
 const state = {server: undefined as Server | undefined, last: undefined as Captured | undefined}
@@ -68,12 +67,5 @@ describe('conciv CLI (IT, real server)', () => {
   it('tools page find → GET /api/page/find with --name', async () => {
     await runCommand(toolsCommand, {rawArgs: ['page', 'find', '--name', 'LoginForm']})
     expect(state.last).toMatchObject({method: 'GET', url: '/api/page/find?name=LoginForm'})
-  })
-
-  it('ui confirm → POST a confirm spec to /api/chat/ui', async () => {
-    await runCommand(uiCommand, {rawArgs: ['confirm', '--question', 'OK?']})
-    expect(state.last?.method).toBe('POST')
-    expect(state.last?.url).toBe('/api/chat/ui')
-    expect(state.last?.body).toMatchObject({spec: {kind: 'confirm', question: 'OK?'}})
   })
 })

@@ -577,6 +577,9 @@ importers:
 
   packages/extension-testkit:
     dependencies:
+      '@conciv/contract':
+        specifier: workspace:^
+        version: link:../contract
       '@conciv/core':
         specifier: workspace:^
         version: link:../core

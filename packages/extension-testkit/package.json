@@ -20,6 +20,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@conciv/contract": "workspace:^",
     "@conciv/core": "workspace:^",
     "@conciv/extension": "workspace:^",
     "@conciv/grab": "workspace:^",

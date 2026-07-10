@@ -5,7 +5,7 @@ import {
   type SessionClient,
   type SessionId,
 } from '@conciv/protocol/chat-types'
-import {makeRpcClient} from '@conciv/harness-testkit'
+import {makeRpcClient} from '@conciv/contract'
 
 export function makeRpcSessionClient(opts: {apiBase: string}): SessionClient {
   const rpc = makeRpcClient(opts.apiBase)

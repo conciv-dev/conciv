@@ -11,7 +11,7 @@ import {slug} from './extension-app.js'
 import {corsMiddleware, type CorsVars} from './api/cors.js'
 import {concivTools, type ConcivToolContext} from '@conciv/tools'
 import type {ChatTool} from '@conciv/protocol/chat-types'
-import chatApp, {ensureAgentRecord} from './api/chat/chat.js'
+import {ensureAgentRecord} from './api/chat/chat.js'
 import type {ChatRuntime} from './api/chat/chat-env.js'
 import {makePermissionGate} from './api/chat/permission.js'
 import {buildChatTools} from './api/chat/chat-tools.js'
@@ -105,7 +105,6 @@ function composeRoutes(vars: CoreVars, rpc: ReturnType<typeof makeRpcRouter>) {
     .use(corsMiddleware())
     .use('/rpc/*', rpcMiddleware(rpc))
     .route('/api/page', pageApp)
-    .route('/api/chat', chatApp)
     .route('/api/mcp', mcpApp)
     .route('/api/server', bundlerApp)
 }
@@ -237,9 +236,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     uiBus,
     store,
     hub,
-    tools: buildChatTools(makeToolCtx, extensionTools, sessionModel, (sessionId, chunk) =>
-      uiBus.injectChunk(sessionId, chunk),
-    ),
+    tools: buildChatTools(makeToolCtx, extensionTools, sessionModel),
     onTurnStart: (sessionId) => chatTurnListeners.forEach((listener) => listener(sessionId)),
     onTurnEnd,
   }

@@ -4,8 +4,8 @@ import {mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:
 import {tmpdir} from 'node:os'
 import {dirname, join} from 'node:path'
 import {EventType} from '@tanstack/ai'
-import {createTestkit, until, type Kit} from '@conciv/harness-testkit'
-import {acquireLock, readLock} from '../../../src/store/lock.js'
+import {createTestkit, type Kit} from '@conciv/harness-testkit'
+import {acquireLock} from '../../../src/store/lock.js'
 import {bootCoreApp} from '../../helpers/boot.js'
 import {countType, runTurn} from '../../helpers/turns.js'
 import {requireClaude} from '../../helpers/adapters.js'
@@ -25,7 +25,6 @@ function fakeEnv(
     argvFile?: string
     rich?: boolean
     partial?: boolean
-    hang?: boolean
     usageBySession?: Record<string, number>
   } = {},
 ): (sessionId?: string) => NodeJS.ProcessEnv {
@@ -35,7 +34,6 @@ function fakeEnv(
       ...(opts.argvFile ? {CONCIV_TEST_ARGV_FILE: opts.argvFile} : {}),
       ...(opts.rich ? {CONCIV_FAKE_RICH: '1'} : {}),
       ...(opts.partial ? {CONCIV_FAKE_PARTIAL: '1'} : {}),
-      ...(opts.hang ? {CONCIV_FAKE_HANG: '1'} : {}),
       ...(inputTokens != null ? {CONCIV_FAKE_INPUT_TOKENS: String(inputTokens)} : {}),
     }
   }
@@ -150,14 +148,6 @@ describe('chat over rpc (IT, real makeApp + fake-claude spawn)', () => {
     expect(argv[argv.indexOf('--model') + 1]).toBe('sonnet')
   })
 
-  it('POST /api/chat/ui 400s on a malformed spec, reports injected:false with no active turn', async () => {
-    const kit = await setup()
-    const bad = await kit.post('/api/chat/ui', {spec: {kind: 'choices'}})
-    expect(bad.status).toBe(400)
-    const ok = await kit.post('/api/chat/ui', {kind: 'confirm', renderId: 'r9', question: 'OK?'})
-    expect(await ok.json()).toEqual({renderId: 'r9', injected: false})
-  })
-
   it('reports BUSY while a session lock is held by iterate', async () => {
     const kit = await setup()
     const id = await kit.session()
@@ -208,26 +198,4 @@ describe('chat over rpc (IT, real makeApp + fake-claude spawn)', () => {
     expect(ua?.inputTokens).not.toBe(ub?.inputTokens)
   })
 
-  it('routes POST /api/chat/ui to the live turn by our id (cross-process path)', {timeout: 15000}, async () => {
-    const kit = await setup({hang: true})
-    const a = await kit.session()
-    const b = await kit.session()
-
-    await kit.rpc.chat.send({sessionId: a, text: 'hi'})
-    await until(() => readLock(kit.stateRoot, a).held, {hangGuardMs: 5000})
-
-    await until(
-      async () => {
-        const res = await kit.post('/api/chat/ui', {kind: 'confirm', renderId: 'r-a', question: 'ok?'}, a)
-        return ((await res.json()) as {injected: boolean}).injected
-      },
-      {hangGuardMs: 5000},
-    )
-
-    const bRes = await kit.post('/api/chat/ui', {kind: 'confirm', renderId: 'r-b', question: 'ok?'}, b)
-    expect(((await bRes.json()) as {injected: boolean}).injected).toBe(false)
-
-    await kit.rpc.sessions.stop({sessionId: a})
-    await until(() => !readLock(kit.stateRoot, a).held, {hangGuardMs: 5000})
-  })
 })

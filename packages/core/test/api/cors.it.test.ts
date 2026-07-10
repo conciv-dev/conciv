@@ -54,7 +54,7 @@ describe('engine CORS (IT, real http, cross-origin + credentials)', () => {
   it('preflight for a session-scoped request allows the conciv-session-id header + DELETE', async () => {
     const {served, base} = await startServer()
     state.served = served
-    const res = await fetch(`${base}/api/chat/ui`, {
+    const res = await fetch(`${base}/api/mcp`, {
       method: 'OPTIONS',
       headers: {
         origin: ORIGIN,

@@ -24,7 +24,7 @@ export function classifyCommand(command: string): CommandPolicy {
   if (c === '') return 'ask'
 
   if (/[;&|`$><\n]/.test(c)) return 'ask'
-  if (c.startsWith('conciv tools') || c.startsWith('conciv ui')) return 'allow'
+  if (c.startsWith('conciv tools')) return 'allow'
   const tokens = c.split(/\s+/)
   if (tokens[0] === 'git') return GIT_READ_ONLY.has(tokens[1] ?? '') ? 'allow' : 'ask'
   return READ_ONLY.has(tokens[0] ?? '') ? 'allow' : 'ask'

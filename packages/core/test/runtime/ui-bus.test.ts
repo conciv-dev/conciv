@@ -1,38 +1,50 @@
 import {describe, it, expect} from 'vitest'
+import {EventType, type StreamChunk} from '@tanstack/ai'
 import {makeUiBus} from '../../src/runtime/ui-bus.js'
-import {EventType} from '@tanstack/ai'
 
-function gatedRun(chunk: unknown): {stream: AsyncGenerator<unknown>; release: () => void} {
+function gatedRun(chunk: StreamChunk): {stream: AsyncGenerator<StreamChunk>; release: () => void} {
   const gate = {open: () => {}}
   const held = new Promise<void>((resolve) => {
     gate.open = resolve
   })
-  async function* stream(): AsyncGenerator<unknown> {
+  async function* stream(): AsyncGenerator<StreamChunk> {
     yield chunk
     await held
   }
   return {stream: stream(), release: gate.open}
 }
 
+async function drain(generator: AsyncGenerator<StreamChunk>): Promise<StreamChunk[]> {
+  const out: StreamChunk[] = []
+  for await (const chunk of generator) out.push(chunk)
+  return out
+}
+
 describe('uiBus per-session channels', () => {
-  it('routes inject to the matching header id only', async () => {
+  it('routes injectApproval to the matching session only', async () => {
     const bus = makeUiBus()
-    const runA = gatedRun({type: EventType.RUN_STARTED})
-    const runB = gatedRun({type: EventType.RUN_STARTED})
-    const a = bus.run('h-a', runA.stream as never)
-    const b = bus.run('h-b', runB.stream as never)
-    expect(bus.inject('h-a', {renderId: 'r1', kind: 'card'} as never)).toBe(true)
-    expect(bus.inject('h-missing', {renderId: 'r2', kind: 'card'} as never)).toBe(false)
+    const runA = gatedRun({type: EventType.RUN_STARTED, threadId: 'a', runId: 'a'})
+    const runB = gatedRun({type: EventType.RUN_STARTED, threadId: 'b', runId: 'b'})
+    const a = bus.run('h-a', runA.stream)
+    const b = bus.run('h-b', runB.stream)
+    const request = {toolCallId: 'tc-1', toolName: 'Bash', input: {command: 'rm -rf'}, approvalId: 'ap-1'}
+    expect(bus.injectApproval('h-a', request)).toBe(true)
+    expect(bus.injectApproval('h-missing', request)).toBe(false)
     runA.release()
     runB.release()
-    const drain = async (g: AsyncGenerator<unknown>) => {
-      const o: unknown[] = []
-      for await (const c of g) o.push(c)
-      return o
-    }
-    const [ca, cb] = await Promise.all([drain(a), drain(b)])
-    const custom = (cs: unknown[]) => cs.filter((c) => (c as {type: string}).type === EventType.CUSTOM)
-    expect(custom(ca).length).toBe(1)
-    expect(custom(cb).length).toBe(0)
+    const [chunksA, chunksB] = await Promise.all([drain(a), drain(b)])
+    const custom = (chunks: StreamChunk[]) => chunks.filter((chunk) => chunk.type === EventType.CUSTOM)
+    expect(custom(chunksA).length).toBe(1)
+    expect(custom(chunksB).length).toBe(0)
+  })
+
+  it('hands every harness chunk to the onChunk observer with its session id', async () => {
+    const seen: Array<[string, string]> = []
+    const bus = makeUiBus({onChunk: (sessionId, chunk) => seen.push([sessionId, chunk.type])})
+    const run = gatedRun({type: EventType.RUN_STARTED, threadId: 'a', runId: 'a'})
+    const merged = bus.run('h-a', run.stream)
+    run.release()
+    await drain(merged)
+    expect(seen).toContainEqual(['h-a', EventType.RUN_STARTED])
   })
 })

@@ -1,16 +1,11 @@
 import {randomUUID} from 'node:crypto'
-import {Hono} from 'hono'
-import {zValidator} from '@hono/zod-validator'
 import {z} from 'zod'
-import type {Ok} from '@conciv/protocol/chat-types'
-import type {ChatEnv} from './chat-env.js'
 import {classifyCommand} from '../../policy/command-policy.js'
 import type {UiBus} from '../../runtime/ui-bus.js'
 import {makePending} from '../../pending.js'
 
 const APPROVAL_TIMEOUT_MS = 120_000
 
-const DecisionBodySchema = z.object({approvalId: z.string().optional(), approved: z.boolean().default(false)})
 const BashInputSchema = z.object({command: z.string()})
 
 export type PermissionGate = {

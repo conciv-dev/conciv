@@ -1,19 +1,14 @@
 import {existsSync, readFileSync} from 'node:fs'
-import {Hono} from 'hono'
-import {HTTPException} from 'hono/http-exception'
-import {zValidator} from '@hono/zod-validator'
 import {chat, EventType, type ModelMessage, type StreamChunk, type TokenUsage} from '@tanstack/ai'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
-import {UiSpecSchema} from '@conciv/protocol/ui-types'
-import {ChatRequestSchema, type ChatRequest, type Ok} from '@conciv/protocol/chat-types'
-import {aguiUsageFor, tokenUsageToSnapshot, type UsageSnapshot} from '@conciv/protocol/usage-types'
-import {acquireLock, releaseLock} from '../../store/lock.js'
+import type {ChatRequest} from '@conciv/protocol/chat-types'
+import {tokenUsageToSnapshot, type UsageSnapshot} from '@conciv/protocol/usage-types'
+import {releaseLock} from '../../store/lock.js'
 import type {SessionStore} from '../../store/session-store.js'
-import type {ChatEnv, ChatRuntime} from './chat-env.js'
+import type {ChatRuntime} from './chat-env.js'
 import {concivSandbox, withConcivGate, withConcivSandbox} from './sandbox.js'
 import {tapSessionId} from './stream-effects.js'
 import {toChatMessages, toPendingUserMessage} from './messages.js'
-import {sessionIdFromHeaders} from './session-id.js'
 import {harnessDebug} from '../../runtime/harness-logger.js'
 
 export const resumeTokenFor = async (store: SessionStore, id: string): Promise<string | null> =>
@@ -139,14 +134,6 @@ export async function startTurn(deps: TurnDeps, sessionId: string, chatReq: Chat
     .catch(() => {})
 }
 
-const app = new Hono<ChatEnv>().post('/ui', zValidator('json', UiSpecSchema), (c) => {
-  const spec = c.req.valid('json')
-  const sessionId = sessionIdFromHeaders(c.req.raw.headers)
-  return c.json({renderId: spec.renderId, injected: sessionId ? c.var.chat.uiBus.inject(sessionId, spec) : false})
-})
-
-export default app
-
 function contextWindowFor(harness: HarnessAdapter, modelId: string | null): number | undefined {
   const models = harness.models
   if (!Array.isArray(models) || !modelId) return undefined
@@ -207,10 +194,7 @@ async function* withLockRelease(
     for await (const raw of src) {
       const {chunk, usage} = mapTurnChunk(raw, deps, sessionId, modelId, abort.signal.aborted)
       finished = finished || (chunk.type === EventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls')
-      if (usage) {
-        yield aguiUsageFor(usage)
-        await deps.store.update(sessionId, {usage})
-      }
+      if (usage) await deps.store.update(sessionId, {usage})
       if (isTerminal(chunk)) release()
       yield chunk
     }

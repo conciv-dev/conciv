@@ -14,7 +14,6 @@ export default defineConfig({
     'src/page-introspect-types.ts',
     'src/usage-types.ts',
     'src/tool-view-types.ts',
-    'src/tool-timing.ts',
   ],
   format: 'esm',
   fixedExtension: false,

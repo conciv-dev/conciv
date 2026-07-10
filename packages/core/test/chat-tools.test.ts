@@ -28,7 +28,6 @@ test('buildChatTools yields conciv + extension tools bound to the session', asyn
       },
     ],
     () => 'opus',
-    () => true,
   )('session-9')
   const names = tools.map((tool) => tool.name)
   expect(names).toContain('ext_tool')

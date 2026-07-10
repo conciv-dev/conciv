@@ -32,11 +32,11 @@ describe('createTestkit (real server)', () => {
         try {
           const sessionId = await kit.session()
           const stream = await kit.attach(sessionId)
-          if ('__scripted' in mode.harness) {
+          if (mode.name === 'fake') {
             mode.harness.__scripted.scriptToolCall('conciv_ui', {kind: 'confirm', question: 'Proceed?'})
             await kit.chat('go', sessionId)
           }
-          if (!('__scripted' in mode.harness)) {
+          if (mode.name === 'real') {
             await kit.chat('Call the conciv_ui tool with kind confirm, question "Proceed?". Then reply DONE.', sessionId)
           }
           const call = await stream.waitForToolCall('conciv_ui')
