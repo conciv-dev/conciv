@@ -47,5 +47,27 @@
   "engines": {
     "node": ">=22.13"
   },
-  "packageManager": "pnpm@11.7.0"
+  "packageManager": "pnpm@11.7.0",
+  "intent": {
+    "skills": [
+      "@tanstack/ai",
+      "@tanstack/ai-sandbox",
+      "@tanstack/db",
+      "@tanstack/devtools",
+      "@tanstack/devtools-event-client",
+      "@tanstack/devtools-vite",
+      "@tanstack/query",
+      "@tanstack/react-start",
+      "@tanstack/router",
+      "@tanstack/router-core",
+      "@tanstack/router-plugin",
+      "@tanstack/solid-db",
+      "@tanstack/start-client-core",
+      "@tanstack/start-server-core",
+      "@tanstack/virtual-file-routes",
+      "dotenv",
+      "drizzle-kit",
+      "fallow"
+    ]
+  }
 }
