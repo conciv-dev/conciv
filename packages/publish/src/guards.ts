@@ -20,6 +20,7 @@ const PUBLIC_PACKAGES = [
   '@conciv/contract',
   '@conciv/db',
   '@conciv/storage-history',
+  '@conciv/client',
   '@conciv/grab',
   '@conciv/tools',
   '@conciv/extension',

@@ -10,6 +10,7 @@ export {
   type Testkit,
 } from './create-testkit.js'
 export {createTestHarness, type TestHarness} from './create-test-harness.js'
+export {createFakeHarness, type FakeHarness} from './create-fake-harness.js'
 export {harnessAvailable} from './harness-available.js'
 export {makeCallTool, type CallTool} from './call-tool.js'
 export {makeRpcClient, resolveSession, type RpcClient} from './session.js'

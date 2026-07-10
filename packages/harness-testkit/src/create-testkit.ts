@@ -37,6 +37,7 @@ export type Kit = {
   get: (path: string, session?: string) => Promise<Response>
   invokeTool: (name: string, input: unknown, opts: {instruction: string}, session?: string) => Promise<void>
   callTool: (name: string, input: unknown, session?: string) => Promise<unknown>
+  restartServer: () => Promise<void>
   cleanup: () => Promise<void>
 }
 export type Testkit = {setup: () => Promise<Kit>}
@@ -67,7 +68,7 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp): Testkit {
     setup: async () => {
       const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-kit-'))
       const app = await boot({stateRoot, cwd: stateRoot, harness})
-      const served = await serveApp(app.fetch)
+      let served = await serveApp(app.fetch)
       const base = served.base
       const aborts: AbortController[] = []
       const rpc = makeRpcClient(base)
@@ -120,6 +121,10 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp): Testkit {
           }
         },
         callTool,
+        restartServer: async () => {
+          await served.close()
+          served = await serveApp(app.fetch, {port: served.port})
+        },
         cleanup: async () => {
           for (const abort of aborts) abort.abort()
           await app.dispose()

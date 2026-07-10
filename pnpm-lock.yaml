@@ -336,6 +336,52 @@ importers:
         specifier: ^4.1.8
         version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@22.20.0)(@vitest/browser-playwright@4.1.9)(@vitest/coverage-v8@4.1.8)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
 
+  packages/client:
+    dependencies:
+      '@conciv/contract':
+        specifier: workspace:^
+        version: link:../contract
+      '@orpc/client':
+        specifier: 1.14.7
+        version: 1.14.7(@opentelemetry/api@1.9.1)
+      '@orpc/tanstack-query':
+        specifier: ^1.14.7
+        version: 1.14.7(@opentelemetry/api@1.9.1)(@orpc/client@1.14.7(@opentelemetry/api@1.9.1))(@tanstack/query-core@5.101.2)
+      '@tanstack/ai':
+        specifier: ^0.40.0
+        version: 0.40.0(@opentelemetry/api@1.9.1)
+      '@tanstack/ai-solid':
+        specifier: ^0.14.3
+        version: 0.14.3(@opentelemetry/api@1.9.1)(@tanstack/ai@0.40.0(@opentelemetry/api@1.9.1))(solid-js@1.9.14)
+      '@tanstack/query-core':
+        specifier: ^5.80.2
+        version: 5.101.2
+      solid-js:
+        specifier: ^1.9.13
+        version: 1.9.14
+    devDependencies:
+      '@conciv/core':
+        specifier: workspace:^
+        version: link:../core
+      '@conciv/harness':
+        specifier: workspace:^
+        version: link:../harness
+      '@conciv/harness-testkit':
+        specifier: workspace:^
+        version: link:../harness-testkit
+      '@conciv/protocol':
+        specifier: workspace:^
+        version: link:../protocol
+      tsdown:
+        specifier: ^0.22.2
+        version: 0.22.2(@arethetypeswrong/core@0.18.3)(oxc-resolver@11.20.0)(publint@0.3.21)(tsx@4.22.4)(typescript@6.0.3)
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.8
+        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.0)(vite@8.1.3(@types/node@26.1.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+
   packages/contract:
     dependencies:
       '@conciv/protocol':
@@ -3472,6 +3518,12 @@ packages:
   '@orpc/standard-server@1.14.7':
     resolution: {integrity: sha512-N+7I4SzYoSVyf5lRbANGz9oBVmZSM/nm2JlxAP+UPSbWnqrjltSFFHVlSdp4wXSb39LVjT74uSLZ9Da1wOyLeg==}
 
+  '@orpc/tanstack-query@1.14.7':
+    resolution: {integrity: sha512-cNOdHwxg6+CHOE9QqVtaWEPMMQLvYzs19xZIs5X69UgmEehWy/zrtmErbxDdzd7a2pTCcZXDcFV7kkl/12ke0Q==}
+    peerDependencies:
+      '@orpc/client': 1.14.7
+      '@tanstack/query-core': '>=5.80.2'
+
   '@oxc-parser/binding-android-arm-eabi@0.120.0':
     resolution: {integrity: sha512-WU3qtINx802wOl8RxAF1v0VvmC2O4D9M8Sv486nLeQ7iPHVmncYZrtBhB4SYyX+XZxj2PNnCcN+PW21jHgiOxg==}
     engines: {node: ^20.19.0 || >=22.12.0}
@@ -5994,6 +6046,9 @@ packages:
   '@tanstack/pacer-lite@0.2.2':
     resolution: {integrity: sha512-eQ1MyLKCHyXiH7NbdmB80W77OhiMgGBUb+qDx/8WMGbwg5Lf/NlfD0TfNYAqY77i8V3AxoDoYdICrQE5ADw4Yw==}
     engines: {node: '>=18'}
+
+  '@tanstack/query-core@5.101.2':
+    resolution: {integrity: sha512-hH5MLoJhF7KaIGd7q3xTXGXvslI+GYlM1Z/35aSHHWaCJWB7XvTSHYuV3eM7tw+aE0mT/xMro4M4Q9rCGHT0lw==}
 
   '@tanstack/react-devtools@0.10.8':
     resolution: {integrity: sha512-YJV6YttQf9lhhPbPBLULgy1eScEvJUMsCS26mjg9hfBKgAJQA5sF9zvzorDzW9Ob6o/asoXikO81JnRUVuFX0Q==}
@@ -14287,6 +14342,14 @@ snapshots:
     transitivePeerDependencies:
       - '@opentelemetry/api'
 
+  '@orpc/tanstack-query@1.14.7(@opentelemetry/api@1.9.1)(@orpc/client@1.14.7(@opentelemetry/api@1.9.1))(@tanstack/query-core@5.101.2)':
+    dependencies:
+      '@orpc/client': 1.14.7(@opentelemetry/api@1.9.1)
+      '@orpc/shared': 1.14.7(@opentelemetry/api@1.9.1)
+      '@tanstack/query-core': 5.101.2
+    transitivePeerDependencies:
+      - '@opentelemetry/api'
+
   '@oxc-parser/binding-android-arm-eabi@0.120.0':
     optional: true
 
@@ -16348,6 +16411,8 @@ snapshots:
   '@tanstack/pacer-lite@0.1.1': {}
 
   '@tanstack/pacer-lite@0.2.2': {}
+
+  '@tanstack/query-core@5.101.2': {}
 
   '@tanstack/react-devtools@0.10.8(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(csstype@3.2.3)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(solid-js@1.9.14)':
     dependencies:

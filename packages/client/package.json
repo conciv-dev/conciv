@@ -1,0 +1,57 @@
+{
+  "name": "@conciv/client",
+  "version": "0.0.7",
+  "description": "conciv client data layer: typed oRPC access, TanStack Query option factories, and the useChat connection bridge. Zero UI.",
+  "keywords": [
+    "client",
+    "conciv",
+    "orpc"
+  ],
+  "homepage": "https://conciv.dev",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/client"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only"
+  },
+  "dependencies": {
+    "@conciv/contract": "workspace:^",
+    "@orpc/client": "1.14.7",
+    "@orpc/tanstack-query": "^1.14.7",
+    "@tanstack/ai": "^0.40.0",
+    "@tanstack/ai-solid": "^0.14.3",
+    "@tanstack/query-core": "^5.80.2",
+    "solid-js": "^1.9.13"
+  },
+  "devDependencies": {
+    "@conciv/core": "workspace:^",
+    "@conciv/harness": "workspace:^",
+    "@conciv/harness-testkit": "workspace:^",
+    "@conciv/protocol": "workspace:^",
+    "tsdown": "^0.22.2",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  }
+}
