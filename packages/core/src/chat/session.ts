@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto'
 import {withoutTrailingSlash} from 'ufo'
 import type {ChatCommand, ChatCommands, ChatSessionMeta} from '@conciv/protocol/chat-types'
 import {isSessionId} from '@conciv/protocol/chat-types'
-import type {SessionStore} from '../store/session-store.js'
+import type {SessionStore} from '@conciv/db'
 import type {ChatRuntime} from './chat-env.js'
 import {readLock} from '../store/lock.js'
 

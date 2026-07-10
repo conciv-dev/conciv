@@ -2,7 +2,7 @@ import type {AnyTool} from '@tanstack/ai'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import type {UiBus} from '../runtime/ui-bus.js'
 import type {UiAsks} from '../runtime/ui-asks.js'
-import type {SessionStore} from '../store/session-store.js'
+import type {SessionStore} from '@conciv/db'
 import type {TurnHub} from '../runtime/turn-hub.js'
 import type {PermissionGate} from './permission.js'
 
