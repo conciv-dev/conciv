@@ -4,7 +4,6 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {EventType} from '@tanstack/ai'
 import {createTestkit, until, type Kit, type RunStream} from '@conciv/harness-testkit'
-import {readLock, releaseLock} from '../../src/store/lock.js'
 import {bootCoreApp} from '../helpers/boot.js'
 import {requireClaude} from '../helpers/adapters.js'
 
@@ -48,13 +47,10 @@ describe('detached turns (IT)', () => {
     return {kit, id, releaseFile}
   }
 
-  it('rejects a resend while the prior turn is still generating even if its lock file is gone (stop-drain guard)', async () => {
+  it('rejects a resend while the prior turn is still generating', async () => {
     const kit = await setupHang()
     const id = await kit.session()
     await kit.rpc.chat.send({sessionId: id, text: 'hi'})
-    await until(() => readLock(kit.stateRoot, id).held, {hangGuardMs: 5000})
-    releaseLock(kit.stateRoot, id)
-    expect(readLock(kit.stateRoot, id).held).toBe(false)
     await expect(kit.rpc.chat.send({sessionId: id, text: 'again'})).rejects.toMatchObject({code: 'BUSY'})
     await kit.rpc.sessions.stop({sessionId: id})
   })

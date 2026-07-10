@@ -19,7 +19,6 @@ import {ensureChatRecord, recordMintedToken, resolveSystemText, resumeTokenFor} 
 import {sweepEmptyChatRecords} from './chat/session.js'
 import {makeCompactor} from './chat/compact.js'
 import {makeSendTurn} from './chat/send-turn.js'
-import {readLock, readLocks} from './store/lock.js'
 import {makeSessionStore, makeUiState, openDb} from '@conciv/db'
 import mcpApp, {type McpVars} from './api/mcp/mcp.js'
 import pageApp, {makePageBus, type PageVars} from './api/page/page.js'
@@ -147,7 +146,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       await ensureChatRecord(store, sessionId, harness.id, opts.cwd)
       await recordMintedToken(store, sessionId, token)
     },
-    chatBusy: (sessionId) => readLock(opts.cfg.stateRoot, sessionId).held,
+    chatBusy: (sessionId) => hub.generating(sessionId),
     model: async (sessionId) => (await store.get(sessionId))?.model ?? null,
     onChatTurn: (listener) => chatTurnListeners.push(listener),
   }
@@ -243,7 +242,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   if (opts.cfg.sessionId) {
     void ensureAgentRecord({store, harnessKind: harness.id, cwd: opts.cwd}, opts.cfg.sessionId).catch(() => {})
   }
-  void sweepEmptyChatRecords(store, new Set(readLocks(opts.cfg.stateRoot).map((l) => l.key))).catch(() => {})
+  void sweepEmptyChatRecords(store).catch(() => {})
 
   const compactor = makeCompactor({chat: chatRuntime, uiState, onChange: () => live.pulse()})
 

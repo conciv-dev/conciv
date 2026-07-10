@@ -36,7 +36,7 @@ describe('buildSessionList', () => {
       {id: 'tok-a', derivedTitle: 'ignored', updatedAt: 10, messageCount: 3},
       {id: 'tok-ext', derivedTitle: 'External', updatedAt: 20, messageCount: 1},
     ]
-    const rows = await buildSessionList({store, harnessList, runningKeys: new Set<string>(), cwd: '/app'})
+    const rows = await buildSessionList({store, harnessList, running: () => false, cwd: '/app'})
     const mine = rows.find((r) => r.id === 'conciv_a')!
     const ext = rows.find((r) => r.id === 'tok-ext')!
     expect(mine.title).toBe('Mine')
@@ -48,22 +48,21 @@ describe('buildSessionList', () => {
     const store = memoryStore()
     await store.create(rec({id: 'conciv_here', title: 'Here', cwd: '/app'}))
     await store.create(rec({id: 'conciv_there', title: 'There', cwd: '/other'}))
-    const rows = await buildSessionList({store, harnessList: [], runningKeys: new Set<string>(), cwd: '/app/'})
+    const rows = await buildSessionList({store, harnessList: [], running: () => false, cwd: '/app/'})
     expect(rows.map((r) => r.id)).toEqual(['conciv_here'])
   })
 })
 
 describe('sweepEmptyChatRecords', () => {
-  it('deletes empty chat ghosts; keeps titled, tokened, external/agent, and locked', async () => {
+  it('deletes empty chat ghosts; keeps titled, tokened, and external/agent', async () => {
     const store = memoryStore()
     await store.create(rec({id: 'conciv_ghost'}))
     await store.create(rec({id: 'conciv_titled', title: 'Kept'}))
     await store.create(rec({id: 'conciv_run', harnessSessionId: 'tok'}))
     await store.create(rec({id: 'conciv_ext', origin: 'external'}))
     await store.create(rec({id: 'conciv_agent', origin: 'agent'}))
-    await store.create(rec({id: 'conciv_live'}))
-    await sweepEmptyChatRecords(store, new Set(['conciv_live']))
+    await sweepEmptyChatRecords(store)
     const ids = (await store.list()).map((r) => r.id).toSorted()
-    expect(ids).toEqual(['conciv_agent', 'conciv_ext', 'conciv_live', 'conciv_run', 'conciv_titled'])
+    expect(ids).toEqual(['conciv_agent', 'conciv_ext', 'conciv_run', 'conciv_titled'])
   })
 })

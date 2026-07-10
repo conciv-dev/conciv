@@ -3,7 +3,6 @@ import {chat, EventType, type ModelMessage, type StreamChunk, type TokenUsage} f
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import type {ChatRequest} from '@conciv/protocol/chat-types'
 import {tokenUsageToSnapshot, type UsageSnapshot} from '@conciv/protocol/usage-types'
-import {releaseLock} from '../store/lock.js'
 import type {SessionStore} from '@conciv/db'
 import type {ChatRuntime} from './chat-env.js'
 import {concivSandbox, withConcivGate, withConcivSandbox} from './sandbox.js'
@@ -120,18 +119,18 @@ async function buildTurnStream(
   })
 }
 
-export async function startTurn(deps: TurnDeps, sessionId: string, chatReq: ChatRequest): Promise<void> {
+export function startTurn(deps: TurnDeps, sessionId: string, chatReq: ChatRequest): Promise<void> {
   const abort = new AbortController()
-  const stream = await buildTurnStream(deps, deps.systemText, sessionId, chatReq, abort)
   const requestedModel = requestedModelFor(chatReq) ?? null
   deps.uiBus.setModel(sessionId, requestedModel)
-  const merged = deps.uiBus.run(sessionId, stream)
   const lastUserMessage = chatReq.messages.findLast((message) => message.role === 'user') ?? null
   const pendingUserMessage = lastUserMessage ? toPendingUserMessage(lastUserMessage) : null
   const modelId = requestedModel ?? deps.harness.defaultModel ?? null
-  void deps.hub
-    .start(sessionId, pendingUserMessage, withLockRelease(merged, deps, sessionId, modelId, abort), () => abort.abort())
-    .catch(() => {})
+  async function* run(): AsyncGenerator<StreamChunk> {
+    const stream = await buildTurnStream(deps, deps.systemText, sessionId, chatReq, abort)
+    yield* withTurnEffects(deps.uiBus.run(sessionId, stream), deps, sessionId, modelId, abort)
+  }
+  return deps.hub.start(sessionId, pendingUserMessage, run(), () => abort.abort())
 }
 
 function contextWindowFor(harness: HarnessAdapter, modelId: string | null): number | undefined {
@@ -172,38 +171,23 @@ function mapTurnChunk(
   return {chunk: mapped, usage}
 }
 
-function lockReleaser(deps: TurnDeps, sessionId: string): () => void {
-  const lock = {held: true}
-  return () => {
-    if (!lock.held) return
-    lock.held = false
-    releaseLock(deps.stateRoot, sessionId)
-  }
-}
-
-async function* withLockRelease(
+async function* withTurnEffects(
   src: AsyncIterable<StreamChunk>,
   deps: TurnDeps,
   sessionId: string,
   modelId: string | null,
   abort: AbortController,
 ): AsyncGenerator<StreamChunk> {
-  const release = lockReleaser(deps, sessionId)
   try {
     let finished = false
     for await (const raw of src) {
       const {chunk, usage} = mapTurnChunk(raw, deps, sessionId, modelId, abort.signal.aborted)
       finished = finished || (chunk.type === EventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls')
       if (usage) await deps.store.update(sessionId, {usage})
-      if (isTerminal(chunk)) release()
       yield chunk
     }
-    if (!finished && abort.signal.aborted) {
-      release()
-      yield stopFinishedFor(sessionId)
-    }
+    if (!finished && abort.signal.aborted) yield stopFinishedFor(sessionId)
   } finally {
-    release()
     if (deps.onTurnEnd) await deps.onTurnEnd(sessionId).catch(() => {})
   }
 }

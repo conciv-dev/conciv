@@ -30,7 +30,6 @@ export function makeRpcSessionClient(opts: {apiBase: string}): SessionClient {
       const resolved = await rpc.sessions.resolve(body?.id === undefined ? {} : {id: body.id})
       return ResolveResponseSchema.parse(resolved)
     },
-    session: () => Promise.reject(new Error('session() was removed with the REST surface; use sessions()')),
     sessions: async () => ({sessions: await rpc.sessions.list(undefined)}),
     history: async () => [],
     models: () => rpc.meta.models(undefined),

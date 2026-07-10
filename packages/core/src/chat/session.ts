@@ -4,7 +4,6 @@ import type {ChatCommand, ChatCommands, ChatSessionMeta} from '@conciv/protocol/
 import {isSessionId} from '@conciv/protocol/chat-types'
 import type {SessionStore} from '@conciv/db'
 import type {ChatRuntime} from './chat-env.js'
-import {readLock} from '../store/lock.js'
 
 export type ResolveDeps = {
   store: SessionStore
@@ -38,10 +37,10 @@ export async function resolveSession(deps: ResolveDeps, body: {id?: string}): Pr
 
 const sameCwd = (a: string, b: string): boolean => withoutTrailingSlash(a) === withoutTrailingSlash(b)
 
-export async function sweepEmptyChatRecords(store: SessionStore, locked: Set<string>): Promise<void> {
+export async function sweepEmptyChatRecords(store: SessionStore): Promise<void> {
   const records = await store.list()
   for (const r of records) {
-    if (r.origin === 'chat' && r.harnessSessionId === null && r.title === null && !locked.has(r.id)) {
+    if (r.origin === 'chat' && r.harnessSessionId === null && r.title === null) {
       await store.delete(r.id)
     }
   }
@@ -52,7 +51,7 @@ export type HarnessRow = {id: string; derivedTitle: string; updatedAt: number; m
 export async function buildSessionList(args: {
   store: SessionStore
   harnessList: HarnessRow[]
-  runningKeys: Set<string>
+  running: (sessionId: string) => boolean
   cwd: string
 }): Promise<ChatSessionMeta[]> {
   const records = (await args.store.list()).filter((r) => sameCwd(r.cwd, args.cwd))
@@ -66,7 +65,7 @@ export async function buildSessionList(args: {
       title: r.title ?? merged.derivedTitle,
       updatedAt: merged.updatedAt,
       messageCount: merged.messageCount,
-      running: args.runningKeys.has(r.id),
+      running: args.running(r.id),
       origin: r.origin === 'external' ? 'external' : 'conciv',
       usage: r.usage,
     }
@@ -87,14 +86,6 @@ export async function buildSessionList(args: {
         }) satisfies ChatSessionMeta,
     )
   return [...ours, ...unwrapped].toSorted((a, b) => b.updatedAt - a.updatedAt)
-}
-
-export function killLock(stateRoot: string, sessionId: string): void {
-  const lock = readLock(stateRoot, sessionId)
-  if (!lock.pid || lock.pid === process.pid) return
-  try {
-    process.kill(lock.pid, 'SIGTERM')
-  } catch {}
 }
 
 export async function listCommands(

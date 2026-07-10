@@ -59,4 +59,3 @@ export const UiAnswerSchema = z.union([
 export type UiInput = z.infer<typeof UiInputSchema>
 export type UiAnswerValue = z.infer<typeof UiAnswerValueSchema>
 export type UiAnswer = z.infer<typeof UiAnswerSchema>
-

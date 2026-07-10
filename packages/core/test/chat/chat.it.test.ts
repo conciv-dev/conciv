@@ -5,7 +5,6 @@ import {tmpdir} from 'node:os'
 import {dirname, join} from 'node:path'
 import {EventType} from '@tanstack/ai'
 import {createTestkit, type Kit} from '@conciv/harness-testkit'
-import {acquireLock} from '../../src/store/lock.js'
 import {bootCoreApp} from '../helpers/boot.js'
 import {countType, runTurn} from '../helpers/turns.js'
 import {requireClaude} from '../helpers/adapters.js'
@@ -149,13 +148,6 @@ describe('chat over rpc (IT, real makeApp + fake-claude spawn)', () => {
     expect(argv[argv.indexOf('--model') + 1]).toBe('sonnet')
   })
 
-  it('reports BUSY while a session lock is held by iterate', async () => {
-    const kit = await setup()
-    const id = await kit.session()
-    acquireLock(kit.stateRoot, id, 'iterate', process.pid)
-    await expect(kit.rpc.chat.send({sessionId: id, text: 'hi'})).rejects.toMatchObject({code: 'BUSY'})
-  })
-
   it('rejects a send with an empty message', async () => {
     const kit = await setup()
     const id = await kit.session()
@@ -174,13 +166,22 @@ describe('chat over rpc (IT, real makeApp + fake-claude spawn)', () => {
   })
 
   it('does NOT reject a second session while a different one is busy', async () => {
-    const kit = await setup()
+    const hang = new Set<string>()
+    const kit = await createTestkit(
+      claude,
+      bootCoreApp({
+        fakeClaude: {env: (sessionId) => (sessionId && hang.has(sessionId) ? {CONCIV_FAKE_HANG: '1'} : {})},
+      }),
+    ).setup()
+    state.kit = kit
     const a = await kit.session()
     const b = await kit.session()
-    acquireLock(kit.stateRoot, a, 'chat', process.pid)
+    hang.add(a)
+    await kit.rpc.chat.send({sessionId: a, text: 'hi'})
     const stream = await kit.attach(b)
     await kit.rpc.chat.send({sessionId: b, text: 'hi'})
     await stream.done()
+    await kit.rpc.sessions.stop({sessionId: a})
   })
 
   it('persists usage onto each session record, not a shared pointer', async () => {
@@ -198,5 +199,4 @@ describe('chat over rpc (IT, real makeApp + fake-claude spawn)', () => {
     expect(ub?.inputTokens).toBe(222)
     expect(ua?.inputTokens).not.toBe(ub?.inputTokens)
   })
-
 })

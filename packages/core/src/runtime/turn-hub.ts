@@ -53,6 +53,7 @@ type SessionRun = {
   view: RunView
   userMessage: UIMessage | null
   generating: boolean
+  reserved: boolean
   stopped: boolean
   abort: (() => void) | null
   subscribers: Set<Subscriber>
@@ -60,6 +61,8 @@ type SessionRun = {
 }
 
 export type TurnHub = {
+  reserve: (sessionId: string) => boolean
+  release: (sessionId: string) => void
   start: (
     sessionId: string,
     userMessage: UIMessage | null,
@@ -83,6 +86,7 @@ export function makeTurnHub(): TurnHub {
       view: makeRunView(),
       userMessage: null,
       generating: false,
+      reserved: false,
       stopped: false,
       abort: null,
       subscribers: new Set(),
@@ -93,10 +97,24 @@ export function makeTurnHub(): TurnHub {
   }
 
   function releaseIfIdle(sessionId: string, session: SessionRun): void {
-    if (session.generating) return
+    if (session.generating || session.reserved) return
     if (session.subscribers.size > 0) return
     if (sessions.get(sessionId) !== session) return
     sessions.delete(sessionId)
+  }
+
+  function reserve(sessionId: string): boolean {
+    const session = sessionFor(sessionId)
+    if (session.generating || session.reserved) return false
+    session.reserved = true
+    return true
+  }
+
+  function release(sessionId: string): void {
+    const session = sessions.get(sessionId)
+    if (!session) return
+    session.reserved = false
+    releaseIfIdle(sessionId, session)
   }
 
   function beginRun(session: SessionRun, userMessage: UIMessage | null, abort?: () => void): object {
@@ -105,6 +123,7 @@ export function makeTurnHub(): TurnHub {
     session.view.reset()
     session.userMessage = userMessage
     session.generating = true
+    session.reserved = false
     session.stopped = false
     session.abort = abort ?? null
     return token
@@ -181,10 +200,15 @@ export function makeTurnHub(): TurnHub {
   }
 
   return {
+    reserve,
+    release,
     start,
     attach,
     markStopped,
-    generating: (sessionId) => sessions.get(sessionId)?.generating ?? false,
+    generating: (sessionId) => {
+      const session = sessions.get(sessionId)
+      return (session?.generating ?? false) || (session?.reserved ?? false)
+    },
     pendingUserMessage: (sessionId) => sessions.get(sessionId)?.userMessage ?? null,
     trackedSessions: () => sessions.size,
   }

@@ -75,23 +75,6 @@ export type Ok = z.infer<typeof OkSchema>
 export const PermissionDecisionSchema = z.object({approvalId: z.string(), approved: z.boolean()})
 export type PermissionDecision = z.infer<typeof PermissionDecisionSchema>
 
-export const ChatSessionSchema = z.object({
-  sessionId: SessionId,
-
-  harnessSessionId: z.string().nullable(),
-
-  name: z.string().nullable(),
-
-  origin: z.enum(['chat', 'agent', 'external']),
-  cwd: z.string(),
-  lock: z.object({held: z.boolean(), role: z.enum(['iterate', 'chat']).nullable()}),
-
-  usage: UsageSnapshotSchema.nullish(),
-
-  harness: z.object({id: z.string(), name: z.string(), canLaunch: z.boolean()}),
-})
-export type ChatSession = z.infer<typeof ChatSessionSchema>
-
 export const HarnessModelSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -165,7 +148,6 @@ export type SessionClient = {
   attachUrl: () => string
   chatHeaders: () => Record<string, string>
   resolve: (body?: z.input<typeof ResolveRequestSchema>) => Promise<z.output<typeof ResolveResponseSchema>>
-  session: () => Promise<z.output<typeof ChatSessionSchema>>
   sessions: () => Promise<z.output<typeof ChatSessionsSchema>>
   history: () => Promise<z.output<typeof ChatHistorySchema>>
   models: () => Promise<z.output<typeof ChatModelsSchema>>

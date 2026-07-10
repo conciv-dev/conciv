@@ -2,8 +2,7 @@ import {implement} from '@orpc/server'
 import {contract, type SessionMeta} from '@conciv/contract'
 import {resolveHarnessModels} from '@conciv/harness'
 import type {ChatTool} from '@conciv/protocol/chat-types'
-import {readLocks} from '../store/lock.js'
-import {buildSessionList, killLock, listCommands, resolveSession} from '../chat/session.js'
+import {buildSessionList, listCommands, resolveSession} from '../chat/session.js'
 import {ensureChatRecord} from '../chat/turn.js'
 import {launchHarness} from '../chat/launch.js'
 import {SESSION_BUSY, type Compactor} from '../chat/compact.js'
@@ -44,8 +43,12 @@ export async function rpcSessionList(
   const hist = chat.harness.history
   const harnessList =
     chat.harness.capabilities.transcriptHistory && hist?.list ? await hist.list(chat.cwd, chat.claudeHome) : []
-  const runningKeys = new Set(readLocks(chat.stateRoot).map((lock) => lock.key))
-  const metas = await buildSessionList({store: chat.store, harnessList, runningKeys, cwd: chat.cwd})
+  const metas = await buildSessionList({
+    store: chat.store,
+    harnessList,
+    running: (sessionId) => chat.hub.generating(sessionId),
+    cwd: chat.cwd,
+  })
   const models = new Map<string, string | null>((await chat.store.list()).map((record) => [record.id, record.model]))
   return metas.map((meta) => ({
     ...meta,
@@ -61,7 +64,6 @@ export function makeRpcRouter(deps: RpcDeps) {
   const store = chat.store
   const scope = {store, harnessKind: chat.harness.id, cwd: chat.cwd}
   const buildList = () => rpcSessionList(chat, compactor.compacting)
-  const releaseSessionLock = (sessionId: string) => killLock(chat.stateRoot, sessionId)
   const harnessMeta = {
     id: chat.harness.id,
     name: chat.harness.displayName ?? chat.harness.id,
@@ -91,7 +93,11 @@ export function makeRpcRouter(deps: RpcDeps) {
         return {sessionId}
       }),
       launch: os.sessions.launch.handler(({input, context}) =>
-        launchHarness(chat, {sessionId: input.sessionId, model: input.model, origin: new URL(context.request.url).origin}),
+        launchHarness(chat, {
+          sessionId: input.sessionId,
+          model: input.model,
+          origin: new URL(context.request.url).origin,
+        }),
       ),
       rename: os.sessions.rename.handler(async ({input, errors}) => {
         if (!(await store.get(input.sessionId))) throw errors.NOT_FOUND()
@@ -100,7 +106,6 @@ export function makeRpcRouter(deps: RpcDeps) {
         return {title}
       }),
       remove: os.sessions.remove.handler(async ({input}) => {
-        releaseSessionLock(input.sessionId)
         await store.delete(input.sessionId)
         await uiState.deleteFor(input.sessionId)
         return {ok: true as const}
@@ -127,7 +132,6 @@ export function makeRpcRouter(deps: RpcDeps) {
       }),
       stop: os.sessions.stop.handler(({input}) => {
         chat.hub.markStopped(input.sessionId)
-        releaseSessionLock(input.sessionId)
         return {ok: true as const}
       }),
     },

@@ -37,7 +37,10 @@ describe('createTestkit (real server)', () => {
             await kit.chat('go', sessionId)
           }
           if (mode.name === 'real') {
-            await kit.chat('Call the conciv_ui tool with kind confirm, question "Proceed?". Then reply DONE.', sessionId)
+            await kit.chat(
+              'Call the conciv_ui tool with kind confirm, question "Proceed?". Then reply DONE.',
+              sessionId,
+            )
           }
           const call = await stream.waitForToolCall('conciv_ui')
           expect(call.name).toBe('conciv_ui')
