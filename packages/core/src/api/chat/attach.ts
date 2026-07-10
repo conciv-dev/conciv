@@ -20,12 +20,11 @@ export async function attachStream(
 ): Promise<AsyncGenerator<StreamChunk>> {
   const history = await transcriptMessages(deps, sessionId)
   const pending = deps.hub.pendingUserMessage(sessionId)
-  const generating = deps.hub.generating(sessionId)
   const {replay, live} = deps.hub.attach(sessionId, signal)
   const settled = settledMessages(history, pending ? userText(pending) : null)
   const messages = pending ? [...settled, pending] : settled
   async function* chunks(): AsyncGenerator<StreamChunk> {
-    yield aguiSnapshotFor({generating, messages})
+    yield aguiSnapshotFor(messages)
     yield* replay
     yield* live
   }

@@ -1,6 +1,6 @@
 import {z} from 'zod'
 import {EventType, type StreamChunk} from '@tanstack/ai'
-import {ChatHistorySchema} from './chat-types.js'
+import type {ChatHistory} from './chat-types.js'
 
 const renderId = z.string().min(1)
 
@@ -62,13 +62,18 @@ export function aguiCustomFor(spec: UiSpec): StreamChunk {
   return {type: EventType.CUSTOM, name: CONCIV_UI_EVENT, value: spec}
 }
 
-export const CONCIV_SNAPSHOT_EVENT = 'conciv-snapshot'
+const MessagesSnapshotChunkSchema = z.custom<StreamChunk>(
+  (value) =>
+    typeof value === 'object' &&
+    value !== null &&
+    'type' in value &&
+    value.type === EventType.MESSAGES_SNAPSHOT &&
+    'messages' in value &&
+    Array.isArray(value.messages),
+)
 
-export const SnapshotSchema = z.object({generating: z.boolean(), messages: ChatHistorySchema})
-export type Snapshot = z.infer<typeof SnapshotSchema>
-
-export function aguiSnapshotFor(snapshot: Snapshot): StreamChunk {
-  return {type: EventType.CUSTOM, name: CONCIV_SNAPSHOT_EVENT, value: snapshot}
+export function aguiSnapshotFor(messages: ChatHistory): StreamChunk {
+  return MessagesSnapshotChunkSchema.parse({type: EventType.MESSAGES_SNAPSHOT, messages})
 }
 
 export const APPROVAL_REQUESTED_EVENT = 'approval-requested'

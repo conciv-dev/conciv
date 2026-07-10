@@ -1,12 +1,12 @@
 import {describe, it, expect} from 'vitest'
 import {EventType} from '@tanstack/ai'
-import {CONCIV_SNAPSHOT_EVENT, SnapshotSchema, aguiSnapshotFor} from '../src/ui-types.js'
+import {aguiSnapshotFor} from '../src/ui-types.js'
 
 describe('snapshot event', () => {
-  it('wraps a snapshot in an AG-UI CUSTOM chunk', () => {
-    const snapshot = SnapshotSchema.parse({generating: true, messages: [{id: 'u1', role: 'user', parts: []}]})
-    const chunk = aguiSnapshotFor(snapshot)
-    expect(chunk.type).toBe(EventType.CUSTOM)
-    expect(chunk).toMatchObject({name: CONCIV_SNAPSHOT_EVENT, value: snapshot})
+  it('snapshot is a native MESSAGES_SNAPSHOT chunk carrying UIMessages verbatim', () => {
+    const messages = [{id: 'm1', role: 'user' as const, parts: [{type: 'text' as const, content: 'hi'}]}]
+    const chunk = aguiSnapshotFor(messages)
+    expect(chunk.type).toBe(EventType.MESSAGES_SNAPSHOT)
+    if (chunk.type === EventType.MESSAGES_SNAPSHOT) expect(chunk.messages).toEqual(messages)
   })
 })

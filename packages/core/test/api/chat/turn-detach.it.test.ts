@@ -18,10 +18,10 @@ function tmp(): string {
 }
 
 async function waitForSnapshot(stream: RunStream): Promise<string> {
-  const chunk = await stream.waitFor((c) => c.type === EventType.CUSTOM && c.name === 'conciv-snapshot', {
+  const chunk = await stream.waitFor((c) => c.type === EventType.MESSAGES_SNAPSHOT, {
     hangGuardMs: 5000,
   })
-  return chunk.type === EventType.CUSTOM ? JSON.stringify(chunk.value) : ''
+  return chunk.type === EventType.MESSAGES_SNAPSHOT ? JSON.stringify(chunk.messages) : ''
 }
 
 describe('detached turns (IT)', () => {
@@ -73,8 +73,7 @@ describe('detached turns (IT)', () => {
   it('a mid-run attach replays from RUN_STARTED and continues live', async () => {
     const {kit, id, releaseFile} = await startSlowTurn('hi')
     const early = await kit.attach(id)
-    const snapshot = await waitForSnapshot(early)
-    expect(snapshot).toContain('"generating":true')
+    await waitForSnapshot(early)
     await early.waitFor((c) => c.type === EventType.RUN_STARTED, {hangGuardMs: 3000})
     await early.waitForText('first-half')
     writeFileSync(releaseFile, '')
@@ -91,8 +90,8 @@ describe('detached turns (IT)', () => {
     const drop = new AbortController()
     const before = await kit.attach(id, {signal: drop.signal})
     const snapshot = await waitForSnapshot(before)
-    expect(snapshot).toContain('"generating":true')
     expect(snapshot).toContain('rebuild the page')
+    await before.waitFor((c) => c.type === EventType.RUN_STARTED, {hangGuardMs: 3000})
     await before.waitForText('first-half')
     drop.abort()
     writeFileSync(releaseFile, '')
@@ -120,8 +119,8 @@ describe('detached turns (IT)', () => {
     const {kit, id, releaseFile} = await startSlowTurn('summarize this')
     const early = await kit.attach(id)
     const snapshot = await waitForSnapshot(early)
-    expect(snapshot).toContain('"generating":true')
     expect(snapshot).toContain('summarize this')
+    await early.waitFor((c) => c.type === EventType.RUN_STARTED, {hangGuardMs: 3000})
     writeFileSync(releaseFile, '')
     const late = await kit.attach(id)
     const events = await late.done()
@@ -161,11 +160,11 @@ describe('detached turns (IT)', () => {
     },
   )
 
-  it('attach on an idle session emits a snapshot with generating:false', async () => {
+  it('attach on an idle session emits the messages snapshot first', async () => {
     const kit = await setupSlow(join(tmp(), 'never'))
     const id = await kit.session()
     const stream = await kit.attach(id)
     const snapshot = await waitForSnapshot(stream)
-    expect(snapshot).toContain('"generating":false')
+    expect(snapshot).toBe('[]')
   })
 })

@@ -32,8 +32,21 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     await kit.rpc.chat.send({sessionId, text: 'hello'})
     const events = await stream.done({hangGuardMs: 10_000})
     const types = events.all.map((chunk) => chunk.type)
-    expect(types[0]).toBe(EventType.CUSTOM)
+    expect(types[0]).toBe(EventType.MESSAGES_SNAPSHOT)
     expect(types).toContain(EventType.RUN_FINISHED)
+  })
+
+  it('attach mid-turn replays RUN_STARTED after the snapshot so clients derive generating', async () => {
+    const {kit, harness} = await bootWire()
+    const sessionId = await kit.session()
+    harness.__scripted.hold()
+    await kit.rpc.chat.send({sessionId, text: 'hello'})
+    const late = await kit.attach(sessionId)
+    harness.__scripted.release()
+    const events = await late.done({hangGuardMs: 10_000})
+    const types = events.all.map((chunk) => chunk.type)
+    expect(types[0]).toBe(EventType.MESSAGES_SNAPSHOT)
+    expect(types).toContain(EventType.RUN_STARTED)
   })
 
   it('send reports typed BUSY while a turn is generating', async () => {
