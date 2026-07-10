@@ -5,6 +5,7 @@ import {join, dirname} from 'node:path'
 import {afterEach, describe, expect, it} from 'vitest'
 import {EventType} from '@tanstack/ai'
 import {createTestHarness, type Kit, type TestHarness} from '@conciv/harness-testkit'
+import {openSource} from '@conciv/extension/client'
 import {requireClaude} from '../helpers/adapters.js'
 import {bootKit} from '../helpers/boot.js'
 
@@ -166,6 +167,23 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     })
     await kit.rpc.editor.open({file: 'src/thing.ts', line: 3})
     expect(opened).toEqual([{file: 'src/thing.ts', line: 3}])
+  })
+
+  it('extension openSource drives editor.open and openFromFrames over rpc', async () => {
+    const opened: Array<{file: string; line?: number}> = []
+    const {kit} = await bootWire({
+      openInEditor: (file, line) => opened.push({file, ...(line === undefined ? {} : {line})}),
+    })
+    const located = {component: null, stack: [], owners: []}
+    const viaSource = await openSource(kit.base, {
+      ...located,
+      frames: [],
+      source: {file: 'src/a.ts', line: 7, column: 1},
+    })
+    expect(viaSource).toBe('opened')
+    expect(opened).toEqual([{file: 'src/a.ts', line: 7}])
+    const viaFrames = await openSource(kit.base, {...located, frames: [{fileName: 'does-not-exist.ts', line: 1}]})
+    expect(viaFrames).toBe('no-source')
   })
 
   it('meta.models serves the harness catalog', async () => {

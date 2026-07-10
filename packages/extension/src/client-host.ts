@@ -1,4 +1,5 @@
-import {OpenSourceResultSchema, type OpenSourceResult} from '@conciv/protocol/page-types'
+import {makeRpcClient} from '@conciv/contract'
+import type {OpenSourceResult} from '@conciv/protocol/page-types'
 import type {LocateResult} from '@conciv/protocol/page-introspect-types'
 
 export const EFFECTS_SURFACE_ATTR = 'data-conciv-effects'
@@ -29,21 +30,13 @@ export function ensureEffectsSurface(options?: {styles?: string}): HTMLElement {
 }
 
 export async function openSource(apiBase: string, locateResult: LocateResult): Promise<OpenSourceResult> {
-  const post = (path: string, body: unknown) =>
-    fetch(`${apiBase}${path}`, {
-      method: 'POST',
-      headers: {'content-type': 'application/json'},
-      body: JSON.stringify(body),
-    })
+  const rpc = makeRpcClient(apiBase)
   try {
     if (locateResult.source) {
-      await post('/api/editor/open', {file: locateResult.source.file, line: locateResult.source.line})
+      await rpc.editor.open({file: locateResult.source.file, line: locateResult.source.line})
       return 'opened'
     }
-    if (locateResult.frames.length)
-      return OpenSourceResultSchema.parse(
-        await (await post('/api/page/open-source', {frames: locateResult.frames})).json(),
-      ).status
+    if (locateResult.frames.length) return (await rpc.editor.openFromFrames({frames: locateResult.frames})).status
     return 'no-source'
   } catch {
     return 'failed'

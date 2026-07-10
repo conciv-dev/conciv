@@ -540,6 +540,9 @@ importers:
 
   packages/extension:
     dependencies:
+      '@conciv/contract':
+        specifier: workspace:^
+        version: link:../contract
       '@conciv/grab':
         specifier: workspace:^
         version: link:../grab
