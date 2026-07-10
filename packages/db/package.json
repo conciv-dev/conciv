@@ -1,7 +1,7 @@
 {
   "name": "@conciv/db",
   "version": "0.0.7",
-  "description": "conciv persistence: drizzle schemas, sqlite open + migrations, and row stores on node:sqlite.",
+  "description": "conciv persistence: typed drizzle schema, sqlite open + migrations, and sealed run-lifecycle queries on node:sqlite.",
   "keywords": [
     "conciv",
     "drizzle",
