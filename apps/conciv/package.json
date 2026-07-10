@@ -13,14 +13,17 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@ark-ui/solid": "^5.37.1",
     "@conciv/client": "workspace:^",
     "@conciv/contract": "workspace:^",
     "@conciv/mascot": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/solid-streamdown": "workspace:^",
     "@conciv/ui-kit-chat": "workspace:^",
+    "@conciv/ui-kit-chat-tools": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
     "@tanstack/ai-client": "^0.20.0",
+    "@tanstack/solid-pacer": "^0.21.1",
     "@tanstack/solid-query": "^5.101.2",
     "@tanstack/solid-router": "^1.170.17",
     "lucide-solid": "^1.18.0",

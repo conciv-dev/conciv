@@ -1,7 +1,14 @@
 import {createFileRoute} from '@tanstack/solid-router'
+import {Show, type JSX} from 'solid-js'
+import {ChatPane} from '../chat/chat-pane.js'
 
-export const Route = createFileRoute('/panel/$sessionId/')({component: ChatPane})
+export const Route = createFileRoute('/panel/$sessionId/')({component: ChatPaneRoute})
 
-function ChatPane() {
-  return null
+function ChatPaneRoute(): JSX.Element {
+  const params = Route.useParams()
+  return (
+    <Show when={params().sessionId} keyed>
+      {(sessionId) => <ChatPane sessionId={sessionId} />}
+    </Show>
+  )
 }

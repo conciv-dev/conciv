@@ -70,6 +70,9 @@ importers:
 
   apps/conciv:
     dependencies:
+      '@ark-ui/solid':
+        specifier: ^5.37.1
+        version: 5.37.1(solid-js@1.9.14)
       '@conciv/client':
         specifier: workspace:^
         version: link:../../packages/client
@@ -88,12 +91,18 @@ importers:
       '@conciv/ui-kit-chat':
         specifier: workspace:^
         version: link:../../packages/ui-kit-chat
+      '@conciv/ui-kit-chat-tools':
+        specifier: workspace:^
+        version: link:../../packages/ui-kit-chat-tools
       '@conciv/ui-kit-system':
         specifier: workspace:^
         version: link:../../packages/ui-kit-system
       '@tanstack/ai-client':
         specifier: ^0.20.0
         version: 0.20.0(@opentelemetry/api@1.9.1)
+      '@tanstack/solid-pacer':
+        specifier: ^0.21.1
+        version: 0.21.1(solid-js@1.9.14)
       '@tanstack/solid-query':
         specifier: ^5.101.2
         version: 5.101.2(solid-js@1.9.14)
@@ -6217,6 +6226,10 @@ packages:
     resolution: {integrity: sha512-eQ1MyLKCHyXiH7NbdmB80W77OhiMgGBUb+qDx/8WMGbwg5Lf/NlfD0TfNYAqY77i8V3AxoDoYdICrQE5ADw4Yw==}
     engines: {node: '>=18'}
 
+  '@tanstack/pacer@0.21.1':
+    resolution: {integrity: sha512-hB01dd4rlsYcTCNP7wK186jgAe6K5qimgM1Y5Jtvz+9PUaILvpmeLLjmQNUNSO1l23lIt+CeQR6mO1mjlPvRtQ==}
+    engines: {node: '>=18'}
+
   '@tanstack/query-core@5.101.2':
     resolution: {integrity: sha512-hH5MLoJhF7KaIGd7q3xTXGXvslI+GYlM1Z/35aSHHWaCJWB7XvTSHYuV3eM7tw+aE0mT/xMro4M4Q9rCGHT0lw==}
 
@@ -6454,6 +6467,12 @@ packages:
     peerDependencies:
       solid-js: '>=1.9.0'
 
+  '@tanstack/solid-pacer@0.21.1':
+    resolution: {integrity: sha512-0a0Fv35Ht3P6iQYDZKXInI1DkKzb4WYi3bxh+4lx9FDfvL4GDik7EKTkP8P5N/vJ8fF8by9oqls1BMIlaEywoQ==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      solid-js: '>=1.9.5'
+
   '@tanstack/solid-query@5.101.2':
     resolution: {integrity: sha512-IbCeM23gEbU0lW4wWFQhS4ELjgdmVXjhyCUh8pFemdMIuA5UswlkqEMryEE+lCMtxLS7m0oN1yWMocKi7vwXdw==}
     peerDependencies:
@@ -6464,6 +6483,11 @@ packages:
     engines: {node: '>=20.19'}
     peerDependencies:
       solid-js: ^1.9.10
+
+  '@tanstack/solid-store@0.11.0':
+    resolution: {integrity: sha512-2isL0ZnnyI1iN0V+QPrxE3OcPndohBgVlBcHZYoAOIAiU1WoWjVy0q5gb0suPu1Id0h5cKC23JnwzQTxWDZD0w==}
+    peerDependencies:
+      solid-js: ^1.6.0
 
   '@tanstack/solid-virtual@3.13.29':
     resolution: {integrity: sha512-aHJ/Wpr/cBMUebaKfMO1yPSINqBE2cSWwcXf0QDgOJX3NbeAzfABMDOzk8N4HuC5jBdCcEHI+PYvse5HGRHSGA==}
@@ -16672,6 +16696,11 @@ snapshots:
 
   '@tanstack/pacer-lite@0.2.2': {}
 
+  '@tanstack/pacer@0.21.1':
+    dependencies:
+      '@tanstack/devtools-event-client': 0.4.4
+      '@tanstack/store': 0.11.0
+
   '@tanstack/query-core@5.101.2': {}
 
   '@tanstack/react-devtools@0.10.8(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(csstype@3.2.3)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(solid-js@1.9.14)':
@@ -17051,6 +17080,12 @@ snapshots:
     transitivePeerDependencies:
       - typescript
 
+  '@tanstack/solid-pacer@0.21.1(solid-js@1.9.14)':
+    dependencies:
+      '@tanstack/pacer': 0.21.1
+      '@tanstack/solid-store': 0.11.0(solid-js@1.9.14)
+      solid-js: 1.9.14
+
   '@tanstack/solid-query@5.101.2(solid-js@1.9.14)':
     dependencies:
       '@tanstack/query-core': 5.101.2
@@ -17063,6 +17098,11 @@ snapshots:
       '@tanstack/history': 1.162.0
       '@tanstack/router-core': 1.171.14
       isbot: 5.1.44
+      solid-js: 1.9.14
+
+  '@tanstack/solid-store@0.11.0(solid-js@1.9.14)':
+    dependencies:
+      '@tanstack/store': 0.11.0
       solid-js: 1.9.14
 
   '@tanstack/solid-virtual@3.13.29(solid-js@1.9.14)':
