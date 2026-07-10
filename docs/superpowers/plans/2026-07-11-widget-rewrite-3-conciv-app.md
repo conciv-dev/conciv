@@ -4,7 +4,7 @@
 
 **Goal:** Rebuild the deleted widget as `apps/conciv` (TanStack Solid Router app) + `packages/page` (DOM half of the page plane) + `packages/embed` (the published bundle), and make the plugin serve the real app instead of the stub — as a **behavior-preserving port**: the old widget's UX is the spec; only the architecture changes.
 
-**Architecture:** Routes replace every hand-built layout state machine (`__root` chrome, `/` closed, `/panel/$sessionId/$view`, `/quick?panes=&focus=`, `/pip/$sessionId`); the embedded router runs on `@conciv/storage-history` (localStorage-persisted, already built), standalone runs on browser history — injected at the entry. Data = `@conciv/client` hooks (`chatConnection`/`useChatSession` on the one attach stream) + plain TanStack Query options for everything else (review-locked: NO TanStack DB collection ceremony unless a concrete cross-collection reactive join appears — a plain `useQuery` + `invalidateQueries` covers the sessions list). There are NO live list streams (contract v4): refetch after own mutations, on attach lifecycle chunks, and on window focus. **Layout state lives in OUR DB (user-locked 2026-07-11):** the embedded router's history persists to a `layout` row via rpc write-behind, not localStorage (Task 0).
+**Architecture:** Routes replace every hand-built layout state machine (`__root` chrome, `/` closed, `/panel/$sessionId/$view`, `/quick?panes=&focus=`, `/pip/$sessionId`); the embedded router runs on `@conciv/storage-history` (localStorage-persisted, already built), standalone runs on browser history — injected at the entry. Data = `@conciv/client` hooks (`chatConnection`/`useChatSession` on the one attach stream) + plain TanStack Query options for everything else (review-locked: NO TanStack DB collection ceremony unless a concrete cross-collection reactive join appears — a plain `useQuery` + `invalidateQueries` covers the sessions list). There are NO live list streams (contract v4): refetch after own mutations, on attach lifecycle chunks, and on window focus. **The app's URL lives in OUR DB (user-locked 2026-07-11, remodeled from 'layout' to navigation):** the embedded router IS the app's URL; its history (entries + index) persists to a `navigation` row via rpc write-behind, not localStorage (Task 0) — session-restore semantics, like a browser.
 
 **Tech Stack:** `@tanstack/solid-router` + `@tanstack/history` (pin together), `@tanstack/solid-query`, `@tanstack/solid-db` + `@tanstack/query-db-collection` (client collections), `@conciv/client` / `@conciv/contract` / `@conciv/storage-history`, ui-kit-system/chat/chat-tools/terminal + mascot, UnoCSS wind4 (shadow-DOM rules), Playwright/Chromium for all UI tests.
 
@@ -20,7 +20,7 @@
 - Tests: REAL browser (Playwright/Chromium) — never jsdom/happy-dom; `browser.newPage()` never `newContext()`; wait for `domcontentloaded` or UI signals, NEVER `networkidle` (attach SSE never idles); assertions via roles/text/visibility, never classes/computed styles/test-ids. NO doubles/shims: app tests boot a REAL served core app via `@conciv/harness-testkit` (`createFakeHarness` for scripted runs; the spec's stale "implement(contract) mocks" line is superseded by the plan-2 lock — testkit provides everything except the BootApp leaf).
 - Every Solid package's vitest config pins `test: {environment: 'node'}` (vite-plugin-solid injects jsdom otherwise and the run exits 1).
 - Embed bundle externalizes EVERY `@conciv/extension/*` subpath + shared Ark/Solid deps — port the mount-externals guard test; a second bundled copy splits context and popovers render at 0,0.
-- Contract v4.1: the ONLY contract/core/db change this plan makes is Task 0's `layout` row + `layout.get`/`layout.set` verbs. Anything else touching contract/core is a STOP-and-ask.
+- Contract v4.1: the ONLY contract/core/db change this plan makes is Task 0's `navigation` row + `navigation.get`/`navigation.set` verbs, TYPED as `NavigationStateSchema = z.object({entries: z.array(z.string()), index: z.number()})` (protocol) — the app's URL stack, no widget vocabulary, core never interprets beyond storage. Anything else touching contract/core is a STOP-and-ask.
 - Commit per task with pathspec. `pnpm exec fallow audit --changed-since main --format json` zero INTRODUCED at the end. Known non-gating red: claude-image + codex live ITs.
 - Publish decisions (locked): `@conciv/embed` is the ONLY new published package — add to `PUBLIC_PACKAGES` in `packages/publish/src/guards.ts` + `.fallowrc.json` `publicPackages` + homepage/repository fields, and REMOVE the stale `@conciv/widget`/`@conciv/api-client` entries still in `.fallowrc.json`. `@conciv/page` is PRIVATE (embed inlines it exactly like the app). `apps/conciv` stays private, never published, the repo rule forbids tests under `apps/examples/*` ONLY — `apps/conciv/test` node unit tests (pure parsers, settings) are fine; behavioral coverage lives in `packages/embed`'s real-browser ITs against the prebuilt global bundle.
 
@@ -56,9 +56,10 @@ export type AppData = {
   invalidateSessions: () => void                    // called after own mutations, on RUN_STARTED/FINISHED, on focus
 }
 
-// Task 0 — layout state in OUR db (user-locked): contract v4.1 additions
-// contract: layout: {get: oc.output(z.object({value: z.unknown().nullable()})), set: oc.input(z.object({value: z.unknown()})).output(Ok)}
-// @conciv/db schema.ts: layout table (id text pk default 'layout', value json, updatedAt integer) — plain CRUD row, rpc handlers inline drizzle
+// Task 0 — the app's URL in OUR db (user-locked; modeled as navigation, not "layout"): contract v4.1
+// protocol: NavigationStateSchema = z.object({entries: z.array(z.string()), index: z.number()})
+// contract: navigation: {get: oc.output(NavigationStateSchema.nullable()), set: oc.input(NavigationStateSchema).output(Ok)}
+// @conciv/db schema.ts: navigation table (id text pk default 'navigation', entries json string[], index integer, updatedAt) — plain CRUD row, rpc handlers inline drizzle
 // embed: dbStorage adapter satisfying storage-history's injectable Storage — hydrated ONCE at boot (async entry), debounced write-behind
 // of {entries, index}; multi-tab = last-write-wins (identical to the localStorage behavior it replaces). storage-history package UNCHANGED.
 
@@ -82,9 +83,9 @@ Behavior contracts carried verbatim from the old widget (each is a test target):
 
 ---
 
-### Task 0: layout row — contract v4.1 + db + rpc
+### Task 0: navigation row — contract v4.1 + db + rpc
 
-**Files:** `packages/contract/src/contract.ts` (+`layout` namespace), `packages/db/src/schema.ts` (+`layout` table) + drizzle migration, `packages/core/src/rpc/router.ts` (two inline CRUD handlers), wire IT addition in `packages/core/test/rpc/wire.it.test.ts` (set → get round-trip).
+**Files:** `packages/protocol/src/chat-types.ts` (+`NavigationStateSchema`), `packages/contract/src/contract.ts` (+`navigation` namespace), `packages/db/src/schema.ts` (+`navigation` table) + drizzle migration, `packages/core/src/rpc/router.ts` (two inline CRUD handlers), wire IT addition in `packages/core/test/rpc/wire.it.test.ts` (set → get round-trip).
 
 - [ ] Contract + table + handlers + IT; `pnpm turbo run test --filter=@conciv/db --filter=@conciv/core` green; commit.
 
@@ -187,4 +188,4 @@ Real browser against the PREBUILT global bundle (`pnpm turbo run build --filter=
 - **SND-6 LOW** app/embed uno.config.ts explicitly created.
 - **SND-7 note** 50ms snapshot cadence assessed fine at chat scale.
 - Reviewer-verified sound: scaffold CLI command; solid-router injected history + context + useBlocker; history pin exactness (1.162.0); db/query version matrix; approval-card keying matches server; connectionStatus gate; loopback CORS.
-- **User amendment folded (2026-07-11): layout state in OUR db** — Task 0 (contract v4.1 `layout.get/set` + `layout` table), embed injects a db-backed Storage adapter into the unchanged storage-history package; hydrate-once + debounced write-behind; multi-tab last-write-wins (same as the localStorage it replaces).
+- **User amendment folded (2026-07-11, remodeled twice on user push): the app's URL in OUR db** — Task 0 (contract v4.1 `navigation.get/set`, TYPED NavigationStateSchema — the router IS the app's URL; no 'layout'/'appState' vocabulary), embed injects a db-backed Storage adapter into the unchanged storage-history package; hydrate-once + debounced write-behind; multi-tab last-write-wins (same as the localStorage it replaces).
