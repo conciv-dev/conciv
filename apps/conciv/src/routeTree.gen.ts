@@ -9,38 +9,119 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as QuickRouteImport } from './routes/quick'
+import { Route as PanelRouteImport } from './routes/panel'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as PipSessionIdRouteImport } from './routes/pip.$sessionId'
+import { Route as PanelSessionIdRouteImport } from './routes/panel.$sessionId'
+import { Route as PanelSessionIdViewRouteImport } from './routes/panel.$sessionId.$view'
 
+const QuickRoute = QuickRouteImport.update({
+  id: '/quick',
+  path: '/quick',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PanelRoute = PanelRouteImport.update({
+  id: '/panel',
+  path: '/panel',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PipSessionIdRoute = PipSessionIdRouteImport.update({
+  id: '/pip/$sessionId',
+  path: '/pip/$sessionId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PanelSessionIdRoute = PanelSessionIdRouteImport.update({
+  id: '/$sessionId',
+  path: '/$sessionId',
+  getParentRoute: () => PanelRoute,
+} as any)
+const PanelSessionIdViewRoute = PanelSessionIdViewRouteImport.update({
+  id: '/$view',
+  path: '/$view',
+  getParentRoute: () => PanelSessionIdRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/panel': typeof PanelRouteWithChildren
+  '/quick': typeof QuickRoute
+  '/panel/$sessionId': typeof PanelSessionIdRouteWithChildren
+  '/pip/$sessionId': typeof PipSessionIdRoute
+  '/panel/$sessionId/$view': typeof PanelSessionIdViewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/panel': typeof PanelRouteWithChildren
+  '/quick': typeof QuickRoute
+  '/panel/$sessionId': typeof PanelSessionIdRouteWithChildren
+  '/pip/$sessionId': typeof PipSessionIdRoute
+  '/panel/$sessionId/$view': typeof PanelSessionIdViewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/panel': typeof PanelRouteWithChildren
+  '/quick': typeof QuickRoute
+  '/panel/$sessionId': typeof PanelSessionIdRouteWithChildren
+  '/pip/$sessionId': typeof PipSessionIdRoute
+  '/panel/$sessionId/$view': typeof PanelSessionIdViewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/panel'
+    | '/quick'
+    | '/panel/$sessionId'
+    | '/pip/$sessionId'
+    | '/panel/$sessionId/$view'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/panel'
+    | '/quick'
+    | '/panel/$sessionId'
+    | '/pip/$sessionId'
+    | '/panel/$sessionId/$view'
+  id:
+    | '__root__'
+    | '/'
+    | '/panel'
+    | '/quick'
+    | '/panel/$sessionId'
+    | '/pip/$sessionId'
+    | '/panel/$sessionId/$view'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  PanelRoute: typeof PanelRouteWithChildren
+  QuickRoute: typeof QuickRoute
+  PipSessionIdRoute: typeof PipSessionIdRoute
 }
 
 declare module '@tanstack/solid-router' {
   interface FileRoutesByPath {
+    '/quick': {
+      id: '/quick'
+      path: '/quick'
+      fullPath: '/quick'
+      preLoaderRoute: typeof QuickRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/panel': {
+      id: '/panel'
+      path: '/panel'
+      fullPath: '/panel'
+      preLoaderRoute: typeof PanelRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,11 +129,57 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/pip/$sessionId': {
+      id: '/pip/$sessionId'
+      path: '/pip/$sessionId'
+      fullPath: '/pip/$sessionId'
+      preLoaderRoute: typeof PipSessionIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/panel/$sessionId': {
+      id: '/panel/$sessionId'
+      path: '/$sessionId'
+      fullPath: '/panel/$sessionId'
+      preLoaderRoute: typeof PanelSessionIdRouteImport
+      parentRoute: typeof PanelRoute
+    }
+    '/panel/$sessionId/$view': {
+      id: '/panel/$sessionId/$view'
+      path: '/$view'
+      fullPath: '/panel/$sessionId/$view'
+      preLoaderRoute: typeof PanelSessionIdViewRouteImport
+      parentRoute: typeof PanelSessionIdRoute
+    }
   }
 }
 
+interface PanelSessionIdRouteChildren {
+  PanelSessionIdViewRoute: typeof PanelSessionIdViewRoute
+}
+
+const PanelSessionIdRouteChildren: PanelSessionIdRouteChildren = {
+  PanelSessionIdViewRoute: PanelSessionIdViewRoute,
+}
+
+const PanelSessionIdRouteWithChildren = PanelSessionIdRoute._addFileChildren(
+  PanelSessionIdRouteChildren,
+)
+
+interface PanelRouteChildren {
+  PanelSessionIdRoute: typeof PanelSessionIdRouteWithChildren
+}
+
+const PanelRouteChildren: PanelRouteChildren = {
+  PanelSessionIdRoute: PanelSessionIdRouteWithChildren,
+}
+
+const PanelRouteWithChildren = PanelRoute._addFileChildren(PanelRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  PanelRoute: PanelRouteWithChildren,
+  QuickRoute: QuickRoute,
+  PipSessionIdRoute: PipSessionIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

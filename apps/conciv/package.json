@@ -1,37 +1,35 @@
 {
   "name": "conciv",
+  "version": "0.0.7",
   "private": true,
+  "description": "The conciv app: a TanStack Solid Router UI over the @conciv/contract rpc surface. Inlined by @conciv/embed; runs standalone against a core dev server.",
   "type": "module",
   "scripts": {
     "dev": "vite dev --port 3000",
     "generate-routes": "tsr generate",
     "build": "vite build",
-    "preview": "vite preview",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
     "test": "vitest run"
   },
   "dependencies": {
-    "@tailwindcss/vite": "^4.1.18",
-    "@tanstack/router-plugin": "^1.133.21",
-    "@tanstack/solid-router": "latest",
-    "@tanstack/solid-router-devtools": "latest",
-    "solid-js": "^1.9.12",
-    "tailwindcss": "^4.1.18"
+    "@conciv/client": "workspace:^",
+    "@conciv/contract": "workspace:^",
+    "@conciv/protocol": "workspace:^",
+    "@tanstack/solid-query": "^5.101.2",
+    "@tanstack/solid-router": "^1.170.17",
+    "solid-js": "^1.9.13",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@solidjs/testing-library": "^0.8.10",
-    "@tanstack/devtools-vite": "latest",
-    "@tanstack/router-cli": "^1.133.21",
-    "@tanstack/router-plugin": "latest",
-    "jsdom": "^28.1.0",
-    "typescript": "^6.0.2",
-    "vite": "^8.0.0",
+    "@conciv/storage-history": "workspace:^",
+    "@tanstack/router-cli": "^1.167.18",
+    "@tanstack/router-plugin": "^1.168.19",
+    "@types/node": "^26.1.0",
+    "@vitest/browser-playwright": "4.1.9",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
     "vite-plugin-solid": "^2.11.12",
-    "vitest": "^4.1.5"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "lightningcss"
-    ]
+    "vitest": "^4.1.8"
   }
 }
