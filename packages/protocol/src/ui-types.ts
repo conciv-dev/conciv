@@ -88,6 +88,29 @@ export function aguiApprovalRequestedFor(req: ApprovalRequest): StreamChunk {
   }
 }
 
+export const UiInputSchema = z.object({
+  kind: z.enum(['choices', 'confirm', 'diff', 'form']),
+  question: z.string().optional(),
+  detail: z.string().optional(),
+  options: z.array(z.string()).optional(),
+  file: z.string().optional(),
+  before: z.string().optional(),
+  after: z.string().optional(),
+  title: z.string().optional(),
+  fields: z.array(UiFormFieldSchema).optional(),
+})
+
+export const UiAnswerValueSchema = z.union([z.string(), z.record(z.string(), z.string())])
+
+export const UiAnswerSchema = z.union([
+  z.object({answered: z.literal(true), value: UiAnswerValueSchema}),
+  z.object({answered: z.literal(false), note: z.string()}),
+])
+
+export type UiInput = z.infer<typeof UiInputSchema>
+export type UiAnswerValue = z.infer<typeof UiAnswerValueSchema>
+export type UiAnswer = z.infer<typeof UiAnswerSchema>
+
 export function parseUiSpec(input: unknown): UiSpec | null {
   const result = UiSpecSchema.safeParse(input)
   return result.success ? result.data : null
