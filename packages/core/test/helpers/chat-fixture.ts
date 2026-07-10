@@ -5,6 +5,7 @@ import {getHarness} from '@conciv/harness'
 import {createTestHarness, type TestHarness} from '@conciv/harness-testkit'
 import {makeSessionStore, makeUiState, openDb, type SessionStore, type UiState} from '@conciv/db'
 import {makeUiBus} from '../../src/runtime/ui-bus.js'
+import {makeUiAsks} from '../../src/runtime/ui-asks.js'
 import {makeTurnHub} from '../../src/runtime/turn-hub.js'
 import {makePermissionGate} from '../../src/api/chat/permission.js'
 import {ensureChatRecord} from '../../src/api/chat/turn.js'
@@ -28,6 +29,7 @@ export async function makeChatFixture(opts: {seedSession?: boolean} = {}): Promi
   const store = makeSessionStore({db})
   const uiState = makeUiState(db)
   const uiBus = makeUiBus()
+  const uiAsks = makeUiAsks()
   const chat: ChatRuntime = {
     cwd: stateRoot,
     stateRoot,
@@ -35,6 +37,7 @@ export async function makeChatFixture(opts: {seedSession?: boolean} = {}): Promi
     systemText: '',
     gate: makePermissionGate(uiBus),
     uiBus,
+    uiAsks,
     store,
     hub: makeTurnHub(),
     tools: () => [],

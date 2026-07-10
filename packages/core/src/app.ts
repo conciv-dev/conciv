@@ -16,18 +16,16 @@ import type {ChatRuntime} from './api/chat/chat-env.js'
 import {makePermissionGate} from './api/chat/permission.js'
 import {buildChatTools} from './api/chat/chat-tools.js'
 import {ensureChatRecord, recordMintedToken, resolveSystemText, resumeTokenFor} from './api/chat/turn.js'
-import {killLock, listCommands, sweepEmptyChatRecords} from './api/chat/session.js'
-import {launchHarness} from './api/chat/launch.js'
+import {sweepEmptyChatRecords} from './api/chat/session.js'
 import {makeCompactor} from './api/chat/compact.js'
 import {makeSendTurn} from './api/chat/send-turn.js'
-import {resolveHarnessModels} from '@conciv/harness'
 import {readLock, readLocks} from './store/lock.js'
 import {makeSessionStore, makeUiState, openDb} from '@conciv/db'
 import mcpApp, {type McpVars} from './api/mcp/mcp.js'
 import pageApp, {makePageBus, type PageVars} from './api/page/page.js'
 import {openSourceFromFrames} from './api/page/open-source.js'
 import bundlerApp, {type BundlerVars} from './api/server/server.js'
-import {makeRpcRouter, rpcSessionList} from './rpc/router.js'
+import {makeRpcRouter} from './rpc/router.js'
 import {rpcMiddleware} from './rpc/mount.js'
 import {makeLiveFeed} from './rpc/live.js'
 import {makeUiBus} from './runtime/ui-bus.js'
@@ -234,6 +232,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     ),
     gate,
     uiBus,
+    uiAsks,
     store,
     hub,
     tools: buildChatTools(makeToolCtx, extensionTools, sessionModel),
@@ -251,29 +250,14 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const sendTurn = makeSendTurn(chatRuntime, uiState)
 
   const rpc = makeRpcRouter({
-    store,
-    buildSessionList: () => rpcSessionList(chatRuntime, compactor.compacting),
+    chat: chatRuntime,
     live,
     uiState,
-    harnessModels: async () => {
-      const models = await resolveHarnessModels(harness)
-      return {models, defaultModel: harness.defaultModel ?? models[0]?.id ?? null}
-    },
-    harnessMeta: {id: harness.id, name: harness.displayName ?? harness.id, canLaunch: Boolean(harness.launch)},
-    harnessKind: harness.id,
-    cwd: opts.cwd,
-    markStopped: (sessionId) => hub.markStopped(sessionId),
-    killLock: (sessionId) => killLock(opts.cfg.stateRoot, sessionId),
-    launch: (launchOpts) => launchHarness(chatRuntime, launchOpts),
-    commands: (commandOpts) => listCommands(chatRuntime, commandOpts),
     tools: toolList,
-    openInEditor: opts.openInEditor,
-    openFromFrames: (frames) => openSourceFromFrames(frames, opts.cwd, opts.openInEditor),
-    chat: chatRuntime,
     compactor,
     sendTurn,
-    decidePermission: (approvalId, approved) => void gate.resolve(approvalId, approved),
-    uiReply: (sessionId, toolCallId, value) => uiAsks.reply(sessionId, toolCallId, value),
+    openInEditor: opts.openInEditor,
+    openFromFrames: (frames) => openSourceFromFrames(frames, opts.cwd, opts.openInEditor),
     pageBus,
   })
 

@@ -1,42 +1,31 @@
 import {implement} from '@orpc/server'
 import {contract, type SessionMeta} from '@conciv/contract'
-import type {SessionStore, UiState} from '@conciv/db'
-import type {ChatCommands, ChatLaunch, ChatTool, HarnessModelInfo} from '@conciv/protocol/chat-types'
-import type {UiAnswerValue} from '@conciv/protocol/ui-types'
+import {resolveHarnessModels} from '@conciv/harness'
+import type {ChatTool} from '@conciv/protocol/chat-types'
 import {readLocks} from '../store/lock.js'
-import {buildSessionList, resolveSession} from '../api/chat/session.js'
+import {buildSessionList, killLock, listCommands, resolveSession} from '../api/chat/session.js'
 import {ensureChatRecord} from '../api/chat/turn.js'
+import {launchHarness} from '../api/chat/launch.js'
 import {SESSION_BUSY, type Compactor} from '../api/chat/compact.js'
 import {attachStream} from '../api/chat/attach.js'
 import {pageQueryStream, type PageBus} from '../api/page/page.js'
 import type {ChatRuntime} from '../api/chat/chat-env.js'
 import type {OpenInEditor} from '../editor/open.js'
 import type {OpenSourceFrames, OpenSourceStatus} from '../api/page/open-source.js'
+import type {UiState} from '@conciv/db'
 import type {LiveFeed} from './live.js'
 
 export type RpcContext = {request: Request}
 
 export type RpcDeps = {
-  store: SessionStore
-  buildSessionList: () => Promise<SessionMeta[]>
+  chat: ChatRuntime
   live: LiveFeed
   uiState: UiState
-  harnessModels: () => Promise<{models: HarnessModelInfo[]; defaultModel: string | null}>
-  harnessMeta: {id: string; name: string; canLaunch: boolean}
-  harnessKind: string
-  cwd: string
-  markStopped: (sessionId: string) => void
-  killLock: (sessionId: string) => void
-  launch: (opts: {sessionId: string; model?: string; origin: string}) => Promise<ChatLaunch>
-  commands: (opts: {sessionId?: string; origin: string}) => Promise<ChatCommands>
   tools: ChatTool[]
-  openInEditor: OpenInEditor
-  openFromFrames: (frames: OpenSourceFrames) => Promise<OpenSourceStatus>
-  chat: ChatRuntime
   compactor: Compactor
   sendTurn: (sessionId: string, text: string) => Promise<void>
-  decidePermission: (approvalId: string, approved: boolean) => void
-  uiReply: (sessionId: string, toolCallId: string, value: UiAnswerValue) => boolean
+  openInEditor: OpenInEditor
+  openFromFrames: (frames: OpenSourceFrames) => Promise<OpenSourceStatus>
   pageBus: PageBus
 }
 
@@ -68,57 +57,68 @@ export async function rpcSessionList(
 const os = implement(contract).$context<RpcContext>()
 
 export function makeRpcRouter(deps: RpcDeps) {
+  const {chat, live, uiState, compactor, pageBus} = deps
+  const store = chat.store
+  const scope = {store, harnessKind: chat.harness.id, cwd: chat.cwd}
+  const buildList = () => rpcSessionList(chat, compactor.compacting)
+  const releaseSessionLock = (sessionId: string) => killLock(chat.stateRoot, sessionId)
+  const harnessMeta = {
+    id: chat.harness.id,
+    name: chat.harness.displayName ?? chat.harness.id,
+    canLaunch: Boolean(chat.harness.launch),
+  }
+  const harnessModels = async () => {
+    const models = await resolveHarnessModels(chat.harness)
+    return {models, defaultModel: chat.harness.defaultModel ?? models[0]?.id ?? null}
+  }
   return os.router({
     sessions: {
-      list: os.sessions.list.handler(() => deps.buildSessionList()),
+      list: os.sessions.list.handler(() => buildList()),
       live: os.sessions.live.handler(async function* ({signal}) {
-        yield await deps.buildSessionList()
-        for await (const _ of deps.live.subscribe(signal ?? new AbortController().signal)) {
-          yield await deps.buildSessionList()
+        yield await buildList()
+        for await (const _ of live.subscribe(signal ?? new AbortController().signal)) {
+          yield await buildList()
         }
       }),
       create: os.sessions.create.handler(async () => {
-        const {sessionId} = await resolveSession({store: deps.store, harnessKind: deps.harnessKind, cwd: deps.cwd}, {})
-        await ensureChatRecord(deps.store, sessionId, deps.harnessKind, deps.cwd)
-        await deps.uiState.addMarker({sessionId, afterTurn: 0, kind: 'new'})
+        const {sessionId} = await resolveSession(scope, {})
+        await ensureChatRecord(store, sessionId, scope.harnessKind, scope.cwd)
+        await uiState.addMarker({sessionId, afterTurn: 0, kind: 'new'})
         return {sessionId}
       }),
       resolve: os.sessions.resolve.handler(async ({input}) => {
-        const {sessionId} = await resolveSession(
-          {store: deps.store, harnessKind: deps.harnessKind, cwd: deps.cwd},
-          input,
-        )
+        const {sessionId} = await resolveSession(scope, input)
         return {sessionId}
       }),
       launch: os.sessions.launch.handler(({input, context}) =>
-        deps.launch({sessionId: input.sessionId, model: input.model, origin: new URL(context.request.url).origin}),
+        launchHarness(chat, {sessionId: input.sessionId, model: input.model, origin: new URL(context.request.url).origin}),
       ),
       rename: os.sessions.rename.handler(async ({input, errors}) => {
-        if (!(await deps.store.get(input.sessionId))) throw errors.NOT_FOUND()
+        if (!(await store.get(input.sessionId))) throw errors.NOT_FOUND()
         const title = cleanTitle(input.title)
-        await deps.store.update(input.sessionId, {title})
+        await store.update(input.sessionId, {title})
         return {title}
       }),
       remove: os.sessions.remove.handler(async ({input}) => {
-        deps.killLock(input.sessionId)
-        await deps.store.delete(input.sessionId)
-        await deps.uiState.deleteFor(input.sessionId)
+        releaseSessionLock(input.sessionId)
+        await store.delete(input.sessionId)
+        await uiState.deleteFor(input.sessionId)
         return {ok: true as const}
       }),
       setModel: os.sessions.setModel.handler(async ({input, errors}) => {
-        if (!(await deps.store.get(input.sessionId))) throw errors.NOT_FOUND()
-        const {models} = await deps.harnessModels()
+        if (!(await store.get(input.sessionId))) throw errors.NOT_FOUND()
+        const {models} = await harnessModels()
         const found = models.find((model) => model.id === input.model && !model.disabled)
         if (!found) throw errors.UNKNOWN_MODEL()
-        await deps.store.update(input.sessionId, {model: input.model})
+        await store.update(input.sessionId, {model: input.model})
         return {model: input.model}
       }),
       compact: os.sessions.compact.handler(async ({input, errors}) => {
-        if (deps.compactor.compacting(input.sessionId) || deps.chat.hub.generating(input.sessionId)) {
+        if (compactor.compacting(input.sessionId) || chat.hub.generating(input.sessionId)) {
           throw errors.BUSY()
         }
         try {
-          await deps.compactor.run(input.sessionId)
+          await compactor.run(input.sessionId)
         } catch (error) {
           if (error instanceof Error && error.message === SESSION_BUSY) throw errors.BUSY()
           throw error
@@ -126,30 +126,30 @@ export function makeRpcRouter(deps: RpcDeps) {
         return {ok: true as const}
       }),
       stop: os.sessions.stop.handler(({input}) => {
-        deps.markStopped(input.sessionId)
-        deps.killLock(input.sessionId)
+        chat.hub.markStopped(input.sessionId)
+        releaseSessionLock(input.sessionId)
         return {ok: true as const}
       }),
     },
     drafts: {
-      get: os.drafts.get.handler(({input}) => deps.uiState.getDraft(input.sessionId)),
+      get: os.drafts.get.handler(({input}) => uiState.getDraft(input.sessionId)),
       set: os.drafts.set.handler(async ({input}) => {
-        await deps.uiState.setDraft(input)
+        await uiState.setDraft(input)
         return {ok: true as const}
       }),
       live: os.drafts.live.handler(async function* ({input, signal}) {
-        yield await deps.uiState.getDraft(input.sessionId)
-        for await (const _ of deps.live.subscribe(signal ?? new AbortController().signal)) {
-          yield await deps.uiState.getDraft(input.sessionId)
+        yield await uiState.getDraft(input.sessionId)
+        for await (const _ of live.subscribe(signal ?? new AbortController().signal)) {
+          yield await uiState.getDraft(input.sessionId)
         }
       }),
     },
     markers: {
-      list: os.markers.list.handler(({input}) => deps.uiState.listMarkers(input.sessionId)),
+      list: os.markers.list.handler(({input}) => uiState.listMarkers(input.sessionId)),
       live: os.markers.live.handler(async function* ({input, signal}) {
-        yield await deps.uiState.listMarkers(input.sessionId)
-        for await (const _ of deps.live.subscribe(signal ?? new AbortController().signal)) {
-          yield await deps.uiState.listMarkers(input.sessionId)
+        yield await uiState.listMarkers(input.sessionId)
+        for await (const _ of live.subscribe(signal ?? new AbortController().signal)) {
+          yield await uiState.listMarkers(input.sessionId)
         }
       }),
     },
@@ -158,13 +158,13 @@ export function makeRpcRouter(deps: RpcDeps) {
         const abort = new AbortController()
         signal?.addEventListener('abort', () => abort.abort(), {once: true})
         try {
-          yield* await attachStream(deps.chat, input.sessionId, abort.signal)
+          yield* await attachStream(chat, input.sessionId, abort.signal)
         } finally {
           abort.abort()
         }
       }),
       send: os.chat.send.handler(async ({input, errors}) => {
-        if (deps.chat.hub.generating(input.sessionId)) throw errors.BUSY()
+        if (chat.hub.generating(input.sessionId)) throw errors.BUSY()
         try {
           await deps.sendTurn(input.sessionId, input.text)
         } catch (error) {
@@ -174,20 +174,20 @@ export function makeRpcRouter(deps: RpcDeps) {
         return {ok: true as const}
       }),
       permissionDecision: os.chat.permissionDecision.handler(({input}) => {
-        deps.decidePermission(input.approvalId, input.approved)
+        chat.gate.resolve(input.approvalId, input.approved)
         return {ok: true as const}
       }),
       uiReply: os.chat.uiReply.handler(({input, errors}) => {
-        if (!deps.uiReply(input.sessionId, input.toolCallId, input.value)) throw errors.UNKNOWN_REQUEST()
+        if (!chat.uiAsks.reply(input.sessionId, input.toolCallId, input.value)) throw errors.UNKNOWN_REQUEST()
         return {ok: true as const}
       }),
     },
     page: {
       queries: os.page.queries.handler(async function* ({signal}) {
-        yield* pageQueryStream(deps.pageBus, signal ?? new AbortController().signal)
+        yield* pageQueryStream(pageBus, signal ?? new AbortController().signal)
       }),
       reply: os.page.reply.handler(({input, errors}) => {
-        if (!deps.pageBus.resolve(input.requestId, input.data)) throw errors.UNKNOWN_REQUEST()
+        if (!pageBus.resolve(input.requestId, input.data)) throw errors.UNKNOWN_REQUEST()
         return {ok: true as const}
       }),
     },
@@ -200,11 +200,11 @@ export function makeRpcRouter(deps: RpcDeps) {
     },
     meta: {
       models: os.meta.models.handler(async () => {
-        const {models, defaultModel} = await deps.harnessModels()
-        return {models, defaultModel, harness: deps.harnessMeta}
+        const {models, defaultModel} = await harnessModels()
+        return {models, defaultModel, harness: harnessMeta}
       }),
       commands: os.meta.commands.handler(({input, context}) =>
-        deps.commands({sessionId: input.sessionId, origin: new URL(context.request.url).origin}),
+        listCommands(chat, {sessionId: input.sessionId, origin: new URL(context.request.url).origin}),
       ),
       tools: os.meta.tools.handler(() => ({tools: deps.tools})),
     },
