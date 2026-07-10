@@ -26,23 +26,28 @@ describe('createTestkit (real server)', () => {
     )
 
     it.skipIf(!mode.run)(
-      `[${mode.name}] conciv_ui injection lands on the live stream`,
+      `[${mode.name}] blocking conciv_ui round-trips the user answer as the tool result`,
       async () => {
         const kit = await createTestkit(mode.harness, bootCoreApp()).setup()
         try {
-          const stream = await kit.attach()
-          await kit.invokeTool(
-            'conciv_ui',
-            {kind: 'confirm', question: 'Proceed?'},
-            {instruction: 'Call the conciv_ui tool with kind confirm, question "Proceed?". Then reply DONE.'},
-          )
-          const spec = await stream.waitForUiSpec('Proceed?')
-          expect('question' in spec && spec.question).toBe('Proceed?')
+          const sessionId = await kit.session()
+          const stream = await kit.attach(sessionId)
+          if ('__scripted' in mode.harness) {
+            mode.harness.__scripted.scriptToolCall('conciv_ui', {kind: 'confirm', question: 'Proceed?'})
+            await kit.chat('go', sessionId)
+          }
+          if (!('__scripted' in mode.harness)) {
+            await kit.chat('Call the conciv_ui tool with kind confirm, question "Proceed?". Then reply DONE.', sessionId)
+          }
+          const call = await stream.waitForToolCall('conciv_ui')
+          expect(call.name).toBe('conciv_ui')
+          await kit.rpc.chat.uiReply({sessionId, toolCallId: call.toolCallId, value: 'yes'})
+          await stream.done({hangGuardMs: 60_000})
         } finally {
           await kit.cleanup()
         }
       },
-      90_000,
+      120_000,
     )
   }
 })

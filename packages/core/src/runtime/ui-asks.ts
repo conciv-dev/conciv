@@ -10,7 +10,12 @@ const UNANSWERED: UiAnswer = {
 
 type Waiter = {settle: (answer: UiAnswer) => void}
 
-type SessionAsks = {waitingAsks: Waiter[]; waitingCalls: string[]; paired: Map<string, Waiter>}
+type SessionAsks = {
+  waitingAsks: Waiter[]
+  waitingCalls: string[]
+  paired: Map<string, Waiter>
+  answers: Map<string, UiAnswer>
+}
 
 export type UiAsks = {
   ask: (sessionId: string, timeoutMs: number) => Promise<UiAnswer>
@@ -30,7 +35,7 @@ export function makeUiAsks(): UiAsks {
   function forSession(sessionId: string): SessionAsks {
     const existing = sessions.get(sessionId)
     if (existing) return existing
-    const fresh: SessionAsks = {waitingAsks: [], waitingCalls: [], paired: new Map()}
+    const fresh: SessionAsks = {waitingAsks: [], waitingCalls: [], paired: new Map(), answers: new Map()}
     sessions.set(sessionId, fresh)
     return fresh
   }
@@ -41,6 +46,21 @@ export function makeUiAsks(): UiAsks {
     for (const [toolCallId, candidate] of state.paired) {
       if (candidate === waiter) state.paired.delete(toolCallId)
     }
+  }
+
+  function pairOrQueue(state: SessionAsks, waiter: Waiter): void {
+    const toolCallId = state.waitingCalls.shift()
+    if (toolCallId === undefined) {
+      state.waitingAsks.push(waiter)
+      return
+    }
+    const stashed = state.answers.get(toolCallId)
+    if (stashed) {
+      state.answers.delete(toolCallId)
+      waiter.settle(stashed)
+      return
+    }
+    state.paired.set(toolCallId, waiter)
   }
 
   function ask(sessionId: string, timeoutMs: number): Promise<UiAnswer> {
@@ -54,12 +74,7 @@ export function makeUiAsks(): UiAsks {
         },
       }
       const timer = setTimeout(() => waiter.settle(UNANSWERED), timeoutMs)
-      const toolCallId = state.waitingCalls.shift()
-      if (toolCallId !== undefined) {
-        state.paired.set(toolCallId, waiter)
-        return
-      }
-      state.waitingAsks.push(waiter)
+      pairOrQueue(state, waiter)
     })
   }
 
@@ -75,9 +90,17 @@ export function makeUiAsks(): UiAsks {
     state.waitingCalls.push(toolCallId)
   }
 
+  function stash(state: SessionAsks, toolCallId: string, value: UiAnswerValue): boolean {
+    if (!state.waitingCalls.includes(toolCallId) || state.answers.has(toolCallId)) return false
+    state.answers.set(toolCallId, {answered: true, value})
+    return true
+  }
+
   function reply(sessionId: string, toolCallId: string, value: UiAnswerValue): boolean {
-    const waiter = sessions.get(sessionId)?.paired.get(toolCallId)
-    if (!waiter) return false
+    const state = sessions.get(sessionId)
+    if (!state) return false
+    const waiter = state.paired.get(toolCallId)
+    if (!waiter) return stash(state, toolCallId, value)
     waiter.settle({answered: true, value})
     return true
   }

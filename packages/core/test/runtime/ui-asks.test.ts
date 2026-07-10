@@ -35,11 +35,11 @@ describe('makeUiAsks', () => {
     await expect(second).resolves.toEqual({answered: true, value: 'second'})
   })
 
-  it('sessions are isolated', async () => {
+  it('sessions are isolated: another session answering the same toolCallId never settles this ask', async () => {
     const asks = makeUiAsks()
     const pending = asks.ask('s1', 1000)
     asks.observe('s2', startChunk('tc-1'))
-    expect(asks.reply('s2', 'tc-1', 'other')).toBe(false)
+    asks.reply('s2', 'tc-1', 'other')
     asks.observe('s1', startChunk('tc-1'))
     expect(asks.reply('s1', 'tc-1', 'mine')).toBe(true)
     await expect(pending).resolves.toEqual({answered: true, value: 'mine'})
@@ -60,6 +60,14 @@ describe('makeUiAsks', () => {
     expect(asks.reply('s1', 'tc-1', 'yes')).toBe(true)
     expect(asks.reply('s1', 'tc-1', 'again')).toBe(false)
     await pending
+  })
+
+  it('an answer landing between the stream part and execute registration still resolves (live-CLI ordering)', async () => {
+    const asks = makeUiAsks()
+    asks.observe('s1', startChunk('tc-1'))
+    expect(asks.reply('s1', 'tc-1', 'yes')).toBe(true)
+    expect(asks.reply('s1', 'tc-1', 'again')).toBe(false)
+    await expect(asks.ask('s1', 1000)).resolves.toEqual({answered: true, value: 'yes'})
   })
 
   it('times out into the graceful unanswered result, never a rejection', async () => {
