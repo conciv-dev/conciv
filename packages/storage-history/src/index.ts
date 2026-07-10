@@ -11,7 +11,18 @@ export type WebStorage = Pick<Storage, 'getItem' | 'setItem'>
 const DEFAULT_KEY = 'conciv-history'
 const MAX_ENTRIES = 100
 
-type Persisted = {entries: string[]; index: number}
+type PersistedEntry = {href: string; state?: ParsedHistoryState}
+type Persisted = {entries: PersistedEntry[]; index: number}
+
+function isEntryState(value: unknown): value is ParsedHistoryState {
+  return typeof value === 'object' && value !== null && '__TSR_index' in value && typeof value.__TSR_index === 'number'
+}
+
+function isPersistedEntry(value: unknown): value is PersistedEntry {
+  if (typeof value !== 'object' || value === null) return false
+  if (!('href' in value) || typeof value.href !== 'string') return false
+  return !('state' in value) || value.state === undefined || isEntryState(value.state)
+}
 
 function isPersisted(value: unknown): value is Persisted {
   return (
@@ -20,7 +31,7 @@ function isPersisted(value: unknown): value is Persisted {
     'entries' in value &&
     Array.isArray(value.entries) &&
     value.entries.length > 0 &&
-    value.entries.every((entry) => typeof entry === 'string') &&
+    value.entries.every(isPersistedEntry) &&
     'index' in value &&
     typeof value.index === 'number' &&
     Number.isInteger(value.index)
@@ -30,12 +41,12 @@ function isPersisted(value: unknown): value is Persisted {
 function readPersisted(storage: WebStorage, key: string): Persisted {
   try {
     const raw = storage.getItem(key)
-    if (!raw) return {entries: ['/'], index: 0}
+    if (!raw) return {entries: [{href: '/'}], index: 0}
     const parsed: unknown = JSON.parse(raw)
-    if (!isPersisted(parsed)) return {entries: ['/'], index: 0}
+    if (!isPersisted(parsed)) return {entries: [{href: '/'}], index: 0}
     return {entries: parsed.entries, index: Math.min(Math.max(parsed.index, 0), parsed.entries.length - 1)}
   } catch {
-    return {entries: ['/'], index: 0}
+    return {entries: [{href: '/'}], index: 0}
   }
 }
 
@@ -43,16 +54,21 @@ function freshState(position: number): ParsedHistoryState {
   return {key: crypto.randomUUID().slice(0, 8), __TSR_index: position}
 }
 
+function rehydratedState(entry: PersistedEntry, position: number): ParsedHistoryState {
+  return entry.state ? {...entry.state, __TSR_index: position} : freshState(position)
+}
+
 export function createWebStorageHistory(opts: {storage: WebStorage; key?: string}): RouterHistory {
   const key = opts.key ?? DEFAULT_KEY
   const persisted = readPersisted(opts.storage, key)
-  const entries = persisted.entries
-  const states = entries.map((_entry, position) => freshState(position))
+  const entries = persisted.entries.map((entry) => entry.href)
+  const states = persisted.entries.map(rehydratedState)
   let index = persisted.index
 
   const persist = (): void => {
     try {
-      opts.storage.setItem(key, JSON.stringify({entries, index}))
+      const combined = entries.map((href, position) => ({href, state: states[position]}))
+      opts.storage.setItem(key, JSON.stringify({entries: combined, index}))
     } catch {
       return
     }

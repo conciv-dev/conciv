@@ -68,6 +68,31 @@ describe('createWebStorageHistory', () => {
     expect(reloaded.location.search).toBe('?panes=conciv_1,conciv_2&focus=1')
   })
 
+  it('navigate state payload survives a reload', () => {
+    const storage = makeMemoryStorage()
+    const first = createWebStorageHistory({storage})
+    first.push('/panel/conciv_1', {from: 'fab'})
+    const reloaded = createWebStorageHistory({storage})
+    expect(reloaded.location.state).toMatchObject({from: 'fab'})
+  })
+
+  it('location keys survive a reload', () => {
+    const storage = makeMemoryStorage()
+    const first = createWebStorageHistory({storage})
+    first.push('/panel')
+    const originalKey = first.location.state.key
+    expect(originalKey).toBeTruthy()
+    const reloaded = createWebStorageHistory({storage})
+    expect(reloaded.location.state.key).toBe(originalKey)
+  })
+
+  it('falls back to / on the old string-entries format', () => {
+    const storage = makeMemoryStorage()
+    storage.map.set('conciv-history', '{"entries":["/a","/b"],"index":1}')
+    const history = createWebStorageHistory({storage})
+    expect(history.location.pathname).toBe('/')
+  })
+
   it('falls back to / on corrupted JSON', () => {
     const storage = makeMemoryStorage()
     storage.map.set('conciv-history', '{nope')
