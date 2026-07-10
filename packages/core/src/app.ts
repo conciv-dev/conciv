@@ -7,16 +7,14 @@ import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {AnyExtension, ServerHarness, ServerSessions, ToolRequest} from '@conciv/extension'
 import type {ResolvedConcivConfig} from './config.js'
 import {getHarness} from '@conciv/harness'
-import {slug} from './extension-app.js'
 import {corsMiddleware, type CorsVars} from './api/cors.js'
 import {concivTools, type ConcivToolContext} from '@conciv/tools'
 import type {ChatTool} from '@conciv/protocol/chat-types'
-import {ensureAgentRecord} from './chat/chat.js'
+import {ensureAgentRecord, sweepEmptyChatRecords} from './chat/session.js'
 import type {ChatRuntime} from './chat/chat-env.js'
 import {makePermissionGate} from './chat/permission.js'
 import {buildChatTools} from './chat/chat-tools.js'
 import {ensureChatRecord, recordMintedToken, resolveSystemText, resumeTokenFor} from './chat/turn.js'
-import {sweepEmptyChatRecords} from './chat/session.js'
 import {makeCompactor} from './chat/compact.js'
 import {makeSendTurn} from './chat/send-turn.js'
 import {makeSessionStore, makeUiState, openDb} from '@conciv/db'
@@ -52,6 +50,13 @@ export type MakeAppOpts = {
   allowedOrigins?: string[]
 
   harness?: HarnessAdapter
+}
+
+export function slug(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
 }
 
 function requireHarness(id: string): HarnessAdapter {

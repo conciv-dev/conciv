@@ -1,6 +1,6 @@
 import {randomUUID} from 'node:crypto'
 import {withoutTrailingSlash} from 'ufo'
-import type {ChatCommand, ChatCommands, ChatSessionMeta} from '@conciv/protocol/chat-types'
+import type {ChatCommand, ChatCommands, ChatSessionMeta, SessionRecord} from '@conciv/protocol/chat-types'
 import {isSessionId} from '@conciv/protocol/chat-types'
 import type {SessionStore} from '@conciv/db'
 import type {ChatRuntime} from './chat-env.js'
@@ -33,6 +33,22 @@ export async function resolveSession(deps: ResolveDeps, body: {id?: string}): Pr
     return {sessionId: adopted.id}
   }
   return {sessionId: mint()}
+}
+
+export async function ensureAgentRecord(deps: ResolveDeps, harnessId: string): Promise<SessionRecord> {
+  const existing = await deps.store.findByHarnessId(harnessId)
+  if (existing) return existing
+  const mint = deps.mintId ?? (() => `conciv_${randomUUID()}`)
+  return deps.store.create({
+    id: mint(),
+    harnessSessionId: harnessId,
+    harnessKind: deps.harnessKind,
+    origin: 'agent',
+    title: null,
+    model: null,
+    usage: null,
+    cwd: deps.cwd,
+  })
 }
 
 const sameCwd = (a: string, b: string): boolean => withoutTrailingSlash(a) === withoutTrailingSlash(b)

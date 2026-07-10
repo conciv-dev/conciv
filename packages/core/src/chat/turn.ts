@@ -6,7 +6,6 @@ import {tokenUsageToSnapshot, type UsageSnapshot} from '@conciv/protocol/usage-t
 import type {SessionStore} from '@conciv/db'
 import type {ChatRuntime} from './chat-env.js'
 import {concivSandbox, withConcivGate, withConcivSandbox} from './sandbox.js'
-import {tapSessionId} from './stream-effects.js'
 import {toChatMessages, toPendingUserMessage} from './messages.js'
 import {harnessDebug} from '../runtime/harness-logger.js'
 
@@ -148,9 +147,12 @@ function usageSnapshotFor(deps: TurnDeps, modelId: string | null, usage: TokenUs
   }
 }
 
-function isTerminal(chunk: StreamChunk): boolean {
-  if (chunk.type === EventType.RUN_ERROR) return true
-  return chunk.type === EventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls'
+export function tapSessionId(chunk: StreamChunk, onSessionId: (id: string) => void): void {
+  if (chunk.type !== EventType.CUSTOM || !chunk.name.endsWith('.session-id')) return
+  const value = chunk.value
+  if (typeof value === 'object' && value !== null && 'sessionId' in value && typeof value.sessionId === 'string') {
+    onSessionId(value.sessionId)
+  }
 }
 
 function stopFinishedFor(sessionId: string): StreamChunk {

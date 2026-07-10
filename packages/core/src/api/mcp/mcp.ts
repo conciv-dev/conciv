@@ -5,8 +5,16 @@ import {WebStandardStreamableHTTPServerTransport} from '@modelcontextprotocol/sd
 import {concivTools, type ConcivToolContext} from '@conciv/tools'
 import {isContentPartArray, type ContentPart} from '@tanstack/ai'
 import type {ExtensionServerTool, ToolRequest} from '@conciv/extension'
-import {sessionIdFromHeaders} from '../../chat/session-id.js'
+import {HTTPException} from 'hono/http-exception'
+import {CONCIV_SESSION_HEADER, isSessionId} from '@conciv/protocol/chat-types'
 import {logError} from '../../runtime/harness-logger.js'
+
+export function sessionIdFromHeaders(headers: Headers): string | null {
+  const raw = headers.get(CONCIV_SESSION_HEADER)?.trim()
+  if (!raw) return null
+  if (!isSessionId(raw)) throw new HTTPException(400, {message: 'invalid session id (must be ours)'})
+  return raw
+}
 
 type RegistrableTool = {name: string; description: string; inputSchema: z.ZodObject<z.ZodRawShape>}
 

@@ -4,7 +4,7 @@ import {streamSSE} from 'hono/streaming'
 import {upgradeWebSocket} from '@hono/node-server'
 import WebSocket from 'ws'
 import {serveApp} from '@conciv/harness-testkit'
-import {slug} from '../../src/extension-app.js'
+import {slug} from '../../src/app.js'
 import {corsMiddleware, type CorsVars} from '../../src/api/cors.js'
 
 type ProbeEnv = {Variables: {probe: {label: string}} & CorsVars}
