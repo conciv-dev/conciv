@@ -27,7 +27,21 @@
     "unused-dev-dependencies": "warn",
     "circular-dependencies": "warn"
   },
-  "ignoreDependencies": ["@conciv/cli", "jazz-napi", "@oxlint/plugins"],
+  "ignoreDependencies": [
+    "@conciv/cli",
+    "jazz-napi",
+    "@oxlint/plugins",
+    "@ark-ui/solid",
+    "@conciv/client",
+    "@conciv/grab",
+    "@conciv/mascot",
+    "@conciv/solid-streamdown",
+    "@conciv/ui-kit-chat",
+    "@conciv/ui-kit-chat-tools",
+    "@conciv/ui-kit-system",
+    "bippy",
+    "react-grab"
+  ],
   "ignoreUnresolvedImports": ["collections/*"],
   "publicPackages": [
     "@conciv/core",

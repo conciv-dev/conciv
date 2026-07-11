@@ -45,7 +45,7 @@ export function resolveTarget(query: PageQuery, refs: Refs): Element | null {
   return null
 }
 
-export function serialize(value: unknown): unknown {
+function serialize(value: unknown): unknown {
   if (value instanceof Element) return describeElement(value)
   return dehydrate(value)
 }

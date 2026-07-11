@@ -63,7 +63,6 @@
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/page": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
-    "@tanstack/ai": "^0.40.0",
     "@types/node": "^26.1.0",
     "@unocss/postcss": "^66.7.2",
     "@unocss/reset": "^66.7.2",

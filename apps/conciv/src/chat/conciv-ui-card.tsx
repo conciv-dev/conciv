@@ -15,7 +15,7 @@ const INPUT =
   'py-2 px-2.5 border border-pw-line rounded-pw-sm bg-pw-fill text-pw-text [font:inherit] trans-border focus:outline-none focus:border-pw-accent'
 const SETTLED = 'text-[0.75rem] text-pw-text-2'
 
-export function parseUiInput(argumentsJson: string): UiInput | null {
+function parseUiInput(argumentsJson: string): UiInput | null {
   try {
     const parsed = UiInputSchema.safeParse(JSON.parse(argumentsJson || '{}'))
     return parsed.success ? parsed.data : null

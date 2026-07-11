@@ -10,7 +10,7 @@ export type DehydrateOptions = {
   redact?: RegExp | null
 }
 
-export type Collapsed = {__conciv: string; size?: number; preview: string; name?: string}
+type Collapsed = {__conciv: string; size?: number; preview: string; name?: string}
 
 const DEFAULT_REDACT =
   /pass(word|wd)?|secret|token|api[-_]?key|authorization|bearer|jwt|cookie|credential|private[-_]?key|session/i

@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest'
-import {EventType, type StreamChunk} from '@tanstack/ai'
+import {EventType, type MessagePart, type StreamChunk} from '@tanstack/ai'
+import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
 import {makeRunStream} from '../src/run-stream.js'
 
 async function* scripted(chunks: StreamChunk[], gapMs = 5): AsyncGenerator<StreamChunk> {
@@ -19,12 +20,11 @@ const text = (delta: string): StreamChunk =>
 const started = {type: EventType.RUN_STARTED, threadId: 't', runId: 'r'} as StreamChunk
 const finished = {type: EventType.RUN_FINISHED, threadId: 't', runId: 'r'} as StreamChunk
 
-const snapshot = (parts: unknown[]): StreamChunk =>
-  ({type: EventType.MESSAGES_SNAPSHOT, messages: [{id: 'a1', role: 'assistant', parts}]}) as StreamChunk
+const snapshot = (parts: MessagePart[]): StreamChunk => aguiSnapshotFor([{id: 'a1', role: 'assistant', parts}])
 
-const textPart = (content: string): unknown => ({type: 'text', content})
+const textPart = (content: string): MessagePart => ({type: 'text', content})
 
-const toolCallPart = (id: string, name: string, args: unknown): unknown => ({
+const toolCallPart = (id: string, name: string, args: unknown): MessagePart => ({
   type: 'tool-call',
   id,
   name,

@@ -38,7 +38,6 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "@conciv/contract": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "drizzle-orm": "1.0.0-rc.4"
   },
