@@ -13,12 +13,7 @@ const UNANSWERED: UiAnswer = {
 
 export type WaitDeps = {db: ConcivDb; changes: Changes}
 
-export function awaitReply(
-  deps: WaitDeps,
-  sessionId: string,
-  key: string,
-  timeoutMs: number,
-): Promise<unknown | null> {
+export function awaitReply(deps: WaitDeps, sessionId: string, key: string, timeoutMs: number): Promise<unknown | null> {
   const existing = replyFor(deps.db, sessionId, key)
   if (existing !== null) return Promise.resolve(existing)
   return new Promise((resolve) => {

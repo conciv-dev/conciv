@@ -71,7 +71,9 @@ describe('makeRunStream', () => {
   })
 
   it('done drains to RUN_FINISHED and exposes typed queries', async () => {
-    const run = makeRunStream(scripted([started, snapshot([textPart('hello ')]), snapshot([textPart('hello world')]), finished]))
+    const run = makeRunStream(
+      scripted([started, snapshot([textPart('hello ')]), snapshot([textPart('hello world')]), finished]),
+    )
     const events = await run.done()
     expect(events.text()).toBe('hello world')
     expect(events.runs()).toBe(1)
@@ -137,7 +139,12 @@ describe('makeRunStream', () => {
 
   it('an old-turn RUN_FINISHED in history does not fail a new waiter', async () => {
     const run = makeRunStream(
-      parked([started, finished, started, snapshot([toolCallPart('tc-2', 'conciv_ui', {kind: 'confirm', question: 'Again?'})])]),
+      parked([
+        started,
+        finished,
+        started,
+        snapshot([toolCallPart('tc-2', 'conciv_ui', {kind: 'confirm', question: 'Again?'})]),
+      ]),
     )
     await run.done()
     const call = await run.waitForToolCall('conciv_ui')

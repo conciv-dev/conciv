@@ -81,11 +81,7 @@ function lifecycleAfter(
   return wasLive && !live ? [endOfRun(deps, sessionId, epoch)] : []
 }
 
-export async function* attachLive(
-  deps: ChatDeps,
-  sessionId: string,
-  signal: AbortSignal,
-): AsyncGenerator<StreamChunk> {
+export async function* attachLive(deps: ChatDeps, sessionId: string, signal: AbortSignal): AsyncGenerator<StreamChunk> {
   const waiter = makeChangeWaiter(deps.changes, signal)
   try {
     const seen = {

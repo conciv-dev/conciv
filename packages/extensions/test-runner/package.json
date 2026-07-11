@@ -79,7 +79,7 @@
     "@types/node": "^22.19.21",
     "@vitest/browser-playwright": "4.1.9",
     "solid-js": "^1.9.13",
-    "tsdown": "^0.22.2",
+    "tsdown": "^0.22.4",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
     "unocss": "^66.7.2",

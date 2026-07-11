@@ -122,10 +122,7 @@ export async function buildSessionList(args: {
   return [...ours, ...unwrapped].toSorted((a, b) => b.updatedAt - a.updatedAt)
 }
 
-export async function listCommands(
-  deps: ChatDeps,
-  opts: {sessionId?: string; origin: string},
-): Promise<ChatCommands> {
+export async function listCommands(deps: ChatDeps, opts: {sessionId?: string; origin: string}): Promise<ChatCommands> {
   const commands = deps.harness.commands
   if (!commands) return {commands: []}
   const mcpUrl = deps.harness.capabilities.mcp === 'http' ? `${opts.origin}/api/mcp` : undefined

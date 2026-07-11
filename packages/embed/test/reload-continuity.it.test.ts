@@ -42,14 +42,17 @@ describe('reload continuity through the db-backed navigation row', () => {
     await input.fill('an unsent draft survives')
     await input.press('End')
     await expect
-      .poll(async () => {
-        const state = await kit.rpc.navigation.get(undefined)
-        const panelEntry = state?.entries.find((entry) => entry.href.startsWith('/panel/'))
-        if (!panelEntry) return false
-        const sessionId = panelEntry.href.split('/')[2] ?? ''
-        const draft = await kit.rpc.drafts.get({sessionId})
-        return draft?.text === 'an unsent draft survives'
-      }, {timeout: 15_000})
+      .poll(
+        async () => {
+          const state = await kit.rpc.navigation.get(undefined)
+          const panelEntry = state?.entries.find((entry) => entry.href.startsWith('/panel/'))
+          if (!panelEntry) return false
+          const sessionId = panelEntry.href.split('/')[2] ?? ''
+          const draft = await kit.rpc.drafts.get({sessionId})
+          return draft?.text === 'an unsent draft survives'
+        },
+        {timeout: 15_000},
+      )
       .toBe(true)
 
     await page.reload({waitUntil: 'domcontentloaded'})

@@ -15,9 +15,9 @@ describe('compactor', () => {
     harness.__scripted.release()
     await run
     expect(statusOf(db, sessionId)).toBe('idle')
-    const kinds = (await db.select().from(markers).where(eq(markers.sessionId, sessionId)).orderBy(asc(markers.afterTurn))).map(
-      (marker) => marker.kind,
-    )
+    const kinds = (
+      await db.select().from(markers).where(eq(markers.sessionId, sessionId)).orderBy(asc(markers.afterTurn))
+    ).map((marker) => marker.kind)
     expect(kinds).toContain('compact')
   })
 

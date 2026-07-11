@@ -33,7 +33,7 @@
 - Review-verified (2 Opus agents, 2026-07-11): `npx @tanstack/cli create --router-only --framework solid` is real (cli 0.69.5); solid-router 1.170.17 supports injected `history` + typed router `context` and exports `useBlocker`; solid-router pins `@tanstack/history@1.162.0` EXACTLY and storage-history's `^1.162.0` matches — verify a SINGLE history instance resolves in the final bundle (dual copies break navigation like dual-Solid breaks context); solid-db 0.2.28 / query-db-collection 1.0.47 / db 0.6.14 / solid-query 5.101.2 are version-coherent; `useChat` exposes `connectionStatus` accessor; core CORS allows any LOOPBACK origin (standalone dev must be localhost/127.0.0.1 or be added to `allowedOrigins`); 50ms snapshot cadence = 20 full-array reconciles/s — fine at chat scale, no change.
 - `useChatSession.onCustomEvent` is now vestigial (conciv_ui rides tool parts since 2.5/2.7) — delete it from `@conciv/client` in Task 4 if nothing consumes it (grep first).
 - Old page transport was api-client SSE with `requestId` INSIDE the query; contract v4 yields `{requestId, query: unknown}` (sibling) — `startPagePlane` glue must `PageQuerySchema.parse(query)` and rewrap replies as `{requestId, data}` (Task 8). The driver/handlers/PageResult port unchanged.
-- Old-widget inventory at `6cef8769~1:packages/widget/src/` — the port map below names every file. `src/page/*` (page-driver, handlers, react-bridge, react-grab/*, overlay, mirror, snapshot, dehydrate, context-tracker, render-tracker, effect-toast, grab-api, client-api, page-bus) is the DOM-execution half → `packages/page`. `src/shell/*` + `src/chat/*` + `src/composer/*` + `src/extension/*` + `src/lib/*` → `apps/conciv` routes/components (state-machine files `modal-panes.ts`/`quick-panes.ts`/`pane-content.ts`/`persisted-signal.ts`/`draggable-position.ts` are REPLACED by routes + custom history + ui-kit-system primitives, not ported).
+- Old-widget inventory at `6cef8769~1:packages/widget/src/` — the port map below names every file. `src/page/*` (page-driver, handlers, react-bridge, react-grab/_, overlay, mirror, snapshot, dehydrate, context-tracker, render-tracker, effect-toast, grab-api, client-api, page-bus) is the DOM-execution half → `packages/page`. `src/shell/_`+`src/chat/_`+`src/composer/_`+`src/extension/_`+`src/lib/_`→`apps/conciv`routes/components (state-machine files`modal-panes.ts`/`quick-panes.ts`/`pane-content.ts`/`persisted-signal.ts`/`draggable-position.ts` are REPLACED by routes + custom history + ui-kit-system primitives, not ported).
 - Intent skills to load before the respective tasks: `@tanstack/solid-db#solid-db` (Task 2), `@tanstack/db#db-core` sub-skills as needed. Run the skill check from workspace root.
 - `npx @tanstack/cli create --router-only --framework solid` is the locked scaffold command (spec); commit the RAW scaffold before adapting so generated-vs-ours is visible in history.
 
@@ -43,17 +43,17 @@
 // apps/conciv src/router.ts — the library export embed consumes
 export function createConcivRouter(config: ConcivRouterConfig): Router
 export type ConcivRouterConfig = {
-  rpc: RpcClient                       // makeRpcClient(base) — injected, never created inside routes
-  history: RouterHistory               // storage-history (embed) or browser history (standalone)
-  environment: {rootNode: Node; document: Document}   // shadow root vs document
-  settings: ConcivSettings             // parsed widget settings (hotkeys, quickTerminal.enabled, theme)
+  rpc: RpcClient // makeRpcClient(base) — injected, never created inside routes
+  history: RouterHistory // storage-history (embed) or browser history (standalone)
+  environment: {rootNode: Node; document: Document} // shadow root vs document
+  settings: ConcivSettings // parsed widget settings (hotkeys, quickTerminal.enabled, theme)
 }
 
 // apps/conciv src/data/app-data.ts — the client data layer (Task 2; review-locked: plain query, no collections)
 export function makeAppData(rpc: RpcClient, queryClient: QueryClient): AppData
 export type AppData = {
-  utils: ReturnType<typeof makeQueryUtils>          // queryOptions/mutationOptions per procedure
-  invalidateSessions: () => void                    // called after own mutations, on RUN_STARTED/FINISHED, on focus
+  utils: ReturnType<typeof makeQueryUtils> // queryOptions/mutationOptions per procedure
+  invalidateSessions: () => void // called after own mutations, on RUN_STARTED/FINISHED, on focus
 }
 
 // Task 0 — the app's URL in OUR db (user-locked; modeled as navigation, not "layout"): contract v4.1
@@ -119,6 +119,7 @@ Behavior contracts carried verbatim from the old widget (each is a test target):
 ### Task 4: `/panel/$sessionId` — the chat pane
 
 **Port map:** `chat/chat-panel.tsx` (assembly onto ui-kit-chat primitives), `chat/tool-fallback-card.tsx` + `chat/gen-ui.tsx` → conciv_ui blocking card rendered from the tool-call part by name + `chat.uiReply` mutation (2.5 model — no custom events), `chat/trigger-menus.tsx` (/ + @ menus), `composer/*` (model-selector, session-selector, compact-action, new-session-action, open-in-terminal-action), panel geometry from `shell/widget-shell.tsx` + `lib/draggable-position.ts`/`lib/resize.ts` → ui-kit-system drag/resize primitives on the `/panel` layout route.
+
 - Each pane's `useChatSession` lives in the route component; session switch = mount/unmount, never connection surgery. Usage/model chip reads the sessions collection row; refetch on run end shows post-run usage.
 - conciv_ui card: parse input from `part.arguments` (never `part.input`); answered/timeout states per the 2.5 UNANSWERED shape; `chat.uiReply` mutation with UNKNOWN_REQUEST toast.
 - Port `lib/ui-snapshot.ts` for PANE-LOCAL restoration only: scroll position, selection, dividers, focused flag (localStorage — genuinely per-tab device state). Its old draft/grabs fields are SUPERSEDED by the server drafts row; the old shell snapshot (layer/paneIds) is superseded by the router history. `shell/shell-contract.ts` types are replaced by the views-over-context compound components, not ported.
@@ -127,46 +128,53 @@ Behavior contracts carried verbatim from the old widget (each is a test target):
 ### Task 5: `/panel/$sessionId/$view` — extension views
 
 **Port map:** `extension/extension-slots.tsx`, `extension/extension-views.ts`, `extensions/highlight.tsx`. Views are the `$view` param; tab switching = route navigation with the Zag-tabs indicator var rule; extension clients keep contributing via the manifest contract (no `register*`).
+
 - [ ] Port; view leave-lock behavior (`useBlocker`); commit.
 
 ### Task 6: `/quick` — quick terminal layer
 
 **Port map:** `shell/quick-terminal.tsx`, `shell/terminal-focus.ts` (quick-panes.ts/pane-content.ts logic dissolves into the route + search params). Behavior contract as locked above, xterm from ui-kit-terminal.
+
 - [ ] Port; commit.
 
 ### Task 7: `/pip/$sessionId`
 
 **Port map:** `shell/pip.tsx` — PiP host primitive from ui-kit-system, style cloning, `EnvironmentProvider(pipDocument)`.
+
 - [ ] Port; commit.
 
 ### Task 8: `packages/page` — the DOM half of the page plane
 
-**Port map:** ALL of `src/page/*` (page-driver, page-handlers, page-bus client side → `rpc.page.queries` iterator + `rpc.page.reply`, react-bridge pre-hydration global as its private versioned concern, react-grab/*, overlay, mirror, snapshot, dehydrate, context-tracker, render-tracker, effect-toast, grab-api, client-api) into `packages/page` with `startPagePlane(opts)`. No behavior change — this is the `conciv_page` tool's client executor coming back to life exactly as it was.
+**Port map:** ALL of `src/page/*` (page-driver, page-handlers, page-bus client side → `rpc.page.queries` iterator + `rpc.page.reply`, react-bridge pre-hydration global as its private versioned concern, react-grab/\*, overlay, mirror, snapshot, dehydrate, context-tracker, render-tracker, effect-toast, grab-api, client-api) into `packages/page` with `startPagePlane(opts)`. No behavior change — this is the `conciv_page` tool's client executor coming back to life exactly as it was.
+
 - [ ] Port; unit-test the pure parsers (node); the executed-verb round-trip is covered by the embed IT (Task 9) driving `/api/page/:verb` against the mounted page plane; commit.
 
 ### Task 9: `packages/embed` — the published artifact + the real-browser ITs
 
 **Files:** `src/index.ts` (storage-history over the Task-0 dbStorage adapter → `createConcivRouter` → shadow-root mount → `startPagePlane`), `src/styles.css` (port verbatim: uno reset + ui-kit-system tokens + ui-kit-chat theme css + solid-streamdown styles + the `--pw-*` OKLCH layer — `git show 6cef8769~1:packages/widget/src/styles.css`), `uno.config.ts` consuming `presetAidx()` from `@conciv/uno-preset` (the `unx-` prefix; scans app + ui-kit sources), `conciv-global.ts` + `shadow.ts` (`?inline` css import + `@property` hoist to document.head) + `mount.tsx` ports.
 **TWO bundle outputs (review-CRITICAL — the old widget had two configs on purpose):**
+
 1. `mount.js` — the embed target: externalizes every `@conciv/extension/*` subpath + shared Ark/Solid deps; guarded by the ported `mount-externals.test.ts`.
 2. `conciv-widget.global.js` — self-contained IIFE (NO externals) — the artifact the browser ITs and AGENTS.md reference; an externalized bundle cannot boot in a bare page.
-**ITs (old suite disposition table — every old test accounted for):**
-| old widget test | disposition |
-|---|---|
-| widget.it, reload-continuity.it, mount-externals, widget-settings | ported (reload IT re-pinned: route via db-backed history; pane scroll/selection via ui-snapshot) |
-| trigger-menu.it | ported (Task 4 behavior, asserted here) |
-| panel-views.browser, extension.browser, extension-client.browser | ported (Task 5 behavior, asserted here) |
-| test-runner-card.browser | ported (card renders from tool part) |
-| react-verbs.it, effect-highlight.it, page-mirror, dehydrate | ported against packages/page via the mounted plane (Task 8 behavior) |
-| terminal-mode.it, foreground.browser, focus-suppression.browser | ported (quick layer + focus behavior) |
-| style-regression + computed-styles snapshots + shots/ | DROPPED — asserts computed styles, forbidden by test rules; visual sanity = manual parity walk (Task 11) |
-| storybook (.storybook/*, *.stories.tsx, storybook.css) | DROPPED — not part of the port; revisit post-plan-4 if wanted |
-Real browser against the PREBUILT global bundle (`pnpm turbo run build --filter=@conciv/embed` first), real served core app via harness-testkit + `createFakeHarness`, `browser.newPage()`, `domcontentloaded`.
+   **ITs (old suite disposition table — every old test accounted for):**
+   | old widget test | disposition |
+   |---|---|
+   | widget.it, reload-continuity.it, mount-externals, widget-settings | ported (reload IT re-pinned: route via db-backed history; pane scroll/selection via ui-snapshot) |
+   | trigger-menu.it | ported (Task 4 behavior, asserted here) |
+   | panel-views.browser, extension.browser, extension-client.browser | ported (Task 5 behavior, asserted here) |
+   | test-runner-card.browser | ported (card renders from tool part) |
+   | react-verbs.it, effect-highlight.it, page-mirror, dehydrate | ported against packages/page via the mounted plane (Task 8 behavior) |
+   | terminal-mode.it, foreground.browser, focus-suppression.browser | ported (quick layer + focus behavior) |
+   | style-regression + computed-styles snapshots + shots/ | DROPPED — asserts computed styles, forbidden by test rules; visual sanity = manual parity walk (Task 11) |
+   | storybook (.storybook/_, _.stories.tsx, storybook.css) | DROPPED — not part of the port; revisit post-plan-4 if wanted |
+   Real browser against the PREBUILT global bundle (`pnpm turbo run build --filter=@conciv/embed` first), real served core app via harness-testkit + `createFakeHarness`, `browser.newPage()`, `domcontentloaded`.
+
 - [ ] Both bundles + guard test green; IT suite green; publish-guard + fallowrc edits per Global Constraints; commit.
 
 ### Task 10: plugin serves the real app
 
 **Files (review-corrected):** the stub is `packages/plugin/src/core/extensions.ts::extensionsModuleSource` (the `console.info('[conciv] widget UI removed…')` line) — restore the mount: import the embed entry, mount it. `widget-middleware.ts` is NOT the stub (it injects the meta tags + extensions script and stays as-is). ALSO `packages/plugin/src/nextjs-widget.ts` — the second, non-`core/` mount path (old: `import('@conciv/widget').then(({mountWidget}) => mountWidget([]))`) → point at the embed entry. Re-pin the stub tests to real serving.
+
 - [ ] Manual smoke on BOTH example apps — `tanstack-start` (vite path) AND `nextjs-app` (nextjs-widget path); widget = REBUILD dist then hard-reload; core edits = restart; commit.
 
 ### Task 11: plan-wide gates

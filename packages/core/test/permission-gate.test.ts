@@ -10,7 +10,15 @@ const fixture = (timeoutMs?: number) => {
   const changes = makeChanges()
   const processor = new StreamProcessor({events: {}})
   const risky = new Set(['mcp__conciv__canvas.delete'])
-  const gate = makeRunGate({sessionId: 'conciv_x', processor, db, changes, risky, timeoutMs: timeoutMs ?? 100, partWaitMs: 10})
+  const gate = makeRunGate({
+    sessionId: 'conciv_x',
+    processor,
+    db,
+    changes,
+    risky,
+    timeoutMs: timeoutMs ?? 100,
+    partWaitMs: 10,
+  })
   return {db, changes, processor, gate}
 }
 
@@ -38,8 +46,7 @@ describe('run gate on awaitReply', () => {
     const parts = processor.getMessages().flatMap((message) => message.parts)
     const toolPart = parts.find((part) => part.type === 'tool-call')
     expect(toolPart).toBeDefined()
-    const approvalId =
-      toolPart && 'approval' in toolPart && toolPart.approval ? toolPart.approval.id : undefined
+    const approvalId = toolPart && 'approval' in toolPart && toolPart.approval ? toolPart.approval.id : undefined
     expect(approvalId).toBeDefined()
     if (approvalId === undefined) throw new Error('no approval id')
     writeReply(db, 'conciv_x', approvalId, true)
@@ -53,8 +60,7 @@ describe('run gate on awaitReply', () => {
     await new Promise((resolve) => setTimeout(resolve, 60))
     const parts = processor.getMessages().flatMap((message) => message.parts)
     const toolPart = parts.find((part) => part.type === 'tool-call')
-    const approvalId =
-      toolPart && 'approval' in toolPart && toolPart.approval ? toolPart.approval.id : undefined
+    const approvalId = toolPart && 'approval' in toolPart && toolPart.approval ? toolPart.approval.id : undefined
     if (approvalId === undefined) throw new Error('no approval id')
     writeReply(db, 'conciv_x', approvalId, false)
     changes.notify()

@@ -69,7 +69,7 @@
     "conciv": "workspace:*",
     "playwright": "^1.61.1",
     "publint": "^0.3.14",
-    "tsdown": "^0.22.2",
+    "tsdown": "^0.22.4",
     "typescript": "^6.0.3",
     "unocss": "^66.7.2",
     "vite": "^8.0.16",
