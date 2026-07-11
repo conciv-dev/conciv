@@ -53,6 +53,7 @@
   "dependencies": {
     "@conciv/contract": "workspace:^",
     "@conciv/db": "workspace:^",
+    "@conciv/extension": "workspace:^",
     "@conciv/harness": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/serve": "workspace:^",
@@ -64,21 +65,20 @@
     "@tanstack/ai": "^0.40.0",
     "@tanstack/ai-sandbox": "^0.2.2",
     "@tanstack/ai-sandbox-local-process": "^0.2.0",
+    "drizzle-orm": "1.0.0-rc.4",
     "get-port": "^7.1.0",
     "hono": "^4.12.0",
     "ufo": "^1.6.4",
-    "zod": "^4.4.3",
-    "drizzle-orm": "1.0.0-rc.4"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@conciv/extension": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@hono/node-server": "^2.0.8",
     "@jridgewell/gen-mapping": "^0.3.13",
     "@tanstack/ai-mcp": "^0.2.3",
     "@types/node": "^22.19.21",
     "@types/ws": "^8.18.1",
-    "tsdown": "^0.22.2",
+    "tsdown": "^0.22.4",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8",
