@@ -1,7 +1,5 @@
-import {ErrorBoundary, Show, Suspense, onCleanup, onMount, type Accessor, type JSX} from 'solid-js'
-import {render} from 'solid-js/web'
-import {EnvironmentProvider} from '@conciv/ui-kit-system'
-import type {ClientApi} from '@conciv/extension'
+import {ErrorBoundary, Show, Suspense, createEffect, onCleanup, onMount, type Accessor, type JSX} from 'solid-js'
+import {getHostApi} from '@conciv/extension'
 import type {ElementRect, ElementSource} from '@conciv/grab'
 import {Island, type Self} from '../canvas/island.js'
 import {WhiteboardDbProvider} from './db.js'
@@ -26,8 +24,9 @@ const NOTICE =
 const OverlayLoading = (): JSX.Element => <div class={NOTICE}>Loading the whiteboard…</div>
 const SessionPending = (): JSX.Element => <div class={NOTICE}>Start a chat session to open the whiteboard.</div>
 
-function OverlayError(props: {error: unknown; onToast: ClientApi['toast']}): JSX.Element {
-  props.onToast('The whiteboard needs a running conciv server', 'error')
+function OverlayError(props: {error: unknown}): JSX.Element {
+  const toast = getHostApi().useToast()
+  toast('The whiteboard needs a running conciv server', 'error')
   return <div class={NOTICE}>The whiteboard is unavailable.</div>
 }
 
@@ -37,15 +36,6 @@ function selfIdentity(win: Window): Self {
   win.sessionStorage.setItem(key, peerId)
   const index = Array.from(peerId).reduce((sum, char) => sum + char.charCodeAt(0), 0) % PALETTE.length
   return {peerId, name: `Guest ${peerId.slice(0, 4)}`, color: PALETTE[index] ?? PALETTE[0]}
-}
-
-type MountOverlayOptions = {
-  api: ClientApi
-  open: Accessor<boolean>
-  canvasOpen: Accessor<boolean>
-  close: () => void
-  registerComment: (write: (pick: CommentPick) => void) => void
-  onComposeSettled: (outcome: 'added' | 'cancelled') => void
 }
 
 function CanvasView(props: {
@@ -94,27 +84,38 @@ function CanvasView(props: {
   )
 }
 
-function Canvas(props: {
-  api: ClientApi
-  doc: Document
+export type SurfaceState = {
+  engaged: Accessor<boolean>
+  open: Accessor<boolean>
   visible: Accessor<boolean>
-  canvasOpen: Accessor<boolean>
-  room: Accessor<string>
-  self: Self
   close: () => void
+  settleCompose: () => void
   registerComment: (write: (pick: CommentPick) => void) => void
-  onComposeSettled: (outcome: 'added' | 'cancelled') => void
-}): JSX.Element {
+}
+
+function Canvas(props: {state: SurfaceState; room: Accessor<string>; self: Self}): JSX.Element {
+  const host = getHostApi()
+  const apiBase = host.useApiBase()
+  const toast = host.useToast()
+  const onComposeSettled = (outcome: 'added' | 'cancelled'): void => {
+    props.state.settleCompose()
+    if (outcome === 'added' && !props.state.open()) toast('Comment added to the whiteboard', 'success')
+  }
   return (
     <CommentsProvider
       room={props.room}
-      apiBase={props.api.apiBase}
-      suppressWhile={props.api.suppressWhile}
-      canvasOpen={props.canvasOpen}
-      onComposeSettled={props.onComposeSettled}
+      apiBase={apiBase}
+      canvasOpen={props.state.open}
+      onComposeSettled={onComposeSettled}
     >
-      <ComposeBridge registerComment={props.registerComment} />
-      <CanvasView doc={props.doc} visible={props.visible} room={props.room} self={props.self} close={props.close} />
+      <ComposeBridge registerComment={props.state.registerComment} />
+      <CanvasView
+        doc={document}
+        visible={props.state.visible}
+        room={props.room}
+        self={props.self}
+        close={props.state.close}
+      />
     </CommentsProvider>
   )
 }
@@ -125,31 +126,15 @@ function ComposeBridge(props: {registerComment: (write: (pick: CommentPick) => v
   return <></>
 }
 
-function Board(props: {
-  api: ClientApi
-  doc: Document
-  visible: Accessor<boolean>
-  canvasOpen: Accessor<boolean>
-  self: Self
-  close: () => void
-  registerComment: (write: (pick: CommentPick) => void) => void
-  onComposeSettled: (outcome: 'added' | 'cancelled') => void
-}): JSX.Element {
+function Board(props: {state: SurfaceState}): JSX.Element {
+  const host = getHostApi()
+  const sessionId = host.useSessionId()
+  const apiBase = host.useApiBase()
   return (
-    <Show when={props.api.activeSession()} keyed fallback={<SessionPending />}>
+    <Show when={sessionId()} keyed fallback={<SessionPending />}>
       {(session) => (
-        <WhiteboardDbProvider base={`${props.api.apiBase}/api/ext/whiteboard`} room={session}>
-          <Canvas
-            api={props.api}
-            doc={props.doc}
-            visible={props.visible}
-            canvasOpen={props.canvasOpen}
-            room={() => session}
-            self={props.self}
-            close={props.close}
-            registerComment={props.registerComment}
-            onComposeSettled={props.onComposeSettled}
-          />
+        <WhiteboardDbProvider base={`${apiBase}/api/ext/whiteboard`} room={session}>
+          <Canvas state={props.state} room={() => session} self={selfIdentity(window)} />
         </WhiteboardDbProvider>
       )}
     </Show>
@@ -165,39 +150,24 @@ async function injectExcalidrawCss(doc: Document): Promise<void> {
   doc.head.appendChild(style)
 }
 
-export function mountOverlay(options: MountOverlayOptions): () => void {
-  const doc = options.api.env.doc
-  injectExcalidrawCss(doc).catch(() => options.api.toast('Could not load the whiteboard styles', 'error'))
-
-  const surfaceRoot = options.api.surface()
-  const layer = doc.createElement('div')
-  layer.style.cssText = 'position:fixed;inset:0;pointer-events:none;font-family:var(--pw-font);color:var(--pw-text)'
-  surfaceRoot.appendChild(layer)
-
-  const disposeSolid = render(
-    () => (
-      <EnvironmentProvider value={() => layer.getRootNode()}>
-        <ErrorBoundary fallback={(error) => <OverlayError error={error} onToast={options.api.toast} />}>
-          <Suspense fallback={<OverlayLoading />}>
-            <Board
-              api={options.api}
-              doc={doc}
-              visible={options.open}
-              canvasOpen={options.canvasOpen}
-              self={selfIdentity(options.api.env.win)}
-              close={options.close}
-              registerComment={options.registerComment}
-              onComposeSettled={options.onComposeSettled}
-            />
-          </Suspense>
-        </ErrorBoundary>
-      </EnvironmentProvider>
-    ),
-    layer,
+export function WhiteboardSurface(props: {state: SurfaceState}): JSX.Element {
+  const {YieldFocus, useToast} = getHostApi()
+  const toast = useToast()
+  createEffect(() => {
+    if (!props.state.engaged()) return
+    injectExcalidrawCss(document).catch(() => toast('Could not load the whiteboard styles', 'error'))
+  })
+  return (
+    <Show when={props.state.engaged()}>
+      <div class="pointer-events-none text-pw-text font-pw fixed inset-0">
+        <YieldFocus when={props.state.visible()}>
+          <ErrorBoundary fallback={(error) => <OverlayError error={error} />}>
+            <Suspense fallback={<OverlayLoading />}>
+              <Board state={props.state} />
+            </Suspense>
+          </ErrorBoundary>
+        </YieldFocus>
+      </div>
+    </Show>
   )
-
-  return () => {
-    disposeSolid()
-    layer.remove()
-  }
 }

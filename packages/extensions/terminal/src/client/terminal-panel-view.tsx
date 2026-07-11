@@ -3,11 +3,11 @@ import {hc} from 'hono/client'
 import type {TerminalAppType} from '../server.js'
 import {Terminal, createTerminalModel, type TerminalTheme} from '@conciv/ui-kit-terminal'
 import {Button} from '@conciv/ui-kit-system'
-import type {ExtensionHostContext} from '@conciv/extension'
+import {getHostApi} from '@conciv/extension'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {useTerminalContext} from './terminal-context.js'
 import {MirrorRail} from './mirror-rail.js'
-import type {TerminalStore} from './terminal-store.js'
 
 const ESCAPE_KEY = String.fromCharCode(27)
 const DEFAULT_COLS = 120
@@ -61,12 +61,22 @@ function isPlainEnter(event: KeyboardEvent): boolean {
   return event.type === 'keydown' && event.key === 'Enter' && !hasModifier(event)
 }
 
-type ViewContext = ExtensionHostContext & {store: TerminalStore}
+function sessionHeaders(sessionId: string | null): Record<string, string> {
+  return sessionId ? {[CONCIV_SESSION_HEADER]: sessionId} : {}
+}
 
-function TerminalSurface(props: {ctx: ViewContext; generation: number; themeHost: () => Element}): JSX.Element {
-  const ctx = props.ctx
+function TerminalSurface(props: {generation: number; themeHost: () => Element}): JSX.Element {
+  const host = getHostApi()
+  const store = useTerminalContext((context) => context.store)
+  const apiBase = host.useApiBase()
+  const sessionId = host.useSessionId()
+  const grab = host.useGrab()
+  const setViewLocked = host.useViewLock()
+  const leaveView = host.useLeaveView()
+  const rpc = host.useRpc()
+  const [meta] = createResource(() => rpc.meta.models(undefined))
   const model = createTerminalModel({
-    url: () => wsUrl(ctx.apiBase, ctx.client.sessionId(), DEFAULT_COLS, DEFAULT_ROWS),
+    url: () => wsUrl(apiBase, sessionId(), DEFAULT_COLS, DEFAULT_ROWS),
     theme: () => readTerminalTheme(props.themeHost()),
   })
   onMount(() => {
@@ -95,11 +105,11 @@ function TerminalSurface(props: {ctx: ViewContext; generation: number; themeHost
     onCleanup(() => root.removeEventListener('focusout', onFocusOut, true))
   })
   const pasteStagedGrabs = (): boolean => {
-    const grabs = ctx.grab.staged()
-    if (grabs.length === 0) return true
-    model.paste(`\n\n${grabs.map((grab) => grab.text).join('\n\n')}`)
+    const staged = grab.staged()
+    if (staged.length === 0) return true
+    model.paste(`\n\n${staged.map((entry) => entry.text).join('\n\n')}`)
     model.sendInput('\r')
-    ctx.grab.clear()
+    grab.clear()
     return false
   }
   model.terminal.attachCustomKeyEventHandler((event) => {
@@ -108,37 +118,40 @@ function TerminalSurface(props: {ctx: ViewContext; generation: number; themeHost
     return pasteStagedGrabs()
   })
   createEffect(() => {
-    ctx.view.setLocked(model.busy())
-    ctx.store.setBusy(model.busy())
+    setViewLocked(model.busy())
+    store.setBusy(model.busy())
   })
   onCleanup(() => {
-    ctx.view.setLocked(false)
-    ctx.store.setBusy(false)
+    setViewLocked(false)
+    store.setBusy(false)
   })
-  const headers = () => ({...ctx.client.chatHeaders()})
-  const railCtx: ToolViewCtx = {
-    apiBase: ctx.apiBase,
-    harnessId: ctx.harnessId,
+  const headers = () => sessionHeaders(sessionId())
+  const railCtx = (): ToolViewCtx => ({
+    apiBase,
+    harnessId: meta()?.harness.id ?? '',
     sendMessage: () => {},
     respondApproval: () => {},
-    durationFor: ctx.durationFor,
-  }
+  })
   return (
     <Terminal
       model={model}
-      onBackToChat={() => ctx.view.leave()}
+      onBackToChat={() => leaveView()}
       class="flex-1 min-h-0"
-      rail={<MirrorRail apiBase={ctx.apiBase} headers={headers} ctx={railCtx} />}
+      rail={<MirrorRail apiBase={apiBase} headers={headers} ctx={railCtx()} />}
     />
   )
 }
 
 export function TerminalPanelView(): JSX.Element {
-  const ctx = useTerminalContext()
+  const host = getHostApi()
+  const store = useTerminalContext((context) => context.store)
+  const apiBase = host.useApiBase()
+  const sessionId = host.useSessionId()
+  const toast = host.useToast()
   const openTerminal = async (): Promise<void> => {
-    const res = await terminalClient(ctx.apiBase).open.$post(
-      {json: {cols: DEFAULT_COLS, rows: DEFAULT_ROWS, model: ctx.store.spawnModel() ?? undefined}},
-      {headers: ctx.client.chatHeaders()},
+    const res = await terminalClient(apiBase).open.$post(
+      {json: {cols: DEFAULT_COLS, rows: DEFAULT_ROWS, model: store.spawnModel() ?? undefined}},
+      {headers: sessionHeaders(sessionId())},
     )
     if (!res.ok) {
       const busy = res.status === 409
@@ -148,7 +161,7 @@ export function TerminalPanelView(): JSX.Element {
   const [openKey, setOpenKey] = createSignal(1)
   const [opened, {refetch}] = createResource(async () => {
     await openTerminal().catch((error: Error) => {
-      ctx.notify(error.message)
+      toast(error.message)
       throw error
     })
     return true
@@ -158,30 +171,30 @@ export function TerminalPanelView(): JSX.Element {
   const respawn = async (): Promise<void> => {
     if (respawning.current) return
     respawning.current = true
-    ctx.store.setRespawning(true)
+    store.setRespawning(true)
     try {
-      await terminalClient(ctx.apiBase)
-        .close.$post(undefined, {headers: ctx.client.chatHeaders()})
+      await terminalClient(apiBase)
+        .close.$post(undefined, {headers: sessionHeaders(sessionId())})
         .catch(() => {})
       await refetch()
       setOpenKey((key) => key + 1)
     } finally {
       respawning.current = false
-      ctx.store.setRespawning(false)
+      store.setRespawning(false)
     }
   }
 
   createEffect(
-    on([() => ctx.client.sessionId(), () => ctx.store.respawnTick()], (_next, prev) => {
+    on([sessionId, () => store.respawnTick()], (_next, prev) => {
       if (prev !== undefined) void respawn()
     }),
   )
 
-  let host: HTMLDivElement | undefined = undefined
+  let themeHost: HTMLDivElement | undefined = undefined
   return (
     <div
       ref={(element) => {
-        host = element
+        themeHost = element
       }}
       class="flex flex-1 flex-col min-h-0"
     >
@@ -205,7 +218,7 @@ export function TerminalPanelView(): JSX.Element {
           }
         >
           <Show keyed when={openKey()}>
-            {(key) => <TerminalSurface ctx={ctx} generation={key} themeHost={() => host ?? document.body} />}
+            {(key) => <TerminalSurface generation={key} themeHost={() => themeHost ?? document.body} />}
           </Show>
         </Show>
       </Show>

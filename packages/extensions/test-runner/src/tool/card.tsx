@@ -3,6 +3,7 @@ import {Collapsible} from '@conciv/ui-kit-system'
 import {ChevronRight, ExternalLink, FlaskConical, Sparkles} from 'lucide-solid'
 import {ToolCard, resultText} from '@conciv/ui-kit-chat'
 import type {ToolCardProps, ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import {getHostApi} from '@conciv/extension'
 import {
   TestEventSchema,
   TestRunResultSchema,
@@ -98,14 +99,6 @@ function testRowClass(state: Row['state']): string {
   return state === 'fail' ? `${ROW} ${ROW_FAIL}` : ROW
 }
 
-function openInEditor(apiBase: string, error: TestError): void {
-  void fetch(`${apiBase}/api/editor/open`, {
-    method: 'POST',
-    headers: {'content-type': 'application/json'},
-    body: JSON.stringify({file: error.file, line: error.line}),
-  }).catch(() => {})
-}
-
 function parseTestEvent(raw: string): TestEvent | null {
   try {
     const result = TestEventSchema.safeParse(JSON.parse(raw))
@@ -116,11 +109,12 @@ function parseTestEvent(raw: string): TestEvent | null {
 }
 
 function TestErrorBlock(props: {error: TestError; ctx: ToolViewCtx}): JSX.Element {
+  const openEditor = getHostApi().useOpenEditor()
   return (
     <div class={ERR}>
       <pre class={ERR_PRE}>{props.error.message}</pre>
       <div class={ACTIONS}>
-        <button class={`${ACT}  ${ACT_PLAIN}`} onClick={() => openInEditor(props.ctx.apiBase, props.error)}>
+        <button class={`${ACT}  ${ACT_PLAIN}`} onClick={() => openEditor(props.error.file, props.error.line)}>
           <ExternalLink size={12} aria-hidden="true" />
           Open {openLabel(props.error)}
         </button>

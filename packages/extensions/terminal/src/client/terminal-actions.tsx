@@ -4,6 +4,7 @@ import {ModelSelector, useModelSelectorContext} from '@conciv/ui-kit-chat'
 import type {ModelOption} from '@conciv/ui-kit-chat'
 import {Button, TooltipIconButton} from '@conciv/ui-kit-system'
 import type {HarnessModelInfo} from '@conciv/protocol/chat-types'
+import {getHostApi} from '@conciv/extension'
 import {useTerminalContext} from './terminal-context.js'
 
 const MODEL_KEY = 'pw-conciv-model'
@@ -39,55 +40,65 @@ function ModelList(): JSX.Element {
 }
 
 export function TerminalActions(): JSX.Element {
-  const ctx = useTerminalContext()
-  const busy = () => ctx.store.busy()
+  const host = getHostApi()
+  const store = useTerminalContext((context) => context.store)
+  const rpc = host.useRpc()
+  const sessionId = host.useSessionId()
+  const toast = host.useToast()
+  const leaveView = host.useLeaveView()
+  const grab = host.useGrab()
+  const newSession = host.useNewSession()
+  const busy = () => store.busy()
   const [models, {refetch}] = createResource(async () => {
-    const {models: list} = await ctx.client.models()
-    const stored = ctx.store.spawnModel() ?? readStoredModel()
-    ctx.store.setSpawnModel(stored && list.some((model) => model.id === stored) ? stored : null)
+    const {models: list} = await rpc.meta.models(undefined)
+    const stored = store.spawnModel() ?? readStoredModel()
+    store.setSpawnModel(stored && list.some((model) => model.id === stored) ? stored : null)
     return list
   })
   const options = createMemo(() => (models() ?? []).map(toOption))
   const [opening, setOpening] = createSignal(false)
   const pickModel = (id: string) => {
-    if (busy() || id === ctx.store.spawnModel()) return
-    ctx.store.setSpawnModel(id)
+    if (busy() || id === store.spawnModel()) return
+    store.setSpawnModel(id)
     writeStoredModel(id)
-    ctx.store.bumpRespawn()
+    store.bumpRespawn()
   }
-  const applyLaunch = async (res: Awaited<ReturnType<typeof ctx.client.launch>>): Promise<void> => {
+  const launch = async (): Promise<void> => {
+    const id = sessionId()
+    if (!id) return toast('No active session.')
+    const res = await rpc.sessions.launch({sessionId: id, model: store.spawnModel() ?? undefined})
     if (!res.supported || !res.command) {
-      ctx.notify('This harness can’t be opened in a terminal.')
+      toast('This harness can’t be opened in a terminal.')
       return
     }
     if (res.opened) {
-      ctx.view.leave()
-      ctx.notify('Opened externally.')
+      leaveView()
+      toast('Opened externally.')
       return
     }
     await navigator.clipboard.writeText(res.command).then(
       () => {
-        ctx.view.leave()
-        ctx.notify('Command copied — paste it in your terminal.')
+        leaveView()
+        toast('Command copied — paste it in your terminal.')
       },
-      () => ctx.notify(`Run in your terminal: ${res.command}`),
+      () => toast(`Run in your terminal: ${res.command}`),
     )
   }
   const openExternally = async () => {
     if (opening()) return
     setOpening(true)
     try {
-      await applyLaunch(await ctx.client.launch({model: ctx.store.spawnModel() ?? undefined}))
+      await launch()
     } catch {
-      ctx.notify('Couldn’t open externally.')
+      toast('Couldn’t open externally.')
     } finally {
       setOpening(false)
     }
   }
   const pickElement = async () => {
     try {
-      const picked = await ctx.grab.pick()
-      if (picked) ctx.grab.stage(picked)
+      const picked = await grab.pick()
+      if (picked) grab.stage(picked)
     } catch {}
   }
   return (
@@ -123,8 +134,8 @@ export function TerminalActions(): JSX.Element {
           </Button>
         </Match>
         <Match when={options().length > 0}>
-          <ModelSelector.Root models={options()} value={ctx.store.spawnModel() ?? undefined} onValueChange={pickModel}>
-            <ModelSelector.Trigger disabled={busy()} classList={{'anim-switching': ctx.store.respawning()}} />
+          <ModelSelector.Root models={options()} value={store.spawnModel() ?? undefined} onValueChange={pickModel}>
+            <ModelSelector.Trigger disabled={busy()} classList={{'anim-switching': store.respawning()}} />
             <ModelSelector.Content>
               <ModelSelector.Search placeholder="Search models…" />
               <div class="flex-1 overflow-y-auto">
@@ -138,7 +149,7 @@ export function TerminalActions(): JSX.Element {
         tooltip="Start a new session"
         class="shrink-0 size-7"
         disabled={busy()}
-        onClick={() => ctx.newSession()}
+        onClick={() => newSession()}
       >
         <Plus class="size-4 block" aria-hidden="true" />
       </TooltipIconButton>

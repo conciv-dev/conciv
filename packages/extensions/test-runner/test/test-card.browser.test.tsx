@@ -2,6 +2,7 @@ import {describe, it, expect, afterEach} from 'vitest'
 import {render} from 'solid-js/web'
 import {page} from 'vitest/browser'
 import type {ToolViewCtx, ToolCardProps} from '@conciv/protocol/tool-view-types'
+import {HostApiProvider} from '@conciv/extension'
 import {TestCard} from '../src/tool/card.js'
 
 const FILE = '/proj/app/math.test.ts'
@@ -22,18 +23,20 @@ const RESULT = {
 
 const disposers: (() => void)[] = []
 
-function mountCard(over: Partial<ToolCardProps>, ctx: ToolViewCtx): void {
+function mountCard(over: Partial<ToolCardProps>, ctx: ToolViewCtx, onOpenEditor?: (file: string) => void): void {
   const host = document.createElement('div')
   document.body.appendChild(host)
   disposers.push(
     render(
       () => (
-        <TestCard
-          part={{type: 'tool-call', id: 't1', name: 'test_runner', arguments: '{}', state: 'input-complete'}}
-          result={undefined}
-          ctx={ctx}
-          {...over}
-        />
+        <HostApiProvider openEditor={(file) => onOpenEditor?.(file)}>
+          <TestCard
+            part={{type: 'tool-call', id: 't1', name: 'test_runner', arguments: '{}', state: 'input-complete'}}
+            result={undefined}
+            ctx={ctx}
+            {...over}
+          />
+        </HostApiProvider>
       ),
       host,
     ),
