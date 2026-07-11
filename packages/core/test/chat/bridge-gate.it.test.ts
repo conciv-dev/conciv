@@ -4,7 +4,7 @@ import {Client} from '@modelcontextprotocol/sdk/client/index.js'
 import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import {toolDefinition} from '@tanstack/ai'
 import type {ProvisionedBridge} from '@tanstack/ai-sandbox'
-import {gateProvisioner} from '../src/chat/sandbox.js'
+import {gateProvisioner} from '../../src/chat/gate.js'
 
 async function callBridgeTool(bridge: ProvisionedBridge, name: string, args: unknown): Promise<string> {
   const client = new Client({name: 'bridge-gate-test', version: '0.0.0'})

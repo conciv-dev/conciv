@@ -2,7 +2,7 @@ import {asc, eq} from 'drizzle-orm'
 import {describe, expect, it} from 'vitest'
 import {markers, statusOf} from '@conciv/db'
 import {makeChatFixture} from '../helpers/chat-fixture.js'
-import {makeCompactor} from '../../src/chat/compact.js'
+import {makeCompactor} from '../../src/chat/run.js'
 
 describe('compactor', () => {
   it('runs a compact run, writes marker, status is compacting during the run', async () => {

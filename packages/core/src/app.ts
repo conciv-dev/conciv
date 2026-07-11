@@ -11,14 +11,17 @@ import {corsMiddleware, type CorsVars} from './lib/cors.js'
 import {concivTools, type ConcivToolContext} from '@conciv/tools'
 import type {ChatTool} from '@conciv/protocol/chat-types'
 import {ensureAgentRecord, sweepEmptyChatRecords} from './chat/session.js'
-import type {ChatDeps} from './chat/runtime.js'
-import {makeChanges} from './chat/changes.js'
-import {makeConcivSandbox} from './chat/sandbox.js'
-import {buildChatTools} from './chat/tools.js'
-import {askUi} from './chat/wait.js'
-import {ensureChatRecord, recordMintedToken, resolveSystemText, resumeTokenFor} from './chat/run.js'
-import {makeCompactor} from './chat/compact.js'
-import {makeSend} from './chat/send.js'
+import {buildChatTools, type ChatDeps} from './chat/runtime.js'
+import {makeChanges} from './chat/attach.js'
+import {askUi, makeConcivSandbox} from './chat/gate.js'
+import {
+  ensureChatRecord,
+  makeCompactor,
+  makeSend,
+  recordMintedToken,
+  resolveSystemText,
+  resumeTokenFor,
+} from './chat/run.js'
 import {modelOf, openDb, statusOf} from '@conciv/db'
 import mcpApp, {type McpVars} from './api/mcp.js'
 import {makePageBus} from './page-bus.js'

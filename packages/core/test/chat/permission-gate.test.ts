@@ -1,9 +1,9 @@
 import {describe, expect, it} from 'vitest'
 import {StreamProcessor} from '@tanstack/ai'
 import {writeReply} from '@conciv/db'
-import {makeChanges} from '../src/chat/changes.js'
-import {makeRunGate} from '../src/chat/sandbox.js'
-import {testDb} from './helpers/memory-store.js'
+import {makeChanges} from '../../src/chat/attach.js'
+import {makeRunGate} from '../../src/chat/gate.js'
+import {testDb} from '../helpers/memory-store.js'
 
 const fixture = (timeoutMs?: number) => {
   const db = testDb()

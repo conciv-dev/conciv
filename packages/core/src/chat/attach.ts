@@ -1,12 +1,68 @@
+import {EventEmitter} from 'node:events'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 import {ChatHistorySchema, type ChatHistory} from '@conciv/protocol/chat-types'
 import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
 import {lastErrorOf, runEpochOf, runMessagesFor, statusOf, type RunStatus} from '@conciv/db'
 import type {ChatDeps} from './runtime.js'
 import {readFileOrEmpty} from '../lib/fs.js'
-import {makeChangeWaiter} from './changes.js'
-import {settledMessages, userText} from './history.js'
-import {sessionById} from './session.js'
+import {sessionById, settledMessages, userText} from './session.js'
+
+export type Changes = {emitter: EventEmitter; notify: () => void}
+
+export function makeChanges(): Changes {
+  const emitter = new EventEmitter()
+  emitter.setMaxListeners(0)
+  const state = {queued: false}
+  const notify = (): void => {
+    if (state.queued) return
+    state.queued = true
+    queueMicrotask(() => {
+      state.queued = false
+      emitter.emit('change')
+    })
+  }
+  return {emitter, notify}
+}
+
+export function nextChange(changes: Changes, signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return Promise.resolve()
+  return new Promise((resolve) => {
+    const settle = () => {
+      changes.emitter.off('change', settle)
+      signal.removeEventListener('abort', settle)
+      resolve()
+    }
+    changes.emitter.once('change', settle)
+    signal.addEventListener('abort', settle, {once: true})
+  })
+}
+
+export type ChangeWaiter = {wait: () => Promise<void>; dispose: () => void}
+
+export function makeChangeWaiter(changes: Changes, signal: AbortSignal): ChangeWaiter {
+  const state: {dirty: boolean; resolve: (() => void) | null} = {dirty: false, resolve: null}
+  const wake = (): void => {
+    state.dirty = true
+    state.resolve?.()
+  }
+  changes.emitter.on('change', wake)
+  signal.addEventListener('abort', wake, {once: true})
+  return {
+    wait: async () => {
+      if (!state.dirty && !signal.aborted) {
+        await new Promise<void>((resolve) => {
+          state.resolve = resolve
+        })
+      }
+      state.resolve = null
+      state.dirty = false
+    },
+    dispose: () => {
+      changes.emitter.off('change', wake)
+      signal.removeEventListener('abort', wake)
+    },
+  }
+}
 
 export const SNAPSHOT_MIN_INTERVAL_MS = 50
 

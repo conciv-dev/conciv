@@ -3,10 +3,8 @@ import {eq} from 'drizzle-orm'
 import type {SessionMeta} from '@conciv/contract'
 import {resolveHarnessModels} from '@conciv/harness'
 import {clearRunState, drafts, markers, requestStop, sessions, statusOf, type RunStatus} from '@conciv/db'
-import {buildSessionList, resolveSession, sessionById} from '../../chat/session.js'
-import {ensureChatRecord} from '../../chat/run.js'
-import {launchHarness} from '../../chat/launch.js'
-import {SESSION_BUSY} from '../../chat/compact.js'
+import {buildSessionList, launchHarness, resolveSession, sessionById} from '../../chat/session.js'
+import {ensureChatRecord, SESSION_BUSY} from '../../chat/run.js'
 import {os, type RpcDeps} from './mount.js'
 
 function wireStatus(status: RunStatus): 'idle' | 'running' | 'compacting' {

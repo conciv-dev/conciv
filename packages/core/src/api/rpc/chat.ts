@@ -1,7 +1,7 @@
 import {writeReply} from '@conciv/db'
 import {attachLive} from '../../chat/attach.js'
-import {SESSION_BUSY} from '../../chat/compact.js'
-import {pendingUiCallIds, sessionForApproval} from '../../chat/wait.js'
+import {SESSION_BUSY} from '../../chat/run.js'
+import {pendingUiCallIds, sessionForApproval} from '../../chat/gate.js'
 import {os, type RpcDeps} from './mount.js'
 
 export function chatRouter(deps: RpcDeps) {

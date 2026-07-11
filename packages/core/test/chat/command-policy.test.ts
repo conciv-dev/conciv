@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest'
-import {classifyCommand} from '../src/chat/policy.js'
+import {classifyCommand} from '../../src/chat/gate.js'
 
 describe('classifyCommand', () => {
   it('allows read-only commands and gates mutating ones', () => {

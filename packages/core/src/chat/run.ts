@@ -1,15 +1,20 @@
+import {randomUUID} from 'node:crypto'
 import {existsSync, readFileSync} from 'node:fs'
 import {eq} from 'drizzle-orm'
 import {chat, EventType, StreamProcessor, type ModelMessage, type StreamChunk, type TokenUsage} from '@tanstack/ai'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
+import {ChatMessageSchema, type ChatMessage} from '@conciv/protocol/chat-types'
 import {tokenUsageToSnapshot, type UsageSnapshot} from '@conciv/protocol/usage-types'
-import {releaseRun, sessions, setRunMessages, statusOf, type ConcivDb} from '@conciv/db'
+import {claimRun, drafts, markers, releaseRun, sessions, setRunMessages, statusOf, type ConcivDb} from '@conciv/db'
 import type {ChatDeps} from './runtime.js'
-import {createSession, sessionById} from './session.js'
-import {makeRunGate, withConcivGate, withConcivSandbox} from './sandbox.js'
+import {createSession, sessionById, toModelMessages} from './session.js'
+import {transcriptMessages} from './attach.js'
+import {makeRunGate, withConcivGate, withConcivSandbox} from './gate.js'
 import {harnessDebug} from '../lib/debug.js'
 
 export type RunRequest = {messages: ModelMessage[]; model: string | null; kind: 'chat' | 'compact'}
+
+export const SESSION_BUSY = 'session busy'
 
 export const resumeTokenFor = async (db: ConcivDb, id: string): Promise<string | null> =>
   (await sessionById(db, id))?.harnessSessionId ?? null
@@ -121,6 +126,25 @@ async function recordRunEnd(deps: ChatDeps, sessionId: string, usage: UsageSnaps
     .where(eq(sessions.id, sessionId))
 }
 
+type RunOutcome = {error: string | null; usage: UsageSnapshot | null}
+
+async function foldRunStream(
+  deps: ChatDeps,
+  sessionId: string,
+  req: RunRequest,
+  processor: StreamProcessor,
+  stream: AsyncIterable<StreamChunk>,
+  outcome: RunOutcome,
+): Promise<void> {
+  for await (const chunk of stream) {
+    processor.processChunk(chunk)
+    tapSessionId(chunk, (id) => void recordMintedToken(deps.db, sessionId, id).catch(() => {}))
+    if (chunk.type === EventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls' && chunk.usage) {
+      outcome.usage = usageSnapshotFor(deps, req.model ?? deps.harness.defaultModel ?? null, chunk.usage)
+    }
+  }
+}
+
 export async function startRun(deps: ChatDeps, sessionId: string, req: RunRequest): Promise<void> {
   const abort = new AbortController()
   const processor = new StreamProcessor({
@@ -134,16 +158,10 @@ export async function startRun(deps: ChatDeps, sessionId: string, req: RunReques
   const lastUser = req.messages.findLast((message) => message.role === 'user')
   if (lastUser && typeof lastUser.content === 'string') processor.addUserMessage(lastUser.content)
   const unwatch = watchForStop(deps, sessionId, abort)
-  const outcome: {error: string | null; usage: UsageSnapshot | null} = {error: null, usage: null}
+  const outcome: RunOutcome = {error: null, usage: null}
   try {
     const stream = await buildRunStream(deps, sessionId, req, processor, abort)
-    for await (const chunk of stream) {
-      processor.processChunk(chunk)
-      tapSessionId(chunk, (id) => void recordMintedToken(deps.db, sessionId, id).catch(() => {}))
-      if (chunk.type === EventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls' && chunk.usage) {
-        outcome.usage = usageSnapshotFor(deps, req.model ?? deps.harness.defaultModel ?? null, chunk.usage)
-      }
-    }
+    await foldRunStream(deps, sessionId, req, processor, stream, outcome)
   } catch (error) {
     if (!abort.signal.aborted) outcome.error = error instanceof Error ? error.message : String(error)
   } finally {
@@ -176,4 +194,70 @@ export function tapSessionId(chunk: StreamChunk, onSessionId: (id: string) => vo
   if (typeof value === 'object' && value !== null && 'sessionId' in value && typeof value.sessionId === 'string') {
     onSessionId(value.sessionId)
   }
+}
+
+async function composeUserText(db: ConcivDb, sessionId: string, text: string): Promise<string> {
+  const rows = await db.select({grabs: drafts.grabs}).from(drafts).where(eq(drafts.sessionId, sessionId))
+  const grabs = rows[0]?.grabs ?? []
+  return grabs.length === 0 ? text : `${grabs.join('\n')}\n${text}`
+}
+
+async function historyFor(deps: ChatDeps, sessionId: string): Promise<ChatMessage[]> {
+  const resumable =
+    deps.harness.capabilities.resume &&
+    resumableToken(deps.harness, deps.cwd, await resumeTokenFor(deps.db, sessionId), deps.claudeHome) !== null
+  if (resumable) return []
+  return (await transcriptMessages(deps, sessionId)).map((message) => ChatMessageSchema.parse(message))
+}
+
+export function makeSend(deps: ChatDeps): (sessionId: string, text: string) => Promise<void> {
+  return async (sessionId, text) => {
+    if (!claimRun(deps.db, sessionId, 'chat')) throw new Error(SESSION_BUSY)
+    deps.changes.notify()
+    try {
+      deps.onRunStart?.(sessionId)
+      await ensureChatRecord(deps.db, sessionId, deps.harness.id, deps.cwd)
+      const userText = await composeUserText(deps.db, sessionId, text)
+      const model = (await sessionById(deps.db, sessionId))?.model ?? null
+      const history = await historyFor(deps, sessionId)
+      const messages = toModelMessages([...history, {role: 'user', content: userText}])
+      void startRun(deps, sessionId, {messages, model, kind: 'chat'})
+      await deps.db.delete(drafts).where(eq(drafts.sessionId, sessionId))
+      deps.changes.notify()
+    } catch (error) {
+      releaseRun(deps.db, sessionId, null)
+      deps.changes.notify()
+      throw error
+    }
+  }
+}
+
+export type Compactor = {run: (sessionId: string) => Promise<void>}
+
+async function addCompactMarker(db: ConcivDb, sessionId: string, afterTurn: number): Promise<void> {
+  await db.insert(markers).values({id: randomUUID(), sessionId, afterTurn, kind: 'compact'})
+}
+
+export function makeCompactor(deps: ChatDeps): Compactor {
+  async function run(sessionId: string): Promise<void> {
+    if (!claimRun(deps.db, sessionId, 'compact')) throw new Error(SESSION_BUSY)
+    deps.changes.notify()
+    try {
+      deps.onRunStart?.(sessionId)
+      const history = await transcriptMessages(deps, sessionId)
+      await addCompactMarker(deps.db, sessionId, history.length)
+      deps.changes.notify()
+    } catch (error) {
+      releaseRun(deps.db, sessionId, null)
+      deps.changes.notify()
+      throw error
+    }
+    await startRun(deps, sessionId, {
+      messages: toModelMessages([{role: 'user', content: '/compact'}]),
+      model: null,
+      kind: 'compact',
+    })
+  }
+
+  return {run}
 }
