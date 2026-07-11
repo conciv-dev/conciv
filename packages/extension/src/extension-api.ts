@@ -7,6 +7,16 @@ export function installClientApi(api: ClientApi): void {
   installed = api
 }
 
+export function runWithClientApi<Result>(api: ClientApi, run: () => Result): Result {
+  const previous = installed
+  installed = api
+  try {
+    return run()
+  } finally {
+    installed = previous
+  }
+}
+
 export function useClientApi(): ClientApi {
   if (!installed)
     throw new Error(

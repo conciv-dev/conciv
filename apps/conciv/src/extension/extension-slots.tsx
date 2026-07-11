@@ -4,7 +4,7 @@ import type {AnyExtension, ExtensionHostContext, ExtensionSlot} from '@conciv/ex
 
 export type ExtensionHostBag = Omit<ExtensionHostContext, 'currentSlot'>
 
-export type ExtensionInstance = {extension: AnyExtension; clientValue: object; dispose?: () => void}
+export type ExtensionInstance = {extension: AnyExtension; clientValue: object}
 
 export function ExtensionSurface(props: {
   name: ExtensionSlot

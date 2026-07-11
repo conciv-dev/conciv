@@ -13,20 +13,28 @@ function createEffectsHost(): HTMLElement {
   return host
 }
 
-export function ensureEffectsSurface(options?: {styles?: string}): HTMLElement {
-  const host = document.querySelector<HTMLElement>(`[${EFFECTS_SURFACE_ATTR}]`) ?? createEffectsHost()
-  const root = host.shadowRoot ?? host.attachShadow({mode: 'open'})
+function ensureEffectsContainer(root: ShadowRoot, styles?: string): HTMLElement {
   const existing = root.querySelector<HTMLElement>('[data-effect-root]')
   if (existing) return existing
-  if (options?.styles) {
+  if (styles) {
     const style = document.createElement('style')
-    style.textContent = options.styles
+    style.textContent = styles
     root.appendChild(style)
   }
   const container = document.createElement('div')
   container.setAttribute('data-effect-root', '')
   root.appendChild(container)
   return container
+}
+
+export function ensureEffectsSurface(options?: {styles?: string}): HTMLElement {
+  const host = document.querySelector<HTMLElement>(`[${EFFECTS_SURFACE_ATTR}]`) ?? createEffectsHost()
+  const root = host.shadowRoot ?? host.attachShadow({mode: 'open'})
+  const container = ensureEffectsContainer(root, options?.styles)
+  const layer = document.createElement('div')
+  layer.setAttribute('data-effect-layer', '')
+  container.appendChild(layer)
+  return layer
 }
 
 export async function openSource(apiBase: string, locateResult: LocateResult): Promise<OpenSourceResult> {
