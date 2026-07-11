@@ -3,7 +3,7 @@ import {z} from 'zod'
 import {tmpdir} from 'node:os'
 import type {Kit} from '@conciv/harness-testkit'
 import {bootKit} from '../../helpers/boot.js'
-import {chunkWithInlineMap, cleanupChunks} from '../../page/fixtures.js'
+import {chunkWithInlineMap, cleanupChunks} from '../../editor/fixtures.js'
 
 const ChangesSchema = z.array(
   z.object({verb: z.string(), selector: z.string().optional(), args: z.record(z.string(), z.unknown())}),

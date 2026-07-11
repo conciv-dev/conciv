@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest'
-import {sessionIdFromHeaders} from '../../src/mcp/mcp.js'
+import {sessionIdFromHeaders} from '../../src/api/mcp.js'
 
 describe('sessionIdFromHeaders', () => {
   it('returns null when no header (a new session)', () => {

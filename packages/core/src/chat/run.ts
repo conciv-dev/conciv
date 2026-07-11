@@ -7,7 +7,7 @@ import {releaseRun, sessions, setRunMessages, statusOf, type ConcivDb} from '@co
 import type {ChatDeps} from './runtime.js'
 import {createSession, sessionById} from './session.js'
 import {makeRunGate, withConcivGate, withConcivSandbox} from './sandbox.js'
-import {harnessDebug} from '../debug.js'
+import {harnessDebug} from '../lib/debug.js'
 
 export type RunRequest = {messages: ModelMessage[]; model: string | null; kind: 'chat' | 'compact'}
 

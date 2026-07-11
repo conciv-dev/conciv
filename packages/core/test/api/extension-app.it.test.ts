@@ -5,7 +5,7 @@ import {upgradeWebSocket} from '@hono/node-server'
 import WebSocket from 'ws'
 import {serveApp} from '@conciv/harness-testkit'
 import {slug} from '../../src/app.js'
-import {corsMiddleware, type CorsVars} from '../../src/cors.js'
+import {corsMiddleware, type CorsVars} from '../../src/lib/cors.js'
 
 type ProbeEnv = {Variables: {probe: {label: string}} & CorsVars}
 

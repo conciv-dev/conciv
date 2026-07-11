@@ -3,7 +3,7 @@ import {writeFile, rm} from 'node:fs/promises'
 import {join} from 'node:path'
 import {tmpdir} from 'node:os'
 import {GenMapping, addMapping, toEncodedMap} from '@jridgewell/gen-mapping'
-import {symbolicateFrame, symbolicateFrames} from '../../src/page/symbolicate.js'
+import {symbolicateFrame, symbolicateFrames} from '../../src/editor/symbolicate.js'
 import {chunkWithInlineMap, cleanupChunks} from './fixtures.js'
 
 const written: string[] = []

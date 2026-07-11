@@ -7,8 +7,8 @@ import {makeApp, type MakeAppOpts} from './app.js'
 export type {AppType} from './app.js'
 import {makeEditorOpener} from './editor/open.js'
 import {resolveConfig, type ConcivConfig, type ResolvedConcivConfig} from './config.js'
-import {statePaths} from './state-paths.js'
-import {writeText} from './fs.js'
+import {statePaths} from './lib/state-paths.js'
+import {writeText} from './lib/fs.js'
 
 export type StartOpts = {
   options: ConcivConfig

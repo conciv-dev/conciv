@@ -1,7 +1,7 @@
 import {describe, it, expect, afterEach} from 'vitest'
 import {tmpdir} from 'node:os'
-import {openSourceFromFrames} from '../../../src/page/open-source.js'
-import {chunkWithInlineMap, cleanupChunks} from '../../page/fixtures.js'
+import {openSourceFromFrames} from '../../../src/editor/open-source.js'
+import {chunkWithInlineMap, cleanupChunks} from '../../editor/fixtures.js'
 
 afterEach(async () => {
   await cleanupChunks()
