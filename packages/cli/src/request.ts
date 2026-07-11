@@ -1,7 +1,7 @@
 import {ORPCError} from '@orpc/client'
 import {makeRpcClient, type RpcClient} from '@conciv/contract'
 
-export function defaultOrigin(): string {
+function defaultOrigin(): string {
   const port = process.env.CONCIV_PORT ?? '5173'
   return `http://127.0.0.1:${port}`
 }

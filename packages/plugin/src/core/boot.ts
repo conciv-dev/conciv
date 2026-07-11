@@ -5,7 +5,6 @@ import {installConcivBinShim} from './bin-shim.js'
 import {makeOpenInEditor} from './open-editor.js'
 import {type Builtins, loadServerExtensions} from './extensions.js'
 
-
 export function makeEngineBooter(options: ConcivConfig, root: string, builtins: Builtins): () => Promise<Engine> {
   let booting: Promise<Engine> | null = null
   return () => {

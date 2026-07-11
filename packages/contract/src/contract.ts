@@ -101,7 +101,10 @@ export const contract = {
       .input(z.object({url: z.string()}))
       .output(z.object({code: z.string().nullable()})),
     urls: oc.errors(noBundler).output(z.object({local: z.array(z.string()), network: z.array(z.string())})),
-    reload: oc.errors(noBundler).input(z.object({file: z.string()})).output(Ok),
+    reload: oc
+      .errors(noBundler)
+      .input(z.object({file: z.string()}))
+      .output(Ok),
     restart: oc
       .errors(noBundler)
       .input(z.object({force: z.boolean().default(false)}))
