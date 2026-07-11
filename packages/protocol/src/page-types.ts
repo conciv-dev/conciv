@@ -127,6 +127,21 @@ export type PageQueryInput = z.infer<typeof PageQueryInputSchema>
 export const PageReplySchema = z.object({requestId: z.string(), data: z.record(z.string(), z.unknown()).default({})})
 export type PageReply = z.infer<typeof PageReplySchema>
 
+export const PageRunInputSchema = PageQueryInputSchema.extend({verb: PageQueryKindSchema})
+export type PageRunInput = z.infer<typeof PageRunInputSchema>
+
+export const PageRunResultSchema = z.record(z.string(), z.unknown())
+
+export const PageChangeEntrySchema = z.object({
+  seq: z.number(),
+  ts: z.number(),
+  verb: z.string(),
+  ref: z.string().optional(),
+  selector: z.string().optional(),
+  args: z.record(z.string(), z.unknown()),
+})
+export type PageChangeEntry = z.infer<typeof PageChangeEntrySchema>
+
 export type PageResult = Record<string, unknown>
 
 export function ok(data: Record<string, unknown> = {}): PageResult {
