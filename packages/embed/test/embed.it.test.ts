@@ -1,4 +1,4 @@
-import {afterAll, beforeAll, describe, expect, it} from 'vitest'
+import {afterAll, beforeAll, beforeEach, describe, expect, it} from 'vitest'
 import {chromium, type Browser, type Page} from 'playwright'
 import {bootEmbedKit, type EmbedKit} from './helpers/boot.js'
 import {hostPage, serveHost} from './helpers/host.js'
@@ -19,6 +19,10 @@ afterAll(async () => {
   await browser.close()
   await host.close()
   await kit.cleanup()
+})
+
+beforeEach(async () => {
+  await kit.rpc.navigation.set({entries: [{href: '/'}], index: 0})
 })
 
 async function openPage(): Promise<Page> {
