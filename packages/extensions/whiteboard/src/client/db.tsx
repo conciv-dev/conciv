@@ -1,8 +1,19 @@
 import {createContext, createSignal, onCleanup, useContext, type JSX} from 'solid-js'
 import {createCollection} from '@tanstack/solid-db'
-import {commentRow, pendingRow, pinRow, readRow, replyRow, type CursorEvent} from '../shared/rows.js'
+import {makeExtRpcClient} from '@conciv/extension'
+import {
+  commentRow,
+  elementRow,
+  pendingRow,
+  pinRow,
+  readRow,
+  replyRow,
+  type CursorEvent,
+  type ElementRow,
+} from '../shared/rows.js'
+import type {WhiteboardRouter} from '../server/router.js'
 import {createChangeFeed} from './change-feed.js'
-import {whiteboardCollectionOptions, whiteboardElementOptions} from './whiteboard-collection.js'
+import {whiteboardCollectionOptions, whiteboardElementOptions, type WhiteboardClient} from './whiteboard-collection.js'
 
 const accountId = (): string => {
   const key = 'conciv-whiteboard-account-id'
@@ -13,32 +24,56 @@ const accountId = (): string => {
   return fresh
 }
 
-export function createWhiteboardDb(base: string, room: string) {
-  const feed = createChangeFeed(base, room)
+export function createWhiteboardDb(apiBase: string, room: string) {
+  const client: WhiteboardClient = makeExtRpcClient<WhiteboardRouter>(apiBase, 'whiteboard')
+  const feed = createChangeFeed(apiBase, room)
 
   const comments = createCollection(
-    whiteboardCollectionOptions({feed, base, room, table: 'comments', schema: commentRow}),
+    whiteboardCollectionOptions({
+      feed,
+      room,
+      table: 'comments',
+      ops: client.comments,
+      parseRow: (row) => commentRow.parse(row),
+    }),
   )
-  const pins = createCollection(whiteboardCollectionOptions({feed, base, room, table: 'pins', schema: pinRow}))
-  const reads = createCollection(whiteboardCollectionOptions({feed, base, room, table: 'reads', schema: readRow}))
+  const pins = createCollection(
+    whiteboardCollectionOptions({feed, room, table: 'pins', ops: client.pins, parseRow: (row) => pinRow.parse(row)}),
+  )
+  const reads = createCollection(
+    whiteboardCollectionOptions({feed, room, table: 'reads', ops: client.reads, parseRow: (row) => readRow.parse(row)}),
+  )
   const canvasPending = createCollection(
-    whiteboardCollectionOptions({feed, base, room, table: 'canvasPending', schema: pendingRow}),
+    whiteboardCollectionOptions({
+      feed,
+      room,
+      table: 'canvasPending',
+      ops: client.canvasPending,
+      parseRow: (row) => pendingRow.parse(row),
+    }),
   )
   const canvasReplies = createCollection(
-    whiteboardCollectionOptions({feed, base, room, table: 'canvasReplies', schema: replyRow}),
+    whiteboardCollectionOptions({
+      feed,
+      room,
+      table: 'canvasReplies',
+      ops: client.canvasReplies,
+      parseRow: (row) => replyRow.parse(row),
+    }),
   )
-  const canvasElements = createCollection(whiteboardElementOptions({feed, base, room, scope: 'live'}))
-  const canvasDraftElements = createCollection(whiteboardElementOptions({feed, base, room, scope: 'draft'}))
+  const parseElement = (row: unknown) => elementRow.parse(row)
+  const canvasElements = createCollection(
+    whiteboardElementOptions({feed, client, room, scope: 'live', parseRow: parseElement}),
+  )
+  const canvasDraftElements = createCollection(
+    whiteboardElementOptions({feed, client, room, scope: 'draft', parseRow: parseElement}),
+  )
 
   const [cursors, setCursors] = createSignal<Map<string, CursorEvent>>(new Map())
   feed.onCursor((cursor) => setCursors((previous) => new Map(previous).set(cursor.peerId, cursor)))
 
   const postCursor = (cursor: Omit<CursorEvent, 'room' | 'lastSeen'>): void =>
-    void fetch(`${base}/cursor`, {
-      method: 'POST',
-      headers: {'content-type': 'application/json'},
-      body: JSON.stringify({...cursor, room, lastSeen: Date.now()}),
-    }).catch(() => undefined)
+    void client.cursor({...cursor, room, lastSeen: Date.now()}).catch(() => undefined)
 
   return {
     comments,
@@ -50,8 +85,8 @@ export function createWhiteboardDb(base: string, room: string) {
     canvasDraftElements,
     cursors,
     postCursor,
+    bulkUpsertElements: (scope: 'live' | 'draft', rows: ElementRow[]) => client.elements.bulkUpsert({scope, rows}),
     accountId,
-    base,
     room,
     dispose: () => {
       canvasElements.utils.cleanupStrategy()
@@ -65,8 +100,8 @@ export type WhiteboardDb = ReturnType<typeof createWhiteboardDb>
 
 const WhiteboardDbContext = createContext<WhiteboardDb>()
 
-export function WhiteboardDbProvider(props: {base: string; room: string; children: JSX.Element}): JSX.Element {
-  const db = createWhiteboardDb(props.base, props.room)
+export function WhiteboardDbProvider(props: {apiBase: string; room: string; children: JSX.Element}): JSX.Element {
+  const db = createWhiteboardDb(props.apiBase, props.room)
   onCleanup(() => db.dispose())
   return <WhiteboardDbContext.Provider value={db}>{props.children}</WhiteboardDbContext.Provider>
 }

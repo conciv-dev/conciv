@@ -133,7 +133,7 @@ function Board(props: {state: SurfaceState}): JSX.Element {
   return (
     <Show when={sessionId()} keyed fallback={<SessionPending />}>
       {(session) => (
-        <WhiteboardDbProvider base={`${apiBase}/api/ext/whiteboard`} room={session}>
+        <WhiteboardDbProvider apiBase={apiBase} room={session}>
           <Canvas state={props.state} room={() => session} self={selfIdentity(window)} />
         </WhiteboardDbProvider>
       )}
