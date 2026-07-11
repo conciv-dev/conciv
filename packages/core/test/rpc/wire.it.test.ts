@@ -221,15 +221,13 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     const iterator = await kit.rpc.page.queries(undefined, {signal: abort.signal})
     const firstPromise = iterator.next()
     await new Promise((resolve) => setTimeout(resolve, 50))
-    const verbResponse = kit.post('/api/page/snapshot', {})
+    const verbResult = kit.rpc.page.run({verb: 'snapshot'})
     const first = await firstPromise
     if (first.done) throw new Error('page.queries ended before a query arrived')
     expect(first.value.requestId).toBeTruthy()
     const replied = await kit.rpc.page.reply({requestId: first.value.requestId, data: {ok: true, value: 'snap'}})
     expect(replied.ok).toBe(true)
-    const response = await verbResponse
-    expect(response.status).toBe(200)
-    expect(await response.json()).toMatchObject({ok: true, value: 'snap'})
+    expect(await verbResult).toMatchObject({ok: true, value: 'snap'})
     abort.abort()
     await iterator.return(undefined).catch(() => {})
   })

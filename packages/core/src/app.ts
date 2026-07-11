@@ -21,9 +21,8 @@ import {makeCompactor} from './chat/compact.js'
 import {makeSend} from './chat/send.js'
 import {modelOf, openDb, statusOf} from '@conciv/db'
 import mcpApp, {type McpVars} from './mcp/mcp.js'
-import pageApp, {makePageBus, type PageVars} from './page/page.js'
+import {makePageBus} from './page/page.js'
 import {openSourceFromFrames} from './page/open-source.js'
-import bundlerApp, {type BundlerVars} from './bundler/bundler.js'
 import {makeRpcRouter} from './rpc/router.js'
 import {rpcMiddleware} from './rpc/mount.js'
 import {makeJournal} from './page/journal.js'
@@ -85,7 +84,7 @@ function buildExtensionTools(extension: AnyExtension, context: unknown) {
   })
 }
 
-export type CoreVars = CorsVars & PageVars & {chat: ChatDeps} & McpVars & BundlerVars
+export type CoreVars = CorsVars & {chat: ChatDeps} & McpVars
 
 function composeRoutes(vars: CoreVars, rpc: ReturnType<typeof makeRpcRouter>) {
   return new Hono<{Variables: CoreVars}>()
@@ -96,17 +95,13 @@ function composeRoutes(vars: CoreVars, rpc: ReturnType<typeof makeRpcRouter>) {
     })
     .use(async (c, next) => {
       c.set('cors', vars.cors)
-      c.set('page', vars.page)
       c.set('chat', vars.chat)
       c.set('mcp', vars.mcp)
-      c.set('bundler', vars.bundler)
       await next()
     })
     .use(corsMiddleware())
     .use('/rpc/*', rpcMiddleware(rpc))
-    .route('/api/page', pageApp)
     .route('/api/mcp', mcpApp)
-    .route('/api/server', bundlerApp)
 }
 
 export type AppType = ReturnType<typeof composeRoutes>
@@ -253,10 +248,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
   const app = composeRoutes(
     {
       cors: {allowedOrigins: opts.allowedOrigins ?? []},
-      page: pageEnv,
       chat: chatDeps,
       mcp: {makeCtx: makeToolCtx, extensionTools, sessionModel},
-      bundler: {bridge: () => opts.bridge},
     },
     rpc,
   )

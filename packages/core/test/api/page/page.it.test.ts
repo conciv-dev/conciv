@@ -5,7 +5,6 @@ import type {Kit} from '@conciv/harness-testkit'
 import {bootKit} from '../../helpers/boot.js'
 import {chunkWithInlineMap, cleanupChunks} from '../../page/fixtures.js'
 
-const ErrorSchema = z.object({message: z.string()})
 const ChangesSchema = z.array(
   z.object({verb: z.string(), selector: z.string().optional(), args: z.record(z.string(), z.unknown())}),
 )
@@ -30,7 +29,7 @@ async function connectWidget(
   return {end: () => ctrl.abort()}
 }
 
-describe('page routes page-bus (IT, real server)', () => {
+describe('page.run page-bus (IT, real server, typed rpc)', () => {
   const state = {kit: undefined as Kit | undefined, widget: undefined as {end: () => void} | undefined}
   afterEach(async () => {
     state.widget?.end()
@@ -46,10 +45,6 @@ describe('page routes page-bus (IT, real server)', () => {
     return kit
   }
 
-  const getJson = async (kit: Kit, path: string): Promise<unknown> => (await kit.get(path)).json()
-  const postJson = async (kit: Kit, path: string, body: unknown): Promise<unknown> =>
-    (await kit.post(path, body)).json()
-
   it('enriches a locate reply with symbolicated source', async () => {
     const kit = await setup()
     const chunk = await chunkWithInlineMap('app/page.tsx', 17, 4)
@@ -58,7 +53,7 @@ describe('page routes page-bus (IT, real server)', () => {
       stack: ['Home'],
       frames: [{fileName: `file://${chunk}`, line: 2, column: 1}],
     }))
-    const data = (await getJson(kit, '/api/page/locate?selector=h1')) as Record<string, unknown>
+    const data = await kit.rpc.page.run({verb: 'locate', selector: 'h1'})
     expect(data.component).toBe('Home')
     expect(data.source).toEqual({file: 'app/page.tsx', line: 17, column: 4})
   })
@@ -66,32 +61,32 @@ describe('page routes page-bus (IT, real server)', () => {
   it('round-trips a page query: SSE push → widget reply → the query resolves', async () => {
     const kit = await setup()
     state.widget = await connectWidget(kit, () => ({pathname: '/checkout', search: ''}))
-    expect(await getJson(kit, '/api/page/route')).toEqual({pathname: '/checkout', search: ''})
+    expect(await kit.rpc.page.run({verb: 'route'})).toEqual({pathname: '/checkout', search: ''})
   })
 
-  it('returns 503 when no widget is subscribed', async () => {
+  it('reports NO_PAGE_CLIENT when no widget is subscribed', async () => {
     const kit = await setup()
-    const res = await kit.get('/api/page/route')
-    expect(res.status).toBe(503)
-    const body = ErrorSchema.parse(await res.json())
-    expect(body.message).toContain('no widget')
+    await expect(kit.rpc.page.run({verb: 'route'})).rejects.toMatchObject({
+      code: 'NO_PAGE_CLIENT',
+      message: 'no widget connected',
+    })
   })
 
   it('round-trips a fill action and the journal records it', async () => {
     const kit = await setup()
     state.widget = await connectWidget(kit, () => ({ok: true}))
-    expect(await postJson(kit, '/api/page/fill', {selector: '#email', value: 'a@b.c'})).toEqual({ok: true})
-    const changes = ChangesSchema.parse(await getJson(kit, '/api/page/changes'))
+    expect(await kit.rpc.page.run({verb: 'fill', selector: '#email', value: 'a@b.c'})).toEqual({ok: true})
+    const changes = ChangesSchema.parse(await kit.rpc.page.changes(undefined))
     expect(changes).toMatchObject([{verb: 'fill', selector: '#email', args: {value: 'a@b.c'}}])
   })
 
   it('does NOT journal a read, and clear empties the journal', async () => {
     const kit = await setup()
     state.widget = await connectWidget(kit, () => ({text: 'hi'}))
-    await getJson(kit, '/api/page/text?selector=%23h')
-    await postJson(kit, '/api/page/click', {selector: '.btn'})
-    expect(ChangesSchema.parse(await getJson(kit, '/api/page/changes'))).toHaveLength(1)
-    await postJson(kit, '/api/page/changes/clear', {})
-    expect(ChangesSchema.parse(await getJson(kit, '/api/page/changes'))).toEqual([])
+    await kit.rpc.page.run({verb: 'text', selector: '#h'})
+    await kit.rpc.page.run({verb: 'click', selector: '.btn'})
+    expect(ChangesSchema.parse(await kit.rpc.page.changes(undefined))).toHaveLength(1)
+    await kit.rpc.page.clearChanges(undefined)
+    expect(ChangesSchema.parse(await kit.rpc.page.changes(undefined))).toEqual([])
   })
 })

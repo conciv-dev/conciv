@@ -1,14 +1,5 @@
-import {Hono} from 'hono'
 import {HTTPException} from 'hono/http-exception'
-import {zValidator} from '@hono/zod-validator'
-import {z} from 'zod'
-import {
-  isMutating,
-  PageQueryInputSchema,
-  PageQueryKindSchema,
-  type PageQuery,
-  type PageQueryInput,
-} from '@conciv/protocol/page-types'
+import {isMutating, type PageQuery, type PageQueryInput} from '@conciv/protocol/page-types'
 import type {Journal} from './journal.js'
 import {makePending} from './pending.js'
 import {symbolicateFrames, type RawFrame} from './symbolicate.js'
@@ -19,7 +10,7 @@ export type PageBus = {
   subscribe: (emit: (frame: unknown) => void) => () => void
 }
 
-export type PageVars = {page: {journal: Journal; root: string; bus: PageBus}}
+export type PageEnv = {journal: Journal; root: string; bus: PageBus}
 
 export function makePageBus(timeoutMs = 5000): PageBus {
   const pending = makePending<Record<string, unknown>>()
@@ -90,10 +81,8 @@ function pageArgs(input: PageQueryInput): Record<string, unknown> {
   return Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined))
 }
 
-const VerbParamsSchema = z.object({verb: PageQueryKindSchema})
-
 export async function runVerb(
-  env: PageVars['page'],
+  env: PageEnv,
   input: PageQueryInput,
   verb: PageQuery['kind'],
 ): Promise<Record<string, unknown>> {
@@ -106,18 +95,3 @@ export async function runVerb(
   }
   return data
 }
-
-const app = new Hono<{Variables: PageVars}>()
-  .get('/changes', (c) => c.json(c.var.page.journal.list()))
-  .post('/changes/clear', (c) => {
-    c.var.page.journal.clear()
-    return c.json({ok: true})
-  })
-  .get('/:verb', zValidator('param', VerbParamsSchema), zValidator('query', PageQueryInputSchema), async (c) =>
-    c.json(await runVerb(c.var.page, c.req.valid('query'), c.req.valid('param').verb)),
-  )
-  .post('/:verb', zValidator('param', VerbParamsSchema), zValidator('json', PageQueryInputSchema), async (c) =>
-    c.json(await runVerb(c.var.page, c.req.valid('json'), c.req.valid('param').verb)),
-  )
-
-export default app

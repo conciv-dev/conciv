@@ -26,17 +26,15 @@ afterAll(async () => {
 })
 
 describe('startPagePlane executes core page verbs in the browser', () => {
-  it('round-trips /api/page/text through rpc.page.queries to the DOM driver', async () => {
+  it('round-trips page.run text through rpc.page.queries to the DOM driver', async () => {
     const page = await browser.newPage()
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
     await page.waitForFunction(() => '__CONCIV_PAGE_DRIVER__' in window, undefined, {timeout: 15_000})
     await expect
       .poll(
         async () => {
-          const response = await kit.post('/api/page/text', {selector: '#probe'})
-          if (response.status !== 200) return null
-          const body = await response.json()
-          return typeof body === 'object' && body !== null && 'text' in body ? body.text : null
+          const body = await kit.rpc.page.run({verb: 'text', selector: '#probe'}).catch(() => null)
+          return body !== null && 'text' in body ? body.text : null
         },
         {timeout: 20_000},
       )
@@ -51,9 +49,8 @@ describe('startPagePlane executes core page verbs in the browser', () => {
     await expect
       .poll(
         async () => {
-          const response = await kit.post('/api/page/snapshot', {})
-          if (response.status !== 200) return ''
-          return JSON.stringify(await response.json())
+          const body = await kit.rpc.page.run({verb: 'snapshot'}).catch(() => null)
+          return body === null ? '' : JSON.stringify(body)
         },
         {timeout: 20_000},
       )

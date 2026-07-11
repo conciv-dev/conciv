@@ -8,7 +8,7 @@ import type {ChatDeps} from '../chat/runtime.js'
 import type {Compactor} from '../chat/compact.js'
 import type {OpenInEditor} from '../editor/open.js'
 import type {OpenSourceFrames, OpenSourceStatus} from '../page/open-source.js'
-import type {PageVars} from '../page/page.js'
+import type {PageEnv} from '../page/page.js'
 import type {makeRpcRouter} from './router.js'
 
 export type RpcContext = {request: Request}
@@ -20,7 +20,7 @@ export type RpcDeps = {
   send: (sessionId: string, text: string) => Promise<void>
   openInEditor: OpenInEditor
   openFromFrames: (frames: OpenSourceFrames) => Promise<OpenSourceStatus>
-  page: PageVars['page']
+  page: PageEnv
   bundler: () => BundlerBridge | undefined
 }
 
