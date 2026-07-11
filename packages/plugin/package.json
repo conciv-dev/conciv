@@ -75,6 +75,7 @@
     "@babel/preset-typescript": "^7.29.7",
     "@conciv/cli": "workspace:^",
     "@conciv/core": "workspace:^",
+    "@conciv/embed": "workspace:^",
     "@conciv/extension": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "babel-dead-code-elimination": "^1.0.12",

@@ -14,8 +14,10 @@ describe('generic extension wiring', () => {
     expect(builders.map((builder) => builder.name)).toEqual(['fixture-ext'])
   })
 
-  it('reports the idle client entries in the stub module until the conciv app ships', () => {
+  it('imports each client entry and hands them all to mountConciv', () => {
     const source = extensionsModuleSource(['/abs/a/client.js', '/abs/b/client.js'])
-    expect(source).toContain('2 extension client entries idle')
+    expect(source).toContain('import builtin0 from "/abs/a/client.js"')
+    expect(source).toContain('import builtin1 from "/abs/b/client.js"')
+    expect(source).toContain('mountConciv([builtin0, builtin1, ...userExtensions])')
   })
 })

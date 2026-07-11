@@ -176,6 +176,9 @@ importers:
 
   apps/examples/nextjs-app:
     dependencies:
+      '@conciv/embed':
+        specifier: workspace:*
+        version: link:../../../packages/embed
       '@conciv/it':
         specifier: workspace:*
         version: link:../../../packages/it
@@ -213,6 +216,9 @@ importers:
       '@conciv/cli':
         specifier: workspace:*
         version: link:../../../packages/cli
+      '@conciv/embed':
+        specifier: workspace:*
+        version: link:../../../packages/embed
       '@conciv/extension':
         specifier: workspace:*
         version: link:../../../packages/extension
@@ -1296,6 +1302,9 @@ importers:
       '@conciv/core':
         specifier: workspace:^
         version: link:../core
+      '@conciv/embed':
+        specifier: workspace:^
+        version: link:../embed
       '@conciv/extension':
         specifier: workspace:^
         version: link:../extension

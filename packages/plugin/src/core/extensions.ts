@@ -13,13 +13,19 @@ export type Builtins = {serverExtensions: readonly AnyExtension[]; clientEntries
 export const NO_BUILTINS: Builtins = {serverExtensions: [], clientEntries: []}
 
 export function extensionsModuleSource(clientEntries: readonly string[], apiBase?: string): string {
+  const imports = clientEntries.map((entry, index) => `import builtin${index} from ${JSON.stringify(entry)}`)
+  const builtinNames = clientEntries.map((_, index) => `builtin${index}`)
   const apiBaseLine =
     apiBase === undefined
       ? []
       : [`if (typeof window !== 'undefined') window.__CONCIV_API_BASE__ = ${JSON.stringify(apiBase)}`]
   return [
+    "import {mountConciv} from '@conciv/embed'",
+    ...imports,
     ...apiBaseLine,
-    `console.info('[conciv] widget UI removed pending the new conciv client (oRPC rewrite); /rpc API is live; ${clientEntries.length} extension client entries idle')`,
+    "const mods = import.meta.glob('/conciv/extensions/*.{ts,tsx}', {eager: true})",
+    'const userExtensions = Object.values(mods).map((m) => m && m.default).filter(Boolean)',
+    `mountConciv([${[...builtinNames, '...userExtensions'].join(', ')}])`,
     '',
   ].join('\n')
 }

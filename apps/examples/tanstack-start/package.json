@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@conciv/cli": "workspace:*",
+    "@conciv/embed": "workspace:*",
     "@conciv/extension": "workspace:*",
     "@conciv/it": "workspace:*",
     "@conciv/protocol": "workspace:*",
