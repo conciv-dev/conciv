@@ -155,7 +155,9 @@ Behavior contracts (test targets):
 **ToolViewCtx (COV-2):** tool cards only see `ToolViewCtx` (`apiBase` — no client); the test-runner card's `${apiBase}/api/editor/open` POST is dead today. Give `ToolViewCtx` an `openEditor: (file: string, line?: number) => void` seam (protocol type change) wired to `rpc.editor.open` by both the app pane and extension-testkit host; re-point the card.
 **Then check:** `SessionClient` type in `@conciv/protocol/chat-types` — verified sole consumers are extension types + extension-testkit + apps/conciv host-bag; after this task delete the type (fallow confirms).
 
-- [ ] Extension browser ITs green; app typecheck/tests green; commit.
+- [x] Extension browser ITs green; app typecheck/tests green; commit.
+
+**Task 5 EXECUTED (2026-07-11 session 3, commits 5f889b5..fd594e1).** Deviations from the locked list: `useSurface` shipped as `useSlot` (slot discriminator, same role); `useDialog`/`usePopover`/`useNewSession` added (real consumers: composer/session-selector); `useApiBase` retained for the terminal WS url. Root-cause note for the dev-browser blocker this task hit: HostApiProvider's context-value getter destructured `props` to drop `children`, which *invoked* the `children` getter and rendered the whole subtree during the context-value computation — before Solid's Provider had written the context entry — so every hook threw 'used outside a host' and the subtree also rendered twice. Fix: `splitProps(props, ['children'])` (never touch `props.children` inside the value computation). Full browser walk verified: FAB/panel, Alt+k quick terminal, canvas from quick, composer extension buttons, Alt-hold highlight — zero console errors.
 
 ### Task 6: plan-wide gates
 
