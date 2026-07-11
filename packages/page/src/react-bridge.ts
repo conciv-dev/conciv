@@ -107,16 +107,21 @@ function sourceFromAttr(el: Element): SourceLoc | null {
   return file && Number.isFinite(line) && Number.isFinite(column) ? {file, line, column} : null
 }
 
+function hostElementOf(composite: Fiber): Element | null {
+  const host = getNearestHostFiber(composite)
+  return host?.stateNode instanceof Element ? host.stateNode : null
+}
+
+function ownerOf(f: Fiber, refs: Refs): Owner {
+  const el = hostElementOf(f)
+  return {component: getDisplayName(f) || '?', ref: el ? addRef(el, refs) : ''}
+}
+
 function ownerChain(fiber: Fiber, refs: Refs, limit = 12): Owner[] {
-  const owners: Owner[] = []
-  for (const f of getFiberStack(fiber)) {
-    if (!isCompositeFiber(f)) continue
-    const host = getNearestHostFiber(f)
-    const el = host?.stateNode instanceof Element ? host.stateNode : null
-    owners.push({component: getDisplayName(f) || '?', ref: el ? addRef(el, refs) : ''})
-    if (owners.length >= limit) break
-  }
-  return owners
+  return getFiberStack(fiber)
+    .filter((f: Fiber) => isCompositeFiber(f))
+    .slice(0, limit)
+    .map((f: Fiber) => ownerOf(f, refs))
 }
 
 export async function locate(el: Element, refs: Refs): Promise<LocateResult | null> {
@@ -132,17 +137,14 @@ export async function locate(el: Element, refs: Refs): Promise<LocateResult | nu
 
 export function componentHostAt(el: Element): Element | null {
   const fiber = getFiberFromHostInstance(el)
-  if (!fiber) return null
-  const composite = isCompositeFiber(fiber) ? fiber : getFiberStack(fiber).find((f: Fiber) => isCompositeFiber(f))
+  const composite = fiber ? composedFiber(fiber) : undefined
   if (!composite) return null
-  const host = getNearestHostFiber(composite)
-  return host?.stateNode instanceof Element ? host.stateNode : el
+  return hostElementOf(composite) ?? el
 }
 
 export function describe(host: Element): {component: string; file: string | null} {
   const fiber = getFiberFromHostInstance(host)
-  const composite =
-    fiber && (isCompositeFiber(fiber) ? fiber : getFiberStack(fiber).find((f: Fiber) => isCompositeFiber(f)))
+  const composite = fiber ? composedFiber(fiber) : undefined
   const source = sourceFromAttr(host)
   return {component: (composite && getDisplayName(composite)) || '?', file: source ? source.file : null}
 }
@@ -152,24 +154,25 @@ function classState(composite: Fiber): unknown {
   return inst && typeof inst.setState === 'function' ? (inst.state ?? null) : null
 }
 
+const isClassComponent = (composite: Fiber): boolean =>
+  Boolean(composite.stateNode) && typeof composite.stateNode.setState === 'function'
+
+function rectOf(el: Element | null): {x: number; y: number; w: number; h: number} | null {
+  const r = el?.getBoundingClientRect()
+  return r ? {x: r.x, y: r.y, w: r.width, h: r.height} : null
+}
+
 export async function inspect(el: Element): Promise<InspectResult | null> {
   const found = await fiberForEl(el)
   if (!found) return null
-
-  const fiber = getLatestFiber(found)
-  const composite = isCompositeFiber(fiber) ? fiber : getFiberStack(fiber).find((f: Fiber) => isCompositeFiber(f))
+  const composite = composedFiber(getLatestFiber(found))
   if (!composite) return null
-
-  const hooks = composite.stateNode && typeof composite.stateNode.setState === 'function' ? [] : readHooks(composite)
-  const host = getNearestHostFiber(composite)
-  const hostEl = host?.stateNode instanceof Element ? host.stateNode : null
-  const r = hostEl?.getBoundingClientRect()
   return {
     component: getDisplayName(composite) || null,
     props: composite.memoizedProps,
     state: classState(composite),
-    hooks,
-    rect: r ? {x: r.x, y: r.y, w: r.width, h: r.height} : null,
+    hooks: isClassComponent(composite) ? [] : readHooks(composite),
+    rect: rectOf(hostElementOf(composite)),
   }
 }
 
@@ -197,16 +200,56 @@ function composedFiber(fiber: Fiber): Fiber | undefined {
 const REACT_PROVIDER = Symbol.for('react.provider')
 const REACT_CONTEXT = Symbol.for('react.context')
 
+function isProviderFiber(f: Fiber): boolean {
+  const t = f.type
+  if (!t || typeof t !== 'object') return false
+  return t.$$typeof === REACT_PROVIDER || t.$$typeof === REACT_CONTEXT || Boolean(t._context)
+}
+
 function findProvider(fiber: Fiber): Fiber | null {
-  let f = fiber.return
-  while (f) {
-    const t = f.type
-    if (t && typeof t === 'object' && (t.$$typeof === REACT_PROVIDER || t.$$typeof === REACT_CONTEXT || t._context)) {
-      return f
-    }
-    f = f.return
+  const parent = fiber.return
+  if (!parent) return null
+  return isProviderFiber(parent) ? parent : findProvider(parent)
+}
+
+function overridePropsOn(composite: Fiber, path: (string | number)[], value: unknown): OverrideResult {
+  const inst = composite.stateNode
+  if (isClassComponent(composite)) {
+    composite.pendingProps = copyWithSet(inst.props, path, value)
+    inst.forceUpdate()
+    return {ok: true}
   }
-  return null
+  const renderer = getRenderer()
+  if (!renderer?.overrideProps) return {error: 'React build does not support prop overrides (dev build required)'}
+  renderer.overrideProps(composite, path, value)
+  return {ok: true}
+}
+
+function overrideStateOn(composite: Fiber, path: (string | number)[], value: unknown): OverrideResult {
+  if (!isClassComponent(composite))
+    return {error: 'state override targets class components; function-component state is a hook — use target=hooks'}
+  const inst = composite.stateNode
+  if (path.length === 0) inst.state = value
+  else setInPlace(inst.state, path, value)
+  inst.forceUpdate()
+  return {ok: true}
+}
+
+function overrideHooksOn(composite: Fiber, path: (string | number)[], value: unknown, hookId?: number): OverrideResult {
+  if (hookId === undefined) return {error: 'hooks override requires hookId (from inspect → hooks[].id)'}
+  const renderer = getRenderer()
+  if (!renderer?.overrideHookState) return {error: 'React build does not support hook overrides (dev build required)'}
+  renderer.overrideHookState(composite, hookId, path, value)
+  return {ok: true}
+}
+
+function overrideContextOn(composite: Fiber, path: (string | number)[], value: unknown): OverrideResult {
+  const provider = findProvider(composite)
+  if (!provider) return {error: 'no context Provider found above this component'}
+  const renderer = getRenderer()
+  if (!renderer?.overrideProps) return {error: 'React build does not support overrides (dev build required)'}
+  renderer.overrideProps(provider, ['value', ...path], value)
+  return {ok: true}
 }
 
 export async function override(
@@ -220,40 +263,10 @@ export async function override(
   if (!found) return {error: 'no React fiber for element'}
   const composite = composedFiber(getLatestFiber(found))
   if (!composite) return {error: 'no composite component for element'}
-  const inst = composite.stateNode
-  const isClass = inst && typeof inst.setState === 'function'
-  const renderer = getRenderer()
-
-  if (target === 'props') {
-    if (isClass) {
-      composite.pendingProps = copyWithSet(inst.props, path, value)
-      inst.forceUpdate()
-      return {ok: true}
-    }
-    if (!renderer?.overrideProps) return {error: 'React build does not support prop overrides (dev build required)'}
-    renderer.overrideProps(composite, path, value)
-    return {ok: true}
-  }
-  if (target === 'state') {
-    if (!isClass)
-      return {error: 'state override targets class components; function-component state is a hook — use target=hooks'}
-    if (path.length === 0) inst.state = value
-    else setInPlace(inst.state, path, value)
-    inst.forceUpdate()
-    return {ok: true}
-  }
-  if (target === 'hooks') {
-    if (hookId === undefined) return {error: 'hooks override requires hookId (from inspect → hooks[].id)'}
-    if (!renderer?.overrideHookState) return {error: 'React build does not support hook overrides (dev build required)'}
-    renderer.overrideHookState(composite, hookId, path, value)
-    return {ok: true}
-  }
-
-  const provider = findProvider(composite)
-  if (!provider) return {error: 'no context Provider found above this component'}
-  if (!renderer?.overrideProps) return {error: 'React build does not support overrides (dev build required)'}
-  renderer.overrideProps(provider, ['value', ...path], value)
-  return {ok: true}
+  if (target === 'props') return overridePropsOn(composite, path, value)
+  if (target === 'state') return overrideStateOn(composite, path, value)
+  if (target === 'hooks') return overrideHooksOn(composite, path, value, hookId)
+  return overrideContextOn(composite, path, value)
 }
 
 export async function tree(
@@ -268,45 +281,69 @@ export async function tree(
   const out: TreeNode[] = []
   const byFiber = new Map<Fiber, TreeNode>()
   const depthOf = new Map<Fiber, number>()
-  let count = 0
-  let truncated = 0
+  const counters = {count: 0, truncated: 0}
   traverseFiber(rootFiber, (node: Fiber) => {
     if (!isCompositeFiber(node)) return false
-    let comp = node.return
-    while (comp && !isCompositeFiber(comp)) comp = comp.return
-    const depth = comp ? (depthOf.get(comp) ?? 0) + 1 : 0
+    const depth = compositeDepth(depthOf, node)
     depthOf.set(node, depth)
-    if (depth > maxDepth || count >= maxNodes) {
-      truncated++
-      let t = node.return
-      while (t && !byFiber.has(t)) t = t.return
-      const anc = t ? byFiber.get(t) : undefined
-      if (anc) anc.truncated = (anc.truncated ?? 0) + 1
+    if (depth > maxDepth || counters.count >= maxNodes) {
+      counters.truncated++
+      recordTruncation(byFiber, node)
       return false
     }
-    count++
-    const host = getNearestHostFiber(node)
-    const el = host?.stateNode instanceof Element ? host.stateNode : null
-    const tn: TreeNode = {component: getDisplayName(node) || '?', ref: el ? addRef(el, refs) : '', children: []}
+    counters.count++
+    const tn = treeNodeFor(node, refs)
     byFiber.set(node, tn)
-    let parent = node.return
-    while (parent && !byFiber.has(parent)) parent = parent.return
-    const parentNode = parent ? byFiber.get(parent) : undefined
-    if (parentNode) parentNode.children.push(tn)
-    else out.push(tn)
+    attachTreeNode(byFiber, out, node, tn)
     return false
   })
-  return {nodes: out, truncated}
+  return {nodes: out, truncated: counters.truncated}
 }
 
-function reactRootFibers(): Fiber[] {
+function nearestCompositeAncestor(f: Fiber): Fiber | null {
+  if (!f) return null
+  return isCompositeFiber(f) ? f : nearestCompositeAncestor(f.return)
+}
+
+function compositeDepth(depthOf: Map<Fiber, number>, node: Fiber): number {
+  const comp = nearestCompositeAncestor(node.return)
+  return comp ? (depthOf.get(comp) ?? 0) + 1 : 0
+}
+
+function nearestRecordedAncestor(byFiber: Map<Fiber, TreeNode>, f: Fiber): TreeNode | undefined {
+  if (!f) return undefined
+  return byFiber.has(f) ? byFiber.get(f) : nearestRecordedAncestor(byFiber, f.return)
+}
+
+function recordTruncation(byFiber: Map<Fiber, TreeNode>, node: Fiber): void {
+  const anc = nearestRecordedAncestor(byFiber, node.return)
+  if (anc) anc.truncated = (anc.truncated ?? 0) + 1
+}
+
+function treeNodeFor(node: Fiber, refs: Refs): TreeNode {
+  const el = hostElementOf(node)
+  return {component: getDisplayName(node) || '?', ref: el ? addRef(el, refs) : '', children: []}
+}
+
+function attachTreeNode(byFiber: Map<Fiber, TreeNode>, out: TreeNode[], node: Fiber, tn: TreeNode): void {
+  const parentNode = nearestRecordedAncestor(byFiber, node.return)
+  if (parentNode) parentNode.children.push(tn)
+  else out.push(tn)
+}
+
+function knownRootFibers(): Fiber[] {
   const roots: Fiber[] = []
   try {
     for (const r of _fiberRoots as Iterable<{current?: Fiber}>) if (r?.current) roots.push(r.current)
   } catch {}
-  if (roots.length > 0) return roots
+  return roots
+}
+
+const isReactDomKey = (k: string): boolean => k.startsWith('__reactFiber') || k.startsWith('__reactContainer')
+
+function scannedRootFibers(): Fiber[] {
   for (const el of Array.from(document.querySelectorAll('*'))) {
-    const key = Object.keys(el).find((k) => k.startsWith('__reactFiber') || k.startsWith('__reactContainer'))
+    const key = Object.keys(el).find(isReactDomKey)
     if (!key) continue
     const stack = getFiberStack((el as unknown as Record<string, Fiber>)[key])
     const top = stack[stack.length - 1]
@@ -315,20 +352,24 @@ function reactRootFibers(): Fiber[] {
   return []
 }
 
+function reactRootFibers(): Fiber[] {
+  const roots = knownRootFibers()
+  return roots.length > 0 ? roots : scannedRootFibers()
+}
+
+const isNamedComposite = (node: Fiber, name: string): boolean => isCompositeFiber(node) && getDisplayName(node) === name
+
 export function elementByName(name: string): Element | null {
-  let result: Element | null = null
+  const found = {el: null as Element | null}
   for (const root of reactRootFibers()) {
     traverseFiber(root, (node: Fiber) => {
-      if (result) return false
-      if (isCompositeFiber(node) && getDisplayName(node) === name) {
-        const host = getNearestHostFiber(node)
-        if (host?.stateNode instanceof Element) result = host.stateNode
-      }
+      if (found.el || !isNamedComposite(node, name)) return false
+      found.el = hostElementOf(node)
       return false
     })
-    if (result) break
+    if (found.el) break
   }
-  return result
+  return found.el
 }
 
 export function find(
@@ -337,18 +378,15 @@ export function find(
   limit = 20,
 ): {matches: {ref: string; component: string}[]; total: number} {
   const matches: {ref: string; component: string}[] = []
-  let total = 0
+  const counter = {total: 0}
   for (const root of reactRootFibers()) {
     traverseFiber(root, (node: Fiber) => {
-      if (isCompositeFiber(node) && getDisplayName(node) === name) {
-        const host = getNearestHostFiber(node)
-        if (host?.stateNode instanceof Element) {
-          total++
-          if (matches.length < limit) matches.push({ref: addRef(host.stateNode, refs), component: name})
-        }
-      }
+      const el = isNamedComposite(node, name) ? hostElementOf(node) : null
+      if (!el) return false
+      counter.total++
+      if (matches.length < limit) matches.push({ref: addRef(el, refs), component: name})
       return false
     })
   }
-  return {matches, total}
+  return {matches, total: counter.total}
 }

@@ -40,36 +40,43 @@ const ROLE_BY_TAG: Record<string, string> = {
   h6: 'heading',
 }
 
+const INPUT_ROLES: Record<string, string> = {checkbox: 'checkbox', radio: 'radio', button: 'button', submit: 'button'}
+
 function roleOf(el: Element): string {
   const explicit = el.getAttribute('role')
   if (explicit) return explicit
+  if (el instanceof HTMLInputElement) return INPUT_ROLES[el.type] ?? 'textbox'
   const tag = el.tagName.toLowerCase()
-  if (el instanceof HTMLInputElement) {
-    if (el.type === 'checkbox') return 'checkbox'
-    if (el.type === 'radio') return 'radio'
-    if (el.type === 'button' || el.type === 'submit') return 'button'
-    return 'textbox'
-  }
   return ROLE_BY_TAG[tag] ?? tag
+}
+
+function labelName(el: Element): string | undefined {
+  const label = el instanceof HTMLInputElement ? el.labels?.[0] : undefined
+  return label === undefined ? undefined : (label.textContent ?? '').trim()
 }
 
 function accessibleName(el: Element): string {
   const aria = el.getAttribute('aria-label')
   if (aria) return aria.trim()
-  if (el instanceof HTMLInputElement && el.labels && el.labels.length > 0) {
-    return el.labels[0]?.textContent?.trim() ?? ''
-  }
+  const fromLabel = labelName(el)
+  if (fromLabel !== undefined) return fromLabel
   const text = (el.textContent ?? '').replace(/\s+/g, ' ').trim()
   return text.slice(0, 80)
 }
 
+const isCheckedInput = (el: Element): boolean =>
+  el instanceof HTMLInputElement && (el.type === 'checkbox' || el.type === 'radio') && el.checked
+
+const isDisabled = (el: Element): boolean => 'disabled' in el && Boolean(el.disabled)
+
+const isHidden = (el: Element): boolean =>
+  el instanceof HTMLElement && el.offsetParent === null && getComputedStyle(el).position !== 'fixed'
+
 function nodeState(el: Element): string[] {
   const state: string[] = []
-  if (el instanceof HTMLInputElement && (el.type === 'checkbox' || el.type === 'radio') && el.checked)
-    state.push('checked')
-  if ('disabled' in el && el.disabled) state.push('disabled')
-  if (el instanceof HTMLElement && el.offsetParent === null && getComputedStyle(el).position !== 'fixed')
-    state.push('hidden')
+  if (isCheckedInput(el)) state.push('checked')
+  if (isDisabled(el)) state.push('disabled')
+  if (isHidden(el)) state.push('hidden')
   return state
 }
 
@@ -80,28 +87,28 @@ function isInteresting(el: Element): boolean {
   return tag in ROLE_BY_TAG
 }
 
+const elementValue = (el: Element): string | undefined =>
+  el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement
+    ? el.value
+    : undefined
+
+function snapNode(el: Element, refs: Refs): SnapNode {
+  const state = nodeState(el)
+  return {
+    ref: addRef(el, refs),
+    role: roleOf(el),
+    name: accessibleName(el) || undefined,
+    value: elementValue(el),
+    state: state.length > 0 ? state : undefined,
+  }
+}
+
 export function buildSnapshot(root: Element, refs: Refs): SnapNode[] {
   refs.map.clear()
   refs.n = 0
   const out: SnapNode[] = []
   const walk = (el: Element): void => {
-    if (isInteresting(el)) {
-      refs.n += 1
-      const ref = `v${refs.n}`
-      refs.map.set(ref, new WeakRef(el))
-      const value =
-        el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement
-          ? el.value
-          : undefined
-      const state = nodeState(el)
-      out.push({
-        ref,
-        role: roleOf(el),
-        name: accessibleName(el) || undefined,
-        value,
-        state: state.length > 0 ? state : undefined,
-      })
-    }
+    if (isInteresting(el)) out.push(snapNode(el, refs))
     for (const child of Array.from(el.children)) walk(child)
   }
   walk(root)

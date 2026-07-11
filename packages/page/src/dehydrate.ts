@@ -41,18 +41,19 @@ function ctorName(v: object): string {
   }
 }
 
+const functionElementName = (fn: {displayName?: string; name?: string}): string =>
+  fn.displayName || fn.name || 'Anonymous'
+
+const objectElementName = (o: {displayName?: string; render?: {name?: string}}): string =>
+  o.displayName || o.render?.name || 'Component'
+
+const isRecord = (v: unknown): v is object => typeof v === 'object' && v !== null
+
 function reactElementName(el: {type?: unknown}): string {
   const t = el.type
   if (typeof t === 'string') return t
-  if (typeof t === 'function') {
-    const fn = t as {displayName?: string; name?: string}
-    return fn.displayName || fn.name || 'Anonymous'
-  }
-  if (t && typeof t === 'object') {
-    const o = t as {displayName?: string; render?: {name?: string}}
-    return o.displayName || o.render?.name || 'Component'
-  }
-  return 'Element'
+  if (typeof t === 'function') return functionElementName(t)
+  return isRecord(t) ? objectElementName(t) : 'Element'
 }
 
 function isReactElement(v: {$$typeof?: unknown}): boolean {
@@ -70,6 +71,70 @@ export function dehydrate(value: unknown, options: DehydrateOptions = {}): unkno
   return walk(value, 0, new WeakSet(), {nodes: opts.maxNodes}, opts)
 }
 
+function numberPreview(n: number): number | string {
+  if (Number.isNaN(n)) return 'NaN'
+  if (!Number.isFinite(n)) return n > 0 ? 'Infinity' : '-Infinity'
+  return n
+}
+
+function scalarPreview(value: unknown, cap: number): unknown {
+  switch (typeof value) {
+    case 'string':
+      return clampStr(value, cap)
+    case 'number':
+      return numberPreview(value)
+    case 'undefined':
+      return 'undefined'
+    case 'bigint':
+      return `${value.toString()}n`
+    case 'symbol':
+      return value.toString()
+    case 'function':
+      return `ƒ ${value.name || 'anonymous'}()`
+    default:
+      return value
+  }
+}
+
+function domPreview(value: object): string | undefined {
+  if (typeof HTMLElement === 'undefined' || !(value instanceof HTMLElement)) return undefined
+  const id = value.id ? `#${value.id}` : ''
+  return `<${value.tagName.toLowerCase()}${id} />`
+}
+
+const reactPreview = (value: object): string | undefined =>
+  isReactElement(value) ? `<${reactElementName(value)} />` : undefined
+
+function builtinPreview(value: object, cap: number): unknown {
+  if (value instanceof Date) return value.toISOString()
+  if (value instanceof RegExp) return value.toString()
+  if (value instanceof Error) return `${value.name}: ${clampStr(value.message, cap)}`
+  return value instanceof Promise ? 'Promise {…}' : undefined
+}
+
+function collectionPreview(value: object): unknown {
+  if (value instanceof Map) return {__conciv: 'Map', size: value.size, preview: `Map(${value.size})`}
+  if (value instanceof Set) return {__conciv: 'Set', size: value.size, preview: `Set(${value.size})`}
+  return binaryPreview(value)
+}
+
+function binaryPreview(value: object): unknown {
+  if (!ArrayBuffer.isView(value) && !(value instanceof ArrayBuffer)) return undefined
+  const name = ctorName(value) || 'ArrayBuffer'
+  const size = 'length' in value ? (value as {length: number}).length : (value as ArrayBuffer).byteLength
+  return {__conciv: 'binary', size, preview: `${name}(${size})`}
+}
+
+const specialPreview = (value: object, cap: number): unknown =>
+  domPreview(value) ?? reactPreview(value) ?? builtinPreview(value, cap) ?? collectionPreview(value)
+
+function classPreview(obj: object): unknown | undefined {
+  const proto = Object.getPrototypeOf(obj)
+  if (proto === Object.prototype || proto === null) return undefined
+  const name = ctorName(obj) || 'Object'
+  return {__conciv: 'class', name, preview: name, size: countKeys(obj)}
+}
+
 function walk(
   value: unknown,
   depth: number,
@@ -78,51 +143,11 @@ function walk(
   opts: Required<Omit<DehydrateOptions, 'redact'>> & {redact: RegExp | null},
 ): unknown {
   if (value === null) return null
-  const t = typeof value
-  if (t === 'string') return clampStr(value as string, opts.stringCap)
-  if (t === 'boolean') return value
-  if (t === 'number') {
-    const n = value as number
-    if (Number.isNaN(n)) return 'NaN'
-    if (!Number.isFinite(n)) return n > 0 ? 'Infinity' : '-Infinity'
-    return n
-  }
-  if (t === 'undefined') return 'undefined'
-  if (t === 'bigint') return `${(value as bigint).toString()}n`
-  if (t === 'symbol') return (value as symbol).toString()
-  if (t === 'function') {
-    const fn = value as {name?: string}
-    return `ƒ ${fn.name || 'anonymous'}()`
-  }
-
-  const obj = value as Record<string, unknown>
-
-  if (typeof HTMLElement !== 'undefined' && value instanceof HTMLElement) {
-    const id = value.id ? `#${value.id}` : ''
-    return `<${value.tagName.toLowerCase()}${id} />`
-  }
-  if (isReactElement(obj)) return `<${reactElementName(obj)} />`
-  if (value instanceof Date) return value.toISOString()
-  if (value instanceof RegExp) return value.toString()
-  if (value instanceof Error) return `${value.name}: ${clampStr(value.message, opts.stringCap)}`
-  if (value instanceof Promise) return 'Promise {…}'
-  if (value instanceof Map) return {__conciv: 'Map', size: value.size, preview: `Map(${value.size})`}
-  if (value instanceof Set) return {__conciv: 'Set', size: value.size, preview: `Set(${value.size})`}
-  if (ArrayBuffer.isView(value) || value instanceof ArrayBuffer) {
-    const name = ctorName(value) || 'ArrayBuffer'
-    const size = 'length' in value ? (value as {length: number}).length : (value as ArrayBuffer).byteLength
-    return {__conciv: 'binary', size, preview: `${name}(${size})`}
-  }
-
+  if (typeof value !== 'object') return scalarPreview(value, opts.stringCap)
+  const special = specialPreview(value, opts.stringCap)
+  if (special !== undefined) return special
   if (Array.isArray(value)) return walkArray(value, depth, seen, budget, opts)
-
-  const proto = Object.getPrototypeOf(obj)
-  const isPlain = proto === Object.prototype || proto === null
-  if (!isPlain) {
-    const name = ctorName(obj) || 'Object'
-    return {__conciv: 'class', name, preview: name, size: countKeys(obj)}
-  }
-  return walkObject(obj, depth, seen, budget, opts)
+  return classPreview(value) ?? walkObject(value as Record<string, unknown>, depth, seen, budget, opts)
 }
 
 function countKeys(v: object): number {

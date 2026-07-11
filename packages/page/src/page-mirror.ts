@@ -64,10 +64,9 @@ function pulseRing(rect: DOMRect): void {
   anim.finished.then(() => ring.remove()).catch(() => ring.remove())
 }
 
-export function mirrorPageAction(el: Element): void {
-  if (typeof document === 'undefined' || !el.isConnected) return
-  const rect = el.getBoundingClientRect()
-  if (rect.width === 0 && rect.height === 0) return
+const hasArea = (rect: DOMRect): boolean => rect.width > 0 || rect.height > 0
+
+function moveCursorTo(rect: DOMRect): void {
   const cx = rect.left + rect.width / 2
   const cy = rect.top + rect.height / 2
   const cursor = ensureCursor()
@@ -78,5 +77,12 @@ export function mirrorPageAction(el: Element): void {
   })
   lastX = cx
   lastY = cy
+}
+
+export function mirrorPageAction(el: Element): void {
+  if (typeof document === 'undefined' || !el.isConnected) return
+  const rect = el.getBoundingClientRect()
+  if (!hasArea(rect)) return
+  moveCursorTo(rect)
   pulseRing(rect)
 }

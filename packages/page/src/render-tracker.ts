@@ -22,38 +22,52 @@ export type TrackReport = {
 
 const state = {tracking: false, installed: false, stats: new Map<number, Stat>()}
 
+const isRecordPair = (prev: unknown, next: unknown): boolean =>
+  Boolean(prev) && Boolean(next) && typeof next === 'object' && typeof prev === 'object'
+
 function changedProps(fiber: Fiber): string[] {
   const next = fiber.memoizedProps
   const prev = fiber.alternate?.memoizedProps
-  if (!prev || !next || typeof next !== 'object' || typeof prev !== 'object') return []
-  const out: string[] = []
-  for (const k of new Set([...Object.keys(prev), ...Object.keys(next)])) if (prev[k] !== next[k]) out.push(k)
-  return out
+  if (!isRecordPair(prev, next)) return []
+  return [...new Set([...Object.keys(prev), ...Object.keys(next)])].filter((k) => prev[k] !== next[k])
 }
 
-function onCommit(_rendererID: number, root: Fiber): void {
-  if (!state.tracking) return
-  traverseRenderedFibers(root, (fiber: Fiber) => {
-    if (!isCompositeFiber(fiber)) return
-    const id = getFiberId(fiber)
-    const prior = state.stats.get(id)
-    const cur: Stat = prior ?? {
+function statFor(fiber: Fiber): Stat {
+  return (
+    state.stats.get(getFiberId(fiber)) ?? {
       component: getDisplayName(fiber) || '?',
       renders: 0,
       lastReason: '',
       changedProps: [],
       selfTimeMaxMs: 0,
     }
-    cur.renders += 1
-    const mount = !fiber.alternate
-    const cp = mount ? [] : changedProps(fiber)
-    cur.changedProps = cp
+  )
+}
 
-    cur.lastReason = mount ? 'mount' : cp.length > 0 ? 'props' : 'state/hooks/parent'
-    const timings = getTimings(fiber)
-    const self = typeof timings?.selfTime === 'number' ? timings.selfTime : 0
-    if (self > cur.selfTimeMaxMs) cur.selfTimeMaxMs = self
-    state.stats.set(id, cur)
+const renderReason = (mount: boolean, cp: string[]): string =>
+  mount ? 'mount' : cp.length > 0 ? 'props' : 'state/hooks/parent'
+
+function bumpSelfTime(cur: Stat, fiber: Fiber): void {
+  const timings = getTimings(fiber)
+  const self = typeof timings?.selfTime === 'number' ? timings.selfTime : 0
+  if (self > cur.selfTimeMaxMs) cur.selfTimeMaxMs = self
+}
+
+function recordRender(fiber: Fiber): void {
+  const cur = statFor(fiber)
+  cur.renders += 1
+  const mount = !fiber.alternate
+  const cp = mount ? [] : changedProps(fiber)
+  cur.changedProps = cp
+  cur.lastReason = renderReason(mount, cp)
+  bumpSelfTime(cur, fiber)
+  state.stats.set(getFiberId(fiber), cur)
+}
+
+function onCommit(_rendererID: number, root: Fiber): void {
+  if (!state.tracking) return
+  traverseRenderedFibers(root, (fiber: Fiber) => {
+    if (isCompositeFiber(fiber)) recordRender(fiber)
   })
 }
 
