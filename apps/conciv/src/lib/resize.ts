@@ -3,6 +3,13 @@ import {readStorage, writeStorage} from './persisted-signal.js'
 
 export type Grow = 'up' | 'down' | 'left' | 'right'
 
+const KEY_DIRECTION: Record<Grow, Record<string, 1 | -1>> = {
+  left: {ArrowLeft: 1, ArrowRight: -1},
+  right: {ArrowRight: 1, ArrowLeft: -1},
+  up: {ArrowUp: 1, ArrowDown: -1},
+  down: {ArrowDown: 1, ArrowUp: -1},
+}
+
 export function createResizable(opts: {
   initial: number
   min: number
@@ -62,13 +69,7 @@ export function createResizable(opts: {
 
   const STEP = 24
   const onKeyDown = (e: KeyboardEvent) => {
-    const grow = opts.grow()
-    const horizontal = grow === 'left' || grow === 'right'
-    let dir = 0
-    if (horizontal && e.key === 'ArrowLeft') dir = grow === 'left' ? 1 : -1
-    else if (horizontal && e.key === 'ArrowRight') dir = grow === 'right' ? 1 : -1
-    else if (!horizontal && e.key === 'ArrowUp') dir = grow === 'up' ? 1 : -1
-    else if (!horizontal && e.key === 'ArrowDown') dir = grow === 'down' ? 1 : -1
+    const dir = KEY_DIRECTION[opts.grow()][e.key] ?? 0
     if (dir === 0) return
     e.preventDefault()
     const next = Math.max(opts.min, size() + dir * STEP)

@@ -7,24 +7,14 @@ import {EventType} from '@tanstack/ai'
 import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
 import {createTestHarness, type Kit, type TestHarness} from '@conciv/harness-testkit'
 import {openSource} from '@conciv/extension/client'
+import {toolCallParts} from '../../src/chat/gate.js'
 import {requireClaude} from '../helpers/adapters.js'
 import {bootKit} from '../helpers/boot.js'
 
 type WireContext = {kit: Kit; harness: TestHarness}
 
-function uiCallIdOf(messages: unknown): string | null {
-  if (!Array.isArray(messages)) return null
-  for (const message of messages) {
-    if (typeof message !== 'object' || message === null || !('parts' in message)) continue
-    const parts = message.parts
-    if (!Array.isArray(parts)) continue
-    for (const part of parts) {
-      if (typeof part !== 'object' || part === null) continue
-      if ('name' in part && part.name === 'conciv_ui' && 'id' in part && typeof part.id === 'string') return part.id
-    }
-  }
-  return null
-}
+const uiCallIdOf = (messages: unknown): string | null =>
+  Array.isArray(messages) ? (toolCallParts(messages).find((part) => part.name === 'conciv_ui')?.id ?? null) : null
 
 const cleanups: (() => Promise<void>)[] = []
 afterEach(async () => {

@@ -2,11 +2,12 @@ import {fileURLToPath} from 'node:url'
 import {defineConfig} from 'vite'
 import solid from 'vite-plugin-solid'
 
-const isExternal = (id: string): boolean =>
-  id === 'solid-js' ||
-  id.startsWith('solid-js/') ||
-  id.startsWith('@ark-ui/') ||
-  (id.startsWith('@conciv/') && !id.startsWith('@conciv/page'))
+const EXTERNAL_PREFIXES = ['solid-js/', '@ark-ui/', '@conciv/']
+
+const isExternal = (id: string): boolean => {
+  if (id.startsWith('@conciv/page')) return false
+  return id === 'solid-js' || EXTERNAL_PREFIXES.some((prefix) => id.startsWith(prefix))
+}
 
 export default defineConfig({
   plugins: [solid()],

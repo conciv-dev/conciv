@@ -25,6 +25,7 @@ import {collectToolRenderers} from '@conciv/extension'
 import {useAnnounce, useAppData, useInstances, useRpc} from '../app/context.js'
 import {usePane} from '../app/pane-context.js'
 import {makeConcivUiCard} from './conciv-ui-card.js'
+import {foldToolDurations} from './tool-durations.js'
 import {ToolFallbackCard} from './tool-fallback-card.js'
 import {TriggerMenus} from './trigger-menus.js'
 import {GrabReference} from './grab-reference.js'
@@ -111,17 +112,10 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   })
 
   const startedAt = new Map<string, number>()
-  const durations = createMemo<Record<string, number>>((prev) => {
-    const next = {...prev}
-    for (const part of chat.messages().flatMap((message) => message.parts)) {
-      if (part.type !== 'tool-call' || !part.id) continue
-      const settled = part.state === 'complete' || part.state === 'error' || part.output !== undefined
-      if (!settled && !startedAt.has(part.id)) startedAt.set(part.id, Date.now())
-      const begun = startedAt.get(part.id)
-      if (settled && begun !== undefined && next[part.id] === undefined) next[part.id] = Date.now() - begun
-    }
-    return next
-  }, {})
+  const durations = createMemo<Record<string, number>>(
+    (prev) => foldToolDurations(chat.messages(), startedAt, Date.now, prev),
+    {},
+  )
 
   const toolCtx: ToolViewCtx = {
     apiBase: '',

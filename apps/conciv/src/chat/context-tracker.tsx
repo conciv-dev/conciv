@@ -59,6 +59,71 @@ function UsageRow(props: {label: string; tokens?: number}): JSX.Element {
   )
 }
 
+function TrackerBadge(props: {percent?: number; fallbackTokens: number}): JSX.Element {
+  return (
+    <Show
+      when={props.percent !== undefined}
+      fallback={<span class="text-xs [font-variant-numeric:tabular-nums]">{compact.format(props.fallbackTokens)}</span>}
+    >
+      <span class="text-xs [font-variant-numeric:tabular-nums]">{pct.format(props.percent ?? 0)}</span>
+      <Ring percent={props.percent ?? 0} />
+    </Show>
+  )
+}
+
+function ContextMeter(props: {percent?: number; used: number; max: number}): JSX.Element {
+  return (
+    <Show when={props.percent !== undefined}>
+      <div class="p-3 border-b border-b-pw-line-soft">
+        <div class="text-xs mb-2 flex justify-between">
+          <span>{pct.format(props.percent ?? 0)}</span>
+          <span class="text-pw-text-2 font-pw-mono">
+            {compact.format(props.used)} / {compact.format(props.max)}
+          </span>
+        </div>
+        <div
+          class="rounded-full bg-pw-fill-soft h-1.5 overflow-hidden"
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round((props.percent ?? 0) * 100)}
+        >
+          <div class="bg-pw-accent h-full" style={{width: `${Math.min(100, (props.percent ?? 0) * 100)}%`}} />
+        </div>
+      </div>
+    </Show>
+  )
+}
+
+const CostRow = (props: {value?: number}): JSX.Element => (
+  <Show when={props.value !== undefined}>
+    <div class="text-xs flex justify-between">
+      <span class="text-pw-text-2">Total cost</span>
+      <span>{usd.format(props.value ?? 0)}</span>
+    </div>
+  </Show>
+)
+
+const TurnsRow = (props: {value?: number}): JSX.Element => (
+  <Show when={props.value !== undefined}>
+    <div class="text-xs flex justify-between">
+      <span class="text-pw-text-2">Turns</span>
+      <span>{props.value}</span>
+    </div>
+  </Show>
+)
+
+function CostFooter(props: {totalCostUsd?: number; numTurns?: number}): JSX.Element {
+  return (
+    <Show when={props.totalCostUsd !== undefined || props.numTurns !== undefined}>
+      <div class="p-3 border-t border-t-pw-line-soft bg-pw-panel-sunk flex flex-col gap-1.5">
+        <CostRow value={props.totalCostUsd} />
+        <TurnsRow value={props.numTurns} />
+      </div>
+    </Show>
+  )
+}
+
 export function ContextTracker(props: {usage: UsageSnapshot | null}): JSX.Element {
   const used = () => (props.usage ? contextUsedTokens(props.usage) : undefined)
   const maxTokens = () => props.usage?.contextWindow
@@ -74,61 +139,16 @@ export function ContextTracker(props: {usage: UsageSnapshot | null}): JSX.Elemen
       <HoverCard
         label="Model context usage"
         triggerClass="text-pw-text-2 px-1.5 py-0.5 rounded-pw-sm inline-flex gap-1.5 cursor-pointer items-center hover:text-pw-text-hi hover:bg-pw-fill-soft"
-        trigger={
-          <Show
-            when={percent() !== undefined}
-            fallback={
-              <span class="text-xs [font-variant-numeric:tabular-nums]">
-                {compact.format(used() ?? props.usage?.outputTokens ?? 0)}
-              </span>
-            }
-          >
-            <span class="text-xs [font-variant-numeric:tabular-nums]">{pct.format(percent() ?? 0)}</span>
-            <Ring percent={percent() ?? 0} />
-          </Show>
-        }
+        trigger={<TrackerBadge percent={percent()} fallbackTokens={used() ?? props.usage?.outputTokens ?? 0} />}
       >
-        <Show when={percent() !== undefined}>
-          <div class="p-3 border-b border-b-pw-line-soft">
-            <div class="text-xs mb-2 flex justify-between">
-              <span>{pct.format(percent() ?? 0)}</span>
-              <span class="text-pw-text-2 font-pw-mono">
-                {compact.format(used() ?? 0)} / {compact.format(maxTokens() ?? 0)}
-              </span>
-            </div>
-            <div
-              class="rounded-full bg-pw-fill-soft h-1.5 overflow-hidden"
-              role="progressbar"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={Math.round((percent() ?? 0) * 100)}
-            >
-              <div class="bg-pw-accent h-full" style={{width: `${Math.min(100, (percent() ?? 0) * 100)}%`}} />
-            </div>
-          </div>
-        </Show>
+        <ContextMeter percent={percent()} used={used() ?? 0} max={maxTokens() ?? 0} />
         <div class="p-3 flex flex-col gap-1.5">
           <UsageRow label="Input" tokens={props.usage?.inputTokens} />
           <UsageRow label="Output" tokens={props.usage?.outputTokens} />
           <UsageRow label="Cache" tokens={props.usage?.cacheReadTokens} />
           <UsageRow label="Reasoning" tokens={props.usage?.reasoningTokens} />
         </div>
-        <Show when={props.usage?.totalCostUsd !== undefined || props.usage?.numTurns !== undefined}>
-          <div class="p-3 border-t border-t-pw-line-soft bg-pw-panel-sunk flex flex-col gap-1.5">
-            <Show when={props.usage?.totalCostUsd !== undefined}>
-              <div class="text-xs flex justify-between">
-                <span class="text-pw-text-2">Total cost</span>
-                <span>{usd.format(props.usage?.totalCostUsd ?? 0)}</span>
-              </div>
-            </Show>
-            <Show when={props.usage?.numTurns !== undefined}>
-              <div class="text-xs flex justify-between">
-                <span class="text-pw-text-2">Turns</span>
-                <span>{props.usage?.numTurns}</span>
-              </div>
-            </Show>
-          </div>
-        </Show>
+        <CostFooter totalCostUsd={props.usage?.totalCostUsd} numTurns={props.usage?.numTurns} />
       </HoverCard>
     </Show>
   )

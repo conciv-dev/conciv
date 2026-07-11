@@ -63,26 +63,26 @@ export function TerminalActions(): JSX.Element {
     writeStoredModel(id)
     store.bumpRespawn()
   }
-  const launch = async (): Promise<void> => {
-    const id = sessionId()
-    if (!id) return toast('No active session.')
-    const res = await rpc.sessions.launch({sessionId: id, model: store.spawnModel() ?? undefined})
-    if (!res.supported || !res.command) {
-      toast('This harness can’t be opened in a terminal.')
-      return
-    }
-    if (res.opened) {
-      leaveView()
-      toast('Opened externally.')
-      return
-    }
-    await navigator.clipboard.writeText(res.command).then(
+  const copyCommand = (command: string): Promise<void> =>
+    navigator.clipboard.writeText(command).then(
       () => {
         leaveView()
         toast('Command copied — paste it in your terminal.')
       },
-      () => toast(`Run in your terminal: ${res.command}`),
+      () => toast(`Run in your terminal: ${command}`),
     )
+  const settleLaunch = async (res: {supported: boolean; opened: boolean; command: string | null}): Promise<void> => {
+    if (!res.supported || !res.command) return toast('This harness can’t be opened in a terminal.')
+    if (res.opened) {
+      leaveView()
+      return toast('Opened externally.')
+    }
+    await copyCommand(res.command)
+  }
+  const launch = async (): Promise<void> => {
+    const id = sessionId()
+    if (!id) return toast('No active session.')
+    await settleLaunch(await rpc.sessions.launch({sessionId: id, model: store.spawnModel() ?? undefined}))
   }
   const openExternally = async () => {
     if (opening()) return
