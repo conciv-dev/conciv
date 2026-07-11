@@ -106,15 +106,15 @@ Behavior contracts (test targets):
 
 ### Task 1: contract v5 + core handlers + wire ITs
 
-**Files:** `packages/contract/src/contract.ts` (page.run/changes/clearChanges + server namespace per the lock), `packages/core/src/rpc/router.ts` (handlers: page.run = the current `runVerb` body — journal append on `isMutating`, locate symbolication, HTTPException 503/504 → typed NO_PAGE_CLIENT/PAGE_TIMEOUT; server.* = thin BundlerBridge calls, absent bridge → NO_BUNDLER), `RpcDeps` gains `journal`, `pageRoot`, `bundlerBridge` (or a single `page: PageVars['page']` + `bundler` bag — mirror how `app.ts` builds the Hono vars today).
+**Files:** `packages/contract/src/contract.ts` (page.run/changes/clearChanges + server namespace per the lock), `packages/core/src/rpc/router.ts` (handlers: page.run = the current `runVerb` body — journal append on `isMutating`, locate symbolication, HTTPException 503/504 → typed NO_PAGE_CLIENT/PAGE_TIMEOUT; server.\* = thin BundlerBridge calls, absent bridge → NO_BUNDLER), `RpcDeps` gains `journal`, `pageRoot`, `bundlerBridge` (or a single `page: PageVars['page']` + `bundler` bag — mirror how `app.ts` builds the Hono vars today).
 **Do NOT delete the REST routes yet** — this task lands the rpc surface next to them so the CLI task can switch atomically.
 
-- [ ] Wire ITs in `packages/core/test/rpc/wire.it.test.ts`: page.run text/snapshot round-trip via the rpc page.queries subscriber; mutating verb lands in page.changes and clearChanges empties it; NO_PAGE_CLIENT with no subscriber; server.* against a stub-free real bridge if available in kit, else NO_BUNDLER paths (bootKit has no bundler → typed error is the honest assertion; positive-path bundler coverage lives in the plugin's existing vite IT if one exists — verify, else add one there).
+- [ ] Wire ITs in `packages/core/test/rpc/wire.it.test.ts`: page.run text/snapshot round-trip via the rpc page.queries subscriber; mutating verb lands in page.changes and clearChanges empties it; NO_PAGE_CLIENT with no subscriber; server.\* against a stub-free real bridge if available in kit, else NO_BUNDLER paths (bootKit has no bundler → typed error is the honest assertion; positive-path bundler coverage lives in the plugin's existing vite IT if one exists — verify, else add one there).
 - [ ] `pnpm turbo run test --filter=@conciv/core` green; commit.
 
 ### Task 2: CLI on the typed client
 
-**Files:** `packages/cli/src/request.ts` (rpc runner replaces path-building; keep `defaultOrigin()`), `page.ts` (PAGE_VERBS loses `method`, `pageRequest` builds a `PageRunInput`; `changes`/`--clear` → page.changes/clearChanges; the `react` command rides the same table — COV-8), `server.ts` (subcommands → server.* calls), **`open.ts` (COV-1: `conciv tools open` POSTs `/api/editor/open`, a route that is NOT mounted in composeRoutes — the command 404s today; migrate to the existing `rpc.editor.open`)**, `cli-http.ts` (delete `sendJson` if unused after; keep origin resolution).
+**Files:** `packages/cli/src/request.ts` (rpc runner replaces path-building; keep `defaultOrigin()`), `page.ts` (PAGE_VERBS loses `method`, `pageRequest` builds a `PageRunInput`; `changes`/`--clear` → page.changes/clearChanges; the `react` command rides the same table — COV-8), `server.ts` (subcommands → server.\* calls), **`open.ts` (COV-1: `conciv tools open` POSTs `/api/editor/open`, a route that is NOT mounted in composeRoutes — the command 404s today; migrate to the existing `rpc.editor.open`)**, `cli-http.ts` (delete `sendJson` if unused after; keep origin resolution).
 **Output parity (COV-3):** success prints compact `JSON.stringify(result)`; `runRpc` catches `ORPCError` and prints compact `{"message": error.message}` to STDOUT then exits 0 — matching today's onError envelope + `runAndPrint` never rejecting. An uncaught rejection under citty (stack to stderr, exit 1) is a hard divergence and a defect.
 
 - [ ] CLI IT rewrite (COV-7): `packages/cli/test/cli.it.test.ts` asserts exact `{method, url}` request shapes today (`GET /api/server/graph?file=…`, `POST /api/page/fill`, …) — those URLs cease to exist. Rewrite onto rpc-call assertions or a real served-core round-trip (testkit + a page.queries subscriber answering); keep at least one output-format assertion (compact JSON + `{"message":…}` error envelope + exit 0).
@@ -137,9 +137,17 @@ Behavior contracts (test targets):
 - [ ] Core IT for the new seam (COV-6): a fixture extension contributing a `router` mounts and round-trips a procedure through `/rpc/ext/<slug>` (extend `packages/core/test/api/extension-app.it.test.ts` family).
 - [ ] Extension ITs (extension-testkit) re-pinned; terminal WS IT untouched and green; commit.
 
-### Task 5: extensions phase B — host context rides the typed client
+### Task 5: extensions phase B — hooks-only host API (AMENDED, user-locked 2026-07-11 session 2)
 
-**Files:** `packages/extension/src/types.ts` (`client: SessionClient` → `rpc: RpcClient` + `sessionId: () => string | null`), terminal-panel-view/terminal-actions (models/launch/sessionId via rpc; WS url keeps `apiBase` + sessionId; `chatHeaders()` uses die — WS/router calls carry the session id explicitly), whiteboard client, `apps/conciv/src/extension/host-bag.ts` (+ DELETE `apps/conciv/src/extension/session-client.ts`), `packages/extension-testkit` host (`rpc-session-client.ts` dissolves into passing the kit's rpc).
+**Execution order amendment: this task runs FIRST, before Tasks 0-4.** Terminal/whiteboard keep their REST/hc clients (via `apiBase`) until Task 4 migrates them.
+
+**Hooks-only access (supersedes the bag reshape below):** every host capability is reachable EXCLUSIVELY through granular context-backed hooks — no bag objects, no module singletons, no direct handles. Both sides:
+
+- Extension surface: `useRpc()`, `useSessionId()`, `useToast()`, `useSurface()`, `useOpenSource()` on the extension api (+ `Dialog`/`Popover` as provided components). `ClientApi`, `installClientApi`/`runWithClientApi`, the `ExtensionHostContext` bag, `apps/conciv/src/extension/host-bag.ts` and `session-client.ts` ALL DIE.
+- Core app same pattern: the `useApp()` bag dissolves into granular hooks (`useRpc`/`useSettings`/`useLayers`/`useAnnounce`/`useAppData`/`useInstances`/`useSuppressed`/`useFabPosition`); all app consumers re-pointed.
+- `sessionId` flows DOWN from the pane's context — Components pass it into extension actions (`toggle(sessionId)`); `ClientApi.activeSession` dies. Client factories become boot-safe → run in `boot()`; `instances` becomes a static array on the router context (the mount-time signal is deleted); effects-surface slots stay declarative (Portal + For).
+
+**Original files list (mechanics still apply where not superseded):** `packages/extension/src/types.ts` (`client: SessionClient` → hooks), terminal-panel-view/terminal-actions (models/launch/sessionId via rpc; WS url keeps `apiBase` + sessionId; `chatHeaders()` uses die — WS/router calls carry the session id explicitly), whiteboard client, `packages/extension-testkit` host (`rpc-session-client.ts` dissolves into passing the kit's rpc).
 **ToolViewCtx (COV-2):** tool cards only see `ToolViewCtx` (`apiBase` — no client); the test-runner card's `${apiBase}/api/editor/open` POST is dead today. Give `ToolViewCtx` an `openEditor: (file: string, line?: number) => void` seam (protocol type change) wired to `rpc.editor.open` by both the app pane and extension-testkit host; re-point the card.
 **Then check:** `SessionClient` type in `@conciv/protocol/chat-types` — verified sole consumers are extension types + extension-testkit + apps/conciv host-bag; after this task delete the type (fallow confirms).
 
