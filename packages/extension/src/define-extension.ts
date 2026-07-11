@@ -11,7 +11,7 @@ import type {
   ServerApi,
   ServerResult,
 } from './types.js'
-import {useExtensionValue} from './hooks.js'
+import {useExtensionValue} from './host-context.js'
 
 export type AnyToolBuilder = ToolBuilder<z.ZodObject<z.ZodRawShape>, unknown>
 
