@@ -2,6 +2,7 @@ import {Outlet, createRootRouteWithContext, useMatchRoute, useRouter} from '@tan
 import {QueryClientProvider, useQuery} from '@tanstack/solid-query'
 import {EnvironmentProvider} from '@conciv/ui-kit-system'
 import {installClientApi} from '@conciv/extension'
+import {createHotkey} from '@tanstack/solid-hotkeys'
 import {Show, createSignal, onCleanup, onMount} from 'solid-js'
 import type {ConcivRouterContext} from '../router.js'
 import {AppContext, type AppContextValue} from '../app/context.js'
@@ -10,6 +11,8 @@ import {ShellFab} from '../shell/fab.js'
 import {createDraggablePosition} from '../lib/draggable-position.js'
 import {makeThemeApplier} from '../lib/theme.js'
 import {resolveApiBase} from '../lib/api-base.js'
+import {toRawHotkey} from '../lib/hotkey.js'
+import {escapeInTerminal} from '../shell/terminal-focus.js'
 import {makeAppClientApi} from '../extension/client-api.js'
 import type {ExtensionInstance} from '../extension/extension-slots.js'
 import '../styles.css'
@@ -23,6 +26,7 @@ function RootComponent() {
   const router = useRouter()
   const matchRoute = useMatchRoute()
   const panelMatch = matchRoute({to: '/panel/$sessionId', fuzzy: true})
+  const quickMatch = matchRoute({to: '/quick'})
   const closedMatch = matchRoute({to: '/'})
   const panelOpen = () => Boolean(panelMatch())
 
@@ -80,12 +84,22 @@ function RootComponent() {
   }
   const togglePanel = () => (panelOpen() ? closePanel() : void openPanel())
 
+  let rootEl: HTMLDivElement | undefined
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key !== 'Escape') return
     if (layers.anyOpen()) return
     if (closedMatch()) return
+    if (escapeInTerminal(rootEl)) return
     event.preventDefault()
     router.history.back()
+  }
+
+  const toggleQuick = () => {
+    if (quickMatch()) router.history.back()
+    else void router.navigate({to: '/quick', search: {panes: '', focus: 0}})
+  }
+  if (app.settings.quickTerminal.enabled) {
+    for (const binding of app.settings.quickTerminal.hotkeys) createHotkey(toRawHotkey(binding), toggleQuick)
   }
 
   const value: AppContextValue = {
@@ -105,7 +119,13 @@ function RootComponent() {
     <EnvironmentProvider value={() => app.environment.rootNode}>
       <QueryClientProvider client={app.queryClient}>
         <AppContext.Provider value={value}>
-          <div class="chat-theme-conciv" onKeyDown={onKeyDown}>
+          <div
+            class="chat-theme-conciv"
+            ref={(el) => {
+              rootEl = el
+            }}
+            onKeyDown={onKeyDown}
+          >
             <Outlet />
             <Show when={app.settings.modal.enabled}>
               <ShellFab

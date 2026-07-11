@@ -26,6 +26,7 @@
     "@conciv/ui-kit-chat-tools": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
     "@tanstack/ai-client": "^0.20.0",
+    "@tanstack/hotkeys": "^0.8.0",
     "@tanstack/solid-hotkeys": "^0.10.0",
     "@tanstack/solid-pacer": "^0.21.1",
     "@tanstack/solid-query": "^5.101.2",
