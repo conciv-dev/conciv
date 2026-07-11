@@ -4,7 +4,7 @@ import {useListCollection} from '@ark-ui/solid/combobox'
 import {useQuery, useMutation} from '@tanstack/solid-query'
 import {Check, ChevronDown, Sparkles, SquarePen, Plus} from 'lucide-solid'
 import type {SessionMeta} from '@conciv/contract'
-import {useApp} from '../app/context.js'
+import {useAnnounce, useAppData, useRpc} from '../app/context.js'
 
 let instanceSeq = 0
 
@@ -55,10 +55,12 @@ export function SessionSelector(props: {
   onActivate: (id: string) => void
   onNewSession: () => void
 }): JSX.Element {
-  const app = useApp()
+  const appData = useAppData()
+  const rpc = useRpc()
+  const announce = useAnnounce()
   const idPrefix = `pw-session-${++instanceSeq}`
 
-  const list = useQuery(() => app.data.utils.sessions.list.queryOptions())
+  const list = useQuery(() => appData.utils.sessions.list.queryOptions())
   const rows = (): SessionMeta[] => list.data ?? []
   const lockedElsewhere = (id: string) => (rows().find((s) => s.id === id)?.running ?? false) && id !== props.activeId()
   const activeId = () => props.activeId()
@@ -92,10 +94,10 @@ export function SessionSelector(props: {
 
   const focusSearch = () => requestAnimationFrame(() => searchEl?.focus())
   const rename = useMutation(() => ({
-    mutationFn: (input: {sessionId: string; title: string}) => app.rpc.sessions.rename(input),
-    onSuccess: (result: {title: string}) => app.announce(`Renamed to ${result.title}`),
-    onError: () => app.announce('Rename failed', true),
-    onSettled: () => app.data.invalidateSessions(),
+    mutationFn: (input: {sessionId: string; title: string}) => rpc.sessions.rename(input),
+    onSuccess: (result: {title: string}) => announce(`Renamed to ${result.title}`),
+    onError: () => announce('Rename failed', true),
+    onSettled: () => appData.invalidateSessions(),
   }))
   const startRename = () => {
     const row = activeRow()
@@ -125,7 +127,7 @@ export function SessionSelector(props: {
     if (!id || id === activeId()) return
     const title = rows().find((s) => s.id === id)?.title ?? id
     props.onActivate(id)
-    app.announce(`Switched to ${title}`)
+    announce(`Switched to ${title}`)
   }
 
   const isPill = props.variant === 'pill'
@@ -151,7 +153,7 @@ export function SessionSelector(props: {
           setNow(Date.now())
           setQuery('')
           filter('')
-          app.data.invalidateSessions()
+          appData.invalidateSessions()
         }
       }}
       openOnClick

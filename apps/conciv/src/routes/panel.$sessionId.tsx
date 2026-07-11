@@ -5,7 +5,7 @@ import {ChevronDown, PictureInPicture2} from 'lucide-solid'
 import {For, Show, createMemo, createSignal, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import type {Grab} from '@conciv/grab'
-import {useApp} from '../app/context.js'
+import {useAnnounce, useAppData, useInstances, useRpc} from '../app/context.js'
 import {PaneContext, type PaneContextValue, type StagedGrab} from '../app/pane-context.js'
 import {SessionSelector} from '../composer/session-selector.js'
 import {ContextTracker} from '../chat/context-tracker.js'
@@ -19,17 +19,20 @@ export const Route = createFileRoute('/panel/$sessionId')({component: PanelSessi
 
 function PanelSession(): JSX.Element {
   const params = Route.useParams()
-  const app = useApp()
+  const appData = useAppData()
+  const rpc = useRpc()
+  const announce = useAnnounce()
+  const instances = useInstances()
   const router = useRouter()
   const matchRoute = useMatchRoute()
   const viewMatch = matchRoute({to: '/panel/$sessionId/$view'})
 
-  const sessions = useQuery(() => app.data.utils.sessions.list.queryOptions())
+  const sessions = useQuery(() => appData.utils.sessions.list.queryOptions())
   const row = () => (sessions.data ?? []).find((session) => session.id === params().sessionId)
   const usage = () => row()?.usage ?? null
   const running = () => row()?.running ?? false
 
-  const views = createMemo(() => collectViews(app.instances()))
+  const views = createMemo(() => collectViews(instances))
   const activeView = () => {
     const match = viewMatch()
     return match ? match.view : 'chat'
@@ -47,17 +50,17 @@ function PanelSession(): JSX.Element {
     if (next === activeView()) return
     setSlideDir(tabIndex(next) > tabIndex(activeView()) ? 'right' : 'left')
     const view = views().find((candidate) => candidate.id === next)
-    app.announce(view ? view.label : 'Chat')
+    announce(view ? view.label : 'Chat')
     if (next === 'chat') void router.navigate({to: '/panel/$sessionId', params: {sessionId: params().sessionId}})
     else void router.navigate({to: '/panel/$sessionId/$view', params: {sessionId: params().sessionId, view: next}})
   }
 
   const activate = (id: string) => void router.navigate({to: '/panel/$sessionId', params: {sessionId: id}})
   const newSession = async () => {
-    const {sessionId} = await app.rpc.sessions.create(undefined)
-    app.data.invalidateSessions()
+    const {sessionId} = await rpc.sessions.create(undefined)
+    appData.invalidateSessions()
     activate(sessionId)
-    app.announce('Started a new session')
+    announce('Started a new session')
   }
 
   const [grabs, setGrabs] = createSignal<StagedGrab[]>([])

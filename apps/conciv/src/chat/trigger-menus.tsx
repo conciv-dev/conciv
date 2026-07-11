@@ -2,7 +2,7 @@ import {createMemo, For, Show, type Accessor, type JSX} from 'solid-js'
 import {useQuery} from '@tanstack/solid-query'
 import {ComposerPrimitive, type DirectiveFormatter, type TriggerAdapter, type TriggerItem} from '@conciv/ui-kit-chat'
 import type {ChatCommand, ChatTool} from '@conciv/protocol/chat-types'
-import {useApp} from '../app/context.js'
+import {useAppData} from '../app/context.js'
 
 const PANEL =
   'absolute bottom-full start-0 z-50 mb-2 w-72 overflow-hidden rounded-pw-md border border-pw-line bg-pw-panel shadow-lg flex flex-col font-pw'
@@ -113,9 +113,9 @@ function sortByGroup(items: readonly TriggerItem[]): readonly TriggerItem[] {
 }
 
 export function TriggerMenus(props: {sessionId: string}): JSX.Element {
-  const app = useApp()
-  const commands = useQuery(() => app.data.utils.meta.commands.queryOptions({input: {sessionId: props.sessionId}}))
-  const tools = useQuery(() => app.data.utils.meta.tools.queryOptions())
+  const appData = useAppData()
+  const commands = useQuery(() => appData.utils.meta.commands.queryOptions({input: {sessionId: props.sessionId}}))
+  const tools = useQuery(() => appData.utils.meta.tools.queryOptions())
   const commandItems = createMemo(() => sortByGroup((commands.data?.commands ?? []).map(commandItem)))
   const toolItems = createMemo(() => sortByGroup((tools.data?.tools ?? []).map(toolItem)))
   return (

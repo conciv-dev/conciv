@@ -1,16 +1,15 @@
 import {For, type JSX} from 'solid-js'
-import {ExtensionSurface, type ExtensionHostBag, type ExtensionInstance} from '../extension/extension-slots.js'
+import {ExtensionSurface, type ExtensionInstance} from '../extension/extension-slots.js'
 
 const STARTERS = ['Explain this page', 'Change the primary color', "Why doesn't this layout fit?"]
 
 export function EmptyStateSlot(props: {
   onStarter: (text: string) => void
   instances: ExtensionInstance[]
-  bag: ExtensionHostBag
 }): JSX.Element {
   return (
     <>
-      <ExtensionSurface name="empty" instances={props.instances} bag={props.bag} />
+      <ExtensionSurface name="empty" instances={props.instances} />
       <EmptyState onStarter={props.onStarter} />
     </>
   )

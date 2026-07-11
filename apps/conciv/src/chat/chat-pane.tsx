@@ -22,7 +22,7 @@ import type {ToolCardEntry, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import type {UiAnswerValue} from '@conciv/protocol/ui-types'
 import type {MarkerRow} from '@conciv/contract'
 import {collectToolRenderers} from '@conciv/extension'
-import {useApp} from '../app/context.js'
+import {useAnnounce, useAppData, useInstances, useRpc} from '../app/context.js'
 import {usePane} from '../app/pane-context.js'
 import {makeConcivUiCard} from './conciv-ui-card.js'
 import {ToolFallbackCard} from './tool-fallback-card.js'
@@ -31,7 +31,8 @@ import {GrabReference} from './grab-reference.js'
 import {CompactSpinner, Divider, ThinkingBubble} from './indicators.js'
 import {EmptyStateSlot} from '../shell/empty-state.js'
 import {ExtensionSurface} from '../extension/extension-slots.js'
-import {makeHostBag, makePaneGrabApi} from '../extension/host-bag.js'
+import {HostApiProvider} from '@conciv/extension'
+import {makePaneGrabApi} from '../extension/pane-grab.js'
 import {ComposerActions} from '../composer/actions.js'
 import {SessionModelSelector} from '../composer/model-selector.js'
 import {clearPaneSnapshot, readPaneSnapshot, writePaneSnapshot} from '../lib/ui-snapshot.js'
@@ -76,10 +77,13 @@ function ComposerStateBridge(props: {onReady: (api: ComposerStateApi) => void}):
 }
 
 export function ChatPane(props: {sessionId: string}): JSX.Element {
-  const app = useApp()
+  const rpc = useRpc()
+  const appData = useAppData()
+  const announce = useAnnounce()
+  const instances = useInstances()
   const pane = usePane()
   const router = useRouter()
-  const raw = useChatSession({rpc: app.rpc, sessionId: props.sessionId})
+  const raw = useChatSession({rpc, sessionId: props.sessionId})
   const chat = guardChat(raw)
 
   const isThinking = () => chat.status() === 'submitted'
@@ -91,14 +95,14 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   let viewportEl: HTMLElement | undefined
   const composerApi = {current: null as ComposerStateApi | null}
 
-  const markers = useQuery(() => app.data.utils.markers.list.queryOptions({input: {sessionId: props.sessionId}}))
-  const meta = useQuery(() => app.data.utils.meta.models.queryOptions())
+  const markers = useQuery(() => appData.utils.markers.list.queryOptions({input: {sessionId: props.sessionId}}))
+  const meta = useQuery(() => appData.utils.meta.models.queryOptions())
 
   const [notice, setNotice] = createSignal('')
   let noticeTimer: ReturnType<typeof setTimeout> | undefined
   const notify = (message: string) => {
     setNotice(message)
-    app.announce(message)
+    announce(message)
     if (noticeTimer) clearTimeout(noticeTimer)
     noticeTimer = setTimeout(() => setNotice(''), 5000)
   }
@@ -124,14 +128,14 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     harnessId: meta.data?.harness.id ?? '',
     sendMessage: (text) => void chat.sendMessage(text),
     respondApproval: (approvalId, approved) => {
-      void app.rpc.chat.permissionDecision({approvalId, approved}).catch(() => {})
+      void rpc.chat.permissionDecision({approvalId, approved}).catch(() => {})
     },
     durationFor: (toolCallId) => durations()[toolCallId],
   }
 
   const uiReply = useMutation(() => ({
     mutationFn: (input: {toolCallId: string; value: UiAnswerValue}) =>
-      app.rpc.chat.uiReply({sessionId: props.sessionId, toolCallId: input.toolCallId, value: input.value}),
+      rpc.chat.uiReply({sessionId: props.sessionId, toolCallId: input.toolCallId, value: input.value}),
     onError: () => notify('That question is no longer waiting for an answer.'),
   }))
   const concivUiEntry: ToolCardEntry = {
@@ -140,7 +144,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   }
   const tools = (): ToolCardEntry[] => [
     concivUiEntry,
-    ...collectToolRenderers(app.instances().map((instance) => instance.extension)),
+    ...collectToolRenderers(instances.map((instance) => instance.extension)),
     ...builtinToolCards,
   ]
 
@@ -161,7 +165,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     const now = working()
     if (now !== wasWorking) {
       wasWorking = now
-      app.data.invalidateSessions()
+      appData.invalidateSessions()
       if (!now) void markers.refetch()
     }
   })
@@ -169,12 +173,12 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   let prevStatus = ''
   createEffect(() => {
     const status = chat.status()
-    if (status === 'submitted') app.announce('conciv is thinking…')
-    else if (prevStatus === 'streaming' && status !== 'streaming') app.announce('conciv replied.')
+    if (status === 'submitted') announce('conciv is thinking…')
+    else if (prevStatus === 'streaming' && status !== 'streaming') announce('conciv replied.')
     prevStatus = status
   })
   createEffect(() => {
-    if (disconnected()) app.announce('Reconnecting to conciv…')
+    if (disconnected()) announce('Reconnecting to conciv…')
   })
 
   const visibleError = () => {
@@ -183,20 +187,20 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   }
 
   const compact = useMutation(() => ({
-    mutationFn: () => app.rpc.sessions.compact({sessionId: props.sessionId}),
+    mutationFn: () => rpc.sessions.compact({sessionId: props.sessionId}),
     onError: () => notify('Compaction failed — the session may be busy. Try again in a moment.'),
     onSettled: () => {
-      app.data.invalidateSessions()
+      appData.invalidateSessions()
       void markers.refetch()
     },
   }))
   const compacting = () => compact.isPending
 
   const newSession = async () => {
-    const {sessionId} = await app.rpc.sessions.create(undefined)
-    app.data.invalidateSessions()
+    const {sessionId} = await rpc.sessions.create(undefined)
+    appData.invalidateSessions()
     void router.navigate({to: '/panel/$sessionId', params: {sessionId}})
-    app.announce('Started a new session')
+    announce('Started a new session')
   }
 
   const focusInput = () => requestAnimationFrame(() => inputEl?.focus())
@@ -208,17 +212,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     pane.grabStore.stage(grab)
     focusInput()
   }
-  const hostBag = () =>
-    makeHostBag({
-      app,
-      sessionId: props.sessionId,
-      toolCtx,
-      insert,
-      notify,
-      newSession: () => void newSession(),
-      compact: () => compact.mutate(),
-      grab: makePaneGrabApi(pane.grabStore),
-    })
+  const paneGrab = makePaneGrabApi(pane.grabStore)
 
   const dividersAt = (count: number): MarkerRow[] => (markers.data ?? []).filter((row) => row.afterTurn === count)
   const dividersInRange = (start: number, end: number): MarkerRow[] =>
@@ -233,7 +227,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
 
   const writeDraft = () => {
     const text = composerApi.current?.text() ?? ''
-    void app.rpc.drafts
+    void rpc.drafts
       .set({
         sessionId: props.sessionId,
         text,
@@ -255,7 +249,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     {wait: 150},
   )
 
-  const draftQuery = useQuery(() => app.data.utils.drafts.get.queryOptions({input: {sessionId: props.sessionId}}))
+  const draftQuery = useQuery(() => appData.utils.drafts.get.queryOptions({input: {sessionId: props.sessionId}}))
   const restored = {done: false}
   const maybeRestore = () => {
     const api = composerApi.current
@@ -304,7 +298,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   })
 
   const send = async (text: string) => {
-    await app.rpc.drafts
+    await rpc.drafts
       .set({
         sessionId: props.sessionId,
         text,
@@ -337,116 +331,119 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   )
 
   return (
-    <ChatProvider chat={chat}>
-      <ToolProvider value={toolCtx}>
-        <ComposerHandlersProvider
-          value={{
-            onSend,
-            onCancel: () => {
-              chat.stop()
-              void app.rpc.sessions.stop({sessionId: props.sessionId}).catch(() => {})
-            },
-          }}
-        >
-          <ComposerPrimitive.TriggerPopoverRoot>
-            <ExtensionSurface name="header" instances={app.instances()} bag={hostBag()} />
-            <ExtensionSurface name="widget" instances={app.instances()} bag={hostBag()} />
-            <div class={`flex flex-1 flex-col min-h-0 ${pane.slideClass()}`}>
-              <Thread
-                tools={tools()}
-                components={{ToolFallback: ToolFallbackCard}}
-                turnPrefix={renderTurnPrefix}
-                viewportRef={(el) => {
-                  viewportEl = el
-                }}
-                viewportFooter={
-                  <>
-                    <For each={dividersAt(chat.messages().length)}>{renderDivider}</For>
-                    <Show when={compacting()}>
-                      <Divider kind="compact" pending />
-                    </Show>
-                    <Show when={isThinking()}>
-                      <ThinkingBubble />
-                    </Show>
-                    <Show when={nowTitleText()}>
-                      {(title) => <NowLine title={title()} onStop={() => chat.stop()} />}
-                    </Show>
-                    <Show when={visibleError()}>
-                      {(error) => (
-                        <div class={ERROR} role="alert">
-                          <span class="flex-1">{error().message}</span>
-                          <button type="button" class={RETRY} onClick={() => void chat.reload()}>
-                            Retry
-                          </button>
+    <HostApiProvider
+      sessionId={() => props.sessionId}
+      grab={paneGrab}
+      insert={insert}
+      newSession={() => void newSession()}
+    >
+      <ChatProvider chat={chat}>
+        <ToolProvider value={toolCtx}>
+          <ComposerHandlersProvider
+            value={{
+              onSend,
+              onCancel: () => {
+                chat.stop()
+                void rpc.sessions.stop({sessionId: props.sessionId}).catch(() => {})
+              },
+            }}
+          >
+            <ComposerPrimitive.TriggerPopoverRoot>
+              <ExtensionSurface name="header" instances={instances} />
+              <ExtensionSurface name="widget" instances={instances} />
+              <div class={`flex flex-1 flex-col min-h-0 ${pane.slideClass()}`}>
+                <Thread
+                  tools={tools()}
+                  components={{ToolFallback: ToolFallbackCard}}
+                  turnPrefix={renderTurnPrefix}
+                  viewportRef={(el) => {
+                    viewportEl = el
+                  }}
+                  viewportFooter={
+                    <>
+                      <For each={dividersAt(chat.messages().length)}>{renderDivider}</For>
+                      <Show when={compacting()}>
+                        <Divider kind="compact" pending />
+                      </Show>
+                      <Show when={isThinking()}>
+                        <ThinkingBubble />
+                      </Show>
+                      <Show when={nowTitleText()}>
+                        {(title) => <NowLine title={title()} onStop={() => chat.stop()} />}
+                      </Show>
+                      <Show when={visibleError()}>
+                        {(error) => (
+                          <div class={ERROR} role="alert">
+                            <span class="flex-1">{error().message}</span>
+                            <button type="button" class={RETRY} onClick={() => void chat.reload()}>
+                              Retry
+                            </button>
+                          </div>
+                        )}
+                      </Show>
+                    </>
+                  }
+                  welcome={
+                    <EmptyStateSlot onStarter={(starter) => void chat.sendMessage(starter)} instances={instances} />
+                  }
+                  composer={
+                    <>
+                      <ExtensionSurface name="status" instances={instances} />
+                      <ExtensionSurface name="footer" instances={instances} />
+                      <Show when={disconnected()}>
+                        <div class={RECONNECT} aria-hidden="true">
+                          <span class={`${DOT} anim-dot1`} />
+                          <span class="flex-1">Reconnecting…</span>
                         </div>
-                      )}
-                    </Show>
-                  </>
-                }
-                welcome={
-                  <EmptyStateSlot
-                    onStarter={(starter) => void chat.sendMessage(starter)}
-                    instances={app.instances()}
-                    bag={hostBag()}
-                  />
-                }
-                composer={
-                  <>
-                    <ExtensionSurface name="status" instances={app.instances()} bag={hostBag()} />
-                    <ExtensionSurface name="footer" instances={app.instances()} bag={hostBag()} />
-                    <Show when={disconnected()}>
-                      <div class={RECONNECT} aria-hidden="true">
-                        <span class={`${DOT} anim-dot1`} />
-                        <span class="flex-1">Reconnecting…</span>
-                      </div>
-                    </Show>
-                    <Show when={notice()}>
-                      <div class="text-[0.75rem] text-pw-text-2 leading-[1.4] font-medium font-pw px-2.5 py-2 border border-pw-line rounded-pw-md bg-pw-fill [word-break:break-word]">
-                        {notice()}
-                      </div>
-                    </Show>
-                    <For each={pane.grabStore.grabs()}>
-                      {(grab) => (
-                        <GrabReference
-                          grab={grab}
-                          maxWidth={GRAB_PREVIEW_MAX_W}
-                          onRemove={() => pane.grabStore.remove(grab)}
-                        />
-                      )}
-                    </For>
-                    <Composer
-                      placeholder="Ask a question…"
-                      inputLabel="Message the conciv agent"
-                      inputRef={(el) => {
-                        inputEl = el
-                      }}
-                      busy={compacting() ? <CompactSpinner /> : undefined}
-                      popover={<TriggerMenus sessionId={props.sessionId} />}
-                    >
-                      <ComposerActions
-                        sessionId={props.sessionId}
-                        compacting={compacting()}
-                        onCompact={() => compact.mutate()}
-                        onNewSession={() => void newSession()}
-                        onStageGrab={stageGrab}
-                        notify={notify}
-                      />
-                      <ExtensionSurface name="composer" instances={app.instances()} bag={hostBag()} />
-                      <SessionModelSelector sessionId={props.sessionId} />
-                      <ComposerStateBridge
-                        onReady={(api) => {
-                          composerApi.current = api
-                          maybeRestore()
+                      </Show>
+                      <Show when={notice()}>
+                        <div class="text-[0.75rem] text-pw-text-2 leading-[1.4] font-medium font-pw px-2.5 py-2 border border-pw-line rounded-pw-md bg-pw-fill [word-break:break-word]">
+                          {notice()}
+                        </div>
+                      </Show>
+                      <For each={pane.grabStore.grabs()}>
+                        {(grab) => (
+                          <GrabReference
+                            grab={grab}
+                            maxWidth={GRAB_PREVIEW_MAX_W}
+                            onRemove={() => pane.grabStore.remove(grab)}
+                          />
+                        )}
+                      </For>
+                      <Composer
+                        placeholder="Ask a question…"
+                        inputLabel="Message the conciv agent"
+                        inputRef={(el) => {
+                          inputEl = el
                         }}
-                      />
-                    </Composer>
-                  </>
-                }
-              />
-            </div>
-          </ComposerPrimitive.TriggerPopoverRoot>
-        </ComposerHandlersProvider>
-      </ToolProvider>
-    </ChatProvider>
+                        busy={compacting() ? <CompactSpinner /> : undefined}
+                        popover={<TriggerMenus sessionId={props.sessionId} />}
+                      >
+                        <ComposerActions
+                          sessionId={props.sessionId}
+                          compacting={compacting()}
+                          onCompact={() => compact.mutate()}
+                          onNewSession={() => void newSession()}
+                          onStageGrab={stageGrab}
+                          notify={notify}
+                        />
+                        <ExtensionSurface name="composer" instances={instances} />
+                        <SessionModelSelector sessionId={props.sessionId} />
+                        <ComposerStateBridge
+                          onReady={(api) => {
+                            composerApi.current = api
+                            maybeRestore()
+                          }}
+                        />
+                      </Composer>
+                    </>
+                  }
+                />
+              </div>
+            </ComposerPrimitive.TriggerPopoverRoot>
+          </ComposerHandlersProvider>
+        </ToolProvider>
+      </ChatProvider>
+    </HostApiProvider>
   )
 }

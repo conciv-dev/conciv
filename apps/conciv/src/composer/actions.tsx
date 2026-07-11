@@ -4,7 +4,7 @@ import {TooltipIconButton} from '@conciv/ui-kit-system'
 import {Crosshair, FoldVertical, SquarePen, SquareTerminal} from 'lucide-solid'
 import {getReactGrabAdapter} from '@conciv/page'
 import type {Grab} from '@conciv/grab'
-import {useApp} from '../app/context.js'
+import {useAppData, useRpc} from '../app/context.js'
 
 const ACT =
   'size-8.5 rounded-pw-pill [border:none] bg-transparent text-pw-text-2 cursor-pointer shrink-0 inline-flex items-center justify-center trans-color-bg hover:text-pw-text-hi hover:bg-pw-fill-strong'
@@ -21,8 +21,9 @@ export function ComposerActions(props: {
   onStageGrab: (grab: Grab) => void
   notify: (message: string) => void
 }): JSX.Element {
-  const app = useApp()
-  const meta = useQuery(() => app.data.utils.meta.models.queryOptions())
+  const appData = useAppData()
+  const rpc = useRpc()
+  const meta = useQuery(() => appData.utils.meta.models.queryOptions())
   const harnessName = () => meta.data?.harness.name ?? 'the harness'
 
   const [picking, setPicking] = createSignal(false)
@@ -37,7 +38,7 @@ export function ComposerActions(props: {
   }
 
   const launch = useMutation(() => ({
-    mutationFn: () => app.rpc.sessions.launch({sessionId: props.sessionId}),
+    mutationFn: () => rpc.sessions.launch({sessionId: props.sessionId}),
     onSuccess: async (result: {supported: boolean; opened: boolean; command: string | null}) => {
       if (!result.supported || !result.command) {
         props.notify(`${harnessName()} can’t be opened in a terminal.`)

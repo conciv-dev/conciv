@@ -18,13 +18,49 @@ export type AppContextValue = {
   layers: LayerStack
   suppressed: () => '' | undefined
   fabPosition: Accessor<TriggerPosition>
-  instances: Accessor<ExtensionInstance[]>
+  instances: ExtensionInstance[]
 }
 
 export const AppContext = createContext<AppContextValue>()
 
-export function useApp(): AppContextValue {
+function useAppScope<Selected>(hook: string, select: (app: AppContextValue) => Selected): Selected {
   const value = useContext(AppContext)
-  if (!value) throw new Error('useApp called outside the app provider')
-  return value
+  if (!value) throw new Error(`${hook} called outside the app provider`)
+  return select(value)
+}
+
+export function useRpc(): RpcClient {
+  return useAppScope('useRpc', (app) => app.rpc)
+}
+
+export function useSettings(): ConcivSettings {
+  return useAppScope('useSettings', (app) => app.settings)
+}
+
+export function useAppData(): AppData {
+  return useAppScope('useAppData', (app) => app.data)
+}
+
+export function useAppQueryClient(): QueryClient {
+  return useAppScope('useAppQueryClient', (app) => app.queryClient)
+}
+
+export function useAnnounce(): (message: string, assertive?: boolean) => void {
+  return useAppScope('useAnnounce', (app) => app.announce)
+}
+
+export function useLayers(): LayerStack {
+  return useAppScope('useLayers', (app) => app.layers)
+}
+
+export function useSuppressed(): () => '' | undefined {
+  return useAppScope('useSuppressed', (app) => app.suppressed)
+}
+
+export function useFabPosition(): Accessor<TriggerPosition> {
+  return useAppScope('useFabPosition', (app) => app.fabPosition)
+}
+
+export function useInstances(): ExtensionInstance[] {
+  return useAppScope('useInstances', (app) => app.instances)
 }

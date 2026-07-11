@@ -4,7 +4,7 @@ import {createHotkey} from '@tanstack/solid-hotkeys'
 import {For, Show, onCleanup, onMount, type JSX} from 'solid-js'
 import {TooltipIconButton} from '@conciv/ui-kit-system'
 import {ChevronUp, Columns2, PictureInPicture2, X} from 'lucide-solid'
-import {useApp} from '../app/context.js'
+import {useAppData, useRpc, useSuppressed} from '../app/context.js'
 import {PaneProvider} from '../app/pane-provider.js'
 import {ChatPane} from '../chat/chat-pane.js'
 import {ContextTracker} from '../chat/context-tracker.js'
@@ -88,13 +88,15 @@ function QuickTerminalHeader(props: {onPip: () => void; onSplit: () => void; onC
 }
 
 function QuickLayer(): JSX.Element {
-  const app = useApp()
+  const appData = useAppData()
+  const rpc = useRpc()
+  const suppressed = useSuppressed()
   const router = useRouter()
   const search = Route.useSearch()
   const paneIds = () => quickPaneIds(search())
   const focusedIndex = () => Math.min(search().focus, Math.max(0, paneIds().length - 1))
 
-  const sessions = useQuery(() => app.data.utils.sessions.list.queryOptions())
+  const sessions = useQuery(() => appData.utils.sessions.list.queryOptions())
   const usageOf = (id: string) => (sessions.data ?? []).find((session) => session.id === id)?.usage ?? null
 
   let rowEl: HTMLDivElement | undefined
@@ -103,19 +105,19 @@ function QuickLayer(): JSX.Element {
     void router.navigate({to: '/quick', search: quickSearchFor(ids, focus), replace: true})
 
   const addPane = async () => {
-    const {sessionId} = await app.rpc.sessions.resolve({})
+    const {sessionId} = await rpc.sessions.resolve({})
     const ids = [...paneIds(), sessionId]
     setSearch(ids, ids.length - 1)
-    app.data.invalidateSessions()
+    appData.invalidateSessions()
     resetPaneFlex(rowEl)
   }
 
   const closePane = (index: number) => {
     const ids = paneIds()
     const closed = ids[index]
-    if (closed) void app.rpc.sessions.remove({sessionId: closed}).catch(() => {})
+    if (closed) void rpc.sessions.remove({sessionId: closed}).catch(() => {})
     const remaining = ids.filter((_, i) => i !== index)
-    app.data.invalidateSessions()
+    appData.invalidateSessions()
     if (remaining.length === 0) {
       router.history.back()
       return
@@ -156,7 +158,7 @@ function QuickLayer(): JSX.Element {
     <section
       class={qtShellClass()}
       data-pw-qt
-      data-pw-suppressed={app.suppressed()}
+      data-pw-suppressed={suppressed()}
       style={{height: `${resize.size()}px`}}
       role="dialog"
       aria-label="conciv quick terminal"

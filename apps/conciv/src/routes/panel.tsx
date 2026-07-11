@@ -1,7 +1,7 @@
 import {Outlet, createFileRoute, useRouter} from '@tanstack/solid-router'
 import {FocusTrap} from '@conciv/ui-kit-system'
 import type {TriggerPosition} from '@conciv/protocol/config-types'
-import {useApp} from '../app/context.js'
+import {useFabPosition, useLayers, useSuppressed} from '../app/context.js'
 import {createResizable} from '../lib/resize.js'
 
 const PANEL_POS: Record<TriggerPosition, string> = {
@@ -23,9 +23,11 @@ const RESIZE_X = 'top-0 bottom-0 w-2 cursor-ew-resize'
 export const Route = createFileRoute('/panel')({component: PanelLayout})
 
 function PanelLayout() {
-  const app = useApp()
+  const fabPosition = useFabPosition()
+  const layers = useLayers()
+  const suppressed = useSuppressed()
   const router = useRouter()
-  const position = app.fabPosition
+  const position = fabPosition
   const anchoredBottom = () => position().startsWith('bottom')
   const anchoredRight = () => position().endsWith('right')
   const close = () => router.history.back()
@@ -46,11 +48,11 @@ function PanelLayout() {
   })
 
   return (
-    <FocusTrap disabled={app.layers.anyOpen()}>
+    <FocusTrap disabled={layers.anyOpen()}>
       <section
         class={`${PANEL_BASE} ${PANEL_POS[position()]} ${PANEL_OPEN}`}
         data-pw-panel
-        data-pw-suppressed={app.suppressed()}
+        data-pw-suppressed={suppressed()}
         style={{height: `${resizeY.size()}px`, width: `${resizeX.size()}px`}}
         role="dialog"
         aria-label="conciv chat agent"

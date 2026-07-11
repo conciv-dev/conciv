@@ -2,7 +2,7 @@ import {createMemo, For, Show, type JSX} from 'solid-js'
 import {useQuery, useMutation} from '@tanstack/solid-query'
 import {ModelSelector, useModelSelectorContext, type ModelOption} from '@conciv/ui-kit-chat'
 import type {HarnessModelInfo} from '@conciv/protocol/chat-types'
-import {useApp} from '../app/context.js'
+import {useAnnounce, useAppData, useRpc} from '../app/context.js'
 
 function toOption(model: HarnessModelInfo): ModelOption {
   return {id: model.id, name: model.name, description: model.description, disabled: model.disabled}
@@ -46,13 +46,15 @@ function GroupedModelList(props: {models: ReadonlyArray<HarnessModelInfo>}): JSX
 }
 
 export function SessionModelSelector(props: {sessionId: string}): JSX.Element {
-  const app = useApp()
-  const meta = useQuery(() => app.data.utils.meta.models.queryOptions())
-  const sessions = useQuery(() => app.data.utils.sessions.list.queryOptions())
+  const appData = useAppData()
+  const rpc = useRpc()
+  const announce = useAnnounce()
+  const meta = useQuery(() => appData.utils.meta.models.queryOptions())
+  const sessions = useQuery(() => appData.utils.sessions.list.queryOptions())
   const setModel = useMutation(() => ({
-    mutationFn: (model: string) => app.rpc.sessions.setModel({sessionId: props.sessionId, model}),
-    onError: () => app.announce('Could not switch model', true),
-    onSettled: () => app.data.invalidateSessions(),
+    mutationFn: (model: string) => rpc.sessions.setModel({sessionId: props.sessionId, model}),
+    onError: () => announce('Could not switch model', true),
+    onSettled: () => appData.invalidateSessions(),
   }))
 
   const models = () => meta.data?.models ?? []

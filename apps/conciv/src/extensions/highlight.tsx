@@ -1,8 +1,11 @@
-import {createSignal, createEffect, createRoot, Show, onCleanup, type JSX} from 'solid-js'
-import {render} from 'solid-js/web'
+import {createSignal, createEffect, Show, onCleanup, type JSX} from 'solid-js'
 import {createKeyHold} from '@tanstack/solid-hotkeys'
-import {defineExtension, type ClientApi} from '@conciv/extension'
+import {defineExtension} from '@conciv/extension'
+import {openSource} from '@conciv/extension/client'
+import {describe, locate, showToast, type Refs} from '@conciv/page'
 import type {OpenSourceResult} from '@conciv/protocol/page-types'
+import {elementAt} from '../lib/element-at.js'
+import {resolveApiBase} from '../lib/api-base.js'
 
 type Hovered = {rect: DOMRect; tag: string; file: string | null; host: Element}
 
@@ -27,8 +30,8 @@ const OPEN_RESULT: Record<OpenSourceResult, {tone: 'success' | 'error'; label: (
   failed: {tone: 'error', label: () => 'Couldn’t open'},
 }
 
-function HighlightInspector(props: {api: ClientApi; onExit: () => void}): JSX.Element {
-  const {page, openSource, toast, env} = props.api
+function HighlightInspector(props: {onExit: () => void}): JSX.Element {
+  const refs: Refs = {map: new Map(), n: 0}
   const [hovered, setHovered] = createSignal<Hovered | null>(null)
   let lastX = -1
   let lastY = -1
@@ -36,10 +39,10 @@ function HighlightInspector(props: {api: ClientApi; onExit: () => void}): JSX.El
   const resolve = (x: number, y: number) => {
     lastX = x
     lastY = y
-    const el = page.elementAt(x, y)
+    const el = elementAt(x, y)
     const target = el?.closest(SRC_SELECTOR) ?? el
     if (!target) return setHovered(null)
-    const {file} = page.describe(target)
+    const {file} = describe(target)
     setHovered({rect: target.getBoundingClientRect(), tag: target.tagName.toLowerCase(), file, host: target})
   }
 
@@ -50,10 +53,10 @@ function HighlightInspector(props: {api: ClientApi; onExit: () => void}): JSX.El
     if (!h) return
     e.preventDefault()
     e.stopPropagation()
-    const loc = await page.locate(h.host)
-    const result = loc ? await openSource(loc) : 'no-source'
+    const loc = await locate(h.host, refs)
+    const result = loc ? await openSource(resolveApiBase(), loc) : 'no-source'
     const out = OPEN_RESULT[result]
-    toast(out.label(h.file ?? h.tag), out.tone)
+    showToast(out.label(h.file ?? h.tag), out.tone)
   }
 
   const onKey = (e: KeyboardEvent) => {
@@ -66,21 +69,21 @@ function HighlightInspector(props: {api: ClientApi; onExit: () => void}): JSX.El
     raf = requestAnimationFrame(() => resolve(lastX, lastY))
   }
 
-  env.win.addEventListener('pointermove', onMove, true)
-  env.win.addEventListener('click', onClick, true)
-  env.win.addEventListener('keydown', onKey, true)
-  env.win.addEventListener('scroll', reposition, true)
-  env.win.addEventListener('resize', reposition)
+  window.addEventListener('pointermove', onMove, true)
+  window.addEventListener('click', onClick, true)
+  window.addEventListener('keydown', onKey, true)
+  window.addEventListener('scroll', reposition, true)
+  window.addEventListener('resize', reposition)
   onCleanup(() => {
     cancelAnimationFrame(raf)
-    env.win.removeEventListener('pointermove', onMove, true)
-    env.win.removeEventListener('click', onClick, true)
-    env.win.removeEventListener('keydown', onKey, true)
-    env.win.removeEventListener('scroll', reposition, true)
-    env.win.removeEventListener('resize', reposition)
+    window.removeEventListener('pointermove', onMove, true)
+    window.removeEventListener('click', onClick, true)
+    window.removeEventListener('keydown', onKey, true)
+    window.removeEventListener('scroll', reposition, true)
+    window.removeEventListener('resize', reposition)
   })
 
-  const glide = env.reducedMotion() ? '' : GLIDE
+  const glide = matchMedia('(prefers-reduced-motion: reduce)').matches ? '' : GLIDE
 
   return (
     <div aria-hidden="true" class="contents">
@@ -119,37 +122,21 @@ function HighlightInspector(props: {api: ClientApi; onExit: () => void}): JSX.El
   )
 }
 
-const highlight = defineExtension({name: 'highlight'})
+function HighlightSurface(): JSX.Element {
+  const altHeld = createKeyHold('Alt')
+  const [active, setActive] = createSignal(false)
+  createEffect(() => {
+    if (!altHeld()) return setActive(false)
+    if (!isEditing()) setActive(true)
+  })
+  return (
+    <Show when={active()}>
+      <HighlightInspector onExit={() => setActive(false)} />
+    </Show>
+  )
+}
 
-highlight.client(() =>
-  createRoot((dispose) => {
-    const api = highlight.useClientApi()
-    const surface = api.surface()
-    let disposeOverlay: (() => void) | undefined
-    const disable = () => {
-      disposeOverlay?.()
-      disposeOverlay = undefined
-    }
-    const enable = () => {
-      if (!disposeOverlay) disposeOverlay = render(() => <HighlightInspector api={api} onExit={disable} />, surface)
-    }
-    const altHeld = createKeyHold('Alt')
-    let ownedByHotkey = false
-    createEffect(() => {
-      if (altHeld() && !isEditing()) {
-        if (!disposeOverlay) {
-          ownedByHotkey = true
-          enable()
-        }
-      } else if (ownedByHotkey) {
-        ownedByHotkey = false
-        disable()
-      }
-    })
-    onCleanup(disable)
-    return {value: {}, dispose}
-  }),
-)
+const highlight = defineExtension({name: 'highlight', Surface: HighlightSurface})
 
 declare module '@conciv/extension' {
   interface Register {

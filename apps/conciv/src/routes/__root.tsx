@@ -7,14 +7,25 @@ import {
   useSearch,
 } from '@tanstack/solid-router'
 import {QueryClientProvider, useQuery} from '@tanstack/solid-query'
-import {EnvironmentProvider} from '@conciv/ui-kit-system'
+import {Dialog, EnvironmentProvider, Popover} from '@conciv/ui-kit-system'
+import {HostApiProvider} from '@conciv/extension'
+import {showToast} from '@conciv/page'
 import {createHotkey} from '@tanstack/solid-hotkeys'
 import {Show, createSignal, onMount} from 'solid-js'
 import type {ConcivRouterContext} from '../router.js'
-import {AppContext, useApp, type AppContextValue} from '../app/context.js'
+import {
+  AppContext,
+  useAppData,
+  useAppQueryClient,
+  useLayers,
+  useRpc,
+  useSettings,
+  useSuppressed,
+  type AppContextValue,
+} from '../app/context.js'
 import {makeLayerStack} from '../shell/dialogs.js'
 import {ShellFab} from '../shell/fab.js'
-import {createEffectsSurface} from '../shell/effects-surface.js'
+import {EffectsSurface} from '../shell/effects-surface.js'
 import {createDraggablePosition} from '../lib/draggable-position.js'
 import {makeThemeApplier} from '../lib/theme.js'
 import {resolveApiBase} from '../lib/api-base.js'
@@ -63,7 +74,6 @@ function RootComponent() {
     if (node instanceof ShadowRoot) return node
     return node instanceof Document ? node : document
   }
-  const effects = createEffectsSurface({extensions: app.extensions, apiBase: resolveApiBase(), layers, activeSession})
   onMount(() => {
     const applyTheme = makeThemeApplier(themeRoot())
     for (const extension of app.extensions) if (extension.theme) applyTheme(extension.theme)
@@ -79,15 +89,26 @@ function RootComponent() {
     layers,
     suppressed,
     fabPosition: fab.position,
-    instances: effects.instances,
+    instances: app.instances,
   }
 
   return (
     <EnvironmentProvider value={() => app.environment.rootNode}>
       <QueryClientProvider client={app.queryClient}>
         <AppContext.Provider value={value}>
-          <RootChrome fab={fab} politeMessage={politeMessage} assertiveMessage={assertiveMessage} />
-          <effects.View />
+          <HostApiProvider
+            rpc={app.rpc}
+            apiBase={resolveApiBase()}
+            toast={showToast}
+            openEditor={(file, line) => void app.rpc.editor.open({file, line}).catch(() => {})}
+            registerLayer={(isOpen, hides) => layers.register(isOpen, hides)}
+            dialog={layers.track(Dialog)}
+            popover={Object.assign({}, Popover, {Root: layers.track(Popover.Root)})}
+            sessionId={activeSession}
+          >
+            <RootChrome fab={fab} politeMessage={politeMessage} assertiveMessage={assertiveMessage} />
+            <EffectsSurface instances={app.instances} />
+          </HostApiProvider>
         </AppContext.Provider>
       </QueryClientProvider>
     </EnvironmentProvider>
@@ -99,7 +120,12 @@ function RootChrome(props: {
   politeMessage: () => string
   assertiveMessage: () => string
 }) {
-  const app = useApp()
+  const rpc = useRpc()
+  const data = useAppData()
+  const queryClient = useAppQueryClient()
+  const settings = useSettings()
+  const layers = useLayers()
+  const suppressed = useSuppressed()
   const router = useRouter()
   const matchRoute = useMatchRoute()
   const panelMatch = matchRoute({to: '/panel/$sessionId', fuzzy: true})
@@ -107,16 +133,16 @@ function RootChrome(props: {
   const closedMatch = matchRoute({to: '/'})
   const panelOpen = () => Boolean(panelMatch())
 
-  const sessions = useQuery(() => app.data.utils.sessions.list.queryOptions())
+  const sessions = useQuery(() => data.utils.sessions.list.queryOptions())
   const working = () => (sessions.data ?? []).some((session) => session.running)
 
   let fabEl: HTMLButtonElement | undefined
 
   const latestSessionId = async (): Promise<string> => {
-    const rows = await app.queryClient.ensureQueryData(app.data.utils.sessions.list.queryOptions())
+    const rows = await queryClient.ensureQueryData(data.utils.sessions.list.queryOptions())
     const latest = rows.toSorted((a, b) => b.updatedAt - a.updatedAt)[0]
     if (latest) return latest.id
-    return (await app.rpc.sessions.resolve({})).sessionId
+    return (await rpc.sessions.resolve({})).sessionId
   }
   const openPanel = async () => {
     const sessionId = await latestSessionId()
@@ -131,7 +157,7 @@ function RootChrome(props: {
   let rootEl: HTMLDivElement | undefined
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key !== 'Escape') return
-    if (app.layers.anyOpen()) return
+    if (layers.anyOpen()) return
     if (closedMatch()) return
     if (escapeInTerminal(rootEl)) return
     event.preventDefault()
@@ -142,8 +168,8 @@ function RootChrome(props: {
     if (quickMatch()) router.history.back()
     else void router.navigate({to: '/quick', search: {panes: '', focus: 0}, replace: Boolean(panelMatch())})
   }
-  if (app.settings.quickTerminal.enabled) {
-    for (const binding of app.settings.quickTerminal.hotkeys) createHotkey(toRawHotkey(binding), toggleQuick)
+  if (settings.quickTerminal.enabled) {
+    for (const binding of settings.quickTerminal.hotkeys) createHotkey(toRawHotkey(binding), toggleQuick)
   }
 
   return (
@@ -155,14 +181,14 @@ function RootChrome(props: {
       onKeyDown={onKeyDown}
     >
       <Outlet />
-      <Show when={app.settings.modal.enabled}>
+      <Show when={settings.modal.enabled}>
         <ShellFab
           ref={(el) => {
             fabEl = el
           }}
           open={panelOpen}
           working={working}
-          suppressed={app.suppressed}
+          suppressed={suppressed}
           fab={props.fab}
           onToggle={togglePanel}
         />

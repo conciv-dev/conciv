@@ -6,6 +6,7 @@ import type {AnyExtension} from '@conciv/extension'
 import {routeTree} from './routeTree.gen'
 import {makeAppData, type AppData} from './data/app-data.js'
 import type {ConcivSettings} from './data/settings.js'
+import type {ExtensionInstance} from './extension/extension-slots.js'
 import highlight from './extensions/highlight.js'
 
 export type ConcivEnvironment = {rootNode: Node; document: Document}
@@ -17,6 +18,7 @@ export type ConcivRouterContext = {
   queryClient: QueryClient
   data: AppData
   extensions: AnyExtension[]
+  instances: ExtensionInstance[]
 }
 
 export type ConcivRouterConfig = {
@@ -27,9 +29,17 @@ export type ConcivRouterConfig = {
   extensions?: AnyExtension[]
 }
 
+function createInstances(extensions: AnyExtension[]): ExtensionInstance[] {
+  return extensions.map((extension) => {
+    const result = extension.__client?.()
+    return {extension, clientValue: result?.value ?? {}}
+  })
+}
+
 export function createConcivRouter(config: ConcivRouterConfig) {
   const queryClient = new QueryClient()
   const data = makeAppData(config.rpc, queryClient)
+  const extensions = [highlight, ...(config.extensions ?? [])]
   return createRouter({
     routeTree,
     history: config.history,
@@ -39,7 +49,8 @@ export function createConcivRouter(config: ConcivRouterConfig) {
       settings: config.settings,
       queryClient,
       data,
-      extensions: [highlight, ...(config.extensions ?? [])],
+      extensions,
+      instances: createInstances(extensions),
     },
   })
 }
