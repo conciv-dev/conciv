@@ -39,6 +39,7 @@
     "fallow": "2.98.0",
     "oxfmt": "^0.54.0",
     "oxlint": "^1.69.0",
+    "playwright": "^1.61.1",
     "publint": "^0.3.21",
     "turbo": "^2.10.3",
     "typescript": "^6.0.3",
