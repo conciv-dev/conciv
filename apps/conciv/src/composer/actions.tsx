@@ -1,7 +1,9 @@
-import {Show, type JSX} from 'solid-js'
+import {Show, createSignal, type JSX} from 'solid-js'
 import {useQuery, useMutation} from '@tanstack/solid-query'
 import {TooltipIconButton} from '@conciv/ui-kit-system'
-import {FoldVertical, SquarePen, SquareTerminal} from 'lucide-solid'
+import {Crosshair, FoldVertical, SquarePen, SquareTerminal} from 'lucide-solid'
+import {getReactGrabAdapter} from '@conciv/page'
+import type {Grab} from '@conciv/grab'
 import {useApp} from '../app/context.js'
 
 const ACT =
@@ -16,11 +18,23 @@ export function ComposerActions(props: {
   compacting: boolean
   onCompact: () => void
   onNewSession: () => void
+  onStageGrab: (grab: Grab) => void
   notify: (message: string) => void
 }): JSX.Element {
   const app = useApp()
   const meta = useQuery(() => app.data.utils.meta.models.queryOptions())
   const harnessName = () => meta.data?.harness.name ?? 'the harness'
+
+  const [picking, setPicking] = createSignal(false)
+  const pick = async () => {
+    setPicking(true)
+    try {
+      const adapter = await getReactGrabAdapter()
+      adapter.activate((grab) => props.onStageGrab(grab))
+    } finally {
+      setPicking(false)
+    }
+  }
 
   const launch = useMutation(() => ({
     mutationFn: () => app.rpc.sessions.launch({sessionId: props.sessionId}),
@@ -45,6 +59,13 @@ export function ComposerActions(props: {
 
   return (
     <>
+      <TooltipIconButton
+        tooltip="Select an element from the page"
+        class={busyClass(picking())}
+        onClick={() => void pick()}
+      >
+        <Crosshair class="size-5 block" />
+      </TooltipIconButton>
       <TooltipIconButton tooltip="Start a new session" class={ACT} onClick={() => props.onNewSession()}>
         <SquarePen class="size-5 block" />
       </TooltipIconButton>

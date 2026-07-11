@@ -21,15 +21,22 @@ import type {MessagePart, ToolCallPart, ToolResultPart} from '@tanstack/ai-clien
 import type {ToolCardEntry, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import type {UiAnswerValue} from '@conciv/protocol/ui-types'
 import type {MarkerRow} from '@conciv/contract'
+import {collectToolRenderers} from '@conciv/extension'
 import {useApp} from '../app/context.js'
+import {usePane} from '../app/pane-context.js'
 import {makeConcivUiCard} from './conciv-ui-card.js'
 import {ToolFallbackCard} from './tool-fallback-card.js'
 import {TriggerMenus} from './trigger-menus.js'
+import {GrabReference} from './grab-reference.js'
 import {CompactSpinner, Divider, ThinkingBubble} from './indicators.js'
-import {EmptyState} from '../shell/empty-state.js'
+import {EmptyStateSlot} from '../shell/empty-state.js'
+import {ExtensionSurface} from '../extension/extension-slots.js'
+import {makeHostBag, makePaneGrabApi} from '../extension/host-bag.js'
 import {ComposerActions} from '../composer/actions.js'
 import {SessionModelSelector} from '../composer/model-selector.js'
 import {clearPaneSnapshot, readPaneSnapshot, writePaneSnapshot} from '../lib/ui-snapshot.js'
+
+const GRAB_PREVIEW_MAX_W = 280
 
 const ERROR = 'flex gap-2 items-center text-pw-danger text-[0.75rem]'
 const RECONNECT = 'flex gap-2 items-center text-pw-text-2 text-[0.75rem] anim-msg'
@@ -70,6 +77,7 @@ function ComposerStateBridge(props: {onReady: (api: ComposerStateApi) => void}):
 
 export function ChatPane(props: {sessionId: string}): JSX.Element {
   const app = useApp()
+  const pane = usePane()
   const router = useRouter()
   const raw = useChatSession({rpc: app.rpc, sessionId: props.sessionId})
   const chat = guardChat(raw)
@@ -130,7 +138,11 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     names: ['conciv_ui'],
     render: makeConcivUiCard({reply: (toolCallId, value) => uiReply.mutate({toolCallId, value})}),
   }
-  const tools = (): ToolCardEntry[] => [concivUiEntry, ...builtinToolCards]
+  const tools = (): ToolCardEntry[] => [
+    concivUiEntry,
+    ...collectToolRenderers(app.instances().map((instance) => instance.extension)),
+    ...builtinToolCards,
+  ]
 
   const streamTitles = (): Record<string, string> =>
     Object.fromEntries(
@@ -187,6 +199,27 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     app.announce('Started a new session')
   }
 
+  const focusInput = () => requestAnimationFrame(() => inputEl?.focus())
+  const insert = (text: string) => {
+    composerApi.current?.append(text)
+    focusInput()
+  }
+  const stageGrab = (grab: Parameters<typeof pane.grabStore.stage>[0]) => {
+    pane.grabStore.stage(grab)
+    focusInput()
+  }
+  const hostBag = () =>
+    makeHostBag({
+      app,
+      sessionId: props.sessionId,
+      toolCtx,
+      insert,
+      notify,
+      newSession: () => void newSession(),
+      compact: () => compact.mutate(),
+      grab: makePaneGrabApi(pane.grabStore),
+    })
+
   const dividersAt = (count: number): MarkerRow[] => (markers.data ?? []).filter((row) => row.afterTurn === count)
   const dividersInRange = (start: number, end: number): MarkerRow[] =>
     (markers.data ?? []).filter((row) => row.afterTurn >= start && row.afterTurn <= end)
@@ -206,7 +239,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
         text,
         selectionStart: inputEl?.selectionStart ?? text.length,
         selectionEnd: inputEl?.selectionEnd ?? text.length,
-        grabs: [],
+        grabs: pane.grabStore.grabs().map((grab) => grab.text),
       })
       .catch(() => {})
   }
@@ -229,7 +262,10 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     if (!api || restored.done || !draftQuery.isSuccess) return
     restored.done = true
     const row = draftQuery.data
-    if (row) api.setText(row.text)
+    if (row) {
+      api.setText(row.text)
+      if (row.grabs.length > 0) pane.grabStore.stageTexts(row.grabs)
+    }
     const snapshot = readPaneSnapshot(props.sessionId)
     requestAnimationFrame(() => {
       if (snapshot?.scrollTop != null && viewportEl) viewportEl.scrollTop = snapshot.scrollTop
@@ -266,9 +302,16 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
 
   const send = async (text: string) => {
     await app.rpc.drafts
-      .set({sessionId: props.sessionId, text, selectionStart: 0, selectionEnd: 0, grabs: []})
+      .set({
+        sessionId: props.sessionId,
+        text,
+        selectionStart: 0,
+        selectionEnd: 0,
+        grabs: pane.grabStore.grabs().map((grab) => grab.text),
+      })
       .catch(() => {})
     persistDraft.cancel()
+    pane.grabStore.clear()
     await chat.sendMessage(text)
     clearPaneSnapshot(props.sessionId)
     void draftQuery.refetch()
@@ -303,7 +346,9 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
           }}
         >
           <ComposerPrimitive.TriggerPopoverRoot>
-            <div class="flex flex-1 flex-col min-h-0">
+            <ExtensionSurface name="header" instances={app.instances()} bag={hostBag()} />
+            <ExtensionSurface name="widget" instances={app.instances()} bag={hostBag()} />
+            <div class={`flex flex-1 flex-col min-h-0 ${pane.slideClass()}`}>
               <Thread
                 tools={tools()}
                 components={{ToolFallback: ToolFallbackCard}}
@@ -335,9 +380,17 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                     </Show>
                   </>
                 }
-                welcome={<EmptyState onStarter={(starter) => void chat.sendMessage(starter)} />}
+                welcome={
+                  <EmptyStateSlot
+                    onStarter={(starter) => void chat.sendMessage(starter)}
+                    instances={app.instances()}
+                    bag={hostBag()}
+                  />
+                }
                 composer={
                   <>
+                    <ExtensionSurface name="status" instances={app.instances()} bag={hostBag()} />
+                    <ExtensionSurface name="footer" instances={app.instances()} bag={hostBag()} />
                     <Show when={disconnected()}>
                       <div class={RECONNECT} aria-hidden="true">
                         <span class={`${DOT} anim-dot1`} />
@@ -349,6 +402,15 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                         {notice()}
                       </div>
                     </Show>
+                    <For each={pane.grabStore.grabs()}>
+                      {(grab) => (
+                        <GrabReference
+                          grab={grab}
+                          maxWidth={GRAB_PREVIEW_MAX_W}
+                          onRemove={() => pane.grabStore.remove(grab)}
+                        />
+                      )}
+                    </For>
                     <Composer
                       placeholder="Ask a question…"
                       inputLabel="Message the conciv agent"
@@ -363,8 +425,10 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                         compacting={compacting()}
                         onCompact={() => compact.mutate()}
                         onNewSession={() => void newSession()}
+                        onStageGrab={stageGrab}
                         notify={notify}
                       />
+                      <ExtensionSurface name="composer" instances={app.instances()} bag={hostBag()} />
                       <SessionModelSelector sessionId={props.sessionId} />
                       <ComposerStateBridge
                         onReady={(api) => {

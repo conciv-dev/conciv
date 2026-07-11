@@ -1,12 +1,17 @@
 import {Outlet, createRootRouteWithContext, useMatchRoute, useRouter} from '@tanstack/solid-router'
 import {QueryClientProvider, useQuery} from '@tanstack/solid-query'
 import {EnvironmentProvider} from '@conciv/ui-kit-system'
-import {Show, createSignal} from 'solid-js'
+import {installClientApi} from '@conciv/extension'
+import {Show, createSignal, onCleanup, onMount} from 'solid-js'
 import type {ConcivRouterContext} from '../router.js'
 import {AppContext, type AppContextValue} from '../app/context.js'
 import {makeLayerStack} from '../shell/dialogs.js'
 import {ShellFab} from '../shell/fab.js'
 import {createDraggablePosition} from '../lib/draggable-position.js'
+import {makeThemeApplier} from '../lib/theme.js'
+import {resolveApiBase} from '../lib/api-base.js'
+import {makeAppClientApi} from '../extension/client-api.js'
+import type {ExtensionInstance} from '../extension/extension-slots.js'
 import '../styles.css'
 
 export const Route = createRootRouteWithContext<ConcivRouterContext>()({
@@ -32,6 +37,30 @@ function RootComponent() {
   const layers = makeLayerStack()
   const suppressed = (): '' | undefined => (layers.anyHiding() ? '' : undefined)
   const fab = createDraggablePosition({initial: app.settings.modal.position, storageKey: 'conciv-fab-position'})
+
+  const [instances, setInstances] = createSignal<ExtensionInstance[]>([])
+  const activeSession = (): string | null => {
+    const match = panelMatch()
+    return match ? match.sessionId : null
+  }
+  const themeRoot = (): ShadowRoot | Document => {
+    const node = app.environment.rootNode
+    if (node instanceof ShadowRoot) return node
+    return node instanceof Document ? node : document
+  }
+  onMount(() => {
+    installClientApi(makeAppClientApi({apiBase: resolveApiBase(), layers, activeSession}))
+    const applyTheme = makeThemeApplier(themeRoot())
+    for (const extension of app.extensions) if (extension.theme) applyTheme(extension.theme)
+    const created = app.extensions.map((extension) => {
+      const result = extension.__client?.()
+      return {extension, clientValue: result?.value ?? {}, dispose: result?.dispose}
+    })
+    setInstances(created)
+    onCleanup(() => {
+      for (const instance of created) instance.dispose?.()
+    })
+  })
 
   let fabEl: HTMLButtonElement | undefined
 
@@ -69,6 +98,7 @@ function RootComponent() {
     layers,
     suppressed,
     fabPosition: fab.position,
+    instances,
   }
 
   return (

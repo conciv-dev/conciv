@@ -6,6 +6,7 @@ import type {AppData} from '../data/app-data.js'
 import type {ConcivSettings} from '../data/settings.js'
 import type {ConcivEnvironment} from '../router.js'
 import type {LayerStack} from '../shell/dialogs.js'
+import type {ExtensionInstance} from '../extension/extension-slots.js'
 
 export type AppContextValue = {
   rpc: RpcClient
@@ -17,6 +18,7 @@ export type AppContextValue = {
   layers: LayerStack
   suppressed: () => '' | undefined
   fabPosition: Accessor<TriggerPosition>
+  instances: Accessor<ExtensionInstance[]>
 }
 
 export const AppContext = createContext<AppContextValue>()

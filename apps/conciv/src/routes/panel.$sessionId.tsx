@@ -1,11 +1,15 @@
-import {Outlet, createFileRoute, useRouter} from '@tanstack/solid-router'
+import {Outlet, createFileRoute, useMatchRoute, useRouter} from '@tanstack/solid-router'
 import {useQuery} from '@tanstack/solid-query'
-import {TooltipIconButton} from '@conciv/ui-kit-system'
+import {Tabs, TooltipIconButton} from '@conciv/ui-kit-system'
 import {ChevronDown, PictureInPicture2} from 'lucide-solid'
-import type {JSX} from 'solid-js'
+import {For, Show, createMemo, createSignal, type JSX} from 'solid-js'
+import {Dynamic} from 'solid-js/web'
+import type {Grab} from '@conciv/grab'
 import {useApp} from '../app/context.js'
+import {PaneContext, type PaneContextValue, type StagedGrab} from '../app/pane-context.js'
 import {SessionSelector} from '../composer/session-selector.js'
 import {ContextTracker} from '../chat/context-tracker.js'
+import {collectViews} from '../extension/extension-views.js'
 
 const HEAD = 'flex items-center gap-2.5 py-3 px-3.5 border-b border-b-pw-line-soft'
 const CLOSE =
@@ -17,8 +21,36 @@ function PanelSession(): JSX.Element {
   const params = Route.useParams()
   const app = useApp()
   const router = useRouter()
+  const matchRoute = useMatchRoute()
+  const viewMatch = matchRoute({to: '/panel/$sessionId/$view'})
+
   const sessions = useQuery(() => app.data.utils.sessions.list.queryOptions())
-  const usage = () => (sessions.data ?? []).find((session) => session.id === params().sessionId)?.usage ?? null
+  const row = () => (sessions.data ?? []).find((session) => session.id === params().sessionId)
+  const usage = () => row()?.usage ?? null
+  const running = () => row()?.running ?? false
+
+  const views = createMemo(() => collectViews(app.instances()))
+  const activeView = () => {
+    const match = viewMatch()
+    return match ? match.view : 'chat'
+  }
+  const [viewLocks, setViewLocks] = createSignal<Record<string, boolean>>({})
+  const setLockedFor = (id: string) => (locked: boolean) => setViewLocks((prev) => ({...prev, [id]: locked}))
+  const viewLocked = () => activeView() !== 'chat' && Boolean(viewLocks()[activeView()])
+  const leaveGuard = () => running() || viewLocked()
+
+  const tabIndex = (id: string) => (id === 'chat' ? 0 : views().findIndex((view) => view.id === id) + 1)
+  const [slideDir, setSlideDir] = createSignal<'left' | 'right' | null>(null)
+  const slideClass = () => (slideDir() === 'right' ? 'anim-tab-right' : slideDir() === 'left' ? 'anim-tab-left' : '')
+
+  const switchView = (next: string) => {
+    if (next === activeView()) return
+    setSlideDir(tabIndex(next) > tabIndex(activeView()) ? 'right' : 'left')
+    const view = views().find((candidate) => candidate.id === next)
+    app.announce(view ? view.label : 'Chat')
+    if (next === 'chat') void router.navigate({to: '/panel/$sessionId', params: {sessionId: params().sessionId}})
+    else void router.navigate({to: '/panel/$sessionId/$view', params: {sessionId: params().sessionId, view: next}})
+  }
 
   const activate = (id: string) => void router.navigate({to: '/panel/$sessionId', params: {sessionId: id}})
   const newSession = async () => {
@@ -28,8 +60,26 @@ function PanelSession(): JSX.Element {
     app.announce('Started a new session')
   }
 
+  const [grabs, setGrabs] = createSignal<StagedGrab[]>([])
+  const grabStore = {
+    grabs,
+    stage: (grab: Grab) => setGrabs((prev) => [...prev, grab]),
+    stageTexts: (texts: string[]) => setGrabs(texts.map((text) => ({text}))),
+    remove: (grab: StagedGrab) => setGrabs((prev) => prev.filter((entry) => entry !== grab)),
+    clear: () => setGrabs([]),
+  }
+
+  const paneValue: PaneContextValue = {
+    sessionId: () => params().sessionId,
+    running,
+    viewLocked,
+    setLockedFor,
+    slideClass,
+    grabStore,
+  }
+
   return (
-    <>
+    <PaneContext.Provider value={paneValue}>
       <header class={HEAD}>
         <TooltipIconButton
           tooltip="Pop out to a window"
@@ -50,7 +100,27 @@ function PanelSession(): JSX.Element {
           <ChevronDown class="size-[1em] block" aria-hidden="true" />
         </TooltipIconButton>
       </header>
+      <Show when={views().length > 0}>
+        <div class="px-2.5 flex gap-2 items-center">
+          <Tabs.Root value={activeView()} onValueChange={(details) => switchView(details.value)} class="flex-1 min-w-0">
+            <Tabs.List>
+              <Tabs.Trigger value="chat" disabled={leaveGuard()}>
+                Chat
+              </Tabs.Trigger>
+              <For each={views()}>
+                {(view) => (
+                  <Tabs.Trigger value={view.id} disabled={leaveGuard()}>
+                    <Show when={view.icon}>{(icon) => <Dynamic component={icon()} class="size-3.5" />}</Show>
+                    {view.label}
+                  </Tabs.Trigger>
+                )}
+              </For>
+              <Tabs.Indicator />
+            </Tabs.List>
+          </Tabs.Root>
+        </div>
+      </Show>
       <Outlet />
-    </>
+    </PaneContext.Provider>
   )
 }
