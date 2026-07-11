@@ -425,9 +425,15 @@ importers:
 
   packages/cli:
     dependencies:
+      '@conciv/contract':
+        specifier: workspace:^
+        version: link:../contract
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
+      '@orpc/client':
+        specifier: ^1.14.7
+        version: 1.14.7(@opentelemetry/api@1.9.1)
       citty:
         specifier: ^0.2.2
         version: 0.2.2
@@ -435,6 +441,12 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      '@conciv/core':
+        specifier: workspace:^
+        version: link:../core
+      '@conciv/harness-testkit':
+        specifier: workspace:^
+        version: link:../harness-testkit
       '@types/node':
         specifier: ^22.19.21
         version: 22.20.0

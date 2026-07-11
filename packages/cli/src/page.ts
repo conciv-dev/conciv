@@ -1,48 +1,49 @@
 import {z} from 'zod'
 import {defineCommand, type ArgDef, type ArgsDef, type SubCommandsDef} from 'citty'
 import {PAGE_QUERY_KINDS, type PageQueryKind} from '@conciv/protocol/page-types'
-import {compact, qs, runAndPrint, type CliRequest} from './request.js'
+import type {PageRunInput} from '@conciv/protocol/page-types'
+import {runRpc} from './request.js'
 
-type VerbSpec = {method: 'GET' | 'POST'; targetsElement: boolean; flags: readonly string[]}
+type VerbSpec = {targetsElement: boolean; flags: readonly string[]}
 
 const PAGE_VERBS: Record<PageQueryKind, VerbSpec> = {
-  route: {method: 'GET', targetsElement: false, flags: []},
-  dom: {method: 'GET', targetsElement: true, flags: []},
-  query: {method: 'GET', targetsElement: true, flags: []},
-  console: {method: 'GET', targetsElement: false, flags: ['since']},
-  text: {method: 'GET', targetsElement: true, flags: []},
-  value: {method: 'GET', targetsElement: true, flags: []},
-  attr: {method: 'GET', targetsElement: true, flags: ['name']},
-  exists: {method: 'GET', targetsElement: true, flags: []},
-  snapshot: {method: 'GET', targetsElement: true, flags: []},
-  locate: {method: 'GET', targetsElement: true, flags: []},
-  inspect: {method: 'GET', targetsElement: true, flags: ['path']},
-  override: {method: 'POST', targetsElement: true, flags: ['target', 'path', 'hookId', 'json']},
-  tree: {method: 'GET', targetsElement: true, flags: []},
-  find: {method: 'GET', targetsElement: false, flags: ['name']},
-  track: {method: 'GET', targetsElement: false, flags: ['action', 'name']},
-  effect: {method: 'GET', targetsElement: false, flags: ['action', 'effect']},
-  wait: {method: 'GET', targetsElement: true, flags: ['state', 'timeout']},
-  click: {method: 'POST', targetsElement: true, flags: []},
-  hover: {method: 'POST', targetsElement: true, flags: []},
-  scroll: {method: 'POST', targetsElement: true, flags: []},
-  submit: {method: 'POST', targetsElement: true, flags: []},
-  check: {method: 'POST', targetsElement: true, flags: []},
-  uncheck: {method: 'POST', targetsElement: true, flags: []},
-  fill: {method: 'POST', targetsElement: true, flags: ['value']},
-  select: {method: 'POST', targetsElement: true, flags: ['value']},
-  press: {method: 'POST', targetsElement: true, flags: ['key']},
-  setattr: {method: 'POST', targetsElement: true, flags: ['name', 'value']},
-  removeattr: {method: 'POST', targetsElement: true, flags: ['name']},
-  addclass: {method: 'POST', targetsElement: true, flags: ['class']},
-  removeclass: {method: 'POST', targetsElement: true, flags: ['class']},
-  setstyle: {method: 'POST', targetsElement: true, flags: ['prop', 'value']},
-  settext: {method: 'POST', targetsElement: true, flags: ['text']},
-  sethtml: {method: 'POST', targetsElement: true, flags: ['html']},
-  remove: {method: 'POST', targetsElement: true, flags: []},
-  insert: {method: 'POST', targetsElement: true, flags: ['html', 'position']},
-  css: {method: 'POST', targetsElement: false, flags: ['text']},
-  eval: {method: 'POST', targetsElement: false, flags: ['code']},
+  route: {targetsElement: false, flags: []},
+  dom: {targetsElement: true, flags: []},
+  query: {targetsElement: true, flags: []},
+  console: {targetsElement: false, flags: ['since']},
+  text: {targetsElement: true, flags: []},
+  value: {targetsElement: true, flags: []},
+  attr: {targetsElement: true, flags: ['name']},
+  exists: {targetsElement: true, flags: []},
+  snapshot: {targetsElement: true, flags: []},
+  locate: {targetsElement: true, flags: []},
+  inspect: {targetsElement: true, flags: ['path']},
+  override: {targetsElement: true, flags: ['target', 'path', 'hookId', 'json']},
+  tree: {targetsElement: true, flags: []},
+  find: {targetsElement: false, flags: ['name']},
+  track: {targetsElement: false, flags: ['action', 'name']},
+  effect: {targetsElement: false, flags: ['action', 'effect']},
+  wait: {targetsElement: true, flags: ['state', 'timeout']},
+  click: {targetsElement: true, flags: []},
+  hover: {targetsElement: true, flags: []},
+  scroll: {targetsElement: true, flags: []},
+  submit: {targetsElement: true, flags: []},
+  check: {targetsElement: true, flags: []},
+  uncheck: {targetsElement: true, flags: []},
+  fill: {targetsElement: true, flags: ['value']},
+  select: {targetsElement: true, flags: ['value']},
+  press: {targetsElement: true, flags: ['key']},
+  setattr: {targetsElement: true, flags: ['name', 'value']},
+  removeattr: {targetsElement: true, flags: ['name']},
+  addclass: {targetsElement: true, flags: ['class']},
+  removeclass: {targetsElement: true, flags: ['class']},
+  setstyle: {targetsElement: true, flags: ['prop', 'value']},
+  settext: {targetsElement: true, flags: ['text']},
+  sethtml: {targetsElement: true, flags: ['html']},
+  remove: {targetsElement: true, flags: []},
+  insert: {targetsElement: true, flags: ['html', 'position']},
+  css: {targetsElement: false, flags: ['text']},
+  eval: {targetsElement: false, flags: ['code']},
 }
 
 const FIELD = {
@@ -84,11 +85,10 @@ function schemaFor(verb: PageQueryKind): z.ZodType<Record<string, unknown>> {
   return z.object(shape)
 }
 
-function pageRequest(verb: PageQueryKind, raw: unknown): CliRequest {
+function pageInput(verb: PageQueryKind, raw: unknown): PageRunInput {
   const params = schemaFor(verb).parse(raw)
-  const spec = PAGE_VERBS[verb]
-  if (spec.method === 'GET') return {method: 'GET', path: `/api/page/${verb}${qs(params)}`}
-  return {method: 'POST', path: `/api/page/${verb}`, body: compact(params)}
+  const present = Object.entries(params).filter(([, value]) => value !== undefined && value !== '')
+  return {verb, ...Object.fromEntries(present)}
 }
 
 function flagArg(flag: string): ArgDef {
@@ -127,7 +127,7 @@ function leafCommandsFor(verbs: readonly PageQueryKind[]): SubCommandsDef {
       defineCommand({
         meta: {name: verb, description: `page ${verb}`},
         args: argsFor(verb),
-        run: ({args}) => runAndPrint(pageRequest(verb, args)),
+        run: ({args}) => runRpc((rpc) => rpc.page.run(pageInput(verb, args))),
       }),
     ]),
   )
@@ -137,12 +137,7 @@ function pageCommands(): SubCommandsDef {
   const changes = defineCommand({
     meta: {name: 'changes', description: 'list (or --clear) the live-edit journal'},
     args: {clear: {type: 'boolean', description: 'reset the journal after listing'}},
-    run: ({args}) => {
-      const req: CliRequest = args.clear
-        ? {method: 'POST', path: '/api/page/changes/clear'}
-        : {method: 'GET', path: '/api/page/changes'}
-      return runAndPrint(req)
-    },
+    run: ({args}) => runRpc((rpc) => (args.clear ? rpc.page.clearChanges(undefined) : rpc.page.changes(undefined))),
   })
   return {...leafCommandsFor(PAGE_QUERY_KINDS), changes}
 }
