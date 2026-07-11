@@ -25,12 +25,8 @@
       "import": "./dist/index.js"
     },
     "./client": {
-      "types": "./dist/client.d.ts",
-      "import": "./dist/client.js"
-    },
-    "./runtime": {
-      "types": "./dist/runtime.d.ts",
-      "import": "./dist/runtime.js"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     },
     "./catalog": {
       "types": "./dist/catalog.d.ts",
@@ -60,7 +56,7 @@
   "devDependencies": {
     "@types/node": "^22.19.21",
     "solid-js": "^1.9.13",
-    "tsdown": "^0.22.2",
+    "tsdown": "^0.22.4",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"
   },

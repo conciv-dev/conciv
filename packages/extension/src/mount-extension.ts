@@ -1,13 +1,10 @@
 import {createComponent, type JSX} from 'solid-js'
-import {render} from 'solid-js/web'
-import {installClientApi} from './extension-api.js'
-import {ExtensionRuntimeContext} from './runtime-context.js'
+import {HostApiProvider} from './hooks.js'
 import type {AnyExtension} from './define-extension.js'
-import type {ClientApi, ExtensionHostContext, ExtensionSlot, ExtensionView} from './types.js'
+import type {ExtensionSlot, ExtensionView} from './types.js'
 
 export type MountedExtensionProps = {
   extension: AnyExtension
-  hostContext: Omit<ExtensionHostContext, 'currentSlot'>
   clientValue: object
   slot: ExtensionSlot
 }
@@ -15,9 +12,31 @@ export type MountedExtensionProps = {
 export function MountedExtension(props: MountedExtensionProps): JSX.Element {
   const component = props.extension.Component
   if (!component) return null
-  return createComponent(ExtensionRuntimeContext.Provider, {
+  return createComponent(HostApiProvider, {
+    get slot() {
+      return props.slot
+    },
     get value() {
-      return {...props.hostContext, ...props.clientValue, currentSlot: props.slot}
+      return props.clientValue
+    },
+    get children() {
+      return createComponent(component, {})
+    },
+  })
+}
+
+export type MountedSurfaceProps = {
+  extension: AnyExtension
+  clientValue: object
+}
+
+export function MountedSurface(props: MountedSurfaceProps): JSX.Element {
+  const component = props.extension.Surface
+  if (!component) return null
+  return createComponent(HostApiProvider, {
+    slot: 'surface' as const,
+    get value() {
+      return props.clientValue
     },
     get children() {
       return createComponent(component, {})
@@ -27,39 +46,17 @@ export function MountedExtension(props: MountedExtensionProps): JSX.Element {
 
 export type MountedViewProps = {
   view: ExtensionView
-  hostContext: Omit<ExtensionHostContext, 'currentSlot'>
   clientValue: object
 }
 
 export function MountedView(props: MountedViewProps): JSX.Element {
-  return createComponent(ExtensionRuntimeContext.Provider, {
+  return createComponent(HostApiProvider, {
+    slot: 'widget' as const,
     get value() {
-      return {...props.hostContext, ...props.clientValue, currentSlot: 'widget' as const}
+      return props.clientValue
     },
     get children() {
       return createComponent(props.view.Component, {})
     },
   })
-}
-
-export type MountExtensionOptions = {
-  clientApi: ClientApi
-  hostContext: Omit<ExtensionHostContext, 'currentSlot'>
-  slot: ExtensionSlot
-  root: HTMLElement
-}
-
-export function mountExtension(extension: AnyExtension, options: MountExtensionOptions): () => void {
-  installClientApi(options.clientApi)
-  const client = extension.__client?.()
-  const clientValue = client?.value ?? {}
-  const disposeRender = render(
-    () =>
-      createComponent(MountedExtension, {extension, hostContext: options.hostContext, clientValue, slot: options.slot}),
-    options.root,
-  )
-  return () => {
-    disposeRender()
-    client?.dispose?.()
-  }
 }

@@ -3,19 +3,15 @@ import type {z} from 'zod'
 import type {ThemeTokens} from '@conciv/ui-kit-system'
 import type {ToolBuilder} from './define-tool.js'
 import type {
-  ClientApi,
   ClientFactoryResult,
   ConfigOf,
   ExtensionCommand,
-  ExtensionHostContext,
-  ExtensionSlot,
   ExtensionView,
   RequiredContext,
   ServerApi,
   ServerResult,
 } from './types.js'
-import {useExtensionRuntimeContext} from './runtime-context.js'
-import {useClientApi} from './extension-api.js'
+import {useExtensionValue} from './hooks.js'
 
 export type AnyToolBuilder = ToolBuilder<z.ZodObject<z.ZodRawShape>, unknown>
 
@@ -26,6 +22,7 @@ export type ExtensionMeta<Name extends string, Schema extends z.ZodType, Tools e
   commands?: readonly ExtensionCommand[]
   views?: readonly ExtensionView[]
   Component?: Component
+  Surface?: Component
   systemPrompt?: string
   theme?: ThemeTokens
 }
@@ -39,6 +36,7 @@ export type ExtensionBuilder<
   name: Name
   configSchema?: Schema
   Component?: Component
+  Surface?: Component
   systemPrompt?: string
   theme?: ThemeTokens
   tools?: Tools
@@ -47,11 +45,9 @@ export type ExtensionBuilder<
   parseConfig: (raw: unknown) => ConfigOf<Schema>
   __client?(): ClientFactoryResult<ClientValue>
   __server?(server: ServerApi<ConfigOf<Schema>>): ServerResult<unknown> | Promise<ServerResult<unknown>>
-  useClientApi: () => ClientApi
-  useSlot: () => () => ExtensionSlot
   useContext: {
-    (): ExtensionHostContext & ClientValue
-    <Selected>(select: (context: ExtensionHostContext & ClientValue) => Selected): Selected
+    (): ClientValue
+    <Selected>(select: (context: ClientValue) => Selected): Selected
   }
   client: <Value extends object>(
     factory: () => ClientFactoryResult<Value>,
@@ -79,26 +75,21 @@ export function defineExtension<
   Schema extends z.ZodType = z.ZodNever,
   const Tools extends readonly AnyToolBuilder[] = readonly [],
 >(meta: ExtensionMeta<Name, Schema, Tools>): ExtensionBuilder<Name, Schema, Tools, Record<never, never>> {
-  function useSlot(): () => ExtensionSlot {
-    const context = useExtensionRuntimeContext()
-    return () => context.currentSlot
-  }
-  function useContext<Selected>(select?: (context: ExtensionHostContext) => Selected): ExtensionHostContext | Selected {
-    const context = useExtensionRuntimeContext()
-    return select ? select(context) : context
+  function useContext<Selected>(select?: (context: object) => Selected): object | Selected {
+    const value = useExtensionValue(`${meta.name}.useContext`)
+    return select ? select(value) : value
   }
   const builder = {
     name: meta.name,
     configSchema: meta.configSchema,
     Component: meta.Component,
+    Surface: meta.Surface,
     systemPrompt: meta.systemPrompt,
     theme: meta.theme,
     tools: meta.tools,
     commands: meta.commands,
     views: meta.views,
     parseConfig: (raw: unknown) => parseExtensionConfig(meta.configSchema, raw),
-    useClientApi,
-    useSlot,
     useContext,
     client(factory: () => ClientFactoryResult<object>) {
       builder.__client = factory
