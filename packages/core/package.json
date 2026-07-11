@@ -58,7 +58,6 @@
     "@conciv/protocol": "workspace:^",
     "@conciv/serve": "workspace:^",
     "@conciv/tools": "workspace:^",
-    "@hono/zod-validator": "^0.8.0",
     "@jridgewell/trace-mapping": "0.3.31",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@orpc/server": "^1.14.7",

@@ -300,7 +300,13 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     const restarted: boolean[] = []
     const bridge = defineBundlerBridge({
       id: 'wire-test',
-      config: () => ({root: '/repo', base: '/', mode: 'development', aliases: [{find: '@', replacement: 'src'}], plugins: ['solid']}),
+      config: () => ({
+        root: '/repo',
+        base: '/',
+        mode: 'development',
+        aliases: [{find: '@', replacement: 'src'}],
+        plugins: ['solid'],
+      }),
       resolve: async (spec, importer) => ({id: importer ? `${importer}!${spec}` : spec}),
       moduleGraph: (file) => [{url: file, importers: ['entry.ts'], importedModules: ['dep.ts']}],
       transform: async (url) => ({code: `transformed:${url}`}),

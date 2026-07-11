@@ -24,7 +24,7 @@ import mcpApp, {type McpVars} from './mcp/mcp.js'
 import {makePageBus} from './page/page.js'
 import {openSourceFromFrames} from './page/open-source.js'
 import {makeRpcRouter} from './rpc/router.js'
-import {rpcMiddleware} from './rpc/mount.js'
+import {extensionRpcMiddleware, rpcMiddleware} from './rpc/mount.js'
 import {makeJournal} from './page/journal.js'
 import {logError} from './debug.js'
 import type {OpenInEditor} from './editor/open.js'
@@ -167,6 +167,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       return {
         extensionName: extension.name,
         app: narrowExtensionApp(extension.name, result?.app),
+        router: result?.router,
         tools: buildExtensionTools(extension, context),
         context,
         dispose: result?.dispose,
@@ -256,6 +257,11 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   mounted.forEach((entry) => {
     if (entry.app) app.route(`/api/ext/${slug(entry.extensionName)}`, entry.app)
+    if (entry.router)
+      app.use(
+        `/rpc/ext/${slug(entry.extensionName)}/*`,
+        extensionRpcMiddleware(entry.router, slug(entry.extensionName)),
+      )
   })
 
   return {app, disposers, extensionContexts}

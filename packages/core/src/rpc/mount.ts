@@ -1,4 +1,4 @@
-import {implement} from '@orpc/server'
+import {implement, type AnyRouter} from '@orpc/server'
 import {RPCHandler} from '@orpc/server/fetch'
 import type {MiddlewareHandler} from 'hono'
 import {contract} from '@conciv/contract'
@@ -30,6 +30,16 @@ export function rpcMiddleware(router: ReturnType<typeof makeRpcRouter>): Middlew
   const handler = new RPCHandler(router)
   return async (c, next) => {
     const {matched, response} = await handler.handle(c.req.raw, {prefix: '/rpc', context: {request: c.req.raw}})
+    if (matched && response) return c.newResponse(response.body, response)
+    await next()
+  }
+}
+
+export function extensionRpcMiddleware(router: AnyRouter, extensionSlug: string): MiddlewareHandler {
+  const handler = new RPCHandler(router)
+  const prefix = `/rpc/ext/${extensionSlug}` as const
+  return async (c, next) => {
+    const {matched, response} = await handler.handle(c.req.raw, {prefix, context: {request: c.req.raw}})
     if (matched && response) return c.newResponse(response.body, response)
     await next()
   }
