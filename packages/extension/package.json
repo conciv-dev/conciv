@@ -49,6 +49,8 @@
     "@conciv/grab": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
+    "@orpc/client": "^1.14.7",
+    "@orpc/server": "^1.14.7",
     "@tanstack/ai": "^0.40.0",
     "hono": "^4.12.0",
     "zod": "^4.4.3"

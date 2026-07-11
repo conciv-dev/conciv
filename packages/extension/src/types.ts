@@ -1,5 +1,6 @@
 import type {Component} from 'solid-js'
 import type {z} from 'zod'
+import type {AnyRouter} from '@orpc/server'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import type {TtyCommand, TtyCommandOpts} from '@conciv/protocol/terminal-types'
 import type {UIMessage} from '@conciv/protocol/chat-types'
@@ -74,6 +75,7 @@ export type ServerApi<Config> = {
 
 export type ServerResult<Context> = {
   context: Context
+  router?: AnyRouter
   app?: unknown
   turnEnd?: (sessionId: string) => void | Promise<void>
   dispose?: () => void | Promise<void>
