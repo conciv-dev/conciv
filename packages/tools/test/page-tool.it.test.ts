@@ -5,7 +5,7 @@ describe('conciv_page tool', () => {
   it('forwards the verb+args to ctx.page and returns its result', async () => {
     const calls: unknown[] = []
     const tools = concivTools({
-      injectUi: () => true,
+      askUi: async () => ({answered: false, note: ''}),
       page: async (q) => (calls.push(q), {ok: true}),
       open: () => {},
     })

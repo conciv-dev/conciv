@@ -1,0 +1,82 @@
+{
+  "name": "@conciv/embed",
+  "version": "0.0.7",
+  "description": "The conciv embed bundle: mounts the conciv router app into a Shadow DOM on the host page and starts the page plane. Inlines the private conciv app and @conciv/page; externalizes shared Solid/Ark/@conciv packages.",
+  "keywords": [
+    "ai",
+    "chat",
+    "conciv",
+    "embed",
+    "solid-js"
+  ],
+  "homepage": "https://conciv.dev",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/embed"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/mount.d.ts",
+      "import": "./dist/mount.js",
+      "default": "./dist/mount.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "vite build && vite build --config vite.global.config.ts && tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only"
+  },
+  "dependencies": {
+    "@ark-ui/solid": "^5.37.1",
+    "@conciv/client": "workspace:^",
+    "@conciv/contract": "workspace:^",
+    "@conciv/extension": "workspace:^",
+    "@conciv/grab": "workspace:^",
+    "@conciv/mascot": "workspace:^",
+    "@conciv/protocol": "workspace:^",
+    "@conciv/solid-streamdown": "workspace:^",
+    "@conciv/storage-history": "workspace:^",
+    "@conciv/ui-kit-chat": "workspace:^",
+    "@conciv/ui-kit-chat-tools": "workspace:^",
+    "@conciv/ui-kit-system": "workspace:^",
+    "@tanstack/solid-router": "^1.170.17",
+    "bippy": "0.5.41",
+    "react-grab": "^0.1.44",
+    "solid-js": "^1.9.13"
+  },
+  "devDependencies": {
+    "@conciv/core": "workspace:^",
+    "@conciv/extension-terminal": "workspace:^",
+    "@conciv/harness-testkit": "workspace:^",
+    "@conciv/page": "workspace:^",
+    "@conciv/uno-preset": "workspace:*",
+    "@types/node": "^26.1.0",
+    "@unocss/postcss": "^66.7.2",
+    "@unocss/reset": "^66.7.2",
+    "conciv": "workspace:*",
+    "playwright": "^1.61.1",
+    "publint": "^0.3.14",
+    "tsdown": "^0.22.4",
+    "typescript": "^6.0.3",
+    "unocss": "^66.7.2",
+    "vite": "^8.0.16",
+    "vite-plugin-solid": "^2.11.12",
+    "vitest": "^4.1.8"
+  },
+  "engines": {
+    "node": ">=22.13"
+  }
+}

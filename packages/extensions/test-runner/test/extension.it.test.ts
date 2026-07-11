@@ -6,10 +6,8 @@ import {mkdtempSync} from 'node:fs'
 import {createMCPClient} from '@tanstack/ai-mcp'
 import {start, type Engine} from '@conciv/core'
 import type {ConcivConfig} from '@conciv/core/config'
-import type {AnyExtension} from '@conciv/extension'
-import testRunnerExtension from '../src/server.js'
-
-// /api/ext/test-runner/* and registers the test_runner tool on /api/mcp. Real subprocess execution
+import {makeExtRpcClient, type AnyExtension} from '@conciv/extension'
+import testRunnerExtension, {type TestRunnerRouter} from '../src/server.js'
 
 declare module '@conciv/protocol/config-types' {
   interface ExtensionConfigRegistry {
@@ -18,7 +16,10 @@ declare module '@conciv/protocol/config-types' {
 }
 
 const fixture = join(dirname(fileURLToPath(import.meta.url)), 'fixtures/vitest-app')
-const route = '/api/ext/test-runner'
+
+function runnerClient(base: string) {
+  return makeExtRpcClient<TestRunnerRouter>(base, 'test-runner')
+}
 
 const extensions: AnyExtension[] = [testRunnerExtension]
 
@@ -36,14 +37,10 @@ async function boot(opts: {root?: string; extensions?: ConcivConfig['extensions'
 }
 
 describe('test-runner extension booted in the real engine (IT)', () => {
-  it('serves a TestRunResult shape on /status under the default vitest config', async () => {
+  it('serves a TestRunResult shape on status under the default vitest config', async () => {
     const {base, engine} = await boot()
     try {
-      const status = (await (await fetch(`${base}${route}/status`)).json()) as {
-        summary: {passed: number; failed: number; skipped: number; durationMs: number}
-        failures: unknown[]
-        tests: unknown[]
-      }
+      const status = await runnerClient(base).status(undefined)
       expect(typeof status.summary.passed).toBe('number')
       expect(typeof status.summary.failed).toBe('number')
       expect(typeof status.summary.skipped).toBe('number')
@@ -75,14 +72,16 @@ describe('test-runner extension booted in the real engine (IT)', () => {
     }
   }, 30_000)
 
-  it('emits a snapshot frame on /stream open', async () => {
+  it('emits a snapshot event on stream open', async () => {
     const {base, engine} = await boot()
     try {
-      const stream = await fetch(`${base}${route}/stream`)
-      const reader = stream.body!.getReader()
-      const frame = new TextDecoder().decode((await reader.read()).value)
-      expect(frame).toContain('snapshot')
-      await reader.cancel()
+      const abort = new AbortController()
+      const stream = await runnerClient(base).stream(undefined, {signal: abort.signal})
+      const first = await stream.next()
+      if (first.done) throw new Error('stream ended before the snapshot')
+      expect(first.value.type).toBe('snapshot')
+      abort.abort()
+      await stream.return(undefined).catch(() => {})
     } finally {
       await engine.stop()
     }
@@ -92,17 +91,21 @@ describe('test-runner extension booted in the real engine (IT)', () => {
     await expect(boot({extensions: {'test-runner': {runner: 'jest'}}})).rejects.toThrow(/jest runner not implemented/)
   }, 30_000)
 
-  it('rejects a non-loopback Origin on an extension route with 403', async () => {
+  it('rejects a non-loopback Origin on an extension rpc route with 403', async () => {
     const {base, engine} = await boot()
     try {
-      const forbidden = await fetch(`${base}${route}/status`, {headers: {origin: 'http://evil.com'}})
+      const forbidden = await fetch(`${base}/rpc/ext/test-runner/status`, {
+        method: 'POST',
+        headers: {origin: 'http://evil.com', 'content-type': 'application/json'},
+        body: '{}',
+      })
       expect(forbidden.status).toBe(403)
     } finally {
       await engine.stop()
     }
   }, 30_000)
 
-  it('maps a runner-unavailable failure to HTTP 422 on /run', async () => {
+  it('maps a runner-unavailable failure to a typed UNAVAILABLE error on run', async () => {
     const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-it-state-'))
     const missingRoot = join(mkdtempSync(join(tmpdir(), 'conciv-it-root-')), 'absent')
     const engine = await start({
@@ -113,13 +116,10 @@ describe('test-runner extension booted in the real engine (IT)', () => {
     })
     const base = `http://127.0.0.1:${engine.port}`
     try {
-      const res = await fetch(`${base}${route}/run`, {
-        method: 'POST',
-        headers: {'content-type': 'application/json'},
-        body: JSON.stringify({}),
+      await expect(runnerClient(base).run({})).rejects.toMatchObject({
+        code: 'UNAVAILABLE',
+        data: {available: false},
       })
-      expect(res.status).toBe(422)
-      expect(((await res.json()) as {available: boolean}).available).toBe(false)
     } finally {
       await engine.stop()
     }
@@ -128,6 +128,6 @@ describe('test-runner extension booted in the real engine (IT)', () => {
   it('runs the extension disposer (manager.stop) when the engine stops', async () => {
     const {base, engine} = await boot()
     await expect(engine.stop()).resolves.toBeUndefined()
-    await expect(fetch(`${base}${route}/status`)).rejects.toThrow()
+    await expect(runnerClient(base).status(undefined)).rejects.toThrow()
   }, 30_000)
 })

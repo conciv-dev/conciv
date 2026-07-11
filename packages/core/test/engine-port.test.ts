@@ -1,5 +1,5 @@
 import {test, expect} from 'vitest'
-import {start} from '../src/engine.js'
+import {start} from '../src/start.js'
 
 test('start boots on the requested fixed port', async () => {
   const engine = await start({

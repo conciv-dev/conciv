@@ -1,17 +1,20 @@
-import {Show, createRoot, createSignal, onCleanup, type JSX} from 'solid-js'
+import {Show, createRoot, createSignal, type JSX} from 'solid-js'
 import {MessageSquarePlus, Presentation} from 'lucide-solid'
-import {defineExtension} from '@conciv/extension'
+import {defineExtension, getHostApi} from '@conciv/extension'
 import {TooltipIconButton} from '@conciv/ui-kit-system'
 import {WHITEBOARD_NAME, WHITEBOARD_PROMPT} from './shared/meta.js'
-import {mountOverlay, type CommentPick} from './client/overlay.js'
+import {WhiteboardSurface, type CommentPick, type SurfaceState} from './client/overlay.js'
+
+type PickPhase = 'idle' | 'picking' | 'composing'
 
 function Component(): JSX.Element {
-  const slot = whiteboard.useSlot()
+  const host = getHostApi()
+  const grab = host.useGrab()
+  const slot = host.useSlot()
   const toggle = whiteboard.useContext((context) => context.toggle)
   const comment = whiteboard.useContext((context) => context.comment)
   const pickStarted = whiteboard.useContext((context) => context.pickStarted)
   const pickAborted = whiteboard.useContext((context) => context.pickAborted)
-  const grab = whiteboard.useContext((context) => context.grab)
   const pickComment = async (): Promise<void> => {
     pickStarted()
     const grabbed = await grab.comment().catch(() => null)
@@ -19,7 +22,7 @@ function Component(): JSX.Element {
     comment({source: grabbed.source, rect: grabbed.rect})
   }
   return (
-    <Show when={slot() === 'composer'}>
+    <Show when={slot === 'composer'}>
       <TooltipIconButton tooltip="Open the whiteboard canvas" class="size-9.5" onClick={() => toggle()}>
         <Presentation />
       </TooltipIconButton>
@@ -30,52 +33,51 @@ function Component(): JSX.Element {
   )
 }
 
+function Surface(): JSX.Element {
+  const state = whiteboard.useContext((context): SurfaceState => context)
+  return <WhiteboardSurface state={state} />
+}
+
 const whiteboard = defineExtension({
   name: WHITEBOARD_NAME,
   tools: [],
   systemPrompt: WHITEBOARD_PROMPT,
   Component,
+  Surface,
 }).client(() =>
   createRoot((dispose) => {
-    const api = whiteboard.useClientApi()
     const [open, setOpen] = createSignal(false)
-    const [pickPhase, setPickPhase] = createSignal<'idle' | 'picking' | 'composing'>('idle')
+    const [engaged, setEngaged] = createSignal(false)
+    const [pickPhase, setPickPhase] = createSignal<PickPhase>('idle')
     const visible = (): boolean => open() && pickPhase() === 'idle'
-    let disposeOverlay: (() => void) | undefined
-    let commentWriter: ((pick: CommentPick) => void) | undefined
     const pendingComments: CommentPick[] = []
+    const writers: ((pick: CommentPick) => void)[] = []
     const registerComment = (write: (pick: CommentPick) => void): void => {
-      commentWriter = write
+      writers.splice(0, writers.length, write)
       pendingComments.splice(0).forEach(write)
     }
     const close = (): void => void setOpen(false)
-    const onComposeSettled = (outcome: 'added' | 'cancelled'): void => {
-      setPickPhase('idle')
-      if (outcome === 'added' && !open()) api.toast('Comment added to the whiteboard', 'success')
-    }
-    const start = (): void => {
-      if (!disposeOverlay)
-        disposeOverlay = mountOverlay({api, open: visible, canvasOpen: open, close, registerComment, onComposeSettled})
-    }
     const toggle = (): void => {
-      start()
+      setEngaged(true)
       setPickPhase('idle')
       setOpen((value) => !value)
     }
     const pickStarted = (): void => {
-      start()
+      setEngaged(true)
       setPickPhase('picking')
     }
     const pickAborted = (): void => void setPickPhase('idle')
     const comment = (pick: CommentPick): void => {
-      start()
       setPickPhase('composing')
-      if (commentWriter) return commentWriter(pick)
+      const write = writers[0]
+      if (write) return write(pick)
       pendingComments.push(pick)
     }
-    onCleanup(() => disposeOverlay?.())
-    onCleanup(api.yieldFocusWhile(visible))
-    return {value: {toggle, open, comment, pickStarted, pickAborted}, dispose}
+    const settleCompose = (): void => void setPickPhase('idle')
+    return {
+      value: {toggle, open, engaged, visible, close, comment, pickStarted, pickAborted, settleCompose, registerComment},
+      dispose,
+    }
   }),
 )
 

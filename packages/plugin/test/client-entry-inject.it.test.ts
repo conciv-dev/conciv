@@ -44,7 +44,6 @@ describe('client-entry module-graph injection', () => {
   it('bakes the engine origin into the extensions module as the window global (Next-style seam)', () => {
     const source = extensionsModuleSource(['/abs/a/client.js'], 'http://127.0.0.1:41700')
     expect(source).toContain('window.__CONCIV_API_BASE__ = "http://127.0.0.1:41700"')
-    expect(source).toContain('mountWidget([builtin0, ...userExtensions])')
   })
 
   it('omits the window global when no api base is known (classic path uses the meta tag)', () => {

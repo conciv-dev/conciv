@@ -3,8 +3,7 @@ import {dirname} from 'node:path'
 import {expect, test} from 'vitest'
 import {claude} from '@conciv/harness/claude'
 import {defineExtension, type ServerApi} from '@conciv/extension'
-import {createTestkit, until} from '@conciv/harness-testkit'
-import {acquireLock, releaseLock} from '../../src/store/lock.js'
+import {createTestHarness, createTestkit, until} from '@conciv/harness-testkit'
 import {bootCoreApp} from '../helpers/boot.js'
 import {runTurn} from '../helpers/turns.js'
 
@@ -14,7 +13,8 @@ test('extension server api exposes sessions + harness surfaces backed by the rea
     captured.server = server
     return {context: {}}
   })
-  const kit = await createTestkit(claude, bootCoreApp({extensions: [probe]})).setup()
+  const harness = createTestHarness(claude)
+  const kit = await createTestkit(harness, bootCoreApp({extensions: [probe]})).setup()
   try {
     const server = captured.server
     if (!server) throw new Error('server api not captured')
@@ -29,10 +29,11 @@ test('extension server api exposes sessions + harness surfaces backed by the rea
     expect(await server.sessions.resumeToken(fresh)).toBe('tok-fresh')
 
     expect(server.sessions.chatBusy(sessionId)).toBe(false)
-    acquireLock(kit.stateRoot, sessionId, 'chat', process.pid)
+    harness.__scripted.hold()
+    await kit.rpc.chat.send({sessionId, text: 'busy probe'})
     expect(server.sessions.chatBusy(sessionId)).toBe(true)
-    releaseLock(kit.stateRoot, sessionId)
-    expect(server.sessions.chatBusy(sessionId)).toBe(false)
+    harness.__scripted.release()
+    await until(() => !server.sessions.chatBusy(sessionId), {hangGuardMs: 5000})
 
     expect(server.harness.id).toBe('claude')
     expect(typeof server.harness.ttyCommand).toBe('function')

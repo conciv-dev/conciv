@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {defineExtension, defineTool} from '@conciv/extension'
+import {defineExtension, defineTool, getHostApi} from '@conciv/extension'
 
 const hello = defineTool({
   name: 'acme_hello',
@@ -17,7 +17,7 @@ const blue = defineExtension({
 export default blue
 
 function BlueSurface() {
-  const slot = blue.useSlot()
-  if (slot() === 'status') return <span>Blue theme active</span>
+  const slot = getHostApi().useSlot()
+  if (slot === 'status') return <span>Blue theme active</span>
   return null
 }

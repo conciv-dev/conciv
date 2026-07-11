@@ -1,8 +1,10 @@
 import {Hono} from 'hono'
+import {RPCHandler} from '@orpc/server/fetch'
+import type {AnyRouter} from '@orpc/server'
 import {serveApp} from '@conciv/harness-testkit'
-import type {ServerApi, ServerHarness, ServerSessions} from '@conciv/extension'
+import {makeExtRpcClient, type ServerApi, type ServerHarness, type ServerSessions} from '@conciv/extension'
 import type {TtyCommandOpts} from '@conciv/protocol/terminal-types'
-import terminalExtension from '../src/server.js'
+import terminalExtension, {type TerminalRouter} from '../src/server.js'
 
 export type FakeSessions = ServerSessions & {
   tokens: Map<string, string>
@@ -55,7 +57,12 @@ export type TerminalTestServer = {
   base: string
   wsBase: string
   sessions: FakeSessions
+  rpc: ReturnType<typeof makeExtRpcClient<TerminalRouter>>
   close: () => Promise<void>
+}
+
+function isRouter(candidate: unknown): candidate is AnyRouter {
+  return typeof candidate === 'object' && candidate !== null
 }
 
 export async function startTerminalServer(harness: ServerHarness = bashHarness): Promise<TerminalTestServer> {
@@ -64,12 +71,23 @@ export async function startTerminalServer(harness: ServerHarness = bashHarness):
   const api: ServerApi<Record<never, never>> = {config: {}, cwd: process.cwd(), sessions, harness}
   const result = await terminalExtension.__server?.(api)
   if (!(result?.app instanceof Hono)) throw new Error('terminal extension returned no hono app')
+  if (!isRouter(result.router)) throw new Error('terminal extension returned no router')
   app.route('/api/ext/terminal', result.app)
+  const handler = new RPCHandler(result.router)
+  app.use('/rpc/ext/terminal/*', async (c, next) => {
+    const {matched, response} = await handler.handle(c.req.raw, {
+      prefix: '/rpc/ext/terminal',
+      context: {request: c.req.raw},
+    })
+    if (matched && response) return c.newResponse(response.body, response)
+    await next()
+  })
   const served = await serveApp(app.fetch)
   return {
     base: served.base,
     wsBase: served.wsBase,
     sessions,
+    rpc: makeExtRpcClient<TerminalRouter>(served.base, 'terminal'),
     close: async () => {
       await result?.dispose?.()
       await served.close()

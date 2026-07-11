@@ -3,18 +3,20 @@ import {createMCPClient} from '@tanstack/ai-mcp'
 import {bootKit} from '../../helpers/boot.js'
 
 describe('/api/mcp', () => {
-  it('exposes conciv_ui and round-trips a call through the real app', async () => {
-    const kit = await bootKit()
+  it('exposes conciv_ui and round-trips a non-blocking call through the real app', async () => {
+    const opened: string[] = []
+    const kit = await bootKit({openInEditor: (file) => opened.push(file)})
     const {base, cleanup: close} = kit
     const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
     try {
       const tools = await mcp.tools()
-      expect(tools.map((t) => t.name)).toEqual(expect.arrayContaining(['conciv_ui', 'conciv_page']))
-      const uiTool = tools.find((t) => t.name === 'conciv_ui')
-      if (!uiTool?.execute) throw new Error('conciv_ui not registered on /api/mcp')
+      expect(tools.map((t) => t.name)).toEqual(expect.arrayContaining(['conciv_ui', 'conciv_page', 'conciv_open']))
+      const openTool = tools.find((t) => t.name === 'conciv_open')
+      if (!openTool?.execute) throw new Error('conciv_open not registered on /api/mcp')
 
-      const result = await uiTool.execute({kind: 'confirm', question: 'ok?'})
-      expect(JSON.stringify(result)).toContain('renderId')
+      const result = await openTool.execute({file: 'src/app.ts'})
+      expect(JSON.stringify(result)).toContain('src/app.ts')
+      expect(opened).toEqual(['src/app.ts'])
     } finally {
       await mcp.close()
       await close()

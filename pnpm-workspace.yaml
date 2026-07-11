@@ -27,6 +27,18 @@ overrides:
   # @netlify/otel (via nitro>unstorage>@netlify/blobs) pins @opentelemetry/core 2.7.1 exact.
   '@opentelemetry/core@<2.8.0': '>=2.8.0 <3'
 
+# drizzle-kit 1.0.0-rc ships without a drizzle-orm dependency/peer yet requires
+# `drizzle-orm/_relations` at runtime, assuming a flat node_modules. Under pnpm's isolated
+# layout that require falls back to the hidden-hoisted drizzle-orm, which can be the
+# whiteboard extension's stable 0.45.x (no `_relations` export) and crashes. Declare the
+# missing peer so each consumer's own drizzle-orm is linked beside its drizzle-kit.
+# Scoped to the 1.0 line (@conciv/db pins 1.0.0-rc.4); drop when drizzle-kit 1.0 stable
+# fixes its manifest.
+packageExtensions:
+  'drizzle-kit@>=1.0.0-0 <2':
+    peerDependencies:
+      drizzle-orm: '*'
+
 # Supply-chain hardening (pnpm 11). Only these deps may run install/build scripts;
 # everything else is blocked by strictDepBuilds (default on in pnpm 11).
 # Dev-only tooling and its native deps are blocked - not needed to build, test,

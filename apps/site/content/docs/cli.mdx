@@ -69,19 +69,9 @@ conciv tools server graph src/routes/index.tsx
 
 Open a file in your editor, straight from a source location.
 
-## `conciv ui`
-
-Generative UI: each command renders a real control in the chat thread and blocks until you
-respond. This is how the agent asks instead of guessing.
-
-```bash
-conciv ui choices --question "Which theme?" --option light --option dark
-conciv ui confirm --question "Run the migration?" --detail "pnpm db:migrate"
-conciv ui diff --file src/app.css --before "$OLD" --after "$NEW"
-conciv ui form --title "New route" --field "path:Path:text" --field "layout:Layout:select:docs,blog"
-```
-
-The four cards are described in [Chat](/docs/usage/chat#generative-ui).
+Interactive questions need no CLI: the agent calls its built-in `conciv_ui` tool, which renders
+choices/confirm/diff/form in the chat thread and blocks until you answer. The cards are described
+in [Chat](/docs/usage/chat#generative-ui).
 
 <Callout>
   Every command prints JSON, so outputs compose with `jq` in scripts the same way the agent consumes them.

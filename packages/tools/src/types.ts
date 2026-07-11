@@ -1,9 +1,9 @@
 import {z} from 'zod'
 import type {PageQuery} from '@conciv/protocol/page-types'
-import type {UiSpec} from '@conciv/protocol/ui-types'
+import type {UiAnswer} from '@conciv/protocol/ui-types'
 
 export type ConcivToolContext = {
-  injectUi: (spec: UiSpec) => boolean
+  askUi: () => Promise<UiAnswer>
 
   page: (query: Omit<PageQuery, 'requestId'>) => Promise<unknown>
 

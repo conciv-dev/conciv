@@ -13,98 +13,48 @@ import {
 import type {MessagePart, UIMessage} from '@conciv/protocol/chat-types'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
+import {makeExtRpcClient} from '@conciv/extension'
+import type {TerminalRouter} from '../server.js'
 import {ChevronRight} from 'lucide-solid'
 import {Button} from '@conciv/ui-kit-system'
 import {Markdown, Reasoning, ToolCallCard, ToolFallback} from '@conciv/ui-kit-chat'
 import {builtinToolCards} from '@conciv/ui-kit-chat-tools'
 
-const RETRY_BASE_MS = 1000
-const RETRY_MAX_MS = 15000
-
 type MirrorStatus = 'connecting' | 'open' | 'error'
 
-function frameData(eventBlock: string): string {
-  return eventBlock
-    .split('\n')
-    .filter((line) => line.startsWith('data: '))
-    .map((line) => line.slice(6))
-    .join('')
-}
-
-function emitFrame(data: string, onMessages: (messages: UIMessage[]) => void): void {
-  if (!data) return
-  try {
-    const parsed: {messages: UIMessage[]} = JSON.parse(data)
-    onMessages(parsed.messages)
-  } catch {}
-}
-
-function dispatchFrames(buffered: {value: string}, onMessages: (messages: UIMessage[]) => void): void {
-  const events = buffered.value.split('\n\n')
-  buffered.value = events.pop() ?? ''
-  for (const eventBlock of events) emitFrame(frameData(eventBlock), onMessages)
-}
-
-async function pumpMirror(
-  reader: ReadableStreamDefaultReader<Uint8Array>,
-  onMessages: (messages: UIMessage[]) => void,
-): Promise<void> {
-  const decoder = new TextDecoder()
-  const buffered = {value: ''}
-  for (;;) {
-    const {done, value} = await reader.read()
-    if (done) return
-    buffered.value += decoder.decode(value, {stream: true})
-    dispatchFrames(buffered, onMessages)
-  }
-}
-
-async function openMirror(
-  url: string,
-  headers: () => Record<string, string>,
+async function consumeMirror(
+  client: ReturnType<typeof makeExtRpcClient<TerminalRouter>>,
+  sessionId: string,
   signal: AbortSignal,
   onMessages: (messages: UIMessage[]) => void,
   onStatus: (status: MirrorStatus) => void,
-  onOpen: () => void,
 ): Promise<void> {
   onStatus('connecting')
-  const res = await fetch(url, {credentials: 'include', headers: headers(), signal})
-  if (!res.ok) throw new Error(`mirror responded ${res.status}`)
-  const reader = res.body?.getReader()
-  if (!reader) throw new Error('mirror has no body')
+  const iterator = await client.mirror({sessionId}, {signal, context: {retry: Number.POSITIVE_INFINITY}})
   onStatus('open')
-  onOpen()
-  await pumpMirror(reader, onMessages)
-}
-
-function backoffDelay(attempts: number): number {
-  return Math.min(RETRY_BASE_MS * 2 ** (attempts - 1), RETRY_MAX_MS)
+  for await (const payload of iterator) {
+    onMessages(payload.messages)
+    onStatus('open')
+  }
 }
 
 function connectMirror(
-  url: string,
-  headers: () => Record<string, string>,
+  apiBase: string,
+  sessionId: string | null,
   onMessages: (messages: UIMessage[]) => void,
   onStatus: (status: MirrorStatus) => void,
 ): () => void {
   const controller = new AbortController()
-  const state = {attempts: 0}
-  const runOnce = async (): Promise<void> => {
-    try {
-      await openMirror(url, headers, controller.signal, onMessages, onStatus, () => (state.attempts = 0))
-    } catch {
-      if (!controller.signal.aborted) onStatus('error')
-    }
+  const client = makeExtRpcClient<TerminalRouter>(apiBase, 'terminal', {
+    onRetry: () => onStatus('connecting'),
+  })
+  if (!sessionId) {
+    onStatus('error')
+    return () => controller.abort()
   }
-  const consume = async (): Promise<void> => {
-    while (!controller.signal.aborted) {
-      await runOnce()
-      if (controller.signal.aborted) return
-      state.attempts += 1
-      await new Promise((resolve) => setTimeout(resolve, backoffDelay(state.attempts)))
-    }
-  }
-  void consume()
+  void consumeMirror(client, sessionId, controller.signal, onMessages, onStatus).catch(() => {
+    if (!controller.signal.aborted) onStatus('error')
+  })
   return () => controller.abort()
 }
 
@@ -229,16 +179,12 @@ function RailPlaceholder(props: {status: MirrorStatus}): JSX.Element {
   )
 }
 
-export function MirrorRail(props: {
-  apiBase: string
-  headers: () => Record<string, string>
-  ctx: ToolViewCtx
-}): JSX.Element {
+export function MirrorRail(props: {apiBase: string; sessionId: () => string | null; ctx: ToolViewCtx}): JSX.Element {
   const [open, setOpen] = createSignal(false)
   const [messages, setMessages] = createSignal<UIMessage[]>([])
   const [status, setStatus] = createSignal<MirrorStatus>('connecting')
   onMount(() => {
-    const stop = connectMirror(`${props.apiBase}/api/ext/terminal/mirror`, props.headers, setMessages, setStatus)
+    const stop = connectMirror(props.apiBase, props.sessionId(), setMessages, setStatus)
     onCleanup(stop)
   })
   const results = createMemo(() => resultsById(messages()))

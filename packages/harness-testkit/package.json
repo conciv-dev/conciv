@@ -19,10 +19,12 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@conciv/contract": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/serve": "workspace:^",
     "@tanstack/ai": "^0.40.0",
-    "@tanstack/ai-mcp": "^0.2.3"
+    "@tanstack/ai-mcp": "^0.2.3",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@conciv/harness": "workspace:^",

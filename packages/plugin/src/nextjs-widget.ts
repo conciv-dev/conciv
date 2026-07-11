@@ -5,7 +5,7 @@ const port = process.env.NEXT_PUBLIC_CONCIV_PORT
 function startWidget(): void {
   window.__CONCIV_API_BASE__ = `http://127.0.0.1:${port}`
 
-  void import('@conciv/widget').then(({mountWidget}) => mountWidget([]))
+  void import('@conciv/embed').then(({mountConciv}) => mountConciv([]))
 }
 
 if (typeof window !== 'undefined' && port && process.env.NODE_ENV !== 'production') {

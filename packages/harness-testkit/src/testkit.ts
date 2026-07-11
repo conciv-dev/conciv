@@ -10,9 +10,10 @@ export {
   type Testkit,
 } from './create-testkit.js'
 export {createTestHarness, type TestHarness} from './create-test-harness.js'
+export {createFakeHarness, type FakeHarness} from './create-fake-harness.js'
 export {harnessAvailable} from './harness-available.js'
 export {makeCallTool, type CallTool} from './call-tool.js'
-export {resolveSession} from './session.js'
+export {makeRpcClient, resolveSession, type RpcClient} from './session.js'
 export {harnessModes, type HarnessMode} from './harness-modes.js'
 export type {RunStream} from './run-stream.js'
-export type {RunEvents} from './run-events.js'
+export type {RunEvents, SeenToolCall} from './run-events.js'

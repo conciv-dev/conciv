@@ -3,8 +3,9 @@ import {Collapsible} from '@conciv/ui-kit-system'
 import {ChevronRight, ExternalLink, FlaskConical, Sparkles} from 'lucide-solid'
 import {ToolCard, resultText} from '@conciv/ui-kit-chat'
 import type {ToolCardProps, ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import {getHostApi, makeExtRpcClient} from '@conciv/extension'
+import type {TestRunnerRouter} from '../server.js'
 import {
-  TestEventSchema,
   TestRunResultSchema,
   type TestRunResult,
   type Summary,
@@ -98,29 +99,13 @@ function testRowClass(state: Row['state']): string {
   return state === 'fail' ? `${ROW} ${ROW_FAIL}` : ROW
 }
 
-function openInEditor(apiBase: string, error: TestError): void {
-  void fetch(`${apiBase}/api/editor/open`, {
-    method: 'POST',
-    headers: {'content-type': 'application/json'},
-    body: JSON.stringify({file: error.file, line: error.line}),
-  }).catch(() => {})
-}
-
-function parseTestEvent(raw: string): TestEvent | null {
-  try {
-    const result = TestEventSchema.safeParse(JSON.parse(raw))
-    return result.success ? result.data : null
-  } catch {
-    return null
-  }
-}
-
 function TestErrorBlock(props: {error: TestError; ctx: ToolViewCtx}): JSX.Element {
+  const openEditor = getHostApi().useOpenEditor()
   return (
     <div class={ERR}>
       <pre class={ERR_PRE}>{props.error.message}</pre>
       <div class={ACTIONS}>
-        <button class={`${ACT}  ${ACT_PLAIN}`} onClick={() => openInEditor(props.ctx.apiBase, props.error)}>
+        <button class={`${ACT}  ${ACT_PLAIN}`} onClick={() => openEditor(props.error.file, props.error.line)}>
           <ExternalLink size={12} aria-hidden="true" />
           Open {openLabel(props.error)}
         </button>
@@ -150,7 +135,7 @@ export function TestResults(props: {result: TestRunResult | null; ctx: ToolViewC
       return
     }
     setRunning(true)
-    const source = new EventSource(`${props.ctx.apiBase}/api/ext/test-runner/stream`)
+    const abort = new AbortController()
     const applyLive = (ev: TestEvent) => {
       if (ev.type === 'snapshot') {
         setSummary(ev.summary)
@@ -171,14 +156,20 @@ export function TestResults(props: {result: TestRunResult | null; ctx: ToolViewC
         setSummary(ev.summary)
         setGroups(groupByFile(ev.tests.map((t) => ({...t}))))
         setRunning(false)
-        source.close()
+        abort.abort()
       }
     }
-    source.addEventListener('message', (e) => {
-      const ev = parseTestEvent(e.data)
-      if (ev) applyLive(ev)
-    })
-    onCleanup(() => source.close())
+    void (async () => {
+      try {
+        const client = makeExtRpcClient<TestRunnerRouter>(props.ctx.apiBase, 'test-runner')
+        const stream = await client.stream(undefined, {
+          signal: abort.signal,
+          context: {retry: Number.POSITIVE_INFINITY},
+        })
+        for await (const ev of stream) applyLive(ev)
+      } catch {}
+    })()
+    onCleanup(() => abort.abort())
   })
 
   const toggleTest = (key: string) => setOpenTest((current) => (current === key ? null : key))

@@ -1,4 +1,5 @@
-import {OpenSourceResultSchema, type OpenSourceResult} from '@conciv/protocol/page-types'
+import {makeRpcClient} from '@conciv/contract'
+import type {OpenSourceResult} from '@conciv/protocol/page-types'
 import type {LocateResult} from '@conciv/protocol/page-introspect-types'
 
 export const EFFECTS_SURFACE_ATTR = 'data-conciv-effects'
@@ -12,14 +13,12 @@ function createEffectsHost(): HTMLElement {
   return host
 }
 
-export function ensureEffectsSurface(options?: {styles?: string}): HTMLElement {
-  const host = document.querySelector<HTMLElement>(`[${EFFECTS_SURFACE_ATTR}]`) ?? createEffectsHost()
-  const root = host.shadowRoot ?? host.attachShadow({mode: 'open'})
+function ensureEffectsContainer(root: ShadowRoot, styles?: string): HTMLElement {
   const existing = root.querySelector<HTMLElement>('[data-effect-root]')
   if (existing) return existing
-  if (options?.styles) {
+  if (styles) {
     const style = document.createElement('style')
-    style.textContent = options.styles
+    style.textContent = styles
     root.appendChild(style)
   }
   const container = document.createElement('div')
@@ -28,22 +27,24 @@ export function ensureEffectsSurface(options?: {styles?: string}): HTMLElement {
   return container
 }
 
+export function ensureEffectsSurface(options?: {styles?: string}): HTMLElement {
+  const host = document.querySelector<HTMLElement>(`[${EFFECTS_SURFACE_ATTR}]`) ?? createEffectsHost()
+  const root = host.shadowRoot ?? host.attachShadow({mode: 'open'})
+  const container = ensureEffectsContainer(root, options?.styles)
+  const layer = document.createElement('div')
+  layer.setAttribute('data-effect-layer', '')
+  container.appendChild(layer)
+  return layer
+}
+
 export async function openSource(apiBase: string, locateResult: LocateResult): Promise<OpenSourceResult> {
-  const post = (path: string, body: unknown) =>
-    fetch(`${apiBase}${path}`, {
-      method: 'POST',
-      headers: {'content-type': 'application/json'},
-      body: JSON.stringify(body),
-    })
+  const rpc = makeRpcClient(apiBase)
   try {
     if (locateResult.source) {
-      await post('/api/editor/open', {file: locateResult.source.file, line: locateResult.source.line})
+      await rpc.editor.open({file: locateResult.source.file, line: locateResult.source.line})
       return 'opened'
     }
-    if (locateResult.frames.length)
-      return OpenSourceResultSchema.parse(
-        await (await post('/api/page/open-source', {frames: locateResult.frames})).json(),
-      ).status
+    if (locateResult.frames.length) return (await rpc.editor.openFromFrames({frames: locateResult.frames})).status
     return 'no-source'
   } catch {
     return 'failed'

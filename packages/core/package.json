@@ -23,12 +23,12 @@
   "type": "module",
   "exports": {
     ".": {
-      "types": "./dist/engine.d.ts",
-      "import": "./dist/engine.js"
+      "types": "./dist/start.d.ts",
+      "import": "./dist/start.js"
     },
-    "./engine": {
-      "types": "./dist/engine.d.ts",
-      "import": "./dist/engine.js"
+    "./start": {
+      "types": "./dist/start.d.ts",
+      "import": "./dist/start.js"
     },
     "./app": {
       "types": "./dist/app.d.ts",
@@ -37,10 +37,6 @@
     "./config": {
       "types": "./dist/config.d.ts",
       "import": "./dist/config.js"
-    },
-    "./widget-tags": {
-      "types": "./dist/widget-tags.d.ts",
-      "import": "./dist/widget-tags.js"
     }
   },
   "publishConfig": {
@@ -55,31 +51,33 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@conciv/contract": "workspace:^",
+    "@conciv/db": "workspace:^",
+    "@conciv/extension": "workspace:^",
     "@conciv/harness": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/serve": "workspace:^",
     "@conciv/tools": "workspace:^",
-    "@hono/zod-validator": "^0.8.0",
     "@jridgewell/trace-mapping": "0.3.31",
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@orpc/server": "^1.14.7",
     "@tanstack/ai": "^0.40.0",
     "@tanstack/ai-sandbox": "^0.2.2",
     "@tanstack/ai-sandbox-local-process": "^0.2.0",
+    "drizzle-orm": "1.0.0-rc.4",
     "get-port": "^7.1.0",
     "hono": "^4.12.0",
     "ufo": "^1.6.4",
-    "unstorage": "^1.17.5",
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@conciv/extension": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@hono/node-server": "^2.0.8",
     "@jridgewell/gen-mapping": "^0.3.13",
     "@tanstack/ai-mcp": "^0.2.3",
     "@types/node": "^22.19.21",
     "@types/ws": "^8.18.1",
-    "tsdown": "^0.22.2",
+    "tsdown": "^0.22.4",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8",

@@ -89,7 +89,7 @@
       }
     },
     {
-      "files": ["packages/solid-streamdown/**"],
+      "files": ["packages/solid-streamdown/**", "packages/page/**"],
       "rules": {
         "unocss/order": "off"
       }

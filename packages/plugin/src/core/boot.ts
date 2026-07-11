@@ -1,11 +1,9 @@
 import {join} from 'node:path'
-import {start, type Engine} from '@conciv/core/engine'
+import {start, type Engine} from '@conciv/core/start'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {installConcivBinShim} from './bin-shim.js'
 import {makeOpenInEditor} from './open-editor.js'
 import {type Builtins, loadServerExtensions} from './extensions.js'
-
-// /api/server/*). Memoized so repeated hooks boot @conciv/core once. The vite hook boots with
 
 export function makeEngineBooter(options: ConcivConfig, root: string, builtins: Builtins): () => Promise<Engine> {
   let booting: Promise<Engine> | null = null

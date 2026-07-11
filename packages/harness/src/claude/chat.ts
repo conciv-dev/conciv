@@ -8,6 +8,8 @@ import {definedEntries} from '../_shared/env.js'
 import {lastUserImages} from '../_shared/text-adapter.js'
 import {CONCIV_PLUGIN_DIR} from './plugin-dir.js'
 
+const MCP_TOOL_TIMEOUT_MS = 150_000
+
 const IMAGE_EXT: Record<string, string> = {
   'image/png': 'png',
   'image/jpeg': 'jpg',
@@ -59,7 +61,7 @@ export const claudeChatConfig = (deps: HarnessChatDeps): HarnessChatConfig => ({
     claudeExecutable: claudeExecutable(CONCIV_PLUGIN_DIR),
     systemPromptMode: 'append',
     emitDiff: false,
-    env: definedEntries(deps.env),
+    env: definedEntries({MCP_TOOL_TIMEOUT: String(MCP_TOOL_TIMEOUT_MS), ...deps.env}),
   }),
   modelOptions: deps.resumeSessionId ? {sessionId: deps.resumeSessionId} : {},
   prepareMessages: (messages) =>

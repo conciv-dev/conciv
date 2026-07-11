@@ -20,12 +20,12 @@ export function extensionsModuleSource(clientEntries: readonly string[], apiBase
       ? []
       : [`if (typeof window !== 'undefined') window.__CONCIV_API_BASE__ = ${JSON.stringify(apiBase)}`]
   return [
-    "import {mountWidget} from '@conciv/widget'",
+    "import {mountConciv} from '@conciv/embed'",
     ...imports,
     ...apiBaseLine,
     "const mods = import.meta.glob('/conciv/extensions/*.{ts,tsx}', {eager: true})",
     'const userExtensions = Object.values(mods).map((m) => m && m.default).filter(Boolean)',
-    `mountWidget([${[...builtinNames, '...userExtensions'].join(', ')}])`,
+    `mountConciv([${[...builtinNames, '...userExtensions'].join(', ')}])`,
     '',
   ].join('\n')
 }

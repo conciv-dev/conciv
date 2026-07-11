@@ -42,6 +42,16 @@ describe('claudeChatConfig', () => {
     expect(claudeChatConfig(deps({resumeSessionId: 'r-9'})).modelOptions).toEqual({sessionId: 'r-9'})
   })
 
+  it('caps MCP tool calls above the 120s ui-ask window so blocking conciv_ui times out gracefully first', () => {
+    const config = claudeChatConfig(deps())
+    expect(Reflect.get(config.adapter, 'adapterConfig')).toMatchObject({env: {MCP_TOOL_TIMEOUT: '150000'}})
+  })
+
+  it('caller env wins over the MCP_TOOL_TIMEOUT default', () => {
+    const config = claudeChatConfig(deps({env: {MCP_TOOL_TIMEOUT: '999000'}}))
+    expect(Reflect.get(config.adapter, 'adapterConfig')).toMatchObject({env: {MCP_TOOL_TIMEOUT: '999000'}})
+  })
+
   it('rewrites a compact turn to /compact', () => {
     const config = claudeChatConfig(deps({kind: 'compact'}))
     const prepared = config.prepareMessages?.([

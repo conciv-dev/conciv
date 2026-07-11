@@ -1,6 +1,6 @@
 import {Show, type JSX} from 'solid-js'
 import {LayoutTemplate} from 'lucide-solid'
-import {UiInput} from '@conciv/tools/defs'
+import {UiInputSchema} from '@conciv/protocol/ui-types'
 import {ToolCard, parseInput} from '@conciv/ui-kit-chat'
 import type {ToolCardEntry, ToolCardProps} from '@conciv/protocol/tool-view-types'
 
@@ -20,7 +20,7 @@ function title(kind: keyof typeof LABEL | undefined): string {
 }
 
 export function UiCard(props: ToolCardProps): JSX.Element {
-  const input = () => parseInput(UiInput, props.part)
+  const input = () => parseInput(UiInputSchema, props.part)
   const question = () => input()?.question ?? input()?.title
   return (
     <ToolCard Icon={Icon} title={title(input()?.kind)} part={props.part} result={props.result}>

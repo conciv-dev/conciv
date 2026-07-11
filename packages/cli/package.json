@@ -1,7 +1,7 @@
 {
   "name": "@conciv/cli",
   "version": "0.0.7",
-  "description": "The conciv agent-facing CLI: `conciv tools` (drive the live page/vite/tests) and `conciv ui` (render interactive UI in the chat). citty command tree, zod-validated args.",
+  "description": "The conciv agent-facing CLI: `conciv tools` (drive the live page/vite/tests). citty command tree, zod-validated args.",
   "keywords": [
     "ai-agent",
     "cli",
@@ -37,13 +37,17 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@conciv/contract": "workspace:^",
     "@conciv/protocol": "workspace:^",
+    "@orpc/client": "^1.14.7",
     "citty": "^0.2.2",
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@conciv/core": "workspace:^",
+    "@conciv/harness-testkit": "workspace:^",
     "@types/node": "^22.19.21",
-    "tsdown": "^0.22.2",
+    "tsdown": "^0.22.4",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"
   }

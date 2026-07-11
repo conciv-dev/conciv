@@ -20,13 +20,12 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@conciv/api-client": "workspace:^",
+    "@conciv/contract": "workspace:^",
     "@conciv/core": "workspace:^",
     "@conciv/extension": "workspace:^",
     "@conciv/grab": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/plugin": "workspace:^",
-    "@conciv/protocol": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
     "@playwright/test": "^1.61.1",
     "get-port": "^7.2.0",

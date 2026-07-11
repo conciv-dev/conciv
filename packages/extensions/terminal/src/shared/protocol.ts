@@ -10,5 +10,5 @@ export const TerminalOpenRequestSchema = z.object({
 
 export type TerminalOpenRequest = z.infer<typeof TerminalOpenRequestSchema>
 
-const TerminalStateSchema = z.object({alive: z.boolean(), busy: z.boolean()})
+export const TerminalStateSchema = z.object({alive: z.boolean(), busy: z.boolean()})
 export type TerminalState = z.infer<typeof TerminalStateSchema>

@@ -1,54 +1,42 @@
-import {z} from 'zod'
-import {cursorEvent, type CursorEvent} from '../shared/rows.js'
+import {makeExtRpcClient} from '@conciv/extension'
+import type {CursorEvent} from '../shared/rows.js'
+import type {WhiteboardRouter} from '../server/router.js'
 
 export type ChangeMessage = {type: 'upsert'; row: unknown} | {type: 'delete'; key: string}
 type Handler = (message: ChangeMessage) => void
 
-const parseData = (event: Event): string | undefined =>
-  event instanceof MessageEvent && typeof event.data === 'string' ? event.data : undefined
-
-const feedMessage = z.discriminatedUnion('type', [
-  z.object({type: z.literal('upsert'), row: z.unknown()}),
-  z.object({type: z.literal('delete'), key: z.string()}),
-])
-
-export function createChangeFeed(base: string, room: string) {
-  const source = new EventSource(`${base}/changes?room=${encodeURIComponent(room)}`)
+export function createChangeFeed(apiBase: string, room: string) {
   const tableHandlers = new Map<string, Set<Handler>>()
   const reconnectHandlers = new Set<() => void>()
   const cursorHandlers = new Set<(cursor: CursorEvent) => void>()
-  let dropped = false
 
-  const listenTable = (table: string): void =>
-    source.addEventListener(table, (event) => {
-      const data = parseData(event)
-      if (!data) return
-      const parsed = feedMessage.parse(JSON.parse(data))
-      const message: ChangeMessage =
-        parsed.type === 'delete' ? {type: 'delete', key: parsed.key} : {type: 'upsert', row: parsed.row}
-      tableHandlers.get(table)?.forEach((handler) => handler(message))
-    })
+  const client = makeExtRpcClient<WhiteboardRouter>(apiBase, 'whiteboard', {
+    onRetry: () => (success) => {
+      if (success) reconnectHandlers.forEach((handler) => handler())
+    },
+  })
 
-  source.addEventListener('cursor', (event) => {
-    const data = parseData(event)
-    if (!data) return
-    cursorHandlers.forEach((handler) => handler(cursorEvent.parse(JSON.parse(data))))
-  })
-  source.addEventListener('error', () => void (dropped = true))
-  source.addEventListener('open', () => {
-    if (!dropped) return
-    dropped = false
-    reconnectHandlers.forEach((handler) => handler())
-  })
+  const abort = new AbortController()
+  void (async () => {
+    try {
+      const changes = await client.changes({room}, {signal: abort.signal, context: {retry: Number.POSITIVE_INFINITY}})
+      for await (const event of changes) {
+        if (event.table === 'cursor') {
+          cursorHandlers.forEach((handler) => handler(event.cursor))
+          continue
+        }
+        const message: ChangeMessage =
+          event.type === 'delete' ? {type: 'delete', key: event.key} : {type: 'upsert', row: event.row}
+        tableHandlers.get(event.table)?.forEach((handler) => handler(message))
+      }
+    } catch {}
+  })()
 
   return {
     subscribe: (table: string, handler: Handler): (() => void) => {
       const existing = tableHandlers.get(table)
       if (existing) existing.add(handler)
-      if (!existing) {
-        tableHandlers.set(table, new Set([handler]))
-        listenTable(table)
-      }
+      if (!existing) tableHandlers.set(table, new Set([handler]))
       return () => void tableHandlers.get(table)?.delete(handler)
     },
     onReconnect: (handler: () => void): (() => void) => {
@@ -59,7 +47,7 @@ export function createChangeFeed(base: string, room: string) {
       cursorHandlers.add(handler)
       return () => void cursorHandlers.delete(handler)
     },
-    close: () => source.close(),
+    close: () => abort.abort(),
   }
 }
 

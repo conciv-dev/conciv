@@ -38,11 +38,11 @@ describe('engine CORS (IT, real http, cross-origin + credentials)', () => {
   it('answers the preflight (OPTIONS) for the probe route with 204 + echoed origin + credentials', async () => {
     const {served, base} = await startServer()
     state.served = served
-    const res = await fetch(`${base}/api/chat/models`, {
+    const res = await fetch(`${base}/rpc/sessions/list`, {
       method: 'OPTIONS',
       headers: {
         origin: ORIGIN,
-        'access-control-request-method': 'GET',
+        'access-control-request-method': 'POST',
         'access-control-request-headers': 'content-type',
       },
     })
@@ -54,24 +54,28 @@ describe('engine CORS (IT, real http, cross-origin + credentials)', () => {
   it('preflight for a session-scoped request allows the conciv-session-id header + DELETE', async () => {
     const {served, base} = await startServer()
     state.served = served
-    const res = await fetch(`${base}/api/chat/session`, {
+    const res = await fetch(`${base}/api/mcp`, {
       method: 'OPTIONS',
       headers: {
         origin: ORIGIN,
-        'access-control-request-method': 'DELETE',
+        'access-control-request-method': 'POST',
         'access-control-request-headers': 'conciv-session-id, content-type',
       },
     })
     expect(res.status).toBe(204)
     const allowHeaders = (res.headers.get('access-control-allow-headers') ?? '').toLowerCase()
     expect(allowHeaders).toContain('conciv-session-id')
-    expect(res.headers.get('access-control-allow-methods') ?? '').toContain('DELETE')
+    expect(res.headers.get('access-control-allow-methods') ?? '').toContain('POST')
   })
 
-  it('echoes CORS headers on the actual probe GET /api/chat/models (never *)', async () => {
+  it('echoes CORS headers on an actual rpc call (never *)', async () => {
     const {served, base} = await startServer()
     state.served = served
-    const res = await fetch(`${base}/api/chat/models`, {headers: {origin: ORIGIN}})
+    const res = await fetch(`${base}/rpc/sessions/list`, {
+      method: 'POST',
+      headers: {origin: ORIGIN, 'content-type': 'application/json'},
+      body: JSON.stringify({}),
+    })
     expect(res.status).toBe(200)
     const allowOrigin = res.headers.get('access-control-allow-origin')
     expect(allowOrigin).toBe(ORIGIN)
@@ -79,12 +83,16 @@ describe('engine CORS (IT, real http, cross-origin + credentials)', () => {
     expect(res.headers.get('access-control-allow-credentials')).toBe('true')
   })
 
-  it('echoes CORS headers on the SSE stream (page/stream), not a wildcard', async () => {
+  it('echoes CORS headers on the rpc live stream, not a wildcard', async () => {
     const {served, base} = await startServer()
     state.served = served
     const ctrl = new AbortController()
-    const res = await fetch(`${base}/api/page/stream`, {headers: {origin: ORIGIN}, signal: ctrl.signal})
-    expect(res.headers.get('content-type')).toContain('text/event-stream')
+    const res = await fetch(`${base}/rpc/sessions/live`, {
+      method: 'POST',
+      headers: {origin: ORIGIN, 'content-type': 'application/json'},
+      body: JSON.stringify({}),
+      signal: ctrl.signal,
+    })
     expect(res.headers.get('access-control-allow-origin')).toBe(ORIGIN)
     expect(res.headers.get('access-control-allow-credentials')).toBe('true')
     ctrl.abort()

@@ -1,5 +1,5 @@
 import {z} from 'zod'
-import {defineExtension, defineTool} from '@conciv/extension'
+import {defineExtension, defineTool, getHostApi} from '@conciv/extension'
 
 const RocketIcon = (props: {class?: string}) => (
   <svg
@@ -29,14 +29,15 @@ const deploy = defineExtension({name: 'deploy', Component: DeploySurface, tools:
 export default deploy
 
 function DeploySurface() {
-  const slot = deploy.useSlot()
-  const notify = deploy.useContext((context) => context.notify)
-  if (slot() === 'composer')
+  const host = getHostApi()
+  const slot = host.useSlot()
+  const notify = host.useToast()
+  if (slot === 'composer')
     return (
       <button type="button" aria-label="Deploy" title="Deploy" onClick={() => notify('Deploy requested')}>
         <RocketIcon />
       </button>
     )
-  if (slot() === 'status') return <span>env: staging</span>
+  if (slot === 'status') return <span>env: staging</span>
   return null
 }

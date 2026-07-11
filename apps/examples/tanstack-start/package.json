@@ -17,10 +17,10 @@
   },
   "dependencies": {
     "@conciv/cli": "workspace:*",
+    "@conciv/embed": "workspace:*",
     "@conciv/extension": "workspace:*",
     "@conciv/it": "workspace:*",
     "@conciv/protocol": "workspace:*",
-    "@conciv/widget": "workspace:*",
     "@tailwindcss/vite": "^4.3.2",
     "@tanstack/react-devtools": "^0.10.8",
     "@tanstack/react-form": "^1.33.0",

@@ -1,0 +1,39 @@
+{
+  "name": "@conciv/page",
+  "version": "0.0.7",
+  "private": true,
+  "description": "The DOM half of the conciv page plane: page-query driver + handlers, react bridge, react-grab picking, overlays. Inlined by @conciv/embed; subscribes rpc.page.queries and replies with executed verbs.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@conciv/contract": "workspace:^",
+    "@conciv/grab": "workspace:^",
+    "@conciv/protocol": "workspace:^",
+    "bippy": "0.5.41",
+    "react-grab": "^0.1.44",
+    "solid-js": "^1.9.13"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitest/browser-playwright": "4.1.9",
+    "playwright": "^1.61.1",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "tsdown": "^0.22.4",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  }
+}
