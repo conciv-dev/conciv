@@ -237,6 +237,8 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
 
   const send = makeSend(chatDeps)
 
+  const pageEnv = {journal: makeJournal(), root: opts.cwd, bus: pageBus}
+
   const rpc = makeRpcRouter({
     chat: chatDeps,
     tools: toolList,
@@ -244,13 +246,14 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     send,
     openInEditor: opts.openInEditor,
     openFromFrames: (frames) => openSourceFromFrames(frames, opts.cwd, opts.openInEditor),
-    pageBus,
+    page: pageEnv,
+    bundler: () => opts.bridge,
   })
 
   const app = composeRoutes(
     {
       cors: {allowedOrigins: opts.allowedOrigins ?? []},
-      page: {journal: makeJournal(), root: opts.cwd, bus: pageBus},
+      page: pageEnv,
       chat: chatDeps,
       mcp: {makeCtx: makeToolCtx, extensionTools, sessionModel},
       bundler: {bridge: () => opts.bridge},

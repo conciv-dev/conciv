@@ -92,7 +92,7 @@ function pageArgs(input: PageQueryInput): Record<string, unknown> {
 
 const VerbParamsSchema = z.object({verb: PageQueryKindSchema})
 
-async function runVerb(
+export async function runVerb(
   env: PageVars['page'],
   input: PageQueryInput,
   verb: PageQuery['kind'],

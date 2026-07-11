@@ -4,6 +4,7 @@ import {tmpdir} from 'node:os'
 import {join, dirname} from 'node:path'
 import {afterEach, describe, expect, it} from 'vitest'
 import {EventType} from '@tanstack/ai'
+import {defineBundlerBridge} from '@conciv/protocol/bundler-types'
 import {createTestHarness, type Kit, type TestHarness} from '@conciv/harness-testkit'
 import {openSource} from '@conciv/extension/client'
 import {requireClaude} from '../helpers/adapters.js'
@@ -231,6 +232,100 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     expect(await response.json()).toMatchObject({ok: true, value: 'snap'})
     abort.abort()
     await iterator.return(undefined).catch(() => {})
+  })
+
+  it('page.run round-trips a verb through the rpc queries subscriber', async () => {
+    const {kit} = await bootWire()
+    const abort = new AbortController()
+    const iterator = await kit.rpc.page.queries(undefined, {signal: abort.signal})
+    const answered = (async () => {
+      const first = await iterator.next()
+      if (first.done) throw new Error('page.queries ended before a query arrived')
+      await kit.rpc.page.reply({requestId: first.value.requestId, data: {ok: true, text: 'body text'}})
+    })()
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    const result = await kit.rpc.page.run({verb: 'text', selector: 'body'})
+    expect(result).toMatchObject({ok: true, text: 'body text'})
+    await answered
+    abort.abort()
+    await iterator.return(undefined).catch(() => {})
+  })
+
+  it('a mutating page.run lands in page.changes and clearChanges empties it', async () => {
+    const {kit} = await bootWire()
+    const abort = new AbortController()
+    const iterator = await kit.rpc.page.queries(undefined, {signal: abort.signal})
+    const answered = (async () => {
+      const first = await iterator.next()
+      if (first.done) throw new Error('page.queries ended before a query arrived')
+      await kit.rpc.page.reply({requestId: first.value.requestId, data: {ok: true}})
+    })()
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    await kit.rpc.page.run({verb: 'fill', selector: '#name', value: 'Ada'})
+    await answered
+    const changes = await kit.rpc.page.changes(undefined)
+    expect(changes.map((entry) => entry.verb)).toEqual(['fill'])
+    expect(changes[0]).toMatchObject({selector: '#name', args: {value: 'Ada'}})
+    await kit.rpc.page.clearChanges(undefined)
+    expect(await kit.rpc.page.changes(undefined)).toEqual([])
+    abort.abort()
+    await iterator.return(undefined).catch(() => {})
+  })
+
+  it('page.run with no connected page reports NO_PAGE_CLIENT', async () => {
+    const {kit} = await bootWire()
+    await expect(kit.rpc.page.run({verb: 'snapshot'})).rejects.toMatchObject({code: 'NO_PAGE_CLIENT'})
+  })
+
+  it('page.run reports PAGE_TIMEOUT when the page never replies', async () => {
+    const {kit} = await bootWire()
+    const abort = new AbortController()
+    const iterator = await kit.rpc.page.queries(undefined, {signal: abort.signal})
+    const consumed = iterator.next()
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    await expect(kit.rpc.page.run({verb: 'text', selector: 'body', timeout: 100})).rejects.toMatchObject({
+      code: 'PAGE_TIMEOUT',
+    })
+    abort.abort()
+    await consumed.catch(() => {})
+    await iterator.return(undefined).catch(() => {})
+  })
+
+  it('server.* without a bundler bridge reports NO_BUNDLER', async () => {
+    const {kit} = await bootWire()
+    await expect(kit.rpc.server.config(undefined)).rejects.toMatchObject({code: 'NO_BUNDLER'})
+    await expect(kit.rpc.server.reload({file: 'src/a.ts'})).rejects.toMatchObject({code: 'NO_BUNDLER'})
+  })
+
+  it('server.* round-trips a real bundler bridge', async () => {
+    const reloaded: string[] = []
+    const restarted: boolean[] = []
+    const bridge = defineBundlerBridge({
+      id: 'wire-test',
+      config: () => ({root: '/repo', base: '/', mode: 'development', aliases: [{find: '@', replacement: 'src'}], plugins: ['solid']}),
+      resolve: async (spec, importer) => ({id: importer ? `${importer}!${spec}` : spec}),
+      moduleGraph: (file) => [{url: file, importers: ['entry.ts'], importedModules: ['dep.ts']}],
+      transform: async (url) => ({code: `transformed:${url}`}),
+      urls: () => ({local: ['http://localhost:3000'], network: []}),
+      reload: async (file) => {
+        reloaded.push(file)
+      },
+      restart: async (force) => {
+        restarted.push(force ?? false)
+      },
+    })
+    const {kit} = await bootWire({bridge})
+    expect(await kit.rpc.server.config(undefined)).toMatchObject({root: '/repo', mode: 'development'})
+    expect(await kit.rpc.server.resolve({spec: './a', importer: 'b.ts'})).toEqual({id: 'b.ts!./a'})
+    expect(await kit.rpc.server.graph({file: 'src/a.ts'})).toEqual([
+      {url: 'src/a.ts', importers: ['entry.ts'], importedModules: ['dep.ts']},
+    ])
+    expect(await kit.rpc.server.transform({url: '/src/a.ts'})).toEqual({code: 'transformed:/src/a.ts'})
+    expect(await kit.rpc.server.urls(undefined)).toEqual({local: ['http://localhost:3000'], network: []})
+    expect(await kit.rpc.server.reload({file: 'src/hot.ts'})).toEqual({ok: true})
+    expect(reloaded).toEqual(['src/hot.ts'])
+    expect(await kit.rpc.server.restart({force: true})).toEqual({ok: true})
+    expect(restarted).toEqual([true])
   })
 
   it('page.reply on an unknown request id reports UNKNOWN_REQUEST', async () => {

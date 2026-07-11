@@ -3,11 +3,12 @@ import {RPCHandler} from '@orpc/server/fetch'
 import type {MiddlewareHandler} from 'hono'
 import {contract} from '@conciv/contract'
 import type {ChatTool} from '@conciv/protocol/chat-types'
+import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {ChatDeps} from '../chat/runtime.js'
 import type {Compactor} from '../chat/compact.js'
 import type {OpenInEditor} from '../editor/open.js'
 import type {OpenSourceFrames, OpenSourceStatus} from '../page/open-source.js'
-import type {PageBus} from '../page/page.js'
+import type {PageVars} from '../page/page.js'
 import type {makeRpcRouter} from './router.js'
 
 export type RpcContext = {request: Request}
@@ -19,7 +20,8 @@ export type RpcDeps = {
   send: (sessionId: string, text: string) => Promise<void>
   openInEditor: OpenInEditor
   openFromFrames: (frames: OpenSourceFrames) => Promise<OpenSourceStatus>
-  pageBus: PageBus
+  page: PageVars['page']
+  bundler: () => BundlerBridge | undefined
 }
 
 export const os = implement(contract).$context<RpcContext>()

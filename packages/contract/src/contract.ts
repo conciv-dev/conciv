@@ -10,7 +10,15 @@ import {
   PermissionDecisionSchema,
 } from '@conciv/protocol/chat-types'
 import {UiAnswerValueSchema} from '@conciv/protocol/ui-types'
-import {OpenSourceResultSchema, OpenSourceSchema, PageReplySchema} from '@conciv/protocol/page-types'
+import {
+  OpenSourceResultSchema,
+  OpenSourceSchema,
+  PageChangeEntrySchema,
+  PageReplySchema,
+  PageRunInputSchema,
+  PageRunResultSchema,
+} from '@conciv/protocol/page-types'
+import {BundlerConfigSchema, ModuleNodeSchema} from '@conciv/protocol/bundler-types'
 import {DraftRowSchema, MarkerRowSchema, SessionMetaSchema} from './rows.js'
 
 const StreamChunkSchema = z.custom<StreamChunk>((value) => typeof value === 'object' && value !== null)
@@ -19,6 +27,7 @@ const SessionIdInput = z.object({sessionId: z.string()})
 const Ok = z.object({ok: z.literal(true)})
 const busy = {BUSY: {message: 'session busy'}}
 const notFound = {NOT_FOUND: {message: 'session not found'}}
+const noBundler = {NO_BUNDLER: {message: 'no bundler bridge'}}
 
 export const contract = {
   sessions: {
@@ -62,10 +71,40 @@ export const contract = {
       .output(Ok),
   },
   page: {
+    run: oc
+      .errors({
+        NO_PAGE_CLIENT: {message: 'no widget connected'},
+        PAGE_TIMEOUT: {message: 'page did not reply (no widget connected?)'},
+      })
+      .input(PageRunInputSchema)
+      .output(PageRunResultSchema),
+    changes: oc.output(z.array(PageChangeEntrySchema)),
+    clearChanges: oc.output(Ok),
     queries: oc.output(eventIterator(z.object({requestId: z.string(), query: z.unknown()}))),
     reply: oc
       .errors({UNKNOWN_REQUEST: {message: 'no pending request'}})
       .input(PageReplySchema)
+      .output(Ok),
+  },
+  server: {
+    config: oc.errors(noBundler).output(BundlerConfigSchema),
+    resolve: oc
+      .errors(noBundler)
+      .input(z.object({spec: z.string(), importer: z.string().optional()}))
+      .output(z.object({id: z.string().nullable()})),
+    graph: oc
+      .errors(noBundler)
+      .input(z.object({file: z.string()}))
+      .output(z.array(ModuleNodeSchema)),
+    transform: oc
+      .errors(noBundler)
+      .input(z.object({url: z.string()}))
+      .output(z.object({code: z.string().nullable()})),
+    urls: oc.errors(noBundler).output(z.object({local: z.array(z.string()), network: z.array(z.string())})),
+    reload: oc.errors(noBundler).input(z.object({file: z.string()})).output(Ok),
+    restart: oc
+      .errors(noBundler)
+      .input(z.object({force: z.boolean().default(false)}))
       .output(Ok),
   },
   editor: {

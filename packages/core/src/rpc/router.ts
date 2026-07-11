@@ -1,11 +1,28 @@
 import {asc, eq} from 'drizzle-orm'
+import {HTTPException} from 'hono/http-exception'
 import {resolveHarnessModels} from '@conciv/harness'
+import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import {drafts, markers, navigation} from '@conciv/db'
 import {listCommands} from '../chat/session.js'
-import {pageQueryStream} from '../page/page.js'
+import {pageQueryStream, runVerb} from '../page/page.js'
 import {chatRouter} from './chat.js'
 import {harnessMetaOf, sessionsRouter} from './sessions.js'
 import {os, type RpcDeps} from './mount.js'
+
+type PageErrors = {NO_PAGE_CLIENT: () => Error; PAGE_TIMEOUT: () => Error}
+type BundlerErrors = {NO_BUNDLER: () => Error}
+
+function pageError(error: unknown, errors: PageErrors): Error {
+  if (error instanceof HTTPException && error.status === 503) return errors.NO_PAGE_CLIENT()
+  if (error instanceof HTTPException && error.status === 504) return errors.PAGE_TIMEOUT()
+  return error instanceof Error ? error : new Error(String(error))
+}
+
+function requireBridge(deps: RpcDeps, errors: BundlerErrors): BundlerBridge {
+  const bridge = deps.bundler()
+  if (!bridge) throw errors.NO_BUNDLER()
+  return bridge
+}
 
 export function makeRpcRouter(deps: RpcDeps) {
   const chat = deps.chat
@@ -42,11 +59,41 @@ export function makeRpcRouter(deps: RpcDeps) {
       }),
     },
     page: {
+      run: os.page.run.handler(async ({input, errors}) => {
+        const {verb, ...query} = input
+        try {
+          return await runVerb(deps.page, query, verb)
+        } catch (error) {
+          throw pageError(error, errors)
+        }
+      }),
+      changes: os.page.changes.handler(() => deps.page.journal.list()),
+      clearChanges: os.page.clearChanges.handler(() => {
+        deps.page.journal.clear()
+        return {ok: true as const}
+      }),
       queries: os.page.queries.handler(async function* ({signal}) {
-        yield* pageQueryStream(deps.pageBus, signal ?? new AbortController().signal)
+        yield* pageQueryStream(deps.page.bus, signal ?? new AbortController().signal)
       }),
       reply: os.page.reply.handler(({input, errors}) => {
-        if (!deps.pageBus.resolve(input.requestId, input.data)) throw errors.UNKNOWN_REQUEST()
+        if (!deps.page.bus.resolve(input.requestId, input.data)) throw errors.UNKNOWN_REQUEST()
+        return {ok: true as const}
+      }),
+    },
+    server: {
+      config: os.server.config.handler(({errors}) => requireBridge(deps, errors).config()),
+      resolve: os.server.resolve.handler(({input, errors}) =>
+        requireBridge(deps, errors).resolve(input.spec, input.importer),
+      ),
+      graph: os.server.graph.handler(({input, errors}) => requireBridge(deps, errors).moduleGraph(input.file)),
+      transform: os.server.transform.handler(({input, errors}) => requireBridge(deps, errors).transform(input.url)),
+      urls: os.server.urls.handler(({errors}) => requireBridge(deps, errors).urls()),
+      reload: os.server.reload.handler(async ({input, errors}) => {
+        await requireBridge(deps, errors).reload(input.file)
+        return {ok: true as const}
+      }),
+      restart: os.server.restart.handler(async ({input, errors}) => {
+        await requireBridge(deps, errors).restart(input.force)
         return {ok: true as const}
       }),
     },
