@@ -1,30 +1,11 @@
 import {randomUUID} from 'node:crypto'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
-import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import type {UIMessage} from '@conciv/protocol/chat-types'
 import {bashHarness, startTerminalServer, type TerminalTestServer} from './helpers.js'
 import {until} from '@conciv/harness-testkit'
 
-function sseEvents(onPayload: (payload: {messages: UIMessage[]}) => void): (chunk: string) => void {
-  const state = {buffer: ''}
-  return (chunk) => {
-    state.buffer += chunk
-    const events = state.buffer.split('\n\n')
-    state.buffer = events.pop() ?? ''
-    for (const eventBlock of events) {
-      const data = eventBlock
-        .split('\n')
-        .filter((line) => line.startsWith('data: '))
-        .map((line) => line.slice(6))
-        .join('')
-      if (data) onPayload(JSON.parse(data) as {messages: UIMessage[]})
-    }
-  }
-}
-
 describe('terminal mirror route', () => {
   const sessionId = `conciv_${randomUUID()}`
-  const headers = {[CONCIV_SESSION_HEADER]: sessionId}
   const transcript: UIMessage[] = [{id: 'h1', role: 'user', parts: [{type: 'text', content: 'hello'}]}]
   const ctx: {server?: TerminalTestServer} = {}
 
@@ -38,30 +19,22 @@ describe('terminal mirror route', () => {
 
   afterAll(() => ctx.server?.close())
 
-  it('404s without a recorded token', async () => {
+  it('reports NO_TRANSCRIPT without a recorded token', async () => {
     const other = `conciv_${randomUUID()}`
-    const res = await fetch(`${ctx.server?.base}/api/ext/terminal/mirror`, {
-      headers: {[CONCIV_SESSION_HEADER]: other},
-    })
-    expect(res.status).toBe(404)
+    const rpc = ctx.server?.rpc
+    if (!rpc) throw new Error('server not started')
+    const mirror = await rpc.mirror({sessionId: other})
+    await expect(mirror.next()).rejects.toMatchObject({code: 'NO_TRANSCRIPT'})
   })
 
   it('streams the current transcript and re-emits on growth', async () => {
+    const rpc = ctx.server?.rpc
+    if (!rpc) throw new Error('server not started')
     const controller = new AbortController()
-    const res = await fetch(`${ctx.server?.base}/api/ext/terminal/mirror`, {headers, signal: controller.signal})
-    expect(res.status).toBe(200)
-    expect(res.headers.get('content-type')).toContain('text/event-stream')
+    const mirror = await rpc.mirror({sessionId}, {signal: controller.signal})
     const payloads: {messages: UIMessage[]}[] = []
-    const feed = sseEvents((payload) => payloads.push(payload))
-    const reader = res.body?.getReader()
-    if (!reader) throw new Error('no body')
-    const decoder = new TextDecoder()
     const pump = (async () => {
-      for (;;) {
-        const {done, value} = await reader.read()
-        if (done) return
-        feed(decoder.decode(value, {stream: true}))
-      }
+      for await (const payload of mirror) payloads.push(payload)
     })()
     await until(() => payloads.length >= 1)
     expect(payloads[0]?.messages.map((m) => m.role)).toEqual(['user'])

@@ -1,11 +1,10 @@
 import {createEffect, createResource, createSignal, on, onCleanup, onMount, Show, type JSX} from 'solid-js'
-import {hc} from 'hono/client'
-import type {TerminalAppType} from '../server.js'
+import {ORPCError} from '@orpc/client'
+import type {TerminalRouter} from '../server.js'
 import {Terminal, createTerminalModel, type TerminalTheme} from '@conciv/ui-kit-terminal'
 import {Button} from '@conciv/ui-kit-system'
-import {getHostApi} from '@conciv/extension'
+import {getHostApi, makeExtRpcClient} from '@conciv/extension'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
-import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {useTerminalContext} from './terminal-context.js'
 import {MirrorRail} from './mirror-rail.js'
 
@@ -32,7 +31,7 @@ function terminalUrl(apiBase: string, path: string): string {
 }
 
 function terminalClient(apiBase: string) {
-  return hc<TerminalAppType>(`${apiBase}/api/ext/terminal`, {init: {credentials: 'include'}})
+  return makeExtRpcClient<TerminalRouter>(apiBase, 'terminal')
 }
 
 function wsUrl(apiBase: string, sessionId: string | null, cols: number, rows: number): string {
@@ -59,10 +58,6 @@ function hasModifier(event: KeyboardEvent): boolean {
 
 function isPlainEnter(event: KeyboardEvent): boolean {
   return event.type === 'keydown' && event.key === 'Enter' && !hasModifier(event)
-}
-
-function sessionHeaders(sessionId: string | null): Record<string, string> {
-  return sessionId ? {[CONCIV_SESSION_HEADER]: sessionId} : {}
 }
 
 function TerminalSurface(props: {generation: number; themeHost: () => Element}): JSX.Element {
@@ -125,7 +120,6 @@ function TerminalSurface(props: {generation: number; themeHost: () => Element}):
     setViewLocked(false)
     store.setBusy(false)
   })
-  const headers = () => sessionHeaders(sessionId())
   const railCtx = (): ToolViewCtx => ({
     apiBase,
     harnessId: meta()?.harness.id ?? '',
@@ -137,7 +131,7 @@ function TerminalSurface(props: {generation: number; themeHost: () => Element}):
       model={model}
       onBackToChat={() => leaveView()}
       class="flex-1 min-h-0"
-      rail={<MirrorRail apiBase={apiBase} headers={headers} ctx={railCtx()} />}
+      rail={<MirrorRail apiBase={apiBase} sessionId={sessionId} ctx={railCtx()} />}
     />
   )
 }
@@ -148,15 +142,18 @@ export function TerminalPanelView(): JSX.Element {
   const apiBase = host.useApiBase()
   const sessionId = host.useSessionId()
   const toast = host.useToast()
+  const openError = (error: unknown): Error => {
+    const busy = error instanceof ORPCError && error.code === 'BUSY'
+    return new Error(busy ? 'Session is busy — wait for the current turn to finish.' : 'Couldn’t open the terminal.')
+  }
   const openTerminal = async (): Promise<void> => {
-    const res = await terminalClient(apiBase).open.$post(
-      {json: {cols: DEFAULT_COLS, rows: DEFAULT_ROWS, model: store.spawnModel() ?? undefined}},
-      {headers: sessionHeaders(sessionId())},
-    )
-    if (!res.ok) {
-      const busy = res.status === 409
-      throw new Error(busy ? 'Session is busy — wait for the current turn to finish.' : 'Couldn’t open the terminal.')
-    }
+    const id = sessionId()
+    if (!id) throw openError(undefined)
+    await terminalClient(apiBase)
+      .open({sessionId: id, cols: DEFAULT_COLS, rows: DEFAULT_ROWS, model: store.spawnModel() ?? undefined})
+      .catch((error: unknown) => {
+        throw openError(error)
+      })
   }
   const [openKey, setOpenKey] = createSignal(1)
   const [opened, {refetch}] = createResource(async () => {
@@ -173,9 +170,11 @@ export function TerminalPanelView(): JSX.Element {
     respawning.current = true
     store.setRespawning(true)
     try {
-      await terminalClient(apiBase)
-        .close.$post(undefined, {headers: sessionHeaders(sessionId())})
-        .catch(() => {})
+      const id = sessionId()
+      if (id)
+        await terminalClient(apiBase)
+          .close({sessionId: id})
+          .catch(() => {})
       await refetch()
       setOpenKey((key) => key + 1)
     } finally {
