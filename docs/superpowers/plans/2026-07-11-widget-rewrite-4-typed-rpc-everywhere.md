@@ -102,30 +102,30 @@ Behavior contracts (test targets):
 
 **Files:** `packages/protocol/src/bundler-types.ts` (BundlerConfigSchema, ModuleNodeSchema; re-derive `BundlerConfig`/`ModuleNode` via `z.infer`, keep `BundlerBridge`/`defineBundlerBridge` as-is), `packages/protocol/src/page-types.ts` (PageChangeEntrySchema, PageRunInputSchema = `PageQueryInputSchema.extend({verb: PageQueryKindSchema})`, PageRunResultSchema).
 
-- [ ] Schemas + type re-derivation; `pnpm turbo run test --filter=@conciv/protocol` green; commit.
+- [x] Schemas + type re-derivation; `pnpm turbo run test --filter=@conciv/protocol` green; commit.
 
 ### Task 1: contract v5 + core handlers + wire ITs
 
 **Files:** `packages/contract/src/contract.ts` (page.run/changes/clearChanges + server namespace per the lock), `packages/core/src/rpc/router.ts` (handlers: page.run = the current `runVerb` body — journal append on `isMutating`, locate symbolication, HTTPException 503/504 → typed NO_PAGE_CLIENT/PAGE_TIMEOUT; server.\* = thin BundlerBridge calls, absent bridge → NO_BUNDLER), `RpcDeps` gains `journal`, `pageRoot`, `bundlerBridge` (or a single `page: PageVars['page']` + `bundler` bag — mirror how `app.ts` builds the Hono vars today).
 **Do NOT delete the REST routes yet** — this task lands the rpc surface next to them so the CLI task can switch atomically.
 
-- [ ] Wire ITs in `packages/core/test/rpc/wire.it.test.ts`: page.run text/snapshot round-trip via the rpc page.queries subscriber; mutating verb lands in page.changes and clearChanges empties it; NO_PAGE_CLIENT with no subscriber; server.\* against a stub-free real bridge if available in kit, else NO_BUNDLER paths (bootKit has no bundler → typed error is the honest assertion; positive-path bundler coverage lives in the plugin's existing vite IT if one exists — verify, else add one there).
-- [ ] `pnpm turbo run test --filter=@conciv/core` green; commit.
+- [x] Wire ITs in `packages/core/test/rpc/wire.it.test.ts`: page.run text/snapshot round-trip via the rpc page.queries subscriber; mutating verb lands in page.changes and clearChanges empties it; NO_PAGE_CLIENT with no subscriber; server.\* against a stub-free real bridge if available in kit, else NO_BUNDLER paths (bootKit has no bundler → typed error is the honest assertion; positive-path bundler coverage lives in the plugin's existing vite IT if one exists — verify, else add one there).
+- [x] `pnpm turbo run test --filter=@conciv/core` green; commit.
 
 ### Task 2: CLI on the typed client
 
 **Files:** `packages/cli/src/request.ts` (rpc runner replaces path-building; keep `defaultOrigin()`), `page.ts` (PAGE_VERBS loses `method`, `pageRequest` builds a `PageRunInput`; `changes`/`--clear` → page.changes/clearChanges; the `react` command rides the same table — COV-8), `server.ts` (subcommands → server.\* calls), **`open.ts` (COV-1: `conciv tools open` POSTs `/api/editor/open`, a route that is NOT mounted in composeRoutes — the command 404s today; migrate to the existing `rpc.editor.open`)**, `cli-http.ts` (delete `sendJson` if unused after; keep origin resolution).
 **Output parity (COV-3):** success prints compact `JSON.stringify(result)`; `runRpc` catches `ORPCError` and prints compact `{"message": error.message}` to STDOUT then exits 0 — matching today's onError envelope + `runAndPrint` never rejecting. An uncaught rejection under citty (stack to stderr, exit 1) is a hard divergence and a defect.
 
-- [ ] CLI IT rewrite (COV-7): `packages/cli/test/cli.it.test.ts` asserts exact `{method, url}` request shapes today (`GET /api/server/graph?file=…`, `POST /api/page/fill`, …) — those URLs cease to exist. Rewrite onto rpc-call assertions or a real served-core round-trip (testkit + a page.queries subscriber answering); keep at least one output-format assertion (compact JSON + `{"message":…}` error envelope + exit 0).
-- [ ] Commit.
+- [x] CLI IT rewrite (COV-7): `packages/cli/test/cli.it.test.ts` asserts exact `{method, url}` request shapes today (`GET /api/server/graph?file=…`, `POST /api/page/fill`, …) — those URLs cease to exist. Rewrite onto rpc-call assertions or a real served-core round-trip (testkit + a page.queries subscriber answering); keep at least one output-format assertion (compact JSON + `{"message":…}` error envelope + exit 0).
+- [x] Commit.
 
 ### Task 3: delete the REST surfaces + re-pin tests
 
 **Files:** delete `packages/core/src/page/page.ts`'s Hono app export (keep `makePageBus`/`pageQueryStream`/`PageBus` — move them if the file dissolves), delete `packages/core/src/bundler/bundler.ts` Hono app (keep the `BundlerVars` seam or inline into rpc deps), remove both `app.route('/api/page'|'/api/server', …)` lines in `app.ts`.
 **Re-pins:** `packages/core/test/rpc/wire.it.test.ts` page test (`kit.post('/api/page/snapshot')` → `rpc.page.run`), `packages/embed/test/page-plane.it.test.ts` (`kit.post('/api/page/text'|'/snapshot')` → `rpc.page.run`) — the embed IT's assertion that the BROWSER page plane executes verbs is unchanged, only the asking transport moves.
 
-- [ ] `grep -rn "api/page\|api/server"` across packages/apps returns only `/api/ext` + docs; repo test green; commit.
+- [x] `grep -rn "api/page\|api/server"` across packages/apps returns only `/api/ext` + docs; repo test green; commit.
 
 ### Task 4: extensions phase A — oRPC routers at /rpc/ext/<slug>
 
@@ -134,8 +134,8 @@ Behavior contracts (test targets):
 **Whiteboard (COV-5/SND-4/SND-5):** the real client surface is `client/whiteboard-collection.ts` (loadUrl GET + per-table POST/PUT/DELETE + `elements/:scope` GET/PUT/bulk/bulk-delete), `db.tsx` `postCursor`, and `change-feed.ts` (native EventSource w/ auto-reconnect + `onReconnect` refetch signal + multiplexed event names). Migration spec: each table op becomes a router procedure the collection `sync`/`onInsert`/`onUpdate`/`onDelete` handlers call; the change feed becomes ONE event-iterator yielding a `{channel: 'cursor' | <table>, message}` union, with `ClientRetryPlugin` `onRetry` bridged to the existing `onReconnect` semantics; the element-upsert 409-with-`{current}` reconcile signal becomes a typed `CONFLICT` error carrying the current row via `errors({CONFLICT: {data: …}})` + `isDefinedError` on the client (NOT a thrown failure path). This is a real client rewrite — budget it as such.
 **Test-runner:** inventory its server surface first; its HTTP endpoints move to a router; **its tool CARD (`src/tool/card.tsx`) POSTs `${apiBase}/api/editor/open` — a dead route (COV-2); re-point it in Task 5's ToolViewCtx work.**
 
-- [ ] Core IT for the new seam (COV-6): a fixture extension contributing a `router` mounts and round-trips a procedure through `/rpc/ext/<slug>` (extend `packages/core/test/api/extension-app.it.test.ts` family).
-- [ ] Extension ITs (extension-testkit) re-pinned; terminal WS IT untouched and green; commit.
+- [x] Core IT for the new seam (COV-6): a fixture extension contributing a `router` mounts and round-trips a procedure through `/rpc/ext/<slug>` (extend `packages/core/test/api/extension-app.it.test.ts` family).
+- [x] Extension ITs (extension-testkit) re-pinned; terminal WS IT untouched and green; commit.
 
 ### Task 5: extensions phase B — hooks-only host API (AMENDED, user-locked 2026-07-11 session 2)
 
@@ -161,10 +161,10 @@ Behavior contracts (test targets):
 
 ### Task 6: plan-wide gates
 
-- [ ] `pnpm typecheck && pnpm build && pnpm test` (environmental reds excepted); fallow zero newly-INTRODUCED.
-- [ ] `grep -rn "api/page\|api/server\|api/editor"` across packages/apps returns nothing but docs (COV-1/2 widened the old grep gate).
-- [ ] `conciv page` / `conciv react` / `conciv server` / `conciv tools open` manual smoke against a running example app (output parity spot-check incl. error envelope + exit code 0).
-- [ ] Memory update (plan 4 executed + findings).
+- [x] `pnpm typecheck && pnpm build && pnpm test` (environmental reds excepted); fallow zero newly-INTRODUCED.
+- [x] `grep -rn "api/page\|api/server\|api/editor"` across packages/apps returns nothing but docs (COV-1/2 widened the old grep gate).
+- [x] `conciv page` / `conciv react` / `conciv server` / `conciv tools open` manual smoke against a running example app (output parity spot-check incl. error envelope + exit code 0).
+- [x] Memory update (plan 4 executed + findings).
 
 ---
 
