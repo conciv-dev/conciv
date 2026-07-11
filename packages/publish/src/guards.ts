@@ -35,6 +35,7 @@ const PUBLIC_PACKAGES = [
   '@conciv/extension-whiteboard',
   '@conciv/extension-terminal',
   '@conciv/mascot',
+  '@conciv/embed',
 ]
 
 type Manifest = {name?: string; version?: string; private?: boolean}

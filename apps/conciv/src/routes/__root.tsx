@@ -5,7 +5,7 @@ import {installClientApi} from '@conciv/extension'
 import {createHotkey} from '@tanstack/solid-hotkeys'
 import {Show, createSignal, onCleanup, onMount} from 'solid-js'
 import type {ConcivRouterContext} from '../router.js'
-import {AppContext, type AppContextValue} from '../app/context.js'
+import {AppContext, useApp, type AppContextValue} from '../app/context.js'
 import {makeLayerStack} from '../shell/dialogs.js'
 import {ShellFab} from '../shell/fab.js'
 import {createDraggablePosition} from '../lib/draggable-position.js'
@@ -23,15 +23,8 @@ export const Route = createRootRouteWithContext<ConcivRouterContext>()({
 
 function RootComponent() {
   const app = Route.useRouteContext()()
-  const router = useRouter()
   const matchRoute = useMatchRoute()
   const panelMatch = matchRoute({to: '/panel/$sessionId', fuzzy: true})
-  const quickMatch = matchRoute({to: '/quick'})
-  const closedMatch = matchRoute({to: '/'})
-  const panelOpen = () => Boolean(panelMatch())
-
-  const sessions = useQuery(() => app.data.utils.sessions.list.queryOptions())
-  const working = () => (sessions.data ?? []).some((session) => session.running)
 
   const [politeMessage, setPoliteMessage] = createSignal('')
   const [assertiveMessage, setAssertiveMessage] = createSignal('')
@@ -66,6 +59,46 @@ function RootComponent() {
     })
   })
 
+  const value: AppContextValue = {
+    rpc: app.rpc,
+    settings: app.settings,
+    environment: app.environment,
+    data: app.data,
+    queryClient: app.queryClient,
+    announce,
+    layers,
+    suppressed,
+    fabPosition: fab.position,
+    instances,
+  }
+
+  return (
+    <EnvironmentProvider value={() => app.environment.rootNode}>
+      <QueryClientProvider client={app.queryClient}>
+        <AppContext.Provider value={value}>
+          <RootChrome fab={fab} politeMessage={politeMessage} assertiveMessage={assertiveMessage} />
+        </AppContext.Provider>
+      </QueryClientProvider>
+    </EnvironmentProvider>
+  )
+}
+
+function RootChrome(props: {
+  fab: ReturnType<typeof createDraggablePosition>
+  politeMessage: () => string
+  assertiveMessage: () => string
+}) {
+  const app = useApp()
+  const router = useRouter()
+  const matchRoute = useMatchRoute()
+  const panelMatch = matchRoute({to: '/panel/$sessionId', fuzzy: true})
+  const quickMatch = matchRoute({to: '/quick'})
+  const closedMatch = matchRoute({to: '/'})
+  const panelOpen = () => Boolean(panelMatch())
+
+  const sessions = useQuery(() => app.data.utils.sessions.list.queryOptions())
+  const working = () => (sessions.data ?? []).some((session) => session.running)
+
   let fabEl: HTMLButtonElement | undefined
 
   const latestSessionId = async (): Promise<string> => {
@@ -87,7 +120,7 @@ function RootComponent() {
   let rootEl: HTMLDivElement | undefined
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key !== 'Escape') return
-    if (layers.anyOpen()) return
+    if (app.layers.anyOpen()) return
     if (closedMatch()) return
     if (escapeInTerminal(rootEl)) return
     event.preventDefault()
@@ -102,52 +135,33 @@ function RootComponent() {
     for (const binding of app.settings.quickTerminal.hotkeys) createHotkey(toRawHotkey(binding), toggleQuick)
   }
 
-  const value: AppContextValue = {
-    rpc: app.rpc,
-    settings: app.settings,
-    environment: app.environment,
-    data: app.data,
-    queryClient: app.queryClient,
-    announce,
-    layers,
-    suppressed,
-    fabPosition: fab.position,
-    instances,
-  }
-
   return (
-    <EnvironmentProvider value={() => app.environment.rootNode}>
-      <QueryClientProvider client={app.queryClient}>
-        <AppContext.Provider value={value}>
-          <div
-            class="chat-theme-conciv"
-            ref={(el) => {
-              rootEl = el
-            }}
-            onKeyDown={onKeyDown}
-          >
-            <Outlet />
-            <Show when={app.settings.modal.enabled}>
-              <ShellFab
-                ref={(el) => {
-                  fabEl = el
-                }}
-                open={panelOpen}
-                working={working}
-                suppressed={suppressed}
-                fab={fab}
-                onToggle={togglePanel}
-              />
-            </Show>
-            <div class="sr-only" role="status" aria-live="polite">
-              {politeMessage()}
-            </div>
-            <div class="sr-only" role="alert" aria-live="assertive">
-              {assertiveMessage()}
-            </div>
-          </div>
-        </AppContext.Provider>
-      </QueryClientProvider>
-    </EnvironmentProvider>
+    <div
+      class="chat-theme-conciv"
+      ref={(el) => {
+        rootEl = el
+      }}
+      onKeyDown={onKeyDown}
+    >
+      <Outlet />
+      <Show when={app.settings.modal.enabled}>
+        <ShellFab
+          ref={(el) => {
+            fabEl = el
+          }}
+          open={panelOpen}
+          working={working}
+          suppressed={app.suppressed}
+          fab={props.fab}
+          onToggle={togglePanel}
+        />
+      </Show>
+      <div class="sr-only" role="status" aria-live="polite">
+        {props.politeMessage()}
+      </div>
+      <div class="sr-only" role="alert" aria-live="assertive">
+        {props.assertiveMessage()}
+      </div>
+    </div>
   )
 }

@@ -274,7 +274,10 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
       if (snapshot?.focused ?? true) inputEl.focus()
     })
   }
-  createEffect(() => maybeRestore())
+  createEffect(() => {
+    if (!draftQuery.isSuccess) return
+    maybeRestore()
+  })
   createEffect(() => {
     const row = draftQuery.data
     if (!row || !restored.done || isInputFocused()) return

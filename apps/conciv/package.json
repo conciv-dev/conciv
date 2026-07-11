@@ -49,5 +49,12 @@
     "vite": "^8.0.16",
     "vite-plugin-solid": "^2.11.12",
     "vitest": "^4.1.8"
+  },
+  "exports": {
+    "./router": "./src/router.ts",
+    "./settings": "./src/data/settings.ts",
+    "./shadow": "./src/lib/shadow.ts",
+    "./api-base": "./src/lib/api-base.ts",
+    "./styles.css": "./src/styles.css"
   }
 }
