@@ -24,7 +24,7 @@ const NOTICE =
 const OverlayLoading = (): JSX.Element => <div class={NOTICE}>Loading the whiteboard…</div>
 const SessionPending = (): JSX.Element => <div class={NOTICE}>Start a chat session to open the whiteboard.</div>
 
-function OverlayError(props: {error: unknown}): JSX.Element {
+function OverlayError(): JSX.Element {
   const toast = getHostApi().useToast()
   toast('The whiteboard needs a running conciv server', 'error')
   return <div class={NOTICE}>The whiteboard is unavailable.</div>
@@ -161,7 +161,7 @@ export function WhiteboardSurface(props: {state: SurfaceState}): JSX.Element {
     <Show when={props.state.engaged()}>
       <div class="pointer-events-none text-pw-text font-pw fixed inset-0">
         <YieldFocus when={props.state.visible()}>
-          <ErrorBoundary fallback={(error) => <OverlayError error={error} />}>
+          <ErrorBoundary fallback={<OverlayError />}>
             <Suspense fallback={<OverlayLoading />}>
               <Board state={props.state} />
             </Suspense>
