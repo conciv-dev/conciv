@@ -153,7 +153,7 @@ export function MirrorRail(props: {
   const logId = createUniqueId()
   return (
     <div
-      class="relative flex flex-col min-h-0 min-w-0 shrink-0 max-w-[60vw]"
+      class="relative flex flex-1 flex-col min-h-0 min-w-0 shrink-0 max-w-[60vw]"
       classList={{'[border-left:1px_solid_var(--chat-line)]': open()}}
       style={{width: open() ? `${resize.size()}px` : undefined}}
     >

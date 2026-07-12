@@ -37,9 +37,9 @@ const settledMessages: UIMessage[] = [
     call('t1', 'mcp__tanstack__canvas_svg', 'complete'),
     result('t1', 'complete'),
     call('t2', 'mcp__tanstack__canvas_commit', 'complete'),
-    result('t2', 'complete'),
     {type: 'text', content: 'Eagle drawn, committed to canvas.'},
   ]),
+  assistant('a2', [result('t2', 'complete')]),
 ]
 
 export const SettledTurn: Story = {
@@ -59,6 +59,7 @@ export const SettledTurn: Story = {
     await waitFor(() => expect(c.getByRole('button', {name: 'canvas svg'})).toBeVisible())
     await expect(c.getByRole('button', {name: 'canvas commit'})).toBeVisible()
     await expect(c.getByRole('button', {name: 'Reasoning'})).toBeVisible()
+    await expect(c.queryByRole('button', {name: '0 steps'})).toBeNull()
   },
 }
 

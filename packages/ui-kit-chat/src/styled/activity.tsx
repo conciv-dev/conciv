@@ -153,21 +153,24 @@ const GROUP_TRIGGER = `group flex w-full items-center gap-2 px-2 py-1.5 rounded-
 const GROUP_CHEVRON =
   'size-3 shrink-0 ml-auto [transition:rotate_150ms_var(--chat-ease)] group-data-[state=closed]:-rotate-90 group-data-[state=open]:rotate-0'
 
+function stepIndices(turn: Turn, chain: ChainSegment): number[] {
+  return chain.indices.filter((index) => asToolCall(turn.parts[index]) ?? asThinking(turn.parts[index]))
+}
+
 function StepGroup(props: {turn: Turn; chain: ChainSegment; liveSegment: boolean}): JSX.Element {
   const activity = useActivity()
   const [userOpen, setUserOpen] = createSignal<boolean | undefined>(undefined)
-  const parts = () => props.chain.indices.map((index) => props.turn.parts[index])
+  const steps = () => stepIndices(props.turn, props.chain)
   const hasApproval = () =>
-    parts().some((part) => {
-      const call = asToolCall(part)
+    steps().some((index) => {
+      const call = asToolCall(props.turn.parts[index])
       return call !== null && toolStatus(call, activity.resultFor(call.id)) === 'approval'
     })
   const open = () => userOpen() ?? (props.liveSegment || hasApproval())
-  const stepCount = () => parts().filter((part) => asToolCall(part) ?? asThinking(part)).length
   const title = () => {
     const active = props.liveSegment ? activity.activeCall() : null
     if (active) return activity.label(active)
-    return `${stepCount()} step${stepCount() === 1 ? '' : 's'}`
+    return `${steps().length} step${steps().length === 1 ? '' : 's'}`
   }
   return (
     <Collapsible.Root open={open()} onOpenChange={(details) => setUserOpen(details.open)}>
@@ -182,7 +185,7 @@ function StepGroup(props: {turn: Turn; chain: ChainSegment; liveSegment: boolean
       </Collapsible.Trigger>
       <Collapsible.Content>
         <div class="flex flex-col gap-0.5 pt-1 min-w-0">
-          <Index each={props.chain.indices}>
+          <Index each={steps()}>
             {(partIndex) => (
               <Switch>
                 <Match when={asToolCall(props.turn.parts[partIndex()])}>{(part) => <ToolStep part={part()} />}</Match>
@@ -212,21 +215,22 @@ function userText(turn: Turn): string {
 function AssistantTurnView(props: {turn: Turn}): JSX.Element {
   const activity = useActivity()
   const segments = createMemo(() => groupSegments(props.turn.parts))
+  const visibleChain = (segment: Segment): ChainSegment | null => {
+    const chain = segment.kind === 'chain' ? segment : null
+    return chain && stepIndices(props.turn, chain).length > 0 ? chain : null
+  }
   const lastChainIndex = createMemo(() =>
-    segments()
-      .map((segment) => segment.kind)
-      .lastIndexOf('chain'),
+    segments().reduce((last, segment, index) => (visibleChain(segment) ? index : last), -1),
   )
   const liveSegment = (index: number) =>
     activity.live() && activity.isLastTurn(props.turn) && index === lastChainIndex()
-  const asChain = (segment: Segment) => (segment.kind === 'chain' ? segment : null)
   const asReply = (segment: Segment) => (segment.kind === 'reply' ? segment : null)
   return (
     <div class="flex flex-col gap-1.5 min-w-0 self-stretch anim-msg">
       <Index each={segments()}>
         {(segment, index) => (
           <Switch>
-            <Match when={asChain(segment())}>
+            <Match when={visibleChain(segment())}>
               {(chain) => <StepGroup turn={props.turn} chain={chain()} liveSegment={liveSegment(index)} />}
             </Match>
             <Match when={asReply(segment())}>
