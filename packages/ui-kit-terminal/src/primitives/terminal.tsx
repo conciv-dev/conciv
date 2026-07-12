@@ -42,14 +42,21 @@ function Screen(props: {class?: string}): JSX.Element {
   let element: HTMLDivElement | undefined = undefined
   onMount(() => {
     if (!element) return
-    injectCss(element.getRootNode())
-    model.terminal.open(element)
-    element.__concivTerminal = {buffer: () => translateBuffer(model.terminal)}
-    model.connect()
-    model.fit()
-    model.focus()
-    const observer = new ResizeObserver(() => model.fit())
-    observer.observe(element)
+    const screen = element
+    injectCss(screen.getRootNode())
+    model.terminal.open(screen)
+    screen.__concivTerminal = {buffer: () => translateBuffer(model.terminal)}
+    let started = false
+    const start = (): void => {
+      if (started || screen.clientWidth === 0) return
+      started = true
+      model.fit()
+      model.connect()
+      model.focus()
+    }
+    start()
+    const observer = new ResizeObserver(() => (started ? model.fit() : start()))
+    observer.observe(screen)
     onCleanup(() => {
       observer.disconnect()
       model.disconnect()
