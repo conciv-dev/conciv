@@ -1,5 +1,5 @@
 import {createSignal, onCleanup} from 'solid-js'
-import {readStorage, writeStorage} from './persisted-signal.js'
+import {readStorage, writeStorage} from './storage.js'
 
 export type Grow = 'up' | 'down' | 'left' | 'right'
 

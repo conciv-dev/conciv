@@ -1,6 +1,6 @@
 import {createSignal, onCleanup, type JSX} from 'solid-js'
 import type {TriggerPosition} from '@conciv/protocol/config-types'
-import {readStorage, writeStorage} from './persisted-signal.js'
+import {readStorage, writeStorage} from '@conciv/ui-kit-system'
 
 const MARGIN = 20
 const SNAP_MS = 280
