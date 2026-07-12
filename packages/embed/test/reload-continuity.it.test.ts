@@ -47,7 +47,7 @@ describe('reload continuity through the db-backed navigation row', () => {
           const state = await kit.rpc.navigation.get(undefined)
           const panelEntry = state?.entries.find((entry) => entry.href.startsWith('/panel/'))
           if (!panelEntry) return false
-          const sessionId = panelEntry.href.split('/')[2] ?? ''
+          const sessionId = (panelEntry.href.split('/')[2] ?? '').split('?')[0] ?? ''
           const draft = await kit.rpc.drafts.get({sessionId})
           return draft?.text === 'an unsent draft survives'
         },
@@ -57,6 +57,11 @@ describe('reload continuity through the db-backed navigation row', () => {
 
     await page.reload({waitUntil: 'domcontentloaded'})
 
+    await expect
+      .poll(() => page.getByRole('button', {name: 'Open conciv chat'}).isVisible(), {timeout: 20_000})
+      .toBe(true)
+    expect(await page.getByRole('dialog', {name: 'conciv chat agent'}).count()).toBe(0)
+    await page.getByRole('button', {name: 'Open conciv chat'}).click()
     await expect
       .poll(() => page.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 20_000})
       .toBe(true)

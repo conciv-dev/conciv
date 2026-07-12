@@ -1,8 +1,10 @@
 import {Outlet, createFileRoute, useRouter} from '@tanstack/solid-router'
 import {FocusTrap} from '@conciv/ui-kit-system'
+import {Show, type JSX} from 'solid-js'
 import type {TriggerPosition} from '@conciv/protocol/config-types'
 import {useFabPosition, useLayers, useSuppressed} from '../app/context.js'
 import {createResizable} from '../lib/resize.js'
+import {setShutter} from '../lib/shutter.js'
 
 const PANEL_POS: Record<TriggerPosition, string> = {
   'top-left': 'top-21 left-5 [transform-origin:top_left]',
@@ -22,15 +24,16 @@ const RESIZE_X = 'top-0 bottom-0 w-2 cursor-ew-resize'
 
 export const Route = createFileRoute('/panel')({component: PanelLayout})
 
-function PanelLayout() {
+function PanelLayout(): JSX.Element {
   const fabPosition = useFabPosition()
   const layers = useLayers()
   const suppressed = useSuppressed()
   const router = useRouter()
+  const search = Route.useSearch()
   const position = fabPosition
   const anchoredBottom = () => position().startsWith('bottom')
   const anchoredRight = () => position().endsWith('right')
-  const close = () => router.history.back()
+  const close = () => setShutter(router, false)
 
   const resizeY = createResizable({
     initial: 560,
@@ -48,40 +51,42 @@ function PanelLayout() {
   })
 
   return (
-    <FocusTrap disabled={layers.anyOpen()}>
-      <section
-        class={`${PANEL_BASE} ${PANEL_POS[position()]} ${PANEL_OPEN}`}
-        data-pw-panel
-        data-pw-suppressed={suppressed()}
-        style={{height: `${resizeY.size()}px`, width: `${resizeX.size()}px`}}
-        role="dialog"
-        aria-label="conciv chat agent"
-        id="pw-chat-panel"
-      >
-        <div
-          class={`${RESIZE}  ${RESIZE_Y}  ${anchoredBottom() ? 'top-0' : 'bottom-0'}`}
-          role="separator"
-          aria-orientation="horizontal"
-          aria-label="Resize chat height"
-          aria-valuemin={240}
-          aria-valuenow={Math.round(resizeY.size())}
-          tabindex={0}
-          onPointerDown={resizeY.onPointerDown}
-          onKeyDown={resizeY.onKeyDown}
-        />
-        <div
-          class={`${RESIZE}  ${RESIZE_X}  ${anchoredRight() ? 'left-0' : 'right-0'}`}
-          role="separator"
-          aria-orientation="vertical"
-          aria-label="Resize chat width"
-          aria-valuemin={300}
-          aria-valuenow={Math.round(resizeX.size())}
-          tabindex={0}
-          onPointerDown={resizeX.onPointerDown}
-          onKeyDown={resizeX.onKeyDown}
-        />
-        <Outlet />
-      </section>
-    </FocusTrap>
+    <Show when={search().open}>
+      <FocusTrap disabled={layers.anyOpen()}>
+        <section
+          class={`${PANEL_BASE} ${PANEL_POS[position()]} ${PANEL_OPEN}`}
+          data-pw-panel
+          data-pw-suppressed={suppressed()}
+          style={{height: `${resizeY.size()}px`, width: `${resizeX.size()}px`}}
+          role="dialog"
+          aria-label="conciv chat agent"
+          id="pw-chat-panel"
+        >
+          <div
+            class={`${RESIZE}  ${RESIZE_Y}  ${anchoredBottom() ? 'top-0' : 'bottom-0'}`}
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label="Resize chat height"
+            aria-valuemin={240}
+            aria-valuenow={Math.round(resizeY.size())}
+            tabindex={0}
+            onPointerDown={resizeY.onPointerDown}
+            onKeyDown={resizeY.onKeyDown}
+          />
+          <div
+            class={`${RESIZE}  ${RESIZE_X}  ${anchoredRight() ? 'left-0' : 'right-0'}`}
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize chat width"
+            aria-valuemin={300}
+            aria-valuenow={Math.round(resizeX.size())}
+            tabindex={0}
+            onPointerDown={resizeX.onPointerDown}
+            onKeyDown={resizeX.onKeyDown}
+          />
+          <Outlet />
+        </section>
+      </FocusTrap>
+    </Show>
   )
 }

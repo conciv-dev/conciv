@@ -9,6 +9,7 @@ import {isSessionId} from '@conciv/protocol/chat-types'
 import {useAnnounce, useAppData, useInstances, useRpc} from '../app/context.js'
 import {PaneContext, type PaneContextValue, type StagedGrab} from '../app/pane-context.js'
 import {SessionSelector} from '../composer/session-selector.js'
+import {setShutter} from '../lib/shutter.js'
 import {ContextTracker} from '../chat/context-tracker.js'
 import {collectViews} from '../extension/extension-views.js'
 
@@ -59,8 +60,14 @@ function PanelSession(): JSX.Element {
     setSlideDir(tabIndex(next) > tabIndex(activeView()) ? 'right' : 'left')
     const view = views().find((candidate) => candidate.id === next)
     announce(view ? view.label : 'Chat')
-    if (next === 'chat') void router.navigate({to: '/panel/$sessionId', params: {sessionId: params().sessionId}})
-    else void router.navigate({to: '/panel/$sessionId/$view', params: {sessionId: params().sessionId, view: next}})
+    if (next === 'chat')
+      void router.navigate({to: '/panel/$sessionId', params: {sessionId: params().sessionId}, replace: true})
+    else
+      void router.navigate({
+        to: '/panel/$sessionId/$view',
+        params: {sessionId: params().sessionId, view: next},
+        replace: true,
+      })
   }
 
   const activate = (id: string) => void router.navigate({to: '/panel/$sessionId', params: {sessionId: id}})
@@ -107,7 +114,7 @@ function PanelSession(): JSX.Element {
           onNewSession={() => void newSession()}
         />
         <ContextTracker usage={usage()} />
-        <TooltipIconButton tooltip="Close chat" class={`${CLOSE} ml-auto`} onClick={() => router.history.back()}>
+        <TooltipIconButton tooltip="Close chat" class={`${CLOSE} ml-auto`} onClick={() => setShutter(router, false)}>
           <ChevronDown class="size-[1em] block" aria-hidden="true" />
         </TooltipIconButton>
       </header>

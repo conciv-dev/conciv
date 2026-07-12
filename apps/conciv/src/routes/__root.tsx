@@ -1,6 +1,7 @@
 import {
   Outlet,
   createRootRouteWithContext,
+  retainSearchParams,
   useMatchRoute,
   useParams,
   useRouter,
@@ -32,9 +33,12 @@ import {resolveApiBase} from '../lib/api-base.js'
 import {toRawHotkey} from '../lib/hotkey.js'
 import {escapeInTerminal} from '../shell/terminal-focus.js'
 import {quickPaneIds} from '../lib/quick-search.js'
+import {setShutter} from '../lib/shutter.js'
 import '../styles.css'
 
 export const Route = createRootRouteWithContext<ConcivRouterContext>()({
+  validateSearch: (search: Record<string, unknown>): {open?: true} => (search.open === true ? {open: true} : {}),
+  search: {middlewares: [retainSearchParams(['open'])]},
   component: RootComponent,
 })
 
@@ -131,7 +135,9 @@ function RootChrome(props: {
   const panelMatch = matchRoute({to: '/panel/$sessionId', fuzzy: true})
   const quickMatch = matchRoute({to: '/quick'})
   const closedMatch = matchRoute({to: '/'})
-  const panelOpen = () => Boolean(panelMatch())
+  const rootSearch = Route.useSearch()
+  const shutterOpen = () => rootSearch().open === true
+  const panelOpen = () => Boolean(panelMatch()) && shutterOpen()
 
   const sessions = useQuery(() => data.utils.sessions.list.queryOptions())
   const working = () => (sessions.data ?? []).some((session) => session.running)
@@ -144,11 +150,17 @@ function RootChrome(props: {
     return (await rpc.sessions.resolve(latest ? {id: latest.id} : {})).sessionId
   }
   const openPanel = async () => {
+    if (panelMatch()) return setShutter(router, true)
     const sessionId = await latestSessionId()
-    void router.navigate({to: '/panel/$sessionId', params: {sessionId}, replace: Boolean(quickMatch())})
+    void router.navigate({
+      to: '/panel/$sessionId',
+      params: {sessionId},
+      search: {open: true},
+      replace: Boolean(quickMatch()),
+    })
   }
   const closePanel = () => {
-    router.history.back()
+    setShutter(router, false)
     fabEl?.focus()
   }
   const togglePanel = () => (panelOpen() ? closePanel() : void openPanel())
@@ -157,8 +169,14 @@ function RootChrome(props: {
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key !== 'Escape') return
     if (layers.anyOpen()) return
-    if (closedMatch()) return
     if (escapeInTerminal(rootEl)) return
+    if (panelMatch()) {
+      if (!shutterOpen()) return
+      event.preventDefault()
+      closePanel()
+      return
+    }
+    if (closedMatch()) return
     event.preventDefault()
     router.history.back()
   }

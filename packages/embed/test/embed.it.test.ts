@@ -44,18 +44,71 @@ describe('embed boots the conciv app against a real core', () => {
     await kit.rpc.navigation.set({entries: [{href: `/panel/${rawHarnessId}`}], index: 0})
     const page = await openPage()
     await expect
-      .poll(() => page.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 15_000})
-      .toBe(true)
-    await expect
-      .poll(async () => {
-        const persisted = await kit.rpc.navigation.get()
-        return persisted?.entries[persisted.index]?.href ?? ''
-      }, {timeout: 15_000})
+      .poll(
+        async () => {
+          const persisted = await kit.rpc.navigation.get()
+          return persisted?.entries[persisted.index]?.href ?? ''
+        },
+        {timeout: 15_000},
+      )
       .toMatch(/^\/panel\/conciv_/)
     const adopted = await kit.rpc.sessions.resolve({id: rawHarnessId})
     const persisted = await kit.rpc.navigation.get()
     expect(persisted?.entries[persisted.index]?.href).toBe(`/panel/${adopted.sessionId}`)
     await page.close()
+  })
+
+  it('fab close is a shutter: reopening restores the same view without touching history', async () => {
+    const page = await openPage()
+    await openPanel(page)
+    await page.getByRole('tab', {name: 'Terminal'}).click()
+    await expect
+      .poll(() => page.getByRole('tab', {name: 'Terminal'}).getAttribute('aria-selected'), {timeout: 10_000})
+      .toBe('true')
+    await page.getByRole('button', {name: 'Minimize conciv chat'}).click()
+    await expect
+      .poll(() => page.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 10_000})
+      .toBe(false)
+    await page.getByRole('button', {name: 'Open conciv chat'}).click()
+    await expect
+      .poll(() => page.getByRole('tab', {name: 'Terminal'}).getAttribute('aria-selected'), {timeout: 10_000})
+      .toBe('true')
+    await expect
+      .poll(
+        async () => {
+          const persisted = await kit.rpc.navigation.get()
+          return persisted?.entries.filter((entry) => entry.href.includes('/panel/')).length ?? 0
+        },
+        {timeout: 5_000},
+      )
+      .toBe(1)
+    await page.close()
+  })
+
+  it('a reload boots shuttered but keeps the panel location for reopen', async () => {
+    const first = await openPage()
+    await openPanel(first)
+    await first.getByRole('tab', {name: 'Terminal'}).click()
+    await expect
+      .poll(
+        async () => {
+          const persisted = await kit.rpc.navigation.get()
+          return persisted?.entries[persisted.index]?.href ?? ''
+        },
+        {timeout: 10_000},
+      )
+      .toContain('/terminal')
+    await first.close()
+    const second = await openPage()
+    await expect
+      .poll(() => second.getByRole('button', {name: 'Open conciv chat'}).isVisible(), {timeout: 15_000})
+      .toBe(true)
+    expect(await second.getByRole('dialog', {name: 'conciv chat agent'}).count()).toBe(0)
+    await second.getByRole('button', {name: 'Open conciv chat'}).click()
+    await expect
+      .poll(() => second.getByRole('tab', {name: 'Terminal'}).getAttribute('aria-selected'), {timeout: 15_000})
+      .toBe('true')
+    await second.close()
   })
 
   it('renders the fab instantly and opens the panel', async () => {
