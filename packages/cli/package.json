@@ -1,6 +1,6 @@
 {
   "name": "@conciv/cli",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "The conciv agent-facing CLI: `conciv tools` (drive the live page/vite/tests). citty command tree, zod-validated args.",
   "keywords": [
     "ai-agent",

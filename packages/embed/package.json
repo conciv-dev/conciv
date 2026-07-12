@@ -1,6 +1,6 @@
 {
   "name": "@conciv/embed",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "The conciv embed bundle: mounts the conciv router app into a Shadow DOM on the host page and starts the page plane. Inlines the private conciv app and @conciv/page; externalizes shared Solid/Ark/@conciv packages.",
   "keywords": [
     "ai",

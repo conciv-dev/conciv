@@ -1,6 +1,6 @@
 {
   "name": "@conciv/core",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "The conciv engine: a framework-free hono + @hono/node-server server exposing the /__pw HTTP surface, with a harness registry seam.",
   "keywords": [
     "ai",

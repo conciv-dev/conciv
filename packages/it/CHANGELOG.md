@@ -1,5 +1,18 @@
 # @conciv/it
 
+## 0.0.8
+
+### Patch Changes
+
+- [#54](https://github.com/conciv-dev/conciv/pull/54) [`945901b`](https://github.com/conciv-dev/conciv/commit/945901ba8780486412520fbbe478488cc2953fb1) Thanks [@omridevk](https://github.com/omridevk)! - Motion pass across the widget and site (subtler entrances, interruptible open/close, reduced-motion gates, transform-based movement, token cohesion), plus site-embedding fixes: resolve `@conciv/embed` to an absolute path so consumer apps do not declare it, skip widget injection into nested frames, and dedupe the Solid singletons (`solid-js`, `@tanstack/solid-router`, `@ark-ui/solid`) so embedders load a single copy.
+
+- Updated dependencies [[`05dd101`](https://github.com/conciv-dev/conciv/commit/05dd101ff9401cbdfd5545cffa63f4bb3cfd2fbf), [`68d1f16`](https://github.com/conciv-dev/conciv/commit/68d1f16d1278c38a18ff35f8d4a7fdadf6086c8e)]:
+  - @conciv/plugin@0.0.8
+  - @conciv/extension-whiteboard@0.0.8
+  - @conciv/embed@0.0.8
+  - @conciv/extension-test-runner@0.0.8
+  - @conciv/extension-terminal@0.0.8
+
 ## 0.0.7
 
 ### Patch Changes

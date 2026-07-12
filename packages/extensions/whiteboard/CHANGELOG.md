@@ -1,5 +1,22 @@
 # @conciv/extension-whiteboard
 
+## 0.0.8
+
+### Patch Changes
+
+- [#43](https://github.com/conciv-dev/conciv/pull/43) [`68d1f16`](https://github.com/conciv-dev/conciv/commit/68d1f16d1278c38a18ff35f8d4a7fdadf6086c8e) Thanks [@omridevk](https://github.com/omridevk)! - Replace the Jazz CRDT backend with an in-process drizzle/libSQL database, explicit zod-validated
+  REST routes, an SSE change feed, and TanStack DB query-collections in the client. No more Jazz
+  sync server, deploy step, or secrets; conflict policy is server-ordered per-element versioned
+  last-writer-wins.
+- Updated dependencies []:
+  - @conciv/extension@0.0.8
+  - @conciv/ui-kit-chat-tools@0.0.8
+  - @conciv/grab@0.0.8
+  - @conciv/protocol@0.0.8
+  - @conciv/ui-kit-chat@0.0.8
+  - @conciv/ui-kit-system@0.0.8
+  - @conciv/ui-kit-tap@0.0.8
+
 ## 0.0.7
 
 ### Patch Changes
