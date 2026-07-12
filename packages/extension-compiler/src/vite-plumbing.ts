@@ -22,10 +22,10 @@ export function resolveExtensionsModule(id: string): string | null {
 export function loadExtensionsModule(
   id: string,
   clientEntries: readonly string[],
-  embedEntry?: string,
   apiBase?: string,
+  embedEntry?: string,
 ): string | null {
-  return id === EXTENSIONS_RESOLVED_ID ? extensionsModuleSource(clientEntries, embedEntry, apiBase) : null
+  return id === EXTENSIONS_RESOLVED_ID ? extensionsModuleSource(clientEntries, apiBase, embedEntry) : null
 }
 
 export function isClientEntry(id: string): boolean {

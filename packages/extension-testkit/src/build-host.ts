@@ -28,7 +28,7 @@ function concivBuildPlugin(builtins: Builtins): Plugin {
       deferToTsd = config.plugins.some((plugin) => plugin.name === '@tanstack/devtools:inject-source')
     },
     resolveId: (id) => resolveExtensionsModule(id),
-    load: (id) => loadExtensionsModule(id, builtins.clientEntries, builtins.embedEntry),
+    load: (id) => loadExtensionsModule(id, builtins.clientEntries, undefined, builtins.embedEntry),
     transform(code, id, opts) {
       return transformConcivModule(code, id, opts?.ssr ?? false, {root, deferToTsd})
     },

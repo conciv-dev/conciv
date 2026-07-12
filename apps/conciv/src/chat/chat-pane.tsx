@@ -46,6 +46,14 @@ const RETRY =
   'py-1.5 px-2.5 min-h-8 rounded-[0.4375rem] border border-pw-danger-line bg-transparent text-pw-danger cursor-pointer font-semibold text-[0.75rem] leading-none font-pw shrink-0 trans-bg hover:bg-pw-danger-14'
 const DOT = 'w-1.5 h-1.5 rounded-[50%] bg-pw-text-2'
 
+function resetSlideOnSelf(reset: () => void) {
+  return (event: AnimationEvent) => {
+    if (event.target === event.currentTarget) reset()
+  }
+}
+
+const hydratingAttr = (on: boolean): string | undefined => (on ? '' : undefined)
+
 function callSettled(part: ToolCallPart, result: ToolResultPart | undefined): boolean {
   return result?.state === 'complete' || result?.state === 'error' || part.output !== undefined
 }
@@ -346,10 +354,8 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
               <ExtensionSurface name="header" instances={instances} />
               <ExtensionSurface name="widget" instances={instances} />
               <div
-                data-pw-hydrating={pane.hydrating() ? '' : undefined}
-                onAnimationEnd={(event) => {
-                  if (event.target === event.currentTarget) pane.resetSlide()
-                }}
+                data-pw-hydrating={hydratingAttr(pane.hydrating())}
+                onAnimationEnd={resetSlideOnSelf(pane.resetSlide)}
                 class={`flex flex-1 flex-col min-h-0 ${pane.slideClass()}`}
               >
                 <Thread

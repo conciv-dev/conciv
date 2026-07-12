@@ -23,8 +23,6 @@ html > body[data-scroll-locked] {
 
 /* --- conciv landing tokens --- */
 :root {
-  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
-  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
   --od-paper: oklch(0.985 0.006 75);
   --od-ink: oklch(0.23 0.012 65);
   --od-muted: oklch(0.52 0.014 65);

@@ -1,17 +1,15 @@
 import {forwardRef, useImperativeHandle, useCallback} from 'react'
 import type {AnimatedIconHandle, AnimatedIconProps} from './types'
-import {m, useAnimate, useReducedMotion} from 'motion/react'
+import {m, useAnimate} from 'motion/react'
 
 const TerminalIcon = forwardRef<AnimatedIconHandle, AnimatedIconProps>(
   ({size = 24, color = 'currentColor', strokeWidth = 2, className = ''}, ref) => {
     const [scope, animate] = useAnimate()
-    const reduced = useReducedMotion()
 
     const start = useCallback(async () => {
-      if (reduced) return
       animate('.cursor-line', {opacity: [1, 0, 1, 0, 1]}, {duration: 0.8, ease: 'easeInOut'})
       animate('.terminal-chevron', {x: [0, 2, 0]}, {duration: 0.3, ease: 'easeInOut'})
-    }, [animate, reduced])
+    }, [animate])
 
     const stop = useCallback(() => {
       animate('.cursor-line', {opacity: 1}, {duration: 0.2, ease: 'easeOut'})

@@ -18,8 +18,8 @@ export const NO_BUILTINS: Builtins = {serverExtensions: [], clientEntries: []}
 
 export function extensionsModuleSource(
   clientEntries: readonly string[],
-  embedEntry?: string,
   apiBase?: string,
+  embedEntry?: string,
 ): string {
   const imports = clientEntries.map((entry, index) => `import builtin${index} from ${JSON.stringify(entry)}`)
   const builtinNames = clientEntries.map((_, index) => `builtin${index}`)

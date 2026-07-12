@@ -1,15 +1,13 @@
 import {forwardRef, useImperativeHandle, useRef} from 'react'
 import type {AnimatedIconHandle, AnimatedIconProps} from './types'
-import {m, useAnimate, useReducedMotion} from 'motion/react'
+import {m, useAnimate} from 'motion/react'
 
 const MousePointer2Icon = forwardRef<AnimatedIconHandle, AnimatedIconProps>(
   ({size = 24, color = 'currentColor', strokeWidth = 2, className = ''}, ref) => {
     const [scope, animate] = useAnimate()
-    const reduced = useReducedMotion()
     const animationControls = useRef<Array<ReturnType<typeof animate>>>([])
 
     const start = async () => {
-      if (reduced) return
       animationControls.current.forEach((control) => control.stop())
       animationControls.current = []
 
