@@ -917,12 +917,18 @@ importers:
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../../uno-preset
+      '@playwright/test':
+        specifier: ^1.61.1
+        version: 1.61.1
       '@types/node':
         specifier: ^22.19.21
         version: 22.20.0
       '@types/ws':
         specifier: ^8.18.1
         version: 8.18.1
+      '@vitest/browser-playwright':
+        specifier: 4.1.9
+        version: 4.1.9(playwright@1.61.1)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))(vitest@4.1.10)
       solid-js:
         specifier: ^1.9.13
         version: 1.9.14

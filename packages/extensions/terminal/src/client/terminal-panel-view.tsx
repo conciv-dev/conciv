@@ -66,10 +66,33 @@ function TerminalSurface(props: {generation: number; themeHost: () => Element}):
   const grab = host.useGrab()
   const setViewLocked = host.useViewLock()
   const leaveView = host.useLeaveView()
+  const toast = host.useToast()
   const rpc = host.useRpc()
   const [meta] = createResource(() => rpc.meta.models(undefined))
+  const [openFailed, setOpenFailed] = createSignal<string | null>(null)
+  const openError = (error: unknown): Error => {
+    const busy = error instanceof ORPCError && error.code === 'BUSY'
+    return new Error(busy ? 'Session is busy — wait for the current turn to finish.' : 'Couldn’t open the terminal.')
+  }
+  const openTerminal = async (cols: number, rows: number): Promise<void> => {
+    const id = sessionId()
+    if (!id) throw openError(undefined)
+    await terminalClient(apiBase)
+      .open({sessionId: id, cols, rows, model: store.spawnModel() ?? undefined})
+      .catch((error: unknown) => {
+        throw openError(error)
+      })
+  }
   const model = createTerminalModel({
     url: (terminal) => wsUrl(apiBase, sessionId(), terminal.cols, terminal.rows),
+    beforeConnect: async (terminal) => {
+      setOpenFailed(null)
+      await openTerminal(terminal.cols, terminal.rows).catch((error: Error) => {
+        toast(error.message)
+        setOpenFailed(error.message)
+        throw error
+      })
+    },
     theme: () => readTerminalTheme(props.themeHost()),
   })
   onMount(() => {
@@ -125,12 +148,24 @@ function TerminalSurface(props: {generation: number; themeHost: () => Element}):
     respondApproval: () => {},
   })
   return (
-    <Terminal
-      model={model}
-      onBackToChat={() => leaveView()}
-      class="flex-1 min-h-0"
-      rail={<MirrorRail apiBase={apiBase} sessionId={sessionId} ctx={railCtx()} />}
-    />
+    <Show
+      when={!openFailed()}
+      fallback={
+        <div class={ERROR_BANNER} role="alert">
+          <span>{openFailed()}</span>
+          <Button variant="solid" size="sm" onClick={() => store.bumpRespawn()}>
+            Retry
+          </Button>
+        </div>
+      }
+    >
+      <Terminal
+        model={model}
+        onBackToChat={() => leaveView()}
+        class="flex-1 min-h-0"
+        rail={<MirrorRail apiBase={apiBase} sessionId={sessionId} ctx={railCtx()} />}
+      />
+    </Show>
   )
 }
 
@@ -139,28 +174,7 @@ export function TerminalPanelView(): JSX.Element {
   const store = useTerminalContext((context) => context.store)
   const apiBase = host.useApiBase()
   const sessionId = host.useSessionId()
-  const toast = host.useToast()
-  const openError = (error: unknown): Error => {
-    const busy = error instanceof ORPCError && error.code === 'BUSY'
-    return new Error(busy ? 'Session is busy — wait for the current turn to finish.' : 'Couldn’t open the terminal.')
-  }
-  const openTerminal = async (): Promise<void> => {
-    const id = sessionId()
-    if (!id) throw openError(undefined)
-    await terminalClient(apiBase)
-      .open({sessionId: id, model: store.spawnModel() ?? undefined})
-      .catch((error: unknown) => {
-        throw openError(error)
-      })
-  }
   const [openKey, setOpenKey] = createSignal(1)
-  const [opened, {refetch}] = createResource(async () => {
-    await openTerminal().catch((error: Error) => {
-      toast(error.message)
-      throw error
-    })
-    return true
-  })
 
   const respawning = {current: false}
   const respawn = async (): Promise<void> => {
@@ -173,7 +187,6 @@ export function TerminalPanelView(): JSX.Element {
         await terminalClient(apiBase)
           .close({sessionId: id})
           .catch(() => {})
-      await refetch()
       setOpenKey((key) => key + 1)
     } finally {
       respawning.current = false
@@ -195,29 +208,8 @@ export function TerminalPanelView(): JSX.Element {
       }}
       class="flex flex-1 flex-col min-h-0"
     >
-      <Show
-        when={!opened.error}
-        fallback={
-          <div class={ERROR_BANNER} role="alert">
-            <span>{opened.error?.message ?? 'Couldn’t open the terminal.'}</span>
-            <Button variant="solid" size="sm" onClick={() => void refetch()}>
-              Retry
-            </Button>
-          </div>
-        }
-      >
-        <Show
-          when={opened()}
-          fallback={
-            <div class="text-[0.75rem] text-pw-text-2 flex flex-1 items-center justify-center" role="status">
-              connecting…
-            </div>
-          }
-        >
-          <Show keyed when={openKey()}>
-            {(key) => <TerminalSurface generation={key} themeHost={() => themeHost ?? document.body} />}
-          </Show>
-        </Show>
+      <Show keyed when={openKey()}>
+        {(key) => <TerminalSurface generation={key} themeHost={() => themeHost ?? document.body} />}
       </Show>
     </div>
   )

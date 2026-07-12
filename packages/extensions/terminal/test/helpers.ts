@@ -1,4 +1,5 @@
 import {Hono} from 'hono'
+import {cors} from 'hono/cors'
 import {RPCHandler} from '@orpc/server/fetch'
 import type {AnyRouter} from '@orpc/server'
 import {serveApp} from '@conciv/harness-testkit'
@@ -29,6 +30,22 @@ function fakeSessions(): FakeSessions {
     model: () => Promise.resolve(null),
     onChatTurn: (listener) => listeners.push(listener),
   }
+}
+
+const SPAWN_PAINT_SCRIPT = `
+cols=$(stty size | cut -d' ' -f2)
+printf 'SPAWNCOLS=%s\\n' "$cols"
+printf 'SPAWNRULER['
+i=12
+while [ $i -lt $cols ]; do printf '='; i=$((i+1)); done
+printf ']\\n'
+exec bash --noprofile --norc -i
+`
+
+export const spawnPaintHarness: ServerHarness = {
+  id: 'test-tty-spawn-paint',
+  ttyCommand: () => ({bin: 'bash', args: ['-c', SPAWN_PAINT_SCRIPT], env: {TERM: 'xterm-256color', PS1: 'P> '}}),
+  release: () => {},
 }
 
 export const bashHarness: ServerHarness = {
@@ -67,6 +84,7 @@ function isRouter(candidate: unknown): candidate is AnyRouter {
 
 export async function startTerminalServer(harness: ServerHarness = bashHarness): Promise<TerminalTestServer> {
   const app = new Hono()
+  app.use(cors())
   const sessions = fakeSessions()
   const api: ServerApi<Record<never, never>> = {config: {}, cwd: process.cwd(), sessions, harness}
   const result = await terminalExtension.__server?.(api)
