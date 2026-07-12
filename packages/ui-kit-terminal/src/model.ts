@@ -11,7 +11,7 @@ export type TerminalTheme = ITheme
 export type TerminalStatus = 'idle' | 'connecting' | 'open' | 'exited' | 'error'
 
 export type TerminalModelOpts = {
-  url: () => string
+  url: (terminal: Xterm) => string
   theme?: () => TerminalTheme
   fontSize?: number
 }
@@ -138,7 +138,7 @@ export function createTerminalModel(opts: TerminalModelOpts): TerminalModel {
 
   const openSocket = (): WebSocket | null => {
     try {
-      return new WebSocket(opts.url())
+      return new WebSocket(opts.url(terminal))
     } catch {
       giveUp('Could not reach the terminal.')
       return null

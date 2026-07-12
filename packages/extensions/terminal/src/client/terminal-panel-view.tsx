@@ -9,8 +9,6 @@ import {useTerminalContext} from './terminal-context.js'
 import {MirrorRail} from './mirror-rail.js'
 
 const ESCAPE_KEY = String.fromCharCode(27)
-const DEFAULT_COLS = 120
-const DEFAULT_ROWS = 32
 
 const ERROR_BANNER =
   'flex items-center justify-between gap-2 m-2.5 py-2.5 px-3 rounded-[10px] text-[0.75rem] bg-pw-fill border border-pw-danger-line text-pw-text'
@@ -71,7 +69,7 @@ function TerminalSurface(props: {generation: number; themeHost: () => Element}):
   const rpc = host.useRpc()
   const [meta] = createResource(() => rpc.meta.models(undefined))
   const model = createTerminalModel({
-    url: () => wsUrl(apiBase, sessionId(), DEFAULT_COLS, DEFAULT_ROWS),
+    url: (terminal) => wsUrl(apiBase, sessionId(), terminal.cols, terminal.rows),
     theme: () => readTerminalTheme(props.themeHost()),
   })
   onMount(() => {
@@ -150,7 +148,7 @@ export function TerminalPanelView(): JSX.Element {
     const id = sessionId()
     if (!id) throw openError(undefined)
     await terminalClient(apiBase)
-      .open({sessionId: id, cols: DEFAULT_COLS, rows: DEFAULT_ROWS, model: store.spawnModel() ?? undefined})
+      .open({sessionId: id, model: store.spawnModel() ?? undefined})
       .catch((error: unknown) => {
         throw openError(error)
       })
