@@ -119,7 +119,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
       return resolveExtensionsModule(id)
     },
     load(id) {
-      return loadExtensionsModule(id, builtins.clientEntries, apiBase)
+      return loadExtensionsModule(id, builtins.clientEntries, builtins.embedEntry, apiBase)
     },
     transform(code, id, opts) {
       if (options.enabled === false) return null

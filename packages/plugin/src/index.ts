@@ -6,7 +6,6 @@ import {type Builtins, NO_BUILTINS} from '@conciv/extension-compiler/extensions'
 
 export type {Builtins} from '@conciv/extension-compiler/extensions'
 export {NO_BUILTINS} from '@conciv/extension-compiler/extensions'
-export {concivBuildPlugin} from '@conciv/extension-compiler/vite-plumbing'
 
 export function createConcivUnplugin(builtins: Builtins = NO_BUILTINS): UnpluginInstance<ConcivConfig | undefined> {
   return createUnplugin<ConcivConfig | undefined>((options = {}) => {
