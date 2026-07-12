@@ -831,6 +831,9 @@ importers:
       '@conciv/plugin':
         specifier: workspace:^
         version: link:../plugin
+      '@conciv/protocol':
+        specifier: workspace:^
+        version: link:../protocol
       '@conciv/ui-kit-system':
         specifier: workspace:^
         version: link:../ui-kit-system
