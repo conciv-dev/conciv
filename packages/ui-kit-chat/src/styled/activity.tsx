@@ -226,7 +226,7 @@ function AssistantTurnView(props: {turn: Turn}): JSX.Element {
     activity.live() && activity.isLastTurn(props.turn) && index === lastChainIndex()
   const asReply = (segment: Segment) => (segment.kind === 'reply' ? segment : null)
   return (
-    <div class="flex flex-col gap-1.5 min-w-0 self-stretch anim-msg">
+    <div data-pw-msg class="flex flex-col gap-1.5 min-w-0 self-stretch anim-msg">
       <Index each={segments()}>
         {(segment, index) => (
           <Switch>
@@ -251,7 +251,10 @@ function UserTurnView(props: {turn: Turn}): JSX.Element {
   return (
     <Show when={userText(props.turn)}>
       {(text) => (
-        <div class="text-[length:var(--chat-text-sm)] leading-[1.45] px-2.5 py-1.5 rounded-[var(--chat-radius-md)] max-w-[85%] [background:var(--chat-accent)] [color:var(--chat-on-accent)] [overflow-wrap:anywhere] self-end anim-msg">
+        <div
+          data-pw-msg
+          class="text-[length:var(--chat-text-sm)] leading-[1.45] px-2.5 py-1.5 rounded-[var(--chat-radius-md)] max-w-[85%] [background:var(--chat-accent)] [color:var(--chat-on-accent)] [overflow-wrap:anywhere] self-end anim-msg"
+        >
           {text()}
         </div>
       )}

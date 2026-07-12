@@ -16,6 +16,8 @@ export type PageHandler = (ctx: PageContext) => PageResult | Promise<PageResult>
 
 const CONSOLE_CAP = 200
 
+const reduceMotion = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
+
 const FORWARD_MARKER = /\[vite\] \(client\)|\[Server\]/
 export function startConsoleBuffer(): ConsoleEntry[] {
   const buf: ConsoleEntry[] = []
@@ -215,7 +217,7 @@ export const DOM_HANDLERS: Record<PageQueryKind, PageHandler> = {
     return ok()
   }),
   scroll: onEl((el) => {
-    el.scrollIntoView({block: 'center'})
+    el.scrollIntoView({block: 'center', behavior: reduceMotion() ? 'auto' : 'smooth'})
     return ok()
   }),
   submit: onEl((el) => {

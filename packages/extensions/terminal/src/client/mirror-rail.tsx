@@ -1,4 +1,4 @@
-import {createSignal, createUniqueId, Match, onCleanup, onMount, Show, Switch, type JSX} from 'solid-js'
+import {createEffect, createSignal, createUniqueId, Match, onCleanup, onMount, Show, Switch, type JSX} from 'solid-js'
 import type {UIMessage} from '@conciv/protocol/chat-types'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import type {ToolCallPart} from '@tanstack/ai-client'
@@ -56,7 +56,7 @@ function statusDotClass(status: MirrorStatus): Record<string, boolean> {
   return {
     'bg-pw-success': status === 'open',
     'bg-pw-danger': status === 'error',
-    'bg-pw-text-3 anim-pulse': status === 'connecting',
+    'bg-pw-text-3 anim-pulse motion-reduce:animate-none': status === 'connecting',
   }
 }
 
@@ -100,11 +100,11 @@ function RailHeader(props: {
         onClick={() => props.onToggle()}
       >
         <ChevronRight
-          class="size-3.5 [transition:transform_150ms_var(--pw-ease)] motion-reduce:transition-none"
+          class="size-3.5 trans-tf150 motion-reduce:transition-none"
           classList={{'rotate-90': props.open}}
           aria-hidden="true"
         />
-        <span class="rounded-full size-1.75" classList={statusDotClass(props.status)} aria-hidden="true" />
+        <span class="rounded-full size-1.75 trans-bg" classList={statusDotClass(props.status)} aria-hidden="true" />
         Activity
         <Show when={props.count > 0}>
           <span class="text-pw-text-3 tabular-nums">{props.count}</span>
@@ -140,6 +140,12 @@ export function MirrorRail(props: {
   })
   const [messages, setMessages] = createSignal<UIMessage[]>([])
   const [status, setStatus] = createSignal<MirrorStatus>('connecting')
+  const [hydrating, setHydrating] = createSignal(true)
+  createEffect(() => {
+    if (!open()) return
+    setHydrating(true)
+    requestAnimationFrame(() => requestAnimationFrame(() => setHydrating(false)))
+  })
   onMount(() => {
     const stop = connectMirror(props.apiBase, props.sessionId(), setMessages, setStatus)
     onCleanup(stop)
@@ -153,6 +159,7 @@ export function MirrorRail(props: {
   const logId = createUniqueId()
   return (
     <div
+      data-pw-hydrating={hydrating() ? '' : undefined}
       class="relative flex flex-1 flex-col min-h-0 min-w-0 shrink-0 max-w-[60vw]"
       classList={{'[border-left:1px_solid_var(--chat-line)]': open()}}
       style={{width: open() ? `${resize.size()}px` : undefined}}

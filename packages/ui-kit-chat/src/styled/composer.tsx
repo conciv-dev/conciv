@@ -14,7 +14,7 @@ export type ComposerProps = {
 }
 
 const BTN =
-  'size-8.5 rounded-[var(--chat-radius-pill)] [border:none] cursor-pointer shrink-0 inline-flex items-center justify-center [transition:background-color_120ms,transform_120ms] [&:active:not(:disabled)]:scale-[0.92]'
+  'size-8.5 rounded-[var(--chat-radius-pill)] [border:none] cursor-pointer shrink-0 inline-flex items-center justify-center [transition:background-color_120ms_var(--chat-ease),transform_120ms_var(--chat-ease)] [&:active:not(:disabled)]:scale-[0.92]'
 const SEND = `${BTN} [background:var(--chat-accent)] text-[color:var(--chat-on-accent)] [&:hover:not(:disabled)]:[background:var(--chat-accent-hi)] disabled:opacity-40 disabled:cursor-default`
 const CANCEL = `${BTN} [background:var(--chat-text-3)] [color:var(--chat-on-accent)]`
 const INPUT =
@@ -43,7 +43,7 @@ export function Composer(props: ComposerProps): JSX.Element {
       <div class="flex flex-wrap gap-1 empty:hidden">
         <ComposerPrimitive.Attachments />
       </div>
-      <div class="px-1.5 pb-1.5 pt-1 rounded-[var(--chat-radius-md)] [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] [transition:border-color_120ms] focus-within:[border-color:var(--chat-accent)]">
+      <div class="px-1.5 pb-1.5 pt-1 rounded-[var(--chat-radius-md)] [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] [transition:border-color_120ms_var(--chat-ease)] focus-within:[border-color:var(--chat-accent)]">
         <ComposerPrimitive.Input
           unstyled
           ref={props.inputRef}

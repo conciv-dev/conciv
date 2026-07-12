@@ -1,13 +1,15 @@
 import {forwardRef, useImperativeHandle, useCallback} from 'react'
 import type {AnimatedIconHandle, AnimatedIconProps} from './types'
 import {scaledStrokeWidth} from './types'
-import {m, useAnimate} from 'motion/react'
+import {m, useAnimate, useReducedMotion} from 'motion/react'
 
 const PenIcon = forwardRef<AnimatedIconHandle, AnimatedIconProps>(
   ({size = 24, color = 'currentColor', strokeWidth = 2, className = ''}, ref) => {
     const [scope, animate] = useAnimate()
+    const reduced = useReducedMotion()
 
     const start = useCallback(async () => {
+      if (reduced) return
       await animate(
         '.pen-group',
         {
@@ -23,7 +25,7 @@ const PenIcon = forwardRef<AnimatedIconHandle, AnimatedIconProps>(
       await animate('.pen-slash', {pathLength: 0, opacity: 0}, {duration: 0.2, ease: 'easeInOut'})
 
       animate('.pen-group', {x: 0, y: 0, rotate: 0}, {duration: 0.25, ease: 'easeInOut'})
-    }, [animate])
+    }, [animate, reduced])
 
     const stop = useCallback(() => {
       animate('.pen-group', {x: 0, y: 0, rotate: 0}, {duration: 0.2, ease: 'easeInOut'})

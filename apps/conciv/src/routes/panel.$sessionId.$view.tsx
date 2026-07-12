@@ -60,7 +60,13 @@ function PanelView(): JSX.Element {
             void router.navigate({to: '/panel/$sessionId', params: {sessionId: params().sessionId}, replace: true})
           }
         >
-          <div class={`flex flex-1 flex-col min-h-0 ${pane.slideClass()}`}>
+          <div
+            data-pw-hydrating={pane.hydrating() ? '' : undefined}
+            onAnimationEnd={(event) => {
+              if (event.target === event.currentTarget) pane.resetSlide()
+            }}
+            class={`flex flex-1 flex-col min-h-0 ${pane.slideClass()}`}
+          >
             <Show when={pane.grabStore.grabs().length > 0}>
               <div class="px-2.5 pt-2 flex flex-wrap gap-2">
                 <For each={pane.grabStore.grabs()}>

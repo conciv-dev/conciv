@@ -11,7 +11,7 @@ import {
 } from '../primitives/model-selector/model-selector.js'
 
 const TRIGGER =
-  'text-[length:var(--chat-text-sm)] [color:var(--chat-text-2)] pl-2.5 pr-[0.4375rem] h-7 max-w-42 gap-1 inline-flex items-center cursor-pointer rounded-[var(--chat-radius-pill)] [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] [transition:color_120ms,border-color_120ms,background-color_120ms] hover:[color:var(--chat-text-hi)] hover:[background:var(--chat-fill-strong)]'
+  'text-[length:var(--chat-text-sm)] [color:var(--chat-text-2)] pl-2.5 pr-[0.4375rem] h-7 max-w-42 gap-1 inline-flex items-center cursor-pointer rounded-[var(--chat-radius-pill)] [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] [transition:color_120ms_var(--chat-ease),border-color_120ms_var(--chat-ease),background-color_120ms_var(--chat-ease)] hover:[color:var(--chat-text-hi)] hover:[background:var(--chat-fill-strong)]'
 const VALUE =
   'min-w-0 inline-flex items-center gap-1.5 [&_[data-model-name]]:truncate [&_[data-model-effort]]:[color:var(--chat-text-3)]'
 const CONTENT =
@@ -31,7 +31,7 @@ const EFFORT_ROW = 'flex items-center justify-between gap-3 mt-1 px-2 py-2 [bord
 const EFFORT_LABEL = 'text-[length:var(--chat-text-xs)] [color:var(--chat-text-3)]'
 const EFFORT_GROUP = 'flex items-center gap-0.5'
 const EFFORT_BTN =
-  'px-2 py-1 text-[length:var(--chat-text-xs)] rounded-[var(--chat-radius-sm)] cursor-pointer [border:none] [background:transparent] [transition:color_120ms,background-color_120ms]'
+  'px-2 py-1 text-[length:var(--chat-text-xs)] rounded-[var(--chat-radius-sm)] cursor-pointer [border:none] [background:transparent] [transition:color_120ms_var(--chat-ease),background-color_120ms_var(--chat-ease)]'
 const EFFORT_ON = '[color:var(--chat-text-hi)] [background:var(--chat-fill-strong)] font-medium'
 const EFFORT_OFF = '[color:var(--chat-text-3)] hover:[color:var(--chat-text)]'
 

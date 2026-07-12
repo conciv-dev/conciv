@@ -170,14 +170,26 @@ const useAnimationLoop = (
       rafRef.current = requestAnimationFrame(animate)
     }
 
-    rafRef.current = requestAnimationFrame(animate)
-
-    return () => {
+    const startRaf = () => {
+      if (rafRef.current === null) rafRef.current = requestAnimationFrame(animate)
+    }
+    const stopRaf = () => {
       if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current)
         rafRef.current = null
       }
       lastTimestampRef.current = null
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting) startRaf()
+      else stopRaf()
+    })
+    observer.observe(track)
+
+    return () => {
+      observer.disconnect()
+      stopRaf()
     }
   }, [trackRef, targetVelocity, seqWidth, seqHeight, isHovered, hoverSpeed, isVertical])
 }
@@ -322,7 +334,7 @@ export const LogoLoop = React.memo<LogoLoopProps>(
               'inline-flex items-center',
               'motion-reduce:transition-none',
               scaleOnHover &&
-                'transition-transform duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] group-hover/item:scale-120',
+                'transition-transform duration-300 ease-[var(--ease-out)] [@media(hover:hover)_and_(pointer:fine)]:group-hover/item:scale-120',
             )}
             aria-hidden={!!(item as any).href && !(item as any).ariaLabel}
           >
@@ -336,7 +348,7 @@ export const LogoLoop = React.memo<LogoLoopProps>(
               '[image-rendering:-webkit-optimize-contrast]',
               'motion-reduce:transition-none',
               scaleOnHover &&
-                'transition-transform duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] group-hover/item:scale-120',
+                'transition-transform duration-300 ease-[var(--ease-out)] [@media(hover:hover)_and_(pointer:fine)]:group-hover/item:scale-120',
             )}
             src={(item as any).src}
             srcSet={(item as any).srcSet}
@@ -359,7 +371,7 @@ export const LogoLoop = React.memo<LogoLoopProps>(
           <a
             className={cx(
               'inline-flex items-center no-underline rounded',
-              'transition-opacity duration-200 ease-linear',
+              'transition-opacity duration-200 ease-out',
               'hover:opacity-80',
               'focus-visible:outline focus-visible:outline-current focus-visible:outline-offset-2',
             )}

@@ -59,7 +59,7 @@ export function createFabRobotRig({head, eyes, antenna}: RigLayers): FabRobotRig
   }
 
   const startWork = () => {
-    if (reduceMotion()) return setClosed()
+    if (reduceMotion()) return setOpenPose()
     stopWork()
     gsap.killTweensOf(parts)
     setClosed()
@@ -93,7 +93,11 @@ export function createFabRobotRig({head, eyes, antenna}: RigLayers): FabRobotRig
     }
     if (fromWork) {
       stopWork()
-      gsap.to(parts, {duration: 0.3, ease: 'power2.out', onStart: setOpenPose})
+      if (reduceMotion()) return setOpenPose()
+      gsap.killTweensOf(parts)
+      gsap.to(head, {yPercent: -2, rotation: 0, scaleX: 1, scaleY: 1, duration: 0.3, ease: 'power2.out'})
+      gsap.to(eyes, {scaleX: 1, scaleY: 1.06, duration: 0.3, ease: 'power2.out'})
+      gsap.to(antenna, {rotation: -4, duration: 0.3, ease: 'power2.out'})
       return
     }
     playOpen()

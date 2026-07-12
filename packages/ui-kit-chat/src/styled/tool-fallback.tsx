@@ -47,7 +47,7 @@ function Trigger(): JSX.Element {
   const running = () => tool.status() === 'running'
   return (
     <Collapsible.Trigger
-      class={`group text-[color:var(--chat-text-2)] hover:text-[color:var(--chat-text)] text-[length:var(--chat-text-md)] py-1.5 flex gap-2 w-fit cursor-pointer [transition:color_120ms] items-center ${FOCUS}`}
+      class={`group text-[color:var(--chat-text-2)] hover:text-[color:var(--chat-text)] text-[length:var(--chat-text-md)] py-1.5 flex gap-2 w-fit cursor-pointer [transition:color_120ms_var(--chat-ease)] items-center ${FOCUS}`}
     >
       <Dynamic
         component={STATUS_ICON[tool.status()]}

@@ -53,12 +53,23 @@ export default function VariableProximity({
   useEffect(() => {
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) return
     let frame = 0
+    let centers: {cx: number; cy: number}[] = []
+
+    const measure = () => {
+      centers = letterRefs.current.map((letter) => {
+        if (!letter) return {cx: Number.NaN, cy: Number.NaN}
+        const rect = letter.getBoundingClientRect()
+        return {cx: rect.left + rect.width / 2, cy: rect.top + rect.height / 2}
+      })
+    }
+
     const update = (clientX: number, clientY: number) => {
       frame = 0
-      letterRefs.current.forEach((letter) => {
+      letterRefs.current.forEach((letter, index) => {
         if (!letter) return
-        const rect = letter.getBoundingClientRect()
-        const distance = Math.hypot(clientX - (rect.left + rect.width / 2), clientY - (rect.top + rect.height / 2))
+        const center = centers[index]
+        if (!center || Number.isNaN(center.cx)) return
+        const distance = Math.hypot(clientX - center.cx, clientY - center.cy)
         if (distance >= radius) {
           letter.style.fontVariationSettings = fromFontVariationSettings
           return
@@ -73,10 +84,18 @@ export default function VariableProximity({
       if (frame) return
       frame = requestAnimationFrame(() => update(event.clientX, event.clientY))
     }
+
+    measure()
+    document.fonts?.ready.then(measure).catch(() => {})
+
     const target = containerRef.current ?? window
     target.addEventListener('pointermove', onPointerMove as EventListener)
+    window.addEventListener('scroll', measure, {passive: true})
+    window.addEventListener('resize', measure)
     return () => {
       target.removeEventListener('pointermove', onPointerMove as EventListener)
+      window.removeEventListener('scroll', measure)
+      window.removeEventListener('resize', measure)
       if (frame) cancelAnimationFrame(frame)
     }
   }, [axes, containerRef, falloff, fromFontVariationSettings, radius])

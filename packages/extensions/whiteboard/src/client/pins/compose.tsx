@@ -3,7 +3,7 @@ import {Button, TextField} from '@conciv/ui-kit-system'
 import {useComments, type ComposeTarget} from '../model/comments.js'
 
 const PANEL =
-  'absolute pointer-events-auto w-72 max-w-[calc(100vw-2rem)] flex flex-col gap-2 p-3 rounded-pw-lg bg-pw-panel text-pw-text border border-pw-line shadow-pw-lg'
+  'absolute pointer-events-auto w-72 max-w-[calc(100vw-2rem)] flex flex-col gap-2 p-3 rounded-pw-lg bg-pw-panel text-pw-text border border-pw-line shadow-pw-lg anim-presence-in'
 
 export function Compose(props: {target: ComposeTarget}): JSX.Element {
   const model = useComments()

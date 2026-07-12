@@ -1,12 +1,13 @@
 /* Token fade-in for streamed markdown. Spans are injected by the animate rehype plugin with
    per-token CSS vars (--sd-animation/--sd-duration/--sd-easing/--sd-delay). */
 [data-sd-animate] {
-  animation: var(--sd-animation, sd-fadeIn) var(--sd-duration, 150ms) var(--sd-easing, ease) var(--sd-delay, 0ms) both;
+  animation: var(--sd-animation, sd-fadeIn) var(--sd-duration, 150ms) var(--sd-easing, cubic-bezier(0.22, 1, 0.36, 1))
+    var(--sd-delay, 0ms) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
   [data-sd-animate] {
-    animation: none;
+    animation-name: sd-fadeIn;
   }
 }
 

@@ -13,7 +13,7 @@ function Prompt(props: {label?: string}): JSX.Element {
   return (
     <Show when={permission.pending()}>
       <div
-        class="text-[color:var(--chat-text)] text-[length:var(--chat-text-md)] mb-1.5 mt-1 px-2.5 py-2 rounded-[var(--chat-radius-md)] flex flex-wrap gap-2 [background:var(--chat-fill)] [border:1px_solid_var(--chat-accent)] items-center"
+        class="text-[color:var(--chat-text)] text-[length:var(--chat-text-md)] mb-1.5 mt-1 px-2.5 py-2 rounded-[var(--chat-radius-md)] flex flex-wrap gap-2 [background:var(--chat-fill)] [border:1px_solid_var(--chat-accent)] items-center anim-msg-lg"
         role="group"
         aria-label="Approve this action?"
       >

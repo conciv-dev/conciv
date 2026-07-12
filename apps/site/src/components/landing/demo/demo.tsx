@@ -15,6 +15,7 @@ import {
 import {Badge} from '@/components/ui/badge'
 import {Button} from '@/components/ui/button'
 import {Card} from '@/components/ui/card'
+import {gsapEaseInOut} from '@/lib/motion-tokens'
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '@/components/ui/select'
 import {Transcript} from './transcript'
 import {Composer} from './composer'
@@ -78,7 +79,7 @@ export function Demo() {
         .timeline({delay: 0.8})
         .set(ghostRef.current, {x: x - 60, y: y - 50})
         .to(ghostRef.current, {autoAlpha: 1, duration: 0.3})
-        .to(ghostRef.current, {x, y, duration: 1, ease: 'power3.inOut'})
+        .to(ghostRef.current, {x, y, duration: 1, ease: gsapEaseInOut})
         .to(ghostRef.current, {scale: 0.82, duration: 0.16, yoyo: true, repeat: 1})
         .to(ghostRef.current, {autoAlpha: 0, duration: 0.3}, '+=0.2')
     },
@@ -90,7 +91,7 @@ export function Demo() {
       if (reduced() || !grabRef.current) return
       if (state.picking || state.grabbed) return
       const tween = gsap.to(grabRef.current, {
-        boxShadow: '0 0 0 5px var(--od-accent-soft)',
+        '--od-glow': 1,
         repeat: -1,
         yoyo: true,
         duration: 0.95,
