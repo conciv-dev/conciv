@@ -1,10 +1,40 @@
-import {render} from 'solid-js/web'
+import {createSignal, For, Show, type JSX} from 'solid-js'
+import {Dynamic, render} from 'solid-js/web'
 import {makeRpcClient} from '@conciv/contract'
 import {HostApiProvider, type AnyExtension} from '@conciv/extension'
 import {MountedExtension, MountedSurface} from '@conciv/extension/client'
 import {Dialog, Popover} from '@conciv/ui-kit-system'
 import {makeHostGrab} from './grab.js'
 import {FixtureElement} from './fixture-element.js'
+
+// oxlint-disable-next-line conciv/no-comments -- TODO(host-views): hand-rolled tabs diverge from the real app's panel view mounting — rethink
+function MountedViews(props: {extension: AnyExtension; clientValue: object}): JSX.Element {
+  const views = () => props.extension.views ?? []
+  const [active, setActive] = createSignal<string | null>(null)
+  const activeView = () => views().find((view) => view.id === active())
+  return (
+    <Show when={views().length > 0}>
+      <div role="tablist" aria-label="Extension views">
+        <For each={views()}>
+          {(view) => (
+            <button type="button" role="tab" aria-selected={active() === view.id} onClick={() => setActive(view.id)}>
+              {view.label}
+            </button>
+          )}
+        </For>
+      </div>
+      <Show keyed when={activeView()}>
+        {(view) => (
+          <HostApiProvider value={props.clientValue}>
+            <div style={{display: 'flex', 'flex-direction': 'column', width: '800px', height: '480px'}}>
+              <Dynamic component={view.Component} />
+            </div>
+          </HostApiProvider>
+        )}
+      </Show>
+    </Show>
+  )
+}
 
 function metaContent(name: string): string {
   return document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content ?? ''
@@ -43,6 +73,7 @@ export function startHost(extension: AnyExtension): void {
       >
         <MountedExtension extension={extension} clientValue={clientValue} slot="composer" />
         <MountedSurface extension={extension} clientValue={clientValue} />
+        <MountedViews extension={extension} clientValue={clientValue} />
       </HostApiProvider>
     ),
     mountRoot,
