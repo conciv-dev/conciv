@@ -39,6 +39,25 @@ async function openPanel(page: Page): Promise<void> {
 }
 
 describe('embed boots the conciv app against a real core', () => {
+  it('canonicalizes a restored panel route that carries a raw harness session id', async () => {
+    const rawHarnessId = '43548fd1-0000-4220-acf0-014b10b5815f'
+    await kit.rpc.navigation.set({entries: [{href: `/panel/${rawHarnessId}`}], index: 0})
+    const page = await openPage()
+    await expect
+      .poll(() => page.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 15_000})
+      .toBe(true)
+    await expect
+      .poll(async () => {
+        const persisted = await kit.rpc.navigation.get()
+        return persisted?.entries[persisted.index]?.href ?? ''
+      }, {timeout: 15_000})
+      .toMatch(/^\/panel\/conciv_/)
+    const adopted = await kit.rpc.sessions.resolve({id: rawHarnessId})
+    const persisted = await kit.rpc.navigation.get()
+    expect(persisted?.entries[persisted.index]?.href).toBe(`/panel/${adopted.sessionId}`)
+    await page.close()
+  })
+
   it('renders the fab instantly and opens the panel', async () => {
     const page = await openPage()
     await expect

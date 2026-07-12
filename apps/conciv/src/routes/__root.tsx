@@ -141,8 +141,7 @@ function RootChrome(props: {
   const latestSessionId = async (): Promise<string> => {
     const rows = await queryClient.ensureQueryData(data.utils.sessions.list.queryOptions())
     const latest = rows.toSorted((a, b) => b.updatedAt - a.updatedAt)[0]
-    if (latest) return latest.id
-    return (await rpc.sessions.resolve({})).sessionId
+    return (await rpc.sessions.resolve(latest ? {id: latest.id} : {})).sessionId
   }
   const openPanel = async () => {
     const sessionId = await latestSessionId()

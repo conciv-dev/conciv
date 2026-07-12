@@ -1,10 +1,11 @@
-import {Outlet, createFileRoute, useMatchRoute, useRouter} from '@tanstack/solid-router'
+import {Outlet, createFileRoute, redirect, useMatchRoute, useRouter} from '@tanstack/solid-router'
 import {useQuery} from '@tanstack/solid-query'
 import {Tabs, TooltipIconButton} from '@conciv/ui-kit-system'
 import {ChevronDown, PictureInPicture2} from 'lucide-solid'
 import {For, Show, createMemo, createSignal, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import type {Grab} from '@conciv/grab'
+import {isSessionId} from '@conciv/protocol/chat-types'
 import {useAnnounce, useAppData, useInstances, useRpc} from '../app/context.js'
 import {PaneContext, type PaneContextValue, type StagedGrab} from '../app/pane-context.js'
 import {SessionSelector} from '../composer/session-selector.js'
@@ -15,7 +16,14 @@ const HEAD = 'flex items-center gap-2.5 py-3 px-3.5 border-b border-b-pw-line-so
 const CLOSE =
   'bg-transparent [border:none] text-pw-text-2 text-[1.375rem] cursor-pointer inline-flex items-center justify-center size-9.5 rounded-[0.5625rem] trans-color-bg hover:text-pw-text hover:bg-pw-fill-strong'
 
-export const Route = createFileRoute('/panel/$sessionId')({component: PanelSession})
+export const Route = createFileRoute('/panel/$sessionId')({
+  beforeLoad: async ({context, params}) => {
+    if (isSessionId(params.sessionId)) return
+    const {sessionId} = await context.rpc.sessions.resolve({id: params.sessionId})
+    throw redirect({to: '/panel/$sessionId', params: {sessionId}, replace: true})
+  },
+  component: PanelSession,
+})
 
 function PanelSession(): JSX.Element {
   const params = Route.useParams()
