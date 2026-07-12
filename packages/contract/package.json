@@ -1,6 +1,6 @@
 {
   "name": "@conciv/contract",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "conciv oRPC contract: procedures and zod schemas shared by core and clients.",
   "keywords": [
     "conciv",

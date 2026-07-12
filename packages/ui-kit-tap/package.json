@@ -1,6 +1,6 @@
 {
   "name": "@conciv/ui-kit-tap",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "TipTap-based rich-text primitives for conciv (SolidJS, shadow-DOM-safe): a mention composer built on @tiptap/core and the shared ui-kit-system tokens. Each primitive is viewable in Storybook.",
   "keywords": [
     "conciv",

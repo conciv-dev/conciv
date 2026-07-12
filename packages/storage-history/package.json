@@ -1,6 +1,6 @@
 {
   "name": "@conciv/storage-history",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "Web-Storage-persisted @tanstack/history for the conciv embed: entries/index round-trip with corrupted-storage fallback.",
   "keywords": [
     "conciv",

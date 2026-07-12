@@ -1,6 +1,6 @@
 {
   "name": "@conciv/serve",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "conciv's @hono/node-server serve() wrapper — bakes overrideGlobalObjects:false so a co-hosted engine never clobbers the host's global Response/Request.",
   "keywords": [
     "conciv",

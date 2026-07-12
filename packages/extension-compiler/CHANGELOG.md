@@ -1,4 +1,4 @@
-# @conciv/ui-kit-terminal
+# @conciv/extension-compiler
 
 ## 0.0.8
 
@@ -11,11 +11,4 @@
   The terminal gains a narrative activity rail — a resizable, open-by-default timeline of session activity — and the pty now spawns at the attaching client's fitted size instead of bouncing through a fixed geometry on every attach.
 
 - Updated dependencies []:
-  - @conciv/protocol@0.0.8
-
-## 0.0.7
-
-### Patch Changes
-
-- Updated dependencies []:
-  - @conciv/protocol@0.0.7
+  - @conciv/extension@0.0.8
