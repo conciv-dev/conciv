@@ -7,7 +7,7 @@ import {openCanvas} from './canvas-it-helpers.js'
 const clientEntry = '@conciv/extension-whiteboard/client'
 
 const projectedTop = (pin: Locator) => async (): Promise<number> =>
-  pin.evaluate((element) => Number.parseFloat((element as HTMLElement).style.top) || 0)
+  pin.evaluate((element) => (element as HTMLElement).getBoundingClientRect().top)
 
 test('a comment pin is projected to screen and tracks canvas pan', async () => {
   const api = await getExtensionTestApi({server: whiteboard, clientEntry})
