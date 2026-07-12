@@ -1285,6 +1285,9 @@ importers:
 
   packages/it:
     dependencies:
+      '@conciv/embed':
+        specifier: workspace:^
+        version: link:../embed
       '@conciv/extension-terminal':
         specifier: workspace:^
         version: link:../extensions/terminal

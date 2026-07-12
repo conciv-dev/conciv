@@ -33,6 +33,7 @@
     "@oxlint/plugins",
     "@ark-ui/solid",
     "@conciv/client",
+    "@conciv/embed",
     "@conciv/grab",
     "@conciv/mascot",
     "@conciv/solid-streamdown",

@@ -16,11 +16,11 @@ const isEditing = (): boolean => {
 }
 
 const SRC_SELECTOR = '[data-conciv-source],[data-tsd-source]'
-const GLIDE = 'transition-[left,top,width,height] duration-[80ms] ease-pw-ease'
+const GLIDE = 'transition-transform duration-[80ms] ease-pw'
 const BOX =
-  'fixed pointer-events-none rounded-pw-sm bg-pw-accent-08 [outline:2px_solid_var(--pw-accent)] shadow-[0_0_0_1px_var(--pw-accent-line),0_0_16px_var(--pw-accent-20)]'
+  'fixed left-0 top-0 pointer-events-none rounded-pw-sm bg-pw-accent-08 [outline:2px_solid_var(--pw-accent)] shadow-[0_0_0_1px_var(--pw-accent-line),0_0_16px_var(--pw-accent-20)]'
 const LABEL =
-  'fixed pointer-events-none inline-flex items-baseline gap-1.5 max-w-[80vw] whitespace-nowrap -translate-y-full -mt-1 px-2.5 py-1 rounded-pw-md bg-pw-panel border border-pw-line shadow-pw-lg'
+  'fixed left-0 top-0 pointer-events-none inline-flex items-baseline gap-1.5 max-w-[80vw] whitespace-nowrap -mt-1 px-2.5 py-1 rounded-pw-md bg-pw-panel border border-pw-line shadow-pw-lg'
 const HINT =
   'fixed top-3 left-1/2 -translate-x-1/2 pointer-events-none inline-flex items-center gap-1.5 px-2.5 py-1 rounded-pw-pill bg-pw-panel text-pw-text-2 border border-pw-line shadow-pw-lg text-xs'
 
@@ -101,13 +101,15 @@ function HighlightInspector(props: {onExit: () => void}): JSX.Element {
             <div
               class={`${BOX}  ${glide}`}
               style={{
-                left: `${h().rect.left}px`,
-                top: `${h().rect.top}px`,
+                transform: `translate(${h().rect.left}px, ${h().rect.top}px)`,
                 width: `${h().rect.width}px`,
                 height: `${h().rect.height}px`,
               }}
             />
-            <div class={`${LABEL}  ${glide}`} style={{left: `${h().rect.left}px`, top: `${h().rect.top}px`}}>
+            <div
+              class={`${LABEL}  ${glide}`}
+              style={{transform: `translate(${h().rect.left}px, ${h().rect.top}px) translateY(-100%)`}}
+            >
               <span class="text-[0.6875rem] text-pw-accent font-pw-mono font-semibold">{`<${h().tag}>`}</span>
               <Show when={h().file}>
                 <span class="text-[0.6875rem] text-pw-text-2 font-pw-mono text-ellipsis overflow-hidden">

@@ -40,11 +40,19 @@ import {clearPaneSnapshot, readPaneSnapshot, writePaneSnapshot} from '../lib/ui-
 
 const GRAB_PREVIEW_MAX_W = 280
 
-const ERROR = 'flex gap-2 items-center text-pw-danger text-[0.75rem]'
+const ERROR = 'flex gap-2 items-center text-pw-danger text-[0.75rem] anim-msg'
 const RECONNECT = 'flex gap-2 items-center text-pw-text-2 text-[0.75rem] anim-msg'
 const RETRY =
   'py-1.5 px-2.5 min-h-8 rounded-[0.4375rem] border border-pw-danger-line bg-transparent text-pw-danger cursor-pointer font-semibold text-[0.75rem] leading-none font-pw shrink-0 trans-bg hover:bg-pw-danger-14'
 const DOT = 'w-1.5 h-1.5 rounded-[50%] bg-pw-text-2'
+
+function resetSlideOnSelf(reset: () => void) {
+  return (event: AnimationEvent) => {
+    if (event.target === event.currentTarget) reset()
+  }
+}
+
+const hydratingAttr = (on: boolean): string | undefined => (on ? '' : undefined)
 
 function callSettled(part: ToolCallPart, result: ToolResultPart | undefined): boolean {
   return result?.state === 'complete' || result?.state === 'error' || part.output !== undefined
@@ -345,7 +353,11 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
             <ComposerPrimitive.TriggerPopoverRoot>
               <ExtensionSurface name="header" instances={instances} />
               <ExtensionSurface name="widget" instances={instances} />
-              <div class={`flex flex-1 flex-col min-h-0 ${pane.slideClass()}`}>
+              <div
+                data-pw-hydrating={hydratingAttr(pane.hydrating())}
+                onAnimationEnd={resetSlideOnSelf(pane.resetSlide)}
+                class={`flex flex-1 flex-col min-h-0 ${pane.slideClass()}`}
+              >
                 <Thread
                   tools={tools()}
                   components={{ToolFallback: ToolFallbackCard}}

@@ -171,6 +171,12 @@ html > body[data-scroll-locked] {
   width: 2px;
   height: 84%;
   background: var(--od-accent);
+  animation: od-caret 1.1s steps(1) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .od-snippet .od-caret {
+    animation: none;
+  }
 }
 .dark .od-popup span {
   color: var(--shiki-dark) !important;
@@ -216,6 +222,20 @@ html > body[data-scroll-locked] {
   box-shadow: 0 0 0 5px var(--od-accent-soft);
 }
 
+.od-grab-pill {
+  position: relative;
+  --od-glow: 0;
+}
+.od-grab-pill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 0 5px var(--od-accent-soft);
+  opacity: var(--od-glow, 0);
+  pointer-events: none;
+}
+
 /* the sample app's "Get started" button, shared by the preview + the grabbed-reference render */
 .od-cta,
 .od-grab-render .cta {
@@ -240,24 +260,6 @@ html > body[data-scroll-locked] {
   color: var(--od-muted);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .od-anim {
-    animation: none !important;
-    transition: none !important;
-  }
-}
-
-@keyframes od-rise {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 @keyframes od-caret {
   0%,
   49% {
@@ -266,12 +268,6 @@ html > body[data-scroll-locked] {
   50%,
   100% {
     opacity: 0;
-  }
-}
-
-@keyframes od-grid-pan {
-  to {
-    background-position: 40px 40px;
   }
 }
 

@@ -4,7 +4,7 @@ import {readStorage, writeStorage} from '@conciv/ui-kit-system'
 
 const MARGIN = 20
 const SNAP_MS = 280
-const SNAP_EASE = 'cubic-bezier(0.16, 1, 0.3, 1)'
+const SNAP_EASE = 'var(--pw-ease-expo)'
 const ALL: TriggerPosition[] = ['top-left', 'top-right', 'middle-left', 'middle-right', 'bottom-left', 'bottom-right']
 
 function anchorOf(position: TriggerPosition, vw: number, vh: number): {x: number; y: number} {
@@ -65,6 +65,7 @@ export function createDraggablePosition(opts: {initial: TriggerPosition; storage
   )
 
   const [point, setPoint] = createSignal<{x: number; y: number} | null>(null)
+  const [snapTarget, setSnapTarget] = createSignal<{x: number; y: number} | null>(null)
   const [snapping, setSnapping] = createSignal(false)
   let suppressClick = false
   let cleanup: (() => void) | undefined
@@ -98,6 +99,7 @@ export function createDraggablePosition(opts: {initial: TriggerPosition; storage
         setPosition(next)
         writeStorage(opts.storageKey, next)
         setPoint(null)
+        setSnapTarget(null)
         setSnapping(false)
       }
 
@@ -107,7 +109,7 @@ export function createDraggablePosition(opts: {initial: TriggerPosition; storage
       }
 
       setSnapping(true)
-      setPoint(presetCenter(next, vw, vh, halfW, halfH))
+      setSnapTarget(presetCenter(next, vw, vh, halfW, halfH))
       snapTimer = setTimeout(commit, SNAP_MS)
     }
     window.addEventListener('pointermove', move)
@@ -126,14 +128,17 @@ export function createDraggablePosition(opts: {initial: TriggerPosition; storage
   const dragStyle = (): JSX.CSSProperties => {
     const current = point()
     if (!current) return {}
+    const target = snapTarget()
+    const dx = target ? target.x - current.x : 0
+    const dy = target ? target.y - current.y : 0
     return {
       position: 'fixed',
       left: `${current.x}px`,
       top: `${current.y}px`,
       right: 'auto',
       bottom: 'auto',
-      transform: 'translate(-50%, -50%)',
-      transition: snapping() ? `left ${SNAP_MS}ms ${SNAP_EASE}, top ${SNAP_MS}ms ${SNAP_EASE}` : 'none',
+      transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`,
+      transition: snapping() ? `transform ${SNAP_MS}ms ${SNAP_EASE}` : 'none',
     }
   }
 

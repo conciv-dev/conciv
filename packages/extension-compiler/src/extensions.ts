@@ -8,11 +8,19 @@ import {splitExtension} from './split-extension.js'
 export const EXTENSIONS_VIRTUAL_ID = 'virtual:conciv-extensions'
 export const EXTENSIONS_RESOLVED_ID = '\0' + EXTENSIONS_VIRTUAL_ID
 
-export type Builtins = {serverExtensions: readonly AnyExtension[]; clientEntries: readonly string[]}
+export type Builtins = {
+  serverExtensions: readonly AnyExtension[]
+  clientEntries: readonly string[]
+  embedEntry?: string
+}
 
 export const NO_BUILTINS: Builtins = {serverExtensions: [], clientEntries: []}
 
-export function extensionsModuleSource(clientEntries: readonly string[], apiBase?: string): string {
+export function extensionsModuleSource(
+  clientEntries: readonly string[],
+  apiBase?: string,
+  embedEntry?: string,
+): string {
   const imports = clientEntries.map((entry, index) => `import builtin${index} from ${JSON.stringify(entry)}`)
   const builtinNames = clientEntries.map((_, index) => `builtin${index}`)
   const apiBaseLine =
@@ -20,7 +28,7 @@ export function extensionsModuleSource(clientEntries: readonly string[], apiBase
       ? []
       : [`if (typeof window !== 'undefined') window.__CONCIV_API_BASE__ = ${JSON.stringify(apiBase)}`]
   return [
-    "import {mountConciv} from '@conciv/embed'",
+    `import {mountConciv} from ${JSON.stringify(embedEntry ?? '@conciv/embed')}`,
     ...imports,
     ...apiBaseLine,
     "const mods = import.meta.glob('/conciv/extensions/*.{ts,tsx}', {eager: true})",

@@ -4,4 +4,4 @@ export const FOCUS_INSET = 'focus-visible:[outline:var(--chat-focus)] focus-visi
 export const HIGHLIGHT =
   'data-[highlighted]:[background:var(--chat-fill-strong)] data-[highlighted]:[color:var(--chat-text-hi)]'
 
-export const SPIN = 'shrink-0 [animation:spin_0.6s_linear_infinite] motion-reduce:[animation:none]'
+export const SPIN = 'shrink-0 anim-tool-spin motion-reduce:[animation:none]'

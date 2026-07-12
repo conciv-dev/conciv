@@ -4,7 +4,7 @@ import {Tooltip} from './tooltip.js'
 export type TooltipIconButtonVariant = 'ghost' | 'solid'
 
 const BASE =
-  'inline-flex items-center justify-center cursor-pointer trans-btn focus-ring disabled:opacity-50 disabled:cursor-not-allowed'
+  'inline-flex items-center justify-center cursor-pointer trans-btn focus-ring disabled:opacity-50 disabled:cursor-not-allowed active:not-disabled:[transform:scale(0.97)]'
 
 const VARIANT: Record<TooltipIconButtonVariant, string> = {
   ghost: 'rounded-pw-md bg-transparent text-pw-text-2 hover:text-pw-text hover:bg-pw-fill-strong',

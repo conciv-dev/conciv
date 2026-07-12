@@ -130,6 +130,7 @@ function AssistantTurn(props: {entries: ToolCardEntry[]; fallback: ToolUICompone
   const asReply = (segment: Segment) => (segment.kind === 'reply' ? segment : null)
   return (
     <Message.Root
+      data-pw-msg
       class={`flex flex-col gap-1.5 min-w-0 w-full [color:var(--chat-text)] self-stretch relative anim-msg ${message.isLast() ? '' : 'pb-11'}`}
     >
       <Index each={segments()}>
@@ -174,7 +175,10 @@ function UserTurn(): JSX.Element {
   return (
     <>
       <TurnPrefix />
-      <Message.Root class="px-3 py-1.5 rounded-[var(--chat-radius-md)] max-w-[80%] [background:var(--chat-accent)] [color:var(--chat-on-accent)] [overflow-wrap:anywhere] self-end anim-msg">
+      <Message.Root
+        data-pw-msg
+        class="px-3 py-1.5 rounded-[var(--chat-radius-md)] max-w-[80%] [background:var(--chat-accent)] [color:var(--chat-on-accent)] [overflow-wrap:anywhere] self-end anim-msg"
+      >
         <Message.Parts />
       </Message.Root>
     </>
@@ -248,7 +252,7 @@ export function Thread(props: ThreadProps): JSX.Element {
           {props.overlay}
           <div class="h-0 pointer-events-none self-center bottom-2 sticky z-10 overflow-visible">
             <ThreadPrimitive.ScrollToBottom
-              class={`text-[length:var(--chat-text-xs)] px-2 rounded-[var(--chat-radius-pill)] inline-flex gap-1 min-h-6 cursor-pointer pointer-events-auto [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] [color:var(--chat-accent-link)] [transition:opacity_120ms_var(--chat-ease)] items-center bottom-0 left-1/2 absolute data-[at-bottom]:opacity-0 data-[at-bottom]:invisible -translate-x-1/2 hover:[background:var(--chat-fill-strong)] ${FOCUS}`}
+              class={`text-[length:var(--chat-text-xs)] px-2 rounded-[var(--chat-radius-pill)] inline-flex gap-1 min-h-6 cursor-pointer pointer-events-auto [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] [color:var(--chat-accent-link)] [transition:opacity_120ms_var(--chat-ease)] items-center bottom-0 left-1/2 absolute data-[at-bottom]:opacity-0 data-[at-bottom]:invisible data-[at-bottom]:[transition:opacity_120ms_var(--chat-ease),visibility_0s_linear_120ms] -translate-x-1/2 hover:[background:var(--chat-fill-strong)] ${FOCUS}`}
             >
               <ArrowDown size={12} aria-hidden="true" />
               Latest

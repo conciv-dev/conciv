@@ -1,14 +1,15 @@
-import type {Plugin} from 'vite'
 import {addSourceToJsx} from './inject-source.js'
 import {compileExtensionSolid, isExtensionModule} from './compile-extension.js'
 import {splitExtension} from './split-extension.js'
-import {type Builtins, EXTENSIONS_RESOLVED_ID, EXTENSIONS_VIRTUAL_ID, extensionsModuleSource} from './extensions.js'
+import {EXTENSIONS_RESOLVED_ID, EXTENSIONS_VIRTUAL_ID, extensionsModuleSource} from './extensions.js'
+
+const SOLID_SINGLETONS = ['solid-js', 'solid-js/web', 'solid-js/store', '@tanstack/solid-router', '@ark-ui/solid']
 
 export function concivSolidConfig() {
   return {
-    resolve: {dedupe: ['solid-js', '@conciv/extension']},
+    resolve: {dedupe: [...SOLID_SINGLETONS, '@conciv/extension']},
     optimizeDeps: {
-      exclude: ['@conciv/extension'],
+      exclude: [...SOLID_SINGLETONS, '@conciv/extension'],
       include: [],
     },
   }
@@ -18,8 +19,13 @@ export function resolveExtensionsModule(id: string): string | null {
   return id === EXTENSIONS_VIRTUAL_ID ? EXTENSIONS_RESOLVED_ID : null
 }
 
-export function loadExtensionsModule(id: string, clientEntries: readonly string[], apiBase?: string): string | null {
-  return id === EXTENSIONS_RESOLVED_ID ? extensionsModuleSource(clientEntries, apiBase) : null
+export function loadExtensionsModule(
+  id: string,
+  clientEntries: readonly string[],
+  apiBase?: string,
+  embedEntry?: string,
+): string | null {
+  return id === EXTENSIONS_RESOLVED_ID ? extensionsModuleSource(clientEntries, apiBase, embedEntry) : null
 }
 
 export function isClientEntry(id: string): boolean {
@@ -46,23 +52,4 @@ export function transformConcivModule(
     return splitExtension(code, id, 'browser').then((split) => compileExtensionSolid(split?.code ?? code, id, ssr))
   if (ctx.deferToTsd) return null
   return addSourceToJsx(code, id, ctx.root)
-}
-
-export function concivBuildPlugin(builtins: Builtins): Plugin {
-  let root = process.cwd()
-  let deferToTsd = false
-  return {
-    name: 'conciv:build',
-    enforce: 'pre',
-    config: () => concivSolidConfig(),
-    configResolved(config) {
-      root = config.root
-      deferToTsd = config.plugins.some((plugin) => plugin.name === '@tanstack/devtools:inject-source')
-    },
-    resolveId: (id) => resolveExtensionsModule(id),
-    load: (id) => loadExtensionsModule(id, builtins.clientEntries),
-    transform(code, id, opts) {
-      return transformConcivModule(code, id, opts?.ssr ?? false, {root, deferToTsd})
-    },
-  }
 }

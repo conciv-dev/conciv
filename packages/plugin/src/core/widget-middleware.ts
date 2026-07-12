@@ -74,9 +74,14 @@ function trailingCallback(args: ReadonlyArray<unknown>): (() => void) | undefine
   return typeof last === 'function' ? () => void last() : undefined
 }
 
+const NESTED_FETCH_DESTS = new Set(['iframe', 'frame', 'embed', 'object'])
+
 export function makeWidgetInject(apiBase: string, widgetConfig?: WidgetConfig): Middleware {
   const tags = widgetTags(apiBase, widgetConfig)
-  return (_req, res, next) => {
+  return (req, res, next) => {
+    const fetchDest = req.headers['sec-fetch-dest']
+    if (typeof fetchDest === 'string' && NESTED_FETCH_DESTS.has(fetchDest)) return next()
+
     const chunks: Buffer[] = []
     const realWrite = res.write
     const realEnd = res.end

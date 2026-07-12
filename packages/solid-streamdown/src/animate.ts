@@ -140,7 +140,7 @@ export function createAnimatePlugin(options?: AnimateOptions): AnimatePlugin {
   const config: AnimateConfig = {
     animation: options?.animation ?? 'fadeIn',
     duration: options?.duration ?? 150,
-    easing: options?.easing ?? 'ease',
+    easing: options?.easing ?? 'cubic-bezier(0.22, 1, 0.36, 1)',
     sep: options?.sep ?? 'word',
 
     stagger: options?.stagger ?? 0,

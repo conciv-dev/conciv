@@ -134,7 +134,7 @@ export function MenuSeparator(): JSX.Element {
 export type TabItem = {value: string; trigger: JSX.Element; label: string; content?: JSX.Element}
 
 const TAB_TRIGGER =
-  'inline-flex items-center justify-center size-8 rounded-pw-sm text-pw-text-3 [transition:color_120ms_var(--pw-ease),background-color_120ms_var(--pw-ease)] hover:text-pw-text data-[selected]:text-pw-accent data-[selected]:bg-pw-accent-08 focus-ring'
+  'inline-flex items-center justify-center size-8 rounded-pw-sm text-pw-text-3 trans-color-bg hover:text-pw-text data-[selected]:text-pw-accent data-[selected]:bg-pw-accent-08 focus-ring'
 
 export function Tabs(props: {
   value: string

@@ -46,7 +46,8 @@ const DOT_STATE: Record<TestState | 'running', string> = {
   pass: 'size-2.25 bg-pw-success',
   fail: 'size-2.25 bg-pw-danger',
   skip: 'size-2.25 bg-pw-warn',
-  running: 'size-2.75 bg-transparent border-2 border-t-transparent border-x-pw-accent border-b-pw-accent anim-test-rot',
+  running:
+    'size-2.75 bg-transparent border-2 border-t-transparent border-x-pw-accent border-b-pw-accent anim-test-rot motion-reduce:animate-none',
 }
 const ERR =
   'mt-0 mr-3 mb-2 ml-9 py-2 px-2.5 bg-pw-sunken border-l-2 border-l-pw-danger rounded text-pw-danger text-[0.71875rem]'
@@ -65,10 +66,6 @@ function stateLabel(state: TestState | 'running'): string {
   if (state === 'fail') return 'failed'
   if (state === 'skip') return 'skipped'
   return 'running'
-}
-
-function domId(key: string): string {
-  return `pw-test-${key.replace(/[^a-zA-Z0-9_-]/g, '-')}`
 }
 
 function openLabel(error: TestError): string {
@@ -172,7 +169,6 @@ export function TestResults(props: {result: TestRunResult | null; ctx: ToolViewC
     onCleanup(() => abort.abort())
   })
 
-  const toggleTest = (key: string) => setOpenTest((current) => (current === key ? null : key))
   const setFileOpen = (file: string, open: boolean) =>
     setCollapsed((prev) => {
       const next = new Set(prev)
@@ -212,7 +208,6 @@ export function TestResults(props: {result: TestRunResult | null; ctx: ToolViewC
               <For each={group.tests}>
                 {(test) => {
                   const key = `${group.file}::${test.name}`
-                  const id = domId(key)
                   return (
                     <Show
                       when={test.error}
@@ -225,24 +220,19 @@ export function TestResults(props: {result: TestRunResult | null; ctx: ToolViewC
                       }
                     >
                       {(error) => (
-                        <div>
-                          <button
-                            type="button"
-                            class={`${testRowClass(test.state)}  ${ROW_BTN}`}
-                            aria-expanded={openTest() === key}
-                            aria-controls={id}
-                            onClick={() => toggleTest(key)}
-                          >
+                        <Collapsible.Root
+                          open={openTest() === key}
+                          onOpenChange={(details) => setOpenTest(details.open ? key : null)}
+                        >
+                          <Collapsible.Trigger class={`${testRowClass(test.state)}  ${ROW_BTN}`}>
                             <span class={dotClass(test.state)} aria-hidden="true" />
                             <span class="sr-only">{stateLabel(test.state)}: </span>
                             <span class={TNAME}>{test.name}</span>
-                          </button>
-                          <div id={id}>
-                            <Show when={openTest() === key}>
-                              <TestErrorBlock error={error()} ctx={props.ctx} />
-                            </Show>
-                          </div>
-                        </div>
+                          </Collapsible.Trigger>
+                          <Collapsible.Content>
+                            <TestErrorBlock error={error()} ctx={props.ctx} />
+                          </Collapsible.Content>
+                        </Collapsible.Root>
                       )}
                     </Show>
                   )
