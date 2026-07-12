@@ -46,8 +46,8 @@ README.md; this file is the non-obvious operational rules.
 ## Testing
 
 - Widget UI is tested in a REAL browser (Playwright/Chromium), never jsdom/happy-dom.
-- Widget integration tests load the PREBUILT bundle (`packages/widget/dist/conciv-widget.global.js`):
-  rebuild the widget (`pnpm turbo run build --filter=@conciv/widget`) before running them, or you test
+- Widget integration tests load the PREBUILT bundle (`packages/embed/dist/conciv-widget.global.js`):
+  rebuild it (`pnpm turbo run build --filter=@conciv/embed`) before running them, or you test
   stale code.
 - In widget ITs use `browser.newPage()`, not `newContext()` (contexts leak and spike CPU/memory).
 - Never add tests under `apps/examples/*` — example apps are demos; verify behavior via the owning
@@ -111,8 +111,8 @@ true` ⇒ `history` required; `slashCommands` ≠ `'none'` ⇒ `commands` requir
 
 ## Extension landmines
 
-- Whiteboard (Jazz CRDT): never write to the db inside a `subscribe`/`useAll` callback, effect, or
-  render body — it triggers a re-render storm. Writes go in event handlers only.
+- Whiteboard (TanStack DB over libSQL): never write to the db inside a collection subscription,
+  effect, or render body — it triggers a re-render storm. Writes go in event handlers only.
 - The widget bundle must externalize every `@conciv/extension/*` subpath and shared Ark/Solid deps;
   a second bundled copy splits the Solid/Ark context and extension popovers render at 0,0. Guarded
   by the mount-externals build test — don't weaken it.
