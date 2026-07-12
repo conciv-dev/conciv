@@ -85,7 +85,7 @@ describe('embed boots the conciv app against a real core', () => {
     await page.close()
   })
 
-  it('a reload boots shuttered but keeps the panel location for reopen', async () => {
+  it('a reload restores the panel open on the same view', async () => {
     const first = await openPage()
     await openPanel(first)
     await first.getByRole('tab', {name: 'Terminal'}).click()
@@ -97,17 +97,46 @@ describe('embed boots the conciv app against a real core', () => {
         },
         {timeout: 10_000},
       )
-      .toContain('/terminal')
+      .toMatch(/\/terminal\?.*open=true/)
+    await first.close()
+    const second = await openPage()
+    await expect
+      .poll(() => second.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 15_000})
+      .toBe(true)
+    await expect
+      .poll(() => second.getByRole('tab', {name: 'Terminal'}).getAttribute('aria-selected'), {timeout: 15_000})
+      .toBe('true')
+    await second.close()
+  })
+
+  it('a reload after closing the panel boots shut', async () => {
+    const first = await openPage()
+    await openPanel(first)
+    await expect
+      .poll(
+        async () => {
+          const persisted = await kit.rpc.navigation.get()
+          return persisted?.entries[persisted.index]?.href ?? ''
+        },
+        {timeout: 10_000},
+      )
+      .toContain('open=true')
+    await first.getByRole('button', {name: 'Minimize conciv chat'}).click()
+    await expect
+      .poll(
+        async () => {
+          const persisted = await kit.rpc.navigation.get()
+          return persisted?.entries[persisted.index]?.href ?? ''
+        },
+        {timeout: 10_000},
+      )
+      .not.toContain('open=true')
     await first.close()
     const second = await openPage()
     await expect
       .poll(() => second.getByRole('button', {name: 'Open conciv chat'}).isVisible(), {timeout: 15_000})
       .toBe(true)
     expect(await second.getByRole('dialog', {name: 'conciv chat agent'}).count()).toBe(0)
-    await second.getByRole('button', {name: 'Open conciv chat'}).click()
-    await expect
-      .poll(() => second.getByRole('tab', {name: 'Terminal'}).getAttribute('aria-selected'), {timeout: 15_000})
-      .toBe('true')
     await second.close()
   })
 

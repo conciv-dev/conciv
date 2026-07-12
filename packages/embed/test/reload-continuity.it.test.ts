@@ -58,11 +58,6 @@ describe('reload continuity through the db-backed navigation row', () => {
     await page.reload({waitUntil: 'domcontentloaded'})
 
     await expect
-      .poll(() => page.getByRole('button', {name: 'Open conciv chat'}).isVisible(), {timeout: 20_000})
-      .toBe(true)
-    expect(await page.getByRole('dialog', {name: 'conciv chat agent'}).count()).toBe(0)
-    await page.getByRole('button', {name: 'Open conciv chat'}).click()
-    await expect
       .poll(() => page.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 20_000})
       .toBe(true)
     await expect.poll(() => page.getByText(ASSISTANT_TEXT).first().isVisible(), {timeout: 20_000}).toBe(true)
