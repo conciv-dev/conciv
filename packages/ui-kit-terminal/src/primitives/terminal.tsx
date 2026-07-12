@@ -43,13 +43,13 @@ function Screen(props: {class?: string}): JSX.Element {
   onMount(() => {
     if (!element) return
     const screen = element
-    injectCss(screen.getRootNode())
     model.terminal.open(screen)
     screen.__concivTerminal = {buffer: () => translateBuffer(model.terminal)}
     let started = false
     const start = (): void => {
       if (started || screen.clientWidth === 0) return
       started = true
+      injectCss(screen.getRootNode())
       model.fit()
       model.connect()
       model.focus()

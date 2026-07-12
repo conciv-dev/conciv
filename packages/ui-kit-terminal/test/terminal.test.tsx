@@ -98,6 +98,28 @@ describe('terminal primitives', () => {
     dispose()
   })
 
+  it('injects xterm css into the shadow root even when mounted detached', async () => {
+    const host = document.createElement('div')
+    const shadow = host.attachShadow({mode: 'open'})
+    const container = document.createElement('div')
+    container.style.cssText = 'width:640px;height:320px;display:flex'
+    shadow.appendChild(container)
+    const model = createTerminalModel({url: () => 'ws://127.0.0.1:1/never'})
+    const dispose = render(
+      () => (
+        <TerminalPrimitive.Root model={model}>
+          <TerminalPrimitive.Screen />
+        </TerminalPrimitive.Root>
+      ),
+      container,
+    )
+    expect(shadow.querySelector('style[data-conciv-xterm]')).toBeNull()
+    document.body.appendChild(host)
+    await until(() => shadow.querySelector('style[data-conciv-xterm]') !== null)
+    dispose()
+    host.remove()
+  })
+
   it('shows the banner only after exit', async () => {
     const model = createTerminalModel({url: () => 'ws://127.0.0.1:1/never'})
     const {host, dispose} = mount(() => (
