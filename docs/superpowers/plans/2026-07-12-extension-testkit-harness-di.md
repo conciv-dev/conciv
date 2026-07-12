@@ -371,3 +371,20 @@ git commit -m "test(terminal): reload-restore IT on the extension-testkit path
 
 Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>" -- packages/extensions/terminal/test/terminal-view.it.test.ts packages/extensions/terminal/package.json pnpm-lock.yaml
 ```
+
+---
+
+## EXECUTED (2026-07-12)
+
+All four tasks landed on main (a13d7ea9, 1d044e81, 9b095e87, e33ffbfb, 56c480f3) with two
+divergences discovered during execution:
+
+1. The testkit host is a light host runtime, not the full widget — it had no mount point for
+   extension `views` at all. `MountedViews` (hand-rolled tabs, flagged for rethink in
+   `host-runtime.tsx`) was added so view-based extensions are drivable; the terminal IT drives
+   the view tab directly instead of a fab, and app-level navigation restore stays covered by the
+   embed ITs.
+2. Terminal's devDependency on extension-testkit closed a fatal package cycle
+   (`extension-testkit → plugin → embed → extension-terminal`). Broken by extracting the vite
+   build plumbing out of the plugin into `@conciv/extension-compiler`; extension-testkit now
+   depends on the compiler, not the plugin.
