@@ -1,6 +1,7 @@
 import {serveHono} from '@conciv/serve'
 import getPort from 'get-port'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
+import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import type {AnyExtension} from '@conciv/extension'
 import {makeApp, type MakeAppOpts} from './app.js'
 
@@ -21,6 +22,7 @@ export type StartOpts = {
   allowedOrigins?: string[]
 
   extensions?: AnyExtension[]
+  harness?: HarnessAdapter
 }
 
 export type Engine = {
@@ -66,6 +68,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     systemPromptText: systemPrompt,
     extensions: opts.extensions,
     extensionConfig: cfg.extensions,
+    harness: opts.harness,
     harnessEnv,
     allowedOrigins: opts.allowedOrigins,
   }
