@@ -56,7 +56,9 @@ function PanelView(): JSX.Element {
           insert={(text) => void appendDraft(text).catch(() => {})}
           newSession={newSession}
           viewLock={pane.setLockedFor(params().view)}
-          viewLeave={() => void router.navigate({to: '/panel/$sessionId', params: {sessionId: params().sessionId}})}
+          viewLeave={() =>
+            void router.navigate({to: '/panel/$sessionId', params: {sessionId: params().sessionId}, replace: true})
+          }
         >
           <div class={`flex flex-1 flex-col min-h-0 ${pane.slideClass()}`}>
             <Show when={pane.grabStore.grabs().length > 0}>
