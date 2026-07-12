@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
-import {EXTENSIONS_VIRTUAL_ID, extensionsModuleSource} from '../src/core/extensions.js'
-import {isClientEntry, transformConcivModule} from '../src/core/vite-plumbing.js'
+import {EXTENSIONS_VIRTUAL_ID, extensionsModuleSource} from '../src/extensions.js'
+import {isClientEntry, transformConcivModule} from '../src/vite-plumbing.js'
 
 const CTX = {root: '/app', deferToTsd: false}
 

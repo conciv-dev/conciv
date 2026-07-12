@@ -811,6 +811,55 @@ importers:
         specifier: ^4.1.8
         version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@22.20.0)(@vitest/browser-playwright@4.1.9)(@vitest/coverage-v8@4.1.8)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
 
+  packages/extension-compiler:
+    dependencies:
+      '@babel/core':
+        specifier: ^7.29.7
+        version: 7.29.7
+      '@babel/preset-typescript':
+        specifier: ^7.29.7
+        version: 7.29.7(@babel/core@7.29.7)
+      '@conciv/extension':
+        specifier: workspace:^
+        version: link:../extension
+      babel-dead-code-elimination:
+        specifier: ^1.0.12
+        version: 1.0.12
+      babel-preset-solid:
+        specifier: ^1.9.12
+        version: 1.9.12(@babel/core@7.29.7)(solid-js@1.9.14)
+      jiti:
+        specifier: ^2.7.0
+        version: 2.7.0
+      magic-string:
+        specifier: ^0.30.21
+        version: 0.30.21
+      oxc-parser:
+        specifier: ^0.127.0
+        version: 0.127.0
+    devDependencies:
+      '@types/babel__core':
+        specifier: ^7.20.5
+        version: 7.20.5
+      '@types/node':
+        specifier: ^22.19.21
+        version: 22.20.0
+      tsdown:
+        specifier: ^0.22.4
+        version: 0.22.4(@arethetypeswrong/core@0.18.3)(oxc-resolver@11.20.0)(publint@0.3.21)(tsx@4.22.4)(typescript@6.0.3)
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vite:
+        specifier: ^8.0.16
+        version: 8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(sass@1.51.0)(tsx@4.22.4)(yaml@2.9.0)
+      vitest:
+        specifier: ^4.1.8
+        version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@22.20.0)(@vitest/browser-playwright@4.1.9)(@vitest/coverage-v8@4.1.8)(jsdom@28.1.0(@noble/hashes@1.8.0))(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+
   packages/extension-testkit:
     dependencies:
       '@conciv/contract':
@@ -822,15 +871,15 @@ importers:
       '@conciv/extension':
         specifier: workspace:^
         version: link:../extension
+      '@conciv/extension-compiler':
+        specifier: workspace:^
+        version: link:../extension-compiler
       '@conciv/grab':
         specifier: workspace:^
         version: link:../grab
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../harness-testkit
-      '@conciv/plugin':
-        specifier: workspace:^
-        version: link:../plugin
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
@@ -914,6 +963,9 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      '@conciv/extension-testkit':
+        specifier: workspace:^
+        version: link:../../extension-testkit
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../../harness-testkit
@@ -1329,12 +1381,6 @@ importers:
 
   packages/plugin:
     dependencies:
-      '@babel/core':
-        specifier: ^7.29.7
-        version: 7.29.7
-      '@babel/preset-typescript':
-        specifier: ^7.29.7
-        version: 7.29.7(@babel/core@7.29.7)
       '@conciv/cli':
         specifier: workspace:^
         version: link:../cli
@@ -1347,37 +1393,22 @@ importers:
       '@conciv/extension':
         specifier: workspace:^
         version: link:../extension
+      '@conciv/extension-compiler':
+        specifier: workspace:^
+        version: link:../extension-compiler
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
-      babel-dead-code-elimination:
-        specifier: ^1.0.12
-        version: 1.0.12
-      babel-preset-solid:
-        specifier: ^1.9.12
-        version: 1.9.12(@babel/core@7.29.7)(solid-js@1.9.14)
-      jiti:
-        specifier: ^2.7.0
-        version: 2.7.0
       launch-editor:
         specifier: ^2.14.1
         version: 2.14.1
-      magic-string:
-        specifier: ^0.30.21
-        version: 0.30.21
       next:
         specifier: ^15.3.0 || ^16.0.0
         version: 16.2.9(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(sass@1.51.0)
-      oxc-parser:
-        specifier: ^0.127.0
-        version: 0.127.0
       unplugin:
         specifier: ^3.0.0
         version: 3.3.0(esbuild@0.28.1)(rolldown@1.1.5)(rollup@4.62.2)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
     devDependencies:
-      '@types/babel__core':
-        specifier: ^7.20.5
-        version: 7.20.5
       '@types/node':
         specifier: ^22.19.21
         version: 22.20.0

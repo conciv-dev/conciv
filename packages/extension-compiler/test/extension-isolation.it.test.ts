@@ -1,9 +1,9 @@
 import {describe, it, expect} from 'vitest'
 import {fileURLToPath} from 'node:url'
 import {dirname, join} from 'node:path'
-import {splitExtension} from '../src/core/split-extension.js'
-import {compileExtensionSolid} from '../src/core/compile-extension.js'
-import {loadServerExtensions} from '../src/core/extensions.js'
+import {splitExtension} from '../src/split-extension.js'
+import {compileExtensionSolid} from '../src/compile-extension.js'
+import {loadServerExtensions} from '../src/extensions.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 

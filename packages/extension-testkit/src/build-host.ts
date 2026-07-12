@@ -4,7 +4,8 @@ import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 import {build, type Plugin} from 'vite'
 import solid from 'vite-plugin-solid'
-import {concivBuildPlugin, NO_BUILTINS} from '@conciv/plugin'
+import {concivBuildPlugin} from '@conciv/extension-compiler/vite-plumbing'
+import {NO_BUILTINS} from '@conciv/extension-compiler/extensions'
 
 const VIRTUAL_ID = 'virtual:conciv-extension-under-test'
 const RESOLVED_VIRTUAL_ID = `\0${VIRTUAL_ID}`

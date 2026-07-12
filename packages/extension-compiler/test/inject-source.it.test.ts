@@ -2,34 +2,12 @@ import {describe, it, expect} from 'vitest'
 import {mkdtempSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import {tmpdir} from 'node:os'
-import type {Plugin} from 'vite'
-import {addSourceToJsx} from '../src/core/inject-source.js'
-import {makeViteHook} from '../src/core/vite.js'
+import {addSourceToJsx} from '../src/inject-source.js'
 
 const ROOT = '/proj'
 
 const sourceValues = (code: string): string[] =>
   [...code.matchAll(/data-conciv-source="([^"]+)"/g)].map((m) => m[1] ?? '')
-
-function transformViaHook(peerPlugins: {name: string}[]): {code: string} | null {
-  const hook = makeViteHook({enabled: true})
-  const configResolved = hook.configResolved
-  if (typeof configResolved === 'function')
-    configResolved.call({} as never, {root: ROOT, plugins: peerPlugins} as never)
-  const transform = hook.transform
-  const run = typeof transform === 'function' ? transform : transform?.handler
-  if (!run) throw new Error('conciv plugin has no transform')
-  const result = run.call(
-    {} as never,
-    'export const A = () => <div>hi</div>\n',
-    `${ROOT}/src/App.tsx`,
-    undefined as never,
-  )
-  return result as {code: string} | null
-}
-
-const reactPlugin: Plugin = {name: 'vite:react'}
-const tsdInjectSource: Plugin = {name: '@tanstack/devtools:inject-source'}
 
 describe('addSourceToJsx', () => {
   it('stamps a host element with data-conciv-source="<relpath>:<line>:<col>"', () => {
@@ -100,17 +78,5 @@ describe('addSourceToJsx', () => {
 
     expect(sourceValues(server!.code)).toEqual(sourceValues(client!.code))
     expect(sourceValues(client!.code)).toContain('App.tsx:5:7')
-  })
-})
-
-describe('makeViteHook source injection', () => {
-  it('stamps data-conciv-source when no @tanstack/devtools source injector is present', () => {
-    const out = transformViaHook([reactPlugin])
-    expect(out?.code).toContain('data-conciv-source=')
-  })
-
-  it('defers to @tanstack/devtools (no data-conciv-source) when its inject-source plugin is present', () => {
-    const out = transformViaHook([reactPlugin, tsdInjectSource])
-    expect(out).toBeNull()
   })
 })

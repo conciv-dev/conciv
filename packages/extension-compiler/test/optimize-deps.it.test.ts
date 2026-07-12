@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {concivSolidConfig} from '../src/core/vite-plumbing.js'
+import {concivSolidConfig} from '../src/vite-plumbing.js'
 
 describe('vite optimizeDeps for the extension graph', () => {
   it('excludes the extension runtime and force-includes nothing', () => {

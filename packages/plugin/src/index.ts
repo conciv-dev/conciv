@@ -2,11 +2,11 @@ import {createUnplugin, type UnpluginInstance, type UnpluginOptions} from 'unplu
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {makeEngineBooter} from './core/boot.js'
 import {makeViteHook} from './core/vite.js'
-import {type Builtins, NO_BUILTINS} from './core/extensions.js'
+import {type Builtins, NO_BUILTINS} from '@conciv/extension-compiler/extensions'
 
-export type {Builtins} from './core/extensions.js'
-export {NO_BUILTINS} from './core/extensions.js'
-export {concivBuildPlugin} from './core/vite-plumbing.js'
+export type {Builtins} from '@conciv/extension-compiler/extensions'
+export {NO_BUILTINS} from '@conciv/extension-compiler/extensions'
+export {concivBuildPlugin} from '@conciv/extension-compiler/vite-plumbing'
 
 export function createConcivUnplugin(builtins: Builtins = NO_BUILTINS): UnpluginInstance<ConcivConfig | undefined> {
   return createUnplugin<ConcivConfig | undefined>((options = {}) => {

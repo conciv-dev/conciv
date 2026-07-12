@@ -1,0 +1,74 @@
+{
+  "name": "@conciv/extension-compiler",
+  "version": "0.0.7",
+  "description": "The vite build plumbing for conciv extension code: client/server splitting, Solid TSX compilation, JSX source stamping, and the extensions virtual module.",
+  "keywords": [
+    "conciv",
+    "extension",
+    "vite"
+  ],
+  "homepage": "https://conciv.dev",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/extension-compiler"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    "./vite-plumbing": {
+      "types": "./dist/vite-plumbing.d.ts",
+      "import": "./dist/vite-plumbing.js"
+    },
+    "./extensions": {
+      "types": "./dist/extensions.d.ts",
+      "import": "./dist/extensions.js"
+    },
+    "./inject-source": {
+      "types": "./dist/inject-source.d.ts",
+      "import": "./dist/inject-source.js"
+    },
+    "./compile-extension": {
+      "types": "./dist/compile-extension.d.ts",
+      "import": "./dist/compile-extension.js"
+    },
+    "./split-extension": {
+      "types": "./dist/split-extension.d.ts",
+      "import": "./dist/split-extension.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only"
+  },
+  "dependencies": {
+    "@babel/core": "^7.29.7",
+    "@babel/preset-typescript": "^7.29.7",
+    "@conciv/extension": "workspace:^",
+    "babel-dead-code-elimination": "^1.0.12",
+    "babel-preset-solid": "^1.9.12",
+    "jiti": "^2.7.0",
+    "magic-string": "^0.30.21",
+    "oxc-parser": "^0.127.0"
+  },
+  "devDependencies": {
+    "@types/babel__core": "^7.20.5",
+    "@types/node": "^22.19.21",
+    "tsdown": "^0.22.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vitest": "^4.1.8",
+    "zod": "^4.4.3"
+  }
+}

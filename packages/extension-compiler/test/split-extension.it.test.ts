@@ -1,6 +1,6 @@
 import {describe, it, expect} from 'vitest'
 import {scaffold} from '@conciv/extension/catalog'
-import {splitExtension} from '../src/core/split-extension.js'
+import {splitExtension} from '../src/split-extension.js'
 
 const ID = '/proj/conciv/extensions/canvas.tsx'
 

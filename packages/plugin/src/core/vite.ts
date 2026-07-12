@@ -9,13 +9,18 @@ import {viteConfig, viteResolve, viteGraph, viteTransform, viteUrls, type ViteLi
 import {EXTENSIONS_ROUTE, htmlTags, makeWidgetInject, type Middleware} from './widget-middleware.js'
 import {makeOpenInEditor} from './open-editor.js'
 import type {AnyExtension} from '@conciv/extension'
-import {type Builtins, EXTENSIONS_VIRTUAL_ID, NO_BUILTINS, loadServerExtensions} from './extensions.js'
+import {
+  type Builtins,
+  EXTENSIONS_VIRTUAL_ID,
+  NO_BUILTINS,
+  loadServerExtensions,
+} from '@conciv/extension-compiler/extensions'
 import {
   loadExtensionsModule,
   concivSolidConfig,
   resolveExtensionsModule,
   transformConcivModule,
-} from './vite-plumbing.js'
+} from '@conciv/extension-compiler/vite-plumbing'
 
 function makeViteBridge(server: ViteLike): BundlerBridge {
   return defineBundlerBridge({

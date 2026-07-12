@@ -37,7 +37,7 @@ export async function register(): Promise<void> {
     const options = JSON.parse(process.env.CONCIV_OPTIONS ?? '{}') as ConcivConfig
     if (options.enabled === false) return
     const {makeEngineBooter} = await import('./boot.js')
-    const {NO_BUILTINS} = await import('./extensions.js')
+    const {NO_BUILTINS} = await import('@conciv/extension-compiler/extensions')
     await makeEngineBooter(options, process.cwd(), NO_BUILTINS)()
   }
 }

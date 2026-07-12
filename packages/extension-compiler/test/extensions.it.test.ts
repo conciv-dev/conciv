@@ -3,7 +3,7 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {describe, expect, it} from 'vitest'
 import {defineExtension} from '@conciv/extension'
-import {extensionsModuleSource, loadServerExtensions} from '../src/core/extensions.js'
+import {extensionsModuleSource, loadServerExtensions} from '../src/extensions.js'
 
 const fixture = defineExtension({name: 'fixture-ext'})
 
