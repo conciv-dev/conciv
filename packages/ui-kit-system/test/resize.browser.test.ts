@@ -1,6 +1,6 @@
 import {createRoot} from 'solid-js'
 import {describe, expect, it} from 'vitest'
-import {createResizable, type Grow} from '../src/lib/resize.js'
+import {createResizable, type Grow} from '../src/resize.js'
 
 const press = (key: string): KeyboardEvent => new KeyboardEvent('keydown', {key, cancelable: true})
 

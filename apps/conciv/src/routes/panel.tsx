@@ -1,9 +1,8 @@
 import {Outlet, createFileRoute, useRouter} from '@tanstack/solid-router'
-import {FocusTrap} from '@conciv/ui-kit-system'
+import {FocusTrap, createResizable} from '@conciv/ui-kit-system'
 import {Show, type JSX} from 'solid-js'
 import type {TriggerPosition} from '@conciv/protocol/config-types'
 import {useFabPosition, useLayers, useSuppressed} from '../app/context.js'
-import {createResizable} from '../lib/resize.js'
 import {setShutter} from '../lib/shutter.js'
 
 const PANEL_POS: Record<TriggerPosition, string> = {

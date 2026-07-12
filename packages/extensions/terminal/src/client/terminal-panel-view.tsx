@@ -163,7 +163,7 @@ function TerminalSurface(props: {generation: number; themeHost: () => Element}):
         model={model}
         onBackToChat={() => leaveView()}
         class="flex-1 min-h-0"
-        rail={<MirrorRail apiBase={apiBase} sessionId={sessionId} ctx={railCtx()} />}
+        rail={<MirrorRail apiBase={apiBase} sessionId={sessionId} ctx={railCtx()} busy={model.busy} />}
       />
     </Show>
   )

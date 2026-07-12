@@ -13,7 +13,7 @@ export {FileRead, useFileRead} from './primitives/tools/file-read.js'
 export {FileEdit, useFileEdit, type FileEditDiff} from './primitives/tools/file-edit.js'
 export {Search, useSearch} from './primitives/tools/search.js'
 export {Todo, useTodo, type TodoItem, type TodoItemStatus} from './primitives/tools/todo.js'
-export {nowTitle} from './primitives/tools/now-title.js'
+export {nowTitle, humanToolName} from './primitives/tools/now-title.js'
 export {inlineValue, shortenPath, basename, truncate, SUMMARY_KEYS} from './primitives/tools/inline-tool.js'
 
 export {BashCard} from './styled/tools/bash-card.js'
