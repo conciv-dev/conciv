@@ -5,7 +5,11 @@
   "description": "The DOM half of the conciv page plane: page-query driver + handlers, react bridge, react-grab picking, overlays. Inlined by @conciv/embed; subscribes rpc.page.queries and replies with executed verbs.",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "conciv-src": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
   },
   "scripts": {
     "build": "tsdown",

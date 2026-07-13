@@ -19,7 +19,11 @@
   ],
   "type": "module",
   "exports": {
-    ".": "./src/grab.ts"
+    ".": {
+      "conciv-src": "./src/grab.ts",
+      "types": "./dist/grab.d.ts",
+      "import": "./dist/grab.js"
+    }
   },
   "publishConfig": {
     "exports": {

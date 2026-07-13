@@ -19,7 +19,11 @@
   ],
   "type": "module",
   "exports": {
-    ".": "./src/rig.ts"
+    ".": {
+      "conciv-src": "./src/rig.ts",
+      "types": "./dist/rig.d.ts",
+      "import": "./dist/rig.js"
+    }
   },
   "publishConfig": {
     "exports": {

@@ -25,7 +25,11 @@
   ],
   "type": "module",
   "exports": {
-    ".": "./src/index.tsx",
+    ".": {
+      "conciv-src": "./src/index.tsx",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
     "./theme/tokens.css": "./src/theme/tokens.css",
     "./theme/conciv.css": "./src/theme/conciv.css"
   },

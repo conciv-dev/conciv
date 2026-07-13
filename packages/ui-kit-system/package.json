@@ -23,8 +23,16 @@
   ],
   "type": "module",
   "exports": {
-    ".": "./src/index.tsx",
-    "./tokens": "./src/tokens.ts",
+    ".": {
+      "conciv-src": "./src/index.tsx",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./tokens": {
+      "conciv-src": "./src/tokens.ts",
+      "types": "./dist/tokens.d.ts",
+      "import": "./dist/tokens.js"
+    },
     "./tokens.css": "./src/tokens.css"
   },
   "publishConfig": {

@@ -1,5 +1,5 @@
 import {join} from 'node:path'
-import type {Plugin, ViteDevServer} from 'vite'
+import {defaultClientConditions, type Plugin, type ViteDevServer} from 'vite'
 import {defineBundlerBridge, type BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {Engine} from '@conciv/core/start'
 import {resolveConfig} from '@conciv/core/config'
@@ -109,7 +109,8 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
     apply: 'serve',
     enforce: 'pre',
     config() {
-      return concivSolidConfig()
+      const solid = concivSolidConfig()
+      return {...solid, resolve: {...solid.resolve, conditions: ['conciv-src', ...defaultClientConditions]}}
     },
     configResolved(config) {
       root = config.root
