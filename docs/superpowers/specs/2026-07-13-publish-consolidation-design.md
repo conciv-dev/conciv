@@ -51,9 +51,10 @@ share one copy (context singletons). Rule for every published dist:
 
 ## `@conciv/extension`
 
-- Inlines its internals (protocol, contract, grab, ui-kit-system) into dist.
+- Inlines its non-shared internals (protocol, contract, grab) into dist.
+- Gains subpath exports `./ui-system`, `./ui-chat`, `./ui-chat-tools`, `./ui-terminal`
+  bundling the ui-kit packages — the single shared copy for widget + all extensions (S1).
 - `solid-js` and `@ark-ui/solid` become peerDependencies.
-- Spike S1 decides ui-kit-system handling (see Spikes).
 
 ## `@conciv/extension-testkit`
 
@@ -63,20 +64,39 @@ share one copy (context singletons). Rule for every published dist:
   server, no version skew).
 - Heavy/native deps (playwright, node-pty, libSQL) stay external regular deps.
 
-## Spikes (before implementation)
+## Spikes — RESOLVED (2026-07-13)
 
-- **S1 — singleton boundary.** ui-kit-system inlines into both `it` and `extension`. If any
-  of its modules carry context shared between widget and extensions at runtime, two copies
-  split that context (mount-externals landmine). Spike verifies against the mount-externals
-  test; if shared, those modules move under `@conciv/extension` subpath exports and `it`
-  externalizes them too.
-- **S2 — testkit surface.** Enumerate what extension-testkit imports from `@conciv/core`
-  and friends; that list defines the new `@conciv/it` subpath export.
-- **S3 — changesets + private packages.** Verify the `fixed: [["@conciv/*"]]` group still
-  versions correctly when 25 members are private (changesets `privatePackages` config), or
-  drop privates from the fixed set.
-- **S4 — node import closure.** Trace node-runtime imports from `@conciv/it`'s and the
-  testkits' node entries; produces the definitive keep-dist vs src-only split.
+- **S1 — singleton boundary: shared UI rides `@conciv/extension` subpaths.** Context census:
+  `@conciv/extension` (host-context), `ui-kit-chat` (23 files), `ui-kit-chat-tools` (6),
+  `ui-kit-terminal` (1) carry Solid contexts; `ui-kit-system` carries none (its sharing
+  requirement comes from Ark, guarded by mount-externals). These four ui-kits must be ONE
+  copy across widget, first-party extensions, and third-party extensions — and they can't
+  inline into both `it` and `extension`. Mechanism: `@conciv/extension` gains subpath
+  exports (`./ui-system`, `./ui-chat`, `./ui-chat-tools`, `./ui-terminal`), each bundling
+  the corresponding workspace package. `it`'s widget mount and extension client chunks
+  externalize `@conciv/extension/*`; a publish-time alias rewrites `@conciv/ui-kit-chat` →
+  `@conciv/extension/ui-chat` etc., so workspace source keeps its current imports. The
+  compiler's existing `dedupe: ['@conciv/extension']` covers subpaths (name-level dedupe).
+  Third-party authors get typed npm imports for the same primitives. Context-free helpers
+  (solid-streamdown, solid-diffs, tools) inline into the single shared chunks. The
+  mount-externals test evolves to assert `@conciv/extension/ui-*` externalization.
+- **S2 — testkit surface is tiny.** extension-testkit's node-side needs are `{start}` from
+  `@conciv/core/start` plus extension-compiler plumbing (`concivSolidConfig`, virtual-module
+  helpers, `Builtins`/`NO_BUILTINS`) and harness-testkit glue (`makeCallTool`,
+  `resolveSession`). Compiler plumbing + harness-testkit inline into testkit's dist (node
+  glue, no contexts); only `@conciv/it/testkit-runtime` re-exporting `start` (+ types) is
+  needed from `it`.
+- **S3 — changesets works unchanged.** Verified empirically in a worktree: with 25 members
+  `private: true` and one changeset naming `@conciv/it`, `changeset version` bumps the whole
+  fixed group in lockstep (0.0.8 → 0.0.9), writes private changelogs, keeps `private` flags;
+  publish skips privates. No config change.
+- **S4 — node import closure is clean.** No node-side package (it, plugin, core, harness,
+  serve, db, tools, cli, contract, extension-compiler, harness-testkit, publish) imports any
+  browser-set package. First-party extensions already split at the export map: `.` = server
+  entry (node, keeps dist), `./client` = path resolved via `import.meta.resolve` and handed
+  to host vite (can be src). Embed is never node-imported — the plugin only needs its path —
+  so embed goes src-only in dev; its lib + global-bundle builds remain as publish/test
+  artifacts.
 
 ## Source exports for browser-side internals
 
@@ -91,13 +111,12 @@ A later spike evaluates nub (nubjs.com) as dev toolchain; if its hooks survive t
 
 Classification rule: a package keeps dist iff it is published, or any of its exports are
 imported by node at runtime — the plugin process, the core server, the CLI, or the testkits.
-The exact split is computed during planning by tracing the node-side import closure from
-`@conciv/it`'s and the testkits' node entries. Expected shape:
+Split (verified by S4 import-closure trace):
 
 - **Keep dist (node chain + published):** it, plugin, core, harness, serve, db, tools, cli,
   protocol, contract, extension, extension-compiler, extension-testkit, harness-testkit,
-  publish. First-party extensions keep dist for their server parts (loaded by node via the
-  builtins path); their client entries may move to src.
+  publish. First-party extensions keep dist for their server entry (`.`, node-imported via
+  the builtins path); their `./client` export moves to src (host vite compiles it).
 - **Src-only (browser):** embed (lib export; the `conciv-widget.global.js` vite build stays
   as a test/publish artifact), ui-kit-system, ui-kit-chat, ui-kit-chat-tools, ui-kit-tap,
   ui-kit-terminal, solid-diffs, solid-streamdown, mascot, client, page, grab,
@@ -125,7 +144,7 @@ and `pnpm test`'s build-first dependency shrinks to the node chain.
 
 ## Migration order
 
-1. Spikes S1–S4.
+1. ~~Spikes S1–S4~~ resolved, see above.
 2. `@conciv/it` bundling (tsdown, embed assets, bin, testkit-runtime export).
 3. `@conciv/extension` bundling.
 4. `@conciv/extension-testkit` public flip + peer wiring.
