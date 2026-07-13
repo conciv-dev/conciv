@@ -25,14 +25,19 @@
   ],
   "type": "module",
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    },
+    ".": "./src/index.tsx",
     "./theme/tokens.css": "./src/theme/tokens.css",
     "./theme/conciv.css": "./src/theme/conciv.css"
   },
   "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      },
+      "./theme/tokens.css": "./src/theme/tokens.css",
+      "./theme/conciv.css": "./src/theme/conciv.css"
+    },
     "access": "public"
   },
   "scripts": {
@@ -43,7 +48,7 @@
     "storybook": "storybook dev -p 6009",
     "build-storybook": "storybook build",
     "publint": "publint",
-    "attw": "attw --pack . --profile esm-only --exclude-entrypoints theme/tokens.css theme/conciv.css"
+    "attw": "conciv-publish attw --profile esm-only --exclude-entrypoints theme/tokens.css theme/conciv.css"
   },
   "dependencies": {
     "@ark-ui/solid": "^5.37.1",
@@ -58,6 +63,7 @@
   },
   "devDependencies": {
     "@chromatic-com/storybook": "^5.2.1",
+    "@conciv/publish": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@storybook/addon-a11y": "^10.4.4",
     "@storybook/addon-docs": "^10.4.4",

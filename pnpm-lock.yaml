@@ -1717,6 +1717,9 @@ importers:
       '@chromatic-com/storybook':
         specifier: ^5.2.1
         version: 5.2.1(storybook@10.4.4(@testing-library/dom@10.4.1)(@types/react@19.2.17)(prettier@3.9.4)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))
+      '@conciv/publish':
+        specifier: workspace:*
+        version: link:../publish
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../uno-preset
@@ -1811,6 +1814,9 @@ importers:
       '@chromatic-com/storybook':
         specifier: ^5.2.1
         version: 5.2.1(storybook@10.4.4(@testing-library/dom@10.4.1)(@types/react@19.2.17)(prettier@3.9.4)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))
+      '@conciv/publish':
+        specifier: workspace:*
+        version: link:../publish
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../uno-preset
@@ -1978,6 +1984,9 @@ importers:
       '@chromatic-com/storybook':
         specifier: ^5.2.1
         version: 5.2.1(storybook@10.4.4(@testing-library/dom@10.4.1)(@types/react@19.2.17)(prettier@3.9.4)(react-dom@19.2.7(react@19.2.7))(react@19.2.7))
+      '@conciv/publish':
+        specifier: workspace:*
+        version: link:../publish
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../uno-preset
@@ -2051,6 +2060,9 @@ importers:
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../harness-testkit
+      '@conciv/publish':
+        specifier: workspace:*
+        version: link:../publish
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../uno-preset
