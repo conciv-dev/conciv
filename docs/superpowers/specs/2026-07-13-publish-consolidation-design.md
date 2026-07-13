@@ -98,16 +98,22 @@ share one copy (context singletons). Rule for every published dist:
   so embed goes src-only in dev; its lib + global-bundle builds remain as publish/test
   artifacts.
 
-## Source exports for browser-side internals
+## Source exports for browser-side internals — SPLIT INTO PROJECT B
 
-Private packages whose code only ever runs through a bundler (host vite in dev, embed's
-vite build, tsdown at publish) stop building: `exports` point at `./src/*.ts(x)` and their
-build scripts are deleted. Packages loaded by plain node at runtime keep dist, because the
-plugin's process does `await import('@conciv/core/start')` and node cannot import raw TS
-(the repo's `./x.js` specifier convention rules out node's native type stripping; runtime
-TS loaders were considered and deferred — no jiti branch in plugin, no toolchain swap now.
-A later spike evaluates nub (nubjs.com) as dev toolchain; if its hooks survive the
-`turbo → vite` child-process chain, the node-chain dist builds can go too).
+Original intent: browser packages export `./src` and stop building. Blocker found while
+planning: in dev the HOST app's vite is the bundler for browser packages (embed's
+`dist/mount.js` externalizes all `@conciv/*`), and host apps have no solid-tsx compiler and
+no uno/postcss pipeline — raw `.tsx` exports break dev and lose widget styles.
+
+Decision (2026-07-13): the conciv plugin will learn to compile `@conciv` source in any host
+(solid transform + style pipeline). That is **Project B** with its own spec, spike round
+(solid transform scope, uno/shadow-style pipeline, HMR, cold-start perf), and plan. This
+migration (Project A) ships with dist exports unchanged; B flips browser packages to src
+exports when it lands. Node-side packages keep dist regardless — node cannot import raw TS
+with the repo's `./x.js` specifier convention; a later nub (nubjs.com) spike may lift that.
+
+Classification below still matters for A: it defines which packages' dist `it` bundles
+from, and B's future src flip only touches the browser set.
 
 Classification rule: a package keeps dist iff it is published, or any of its exports are
 imported by node at runtime — the plugin process, the core server, the CLI, or the testkits.
@@ -149,9 +155,11 @@ and `pnpm test`'s build-first dependency shrinks to the node chain.
 3. `@conciv/extension` bundling.
 4. `@conciv/extension-testkit` public flip + peer wiring.
 5. Flip 25 packages `private: true`; update guards, changesets config, fallow config.
-6. Src exports for browser-side internals (per S4 split); delete their build scripts.
-7. Packed-install smoke in CI; extend `release:check`.
-8. Docs.
+6. Packed-install smoke in CI; extend `release:check`.
+7. Docs.
+
+Project B (separate spec + plan, after A): plugin-side compilation of `@conciv` source in
+host dev, then src exports for the browser set.
 
 ## Out of scope
 
