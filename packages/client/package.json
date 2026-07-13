@@ -20,12 +20,15 @@
   ],
   "type": "module",
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    }
+    ".": "./src/index.ts"
   },
   "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      }
+    },
     "access": "public"
   },
   "scripts": {
@@ -34,7 +37,7 @@
     "lint": "oxlint",
     "test": "vitest run",
     "publint": "publint",
-    "attw": "attw --pack . --profile esm-only"
+    "attw": "conciv-publish attw --profile esm-only"
   },
   "dependencies": {
     "@conciv/contract": "workspace:^",
@@ -49,6 +52,7 @@
     "@conciv/core": "workspace:^",
     "@conciv/harness": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
+    "@conciv/publish": "workspace:*",
     "@tanstack/ai-client": "^0.20.0",
     "@tanstack/solid-query": "^5.101.2",
     "tsdown": "^0.22.4",

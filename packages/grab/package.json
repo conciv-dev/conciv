@@ -19,12 +19,15 @@
   ],
   "type": "module",
   "exports": {
-    ".": {
-      "types": "./dist/grab.d.ts",
-      "import": "./dist/grab.js"
-    }
+    ".": "./src/grab.ts"
   },
   "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/grab.d.ts",
+        "import": "./dist/grab.js"
+      }
+    },
     "access": "public"
   },
   "scripts": {
@@ -33,9 +36,10 @@
     "lint": "oxlint",
     "test": "vitest run --passWithNoTests",
     "publint": "publint",
-    "attw": "attw --pack . --profile esm-only"
+    "attw": "conciv-publish attw --profile esm-only"
   },
   "devDependencies": {
+    "@conciv/publish": "workspace:*",
     "tsdown": "^0.22.4",
     "typescript": "^6.0.3"
   }

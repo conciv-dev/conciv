@@ -496,6 +496,9 @@ importers:
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../harness-testkit
+      '@conciv/publish':
+        specifier: workspace:*
+        version: link:../publish
       '@tanstack/ai-client':
         specifier: ^0.20.0
         version: 0.20.0(@opentelemetry/api@1.9.1)
@@ -1199,6 +1202,9 @@ importers:
 
   packages/grab:
     devDependencies:
+      '@conciv/publish':
+        specifier: workspace:*
+        version: link:../publish
       tsdown:
         specifier: ^0.22.4
         version: 0.22.4(@arethetypeswrong/core@0.18.3)(oxc-resolver@11.20.0)(publint@0.3.21)(tsx@4.22.4)(typescript@6.0.3)
@@ -1655,6 +1661,9 @@ importers:
         specifier: ^1.162.0
         version: 1.162.0
     devDependencies:
+      '@conciv/publish':
+        specifier: workspace:*
+        version: link:../publish
       tsdown:
         specifier: ^0.22.4
         version: 0.22.4(@arethetypeswrong/core@0.18.3)(oxc-resolver@11.20.0)(publint@0.3.21)(tsx@4.22.4)(typescript@6.0.3)
