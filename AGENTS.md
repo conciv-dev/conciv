@@ -24,8 +24,15 @@ README.md; this file is the non-obvious operational rules.
 - Commit hooks: `prek` (devDep `@j178/prek`, config `.pre-commit-config.yaml`) runs oxfmt + oxlint on
   staged files. `pnpm install` auto-activates the hook via the `prepare` script — no per-clone step.
   Whole-project gates (typecheck/build/test) are not in hooks — run them manually.
-- Dev loop (`pnpm dev`): widget/UI edits only need a browser hard reload; edits to core, harness, or
-  tool packages need the dev server restarted — a reload alone runs stale server code.
+- Dev loop (`pnpm dev`): ui-kit/solid-lib/data-layer packages hot-serve from source in vite hosts —
+  edit and reload, no rebuild. Mechanism: their exports carry a `conciv-src` condition (src) with
+  dist fallback; the conciv vite plugin and `tsconfig.base.json` `customConditions` opt in, every
+  other resolver (Turbopack in the nextjs example, plain node) gets dist. `@conciv/embed` itself
+  and node-side packages (core, harness, tools, plugin) still resolve dist: rebuild embed for
+  widget-shell edits, restart the dev server for server-side edits. After changing any package's
+  `exports` map, `rm -rf <app>/node_modules/.vite` or vite 504s with "Outdated Optimize Dep". NEW
+  UnoCSS utility classes added in ui-kit src need an embed rebuild to appear (css is generated at
+  embed build).
 - On large commits the prek hook can abort with a `next-index-*.lock.lock` error (file-lock race).
   Recover by running `pnpm format` manually, then `git commit --no-verify`.
 - Never kill a dev server with `kill $(lsof -ti tcp:PORT)` — that also matches the user's connected

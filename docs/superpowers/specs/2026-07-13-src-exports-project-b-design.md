@@ -1,7 +1,15 @@
 # Src Exports for Browser Internals (Project B): Spike Round
 
-**Status:** S1 + S2 PASS, S4 partial, S6 hazard confirmed (2026-07-13, results inline). S3/S5 open.
-Ready for a plan. Project A (publish consolidation) was rejected; B stands alone.
+**Status:** implemented for the 12-package browser set (plan
+`docs/superpowers/plans/2026-07-13-src-exports-browser-set.md`). Deviation from the plan found in
+execution: plain src exports broke the Next example, whose Turbopack bundles embed via
+`instrumentation-client.ts` and cannot resolve NodeNext `./x.js` specifiers against `.tsx` src nor
+solid-compile it. Final shape: exports carry a `conciv-src` condition (src) with the dist map as
+fallback; the conciv vite plugin (`resolve.conditions`) and `tsconfig.base.json`
+(`customConditions`) opt in, every other resolver gets dist. Published manifests still dist-only
+via `publishConfig.exports`. Follow-up: serve the widget bundle from the engine for non-vite hosts
+(https://github.com/conciv-dev/conciv/issues/59). Still open: S3 (uno pipeline → embed src flip),
+extensions `./client` exports, cold-start measurement (S4).
 
 **Goal:** browser-set packages export `./src/*.ts(x)` in the workspace and stop building in dev.
 Published tarballs stay dist-only via `publishConfig.exports` (pnpm rewrites the manifest at pack
