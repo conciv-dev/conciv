@@ -159,7 +159,8 @@ and `pnpm test`'s build-first dependency shrinks to the node chain.
 7. Docs.
 
 Project B (separate spec + plan, after A): plugin-side compilation of `@conciv` source in
-host dev, then src exports for the browser set.
+host dev, then src exports for the browser set. Spike round:
+`2026-07-13-src-exports-project-b-design.md`.
 
 ## Out of scope
 
