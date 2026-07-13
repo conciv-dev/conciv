@@ -1,7 +1,7 @@
 {
   "name": "@conciv/extension-whiteboard",
   "version": "0.0.8",
-  "description": "The whiteboard built-in extension: an Excalidraw canvas the user and the AI share over the dev app, with source-anchored comments and pins, running on a local drizzle/libSQL db with an SSE-fed TanStack DB client on the @conciv/extension contract.",
+  "description": "Internal to @conciv/it (installed automatically, do not install directly). The whiteboard built-in extension: an Excalidraw canvas the user and the AI share over the dev app, with source-anchored comments and pins, running on a local drizzle/libSQL db with an SSE-fed TanStack DB client on the @conciv/extension contract.",
   "keywords": [
     "ai",
     "canvas",

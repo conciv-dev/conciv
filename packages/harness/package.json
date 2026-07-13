@@ -1,7 +1,7 @@
 {
   "name": "@conciv/harness",
   "version": "0.0.8",
-  "description": "Harness adapters (claude, codex, + stubs) behind the @conciv/protocol HarnessAdapter contract.",
+  "description": "Internal to @conciv/it (installed automatically, do not install directly). Harness adapters (claude, codex, + stubs) behind the @conciv/protocol HarnessAdapter contract.",
   "keywords": [
     "ai",
     "claude",
