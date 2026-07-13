@@ -8,8 +8,11 @@ if (!import.meta.env.SSR) gsap.registerPlugin(ScrollTrigger)
 const prefersReducedMotion = () =>
   typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
 
+const isFirefox = () => typeof navigator === 'object' && navigator.userAgent.includes('Firefox')
+
 export function SmoothScroll({children}: {children: ReactNode}) {
   const [reduced] = useState(prefersReducedMotion)
+  const [nativeWheel] = useState(isFirefox)
 
   const attach = (ref: LenisRef | null) => {
     const lenis = ref?.lenis
@@ -24,7 +27,7 @@ export function SmoothScroll({children}: {children: ReactNode}) {
   }
 
   return (
-    <ReactLenis root options={{autoRaf: false, smoothWheel: !reduced}} ref={attach}>
+    <ReactLenis root options={{autoRaf: false, smoothWheel: !reduced && !nativeWheel}} ref={attach}>
       {children}
     </ReactLenis>
   )
