@@ -24,18 +24,11 @@
   "type": "module",
   "exports": {
     ".": {
-      "conciv-src": "./src/index.tsx",
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     }
   },
   "publishConfig": {
-    "exports": {
-      ".": {
-        "types": "./dist/index.d.ts",
-        "import": "./dist/index.js"
-      }
-    },
     "access": "public"
   },
   "scripts": {
@@ -46,7 +39,7 @@
     "storybook": "storybook dev -p 6009",
     "build-storybook": "storybook build",
     "publint": "publint",
-    "attw": "conciv-publish attw --profile esm-only"
+    "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
     "@conciv/ui-kit-system": "workspace:*",
@@ -60,7 +53,6 @@
   },
   "devDependencies": {
     "@chromatic-com/storybook": "^5.2.1",
-    "@conciv/publish": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@storybook/addon-a11y": "^10.4.4",
     "@storybook/addon-docs": "^10.4.4",

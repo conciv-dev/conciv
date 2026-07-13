@@ -1,5 +1,5 @@
 ---
-'@conciv/ui-kit-system': patch
+'@conciv/plugin': patch
 ---
 
-Workspace dev resolution now serves browser-set packages from src; published tarballs unchanged (dist via publishConfig.exports).
+The vite plugin serves workspace `@conciv` browser packages from src in dev (resolveId src probe + solid compile); published manifests and tarballs unchanged.

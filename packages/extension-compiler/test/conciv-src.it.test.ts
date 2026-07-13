@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
 import {fileURLToPath} from 'node:url'
-import {isConcivSrcTsx} from '../src/conciv-src.js'
+import {concivSrcEntry, isConcivSrcTsx} from '../src/conciv-src.js'
 import {transformConcivModule} from '../src/vite-plumbing.js'
 
 const fixture = (rel: string) => fileURLToPath(new URL(`./fixtures/conciv-src/${rel}`, import.meta.url))
@@ -29,6 +29,29 @@ describe('isConcivSrcTsx', () => {
 
   it('rejects anything under node_modules', () => {
     expect(isConcivSrcTsx(`/repo/node_modules/@conciv/x/src/a.tsx`)).toBe(false)
+  })
+})
+
+describe('concivSrcEntry', () => {
+  it('maps a dist entry to its tsx source sibling', () => {
+    expect(concivSrcEntry(fixture('scoped/dist/index.js'))).toBe(fixture('scoped/src/index.tsx'))
+  })
+
+  it('maps a dist entry to its ts source sibling', () => {
+    expect(concivSrcEntry(fixture('scoped/dist/tokens.js'))).toBe(fixture('scoped/src/tokens.ts'))
+  })
+
+  it('returns null when no source sibling exists', () => {
+    expect(concivSrcEntry(fixture('scoped/dist/nope.js'))).toBeNull()
+  })
+
+  it('returns null for paths outside dist', () => {
+    expect(concivSrcEntry(fixture('scoped/src/index.tsx'))).toBeNull()
+    expect(concivSrcEntry(fixture('scoped/package.json'))).toBeNull()
+  })
+
+  it('returns null under node_modules', () => {
+    expect(concivSrcEntry('/repo/node_modules/@conciv/x/dist/index.js')).toBeNull()
   })
 })
 

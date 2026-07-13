@@ -1,6 +1,8 @@
 import {addSourceToJsx} from './inject-source.js'
 import {compileExtensionSolid, isExtensionModule} from './compile-extension.js'
 import {isConcivSrcTsx} from './conciv-src.js'
+
+export {concivSrcEntry} from './conciv-src.js'
 import {splitExtension} from './split-extension.js'
 import {EXTENSIONS_RESOLVED_ID, EXTENSIONS_VIRTUAL_ID, extensionsModuleSource} from './extensions.js'
 

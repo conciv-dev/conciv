@@ -1,7 +1,4 @@
 #!/usr/bin/env node
-import {mkdtemp, rm} from 'node:fs/promises'
-import {tmpdir} from 'node:os'
-import {join} from 'node:path'
 import {defineCommand, runMain} from 'citty'
 import {execa} from 'execa'
 import {findRoot} from './workspace-root.ts'
@@ -56,23 +53,9 @@ const snapshot = defineCommand({
   },
 })
 
-const attw = defineCommand({
-  meta: {name: 'attw', description: 'Run attw against a pnpm-packed tarball (applies publishConfig overrides)'},
-  async run({rawArgs}) {
-    const dir = await mkdtemp(join(tmpdir(), 'conciv-attw-'))
-    const tarball = join(dir, 'package.tgz')
-    try {
-      await execa('pnpm', ['pack', '--out', tarball], {cwd: process.cwd(), stdio: 'inherit'})
-      await execa('pnpm', ['exec', 'attw', tarball, ...rawArgs], {cwd: process.cwd(), stdio: 'inherit'})
-    } finally {
-      await rm(dir, {recursive: true, force: true})
-    }
-  },
-})
-
 const main = defineCommand({
   meta: {name: 'conciv-publish', description: 'Release tooling for the aidx monorepo'},
-  subCommands: {version, check, release, snapshot, attw},
+  subCommands: {version, check, release, snapshot},
 })
 
 runMain(main)

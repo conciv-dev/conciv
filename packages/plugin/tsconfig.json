@@ -1,5 +1,5 @@
 {
   "extends": "../../tsconfig.base.json",
-  "compilerOptions": {"rootDir": ".", "noEmit": true, "lib": ["ES2023", "DOM"], "types": ["node"]},
+  "compilerOptions": {"rootDir": ".", "noEmit": true, "lib": ["ES2023"], "types": ["node"]},
   "include": ["src/**/*.ts", "test/**/*.ts"]
 }

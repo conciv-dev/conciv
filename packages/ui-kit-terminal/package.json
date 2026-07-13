@@ -24,18 +24,11 @@
   "type": "module",
   "exports": {
     ".": {
-      "conciv-src": "./src/index.tsx",
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     }
   },
   "publishConfig": {
-    "exports": {
-      ".": {
-        "types": "./dist/index.d.ts",
-        "import": "./dist/index.js"
-      }
-    },
     "access": "public"
   },
   "scripts": {
@@ -44,7 +37,7 @@
     "lint": "oxlint",
     "test": "vitest run",
     "publint": "publint",
-    "attw": "conciv-publish attw --profile esm-only"
+    "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
     "@conciv/protocol": "workspace:^",
@@ -53,7 +46,6 @@
   },
   "devDependencies": {
     "@conciv/harness-testkit": "workspace:^",
-    "@conciv/publish": "workspace:*",
     "@conciv/uno-preset": "workspace:*",
     "@types/node": "^22.19.21",
     "@vitest/browser-playwright": "4.1.9",

@@ -1,5 +1,5 @@
 import {join} from 'node:path'
-import {defaultClientConditions, type Plugin, type ViteDevServer} from 'vite'
+import type {Plugin, ViteDevServer} from 'vite'
 import {defineBundlerBridge, type BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {Engine} from '@conciv/core/start'
 import {resolveConfig} from '@conciv/core/config'
@@ -18,6 +18,7 @@ import {
 import {
   loadExtensionsModule,
   concivSolidConfig,
+  concivSrcEntry,
   resolveExtensionsModule,
   transformConcivModule,
 } from '@conciv/extension-compiler/vite-plumbing'
@@ -109,15 +110,20 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
     apply: 'serve',
     enforce: 'pre',
     config() {
-      const solid = concivSolidConfig()
-      return {...solid, resolve: {...solid.resolve, conditions: ['conciv-src', ...defaultClientConditions]}}
+      return concivSolidConfig()
     },
     configResolved(config) {
       root = config.root
       deferToTsd = config.plugins.some((p) => p.name === '@tanstack/devtools:inject-source')
     },
-    resolveId(id) {
-      return resolveExtensionsModule(id)
+    async resolveId(id, importer) {
+      const virtual = resolveExtensionsModule(id)
+      if (virtual) return virtual
+      if (!id.startsWith('@conciv/')) return null
+      if (id === '@conciv/extension' || id.startsWith('@conciv/extension/')) return null
+      const resolved = await this.resolve(id, importer, {skipSelf: true})
+      if (!resolved) return null
+      return concivSrcEntry(resolved.id)
     },
     load(id) {
       return loadExtensionsModule(id, builtins.clientEntries, apiBase, builtins.embedEntry)

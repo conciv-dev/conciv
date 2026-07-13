@@ -20,18 +20,11 @@
   "type": "module",
   "exports": {
     ".": {
-      "conciv-src": "./src/rig.ts",
       "types": "./dist/rig.d.ts",
       "import": "./dist/rig.js"
     }
   },
   "publishConfig": {
-    "exports": {
-      ".": {
-        "types": "./dist/rig.d.ts",
-        "import": "./dist/rig.js"
-      }
-    },
     "access": "public"
   },
   "scripts": {
@@ -40,13 +33,12 @@
     "lint": "oxlint",
     "test": "vitest run --passWithNoTests",
     "publint": "publint",
-    "attw": "conciv-publish attw --profile esm-only"
+    "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
     "gsap": "^3.15.0"
   },
   "devDependencies": {
-    "@conciv/publish": "workspace:*",
     "tsdown": "^0.22.4",
     "typescript": "^6.0.3"
   }

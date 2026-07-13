@@ -1,4 +1,4 @@
-import {readFileSync} from 'node:fs'
+import {existsSync, readFileSync} from 'node:fs'
 import {dirname, join} from 'node:path'
 
 const nameCache = new Map<string, string | null>()
@@ -26,6 +26,16 @@ function packageNameFor(dir: string): string | null {
 }
 
 const isConcivName = (name: string) => name === 'conciv' || name.startsWith('@conciv/')
+
+export function concivSrcEntry(resolvedPath: string): string | null {
+  if (resolvedPath.includes('node_modules')) return null
+  if (!resolvedPath.endsWith('.js')) return null
+  const marker = resolvedPath.lastIndexOf('/dist/')
+  if (marker === -1) return null
+  const stem = resolvedPath.slice(marker + '/dist/'.length, -'.js'.length)
+  const srcStem = `${resolvedPath.slice(0, marker)}/src/${stem}`
+  return [`${srcStem}.tsx`, `${srcStem}.ts`].find((candidate) => existsSync(candidate)) ?? null
+}
 
 export function isConcivSrcTsx(id: string): boolean {
   const file = id.split('?')[0] ?? id
