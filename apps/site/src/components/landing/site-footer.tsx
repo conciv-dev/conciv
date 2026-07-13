@@ -44,7 +44,6 @@ export function SiteFooter() {
         src="/radiant/ink-dissolve.html"
         title=""
         aria-hidden
-        loading="lazy"
         tabIndex={-1}
         sandbox="allow-scripts"
         className="od-footer-shader pointer-events-none absolute inset-0 size-full border-0 opacity-25 [mask-image:linear-gradient(200deg,transparent_35%,#000_78%)]"

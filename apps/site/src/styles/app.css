@@ -224,16 +224,29 @@ html > body[data-scroll-locked] {
 
 .od-grab-pill {
   position: relative;
-  --od-glow: 0;
 }
+/* idle pulse animates opacity only, so it runs on the compositor and throttles offscreen */
 .od-grab-pill::after {
   content: '';
   position: absolute;
   inset: 0;
   border-radius: inherit;
   box-shadow: 0 0 0 5px var(--od-accent-soft);
-  opacity: var(--od-glow, 0);
+  opacity: 0;
   pointer-events: none;
+}
+.od-grab-pill-pulse::after {
+  animation: od-pill-pulse 1.9s ease-in-out infinite;
+}
+@keyframes od-pill-pulse {
+  50% {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .od-grab-pill-pulse::after {
+    animation: none;
+  }
 }
 
 /* the sample app's "Get started" button, shared by the preview + the grabbed-reference render */

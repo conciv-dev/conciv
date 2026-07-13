@@ -37,7 +37,6 @@ interface LogoLoopProps {
 }
 
 const ANIMATION_CONFIG = {
-  SMOOTH_TAU: 0.25,
   MIN_COPIES: 2,
   COPY_HEADROOM: 2,
 } as const
@@ -112,10 +111,7 @@ const useAnimationLoop = (
   hoverSpeed: number | undefined,
   isVertical: boolean,
 ) => {
-  const rafRef = useRef<number | null>(null)
-  const lastTimestampRef = useRef<number | null>(null)
-  const offsetRef = useRef(0)
-  const velocityRef = useRef(0)
+  const progressRef = useRef(0)
 
   useEffect(() => {
     const track = trackRef.current
@@ -127,57 +123,39 @@ const useAnimationLoop = (
       window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
     const seqSize = isVertical ? seqHeight : seqWidth
-
-    if (seqSize > 0) {
-      offsetRef.current = ((offsetRef.current % seqSize) + seqSize) % seqSize
-      const transformValue = isVertical
-        ? `translate3d(0, ${-offsetRef.current}px, 0)`
-        : `translate3d(${-offsetRef.current}px, 0, 0)`
-      track.style.transform = transformValue
-    }
+    if (seqSize <= 0) return
 
     if (prefersReduced) {
-      track.style.transform = isVertical ? 'translate3d(0, 0, 0)' : 'translate3d(0, 0, 0)'
-      return () => {
-        lastTimestampRef.current = null
-      }
+      track.style.transform = 'translate3d(0, 0, 0)'
+      return
     }
 
-    const animate = (timestamp: number) => {
-      if (lastTimestampRef.current === null) {
-        lastTimestampRef.current = timestamp
-      }
+    const baseSpeed = Math.abs(targetVelocity)
+    if (baseSpeed === 0) return
 
-      const deltaTime = Math.max(0, timestamp - lastTimestampRef.current) / 1000
-      lastTimestampRef.current = timestamp
+    const target = isHovered && hoverSpeed !== undefined ? hoverSpeed : targetVelocity
+    const duration = (seqSize / baseSpeed) * 1000
+    const shifted = isVertical ? `translate3d(0, ${-seqSize}px, 0)` : `translate3d(${-seqSize}px, 0, 0)`
+    const keyframes =
+      target < 0
+        ? [{transform: shifted}, {transform: 'translate3d(0, 0, 0)'}]
+        : [{transform: 'translate3d(0, 0, 0)'}, {transform: shifted}]
+    const animation = track.animate(keyframes, {duration, iterations: Infinity})
+    animation.currentTime = progressRef.current * duration
+    animation.playbackRate = Math.abs(target) / baseSpeed
 
-      const target = isHovered && hoverSpeed !== undefined ? hoverSpeed : targetVelocity
-
-      const easingFactor = 1 - Math.exp(-deltaTime / ANIMATION_CONFIG.SMOOTH_TAU)
-      velocityRef.current += (target - velocityRef.current) * easingFactor
-
-      if (seqSize > 0) {
-        let nextOffset = offsetRef.current + velocityRef.current * deltaTime
-        nextOffset = ((nextOffset % seqSize) + seqSize) % seqSize
-        offsetRef.current = nextOffset
-
-        const transformValue = isVertical
-          ? `translate3d(0, ${-offsetRef.current}px, 0)`
-          : `translate3d(${-offsetRef.current}px, 0, 0)`
-        track.style.transform = transformValue
-      }
-
-      rafRef.current = requestAnimationFrame(animate)
-    }
-
-    rafRef.current = requestAnimationFrame(animate)
+    const observer = new IntersectionObserver((entries) => {
+      const entry = entries[entries.length - 1]
+      if (entry?.isIntersecting) animation.play()
+      else animation.pause()
+    })
+    observer.observe(track)
 
     return () => {
-      if (rafRef.current !== null) {
-        cancelAnimationFrame(rafRef.current)
-        rafRef.current = null
-      }
-      lastTimestampRef.current = null
+      observer.disconnect()
+      const time = Number(animation.currentTime ?? 0)
+      progressRef.current = (((time % duration) + duration) % duration) / duration
+      animation.cancel()
     }
   }, [trackRef, targetVelocity, seqWidth, seqHeight, isHovered, hoverSpeed, isVertical])
 }

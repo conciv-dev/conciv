@@ -40,7 +40,7 @@
   <body>
     <canvas id="canvas"></canvas>
     <script>
-      ;(function () {
+      function init() {
         var canvas = document.getElementById('canvas')
         var prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
@@ -279,8 +279,8 @@
         var mouseActive = false
 
         canvas.addEventListener('mousemove', function (e) {
-          mouseX = e.clientX * Math.min(window.devicePixelRatio || 1, 2)
-          mouseY = (canvas.clientHeight - e.clientY) * Math.min(window.devicePixelRatio || 1, 2)
+          mouseX = e.clientX * dpr
+          mouseY = (canvas.clientHeight - e.clientY) * dpr
           mouseActive = true
         })
         canvas.addEventListener('mouseleave', function () {
@@ -290,8 +290,8 @@
           'touchstart',
           function (e) {
             var t = e.touches[0]
-            mouseX = t.clientX * Math.min(window.devicePixelRatio || 1, 2)
-            mouseY = (canvas.clientHeight - t.clientY) * Math.min(window.devicePixelRatio || 1, 2)
+            mouseX = t.clientX * dpr
+            mouseY = (canvas.clientHeight - t.clientY) * dpr
             mouseActive = true
           },
           {passive: true},
@@ -301,8 +301,8 @@
           function (e) {
             e.preventDefault()
             var t = e.touches[0]
-            mouseX = t.clientX * Math.min(window.devicePixelRatio || 1, 2)
-            mouseY = (canvas.clientHeight - t.clientY) * Math.min(window.devicePixelRatio || 1, 2)
+            mouseX = t.clientX * dpr
+            mouseY = (canvas.clientHeight - t.clientY) * dpr
             mouseActive = true
           },
           {passive: false},
@@ -311,7 +311,7 @@
           mouseActive = false
         })
 
-        var dpr = Math.min(window.devicePixelRatio || 1, 2)
+        var dpr = Math.min(window.devicePixelRatio || 1, 1)
         var needsResize = true
 
         // ── Resize ──
@@ -328,7 +328,8 @@
         }
 
         // ── Animation ──
-        var lastTime = 0
+        var FRAME_INTERVAL = 1000 / 30
+        var lastDraw = 0
         var paused = false
 
         var rafId = 0
@@ -339,8 +340,11 @@
             return
           }
 
-          if (lastTime === 0) lastTime = now
-          lastTime = now
+          if (now - lastDraw < FRAME_INTERVAL) {
+            rafId = requestAnimationFrame(render)
+            return
+          }
+          lastDraw = now
           if (needsResize) resize()
 
           // Smooth mouse toward target or back to inactive (-1,-1)
@@ -380,7 +384,7 @@
         function applyPause() {
           paused = hidden || offscreen
           if (!paused) {
-            lastTime = 0
+            lastDraw = 0
             if (rafId === 0) rafId = requestAnimationFrame(render)
           }
         }
@@ -409,7 +413,10 @@
             }
           }
         })
-      })()
+      }
+
+      if ('requestIdleCallback' in window) requestIdleCallback(init, {timeout: 2000})
+      else setTimeout(init, 1)
     </script>
   </body>
 </html>

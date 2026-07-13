@@ -87,22 +87,6 @@ export function Demo() {
 
   useGSAP(
     () => {
-      if (reduced() || !grabRef.current) return
-      if (state.picking || state.grabbed) return
-      const tween = gsap.to(grabRef.current, {
-        boxShadow: '0 0 0 5px var(--od-accent-soft)',
-        repeat: -1,
-        yoyo: true,
-        duration: 0.95,
-        ease: 'sine.inOut',
-      })
-      return () => tween.kill()
-    },
-    {scope, dependencies: [state.picking, state.grabbed?.id]},
-  )
-
-  useGSAP(
-    () => {
       if (!viewportRef.current) return
       const viewport = viewportRef.current.closest('[data-slot="scroll-area-viewport"]') as HTMLElement | null
       if (!reduced()) {

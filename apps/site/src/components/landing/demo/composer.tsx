@@ -6,6 +6,13 @@ import {cn} from '@/lib/utils'
 import {GrabReference} from './grab-reference'
 import type {Pickable} from './demo-data'
 
+const pillClass = (picking: boolean, grabbed: boolean) =>
+  cn(
+    'od-grab-pill gap-1.5',
+    picking && 'ring-2 ring-primary ring-offset-2',
+    !picking && !grabbed && 'od-grab-pill-pulse',
+  )
+
 export function Composer({
   grabbed,
   picking,
@@ -44,7 +51,7 @@ export function Composer({
             type="button"
             onClick={onArm}
             size="sm"
-            className={cn('od-grab-pill gap-1.5', picking && 'ring-2 ring-primary ring-offset-2')}
+            className={pillClass(picking, grabbed !== null)}
           >
             <Crosshair className="size-4" />
             Grab element
