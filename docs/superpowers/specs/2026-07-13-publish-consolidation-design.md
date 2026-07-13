@@ -75,6 +75,36 @@ share one copy (context singletons). Rule for every published dist:
 - **S3 — changesets + private packages.** Verify the `fixed: [["@conciv/*"]]` group still
   versions correctly when 25 members are private (changesets `privatePackages` config), or
   drop privates from the fixed set.
+- **S4 — node import closure.** Trace node-runtime imports from `@conciv/it`'s and the
+  testkits' node entries; produces the definitive keep-dist vs src-only split.
+
+## Source exports for browser-side internals
+
+Private packages whose code only ever runs through a bundler (host vite in dev, embed's
+vite build, tsdown at publish) stop building: `exports` point at `./src/*.ts(x)` and their
+build scripts are deleted. Packages loaded by plain node at runtime keep dist, because the
+plugin's process does `await import('@conciv/core/start')` and node cannot import raw TS
+(the repo's `./x.js` specifier convention rules out node's native type stripping; runtime
+TS loaders were considered and deferred — no jiti branch in plugin, no toolchain swap now.
+A later spike evaluates nub (nubjs.com) as dev toolchain; if its hooks survive the
+`turbo → vite` child-process chain, the node-chain dist builds can go too).
+
+Classification rule: a package keeps dist iff it is published, or any of its exports are
+imported by node at runtime — the plugin process, the core server, the CLI, or the testkits.
+The exact split is computed during planning by tracing the node-side import closure from
+`@conciv/it`'s and the testkits' node entries. Expected shape:
+
+- **Keep dist (node chain + published):** it, plugin, core, harness, serve, db, tools, cli,
+  protocol, contract, extension, extension-compiler, extension-testkit, harness-testkit,
+  publish. First-party extensions keep dist for their server parts (loaded by node via the
+  builtins path); their client entries may move to src.
+- **Src-only (browser):** embed (lib export; the `conciv-widget.global.js` vite build stays
+  as a test/publish artifact), ui-kit-system, ui-kit-chat, ui-kit-chat-tools, ui-kit-tap,
+  ui-kit-terminal, solid-diffs, solid-streamdown, mascot, client, page, grab,
+  storage-history, uno-preset.
+
+Payoff: widget/UI edits become plain vite reload — no `rebuild dist → hard reload` loop —
+and `pnpm test`'s build-first dependency shrinks to the node chain.
 
 ## Infra changes
 
@@ -95,16 +125,18 @@ share one copy (context singletons). Rule for every published dist:
 
 ## Migration order
 
-1. Spikes S1–S3.
+1. Spikes S1–S4.
 2. `@conciv/it` bundling (tsdown, embed assets, bin, testkit-runtime export).
 3. `@conciv/extension` bundling.
 4. `@conciv/extension-testkit` public flip + peer wiring.
 5. Flip 25 packages `private: true`; update guards, changesets config, fallow config.
-6. Packed-install smoke in CI; extend `release:check`.
-7. Docs.
+6. Src exports for browser-side internals (per S4 split); delete their build scripts.
+7. Packed-install smoke in CI; extend `release:check`.
+8. Docs.
 
 ## Out of scope
 
-- Source-linking internal packages (dropping their dist builds) — possible later phase.
+- nub (nubjs.com) as dev toolchain — separate later spike; would let the node chain drop
+  dist builds too.
 - Standalone CLI package (`npx conciv` works via `@conciv/it`'s bin).
 - Publishing ui-kits as consumer libraries.
