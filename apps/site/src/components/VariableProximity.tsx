@@ -19,7 +19,7 @@ const parseSettings = (value: string) =>
       .split(',')
       .map((part) => part.trim())
       .map((part) => {
-        const [name, axisValue] = part.split(' ')
+        const [name = '', axisValue = ''] = part.split(' ')
         return [name.replace(/['"]/g, ''), Number.parseFloat(axisValue)] as const
       }),
   )

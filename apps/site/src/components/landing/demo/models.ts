@@ -1,7 +1,14 @@
 export type ModelOption = {id: string; label: string; size: string; note?: string}
 
+const SMOL_135: ModelOption = {
+  id: 'HuggingFaceTB/SmolLM2-135M-Instruct',
+  label: 'SmolLM2 135M',
+  size: '~118MB',
+  note: 'tiny',
+}
+
 export const MODELS: ModelOption[] = [
-  {id: 'HuggingFaceTB/SmolLM2-135M-Instruct', label: 'SmolLM2 135M', size: '~118MB', note: 'tiny'},
+  SMOL_135,
   {id: 'HuggingFaceTB/SmolLM2-360M-Instruct', label: 'SmolLM2 360M', size: '~250MB'},
   {id: 'onnx-community/Qwen2.5-Coder-0.5B-Instruct', label: 'Qwen2.5-Coder 0.5B', size: '~350MB', note: 'code-tuned'},
   {id: 'onnx-community/Qwen2.5-0.5B-Instruct', label: 'Qwen2.5 0.5B', size: '~350MB', note: 'baseline'},
@@ -9,7 +16,7 @@ export const MODELS: ModelOption[] = [
   {id: 'onnx-community/Llama-3.2-1B-Instruct', label: 'Llama-3.2 1B', size: '~800MB', note: 'heavy'},
 ]
 
-export const DEFAULT_MODEL = MODELS[0].id
+export const DEFAULT_MODEL = SMOL_135.id
 
 export type CssPatch = Record<string, string | number>
 

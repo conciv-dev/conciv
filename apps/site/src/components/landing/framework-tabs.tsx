@@ -68,6 +68,7 @@ function useFrameworkTabs(): FrameworkTabsContextValue {
 function Root({snippets, children}: {snippets: FrameworkSnippet[]; children: ReactNode}) {
   const [activeId, setActiveId] = useState(snippets[0]?.id ?? '')
   const active = snippets.find((snippet) => snippet.id === activeId) ?? snippets[0]
+  if (!active) return null
 
   return (
     <FrameworkTabsContext.Provider value={{snippets, active, select: setActiveId}}>

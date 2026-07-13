@@ -1,6 +1,5 @@
 import {Badge} from '@/components/ui/badge'
 import {cn} from '@/lib/utils'
-import {PICKABLES} from './demo-data'
 
 export function AppPreview({picking, onPick}: {picking: boolean; onPick: (id: string) => void}) {
   return (
@@ -44,7 +43,7 @@ function Pickable({
   return (
     <span
       data-pickable={id}
-      onClick={picking ? () => onPick(PICKABLES[id].id) : undefined}
+      onClick={picking ? () => onPick(id) : undefined}
       className={cn(
         'od-pickable inline-flex rounded-lg outline-2 outline-offset-[3px] outline-transparent transition-[outline-color,box-shadow]',
         picking && 'od-pickable-active cursor-crosshair',
