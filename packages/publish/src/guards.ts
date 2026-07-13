@@ -24,6 +24,7 @@ const PUBLIC_PACKAGES = [
   '@conciv/grab',
   '@conciv/tools',
   '@conciv/extension',
+  '@conciv/extension-compiler',
   '@conciv/solid-diffs',
   '@conciv/solid-streamdown',
   '@conciv/ui-kit-system',
