@@ -23,13 +23,17 @@
   ],
   "type": "module",
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    },
+    ".": "./src/index.tsx",
     "./styles.css": "./src/styles.css"
   },
   "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      },
+      "./styles.css": "./src/styles.css"
+    },
     "access": "public"
   },
   "scripts": {
@@ -40,7 +44,7 @@
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "publint": "publint",
-    "attw": "attw --pack . --profile esm-only --exclude-entrypoints styles.css"
+    "attw": "conciv-publish attw --profile esm-only --exclude-entrypoints styles.css"
   },
   "dependencies": {
     "marked": "^18.0.5",
@@ -56,6 +60,7 @@
   },
   "devDependencies": {
     "@chromatic-com/storybook": "^5.2.1",
+    "@conciv/publish": "workspace:*",
     "@storybook/addon-a11y": "^10.4.4",
     "@storybook/addon-docs": "^10.4.4",
     "@storybook/addon-vitest": "^10.4.4",

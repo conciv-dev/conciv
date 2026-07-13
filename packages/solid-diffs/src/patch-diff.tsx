@@ -1,3 +1,4 @@
+import './jsx.js'
 import {createEffect, onCleanup, type JSX} from 'solid-js'
 import {FileDiff, getSingularPatch, type FileDiffOptions} from '@pierre/diffs'
 

@@ -1,3 +1,4 @@
+import './jsx.js'
 import {createEffect, onCleanup, type JSX} from 'solid-js'
 import {File, type FileContents, type FileOptions} from '@pierre/diffs'
 
