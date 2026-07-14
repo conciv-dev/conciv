@@ -54,6 +54,7 @@ sweep.
 | 033 | [Tooltip warm window](033-tooltip-warm-window.md)                                     | MEDIUM   | ui-kit-system              | TODO   |
 | 034 | [Anchored origins + symmetric exits](034-anchored-origins-and-exits.md)               | MEDIUM   | ui-kit-chat + whiteboard   | TODO   |
 | 035 | [Context-usage fill motion](035-context-usage-fill-motion.md)                         | LOW      | apps/conciv                | TODO   |
+| 036 | [Public widget embeds for conciv.dev and demo pages](036-public-widget-embed-rfc.md)  | P1       | apps/site + demos          | TODO   |
 
 Order: independent of each other; 032 supersedes the remainders of 014/015/016 (do NOT also
 execute those). 033/034/035 are widget-side and can land in any order; 034 step 1–2 are safe
