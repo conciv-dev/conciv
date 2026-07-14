@@ -1,0 +1,29 @@
+{
+  "name": "conciv-e2e-solid-start",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "start": "vite start",
+    "preview": "vite preview",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@conciv/it": "workspace:*",
+    "@solidjs/meta": "^0.29.4",
+    "@solidjs/router": "^0.15.0",
+    "@solidjs/start": "2.0.0-alpha.2",
+    "@solidjs/vite-plugin-nitro-2": "^0.1.0",
+    "solid-js": "^1.9.5",
+    "vite": "^7.0.0"
+  },
+  "devDependencies": {
+    "@conciv/e2e-utils": "workspace:*",
+    "@playwright/test": "^1.61.1"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

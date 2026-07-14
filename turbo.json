@@ -37,7 +37,7 @@
       "dependsOn": ["build"]
     },
     "test:e2e": {
-      "dependsOn": ["^build", "build"],
+      "dependsOn": ["^build"],
       "cache": false,
       "env": ["CI", "CONCIV_E2E"]
     }

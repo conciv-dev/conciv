@@ -3,6 +3,7 @@ packages:
   - packages/extensions/*
   - apps/*
   - apps/examples/*
+  - e2e/*
 
 # Force patched protobufjs (GHSA-wcpc-wj8m-hjx6 prototype pollution); pulled in transitively
 # via jazz-tools OpenTelemetry in the whiteboard extension.

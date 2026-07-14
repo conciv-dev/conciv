@@ -119,6 +119,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
     async resolveId(id, importer) {
       const virtual = resolveExtensionsModule(id)
       if (virtual) return virtual
+      if (process.env.CONCIV_E2E) return null
       if (!id.startsWith('@conciv/')) return null
       if (id === '@conciv/extension' || id.startsWith('@conciv/extension/')) return null
       const resolved = await this.resolve(id, importer, {skipSelf: true})
