@@ -1,3 +1,5 @@
+import {existsSync} from 'node:fs'
+import {dirname, join} from 'node:path'
 import {addSourceToJsx} from './inject-source.js'
 import {compileExtensionSolid, isExtensionModule} from './compile-extension.js'
 import {isConcivSrcTsx} from './conciv-src.js'
@@ -8,14 +10,39 @@ import {EXTENSIONS_RESOLVED_ID, EXTENSIONS_VIRTUAL_ID, extensionsModuleSource} f
 
 const SOLID_SINGLETONS = ['solid-js', 'solid-js/web', 'solid-js/store', '@tanstack/solid-router', '@ark-ui/solid']
 
-export function concivSolidConfig() {
+function packageNameOf(id: string): string {
+  const segments = id.split('/')
+  return id.startsWith('@') ? segments.slice(0, 2).join('/') : (segments[0] ?? id)
+}
+
+function resolvableFrom(id: string, root: string): boolean {
+  let dir = root
+  while (true) {
+    if (existsSync(join(dir, 'node_modules', packageNameOf(id), 'package.json'))) return true
+    const parent = dirname(dir)
+    if (parent === dir) return false
+    dir = parent
+  }
+}
+
+export function concivSolidConfig(opts: {root?: string; warmupFiles?: readonly string[]} = {}) {
+  const root = opts.root
+  const singletons = [...SOLID_SINGLETONS, '@conciv/extension']
+  const rootResolvable = root === undefined ? singletons : singletons.filter((id) => resolvableFrom(id, root))
   return {
-    resolve: {dedupe: [...SOLID_SINGLETONS, '@conciv/extension']},
+    resolve: {dedupe: rootResolvable},
     optimizeDeps: {
-      exclude: [...SOLID_SINGLETONS, '@conciv/extension'],
+      exclude: rootResolvable,
       include: [],
     },
+    server: {warmup: {clientFiles: [...(opts.warmupFiles ?? [])]}},
   }
+}
+
+export function dropIncludedFromExcludes(optimizeDeps: {include?: string[]; exclude?: string[]} | undefined): void {
+  if (!optimizeDeps?.exclude?.length) return
+  const included = new Set(optimizeDeps.include ?? [])
+  optimizeDeps.exclude = optimizeDeps.exclude.filter((id) => !included.has(id))
 }
 
 export function resolveExtensionsModule(id: string): string | null {

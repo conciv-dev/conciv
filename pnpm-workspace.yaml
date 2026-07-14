@@ -39,6 +39,15 @@ packageExtensions:
   'drizzle-kit@>=1.0.0-0 <2':
     peerDependencies:
       drizzle-orm: '*'
+  # nitro-nightly is published under the name `nitro-nightly` but self-imports subpaths by its
+  # canonical name (`nitro/runtime/meta`), so node's package self-reference doesn't apply. Consumers
+  # alias it (`nitro: npm:nitro-nightly@...`); under pnpm's isolated layout the bare `nitro` walk-up
+  # lands on the hidden-hoisted copy, which can be a different nightly (or stable nitro) without the
+  # imported subpath export. Declare the missing peer so each consumer's own `nitro` alias is linked
+  # beside its nitro-nightly. Drop when nitro ships stable (no alias) or the nightly self-references.
+  nitro-nightly:
+    peerDependencies:
+      nitro: '*'
 
 # Supply-chain hardening (pnpm 11). Only these deps may run install/build scripts;
 # everything else is blocked by strictDepBuilds (default on in pnpm 11).

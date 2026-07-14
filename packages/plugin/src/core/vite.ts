@@ -19,6 +19,7 @@ import {
   loadExtensionsModule,
   concivSolidConfig,
   concivSrcEntry,
+  dropIncludedFromExcludes,
   resolveExtensionsModule,
   transformConcivModule,
 } from '@conciv/extension-compiler/vite-plumbing'
@@ -109,8 +110,15 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
     name: 'conciv',
     apply: 'serve',
     enforce: 'pre',
-    config() {
-      return concivSolidConfig()
+    config(userConfig) {
+      const embedFiles = builtins.embedEntry === undefined ? [] : [builtins.embedEntry]
+      return concivSolidConfig({
+        root: userConfig.root ?? process.cwd(),
+        warmupFiles: [...embedFiles, ...builtins.clientEntries],
+      })
+    },
+    configEnvironment(_name, environmentConfig) {
+      dropIncludedFromExcludes(environmentConfig.optimizeDeps)
     },
     configResolved(config) {
       root = config.root

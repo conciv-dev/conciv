@@ -13,7 +13,7 @@ overrides:
   esbuild@>=0.27.3 <0.28.1: '>=0.28.1'
   '@opentelemetry/core@<2.8.0': '>=2.8.0 <3'
 
-packageExtensionsChecksum: sha256-Q9Y+385/u+hcPMq2eGrGI7fdWnT8ahbZXY5nF78Vniw=
+packageExtensionsChecksum: sha256-dVhKvsWIVuG9nPr1LtcuSzZV8oO+dNO4ylE3TdR8UyE=
 
 importers:
 
@@ -291,7 +291,7 @@ importers:
         version: 6.0.3(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
       nitro:
         specifier: npm:nitro-nightly@3.0.1-20260701-161626-1f1e52d7
-        version: nitro-nightly@3.0.1-20260701-161626-1f1e52d7(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@netlify/blobs@10.7.9)(chokidar@5.0.0)(dotenv@17.4.2)(drizzle-orm@0.45.2(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1))(giget@3.3.0)(ioredis@5.11.1)(jiti@2.7.0)(lru-cache@11.5.2)(miniflare@4.20260630.0)(rollup@4.62.2)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))(wrangler@4.106.0)
+        version: nitro-nightly@3.0.1-20260701-161626-1f1e52d7(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@netlify/blobs@10.7.9)(chokidar@5.0.0)(dotenv@17.4.2)(drizzle-orm@0.45.2(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1))(giget@3.3.0)(ioredis@5.11.1)(jiti@2.7.0)(lru-cache@11.5.2)(miniflare@4.20260630.0)(nitro-nightly@3.0.1-20260701-161626-1f1e52d7)(rollup@4.62.2)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))(wrangler@4.106.0)
       playwright:
         specifier: ^1.61.1
         version: 1.61.1
@@ -585,7 +585,7 @@ importers:
         version: 0.545.0(react@19.2.7)
       nitro:
         specifier: npm:nitro-nightly@latest
-        version: nitro-nightly@4.0.0-20251010-091516-7cafddba(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@netlify/blobs@10.7.9)(chokidar@4.0.3)(drizzle-orm@0.45.2(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1))(ioredis@5.11.1)(lru-cache@11.5.2)(rolldown@1.1.5)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+        version: nitro-nightly@4.0.0-20251010-091516-7cafddba(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@netlify/blobs@10.7.9)(chokidar@4.0.3)(drizzle-orm@0.45.2(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1))(ioredis@5.11.1)(lru-cache@11.5.2)(nitro-nightly@4.0.0-20251010-091516-7cafddba)(rolldown@1.1.5)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
       react:
         specifier: ^19.2.0
         version: 19.2.7
@@ -12406,6 +12406,7 @@ packages:
       dotenv: '*'
       giget: '*'
       jiti: ^2.7.0
+      nitro: '*'
       rollup: ^4.62.0
       vite: ^7 || ^8
       xml2js: ^0.6.2
@@ -12433,6 +12434,7 @@ packages:
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
     peerDependencies:
+      nitro: '*'
       rolldown: '*'
       vite: ^7
       xml2js: ^0.6.2
@@ -25983,7 +25985,7 @@ snapshots:
 
   nf3@0.3.18: {}
 
-  nitro-nightly@3.0.1-20260701-161626-1f1e52d7(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@netlify/blobs@10.7.9)(chokidar@5.0.0)(dotenv@17.4.2)(drizzle-orm@0.45.2(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1))(giget@3.3.0)(ioredis@5.11.1)(jiti@2.7.0)(lru-cache@11.5.2)(miniflare@4.20260630.0)(rollup@4.62.2)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))(wrangler@4.106.0):
+  nitro-nightly@3.0.1-20260701-161626-1f1e52d7(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@netlify/blobs@10.7.9)(chokidar@5.0.0)(dotenv@17.4.2)(drizzle-orm@0.45.2(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1))(giget@3.3.0)(ioredis@5.11.1)(jiti@2.7.0)(lru-cache@11.5.2)(miniflare@4.20260630.0)(nitro-nightly@3.0.1-20260701-161626-1f1e52d7)(rollup@4.62.2)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))(wrangler@4.106.0):
     dependencies:
       consola: 3.4.2
       crossws: 0.4.7(srvx@0.11.21)
@@ -25992,6 +25994,7 @@ snapshots:
       h3: 2.0.1-rc.22(crossws@0.4.7(srvx@0.11.21))
       hookable: 6.1.1
       nf3: 0.3.18
+      nitro: nitro-nightly@3.0.1-20260701-161626-1f1e52d7(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@netlify/blobs@10.7.9)(chokidar@5.0.0)(dotenv@17.4.2)(drizzle-orm@0.45.2(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1))(giget@3.3.0)(ioredis@5.11.1)(jiti@2.7.0)(lru-cache@11.5.2)(miniflare@4.20260630.0)(nitro-nightly@3.0.1-20260701-161626-1f1e52d7)(rollup@4.62.2)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))(wrangler@4.106.0)
       ocache: 0.1.5
       ofetch: 2.0.0-alpha.3
       ohash: 2.0.11
@@ -26037,7 +26040,7 @@ snapshots:
       - uploadthing
       - wrangler
 
-  nitro-nightly@4.0.0-20251010-091516-7cafddba(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@netlify/blobs@10.7.9)(chokidar@4.0.3)(drizzle-orm@0.45.2(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1))(ioredis@5.11.1)(lru-cache@11.5.2)(rolldown@1.1.5)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)):
+  nitro-nightly@4.0.0-20251010-091516-7cafddba(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@netlify/blobs@10.7.9)(chokidar@4.0.3)(drizzle-orm@0.45.2(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1))(ioredis@5.11.1)(lru-cache@11.5.2)(nitro-nightly@4.0.0-20251010-091516-7cafddba)(rolldown@1.1.5)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)):
     dependencies:
       consola: 3.4.2
       cookie-es: 2.0.1
@@ -26048,6 +26051,7 @@ snapshots:
       h3: 2.0.1-rc.2(crossws@0.4.7(srvx@0.8.16))
       jiti: 2.7.0
       nf3: 0.1.12
+      nitro: nitro-nightly@4.0.0-20251010-091516-7cafddba(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@netlify/blobs@10.7.9)(chokidar@4.0.3)(drizzle-orm@0.45.2(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1))(ioredis@5.11.1)(lru-cache@11.5.2)(nitro-nightly@4.0.0-20251010-091516-7cafddba)(rolldown@1.1.5)(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
       ofetch: 1.5.1
       ohash: 2.0.11
       rendu: 0.0.6

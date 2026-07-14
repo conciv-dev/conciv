@@ -10,7 +10,7 @@ export function e2eConfig(app: E2EApp, opts: {command: (port: number) => string}
     reporter: [['line']],
     use: {baseURL},
     webServer: {
-      command: opts.command(port),
+      command: `rm -rf .conciv && ${opts.command(port)}`,
       url: baseURL,
       reuseExistingServer: !process.env.CI,
       stdout: 'pipe',
