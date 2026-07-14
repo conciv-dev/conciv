@@ -36,6 +36,9 @@ export async function serveHono(options: ServeHonoOptions): Promise<ServedHono> 
     websocket: {server: wss},
     overrideGlobalObjects: false,
   })
-  await new Promise<void>((resolve) => server.once('listening', resolve))
+  await new Promise<void>((resolve, reject) => {
+    server.once('listening', resolve)
+    server.once('error', reject)
+  })
   return {server, wss, port: boundPort(server, requestedPort), close: closeServer(server)}
 }

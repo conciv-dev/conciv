@@ -151,6 +151,8 @@ Test lives in Task 2 (occupied-port case). Commit with Task 2.
 
 ### Task 2: `connect` command in @conciv/cli
 
+> **Amendment (2026-07-15, user decision):** `connect` ships as a NEW package `@conciv/connect` (visitor command: `npx @conciv/connect --token <t>`, bin `conciv-connect`), NOT as a subcommand of `@conciv/cli` — keeps core/harness out of the cli runtime deps that `@conciv/it` auto-installs. `runConnect` is the root export of `@conciv/connect`; `@conciv/cli` untouched; `@conciv/connect` added to `PUBLIC_PACKAGES`. Task 1a landed (serveHono rejects on listen error). Later tasks referencing `@conciv/cli connect` / `@conciv/cli/connect` read as `@conciv/connect`.
+
 **Files:**
 
 - Create: `packages/cli/src/connect.ts`
@@ -163,7 +165,7 @@ Test lives in Task 2 (occupied-port case). Commit with Task 2.
 - Consumes: `start()` with `accessToken` (Task 1), `getHarness` from `@conciv/harness`, `createFakeHarness` from `@conciv/harness-testkit`.
 - Produces: exported `runConnect(opts: ConnectOpts): Promise<Engine>` where `ConnectOpts = {token: string; harness?: string; workspace?: string; origin?: string; harnessAdapter?: HarnessAdapter; log?: (line: string) => void}`. CLI: `conciv connect --token <t> [--harness claude|codex|gemini-cli|opencode|pi] [--workspace .] [--origin <url>]`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import {createServer} from 'node:http'
@@ -210,12 +212,12 @@ describe('conciv connect', () => {
 
 (If two tests race on the same port, run them serially — vitest default in-file order is fine.)
 
-- [ ] **Step 2: Run it, verify fail**
+- [x] **Step 2: Run it, verify fail**
 
 Run: `pnpm turbo run build --filter=@conciv/cli && cd packages/cli && pnpm vitest run test/connect.it.test.ts`
 Expected: FAIL — `../src/connect.js` does not exist.
 
-- [ ] **Step 3: Implement `packages/cli/src/connect.ts`**
+- [x] **Step 3: Implement `packages/cli/src/connect.ts`**
 
 ```ts
 import {mkdtempSync} from 'node:fs'
@@ -308,11 +310,11 @@ subCommands: {tools: toolsCommand, connect: connectCommand},
 
 (`console.log` in `run` may hit the no-comments/lint rules — the CLI already prints via its command runners; mirror how `packages/cli/src/request.ts` outputs. If lint objects, route through the same helper it uses. The dangling `await new Promise(() => {})` keeps the process alive; SIGINT kills it — that is the intended lifecycle.)
 
-- [ ] **Step 4: Run tests, verify pass**
+- [x] **Step 4: Run tests, verify pass**
 
 Run: same as Step 2 (rebuild first: `pnpm turbo run build --filter=@conciv/cli`). Expected: 3 passing. If the occupied-port test HANGS: implement Task 1a, rebuild `@conciv/serve` + core, rerun.
 
-- [ ] **Step 5: Typecheck, lint, commit**
+- [x] **Step 5: Typecheck, lint, commit**
 
 ```bash
 pnpm turbo run typecheck --filter=@conciv/cli
