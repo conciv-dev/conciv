@@ -36,7 +36,7 @@
 - Consumes: `start(opts: StartOpts)` (`packages/core/src/start.ts:35`), `createFakeHarness` from `@conciv/harness-testkit` (core devDep — check `packages/core/package.json`, add `workspace:^` devDep if absent).
 - Produces: `StartOpts.accessToken?: string`. When set, every route is served ONLY under `/t/<accessToken>/...` (prefix stripped, wrong/missing prefix → 404). New route `GET /health` → `200 {"ok":true,"harness":"<id>"}` on the inner app (so gated: `/t/<token>/health`).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import {mkdtempSync} from 'node:fs'
@@ -87,12 +87,12 @@ describe('token-gated core', () => {
 })
 ```
 
-- [ ] **Step 2: Run it, verify it fails**
+- [x] **Step 2: Run it, verify it fails**
 
 Run: `pnpm turbo run build --filter=@conciv/core && cd packages/core && pnpm vitest run test/api/connect-gate.it.test.ts`
 Expected: FAIL — `accessToken` not a known opt (TS error) or health 404.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `packages/core/src/app.ts`, inside the Hono chain right after `.use(corsMiddleware())` (line ~105):
 
@@ -120,11 +120,11 @@ const served = opts.accessToken ? new Hono().mount(`/t/${opts.accessToken}`, app
 const {port, close} = await serveHono({fetch: served.fetch.bind(served), port: requestedPort})
 ```
 
-- [ ] **Step 4: Run test, verify pass**
+- [x] **Step 4: Run test, verify pass**
 
 Run: same as Step 2. Expected: 3 passing.
 
-- [ ] **Step 5: Typecheck + commit**
+- [x] **Step 5: Typecheck + commit**
 
 ```bash
 pnpm turbo run typecheck --filter=@conciv/core

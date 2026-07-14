@@ -1,4 +1,5 @@
 import {serveHono} from '@conciv/serve'
+import {Hono} from 'hono'
 import getPort from 'get-port'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
@@ -20,6 +21,7 @@ export type StartOpts = {
   port?: number
 
   allowedOrigins?: string[]
+  accessToken?: string
 
   extensions?: AnyExtension[]
   harness?: HarnessAdapter
@@ -75,7 +77,8 @@ export async function start(opts: StartOpts): Promise<Engine> {
   const {app, disposers, extensionContexts} = await makeApp(appOpts)
 
   const requestedPort = opts.port ?? (await getPort())
-  const {port, close} = await serveHono({fetch: app.fetch, port: requestedPort})
+  const served = opts.accessToken ? new Hono().mount(`/t/${opts.accessToken}`, app.fetch) : app
+  const {port, close} = await serveHono({fetch: served.fetch.bind(served), port: requestedPort})
   portRef.port = port
   return {
     port,

@@ -103,6 +103,7 @@ function composeRoutes(vars: CoreVars, rpc: ReturnType<typeof makeRpcRouter>) {
       await next()
     })
     .use(corsMiddleware())
+    .get('/health', (c) => c.json({ok: true, harness: vars.chat.harness.id}))
     .use('/rpc/*', rpcMiddleware(rpc))
     .route('/api/mcp', mcpApp)
 }
