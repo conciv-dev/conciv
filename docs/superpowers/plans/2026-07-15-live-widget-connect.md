@@ -659,7 +659,7 @@ git commit -m "test(site): e2e — pair token, LNA permission, live chat turn" -
 - Create: `.changeset/live-widget-connect.md`
 - Modify: `README.md` (a short "Try it live" section pointing at conciv.dev), issue #58 comment (manual, after merge)
 
-- [ ] **Step 1: Changeset**
+- [x] **Step 1: Changeset**
 
 ```md
 ---
@@ -671,7 +671,7 @@ git commit -m "test(site): e2e — pair token, LNA permission, live chat turn" -
 
 (One entry moves the whole fixed `@conciv/*` set.)
 
-- [ ] **Step 2: Full gate**
+- [x] **Step 2: Full gate**
 
 ```bash
 pnpm typecheck && pnpm build && pnpm test
@@ -680,7 +680,7 @@ pnpm exec fallow audit --changed-since main --format json
 
 Fix anything INTRODUCED (dead code, unused deps — the `@conciv/embed` site devDep may need the trace treatment: `pnpm exec fallow dead-code --trace-dependency @conciv/embed` before touching it).
 
-- [ ] **Step 3: Commit + hand to user**
+- [x] **Step 3: Commit + hand to user**
 
 ```bash
 git add .changeset/live-widget-connect.md README.md

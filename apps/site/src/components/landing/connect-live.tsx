@@ -27,18 +27,20 @@ async function healthy(base: string, signal: AbortSignal): Promise<boolean> {
   }
 }
 
+async function watchHealth(base: string, signal: AbortSignal): Promise<void> {
+  while (!signal.aborted && (await healthy(base, signal))) await sleep(5000, signal)
+}
+
 async function connectLoop(token: string, signal: AbortSignal, onPhase: (phase: Phase) => void): Promise<void> {
   while (!signal.aborted) {
     const base = await findCore(token, CONNECT_PORTS, (input, init) => fetch(input, init), signal)
-    if (signal.aborted) return
     if (!base) {
       await sleep(2000, signal)
       continue
     }
     mountWidget(base)
     onPhase('connected')
-    while (!signal.aborted && (await healthy(base, signal))) await sleep(5000, signal)
-    if (signal.aborted) return
+    await watchHealth(base, signal)
     onPhase('waiting')
   }
 }
