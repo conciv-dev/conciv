@@ -84,5 +84,5 @@
       "exports": ["*"]
     }
   ],
-  "entry": ["packages/extension-testkit/src/host/host-entry.tsx"]
+  "entry": ["packages/extension-testkit/src/host/host-entry.tsx", "e2e/harnesses/vite.*.config.ts"]
 }
