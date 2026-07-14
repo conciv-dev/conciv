@@ -57,7 +57,7 @@ function Root(props: FormProps): JSX.Element {
     setAttachments([])
     setQuote(null)
 
-    if (handlers.onSend) handlers.onSend(text)
+    if (handlers.onSend) handlers.onSend(content)
     else void chat.sendMessage(content)
   }
   return (

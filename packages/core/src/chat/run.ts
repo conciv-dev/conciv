@@ -3,7 +3,7 @@ import {existsSync, readFileSync} from 'node:fs'
 import {eq} from 'drizzle-orm'
 import {chat, EventType, StreamProcessor, type ModelMessage, type StreamChunk, type TokenUsage} from '@tanstack/ai'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
-import {ChatMessageSchema, type ChatMessage} from '@conciv/protocol/chat-types'
+import {ChatMessageSchema, type ChatContentPart, type ChatMessage} from '@conciv/protocol/chat-types'
 import {tokenUsageToSnapshot, type UsageSnapshot} from '@conciv/protocol/usage-types'
 import {claimRun, drafts, markers, releaseRun, sessions, setRunMessages, statusOf, type ConcivDb} from '@conciv/db'
 import type {ChatDeps} from './runtime.js'
@@ -196,10 +196,15 @@ export function tapSessionId(chunk: StreamChunk, onSessionId: (id: string) => vo
   }
 }
 
-async function composeUserText(db: ConcivDb, sessionId: string, text: string): Promise<string> {
+type UserContent = string | ChatContentPart[]
+
+async function composeUserContent(db: ConcivDb, sessionId: string, content: UserContent): Promise<UserContent> {
   const rows = await db.select({grabs: drafts.grabs}).from(drafts).where(eq(drafts.sessionId, sessionId))
   const grabs = rows[0]?.grabs ?? []
-  return grabs.length === 0 ? text : `${grabs.join('\n')}\n${text}`
+  if (grabs.length === 0) return content
+  const prefix = grabs.join('\n')
+  if (typeof content === 'string') return content ? `${prefix}\n${content}` : prefix
+  return [{type: 'text', content: prefix}, ...content]
 }
 
 async function historyFor(deps: ChatDeps, sessionId: string): Promise<ChatMessage[]> {
@@ -210,17 +215,17 @@ async function historyFor(deps: ChatDeps, sessionId: string): Promise<ChatMessag
   return (await transcriptMessages(deps, sessionId)).map((message) => ChatMessageSchema.parse(message))
 }
 
-export function makeSend(deps: ChatDeps): (sessionId: string, text: string) => Promise<void> {
-  return async (sessionId, text) => {
+export function makeSend(deps: ChatDeps): (sessionId: string, content: UserContent) => Promise<void> {
+  return async (sessionId, content) => {
     if (!claimRun(deps.db, sessionId, 'chat')) throw new Error(SESSION_BUSY)
     deps.changes.notify()
     try {
       deps.onRunStart?.(sessionId)
       await ensureChatRecord(deps.db, sessionId, deps.harness.id, deps.cwd)
-      const userText = await composeUserText(deps.db, sessionId, text)
+      const userContent = await composeUserContent(deps.db, sessionId, content)
       const model = (await sessionById(deps.db, sessionId))?.model ?? null
       const history = await historyFor(deps, sessionId)
-      const messages = toModelMessages([...history, {role: 'user', content: userText}])
+      const messages = toModelMessages([...history, {role: 'user', content: userContent}])
       void startRun(deps, sessionId, {messages, model, kind: 'chat'})
       await deps.db.delete(drafts).where(eq(drafts.sessionId, sessionId))
       deps.changes.notify()

@@ -12,6 +12,7 @@ export const ChatContentPartSchema = z
     source: z.object({type: z.string(), mimeType: z.string().optional(), value: z.string()}).loose().optional(),
   })
   .loose()
+export type ChatContentPart = z.infer<typeof ChatContentPartSchema>
 
 export const ChatMessageSchema = z
   .object({
@@ -95,7 +96,12 @@ export const ChatModelsSchema = z.object({
   models: z.array(HarnessModelSchema),
   defaultModel: z.string().nullable(),
 
-  harness: z.object({id: z.string(), name: z.string(), canLaunch: z.boolean()}),
+  harness: z.object({
+    id: z.string(),
+    name: z.string(),
+    canLaunch: z.boolean(),
+    imageInput: z.union([z.literal('native'), z.literal('fileRef'), z.literal(false)]),
+  }),
 })
 export type HarnessModelInfo = z.infer<typeof HarnessModelSchema>
 export type ChatModels = z.infer<typeof ChatModelsSchema>

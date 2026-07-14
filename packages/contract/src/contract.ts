@@ -2,6 +2,7 @@ import {eventIterator, oc} from '@orpc/contract'
 import {z} from 'zod'
 import type {StreamChunk} from '@tanstack/ai'
 import {
+  ChatContentPartSchema,
   ChatCommandsSchema,
   ChatLaunchSchema,
   ChatModelsSchema,
@@ -24,6 +25,10 @@ import {DraftRowSchema, MarkerRowSchema, SessionMetaSchema} from './rows.js'
 const StreamChunkSchema = z.custom<StreamChunk>((value) => typeof value === 'object' && value !== null)
 
 const SessionIdInput = z.object({sessionId: z.string()})
+const ChatSendInput = SessionIdInput.extend({
+  text: z.string().min(1).optional(),
+  content: z.union([z.string().min(1), z.array(ChatContentPartSchema).min(1)]).optional(),
+}).refine((input) => input.text !== undefined || input.content !== undefined)
 const Ok = z.object({ok: z.literal(true)})
 const busy = {BUSY: {message: 'session busy'}}
 const notFound = {NOT_FOUND: {message: 'session not found'}}
@@ -60,10 +65,7 @@ export const contract = {
   },
   chat: {
     attach: oc.input(SessionIdInput).output(eventIterator(StreamChunkSchema)),
-    send: oc
-      .errors(busy)
-      .input(SessionIdInput.extend({text: z.string().min(1)}))
-      .output(Ok),
+    send: oc.errors(busy).input(ChatSendInput).output(Ok),
     permissionDecision: oc.input(PermissionDecisionSchema).output(Ok),
     uiReply: oc
       .errors({UNKNOWN_REQUEST: {message: 'no pending ui question'}})

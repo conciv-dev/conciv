@@ -1,6 +1,7 @@
 import type {ModelMessage, StreamChunk, UIMessage} from '@tanstack/ai'
 import type {SubscribeConnectionAdapter} from '@tanstack/ai-solid'
 import type {RpcClient} from '@conciv/contract'
+import type {ChatContentPart} from '@conciv/protocol/chat-types'
 
 export type ChatConnectionOptions = {retryDelayMs?: number; onRetry?: (error: unknown) => void}
 
@@ -11,9 +12,34 @@ function textOf(message: UIMessage | ModelMessage): string {
   return typeof message.content === 'string' ? message.content : ''
 }
 
-function lastUserText(messages: Array<UIMessage> | Array<ModelMessage>): string {
+function partContent(part: unknown): ChatContentPart[] {
+  if (typeof part !== 'object' || part === null || !('type' in part)) return []
+  if (part.type === 'text' && 'content' in part && typeof part.content === 'string') {
+    return [{type: 'text', content: part.content}]
+  }
+  if (part.type === 'image' && 'source' in part) return [part as ChatContentPart]
+  return []
+}
+
+function contentFromParts(parts: ChatContentPart[], fallback: string): string | ChatContentPart[] {
+  if (parts.length === 0) return fallback
+  if (parts.every((part) => part.type === 'text')) return parts.map((part) => part.content ?? '').join('\n')
+  return parts
+}
+
+function contentOf(message: UIMessage | ModelMessage): string | ChatContentPart[] {
+  if ('parts' in message) {
+    const parts = message.parts.flatMap(partContent)
+    return contentFromParts(parts, textOf(message))
+  }
+  if (typeof message.content === 'string') return message.content
+  if (Array.isArray(message.content)) return contentFromParts(message.content.flatMap(partContent), '')
+  return ''
+}
+
+function lastUserContent(messages: Array<UIMessage> | Array<ModelMessage>): string | ChatContentPart[] {
   const last = messages[messages.length - 1]
-  return last ? textOf(last) : ''
+  return last ? contentOf(last) : ''
 }
 
 function aborted(signal: AbortSignal | undefined): boolean {
@@ -68,7 +94,7 @@ export function chatConnection(
   return {
     subscribe: (abortSignal) => attachLoop(rpc, sessionId, options, abortSignal),
     send: async (messages, _data, abortSignal) => {
-      await rpc.chat.send({sessionId, text: lastUserText(messages)}, {signal: abortSignal})
+      await rpc.chat.send({sessionId, content: lastUserContent(messages)}, {signal: abortSignal})
     },
   }
 }

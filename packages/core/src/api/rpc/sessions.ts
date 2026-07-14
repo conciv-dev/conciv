@@ -110,5 +110,6 @@ export function harnessMetaOf(deps: RpcDeps) {
     id: deps.chat.harness.id,
     name: deps.chat.harness.displayName ?? deps.chat.harness.id,
     canLaunch: Boolean(deps.chat.harness.launch),
+    imageInput: deps.chat.harness.capabilities.imageInput,
   }
 }

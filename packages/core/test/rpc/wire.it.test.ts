@@ -86,6 +86,38 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     expect(await kit.rpc.drafts.get({sessionId})).toBeNull()
   })
 
+  it('send forwards multimodal content and keeps grab references as a text prefix', async () => {
+    const {kit, harness} = await bootWire()
+    const sessionId = await kit.session()
+    const stream = await kit.attach(sessionId)
+    await kit.rpc.drafts.set({
+      sessionId,
+      text: 'draft-text',
+      selectionStart: 0,
+      selectionEnd: 0,
+      grabs: ['<button>Save</button>'],
+    })
+    await kit.rpc.chat.send({
+      sessionId,
+      content: [
+        {type: 'text', content: 'what color is this? '},
+        {type: 'image', source: {type: 'data', mimeType: 'image/png', value: 'iVBORw0KGgo='}},
+      ],
+    })
+    await stream.done({hangGuardMs: 10_000})
+    const lastTurn = harness.__turnMessages.at(-1)
+    if (!lastTurn) throw new Error('adapter saw no turn')
+    const lastUser = lastTurn.findLast((message) => message.role === 'user')
+    if (!Array.isArray(lastUser?.content)) throw new Error('adapter did not receive multimodal content')
+    expect(lastUser.content[0]).toMatchObject({type: 'text', content: '<button>Save</button>'})
+    expect(lastUser.content[1]).toMatchObject({type: 'text', content: 'what color is this? '})
+    expect(lastUser.content[2]).toMatchObject({
+      type: 'image',
+      source: {type: 'data', mimeType: 'image/png', value: 'iVBORw0KGgo='},
+    })
+    expect(await kit.rpc.drafts.get({sessionId})).toBeNull()
+  })
+
   it('send rebuilds history from the transcript when the harness cannot resume (C3)', async () => {
     const claudeHome = realpathSync(mkdtempSync(join(tmpdir(), 'conciv-home-')))
     const harness = createTestHarness(requireClaude())

@@ -17,7 +17,7 @@ import {
 } from '@conciv/ui-kit-chat'
 import {builtinToolCards, nowTitle} from '@conciv/ui-kit-chat-tools'
 import {createDebouncer} from '@tanstack/solid-pacer'
-import type {MessagePart, ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
+import type {MessagePart, MultimodalContent, ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolCardEntry, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import type {UiAnswerValue} from '@conciv/protocol/ui-types'
 import type {MarkerRow} from '@conciv/contract'
@@ -66,6 +66,16 @@ function activeCallTitle(parts: ReadonlyArray<MessagePart>, titleByName: Record<
     title = callSettled(part, byCallId.get(part.id)) ? title : nowTitle(part, titleByName)
   }
   return title
+}
+
+function contentText(content: string | MultimodalContent): string {
+  if (typeof content === 'string') return content.trim()
+  const parts = content.content
+  if (typeof parts === 'string') return parts.trim()
+  return parts
+    .flatMap((part) => (part.type === 'text' ? [part.content] : []))
+    .join('\n')
+    .trim()
 }
 
 type ComposerStateApi = {
@@ -299,7 +309,8 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     })
   })
 
-  const send = async (text: string) => {
+  const send = async (content: string | MultimodalContent) => {
+    const text = contentText(content)
     await rpc.drafts
       .set({
         sessionId: props.sessionId,
@@ -311,15 +322,16 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
       .catch(() => {})
     persistDraft.cancel()
     pane.grabStore.clear()
-    await chat.sendMessage(text)
+    await chat.sendMessage(content)
     clearPaneSnapshot(props.sessionId)
     void draftQuery.refetch()
   }
-  const onSend = (text: string) => {
-    const trimmed = text.trim()
-    if (!trimmed || chat.isLoading() || compacting()) return
+  const onSend = (content: string | MultimodalContent) => {
+    const text = contentText(content)
+    const hasContent = typeof content === 'string' ? text.length > 0 : content.content.length > 0
+    if (!hasContent || chat.isLoading() || compacting()) return
     if (raw.connectionStatus() !== 'connected') return
-    void send(trimmed)
+    void send(typeof content === 'string' ? text : content)
   }
 
   useBlocker({
@@ -419,6 +431,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                       <Composer
                         placeholder="Ask a question…"
                         inputLabel="Message the conciv agent"
+                        attachments={meta.data?.harness.imageInput !== false}
                         inputRef={(el) => {
                           inputEl = el
                         }}

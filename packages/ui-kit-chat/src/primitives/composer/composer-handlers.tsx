@@ -1,7 +1,8 @@
 import {createContext, useContext, type Accessor} from 'solid-js'
+import type {MultimodalContent} from '@tanstack/ai-client'
 
 export type ComposerHandlers = {
-  onSend?: (text: string) => void
+  onSend?: (content: string | MultimodalContent) => void
   onCancel?: () => void
   onStartDictation?: () => void
   onStopDictation?: () => void
