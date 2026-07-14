@@ -53,11 +53,6 @@
       "import": "./dist/nextjs.js",
       "default": "./dist/nextjs.js"
     },
-    "./nextjs/boot": {
-      "types": "./dist/nextjs-boot.d.ts",
-      "import": "./dist/nextjs-boot.js",
-      "default": "./dist/nextjs-boot.js"
-    },
     "./nextjs/widget": {
       "types": "./dist/nextjs-widget.d.ts",
       "import": "./dist/nextjs-widget.js",
