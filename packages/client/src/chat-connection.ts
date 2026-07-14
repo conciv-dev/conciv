@@ -12,13 +12,24 @@ function textOf(message: UIMessage | ModelMessage): string {
   return typeof message.content === 'string' ? message.content : ''
 }
 
-function partContent(part: unknown): ChatContentPart[] {
-  if (typeof part !== 'object' || part === null || !('type' in part)) return []
-  if (part.type === 'text' && 'content' in part && typeof part.content === 'string') {
-    return [{type: 'text', content: part.content}]
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function imageSource(source: unknown): NonNullable<ChatContentPart['source']> | undefined {
+  if (!isRecord(source) || typeof source.type !== 'string' || typeof source.value !== 'string') return undefined
+  if (typeof source.mimeType === 'string') {
+    return {type: source.type, value: source.value, mimeType: source.mimeType}
   }
-  if (part.type === 'image' && 'source' in part) return [part as ChatContentPart]
-  return []
+  return {type: source.type, value: source.value}
+}
+
+function partContent(part: unknown): ChatContentPart[] {
+  if (!isRecord(part)) return []
+  if (part.type === 'text' && typeof part.content === 'string') return [{type: 'text', content: part.content}]
+  if (part.type !== 'image') return []
+  const source = imageSource(part.source)
+  return source ? [{type: 'image', source}] : []
 }
 
 function contentFromParts(parts: ChatContentPart[], fallback: string): string | ChatContentPart[] {

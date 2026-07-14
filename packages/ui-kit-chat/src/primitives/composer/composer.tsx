@@ -38,6 +38,26 @@ function buildContent(text: string, attachments: AttachmentDraft[]): string | Mu
   return {content: parts}
 }
 
+function invokeSubmit(
+  handler: FormProps['onSubmit'],
+  event: SubmitEvent & {currentTarget: HTMLFormElement; target: Element},
+) {
+  if (typeof handler === 'function') handler(event)
+}
+
+function canSubmit(canSend: boolean, attachmentCount: number): boolean {
+  return canSend || attachmentCount > 0
+}
+
+function sendContent(
+  handler: ((content: string | MultimodalContent) => void) | undefined,
+  fallback: (content: string | MultimodalContent) => unknown,
+  content: string | MultimodalContent,
+): void {
+  if (handler) handler(content)
+  else void fallback(content)
+}
+
 function Root(props: FormProps): JSX.Element {
   const chat = useChatContext()
   const composer = useComposer()
@@ -49,16 +69,14 @@ function Root(props: FormProps): JSX.Element {
   const [local, rest] = splitProps(props, ['onSubmit'])
   const submit = (event: SubmitEvent & {currentTarget: HTMLFormElement; target: Element}) => {
     event.preventDefault()
-    if (typeof local.onSubmit === 'function') local.onSubmit(event)
-    if (!composer.canSend() && attachments().length === 0) return
+    invokeSubmit(local.onSubmit, event)
+    if (!canSubmit(composer.canSend(), attachments().length)) return
     const text = chat.view.draft.trim()
     const content = buildContent(text, attachments())
     chat.setView('draft', '')
     setAttachments([])
     setQuote(null)
-
-    const send = handlers.onSend ?? ((value: string | MultimodalContent) => void chat.sendMessage(value))
-    send(content)
+    sendContent(handlers.onSend, chat.sendMessage, content)
   }
   return (
     <ComposerProvider
