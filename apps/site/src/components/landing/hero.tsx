@@ -1,4 +1,5 @@
 import {Badge} from '@/components/ui/badge'
+import {ConnectLive} from './connect-live'
 import {Demo} from './demo/demo'
 import {InstallChip} from './install-chip'
 
@@ -23,6 +24,7 @@ export function Hero() {
           building.
         </p>
         <InstallChip />
+        <ConnectLive />
       </div>
       <Demo />
     </header>

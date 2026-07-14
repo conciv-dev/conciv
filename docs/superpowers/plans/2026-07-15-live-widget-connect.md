@@ -463,7 +463,7 @@ git commit -m "feat(site): /pair/<token> instructions + widget bundle asset" -- 
 - Consumes: `/t/<token>/health` (Task 1), widget global bundle asset (Task 3), `window.__CONCIV_API_BASE__` (read by the embed bundle at boot, `apps/conciv/src/lib/api-base.ts:11`).
 - Produces: `findCore(token, ports, fetchLike, signal) => Promise<string | null>` (returns the gated base URL); `mountWidget(base) => void` (sets `window.__CONCIV_API_BASE__`, injects the script tag once).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import {describe, expect, it} from 'vitest'
@@ -490,9 +490,9 @@ describe('findCore', () => {
 })
 ```
 
-- [ ] **Step 2: Run, verify fail** — `cd apps/site && pnpm vitest run test/connect-live.test.ts` → module missing.
+- [x] **Step 2: Run, verify fail** — `cd apps/site && pnpm vitest run test/connect-live.test.ts` → module missing.
 
-- [ ] **Step 3: Implement `apps/site/src/lib/connect-live.ts`**
+- [x] **Step 3: Implement `apps/site/src/lib/connect-live.ts`**
 
 ```ts
 export const CONNECT_PORTS = [4732, 4733, 4734, 4735, 4736, 4737, 4738, 4739, 4740, 4741]
@@ -527,7 +527,7 @@ export function mountWidget(base: string): void {
 
 (`window.__CONCIV_API_BASE__` needs the global declaration — import or redeclare the `declare global` block from the embed's api-base contract; keep it in this file.)
 
-- [ ] **Step 4: Panel component `ConnectLive.tsx`** — React, site's existing UI conventions (look at `components/landing/` + `components/ui/` for buttons/cards; use the site's existing styling system, don't invent one):
+- [x] **Step 4: Panel component `ConnectLive.tsx`** — React, site's existing UI conventions (look at `components/landing/` + `components/ui/` for buttons/cards; use the site's existing styling system, don't invent one):
 
 State machine: `idle → waiting → connected`. On open: `token = crypto.randomUUID()`, two copy-to-clipboard rows —
 prompt: `Read https://conciv.dev/pair/${token} and follow the instructions` and command: `npx @conciv/cli connect --token ${token}`.
@@ -546,7 +546,7 @@ cd apps/site && pnpm dev
 In a second terminal: `pnpm turbo run build --filter=@conciv/cli && node packages/cli/dist/bin.js connect --token <token-from-panel> --origin http://localhost:3001`
 Open http://localhost:3001, click connect, expect the chip + working widget chat (real claude). (`--origin` override exists exactly for this.)
 
-- [ ] **Step 6: Run site tests + lint + commit**
+- [x] **Step 6: Run site tests + lint + commit**
 
 ```bash
 cd apps/site && pnpm vitest run && cd ../..
