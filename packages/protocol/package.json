@@ -1,6 +1,6 @@
 {
   "name": "@conciv/protocol",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). Wire types shared by the conciv vite-plugin and widget.",
   "keywords": [
     "ag-ui",

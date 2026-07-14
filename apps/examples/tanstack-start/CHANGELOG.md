@@ -1,5 +1,16 @@
 # tanstack-start-example
 
+## 0.0.9
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/it@0.0.9
+  - @conciv/cli@0.0.9
+  - @conciv/embed@0.0.9
+  - @conciv/extension@0.0.9
+  - @conciv/protocol@0.0.9
+
 ## 0.0.8
 
 ### Patch Changes
