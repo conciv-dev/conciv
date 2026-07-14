@@ -11,6 +11,7 @@ import {makeOpenInEditor} from './open-editor.js'
 import type {AnyExtension} from '@conciv/extension'
 import {
   type Builtins,
+  EXTENSIONS_RESOLVED_ID,
   EXTENSIONS_VIRTUAL_ID,
   NO_BUILTINS,
   loadServerExtensions,
@@ -125,6 +126,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
       deferToTsd = config.plugins.some((p) => p.name === '@tanstack/devtools:inject-source')
     },
     async resolveId(id, importer) {
+      if (id.split('?')[0] === EXTENSIONS_ROUTE) return EXTENSIONS_RESOLVED_ID
       const virtual = resolveExtensionsModule(id)
       if (virtual) return virtual
       if (process.env.CONCIV_E2E) return null
