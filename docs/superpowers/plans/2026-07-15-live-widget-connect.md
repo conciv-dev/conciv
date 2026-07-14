@@ -340,7 +340,7 @@ git commit -m "feat(cli): conciv connect — pair a local agent with conciv.dev"
 - Consumes: TanStack Start server-route pattern (mirror `apps/site/src/routes/llms[.]txt.ts` — `createFileRoute` with `server.handlers.GET`).
 - Produces: `GET /pair/<token>` → `text/plain` instructions embedding the token; `/conciv-widget.global.js` served as a static asset from `apps/site/public/`. Exported `pairText(token: string, origin: string): string` for the test.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `apps/site/vitest.config.ts`:
 
@@ -368,12 +368,12 @@ describe('pair instructions', () => {
 })
 ```
 
-- [ ] **Step 2: Run, verify fail**
+- [x] **Step 2: Run, verify fail**
 
 Run: `cd apps/site && pnpm vitest run`
 Expected: FAIL — `pair-text` missing. (Add `"test": "vitest run"` to site scripts if absent; turbo picks it up.)
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `apps/site/src/lib/pair-text.ts`:
 
@@ -431,7 +431,7 @@ copyFileSync(source, target)
 
 `apps/site/package.json`: `"build": "node scripts/copy-widget-bundle.mjs && vite build"` and add `"@conciv/embed": "workspace:^"` to devDependencies (turbo build ordering — embed dist must exist first). If fallow flags the devDep as unused, keep it and note the script consumer; check `.fallowrc.json` options before suppressing.
 
-- [ ] **Step 4: Run tests + build, verify**
+- [x] **Step 4: Run tests + build, verify**
 
 ```bash
 cd apps/site && pnpm vitest run
@@ -440,7 +440,7 @@ ls apps/site/public/conciv-widget.global.js
 curl -s http://localhost:3001/pair/tok-demo   # with `pnpm dev` running, expect the text
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/site/src/routes/pair.\$token.ts apps/site/src/lib/pair-text.ts apps/site/scripts/copy-widget-bundle.mjs apps/site/package.json apps/site/vitest.config.ts apps/site/test/pair-route.test.ts apps/site/src/routeTree.gen.ts pnpm-lock.yaml .gitignore

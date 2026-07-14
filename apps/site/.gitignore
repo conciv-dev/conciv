@@ -20,3 +20,6 @@ dist
 
 # Local Cloudflare folder
 .wrangler
+
+# copied from packages/embed/dist at build
+/public/conciv-widget.global.js
