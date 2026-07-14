@@ -6,10 +6,9 @@ import {isConcivSrcTsx} from './conciv-src.js'
 
 export {concivSrcEntry} from './conciv-src.js'
 import {splitExtension} from './split-extension.js'
-import {EXTENSIONS_RESOLVED_ID, EXTENSIONS_VIRTUAL_ID, extensionsModuleSource} from './extensions.js'
+import {EXTENSIONS_RESOLVED_ID, EXTENSIONS_ROUTE, EXTENSIONS_VIRTUAL_ID, extensionsModuleSource} from './extensions.js'
 
 const SOLID_SINGLETONS = ['solid-js', 'solid-js/web', 'solid-js/store', '@tanstack/solid-router', '@ark-ui/solid']
-const EXTENSIONS_ROUTE = '/@conciv/extensions.js'
 
 function packageNameOf(id: string): string {
   const segments = id.split('/')
@@ -47,7 +46,8 @@ export function dropIncludedFromExcludes(optimizeDeps: {include?: string[]; excl
 }
 
 export function resolveExtensionsModule(id: string): string | null {
-  return id === EXTENSIONS_VIRTUAL_ID || id === EXTENSIONS_ROUTE ? EXTENSIONS_RESOLVED_ID : null
+  const bareId = id.replace(/[?#].*$/, '')
+  return bareId === EXTENSIONS_VIRTUAL_ID || bareId === EXTENSIONS_ROUTE ? EXTENSIONS_RESOLVED_ID : null
 }
 
 export function loadExtensionsModule(

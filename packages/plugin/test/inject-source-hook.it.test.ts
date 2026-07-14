@@ -1,4 +1,5 @@
 import {describe, it, expect} from 'vitest'
+import {EXTENSIONS_RESOLVED_ID} from '@conciv/extension-compiler/extensions'
 import type {Plugin} from 'vite'
 import {makeViteHook} from '../src/core/vite.js'
 import {EXTENSIONS_ROUTE} from '../src/core/widget-middleware.js'
@@ -31,8 +32,8 @@ describe('makeViteHook source injection', () => {
     const resolveId = hook.resolveId
     const run = typeof resolveId === 'function' ? resolveId : resolveId?.handler
     if (!run) throw new Error('conciv plugin has no resolveId')
-    const out = await run.call({} as never, EXTENSIONS_ROUTE, undefined as never, {} as never)
-    expect(out).toBe('\0virtual:conciv-extensions')
+    const out = await run.call({} as never, `${EXTENSIONS_ROUTE}?v=1`, undefined as never, {} as never)
+    expect(out).toBe(EXTENSIONS_RESOLVED_ID)
   })
 
   it('stamps data-conciv-source when no @tanstack/devtools source injector is present', () => {
