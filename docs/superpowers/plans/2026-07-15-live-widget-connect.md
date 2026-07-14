@@ -568,7 +568,7 @@ git commit -m "feat(site): landing connect panel — pair, poll, mount live widg
 
 - Consumes: `runConnect` (Task 2) with `createFakeHarness`, built site served by `wrangler dev`, Chromium flags `--ip-address-space-overrides` + `local-network-access` permission (proven recipe: see spike test `packages/embed/test/spike-pna.it.test.ts` on branch history / spike notes in the spec).
 
-- [ ] **Step 1: Write the test**
+- [x] **Step 1: Write the test**
 
 ```ts
 import {spawn, type ChildProcess} from 'node:child_process'
@@ -639,11 +639,11 @@ describe('live connect on the built site', () => {
 
 Known frictions to resolve while making it pass (budgeted into this task): the pair panel is origin-hardcoded to conciv.dev for the copy text (fine — the test drives `runConnect` directly with `--origin`); LNA is only enforced when the page origin is _secure_-public — with an http origin Chrome may hard-block instead of prompt, in which case serve wrangler behind the self-signed-https recipe from the spike (https server proxying wrangler, `ignoreHTTPSErrors: true`) or relax to `--origin` + loopback-origin coverage and keep the LNA-permission variant as the embed-level test from the spike. Timebox; transport-level LNA proof already exists from the spike.
 
-- [ ] **Step 2: Run it** — `cd apps/site && pnpm vitest run test/live-connect.it.test.ts` (needs `pnpm turbo run build` for cli/core/embed first). Expected: PASS.
+- [x] **Step 2: Run it** — `cd apps/site && pnpm vitest run test/live-connect.it.test.ts` (needs `pnpm turbo run build` for cli/core/embed first). Expected: PASS.
 
-- [ ] **Step 3: Wire `test` into turbo for the site** (site `package.json` test script runs both unit + it files; `turbo run test` already dependsOn build). Verify: `pnpm turbo run test --filter=conciv-site`.
+- [x] **Step 3: Wire `test` into turbo for the site** (site `package.json` test script runs both unit + it files; `turbo run test` already dependsOn build). Verify: `pnpm turbo run test --filter=conciv-site`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/site/test/live-connect.it.test.ts apps/site/package.json pnpm-lock.yaml
