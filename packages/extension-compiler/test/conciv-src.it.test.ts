@@ -65,6 +65,24 @@ describe('transformConcivModule routing', () => {
     expect(result?.code).toContain('_$template')
   })
 
+  it('stamps jsx source onto conciv src tsx before compiling', async () => {
+    const id = fixture('scoped/src/button.tsx')
+    const result = await transformConcivModule(`export const Button = () => <button>ok</button>`, id, false, {
+      root: '/repo',
+      deferToTsd: false,
+    })
+    expect(result?.code).toContain('data-conciv-source')
+  })
+
+  it('stamps jsx source even when a devtools stamper is present downstream', async () => {
+    const id = fixture('scoped/src/button.tsx')
+    const result = await transformConcivModule(`export const Button = () => <button>ok</button>`, id, false, {
+      root: '/repo',
+      deferToTsd: true,
+    })
+    expect(result?.code).toContain('data-conciv-source')
+  })
+
   it('leaves host src tsx alone (falls through to jsx source stamping)', async () => {
     const id = fixture('other/src/button.tsx')
     const result = await transformConcivModule(`export const Button = () => <button>host</button>`, id, false, {

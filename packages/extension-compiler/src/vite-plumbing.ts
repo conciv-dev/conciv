@@ -51,7 +51,10 @@ export function transformConcivModule(
     return {code: `${code}\nimport(${JSON.stringify(EXTENSIONS_VIRTUAL_ID)})\n`, map: null}
   }
   if (id.includes('node_modules')) return null
-  if (isConcivSrcTsx(id)) return compileExtensionSolid(code, id, ssr)
+  if (isConcivSrcTsx(id)) {
+    const stamped = addSourceToJsx(code, id, ctx.root)
+    return compileExtensionSolid(stamped?.code ?? code, id, ssr)
+  }
   if (isExtensionModule(id))
     return splitExtension(code, id, 'browser').then((split) => compileExtensionSolid(split?.code ?? code, id, ssr))
   if (ctx.deferToTsd) return null
