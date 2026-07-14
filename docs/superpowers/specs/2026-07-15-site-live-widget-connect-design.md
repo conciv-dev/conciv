@@ -55,7 +55,9 @@ Spike B (this design) passed end to end:
    connect makes it visitor-facing; update the description (and consider claiming the bare
    `conciv` npm name for a nicer `npx conciv connect`).
 
-3. The page polls `http://127.0.0.1:4732`–`4741` `/health` with the token header (quiet backoff).
+3. The page polls `http://127.0.0.1:4732`–`4741` `/t/<token>/health` (quiet backoff). The token
+   rides as a path prefix — the widget's rpc client takes only a base URL, so a prefix (stripped by
+   a Hono `.mount`) authenticates every request with zero widget changes; wrong prefix = 404.
 4. The connector (on the visitor's machine) starts core on the first free port in that range:
    claude harness by default (`--harness codex|gemini-cli|opencode|pi` supported), a throwaway
    temp workspace, `allowedOrigins: ['https://conciv.dev']`, token required on every request.
@@ -90,7 +92,7 @@ our servers.
 | Piece                                 | Where           | Notes                                                                                                                                                        |
 | ------------------------------------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `connect` subcommand                  | `packages/cli`  | `start()` + claude harness default, `--harness`, `--token`, temp workspace (`--workspace .` opt-in), port range 4732–4741, prints status + shutdown hint     |
-| Token middleware                      | `packages/core` | header check (reuse `CONCIV_SESSION_HEADER` pattern), 401 without it when a token is configured                                                              |
+| Token gate                            | `packages/core` | `accessToken` start opt: app served under `/t/<token>` via Hono `.mount` (prefix stripped); anything else 404s                                               |
 | `/pair/<token>` route                 | `apps/site`     | stateless: interpolates the token from the URL into plain-text instructions                                                                                  |
 | Connect panel + poller + widget mount | `apps/site`     | the main UI work; widget global bundle shipped as a site static asset (copied from `packages/embed/dist` at site build — lockstep versions, no external CDN) |
 
