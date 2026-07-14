@@ -17,12 +17,11 @@ export default defineConfig(
               plugins: [storybookTest({configDir: path.join(dirname, '.storybook')})],
               test: {
                 name: 'storybook',
-                fileParallelism: false,
                 browser: {
                   enabled: true,
                   headless: true,
                   provider: playwright({}),
-                  instances: [{browser: 'chromium'}],
+                  instances: [{browser: 'chromium', launch: {channel: 'chrome'}}],
                 },
               },
             },

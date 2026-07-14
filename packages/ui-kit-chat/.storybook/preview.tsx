@@ -1,5 +1,8 @@
 import type {Preview} from 'storybook-solidjs-vite'
+import {trackFocusVisible} from '@zag-js/focus-visible'
 import './storybook.css'
+
+trackFocusVisible()
 
 const preview: Preview = {
   parameters: {
