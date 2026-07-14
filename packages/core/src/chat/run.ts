@@ -196,7 +196,7 @@ export function tapSessionId(chunk: StreamChunk, onSessionId: (id: string) => vo
   }
 }
 
-type UserContent = string | ChatContentPart[]
+export type UserContent = string | ChatContentPart[]
 
 async function composeUserContent(db: ConcivDb, sessionId: string, content: UserContent): Promise<UserContent> {
   const rows = await db.select({grabs: drafts.grabs}).from(drafts).where(eq(drafts.sessionId, sessionId))
@@ -204,7 +204,7 @@ async function composeUserContent(db: ConcivDb, sessionId: string, content: User
   if (grabs.length === 0) return content
   const prefix = grabs.join('\n')
   if (typeof content === 'string') return content ? `${prefix}\n${content}` : prefix
-  return [{type: 'text', content: prefix}, ...content]
+  return [{type: 'text', content: `${prefix}\n`}, ...content]
 }
 
 async function historyFor(deps: ChatDeps, sessionId: string): Promise<ChatMessage[]> {

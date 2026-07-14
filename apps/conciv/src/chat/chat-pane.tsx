@@ -95,6 +95,11 @@ function ComposerStateBridge(props: {onReady: (api: ComposerStateApi) => void}):
   return <></>
 }
 
+function attachmentsEnabled(loaded: boolean, imageInput: unknown): boolean {
+  if (!loaded) return false
+  return imageInput !== false
+}
+
 export function ChatPane(props: {sessionId: string}): JSX.Element {
   const rpc = useRpc()
   const appData = useAppData()
@@ -431,7 +436,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                       <Composer
                         placeholder="Ask a question…"
                         inputLabel="Message the conciv agent"
-                        attachments={meta.data?.harness.imageInput !== false}
+                        attachments={attachmentsEnabled(meta.data !== undefined, meta.data?.harness.imageInput)}
                         inputRef={(el) => {
                           inputEl = el
                         }}

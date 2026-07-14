@@ -109,7 +109,7 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     if (!lastTurn) throw new Error('adapter saw no turn')
     const lastUser = lastTurn.findLast((message) => message.role === 'user')
     if (!Array.isArray(lastUser?.content)) throw new Error('adapter did not receive multimodal content')
-    expect(lastUser.content[0]).toMatchObject({type: 'text', content: '<button>Save</button>'})
+    expect(lastUser.content[0]).toMatchObject({type: 'text', content: '<button>Save</button>\n'})
     expect(lastUser.content[1]).toMatchObject({type: 'text', content: 'what color is this? '})
     expect(lastUser.content[2]).toMatchObject({
       type: 'image',
