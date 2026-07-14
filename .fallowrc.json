@@ -28,6 +28,7 @@
     "circular-dependencies": "warn"
   },
   "ignoreDependencies": [
+    "collections",
     "@conciv/cli",
     "jazz-napi",
     "@oxlint/plugins",

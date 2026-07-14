@@ -9,7 +9,34 @@ export type Pickable = {
   id: string
   html: string
   where: string
-  scenarios: Scenario[]
+  scenarios: [Scenario, ...Scenario[]]
+}
+
+const cta: Pickable = {
+  id: 'cta',
+  html: '<button class="cta">Get started</button>',
+  where: 'HomePage at routes/index.tsx:19:7',
+  scenarios: [
+    {
+      prompt: 'make the Get started button bigger and green',
+      inspect: 'button.cta',
+      patchDetail: 'height 40 → 52 · bg → emerald',
+      apply: {
+        height: 52,
+        paddingLeft: 24,
+        paddingRight: 24,
+        fontSize: 15,
+        backgroundColor: 'var(--od-pass)',
+        boxShadow: '0 10px 24px -8px var(--od-pass)',
+      },
+    },
+    {
+      prompt: 'change the text to "Let\'s go" and make it bold',
+      inspect: 'button.cta',
+      patchDetail: 'text → "Let\'s go" · weight → 700',
+      apply: {fontWeight: 700},
+    },
+  ],
 }
 
 export const PICKABLES: Record<string, Pickable> = {
@@ -51,32 +78,7 @@ export const PICKABLES: Record<string, Pickable> = {
       },
     ],
   },
-  cta: {
-    id: 'cta',
-    html: '<button class="cta">Get started</button>',
-    where: 'HomePage at routes/index.tsx:19:7',
-    scenarios: [
-      {
-        prompt: 'make the Get started button bigger and green',
-        inspect: 'button.cta',
-        patchDetail: 'height 40 → 52 · bg → emerald',
-        apply: {
-          height: 52,
-          paddingLeft: 24,
-          paddingRight: 24,
-          fontSize: 15,
-          backgroundColor: 'var(--od-pass)',
-          boxShadow: '0 10px 24px -8px var(--od-pass)',
-        },
-      },
-      {
-        prompt: 'change the text to "Let\'s go" and make it bold',
-        inspect: 'button.cta',
-        patchDetail: 'text → "Let\'s go" · weight → 700',
-        apply: {fontWeight: 700},
-      },
-    ],
-  },
+  cta,
 }
 
 export type Message =
@@ -92,5 +94,8 @@ export const GREETING: Message = {
 }
 
 export function pickScenario(pickable: Pickable): Scenario {
-  return pickable.scenarios[Math.floor(Math.random() * pickable.scenarios.length)]
+  const index = Math.floor(Math.random() * pickable.scenarios.length)
+  return pickable.scenarios[index] ?? pickable.scenarios[0]
 }
+
+export const DEFAULT_SCENARIO: Scenario = cta.scenarios[0]

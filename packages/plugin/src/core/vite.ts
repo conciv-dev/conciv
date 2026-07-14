@@ -18,6 +18,7 @@ import {
 import {
   loadExtensionsModule,
   concivSolidConfig,
+  concivSrcEntry,
   resolveExtensionsModule,
   transformConcivModule,
 } from '@conciv/extension-compiler/vite-plumbing'
@@ -115,8 +116,14 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
       root = config.root
       deferToTsd = config.plugins.some((p) => p.name === '@tanstack/devtools:inject-source')
     },
-    resolveId(id) {
-      return resolveExtensionsModule(id)
+    async resolveId(id, importer) {
+      const virtual = resolveExtensionsModule(id)
+      if (virtual) return virtual
+      if (!id.startsWith('@conciv/')) return null
+      if (id === '@conciv/extension' || id.startsWith('@conciv/extension/')) return null
+      const resolved = await this.resolve(id, importer, {skipSelf: true})
+      if (!resolved) return null
+      return concivSrcEntry(resolved.id)
     },
     load(id) {
       return loadExtensionsModule(id, builtins.clientEntries, apiBase, builtins.embedEntry)
