@@ -5,6 +5,7 @@ import {
   SessionRecordSchema,
   ResolveRequestSchema,
   ResolveResponseSchema,
+  ChatContentPartSchema,
 } from '../src/chat-types.js'
 
 describe('SessionId (branded, conciv_ prefix)', () => {
@@ -42,6 +43,23 @@ describe('SessionRecordSchema', () => {
       updatedAt: 1,
     })
     expect(r.harnessSessionId).toBeNull()
+  })
+})
+
+describe('ChatContentPartSchema', () => {
+  it('accepts data images with a MIME type', () => {
+    expect(
+      ChatContentPartSchema.safeParse({
+        type: 'image',
+        source: {type: 'data', value: 'aGVsbG8=', mimeType: 'image/png'},
+      }).success,
+    ).toBe(true)
+  })
+
+  it('rejects data images without a MIME type', () => {
+    expect(ChatContentPartSchema.safeParse({type: 'image', source: {type: 'data', value: 'aGVsbG8='}}).success).toBe(
+      false,
+    )
   })
 })
 

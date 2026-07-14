@@ -12,6 +12,9 @@ export const ChatContentPartSchema = z
     source: z.object({type: z.string(), mimeType: z.string().optional(), value: z.string()}).loose().optional(),
   })
   .loose()
+  .refine((part) => part.type !== 'image' || part.source?.type !== 'data' || part.source.mimeType !== undefined, {
+    message: 'Data image parts require a MIME type',
+  })
 export type ChatContentPart = z.infer<typeof ChatContentPartSchema>
 
 export const ChatMessageSchema = z
