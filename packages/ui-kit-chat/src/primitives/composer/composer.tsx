@@ -57,8 +57,8 @@ function Root(props: FormProps): JSX.Element {
     setAttachments([])
     setQuote(null)
 
-    if (handlers.onSend) handlers.onSend(content)
-    else void chat.sendMessage(content)
+    const send = handlers.onSend ?? ((value: string | MultimodalContent) => void chat.sendMessage(value))
+    send(content)
   }
   return (
     <ComposerProvider
