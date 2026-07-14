@@ -32,21 +32,33 @@ jobs:
       # Playwright Chromium: exact lockfile-hash key, NO restore-keys — a broad prefix
       # would let a poisoned browser binary launder forward across lockfile changes.
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
       # Turbo cache: scoped within a lockfile generation, so a dependency change
       # discards prior cache instead of carrying (and laundering) it forward.
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      # Restore/save are split so artifacts of tasks that passed persist even when
+      # the job fails (turbo only caches successful tasks) — the common red→green
+      # PR loop keeps its warm cache. github.job in the key stops this job and the
+      # fallow job racing to save the same sha (immutable keys: first save wins,
+      # second is rejected); run_attempt lets re-runs save too. The restore prefix
+      # is unchanged, so every job still shares every other job's saves.
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .turbo
-          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.job }}-${{ github.sha }}-${{ github.run_attempt }}
           restore-keys: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
       - uses: SocketDev/action@ba6de6cc0565af1f42295590380973573297e31f # v1.3.2
         with:
           mode: firewall-free
       - run: sfw pnpm i --frozen-lockfile # Socket Firewall blocks known-malicious packages at install
-      - run: pnpm exec playwright install --with-deps chromium # real-browser vitest tests; playwright is a root devDep
+      # Real-browser vitest tests; playwright is a root devDep. On a cache hit the
+      # browser binary is already in place, so only the OS deps (not cached) install.
+      - run: pnpm exec playwright install --with-deps chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+      - run: pnpm exec playwright install-deps chromium
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
       # --concurrency=3 caps concurrent vite optimizers; without it cross-package contention closes browser pages (storybookjs/storybook#33875).
       # VITEST_MAX_WORKERS=1 caps browser instances per package (local default is 3): on cold-cache runs
       # (every lockfile change) all storybook suites execute at once and 3x3 chromiums on a 4-vCPU runner
@@ -56,6 +68,11 @@ jobs:
           VITEST_MAX_WORKERS: '1'
       # Enforce the no-comments rule everywhere (incl. apps/), without pulling the private apps into the build/test gate.
       - run: pnpm exec oxlint -A all -D conciv/no-comments
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: always()
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.job }}-${{ github.sha }}-${{ github.run_attempt }}
 
   e2e:
     name: e2e consumer apps

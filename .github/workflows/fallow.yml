@@ -26,16 +26,24 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+      # Same key/restore policy as ci.yml: scoped within a lockfile generation,
+      # split restore/save so successful builds persist even when the audit fails,
+      # github.job disambiguates from ci.yml's save on the same sha.
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: .turbo
-          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.job }}-${{ github.sha }}-${{ github.run_attempt }}
           restore-keys: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
       - uses: SocketDev/action@ba6de6cc0565af1f42295590380973573297e31f
         with:
           mode: firewall-free
       - run: sfw pnpm i --frozen-lockfile
       - run: pnpm exec turbo run build --filter='./packages/*' --filter='./packages/extensions/*'
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        if: always()
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.job }}-${{ github.sha }}-${{ github.run_attempt }}
       - uses: fallow-rs/fallow@eaeb0634af797a69bae7600d2020dd99b33402ad
         with:
           command: audit
