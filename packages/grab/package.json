@@ -1,6 +1,6 @@
 {
   "name": "@conciv/grab",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). The conciv element-grab contract: the grab data types (Grab/StagedGrab/ElementSnapshot/ElementSource) and the GrabApi capability surface shared by the widget and the extension contract.",
   "keywords": [
     "conciv",

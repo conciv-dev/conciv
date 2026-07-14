@@ -1,5 +1,13 @@
 # site
 
+## 0.0.9
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/it@0.0.9
+  - @conciv/mascot@0.0.9
+
 ## 0.0.8
 
 ### Patch Changes

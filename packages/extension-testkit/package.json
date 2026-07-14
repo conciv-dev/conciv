@@ -1,6 +1,6 @@
 {
   "name": "@conciv/extension-testkit",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "private": true,
   "description": "Dev-only test harness: getExtensionTestApi(extension) mounts any conciv extension in a real browser against a real spawned server through its real contract.",
   "homepage": "https://conciv.dev",
