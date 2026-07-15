@@ -9,9 +9,10 @@ function isTextFile(path) {
 }
 
 function collectFiles(dir) {
-  return readdirSync(dir, {withFileTypes: true, recursive: true})
-    .filter((entry) => entry.isFile())
-    .map((entry) => join(entry.parentPath, entry.name))
+  return readdirSync(dir, {withFileTypes: true}).flatMap((entry) => {
+    const path = join(dir, entry.name)
+    return entry.isDirectory() ? collectFiles(path) : entry.isFile() ? [path] : []
+  })
 }
 
 export function buildManifest(siteDir) {

@@ -66,4 +66,14 @@ describe('conciv connect', () => {
     expect(engine.cfg.stateRoot).toContain('conciv-connect-')
     expect(engine.cfg.stateRoot).toBe(realpathSync(engine.cfg.stateRoot))
   })
+
+  it('rejects unsupported workspace paths instead of seeding them', async () => {
+    await expect(
+      runConnect({
+        token: 'tok-e',
+        workspace: '/tmp/user-workspace',
+        harnessAdapter: createFakeHarness({id: 'fake-path'}),
+      }),
+    ).rejects.toThrow('workspace must be "." when provided')
+  })
 })

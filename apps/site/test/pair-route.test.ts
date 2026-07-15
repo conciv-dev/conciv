@@ -7,5 +7,7 @@ describe('pair instructions', () => {
     expect(text).toContain('npx @conciv/try --token tok-xyz')
     expect(text).toContain('KEEP IT RUNNING')
     expect(text).toContain('https://conciv.dev')
+    expect(text).toContain('Browser access from https://conciv.dev is gated by this token')
+    expect(text).not.toContain('reachable only')
   })
 })

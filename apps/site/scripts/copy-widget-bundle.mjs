@@ -1,7 +1,10 @@
 import {copyFileSync, mkdirSync} from 'node:fs'
+import {join} from 'node:path'
 import {fileURLToPath} from 'node:url'
 
-const source = fileURLToPath(new URL('../../../packages/embed/dist/conciv-widget.global.js', import.meta.url))
-const target = fileURLToPath(new URL('../public/conciv-widget.global.js', import.meta.url))
-mkdirSync(fileURLToPath(new URL('../public', import.meta.url)), {recursive: true})
+const siteDir = fileURLToPath(new URL('..', import.meta.url))
+const source = join(siteDir, '../../packages/embed/dist/conciv-widget.global.js')
+const publicDir = join(siteDir, 'public')
+const target = join(publicDir, 'conciv-widget.global.js')
+mkdirSync(publicDir, {recursive: true})
 copyFileSync(source, target)

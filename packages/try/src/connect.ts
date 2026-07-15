@@ -21,8 +21,15 @@ export type ConnectOpts = {
 }
 
 function resolveWorkspace(workspace: string | undefined): string {
-  if (workspace === '.') return process.cwd()
+  if (workspace !== undefined) {
+    if (workspace !== '.') throw new Error('workspace must be "." when provided')
+    return realpathSync(process.cwd())
+  }
   return realpathSync(mkdtempSync(join(tmpdir(), 'conciv-connect-')))
+}
+
+function isAddressInUse(error: unknown): boolean {
+  return error instanceof Error && 'code' in error && error.code === 'EADDRINUSE'
 }
 
 function resolveAdapter(opts: ConnectOpts): HarnessAdapter {
@@ -36,7 +43,7 @@ export async function runConnect(opts: ConnectOpts): Promise<Engine> {
   const adapter = resolveAdapter(opts)
   const root = resolveWorkspace(opts.workspace)
   const log = opts.log ?? (() => {})
-  if (opts.workspace !== '.') {
+  if (opts.workspace === undefined) {
     const seeded = await seedWorkspace(opts.origin ?? DEFAULT_ORIGIN, root)
     log(seeded ? 'workspace seeded with the landing-page source' : 'no source manifest found — continuing unseeded')
   }
@@ -56,6 +63,7 @@ export async function runConnect(opts: ConnectOpts): Promise<Engine> {
       log('return to your browser tab — keep this command running')
       return engine
     } catch (error) {
+      if (!isAddressInUse(error)) throw error
       lastError = error
     }
   }
