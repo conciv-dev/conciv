@@ -1,3 +1,5 @@
+import {makeRpcClient} from '@conciv/contract'
+import type {NavigationState} from '@conciv/protocol/chat-types'
 import {connectPorts} from '@conciv/protocol/connect-ports'
 
 declare global {
@@ -33,4 +35,15 @@ export function mountWidget(base: string): void {
   script.src = '/conciv-widget.global.js'
   script.dataset.concivEmbed = 'true'
   document.body.appendChild(script)
+  window.dispatchEvent(new Event('conciv:widget-mounted'))
+}
+
+export function openPanelNavigation(sessionId: string): NavigationState {
+  return {entries: [{href: `/panel/${sessionId}?open=true`}], index: 0}
+}
+
+export async function seedOpenPanel(base: string): Promise<void> {
+  const rpc = makeRpcClient(base)
+  const {sessionId} = await rpc.sessions.resolve({})
+  await rpc.navigation.set(openPanelNavigation(sessionId))
 }
