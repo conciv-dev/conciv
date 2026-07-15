@@ -4,9 +4,9 @@
 
 **Goal:** A visitor's connected agent resolves any grabbed element on conciv.dev to real source in its workspace: the deployed site carries `data-conciv-source` annotations and the connector seeds its throwaway workspace with the site's source from a build-time manifest.
 
-**Architecture:** Three site/connect-local pieces, no core/widget/page changes. (1) A site-local vite plugin (`apply: 'build'`, `enforce: 'pre'`) stamps `data-conciv-source` into the prod build via the existing `addSourceToJsx` transform. (2) The site build packs `src/**` text files into a `public/site-source.json` manifest (path→content map). (3) `@conciv/connect` downloads that manifest on pair, writes the files plus a grounding `AGENTS.md` into the throwaway workspace before `start()`.
+**Architecture:** Three site/connect-local pieces, no core/widget/page changes. (1) A site-local vite plugin (`apply: 'build'`, `enforce: 'pre'`) stamps `data-conciv-source` into the prod build via the existing `addSourceToJsx` transform. (2) The site build packs `src/**` text files into a `public/site-source.json` manifest (path→content map). (3) `@conciv/try` downloads that manifest on pair, writes the files plus a grounding `AGENTS.md` into the throwaway workspace before `start()`.
 
-**Tech Stack:** `@conciv/extension-compiler/inject-source` (`addSourceToJsx(code, id, root)`), vite plugin hooks, node `fs`, existing `@conciv/connect` + site e2e harness.
+**Tech Stack:** `@conciv/extension-compiler/inject-source` (`addSourceToJsx(code, id, root)`), vite plugin hooks, node `fs`, existing `@conciv/try` + site e2e harness.
 
 **Spec:** `docs/superpowers/specs/2026-07-15-site-grounded-live-driving-design.md` — read it first.
 
@@ -174,7 +174,7 @@ describe('buildManifest', () => {
   it('collects site source files keyed by relative path', () => {
     const manifest = buildManifest(SITE_DIR)
     expect(manifest['src/components/landing/hero.tsx']).toContain('function Hero')
-    expect(manifest['src/lib/pair-text.ts']).toContain('npx @conciv/connect')
+    expect(manifest['src/lib/pair-text.ts']).toContain('npx @conciv/try')
     expect(manifest['package.json']).toContain('"name": "site"')
   })
 
@@ -260,14 +260,14 @@ git commit -m "feat(site): build-time source manifest asset /site-source.json" -
 
 ---
 
-### Task 3: Connector workspace seeding (`@conciv/connect`)
+### Task 3: Connector workspace seeding (`@conciv/try`)
 
 **Files:**
 
-- Create: `packages/connect/src/seed-workspace.ts`
-- Modify: `packages/connect/src/connect.ts` (seed before `start()`)
-- Modify: `packages/connect/tsdown.config.ts` (nothing to add — `seed-workspace.ts` is imported by `connect.ts`, tsdown bundles it; touch only if the build complains)
-- Test: `packages/connect/test/seed-workspace.it.test.ts`
+- Create: `packages/try/src/seed-workspace.ts`
+- Modify: `packages/try/src/connect.ts` (seed before `start()`)
+- Modify: `packages/try/tsdown.config.ts` (nothing to add — `seed-workspace.ts` is imported by `connect.ts`, tsdown bundles it; touch only if the build complains)
+- Test: `packages/try/test/seed-workspace.it.test.ts`
 
 **Interfaces:**
 
@@ -276,7 +276,7 @@ git commit -m "feat(site): build-time source manifest asset /site-source.json" -
 
 - [x] **Step 1: Write the failing test**
 
-`packages/connect/test/seed-workspace.it.test.ts`:
+`packages/try/test/seed-workspace.it.test.ts`:
 
 ```ts
 import {createServer, type Server} from 'node:http'
@@ -347,12 +347,12 @@ describe('seedWorkspace', () => {
 
 - [x] **Step 2: Run it, verify fail**
 
-Run: `cd packages/connect && pnpm vitest run test/seed-workspace.it.test.ts`
+Run: `cd packages/try && pnpm vitest run test/seed-workspace.it.test.ts`
 Expected: FAIL — `../src/seed-workspace.js` does not exist.
 
 - [x] **Step 3: Implement**
 
-`packages/connect/src/seed-workspace.ts`:
+`packages/try/src/seed-workspace.ts`:
 
 ```ts
 import {mkdirSync, writeFileSync} from 'node:fs'
@@ -402,7 +402,7 @@ export async function seedWorkspace(origin: string, root: string): Promise<boole
 
 (`response.json()` returns `unknown`-ish `any` under some TS configs; if the assignment to `Record<string, string>` fails typecheck, validate instead: assign to `const parsed: unknown = await response.json()`, guard with `typeof parsed === 'object' && parsed !== null`, and build entries from `Object.entries(parsed)` filtering values by `typeof content === 'string'` — never use `as`.)
 
-In `packages/connect/src/connect.ts`, seeding runs for throwaway workspaces only. Change `runConnect`:
+In `packages/try/src/connect.ts`, seeding runs for throwaway workspaces only. Change `runConnect`:
 
 ```ts
 import {seedWorkspace} from './seed-workspace.js'
@@ -421,15 +421,15 @@ if (throwaway) {
 
 - [x] **Step 4: Run tests, verify pass**
 
-Run: `cd packages/connect && pnpm vitest run`
+Run: `cd packages/try && pnpm vitest run`
 Expected: seed tests 3 passing, existing connect tests still 3 passing (they hit `--origin`-less defaults? No: they pass `harnessAdapter` with no `origin`, so seeding fetches `https://conciv.dev/site-source.json`; today that 404s and degrades, but tests must not depend on the network. Add `origin: 'http://127.0.0.1:1'` to the three existing `runConnect` calls in `connect.it.test.ts` so seeding fails fast locally — the connection-refused path returns false immediately.)
 
 - [x] **Step 5: Typecheck, lint, build, commit**
 
 ```bash
-pnpm turbo run build typecheck lint --filter=@conciv/connect
-git add packages/connect/src/seed-workspace.ts packages/connect/src/connect.ts packages/connect/test/seed-workspace.it.test.ts packages/connect/test/connect.it.test.ts
-git commit -m "feat(connect): seed throwaway workspace from /site-source.json + AGENTS.md" -- packages/connect
+pnpm turbo run build typecheck lint --filter=@conciv/try
+git add packages/try/src/seed-workspace.ts packages/try/src/connect.ts packages/try/test/seed-workspace.it.test.ts packages/try/test/connect.it.test.ts
+git commit -m "feat(connect): seed throwaway workspace from /site-source.json + AGENTS.md" -- packages/try
 ```
 
 ---
@@ -478,7 +478,7 @@ Expected: PASS. If `locator('[data-conciv-source]')` finds nothing: check Task 1
 - [x] **Step 3: Full gate**
 
 ```bash
-pnpm typecheck && pnpm turbo run test --filter=site --filter=@conciv/connect --force
+pnpm typecheck && pnpm turbo run test --filter=site --filter=@conciv/try --force
 pnpm exec fallow audit --changed-since main --format json
 ```
 

@@ -4,7 +4,7 @@ export function pairText(token: string, origin: string): string {
     '',
     'Run this command and KEEP IT RUNNING (do not background it and exit):',
     '',
-    `  npx @conciv/connect --token ${token}`,
+    `  npx @conciv/try --token ${token}`,
     '',
     'It starts a local conciv core bound to 127.0.0.1 in a throwaway workspace,',
     'reachable only by ' + origin + ' with this token.',

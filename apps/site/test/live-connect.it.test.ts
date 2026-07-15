@@ -4,7 +4,7 @@ import {join} from 'node:path'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {chromium, type Browser} from 'playwright'
 import {createFakeHarness} from '@conciv/harness-testkit'
-import {runConnect} from '@conciv/connect'
+import {runConnect} from '@conciv/try'
 import type {Engine} from '@conciv/core/start'
 
 const SITE_PORT = 8787
@@ -37,7 +37,7 @@ describe('live connect on the built site', () => {
     await page.context().grantPermissions(['local-network-access'], {origin: `http://127.0.0.1:${SITE_PORT}`})
     await page.goto(`http://127.0.0.1:${SITE_PORT}`, {waitUntil: 'domcontentloaded'})
     await page.getByRole('button', {name: /try it live/i}).click()
-    const command = await page.getByText(/npx @conciv\/connect --token/).textContent()
+    const command = await page.getByText(/npx @conciv\/try --token/).textContent()
     const token = command?.match(/--token (\S+)/)?.[1] ?? ''
     expect(token).not.toBe('')
     engine = await runConnect({

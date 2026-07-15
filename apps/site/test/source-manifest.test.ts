@@ -8,7 +8,7 @@ describe('buildManifest', () => {
   it('collects site source files keyed by relative path', () => {
     const manifest = buildManifest(SITE_DIR)
     expect(manifest['src/components/landing/hero.tsx']).toContain('function Hero')
-    expect(manifest['src/lib/pair-text.ts']).toContain('npx @conciv/connect')
+    expect(manifest['src/lib/pair-text.ts']).toContain('npx @conciv/try')
     expect(manifest['package.json']).toContain('"name": "site"')
   })
 

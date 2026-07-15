@@ -151,7 +151,7 @@ Test lives in Task 2 (occupied-port case). Commit with Task 2.
 
 ### Task 2: `connect` command in @conciv/cli
 
-> **Amendment (2026-07-15, user decision):** `connect` ships as a NEW package `@conciv/connect` (visitor command: `npx @conciv/connect --token <t>`, bin `conciv-connect`), NOT as a subcommand of `@conciv/cli` — keeps core/harness out of the cli runtime deps that `@conciv/it` auto-installs. `runConnect` is the root export of `@conciv/connect`; `@conciv/cli` untouched; `@conciv/connect` added to `PUBLIC_PACKAGES`. Task 1a landed (serveHono rejects on listen error). Later tasks referencing `@conciv/cli connect` / `@conciv/cli/connect` read as `@conciv/connect`.
+> **Amendment (2026-07-15, user decision):** `connect` ships as a NEW package `@conciv/try` (visitor command: `npx @conciv/try --token <t>`, bin `conciv-try`), NOT as a subcommand of `@conciv/cli` — keeps core/harness out of the cli runtime deps that `@conciv/it` auto-installs. `runConnect` is the root export of `@conciv/try`; `@conciv/cli` untouched; `@conciv/try` added to `PUBLIC_PACKAGES`. Task 1a landed (serveHono rejects on listen error). Later tasks referencing `@conciv/cli connect` / `@conciv/cli/connect` read as `@conciv/try`.
 
 **Files:**
 

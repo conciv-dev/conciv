@@ -52,7 +52,7 @@ throwaway workspace with plain `fs`. No git, no tar, no new npm deps on either s
   `build` script next to the existing widget-bundle copy step.
 - The asset is gitignored like the widget bundle.
 - Text files only (tsx, ts, css, md, json). Binary assets are excluded.
-- The connector gains a `seedWorkspace(origin, root)` step in `@conciv/connect`, running before
+- The connector gains a `seedWorkspace(origin, root)` step in `@conciv/try`, running before
   `start()`. Failure to fetch the manifest degrades gracefully: log a warning, continue
   unseeded (the old behavior).
 
@@ -80,7 +80,7 @@ This fixes grounding at the source instead of prompt-patching the harness.
 
 - Unit (site): manifest builder emits expected paths and skips binaries; annotation plugin
   stamps `data-conciv-source` (assert on the plugin's transform output for a fixture tsx).
-- IT (`@conciv/connect`): `seedWorkspace` against a local static server writes files +
+- IT (`@conciv/try`): `seedWorkspace` against a local static server writes files +
   `AGENTS.md` into the workspace; manifest fetch failure leaves the workspace usable.
 - E2E (site, extend `live-connect.it.test.ts`): after connect, a grabbed element resolves to a
   workspace path that exists (fake harness; assert via the page/grab surface or the DOM

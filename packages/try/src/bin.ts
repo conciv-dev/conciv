@@ -3,7 +3,7 @@ import {defineCommand, runMain} from 'citty'
 import {runConnect} from './connect.js'
 
 const main = defineCommand({
-  meta: {name: 'conciv-connect', description: 'connect this machine to the conciv widget on conciv.dev'},
+  meta: {name: 'conciv-try', description: 'try conciv live on conciv.dev with the agent on this machine'},
   args: {
     token: {type: 'string', required: true, description: 'pairing token from conciv.dev'},
     harness: {type: 'string', description: 'claude (default), codex, gemini-cli, opencode or pi'},

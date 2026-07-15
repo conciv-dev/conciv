@@ -1,7 +1,7 @@
 {
-  "name": "@conciv/connect",
+  "name": "@conciv/try",
   "version": "0.0.9",
-  "description": "Pair the agent CLI on your machine with the conciv widget on conciv.dev: `npx @conciv/connect --token <token>` boots a token-gated, loopback-only conciv core powered by your own agent.",
+  "description": "Try conciv live on conciv.dev with the agent already on your machine: `npx @conciv/try --token <token>` boots a token-gated, loopback-only conciv core powered by your own agent.",
   "keywords": [
     "ai-agent",
     "cli",
@@ -13,10 +13,10 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/conciv-dev/conciv.git",
-    "directory": "packages/connect"
+    "directory": "packages/try"
   },
   "bin": {
-    "conciv-connect": "./dist/bin.js"
+    "conciv-try": "./dist/bin.js"
   },
   "files": [
     "dist"

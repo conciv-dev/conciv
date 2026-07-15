@@ -118,7 +118,7 @@ export function ConnectLive() {
       <p className="mb-3 text-[13px] font-semibold">Paste into Claude Code (or any agent CLI):</p>
       <CopyRow label="Copy agent prompt" text={`Read ${ORIGIN}/pair/${token} and follow the instructions`} />
       <p className="mb-3 mt-3 text-[13px] text-muted-foreground">Or run it yourself:</p>
-      <CopyRow label="Copy connect command" text={`npx @conciv/connect --token ${token}`} />
+      <CopyRow label="Copy connect command" text={`npx @conciv/try --token ${token}`} />
       <p className="mt-4 flex items-center gap-2 text-[12.5px] text-muted-foreground">
         <span className="size-1.5 animate-pulse rounded-full bg-primary" aria-hidden />
         waiting for your agent… Chrome will ask to allow local network access — that&apos;s your agent connecting.
