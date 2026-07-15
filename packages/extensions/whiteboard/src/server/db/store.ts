@@ -56,13 +56,18 @@ export const createStore = async (dataDir: string) => {
     return db.select().from(table).where(eq(table.room, room))
   }
 
-  const upsertElement = async (scope: ElementScope, row: ElementRow): Promise<ElementUpsert> => {
+  const getElement = (scope: ElementScope, room: string, elementId: string): Promise<ElementRow | undefined> => {
     const table = elementTable(scope)
-    const current = await db
+    return db
       .select()
       .from(table)
-      .where(and(eq(table.room, row.room), eq(table.elementId, row.elementId)))
+      .where(and(eq(table.room, room), eq(table.elementId, elementId)))
       .get()
+  }
+
+  const upsertElement = async (scope: ElementScope, row: ElementRow): Promise<ElementUpsert> => {
+    const table = elementTable(scope)
+    const current = await getElement(scope, row.room, row.elementId)
     if (current && current.version >= row.version) return {ok: false, current}
     await db
       .insert(table)
@@ -78,15 +83,8 @@ export const createStore = async (dataDir: string) => {
           lastEditedByModel: row.lastEditedByModel,
         },
       })
-    const saved: ElementRow = current
-      ? {
-          ...row,
-          ownerKind: current.ownerKind,
-          ownerId: current.ownerId,
-          ownerName: current.ownerName,
-          ownerModel: current.ownerModel,
-        }
-      : row
+    const saved = await getElement(scope, row.room, row.elementId)
+    if (!saved) throw new Error(`element ${row.elementId} missing after upsert`)
     emit({table: elementTableName(scope), room: row.room, type: 'upsert', row: saved})
     return {ok: true, row: saved}
   }
@@ -229,6 +227,7 @@ export const createStore = async (dataDir: string) => {
     onEvent,
     cursor,
     listElements,
+    getElement,
     upsertElement,
     upsertElements,
     deleteElement,

@@ -44,9 +44,9 @@ const locateElement = async (
   room: string,
   elementId: string,
 ): Promise<LocatedElement | null> => {
-  const draft = (await ctx.store.listElements('draft', room)).find((row) => row.elementId === elementId)
+  const draft = await ctx.store.getElement('draft', room, elementId)
   if (draft) return {row: draft, scope: 'draft'}
-  const live = (await ctx.store.listElements('live', room)).find((row) => row.elementId === elementId)
+  const live = await ctx.store.getElement('live', room, elementId)
   return live ? {row: live, scope: 'live'} : null
 }
 
@@ -92,6 +92,7 @@ const canvasSvgTool = defineTool<typeof CanvasSvgInput, WhiteboardToolContext>(c
         y: input.y,
         width: input.width ?? 400,
         roughness: input.roughness,
+        model: ctx.model(request),
       } as JsonValue,
     })
     return {pending: pending.id}
@@ -138,7 +139,7 @@ const canvasDrawTool = defineTool<typeof CanvasDrawInput, WhiteboardToolContext>
       room: ctx.room(request),
       kind: 'skeletons',
       stage: 'draft',
-      payload: {elements: input.elements} as JsonValue,
+      payload: {elements: input.elements, model: ctx.model(request)} as JsonValue,
     })
     return {pending: pending.id}
   },
@@ -153,7 +154,7 @@ const canvasDiagramTool = defineTool<typeof CanvasDiagramInput, WhiteboardToolCo
       room: ctx.room(request),
       kind: 'mermaid',
       stage: 'draft',
-      payload: {source: input.mermaid},
+      payload: {source: input.mermaid, model: ctx.model(request)},
     })
     return {pending: pending.id}
   },
@@ -166,7 +167,10 @@ const canvasConnectTool = defineTool<typeof CanvasConnectInput, WhiteboardToolCo
       room: ctx.room(request),
       kind: 'skeletons',
       stage: 'draft',
-      payload: {elements: [{type: 'arrow', x: 0, y: 0, start: {id: input.fromId}, end: {id: input.toId}}]},
+      payload: {
+        elements: [{type: 'arrow', x: 0, y: 0, start: {id: input.fromId}, end: {id: input.toId}}],
+        model: ctx.model(request),
+      },
     })
     return {pending: pending.id}
   },
@@ -176,10 +180,11 @@ const canvasUpdateTool = defineTool<typeof CanvasUpdateInput, WhiteboardToolCont
   async (input, ctx, request) => {
     const found = await locateElement(ctx, ctx.room(request), input.elementId)
     if (!found) return {updated: false}
-    if (!(await approvedToEdit(ctx, request, 'canvas.update', input, [found.row]))) return {updated: false, blocked: true}
+    if (!(await approvedToEdit(ctx, request, 'canvas.update', input, [found.row])))
+      return {updated: false, blocked: true}
     const data = Object.assign({}, found.row.data, input.patch) as JsonValue
-    await ctx.store.upsertElement(found.scope, aiEdited(found.row, data, ctx.model(request)))
-    return {updated: true}
+    const outcome = await ctx.store.upsertElement(found.scope, aiEdited(found.row, data, ctx.model(request)))
+    return {updated: outcome.ok}
   },
 )
 
@@ -188,9 +193,10 @@ const canvasDeleteTool = defineTool<typeof CanvasDeleteInput, WhiteboardToolCont
     const room = ctx.room(request)
     const found = await locateElement(ctx, room, input.elementId)
     if (!found) return {deleted: null}
-    if (!(await approvedToEdit(ctx, request, 'canvas.delete', input, [found.row]))) return {deleted: null, blocked: true}
-    await ctx.store.deleteElement(found.scope, room, input.elementId)
-    return {deleted: input.elementId}
+    if (!(await approvedToEdit(ctx, request, 'canvas.delete', input, [found.row])))
+      return {deleted: null, blocked: true}
+    const deleted = await ctx.store.deleteElement(found.scope, room, input.elementId)
+    return {deleted: deleted ? input.elementId : null}
   },
 )
 
@@ -199,14 +205,14 @@ const canvasClearTool = defineTool<typeof CanvasClearInput, WhiteboardToolContex
     const room = ctx.room(request)
     const elements = await ctx.store.listElements('live', room)
     if (!(await approvedToEdit(ctx, request, 'canvas.clear', {}, elements))) return {cleared: 0, blocked: true}
-    await ctx.store.deleteElements(
+    const cleared = await ctx.store.deleteElements(
       'live',
       room,
       elements.map((row) => row.elementId),
     )
     for (const row of await ctx.store.db.select().from(canvasPending).where(eq(canvasPending.room, room)))
       await ctx.store.deletePending(row.id)
-    return {cleared: elements.length}
+    return {cleared}
   },
 )
 

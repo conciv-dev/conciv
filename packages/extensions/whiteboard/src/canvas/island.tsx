@@ -25,6 +25,10 @@ const CAPTURE_NEVER: CaptureUpdateActionType = 'NEVER'
 const CURSOR_STALE_MS = 15_000
 const asScene = (data: JsonValue): SceneElement => data as unknown as SceneElement
 const asJson = (element: ExcalidrawElement): JsonValue => element as unknown as JsonValue
+const pendingModel = (payload: JsonValue): string | null => {
+  const value: {model: unknown} = Object.assign({model: null}, payload)
+  return typeof value.model === 'string' ? value.model : null
+}
 
 const withStableIds = (skeletons: ExcalidrawElementSkeleton[], rowId: string): ExcalidrawElementSkeleton[] =>
   skeletons.map((skeleton, index) => (skeleton.id ? skeleton : {...skeleton, id: `${rowId}-${index}`}))
@@ -112,16 +116,16 @@ export function Island(props: {
     lastEditedByName: props.self.name,
     lastEditedByModel: null,
   })
-  const aiAuthor = {
+  const aiAuthor = (model: string | null) => ({
     ownerKind: 'ai' as const,
     ownerId: null,
     ownerName: null,
-    ownerModel: null,
+    ownerModel: model,
     lastEditedByKind: 'ai' as const,
     lastEditedById: null,
     lastEditedByName: null,
-    lastEditedByModel: null,
-  }
+    lastEditedByModel: model,
+  })
 
   const applyRemote = (rows: readonly ElementRow[]): void => {
     if (!api) {
@@ -172,7 +176,7 @@ export function Island(props: {
         elementId: element.id,
         data: asJson(element),
         version: element.version,
-        ...aiAuthor,
+        ...aiAuthor(pendingModel(row.payload)),
       }))
       const scope = row.stage === 'draft' ? 'draft' : 'live'
       await fetch(`${db.base}/elements/${scope}/bulk`, {
