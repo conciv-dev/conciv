@@ -3,7 +3,7 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {createFakeHarness} from '@conciv/harness-testkit'
-import {start, type Engine} from '@conciv/core/start'
+import {start, type Engine} from '../../src/start.js'
 
 let engine: Engine
 
