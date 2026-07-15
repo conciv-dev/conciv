@@ -1,6 +1,8 @@
 import {mkdirSync, writeFileSync} from 'node:fs'
 import {dirname, join} from 'node:path'
 
+const MAX_MANIFEST_BYTES = 8 * 1024 * 1024
+
 const AGENTS_TEXT = [
   '# This workspace',
   '',
@@ -15,32 +17,45 @@ const AGENTS_TEXT = [
   '',
 ].join('\n')
 
-function safeRelativePath(path: string): boolean {
-  if (path.startsWith('/') || path.includes('\\')) return false
-  const segments = path.split('/')
-  return segments.every((segment) => segment !== '' && segment !== '.' && segment !== '..')
+function allowedManifestPath(path: string): boolean {
+  if (path === 'package.json') return true
+  if (!path.startsWith('src/') || path.includes('\\')) return false
+  return path.split('/').every((segment) => segment !== '' && segment !== '.' && segment !== '..')
 }
 
 function manifestEntries(parsed: unknown): [string, string][] {
   if (typeof parsed !== 'object' || parsed === null) return []
   return Object.entries(parsed).filter(
-    (entry): entry is [string, string] => safeRelativePath(entry[0]) && typeof entry[1] === 'string',
+    (entry): entry is [string, string] => allowedManifestPath(entry[0]) && typeof entry[1] === 'string',
   )
+}
+
+async function fetchManifest(origin: string): Promise<unknown> {
+  const response = await fetch(`${origin}/site-source.json`)
+  if (!response.ok) return null
+  const declaredLength = Number(response.headers.get('content-length') ?? '0')
+  if (declaredLength > MAX_MANIFEST_BYTES) return null
+  const body = await response.text()
+  if (body.length > MAX_MANIFEST_BYTES) return null
+  return JSON.parse(body)
 }
 
 export async function seedWorkspace(origin: string, root: string): Promise<boolean> {
   let parsed: unknown
   try {
-    const response = await fetch(`${origin}/site-source.json`)
-    if (!response.ok) return false
-    parsed = await response.json()
+    parsed = await fetchManifest(origin)
   } catch {
     return false
   }
+  if (parsed === null) return false
   for (const [path, content] of manifestEntries(parsed)) {
-    const target = join(root, path)
-    mkdirSync(dirname(target), {recursive: true})
-    writeFileSync(target, content)
+    try {
+      const target = join(root, path)
+      mkdirSync(dirname(target), {recursive: true})
+      writeFileSync(target, content)
+    } catch {
+      continue
+    }
   }
   writeFileSync(join(root, 'AGENTS.md'), AGENTS_TEXT)
   return true
