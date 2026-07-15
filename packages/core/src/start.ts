@@ -74,18 +74,29 @@ export async function start(opts: StartOpts): Promise<Engine> {
     harnessEnv,
     allowedOrigins: opts.allowedOrigins,
   }
-  const {app, disposers, extensionContexts} = await makeApp(appOpts)
+  const {app, disposers, extensionContexts, closeDb} = await makeApp(appOpts)
 
   const requestedPort = opts.port ?? (await getPort())
   const served = opts.accessToken ? new Hono().mount(`/t/${opts.accessToken}`, app.fetch) : app
-  const {port, close} = await serveHono({fetch: served.fetch.bind(served), port: requestedPort})
+  const dispose = async (): Promise<void> => {
+    await Promise.all(disposers.map((runDispose) => runDispose()))
+    closeDb()
+  }
+  let serving: Awaited<ReturnType<typeof serveHono>>
+  try {
+    serving = await serveHono({fetch: served.fetch.bind(served), port: requestedPort})
+  } catch (error) {
+    await dispose()
+    throw error
+  }
+  const {port, close} = serving
   portRef.port = port
   return {
     port,
     cfg,
     extensionContexts,
     stop: async () => {
-      await Promise.all(disposers.map((dispose) => dispose()))
+      await dispose()
       await close()
     },
   }

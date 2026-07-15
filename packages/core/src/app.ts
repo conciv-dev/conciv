@@ -114,6 +114,7 @@ export type MadeApp = {
   app: AppType
   disposers: (() => void | Promise<void>)[]
   extensionContexts: Record<string, unknown>
+  closeDb: () => void
 }
 
 export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
@@ -268,5 +269,5 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       )
   })
 
-  return {app, disposers, extensionContexts}
+  return {app, disposers, extensionContexts, closeDb: () => db.$client.close()}
 }

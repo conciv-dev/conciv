@@ -76,4 +76,26 @@ describe('conciv connect', () => {
       }),
     ).rejects.toThrow('workspace must be "." when provided')
   })
+
+  it('walks the whole range, cleaning up each failed bind, and lands on the last free port', async () => {
+    const occupy = (port: number): Promise<void> =>
+      new Promise((resolve) => {
+        const blocker = createServer(() => {})
+        blocker.once('error', () => resolve())
+        blocker.listen(port, '127.0.0.1', () => {
+          closers.push(() => blocker.close())
+          resolve()
+        })
+      })
+    for (let port = 4732; port <= 4740; port += 1) await occupy(port)
+    const engine = await runConnect({
+      token: 'tok-last',
+      harnessAdapter: createFakeHarness({id: 'fake-last'}),
+      origin: 'http://127.0.0.1:1',
+    })
+    engines.push(engine)
+    expect(engine.port).toBe(4741)
+    const health = await fetch('http://127.0.0.1:4741/t/tok-last/health')
+    expect(health.status).toBe(200)
+  }, 30_000)
 })
