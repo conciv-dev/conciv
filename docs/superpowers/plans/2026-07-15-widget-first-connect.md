@@ -26,11 +26,13 @@
 ### Task 1: Navigation seed helpers in `lib/connect-live.ts`
 
 **Files:**
+
 - Modify: `apps/site/src/lib/connect-live.ts`
 - Modify: `apps/site/package.json` (add `"@conciv/contract": "workspace:*"` to `dependencies`)
 - Test: `apps/site/test/try-connect.test.ts` (create)
 
 **Interfaces:**
+
 - Consumes: `makeRpcClient(apiBase)` from `@conciv/contract` (`packages/contract/src/client.ts:8`), `NavigationState` from `@conciv/protocol/chat-types`.
 - Produces: `openPanelNavigation(sessionId: string): NavigationState` and `seedOpenPanel(base: string): Promise<void>`; `mountWidget` now dispatches `conciv:widget-mounted` on `window` after injecting the bundle script.
 
@@ -112,10 +114,12 @@ git commit -m "feat(site): navigation seed helpers for widget-first connect" -- 
 ### Task 2: Try-state decision logic
 
 **Files:**
+
 - Create: `apps/site/src/lib/try-state.ts`
 - Test: `apps/site/test/try-connect.test.ts` (extend)
 
 **Interfaces:**
+
 - Produces: `TRY_DISMISSED_KEY = 'conciv-try-dismissed'`, `shouldAutoOpen(opts: {tryParam: boolean; dismissed: boolean; widgetPresent: boolean}): boolean`.
 
 - [ ] **Step 1: Write the failing tests** (append to `apps/site/test/try-connect.test.ts`)
@@ -165,9 +169,11 @@ git commit -m "feat(site): try-panel auto-open decision logic" -- apps/site/src/
 ### Task 3: `RobotFab` accepts an activation override
 
 **Files:**
+
 - Modify: `apps/site/src/components/landing/robot-fab.tsx`
 
 **Interfaces:**
+
 - Produces: `RobotFab({onActivate, label}: {onActivate?: () => void; label?: string})` — with no props, behavior is exactly today's (used in `how-it-works.tsx:96`); with `onActivate`, click calls it instead of toggling work-mode, and `label` overrides the aria-label.
 
 - [ ] **Step 1: Implement** — in `robot-fab.tsx`, change the signature and `toggle`/aria-label:
@@ -177,12 +183,12 @@ export function RobotFab({onActivate, label}: {onActivate?: () => void; label?: 
 ```
 
 ```tsx
-  const toggle = () => {
-    if (onActivate) return onActivate()
-    const next = !working
-    setWorking(next)
-    rig.current?.apply(next ? 'work' : 'open')
-  }
+const toggle = () => {
+  if (onActivate) return onActivate()
+  const next = !working
+  setWorking(next)
+  rig.current?.apply(next ? 'work' : 'open')
+}
 ```
 
 ```tsx
@@ -207,11 +213,13 @@ git commit -m "feat(site): RobotFab activation override for launcher reuse" -- a
 Load skills `emil-design-eng`, `impeccable:animate`, `frontend-design` before this task.
 
 **Files:**
+
 - Create: `apps/site/src/components/landing/try-panel.tsx`
 - Create: `apps/site/src/components/landing/try-launcher.tsx`
 - Modify: `apps/site/src/styles/app.css` (append `od-try-*` styles)
 
 **Interfaces:**
+
 - Consumes: `CopyRow` needs `CopyButton` from `./copy-button` (same composition as the old `ConnectLive`); `RobotFab({onActivate, label})` from Task 3.
 - Produces: `TryPanel({token, phase, stagger, onClose}: {token: string; phase: 'waiting' | 'going-live'; stagger: boolean; onClose: () => void})`, `TryLauncher({onOpen}: {onOpen: () => void})`.
 
@@ -341,9 +349,15 @@ export function TryLauncher({onOpen}: {onOpen: () => void}) {
 }
 ```
 
-- [ ] **Step 3: Append motion CSS to `apps/site/src/styles/app.css`**
+- [ ] **Step 3: Motion via Tailwind utilities (REVISED during execution — no custom CSS)**
 
-Follow the file's existing `od-*` conventions. Values come from the spec's motion table:
+Per user direction, all motion uses `tw-animate-css` utilities (already imported in `app.css`) directly
+on the components: panel entry `animate-in fade-in slide-in-from-bottom-2 zoom-in-[0.97] origin-bottom-right
+duration-200 ease-out` with `motion-reduce:zoom-in-100 motion-reduce:slide-in-from-bottom-0`; going-live blur
+via `group` + `group-data-[phase=going-live]:blur-[2px] group-data-[phase=going-live]:opacity-70`; stagger via
+an `Item` wrapper (static `motion-safe:animate-in …` classes + inline `animationDelay = order * 40ms`);
+launcher `animate-in fade-in zoom-in-95 duration-200`. `app.css` is NOT touched. The block below is the
+superseded original:
 
 ```css
 .od-try-panel {
@@ -434,6 +448,7 @@ git commit -m "feat(site): try-panel and launcher stand-in components" -- apps/s
 Load skills `emil-design-eng`, `impeccable:animate`, `frontend-design` if not already loaded.
 
 **Files:**
+
 - Create: `apps/site/src/components/landing/try-widget.tsx`
 - Modify: `apps/site/src/routes/index.tsx` (validateSearch)
 - Modify: `apps/site/src/components/landing/landing-page.tsx` (render `TryWidget`)
@@ -441,6 +456,7 @@ Load skills `emil-design-eng`, `impeccable:animate`, `frontend-design` if not al
 - Delete: `apps/site/src/components/landing/connect-live.tsx`
 
 **Interfaces:**
+
 - Consumes: `findCore`, `mountWidget`, `seedOpenPanel`, `CONNECT_PORTS` from `@/lib/connect-live`; `shouldAutoOpen`, `TRY_DISMISSED_KEY` from `@/lib/try-state`; `TryPanel`, `TryLauncher` from Task 4.
 - Produces: `TryWidget()` (renders the whole stand-in surface), `TryLiveButton()` (hero CTA), index route search type `{try?: 1}`.
 
@@ -543,7 +559,12 @@ export function TryWidget() {
   return (
     <div ref={start}>
       {isOpen && token ? (
-        <TryPanel token={token} phase={phase === 'going-live' ? 'going-live' : 'waiting'} stagger={!everOpened} onClose={close} />
+        <TryPanel
+          token={token}
+          phase={phase === 'going-live' ? 'going-live' : 'waiting'}
+          stagger={!everOpened}
+          onClose={close}
+        />
       ) : (
         <TryLauncher onOpen={open} />
       )}
@@ -576,6 +597,7 @@ export function TryLiveButton() {
 ```
 
 Implementation notes for this step:
+
 - `shouldAutoOpen` is called with `tryParam: false` because the callback ref fires once on first client mount; if the URL already has `?try=1` the navigate is a harmless no-op replace, but read `search.try` at call time if straightforward (the ref closure sees the initial value — acceptable either way).
 - The setState-during-render for `everOpened` is the documented React pattern for derived state; if lint objects, move it into the `open` callback and the auto-open navigate.
 - If the old `ConnectLive` used `Button` from `@/components/ui/button`, prefer reusing that component for `TryLiveButton` exactly as `connect-live.tsx` did: `<Button variant="outline" onClick={...}>`.
@@ -622,9 +644,11 @@ git commit -m "feat(site): widget-first try panel opens on load, hero CTA slimme
 ### Task 6: Integration tests
 
 **Files:**
+
 - Modify: `apps/site/test/live-connect.it.test.ts`
 
 **Interfaces:**
+
 - Consumes: the running site (wrangler dev, port 8787, existing `beforeAll`), `runConnect` from `@conciv/try`, `createFakeHarness` from `@conciv/harness-testkit`. Panel is `getByRole('region', {name: 'Try conciv live'})`; launcher/hero buttons by accessible name.
 
 - [ ] **Step 1: Update the e2e for auto-open + open-panel handoff**
@@ -632,33 +656,33 @@ git commit -m "feat(site): widget-first try panel opens on load, hero CTA slimme
 Replace the body of the existing `it('pairs, mounts the widget and completes a chat turn', ...)`:
 
 ```ts
-    const page = await browser.newPage()
-    await page.context().grantPermissions(['local-network-access'], {origin: `http://127.0.0.1:${SITE_PORT}`})
-    await page.goto(`http://127.0.0.1:${SITE_PORT}`, {waitUntil: 'domcontentloaded'})
-    const panel = page.getByRole('region', {name: 'Try conciv live'})
-    await expect.poll(() => panel.isVisible(), {timeout: 15_000}).toBe(true)
-    expect(page.url()).toContain('try=1')
-    const command = await page.getByText(/npx @conciv\/try --token/).textContent()
-    const token = command?.match(/--token (\S+)/)?.[1] ?? ''
-    expect(token).not.toBe('')
-    engine = await runConnect({
-      token,
-      harnessAdapter: createFakeHarness({id: 'fake-e2e', text: 'hello from e2e'}),
-      origin: `http://127.0.0.1:${SITE_PORT}`,
-    })
-    const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
-    await expect.poll(() => input.isVisible(), {timeout: 30_000}).toBe(true)
-    await expect.poll(() => panel.isVisible()).toBe(false)
-    const stamped = page.locator('[data-conciv-source]').first()
-    const sourceRef = (await stamped.getAttribute('data-conciv-source')) ?? ''
-    const sourceFile = sourceRef.split(':').slice(0, -2).join(':')
-    expect(sourceFile).toMatch(/^src\//)
-    expect(engine).not.toBeNull()
-    if (engine) expect(existsSync(join(engine.cfg.stateRoot, sourceFile))).toBe(true)
-    await input.fill('hello')
-    await input.press('Enter')
-    await expect.poll(() => page.getByText('hello from e2e').first().isVisible(), {timeout: 30_000}).toBe(true)
-    await page.close()
+const page = await browser.newPage()
+await page.context().grantPermissions(['local-network-access'], {origin: `http://127.0.0.1:${SITE_PORT}`})
+await page.goto(`http://127.0.0.1:${SITE_PORT}`, {waitUntil: 'domcontentloaded'})
+const panel = page.getByRole('region', {name: 'Try conciv live'})
+await expect.poll(() => panel.isVisible(), {timeout: 15_000}).toBe(true)
+expect(page.url()).toContain('try=1')
+const command = await page.getByText(/npx @conciv\/try --token/).textContent()
+const token = command?.match(/--token (\S+)/)?.[1] ?? ''
+expect(token).not.toBe('')
+engine = await runConnect({
+  token,
+  harnessAdapter: createFakeHarness({id: 'fake-e2e', text: 'hello from e2e'}),
+  origin: `http://127.0.0.1:${SITE_PORT}`,
+})
+const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
+await expect.poll(() => input.isVisible(), {timeout: 30_000}).toBe(true)
+await expect.poll(() => panel.isVisible()).toBe(false)
+const stamped = page.locator('[data-conciv-source]').first()
+const sourceRef = (await stamped.getAttribute('data-conciv-source')) ?? ''
+const sourceFile = sourceRef.split(':').slice(0, -2).join(':')
+expect(sourceFile).toMatch(/^src\//)
+expect(engine).not.toBeNull()
+if (engine) expect(existsSync(join(engine.cfg.stateRoot, sourceFile))).toBe(true)
+await input.fill('hello')
+await input.press('Enter')
+await expect.poll(() => page.getByText('hello from e2e').first().isVisible(), {timeout: 30_000}).toBe(true)
+await page.close()
 ```
 
 The two load-bearing changes: no `Try it live` click before pairing (auto-open), and no `Open conciv chat` click after connect (the seeded navigation boots the widget with the panel open — the message textbox must be reachable without any click).
@@ -668,26 +692,26 @@ The two load-bearing changes: no `Try it live` click before pairing (auto-open),
 Append inside the same `describe`:
 
 ```ts
-  it('closes to a launcher, remembers dismissal, reopens from hero and launcher', async () => {
-    const page = await browser.newPage()
-    await page.goto(`http://127.0.0.1:${SITE_PORT}`, {waitUntil: 'domcontentloaded'})
-    const panel = page.getByRole('region', {name: 'Try conciv live'})
-    await expect.poll(() => panel.isVisible(), {timeout: 15_000}).toBe(true)
-    await page.getByRole('button', {name: 'Close the live demo panel'}).click()
-    await expect.poll(() => panel.isVisible()).toBe(false)
-    const launcher = page.getByRole('button', {name: 'Open the live demo panel'})
-    await expect.poll(() => launcher.isVisible()).toBe(true)
-    await page.reload({waitUntil: 'domcontentloaded'})
-    await expect.poll(() => launcher.isVisible(), {timeout: 15_000}).toBe(true)
-    expect(await panel.isVisible()).toBe(false)
-    expect(page.url()).not.toContain('try=1')
-    await page.getByRole('button', {name: /try it live/i}).click()
-    await expect.poll(() => panel.isVisible()).toBe(true)
-    await page.getByRole('button', {name: 'Close the live demo panel'}).click()
-    await launcher.click()
-    await expect.poll(() => panel.isVisible()).toBe(true)
-    await page.close()
-  }, 60_000)
+it('closes to a launcher, remembers dismissal, reopens from hero and launcher', async () => {
+  const page = await browser.newPage()
+  await page.goto(`http://127.0.0.1:${SITE_PORT}`, {waitUntil: 'domcontentloaded'})
+  const panel = page.getByRole('region', {name: 'Try conciv live'})
+  await expect.poll(() => panel.isVisible(), {timeout: 15_000}).toBe(true)
+  await page.getByRole('button', {name: 'Close the live demo panel'}).click()
+  await expect.poll(() => panel.isVisible()).toBe(false)
+  const launcher = page.getByRole('button', {name: 'Open the live demo panel'})
+  await expect.poll(() => launcher.isVisible()).toBe(true)
+  await page.reload({waitUntil: 'domcontentloaded'})
+  await expect.poll(() => launcher.isVisible(), {timeout: 15_000}).toBe(true)
+  expect(await panel.isVisible()).toBe(false)
+  expect(page.url()).not.toContain('try=1')
+  await page.getByRole('button', {name: /try it live/i}).click()
+  await expect.poll(() => panel.isVisible()).toBe(true)
+  await page.getByRole('button', {name: 'Close the live demo panel'}).click()
+  await launcher.click()
+  await expect.poll(() => panel.isVisible()).toBe(true)
+  await page.close()
+}, 60_000)
 ```
 
 - [ ] **Step 3: Rebuild what the IT consumes, then run**
