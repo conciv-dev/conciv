@@ -50,12 +50,16 @@ const toolFor = (name: string) => {
   return tool.__execute
 }
 
+const deniedHumanContext = async () => {
+  const store = await open()
+  await store.upsertElement('live', el('human'))
+  const calls = {n: 0}
+  return {store, calls, ctx: contextFor(store, () => false, calls)}
+}
+
 describe('canvas edit approval guard', () => {
   it('blocks an AI update of a human element when approval is denied', async () => {
-    const store = await open()
-    await store.upsertElement('live', el('human'))
-    const calls = {n: 0}
-    const ctx = contextFor(store, () => false, calls)
+    const {store, calls, ctx} = await deniedHumanContext()
     const result = await toolFor('canvas.update')({elementId: 'e1', patch: {n: 2}}, ctx, request)
     expect(result).toEqual({updated: false, blocked: true})
     expect(calls.n).toBe(1)
@@ -88,10 +92,7 @@ describe('canvas edit approval guard', () => {
   })
 
   it('blocks deleting a human element when approval is denied', async () => {
-    const store = await open()
-    await store.upsertElement('live', el('human'))
-    const calls = {n: 0}
-    const ctx = contextFor(store, () => false, calls)
+    const {store, calls, ctx} = await deniedHumanContext()
     const result = await toolFor('canvas.delete')({elementId: 'e1'}, ctx, request)
     expect(result).toEqual({deleted: null, blocked: true})
     expect(calls.n).toBe(1)
@@ -99,10 +100,7 @@ describe('canvas edit approval guard', () => {
   })
 
   it('blocks clearing a canvas with human elements when approval is denied', async () => {
-    const store = await open()
-    await store.upsertElement('live', el('human'))
-    const calls = {n: 0}
-    const ctx = contextFor(store, () => false, calls)
+    const {store, calls, ctx} = await deniedHumanContext()
     const result = await toolFor('canvas.clear')({}, ctx, request)
     expect(result).toEqual({cleared: 0, blocked: true})
     expect(calls.n).toBe(1)
