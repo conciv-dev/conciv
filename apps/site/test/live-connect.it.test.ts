@@ -15,10 +15,13 @@ let engine: Engine | null = null
 beforeAll(async () => {
   site = spawn('pnpm', ['exec', 'wrangler', 'dev', '--port', String(SITE_PORT)], {cwd: import.meta.dirname + '/..'})
   await new Promise<void>((resolve, reject) => {
+    const output: string[] = []
     site.stdout?.on('data', (chunk: Buffer) => {
+      output.push(String(chunk))
       if (String(chunk).includes('Ready')) resolve()
     })
-    site.on('exit', () => reject(new Error('wrangler dev exited')))
+    site.stderr?.on('data', (chunk: Buffer) => output.push(String(chunk)))
+    site.on('exit', () => reject(new Error(`wrangler dev exited:\n${output.join('')}`)))
   })
   browser = await chromium.launch({
     args: [`--ip-address-space-overrides=127.0.0.1:${SITE_PORT}=public`],
