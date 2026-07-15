@@ -59,6 +59,9 @@ describe('live connect on the built site', () => {
     await input.fill('hello')
     await input.press('Enter')
     await expect.poll(() => page.getByText('hello from e2e').first().isVisible(), {timeout: 30_000}).toBe(true)
+    await page.reload({waitUntil: 'domcontentloaded'})
+    const inputAfterReload = page.getByRole('textbox', {name: 'Message the conciv agent'})
+    await expect.poll(() => inputAfterReload.isVisible(), {timeout: 30_000}).toBe(true)
     await page.close()
   }, 180_000)
 

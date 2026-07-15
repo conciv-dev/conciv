@@ -2,7 +2,8 @@ import {getRouteApi} from '@tanstack/react-router'
 import {useCallback, useRef, useState} from 'react'
 import {Button} from '@/components/ui/button'
 import {CONNECT_PORTS, findCore, mountWidget, seedOpenPanel} from '@/lib/connect-live'
-import {TRY_DISMISSED_KEY, shouldAutoOpen} from '@/lib/try-state'
+import {dismissTry, getTrySession} from '@/lib/try-session.functions'
+import {shouldAutoOpen} from '@/lib/try-state'
 import {TryLauncher} from './try-launcher'
 import {TryPanel} from './try-panel'
 
@@ -38,10 +39,20 @@ async function connectLoop(token: string, signal: AbortSignal, onPhase: (phase: 
   }
 }
 
-function maybeAutoOpen(navigate: Navigate): void {
-  const tryParam = new URLSearchParams(window.location.search).get('try') === '1'
-  const dismissed = localStorage.getItem(TRY_DISMISSED_KEY) === '1'
-  if (shouldAutoOpen({tryParam, dismissed, widgetPresent: false})) void navigate({search: {try: 1}, replace: true})
+async function beginSession(
+  signal: AbortSignal,
+  navigate: Navigate,
+  tryParam: boolean,
+  onToken: (token: string) => void,
+  onPhase: (phase: Phase) => void,
+): Promise<void> {
+  const {token, dismissed} = await getTrySession()
+  if (signal.aborted) return
+  onToken(token)
+  if (shouldAutoOpen({tryParam, dismissed, widgetPresent: false})) {
+    void navigate({search: {try: 1}, replace: true})
+  }
+  await connectLoop(token, signal, onPhase)
 }
 
 function TryOverlay({
@@ -57,8 +68,13 @@ function TryOverlay({
   onClose: () => void
   onOpen: () => void
 }) {
-  if (!open || !token) return <TryLauncher onOpen={onOpen} />
-  return <TryPanel token={token} phase={phase === 'going-live' ? 'going-live' : 'waiting'} onClose={onClose} />
+  if (!open || !token) return <TryLauncher label="Open the live demo panel" onActivate={onOpen} />
+  return (
+    <>
+      <TryLauncher label="Hide the live demo panel" onActivate={onClose} />
+      <TryPanel token={token} phase={phase === 'going-live' ? 'going-live' : 'waiting'} onClose={onClose} />
+    </>
+  )
 }
 
 export function TryWidget() {
@@ -70,16 +86,6 @@ export function TryWidget() {
   const abortRef = useRef<AbortController | null>(null)
   const startedRef = useRef(false)
 
-  const boot = useCallback((navigateTo: Navigate): AbortController | null => {
-    if (document.querySelector('[data-conciv-root]')) return null
-    const freshToken = crypto.randomUUID()
-    setToken(freshToken)
-    const controller = new AbortController()
-    void connectLoop(freshToken, controller.signal, setPhase)
-    maybeAutoOpen(navigateTo)
-    return controller
-  }, [])
-
   const stop = useCallback(() => {
     abortRef.current?.abort()
     abortRef.current = null
@@ -90,16 +96,21 @@ export function TryWidget() {
       if (!node) return stop()
       if (startedRef.current) return
       startedRef.current = true
-      const controller = boot(navigate)
-      if (!controller) return setHidden(true)
+      if (document.querySelector('[data-conciv-root]')) return setHidden(true)
+      const controller = new AbortController()
       abortRef.current = controller
+      const tryParam = new URLSearchParams(window.location.search).get('try') === '1'
+      void beginSession(controller.signal, navigate, tryParam, setToken, setPhase).catch((error: unknown) =>
+        console.error('conciv try session failed', error),
+      )
     },
-    [boot, navigate, stop],
+    [navigate, stop],
   )
 
   const closePanel = () => {
-    localStorage.setItem(TRY_DISMISSED_KEY, '1')
-    void navigate({search: {}, replace: true})
+    void dismissTry()
+      .catch(() => {})
+      .then(() => navigate({search: {}, replace: true}))
   }
   const openPanel = () => void navigate({search: {try: 1}})
 
