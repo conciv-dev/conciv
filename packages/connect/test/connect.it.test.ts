@@ -42,6 +42,18 @@ describe('conciv connect', () => {
     expect(engine.port).toBeGreaterThan(4732)
   }, 20_000)
 
+  it('runs with a connect-scenario system prompt (static page, page tools are the live surface)', async () => {
+    const engine = await runConnect({
+      token: 'tok-d',
+      harnessAdapter: createFakeHarness({id: 'fake-prompt'}),
+      origin: 'http://127.0.0.1:1',
+    })
+    engines.push(engine)
+    expect(engine.cfg.systemPrompt).toContain('static')
+    expect(engine.cfg.systemPrompt).toContain('page tools')
+    expect(engine.cfg.systemPrompt).not.toContain('picked up instantly by HMR')
+  })
+
   it('uses a throwaway workspace by default', async () => {
     const engine = await runConnect({
       token: 'tok-c',

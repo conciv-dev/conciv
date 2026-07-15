@@ -5,6 +5,7 @@ import {start, type Engine} from '@conciv/core/start'
 import {getHarness} from '@conciv/harness'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import {seedWorkspace} from './seed-workspace.js'
+import {CONNECT_SYSTEM_PROMPT} from './system-prompt.js'
 
 const FIRST_PORT = 4732
 const LAST_PORT = 4741
@@ -43,7 +44,7 @@ export async function runConnect(opts: ConnectOpts): Promise<Engine> {
   for (let port = FIRST_PORT; port <= LAST_PORT; port += 1) {
     try {
       const engine = await start({
-        options: {harness: adapter.id, stateRoot: root},
+        options: {harness: adapter.id, stateRoot: root, systemPrompt: CONNECT_SYSTEM_PROMPT},
         root,
         port,
         launchEditor: () => {},
