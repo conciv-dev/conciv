@@ -20,6 +20,7 @@
     "typecheck": "fumadocs-mdx && tsc --noEmit",
     "lint": "oxlint",
     "test": "vitest run",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "gen:snippets": "node --experimental-strip-types scripts/highlight-snippets.ts"
   },
   "dependencies": {
