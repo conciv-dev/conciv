@@ -25,6 +25,7 @@
   "dependencies": {
     "@conciv/it": "workspace:*",
     "@conciv/mascot": "workspace:*",
+    "@conciv/protocol": "workspace:*",
     "@fontsource-variable/geist": "^5.2.9",
     "@gsap/react": "^2.1.2",
     "@huggingface/transformers": "^4.2.0",

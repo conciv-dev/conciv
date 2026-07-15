@@ -4,11 +4,10 @@ import {join} from 'node:path'
 import {start, type Engine} from '@conciv/core/start'
 import {getHarness} from '@conciv/harness'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
+import {CONNECT_FIRST_PORT, CONNECT_LAST_PORT} from '@conciv/protocol/connect-ports'
 import {seedWorkspace} from './seed-workspace.js'
 import {CONNECT_SYSTEM_PROMPT} from './system-prompt.js'
 
-const FIRST_PORT = 4732
-const LAST_PORT = 4741
 const DEFAULT_ORIGIN = 'https://conciv.dev'
 
 export type ConnectOpts = {
@@ -48,7 +47,7 @@ export async function runConnect(opts: ConnectOpts): Promise<Engine> {
     log(seeded ? 'workspace seeded with the landing-page source' : 'no source manifest found — continuing unseeded')
   }
   let lastError: unknown
-  for (let port = FIRST_PORT; port <= LAST_PORT; port += 1) {
+  for (let port = CONNECT_FIRST_PORT; port <= CONNECT_LAST_PORT; port += 1) {
     try {
       const engine = await start({
         options: {harness: adapter.id, stateRoot: root, systemPrompt: CONNECT_SYSTEM_PROMPT},
@@ -67,5 +66,5 @@ export async function runConnect(opts: ConnectOpts): Promise<Engine> {
       lastError = error
     }
   }
-  throw new Error(`no free port between ${FIRST_PORT} and ${LAST_PORT}: ${String(lastError)}`)
+  throw new Error(`no free port between ${CONNECT_FIRST_PORT} and ${CONNECT_LAST_PORT}: ${String(lastError)}`)
 }

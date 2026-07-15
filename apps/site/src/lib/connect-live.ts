@@ -1,10 +1,12 @@
+import {connectPorts} from '@conciv/protocol/connect-ports'
+
 declare global {
   interface Window {
     __CONCIV_API_BASE__?: string
   }
 }
 
-export const CONNECT_PORTS = [4732, 4733, 4734, 4735, 4736, 4737, 4738, 4739, 4740, 4741]
+export const CONNECT_PORTS = connectPorts()
 
 export async function findCore(
   token: string,

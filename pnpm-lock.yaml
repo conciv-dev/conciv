@@ -313,6 +313,9 @@ importers:
       '@conciv/mascot':
         specifier: workspace:*
         version: link:../../packages/mascot
+      '@conciv/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
       '@fontsource-variable/geist':
         specifier: ^5.2.9
         version: 5.2.9
