@@ -86,4 +86,26 @@ describe('canvas edit approval guard', () => {
     expect(result).toEqual({updated: true})
     expect(calls.n).toBe(0)
   })
+
+  it('blocks deleting a human element when approval is denied', async () => {
+    const store = await open()
+    await store.upsertElement('live', el('human'))
+    const calls = {n: 0}
+    const ctx = contextFor(store, () => false, calls)
+    const result = await toolFor('canvas.delete')({elementId: 'e1'}, ctx, request)
+    expect(result).toEqual({deleted: null, blocked: true})
+    expect(calls.n).toBe(1)
+    expect(await store.listElements('live', 'r')).toHaveLength(1)
+  })
+
+  it('blocks clearing a canvas with human elements when approval is denied', async () => {
+    const store = await open()
+    await store.upsertElement('live', el('human'))
+    const calls = {n: 0}
+    const ctx = contextFor(store, () => false, calls)
+    const result = await toolFor('canvas.clear')({}, ctx, request)
+    expect(result).toEqual({cleared: 0, blocked: true})
+    expect(calls.n).toBe(1)
+    expect(await store.listElements('live', 'r')).toHaveLength(1)
+  })
 })
