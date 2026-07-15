@@ -88,12 +88,15 @@ export function Island(props: {
     return active.length === 1 ? active[0]?.[0] : undefined
   }
 
+  const selectedRow = (elementId: string | undefined): ElementRow | undefined =>
+    elementId ? db.canvasElements.state.get(elementId) : undefined
+
   const refreshChip = (): void => {
     if (!api) return void setChip(null)
     const state = api.getAppState()
     const selectedId = soleSelectedId(state.selectedElementIds)
     const element = api.getSceneElements().find((candidate: SceneElement) => candidate.id === selectedId)
-    const row = [...db.canvasElements.state.values()].find((candidate) => candidate.elementId === selectedId)
+    const row = selectedRow(selectedId)
     if (!element || !row) return void setChip(null)
     const viewport: Viewport = {
       scrollX: state.scrollX,
