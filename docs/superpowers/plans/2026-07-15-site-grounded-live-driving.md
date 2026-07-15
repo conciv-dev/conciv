@@ -159,7 +159,7 @@ git commit -m "feat(site): stamp data-conciv-source into the prod build" -- apps
 - Consumes: `apps/site/src/**` on disk.
 - Produces: `buildManifest(siteDir: string): Record<string, string>` exported from the script (keys are site-relative posix paths like `src/components/landing/hero.tsx`, plus `package.json`); the script when run directly writes `public/site-source.json`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `apps/site/test/source-manifest.test.ts`:
 
@@ -187,12 +187,12 @@ describe('buildManifest', () => {
 })
 ```
 
-- [ ] **Step 2: Run it, verify fail**
+- [x] **Step 2: Run it, verify fail**
 
 Run: `cd apps/site && pnpm vitest run test/source-manifest.test.ts`
 Expected: FAIL — script module not found.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `apps/site/scripts/build-source-manifest.mjs`:
 
@@ -241,7 +241,7 @@ if (executedDirectly) {
 /public/site-source.json
 ```
 
-- [ ] **Step 4: Run tests + build, verify asset**
+- [x] **Step 4: Run tests + build, verify asset**
 
 ```bash
 cd apps/site && pnpm vitest run test/source-manifest.test.ts
@@ -251,7 +251,7 @@ node -e "const m = require('./apps/site/public/site-source.json'); console.log(O
 
 Expected: tests pass; asset exists with the hero file inside.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/site/scripts/build-source-manifest.mjs apps/site/package.json apps/site/.gitignore apps/site/test/source-manifest.test.ts

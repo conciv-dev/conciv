@@ -12,7 +12,7 @@
   "sideEffects": false,
   "scripts": {
     "dev": "vite dev --port 3001",
-    "build": "node scripts/copy-widget-bundle.mjs && vite build",
+    "build": "node scripts/copy-widget-bundle.mjs && node scripts/build-source-manifest.mjs && vite build",
     "start": "vite preview",
     "preview": "vite preview",
     "deploy": "vite build && wrangler deploy",
