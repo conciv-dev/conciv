@@ -13,4 +13,12 @@
   "observability": {
     "enabled": true,
   },
+  "env": {
+    "preview": {
+      "name": "conciv-site-preview",
+      "workers_dev": true,
+      "preview_urls": true,
+      "routes": [],
+    },
+  },
 }
