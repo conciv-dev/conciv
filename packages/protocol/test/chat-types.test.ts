@@ -61,6 +61,14 @@ describe('ChatContentPartSchema', () => {
       false,
     )
   })
+
+  it('rejects unsupported and missing image sources', () => {
+    expect(ChatContentPartSchema.safeParse({type: 'image'}).success).toBe(false)
+    expect(
+      ChatContentPartSchema.safeParse({type: 'image', source: {type: 'url', value: 'https://example.com/image.png'}})
+        .success,
+    ).toBe(false)
+  })
 })
 
 describe('ResolveRequestSchema', () => {

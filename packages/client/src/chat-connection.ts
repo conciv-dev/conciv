@@ -16,12 +16,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
-function imageSource(source: unknown): NonNullable<ChatContentPart['source']> | undefined {
-  if (!isRecord(source) || typeof source.type !== 'string' || typeof source.value !== 'string') return undefined
-  if (typeof source.mimeType === 'string') {
-    return {type: source.type, value: source.value, mimeType: source.mimeType}
-  }
-  return {type: source.type, value: source.value}
+type ImageContentPart = Extract<ChatContentPart, {type: 'image'}>
+
+function imageSource(source: unknown): ImageContentPart['source'] | undefined {
+  if (
+    !isRecord(source) ||
+    source.type !== 'data' ||
+    typeof source.value !== 'string' ||
+    typeof source.mimeType !== 'string' ||
+    source.mimeType.length === 0
+  )
+    return undefined
+  return {type: 'data', value: source.value, mimeType: source.mimeType}
 }
 
 function partContent(part: unknown): ChatContentPart[] {

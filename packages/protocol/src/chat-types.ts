@@ -5,16 +5,15 @@ export type {StreamChunk, UIMessage, MessagePart} from '@tanstack/ai'
 
 export const CONCIV_SESSION_HEADER = 'conciv-session-id'
 
-export const ChatContentPartSchema = z
-  .object({
-    type: z.string(),
-    content: z.string().optional(),
-    source: z.object({type: z.string(), mimeType: z.string().optional(), value: z.string()}).loose().optional(),
-  })
-  .loose()
-  .refine((part) => part.type !== 'image' || part.source?.type !== 'data' || part.source.mimeType !== undefined, {
-    message: 'Data image parts require a MIME type',
-  })
+export const ChatContentPartSchema = z.discriminatedUnion('type', [
+  z.object({type: z.literal('text'), content: z.string()}).loose(),
+  z
+    .object({
+      type: z.literal('image'),
+      source: z.object({type: z.literal('data'), mimeType: z.string().min(1), value: z.string()}).loose(),
+    })
+    .loose(),
+])
 export type ChatContentPart = z.infer<typeof ChatContentPartSchema>
 
 export const ChatMessageSchema = z

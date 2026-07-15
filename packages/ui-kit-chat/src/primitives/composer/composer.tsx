@@ -45,8 +45,8 @@ function invokeSubmit(
   if (typeof handler === 'function') handler(event)
 }
 
-function canSubmit(canSend: boolean, attachmentCount: number): boolean {
-  return canSend || attachmentCount > 0
+function canSubmit(canSend: boolean, attachmentCount: number, isRunning: boolean): boolean {
+  return !isRunning && (canSend || attachmentCount > 0)
 }
 
 function sendContent(
@@ -70,7 +70,8 @@ function Root(props: FormProps): JSX.Element {
   const submit = (event: SubmitEvent & {currentTarget: HTMLFormElement; target: Element}) => {
     event.preventDefault()
     invokeSubmit(local.onSubmit, event)
-    if (!canSubmit(composer.canSend(), attachments().length)) return
+    const isRunning = chat.status() === 'streaming' || chat.status() === 'submitted'
+    if (!canSubmit(composer.canSend(), attachments().length, isRunning)) return
     const text = chat.view.draft.trim()
     const content = buildContent(text, attachments())
     chat.setView('draft', '')
