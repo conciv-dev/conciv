@@ -1,4 +1,5 @@
 import {createServer} from 'node:http'
+import {realpathSync} from 'node:fs'
 import {afterAll, describe, expect, it} from 'vitest'
 import {createFakeHarness} from '@conciv/harness-testkit'
 import {runConnect} from '../src/connect.js'
@@ -63,5 +64,6 @@ describe('conciv connect', () => {
     engines.push(engine)
     expect(engine.cfg.stateRoot).not.toBe(process.cwd())
     expect(engine.cfg.stateRoot).toContain('conciv-connect-')
+    expect(engine.cfg.stateRoot).toBe(realpathSync(engine.cfg.stateRoot))
   })
 })

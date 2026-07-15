@@ -1,4 +1,4 @@
-import {mkdtempSync} from 'node:fs'
+import {mkdtempSync, realpathSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {start, type Engine} from '@conciv/core/start'
@@ -22,7 +22,7 @@ export type ConnectOpts = {
 
 function resolveWorkspace(workspace: string | undefined): string {
   if (workspace === '.') return process.cwd()
-  return mkdtempSync(join(tmpdir(), 'conciv-connect-'))
+  return realpathSync(mkdtempSync(join(tmpdir(), 'conciv-connect-')))
 }
 
 function resolveAdapter(opts: ConnectOpts): HarnessAdapter {
