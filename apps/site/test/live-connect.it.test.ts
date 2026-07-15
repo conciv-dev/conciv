@@ -1,4 +1,6 @@
 import {spawn, type ChildProcess} from 'node:child_process'
+import {existsSync} from 'node:fs'
+import {join} from 'node:path'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import {chromium, type Browser} from 'playwright'
 import {createFakeHarness} from '@conciv/harness-testkit'
@@ -53,6 +55,12 @@ describe('live connect on the built site', () => {
         {timeout: 30_000},
       )
       .toBe(true)
+    const stamped = page.locator('[data-conciv-source]').first()
+    const sourceRef = (await stamped.getAttribute('data-conciv-source')) ?? ''
+    const sourceFile = sourceRef.split(':').slice(0, -2).join(':')
+    expect(sourceFile).toMatch(/^src\//)
+    expect(engine).not.toBeNull()
+    if (engine) expect(existsSync(join(engine.cfg.stateRoot, sourceFile))).toBe(true)
     await page.getByRole('button', {name: 'Open conciv chat'}).click()
     const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
     await expect.poll(() => input.isVisible(), {timeout: 15_000}).toBe(true)

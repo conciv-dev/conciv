@@ -444,7 +444,7 @@ git commit -m "feat(connect): seed throwaway workspace from /site-source.json + 
 
 - Consumes: built site with annotations (Task 1) + manifest (Task 2), seeding connector (Task 3), `engine.cfg.stateRoot` (the seeded workspace) from `@conciv/core/start`'s `Engine`.
 
-- [ ] **Step 1: Extend the e2e test**
+- [x] **Step 1: Extend the e2e test**
 
 In `apps/site/test/live-connect.it.test.ts`, add imports:
 
@@ -466,7 +466,7 @@ if (engine) expect(existsSync(join(engine.cfg.stateRoot, sourceFile))).toBe(true
 
 This proves the full grounding chain on the deployed artifact: the served DOM carries an annotation, and the exact file it names exists in the connector's seeded workspace.
 
-- [ ] **Step 2: Run the e2e**
+- [x] **Step 2: Run the e2e**
 
 ```bash
 pnpm turbo run build --filter=site --force
@@ -475,7 +475,7 @@ cd apps/site && pnpm vitest run test/live-connect.it.test.ts
 
 Expected: PASS. If `locator('[data-conciv-source]')` finds nothing: check Task 1 Step 5 again on this exact build (stale dist is the usual cause — rebuild with `--force`).
 
-- [ ] **Step 3: Full gate**
+- [x] **Step 3: Full gate**
 
 ```bash
 pnpm typecheck && pnpm turbo run test --filter=site --filter=@conciv/connect --force
@@ -484,7 +484,7 @@ pnpm exec fallow audit --changed-since main --format json
 
 Fix anything INTRODUCED. Known pre-existing failures that are NOT yours: core `claude-image` IT, `conciv` app lint (`panel.$sessionId.tsx`), `turn-detach` flake under parallel load.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/site/test/live-connect.it.test.ts
