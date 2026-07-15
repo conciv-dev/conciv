@@ -7,6 +7,7 @@ import {TryLauncher} from './try-launcher'
 import {TryPanel} from './try-panel'
 
 type Phase = 'waiting' | 'going-live' | 'live'
+type Navigate = ReturnType<typeof route.useNavigate>
 
 const route = getRouteApi('/')
 const GOING_LIVE_MS = 600
@@ -37,68 +38,75 @@ async function connectLoop(token: string, signal: AbortSignal, onPhase: (phase: 
   }
 }
 
+function maybeAutoOpen(navigate: Navigate): void {
+  const tryParam = new URLSearchParams(window.location.search).get('try') === '1'
+  const dismissed = localStorage.getItem(TRY_DISMISSED_KEY) === '1'
+  if (shouldAutoOpen({tryParam, dismissed, widgetPresent: false})) void navigate({search: {try: 1}, replace: true})
+}
+
+function TryOverlay({
+  open,
+  token,
+  phase,
+  onClose,
+  onOpen,
+}: {
+  open: boolean
+  token: string
+  phase: Phase
+  onClose: () => void
+  onOpen: () => void
+}) {
+  if (!open || !token) return <TryLauncher onOpen={onOpen} />
+  return <TryPanel token={token} phase={phase === 'going-live' ? 'going-live' : 'waiting'} onClose={onClose} />
+}
+
 export function TryWidget() {
   const search = route.useSearch()
   const navigate = route.useNavigate()
   const [phase, setPhase] = useState<Phase>('waiting')
   const [token, setToken] = useState('')
   const [hidden, setHidden] = useState(false)
-  const [everOpened, setEverOpened] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
   const startedRef = useRef(false)
 
+  const boot = useCallback((navigateTo: Navigate): AbortController | null => {
+    if (document.querySelector('[data-conciv-root]')) return null
+    const freshToken = crypto.randomUUID()
+    setToken(freshToken)
+    const controller = new AbortController()
+    void connectLoop(freshToken, controller.signal, setPhase)
+    maybeAutoOpen(navigateTo)
+    return controller
+  }, [])
+
+  const stop = useCallback(() => {
+    abortRef.current?.abort()
+    abortRef.current = null
+  }, [])
+
   const start = useCallback(
     (node: HTMLDivElement | null) => {
-      if (!node) {
-        abortRef.current?.abort()
-        abortRef.current = null
-        return
-      }
+      if (!node) return stop()
       if (startedRef.current) return
       startedRef.current = true
-      if (document.querySelector('[data-conciv-root]')) {
-        setHidden(true)
-        return
-      }
-      const freshToken = crypto.randomUUID()
-      setToken(freshToken)
-      const controller = new AbortController()
+      const controller = boot(navigate)
+      if (!controller) return setHidden(true)
       abortRef.current = controller
-      void connectLoop(freshToken, controller.signal, setPhase)
-      const tryParam = new URLSearchParams(window.location.search).get('try') === '1'
-      const dismissed = localStorage.getItem(TRY_DISMISSED_KEY) === '1'
-      if (shouldAutoOpen({tryParam, dismissed, widgetPresent: false})) {
-        void navigate({search: {try: 1}, replace: true})
-      }
     },
-    [navigate],
+    [boot, navigate, stop],
   )
 
-  const close = () => {
+  const closePanel = () => {
     localStorage.setItem(TRY_DISMISSED_KEY, '1')
     void navigate({search: {}, replace: true})
   }
-  const open = () => {
-    setEverOpened(true)
-    void navigate({search: {try: 1}})
-  }
+  const openPanel = () => void navigate({search: {try: 1}})
 
   if (hidden || phase === 'live') return null
-  const isOpen = search.try === 1
-  if (isOpen && !everOpened) setEverOpened(true)
-
   return (
     <div ref={start}>
-      {isOpen && token ? (
-        <TryPanel
-          token={token}
-          phase={phase === 'going-live' ? 'going-live' : 'waiting'}
-          stagger={!everOpened}
-          onClose={close}
-        />
-      ) : (
-        <TryLauncher onOpen={open} />
-      )}
+      <TryOverlay open={search.try === 1} token={token} phase={phase} onClose={closePanel} onOpen={openPanel} />
     </div>
   )
 }

@@ -5,6 +5,14 @@ import {CopyButton} from './copy-button'
 const ORIGIN = 'https://conciv.dev'
 const SLOW_HINT_MS = 60_000
 
+let hasStaggered = false
+
+function claimStagger(): boolean {
+  const first = !hasStaggered
+  hasStaggered = true
+  return first
+}
+
 function Item({stagger, order, children}: {stagger: boolean; order: number; children: ReactNode}) {
   if (!stagger) return children
   return (
@@ -34,14 +42,13 @@ function CopyRow({label, text}: {label: string; text: string}) {
 export function TryPanel({
   token,
   phase,
-  stagger,
   onClose,
 }: {
   token: string
   phase: 'waiting' | 'going-live'
-  stagger: boolean
   onClose: () => void
 }) {
+  const [stagger] = useState(claimStagger)
   const [slow, setSlow] = useState(false)
   const slowTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const slowTimer = useCallback((node: HTMLElement | null) => {
