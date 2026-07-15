@@ -4,6 +4,7 @@ import {join} from 'node:path'
 import {start, type Engine} from '@conciv/core/start'
 import {getHarness} from '@conciv/harness'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
+import {seedWorkspace} from './seed-workspace.js'
 
 const FIRST_PORT = 4732
 const LAST_PORT = 4741
@@ -34,6 +35,10 @@ export async function runConnect(opts: ConnectOpts): Promise<Engine> {
   const adapter = resolveAdapter(opts)
   const root = resolveWorkspace(opts.workspace)
   const log = opts.log ?? (() => {})
+  if (opts.workspace !== '.') {
+    const seeded = await seedWorkspace(opts.origin ?? DEFAULT_ORIGIN, root)
+    log(seeded ? 'workspace seeded with the landing-page source' : 'no source manifest found — continuing unseeded')
+  }
   let lastError: unknown
   for (let port = FIRST_PORT; port <= LAST_PORT; port += 1) {
     try {

@@ -274,7 +274,7 @@ git commit -m "feat(site): build-time source manifest asset /site-source.json" -
 - Consumes: `GET <origin>/site-source.json` → `Record<string, string>` (Task 2's asset).
 - Produces: `seedWorkspace(origin: string, root: string): Promise<boolean>` (true = seeded; false = fetch/parse failed, workspace left untouched). On success also writes `<root>/AGENTS.md`. `runConnect` calls it for throwaway workspaces only and logs the outcome.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `packages/connect/test/seed-workspace.it.test.ts`:
 
@@ -345,12 +345,12 @@ describe('seedWorkspace', () => {
 })
 ```
 
-- [ ] **Step 2: Run it, verify fail**
+- [x] **Step 2: Run it, verify fail**
 
 Run: `cd packages/connect && pnpm vitest run test/seed-workspace.it.test.ts`
 Expected: FAIL — `../src/seed-workspace.js` does not exist.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `packages/connect/src/seed-workspace.ts`:
 
@@ -419,12 +419,12 @@ if (throwaway) {
 }
 ```
 
-- [ ] **Step 4: Run tests, verify pass**
+- [x] **Step 4: Run tests, verify pass**
 
 Run: `cd packages/connect && pnpm vitest run`
 Expected: seed tests 3 passing, existing connect tests still 3 passing (they hit `--origin`-less defaults? No: they pass `harnessAdapter` with no `origin`, so seeding fetches `https://conciv.dev/site-source.json`; today that 404s and degrades, but tests must not depend on the network. Add `origin: 'http://127.0.0.1:1'` to the three existing `runConnect` calls in `connect.it.test.ts` so seeding fails fast locally — the connection-refused path returns false immediately.)
 
-- [ ] **Step 5: Typecheck, lint, build, commit**
+- [x] **Step 5: Typecheck, lint, build, commit**
 
 ```bash
 pnpm turbo run build typecheck lint --filter=@conciv/connect

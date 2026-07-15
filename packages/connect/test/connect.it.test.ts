@@ -14,7 +14,11 @@ afterAll(async () => {
 
 describe('conciv connect', () => {
   it('boots a token-gated core on the first free port in range', async () => {
-    const engine = await runConnect({token: 'tok-a', harnessAdapter: createFakeHarness({id: 'fake-connect'})})
+    const engine = await runConnect({
+      token: 'tok-a',
+      harnessAdapter: createFakeHarness({id: 'fake-connect'}),
+      origin: 'http://127.0.0.1:1',
+    })
     engines.push(engine)
     expect(engine.port).toBeGreaterThanOrEqual(4732)
     expect(engine.port).toBeLessThanOrEqual(4741)
@@ -29,13 +33,21 @@ describe('conciv connect', () => {
       blocker.listen(4732, '127.0.0.1', () => resolve())
     })
     closers.push(() => blocker.close())
-    const engine = await runConnect({token: 'tok-b', harnessAdapter: createFakeHarness({id: 'fake-busy'})})
+    const engine = await runConnect({
+      token: 'tok-b',
+      harnessAdapter: createFakeHarness({id: 'fake-busy'}),
+      origin: 'http://127.0.0.1:1',
+    })
     engines.push(engine)
     expect(engine.port).toBeGreaterThan(4732)
   }, 20_000)
 
   it('uses a throwaway workspace by default', async () => {
-    const engine = await runConnect({token: 'tok-c', harnessAdapter: createFakeHarness({id: 'fake-ws'})})
+    const engine = await runConnect({
+      token: 'tok-c',
+      harnessAdapter: createFakeHarness({id: 'fake-ws'}),
+      origin: 'http://127.0.0.1:1',
+    })
     engines.push(engine)
     expect(engine.cfg.stateRoot).not.toBe(process.cwd())
     expect(engine.cfg.stateRoot).toContain('conciv-connect-')
