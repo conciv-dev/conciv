@@ -27,8 +27,8 @@ export async function findCore(
 }
 
 export function mountWidget(base: string): void {
-  if (document.querySelector('script[data-conciv-embed]')) return
   window.__CONCIV_API_BASE__ = base
+  if (document.querySelector('script[data-conciv-embed]')) return
   const script = document.createElement('script')
   script.src = '/conciv-widget.global.js'
   script.dataset.concivEmbed = 'true'

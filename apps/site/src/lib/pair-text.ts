@@ -14,3 +14,9 @@ export function pairText(token: string, origin: string): string {
     'a "local network access" permission prompt in that tab; the user should allow it.',
   ].join('\n')
 }
+
+export function pairResponse(token: string, origin: string): Response {
+  return new Response(pairText(token, origin), {
+    headers: {'content-type': 'text/plain; charset=utf-8'},
+  })
+}
