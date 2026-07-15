@@ -16,7 +16,7 @@ export default defineConfig({
     command: `rm -rf .conciv-${name} && pnpm exec vite --config ${config} --port ${port} --strictPort --force`,
     url: `http://localhost:${port}`,
     reuseExistingServer: !process.env.CI,
-    stdout: 'pipe' as const,
+    stdout: 'pipe',
     timeout: 120_000,
     env: {CONCIV_E2E: '1'},
   })),

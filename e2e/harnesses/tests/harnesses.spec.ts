@@ -9,9 +9,12 @@ const expected = {
   pi: null,
 } as const
 
+const isHarnessName = (name: string): name is keyof typeof expected => Object.hasOwn(expected, name)
+
 test('full app boots with the configured harness and exposes its real model catalog', async ({page}, testInfo) => {
-  const harness = expected[testInfo.project.name as keyof typeof expected]
-  expect(testInfo.project.name in expected, `unexpected harness project ${testInfo.project.name}`).toBe(true)
+  const projectName = testInfo.project.name
+  if (!isHarnessName(projectName)) throw new Error(`unexpected harness project ${projectName}`)
+  const harness = expected[projectName]
 
   const failures = collectFailures(page)
   await page.goto('/', {waitUntil: 'domcontentloaded'})
@@ -26,5 +29,7 @@ test('full app boots with the configured harness and exposes its real model cata
   } else {
     await expect(modelSelector).toHaveCount(0)
   }
+  expect(failures.pageErrors).toEqual([])
+  expect(failures.consoleErrors).toEqual([])
   expect(failures.requestFailures).toEqual([])
 })
