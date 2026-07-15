@@ -24,7 +24,6 @@
     "gen:snippets": "node --experimental-strip-types scripts/highlight-snippets.ts"
   },
   "dependencies": {
-    "@conciv/contract": "workspace:*",
     "@conciv/it": "workspace:*",
     "@conciv/mascot": "workspace:*",
     "@conciv/protocol": "workspace:*",

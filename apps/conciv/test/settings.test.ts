@@ -6,6 +6,7 @@ describe('parseConcivSettings', () => {
     const expected = {
       modal: {enabled: true, position: 'bottom-right'},
       quickTerminal: {enabled: true, hotkeys: ['Mod+`']},
+      defaultOpen: false,
     }
     expect(parseConcivSettings('')).toEqual(expected)
     expect(parseConcivSettings('{nope')).toEqual(expected)
@@ -21,6 +22,12 @@ describe('parseConcivSettings', () => {
   it('reads modal position and validates unknown values back to the default', () => {
     expect(parseConcivSettings('{"modal": {"position": "top-left"}}').modal.position).toBe('top-left')
     expect(parseConcivSettings('{"modal": {"position": "under-the-sea"}}').modal.position).toBe('bottom-right')
+  })
+
+  it('defaultOpen only on explicit true', () => {
+    expect(parseConcivSettings('{"defaultOpen": true}').defaultOpen).toBe(true)
+    expect(parseConcivSettings('{"defaultOpen": "yes"}').defaultOpen).toBe(false)
+    expect(parseConcivSettings('{}').defaultOpen).toBe(false)
   })
 
   it('accepts hotkey as string or array', () => {

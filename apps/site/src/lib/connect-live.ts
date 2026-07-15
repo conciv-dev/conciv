@@ -1,5 +1,3 @@
-import {makeRpcClient} from '@conciv/contract'
-import type {NavigationState} from '@conciv/protocol/chat-types'
 import {connectPorts} from '@conciv/protocol/connect-ports'
 
 declare global {
@@ -10,40 +8,36 @@ declare global {
 
 export const CONNECT_PORTS = connectPorts()
 
-export async function findCore(
+export async function probeCore(
   token: string,
   ports: readonly number[],
   fetchLike: typeof fetch,
   signal?: AbortSignal,
 ): Promise<string | null> {
-  for (const port of ports) {
+  const attempts = ports.map(async (port) => {
     const base = `http://127.0.0.1:${port}/t/${token}`
-    try {
-      const response = await fetchLike(`${base}/health`, {signal})
-      if (response.ok) return base
-    } catch {
-      if (signal?.aborted) return null
-    }
-  }
-  return null
+    const response = await fetchLike(`${base}/health`, {signal})
+    if (!response.ok) throw new Error(`port ${port} unhealthy`)
+    return base
+  })
+  return Promise.any(attempts).catch(() => null)
+}
+
+function ensureWidgetSettings(): void {
+  if (document.querySelector('meta[name="pw-widget"]')) return
+  const meta = document.createElement('meta')
+  meta.name = 'pw-widget'
+  meta.content = JSON.stringify({defaultOpen: true})
+  document.head.appendChild(meta)
 }
 
 export function mountWidget(base: string): void {
   window.__CONCIV_API_BASE__ = base
   if (document.querySelector('script[data-conciv-embed]')) return
+  ensureWidgetSettings()
   const script = document.createElement('script')
   script.src = '/conciv-widget.global.js'
   script.dataset.concivEmbed = 'true'
   document.body.appendChild(script)
   window.dispatchEvent(new Event('conciv:widget-mounted'))
-}
-
-export function openPanelNavigation(sessionId: string): NavigationState {
-  return {entries: [{href: `/panel/${sessionId}?open=true`}], index: 0}
-}
-
-export async function seedOpenPanel(base: string): Promise<void> {
-  const rpc = makeRpcClient(base)
-  const {sessionId} = await rpc.sessions.resolve({})
-  await rpc.navigation.set(openPanelNavigation(sessionId))
 }

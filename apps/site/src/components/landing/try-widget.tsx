@@ -1,17 +1,18 @@
 import {getRouteApi} from '@tanstack/react-router'
 import {useCallback, useRef, useState} from 'react'
 import {Button} from '@/components/ui/button'
-import {CONNECT_PORTS, findCore, mountWidget, seedOpenPanel} from '@/lib/connect-live'
+import {CONNECT_PORTS, mountWidget, probeCore} from '@/lib/connect-live'
 import {dismissTry, getTrySession} from '@/lib/try-session.functions'
 import {shouldAutoOpen} from '@/lib/try-state'
 import {TryLauncher} from './try-launcher'
 import {TryPanel} from './try-panel'
 
-type Phase = 'waiting' | 'going-live' | 'live'
+type Phase = 'boot' | 'waiting' | 'live'
 type Navigate = ReturnType<typeof route.useNavigate>
 
 const route = getRouteApi('/')
-const GOING_LIVE_MS = 600
+const PREFLIGHT_TIMEOUT_MS = 2500
+const POLL_INTERVAL_MS = 2000
 
 function sleep(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
@@ -23,16 +24,20 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
   })
 }
 
-async function connectLoop(token: string, signal: AbortSignal, onPhase: (phase: Phase) => void): Promise<void> {
+function probe(token: string, signal: AbortSignal): Promise<string | null> {
+  return probeCore(token, CONNECT_PORTS, (input, init) => fetch(input, init), signal)
+}
+
+function autoOpen(navigate: Navigate, dismissed: boolean): void {
+  const tryParam = new URLSearchParams(window.location.search).get('try') === '1'
+  if (shouldAutoOpen({tryParam, dismissed, widgetPresent: false})) void navigate({search: {try: 1}, replace: true})
+}
+
+async function pollForCore(token: string, signal: AbortSignal, onPhase: (phase: Phase) => void): Promise<void> {
   while (!signal.aborted) {
-    const base = await findCore(token, CONNECT_PORTS, (input, init) => fetch(input, init), signal)
-    if (!base) {
-      await sleep(2000, signal)
-      continue
-    }
-    onPhase('going-live')
-    await seedOpenPanel(base).catch((error: unknown) => console.error('conciv seed failed', error))
-    await sleep(GOING_LIVE_MS, signal)
+    await sleep(POLL_INTERVAL_MS, signal)
+    const base = signal.aborted ? null : await probe(token, signal)
+    if (!base) continue
     mountWidget(base)
     onPhase('live')
     return
@@ -42,29 +47,33 @@ async function connectLoop(token: string, signal: AbortSignal, onPhase: (phase: 
 async function beginSession(
   signal: AbortSignal,
   navigate: Navigate,
-  tryParam: boolean,
   onToken: (token: string) => void,
   onPhase: (phase: Phase) => void,
 ): Promise<void> {
   const {token, dismissed} = await getTrySession()
+  const preflight = signal.aborted
+    ? null
+    : await probe(token, AbortSignal.any([signal, AbortSignal.timeout(PREFLIGHT_TIMEOUT_MS)]))
   if (signal.aborted) return
-  onToken(token)
-  if (shouldAutoOpen({tryParam, dismissed, widgetPresent: false})) {
-    void navigate({search: {try: 1}, replace: true})
+  if (preflight) {
+    mountWidget(preflight)
+    onPhase('live')
+    return
   }
-  await connectLoop(token, signal, onPhase)
+  onToken(token)
+  onPhase('waiting')
+  autoOpen(navigate, dismissed)
+  await pollForCore(token, signal, onPhase)
 }
 
 function TryOverlay({
   open,
   token,
-  phase,
   onClose,
   onOpen,
 }: {
   open: boolean
   token: string
-  phase: Phase
   onClose: () => void
   onOpen: () => void
 }) {
@@ -72,7 +81,7 @@ function TryOverlay({
   return (
     <>
       <TryLauncher label="Hide the live demo panel" onActivate={onClose} />
-      <TryPanel token={token} phase={phase === 'going-live' ? 'going-live' : 'waiting'} onClose={onClose} />
+      <TryPanel token={token} onClose={onClose} />
     </>
   )
 }
@@ -80,7 +89,7 @@ function TryOverlay({
 export function TryWidget() {
   const search = route.useSearch()
   const navigate = route.useNavigate()
-  const [phase, setPhase] = useState<Phase>('waiting')
+  const [phase, setPhase] = useState<Phase>('boot')
   const [token, setToken] = useState('')
   const [hidden, setHidden] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
@@ -99,8 +108,7 @@ export function TryWidget() {
       if (document.querySelector('[data-conciv-root]')) return setHidden(true)
       const controller = new AbortController()
       abortRef.current = controller
-      const tryParam = new URLSearchParams(window.location.search).get('try') === '1'
-      void beginSession(controller.signal, navigate, tryParam, setToken, setPhase).catch((error: unknown) =>
+      void beginSession(controller.signal, navigate, setToken, setPhase).catch((error: unknown) =>
         console.error('conciv try session failed', error),
       )
     },
@@ -117,7 +125,9 @@ export function TryWidget() {
   if (hidden || phase === 'live') return null
   return (
     <div ref={start}>
-      <TryOverlay open={search.try === 1} token={token} phase={phase} onClose={closePanel} onOpen={openPanel} />
+      {phase === 'waiting' ? (
+        <TryOverlay open={search.try === 1} token={token} onClose={closePanel} onOpen={openPanel} />
+      ) : null}
     </div>
   )
 }

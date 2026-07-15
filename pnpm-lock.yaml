@@ -307,9 +307,6 @@ importers:
 
   apps/site:
     dependencies:
-      '@conciv/contract':
-        specifier: workspace:*
-        version: link:../../packages/contract
       '@conciv/it':
         specifier: workspace:*
         version: link:../../packages/it

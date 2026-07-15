@@ -39,15 +39,7 @@ function CopyRow({label, text}: {label: string; text: string}) {
   )
 }
 
-export function TryPanel({
-  token,
-  phase,
-  onClose,
-}: {
-  token: string
-  phase: 'waiting' | 'going-live'
-  onClose: () => void
-}) {
+export function TryPanel({token, onClose}: {token: string; onClose: () => void}) {
   const [stagger] = useState(claimStagger)
   const [slow, setSlow] = useState(false)
   const slowTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
@@ -63,8 +55,7 @@ export function TryPanel({
     <section
       ref={slowTimer}
       aria-label="Try conciv live"
-      data-phase={phase}
-      className="group fixed bottom-[5.25rem] right-5 z-40 flex h-[35rem] max-h-[calc(100vh-7.5rem)] w-[30rem] max-w-[calc(100vw-2.5rem)] origin-bottom-right animate-in flex-col overflow-hidden rounded-xl border bg-card fade-in slide-in-from-bottom-2 zoom-in-[0.97] shadow-xl duration-200 ease-out motion-reduce:zoom-in-100 motion-reduce:slide-in-from-bottom-0"
+      className="fixed bottom-[5.25rem] right-5 z-40 flex h-[35rem] max-h-[calc(100vh-7.5rem)] w-[30rem] max-w-[calc(100vw-2.5rem)] origin-bottom-right animate-in flex-col overflow-hidden rounded-xl border bg-card fade-in slide-in-from-bottom-2 zoom-in-[0.97] shadow-xl duration-200 ease-out motion-reduce:zoom-in-100 motion-reduce:slide-in-from-bottom-0"
     >
       <header className="flex items-center justify-between border-b px-4 py-3">
         <span className="flex items-center gap-2 text-[13px] font-semibold">
@@ -79,7 +70,7 @@ export function TryPanel({
           <X className="size-4" />
         </button>
       </header>
-      <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-4 transition-[filter,opacity] duration-300 group-data-[phase=going-live]:opacity-70 group-data-[phase=going-live]:blur-[2px]">
+      <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-4">
         <Item stagger={stagger} order={0}>
           <p className="text-[14px]">
             No agent connected yet. Point <b className="font-semibold">your</b> coding agent at this page and it drives
@@ -98,18 +89,11 @@ export function TryPanel({
         <Item stagger={stagger} order={4}>
           <CopyRow label="Copy connect command" text={`npx @conciv/try --token ${token}`} />
         </Item>
-        {phase === 'waiting' ? (
-          <p className="mt-auto flex items-center gap-2 text-[12.5px] text-muted-foreground">
-            <span className="size-1.5 animate-pulse rounded-full bg-primary" aria-hidden />
-            waiting for your agent… Chrome will ask to allow local network access — that&apos;s your agent connecting.
-          </p>
-        ) : (
-          <p className="mt-auto flex items-center gap-2 text-[12.5px] font-semibold text-primary">
-            <span className="size-1.5 rounded-full bg-primary" aria-hidden />
-            connected — going live…
-          </p>
-        )}
-        {slow && phase === 'waiting' ? (
+        <p className="mt-auto flex items-center gap-2 text-[12.5px] text-muted-foreground">
+          <span className="size-1.5 animate-pulse rounded-full bg-primary" aria-hidden />
+          waiting for your agent… Chrome will ask to allow local network access — that&apos;s your agent connecting.
+        </p>
+        {slow ? (
           <p className="text-[12px] text-muted-foreground">
             Taking a while? See the{' '}
             <a href="/docs" className="underline underline-offset-2">
