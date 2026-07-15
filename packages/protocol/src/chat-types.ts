@@ -5,12 +5,21 @@ export type {StreamChunk, UIMessage, MessagePart} from '@tanstack/ai'
 
 export const CONCIV_SESSION_HEADER = 'conciv-session-id'
 
+const MAX_IMAGE_BASE64_LENGTH = 27_962_028
+const Base64Image = z
+  .string()
+  .min(1)
+  .max(MAX_IMAGE_BASE64_LENGTH)
+  .regex(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/)
+
 export const ChatContentPartSchema = z.discriminatedUnion('type', [
   z.object({type: z.literal('text'), content: z.string()}).loose(),
   z
     .object({
       type: z.literal('image'),
-      source: z.object({type: z.literal('data'), mimeType: z.string().min(1), value: z.string()}).loose(),
+      source: z
+        .object({type: z.literal('data'), mimeType: z.string().regex(/^image\/[A-Za-z0-9.+-]+$/), value: Base64Image})
+        .loose(),
     })
     .loose(),
 ])

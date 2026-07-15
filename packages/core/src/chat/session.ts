@@ -170,7 +170,10 @@ export function userText(message: HistoryMessage): string {
 
 export function settledMessages(messages: ChatHistory, pendingUserText: string | null): ChatHistory {
   if (pendingUserText === null) return messages
-  const index = messages.findLastIndex((message) => userText(message as HistoryMessage) === pendingUserText)
+  const index = messages.findLastIndex((message) => {
+    const text = userText(message as HistoryMessage)
+    return text === pendingUserText || text.startsWith(`${pendingUserText}\n\n@`)
+  })
   if (index === -1) return messages
   return messages.slice(0, index)
 }

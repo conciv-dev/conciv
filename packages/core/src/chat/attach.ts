@@ -82,12 +82,16 @@ function pendingUserTextOf(run: ChatHistory): string | null {
   return userText(first)
 }
 
-async function buildSnapshot(deps: ChatDeps, sessionId: string): Promise<StreamChunk> {
+export async function mergedMessages(deps: ChatDeps, sessionId: string): Promise<ChatHistory> {
   const transcript = await transcriptMessages(deps, sessionId)
   const row = runMessagesFor(deps.db, sessionId)
   const run = row ? ChatHistorySchema.parse(row.messages) : []
   const settled = settledMessages(transcript, pendingUserTextOf(run))
-  return aguiSnapshotFor([...settled, ...run])
+  return [...settled, ...run]
+}
+
+async function buildSnapshot(deps: ChatDeps, sessionId: string): Promise<StreamChunk> {
+  return aguiSnapshotFor(await mergedMessages(deps, sessionId))
 }
 
 async function snapshotKey(deps: ChatDeps, sessionId: string): Promise<string> {

@@ -31,7 +31,7 @@ describe('openDb', () => {
     expect(db.select().from(sessions).all()[0]?.title).toBe('named')
   })
 
-  it('boot sweep resets stuck runs and truncates run rows, sessions survive', () => {
+  it('boot sweep resets stuck runs, preserves messages, and clears replies', () => {
     const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-db-sweep-'))
     const first = openDb(stateRoot)
     first
@@ -44,7 +44,7 @@ describe('openDb', () => {
     const second = openDb(stateRoot)
     expect(second.select().from(sessions).all()[0]?.title).toBe('keep')
     expect(statusOf(second, 'conciv_z')).toBe('idle')
-    expect(runMessagesFor(second, 'conciv_z')).toBeNull()
+    expect(runMessagesFor(second, 'conciv_z')?.messages).toEqual([{id: 'm1'}])
     expect(replyFor(second, 'conciv_z', 'k')).toBeNull()
   })
 

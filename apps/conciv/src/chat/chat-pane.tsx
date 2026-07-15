@@ -10,9 +10,11 @@ import {
   NowLine,
   Thread,
   ToolProvider,
+  createSimpleImageAttachmentAdapter,
   guardChat,
   pairResults,
   useComposer,
+  type AttachmentAdapter,
   type Turn,
 } from '@conciv/ui-kit-chat'
 import {builtinToolCards, nowTitle} from '@conciv/ui-kit-chat-tools'
@@ -39,6 +41,12 @@ import {SessionModelSelector} from '../composer/model-selector.js'
 import {clearPaneSnapshot, readPaneSnapshot, writePaneSnapshot} from '../lib/ui-snapshot.js'
 
 const GRAB_PREVIEW_MAX_W = 280
+const IMAGE_ATTACHMENT_ADAPTER = createSimpleImageAttachmentAdapter()
+
+function imageAttachmentAdapter(loaded: boolean, imageInput: unknown): AttachmentAdapter | undefined {
+  if (!loaded || imageInput === false) return undefined
+  return IMAGE_ATTACHMENT_ADAPTER
+}
 
 const ERROR = 'flex gap-2 items-center text-pw-danger text-[0.75rem] anim-msg'
 const RECONNECT = 'flex gap-2 items-center text-pw-text-2 text-[0.75rem] anim-msg'
@@ -93,11 +101,6 @@ function ComposerStateBridge(props: {onReady: (api: ComposerStateApi) => void}):
   }
   onMount(() => props.onReady(api))
   return <></>
-}
-
-function attachmentsEnabled(loaded: boolean, imageInput: unknown): boolean {
-  if (!loaded) return false
-  return imageInput !== false
 }
 
 export function ChatPane(props: {sessionId: string}): JSX.Element {
@@ -436,7 +439,10 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                       <Composer
                         placeholder="Ask a question…"
                         inputLabel="Message the conciv agent"
-                        attachments={attachmentsEnabled(meta.data !== undefined, meta.data?.harness.imageInput)}
+                        attachmentAdapter={imageAttachmentAdapter(
+                          meta.data !== undefined,
+                          meta.data?.harness.imageInput,
+                        )}
                         inputRef={(el) => {
                           inputEl = el
                         }}

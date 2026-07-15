@@ -27,7 +27,7 @@ const StreamChunkSchema = z.custom<StreamChunk>((value) => typeof value === 'obj
 const SessionIdInput = z.object({sessionId: z.string()})
 const ChatSendInput = SessionIdInput.extend({
   text: z.string().min(1).optional(),
-  content: z.union([z.string().min(1), z.array(ChatContentPartSchema).min(1)]).optional(),
+  content: z.union([z.string().min(1), z.array(ChatContentPartSchema).min(1).max(16)]).optional(),
 }).refine((input) => input.text !== undefined || input.content !== undefined)
 const Ok = z.object({ok: z.literal(true)})
 const busy = {BUSY: {message: 'session busy'}}

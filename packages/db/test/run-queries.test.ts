@@ -22,7 +22,7 @@ import {sessions} from '../src/schema.js'
 const fresh = () => openDb(mkdtempSync(join(tmpdir(), 'conciv-run-')))
 
 describe('run lifecycle queries', () => {
-  it('claimRun is atomic, bumps runEpoch, and clears prior run rows', () => {
+  it('claimRun is atomic, bumps runEpoch, preserves messages, and clears replies', () => {
     const db = fresh()
     setRunMessages(db, 's1', [{id: 'stale'}])
     writeReply(db, 's1', 'stale-key', true)
@@ -31,7 +31,7 @@ describe('run lifecycle queries', () => {
     expect(claimRun(db, 's1', 'chat')).toBe(false)
     expect(statusOf(db, 's1')).toBe('running')
     expect(runEpochOf(db, 's1')).toBe(1)
-    expect(runMessagesFor(db, 's1')).toBeNull()
+    expect(runMessagesFor(db, 's1')?.messages).toEqual([{id: 'stale'}])
     expect(replyFor(db, 's1', 'stale-key')).toBeNull()
     releaseRun(db, 's1', null)
     expect(statusOf(db, 's1')).toBe('idle')

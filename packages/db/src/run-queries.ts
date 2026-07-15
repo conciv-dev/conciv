@@ -19,7 +19,6 @@ export function claimRun(db: ConcivDb, id: string, kind: 'chat' | 'compact'): bo
     .returning({sessionId: runs.sessionId})
     .all()
   if (claimed.length !== 1) return false
-  db.delete(runMessages).where(eq(runMessages.sessionId, id)).run()
   db.delete(replies).where(eq(replies.sessionId, id)).run()
   return true
 }

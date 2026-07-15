@@ -14,8 +14,15 @@ import type {MultimodalContent} from '@tanstack/ai-client'
 import {TextArea, type TextAreaProps} from '@conciv/ui-kit-system'
 import {useChatContext, useComposer} from '../../store/chat-context.js'
 import {Primitive} from '../util/primitive.js'
-import {ComposerProvider, useComposerContext, type AttachmentDraft} from './composer-context.js'
+import {ComposerProvider, useComposerContext} from './composer-context.js'
 import {AttachmentProvider} from '../attachment/attachment.js'
+import {
+  fileMatchesAccept,
+  isCompleteAttachment,
+  type Attachment,
+  type AttachmentAdapter,
+  type PendingAttachment,
+} from '../attachment/attachment-adapter.js'
 import {QueueItemProvider, type QueuedMessage} from '../queue-item/queue-item.js'
 import {createActionButton, type ActionButtonState} from '../util/create-action-button.js'
 import {useComposerHandlers} from './composer-handlers.js'
@@ -30,23 +37,25 @@ import {
   useTriggerPopoverRootOptional,
 } from './trigger/trigger-popover.js'
 
-type FormProps = JSX.HTMLAttributes<HTMLFormElement>
+type FormProps = JSX.HTMLAttributes<HTMLFormElement> & {attachmentAdapter?: AttachmentAdapter}
 
-function buildContent(text: string, attachments: AttachmentDraft[]): string | MultimodalContent {
+type SubmitEvent = globalThis.SubmitEvent & {currentTarget: HTMLFormElement; target: Element}
+
+function buildContent(text: string, attachments: Attachment[]): string | MultimodalContent {
   if (attachments.length === 0) return text
-  const parts = [...(text ? [{type: 'text', content: text} as const] : []), ...attachments.map((draft) => draft.part)]
+  const parts = [
+    ...(text ? [{type: 'text', content: text} as const] : []),
+    ...attachments.flatMap((attachment) => (isCompleteAttachment(attachment) ? attachment.content : [])),
+  ]
   return {content: parts}
 }
 
-function invokeSubmit(
-  handler: FormProps['onSubmit'],
-  event: SubmitEvent & {currentTarget: HTMLFormElement; target: Element},
-) {
+function invokeSubmit(handler: FormProps['onSubmit'], event: SubmitEvent): void {
   if (typeof handler === 'function') handler(event)
 }
 
-function canSubmit(canSend: boolean, attachmentCount: number, isRunning: boolean): boolean {
-  return !isRunning && (canSend || attachmentCount > 0)
+function canSubmit(canSend: boolean, attachmentCount: number, unavailable: boolean): boolean {
+  return !unavailable && (canSend || attachmentCount > 0)
 }
 
 function sendContent(
@@ -58,33 +67,153 @@ function sendContent(
   else void fallback(content)
 }
 
+function isAsyncGenerator(
+  value: Promise<PendingAttachment> | AsyncGenerator<PendingAttachment, void>,
+): value is AsyncGenerator<PendingAttachment, void> {
+  return Symbol.asyncIterator in value
+}
+
+function requireAttachmentAdapter(adapter: AttachmentAdapter | undefined): AttachmentAdapter {
+  if (!adapter) throw new Error('Attachments are not supported')
+  return adapter
+}
+
+function assertAcceptedFile(file: File, adapter: AttachmentAdapter): void {
+  if (fileMatchesAccept(file, adapter.accept)) return
+  throw new Error(`File type ${file.type || 'unknown'} is not accepted. Accepted types: ${adapter.accept}`)
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+function failedAttachment(attachment: PendingAttachment, error: unknown): PendingAttachment {
+  return {...attachment, status: {type: 'incomplete', reason: 'error', message: errorMessage(error)}}
+}
+
+async function consumeAddedAttachments(
+  pending: Promise<PendingAttachment> | AsyncGenerator<PendingAttachment, void>,
+  update: (attachment: PendingAttachment) => void,
+): Promise<void> {
+  if (!isAsyncGenerator(pending)) {
+    update(await pending)
+    return
+  }
+  for await (const attachment of pending) update(attachment)
+}
+
+async function addAdapterAttachment(
+  adapter: AttachmentAdapter,
+  file: File,
+  upsert: (attachment: PendingAttachment) => void,
+): Promise<void> {
+  let latest: PendingAttachment | undefined
+  const update = (attachment: PendingAttachment) => {
+    latest = attachment
+    upsert(attachment)
+  }
+  try {
+    await consumeAddedAttachments(adapter.add({file}), update)
+  } catch (error) {
+    if (latest) upsert(failedAttachment(latest, error))
+    throw error
+  }
+}
+
+function requireAttachment(attachments: Attachment[], id: string): Attachment {
+  const attachment = attachments.find((value) => value.id === id)
+  if (!attachment) throw new Error('Attachment not found')
+  return attachment
+}
+
+async function removeAdapterAttachment(adapter: AttachmentAdapter | undefined, attachment: Attachment): Promise<void> {
+  if (!adapter && isCompleteAttachment(attachment)) return
+  await requireAttachmentAdapter(adapter).remove(attachment)
+}
+
 function Root(props: FormProps): JSX.Element {
   const chat = useChatContext()
   const composer = useComposer()
   const handlers = useComposerHandlers()
-  const [attachments, setAttachments] = createSignal<AttachmentDraft[]>([])
+  const [attachments, setAttachments] = createSignal<Attachment[]>([])
+  const [sendingAttachments, setSendingAttachments] = createSignal(false)
   const [quote, setQuote] = createSignal<string | null>(null)
   const [editing, setEditing] = createSignal(false)
   const [dictating, setDictating] = createSignal(false)
-  const [local, rest] = splitProps(props, ['onSubmit'])
-  const submit = (event: SubmitEvent & {currentTarget: HTMLFormElement; target: Element}) => {
+  const [local, rest] = splitProps(props, ['onSubmit', 'attachmentAdapter'])
+  const removedIds = new Set<string>()
+  const attachmentAdapter = () => local.attachmentAdapter
+  const upsertAttachment = (attachment: PendingAttachment) => {
+    if (removedIds.has(attachment.id)) return
+    setAttachments((current) => {
+      const index = current.findIndex((value) => value.id === attachment.id)
+      if (index < 0) return [...current, attachment]
+      return current.toSpliced(index, 1, attachment)
+    })
+  }
+  const addAttachment = async (file: File) => {
+    const adapter = requireAttachmentAdapter(attachmentAdapter())
+    assertAcceptedFile(file, adapter)
+    await addAdapterAttachment(adapter, file, upsertAttachment)
+  }
+  const removeAttachment = async (id: string) => {
+    const attachment = requireAttachment(attachments(), id)
+    removedIds.add(id)
+    try {
+      await removeAdapterAttachment(attachmentAdapter(), attachment)
+    } catch (error) {
+      removedIds.delete(id)
+      throw error
+    }
+    setAttachments((current) => current.filter((value) => value.id !== id))
+  }
+  const submit = async (event: SubmitEvent) => {
     event.preventDefault()
     invokeSubmit(local.onSubmit, event)
     const isRunning = chat.status() === 'streaming' || chat.status() === 'submitted'
-    if (!canSubmit(composer.canSend(), attachments().length, isRunning)) return
-    const text = chat.view.draft.trim()
-    const content = buildContent(text, attachments())
+    if (!canSubmit(composer.canSend(), attachments().length, isRunning || sendingAttachments())) return
+    const originalDraft = chat.view.draft
+    const originalAttachments = attachments()
+    const originalQuote = quote()
+    const adapter = attachmentAdapter()
+    setSendingAttachments(true)
     chat.setView('draft', '')
     setAttachments([])
     setQuote(null)
-    sendContent(handlers.onSend, chat.sendMessage, content)
+    try {
+      const completeAttachments = await Promise.all(
+        originalAttachments.map(async (attachment) => {
+          if (isCompleteAttachment(attachment)) return attachment
+          if (!adapter) throw new Error('Attachments are not supported')
+          return adapter.send(attachment)
+        }),
+      )
+      sendContent(handlers.onSend, chat.sendMessage, buildContent(originalDraft.trim(), completeAttachments))
+    } catch (error) {
+      if (chat.view.draft === '' && attachments().length === 0 && quote() === null) {
+        const message = error instanceof Error ? error.message : String(error)
+        chat.setView('draft', originalDraft)
+        setAttachments(
+          originalAttachments.map((attachment) =>
+            isCompleteAttachment(attachment)
+              ? attachment
+              : {...attachment, status: {type: 'incomplete', reason: 'error', message}},
+          ),
+        )
+        setQuote(originalQuote)
+      }
+    } finally {
+      setSendingAttachments(false)
+    }
   }
   return (
     <ComposerProvider
       value={{
         attachments,
-        addAttachment: (draft) => setAttachments((prev) => [...prev, draft]),
-        removeAttachment: (id) => setAttachments((prev) => prev.filter((draft) => draft.id !== id)),
+        attachmentAdapter,
+        addAttachment,
+        removeAttachment,
+        sendingAttachments,
         quote,
         setQuote,
         editing,
@@ -93,7 +222,7 @@ function Root(props: FormProps): JSX.Element {
         setDictating,
       }}
     >
-      <Primitive.form onSubmit={submit} {...rest} />
+      <Primitive.form onSubmit={(event) => void submit(event)} {...rest} />
     </ComposerProvider>
   )
 }
@@ -169,7 +298,7 @@ function Input(props: InputProps): JSX.Element {
     if (!local.addAttachmentOnPaste) return
     const files = Array.from(event.clipboardData?.files ?? [])
     if (files.length > 0) event.preventDefault()
-    for (const file of files) context.addAttachment(await fileToDraft(file))
+    await Promise.allSettled(files.map((file) => context.addAttachment(file)))
   }
   return (
     <TextArea
@@ -210,7 +339,9 @@ function Send(props: JSX.ButtonHTMLAttributes<HTMLButtonElement>): JSX.Element {
   return (
     <button
       type="submit"
-      disabled={local.disabled || (!composer.canSend() && context.attachments().length === 0)}
+      disabled={
+        local.disabled || context.sendingAttachments() || (!composer.canSend() && context.attachments().length === 0)
+      }
       {...rest}
     />
   )
@@ -229,29 +360,27 @@ function Cancel(props: JSX.ButtonHTMLAttributes<HTMLButtonElement>): JSX.Element
 
 type AddAttachmentProps = JSX.ButtonHTMLAttributes<HTMLButtonElement> & {multiple?: boolean; accept?: string}
 
-function fileToDraft(file: File): Promise<AttachmentDraft> {
-  return new Promise((resolve) => {
-    const reader = new FileReader()
-    reader.addEventListener('load', () => {
-      const result = typeof reader.result === 'string' ? (reader.result.split(',')[1] ?? '') : ''
-      resolve({
-        id: `${file.name}-${file.size}`,
-        name: file.name,
-        part: {type: 'image', source: {type: 'data', value: result, mimeType: file.type || 'image/png'}},
-      })
-    })
-    reader.readAsDataURL(file)
-  })
+function attachmentMultiple(value: boolean | undefined): boolean {
+  return value ?? true
+}
+
+function attachmentAccept(value: string | undefined, adapter: AttachmentAdapter | undefined): string | undefined {
+  return value ?? adapter?.accept
+}
+
+function attachmentDisabled(value: boolean | undefined, adapter: AttachmentAdapter | undefined): boolean {
+  return Boolean(value) || adapter === undefined
 }
 
 function AddAttachment(props: AddAttachmentProps): JSX.Element {
   const context = useComposerContext()
-  const [local, rest] = splitProps(props, ['multiple', 'accept'])
+  const [local, rest] = splitProps(props, ['multiple', 'accept', 'disabled'])
   let input: HTMLInputElement | undefined
   const onPick = async (event: Event & {currentTarget: HTMLInputElement}) => {
-    const files = Array.from(event.currentTarget.files ?? [])
-    for (const file of files) context.addAttachment(await fileToDraft(file))
-    event.currentTarget.value = ''
+    const inputElement = event.currentTarget
+    const files = Array.from(inputElement.files ?? [])
+    await Promise.allSettled(files.map((file) => context.addAttachment(file)))
+    inputElement.value = ''
   }
   return (
     <>
@@ -261,11 +390,17 @@ function AddAttachment(props: AddAttachmentProps): JSX.Element {
         }}
         type="file"
         class="sr-only"
-        multiple={local.multiple}
-        accept={local.accept ?? 'image/*'}
+        multiple={attachmentMultiple(local.multiple)}
+        accept={attachmentAccept(local.accept, context.attachmentAdapter())}
         onChange={(event) => void onPick(event)}
       />
-      <button type="button" aria-label="Add attachment" onClick={() => input?.click()} {...rest} />
+      <button
+        type="button"
+        aria-label="Add attachment"
+        disabled={attachmentDisabled(local.disabled, context.attachmentAdapter())}
+        onClick={() => input?.click()}
+        {...rest}
+      />
     </>
   )
 }
@@ -298,7 +433,7 @@ function AttachmentDropzone(props: DropzoneProps): JSX.Element {
     setDragging(false)
     if (local.disabled) return
     const files = Array.from(event.dataTransfer?.files ?? [])
-    for (const file of files) context.addAttachment(await fileToDraft(file))
+    await Promise.allSettled(files.map((file) => context.addAttachment(file)))
   }
   return (
     <Primitive.div

@@ -104,7 +104,7 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
         {type: 'image', source: {type: 'data', mimeType: 'image/png', value: 'iVBORw0KGgo='}},
       ],
     })
-    await stream.done({hangGuardMs: 10_000})
+    const events = await stream.done({hangGuardMs: 10_000})
     const lastTurn = harness.__turnMessages.at(-1)
     if (!lastTurn) throw new Error('adapter saw no turn')
     const lastUser = lastTurn.findLast((message) => message.role === 'user')
@@ -115,7 +115,29 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
       type: 'image',
       source: {type: 'data', mimeType: 'image/png', value: 'iVBORw0KGgo='},
     })
+    const snapshots = events.all.filter((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT)
+    const visibleUser = snapshots.at(-1)?.messages.findLast((message) => message.role === 'user')
+    if (!visibleUser || !('parts' in visibleUser))
+      throw new Error('stream snapshot did not include the user message parts')
+    expect(visibleUser.parts).toEqual([
+      {type: 'text', content: '<button>Save</button>\n'},
+      {type: 'text', content: 'what color is this? '},
+      {type: 'image', source: {type: 'data', mimeType: 'image/png', value: 'iVBORw0KGgo='}},
+    ])
     expect(await kit.rpc.drafts.get({sessionId})).toBeNull()
+
+    const followUp = await kit.attach(sessionId)
+    await kit.rpc.chat.send({sessionId, text: 'and what shape is it?'})
+    const followUpEvents = await followUp.done({hangGuardMs: 10_000})
+    const followUpSnapshots = followUpEvents.all.filter((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT)
+    const priorImage = followUpSnapshots
+      .at(-1)
+      ?.messages.flatMap((message) => ('parts' in message ? message.parts : []))
+      .find((part) => part.type === 'image')
+    expect(priorImage).toMatchObject({
+      type: 'image',
+      source: {type: 'data', mimeType: 'image/png', value: 'iVBORw0KGgo='},
+    })
   })
 
   it('send rebuilds history from the transcript when the harness cannot resume (C3)', async () => {
