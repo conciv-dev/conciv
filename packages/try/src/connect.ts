@@ -2,6 +2,7 @@ import {mkdtempSync, realpathSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {start, type Engine} from '@conciv/core/start'
+import terminal from '@conciv/extension-terminal'
 import {getHarness} from '@conciv/harness'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import {CONNECT_FIRST_PORT, CONNECT_LAST_PORT} from '@conciv/protocol/connect-ports'
@@ -55,6 +56,7 @@ export async function runConnect(opts: ConnectOpts): Promise<Engine> {
         port,
         launchEditor: () => {},
         harness: adapter,
+        extensions: [terminal],
         accessToken: opts.token,
         allowedOrigins: [opts.origin ?? DEFAULT_ORIGIN],
       })

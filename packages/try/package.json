@@ -41,11 +41,13 @@
   },
   "dependencies": {
     "@conciv/core": "workspace:^",
+    "@conciv/extension-terminal": "workspace:^",
     "@conciv/harness": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "citty": "^0.2.2"
   },
   "devDependencies": {
+    "@conciv/extension": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@types/node": "^22.19.21",
     "tsdown": "^0.22.4",

@@ -1,7 +1,12 @@
 import {createServer} from 'node:http'
 import {realpathSync} from 'node:fs'
+import {randomUUID} from 'node:crypto'
 import {afterAll, describe, expect, it} from 'vitest'
-import {createFakeHarness} from '@conciv/harness-testkit'
+import {createFakeHarness, harnessAvailable, until} from '@conciv/harness-testkit'
+import {makeExtRpcClient} from '@conciv/extension'
+import type {TerminalRouter} from '@conciv/extension-terminal'
+import type {TtyCommandOpts} from '@conciv/protocol/terminal-types'
+import {claude} from '@conciv/harness/claude'
 import {runConnect} from '../src/connect.js'
 import type {Engine} from '@conciv/core/start'
 
@@ -76,6 +81,58 @@ describe('conciv connect', () => {
       }),
     ).rejects.toThrow('workspace must be "." when provided')
   })
+
+  it('mounts the terminal extension and reports no-terminal-mode for a tty-less harness', async () => {
+    const engine = await runConnect({
+      token: 'tok-tty-less',
+      harnessAdapter: createFakeHarness({id: 'fake-tty-less'}),
+      origin: 'http://127.0.0.1:1',
+    })
+    engines.push(engine)
+    const rpc = makeExtRpcClient<TerminalRouter>(`http://127.0.0.1:${engine.port}/t/tok-tty-less`, 'terminal')
+    const sessionId = `conciv_${randomUUID()}`
+    expect(await rpc.state({sessionId})).toEqual({alive: false, busy: false})
+    await expect(rpc.open({sessionId})).rejects.toMatchObject({
+      code: 'NO_TTY',
+      message: 'harness has no terminal mode',
+    })
+  })
+
+  it('opens a live pty rooted in the throwaway workspace for a tty-capable harness', async () => {
+    const captured: TtyCommandOpts[] = []
+    const engine = await runConnect({
+      token: 'tok-tty',
+      harnessAdapter: createFakeHarness({
+        id: 'fake-tty',
+        tty: {
+          command: (commandOpts) => {
+            captured.push(commandOpts)
+            return {bin: 'bash', args: ['--noprofile', '--norc', '-i'], env: {TERM: 'xterm-256color', PS1: 'P> '}}
+          },
+        },
+      }),
+      origin: 'http://127.0.0.1:1',
+    })
+    engines.push(engine)
+    const rpc = makeExtRpcClient<TerminalRouter>(`http://127.0.0.1:${engine.port}/t/tok-tty`, 'terminal')
+    const sessionId = `conciv_${randomUUID()}`
+    expect(await rpc.open({sessionId})).toEqual({alive: true})
+    expect(captured[0]?.cwd).toBe(engine.cfg.stateRoot)
+    expect((await rpc.state({sessionId})).alive).toBe(true)
+  })
+
+  it.skipIf(process.env.CI || !harnessAvailable(claude))(
+    'opens a live claude tty in the throwaway workspace',
+    async () => {
+      const engine = await runConnect({token: 'tok-claude-tty', origin: 'http://127.0.0.1:1'})
+      engines.push(engine)
+      const rpc = makeExtRpcClient<TerminalRouter>(`http://127.0.0.1:${engine.port}/t/tok-claude-tty`, 'terminal')
+      const sessionId = `conciv_${randomUUID()}`
+      expect(await rpc.open({sessionId})).toEqual({alive: true})
+      await until(async () => (await rpc.state({sessionId})).alive)
+    },
+    30_000,
+  )
 
   it('walks the whole range, cleaning up each failed bind, and lands on the last free port', async () => {
     const occupy = (port: number): Promise<void> =>
