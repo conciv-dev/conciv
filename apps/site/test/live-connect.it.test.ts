@@ -36,7 +36,9 @@ describe('live connect on the built site', () => {
     const page = await browser.newPage()
     await page.context().grantPermissions(['local-network-access'], {origin: `http://127.0.0.1:${SITE_PORT}`})
     await page.goto(`http://127.0.0.1:${SITE_PORT}`, {waitUntil: 'domcontentloaded'})
-    await page.getByRole('button', {name: /try it live/i}).click()
+    const panel = page.getByRole('region', {name: 'Try conciv live'})
+    await expect.poll(() => panel.isVisible(), {timeout: 15_000}).toBe(true)
+    expect(page.url()).toContain('try=1')
     const command = await page.getByText(/npx @conciv\/try --token/).textContent()
     const token = command?.match(/--token (\S+)/)?.[1] ?? ''
     expect(token).not.toBe('')
@@ -45,28 +47,39 @@ describe('live connect on the built site', () => {
       harnessAdapter: createFakeHarness({id: 'fake-e2e', text: 'hello from e2e'}),
       origin: `http://127.0.0.1:${SITE_PORT}`,
     })
-    await expect
-      .poll(
-        () =>
-          page
-            .getByText(/connected/i)
-            .first()
-            .isVisible(),
-        {timeout: 30_000},
-      )
-      .toBe(true)
+    const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
+    await expect.poll(() => input.isVisible(), {timeout: 30_000}).toBe(true)
+    await expect.poll(() => panel.isVisible()).toBe(false)
     const stamped = page.locator('[data-conciv-source]').first()
     const sourceRef = (await stamped.getAttribute('data-conciv-source')) ?? ''
     const sourceFile = sourceRef.split(':').slice(0, -2).join(':')
     expect(sourceFile).toMatch(/^src\//)
     expect(engine).not.toBeNull()
     if (engine) expect(existsSync(join(engine.cfg.stateRoot, sourceFile))).toBe(true)
-    await page.getByRole('button', {name: 'Open conciv chat'}).click()
-    const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
-    await expect.poll(() => input.isVisible(), {timeout: 15_000}).toBe(true)
     await input.fill('hello')
     await input.press('Enter')
     await expect.poll(() => page.getByText('hello from e2e').first().isVisible(), {timeout: 30_000}).toBe(true)
     await page.close()
   }, 180_000)
+
+  it('closes to a launcher, remembers dismissal, reopens from hero and launcher', async () => {
+    const page = await browser.newPage()
+    await page.goto(`http://127.0.0.1:${SITE_PORT}`, {waitUntil: 'domcontentloaded'})
+    const panel = page.getByRole('region', {name: 'Try conciv live'})
+    await expect.poll(() => panel.isVisible(), {timeout: 15_000}).toBe(true)
+    await page.getByRole('button', {name: 'Close the live demo panel'}).click()
+    await expect.poll(() => panel.isVisible()).toBe(false)
+    const launcher = page.getByRole('button', {name: 'Open the live demo panel'})
+    await expect.poll(() => launcher.isVisible()).toBe(true)
+    await page.reload({waitUntil: 'domcontentloaded'})
+    await expect.poll(() => launcher.isVisible(), {timeout: 15_000}).toBe(true)
+    expect(await panel.isVisible()).toBe(false)
+    expect(page.url()).not.toContain('try=1')
+    await page.getByRole('button', {name: /try it live/i}).click()
+    await expect.poll(() => panel.isVisible()).toBe(true)
+    await page.getByRole('button', {name: 'Close the live demo panel'}).click()
+    await launcher.click()
+    await expect.poll(() => panel.isVisible()).toBe(true)
+    await page.close()
+  }, 60_000)
 })
