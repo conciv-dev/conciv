@@ -11,12 +11,16 @@ const byId = (rows: ElementRow[], elementId: string): ElementRow | undefined =>
 const byOwner = (rows: ElementRow[], ownerKind: 'human' | 'ai'): ElementRow | undefined =>
   rows.find((row) => row.ownerKind === ownerKind)
 
-test('ownership is recorded and the AI cannot silently change a human element', async () => {
+test('authorship is visible and the AI cannot silently change a human element', async () => {
   const {api, cx, cy} = await bootCanvas()
   const client = makeExtRpcClient<WhiteboardRouter>(api.apiBase, 'whiteboard')
   const liveRows = (): Promise<ElementRow[]> => client.elements.list({room: api.session, scope: 'live'})
   try {
     await drawRectangle(api.page, cx, cy)
+    await api.page
+      .getByText(/^Guest \w+/)
+      .first()
+      .waitFor({state: 'visible', timeout: 15_000})
     await expect.poll(async () => (await liveRows()).length, {timeout: 15_000}).toBe(1)
     const humanId = byOwner(await liveRows(), 'human')?.elementId ?? ''
     expect(humanId).not.toBe('')
