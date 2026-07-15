@@ -401,6 +401,9 @@ importers:
       '@conciv/embed':
         specifier: workspace:*
         version: link:../../packages/embed
+      '@conciv/extension-compiler':
+        specifier: workspace:*
+        version: link:../../packages/extension-compiler
       '@conciv/harness-testkit':
         specifier: workspace:*
         version: link:../../packages/harness-testkit

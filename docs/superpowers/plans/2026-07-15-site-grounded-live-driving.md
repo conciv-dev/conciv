@@ -41,7 +41,7 @@
 - Consumes: `addSourceToJsx(code: string, id: string, root: string): {code: string; map: SourceMap} | null` from `@conciv/extension-compiler/inject-source` (returns null for non-jsx/tsx files or when nothing changed).
 - Produces: `annotateSiteFile(code: string, id: string, root: string): {code: string; map: unknown} | null` (null unless `id` is under `<root>/src/`), and `sourceAnnotations(root: string): Plugin` (vite plugin, `apply: 'build'`, `enforce: 'pre'`).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `apps/site/test/source-annotations.test.ts`:
 
@@ -72,12 +72,12 @@ describe('annotateSiteFile', () => {
 
 (Column value: `addSourceToJsx` reports the JSX opening-element position 1-based. If the exact `:2:10` assertion fails on the real offset, read the actual output once and pin the real number — the shape `src/components/landing/hero.tsx:<line>:<col>` is the contract, not the specific digits. `addSourceToJsx` re-reads the file from disk for positions when it can (`diskPositions`); for a non-existent fixture path it falls back to in-memory positions, which is what this test exercises.)
 
-- [ ] **Step 2: Run it, verify fail**
+- [x] **Step 2: Run it, verify fail**
 
 Run: `cd apps/site && pnpm vitest run test/source-annotations.test.ts`
 Expected: FAIL — module `../src/lib/source-annotations` not found.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `apps/site/src/lib/source-annotations.ts`:
 
@@ -121,12 +121,12 @@ plugins: [
 ]
 ```
 
-- [ ] **Step 4: Run test, verify pass**
+- [x] **Step 4: Run test, verify pass**
 
 Run: `cd apps/site && pnpm vitest run test/source-annotations.test.ts`
 Expected: 3 passing.
 
-- [ ] **Step 5: Verify annotations reach the built site**
+- [x] **Step 5: Verify annotations reach the built site**
 
 ```bash
 pnpm turbo run build --filter=site --force
@@ -135,7 +135,7 @@ grep -c 'data-conciv-source' apps/site/dist/client/assets/*.js | grep -v ':0' | 
 
 Expected: at least one chunk with matches. Also check the prerendered HTML: `grep -c 'data-conciv-source' apps/site/dist/client/index.html` (prerender inlines the hero markup; if the count is 0 there but chunks match, that is fine — hydration stamps the DOM).
 
-- [ ] **Step 6: Typecheck + commit**
+- [x] **Step 6: Typecheck + commit**
 
 ```bash
 pnpm turbo run typecheck lint --filter=site
@@ -216,10 +216,7 @@ function collectFiles(dir) {
 export function buildManifest(siteDir) {
   const sourceDir = join(siteDir, 'src')
   const files = collectFiles(sourceDir).filter(isTextFile)
-  const entries = files.map((file) => [
-    relative(siteDir, file).split('\\').join('/'),
-    readFileSync(file, 'utf8'),
-  ])
+  const entries = files.map((file) => [relative(siteDir, file).split('\\').join('/'), readFileSync(file, 'utf8')])
   entries.push(['package.json', readFileSync(join(siteDir, 'package.json'), 'utf8')])
   return Object.fromEntries(entries)
 }
