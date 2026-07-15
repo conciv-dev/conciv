@@ -3,6 +3,7 @@ import {createRequire} from 'node:module'
 import {join} from 'node:path'
 import {fileURLToPath, pathToFileURL} from 'node:url'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
+import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {AnyExtension} from '@conciv/extension'
 import {createTestkit, type BootApp, type Kit} from '@conciv/harness-testkit'
 import {makeApp} from '../../src/app.js'
@@ -19,6 +20,8 @@ export type BootOverrides = {
   claudeHome?: string
   extensions?: AnyExtension[]
   extensionConfig?: Record<string, unknown>
+  openInEditor?: (file: string, line?: number) => void
+  bridge?: BundlerBridge
 }
 
 function fakeClaudeBinDir(stateRoot: string): string {
@@ -58,12 +61,13 @@ export function bootCoreApp(overrides: BootOverrides = {}): BootApp {
     const {app, disposers} = await makeApp({
       cfg,
       cwd: overrides.cwd ?? env.cwd,
-      openInEditor: () => {},
+      openInEditor: overrides.openInEditor ?? (() => {}),
       harness: env.harness,
       harnessEnv,
       claudeHome: overrides.claudeHome,
       extensions: overrides.extensions,
       extensionConfig: overrides.extensionConfig,
+      bridge: overrides.bridge,
     })
     return {
       fetch: app.fetch,

@@ -3,6 +3,7 @@ import {fileURLToPath} from 'node:url'
 import {defineConfig} from 'vitest/config'
 import {storybookTest} from '@storybook/addon-vitest/vitest-plugin'
 import {playwright} from '@vitest/browser-playwright'
+import solidPlugin from 'vite-plugin-solid'
 
 const dirname = typeof __dirname !== 'undefined' ? __dirname : path.dirname(fileURLToPath(import.meta.url))
 
@@ -11,16 +12,29 @@ const storybook = {
   plugins: [storybookTest({configDir: path.join(dirname, '.storybook')})],
   test: {
     name: 'storybook',
-    fileParallelism: false,
     browser: {
       enabled: true,
       headless: true,
       provider: playwright({}),
-      instances: [{browser: 'chromium'}],
+      instances: [{browser: 'chromium', launch: {channel: 'chrome'}}],
+    },
+  },
+}
+
+const browser = {
+  plugins: [solidPlugin()],
+  test: {
+    name: 'browser',
+    include: ['test/**/*.browser.test.ts', 'test/**/*.browser.test.tsx'],
+    browser: {
+      enabled: true,
+      headless: true,
+      provider: playwright({}),
+      instances: [{browser: 'chromium', launch: {channel: 'chrome'}}],
     },
   },
 }
 
 export default defineConfig(
-  process.env.SKIP_STORYBOOK_TESTS ? {test: {passWithNoTests: true}} : {test: {projects: [storybook]}},
+  process.env.SKIP_STORYBOOK_TESTS ? {test: {projects: [browser]}} : {test: {projects: [browser, storybook]}},
 )

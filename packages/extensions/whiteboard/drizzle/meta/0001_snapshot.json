@@ -98,10 +98,7 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {
         "canvas_draft_elements_room_element_id_pk": {
-          "columns": [
-            "room",
-            "element_id"
-          ],
+          "columns": ["room", "element_id"],
           "name": "canvas_draft_elements_room_element_id_pk"
         }
       },
@@ -202,10 +199,7 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {
         "canvas_elements_room_element_id_pk": {
-          "columns": [
-            "room",
-            "element_id"
-          ],
+          "columns": ["room", "element_id"],
           "name": "canvas_elements_room_element_id_pk"
         }
       },

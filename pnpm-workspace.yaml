@@ -3,6 +3,7 @@ packages:
   - packages/extensions/*
   - apps/*
   - apps/examples/*
+  - e2e/*
 
 # Force patched protobufjs (GHSA-wcpc-wj8m-hjx6 prototype pollution); pulled in transitively
 # via jazz-tools OpenTelemetry in the whiteboard extension.
@@ -26,6 +27,27 @@ overrides:
   'esbuild@>=0.27.3 <0.28.1': '>=0.28.1'
   # @netlify/otel (via nitro>unstorage>@netlify/blobs) pins @opentelemetry/core 2.7.1 exact.
   '@opentelemetry/core@<2.8.0': '>=2.8.0 <3'
+
+# drizzle-kit 1.0.0-rc ships without a drizzle-orm dependency/peer yet requires
+# `drizzle-orm/_relations` at runtime, assuming a flat node_modules. Under pnpm's isolated
+# layout that require falls back to the hidden-hoisted drizzle-orm, which can be the
+# whiteboard extension's stable 0.45.x (no `_relations` export) and crashes. Declare the
+# missing peer so each consumer's own drizzle-orm is linked beside its drizzle-kit.
+# Scoped to the 1.0 line (@conciv/db pins 1.0.0-rc.4); drop when drizzle-kit 1.0 stable
+# fixes its manifest.
+packageExtensions:
+  'drizzle-kit@>=1.0.0-0 <2':
+    peerDependencies:
+      drizzle-orm: '*'
+  # nitro-nightly is published under the name `nitro-nightly` but self-imports subpaths by its
+  # canonical name (`nitro/runtime/meta`), so node's package self-reference doesn't apply. Consumers
+  # alias it (`nitro: npm:nitro-nightly@...`); under pnpm's isolated layout the bare `nitro` walk-up
+  # lands on the hidden-hoisted copy, which can be a different nightly (or stable nitro) without the
+  # imported subpath export. Declare the missing peer so each consumer's own `nitro` alias is linked
+  # beside its nitro-nightly. Drop when nitro ships stable (no alias) or the nightly self-references.
+  nitro-nightly:
+    peerDependencies:
+      nitro: '*'
 
 # Supply-chain hardening (pnpm 11). Only these deps may run install/build scripts;
 # everything else is blocked by strictDepBuilds (default on in pnpm 11).

@@ -34,11 +34,13 @@
 ## Task 1: Author columns on element schema + rows
 
 **Files:**
+
 - Modify: `packages/extensions/whiteboard/src/server/db/schema.ts` (canvasElements, canvasDraftElements)
 - Modify: `packages/extensions/whiteboard/src/shared/rows.ts` (elementRow)
 - Test: `packages/extensions/whiteboard/test/rows.test.ts`
 
 **Interfaces:**
+
 - Produces: `elementRow` zod schema with `ownerKind`, `ownerId`, `ownerName`, `ownerModel`, `lastEditedByKind`, `lastEditedById`, `lastEditedByName`, `lastEditedByModel`; `type ElementRow = z.infer<typeof elementRow>`.
 
 - [ ] **Step 1: Write the failing test** — append to `test/rows.test.ts`:
@@ -49,9 +51,18 @@ import {elementRow} from '../src/shared/rows.js'
 describe('elementRow author fields', () => {
   it('accepts an ai-owned row and rejects a missing ownerKind', () => {
     const ok = elementRow.safeParse({
-      room: 'r', elementId: 'e', data: {}, version: 1,
-      ownerKind: 'ai', ownerId: null, ownerName: null, ownerModel: 'opus',
-      lastEditedByKind: 'ai', lastEditedById: null, lastEditedByName: null, lastEditedByModel: 'opus',
+      room: 'r',
+      elementId: 'e',
+      data: {},
+      version: 1,
+      ownerKind: 'ai',
+      ownerId: null,
+      ownerName: null,
+      ownerModel: 'opus',
+      lastEditedByKind: 'ai',
+      lastEditedById: null,
+      lastEditedByName: null,
+      lastEditedByModel: 'opus',
     })
     expect(ok.success).toBe(true)
     const bad = elementRow.safeParse({room: 'r', elementId: 'e', data: {}, version: 1})
@@ -118,9 +129,11 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>" -- \
 ## Task 2: Drizzle migration for the new columns
 
 **Files:**
+
 - Create: `packages/extensions/whiteboard/drizzle/<generated>.sql` (+ `drizzle/meta/*`)
 
 **Interfaces:**
+
 - Consumes: schema from Task 1.
 - Produces: a migration applied by `createStore` on open; existing rows backfill `owner_kind='human'`, `last_edited_by_kind='human'` via the column defaults.
 
@@ -150,10 +163,12 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>" -- packages/extensions/
 ## Task 3: Store keeps owner immutable + updates lastEditedBy
 
 **Files:**
+
 - Modify: `packages/extensions/whiteboard/src/server/db/store.ts` (`upsertElement` only)
 - Test: `packages/extensions/whiteboard/test/store.test.ts`
 
 **Interfaces:**
+
 - Consumes: `ElementRow` (Task 1). Signatures UNCHANGED (no caller param) — this is the descoped design.
 - Produces: `upsertElement` preserves `owner*` on update and writes `lastEditedBy*` every time.
 
@@ -161,9 +176,18 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>" -- packages/extensions/
 
 ```ts
 const authored = (id: string, kind: 'human' | 'ai') => ({
-  room: 'r', elementId: id, data: {n: 1}, version: 1,
-  ownerKind: kind, ownerId: 'u1', ownerName: 'Guest 00', ownerModel: kind === 'ai' ? 'opus' : null,
-  lastEditedByKind: kind, lastEditedById: 'u1', lastEditedByName: 'Guest 00', lastEditedByModel: kind === 'ai' ? 'opus' : null,
+  room: 'r',
+  elementId: id,
+  data: {n: 1},
+  version: 1,
+  ownerKind: kind,
+  ownerId: 'u1',
+  ownerName: 'Guest 00',
+  ownerModel: kind === 'ai' ? 'opus' : null,
+  lastEditedByKind: kind,
+  lastEditedById: 'u1',
+  lastEditedByName: 'Guest 00',
+  lastEditedByModel: kind === 'ai' ? 'opus' : null,
 })
 
 describe('element owner immutability', () => {
@@ -190,34 +214,40 @@ Expected: FAIL — current `set` clause omits `lastEditedBy*` (stays `human`), o
 - [ ] **Step 3: Update `upsertElement` in `store.ts`.** Keep the signature `(scope, row)`. Extend the `onConflictDoUpdate.set` to include `lastEditedBy*` but NOT `owner*`, and make the emitted/returned row carry the preserved owner:
 
 ```ts
-  const upsertElement = async (scope: ElementScope, row: ElementRow): Promise<ElementUpsert> => {
-    const table = elementTable(scope)
-    const current = await db
-      .select()
-      .from(table)
-      .where(and(eq(table.room, row.room), eq(table.elementId, row.elementId)))
-      .get()
-    if (current && current.version >= row.version) return {ok: false, current}
-    await db
-      .insert(table)
-      .values(row)
-      .onConflictDoUpdate({
-        target: [table.room, table.elementId],
-        set: {
-          data: row.data,
-          version: row.version,
-          lastEditedByKind: row.lastEditedByKind,
-          lastEditedById: row.lastEditedById,
-          lastEditedByName: row.lastEditedByName,
-          lastEditedByModel: row.lastEditedByModel,
-        },
-      })
-    const saved: ElementRow = current
-      ? {...row, ownerKind: current.ownerKind, ownerId: current.ownerId, ownerName: current.ownerName, ownerModel: current.ownerModel}
-      : row
-    emit({table: elementTableName(scope), room: row.room, type: 'upsert', row: saved})
-    return {ok: true, row: saved}
-  }
+const upsertElement = async (scope: ElementScope, row: ElementRow): Promise<ElementUpsert> => {
+  const table = elementTable(scope)
+  const current = await db
+    .select()
+    .from(table)
+    .where(and(eq(table.room, row.room), eq(table.elementId, row.elementId)))
+    .get()
+  if (current && current.version >= row.version) return {ok: false, current}
+  await db
+    .insert(table)
+    .values(row)
+    .onConflictDoUpdate({
+      target: [table.room, table.elementId],
+      set: {
+        data: row.data,
+        version: row.version,
+        lastEditedByKind: row.lastEditedByKind,
+        lastEditedById: row.lastEditedById,
+        lastEditedByName: row.lastEditedByName,
+        lastEditedByModel: row.lastEditedByModel,
+      },
+    })
+  const saved: ElementRow = current
+    ? {
+        ...row,
+        ownerKind: current.ownerKind,
+        ownerId: current.ownerId,
+        ownerName: current.ownerName,
+        ownerModel: current.ownerModel,
+      }
+    : row
+  emit({table: elementTableName(scope), room: row.room, type: 'upsert', row: saved})
+  return {ok: true, row: saved}
+}
 ```
 
 - [ ] **Step 4: Run to verify it passes**
@@ -245,12 +275,14 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>" -- \
 ## Task 4: Core approval-trigger hook (`PermissionGate.request` → `ServerApi.approvals`)
 
 **Files:**
+
 - Modify: `packages/core/src/api/chat/permission.ts` (`PermissionGate` type, `makePermissionGate`)
 - Modify: `packages/extension/src/types.ts` (`ServerApi`)
 - Modify: `packages/core/src/app.ts` (pass `approvals` into `extension.__server` at the mount call ~line 173)
 - Test: `packages/core/test/permission-request.test.ts`
 
 **Interfaces:**
+
 - Produces:
   - `PermissionGate.request(sessionId: string, detail: {toolName: string; input: unknown; toolCallId?: string}): Promise<boolean>`
   - `ServerApi.approvals: {request(sessionId: string, detail: {toolName: string; input: unknown}): Promise<boolean>}`
@@ -293,26 +325,26 @@ Expected: FAIL — `gate.request` is not a function.
 - [ ] **Step 4: Add `request` to `makePermissionGate`** in `permission.ts` (reuse the existing `pending` + `uiBus`), and add it to the `PermissionGate` type:
 
 ```ts
-  async function request(
-    sessionId: string,
-    detail: {toolName: string; input: unknown; toolCallId?: string},
-  ): Promise<boolean> {
-    const approvalId = randomUUID()
-    const injected = uiBus.injectApproval(sessionId, {
-      toolCallId: detail.toolCallId ?? approvalId,
-      toolName: detail.toolName,
-      input: detail.input,
-      approvalId,
-    })
-    if (!injected) return false
-    try {
-      return await pending.await(approvalId, timeoutMs)
-    } catch {
-      return false
-    }
+async function request(
+  sessionId: string,
+  detail: {toolName: string; input: unknown; toolCallId?: string},
+): Promise<boolean> {
+  const approvalId = randomUUID()
+  const injected = uiBus.injectApproval(sessionId, {
+    toolCallId: detail.toolCallId ?? approvalId,
+    toolName: detail.toolName,
+    input: detail.input,
+    approvalId,
+  })
+  if (!injected) return false
+  try {
+    return await pending.await(approvalId, timeoutMs)
+  } catch {
+    return false
   }
+}
 
-  return {decide, resolve: pending.resolve, request}
+return {decide, resolve: pending.resolve, request}
 ```
 
 Add to the type:
@@ -340,13 +372,13 @@ export type ServerApi<Config> = {
 - [ ] **Step 6: Wire it at the extension mount in `app.ts`** (the `extension.__server?.({...})` call; confirm the current line, ~173):
 
 ```ts
-      const result = await extension.__server?.({
-        config: extension.parseConfig(opts.extensionConfig?.[extension.name]),
-        cwd: opts.cwd,
-        sessions: serverSessions,
-        harness: serverHarness,
-        approvals: {request: (sessionId, detail) => gate.request(sessionId, detail)},
-      })
+const result = await extension.__server?.({
+  config: extension.parseConfig(opts.extensionConfig?.[extension.name]),
+  cwd: opts.cwd,
+  sessions: serverSessions,
+  harness: serverHarness,
+  approvals: {request: (sessionId, detail) => gate.request(sessionId, detail)},
+})
 ```
 
 - [ ] **Step 7: Run to verify it passes**
@@ -376,6 +408,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>" -- \
 ## Task 5: Handlers ask for approval when the target is human-owned
 
 **Files:**
+
 - Modify: `packages/extensions/whiteboard/src/server/context.ts` (`WhiteboardToolContext` gains `requestApproval`)
 - Modify: `packages/extensions/whiteboard/src/server.ts` (build `requestApproval` from `server.approvals`; add to context)
 - Modify: `packages/extensions/whiteboard/src/tool/canvas/server.ts` (`canvas.update`, `canvas.delete`, `canvas.clear`)
@@ -383,6 +416,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>" -- \
 - Test: `packages/extensions/whiteboard/test/canvas-guard.it.test.ts`
 
 **Interfaces:**
+
 - Consumes: `ServerApi.approvals.request` (Task 4).
 - Produces: `WhiteboardToolContext.requestApproval(request: ToolRequest, detail: {toolName: string; input: unknown}) => Promise<boolean>`.
 
@@ -402,10 +436,10 @@ export type WhiteboardToolContext = {
 - [ ] **Step 2: Build `requestApproval` in `server.ts`** inside the `.server(async (server) => {...})` body, after `store` is created, and add it to the returned `context`:
 
 ```ts
-  const requestApproval = async (request: ToolRequest, detail: {toolName: string; input: unknown}) => {
-    if (!request.sessionId) return false
-    return server.approvals.request(request.sessionId, detail)
-  }
+const requestApproval = async (request: ToolRequest, detail: {toolName: string; input: unknown}) => {
+  if (!request.sessionId) return false
+  return server.approvals.request(request.sessionId, detail)
+}
 ```
 
 - [ ] **Step 3: Write the failing test `test/canvas-guard.it.test.ts`.** First READ `test/canvas-it-helpers.ts` to reuse how it builds `ctx` + a `ToolRequest`; stub `requestApproval` per-case. Assert:
@@ -521,11 +555,13 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>" -- \
 ## Task 6: Browser stamps author on element writes
 
 **Files:**
+
 - Modify: `packages/extensions/whiteboard/src/canvas/island.tsx` (`writeLocal` on Excalidraw change → human author; draft-commit conversion → ai author)
 - Modify: `packages/extensions/whiteboard/src/client/whiteboard-collection.ts` (ensure author fields flow through the PUT/bulk bodies)
 - Reference: `packages/extensions/whiteboard/src/client/overlay.tsx` (existing guest identity `{id, name}`)
 
 **Interfaces:**
+
 - Consumes: the guest identity in `overlay.tsx`; `elementRow` (Task 1).
 - Produces: every client element write carries an `owner`/`lastEditedBy` descriptor. No capability header (out of scope).
 
@@ -556,6 +592,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>" -- \
 ## Task 7: Author chip on the selected element
 
 **Files:**
+
 - Modify: `packages/extensions/whiteboard/src/canvas/island.tsx`
 - Reference: `packages/extensions/whiteboard/src/client/ui.tsx` (`Avatar`)
 - Test: `packages/extensions/whiteboard/test/element-author-chip.it.test.ts`
@@ -584,6 +621,7 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>" -- \
 ## Task 8: End-to-end approval IT + full verification
 
 **Files:**
+
 - Create: `packages/extensions/whiteboard/test/element-guard-e2e.it.test.ts`
 
 - [ ] **Step 1: Write the browser E2E** driving the real widget + agent tools (READ `canvas-it-helpers.ts` + an existing `*.it.test.ts` to reuse the widget-boot + agent-drive harness):

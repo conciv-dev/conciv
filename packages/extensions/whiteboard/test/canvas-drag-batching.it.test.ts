@@ -27,10 +27,10 @@ const drawRectangle = async (page: Page, x1: number, y1: number, x2: number, y2:
 const putCounts = (page: Page): {single: number; bulk: number} => {
   const counts = {single: 0, bulk: 0}
   page.on('request', (request) => {
-    if (request.method() !== 'PUT') return
+    if (request.method() !== 'POST') return
     const {pathname} = new URL(request.url())
-    if (pathname.endsWith('/elements/live/bulk')) return void (counts.bulk += 1)
-    if (pathname.endsWith('/elements/live')) counts.single += 1
+    if (pathname.endsWith('/elements/bulkUpsert')) return void (counts.bulk += 1)
+    if (pathname.endsWith('/elements/upsert')) counts.single += 1
   })
   return counts
 }

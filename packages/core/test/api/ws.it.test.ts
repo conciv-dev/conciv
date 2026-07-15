@@ -3,7 +3,7 @@ import {Hono} from 'hono'
 import {upgradeWebSocket} from '@hono/node-server'
 import WebSocket from 'ws'
 import {serveApp} from '@conciv/harness-testkit'
-import {originAllowed} from '../../src/api/cors.js'
+import {originAllowed} from '../../src/lib/cors.js'
 
 test('ws upgrades and echoes; non-loopback origin is rejected', async () => {
   const app = new Hono()

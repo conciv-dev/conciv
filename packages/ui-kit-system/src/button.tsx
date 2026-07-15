@@ -4,7 +4,7 @@ export type ButtonVariant = 'solid' | 'ghost' | 'outline' | 'danger'
 export type ButtonSize = 'sm' | 'md' | 'icon'
 
 const BASE =
-  'inline-flex items-center justify-center gap-1.5 font-pw cursor-pointer trans-btn focus-ring [border:1px_solid_transparent] disabled:opacity-50 disabled:cursor-not-allowed'
+  'inline-flex items-center justify-center gap-1.5 font-pw cursor-pointer trans-btn focus-ring [border:1px_solid_transparent] disabled:opacity-50 disabled:cursor-not-allowed active:not-disabled:[transform:scale(0.97)]'
 
 const VARIANT: Record<ButtonVariant, string> = {
   solid: 'bg-pw-accent text-pw-on-accent hover:bg-pw-accent-hi',

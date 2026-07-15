@@ -8,11 +8,15 @@ export const canvasElements = sqliteTable(
     elementId: text('element_id').notNull(),
     data: text('data', {mode: 'json'}).$type<JsonValue>().notNull(),
     version: integer('version').notNull(),
-    ownerKind: text('owner_kind', {enum: ['human', 'ai']}).notNull().default('human'),
+    ownerKind: text('owner_kind', {enum: ['human', 'ai']})
+      .notNull()
+      .default('human'),
     ownerId: text('owner_id'),
     ownerName: text('owner_name'),
     ownerModel: text('owner_model'),
-    lastEditedByKind: text('last_edited_by_kind', {enum: ['human', 'ai']}).notNull().default('human'),
+    lastEditedByKind: text('last_edited_by_kind', {enum: ['human', 'ai']})
+      .notNull()
+      .default('human'),
     lastEditedById: text('last_edited_by_id'),
     lastEditedByName: text('last_edited_by_name'),
     lastEditedByModel: text('last_edited_by_model'),
@@ -27,11 +31,15 @@ export const canvasDraftElements = sqliteTable(
     elementId: text('element_id').notNull(),
     data: text('data', {mode: 'json'}).$type<JsonValue>().notNull(),
     version: integer('version').notNull(),
-    ownerKind: text('owner_kind', {enum: ['human', 'ai']}).notNull().default('human'),
+    ownerKind: text('owner_kind', {enum: ['human', 'ai']})
+      .notNull()
+      .default('human'),
     ownerId: text('owner_id'),
     ownerName: text('owner_name'),
     ownerModel: text('owner_model'),
-    lastEditedByKind: text('last_edited_by_kind', {enum: ['human', 'ai']}).notNull().default('human'),
+    lastEditedByKind: text('last_edited_by_kind', {enum: ['human', 'ai']})
+      .notNull()
+      .default('human'),
     lastEditedById: text('last_edited_by_id'),
     lastEditedByName: text('last_edited_by_name'),
     lastEditedByModel: text('last_edited_by_model'),

@@ -1,7 +1,7 @@
 import {expect} from 'vitest'
 import {chat, EventType, type StreamChunk} from '@tanstack/ai'
 import type {HarnessAdapter, HarnessChatDeps} from '@conciv/protocol/harness-types'
-import {concivSandbox, withConcivGate, withConcivSandbox} from '../../src/api/chat/sandbox.js'
+import {makeConcivSandbox, withConcivGate, withConcivSandbox} from '../../src/chat/gate.js'
 
 const autoAllowGate = {decide: async () => 'allow' as const}
 
@@ -30,7 +30,7 @@ export async function runHarnessTurn(opts: HarnessTurnOpts): Promise<StreamChunk
     adapter: config.adapter,
     messages: [{role: 'user', content: opts.prompt}],
     threadId: `${opts.sessionId}-thread`,
-    middleware: [withConcivSandbox(concivSandbox(opts.dir)), withConcivGate(autoAllowGate, opts.sessionId)],
+    middleware: [withConcivSandbox(makeConcivSandbox(opts.dir)), withConcivGate(autoAllowGate, opts.sessionId)],
     modelOptions: config.modelOptions,
   })
   for await (const chunk of stream) chunks.push(chunk)

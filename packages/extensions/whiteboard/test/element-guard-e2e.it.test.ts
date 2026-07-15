@@ -1,4 +1,6 @@
 import {expect, test} from 'vitest'
+import {makeExtRpcClient} from '@conciv/extension'
+import type {WhiteboardRouter} from '../src/server/router.js'
 import type {ElementRow} from '../src/shared/rows.js'
 import {drawRectangle} from './canvas-it-helpers.js'
 import {bootCanvas} from './canvas-it-boot.js'
@@ -11,10 +13,8 @@ const byOwner = (rows: ElementRow[], ownerKind: 'human' | 'ai'): ElementRow | un
 
 test('ownership is recorded and the AI cannot silently change a human element', async () => {
   const {api, cx, cy} = await bootCanvas()
-  const liveRows = async (): Promise<ElementRow[]> =>
-    (await (
-      await fetch(`${api.apiBase}/api/ext/whiteboard/elements/live?room=${api.session}`)
-    ).json()) as ElementRow[]
+  const client = makeExtRpcClient<WhiteboardRouter>(api.apiBase, 'whiteboard')
+  const liveRows = (): Promise<ElementRow[]> => client.elements.list({room: api.session, scope: 'live'})
   try {
     await drawRectangle(api.page, cx, cy)
     await expect.poll(async () => (await liveRows()).length, {timeout: 15_000}).toBe(1)

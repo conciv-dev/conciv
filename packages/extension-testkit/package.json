@@ -1,6 +1,6 @@
 {
   "name": "@conciv/extension-testkit",
-  "version": "0.0.7",
+  "version": "0.0.9",
   "private": true,
   "description": "Dev-only test harness: getExtensionTestApi(extension) mounts any conciv extension in a real browser against a real spawned server through its real contract.",
   "homepage": "https://conciv.dev",
@@ -20,12 +20,12 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@conciv/api-client": "workspace:^",
+    "@conciv/contract": "workspace:^",
     "@conciv/core": "workspace:^",
     "@conciv/extension": "workspace:^",
+    "@conciv/extension-compiler": "workspace:^",
     "@conciv/grab": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
-    "@conciv/plugin": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
     "@playwright/test": "^1.61.1",

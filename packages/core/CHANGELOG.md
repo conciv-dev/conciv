@@ -1,5 +1,39 @@
 # @conciv/core
 
+## 0.0.9
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/contract@0.0.9
+  - @conciv/db@0.0.9
+  - @conciv/extension@0.0.9
+  - @conciv/harness@0.0.9
+  - @conciv/protocol@0.0.9
+  - @conciv/serve@0.0.9
+  - @conciv/tools@0.0.9
+
+## 0.0.8
+
+### Patch Changes
+
+- [#55](https://github.com/conciv-dev/conciv/pull/55) [`05dd101`](https://github.com/conciv-dev/conciv/commit/05dd101ff9401cbdfd5545cffa63f4bb3cfd2fbf) Thanks [@omridevk](https://github.com/omridevk)! - Client/server now talk over a single typed oRPC contract (`@conciv/contract`), with persistence extracted into `@conciv/db`; the remaining bespoke HTTP surface is limited to the MCP route and the terminal WebSocket.
+
+  The server stack moved from h3/srvx to hono behind one `@conciv/serve` wrapper for `@hono/node-server`, and the extension bundler was split out of the vite plugin into a standalone `@conciv/extension-compiler`.
+
+  The terminal gains a narrative activity rail — a resizable, open-by-default timeline of session activity — and the pty now spawns at the attaching client's fitted size instead of bouncing through a fixed geometry on every attach.
+
+- [#38](https://github.com/conciv-dev/conciv/pull/38) [`fce6e80`](https://github.com/conciv-dev/conciv/commit/fce6e80e818460ca950b08ac75bccd94a1a72931) Thanks [@omridevk](https://github.com/omridevk)! - Harness turns now run on the TanStack AI stack: every harness is a `chatConfig` returning a published `@tanstack/ai-*` text adapter (claude on `claudeCodeText`, codex on `codexText`, opencode on `opencodeText`, gemini-cli on `acpCompatible`), executed through `chat()` with a local-process sandbox and the conciv permission gate as middleware. The bespoke spawn/decode pipeline, the PreToolUse hook route, and the per-harness arg builders are gone.
+
+- Updated dependencies [[`05dd101`](https://github.com/conciv-dev/conciv/commit/05dd101ff9401cbdfd5545cffa63f4bb3cfd2fbf)]:
+  - @conciv/contract@0.0.8
+  - @conciv/db@0.0.8
+  - @conciv/serve@0.0.8
+  - @conciv/extension@0.0.8
+  - @conciv/tools@0.0.8
+  - @conciv/harness@0.0.8
+  - @conciv/protocol@0.0.8
+
 ## 0.0.7
 
 ### Patch Changes

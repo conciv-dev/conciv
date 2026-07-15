@@ -100,19 +100,23 @@ Replaces the generic result card. The renderer is a Solid component receiving
 ## Extension-level server
 
 `defineExtension(...).server(factory)` runs once at engine boot. It receives
-`{config, cwd, app}`: your parsed `configSchema` config, the project root, and an
-[h3](https://h3.dev) sub-app mounted under your extension's API namespace for custom routes
-(SSE streams, uploads, anything a tool result cannot carry).
+`{config, cwd, sessions, harness}`: your parsed `configSchema` config, the project root, and
+session and harness handles. To add custom routes (SSE streams, uploads, anything a tool result
+cannot carry), return a [hono](https://hono.dev) app; it is mounted under your extension's API
+namespace (`/api/ext/<name>`).
 
 ```tsx
+import {Hono} from 'hono'
+
 export default defineExtension({name: 'metrics', configSchema, tools: [...]}).server((server) => {
-  server.app.get('/stream', (event) => openStream(event))
+  const app = new Hono().get('/stream', (c) => openStream(c))
   const poller = startPolling(server.config.interval)
-  return {context: {poller}, dispose: () => poller.stop()}
+  return {context: {poller}, app, dispose: () => poller.stop()}
 })
 ```
 
-Return `{context, dispose}`: `context` feeds your tools, `dispose` runs on shutdown.
+Return `{context, app, dispose}`: `context` feeds your tools, `app` is optional, `dispose` runs on
+shutdown.
 
 ## Exports
 

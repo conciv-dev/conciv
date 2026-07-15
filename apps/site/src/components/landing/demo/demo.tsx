@@ -24,7 +24,7 @@ import {SparkMark} from '../spark-mark'
 import {useDemo} from './use-demo'
 import {useLocalModel} from './use-local-model'
 import {useMeteredConnection} from './use-metered-connection'
-import {PICKABLES, pickScenario, type Scenario} from './demo-data'
+import {DEFAULT_SCENARIO, PICKABLES, pickScenario, type Scenario} from './demo-data'
 import {MODELS, type CssPatch} from './models'
 
 const kebab = (key: string) => key.replace(/[A-Z]/g, (match) => `-${match.toLowerCase()}`)
@@ -87,22 +87,6 @@ export function Demo() {
 
   useGSAP(
     () => {
-      if (reduced() || !grabRef.current) return
-      if (state.picking || state.grabbed) return
-      const tween = gsap.to(grabRef.current, {
-        boxShadow: '0 0 0 5px var(--od-accent-soft)',
-        repeat: -1,
-        yoyo: true,
-        duration: 0.95,
-        ease: 'sine.inOut',
-      })
-      return () => tween.kill()
-    },
-    {scope, dependencies: [state.picking, state.grabbed?.id]},
-  )
-
-  useGSAP(
-    () => {
       if (!viewportRef.current) return
       const viewport = viewportRef.current.closest('[data-slot="scroll-area-viewport"]') as HTMLElement | null
       if (!reduced()) {
@@ -117,9 +101,11 @@ export function Demo() {
   )
 
   const onPick = (id: string) => {
-    const scenario = pickScenario(PICKABLES[id])
+    const pickable = PICKABLES[id]
+    if (!pickable) return
+    const scenario = pickScenario(pickable)
     active.current = {id, scenario}
-    dispatch({type: 'grab', pickable: PICKABLES[id]})
+    dispatch({type: 'grab', pickable})
     setInput(scenario.prompt)
   }
 
@@ -154,7 +140,7 @@ export function Demo() {
   const runLocal = async (text: string) => {
     const current = active.current
     const el = current ? grabbedEl(current.id) : null
-    const scenario = current?.scenario ?? PICKABLES.cta.scenarios[0]
+    const scenario = current?.scenario ?? DEFAULT_SCENARIO
     dispatch({type: 'send', message: {kind: 'user', text, grabbedHtml: state.grabbed?.html}})
     setInput('')
     if (!el) {

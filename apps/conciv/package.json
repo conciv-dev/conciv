@@ -1,0 +1,60 @@
+{
+  "name": "conciv",
+  "version": "0.0.9",
+  "private": true,
+  "description": "The conciv app: a TanStack Solid Router UI over the @conciv/contract rpc surface. Inlined by @conciv/embed; runs standalone against a core dev server.",
+  "type": "module",
+  "exports": {
+    "./router": "./src/router.ts",
+    "./settings": "./src/data/settings.ts",
+    "./shadow": "./src/lib/shadow.ts",
+    "./api-base": "./src/lib/api-base.ts",
+    "./styles.css": "./src/styles.css"
+  },
+  "scripts": {
+    "dev": "vite dev --port 3000",
+    "generate-routes": "tsr generate",
+    "build": "vite build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ark-ui/solid": "^5.37.1",
+    "@conciv/client": "workspace:^",
+    "@conciv/contract": "workspace:^",
+    "@conciv/extension": "workspace:^",
+    "@conciv/grab": "workspace:^",
+    "@conciv/mascot": "workspace:^",
+    "@conciv/page": "workspace:^",
+    "@conciv/protocol": "workspace:^",
+    "@conciv/solid-streamdown": "workspace:^",
+    "@conciv/ui-kit-chat": "workspace:^",
+    "@conciv/ui-kit-chat-tools": "workspace:^",
+    "@conciv/ui-kit-system": "workspace:^",
+    "@tanstack/ai-client": "^0.20.0",
+    "@tanstack/hotkeys": "^0.8.0",
+    "@tanstack/solid-hotkeys": "^0.10.0",
+    "@tanstack/solid-pacer": "^0.21.1",
+    "@tanstack/solid-query": "^5.101.2",
+    "@tanstack/solid-router": "^1.170.17",
+    "lucide-solid": "^1.18.0",
+    "solid-js": "^1.9.13",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@conciv/storage-history": "workspace:^",
+    "@conciv/uno-preset": "workspace:*",
+    "@tanstack/router-cli": "^1.167.18",
+    "@tanstack/router-plugin": "^1.168.19",
+    "@types/node": "^26.1.0",
+    "@unocss/postcss": "^66.7.2",
+    "@unocss/reset": "^66.7.2",
+    "@vitest/browser-playwright": "4.1.10",
+    "typescript": "^6.0.3",
+    "unocss": "^66.7.2",
+    "vite": "^8.0.16",
+    "vite-plugin-solid": "^2.11.12",
+    "vitest": "^4.1.8"
+  }
+}

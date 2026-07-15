@@ -44,7 +44,7 @@ export function AssistantActionBar(): JSX.Element {
       autohideFloat="always"
       role="toolbar"
       aria-label="Message actions"
-      class="flex gap-0.5 anim-presence-in data-[floating=true]:bottom-0 data-[floating=true]:left-0 data-[floating=true]:absolute"
+      class="flex gap-0.5 data-[floating=true]:bottom-0 data-[floating=true]:left-0 data-[floating=true]:absolute"
     >
       <ActionBar.Copy
         render={(props) => (
@@ -80,7 +80,7 @@ export function UserActionBar(): JSX.Element {
       autohideFloat="always"
       role="toolbar"
       aria-label="Message actions"
-      class="flex flex-col items-end anim-presence-in data-[floating=true]:bottom-0 data-[floating=true]:right-0 data-[floating=true]:absolute"
+      class="flex flex-col items-end data-[floating=true]:bottom-0 data-[floating=true]:right-0 data-[floating=true]:absolute"
     >
       <ActionBar.Edit
         render={(props) => (

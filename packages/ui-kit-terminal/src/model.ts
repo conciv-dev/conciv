@@ -11,7 +11,8 @@ export type TerminalTheme = ITheme
 export type TerminalStatus = 'idle' | 'connecting' | 'open' | 'exited' | 'error'
 
 export type TerminalModelOpts = {
-  url: () => string
+  url: (terminal: Xterm) => string
+  beforeConnect?: (terminal: Xterm) => Promise<void> | void
   theme?: () => TerminalTheme
   fontSize?: number
 }
@@ -63,11 +64,13 @@ export function createTerminalModel(opts: TerminalModelOpts): TerminalModel {
     retry: ReturnType<typeof setTimeout> | null
     stopped: boolean
     attempts: number
+    opening: boolean
   } = {
     socket: null,
     retry: null,
     stopped: false,
     attempts: 0,
+    opening: false,
   }
 
   const receiveControl = (frame: TtyServerControl): void => {
@@ -110,8 +113,23 @@ export function createTerminalModel(opts: TerminalModelOpts): TerminalModel {
   }
 
   const connect = (): void => {
-    if (state.socket || settled()) return
+    if (state.socket || state.opening || settled()) return
     setStatus('connecting')
+    state.opening = true
+    void Promise.resolve()
+      .then(() => opts.beforeConnect?.(terminal))
+      .then(() => {
+        state.opening = false
+        if (!settled()) attach()
+      })
+      .catch((error: unknown) => {
+        state.opening = false
+        giveUp(error instanceof Error ? error.message : 'Could not open the terminal.')
+      })
+  }
+
+  const attach = (): void => {
+    if (state.socket || settled()) return
     const socket = openSocket()
     if (!socket) return
     socket.binaryType = 'arraybuffer'
@@ -138,7 +156,7 @@ export function createTerminalModel(opts: TerminalModelOpts): TerminalModel {
 
   const openSocket = (): WebSocket | null => {
     try {
-      return new WebSocket(opts.url())
+      return new WebSocket(opts.url(terminal))
     } catch {
       giveUp('Could not reach the terminal.')
       return null

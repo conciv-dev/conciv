@@ -9,6 +9,16 @@ function escapeAttr(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/"/g, '&quot;')
 }
 
+export type HtmlTag = {tag: string; attrs: Record<string, string | boolean>; injectTo: 'head'}
+
+export function htmlTags(corePort: number, opts: {widget?: WidgetConfig}): HtmlTag[] {
+  return [
+    {tag: 'meta', attrs: {name: 'pw-api-base', content: `http://127.0.0.1:${corePort}`}, injectTo: 'head'},
+    {tag: 'meta', attrs: {name: 'pw-widget', content: JSON.stringify(opts.widget ?? {})}, injectTo: 'head'},
+    {tag: 'script', attrs: {type: 'module', src: EXTENSIONS_ROUTE}, injectTo: 'head'},
+  ]
+}
+
 export function widgetTags(apiBase: string, widgetConfig?: WidgetConfig): string {
   return (
     `<meta name="pw-api-base" content="${escapeAttr(apiBase)}">` +
@@ -64,9 +74,14 @@ function trailingCallback(args: ReadonlyArray<unknown>): (() => void) | undefine
   return typeof last === 'function' ? () => void last() : undefined
 }
 
+const NESTED_FETCH_DESTS = new Set(['iframe', 'frame', 'embed', 'object'])
+
 export function makeWidgetInject(apiBase: string, widgetConfig?: WidgetConfig): Middleware {
   const tags = widgetTags(apiBase, widgetConfig)
-  return (_req, res, next) => {
+  return (req, res, next) => {
+    const fetchDest = req.headers['sec-fetch-dest']
+    if (typeof fetchDest === 'string' && NESTED_FETCH_DESTS.has(fetchDest)) return next()
+
     const chunks: Buffer[] = []
     const realWrite = res.write
     const realEnd = res.end

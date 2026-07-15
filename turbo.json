@@ -25,7 +25,7 @@
     },
     "test": {
       "dependsOn": ["^build", "build"],
-      "env": ["SKIP_STORYBOOK_TESTS", "CI"]
+      "env": ["SKIP_STORYBOOK_TESTS", "CI", "VITEST_MAX_WORKERS"]
     },
     "lint": {
       "dependsOn": ["^build"]
@@ -37,7 +37,7 @@
       "dependsOn": ["build"]
     },
     "test:e2e": {
-      "dependsOn": ["^build", "build"],
+      "dependsOn": ["^build"],
       "cache": false,
       "env": ["CI", "CONCIV_E2E"]
     }

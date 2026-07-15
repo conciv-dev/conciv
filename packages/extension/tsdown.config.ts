@@ -1,8 +1,10 @@
 import {defineConfig} from 'tsdown'
+import Solid from 'unplugin-solid/rolldown'
 
 export default defineConfig({
-  entry: ['src/index.ts', 'src/client.ts', 'src/runtime.ts', 'src/catalog.ts'],
+  entry: ['src/index.ts', 'src/catalog.ts'],
   format: 'esm',
   fixedExtension: false,
   dts: true,
+  plugins: [Solid()],
 })

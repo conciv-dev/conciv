@@ -1,26 +1,17 @@
-import {defaultOrigin, sendJson} from './cli-http.js'
+import {ORPCError} from '@orpc/client'
+import {makeRpcClient, type RpcClient} from '@conciv/contract'
 
-export type CliRequest = {method: 'GET' | 'POST'; path: string; body?: Record<string, unknown>}
+function defaultOrigin(): string {
+  const port = process.env.CONCIV_PORT ?? '5173'
+  return `http://127.0.0.1:${port}`
+}
 
-export function compact(o: Record<string, unknown>): Record<string, string> {
-  const out: Record<string, string> = {}
-  for (const [k, v] of Object.entries(o)) {
-    if (v === undefined || v === null || v === '') continue
-    out[k] = String(v)
+export async function runRpc(call: (rpc: RpcClient) => Promise<unknown>): Promise<void> {
+  try {
+    const result = await call(makeRpcClient(defaultOrigin()))
+    process.stdout.write(JSON.stringify(result) + '\n')
+  } catch (error) {
+    if (!(error instanceof ORPCError)) throw error
+    process.stdout.write(JSON.stringify({message: error.message}) + '\n')
   }
-  return out
-}
-
-export function qs(params: Record<string, unknown>): string {
-  const entries = Object.entries(compact(params))
-  if (entries.length === 0) return ''
-  return '?' + entries.map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&')
-}
-
-export async function runRequest(req: CliRequest): Promise<string> {
-  return sendJson(req.method, `${defaultOrigin()}${req.path}`, req.body)
-}
-
-export async function runAndPrint(req: CliRequest): Promise<void> {
-  process.stdout.write((await runRequest(req)) + '\n')
 }

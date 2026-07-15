@@ -1,24 +1,20 @@
-import {randomUUID} from 'node:crypto'
-import {buildUiSpec} from '@conciv/protocol/ui-types'
+import {UiInputSchema} from '@conciv/protocol/ui-types'
 import type {ConcivServerTool, ConcivToolContext} from './types.js'
 import {concivPageToolDef, PageInput} from './page.js'
-import {concivUiToolDef, UiInput} from './ui.js'
+import {concivUiToolDef} from './ui.js'
 import {concivOpenToolDef, OpenInput} from './open.js'
 import {buildCatalog, scaffold, validateSource} from '@conciv/extension/catalog'
 import {concivExtensionsToolDef, ExtensionsInput} from './extensions-tool.js'
 
 function concivUiServerTool(ctx: ConcivToolContext): ConcivServerTool {
-  const tool = concivUiToolDef.server(async (input) => {
-    const renderId = randomUUID()
-    return {renderId, injected: ctx.injectUi(buildUiSpec(input, renderId))}
-  })
+  const tool = concivUiToolDef.server(() => ctx.askUi())
   const run = tool.execute
   if (!run) throw new Error('conciv_ui: server tool has no execute')
   return {
     name: tool.name,
     description: tool.description,
-    inputSchema: UiInput,
-    execute: (input) => run(UiInput.parse(input)),
+    inputSchema: UiInputSchema,
+    execute: async (input) => run(UiInputSchema.parse(input)),
   }
 }
 

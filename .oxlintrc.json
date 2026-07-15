@@ -89,7 +89,7 @@
       }
     },
     {
-      "files": ["packages/solid-streamdown/**"],
+      "files": ["packages/solid-streamdown/**", "packages/page/**"],
       "rules": {
         "unocss/order": "off"
       }
@@ -119,5 +119,14 @@
       }
     }
   ],
-  "ignorePatterns": ["dist", "build", "node_modules", ".turbo", "**/*.gen.ts", "**/test-results"]
+  "ignorePatterns": [
+    "dist",
+    "build",
+    "node_modules",
+    ".turbo",
+    "**/*.gen.ts",
+    "**/test-results",
+    "e2e/*/src",
+    "e2e/*/app"
+  ]
 }

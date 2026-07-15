@@ -1,9 +1,8 @@
 import {join} from 'node:path'
-import {Hono} from 'hono'
 import {defineExtension, type ToolRequest} from '@conciv/extension'
 import {WHITEBOARD_NAME, WHITEBOARD_PROMPT} from './shared/meta.js'
 import {createStore} from './server/db/store.js'
-import {whiteboardApp, type WhiteboardEnv} from './server/routes.js'
+import {makeWhiteboardRouter} from './server/router.js'
 import {startCommentEnrichment} from './server/enrich-worker.js'
 import {autoCommitDraft} from './server/auto-commit.js'
 import {canvasTools} from './tool/canvas/server.js'
@@ -26,12 +25,7 @@ export default defineExtension({
     request.sessionId ? server.approvals.request(request.sessionId, detail) : Promise.resolve(false)
   return {
     context: {cwd: server.cwd, store, sessionId, room: sessionId, model: (request) => request.model, requestApproval},
-    app: new Hono<WhiteboardEnv>()
-      .use(async (c, next) => {
-        c.set('whiteboard', {store})
-        await next()
-      })
-      .route('/', whiteboardApp),
+    router: makeWhiteboardRouter(store),
     turnEnd: (turnSessionId) =>
       void autoCommitDraft(store, turnSessionId).catch((error) =>
         console.error(`[whiteboard] auto-commit on turn end failed for ${turnSessionId}: ${String(error)}`),

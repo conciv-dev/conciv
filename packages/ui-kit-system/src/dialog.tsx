@@ -4,7 +4,7 @@ import {Dialog as Ark} from '@ark-ui/solid/dialog'
 const BACKDROP = 'fixed inset-0 z-[2147483646] bg-[rgba(0,0,0,0.55)] [backdrop-filter:blur(0.125rem)]'
 const POSITIONER = 'fixed inset-0 z-[2147483647] flex items-center justify-center p-4'
 const CONTENT =
-  'w-90 max-w-[calc(100vw-2rem)] rounded-pw-lg bg-pw-panel text-pw-text border border-pw-line shadow-pw-lg p-4 focus-visible:outline-none data-[state=open]:anim-rise'
+  'w-90 max-w-[calc(100vw-2rem)] rounded-pw-lg bg-pw-panel text-pw-text border border-pw-line shadow-pw-lg p-4 focus-visible:outline-none data-[state=open]:anim-rise data-[state=closed]:anim-presence-out'
 
 export function Dialog(props: {
   open: boolean

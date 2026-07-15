@@ -1,7 +1,7 @@
 {
   "name": "@conciv/ui-kit-terminal",
-  "version": "0.0.7",
-  "description": "Compound SolidJS terminal components for conciv tty mode: a headless xterm.js model + primitives (Root/Screen/Banner) plus a styled terminal surface.",
+  "version": "0.0.9",
+  "description": "Internal to @conciv/it (installed automatically, do not install directly). Compound SolidJS terminal components for conciv tty mode: a headless xterm.js model + primitives (Root/Screen/Banner) plus a styled terminal surface.",
   "keywords": [
     "conciv",
     "solid-js",
@@ -48,7 +48,7 @@
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
     "@types/node": "^22.19.21",
-    "@vitest/browser-playwright": "4.1.9",
+    "@vitest/browser-playwright": "4.1.10",
     "playwright": "^1.61.1",
     "solid-js": "^1.9.13",
     "typescript": "^6.0.3",

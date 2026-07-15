@@ -1,5 +1,39 @@
 # @conciv/plugin
 
+## 0.0.9
+
+### Patch Changes
+
+- [`c25f76d`](https://github.com/conciv-dev/conciv/commit/c25f76d9cc208c21b15e4444491aa073b680e195) Thanks [@omridevk](https://github.com/omridevk)! - The dist widget now boots cleanly in real consumer vite apps: the plugin pre-warms the widget module graph (`server.warmup`) so a cold dep-optimizer sees every widget dependency before its first run instead of re-optimizing mid-flight (504 Outdated Optimize Dep, full reloads); `optimizeDeps.exclude` yields to another plugin's `include` (vite-plugin-solid hosts like solid-start no longer crash with "entry point solid-js cannot be marked as external"); Solid singleton dedupe/exclude ids apply only where resolvable from the app root, fixing vite 7 hosts and React hosts whose optimized deps embed Solid (TanStack devtools).
+
+- [#60](https://github.com/conciv-dev/conciv/pull/60) [`18c9521`](https://github.com/conciv-dev/conciv/commit/18c9521886d3f7ea4054ae0ae638494312dc80b8) Thanks [@omridevk](https://github.com/omridevk)! - The vite plugin serves workspace `@conciv` browser packages from src in dev (resolveId src probe + solid compile); published manifests and tarballs unchanged.
+
+- Updated dependencies [[`c25f76d`](https://github.com/conciv-dev/conciv/commit/c25f76d9cc208c21b15e4444491aa073b680e195)]:
+  - @conciv/extension-compiler@0.0.9
+  - @conciv/cli@0.0.9
+  - @conciv/core@0.0.9
+  - @conciv/embed@0.0.9
+  - @conciv/extension@0.0.9
+  - @conciv/protocol@0.0.9
+
+## 0.0.8
+
+### Patch Changes
+
+- [#55](https://github.com/conciv-dev/conciv/pull/55) [`05dd101`](https://github.com/conciv-dev/conciv/commit/05dd101ff9401cbdfd5545cffa63f4bb3cfd2fbf) Thanks [@omridevk](https://github.com/omridevk)! - Client/server now talk over a single typed oRPC contract (`@conciv/contract`), with persistence extracted into `@conciv/db`; the remaining bespoke HTTP surface is limited to the MCP route and the terminal WebSocket.
+
+  The server stack moved from h3/srvx to hono behind one `@conciv/serve` wrapper for `@hono/node-server`, and the extension bundler was split out of the vite plugin into a standalone `@conciv/extension-compiler`.
+
+  The terminal gains a narrative activity rail — a resizable, open-by-default timeline of session activity — and the pty now spawns at the attaching client's fitted size instead of bouncing through a fixed geometry on every attach.
+
+- Updated dependencies [[`05dd101`](https://github.com/conciv-dev/conciv/commit/05dd101ff9401cbdfd5545cffa63f4bb3cfd2fbf), [`fce6e80`](https://github.com/conciv-dev/conciv/commit/fce6e80e818460ca950b08ac75bccd94a1a72931)]:
+  - @conciv/core@0.0.8
+  - @conciv/extension-compiler@0.0.8
+  - @conciv/cli@0.0.8
+  - @conciv/embed@0.0.8
+  - @conciv/extension@0.0.8
+  - @conciv/protocol@0.0.8
+
 ## 0.0.7
 
 ### Patch Changes

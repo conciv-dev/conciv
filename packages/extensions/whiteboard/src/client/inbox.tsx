@@ -6,13 +6,13 @@ import {useComments, type Comment} from './model/comments.js'
 import {Avatar, Menu, MenuCheckboxItem, MenuRadioGroup, MenuRadioItem, MenuSeparator, Tabs} from './ui.js'
 
 const PANEL =
-  'fixed right-0 top-0 bottom-0 m-3 w-[clamp(20rem,28vw,25rem)] max-sm:left-0 max-sm:top-auto max-sm:w-auto max-sm:h-[65vh] max-sm:m-2 pointer-events-auto flex flex-col bg-pw-panel text-pw-text border border-pw-line rounded-pw-lg shadow-pw-lg overflow-hidden'
+  'fixed right-0 top-0 bottom-0 m-3 w-[clamp(20rem,28vw,25rem)] max-sm:left-0 max-sm:top-auto max-sm:w-auto max-sm:h-[65vh] max-sm:m-2 pointer-events-auto flex flex-col bg-pw-panel text-pw-text border border-pw-line rounded-pw-lg shadow-pw-lg overflow-hidden anim-presence-in'
 const TOGGLE =
   'fixed right-4 top-4 pointer-events-auto inline-flex items-center gap-1.5 h-9 px-3 rounded-pw-pill bg-pw-panel text-pw-text border border-pw-line shadow-pw-lg text-[0.8125rem] [outline:none] focus-ring'
 const ICON_BTN =
-  'inline-flex size-7 items-center justify-center rounded-pw-sm text-pw-text-2 [outline:none] hover:bg-pw-fill focus-ring'
+  'inline-flex size-7 items-center justify-center rounded-pw-sm text-pw-text-2 [outline:none] trans-bg hover:bg-pw-fill focus-ring'
 const FEED_ITEM =
-  'w-full flex gap-2 px-3 py-2.5 text-left border-t border-pw-line-soft first:border-t-0 [outline:none] hover:bg-pw-fill-soft focus-ring'
+  'w-full flex gap-2 px-3 py-2.5 text-left border-t border-pw-line-soft first:border-t-0 [outline:none] trans-bg hover:bg-pw-fill-soft focus-ring'
 
 const partText = (part: unknown): string => {
   const text = z.object({text: z.string()}).safeParse(part)

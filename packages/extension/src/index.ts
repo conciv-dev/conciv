@@ -11,21 +11,17 @@ export type {ToolBuilder} from './define-tool.js'
 export {imageResult} from './image-result.js'
 export type {ContentPart} from '@tanstack/ai'
 export {collectToolRenderers} from './collect-client.js'
-export {getExtensionApi, useClientApi, installClientApi} from './extension-api.js'
+export {getExtensionApi} from './extension-api.js'
 export type {ExtensionApi, ExtensionId, Register} from './extension-api.js'
+export {getHostApi, HostApiProvider} from './hooks.js'
 export type {
-  ClientApi,
-  PageInspect,
   ClientFactoryResult,
-  ComposerActions,
   ConfigOf,
   ExtensionCommand,
-  ExtensionHostContext,
   ExtensionServerTool,
   ExtensionSlot,
   ExtensionTool,
   ExtensionView,
-  ExtensionViewHost,
   RequiredContext,
   ServerApi,
   ServerHarness,
@@ -34,3 +30,9 @@ export type {
   ToolRenderer,
   ToolRequest,
 } from './types.js'
+export {MountedExtension, MountedSurface, MountedView} from './mount-extension.js'
+export type {MountedExtensionProps, MountedSurfaceProps, MountedViewProps} from './mount-extension.js'
+export {ensureEffectsSurface, openSource, EFFECTS_SURFACE_ATTR} from './client-host.js'
+export {makeExtRpcClient} from './ext-rpc.js'
+export type {ExtRpcClientOpts, ExtRpcContext} from './ext-rpc.js'
+export {subscriptionIterator} from './server-stream.js'

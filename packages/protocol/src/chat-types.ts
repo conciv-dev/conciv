@@ -75,22 +75,14 @@ export type Ok = z.infer<typeof OkSchema>
 export const PermissionDecisionSchema = z.object({approvalId: z.string(), approved: z.boolean()})
 export type PermissionDecision = z.infer<typeof PermissionDecisionSchema>
 
-export const ChatSessionSchema = z.object({
-  sessionId: SessionId,
+export const NavigationEntrySchema = z.object({href: z.string(), state: z.unknown().optional()})
+export type NavigationEntry = z.infer<typeof NavigationEntrySchema>
 
-  harnessSessionId: z.string().nullable(),
-
-  name: z.string().nullable(),
-
-  origin: z.enum(['chat', 'agent', 'external']),
-  cwd: z.string(),
-  lock: z.object({held: z.boolean(), role: z.enum(['iterate', 'chat']).nullable()}),
-
-  usage: UsageSnapshotSchema.nullish(),
-
-  harness: z.object({id: z.string(), name: z.string(), canLaunch: z.boolean()}),
+export const NavigationStateSchema = z.object({
+  entries: z.array(NavigationEntrySchema),
+  index: z.number(),
 })
-export type ChatSession = z.infer<typeof ChatSessionSchema>
+export type NavigationState = z.infer<typeof NavigationStateSchema>
 
 export const HarnessModelSchema = z.object({
   id: z.string(),
@@ -157,23 +149,3 @@ export const ChatLaunchSchema = z.object({
 export type ChatLaunch = z.infer<typeof ChatLaunchSchema>
 
 export type RequestMeta = Record<string, unknown>
-
-export type SessionClient = {
-  sessionId: () => SessionId | null
-  setSessionId: (id: SessionId | null) => void
-  chatStreamUrl: () => string
-  attachUrl: () => string
-  chatHeaders: () => Record<string, string>
-  resolve: (body?: z.input<typeof ResolveRequestSchema>) => Promise<z.output<typeof ResolveResponseSchema>>
-  session: () => Promise<z.output<typeof ChatSessionSchema>>
-  sessions: () => Promise<z.output<typeof ChatSessionsSchema>>
-  history: () => Promise<z.output<typeof ChatHistorySchema>>
-  models: () => Promise<z.output<typeof ChatModelsSchema>>
-  commands: () => Promise<z.output<typeof ChatCommandsSchema>>
-  tools: () => Promise<z.output<typeof ChatToolsSchema>>
-  rename: (body: z.input<typeof RenameSessionSchema>) => Promise<z.output<typeof RenameResponseSchema>>
-  launch: (body?: z.input<typeof ChatLaunchRequestSchema>) => Promise<z.output<typeof ChatLaunchSchema>>
-  remove: () => Promise<z.output<typeof OkSchema>>
-  stop: () => Promise<z.output<typeof OkSchema>>
-  permissionDecision: (body: z.input<typeof PermissionDecisionSchema>) => Promise<z.output<typeof OkSchema>>
-}

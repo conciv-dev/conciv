@@ -1,5 +1,6 @@
 import type {Accessor, Setter} from 'solid-js'
 import {defineExtension} from '../src/define-extension.js'
+import {getHostApi} from '../src/hooks.js'
 
 const extension = defineExtension({name: 'canvas'})
   .client(() => {
@@ -12,13 +13,13 @@ const extension = defineExtension({name: 'canvas'})
   .server(() => ({context: {}}))
 
 function ProbeComponent() {
-  const slot: () => string = extension.useSlot()
-  const insert: (text: string) => void = extension.useContext((context) => context.insert)
+  const host = getHostApi()
+  const slot: string = host.useSlot()
+  const insert: (text: string) => void = host.useComposerInsert()
   const selection: Accessor<string | null> = extension.useContext((context) => context.selection)
   const full = extension.useContext()
-  const fullInsert: (text: string) => void = full.insert
   const fullSelection: Accessor<string | null> = full.selection
-  return {slot: slot(), insert, selection, fullInsert, fullSelection}
+  return {slot, insert, selection, fullSelection}
 }
 
 const reversedOrder = defineExtension({name: 'reversed'})

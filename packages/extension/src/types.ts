@@ -1,15 +1,11 @@
-import type {Component, ComponentProps} from 'solid-js'
-import type {DialogApi, PopoverApi} from '@conciv/ui-kit-system'
+import type {Component} from 'solid-js'
 import type {z} from 'zod'
-import type {ToolCardProps, ToolViewCtx} from '@conciv/protocol/tool-view-types'
-import type {RequestMeta, SessionClient} from '@conciv/protocol/chat-types'
-import type {GrabApi} from '@conciv/grab'
-import type {LocateResult} from '@conciv/protocol/page-introspect-types'
-import type {OpenSourceResult} from '@conciv/protocol/page-types'
+import type {AnyRouter} from '@orpc/server'
+import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import type {TtyCommand, TtyCommandOpts} from '@conciv/protocol/terminal-types'
 import type {UIMessage} from '@conciv/protocol/chat-types'
 
-export type ExtensionSlot = 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget'
+export type ExtensionSlot = 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget' | 'surface'
 
 export type ExtensionView = {
   id: string
@@ -18,31 +14,6 @@ export type ExtensionView = {
   Component: Component
   actions?: Component
 }
-
-export type ExtensionViewHost = {
-  setLocked(locked: boolean): void
-  leave(): void
-  onInsert(handler: ((text: string) => void) | null): void
-}
-
-export type ComposerActions = {
-  insert: (text: string) => void
-  notify: (message: string) => void
-  setBusy: (busy: boolean) => void
-  newSession: () => void
-  addDivider: (kind: 'new' | 'compact') => void
-  compact: () => void
-  resetUsage: () => void
-}
-
-export type ExtensionHostContext = ToolViewCtx &
-  ComposerActions & {
-    client: SessionClient
-    requestMeta: () => RequestMeta
-    grab: GrabApi
-    currentSlot: ExtensionSlot
-    view: ExtensionViewHost
-  }
 
 export type ToolRequest = {sessionId: string; model: string | null}
 
@@ -105,36 +76,10 @@ export type ServerApi<Config> = {
 
 export type ServerResult<Context> = {
   context: Context
+  router?: AnyRouter
   app?: unknown
   turnEnd?: (sessionId: string) => void | Promise<void>
   dispose?: () => void | Promise<void>
-}
-
-export type PageInspect = {
-  elementAt: (x: number, y: number) => Element | null
-  describe: (host: Element) => {component: string; file: string | null}
-  locate: (el: Element) => Promise<LocateResult | null>
-}
-
-export type ClientApi = {
-  apiBase: string
-  activeSession: () => string | null
-  requestMeta: () => RequestMeta
-  page: PageInspect
-  openSource: (loc: LocateResult) => Promise<OpenSourceResult>
-  toast: (message: string, tone?: 'info' | 'success' | 'error') => void
-  surface: () => HTMLElement
-
-  suppressWhile: (active: () => boolean) => () => void
-  yieldFocusWhile: (active: () => boolean) => () => void
-  Dialog: () => DialogApi
-
-  Popover: () => {
-    Root: Component<ComponentProps<PopoverApi['Root']>>
-    Positioner: Component<ComponentProps<PopoverApi['Positioner']>>
-    Content: Component<ComponentProps<PopoverApi['Content']>>
-  }
-  env: {reducedMotion: () => boolean; doc: Document; win: Window}
 }
 
 export type ConfigOf<Schema> = [Schema] extends [z.ZodNever] ? Record<never, never> : z.output<Schema>

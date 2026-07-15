@@ -1,17 +1,14 @@
 import {createEffect, createResource, createSignal, on, onCleanup, onMount, Show, type JSX} from 'solid-js'
-import {hc} from 'hono/client'
-import type {TerminalAppType} from '../server.js'
+import {ORPCError} from '@orpc/client'
+import type {TerminalRouter} from '../server.js'
 import {Terminal, createTerminalModel, type TerminalTheme} from '@conciv/ui-kit-terminal'
 import {Button} from '@conciv/ui-kit-system'
-import type {ExtensionHostContext} from '@conciv/extension'
+import {getHostApi, makeExtRpcClient} from '@conciv/extension'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {useTerminalContext} from './terminal-context.js'
 import {MirrorRail} from './mirror-rail.js'
-import type {TerminalStore} from './terminal-store.js'
 
 const ESCAPE_KEY = String.fromCharCode(27)
-const DEFAULT_COLS = 120
-const DEFAULT_ROWS = 32
 
 const ERROR_BANNER =
   'flex items-center justify-between gap-2 m-2.5 py-2.5 px-3 rounded-[10px] text-[0.75rem] bg-pw-fill border border-pw-danger-line text-pw-text'
@@ -32,7 +29,7 @@ function terminalUrl(apiBase: string, path: string): string {
 }
 
 function terminalClient(apiBase: string) {
-  return hc<TerminalAppType>(`${apiBase}/api/ext/terminal`, {init: {credentials: 'include'}})
+  return makeExtRpcClient<TerminalRouter>(apiBase, 'terminal')
 }
 
 function wsUrl(apiBase: string, sessionId: string | null, cols: number, rows: number): string {
@@ -61,12 +58,41 @@ function isPlainEnter(event: KeyboardEvent): boolean {
   return event.type === 'keydown' && event.key === 'Enter' && !hasModifier(event)
 }
 
-type ViewContext = ExtensionHostContext & {store: TerminalStore}
-
-function TerminalSurface(props: {ctx: ViewContext; generation: number; themeHost: () => Element}): JSX.Element {
-  const ctx = props.ctx
+function TerminalSurface(props: {generation: number; themeHost: () => Element}): JSX.Element {
+  const host = getHostApi()
+  const store = useTerminalContext((context) => context.store)
+  const apiBase = host.useApiBase()
+  const sessionId = host.useSessionId()
+  const grab = host.useGrab()
+  const setViewLocked = host.useViewLock()
+  const leaveView = host.useLeaveView()
+  const toast = host.useToast()
+  const rpc = host.useRpc()
+  const [meta] = createResource(() => rpc.meta.models(undefined))
+  const [openFailed, setOpenFailed] = createSignal<string | null>(null)
+  const openError = (error: unknown): Error => {
+    const busy = error instanceof ORPCError && error.code === 'BUSY'
+    return new Error(busy ? 'Session is busy — wait for the current turn to finish.' : 'Couldn’t open the terminal.')
+  }
+  const openTerminal = async (cols: number, rows: number): Promise<void> => {
+    const id = sessionId()
+    if (!id) throw openError(undefined)
+    await terminalClient(apiBase)
+      .open({sessionId: id, cols, rows, model: store.spawnModel() ?? undefined})
+      .catch((error: unknown) => {
+        throw openError(error)
+      })
+  }
   const model = createTerminalModel({
-    url: () => wsUrl(ctx.apiBase, ctx.client.sessionId(), DEFAULT_COLS, DEFAULT_ROWS),
+    url: (terminal) => wsUrl(apiBase, sessionId(), terminal.cols, terminal.rows),
+    beforeConnect: async (terminal) => {
+      setOpenFailed(null)
+      await openTerminal(terminal.cols, terminal.rows).catch((error: Error) => {
+        toast(error.message)
+        setOpenFailed(error.message)
+        throw error
+      })
+    },
     theme: () => readTerminalTheme(props.themeHost()),
   })
   onMount(() => {
@@ -95,11 +121,11 @@ function TerminalSurface(props: {ctx: ViewContext; generation: number; themeHost
     onCleanup(() => root.removeEventListener('focusout', onFocusOut, true))
   })
   const pasteStagedGrabs = (): boolean => {
-    const grabs = ctx.grab.staged()
-    if (grabs.length === 0) return true
-    model.paste(`\n\n${grabs.map((grab) => grab.text).join('\n\n')}`)
+    const staged = grab.staged()
+    if (staged.length === 0) return true
+    model.paste(`\n\n${staged.map((entry) => entry.text).join('\n\n')}`)
     model.sendInput('\r')
-    ctx.grab.clear()
+    grab.clear()
     return false
   }
   model.terminal.attachCustomKeyEventHandler((event) => {
@@ -108,106 +134,82 @@ function TerminalSurface(props: {ctx: ViewContext; generation: number; themeHost
     return pasteStagedGrabs()
   })
   createEffect(() => {
-    ctx.view.setLocked(model.busy())
-    ctx.store.setBusy(model.busy())
+    setViewLocked(model.busy())
+    store.setBusy(model.busy())
   })
   onCleanup(() => {
-    ctx.view.setLocked(false)
-    ctx.store.setBusy(false)
+    setViewLocked(false)
+    store.setBusy(false)
   })
-  const headers = () => ({...ctx.client.chatHeaders()})
-  const railCtx: ToolViewCtx = {
-    apiBase: ctx.apiBase,
-    harnessId: ctx.harnessId,
+  const railCtx = (): ToolViewCtx => ({
+    apiBase,
+    harnessId: meta()?.harness.id ?? '',
     sendMessage: () => {},
     respondApproval: () => {},
-    durationFor: ctx.durationFor,
-  }
+  })
   return (
-    <Terminal
-      model={model}
-      onBackToChat={() => ctx.view.leave()}
-      class="flex-1 min-h-0"
-      rail={<MirrorRail apiBase={ctx.apiBase} headers={headers} ctx={railCtx} />}
-    />
+    <Show
+      when={!openFailed()}
+      fallback={
+        <div class={ERROR_BANNER} role="alert">
+          <span>{openFailed()}</span>
+          <Button variant="solid" size="sm" onClick={() => store.bumpRespawn()}>
+            Retry
+          </Button>
+        </div>
+      }
+    >
+      <Terminal
+        model={model}
+        onBackToChat={() => leaveView()}
+        class="flex-1 min-h-0"
+        rail={<MirrorRail apiBase={apiBase} sessionId={sessionId} ctx={railCtx()} busy={model.busy} />}
+      />
+    </Show>
   )
 }
 
 export function TerminalPanelView(): JSX.Element {
-  const ctx = useTerminalContext()
-  const openTerminal = async (): Promise<void> => {
-    const res = await terminalClient(ctx.apiBase).open.$post(
-      {json: {cols: DEFAULT_COLS, rows: DEFAULT_ROWS, model: ctx.store.spawnModel() ?? undefined}},
-      {headers: ctx.client.chatHeaders()},
-    )
-    if (!res.ok) {
-      const busy = res.status === 409
-      throw new Error(busy ? 'Session is busy — wait for the current turn to finish.' : 'Couldn’t open the terminal.')
-    }
-  }
+  const host = getHostApi()
+  const store = useTerminalContext((context) => context.store)
+  const apiBase = host.useApiBase()
+  const sessionId = host.useSessionId()
   const [openKey, setOpenKey] = createSignal(1)
-  const [opened, {refetch}] = createResource(async () => {
-    await openTerminal().catch((error: Error) => {
-      ctx.notify(error.message)
-      throw error
-    })
-    return true
-  })
 
   const respawning = {current: false}
   const respawn = async (): Promise<void> => {
     if (respawning.current) return
     respawning.current = true
-    ctx.store.setRespawning(true)
+    store.setRespawning(true)
     try {
-      await terminalClient(ctx.apiBase)
-        .close.$post(undefined, {headers: ctx.client.chatHeaders()})
-        .catch(() => {})
-      await refetch()
+      const id = sessionId()
+      if (id)
+        await terminalClient(apiBase)
+          .close({sessionId: id})
+          .catch(() => {})
       setOpenKey((key) => key + 1)
     } finally {
       respawning.current = false
-      ctx.store.setRespawning(false)
+      store.setRespawning(false)
     }
   }
 
   createEffect(
-    on([() => ctx.client.sessionId(), () => ctx.store.respawnTick()], (_next, prev) => {
+    on([sessionId, () => store.respawnTick()], (_next, prev) => {
       if (prev !== undefined) void respawn()
     }),
   )
 
-  let host: HTMLDivElement | undefined = undefined
+  let themeHost: HTMLDivElement | undefined = undefined
   return (
     <div
       ref={(element) => {
-        host = element
+        themeHost = element
       }}
       class="flex flex-1 flex-col min-h-0"
     >
-      <Show
-        when={!opened.error}
-        fallback={
-          <div class={ERROR_BANNER} role="alert">
-            <span>{opened.error?.message ?? 'Couldn’t open the terminal.'}</span>
-            <Button variant="solid" size="sm" onClick={() => void refetch()}>
-              Retry
-            </Button>
-          </div>
-        }
-      >
-        <Show
-          when={opened()}
-          fallback={
-            <div class="text-[0.75rem] text-pw-text-2 flex flex-1 items-center justify-center" role="status">
-              connecting…
-            </div>
-          }
-        >
-          <Show keyed when={openKey()}>
-            {(key) => <TerminalSurface ctx={ctx} generation={key} themeHost={() => host ?? document.body} />}
-          </Show>
-        </Show>
+      <Show keyed when={openKey()}>
+        {(key) => <TerminalSurface generation={key} themeHost={() => themeHost ?? document.body} />}
       </Show>
     </div>
   )

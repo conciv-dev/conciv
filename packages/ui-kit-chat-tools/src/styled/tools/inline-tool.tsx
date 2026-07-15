@@ -27,7 +27,7 @@ function Pending(props: {status: ToolStatus}): JSX.Element {
     >
       <LoaderCircle
         size={13}
-        class="text-[color:var(--chat-text-3)] anim-spin shrink-0 motion-reduce:[animation:none]"
+        class="text-[color:var(--chat-text-3)] anim-tool-spin shrink-0 motion-reduce:[animation:none]"
         aria-hidden="true"
       />
     </Show>

@@ -8,6 +8,14 @@
     "**/*.generated.ts",
     "packages/aidx/**",
     "apps/examples/**",
+    "e2e/astro/**",
+    "e2e/nextjs/**",
+    "e2e/solid-start/**",
+    "e2e/svelte/**",
+    "e2e/tanstack-start/**",
+    "e2e/vite-react/**",
+    "e2e/vite-solid/**",
+    "e2e/vite-vanilla/**",
     "**/vitest.config.ts",
     "**/*.stories.tsx",
     "**/*.test-d.ts",
@@ -27,11 +35,27 @@
     "unused-dev-dependencies": "warn",
     "circular-dependencies": "warn"
   },
-  "ignoreDependencies": ["@conciv/cli", "jazz-napi", "@oxlint/plugins"],
+  "ignoreDependencies": [
+    "collections",
+    "@conciv/cli",
+    "jazz-napi",
+    "@oxlint/plugins",
+    "@ark-ui/solid",
+    "@conciv/client",
+    "@conciv/embed",
+    "@conciv/grab",
+    "@conciv/mascot",
+    "@conciv/solid-streamdown",
+    "@conciv/ui-kit-chat",
+    "@conciv/ui-kit-chat-tools",
+    "@conciv/ui-kit-system",
+    "bippy",
+    "react-grab"
+  ],
   "ignoreUnresolvedImports": ["collections/*"],
   "publicPackages": [
-    "@conciv/api-client",
     "@conciv/core",
+    "@conciv/embed",
     "@conciv/extension",
     "@conciv/extension-test-runner",
     "@conciv/extension-whiteboard",
@@ -48,8 +72,7 @@
     "@conciv/ui-kit-chat",
     "@conciv/ui-kit-chat-tools",
     "@conciv/ui-kit-system",
-    "@conciv/ui-kit-tap",
-    "@conciv/widget"
+    "@conciv/ui-kit-tap"
   ],
   "ignoreExports": [
     {

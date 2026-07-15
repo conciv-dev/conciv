@@ -12,18 +12,18 @@ export function LandingPage() {
   return (
     <LandingMotion>
       <SmoothScroll>
-        <ClickSpark sparkColor="var(--od-accent)" sparkRadius={18} sparkCount={6} duration={420}>
-          <div className="od-page min-h-screen">
-            <SiteNav />
-            <main>
+        <div className="od-page min-h-screen">
+          <SiteNav />
+          <main>
+            <ClickSpark sparkColor="var(--od-accent)" sparkRadius={18} sparkCount={6} duration={420}>
               <Hero />
-              <BundlerBand />
-              <FeaturesSection />
-              <HowItWorks />
-            </main>
-            <SiteFooter />
-          </div>
-        </ClickSpark>
+            </ClickSpark>
+            <BundlerBand />
+            <FeaturesSection />
+            <HowItWorks />
+          </main>
+          <SiteFooter />
+        </div>
       </SmoothScroll>
     </LandingMotion>
   )

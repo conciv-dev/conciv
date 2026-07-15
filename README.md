@@ -27,6 +27,7 @@
 </p>
 
 <p>
+  <a href="https://www.npmjs.com/package/@conciv/it"><img alt="npm" src="https://img.shields.io/npm/v/%40conciv%2Fit?style=flat-square&color=cb3837&label=npm"></a>
   <img alt="CI" src="https://img.shields.io/github/actions/workflow/status/conciv-dev/conciv/ci.yml?branch=main&label=CI&style=flat-square">
   <img alt="License" src="https://img.shields.io/github/license/conciv-dev/conciv?color=3b82f6&style=flat-square">
   <img alt="Node" src="https://img.shields.io/badge/node-%E2%89%A5%2022-3c873a?style=flat-square">
@@ -66,7 +67,7 @@ capable as the tool you already trust.
   <img src="./.github/assets/how-it-works.png" alt="Architecture: the browser widget talks to @conciv/core over /api/* (SSE + JSON); core spawns the harness (claude/codex); the plugin injects the widget" width="840">
 </div>
 
-`@conciv/plugin` boots a framework-free **h3** engine (`@conciv/core`) behind a set of `/api/*`
+`@conciv/plugin` boots a framework-free **hono** engine (`@conciv/core`) behind a set of `/api/*`
 routes on its own dev port, spawns a headless harness (default `claude -p`), and injects a Solid
 widget into your previewed page. The widget probes `/api/chat/session` on load and only shows the
 conciv button when the dev routes are live — so it stays inert on a plain preview.
@@ -122,7 +123,7 @@ extension in a real browser against a real spawned server.
 
 Two built-ins show what the contract can do:
 
-- 🎨 &nbsp;[**Whiteboard**](./packages/extensions/whiteboard) — a shared Excalidraw canvas over your dev app. You sketch, the AI draws back (real editable elements, mermaid included), with source-anchored comments and pins on a self-hosted Jazz CRDT.
+- 🎨 &nbsp;[**Whiteboard**](./packages/extensions/whiteboard) — a shared Excalidraw canvas over your dev app. You sketch, the AI draws back (real editable elements, mermaid included), with source-anchored comments and pins on a self-hosted libSQL store (TanStack DB).
 - 🧪 &nbsp;[**Test runner**](./packages/extensions/test-runner) — runner-agnostic test execution (Vitest and Playwright) with live result cards in the thread.
 
 ## Supported tools
@@ -135,19 +136,26 @@ Two built-ins show what the contract can do:
 
 ## Packages
 
-| Package                                                              | What it is                                                                                                    |
-| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| [`@conciv/it`](./packages/it)                                        | **The one you install.** Thin umbrella: `@conciv/it/plugin/vite` (+ webpack/rspack/rollup/esbuild/nextjs).    |
-| [`@conciv/protocol`](./packages/protocol)                            | Shared wire types + `define*` factories (chat, generative UI, test, page, harness). Zero-runtime.             |
-| [`@conciv/core`](./packages/core)                                    | The framework-free h3 + srvx engine: every `/api/*` route, session, uiBus, harness + test registries.         |
-| [`@conciv/harness`](./packages/harness)                              | Harness adapters behind a capability interface: Claude + Codex, plus Gemini/opencode/Pi stubs.                |
-| [`@conciv/plugin`](./packages/plugin)                                | The dev agent as an unplugin: `vite` (full) + webpack/rspack/rollup/esbuild. Boots core + injects the widget. |
-| [`@conciv/widget`](./packages/widget)                                | The browser half: a Solid chat UI in an open Shadow DOM, the test card, and the page-control driver.          |
-| [`@conciv/cli`](./packages/cli)                                      | The `conciv` CLI the agent calls from Bash: `tools server / page / test / open` + `ui`.                       |
-| [`@conciv/extension`](./packages/extension)                          | The extension authoring contract: `defineExtension`/`defineTool` + typed `useSlot`/`useContext` hooks.        |
-| [`@conciv/extension-testkit`](./packages/extension-testkit)          | Mounts any extension in a real browser against a real spawned server, through its real contract.              |
-| [`@conciv/extension-whiteboard`](./packages/extensions/whiteboard)   | Built-in: the shared Excalidraw canvas with AI drawing and source-anchored comments.                          |
-| [`@conciv/extension-test-runner`](./packages/extensions/test-runner) | Built-in: runner-agnostic test execution with live result cards.                                              |
+Install these — everything else on npm under `@conciv/*` is internal and comes in automatically:
+
+| Package                                                     | What it is                                                                                                 |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| [`@conciv/it`](./packages/it)                               | **The one you install.** Thin umbrella: `@conciv/it/plugin/vite` (+ webpack/rspack/rollup/esbuild/nextjs). |
+| [`@conciv/extension`](./packages/extension)                 | The extension authoring contract: `defineExtension`/`defineTool` + typed `useSlot`/`useContext` hooks.     |
+| [`@conciv/extension-testkit`](./packages/extension-testkit) | Mounts any extension in a real browser against a real spawned server, through its real contract.           |
+
+Under the hood (installed automatically by `@conciv/it`):
+
+| Package                                                              | What it is                                                                                                               |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| [`@conciv/protocol`](./packages/protocol)                            | Shared wire types + `define*` factories (chat, generative UI, test, page, harness). Zero-runtime.                        |
+| [`@conciv/core`](./packages/core)                                    | The framework-free hono engine: every `/api/*` route, session, uiBus, harness + test registries.                         |
+| [`@conciv/harness`](./packages/harness)                              | Harness adapters behind a capability interface: Claude + Codex, plus Gemini/opencode/Pi stubs.                           |
+| [`@conciv/plugin`](./packages/plugin)                                | The dev agent as an unplugin: `vite` (full) + webpack/rspack/rollup/esbuild. Boots core + injects the widget.            |
+| [`@conciv/embed`](./packages/embed)                                  | The browser half: mounts the conciv Solid app into an open Shadow DOM, with the chat UI, cards, and page-control driver. |
+| [`@conciv/cli`](./packages/cli)                                      | The `conciv` CLI the agent calls from Bash: `tools server / page / test / open` + `ui`.                                  |
+| [`@conciv/extension-whiteboard`](./packages/extensions/whiteboard)   | Built-in: the shared Excalidraw canvas with AI drawing and source-anchored comments.                                     |
+| [`@conciv/extension-test-runner`](./packages/extensions/test-runner) | Built-in: runner-agnostic test execution with live result cards.                                                         |
 
 ## Documentation
 
@@ -166,6 +174,16 @@ pnpm install
 pnpm dev        # runs the tanstack-start example with conciv wired in
 ```
 
+## Star history
+
+<a href="https://www.star-history.com/#conciv-dev/conciv&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=conciv-dev/conciv&type=Date&theme=dark">
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=conciv-dev/conciv&type=Date">
+    <img alt="Star history chart for conciv-dev/conciv" src="https://api.star-history.com/svg?repos=conciv-dev/conciv&type=Date" width="600">
+  </picture>
+</a>
+
 ## License
 
 [MIT](./LICENSE) © conciv
@@ -174,5 +192,5 @@ pnpm dev        # runs the tanstack-start example with conciv wired in
   <br>
   <sub><strong>conciv</strong> · as in <code>@conciv/it</code> — say it out loud.</sub>
   <br>
-  <sub>Built with h3, Solid, and a real coding agent living in the page.</sub>
+  <sub>Built with hono, Solid, and a real coding agent living in the page.</sub>
 </div>

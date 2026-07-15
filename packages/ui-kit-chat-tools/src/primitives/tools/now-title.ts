@@ -22,6 +22,12 @@ function base(file: string): string {
   return file.split('/').slice(-1)[0] ?? file
 }
 
+export function humanToolName(name: string): string {
+  const mcp = name.match(/^mcp__(.+?)__(.+)$/)
+  if (mcp?.[2]) return mcp[2].replaceAll('_', ' ')
+  return name
+}
+
 const PAGE_VERB: Record<string, string> = {
   click: 'Clicking',
   fill: 'Typing',
@@ -40,30 +46,34 @@ const PAGE_VERB: Record<string, string> = {
   eval: 'Running a script',
 }
 
+type HintData = z.infer<typeof Hint>
+
+const runningTitle = (h: HintData): string => (h.command ? `Running ${clip(h.command)}` : 'Running a command')
+const editingTitle = (h: HintData): string => (h.file_path ? `Editing ${base(h.file_path)}` : 'Editing a file')
+const readingTitle = (h: HintData): string => {
+  const file = h.file_path ?? h.path
+  return file ? `Reading ${base(file)}` : 'Reading a file'
+}
+const searchingTitle = (h: HintData): string => (h.pattern ? `Searching ${clip(h.pattern, 32)}` : 'Searching')
+const pageTitle = (h: HintData): string => (h.verb && PAGE_VERB[h.verb]) || 'Page action'
+
+const TITLE_BY_TOOL: Record<string, (h: HintData) => string> = {
+  Bash: runningTitle,
+  Edit: editingTitle,
+  MultiEdit: editingTitle,
+  Write: editingTitle,
+  Read: readingTitle,
+  conciv_open: readingTitle,
+  Grep: searchingTitle,
+  Glob: searchingTitle,
+  TodoWrite: () => 'Updating tasks',
+  conciv_ui: () => 'Rendering UI',
+  conciv_page: pageTitle,
+}
+
 export function nowTitle(part: ToolCallPart, titleByName: Record<string, string> = {}): string {
   const supplied = titleByName[part.name]
   if (supplied) return supplied
-  const h = hint(part)
-  switch (part.name) {
-    case 'Bash':
-      return h.command ? `Running ${clip(h.command)}` : 'Running a command'
-    case 'Edit':
-    case 'MultiEdit':
-    case 'Write':
-      return h.file_path ? `Editing ${base(h.file_path)}` : 'Editing a file'
-    case 'Read':
-    case 'conciv_open':
-      return h.file_path || h.path ? `Reading ${base(h.file_path ?? h.path ?? '')}` : 'Reading a file'
-    case 'Grep':
-    case 'Glob':
-      return h.pattern ? `Searching ${clip(h.pattern, 32)}` : 'Searching'
-    case 'TodoWrite':
-      return 'Updating tasks'
-    case 'conciv_ui':
-      return 'Rendering UI'
-    case 'conciv_page':
-      return (h.verb && PAGE_VERB[h.verb]) || 'Page action'
-    default:
-      return part.name
-  }
+  const title = TITLE_BY_TOOL[part.name]
+  return title ? title(hint(part)) : humanToolName(part.name)
 }

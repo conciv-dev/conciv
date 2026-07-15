@@ -1,5 +1,6 @@
 import type {Page} from 'playwright'
 import type {AnyExtension} from '@conciv/extension'
+import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import {bootExtensionServer} from './boot-server.js'
 import {makeCallTool, resolveSession, type CallTool} from '@conciv/harness-testkit'
 import {buildHost} from './build-host.js'
@@ -9,6 +10,7 @@ import {launch} from './launch.js'
 export type ExtensionUnderTest = {
   server: AnyExtension
   clientEntry: string
+  harness?: HarnessAdapter
 }
 
 export type SecondClient = {page: Page; close: () => Promise<void>}
@@ -25,7 +27,9 @@ export type ExtensionTestApi = {
 }
 
 export async function getExtensionTestApi(extension: ExtensionUnderTest): Promise<ExtensionTestApi> {
-  const {apiBase, extensionContexts, stop} = await bootExtensionServer(extension.server)
+  const {apiBase, extensionContexts, stop} = await bootExtensionServer(extension.server, {
+    harness: extension.harness,
+  })
   const session = await resolveSession(apiBase)
   const outDir = await buildHost(extension.clientEntry)
   const host = await serveDir(outDir, {apiBase, session})

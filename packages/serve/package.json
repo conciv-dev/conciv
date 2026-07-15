@@ -1,7 +1,7 @@
 {
   "name": "@conciv/serve",
-  "version": "0.0.7",
-  "description": "conciv's @hono/node-server serve() wrapper — bakes overrideGlobalObjects:false so a co-hosted engine never clobbers the host's global Response/Request.",
+  "version": "0.0.9",
+  "description": "Internal to @conciv/it (installed automatically, do not install directly). conciv's @hono/node-server serve() wrapper — bakes overrideGlobalObjects:false so a co-hosted engine never clobbers the host's global Response/Request.",
   "keywords": [
     "conciv",
     "hono",
@@ -43,7 +43,7 @@
   "devDependencies": {
     "@types/node": "^22.19.21",
     "@types/ws": "^8.18.1",
-    "tsdown": "^0.22.2",
+    "tsdown": "^0.22.4",
     "typescript": "^6.0.3"
   }
 }

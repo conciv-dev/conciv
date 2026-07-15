@@ -3,8 +3,9 @@ import {Collapsible} from '@conciv/ui-kit-system'
 import {ChevronRight, ExternalLink, FlaskConical, Sparkles} from 'lucide-solid'
 import {ToolCard, resultText} from '@conciv/ui-kit-chat'
 import type {ToolCardProps, ToolViewCtx} from '@conciv/protocol/tool-view-types'
+import {getHostApi, makeExtRpcClient} from '@conciv/extension'
+import type {TestRunnerRouter} from '../server.js'
 import {
-  TestEventSchema,
   TestRunResultSchema,
   type TestRunResult,
   type Summary,
@@ -45,7 +46,8 @@ const DOT_STATE: Record<TestState | 'running', string> = {
   pass: 'size-2.25 bg-pw-success',
   fail: 'size-2.25 bg-pw-danger',
   skip: 'size-2.25 bg-pw-warn',
-  running: 'size-2.75 bg-transparent border-2 border-t-transparent border-x-pw-accent border-b-pw-accent anim-test-rot',
+  running:
+    'size-2.75 bg-transparent border-2 border-t-transparent border-x-pw-accent border-b-pw-accent anim-test-rot motion-reduce:animate-none',
 }
 const ERR =
   'mt-0 mr-3 mb-2 ml-9 py-2 px-2.5 bg-pw-sunken border-l-2 border-l-pw-danger rounded text-pw-danger text-[0.71875rem]'
@@ -64,10 +66,6 @@ function stateLabel(state: TestState | 'running'): string {
   if (state === 'fail') return 'failed'
   if (state === 'skip') return 'skipped'
   return 'running'
-}
-
-function domId(key: string): string {
-  return `pw-test-${key.replace(/[^a-zA-Z0-9_-]/g, '-')}`
 }
 
 function openLabel(error: TestError): string {
@@ -98,29 +96,13 @@ function testRowClass(state: Row['state']): string {
   return state === 'fail' ? `${ROW} ${ROW_FAIL}` : ROW
 }
 
-function openInEditor(apiBase: string, error: TestError): void {
-  void fetch(`${apiBase}/api/editor/open`, {
-    method: 'POST',
-    headers: {'content-type': 'application/json'},
-    body: JSON.stringify({file: error.file, line: error.line}),
-  }).catch(() => {})
-}
-
-function parseTestEvent(raw: string): TestEvent | null {
-  try {
-    const result = TestEventSchema.safeParse(JSON.parse(raw))
-    return result.success ? result.data : null
-  } catch {
-    return null
-  }
-}
-
 function TestErrorBlock(props: {error: TestError; ctx: ToolViewCtx}): JSX.Element {
+  const openEditor = getHostApi().useOpenEditor()
   return (
     <div class={ERR}>
       <pre class={ERR_PRE}>{props.error.message}</pre>
       <div class={ACTIONS}>
-        <button class={`${ACT}  ${ACT_PLAIN}`} onClick={() => openInEditor(props.ctx.apiBase, props.error)}>
+        <button class={`${ACT}  ${ACT_PLAIN}`} onClick={() => openEditor(props.error.file, props.error.line)}>
           <ExternalLink size={12} aria-hidden="true" />
           Open {openLabel(props.error)}
         </button>
@@ -150,7 +132,7 @@ export function TestResults(props: {result: TestRunResult | null; ctx: ToolViewC
       return
     }
     setRunning(true)
-    const source = new EventSource(`${props.ctx.apiBase}/api/ext/test-runner/stream`)
+    const abort = new AbortController()
     const applyLive = (ev: TestEvent) => {
       if (ev.type === 'snapshot') {
         setSummary(ev.summary)
@@ -171,17 +153,22 @@ export function TestResults(props: {result: TestRunResult | null; ctx: ToolViewC
         setSummary(ev.summary)
         setGroups(groupByFile(ev.tests.map((t) => ({...t}))))
         setRunning(false)
-        source.close()
+        abort.abort()
       }
     }
-    source.addEventListener('message', (e) => {
-      const ev = parseTestEvent(e.data)
-      if (ev) applyLive(ev)
-    })
-    onCleanup(() => source.close())
+    void (async () => {
+      try {
+        const client = makeExtRpcClient<TestRunnerRouter>(props.ctx.apiBase, 'test-runner')
+        const stream = await client.stream(undefined, {
+          signal: abort.signal,
+          context: {retry: Number.POSITIVE_INFINITY},
+        })
+        for await (const ev of stream) applyLive(ev)
+      } catch {}
+    })()
+    onCleanup(() => abort.abort())
   })
 
-  const toggleTest = (key: string) => setOpenTest((current) => (current === key ? null : key))
   const setFileOpen = (file: string, open: boolean) =>
     setCollapsed((prev) => {
       const next = new Set(prev)
@@ -221,7 +208,6 @@ export function TestResults(props: {result: TestRunResult | null; ctx: ToolViewC
               <For each={group.tests}>
                 {(test) => {
                   const key = `${group.file}::${test.name}`
-                  const id = domId(key)
                   return (
                     <Show
                       when={test.error}
@@ -234,24 +220,19 @@ export function TestResults(props: {result: TestRunResult | null; ctx: ToolViewC
                       }
                     >
                       {(error) => (
-                        <div>
-                          <button
-                            type="button"
-                            class={`${testRowClass(test.state)}  ${ROW_BTN}`}
-                            aria-expanded={openTest() === key}
-                            aria-controls={id}
-                            onClick={() => toggleTest(key)}
-                          >
+                        <Collapsible.Root
+                          open={openTest() === key}
+                          onOpenChange={(details) => setOpenTest(details.open ? key : null)}
+                        >
+                          <Collapsible.Trigger class={`${testRowClass(test.state)}  ${ROW_BTN}`}>
                             <span class={dotClass(test.state)} aria-hidden="true" />
                             <span class="sr-only">{stateLabel(test.state)}: </span>
                             <span class={TNAME}>{test.name}</span>
-                          </button>
-                          <div id={id}>
-                            <Show when={openTest() === key}>
-                              <TestErrorBlock error={error()} ctx={props.ctx} />
-                            </Show>
-                          </div>
-                        </div>
+                          </Collapsible.Trigger>
+                          <Collapsible.Content>
+                            <TestErrorBlock error={error()} ctx={props.ctx} />
+                          </Collapsible.Content>
+                        </Collapsible.Root>
                       )}
                     </Show>
                   )

@@ -1,23 +1,28 @@
 import {join} from 'node:path'
 import type {Plugin, ViteDevServer} from 'vite'
 import {defineBundlerBridge, type BundlerBridge} from '@conciv/protocol/bundler-types'
-import type {Engine} from '@conciv/core/engine'
-import {htmlTags} from '@conciv/core/widget-tags'
+import type {Engine} from '@conciv/core/start'
 import {resolveConfig} from '@conciv/core/config'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {installConcivBinShim} from './bin-shim.js'
 import {viteConfig, viteResolve, viteGraph, viteTransform, viteUrls, type ViteLike} from './vite-tools.js'
-import {EXTENSIONS_ROUTE, makeWidgetInject, type Middleware} from './widget-middleware.js'
+import {EXTENSIONS_ROUTE, htmlTags, makeWidgetInject, type Middleware} from './widget-middleware.js'
 import {makeOpenInEditor} from './open-editor.js'
 import type {AnyExtension} from '@conciv/extension'
-import {type Builtins, EXTENSIONS_VIRTUAL_ID, NO_BUILTINS, loadServerExtensions} from './extensions.js'
+import {
+  type Builtins,
+  EXTENSIONS_VIRTUAL_ID,
+  NO_BUILTINS,
+  loadServerExtensions,
+} from '@conciv/extension-compiler/extensions'
 import {
   loadExtensionsModule,
   concivSolidConfig,
+  concivSrcEntry,
+  dropIncludedFromExcludes,
   resolveExtensionsModule,
   transformConcivModule,
-  widgetInstalled,
-} from './vite-plumbing.js'
+} from '@conciv/extension-compiler/vite-plumbing'
 
 function makeViteBridge(server: ViteLike): BundlerBridge {
   return defineBundlerBridge({
@@ -83,7 +88,7 @@ async function bootEngine(
   agentPath: string,
   extensions: AnyExtension[],
 ): Promise<Engine> {
-  const {start} = await import('@conciv/core/engine')
+  const {start} = await import('@conciv/core/start')
   return start({
     options,
     root: server.config.root,
@@ -96,7 +101,6 @@ async function bootEngine(
 }
 
 export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO_BUILTINS): Plugin {
-  const hasWidget = widgetInstalled()
   let engine: Engine | null = null
   let apiBase: string | undefined
   let root = process.cwd()
@@ -106,18 +110,32 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
     name: 'conciv',
     apply: 'serve',
     enforce: 'pre',
-    config() {
-      return hasWidget ? concivSolidConfig() : {}
+    config(userConfig) {
+      const embedFiles = builtins.embedEntry === undefined ? [] : [builtins.embedEntry]
+      return concivSolidConfig({
+        root: userConfig.root ?? process.cwd(),
+        warmupFiles: [...embedFiles, ...builtins.clientEntries],
+      })
+    },
+    configEnvironment(_name, environmentConfig) {
+      dropIncludedFromExcludes(environmentConfig.optimizeDeps)
     },
     configResolved(config) {
       root = config.root
       deferToTsd = config.plugins.some((p) => p.name === '@tanstack/devtools:inject-source')
     },
-    resolveId(id) {
-      return resolveExtensionsModule(id)
+    async resolveId(id, importer) {
+      const virtual = resolveExtensionsModule(id)
+      if (virtual) return virtual
+      if (process.env.CONCIV_E2E) return null
+      if (!id.startsWith('@conciv/')) return null
+      if (id === '@conciv/extension' || id.startsWith('@conciv/extension/')) return null
+      const resolved = await this.resolve(id, importer, {skipSelf: true})
+      if (!resolved) return null
+      return concivSrcEntry(resolved.id)
     },
     load(id) {
-      return loadExtensionsModule(id, builtins.clientEntries, apiBase)
+      return loadExtensionsModule(id, builtins.clientEntries, apiBase, builtins.embedEntry)
     },
     transform(code, id, opts) {
       if (options.enabled === false) return null
@@ -127,7 +145,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
       order: 'pre',
       handler(_html, ctx) {
         const cfg = resolveConfig(options, ctx.server?.config.root ?? process.cwd())
-        if (!cfg.enabled || !engine || !hasWidget) return []
+        if (!cfg.enabled || !engine) return []
         return htmlTags(engine.port, {widget: options.widget})
       },
     },
@@ -138,7 +156,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
       engine = await bootEngine(server, options, installConcivBinShim(join(cfg.stateRoot, '.conciv')), extensions)
       const booted = engine
       apiBase = `http://127.0.0.1:${booted.port}`
-      if (hasWidget) mountWidget(server, apiBase, options.widget)
+      mountWidget(server, apiBase, options.widget)
       server.httpServer?.on('close', () => void booted.stop())
     },
   }

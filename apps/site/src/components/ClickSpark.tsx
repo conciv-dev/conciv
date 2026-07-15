@@ -31,6 +31,8 @@ const ClickSpark: React.FC<ClickSparkProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const sparksRef = useRef<Spark[]>([])
   const startTimeRef = useRef<number | null>(null)
+  const animationRef = useRef<number | null>(null)
+  const startLoopRef = useRef<() => void>(() => {})
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -87,8 +89,6 @@ const ClickSpark: React.FC<ClickSparkProps> = ({
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    let animationId: number
-
     const draw = (timestamp: number) => {
       if (!startTimeRef.current) {
         startTimeRef.current = timestamp
@@ -122,13 +122,17 @@ const ClickSpark: React.FC<ClickSparkProps> = ({
         return true
       })
 
-      animationId = requestAnimationFrame(draw)
+      if (sparksRef.current.length > 0) animationRef.current = requestAnimationFrame(draw)
+      else animationRef.current = null
     }
 
-    animationId = requestAnimationFrame(draw)
+    startLoopRef.current = () => {
+      if (animationRef.current == null) animationRef.current = requestAnimationFrame(draw)
+    }
 
     return () => {
-      cancelAnimationFrame(animationId)
+      if (animationRef.current != null) cancelAnimationFrame(animationRef.current)
+      animationRef.current = null
     }
   }, [sparkColor, sparkSize, sparkRadius, sparkCount, duration, easeFunc, extraScale])
 
@@ -148,6 +152,7 @@ const ClickSpark: React.FC<ClickSparkProps> = ({
     }))
 
     sparksRef.current.push(...newSparks)
+    startLoopRef.current()
   }
 
   return (

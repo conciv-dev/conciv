@@ -2,14 +2,19 @@ import type {ConcivConfig} from '@conciv/protocol/config-types'
 
 export const CONCIV_DEFAULT_PORT = 41700
 
-type ConfigWithEnv = {env?: Record<string, string | undefined>}
+type ConfigWithEnv = {env?: Record<string, string | undefined>; serverExternalPackages?: string[]}
+
+const ENGINE_EXTERNALS = ['@conciv/it', '@conciv/plugin', '@conciv/core', '@conciv/db', '@conciv/harness']
 
 export function withConciv<T extends object>(
   nextConfig: T = {} as T,
   options: ConcivConfig = {},
-): T & {env: Record<string, string | undefined>} {
-  const baseEnv = (nextConfig as ConfigWithEnv).env ?? {}
-  if (options.enabled === false) return {...nextConfig, env: baseEnv}
+): T & {env: Record<string, string | undefined>; serverExternalPackages: string[]} {
+  const base = nextConfig as ConfigWithEnv
+  const baseEnv = base.env ?? {}
+  const baseExternals = base.serverExternalPackages ?? []
+  const serverExternalPackages = [...new Set([...baseExternals, ...ENGINE_EXTERNALS])]
+  if (options.enabled === false) return {...nextConfig, env: baseEnv, serverExternalPackages}
   const port = options.port ?? CONCIV_DEFAULT_PORT
   const resolved: ConcivConfig = {...options, port}
   const concivEnv = {
@@ -22,6 +27,7 @@ export function withConciv<T extends object>(
   return {
     ...nextConfig,
     env: {...baseEnv, ...concivEnv},
+    serverExternalPackages,
   }
 }
 
@@ -31,7 +37,7 @@ export async function register(): Promise<void> {
     const options = JSON.parse(process.env.CONCIV_OPTIONS ?? '{}') as ConcivConfig
     if (options.enabled === false) return
     const {makeEngineBooter} = await import('./boot.js')
-    const {NO_BUILTINS} = await import('./extensions.js')
+    const {NO_BUILTINS} = await import('@conciv/extension-compiler/extensions')
     await makeEngineBooter(options, process.cwd(), NO_BUILTINS)()
   }
 }

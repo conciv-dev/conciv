@@ -1,4 +1,3 @@
-import Magnet from '@/components/Magnet'
 import {SparkMark} from './spark-mark'
 import {ThemeToggle} from './theme-toggle'
 import {useSmoothAnchor} from './smooth-scroll'
@@ -21,14 +20,12 @@ export function SiteNav() {
       <a href="/docs" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
         Docs
       </a>
-      <Magnet padding={40} magnetStrength={3}>
-        <a
-          href="https://github.com/conciv-dev/conciv"
-          className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-        >
-          GitHub
-        </a>
-      </Magnet>
+      <a
+        href="https://github.com/conciv-dev/conciv"
+        className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+      >
+        GitHub
+      </a>
       <ThemeToggle />
     </nav>
   )

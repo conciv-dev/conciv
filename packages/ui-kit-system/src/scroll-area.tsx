@@ -2,7 +2,7 @@ import {splitProps, type ComponentProps} from 'solid-js'
 import {ScrollArea as Ark} from '@ark-ui/solid/scroll-area'
 
 const SCROLLBAR =
-  'flex p-0.5 opacity-0 pointer-events-none [transition:opacity_150ms] [&[data-hover]]:opacity-100 [&[data-scrolling]]:opacity-100 [&[data-hover]]:pointer-events-auto [&[data-scrolling]]:pointer-events-auto [&[data-orientation=vertical]]:w-2 [&[data-orientation=horizontal]]:h-2 [&[data-orientation=vertical]:not([data-overflow-y])]:hidden [&[data-orientation=horizontal]:not([data-overflow-x])]:hidden'
+  'flex p-0.5 opacity-0 pointer-events-none [transition:opacity_150ms_var(--pw-ease)] [&[data-hover]]:opacity-100 [&[data-scrolling]]:opacity-100 [&[data-hover]]:pointer-events-auto [&[data-scrolling]]:pointer-events-auto [&[data-orientation=vertical]]:w-2 [&[data-orientation=horizontal]]:h-2 [&[data-orientation=vertical]:not([data-overflow-y])]:hidden [&[data-orientation=horizontal]:not([data-overflow-x])]:hidden'
 const THUMB =
   'w-full rounded-pw-pill bg-pw-accent-link [&[data-orientation=horizontal]]:w-auto [&[data-orientation=horizontal]]:h-full'
 

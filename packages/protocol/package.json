@@ -1,7 +1,7 @@
 {
   "name": "@conciv/protocol",
-  "version": "0.0.7",
-  "description": "Wire types shared by the conciv vite-plugin and widget.",
+  "version": "0.0.9",
+  "description": "Internal to @conciv/it (installed automatically, do not install directly). Wire types shared by the conciv vite-plugin and widget.",
   "keywords": [
     "ag-ui",
     "conciv",
@@ -68,10 +68,6 @@
     "./tool-view-types": {
       "types": "./dist/tool-view-types.d.ts",
       "import": "./dist/tool-view-types.js"
-    },
-    "./tool-timing": {
-      "types": "./dist/tool-timing.d.ts",
-      "import": "./dist/tool-timing.js"
     }
   },
   "publishConfig": {
@@ -93,7 +89,7 @@
   "devDependencies": {
     "@types/node": "^22.19.21",
     "solid-js": "^1.9.13",
-    "tsdown": "^0.22.2",
+    "tsdown": "^0.22.4",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"
   }

@@ -1,5 +1,27 @@
 # @conciv/ui-kit-chat-tools
 
+## 0.0.9
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/protocol@0.0.9
+  - @conciv/solid-diffs@0.0.9
+  - @conciv/tools@0.0.9
+  - @conciv/ui-kit-chat@0.0.9
+  - @conciv/ui-kit-system@0.0.9
+
+## 0.0.8
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/tools@0.0.8
+  - @conciv/protocol@0.0.8
+  - @conciv/solid-diffs@0.0.8
+  - @conciv/ui-kit-chat@0.0.8
+  - @conciv/ui-kit-system@0.0.8
+
 ## 0.0.7
 
 ### Patch Changes

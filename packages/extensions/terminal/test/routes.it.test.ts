@@ -1,7 +1,6 @@
 import {randomUUID} from 'node:crypto'
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
 import WebSocket from 'ws'
-import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {recordingHarness, startTerminalServer, type TerminalTestServer} from './helpers.js'
 import {until} from '@conciv/harness-testkit'
 
@@ -25,9 +24,11 @@ function connect(wsBase: string, sessionId: string, params = ''): Promise<Client
 
 describe('terminal extension routes', () => {
   const sessionId = `conciv_${randomUUID()}`
-  const headers = {[CONCIV_SESSION_HEADER]: sessionId, 'content-type': 'application/json'}
   const ctx: {server?: TerminalTestServer} = {}
-  const base = () => ctx.server?.base ?? ''
+  const rpc = () => {
+    if (!ctx.server) throw new Error('server not started')
+    return ctx.server.rpc
+  }
   const wsBase = () => ctx.server?.wsBase ?? ''
 
   beforeAll(async () => {
@@ -37,24 +38,18 @@ describe('terminal extension routes', () => {
   afterAll(() => ctx.server?.close())
 
   it('reports no live terminal before open', async () => {
-    const res = await fetch(`${base()}/api/ext/terminal/state`, {headers})
-    expect(await res.json()).toEqual({alive: false, busy: false})
+    expect(await rpc().state({sessionId})).toEqual({alive: false, busy: false})
   })
 
   it('rejects open while the chat lock is held', async () => {
     ctx.server?.sessions.busy.add(sessionId)
-    const res = await fetch(`${base()}/api/ext/terminal/open`, {method: 'POST', headers, body: JSON.stringify({})})
-    expect(res.status).toBe(409)
+    await expect(rpc().open({sessionId})).rejects.toMatchObject({code: 'BUSY'})
     ctx.server?.sessions.busy.delete(sessionId)
   })
 
   it('opens a pty and streams bytes over ws', async () => {
-    const open = await fetch(`${base()}/api/ext/terminal/open`, {method: 'POST', headers, body: JSON.stringify({})})
-    expect(open.status).toBe(200)
-    expect(await open.json()).toEqual({alive: true})
-
-    const state = await fetch(`${base()}/api/ext/terminal/state`, {headers})
-    expect(((await state.json()) as {alive: boolean}).alive).toBe(true)
+    expect(await rpc().open({sessionId})).toEqual({alive: true})
+    expect((await rpc().state({sessionId})).alive).toBe(true)
 
     const client = await connect(wsBase(), sessionId, '&cols=100&rows=30')
     client.ws.send('echo ws-roundtrip-$((40+2))\r')
@@ -73,8 +68,7 @@ describe('terminal extension routes', () => {
   })
 
   it('open is idempotent while the pty is alive — buffer survives a re-open', async () => {
-    const again = await fetch(`${base()}/api/ext/terminal/open`, {method: 'POST', headers, body: JSON.stringify({})})
-    expect(again.status).toBe(200)
+    expect(await rpc().open({sessionId})).toEqual({alive: true})
     const client = await connect(wsBase(), sessionId)
     await until(() => client.received.join('').includes('ws-roundtrip-42'))
     client.ws.close()
@@ -99,8 +93,7 @@ describe('terminal extension routes', () => {
     })
     expect(code).toBe(4404)
 
-    const reopen = await fetch(`${base()}/api/ext/terminal/open`, {method: 'POST', headers, body: JSON.stringify({})})
-    expect(reopen.status).toBe(200)
+    expect(await rpc().open({sessionId})).toEqual({alive: true})
   })
 
   it('rejects ws for a session with no live pty', async () => {
@@ -114,12 +107,8 @@ describe('terminal extension routes', () => {
   })
 
   it('close kills the pty and later ws connects are refused', async () => {
-    const res = await fetch(`${base()}/api/ext/terminal/close`, {method: 'POST', headers, body: JSON.stringify({})})
-    expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({alive: false})
-
-    const state = await fetch(`${base()}/api/ext/terminal/state`, {headers})
-    expect(await state.json()).toEqual({alive: false, busy: false})
+    expect(await rpc().close({sessionId})).toEqual({alive: false})
+    expect(await rpc().state({sessionId})).toEqual({alive: false, busy: false})
 
     const ws = new WebSocket(`${wsBase()}/api/ext/terminal/tty?session=${sessionId}`)
     const code = await new Promise<number>((resolve, reject) => {
@@ -137,12 +126,7 @@ describe('terminal extension routes', () => {
     const {harness, captured} = recordingHarness()
     const dedicated = await startTerminalServer(harness)
     try {
-      const res = await fetch(`${dedicated.base}/api/ext/terminal/open`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({model: 'claude-x'}),
-      })
-      expect(res.status).toBe(200)
+      expect(await dedicated.rpc.open({sessionId, model: 'claude-x'})).toEqual({alive: true})
       expect(captured).toHaveLength(1)
       expect(captured[0]?.model).toBe('claude-x')
       expect(captured[0]?.mcpUrl).toMatch(/\/api\/mcp$/)
@@ -157,12 +141,7 @@ describe('terminal extension routes', () => {
     const dedicated = await startTerminalServer({...harness, transcriptExists: () => true})
     try {
       dedicated.sessions.tokens.set(sessionId, randomUUID())
-      const res = await fetch(`${dedicated.base}/api/ext/terminal/open`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({}),
-      })
-      expect(res.status).toBe(200)
+      expect(await dedicated.rpc.open({sessionId})).toEqual({alive: true})
       const wsBaseUrl = dedicated.wsBase
       const client = await connect(wsBaseUrl, sessionId)
       await until(() => client.received.join('').includes('— conciv: resumed session —'))
@@ -175,12 +154,7 @@ describe('terminal extension routes', () => {
   it('rejects open when the harness has no tty command', async () => {
     const bare = await startTerminalServer({id: 'no-tty'})
     try {
-      const res = await fetch(`${bare.base}/api/ext/terminal/open`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({}),
-      })
-      expect(res.status).toBe(400)
+      await expect(bare.rpc.open({sessionId})).rejects.toMatchObject({code: 'NO_TTY'})
     } finally {
       await bare.close()
     }

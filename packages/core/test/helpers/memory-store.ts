@@ -1,6 +1,6 @@
-import {createStorage} from 'unstorage'
-import memoryDriver from 'unstorage/drivers/memory'
-import {createSessionStore, type SessionStore} from '../../src/store/session-store.js'
+import {mkdtempSync} from 'node:fs'
+import {tmpdir} from 'node:os'
+import {join} from 'node:path'
+import {openDb, type ConcivDb} from '@conciv/db'
 
-export const memoryStore = (now: () => number = () => 1): SessionStore =>
-  createSessionStore(createStorage({driver: memoryDriver()}), now)
+export const testDb = (): ConcivDb => openDb(mkdtempSync(join(tmpdir(), 'conciv-store-')))

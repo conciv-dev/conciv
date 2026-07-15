@@ -1,6 +1,6 @@
 import {Hono} from 'hono'
 import {describe, expect, it} from 'vitest'
-import {corsMiddleware, type CorsVars} from '../src/api/cors.js'
+import {corsMiddleware, type CorsVars} from '../src/lib/cors.js'
 
 describe('cors PATCH', () => {
   it('advertises PATCH in the preflight method allowlist', async () => {

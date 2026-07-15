@@ -1,11 +1,40 @@
-import {render} from 'solid-js/web'
-import {defineClient, type RequestMeta} from '@conciv/api-client'
-import {isSessionId} from '@conciv/protocol/chat-types'
-import {ensureEffectsSurface, mountExtension, openSource} from '@conciv/extension/client'
+import {createSignal, For, Show, type JSX} from 'solid-js'
+import {Dynamic, render} from 'solid-js/web'
+import {makeRpcClient} from '@conciv/contract'
+import {HostApiProvider, type AnyExtension} from '@conciv/extension'
+import {MountedExtension, MountedSurface} from '@conciv/extension/client'
 import {Dialog, Popover} from '@conciv/ui-kit-system'
-import type {AnyExtension, ClientApi, ExtensionHostContext} from '@conciv/extension'
-import {makeHostGrab, makeHostPage} from './grab.js'
+import {makeHostGrab} from './grab.js'
 import {FixtureElement} from './fixture-element.js'
+
+// oxlint-disable-next-line conciv/no-comments -- TODO(host-views): hand-rolled tabs diverge from the real app's panel view mounting — rethink
+function MountedViews(props: {extension: AnyExtension; clientValue: object}): JSX.Element {
+  const views = () => props.extension.views ?? []
+  const [active, setActive] = createSignal<string | null>(null)
+  const activeView = () => views().find((view) => view.id === active())
+  return (
+    <Show when={views().length > 0}>
+      <div role="tablist" aria-label="Extension views">
+        <For each={views()}>
+          {(view) => (
+            <button type="button" role="tab" aria-selected={active() === view.id} onClick={() => setActive(view.id)}>
+              {view.label}
+            </button>
+          )}
+        </For>
+      </div>
+      <Show keyed when={activeView()}>
+        {(view) => (
+          <HostApiProvider value={props.clientValue}>
+            <div style={{display: 'flex', 'flex-direction': 'column', width: '800px', height: '480px'}}>
+              <Dynamic component={view.Component} />
+            </div>
+          </HostApiProvider>
+        )}
+      </Show>
+    </Show>
+  )
+}
 
 function metaContent(name: string): string {
   return document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content ?? ''
@@ -21,41 +50,34 @@ function showToast(message: string): void {
 export function startHost(extension: AnyExtension): void {
   const apiBase = metaContent('conciv-api-base')
   const session = metaContent('conciv-session')
-  const client = defineClient({apiBase})
-  if (isSessionId(session)) client.setSessionId(session)
-  const clientApi: ClientApi = {
-    apiBase,
-    activeSession: () => session,
-    requestMeta: (): RequestMeta => ({}),
-    page: makeHostPage(document),
-    openSource: (loc) => openSource(apiBase, loc),
-    toast: showToast,
-    surface: () => ensureEffectsSurface(),
-    suppressWhile: () => () => {},
-    yieldFocusWhile: () => () => {},
-    Dialog: () => Dialog,
-    Popover: () => Popover,
-    env: {reducedMotion: () => false, doc: document, win: window},
-  }
-  const hostContext: Omit<ExtensionHostContext, 'currentSlot'> = {
-    apiBase,
-    harnessId: session,
-    sendMessage: () => {},
-    insert: () => {},
-    notify: showToast,
-    setBusy: () => {},
-    newSession: () => {},
-    addDivider: () => {},
-    compact: () => {},
-    resetUsage: () => {},
-    client,
-    requestMeta: () => ({}),
-    grab: makeHostGrab(document),
-    view: {setLocked: () => {}, leave: () => {}, onInsert: () => {}},
-  }
+  const rpc = makeRpcClient(apiBase)
+  const clientValue = extension.__client?.()?.value ?? {}
   const mountRoot = document.createElement('div')
   document.body.appendChild(mountRoot)
-  mountExtension(extension, {clientApi, hostContext, slot: 'composer', root: mountRoot})
+  render(
+    () => (
+      <HostApiProvider
+        rpc={rpc}
+        apiBase={apiBase}
+        toast={showToast}
+        openEditor={(file, line) => void rpc.editor.open({file, line}).catch(() => {})}
+        registerLayer={() => () => {}}
+        dialog={Dialog}
+        popover={Popover}
+        sessionId={() => (session ? session : null)}
+        grab={makeHostGrab(document)}
+        insert={() => {}}
+        newSession={() => {}}
+        viewLock={() => {}}
+        viewLeave={() => {}}
+      >
+        <MountedExtension extension={extension} clientValue={clientValue} slot="composer" />
+        <MountedSurface extension={extension} clientValue={clientValue} />
+        <MountedViews extension={extension} clientValue={clientValue} />
+      </HostApiProvider>
+    ),
+    mountRoot,
+  )
   const fixtureRoot = document.createElement('div')
   document.body.appendChild(fixtureRoot)
   render(() => <FixtureElement />, fixtureRoot)

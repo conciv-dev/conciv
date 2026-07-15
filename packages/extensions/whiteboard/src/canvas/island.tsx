@@ -182,11 +182,7 @@ export function Island(props: {
         ...aiAuthor(pendingModel(row.payload)),
       }))
       const scope = row.stage === 'draft' ? 'draft' : 'live'
-      await fetch(`${db.base}/elements/${scope}/bulk`, {
-        method: 'PUT',
-        headers: {'content-type': 'application/json'},
-        body: JSON.stringify({rows}),
-      })
+      await db.bulkUpsertElements(scope, rows)
     } catch (error) {
       console.error(`[whiteboard] draining pending ${row.kind} ${row.id} failed: ${String(error)}`)
     } finally {

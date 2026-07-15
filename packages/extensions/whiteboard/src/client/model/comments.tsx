@@ -1,5 +1,6 @@
-import {createContext, createMemo, createSignal, onCleanup, useContext, type Accessor, type JSX} from 'solid-js'
+import {createContext, createMemo, createSignal, useContext, type Accessor, type JSX} from 'solid-js'
 import {useLiveQuery} from '@tanstack/solid-db'
+import {getHostApi} from '@conciv/extension'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import type {MentionSegment} from '@conciv/ui-kit-tap'
 import {useWhiteboardDb} from '../db.js'
@@ -28,7 +29,6 @@ const newest = (dates: number[]): number | undefined =>
 export function createCommentsModel(
   room: Accessor<string>,
   apiBase: string,
-  suppressWhile: (active: () => boolean) => () => void,
   canvasOpen: Accessor<boolean>,
   onComposeSettled: (outcome: 'added' | 'cancelled') => void,
 ) {
@@ -51,8 +51,6 @@ export function createCommentsModel(
   const [showResolved, setShowResolved] = createSignal(false)
   const pinEls = new Map<string, HTMLButtonElement>()
   let panFn: ((sceneX: number, sceneY: number) => void) | undefined
-
-  onCleanup(suppressWhile(() => openCid() !== null || composeTarget() !== null))
 
   const rootOf = (cid: string): Comment | undefined => comments().find((comment) => comment.cid === cid)
   const threadOf = (cid: string): Comment[] => {
@@ -367,19 +365,17 @@ const CommentsContext = createContext<CommentsModel>()
 export function CommentsProvider(props: {
   room: Accessor<string>
   apiBase: string
-  suppressWhile: (active: () => boolean) => () => void
   canvasOpen: Accessor<boolean>
   onComposeSettled: (outcome: 'added' | 'cancelled') => void
   children: JSX.Element
 }): JSX.Element {
-  const model = createCommentsModel(
-    props.room,
-    props.apiBase,
-    props.suppressWhile,
-    props.canvasOpen,
-    props.onComposeSettled,
+  const {Suppress} = getHostApi()
+  const model = createCommentsModel(props.room, props.apiBase, props.canvasOpen, props.onComposeSettled)
+  return (
+    <CommentsContext.Provider value={model}>
+      <Suppress when={model.openCid() !== null || model.composeTarget() !== null}>{props.children}</Suppress>
+    </CommentsContext.Provider>
   )
-  return <CommentsContext.Provider value={model}>{props.children}</CommentsContext.Provider>
 }
 
 export function useComments(): CommentsModel {

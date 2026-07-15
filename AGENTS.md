@@ -24,8 +24,15 @@ README.md; this file is the non-obvious operational rules.
 - Commit hooks: `prek` (devDep `@j178/prek`, config `.pre-commit-config.yaml`) runs oxfmt + oxlint on
   staged files. `pnpm install` auto-activates the hook via the `prepare` script — no per-clone step.
   Whole-project gates (typecheck/build/test) are not in hooks — run them manually.
-- Dev loop (`pnpm dev`): widget/UI edits only need a browser hard reload; edits to core, harness, or
-  tool packages need the dev server restarted — a reload alone runs stale server code.
+- Dev loop (`pnpm dev`): browser packages (ui-kits, solid libs, client/grab/page/storage-history)
+  hot-serve from source in vite hosts — edit and reload, no rebuild. Mechanism: the conciv plugin's
+  `resolveId` maps a workspace-resolved `@conciv/*` dist entry to its `src/` sibling
+  (`concivSrcEntry` in extension-compiler) and solid-compiles the TSX (`isConcivSrcTsx`); manifests
+  stay plain dist exports, so tsc, node, and non-vite bundlers (Turbopack in the nextjs example)
+  resolve dist. `@conciv/extension` (shared singleton) and node-side packages (core, harness,
+  tools, plugin) always resolve dist: rebuild embed for widget-shell edits, restart the dev server
+  for server-side edits. NEW UnoCSS utility classes added in ui-kit src need an embed rebuild to
+  appear (css is generated at embed build).
 - On large commits the prek hook can abort with a `next-index-*.lock.lock` error (file-lock race).
   Recover by running `pnpm format` manually, then `git commit --no-verify`.
 - Never kill a dev server with `kill $(lsof -ti tcp:PORT)` — that also matches the user's connected
@@ -46,8 +53,8 @@ README.md; this file is the non-obvious operational rules.
 ## Testing
 
 - Widget UI is tested in a REAL browser (Playwright/Chromium), never jsdom/happy-dom.
-- Widget integration tests load the PREBUILT bundle (`packages/widget/dist/conciv-widget.global.js`):
-  rebuild the widget (`pnpm turbo run build --filter=@conciv/widget`) before running them, or you test
+- Widget integration tests load the PREBUILT bundle (`packages/embed/dist/conciv-widget.global.js`):
+  rebuild it (`pnpm turbo run build --filter=@conciv/embed`) before running them, or you test
   stale code.
 - In widget ITs use `browser.newPage()`, not `newContext()` (contexts leak and spike CPU/memory).
 - Never add tests under `apps/examples/*` — example apps are demos; verify behavior via the owning
@@ -111,8 +118,8 @@ true` ⇒ `history` required; `slashCommands` ≠ `'none'` ⇒ `commands` requir
 
 ## Extension landmines
 
-- Whiteboard (Jazz CRDT): never write to the db inside a `subscribe`/`useAll` callback, effect, or
-  render body — it triggers a re-render storm. Writes go in event handlers only.
+- Whiteboard (TanStack DB over libSQL): never write to the db inside a collection subscription,
+  effect, or render body — it triggers a re-render storm. Writes go in event handlers only.
 - The widget bundle must externalize every `@conciv/extension/*` subpath and shared Ark/Solid deps;
   a second bundled copy splits the Solid/Ark context and extension popovers render at 0,0. Guarded
   by the mount-externals build test — don't weaken it.

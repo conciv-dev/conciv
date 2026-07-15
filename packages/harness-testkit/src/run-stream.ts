@@ -1,25 +1,16 @@
 import {EventType, type StreamChunk} from '@tanstack/ai'
-import {CONCIV_UI_EVENT, parseUiSpec, type UiSpec} from '@conciv/protocol/ui-types'
-import {makeRunEvents, type RunEvents} from './run-events.js'
+import {collectToolCalls, makeRunEvents, type RunEvents, type SeenToolCall} from './run-events.js'
 
 export type RunStream = {
   waitFor: (match: (e: StreamChunk) => boolean, opts?: {hangGuardMs?: number}) => Promise<StreamChunk>
-  waitForUiSpec: (question?: string) => Promise<UiSpec>
+  waitForToolCall: (name: string, opts?: {hangGuardMs?: number}) => Promise<SeenToolCall>
   waitForText: (substr: string) => Promise<void>
   done: (opts?: {hangGuardMs?: number}) => Promise<RunEvents>
 }
 
 function isTerminal(chunk: StreamChunk): boolean {
-  return chunk.type === EventType.RUN_FINISHED || chunk.type === EventType.RUN_ERROR
-}
-
-function uiSpecMatch(question?: string): (chunk: StreamChunk) => boolean {
-  return (chunk) => {
-    if (chunk.type !== EventType.CUSTOM || chunk.name !== CONCIV_UI_EVENT) return false
-    if (question === undefined) return true
-    const spec = parseUiSpec(chunk.value)
-    return spec !== null && 'question' in spec && spec.question === question
-  }
+  if (chunk.type === EventType.RUN_ERROR) return true
+  return chunk.type === EventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls'
 }
 
 function summarize(seen: StreamChunk[]): string {
@@ -75,7 +66,10 @@ export function makeRunStream(source: AsyncIterable<StreamChunk>): RunStream {
       while (doneCursor.index < seen.length) {
         const index = doneCursor.index
         doneCursor.index += 1
-        if (seen[index]?.type === EventType.RUN_FINISHED) return makeRunEvents(seen.slice(0, doneCursor.index))
+        const chunk = seen[index]
+        if (chunk?.type === EventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls') {
+          return makeRunEvents(seen.slice(0, doneCursor.index))
+        }
       }
       if (collector.ended) return makeRunEvents([...seen])
       if (performance.now() > deadline)
@@ -86,11 +80,14 @@ export function makeRunStream(source: AsyncIterable<StreamChunk>): RunStream {
 
   return {
     waitFor: (match, opts) => waitFor(match, opts?.hangGuardMs ?? 90_000),
-    waitForUiSpec: async (question) => {
-      const chunk = await waitFor(uiSpecMatch(question), 90_000)
-      const spec = chunk.type === EventType.CUSTOM ? parseUiSpec(chunk.value) : null
-      if (!spec) throw new Error('run-stream: matched event was not a ui spec')
-      return spec
+    waitForToolCall: async (name, opts) => {
+      await waitFor(
+        (chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT && collectToolCalls(seen, name).length > 0,
+        opts?.hangGuardMs ?? 90_000,
+      )
+      const call = collectToolCalls([...seen], name).at(-1)
+      if (!call) throw new Error('run-stream: matched tool call disappeared from the collected stream')
+      return call
     },
     waitForText: async (substr) => {
       await waitFor(() => makeRunEvents(seen).text().includes(substr), 90_000)

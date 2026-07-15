@@ -1,8 +1,10 @@
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
-import {createTestHarness} from './create-test-harness.js'
+import {createTestHarness, type TestHarness} from './create-test-harness.js'
 import {harnessAvailable} from './harness-available.js'
 
-export type HarnessMode = {name: 'fake' | 'real'; harness: HarnessAdapter; run: boolean}
+export type HarnessMode =
+  | {name: 'fake'; harness: TestHarness; run: true}
+  | {name: 'real'; harness: HarnessAdapter; run: boolean}
 
 function isCI(): boolean {
   return Boolean(process.env.CI)

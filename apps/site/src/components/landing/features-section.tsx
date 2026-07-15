@@ -1,7 +1,8 @@
-import {m, useMotionValue, useSpring, useTransform} from 'motion/react'
+import {m, useMotionValue, useReducedMotion, useSpring, useTransform} from 'motion/react'
 import {useRef, useState, type ForwardRefExoticComponent, type RefAttributes} from 'react'
 import AnimatedContent from '@/components/AnimatedContent'
 import SplitText from '@/components/SplitText'
+import {easeOut, gsapEaseOut} from '@/lib/motion-tokens'
 import type {AnimatedIconHandle, AnimatedIconProps} from '@/components/ui/types'
 import MessageCircleIcon from '@/components/ui/message-circle-icon'
 import MousePointer2Icon from '@/components/ui/mouse-pointer-2-icon'
@@ -64,6 +65,7 @@ function CapabilityCard({
   const Icon = capability.icon
   const cardRef = useRef<HTMLDivElement>(null)
   const iconRef = useRef<AnimatedIconHandle>(null)
+  const reduced = useReducedMotion()
 
   const normX = useMotionValue(0.5)
   const normY = useMotionValue(0.5)
@@ -71,6 +73,7 @@ function CapabilityCard({
   const rotateY = useSpring(useTransform(normX, [0, 1], [-TILT_MAX, TILT_MAX]), TILT_SPRING)
 
   const track = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (reduced) return
     const rect = cardRef.current?.getBoundingClientRect()
     if (!rect) return
     normX.set((event.clientX - rect.left) / rect.width)
@@ -95,14 +98,14 @@ function CapabilityCard({
       onMouseMove={track}
       onMouseEnter={enter}
       onMouseLeave={leave}
-      animate={{scale: dimmed ? 0.97 : 1, opacity: dimmed ? 0.55 : 1}}
-      transition={{duration: 0.18, ease: 'easeOut'}}
-      style={{rotateX, rotateY, transformPerspective: 900}}
+      animate={{opacity: dimmed ? 0.55 : 1}}
+      transition={{duration: 0.18, ease: easeOut}}
+      style={{rotateX: reduced ? 0 : rotateX, rotateY: reduced ? 0 : rotateY, transformPerspective: 900}}
       className="group relative flex flex-col gap-4 overflow-hidden rounded-[14px] border bg-card p-6 transition-[border-color] duration-300 hover:border-primary/35"
     >
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 [background:radial-gradient(ellipse_at_18%_12%,var(--od-accent-soft),transparent_60%)] group-hover:opacity-100"
+        className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 [background:radial-gradient(ellipse_at_18%_12%,var(--od-accent-soft),transparent_60%)] [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100"
       />
       <div className="relative z-10 grid size-10 place-items-center rounded-[10px] bg-accent text-accent-foreground">
         <Icon size={19} />
@@ -143,19 +146,25 @@ export function FeaturesSection() {
           Everything the agent can do happens right where you're looking — grounded on the real DOM, streamed into the
           thread.
         </p>
-        <AnimatedContent distance={44} duration={0.7} ease="power3.out" threshold={0.15}>
-          <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
-            {CAPABILITIES.map((capability) => (
+        <div className="grid gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
+          {CAPABILITIES.map((capability, index) => (
+            <AnimatedContent
+              key={capability.title}
+              distance={44}
+              duration={0.7}
+              ease={gsapEaseOut}
+              threshold={0.15}
+              delay={index * 0.06}
+            >
               <CapabilityCard
-                key={capability.title}
                 capability={capability}
                 dimmed={hovered !== null && hovered !== capability.title}
                 onHoverStart={() => setHovered(capability.title)}
                 onHoverEnd={() => setHovered(null)}
               />
-            ))}
-          </div>
-        </AnimatedContent>
+            </AnimatedContent>
+          ))}
+        </div>
       </div>
     </section>
   )

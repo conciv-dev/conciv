@@ -1,6 +1,4 @@
 import type {ElementSource, Grab, GrabApi} from '@conciv/grab'
-import type {LocateResult} from '@conciv/protocol/page-introspect-types'
-import type {PageInspect} from '@conciv/extension'
 
 const SOURCE_ATTR = 'data-conciv-source'
 
@@ -69,26 +67,5 @@ export function makeHostGrab(doc: Document): GrabApi {
     stage: (grab) => void stagedGrabs.push(grab),
     staged: () => stagedGrabs,
     clear: () => void (stagedGrabs.length = 0),
-  }
-}
-
-export function makeHostPage(doc: Document): PageInspect {
-  return {
-    elementAt: (x, y) => doc.elementFromPoint(x, y),
-    describe: (host) => {
-      const parts = sourceOf(host)
-      return {component: host.tagName.toLowerCase(), file: parts?.filePath ?? null}
-    },
-    locate: async (element): Promise<LocateResult | null> => {
-      const parts = sourceOf(element)
-      if (!parts || parts.lineNumber === null || parts.column === null) return null
-      return {
-        component: null,
-        stack: [],
-        frames: [],
-        owners: [],
-        source: {file: parts.filePath, line: parts.lineNumber, column: parts.column},
-      }
-    },
   }
 }

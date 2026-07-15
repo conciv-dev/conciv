@@ -26,6 +26,15 @@ storybook-static
 
 # playwright run output (regenerated per run, never committed)
 **/test-results/
+**/playwright-report/
+
+# e2e app framework state (regenerated per run)
+e2e/*/.astro/
+e2e/*/.next/
+e2e/*/.svelte-kit/
+e2e/*/.nitro/
+e2e/*/.tanstack/
+e2e/*/src/routeTree.gen.ts
 
 # per-turn MCP bridge configs the tanstack claude adapter writes into cwd (cleaned up after each turn)
 .tanstack-mcp-bridge-*.json

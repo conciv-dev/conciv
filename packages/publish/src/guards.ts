@@ -17,11 +17,14 @@ const PUBLIC_PACKAGES = [
   '@conciv/serve',
   '@conciv/harness',
   '@conciv/protocol',
-  '@conciv/api-client',
+  '@conciv/contract',
+  '@conciv/db',
+  '@conciv/storage-history',
+  '@conciv/client',
   '@conciv/grab',
   '@conciv/tools',
   '@conciv/extension',
-  '@conciv/widget',
+  '@conciv/extension-compiler',
   '@conciv/solid-diffs',
   '@conciv/solid-streamdown',
   '@conciv/ui-kit-system',
@@ -33,6 +36,7 @@ const PUBLIC_PACKAGES = [
   '@conciv/extension-whiteboard',
   '@conciv/extension-terminal',
   '@conciv/mascot',
+  '@conciv/embed',
 ]
 
 type Manifest = {name?: string; version?: string; private?: boolean}

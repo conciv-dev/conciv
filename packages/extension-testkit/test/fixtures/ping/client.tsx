@@ -1,8 +1,8 @@
 import {createSignal, Show, type JSX} from 'solid-js'
-import {defineExtension} from '@conciv/extension'
+import {defineExtension, getHostApi} from '@conciv/extension'
 
 function Component(): JSX.Element {
-  const grab = ping.useContext((context) => context.grab)
+  const grab = getHostApi().useGrab()
   const [pinged, setPinged] = createSignal(false)
   const [picked, setPicked] = createSignal<string | null>(null)
   const pick = async () => {

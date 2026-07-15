@@ -13,17 +13,27 @@ const storybook = {
   plugins: [storybookTest({configDir: path.join(dirname, '.storybook')})],
   test: {
     name: 'storybook',
-    fileParallelism: false,
     maxWorkers,
     browser: {
       enabled: true,
       headless: true,
       provider: playwright({}),
-      instances: [{browser: 'chromium'}],
+      instances: [{browser: 'chromium', launch: {channel: 'chrome'}}],
     },
   },
 }
 
+const unit = {
+  extends: true as const,
+  test: {
+    name: 'ui-kit-chat-tools',
+    environment: 'node' as const,
+    include: ['test/**/*.test.ts'],
+  },
+}
+
 export default defineConfig(
-  process.env.SKIP_STORYBOOK_TESTS ? {test: {passWithNoTests: true}} : {test: {maxWorkers, projects: [storybook]}},
+  process.env.SKIP_STORYBOOK_TESTS
+    ? {test: {maxWorkers, projects: [unit]}}
+    : {test: {maxWorkers, projects: [unit, storybook]}},
 )

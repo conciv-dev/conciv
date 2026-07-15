@@ -1,7 +1,7 @@
 {
   "name": "@conciv/grab",
-  "version": "0.0.7",
-  "description": "The conciv element-grab contract: the grab data types (Grab/StagedGrab/ElementSnapshot/ElementSource) and the GrabApi capability surface shared by the widget and the extension contract.",
+  "version": "0.0.9",
+  "description": "Internal to @conciv/it (installed automatically, do not install directly). The conciv element-grab contract: the grab data types (Grab/StagedGrab/ElementSnapshot/ElementSource) and the GrabApi capability surface shared by the widget and the extension contract.",
   "keywords": [
     "conciv",
     "grab"
@@ -36,7 +36,7 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "devDependencies": {
-    "tsdown": "^0.22.2",
+    "tsdown": "^0.22.4",
     "typescript": "^6.0.3"
   }
 }

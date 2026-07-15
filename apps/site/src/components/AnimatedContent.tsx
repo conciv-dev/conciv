@@ -1,6 +1,8 @@
 import React, {useRef, useEffect} from 'react'
 import {gsap} from 'gsap'
 import {ScrollTrigger} from 'gsap/ScrollTrigger'
+import {useReducedMotion} from '@/lib/use-reduced-motion'
+import {gsapEaseOut} from '@/lib/motion-tokens'
 
 if (!import.meta.env.SSR) gsap.registerPlugin(ScrollTrigger)
 
@@ -31,7 +33,7 @@ const AnimatedContent: React.FC<AnimatedContentProps> = ({
   direction = 'vertical',
   reverse = false,
   duration = 0.8,
-  ease = 'power3.out',
+  ease = gsapEaseOut,
   initialOpacity = 0,
   animateOpacity = true,
   scale = 1,
@@ -46,6 +48,7 @@ const AnimatedContent: React.FC<AnimatedContentProps> = ({
   ...props
 }) => {
   const ref = useRef<HTMLDivElement>(null)
+  const reduced = useReducedMotion()
 
   useEffect(() => {
     const el = ref.current
@@ -55,6 +58,24 @@ const AnimatedContent: React.FC<AnimatedContentProps> = ({
 
     if (typeof scrollerTarget === 'string') {
       scrollerTarget = document.querySelector(scrollerTarget)
+    }
+
+    const startPctReduced = (1 - threshold) * 100
+    if (reduced) {
+      gsap.set(el, {opacity: animateOpacity ? initialOpacity : 1, visibility: 'visible'})
+      const tl = gsap.timeline({paused: true, delay, onComplete: () => onComplete?.()})
+      tl.to(el, {opacity: 1, duration: 0.2, ease: 'none'})
+      const st = ScrollTrigger.create({
+        trigger: el,
+        scroller: scrollerTarget || window,
+        start: `top ${startPctReduced}%`,
+        once: true,
+        onEnter: () => tl.play(),
+      })
+      return () => {
+        st.kill()
+        tl.kill()
+      }
     }
 
     const axis = direction === 'horizontal' ? 'x' : 'y'
@@ -124,6 +145,7 @@ const AnimatedContent: React.FC<AnimatedContentProps> = ({
     disappearEase,
     onComplete,
     onDisappearanceComplete,
+    reduced,
   ])
 
   return (

@@ -112,7 +112,12 @@ export function PinsLayer(): JSX.Element {
                       ref={(element) => model.registerPin(pin.cid, element)}
                       aria-label={`${authorLabel(comment()?.authorKind)} comment, ${status()}${model.isUnread(pin.cid) ? ', unread' : ''}`}
                       class={`${PIN}  ${STATUS_FILL[status()]}`}
-                      style={{left: `${pos().x}px`, top: `${pos().y}px`, transform: 'translate(-50%, -50%)'}}
+                      classList={{'[transition:transform_200ms_var(--pw-ease-expo)]': drag()?.cid !== pin.cid}}
+                      style={{
+                        left: 0,
+                        top: 0,
+                        transform: `translate(calc(${pos().x}px - 50%), calc(${pos().y}px - 50%))`,
+                      }}
                       onPointerDown={(event) => {
                         event.preventDefault()
                         const down = screenToScene(view(), event.clientX, event.clientY)
@@ -161,7 +166,10 @@ export function PinsLayer(): JSX.Element {
                     </button>
                     <Show when={anchorLabel(comment())}>
                       {(label) => (
-                        <span class={ANCHOR_TAG} style={{left: `${pos().x + 16}px`, top: `${pos().y - 8}px`}}>
+                        <span
+                          class={ANCHOR_TAG}
+                          style={{left: 0, top: 0, transform: `translate(${pos().x + 16}px, ${pos().y - 8}px)`}}
+                        >
                           {label()}
                         </span>
                       )}

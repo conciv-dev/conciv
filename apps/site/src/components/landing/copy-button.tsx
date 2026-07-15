@@ -49,10 +49,10 @@ function Trigger({label = 'Copy'}: {label?: string}) {
         type="button"
         aria-label={label}
         data-copied={copied}
-        className="group inline-grid size-7 place-items-center rounded-md border bg-background text-muted-foreground transition-colors hover:text-foreground active:scale-90"
+        className="group inline-grid size-7 place-items-center rounded-md border bg-background text-muted-foreground transition-[color,transform] duration-150 hover:text-foreground active:scale-[0.97]"
       >
-        <Copy className="col-start-1 row-start-1 size-3.5 scale-100 opacity-100 transition-all duration-200 group-data-[copied=true]:scale-50 group-data-[copied=true]:opacity-0" />
-        <Check className="col-start-1 row-start-1 size-3.5 scale-50 text-primary opacity-0 transition-all duration-200 group-data-[copied=true]:scale-100 group-data-[copied=true]:opacity-100" />
+        <Copy className="col-start-1 row-start-1 size-3.5 scale-100 opacity-100 transition-[transform,opacity] duration-200 group-data-[copied=true]:scale-50 group-data-[copied=true]:opacity-0" />
+        <Check className="col-start-1 row-start-1 size-3.5 scale-50 text-primary opacity-0 transition-[transform,opacity] duration-200 group-data-[copied=true]:scale-100 group-data-[copied=true]:opacity-100" />
       </button>
     </TooltipTrigger>
   )

@@ -4,7 +4,10 @@ import {FOCUS} from './classes.js'
 
 export function NowLine(props: {title: string; onStop?: () => void}): JSX.Element {
   return (
-    <div class="text-[color:var(--chat-text)] text-[length:var(--chat-text-md)] px-2.75 py-1.75 rounded-[var(--chat-radius-pill)] flex gap-2.25 [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] [font-family:var(--chat-font)] items-center">
+    <div
+      role="status"
+      class="text-[color:var(--chat-text)] text-[length:var(--chat-text-md)] px-2.75 py-1.75 rounded-[var(--chat-radius-pill)] flex gap-2.25 [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] [font-family:var(--chat-font)] items-center"
+    >
       <span
         class="rounded-[var(--chat-radius-pill)] flex-none size-2.75 [border-top-color:var(--chat-accent)] [border:2px_solid_var(--chat-line)] anim-tool-spin motion-reduce:[animation:none]"
         aria-hidden="true"
