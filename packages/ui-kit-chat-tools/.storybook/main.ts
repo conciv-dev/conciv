@@ -9,6 +9,7 @@ const config: StorybookConfig = {
     return mergeConfig(storybookViteConfig, {
       resolve: {dedupe: ['solid-js', 'solid-js/web', '@ark-ui/solid']},
       optimizeDeps: {
+        noDiscovery: true,
         include: ['@tanstack/ai-client', 'aria-query', 'lucide-solid'],
         exclude: ['solid-js', 'solid-js/web', 'solid-js/store', '@ark-ui/solid'],
       },

@@ -12,7 +12,18 @@ const config: StorybookConfig = {
       plugins: [UnoCSS()],
       resolve: {dedupe: ['solid-js', 'solid-js/web', '@ark-ui/solid']},
       optimizeDeps: {
-        include: ['@tanstack/ai-solid', '@tanstack/ai-client', '@tanstack/solid-virtual', 'lucide-solid'],
+        noDiscovery: true,
+        include: [
+          '@storybook/addon-vitest/internal/setup-file-with-project-annotations',
+          '@tanstack/ai-solid',
+          '@tanstack/ai-client',
+          '@tanstack/solid-virtual',
+          'aria-query',
+          'lucide-solid',
+          'lz-string',
+          'partial-json',
+          'pretty-format',
+        ],
         exclude: ['solid-js', 'solid-js/web', 'solid-js/store', '@ark-ui/solid'],
       },
     })

@@ -2108,12 +2108,24 @@ importers:
       '@zag-js/focus-visible':
         specifier: 1.41.2
         version: 1.41.2
+      aria-query:
+        specifier: 5.3.0
+        version: 5.3.0
+      lz-string:
+        specifier: 1.5.0
+        version: 1.5.0
+      partial-json:
+        specifier: 0.1.7
+        version: 0.1.7
       playwright:
         specifier: ^1.61.1
         version: 1.61.1
       postcss:
         specifier: '>=8.5.10 <9'
         version: 8.5.16
+      pretty-format:
+        specifier: 27.5.1
+        version: 27.5.1
       solid-js:
         specifier: ^1.9.13
         version: 1.9.14
@@ -20655,7 +20667,7 @@ snapshots:
   '@testing-library/jest-dom@6.9.1':
     dependencies:
       '@adobe/css-tools': 4.5.0
-      aria-query: 5.3.2
+      aria-query: 5.3.0
       css.escape: 1.5.1
       dom-accessibility-api: 0.6.3
       picocolors: 1.1.1

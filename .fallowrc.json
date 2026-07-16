@@ -49,7 +49,11 @@
     "@conciv/ui-kit-chat",
     "@conciv/ui-kit-chat-tools",
     "@conciv/ui-kit-system",
+    "aria-query",
     "bippy",
+    "lz-string",
+    "partial-json",
+    "pretty-format",
     "react-grab"
   ],
   "ignoreUnresolvedImports": ["collections/*"],
