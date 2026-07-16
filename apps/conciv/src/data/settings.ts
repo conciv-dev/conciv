@@ -4,6 +4,7 @@ import type {TriggerPosition} from '@conciv/protocol/config-types'
 export type ConcivSettings = {
   modal: {enabled: boolean; position: TriggerPosition}
   quickTerminal: {enabled: boolean; hotkeys: string[]}
+  defaultOpen: boolean
 }
 
 const DEFAULT_HOTKEYS = ['Mod+`']
@@ -44,5 +45,6 @@ export function parseConcivSettings(raw: string): ConcivSettings {
   return {
     modal: {enabled: modal !== false, position: positionOf(modal)},
     quickTerminal: {enabled: quickTerminal !== false, hotkeys: hotkeysOf(quickTerminal)},
+    defaultOpen: cfg.defaultOpen === true,
   }
 }

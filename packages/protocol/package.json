@@ -68,6 +68,10 @@
     "./tool-view-types": {
       "types": "./dist/tool-view-types.d.ts",
       "import": "./dist/tool-view-types.js"
+    },
+    "./connect-ports": {
+      "types": "./dist/connect-ports.d.ts",
+      "import": "./dist/connect-ports.js"
     }
   },
   "publishConfig": {

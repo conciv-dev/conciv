@@ -12,18 +12,21 @@
   "sideEffects": false,
   "scripts": {
     "dev": "vite dev --port 3001",
-    "build": "vite build",
+    "build": "node scripts/copy-widget-bundle.mjs && node scripts/build-source-manifest.mjs && vite build",
     "start": "vite preview",
     "preview": "vite preview",
     "deploy": "vite build && wrangler deploy",
     "cf-typegen": "wrangler types",
     "typecheck": "fumadocs-mdx && tsc --noEmit",
     "lint": "oxlint",
+    "test": "vitest run",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "gen:snippets": "node --experimental-strip-types scripts/highlight-snippets.ts"
   },
   "dependencies": {
     "@conciv/it": "workspace:*",
     "@conciv/mascot": "workspace:*",
+    "@conciv/protocol": "workspace:*",
     "@fontsource-variable/geist": "^5.2.9",
     "@gsap/react": "^2.1.2",
     "@huggingface/transformers": "^4.2.0",
@@ -52,16 +55,23 @@
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.42.4",
+    "@conciv/core": "workspace:*",
+    "@conciv/embed": "workspace:*",
+    "@conciv/extension-compiler": "workspace:*",
+    "@conciv/harness-testkit": "workspace:*",
+    "@conciv/try": "workspace:*",
     "@tailwindcss/vite": "^4.3.0",
     "@types/mdx": "^2.0.14",
     "@types/node": "^22.19.21",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.2",
+    "playwright": "^1.61.1",
     "shiki": "^4.2.0",
     "tailwindcss": "^4.3.0",
     "twoslash": "^0.3.9",
     "typescript": "^6.0.3",
+    "vitest": "^4.1.8",
     "wrangler": "^4.106.0"
   }
 }

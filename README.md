@@ -72,6 +72,13 @@ routes on its own dev port, spawns a headless harness (default `claude -p`), and
 widget into your previewed page. The widget probes `/api/chat/session` on load and only shows the
 conciv button when the dev routes are live — so it stays inert on a plain preview.
 
+## Try it live
+
+No install needed: open [conciv.dev](https://conciv.dev), click "Try it live", and paste the
+pairing prompt into Claude Code (or run the `npx @conciv/try` command it shows). The widget on
+the landing page connects to the agent on your machine. Everything stays local: the core binds
+`127.0.0.1` only, gated by a one-time token, and prompts never touch our servers.
+
 ## Quickstart
 
 ```sh
@@ -143,6 +150,7 @@ Install these — everything else on npm under `@conciv/*` is internal and comes
 | [`@conciv/it`](./packages/it)                               | **The one you install.** Thin umbrella: `@conciv/it/plugin/vite` (+ webpack/rspack/rollup/esbuild/nextjs). |
 | [`@conciv/extension`](./packages/extension)                 | The extension authoring contract: `defineExtension`/`defineTool` + typed `useSlot`/`useContext` hooks.     |
 | [`@conciv/extension-testkit`](./packages/extension-testkit) | Mounts any extension in a real browser against a real spawned server, through its real contract.           |
+| [`@conciv/try`](./packages/try)                             | `npx @conciv/try --token <t>`: try conciv live on conciv.dev with the agent already on your machine.       |
 
 Under the hood (installed automatically by `@conciv/it`):
 

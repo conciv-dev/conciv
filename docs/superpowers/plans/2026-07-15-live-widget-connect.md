@@ -36,7 +36,7 @@
 - Consumes: `start(opts: StartOpts)` (`packages/core/src/start.ts:35`), `createFakeHarness` from `@conciv/harness-testkit` (core devDep — check `packages/core/package.json`, add `workspace:^` devDep if absent).
 - Produces: `StartOpts.accessToken?: string`. When set, every route is served ONLY under `/t/<accessToken>/...` (prefix stripped, wrong/missing prefix → 404). New route `GET /health` → `200 {"ok":true,"harness":"<id>"}` on the inner app (so gated: `/t/<token>/health`).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import {mkdtempSync} from 'node:fs'
@@ -87,12 +87,12 @@ describe('token-gated core', () => {
 })
 ```
 
-- [ ] **Step 2: Run it, verify it fails**
+- [x] **Step 2: Run it, verify it fails**
 
 Run: `pnpm turbo run build --filter=@conciv/core && cd packages/core && pnpm vitest run test/api/connect-gate.it.test.ts`
 Expected: FAIL — `accessToken` not a known opt (TS error) or health 404.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `packages/core/src/app.ts`, inside the Hono chain right after `.use(corsMiddleware())` (line ~105):
 
@@ -120,11 +120,11 @@ const served = opts.accessToken ? new Hono().mount(`/t/${opts.accessToken}`, app
 const {port, close} = await serveHono({fetch: served.fetch.bind(served), port: requestedPort})
 ```
 
-- [ ] **Step 4: Run test, verify pass**
+- [x] **Step 4: Run test, verify pass**
 
 Run: same as Step 2. Expected: 3 passing.
 
-- [ ] **Step 5: Typecheck + commit**
+- [x] **Step 5: Typecheck + commit**
 
 ```bash
 pnpm turbo run typecheck --filter=@conciv/core
@@ -151,6 +151,8 @@ Test lives in Task 2 (occupied-port case). Commit with Task 2.
 
 ### Task 2: `connect` command in @conciv/cli
 
+> **Amendment (2026-07-15, user decision):** `connect` ships as a NEW package `@conciv/try` (visitor command: `npx @conciv/try --token <t>`, bin `conciv-try`), NOT as a subcommand of `@conciv/cli` — keeps core/harness out of the cli runtime deps that `@conciv/it` auto-installs. `runConnect` is the root export of `@conciv/try`; `@conciv/cli` untouched; `@conciv/try` added to `PUBLIC_PACKAGES`. Task 1a landed (serveHono rejects on listen error). Later tasks referencing `@conciv/cli connect` / `@conciv/cli/connect` read as `@conciv/try`.
+
 **Files:**
 
 - Create: `packages/cli/src/connect.ts`
@@ -163,7 +165,7 @@ Test lives in Task 2 (occupied-port case). Commit with Task 2.
 - Consumes: `start()` with `accessToken` (Task 1), `getHarness` from `@conciv/harness`, `createFakeHarness` from `@conciv/harness-testkit`.
 - Produces: exported `runConnect(opts: ConnectOpts): Promise<Engine>` where `ConnectOpts = {token: string; harness?: string; workspace?: string; origin?: string; harnessAdapter?: HarnessAdapter; log?: (line: string) => void}`. CLI: `conciv connect --token <t> [--harness claude|codex|gemini-cli|opencode|pi] [--workspace .] [--origin <url>]`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import {createServer} from 'node:http'
@@ -210,12 +212,12 @@ describe('conciv connect', () => {
 
 (If two tests race on the same port, run them serially — vitest default in-file order is fine.)
 
-- [ ] **Step 2: Run it, verify fail**
+- [x] **Step 2: Run it, verify fail**
 
 Run: `pnpm turbo run build --filter=@conciv/cli && cd packages/cli && pnpm vitest run test/connect.it.test.ts`
 Expected: FAIL — `../src/connect.js` does not exist.
 
-- [ ] **Step 3: Implement `packages/cli/src/connect.ts`**
+- [x] **Step 3: Implement `packages/cli/src/connect.ts`**
 
 ```ts
 import {mkdtempSync} from 'node:fs'
@@ -308,11 +310,11 @@ subCommands: {tools: toolsCommand, connect: connectCommand},
 
 (`console.log` in `run` may hit the no-comments/lint rules — the CLI already prints via its command runners; mirror how `packages/cli/src/request.ts` outputs. If lint objects, route through the same helper it uses. The dangling `await new Promise(() => {})` keeps the process alive; SIGINT kills it — that is the intended lifecycle.)
 
-- [ ] **Step 4: Run tests, verify pass**
+- [x] **Step 4: Run tests, verify pass**
 
 Run: same as Step 2 (rebuild first: `pnpm turbo run build --filter=@conciv/cli`). Expected: 3 passing. If the occupied-port test HANGS: implement Task 1a, rebuild `@conciv/serve` + core, rerun.
 
-- [ ] **Step 5: Typecheck, lint, commit**
+- [x] **Step 5: Typecheck, lint, commit**
 
 ```bash
 pnpm turbo run typecheck --filter=@conciv/cli
@@ -338,7 +340,7 @@ git commit -m "feat(cli): conciv connect — pair a local agent with conciv.dev"
 - Consumes: TanStack Start server-route pattern (mirror `apps/site/src/routes/llms[.]txt.ts` — `createFileRoute` with `server.handlers.GET`).
 - Produces: `GET /pair/<token>` → `text/plain` instructions embedding the token; `/conciv-widget.global.js` served as a static asset from `apps/site/public/`. Exported `pairText(token: string, origin: string): string` for the test.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 `apps/site/vitest.config.ts`:
 
@@ -366,12 +368,12 @@ describe('pair instructions', () => {
 })
 ```
 
-- [ ] **Step 2: Run, verify fail**
+- [x] **Step 2: Run, verify fail**
 
 Run: `cd apps/site && pnpm vitest run`
 Expected: FAIL — `pair-text` missing. (Add `"test": "vitest run"` to site scripts if absent; turbo picks it up.)
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `apps/site/src/lib/pair-text.ts`:
 
@@ -429,7 +431,7 @@ copyFileSync(source, target)
 
 `apps/site/package.json`: `"build": "node scripts/copy-widget-bundle.mjs && vite build"` and add `"@conciv/embed": "workspace:^"` to devDependencies (turbo build ordering — embed dist must exist first). If fallow flags the devDep as unused, keep it and note the script consumer; check `.fallowrc.json` options before suppressing.
 
-- [ ] **Step 4: Run tests + build, verify**
+- [x] **Step 4: Run tests + build, verify**
 
 ```bash
 cd apps/site && pnpm vitest run
@@ -438,7 +440,7 @@ ls apps/site/public/conciv-widget.global.js
 curl -s http://localhost:3001/pair/tok-demo   # with `pnpm dev` running, expect the text
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/site/src/routes/pair.\$token.ts apps/site/src/lib/pair-text.ts apps/site/scripts/copy-widget-bundle.mjs apps/site/package.json apps/site/vitest.config.ts apps/site/test/pair-route.test.ts apps/site/src/routeTree.gen.ts pnpm-lock.yaml .gitignore
@@ -461,7 +463,7 @@ git commit -m "feat(site): /pair/<token> instructions + widget bundle asset" -- 
 - Consumes: `/t/<token>/health` (Task 1), widget global bundle asset (Task 3), `window.__CONCIV_API_BASE__` (read by the embed bundle at boot, `apps/conciv/src/lib/api-base.ts:11`).
 - Produces: `findCore(token, ports, fetchLike, signal) => Promise<string | null>` (returns the gated base URL); `mountWidget(base) => void` (sets `window.__CONCIV_API_BASE__`, injects the script tag once).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import {describe, expect, it} from 'vitest'
@@ -488,9 +490,9 @@ describe('findCore', () => {
 })
 ```
 
-- [ ] **Step 2: Run, verify fail** — `cd apps/site && pnpm vitest run test/connect-live.test.ts` → module missing.
+- [x] **Step 2: Run, verify fail** — `cd apps/site && pnpm vitest run test/connect-live.test.ts` → module missing.
 
-- [ ] **Step 3: Implement `apps/site/src/lib/connect-live.ts`**
+- [x] **Step 3: Implement `apps/site/src/lib/connect-live.ts`**
 
 ```ts
 export const CONNECT_PORTS = [4732, 4733, 4734, 4735, 4736, 4737, 4738, 4739, 4740, 4741]
@@ -525,7 +527,7 @@ export function mountWidget(base: string): void {
 
 (`window.__CONCIV_API_BASE__` needs the global declaration — import or redeclare the `declare global` block from the embed's api-base contract; keep it in this file.)
 
-- [ ] **Step 4: Panel component `ConnectLive.tsx`** — React, site's existing UI conventions (look at `components/landing/` + `components/ui/` for buttons/cards; use the site's existing styling system, don't invent one):
+- [x] **Step 4: Panel component `ConnectLive.tsx`** — React, site's existing UI conventions (look at `components/landing/` + `components/ui/` for buttons/cards; use the site's existing styling system, don't invent one):
 
 State machine: `idle → waiting → connected`. On open: `token = crypto.randomUUID()`, two copy-to-clipboard rows —
 prompt: `Read https://conciv.dev/pair/${token} and follow the instructions` and command: `npx @conciv/cli connect --token ${token}`.
@@ -544,7 +546,7 @@ cd apps/site && pnpm dev
 In a second terminal: `pnpm turbo run build --filter=@conciv/cli && node packages/cli/dist/bin.js connect --token <token-from-panel> --origin http://localhost:3001`
 Open http://localhost:3001, click connect, expect the chip + working widget chat (real claude). (`--origin` override exists exactly for this.)
 
-- [ ] **Step 6: Run site tests + lint + commit**
+- [x] **Step 6: Run site tests + lint + commit**
 
 ```bash
 cd apps/site && pnpm vitest run && cd ../..
@@ -566,7 +568,7 @@ git commit -m "feat(site): landing connect panel — pair, poll, mount live widg
 
 - Consumes: `runConnect` (Task 2) with `createFakeHarness`, built site served by `wrangler dev`, Chromium flags `--ip-address-space-overrides` + `local-network-access` permission (proven recipe: see spike test `packages/embed/test/spike-pna.it.test.ts` on branch history / spike notes in the spec).
 
-- [ ] **Step 1: Write the test**
+- [x] **Step 1: Write the test**
 
 ```ts
 import {spawn, type ChildProcess} from 'node:child_process'
@@ -637,11 +639,11 @@ describe('live connect on the built site', () => {
 
 Known frictions to resolve while making it pass (budgeted into this task): the pair panel is origin-hardcoded to conciv.dev for the copy text (fine — the test drives `runConnect` directly with `--origin`); LNA is only enforced when the page origin is _secure_-public — with an http origin Chrome may hard-block instead of prompt, in which case serve wrangler behind the self-signed-https recipe from the spike (https server proxying wrangler, `ignoreHTTPSErrors: true`) or relax to `--origin` + loopback-origin coverage and keep the LNA-permission variant as the embed-level test from the spike. Timebox; transport-level LNA proof already exists from the spike.
 
-- [ ] **Step 2: Run it** — `cd apps/site && pnpm vitest run test/live-connect.it.test.ts` (needs `pnpm turbo run build` for cli/core/embed first). Expected: PASS.
+- [x] **Step 2: Run it** — `cd apps/site && pnpm vitest run test/live-connect.it.test.ts` (needs `pnpm turbo run build` for cli/core/embed first). Expected: PASS.
 
-- [ ] **Step 3: Wire `test` into turbo for the site** (site `package.json` test script runs both unit + it files; `turbo run test` already dependsOn build). Verify: `pnpm turbo run test --filter=conciv-site`.
+- [x] **Step 3: Wire `test` into turbo for the site** (site `package.json` test script runs both unit + it files; `turbo run test` already dependsOn build). Verify: `pnpm turbo run test --filter=conciv-site`.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/site/test/live-connect.it.test.ts apps/site/package.json pnpm-lock.yaml
@@ -657,7 +659,7 @@ git commit -m "test(site): e2e — pair token, LNA permission, live chat turn" -
 - Create: `.changeset/live-widget-connect.md`
 - Modify: `README.md` (a short "Try it live" section pointing at conciv.dev), issue #58 comment (manual, after merge)
 
-- [ ] **Step 1: Changeset**
+- [x] **Step 1: Changeset**
 
 ```md
 ---
@@ -669,7 +671,7 @@ git commit -m "test(site): e2e — pair token, LNA permission, live chat turn" -
 
 (One entry moves the whole fixed `@conciv/*` set.)
 
-- [ ] **Step 2: Full gate**
+- [x] **Step 2: Full gate**
 
 ```bash
 pnpm typecheck && pnpm build && pnpm test
@@ -678,7 +680,7 @@ pnpm exec fallow audit --changed-since main --format json
 
 Fix anything INTRODUCED (dead code, unused deps — the `@conciv/embed` site devDep may need the trace treatment: `pnpm exec fallow dead-code --trace-dependency @conciv/embed` before touching it).
 
-- [ ] **Step 3: Commit + hand to user**
+- [x] **Step 3: Commit + hand to user**
 
 ```bash
 git add .changeset/live-widget-connect.md README.md
