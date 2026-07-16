@@ -1,6 +1,6 @@
 {
   "name": "@conciv/client",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). conciv client data layer: typed oRPC access, TanStack Query option factories, and the useChat connection bridge. Zero UI.",
   "keywords": [
     "client",

@@ -1,5 +1,14 @@
 # @conciv/ui-kit-chat
 
+## 0.0.10
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/protocol@0.0.10
+  - @conciv/solid-streamdown@0.0.10
+  - @conciv/ui-kit-system@0.0.10
+
 ## 0.0.9
 
 ### Patch Changes

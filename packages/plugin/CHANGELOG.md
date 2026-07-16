@@ -1,5 +1,17 @@
 # @conciv/plugin
 
+## 0.0.10
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/cli@0.0.10
+  - @conciv/core@0.0.10
+  - @conciv/embed@0.0.10
+  - @conciv/extension@0.0.10
+  - @conciv/extension-compiler@0.0.10
+  - @conciv/protocol@0.0.10
+
 ## 0.0.9
 
 ### Patch Changes
