@@ -1,6 +1,6 @@
 {
   "name": "@conciv/it",
-  "version": "0.0.9",
+  "version": "0.0.10",
   "description": "Conceive it. The conciv dev agent, one install. Plugin for vite, webpack, rspack, rollup, esbuild, nextjs.",
   "keywords": [
     "ai",
