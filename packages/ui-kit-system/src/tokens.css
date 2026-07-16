@@ -7,13 +7,13 @@
   --pw-accent-08: color-mix(in oklch, var(--pw-accent) 10%, transparent);
   --pw-accent-20: color-mix(in oklch, var(--pw-accent) 22%, transparent);
   --pw-accent-line: color-mix(in oklch, var(--pw-accent) 42%, transparent);
-  --pw-panel: oklch(0.2 0.012 var(--pw-hue));
-  --pw-panel-sunk: oklch(0.16 0.012 var(--pw-hue));
-  --pw-glass: oklch(0.21 0.014 var(--pw-hue) / 0.97);
-  --pw-fill: oklch(1 0 0 / 0.05);
-  --pw-fill-soft: oklch(1 0 0 / 0.04);
-  --pw-fill-strong: oklch(1 0 0 / 0.1);
-  --pw-sunken: oklch(0.12 0.01 var(--pw-hue) / 0.5);
+  --pw-panel: oklch(0 0 0);
+  --pw-panel-sunk: oklch(0 0 0);
+  --pw-glass: oklch(0 0 0 / 0.97);
+  --pw-fill: oklch(1 0 0 / 0.035);
+  --pw-fill-soft: oklch(1 0 0 / 0.03);
+  --pw-fill-strong: oklch(1 0 0 / 0.08);
+  --pw-sunken: oklch(0 0 0 / 0.5);
   --pw-text: oklch(0.93 0.006 var(--pw-hue));
   --pw-text-hi: oklch(0.98 0.008 var(--pw-hue));
   --pw-text-2: oklch(0.74 0.012 var(--pw-hue));
@@ -37,6 +37,6 @@
   --pw-shadow-hover: 0 14px 34px oklch(0.1 0.03 var(--pw-hue) / 0.6);
   --pw-ease: cubic-bezier(0.22, 1, 0.36, 1);
   --pw-ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
-  --pw-font: system-ui, -apple-system, sans-serif;
-  --pw-mono: ui-monospace, monospace;
+  --pw-font: 'Wix Madefor Text', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  --pw-mono: 'Roboto Mono', ui-monospace, monospace;
 }
