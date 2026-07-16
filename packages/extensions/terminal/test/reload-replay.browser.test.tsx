@@ -100,7 +100,9 @@ describe('replay after a fresh attach (reload path)', () => {
 
     const mounted = mountTerminal(ext, base, sessionId)
     onTestFinished(() => mounted.dispose())
-    await until(() => translateBuffer(mounted.model.terminal).includes('SPAWNCOLS='), {hangGuardMs: 10_000})
+    await until(() => /^SPAWNRULER\[=+\]$/m.test(translateBuffer(mounted.model.terminal)), {
+      hangGuardMs: 10_000,
+    })
     const buffer = translateBuffer(mounted.model.terminal)
 
     const spawnCols = Number(buffer.match(/SPAWNCOLS=(\d+)/)?.[1])
