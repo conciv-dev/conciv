@@ -21,7 +21,9 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.7.0 # keep in sync with packageManager in package.json
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
           node-version: 22
@@ -37,6 +39,7 @@ jobs:
       - uses: SocketDev/action@ba6de6cc0565af1f42295590380973573297e31f
         with:
           mode: firewall-free
+          firewall-version: 1.13.1 # pinned: 'latest' does a GitHub Releases lookup that flakes CI
       - run: sfw pnpm i --frozen-lockfile
       - run: pnpm exec turbo run build --filter='./packages/*' --filter='./packages/extensions/*'
       - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
