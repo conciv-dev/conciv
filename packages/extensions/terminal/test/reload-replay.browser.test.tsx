@@ -74,14 +74,19 @@ describe('replay after a fresh attach (reload path)', () => {
     expect(firstSize.cols).toBe(first.model.terminal.cols)
     expect(firstSize.rows).toBe(first.model.terminal.rows)
     first.model.sendInput(`printf 'RULER:%0.s=' $(seq 1 60); printf 'END\\n'\r`)
-    await until(() => translateBuffer(first.model.terminal).includes('END'), {hangGuardMs: 10_000})
+    const replayMarker = `${'RULER:='.repeat(60)}END`
+    await until(() => translateBuffer(first.model.terminal).replaceAll('\n', '').includes(replayMarker), {
+      hangGuardMs: 10_000,
+    })
     const firstBuffer = translateBuffer(first.model.terminal)
     first.dispose()
 
     const second = mountTerminal(ext, base, sessionId)
     onTestFinished(() => second.dispose())
     await until(() => second.model.status() === 'open', {hangGuardMs: 10_000})
-    await until(() => translateBuffer(second.model.terminal).includes('FIRSTSIZE'), {hangGuardMs: 10_000})
+    await until(() => translateBuffer(second.model.terminal).replaceAll('\n', '').includes(replayMarker), {
+      hangGuardMs: 10_000,
+    })
     const secondBuffer = translateBuffer(second.model.terminal)
 
     expect(second.model.terminal.cols).toBe(first.model.terminal.cols)
