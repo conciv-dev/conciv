@@ -15,6 +15,7 @@ const storybook = {
     name: 'storybook',
     maxWorkers,
     browser: {
+      connectTimeout: 120_000,
       enabled: true,
       headless: true,
       provider: playwright({}),

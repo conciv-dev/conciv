@@ -64,11 +64,6 @@ jobs:
       - run: pnpm exec turbo run typecheck lint test --filter='./packages/*' --filter='./packages/extensions/*' --concurrency=3
         env:
           SKIP_STORYBOOK_TESTS: '1'
-      # Run each Storybook suite in its own process, serially. This bounds Chromium/Vite memory and
-      # ensures a browser is torn down before the next package starts.
-      - run: pnpm --workspace-concurrency=1 --filter='./packages/*' --if-present run test:storybook
-        env:
-          VITEST_MAX_WORKERS: '1'
       # Enforce the no-comments rule everywhere (incl. apps/), without pulling the private apps into the build/test gate.
       - run: pnpm exec oxlint -A all -D conciv/no-comments
       - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -76,6 +71,51 @@ jobs:
         with:
           path: .turbo
           key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.job }}-${{ github.sha }}-${{ github.run_attempt }}
+
+  storybook:
+    name: Storybook browser tests
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.job }}-${{ github.sha }}-${{ github.run_attempt }}
+          restore-keys: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
+      - uses: SocketDev/action@ba6de6cc0565af1f42295590380973573297e31f # v1.3.2
+        with:
+          mode: firewall-free
+      - run: sfw pnpm i --frozen-lockfile # Socket Firewall blocks known-malicious packages at install
+      - run: pnpm exec playwright install --with-deps chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+      - run: pnpm exec playwright install-deps chromium
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+      - run: >-
+          pnpm exec turbo run build
+          --filter=@conciv/solid-diffs...
+          --filter=@conciv/solid-streamdown...
+          --filter=@conciv/ui-kit-system...
+          --filter=@conciv/ui-kit-chat...
+          --filter=@conciv/ui-kit-chat-tools...
+          --filter=@conciv/ui-kit-tap...
+      # Run each Storybook suite in its own process, serially, on a fresh runner. This bounds Chromium/Vite
+      # memory and disk use, and ensures a browser is torn down before the next package starts.
+      - run: pnpm --workspace-concurrency=1 --filter='./packages/*' --if-present run test:storybook
+        env:
+          VITEST_MAX_WORKERS: '1'
 
   e2e:
     name: e2e consumer apps
