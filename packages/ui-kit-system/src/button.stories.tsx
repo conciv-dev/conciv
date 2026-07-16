@@ -3,7 +3,7 @@ import {expect, within, userEvent} from 'storybook/test'
 import {createSignal} from 'solid-js'
 import {Button} from './button.js'
 
-const meta: Meta<typeof Button> = {title: 'ui-kit/Button', component: Button}
+const meta: Meta<typeof Button> = {title: 'ui-kit-system/Button', component: Button}
 export default meta
 type Story = StoryObj<typeof Button>
 

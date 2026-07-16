@@ -8,7 +8,7 @@ import {storyConnection, createTextChunks} from '../store/story-connection.js'
 import type {SuggestionData} from '../primitives/suggestion/suggestion.js'
 import {FollowUpSuggestions} from './follow-up-suggestions.js'
 
-const meta: Meta = {title: 'styled/FollowUpSuggestions'}
+const meta: Meta = {title: 'ui-kit-chat/styled/FollowUpSuggestions'}
 export default meta
 type Story = StoryObj
 

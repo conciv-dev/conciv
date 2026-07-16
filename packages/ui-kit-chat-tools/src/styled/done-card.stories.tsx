@@ -4,7 +4,7 @@ import {expect, within} from 'storybook/test'
 import type {DoneCard as DoneData} from '@conciv/protocol/done-types'
 import {DoneCard} from './done-card.js'
 
-const meta: Meta = {title: 'styled/DoneCard'}
+const meta: Meta = {title: 'ui-kit-chat-tools/styled/DoneCard'}
 export default meta
 type Story = StoryObj
 

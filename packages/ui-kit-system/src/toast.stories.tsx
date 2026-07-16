@@ -3,7 +3,7 @@ import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {Toast, createToaster} from './toast.js'
 import {Button} from './button.js'
 
-const meta: Meta = {title: 'ui-kit/Toast'}
+const meta: Meta = {title: 'ui-kit-system/Toast'}
 export default meta
 type Story = StoryObj
 

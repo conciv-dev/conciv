@@ -5,7 +5,7 @@ import {useFilter} from '@ark-ui/solid/locale'
 import {useListCollection} from '@ark-ui/solid/combobox'
 import {Combobox} from './combobox.js'
 
-const meta: Meta<typeof Combobox.Root> = {title: 'ui-kit/Combobox', component: Combobox.Root}
+const meta: Meta<typeof Combobox.Root> = {title: 'ui-kit-system/Combobox', component: Combobox.Root}
 export default meta
 type Story = StoryObj<typeof Combobox.Root>
 

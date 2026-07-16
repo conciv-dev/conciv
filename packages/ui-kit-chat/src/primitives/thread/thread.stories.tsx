@@ -15,7 +15,7 @@ import {Thread} from './thread.js'
 import {Message} from '../message/message.js'
 import {Suggestion, type SuggestionData} from '../suggestion/suggestion.js'
 
-const meta: Meta = {title: 'primitives/Thread'}
+const meta: Meta = {title: 'ui-kit-chat/primitives/Thread'}
 export default meta
 type Story = StoryObj
 

@@ -6,7 +6,7 @@ import {ChatProvider} from '../../store/chat-context.js'
 import {storyConnection} from '../../store/story-connection.js'
 import {Error} from './error.js'
 
-const meta: Meta = {title: 'primitives/Error'}
+const meta: Meta = {title: 'ui-kit-chat/primitives/Error'}
 export default meta
 type Story = StoryObj
 

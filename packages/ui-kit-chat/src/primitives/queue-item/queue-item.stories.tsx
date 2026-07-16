@@ -4,7 +4,7 @@ import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {ComposerHandlersProvider} from '../composer/composer-handlers.js'
 import {QueueItem, QueueItemProvider, type QueuedMessage} from './queue-item.js'
 
-const meta: Meta = {title: 'primitives/QueueItem'}
+const meta: Meta = {title: 'ui-kit-chat/primitives/QueueItem'}
 export default meta
 type Story = StoryObj
 

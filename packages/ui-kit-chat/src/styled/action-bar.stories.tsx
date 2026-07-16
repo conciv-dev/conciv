@@ -9,7 +9,7 @@ import {Thread} from '../primitives/thread/thread.js'
 import {Message} from '../primitives/message/message.js'
 import {AssistantActionBar} from './action-bar.js'
 
-const meta: Meta = {title: 'styled/ActionBar'}
+const meta: Meta = {title: 'ui-kit-chat/styled/ActionBar'}
 export default meta
 type Story = StoryObj
 
