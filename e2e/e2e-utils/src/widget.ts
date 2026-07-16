@@ -30,8 +30,13 @@ export async function expectWidgetBoots(page: Page, failures: PageFailures): Pro
     const detail = describeFailures(failures)
     throw detail === '' ? error : new Error(`widget did not boot\n${detail}`, {cause: error})
   }
-  await launcher.click()
-  await expect(page.getByRole('textbox', {name: 'Message the conciv agent'})).toBeVisible({timeout: 20_000})
+  const textbox = page.getByRole('textbox', {name: 'Message the conciv agent'})
+  await expect(async () => {
+    if (await textbox.isVisible()) return
+    await expect(launcher).toBeVisible()
+    await launcher.click()
+    await expect(textbox).toBeVisible()
+  }).toPass({timeout: 20_000})
   expect(failures.pageErrors).toEqual([])
   expect(failures.consoleErrors).toEqual([])
 }
