@@ -40,7 +40,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run",
-    "test:storybook": "vitest run --project storybook",
+    "test:storybook": "vitest run --project storybook --shard=1/4 && vitest run --project storybook --shard=2/4 && vitest run --project storybook --shard=3/4 && vitest run --project storybook --shard=4/4",
     "storybook": "storybook dev -p 6009",
     "build-storybook": "storybook build",
     "publint": "publint",
