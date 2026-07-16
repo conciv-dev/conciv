@@ -1,4 +1,4 @@
-import {createMemo, createResource, Index, type JSX, Match, Switch} from 'solid-js'
+import {createMemo, Index, type JSX, Match, Switch} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import {unified, type Pluggable} from 'unified'
 import type {Element, ElementContent, Root, RootContent} from 'hast'
@@ -7,6 +7,8 @@ import remarkRehype from 'remark-rehype'
 import remarkGfm from 'remark-gfm'
 import remend, {type RemendOptions} from 'remend'
 import {harden} from 'rehype-harden'
+import rehypeRaw from 'rehype-raw'
+import rehypeSanitize, {defaultSchema} from 'rehype-sanitize'
 import {parseMarkdownIntoBlocks} from './parse-blocks.js'
 import {createAnimatePlugin, type AnimatePlugin} from './animate.js'
 
@@ -17,20 +19,14 @@ export type CaretVariant = 'block' | 'circle'
 const carets: Record<CaretVariant, string> = {block: ' ▋', circle: ' ●'}
 const codeFencePattern = /^[ \t]{0,3}(`{3,}|~{3,})(.*)$/
 
-let rawPluginsCache: Promise<Pluggable[]> | undefined
-function loadRawPlugins(): Promise<Pluggable[]> {
-  rawPluginsCache ??= Promise.all([import('rehype-raw'), import('rehype-sanitize')]).then(([raw, san]) => {
-    const schema = {
-      ...san.defaultSchema,
-      attributes: {
-        ...san.defaultSchema.attributes,
-        code: [...(san.defaultSchema.attributes?.code ?? []), ['className', /^language-./]],
-      },
-    }
-    return [raw.default, [san.default, schema]]
-  })
-  return rawPluginsCache
+const rawSchema = {
+  ...defaultSchema,
+  attributes: {
+    ...defaultSchema.attributes,
+    code: [...(defaultSchema.attributes?.code ?? []), ['className', /^language-./]],
+  },
 }
+const rawPlugins: Pluggable[] = [rehypeRaw, [rehypeSanitize, rawSchema]]
 
 export type StreamdownProps = {
   children: string
@@ -165,11 +161,6 @@ function Block(props: {
   linkPrefixes: string[]
   imagePrefixes: string[]
 }): JSX.Element {
-  const [rawPlugins] = createResource(
-    () => props.allowRawHtml,
-    (on) => (on ? loadRawPlugins() : []),
-  )
-
   const processor = createMemo(() => {
     const hardenPlugin: Pluggable = [
       harden,
@@ -179,7 +170,11 @@ function Block(props: {
       .use(remarkParse)
       .use(remarkGfm)
       .use(remarkRehype, {allowDangerousHtml: true})
-      .use([...(rawPlugins() ?? []), hardenPlugin, ...(props.animate ? [props.plugin.rehypePlugin] : [])])
+      .use([
+        ...(props.allowRawHtml ? rawPlugins : []),
+        hardenPlugin,
+        ...(props.animate ? [props.plugin.rehypePlugin] : []),
+      ])
   })
 
   const hast = createMemo(() => {

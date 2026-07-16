@@ -326,7 +326,7 @@ export const RawHtml: Story = {
     </Streamdown>
   ),
   play: async ({canvasElement}) => {
-    await waitFor(() => expect(canvasElement.querySelector('kbd')).toBeTruthy(), {timeout: 45000})
+    await waitFor(() => expect(canvasElement.querySelector('kbd')).toBeTruthy())
     await expect(canvasElement.querySelector('kbd')?.textContent).toBe('Esc')
     await expect(canvasElement.querySelector('script')).toBeFalsy()
   },
