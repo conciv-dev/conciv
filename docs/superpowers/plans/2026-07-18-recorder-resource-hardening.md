@@ -10,6 +10,8 @@
 
 **Plan 3 of 3.** Independent of Plans 1–2 except one touchpoint: Task 3 changes `ring.window` call sites, which includes Plan 2's `recordings.save` handler (one-line adaptation, called out in Task 3). Findings referenced as (B1..M4) come from the resource audit.
 
+**Rev 2 changes** (deviation-proofing review against the live tree, 2026-07-18): Task 3's interface no longer lists `activeClientId` (the draft declared it, the implementation omitted it, nothing consumes it — dropped); `createCaptureControl`'s parameter is pinned to the structural `{onAppend, lastTs}` subset both `EventRing` and `ClientRings` satisfy; Task 7's renderer memo is extracted to `src/server/renderer-cache.ts` with an **injected** create factory — the rev-1 test said "stub `createChromiumRenderer`", but the memo lived inside `server.ts`'s `.server()` closure where no test can reach it, and module-stubbing is banned; the extraction makes it real-DI-testable. Verified against the tree: current `flusher.ts` surface (`push/setLive/flushNow/dispose`) and its four existing tests survive the interval→self-rescheduling-timeout rewrite unchanged (the retry test's 1000ms advance matches `BACKOFF_START_MS`); `boot.ts` has the exact integration points Task 5 cites (`stopRecord`/`flusher`/`rpc.config`/`startCapture`/`store.setStatus('failed')`/`offListeners`), and the existing `visibilitychange` flush listener stays alongside the new pauser; `capture-control.ts` already takes an injectable `now()` — Task 6's TTL must use it so fake-timer tests hold; `ring.ts` matches Task 4's description exactly (`snapshotIndex` reduce falling back to 0, full re-sort append, 64MB default).
+
 ## Global Constraints
 
 - Functions, not classes. No IIFEs. Zero comments. Strict TS, no casts/non-null. oxfmt defaults.
@@ -29,7 +31,8 @@
 - `src/server/ring.ts` — 16MB default, append without full re-sort, `window()` no-anchor fix (M1).
 - `src/server/rings.ts` — **new**: per-client ring registry with idle eviction + most-recent-active default (B2).
 - `src/server/capture-control.ts` — capture TTL (M3).
-- `src/server.ts` — flush input caps (B1), rings wiring, `turnEnd` clears live (M3), renderer idle-dispose + crash-relaunch (minor).
+- `src/server/renderer-cache.ts` — **new**: injectable-factory renderer memo with idle-dispose + crash-relaunch (minor).
+- `src/server.ts` — flush input caps (B1), rings wiring, `turnEnd` clears live (M3), consumes `createRendererCache`.
 - `src/server/runtime.ts` — `RecorderRuntime.rings` replaces bare `ring`.
 
 ---
@@ -37,10 +40,12 @@
 ## Task 1: Flusher — cap, chunk, back off (audit B1, the scariest path)
 
 **Files:**
+
 - Modify: `src/client/flusher.ts`
 - Test: `test/flusher.test.ts` (extend)
 
 **Interfaces:**
+
 - Produces: same `Flusher` surface (`push/setLive/flushNow/dispose`) with new behavior:
   - queue capped at `MAX_QUEUE_BYTES` (8MB, `JSON.stringify(event).length` accounting); overflow drops oldest events but never the newest type-2 snapshot or anything after it;
   - `drain` sends ≤ `MAX_POST_BYTES` (1MB) per POST, looping until empty;
@@ -236,10 +241,12 @@ git commit -m "fix(recorder): cap, chunk, and back off the client flush queue" -
 ## Task 2: Server flush input caps (audit B1, server leg)
 
 **Files:**
+
 - Modify: `src/server.ts` (`flush` handler input)
 - Test: `test/recordings-router.test.ts` or new `test/flush-caps.test.ts`
 
 **Interfaces:**
+
 - Produces: `flush` input rejects `> MAX_FLUSH_EVENTS` (5000) events or `> MAX_FLUSH_BYTES` (8MB) serialized payload with a zod error — a misbehaving/legacy client can no longer land a giant `JSON.parse` on the server.
 
 - [ ] **Step 1: Write the failing test** — call the `flush` handler (same `call` pattern as Plan 2 Task 5) with 5001 tiny events → expect a thrown validation error; with 10 events → ok.
@@ -271,14 +278,17 @@ git commit -m "fix(recorder): cap flush payloads server-side" -- packages/extens
 ## Task 3: Per-client rings (audit B2 — tabs stop mixing)
 
 **Files:**
+
 - Create: `src/server/rings.ts`
 - Modify: `src/server/runtime.ts` (`RecorderRuntime.rings` replaces `ring`), `src/server.ts` (all `runtime.ring.*` call sites incl. Plan 2's `recordings.save`), `src/server/capture-control.ts` (constructor takes rings), `src/tool/server.ts` (`pullWindow` call sites)
 - Test: `test/rings.test.ts`
 
 **Interfaces:**
+
 - Produces:
   - `createClientRings(opts: {windowMs: number; maxBytes?: number}): ClientRings` with
-    `append(clientId, events)`, `window(range?, clientId?)`, `lastTs()`, `clear()`, `onAppend(listener)`, `activeClientId(): string | null`.
+    `append(clientId, events)`, `window(range?, clientId?)`, `lastTs()`, `clear()`, `onAppend(listener)`. (No `activeClientId` accessor — nothing consumes it; the most-recent-active default is internal. Rev note: an earlier draft listed it while the implementation omitted it — resolved by dropping it.)
+  - `createCaptureControl`'s first parameter retypes to the structural subset it actually uses — `{onAppend(listener: (lastTs: number) => void): () => void; lastTs(): number}` — satisfied by both `EventRing` and `ClientRings`, so the control needs no other change.
   - One `EventRing` per clientId, created on first append, evicted after `CLIENT_RING_IDLE_MS` (30min) without appends (sweep piggybacks on `append`).
   - `window`/`lastTs` with no explicit clientId read the **most-recently-active** client — panel, tools, and `recordings.save` keep their current call shapes (`window(input)` just works, now single-tab-clean).
   - `onAppend` aggregates across rings (capture-control's `awaitNextAppend` keeps working).
@@ -403,10 +413,12 @@ git commit -m "fix(recorder): per-client event rings with idle eviction" -- pack
 ## Task 4: Ring internals — smaller, linear, anchored (audit M1)
 
 **Files:**
+
 - Modify: `src/server/ring.ts`
 - Test: `test/ring.test.ts` (extend)
 
 **Interfaces:**
+
 - Produces: `DEFAULT_MAX_BYTES = 16MB` (was 64MB); `append` inserts near-sorted input without re-sorting the whole array; `window({fromTs})` with **no snapshot at-or-before `fromTs`** anchors at the **first snapshot after** it (returns `[]` if none) instead of silently returning the entire ring.
 
 - [ ] **Step 1: Write the failing tests**
@@ -453,10 +465,12 @@ git commit -m "fix(recorder): smaller ring default, linear append, snapshot-anch
 ## Task 5: Pause capture on hidden tabs (audit M2)
 
 **Files:**
+
 - Modify: `src/client/boot.ts`
 - Test: `test/hidden-pause.it.test.ts` (testkit — drive `page.evaluate` visibility emulation) or extend `capture.it.test.ts`
 
 **Interfaces:**
+
 - Produces: after `HIDDEN_PAUSE_MS` (30s) hidden, `stopRecord()` runs and the flusher drains once; on visibility regained, capture restarts with `takeFreshSnapshot()` semantics (a fresh `startCapture` emits a new full snapshot). The existing `visibilitychange` flush listener stays.
 
 - [ ] **Step 1: Write the failing test** — in the testkit page, override `document.visibilityState`/dispatch `visibilitychange` (CDP `Page.setWebLifecycleState` or a property-defineProperty shim), advance 30s, assert no further `flush` rpc traffic while hidden and that events resume (new snapshot arrives) after visibility returns. If CDP emulation proves flaky in the harness, downgrade to a unit test by extracting the pause logic into a pure `createVisibilityPauser(callbacks)` helper and browser-test only the resume snapshot.
@@ -510,10 +524,12 @@ git commit -m "fix(recorder): pause capture on hidden tabs, resume with fresh sn
 ## Task 6: Live-capture TTL + turnEnd release (audit M3)
 
 **Files:**
+
 - Modify: `src/server/capture-control.ts`, `src/server.ts` (`turnEnd`)
 - Test: `test/capture-control.test.ts` (extend)
 
 **Interfaces:**
+
 - Produces: a capture started by `recording_start` auto-expires after `CAPTURE_TTL_MS` (10min): it is removed from the active set and, when it was the last live capture, `{live:false}` is broadcast; `stopCapture` after expiry returns null (existing "no active capture" tool error covers messaging). The extension's `ServerResult` gains `turnEnd: () => releaseAllCaptures()` — a crashed agent turn stops 5Hz flushing at turn end, not at dev-server restart. Timer is `unref`'d and cleared in `dispose`.
 
 - [ ] **Step 1: Write the failing test** (fake timers): `startCapture()` → advance 10min → `stopCapture(captureId)` returns null and a `{live:false}` control message was emitted; also `releaseAllCaptures()` empties actives and emits `{live:false}` once.
@@ -534,49 +550,98 @@ git commit -m "fix(recorder): TTL live captures + release on turn end" -- packag
 ## Task 7: Console payload bound + renderer lifecycle (audit minors)
 
 **Files:**
-- Modify: `src/client/capture.ts` (console plugin options), `src/server.ts` (renderer idle-dispose + crash-relaunch)
-- Test: `test/runtime.test.ts` (extend, renderer relaunch path)
+
+- Modify: `src/client/capture.ts` (console plugin options)
+- Create: `src/server/renderer-cache.ts` (extracted so the relaunch logic is unit-testable via injected factory — the memo currently lives inside `server.ts`'s `.server()` closure where no test can reach it; injection is DI through the real seam, NOT module stubbing)
+- Modify: `src/server.ts` (consume `createRendererCache`)
+- Test: `test/renderer-cache.test.ts` (new)
 
 **Interfaces:**
+
 - Produces:
   - console plugin gains `stringifyOptions: {stringLengthLimit: 5000}` (one looping `console.error(hugeString)` can no longer produce 200 × unbounded events).
   - renderer: after `RENDERER_IDLE_MS = 5min` without a render, the cached browser is disposed and the cache slot cleared (next pull relaunches); a renderer whose launch resolved `null` (crash/missing playwright) is retried on next use instead of caching the dead result forever.
 
-- [ ] **Step 1: Write the failing test** — stub `createChromiumRenderer` at the runtime seam: first call resolves `null`, second resolves a fake renderer; assert the second `renderFrames`-consuming call gets the fake (relaunch), not the cached `null`.
-
-- [ ] **Step 2: Run — Expected: FAIL** (today `rendererState.value ??=` caches the null-resolving promise permanently).
-
-- [ ] **Step 3: Implement** — in `server.ts`:
+- [ ] **Step 1: Write the failing test** — `test/renderer-cache.test.ts`, fake timers, **injected** factory (no module stubbing):
 
 ```ts
-const RENDERER_IDLE_MS = 5 * 60 * 1000
-const rendererState: {value?: Promise<KeyframeRenderer | null>; idleTimer?: ReturnType<typeof setTimeout>} = {}
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
+import {createRendererCache} from '../src/server/renderer-cache.js'
+import type {KeyframeRenderer} from '../src/server/render.js'
 
-const disposeRenderer = async (): Promise<void> => {
-  const active = await rendererState.value?.catch(() => null)
-  rendererState.value = undefined
-  await active?.dispose()
-}
+const fakeRenderer = (): KeyframeRenderer => ({render: async () => [], dispose: async () => {}})
 
-const renderer = (): Promise<KeyframeRenderer | null> => {
-  if (rendererState.idleTimer) clearTimeout(rendererState.idleTimer)
-  rendererState.idleTimer = setTimeout(() => void disposeRenderer(), RENDERER_IDLE_MS)
-  rendererState.idleTimer.unref?.()
-  rendererState.value ??= createChromiumRenderer().then((created) => {
-    if (!created) rendererState.value = undefined
-    return created
+describe('renderer cache', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  it('retries after a null (crashed/missing) launch instead of caching it forever', async () => {
+    const launches: (KeyframeRenderer | null)[] = [null, fakeRenderer()]
+    const cache = createRendererCache(async () => launches.shift() ?? null)
+    expect(await cache.get()).toBeNull()
+    expect(await cache.get()).not.toBeNull()
   })
-  return rendererState.value
+
+  it('reuses a live renderer, disposes it after idle, relaunches on next use', async () => {
+    let launched = 0
+    const cache = createRendererCache(async () => {
+      launched += 1
+      return fakeRenderer()
+    })
+    await cache.get()
+    await cache.get()
+    expect(launched).toBe(1)
+    await vi.advanceTimersByTimeAsync(5 * 60 * 1000 + 1)
+    await cache.get()
+    expect(launched).toBe(2)
+  })
+})
+```
+
+- [ ] **Step 2: Run — Expected: FAIL** (module missing; today `rendererState.value ??=` in `server.ts` caches the null-resolving promise permanently).
+
+- [ ] **Step 3: Implement** — `src/server/renderer-cache.ts`:
+
+```ts
+import type {KeyframeRenderer} from './render.js'
+
+const RENDERER_IDLE_MS = 5 * 60 * 1000
+
+export type RendererCache = {get(): Promise<KeyframeRenderer | null>; dispose(): Promise<void>}
+
+export function createRendererCache(create: () => Promise<KeyframeRenderer | null>): RendererCache {
+  const state: {value?: Promise<KeyframeRenderer | null>; idleTimer?: ReturnType<typeof setTimeout>} = {}
+
+  const dispose = async (): Promise<void> => {
+    if (state.idleTimer) clearTimeout(state.idleTimer)
+    const active = await state.value?.catch(() => null)
+    state.value = undefined
+    await active?.dispose()
+  }
+
+  return {
+    get() {
+      if (state.idleTimer) clearTimeout(state.idleTimer)
+      state.idleTimer = setTimeout(() => void dispose(), RENDERER_IDLE_MS)
+      state.idleTimer.unref?.()
+      state.value ??= create().then((created) => {
+        if (!created) state.value = undefined
+        return created
+      })
+      return state.value
+    },
+    dispose,
+  }
 }
 ```
 
-`dispose` calls `disposeRenderer()` and clears the idle timer. In `capture.ts` add `stringifyOptions: {stringLengthLimit: 5000}` to `getRecordConsolePlugin`.
+In `server.ts`: `const rendererCache = createRendererCache(createChromiumRenderer)`; `renderer: () => rendererCache.get()` on the runtime; extension `dispose` awaits `rendererCache.dispose()` (replacing the inline `rendererState` block). In `capture.ts` add `stringifyOptions: {stringLengthLimit: 5000}` to `getRecordConsolePlugin`.
 
 - [ ] **Step 4: Run — Expected: PASS.**
 - [ ] **Step 5: Commit**
 
 ```bash
-git commit -m "fix(recorder): bound console payloads, renderer idle-dispose + relaunch" -- packages/extensions/recorder/src/client/capture.ts packages/extensions/recorder/src/server.ts packages/extensions/recorder/test/runtime.test.ts
+git commit -m "fix(recorder): bound console payloads, renderer idle-dispose + relaunch" -- packages/extensions/recorder/src/client/capture.ts packages/extensions/recorder/src/server.ts packages/extensions/recorder/src/server/renderer-cache.ts packages/extensions/recorder/test/renderer-cache.test.ts
 ```
 
 ---

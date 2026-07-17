@@ -14,6 +14,15 @@
 
 **Rev 3 changes** (disk-safety risk closure, 2026-07-18 — maintainer directive: never bloat the user's disk, gates + error handling everywhere): store `get` no longer lets `JSON.parse` throw on a corrupt/truncated file (guarded → `null` → renders as expired); `save` prunes **before** writing with the incoming payload reserved in the byte/count budget, so the 200MB/50-file caps are never exceeded even transiently; writes are **atomic** (`.tmp` + `rename`) so a crash mid-write can never leave a corrupt `.json`; `sweep` deletes stray `*.tmp` files at boot; every filesystem failure in `save` (mkdir/write/rename/prune) returns `{ok:false, reason:'io-error'}` instead of throwing — the router maps it to an error result and the panel toast covers it. Schema-drifted files are handled by design: `safeParse` failure → `null` → expired card, and TTL deletes them within 7 days.
 
+**Rev 4 changes** (deviation-proofing review against the live tree + test harnesses, 2026-07-18): the two harness-capability assumptions that would have forced mid-execution deviations are fixed at the plan level:
+
+1. **The extension-testkit host page has NO composer, thread, or send pipeline** (`packages/extension-testkit/src/host/host-runtime.tsx` — `attach` is `showAttachment`, which renders the File's text into a `role="note"` div labeled `Attachment <name>`; it mounts only composer-slot/Surface/views). Rev 3's Task 9/10 assertions ("card in composer", "send the message", "card in transcript", "reload survives") were unrunnable there. Rev 4: Task 8b (new) teaches the testkit host to render **real** attachment chips through ui-kit-chat's real `AttachmentProvider`/`AttachmentByMime`/`createDocumentAttachmentAdapter`/`collectAttachmentCards` (testkit consumes real widget plumbing — never forks; adds `@conciv/ui-kit-chat` to extension-testkit deps). Task 9 asserts against the real attach seam; Task 10 moves the full widget loop to the **embed IT harness** (`packages/embed/test` — real widget composer+thread over a real core via `makeApp`, fake harness with `__turnMessages` capture, `kit.rpc.navigation.set` deep-linking; recorder client added to the test fixture `global-entry.ts` and `@conciv/extension-recorder` to embed devDeps).
+2. **Same-millisecond id collision flake**: `${Date.now()}-${randomUUID()}` ids tie on the timestamp under fast saves, so "newest by name order" pruning became uuid-lottery order. Ids gain a per-store monotonic sequence: `${Date.now()}-${sequence.toString(36).padStart(6, '0')}-${randomUUID()}` — lexicographic order == save order even within one millisecond; `timestampOf` (TTL) still reads the first `-` segment.
+
+Also verified (no plan change needed): `HostApiProvider` **merges** parent context (`hooks.tsx:9`), so the Card's `useApiBase`/rpc survive under the chat pane's nested provider; recorder tool ctx is `{recorder: RecorderRuntime}` matching the attachment ctx so `RequiredContext` intersects cleanly; `getRecordConsolePlugin` accepts `stringifyOptions`; fake-harness `imageInput: false` only gates the image adapter, never document adapters; distill's existing tests use no `id: -1` fixtures so Task 2 stays red-first-clean.
+
+**Sign-off note (workspace deps added by this plan):** `@conciv/ui-kit-chat` → recorder (Task 8, was already in rev 2) and → extension-testkit (Task 8b); `@conciv/extension-recorder` → embed devDeps (Task 10). All workspace-internal, no new third-party packages.
+
 ## Global Constraints
 
 - Functions, not classes. No IIFEs. Zero code comments. No `any`/`as`/`@ts-ignore`/non-null `!`; `noUncheckedIndexedAccess`. Plan snippets must compile under strict — no casts.
@@ -235,7 +244,7 @@ git commit -m "fix(recorder): drop blocked targets and empty inputs from action 
   - Writes are **atomic**: write `<id>.json.tmp`, then `rename` to `<id>.json` — a crash mid-write never leaves a corrupt `.json` behind.
   - **Every** filesystem failure inside `save` (mkdir, prune stat, write, rename) is caught and returned as `{ok:false, reason:'io-error'}` — `save` never throws.
   - `get` never throws: read failure → `null`; **corrupt/unparseable JSON → `null`** (`JSON.parse` wrapped, then `safeParse`); schema drift → `null`. Callers already render `null` as expired.
-  - Ids are `` `${Date.now()}-${randomUUID()}` `` — lexicographic name order == recency (no mtime-tie flake), and `sweep`/prune sort by name.
+  - Ids are `` `${Date.now()}-${sequence.toString(36).padStart(6, '0')}-${randomUUID()}` `` with a per-store monotonic `sequence` counter — lexicographic name order == save order even when many saves land in the same millisecond (a bare timestamp+uuid id makes prune order a uuid lottery under fast saves — the 55-save prune test would flake). `timestampOf` (TTL) reads the segment before the first `-`, unaffected. `sweep`/prune sort by name.
   - Prune: keep newest `MAX_RECORDINGS` (50) AND total bytes ≤ `MAX_TOTAL_RECORDING_BYTES` (200MB), honoring the reserve. `sweep()` (called at server boot) additionally deletes files older than `RECORDING_TTL_MS` (7 days, from the id's timestamp prefix) **and deletes stray `*.tmp` files** (crash leftovers). All `stat`/`unlink` are `.catch`-guarded (concurrent-delete race).
 
 - [ ] **Step 1: Write the failing test**
@@ -403,6 +412,7 @@ async function clearStrayTmp(dir: string): Promise<void> {
 }
 
 export function createRecordingStore(dir: string): RecordingStore {
+  let sequence = 0
   return {
     async save(events) {
       if (events.length < 2) return {ok: false, reason: 'empty'}
@@ -412,7 +422,8 @@ export function createRecordingStore(dir: string): RecordingStore {
       try {
         await mkdir(dir, {recursive: true})
         await prune(dir, {bytes: payload.length, count: 1})
-        const recordingId = `${Date.now()}-${randomUUID()}`
+        sequence += 1
+        const recordingId = `${Date.now()}-${sequence.toString(36).padStart(6, '0')}-${randomUUID()}`
         const target = join(dir, `${recordingId}.json`)
         await writeFile(`${target}.tmp`, payload, 'utf8')
         await rename(`${target}.tmp`, target)
@@ -887,6 +898,63 @@ git commit -m "feat(recorder): RecordingCard with lazy play + full async state m
 
 ---
 
+## Task 8b: Testkit host renders real attachment chips (harness gap closure)
+
+**Files:**
+
+- Modify: `packages/extension-testkit/src/host/host-runtime.tsx`
+- Modify: `packages/extension-testkit/package.json` (add `"@conciv/ui-kit-chat": "workspace:^"` — testkit consumes the widget's REAL chip plumbing, never a fork)
+- Test: `packages/extensions/recorder/test/recording-card.it.test.ts` (drives the new host capability — doubles as the Card state-matrix IT)
+
+**Why:** the host page's `attach` is `showAttachment` (text into a `role="note"` div) — no card can ever render there, so Card behavior was untestable (the rev 3 plan would have deviated exactly like Plan 1's Task 8/10). This closes the gap with real components.
+
+**Interfaces:**
+
+- Produces: in `startHost`, when the extension-under-test registers attachment cards (`collectAttachmentCards([extension])` non-empty) and an attached File's `type` matches a card mime, `attach` renders — inside the existing `HostApiProvider` (real rpc/apiBase) — the REAL pending-chip pipeline instead of `showAttachment`:
+
+```tsx
+const cards = collectAttachmentCards([extension])
+const showCardAttachment = (file: File): void => {
+  const adapter = createDocumentAttachmentAdapter(file.type)
+  void Promise.resolve(adapter.add({file})).then((pending) => {
+    if (Symbol.asyncIterator in pending) return
+    const el = document.createElement('div')
+    el.setAttribute('data-testkit-attachment', file.name)
+    document.body.appendChild(el)
+    render(
+      () => (
+        <HostApiProvider rpc={rpc} apiBase={apiBase} toast={showToast}>
+          <AttachmentProvider value={pending}>
+            <AttachmentByMime cards={cards} />
+          </AttachmentProvider>
+        </HostApiProvider>
+      ),
+      el,
+    )
+  })
+}
+const attachFile = (file: File): void =>
+  cards.some((entry) => entry.mime === file.type) ? showCardAttachment(file) : showAttachment(file)
+```
+
+Pass `attach={attachFile}` in the provider. Unmatched mimes keep today's `role="note"` behavior (existing testkit users unaffected).
+
+- [ ] **Step 1: Write the failing test** — `recording-card.it.test.ts` via `getExtensionTestApi` (recorder server + client): interact with the page to produce ring events, save via the router (`api().callTool` or rpc `recordings.save` — or drive Task 9's button once it lands), then in the page call the host attach with a File of `RECORDER_MIME` containing `recordingRefJson({recordingId, poster})`. Assert with `api().page`:
+  - poster text + a `Play` button visible (idle state);
+  - click Play → the rrweb player mounts (`.rr-player` or the player container) — **playing** state over a real `recordings.get` fetch;
+  - attach a second File with a bogus `recordingId` → Play → `Recording expired.` visible (**expired** state, real `{expired:true}` from the real store).
+    (Loading is transient; the `empty` branch is unreachable via real saves — the store rejects `< 2` events — so those two stay code-only. Network-error state reuses `RecorderErrorNotice`, which the panel already renders; not separately IT'd.)
+- [ ] **Step 2: Run — Expected: FAIL** (`pnpm turbo run test --filter=@conciv/extension-recorder`) — host renders the note div, no card.
+- [ ] **Step 3: Implement** the host change per Interfaces (imports: `collectAttachmentCards` from `@conciv/extension`, `AttachmentProvider`, `AttachmentByMime`, `createDocumentAttachmentAdapter` from `@conciv/ui-kit-chat`).
+- [ ] **Step 4: Run — Expected: PASS**, plus `pnpm turbo run test --filter=@conciv/extension-testkit --filter=@conciv/extension-terminal --filter=@conciv/extension-whiteboard` (other testkit consumers stay green — unmatched mimes unchanged).
+- [ ] **Step 5: Commit**
+
+```bash
+git commit -m "feat(extension-testkit): host renders real attachment chips by mime" -- packages/extension-testkit/src/host/host-runtime.tsx packages/extension-testkit/package.json packages/extensions/recorder/test/recording-card.it.test.ts
+```
+
+---
+
 ## Task 9: `sendToAgent` — save + attach, with failure toast
 
 **Files:**
@@ -899,7 +967,11 @@ git commit -m "feat(recorder): RecordingCard with lazy play + full async state m
 - Consumes: `recordings.save` (Task 5), `recordingRefJson`/`recordingPoster`/`RECORDER_MIME` (Task 1), `host.attach(file)` + `toast` (existing, unchanged).
 - Produces: "Send to agent" saves the window and attaches `new File([recordingRefJson(ref)], 'Screen recording', {type: RECORDER_MIME})`; save failure (`error` result or thrown) toasts and does NOT leave the view; `.txt` path deleted.
 
-- [ ] **Step 1: Write the failing test** — boot `getExtensionTestApi({server, clientEntry})` as `capture.it.test.ts:10-14` does; interact with the page to produce events; open the recorder view and click "Send to agent" via `api().page`; assert the composer now shows the recording card (poster text visible) and no `recording.txt` chip.
+- [ ] **Step 1: Write the failing test** — boot `getExtensionTestApi({server, clientEntry})` as `capture.it.test.ts:10-14` does; interact with the page to produce events; open the recorder view (host `role="tab"` named `Recorder`) and click "Send to agent" via `api().page`. With Task 8b's host in place, assert:
+  - the REAL recording chip renders (poster text `Screen recording · N action…` + Play button) — because the attached File's type is `RECORDER_MIME`, which matches the registered card;
+  - no element labeled `Attachment recording.txt` exists (the old `.txt` path is gone);
+  - (payload sanity) the attached File carried raw ref JSON: the card resolved its ref from `file.text()`, which the poster text proves.
+    The failure-toast branch is NOT separately IT'd (forcing a real save failure from the page is race-prone): the typed `{error}` union is covered by Task 3's store tests + Task 5's router test, and the toast branch is four lines driven by that union — documented here per the tests-must-fail rule, not silently skipped.
 
 - [ ] **Step 2: Run — Expected: FAIL** (`pnpm turbo run test --filter=@conciv/extension-recorder`).
 
@@ -932,26 +1004,37 @@ git commit -m "feat(recorder): send-to-agent saves + attaches the recording, toa
 
 ---
 
-## Task 10: End-to-end IT + gates
+## Task 10: End-to-end IT (embed harness — the ONLY place the real widget loop exists) + gates
 
 **Files:**
 
-- Test: `packages/extensions/recorder/test/recording-attachment.it.test.ts` (testkit browser)
+- Modify: `packages/embed/test/fixtures/global-entry.ts` (add recorder client — test fixture, not product)
+- Modify: `packages/embed/package.json` (devDep `"@conciv/extension-recorder": "workspace:^"`)
+- Modify: `packages/embed/test/helpers/boot.ts` (`bootEmbedKit` gains `extensions?: AnyExtension[]` passed into `makeApp`)
+- Test: `packages/embed/test/recording-attachment.it.test.ts`
 
-- [ ] **Step 1: Write the failing test** — full loop in the testkit browser: interact → open recorder view → Send to agent → assert card in composer (poster visible) → send the message → assert card in transcript with a Play button → click Play → player mounts (skip if the testkit engine strips the panel; then assert poster card only and cover Play in Task 8's states via the composer instance) → reload the page → card still in transcript (durable fold) → assert the log text and keyframes are NOT visible as user text/images (modelOnly hidden).
-- [ ] **Step 2: Run — Expected: FAIL**, fix gaps in the owning task's files, re-run to PASS (`pnpm turbo run test --filter=@conciv/extension-recorder`).
-- [ ] **Step 3: Gates:** `pnpm typecheck`; `pnpm turbo run test --force`; `pnpm exec fallow audit --changed-since main --format json` — confirm the old `.txt` sendToAgent path, `encodeRecordingRef` (never created in rev 2 — verify no strays), and moved panel helpers have no dead remnants.
+**Why here:** the extension-testkit host has no composer/thread; the embed IT harness is the real widget (composer + transcript) over a real core (`makeApp`) with a fake harness whose `__turnMessages` captures exactly what the model receives, plus `kit.rpc.navigation.set` deep-linking (`embed.it.test.ts` precedent). The prebuilt global bundle is a self-contained iife (terminal client is bundled the same way — one module graph, no context-split risk), and turbo's `test` → `dependsOn: build` rebuilds it before ITs.
+
+- [ ] **Step 1: Write the failing test** — fixture entry becomes `mountConciv([terminal, recorder])` (recorder client import mirroring how `@conciv/it` imports it); boot `bootEmbedKit({extensions: [recorderServer]})`. With `browser.newPage()` (never `newContext()`; wait on `domcontentloaded`/UI signals, never `networkidle`):
+  - interact with the host page body to produce rrweb events;
+  - `kit.rpc.navigation.set` → `/panel/<session>/recorder`, open the widget, click **Send to agent**;
+  - composer chip shows the recording card (poster text visible), no `recording.txt` chip;
+  - send a message; wait for the fake-harness turn; assert `kit.harness.__turnMessages`: user content contains the action-log text and NO document part (keyframe images asserted **tolerantly** — present only when the Chromium renderer is available, `(keyframes skipped…)` note otherwise);
+  - transcript shows the card (poster + Play); the log text is NOT visible as user text; no `<img>` from modelOnly keyframes;
+  - reload the page → card still in the transcript (durable fold → attach merge).
+- [ ] **Step 2: Run — Expected: FAIL** (`pnpm turbo run test --filter=@conciv/embed`), fix gaps in the owning task's files, re-run to PASS. Existing embed ITs must stay green with recorder now in the bundle.
+- [ ] **Step 3: Gates:** `pnpm typecheck`; `pnpm turbo run test --force`; `pnpm exec fallow audit --changed-since main --format json` — confirm the old `.txt` sendToAgent path, `encodeRecordingRef` (never created — verify no strays), and moved panel helpers have no dead remnants.
 - [ ] **Step 4: Commit**
 
 ```bash
-git commit -m "test(recorder): end-to-end recording attachment (compose/send/reload)" -- packages/extensions/recorder/test/recording-attachment.it.test.ts
+git commit -m "test(embed): end-to-end recording attachment in the real widget (compose/send/reload)" -- packages/embed/test/fixtures/global-entry.ts packages/embed/package.json packages/embed/test/helpers/boot.ts packages/embed/test/recording-attachment.it.test.ts
 ```
 
 ---
 
 ## Self-Review
 
-**Spec + review coverage:** single-encode ref (review B2) → T1; filter names (B3) → global; distill cleanup → T2; capped store + TTL + stat-race guard + id-ordered prune (resource B3 + minors) → T3; typed `recordingParts`/`renderRecording`, recordings-with-construction (M11) → T4; router → T5; typed ctx expand, canonical `server/attachment.ts` (M9/M10 + minor) → T6; player/notices extraction → T7; Card: lazy Play (resource M4), loading/empty/error+retry/expired/playing (maintainer), TanStack Query utils (maintainer), pending ref from file (M1) → T8; sendToAgent failure toast (minor) → T9; e2e on the real testkit harness (M7) → T10.
+**Spec + review coverage:** single-encode ref (review B2) → T1; filter names (B3) → global; distill cleanup → T2; capped store + TTL + stat-race guard + id-ordered prune (resource B3 + minors) → T3; typed `recordingParts`/`renderRecording`, recordings-with-construction (M11) → T4; router → T5; typed ctx expand, canonical `server/attachment.ts` (M9/M10 + minor) → T6; player/notices extraction → T7; Card: lazy Play (resource M4), loading/empty/error+retry/expired/playing (maintainer), TanStack Query utils (maintainer), pending ref from file (M1) → T8; sendToAgent failure toast (minor) → T9 (typed union covered in T3/T5; toast branch documented untested); testkit host chip gap + Card state matrix on real server → T8b; full widget loop (compose/send/model projection/reload) on the embed harness → T10.
 
 **Placeholder scan:** T9/T10 Step 1 reference `capture.it.test.ts`'s real harness by file:line; T5's test names the `@orpc/server` `call` helper with a fallback discovery command. All product code is complete.
 
