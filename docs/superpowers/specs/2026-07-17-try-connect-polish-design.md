@@ -43,16 +43,18 @@ Behavior:
   wait for browser.
 - "Browser paired" resolves when core reports the first token-authenticated request
   via the new `onClientRequest` hook.
-- Node `ExperimentalWarning` (SQLite) suppressed via a `process.on('warning')` filter
-  in `bin.ts` that drops ExperimentalWarning only; other warnings still print.
+- Node `ExperimentalWarning` (SQLite) suppressed via the bin shebang
+  `#!/usr/bin/env -S node --disable-warning=ExperimentalWarning` (an in-process
+  `process.on('warning')` listener cannot suppress node's default stderr print).
+  Windows npm shims ignore shebang flags — the one warning line remains there; accepted.
 - SIGINT handler: clack outro line ("disconnected"), engine `stop()`, exit 0.
 - Non-TTY stdout (agent-driven runs, piped output): fall back to plain line logging —
   same content, no spinners/ANSI. The pair-page flow (agents running the command) must
   still produce greppable "connected" and "paired" lines.
-- `runConnect`'s `log` callback contract stays; the CLI layers presentation in `bin.ts`.
-  Structured events over strings: `runConnect` gains an optional `onEvent` callback
-  (`seeded`, `started`, `client-connected`) that `bin.ts` maps to clack UI; `log`
-  remains for plain-text consumers.
+- Structured events over strings: `ConnectOpts.log` is REPLACED by an optional
+  `onEvent` callback (`seeded`, `started`, `client-connected`); the CLI maps events to
+  clack UI (TTY) or the existing plain strings (non-TTY). v0 break, no other `log`
+  consumers exist.
 
 ## 2. Core hook
 
@@ -73,8 +75,8 @@ Guided numbered steps replacing the flat copy rows:
 3. **Approve Chrome's local-network prompt** — informational; the probe fetch itself
    triggers the dialog, and a denied permission is indistinguishable from
    core-not-running, so this step carries the explanatory copy instead of state.
-4. **Connected** — on probe success, panel shows a brief "Agent connected ✓" success
-   state (~1s), then the widget mounts as today.
+4. **Connected** — on probe success, the widget mounts immediately and the panel shows
+   an "Agent connected ✓" success state for ~800ms before hiding.
 
 Copy/tone rewrite (react-grab style): headline "Drive this page with your agent."
 Action-first sentences, one recommended path (agent prompt) with the manual command
@@ -87,18 +89,17 @@ already short-circuits straight to live when core is already up).
 
 ## Error handling
 
-- CLI: port exhaustion and unknown-harness errors render as clack `cancel` output with
-  the same message text as today; non-TTY keeps thrown-error behavior.
+- CLI: port exhaustion and unknown-harness errors keep citty's default thrown-error
+  rendering (same message text as today).
 - Panel: no new failure states — polling continues indefinitely; slow-hint at 60s
   unchanged.
 
 ## Testing
 
-- `packages/try`: unit tests for the event sequence (`onEvent` order: seeded → started;
-  `client-connected` after a token request), warning-filter behavior, non-TTY fallback
-  rendering. Existing connect tests keep passing (`log` contract unchanged).
-- `packages/core`: test that `onClientRequest` fires exactly once, only for
-  token-mounted requests.
-- `apps/site`: component tests for step progression (copy → step 1 done; probe success
-  → success flash → widget mount). Existing e2e (`apps/site` playwright) must stay
-  green; update selectors/copy assertions to the new panel text.
+- `packages/try`: tests for the event sequence (`onEvent` order: seeded → started;
+  `client-connected` after a token request) and the plain-line renderer (greppable
+  `connected:` line preserved). Warning suppression verified manually (shebang flag).
+- `packages/core`: test that `onClientRequest` fires exactly once on token requests.
+- `apps/site`: unit tests for the pure `stepStates` model (no component-test infra —
+  UI verified by the real-browser e2e). Existing e2e must stay green; the panel-hide
+  poll gets headroom for the 800ms flash.
