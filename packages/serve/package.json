@@ -1,6 +1,6 @@
 {
   "name": "@conciv/serve",
-  "version": "0.0.9",
+  "version": "0.0.11",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). conciv's @hono/node-server serve() wrapper — bakes overrideGlobalObjects:false so a co-hosted engine never clobbers the host's global Response/Request.",
   "keywords": [
     "conciv",

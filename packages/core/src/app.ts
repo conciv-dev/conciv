@@ -103,6 +103,7 @@ function composeRoutes(vars: CoreVars, rpc: ReturnType<typeof makeRpcRouter>) {
       await next()
     })
     .use(corsMiddleware())
+    .get('/health', (c) => c.json({ok: true, harness: vars.chat.harness.id}))
     .use('/rpc/*', rpcMiddleware(rpc))
     .route('/api/mcp', mcpApp)
 }
@@ -113,6 +114,7 @@ export type MadeApp = {
   app: AppType
   disposers: (() => void | Promise<void>)[]
   extensionContexts: Record<string, unknown>
+  closeDb: () => void
 }
 
 export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
@@ -267,5 +269,5 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       )
   })
 
-  return {app, disposers, extensionContexts}
+  return {app, disposers, extensionContexts, closeDb: () => db.$client.close()}
 }

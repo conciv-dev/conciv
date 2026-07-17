@@ -1,4 +1,5 @@
 import {Badge} from '@/components/ui/badge'
+import {TryLiveButton} from './try-widget'
 import {Demo} from './demo/demo'
 import {InstallChip} from './install-chip'
 
@@ -23,6 +24,7 @@ export function Hero() {
           building.
         </p>
         <InstallChip />
+        <TryLiveButton />
       </div>
       <Demo />
     </header>

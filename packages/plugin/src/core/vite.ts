@@ -6,15 +6,10 @@ import {resolveConfig} from '@conciv/core/config'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {installConcivBinShim} from './bin-shim.js'
 import {viteConfig, viteResolve, viteGraph, viteTransform, viteUrls, type ViteLike} from './vite-tools.js'
-import {EXTENSIONS_ROUTE, htmlTags, makeWidgetInject, type Middleware} from './widget-middleware.js'
+import {htmlTags, makeWidgetInject} from './widget-middleware.js'
 import {makeOpenInEditor} from './open-editor.js'
 import type {AnyExtension} from '@conciv/extension'
-import {
-  type Builtins,
-  EXTENSIONS_VIRTUAL_ID,
-  NO_BUILTINS,
-  loadServerExtensions,
-} from '@conciv/extension-compiler/extensions'
+import {type Builtins, NO_BUILTINS, loadServerExtensions} from '@conciv/extension-compiler/extensions'
 import {
   loadExtensionsModule,
   concivSolidConfig,
@@ -47,27 +42,6 @@ function mountWidget(server: ViteDevServer, apiBase: string, widgetConfig: Conci
     route: '',
     handle: makeWidgetInject(apiBase, widgetConfig),
   })
-  server.middlewares.use(makeExtensionsServe(server))
-}
-
-function makeExtensionsServe(server: ViteDevServer): Middleware {
-  return (req, res, next) => {
-    if ((req.url ?? '').split('?')[0] !== EXTENSIONS_ROUTE) {
-      next()
-      return
-    }
-    void server
-      .transformRequest(EXTENSIONS_VIRTUAL_ID)
-      .then((result) => {
-        if (!result) {
-          next()
-          return
-        }
-        res.setHeader('content-type', 'text/javascript')
-        res.end(result.code)
-      })
-      .catch(next)
-  }
 }
 
 function devOrigins(server: ViteDevServer): string[] {

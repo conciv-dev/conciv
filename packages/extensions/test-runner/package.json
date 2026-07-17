@@ -1,6 +1,6 @@
 {
   "name": "@conciv/extension-test-runner",
-  "version": "0.0.9",
+  "version": "0.0.11",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). The test-runner built-in extension: runner-agnostic adapters (vitest today; jest/node-test/playwright via the ChildRunnerSpec seam) exposed through the @conciv/extension contract — server routes, a test tool, and the live results card.",
   "keywords": [
     "conciv",

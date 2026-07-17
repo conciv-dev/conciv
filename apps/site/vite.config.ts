@@ -5,6 +5,7 @@ import {defineConfig, type Plugin} from 'vite'
 import tailwindcss from '@tailwindcss/vite'
 import mdx from 'fumadocs-mdx/vite'
 import conciv from '@conciv/it/plugin/vite'
+import {sourceAnnotations} from './src/lib/source-annotations'
 
 function dropWasmFromServerBundle(): Plugin {
   return {
@@ -23,6 +24,7 @@ export default defineConfig({
     port: 3001,
   },
   plugins: [
+    sourceAnnotations(import.meta.dirname),
     dropWasmFromServerBundle(),
     cloudflare({viteEnvironment: {name: 'ssr'}}),
     mdx(),

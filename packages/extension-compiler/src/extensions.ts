@@ -7,6 +7,7 @@ import {splitExtension} from './split-extension.js'
 
 export const EXTENSIONS_VIRTUAL_ID = 'virtual:conciv-extensions'
 export const EXTENSIONS_RESOLVED_ID = '\0' + EXTENSIONS_VIRTUAL_ID
+export const EXTENSIONS_ROUTE = '/@conciv/extensions.js'
 
 export type Builtins = {
   serverExtensions: readonly AnyExtension[]

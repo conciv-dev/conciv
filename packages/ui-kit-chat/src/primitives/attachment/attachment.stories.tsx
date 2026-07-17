@@ -5,7 +5,7 @@ import {ComposerProvider} from '../composer/composer-context.js'
 import type {CompleteAttachment} from './attachment-adapter.js'
 import {Attachment, AttachmentProvider} from './attachment.js'
 
-const meta: Meta = {title: 'primitives/Attachment'}
+const meta: Meta = {title: 'ui-kit-chat/primitives/Attachment'}
 export default meta
 type Story = StoryObj
 

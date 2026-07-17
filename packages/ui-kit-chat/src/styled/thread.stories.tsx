@@ -13,7 +13,7 @@ import {Thread} from './thread.js'
 import {Composer} from './composer.js'
 import {NowLine} from './now-line.js'
 
-const meta: Meta = {title: 'styled/Thread'}
+const meta: Meta = {title: 'ui-kit-chat/styled/Thread'}
 export default meta
 type Story = StoryObj
 

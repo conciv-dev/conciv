@@ -13,7 +13,7 @@ import {createSimpleImageAttachmentAdapter, type AttachmentAdapter} from '../att
 import {ComposerHandlersProvider} from './composer-handlers.js'
 import {Composer} from './composer.js'
 
-const meta: Meta = {title: 'primitives/Composer'}
+const meta: Meta = {title: 'ui-kit-chat/primitives/Composer'}
 export default meta
 type Story = StoryObj
 

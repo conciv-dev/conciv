@@ -1,6 +1,6 @@
 import {delegateEvents} from 'solid-js/web'
 import styles from '../styles.css?inline'
-import {registerWind4Properties} from '../lib/shadow.js'
+import {registerFonts, registerWind4Properties} from '../lib/shadow.js'
 
 const DELEGATED = [
   'focusin',
@@ -28,6 +28,7 @@ export function openPipWindow(opts: {title?: string; width?: number; height?: nu
   win.document.body.style.margin = '0'
 
   registerWind4Properties(win.document)
+  registerFonts(win.document)
 
   const host = win.document.createElement('div')
   host.setAttribute('data-pw-pip-host', '')

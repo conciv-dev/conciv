@@ -1,5 +1,33 @@
 # @conciv/extension-testkit
 
+## 0.0.11
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/contract@0.0.11
+  - @conciv/core@0.0.11
+  - @conciv/extension@0.0.11
+  - @conciv/extension-compiler@0.0.11
+  - @conciv/grab@0.0.11
+  - @conciv/harness-testkit@0.0.11
+  - @conciv/protocol@0.0.11
+  - @conciv/ui-kit-system@0.0.11
+
+## 0.0.10
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/contract@0.0.10
+  - @conciv/core@0.0.10
+  - @conciv/extension@0.0.10
+  - @conciv/extension-compiler@0.0.10
+  - @conciv/grab@0.0.10
+  - @conciv/harness-testkit@0.0.10
+  - @conciv/protocol@0.0.10
+  - @conciv/ui-kit-system@0.0.10
+
 ## 0.0.9
 
 ### Patch Changes

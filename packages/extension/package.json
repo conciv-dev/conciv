@@ -1,6 +1,6 @@
 {
   "name": "@conciv/extension",
-  "version": "0.0.9",
+  "version": "0.0.11",
   "description": "The conciv extension authoring contract: defineExtension/defineTool plus the SolidJS runtime context and typed useSlot/useContext hooks.",
   "keywords": [
     "conciv",

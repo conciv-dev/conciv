@@ -7,7 +7,7 @@ import {AttachmentProvider} from '../primitives/attachment/attachment.js'
 import {SAMPLE_IMAGE_BASE64, SAMPLE_IMAGE_MIME} from '../store/sample-image.fixtures.js'
 import {AttachmentUI} from './attachment-ui.js'
 
-const meta: Meta = {title: 'styled/AttachmentUI'}
+const meta: Meta = {title: 'ui-kit-chat/styled/AttachmentUI'}
 export default meta
 type Story = StoryObj
 

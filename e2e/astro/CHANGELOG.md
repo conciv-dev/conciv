@@ -1,5 +1,19 @@
 # conciv-e2e-astro
 
+## 0.0.4
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/it@0.0.11
+
+## 0.0.3
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/it@0.0.10
+
 ## 0.0.2
 
 ### Patch Changes

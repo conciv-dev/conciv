@@ -165,6 +165,10 @@ function RootChrome(props: {
   }
   const togglePanel = () => (panelOpen() ? closePanel() : void openPanel())
 
+  onMount(() => {
+    if (settings.defaultOpen && closedMatch()) void openPanel()
+  })
+
   let rootEl: HTMLDivElement | undefined
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key !== 'Escape') return

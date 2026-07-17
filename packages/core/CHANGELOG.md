@@ -1,5 +1,31 @@
 # @conciv/core
 
+## 0.0.11
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/contract@0.0.11
+  - @conciv/db@0.0.11
+  - @conciv/extension@0.0.11
+  - @conciv/harness@0.0.11
+  - @conciv/protocol@0.0.11
+  - @conciv/serve@0.0.11
+  - @conciv/tools@0.0.11
+
+## 0.0.10
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/contract@0.0.10
+  - @conciv/db@0.0.10
+  - @conciv/extension@0.0.10
+  - @conciv/harness@0.0.10
+  - @conciv/protocol@0.0.10
+  - @conciv/serve@0.0.10
+  - @conciv/tools@0.0.10
+
 ## 0.0.9
 
 ### Patch Changes

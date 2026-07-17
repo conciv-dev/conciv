@@ -3,7 +3,7 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {ActionBarMore} from './action-bar-more.js'
 
-const meta: Meta = {title: 'primitives/ActionBarMore'}
+const meta: Meta = {title: 'ui-kit-chat/primitives/ActionBarMore'}
 export default meta
 type Story = StoryObj
 

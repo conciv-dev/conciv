@@ -5,7 +5,7 @@ import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {Reasoning} from './reasoning.js'
 import {ChainOfThought} from './chain-of-thought.js'
 
-const meta: Meta = {title: 'styled/ChainOfThought'}
+const meta: Meta = {title: 'ui-kit-chat/styled/ChainOfThought'}
 export default meta
 type Story = StoryObj
 

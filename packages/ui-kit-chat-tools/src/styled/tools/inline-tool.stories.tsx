@@ -5,7 +5,7 @@ import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {EditInline, GrepInline, ReadInline, ToolCallInline} from './inline-tool.js'
 
-const meta: Meta = {title: 'styled/tools/InlineTool'}
+const meta: Meta = {title: 'ui-kit-chat-tools/styled/tools/InlineTool'}
 export default meta
 type Story = StoryObj
 

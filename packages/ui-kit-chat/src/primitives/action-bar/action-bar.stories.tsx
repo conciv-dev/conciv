@@ -10,7 +10,7 @@ import {Message} from '../message/message.js'
 import {ActionBar} from './action-bar.js'
 import {ActionHandlersProvider} from './action-handlers.js'
 
-const meta: Meta = {title: 'primitives/ActionBar'}
+const meta: Meta = {title: 'ui-kit-chat/primitives/ActionBar'}
 export default meta
 type Story = StoryObj
 
