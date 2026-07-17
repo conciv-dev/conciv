@@ -75,7 +75,7 @@ Also verified (no plan change needed): `HostApiProvider` **merges** parent conte
   - `parseRecordingRefJson(json: string): RecordingRef | null` — parses the **raw File text** (composer-pending path).
   - `recordingPoster(entries: ActionLogEntry[]): string`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import {describe, expect, it} from 'vitest'
@@ -116,9 +116,9 @@ describe('recording ref', () => {
 })
 ```
 
-- [ ] **Step 2: Run — Expected: FAIL** — `pnpm turbo run test --filter=@conciv/extension-recorder` — exports missing.
+- [x] **Step 2: Run — Expected: FAIL** — `pnpm turbo run test --filter=@conciv/extension-recorder` — exports missing.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 export const RECORDER_MIME = 'application/x-conciv-recorder'
@@ -157,9 +157,9 @@ export function recordingPoster(entries: ActionLogEntry[]): string {
 
 (`atob` exists in Node ≥ 16 and browsers; the server decode path runs in Node 22.)
 
-- [ ] **Step 4: Run — Expected: PASS.**
+- [x] **Step 4: Run — Expected: PASS.**
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -m "feat(recorder): recording ref/mime/poster helpers (single-encode)" -- packages/extensions/recorder/src/shared/protocol.ts packages/extensions/recorder/test/recording-ref.test.ts
