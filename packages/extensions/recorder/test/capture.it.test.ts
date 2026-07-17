@@ -64,15 +64,4 @@ describe('recorder end to end (real browser, real engine)', () => {
     expect(replay.reconstructedChildren).toBeGreaterThan(0)
     expect(replay.reconstructedText).toContain('Comment target')
   }, 120_000)
-
-  it('send-to-agent attaches the recorded action log to the composer', async () => {
-    await api().page.getByRole('tab', {name: 'Recorder'}).click()
-    const send = api().page.getByRole('button', {name: 'Send to agent'})
-    await send.waitFor({state: 'visible', timeout: 15_000})
-    await send.click()
-    const attachment = api().page.getByRole('note', {name: 'Attachment recording.txt'})
-    await attachment.waitFor({state: 'visible', timeout: 15_000})
-    await expect.poll(() => attachment.textContent()).toContain('Recorded user actions on the host page')
-    await expect.poll(() => attachment.textContent()).toContain('[click]')
-  }, 120_000)
 })

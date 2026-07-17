@@ -3,7 +3,7 @@ import {QueryClient, QueryClientProvider, useMutation, useQuery, useQueryClient}
 import {createTanstackQueryUtils} from '@orpc/tanstack-query'
 import {getHostApi, makeExtRpcClient} from '@conciv/extension'
 import {Button, Switch} from '@conciv/ui-kit-system'
-import {RECORDER_NAME, type ActionLogEntry, type RrwebEvent} from '../shared/protocol.js'
+import {RECORDER_MIME, RECORDER_NAME, recordingPoster, recordingRefJson, type RrwebEvent} from '../shared/protocol.js'
 import type {RecorderRouter} from '../server.js'
 import {mountPlayer} from './player.js'
 import {RecorderErrorNotice, RecorderNotice} from './notices.js'
@@ -50,11 +50,17 @@ function RecorderPanel(): JSX.Element {
     onCleanup(mountPlayer(container, events, skipIdle))
   }
 
-  const sendToAgent = (): void => {
+  const save = useMutation(() => utils.recordings.save.mutationOptions())
+
+  const sendToAgent = async (): Promise<void> => {
     const entries = log.data?.entries ?? []
-    const lines = entries.map((entry: ActionLogEntry) => `[${entry.kind}] ${entry.detail}`)
-    const actionLog = `Recorded user actions on the host page:\n${lines.join('\n')}`
-    attach(new File([actionLog], 'recording.txt', {type: 'text/plain'}))
+    const saved = await save.mutateAsync({}).catch(() => null)
+    if (!saved || 'error' in saved) {
+      toast('Could not save the recording — try again.')
+      return
+    }
+    const ref = recordingRefJson({recordingId: saved.recordingId, poster: recordingPoster(entries)})
+    attach(new File([ref], 'Screen recording', {type: RECORDER_MIME}))
     leaveView()
   }
 
@@ -68,7 +74,7 @@ function RecorderPanel(): JSX.Element {
                 <>
                   <div ref={replayRef(events)} class="flex flex-1 min-h-0 w-full items-start justify-center" />
                   <div class="flex gap-2 items-center">
-                    <Button size="sm" disabled={!log.isSuccess} onClick={sendToAgent}>
+                    <Button size="sm" disabled={!log.isSuccess} onClick={() => void sendToAgent()}>
                       Send to agent
                     </Button>
                     <Button

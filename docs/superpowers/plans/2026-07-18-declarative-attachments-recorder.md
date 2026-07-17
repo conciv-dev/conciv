@@ -967,15 +967,15 @@ git commit -m "feat(extension-testkit): host renders real attachment chips by mi
 - Consumes: `recordings.save` (Task 5), `recordingRefJson`/`recordingPoster`/`RECORDER_MIME` (Task 1), `host.attach(file)` + `toast` (existing, unchanged).
 - Produces: "Send to agent" saves the window and attaches `new File([recordingRefJson(ref)], 'Screen recording', {type: RECORDER_MIME})`; save failure (`error` result or thrown) toasts and does NOT leave the view; `.txt` path deleted.
 
-- [ ] **Step 1: Write the failing test** — boot `getExtensionTestApi({server, clientEntry})` as `capture.it.test.ts:10-14` does; interact with the page to produce events; open the recorder view (host `role="tab"` named `Recorder`) and click "Send to agent" via `api().page`. With Task 8b's host in place, assert:
+- [x] **Step 1: Write the failing test** — boot `getExtensionTestApi({server, clientEntry})` as `capture.it.test.ts:10-14` does; interact with the page to produce events; open the recorder view (host `role="tab"` named `Recorder`) and click "Send to agent" via `api().page`. With Task 8b's host in place, assert:
   - the REAL recording chip renders (poster text `Screen recording · N action…` + Play button) — because the attached File's type is `RECORDER_MIME`, which matches the registered card;
   - no element labeled `Attachment recording.txt` exists (the old `.txt` path is gone);
   - (payload sanity) the attached File carried raw ref JSON: the card resolved its ref from `file.text()`, which the poster text proves.
     The failure-toast branch is NOT separately IT'd (forcing a real save failure from the page is race-prone): the typed `{error}` union is covered by Task 3's store tests + Task 5's router test, and the toast branch is four lines driven by that union — documented here per the tests-must-fail rule, not silently skipped.
 
-- [ ] **Step 2: Run — Expected: FAIL** (`pnpm turbo run test --filter=@conciv/extension-recorder`).
+- [x] **Step 2: Run — Expected: FAIL** (`pnpm turbo run test --filter=@conciv/extension-recorder`).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 const save = useMutation(() => utils.recordings.save.mutationOptions())
@@ -995,8 +995,8 @@ const sendToAgent = async (): Promise<void> => {
 
 Button: `onClick={() => void sendToAgent()}`.
 
-- [ ] **Step 4: Run — Expected: PASS.**
-- [ ] **Step 5: Commit**
+- [x] **Step 4: Run — Expected: PASS.**
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -m "feat(recorder): send-to-agent saves + attaches the recording, toasts on failure" -- packages/extensions/recorder/src/client/panel-view.tsx packages/extensions/recorder/test/send-to-agent.it.test.ts
