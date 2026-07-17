@@ -1,6 +1,8 @@
 import {describe, it, expect} from 'vitest'
+import {EXTENSIONS_RESOLVED_ID} from '@conciv/extension-compiler/extensions'
 import type {Plugin} from 'vite'
 import {makeViteHook} from '../src/core/vite.js'
+import {EXTENSIONS_ROUTE} from '../src/core/widget-middleware.js'
 
 const ROOT = '/proj'
 
@@ -25,6 +27,15 @@ const reactPlugin: Plugin = {name: 'vite:react'}
 const tsdInjectSource: Plugin = {name: '@tanstack/devtools:inject-source'}
 
 describe('makeViteHook source injection', () => {
+  it('resolves the injected extensions script URL into the module graph', async () => {
+    const hook = makeViteHook({enabled: true})
+    const resolveId = hook.resolveId
+    const run = typeof resolveId === 'function' ? resolveId : resolveId?.handler
+    if (!run) throw new Error('conciv plugin has no resolveId')
+    const out = await run.call({} as never, `${EXTENSIONS_ROUTE}?v=1`, undefined as never, {} as never)
+    expect(out).toBe(EXTENSIONS_RESOLVED_ID)
+  })
+
   it('stamps data-conciv-source when no @tanstack/devtools source injector is present', () => {
     const out = transformViaHook([reactPlugin])
     expect(out?.code).toContain('data-conciv-source=')

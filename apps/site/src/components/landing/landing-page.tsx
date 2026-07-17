@@ -7,6 +7,7 @@ import {FeaturesSection} from './features-section'
 import {HowItWorks} from './how-it-works'
 import {SiteFooter} from './site-footer'
 import {SmoothScroll} from './smooth-scroll'
+import {TryWidget} from './try-widget'
 
 export function LandingPage() {
   return (
@@ -23,6 +24,7 @@ export function LandingPage() {
             <HowItWorks />
           </main>
           <SiteFooter />
+          <TryWidget />
         </div>
       </SmoothScroll>
     </LandingMotion>

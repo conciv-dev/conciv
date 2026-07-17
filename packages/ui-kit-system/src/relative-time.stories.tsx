@@ -2,7 +2,7 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, waitFor, within} from 'storybook/test'
 import {RelativeTime} from './relative-time.js'
 
-const meta: Meta<typeof RelativeTime> = {title: 'ui-kit/RelativeTime', component: RelativeTime}
+const meta: Meta<typeof RelativeTime> = {title: 'ui-kit-system/RelativeTime', component: RelativeTime}
 export default meta
 type Story = StoryObj<typeof RelativeTime>
 

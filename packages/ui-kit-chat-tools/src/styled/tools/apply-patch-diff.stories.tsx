@@ -5,7 +5,7 @@ import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {ApplyPatchDiff} from './apply-patch-diff.js'
 
-const meta: Meta = {title: 'styled/tools/ApplyPatchDiff'}
+const meta: Meta = {title: 'ui-kit-chat-tools/styled/tools/ApplyPatchDiff'}
 export default meta
 type Story = StoryObj
 

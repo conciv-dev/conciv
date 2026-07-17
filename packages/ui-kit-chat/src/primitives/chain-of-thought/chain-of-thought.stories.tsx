@@ -3,7 +3,7 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {ChainOfThought, useChainOfThought} from './chain-of-thought.js'
 
-const meta: Meta = {title: 'primitives/ChainOfThought'}
+const meta: Meta = {title: 'ui-kit-chat/primitives/ChainOfThought'}
 export default meta
 type Story = StoryObj
 

@@ -1,6 +1,6 @@
 {
   "name": "@conciv/solid-diffs",
-  "version": "0.0.9",
+  "version": "0.0.11",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). SolidJS wrappers around @pierre/diffs: thin Solid components over the framework-agnostic FileDiff / File web-component renderers (Shiki-highlighted diffs + code), reusable across the conciv UI.",
   "keywords": [
     "code-diff",
@@ -33,9 +33,6 @@
     "build": "vite build && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test": "vitest run",
-    "storybook": "storybook dev -p 6008",
-    "build-storybook": "storybook build",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only"
   },
@@ -43,14 +40,7 @@
     "@pierre/diffs": "^1.2.11"
   },
   "devDependencies": {
-    "@chromatic-com/storybook": "^5.2.1",
-    "@storybook/addon-a11y": "^10.5.0",
-    "@storybook/addon-docs": "^10.5.0",
-    "@storybook/addon-vitest": "^10.5.0",
     "@types/node": "^22.19.21",
-    "@vitest/browser-playwright": "4.1.10",
-    "@vitest/coverage-v8": "4.1.10",
-    "playwright": "^1.61.1",
     "solid-js": "^1.9.13",
     "storybook": "^10.5.0",
     "storybook-solidjs-vite": "^10.6.0",

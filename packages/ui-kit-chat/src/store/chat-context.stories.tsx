@@ -6,7 +6,7 @@ import {ChatProvider, useThread, useComposer} from './chat-context.js'
 import {storyConnection, createTextChunks, createReasoningChunks, createToolCallChunks} from './story-connection.js'
 import type {MessagePart} from '@tanstack/ai-client'
 
-const meta: Meta = {title: 'store/ChatProvider'}
+const meta: Meta = {title: 'ui-kit-chat/store/ChatProvider'}
 export default meta
 type Story = StoryObj
 

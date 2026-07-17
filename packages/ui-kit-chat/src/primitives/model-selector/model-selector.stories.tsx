@@ -3,7 +3,7 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {ModelSelector, type ModelOption} from './model-selector.js'
 
-const meta: Meta = {title: 'primitives/ModelSelector'}
+const meta: Meta = {title: 'ui-kit-chat/primitives/ModelSelector'}
 export default meta
 type Story = StoryObj
 

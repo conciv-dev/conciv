@@ -3,7 +3,7 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, waitFor, within} from 'storybook/test'
 import {NowLine} from './now-line.js'
 
-const meta: Meta = {title: 'styled/NowLine'}
+const meta: Meta = {title: 'ui-kit-chat/styled/NowLine'}
 export default meta
 type Story = StoryObj
 

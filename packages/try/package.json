@@ -1,0 +1,57 @@
+{
+  "name": "@conciv/try",
+  "version": "0.0.11",
+  "description": "Try conciv live on conciv.dev with the agent already on your machine: `npx @conciv/try --token <token>` boots a token-gated, loopback-only conciv core powered by your own agent.",
+  "keywords": [
+    "ai-agent",
+    "cli",
+    "conciv"
+  ],
+  "homepage": "https://conciv.dev",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/try"
+  },
+  "bin": {
+    "conciv-try": "./dist/bin.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/connect.d.ts",
+      "import": "./dist/connect.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown && chmod +x dist/bin.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only"
+  },
+  "dependencies": {
+    "@conciv/core": "workspace:^",
+    "@conciv/extension-terminal": "workspace:^",
+    "@conciv/harness": "workspace:^",
+    "@conciv/protocol": "workspace:^",
+    "citty": "^0.2.2"
+  },
+  "devDependencies": {
+    "@conciv/extension": "workspace:^",
+    "@conciv/harness-testkit": "workspace:^",
+    "@types/node": "^22.19.21",
+    "tsdown": "^0.22.4",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  }
+}

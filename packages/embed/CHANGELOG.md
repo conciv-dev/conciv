@@ -1,5 +1,39 @@
 # @conciv/embed
 
+## 0.0.11
+
+### Patch Changes
+
+- Updated dependencies [[`5f76cc2`](https://github.com/conciv-dev/conciv/commit/5f76cc2d14ae93265f8c72b3eb6d5254abe3bb59)]:
+  - @conciv/solid-streamdown@0.0.11
+  - @conciv/ui-kit-chat@0.0.11
+  - @conciv/ui-kit-chat-tools@0.0.11
+  - @conciv/client@0.0.11
+  - @conciv/contract@0.0.11
+  - @conciv/extension@0.0.11
+  - @conciv/grab@0.0.11
+  - @conciv/mascot@0.0.11
+  - @conciv/protocol@0.0.11
+  - @conciv/storage-history@0.0.11
+  - @conciv/ui-kit-system@0.0.11
+
+## 0.0.10
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/client@0.0.10
+  - @conciv/contract@0.0.10
+  - @conciv/extension@0.0.10
+  - @conciv/grab@0.0.10
+  - @conciv/mascot@0.0.10
+  - @conciv/protocol@0.0.10
+  - @conciv/solid-streamdown@0.0.10
+  - @conciv/storage-history@0.0.10
+  - @conciv/ui-kit-chat@0.0.10
+  - @conciv/ui-kit-chat-tools@0.0.10
+  - @conciv/ui-kit-system@0.0.10
+
 ## 0.0.9
 
 ### Patch Changes

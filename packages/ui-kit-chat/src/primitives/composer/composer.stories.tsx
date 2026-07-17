@@ -2,15 +2,18 @@ import {createSignal, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, fn, within, userEvent, waitFor} from 'storybook/test'
 import {useChat} from '@tanstack/ai-solid'
+import type {MultimodalContent} from '@tanstack/ai-client'
 import {ChatProvider} from '../../store/chat-context.js'
 import {storyConnection, createTextChunks} from '../../store/story-connection.js'
 import {Thread} from '../thread/thread.js'
 import {Message} from '../message/message.js'
 import {QueueItem, type QueuedMessage} from '../queue-item/queue-item.js'
+import {Attachment} from '../attachment/attachment.js'
+import {createSimpleImageAttachmentAdapter, type AttachmentAdapter} from '../attachment/attachment-adapter.js'
 import {ComposerHandlersProvider} from './composer-handlers.js'
 import {Composer} from './composer.js'
 
-const meta: Meta = {title: 'primitives/Composer'}
+const meta: Meta = {title: 'ui-kit-chat/primitives/Composer'}
 export default meta
 type Story = StoryObj
 
@@ -156,5 +159,97 @@ export const QueueMapsPendingMessages: Story = {
     if (firstRemove) await userEvent.click(firstRemove)
     await waitFor(() => expect(c.queryByText('also add a test')).toBeNull())
     await expect(c.getByText('and update the docs')).toBeVisible()
+  },
+}
+
+function AttachmentChip(): JSX.Element {
+  return (
+    <Attachment.Root class="flex gap-1 items-center">
+      <Attachment.Name />
+      <Attachment.Remove>Remove</Attachment.Remove>
+    </Attachment.Root>
+  )
+}
+
+function AttachmentComposerApp(props: {
+  adapter: AttachmentAdapter
+  onSend: (content: string | MultimodalContent) => void
+}): JSX.Element {
+  const chat = useChat({connection: storyConnection({chunks: createTextChunks('unused')})})
+  return (
+    <ChatProvider chat={chat}>
+      <ComposerHandlersProvider value={{onSend: props.onSend}}>
+        <Composer.Root attachmentAdapter={props.adapter} class="flex flex-col gap-2">
+          <Composer.Attachments component={AttachmentChip} />
+          <Composer.Input aria-label="Attachment message" />
+          <Composer.AddAttachment>Add image</Composer.AddAttachment>
+          <Composer.Send>Send attachment</Composer.Send>
+        </Composer.Root>
+      </ComposerHandlersProvider>
+    </ChatProvider>
+  )
+}
+
+const removeAttachmentSpy = fn(async () => {})
+const attachmentSendSpy = fn()
+const simpleImageAdapter = createSimpleImageAttachmentAdapter()
+const trackedImageAdapter: AttachmentAdapter = {...simpleImageAdapter, remove: removeAttachmentSpy}
+
+export const AttachmentAdapterLifecycle: Story = {
+  render: () => <AttachmentComposerApp adapter={trackedImageAdapter} onSend={attachmentSendSpy} />,
+  play: async ({canvasElement}) => {
+    removeAttachmentSpy.mockClear()
+    attachmentSendSpy.mockClear()
+    const c = within(canvasElement)
+    const fileInput = canvasElement.querySelector<HTMLInputElement>('input[type="file"]')
+    if (!fileInput) throw new Error('File input not found')
+    await expect(fileInput).toHaveAttribute('accept', 'image/*')
+
+    await userEvent.upload(fileInput, new File(['not an image'], 'notes.txt', {type: 'text/plain'}), {
+      applyAccept: false,
+    })
+    await expect(c.queryByText('notes.txt')).toBeNull()
+
+    await userEvent.upload(fileInput, new File(['first'], 'photo.png', {type: 'image/png'}))
+    await waitFor(() => expect(c.getByText('photo.png')).toBeVisible())
+    await userEvent.click(c.getByRole('button', {name: 'Remove photo.png'}))
+    await waitFor(() => expect(c.queryByText('photo.png')).toBeNull())
+    await expect(removeAttachmentSpy).toHaveBeenCalledTimes(1)
+
+    await userEvent.upload(fileInput, new File(['image bytes'], 'send.png', {type: 'image/png'}))
+    await userEvent.type(c.getByLabelText('Attachment message'), 'describe this')
+    await userEvent.click(c.getByRole('button', {name: 'Send attachment'}))
+    await waitFor(() => expect(attachmentSendSpy).toHaveBeenCalledTimes(1))
+    await expect(attachmentSendSpy).toHaveBeenCalledWith({
+      content: [
+        {type: 'text', content: 'describe this'},
+        {type: 'image', source: {type: 'data', value: 'aW1hZ2UgYnl0ZXM=', mimeType: 'image/png'}},
+      ],
+    })
+    await expect(c.queryByText('send.png')).toBeNull()
+  },
+}
+
+const failedAttachmentSendSpy = fn()
+const failingImageAdapter: AttachmentAdapter = {
+  ...createSimpleImageAttachmentAdapter(),
+  send: async () => {
+    throw new Error('upload unavailable')
+  },
+}
+
+export const AttachmentSendFailureRestoresDraft: Story = {
+  render: () => <AttachmentComposerApp adapter={failingImageAdapter} onSend={failedAttachmentSendSpy} />,
+  play: async ({canvasElement}) => {
+    failedAttachmentSendSpy.mockClear()
+    const c = within(canvasElement)
+    const fileInput = canvasElement.querySelector<HTMLInputElement>('input[type="file"]')
+    if (!fileInput) throw new Error('File input not found')
+    await userEvent.upload(fileInput, new File(['image'], 'retry.png', {type: 'image/png'}))
+    await userEvent.type(c.getByLabelText('Attachment message'), 'keep this draft')
+    await userEvent.click(c.getByRole('button', {name: 'Send attachment'}))
+    await waitFor(() => expect(c.getByLabelText('Attachment message')).toHaveValue('keep this draft'))
+    await expect(c.getByText('retry.png').closest('[data-attachment]')).toHaveAttribute('data-status', 'incomplete')
+    await expect(failedAttachmentSendSpy).not.toHaveBeenCalled()
   },
 }

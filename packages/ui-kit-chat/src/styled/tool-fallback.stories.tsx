@@ -5,7 +5,7 @@ import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {ToolFallback} from './tool-fallback.js'
 
-const meta: Meta = {title: 'styled/ToolFallback'}
+const meta: Meta = {title: 'ui-kit-chat/styled/ToolFallback'}
 export default meta
 type Story = StoryObj
 

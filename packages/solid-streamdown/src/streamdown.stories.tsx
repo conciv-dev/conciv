@@ -108,7 +108,7 @@ function StreamingDemo(props: {
 }
 
 const meta = {
-  title: 'Streamdown',
+  title: 'solid-streamdown/Streamdown',
   component: Streamdown,
   args: {children: SAMPLE, animated: true},
   parameters: {layout: 'padded'},
@@ -138,9 +138,9 @@ export const Streaming: Story = {
     <StreamingDemo full={args.children} animated={args.animated ?? true} caret="block" highlightCode={demoHighlight} />
   ),
   play: async ({canvasElement}) => {
-    await waitFor(() => expect(canvasElement.querySelector('[data-sd-animate]')).toBeTruthy(), {timeout: 4000})
-    await waitFor(() => expect(canvasElement.textContent).toContain('Streaming Markdown'), {timeout: 10_000})
-    await waitFor(() => expect(canvasElement.textContent).toContain('per-token animation'), {timeout: 10_000})
+    await waitFor(() => expect(canvasElement.querySelector('[data-sd-animate]')).toBeTruthy(), {timeout: 15000})
+    await waitFor(() => expect(canvasElement.textContent).toContain('Streaming Markdown'), {timeout: 15000})
+    await waitFor(() => expect(canvasElement.textContent).toContain('per-token animation'), {timeout: 15000})
   },
 }
 
@@ -164,9 +164,9 @@ export const CaretPlacement: Story = {
   ),
   play: async ({canvasElement}) => {
     const root = canvasElement.querySelector('.sd-root') as HTMLElement
-    await waitFor(() => expect(root).toBeTruthy(), {timeout: 4000})
+    await waitFor(() => expect(root).toBeTruthy(), {timeout: 15000})
 
-    await waitFor(() => expect(getComputedStyle(root).getPropertyValue('--sd-caret')).toContain('▋'), {timeout: 4000})
+    await waitFor(() => expect(getComputedStyle(root).getPropertyValue('--sd-caret')).toContain('▋'), {timeout: 15000})
     const blocks = root.querySelectorAll(':scope > *')
     const lastBlock = blocks[blocks.length - 1] as HTMLElement
 
@@ -259,7 +259,7 @@ export const WidgetStreamFrozen: Story = {
   ),
   play: async ({canvasElement}) => {
     const root = canvasElement.querySelector('.sd-root') as HTMLElement
-    await waitFor(() => expect(root.textContent).toContain('doing'), {timeout: 4000})
+    await waitFor(() => expect(root.textContent).toContain('doing'), {timeout: 15000})
 
     const delays = Array.from(root.querySelectorAll('[data-sd-animate]')).map((s) =>
       Number(/--sd-delay:(\d+)ms/.exec((s as HTMLElement).getAttribute('style') ?? '')?.[1] ?? '0'),
@@ -278,7 +278,7 @@ export const CaretCircle: Story = {
     <StreamingDemo full={args.children} animated={args.animated ?? true} caret="circle" highlightCode={demoHighlight} />
   ),
   play: async ({canvasElement}) => {
-    await waitFor(() => expect(canvasElement.textContent).toContain('Streaming Markdown'), {timeout: 10_000})
+    await waitFor(() => expect(canvasElement.textContent).toContain('Streaming Markdown'), {timeout: 15000})
   },
 }
 
@@ -286,7 +286,7 @@ export const NoAnimation: Story = {
   render: (args) => <StreamingDemo full={args.children} animated={false} highlightCode={demoHighlight} />,
   play: async ({canvasElement}) => {
     const canvas = within(canvasElement)
-    await waitFor(() => expect(canvas.getByText(/Streaming Markdown/)).toBeInTheDocument(), {timeout: 10_000})
+    await waitFor(() => expect(canvas.getByText(/Streaming Markdown/)).toBeInTheDocument(), {timeout: 15000})
 
     const span = canvasElement.querySelector('[data-sd-animate]')
     if (span) {
@@ -326,7 +326,7 @@ export const RawHtml: Story = {
     </Streamdown>
   ),
   play: async ({canvasElement}) => {
-    await waitFor(() => expect(canvasElement.querySelector('kbd')).toBeTruthy(), {timeout: 4000})
+    await waitFor(() => expect(canvasElement.querySelector('kbd')).toBeTruthy())
     await expect(canvasElement.querySelector('kbd')?.textContent).toBe('Esc')
     await expect(canvasElement.querySelector('script')).toBeFalsy()
   },

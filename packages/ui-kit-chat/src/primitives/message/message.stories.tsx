@@ -9,7 +9,7 @@ import {Thread} from '../thread/thread.js'
 import {Attachment} from '../attachment/attachment.js'
 import {Message} from './message.js'
 
-const meta: Meta = {title: 'primitives/Message'}
+const meta: Meta = {title: 'ui-kit-chat/primitives/Message'}
 export default meta
 type Story = StoryObj
 

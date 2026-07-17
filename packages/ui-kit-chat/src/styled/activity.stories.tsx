@@ -4,7 +4,7 @@ import type {JSX} from 'solid-js'
 import type {MessagePart, ToolCallPart, UIMessage} from '@tanstack/ai-client'
 import {Activity} from './activity.js'
 
-const meta: Meta = {title: 'styled/Activity'}
+const meta: Meta = {title: 'ui-kit-chat/styled/Activity'}
 export default meta
 type Story = StoryObj
 
@@ -27,7 +27,7 @@ function result(toolCallId: string, state: 'complete' | 'error'): MessagePart {
 const label = (part: ToolCallPart): string => part.name.replace(/^mcp__.+?__/, '').replaceAll('_', ' ')
 
 function frame(children: JSX.Element): JSX.Element {
-  return <div class="p-3 w-96 h-96 flex flex-col [background:var(--chat-bg)]">{children}</div>
+  return <div class="p-3 flex flex-col h-96 w-96 [background:var(--chat-bg)]">{children}</div>
 }
 
 const settledMessages: UIMessage[] = [

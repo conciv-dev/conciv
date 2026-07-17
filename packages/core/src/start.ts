@@ -1,4 +1,5 @@
 import {serveHono} from '@conciv/serve'
+import {Hono} from 'hono'
 import getPort from 'get-port'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
@@ -20,6 +21,7 @@ export type StartOpts = {
   port?: number
 
   allowedOrigins?: string[]
+  accessToken?: string
 
   extensions?: AnyExtension[]
   harness?: HarnessAdapter
@@ -72,17 +74,29 @@ export async function start(opts: StartOpts): Promise<Engine> {
     harnessEnv,
     allowedOrigins: opts.allowedOrigins,
   }
-  const {app, disposers, extensionContexts} = await makeApp(appOpts)
+  const {app, disposers, extensionContexts, closeDb} = await makeApp(appOpts)
 
   const requestedPort = opts.port ?? (await getPort())
-  const {port, close} = await serveHono({fetch: app.fetch, port: requestedPort})
+  const served = opts.accessToken ? new Hono().mount(`/t/${opts.accessToken}`, app.fetch) : app
+  const dispose = async (): Promise<void> => {
+    await Promise.all(disposers.map((runDispose) => runDispose()))
+    closeDb()
+  }
+  let serving: Awaited<ReturnType<typeof serveHono>>
+  try {
+    serving = await serveHono({fetch: served.fetch.bind(served), port: requestedPort})
+  } catch (error) {
+    await dispose()
+    throw error
+  }
+  const {port, close} = serving
   portRef.port = port
   return {
     port,
     cfg,
     extensionContexts,
     stop: async () => {
-      await Promise.all(disposers.map((dispose) => dispose()))
+      await dispose()
       await close()
     },
   }

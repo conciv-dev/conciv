@@ -5,13 +5,25 @@ export type {StreamChunk, UIMessage, MessagePart} from '@tanstack/ai'
 
 export const CONCIV_SESSION_HEADER = 'conciv-session-id'
 
-export const ChatContentPartSchema = z
-  .object({
-    type: z.string(),
-    content: z.string().optional(),
-    source: z.object({type: z.string(), mimeType: z.string().optional(), value: z.string()}).loose().optional(),
-  })
-  .loose()
+const MAX_IMAGE_BASE64_LENGTH = 27_962_028
+const Base64Image = z
+  .string()
+  .min(1)
+  .max(MAX_IMAGE_BASE64_LENGTH)
+  .regex(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/)
+
+export const ChatContentPartSchema = z.discriminatedUnion('type', [
+  z.object({type: z.literal('text'), content: z.string()}).loose(),
+  z
+    .object({
+      type: z.literal('image'),
+      source: z
+        .object({type: z.literal('data'), mimeType: z.string().regex(/^image\/[A-Za-z0-9.+-]+$/), value: Base64Image})
+        .loose(),
+    })
+    .loose(),
+])
+export type ChatContentPart = z.infer<typeof ChatContentPartSchema>
 
 export const ChatMessageSchema = z
   .object({
@@ -95,7 +107,12 @@ export const ChatModelsSchema = z.object({
   models: z.array(HarnessModelSchema),
   defaultModel: z.string().nullable(),
 
-  harness: z.object({id: z.string(), name: z.string(), canLaunch: z.boolean()}),
+  harness: z.object({
+    id: z.string(),
+    name: z.string(),
+    canLaunch: z.boolean(),
+    imageInput: z.union([z.literal('native'), z.literal('fileRef'), z.literal(false)]),
+  }),
 })
 export type HarnessModelInfo = z.infer<typeof HarnessModelSchema>
 export type ChatModels = z.infer<typeof ChatModelsSchema>

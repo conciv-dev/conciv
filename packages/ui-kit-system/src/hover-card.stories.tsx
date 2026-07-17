@@ -2,7 +2,7 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {HoverCard} from './hover-card.js'
 
-const meta: Meta<typeof HoverCard> = {title: 'ui-kit/HoverCard', component: HoverCard}
+const meta: Meta<typeof HoverCard> = {title: 'ui-kit-system/HoverCard', component: HoverCard}
 export default meta
 type Story = StoryObj<typeof HoverCard>
 

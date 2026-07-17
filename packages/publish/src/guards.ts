@@ -13,6 +13,7 @@ const PUBLIC_PACKAGES = [
   '@conciv/it',
   '@conciv/plugin',
   '@conciv/cli',
+  '@conciv/try',
   '@conciv/core',
   '@conciv/serve',
   '@conciv/harness',

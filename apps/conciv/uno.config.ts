@@ -1,4 +1,4 @@
-import {presetAidx} from '@conciv/uno-preset'
+import {presetConciv} from '@conciv/uno-preset'
 import {defineConfig} from 'unocss'
 
 export default defineConfig({
@@ -15,5 +15,5 @@ export default defineConfig({
     ],
   },
 
-  presets: [presetAidx()],
+  presets: [presetConciv()],
 })

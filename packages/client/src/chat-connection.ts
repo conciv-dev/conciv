@@ -1,6 +1,7 @@
 import type {ModelMessage, StreamChunk, UIMessage} from '@tanstack/ai'
 import type {SubscribeConnectionAdapter} from '@tanstack/ai-solid'
 import type {RpcClient} from '@conciv/contract'
+import type {ChatContentPart} from '@conciv/protocol/chat-types'
 
 export type ChatConnectionOptions = {retryDelayMs?: number; onRetry?: (error: unknown) => void}
 
@@ -11,9 +12,51 @@ function textOf(message: UIMessage | ModelMessage): string {
   return typeof message.content === 'string' ? message.content : ''
 }
 
-function lastUserText(messages: Array<UIMessage> | Array<ModelMessage>): string {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+type ImageContentPart = Extract<ChatContentPart, {type: 'image'}>
+
+function imageSource(source: unknown): ImageContentPart['source'] | undefined {
+  if (
+    !isRecord(source) ||
+    source.type !== 'data' ||
+    typeof source.value !== 'string' ||
+    typeof source.mimeType !== 'string' ||
+    source.mimeType.length === 0
+  )
+    return undefined
+  return {type: 'data', value: source.value, mimeType: source.mimeType}
+}
+
+function partContent(part: unknown): ChatContentPart[] {
+  if (!isRecord(part)) return []
+  if (part.type === 'text' && typeof part.content === 'string') return [{type: 'text', content: part.content}]
+  if (part.type !== 'image') return []
+  const source = imageSource(part.source)
+  return source ? [{type: 'image', source}] : []
+}
+
+function contentFromParts(parts: ChatContentPart[], fallback: string): string | ChatContentPart[] {
+  if (parts.length === 0) return fallback
+  if (parts.every((part) => part.type === 'text')) return parts.map((part) => part.content ?? '').join('\n')
+  return parts
+}
+
+function contentOf(message: UIMessage | ModelMessage): string | ChatContentPart[] {
+  if ('parts' in message) {
+    const parts = message.parts.flatMap(partContent)
+    return contentFromParts(parts, textOf(message))
+  }
+  if (typeof message.content === 'string') return message.content
+  if (Array.isArray(message.content)) return contentFromParts(message.content.flatMap(partContent), '')
+  return ''
+}
+
+function lastUserContent(messages: Array<UIMessage> | Array<ModelMessage>): string | ChatContentPart[] {
   const last = messages[messages.length - 1]
-  return last ? textOf(last) : ''
+  return last ? contentOf(last) : ''
 }
 
 function aborted(signal: AbortSignal | undefined): boolean {
@@ -68,7 +111,7 @@ export function chatConnection(
   return {
     subscribe: (abortSignal) => attachLoop(rpc, sessionId, options, abortSignal),
     send: async (messages, _data, abortSignal) => {
-      await rpc.chat.send({sessionId, text: lastUserText(messages)}, {signal: abortSignal})
+      await rpc.chat.send({sessionId, content: lastUserContent(messages)}, {signal: abortSignal})
     },
   }
 }

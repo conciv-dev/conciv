@@ -1,5 +1,21 @@
 # nextjs-app
 
+## 0.1.11
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/embed@0.0.11
+  - @conciv/it@0.0.11
+
+## 0.1.10
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/embed@0.0.10
+  - @conciv/it@0.0.10
+
 ## 0.1.9
 
 ### Patch Changes

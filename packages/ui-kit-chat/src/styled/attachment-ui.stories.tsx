@@ -1,36 +1,45 @@
 import {createSignal, For, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
-import {ComposerProvider, type AttachmentDraft} from '../primitives/composer/composer-context.js'
+import {ComposerProvider} from '../primitives/composer/composer-context.js'
+import type {CompleteAttachment} from '../primitives/attachment/attachment-adapter.js'
 import {AttachmentProvider} from '../primitives/attachment/attachment.js'
 import {SAMPLE_IMAGE_BASE64, SAMPLE_IMAGE_MIME} from '../store/sample-image.fixtures.js'
 import {AttachmentUI} from './attachment-ui.js'
 
-const meta: Meta = {title: 'styled/AttachmentUI'}
+const meta: Meta = {title: 'ui-kit-chat/styled/AttachmentUI'}
 export default meta
 type Story = StoryObj
 
-const SEED: AttachmentDraft[] = [
+const SEED: CompleteAttachment[] = [
   {
     id: 'a',
+    type: 'image',
     name: 'diagram.png',
-    part: {type: 'image', source: {type: 'data', value: SAMPLE_IMAGE_BASE64, mimeType: SAMPLE_IMAGE_MIME}},
+    content: [{type: 'image', source: {type: 'data', value: SAMPLE_IMAGE_BASE64, mimeType: SAMPLE_IMAGE_MIME}}],
+    status: {type: 'complete'},
   },
   {
     id: 'b',
+    type: 'document',
     name: 'notes.pdf',
-    part: {type: 'document', source: {type: 'data', value: '', mimeType: 'application/pdf'}},
+    content: [{type: 'document', source: {type: 'data', value: '', mimeType: 'application/pdf'}}],
+    status: {type: 'complete'},
   },
 ]
 
 function Frame(): JSX.Element {
-  const [attachments, setAttachments] = createSignal<AttachmentDraft[]>(SEED)
+  const [attachments, setAttachments] = createSignal<CompleteAttachment[]>(SEED)
   return (
     <ComposerProvider
       value={{
         attachments,
-        addAttachment: (draft) => setAttachments((prev) => [...prev, draft]),
-        removeAttachment: (id) => setAttachments((prev) => prev.filter((draft) => draft.id !== id)),
+        attachmentAdapter: () => undefined,
+        addAttachment: async () => {},
+        removeAttachment: async (id) => {
+          setAttachments((prev) => prev.filter((attachment) => attachment.id !== id))
+        },
+        sendingAttachments: () => false,
         quote: () => null,
         setQuote: () => {},
         editing: () => false,

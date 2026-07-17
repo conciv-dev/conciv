@@ -2,7 +2,7 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {Popover} from './popover.js'
 
-const meta: Meta = {title: 'ui-kit/Popover'}
+const meta: Meta = {title: 'ui-kit-system/Popover'}
 export default meta
 type Story = StoryObj
 

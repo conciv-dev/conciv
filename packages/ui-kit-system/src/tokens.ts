@@ -10,13 +10,13 @@ export const TOKENS = {
   'pw-accent-08': {value: 'color-mix(in oklch, var(--pw-accent) 10%, transparent)', description: 'accent tint 8%'},
   'pw-accent-20': {value: 'color-mix(in oklch, var(--pw-accent) 22%, transparent)', description: 'accent tint 20%'},
   'pw-accent-line': {value: 'color-mix(in oklch, var(--pw-accent) 42%, transparent)', description: 'accent border'},
-  'pw-panel': {value: 'oklch(0.2 0.012 var(--pw-hue))', description: 'opaque dark panel'},
-  'pw-panel-sunk': {value: 'oklch(0.16 0.012 var(--pw-hue))', description: 'deepest field bg'},
-  'pw-glass': {value: 'oklch(0.21 0.014 var(--pw-hue) / 0.97)', description: 'chat panel surface'},
-  'pw-fill': {value: 'oklch(1 0 0 / 0.05)', description: 'input / elevated fill'},
-  'pw-fill-soft': {value: 'oklch(1 0 0 / 0.04)', description: 'soft fill'},
-  'pw-fill-strong': {value: 'oklch(1 0 0 / 0.1)', description: 'strong fill'},
-  'pw-sunken': {value: 'oklch(0.12 0.01 var(--pw-hue) / 0.5)', description: 'code / pre blocks'},
+  'pw-panel': {value: 'oklch(0 0 0)', description: 'opaque true-black panel'},
+  'pw-panel-sunk': {value: 'oklch(0 0 0)', description: 'deepest field bg'},
+  'pw-glass': {value: 'oklch(0 0 0 / 0.97)', description: 'chat panel surface'},
+  'pw-fill': {value: 'oklch(1 0 0 / 0.035)', description: 'input / elevated fill'},
+  'pw-fill-soft': {value: 'oklch(1 0 0 / 0.03)', description: 'soft fill'},
+  'pw-fill-strong': {value: 'oklch(1 0 0 / 0.08)', description: 'strong fill'},
+  'pw-sunken': {value: 'oklch(0 0 0 / 0.5)', description: 'code / pre blocks'},
   'pw-text': {value: 'oklch(0.93 0.006 var(--pw-hue))', description: 'primary body text'},
   'pw-text-hi': {value: 'oklch(0.98 0.008 var(--pw-hue))', description: 'emphasis / near-white'},
   'pw-text-2': {value: 'oklch(0.74 0.012 var(--pw-hue))', description: 'secondary / muted'},
@@ -40,8 +40,12 @@ export const TOKENS = {
   'pw-shadow-hover': {value: '0 14px 34px oklch(0.1 0.03 var(--pw-hue) / 0.6)', description: 'elevation hover'},
   'pw-ease': {value: 'cubic-bezier(0.22, 1, 0.36, 1)', description: 'ease-out-quart'},
   'pw-ease-expo': {value: 'cubic-bezier(0.16, 1, 0.3, 1)', description: 'ease-out-expo'},
-  'pw-font': {value: 'system-ui, -apple-system, sans-serif', description: 'sans font stack'},
-  'pw-mono': {value: 'ui-monospace, monospace', description: 'mono font stack'},
+  'pw-font': {
+    value:
+      "'Wix Madefor Text', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji'",
+    description: 'sans font stack',
+  },
+  'pw-mono': {value: "'Roboto Mono', ui-monospace, monospace", description: 'mono font stack'},
 } as const
 
 export type ThemeTokenName = keyof typeof TOKENS

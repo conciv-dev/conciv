@@ -11,7 +11,7 @@ import {useThreadAutoScroll} from './use-thread-auto-scroll.js'
 import {ChainOfThought} from '../styled/chain-of-thought.js'
 import {CollapsibleCard} from '../styled/collapsible-card.js'
 
-const meta: Meta = {title: 'behaviors/Scroll'}
+const meta: Meta = {title: 'ui-kit-chat/behaviors/Scroll'}
 export default meta
 type Story = StoryObj
 

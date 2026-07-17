@@ -2,7 +2,7 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within} from 'storybook/test'
 import {BranchPicker} from './branch-picker.js'
 
-const meta: Meta = {title: 'primitives/BranchPicker'}
+const meta: Meta = {title: 'ui-kit-chat/primitives/BranchPicker'}
 export default meta
 type Story = StoryObj
 

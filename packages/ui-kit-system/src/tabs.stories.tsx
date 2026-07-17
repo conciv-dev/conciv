@@ -2,7 +2,7 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {Tabs} from './tabs.js'
 
-const meta: Meta = {title: 'ui-kit/Tabs'}
+const meta: Meta = {title: 'ui-kit-system/Tabs'}
 export default meta
 type Story = StoryObj
 

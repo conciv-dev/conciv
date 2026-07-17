@@ -5,7 +5,7 @@ import type {ToolCallPart} from '@tanstack/ai-client'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {UiCard} from './ui-chip-card.js'
 
-const meta: Meta = {title: 'tools/UiCard'}
+const meta: Meta = {title: 'ui-kit-chat-tools/tools/UiCard'}
 export default meta
 type Story = StoryObj
 

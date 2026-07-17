@@ -10,7 +10,7 @@ import {Message} from '../message/message.js'
 import {SAMPLE_IMAGE_BASE64, SAMPLE_IMAGE_MIME} from '../../store/sample-image.fixtures.js'
 import {MessagePart, useMessagePartData, useMessagePartFile, useMessagePartSource} from './message-part.js'
 
-const meta: Meta = {title: 'primitives/MessagePart'}
+const meta: Meta = {title: 'ui-kit-chat/primitives/MessagePart'}
 export default meta
 type Story = StoryObj
 

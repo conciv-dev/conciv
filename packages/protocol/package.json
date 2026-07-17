@@ -1,6 +1,6 @@
 {
   "name": "@conciv/protocol",
-  "version": "0.0.9",
+  "version": "0.0.11",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). Wire types shared by the conciv vite-plugin and widget.",
   "keywords": [
     "ag-ui",
@@ -68,6 +68,10 @@
     "./tool-view-types": {
       "types": "./dist/tool-view-types.d.ts",
       "import": "./dist/tool-view-types.js"
+    },
+    "./connect-ports": {
+      "types": "./dist/connect-ports.d.ts",
+      "import": "./dist/connect-ports.js"
     }
   },
   "publishConfig": {
