@@ -484,7 +484,7 @@ git commit -m "feat(recorder): size-capped recording store with byte/count/TTL p
   - `recordingParts(log, frames, keyframesRequested): ContentPart[]` (was `unknown` — `imageResult` already returns `ContentPart[]`, so this is only a signature tightening; `pullWindow` return type unchanged for the tools).
   - `renderRecording(runtime: RecorderRuntime, events: RrwebEvent[], keyframeCount: number): Promise<ContentPart[]>` — `distill` → `renderFrames` → `recordingParts`. `pullWindow` keeps its own `fromTs` log filter and is NOT re-pointed (shared units are `renderFrames` + `recordingParts`).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import {describe, expect, it} from 'vitest'
@@ -516,9 +516,9 @@ describe('renderRecording', () => {
 })
 ```
 
-- [ ] **Step 2: Run — Expected: FAIL** — `renderRecording` / `recordings` field missing.
+- [x] **Step 2: Run — Expected: FAIL** — `renderRecording` / `recordings` field missing.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `format.ts`: change `recordingParts` signature to `): ContentPart[]` (import `type {ContentPart} from '@conciv/extension'`); body unchanged.
 
@@ -555,9 +555,9 @@ void recordings.sweep()
 const runtime: RecorderRuntime = {ring, control, config: server.config, renderer, recordings}
 ```
 
-- [ ] **Step 4: Run — Expected: PASS**, plus `pnpm turbo run typecheck --filter=@conciv/extension-recorder`.
+- [x] **Step 4: Run — Expected: PASS**, plus `pnpm turbo run typecheck --filter=@conciv/extension-recorder`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -m "feat(recorder): recordings store on runtime + typed renderRecording" -- packages/extensions/recorder/src/server/runtime.ts packages/extensions/recorder/src/server/format.ts packages/extensions/recorder/src/server.ts packages/extensions/recorder/test/runtime.test.ts

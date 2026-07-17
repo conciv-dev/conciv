@@ -1,7 +1,9 @@
-import type {Keyframe, RecorderConfig} from '../shared/protocol.js'
+import type {ContentPart} from '@conciv/extension'
+import type {Keyframe, RecorderConfig, RrwebEvent} from '../shared/protocol.js'
 import type {EventRing} from './ring.js'
 import type {CaptureControl} from './capture-control.js'
 import type {KeyframeRenderer} from './render.js'
+import type {RecordingStore} from './recordings.js'
 import {distill} from './distill.js'
 import {pickKeyframeTimestamps, recordingParts} from './format.js'
 
@@ -10,6 +12,17 @@ export type RecorderRuntime = {
   control: CaptureControl
   config: RecorderConfig
   renderer: () => Promise<KeyframeRenderer | null>
+  recordings: RecordingStore
+}
+
+export async function renderRecording(
+  runtime: RecorderRuntime,
+  events: RrwebEvent[],
+  keyframeCount: number,
+): Promise<ContentPart[]> {
+  const log = distill(events)
+  const frames = await renderFrames(runtime, events, log, keyframeCount)
+  return recordingParts(log, frames, keyframeCount > 0)
 }
 
 export async function pullWindow(

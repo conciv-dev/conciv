@@ -1,8 +1,10 @@
+import {join} from 'node:path'
 import {eventIterator, os} from '@orpc/server'
 import {z} from 'zod'
 import {defineExtension, subscriptionIterator} from '@conciv/extension'
 import {RECORDER_NAME, RecorderControlSchema, RrwebEventSchema, recorderConfig} from './shared/protocol.js'
 import {createEventRing} from './server/ring.js'
+import {createRecordingStore} from './server/recordings.js'
 import {createCaptureControl} from './server/capture-control.js'
 import {createChromiumRenderer, type KeyframeRenderer} from './server/render.js'
 import {distill} from './server/distill.js'
@@ -51,7 +53,9 @@ export default defineExtension({
     rendererState.value ??= createChromiumRenderer()
     return rendererState.value
   }
-  const runtime: RecorderRuntime = {ring, control, config: server.config, renderer}
+  const recordings = createRecordingStore(join(server.cwd, '.conciv', 'recorder', 'recordings'))
+  void recordings.sweep()
+  const runtime: RecorderRuntime = {ring, control, config: server.config, renderer, recordings}
   return {
     context: {recorder: runtime},
     router: makeRecorderRouter(runtime),

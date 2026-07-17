@@ -1,4 +1,4 @@
-import {imageResult} from '@conciv/extension'
+import {imageResult, type ContentPart} from '@conciv/extension'
 import type {ActionLogEntry, Keyframe} from '../shared/protocol.js'
 
 const SIGNIFICANT: ReadonlySet<string> = new Set(['click', 'navigation', 'console', 'reload'])
@@ -18,9 +18,9 @@ function formatLog(log: ActionLogEntry[], opts: {keyframesSkipped: boolean}): st
   return `${lines.join('\n')}${note}`
 }
 
-export function recordingParts(log: ActionLogEntry[], frames: Keyframe[], keyframesRequested: boolean): unknown {
+export function recordingParts(log: ActionLogEntry[], frames: Keyframe[], keyframesRequested: boolean): ContentPart[] {
   const skipped = keyframesRequested && frames.length === 0
-  const text = {type: 'text', content: formatLog(log, {keyframesSkipped: skipped})}
+  const text = {type: 'text' as const, content: formatLog(log, {keyframesSkipped: skipped})}
   const images = frames.flatMap((frame) => imageResult('image/png', frame.pngBase64))
   return [...images, text]
 }
