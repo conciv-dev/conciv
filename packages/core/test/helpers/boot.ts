@@ -22,6 +22,7 @@ export type BootOverrides = {
   extensionConfig?: Record<string, unknown>
   openInEditor?: (file: string, line?: number) => void
   bridge?: BundlerBridge
+  firstChunkTimeoutMs?: number
 }
 
 function fakeClaudeBinDir(stateRoot: string): string {
@@ -68,6 +69,7 @@ export function bootCoreApp(overrides: BootOverrides = {}): BootApp {
       extensions: overrides.extensions,
       extensionConfig: overrides.extensionConfig,
       bridge: overrides.bridge,
+      firstChunkTimeoutMs: overrides.firstChunkTimeoutMs,
     })
     return {
       fetch: app.fetch,

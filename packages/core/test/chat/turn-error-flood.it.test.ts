@@ -2,8 +2,9 @@ import {afterEach, describe, expect, it} from 'vitest'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 import {defineHarness, type HarnessAdapter} from '@conciv/protocol/harness-types'
 import {makeTextAdapter} from '@conciv/harness'
-import {createTestkit, until} from '@conciv/harness-testkit'
+import {createTestkit} from '@conciv/harness-testkit'
 import {bootCoreApp} from '../helpers/boot.js'
+import {untilRunSettled} from '../helpers/run-settled.js'
 
 const FAIL = 'harness exited with code 143'
 
@@ -41,13 +42,7 @@ async function failingTurn(harness: HarnessAdapter): Promise<{seedCalls: string[
     const stream = await kit.attach(id)
     await kit.rpc.chat.send({sessionId: id, text: 'hi'})
     const runError = await stream.waitFor((chunk) => chunk.type === EventType.RUN_ERROR, {hangGuardMs: 5000})
-    await until(
-      async () => {
-        const metas = await kit.rpc.sessions.list(undefined)
-        return (metas.find((meta) => meta.id === id)?.status ?? 'idle') !== 'running'
-      },
-      {hangGuardMs: 5000},
-    )
+    await untilRunSettled(kit, id)
     const seedCalls = calls.filter((c) => c.includes('chat run failed') || c.includes('tanstack-ai'))
     return {seedCalls, runError}
   } finally {
