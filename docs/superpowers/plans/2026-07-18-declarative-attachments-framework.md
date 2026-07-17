@@ -733,7 +733,7 @@ git commit -m "feat(ui-kit-chat): modelOnly part visibility predicate + hidden i
   - `createDocumentAttachmentAdapter(mime: string): AttachmentAdapter`.
   - `ComposerProps.AttachmentComponent?: Component<{removable?: boolean}>` — `Composer` uses it in place of the hard-coded `RemovableAttachment`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```tsx
 import {render} from 'solid-js/web'
@@ -788,9 +788,9 @@ test('falls back to the generic tile for an unknown mime', () => {
 
 (Harness copied from `apps/conciv/test/context-tracker.browser.test.tsx` — `solid-js/web` render + dispose, structural asserts. Root import only; `AttachmentProvider`/`CompleteAttachment` are already exported from the ui-kit index, `AttachmentByMime` is exported by this task. If `CompleteAttachment`'s content typing rejects the literal, type the fixture with a `satisfies`-free plain annotation and adjust the part literal — no casts.)
 
-- [ ] **Step 2: Run — Expected: FAIL** (`pnpm turbo run test --filter=conciv`).
+- [x] **Step 2: Run — Expected: FAIL** (`pnpm turbo run test --filter=conciv`).
 
-- [ ] **Step 3: Implement `attachment-dispatch.tsx`**
+- [x] **Step 3: Implement `attachment-dispatch.tsx`**
 
 ```tsx
 import {Show, type JSX, type ValidComponent} from 'solid-js'
@@ -855,7 +855,7 @@ export function createDocumentAttachmentAdapter(mime: string): AttachmentAdapter
 }
 ```
 
-- [ ] **Step 4: Open the composer dispatch site**
+- [x] **Step 4: Open the composer dispatch site**
 
 In `styled/composer.tsx`: add `AttachmentComponent?: Component<{removable?: boolean}>` to `ComposerProps`; replace the hard-coded usage:
 
@@ -871,9 +871,9 @@ In `styled/composer.tsx`: add `AttachmentComponent?: Component<{removable?: bool
 
 Delete `RemovableAttachment` if now unused. Export `AttachmentByMime`, `createDocumentAttachmentAdapter`, and `type AttachmentCardSlot` from `index.tsx`.
 
-- [ ] **Step 5: Run — Expected: PASS** (`pnpm turbo run test --filter=conciv` browser project + `--filter=@conciv/ui-kit-chat` node suite still green).
+- [x] **Step 5: Run — Expected: PASS** (`pnpm turbo run test --filter=conciv` browser project + `--filter=@conciv/ui-kit-chat` node suite still green).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git commit -m "feat(ui-kit-chat): AttachmentByMime dispatch, document adapter, composer slot" -- packages/ui-kit-chat/src/styled/attachment-dispatch.tsx packages/ui-kit-chat/src/styled/composer.tsx packages/ui-kit-chat/src/index.tsx apps/conciv/test/attachment-dispatch.browser.test.tsx
