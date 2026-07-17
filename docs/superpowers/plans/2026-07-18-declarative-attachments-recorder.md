@@ -744,9 +744,9 @@ git commit -m "feat(recorder): recording attachment expand (typed ctx, expired f
   - `notices.tsx`: `RecorderNotice(props: {text: string})` and `RecorderErrorNotice(props: {retry: () => void; text?: string})` — moved from `panel-view.tsx:193-206`, `text` defaulting to the current copy.
   - `panel-view.tsx` imports both; behavior unchanged.
 
-- [ ] **Step 1:** Move the code; update panel-view imports; delete the moved definitions.
-- [ ] **Step 2: Run** `pnpm turbo run test --filter=@conciv/extension-recorder` — Expected: PASS (pure extraction; the existing extension/capture ITs exercise the panel).
-- [ ] **Step 3: Commit**
+- [x] **Step 1:** Move the code; update panel-view imports; delete the moved definitions.
+- [x] **Step 2: Run** `pnpm turbo run test --filter=@conciv/extension-recorder` — Expected: PASS (pure extraction; the existing extension/capture ITs exercise the panel).
+- [x] **Step 3: Commit**
 
 ```bash
 git commit -m "refactor(recorder): extract shared player + notice modules" -- packages/extensions/recorder/src/client/player.ts packages/extensions/recorder/src/client/notices.tsx packages/extensions/recorder/src/client/panel-view.tsx
