@@ -169,7 +169,8 @@ git commit -m "feat(extension): connect slot, connectGate capability, host conne
 
 **Files:**
 
-- Create: `packages/extensions/try-it/package.json`, `tsconfig.json`, `tsdown.config.ts`, `vitest.config.ts` (COPY the shape from `packages/extensions/terminal`, minus server export; name `@conciv/extension-try-it`, `"private": true`, exports only `./client`)
+- Create: `packages/extensions/try-it/package.json`, `tsconfig.json`, `tsconfig.build.json`, `vite.config.ts`, `uno.config.ts`, `vitest.config.ts` — COPY the shape from `packages/extensions/terminal` MINUS the server pipeline. Verified terminal build anatomy: NO tsdown for client — `"build": "vite build && tsc -p tsconfig.build.json"` (vite lib build of `src/client.tsx` with `vite-plugin-solid`, externals `[/^solid-js/, /^zod/, /^@conciv\//, /^lucide-solid/]`, `emptyOutDir: false`, sourcemap; tsc emits d.ts). Own `uno.config.ts` = terminal's verbatim (`content.filesystem: ['src/**/*.{ts,tsx}']`, `presetConciv`). Name `@conciv/extension-try-it`, `"private": true`, exports only `./client`.
+- Modify: `packages/embed/uno.config.ts` — ADD `'../extensions/try-it/src/**/*.{ts,tsx}'` to `content.filesystem` (globs are an explicit per-extension list; without this every pw-\* class used only by try-it is missing from the widget CSS and the pane renders unstyled). Any later class addition needs an embed rebuild before ITs.
 - Create: `packages/extensions/try-it/src/shared/try-steps.ts` (MOVE from `apps/site/src/lib/try-steps.ts`, verbatim)
 - Create: `packages/extensions/try-it/src/shared/probe.ts`
 - Test: `packages/extensions/try-it/test/try-steps.test.ts` (MOVE from `apps/site/test/try-steps.test.ts`, fix import path), `packages/extensions/try-it/test/probe.test.ts`
@@ -270,8 +271,7 @@ git commit -m "feat(try-it): extension package with step model and core probe" -
 - [ ] **Step 1: Implement `client.tsx`**
 
 ```tsx
-import {defineExtension} from '@conciv/extension'
-import {getHostApi} from '@conciv/extension/client'
+import {defineExtension, getHostApi} from '@conciv/extension'
 import {connectPorts} from '@conciv/protocol/connect-ports'
 import {Show} from 'solid-js'
 import {ConnectPane} from './client/connect-pane.js'
@@ -293,7 +293,7 @@ export function tryIt(config: {token: string}) {
 export default tryIt
 ```
 
-(Verify the exact client-side import path for `getHostApi` against how `terminal`'s client components consume host hooks — mirror it exactly.)
+(Import path verified: terminal's client components import `getHostApi` from `'@conciv/extension'` — `packages/extensions/terminal/src/client/terminal-panel-view.tsx:6`.)
 
 - [ ] **Step 2: Implement `connect-pane.tsx`** — Solid port of the interim React panel body (`apps/site/src/components/landing/try-panel.tsx` at commit `0f831cbf` is the reference; port structure exactly, per [[port-means-exact-structure]] discipline):
   - `stepStates({copied, connected})` drives three `Step` items (markers: number → primary check on done, `data-state` styling with pw tokens: `bg-pw-accent`, `text-pw-text-2`, `border-pw-line`).
@@ -342,13 +342,13 @@ async function boot(root: ShadowRoot, extensions: AnyExtension[]): Promise<void>
 }
 ```
 
-`bootConnect`: `makeDeferredRpcClient()`, `createMemoryHistory({initialEntries: [connectPath(settings)]})` where `connectPath` returns `/panel/connect?open=true` when `settings.defaultOpen` else `/panel/connect`; router context gets `{rpc: deferred.rpc, connected: deferred.bound, bindApiBase: deferred.bind}`; no `makeNavigationStorage`; `startPagePlane` deferred until bound (call it inside `bindApiBase` wrapper).
+`bootConnect`: `makeDeferredRpcClient()`, `createMemoryHistory({initialEntries: [connectPath(settings)]})` (verified: re-exported from `@tanstack/solid-router`; `initialEntries: Array<string>`) where `connectPath` returns `/panel/connect?open=true` when `settings.defaultOpen` else `/panel/connect` (the `open` search param is already validated at the ROOT route — `__root.tsx:40` `validateSearch` — and inherited, so the connect route declares NO validateSearch of its own); router context gets `{rpc: deferred.rpc, connected: deferred.bound, bindApiBase: deferred.bind}`; no `makeNavigationStorage`; `startPagePlane` deferred until bound (call it inside `bindApiBase` wrapper).
 
 - [ ] **Step 2: route `panel.connect.tsx`**
 
 ```tsx
 import {createFileRoute, useRouter} from '@tanstack/solid-router'
-import {HostApiProvider} from '@conciv/extension/client'
+import {HostApiProvider} from '@conciv/extension'
 import type {JSX} from 'solid-js'
 import {useInstances, useConnectBinding} from '../app/context.js'
 import {ExtensionSurface} from '../extension/extension-slots.js'
