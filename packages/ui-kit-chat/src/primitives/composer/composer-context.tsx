@@ -1,13 +1,12 @@
 import {createContext, useContext, type Accessor} from 'solid-js'
-import type {MessagePart} from '@tanstack/ai-client'
-
-export type AttachmentPart = Extract<MessagePart, {type: 'image' | 'audio' | 'video' | 'document'}>
-export type AttachmentDraft = {id: string; name: string; part: AttachmentPart}
+import type {Attachment, AttachmentAdapter} from '../attachment/attachment-adapter.js'
 
 export type ComposerContextValue = {
-  attachments: Accessor<AttachmentDraft[]>
-  addAttachment: (draft: AttachmentDraft) => void
-  removeAttachment: (id: string) => void
+  attachments: Accessor<Attachment[]>
+  attachmentAdapter: Accessor<AttachmentAdapter | undefined>
+  addAttachment: (file: File) => Promise<void>
+  removeAttachment: (id: string) => Promise<void>
+  sendingAttachments: Accessor<boolean>
   quote: Accessor<string | null>
   setQuote: (value: string | null) => void
   editing: Accessor<boolean>

@@ -7,7 +7,7 @@ import {MessagePart} from '../message-part/message-part.js'
 import {useChatContext} from '../../store/chat-context.js'
 import {useToolCtx} from '../../store/tool-context.js'
 import {groupSegments, type Segment} from '../../store/grouping.js'
-import type {AttachmentDraft, AttachmentPart} from '../composer/composer-context.js'
+import type {CompleteAttachment} from '../attachment/attachment-adapter.js'
 import {AttachmentProvider} from '../attachment/attachment.js'
 import {PartProvider, useMessage} from './message-context.js'
 
@@ -223,6 +223,8 @@ type AttachmentsComponents = {
   Attachment?: Component
 }
 
+type AttachmentPart = Extract<Part, {type: 'image' | 'document' | 'audio' | 'video'}>
+
 function isAttachmentPart(part: Part): part is AttachmentPart {
   return part.type === 'image' || part.type === 'document' || part.type === 'audio' || part.type === 'video'
 }
@@ -236,8 +238,20 @@ function attachmentName(part: AttachmentPart, index: number): string {
   return `${part.type}-${index + 1}`
 }
 
-function partToDraft(part: AttachmentPart, index: number): AttachmentDraft {
-  return {id: `attachment-${index}`, name: attachmentName(part, index), part}
+function partToAttachment(part: AttachmentPart, index: number): CompleteAttachment {
+  return {
+    id: `attachment-${index}`,
+    type: part.type,
+    name: attachmentName(part, index),
+    content: [part],
+    status: {type: 'complete'},
+  }
+}
+
+type AttachmentEntry = {part: AttachmentPart; attachment: CompleteAttachment}
+
+function partToEntry(part: AttachmentPart, index: number): AttachmentEntry {
+  return {part, attachment: partToAttachment(part, index)}
 }
 
 function attachmentComponent(part: AttachmentPart, components: AttachmentsComponents): Component | undefined {
@@ -249,18 +263,18 @@ function attachmentComponent(part: AttachmentPart, components: AttachmentsCompon
 
 function Attachments(props: {components: AttachmentsComponents}): JSX.Element {
   const message = useMessage()
-  const drafts = createMemo(() =>
+  const attachments = createMemo(() =>
     message
       .message()
       .parts.filter(isAttachmentPart)
-      .map((part, index) => partToDraft(part, index)),
+      .map((part, index) => partToEntry(part, index)),
   )
   return (
-    <Index each={drafts()}>
-      {(draft) => (
-        <Show when={attachmentComponent(draft().part, props.components)}>
+    <Index each={attachments()}>
+      {(entry) => (
+        <Show when={attachmentComponent(entry().part, props.components)}>
           {(component) => (
-            <AttachmentProvider value={draft()}>
+            <AttachmentProvider value={entry().attachment}>
               <Dynamic component={component()} />
             </AttachmentProvider>
           )}
@@ -272,17 +286,17 @@ function Attachments(props: {components: AttachmentsComponents}): JSX.Element {
 
 function AttachmentByIndex(props: {index: number; components: AttachmentsComponents}): JSX.Element {
   const message = useMessage()
-  const draft = () => {
+  const entry = () => {
     const parts = message.message().parts.filter(isAttachmentPart)
     const part = parts[props.index]
-    return part ? partToDraft(part, props.index) : undefined
+    return part ? partToEntry(part, props.index) : undefined
   }
   return (
-    <Show when={draft()} keyed>
+    <Show when={entry()} keyed>
       {(value) => (
         <Show when={attachmentComponent(value.part, props.components)}>
           {(component) => (
-            <AttachmentProvider value={value}>
+            <AttachmentProvider value={value.attachment}>
               <Dynamic component={component()} />
             </AttachmentProvider>
           )}

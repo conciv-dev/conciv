@@ -54,8 +54,6 @@ export {
   ComposerProvider,
   useComposerContext,
   type ComposerContextValue,
-  type AttachmentDraft,
-  type AttachmentPart,
 } from './primitives/composer/composer-context.js'
 export {
   ComposerHandlersProvider,
@@ -92,6 +90,19 @@ export {
 export {ActionBarMore} from './primitives/action-bar-more/action-bar-more.js'
 export {ActionBarMore as ThreadListItemMore} from './primitives/action-bar-more/action-bar-more.js'
 export {Attachment, AttachmentProvider, useAttachment} from './primitives/attachment/attachment.js'
+export {
+  createSimpleImageAttachmentAdapter,
+  fileMatchesAccept,
+  fileToDataSource,
+  isCompleteAttachment,
+  type AttachmentAdapter,
+  type Attachment as AttachmentState,
+  type AttachmentContentPart,
+  type PendingAttachment,
+  type CompleteAttachment,
+  type PendingAttachmentStatus,
+  type CompleteAttachmentStatus,
+} from './primitives/attachment/attachment-adapter.js'
 export {
   ChainOfThought as ChainOfThoughtPrimitive,
   useChainOfThought,

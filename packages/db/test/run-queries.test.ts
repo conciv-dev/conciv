@@ -5,7 +5,10 @@ import {describe, expect, it} from 'vitest'
 import {openDb} from '../src/db.js'
 import {
   claimRun,
+  clearImageHistory,
   clearRunState,
+  foldRunMessagesIntoImageHistory,
+  imageHistoryFor,
   lastErrorOf,
   modelOf,
   releaseRun,
@@ -37,6 +40,50 @@ describe('run lifecycle queries', () => {
     expect(statusOf(db, 's1')).toBe('idle')
     expect(claimRun(db, 's1', 'compact')).toBe(true)
     expect(statusOf(db, 's1')).toBe('compacting')
+  })
+
+  it('fold moves image-bearing run messages into image history and clears the run row', () => {
+    const db = fresh()
+    const imageTurn = [
+      {id: 'u1', role: 'user', parts: [{type: 'image', source: {type: 'data', value: 'aGk=', mimeType: 'image/png'}}]},
+      {id: 'a1', role: 'assistant', parts: [{type: 'text', content: 'red'}]},
+    ]
+    setRunMessages(db, 's6', imageTurn)
+    foldRunMessagesIntoImageHistory(db, 's6')
+    expect(runMessagesFor(db, 's6')).toBeNull()
+    expect(imageHistoryFor(db, 's6')?.messages).toEqual(imageTurn)
+  })
+
+  it('fold keeps appending once image history exists, even for text-only runs', () => {
+    const db = fresh()
+    const imageTurn = [{id: 'u1', role: 'user', parts: [{type: 'image', source: {type: 'data'}}]}]
+    const textTurn = [{id: 'u2', role: 'user', parts: [{type: 'text', content: 'follow up'}]}]
+    setRunMessages(db, 's7', imageTurn)
+    foldRunMessagesIntoImageHistory(db, 's7')
+    setRunMessages(db, 's7', textTurn)
+    foldRunMessagesIntoImageHistory(db, 's7')
+    expect(runMessagesFor(db, 's7')).toBeNull()
+    expect(imageHistoryFor(db, 's7')?.messages).toEqual([...imageTurn, ...textTurn])
+  })
+
+  it('fold leaves text-only runs alone when no image history exists', () => {
+    const db = fresh()
+    setRunMessages(db, 's8', [{id: 'u1', role: 'user', parts: [{type: 'text', content: 'plain'}]}])
+    foldRunMessagesIntoImageHistory(db, 's8')
+    expect(runMessagesFor(db, 's8')?.messages).toEqual([
+      {id: 'u1', role: 'user', parts: [{type: 'text', content: 'plain'}]},
+    ])
+    expect(imageHistoryFor(db, 's8')).toBeNull()
+  })
+
+  it('clearImageHistory drops only the image history row', () => {
+    const db = fresh()
+    setRunMessages(db, 's9', [{id: 'u1', role: 'user', parts: [{type: 'image', source: {}}]}])
+    foldRunMessagesIntoImageHistory(db, 's9')
+    setRunMessages(db, 's9', [{id: 'live'}])
+    clearImageHistory(db, 's9')
+    expect(imageHistoryFor(db, 's9')).toBeNull()
+    expect(runMessagesFor(db, 's9')?.messages).toEqual([{id: 'live'}])
   })
 
   it('releaseRun records lastError; the next claim clears it', () => {
@@ -103,12 +150,15 @@ describe('run lifecycle queries', () => {
   it('clearRunState removes everything for the session only', () => {
     const db = fresh()
     claimRun(db, 's5', 'chat')
+    setRunMessages(db, 's5', [{id: 'm', parts: [{type: 'image'}]}])
+    foldRunMessagesIntoImageHistory(db, 's5')
     setRunMessages(db, 's5', [{id: 'm'}])
     writeReply(db, 's5', 'k', 1)
     setRunMessages(db, 'other', [{id: 'o'}])
     clearRunState(db, 's5')
     expect(statusOf(db, 's5')).toBe('idle')
     expect(runMessagesFor(db, 's5')).toBeNull()
+    expect(imageHistoryFor(db, 's5')).toBeNull()
     expect(replyFor(db, 's5', 'k')).toBeNull()
     expect(runMessagesFor(db, 'other')?.messages).toEqual([{id: 'o'}])
   })

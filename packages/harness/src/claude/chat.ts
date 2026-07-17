@@ -3,7 +3,12 @@ import {writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import type {ModelMessage} from '@tanstack/ai'
 import {claudeCodeText} from '@tanstack/ai-claude-code'
-import type {HarnessChatConfig, HarnessChatDeps, HarnessImage} from '@conciv/protocol/harness-types'
+import {
+  FILE_REF_PREFIX,
+  type HarnessChatConfig,
+  type HarnessChatDeps,
+  type HarnessImage,
+} from '@conciv/protocol/harness-types'
 import {definedEntries} from '../_shared/env.js'
 import {lastUserImages} from '../_shared/text-adapter.js'
 import {CONCIV_PLUGIN_DIR} from './plugin-dir.js'
@@ -43,14 +48,14 @@ function withLastUserText(messages: ModelMessage[], text: string): ModelMessage[
 function withImageRefs(messages: ModelMessage[], cwd: string): ModelMessage[] {
   const images = lastUserImages(messages)
   if (!images.length) return messages
-  const refs = imageRefs(images, cwd)
+  const refsText = `${FILE_REF_PREFIX} ${imageRefs(images, cwd)}`
   const lastUserIndex = messages.findLastIndex((message) => message.role === 'user')
   return messages.map((message, index) => {
     if (index !== lastUserIndex) return message
     if (typeof message.content === 'string' || message.content === null) {
-      return {...message, content: `${message.content ?? ''}\n\n${refs}`}
+      return {...message, content: `${message.content ?? ''}${refsText}`}
     }
-    return {...message, content: [...message.content, {type: 'text', content: refs}]}
+    return {...message, content: [...message.content, {type: 'text', content: refsText}]}
   })
 }
 

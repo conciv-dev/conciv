@@ -17,6 +17,12 @@ export const runMessages = sqliteTable('run_messages', {
   updatedAt: integer('updated_at').notNull(),
 })
 
+export const imageHistory = sqliteTable('image_history', {
+  sessionId: text('session_id').primaryKey(),
+  messages: text('messages', {mode: 'json'}).$type<unknown[]>().notNull(),
+  updatedAt: integer('updated_at').notNull(),
+})
+
 export const replies = sqliteTable(
   'replies',
   {

@@ -28,16 +28,22 @@ async function firstChunk(iterator: AsyncIterator<StreamChunk>): Promise<StreamC
   return done ? undefined : value
 }
 
+async function subscribedConnection() {
+  const clientKit = await bootClientKit()
+  kit = clientKit
+  const sessionId = await clientKit.session()
+  const rpc = makeRpcClient(clientKit.base)
+  const connection = chatConnection(rpc, sessionId)
+  const abort = new AbortController()
+  const stream = connection.subscribe(abort.signal)[Symbol.asyncIterator]()
+  const snapshot = await firstChunk(stream)
+  expect(snapshot?.type).toBe(EventType.MESSAGES_SNAPSHOT)
+  return {clientKit, connection, abort, stream}
+}
+
 describe('chatConnection', () => {
   it('subscribe yields the MESSAGES_SNAPSHOT first, then live chunks after send', async () => {
-    kit = await bootClientKit()
-    const sessionId = await kit.session()
-    const rpc = makeRpcClient(kit.base)
-    const connection = chatConnection(rpc, sessionId)
-    const abort = new AbortController()
-    const stream = connection.subscribe(abort.signal)[Symbol.asyncIterator]()
-    const snapshot = await firstChunk(stream)
-    expect(snapshot?.type).toBe(EventType.MESSAGES_SNAPSHOT)
+    const {connection, abort, stream} = await subscribedConnection()
     await connection.send([{id: 'u1', role: 'user', parts: [{type: 'text', content: 'hello'}]}])
     const seen = await collectUntil(
       {[Symbol.asyncIterator]: () => stream},
@@ -51,13 +57,7 @@ describe('chatConnection', () => {
   })
 
   it('send extracts the LAST user message text and hands it to the harness', async () => {
-    kit = await bootClientKit()
-    const sessionId = await kit.session()
-    const rpc = makeRpcClient(kit.base)
-    const connection = chatConnection(rpc, sessionId)
-    const abort = new AbortController()
-    const stream = connection.subscribe(abort.signal)[Symbol.asyncIterator]()
-    await firstChunk(stream)
+    const {clientKit, connection, abort, stream} = await subscribedConnection()
     await connection.send([
       {id: 'u1', role: 'user', parts: [{type: 'text', content: 'first'}]},
       {id: 'a1', role: 'assistant', parts: [{type: 'text', content: 'ok'}]},
@@ -65,9 +65,31 @@ describe('chatConnection', () => {
     ])
     await collectUntil({[Symbol.asyncIterator]: () => stream}, (chunk) => chunk.type === EventType.RUN_FINISHED)
     abort.abort()
-    const received = lastUserModelText(kit.harness.__turnMessages.at(-1) ?? [])
+    const received = lastUserModelText(clientKit.harness.__turnMessages.at(-1) ?? [])
     expect(received).toContain('second line')
     expect(received).not.toContain('first')
+  })
+
+  it('send preserves text and sanitized image content for the harness', async () => {
+    const {clientKit, connection, abort, stream} = await subscribedConnection()
+    await connection.send([
+      {
+        id: 'u1',
+        role: 'user',
+        parts: [
+          {type: 'text', content: 'describe this'},
+          {type: 'image', source: {type: 'data', value: 'aGVsbG8=', mimeType: 'image/png'}},
+        ],
+      },
+    ])
+    await collectUntil({[Symbol.asyncIterator]: () => stream}, (chunk) => chunk.type === EventType.RUN_FINISHED)
+    abort.abort()
+    const lastTurn = clientKit.harness.__turnMessages.at(-1)
+    const lastUser = lastTurn?.findLast((message) => message.role === 'user')
+    expect(lastUser?.content).toEqual([
+      {type: 'text', content: 'describe this'},
+      {type: 'image', source: {type: 'data', value: 'aGVsbG8=', mimeType: 'image/png'}},
+    ])
   })
 
   it('send while the session is busy surfaces the typed BUSY error', async () => {

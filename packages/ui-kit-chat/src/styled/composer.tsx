@@ -1,7 +1,9 @@
 import {Show, type JSX} from 'solid-js'
-import {ArrowUp, Square} from 'lucide-solid'
+import {ArrowUp, Paperclip, Square} from 'lucide-solid'
 import {Composer as ComposerPrimitive} from '../primitives/composer/composer.js'
+import type {AttachmentAdapter} from '../primitives/attachment/attachment-adapter.js'
 import {useComposer} from '../store/chat-context.js'
+import {AttachmentUI} from './attachment-ui.js'
 
 export type ComposerProps = {
   placeholder?: string
@@ -11,6 +13,7 @@ export type ComposerProps = {
   busy?: JSX.Element
   popover?: JSX.Element
   inputRef?: (element: HTMLTextAreaElement) => void
+  attachmentAdapter?: AttachmentAdapter
 }
 
 const BTN =
@@ -36,12 +39,16 @@ function TrailingControls(): JSX.Element {
   )
 }
 
+function RemovableAttachment(): JSX.Element {
+  return <AttachmentUI removable />
+}
+
 export function Composer(props: ComposerProps): JSX.Element {
   return (
-    <ComposerPrimitive.Root class="flex flex-col gap-1.5 relative">
+    <ComposerPrimitive.Root attachmentAdapter={props.attachmentAdapter} class="flex flex-col gap-1.5 relative">
       {props.popover}
       <div class="flex flex-wrap gap-1 empty:hidden">
-        <ComposerPrimitive.Attachments />
+        <ComposerPrimitive.Attachments component={RemovableAttachment} />
       </div>
       <div class="px-1.5 pb-1.5 pt-1 rounded-[var(--chat-radius-md)] [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] [transition:border-color_120ms_var(--chat-ease)] focus-within:[border-color:var(--chat-accent)]">
         <ComposerPrimitive.Input
@@ -50,8 +57,16 @@ export function Composer(props: ComposerProps): JSX.Element {
           placeholder={props.placeholder ?? 'Message…'}
           class={INPUT}
           aria-label={props.inputLabel ?? 'Message'}
+          addAttachmentOnPaste={props.attachmentAdapter !== undefined}
         />
         <div class="pt-0.5 flex gap-1 items-center">
+          <Show when={props.attachmentAdapter}>
+            <ComposerPrimitive.AddAttachment
+              class={`${BTN} text-[color:var(--chat-text-2)] bg-transparent hover:bg-[var(--chat-fill-strong)]`}
+            >
+              <Paperclip size={16} aria-hidden="true" />
+            </ComposerPrimitive.AddAttachment>
+          </Show>
           <Show when={props.children}>{props.children}</Show>
           <div class="ml-auto flex gap-1 items-center">
             <Show when={props.busy} fallback={<TrailingControls />}>
