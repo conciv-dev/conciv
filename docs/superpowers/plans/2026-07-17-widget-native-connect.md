@@ -74,56 +74,31 @@ Expected: FAIL — `makeDeferredRpcClient` not exported. (If the package has no 
 
 - [ ] **Step 3: Implement** (append to `client.ts`)
 
+The RPCLink `url` option accepts a FUNCTION resolved per request (`Value<Promisable<string | URL>>` — verified in `@orpc/client@1.14.7` types), and throwing inside it is oRPC's own documented pattern for "client not usable yet" (their SSR guide throws inside `origin()`). So the deferred client is a REAL typed client with a lazy url — no Proxy, no casts:
+
 ```ts
 export type DeferredRpcClient = {rpc: RpcClient; bind: (apiBase: string) => void; bound: () => boolean}
 
-function deferredTarget(getClient: () => RpcClient | null, path: string[]): unknown {
-  const call = (...args: unknown[]): unknown => {
-    const client = getClient()
-    if (!client) return Promise.reject(new Error('conciv core not connected yet'))
-    const method = path.reduce<unknown>((node, key) => {
-      if (typeof node !== 'object' || node === null) return undefined
-      return Reflect.get(node, key)
-    }, client)
-    if (typeof method !== 'function') return Promise.reject(new Error(`unknown rpc path ${path.join('.')}`))
-    return method(...args)
-  }
-  return new Proxy(call, {
-    get: (_target, key) => {
-      if (typeof key !== 'string') return undefined
-      return deferredTarget(getClient, [...path, key])
+export function makeDeferredRpcClient(): DeferredRpcClient {
+  let base: string | null = null
+  const link = new RPCLink({
+    url: () => {
+      if (!base) throw new Error('conciv core not connected yet')
+      return `${base}/rpc`
     },
   })
-}
-
-export function makeDeferredRpcClient(): DeferredRpcClient {
-  let client: RpcClient | null = null
-  const rpcUnknown: unknown = deferredTarget(() => client, [])
-  if (typeof rpcUnknown !== 'function' && typeof rpcUnknown !== 'object') throw new Error('unreachable')
   return {
-    rpc: rpcUnknown as never,
+    rpc: createORPCClient(link),
     bind: (apiBase) => {
-      if (client) throw new Error('deferred rpc already bound')
-      client = makeRpcClient(apiBase)
+      if (base) throw new Error('deferred rpc already bound')
+      base = apiBase
     },
-    bound: () => client !== null,
+    bound: () => base !== null,
   }
 }
 ```
 
-NOTE the `as never` — the repo bans `as`, and `oxlint`/review will flag it. The Proxy cannot be typed structurally against the generated contract type. Preferred shape: give `deferredTarget` a generic return and a single well-commented… comments are also banned. Resolution: declare the function with an explicit return type instead of a cast:
-
-```ts
-function makeDeferredProxy(getClient: () => RpcClient | null): RpcClient {
-  const build = (path: string[]): unknown =>
-    new Proxy((...args: unknown[]) => dispatch(getClient, path, args), {
-      get: (_target, key) => (typeof key === 'string' ? build([...path, key]) : undefined),
-    })
-  return build([]) satisfies unknown as RpcClient
-}
-```
-
-`satisfies unknown as RpcClient` is still a cast. FINAL DECISION for the implementer: this is the one place a type assertion is structurally unavoidable (dynamic proxy vs generated mapped type). Use a single `as RpcClient` on the `build([])` result, and if `oxlint`/fallow flags it, keep it — do NOT weaken the contract type. If the repo's no-cast rule is enforced by a lint error (not just convention), add the narrowest possible suppression the lint system allows; if that is also disallowed, STOP and ask before inventing a workaround.
+The pre-bind rejection in the test asserts the thrown error surfaces as a rejected call promise (oRPC resolves `url` inside the request pipeline). If the rejection message arrives wrapped, loosen the first test to `.rejects.toThrow(/not connected/)` — do not wrap the link in try/catch plumbing to force the exact string.
 
 - [ ] **Step 4: Run tests**
 
