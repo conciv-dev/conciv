@@ -445,7 +445,7 @@ git commit -m "feat(extension): attachments on extensions + collectAttachmentCar
 
 - Produces: `hasRichPart(message)` true for `image` **or** `document` parts; `foldRunMessagesIntoImageHistory` uses it, so attachment turns survive restart.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import {describe, expect, it} from 'vitest'
@@ -464,9 +464,9 @@ describe('hasRichPart', () => {
 })
 ```
 
-- [ ] **Step 2: Run — Expected: FAIL** (`pnpm turbo run test --filter=@conciv/db`) — `hasRichPart` not exported.
+- [x] **Step 2: Run — Expected: FAIL** (`pnpm turbo run test --filter=@conciv/db`) — `hasRichPart` not exported.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 export function hasRichPart(message: unknown): boolean {
@@ -477,9 +477,9 @@ export function hasRichPart(message: unknown): boolean {
 
 Update the call site: `row.messages.some(hasImagePart)` → `row.messages.some(hasRichPart)`; delete `hasImagePart`.
 
-- [ ] **Step 4: Run — Expected: PASS.**
+- [x] **Step 4: Run — Expected: PASS.**
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -m "feat(db): fold document parts into durable history" -- packages/db/src/run-queries.ts packages/db/test/run-queries.test.ts
