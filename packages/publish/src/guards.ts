@@ -36,6 +36,7 @@ const PUBLIC_PACKAGES = [
   '@conciv/extension-test-runner',
   '@conciv/extension-whiteboard',
   '@conciv/extension-terminal',
+  '@conciv/extension-recorder',
   '@conciv/mascot',
   '@conciv/embed',
 ]

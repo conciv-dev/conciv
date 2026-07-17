@@ -1827,6 +1827,9 @@ importers:
       '@conciv/embed':
         specifier: workspace:^
         version: link:../embed
+      '@conciv/extension-recorder':
+        specifier: workspace:^
+        version: link:../extensions/recorder
       '@conciv/extension-terminal':
         specifier: workspace:^
         version: link:../extensions/terminal
