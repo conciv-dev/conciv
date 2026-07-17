@@ -1408,8 +1408,8 @@ importers:
         specifier: ^2.1.0
         version: 2.1.0
       rrweb-player:
-        specifier: ^2.1.0
-        version: 2.1.0
+        specifier: 2.0.0-alpha.20
+        version: 2.0.0-alpha.20
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -13817,8 +13817,8 @@ packages:
   rrdom@2.1.0:
     resolution: {integrity: sha512-d7oaIHzwffxI74UJMZDGq/f97/Yfm3QX4CcTIlQelt2HsLavItLjp8x8nQ0g9Pet5+5wG1RGr9yvsxb1gJlo8A==}
 
-  rrweb-player@2.1.0:
-    resolution: {integrity: sha512-EU0dCgrN66o2E8GAT67wDBRMgcJ1QJuu2lGa8PKO3xSosSS2eCaHlJWmX9fFCMvKkLsahWe15GnuqUjprCGMoA==}
+  rrweb-player@2.0.0-alpha.20:
+    resolution: {integrity: sha512-3ZCv1ksUxuIOn3Vn/eWrwWs9Xy+4KVjISD+q26ZLfisZ3hZ0CPgYG3iC22pmmycIeMS2svOfvf7gPh7jExwpUA==}
 
   rrweb-snapshot@2.1.0:
     resolution: {integrity: sha512-CFjUKWlO+Dl72gk8qwcDcNE/Pj9yr6IvGRAiRAx12pmJaSWaOKFoFgpQQ1j/mW0WKwEZXbHnMJL8M92gIsdwUQ==}
@@ -28017,7 +28017,7 @@ snapshots:
     dependencies:
       rrweb-snapshot: 2.1.0
 
-  rrweb-player@2.1.0:
+  rrweb-player@2.0.0-alpha.20:
     dependencies:
       '@rrweb/packer': 2.1.0
       '@rrweb/replay': 2.1.0

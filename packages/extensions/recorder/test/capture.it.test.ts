@@ -47,10 +47,21 @@ describe('recorder end to end (real browser, real engine)', () => {
     expect(JSON.stringify(stopped)).toContain('During capture')
   }, 120_000)
 
-  it('panel loads the replay and offers send-to-agent after activity', async () => {
+  it('panel loads a real replay (reconstructed page inside the player) and offers send-to-agent', async () => {
     await api().page.getByRole('tab', {name: 'Recorder'}).click()
     const send = api().page.getByRole('button', {name: 'Send to agent'})
     await send.waitFor({state: 'visible', timeout: 15_000})
-    expect(await send.isVisible()).toBe(true)
+    const replay = await api().page.evaluate(() => {
+      const iframe = document.querySelector('.rr-player iframe')
+      const body = iframe instanceof HTMLIFrameElement ? iframe.contentDocument?.body : null
+      return {
+        controller: Boolean(document.querySelector('.rr-controller')),
+        reconstructedChildren: body?.childElementCount ?? 0,
+        reconstructedText: body?.textContent ?? '',
+      }
+    })
+    expect(replay.controller).toBe(true)
+    expect(replay.reconstructedChildren).toBeGreaterThan(0)
+    expect(replay.reconstructedText).toContain('Order pizza')
   }, 120_000)
 })

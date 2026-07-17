@@ -52,7 +52,7 @@
     "lucide-solid": "^1.18.0",
     "playwright-core": "^1.61.1",
     "rrweb": "^2.1.0",
-    "rrweb-player": "^2.1.0",
+    "rrweb-player": "2.0.0-alpha.20",
     "zod": "^4.4.3"
   },
   "devDependencies": {
