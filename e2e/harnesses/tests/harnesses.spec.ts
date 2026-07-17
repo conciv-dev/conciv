@@ -46,5 +46,5 @@ test('full app boots with the configured harness and exposes its real model cata
   const outcome = ((await errorAlert.count()) > 0 ? await errorAlert.innerText() : await reply.innerText()).trim()
   testInfo.annotations.push({type: 'turn-outcome', description: `${projectName}: ${outcome}`})
   expect(outcome).not.toBe('')
-  expect(outcome).not.toMatch(/enoent|spawn .* failed|command not found|no such file|is not recognized/i)
+  expect(outcome).not.toMatch(/enoent|spawn .* failed|: not found|no such file|is not recognized|exited with code 127/i)
 })
