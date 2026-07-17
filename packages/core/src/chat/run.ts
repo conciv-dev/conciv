@@ -150,6 +150,10 @@ async function foldRunStream(
   for await (const chunk of stream) {
     processor.processChunk(chunk)
     tapSessionId(chunk, (id) => void recordMintedToken(deps.db, sessionId, id).catch(() => {}))
+    if (chunk.type === EventType.RUN_ERROR) {
+      outcome.error = chunk.message || 'run failed'
+      return
+    }
     if (chunk.type === EventType.RUN_FINISHED && chunk.finishReason !== 'tool_calls' && chunk.usage) {
       outcome.usage = usageSnapshotFor(deps, req.model ?? deps.harness.defaultModel ?? null, chunk.usage)
     }
