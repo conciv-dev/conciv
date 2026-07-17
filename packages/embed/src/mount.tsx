@@ -25,7 +25,20 @@ function connectPath(settings: {defaultOpen: boolean}): string {
   return settings.defaultOpen ? '/panel/connect?open=true' : '/panel/connect'
 }
 
-async function bootNormal(root: ShadowRoot, extensions: AnyExtension[], apiBase: string): Promise<void> {
+function makeDisconnect(getApiBase: () => string | undefined): () => void {
+  return () => {
+    const base = getApiBase()
+    if (base) void fetch(`${base}/api/shutdown`, {method: 'POST'}).catch(() => {})
+    setTimeout(() => window.location.reload(), 150)
+  }
+}
+
+async function bootNormal(
+  root: ShadowRoot,
+  extensions: AnyExtension[],
+  apiBase: string,
+  connectMode = false,
+): Promise<void> {
   const rpc = makeRpcClient(apiBase)
   const driver = makeDomPageDriver()
   window.__CONCIV_PAGE_DRIVER__ = driver
@@ -39,6 +52,8 @@ async function bootNormal(root: ShadowRoot, extensions: AnyExtension[], apiBase:
     settings: parseConcivSettings(metaContent('pw-widget')),
     extensions,
     connected: () => true,
+    connectMode,
+    disconnect: connectMode ? makeDisconnect(() => apiBase) : undefined,
   })
   window.__TSR_ROUTER__ = hostRouter
 
@@ -54,7 +69,9 @@ function bootConnect(root: ShadowRoot, extensions: AnyExtension[]): void {
   window.__CONCIV_PAGE_DRIVER__ = driver
 
   const settings = parseConcivSettings(metaContent('pw-widget'))
+  let boundApiBase: string | undefined
   const bindApiBase = (apiBase: string) => {
+    boundApiBase = apiBase
     deferred.bind(apiBase)
     startPagePlane({rpc: deferred.rpc, document, driver})
   }
@@ -66,7 +83,9 @@ function bootConnect(root: ShadowRoot, extensions: AnyExtension[]): void {
     settings,
     extensions,
     connected: deferred.bound,
+    connectMode: true,
     bindApiBase,
+    disconnect: makeDisconnect(() => boundApiBase),
   })
   window.__TSR_ROUTER__ = hostRouter
 
@@ -81,7 +100,7 @@ async function boot(root: ShadowRoot, extensions: AnyExtension[]): Promise<void>
   const gate = extensions.find((extension) => extension.connectGate)
   if (!gate?.connectGate) return bootNormal(root, extensions, apiBase)
   const found = await gate.connectGate.preflight()
-  if (found) return bootNormal(root, extensions, found)
+  if (found) return bootNormal(root, extensions, found, true)
   bootConnect(root, extensions)
 }
 

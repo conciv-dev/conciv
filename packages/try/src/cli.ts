@@ -79,6 +79,7 @@ const main = defineCommand({
       workspace: args.workspace,
       origin: args.origin,
       onEvent,
+      onShutdown: () => process.kill(process.pid, 'SIGINT'),
     })
     process.on('SIGINT', () => {
       void engine.stop().finally(() => {

@@ -51,6 +51,8 @@ export type MakeAppOpts = {
   allowedOrigins?: string[]
 
   harness?: HarnessAdapter
+
+  onShutdown?: () => void
 }
 
 export function slug(name: string): string {
@@ -89,7 +91,7 @@ function buildExtensionTools(extension: AnyExtension, context: unknown) {
 
 export type CoreVars = CorsVars & {chat: ChatDeps} & McpVars
 
-function composeRoutes(vars: CoreVars, rpc: ReturnType<typeof makeRpcRouter>) {
+function composeRoutes(vars: CoreVars, rpc: ReturnType<typeof makeRpcRouter>, onShutdown?: () => void) {
   return new Hono<{Variables: CoreVars}>()
     .onError((error, c) => {
       if (error instanceof HTTPException) return c.json({message: error.message}, error.status)
@@ -104,6 +106,11 @@ function composeRoutes(vars: CoreVars, rpc: ReturnType<typeof makeRpcRouter>) {
     })
     .use(corsMiddleware())
     .get('/health', (c) => c.json({ok: true, harness: vars.chat.harness.id}))
+    .post('/api/shutdown', (c) => {
+      if (!onShutdown) return c.json({message: 'shutdown not supported'}, 404)
+      setTimeout(onShutdown, 50)
+      return c.json({ok: true})
+    })
     .use('/rpc/*', rpcMiddleware(rpc))
     .route('/api/mcp', mcpApp)
 }
@@ -258,6 +265,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       mcp: {makeCtx: makeToolCtx, extensionTools, sessionModel},
     },
     rpc,
+    opts.onShutdown,
   )
 
   mounted.forEach((entry) => {

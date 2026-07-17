@@ -23,6 +23,7 @@ export type StartOpts = {
   allowedOrigins?: string[]
   accessToken?: string
   onClientRequest?: () => void
+  onShutdown?: () => void
 
   extensions?: AnyExtension[]
   harness?: HarnessAdapter
@@ -83,6 +84,7 @@ export async function start(opts: StartOpts): Promise<Engine> {
     harness: opts.harness,
     harnessEnv,
     allowedOrigins: opts.allowedOrigins,
+    onShutdown: opts.onShutdown,
   }
   const {app, disposers, extensionContexts, closeDb} = await makeApp(appOpts)
 

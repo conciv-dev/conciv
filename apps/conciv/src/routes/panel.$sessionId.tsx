@@ -1,12 +1,12 @@
 import {Outlet, createFileRoute, redirect, useMatchRoute, useRouter} from '@tanstack/solid-router'
 import {useQuery} from '@tanstack/solid-query'
 import {Tabs, TooltipIconButton} from '@conciv/ui-kit-system'
-import {ChevronDown, PictureInPicture2} from 'lucide-solid'
+import {ChevronDown, PictureInPicture2, Unplug} from 'lucide-solid'
 import {For, Show, createEffect, createMemo, createSignal, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import type {Grab} from '@conciv/grab'
 import {isSessionId} from '@conciv/protocol/chat-types'
-import {useAnnounce, useAppData, useInstances, useRpc} from '../app/context.js'
+import {useAnnounce, useAppData, useDisconnect, useInstances, useRpc} from '../app/context.js'
 import {PaneContext, type PaneContextValue, type StagedGrab} from '../app/pane-context.js'
 import {SessionSelector} from '../composer/session-selector.js'
 import {setShutter} from '../lib/shutter.js'
@@ -32,6 +32,7 @@ function PanelSession(): JSX.Element {
   const rpc = useRpc()
   const announce = useAnnounce()
   const instances = useInstances()
+  const {connectMode, disconnect} = useDisconnect()
   const router = useRouter()
   const matchRoute = useMatchRoute()
   const viewMatch = matchRoute({to: '/panel/$sessionId/$view'})
@@ -124,7 +125,20 @@ function PanelSession(): JSX.Element {
           onNewSession={() => void newSession()}
         />
         <ContextTracker usage={usage()} />
-        <TooltipIconButton tooltip="Close chat" class={`${CLOSE} ml-auto`} onClick={() => setShutter(router, false)}>
+        <Show when={connectMode && disconnect}>
+          <TooltipIconButton
+            tooltip="Disconnect this machine"
+            class={`${CLOSE} ml-auto`}
+            onClick={() => disconnect?.()}
+          >
+            <Unplug class="size-[1em] block" aria-hidden="true" />
+          </TooltipIconButton>
+        </Show>
+        <TooltipIconButton
+          tooltip="Close chat"
+          class={`${CLOSE}${connectMode && disconnect ? '' : ' ml-auto'}`}
+          onClick={() => setShutter(router, false)}
+        >
           <ChevronDown class="size-[1em] block" aria-hidden="true" />
         </TooltipIconButton>
       </header>

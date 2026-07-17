@@ -12,7 +12,7 @@ import {Dialog, EnvironmentProvider, Popover} from '@conciv/ui-kit-system'
 import {HostApiProvider} from '@conciv/extension'
 import {showToast} from '@conciv/page'
 import {createHotkey} from '@tanstack/solid-hotkeys'
-import {Show, createSignal, onCleanup, onMount} from 'solid-js'
+import {Show, createEffect, createSignal, onCleanup, onMount} from 'solid-js'
 import type {ConcivRouterContext} from '../router.js'
 import {
   AppContext,
@@ -106,7 +106,14 @@ function RootComponent() {
     connected: app.connected,
     arrivedFromConnect,
     connectBind,
+    connectMode: app.connectMode,
+    disconnect: app.disconnect,
   }
+
+  createEffect(() => {
+    const isConnected = app.connected()
+    window.dispatchEvent(new CustomEvent('conciv:connection-changed', {detail: {connected: isConnected}}))
+  })
 
   return (
     <EnvironmentProvider value={() => app.environment.rootNode}>

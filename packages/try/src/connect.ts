@@ -23,6 +23,7 @@ export type ConnectOpts = {
   origin?: string
   harnessAdapter?: HarnessAdapter
   onEvent?: (event: ConnectEvent) => void
+  onShutdown?: () => void
 }
 
 function resolveWorkspace(workspace: string | undefined): string {
@@ -65,6 +66,7 @@ export async function runConnect(opts: ConnectOpts): Promise<Engine> {
         accessToken: opts.token,
         allowedOrigins: [opts.origin ?? DEFAULT_ORIGIN],
         onClientRequest: () => onEvent({type: 'client-connected'}),
+        onShutdown: opts.onShutdown,
       })
       onEvent({type: 'started', port: engine.port, harness: adapter.id})
       return engine
