@@ -110,6 +110,10 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit != 'true'
       - run: pnpm exec playwright install-deps chromium
         if: steps.playwright-cache.outputs.cache-hit == 'true'
+      # Real harness CLIs for the e2e/harnesses turn matrix: unauthenticated turns must
+      # surface a visible error (proving spawn + stream + error plumbing), never hang or
+      # vanish. pi is a stub harness and never spawns its binary.
+      - run: sfw npm install -g @anthropic-ai/claude-code@2.1.212 @openai/codex@0.144.5 @google/gemini-cli@0.51.0 opencode-ai@1.18.3
       # Alone on its own runner: nothing else competes for chromium/vite/cpu, so the merged suite's
       # maxWorkers:2 is safe and the heavy solid-streamdown cold-load has headroom.
       - run: pnpm exec turbo run typecheck lint test --filter='./apps/storybook'
