@@ -1,5 +1,5 @@
 import {makeExtRpcClient} from '@conciv/extension'
-import {RECORDER_NAME, type RrwebEvent} from '../shared/protocol.js'
+import {RECORDER_NAME, type RecorderControl, type RrwebEvent} from '../shared/protocol.js'
 import type {RecorderRouter} from '../server.js'
 import {startCapture, takeFreshSnapshot} from './capture.js'
 import {createFlusher, type Flusher} from './flusher.js'
@@ -23,18 +23,20 @@ export function bootRecorder(apiBase: string, store: RecorderStore): () => void 
     offListeners.push(() => target.removeEventListener(name, handler))
   }
 
+  const handleControl = async (message: RecorderControl): Promise<void> => {
+    if (message.snapshot) takeFreshSnapshot()
+    if (message.flush) await flusher?.flushNow()
+    if (message.live !== undefined) {
+      flusher?.setLive(message.live)
+      store.setLive(message.live)
+    }
+  }
+
   const controlLoop = async (): Promise<void> => {
     while (!abort.signal.aborted) {
       try {
         const control = await rpc.control(undefined, {signal: abort.signal})
-        for await (const message of control) {
-          if (message.snapshot) takeFreshSnapshot()
-          if (message.flush) await flusher?.flushNow()
-          if (message.live !== undefined) {
-            flusher?.setLive(message.live)
-            store.setLive(message.live)
-          }
-        }
+        for await (const message of control) await handleControl(message)
       } catch {
         if (abort.signal.aborted) return
         await wait(RECONNECT_MS)
