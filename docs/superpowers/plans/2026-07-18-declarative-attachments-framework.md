@@ -1016,7 +1016,7 @@ git commit -m "feat(widget): wire attachment cards + document adapters from exte
 
 - Consumes: `makeApp` with `opts.extensions` + `opts.harness` (`app.ts:35-55`); a scripted harness from `@conciv/harness-testkit` (already a core devDep — do NOT add `@conciv/extension-testkit` to core, that edge is a workspace cycle).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Build inline in the test: `defineAttachment({mime:'application/x-conciv-fixture'})` with `.server(() => [{type:'text', content:'fixture-expanded'}])`, wrapped in `defineExtension({name:'fixture', attachments:[attachment]}).server(() => ({context: {}}))`; a harness-testkit scripted adapter that captures the `messages` it receives. Call `makeApp({extensions:[fixture], harness: scripted, …})`, drive `send` with content `[text, document(fixture mime)]`, then assert:
 
@@ -1024,10 +1024,10 @@ Build inline in the test: `defineAttachment({mime:'application/x-conciv-fixture'
 - the harness-captured messages contain `fixture-expanded` and NO document part.
   This is the real send path with a scripted-but-real adapter (the same "no mocks" posture as harness-testkit's other users).
 
-- [ ] **Step 2: Run — Expected: FAIL** first (before Task 6 semantics are complete this asserts the full chain).
-- [ ] **Step 3: Fix gaps** in the responsible task's files if the chain breaks anywhere.
-- [ ] **Step 4: Run — Expected: PASS** (`pnpm turbo run test --filter=@conciv/core`).
-- [ ] **Step 5: Commit**
+- [x] **Step 2: Run — Expected: FAIL** first (before Task 6 semantics are complete this asserts the full chain).
+- [x] **Step 3: Fix gaps** in the responsible task's files if the chain breaks anywhere.
+- [x] **Step 4: Run — Expected: PASS** (`pnpm turbo run test --filter=@conciv/core`).
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -m "test(core): end-to-end attachment expand fixture" -- packages/core/test/expand-attachments.it.test.ts
