@@ -90,6 +90,7 @@ export {
 export {ActionBarMore} from './primitives/action-bar-more/action-bar-more.js'
 export {ActionBarMore as ThreadListItemMore} from './primitives/action-bar-more/action-bar-more.js'
 export {Attachment, AttachmentProvider, useAttachment} from './primitives/attachment/attachment.js'
+export {partIsModelOnly} from './primitives/message-part/part-visibility.js'
 export {
   composeAttachmentAdapters,
   createSimpleImageAttachmentAdapter,

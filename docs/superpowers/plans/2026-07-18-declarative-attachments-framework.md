@@ -671,7 +671,7 @@ git commit -m "feat(core): expand attachments at send, failure-safe, store rich 
 
 - Produces: `partIsModelOnly(part: MessagePart): boolean` in the **primitives** layer (styled may import primitives, never the reverse). `Message.Parts`/`DispatchPart` render nothing for modelOnly parts (covers keyframe `image` parts — without this they render inline via `MessagePart.Image`). `Message.Attachments` excludes modelOnly parts from its entries.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import {describe, expect, it} from 'vitest'
@@ -688,9 +688,9 @@ describe('partIsModelOnly', () => {
 })
 ```
 
-- [ ] **Step 2: Run — Expected: FAIL** (`pnpm turbo run test --filter=@conciv/ui-kit-chat`).
+- [x] **Step 2: Run — Expected: FAIL** (`pnpm turbo run test --filter=@conciv/ui-kit-chat`).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 import type {MessagePart} from '@tanstack/ai-client'
@@ -705,9 +705,9 @@ export function partIsModelOnly(part: MessagePart): boolean {
 
 In `message.tsx`: at the top of `DispatchPart`'s returned JSX add an outer `<Show when={!partIsModelOnly(part())} fallback={null}>`; in `Attachments`/`AttachmentByIndex`, extend the filter to `parts.filter((part) => isAttachmentPart(part) && !partIsModelOnly(part))`. Export `partIsModelOnly` from `index.tsx`.
 
-- [ ] **Step 4: Run — Expected: PASS.**
+- [x] **Step 4: Run — Expected: PASS.**
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -m "feat(ui-kit-chat): modelOnly part visibility predicate + hidden in render" -- packages/ui-kit-chat/src/primitives/message-part/part-visibility.ts packages/ui-kit-chat/src/primitives/message/message.tsx packages/ui-kit-chat/src/index.tsx packages/ui-kit-chat/test/part-visibility.test.ts
