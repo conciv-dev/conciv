@@ -44,32 +44,28 @@ type ConcivInit = {
   apiBase?: string
 }
 
-function createConciv(init: ConcivInit): {mount(): Promise<void>, unmount(): void}
+function createConciv(init: ConcivInit): {mount(el: HTMLElement): Promise<void>, unmount(): void}
 ```
 
-`mount()` resolves when the widget has booted and rejects on load/boot failure (after cleanup + logging). The `[data-conciv-root]` host element is claimed synchronously inside `mount()` so concurrent mounts (two handles, or component + script-tag inject) collapse to one widget with a warning.
+Exactly the `TanStackDevtoolsCore` shape: `mount(el)` mounts into a caller-provided element (the impl attaches the shadow root to a disposable inner div so remount works — `attachShadow` is once-per-element); no page-level singleton — two handles are two widgets, the caller's choice. `mount()` resolves when the widget has booted and rejects on load/boot failure (after cleanup + logging). The script-tag `mountConciv` keeps its own body-appended element and idempotence marker.
 
-- `mount()`:
-  - `typeof document === 'undefined'` → return (SSR no-op).
-  - Existing `[data-conciv-root]` singleton guard → `console.warn` (loud: component + injected
-    script both active) and no-op.
-  - State machine `unmounted → mounting → mounted`; `AbortController` created per mount.
+- `mount(el)`:
+  - `typeof document === 'undefined'` → return (SSR no-op); a second mount on a mounted handle is a
+    no-op (per-handle state machine `unmounted → mounting → mounted`, `AbortController` per mount).
   - Dynamic `import('./mount-impl.js')` carries the heavy graph (router app, ui-kits, page plane).
     The static `mount.js` entry stays import-safe for SSR: no top-level DOM access, no heavy deps.
-  - Import failure → `console.error('[conciv] failed to load widget', err)`, state resets to
-    `unmounted`.
+  - Failure → cleanup, one `console.error`, promise rejects.
 - `unmount()`:
-  - Aborts an in-flight mount, then runs the teardown bundle returned by boot:
-    Solid `render()` dispose (currently dropped in `mount.tsx:43`), page-plane
-    `startPagePlane(...).dispose` (already returns `{dispose}`), shadow-root host element removal.
+  - Aborts an in-flight mount, then runs the fault-isolated teardown: Solid `render()` dispose
+    (currently dropped in `mount.tsx:43`), page-plane `dispose`, `queryClient.clear()`, page-driver
+    `dispose` (console patch + window listeners), inner-host removal, `__TSR_ROUTER__` restore,
+    `__CONCIV_*` global clears.
   - No-op when unmounted (React cleanup may run without a mount having happened).
-- Config threading: boot uses `init.apiBase ?? resolveApiBase()` and
-  `init.settings ?? parseConcivSettings(metaContent('pw-widget'))`. Existing meta/query resolution
-  stays the fallback, so the script-tag path is unchanged.
-- `mountConciv(extensions)` becomes `createConciv({extensions}).mount()` — global/script-tag embed
-  path keeps identical behavior.
-- Implementation must verify Solid dispose tears down router SSE subscriptions and the react-bridge
-  install is either idempotent or included in teardown.
+- Config threading: boot uses `init.apiBase ?? resolveApiBase()` (with `?core=` constrained to
+  loopback/same-origin) and `init.settings ?? parseConcivSettings(metaContent('pw-widget'))`.
+  Existing meta/query resolution stays the fallback, so the script-tag path is unchanged.
+- `mountConciv(extensions)` creates its own body-appended element (with a synchronous
+  `data-conciv-script-root` idempotence marker) and mounts into it — script-tag behavior unchanged.
 
 ### 2. `@conciv/react`
 
@@ -77,11 +73,13 @@ New package `packages/react`:
 
 - Exports `ConcivWidget(props: ConcivInit): null` and the props type. `'use client'` banner on the
   entry.
-- Props are fully reactive: the mount effect keys on a value-stable serialization of
-  `apiBase`/`settings` plus the `extensions` array identity; any change tears down and reboots the
-  widget with the new configuration (settings/extensions feed router creation at boot, so remount
-  is the correct live-update). Renders `null`: the widget owns its body-level shadow root; no host
-  DOM node needed, so no `react-dom` dependency.
+- Renders a ref'd anchor `<div>` and mounts the core into it from an effect — the TanStack wrapper
+  shape. The widget's inner host is `position: fixed`, so the overlay is viewport-anchored
+  regardless of tree placement. Props are fully reactive: the mount effect keys on a value-stable
+  serialization of `apiBase`/`settings` plus the `extensions` array identity; any change tears down
+  and reboots the widget with the new configuration (settings/extensions feed router creation at
+  boot, so remount is the correct live-update). No `react-dom` dependency (`createElement` from
+  `react`).
 - StrictMode double-invoke: effect runs mount → cleanup unmount → mount; the abort + full teardown
   make this safe by construction.
 - Deps: `@conciv/embed`. Peer: `react >=16.8` (+ `@types/react` optional). Build: tsdown, plain TS
@@ -96,8 +94,8 @@ Same component via `preact/hooks`. Peer `preact >=10`. Otherwise identical (~40 
 The component is self-sufficient like `<TanStackDevtools />`: rendering it mounts the widget, which
 talks to the conciv server at `apiBase` (prop, else global/meta/`?core=` resolution). The dev server
 still comes from the `@conciv/it` plugin or the CLI, but the component does not depend on plugin
-script injection. If a host runs both plugin auto-inject and the component, the singleton guard
-keeps one widget and warns.
+script injection. Running both plugin auto-inject and the component mounts two widgets — like any
+duplicated component, that's the host's call; the READMEs say to pick one path.
 
 ## Publishing
 
@@ -121,5 +119,7 @@ Real browser (Playwright/Chromium), never jsdom; assert observable behavior only
 
 ## Out of scope
 
-- Reverse portals for host-framework content inside the widget (custom FAB, custom tool cards).
+- Reverse portals for host-framework content inside the widget (custom FAB, custom tool cards) —
+  the future `<ConcivWidget>{children}</ConcivWidget>` slot; the anchor-element API leaves room for
+  it without a breaking change.
 - Vue/Svelte wrappers.
