@@ -12,6 +12,8 @@
 
 **Rev 2 changes** (from Fable API review + maintainer comments): client `partContent` document gap (was a feature-killing blocker), single-array `expandUserParts` (old two-array version failed its own test), Expand try/catch fallback, `Ctx` generic on `defineAttachment` + `RequiredContext` over attachments, browser tests moved to `apps/conciv` (ui-kit-chat has no browser vitest project), composer dispatch site now a real task, no double-render of images / unconditional document fallback, remove affordance on matched cards, fixture task rebuilt without a dependency cycle, correct turbo filter names (`conciv`, not `@conciv/conciv`), first-wins expander precedence, `partIsModelOnly` lives in primitives.
 
+**Rev 3 changes** (risk-closure review against the live tree, 2026-07-18): browser-test snippets rewritten to the repo's real harness — `render` from `solid-js/web` + structural assertions, exactly like `apps/conciv/test/context-tracker.browser.test.tsx` (`vitest-browser-solid` is NOT a dependency and must not be added); tests import from the `@conciv/ui-kit-chat` root only (the package exports `.` plus two css files — subpaths like `primitives/attachment/attachment` do not resolve); Task 4 gains a no-new-cast acceptance check; Task 6's expand failure path logs via `logError` so failures are diagnosable server-side (the `modelOnly` failure text also reaches the model, which tells the user in its reply — that is the user-facing surface, by design); Task 10 gains a pre-send part-count gate matching the contract's 16-part cap (`contract.ts:30`) so an over-attached message gets a notice instead of an opaque server rejection; redundant `aria-label` dropped from the Task 8 remove overlay (`Attachment.Remove` sets its own, `attachment.tsx:42`).
+
 ## Global Constraints
 
 - Functions, not classes. No IIFEs. Zero code comments in TS/JS (self-explanatory names).
@@ -20,6 +22,8 @@
 - No barrel files; import from source.
 - Build/typecheck/test via turbo; never hand-build `dist/`.
 - Browser UI tests run in the `apps/conciv` vitest **browser** project (`test/**/*.browser.test.tsx`, Playwright chromium — see `apps/conciv/vitest.config.ts`). `packages/ui-kit-chat` vitest is node-only and must stay that way.
+- Browser tests mount with `render` from `solid-js/web` into a host div with dispose-on-afterEach (copy the harness in `apps/conciv/test/context-tracker.browser.test.tsx`) and assert **structurally** (`querySelector` by role/aria-label/testid, `textContent`) — never visually (the browser project loads no UnoCSS/theme, so classes are unstyled). Do NOT add `vitest-browser-solid` or any other test dep.
+- All test imports of ui-kit symbols go through the `@conciv/ui-kit-chat` **root** export (the exports map has only `.` + two css files; subpath imports do not resolve).
 - zod validates every HTTP boundary.
 - v0, no back-compat shims.
 - Commit with pathspec. If `prek` aborts on a lock race, `pnpm format` then `git commit --no-verify -- <paths>`.
@@ -55,10 +59,12 @@ Turbo filter names (verified): protocol `@conciv/protocol`, extension `@conciv/e
 ## Task 1: Wire schema — document part + modelOnly metadata
 
 **Files:**
+
 - Modify: `packages/protocol/src/chat-types.ts:15-25`
 - Test: `packages/protocol/test/chat-types.test.ts` (create if absent)
 
 **Interfaces:**
+
 - Produces: `ChatContentPartSchema` accepts `{type:'document', source:{type:'data', mimeType, value}}` and `metadata?:{modelOnly?:boolean}` on all three variants. `ChatContentPart` gains the document member. Contract `content` union inherits automatically.
 
 - [ ] **Step 1: Write the failing test**
@@ -150,10 +156,12 @@ git commit -m "feat(protocol): document content part + modelOnly metadata" -- pa
 ## Task 2: Client send path forwards document parts (blocker fix)
 
 **Files:**
+
 - Modify: `packages/client/src/chat-connection.ts:33-39` (`partContent`)
 - Test: `packages/client/test/part-content.test.ts`
 
 **Interfaces:**
+
 - Consumes: Task 1's document variant of `ChatContentPart`.
 - Produces: `partContent` maps `document` parts (data source) to `{type:'document', source}` and carries `metadata` through on all part kinds. Without this, `chat.sendMessage` → `lastUserContent` → `rpc.chat.send` silently drops the attachment client-side.
 
@@ -228,11 +236,13 @@ git commit -m "fix(client): forward document parts and metadata in send path" --
 ## Task 3: `defineAttachment` builder with typed ctx
 
 **Files:**
+
 - Create: `packages/extension/src/define-attachment.ts`
 - Modify: `packages/extension/src/types.ts` (append types)
 - Test: `packages/extension/test/define-attachment.test.ts`
 
 **Interfaces:**
+
 - Produces (exact — Plan 2 consumes these):
   - `type AttachmentDocumentPart = {type:'document'; source:{type:'data'; mimeType:string; value:string}}` — the protocol shape, deliberately NOT tanstack's `DocumentPart` (whose url arm makes `mimeType` optional and breaks strict indexing).
   - `type AttachmentExpand<Ctx = unknown> = (part: AttachmentDocumentPart, ctx: Ctx) => Promise<readonly ContentPart[]> | readonly ContentPart[]`.
@@ -331,12 +341,14 @@ git commit -m "feat(extension): defineAttachment builder with typed ctx" -- pack
 ## Task 4: Register `attachments` on the extension + collector + ctx constraint
 
 **Files:**
+
 - Modify: `packages/extension/src/define-extension.ts:18-27,37-57,84-92`
 - Modify: `packages/extension/src/collect-client.ts`
 - Modify: `packages/extension/src/index.ts`
 - Test: `packages/extension/test/collect-attachment-cards.test.ts`
 
 **Interfaces:**
+
 - Consumes: `AnyAttachmentBuilder` (Task 3); `RequiredContext`/`CtxOf` (existing, `types.ts:92-94`).
 - Produces:
   - `ExtensionMeta`/`ExtensionBuilder` gain generic `Attachments extends readonly AnyAttachmentBuilder[]` and field `attachments?: Attachments`.
@@ -381,12 +393,14 @@ describe('collectAttachmentCards', () => {
 In `define-extension.ts`: add `Attachments extends readonly AnyAttachmentBuilder[] = readonly []` to `ExtensionMeta`, `ExtensionBuilder`, and `defineExtension`'s generics; add `attachments?: Attachments` to both type bodies; add `attachments: meta.attachments,` to the constructed builder; change the server signature to
 
 ```ts
-  server: <Context extends RequiredContext<readonly [...Tools, ...Attachments]>>(
-    factory: (server: ServerApi<ConfigOf<Schema>>) => ServerResult<Context> | Promise<ServerResult<Context>>,
-  ) => ExtensionBuilder<Name, Schema, Tools, Attachments, ClientValue>
+server: <Context extends RequiredContext<readonly [...Tools, ...Attachments]>>(
+  factory: (server: ServerApi<ConfigOf<Schema>>) => ServerResult<Context> | Promise<ServerResult<Context>>,
+) => ExtensionBuilder<Name, Schema, Tools, Attachments, ClientValue>
 ```
 
 and update `AnyExtension` and the other `ExtensionBuilder<...>` references for the new arity. `RequiredContext` already folds `__ctx` via `CtxOf` — no change needed there.
+
+**Acceptance (no-new-cast):** this task's diff must introduce ZERO new `as`/`as unknown as`/non-null casts. The single pre-existing `as unknown as ExtensionBuilder<...>` at `define-extension.ts:102` stays and absorbs the new `attachments` field exactly as it absorbs `tools`. If the `Attachments` generic fights variance anywhere, fall back to the structural `AnyAttachmentBuilder` shape from Task 3's note — never a cast. Verify: `git diff packages/extension | grep -E '\bas\b'` shows nothing new.
 
 - [ ] **Step 4: Implement the collector**
 
@@ -423,10 +437,12 @@ git commit -m "feat(extension): attachments on extensions + collectAttachmentCar
 ## Task 5: DB — persist document parts across restart
 
 **Files:**
+
 - Modify: `packages/db/src/run-queries.ts:96-99,105`
 - Test: `packages/db/test/run-queries.test.ts` (extend or create)
 
 **Interfaces:**
+
 - Produces: `hasRichPart(message)` true for `image` **or** `document` parts; `foldRunMessagesIntoImageHistory` uses it, so attachment turns survive restart.
 
 - [ ] **Step 1: Write the failing test**
@@ -474,12 +490,14 @@ git commit -m "feat(db): fold document parts into durable history" -- packages/d
 ## Task 6: Core — Expand at send (single array, failure-safe)
 
 **Files:**
+
 - Modify: `packages/core/src/chat/runtime.ts` (`ChatDeps.attachmentExpanders`)
 - Modify: `packages/core/src/chat/run.ts` (`expandUserParts`, `RunRequest.userParts`, `makeSend`, `startRun`)
 - Modify: `packages/core/src/app.ts` (`buildAttachmentExpanders`, first-wins assembly)
 - Test: `packages/core/test/expand-attachments.test.ts`
 
 **Interfaces:**
+
 - Consumes: `AttachmentDocumentPart` (Task 3), `buildExtensionTools` pattern (`app.ts:77-90`).
 - Produces:
   - `type AttachmentExpanders = Record<string, (part: AttachmentDocumentPart) => Promise<readonly ContentPart[]>>` on `ChatDeps` (ctx pre-closed).
@@ -571,12 +589,17 @@ export async function expandUserParts(content: UserContent, expanders: Attachmen
     if (!expandable || !expander) continue
     const produced = await expander(expandable)
       .then(markModelOnly)
-      .catch(() => [EXPAND_FAILURE_PART])
+      .catch((error: unknown) => {
+        logError(`[core] attachment expand failed (${expandable.source.mimeType}): ${String(error)}`)
+        return [EXPAND_FAILURE_PART]
+      })
     expanded.push(...produced)
   }
   return expanded
 }
 ```
+
+(`logError` from `../lib/debug.js` — the same logger `app.ts` uses. The failure is thus diagnosable server-side; the model receives the `modelOnly` failure text and relays it to the user in its reply, which is the intended user-facing surface. The Task 1 Step 1 test with a throwing expander asserts the returned parts only — the log line is additive and does not change its expectations.)
 
 - [ ] **Step 4: Thread through `makeSend` / `startRun`**
 
@@ -638,12 +661,14 @@ git commit -m "feat(core): expand attachments at send, failure-safe, store rich 
 ## Task 7: ui-kit — `partIsModelOnly` (primitives) + hide modelOnly parts
 
 **Files:**
+
 - Create: `packages/ui-kit-chat/src/primitives/message-part/part-visibility.ts`
 - Modify: `packages/ui-kit-chat/src/primitives/message/message.tsx` (`DispatchPart`, `Attachments`)
 - Modify: `packages/ui-kit-chat/src/index.tsx` (export)
 - Test: `packages/ui-kit-chat/test/part-visibility.test.ts` (node — pure predicate)
 
 **Interfaces:**
+
 - Produces: `partIsModelOnly(part: MessagePart): boolean` in the **primitives** layer (styled may import primitives, never the reverse). `Message.Parts`/`DispatchPart` render nothing for modelOnly parts (covers keyframe `image` parts — without this they render inline via `MessagePart.Image`). `Message.Attachments` excludes modelOnly parts from its entries.
 
 - [ ] **Step 1: Write the failing test**
@@ -693,12 +718,14 @@ git commit -m "feat(ui-kit-chat): modelOnly part visibility predicate + hidden i
 ## Task 8: ui-kit — `AttachmentByMime` + document adapter + composer dispatch site
 
 **Files:**
+
 - Create: `packages/ui-kit-chat/src/styled/attachment-dispatch.tsx`
 - Modify: `packages/ui-kit-chat/src/styled/composer.tsx:16,42-51` (`AttachmentComponent` prop — the previously-unowned dispatch site)
 - Modify: `packages/ui-kit-chat/src/index.tsx` (exports)
 - Test: `apps/conciv/test/attachment-dispatch.browser.test.tsx` (the repo's only browser vitest project)
 
 **Interfaces:**
+
 - Consumes: `useAttachment`, `Attachment.Root`/`Attachment.Remove`, `AttachmentUI`, `fileToDataSource` (existing); `partIsModelOnly` (Task 7).
 - Produces:
   - `type AttachmentCardSlot = {mime: string; render: ValidComponent}` — structural, defined **in ui-kit-chat** (no dep on `@conciv/extension`; `collectAttachmentCards`' entries are structurally assignable).
@@ -709,41 +736,57 @@ git commit -m "feat(ui-kit-chat): modelOnly part visibility predicate + hidden i
 - [ ] **Step 1: Write the failing test**
 
 ```tsx
-import {render} from 'vitest-browser-solid'
-import {expect, test} from 'vitest'
-import {AttachmentProvider} from '@conciv/ui-kit-chat/primitives/attachment/attachment'
-import {AttachmentByMime} from '@conciv/ui-kit-chat/styled/attachment-dispatch'
+import {render} from 'solid-js/web'
+import {afterEach, expect, test} from 'vitest'
+import type {JSX} from 'solid-js'
+import {AttachmentByMime, AttachmentProvider, type CompleteAttachment} from '@conciv/ui-kit-chat'
 
-const complete = {
-  id: 'a',
-  type: 'document' as const,
-  name: 'rec',
-  contentType: 'application/x-test',
-  status: {type: 'complete' as const},
-  content: [{type: 'document' as const, source: {type: 'data' as const, mimeType: 'application/x-test', value: 'eyJ4IjoxfQ=='}}],
+const disposers: (() => void)[] = []
+afterEach(() => {
+  for (const dispose of disposers.splice(0)) dispose()
+})
+
+function mount(element: () => JSX.Element): HTMLElement {
+  const host = document.createElement('div')
+  document.body.appendChild(host)
+  const dispose = render(element, host)
+  disposers.push(() => {
+    dispose()
+    host.remove()
+  })
+  return host
 }
 
-test('renders the matching card for a document mime', async () => {
-  const Card = () => <div data-testid="card">player</div>
-  const screen = render(() => (
+const complete: CompleteAttachment = {
+  id: 'a',
+  type: 'document',
+  name: 'rec',
+  contentType: 'application/x-test',
+  status: {type: 'complete'},
+  content: [{type: 'document', source: {type: 'data', mimeType: 'application/x-test', value: 'eyJ4IjoxfQ=='}}],
+}
+
+test('renders the matching card for a document mime', () => {
+  const Card = (): JSX.Element => <div data-testid="card">player</div>
+  const host = mount(() => (
     <AttachmentProvider value={complete}>
       <AttachmentByMime cards={[{mime: 'application/x-test', render: Card}]} />
     </AttachmentProvider>
   ))
-  await expect.element(screen.getByTestId('card')).toBeVisible()
+  expect(host.querySelector('[data-testid="card"]')).not.toBeNull()
 })
 
-test('falls back to the generic tile for an unknown mime', async () => {
-  const screen = render(() => (
+test('falls back to the generic tile for an unknown mime', () => {
+  const host = mount(() => (
     <AttachmentProvider value={complete}>
       <AttachmentByMime cards={[]} />
     </AttachmentProvider>
   ))
-  await expect.element(screen.getByLabelText('rec')).toBeVisible()
+  expect(host.querySelector('[aria-label="rec"]')).not.toBeNull()
 })
 ```
 
-(Match the import style/render helper of existing `apps/conciv/test/*.browser.test.tsx` files — read one first; if they import ui-kit source via workspace alias, mirror it.)
+(Harness copied from `apps/conciv/test/context-tracker.browser.test.tsx` — `solid-js/web` render + dispose, structural asserts. Root import only; `AttachmentProvider`/`CompleteAttachment` are already exported from the ui-kit index, `AttachmentByMime` is exported by this task. If `CompleteAttachment`'s content typing rejects the literal, type the fixture with a `satisfies`-free plain annotation and adjust the part literal — no casts.)
 
 - [ ] **Step 2: Run — Expected: FAIL** (`pnpm turbo run test --filter=conciv`).
 
@@ -765,7 +808,8 @@ export type AttachmentCardSlot = {mime: string; render: ValidComponent}
 
 function attachmentMime(attachment: AttachmentState): string | undefined {
   if ('content' in attachment)
-    for (const part of attachment.content) if (part.type === 'document' && part.source.type === 'data') return part.source.mimeType
+    for (const part of attachment.content)
+      if (part.type === 'document' && part.source.type === 'data') return part.source.mimeType
   return attachment.contentType
 }
 
@@ -778,10 +822,7 @@ export function AttachmentByMime(props: {cards: readonly AttachmentCardSlot[]; r
         <Attachment.Root class="relative">
           <Dynamic component={entry().render} />
           <Show when={props.removable}>
-            <Attachment.Remove
-              class="absolute end-1 top-1 inline-flex items-center justify-center size-6 rounded-[var(--chat-radius-pill)] [background:var(--chat-panel)] [color:var(--chat-text-2)] shadow-[var(--chat-shadow-lg)] cursor-pointer hover:[color:var(--chat-danger)]"
-              aria-label={`Remove ${attachment.name}`}
-            >
+            <Attachment.Remove class="absolute end-1 top-1 inline-flex items-center justify-center size-6 rounded-[var(--chat-radius-pill)] [background:var(--chat-panel)] [color:var(--chat-text-2)] shadow-[var(--chat-shadow-lg)] cursor-pointer hover:[color:var(--chat-danger)]">
               <X size={12} />
             </Attachment.Remove>
           </Show>
@@ -843,18 +884,21 @@ git commit -m "feat(ui-kit-chat): AttachmentByMime dispatch, document adapter, c
 ## Task 9: Thread — user turn renders document attachments
 
 **Files:**
+
 - Modify: `packages/ui-kit-chat/src/styled/thread.tsx:31-53,174-200` (`ThreadProps`, `ThreadConfigContext`, `UserTurn`)
 - Test: `apps/conciv/test/user-turn.browser.test.tsx`
 
 **Interfaces:**
+
 - Consumes: `AttachmentByMime`/`AttachmentCardSlot` (Task 8), `partIsModelOnly` behavior (Task 7), `Message.Attachments` (existing).
 - Produces: `ThreadProps.attachmentCards?: readonly AttachmentCardSlot[]`; carried on `ThreadConfigContext` as `attachmentCards: () => readonly AttachmentCardSlot[]` (default `() => []`). `UserTurn` renders **Document attachments unconditionally** (unknown mime → generic tile via `AttachmentByMime` fallback — even with zero cards registered), Document slot **only** (images already render inline via `Message.Parts` → `MessagePart.Image`; wiring an Image slot would double-render them).
 
 - [ ] **Step 1: Write the failing test**
 
-Mount `Thread` inside a `ChatProvider` whose store holds one user message with parts `[text 'why?', document(mime 'application/x-test'), modelOnly text 'clicked save', modelOnly image]` — mirror the store-mounting approach of `thread.stories.tsx` / existing `apps/conciv` browser tests. Assert:
-- with `attachmentCards=[{mime:'application/x-test', render: Card}]`: card testid visible; `'clicked save'` NOT in the document; no `<img>` rendered from the modelOnly keyframe; `'why?'` visible.
-- with `attachmentCards=[]`: the generic file tile renders (fallback), not nothing.
+Mount `Thread` inside a `ChatProvider` whose store holds one user message with parts `[text 'why?', document(mime 'application/x-test'), modelOnly text 'clicked save', modelOnly image]` — use the `solid-js/web` `render`+dispose harness from the Global Constraints (copy `context-tracker.browser.test.tsx`), mirror the chat-store seeding approach of `packages/ui-kit-chat/src/styled/thread.stories.tsx` for the message fixture, import everything from the `@conciv/ui-kit-chat` root. Assert structurally on the host element:
+
+- with `attachmentCards=[{mime:'application/x-test', render: Card}]`: `host.querySelector('[data-testid="card"]')` non-null; `host.textContent` does NOT contain `'clicked save'`; no `<img>` in the host (modelOnly keyframe hidden); `host.textContent` contains `'why?'`.
+- with `attachmentCards=[]`: the generic file tile renders (fallback, `[aria-label]` of the document attachment present), not nothing.
 
 - [ ] **Step 2: Run — Expected: FAIL** (`pnpm turbo run test --filter=conciv`).
 
@@ -898,10 +942,12 @@ git commit -m "feat(ui-kit-chat): user turn renders document attachment cards" -
 ## Task 10: Widget wiring
 
 **Files:**
+
 - Modify: `apps/conciv/src/chat/chat-pane.tsx:47-58,252,404,462-489`
 - Test: `apps/conciv/test/attachment-widget.browser.test.tsx`
 
 **Interfaces:**
+
 - Consumes: `collectAttachmentCards` (Task 4), `createDocumentAttachmentAdapter`, `AttachmentByMime`, `ComposerProps.AttachmentComponent` (Task 8), `ThreadProps.attachmentCards` (Task 9).
 - Produces: composer accepts every registered mime; composer chips and thread turns dispatch through the same card list.
 
@@ -930,6 +976,26 @@ const PaneAttachment = (slotProps: {removable?: boolean}) => (
 
 Pass `AttachmentComponent={PaneAttachment}` to `<Composer>`, `attachmentCards={attachmentCards()}` to `<Thread>`. Delete the now-dead `paneAttachmentAdapter` helper.
 
+Also add the pre-send part-count gate in `onSend` (the contract caps `content` at 16 parts — `packages/contract/src/contract.ts:30`; without this, an over-attached message dies as an opaque server-side zod rejection):
+
+```ts
+const MAX_CONTENT_PARTS = 16
+
+const onSend = (content: string | MultimodalContent) => {
+  const text = contentText(content)
+  const hasContent = typeof content === 'string' ? text.length > 0 : content.content.length > 0
+  if (!hasContent || chat.isLoading() || compacting()) return
+  if (typeof content !== 'string' && content.content.length > MAX_CONTENT_PARTS) {
+    notify('Too many attachments — remove some and send again.')
+    return
+  }
+  if (raw.connectionStatus() !== 'connected') return
+  void send(typeof content === 'string' ? text : content)
+}
+```
+
+(Gate note: this duplicates a bound the contract already enforces server-side — the protocol Task 1 test covers the schema; browser-driving 17 attachments to red-test a notify branch is disproportionate, so this guard ships untested by design. Flagged per the tests-must-fail rule; the schema bound itself IS test-covered.)
+
 - [ ] **Step 4: Run — Expected: PASS.**
 
 - [ ] **Step 5: Commit**
@@ -943,17 +1009,20 @@ git commit -m "feat(widget): wire attachment cards + document adapters from exte
 ## Task 11: End-to-end framework proof (core, no dependency cycle)
 
 **Files:**
+
 - Test: `packages/core/test/expand-attachments.it.test.ts`
 
 **Interfaces:**
+
 - Consumes: `makeApp` with `opts.extensions` + `opts.harness` (`app.ts:35-55`); a scripted harness from `@conciv/harness-testkit` (already a core devDep — do NOT add `@conciv/extension-testkit` to core, that edge is a workspace cycle).
 
 - [ ] **Step 1: Write the failing test**
 
 Build inline in the test: `defineAttachment({mime:'application/x-conciv-fixture'})` with `.server(() => [{type:'text', content:'fixture-expanded'}])`, wrapped in `defineExtension({name:'fixture', attachments:[attachment]}).server(() => ({context: {}}))`; a harness-testkit scripted adapter that captures the `messages` it receives. Call `makeApp({extensions:[fixture], harness: scripted, …})`, drive `send` with content `[text, document(fixture mime)]`, then assert:
+
 - stored run messages (via the db) contain the document part AND the `modelOnly` `fixture-expanded` text part;
 - the harness-captured messages contain `fixture-expanded` and NO document part.
-This is the real send path with a scripted-but-real adapter (the same "no mocks" posture as harness-testkit's other users).
+  This is the real send path with a scripted-but-real adapter (the same "no mocks" posture as harness-testkit's other users).
 
 - [ ] **Step 2: Run — Expected: FAIL** first (before Task 6 semantics are complete this asserts the full chain).
 - [ ] **Step 3: Fix gaps** in the responsible task's files if the chain breaks anywhere.

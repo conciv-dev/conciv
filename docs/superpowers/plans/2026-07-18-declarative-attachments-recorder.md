@@ -12,6 +12,8 @@
 
 **Rev 2 changes** (from Fable API review + resource audit + maintainer comments): double-base64 fix (File holds raw JSON; `encodeRecordingRef` dropped), correct turbo filter (`@conciv/extension-recorder` — rev 1's `@conciv/recorder` matched nothing → vacuous green), typed Expand ctx via `defineAttachment<{recorder: RecorderRuntime}>` (kills the banned `as` cast), `server/attachment.ts` as the canonical expand-registration module, Task-4/5 ordering fixed (`recordings` field lands with its construction), Card rebuilt: TanStack Query utils (repo pattern, not `createResource`), lazy Play mount (resource audit M4), full state matrix **loading → empty → error+retry → expired → playing** reusing panel notices (maintainer), pending-composer ref read from `file.text()` (review M1), `sendToAgent` failure toast, `@conciv/ui-kit-chat` added to recorder deps (review M8), size-capped saves + byte/TTL prune (resource audit B3) with timestamp-prefixed ids (mtime-tie flake), ITs grounded on `getExtensionTestApi` (rev 1 cited harnesses that don't exist).
 
+**Rev 3 changes** (disk-safety risk closure, 2026-07-18 — maintainer directive: never bloat the user's disk, gates + error handling everywhere): store `get` no longer lets `JSON.parse` throw on a corrupt/truncated file (guarded → `null` → renders as expired); `save` prunes **before** writing with the incoming payload reserved in the byte/count budget, so the 200MB/50-file caps are never exceeded even transiently; writes are **atomic** (`.tmp` + `rename`) so a crash mid-write can never leave a corrupt `.json`; `sweep` deletes stray `*.tmp` files at boot; every filesystem failure in `save` (mkdir/write/rename/prune) returns `{ok:false, reason:'io-error'}` instead of throwing — the router maps it to an error result and the panel toast covers it. Schema-drifted files are handled by design: `safeParse` failure → `null` → expired card, and TTL deletes them within 7 days.
+
 ## Global Constraints
 
 - Functions, not classes. No IIFEs. Zero code comments. No `any`/`as`/`@ts-ignore`/non-null `!`; `noUncheckedIndexedAccess`. Plan snippets must compile under strict — no casts.
@@ -50,10 +52,12 @@
 ## Task 1: Recording ref + mime + poster helpers (single-encode)
 
 **Files:**
+
 - Modify: `packages/extensions/recorder/src/shared/protocol.ts`
 - Test: `packages/extensions/recorder/test/recording-ref.test.ts`
 
 **Interfaces:**
+
 - Produces:
   - `RECORDER_MIME = 'application/x-conciv-recorder'`.
   - `RecordingRefSchema = z.object({recordingId: z.string().min(1), poster: z.string()})`; `type RecordingRef`.
@@ -157,6 +161,7 @@ git commit -m "feat(recorder): recording ref/mime/poster helpers (single-encode)
 ## Task 2: Distill cleanup — drop blocked targets + empty inputs
 
 **Files:**
+
 - Modify: `packages/extensions/recorder/src/server/distill.ts` (`incrementalEntry`)
 - Test: `packages/extensions/recorder/test/distill.test.ts` (extend)
 
@@ -215,22 +220,28 @@ git commit -m "fix(recorder): drop blocked targets and empty inputs from action 
 ## Task 3: Recording store — size-capped, byte/count/TTL-pruned
 
 **Files:**
+
 - Create: `packages/extensions/recorder/src/server/recordings.ts`
 - Test: `packages/extensions/recorder/test/recordings.test.ts`
 
 **Interfaces:**
+
 - Produces:
-  - `type SaveResult = {ok: true; recordingId: string} | {ok: false; reason: 'too-large' | 'empty'}`.
+  - `type SaveResult = {ok: true; recordingId: string} | {ok: false; reason: 'too-large' | 'empty' | 'io-error'}`.
   - `createRecordingStore(dir: string): RecordingStore` with
     `save(events: RrwebEvent[]): Promise<SaveResult>`, `get(id): Promise<RrwebEvent[] | null>`, `sweep(): Promise<void>`.
   - `save` trims from the front to the **latest type-2 snapshot** that keeps the serialized payload ≤ `MAX_RECORDING_BYTES` (16MB); if even the tail from the last snapshot exceeds the cap → `{ok:false, reason:'too-large'}`; `< 2` events → `{ok:false, reason:'empty'}`.
+  - `save` prunes **BEFORE** writing, with the incoming payload reserved in the budget (`{bytes: payload.length, count: 1}`) — the on-disk total can never exceed `MAX_TOTAL_RECORDING_BYTES` / `MAX_RECORDINGS`, not even transiently.
+  - Writes are **atomic**: write `<id>.json.tmp`, then `rename` to `<id>.json` — a crash mid-write never leaves a corrupt `.json` behind.
+  - **Every** filesystem failure inside `save` (mkdir, prune stat, write, rename) is caught and returned as `{ok:false, reason:'io-error'}` — `save` never throws.
+  - `get` never throws: read failure → `null`; **corrupt/unparseable JSON → `null`** (`JSON.parse` wrapped, then `safeParse`); schema drift → `null`. Callers already render `null` as expired.
   - Ids are `` `${Date.now()}-${randomUUID()}` `` — lexicographic name order == recency (no mtime-tie flake), and `sweep`/prune sort by name.
-  - Prune (after each save): keep newest `MAX_RECORDINGS` (50) AND total bytes ≤ `MAX_TOTAL_RECORDING_BYTES` (200MB). `sweep()` (called at server boot) additionally deletes files older than `RECORDING_TTL_MS` (7 days, from the id's timestamp prefix). All `stat`/`unlink` are `.catch`-guarded (concurrent-delete race).
+  - Prune: keep newest `MAX_RECORDINGS` (50) AND total bytes ≤ `MAX_TOTAL_RECORDING_BYTES` (200MB), honoring the reserve. `sweep()` (called at server boot) additionally deletes files older than `RECORDING_TTL_MS` (7 days, from the id's timestamp prefix) **and deletes stray `*.tmp` files** (crash leftovers). All `stat`/`unlink` are `.catch`-guarded (concurrent-delete race).
 
 - [ ] **Step 1: Write the failing test**
 
 ```ts
-import {mkdtempSync} from 'node:fs'
+import {chmodSync, mkdtempSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {describe, expect, it} from 'vitest'
@@ -239,8 +250,12 @@ import {createRecordingStore} from '../src/server/recordings.js'
 const snapshot = (timestamp: number) => ({type: 2, data: {node: {}}, timestamp})
 const event = (timestamp: number) => ({type: 3, data: {source: 2, type: 2, id: 1}, timestamp})
 
+function freshDir(): string {
+  return mkdtempSync(join(tmpdir(), 'rec-'))
+}
+
 function freshStore() {
-  return createRecordingStore(mkdtempSync(join(tmpdir(), 'rec-')))
+  return createRecordingStore(freshDir())
 }
 
 describe('recording store', () => {
@@ -286,8 +301,38 @@ describe('recording store', () => {
     expect(await store.get(oldest)).toBeNull()
     expect(await store.get(newest)).not.toBeNull()
   })
+
+  it('returns null for a corrupt recording file instead of throwing', async () => {
+    const dir = freshDir()
+    const store = createRecordingStore(dir)
+    const saved = await store.save([snapshot(1), event(2)])
+    if (!saved.ok) throw new Error('expected ok')
+    writeFileSync(join(dir, `${saved.recordingId}.json`), '{corrupt', 'utf8')
+    expect(await store.get(saved.recordingId)).toBeNull()
+  })
+
+  it('reports io-error when the directory is not writable, never throws', async () => {
+    const dir = freshDir()
+    chmodSync(dir, 0o500)
+    const store = createRecordingStore(dir)
+    expect(await store.save([snapshot(1), event(2)])).toEqual({ok: false, reason: 'io-error'})
+    chmodSync(dir, 0o700)
+  })
+
+  it('sweep removes stray tmp files', async () => {
+    const dir = freshDir()
+    const store = createRecordingStore(dir)
+    const saved = await store.save([snapshot(1), event(2)])
+    if (!saved.ok) throw new Error('expected ok')
+    writeFileSync(join(dir, '123-dead.json.tmp'), 'partial', 'utf8')
+    await store.sweep()
+    expect(await store.get(saved.recordingId)).not.toBeNull()
+    expect(await store.get('123-dead')).toBeNull()
+  })
 })
 ```
+
+(The io-error test relies on the process not running as root — true for dev machines and CI here. The tmp-stray assertion checks the survivor stays AND the stray is gone; `get('123-dead')` is null both before and after, so also assert the file itself: `expect(existsSync(join(dir, '123-dead.json.tmp'))).toBe(false)` — import `existsSync`.)
 
 - [ ] **Step 2: Run — Expected: FAIL** — module missing.
 
@@ -295,7 +340,7 @@ describe('recording store', () => {
 
 ```ts
 import {randomUUID} from 'node:crypto'
-import {mkdir, readFile, readdir, stat, unlink, writeFile} from 'node:fs/promises'
+import {mkdir, readFile, readdir, rename, stat, unlink, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 import {z} from 'zod'
 import {RrwebEventSchema, type RrwebEvent} from '../shared/protocol.js'
@@ -306,7 +351,7 @@ const MAX_RECORDING_BYTES = 16 * 1024 * 1024
 const MAX_TOTAL_RECORDING_BYTES = 200 * 1024 * 1024
 const RECORDING_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
-export type SaveResult = {ok: true; recordingId: string} | {ok: false; reason: 'too-large' | 'empty'}
+export type SaveResult = {ok: true; recordingId: string} | {ok: false; reason: 'too-large' | 'empty' | 'io-error'}
 
 export type RecordingStore = {
   save: (events: RrwebEvent[]) => Promise<SaveResult>
@@ -338,17 +383,23 @@ async function listByRecency(dir: string): Promise<string[]> {
   return names.filter((name) => name.endsWith('.json')).toSorted((a, b) => b.localeCompare(a))
 }
 
-async function prune(dir: string): Promise<void> {
+async function prune(dir: string, reserved: {bytes: number; count: number}): Promise<void> {
   const names = await listByRecency(dir)
   const sized = await Promise.all(
     names.map(async (name) => ({name, bytes: (await stat(join(dir, name)).catch(() => null))?.size ?? 0})),
   )
-  let total = 0
+  let total = reserved.bytes
   const doomed = sized.filter((entry, index) => {
     total += entry.bytes
-    return index >= MAX_RECORDINGS || total > MAX_TOTAL_RECORDING_BYTES
+    return index + reserved.count >= MAX_RECORDINGS || total > MAX_TOTAL_RECORDING_BYTES
   })
   await Promise.all(doomed.map((entry) => unlink(join(dir, entry.name)).catch(() => {})))
+}
+
+async function clearStrayTmp(dir: string): Promise<void> {
+  const names = await readdir(dir).catch(() => [])
+  const strays = names.filter((name) => name.endsWith('.tmp'))
+  await Promise.all(strays.map((name) => unlink(join(dir, name)).catch(() => {})))
 }
 
 export function createRecordingStore(dir: string): RecordingStore {
@@ -357,29 +408,43 @@ export function createRecordingStore(dir: string): RecordingStore {
       if (events.length < 2) return {ok: false, reason: 'empty'}
       const trimmed = trimToCap(events)
       if (!trimmed || trimmed.length < 2) return {ok: false, reason: 'too-large'}
-      await mkdir(dir, {recursive: true})
-      const recordingId = `${Date.now()}-${randomUUID()}`
-      await writeFile(join(dir, `${recordingId}.json`), JSON.stringify({events: trimmed}), 'utf8')
-      await prune(dir)
-      return {ok: true, recordingId}
+      const payload = JSON.stringify({events: trimmed})
+      try {
+        await mkdir(dir, {recursive: true})
+        await prune(dir, {bytes: payload.length, count: 1})
+        const recordingId = `${Date.now()}-${randomUUID()}`
+        const target = join(dir, `${recordingId}.json`)
+        await writeFile(`${target}.tmp`, payload, 'utf8')
+        await rename(`${target}.tmp`, target)
+        return {ok: true, recordingId}
+      } catch {
+        return {ok: false, reason: 'io-error'}
+      }
     },
     async get(id) {
       if (!/^[A-Za-z0-9-]+$/.test(id)) return null
       const raw = await readFile(join(dir, `${id}.json`), 'utf8').catch(() => null)
       if (raw === null) return null
-      const parsed = StoredRecording.safeParse(JSON.parse(raw))
-      return parsed.success ? parsed.data.events : null
+      try {
+        const parsed = StoredRecording.safeParse(JSON.parse(raw))
+        return parsed.success ? parsed.data.events : null
+      } catch {
+        return null
+      }
     },
     async sweep() {
+      await clearStrayTmp(dir)
       const names = await listByRecency(dir)
       const cutoff = Date.now() - RECORDING_TTL_MS
       const expired = names.filter((name) => timestampOf(name) < cutoff)
       await Promise.all(expired.map((name) => unlink(join(dir, name)).catch(() => {})))
-      await prune(dir)
+      await prune(dir, {bytes: 0, count: 0})
     },
   }
 }
 ```
+
+(`listByRecency` already filters to `.json`, so `.tmp` files never count toward the byte/count budget and never survive a boot sweep. `save` never throws — every fs failure maps to `io-error`, which Task 5's router returns as `{error}` and Task 9's toast surfaces.)
 
 - [ ] **Step 4: Run — Expected: PASS.**
 
@@ -394,12 +459,14 @@ git commit -m "feat(recorder): size-capped recording store with byte/count/TTL p
 ## Task 4: Runtime — `recordings` + typed `renderRecording`
 
 **Files:**
+
 - Modify: `packages/extensions/recorder/src/server/runtime.ts`
 - Modify: `packages/extensions/recorder/src/server/format.ts` (`recordingParts` return type)
 - Modify: `packages/extensions/recorder/src/server.ts` (construct the store — same commit so typecheck stays green)
 - Test: `packages/extensions/recorder/test/runtime.test.ts` (extend)
 
 **Interfaces:**
+
 - Consumes: `RecordingStore` (Task 3).
 - Produces:
   - `RecorderRuntime.recordings: RecordingStore` (constructed in `server.ts` with `createRecordingStore(join(server.cwd, '.conciv', 'recorder', 'recordings'))`; `void runtime.recordings.sweep()` fired at mount).
@@ -490,12 +557,14 @@ git commit -m "feat(recorder): recordings store on runtime + typed renderRecordi
 ## Task 5: Router — `recordings.save` / `recordings.get`
 
 **Files:**
+
 - Modify: `packages/extensions/recorder/src/server.ts` (`makeRecorderRouter`)
 - Test: `packages/extensions/recorder/test/recordings-router.test.ts` (new — note: `render.it.test.ts` tests the Chromium renderer directly, NOT the router; do not model on it. Call the handlers via `@orpc/server`'s `call` helper, or through the testkit engine in Task 9.)
 
 **Interfaces:**
+
 - Produces:
-  - `recordings.save` (input `RangeInput`) → `{recordingId: string} | {error: 'too-large' | 'empty'}` — freezes `runtime.ring.window(input)`.
+  - `recordings.save` (input `RangeInput`) → `{recordingId: string} | {error: 'too-large' | 'empty' | 'io-error'}` — freezes `runtime.ring.window(input)`; every store failure (including disk errors) comes back as a typed `{error}`, never a thrown 500.
   - `recordings.get` (input `{recordingId: z.string()}`) → `{events: RrwebEvent[]} | {expired: true}`.
 
 - [ ] **Step 1: Write the failing test**
@@ -524,7 +593,7 @@ const saved = await call(router.recordings.save, {}, {context: {request: new Req
 recordings: recorderOs.router({
   save: recorderOs
     .input(RangeInput)
-    .output(z.union([z.object({recordingId: z.string()}), z.object({error: z.enum(['too-large', 'empty'])})]))
+    .output(z.union([z.object({recordingId: z.string()}), z.object({error: z.enum(['too-large', 'empty', 'io-error'])})]))
     .handler(async ({input}) => {
       const saved = await runtime.recordings.save(runtime.ring.window(input))
       return saved.ok ? {recordingId: saved.recordingId} : {error: saved.reason}
@@ -551,12 +620,14 @@ git commit -m "feat(recorder): recordings.save/get router" -- packages/extension
 ## Task 6: Recording attachment — shared def + typed server Expand
 
 **Files:**
+
 - Create: `packages/extensions/recorder/src/shared/attachment.ts`
 - Create: `packages/extensions/recorder/src/server/attachment.ts` (canonical expand registration — importable by tests without pulling the whole server module)
 - Modify: `packages/extensions/recorder/src/server.ts` (import `./server/attachment.js`; add `attachments` to the extension)
 - Test: `packages/extensions/recorder/test/expand.test.ts`
 
 **Interfaces:**
+
 - Consumes: `defineAttachment<Ctx>` (Plan 1 Task 3), `decodeRecordingRef` (Task 1), `renderRecording` + `RecorderRuntime` (Task 4).
 - Produces:
   - `shared/attachment.ts`: `recordingAttachment = defineAttachment<{recorder: RecorderRuntime}>({mime: RECORDER_MIME})` — ctx typed, so the expand needs **no cast**, and Plan 1 Task 4's `RequiredContext` constraint compile-checks that the recorder's `.server()` actually provides `{recorder}` (it does — `server.ts` context, verified).
@@ -577,8 +648,8 @@ recordingAttachment.server(async (part, ctx) => {
 export {recordingAttachment}
 ```
 
-  - `server.ts` imports `{recordingAttachment} from './server/attachment.js'` and adds `attachments: [recordingAttachment]` to its `defineExtension`.
-  - Bundle note: `shared/attachment.ts` compiles into BOTH dists (relative import). Each dist holds its own instance — the client copy carries only `.card`, the server copy only `.server`. Same split as `tool/client.ts` vs `tool/server.ts`; no server code reaches the client bundle because the client never imports `server/attachment.ts`.
+- `server.ts` imports `{recordingAttachment} from './server/attachment.js'` and adds `attachments: [recordingAttachment]` to its `defineExtension`.
+- Bundle note: `shared/attachment.ts` compiles into BOTH dists (relative import). Each dist holds its own instance — the client copy carries only `.card`, the server copy only `.server`. Same split as `tool/client.ts` vs `tool/server.ts`; no server code reaches the client bundle because the client never imports `server/attachment.ts`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -650,11 +721,13 @@ git commit -m "feat(recorder): recording attachment expand (typed ctx, expired f
 ## Task 7: Extract player + notices into shared client modules
 
 **Files:**
+
 - Create: `packages/extensions/recorder/src/client/player.ts`
 - Create: `packages/extensions/recorder/src/client/notices.tsx`
 - Modify: `packages/extensions/recorder/src/client/panel-view.tsx`
 
 **Interfaces:**
+
 - Produces:
   - `player.ts`: `mountPlayer(container: HTMLDivElement, events: RrwebEvent[], skipIdle: Accessor<boolean>): () => void` — moved verbatim from `panel-view.tsx:74-104` with its helpers (`playerSize`, `recordedAspect`, `skipIdlePlayback`, `styleScope`, `demoteInjectedStyles`, the zod guards, the three CSS `?inline` imports, the `Player` import).
   - `notices.tsx`: `RecorderNotice(props: {text: string})` and `RecorderErrorNotice(props: {retry: () => void; text?: string})` — moved from `panel-view.tsx:193-206`, `text` defaulting to the current copy.
@@ -673,15 +746,18 @@ git commit -m "refactor(recorder): extract shared player + notice modules" -- pa
 ## Task 8: `RecordingCard` — lazy player, full state matrix, TanStack Query
 
 **Files:**
+
 - Create: `packages/extensions/recorder/src/client/recording-card.tsx`
 - Modify: `packages/extensions/recorder/src/client.tsx` (register card + attachments)
 - Modify: `packages/extensions/recorder/package.json` (add workspace dep `@conciv/ui-kit-chat` — the card imports `useAttachment`; runtime-safe because embed + recorder vite externalize `@conciv/*`, but typecheck needs the dep)
 
 **Interfaces:**
+
 - Consumes: `useAttachment` (`@conciv/ui-kit-chat`), `parseRecordingRefJson`/`decodeRecordingRef` (Task 1), `recordings.get` (Task 5), `mountPlayer` (Task 7), notices (Task 7), `getHostApi`/`makeExtRpcClient`/`createTanstackQueryUtils` (existing pattern — `panel-view.tsx:115-135`).
 - Produces: `RecordingCard()` with states — **poster+Play (idle) → loading → empty → error+retry → expired → playing**. The recording query is `enabled` only after Play (lazy mount: a transcript of N cards mounts zero players until clicked — resource audit M4). Pending-composer attachments (no `content` yet) resolve their ref from `attachment.file.text()`.
 
 State/date sources:
+
 - ref: complete → document part value via `decodeRecordingRef`; pending → `file.text()` via `parseRecordingRefJson`.
 - loading: query `isPending` (after Play).
 - empty: `events.length < 2` → `RecorderNotice('Nothing to replay in this recording.')`.
@@ -814,10 +890,12 @@ git commit -m "feat(recorder): RecordingCard with lazy play + full async state m
 ## Task 9: `sendToAgent` — save + attach, with failure toast
 
 **Files:**
+
 - Modify: `packages/extensions/recorder/src/client/panel-view.tsx`
 - Test: `packages/extensions/recorder/test/send-to-agent.it.test.ts` (via `getExtensionTestApi` — the ONLY browser harness here; `extension.it.test.ts` is a node rpc test and cannot click UI)
 
 **Interfaces:**
+
 - Consumes: `recordings.save` (Task 5), `recordingRefJson`/`recordingPoster`/`RECORDER_MIME` (Task 1), `host.attach(file)` + `toast` (existing, unchanged).
 - Produces: "Send to agent" saves the window and attaches `new File([recordingRefJson(ref)], 'Screen recording', {type: RECORDER_MIME})`; save failure (`error` result or thrown) toasts and does NOT leave the view; `.txt` path deleted.
 
@@ -857,6 +935,7 @@ git commit -m "feat(recorder): send-to-agent saves + attaches the recording, toa
 ## Task 10: End-to-end IT + gates
 
 **Files:**
+
 - Test: `packages/extensions/recorder/test/recording-attachment.it.test.ts` (testkit browser)
 
 - [ ] **Step 1: Write the failing test** — full loop in the testkit browser: interact → open recorder view → Send to agent → assert card in composer (poster visible) → send the message → assert card in transcript with a Play button → click Play → player mounts (skip if the testkit engine strips the panel; then assert poster card only and cover Play in Task 8's states via the composer instance) → reload the page → card still in transcript (durable fold) → assert the log text and keyframes are NOT visible as user text/images (modelOnly hidden).
