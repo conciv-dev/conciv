@@ -53,6 +53,8 @@ export type MakeAppOpts = {
   harness?: HarnessAdapter
 
   onShutdown?: () => void
+
+  firstChunkTimeoutMs?: number
 }
 
 export function slug(name: string): string {
@@ -234,6 +236,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     tools: buildChatTools(makeToolCtx, extensionTools, sessionModel),
     onRunStart: (sessionId) => runStartListeners.forEach((listener) => listener(sessionId)),
     onRunEnd,
+    firstChunkTimeoutMs: opts.firstChunkTimeoutMs,
   }
 
   if (opts.cfg.sessionId) {

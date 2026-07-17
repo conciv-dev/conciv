@@ -15,6 +15,9 @@ overrides:
 
 packageExtensionsChecksum: sha256-dVhKvsWIVuG9nPr1LtcuSzZV8oO+dNO4ylE3TdR8UyE=
 
+patchedDependencies:
+  '@tanstack/ai-sandbox-local-process@0.2.0': 019aa10a95efe0d79615da01c1fcd5b1316742625ef3c1f116a83f5259e691bc
+
 importers:
 
   .:
@@ -633,6 +636,46 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
+  e2e/harnesses:
+    dependencies:
+      '@conciv/it':
+        specifier: workspace:*
+        version: link:../../packages/it
+      react:
+        specifier: ^19.2.7
+        version: 19.2.7
+      react-dom:
+        specifier: ^19.2.7
+        version: 19.2.7(react@19.2.7)
+    devDependencies:
+      '@conciv/e2e-utils':
+        specifier: workspace:*
+        version: link:../e2e-utils
+      '@playwright/test':
+        specifier: ^1.61.1
+        version: 1.61.1
+      '@types/node':
+        specifier: ^22.19.21
+        version: 22.20.0
+      '@types/react':
+        specifier: ^19.2.17
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: ^19.2.3
+        version: 19.2.3(@types/react@19.2.17)
+      '@vitejs/plugin-react':
+        specifier: ^6.0.3
+        version: 6.0.3(vite@8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+      oxlint:
+        specifier: ^1.71.0
+        version: 1.73.0
+      typescript:
+        specifier: ~6.0.2
+        version: 6.0.3
+      vite:
+        specifier: ^8.1.1
+        version: 8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)
+
   e2e/nextjs:
     dependencies:
       '@conciv/it':
@@ -1055,7 +1098,7 @@ importers:
         version: 0.2.2(@tanstack/ai@0.40.0(@opentelemetry/api@1.9.1))(zod@4.4.3)
       '@tanstack/ai-sandbox-local-process':
         specifier: ^0.2.0
-        version: 0.2.0(@tanstack/ai-sandbox@0.2.2(@tanstack/ai@0.40.0(@opentelemetry/api@1.9.1))(zod@4.4.3))
+        version: 0.2.0(patch_hash=019aa10a95efe0d79615da01c1fcd5b1316742625ef3c1f116a83f5259e691bc)(@tanstack/ai-sandbox@0.2.2(@tanstack/ai@0.40.0(@opentelemetry/api@1.9.1))(zod@4.4.3))
       drizzle-orm:
         specifier: 1.0.0-rc.4
         version: 1.0.0-rc.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(zod@4.4.3)
@@ -19724,7 +19767,7 @@ snapshots:
       '@tanstack/ai': 0.40.0(@opentelemetry/api@1.9.1)
       '@tanstack/ai-sandbox': 0.2.2(@tanstack/ai@0.40.0(@opentelemetry/api@1.9.1))(zod@4.4.3)
 
-  '@tanstack/ai-sandbox-local-process@0.2.0(@tanstack/ai-sandbox@0.2.2(@tanstack/ai@0.40.0(@opentelemetry/api@1.9.1))(zod@4.4.3))':
+  '@tanstack/ai-sandbox-local-process@0.2.0(patch_hash=019aa10a95efe0d79615da01c1fcd5b1316742625ef3c1f116a83f5259e691bc)(@tanstack/ai-sandbox@0.2.2(@tanstack/ai@0.40.0(@opentelemetry/api@1.9.1))(zod@4.4.3))':
     dependencies:
       '@tanstack/ai-sandbox': 0.2.2(@tanstack/ai@0.40.0(@opentelemetry/api@1.9.1))(zod@4.4.3)
 

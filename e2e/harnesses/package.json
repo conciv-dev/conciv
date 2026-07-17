@@ -1,0 +1,27 @@
+{
+  "name": "conciv-e2e-harnesses",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -b && vite build --config vite.claude.config.ts",
+    "lint": "oxlint",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@conciv/it": "workspace:*",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@conciv/e2e-utils": "workspace:*",
+    "@playwright/test": "^1.61.1",
+    "@types/node": "^22.19.21",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "oxlint": "^1.71.0",
+    "typescript": "~6.0.2",
+    "vite": "^8.1.1"
+  }
+}
