@@ -164,7 +164,7 @@ function RootChrome(props: {
     return (await rpc.sessions.resolve(latest ? {id: latest.id} : {})).sessionId
   }
   const dispatchToggled = (open: boolean) =>
-    window.dispatchEvent(new CustomEvent('conciv:panel-toggled', {detail: {open}}))
+    window.dispatchEvent(new CustomEvent('conciv:panel-toggled', {detail: {open, connected: connected()}}))
   const openPanel = async () => {
     if (panelMatch() || connectMatch()) {
       setShutter(router, true)

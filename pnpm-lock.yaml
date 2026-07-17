@@ -313,6 +313,15 @@ importers:
 
   apps/site:
     dependencies:
+      '@conciv/embed':
+        specifier: workspace:*
+        version: link:../../packages/embed
+      '@conciv/extension-terminal':
+        specifier: workspace:*
+        version: link:../../packages/extensions/terminal
+      '@conciv/extension-try-it':
+        specifier: workspace:*
+        version: link:../../packages/extensions/try-it
       '@conciv/it':
         specifier: workspace:*
         version: link:../../packages/it
@@ -404,9 +413,6 @@ importers:
       '@conciv/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@conciv/embed':
-        specifier: workspace:*
-        version: link:../../packages/embed
       '@conciv/extension-compiler':
         specifier: workspace:*
         version: link:../../packages/extension-compiler

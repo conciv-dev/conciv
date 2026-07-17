@@ -24,6 +24,9 @@
     "gen:snippets": "node --experimental-strip-types scripts/highlight-snippets.ts"
   },
   "dependencies": {
+    "@conciv/embed": "workspace:*",
+    "@conciv/extension-terminal": "workspace:*",
+    "@conciv/extension-try-it": "workspace:*",
     "@conciv/it": "workspace:*",
     "@conciv/mascot": "workspace:*",
     "@conciv/protocol": "workspace:*",
@@ -56,7 +59,6 @@
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.42.4",
     "@conciv/core": "workspace:*",
-    "@conciv/embed": "workspace:*",
     "@conciv/extension-compiler": "workspace:*",
     "@conciv/harness-testkit": "workspace:*",
     "@conciv/try": "workspace:*",

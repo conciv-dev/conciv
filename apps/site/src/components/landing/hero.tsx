@@ -1,5 +1,5 @@
 import {Badge} from '@/components/ui/badge'
-import {TryLiveButton} from './try-widget'
+import {TryLiveButton} from './try-live-button'
 import {Demo} from './demo/demo'
 import {InstallChip} from './install-chip'
 
