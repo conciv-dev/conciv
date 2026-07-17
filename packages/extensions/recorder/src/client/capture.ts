@@ -5,6 +5,8 @@ import type {RecorderConfig, RrwebEvent} from '../shared/protocol.js'
 
 const CHECKOUT_MS = 60_000
 
+const CONCIV_UI_SELECTOR = '[data-conciv-root], [data-conciv-effects], [data-conciv-cursor]'
+
 function maskingOptions(masking: RecorderConfig['masking']): {
   maskAllInputs: boolean
   maskInputOptions: {password: boolean; email?: boolean; tel?: boolean}
@@ -18,6 +20,7 @@ export function startCapture(config: RecorderConfig, emit: (event: RrwebEvent) =
   const stop = record({
     emit: (event: eventWithTime) => emit(event),
     checkoutEveryNms: CHECKOUT_MS,
+    blockSelector: CONCIV_UI_SELECTOR,
     ...maskingOptions(config.masking),
     plugins: config.console ? [getRecordConsolePlugin({level: ['error'], lengthThreshold: 200})] : [],
   })

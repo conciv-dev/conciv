@@ -16,9 +16,10 @@ function mountPlayer(container: HTMLDivElement, events: RrwebEvent[]): () => voi
   const style = document.createElement('style')
   style.textContent = `${rrwebCss}\n${playerCss}`
   container.appendChild(style)
+  const width = container.clientWidth || 620
   const player = new Player({
     target: container,
-    props: {events: playerEvents.parse(events), width: container.clientWidth || 620, autoPlay: false},
+    props: {events: playerEvents.parse(events), width, height: Math.round(width * 0.6), autoPlay: false},
   })
   return () => player.$destroy()
 }
