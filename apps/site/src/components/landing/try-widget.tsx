@@ -7,12 +7,13 @@ import {shouldAutoOpen} from '@/lib/try-state'
 import {TryLauncher} from './try-launcher'
 import {TryPanel} from './try-panel'
 
-type Phase = 'boot' | 'waiting' | 'live'
+type Phase = 'boot' | 'waiting' | 'connected' | 'live'
 type Navigate = ReturnType<typeof route.useNavigate>
 
 const route = getRouteApi('/')
 const PREFLIGHT_TIMEOUT_MS = 2500
 const POLL_INTERVAL_MS = 2000
+const CONNECTED_FLASH_MS = 800
 
 function sleep(ms: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
@@ -38,7 +39,9 @@ async function pollForCore(token: string, signal: AbortSignal, onPhase: (phase: 
     await sleep(POLL_INTERVAL_MS, signal)
     const base = signal.aborted ? null : await probe(token, signal)
     if (!base) continue
+    onPhase('connected')
     mountWidget(base)
+    await sleep(CONNECTED_FLASH_MS, signal)
     onPhase('live')
     return
   }
@@ -69,11 +72,13 @@ async function beginSession(
 function TryOverlay({
   open,
   token,
+  connected,
   onClose,
   onOpen,
 }: {
   open: boolean
   token: string
+  connected: boolean
   onClose: () => void
   onOpen: () => void
 }) {
@@ -81,7 +86,7 @@ function TryOverlay({
   return (
     <>
       <TryLauncher label="Hide the live demo panel" onActivate={onClose} />
-      <TryPanel token={token} onClose={onClose} />
+      <TryPanel token={token} connected={connected} onClose={onClose} />
     </>
   )
 }
@@ -125,8 +130,14 @@ export function TryWidget() {
   if (hidden || phase === 'live') return null
   return (
     <div ref={start}>
-      {phase === 'waiting' ? (
-        <TryOverlay open={search.try === 1} token={token} onClose={closePanel} onOpen={openPanel} />
+      {phase === 'waiting' || phase === 'connected' ? (
+        <TryOverlay
+          open={search.try === 1}
+          token={token}
+          connected={phase === 'connected'}
+          onClose={closePanel}
+          onOpen={openPanel}
+        />
       ) : null}
     </div>
   )

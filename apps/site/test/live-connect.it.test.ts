@@ -52,7 +52,7 @@ describe('live connect on the built site', () => {
     })
     const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
     await expect.poll(() => input.isVisible(), {timeout: 30_000}).toBe(true)
-    await expect.poll(() => panel.isVisible()).toBe(false)
+    await expect.poll(() => panel.isVisible(), {timeout: 5_000}).toBe(false)
     const stamped = page.locator('[data-conciv-source]').first()
     const sourceRef = (await stamped.getAttribute('data-conciv-source')) ?? ''
     const sourceFile = sourceRef.split(':').slice(0, -2).join(':')
