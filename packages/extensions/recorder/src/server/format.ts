@@ -10,7 +10,7 @@ export function pickKeyframeTimestamps(log: ActionLogEntry[], lastTs: number, co
   return [...new Set(picked)].toSorted((a, b) => a - b).slice(-count)
 }
 
-export function formatLog(log: ActionLogEntry[], opts: {keyframesSkipped: boolean}): string {
+function formatLog(log: ActionLogEntry[], opts: {keyframesSkipped: boolean}): string {
   if (!log.length) return 'No recorded activity in this window.'
   const start = log[0]?.ts ?? 0
   const lines = log.map((entry) => `+${((entry.ts - start) / 1000).toFixed(1)}s [${entry.kind}] ${entry.detail}`)

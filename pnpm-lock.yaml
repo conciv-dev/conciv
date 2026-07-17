@@ -1386,9 +1386,6 @@ importers:
       '@conciv/extension':
         specifier: workspace:^
         version: link:../../extension
-      '@conciv/protocol':
-        specifier: workspace:^
-        version: link:../../protocol
       '@conciv/ui-kit-system':
         specifier: workspace:^
         version: link:../../ui-kit-system
@@ -1423,9 +1420,6 @@ importers:
       '@conciv/extension-testkit':
         specifier: workspace:^
         version: link:../../extension-testkit
-      '@conciv/harness-testkit':
-        specifier: workspace:^
-        version: link:../../harness-testkit
       '@conciv/uno-preset':
         specifier: workspace:*
         version: link:../../uno-preset

@@ -1,31 +1,12 @@
 import {describe, expect, it} from 'vitest'
 import {distill} from '../src/server/distill.js'
 import type {RrwebEvent} from '../src/shared/protocol.js'
+import {buttonFixture, pageFixture} from './fixtures/page.js'
 
-const page = {
-  id: 1,
-  type: 0,
-  childNodes: [
-    {
-      id: 2,
-      type: 2,
-      tagName: 'html',
-      attributes: {},
-      childNodes: [
-        {
-          id: 3,
-          type: 2,
-          tagName: 'body',
-          attributes: {},
-          childNodes: [
-            {id: 4, type: 2, tagName: 'button', attributes: {}, childNodes: [{id: 5, type: 3, textContent: 'Save'}]},
-            {id: 6, type: 2, tagName: 'input', attributes: {id: 'email', type: 'text'}, childNodes: []},
-          ],
-        },
-      ],
-    },
-  ],
-}
+const page = pageFixture([
+  buttonFixture(4, 5, 'Save'),
+  {id: 6, type: 2, tagName: 'input', attributes: {id: 'email', type: 'text'}, childNodes: []},
+])
 
 const stream: RrwebEvent[] = [
   {type: 4, data: {href: 'http://localhost:3000/checkout', width: 800, height: 600}, timestamp: 1000},

@@ -8,6 +8,7 @@ import {start, type Engine} from '@conciv/core'
 import {makeExtRpcClient, type AnyExtension} from '@conciv/extension'
 import recorderExtension, {type RecorderRouter} from '../src/server.js'
 import type {RrwebEvent} from '../src/shared/protocol.js'
+import {buttonFixture, pageFixture} from './fixtures/page.js'
 
 const extensions: AnyExtension[] = [recorderExtension]
 
@@ -26,29 +27,7 @@ async function boot(): Promise<{base: string; engine: Engine}> {
   return {base: `http://127.0.0.1:${engine.port}`, engine}
 }
 
-const page = {
-  id: 1,
-  type: 0,
-  childNodes: [
-    {
-      id: 2,
-      type: 2,
-      tagName: 'html',
-      attributes: {},
-      childNodes: [
-        {
-          id: 3,
-          type: 2,
-          tagName: 'body',
-          attributes: {},
-          childNodes: [
-            {id: 4, type: 2, tagName: 'button', attributes: {}, childNodes: [{id: 5, type: 3, textContent: 'Buy'}]},
-          ],
-        },
-      ],
-    },
-  ],
-}
+const page = pageFixture([buttonFixture(4, 5, 'Buy')])
 
 function fixtureStream(base: number): RrwebEvent[] {
   return [

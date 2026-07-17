@@ -3,31 +3,9 @@ import {pullWindow} from '../src/server/runtime.js'
 import {createEventRing} from '../src/server/ring.js'
 import {createCaptureControl} from '../src/server/capture-control.js'
 import type {RrwebEvent} from '../src/shared/protocol.js'
+import {buttonFixture, pageFixture} from './fixtures/page.js'
 
-const page = {
-  id: 1,
-  type: 0,
-  childNodes: [
-    {
-      id: 2,
-      type: 2,
-      tagName: 'html',
-      attributes: {},
-      childNodes: [
-        {
-          id: 3,
-          type: 2,
-          tagName: 'body',
-          attributes: {},
-          childNodes: [
-            {id: 4, type: 2, tagName: 'button', attributes: {}, childNodes: [{id: 5, type: 3, textContent: 'Old'}]},
-            {id: 6, type: 2, tagName: 'button', attributes: {}, childNodes: [{id: 7, type: 3, textContent: 'New'}]},
-          ],
-        },
-      ],
-    },
-  ],
-}
+const page = pageFixture([buttonFixture(4, 5, 'Old'), buttonFixture(6, 7, 'New')])
 
 const click = (ts: number, id: number): RrwebEvent => ({type: 3, data: {source: 2, type: 2, id}, timestamp: ts})
 

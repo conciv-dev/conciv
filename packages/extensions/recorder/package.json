@@ -45,7 +45,6 @@
   },
   "dependencies": {
     "@conciv/extension": "workspace:^",
-    "@conciv/protocol": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
     "@orpc/server": "^1.14.7",
     "@rrweb/rrweb-plugin-console-record": "^2.1.0",
@@ -59,7 +58,6 @@
   "devDependencies": {
     "@conciv/core": "workspace:^",
     "@conciv/extension-testkit": "workspace:^",
-    "@conciv/harness-testkit": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
     "@tanstack/ai-mcp": "^0.2.3",
     "@types/node": "^22.19.21",
