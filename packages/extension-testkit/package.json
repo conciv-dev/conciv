@@ -27,6 +27,7 @@
     "@conciv/grab": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/protocol": "workspace:^",
+    "@conciv/ui-kit-chat": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
     "@playwright/test": "^1.61.1",
     "get-port": "^7.2.0",

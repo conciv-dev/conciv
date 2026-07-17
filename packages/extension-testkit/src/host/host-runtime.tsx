@@ -1,11 +1,15 @@
 import {createSignal, For, Show, type JSX} from 'solid-js'
 import {Dynamic, render} from 'solid-js/web'
+import {z} from 'zod'
 import {makeRpcClient} from '@conciv/contract'
-import {HostApiProvider, type AnyExtension} from '@conciv/extension'
+import {collectAttachmentCards, HostApiProvider, type AnyExtension} from '@conciv/extension'
 import {MountedExtension, MountedSurface} from '@conciv/extension/client'
+import {AttachmentByMime, AttachmentProvider, createDocumentAttachmentAdapter} from '@conciv/ui-kit-chat'
 import {Dialog, Popover} from '@conciv/ui-kit-system'
 import {makeHostGrab} from './grab.js'
 import {FixtureElement} from './fixture-element.js'
+
+const attachDetail = z.object({name: z.string(), type: z.string(), text: z.string()})
 
 // oxlint-disable-next-line conciv/no-comments -- TODO(host-views): hand-rolled tabs diverge from the real app's panel view mounting — rethink
 function MountedViews(props: {extension: AnyExtension; clientValue: object}): JSX.Element {
@@ -62,6 +66,34 @@ export function startHost(extension: AnyExtension): void {
   const session = metaContent('conciv-session')
   const rpc = makeRpcClient(apiBase)
   const clientValue = extension.__client?.()?.value ?? {}
+  const cards = collectAttachmentCards([extension])
+  const showCardAttachment = (file: File): void => {
+    const adapter = createDocumentAttachmentAdapter(file.type)
+    void Promise.resolve(adapter.add({file})).then((pending) => {
+      if (Symbol.asyncIterator in pending) return
+      const el = document.createElement('div')
+      el.setAttribute('data-testkit-attachment', file.name)
+      document.body.appendChild(el)
+      render(
+        () => (
+          <HostApiProvider rpc={rpc} apiBase={apiBase} toast={showToast}>
+            <AttachmentProvider value={pending}>
+              <AttachmentByMime cards={cards} />
+            </AttachmentProvider>
+          </HostApiProvider>
+        ),
+        el,
+      )
+    })
+  }
+  const attachFile = (file: File): void =>
+    cards.some((entry) => entry.mime === file.type) ? showCardAttachment(file) : showAttachment(file)
+  document.addEventListener('testkit:attach', (event) => {
+    if (!(event instanceof CustomEvent)) return
+    const parsed = attachDetail.safeParse(event.detail)
+    if (!parsed.success) return
+    attachFile(new File([parsed.data.text], parsed.data.name, {type: parsed.data.type}))
+  })
   const mountRoot = document.createElement('div')
   document.body.appendChild(mountRoot)
   render(
@@ -77,7 +109,7 @@ export function startHost(extension: AnyExtension): void {
         sessionId={() => (session ? session : null)}
         grab={makeHostGrab(document)}
         insert={() => {}}
-        attach={showAttachment}
+        attach={attachFile}
         newSession={() => {}}
         viewLock={() => {}}
         viewLeave={() => {}}

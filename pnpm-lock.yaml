@@ -1349,6 +1349,9 @@ importers:
       '@conciv/protocol':
         specifier: workspace:^
         version: link:../protocol
+      '@conciv/ui-kit-chat':
+        specifier: workspace:^
+        version: link:../ui-kit-chat
       '@conciv/ui-kit-system':
         specifier: workspace:^
         version: link:../ui-kit-system

@@ -939,15 +939,15 @@ const attachFile = (file: File): void =>
 
 Pass `attach={attachFile}` in the provider. Unmatched mimes keep today's `role="note"` behavior (existing testkit users unaffected).
 
-- [ ] **Step 1: Write the failing test** — `recording-card.it.test.ts` via `getExtensionTestApi` (recorder server + client): interact with the page to produce ring events, save via the router (`api().callTool` or rpc `recordings.save` — or drive Task 9's button once it lands), then in the page call the host attach with a File of `RECORDER_MIME` containing `recordingRefJson({recordingId, poster})`. Assert with `api().page`:
+- [x] **Step 1: Write the failing test** — `recording-card.it.test.ts` via `getExtensionTestApi` (recorder server + client): interact with the page to produce ring events, save via the router (`api().callTool` or rpc `recordings.save` — or drive Task 9's button once it lands), then in the page call the host attach with a File of `RECORDER_MIME` containing `recordingRefJson({recordingId, poster})`. Assert with `api().page`:
   - poster text + a `Play` button visible (idle state);
   - click Play → the rrweb player mounts (`.rr-player` or the player container) — **playing** state over a real `recordings.get` fetch;
   - attach a second File with a bogus `recordingId` → Play → `Recording expired.` visible (**expired** state, real `{expired:true}` from the real store).
     (Loading is transient; the `empty` branch is unreachable via real saves — the store rejects `< 2` events — so those two stay code-only. Network-error state reuses `RecorderErrorNotice`, which the panel already renders; not separately IT'd.)
-- [ ] **Step 2: Run — Expected: FAIL** (`pnpm turbo run test --filter=@conciv/extension-recorder`) — host renders the note div, no card.
-- [ ] **Step 3: Implement** the host change per Interfaces (imports: `collectAttachmentCards` from `@conciv/extension`, `AttachmentProvider`, `AttachmentByMime`, `createDocumentAttachmentAdapter` from `@conciv/ui-kit-chat`).
-- [ ] **Step 4: Run — Expected: PASS**, plus `pnpm turbo run test --filter=@conciv/extension-testkit --filter=@conciv/extension-terminal --filter=@conciv/extension-whiteboard` (other testkit consumers stay green — unmatched mimes unchanged).
-- [ ] **Step 5: Commit**
+- [x] **Step 2: Run — Expected: FAIL** (`pnpm turbo run test --filter=@conciv/extension-recorder`) — host renders the note div, no card.
+- [x] **Step 3: Implement** the host change per Interfaces (imports: `collectAttachmentCards` from `@conciv/extension`, `AttachmentProvider`, `AttachmentByMime`, `createDocumentAttachmentAdapter` from `@conciv/ui-kit-chat`).
+- [x] **Step 4: Run — Expected: PASS**, plus `pnpm turbo run test --filter=@conciv/extension-testkit --filter=@conciv/extension-terminal --filter=@conciv/extension-whiteboard` (other testkit consumers stay green — unmatched mimes unchanged).
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -m "feat(extension-testkit): host renders real attachment chips by mime" -- packages/extension-testkit/src/host/host-runtime.tsx packages/extension-testkit/package.json packages/extensions/recorder/test/recording-card.it.test.ts
