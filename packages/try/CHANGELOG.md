@@ -1,5 +1,15 @@
 # @conciv/try
 
+## 0.0.11
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/extension-terminal@0.0.11
+  - @conciv/core@0.0.11
+  - @conciv/harness@0.0.11
+  - @conciv/protocol@0.0.11
+
 ## 0.0.10
 
 ### Patch Changes
