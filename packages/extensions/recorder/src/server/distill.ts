@@ -38,12 +38,20 @@ function incrementalEntry(state: DistillState, event: RrwebEvent): ActionLogEntr
   if (mutation.safeParse(event.data).success) state.index.applyMutation(event.data)
   const ts = event.timestamp
   const clicked = click.safeParse(event.data)
-  if (clicked.success) return {ts, kind: 'click', detail: `clicked ${state.index.describe(clicked.data.id)}`}
+  if (clicked.success) {
+    if (clicked.data.id === -1) return undefined
+    return {ts, kind: 'click', detail: `clicked ${state.index.describe(clicked.data.id)}`}
+  }
   const typed = input.safeParse(event.data)
-  if (typed.success)
+  if (typed.success) {
+    if (typed.data.id === -1 || typed.data.text === '') return undefined
     return {ts, kind: 'input', detail: `typed "${typed.data.text}" into ${state.index.describe(typed.data.id)}`}
+  }
   const scrolled = scroll.safeParse(event.data)
-  if (scrolled.success) return {ts, kind: 'scroll', detail: `scrolled ${state.index.describe(scrolled.data.id)}`}
+  if (scrolled.success) {
+    if (scrolled.data.id === -1) return undefined
+    return {ts, kind: 'scroll', detail: `scrolled ${state.index.describe(scrolled.data.id)}`}
+  }
   return undefined
 }
 

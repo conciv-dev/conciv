@@ -174,7 +174,7 @@ git commit -m "feat(recorder): recording ref/mime/poster helpers (single-encode)
 - Modify: `packages/extensions/recorder/src/server/distill.ts` (`incrementalEntry`)
 - Test: `packages/extensions/recorder/test/distill.test.ts` (extend)
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import {describe, expect, it} from 'vitest'
@@ -194,9 +194,9 @@ describe('distill cleanup', () => {
 })
 ```
 
-- [ ] **Step 2: Run — Expected: FAIL** — entries emitted.
+- [x] **Step 2: Run — Expected: FAIL** — entries emitted.
 
-- [ ] **Step 3: Implement** — in `incrementalEntry`, after each successful `safeParse`:
+- [x] **Step 3: Implement** — in `incrementalEntry`, after each successful `safeParse`:
 
 ```ts
 const clicked = click.safeParse(event.data)
@@ -216,9 +216,9 @@ if (scrolled.success) {
 }
 ```
 
-- [ ] **Step 4: Run — Expected: PASS** (existing distill tests stay green).
+- [x] **Step 4: Run — Expected: PASS** (existing distill tests stay green).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -m "fix(recorder): drop blocked targets and empty inputs from action log" -- packages/extensions/recorder/src/server/distill.ts packages/extensions/recorder/test/distill.test.ts

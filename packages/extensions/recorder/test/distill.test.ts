@@ -60,6 +60,17 @@ describe('distill', () => {
     expect(distill(checkoutStream).filter((entry) => entry.kind === 'reload')).toHaveLength(0)
   })
 
+  it('drops blocked-target (id -1) clicks, inputs, scrolls', () => {
+    const incremental = (data: object): RrwebEvent => ({type: 3, data, timestamp: 1000})
+    expect(distill([incremental({source: 2, type: 2, id: -1})])).toEqual([])
+    expect(distill([incremental({source: 5, id: -1, text: 'hi'})])).toEqual([])
+    expect(distill([incremental({source: 3, id: -1})])).toEqual([])
+  })
+
+  it('drops empty typed inputs', () => {
+    expect(distill([{type: 3, data: {source: 5, id: 4, text: ''}, timestamp: 1000}])).toEqual([])
+  })
+
   it('resolves targets added later by flat parentId mutations (real rrweb shape)', () => {
     const withMutation: RrwebEvent[] = [
       {type: 2, data: {node: page}, timestamp: 1000},
