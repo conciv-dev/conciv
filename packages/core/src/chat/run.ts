@@ -1,8 +1,17 @@
 import {randomUUID} from 'node:crypto'
 import {existsSync, readFileSync} from 'node:fs'
 import {eq} from 'drizzle-orm'
-import {chat, EventType, StreamProcessor, type ModelMessage, type StreamChunk, type TokenUsage} from '@tanstack/ai'
+import {
+  chat,
+  EventType,
+  StreamProcessor,
+  type ContentPart,
+  type ModelMessage,
+  type StreamChunk,
+  type TokenUsage,
+} from '@tanstack/ai'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
+import type {AttachmentDocumentPart} from '@conciv/extension'
 import {ChatMessageSchema, type ChatContentPart, type ChatMessage} from '@conciv/protocol/chat-types'
 import {tokenUsageToSnapshot, type UsageSnapshot} from '@conciv/protocol/usage-types'
 import {
@@ -21,9 +30,14 @@ import type {ChatDeps} from './runtime.js'
 import {createSession, sessionById, toModelMessages} from './session.js'
 import {mergedMessages, transcriptMessages} from './attach.js'
 import {makeRunGate, withConcivGate, withConcivSandbox} from './gate.js'
-import {harnessDebug} from '../lib/debug.js'
+import {harnessDebug, logError} from '../lib/debug.js'
 
-export type RunRequest = {messages: ModelMessage[]; model: string | null; kind: 'chat' | 'compact'}
+export type RunRequest = {
+  messages: ModelMessage[]
+  model: string | null
+  kind: 'chat' | 'compact'
+  userParts?: UserContent
+}
 
 export const SESSION_BUSY = 'session busy'
 
@@ -175,7 +189,8 @@ export async function startRun(deps: ChatDeps, sessionId: string, req: RunReques
     },
   })
   const lastUser = req.messages.findLast((message) => message.role === 'user')
-  if (lastUser?.content != null) processor.addUserMessage(lastUser.content)
+  const stored = req.userParts ?? lastUser?.content
+  if (stored != null) processor.addUserMessage(stored)
   const unwatch = watchForStop(deps, sessionId, abort)
   const outcome: RunOutcome = {error: null, usage: null}
   try {
@@ -218,6 +233,53 @@ export function tapSessionId(chunk: StreamChunk, onSessionId: (id: string) => vo
 
 export type UserContent = string | ChatContentPart[]
 
+export type AttachmentExpanders = Record<string, (part: AttachmentDocumentPart) => Promise<readonly ContentPart[]>>
+
+const EXPAND_FAILURE_PART: ChatContentPart = {
+  type: 'text',
+  content: '[attachment could not be processed]',
+  metadata: {modelOnly: true},
+}
+
+function asExpandable(part: ChatContentPart): AttachmentDocumentPart | null {
+  if (part.type !== 'document' || part.source.type !== 'data') return null
+  return {type: 'document', source: {type: 'data', mimeType: part.source.mimeType, value: part.source.value}}
+}
+
+function markModelOnly(parts: readonly ContentPart[]): ChatContentPart[] {
+  return parts.flatMap((part): ChatContentPart[] => {
+    if (part.type === 'text') return [{type: 'text', content: part.content, metadata: {modelOnly: true}}]
+    if (part.type === 'image' && part.source.type === 'data' && part.source.mimeType !== undefined)
+      return [
+        {
+          type: 'image',
+          source: {type: 'data', mimeType: part.source.mimeType, value: part.source.value},
+          metadata: {modelOnly: true},
+        },
+      ]
+    return []
+  })
+}
+
+export async function expandUserParts(content: UserContent, expanders: AttachmentExpanders): Promise<UserContent> {
+  if (typeof content === 'string') return content
+  const expanded: ChatContentPart[] = []
+  for (const part of content) {
+    expanded.push(part)
+    const expandable = asExpandable(part)
+    const expander = expandable ? expanders[expandable.source.mimeType] : undefined
+    if (!expandable || !expander) continue
+    const produced = await expander(expandable)
+      .then(markModelOnly)
+      .catch((error: unknown) => {
+        logError(`[core] attachment expand failed (${expandable.source.mimeType}): ${String(error)}`)
+        return [EXPAND_FAILURE_PART]
+      })
+    expanded.push(...produced)
+  }
+  return expanded
+}
+
 async function composeUserContent(db: ConcivDb, sessionId: string, content: UserContent): Promise<UserContent> {
   const rows = await db.select({grabs: drafts.grabs}).from(drafts).where(eq(drafts.sessionId, sessionId))
   const grabs = rows[0]?.grabs ?? []
@@ -243,10 +305,11 @@ export function makeSend(deps: ChatDeps): (sessionId: string, content: UserConte
       deps.onRunStart?.(sessionId)
       await ensureChatRecord(deps.db, sessionId, deps.harness.id, deps.cwd)
       const userContent = await composeUserContent(deps.db, sessionId, content)
+      const expanded = await expandUserParts(userContent, deps.attachmentExpanders)
       const model = (await sessionById(deps.db, sessionId))?.model ?? null
       const history = await historyFor(deps, sessionId)
-      const messages = toModelMessages([...history, {role: 'user', content: userContent}])
-      void startRun(deps, sessionId, {messages, model, kind: 'chat'})
+      const messages = toModelMessages([...history, {role: 'user', content: expanded}])
+      void startRun(deps, sessionId, {messages, model, kind: 'chat', userParts: expanded})
       await deps.db.delete(drafts).where(eq(drafts.sessionId, sessionId))
       deps.changes.notify()
     } catch (error) {

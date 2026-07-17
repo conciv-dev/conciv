@@ -6,6 +6,7 @@ import {concivTools, type ConcivToolContext} from '@conciv/tools'
 import type {ExtensionServerTool, ToolRequest} from '@conciv/extension'
 import type {ConcivDb} from '@conciv/db'
 import type {Changes} from './attach.js'
+import type {AttachmentExpanders} from './run.js'
 
 export type ChatDeps = {
   cwd: string
@@ -19,6 +20,7 @@ export type ChatDeps = {
   changes: Changes
   risky: ReadonlySet<string>
   tools: (sessionId: string) => AnyTool[]
+  attachmentExpanders: AttachmentExpanders
   onRunStart?: (sessionId: string) => void
   onRunEnd?: (sessionId: string) => Promise<void>
 }

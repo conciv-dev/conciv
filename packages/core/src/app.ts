@@ -4,7 +4,14 @@ import {Hono} from 'hono'
 import {HTTPException} from 'hono/http-exception'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
-import type {AnyExtension, ServerHarness, ServerSessions, ToolRequest} from '@conciv/extension'
+import type {
+  AnyExtension,
+  AttachmentDocumentPart,
+  ContentPart,
+  ServerHarness,
+  ServerSessions,
+  ToolRequest,
+} from '@conciv/extension'
 import type {ResolvedConcivConfig} from './config.js'
 import {getHarness} from '@conciv/harness'
 import {corsMiddleware, type CorsVars} from './lib/cors.js'
@@ -21,6 +28,7 @@ import {
   recordMintedToken,
   resolveSystemText,
   resumeTokenFor,
+  type AttachmentExpanders,
 } from './chat/run.js'
 import {modelOf, openDb, statusOf} from '@conciv/db'
 import mcpApp, {type McpVars} from './api/mcp.js'
@@ -70,6 +78,19 @@ function narrowExtensionApp(name: string, app: unknown): Hono | null {
   if (app === undefined) return null
   if (!(app instanceof Hono)) throw new Error(`extension "${name}" returned a non-hono app`)
   return app
+}
+
+function buildAttachmentExpanders(
+  extension: AnyExtension,
+  context: unknown,
+): [string, (part: AttachmentDocumentPart) => Promise<readonly ContentPart[]>][] {
+  const entries: [string, (part: AttachmentDocumentPart) => Promise<readonly ContentPart[]>][] = []
+  for (const attachment of extension.attachments ?? []) {
+    const expand = attachment.__expand
+    if (!expand) continue
+    entries.push([attachment.mime, async (part) => expand(part, context)])
+  }
+  return entries
 }
 
 function buildExtensionTools(extension: AnyExtension, context: unknown) {
@@ -174,12 +195,16 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
         app: narrowExtensionApp(extension.name, result?.app),
         router: result?.router,
         tools: buildExtensionTools(extension, context),
+        attachmentExpanders: buildAttachmentExpanders(extension, context),
         context,
         dispose: result?.dispose,
         turnEnd: result?.turnEnd,
       }
     }),
   )
+  const attachmentExpanders: AttachmentExpanders = {}
+  for (const entry of mounted)
+    for (const [mime, expand] of entry.attachmentExpanders) attachmentExpanders[mime] ??= expand
   const extensionContexts: Record<string, unknown> = Object.fromEntries(
     mounted.map((entry) => [entry.extensionName, entry.context]),
   )
@@ -225,6 +250,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     changes,
     risky,
     tools: buildChatTools(makeToolCtx, extensionTools, sessionModel),
+    attachmentExpanders,
     onRunStart: (sessionId) => runStartListeners.forEach((listener) => listener(sessionId)),
     onRunEnd,
   }

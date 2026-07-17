@@ -505,7 +505,7 @@ git commit -m "feat(db): fold document parts into durable history" -- packages/d
   - The harness projection needs no second array: `modelContent` (`session.ts:204-216`) already drops document parts and keeps text/image. Note `toModelMessages` strips part `metadata` — irrelevant for the harness; the stored copy keeps it.
   - `RunRequest.userParts?: UserContent`; `startRun` stores `userParts` when present, else the previous behavior.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import {describe, expect, it} from 'vitest'
@@ -543,9 +543,9 @@ describe('expandUserParts', () => {
 })
 ```
 
-- [ ] **Step 2: Run — Expected: FAIL** (`pnpm turbo run test --filter=@conciv/core`) — not exported.
+- [x] **Step 2: Run — Expected: FAIL** (`pnpm turbo run test --filter=@conciv/core`) — not exported.
 
-- [ ] **Step 3: Implement `expandUserParts`**
+- [x] **Step 3: Implement `expandUserParts`**
 
 ```ts
 import type {ContentPart} from '@tanstack/ai'
@@ -601,7 +601,7 @@ export async function expandUserParts(content: UserContent, expanders: Attachmen
 
 (`logError` from `../lib/debug.js` — the same logger `app.ts` uses. The failure is thus diagnosable server-side; the model receives the `modelOnly` failure text and relays it to the user in its reply, which is the intended user-facing surface. The Task 1 Step 1 test with a throwing expander asserts the returned parts only — the log line is additive and does not change its expectations.)
 
-- [ ] **Step 4: Thread through `makeSend` / `startRun`**
+- [x] **Step 4: Thread through `makeSend` / `startRun`**
 
 In `makeSend` (`run.ts:238-258`):
 
@@ -624,7 +624,7 @@ if (stored != null) processor.addUserMessage(stored)
 
 Add to `ChatDeps` (`runtime.ts`): `attachmentExpanders: AttachmentExpanders` (import the type from `./run.js`).
 
-- [ ] **Step 5: Build the expanders in `app.ts` (first-wins, matching the card collector)**
+- [x] **Step 5: Build the expanders in `app.ts` (first-wins, matching the card collector)**
 
 ```ts
 function buildAttachmentExpanders(extension: AnyExtension, context: unknown) {
@@ -648,9 +648,9 @@ for (const entry of mounted)
 
 Pass into `chatDeps`. (Typing note: `attachment.__expand` on `AnyExtension` is `AttachmentExpand<never>`-flavored per Task 3's `AnyAttachmentBuilder`; calling it with `(part, context)` where context is `unknown` is exactly the same erasure `buildExtensionTools` does with `tool.__execute` — mirror however Task 3 resolved the variance so no cast is needed.)
 
-- [ ] **Step 6: Run — Expected: PASS** (`pnpm turbo run test --filter=@conciv/core`), then `pnpm turbo run typecheck --filter=@conciv/core`.
+- [x] **Step 6: Run — Expected: PASS** (`pnpm turbo run test --filter=@conciv/core`), then `pnpm turbo run typecheck --filter=@conciv/core`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git commit -m "feat(core): expand attachments at send, failure-safe, store rich parts" -- packages/core/src/chat/run.ts packages/core/src/chat/runtime.ts packages/core/src/app.ts packages/core/test/expand-attachments.test.ts

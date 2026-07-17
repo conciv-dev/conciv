@@ -33,6 +33,7 @@ export async function makeChatFixture(opts: {seedSession?: boolean} = {}): Promi
     changes: makeChanges(),
     risky: new Set<string>(),
     tools: () => [],
+    attachmentExpanders: {},
   }
   const sessionId = 'conciv_fixture'
   if (opts.seedSession !== false) await ensureChatRecord(db, sessionId, harness.id, stateRoot)
