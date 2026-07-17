@@ -893,16 +893,16 @@ git commit -m "feat(ui-kit-chat): AttachmentByMime dispatch, document adapter, c
 - Consumes: `AttachmentByMime`/`AttachmentCardSlot` (Task 8), `partIsModelOnly` behavior (Task 7), `Message.Attachments` (existing).
 - Produces: `ThreadProps.attachmentCards?: readonly AttachmentCardSlot[]`; carried on `ThreadConfigContext` as `attachmentCards: () => readonly AttachmentCardSlot[]` (default `() => []`). `UserTurn` renders **Document attachments unconditionally** (unknown mime → generic tile via `AttachmentByMime` fallback — even with zero cards registered), Document slot **only** (images already render inline via `Message.Parts` → `MessagePart.Image`; wiring an Image slot would double-render them).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Mount `Thread` inside a `ChatProvider` whose store holds one user message with parts `[text 'why?', document(mime 'application/x-test'), modelOnly text 'clicked save', modelOnly image]` — use the `solid-js/web` `render`+dispose harness from the Global Constraints (copy `context-tracker.browser.test.tsx`), mirror the chat-store seeding approach of `packages/ui-kit-chat/src/styled/thread.stories.tsx` for the message fixture, import everything from the `@conciv/ui-kit-chat` root. Assert structurally on the host element:
 
 - with `attachmentCards=[{mime:'application/x-test', render: Card}]`: `host.querySelector('[data-testid="card"]')` non-null; `host.textContent` does NOT contain `'clicked save'`; no `<img>` in the host (modelOnly keyframe hidden); `host.textContent` contains `'why?'`.
 - with `attachmentCards=[]`: the generic file tile renders (fallback, `[aria-label]` of the document attachment present), not nothing.
 
-- [ ] **Step 2: Run — Expected: FAIL** (`pnpm turbo run test --filter=conciv`).
+- [x] **Step 2: Run — Expected: FAIL** (`pnpm turbo run test --filter=conciv`).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```tsx
 function UserTurn(): JSX.Element {
@@ -929,9 +929,9 @@ function UserTurn(): JSX.Element {
 
 Add `attachmentCards` to `ThreadConfig`, its default, the provider value (`attachmentCards: () => props.attachmentCards ?? []`), and `ThreadProps`.
 
-- [ ] **Step 4: Run — Expected: PASS.**
+- [x] **Step 4: Run — Expected: PASS.**
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -m "feat(ui-kit-chat): user turn renders document attachment cards" -- packages/ui-kit-chat/src/styled/thread.tsx apps/conciv/test/user-turn.browser.test.tsx
