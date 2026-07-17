@@ -45,6 +45,7 @@
   },
   "dependencies": {
     "@conciv/extension": "workspace:^",
+    "@conciv/ui-kit-chat": "workspace:*",
     "@conciv/ui-kit-system": "workspace:^",
     "@orpc/server": "^1.14.7",
     "@orpc/tanstack-query": "^1.14.7",

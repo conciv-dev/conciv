@@ -1389,6 +1389,9 @@ importers:
       '@conciv/extension':
         specifier: workspace:^
         version: link:../../extension
+      '@conciv/ui-kit-chat':
+        specifier: workspace:*
+        version: link:../../ui-kit-chat
       '@conciv/ui-kit-system':
         specifier: workspace:^
         version: link:../../ui-kit-system

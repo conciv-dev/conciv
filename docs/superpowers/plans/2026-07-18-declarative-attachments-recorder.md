@@ -776,7 +776,7 @@ State/date sources:
 - expired: `{expired:true}` → `RecorderNotice('Recording expired.')`.
 - playing: `mountPlayer(container, events, () => true)` with `onCleanup`.
 
-- [ ] **Step 1: Write the implementation** (tested end-to-end in Tasks 9–10 through the testkit browser; there is no component-level browser harness in this package):
+- [x] **Step 1: Write the implementation** (tested end-to-end in Tasks 9–10 through the testkit browser; there is no component-level browser harness in this package):
 
 ```tsx
 import {Match, Show, Switch, createResource, createSignal, onCleanup, type JSX} from 'solid-js'
@@ -869,7 +869,7 @@ function CardBody(): JSX.Element {
 
 (`createResource` here only awaits `file.text()` — the network fetch is TanStack Query per the repo pattern. Panel-view's own `QueryClientProvider` wrapper is the precedent for the local client.)
 
-- [ ] **Step 2: Register in `client.tsx`**
+- [x] **Step 2: Register in `client.tsx`**
 
 ```ts
 import {recordingAttachment} from './shared/attachment.js'
@@ -889,8 +889,8 @@ export const recorder = defineExtension({
 
 Add `"@conciv/ui-kit-chat": "workspace:*"` to recorder `package.json` dependencies.
 
-- [ ] **Step 3: Run** `pnpm turbo run typecheck --filter=@conciv/extension-recorder` — Expected: clean.
-- [ ] **Step 4: Commit**
+- [x] **Step 3: Run** `pnpm turbo run typecheck --filter=@conciv/extension-recorder` — Expected: clean.
+- [x] **Step 4: Commit**
 
 ```bash
 git commit -m "feat(recorder): RecordingCard with lazy play + full async state matrix" -- packages/extensions/recorder/src/client/recording-card.tsx packages/extensions/recorder/src/client.tsx packages/extensions/recorder/package.json
