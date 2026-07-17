@@ -13,6 +13,7 @@ export default defineConfig({
       '../ui-kit-tap/src/**/*.{ts,tsx}',
       '../extensions/terminal/src/**/*.{ts,tsx}',
       '../extensions/whiteboard/src/**/*.{ts,tsx}',
+      '../extensions/try-it/src/**/*.{ts,tsx}',
     ],
   },
 
