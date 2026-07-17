@@ -662,7 +662,7 @@ export {recordingAttachment}
 - `server.ts` imports `{recordingAttachment} from './server/attachment.js'` and adds `attachments: [recordingAttachment]` to its `defineExtension`.
 - Bundle note: `shared/attachment.ts` compiles into BOTH dists (relative import). Each dist holds its own instance — the client copy carries only `.card`, the server copy only `.server`. Same split as `tool/client.ts` vs `tool/server.ts`; no server code reaches the client bundle because the client never imports `server/attachment.ts`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import {mkdtempSync} from 'node:fs'
@@ -718,10 +718,10 @@ describe('recording expand', () => {
 })
 ```
 
-- [ ] **Step 2: Run — Expected: FAIL** — modules missing.
-- [ ] **Step 3: Implement** the two files per Interfaces; wire `server.ts`.
-- [ ] **Step 4: Run — Expected: PASS**, plus typecheck (the `RequiredContext` constraint must accept the existing `{recorder: runtime}` context — if it errors, the constraint threading in Plan 1 Task 4 is wrong; fix THERE, not with a cast here).
-- [ ] **Step 5: Commit**
+- [x] **Step 2: Run — Expected: FAIL** — modules missing.
+- [x] **Step 3: Implement** the two files per Interfaces; wire `server.ts`.
+- [x] **Step 4: Run — Expected: PASS**, plus typecheck (the `RequiredContext` constraint must accept the existing `{recorder: runtime}` context — if it errors, the constraint threading in Plan 1 Task 4 is wrong; fix THERE, not with a cast here).
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -m "feat(recorder): recording attachment expand (typed ctx, expired fallback)" -- packages/extensions/recorder/src/shared/attachment.ts packages/extensions/recorder/src/server/attachment.ts packages/extensions/recorder/src/server.ts packages/extensions/recorder/test/expand.test.ts

@@ -9,6 +9,7 @@ import {createCaptureControl} from './server/capture-control.js'
 import {createChromiumRenderer, type KeyframeRenderer} from './server/render.js'
 import {distill} from './server/distill.js'
 import type {RecorderRuntime} from './server/runtime.js'
+import {recordingAttachment} from './server/attachment.js'
 import {pullTool, startTool, stopTool} from './tool/server.js'
 
 const recorderOs = os.$context<{request: Request}>()
@@ -60,6 +61,7 @@ export default defineExtension({
   name: RECORDER_NAME,
   configSchema: recorderConfig,
   tools: [startTool, stopTool, pullTool],
+  attachments: [recordingAttachment],
 }).server((server) => {
   const ring = createEventRing({windowMs: server.config.windowMinutes * 60_000})
   const control = createCaptureControl(ring)
