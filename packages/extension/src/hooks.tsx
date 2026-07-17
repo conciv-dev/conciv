@@ -34,6 +34,7 @@ const hostApi = {
   useViewLock: () => use('viewLock', 'useViewLock'),
   useLeaveView: () => use('viewLeave', 'useLeaveView'),
   useSlot: () => use('slot', 'useSlot'),
+  useConnect: () => use('connect', 'useConnect'),
   Suppress: layerComponent(true, 'Suppress'),
   YieldFocus: layerComponent(false, 'YieldFocus'),
 }
