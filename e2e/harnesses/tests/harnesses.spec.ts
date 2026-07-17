@@ -1,15 +1,16 @@
 import {expect, test} from '@playwright/test'
 import {collectFailures, expectWidgetBoots} from '@conciv/e2e-utils/widget'
+import type {HarnessApp} from '@conciv/e2e-utils/ports'
 
-const expected = {
+const expected: Record<HarnessApp, {model: string; group: string} | null> = {
   claude: {model: 'Claude Sonnet 4.6', group: 'Claude'},
   codex: {model: 'gpt-5.5', group: 'Codex'},
   'gemini-cli': {model: 'gemini-3-pro-preview', group: 'Gemini'},
   opencode: {model: 'opencode/claude-sonnet-4-5', group: 'OpenCode'},
   pi: null,
-} as const
+}
 
-const isHarnessName = (name: string): name is keyof typeof expected => Object.hasOwn(expected, name)
+const isHarnessName = (name: string): name is HarnessApp => Object.hasOwn(expected, name)
 
 test('full app boots with the configured harness and exposes its real model catalog', async ({page}, testInfo) => {
   const projectName = testInfo.project.name

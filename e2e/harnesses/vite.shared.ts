@@ -1,9 +1,8 @@
 import react from '@vitejs/plugin-react'
 import conciv from '@conciv/it/plugin/vite'
 import {defineConfig} from 'vite'
+import type {HarnessApp} from '@conciv/e2e-utils/ports'
 
-type Harness = 'claude' | 'codex' | 'gemini-cli' | 'opencode' | 'pi'
-
-export function harnessConfig(harness: Harness) {
+export function harnessConfig(harness: HarnessApp) {
   return defineConfig({plugins: [react(), conciv({harness, stateRoot: `.conciv-${harness}`})]})
 }
