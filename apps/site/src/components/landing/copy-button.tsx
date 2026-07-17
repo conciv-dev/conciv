@@ -12,13 +12,14 @@ function useCopyButton(): CopyButtonContextValue {
   return value
 }
 
-function Root({text, children}: {text: string; children: ReactNode}) {
+function Root({text, onCopy, children}: {text: string; onCopy?: () => void; children: ReactNode}) {
   const [copied, setCopied] = useState(false)
   const [open, setOpen] = useState(false)
   const resetTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   const copy = () => {
     void navigator.clipboard.writeText(text)
+    onCopy?.()
     setCopied(true)
     setOpen(true)
     clearTimeout(resetTimer.current)
