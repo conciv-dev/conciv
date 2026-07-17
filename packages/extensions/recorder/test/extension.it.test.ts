@@ -53,6 +53,28 @@ describe('recorder extension booted in the real engine (IT)', () => {
     }
   }, 30_000)
 
+  it('reset clears the ring and asks clients for a fresh snapshot', async () => {
+    const {base, engine} = await boot()
+    try {
+      const rpc = recorderClient(base)
+      await rpc.flush({clientId: 'c1', events: fixtureStream(Date.now())})
+      const seen: unknown[] = []
+      const abort = new AbortController()
+      const control = await rpc.control(undefined, {signal: abort.signal})
+      const pump = (async () => {
+        for await (const message of control) seen.push(message)
+      })()
+      await rpc.reset(undefined)
+      const {events} = await rpc.window({})
+      expect(events).toEqual([])
+      expect(seen).toContainEqual({snapshot: true, flush: true})
+      abort.abort()
+      await pump.catch(() => {})
+    } finally {
+      await engine.stop()
+    }
+  }, 30_000)
+
   it('serves parsed config defaults on the config route', async () => {
     const {base, engine} = await boot()
     try {

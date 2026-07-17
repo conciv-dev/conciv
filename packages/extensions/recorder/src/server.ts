@@ -24,6 +24,12 @@ export function makeRecorderRouter(runtime: RecorderRuntime) {
         return {ok: true}
       }),
     window: recorderOs.input(RangeInput).handler(({input}) => ({events: runtime.ring.window(input)})),
+    reset: recorderOs.output(z.object({ok: z.literal(true)})).handler(async () => {
+      runtime.ring.clear()
+      runtime.control.emit({snapshot: true, flush: true})
+      await runtime.control.awaitNextAppend(1500)
+      return {ok: true}
+    }),
     log: recorderOs.input(RangeInput).handler(({input}) => ({entries: distill(runtime.ring.window(input))})),
     control: recorderOs.output(eventIterator(RecorderControlSchema)).handler(async function* ({signal}) {
       yield* subscriptionIterator((emit) => runtime.control.subscribe(emit), signal)

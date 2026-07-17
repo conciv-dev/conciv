@@ -14,7 +14,11 @@ export type RrwebEvent = {type: number; data: unknown; timestamp: number}
 
 export const RrwebEventSchema = z.object({type: z.number(), data: z.unknown(), timestamp: z.number()})
 
-export const RecorderControlSchema = z.object({live: z.boolean().optional(), flush: z.boolean().optional()})
+export const RecorderControlSchema = z.object({
+  live: z.boolean().optional(),
+  flush: z.boolean().optional(),
+  snapshot: z.boolean().optional(),
+})
 
 export type RecorderControl = z.infer<typeof RecorderControlSchema>
 

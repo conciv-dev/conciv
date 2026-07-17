@@ -26,3 +26,7 @@ export function startCapture(config: RecorderConfig, emit: (event: RrwebEvent) =
   })
   return () => stop?.()
 }
+
+export function takeFreshSnapshot(): void {
+  record.takeFullSnapshot(true)
+}

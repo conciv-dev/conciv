@@ -42,6 +42,14 @@ describe('createEventRing', () => {
     expect(kept.at(-1)).toBe(3000)
   })
 
+  it('clear empties the ring', () => {
+    const ring = createEventRing({windowMs: 60_000})
+    ring.append('a', [snapshot(1000), incremental(2000)])
+    ring.clear()
+    expect(ring.window()).toEqual([])
+    expect(ring.lastTs()).toBe(0)
+  })
+
   it('notifies onAppend listeners with the new lastTs', () => {
     const ring = createEventRing({windowMs: 60_000})
     const seen: number[] = []

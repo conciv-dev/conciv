@@ -1,7 +1,7 @@
 import {makeExtRpcClient} from '@conciv/extension'
 import {RECORDER_NAME, type RrwebEvent} from '../shared/protocol.js'
 import type {RecorderRouter} from '../server.js'
-import {startCapture} from './capture.js'
+import {startCapture, takeFreshSnapshot} from './capture.js'
 import {createFlusher, type Flusher} from './flusher.js'
 import type {RecorderStore} from './recorder-store.js'
 
@@ -28,6 +28,7 @@ export function bootRecorder(apiBase: string, store: RecorderStore): () => void 
       try {
         const control = await rpc.control(undefined, {signal: abort.signal})
         for await (const message of control) {
+          if (message.snapshot) takeFreshSnapshot()
           if (message.flush) await flusher?.flushNow()
           if (message.live !== undefined) {
             flusher?.setLive(message.live)

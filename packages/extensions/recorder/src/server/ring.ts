@@ -4,6 +4,7 @@ export type EventRing = {
   append(clientId: string, events: RrwebEvent[]): void
   window(opts?: {fromTs?: number; toTs?: number}): RrwebEvent[]
   lastTs(): number
+  clear(): void
   onAppend(listener: (lastTs: number) => void): () => void
 }
 
@@ -55,6 +56,10 @@ export function createEventRing(opts: {windowMs: number; maxBytes?: number}): Ev
       return inTail.slice(snapshotIndex).map((item) => item.event)
     },
     lastTs: () => stored.at(-1)?.event.timestamp ?? 0,
+    clear() {
+      stored = []
+      totalBytes = 0
+    },
     onAppend(listener) {
       listeners.add(listener)
       return () => listeners.delete(listener)
