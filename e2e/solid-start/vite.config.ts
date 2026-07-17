@@ -5,5 +5,5 @@ import {solidStart} from '@solidjs/start/config'
 import conciv from '@conciv/it/plugin/vite'
 
 export default defineConfig({
-  plugins: [solidStart(), nitro(), conciv()],
+  plugins: [solidStart({solid: {exclude: /\/packages\/.*\/dist\//}}), nitro(), conciv()],
 })
