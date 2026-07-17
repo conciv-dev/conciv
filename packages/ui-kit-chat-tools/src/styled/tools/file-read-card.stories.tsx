@@ -5,7 +5,7 @@ import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {FileReadCard} from './file-read-card.js'
 
-const meta: Meta = {title: 'styled/tools/FileReadCard'}
+const meta: Meta = {title: 'ui-kit-chat-tools/styled/tools/FileReadCard'}
 export default meta
 type Story = StoryObj
 

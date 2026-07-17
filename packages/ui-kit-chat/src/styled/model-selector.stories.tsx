@@ -4,7 +4,7 @@ import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {ModelSelector} from './model-selector.js'
 import type {ModelOption} from '../primitives/model-selector/model-selector.js'
 
-const meta: Meta = {title: 'styled/ModelSelector'}
+const meta: Meta = {title: 'ui-kit-chat/styled/ModelSelector'}
 export default meta
 type Story = StoryObj
 

@@ -2,7 +2,7 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {Collapsible} from './collapsible.js'
 
-const meta: Meta<typeof Collapsible.Root> = {title: 'ui-kit/Collapsible', component: Collapsible.Root}
+const meta: Meta<typeof Collapsible.Root> = {title: 'ui-kit-system/Collapsible', component: Collapsible.Root}
 export default meta
 type Story = StoryObj<typeof Collapsible.Root>
 

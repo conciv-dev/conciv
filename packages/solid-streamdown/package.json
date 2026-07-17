@@ -37,8 +37,6 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "oxlint",
     "test": "vitest run",
-    "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build",
     "publint": "publint",
     "attw": "attw --pack . --profile esm-only --exclude-entrypoints styles.css"
   },
@@ -55,15 +53,9 @@
     "unist-util-visit-parents": "^6.0.2"
   },
   "devDependencies": {
-    "@chromatic-com/storybook": "^5.2.1",
-    "@storybook/addon-a11y": "^10.5.0",
-    "@storybook/addon-docs": "^10.5.0",
-    "@storybook/addon-vitest": "^10.5.0",
     "@types/hast": "^3.0.4",
     "@types/node": "^22.19.21",
-    "@vitest/browser-playwright": "4.1.10",
     "@vitest/coverage-v8": "4.1.10",
-    "playwright": "^1.61.1",
     "solid-js": "^1.9.13",
     "storybook": "^10.5.0",
     "storybook-solidjs-vite": "^10.6.0",

@@ -11,7 +11,7 @@ import {effects} from './effects.js'
 import {typography} from './typography.js'
 import {shortcuts} from './shortcuts.js'
 
-export function presetAidx(): Preset {
+export function presetConciv(): Preset {
   return {
     name: '@conciv/uno-preset',
 

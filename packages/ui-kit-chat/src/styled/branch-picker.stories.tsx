@@ -4,7 +4,7 @@ import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {BranchProvider, type BranchState} from '../primitives/branch-picker/branch-picker.js'
 import {BranchPicker} from './branch-picker.js'
 
-const meta: Meta = {title: 'styled/BranchPicker'}
+const meta: Meta = {title: 'ui-kit-chat/styled/BranchPicker'}
 export default meta
 type Story = StoryObj
 

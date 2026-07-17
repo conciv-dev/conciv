@@ -1,7 +1,7 @@
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {Progress} from './progress.js'
 
-const meta: Meta<typeof Progress.Root> = {title: 'ui-kit/Progress', component: Progress.Root}
+const meta: Meta<typeof Progress.Root> = {title: 'ui-kit-system/Progress', component: Progress.Root}
 export default meta
 type Story = StoryObj<typeof Progress.Root>
 

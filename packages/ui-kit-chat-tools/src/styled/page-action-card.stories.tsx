@@ -5,7 +5,7 @@ import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {PageActionCard} from './page-action-card.js'
 
-const meta: Meta = {title: 'tools/PageActionCard'}
+const meta: Meta = {title: 'ui-kit-chat-tools/tools/PageActionCard'}
 export default meta
 type Story = StoryObj
 

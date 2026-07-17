@@ -7,7 +7,7 @@ import {storyConnection} from '../../store/story-connection.js'
 import {Composer} from '../composer/composer.js'
 import {SelectionToolbar} from './selection-toolbar.js'
 
-const meta: Meta = {title: 'primitives/SelectionToolbar'}
+const meta: Meta = {title: 'ui-kit-chat/primitives/SelectionToolbar'}
 export default meta
 type Story = StoryObj
 

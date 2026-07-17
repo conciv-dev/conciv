@@ -2,7 +2,7 @@
   "name": "@conciv/uno-preset",
   "version": "0.0.10",
   "private": true,
-  "description": "Shared aidx UnoCSS preset: presetMini + presetTypography (themed to the --pw-* tokens) + the sr-only shortcut. One source of truth reused by every package's uno.config so spacing/prose/shortcuts never drift.",
+  "description": "Shared conciv UnoCSS preset: presetMini + presetTypography (themed to the --pw-* tokens) + the sr-only shortcut. One source of truth reused by every package's uno.config so spacing/prose/shortcuts never drift.",
   "homepage": "https://conciv.dev",
   "license": "MIT",
   "repository": {

@@ -4,7 +4,7 @@ import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {ComposerProvider, type AttachmentDraft} from '../composer/composer-context.js'
 import {Attachment, AttachmentProvider} from './attachment.js'
 
-const meta: Meta = {title: 'primitives/Attachment'}
+const meta: Meta = {title: 'ui-kit-chat/primitives/Attachment'}
 export default meta
 type Story = StoryObj
 

@@ -6,7 +6,7 @@ import {ChatProvider} from '../../store/chat-context.js'
 import {storyConnection, createTextChunks} from '../../store/story-connection.js'
 import {AssistantModal} from './assistant-modal.js'
 
-const meta: Meta = {title: 'primitives/AssistantModal'}
+const meta: Meta = {title: 'ui-kit-chat/primitives/AssistantModal'}
 export default meta
 type Story = StoryObj
 

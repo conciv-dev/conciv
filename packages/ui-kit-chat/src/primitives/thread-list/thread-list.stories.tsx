@@ -5,7 +5,7 @@ import type {ChatSessionMeta} from '@conciv/protocol/chat-types'
 import {ThreadList, ThreadListItem} from './thread-list.js'
 import {ThreadListProvider} from './thread-list-context.js'
 
-const meta: Meta = {title: 'primitives/ThreadList'}
+const meta: Meta = {title: 'ui-kit-chat/primitives/ThreadList'}
 export default meta
 type Story = StoryObj
 

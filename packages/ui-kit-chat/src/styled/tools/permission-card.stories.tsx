@@ -5,7 +5,7 @@ import type {ToolCallPart} from '@tanstack/ai-client'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {PermissionCard} from './permission-card.js'
 
-const meta: Meta = {title: 'styled/tools/PermissionCard'}
+const meta: Meta = {title: 'ui-kit-chat/styled/tools/PermissionCard'}
 export default meta
 type Story = StoryObj
 

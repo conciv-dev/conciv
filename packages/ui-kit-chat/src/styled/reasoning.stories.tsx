@@ -3,7 +3,7 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within, userEvent, waitFor} from 'storybook/test'
 import {Reasoning} from './reasoning.js'
 
-const meta: Meta = {title: 'styled/Reasoning'}
+const meta: Meta = {title: 'ui-kit-chat/styled/Reasoning'}
 export default meta
 type Story = StoryObj
 

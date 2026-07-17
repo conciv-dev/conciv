@@ -2,7 +2,7 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {For} from 'solid-js'
 import {ScrollArea} from './scroll-area.js'
 
-const meta: Meta<typeof ScrollArea.Root> = {title: 'ui-kit/ScrollArea', component: ScrollArea.Root}
+const meta: Meta<typeof ScrollArea.Root> = {title: 'ui-kit-system/ScrollArea', component: ScrollArea.Root}
 export default meta
 type Story = StoryObj<typeof ScrollArea.Root>
 

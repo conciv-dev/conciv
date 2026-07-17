@@ -7,7 +7,7 @@ import {storyConnection} from '../../../store/story-connection.js'
 import {Composer} from '../composer.js'
 import type {DirectiveFormatter, TriggerAdapter, TriggerItem} from './types.js'
 
-const meta: Meta = {title: 'primitives/Composer/TriggerPopover'}
+const meta: Meta = {title: 'ui-kit-chat/primitives/Composer/TriggerPopover'}
 export default meta
 type Story = StoryObj
 

@@ -5,7 +5,7 @@ import type {ToolCallPart} from '@tanstack/ai-client'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import {TodoCard} from './todo-card.js'
 
-const meta: Meta = {title: 'styled/tools/TodoCard'}
+const meta: Meta = {title: 'ui-kit-chat-tools/styled/tools/TodoCard'}
 export default meta
 type Story = StoryObj
 

@@ -18,7 +18,7 @@ const preview: Preview = {
           color: 'var(--pw-text)',
           'font-family': 'var(--pw-font)',
           padding: '24px',
-          'max-width': '440px',
+          'max-width': '560px',
         }}
       >
         <Story />
