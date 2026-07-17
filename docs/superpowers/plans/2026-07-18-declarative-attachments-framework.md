@@ -165,7 +165,7 @@ git commit -m "feat(protocol): document content part + modelOnly metadata" -- pa
 - Consumes: Task 1's document variant of `ChatContentPart`.
 - Produces: `partContent` maps `document` parts (data source) to `{type:'document', source}` and carries `metadata` through on all part kinds. Without this, `chat.sendMessage` → `lastUserContent` → `rpc.chat.send` silently drops the attachment client-side.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import {describe, expect, it} from 'vitest'
@@ -191,12 +191,12 @@ describe('partContent', () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm turbo run test --filter=@conciv/client`
 Expected: FAIL — `partContent` not exported / document branch missing.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Export `partContent` and rewrite it (the existing `imageSource` helper narrows data sources; reuse it for documents since the shape is identical minus the mime check):
 
@@ -220,12 +220,12 @@ export function partContent(part: unknown): ChatContentPart[] {
 
 (`imageSource` only checks data-source structure, not the image mime prefix — verify at `chat-connection.ts:20-31`; if it enforces an `image/` prefix, split a `dataSource` helper both branches share.)
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pnpm turbo run test --filter=@conciv/client`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -m "fix(client): forward document parts and metadata in send path" -- packages/client/src/chat-connection.ts packages/client/test/part-content.test.ts
