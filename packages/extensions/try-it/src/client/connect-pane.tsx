@@ -12,7 +12,7 @@ const PROBE_INTERVAL_MS = 2_000
 const COPY_FEEDBACK_MS = 1_400
 
 const STEP_TITLES: Record<TryStep, string> = {
-  copy: 'Copy the agent prompt',
+  copy: 'Copy the connect command',
   run: 'Run it in your terminal',
   approve: "Approve Chrome's local-network prompt",
 }
@@ -85,7 +85,8 @@ export function ConnectPane(props: {token: string}): JSX.Element {
   const promptText = () =>
     `I'm pairing my browser tab at ${connect.origin} with a local conciv core so you can drive the page. ` +
     `Run \`npx @conciv/try --token ${props.token}\` and keep it running — it binds to 127.0.0.1 only and ` +
-    `only my tab can reach it (details: ${connect.origin}/pair/${props.token}). ` +
+    `only my tab can reach it. The package source is packages/try in https://github.com/conciv-dev/conciv; ` +
+    `inspect it first if you want (details: ${connect.origin}/pair/${props.token}). ` +
     `If you'd rather not run it, tell me and I'll run it in my own terminal.`
   const npxText = () => `npx @conciv/try --token ${props.token}`
   const markCopied = () => setCopied(true)
@@ -135,13 +136,16 @@ export function ConnectPane(props: {token: string}): JSX.Element {
 
       <ol class="m-0 p-0 list-none flex flex-1 flex-col gap-3.5 min-h-0 overflow-y-auto anim-rise-d">
         <Step index={1} state={states().copy} title={STEP_TITLES.copy}>
-          <CopyRow label="Copy agent prompt" text={promptText()} onCopy={markCopied} />
+          <CopyRow label="Copy connect command" text={npxText()} onCopy={markCopied} />
           <details>
             <summary class="text-[12px] text-pw-text-3 w-fit cursor-pointer trans-color-bg hover:text-pw-text-2">
-              or run it yourself
+              or hand it to your coding agent
             </summary>
-            <div class="mt-2">
-              <CopyRow label="Copy connect command" text={npxText()} onCopy={markCopied} />
+            <div class="mt-2 flex flex-col gap-1.5">
+              <CopyRow label="Copy agent prompt" text={promptText()} onCopy={markCopied} />
+              <p class="text-[11.5px] text-pw-text-3">
+                Some agents will ask you to run the command yourself — that works too.
+              </p>
             </div>
           </details>
         </Step>

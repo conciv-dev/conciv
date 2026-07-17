@@ -111,7 +111,9 @@ export function chatConnection(
   return {
     subscribe: (abortSignal) => attachLoop(rpc, sessionId, options, abortSignal),
     send: async (messages, _data, abortSignal) => {
-      await rpc.chat.send({sessionId, content: lastUserContent(messages)}, {signal: abortSignal})
+      const content = lastUserContent(messages)
+      const input = typeof content === 'string' ? {sessionId, text: content} : {sessionId, content}
+      await rpc.chat.send(input, {signal: abortSignal})
     },
   }
 }

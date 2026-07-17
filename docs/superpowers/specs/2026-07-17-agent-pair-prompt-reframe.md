@@ -47,3 +47,25 @@ served with the old plain text vs the new markdown, matching pre/post deploy
 production). Old: refusal. New: proceeds to run or cleanly hands the command to
 the user. Unit tests pin the markdown content-type, the embedded command, and
 the hand-off section.
+
+## Addendum: human-run is primary (2026-07-17)
+
+Real-session testing showed reframing alone is not reliable: a fresh Claude
+Code session still declined, objecting that `npx @conciv/try` is an unvettable
+unknown package (arbitrary code execution) — an objection no copy can fix. It
+did land on the sanctioned hand-off ("you run it in your own terminal"), so the
+flow no longer dead-ends, but the primary path must not depend on agent trust.
+
+- Widget step 1 flips: the `npx` command is the primary copy row; the agent
+  prompt moves into the collapsed "or hand it to your coding agent" alternative,
+  noting that agents asking you to run it yourself is expected.
+- The pair markdown gains a "Vetting the package" section (source repo +
+  directory, `npm view`, CLI entry) so a cautious agent has a verification path,
+  and frames "ask the user to run it" as the expected default — a successful
+  outcome, not a refusal.
+- Live testing also surfaced contract skew: the published @conciv/try core
+  (0.0.11) requires `chat.send({text})` while the branch widget sent the newer
+  `{content}` shape → "Input validation failed" on every message. The client now
+  sends `text` for plain strings (valid against both contracts) and `content`
+  only for attachment parts; a changeset releases the new contract with the
+  merge.
