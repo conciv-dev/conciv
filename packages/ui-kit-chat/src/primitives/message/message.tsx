@@ -248,8 +248,10 @@ function partToAttachment(part: AttachmentPart, index: number): CompleteAttachme
   }
 }
 
-function attachmentPart(attachment: CompleteAttachment): AttachmentPart {
-  return attachment.content[0] as AttachmentPart
+type AttachmentEntry = {part: AttachmentPart; attachment: CompleteAttachment}
+
+function partToEntry(part: AttachmentPart, index: number): AttachmentEntry {
+  return {part, attachment: partToAttachment(part, index)}
 }
 
 function attachmentComponent(part: AttachmentPart, components: AttachmentsComponents): Component | undefined {
@@ -265,14 +267,14 @@ function Attachments(props: {components: AttachmentsComponents}): JSX.Element {
     message
       .message()
       .parts.filter(isAttachmentPart)
-      .map((part, index) => partToAttachment(part, index)),
+      .map((part, index) => partToEntry(part, index)),
   )
   return (
     <Index each={attachments()}>
-      {(attachment) => (
-        <Show when={attachmentComponent(attachmentPart(attachment()), props.components)}>
+      {(entry) => (
+        <Show when={attachmentComponent(entry().part, props.components)}>
           {(component) => (
-            <AttachmentProvider value={attachment()}>
+            <AttachmentProvider value={entry().attachment}>
               <Dynamic component={component()} />
             </AttachmentProvider>
           )}
@@ -284,17 +286,17 @@ function Attachments(props: {components: AttachmentsComponents}): JSX.Element {
 
 function AttachmentByIndex(props: {index: number; components: AttachmentsComponents}): JSX.Element {
   const message = useMessage()
-  const attachment = () => {
+  const entry = () => {
     const parts = message.message().parts.filter(isAttachmentPart)
     const part = parts[props.index]
-    return part ? partToAttachment(part, props.index) : undefined
+    return part ? partToEntry(part, props.index) : undefined
   }
   return (
-    <Show when={attachment()} keyed>
+    <Show when={entry()} keyed>
       {(value) => (
-        <Show when={attachmentComponent(attachmentPart(value), props.components)}>
+        <Show when={attachmentComponent(value.part, props.components)}>
           {(component) => (
-            <AttachmentProvider value={value}>
+            <AttachmentProvider value={value.attachment}>
               <Dynamic component={component()} />
             </AttachmentProvider>
           )}

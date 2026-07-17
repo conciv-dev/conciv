@@ -2,7 +2,7 @@ import {EventEmitter} from 'node:events'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 import {ChatHistorySchema, type ChatHistory} from '@conciv/protocol/chat-types'
 import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
-import {lastErrorOf, runEpochOf, runMessagesFor, statusOf, type RunStatus} from '@conciv/db'
+import {imageHistoryFor, lastErrorOf, runEpochOf, runMessagesFor, statusOf, type RunStatus} from '@conciv/db'
 import type {ChatDeps} from './runtime.js'
 import {readFileOrEmpty} from '../lib/fs.js'
 import {sessionById, settledMessages, userText} from './session.js'
@@ -84,10 +84,14 @@ function pendingUserTextOf(run: ChatHistory): string | null {
 
 export async function mergedMessages(deps: ChatDeps, sessionId: string): Promise<ChatHistory> {
   const transcript = await transcriptMessages(deps, sessionId)
+  const imageRow = imageHistoryFor(deps.db, sessionId)
   const row = runMessagesFor(deps.db, sessionId)
-  const run = row ? ChatHistorySchema.parse(row.messages) : []
-  const settled = settledMessages(transcript, pendingUserTextOf(run))
-  return [...settled, ...run]
+  const unsettled = [
+    ...(imageRow ? ChatHistorySchema.parse(imageRow.messages) : []),
+    ...(row ? ChatHistorySchema.parse(row.messages) : []),
+  ]
+  const settled = settledMessages(transcript, pendingUserTextOf(unsettled))
+  return [...settled, ...unsettled]
 }
 
 async function buildSnapshot(deps: ChatDeps, sessionId: string): Promise<StreamChunk> {
@@ -96,8 +100,9 @@ async function buildSnapshot(deps: ChatDeps, sessionId: string): Promise<StreamC
 
 async function snapshotKey(deps: ChatDeps, sessionId: string): Promise<string> {
   const row = runMessagesFor(deps.db, sessionId)
+  const imageRow = imageHistoryFor(deps.db, sessionId)
   const record = await sessionById(deps.db, sessionId)
-  return `${row?.updatedAt ?? 0}:${record?.updatedAt ?? 0}:${record?.harnessSessionId ?? ''}`
+  return `${row?.updatedAt ?? 0}:${imageRow?.updatedAt ?? 0}:${record?.updatedAt ?? 0}:${record?.harnessSessionId ?? ''}`
 }
 
 function runStarted(sessionId: string, epoch: number): StreamChunk {

@@ -106,7 +106,7 @@ async function addAdapterAttachment(
   adapter: AttachmentAdapter,
   file: File,
   upsert: (attachment: PendingAttachment) => void,
-): Promise<void> {
+): Promise<string | undefined> {
   let latest: PendingAttachment | undefined
   const update = (attachment: PendingAttachment) => {
     latest = attachment
@@ -118,6 +118,7 @@ async function addAdapterAttachment(
     if (latest) upsert(failedAttachment(latest, error))
     throw error
   }
+  return latest?.id
 }
 
 function requireAttachment(attachments: Attachment[], id: string): Attachment {
@@ -154,7 +155,8 @@ function Root(props: FormProps): JSX.Element {
   const addAttachment = async (file: File) => {
     const adapter = requireAttachmentAdapter(attachmentAdapter())
     assertAcceptedFile(file, adapter)
-    await addAdapterAttachment(adapter, file, upsertAttachment)
+    const id = await addAdapterAttachment(adapter, file, upsertAttachment)
+    if (id) removedIds.delete(id)
   }
   const removeAttachment = async (id: string) => {
     const attachment = requireAttachment(attachments(), id)
@@ -188,18 +190,21 @@ function Root(props: FormProps): JSX.Element {
           return adapter.send(attachment)
         }),
       )
-      sendContent(handlers.onSend, chat.sendMessage, buildContent(originalDraft.trim(), completeAttachments))
+      sendContent(
+        handlers.onSend,
+        (content) => chat.sendMessage(content),
+        buildContent(originalDraft.trim(), completeAttachments),
+      )
     } catch (error) {
-      if (chat.view.draft === '' && attachments().length === 0 && quote() === null) {
-        const message = error instanceof Error ? error.message : String(error)
+      const restored = originalAttachments.map((attachment) =>
+        isCompleteAttachment(attachment) ? attachment : failedAttachment(attachment, error),
+      )
+      setAttachments((current) => {
+        const currentIds = new Set(current.map((value) => value.id))
+        return [...current, ...restored.filter((value) => !currentIds.has(value.id))]
+      })
+      if (chat.view.draft === '' && quote() === null) {
         chat.setView('draft', originalDraft)
-        setAttachments(
-          originalAttachments.map((attachment) =>
-            isCompleteAttachment(attachment)
-              ? attachment
-              : {...attachment, status: {type: 'incomplete', reason: 'error', message}},
-          ),
-        )
         setQuote(originalQuote)
       }
     } finally {

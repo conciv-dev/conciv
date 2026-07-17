@@ -4,7 +4,8 @@ import {fileURLToPath} from 'node:url'
 import {ne} from 'drizzle-orm'
 import {drizzle} from 'drizzle-orm/node-sqlite'
 import {migrate} from 'drizzle-orm/node-sqlite/migrator'
-import {replies, runs} from './run-schema.js'
+import {replies, runMessages, runs} from './run-schema.js'
+import {foldRunMessagesIntoImageHistory, runSessions} from './run-queries.js'
 
 const migrationsFolder = fileURLToPath(new URL('../drizzle', import.meta.url))
 
@@ -17,6 +18,8 @@ export function openDb(stateRoot: string): ConcivDb {
   const db = drizzle({client})
   migrate(db, {migrationsFolder})
   db.update(runs).set({status: 'idle', updatedAt: Date.now()}).where(ne(runs.status, 'idle')).run()
+  for (const sessionId of runSessions(db)) foldRunMessagesIntoImageHistory(db, sessionId)
+  db.delete(runMessages).run()
   db.delete(replies).run()
   return db
 }

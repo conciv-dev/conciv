@@ -137,23 +137,44 @@ export function fileMatchesAccept(file: Pick<File, 'name' | 'type'>, accept: str
     })
 }
 
+const MAX_IMAGE_BYTES = 20_971_520
+const UNSUPPORTED_IMAGE_MIME = new Set(['image/svg+xml'])
+
+function imageFileError(file: Pick<File, 'name' | 'size'>, mimeType: string): string | undefined {
+  if (UNSUPPORTED_IMAGE_MIME.has(mimeType)) return `${file.name}: SVG images are not supported`
+  if (file.size > MAX_IMAGE_BYTES) return `${file.name} exceeds the 20MB image limit`
+  return undefined
+}
+
+function pendingImageStatus(error: string | undefined): PendingAttachmentStatus {
+  if (error) return {type: 'incomplete', reason: 'error', message: error}
+  return {type: 'requires-action', reason: 'composer-send'}
+}
+
 export function createSimpleImageAttachmentAdapter(): AttachmentAdapter {
   return {
     accept: 'image/*',
-    add: async ({file}) => ({
-      id: attachmentId(),
-      type: 'image',
-      name: file.name,
-      contentType: fileMimeType(file),
-      file,
-      status: {type: 'requires-action', reason: 'composer-send'},
-    }),
+    add: async ({file}) => {
+      const contentType = fileMimeType(file)
+      return {
+        id: attachmentId(),
+        type: 'image',
+        name: file.name,
+        contentType,
+        file,
+        status: pendingImageStatus(imageFileError(file, contentType)),
+      }
+    },
     remove: async () => {},
-    send: async (attachment) => ({
-      ...attachment,
-      status: {type: 'complete'},
-      content: [{type: 'image', source: await fileToDataSource(attachment.file)}],
-    }),
+    send: async (attachment) => {
+      const error = imageFileError(attachment.file, fileMimeType(attachment.file))
+      if (error) throw new Error(error)
+      return {
+        ...attachment,
+        status: {type: 'complete'},
+        content: [{type: 'image', source: await fileToDataSource(attachment.file)}],
+      }
+    },
   }
 }
 

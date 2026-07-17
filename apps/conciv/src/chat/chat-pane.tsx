@@ -43,8 +43,8 @@ import {clearPaneSnapshot, readPaneSnapshot, writePaneSnapshot} from '../lib/ui-
 const GRAB_PREVIEW_MAX_W = 280
 const IMAGE_ATTACHMENT_ADAPTER = createSimpleImageAttachmentAdapter()
 
-function imageAttachmentAdapter(loaded: boolean, imageInput: unknown): AttachmentAdapter | undefined {
-  if (!loaded || imageInput === false) return undefined
+function imageAttachmentAdapter(imageInput: unknown): AttachmentAdapter | undefined {
+  if (imageInput !== 'native' && imageInput !== 'fileRef') return undefined
   return IMAGE_ATTACHMENT_ADAPTER
 }
 
@@ -439,10 +439,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                       <Composer
                         placeholder="Ask a question…"
                         inputLabel="Message the conciv agent"
-                        attachmentAdapter={imageAttachmentAdapter(
-                          meta.data !== undefined,
-                          meta.data?.harness.imageInput,
-                        )}
+                        attachmentAdapter={imageAttachmentAdapter(meta.data?.harness.imageInput)}
                         inputRef={(el) => {
                           inputEl = el
                         }}

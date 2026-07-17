@@ -3,20 +3,15 @@ import {existsSync, readFileSync} from 'node:fs'
 import {eq} from 'drizzle-orm'
 import {chat, EventType, StreamProcessor, type ModelMessage, type StreamChunk, type TokenUsage} from '@tanstack/ai'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
-import {
-  ChatHistorySchema,
-  ChatMessageSchema,
-  type ChatContentPart,
-  type ChatHistory,
-  type ChatMessage,
-} from '@conciv/protocol/chat-types'
+import {ChatMessageSchema, type ChatContentPart, type ChatMessage} from '@conciv/protocol/chat-types'
 import {tokenUsageToSnapshot, type UsageSnapshot} from '@conciv/protocol/usage-types'
 import {
   claimRun,
+  clearImageHistory,
   drafts,
+  foldRunMessagesIntoImageHistory,
   markers,
   releaseRun,
-  runMessagesFor as storedRunMessagesFor,
   sessions,
   setRunMessages,
   statusOf,
@@ -144,14 +139,6 @@ async function recordRunEnd(deps: ChatDeps, sessionId: string, usage: UsageSnaps
 
 type RunOutcome = {error: string | null; usage: UsageSnapshot | null}
 
-function imageHistoryFor(db: ConcivDb, sessionId: string): ChatHistory {
-  const row = storedRunMessagesFor(db, sessionId)
-  if (!row) return []
-  const messages = ChatHistorySchema.parse(row.messages)
-  const hasImage = messages.some((message) => message.parts.some((part) => part.type === 'image'))
-  return hasImage ? messages : []
-}
-
 async function foldRunStream(
   deps: ChatDeps,
   sessionId: string,
@@ -169,13 +156,20 @@ async function foldRunStream(
   }
 }
 
+function persistRunOutcome(deps: ChatDeps, sessionId: string, kind: RunRequest['kind']): void {
+  if (kind === 'chat') {
+    foldRunMessagesIntoImageHistory(deps.db, sessionId)
+    return
+  }
+  clearImageHistory(deps.db, sessionId)
+}
+
 export async function startRun(deps: ChatDeps, sessionId: string, req: RunRequest): Promise<void> {
   const abort = new AbortController()
-  const imageHistory = req.kind === 'chat' ? imageHistoryFor(deps.db, sessionId) : []
   const processor = new StreamProcessor({
     events: {
       onMessagesChange: (messages) => {
-        setRunMessages(deps.db, sessionId, [...imageHistory, ...messages])
+        setRunMessages(deps.db, sessionId, messages)
         deps.changes.notify()
       },
     },
@@ -191,6 +185,7 @@ export async function startRun(deps: ChatDeps, sessionId: string, req: RunReques
     if (!abort.signal.aborted) outcome.error = error instanceof Error ? error.message : String(error)
   } finally {
     unwatch()
+    persistRunOutcome(deps, sessionId, req.kind)
     await recordRunEnd(deps, sessionId, outcome.usage).catch(() => {})
     releaseRun(deps.db, sessionId, outcome.error)
     deps.changes.notify()

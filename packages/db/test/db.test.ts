@@ -5,7 +5,15 @@ import {eq} from 'drizzle-orm'
 import {describe, expect, it, expectTypeOf} from 'vitest'
 import type {SessionRecord} from '@conciv/protocol/chat-types'
 import {openDb} from '../src/db.js'
-import {claimRun, runMessagesFor, replyFor, setRunMessages, statusOf, writeReply} from '../src/run-queries.js'
+import {
+  claimRun,
+  imageHistoryFor,
+  runMessagesFor,
+  replyFor,
+  setRunMessages,
+  statusOf,
+  writeReply,
+} from '../src/run-queries.js'
 import {sessions} from '../src/schema.js'
 
 const record = (id: string) => ({
@@ -31,7 +39,7 @@ describe('openDb', () => {
     expect(db.select().from(sessions).all()[0]?.title).toBe('named')
   })
 
-  it('boot sweep resets stuck runs, preserves messages, and clears replies', () => {
+  it('boot sweep resets stuck runs, truncates run rows, and clears replies', () => {
     const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-db-sweep-'))
     const first = openDb(stateRoot)
     first
@@ -44,8 +52,24 @@ describe('openDb', () => {
     const second = openDb(stateRoot)
     expect(second.select().from(sessions).all()[0]?.title).toBe('keep')
     expect(statusOf(second, 'conciv_z')).toBe('idle')
-    expect(runMessagesFor(second, 'conciv_z')?.messages).toEqual([{id: 'm1'}])
+    expect(runMessagesFor(second, 'conciv_z')).toBeNull()
     expect(replyFor(second, 'conciv_z', 'k')).toBeNull()
+  })
+
+  it('boot sweep folds image-bearing run rows into image history before truncating', () => {
+    const stateRoot = mkdtempSync(join(tmpdir(), 'conciv-db-fold-'))
+    const first = openDb(stateRoot)
+    const imageTurn = [
+      {id: 'u1', role: 'user', parts: [{type: 'image', source: {type: 'data', value: 'aGk=', mimeType: 'image/png'}}]},
+    ]
+    claimRun(first, 'conciv_img', 'chat')
+    setRunMessages(first, 'conciv_img', imageTurn)
+    setRunMessages(first, 'conciv_txt', [{id: 't1', role: 'user', parts: [{type: 'text', content: 'hi'}]}])
+    const second = openDb(stateRoot)
+    expect(runMessagesFor(second, 'conciv_img')).toBeNull()
+    expect(runMessagesFor(second, 'conciv_txt')).toBeNull()
+    expect(imageHistoryFor(second, 'conciv_img')?.messages).toEqual(imageTurn)
+    expect(imageHistoryFor(second, 'conciv_txt')).toBeNull()
   })
 
   it('two connections on one stateRoot interleave writes (WAL + busy timeout)', () => {

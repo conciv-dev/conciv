@@ -13,6 +13,13 @@ import {bootKit} from '../helpers/boot.js'
 
 type WireContext = {kit: Kit; harness: TestHarness}
 
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
+
+function partsOf(message: unknown): unknown[] {
+  if (!isRecord(message) || !Array.isArray(message.parts)) return []
+  return message.parts
+}
+
 const uiCallIdOf = (messages: unknown): string | null =>
   Array.isArray(messages) ? (toolCallParts(messages).find((part) => part.name === 'conciv_ui')?.id ?? null) : null
 
@@ -132,8 +139,8 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     const followUpSnapshots = followUpEvents.all.filter((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT)
     const priorImage = followUpSnapshots
       .at(-1)
-      ?.messages.flatMap((message) => ('parts' in message ? message.parts : []))
-      .find((part) => part.type === 'image')
+      ?.messages.flatMap((message) => partsOf(message))
+      .find((part) => isRecord(part) && part.type === 'image')
     expect(priorImage).toMatchObject({
       type: 'image',
       source: {type: 'data', mimeType: 'image/png', value: 'iVBORw0KGgo='},

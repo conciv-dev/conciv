@@ -43,6 +43,24 @@ describe('attachment adapters', () => {
     expect(first.id).not.toBe(second.id)
   })
 
+  it('marks oversized images incomplete on add and refuses to send them', async () => {
+    const adapter = createSimpleImageAttachmentAdapter()
+    const big = new File([new Uint8Array(21 * 1024 * 1024)], 'huge.png', {type: 'image/png'})
+    const pending = await adapter.add({file: big})
+    if (Symbol.asyncIterator in pending) throw new Error('Expected a promise attachment')
+    expect(pending.status).toMatchObject({type: 'incomplete', reason: 'error'})
+    await expect(adapter.send(pending)).rejects.toThrow('20MB')
+  })
+
+  it('marks svg images incomplete on add and refuses to send them', async () => {
+    const adapter = createSimpleImageAttachmentAdapter()
+    const svg = new File(['<svg/>'], 'icon.svg', {type: 'image/svg+xml'})
+    const pending = await adapter.add({file: svg})
+    if (Symbol.asyncIterator in pending) throw new Error('Expected a promise attachment')
+    expect(pending.status).toMatchObject({type: 'incomplete', reason: 'error'})
+    await expect(adapter.send(pending)).rejects.toThrow('SVG')
+  })
+
   it('uses application/octet-stream when the browser omits a MIME type', async () => {
     const source = await fileToDataSource(new File(['hello'], 'unknown'))
     expect(source).toEqual({type: 'data', value: 'aGVsbG8=', mimeType: 'application/octet-stream'})
