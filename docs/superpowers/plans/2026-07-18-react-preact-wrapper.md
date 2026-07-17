@@ -27,19 +27,26 @@
 - Create: `packages/embed/src/mount.ts` (new lightweight entry)
 - Create: `packages/embed/src/mount-impl.tsx` (heavy Solid graph, moved from old entry)
 - Delete: `packages/embed/src/mount.tsx`
+- Modify: `packages/protocol/src/config-types.ts` (add `ConcivSettingsInit`)
+- Modify: `packages/page/src/page-handlers.ts` + `packages/page/src/page-driver.ts` (disposable console buffer/driver)
+- Modify: `apps/conciv/src/lib/api-base.ts` (loopback guard on `?core=`)
+- Modify: `apps/conciv/src/lib/shadow.ts` (`createShadowRoot` takes the claimed host)
 - Modify: `packages/embed/vite.config.ts`
-- Modify: `packages/embed/vite.global.config.ts`
+- Modify: `packages/embed/test/mount-externals.test.ts` (repoint at the mount-impl chunk)
+- Modify: `packages/embed/package.json` (description mentions the framework wrappers)
 - Test: `packages/embed/test/mount-node.test.ts`
 
 **Interfaces:**
 - Consumes: existing `boot` internals from `packages/embed/src/mount.tsx`, `startPagePlane` (`packages/page/src/index.ts:49`, returns `{dispose: () => void}`), `createShadowRoot` (`conciv/shadow`, returns `{host, root}`).
 - Produces (later tasks import these from `@conciv/embed`):
-  - `type ConcivSettingsInit = {modal?: false | {position?: TriggerPosition}; quickTerminal?: false | {hotkey?: string | string[]}; defaultOpen?: boolean}`
+  - `interface ConcivSettingsInit extends WidgetConfig {defaultOpen?: boolean}` — declared in `@conciv/protocol/config-types` next to the existing `WidgetConfig` (`{modal?: boolean | ModalConfig; quickTerminal?: boolean | QuickTerminalConfig}`) so there is ONE widget-config shape, re-exported from `@conciv/embed`
   - `type ConcivInit = {extensions?: AnyExtension[]; settings?: ConcivSettingsInit; apiBase?: string}`
   - `type ConcivHandle = {mount: () => void; unmount: () => void}`
   - `function createConciv(init?: ConcivInit): ConcivHandle`
   - `function mountConciv(extensions: AnyExtension[]): void` (unchanged signature)
-  - `function mountImpl(init: ConcivInit): () => void` (internal, from `mount-impl.tsx`)
+  - `function mountImpl(init: ConcivInit, hostElement: HTMLElement): () => void` (internal, from `mount-impl.tsx`)
+  - `PageDriver` gains a required `dispose: () => void` (`packages/page`); `startConsoleBuffer` returns `{buf, dispose}`
+  - `createShadowRoot(host: HTMLElement)` (`conciv/shadow`) now decorates a caller-provided host instead of creating one
 
 - [ ] **Step 1: Write the failing node test**
 
@@ -66,6 +73,119 @@ describe('createConciv outside a browser', () => {
 
 Run (from worktree root): `pnpm --filter @conciv/embed exec vitest run test/mount-node.test.ts`
 Expected: FAIL — `createConciv` is not exported (module `../src/mount.js` does not exist yet; the old file is `mount.tsx`).
+
+- [ ] **Step 2b: Add `ConcivSettingsInit` to `@conciv/protocol` and make the page driver disposable**
+
+In `packages/protocol/src/config-types.ts`, directly below `WidgetConfig`:
+
+```ts
+export interface ConcivSettingsInit extends WidgetConfig {
+  defaultOpen?: boolean
+}
+```
+
+In `packages/page/src/page-handlers.ts`, replace `startConsoleBuffer` — today it monkey-patches `console.log/info/warn/error` and adds two `window` listeners it never removes, so every remount would stack another wrapper layer (unbounded leak):
+
+```ts
+export function startConsoleBuffer(): {buf: ConsoleEntry[]; dispose: () => void} {
+  const buf: ConsoleEntry[] = []
+  const push = (level: string, args: unknown[]): string => {
+    const text = args.map((a) => String(a)).join(' ')
+    buf.push({level, ts: Date.now(), text})
+    if (buf.length > CONSOLE_CAP) buf.shift()
+    return text
+  }
+  const originals = (['log', 'info', 'warn', 'error'] as const).map((level) => {
+    const original = console[level].bind(console)
+    console[level] = (...args: unknown[]) => {
+      const text = push(level, args)
+      if (!FORWARD_MARKER.test(text)) original(...args)
+    }
+    return {level, original}
+  })
+  const onError = (e: ErrorEvent): void => {
+    push('error', [e.message])
+  }
+  const onRejection = (e: PromiseRejectionEvent): void => {
+    push('error', [String(e.reason)])
+  }
+  window.addEventListener('error', onError)
+  window.addEventListener('unhandledrejection', onRejection)
+  return {
+    buf,
+    dispose: () => {
+      for (const {level, original} of originals) console[level] = original
+      window.removeEventListener('error', onError)
+      window.removeEventListener('unhandledrejection', onRejection)
+    },
+  }
+}
+```
+
+In `packages/page/src/page-driver.ts`:
+
+```ts
+export type PageDriver = {execute: (query: PageQuery) => Promise<PageResult>; refs: Refs; dispose: () => void}
+```
+
+and inside `makeDomPageDriver`, replace the `consoleBuf` line and the return:
+
+```ts
+  const {buf: consoleBuf, dispose} = startConsoleBuffer()
+```
+
+```ts
+  return {execute, refs, dispose}
+}
+```
+
+Run `pnpm typecheck` afterward; if any other `PageDriver` implementer (testkits, fakes) fails the new required `dispose`, give it a no-op `dispose: () => {}`.
+
+- [ ] **Step 2c: Guard the `?core=` api-base query param**
+
+The `?core=` query param is attacker-influenceable (a crafted link can point the widget's RPC + page-plane at a hostile server). Constrain it to loopback or same-origin; the prop/meta/global paths are developer-controlled and stay unrestricted. In `apps/conciv/src/lib/api-base.ts`:
+
+```ts
+function queryCore(): string {
+  const raw = new URLSearchParams(window.location.search).get('core')
+  if (!raw) return ''
+  try {
+    const url = new URL(raw, window.location.origin)
+    const loopback = url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '[::1]'
+    if (loopback || url.origin === window.location.origin) return raw
+  } catch {}
+  console.warn('[conciv] ignoring non-loopback cross-origin ?core= api base')
+  return ''
+}
+
+export function resolveApiBase(): string {
+  return window.__CONCIV_API_BASE__ ?? (metaContent('pw-api-base') || queryCore()) ?? ''
+}
+```
+
+Existing e2e/testkit flows pass `?core=http://127.0.0.1:<port>` — loopback, still allowed.
+
+- [ ] **Step 2d: Make `createShadowRoot` accept the claimed host**
+
+In `apps/conciv/src/lib/shadow.ts`, `createConciv` now creates the `[data-conciv-root]` element synchronously (see Step 4) and hands it over; `createShadowRoot` decorates it instead of creating its own:
+
+```ts
+export function createShadowRoot(host: HTMLElement): {host: HTMLElement; root: ShadowRoot} {
+  registerWind4Properties()
+  registerFonts()
+  host.style.position = 'fixed'
+  host.style.inset = '0'
+  host.style.pointerEvents = 'none'
+  host.style.zIndex = '2147483000'
+  const root = host.attachShadow({mode: 'open'})
+  const style = document.createElement('style')
+  style.textContent = styles
+  root.appendChild(style)
+  return {host, root}
+}
+```
+
+(The `data-conciv-root` attribute set + `document.body.appendChild` move to the caller.) Run `pnpm typecheck` and fix any other `createShadowRoot()` call site the compiler flags by creating-and-appending a `div[data-conciv-root]` first, mirroring Step 4's `mount()`.
 
 - [ ] **Step 3: Create `packages/embed/src/mount-impl.tsx`**
 
@@ -117,15 +237,23 @@ async function boot(root: ShadowRoot, init: ConcivInit): Promise<() => void> {
   const disposeApp = render(() => <RouterProvider router={router} />, container)
   const plane = startPagePlane({rpc, document, driver})
   return () => {
-    plane.dispose()
-    disposeApp()
+    try {
+      plane.dispose()
+    } finally {
+      try {
+        disposeApp()
+      } finally {
+        driver.dispose()
+      }
+    }
   }
 }
 
-export function mountImpl(init: ConcivInit): () => void {
+export function mountImpl(init: ConcivInit, hostElement: HTMLElement): () => void {
   installReactBridge()
   window.__CONCIV_REACT_BRIDGE__ = reactBridge
-  const {host, root} = createShadowRoot()
+  const hostRouter = window.__TSR_ROUTER__
+  const {host, root} = createShadowRoot(hostElement)
   let disposed = false
   let disposeBoot: (() => void) | undefined
   void boot(root, init).then(
@@ -142,27 +270,32 @@ export function mountImpl(init: ConcivInit): () => void {
   )
   return () => {
     disposed = true
-    disposeBoot?.()
-    host.remove()
+    try {
+      disposeBoot?.()
+    } finally {
+      host.remove()
+      window.__TSR_ROUTER__ = hostRouter
+      window.__CONCIV_PAGE_DRIVER__ = undefined
+      window.__CONCIV_REACT_BRIDGE__ = undefined
+    }
   }
 }
 ```
 
 Notes for the implementer:
-- This is the old `mount.tsx` `boot` with three changes: `init.apiBase ?? resolveApiBase()`, settings from `init.settings` (serialized through the existing `parseConcivSettings` parser) with the `pw-widget` meta as fallback, `init.extensions ?? []`, and the previously-dropped `render()` dispose + `startPagePlane(...).dispose` captured into a returned teardown.
-- The `window.__TSR_ROUTER__` capture/restore is load-bearing (embedded TanStack Router clobbers the host app's global otherwise) — keep it exactly.
+- This is the old `mount.tsx` `boot` with these changes: `init.apiBase ?? resolveApiBase()`, settings from `init.settings` (serialized through the existing `parseConcivSettings` parser) with the `pw-widget` meta as fallback, `init.extensions ?? []`, and the previously-dropped `render()` dispose + `startPagePlane(...).dispose` + the new `driver.dispose()` captured into a returned teardown.
+- Teardown is fault-isolated with nested `try`/`finally`: one throwing `onCleanup` inside the Solid dispose must never skip the remaining disposers or `host.remove()` — a leftover `[data-conciv-root]` host would permanently block remount.
+- The inner `window.__TSR_ROUTER__` capture/restore around router creation is load-bearing (embedded TanStack Router clobbers the host app's global otherwise) — keep it exactly. The outer capture in `mountImpl` + restore in teardown handles the newly-possible unmount path for hosts that themselves use TanStack Router.
+- `installReactBridge()` is intentionally NOT torn down: `installTracker` is idempotent (`state.installed` guard in `packages/page/src/render-tracker.ts`), so remount is safe and uninstalling the RDT hook would be riskier than leaving it.
+- `createShadowRoot` also injects font + `@property` styles into `document.head`; they are deliberately left on unmount (both `register*` helpers are idempotent via their `data-*` guards, so remount reuses them). The READMEs document this.
 
 - [ ] **Step 4: Create `packages/embed/src/mount.ts` and delete `mount.tsx`**
 
 ```ts
 import type {AnyExtension} from '@conciv/extension'
-import type {TriggerPosition} from '@conciv/protocol/config-types'
+import type {ConcivSettingsInit} from '@conciv/protocol/config-types'
 
-export type ConcivSettingsInit = {
-  modal?: false | {position?: TriggerPosition}
-  quickTerminal?: false | {hotkey?: string | string[]}
-  defaultOpen?: boolean
-}
+export type {ConcivSettingsInit} from '@conciv/protocol/config-types'
 
 export type ConcivInit = {
   extensions?: AnyExtension[]
@@ -180,6 +313,7 @@ type MountState = 'unmounted' | 'mounting' | 'mounted'
 export function createConciv(init: ConcivInit = {}): ConcivHandle {
   let state: MountState = 'unmounted'
   let abort: AbortController | undefined
+  let host: HTMLElement | undefined
   let teardown: (() => void) | undefined
 
   function mount(): void {
@@ -189,16 +323,22 @@ export function createConciv(init: ConcivInit = {}): ConcivHandle {
       console.warn('[conciv] widget already mounted, skipping mount')
       return
     }
+    const claim = document.createElement('div')
+    claim.setAttribute('data-conciv-root', '')
+    document.body.appendChild(claim)
+    host = claim
     state = 'mounting'
     const controller = new AbortController()
     abort = controller
     void import('./mount-impl.js')
       .then(({mountImpl}) => {
         if (controller.signal.aborted) return
-        teardown = mountImpl(init)
+        teardown = mountImpl(init, claim)
         state = 'mounted'
       })
       .catch((error: unknown) => {
+        claim.remove()
+        host = undefined
         state = 'unmounted'
         console.error('[conciv] failed to load widget', error)
       })
@@ -209,6 +349,8 @@ export function createConciv(init: ConcivInit = {}): ConcivHandle {
     abort?.abort()
     teardown?.()
     teardown = undefined
+    host?.remove()
+    host = undefined
     state = 'unmounted'
   }
 
@@ -220,13 +362,17 @@ export function mountConciv(extensions: AnyExtension[]): void {
 }
 ```
 
+No module-level state: the `[data-conciv-root]` host element IS the singleton guard, and it is claimed synchronously in `mount()` — check + insert happen in the same tick, so two handles mounting concurrently (or the script-tag inject racing a `<ConcivWidget/>`) cannot both pass; the loser warns and no-ops. This also works across separate bundle copies on one page, which no in-module flag could. All remaining state (`state`/`abort`/`host`/`teardown`) lives in the `createConciv` closure. The failed-import path removes the claim so a later mount can retry.
+
 Then: `git rm packages/embed/src/mount.tsx`
 
-The type-only imports mean the emitted `mount.js` has zero static runtime imports — it is import-safe under SSR/node. `TriggerPosition` comes from `@conciv/protocol` (published), so the public `.d.ts` never references the private `conciv` app package.
+The type-only imports mean the emitted `mount.js` has zero static runtime imports — it is import-safe under SSR/node. `ConcivSettingsInit` lives in `@conciv/protocol` (published), so the public `.d.ts` never references the private `conciv` app package. Note this deviates intentionally from the spec's `settings?: ConcivSettings` — the parsed type lives in the private app and must not leak into public typings; do not "reconcile" it back.
+
+Also update `packages/embed/package.json` `description`: append " Also powers the @conciv/react and @conciv/preact wrapper components." after the "do not install directly" sentence, so the dependency graph and messaging agree.
 
 - [ ] **Step 5: Update the two vite configs**
 
-`packages/embed/vite.config.ts` — change the lib entry to the new `.ts` file and give the dynamic chunk a stable name. Replace the `build` block's `lib.entry` and `rollupOptions`:
+`packages/embed/vite.config.ts` — change the lib entry to the new `.ts` file:
 
 ```ts
     lib: {
@@ -236,12 +382,7 @@ The type-only imports mean the emitted `mount.js` has zero static runtime import
     },
 ```
 
-```ts
-    rollupOptions: {
-      external: isExternal,
-      output: {chunkFileNames: '[name].js'},
-    },
-```
+Leave `rollupOptions` untouched (`external: isExternal` only). Do NOT set a global `chunkFileNames: '[name].js']` — the dist already emits several anonymous vendor chunks and stripping their content hashes risks name collisions and kills cache-busting. The mount-impl chunk gets a default `mount-impl-<hash>.js` name; nothing hard-codes it (vite rewrites the dynamic-import specifier), and the tests locate it by glob.
 
 `packages/embed/vite.global.config.ts` — the iife format cannot code-split, so inline the dynamic import. Add to its `build` block (vite 8 is rolldown-based: `codeSplitting: false` is the current spelling; `inlineDynamicImports` is deprecated — verified against rolldown 1.1.5 types):
 
@@ -257,19 +398,48 @@ Expected: PASS (2 tests). The test imports `src/mount.ts` in the node environmen
 - [ ] **Step 7: Build and typecheck the package**
 
 Run: `pnpm turbo run build --filter=@conciv/embed && pnpm --filter @conciv/embed typecheck`
-Expected: build succeeds; `dist/` now contains `mount.js`, `mount-impl.js` (chunk), `mount.d.ts`, `mount-impl.d.ts`, and `conciv-widget.global.js`. Verify the chunk exists: `ls packages/embed/dist/mount-impl.js`.
+Expected: build succeeds; `dist/` now contains `mount.js`, a `mount-impl-<hash>.js` chunk, `mount.d.ts`, and `conciv-widget.global.js`. Verify the chunk exists: `ls packages/embed/dist/mount-impl*.js`.
+
+- [ ] **Step 7b: Repoint `mount-externals.test.ts` at the mount-impl chunk**
+
+This test is the ONLY guard against a consumer bundling a second Solid/Ark copy (the context-split landmine). After the split, `dist/mount.js` no longer contains the app graph, so every "externalizes X" assertion would fail — and the "inlines" assertions would pass vacuously, silently disabling the guard. The guard must follow the code into the chunk. Replace the file's header (keep the five `it` blocks unchanged) and add an entry-lightness test:
+
+```ts
+import {readdirSync, readFileSync} from 'node:fs'
+import {fileURLToPath} from 'node:url'
+import {describe, expect, it} from 'vitest'
+
+const distDir = fileURLToPath(new URL('../dist/', import.meta.url))
+const chunkName = readdirSync(distDir).find((name) => /^mount-impl.*\.js$/.test(name)) ?? ''
+const mount = chunkName ? readFileSync(distDir + chunkName, 'utf8') : ''
+const entry = readFileSync(distDir + 'mount.js', 'utf8')
+
+const externalized = (specifier: string) => new RegExp(`from\\s*["']${specifier.replace('/', '\\/')}`).test(mount)
+```
+
+and append inside the describe:
+
+```ts
+  it('emits the app graph as a mount-impl chunk', () => {
+    expect(chunkName).not.toBe('')
+  })
+
+  it('keeps the mount entry free of static runtime imports (SSR-safe)', () => {
+    expect(/^import\s/m.test(entry)).toBe(false)
+  })
+```
 
 - [ ] **Step 8: Run the full embed test suite (existing ITs must stay green)**
 
 Run: `pnpm turbo run test --filter=@conciv/embed --force`
-Expected: PASS — `embed.it.test.ts`, `page-plane.it.test.ts`, `reload-continuity.it.test.ts`, `mount-externals.test.ts`, `mount-node.test.ts`. These load the freshly-rebuilt global bundle, proving the script-tag path (`mountConciv`) is behavior-identical.
+Expected: PASS — `embed.it.test.ts`, `page-plane.it.test.ts`, `reload-continuity.it.test.ts`, `mount-externals.test.ts` (now reading the chunk), `mount-node.test.ts`. These load the freshly-rebuilt global bundle, proving the script-tag path (`mountConciv`) is behavior-identical.
 
 - [ ] **Step 9: Commit**
 
 ```bash
-git add packages/embed/src/mount.ts packages/embed/src/mount-impl.tsx packages/embed/vite.config.ts packages/embed/vite.global.config.ts packages/embed/test/mount-node.test.ts
+git add packages/embed packages/protocol/src/config-types.ts packages/page/src/page-handlers.ts packages/page/src/page-driver.ts apps/conciv/src/lib/api-base.ts apps/conciv/src/lib/shadow.ts
 git rm packages/embed/src/mount.tsx
-git commit -m "feat(embed): createConciv mount/unmount handle with lazy mount-impl split" -- packages/embed
+git commit -m "feat(embed): createConciv mount/unmount handle with lazy mount-impl split" -- packages/embed packages/protocol packages/page apps/conciv
 ```
 
 ---
@@ -362,12 +532,15 @@ import {chromium, type Browser, type Page} from 'playwright'
 import {bootEmbedKit, type EmbedKit} from './helpers/boot.js'
 import {handleHostPage, serveHost} from './helpers/host.js'
 
+const ASSISTANT_TEXT = 'Hello from conciv'
+
 type Handle = {mount: () => void; unmount: () => void}
 
 declare global {
   interface Window {
     ConcivHandle: {makeHandle: (apiBase: string) => Handle}
     __handle: Handle
+    __TSR_ROUTER__?: unknown
   }
 }
 
@@ -377,7 +550,7 @@ let host: {base: string; close: () => Promise<void>}
 
 beforeAll(async () => {
   browser = await chromium.launch()
-  kit = await bootEmbedKit()
+  kit = await bootEmbedKit({text: ASSISTANT_TEXT})
   host = await serveHost(() => handleHostPage())
 }, 60_000)
 
@@ -393,6 +566,8 @@ async function openPage(): Promise<Page> {
   return page
 }
 
+const fab = (page: Page) => page.getByRole('button', {name: 'Open conciv chat'})
+
 describe('createConciv lifecycle', () => {
   it('mounts, unmounts, and remounts the widget', async () => {
     const page = await openPage()
@@ -400,19 +575,15 @@ describe('createConciv lifecycle', () => {
       window.__handle = window.ConcivHandle.makeHandle(apiBase)
       window.__handle.mount()
     }, kit.base)
-    await expect
-      .poll(() => page.getByRole('button', {name: 'Open conciv chat'}).isVisible(), {timeout: 15_000})
-      .toBe(true)
+    await expect.poll(() => fab(page).isVisible(), {timeout: 15_000}).toBe(true)
     await page.evaluate(() => window.__handle.unmount())
-    await expect.poll(() => page.locator('[data-conciv-root]').count(), {timeout: 5_000}).toBe(0)
+    await expect.poll(() => fab(page).count(), {timeout: 5_000}).toBe(0)
     await page.evaluate(() => window.__handle.mount())
-    await expect
-      .poll(() => page.getByRole('button', {name: 'Open conciv chat'}).isVisible(), {timeout: 15_000})
-      .toBe(true)
+    await expect.poll(() => fab(page).isVisible(), {timeout: 15_000}).toBe(true)
     await page.close()
   })
 
-  it('second concurrent mount warns and keeps a single root', async () => {
+  it('two handles mounting in the same tick yield exactly one widget', async () => {
     const page = await openPage()
     const warnings: string[] = []
     page.on('console', (message) => {
@@ -420,17 +591,11 @@ describe('createConciv lifecycle', () => {
     })
     await page.evaluate((apiBase) => {
       window.ConcivHandle.makeHandle(apiBase).mount()
-    }, kit.base)
-    await expect
-      .poll(() => page.getByRole('button', {name: 'Open conciv chat'}).isVisible(), {timeout: 15_000})
-      .toBe(true)
-    await page.evaluate((apiBase) => {
       window.ConcivHandle.makeHandle(apiBase).mount()
     }, kit.base)
-    await expect
-      .poll(() => warnings.some((text) => text.includes('[conciv] widget already mounted')), {timeout: 5_000})
-      .toBe(true)
-    expect(await page.locator('[data-conciv-root]').count()).toBe(1)
+    await expect.poll(() => fab(page).count(), {timeout: 15_000}).toBe(1)
+    expect(warnings.some((text) => text.includes('[conciv] widget already mounted'))).toBe(true)
+    expect(await fab(page).count()).toBe(1)
     await page.close()
   })
 
@@ -441,11 +606,51 @@ describe('createConciv lifecycle', () => {
       handle.mount()
       handle.unmount()
     }, kit.base)
-    await expect.poll(() => page.locator('[data-conciv-root]').count(), {timeout: 5_000}).toBe(0)
+    await expect.poll(() => fab(page).count(), {timeout: 5_000}).toBe(0)
+    expect(await page.evaluate(() => document.querySelector('[data-conciv-root]') === null)).toBe(true)
+    await page.close()
+  })
+
+  it('restores the host __TSR_ROUTER__ global on unmount', async () => {
+    const page = await openPage()
+    await page.evaluate((apiBase) => {
+      window.__TSR_ROUTER__ = {hostSentinel: true}
+      window.__handle = window.ConcivHandle.makeHandle(apiBase)
+      window.__handle.mount()
+    }, kit.base)
+    await expect.poll(() => fab(page).isVisible(), {timeout: 15_000}).toBe(true)
+    await page.evaluate(() => window.__handle.unmount())
+    const restored = await page.evaluate(() => {
+      const value = window.__TSR_ROUTER__
+      return typeof value === 'object' && value !== null && 'hostSentinel' in value
+    })
+    expect(restored).toBe(true)
+    await page.close()
+  })
+
+  it('unmounts cleanly with an open panel and a completed turn', async () => {
+    const page = await openPage()
+    const pageErrors: string[] = []
+    page.on('pageerror', (error) => pageErrors.push(String(error)))
+    await page.evaluate((apiBase) => {
+      window.__handle = window.ConcivHandle.makeHandle(apiBase)
+      window.__handle.mount()
+    }, kit.base)
+    await fab(page).click()
+    const box = page.getByRole('textbox', {name: 'Message the conciv agent'})
+    await expect.poll(() => box.isVisible(), {timeout: 15_000}).toBe(true)
+    await box.fill('hello')
+    await box.press('Enter')
+    await expect.poll(() => page.getByText(ASSISTANT_TEXT).first().isVisible(), {timeout: 20_000}).toBe(true)
+    await page.evaluate(() => window.__handle.unmount())
+    await expect.poll(() => fab(page).count(), {timeout: 5_000}).toBe(0)
+    expect(pageErrors).toEqual([])
     await page.close()
   })
 })
 ```
+
+Notes: `ASSISTANT_TEXT` is a const passed to `bootEmbedKit({text: ASSISTANT_TEXT})` in `beforeAll` (mirror `embed.it.test.ts`, value `'Hello from conciv'`). Presence/removal is asserted via the FAB role, not DOM structure; the one `[data-conciv-root]` query left is the non-visual claim-element invariant in the abort test. The `__TSR_ROUTER__` test augments the test file's `Window` interface with `__TSR_ROUTER__?: unknown` in its `declare global` block — narrow with `typeof`/`in`, no casts.
 
 - [ ] **Step 6: Run the new IT**
 
@@ -519,7 +724,8 @@ git commit -m "test(embed): browser IT for createConciv mount/unmount lifecycle"
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "@conciv/embed": "workspace:^"
+    "@conciv/embed": "workspace:^",
+    "@conciv/protocol": "workspace:^"
   },
   "peerDependencies": {
     "@types/react": ">=16.8",
@@ -655,6 +861,8 @@ export function App() {
 Renders nothing in the React tree; mounts the conciv widget in its own shadow root on `document.body` and removes it when the component unmounts. SSR-safe (`'use client'`, no-op without a DOM). No Solid tooling or build plugin required.
 
 Props (all optional): `extensions` (conciv extensions to load), `settings` (same shape as the `pw-widget` meta config), `apiBase` (conciv server URL; defaults to the meta/query resolution).
+
+Props are read once on mount; to apply new values, remount the component (e.g. change its `key`). Passing `apiBase` explicitly is the recommended secure usage — the `?core=` query-param fallback is restricted to loopback/same-origin URLs. The widget's font and CSS `@property` registrations stay in `document.head` after unmount (idempotent, reused on remount).
 ````
 
 - [ ] **Step 4: Install and build**
@@ -841,9 +1049,9 @@ describe('ConcivWidget in a real React app', () => {
   it('mounts exactly one widget under StrictMode', async () => {
     const page = await openPage()
     await expect
-      .poll(() => page.getByRole('button', {name: 'Open conciv chat'}).isVisible(), {timeout: 15_000})
-      .toBe(true)
-    expect(await page.locator('[data-conciv-root]').count()).toBe(1)
+      .poll(() => page.getByRole('button', {name: 'Open conciv chat'}).count(), {timeout: 15_000})
+      .toBe(1)
+    expect(await page.getByRole('button', {name: 'Open conciv chat'}).count()).toBe(1)
     await page.close()
   })
 
@@ -853,7 +1061,9 @@ describe('ConcivWidget in a real React app', () => {
       .poll(() => page.getByRole('button', {name: 'Open conciv chat'}).isVisible(), {timeout: 15_000})
       .toBe(true)
     await page.getByRole('button', {name: 'toggle widget'}).click()
-    await expect.poll(() => page.locator('[data-conciv-root]').count(), {timeout: 10_000}).toBe(0)
+    await expect
+      .poll(() => page.getByRole('button', {name: 'Open conciv chat'}).count(), {timeout: 10_000})
+      .toBe(0)
     await page.getByRole('button', {name: 'toggle widget'}).click()
     await expect
       .poll(() => page.getByRole('button', {name: 'Open conciv chat'}).isVisible(), {timeout: 15_000})
@@ -1105,9 +1315,76 @@ git commit -m "chore(release): wire @conciv/react + @conciv/preact into publish 
 
 ---
 
+### Task 6: Next.js app-router e2e smoke for the component path
+
+The plugin-inject path is e2e-covered (`e2e/nextjs`), but `<ConcivWidget/>` — the thing these packages exist for — would otherwise ship with zero SSR/RSC coverage. This validates: server import of a `'use client'` package doesn't break the RSC render, the banner directive is honored, the dynamic mount-impl chunk loads under Next's bundler, and there is no hydration mismatch.
+
+**Files:**
+- Create: `e2e/nextjs-component/` (copy of `e2e/nextjs` minus `node_modules`, `.next`, `test-results`)
+- Modify (within the copy): `package.json`, `instrumentation-client.ts`, `app/layout.tsx`
+- Create (within the copy): `app/conciv-widget-client.tsx`
+
+**Interfaces:**
+- Consumes: `ConcivWidget` from `@conciv/react` (Task 3); existing `@conciv/e2e-utils/widget` helpers; the `@conciv/it` nextjs plugin (kept for the dev server + `pw-api-base` meta — only the mount-script inject is replaced by the component).
+- Produces: e2e coverage of the component path; no exports.
+
+- [ ] **Step 1: Copy the app and rewire the mount**
+
+```bash
+cp -R e2e/nextjs e2e/nextjs-component
+rm -rf e2e/nextjs-component/node_modules e2e/nextjs-component/.next e2e/nextjs-component/test-results
+```
+
+In `e2e/nextjs-component/package.json`: change `name` to the `e2e/nextjs` name with a `-component` suffix, and add to `dependencies`:
+
+```json
+    "@conciv/react": "workspace:*",
+    "@conciv/extension-terminal": "workspace:*",
+```
+
+In `instrumentation-client.ts`: delete the `import '@conciv/it/plugin/nextjs/widget'` line (delete the file if that was its only content and nothing references it).
+
+Create `app/conciv-widget-client.tsx`:
+
+```tsx
+'use client'
+
+import terminal from '@conciv/extension-terminal/client'
+import {ConcivWidget} from '@conciv/react'
+
+export function ConcivWidgetClient() {
+  return <ConcivWidget extensions={[terminal]} />
+}
+```
+
+In `app/layout.tsx`: render `<ConcivWidgetClient />` as the last child inside `<body>`. No `apiBase` prop — the `withConciv` next plugin still injects the `pw-api-base` meta, so the default resolution exercises the real mixed setup (plugin serves, component mounts).
+
+The Playwright spec stays byte-identical to `e2e/nextjs`'s — `expectWidgetBoots` already asserts the FAB, opens the panel, and fails on any page/console error (which is what would surface a hydration mismatch or broken client boundary).
+
+- [ ] **Step 2: Register the app per e2e conventions**
+
+Read `e2e/README.md` and mirror whatever registration `e2e/nextjs` has (workspace globs, turbo pipeline, CI matrix). Confirm `pnpm install` picks the new package up.
+
+- [ ] **Step 3: Run it**
+
+Run: `pnpm install && pnpm turbo run test:e2e --filter=<new-package-name>`
+Expected: PASS — widget boots from the component render with zero page errors and zero console errors.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add e2e/nextjs-component pnpm-lock.yaml
+git commit -m "test(e2e): nextjs app-router coverage for the ConcivWidget component path" -- e2e/nextjs-component pnpm-lock.yaml
+```
+
+---
+
 ## Release note (no action in this plan)
 
-npm OIDC trusted publishing cannot create NEW packages. Before the next release lands, `@conciv/react` and `@conciv/preact` need the manual first-publish + per-package trusted-publisher bootstrap (same procedure as `@conciv/try`). Flag this to the user at handoff — do not attempt to publish from the laptop.
+npm OIDC trusted publishing cannot create NEW packages. Before the next release lands, `@conciv/react` and `@conciv/preact` need a manual first-publish bootstrap. First-publish security checklist (flag to the user at handoff — do not publish from the laptop without walking through it):
+- npm account 2FA enforced; use a granular per-package publish token, never an org-wide token.
+- Run the publish with `--provenance` from CI if at all achievable; a manual publish carries no provenance attestation.
+- Configure the per-package trusted publisher IMMEDIATELY after the bootstrap so 0.0.12+ regains OIDC provenance (same procedure as `@conciv/try`).
 
 ## Known verification points for the implementer
 
@@ -1116,3 +1393,5 @@ npm OIDC trusted publishing cannot create NEW packages. Before the next release 
 - If the `'use client'` banner is missing from `packages/react/dist/index.js` after build, fix the tsdown `banner: {js: ...}` config — do not move the directive into source and hope it survives bundling.
 - Preact `useState` supports the lazy-initializer form used in `packages/preact/src/index.ts` (confirmed in the Preact hooks docs).
 - The host fixtures import the package by self-reference (`@conciv/react` from inside `packages/react`); if vite fails to resolve the self-reference, fall back to importing `../../../dist/index.js` — never `../../../src`.
+- Boot failures after a successful chunk load are console-only (`[conciv] failed to boot widget`); `mount()` stays void-returning like TanStack's core. Callers get no programmatic signal — documented behavior, not a gap to "fix" mid-implementation.
+- The `codeSplitting: false` output setting in `vite.global.config.ts` (Step 5) is load-bearing — the iife global entry pulls `mount.ts`'s dynamic import and cannot code-split.
