@@ -21,6 +21,7 @@ export type ChatDeps = {
   tools: (sessionId: string) => AnyTool[]
   onRunStart?: (sessionId: string) => void
   onRunEnd?: (sessionId: string) => Promise<void>
+  firstChunkTimeoutMs?: number
 }
 
 export type ChatEnv = {Variables: {chat: ChatDeps}}

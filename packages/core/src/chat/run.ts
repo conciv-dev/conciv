@@ -168,6 +168,40 @@ function persistRunOutcome(deps: ChatDeps, sessionId: string, kind: RunRequest['
   clearImageHistory(deps.db, sessionId)
 }
 
+const FIRST_CHUNK_TIMEOUT_MS = 30_000
+
+async function firstOrTimeout(
+  iterator: AsyncIterator<StreamChunk>,
+  timeoutMs: number,
+): Promise<IteratorResult<StreamChunk> | 'timeout'> {
+  const timer = {handle: null as ReturnType<typeof setTimeout> | null}
+  const first = await Promise.race([
+    iterator.next(),
+    new Promise<'timeout'>((resolve) => {
+      timer.handle = setTimeout(() => resolve('timeout'), timeoutMs)
+    }),
+  ])
+  if (timer.handle) clearTimeout(timer.handle)
+  return first
+}
+
+async function* boundFirstChunk(
+  stream: AsyncIterable<StreamChunk>,
+  timeoutMs: number,
+  onTimeout: () => void,
+): AsyncGenerator<StreamChunk> {
+  const iterator = stream[Symbol.asyncIterator]()
+  const first = await firstOrTimeout(iterator, timeoutMs)
+  if (first === 'timeout') {
+    onTimeout()
+    void iterator.return?.(undefined)?.catch?.(() => {})
+    return
+  }
+  if (first.done) return
+  yield first.value
+  yield* {[Symbol.asyncIterator]: () => iterator}
+}
+
 export async function startRun(deps: ChatDeps, sessionId: string, req: RunRequest): Promise<void> {
   const abort = new AbortController()
   const processor = new StreamProcessor({
@@ -184,7 +218,12 @@ export async function startRun(deps: ChatDeps, sessionId: string, req: RunReques
   const outcome: RunOutcome = {error: null, usage: null}
   try {
     const stream = await buildRunStream(deps, sessionId, req, processor, abort)
-    await foldRunStream(deps, sessionId, req, processor, stream, outcome)
+    const timeoutMs = deps.firstChunkTimeoutMs ?? FIRST_CHUNK_TIMEOUT_MS
+    const bounded = boundFirstChunk(stream, timeoutMs, () => {
+      outcome.error = `${deps.harness.id} produced no output within ${Math.round(timeoutMs / 1000)}s`
+      abort.abort()
+    })
+    await foldRunStream(deps, sessionId, req, processor, bounded, outcome)
   } catch (error) {
     if (!abort.signal.aborted) outcome.error = error instanceof Error ? error.message : String(error)
   } finally {

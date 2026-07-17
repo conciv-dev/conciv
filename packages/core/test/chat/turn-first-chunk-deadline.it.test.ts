@@ -6,8 +6,6 @@ import {createTestkit} from '@conciv/harness-testkit'
 import {bootCoreApp} from '../helpers/boot.js'
 import {untilRunSettled} from '../helpers/run-settled.js'
 
-const CHUNK_FAIL = 'stub is not installed or not yet supported'
-
 const baseCaps = {
   resume: false,
   permissionGate: 'none',
@@ -19,28 +17,32 @@ const baseCaps = {
   imageInput: false,
 } as const
 
-async function* erroringGenerator(): AsyncGenerator<StreamChunk> {
-  yield {type: EventType.RUN_STARTED, threadId: 'stub', runId: 'stub'}
-  yield {type: EventType.RUN_ERROR, message: CHUNK_FAIL}
+function hangingGenerator(signal: AbortSignal | undefined): AsyncGenerator<StreamChunk> {
+  return (async function* (): AsyncGenerator<StreamChunk> {
+    await new Promise<void>((resolve) => {
+      signal?.addEventListener('abort', () => resolve(), {once: true})
+    })
+  })()
 }
 
-const erroringHarness = defineHarness({
-  id: 'fake-chunk-error',
+const hangingHarness = defineHarness({
+  id: 'fake-hanging',
   binName: 'true',
-  chatConfig: () => ({adapter: makeTextAdapter('fake-chunk-error', () => erroringGenerator())}),
+  chatConfig: () => ({
+    adapter: makeTextAdapter('fake-hanging', (options) => hangingGenerator(options.abortController?.signal)),
+  }),
   capabilities: baseCaps,
 })
 
-describe('an adapter that yields RUN_ERROR as a chunk (stub harnesses, acp adapters)', () => {
-  it('surfaces the error on the wire and settles the run', async () => {
-    const kit = await createTestkit(erroringHarness, bootCoreApp()).setup()
+describe('an adapter that never produces a first chunk', () => {
+  it('settles the run with a deadline error instead of hanging forever', async () => {
+    const kit = await createTestkit(hangingHarness, bootCoreApp({firstChunkTimeoutMs: 300})).setup()
     try {
       const id = await kit.session()
       const stream = await kit.attach(id)
       await kit.rpc.chat.send({sessionId: id, text: 'hi'})
       const runError = await stream.waitFor((chunk) => chunk.type === EventType.RUN_ERROR, {hangGuardMs: 5000})
-      expect(runError.type).toBe(EventType.RUN_ERROR)
-      expect('message' in runError ? runError.message : '').toContain(CHUNK_FAIL)
+      expect('message' in runError ? runError.message : '').toContain('no output')
       await untilRunSettled(kit, id)
     } finally {
       await kit.cleanup()

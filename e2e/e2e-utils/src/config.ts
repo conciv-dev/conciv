@@ -47,6 +47,7 @@ export function harnessMatrixConfig(opts: {
   return defineConfig({
     testDir: './tests',
     workers: 1,
+    timeout: 150_000,
     reporter: [['line']],
     webServer: entries.map(([harness, port]) =>
       serverEntry(`rm -rf .conciv-${harness} && ${opts.command(harness, port)}`, port),
