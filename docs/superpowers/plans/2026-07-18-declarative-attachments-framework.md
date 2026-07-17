@@ -252,7 +252,7 @@ git commit -m "fix(client): forward document parts and metadata in send path" --
   - `defineAttachment<Ctx = unknown>(def: {mime: string}): AttachmentBuilder<Ctx>`.
   - `__ctx` is the same phantom the tool builder uses, so `RequiredContext` (via `CtxOf`) composes over attachments (Task 4).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import {describe, expect, it} from 'vitest'
@@ -271,12 +271,12 @@ describe('defineAttachment', () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm turbo run test --filter=@conciv/extension`
 Expected: FAIL — module missing.
 
-- [ ] **Step 3: Implement types + builder**
+- [x] **Step 3: Implement types + builder**
 
 Append to `packages/extension/src/types.ts`:
 
@@ -325,12 +325,12 @@ export function defineAttachment<Ctx = unknown>(def: {mime: string}): Attachment
 
 (If `AnyAttachmentBuilder = AttachmentBuilder<never>` makes assignment of concrete builders fail variance-wise, use `AttachmentBuilder<any>` is banned — instead type it structurally: `type AnyAttachmentBuilder = ExtensionAttachment & {__expand?: AttachmentExpand<never>}` and have collectors read only `mime`/`__card`/`__expand`. The implementer picks whichever satisfies strict mode; the collector-facing surface is `mime`, `__card`, `__expand`, `__ctx`.)
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pnpm turbo run test --filter=@conciv/extension`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -m "feat(extension): defineAttachment builder with typed ctx" -- packages/extension/src/define-attachment.ts packages/extension/src/types.ts packages/extension/test/define-attachment.test.ts

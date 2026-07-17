@@ -1,5 +1,6 @@
 import type {Component} from 'solid-js'
 import type {z} from 'zod'
+import type {ContentPart} from '@tanstack/ai'
 import type {AnyRouter} from '@orpc/server'
 import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import type {TtyCommand, TtyCommandOpts} from '@conciv/protocol/terminal-types'
@@ -88,6 +89,17 @@ export type UnionToIntersection<Union> = (Union extends unknown ? (incoming: Uni
 ) => void
   ? Intersection
   : never
+
+export type AttachmentDocumentPart = {type: 'document'; source: {type: 'data'; mimeType: string; value: string}}
+
+export type AttachmentExpand<Ctx = unknown> = (
+  part: AttachmentDocumentPart,
+  ctx: Ctx,
+) => Promise<readonly ContentPart[]> | readonly ContentPart[]
+
+export type ExtensionAttachment = {mime: string; __card?: Component; __ctx?: unknown}
+
+export type AttachmentCardEntry = {mime: string; render: Component}
 
 export type CtxOf<Tool> = Tool extends {__ctx?: infer Ctx} ? Ctx : unknown
 
