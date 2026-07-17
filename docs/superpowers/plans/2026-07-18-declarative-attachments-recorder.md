@@ -247,7 +247,7 @@ git commit -m "fix(recorder): drop blocked targets and empty inputs from action 
   - Ids are `` `${Date.now()}-${sequence.toString(36).padStart(6, '0')}-${randomUUID()}` `` with a per-store monotonic `sequence` counter — lexicographic name order == save order even when many saves land in the same millisecond (a bare timestamp+uuid id makes prune order a uuid lottery under fast saves — the 55-save prune test would flake). `timestampOf` (TTL) reads the segment before the first `-`, unaffected. `sweep`/prune sort by name.
   - Prune: keep newest `MAX_RECORDINGS` (50) AND total bytes ≤ `MAX_TOTAL_RECORDING_BYTES` (200MB), honoring the reserve. `sweep()` (called at server boot) additionally deletes files older than `RECORDING_TTL_MS` (7 days, from the id's timestamp prefix) **and deletes stray `*.tmp` files** (crash leftovers). All `stat`/`unlink` are `.catch`-guarded (concurrent-delete race).
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import {chmodSync, mkdtempSync, writeFileSync} from 'node:fs'
@@ -343,9 +343,9 @@ describe('recording store', () => {
 
 (The io-error test relies on the process not running as root — true for dev machines and CI here. The tmp-stray assertion checks the survivor stays AND the stray is gone; `get('123-dead')` is null both before and after, so also assert the file itself: `expect(existsSync(join(dir, '123-dead.json.tmp'))).toBe(false)` — import `existsSync`.)
 
-- [ ] **Step 2: Run — Expected: FAIL** — module missing.
+- [x] **Step 2: Run — Expected: FAIL** — module missing.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 import {randomUUID} from 'node:crypto'
@@ -457,9 +457,9 @@ export function createRecordingStore(dir: string): RecordingStore {
 
 (`listByRecency` already filters to `.json`, so `.tmp` files never count toward the byte/count budget and never survive a boot sweep. `save` never throws — every fs failure maps to `io-error`, which Task 5's router returns as `{error}` and Task 9's toast surfaces.)
 
-- [ ] **Step 4: Run — Expected: PASS.**
+- [x] **Step 4: Run — Expected: PASS.**
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -m "feat(recorder): size-capped recording store with byte/count/TTL prune" -- packages/extensions/recorder/src/server/recordings.ts packages/extensions/recorder/test/recordings.test.ts
