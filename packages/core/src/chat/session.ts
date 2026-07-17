@@ -16,7 +16,7 @@ import type {
   SessionRecord,
 } from '@conciv/protocol/chat-types'
 import {isSessionId, SessionRecordSchema} from '@conciv/protocol/chat-types'
-import type {HarnessLaunchContext, HarnessLaunchResult} from '@conciv/protocol/harness-types'
+import {FILE_REF_PREFIX, type HarnessLaunchContext, type HarnessLaunchResult} from '@conciv/protocol/harness-types'
 import {sessions, type ConcivDb} from '@conciv/db'
 import type {ChatDeps} from './runtime.js'
 
@@ -168,12 +168,20 @@ export function userText(message: HistoryMessage): string {
     .join('\n')
 }
 
+function withoutFileRefs(text: string): string {
+  const index = text.lastIndexOf(FILE_REF_PREFIX)
+  return index === -1 ? text : text.slice(0, index)
+}
+
+const normalizedText = (value: string): string => value.replace(/\s+/g, ' ').trim()
+
 export function settledMessages(messages: ChatHistory, pendingUserText: string | null): ChatHistory {
   if (pendingUserText === null) return messages
-  const index = messages.findLastIndex((message) => {
-    const text = userText(message as HistoryMessage)
-    return text === pendingUserText || text.startsWith(`${pendingUserText}\n\n@`)
-  })
+  const pending = normalizedText(pendingUserText)
+  const index = messages.findLastIndex(
+    (message) =>
+      message.role === 'user' && normalizedText(withoutFileRefs(userText(message as HistoryMessage))) === pending,
+  )
   if (index === -1) return messages
   return messages.slice(0, index)
 }

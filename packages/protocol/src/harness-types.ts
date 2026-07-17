@@ -17,6 +17,8 @@ export type HarnessCapabilities = {
 
 export type HarnessImage = {mediaType: string; dataBase64: string}
 
+export const FILE_REF_PREFIX = '\n\nAttached image files (read them with the Read tool before answering):'
+
 export type HarnessModel = {
   id: string
   name: string
