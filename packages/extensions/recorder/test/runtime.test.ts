@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest'
 import {pullWindow} from '../src/server/runtime.js'
 import {createEventRing} from '../src/server/ring.js'
-import {createCaptureHub} from '../src/server/hub.js'
+import {createCaptureControl} from '../src/server/capture-control.js'
 import type {RrwebEvent} from '../src/shared/protocol.js'
 
 const page = {
@@ -35,9 +35,9 @@ describe('pullWindow', () => {
   it('keeps pre-window events for replay context but clips the action log to the window', async () => {
     const ring = createEventRing({windowMs: 600_000})
     ring.append('a', [{type: 2, data: {node: page}, timestamp: 1000}, click(2000, 4), click(9000, 6)])
-    const hub = createCaptureHub(ring, () => 0)
+    const control = createCaptureControl(ring, () => 0)
     const result = await pullWindow(
-      {ring, hub, config: {masking: 'none', windowMinutes: 10, console: true}, renderer: async () => null},
+      {ring, control, config: {masking: 'none', windowMinutes: 10, console: true}, renderer: async () => null},
       8000,
       10_000,
       0,

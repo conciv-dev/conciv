@@ -3,7 +3,7 @@ import {z} from 'zod'
 import {defineExtension, subscriptionIterator} from '@conciv/extension'
 import {RECORDER_NAME, RecorderControlSchema, RrwebEventSchema, recorderConfig} from './shared/protocol.js'
 import {createEventRing} from './server/ring.js'
-import {createCaptureHub} from './server/hub.js'
+import {createCaptureControl} from './server/capture-control.js'
 import {createChromiumRenderer, type KeyframeRenderer} from './server/render.js'
 import {distill} from './server/distill.js'
 import type {RecorderRuntime} from './server/runtime.js'
@@ -26,7 +26,7 @@ export function makeRecorderRouter(runtime: RecorderRuntime) {
     window: recorderOs.input(RangeInput).handler(({input}) => ({events: runtime.ring.window(input)})),
     log: recorderOs.input(RangeInput).handler(({input}) => ({entries: distill(runtime.ring.window(input))})),
     control: recorderOs.output(eventIterator(RecorderControlSchema)).handler(async function* ({signal}) {
-      yield* subscriptionIterator((emit) => runtime.hub.subscribe(emit), signal)
+      yield* subscriptionIterator((emit) => runtime.control.subscribe(emit), signal)
     }),
   })
 }
@@ -39,13 +39,13 @@ export default defineExtension({
   tools: [startTool, stopTool, pullTool],
 }).server((server) => {
   const ring = createEventRing({windowMs: server.config.windowMinutes * 60_000})
-  const hub = createCaptureHub(ring)
+  const control = createCaptureControl(ring)
   const rendererState: {value?: Promise<KeyframeRenderer | null>} = {}
   const renderer = (): Promise<KeyframeRenderer | null> => {
     rendererState.value ??= createChromiumRenderer()
     return rendererState.value
   }
-  const runtime: RecorderRuntime = {ring, hub, config: server.config, renderer}
+  const runtime: RecorderRuntime = {ring, control, config: server.config, renderer}
   return {
     context: {recorder: runtime},
     router: makeRecorderRouter(runtime),

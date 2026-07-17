@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto'
 import type {RecorderControl} from '../shared/protocol.js'
 import type {EventRing} from './ring.js'
 
-export type CaptureHub = {
+export type CaptureControl = {
   subscribe(emit: (control: RecorderControl) => void): () => void
   emit(control: RecorderControl): void
   startCapture(): {captureId: string; startTs: number}
@@ -11,7 +11,7 @@ export type CaptureHub = {
   awaitNextAppend(timeoutMs: number): Promise<boolean>
 }
 
-export function createCaptureHub(ring: EventRing, now: () => number = Date.now): CaptureHub {
+export function createCaptureControl(ring: EventRing, now: () => number = Date.now): CaptureControl {
   const listeners = new Set<(control: RecorderControl) => void>()
   const captures = new Map<string, number>()
 

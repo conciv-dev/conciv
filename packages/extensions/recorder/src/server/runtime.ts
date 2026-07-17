@@ -1,13 +1,13 @@
 import type {Keyframe, RecorderConfig} from '../shared/protocol.js'
 import type {EventRing} from './ring.js'
-import type {CaptureHub} from './hub.js'
+import type {CaptureControl} from './capture-control.js'
 import type {KeyframeRenderer} from './render.js'
 import {distill} from './distill.js'
 import {pickKeyframeTimestamps, recordingParts} from './format.js'
 
 export type RecorderRuntime = {
   ring: EventRing
-  hub: CaptureHub
+  control: CaptureControl
   config: RecorderConfig
   renderer: () => Promise<KeyframeRenderer | null>
 }
