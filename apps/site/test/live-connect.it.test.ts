@@ -40,7 +40,7 @@ describe('widget-native live connect on the built site', () => {
       .poll(() => panel.getByText('Drive this page with your agent.').isVisible(), {timeout: 20_000})
       .toBe(true)
 
-    const command = await panel.getByText(/npx @conciv\/try --token/).textContent()
+    const command = await panel.getByText(/^npx @conciv\/try --token \S+$/).textContent()
     const token = command?.match(/--token (\S+)/)?.[1] ?? ''
     expect(token).not.toBe('')
 
@@ -59,7 +59,11 @@ describe('widget-native live connect on the built site', () => {
       before,
     )
     expect(sameNode).toBe(true)
-    await expect(panel.getByText('Agent connected — it’s driving this page from your machine.')).toBeVisible()
+    await expect
+      .poll(() => panel.getByText('Agent connected — it’s driving this page from your machine.').isVisible(), {
+        timeout: 10_000,
+      })
+      .toBe(true)
 
     await input.fill('hello')
     await input.press('Enter')
