@@ -17,12 +17,15 @@ const baseCaps = {
   imageInput: false,
 } as const
 
-function hangingGenerator(signal: AbortSignal | undefined): AsyncGenerator<StreamChunk> {
-  return (async function* (): AsyncGenerator<StreamChunk> {
-    await new Promise<void>((resolve) => {
-      signal?.addEventListener('abort', () => resolve(), {once: true})
-    })
-  })()
+function hangingGenerator(signal: AbortSignal | undefined): AsyncIterable<StreamChunk> {
+  return {
+    [Symbol.asyncIterator]: () => ({
+      next: () =>
+        new Promise<IteratorResult<StreamChunk>>((resolve) => {
+          signal?.addEventListener('abort', () => resolve({done: true, value: undefined}), {once: true})
+        }),
+    }),
+  }
 }
 
 const hangingHarness = defineHarness({
