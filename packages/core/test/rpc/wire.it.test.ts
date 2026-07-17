@@ -13,6 +13,13 @@ import {bootKit} from '../helpers/boot.js'
 
 type WireContext = {kit: Kit; harness: TestHarness}
 
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
+
+function partsOf(message: unknown): unknown[] {
+  if (!isRecord(message) || !Array.isArray(message.parts)) return []
+  return message.parts
+}
+
 const uiCallIdOf = (messages: unknown): string | null =>
   Array.isArray(messages) ? (toolCallParts(messages).find((part) => part.name === 'conciv_ui')?.id ?? null) : null
 
@@ -84,6 +91,60 @@ describe('rpc over the wire (real app, real http, typed client)', () => {
     expect(text.startsWith('<div id="grabbed"/>\n')).toBe(true)
     expect(text).toContain('about the grabbed element')
     expect(await kit.rpc.drafts.get({sessionId})).toBeNull()
+  })
+
+  it('send forwards multimodal content and keeps grab references as a text prefix', async () => {
+    const {kit, harness} = await bootWire()
+    const sessionId = await kit.session()
+    const stream = await kit.attach(sessionId)
+    await kit.rpc.drafts.set({
+      sessionId,
+      text: 'draft-text',
+      selectionStart: 0,
+      selectionEnd: 0,
+      grabs: ['<button>Save</button>'],
+    })
+    await kit.rpc.chat.send({
+      sessionId,
+      content: [
+        {type: 'text', content: 'what color is this? '},
+        {type: 'image', source: {type: 'data', mimeType: 'image/png', value: 'iVBORw0KGgo='}},
+      ],
+    })
+    const events = await stream.done({hangGuardMs: 10_000})
+    const lastTurn = harness.__turnMessages.at(-1)
+    if (!lastTurn) throw new Error('adapter saw no turn')
+    const lastUser = lastTurn.findLast((message) => message.role === 'user')
+    if (!Array.isArray(lastUser?.content)) throw new Error('adapter did not receive multimodal content')
+    expect(lastUser.content[0]).toMatchObject({type: 'text', content: '<button>Save</button>\n'})
+    expect(lastUser.content[1]).toMatchObject({type: 'text', content: 'what color is this? '})
+    expect(lastUser.content[2]).toMatchObject({
+      type: 'image',
+      source: {type: 'data', mimeType: 'image/png', value: 'iVBORw0KGgo='},
+    })
+    const snapshots = events.all.filter((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT)
+    const visibleUser = snapshots.at(-1)?.messages.findLast((message) => message.role === 'user')
+    if (!visibleUser || !('parts' in visibleUser))
+      throw new Error('stream snapshot did not include the user message parts')
+    expect(visibleUser.parts).toEqual([
+      {type: 'text', content: '<button>Save</button>\n'},
+      {type: 'text', content: 'what color is this? '},
+      {type: 'image', source: {type: 'data', mimeType: 'image/png', value: 'iVBORw0KGgo='}},
+    ])
+    expect(await kit.rpc.drafts.get({sessionId})).toBeNull()
+
+    const followUp = await kit.attach(sessionId)
+    await kit.rpc.chat.send({sessionId, text: 'and what shape is it?'})
+    const followUpEvents = await followUp.done({hangGuardMs: 10_000})
+    const followUpSnapshots = followUpEvents.all.filter((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT)
+    const priorImage = followUpSnapshots
+      .at(-1)
+      ?.messages.flatMap((message) => partsOf(message))
+      .find((part) => isRecord(part) && part.type === 'image')
+    expect(priorImage).toMatchObject({
+      type: 'image',
+      source: {type: 'data', mimeType: 'image/png', value: 'iVBORw0KGgo='},
+    })
   })
 
   it('send rebuilds history from the transcript when the harness cannot resume (C3)', async () => {

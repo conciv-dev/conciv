@@ -12,7 +12,7 @@ export function chatRouter(deps: RpcDeps) {
     }),
     send: os.chat.send.handler(async ({input, errors}) => {
       try {
-        await deps.send(input.sessionId, input.text)
+        await deps.send(input.sessionId, input.content ?? input.text ?? '')
       } catch (error) {
         if (error instanceof Error && error.message === SESSION_BUSY) throw errors.BUSY()
         throw error

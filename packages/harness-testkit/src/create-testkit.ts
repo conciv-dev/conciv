@@ -3,7 +3,7 @@ import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {serveApp} from './serve-app.js'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
-import {CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
+import {ChatContentPartSchema, CONCIV_SESSION_HEADER} from '@conciv/protocol/chat-types'
 import {makeRunStream, type RunStream} from './run-stream.js'
 import {makeCallTool} from './call-tool.js'
 import {makeRpcClient, type RpcClient} from './session.js'
@@ -87,7 +87,14 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp): Testkit {
         makeCallTool(base, await sessionFor(session))(name, input)
 
       const sendChat = async (input: string | ChatMessage, session: string): Promise<void> => {
-        await rpc.chat.send({sessionId: session, text: textOf(input)})
+        if (typeof input === 'string') {
+          await rpc.chat.send({sessionId: session, text: input})
+          return
+        }
+        const content = ChatContentPartSchema.array().safeParse(input.content)
+        await rpc.chat.send(
+          content.success ? {sessionId: session, content: content.data} : {sessionId: session, text: textOf(input)},
+        )
       }
 
       return {

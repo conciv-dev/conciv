@@ -5,7 +5,7 @@ import {contract} from '@conciv/contract'
 import type {ChatTool} from '@conciv/protocol/chat-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {ChatDeps} from '../../chat/runtime.js'
-import type {Compactor} from '../../chat/run.js'
+import type {Compactor, UserContent} from '../../chat/run.js'
 import type {OpenInEditor} from '../../editor/open.js'
 import type {OpenSourceFrames, OpenSourceStatus} from '../../editor/open-source.js'
 import type {PageEnv} from '../../page-bus.js'
@@ -17,7 +17,7 @@ export type RpcDeps = {
   chat: ChatDeps
   tools: ChatTool[]
   compactor: Compactor
-  send: (sessionId: string, text: string) => Promise<void>
+  send: (sessionId: string, content: UserContent) => Promise<void>
   openInEditor: OpenInEditor
   openFromFrames: (frames: OpenSourceFrames) => Promise<OpenSourceStatus>
   page: PageEnv

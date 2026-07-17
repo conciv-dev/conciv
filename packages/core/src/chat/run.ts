@@ -3,12 +3,23 @@ import {existsSync, readFileSync} from 'node:fs'
 import {eq} from 'drizzle-orm'
 import {chat, EventType, StreamProcessor, type ModelMessage, type StreamChunk, type TokenUsage} from '@tanstack/ai'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
-import {ChatMessageSchema, type ChatMessage} from '@conciv/protocol/chat-types'
+import {ChatMessageSchema, type ChatContentPart, type ChatMessage} from '@conciv/protocol/chat-types'
 import {tokenUsageToSnapshot, type UsageSnapshot} from '@conciv/protocol/usage-types'
-import {claimRun, drafts, markers, releaseRun, sessions, setRunMessages, statusOf, type ConcivDb} from '@conciv/db'
+import {
+  claimRun,
+  clearImageHistory,
+  drafts,
+  foldRunMessagesIntoImageHistory,
+  markers,
+  releaseRun,
+  sessions,
+  setRunMessages,
+  statusOf,
+  type ConcivDb,
+} from '@conciv/db'
 import type {ChatDeps} from './runtime.js'
 import {createSession, sessionById, toModelMessages} from './session.js'
-import {transcriptMessages} from './attach.js'
+import {mergedMessages, transcriptMessages} from './attach.js'
 import {makeRunGate, withConcivGate, withConcivSandbox} from './gate.js'
 import {harnessDebug} from '../lib/debug.js'
 
@@ -145,6 +156,14 @@ async function foldRunStream(
   }
 }
 
+function persistRunOutcome(deps: ChatDeps, sessionId: string, kind: RunRequest['kind']): void {
+  if (kind === 'chat') {
+    foldRunMessagesIntoImageHistory(deps.db, sessionId)
+    return
+  }
+  clearImageHistory(deps.db, sessionId)
+}
+
 export async function startRun(deps: ChatDeps, sessionId: string, req: RunRequest): Promise<void> {
   const abort = new AbortController()
   const processor = new StreamProcessor({
@@ -156,7 +175,7 @@ export async function startRun(deps: ChatDeps, sessionId: string, req: RunReques
     },
   })
   const lastUser = req.messages.findLast((message) => message.role === 'user')
-  if (lastUser && typeof lastUser.content === 'string') processor.addUserMessage(lastUser.content)
+  if (lastUser?.content != null) processor.addUserMessage(lastUser.content)
   const unwatch = watchForStop(deps, sessionId, abort)
   const outcome: RunOutcome = {error: null, usage: null}
   try {
@@ -166,6 +185,7 @@ export async function startRun(deps: ChatDeps, sessionId: string, req: RunReques
     if (!abort.signal.aborted) outcome.error = error instanceof Error ? error.message : String(error)
   } finally {
     unwatch()
+    persistRunOutcome(deps, sessionId, req.kind)
     await recordRunEnd(deps, sessionId, outcome.usage).catch(() => {})
     releaseRun(deps.db, sessionId, outcome.error)
     deps.changes.notify()
@@ -196,10 +216,15 @@ export function tapSessionId(chunk: StreamChunk, onSessionId: (id: string) => vo
   }
 }
 
-async function composeUserText(db: ConcivDb, sessionId: string, text: string): Promise<string> {
+export type UserContent = string | ChatContentPart[]
+
+async function composeUserContent(db: ConcivDb, sessionId: string, content: UserContent): Promise<UserContent> {
   const rows = await db.select({grabs: drafts.grabs}).from(drafts).where(eq(drafts.sessionId, sessionId))
   const grabs = rows[0]?.grabs ?? []
-  return grabs.length === 0 ? text : `${grabs.join('\n')}\n${text}`
+  if (grabs.length === 0) return content
+  const prefix = grabs.join('\n')
+  if (typeof content === 'string') return content ? `${prefix}\n${content}` : prefix
+  return [{type: 'text', content: `${prefix}\n`}, ...content]
 }
 
 async function historyFor(deps: ChatDeps, sessionId: string): Promise<ChatMessage[]> {
@@ -207,20 +232,20 @@ async function historyFor(deps: ChatDeps, sessionId: string): Promise<ChatMessag
     deps.harness.capabilities.resume &&
     resumableToken(deps.harness, deps.cwd, await resumeTokenFor(deps.db, sessionId), deps.claudeHome) !== null
   if (resumable) return []
-  return (await transcriptMessages(deps, sessionId)).map((message) => ChatMessageSchema.parse(message))
+  return (await mergedMessages(deps, sessionId)).map((message) => ChatMessageSchema.parse(message))
 }
 
-export function makeSend(deps: ChatDeps): (sessionId: string, text: string) => Promise<void> {
-  return async (sessionId, text) => {
+export function makeSend(deps: ChatDeps): (sessionId: string, content: UserContent) => Promise<void> {
+  return async (sessionId, content) => {
     if (!claimRun(deps.db, sessionId, 'chat')) throw new Error(SESSION_BUSY)
     deps.changes.notify()
     try {
       deps.onRunStart?.(sessionId)
       await ensureChatRecord(deps.db, sessionId, deps.harness.id, deps.cwd)
-      const userText = await composeUserText(deps.db, sessionId, text)
+      const userContent = await composeUserContent(deps.db, sessionId, content)
       const model = (await sessionById(deps.db, sessionId))?.model ?? null
       const history = await historyFor(deps, sessionId)
-      const messages = toModelMessages([...history, {role: 'user', content: userText}])
+      const messages = toModelMessages([...history, {role: 'user', content: userContent}])
       void startRun(deps, sessionId, {messages, model, kind: 'chat'})
       await deps.db.delete(drafts).where(eq(drafts.sessionId, sessionId))
       deps.changes.notify()
