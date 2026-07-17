@@ -33,6 +33,21 @@ export function makeRecorderRouter(runtime: RecorderRuntime) {
       return {ok: true}
     }),
     log: recorderOs.input(RangeInput).handler(({input}) => ({entries: distill(runtime.ring.window(input))})),
+    recordings: recorderOs.router({
+      save: recorderOs
+        .input(RangeInput)
+        .output(
+          z.union([z.object({recordingId: z.string()}), z.object({error: z.enum(['too-large', 'empty', 'io-error'])})]),
+        )
+        .handler(async ({input}) => {
+          const saved = await runtime.recordings.save(runtime.ring.window(input))
+          return saved.ok ? {recordingId: saved.recordingId} : {error: saved.reason}
+        }),
+      get: recorderOs.input(z.object({recordingId: z.string()})).handler(async ({input}) => {
+        const events = await runtime.recordings.get(input.recordingId)
+        return events ? {events} : {expired: true as const}
+      }),
+    }),
     control: recorderOs.output(eventIterator(RecorderControlSchema)).handler(async function* ({signal}) {
       yield* subscriptionIterator((emit) => runtime.control.subscribe(emit), signal)
     }),

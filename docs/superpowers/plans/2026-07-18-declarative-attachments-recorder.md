@@ -578,7 +578,7 @@ git commit -m "feat(recorder): recordings store on runtime + typed renderRecordi
   - `recordings.save` (input `RangeInput`) → `{recordingId: string} | {error: 'too-large' | 'empty' | 'io-error'}` — freezes `runtime.ring.window(input)`; every store failure (including disk errors) comes back as a typed `{error}`, never a thrown 500.
   - `recordings.get` (input `{recordingId: z.string()}`) → `{events: RrwebEvent[]} | {expired: true}`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import {describe, expect, it} from 'vitest'
@@ -596,9 +596,9 @@ const saved = await call(router.recordings.save, {}, {context: {request: new Req
 
 (If `call`'s exact context shape differs, mirror how any existing oRPC handler test in the repo invokes handlers — `rg "from '@orpc/server'" packages -g '*test*'` — the point is: invoke the real handlers, no HTTP needed.)
 
-- [ ] **Step 2: Run — Expected: FAIL** — `recordings` router missing.
+- [x] **Step 2: Run — Expected: FAIL** — `recordings` router missing.
 
-- [ ] **Step 3: Implement** — add to `makeRecorderRouter`:
+- [x] **Step 3: Implement** — add to `makeRecorderRouter`:
 
 ```ts
 recordings: recorderOs.router({
@@ -618,9 +618,9 @@ recordings: recorderOs.router({
 }),
 ```
 
-- [ ] **Step 4: Run — Expected: PASS.**
+- [x] **Step 4: Run — Expected: PASS.**
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -m "feat(recorder): recordings.save/get router" -- packages/extensions/recorder/src/server.ts packages/extensions/recorder/test/recordings-router.test.ts
