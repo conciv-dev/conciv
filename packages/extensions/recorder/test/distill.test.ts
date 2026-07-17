@@ -79,7 +79,7 @@ describe('distill', () => {
     expect(distill(checkoutStream).filter((entry) => entry.kind === 'reload')).toHaveLength(0)
   })
 
-  it('resolves targets added later by mutation', () => {
+  it('resolves targets added later by flat parentId mutations (real rrweb shape)', () => {
     const withMutation: RrwebEvent[] = [
       {type: 2, data: {node: page}, timestamp: 1000},
       {
@@ -87,16 +87,8 @@ describe('distill', () => {
         data: {
           source: 0,
           adds: [
-            {
-              parentId: 3,
-              node: {
-                id: 9,
-                type: 2,
-                tagName: 'a',
-                attributes: {href: '/x'},
-                childNodes: [{id: 10, type: 3, textContent: 'Details'}],
-              },
-            },
+            {parentId: 3, node: {id: 9, type: 2, tagName: 'a', attributes: {href: '/x'}, childNodes: []}},
+            {parentId: 9, node: {id: 10, type: 3, textContent: 'Details'}},
           ],
           removes: [],
           attributes: [],

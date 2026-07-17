@@ -21,7 +21,7 @@ const serializedNode: z.ZodType<SerializedNode> = z.lazy(() =>
 )
 
 const mutationData = z.object({
-  adds: z.array(z.object({node: serializedNode})).default([]),
+  adds: z.array(z.object({parentId: z.number().optional(), node: serializedNode})).default([]),
   removes: z.array(z.object({id: z.number()})).default([]),
   attributes: z.array(z.object({id: z.number(), attributes: z.record(z.string(), z.unknown())})).default([]),
 })
@@ -73,7 +73,11 @@ export function createNodeIndex(): NodeIndex {
     applyMutation(data) {
       const parsed = mutationData.safeParse(data)
       if (!parsed.success) return
-      for (const add of parsed.data.adds) walk(add.node)
+      for (const add of parsed.data.adds) {
+        walk(add.node)
+        const parent = add.parentId === undefined ? undefined : byId.get(add.parentId)
+        if (parent) parent.childNodes = [...(parent.childNodes ?? []), add.node]
+      }
       for (const change of parsed.data.attributes) {
         const node = byId.get(change.id)
         if (node) node.attributes = {...node.attributes, ...change.attributes}

@@ -19,7 +19,7 @@ export async function pullWindow(
   keyframeCount: number,
 ): Promise<unknown> {
   const events = runtime.ring.window({fromTs, toTs})
-  const log = distill(events)
+  const log = distill(events).filter((entry) => entry.ts >= fromTs)
   const frames = await renderFrames(runtime, events, log, keyframeCount)
   return recordingParts(log, frames, keyframeCount > 0)
 }

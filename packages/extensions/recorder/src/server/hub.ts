@@ -8,6 +8,7 @@ export type CaptureHub = {
   startCapture(): {captureId: string; startTs: number}
   stopCapture(captureId: string): {startTs: number; stopTs: number} | null
   awaitCoverage(ts: number, timeoutMs: number): Promise<boolean>
+  awaitNextAppend(timeoutMs: number): Promise<boolean>
 }
 
 export function createCaptureHub(ring: EventRing, now: () => number = Date.now): CaptureHub {
@@ -37,6 +38,17 @@ export function createCaptureHub(ring: EventRing, now: () => number = Date.now):
       captures.delete(captureId)
       emit({flush: true, live: captures.size > 0})
       return {startTs, stopTs: now()}
+    },
+    awaitNextAppend(timeoutMs) {
+      return new Promise((resolve) => {
+        const finish = (appended: boolean): void => {
+          off()
+          clearTimeout(timer)
+          resolve(appended)
+        }
+        const off = ring.onAppend(() => finish(true))
+        const timer = setTimeout(() => finish(false), timeoutMs)
+      })
     },
     awaitCoverage(ts, timeoutMs) {
       if (ring.lastTs() >= ts) return Promise.resolve(true)

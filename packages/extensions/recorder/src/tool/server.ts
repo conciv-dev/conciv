@@ -12,13 +12,13 @@ export const startTool = defineTool<typeof StartInput, Ctx>(startToolDef).server
 export const stopTool = defineTool<typeof StopInput, Ctx>(stopToolDef).server(async ({captureId, keyframes}, ctx) => {
   const range = ctx.recorder.hub.stopCapture(captureId)
   if (!range) return {error: `no active capture ${captureId}`}
-  await ctx.recorder.hub.awaitCoverage(range.stopTs - 750, 2000)
+  await ctx.recorder.hub.awaitNextAppend(1500)
   return pullWindow(ctx.recorder, range.startTs, range.stopTs, keyframes)
 })
 
 export const pullTool = defineTool<typeof PullInput, Ctx>(pullToolDef).server(async ({secondsBack, keyframes}, ctx) => {
   const toTs = Date.now()
   ctx.recorder.hub.emit({flush: true})
-  await ctx.recorder.hub.awaitCoverage(toTs - 750, 1500)
+  await ctx.recorder.hub.awaitNextAppend(1500)
   return pullWindow(ctx.recorder, toTs - secondsBack * 1000, toTs, keyframes)
 })
