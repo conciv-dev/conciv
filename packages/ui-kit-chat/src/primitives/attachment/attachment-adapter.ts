@@ -181,3 +181,68 @@ export function createSimpleImageAttachmentAdapter(): AttachmentAdapter {
 export function isCompleteAttachment(attachment: Attachment): attachment is CompleteAttachment {
   return attachment.status.type === 'complete'
 }
+
+const MAX_TEXT_BYTES = 1_048_576
+
+function pendingTextStatus(file: Pick<File, 'name' | 'size'>): PendingAttachmentStatus {
+  if (file.size > MAX_TEXT_BYTES)
+    return {type: 'incomplete', reason: 'error', message: `${file.name} exceeds the 1MB text limit`}
+  return {type: 'requires-action', reason: 'composer-send'}
+}
+
+export function createTextAttachmentAdapter(): AttachmentAdapter {
+  return {
+    accept: 'text/plain,.txt,.md,.log',
+    add: async ({file}) => ({
+      id: attachmentId(),
+      type: 'document',
+      name: file.name,
+      contentType: file.type || 'text/plain',
+      file,
+      status: pendingTextStatus(file),
+    }),
+    remove: async () => {},
+    send: async (attachment) => ({
+      ...attachment,
+      status: {type: 'complete'},
+      content: [{type: 'text', content: `Attachment ${attachment.name}:\n${await attachment.file.text()}`}],
+    }),
+  }
+}
+
+export function composeAttachmentAdapters(adapters: readonly AttachmentAdapter[]): AttachmentAdapter {
+  const owners = new Map<string, AttachmentAdapter>()
+  const adapterFor = (file: Pick<File, 'name' | 'type'>): AttachmentAdapter => {
+    const match = adapters.find((adapter) => fileMatchesAccept(file, adapter.accept))
+    if (!match) throw new Error(`No attachment adapter accepts ${file.name}`)
+    return match
+  }
+  const track = (adapter: AttachmentAdapter, pending: PendingAttachment): PendingAttachment => {
+    owners.set(pending.id, adapter)
+    return pending
+  }
+  async function* trackAll(
+    adapter: AttachmentAdapter,
+    pendings: AsyncGenerator<PendingAttachment, void>,
+  ): AsyncGenerator<PendingAttachment, void> {
+    for await (const pending of pendings) yield track(adapter, pending)
+  }
+  return {
+    accept: adapters.map((adapter) => adapter.accept).join(','),
+    add: (state) => {
+      const adapter = adapterFor(state.file)
+      const result = adapter.add(state)
+      if (result instanceof Promise) return result.then((pending) => track(adapter, pending))
+      return trackAll(adapter, result)
+    },
+    remove: async (attachment) => {
+      const adapter = owners.get(attachment.id)
+      owners.delete(attachment.id)
+      await adapter?.remove(attachment)
+    },
+    send: (attachment) => {
+      const adapter = owners.get(attachment.id) ?? adapterFor(attachment.file)
+      return adapter.send(attachment)
+    },
+  }
+}

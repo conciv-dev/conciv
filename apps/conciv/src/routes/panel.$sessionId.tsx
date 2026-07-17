@@ -7,7 +7,7 @@ import {Dynamic} from 'solid-js/web'
 import type {Grab} from '@conciv/grab'
 import {isSessionId} from '@conciv/protocol/chat-types'
 import {useAnnounce, useAppData, useInstances, useRpc} from '../app/context.js'
-import {PaneContext, type PaneContextValue, type StagedGrab} from '../app/pane-context.js'
+import {PaneContext, makePendingAttachmentQueue, type PaneContextValue, type StagedGrab} from '../app/pane-context.js'
 import {SessionSelector} from '../composer/session-selector.js'
 import {setShutter} from '../lib/shutter.js'
 import {ContextTracker} from '../chat/context-tracker.js'
@@ -104,6 +104,7 @@ function PanelSession(): JSX.Element {
     hydrating,
     resetSlide: () => setSlideDir(null),
     grabStore,
+    attachments: makePendingAttachmentQueue(),
   }
 
   return (

@@ -47,6 +47,16 @@ function showToast(message: string): void {
   document.body.appendChild(el)
 }
 
+function showAttachment(file: File): void {
+  void file.text().then((content) => {
+    const el = document.createElement('div')
+    el.setAttribute('role', 'note')
+    el.setAttribute('aria-label', `Attachment ${file.name}`)
+    el.textContent = content
+    document.body.appendChild(el)
+  })
+}
+
 export function startHost(extension: AnyExtension): void {
   const apiBase = metaContent('conciv-api-base')
   const session = metaContent('conciv-session')
@@ -67,6 +77,7 @@ export function startHost(extension: AnyExtension): void {
         sessionId={() => (session ? session : null)}
         grab={makeHostGrab(document)}
         insert={() => {}}
+        attach={showAttachment}
         newSession={() => {}}
         viewLock={() => {}}
         viewLeave={() => {}}

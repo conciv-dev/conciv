@@ -30,6 +30,7 @@ const hostApi = {
   useSessionId: () => use('sessionId', 'useSessionId'),
   useGrab: () => use('grab', 'useGrab'),
   useComposerInsert: () => use('insert', 'useComposerInsert'),
+  useComposerAttach: () => use('attach', 'useComposerAttach'),
   useNewSession: () => use('newSession', 'useNewSession'),
   useViewLock: () => use('viewLock', 'useViewLock'),
   useLeaveView: () => use('viewLeave', 'useLeaveView'),

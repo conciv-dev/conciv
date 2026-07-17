@@ -22,6 +22,7 @@ export type HostWiring = {
   sessionId: () => string | null
   grab: GrabApi
   insert: (text: string) => void
+  attach: (file: File) => void
   newSession: () => void
   viewLock: (locked: boolean) => void
   viewLeave: () => void

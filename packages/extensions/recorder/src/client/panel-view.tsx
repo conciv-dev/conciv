@@ -115,7 +115,7 @@ export function RecorderPanelView(): JSX.Element {
 function RecorderPanel(): JSX.Element {
   const host = getHostApi()
   const apiBase = host.useApiBase()
-  const insert = host.useComposerInsert()
+  const attach = host.useComposerAttach()
   const leaveView = host.useLeaveView()
   const toast = host.useToast()
   const store = useRecorderContext((context) => context.store)
@@ -142,7 +142,8 @@ function RecorderPanel(): JSX.Element {
   const sendToAgent = (): void => {
     const entries = log.data?.entries ?? []
     const lines = entries.map((entry: ActionLogEntry) => `[${entry.kind}] ${entry.detail}`)
-    insert(`Here is what just happened in my app (recorded):\n${lines.join('\n')}`)
+    const actionLog = `Recorded user actions on the host page:\n${lines.join('\n')}`
+    attach(new File([actionLog], 'recording.txt', {type: 'text/plain'}))
     leaveView()
   }
 
