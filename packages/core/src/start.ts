@@ -22,6 +22,7 @@ export type StartOpts = {
 
   allowedOrigins?: string[]
   accessToken?: string
+  onClientRequest?: () => void
 
   extensions?: AnyExtension[]
   harness?: HarnessAdapter
@@ -32,6 +33,15 @@ export type Engine = {
   stop: () => Promise<void>
   cfg: ResolvedConcivConfig
   extensionContexts: Record<string, unknown>
+}
+
+function onceNotifier(callback?: () => void): () => void {
+  let fired = false
+  return () => {
+    if (fired || !callback) return
+    fired = true
+    callback()
+  }
 }
 
 export async function start(opts: StartOpts): Promise<Engine> {
@@ -77,7 +87,15 @@ export async function start(opts: StartOpts): Promise<Engine> {
   const {app, disposers, extensionContexts, closeDb} = await makeApp(appOpts)
 
   const requestedPort = opts.port ?? (await getPort())
-  const served = opts.accessToken ? new Hono().mount(`/t/${opts.accessToken}`, app.fetch) : app
+  const notifyClient = onceNotifier(opts.onClientRequest)
+  const served = opts.accessToken
+    ? new Hono()
+        .use(async (_context, next) => {
+          notifyClient()
+          await next()
+        })
+        .mount(`/t/${opts.accessToken}`, app.fetch)
+    : app
   const dispose = async (): Promise<void> => {
     await Promise.all(disposers.map((runDispose) => runDispose()))
     closeDb()
