@@ -1,7 +1,7 @@
-# Widget-native connect — the demo IS the widget
+# Widget-native connect — the demo IS the widget, shipped as an extension
 
 Date: 2026-07-17
-Status: approved
+Status: approved (rev 2 — extension architecture)
 Supersedes: the site stand-in (`TryPanel`/`TryWidget`) sections of
 `2026-07-15-widget-first-connect-design.md` and the "Site panel" half of
 `2026-07-17-try-connect-polish-design.md`. The CLI + core-hook half of the latter is
@@ -11,159 +11,211 @@ already implemented and stays.
 
 The connect demo is a React stand-in panel in `apps/site` that unmounts when the agent
 connects, after which the real widget boots and pops open again onto a generic welcome
-screen. Two open animations, one visible gap, no continuity. The 07-15 spec accepted
-this by constraining "core, embed, app, try stay untouched"; that constraint is lifted.
+screen. Two open animations, one visible gap, no continuity. And the demo UI (pair
+copy, docs links) does not belong inside the widget product either.
 
 ## Goal
 
-The real widget mounts from the first frame. Pre-connect it renders the connect steps
-inside its own panel; when the agent's core appears, the panel content swaps to live
-chat as a child-route navigation inside a persistent layout — the frame, FAB, and
-shutter never remount. No stand-in, no double-open, no generic welcome.
+The real widget mounts from the first frame. Pre-connect, its panel renders connect
+steps provided by a **site-loaded extension**; when the agent's core appears, the panel
+content swaps to live chat as a child-route navigation inside a persistent layout —
+frame, FAB, and shutter never remount. The widget stays generic (zero conciv.dev
+copy); npm consumers never ship the demo extension.
 
 ## Architecture
 
-Connect mode is routing, not a parallel shell:
+Three parties:
 
 ```
-/panel                ← existing layout route: frame, resize, FocusTrap (persists)
-/panel/connect        ← NEW: ConnectPane (steps UI + probe loop)
-/panel/$sessionId     ← existing chat
+packages/extensions/try-it     NEW client-only extension: token, steps UI, probe loop
+apps/conciv (+ embed)          generic connect-boot mode + /panel/connect route + host connect() API
+apps/site                      instantiates tryIt({token}), mounts embed as a library
 ```
+
+### Extension contract additions (`@conciv/extension`)
+
+- `ExtensionSlot` union gains `'connect'`.
+- `defineExtension` config gains `connectGate?: true` — declares "this extension
+  drives the connect slot". (Slot rendering is dynamic via `useSlot()`, so boot needs
+  this static capability flag.)
+- Host API (available via extension hooks) gains, for the `connect` slot only:
+  `connect: {origin: string, found: (apiBase: string) => void}`.
+
+### `packages/extensions/try-it` (new package, client-only)
+
+`tryIt(config: {token: string})` returns a `defineExtension({name: 'try-it', connectGate: true})
+.client(...)` extension. Its `Component` switches on `useSlot()`:
+
+- `slot === 'connect'`: the guided-steps pane, widget-token styled (pw-\*), ui-kit
+  primitives (`TooltipIconButton` for copy):
+  1. "Copy the agent prompt" — copy row `Read <origin>/pair/<token> and follow the instructions`;
+     collapsed "or run it yourself" reveals `npx @conciv/try --token <token>`; copying
+     either marks step 1 done.
+  2. "Run it in your terminal" — hint "First run installs the package (~30s)".
+  3. "Approve Chrome's local-network prompt" — informational copy.
+     Plus headline "Drive this page with your agent.", pulsing waiting line, 60s
+     slow-hint linking `/docs`, privacy line. Step state = pure `stepStates` model
+     (moved from `apps/site/src/lib/try-steps.ts` with its tests).
+     Probe loop: sweep `connectPorts()` (`@conciv/protocol/connect-ports`) every 2s for
+     `http://127.0.0.1:<port>/t/<token>/health`; on hit show "Agent connected ✓" ~600ms,
+     then call `host.connect.found(base)`.
+- other slots: `null`.
+
+No server part. Not included in any default bundle.
+
+### Widget: connect boot (generic)
 
 Boot branch in `packages/embed/src/mount.tsx`:
 
-- API base resolvable (`resolveApiBase()` non-empty) → today's boot, unchanged.
-- No API base AND `settings.connect` present → **preflight sweep first** (one
-  concurrent probe of all connect ports, ≤2.5s timeout — the sweep the site used to
-  run):
-  - hit → NORMAL boot with the found base: bound rpc, `makeNavigationStorage`,
-    storage history, full navigation persistence. Reloads with a live core behave
-    exactly like today.
-  - miss → connect boot: deferred rpc (see below), in-memory router history
-    (TanStack `createMemoryHistory`), initial location `/panel/connect` with
-    `?open=true` when `settings.defaultOpen`. `makeNavigationStorage` is skipped (it
-    requires core); the first connected session runs on memory history, and the next
-    reload takes the normal path above.
-- No API base, no `connect` setting → today's behavior unchanged.
+- API base resolvable → today's boot, unchanged.
+- No API base AND some extension has `connectGate` → **preflight sweep first** (one
+  concurrent probe of all connect ports, ≤2.5s — needs the token, so the sweep is
+  performed by asking the gate extension: the capability flag carries it,
+  `connectGate: {preflight: () => Promise<string | null>}`; try-it implements it with
+  the same probe helper):
+  - hit → NORMAL boot with the found base (bound rpc, `makeNavigationStorage`,
+    storage history). Reloads with a live core behave exactly like today.
+  - miss → connect boot: deferred rpc, in-memory history (TanStack
+    `createMemoryHistory`), initial location `/panel/connect` with `?open=true` when
+    `settings.defaultOpen`.
+- No API base, no gate extension → today's behavior unchanged.
+
+`/panel/connect` (new route, child of the persistent `/panel` layout): renders
+`ExtensionSurface name="connect"`. The layout's frame/resize/FocusTrap persist across
+the handoff navigation by construction.
+
+Handoff (widget side, in the route): host `connect.found(base)` → `bind(base)` on the
+deferred rpc → `rpc.sessions.resolve({})` → `navigate({to: '/panel/$sessionId',
+params, replace: true})`. Failure between bind and resolve → surface returns to the
+extension (waiting state resumes), error logged.
 
 ### Deferred rpc
 
 `@conciv/contract` gains `makeDeferredRpcClient(): {rpc: RpcClient, bind: (apiBase: string) => void, bound: () => boolean}` —
-a stable proxy object; calls before `bind` reject with a clear error. Context keeps one
-stable `rpc` reference for the app's lifetime; ConnectPane calls `bind(base)` on probe
-success. Router context gains `connected: Accessor<boolean>` (true immediately in
-normal boot; flips on `bind` in connect boot).
+stable proxy; calls before `bind` reject with `'conciv core not connected yet'`.
+Router context gains `connected: Accessor<boolean>` (true immediately in normal boot).
 
-### Pre-connect guards
+### Pre-connect guards (widget)
 
-- `__root.tsx` sessions query (`working` FAB state) and any other root-level queries:
-  `enabled: connected()`.
-- FAB toggle, shutter (`?open` search param), Escape, resize are rpc-free — already
-  work pre-connect. Boot lands on `/panel/connect` so `openPanel()`'s rpc path
-  (`latestSessionId`) is unreachable pre-connect.
-- Quick terminal pre-connect: hotkey no-ops until `connected()`.
+- `__root.tsx` sessions query (FAB `working` state): `enabled: connected()`.
+- FAB toggle, shutter (`?open`), Escape, resize: already rpc-free; boot lands on
+  `/panel/connect` so `openPanel()`'s rpc path is unreachable pre-connect.
+- Quick terminal hotkey: no-op until `connected()`.
 
-### ConnectPane (`/panel/connect` route)
+### Contextual empty state (widget, generic copy)
 
-Solid port of the guided-steps UI, styled with widget tokens (pw-\*), reusing ui-kit
-primitives (`TooltipIconButton` for copy buttons):
-
-1. "Copy the agent prompt" — copy row `Read <origin>/pair/<token> and follow the instructions`;
-   collapsed "or run it yourself" reveals `npx @conciv/try --token <token>`. Copying
-   either marks step 1 done.
-2. "Run it in your terminal" — hint "First run installs the package (~30s)".
-3. "Approve Chrome's local-network prompt" — informational copy.
-
-Step state = the pure `stepStates` model (ported from `apps/site/src/lib/try-steps.ts`
-into `apps/conciv/src/lib/try-steps.ts`, same tests). Plus: headline "Drive this page
-with your agent.", pulsing waiting line, 60s slow-hint linking `/docs`, privacy line.
-
-Probe loop: `apps/conciv/src/lib/connect-probe.ts` (moved from site's
-`connect-live.ts` `probeCore`): sweep `connectPorts()` from
-`@conciv/protocol/connect-ports` every 2s for `http://127.0.0.1:<port>/t/<token>/health`.
-On hit: `bind(base)` → `rpc.sessions.resolve({})` → `navigate({to: '/panel/$sessionId',
-params, replace: true})`. The route transition inside the `/panel` layout is the whole
-handoff — brief "Agent connected ✓" state (~600ms) on the pane before navigating.
-
-Token/origin come from `settings.connect: {token: string}`; origin for the pair URL is
-`window.location.origin`.
-
-### Settings
-
-`parseConcivSettings` gains `connect?: {token: string}` (present only when the raw
-config has `connect.token` as a non-empty string).
-
-### Contextual empty state
-
-When the session was entered from connect mode (router context flag set at handoff),
-the chat `EmptyStateSlot` headline becomes "Agent connected — it's driving this page
-from your machine." Starters unchanged.
+When the session was entered via the connect handoff, chat `EmptyState` headline reads
+"Agent connected — it's driving this page from your machine." (generic product copy;
+lives in the widget). Starters unchanged.
 
 ### Host page events contract (site ↔ widget)
 
-- Widget listens: `conciv:open-panel` window event → `setShutter(true)` (used by the
-  site's "Try it live" hero button post-mount).
-- Widget emits: `conciv:panel-toggled` `{detail: {open: boolean}}` on shutter changes.
-  Site records its dismissal cookie on pre-connect close.
-- Existing `conciv:widget-mounted` event stays.
+- Widget listens: `conciv:open-panel` window event → open shutter (site's "Try it
+  live" button).
+- Widget emits: `conciv:panel-toggled` `{detail: {open: boolean}}` — site records its
+  dismissal cookie on pre-connect close.
+- `conciv:widget-mounted` stays.
 
 ## Site changes (`apps/site`)
 
-- DELETE: `TryPanel`, `TryWidget`, `TryOverlay`, `TryLauncher`, `connect-live.ts`
-  probe/mount logic (keep only a thin `mountWidget` that injects meta + script),
-  `try-steps.ts` (moved into widget), their tests.
-- Landing always mounts the widget (skipped when a dev widget `[data-conciv-root]`
-  exists): meta `pw-widget` = `{defaultOpen: <auto-open decision>, connect: {token}}`,
-  then the embed script (thin `mountWidget` keeps dispatching
-  `conciv:widget-mounted`). No preflight probe, no poll loop in site code — the widget
-  owns both.
+- DELETE: `TryPanel`, `TryWidget`, `TryOverlay`, `TryLauncher`, probe/mount logic in
+  `connect-live.ts`, `try-steps.ts` (moved), their tests, and the
+  `conciv-widget.global.js` script-injection path for the landing page.
+- Landing mounts the widget as a library (like the nextjs plugin does): client-side
+  `import {mountConciv} from '@conciv/embed'` + `terminal` client + `tryIt({token})`,
+  after fetching the token cookie; meta `pw-widget` `{defaultOpen: <auto-open decision>}`.
+  Skipped when a dev widget `[data-conciv-root]` exists. One Solid copy guaranteed by
+  the site's bundler resolving embed's externals.
 - URL contract kept: `?try=1` forces `defaultOpen: true`; first visit without
-  dismissal cookie auto-opens; dismissal cookie set when the widget emits
-  `conciv:panel-toggled {open: false}` pre-connect. "Try it live" button dispatches
-  `conciv:open-panel`.
+  dismissal cookie auto-opens; dismissal cookie set on `conciv:panel-toggled
+{open: false}` pre-connect; "Try it live" dispatches `conciv:open-panel`.
 - `/pair/$token` route, token session cookie, source manifest: unchanged.
+- The prebuilt global bundle (`conciv-widget.global.js`) remains for non-bundler
+  consumers; the site simply stops using it.
 
 ## Unchanged
 
 `@conciv/try` CLI (clack UI, events), core `onClientRequest` hook, `/pair` text,
-seeding, system prompt. The CLI's "Browser paired ✓" now fires when ConnectPane's
-probe hits — same mechanism, new caller.
+seeding, system prompt. CLI "Browser paired ✓" fires when the extension's probe hits.
 
 ## Rejected
 
-- Mitosis for a cross-framework widget: the widget is a deep Solid app (router,
-  query, SSE, shadow DOM, extensions) outside Mitosis's expressible subset. A React
-  embedding API will be thin config components over the embed channel (future spec,
-  not this one).
-- Parallel non-router connect shell: duplicates chrome, swap still remounts. Routing
-  inside the persistent `/panel` layout is strictly better.
+- Mitosis cross-framework widget: outside its expressible subset (router, query, SSE,
+  shadow DOM). React embedding API = future thin config components spec.
+- `settings.connect` token channel: the token is demo state, not widget config — it
+  rides the extension instance instead.
+- Parallel non-router connect shell: duplicates chrome, swap remounts.
 
 ## Cleanup on this branch
 
-The interim React guided-steps panel (commits `cbdfa254`, `0f831cbf`) is replaced by
-this work; its files are deleted as part of implementation. `stepStates` tests move
-with the model. Changeset already on branch covers `@conciv/*` line.
+The interim React guided-steps panel (commits `cbdfa254`, `0f831cbf`) is replaced;
+files deleted during implementation. `stepStates` + tests move to the extension
+package. Changeset already on branch covers the fixed `@conciv/*` line; add
+`@conciv/extension-try-it` to `PUBLIC_PACKAGES` only if published (default: private,
+site-only — NOT published, `private: true`).
 
 ## Error handling
 
-- Probe failures are silent (expected while waiting); loop runs indefinitely with the
-  60s soft hint.
-- `bind` then rpc failure (core died between probe and resolve): pane returns to
-  waiting state and resumes the loop.
-- Deferred rpc called pre-bind: rejects with `'conciv core not connected yet'` — must
-  never happen in shipped flows; a console error there is a bug signal.
+- Probe failures silent; loop indefinite with 60s soft hint.
+- Deferred rpc pre-bind call rejects loudly — bug signal, must not occur in flows.
+- `found(base)` with dead core: bind succeeds, `sessions.resolve` rejects → route
+  stays on `/panel/connect`, extension resumes polling.
+
+## Core & testkit impact
+
+**Core: no further changes.** The only core change this feature family needs is the
+`onClientRequest` hook, already shipped on this branch. Token mounting
+(`/t/<token>`), CORS via `allowedOrigins`, and `start()` extension mounting are used
+as-is. The widget-side work is entirely client (embed, apps/conciv, extension
+contract, contract package).
+
+**`@conciv/extension-testkit` adjustments** (it currently assumes core-first boot
+with a server part):
+
+1. `ExtensionUnderTest.server` becomes optional — try-it is client-only. Without a
+   server part, `bootExtensionServer` is skipped at setup.
+2. New deferred-core flow: `getExtensionTestApi` gains
+   `connect?: {token: string}` — the host page then boots the widget with NO
+   `__CONCIV_API_BASE__` (connect-gate boot), and the returned api gains
+   `startCore: () => Promise<{apiBase: string}>` which boots a token-gated core
+   (`bootExtensionServer` with a new `accessToken` option, mounting the extension's
+   server part if any) on a connect-range port. Tests drive: assert pre-connect UI →
+   `await api.startCore()` → assert in-place handoff.
+3. `launch.ts` gains local-network-access support (Chromium
+   `--ip-address-space-overrides` + `local-network-access` permission grant, as the
+   site e2e does) so the in-browser probe to `127.0.0.1:47xx` works.
+4. Host runtime (`host-entry.tsx`) passes `pw-widget` settings meta (defaultOpen)
+   through so connect boot opens the panel.
+5. Unchanged guarantees: testkit keeps consuming the widget's real plumbing (no
+   forks), still never depends on the vite plugin.
+
+`bootExtensionServer` accepting `accessToken` + a fixed port range is the ONLY
+testkit-server change; it forwards to `start()` options that already exist.
+
+**Test pyramid for this feature (testing is the contract):**
+
+- Unit (node): `stepStates`, probe/preflight helpers (against a local http server),
+  deferred rpc bind semantics, `parseConcivSettings` (unchanged fields), extension
+  `connectGate` flag plumbing.
+- Extension IT (real browser via testkit, the primary integration surface): connect
+  boot → steps visible → `startCore()` → SAME `[data-pw-panel]` node → chat live →
+  contextual empty-state → CLI-relevant side effect (first probe hit fires core
+  `onClientRequest`, asserted via the hook's callback in `startCore`).
+- Widget IT (embed): connect-gate boot branch (preflight hit → normal boot; miss →
+  `/panel/connect`).
+- Site e2e: full flow on the built site (token cookie → widget → `runConnect` fake
+  harness → handoff → chat turn), dismissal cookie, `?try=1`.
 
 ## Testing
 
-- `apps/conciv` unit (vitest, node): `stepStates` (moved), settings parsing with
-  `connect`, deferred rpc bind semantics (`@conciv/contract` test).
-- Widget IT (real browser, PREBUILT embed bundle — rebuild embed first): boot with
-  `connect` settings and no core → panel open with steps; start a token-gated core
-  (`runConnect` with fake harness); assert the `[data-pw-panel]` DOM node is the SAME
-  element before and after handoff (the seamlessness invariant), chat composer appears,
-  contextual empty-state headline shown.
-- Site e2e (`live-connect.it.test.ts` rewrite): widget mounts on load with steps
-  visible; `runConnect` → in-place flip; dismissal cookie set on pre-connect close via
-  the toggled event; `?try=1` forces open.
-- `browser.newPage()` not contexts; `domcontentloaded` waits only.
+- `@conciv/extension-try-it` unit (vitest, node): `stepStates`, probe helper against a
+  local http server, preflight helper.
+- `@conciv/contract` unit: deferred rpc bind semantics.
+- Widget IT (real browser, prebuilt embed + extension via test fixture entry):
+  connect-gate boot with no core → panel open with steps; start token-gated core
+  (`runConnect`, fake harness); assert `[data-pw-panel]` is the SAME DOM node before
+  and after handoff; composer appears; contextual empty-state headline shown.
+- Site e2e (`live-connect.it.test.ts` rewrite): widget mounts on load with steps;
+  `runConnect` → in-place flip; dismissal cookie on pre-connect close; `?try=1`
+  forces open.
+- `browser.newPage()`, `domcontentloaded` waits only.
