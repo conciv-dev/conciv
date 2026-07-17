@@ -1,0 +1,12 @@
+diff --git a/dist/esm/handle.js b/dist/esm/handle.js
+index 23e1bc097655bcafbc51cb4c26291c4b803d4f00..c51a0b8c50faad0bf27f7cec3343a0318c57aa92 100644
+--- a/dist/esm/handle.js
++++ b/dist/esm/handle.js
+@@ -222,6 +222,7 @@ class LocalProcessHandle {
+       cwd: this.resolveCwd(opts?.cwd),
+       env: this.mergedEnv(opts?.env)
+     });
++    child.stdin.on("error", () => {});
+     if (opts?.signal) {
+       opts.signal.addEventListener("abort", () => killTree(child), {
+         once: true

@@ -15,6 +15,9 @@ overrides:
 
 packageExtensionsChecksum: sha256-dVhKvsWIVuG9nPr1LtcuSzZV8oO+dNO4ylE3TdR8UyE=
 
+patchedDependencies:
+  '@tanstack/ai-sandbox-local-process@0.2.0': 019aa10a95efe0d79615da01c1fcd5b1316742625ef3c1f116a83f5259e691bc
+
 importers:
 
   .:
@@ -1089,7 +1092,7 @@ importers:
         version: 0.2.2(@tanstack/ai@0.40.0(@opentelemetry/api@1.9.1))(zod@4.4.3)
       '@tanstack/ai-sandbox-local-process':
         specifier: ^0.2.0
-        version: 0.2.0(@tanstack/ai-sandbox@0.2.2(@tanstack/ai@0.40.0(@opentelemetry/api@1.9.1))(zod@4.4.3))
+        version: 0.2.0(patch_hash=019aa10a95efe0d79615da01c1fcd5b1316742625ef3c1f116a83f5259e691bc)(@tanstack/ai-sandbox@0.2.2(@tanstack/ai@0.40.0(@opentelemetry/api@1.9.1))(zod@4.4.3))
       drizzle-orm:
         specifier: 1.0.0-rc.4
         version: 1.0.0-rc.4(@electric-sql/pglite@0.3.16)(@libsql/client@0.17.4)(@opentelemetry/api@1.9.1)(zod@4.4.3)
@@ -19709,7 +19712,7 @@ snapshots:
       '@tanstack/ai': 0.40.0(@opentelemetry/api@1.9.1)
       '@tanstack/ai-sandbox': 0.2.2(@tanstack/ai@0.40.0(@opentelemetry/api@1.9.1))(zod@4.4.3)
 
-  '@tanstack/ai-sandbox-local-process@0.2.0(@tanstack/ai-sandbox@0.2.2(@tanstack/ai@0.40.0(@opentelemetry/api@1.9.1))(zod@4.4.3))':
+  '@tanstack/ai-sandbox-local-process@0.2.0(patch_hash=019aa10a95efe0d79615da01c1fcd5b1316742625ef3c1f116a83f5259e691bc)(@tanstack/ai-sandbox@0.2.2(@tanstack/ai@0.40.0(@opentelemetry/api@1.9.1))(zod@4.4.3))':
     dependencies:
       '@tanstack/ai-sandbox': 0.2.2(@tanstack/ai@0.40.0(@opentelemetry/api@1.9.1))(zod@4.4.3)
 
