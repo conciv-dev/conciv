@@ -67,7 +67,7 @@ Turbo filter names (verified): protocol `@conciv/protocol`, extension `@conciv/e
 
 - Produces: `ChatContentPartSchema` accepts `{type:'document', source:{type:'data', mimeType, value}}` and `metadata?:{modelOnly?:boolean}` on all three variants. `ChatContentPart` gains the document member. Contract `content` union inherits automatically.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import {describe, expect, it} from 'vitest'
@@ -99,12 +99,12 @@ describe('ChatContentPartSchema', () => {
 
 Note: the `modelOnly` test is green already (`.loose()` on the existing variants) — the red assertions are the two document cases. That is fine; the schema change is still driven by the document tests.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `pnpm turbo run test --filter=@conciv/protocol`
 Expected: FAIL — document part rejected by the discriminated union.
 
-- [ ] **Step 3: Implement — extend the schema**
+- [x] **Step 3: Implement — extend the schema**
 
 Replace the `ChatContentPartSchema` definition with:
 
@@ -140,12 +140,12 @@ export const ChatContentPartSchema = z.discriminatedUnion('type', [
 ])
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `pnpm turbo run test --filter=@conciv/protocol`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -m "feat(protocol): document content part + modelOnly metadata" -- packages/protocol/src/chat-types.ts packages/protocol/test/chat-types.test.ts

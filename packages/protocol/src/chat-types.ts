@@ -12,14 +12,32 @@ const Base64Image = z
   .max(MAX_IMAGE_BASE64_LENGTH)
   .regex(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/)
 
+const PartMetadata = z.object({modelOnly: z.boolean().optional()}).loose().optional()
+
+const MAX_DOCUMENT_BASE64_LENGTH = 27_962_028
+
 export const ChatContentPartSchema = z.discriminatedUnion('type', [
-  z.object({type: z.literal('text'), content: z.string()}).loose(),
+  z.object({type: z.literal('text'), content: z.string(), metadata: PartMetadata}).loose(),
   z
     .object({
       type: z.literal('image'),
       source: z
         .object({type: z.literal('data'), mimeType: z.string().regex(/^image\/[A-Za-z0-9.+-]+$/), value: Base64Image})
         .loose(),
+      metadata: PartMetadata,
+    })
+    .loose(),
+  z
+    .object({
+      type: z.literal('document'),
+      source: z
+        .object({
+          type: z.literal('data'),
+          mimeType: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9.+-]*\/[A-Za-z0-9.+-]+$/),
+          value: z.string().min(1).max(MAX_DOCUMENT_BASE64_LENGTH),
+        })
+        .loose(),
+      metadata: PartMetadata,
     })
     .loose(),
 ])
