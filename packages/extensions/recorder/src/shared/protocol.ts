@@ -23,9 +23,3 @@ export type ActionLogKind = 'click' | 'input' | 'navigation' | 'scroll' | 'conso
 export type ActionLogEntry = {ts: number; kind: ActionLogKind; detail: string}
 
 export type Keyframe = {ts: number; pngBase64: string}
-
-declare module '@conciv/protocol/config-types' {
-  interface ExtensionConfigRegistry {
-    recorder: z.input<typeof recorderConfig>
-  }
-}
