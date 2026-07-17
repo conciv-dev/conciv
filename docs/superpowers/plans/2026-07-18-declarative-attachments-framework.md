@@ -951,13 +951,13 @@ git commit -m "feat(ui-kit-chat): user turn renders document attachment cards" -
 - Consumes: `collectAttachmentCards` (Task 4), `createDocumentAttachmentAdapter`, `AttachmentByMime`, `ComposerProps.AttachmentComponent` (Task 8), `ThreadProps.attachmentCards` (Task 9).
 - Produces: composer accepts every registered mime; composer chips and thread turns dispatch through the same card list.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Browser test mounting `ChatPane` (or the widget) with a fixture extension instance whose attachment registers a Card with `data-testid="fixture-card"`; attach a File of the fixture mime; assert the card renders in the composer chip area; send; assert it renders in the transcript. Mirror an existing `apps/conciv` browser test's mounting approach.
 
-- [ ] **Step 2: Run — Expected: FAIL** (`pnpm turbo run test --filter=conciv`).
+- [x] **Step 2: Run — Expected: FAIL** (`pnpm turbo run test --filter=conciv`).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 const attachmentCards = createMemo(() => collectAttachmentCards(instances.map((instance) => instance.extension)))
@@ -996,9 +996,9 @@ const onSend = (content: string | MultimodalContent) => {
 
 (Gate note: this duplicates a bound the contract already enforces server-side — the protocol Task 1 test covers the schema; browser-driving 17 attachments to red-test a notify branch is disproportionate, so this guard ships untested by design. Flagged per the tests-must-fail rule; the schema bound itself IS test-covered.)
 
-- [ ] **Step 4: Run — Expected: PASS.**
+- [x] **Step 4: Run — Expected: PASS.**
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -m "feat(widget): wire attachment cards + document adapters from extensions" -- apps/conciv/src/chat/chat-pane.tsx apps/conciv/test/attachment-widget.browser.test.tsx
