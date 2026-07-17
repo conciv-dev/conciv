@@ -69,6 +69,10 @@ async function beginSession(
   await pollForCore(token, signal, onPhase)
 }
 
+function isOverlayPhase(phase: Phase): boolean {
+  return phase === 'waiting' || phase === 'connected'
+}
+
 function TryOverlay({
   open,
   token,
@@ -130,7 +134,7 @@ export function TryWidget() {
   if (hidden || phase === 'live') return null
   return (
     <div ref={start}>
-      {phase === 'waiting' || phase === 'connected' ? (
+      {isOverlayPhase(phase) ? (
         <TryOverlay
           open={search.try === 1}
           token={token}
