@@ -1392,12 +1392,18 @@ importers:
       '@orpc/server':
         specifier: ^1.14.7
         version: 1.14.7(@opentelemetry/api@1.9.1)(crossws@0.4.10(srvx@0.11.22))(ws@8.21.0)
+      '@orpc/tanstack-query':
+        specifier: ^1.14.7
+        version: 1.14.7(@opentelemetry/api@1.9.1)(@orpc/client@1.14.7(@opentelemetry/api@1.9.1))(@tanstack/query-core@5.101.2)
       '@rrweb/rrweb-plugin-console-record':
         specifier: ^2.1.0
         version: 2.1.0(@rrweb/utils@2.1.0)(rrweb@2.1.0)
       '@rrweb/types':
         specifier: ^2.1.0
         version: 2.1.0
+      '@tanstack/solid-query':
+        specifier: ^5.101.2
+        version: 5.101.2(solid-js@1.9.14)
       lucide-solid:
         specifier: ^1.18.0
         version: 1.18.0(solid-js@1.9.14)

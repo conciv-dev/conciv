@@ -62,6 +62,6 @@ describe('recorder end to end (real browser, real engine)', () => {
     })
     expect(replay.controller).toBe(true)
     expect(replay.reconstructedChildren).toBeGreaterThan(0)
-    expect(replay.reconstructedText).toContain('Order pizza')
+    expect(replay.reconstructedText).toContain('Comment target')
   }, 120_000)
 })
