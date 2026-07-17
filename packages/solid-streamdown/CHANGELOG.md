@@ -1,5 +1,11 @@
 # @conciv/solid-streamdown
 
+## 0.0.11
+
+### Patch Changes
+
+- [#74](https://github.com/conciv-dev/conciv/pull/74) [`5f76cc2`](https://github.com/conciv-dev/conciv/commit/5f76cc2d14ae93265f8c72b3eb6d5254abe3bb59) Thanks [@omridevk](https://github.com/omridevk)! - Import rehype-raw and rehype-sanitize statically, matching upstream streamdown. Raw HTML support no longer loads a separate async chunk when `allowRawHtml` is enabled.
+
 ## 0.0.10
 
 ## 0.0.9
