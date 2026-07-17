@@ -21,6 +21,7 @@ import {
   isCompleteAttachment,
   type Attachment,
   type AttachmentAdapter,
+  type CompleteAttachment,
   type PendingAttachment,
 } from '../attachment/attachment-adapter.js'
 import {QueueItemProvider, type QueuedMessage} from '../queue-item/queue-item.js'
@@ -132,6 +133,58 @@ async function removeAdapterAttachment(adapter: AttachmentAdapter | undefined, a
   await requireAttachmentAdapter(adapter).remove(attachment)
 }
 
+function restoredAttachments(attachments: Attachment[], error: unknown): Attachment[] {
+  return attachments.map((attachment) =>
+    isCompleteAttachment(attachment) ? attachment : failedAttachment(attachment, error),
+  )
+}
+
+async function completeAll(
+  adapter: AttachmentAdapter | undefined,
+  attachments: Attachment[],
+): Promise<CompleteAttachment[]> {
+  return Promise.all(
+    attachments.map(async (attachment) => {
+      if (isCompleteAttachment(attachment)) return attachment
+      return requireAttachmentAdapter(adapter).send(attachment)
+    }),
+  )
+}
+
+type DraftState = {draft: string; attachments: Attachment[]; quote: string | null}
+
+function pastedFiles(event: ClipboardEvent): File[] {
+  const files = Array.from(event.clipboardData?.files ?? [])
+  if (files.length > 0) event.preventDefault()
+  return files
+}
+
+async function addPastedFiles(
+  event: ClipboardEvent,
+  enabled: boolean | undefined,
+  add: (file: File) => Promise<void>,
+): Promise<void> {
+  if (!enabled) return
+  await Promise.allSettled(pastedFiles(event).map((file) => add(file)))
+}
+
+type TriggerAriaProps = {
+  'aria-haspopup'?: 'listbox'
+  'aria-expanded'?: boolean
+  'aria-controls'?: string
+  'aria-activedescendant'?: string
+}
+
+function triggerAriaProps(active: {popoverId: string; highlightedItemId: string | undefined} | null): TriggerAriaProps {
+  if (!active) return {}
+  return {
+    'aria-haspopup': 'listbox',
+    'aria-expanded': true,
+    'aria-controls': active.popoverId,
+    'aria-activedescendant': active.highlightedItemId,
+  }
+}
+
 function Root(props: FormProps): JSX.Element {
   const chat = useChatContext()
   const composer = useComposer()
@@ -169,44 +222,35 @@ function Root(props: FormProps): JSX.Element {
     }
     setAttachments((current) => current.filter((value) => value.id !== id))
   }
+  const isRunning = () => chat.status() === 'streaming' || chat.status() === 'submitted'
+  const restoreFailedSend = (original: DraftState, error: unknown) => {
+    const restored = restoredAttachments(original.attachments, error)
+    setAttachments((current) => {
+      const currentIds = new Set(current.map((value) => value.id))
+      return [...current, ...restored.filter((value) => !currentIds.has(value.id))]
+    })
+    if (chat.view.draft !== '' || quote() !== null) return
+    chat.setView('draft', original.draft)
+    setQuote(original.quote)
+  }
   const submit = async (event: SubmitEvent) => {
     event.preventDefault()
     invokeSubmit(local.onSubmit, event)
-    const isRunning = chat.status() === 'streaming' || chat.status() === 'submitted'
-    if (!canSubmit(composer.canSend(), attachments().length, isRunning || sendingAttachments())) return
-    const originalDraft = chat.view.draft
-    const originalAttachments = attachments()
-    const originalQuote = quote()
-    const adapter = attachmentAdapter()
+    if (!canSubmit(composer.canSend(), attachments().length, isRunning() || sendingAttachments())) return
+    const original: DraftState = {draft: chat.view.draft, attachments: attachments(), quote: quote()}
     setSendingAttachments(true)
     chat.setView('draft', '')
     setAttachments([])
     setQuote(null)
     try {
-      const completeAttachments = await Promise.all(
-        originalAttachments.map(async (attachment) => {
-          if (isCompleteAttachment(attachment)) return attachment
-          if (!adapter) throw new Error('Attachments are not supported')
-          return adapter.send(attachment)
-        }),
-      )
+      const complete = await completeAll(attachmentAdapter(), original.attachments)
       sendContent(
         handlers.onSend,
         (content) => chat.sendMessage(content),
-        buildContent(originalDraft.trim(), completeAttachments),
+        buildContent(original.draft.trim(), complete),
       )
     } catch (error) {
-      const restored = originalAttachments.map((attachment) =>
-        isCompleteAttachment(attachment) ? attachment : failedAttachment(attachment, error),
-      )
-      setAttachments((current) => {
-        const currentIds = new Set(current.map((value) => value.id))
-        return [...current, ...restored.filter((value) => !currentIds.has(value.id))]
-      })
-      if (chat.view.draft === '' && quote() === null) {
-        chat.setView('draft', originalDraft)
-        setQuote(originalQuote)
-      }
+      restoreFailedSend(original, error)
     } finally {
       setSendingAttachments(false)
     }
@@ -298,12 +342,9 @@ function Input(props: InputProps): JSX.Element {
     event.preventDefault()
     event.currentTarget.form?.requestSubmit()
   }
-  const onPaste = async (event: ClipboardEvent & {currentTarget: HTMLTextAreaElement; target: Element}) => {
+  const onPaste = (event: ClipboardEvent & {currentTarget: HTMLTextAreaElement; target: Element}) => {
     if (typeof local.onPaste === 'function') local.onPaste(event)
-    if (!local.addAttachmentOnPaste) return
-    const files = Array.from(event.clipboardData?.files ?? [])
-    if (files.length > 0) event.preventDefault()
-    await Promise.allSettled(files.map((file) => context.addAttachment(file)))
+    void addPastedFiles(event, local.addAttachmentOnPaste, context.addAttachment)
   }
   return (
     <TextArea
@@ -327,11 +368,8 @@ function Input(props: InputProps): JSX.Element {
       onKeyUp={(event) => syncCursor(event.currentTarget)}
       onClick={(event) => syncCursor(event.currentTarget)}
       onKeyDown={onKeyDown}
-      onPaste={(event) => void onPaste(event)}
-      aria-haspopup={triggerRoot?.activeAria() ? 'listbox' : undefined}
-      aria-expanded={triggerRoot?.activeAria() ? true : undefined}
-      aria-controls={triggerRoot?.activeAria()?.popoverId}
-      aria-activedescendant={triggerRoot?.activeAria()?.highlightedItemId}
+      onPaste={onPaste}
+      {...triggerAriaProps(triggerRoot?.activeAria() ?? null)}
       {...rest}
     />
   )
