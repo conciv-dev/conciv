@@ -5,203 +5,193 @@ Status: Approved (design), pending implementation plan
 
 ## Problem
 
-The composer can attach images and plain-text files today. We want a **general attachment
-system** where:
+The composer attaches images and plain-text files today. We want a **general attachment system**
+where:
 
-1. An attachment renders as its real self — both in the composer (before send) and in the chat
-   transcript (after send). A recording shows a replayable player, not a grey text chip.
-2. New attachment **types** are extensible. The recorder introduces a `recording` type; later the
-   existing **grab** reference becomes just another attachment type.
-3. The client stays **dumb**: it only knows how to *display* a type. The **backend** owns what an
-   attachment *means* to the model — how it is transformed into something the harness can read
-   (text, split into keyframe images, whatever the type needs). An extension that adds a type ships
-   that transform itself.
+1. An attachment renders as its real self in the composer (before send) **and** in the transcript
+   (after send). A recording shows a replayable player, not a grey file chip.
+2. New attachment **types** are extensible; the recorder adds `recording`, and later **grab**
+   becomes just another type.
+3. The client stays **dumb** — it only *displays* a type. The **backend** owns what an attachment
+   *means* to the model: how it transforms into something the harness reads (text, keyframe images,
+   whatever). An extension that adds a type ships that transform.
 
-## Guiding precedent
+## What already exists (reuse, do not reinvent)
 
-The harness adapter **already does this for images.** `claudeChatConfig.prepareMessages` →
-`withImageRefs` (`packages/harness/src/claude/chat.ts`) rewrites an image part into the file-ref
-Claude Code ingests. This design generalizes "images only, hard-coded" into "any type, including
-extension-defined," and moves the *meaning* step to a place extensions can plug into.
+This design is mostly **wiring existing pieces together**. Verified in the codebase:
 
-## Vocabulary (three pieces)
+| Capability | Where it lives today |
+| --- | --- |
+| Composer attachment lifecycle `add/remove/send` → content parts | `AttachmentAdapter`, `composeAttachmentAdapters`, `createTextAttachmentAdapter` (`ui-kit-chat/.../attachment-adapter.ts`) |
+| Attach a File to the composer from an extension | `host.attach(file: File)` + pane queue (`chat-pane.tsx`) — **unchanged** |
+| Thread renders `document`/`image` attachment parts via slot components | `Message.Attachments` + `attachmentComponent(part.type)` (`primitives/message/message.tsx`); `useMessagePartFile()` for document parts |
+| Composer renders pending attachments via one component | `Composer.Attachments component={RemovableAttachment}` → `AttachmentUI` (`styled/composer.tsx`, `styled/attachment-ui.tsx`) |
+| Collect per-extension client renderers | `collectToolRenderers(instances)` (`extension/collect-client.ts`) |
+| Close each extension's server context over its callables at mount | `buildExtensionTools(extension, context)` (`core/app.ts`) |
+| Transform a part into harness-native form before send | `prepareMessages` → `withImageRefs` (`harness/claude/chat.ts`) — **unchanged**; keyframes ride it |
+| Model view already ignores non-`text`/`image` parts | `modelContent` (`core/chat/session.ts`), `lastUserModelText`/`lastUserImages` (`harness/_shared/text-adapter.ts`) |
+| Durable user-message parts across restart | `foldRunMessagesIntoImageHistory` / `imageHistoryFor` (`db/run-queries.ts`) |
+| Recorder ring / keyframe renderer / distill | `server/ring.ts`, `server/render.ts`, `server/distill.ts` |
 
-An attachment on the wire is `{type, ref, display}`:
+**A recording attachment is a `document` part** — `{type:'document', source:{type:'data',
+mimeType:'application/x-conciv-recorder', value: base64(JSON{recordingId, poster})}}`. No new part
+type. It rides the `document` slot that already exists.
 
-- `type` — the type tag (`image`, `recording`, `grab`, …).
-- `ref` — the type's own payload. `recordingId` for a recording, the grabbed content for a grab,
-  the image bytes for an image. The client never interprets `ref`.
-- `display` — small human-facing hints for the card (poster text, `"3 actions · 42s"`).
+## The only two genuinely new pieces
 
-Each type is defined with **two faces split across the client/server modules — exactly like a
-tool** (`__render` lives client-side, `.server(execute)` lives server-side, matched by name):
+### 1. Client (small): dispatch the attachment card by mime
 
-- **Display** — client component that renders `ref` as a card, used in *both* the composer and the
-  thread. Recorder's Display = the rrweb player. Dumb about meaning, smart about rendering.
-- **Expand** — backend function that turns `{type, ref}` into the **standard** parts the harness
-  already understands (`text`, `image`). Runs **in the extension's server context**, so the
-  recorder's Expand can reach the ring/renderer and split a recording into keyframe images + an
-  action-log text.
+Today both render sites use **one** component (`AttachmentUI`) for every attachment. The one change:
+pick the component by the attachment's type/mime, so a `recording` draws the player and everything
+else falls back to the existing file tile.
 
-**Expand runs once, at send**, while the source is still fresh — not per-turn. This is the load-
-bearing decision: it is the only version that survives the recording's events aging out of the
-~10-minute ring, and it keeps the harness adapter dumb.
+- New `collectAttachmentCards(instances)` mirrors `collectToolRenderers` → `{mime → Card}` gathered
+  from installed extensions.
+- Composer: `RemovableAttachment` dispatches on the pending attachment's `contentType` → matching
+  Card, else `AttachmentUI`.
+- Thread: widget's `UserTurn` gains `<Message.Attachments components={{Document: DispatchByMime,
+  Image: AttachmentUI}}>`; `DispatchByMime` picks the Card by `part.source.mimeType`, else the file
+  tile. (Currently `UserTurn` renders only `<Message.Parts/>`, so document parts render nothing —
+  this is the gap.)
+- Cards mount under `HostApiProvider(clientValue)` (like `MountedView`) so a card can `useApiBase`
+  /rpc to fetch its own heavy data (recording events by id).
 
-## Data model
+The recorder's per-mime adapter is **derived by the framework** from the registered mime (accept =
+mime, `send()` = wrap the File bytes into the `document` part). The extension supplies only the Card
+and the Expand — no hand-written adapter.
 
-After Expand at send, the user turn's `parts` array looks like:
+### 2. Backend (the real seam): Expand at send
+
+Every attachment type may register **Expand**: given the sent `document` part, produce the standard
+`text`/`image` parts the harness reads. Runs **once, at send**, in the extension's server context —
+so the recorder's Expand reaches the ring/renderer and splits the recording into keyframe images +
+an action-log text. **Once-at-send** is load-bearing: the ring only holds ~10 minutes, and re-
+rendering keyframes every turn is expensive.
+
+- `buildAttachmentExpanders(extension, context)` in `app.ts` mirrors `buildExtensionTools`:
+  closes the extension's server context over its Expand fns → `{mime → expand(part) }`. Passed into
+  `chatDeps` so `makeSend` can call it.
+- `makeSend` (`core/chat/run.ts`) — right where `composeUserContent` already massages user content —
+  walks the user parts; for each `document` part whose mime has an Expand, runs it and **appends**
+  the resulting `text`/`image` parts marked `metadata.modelOnly:true`, keeping the document part for
+  the card. Built-in `image` needs no Expand (already standard).
+
+## Data flow (one array, three projections)
+
+After Expand the stored user turn is:
 
 ```
-[
-  {type:'text', content:'why did this break?'},                              // human + model
-  {type:'attachment', attachmentType:'recording', ref:{recordingId:'a1'},
-     display:{poster:'Screen recording · 12 actions · 42s'}},               // card only
+[ {type:'text', content:'why did this break?'},                                   // human + model
+  {type:'document', source:{…mime:'application/x-conciv-recorder'…}},             // card only
   {type:'text', content:'Recorded actions: clicked Save…', metadata:{modelOnly:true}},  // model only
-  {type:'image', source:{type:'data', mimeType:'image/png', value:'…'},
-     metadata:{modelOnly:true}},                                            // model only (keyframe)
-  {type:'image', source:{…}, metadata:{modelOnly:true}},
-]
+  {type:'image', source:{…png…}, metadata:{modelOnly:true}},                      // model only (keyframe)
+  {type:'image', source:{…png…}, metadata:{modelOnly:true}} ]
 ```
 
-Why this shape needs **almost nothing** downstream:
+- **Model** (`toModelMessages`): `modelContent` already drops `document` → model sees text + the
+  expanded text + keyframes. Keyframes become file-refs via the untouched `withImageRefs`.
+- **Thread**: render `document` via its Card; render `text`/`image` parts **except** `modelOnly`
+  ones. One filter in `UserTurn`/`Message.Parts`.
 
-- **Harness / model view**: `modelContent` (`session.ts`) already keeps only `text` + `image` and
-  drops everything else, and the adapter's `lastUserModelText` / `lastUserImages` do the same. So
-  the `attachment` descriptor part is invisible to the model **with zero adapter changes**, and the
-  expanded `text` + `image` parts flow through the existing path (keyframe images even ride the
-  existing image→file-ref transform for free).
-- **Client / thread view**: renders `attachment` parts via the type's Display, renders `text` parts
-  **except** those marked `metadata.modelOnly`. One filter, one place.
+### The store seam
 
-### The one core seam: store the rich parts, send the stripped ones
-
-Today `makeSend` builds `messages = toModelMessages(...)` (already model-shaped) and `startRun`
-stores `addUserMessage(messages[last].content)` — so the rich parts are gone before storage. Fix:
-`startRun` stores the **pre-conversion** user parts (the rich array above) and hands the harness the
-**post-conversion** messages. `toModelMessages` naturally drops the `attachment` descriptor and
-`modelOnly` marking is irrelevant to it, so the same rich array is the single source: raw → storage,
-converted → harness. ~a few lines threading `userParts` onto the run request.
+Today `makeSend` builds model-shaped `messages` and `startRun` stores
+`addUserMessage(messages[last].content)` — so rich parts vanish before storage. Fix: `startRun`
+stores the **pre-Expand-projection rich array**, and hands the harness the `toModelMessages(rich)`
+projection. Same array, two projections; ~a few lines threading `userParts` onto the run request.
 
 ### Persistence across reload / restart
 
-The rich parts are stored in `runMessages`, then folded into `imageHistory` for durability. Extend
-the fold predicate `hasImagePart` → `hasRichPart` (covers `image` **and** `attachment` parts) so the
-turn survives restart. On replay the card redraws and the model view is intact — no re-Expand, no
-dependence on the ring. (Compaction still clears this, same as images today — accepted.)
-
-## Flow, end to end
-
-1. **Compose** — attach → a pending `{type, ref}` shows above the composer via its Display card.
-   File drops resolve `type` by `accept` (image); programmatic attaches (recorder "Send to agent")
-   hand a typed attachment directly.
-2. **Send** — backend walks the user parts; for each `attachment` whose `type` has a registered
-   Expand, it runs Expand (in that extension's server context) and appends the expanded
-   `text`/`image` parts (marked `modelOnly`), keeping the descriptor for the card. Built-in `image`
-   needs no Expand — it is already a standard part.
-3. **Thread** — client shows the user's text + the card; `modelOnly` parts are hidden.
-4. **Harness** — adapter sees only `text` + `image`. Unchanged. Recorder keyframes become
-   file-refs via the existing image path.
-5. **Reload / restart** — replay from history; card + model view both survive.
+Rich parts land in `runMessages` → folded into `imageHistory`. Extend the fold predicate
+`hasImagePart` → `hasRichPart` (image **or** document part) so the turn survives restart; card and
+model view both replay, no re-Expand, no ring dependency. (Compaction still clears this, as with
+images today — accepted.)
 
 ## Extension API
 
+Mirrors the tool builder (`__render` client-side, `.server(execute)` server-side, split across
+modules, matched by name). New `meta.attachments`:
+
 ```ts
-export const recorder = defineExtension({
-  name: 'recorder',
-  attachments: [
-    defineAttachment({
-      type: 'recording',
-      accept: 'application/x-conciv-recorder',       // optional; for file-based types
-      Display: RecordingCard,                          // client: composer + thread card
-    }),
-  ],
-  // …tools, views, Surface
+// shared def
+export const recordingAttachment = defineAttachment({ mime: 'application/x-conciv-recorder' })
+
+// client module — the Card
+recordingAttachment.card(RecordingCard)              // sets __card
+
+// server module — the Expand, same ctx signature as a tool's execute
+recordingAttachment.server((part, ctx) => {          // sets __expand
+  const { recordingId } = decode(part)
+  const { log, keyframes } = renderRecording(ctx.recorder, recordingId)
+  return [ {type:'text', content: log}, ...keyframes.map(pngImagePart) ]
 })
-  .client(() => ({ value: { store: createRecorderStore() } }))
-  .server((server) => ({
-    context: { recorder: runtime },
-    router: makeRecorderRouter(runtime),
-    // Expand runs with the same ctx tools get: (attachment, ctx, request)
-    expandAttachment: async ({ type, ref }, ctx) => {
-      if (type !== 'recording') return null
-      const { log, keyframes } = await renderRecording(ctx.recorder, ref.recordingId)
-      return [
-        { type: 'text', content: log },
-        ...keyframes.map((png) => ({ type: 'image', source: { type: 'data', mimeType: 'image/png', value: png } })),
-      ]
-    },
-  }))
+
+defineExtension({ name:'recorder', attachments:[recordingAttachment], /* tools, views, Surface */ })
 ```
 
-- Client side: `collectAttachmentKinds(instances)` (mirrors `collectToolRenderers`) → registry
-  keyed by `type` → composer & thread dispatch `ref` to the matching Display, generic file-tile
-  fallback for unknown types. Cards mount under `HostApiProvider(clientValue)` so they can use
-  `useApiBase`/rpc (fetch recording events by id), same as `MountedView`.
-- Server side: core collects `expandAttachment` from each extension's server result and calls the
-  owner at send with that extension's context. Display (client) is declared via `attachments:
-  [defineAttachment(...)]`; Expand (server) comes from the `.server()` result, matched to the type
-  by name — the split is deliberate and mirrors a tool's `__render` vs `.server(execute)`.
-- `host.attach` generalizes from `attach(file: File)` to `attach(File | TypedAttachment)` so the
-  recorder can hand `{type:'recording', ref:{recordingId}, display}` instead of a fake `.txt` file.
+- Client build reads `__card` (via `collectAttachmentCards`); server build reads `__expand` (via
+  `buildAttachmentExpanders`). Two faces on split module instances sharing `mime`, exactly like a
+  tool.
 
-## Types & schema home
+## Wire schema
 
+- `ChatContentPartSchema` (protocol) + the `content` union in `packages/contract` gain a `document`
+  variant `{type:'document', source:{type:'data', mimeType, value}}` and allow `metadata.modelOnly`
+  on `text`/`image`. Size caps on `value` preserved (recorder value is a tiny id JSON; keyframes are
+  server-produced).
 - `Attachment` / `AttachmentAdapter` / status types move from `ui-kit-chat` to
   `@conciv/protocol/attachment-types` (protocol already deps `@tanstack/ai-client`); `ui-kit-chat`
-  re-exports and keeps the composer implementations. Avoids a `ui-kit-chat` ↔ `extension` dep.
-- Wire validation (`ChatContentPartSchema` in protocol + the `content` union in
-  `packages/contract`) gains an `attachment` variant `{type:'attachment', attachmentType, ref,
-  display}` and allows `metadata.modelOnly` on `text`/`image`. Size caps preserved; `ref` bounded.
+  re-exports, keeps composer implementations. Avoids a `ui-kit-chat` ↔ `extension` dependency.
 
 ## Recorder as first consumer
 
-- Panel "Send to agent" stops building a `.txt` File. It saves the current window as a recording
-  (id) and calls `host.attach({type:'recording', ref:{recordingId}, display:{poster}})`.
+- Panel "Send to agent" stops building a `.txt` File. It saves the current window as a recording and
+  attaches a File carrying `{recordingId, poster}` under the recorder mime via the existing
+  `host.attach(file)`.
 - Recorder gains `recordings.save` (freeze window → id, persisted like whiteboard state under
-  `.conciv/recorder/recordings/<id>.json`, pruned to the newest 50) and `recordings.get(id)` (events, or `expired`). Both the Display card (client fetch by
-  id → mount player) and Expand (server fetch by id → keyframes) read through it.
-- The player mount + CSS + skip-idle logic in `panel-view.tsx` extracts to a shared module reused by
-  the thread card.
-- Distill cleanup rides along: drop `id === -1` entries (the widget itself — kills noise and the
+  `.conciv/recorder/recordings/<id>.json`, pruned to newest 50) and `recordings.get(id)` (events, or
+  `expired`). Both the Card (client fetch by id → player) and Expand (server fetch by id →
+  keyframes) read through it.
+- Player mount + CSS + skip-idle logic in `panel-view.tsx` extracts to a shared module reused by the
+  Card.
+- Distill cleanup rides along: drop `id === -1` entries (the widget itself — kills noise + the
   record-itself recursion) and empty typed `""` entries.
 
 ## Grab migration (follow-up, not this cut)
 
-Grab becomes an attachment type: `ref` = grabbed content, Display = the existing reference chip,
-Expand = return the grabbed text. The composer's grab action creates a `grab` attachment instead of
-using the separate `grabStore` + `composeUserContent` prefix. The abstraction is built general
-enough now that grab slots in with no rework; the actual migration is a separate plan.
+Grab becomes a `grab` attachment type: the grabbed content in the document value, Card = the existing
+reference chip, Expand = return the grabbed text (replacing the `composeUserContent` grab prefix).
+Built general enough now that grab slots in with no rework; the migration is its own plan.
 
 ## Error handling
 
-- Expand fails at send → the turn still sends with the descriptor + a short fallback text
-  (`"[recording could not be processed]"`); never blocks the message.
-- Display card fetch fails / recording expired → card shows an error/expired state with retry, not a
-  broken player (recorder panel already has these states to reuse).
-- Unknown `type` in the thread (extension uninstalled) → generic file chip from `display`.
+- Expand throws at send → turn still sends with the document part + a short fallback text; never
+  blocks the message.
+- Card fetch fails / recording `expired` → Card shows error/expired + retry (reuse the recorder
+  panel's existing states), not a broken player.
+- Unknown mime in the thread (extension uninstalled) → generic file tile.
 
 ## Testing
 
-- Protocol: schema accepts `attachment` part + `modelOnly` metadata; rejects oversized `ref`.
-- Core: `makeSend` stores rich parts while the harness receives stripped `text`+`image`; Expand
-  invoked with the owning extension's context; fold predicate persists `attachment` parts across
-  restart. Real send path, no mocks.
-- Recorder (real browser IT): attach → card in composer → send → card in thread → reload → card
-  survives; Expand produces keyframes + log; expired recording renders expired state.
-- ui-kit-chat: composer + thread dispatch to a registered Display; generic fallback for unknown
-  type. Real browser (Playwright), per repo rule.
+- Protocol: schema accepts `document` part + `modelOnly` metadata; rejects oversized `value`.
+- Core: `makeSend` stores rich parts while the harness receives the stripped projection; Expand runs
+  with the owning extension's context; fold predicate persists document parts across restart. Real
+  send path, no mocks.
+- Recorder (real-browser IT): attach → player card in composer → send → card in thread → reload →
+  survives; Expand yields keyframes + log; expired recording renders the expired state.
+- ui-kit-chat (Playwright): composer + thread dispatch to a registered Card by mime; generic tile
+  fallback for unknown mime.
 
 ## Out of scope
 
 - Grab migration (separate plan).
-- Per-type Expand *timing* choices — it is always once-at-send.
-- Non-image model modalities (audio/video to the model) — Expand may only emit `text`/`image` for
-  now.
+- Per-type Expand *timing* — always once-at-send.
+- Audio/video model modalities — Expand emits only `text`/`image` for now.
 
 ## Decisions locked
 
-- Client dumb; backend owns meaning via **Expand**; Expand runs **once at send** in the extension's
-  server context.
-- Single rich parts array; harness-invisibility of the descriptor comes free from existing
-  `modelContent` filtering; only new core seam is store-rich / send-stripped in `startRun`.
-- Keyframes are standard `image` parts so they reuse the existing image→file-ref adapter path.
+- A recording is a **`document` part with a namespaced mime** — no new part type.
+- Client change is only **dispatch the existing render slot by mime**; `host.attach`,
+  `AttachmentAdapter`, `withImageRefs` all unchanged.
+- Backend adds **Expand-at-send** (mirrors `buildExtensionTools`) + the **store-rich / send-stripped
+  seam** in `startRun`; keyframes are standard `image` parts reusing the image→file-ref path.
