@@ -1037,10 +1037,10 @@ git commit -m "test(core): end-to-end attachment expand fixture" -- packages/cor
 
 ## Task 12: Whole-project gates + fallow
 
-- [ ] **Step 1:** `pnpm typecheck` — Expected: no errors.
-- [ ] **Step 2:** `pnpm turbo run test --force` — Expected: all pass (cached green masks regressions).
-- [ ] **Step 3:** `pnpm exec fallow audit --changed-since main --format json` — fix anything INTRODUCED (confirm `hasImagePart`, `RemovableAttachment`, `paneAttachmentAdapter` have no stragglers).
-- [ ] **Step 4: Commit** any fixes.
+- [x] **Step 1:** `pnpm typecheck` — Expected: no errors.
+- [x] **Step 2:** `pnpm turbo run test --force` — Expected: all pass (cached green masks regressions).
+- [x] **Step 3:** `pnpm exec fallow audit --changed-since main --format json` — fix anything INTRODUCED (confirm `hasImagePart`, `RemovableAttachment`, `paneAttachmentAdapter` have no stragglers).
+- [x] **Step 4: Commit** any fixes.
 
 ---
 
