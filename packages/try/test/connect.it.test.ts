@@ -7,7 +7,7 @@ import {makeExtRpcClient} from '@conciv/extension'
 import type {TerminalRouter} from '@conciv/extension-terminal'
 import type {TtyCommandOpts} from '@conciv/protocol/terminal-types'
 import {claude} from '@conciv/harness/claude'
-import {runConnect} from '../src/connect.js'
+import {runConnect, type ConnectEvent} from '../src/connect.js'
 import type {Engine} from '@conciv/core/start'
 
 const engines: Engine[] = []
@@ -133,6 +133,24 @@ describe('conciv connect', () => {
     },
     30_000,
   )
+
+  it('emits seeded, started, then client-connected on the first token request', async () => {
+    const events: ConnectEvent[] = []
+    const engine = await runConnect({
+      token: 'tok-events',
+      harnessAdapter: createFakeHarness({id: 'fake-events'}),
+      origin: 'http://127.0.0.1:1',
+      onEvent: (event) => events.push(event),
+    })
+    engines.push(engine)
+    expect(events).toEqual([
+      {type: 'seeded', seeded: false},
+      {type: 'started', port: engine.port, harness: 'fake-events'},
+    ])
+    await fetch(`http://127.0.0.1:${engine.port}/t/tok-events/health`)
+    await until(() => events.length === 3)
+    expect(events[2]).toEqual({type: 'client-connected'})
+  })
 
   it('walks the whole range, cleaning up each failed bind, and lands on the last free port', async () => {
     const occupy = (port: number): Promise<void> =>
