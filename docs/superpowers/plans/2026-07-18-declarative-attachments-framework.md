@@ -356,7 +356,7 @@ git commit -m "feat(extension): defineAttachment builder with typed ctx" -- pack
   - `collectAttachmentCards(builders: AnyExtension[]): AttachmentCardEntry[]` — first-wins on mime.
   - Exports: `defineAttachment`, `collectAttachmentCards`, types `AttachmentBuilder`, `AnyAttachmentBuilder`, `AttachmentCardEntry`, `AttachmentExpand`, `AttachmentDocumentPart`, `ExtensionAttachment`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import {describe, expect, it} from 'vitest'
@@ -386,9 +386,9 @@ describe('collectAttachmentCards', () => {
 })
 ```
 
-- [ ] **Step 2: Run — Expected: FAIL** (`pnpm turbo run test --filter=@conciv/extension`).
+- [x] **Step 2: Run — Expected: FAIL** (`pnpm turbo run test --filter=@conciv/extension`).
 
-- [ ] **Step 3: Implement — thread the generic + field**
+- [x] **Step 3: Implement — thread the generic + field**
 
 In `define-extension.ts`: add `Attachments extends readonly AnyAttachmentBuilder[] = readonly []` to `ExtensionMeta`, `ExtensionBuilder`, and `defineExtension`'s generics; add `attachments?: Attachments` to both type bodies; add `attachments: meta.attachments,` to the constructed builder; change the server signature to
 
@@ -402,7 +402,7 @@ and update `AnyExtension` and the other `ExtensionBuilder<...>` references for t
 
 **Acceptance (no-new-cast):** this task's diff must introduce ZERO new `as`/`as unknown as`/non-null casts. The single pre-existing `as unknown as ExtensionBuilder<...>` at `define-extension.ts:102` stays and absorbs the new `attachments` field exactly as it absorbs `tools`. If the `Attachments` generic fights variance anywhere, fall back to the structural `AnyAttachmentBuilder` shape from Task 3's note — never a cast. Verify: `git diff packages/extension | grep -E '\bas\b'` shows nothing new.
 
-- [ ] **Step 4: Implement the collector**
+- [x] **Step 4: Implement the collector**
 
 Append to `collect-client.ts`:
 
@@ -424,9 +424,9 @@ export function collectAttachmentCards(builders: AnyExtension[]): AttachmentCard
 
 Add the exports listed in Interfaces to `index.ts`.
 
-- [ ] **Step 5: Run — Expected: PASS.** Also `pnpm turbo run typecheck --filter=@conciv/extension` (the generic-arity change touches every `ExtensionBuilder` reference).
+- [x] **Step 5: Run — Expected: PASS.** Also `pnpm turbo run typecheck --filter=@conciv/extension` (the generic-arity change touches every `ExtensionBuilder` reference).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git commit -m "feat(extension): attachments on extensions + collectAttachmentCards + ctx constraint" -- packages/extension/src/define-extension.ts packages/extension/src/collect-client.ts packages/extension/src/index.ts packages/extension/test/collect-attachment-cards.test.ts
