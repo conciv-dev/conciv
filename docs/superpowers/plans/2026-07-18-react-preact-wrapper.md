@@ -41,7 +41,7 @@
 - Produces (later tasks import these from `@conciv/embed`):
   - `interface ConcivSettingsInit extends WidgetConfig {defaultOpen?: boolean}` — declared in `@conciv/protocol/config-types` next to the existing `WidgetConfig` (`{modal?: boolean | ModalConfig; quickTerminal?: boolean | QuickTerminalConfig}`) so there is ONE widget-config shape, re-exported from `@conciv/embed`
   - `type ConcivInit = {extensions?: AnyExtension[]; settings?: ConcivSettingsInit; apiBase?: string}`
-  - `type ConcivHandle = {mount: () => void; unmount: () => void}`
+  - `type ConcivHandle = {mount: () => Promise<void>; unmount: () => void}`
   - `function createConciv(init?: ConcivInit): ConcivHandle`
   - `function mountConciv(extensions: AnyExtension[]): void` (unchanged signature)
   - `function mountImpl(init: ConcivInit, hostElement: HTMLElement): () => void` (internal, from `mount-impl.tsx`)
@@ -57,9 +57,9 @@ import {describe, expect, it} from 'vitest'
 import {createConciv, mountConciv} from '../src/mount.js'
 
 describe('createConciv outside a browser', () => {
-  it('mount and unmount are no-ops without document', () => {
+  it('mount resolves and unmount is a no-op without document', async () => {
     const handle = createConciv()
-    expect(() => handle.mount()).not.toThrow()
+    await expect(handle.mount()).resolves.toBeUndefined()
     expect(() => handle.unmount()).not.toThrow()
   })
 
@@ -236,39 +236,38 @@ async function boot(root: ShadowRoot, init: ConcivInit): Promise<() => void> {
   root.appendChild(container)
   const disposeApp = render(() => <RouterProvider router={router} />, container)
   const plane = startPagePlane({rpc, document, driver})
+  const disposers = [
+    () => plane.dispose(),
+    disposeApp,
+    () => router.options.context.queryClient.clear(),
+    driver.dispose,
+  ]
   return () => {
-    try {
-      plane.dispose()
-    } finally {
+    for (const dispose of disposers) {
       try {
-        disposeApp()
-      } finally {
-        driver.dispose()
+        dispose()
+      } catch (error) {
+        console.error('[conciv] teardown step failed', error)
       }
     }
   }
 }
 
-export function mountImpl(init: ConcivInit, hostElement: HTMLElement): () => void {
+export function mountImpl(init: ConcivInit, hostElement: HTMLElement): {ready: Promise<void>; teardown: () => void} {
   installReactBridge()
   window.__CONCIV_REACT_BRIDGE__ = reactBridge
   const hostRouter = window.__TSR_ROUTER__
   const {host, root} = createShadowRoot(hostElement)
   let disposed = false
   let disposeBoot: (() => void) | undefined
-  void boot(root, init).then(
-    (dispose) => {
-      if (disposed) {
-        dispose()
-        return
-      }
-      disposeBoot = dispose
-    },
-    (error: unknown) => {
-      console.error('[conciv] failed to boot widget', error)
-    },
-  )
-  return () => {
+  const ready = boot(root, init).then((dispose) => {
+    if (disposed) {
+      dispose()
+      return
+    }
+    disposeBoot = dispose
+  })
+  const teardown = (): void => {
     disposed = true
     try {
       disposeBoot?.()
@@ -279,12 +278,14 @@ export function mountImpl(init: ConcivInit, hostElement: HTMLElement): () => voi
       window.__CONCIV_REACT_BRIDGE__ = undefined
     }
   }
+  return {ready, teardown}
 }
 ```
 
 Notes for the implementer:
-- This is the old `mount.tsx` `boot` with these changes: `init.apiBase ?? resolveApiBase()`, settings from `init.settings` (serialized through the existing `parseConcivSettings` parser) with the `pw-widget` meta as fallback, `init.extensions ?? []`, and the previously-dropped `render()` dispose + `startPagePlane(...).dispose` + the new `driver.dispose()` captured into a returned teardown.
-- Teardown is fault-isolated with nested `try`/`finally`: one throwing `onCleanup` inside the Solid dispose must never skip the remaining disposers or `host.remove()` — a leftover `[data-conciv-root]` host would permanently block remount.
+- This is the old `mount.tsx` `boot` with these changes: `init.apiBase ?? resolveApiBase()`, settings from `init.settings` (serialized through the existing `parseConcivSettings` parser) with the `pw-widget` meta as fallback, `init.extensions ?? []`, and a teardown covering the previously-dropped `render()` dispose plus `startPagePlane(...).dispose`, `queryClient.clear()`, and the new `driver.dispose()`.
+- Teardown is fault-isolated via the disposers loop (and `try`/`finally` in `mountImpl`): one throwing `onCleanup` inside the Solid dispose must never skip the remaining disposers or `host.remove()` — a leftover `[data-conciv-root]` host would permanently block remount. Failures are logged, never rethrown.
+- Boot failures propagate through `ready` so `createConciv`'s `mount()` promise rejects; `mountImpl` itself does not log (the caller does).
 - The inner `window.__TSR_ROUTER__` capture/restore around router creation is load-bearing (embedded TanStack Router clobbers the host app's global otherwise) — keep it exactly. The outer capture in `mountImpl` + restore in teardown handles the newly-possible unmount path for hosts that themselves use TanStack Router.
 - `installReactBridge()` is intentionally NOT torn down: `installTracker` is idempotent (`state.installed` guard in `packages/page/src/render-tracker.ts`), so remount is safe and uninstalling the RDT hook would be riskier than leaving it.
 - `createShadowRoot` also injects font + `@property` styles into `document.head`; they are deliberately left on unmount (both `register*` helpers are idempotent via their `data-*` guards, so remount reuses them). The READMEs document this.
@@ -304,7 +305,7 @@ export type ConcivInit = {
 }
 
 export type ConcivHandle = {
-  mount: () => void
+  mount: () => Promise<void>
   unmount: () => void
 }
 
@@ -316,7 +317,7 @@ export function createConciv(init: ConcivInit = {}): ConcivHandle {
   let host: HTMLElement | undefined
   let teardown: (() => void) | undefined
 
-  function mount(): void {
+  async function mount(): Promise<void> {
     if (typeof document === 'undefined') return
     if (state !== 'unmounted') return
     if (document.querySelector('[data-conciv-root]')) {
@@ -330,18 +331,23 @@ export function createConciv(init: ConcivInit = {}): ConcivHandle {
     state = 'mounting'
     const controller = new AbortController()
     abort = controller
-    void import('./mount-impl.js')
-      .then(({mountImpl}) => {
-        if (controller.signal.aborted) return
-        teardown = mountImpl(init, claim)
-        state = 'mounted'
-      })
-      .catch((error: unknown) => {
-        claim.remove()
-        host = undefined
-        state = 'unmounted'
-        console.error('[conciv] failed to load widget', error)
-      })
+    try {
+      const {mountImpl} = await import('./mount-impl.js')
+      if (controller.signal.aborted) return
+      const impl = mountImpl(init, claim)
+      teardown = impl.teardown
+      state = 'mounted'
+      await impl.ready
+    } catch (error) {
+      if (controller.signal.aborted) return
+      teardown?.()
+      teardown = undefined
+      claim.remove()
+      host = undefined
+      state = 'unmounted'
+      console.error('[conciv] failed to start widget', error)
+      throw error
+    }
   }
 
   function unmount(): void {
@@ -358,9 +364,13 @@ export function createConciv(init: ConcivInit = {}): ConcivHandle {
 }
 
 export function mountConciv(extensions: AnyExtension[]): void {
-  createConciv({extensions}).mount()
+  void createConciv({extensions})
+    .mount()
+    .catch(() => undefined)
 }
 ```
+
+`mount()` returns a promise that resolves once the widget has fully booted and rejects on chunk-load or boot failure (after cleaning up the claim and logging) — callers get a real programmatic signal, not console-only. Abort during mount resolves silently. `mountConciv` swallows the rejection (the error is already logged; the script-tag path has no caller to signal).
 
 No module-level state: the `[data-conciv-root]` host element IS the singleton guard, and it is claimed synchronously in `mount()` — check + insert happen in the same tick, so two handles mounting concurrently (or the script-tag inject racing a `<ConcivWidget/>`) cannot both pass; the loser warns and no-ops. This also works across separate bundle copies on one page, which no in-module flag could. All remaining state (`state`/`abort`/`host`/`teardown`) lives in the `createConciv` closure. The failed-import path removes the claim so a later mount can retry.
 
@@ -534,7 +544,7 @@ import {handleHostPage, serveHost} from './helpers/host.js'
 
 const ASSISTANT_TEXT = 'Hello from conciv'
 
-type Handle = {mount: () => void; unmount: () => void}
+type Handle = {mount: () => Promise<void>; unmount: () => void}
 
 declare global {
   interface Window {
@@ -573,12 +583,12 @@ describe('createConciv lifecycle', () => {
     const page = await openPage()
     await page.evaluate((apiBase) => {
       window.__handle = window.ConcivHandle.makeHandle(apiBase)
-      window.__handle.mount()
+      void window.__handle.mount()
     }, kit.base)
     await expect.poll(() => fab(page).isVisible(), {timeout: 15_000}).toBe(true)
     await page.evaluate(() => window.__handle.unmount())
     await expect.poll(() => fab(page).count(), {timeout: 5_000}).toBe(0)
-    await page.evaluate(() => window.__handle.mount())
+    await page.evaluate(() => void window.__handle.mount())
     await expect.poll(() => fab(page).isVisible(), {timeout: 15_000}).toBe(true)
     await page.close()
   })
@@ -590,8 +600,8 @@ describe('createConciv lifecycle', () => {
       if (message.type() === 'warning') warnings.push(message.text())
     })
     await page.evaluate((apiBase) => {
-      window.ConcivHandle.makeHandle(apiBase).mount()
-      window.ConcivHandle.makeHandle(apiBase).mount()
+      void window.ConcivHandle.makeHandle(apiBase).mount()
+      void window.ConcivHandle.makeHandle(apiBase).mount()
     }, kit.base)
     await expect.poll(() => fab(page).count(), {timeout: 15_000}).toBe(1)
     expect(warnings.some((text) => text.includes('[conciv] widget already mounted'))).toBe(true)
@@ -603,7 +613,7 @@ describe('createConciv lifecycle', () => {
     const page = await openPage()
     await page.evaluate((apiBase) => {
       const handle = window.ConcivHandle.makeHandle(apiBase)
-      handle.mount()
+      void handle.mount()
       handle.unmount()
     }, kit.base)
     await expect.poll(() => fab(page).count(), {timeout: 5_000}).toBe(0)
@@ -616,7 +626,7 @@ describe('createConciv lifecycle', () => {
     await page.evaluate((apiBase) => {
       window.__TSR_ROUTER__ = {hostSentinel: true}
       window.__handle = window.ConcivHandle.makeHandle(apiBase)
-      window.__handle.mount()
+      void window.__handle.mount()
     }, kit.base)
     await expect.poll(() => fab(page).isVisible(), {timeout: 15_000}).toBe(true)
     await page.evaluate(() => window.__handle.unmount())
@@ -634,7 +644,7 @@ describe('createConciv lifecycle', () => {
     page.on('pageerror', (error) => pageErrors.push(String(error)))
     await page.evaluate((apiBase) => {
       window.__handle = window.ConcivHandle.makeHandle(apiBase)
-      window.__handle.mount()
+      void window.__handle.mount()
     }, kit.base)
     await fab(page).click()
     const box = page.getByRole('textbox', {name: 'Message the conciv agent'})
@@ -815,7 +825,7 @@ export default defineConfig({
 `packages/react/src/index.ts`:
 
 ```ts
-import {useEffect, useState} from 'react'
+import {useEffect} from 'react'
 import {createConciv, type ConcivInit} from '@conciv/embed'
 
 export type {ConcivInit, ConcivSettingsInit} from '@conciv/embed'
@@ -823,18 +833,20 @@ export type {ConcivInit, ConcivSettingsInit} from '@conciv/embed'
 export type ConcivWidgetProps = ConcivInit
 
 export function ConcivWidget(props: ConcivWidgetProps): null {
-  const [handle] = useState(() => createConciv(props))
+  const configKey = JSON.stringify({apiBase: props.apiBase, settings: props.settings})
+  const extensions = props.extensions
   useEffect(() => {
-    handle.mount()
+    const handle = createConciv({apiBase: props.apiBase, settings: props.settings, extensions})
+    void handle.mount().catch(() => undefined)
     return () => {
       handle.unmount()
     }
-  }, [handle])
+  }, [configKey, extensions])
   return null
 }
 ```
 
-Props are captured once (first render); changing them later is intentionally unsupported in v0 — remount the component instead. The component renders `null`: the widget owns its own body-level shadow root.
+Props are fully reactive: the effect keys on a value-stable serialization of `apiBase`/`settings` plus the `extensions` array identity, so any prop change tears the widget down and boots it with the new configuration (conciv settings and extensions feed router creation at boot — remount IS the correct live-update, there is no partial-update surface). Inline `settings` objects are fine (value-keyed); `extensions` must be identity-stable (module constant or `useMemo`) or every render remounts. Mount rejections are swallowed here because `createConciv` already logged them and an effect has no error channel. The component renders `null`: the widget owns its own body-level shadow root.
 
 - [ ] **Step 3: Write the README**
 
@@ -862,7 +874,7 @@ Renders nothing in the React tree; mounts the conciv widget in its own shadow ro
 
 Props (all optional): `extensions` (conciv extensions to load), `settings` (same shape as the `pw-widget` meta config), `apiBase` (conciv server URL; defaults to the meta/query resolution).
 
-Props are read once on mount; to apply new values, remount the component (e.g. change its `key`). Passing `apiBase` explicitly is the recommended secure usage — the `?core=` query-param fallback is restricted to loopback/same-origin URLs. The widget's font and CSS `@property` registrations stay in `document.head` after unmount (idempotent, reused on remount).
+Prop changes remount the widget with the new configuration. Keep the `extensions` array identity-stable (module constant or `useMemo`) — a fresh array each render remounts each render; `settings`/`apiBase` are compared by value, inline literals are fine. Passing `apiBase` explicitly is the recommended secure usage — the `?core=` query-param fallback is restricted to loopback/same-origin URLs. The widget's font and CSS `@property` registrations stay in `document.head` after unmount (idempotent, reused on remount).
 ````
 
 - [ ] **Step 4: Install and build**
@@ -898,13 +910,16 @@ import terminal from '@conciv/extension-terminal/client'
 import {ConcivWidget} from '@conciv/react'
 
 const apiBase = new URLSearchParams(window.location.search).get('core') ?? ''
+const extensions = [terminal]
 
 function App() {
   const [enabled, setEnabled] = useState(true)
+  const [defaultOpen, setDefaultOpen] = useState(false)
   return (
     <>
       <button onClick={() => setEnabled((value) => !value)}>toggle widget</button>
-      {enabled ? <ConcivWidget extensions={[terminal]} apiBase={apiBase} /> : null}
+      <button onClick={() => setDefaultOpen(true)}>open by default</button>
+      {enabled ? <ConcivWidget extensions={extensions} apiBase={apiBase} settings={{defaultOpen}} /> : null}
     </>
   )
 }
@@ -1070,8 +1085,23 @@ describe('ConcivWidget in a real React app', () => {
       .toBe(true)
     await page.close()
   })
+
+  it('a settings prop change remounts the widget with the new configuration', async () => {
+    const page = await openPage()
+    await expect
+      .poll(() => page.getByRole('button', {name: 'Open conciv chat'}).isVisible(), {timeout: 15_000})
+      .toBe(true)
+    await page.getByRole('button', {name: 'open by default'}).click()
+    await expect
+      .poll(() => page.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 15_000})
+      .toBe(true)
+    expect(await page.getByRole('dialog', {name: 'conciv chat agent'}).count()).toBe(1)
+    await page.close()
+  })
 })
 ```
+
+The settings-change test proves reactivity end-to-end through an observable behavior: flipping `defaultOpen` to `true` remounts the widget, and the remounted widget auto-opens its panel (the `dialog` role name matches `embed.it.test.ts`).
 
 - [ ] **Step 6: Run the IT**
 
@@ -1171,7 +1201,7 @@ export default defineConfig({
 `packages/preact/src/index.ts`:
 
 ```ts
-import {useEffect, useState} from 'preact/hooks'
+import {useEffect} from 'preact/hooks'
 import {createConciv, type ConcivInit} from '@conciv/embed'
 
 export type {ConcivInit, ConcivSettingsInit} from '@conciv/embed'
@@ -1179,16 +1209,20 @@ export type {ConcivInit, ConcivSettingsInit} from '@conciv/embed'
 export type ConcivWidgetProps = ConcivInit
 
 export function ConcivWidget(props: ConcivWidgetProps): null {
-  const [handle] = useState(() => createConciv(props))
+  const configKey = JSON.stringify({apiBase: props.apiBase, settings: props.settings})
+  const extensions = props.extensions
   useEffect(() => {
-    handle.mount()
+    const handle = createConciv({apiBase: props.apiBase, settings: props.settings, extensions})
+    void handle.mount().catch(() => undefined)
     return () => {
       handle.unmount()
     }
-  }, [handle])
+  }, [configKey, extensions])
   return null
 }
 ```
+
+Same reactive contract as the React component (value-keyed `apiBase`/`settings`, identity-keyed `extensions`).
 
 `packages/preact/README.md`: copy Task 3's README with `@conciv/react` → `@conciv/preact`, "React" → "Preact", and drop the `'use client'` mention (the SSR no-op sentence stays).
 
@@ -1205,13 +1239,16 @@ import terminal from '@conciv/extension-terminal/client'
 import {ConcivWidget} from '@conciv/preact'
 
 const apiBase = new URLSearchParams(window.location.search).get('core') ?? ''
+const extensions = [terminal]
 
 function App() {
   const [enabled, setEnabled] = useState(true)
+  const [defaultOpen, setDefaultOpen] = useState(false)
   return (
     <>
       <button onClick={() => setEnabled((value) => !value)}>toggle widget</button>
-      {enabled ? <ConcivWidget extensions={[terminal]} apiBase={apiBase} /> : null}
+      <button onClick={() => setDefaultOpen(true)}>open by default</button>
+      {enabled ? <ConcivWidget extensions={extensions} apiBase={apiBase} settings={{defaultOpen}} /> : null}
     </>
   )
 }
@@ -1379,6 +1416,15 @@ git commit -m "test(e2e): nextjs app-router coverage for the ConcivWidget compon
 
 ---
 
+## Grounding vs TanStack devtools (intentional deviations)
+
+The architecture is theirs: framework-free core handle, `typeof document` guard, dynamic import of the Solid impl, abort-on-unmount, thin wrapper mounting from an effect. Four deliberate deviations — do not "fix" these back toward the reference:
+
+1. **`mount(): Promise<void>`** (theirs: `void`, console-only errors). Full-feature requirement: callers get a programmatic failure signal. Wrappers ignore it exactly like their wrappers ignore mount internals.
+2. **`unmount()` is a no-op when unmounted** (theirs: throws `'Devtools is not mounted'`). Their behavior breaks React effect cleanup after a failed/aborted mount; ours is safe by construction.
+3. **Prop changes remount** (theirs: `setConfig` live-updates plugins without remount). Their plugins are leaf content portaled into a running shell; conciv's `settings`/`extensions`/`apiBase` feed router creation at boot, so a clean teardown + boot IS the live-update. Value-keyed effect deps make it automatic.
+4. **Page-level singleton claim** (theirs: per-instance throw, no cross-instance guard). Their devtools mounts into a caller-provided element; our widget owns one body-level shadow root per page, so the synchronous `[data-conciv-root]` claim is required.
+
 ## Release note (no action in this plan)
 
 npm OIDC trusted publishing cannot create NEW packages. Before the next release lands, `@conciv/react` and `@conciv/preact` need a manual first-publish bootstrap. First-publish security checklist (flag to the user at handoff — do not publish from the laptop without walking through it):
@@ -1393,5 +1439,5 @@ npm OIDC trusted publishing cannot create NEW packages. Before the next release 
 - If the `'use client'` banner is missing from `packages/react/dist/index.js` after build, fix the tsdown `banner: {js: ...}` config — do not move the directive into source and hope it survives bundling.
 - Preact `useState` supports the lazy-initializer form used in `packages/preact/src/index.ts` (confirmed in the Preact hooks docs).
 - The host fixtures import the package by self-reference (`@conciv/react` from inside `packages/react`); if vite fails to resolve the self-reference, fall back to importing `../../../dist/index.js` — never `../../../src`.
-- Boot failures after a successful chunk load are console-only (`[conciv] failed to boot widget`); `mount()` stays void-returning like TanStack's core. Callers get no programmatic signal — documented behavior, not a gap to "fix" mid-implementation.
+- `mount()` rejects on chunk-load or boot failure (after cleanup + one `console.error`); the wrappers swallow the rejection because effects have no error channel and the error is already logged.
 - The `codeSplitting: false` output setting in `vite.global.config.ts` (Step 5) is load-bearing — the iife global entry pulls `mount.ts`'s dynamic import and cannot code-split.

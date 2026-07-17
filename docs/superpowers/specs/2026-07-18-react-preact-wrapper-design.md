@@ -40,12 +40,14 @@ New public function alongside `mountConciv`:
 ```ts
 type ConcivInit = {
   extensions?: AnyExtension[]
-  settings?: ConcivSettings // the parsed type returned by parseConcivSettings ('conciv/settings')
+  settings?: ConcivSettingsInit // raw meta-config shape, declared in @conciv/protocol (WidgetConfig + defaultOpen)
   apiBase?: string
 }
 
-function createConciv(init: ConcivInit): {mount(): void, unmount(): void}
+function createConciv(init: ConcivInit): {mount(): Promise<void>, unmount(): void}
 ```
+
+`mount()` resolves when the widget has booted and rejects on load/boot failure (after cleanup + logging). The `[data-conciv-root]` host element is claimed synchronously inside `mount()` so concurrent mounts (two handles, or component + script-tag inject) collapse to one widget with a warning.
 
 - `mount()`:
   - `typeof document === 'undefined'` → return (SSR no-op).
@@ -75,10 +77,11 @@ New package `packages/react`:
 
 - Exports `ConcivWidget(props: ConcivInit): null` and the props type. `'use client'` banner on the
   entry.
-- `useState(() => createConciv(props))` (created once; prop changes after first render are not
-  applied — documented, v0). `useEffect(() => {handle.mount(); return () => handle.unmount()}, [])`.
-  Renders `null`: the widget owns its body-level shadow root; no host DOM node needed, so no
-  `react-dom` dependency.
+- Props are fully reactive: the mount effect keys on a value-stable serialization of
+  `apiBase`/`settings` plus the `extensions` array identity; any change tears down and reboots the
+  widget with the new configuration (settings/extensions feed router creation at boot, so remount
+  is the correct live-update). Renders `null`: the widget owns its body-level shadow root; no host
+  DOM node needed, so no `react-dom` dependency.
 - StrictMode double-invoke: effect runs mount → cleanup unmount → mount; the abort + full teardown
   make this safe by construction.
 - Deps: `@conciv/embed`. Peer: `react >=16.8` (+ `@types/react` optional). Build: tsdown, plain TS
@@ -119,5 +122,4 @@ Real browser (Playwright/Chromium), never jsdom; assert observable behavior only
 ## Out of scope
 
 - Reverse portals for host-framework content inside the widget (custom FAB, custom tool cards).
-- Reactive prop updates after mount (`setConfig`-style) — remount is the v0 answer.
 - Vue/Svelte wrappers.
