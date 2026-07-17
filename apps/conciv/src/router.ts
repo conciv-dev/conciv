@@ -19,6 +19,8 @@ export type ConcivRouterContext = {
   data: AppData
   extensions: AnyExtension[]
   instances: ExtensionInstance[]
+  connected: () => boolean
+  bindApiBase?: (apiBase: string) => void
 }
 
 export type ConcivRouterConfig = {
@@ -27,6 +29,8 @@ export type ConcivRouterConfig = {
   environment: ConcivEnvironment
   settings: ConcivSettings
   extensions?: AnyExtension[]
+  connected?: () => boolean
+  bindApiBase?: (apiBase: string) => void
 }
 
 function createInstances(extensions: AnyExtension[]): ExtensionInstance[] {
@@ -51,6 +55,8 @@ export function createConcivRouter(config: ConcivRouterConfig) {
       data,
       extensions,
       instances: createInstances(extensions),
+      connected: config.connected ?? (() => true),
+      bindApiBase: config.bindApiBase,
     },
   })
 }

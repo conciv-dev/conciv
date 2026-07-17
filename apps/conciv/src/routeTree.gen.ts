@@ -13,6 +13,7 @@ import { Route as QuickRouteImport } from './routes/quick'
 import { Route as PanelRouteImport } from './routes/panel'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as PipSessionIdRouteImport } from './routes/pip.$sessionId'
+import { Route as PanelConnectRouteImport } from './routes/panel.connect'
 import { Route as PanelSessionIdRouteImport } from './routes/panel.$sessionId'
 import { Route as PanelSessionIdIndexRouteImport } from './routes/panel.$sessionId.index'
 import { Route as PanelSessionIdViewRouteImport } from './routes/panel.$sessionId.$view'
@@ -37,6 +38,11 @@ const PipSessionIdRoute = PipSessionIdRouteImport.update({
   path: '/pip/$sessionId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PanelConnectRoute = PanelConnectRouteImport.update({
+  id: '/connect',
+  path: '/connect',
+  getParentRoute: () => PanelRoute,
+} as any)
 const PanelSessionIdRoute = PanelSessionIdRouteImport.update({
   id: '/$sessionId',
   path: '/$sessionId',
@@ -58,6 +64,7 @@ export interface FileRoutesByFullPath {
   '/panel': typeof PanelRouteWithChildren
   '/quick': typeof QuickRoute
   '/panel/$sessionId': typeof PanelSessionIdRouteWithChildren
+  '/panel/connect': typeof PanelConnectRoute
   '/pip/$sessionId': typeof PipSessionIdRoute
   '/panel/$sessionId/$view': typeof PanelSessionIdViewRoute
   '/panel/$sessionId/': typeof PanelSessionIdIndexRoute
@@ -66,6 +73,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/panel': typeof PanelRouteWithChildren
   '/quick': typeof QuickRoute
+  '/panel/connect': typeof PanelConnectRoute
   '/pip/$sessionId': typeof PipSessionIdRoute
   '/panel/$sessionId/$view': typeof PanelSessionIdViewRoute
   '/panel/$sessionId': typeof PanelSessionIdIndexRoute
@@ -76,6 +84,7 @@ export interface FileRoutesById {
   '/panel': typeof PanelRouteWithChildren
   '/quick': typeof QuickRoute
   '/panel/$sessionId': typeof PanelSessionIdRouteWithChildren
+  '/panel/connect': typeof PanelConnectRoute
   '/pip/$sessionId': typeof PipSessionIdRoute
   '/panel/$sessionId/$view': typeof PanelSessionIdViewRoute
   '/panel/$sessionId/': typeof PanelSessionIdIndexRoute
@@ -87,6 +96,7 @@ export interface FileRouteTypes {
     | '/panel'
     | '/quick'
     | '/panel/$sessionId'
+    | '/panel/connect'
     | '/pip/$sessionId'
     | '/panel/$sessionId/$view'
     | '/panel/$sessionId/'
@@ -95,6 +105,7 @@ export interface FileRouteTypes {
     | '/'
     | '/panel'
     | '/quick'
+    | '/panel/connect'
     | '/pip/$sessionId'
     | '/panel/$sessionId/$view'
     | '/panel/$sessionId'
@@ -104,6 +115,7 @@ export interface FileRouteTypes {
     | '/panel'
     | '/quick'
     | '/panel/$sessionId'
+    | '/panel/connect'
     | '/pip/$sessionId'
     | '/panel/$sessionId/$view'
     | '/panel/$sessionId/'
@@ -146,6 +158,13 @@ declare module '@tanstack/solid-router' {
       preLoaderRoute: typeof PipSessionIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/panel/connect': {
+      id: '/panel/connect'
+      path: '/connect'
+      fullPath: '/panel/connect'
+      preLoaderRoute: typeof PanelConnectRouteImport
+      parentRoute: typeof PanelRoute
+    }
     '/panel/$sessionId': {
       id: '/panel/$sessionId'
       path: '/$sessionId'
@@ -186,10 +205,12 @@ const PanelSessionIdRouteWithChildren = PanelSessionIdRoute._addFileChildren(
 
 interface PanelRouteChildren {
   PanelSessionIdRoute: typeof PanelSessionIdRouteWithChildren
+  PanelConnectRoute: typeof PanelConnectRoute
 }
 
 const PanelRouteChildren: PanelRouteChildren = {
   PanelSessionIdRoute: PanelSessionIdRouteWithChildren,
+  PanelConnectRoute: PanelConnectRoute,
 }
 
 const PanelRouteWithChildren = PanelRoute._addFileChildren(PanelRouteChildren)

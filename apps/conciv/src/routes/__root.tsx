@@ -12,12 +12,13 @@ import {Dialog, EnvironmentProvider, Popover} from '@conciv/ui-kit-system'
 import {HostApiProvider} from '@conciv/extension'
 import {showToast} from '@conciv/page'
 import {createHotkey} from '@tanstack/solid-hotkeys'
-import {Show, createSignal, onMount} from 'solid-js'
+import {Show, createSignal, onCleanup, onMount} from 'solid-js'
 import type {ConcivRouterContext} from '../router.js'
 import {
   AppContext,
   useAppData,
   useAppQueryClient,
+  useConnected,
   useLayers,
   useRpc,
   useSettings,
@@ -57,6 +58,14 @@ function RootComponent() {
   const suppressed = (): '' | undefined => (layers.anyHiding() ? '' : undefined)
   const fab = createDraggablePosition({initial: app.settings.modal.position, storageKey: 'conciv-fab-position'})
 
+  const [arrivedFromConnect, setArrivedFromConnect] = createSignal(false)
+  const connectBind = async (apiBase: string): Promise<string> => {
+    app.bindApiBase?.(apiBase)
+    const {sessionId} = await app.rpc.sessions.resolve({})
+    setArrivedFromConnect(true)
+    return sessionId
+  }
+
   const sessionFromRoute = (): string | null => {
     const panel = panelParams()
     if (panel) return panel.sessionId
@@ -94,6 +103,9 @@ function RootComponent() {
     suppressed,
     fabPosition: fab.position,
     instances: app.instances,
+    connected: app.connected,
+    arrivedFromConnect,
+    connectBind,
   }
 
   return (
@@ -130,16 +142,18 @@ function RootChrome(props: {
   const settings = useSettings()
   const layers = useLayers()
   const suppressed = useSuppressed()
+  const connected = useConnected()
   const router = useRouter()
   const matchRoute = useMatchRoute()
   const panelMatch = matchRoute({to: '/panel/$sessionId', fuzzy: true})
+  const connectMatch = matchRoute({to: '/panel/connect'})
   const quickMatch = matchRoute({to: '/quick'})
   const closedMatch = matchRoute({to: '/'})
   const rootSearch = Route.useSearch()
   const shutterOpen = () => rootSearch().open === true
-  const panelOpen = () => Boolean(panelMatch()) && shutterOpen()
+  const panelOpen = () => (Boolean(panelMatch()) || Boolean(connectMatch())) && shutterOpen()
 
-  const sessions = useQuery(() => data.utils.sessions.list.queryOptions())
+  const sessions = useQuery(() => ({...data.utils.sessions.list.queryOptions(), enabled: connected()}))
   const working = () => (sessions.data ?? []).some((session) => session.running)
 
   let fabEl: HTMLButtonElement | undefined
@@ -149,8 +163,14 @@ function RootChrome(props: {
     const latest = rows.toSorted((a, b) => b.updatedAt - a.updatedAt)[0]
     return (await rpc.sessions.resolve(latest ? {id: latest.id} : {})).sessionId
   }
+  const dispatchToggled = (open: boolean) =>
+    window.dispatchEvent(new CustomEvent('conciv:panel-toggled', {detail: {open}}))
   const openPanel = async () => {
-    if (panelMatch()) return setShutter(router, true)
+    if (panelMatch() || connectMatch()) {
+      setShutter(router, true)
+      dispatchToggled(true)
+      return
+    }
     const sessionId = await latestSessionId()
     void router.navigate({
       to: '/panel/$sessionId',
@@ -158,15 +178,20 @@ function RootChrome(props: {
       search: {open: true},
       replace: Boolean(quickMatch()),
     })
+    dispatchToggled(true)
   }
   const closePanel = () => {
     setShutter(router, false)
+    dispatchToggled(false)
     fabEl?.focus()
   }
   const togglePanel = () => (panelOpen() ? closePanel() : void openPanel())
 
   onMount(() => {
     if (settings.defaultOpen && closedMatch()) void openPanel()
+    const openFromHost = () => void openPanel()
+    window.addEventListener('conciv:open-panel', openFromHost)
+    onCleanup(() => window.removeEventListener('conciv:open-panel', openFromHost))
   })
 
   let rootEl: HTMLDivElement | undefined
@@ -186,6 +211,7 @@ function RootChrome(props: {
   }
 
   const toggleQuick = () => {
+    if (!connected()) return
     if (quickMatch()) router.history.back()
     else void router.navigate({to: '/quick', search: {panes: '', focus: 0}, replace: Boolean(panelMatch())})
   }
