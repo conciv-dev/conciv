@@ -2,7 +2,14 @@ import {intro, log, note, outro, spinner} from '@clack/prompts'
 import {defineCommand, runMain} from 'citty'
 import {runConnect, type ConnectEvent} from './connect.js'
 
-export function plainLines(event: ConnectEvent): string[] {
+export function attachCommand(port: number, token: string): string {
+  const config = JSON.stringify({
+    mcpServers: {conciv: {type: 'http', url: `http://127.0.0.1:${port}/t/${token}/api/mcp`, alwaysLoad: true}},
+  })
+  return `claude --continue --mcp-config '${config}'`
+}
+
+export function plainLines(event: ConnectEvent, token: string): string[] {
   if (event.type === 'seeded') {
     return [
       event.seeded ? 'workspace seeded with the landing-page source' : 'no source manifest found — continuing unseeded',
@@ -12,16 +19,18 @@ export function plainLines(event: ConnectEvent): string[] {
     return [
       `connected: conciv core on 127.0.0.1:${event.port} (harness: ${event.harness})`,
       'return to your browser tab — keep this command running',
+      'to drive this page from your own claude code session (session-scoped config, conversation preserved):',
+      `  ${attachCommand(event.port, token)}`,
     ]
   }
   return ['browser paired — the widget is live']
 }
 
-function plainUi(): (event: ConnectEvent) => void {
-  return (event) => plainLines(event).forEach((line) => process.stdout.write(line + '\n'))
+function plainUi(token: string): (event: ConnectEvent) => void {
+  return (event) => plainLines(event, token).forEach((line) => process.stdout.write(line + '\n'))
 }
 
-function clackUi(): (event: ConnectEvent) => void {
+function clackUi(token: string): (event: ConnectEvent) => void {
   intro('conciv — live connect')
   const seedSpinner = spinner({cancelMessage: 'Disconnecting…'})
   seedSpinner.start('Preparing workspace')
@@ -38,6 +47,12 @@ function clackUi(): (event: ConnectEvent) => void {
     if (event.type === 'started') {
       log.success(`conciv core running on 127.0.0.1:${event.port} (harness: ${event.harness})`)
       note('Return to conciv.dev — Chrome will ask to allow\nlocal network access. Approve it.', 'Next')
+      note(
+        'To drive this page from your own Claude Code session, exit it and run:\n' +
+          `${attachCommand(event.port, token)}\n` +
+          '--continue restores the conversation; the config lasts only that session.',
+        'Attach your agent',
+      )
       waitSpinner = spinner({cancelMessage: 'Disconnecting…'})
       waitSpinner.start('Waiting for your browser…')
       return
@@ -57,7 +72,7 @@ const main = defineCommand({
   },
   run: async ({args}) => {
     const interactive = process.stdout.isTTY === true
-    const onEvent = interactive ? clackUi() : plainUi()
+    const onEvent = interactive ? clackUi(args.token) : plainUi(args.token)
     const engine = await runConnect({
       token: args.token,
       harness: args.harness,

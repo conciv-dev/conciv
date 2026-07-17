@@ -16,6 +16,12 @@ describe('pair instructions', () => {
     expect(text).not.toContain('follow the instructions')
   })
 
+  it('documents direct mcp attach with the token-gated url', () => {
+    const text = pairText('tok-xyz', 'https://conciv.dev')
+    expect(text).toContain('claude --continue --mcp-config')
+    expect(text).toContain('/t/tok-xyz/api/mcp')
+  })
+
   it('serves the instructions as markdown with the token embedded', async () => {
     const response = pairResponse('tok-route', 'https://conciv.dev')
     expect(response.headers.get('content-type')).toBe('text/markdown; charset=utf-8')
