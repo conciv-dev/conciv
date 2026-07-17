@@ -46,4 +46,11 @@ describe('recorder end to end (real browser, real engine)', () => {
     const stopped = await api().callTool('recording_stop', {captureId: started.captureId, keyframes: 0})
     expect(JSON.stringify(stopped)).toContain('During capture')
   }, 120_000)
+
+  it('panel loads the replay and offers send-to-agent after activity', async () => {
+    await api().page.getByRole('tab', {name: 'Recorder'}).click()
+    const send = api().page.getByRole('button', {name: 'Send to agent'})
+    await send.waitFor({state: 'visible', timeout: 15_000})
+    expect(await send.isVisible()).toBe(true)
+  }, 120_000)
 })
