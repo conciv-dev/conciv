@@ -93,6 +93,7 @@
     "@conciv/preact",
     "@conciv/protocol",
     "@conciv/react",
+    "@conciv/solid",
     "@conciv/solid-diffs",
     "@conciv/solid-streamdown",
     "@conciv/tools",

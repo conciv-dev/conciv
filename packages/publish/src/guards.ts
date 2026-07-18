@@ -40,6 +40,7 @@ const PUBLIC_PACKAGES = [
   '@conciv/embed',
   '@conciv/react',
   '@conciv/preact',
+  '@conciv/solid',
 ]
 
 type Manifest = {name?: string; version?: string; private?: boolean}
