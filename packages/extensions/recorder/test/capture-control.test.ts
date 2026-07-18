@@ -1,6 +1,6 @@
 import {describe, expect, it, vi} from 'vitest'
 import {createEventRing} from '../src/server/ring.js'
-import {createCaptureControl} from '../src/server/capture-control.js'
+import {VIEWER_LEASE_MS, createCaptureControl} from '../src/server/capture-control.js'
 import type {RecorderControl} from '../src/shared/protocol.js'
 
 describe('createCaptureControl', () => {
@@ -51,14 +51,51 @@ describe('createCaptureControl', () => {
     const control = createCaptureControl(createEventRing({windowMs: 60_000}), () => 0)
     const seen: RecorderControl[] = []
     control.subscribe((message) => seen.push(message))
-    control.setViewerLive(true)
+    control.renewViewer('viewer-1')
     expect(seen).toEqual([{live: true}])
     const {captureId} = control.startCapture()
-    control.setViewerLive(false)
+    control.dropViewer('viewer-1')
     expect(seen.at(-1)).toEqual({live: true})
     control.stopCapture(captureId)
     expect(seen.at(-1)).toEqual({flush: true, live: false})
     control.dispose()
+  })
+
+  it('stopping the last capture stays live while a viewer is watching', () => {
+    const control = createCaptureControl(createEventRing({windowMs: 60_000}), () => 0)
+    const seen: RecorderControl[] = []
+    control.subscribe((message) => seen.push(message))
+    control.renewViewer('viewer-1')
+    control.stopCapture(control.startCapture().captureId)
+    expect(seen.at(-1)).toEqual({flush: true, live: true})
+    control.dispose()
+  })
+
+  it('an expiring capture leaves a watching viewer live', () => {
+    vi.useFakeTimers()
+    const control = createCaptureControl(createEventRing({windowMs: 60_000}))
+    const seen: RecorderControl[] = []
+    control.startCapture()
+    control.subscribe((message) => seen.push(message))
+    for (let elapsed = 0; elapsed < 11 * 60 * 1000; elapsed += 10_000) {
+      control.renewViewer('viewer-1')
+      vi.advanceTimersByTime(10_000)
+    }
+    expect(seen).toEqual([])
+    control.dispose()
+    vi.useRealTimers()
+  })
+
+  it('a viewer whose lease is never renewed expires instead of pinning live forever', () => {
+    vi.useFakeTimers()
+    const control = createCaptureControl(createEventRing({windowMs: 60_000}))
+    const seen: RecorderControl[] = []
+    control.subscribe((message) => seen.push(message))
+    control.renewViewer('viewer-1')
+    vi.advanceTimersByTime(VIEWER_LEASE_MS + 10_000)
+    expect(seen).toEqual([{live: true}, {live: false}])
+    control.dispose()
+    vi.useRealTimers()
   })
 
   it('awaitCoverage resolves once the ring covers the timestamp', async () => {

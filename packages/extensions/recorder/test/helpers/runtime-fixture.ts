@@ -12,7 +12,7 @@ export function runtimeFixture(): RecorderRuntime {
     rings,
     control: createCaptureControl(rings),
     config: {masking: 'none', windowMinutes: 10, console: true},
-    renderer: async () => null,
+    useRenderer: async () => null,
     recordings: createRecordingStore(mkdtempSync(join(tmpdir(), 'rec-'))),
   }
 }

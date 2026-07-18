@@ -92,11 +92,18 @@ function enhanceControllerAccess(container: HTMLDivElement, player: Player): voi
   if (!(progress instanceof HTMLElement)) return
   progress.setAttribute('role', 'slider')
   progress.setAttribute('aria-label', 'Timeline')
+  progress.setAttribute('aria-valuemin', '0')
   progress.tabIndex = 0
   let current = 0
+  const announcePosition = (): void => {
+    progress.setAttribute('aria-valuemax', String(Math.round(player.getMetaData().totalTime)))
+    progress.setAttribute('aria-valuenow', String(Math.round(current)))
+  }
+  announcePosition()
   player.addEventListener('ui-update-current-time', (payload) => {
     const parsed = controllerTime.safeParse(payload)
     if (parsed.success) current = parsed.data.payload
+    announcePosition()
   })
   container.addEventListener(
     'keydown',
@@ -104,6 +111,7 @@ function enhanceControllerAccess(container: HTMLDivElement, player: Player): voi
       if (!(event.target instanceof Node) || !progress.contains(event.target)) return
       const key = scrubStep.safeParse(event.key)
       if (!key.success) return
+      event.preventDefault()
       event.stopPropagation()
       const total = player.getMetaData().totalTime
       const delta = key.data === 'ArrowLeft' ? -SCRUB_STEP_MS : SCRUB_STEP_MS
@@ -122,21 +130,22 @@ export type StreamPlayerHandle = {
 
 export function mountStreamPlayer(
   container: HTMLDivElement,
-  initial: RrwebEvent[],
+  initial: {events: RrwebEvent[]; cursor: number},
   hooks: {
-    pull: (sinceTs: number) => Promise<RrwebEvent[]>
+    pull: (cursor: number) => Promise<{events: RrwebEvent[]; cursor: number}>
     onLive: (live: boolean) => void
   },
 ): StreamPlayerHandle {
   const {scope, known} = injectPlayerStyles(container)
-  const buffer = detachEvents(initial)
-  let cursor = buffer.at(-1)?.timestamp ?? 0
+  const buffer = detachEvents(initial.events)
+  let cursor = initial.cursor
+  let lastTs = buffer.at(-1)?.timestamp ?? 0
   let aspect = recordedAspect(buffer)
   let player: Player | undefined
   let stopped = false
   let poll: ReturnType<typeof setTimeout> | undefined
 
-  const tailOffset = (): number => cursor - (buffer[0]?.timestamp ?? 0)
+  const tailOffset = (): number => lastTs - (buffer[0]?.timestamp ?? 0)
 
   const isLive = (): boolean => {
     if (!player) return true
@@ -180,17 +189,18 @@ export function mountStreamPlayer(
   buildWhenConnected()
 
   const tick = async (): Promise<void> => {
-    const fresh = await hooks.pull(cursor).catch((): RrwebEvent[] => [])
+    const fresh = await hooks.pull(cursor).catch((): {events: RrwebEvent[]; cursor: number} => ({events: [], cursor}))
     if (stopped) return
     const atEdge = isLive()
-    for (const event of fresh) {
+    for (const event of fresh.events) {
       buffer.push(event)
       if (player) {
         if (atEdge) player.getReplayer().addEvent(playerEvent.parse(event))
         if (!atEdge) player.addEvent(playerEvent.parse(event))
       }
-      cursor = Math.max(cursor, event.timestamp)
+      lastTs = Math.max(lastTs, event.timestamp)
     }
+    cursor = Math.max(cursor, fresh.cursor)
     announceLive()
     poll = setTimeout(() => void tick(), LIVE_POLL_MS)
   }

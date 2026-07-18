@@ -24,7 +24,7 @@ describe('pullWindow', () => {
         rings,
         control,
         config: {masking: 'none', windowMinutes: 10, console: true},
-        renderer: async () => null,
+        useRenderer: async () => null,
         recordings: createRecordingStore(mkdtempSync(join(tmpdir(), 'rec-'))),
       },
       8000,

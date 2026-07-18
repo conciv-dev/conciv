@@ -2,7 +2,14 @@ import {join} from 'node:path'
 import {eventIterator, os} from '@orpc/server'
 import {z} from 'zod'
 import {defineExtension, subscriptionIterator} from '@conciv/extension'
-import {RECORDER_NAME, RecorderControlSchema, RrwebEventSchema, recorderConfig} from './shared/protocol.js'
+import {
+  MAX_FLUSH_BYTES,
+  RECORDER_NAME,
+  RecorderControlSchema,
+  RrwebEventSchema,
+  jsonByteLength,
+  recorderConfig,
+} from './shared/protocol.js'
 import {createClientRings} from './server/rings.js'
 import {createRecordingStore} from './server/recordings.js'
 import {createCaptureControl} from './server/capture-control.js'
@@ -20,11 +27,10 @@ const ClientId = z.string().min(1).max(128).optional()
 const RangeInput = z.object({fromTs: z.number().optional(), toTs: z.number().optional(), clientId: ClientId})
 
 const MAX_FLUSH_EVENTS = 5000
-const MAX_FLUSH_BYTES = 8 * 1024 * 1024
 
 const FlushInput = z
   .object({clientId: z.string().min(1).max(128), events: z.array(RrwebEventSchema).max(MAX_FLUSH_EVENTS)})
-  .refine((input) => JSON.stringify(input.events).length <= MAX_FLUSH_BYTES)
+  .refine((input) => jsonByteLength(input.events) <= MAX_FLUSH_BYTES)
 
 export function makeRecorderRouter(runtime: RecorderRuntime) {
   return recorderOs.router({
@@ -36,16 +42,21 @@ export function makeRecorderRouter(runtime: RecorderRuntime) {
         runtime.rings.append(input.clientId, input.events)
         return {ok: true}
       }),
-    window: recorderOs.input(RangeInput).handler(({input}) => ({events: runtime.rings.window(input, input.clientId)})),
-    events: recorderOs
-      .input(z.object({sinceTs: z.number(), clientId: ClientId}))
-      .handler(({input}) => ({events: runtime.rings.since(input.sinceTs, input.clientId)})),
+    window: recorderOs.input(RangeInput).handler(({input}) => ({
+      events: runtime.rings.window(input, input.clientId),
+      cursor: runtime.rings.head(input.clientId),
+    })),
+    events: recorderOs.input(z.object({cursor: z.number(), clientId: ClientId})).handler(({input}) => ({
+      events: runtime.rings.since(input.cursor, input.clientId),
+      cursor: runtime.rings.head(input.clientId),
+    })),
     presence: recorderOs
-      .input(z.object({live: z.boolean()}))
+      .input(z.object({viewerId: z.string().min(1).max(128), live: z.boolean()}))
       .output(z.object({ok: z.literal(true)}))
       .handler(({input}) => {
-        runtime.control.setViewerLive(input.live)
-        if (input.live) runtime.control.emit({snapshot: true, flush: true})
+        if (!input.live) runtime.control.dropViewer(input.viewerId)
+        const joined = input.live ? runtime.control.renewViewer(input.viewerId) : false
+        if (joined) runtime.control.emit({snapshot: true, flush: true})
         return {ok: true}
       }),
     reset: recorderOs.output(z.object({ok: z.literal(true)})).handler(async () => {
@@ -77,8 +88,7 @@ export function makeRecorderRouter(runtime: RecorderRuntime) {
         .handler(async ({input}) => {
           const events = await runtime.recordings.get(input.recordingId)
           if (!events) return {error: 'expired'}
-          const renderer = await runtime.renderer().catch(() => null)
-          const video = renderer ? await renderer.renderVideo(events).catch(() => null) : null
+          const video = await runtime.useRenderer((renderer) => renderer.renderVideo(events)).catch(() => null)
           if (!video) return {error: 'render-failed'}
           return new File([new Uint8Array(video)], 'recording.webm', {type: 'video/webm'})
         }),
@@ -106,7 +116,7 @@ export default defineExtension({
     rings,
     control,
     config: server.config,
-    renderer: () => rendererCache.get(),
+    useRenderer: (work) => rendererCache.use(work),
     recordings,
   }
   return {

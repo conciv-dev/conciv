@@ -25,7 +25,7 @@ describe('recording video export (real chromium screencast)', () => {
     const runtime = runtimeFixture()
     state.renderer = await createChromiumRenderer()
     if (!state.renderer) throw new Error('chromium unavailable in test environment')
-    runtime.renderer = async () => state.renderer ?? null
+    runtime.useRenderer = async (work) => (state.renderer ? work(state.renderer) : null)
     const saved = await runtime.recordings.save(events)
     if (!saved.ok) throw new Error('fixture save failed')
     const router = makeRecorderRouter(runtime)

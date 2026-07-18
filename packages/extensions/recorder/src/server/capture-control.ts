@@ -7,7 +7,8 @@ type AppendSource = {
 }
 
 const CAPTURE_TTL_MS = 10 * 60 * 1000
-const CAPTURE_SWEEP_MS = 30_000
+const CAPTURE_SWEEP_MS = 5_000
+export const VIEWER_LEASE_MS = 20_000
 
 export type CaptureControl = {
   subscribe(emit: (control: RecorderControl) => void): () => void
@@ -15,7 +16,8 @@ export type CaptureControl = {
   startCapture(): {captureId: string; startTs: number}
   stopCapture(captureId: string): {startTs: number; stopTs: number} | null
   releaseAllCaptures(): void
-  setViewerLive(live: boolean): void
+  renewViewer(viewerId: string): boolean
+  dropViewer(viewerId: string): void
   awaitCoverage(ts: number, timeoutMs: number): Promise<boolean>
   awaitNextAppend(timeoutMs: number): Promise<boolean>
   dispose(): void
@@ -24,21 +26,39 @@ export type CaptureControl = {
 export function createCaptureControl(ring: AppendSource, now: () => number = Date.now): CaptureControl {
   const listeners = new Set<(control: RecorderControl) => void>()
   const captures = new Map<string, {startTs: number; expiresAt: number}>()
-  let viewers = 0
+  const viewers = new Map<string, number>()
 
   const emit = (control: RecorderControl): void => {
     for (const listener of listeners) listener(control)
   }
 
-  const sweep = (): void => {
-    const nowTs = now()
-    let expired = false
+  const isLive = (): boolean => captures.size > 0 || viewers.size > 0
+
+  const expireCaptures = (nowTs: number): boolean => {
+    let removed = false
     for (const [captureId, capture] of captures) {
       if (capture.expiresAt > nowTs) continue
       captures.delete(captureId)
-      expired = true
+      removed = true
     }
-    if (expired && captures.size === 0) emit({live: false})
+    return removed
+  }
+
+  const expireViewers = (nowTs: number): boolean => {
+    let removed = false
+    for (const [viewerId, expiresAt] of viewers) {
+      if (expiresAt > nowTs) continue
+      viewers.delete(viewerId)
+      removed = true
+    }
+    return removed
+  }
+
+  const sweep = (): void => {
+    const nowTs = now()
+    const expiredCaptures = expireCaptures(nowTs)
+    const expiredViewers = expireViewers(nowTs)
+    if ((expiredCaptures || expiredViewers) && !isLive()) emit({live: false})
   }
 
   const sweepTimer = setInterval(sweep, CAPTURE_SWEEP_MS)
@@ -61,18 +81,23 @@ export function createCaptureControl(ring: AppendSource, now: () => number = Dat
       const capture = captures.get(captureId)
       if (capture === undefined) return null
       captures.delete(captureId)
-      emit({flush: true, live: captures.size > 0})
+      emit({flush: true, live: isLive()})
       return {startTs: capture.startTs, stopTs: now()}
     },
     releaseAllCaptures() {
       if (captures.size === 0) return
       captures.clear()
-      if (viewers === 0) emit({live: false})
+      if (!isLive()) emit({live: false})
     },
-    setViewerLive(live) {
-      viewers = Math.max(0, viewers + (live ? 1 : -1))
-      if (live && viewers === 1 && captures.size === 0) emit({live: true})
-      if (!live && viewers === 0 && captures.size === 0) emit({live: false})
+    renewViewer(viewerId) {
+      const known = viewers.has(viewerId)
+      viewers.set(viewerId, now() + VIEWER_LEASE_MS)
+      if (!known && viewers.size === 1 && captures.size === 0) emit({live: true})
+      return !known
+    },
+    dropViewer(viewerId) {
+      if (!viewers.delete(viewerId)) return
+      if (!isLive()) emit({live: false})
     },
     awaitNextAppend(timeoutMs) {
       return new Promise((resolve) => {

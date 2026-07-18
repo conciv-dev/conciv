@@ -24,6 +24,7 @@ const mutationData = z.object({
   adds: z.array(z.object({parentId: z.number().optional(), node: serializedNode})).default([]),
   removes: z.array(z.object({id: z.number()})).default([]),
   attributes: z.array(z.object({id: z.number(), attributes: z.record(z.string(), z.unknown())})).default([]),
+  texts: z.array(z.object({id: z.number(), value: z.string().nullable()})).default([]),
 })
 
 export type NodeIndex = {
@@ -58,31 +59,73 @@ function selectorish(node: SerializedNode): string {
 
 export function createNodeIndex(): NodeIndex {
   const byId = new Map<number, SerializedNode>()
+  const parentOf = new Map<number, number>()
 
-  const walk = (node: SerializedNode): void => {
+  const walk = (node: SerializedNode, parentId?: number): void => {
     byId.set(node.id, node)
-    for (const child of node.childNodes ?? []) walk(child)
+    if (parentId !== undefined) parentOf.set(node.id, parentId)
+    for (const child of node.childNodes ?? []) walk(child, node.id)
+  }
+
+  const forget = (node: SerializedNode): void => {
+    for (const child of node.childNodes ?? []) forget(child)
+    parentOf.delete(node.id)
+    byId.delete(node.id)
+  }
+
+  const detach = (id: number): void => {
+    const parentId = parentOf.get(id)
+    const parent = parentId === undefined ? undefined : byId.get(parentId)
+    if (parent) parent.childNodes = (parent.childNodes ?? []).filter((child) => child.id !== id)
+  }
+
+  type Mutation = z.infer<typeof mutationData>
+
+  const applyAdds = (adds: Mutation['adds']): void => {
+    for (const add of adds) {
+      walk(add.node, add.parentId)
+      const parent = add.parentId === undefined ? undefined : byId.get(add.parentId)
+      if (parent) parent.childNodes = [...(parent.childNodes ?? []), add.node]
+    }
+  }
+
+  const applyAttributes = (changes: Mutation['attributes']): void => {
+    for (const change of changes) {
+      const node = byId.get(change.id)
+      if (node) node.attributes = {...node.attributes, ...change.attributes}
+    }
+  }
+
+  const applyTexts = (changes: Mutation['texts']): void => {
+    for (const change of changes) {
+      const node = byId.get(change.id)
+      if (node) node.textContent = change.value ?? ''
+    }
+  }
+
+  const applyRemoves = (removes: Mutation['removes']): void => {
+    for (const removal of removes) {
+      const node = byId.get(removal.id)
+      detach(removal.id)
+      if (node) forget(node)
+      if (!node) parentOf.delete(removal.id)
+    }
   }
 
   return {
     applyFullSnapshot(root) {
       byId.clear()
+      parentOf.clear()
       const parsed = serializedNode.safeParse(root)
       if (parsed.success) walk(parsed.data)
     },
     applyMutation(data) {
       const parsed = mutationData.safeParse(data)
       if (!parsed.success) return
-      for (const add of parsed.data.adds) {
-        walk(add.node)
-        const parent = add.parentId === undefined ? undefined : byId.get(add.parentId)
-        if (parent) parent.childNodes = [...(parent.childNodes ?? []), add.node]
-      }
-      for (const change of parsed.data.attributes) {
-        const node = byId.get(change.id)
-        if (node) node.attributes = {...node.attributes, ...change.attributes}
-      }
-      for (const removal of parsed.data.removes) byId.delete(removal.id)
+      applyRemoves(parsed.data.removes)
+      applyAdds(parsed.data.adds)
+      applyAttributes(parsed.data.attributes)
+      applyTexts(parsed.data.texts)
     },
     describe(id) {
       const node = byId.get(id)

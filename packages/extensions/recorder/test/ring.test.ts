@@ -63,9 +63,17 @@ describe('createEventRing', () => {
   it('since returns raw events strictly after the cursor', () => {
     const ring = createEventRing({windowMs: 600_000})
     ring.append('a', [snapshot(1000), incremental(2000), incremental(3000)])
-    expect(ring.since(2000)).toEqual([incremental(3000)])
+    expect(ring.since(2)).toEqual([incremental(3000)])
     expect(ring.since(0)).toEqual([snapshot(1000), incremental(2000), incremental(3000)])
-    expect(ring.since(3000)).toEqual([])
+    expect(ring.since(ring.head())).toEqual([])
+  })
+
+  it('distinguishes events sharing a timestamp so none are lost across pulls', () => {
+    const ring = createEventRing({windowMs: 600_000})
+    ring.append('a', [snapshot(1000)])
+    const cursor = ring.head()
+    ring.append('a', [incremental(1000)])
+    expect(ring.since(cursor)).toEqual([incremental(1000)])
   })
 
   it('clear empties the ring', () => {
