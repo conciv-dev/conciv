@@ -1,5 +1,6 @@
-import {createEffect, onCleanup, onMount, Show, splitProps, type JSX} from 'solid-js'
+import {createEffect, mergeProps, onCleanup, onMount, Show, splitProps, type JSX} from 'solid-js'
 import {Field} from '@ark-ui/solid/field'
+import {applyAutosize, observeAutosize} from './autosize.js'
 
 const ROOT = 'flex flex-col gap-1'
 const LABEL = 'text-[0.75rem] text-pw-text-2 font-pw'
@@ -31,26 +32,8 @@ export type TextAreaProps = Omit<JSX.TextareaHTMLAttributes<HTMLTextAreaElement>
   unstyled?: boolean
 }
 
-function paddingY(styles: CSSStyleDeclaration): number {
-  return Number.parseFloat(styles.paddingTop) + Number.parseFloat(styles.paddingBottom)
-}
-
-function borderY(styles: CSSStyleDeclaration): number {
-  return Number.parseFloat(styles.borderTopWidth) + Number.parseFloat(styles.borderBottomWidth)
-}
-
-function rowsToPx(styles: CSSStyleDeclaration, rows: number): number {
-  const lineHeight = Number.parseFloat(styles.lineHeight) || 20
-  const box = styles.boxSizing === 'border-box' ? paddingY(styles) + borderY(styles) : 0
-  return rows * lineHeight + box
-}
-
-function contentToPx(scrollHeight: number, styles: CSSStyleDeclaration): number {
-  return styles.boxSizing === 'border-box' ? scrollHeight + borderY(styles) : scrollHeight - paddingY(styles)
-}
-
 export function TextArea(props: TextAreaProps): JSX.Element {
-  const [local, rest] = splitProps(props, [
+  const [local, rest] = splitProps(mergeProps({minRows: 1, maxRows: 5}, props), [
     'class',
     'minRows',
     'maxRows',
@@ -61,30 +44,17 @@ export function TextArea(props: TextAreaProps): JSX.Element {
     'unstyled',
   ])
   let el: HTMLTextAreaElement | undefined
+  let lastHeight = 0
   const grow = () => {
     if (!el) return
-    const styles = getComputedStyle(el)
-    const max = rowsToPx(styles, local.maxRows ?? 5)
-    const min = rowsToPx(styles, local.minRows ?? 1)
-    el.style.height = 'auto'
-    const content = contentToPx(el.scrollHeight, styles)
-    const next = Math.max(min, Math.min(content, max))
-    el.style.height = `${next}px`
-    el.style.overflowY = content > max ? 'auto' : 'hidden'
-    local.onHeightChange?.(next)
+    const height = applyAutosize(el, local.minRows, local.maxRows)
+    if (height === lastHeight) return
+    lastHeight = height
+    local.onHeightChange?.(height)
   }
   onMount(() => {
     grow()
-    const node = el
-    if (!node) return
-    let lastWidth = node.clientWidth
-    const observer = new ResizeObserver(() => {
-      if (node.clientWidth === lastWidth) return
-      lastWidth = node.clientWidth
-      grow()
-    })
-    observer.observe(node)
-    onCleanup(() => observer.disconnect())
+    if (el) onCleanup(observeAutosize(el, grow))
   })
   createEffect(() => {
     void local.value
@@ -97,7 +67,7 @@ export function TextArea(props: TextAreaProps): JSX.Element {
         el = node
         if (typeof forwardRef === 'function') forwardRef(node)
       }}
-      rows={local.minRows ?? 1}
+      rows={local.minRows}
       class={`${local.unstyled ? TEXTAREA_BARE : TEXTAREA}  ${local.class ?? ''}`}
       value={local.value}
       onInput={(event) => {
