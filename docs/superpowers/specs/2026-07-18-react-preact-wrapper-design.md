@@ -10,7 +10,7 @@ Let React and Preact apps render the conciv widget as a framework-native compone
 ```tsx
 import {ConcivWidget} from '@conciv/react'
 
-<ConcivWidget extensions={[terminal()]} />
+;<ConcivWidget extensions={[terminal()]} />
 ```
 
 No Solid tooling in the host app, no build plugin required, SSR-safe (Next.js app router). Mirrors
@@ -38,13 +38,15 @@ Three changes: a lifecycle handle in `@conciv/embed`, and two new thin packages.
 New public function alongside `mountConciv`:
 
 ```ts
+type ExtensionsInput = AnyExtension[] | (() => Promise<AnyExtension[]>)
+
 type ConcivInit = {
-  extensions?: AnyExtension[]
+  extensions?: ExtensionsInput // loader form for SSR hosts: extension clients are Solid browser code, deferred into client-only boot
   settings?: ConcivSettingsInit // raw meta-config shape, declared in @conciv/protocol (WidgetConfig + defaultOpen)
   apiBase?: string
 }
 
-function createConciv(init: ConcivInit): {mount(el: HTMLElement): Promise<void>, unmount(): void}
+function createConciv(init: ConcivInit): {mount(el: HTMLElement): Promise<void>; unmount(): void}
 ```
 
 Exactly the `TanStackDevtoolsCore` shape: `mount(el)` mounts into a caller-provided element (the impl attaches the shadow root to a disposable inner div so remount works — `attachShadow` is once-per-element); no page-level singleton — two handles are two widgets, the caller's choice. `mount()` resolves when the widget has booted and rejects on load/boot failure (after cleanup + logging). The script-tag `mountConciv` keeps its own body-appended element and idempotence marker.

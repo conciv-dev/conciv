@@ -24,6 +24,7 @@
 ### Task 1: `createConciv` handle in `@conciv/embed`
 
 **Files:**
+
 - Create: `packages/embed/src/mount.ts` (new lightweight entry)
 - Create: `packages/embed/src/mount-impl.tsx` (heavy Solid graph, moved from old entry)
 - Delete: `packages/embed/src/mount.tsx`
@@ -37,10 +38,12 @@
 - Test: `packages/embed/test/mount-node.test.ts`
 
 **Interfaces:**
+
 - Consumes: existing `boot` internals from `packages/embed/src/mount.tsx`, `startPagePlane` (`packages/page/src/index.ts:49`, returns `{dispose: () => void}`), `createShadowRoot` (`conciv/shadow`, returns `{host, root}`).
 - Produces (later tasks import these from `@conciv/embed`):
   - `interface ConcivSettingsInit extends WidgetConfig {defaultOpen?: boolean}` — declared in `@conciv/protocol/config-types` next to the existing `WidgetConfig` (`{modal?: boolean | ModalConfig; quickTerminal?: boolean | QuickTerminalConfig}`) so there is ONE widget-config shape, re-exported from `@conciv/embed`
-  - `type ConcivInit = {extensions?: AnyExtension[]; settings?: ConcivSettingsInit; apiBase?: string}`
+  - `type ExtensionsInput = AnyExtension[] | (() => Promise<AnyExtension[]>)` — the loader form exists for SSR hosts: extension client modules are compiled Solid browser code whose top-level template evaluation throws in a server realm, so `'use client'` consumers must defer the import into client-only boot (found by the nextjs-component e2e)
+  - `type ConcivInit = {extensions?: ExtensionsInput; settings?: ConcivSettingsInit; apiBase?: string}`
   - `type ConcivHandle = {mount: (el: HTMLElement) => Promise<void>; unmount: () => void}` — mounts INTO a caller-provided element, exactly like `TanStackDevtoolsCore.mount(el)`
   - `function createConciv(init?: ConcivInit): ConcivHandle`
   - `function mountConciv(extensions: AnyExtension[]): void` (unchanged signature)
@@ -129,7 +132,7 @@ export type PageDriver = {execute: (query: PageQuery) => Promise<PageResult>; re
 and inside `makeDomPageDriver`, replace the `consoleBuf` line and the return:
 
 ```ts
-  const {buf: consoleBuf, dispose} = startConsoleBuffer()
+const {buf: consoleBuf, dispose} = startConsoleBuffer()
 ```
 
 ```ts
@@ -284,6 +287,7 @@ export function mountImpl(init: ConcivInit, el: HTMLElement): {ready: Promise<vo
 ```
 
 Notes for the implementer:
+
 - This is the old `mount.tsx` `boot` with these changes: `init.apiBase ?? resolveApiBase()`, settings from `init.settings` (serialized through the existing `parseConcivSettings` parser) with the `pw-widget` meta as fallback, `init.extensions ?? []`, and a teardown covering the previously-dropped `render()` dispose plus `startPagePlane(...).dispose`, `queryClient.clear()`, and the new `driver.dispose()`.
 - Teardown is fault-isolated via the disposers loop (and `try`/`finally` in `mountImpl`): one throwing `onCleanup` inside the Solid dispose must never skip the remaining disposers or `host.remove()` — a leftover `[data-conciv-root]` host would permanently block remount. Failures are logged, never rethrown.
 - Boot failures propagate through `ready` so `createConciv`'s `mount()` promise rejects; `mountImpl` itself does not log (the caller does).
@@ -423,13 +427,13 @@ const externalized = (specifier: string) => new RegExp(`from\\s*["']${specifier.
 and append inside the describe:
 
 ```ts
-  it('emits the app graph as a mount-impl chunk', () => {
-    expect(chunkName).not.toBe('')
-  })
+it('emits the app graph as a mount-impl chunk', () => {
+  expect(chunkName).not.toBe('')
+})
 
-  it('keeps the mount entry free of static runtime imports (SSR-safe)', () => {
-    expect(/^import\s/m.test(entry)).toBe(false)
-  })
+it('keeps the mount entry free of static runtime imports (SSR-safe)', () => {
+  expect(/^import\s/m.test(entry)).toBe(false)
+})
 ```
 
 - [ ] **Step 8: Run the full embed test suite (existing ITs must stay green)**
@@ -450,6 +454,7 @@ git commit -m "feat(embed): createConciv mount/unmount handle with lazy mount-im
 ### Task 2: Browser IT for the `createConciv` lifecycle
 
 **Files:**
+
 - Create: `packages/embed/vite.handle.config.ts`
 - Create: `packages/embed/test/fixtures/handle-entry.ts`
 - Modify: `packages/embed/test/helpers/host.ts`
@@ -457,6 +462,7 @@ git commit -m "feat(embed): createConciv mount/unmount handle with lazy mount-im
 - Test: `packages/embed/test/create-conciv.it.test.ts`
 
 **Interfaces:**
+
 - Consumes: `createConciv`, `ConcivHandle` from Task 1; existing `bootEmbedKit` (`test/helpers/boot.ts`) and `serveHost` (`test/helpers/host.ts`).
 - Produces: test-only iife bundle `test/dist/conciv-handle.global.js` exposing `window.ConcivHandle.makeHandle(apiBase)`; helper `handleHostPage(): string`.
 
@@ -675,6 +681,7 @@ git commit -m "test(embed): browser IT for createConciv mount/unmount lifecycle"
 ### Task 3: `@conciv/react` package
 
 **Files:**
+
 - Create: `packages/react/package.json`
 - Create: `packages/react/tsconfig.json`
 - Create: `packages/react/tsdown.config.ts`
@@ -689,6 +696,7 @@ git commit -m "test(embed): browser IT for createConciv mount/unmount lifecycle"
 - Test: `packages/react/test/widget.it.test.ts`
 
 **Interfaces:**
+
 - Consumes: `createConciv`, `ConcivInit`, `ConcivSettingsInit` from `@conciv/embed` (Task 1).
 - Produces: `function ConcivWidget(props: ConcivWidgetProps): null` where `type ConcivWidgetProps = ConcivInit`; re-exports `ConcivInit`, `ConcivSettingsInit`.
 
@@ -1062,9 +1070,7 @@ async function openPage(): Promise<Page> {
 describe('ConcivWidget in a real React app', () => {
   it('mounts exactly one widget under StrictMode', async () => {
     const page = await openPage()
-    await expect
-      .poll(() => page.getByRole('button', {name: 'Open conciv chat'}).count(), {timeout: 15_000})
-      .toBe(1)
+    await expect.poll(() => page.getByRole('button', {name: 'Open conciv chat'}).count(), {timeout: 15_000}).toBe(1)
     expect(await page.getByRole('button', {name: 'Open conciv chat'}).count()).toBe(1)
     await page.close()
   })
@@ -1075,9 +1081,7 @@ describe('ConcivWidget in a real React app', () => {
       .poll(() => page.getByRole('button', {name: 'Open conciv chat'}).isVisible(), {timeout: 15_000})
       .toBe(true)
     await page.getByRole('button', {name: 'toggle widget'}).click()
-    await expect
-      .poll(() => page.getByRole('button', {name: 'Open conciv chat'}).count(), {timeout: 10_000})
-      .toBe(0)
+    await expect.poll(() => page.getByRole('button', {name: 'Open conciv chat'}).count(), {timeout: 10_000}).toBe(0)
     await page.getByRole('button', {name: 'toggle widget'}).click()
     await expect
       .poll(() => page.getByRole('button', {name: 'Open conciv chat'}).isVisible(), {timeout: 15_000})
@@ -1126,6 +1130,7 @@ git commit -m "feat(react): @conciv/react ConcivWidget component" -- packages/re
 **Files:** mirror of Task 3 under `packages/preact` — `package.json`, `tsconfig.json`, `tsdown.config.ts`, `vitest.config.ts`, `vite.fixture.config.ts`, `src/index.ts`, `README.md`, `test/fixtures/host/{index.html,main.tsx}`, `test/helpers/{boot.ts,host.ts}`, `test/widget.it.test.ts`.
 
 **Interfaces:**
+
 - Consumes: `createConciv`, `ConcivInit`, `ConcivSettingsInit` from `@conciv/embed`.
 - Produces: `function ConcivWidget(props: ConcivWidgetProps): null` (same contract as Task 3, Preact runtime).
 
@@ -1290,11 +1295,13 @@ git commit -m "feat(preact): @conciv/preact ConcivWidget component" -- packages/
 ### Task 5: Publishing wiring, fallow, changeset, full gates
 
 **Files:**
+
 - Modify: `packages/publish/src/guards.ts` (PUBLIC_PACKAGES array)
 - Modify: `.fallowrc.json` (publicPackages array)
 - Create: `.changeset/react-preact-widget-wrappers.md`
 
 **Interfaces:**
+
 - Consumes: package names `@conciv/react`, `@conciv/preact` from Tasks 3–4.
 - Produces: release-ready state; one changeset bumps the whole fixed `@conciv/*` set.
 
@@ -1359,18 +1366,20 @@ git commit -m "chore(release): wire @conciv/react + @conciv/preact into publish 
 
 The plugin-inject path is e2e-covered per framework (`e2e/*`). `<ConcivWidget/>` gets its own matrix: one consumer app per wrapper × representative host, each with its own Playwright suite, all in `CONCIV_E2E=1` dist mode like the existing apps. Matrix:
 
-| App | Wrapper | Covers |
-| --- | --- | --- |
-| `e2e/vite-react-component` | `@conciv/react` | React CSR, vite cold-cache dist consumption |
-| `e2e/nextjs-component` | `@conciv/react` | Next app router: RSC + `'use client'` boundary, Turbopack chunking, hydration |
-| `e2e/vite-preact-component` | `@conciv/preact` | Preact CSR, vite |
+| App                         | Wrapper          | Covers                                                                        |
+| --------------------------- | ---------------- | ----------------------------------------------------------------------------- |
+| `e2e/vite-react-component`  | `@conciv/react`  | React CSR, vite cold-cache dist consumption                                   |
+| `e2e/nextjs-component`      | `@conciv/react`  | Next app router: RSC + `'use client'` boundary, Turbopack chunking, hydration |
+| `e2e/vite-preact-component` | `@conciv/preact` | Preact CSR, vite                                                              |
 
 **Files:**
+
 - Modify: `packages/protocol/src/config-types.ts` (`ConcivConfig.widget` accepts `false`), `packages/plugin/src/core/widget-middleware.ts` + `packages/plugin/src/core/vite.ts` (+ nextjs leg) — `widget: false` keeps the dev server and `pw-api-base` meta but skips the widget mount-script inject
 - Create: `e2e/vite-react-component/`, `e2e/nextjs-component/`, `e2e/vite-preact-component/` (copies of their sibling apps)
 - Modify: `e2e/e2e-utils/src/ports.ts` (three new port entries), `e2e/README.md` (three table rows)
 
 **Interfaces:**
+
 - Consumes: `ConcivWidget` from Tasks 3/4; `@conciv/e2e-utils` (`e2eConfig`, `E2E_PORTS`, `collectFailures`, `expectWidgetBoots`).
 - Produces: `ConcivConfig['widget']: WidgetConfig | false`; ports `'vite-react-component': 4319`, `'nextjs-component': 4320`, `'vite-preact-component': 4321`.
 
@@ -1392,10 +1401,11 @@ rm -rf e2e/{vite-react-component,nextjs-component,vite-preact-component}/{node_m
 ```
 
 Common changes in each copy:
+
 - `package.json` `name`: sibling name + `-component`; add `"@conciv/react": "workspace:*"` (or `@conciv/preact`) and `"@conciv/extension-terminal": "workspace:*"` to `dependencies`.
 - conciv plugin config gains `widget: false` (vite config for the vite apps, `withConciv` config for next).
 - Render `<ConcivWidget extensions={extensions} />` (with `const extensions = [terminal]` module constant) at the app root: `src/App.tsx` for vite-react-component; a `'use client'` `app/conciv-widget-client.tsx` rendered from `app/layout.tsx` for nextjs-component (and delete the `import '@conciv/it/plugin/nextjs/widget'` from `instrumentation-client.ts`); `src/app.tsx` for vite-preact-component.
-- vite-preact-component additionally swaps react for preact: deps `preact` ^10.29.7 (drop react/react-dom/@types/react*/@vitejs/plugin-react), `@preact/preset-vite` devDep (or plain esbuild `jsxImportSource: 'preact'` config), entry `render(<App/>, container)` from `preact`.
+- vite-preact-component additionally swaps react for preact: deps `preact` ^10.29.7 (drop react/react-dom/@types/react\*/@vitejs/plugin-react), `@preact/preset-vite` devDep (or plain esbuild `jsxImportSource: 'preact'` config), entry `render(<App/>, container)` from `preact`.
 - `playwright.config.ts`: `e2eConfig('<new-app-port-key>', ...)` with the same command shape as the sibling.
 - Tests stay the sibling's `expectWidgetBoots` spec (it asserts FAB, opens the panel, fails on any page/console error — that catches hydration mismatches and broken client boundaries too).
 
@@ -1437,11 +1447,14 @@ Three deliberate behavior deviations — do not "fix" these back toward the refe
 
 One DOM mechanic with no analog in their code: `mountImpl` creates a disposable inner host div inside the caller's element and attaches the shadow root to THAT — `attachShadow` is once-per-element, so mounting directly on the caller's element would make remount (StrictMode, prop changes) impossible.
 
+Implementation deltas vs the task text (both landed, both intentional): (1) `extensions` also accepts a lazy loader (`ExtensionsInput`) because SSR realms cannot import Solid-compiled extension client modules — the nextjs-component e2e caught this; (2) the per-package test boot/serve/suite helpers live in the private `@conciv/extension-testkit` (`/core-kit`, `/widget-suite` subpaths) instead of per-package copies — fallow flagged the duplication as INTRODUCED.
+
 Future room: `<ConcivWidget>{children}</ConcivWidget>` can later portal host-framework content into widget slots (their plugin-render pattern) without breaking this API.
 
 ## Release note (no action in this plan)
 
 npm OIDC trusted publishing cannot create NEW packages. Before the next release lands, `@conciv/react` and `@conciv/preact` need a manual first-publish bootstrap. First-publish security checklist (flag to the user at handoff — do not publish from the laptop without walking through it):
+
 - npm account 2FA enforced; use a granular per-package publish token, never an org-wide token.
 - Run the publish with `--provenance` from CI if at all achievable; a manual publish carries no provenance attestation.
 - Configure the per-package trusted publisher IMMEDIATELY after the bootstrap so 0.0.12+ regains OIDC provenance (same procedure as `@conciv/try`).
