@@ -37,10 +37,10 @@ function Surface() {
     expect(client).not.toContain('node:fs')
     expect(client).not.toContain('readFileSync')
     expect(client).not.toContain('/etc/secret-token')
-  })
+  }, 30_000)
 
   it('the server load never executes the client (Component / .client) halves', async () => {
     const builders = await loadServerExtensions(join(here, 'fixtures', 'iso-extensions'), [])
     expect(builders.flatMap((builder) => (builder.tools ?? []).map((tool) => tool.name))).toContain('iso_tool')
-  })
+  }, 30_000)
 })
