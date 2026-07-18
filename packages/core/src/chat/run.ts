@@ -229,6 +229,7 @@ export async function startRun(deps: ChatDeps, sessionId: string, req: RunReques
   } finally {
     unwatch()
     persistRunOutcome(deps, sessionId, req.kind)
+    if (outcome.usage) outcome.usage.contextTokens = await contextOccupancyFor(deps, sessionId).catch(() => undefined)
     await recordRunEnd(deps, sessionId, outcome.usage).catch(() => {})
     releaseRun(deps.db, sessionId, outcome.error)
     deps.changes.notify()
@@ -240,6 +241,16 @@ function contextWindowFor(harness: HarnessAdapter, modelId: string | null): numb
   const models = harness.models
   if (!Array.isArray(models) || !modelId) return undefined
   return models.find((model) => model.id === modelId)?.contextWindow
+}
+
+async function contextOccupancyFor(deps: ChatDeps, sessionId: string): Promise<number | undefined> {
+  const history = deps.harness.history
+  if (!history?.contextTokens) return undefined
+  const record = await sessionById(deps.db, sessionId)
+  if (!record?.harnessSessionId) return undefined
+  const path = history.transcriptPath(deps.cwd, record.harnessSessionId, deps.claudeHome)
+  if (!existsSync(path)) return undefined
+  return history.contextTokens(readFileSync(path, 'utf8'))
 }
 
 function usageSnapshotFor(deps: ChatDeps, modelId: string | null, usage: TokenUsage): UsageSnapshot {
