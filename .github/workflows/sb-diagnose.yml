@@ -68,6 +68,17 @@ jobs:
             fs.writeFileSync(cf, cs)
             console.error("CLIENT_PATCH_APPLIED " + d)
           }
+          const pwDirs = fs.readdirSync("node_modules/.pnpm").filter(d => d.startsWith("@vitest+browser-playwright@"))
+          for (const d of pwDirs) {
+            const pf = path.join("node_modules/.pnpm", d, "node_modules/@vitest/browser-playwright/dist/index.js")
+            if (!fs.existsSync(pf)) continue
+            let ps = fs.readFileSync(pf, "utf8")
+            const pageAnchor = "const page = await context.newPage();"
+            if (!ps.includes(pageAnchor)) { console.error("PW ANCHOR NOT FOUND in " + d); continue }
+            ps = ps.replace(pageAnchor, pageAnchor + "\n\t\tpage.on(\"framenavigated\", (fr) => { if (!fr.parentFrame()) console.error(`[sbdebug-pw] ${Date.now()} framenavigated session=${sessionId} url=${fr.url()}`) });\n\t\tpage.on(\"close\", () => console.error(`[sbdebug-pw] ${Date.now()} page-close session=${sessionId}`));\n\t\tpage.on(\"crash\", () => console.error(`[sbdebug-pw] ${Date.now()} page-CRASH session=${sessionId}`));\n\t\tpage.on(\"console\", (m) => { const t = m.text(); if (t.includes(\"sbdebug-client\") || t.includes(\"[vite]\")) console.error(`[sbdebug-pw] ${Date.now()} console session=${sessionId} ${t.slice(0, 160)}`) });")
+            fs.writeFileSync(pf, ps)
+            console.error("PW_PATCH_APPLIED " + d)
+          }
           '
       - name: memory sampler
         run: |
