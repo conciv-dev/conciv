@@ -25,6 +25,7 @@ describe('panel opened before any interaction (real browser)', () => {
         {timeout: 20_000},
       )
       .toBe(true)
-    expect(await api().page.evaluate(() => Boolean(document.querySelector('.rr-controller')))).toBe(true)
+    await api().page.getByRole('button', {name: 'Pause', exact: true}).waitFor({state: 'visible', timeout: 10_000})
+    expect(await api().page.evaluate(() => Boolean(document.querySelector('.rr-controller')))).toBe(false)
   }, 120_000)
 })

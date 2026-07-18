@@ -48,4 +48,17 @@ describe('live follow routes', () => {
     await call(router.presence, {live: false}, context)
     expect(seen).toEqual([{live: true}, {snapshot: true, flush: true}, {live: false}])
   })
+
+  it('snapshot re-requests a fresh snapshot without touching the viewer cadence', async () => {
+    const runtime = runtimeFixture()
+    const seen: unknown[] = []
+    runtime.control.subscribe((message) => seen.push(message))
+    const router = makeRecorderRouter(runtime)
+    await call(router.presence, {live: true}, context)
+    seen.length = 0
+    await call(router.snapshot, undefined, context)
+    expect(seen).toEqual([{snapshot: true, flush: true}])
+    await call(router.presence, {live: false}, context)
+    expect(seen).toContainEqual({live: false})
+  })
 })

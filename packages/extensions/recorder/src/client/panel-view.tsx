@@ -1,11 +1,11 @@
-import {Show, createResource, onCleanup, type JSX} from 'solid-js'
+import {Show, createResource, createSignal, onCleanup, type JSX} from 'solid-js'
 import {QueryClient, QueryClientProvider, useMutation, useQuery, useQueryClient} from '@tanstack/solid-query'
 import {createTanstackQueryUtils} from '@orpc/tanstack-query'
 import {getHostApi, makeExtRpcClient} from '@conciv/extension'
 import {Button} from '@conciv/ui-kit-system'
 import {RECORDER_MIME, RECORDER_NAME, recordingPoster, recordingRefJson, type RrwebEvent} from '../shared/protocol.js'
 import type {RecorderRouter} from '../server.js'
-import {mountLivePlayer} from './player.js'
+import {mountPanelPlayer, type PanelPlayerHandle, type PanelPlayerMode} from './player.js'
 import {RecorderErrorNotice, RecorderNotice} from './notices.js'
 import {useRecorderContext} from './recorder-context.js'
 
@@ -46,8 +46,7 @@ function RecorderPanel(): JSX.Element {
   const recording = useQuery(() => ({
     ...utils.window.queryOptions({input: pinned()}),
     enabled: presenceReady() === true,
-    refetchInterval: (query: {state: {data?: {events: RrwebEvent[]}}}) =>
-      hasReplay(query.state.data) ? false : 1000,
+    refetchInterval: (query: {state: {data?: {events: RrwebEvent[]}}}) => (hasReplay(query.state.data) ? false : 1000),
   }))
   const log = useQuery(() => ({
     ...utils.log.queryOptions({input: pinned()}),
@@ -62,11 +61,20 @@ function RecorderPanel(): JSX.Element {
   )
   const retry = (): void => void queryClient.invalidateQueries()
 
+  const [mode, setMode] = createSignal<PanelPlayerMode>('following')
+  let playerHandle: PanelPlayerHandle | undefined
   const replayRef = (events: RrwebEvent[]) => (container: HTMLDivElement) => {
     if (events.length < 2) return
-    onCleanup(
-      mountLivePlayer(container, events, (sinceTs) => rpc.events({sinceTs, ...pinned()}).then((delta) => delta.events)),
-    )
+    const mounted = mountPanelPlayer(container, events, {
+      pull: (sinceTs) => rpc.events({sinceTs, ...pinned()}).then((delta) => delta.events),
+      requestSnapshot: () => rpc.snapshot(undefined).then(() => undefined),
+      onMode: setMode,
+    })
+    playerHandle = mounted
+    onCleanup(() => {
+      mounted.dispose()
+      if (playerHandle === mounted) playerHandle = undefined
+    })
   }
 
   const save = useMutation(() => utils.recordings.save.mutationOptions())
@@ -104,8 +112,20 @@ function RecorderPanel(): JSX.Element {
                     >
                       New recording
                     </Button>
-                    <div class="ml-auto">
-                      <RecorderNotice text="Live" />
+                    <div class="ml-auto flex gap-2 items-center">
+                      <Show
+                        when={mode() === 'following'}
+                        fallback={
+                          <Button variant="outline" size="sm" onClick={() => playerHandle?.goLive()}>
+                            Go live
+                          </Button>
+                        }
+                      >
+                        <LiveBadge />
+                        <Button variant="ghost" size="sm" onClick={() => playerHandle?.pause()}>
+                          Pause
+                        </Button>
+                      </Show>
                     </div>
                   </div>
                 </>
@@ -114,6 +134,18 @@ function RecorderPanel(): JSX.Element {
           </Show>
         </Show>
       </Show>
+    </div>
+  )
+}
+
+function LiveBadge(): JSX.Element {
+  return (
+    <div class="px-2.5 border border-pw-line rounded-pw-pill bg-pw-fill flex gap-1.5 h-6.5 select-none items-center">
+      <span class="size-1.5 relative">
+        <span class="rounded-full bg-pw-danger inset-0 absolute anim-fab-ring" />
+        <span class="rounded-full bg-pw-danger inset-0 absolute" />
+      </span>
+      <span class="text-[0.6875rem] text-pw-text tracking-[0.1em] font-pw font-semibold">LIVE</span>
     </div>
   )
 }

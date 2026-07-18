@@ -61,72 +61,144 @@ function demoteInjectedStyles(scope: Document | ShadowRoot, known: Set<Element>)
   }
 }
 
-const LIVE_POLL_MS = 1000
-
-export function mountLivePlayer(
-  container: HTMLDivElement,
-  events: RrwebEvent[],
-  pull: (sinceTs: number) => Promise<RrwebEvent[]>,
-): () => void {
+function injectPlayerStyles(container: HTMLDivElement): {scope: Document | ShadowRoot; known: Set<Element>} {
   const scope = styleScope(container)
   const known = new Set<Element>(scope.querySelectorAll('style'))
   const style = document.createElement('style')
   style.textContent = `@layer rrweb {\n${rrwebCss}\n${playerCss}\n}\n${themeCss}`
   container.appendChild(style)
   known.add(style)
-  const aspect = recordedAspect(events)
-  const player = new Player({
-    target: container,
-    props: {
-      ...playerSize(container, aspect),
-      events: playerEvents.parse(events),
-      autoPlay: false,
-      liveMode: true,
-      showController: true,
-    },
+  return {scope, known}
+}
+
+function observeContainerSize(
+  container: HTMLDivElement,
+  resize: (size: {width: number; height: number}) => void,
+  aspect: () => number,
+): () => void {
+  let frame = 0
+  const observer = new ResizeObserver(() => {
+    cancelAnimationFrame(frame)
+    frame = requestAnimationFrame(() => {
+      const size = playerSize(container, aspect())
+      if (size.width < 80) return
+      resize(size)
+    })
   })
-  demoteInjectedStyles(scope, known)
-  let cursor = events.at(-1)?.timestamp ?? 0
-  player.getReplayer().startLive(cursor)
+  observer.observe(container)
+  return () => {
+    cancelAnimationFrame(frame)
+    observer.disconnect()
+  }
+}
+
+const LIVE_POLL_MS = 1000
+
+export type PanelPlayerMode = 'following' | 'paused'
+
+export type PanelPlayerHandle = {
+  pause: () => void
+  goLive: () => void
+  dispose: () => void
+}
+
+export function mountPanelPlayer(
+  container: HTMLDivElement,
+  initial: RrwebEvent[],
+  hooks: {
+    pull: (sinceTs: number) => Promise<RrwebEvent[]>
+    requestSnapshot: () => Promise<void>
+    onMode: (mode: PanelPlayerMode) => void
+  },
+): PanelPlayerHandle {
+  const {scope, known} = injectPlayerStyles(container)
+  const buffer = [...initial]
+  let cursor = buffer.at(-1)?.timestamp ?? 0
+  let aspect = recordedAspect(buffer)
+  let mode: PanelPlayerMode = 'following'
+  let player: Player | undefined
   let stopped = false
   let poll: ReturnType<typeof setTimeout> | undefined
+
+  const build = (nextMode: PanelPlayerMode): void => {
+    player?.$destroy()
+    aspect = recordedAspect(buffer)
+    const following = nextMode === 'following'
+    player = new Player({
+      target: container,
+      props: {
+        ...playerSize(container, aspect),
+        events: playerEvents.parse(buffer),
+        autoPlay: false,
+        showController: !following,
+        ...(following ? {liveMode: true} : {}),
+      },
+    })
+    demoteInjectedStyles(scope, known)
+    const pastTail = player.getMetaData().totalTime + 1
+    if (following) {
+      player.getReplayer().pause(pastTail)
+      player.getReplayer().startLive(cursor)
+    }
+    if (!following) player.goto(pastTail, false)
+    mode = nextMode
+    hooks.onMode(nextMode)
+  }
+
+  let connectFrame = 0
+  const buildWhenConnected = (): void => {
+    if (stopped) return
+    if (!container.isConnected) {
+      connectFrame = requestAnimationFrame(buildWhenConnected)
+      return
+    }
+    build('following')
+  }
+  buildWhenConnected()
+
   const tick = async (): Promise<void> => {
-    const fresh = await pull(cursor).catch((): RrwebEvent[] => [])
+    const fresh = await hooks.pull(cursor).catch((): RrwebEvent[] => [])
     if (stopped) return
     for (const event of fresh) {
-      player.addEvent(playerEvent.parse(event))
+      buffer.push(event)
+      player?.addEvent(playerEvent.parse(event))
       cursor = Math.max(cursor, event.timestamp)
     }
     poll = setTimeout(() => void tick(), LIVE_POLL_MS)
   }
   poll = setTimeout(() => void tick(), LIVE_POLL_MS)
-  let frame = 0
-  const observer = new ResizeObserver(() => {
-    cancelAnimationFrame(frame)
-    frame = requestAnimationFrame(() => {
-      const size = playerSize(container, aspect)
-      if (size.width < 80) return
-      player.$set({width: size.width, height: size.height})
-      player.triggerResize()
-    })
-  })
-  observer.observe(container)
-  return () => {
-    stopped = true
-    if (poll) clearTimeout(poll)
-    cancelAnimationFrame(frame)
-    observer.disconnect()
-    player.$destroy()
+
+  const stopResize = observeContainerSize(
+    container,
+    (size) => {
+      player?.$set({width: size.width, height: size.height})
+      player?.triggerResize()
+    },
+    () => aspect,
+  )
+
+  return {
+    pause: () => {
+      if (mode !== 'following') return
+      build('paused')
+    },
+    goLive: () => {
+      if (mode !== 'paused') return
+      build('following')
+      void hooks.requestSnapshot().catch(() => {})
+    },
+    dispose: () => {
+      stopped = true
+      cancelAnimationFrame(connectFrame)
+      if (poll) clearTimeout(poll)
+      stopResize()
+      player?.$destroy()
+    },
   }
 }
 
 export function mountPlayer(container: HTMLDivElement, events: RrwebEvent[], skipIdle: Accessor<boolean>): () => void {
-  const scope = styleScope(container)
-  const known = new Set<Element>(scope.querySelectorAll('style'))
-  const style = document.createElement('style')
-  style.textContent = `@layer rrweb {\n${rrwebCss}\n${playerCss}\n}\n${themeCss}`
-  container.appendChild(style)
-  known.add(style)
+  const {scope, known} = injectPlayerStyles(container)
   const aspect = recordedAspect(events)
   const player = new Player({
     target: container,
@@ -134,20 +206,16 @@ export function mountPlayer(container: HTMLDivElement, events: RrwebEvent[], ski
   })
   demoteInjectedStyles(scope, known)
   skipIdlePlayback(player, events, skipIdle)
-  let frame = 0
-  const observer = new ResizeObserver(() => {
-    cancelAnimationFrame(frame)
-    frame = requestAnimationFrame(() => {
-      const size = playerSize(container, aspect)
-      if (size.width < 80) return
+  const stopResize = observeContainerSize(
+    container,
+    (size) => {
       player.$set({width: size.width, height: size.height})
       player.triggerResize()
-    })
-  })
-  observer.observe(container)
+    },
+    () => aspect,
+  )
   return () => {
-    cancelAnimationFrame(frame)
-    observer.disconnect()
+    stopResize()
     player.$destroy()
   }
 }
