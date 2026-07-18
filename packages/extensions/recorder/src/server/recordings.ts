@@ -20,13 +20,10 @@ export type RecordingStore = {
 
 function trimToCap(events: RrwebEvent[]): RrwebEvent[] | null {
   const snapshotIndexes = events.flatMap((event, index) => (event.type === 2 ? [index] : []))
-  const starts = [0, ...snapshotIndexes]
-  for (let cursor = starts.length - 1; cursor >= 0; cursor -= 1) {
-    const start = starts[cursor]
-    if (start === undefined) continue
+  const starts = [...new Set([0, ...snapshotIndexes])]
+  for (const start of starts) {
     const slice = events.slice(start)
     if (JSON.stringify({events: slice}).length <= MAX_RECORDING_BYTES) return slice
-    if (cursor === starts.length - 1) return null
   }
   return null
 }

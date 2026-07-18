@@ -37,7 +37,7 @@ describe('createEventRing', () => {
     const ring = createEventRing({windowMs: 600_000, maxBytes: 200})
     const fat = (ts: number): RrwebEvent => ({type: 3, data: {blob: 'x'.repeat(120)}, timestamp: ts})
     ring.append('a', [fat(1000), fat(2000), fat(3000)])
-    const kept = ring.window().map((event) => event.timestamp)
+    const kept = ring.since(0).map((event) => event.timestamp)
     expect(kept.length).toBeLessThan(3)
     expect(kept.at(-1)).toBe(3000)
   })
@@ -52,6 +52,20 @@ describe('createEventRing', () => {
     const ring = createEventRing({windowMs: 600_000})
     ring.append('c', [incremental(1), incremental(2)])
     expect(ring.window({fromTs: 3})).toEqual([])
+  })
+
+  it('an unbounded window drops leading pre-snapshot events so replay always starts reconstructable', () => {
+    const ring = createEventRing({windowMs: 600_000})
+    ring.append('c', [incremental(1000), incremental(2000), snapshot(3000), incremental(4000)])
+    expect(ring.window()).toEqual([snapshot(3000), incremental(4000)])
+  })
+
+  it('since returns raw events strictly after the cursor', () => {
+    const ring = createEventRing({windowMs: 600_000})
+    ring.append('a', [snapshot(1000), incremental(2000), incremental(3000)])
+    expect(ring.since(2000)).toEqual([incremental(3000)])
+    expect(ring.since(0)).toEqual([snapshot(1000), incremental(2000), incremental(3000)])
+    expect(ring.since(3000)).toEqual([])
   })
 
   it('clear empties the ring', () => {

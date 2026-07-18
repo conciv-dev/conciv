@@ -31,9 +31,16 @@ describe('recording store', () => {
     expect(await freshStore().save([snapshot(1)])).toEqual({ok: false, reason: 'empty'})
   })
 
+  it('keeps the whole recording when it fits, even with a fresh snapshot at the tail', async () => {
+    const store = freshStore()
+    const saved = await store.save([snapshot(1), event(2), event(3), snapshot(4)])
+    if (!saved.ok) throw new Error(`expected ok, got ${JSON.stringify(saved)}`)
+    expect(await store.get(saved.recordingId)).toEqual([snapshot(1), event(2), event(3), snapshot(4)])
+  })
+
   it('trims to the latest snapshot under the size cap', async () => {
     const store = freshStore()
-    const bloated = {type: 3, data: {source: 0, blob: 'x'.repeat(15 * 1024 * 1024)}, timestamp: 2}
+    const bloated = {type: 3, data: {source: 0, blob: 'x'.repeat(17 * 1024 * 1024)}, timestamp: 2}
     const saved = await store.save([snapshot(1), bloated, snapshot(3), event(4)])
     if (!saved.ok) throw new Error('expected ok')
     expect(await store.get(saved.recordingId)).toEqual([snapshot(3), event(4)])

@@ -3,6 +3,7 @@ import type {RrwebEvent} from '../shared/protocol.js'
 export type EventRing = {
   append(clientId: string, events: RrwebEvent[]): void
   window(opts?: {fromTs?: number; toTs?: number}): RrwebEvent[]
+  since(ts: number): RrwebEvent[]
   lastTs(): number
   clear(): void
   onAppend(listener: (lastTs: number) => void): () => void
@@ -54,12 +55,13 @@ export function createEventRing(opts: {windowMs: number; maxBytes?: number}): Ev
       const toTs = range.toTs ?? Number.POSITIVE_INFINITY
       const inTail = stored.filter((item) => item.event.timestamp <= toTs)
       const fromTs = range.fromTs ?? Number.NEGATIVE_INFINITY
+      const withMeta = (index: number): number => (index > 0 && inTail[index - 1]?.event.type === 4 ? index - 1 : index)
       const anchored = inTail.findLastIndex((item) => item.event.type === 2 && item.event.timestamp <= fromTs)
-      if (anchored >= 0) return inTail.slice(anchored).map((item) => item.event)
-      if (fromTs === Number.NEGATIVE_INFINITY) return inTail.map((item) => item.event)
+      if (anchored >= 0) return inTail.slice(withMeta(anchored)).map((item) => item.event)
       const next = inTail.findIndex((item) => item.event.type === 2 && item.event.timestamp > fromTs)
-      return next >= 0 ? inTail.slice(next).map((item) => item.event) : []
+      return next >= 0 ? inTail.slice(withMeta(next)).map((item) => item.event) : []
     },
+    since: (ts) => stored.filter((item) => item.event.timestamp > ts).map((item) => item.event),
     lastTs: () => stored.at(-1)?.event.timestamp ?? 0,
     clear() {
       stored = []
