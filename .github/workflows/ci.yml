@@ -110,10 +110,9 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit != 'true'
       - run: pnpm exec playwright install-deps chromium
         if: steps.playwright-cache.outputs.cache-hit == 'true'
-      # Alone on its own runner: nothing else competes with chromium/vite for cpu, so the merged
-      # suite's maxWorkers:2 is safe. The suite runs isolate:false (per-file iframe teardown races
-      # the orchestrator websocket closed) with Solid docgen disabled under vitest (its synchronous
-      # volar/TS program stalls the vite server event loop 20-70s on cold-cache runners). See PR #87.
+      # Alone on its own runner: nothing else competes for chromium/vite/cpu, so the merged suite's
+      # maxWorkers:2 is safe and the heavy solid-streamdown cold-load has headroom. Dependency
+      # builds are capped so a cold turbo cache (lockfile change) can't OOM chrome mid-run.
       - run: pnpm exec turbo run typecheck lint test --filter='./apps/storybook'
       - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         if: always()
