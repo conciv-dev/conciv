@@ -113,7 +113,7 @@ jobs:
       # Alone on its own runner: nothing else competes for chromium/vite/cpu, so the merged suite's
       # maxWorkers:2 is safe and the heavy solid-streamdown cold-load has headroom. Dependency
       # builds are capped so a cold turbo cache (lockfile change) can't OOM chrome mid-run.
-      - run: pnpm exec turbo run typecheck lint test --filter='./apps/storybook'
+      - run: pnpm exec turbo run typecheck lint test --filter='./apps/storybook' --concurrency=3
       - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         if: always()
         with:
