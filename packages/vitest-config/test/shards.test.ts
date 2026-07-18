@@ -36,6 +36,12 @@ test('discoverPackages finds workspace packages and flags browser dependencies',
   ])
 })
 
+test('discoverPackages rejects package names that could smuggle turbo arguments', () => {
+  const root = mkdtempSync(join(tmpdir(), 'shards-'))
+  writeManifest(root, 'packages/evil', {name: '--filter=... --continue'})
+  expect(() => discoverPackages(root, ['packages'])).toThrow(/invalid package name/)
+})
+
 test('planShards partitions every package exactly once', () => {
   const packages = ['a', 'b', 'c', 'd', 'e', 'f'].map((name) => pkg(name))
   const shards = planShards(packages, {a: 100_000, b: 90_000, c: 80_000, d: 20_000, e: 10_000, f: 5_000})

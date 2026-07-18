@@ -12,6 +12,8 @@ const MAX_SHARDS = 8
 
 const BROWSER_DEPENDENCY_PREFIXES = ['playwright', '@playwright/', '@vitest/browser']
 
+const VALID_PACKAGE_NAME = /^(@[a-z0-9-~][a-z0-9-._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
@@ -34,6 +36,8 @@ function readPackage(dir: string): WorkspacePackage | null {
   if (!existsSync(manifestPath)) return null
   const manifest: unknown = JSON.parse(readFileSync(manifestPath, 'utf8'))
   if (!isRecord(manifest) || typeof manifest.name !== 'string') return null
+  if (!VALID_PACKAGE_NAME.test(manifest.name))
+    throw new Error(`invalid package name in ${manifestPath}: ${manifest.name}`)
   return {name: manifest.name, browser: usesBrowser(manifest)}
 }
 

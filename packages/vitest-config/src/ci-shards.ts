@@ -12,10 +12,17 @@ function argValue(args: string[], flag: string): string | null {
   return args[index + 1] ?? null
 }
 
+const MAX_TIMINGS_BYTES = 1_000_000
+
+function readBoundedTimings(path: string | null): Record<string, number> {
+  if (path === null || !existsSync(path)) return {}
+  const raw = readFileSync(path, 'utf8')
+  if (raw.length > MAX_TIMINGS_BYTES) return {}
+  return parseTimings(raw)
+}
+
 function plan(args: string[]): void {
-  const timingsPath = argValue(args, '--timings')
-  const baseline =
-    timingsPath !== null && existsSync(timingsPath) ? parseTimings(readFileSync(timingsPath, 'utf8')) : {}
+  const baseline = readBoundedTimings(argValue(args, '--timings'))
   const shards = planShards(discoverPackages(process.cwd(), PACKAGE_GROUPS), baseline)
   const include = shards.map((shard) => ({...shard, packages: shard.packages.join(' ')}))
   const matrix = JSON.stringify({include})
