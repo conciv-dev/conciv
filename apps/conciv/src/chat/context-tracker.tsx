@@ -151,7 +151,8 @@ export function ContextTracker(props: {usage: UsageSnapshot | null}): JSX.Elemen
         <div class="p-3 flex flex-col gap-1.5">
           <UsageRow label="Input" tokens={props.usage?.inputTokens} />
           <UsageRow label="Output" tokens={props.usage?.outputTokens} />
-          <UsageRow label="Cache" tokens={props.usage?.cacheReadTokens} />
+          <UsageRow label="Cache read" tokens={props.usage?.cacheReadTokens} />
+          <UsageRow label="Cache write" tokens={props.usage?.cacheWriteTokens} />
           <UsageRow label="Reasoning" tokens={props.usage?.reasoningTokens} />
         </div>
         <CostFooter totalCostUsd={props.usage?.totalCostUsd} numTurns={props.usage?.numTurns} />
