@@ -1,0 +1,65 @@
+{
+  "name": "@conciv/solid",
+  "version": "0.0.11",
+  "description": "Solid component for the conciv widget: render <ConcivWidget /> to mount the conciv dev agent in any Solid app.",
+  "keywords": [
+    "ai",
+    "chat",
+    "conciv",
+    "solid",
+    "widget"
+  ],
+  "homepage": "https://conciv.dev",
+  "bugs": "https://github.com/conciv-dev/conciv/issues",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/solid"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vite build --config vite.fixture.config.ts && vitest run",
+    "publint": "publint",
+    "attw": "attw --pack . --profile esm-only"
+  },
+  "dependencies": {
+    "@conciv/embed": "workspace:^"
+  },
+  "peerDependencies": {
+    "solid-js": ">=1.8"
+  },
+  "devDependencies": {
+    "@conciv/extension-terminal": "workspace:^",
+    "@conciv/extension-testkit": "workspace:^",
+    "@types/node": "^26.1.0",
+    "playwright": "^1.61.1",
+    "publint": "^0.3.14",
+    "solid-js": "^1.9.13",
+    "tsdown": "^0.22.4",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.16",
+    "vite-plugin-solid": "^2.11.12",
+    "vitest": "^4.1.8"
+  },
+  "engines": {
+    "node": ">=22.13"
+  }
+}

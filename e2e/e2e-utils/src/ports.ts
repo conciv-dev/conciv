@@ -7,6 +7,10 @@ export const E2E_PORTS = {
   'tanstack-start': 4316,
   nextjs: 4317,
   astro: 4318,
+  'vite-react-component': 4319,
+  'nextjs-component': 4320,
+  'vite-preact-component': 4321,
+  'vite-solid-component': 4322,
 } as const
 
 export type E2EApp = keyof typeof E2E_PORTS

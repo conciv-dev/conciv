@@ -34,6 +34,10 @@ pnpm --filter conciv-e2e-vite-vanilla test:e2e   # one app (build @conciv/it fir
 | `tanstack-start` | `create @tanstack/start`   | TanStack Start SSR + devtools defer path         |
 | `nextjs`         | `create next-app`          | `@conciv/it/plugin/nextjs`, Turbopack            |
 | `astro`          | `create astro` (minimal)   | MPA vite host                                    |
+| `vite-react-component`   | copy of `vite-react` | `@conciv/react` `<ConcivWidget/>` path, plugin `widget: false` |
+| `nextjs-component`       | copy of `nextjs`     | `@conciv/react` under app router: RSC `'use client'` boundary  |
+| `vite-preact-component`  | copy of `vite-react` | `@conciv/preact` `<ConcivWidget/>` path, plugin `widget: false` |
+| `vite-solid-component`   | copy of `vite-solid` | `@conciv/solid` `<ConcivWidget/>` path, plugin `widget: false`  |
 
 `e2e-utils` holds the shared Playwright config factory, the widget boot assertions, and the fixed
 port registry (`src/ports.ts`) so suites can run side by side.
