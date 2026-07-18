@@ -92,16 +92,40 @@ describe('chatConnection', () => {
     ])
   })
 
-  it('send while the session is busy surfaces the typed BUSY error', async () => {
+  it('send while another surface owns the session waits and retries after it settles', async () => {
     kit = await bootClientKit()
     const sessionId = await kit.session()
     const rpc = makeRpcClient(kit.base)
-    const connection = chatConnection(rpc, sessionId)
+    const connection = chatConnection(rpc, sessionId, {retryDelayMs: 5})
     kit.gate.hold()
     await connection.send([{id: 'u1', role: 'user', parts: [{type: 'text', content: 'first'}]}])
-    await expect(
-      connection.send([{id: 'u2', role: 'user', parts: [{type: 'text', content: 'second'}]}]),
-    ).rejects.toMatchObject({code: 'BUSY'})
+    let accepted = false
+    const second = connection.send([{id: 'u2', role: 'user', parts: [{type: 'text', content: 'second'}]}]).then(() => {
+      accepted = true
+    })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(accepted).toBe(false)
+    kit.gate.release()
+    await second
+    expect(kit.harness.__turnMessages).toHaveLength(2)
+  })
+
+  it('aborts a send waiting for another surface', async () => {
+    kit = await bootClientKit()
+    const sessionId = await kit.session()
+    const rpc = makeRpcClient(kit.base)
+    const connection = chatConnection(rpc, sessionId, {retryDelayMs: 5})
+    kit.gate.hold()
+    await connection.send([{id: 'u1', role: 'user', parts: [{type: 'text', content: 'first'}]}])
+    const abort = new AbortController()
+    const waiting = connection.send(
+      [{id: 'u2', role: 'user', parts: [{type: 'text', content: 'second'}]}],
+      undefined,
+      abort.signal,
+    )
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    abort.abort()
+    await expect(waiting).rejects.toMatchObject({name: 'AbortError'})
     kit.gate.release()
   })
 })

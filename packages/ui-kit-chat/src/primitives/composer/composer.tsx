@@ -222,7 +222,6 @@ function Root(props: FormProps): JSX.Element {
     }
     setAttachments((current) => current.filter((value) => value.id !== id))
   }
-  const isRunning = () => chat.status() === 'streaming' || chat.status() === 'submitted'
   const restoreFailedSend = (original: DraftState, error: unknown) => {
     const restored = restoredAttachments(original.attachments, error)
     setAttachments((current) => {
@@ -236,7 +235,7 @@ function Root(props: FormProps): JSX.Element {
   const submit = async (event: SubmitEvent) => {
     event.preventDefault()
     invokeSubmit(local.onSubmit, event)
-    if (!canSubmit(composer.canSend(), attachments().length, isRunning() || sendingAttachments())) return
+    if (!canSubmit(composer.canSend(), attachments().length, sendingAttachments())) return
     const original: DraftState = {draft: chat.view.draft, attachments: attachments(), quote: quote()}
     setSendingAttachments(true)
     chat.setView('draft', '')
@@ -557,9 +556,9 @@ function DictationTranscript(props: JSX.HTMLAttributes<HTMLSpanElement>): JSX.El
 }
 
 function Queue(props: {children: (item: () => QueuedMessage) => JSX.Element}): JSX.Element {
-  const handlers = useComposerHandlers()
+  const chat = useChatContext()
   return (
-    <For each={handlers.queue?.() ?? []}>
+    <For each={chat.queue()}>
       {(item) => <QueueItemProvider value={item}>{props.children(() => item)}</QueueItemProvider>}
     </For>
   )

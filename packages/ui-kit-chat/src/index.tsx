@@ -19,7 +19,7 @@ export {
 export {ToolProvider, useToolCtx} from './store/tool-context.js'
 export {Activity as ActivityPrimitive, useActivity, type ActivityLabeler} from './primitives/activity/activity.js'
 export {Activity, type ActivityProps} from './styled/activity.js'
-export {chatBusy, guardChat, type GuardedChat} from './store/chat-busy.js'
+export {chatBusy} from './store/chat-busy.js'
 
 export {Primitive, type Slottable} from './primitives/util/primitive.js'
 export {

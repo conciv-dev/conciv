@@ -11,7 +11,6 @@ import {
   Thread,
   ToolProvider,
   createSimpleImageAttachmentAdapter,
-  guardChat,
   pairResults,
   useComposer,
   type AttachmentAdapter,
@@ -110,13 +109,12 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   const instances = useInstances()
   const pane = usePane()
   const router = useRouter()
-  const raw = useChatSession({rpc, sessionId: props.sessionId})
-  const chat = guardChat(raw)
+  const chat = useChatSession({rpc, sessionId: props.sessionId})
 
   const isThinking = () => chat.status() === 'submitted'
   const isStreaming = () => chat.status() === 'streaming'
   const working = () => isThinking() || isStreaming()
-  const disconnected = () => raw.connectionStatus() !== 'connected'
+  const disconnected = () => chat.connectionStatus() !== 'connected'
 
   let inputEl: HTMLTextAreaElement | undefined
   let viewportEl: HTMLElement | undefined
@@ -319,6 +317,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
 
   const send = async (content: string | MultimodalContent) => {
     const text = contentText(content)
+    const sending = chat.sendMessage(content)
     await rpc.drafts
       .set({
         sessionId: props.sessionId,
@@ -330,15 +329,15 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
       .catch(() => {})
     persistDraft.cancel()
     pane.grabStore.clear()
-    await chat.sendMessage(content)
+    await sending
     clearPaneSnapshot(props.sessionId)
     void draftQuery.refetch()
   }
   const onSend = (content: string | MultimodalContent) => {
     const text = contentText(content)
     const hasContent = typeof content === 'string' ? text.length > 0 : content.content.length > 0
-    if (!hasContent || chat.isLoading() || compacting()) return
-    if (raw.connectionStatus() !== 'connected') return
+    if (!hasContent || compacting()) return
+    if (chat.connectionStatus() !== 'connected') return
     void send(typeof content === 'string' ? text : content)
   }
 
@@ -368,6 +367,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                 chat.stop()
                 void rpc.sessions.stop({sessionId: props.sessionId}).catch(() => {})
               },
+              onSteer: () => rpc.sessions.stop({sessionId: props.sessionId}),
             }}
           >
             <ComposerPrimitive.TriggerPopoverRoot>

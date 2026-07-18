@@ -1,4 +1,4 @@
-import type {ModelMessage, StreamChunk, UIMessage} from '@tanstack/ai'
+import {EventType, type ModelMessage, type StreamChunk, type UIMessage} from '@tanstack/ai'
 import type {SubscribeConnectionAdapter} from '@tanstack/ai-solid'
 import type {RpcClient} from '@conciv/contract'
 import type {ChatContentPart} from '@conciv/protocol/chat-types'
@@ -63,6 +63,51 @@ function aborted(signal: AbortSignal | undefined): boolean {
   return signal?.aborted ?? false
 }
 
+function isBusyError(error: unknown): boolean {
+  return isRecord(error) && error.code === 'BUSY'
+}
+
+type SessionBridge = {
+  blockActiveRunTerminals: () => void
+  deliver: (chunk: StreamChunk) => boolean
+}
+
+function runIdOf(chunk: StreamChunk): string | undefined {
+  return 'runId' in chunk && typeof chunk.runId === 'string' ? chunk.runId : undefined
+}
+
+function isTerminalChunk(chunk: StreamChunk): boolean {
+  return chunk.type === EventType.RUN_FINISHED || chunk.type === EventType.RUN_ERROR
+}
+
+function sessionBridge(): SessionBridge {
+  let activeRunId: string | undefined
+  let blockedTerminalRunId: string | undefined
+  let blockNextStartedRun = false
+  return {
+    blockActiveRunTerminals: () => {
+      blockedTerminalRunId = activeRunId
+      blockNextStartedRun = activeRunId === undefined
+    },
+    deliver: (chunk) => {
+      const runId = runIdOf(chunk)
+      if (chunk.type === EventType.RUN_STARTED) {
+        activeRunId = runId
+        if (blockNextStartedRun) {
+          blockedTerminalRunId = runId
+          blockNextStartedRun = false
+        }
+        return true
+      }
+      if (!isTerminalChunk(chunk)) return true
+      activeRunId = undefined
+      if (blockedTerminalRunId === undefined || (runId !== undefined && runId !== blockedTerminalRunId)) return true
+      blockedTerminalRunId = undefined
+      return false
+    },
+  }
+}
+
 async function sleep(ms: number, signal: AbortSignal | undefined): Promise<void> {
   await new Promise<void>((resolve) => {
     const timer = setTimeout(resolve, ms)
@@ -75,6 +120,31 @@ async function sleep(ms: number, signal: AbortSignal | undefined): Promise<void>
       {once: true},
     )
   })
+}
+
+async function sendWhenAvailable(
+  rpc: RpcClient,
+  input: Parameters<RpcClient['chat']['send']>[0],
+  options: ChatConnectionOptions,
+  bridge: SessionBridge,
+  signal: AbortSignal | undefined,
+): Promise<void> {
+  let blockedRunTerminal = false
+  while (!aborted(signal)) {
+    try {
+      await rpc.chat.send(input, {signal})
+      return
+    } catch (error) {
+      if (!isBusyError(error) || aborted(signal)) throw error
+      if (!blockedRunTerminal) {
+        bridge.blockActiveRunTerminals()
+        blockedRunTerminal = true
+      }
+      options.onRetry?.(error)
+      await sleep(options.retryDelayMs ?? 500, signal)
+    }
+  }
+  signal?.throwIfAborted()
 }
 
 async function* attachOnce(
@@ -103,17 +173,30 @@ async function* attachLoop(
   }
 }
 
+async function* bridgedAttachLoop(
+  rpc: RpcClient,
+  sessionId: string,
+  options: ChatConnectionOptions,
+  bridge: SessionBridge,
+  signal: AbortSignal | undefined,
+): AsyncGenerator<StreamChunk> {
+  for await (const chunk of attachLoop(rpc, sessionId, options, signal)) {
+    if (bridge.deliver(chunk)) yield chunk
+  }
+}
+
 export function chatConnection(
   rpc: RpcClient,
   sessionId: string,
   options: ChatConnectionOptions = {},
 ): SubscribeConnectionAdapter {
+  const bridge = sessionBridge()
   return {
-    subscribe: (abortSignal) => attachLoop(rpc, sessionId, options, abortSignal),
+    subscribe: (abortSignal) => bridgedAttachLoop(rpc, sessionId, options, bridge, abortSignal),
     send: async (messages, _data, abortSignal) => {
       const content = lastUserContent(messages)
       const input = typeof content === 'string' ? {sessionId, text: content} : {sessionId, content}
-      await rpc.chat.send(input, {signal: abortSignal})
+      await sendWhenAvailable(rpc, input, options, bridge, abortSignal)
     },
   }
 }

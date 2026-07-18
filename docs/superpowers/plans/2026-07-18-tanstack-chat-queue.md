@@ -4,7 +4,7 @@
 
 **Goal:** Replace Conciv's custom queue with TanStack AI's native FIFO/cancel/interrupt queue and expose it in the composer without regressing cross-surface sessions.
 
-**Architecture:** `useChatSession` owns the TanStack queue configuration. UI state is read directly from `UseChatReturn.queue`; only remote `sessionGenerating` needs a narrow forwarding bridge because TanStack deliberately treats loading as request-local.
+**Architecture:** `useChatSession` owns the TanStack queue configuration and UI state is read directly from `UseChatReturn.queue`. For a remotely owned run, `chatConnection.send` retries typed ORPC `BUSY` while the first send remains in flight. TanStack then sees local send-in-flight busy state and owns all following queueing.
 
 **Tech Stack:** TypeScript, SolidJS, TanStack AI Solid 0.15, TanStack AI Client 0.22, Vitest, Vitest Browser/Playwright, pnpm, Turbo.
 
@@ -37,24 +37,24 @@
 - [ ] Pass the FIFO queue configuration from `useChatSession`.
 - [ ] Run client tests after building workspace dependencies and verify they pass.
 
-### Task 2: Replace guardChat with a remote-session bridge
+### Task 2: Replace guardChat with transport BUSY retry
 
 **Files:**
 
+- Modify: `packages/client/src/chat-connection.ts`
+- Test: `packages/client/test/chat-connection.it.test.ts`
 - Modify: `packages/ui-kit-chat/src/store/chat-busy.ts`
-- Modify: `packages/ui-kit-chat/test/chat-busy.test.ts`
 - Modify: `packages/ui-kit-chat/src/index.tsx`
 - Modify: `apps/conciv/src/chat/chat-pane.tsx`
 
 **Interfaces:**
 
-- Consumes: native `UseChatReturn.sendMessage`, `sessionGenerating`, and local status.
-- Produces: a wrapped send path that delays only when another surface owns the run.
+- Consumes: typed ORPC `BUSY` errors and the connection send abort signal.
+- Produces: one in-flight send that retries until the remote-owned run settles, allowing TanStack to queue all later sends.
 
-- [ ] Replace guard tests with failing tests for immediate local forwarding, remote-session delay, ordered release, and disposal.
-- [ ] Verify the tests fail against `guardChat`.
-- [ ] Implement the minimal remote-session bridge without a duplicate local queue.
-- [ ] Remove `guardChat` and make `ChatPane` consume the native chat return plus the bridge.
+- [ ] Add a failing integration test proving a send during remote-session `BUSY` waits and retries after settle.
+- [ ] Implement abort-aware retry for typed `BUSY` only in `chatConnection.send`.
+- [ ] Remove `guardChat` and make `ChatPane` consume the native chat return directly.
 - [ ] Run ui-kit-chat tests and verify they pass.
 
 ### Task 3: Expose native queue controls in the composer

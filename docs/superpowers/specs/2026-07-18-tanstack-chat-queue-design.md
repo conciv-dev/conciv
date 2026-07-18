@@ -6,9 +6,9 @@ Replace Conciv's hand-written local FIFO send queue with the native queue shippe
 
 ## Architecture
 
-`useChatSession` configures TanStack AI with `{whenBusy: 'queue', drain: 'fifo'}`. TanStack AI becomes the owner of queue identity, ordering, local busy detection, cancellation, and draining. The UI consumes the hook's `queue` accessor and `cancelQueued` operation directly.
+`useChatSession` defaults TanStack AI to `{whenBusy: 'queue', drain: 'fifo'}` and accepts a native `queue` override, including `{whenBusy: 'queue', drain: 'batch'}`. TanStack AI becomes the owner of queue identity, ordering, local busy detection, cancellation, and draining. The UI consumes the hook's `queue` accessor and `cancelQueued` operation directly.
 
-TanStack's busy policy is request-local, while Conciv's `sessionGenerating` signal intentionally covers runs initiated in another tab or device. A small shared-session bridge delays sends only for that remote-owner case and forwards them into the native `sendMessage` path as soon as the shared run settles. It does not maintain a second local queue or duplicate TanStack ordering.
+TanStack's busy policy is request-local, while Conciv's server lock also covers runs initiated in another tab or device. `chatConnection.send` retries the typed ORPC `BUSY` response until the server accepts the send or its abort signal fires. That first remote-busy send stays in flight, so TanStack marks the client locally busy and places every following send in its native visible queue. Conciv maintains no second queue or forwarding bridge.
 
 ## Composer behavior
 
@@ -21,15 +21,15 @@ The Stop action remains available during generation, and the Send action remains
 
 ## Dependency boundary
 
-All workspace packages that directly declare `@tanstack/ai-client` move to `^0.22.0`. Packages declaring `@tanstack/ai-solid` move to `^0.15.0`. No TanStack AI implementation is copied into Conciv.
+Packages declaring `@tanstack/ai-client` move to `^0.22.0`, packages declaring `@tanstack/ai-solid` move to `^0.15.0`, and the workspace moves to the compatible `@tanstack/ai` `^0.41.0` generation. Harness and sandbox adapters move to their matching releases. No TanStack AI implementation is copied into Conciv.
 
 ## Failure behavior
 
-TanStack's native semantics apply: queued items drain only after successful completion and are cleared on error, abort, stop, clear, unsubscribe, and reload. The shared-session bridge clears delayed sends when its owning Solid root is disposed. Queue overflow remains unlimited, matching Conciv's current queue.
+TanStack's native semantics apply: queued items drain only after successful completion and are cleared on error, abort, stop, clear, unsubscribe, and reload. The transport retry honors abort and retries only typed `BUSY`; all other errors surface immediately. Queue overflow remains unlimited, matching Conciv's current queue.
 
 ## Testing
 
-- Unit tests prove the shared-session bridge delays only remote-owned runs and preserves order when forwarding to TanStack.
+- Client integration tests prove a send rejected with typed remote-session `BUSY` remains pending and is accepted after the shared run settles.
 - Real-browser UI tests prove the composer can submit while busy, pending items render, Remove cancels, and Steer interrupts.
 - Client integration tests continue to prove the custom Subscribe connection works with the upgraded TanStack client.
 - Repository typecheck, build, test, lint, formatting, and fallow changed-code audit remain required before the PR opens.

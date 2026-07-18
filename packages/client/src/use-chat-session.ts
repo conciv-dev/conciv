@@ -1,10 +1,11 @@
-import {useChat} from '@tanstack/ai-solid'
+import {useChat, type UseChatOptions} from '@tanstack/ai-solid'
 import type {RpcClient} from '@conciv/contract'
 import {chatConnection} from './chat-connection.js'
 
 export type UseChatSessionOptions = {
   rpc: RpcClient
   sessionId: string
+  queue?: UseChatOptions['queue']
   onError?: (error: Error) => void
 }
 
@@ -13,6 +14,7 @@ export function useChatSession(options: UseChatSessionOptions): ReturnType<typeo
     id: options.sessionId,
     connection: chatConnection(options.rpc, options.sessionId),
     live: true,
+    queue: options.queue ?? {whenBusy: 'queue', drain: 'fifo'},
     onError: options.onError,
   })
 }

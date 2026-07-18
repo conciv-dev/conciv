@@ -4,12 +4,10 @@ import type {MultimodalContent} from '@tanstack/ai-client'
 export type ComposerHandlers = {
   onSend?: (content: string | MultimodalContent) => void
   onCancel?: () => void
+  onSteer?: () => void | Promise<unknown>
   onStartDictation?: () => void
   onStopDictation?: () => void
   transcript?: Accessor<string>
-  queue?: Accessor<Array<{id: string; text: string}>>
-  steerQueued?: (id: string) => void
-  removeQueued?: (id: string) => void
 }
 
 const ComposerHandlersContext = createContext<ComposerHandlers>({})
