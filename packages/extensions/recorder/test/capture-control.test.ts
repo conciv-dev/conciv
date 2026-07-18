@@ -1,4 +1,4 @@
-import {describe, expect, it} from 'vitest'
+import {describe, expect, it, vi} from 'vitest'
 import {createEventRing} from '../src/server/ring.js'
 import {createCaptureControl} from '../src/server/capture-control.js'
 import type {RecorderControl} from '../src/shared/protocol.js'
@@ -18,6 +18,33 @@ describe('createCaptureControl', () => {
   it('stopCapture with an unknown id returns null', () => {
     const control = createCaptureControl(createEventRing({windowMs: 60_000}), () => 0)
     expect(control.stopCapture('nope')).toBeNull()
+  })
+
+  it('expires a live capture after the TTL and broadcasts live=false', () => {
+    vi.useFakeTimers()
+    const control = createCaptureControl(createEventRing({windowMs: 60_000}))
+    const seen: RecorderControl[] = []
+    control.subscribe((message) => seen.push(message))
+    const {captureId} = control.startCapture()
+    vi.advanceTimersByTime(10 * 60 * 1000 + 30_000)
+    expect(control.stopCapture(captureId)).toBeNull()
+    expect(seen).toEqual([{live: true}, {live: false}])
+    control.dispose()
+    vi.useRealTimers()
+  })
+
+  it('releaseAllCaptures empties actives and emits live=false once', () => {
+    const control = createCaptureControl(createEventRing({windowMs: 60_000}), () => 0)
+    const seen: RecorderControl[] = []
+    control.subscribe((message) => seen.push(message))
+    const first = control.startCapture()
+    control.startCapture()
+    control.releaseAllCaptures()
+    expect(seen).toEqual([{live: true}, {live: true}, {live: false}])
+    expect(control.stopCapture(first.captureId)).toBeNull()
+    control.releaseAllCaptures()
+    expect(seen).toEqual([{live: true}, {live: true}, {live: false}])
+    control.dispose()
   })
 
   it('awaitCoverage resolves once the ring covers the timestamp', async () => {

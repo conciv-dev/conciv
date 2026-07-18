@@ -532,14 +532,14 @@ git commit -m "fix(recorder): pause capture on hidden tabs, resume with fresh sn
 
 - Produces: a capture started by `recording_start` auto-expires after `CAPTURE_TTL_MS` (10min): it is removed from the active set and, when it was the last live capture, `{live:false}` is broadcast; `stopCapture` after expiry returns null (existing "no active capture" tool error covers messaging). The extension's `ServerResult` gains `turnEnd: () => releaseAllCaptures()` — a crashed agent turn stops 5Hz flushing at turn end, not at dev-server restart. Timer is `unref`'d and cleared in `dispose`.
 
-- [ ] **Step 1: Write the failing test** (fake timers): `startCapture()` → advance 10min → `stopCapture(captureId)` returns null and a `{live:false}` control message was emitted; also `releaseAllCaptures()` empties actives and emits `{live:false}` once.
+- [x] **Step 1: Write the failing test** (fake timers): `startCapture()` → advance 10min → `stopCapture(captureId)` returns null and a `{live:false}` control message was emitted; also `releaseAllCaptures()` empties actives and emits `{live:false}` once.
 
-- [ ] **Step 2: Run — Expected: FAIL.**
+- [x] **Step 2: Run — Expected: FAIL.**
 
-- [ ] **Step 3: Implement** — in `createCaptureControl`: store `expiresAt = Date.now() + CAPTURE_TTL_MS` per capture; a single `setInterval` sweep (30s, `unref()`), on expiry delete + emit `{live:false}` when actives is empty; expose `releaseAllCaptures()`; clear the interval in a `dispose()` composed into the extension's dispose. In `server.ts` return `turnEnd: () => control.releaseAllCaptures()` alongside the existing router/context.
+- [x] **Step 3: Implement** — in `createCaptureControl`: store `expiresAt = Date.now() + CAPTURE_TTL_MS` per capture; a single `setInterval` sweep (30s, `unref()`), on expiry delete + emit `{live:false}` when actives is empty; expose `releaseAllCaptures()`; clear the interval in a `dispose()` composed into the extension's dispose. In `server.ts` return `turnEnd: () => control.releaseAllCaptures()` alongside the existing router/context.
 
-- [ ] **Step 4: Run — Expected: PASS.**
-- [ ] **Step 5: Commit**
+- [x] **Step 4: Run — Expected: PASS.**
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -m "fix(recorder): TTL live captures + release on turn end" -- packages/extensions/recorder/src/server/capture-control.ts packages/extensions/recorder/src/server.ts packages/extensions/recorder/test/capture-control.test.ts

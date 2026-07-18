@@ -83,7 +83,9 @@ export default defineExtension({
   return {
     context: {recorder: runtime},
     router: makeRecorderRouter(runtime),
+    turnEnd: () => control.releaseAllCaptures(),
     dispose: async () => {
+      control.dispose()
       const active = await rendererState.value?.catch(() => null)
       await active?.dispose()
     },
