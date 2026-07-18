@@ -5,11 +5,15 @@ import playerCss from 'rrweb-player/dist/style.css?inline'
 import rrwebCss from 'rrweb/dist/style.css?inline'
 import themeCss from './player-theme.css?inline'
 import Player from 'rrweb-player'
-import type {RrwebEvent} from '../shared/protocol.js'
+import {RrwebEventSchema, type RrwebEvent} from '../shared/protocol.js'
 import {computeIdleSpans, idleSpanAt} from './inactivity.js'
 
 const playerEvent = z.custom<eventWithTime>()
 const playerEvents = z.array(playerEvent)
+
+function detachEvents(events: RrwebEvent[]): RrwebEvent[] {
+  return z.array(RrwebEventSchema).parse(JSON.parse(JSON.stringify(events)))
+}
 const metaSize = z.object({width: z.number(), height: z.number()})
 const timePayload = z.number()
 
@@ -112,7 +116,7 @@ export function mountPanelPlayer(
   },
 ): PanelPlayerHandle {
   const {scope, known} = injectPlayerStyles(container)
-  const buffer = [...initial]
+  const buffer = detachEvents(initial)
   let cursor = buffer.at(-1)?.timestamp ?? 0
   let aspect = recordedAspect(buffer)
   let mode: PanelPlayerMode = 'following'
@@ -199,13 +203,14 @@ export function mountPanelPlayer(
 
 export function mountPlayer(container: HTMLDivElement, events: RrwebEvent[], skipIdle: Accessor<boolean>): () => void {
   const {scope, known} = injectPlayerStyles(container)
-  const aspect = recordedAspect(events)
+  const detached = detachEvents(events)
+  const aspect = recordedAspect(detached)
   const player = new Player({
     target: container,
-    props: {...playerSize(container, aspect), events: playerEvents.parse(events), autoPlay: false},
+    props: {...playerSize(container, aspect), events: playerEvents.parse(detached), autoPlay: false},
   })
   demoteInjectedStyles(scope, known)
-  skipIdlePlayback(player, events, skipIdle)
+  skipIdlePlayback(player, detached, skipIdle)
   const stopResize = observeContainerSize(
     container,
     (size) => {
