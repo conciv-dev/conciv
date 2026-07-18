@@ -1,10 +1,10 @@
 import {createFakeHarness, createTestkit, type FakeHarness, type Kit} from '@conciv/harness-testkit'
 import {makeApp} from '@conciv/core/app'
 
-export type WidgetKit = Kit & {harness: FakeHarness}
+export type CoreKit = Kit & {harness: FakeHarness}
 
-export async function bootWidgetKit(): Promise<WidgetKit> {
-  const harness = createFakeHarness({id: 'fake-react', text: 'Hello from conciv'})
+export async function bootCoreKit(opts: {id: string; text?: string}): Promise<CoreKit> {
+  const harness = createFakeHarness({id: opts.id, text: opts.text ?? 'Hello from conciv'})
   const kit = await createTestkit(harness, async (env) => {
     const {app, disposers} = await makeApp({
       cfg: {

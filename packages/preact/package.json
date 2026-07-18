@@ -41,16 +41,14 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
-    "@conciv/embed": "workspace:^",
-    "@conciv/protocol": "workspace:^"
+    "@conciv/embed": "workspace:^"
   },
   "peerDependencies": {
     "preact": ">=10"
   },
   "devDependencies": {
-    "@conciv/core": "workspace:^",
     "@conciv/extension-terminal": "workspace:^",
-    "@conciv/harness-testkit": "workspace:^",
+    "@conciv/extension-testkit": "workspace:^",
     "@types/node": "^26.1.0",
     "playwright": "^1.61.1",
     "preact": "^10.29.7",
