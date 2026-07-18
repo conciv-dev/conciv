@@ -648,10 +648,10 @@ git commit -m "fix(recorder): bound console payloads, renderer idle-dispose + re
 
 ## Task 8: Gates
 
-- [ ] **Step 1:** `pnpm typecheck`; `pnpm turbo run test --force` — all green.
-- [ ] **Step 2:** `pnpm exec fallow audit --changed-since main --format json` — fix INTRODUCED (confirm no orphaned `ring` exports after the rings rename).
-- [ ] **Step 3:** Testkit smoke: `pnpm turbo run test --filter=@conciv/extension-recorder` full IT suite green (capture, extension, render, plus new hidden-pause).
-- [ ] **Step 4: Commit** residual fixes.
+- [x] **Step 1:** `pnpm typecheck`; `pnpm turbo run test --force` — all green.
+- [x] **Step 2:** `pnpm exec fallow audit --changed-since main --format json` — fix INTRODUCED (confirm no orphaned `ring` exports after the rings rename).
+- [x] **Step 3:** Testkit smoke: `pnpm turbo run test --filter=@conciv/extension-recorder` full IT suite green (capture, extension, render, plus new hidden-pause).
+- [x] **Step 4: Commit** residual fixes.
 
 ---
 

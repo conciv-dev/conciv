@@ -35,17 +35,10 @@ export function createFlusher(opts: {
     queueBytes += bytes
     if (queueBytes <= MAX_QUEUE_BYTES) return
     const lastSnapshot = queue.findLastIndex((item) => item.event.type === 2)
+    const droppable = lastSnapshot === -1 ? queue.length - 1 : Math.min(lastSnapshot, queue.length - 1)
     let dropTo = 0
-    while (queueBytes > MAX_QUEUE_BYTES && dropTo < queue.length - 1 && dropTo < lastSnapshot) {
-      const head = queue[dropTo]
-      if (!head) break
-      queueBytes -= head.bytes
-      dropTo += 1
-    }
-    while (queueBytes > MAX_QUEUE_BYTES && dropTo < queue.length - 1 && lastSnapshot === -1) {
-      const head = queue[dropTo]
-      if (!head) break
-      queueBytes -= head.bytes
+    while (queueBytes > MAX_QUEUE_BYTES && dropTo < droppable) {
+      queueBytes -= queue[dropTo]?.bytes ?? 0
       dropTo += 1
     }
     if (dropTo > 0) queue = queue.slice(dropTo)
