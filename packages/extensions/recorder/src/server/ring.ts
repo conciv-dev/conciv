@@ -15,11 +15,20 @@ type Stored = {event: RrwebEvent; bytes: number; seq: number}
 
 const DEFAULT_MAX_BYTES = 16 * 1024 * 1024
 
-export function createEventRing(opts: {windowMs: number; maxBytes?: number}): EventRing {
+export function createSequence(): () => number {
+  let seq = 0
+  return () => {
+    seq += 1
+    return seq
+  }
+}
+
+export function createEventRing(opts: {windowMs: number; maxBytes?: number; sequence?: () => number}): EventRing {
   const maxBytes = opts.maxBytes ?? DEFAULT_MAX_BYTES
+  const sequence = opts.sequence ?? createSequence()
   let stored: Stored[] = []
   let totalBytes = 0
-  let nextSeq = 0
+  let head = 0
   const listeners = new Set<(lastTs: number) => void>()
 
   const evict = (): void => {
@@ -45,8 +54,8 @@ export function createEventRing(opts: {windowMs: number; maxBytes?: number}): Ev
       const incoming = events
         .toSorted((a, b) => a.timestamp - b.timestamp)
         .map((event) => {
-          nextSeq += 1
-          return {event, bytes: jsonByteLength(event), seq: nextSeq}
+          head = sequence()
+          return {event, bytes: jsonByteLength(event), seq: head}
         })
       const tailAppend = (incoming[0]?.event.timestamp ?? 0) >= (stored.at(-1)?.event.timestamp ?? 0)
       stored = tailAppend
@@ -68,7 +77,7 @@ export function createEventRing(opts: {windowMs: number; maxBytes?: number}): Ev
       return next >= 0 ? inTail.slice(withMeta(next)).map((item) => item.event) : []
     },
     since: (cursor) => stored.filter((item) => item.seq > cursor).map((item) => item.event),
-    head: () => nextSeq,
+    head: () => head,
     bytes: () => totalBytes,
     lastTs: () => stored.at(-1)?.event.timestamp ?? 0,
     clear() {

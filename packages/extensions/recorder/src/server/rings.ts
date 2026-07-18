@@ -1,4 +1,4 @@
-import {createEventRing, type EventRing} from './ring.js'
+import {createEventRing, createSequence, type EventRing} from './ring.js'
 import type {RrwebEvent} from '../shared/protocol.js'
 
 const CLIENT_RING_IDLE_MS = 30 * 60 * 1000
@@ -20,6 +20,7 @@ type Entry = {ring: EventRing; touchedAt: number; unsubscribe: () => void}
 export function createClientRings(opts: {windowMs: number; maxBytes?: number}): ClientRings {
   const entries = new Map<string, Entry>()
   const listeners = new Set<(lastTs: number) => void>()
+  const sequence = createSequence()
   let active: string | null = null
 
   const drop = (clientId: string, entry: Entry): void => {
@@ -49,7 +50,7 @@ export function createClientRings(opts: {windowMs: number; maxBytes?: number}): 
   const entryFor = (clientId: string): Entry => {
     const existing = entries.get(clientId)
     if (existing) return existing
-    const ring = createEventRing(opts)
+    const ring = createEventRing({...opts, sequence})
     const unsubscribe = ring.onAppend((lastTs) => {
       for (const listener of listeners) listener(lastTs)
     })

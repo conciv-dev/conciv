@@ -23,6 +23,16 @@ describe('per-client rings', () => {
     expect(rings.since(1)).toEqual([event(2), event(7)])
   })
 
+  it('a recreated client ring keeps issuing cursors above any cursor a viewer still holds', () => {
+    const rings = createClientRings({windowMs: 60_000})
+    rings.append('watched', [event(1)])
+    const held = rings.head('watched')
+    for (let index = 0; index < 12; index += 1) rings.append(`tab-${index}`, [event(index + 2)])
+    expect(rings.window({}, 'watched')).toEqual([])
+    rings.append('watched', [event(99)])
+    expect(rings.since(held, 'watched')).toEqual([event(99)])
+  })
+
   it('evicts the least recently used client ring once the count budget is exceeded', () => {
     const rings = createClientRings({windowMs: 60_000})
     for (let index = 0; index < 12; index += 1) rings.append(`tab-${index}`, [event(index + 1)])

@@ -19,6 +19,20 @@ describe('node index', () => {
     expect(index.describe(4)).not.toContain('Save"')
   })
 
+  it('keeps a node that a batch moves by removing and re-adding it', () => {
+    const index = createNodeIndex()
+    index.applyFullSnapshot(
+      pageFixture([buttonFixture(4, 5, 'Save'), {id: 8, type: 2, tagName: 'div', childNodes: []}]),
+    )
+    index.applyMutation({
+      adds: [{parentId: 8, node: buttonFixture(4, 5, 'Save')}],
+      removes: [{id: 4}],
+      attributes: [],
+      texts: [],
+    })
+    expect(index.describe(4)).toContain('Save')
+  })
+
   it('removing a node drops its descendants and detaches it from its parent', () => {
     const index = createNodeIndex()
     index.applyFullSnapshot(page)

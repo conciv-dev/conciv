@@ -122,10 +122,10 @@ export function createNodeIndex(): NodeIndex {
     applyMutation(data) {
       const parsed = mutationData.safeParse(data)
       if (!parsed.success) return
+      applyRemoves(parsed.data.removes)
       applyAdds(parsed.data.adds)
       applyAttributes(parsed.data.attributes)
       applyTexts(parsed.data.texts)
-      applyRemoves(parsed.data.removes)
     },
     describe(id) {
       const node = byId.get(id)

@@ -31,7 +31,7 @@ export function createFlusher(opts: {
 
   const enqueue = (event: RrwebEvent): void => {
     const bytes = jsonByteLength(event)
-    if (bytes > MAX_FLUSH_BYTES) return
+    if (jsonByteLength([event]) > MAX_FLUSH_BYTES) return
     queue.push({event, bytes})
     queueBytes += bytes
     if (queueBytes <= MAX_QUEUE_BYTES) return
