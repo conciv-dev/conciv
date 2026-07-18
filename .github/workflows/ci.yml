@@ -80,6 +80,11 @@ jobs:
   storybook:
     name: Storybook browser tests
     runs-on: ubuntu-latest
+    env:
+      # The browser suite's flakiness ("Browser connection was closed") is the vite dev server
+      # (node) OOMing on the heavy cold dep-optimize and dropping the browser connection. Raise the
+      # node heap so the server survives the cold solid-streamdown load on a fresh turbo cache.
+      NODE_OPTIONS: --max-old-space-size=8192
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
