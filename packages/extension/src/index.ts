@@ -19,6 +19,7 @@ export {getHostApi, HostApiProvider} from './hooks.js'
 export type {ConnectHostApi, HostWiring} from './host-context.js'
 export type {
   AttachmentCardEntry,
+  AttachmentCardProps,
   AttachmentDocumentPart,
   AttachmentExpand,
   ClientFactoryResult,

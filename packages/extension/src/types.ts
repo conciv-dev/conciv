@@ -1,4 +1,4 @@
-import type {Component} from 'solid-js'
+import type {Component, JSX} from 'solid-js'
 import type {z} from 'zod'
 import type {ContentPart} from '@tanstack/ai'
 import type {AnyRouter} from '@orpc/server'
@@ -100,9 +100,11 @@ export type AttachmentExpand<Ctx = unknown> = (
   ctx: Ctx,
 ) => Promise<readonly ContentPart[]> | readonly ContentPart[]
 
-export type ExtensionAttachment = {mime: string; __card?: Component; __ctx?: unknown}
+export type AttachmentCardProps = {remove?: JSX.Element}
 
-export type AttachmentCardEntry = {mime: string; render: Component}
+export type ExtensionAttachment = {mime: string; __card?: Component<AttachmentCardProps>; __ctx?: unknown}
+
+export type AttachmentCardEntry = {mime: string; render: Component<AttachmentCardProps>}
 
 export type CtxOf<Tool> = Tool extends {__ctx?: infer Ctx} ? Ctx : unknown
 

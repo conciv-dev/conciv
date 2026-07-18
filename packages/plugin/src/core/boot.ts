@@ -1,4 +1,3 @@
-import {join} from 'node:path'
 import {start, type Engine} from '@conciv/core/start'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
 import {concivStateDir} from '@conciv/protocol/state-types'

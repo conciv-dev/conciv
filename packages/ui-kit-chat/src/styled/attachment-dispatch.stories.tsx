@@ -22,7 +22,7 @@ const SEED: CompleteAttachment[] = [
   },
 ]
 
-function FakeRecordingCard(): JSX.Element {
+function FakeRecordingCard(props: {remove?: JSX.Element}): JSX.Element {
   const [playing, setPlaying] = createSignal(false)
   return (
     <div class="px-3 rounded-[var(--chat-radius-pill)] flex gap-2 h-10 [border:1px_solid_var(--chat-line)] items-center">
@@ -30,6 +30,7 @@ function FakeRecordingCard(): JSX.Element {
       <button type="button" onClick={() => setPlaying(true)}>
         {playing() ? 'Playing' : 'Play'}
       </button>
+      {props.remove}
     </div>
   )
 }

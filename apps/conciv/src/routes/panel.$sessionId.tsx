@@ -2,7 +2,7 @@ import {Outlet, createFileRoute, redirect, useMatchRoute, useRouter} from '@tans
 import {useQuery} from '@tanstack/solid-query'
 import {Tabs, TooltipIconButton} from '@conciv/ui-kit-system'
 import {ChevronDown, PictureInPicture2, Unplug} from 'lucide-solid'
-import {For, Show, createEffect, createMemo, createSignal, type JSX} from 'solid-js'
+import {For, Show, createEffect, createMemo, createSignal, on, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import type {Grab} from '@conciv/grab'
 import {isSessionId} from '@conciv/protocol/chat-types'
@@ -57,12 +57,12 @@ function PanelSession(): JSX.Element {
   const slideClass = () => (slideDir() === 'right' ? 'anim-tab-right' : slideDir() === 'left' ? 'anim-tab-left' : '')
 
   const [hydrating, setHydrating] = createSignal(true)
-  createEffect(() => {
-    params().sessionId
-    activeView()
-    setHydrating(true)
-    requestAnimationFrame(() => requestAnimationFrame(() => setHydrating(false)))
-  })
+  createEffect(
+    on([() => params().sessionId, activeView], () => {
+      setHydrating(true)
+      requestAnimationFrame(() => requestAnimationFrame(() => setHydrating(false)))
+    }),
+  )
 
   const switchView = (next: string) => {
     if (next === activeView()) return

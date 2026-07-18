@@ -1,7 +1,7 @@
 import {Match, Show, Switch, createResource, createSignal, onCleanup, type JSX} from 'solid-js'
 import {QueryClient, QueryClientProvider, useMutation, useQuery} from '@tanstack/solid-query'
 import {createTanstackQueryUtils} from '@orpc/tanstack-query'
-import {getHostApi, makeExtRpcClient} from '@conciv/extension'
+import {getHostApi, makeExtRpcClient, type AttachmentCardProps} from '@conciv/extension'
 import {useAttachment} from '@conciv/ui-kit-chat'
 import {Button} from '@conciv/ui-kit-system'
 import {
@@ -26,16 +26,16 @@ async function resolveRef(attachment: AttachmentState): Promise<RecordingRef | n
   return null
 }
 
-export function RecordingCard(): JSX.Element {
+export function RecordingCard(props: AttachmentCardProps): JSX.Element {
   const queryClient = new QueryClient()
   return (
     <QueryClientProvider client={queryClient}>
-      <CardBody />
+      <CardBody remove={props.remove} />
     </QueryClientProvider>
   )
 }
 
-function CardBody(): JSX.Element {
+function CardBody(props: AttachmentCardProps): JSX.Element {
   const attachment = useAttachment()
   const host = getHostApi()
   const apiBase = host.useApiBase()
@@ -68,11 +68,12 @@ function CardBody(): JSX.Element {
     saveFileToDisk(video)
   }
   return (
-    <div class="p-2 border border-pw-line rounded-pw-md bg-pw-fill flex gap-2 min-w-55 items-center overflow-hidden">
+    <div class="py-2 pe-2 ps-3 border border-pw-line rounded-pw-md bg-pw-fill flex gap-2 min-w-55 items-center overflow-hidden">
       <RecorderNotice text={ref()?.poster ?? 'Screen recording'} />
       <Button size="sm" disabled={!ref()} onClick={() => setOpen(true)}>
         Play
       </Button>
+      {props.remove}
       <Dialog open={open()} onOpenChange={setOpen} dismissable size="xl" layer="inline" label="Screen recording replay">
         <Show when={open()}>
           <div class="flex flex-col gap-2">
