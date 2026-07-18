@@ -31,6 +31,7 @@
     "@conciv/protocol": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
     "@playwright/test": "^1.61.1",
+    "@vitest/coverage-v8": "^4.1.8",
     "get-port": "^7.2.0",
     "playwright": "^1.61.1",
     "solid-js": "^1.9.13",
@@ -40,6 +41,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@conciv/vitest-config": "workspace:*",
     "@types/node": "^22.19.21",
     "typescript": "^6.0.3"
   },

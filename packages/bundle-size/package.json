@@ -1,0 +1,29 @@
+{
+  "name": "@conciv/bundle-size",
+  "version": "0.0.11",
+  "private": true,
+  "description": "Internal CI tooling: measure gzip size of published package dists and diff against the main baseline.",
+  "homepage": "https://conciv.dev",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/conciv-dev/conciv.git",
+    "directory": "packages/bundle-size"
+  },
+  "bin": {
+    "conciv-bundle-size": "./src/cli.ts"
+  },
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@conciv/vitest-config": "workspace:*",
+    "@types/node": "^22.19.21",
+    "@vitest/coverage-v8": "^4.1.8",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  }
+}

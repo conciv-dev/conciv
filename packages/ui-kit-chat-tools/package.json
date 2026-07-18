@@ -49,6 +49,7 @@
   },
   "devDependencies": {
     "@conciv/uno-preset": "workspace:*",
+    "@conciv/vitest-config": "workspace:*",
     "@tanstack/ai-client": "^0.20.0",
     "@types/js-beautify": "^1.14.3",
     "@types/node": "^22.19.21",

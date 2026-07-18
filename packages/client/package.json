@@ -50,8 +50,10 @@
     "@conciv/core": "workspace:^",
     "@conciv/harness": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
+    "@conciv/vitest-config": "workspace:*",
     "@tanstack/ai-client": "^0.20.0",
     "@tanstack/solid-query": "^5.101.2",
+    "@vitest/coverage-v8": "^4.1.8",
     "tsdown": "^0.22.4",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"

@@ -43,21 +43,14 @@
   "dependencies": {
     "@conciv/embed": "workspace:^"
   },
-  "peerDependencies": {
-    "@types/react": ">=16.8",
-    "react": ">=16.8"
-  },
-  "peerDependenciesMeta": {
-    "@types/react": {
-      "optional": true
-    }
-  },
   "devDependencies": {
     "@conciv/extension-terminal": "workspace:^",
     "@conciv/extension-testkit": "workspace:^",
+    "@conciv/vitest-config": "workspace:*",
     "@types/node": "^26.1.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
+    "@vitest/coverage-v8": "^4.1.8",
     "playwright": "^1.61.1",
     "publint": "^0.3.14",
     "react": "^19.2.0",
@@ -66,6 +59,15 @@
     "typescript": "^6.0.3",
     "vite": "^8.0.16",
     "vitest": "^4.1.8"
+  },
+  "peerDependencies": {
+    "@types/react": ">=16.8",
+    "react": ">=16.8"
+  },
+  "peerDependenciesMeta": {
+    "@types/react": {
+      "optional": true
+    }
   },
   "engines": {
     "node": ">=22.13"

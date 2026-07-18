@@ -43,13 +43,12 @@
   "dependencies": {
     "@conciv/embed": "workspace:^"
   },
-  "peerDependencies": {
-    "solid-js": ">=1.8"
-  },
   "devDependencies": {
     "@conciv/extension-terminal": "workspace:^",
     "@conciv/extension-testkit": "workspace:^",
+    "@conciv/vitest-config": "workspace:*",
     "@types/node": "^26.1.0",
+    "@vitest/coverage-v8": "^4.1.8",
     "playwright": "^1.61.1",
     "publint": "^0.3.14",
     "solid-js": "^1.9.13",
@@ -58,6 +57,9 @@
     "vite": "^8.0.16",
     "vite-plugin-solid": "^2.11.12",
     "vitest": "^4.1.8"
+  },
+  "peerDependencies": {
+    "solid-js": ">=1.8"
   },
   "engines": {
     "node": ">=22.13"

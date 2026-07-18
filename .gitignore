@@ -24,6 +24,12 @@ storybook-static
 **/test/__screenshots__/
 **/.vitest-attachments/
 
+# vitest json output for the CI test report (regenerated per run)
+**/test-results.json
+**/coverage/
+bundle-size.json
+bundle-size-baseline.json
+
 # playwright run output (regenerated per run, never committed)
 **/test-results/
 **/playwright-report/
