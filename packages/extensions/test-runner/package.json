@@ -73,6 +73,7 @@
     "@conciv/core": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
+    "@conciv/vitest-config": "workspace:*",
     "@playwright/test": "^1.61.1",
     "@tanstack/ai-mcp": "^0.2.3",
     "@types/node": "^22.19.21",

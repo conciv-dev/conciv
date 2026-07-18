@@ -63,6 +63,7 @@
     "oxc-parser": "^0.127.0"
   },
   "devDependencies": {
+    "@conciv/vitest-config": "workspace:*",
     "@types/babel__core": "^7.20.5",
     "@types/node": "^22.19.21",
     "tsdown": "^0.22.4",

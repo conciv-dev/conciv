@@ -63,6 +63,7 @@
     "@conciv/extension-testkit": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
+    "@conciv/vitest-config": "workspace:*",
     "@playwright/test": "^1.61.1",
     "@types/node": "^22.19.21",
     "@types/ws": "^8.18.1",

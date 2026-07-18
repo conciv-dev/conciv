@@ -1,9 +1,11 @@
 import {defineConfig} from 'vitest/config'
 import solid from 'vite-plugin-solid'
 import {playwright} from '@vitest/browser-playwright'
+import {ciReporters} from '@conciv/vitest-config'
 
 export default defineConfig({
   test: {
+    reporters: ciReporters(),
     globalSetup: ['test/browser-server.global.ts'],
     projects: [
       {

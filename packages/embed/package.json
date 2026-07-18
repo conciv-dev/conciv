@@ -62,6 +62,7 @@
     "@conciv/extension-testkit": "workspace:^",
     "@conciv/page": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
+    "@conciv/vitest-config": "workspace:*",
     "@types/node": "^26.1.0",
     "@unocss/postcss": "^66.7.2",
     "@unocss/reset": "^66.7.2",

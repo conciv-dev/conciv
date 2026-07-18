@@ -1,8 +1,10 @@
 import {defineConfig} from 'vitest/config'
 import {playwright} from '@vitest/browser-playwright'
+import {ciReporters} from '@conciv/vitest-config'
 
 export default defineConfig({
   test: {
+    reporters: ciReporters(),
     projects: [
       {
         test: {

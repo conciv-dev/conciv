@@ -69,6 +69,12 @@ jobs:
       - run: pnpm exec turbo run typecheck lint test --filter='./packages/*' --filter='./packages/extensions/*' --concurrency=3
         env:
           VITEST_MAX_WORKERS: '1'
+      # One job-summary table for all package suites, built from the per-package
+      # test-results.json files (vitest emits them only in CI; turbo caches them so
+      # cache-hit packages still report). Inline failure annotations come from vitest's
+      # own github-actions reporter; ciReporters() disables its noisy per-run summary.
+      - run: pnpm exec conciv-ci-summary packages
+        if: always()
       # Enforce the no-comments rule everywhere (incl. apps/), without pulling the private apps into the build/test gate.
       - run: pnpm exec oxlint -A all -D conciv/no-comments
       - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -114,6 +120,8 @@ jobs:
       # maxWorkers:2 is safe and the heavy solid-streamdown cold-load has headroom. Dependency
       # builds are capped so a cold turbo cache (lockfile change) can't OOM chrome mid-run.
       - run: pnpm exec turbo run typecheck lint test --filter='./apps/storybook' --concurrency=3
+      - run: pnpm exec conciv-ci-summary apps/storybook
+        if: always()
       - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         if: always()
         with:

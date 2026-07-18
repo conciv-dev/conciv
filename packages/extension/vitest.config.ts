@@ -1,5 +1,9 @@
 import {defineConfig} from 'vitest/config'
+import {ciReporters} from '@conciv/vitest-config'
 
 export default defineConfig({
-  test: {environment: 'node'},
+  test: {
+    reporters: ciReporters(),
+    environment: 'node',
+  },
 })

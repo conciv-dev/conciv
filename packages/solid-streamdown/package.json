@@ -53,6 +53,7 @@
     "unist-util-visit-parents": "^6.0.2"
   },
   "devDependencies": {
+    "@conciv/vitest-config": "workspace:*",
     "@types/hast": "^3.0.4",
     "@types/node": "^22.19.21",
     "@vitest/coverage-v8": "4.1.10",

@@ -25,6 +25,7 @@
     "solid-js": "^1.9.13"
   },
   "devDependencies": {
+    "@conciv/vitest-config": "workspace:*",
     "@types/node": "^26.1.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
