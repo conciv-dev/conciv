@@ -1,4 +1,4 @@
-import {createEffect, onMount, Show, splitProps, type JSX} from 'solid-js'
+import {createEffect, onCleanup, onMount, Show, splitProps, type JSX} from 'solid-js'
 import {Field} from '@ark-ui/solid/field'
 
 const ROOT = 'flex flex-col gap-1'
@@ -31,15 +31,22 @@ export type TextAreaProps = Omit<JSX.TextareaHTMLAttributes<HTMLTextAreaElement>
   unstyled?: boolean
 }
 
-function rowsToPx(el: HTMLTextAreaElement, rows: number): number {
-  const styles = getComputedStyle(el)
+function paddingY(styles: CSSStyleDeclaration): number {
+  return Number.parseFloat(styles.paddingTop) + Number.parseFloat(styles.paddingBottom)
+}
+
+function borderY(styles: CSSStyleDeclaration): number {
+  return Number.parseFloat(styles.borderTopWidth) + Number.parseFloat(styles.borderBottomWidth)
+}
+
+function rowsToPx(styles: CSSStyleDeclaration, rows: number): number {
   const lineHeight = Number.parseFloat(styles.lineHeight) || 20
-  const vertical =
-    Number.parseFloat(styles.paddingTop) +
-    Number.parseFloat(styles.paddingBottom) +
-    Number.parseFloat(styles.borderTopWidth) +
-    Number.parseFloat(styles.borderBottomWidth)
-  return rows * lineHeight + vertical
+  const box = styles.boxSizing === 'border-box' ? paddingY(styles) + borderY(styles) : 0
+  return rows * lineHeight + box
+}
+
+function contentToPx(scrollHeight: number, styles: CSSStyleDeclaration): number {
+  return styles.boxSizing === 'border-box' ? scrollHeight + borderY(styles) : scrollHeight - paddingY(styles)
 }
 
 export function TextArea(props: TextAreaProps): JSX.Element {
@@ -56,15 +63,29 @@ export function TextArea(props: TextAreaProps): JSX.Element {
   let el: HTMLTextAreaElement | undefined
   const grow = () => {
     if (!el) return
-    const max = rowsToPx(el, local.maxRows ?? 5)
-    const min = rowsToPx(el, local.minRows ?? 1)
+    const styles = getComputedStyle(el)
+    const max = rowsToPx(styles, local.maxRows ?? 5)
+    const min = rowsToPx(styles, local.minRows ?? 1)
     el.style.height = 'auto'
-    const next = Math.max(min, Math.min(el.scrollHeight, max))
+    const content = contentToPx(el.scrollHeight, styles)
+    const next = Math.max(min, Math.min(content, max))
     el.style.height = `${next}px`
-    el.style.overflowY = el.scrollHeight > max ? 'auto' : 'hidden'
+    el.style.overflowY = content > max ? 'auto' : 'hidden'
     local.onHeightChange?.(next)
   }
-  onMount(grow)
+  onMount(() => {
+    grow()
+    const node = el
+    if (!node) return
+    let lastWidth = node.clientWidth
+    const observer = new ResizeObserver(() => {
+      if (node.clientWidth === lastWidth) return
+      lastWidth = node.clientWidth
+      grow()
+    })
+    observer.observe(node)
+    onCleanup(() => observer.disconnect())
+  })
   createEffect(() => {
     void local.value
     grow()
