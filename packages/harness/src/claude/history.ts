@@ -148,14 +148,14 @@ function parseJson(line: string): unknown {
   }
 }
 
-function lastAssistantUsage(jsonl: string) {
-  return jsonl
-    .split('\n')
-    .flatMap((line) => {
-      const rec = AssistantUsageRecordSchema.safeParse(parseJson(line))
-      return rec.success && !rec.data.isSidechain && rec.data.message?.usage ? [rec.data.message.usage] : []
-    })
-    .at(-1)
+type AssistantUsage = NonNullable<NonNullable<z.infer<typeof AssistantUsageRecordSchema>['message']>['usage']>
+
+function lastAssistantUsage(jsonl: string): AssistantUsage | undefined {
+  return jsonl.split('\n').reduceRight<AssistantUsage | undefined>((found, line) => {
+    if (found) return found
+    const rec = AssistantUsageRecordSchema.safeParse(parseJson(line))
+    return rec.success && !rec.data.isSidechain && rec.data.message?.usage ? rec.data.message.usage : found
+  }, undefined)
 }
 
 export function contextTokensFromTranscript(jsonl: string): number | undefined {
