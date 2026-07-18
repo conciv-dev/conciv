@@ -5,7 +5,8 @@ import type {RecorderConfig, RrwebEvent} from '../shared/protocol.js'
 
 const CHECKOUT_MS = 60_000
 
-const CONCIV_UI_SELECTOR = '[data-conciv-root], [data-conciv-effects], [data-conciv-cursor]'
+const CONCIV_UI_SELECTOR =
+  '[data-conciv-root], [data-conciv-effects], [data-conciv-cursor], [data-conciv-fonts], [data-conciv-properties]'
 
 function maskingOptions(masking: RecorderConfig['masking']): {
   maskAllInputs: boolean
