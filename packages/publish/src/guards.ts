@@ -38,6 +38,8 @@ const PUBLIC_PACKAGES = [
   '@conciv/extension-terminal',
   '@conciv/mascot',
   '@conciv/embed',
+  '@conciv/react',
+  '@conciv/preact',
 ]
 
 type Manifest = {name?: string; version?: string; private?: boolean}
