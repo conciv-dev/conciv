@@ -141,7 +141,7 @@ jobs:
       - run: pnpm exec turbo run typecheck lint test --filter='./apps/storybook' --concurrency=3 --env-mode=loose
         env:
           DEBUG: pw:browser
-          NODE_OPTIONS: ${{ matrix.n <= 10 && '--require /tmp/sbdebug-hook.cjs --max-old-space-size=8192' || '--require /tmp/sbdebug-hook.cjs' }}
+          NODE_OPTIONS: --require /tmp/sbdebug-hook.cjs --cpu-prof --cpu-prof-dir=/tmp/prof
       - name: post-mortem
         if: always()
         run: |
@@ -152,4 +152,6 @@ jobs:
         if: always()
         with:
           name: sb-diag-${{ matrix.n }}
-          path: /tmp/ps.log
+          path: |
+            /tmp/ps.log
+            /tmp/prof/
