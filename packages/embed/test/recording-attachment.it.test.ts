@@ -1,5 +1,5 @@
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
-import {chromium, type Browser, type Page} from 'playwright'
+import {chromium, type Browser} from 'playwright'
 import {makeExtRpcClient} from '@conciv/extension'
 import recorderServer, {type RecorderRouter} from '@conciv/extension-recorder'
 import {bootEmbedKit, type EmbedKit} from './helpers/boot.js'
@@ -17,7 +17,7 @@ beforeAll(async () => {
     hostPage({
       apiBase: kit.base,
       widget: '{"quickTerminal":false}',
-      body: '<button id="embed-fixture">Embed fixture</button>',
+      body: '<button>Embed fixture</button>',
     }),
   )
 }, 60_000)
@@ -28,23 +28,12 @@ afterAll(async () => {
   await kit.cleanup()
 })
 
-function countImagesAcrossShadowRoots(page: Page): Promise<number> {
-  return page.evaluate(() => {
-    const countIn = (root: Document | ShadowRoot): number =>
-      [...root.querySelectorAll('*')].reduce(
-        (total, el) => total + (el.tagName === 'IMG' ? 1 : 0) + (el.shadowRoot ? countIn(el.shadowRoot) : 0),
-        0,
-      )
-    return countIn(document)
-  })
-}
-
 describe('recording attachment end to end in the real widget', () => {
   it('composes the card chip, sends log text to the model, renders the durable transcript card', async () => {
     const page = await browser.newPage()
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
-    await page.click('#embed-fixture')
-    await page.click('#embed-fixture')
+    await page.getByRole('button', {name: 'Embed fixture'}).click()
+    await page.getByRole('button', {name: 'Embed fixture'}).click()
 
     const recorderRpc = makeExtRpcClient<RecorderRouter>(kit.base, 'recorder')
     await expect
@@ -80,7 +69,7 @@ describe('recording attachment end to end in the real widget', () => {
       .waitFor({state: 'visible', timeout: 15_000})
     await transcript.getByRole('button', {name: 'Play'}).first().waitFor({state: 'visible', timeout: 15_000})
     expect(await transcript.getByText('[click]').count()).toBe(0)
-    expect(await countImagesAcrossShadowRoots(page)).toBe(0)
+    expect(await page.getByRole('img').count()).toBe(0)
 
     await page.reload({waitUntil: 'domcontentloaded'})
     await expect
