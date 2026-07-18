@@ -14,6 +14,10 @@ export interface WidgetConfig {
   quickTerminal?: boolean | QuickTerminalConfig
 }
 
+export interface ConcivSettingsInit extends WidgetConfig {
+  defaultOpen?: boolean
+}
+
 export interface ExtensionConfigRegistry {}
 
 export interface ConcivConfig {

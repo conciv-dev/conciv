@@ -1,7 +1,7 @@
 {
   "name": "@conciv/embed",
   "version": "0.0.11",
-  "description": "Internal to @conciv/it (installed automatically, do not install directly). The conciv embed bundle: mounts the conciv router app into a Shadow DOM on the host page and starts the page plane. Inlines the private conciv app and @conciv/page; externalizes shared Solid/Ark/@conciv packages.",
+  "description": "Internal to @conciv/it (installed automatically, do not install directly). Also powers the @conciv/react and @conciv/preact wrapper components. The conciv embed bundle: mounts the conciv router app into a Shadow DOM on the host page and starts the page plane. Inlines the private conciv app and @conciv/page; externalizes shared Solid/Ark/@conciv packages.",
   "keywords": [
     "ai",
     "chat",

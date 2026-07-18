@@ -1,16 +1,9 @@
 import {err, type PageQuery, type PageQueryKind, type PageResult} from '@conciv/protocol/page-types'
-import {
-  DOM_HANDLERS,
-  ELEMENT_KINDS,
-  resolveTarget,
-  startConsoleBuffer,
-  type ConsoleEntry,
-  type PageHandler,
-} from './page-handlers.js'
+import {DOM_HANDLERS, ELEMENT_KINDS, resolveTarget, startConsoleBuffer, type PageHandler} from './page-handlers.js'
 import type {Refs} from './page-snapshot.js'
 import {mirrorPageAction, mirrorsKind} from './page-mirror.js'
 
-export type PageDriver = {execute: (query: PageQuery) => Promise<PageResult>; refs: Refs}
+export type PageDriver = {execute: (query: PageQuery) => Promise<PageResult>; refs: Refs; dispose: () => void}
 
 function missingTargetError(query: PageQuery): PageResult {
   if (query.ref) return err(`stale ref ${query.ref} — re-run page snapshot`)
@@ -23,7 +16,7 @@ export function makeDomPageDriver(
   deps: {handlers?: Partial<Record<PageQueryKind, PageHandler>>; refs?: Refs} = {},
 ): PageDriver {
   const refs: Refs = deps.refs ?? {map: new Map(), n: 0}
-  const consoleBuf: ConsoleEntry[] = startConsoleBuffer()
+  const {buf: consoleBuf, dispose} = startConsoleBuffer()
   const handlers: Record<PageQueryKind, PageHandler> = {
     ...DOM_HANDLERS,
     ...deps.handlers,
@@ -43,5 +36,5 @@ export function makeDomPageDriver(
     }
   }
 
-  return {execute, refs}
+  return {execute, refs, dispose}
 }
