@@ -12,7 +12,9 @@ async function addPageButton(page: Page, id: string, text: string): Promise<void
       button.id = String(buttonId)
       const slot = document.querySelectorAll('[data-dvr-fixture]').length
       button.setAttribute('data-dvr-fixture', '')
-      button.style.cssText = `position:fixed;bottom:0;left:${slot * 180}px;z-index:2147483647`
+      const column = slot % 5
+      const row = Math.floor(slot / 5)
+      button.style.cssText = `position:fixed;bottom:${row * 36}px;left:${column * 180}px;z-index:2147483647`
       document.body.appendChild(button)
     },
     [id, text],
@@ -63,6 +65,27 @@ describe('panel DVR mode model (real browser)', () => {
     await page.getByText('LIVE', {exact: true}).waitFor({state: 'visible', timeout: 10_000})
     await expect.poll(() => replayFrameContains(page, 'Marker offair'), {timeout: 20_000}).toBe(true)
     expect(await hasController(page)).toBe(false)
+  }, 120_000)
+
+  it('paused timeline stays frozen while the page keeps producing events', async () => {
+    const page = api().page
+    await openPanelFollowing(page, 'freeze')
+    await page.getByRole('button', {name: 'Pause', exact: true}).click()
+    await expect.poll(() => hasController(page), {timeout: 10_000}).toBe(true)
+    const readTimeline = () =>
+      page.evaluate(() =>
+        Array.from(document.querySelectorAll('.rr-timeline__time'))
+          .map((el) => el.textContent)
+          .join('/'),
+      )
+    const before = await readTimeline()
+    await addPageButton(page, 'fixture-freeze-noise-1', 'Marker freeze-noise-1')
+    await page.waitForTimeout(1_500)
+    await addPageButton(page, 'fixture-freeze-noise-2', 'Marker freeze-noise-2')
+    await page.waitForTimeout(1_500)
+    expect(await readTimeline()).toBe(before)
+    await page.getByRole('button', {name: 'Go live', exact: true}).click()
+    await expect.poll(() => replayFrameContains(page, 'Marker freeze-noise-2'), {timeout: 20_000}).toBe(true)
   }, 120_000)
 
   it('paused controller actually replays: scrub to start hides late content, play catches back up', async () => {

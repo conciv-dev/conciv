@@ -165,7 +165,7 @@ export function mountPanelPlayer(
     if (stopped) return
     for (const event of fresh) {
       buffer.push(event)
-      player?.addEvent(playerEvent.parse(event))
+      if (mode === 'following') player?.addEvent(playerEvent.parse(event))
       cursor = Math.max(cursor, event.timestamp)
     }
     poll = setTimeout(() => void tick(), LIVE_POLL_MS)
