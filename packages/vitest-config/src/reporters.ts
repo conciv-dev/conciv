@@ -1,8 +1,6 @@
-import type {TestUserConfig} from 'vitest/node'
+type CiReporterEntry = 'default' | ['github-actions', {jobSummary: {enabled: boolean}}] | ['json', {outputFile: string}]
 
-type Reporters = NonNullable<TestUserConfig['reporters']>
-
-export function ciReporters(): Reporters {
+export function ciReporters(): CiReporterEntry[] {
   if (!process.env.GITHUB_ACTIONS) return ['default']
   return ['default', ['github-actions', {jobSummary: {enabled: false}}], ['json', {outputFile: 'test-results.json'}]]
 }

@@ -45,32 +45,49 @@ function findReports(roots: string[]): string[] {
   return found.toSorted()
 }
 
+function toRecords(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value) ? value.filter(isRecord) : []
+}
+
+function statusOf(result: Record<string, unknown>): string {
+  return asString(result.status)
+}
+
+function assertionFailure(result: Record<string, unknown>): Failure {
+  const messages = Array.isArray(result.failureMessages) ? result.failureMessages.map(asString) : []
+  return {test: asString(result.fullName), message: stripVTControlCharacters(messages.join('\n'))}
+}
+
+function crashedWithoutAssertions(file: Record<string, unknown>): boolean {
+  return (
+    statusOf(file) === 'failed' && toRecords(file.assertionResults).every((result) => statusOf(result) !== 'failed')
+  )
+}
+
+function fileFailure(file: Record<string, unknown>): Failure {
+  return {test: asString(file.name), message: stripVTControlCharacters(asString(file.message))}
+}
+
+function fileDuration(file: Record<string, unknown>): number {
+  return Math.max(0, asNumber(file.endTime) - asNumber(file.startTime))
+}
+
 export function parseReport(name: string, raw: string): PackageSummary {
   const report: unknown = JSON.parse(raw)
-  const files = isRecord(report) && Array.isArray(report.testResults) ? report.testResults : []
-  const summary: PackageSummary = {name, passed: 0, failed: 0, skipped: 0, timeMs: 0, failures: []}
-  for (const file of files) {
-    if (!isRecord(file)) continue
-    summary.timeMs += Math.max(0, asNumber(file.endTime) - asNumber(file.startTime))
-    const results = Array.isArray(file.assertionResults) ? file.assertionResults : []
-    const failedBefore = summary.failed
-    for (const result of results) {
-      if (!isRecord(result)) continue
-      const status = asString(result.status)
-      if (status === 'passed') summary.passed += 1
-      if (status === 'failed') {
-        summary.failed += 1
-        const messages = Array.isArray(result.failureMessages) ? result.failureMessages.map(asString) : []
-        summary.failures.push({test: asString(result.fullName), message: stripVTControlCharacters(messages.join('\n'))})
-      }
-      if (status !== 'passed' && status !== 'failed') summary.skipped += 1
-    }
-    if (asString(file.status) === 'failed' && summary.failed === failedBefore) {
-      summary.failed += 1
-      summary.failures.push({test: asString(file.name), message: stripVTControlCharacters(asString(file.message))})
-    }
+  const files = toRecords(isRecord(report) ? report.testResults : [])
+  const assertions = files.flatMap((file) => toRecords(file.assertionResults))
+  const failures = [
+    ...assertions.filter((result) => statusOf(result) === 'failed').map(assertionFailure),
+    ...files.filter(crashedWithoutAssertions).map(fileFailure),
+  ]
+  return {
+    name,
+    passed: assertions.filter((result) => statusOf(result) === 'passed').length,
+    failed: failures.length,
+    skipped: assertions.filter((result) => statusOf(result) !== 'passed' && statusOf(result) !== 'failed').length,
+    timeMs: files.reduce((total, file) => total + fileDuration(file), 0),
+    failures,
   }
-  return summary
 }
 
 export function loadSummaries(roots: string[]): PackageSummary[] {
