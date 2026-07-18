@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto'
 import {mkdir, readFile, readdir, rename, stat, unlink, writeFile} from 'node:fs/promises'
 import {join} from 'node:path'
 import {z} from 'zod'
-import {RrwebEventSchema, type RrwebEvent} from '../shared/protocol.js'
+import {RrwebEventSchema, jsonByteLength, type RrwebEvent} from '../shared/protocol.js'
 
 const StoredRecording = z.object({events: z.array(RrwebEventSchema)})
 const MAX_RECORDINGS = 50
@@ -23,7 +23,7 @@ function trimToCap(events: RrwebEvent[]): RrwebEvent[] | null {
   const starts = [...new Set([0, ...snapshotIndexes])]
   for (const start of starts) {
     const slice = events.slice(start)
-    if (JSON.stringify({events: slice}).length <= MAX_RECORDING_BYTES) return slice
+    if (jsonByteLength({events: slice}) <= MAX_RECORDING_BYTES) return slice
   }
   return null
 }
@@ -68,7 +68,7 @@ export function createRecordingStore(dir: string): RecordingStore {
       const payload = JSON.stringify({events: trimmed})
       try {
         await mkdir(dir, {recursive: true})
-        await prune(dir, {bytes: payload.length, count: 1})
+        await prune(dir, {bytes: Buffer.byteLength(payload, 'utf8'), count: 1})
         sequence += 1
         const recordingId = `${Date.now()}-${sequence.toString(36).padStart(6, '0')}-${randomUUID()}`
         const target = join(dir, `${recordingId}.json`)

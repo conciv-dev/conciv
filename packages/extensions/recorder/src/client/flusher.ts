@@ -1,4 +1,4 @@
-import type {RrwebEvent} from '../shared/protocol.js'
+import {MAX_FLUSH_BYTES, jsonByteLength, type RrwebEvent} from '../shared/protocol.js'
 
 export type Flusher = {
   push(event: RrwebEvent): void
@@ -30,7 +30,8 @@ export function createFlusher(opts: {
   let draining = false
 
   const enqueue = (event: RrwebEvent): void => {
-    const bytes = JSON.stringify(event).length
+    const bytes = jsonByteLength(event)
+    if (bytes > MAX_FLUSH_BYTES) return
     queue.push({event, bytes})
     queueBytes += bytes
     if (queueBytes <= MAX_QUEUE_BYTES) return

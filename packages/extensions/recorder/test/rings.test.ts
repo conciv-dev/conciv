@@ -23,6 +23,13 @@ describe('per-client rings', () => {
     expect(rings.since(1)).toEqual([event(2), event(7)])
   })
 
+  it('evicts the least recently used client ring once the count budget is exceeded', () => {
+    const rings = createClientRings({windowMs: 60_000})
+    for (let index = 0; index < 12; index += 1) rings.append(`tab-${index}`, [event(index + 1)])
+    expect(rings.window({}, 'tab-0')).toEqual([])
+    expect(rings.window({}, 'tab-11')).toEqual([event(12)])
+  })
+
   it('aggregates onAppend across clients', () => {
     const rings = createClientRings({windowMs: 60_000})
     const seen: number[] = []

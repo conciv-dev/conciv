@@ -2,11 +2,14 @@ import {createEventRing, type EventRing} from './ring.js'
 import type {RrwebEvent} from '../shared/protocol.js'
 
 const CLIENT_RING_IDLE_MS = 30 * 60 * 1000
+const MAX_CLIENT_RINGS = 8
+const MAX_TOTAL_RING_BYTES = 64 * 1024 * 1024
 
 export type ClientRings = {
   append(clientId: string, events: RrwebEvent[]): void
   window(range?: {fromTs?: number; toTs?: number}, clientId?: string): RrwebEvent[]
-  since(ts: number, clientId?: string): RrwebEvent[]
+  since(cursor: number, clientId?: string): RrwebEvent[]
+  head(clientId?: string): number
   lastTs(): number
   clear(): void
   onAppend(listener: (lastTs: number) => void): () => void
@@ -19,12 +22,27 @@ export function createClientRings(opts: {windowMs: number; maxBytes?: number}): 
   const listeners = new Set<(lastTs: number) => void>()
   let active: string | null = null
 
+  const drop = (clientId: string, entry: Entry): void => {
+    entry.unsubscribe()
+    entries.delete(clientId)
+  }
+
+  const evictable = (): [string, Entry][] =>
+    [...entries].filter(([clientId]) => clientId !== active).toSorted(([, a], [, b]) => a.touchedAt - b.touchedAt)
+
+  const totalBytes = (): number => [...entries.values()].reduce((sum, entry) => sum + entry.ring.bytes(), 0)
+
+  const overBudget = (): boolean => entries.size > MAX_CLIENT_RINGS || totalBytes() > MAX_TOTAL_RING_BYTES
+
   const sweep = (): void => {
     const cutoff = Date.now() - CLIENT_RING_IDLE_MS
     for (const [clientId, entry] of entries) {
       if (entry.touchedAt >= cutoff || clientId === active) continue
-      entry.unsubscribe()
-      entries.delete(clientId)
+      drop(clientId, entry)
+    }
+    for (const [clientId, entry] of evictable()) {
+      if (!overBudget()) break
+      drop(clientId, entry)
     }
   }
 
@@ -54,7 +72,8 @@ export function createClientRings(opts: {windowMs: number; maxBytes?: number}): 
       sweep()
     },
     window: (range = {}, clientId) => resolve(clientId)?.window(range) ?? [],
-    since: (ts, clientId) => resolve(clientId)?.since(ts) ?? [],
+    since: (cursor, clientId) => resolve(clientId)?.since(cursor) ?? [],
+    head: (clientId) => resolve(clientId)?.head() ?? 0,
     lastTs: () => resolve()?.lastTs() ?? 0,
     clear() {
       for (const entry of entries.values()) entry.unsubscribe()
