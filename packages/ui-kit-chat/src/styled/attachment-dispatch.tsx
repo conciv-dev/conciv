@@ -1,7 +1,9 @@
 import {Show, type JSX, type ValidComponent} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
+import {X} from 'lucide-solid'
 import {Attachment, useAttachment} from '../primitives/attachment/attachment.js'
 import {AttachmentUI} from './attachment-ui.js'
+import {FOCUS} from './classes.js'
 import {
   fileToDataSource,
   type Attachment as AttachmentState,
@@ -23,10 +25,14 @@ export function AttachmentByMime(props: {cards: readonly AttachmentCardSlot[]; r
   return (
     <Show when={card()} fallback={<AttachmentUI removable={props.removable} />}>
       {(entry) => (
-        <Attachment.Root class="relative">
+        <Attachment.Root class="flex gap-1 items-center">
           <Dynamic component={entry().render} />
           <Show when={props.removable}>
-            <Attachment.Remove class="rounded-[var(--chat-radius-pill)] inline-flex size-6 cursor-pointer shadow-[var(--chat-shadow-lg)] [background:var(--chat-panel)] [color:var(--chat-text-2)] items-center end-1 top-1 justify-center absolute hover:[color:var(--chat-danger)]" />
+            <Attachment.Remove
+              class={`rounded-[var(--chat-radius-pill)] inline-flex shrink-0 size-6 cursor-pointer [color:var(--chat-text-2)] items-center justify-center hover:[background:var(--chat-fill)] hover:[color:var(--chat-danger)] ${FOCUS}`}
+            >
+              <X size={12} />
+            </Attachment.Remove>
           </Show>
         </Attachment.Root>
       )}
