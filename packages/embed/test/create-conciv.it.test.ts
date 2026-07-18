@@ -12,7 +12,6 @@ declare global {
     ConcivHandle: {makeHandle: (apiBase: string) => Handle}
     __handle: Handle
     __el: HTMLElement
-    __TSR_ROUTER__?: unknown
   }
 }
 
@@ -93,13 +92,13 @@ describe('createConciv lifecycle', () => {
   it('restores the host __TSR_ROUTER__ global on unmount', async () => {
     const page = await openPage()
     await page.evaluate(() => {
-      window.__TSR_ROUTER__ = {hostSentinel: true}
+      Reflect.set(window, '__TSR_ROUTER__', {hostSentinel: true})
     })
     await mountHandle(page, kit.base)
     await expect.poll(() => fab(page).isVisible(), {timeout: 15_000}).toBe(true)
     await page.evaluate(() => window.__handle.unmount())
     const restored = await page.evaluate(() => {
-      const value = window.__TSR_ROUTER__
+      const value = Reflect.get(window, '__TSR_ROUTER__')
       return typeof value === 'object' && value !== null && 'hostSentinel' in value
     })
     expect(restored).toBe(true)
