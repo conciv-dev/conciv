@@ -1,17 +1,12 @@
 import {describe, expect, it} from 'vitest'
 import {useRecorderTestApi} from './helpers/test-api.js'
+import {addMarker} from './helpers/fixtures.js'
 
 const api = useRecorderTestApi()
 
 describe('send to agent (real browser, real store)', () => {
   it('saves the recording and attaches the real card chip, not a txt note', async () => {
-    await api().page.evaluate(() => {
-      const button = document.createElement('button')
-      button.textContent = 'Send fixture'
-      button.id = 'send-fixture'
-      document.body.appendChild(button)
-    })
-    await api().page.click('#send-fixture')
+    await addMarker(api().page)
     await api().callTool('recording_pull', {secondsBack: 120, keyframes: 0})
 
     await api().page.getByRole('tab', {name: 'Recorder'}).click()

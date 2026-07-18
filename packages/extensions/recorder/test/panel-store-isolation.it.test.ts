@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest'
 import {useRecorderTestApi} from './helpers/test-api.js'
+import {addMarker} from './helpers/fixtures.js'
 
 const api = useRecorderTestApi()
 
@@ -10,22 +11,16 @@ describe('panel replay does not mutate solid stores (real browser)', () => {
     page.on('console', (message) => {
       if (message.text().includes('Cannot mutate a Store')) warnings.push(message.text())
     })
-    await page.evaluate(() => {
-      const button = document.createElement('button')
-      button.textContent = 'Isolation marker'
-      button.style.cssText = 'position:fixed;bottom:0;left:0;z-index:2147483647'
-      document.body.appendChild(button)
-    })
-    await page.getByRole('button', {name: 'Isolation marker'}).click()
+    const label = await addMarker(page)
     await page.getByRole('tab', {name: 'Recorder'}).click()
     await page.getByRole('button', {name: 'Send to agent'}).waitFor({state: 'visible', timeout: 20_000})
     await expect
-      .poll(() => page.frameLocator('iframe').getByText('Isolation marker', {exact: true}).count(), {timeout: 20_000})
+      .poll(() => page.frameLocator('iframe').getByText(label, {exact: true}).count(), {timeout: 20_000})
       .toBeGreaterThan(0)
     await page.waitForTimeout(1_500)
-    await page.getByRole('button', {name: 'Isolation marker'}).click()
+    await addMarker(page)
     await page.waitForTimeout(1_500)
-    await page.getByRole('button', {name: 'Isolation marker'}).click()
+    await addMarker(page)
     const timeline = page.getByRole('slider', {name: 'Timeline'})
     await timeline.focus()
     await page.keyboard.press('ArrowLeft')

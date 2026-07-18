@@ -22,6 +22,7 @@ export function startCapture(config: RecorderConfig, emit: (event: RrwebEvent) =
     emit: (event: eventWithTime) => emit(event),
     checkoutEveryNms: CHECKOUT_MS,
     blockSelector: CONCIV_UI_SELECTOR,
+    sampling: {mousemove: 50, scroll: 150, media: 800, input: 'last'},
     ...maskingOptions(config.masking),
     plugins: config.console
       ? [

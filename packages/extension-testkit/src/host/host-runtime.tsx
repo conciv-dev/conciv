@@ -30,7 +30,9 @@ function MountedViews(props: {extension: AnyExtension; clientValue: object}): JS
       <Show keyed when={activeView()}>
         {(view) => (
           <HostApiProvider value={props.clientValue}>
-            <div style={{display: 'flex', 'flex-direction': 'column', width: '800px', height: '480px'}}>
+            <div
+              style={{display: 'flex', 'flex-direction': 'column', width: '800px', height: '480px', overflow: 'hidden'}}
+            >
               <Dynamic component={view.Component} />
             </div>
           </HostApiProvider>
@@ -42,6 +44,31 @@ function MountedViews(props: {extension: AnyExtension; clientValue: object}): JS
 
 function metaContent(name: string): string {
   return document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content ?? ''
+}
+
+function AttachFixtureForm(props: {attach: (file: File) => void}): JSX.Element {
+  const [name, setName] = createSignal('')
+  const [type, setType] = createSignal('')
+  const [text, setText] = createSignal('')
+  return (
+    <div>
+      <label>
+        Attachment name
+        <input value={name()} onInput={(event) => setName(event.currentTarget.value)} />
+      </label>
+      <label>
+        Attachment type
+        <input value={type()} onInput={(event) => setType(event.currentTarget.value)} />
+      </label>
+      <label>
+        Attachment text
+        <input value={text()} onInput={(event) => setText(event.currentTarget.value)} />
+      </label>
+      <button type="button" onClick={() => props.attach(new File([text()], name(), {type: type()}))}>
+        Attach fixture file
+      </button>
+    </div>
+  )
 }
 
 function showToast(message: string): void {
@@ -61,7 +88,19 @@ function showAttachment(file: File): void {
   })
 }
 
+function installStorageFixtures(): void {
+  const slimScript = document.createElement('script')
+  slimScript.type = 'text/plain'
+  slimScript.textContent = `/* FIXTURE_SCRIPT_BODY ${'x'.repeat(10_000)} */`
+  document.head.appendChild(slimScript)
+  const fontStyle = document.createElement('style')
+  fontStyle.setAttribute('data-conciv-fonts', '')
+  fontStyle.textContent = `/* CONCIV_FONT_FIXTURE ${'y'.repeat(600_000)} */`
+  document.head.appendChild(fontStyle)
+}
+
 export function startHost(extension: AnyExtension): void {
+  installStorageFixtures()
   const apiBase = metaContent('conciv-api-base')
   const session = metaContent('conciv-session')
   const rpc = makeRpcClient(apiBase)
@@ -119,6 +158,7 @@ export function startHost(extension: AnyExtension): void {
         <MountedExtension extension={extension} clientValue={clientValue} slot="composer" />
         <MountedSurface extension={extension} clientValue={clientValue} />
         <MountedViews extension={extension} clientValue={clientValue} />
+        <AttachFixtureForm attach={attachFile} />
       </HostApiProvider>
     ),
     mountRoot,
