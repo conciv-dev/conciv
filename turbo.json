@@ -26,7 +26,7 @@
     "test": {
       "dependsOn": ["^build", "build"],
       "env": ["CI", "GITHUB_ACTIONS"],
-      "outputs": ["test-results.json"]
+      "outputs": ["test-results.json", "coverage/coverage-summary.json"]
     },
     "lint": {
       "dependsOn": ["^build"]

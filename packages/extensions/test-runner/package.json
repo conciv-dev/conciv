@@ -78,6 +78,7 @@
     "@tanstack/ai-mcp": "^0.2.3",
     "@types/node": "^22.19.21",
     "@vitest/browser-playwright": "4.1.10",
+    "@vitest/coverage-v8": "^4.1.8",
     "solid-js": "^1.9.13",
     "tsdown": "^0.22.4",
     "tsx": "^4.22.4",

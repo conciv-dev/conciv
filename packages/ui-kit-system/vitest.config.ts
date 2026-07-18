@@ -1,12 +1,12 @@
 import {defineConfig} from 'vitest/config'
 import {playwright} from '@vitest/browser-playwright'
 import solidPlugin from 'vite-plugin-solid'
-import {ciReporters} from '@conciv/vitest-config'
+import {ciTest} from '@conciv/vitest-config'
 
 export default defineConfig({
   plugins: [solidPlugin()],
   test: {
-    reporters: ciReporters(),
+    ...ciTest(),
     name: 'browser',
     include: ['test/**/*.browser.test.ts', 'test/**/*.browser.test.tsx'],
     browser: {

@@ -77,6 +77,7 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitest/browser-playwright": "4.1.10",
+    "@vitest/coverage-v8": "^4.1.8",
     "drizzle-kit": "^0.31.10",
     "playwright": "^1.61.1",
     "tsdown": "^0.22.4",

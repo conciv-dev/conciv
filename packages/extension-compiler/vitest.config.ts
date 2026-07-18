@@ -1,9 +1,9 @@
 import {defineConfig} from 'vitest/config'
-import {ciReporters} from '@conciv/vitest-config'
+import {ciTest} from '@conciv/vitest-config'
 
 export default defineConfig({
   test: {
-    reporters: ciReporters(),
+    ...ciTest(),
     include: ['test/**/*.it.test.ts'],
     exclude: ['test/fixtures/**', 'node_modules/**', 'dist/**'],
   },

@@ -35,6 +35,7 @@
     "@conciv/vitest-config": "workspace:*",
     "@playwright/test": "^1.61.1",
     "@types/node": "^22.19.21",
+    "@vitest/coverage-v8": "^4.1.8",
     "solid-js": "^1.9.13",
     "typescript": "^6.0.3",
     "unocss": "^66.7.2",

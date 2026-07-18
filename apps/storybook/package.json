@@ -39,6 +39,7 @@
     "@unocss/postcss": "^66.7.2",
     "@unocss/reset": "^66.7.2",
     "@vitest/browser-playwright": "4.1.10",
+    "@vitest/coverage-v8": "^4.1.8",
     "@zag-js/focus-visible": "1.41.2",
     "lucide-solid": "^1.18.0",
     "marked": "^18.0.5",

@@ -1,11 +1,11 @@
 import {defineConfig} from 'vitest/config'
-import {ciReporters} from '@conciv/vitest-config'
+import {ciTest} from '@conciv/vitest-config'
 
 export default defineConfig({
   resolve: {conditions: ['browser', 'development']},
   ssr: {resolve: {conditions: ['browser', 'development'], externalConditions: ['browser', 'development']}},
   test: {
-    reporters: ciReporters(),
+    ...ciTest(),
     name: 'ui-kit-chat',
     environment: 'node',
     include: ['test/**/*.test.ts'],

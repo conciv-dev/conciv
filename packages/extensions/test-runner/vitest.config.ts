@@ -1,7 +1,7 @@
 import solid from 'vite-plugin-solid'
 import {playwright} from '@vitest/browser-playwright'
 import {defineConfig} from 'vitest/config'
-import {ciReporters} from '@conciv/vitest-config'
+import {ciTest} from '@conciv/vitest-config'
 import type {Plugin} from 'vite'
 import {RPCHandler} from '@orpc/server/node'
 import {makeTestRunnerRouter} from './src/server.js'
@@ -82,7 +82,7 @@ const testRunnerStream: Plugin = {
 
 export default defineConfig({
   test: {
-    reporters: ciReporters(),
+    ...ciTest(),
     projects: [
       {
         test: {
