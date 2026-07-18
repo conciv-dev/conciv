@@ -60,7 +60,7 @@ function CardBody(): JSX.Element {
       <Button size="sm" disabled={!ref()} onClick={() => setOpen(true)}>
         Play
       </Button>
-      <Dialog open={open()} onOpenChange={setOpen} dismissable size="xl" label="Screen recording replay">
+      <Dialog open={open()} onOpenChange={setOpen} dismissable size="xl" layer="inline" label="Screen recording replay">
         <Show when={open()}>
           <div class="flex flex-col gap-2">
             <div class="flex items-center">

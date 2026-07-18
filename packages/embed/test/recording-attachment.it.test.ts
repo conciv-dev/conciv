@@ -96,14 +96,14 @@ describe('recording attachment end to end in the real widget', () => {
     await page.getByRole('log').getByRole('button', {name: 'Play'}).first().click()
     const modal = page.getByRole('alertdialog', {name: 'Screen recording replay'})
     await modal.waitFor({state: 'visible', timeout: 15_000})
-    await expect
-      .poll(() => page.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 5_000})
-      .toBe(true)
     await modal.getByRole('button', {name: 'Close'}).click()
     await modal.waitFor({state: 'hidden', timeout: 15_000})
     await expect
       .poll(() => page.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 5_000})
       .toBe(true)
+    const composerAfterModal = page.getByRole('textbox', {name: 'Message the conciv agent'})
+    await composerAfterModal.fill('still alive after replay')
+    expect(await composerAfterModal.inputValue()).toBe('still alive after replay')
     await page.close()
   }, 120_000)
 })

@@ -13,6 +13,7 @@ export function Dialog(props: {
   label?: string
   dismissable?: boolean
   size?: 'md' | 'xl'
+  layer?: 'page' | 'inline'
   children: JSX.Element
 }): JSX.Element {
   return (
