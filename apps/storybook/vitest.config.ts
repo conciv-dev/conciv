@@ -10,6 +10,7 @@ const dirname = typeof __dirname !== 'undefined' ? __dirname : path.dirname(file
 export default defineConfig({
   test: {
     ...ciTest(),
+    coverage: {enabled: false},
     projects: [
       {
         extends: true,
