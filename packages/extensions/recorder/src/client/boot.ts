@@ -13,6 +13,7 @@ const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(
 export function bootRecorder(apiBase: string, store: RecorderStore): () => void {
   const rpc = makeExtRpcClient<RecorderRouter>(apiBase, RECORDER_NAME)
   const clientId = crypto.randomUUID()
+  store.setClientId(clientId)
   const abort = new AbortController()
   let stopRecord: (() => void) | undefined
   let flusher: Flusher | undefined

@@ -15,7 +15,9 @@ import {pullTool, startTool, stopTool} from './tool/server.js'
 
 const recorderOs = os.$context<{request: Request}>()
 
-const RangeInput = z.object({fromTs: z.number().optional(), toTs: z.number().optional()})
+const ClientId = z.string().min(1).max(128).optional()
+
+const RangeInput = z.object({fromTs: z.number().optional(), toTs: z.number().optional(), clientId: ClientId})
 
 const MAX_FLUSH_EVENTS = 5000
 const MAX_FLUSH_BYTES = 8 * 1024 * 1024
@@ -34,10 +36,10 @@ export function makeRecorderRouter(runtime: RecorderRuntime) {
         runtime.rings.append(input.clientId, input.events)
         return {ok: true}
       }),
-    window: recorderOs.input(RangeInput).handler(({input}) => ({events: runtime.rings.window(input)})),
+    window: recorderOs.input(RangeInput).handler(({input}) => ({events: runtime.rings.window(input, input.clientId)})),
     events: recorderOs
-      .input(z.object({sinceTs: z.number()}))
-      .handler(({input}) => ({events: runtime.rings.since(input.sinceTs)})),
+      .input(z.object({sinceTs: z.number(), clientId: ClientId}))
+      .handler(({input}) => ({events: runtime.rings.since(input.sinceTs, input.clientId)})),
     presence: recorderOs
       .input(z.object({live: z.boolean()}))
       .output(z.object({ok: z.literal(true)}))
@@ -52,7 +54,9 @@ export function makeRecorderRouter(runtime: RecorderRuntime) {
       await runtime.control.awaitNextAppend(1500)
       return {ok: true}
     }),
-    log: recorderOs.input(RangeInput).handler(({input}) => ({entries: distill(runtime.rings.window(input))})),
+    log: recorderOs
+      .input(RangeInput)
+      .handler(({input}) => ({entries: distill(runtime.rings.window(input, input.clientId))})),
     recordings: recorderOs.router({
       save: recorderOs
         .input(RangeInput)
@@ -60,7 +64,7 @@ export function makeRecorderRouter(runtime: RecorderRuntime) {
           z.union([z.object({recordingId: z.string()}), z.object({error: z.enum(['too-large', 'empty', 'io-error'])})]),
         )
         .handler(async ({input}) => {
-          const saved = await runtime.recordings.save(runtime.rings.window(input))
+          const saved = await runtime.recordings.save(runtime.rings.window(input, input.clientId))
           return saved.ok ? {recordingId: saved.recordingId} : {error: saved.reason}
         }),
       get: recorderOs.input(z.object({recordingId: z.string()})).handler(async ({input}) => {

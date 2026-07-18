@@ -38,8 +38,15 @@ function RecorderPanel(): JSX.Element {
     return true
   })
   onCleanup(() => void rpc.presence({live: false}).catch(() => {}))
-  const recording = useQuery(() => ({...utils.window.queryOptions({input: {}}), enabled: presenceReady() === true}))
-  const log = useQuery(() => utils.log.queryOptions({input: {}}))
+  const pinned = (): {clientId?: string} => {
+    const clientId = store.clientId()
+    return clientId ? {clientId} : {}
+  }
+  const recording = useQuery(() => ({
+    ...utils.window.queryOptions({input: pinned()}),
+    enabled: presenceReady() === true,
+  }))
+  const log = useQuery(() => utils.log.queryOptions({input: pinned()}))
   const reset = useMutation(() =>
     utils.reset.mutationOptions({
       onSuccess: () => queryClient.invalidateQueries(),
@@ -50,14 +57,16 @@ function RecorderPanel(): JSX.Element {
 
   const replayRef = (events: RrwebEvent[]) => (container: HTMLDivElement) => {
     if (events.length < 2) return
-    onCleanup(mountLivePlayer(container, events, (sinceTs) => rpc.events({sinceTs}).then((delta) => delta.events)))
+    onCleanup(
+      mountLivePlayer(container, events, (sinceTs) => rpc.events({sinceTs, ...pinned()}).then((delta) => delta.events)),
+    )
   }
 
   const save = useMutation(() => utils.recordings.save.mutationOptions())
 
   const sendToAgent = async (): Promise<void> => {
     const entries = log.data?.entries ?? []
-    const saved = await save.mutateAsync({}).catch(() => null)
+    const saved = await save.mutateAsync(pinned()).catch(() => null)
     if (!saved || 'error' in saved) {
       toast('Could not save the recording — try again.')
       return
