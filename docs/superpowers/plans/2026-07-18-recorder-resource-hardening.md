@@ -473,11 +473,11 @@ git commit -m "fix(recorder): smaller ring default, linear append, snapshot-anch
 
 - Produces: after `HIDDEN_PAUSE_MS` (30s) hidden, `stopRecord()` runs and the flusher drains once; on visibility regained, capture restarts with `takeFreshSnapshot()` semantics (a fresh `startCapture` emits a new full snapshot). The existing `visibilitychange` flush listener stays.
 
-- [ ] **Step 1: Write the failing test** — in the testkit page, override `document.visibilityState`/dispatch `visibilitychange` (CDP `Page.setWebLifecycleState` or a property-defineProperty shim), advance 30s, assert no further `flush` rpc traffic while hidden and that events resume (new snapshot arrives) after visibility returns. If CDP emulation proves flaky in the harness, downgrade to a unit test by extracting the pause logic into a pure `createVisibilityPauser(callbacks)` helper and browser-test only the resume snapshot.
+- [x] **Step 1: Write the failing test** — in the testkit page, override `document.visibilityState`/dispatch `visibilitychange` (CDP `Page.setWebLifecycleState` or a property-defineProperty shim), advance 30s, assert no further `flush` rpc traffic while hidden and that events resume (new snapshot arrives) after visibility returns. If CDP emulation proves flaky in the harness, downgrade to a unit test by extracting the pause logic into a pure `createVisibilityPauser(callbacks)` helper and browser-test only the resume snapshot.
 
-- [ ] **Step 2: Run — Expected: FAIL.**
+- [x] **Step 2: Run — Expected: FAIL.**
 
-- [ ] **Step 3: Implement** — in `bootRecorder`:
+- [x] **Step 3: Implement** — in `bootRecorder`:
 
 ```ts
 const HIDDEN_PAUSE_MS = 30_000
@@ -512,8 +512,8 @@ offListeners.push(() => {
 })
 ```
 
-- [ ] **Step 4: Run — Expected: PASS** (plus existing capture ITs stay green — they run visible).
-- [ ] **Step 5: Commit**
+- [x] **Step 4: Run — Expected: PASS** (plus existing capture ITs stay green — they run visible).
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -m "fix(recorder): pause capture on hidden tabs, resume with fresh snapshot" -- packages/extensions/recorder/src/client/boot.ts packages/extensions/recorder/test/hidden-pause.it.test.ts

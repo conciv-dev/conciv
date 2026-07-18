@@ -3,6 +3,7 @@ import {RECORDER_NAME, type RecorderControl, type RrwebEvent} from '../shared/pr
 import type {RecorderRouter} from '../server.js'
 import {startCapture, takeFreshSnapshot} from './capture.js'
 import {createFlusher, type Flusher} from './flusher.js'
+import {createVisibilityPauser} from './visibility-pauser.js'
 import type {RecorderStore} from './recorder-store.js'
 
 const RECONNECT_MS = 1000
@@ -53,6 +54,27 @@ export function bootRecorder(apiBase: string, store: RecorderStore): () => void 
       listenFlush(window, 'unhandledrejection')
       listenFlush(window, 'beforeunload')
       listenFlush(document, 'visibilitychange')
+      const pauser = createVisibilityPauser({
+        isHidden: () => document.visibilityState === 'hidden',
+        pause: () => {
+          stopRecord?.()
+          stopRecord = undefined
+          void flusher?.flushNow()
+        },
+        resume: () => {
+          void rpc
+            .config(undefined)
+            .then((resumedConfig) => {
+              stopRecord = startCapture(resumedConfig, (event) => flusher?.push(event))
+            })
+            .catch(() => store.setStatus('failed'))
+        },
+      })
+      document.addEventListener('visibilitychange', pauser.onVisibilityChange)
+      offListeners.push(() => {
+        pauser.dispose()
+        document.removeEventListener('visibilitychange', pauser.onVisibilityChange)
+      })
       store.setStatus('recording')
       void controlLoop()
     } catch {
