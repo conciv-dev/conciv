@@ -6,7 +6,7 @@ export type LayerStack = {
   register: (isOpen: () => boolean, hides?: boolean) => () => void
   anyOpen: () => boolean
   anyHiding: () => boolean
-  track: <P extends {open?: boolean}>(Inner: Component<P>) => Component<P>
+  track: <P extends {open?: boolean; layer?: 'page' | 'inline'}>(Inner: Component<P>) => Component<P>
 }
 
 export function makeLayerStack(): LayerStack {
@@ -23,7 +23,7 @@ export function makeLayerStack(): LayerStack {
     anyHiding: () => stack().some((layer) => layer.hides && layer.isOpen()),
     track(Inner) {
       return (props) => {
-        const layer: Layer = {isOpen: () => props.open ?? false, hides: true}
+        const layer: Layer = {isOpen: () => props.open ?? false, hides: props.layer !== 'inline'}
         onMount(() => push(layer))
         onCleanup(() => remove(layer))
         return Inner(props)

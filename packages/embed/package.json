@@ -58,6 +58,7 @@
     "solid-js": "^1.9.13"
   },
   "devDependencies": {
+    "@conciv/extension-recorder": "workspace:^",
     "@conciv/extension-terminal": "workspace:^",
     "@conciv/extension-testkit": "workspace:^",
     "@conciv/page": "workspace:^",

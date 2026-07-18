@@ -90,8 +90,11 @@ export {
 export {ActionBarMore} from './primitives/action-bar-more/action-bar-more.js'
 export {ActionBarMore as ThreadListItemMore} from './primitives/action-bar-more/action-bar-more.js'
 export {Attachment, AttachmentProvider, useAttachment} from './primitives/attachment/attachment.js'
+export {partIsModelOnly} from './primitives/message-part/part-visibility.js'
 export {
+  composeAttachmentAdapters,
   createSimpleImageAttachmentAdapter,
+  createTextAttachmentAdapter,
   fileMatchesAccept,
   fileToDataSource,
   isCompleteAttachment,
@@ -176,6 +179,8 @@ export {BranchPicker} from './styled/branch-picker.js'
 export {FollowUpSuggestions} from './styled/follow-up-suggestions.js'
 export {ToolGroup, type ToolGroupProps} from './styled/tool-group.js'
 export {AttachmentUI} from './styled/attachment-ui.js'
+export {AttachmentByMime, createDocumentAttachmentAdapter} from './styled/attachment-dispatch.js'
+export type {AttachmentCardSlot} from './styled/attachment-dispatch.js'
 export {ModelSelector, type StyledModelSelectorProps} from './styled/model-selector.js'
 
 export {toolStatus, type ToolStatus} from './primitives/tools/tool-status.js'

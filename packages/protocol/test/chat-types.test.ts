@@ -71,6 +71,44 @@ describe('ChatContentPartSchema', () => {
   })
 })
 
+describe('ChatContentPartSchema document parts', () => {
+  it('accepts a document part with a namespaced mime', () => {
+    const parsed = ChatContentPartSchema.safeParse({
+      type: 'document',
+      source: {type: 'data', mimeType: 'application/x-conciv-recorder', value: 'eyJyZWNvcmRpbmdJZCI6InIxIn0='},
+    })
+    expect(parsed.success).toBe(true)
+  })
+
+  it('rejects an oversized document value', () => {
+    const parsed = ChatContentPartSchema.safeParse({
+      type: 'document',
+      source: {type: 'data', mimeType: 'application/x-test', value: 'a'.repeat(27_962_029)},
+    })
+    expect(parsed.success).toBe(false)
+  })
+
+  it('rejects an empty document value and a malformed mime', () => {
+    expect(
+      ChatContentPartSchema.safeParse({
+        type: 'document',
+        source: {type: 'data', mimeType: 'application/x-test', value: ''},
+      }).success,
+    ).toBe(false)
+    expect(
+      ChatContentPartSchema.safeParse({
+        type: 'document',
+        source: {type: 'data', mimeType: 'no-slash', value: 'aGVsbG8='},
+      }).success,
+    ).toBe(false)
+  })
+
+  it('accepts modelOnly metadata on a text part', () => {
+    const parsed = ChatContentPartSchema.safeParse({type: 'text', content: 'x', metadata: {modelOnly: true}})
+    expect(parsed.success).toBe(true)
+  })
+})
+
 describe('ResolveRequestSchema', () => {
   it('allows an empty body (new session)', () => {
     expect(ResolveRequestSchema.parse({})).toEqual({})

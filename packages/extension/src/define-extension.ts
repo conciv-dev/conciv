@@ -2,6 +2,7 @@ import type {Component} from 'solid-js'
 import type {z} from 'zod'
 import type {ThemeTokens} from '@conciv/ui-kit-system'
 import type {ToolBuilder} from './define-tool.js'
+import type {AnyAttachmentBuilder} from './define-attachment.js'
 import type {
   ClientFactoryResult,
   ConfigOf,
@@ -16,10 +17,16 @@ import {useExtensionValue} from './host-context.js'
 
 export type AnyToolBuilder = ToolBuilder<z.ZodObject<z.ZodRawShape>, unknown>
 
-export type ExtensionMeta<Name extends string, Schema extends z.ZodType, Tools extends readonly AnyToolBuilder[]> = {
+export type ExtensionMeta<
+  Name extends string,
+  Schema extends z.ZodType,
+  Tools extends readonly AnyToolBuilder[],
+  Attachments extends readonly AnyAttachmentBuilder[] = readonly [],
+> = {
   name: Name
   configSchema?: Schema
   tools?: Tools
+  attachments?: Attachments
   commands?: readonly ExtensionCommand[]
   views?: readonly ExtensionView[]
   Component?: Component
@@ -33,6 +40,7 @@ export type ExtensionBuilder<
   Name extends string = string,
   Schema extends z.ZodType = z.ZodNever,
   Tools extends readonly AnyToolBuilder[] = readonly AnyToolBuilder[],
+  Attachments extends readonly AnyAttachmentBuilder[] = readonly AnyAttachmentBuilder[],
   ClientValue extends object = Record<never, never>,
 > = {
   name: Name
@@ -43,6 +51,7 @@ export type ExtensionBuilder<
   theme?: ThemeTokens
   connectGate?: ConnectGate
   tools?: Tools
+  attachments?: Attachments
   commands?: readonly ExtensionCommand[]
   views?: readonly ExtensionView[]
   parseConfig: (raw: unknown) => ConfigOf<Schema>
@@ -54,16 +63,22 @@ export type ExtensionBuilder<
   }
   client: <Value extends object>(
     factory: () => ClientFactoryResult<Value>,
-  ) => ExtensionBuilder<Name, Schema, Tools, ClientValue & Value>
-  server: <Context extends RequiredContext<Tools>>(
+  ) => ExtensionBuilder<Name, Schema, Tools, Attachments, ClientValue & Value>
+  server: <Context extends RequiredContext<readonly [...Tools, ...Attachments]>>(
     factory: (server: ServerApi<ConfigOf<Schema>>) => ServerResult<Context> | Promise<ServerResult<Context>>,
-  ) => ExtensionBuilder<Name, Schema, Tools, ClientValue>
+  ) => ExtensionBuilder<Name, Schema, Tools, Attachments, ClientValue>
 }
 
-export type AnyExtension = ExtensionBuilder<string, z.ZodType, readonly AnyToolBuilder[], object>
+export type AnyExtension = ExtensionBuilder<
+  string,
+  z.ZodType,
+  readonly AnyToolBuilder[],
+  readonly AnyAttachmentBuilder[],
+  object
+>
 
 export type RegisterExtension<Extension> =
-  Extension extends ExtensionBuilder<infer Name, infer Schema, infer _Tools, infer _ClientValue>
+  Extension extends ExtensionBuilder<infer Name, infer Schema, infer _Tools, infer _Attachments, infer _ClientValue>
     ? [Schema] extends [z.ZodNever]
       ? Record<never, never>
       : {[Key in Name]: z.input<Schema>}
@@ -77,7 +92,10 @@ export function defineExtension<
   const Name extends string,
   Schema extends z.ZodType = z.ZodNever,
   const Tools extends readonly AnyToolBuilder[] = readonly [],
->(meta: ExtensionMeta<Name, Schema, Tools>): ExtensionBuilder<Name, Schema, Tools, Record<never, never>> {
+  const Attachments extends readonly AnyAttachmentBuilder[] = readonly [],
+>(
+  meta: ExtensionMeta<Name, Schema, Tools, Attachments>,
+): ExtensionBuilder<Name, Schema, Tools, Attachments, Record<never, never>> {
   function useContext<Selected>(select?: (context: object) => Selected): object | Selected {
     const value = useExtensionValue(`${meta.name}.useContext`)
     return select ? select(value) : value
@@ -91,6 +109,7 @@ export function defineExtension<
     theme: meta.theme,
     connectGate: meta.connectGate,
     tools: meta.tools,
+    attachments: meta.attachments,
     commands: meta.commands,
     views: meta.views,
     parseConfig: (raw: unknown) => parseExtensionConfig(meta.configSchema, raw),
@@ -103,6 +122,6 @@ export function defineExtension<
       builder.__server = factory
       return builder
     },
-  } as unknown as ExtensionBuilder<Name, Schema, Tools, Record<never, never>>
+  } as unknown as ExtensionBuilder<Name, Schema, Tools, Attachments, Record<never, never>>
   return builder
 }

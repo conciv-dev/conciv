@@ -2,6 +2,7 @@ import {dirname, join} from 'node:path'
 import {readdirSync} from 'node:fs'
 import type {Plugin, ViteDevServer} from 'vite'
 import {defineBundlerBridge, type BundlerBridge} from '@conciv/protocol/bundler-types'
+import {concivStateDir} from '@conciv/protocol/state-types'
 import type {Engine} from '@conciv/core/start'
 import {resolveConfig} from '@conciv/core/config'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
@@ -97,7 +98,8 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
     apply: 'serve',
     enforce: 'pre',
     config(userConfig) {
-      const embedFiles = builtins.embedEntry === undefined ? [] : [builtins.embedEntry, ...embedChunks(builtins.embedEntry)]
+      const embedFiles =
+        builtins.embedEntry === undefined ? [] : [builtins.embedEntry, ...embedChunks(builtins.embedEntry)]
       const base = concivSolidConfig({
         root: userConfig.root ?? process.cwd(),
         warmupFiles: [...embedFiles, ...builtins.clientEntries],
@@ -141,7 +143,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
       const cfg = resolveConfig(options, server.config.root)
       if (!cfg.enabled) return
       const extensions = await loadServerExtensions(server.config.root, builtins.serverExtensions)
-      engine = await bootEngine(server, options, installConcivBinShim(join(cfg.stateRoot, '.conciv')), extensions)
+      engine = await bootEngine(server, options, installConcivBinShim(concivStateDir(cfg.stateRoot)), extensions)
       const booted = engine
       apiBase = `http://127.0.0.1:${booted.port}`
       mountWidget(server, apiBase, options.widget)

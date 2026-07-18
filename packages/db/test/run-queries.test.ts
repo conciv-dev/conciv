@@ -8,6 +8,7 @@ import {
   clearImageHistory,
   clearRunState,
   foldRunMessagesIntoImageHistory,
+  hasRichPart,
   imageHistoryFor,
   lastErrorOf,
   modelOf,
@@ -161,5 +162,28 @@ describe('run lifecycle queries', () => {
     expect(imageHistoryFor(db, 's5')).toBeNull()
     expect(replyFor(db, 's5', 'k')).toBeNull()
     expect(runMessagesFor(db, 'other')?.messages).toEqual([{id: 'o'}])
+  })
+})
+
+describe('hasRichPart', () => {
+  it('is true for a document part', () => {
+    expect(
+      hasRichPart({parts: [{type: 'document', source: {type: 'data', mimeType: 'application/x-test', value: 'x'}}]}),
+    ).toBe(true)
+  })
+
+  it('is true for an image part and false for text-only', () => {
+    expect(hasRichPart({parts: [{type: 'image'}]})).toBe(true)
+    expect(hasRichPart({parts: [{type: 'text', content: 'hi'}]})).toBe(false)
+  })
+
+  it('folds a document-part turn into durable image history', () => {
+    const db = fresh()
+    const messages = [
+      {id: 'm', parts: [{type: 'document', source: {type: 'data', mimeType: 'application/x-test', value: 'x'}}]},
+    ]
+    setRunMessages(db, 's6', messages)
+    foldRunMessagesIntoImageHistory(db, 's6')
+    expect(imageHistoryFor(db, 's6')?.messages).toEqual(messages)
   })
 })

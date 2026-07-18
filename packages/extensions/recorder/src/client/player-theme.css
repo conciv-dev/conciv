@@ -1,0 +1,131 @@
+.rr-player {
+  float: none;
+  background: var(--pw-panel);
+  border: 1px solid var(--pw-line-soft);
+  border-radius: var(--pw-r-md);
+  box-shadow: none;
+  overflow: hidden;
+  font-family: var(--pw-font);
+  container-type: inline-size;
+}
+
+.rr-player__frame {
+  background: var(--pw-panel-sunk);
+}
+
+.rr-controller {
+  background: var(--pw-panel);
+  border-top: 1px solid var(--pw-line-soft);
+  border-radius: 0;
+  color: var(--pw-text-2);
+  height: 80px;
+  gap: 2px;
+}
+
+.rr-timeline {
+  width: 100%;
+  padding: 0 14px;
+  box-sizing: border-box;
+  gap: 8px;
+}
+
+.rr-timeline__time {
+  width: auto;
+  flex: none;
+  white-space: nowrap;
+  color: var(--pw-text-3);
+  font-family: var(--pw-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.rr-progress {
+  min-width: 0;
+  height: 22px;
+  background: var(--pw-fill-strong);
+  border-top: solid 8px transparent;
+  border-bottom: solid 8px transparent;
+  background-clip: content-box;
+  border-radius: var(--pw-r-pill);
+}
+
+.rr-progress__step {
+  background: var(--pw-accent-20);
+  border-radius: var(--pw-r-pill);
+}
+
+.rr-progress__handler {
+  width: 12px;
+  height: 12px;
+  top: 3px;
+  background: var(--pw-accent);
+  box-shadow: 0 1px 4px oklch(0 0 0 / 0.5);
+  transition: transform 150ms var(--pw-ease);
+}
+
+.rr-progress:hover .rr-progress__handler {
+  transform: translate(-50%, -50%) scale(1.25);
+}
+
+.rr-controller__btns {
+  font-size: 12px;
+  gap: 2px;
+  color: var(--pw-text-2);
+  max-width: 100%;
+  padding: 0 8px;
+  box-sizing: border-box;
+}
+
+.rr-controller__btns button {
+  color: var(--pw-text-2);
+  transition:
+    background-color 150ms var(--pw-ease),
+    color 150ms var(--pw-ease),
+    transform 150ms var(--pw-ease);
+}
+
+.rr-controller__btns button:hover {
+  background: var(--pw-fill-strong);
+  color: var(--pw-text-hi);
+}
+
+.rr-controller__btns button:active {
+  background: var(--pw-accent-08);
+  transform: scale(0.94);
+}
+
+.rr-controller__btns button:focus-visible {
+  outline: 2px solid var(--pw-accent-line);
+  outline-offset: 2px;
+}
+
+.rr-controller__btns button.active {
+  background: var(--pw-accent);
+  color: var(--pw-on-accent);
+}
+
+.rr-controller__btns button svg {
+  fill: currentColor;
+}
+
+.switch {
+  display: none;
+}
+
+@container (max-width: 520px) {
+  .rr-timeline {
+    padding: 0 10px;
+    gap: 6px;
+  }
+
+  .rr-controller__btns {
+    gap: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rr-progress__handler,
+  .rr-controller__btns button {
+    transition: none;
+  }
+}

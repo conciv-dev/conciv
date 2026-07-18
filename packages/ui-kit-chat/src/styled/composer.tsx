@@ -1,4 +1,5 @@
-import {Show, type JSX} from 'solid-js'
+import {Show, type Component, type JSX} from 'solid-js'
+import {Dynamic} from 'solid-js/web'
 import {ArrowUp, Paperclip, Square} from 'lucide-solid'
 import {Composer as ComposerPrimitive} from '../primitives/composer/composer.js'
 import type {AttachmentAdapter} from '../primitives/attachment/attachment-adapter.js'
@@ -14,6 +15,7 @@ export type ComposerProps = {
   popover?: JSX.Element
   inputRef?: (element: HTMLTextAreaElement) => void
   attachmentAdapter?: AttachmentAdapter
+  AttachmentComponent?: Component<{removable?: boolean}>
 }
 
 const BTN =
@@ -39,16 +41,18 @@ function TrailingControls(): JSX.Element {
   )
 }
 
-function RemovableAttachment(): JSX.Element {
-  return <AttachmentUI removable />
-}
-
 export function Composer(props: ComposerProps): JSX.Element {
   return (
     <ComposerPrimitive.Root attachmentAdapter={props.attachmentAdapter} class="flex flex-col gap-1.5 relative">
       {props.popover}
       <div class="flex flex-wrap gap-1 empty:hidden">
-        <ComposerPrimitive.Attachments component={RemovableAttachment} />
+        <ComposerPrimitive.Attachments
+          component={() => (
+            <Show when={props.AttachmentComponent} fallback={<AttachmentUI removable />}>
+              {(component) => <Dynamic component={component()} removable />}
+            </Show>
+          )}
+        />
       </div>
       <div class="px-1.5 pb-1.5 pt-1 rounded-[var(--chat-radius-md)] [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] [transition:border-color_120ms_var(--chat-ease)] focus-within:[border-color:var(--chat-accent)]">
         <ComposerPrimitive.Input
