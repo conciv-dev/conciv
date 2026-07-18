@@ -55,7 +55,7 @@ export function AttachmentUI(props: {removable?: boolean}): JSX.Element {
   return (
     <Tooltip.Root positioning={{strategy: 'fixed', placement: 'top', gutter: 6}}>
       <Attachment.Root class={TILE}>
-        <Tooltip.Trigger class={`size-full block ${FOCUS_INSET}`} aria-label={draft.name}>
+        <Tooltip.Trigger type="button" class={`size-full block ${FOCUS_INSET}`} aria-label={draft.name}>
           <Show
             when={previewSrc}
             fallback={
