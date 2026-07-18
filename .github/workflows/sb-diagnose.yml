@@ -14,7 +14,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        n: [1, 2, 3, 4, 5]
+        n: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -59,6 +59,14 @@ jobs:
             vs = vs.replace(sendAnchor, "if (payload.type === \"full-reload\" || payload.type === \"error\") console.error(`[sbdebug] ${Date.now()} hot-send ${payload.type} ${JSON.stringify(payload).slice(0, 200)}`);\n\t\t\t" + sendAnchor)
             fs.writeFileSync(vf, vs)
             console.error("VITE_PATCH_APPLIED " + d)
+            const cf = path.join("node_modules/.pnpm", d, "node_modules/vite/dist/client/client.mjs")
+            if (!fs.existsSync(cf)) continue
+            let cs = fs.readFileSync(cf, "utf8")
+            const reloadAnchor = "await waitForSuccessfulPing(url.href);\n\t\t\t\t\tlocation.reload();"
+            if (!cs.includes(reloadAnchor)) { console.error("CLIENT ANCHOR NOT FOUND in " + d); continue }
+            cs = cs.replace(reloadAnchor, "console.error(\"[sbdebug-client] ws disconnect reload SUPPRESSED\");")
+            fs.writeFileSync(cf, cs)
+            console.error("CLIENT_PATCH_APPLIED " + d)
           }
           '
       - name: memory sampler
