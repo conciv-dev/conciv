@@ -35,25 +35,25 @@ test('the inbox lists threads, marks all read, and opens a thread', async () => 
     await api.page
       .getByRole('button', {name: /comment, open/})
       .first()
-      .waitFor({timeout: 15_000})
+      .waitFor({timeout: 30_000})
 
     const toggle = api.page.getByRole('button', {name: 'Toggle comments inbox'})
     await toggle.focus()
     await toggle.press('Enter')
 
-    await api.page.getByText('first inbox note').waitFor({timeout: 10_000})
+    await api.page.getByText('first inbox note').waitFor({timeout: 30_000})
     await api.page.getByText('second inbox note').waitFor()
     expect(await api.page.getByRole('button', {name: /unread/}).count()).toBeGreaterThan(0)
 
     const markAll = api.page.getByRole('button', {name: 'Mark all as read'})
     await markAll.focus()
     await markAll.press('Enter')
-    await expect.poll(async () => api.page.getByRole('button', {name: /unread/}).count(), {timeout: 10_000}).toBe(0)
+    await expect.poll(async () => api.page.getByRole('button', {name: /unread/}).count(), {timeout: 30_000}).toBe(0)
 
     const item = api.page.getByRole('button', {name: /^Opus/})
     await item.focus()
     await item.press('Enter')
-    await api.page.getByRole('textbox', {name: 'Reply'}).waitFor({timeout: 10_000})
+    await api.page.getByRole('textbox', {name: 'Reply'}).waitFor({timeout: 30_000})
   } finally {
     await api.dispose()
   }

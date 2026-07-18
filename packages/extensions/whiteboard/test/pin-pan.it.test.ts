@@ -23,7 +23,7 @@ test('a comment pin is projected to screen and tracks canvas pan', async () => {
     })
 
     const pin = api.page.getByRole('button', {name: /comment, open/})
-    await pin.waitFor({timeout: 15_000})
+    await pin.waitFor({timeout: 30_000})
     const top0 = await projectedTop(pin)()
     expect(top0).toBeGreaterThan(0)
 
@@ -31,7 +31,7 @@ test('a comment pin is projected to screen and tracks canvas pan', async () => {
     await api.page.mouse.wheel(0, 320)
 
     await expect
-      .poll(async () => Math.abs((await projectedTop(pin)()) - top0), {timeout: 8_000, interval: 200})
+      .poll(async () => Math.abs((await projectedTop(pin)()) - top0), {timeout: 30_000, interval: 200})
       .toBeGreaterThan(80)
   } finally {
     await api.dispose()

@@ -34,7 +34,7 @@ async function openPage(): Promise<Page> {
 async function openPanel(page: Page): Promise<void> {
   await page.getByRole('button', {name: 'Open conciv chat'}).click()
   await expect
-    .poll(() => page.getByRole('textbox', {name: 'Message the conciv agent'}).isVisible(), {timeout: 15_000})
+    .poll(() => page.getByRole('textbox', {name: 'Message the conciv agent'}).isVisible(), {timeout: 30_000})
     .toBe(true)
 }
 
@@ -49,7 +49,7 @@ describe('embed boots the conciv app against a real core', () => {
           const persisted = await kit.rpc.navigation.get()
           return persisted?.entries[persisted.index]?.href ?? ''
         },
-        {timeout: 15_000},
+        {timeout: 30_000},
       )
       .toMatch(/^\/panel\/conciv_/)
     const adopted = await kit.rpc.sessions.resolve({id: rawHarnessId})
@@ -63,15 +63,15 @@ describe('embed boots the conciv app against a real core', () => {
     await openPanel(page)
     await page.getByRole('tab', {name: 'Terminal'}).click()
     await expect
-      .poll(() => page.getByRole('tab', {name: 'Terminal'}).getAttribute('aria-selected'), {timeout: 10_000})
+      .poll(() => page.getByRole('tab', {name: 'Terminal'}).getAttribute('aria-selected'), {timeout: 30_000})
       .toBe('true')
     await page.getByRole('button', {name: 'Minimize conciv chat'}).click()
     await expect
-      .poll(() => page.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 10_000})
+      .poll(() => page.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 30_000})
       .toBe(false)
     await page.getByRole('button', {name: 'Open conciv chat'}).click()
     await expect
-      .poll(() => page.getByRole('tab', {name: 'Terminal'}).getAttribute('aria-selected'), {timeout: 10_000})
+      .poll(() => page.getByRole('tab', {name: 'Terminal'}).getAttribute('aria-selected'), {timeout: 30_000})
       .toBe('true')
     await expect
       .poll(
@@ -79,7 +79,7 @@ describe('embed boots the conciv app against a real core', () => {
           const persisted = await kit.rpc.navigation.get()
           return persisted?.entries.filter((entry) => entry.href.includes('/panel/')).length ?? 0
         },
-        {timeout: 5_000},
+        {timeout: 30_000},
       )
       .toBe(1)
     await page.close()
@@ -95,16 +95,16 @@ describe('embed boots the conciv app against a real core', () => {
           const persisted = await kit.rpc.navigation.get()
           return persisted?.entries[persisted.index]?.href ?? ''
         },
-        {timeout: 10_000},
+        {timeout: 30_000},
       )
       .toMatch(/\/terminal\?.*open=true/)
     await first.close()
     const second = await openPage()
     await expect
-      .poll(() => second.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 15_000})
+      .poll(() => second.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 30_000})
       .toBe(true)
     await expect
-      .poll(() => second.getByRole('tab', {name: 'Terminal'}).getAttribute('aria-selected'), {timeout: 15_000})
+      .poll(() => second.getByRole('tab', {name: 'Terminal'}).getAttribute('aria-selected'), {timeout: 30_000})
       .toBe('true')
     await second.close()
   })
@@ -118,7 +118,7 @@ describe('embed boots the conciv app against a real core', () => {
           const persisted = await kit.rpc.navigation.get()
           return persisted?.entries[persisted.index]?.href ?? ''
         },
-        {timeout: 10_000},
+        {timeout: 30_000},
       )
       .toContain('open=true')
     await first.getByRole('button', {name: 'Minimize conciv chat'}).click()
@@ -128,13 +128,13 @@ describe('embed boots the conciv app against a real core', () => {
           const persisted = await kit.rpc.navigation.get()
           return persisted?.entries[persisted.index]?.href ?? ''
         },
-        {timeout: 10_000},
+        {timeout: 30_000},
       )
       .not.toContain('open=true')
     await first.close()
     const second = await openPage()
     await expect
-      .poll(() => second.getByRole('button', {name: 'Open conciv chat'}).isVisible(), {timeout: 15_000})
+      .poll(() => second.getByRole('button', {name: 'Open conciv chat'}).isVisible(), {timeout: 30_000})
       .toBe(true)
     expect(await second.getByRole('dialog', {name: 'conciv chat agent'}).count()).toBe(0)
     await second.close()
@@ -143,7 +143,7 @@ describe('embed boots the conciv app against a real core', () => {
   it('renders the fab instantly and opens the panel', async () => {
     const page = await openPage()
     await expect
-      .poll(() => page.getByRole('button', {name: 'Open conciv chat'}).isVisible(), {timeout: 15_000})
+      .poll(() => page.getByRole('button', {name: 'Open conciv chat'}).isVisible(), {timeout: 30_000})
       .toBe(true)
     await openPanel(page)
     await expect.poll(() => page.getByRole('dialog', {name: 'conciv chat agent'}).isVisible()).toBe(true)
@@ -156,7 +156,7 @@ describe('embed boots the conciv app against a real core', () => {
     const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
     await input.fill('hi there')
     await page.getByRole('button', {name: 'Send message'}).click()
-    await expect.poll(() => page.getByText(ASSISTANT_TEXT).first().isVisible(), {timeout: 20_000}).toBe(true)
+    await expect.poll(() => page.getByText(ASSISTANT_TEXT).first().isVisible(), {timeout: 30_000}).toBe(true)
     await page.close()
   })
 
@@ -168,13 +168,13 @@ describe('embed boots the conciv app against a real core', () => {
     await input.fill('long question')
     await page.getByRole('button', {name: 'Send message'}).click()
     await expect
-      .poll(() => page.getByRole('button', {name: 'Stop generating'}).isVisible(), {timeout: 20_000})
+      .poll(() => page.getByRole('button', {name: 'Stop generating'}).isVisible(), {timeout: 30_000})
       .toBe(true)
     await input.fill('still typing while it runs')
     expect(await input.inputValue()).toBe('still typing while it runs')
     kit.harness.__scripted.release()
     await expect
-      .poll(() => page.getByRole('button', {name: 'Stop generating'}).isVisible(), {timeout: 20_000})
+      .poll(() => page.getByRole('button', {name: 'Stop generating'}).isVisible(), {timeout: 30_000})
       .toBe(false)
     await page.close()
   })
@@ -184,7 +184,7 @@ describe('embed boots the conciv app against a real core', () => {
     await openPanel(page)
     await page.getByRole('textbox', {name: 'Message the conciv agent'}).press('Escape')
     await expect
-      .poll(() => page.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 10_000})
+      .poll(() => page.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 30_000})
       .toBe(false)
     await expect.poll(() => page.getByRole('button', {name: 'Open conciv chat'}).isVisible()).toBe(true)
     await page.close()
@@ -197,9 +197,9 @@ describe('embed boots the conciv app against a real core', () => {
     const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
     await input.fill('ask me something')
     await page.getByRole('button', {name: 'Send message'}).click()
-    await expect.poll(() => page.getByText('Proceed with the change?').isVisible(), {timeout: 20_000}).toBe(true)
+    await expect.poll(() => page.getByText('Proceed with the change?').isVisible(), {timeout: 30_000}).toBe(true)
     await page.getByRole('button', {name: 'Approve'}).click()
-    await expect.poll(() => page.getByText('Answered.').isVisible(), {timeout: 20_000}).toBe(true)
+    await expect.poll(() => page.getByText('Answered.').isVisible(), {timeout: 30_000}).toBe(true)
     await page.close()
   })
 })

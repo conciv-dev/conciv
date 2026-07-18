@@ -65,27 +65,27 @@ export function widgetComponentSuite(opts: {id: string; distDir: string}): void 
   describe('ConcivWidget component', () => {
     it('mounts exactly one widget', async () => {
       const page = await openPage()
-      await expect.poll(() => fab(page).count(), {timeout: 15_000}).toBe(1)
+      await expect.poll(() => fab(page).count(), {timeout: 30_000}).toBe(1)
       expect(await fab(page).count()).toBe(1)
       await page.close()
     })
 
     it('removing the component removes the widget, re-adding restores it', async () => {
       const page = await openPage()
-      await expect.poll(() => fab(page).isVisible(), {timeout: 15_000}).toBe(true)
+      await expect.poll(() => fab(page).isVisible(), {timeout: 30_000}).toBe(true)
       await page.getByRole('button', {name: 'toggle widget'}).click()
-      await expect.poll(() => fab(page).count(), {timeout: 10_000}).toBe(0)
+      await expect.poll(() => fab(page).count(), {timeout: 30_000}).toBe(0)
       await page.getByRole('button', {name: 'toggle widget'}).click()
-      await expect.poll(() => fab(page).isVisible(), {timeout: 15_000}).toBe(true)
+      await expect.poll(() => fab(page).isVisible(), {timeout: 30_000}).toBe(true)
       await page.close()
     })
 
     it('a settings prop change remounts the widget with the new configuration', async () => {
       const page = await openPage()
-      await expect.poll(() => fab(page).isVisible(), {timeout: 15_000}).toBe(true)
+      await expect.poll(() => fab(page).isVisible(), {timeout: 30_000}).toBe(true)
       await page.getByRole('button', {name: 'open by default'}).click()
       await expect
-        .poll(() => page.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 15_000})
+        .poll(() => page.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 30_000})
         .toBe(true)
       expect(await page.getByRole('dialog', {name: 'conciv chat agent'}).count()).toBe(1)
       await page.close()

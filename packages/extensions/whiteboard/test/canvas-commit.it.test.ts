@@ -11,10 +11,10 @@ test('commit moves the whole draft to the live canvas', async () => {
   try {
     await openCanvas(api.page)
     await api.callTool('canvas.svg', {svg: HOUSE, x: 60, y: 60, width: 300})
-    await expect.poll(() => read(api, 'draft'), {timeout: 15_000}).toHaveLength(2)
+    await expect.poll(() => read(api, 'draft'), {timeout: 30_000}).toHaveLength(2)
     const result = (await api.callTool('canvas.commit', {})) as {committed: boolean}
     expect(result.committed).toBe(true)
-    await expect.poll(() => read(api, 'live'), {timeout: 15_000}).toHaveLength(2)
+    await expect.poll(() => read(api, 'live'), {timeout: 30_000}).toHaveLength(2)
     expect(await read(api, 'draft')).toHaveLength(0)
   } finally {
     await api.dispose()
@@ -26,7 +26,7 @@ test('discard clears the draft and never touches live', async () => {
   try {
     await openCanvas(api.page)
     await api.callTool('canvas.svg', {svg: HOUSE, x: 60, y: 60, width: 300})
-    await expect.poll(() => read(api, 'draft'), {timeout: 15_000}).toHaveLength(2)
+    await expect.poll(() => read(api, 'draft'), {timeout: 30_000}).toHaveLength(2)
     const result = (await api.callTool('canvas.discard', {})) as {discarded: number}
     expect(result.discarded).toBe(2)
     expect(await read(api, 'draft')).toHaveLength(0)

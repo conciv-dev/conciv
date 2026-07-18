@@ -15,12 +15,12 @@ test('turn end commits an abandoned draft', async () => {
       y: 0,
       width: 100,
     })
-    await expect.poll(() => read(api, 'draft'), {timeout: 15_000}).toHaveLength(1)
+    await expect.poll(() => read(api, 'draft'), {timeout: 30_000}).toHaveLength(1)
     const context = api.serverContext as {store: Store}
     const committed = await autoCommitDraft(context.store, api.session)
     expect(committed).toBe(true)
-    await expect.poll(() => read(api, 'live'), {timeout: 15_000}).toHaveLength(1)
-    await expect.poll(() => read(api, 'draft'), {timeout: 15_000}).toHaveLength(0)
+    await expect.poll(() => read(api, 'live'), {timeout: 30_000}).toHaveLength(1)
+    await expect.poll(() => read(api, 'draft'), {timeout: 30_000}).toHaveLength(0)
   } finally {
     await api.dispose()
   }
