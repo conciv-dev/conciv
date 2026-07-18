@@ -27,6 +27,7 @@ async function boot(root: ShadowRoot, init: ConcivInit): Promise<() => void> {
   const driver = makeDomPageDriver()
   window.__CONCIV_PAGE_DRIVER__ = driver
 
+  const extensions = typeof init.extensions === 'function' ? await init.extensions() : (init.extensions ?? [])
   const storage = await makeNavigationStorage(rpc)
   const hostRouter = window.__TSR_ROUTER__
   const router = createConcivRouter({
@@ -34,7 +35,7 @@ async function boot(root: ShadowRoot, init: ConcivInit): Promise<() => void> {
     history: createWebStorageHistory({storage}),
     environment: {rootNode: root, document},
     settings: parseConcivSettings(init.settings ? JSON.stringify(init.settings) : metaContent('pw-widget')),
-    extensions: init.extensions ?? [],
+    extensions,
   })
   window.__TSR_ROUTER__ = hostRouter
 

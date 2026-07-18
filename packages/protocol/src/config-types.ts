@@ -26,7 +26,7 @@ export interface ConcivConfig {
   extensions?: {[Name in keyof ExtensionConfigRegistry]?: ExtensionConfigRegistry[Name]}
   widgetUrl?: string
 
-  widget?: WidgetConfig
+  widget?: WidgetConfig | false
   stateRoot?: string
   harness?: string
   harnessBin?: string

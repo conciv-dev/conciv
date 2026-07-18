@@ -704,6 +704,46 @@ importers:
         specifier: ^5
         version: 5.9.3
 
+  e2e/nextjs-component:
+    dependencies:
+      '@conciv/extension-terminal':
+        specifier: workspace:*
+        version: link:../../packages/extensions/terminal
+      '@conciv/it':
+        specifier: workspace:*
+        version: link:../../packages/it
+      '@conciv/react':
+        specifier: workspace:*
+        version: link:../../packages/react
+      next:
+        specifier: 16.2.10
+        version: 16.2.10(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(sass@1.51.0)
+      react:
+        specifier: 19.2.4
+        version: 19.2.4
+      react-dom:
+        specifier: 19.2.4
+        version: 19.2.4(react@19.2.4)
+    devDependencies:
+      '@conciv/e2e-utils':
+        specifier: workspace:*
+        version: link:../e2e-utils
+      '@playwright/test':
+        specifier: ^1.61.1
+        version: 1.61.1
+      '@types/node':
+        specifier: ^20
+        version: 20.19.43
+      '@types/react':
+        specifier: ^19
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: ^19
+        version: 19.2.3(@types/react@19.2.17)
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
   e2e/solid-start:
     dependencies:
       '@conciv/it':
@@ -845,11 +885,91 @@ importers:
         specifier: ^8.0.0
         version: 8.1.3(@types/node@22.20.0)(esbuild@0.28.1)(jiti@2.7.0)(sass@1.51.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)
 
+  e2e/vite-preact-component:
+    dependencies:
+      '@conciv/extension-terminal':
+        specifier: workspace:*
+        version: link:../../packages/extensions/terminal
+      '@conciv/it':
+        specifier: workspace:*
+        version: link:../../packages/it
+      '@conciv/preact':
+        specifier: workspace:*
+        version: link:../../packages/preact
+      preact:
+        specifier: ^10.29.7
+        version: 10.29.7
+    devDependencies:
+      '@conciv/e2e-utils':
+        specifier: workspace:*
+        version: link:../e2e-utils
+      '@playwright/test':
+        specifier: ^1.61.1
+        version: 1.61.1
+      '@types/node':
+        specifier: ^24.13.2
+        version: 24.13.3
+      oxlint:
+        specifier: ^1.71.0
+        version: 1.73.0
+      typescript:
+        specifier: ~6.0.2
+        version: 6.0.3
+      vite:
+        specifier: ^8.1.1
+        version: 8.1.3(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)
+
   e2e/vite-react:
     dependencies:
       '@conciv/it':
         specifier: workspace:*
         version: link:../../packages/it
+      react:
+        specifier: ^19.2.7
+        version: 19.2.7
+      react-dom:
+        specifier: ^19.2.7
+        version: 19.2.7(react@19.2.7)
+    devDependencies:
+      '@conciv/e2e-utils':
+        specifier: workspace:*
+        version: link:../e2e-utils
+      '@playwright/test':
+        specifier: ^1.61.1
+        version: 1.61.1
+      '@types/node':
+        specifier: ^24.13.2
+        version: 24.13.3
+      '@types/react':
+        specifier: ^19.2.17
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: ^19.2.3
+        version: 19.2.3(@types/react@19.2.17)
+      '@vitejs/plugin-react':
+        specifier: ^6.0.3
+        version: 6.0.3(vite@8.1.3(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0))
+      oxlint:
+        specifier: ^1.71.0
+        version: 1.73.0
+      typescript:
+        specifier: ~6.0.2
+        version: 6.0.3
+      vite:
+        specifier: ^8.1.1
+        version: 8.1.3(@types/node@24.13.3)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.49.0)(tsx@4.22.4)(yaml@2.9.0)
+
+  e2e/vite-react-component:
+    dependencies:
+      '@conciv/extension-terminal':
+        specifier: workspace:*
+        version: link:../../packages/extensions/terminal
+      '@conciv/it':
+        specifier: workspace:*
+        version: link:../../packages/it
+      '@conciv/react':
+        specifier: workspace:*
+        version: link:../../packages/react
       react:
         specifier: ^19.2.7
         version: 19.2.7

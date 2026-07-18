@@ -1,7 +1,7 @@
 import {createElement, useEffect, useRef, type ReactElement} from 'react'
 import {createConciv, type ConcivInit} from '@conciv/embed'
 
-export type {ConcivInit, ConcivSettingsInit} from '@conciv/embed'
+export type {ConcivInit, ConcivSettingsInit, ExtensionsInput} from '@conciv/embed'
 
 export type ConcivWidgetProps = ConcivInit
 

@@ -3,8 +3,10 @@ import type {ConcivSettingsInit} from '@conciv/protocol/config-types'
 
 export type {ConcivSettingsInit} from '@conciv/protocol/config-types'
 
+export type ExtensionsInput = AnyExtension[] | (() => Promise<AnyExtension[]>)
+
 export type ConcivInit = {
-  extensions?: AnyExtension[]
+  extensions?: ExtensionsInput
   settings?: ConcivSettingsInit
   apiBase?: string
 }

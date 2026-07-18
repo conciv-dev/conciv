@@ -2,7 +2,7 @@ import {createElement, type JSX} from 'preact'
 import {useEffect, useRef} from 'preact/hooks'
 import {createConciv, type ConcivInit} from '@conciv/embed'
 
-export type {ConcivInit, ConcivSettingsInit} from '@conciv/embed'
+export type {ConcivInit, ConcivSettingsInit, ExtensionsInput} from '@conciv/embed'
 
 export type ConcivWidgetProps = ConcivInit
 
