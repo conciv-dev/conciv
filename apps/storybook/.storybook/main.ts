@@ -10,7 +10,7 @@ const config: StorybookConfig = {
     '../../../packages/solid-streamdown/src/**/*.stories.@(js|jsx|mjs|ts|tsx)',
   ],
   addons: ['@chromatic-com/storybook', '@storybook/addon-vitest', '@storybook/addon-a11y', '@storybook/addon-docs'],
-  framework: 'storybook-solidjs-vite',
+  framework: process.env.VITEST ? {name: 'storybook-solidjs-vite', options: {docgen: false}} : 'storybook-solidjs-vite',
   async viteFinal(storybookViteConfig) {
     const {mergeConfig} = await import('vite')
     return mergeConfig(storybookViteConfig, {
