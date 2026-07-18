@@ -10,7 +10,7 @@ export type EventRing = {
 
 type Stored = {event: RrwebEvent; bytes: number}
 
-const DEFAULT_MAX_BYTES = 64 * 1024 * 1024
+const DEFAULT_MAX_BYTES = 16 * 1024 * 1024
 
 export function createEventRing(opts: {windowMs: number; maxBytes?: number}): EventRing {
   const maxBytes = opts.maxBytes ?? DEFAULT_MAX_BYTES
@@ -38,8 +38,13 @@ export function createEventRing(opts: {windowMs: number; maxBytes?: number}): Ev
   return {
     append(_clientId, events) {
       if (!events.length) return
-      const incoming = events.map((event) => ({event, bytes: JSON.stringify(event).length}))
-      stored = [...stored, ...incoming].toSorted((a, b) => a.event.timestamp - b.event.timestamp)
+      const incoming = events
+        .map((event) => ({event, bytes: JSON.stringify(event).length}))
+        .toSorted((a, b) => a.event.timestamp - b.event.timestamp)
+      const tailAppend = (incoming[0]?.event.timestamp ?? 0) >= (stored.at(-1)?.event.timestamp ?? 0)
+      stored = tailAppend
+        ? [...stored, ...incoming]
+        : [...stored, ...incoming].toSorted((a, b) => a.event.timestamp - b.event.timestamp)
       totalBytes += incoming.reduce((sum, item) => sum + item.bytes, 0)
       evict()
       const last = stored.at(-1)?.event.timestamp ?? 0
@@ -49,11 +54,11 @@ export function createEventRing(opts: {windowMs: number; maxBytes?: number}): Ev
       const toTs = range.toTs ?? Number.POSITIVE_INFINITY
       const inTail = stored.filter((item) => item.event.timestamp <= toTs)
       const fromTs = range.fromTs ?? Number.NEGATIVE_INFINITY
-      const snapshotIndex = inTail.reduce(
-        (found, item, index) => (item.event.type === 2 && item.event.timestamp <= fromTs ? index : found),
-        0,
-      )
-      return inTail.slice(snapshotIndex).map((item) => item.event)
+      const anchored = inTail.findLastIndex((item) => item.event.type === 2 && item.event.timestamp <= fromTs)
+      if (anchored >= 0) return inTail.slice(anchored).map((item) => item.event)
+      if (fromTs === Number.NEGATIVE_INFINITY) return inTail.map((item) => item.event)
+      const next = inTail.findIndex((item) => item.event.type === 2 && item.event.timestamp > fromTs)
+      return next >= 0 ? inTail.slice(next).map((item) => item.event) : []
     },
     lastTs: () => stored.at(-1)?.event.timestamp ?? 0,
     clear() {

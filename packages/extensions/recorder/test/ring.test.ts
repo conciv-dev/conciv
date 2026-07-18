@@ -42,6 +42,18 @@ describe('createEventRing', () => {
     expect(kept.at(-1)).toBe(3000)
   })
 
+  it('anchors at the next snapshot when none precedes fromTs, instead of returning everything', () => {
+    const ring = createEventRing({windowMs: 600_000})
+    ring.append('c', [incremental(1), incremental(2), snapshot(5), incremental(6)])
+    expect(ring.window({fromTs: 3})).toEqual([snapshot(5), incremental(6)])
+  })
+
+  it('returns empty when no snapshot exists at all for a bounded window', () => {
+    const ring = createEventRing({windowMs: 600_000})
+    ring.append('c', [incremental(1), incremental(2)])
+    expect(ring.window({fromTs: 3})).toEqual([])
+  })
+
   it('clear empties the ring', () => {
     const ring = createEventRing({windowMs: 60_000})
     ring.append('a', [snapshot(1000), incremental(2000)])

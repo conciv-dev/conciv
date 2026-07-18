@@ -421,7 +421,7 @@ git commit -m "fix(recorder): per-client event rings with idle eviction" -- pack
 
 - Produces: `DEFAULT_MAX_BYTES = 16MB` (was 64MB); `append` inserts near-sorted input without re-sorting the whole array; `window({fromTs})` with **no snapshot at-or-before `fromTs`** anchors at the **first snapshot after** it (returns `[]` if none) instead of silently returning the entire ring.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```ts
 it('anchors at the next snapshot when none precedes fromTs, instead of returning everything', () => {
@@ -439,9 +439,9 @@ it('returns empty when no snapshot exists at all for a bounded window', () => {
 
 (Reuse the test file's existing `snapshot`/`incremental` fixtures; add them if absent: `snapshot = (ts) => ({type: 2, data: {node: {}}, timestamp: ts})`.)
 
-- [ ] **Step 2: Run — Expected: FAIL** — current `snapshotIndex` reduce falls back to 0.
+- [x] **Step 2: Run — Expected: FAIL** — current `snapshotIndex` reduce falls back to 0.
 
-- [ ] **Step 3: Implement** — in `window()`:
+- [x] **Step 3: Implement** — in `window()`:
 
 ```ts
 const anchored = inTail.findLastIndex((item) => item.event.type === 2 && item.event.timestamp <= fromTs)
@@ -453,8 +453,8 @@ return next >= 0 ? inTail.slice(next).map((item) => item.event) : []
 
 In `append`, replace `[...stored, ...incoming].toSorted(...)` with: sort only `incoming`, then merge — if `incoming[0].timestamp >= stored.at(-1).timestamp` it's a pure tail append (`stored = [...stored, ...incoming]`, the common case), else fall back to the full sort (rare out-of-order delivery). Change `DEFAULT_MAX_BYTES` to `16 * 1024 * 1024`.
 
-- [ ] **Step 4: Run — Expected: PASS** (existing ring tests must stay green — eviction logic untouched).
-- [ ] **Step 5: Commit**
+- [x] **Step 4: Run — Expected: PASS** (existing ring tests must stay green — eviction logic untouched).
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -m "fix(recorder): smaller ring default, linear append, snapshot-anchored windows" -- packages/extensions/recorder/src/server/ring.ts packages/extensions/recorder/test/ring.test.ts
