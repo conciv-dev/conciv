@@ -120,6 +120,13 @@ jobs:
             if (lag > 3000) console.error(`[sbdebug-srv] ${now} EVENT-LOOP-STALL ${lag}ms`)
             last = now
           }, 1000).unref()
+          const v8 = require('node:v8')
+          setInterval(() => {
+            const h = v8.getHeapStatistics()
+            const usedMb = Math.round(h.used_heap_size / 1048576)
+            const limitMb = Math.round(h.heap_size_limit / 1048576)
+            if (usedMb > limitMb * 0.5) console.error(`[sbdebug-srv] ${Date.now()} HEAP ${usedMb}/${limitMb}MB pid=${process.pid}`)
+          }, 10000).unref()
           EOF
           echo hook written
       - name: memory sampler
@@ -134,7 +141,7 @@ jobs:
       - run: pnpm exec turbo run typecheck lint test --filter='./apps/storybook' --concurrency=3 --env-mode=loose
         env:
           DEBUG: pw:browser
-          NODE_OPTIONS: --require /tmp/sbdebug-hook.cjs
+          NODE_OPTIONS: ${{ matrix.n <= 10 && '--require /tmp/sbdebug-hook.cjs --max-old-space-size=8192' || '--require /tmp/sbdebug-hook.cjs' }}
       - name: post-mortem
         if: always()
         run: |
