@@ -81,6 +81,8 @@ export type HarnessHistory = {
 
   nameFromTranscript?(raw: string): string | null
 
+  contextTokens?(raw: string): number | undefined
+
   list?(cwd: string, home?: string): HarnessSessionMeta[] | Promise<HarnessSessionMeta[]>
 }
 

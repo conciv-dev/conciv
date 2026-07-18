@@ -46,13 +46,13 @@ describe('usage-types', () => {
     expect(tokenUsageToSnapshot(snapshotToTokenUsage(s))).toMatchObject(s)
   })
 
-  it('sums prompt-side tokens for occupancy, excludes output', () => {
-    expect(contextUsedTokens({inputTokens: 100, cacheReadTokens: 50, cacheWriteTokens: 10, outputTokens: 999})).toBe(
-      160,
+  it('reports occupancy from contextTokens, never the billing sum', () => {
+    expect(contextUsedTokens({contextTokens: 92000, inputTokens: 100, cacheReadTokens: 50, cacheWriteTokens: 10})).toBe(
+      92000,
     )
   })
 
-  it('returns undefined when no token fields present', () => {
-    expect(contextUsedTokens({totalCostUsd: 1})).toBeUndefined()
+  it('returns undefined when no occupancy is present (billing totals are not occupancy)', () => {
+    expect(contextUsedTokens({inputTokens: 773000, cacheReadTokens: 700000, totalCostUsd: 1})).toBeUndefined()
   })
 })

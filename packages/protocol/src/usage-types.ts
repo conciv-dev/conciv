@@ -9,6 +9,7 @@ export const UsageSnapshotSchema = z.object({
   cacheReadTokens: z.number().int().nonnegative().optional(),
   cacheWriteTokens: z.number().int().nonnegative().optional(),
   reasoningTokens: z.number().int().nonnegative().optional(),
+  contextTokens: z.number().int().nonnegative().optional(),
   totalCostUsd: z.number().nonnegative().optional(),
   numTurns: z.number().int().nonnegative().optional(),
 })
@@ -54,7 +55,5 @@ export function tokenUsageToSnapshot(u: TokenUsage): UsageSnapshot {
 }
 
 export function contextUsedTokens(s: UsageSnapshot): number | undefined {
-  const parts = [s.inputTokens, s.cacheReadTokens, s.cacheWriteTokens]
-  if (parts.every((p) => p === undefined)) return undefined
-  return parts.reduce<number>((sum, p) => sum + (p ?? 0), 0)
+  return s.contextTokens
 }

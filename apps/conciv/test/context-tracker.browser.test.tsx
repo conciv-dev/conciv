@@ -20,21 +20,23 @@ function mount(usage: UsageSnapshot | null): HTMLElement {
 }
 
 describe('ContextTracker trigger badge', () => {
-  it('shows percent and the ring when the context window is known', () => {
-    const host = mount({inputTokens: 20_000, cacheReadTokens: 5_000, contextWindow: 200_000, outputTokens: 100})
+  it('shows percent and the ring from the contextTokens occupancy', () => {
+    const host = mount({contextTokens: 25_000, contextWindow: 200_000, inputTokens: 20_000, outputTokens: 100})
     expect(host.textContent).toContain('12.5%')
     expect(host.querySelector('svg[aria-label="Model context usage"]')).not.toBeNull()
   })
 
-  it('falls back to compact used-token count without a context window', () => {
+  it('never derives a percent from cumulative billing totals (issue #78: 773K/200K = 386%)', () => {
+    const host = mount({inputTokens: 700_000, cacheReadTokens: 73_000, contextWindow: 200_000, outputTokens: 5_000})
+    expect(host.textContent).not.toContain('%')
+    expect(host.querySelector('svg')).toBeNull()
+    expect(host.textContent).toContain('778K')
+  })
+
+  it('falls back to a compact billing-token count when no occupancy is reported', () => {
     const host = mount({inputTokens: 24_000, outputTokens: 100})
     expect(host.textContent).toContain('24K')
     expect(host.querySelector('svg')).toBeNull()
-  })
-
-  it('falls back to output tokens when nothing context-shaped was reported', () => {
-    const host = mount({outputTokens: 1_500})
-    expect(host.textContent).toContain('1.5K')
   })
 
   it('renders nothing for null usage or an empty snapshot', () => {

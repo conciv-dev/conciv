@@ -6,6 +6,7 @@ import {
   parseHistory,
   parseSessionMeta,
   claudeHistory,
+  contextTokensFromTranscript,
   encodeProjectDir,
   listSessions,
   withinProject,
@@ -68,6 +69,41 @@ describe('parseHistory', () => {
     expect(assistants).toHaveLength(2)
     expect(assistants[0]?.parts.map((p) => p.type)).toEqual(['thinking', 'tool-call', 'tool-result'])
     expect(assistants[1]?.parts.map((p) => p.type)).toEqual(['text'])
+  })
+})
+
+describe('contextTokensFromTranscript', () => {
+  const assistant = (usage: Record<string, number>, extra: Record<string, unknown> = {}) =>
+    JSON.stringify({
+      type: 'assistant',
+      message: {role: 'assistant', content: [{type: 'text', text: 'ok'}], usage},
+      ...extra,
+    })
+
+  it('reports the LAST request occupancy, never the cumulative turn sum', () => {
+    const jsonl = [
+      assistant({input_tokens: 4, cache_creation_input_tokens: 900, cache_read_input_tokens: 89000}),
+      JSON.stringify({type: 'user', message: {role: 'user', content: [{type: 'tool_result', tool_use_id: 't1'}]}}),
+      assistant({input_tokens: 2, cache_creation_input_tokens: 750, cache_read_input_tokens: 92000}),
+    ].join('\n')
+    expect(contextTokensFromTranscript(jsonl)).toBe(2 + 750 + 92000)
+  })
+
+  it('ignores sub-agent (sidechain) records', () => {
+    const jsonl = [
+      assistant({input_tokens: 2, cache_creation_input_tokens: 750, cache_read_input_tokens: 92000}),
+      assistant({input_tokens: 5, cache_read_input_tokens: 500000}, {isSidechain: true}),
+    ].join('\n')
+    expect(contextTokensFromTranscript(jsonl)).toBe(2 + 750 + 92000)
+  })
+
+  it('returns undefined when no assistant usage is present', () => {
+    const jsonl = JSON.stringify({type: 'user', message: {role: 'user', content: 'hi'}})
+    expect(contextTokensFromTranscript(jsonl)).toBeUndefined()
+  })
+
+  it('is wired onto claudeHistory', () => {
+    expect(claudeHistory.contextTokens).toBe(contextTokensFromTranscript)
   })
 })
 

@@ -117,6 +117,29 @@ describe('chat over rpc (IT, real makeApp + fake-claude spawn)', () => {
     expect(argv[argv.indexOf('--resume') + 1]).toBe('sess-fake')
   })
 
+  it('sets contextTokens from the LAST assistant usage in the transcript, not the cumulative turn sum', async () => {
+    const claudeHome = tmp()
+    const kit = await setup({}, claudeHome)
+    const id = await kit.session()
+    await runTurn(kit, 'hi', id)
+    const transcript = claude.history?.transcriptPath(kit.stateRoot, 'sess-fake', claudeHome)
+    if (!transcript) throw new Error('claude harness lacks history')
+    mkdirSync(dirname(transcript), {recursive: true})
+    const rec = (usage: Record<string, number>) =>
+      JSON.stringify({type: 'assistant', message: {role: 'assistant', content: [{type: 'text', text: 'ok'}], usage}})
+    writeFileSync(
+      transcript,
+      [
+        rec({input_tokens: 4, cache_read_input_tokens: 300000}),
+        rec({input_tokens: 2, cache_creation_input_tokens: 750, cache_read_input_tokens: 92000}),
+      ].join('\n'),
+    )
+    await runTurn(kit, 'more', id)
+    const meta = await metaFor(kit, id)
+    expect(meta?.usage?.contextTokens).toBe(2 + 750 + 92000)
+    expect(meta?.usage?.contextWindow).toBe(200000)
+  })
+
   it('drops a stale resume token whose transcript is missing (terminal pre-mints ids before claude writes one)', async () => {
     const argvFile = join(tmp(), 'argv.json')
     const kit = await setup({argvFile}, tmp())
