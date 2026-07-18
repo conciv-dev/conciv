@@ -5,7 +5,7 @@ import {getHostApi, makeExtRpcClient} from '@conciv/extension'
 import {Button} from '@conciv/ui-kit-system'
 import {RECORDER_MIME, RECORDER_NAME, recordingPoster, recordingRefJson, type RrwebEvent} from '../shared/protocol.js'
 import type {RecorderRouter} from '../server.js'
-import {mountPanelPlayer, type PanelPlayerHandle, type PanelPlayerMode} from './player.js'
+import {mountStreamPlayer, type StreamPlayerHandle} from './player.js'
 import {RecorderErrorNotice, RecorderNotice} from './notices.js'
 import {useRecorderContext} from './recorder-context.js'
 
@@ -46,10 +46,12 @@ function RecorderPanel(): JSX.Element {
   const recording = useQuery(() => ({
     ...utils.window.queryOptions({input: pinned()}),
     enabled: presenceReady() === true,
+    refetchOnWindowFocus: false,
     refetchInterval: (query: {state: {data?: {events: RrwebEvent[]}}}) => (hasReplay(query.state.data) ? false : 1000),
   }))
   const log = useQuery(() => ({
     ...utils.log.queryOptions({input: pinned()}),
+    refetchOnWindowFocus: false,
     refetchInterval: (query: {state: {data?: {entries: unknown[]}}}) =>
       (query.state.data?.entries?.length ?? 0) > 0 ? false : 1000,
   }))
@@ -61,14 +63,13 @@ function RecorderPanel(): JSX.Element {
   )
   const retry = (): void => void queryClient.invalidateQueries()
 
-  const [mode, setMode] = createSignal<PanelPlayerMode>('following')
-  let playerHandle: PanelPlayerHandle | undefined
+  const [live, setLive] = createSignal(true)
+  let playerHandle: StreamPlayerHandle | undefined
   const replayRef = (events: RrwebEvent[]) => (container: HTMLDivElement) => {
     if (events.length < 2) return
-    const mounted = mountPanelPlayer(container, events, {
+    const mounted = mountStreamPlayer(container, events, {
       pull: (sinceTs) => rpc.events({sinceTs, ...pinned()}).then((delta) => delta.events),
-      requestSnapshot: () => rpc.snapshot(undefined).then(() => undefined),
-      onMode: setMode,
+      onLive: setLive,
     })
     playerHandle = mounted
     onCleanup(() => {
@@ -114,17 +115,21 @@ function RecorderPanel(): JSX.Element {
                     </Button>
                     <div class="ml-auto flex gap-2 items-center">
                       <Show
-                        when={mode() === 'following'}
+                        when={live()}
                         fallback={
-                          <Button variant="outline" size="sm" onClick={() => playerHandle?.goLive()}>
-                            Go live
-                          </Button>
+                          <button
+                            type="button"
+                            class="px-2.5 border border-pw-line rounded-pw-pill bg-pw-fill flex gap-1.5 h-6.5 cursor-pointer select-none items-center hover:border-pw-line-2 hover:bg-pw-fill-strong"
+                            onClick={() => playerHandle?.goLive()}
+                          >
+                            <span class="rounded-full bg-pw-text-3 size-1.5" />
+                            <span class="text-[0.6875rem] text-pw-text-2 tracking-[0.1em] font-pw font-semibold">
+                              GO LIVE
+                            </span>
+                          </button>
                         }
                       >
                         <LiveBadge />
-                        <Button variant="ghost" size="sm" onClick={() => playerHandle?.pause()}>
-                          Pause
-                        </Button>
                       </Show>
                     </div>
                   </div>

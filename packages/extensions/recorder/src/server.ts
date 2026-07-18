@@ -48,10 +48,6 @@ export function makeRecorderRouter(runtime: RecorderRuntime) {
         if (input.live) runtime.control.emit({snapshot: true, flush: true})
         return {ok: true}
       }),
-    snapshot: recorderOs.output(z.object({ok: z.literal(true)})).handler(() => {
-      runtime.control.emit({snapshot: true, flush: true})
-      return {ok: true}
-    }),
     reset: recorderOs.output(z.object({ok: z.literal(true)})).handler(async () => {
       runtime.rings.clear()
       runtime.control.emit({snapshot: true, flush: true})

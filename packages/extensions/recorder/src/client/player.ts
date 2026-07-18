@@ -15,7 +15,8 @@ function detachEvents(events: RrwebEvent[]): RrwebEvent[] {
   return z.array(RrwebEventSchema).parse(JSON.parse(JSON.stringify(events)))
 }
 const metaSize = z.object({width: z.number(), height: z.number()})
-const timePayload = z.number()
+const controllerTime = z.object({payload: z.number()})
+const controllerState = z.object({payload: z.string()})
 
 const FALLBACK_WIDTH = 620
 const FALLBACK_ASPECT = 0.62
@@ -41,13 +42,14 @@ function skipIdlePlayback(player: Player, events: RrwebEvent[], skipIdle: Access
   if (!spans.length) return
   let playing = false
   player.addEventListener('ui-update-player-state', (payload) => {
-    playing = payload === 'playing'
+    const parsed = controllerState.safeParse(payload)
+    playing = parsed.success && parsed.data.payload === 'playing'
   })
   player.addEventListener('ui-update-current-time', (payload) => {
     if (!playing || !skipIdle()) return
-    const parsed = timePayload.safeParse(payload)
+    const parsed = controllerTime.safeParse(payload)
     if (!parsed.success) return
-    const span = idleSpanAt(spans, parsed.data)
+    const span = idleSpanAt(spans, parsed.data.payload)
     if (span) player.goto(span.endMs, true)
   })
 }
@@ -84,6 +86,7 @@ function observeContainerSize(
   const observer = new ResizeObserver(() => {
     cancelAnimationFrame(frame)
     frame = requestAnimationFrame(() => {
+      if (document.fullscreenElement) return
       const size = playerSize(container, aspect())
       if (size.width < 80) return
       resize(size)
@@ -97,56 +100,92 @@ function observeContainerSize(
 }
 
 const LIVE_POLL_MS = 1000
+const SCRUB_STEP_MS = 5000
 
-export type PanelPlayerMode = 'following' | 'paused'
+const scrubStep = z.union([z.literal('ArrowLeft'), z.literal('ArrowRight')])
 
-export type PanelPlayerHandle = {
-  pause: () => void
+function enhanceControllerAccess(container: HTMLDivElement, player: Player): void {
+  const buttons = container.querySelectorAll('.rr-controller__btns > button')
+  buttons[0]?.setAttribute('aria-label', 'Toggle playback')
+  if (buttons.length > 1) buttons[buttons.length - 1]?.setAttribute('aria-label', 'Toggle fullscreen')
+  const progress = container.querySelector('.rr-progress')
+  if (!(progress instanceof HTMLElement)) return
+  progress.setAttribute('role', 'slider')
+  progress.setAttribute('aria-label', 'Timeline')
+  progress.tabIndex = 0
+  let current = 0
+  player.addEventListener('ui-update-current-time', (payload) => {
+    const parsed = controllerTime.safeParse(payload)
+    if (parsed.success) current = parsed.data.payload
+  })
+  container.addEventListener(
+    'keydown',
+    (event) => {
+      if (!(event.target instanceof Node) || !progress.contains(event.target)) return
+      const key = scrubStep.safeParse(event.key)
+      if (!key.success) return
+      event.stopPropagation()
+      const total = player.getMetaData().totalTime
+      const delta = key.data === 'ArrowLeft' ? -SCRUB_STEP_MS : SCRUB_STEP_MS
+      player.goto(Math.min(Math.max(current + delta, 0), total))
+    },
+    true,
+  )
+}
+
+const LIVE_EDGE_MS = 2500
+
+export type StreamPlayerHandle = {
   goLive: () => void
   dispose: () => void
 }
 
-export function mountPanelPlayer(
+export function mountStreamPlayer(
   container: HTMLDivElement,
   initial: RrwebEvent[],
   hooks: {
     pull: (sinceTs: number) => Promise<RrwebEvent[]>
-    requestSnapshot: () => Promise<void>
-    onMode: (mode: PanelPlayerMode) => void
+    onLive: (live: boolean) => void
   },
-): PanelPlayerHandle {
+): StreamPlayerHandle {
   const {scope, known} = injectPlayerStyles(container)
   const buffer = detachEvents(initial)
   let cursor = buffer.at(-1)?.timestamp ?? 0
   let aspect = recordedAspect(buffer)
-  let mode: PanelPlayerMode = 'following'
   let player: Player | undefined
   let stopped = false
   let poll: ReturnType<typeof setTimeout> | undefined
 
-  const build = (nextMode: PanelPlayerMode): void => {
-    player?.$destroy()
+  const tailOffset = (): number => cursor - (buffer[0]?.timestamp ?? 0)
+
+  const isLive = (): boolean => {
+    if (!player) return true
+    const replayer = player.getReplayer()
+    if (!replayer.service.state.matches('playing')) return false
+    return replayer.getCurrentTime() + LIVE_EDGE_MS >= tailOffset()
+  }
+
+  const announceLive = (): void => hooks.onLive(isLive())
+
+  const build = (): void => {
     aspect = recordedAspect(buffer)
-    const following = nextMode === 'following'
     player = new Player({
       target: container,
       props: {
         ...playerSize(container, aspect),
         events: playerEvents.parse(buffer),
         autoPlay: false,
-        showController: !following,
-        ...(following ? {liveMode: true} : {}),
+        liveMode: true,
+        showController: true,
+        skipInactive: false,
       },
     })
     demoteInjectedStyles(scope, known)
-    const pastTail = player.getMetaData().totalTime + 1
-    if (following) {
-      player.getReplayer().pause(pastTail)
-      player.getReplayer().startLive(cursor)
-    }
-    if (!following) player.goto(pastTail, false)
-    mode = nextMode
-    hooks.onMode(nextMode)
+    enhanceControllerAccess(container, player)
+    player.goto(tailOffset() + 1, true)
+    player.addEventListener('ui-update-player-state', announceLive)
+    player.addEventListener('ui-update-current-time', announceLive)
+    hooks.onLive(true)
   }
 
   let connectFrame = 0
@@ -156,18 +195,23 @@ export function mountPanelPlayer(
       connectFrame = requestAnimationFrame(buildWhenConnected)
       return
     }
-    build('following')
+    build()
   }
   buildWhenConnected()
 
   const tick = async (): Promise<void> => {
     const fresh = await hooks.pull(cursor).catch((): RrwebEvent[] => [])
     if (stopped) return
+    const atEdge = isLive()
     for (const event of fresh) {
       buffer.push(event)
-      if (mode === 'following') player?.addEvent(playerEvent.parse(event))
+      if (player) {
+        if (atEdge) player.getReplayer().addEvent(playerEvent.parse(event))
+        if (!atEdge) player.addEvent(playerEvent.parse(event))
+      }
       cursor = Math.max(cursor, event.timestamp)
     }
+    announceLive()
     poll = setTimeout(() => void tick(), LIVE_POLL_MS)
   }
   poll = setTimeout(() => void tick(), LIVE_POLL_MS)
@@ -182,14 +226,9 @@ export function mountPanelPlayer(
   )
 
   return {
-    pause: () => {
-      if (mode !== 'following') return
-      build('paused')
-    },
     goLive: () => {
-      if (mode !== 'paused') return
-      build('following')
-      void hooks.requestSnapshot().catch(() => {})
+      player?.goto(tailOffset() + 1, true)
+      hooks.onLive(true)
     },
     dispose: () => {
       stopped = true
@@ -210,6 +249,7 @@ export function mountPlayer(container: HTMLDivElement, events: RrwebEvent[], ski
     props: {...playerSize(container, aspect), events: playerEvents.parse(detached), autoPlay: false},
   })
   demoteInjectedStyles(scope, known)
+  enhanceControllerAccess(container, player)
   skipIdlePlayback(player, detached, skipIdle)
   const stopResize = observeContainerSize(
     container,

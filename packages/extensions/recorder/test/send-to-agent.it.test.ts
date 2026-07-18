@@ -22,7 +22,7 @@ describe('send to agent (real browser, real store)', () => {
     await api()
       .page.getByText(/Screen recording · \d+ action/)
       .waitFor({state: 'visible', timeout: 15_000})
-    await api().page.getByRole('button', {name: 'Play'}).waitFor({state: 'visible', timeout: 15_000})
+    await api().page.getByRole('button', {name: 'Play', exact: true}).waitFor({state: 'visible', timeout: 15_000})
     expect(await api().page.getByRole('note', {name: 'Attachment recording.txt'}).count()).toBe(0)
     expect(await api().page.getByRole('note', {name: 'Attachment Screen recording'}).count()).toBe(0)
   }, 120_000)
