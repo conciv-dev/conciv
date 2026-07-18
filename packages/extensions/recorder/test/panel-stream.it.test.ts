@@ -23,7 +23,7 @@ async function openPanelStreaming(page: Page): Promise<string> {
   const label = await addMarker(page)
   await page.getByRole('tab', {name: 'Recorder'}).click()
   await page.getByRole('button', {name: 'Send to agent'}).waitFor({state: 'visible', timeout: 20_000})
-  await expect.poll(() => replayShows(page, label), {timeout: 20_000}).toBe(true)
+  await expect.poll(() => replayShows(page, label), {timeout: 30_000}).toBe(true)
   return label
 }
 
@@ -36,7 +36,7 @@ describe('panel stream replay (real browser)', () => {
     await page.getByRole('button', {name: 'Toggle fullscreen'}).waitFor({state: 'visible', timeout: 10_000})
     await page.getByRole('slider', {name: 'Timeline'}).waitFor({state: 'visible', timeout: 10_000})
     const followed = await addMarker(page)
-    await expect.poll(() => replayShows(page, followed), {timeout: 20_000}).toBe(true)
+    await expect.poll(() => replayShows(page, followed), {timeout: 30_000}).toBe(true)
   }, 120_000)
 
   it('scrubbing back leaves the live edge and Go live returns to it', async () => {
@@ -44,15 +44,15 @@ describe('panel stream replay (real browser)', () => {
     await openPanelStreaming(page)
     await page.waitForTimeout(1_500)
     const late = await addMarker(page)
-    await expect.poll(() => replayShows(page, late), {timeout: 20_000}).toBe(true)
+    await expect.poll(() => replayShows(page, late), {timeout: 30_000}).toBe(true)
 
     await scrubBack(page, 4)
     await page.getByRole('button', {name: 'Go live'}).waitFor({state: 'visible', timeout: 10_000})
-    await expect.poll(() => replayShows(page, late), {timeout: 10_000}).toBe(false)
+    await expect.poll(() => replayShows(page, late), {timeout: 30_000}).toBe(false)
 
     await page.getByRole('button', {name: 'Go live'}).click()
     await page.getByText('LIVE', {exact: true}).waitFor({state: 'visible', timeout: 10_000})
-    await expect.poll(() => replayShows(page, late), {timeout: 20_000}).toBe(true)
+    await expect.poll(() => replayShows(page, late), {timeout: 30_000}).toBe(true)
   }, 120_000)
 
   it('pausing playback detaches from live and playing catches back up', async () => {

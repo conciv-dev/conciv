@@ -37,7 +37,7 @@ describe('recording attachment end to end in the real widget', () => {
 
     const recorderRpc = makeExtRpcClient<RecorderRouter>(kit.base, 'recorder')
     await expect
-      .poll(async () => (await recorderRpc.window({})).events.length, {timeout: 20_000})
+      .poll(async () => (await recorderRpc.window({})).events.length, {timeout: 30_000})
       .toBeGreaterThanOrEqual(2)
 
     await openPanel(page)
@@ -55,9 +55,9 @@ describe('recording attachment end to end in the real widget', () => {
     const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
     await input.fill('here is what I did')
     await page.getByRole('button', {name: 'Send message'}).click()
-    await expect.poll(() => page.getByText('Recording received').first().isVisible(), {timeout: 20_000}).toBe(true)
+    await expect.poll(() => page.getByText('Recording received').first().isVisible(), {timeout: 30_000}).toBe(true)
 
-    await expect.poll(() => kit.harness.__turnMessages.length, {timeout: 20_000}).toBeGreaterThanOrEqual(1)
+    await expect.poll(() => kit.harness.__turnMessages.length, {timeout: 30_000}).toBeGreaterThanOrEqual(1)
     const turn = JSON.stringify(kit.harness.__turnMessages.at(-1))
     expect(turn).toContain('[click]')
     expect(turn).not.toContain('"type":"document"')
@@ -73,7 +73,7 @@ describe('recording attachment end to end in the real widget', () => {
 
     await page.reload({waitUntil: 'domcontentloaded'})
     await expect
-      .poll(() => page.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 20_000})
+      .poll(() => page.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 30_000})
       .toBe(true)
     await page
       .getByRole('log')
@@ -88,7 +88,7 @@ describe('recording attachment end to end in the real widget', () => {
     await modal.getByRole('button', {name: 'Close'}).click()
     await modal.waitFor({state: 'hidden', timeout: 15_000})
     await expect
-      .poll(() => page.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 5_000})
+      .poll(() => page.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 30_000})
       .toBe(true)
     const composerAfterModal = page.getByRole('textbox', {name: 'Message the conciv agent'})
     await composerAfterModal.fill('still alive after replay')

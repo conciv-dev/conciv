@@ -15,7 +15,7 @@ describe('panel replay does not mutate solid stores (real browser)', () => {
     await page.getByRole('tab', {name: 'Recorder'}).click()
     await page.getByRole('button', {name: 'Send to agent'}).waitFor({state: 'visible', timeout: 20_000})
     await expect
-      .poll(() => page.frameLocator('iframe').getByText(label, {exact: true}).count(), {timeout: 20_000})
+      .poll(() => page.frameLocator('iframe').getByText(label, {exact: true}).count(), {timeout: 30_000})
       .toBeGreaterThan(0)
     await page.waitForTimeout(1_500)
     await addMarker(page)

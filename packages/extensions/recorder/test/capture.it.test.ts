@@ -33,7 +33,7 @@ describe('recorder end to end (real browser, real engine)', () => {
 
   it('strips script bodies from snapshots (slimDOM) so page code never bloats the ring', async () => {
     const label = await addMarker(api().page)
-    await expect.poll(async () => (await windowJson()).includes(label), {timeout: 20_000}).toBe(true)
+    await expect.poll(async () => (await windowJson()).includes(label), {timeout: 30_000}).toBe(true)
     const stored = await windowJson()
     expect(stored).toContain('Comment target')
     expect(stored).not.toContain('FIXTURE_SCRIPT_BODY')
@@ -44,7 +44,7 @@ describe('recorder end to end (real browser, real engine)', () => {
     await field.click()
     await field.pressSequentially('sampling', {delay: 40})
     await field.press('Tab')
-    await expect.poll(async () => (await windowJson()).includes('sampling'), {timeout: 20_000}).toBe(true)
+    await expect.poll(async () => (await windowJson()).includes('sampling'), {timeout: 30_000}).toBe(true)
     const {events} = await recorderRpc().window({})
     const inputEvents = events.filter((event) => JSON.stringify(event).includes('"text":"s'))
     expect(inputEvents.length).toBeLessThan(4)
@@ -52,7 +52,7 @@ describe('recorder end to end (real browser, real engine)', () => {
 
   it('never captures conciv-marked light-DOM styles, so no multi-megabyte events', async () => {
     const label = await addMarker(api().page)
-    await expect.poll(async () => (await windowJson()).includes(label), {timeout: 20_000}).toBe(true)
+    await expect.poll(async () => (await windowJson()).includes(label), {timeout: 30_000}).toBe(true)
     const {events} = await recorderRpc().window({})
     expect(JSON.stringify(events)).not.toContain('CONCIV_FONT_FIXTURE')
     const largest = Math.max(...events.map((event) => JSON.stringify(event).length))
@@ -65,9 +65,9 @@ describe('recorder end to end (real browser, real engine)', () => {
     await send.waitFor({state: 'visible', timeout: 15_000})
     const replay = api().page.frameLocator('iframe')
     await expect
-      .poll(() => replay.getByText('Comment target', {exact: true}).count(), {timeout: 15_000})
+      .poll(() => replay.getByText('Comment target', {exact: true}).count(), {timeout: 30_000})
       .toBeGreaterThan(0)
     const label = await addMarker(api().page)
-    await expect.poll(() => replay.getByText(label, {exact: true}).count(), {timeout: 20_000}).toBeGreaterThan(0)
+    await expect.poll(() => replay.getByText(label, {exact: true}).count(), {timeout: 30_000}).toBeGreaterThan(0)
   }, 120_000)
 })

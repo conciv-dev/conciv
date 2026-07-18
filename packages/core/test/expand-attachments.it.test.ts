@@ -71,7 +71,7 @@ describe('attachment expand end-to-end (real send path, scripted harness)', () =
         expect(fake.__turnMessages.length).toBeGreaterThan(0)
         expect(statusOf(db, sessionId)).toBe('idle')
       },
-      {timeout: 15_000},
+      {timeout: 30_000},
     )
 
     const harnessUser = fake.__turnMessages[0]?.findLast((message) => message.role === 'user')

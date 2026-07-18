@@ -18,7 +18,15 @@ permissions:
   contents: read
 
 jobs:
+  # A called workflow can never hold more than the caller grants, so this must
+  # cover every permission ci.yml's own jobs ask for — actions: read is how the
+  # planner and bundle-size read their baseline artifacts. Omitting it fails the
+  # whole run at STARTUP ("Error calling workflow"), before any job appears, which
+  # is how releases silently stopped running after #83 added the grant to ci.yml.
   test:
+    permissions:
+      contents: read
+      actions: read
     uses: ./.github/workflows/ci.yml
 
   release:

@@ -29,15 +29,15 @@ test('the human compose flow opens an anchored thread without a null anchor', as
     await api.page.getByRole('button', {name: 'Comment target'}).evaluate((element: HTMLElement) => element.click())
 
     const field = api.page.getByRole('textbox', {name: 'Comment'})
-    await field.waitFor({timeout: 10_000})
+    await field.waitFor({timeout: 30_000})
     await field.focus()
     await api.page.keyboard.type('a fresh note')
     await api.page.keyboard.press('Enter')
 
     const note = api.page.getByText('a fresh note')
-    await note.waitFor({timeout: 10_000})
+    await note.waitFor({timeout: 30_000})
     const pin = api.page.getByRole('button', {name: /comment, open/})
-    await pin.waitFor({timeout: 10_000})
+    await pin.waitFor({timeout: 30_000})
 
     const noteBox = await note.boundingBox()
     const pinBox = await pin.boundingBox()

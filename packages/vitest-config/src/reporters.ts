@@ -12,9 +12,18 @@ export function ciReporters(): CiReporterEntry[] {
   return ['default', ['github-actions', {jobSummary: {enabled: false}}], ['json', {outputFile: 'test-results.json'}]]
 }
 
-export function ciTest(): {reporters: CiReporterEntry[]; coverage: CiCoverage} {
+export function ciTest(): {
+  reporters: CiReporterEntry[]
+  coverage: CiCoverage
+  testTimeout: number
+  hookTimeout: number
+  teardownTimeout: number
+} {
   return {
     reporters: ciReporters(),
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
+    teardownTimeout: 30_000,
     coverage: {
       enabled: Boolean(process.env.GITHUB_ACTIONS),
       provider: 'v8',

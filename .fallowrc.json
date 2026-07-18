@@ -75,9 +75,7 @@
     "bippy",
     "react-grab"
   ],
-  "ignoreUnresolvedImports": [
-    "collections/*"
-  ],
+  "ignoreUnresolvedImports": ["collections/*"],
   "publicPackages": [
     "@conciv/core",
     "@conciv/embed",
@@ -105,19 +103,12 @@
   "ignoreExports": [
     {
       "file": "apps/site/src/components/ui/**",
-      "exports": [
-        "*"
-      ]
+      "exports": ["*"]
     },
     {
       "file": "packages/ui-kit-chat/src/styled/**",
-      "exports": [
-        "*"
-      ]
+      "exports": ["*"]
     }
   ],
-  "entry": [
-    "packages/extension-testkit/src/host/host-entry.tsx",
-    "e2e/harnesses/vite.*.config.ts"
-  ]
+  "entry": ["packages/extension-testkit/src/host/host-entry.tsx", "e2e/harnesses/vite.*.config.ts"]
 }
