@@ -1,5 +1,17 @@
 # site
 
+## 0.0.12
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/embed@0.0.12
+  - @conciv/extension-terminal@0.0.12
+  - @conciv/extension-try-it@0.0.12
+  - @conciv/it@0.0.12
+  - @conciv/mascot@0.0.12
+  - @conciv/protocol@0.0.12
+
 ## 0.0.11
 
 ### Patch Changes

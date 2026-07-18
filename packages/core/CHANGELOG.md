@@ -1,5 +1,20 @@
 # @conciv/core
 
+## 0.0.12
+
+### Patch Changes
+
+- [#66](https://github.com/conciv-dev/conciv/pull/66) [`450fc46`](https://github.com/conciv-dev/conciv/commit/450fc463b7bce804ac1c75e3c6a398d1b9f9491e) Thanks [@omridevk](https://github.com/omridevk)! - Adapter streams that emit a RUN_ERROR chunk (stub harnesses, acp adapters) now settle the run with a visible error instead of finishing silently with an empty message. Runs whose harness produces no output at all (missing binary, unauthenticated CLI stuck on an interactive prompt) are now bounded by a first-chunk deadline: after 30s of silence the child is killed and the run settles with a visible "produced no output" error instead of spinning forever.
+
+- Updated dependencies []:
+  - @conciv/contract@0.0.12
+  - @conciv/db@0.0.12
+  - @conciv/extension@0.0.12
+  - @conciv/harness@0.0.12
+  - @conciv/protocol@0.0.12
+  - @conciv/serve@0.0.12
+  - @conciv/tools@0.0.12
+
 ## 0.0.11
 
 ### Patch Changes

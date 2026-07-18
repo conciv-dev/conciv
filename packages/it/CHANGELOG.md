@@ -1,5 +1,16 @@
 # @conciv/it
 
+## 0.0.12
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/extension-test-runner@0.0.12
+  - @conciv/plugin@0.0.12
+  - @conciv/embed@0.0.12
+  - @conciv/extension-terminal@0.0.12
+  - @conciv/extension-whiteboard@0.0.12
+
 ## 0.0.11
 
 ### Patch Changes

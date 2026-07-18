@@ -1,6 +1,6 @@
 {
   "name": "@conciv/ui-kit-chat",
-  "version": "0.0.11",
+  "version": "0.0.12",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). A clean-room SolidJS implementation of the assistant-ui chat API: headless compound primitives (Thread/Message/Composer/ActionBar/…) plus a neutral, themeable styled set, bound to the canonical @tanstack/ai-client data model. Every component is viewable in Storybook against the real useChat behind a fake connection.",
   "keywords": [
     "ai-chat",

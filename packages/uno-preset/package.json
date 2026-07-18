@@ -1,6 +1,6 @@
 {
   "name": "@conciv/uno-preset",
-  "version": "0.0.11",
+  "version": "0.0.12",
   "private": true,
   "description": "Shared conciv UnoCSS preset: presetMini + presetTypography (themed to the --pw-* tokens) + the sr-only shortcut. One source of truth reused by every package's uno.config so spacing/prose/shortcuts never drift.",
   "homepage": "https://conciv.dev",

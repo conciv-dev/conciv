@@ -1,5 +1,18 @@
 # @conciv/extension-whiteboard
 
+## 0.0.12
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/extension@0.0.12
+  - @conciv/grab@0.0.12
+  - @conciv/protocol@0.0.12
+  - @conciv/ui-kit-chat@0.0.12
+  - @conciv/ui-kit-chat-tools@0.0.12
+  - @conciv/ui-kit-system@0.0.12
+  - @conciv/ui-kit-tap@0.0.12
+
 ## 0.0.11
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # conciv-e2e-solid-start
 
+## 0.0.4
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/it@0.0.12
+
 ## 0.0.3
 
 ### Patch Changes
