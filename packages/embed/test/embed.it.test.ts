@@ -203,9 +203,7 @@ describe('embed settings', () => {
     const disabledHost = await serveHost(() => hostPage({apiBase: kit.base, widget: '{"modal": false}'}))
     const page = await browser.newPage()
     await page.goto(disabledHost.base, {waitUntil: 'domcontentloaded'})
-    await page.waitForFunction(() => document.querySelector('[data-conciv-root]') !== null, undefined, {
-      timeout: 15_000,
-    })
+    await page.getByRole('status').waitFor({state: 'attached', timeout: 15_000})
     expect(await page.getByRole('button', {name: 'Open conciv chat'}).count()).toBe(0)
     await page.close()
     await disabledHost.close()
