@@ -14,57 +14,53 @@ permissions:
   contents: read
 
 jobs:
-  build:
-    name: build + test (${{ matrix.shard }})
+  # Package suites are sharded across runners so the big whiteboard IT suite and
+  # the real-browser suites stop starving each other on one 4-vCPU runner, with
+  # every shard fully uncapped (no --concurrency, no VITEST_MAX_WORKERS). The
+  # planner derives the matrix instead of a hand-maintained package list: it
+  # enumerates workspace packages, weighs each by its measured suite duration
+  # from the ci-test-timings artifact (published by the last main push; unknown
+  # packages get a small default), and LPT-bin-packs into as many shards as the
+  # total time warrants. New packages are picked up automatically; the split
+  # re-balances itself as timings drift. Node 22 strips types natively, so the
+  # planner runs from source with no install. First run ever (no timings
+  # artifact yet) packs everything into two default-weight shards — one slow
+  # bootstrap run on main, then it self-heals.
+  plan:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      actions: read # download the bundle-size baseline artifact from the latest main run
-    # Package suites are sharded across runners so the serial whiteboard IT suite
-    # (~5 min alone) and the real-browser suites stop starving each other on one
-    # 4-vCPU runner. Every shard runs uncapped — no --concurrency, no
-    # VITEST_MAX_WORKERS: the shard layout carries the load-balancing the old
-    # single-runner caps used to. Shards, balanced by measured cold durations
-    # (2026-07-18):
-    #   whiteboard — the one big serial playwright IT suite, alone.
-    #   embed      — the widget-bundle ITs plus the ui-kit / wrapper browser suites.
-    #   terminal   — the terminal, test-runner, and testkit browser suites (the
-    #                terminal reload-replay spawn-size test is the starvation canary).
-    #   node       — everything else via negation; new packages land here by
-    #                default — move a package to a browser shard when it gains a
-    #                chromium suite. Also carries the whole-repo steps: bundle-size
-    #                (needs every published dist built) and the no-comments gate.
+      actions: read # download the ci-test-timings artifact from the latest main run
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+      - name: Fetch shard timings baseline
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          url=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=ci-test-timings&per_page=1" --jq '.artifacts[0].archive_download_url') || true
+          if [ -n "$url" ] && [ "$url" != "null" ]; then
+            curl -sL -H "Authorization: Bearer ${GH_TOKEN}" -o ci-test-timings.zip "$url"
+            unzip -p ci-test-timings.zip ci-test-timings.json > ci-test-timings.json || true
+          fi
+      - id: plan
+        run: node packages/vitest-config/src/ci-shards.ts plan --timings ci-test-timings.json
+
+  build:
+    name: build + test (${{ matrix.shard }})
+    needs: plan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
-      matrix:
-        shard: [node, embed, terminal, whiteboard]
-        include:
-          - shard: node
-            chromium: false
-            turboArgs: >-
-              --filter='./packages/*' --filter='./packages/extensions/*'
-              --filter='!@conciv/extension-whiteboard' --filter='!@conciv/embed' --filter='!@conciv/page'
-              --filter='!@conciv/extension-terminal' --filter='!@conciv/extension-test-runner'
-              --filter='!@conciv/extension-testkit' --filter='!@conciv/extension-try-it'
-              --filter='!@conciv/react' --filter='!@conciv/preact' --filter='!@conciv/solid'
-              --filter='!@conciv/ui-kit-chat' --filter='!@conciv/ui-kit-chat-tools' --filter='!@conciv/ui-kit-system'
-              --filter='!@conciv/ui-kit-tap' --filter='!@conciv/ui-kit-terminal'
-          - shard: embed
-            chromium: true
-            turboArgs: >-
-              --filter=@conciv/embed --filter=@conciv/page
-              --filter=@conciv/react --filter=@conciv/preact --filter=@conciv/solid
-              --filter=@conciv/ui-kit-chat --filter=@conciv/ui-kit-chat-tools --filter=@conciv/ui-kit-system
-              --filter=@conciv/ui-kit-tap
-          - shard: terminal
-            chromium: true
-            turboArgs: >-
-              --filter=@conciv/extension-terminal --filter=@conciv/extension-test-runner
-              --filter=@conciv/extension-testkit --filter=@conciv/extension-try-it
-              --filter=@conciv/ui-kit-terminal
-          - shard: whiteboard
-            chromium: true
-            turboArgs: --filter=@conciv/extension-whiteboard
+      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -114,21 +110,94 @@ jobs:
         if: matrix.chromium && steps.playwright-cache.outputs.cache-hit != 'true'
       - run: pnpm exec playwright install-deps chromium
         if: matrix.chromium && steps.playwright-cache.outputs.cache-hit == 'true'
-      - run: pnpm exec turbo run typecheck lint test ${{ matrix.turboArgs }}
+      - run: pnpm exec conciv-ci-shards run
+        env:
+          SHARD_PACKAGES: ${{ matrix.packages }}
       # One job-summary table per shard, built from the per-package test-results.json
       # files (vitest emits them only in CI; turbo caches them so cache-hit packages
       # still report). Inline failure annotations come from vitest's own
       # github-actions reporter; ciReporters() disables its noisy per-run summary.
       - run: pnpm exec conciv-ci-summary packages
         if: always()
+      # Each main-push shard publishes what its suites actually took; the timings
+      # job merges these into the ci-test-timings baseline the planner feeds on.
+      - run: pnpm exec conciv-ci-shards timings --output "test-timings-${SHARD_NAME}.json"
+        if: github.event_name == 'push'
+        env:
+          SHARD_NAME: ${{ matrix.shard }}
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: github.event_name == 'push'
+        with:
+          name: test-timings-${{ matrix.shard }}
+          path: test-timings-${{ matrix.shard }}.json
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: always()
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.job }}-${{ matrix.shard }}-${{ github.sha }}-${{ github.run_attempt }}
+
+  # Merges the per-shard timing artifacts from this main push into the single
+  # ci-test-timings baseline the next planner run feeds on. Push-only, like the
+  # bundle-size baseline: PR-created artifacts never become the baseline.
+  timings:
+    if: github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v8.0.1
+        with:
+          pattern: test-timings-*
+          merge-multiple: true
+          path: shard-timings
+      - run: node packages/vitest-config/src/ci-shards.ts merge-timings --output ci-test-timings.json shard-timings/*.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-test-timings
+          path: ci-test-timings.json
+
+  # Whole-repo gates that don't belong to any one shard. Bundle size measures
+  # every published dist, so it builds the full package graph itself (warm turbo
+  # cache makes this cheap); the no-comments oxlint pass covers apps/ too.
+  repo-checks:
+    name: repo checks
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read # download the bundle-size baseline artifact from the latest main run
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.7.0 # keep in sync with packageManager in package.json
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.job }}-${{ github.sha }}-${{ github.run_attempt }}
+          restore-keys: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
+      - uses: SocketDev/action@ba6de6cc0565af1f42295590380973573297e31f # v1.3.2
+        with:
+          mode: firewall-free
+          firewall-version: 1.13.1 # pinned: 'latest' does a GitHub Releases lookup that flakes CI
+      - run: sfw pnpm i --frozen-lockfile # Socket Firewall blocks known-malicious packages at install
+      - run: pnpm exec turbo run build --filter='./packages/*' --filter='./packages/extensions/*'
       # Bundle size: measure published dists, diff against the baseline saved by the
       # latest main run. PRs read the baseline; pushes to main publish a fresh one.
-      # Needs every published dist, beyond this shard's test graph — the extra
-      # builds are cheap (~1 min cold, mostly cache hits otherwise).
-      - run: pnpm exec turbo run build --filter='./packages/*' --filter='./packages/extensions/*'
-        if: matrix.shard == 'node'
       - name: Fetch bundle-size baseline
-        if: matrix.shard == 'node' && github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -138,31 +207,32 @@ jobs:
             unzip -p bundle-size-baseline.zip bundle-size.json > bundle-size-baseline.json || true
           fi
       - run: pnpm exec conciv-bundle-size --output bundle-size.json --baseline bundle-size-baseline.json
-        if: matrix.shard == 'node'
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        if: matrix.shard == 'node' && github.event_name == 'push'
+        if: github.event_name == 'push'
         with:
           name: bundle-size-baseline
           path: bundle-size.json
       # Enforce the no-comments rule everywhere (incl. apps/), without pulling the private apps into the build/test gate.
       - run: pnpm exec oxlint -A all -D conciv/no-comments
-        if: matrix.shard == 'node'
       - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         if: always()
         with:
           path: .turbo
-          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.job }}-${{ matrix.shard }}-${{ github.sha }}-${{ github.run_attempt }}
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.job }}-${{ github.sha }}-${{ github.run_attempt }}
 
   # The branch ruleset requires the exact context "build + test"; this gate keeps
-  # that context alive over the shard matrix. always() so a failed or cancelled
-  # shard fails the gate instead of skipping it.
+  # that context alive over the planner + shard matrix + repo checks. always() so
+  # a failed or cancelled dependency fails the gate instead of skipping it.
   build-gate:
     name: build + test
-    needs: [build]
+    needs: [plan, build, repo-checks]
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - run: test "${{ needs.build.result }}" = "success"
+      - run: |
+          test "${{ needs.plan.result }}" = "success"
+          test "${{ needs.build.result }}" = "success"
+          test "${{ needs.repo-checks.result }}" = "success"
 
   storybook:
     name: Storybook browser tests

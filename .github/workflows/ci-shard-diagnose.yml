@@ -1,9 +1,6 @@
 # Throwaway diagnostic for the build+test sharding (delete before merging to main).
-# Matrix-runs each shard repeatedly, fully uncapped, with a cold turbo cache, to
-# (a) measure per-shard wall clock and (b) prove no browser-suite flakes reappear
-# without VITEST_MAX_WORKERS=1 / --concurrency=3. Whiteboard legs also A/B the
-# fileParallelism:false serialization (added for Jazz-server startup contention;
-# Jazz is gone since the libSQL migration).
+# Exercises the production planner -> dynamic matrix -> shard-run pipeline end to
+# end, including the no-baseline bootstrap path and a seeded-timings path.
 name: ci-shard-diagnose
 on:
   workflow_dispatch: {}
@@ -14,21 +11,39 @@ permissions:
   contents: read
 
 jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+      - name: Seed timings from the measured 2026-07-18 diag rounds
+        run: |
+          cat > ci-test-timings.json <<'EOF'
+          {
+            "@conciv/core": 52000,
+            "@conciv/embed": 45000,
+            "@conciv/extension-terminal": 28000,
+            "@conciv/extension-test-runner": 30000,
+            "@conciv/extension-testkit": 25000,
+            "@conciv/extension-whiteboard": 170000
+          }
+          EOF
+      - id: plan
+        run: node packages/vitest-config/src/ci-shards.ts plan --timings ci-test-timings.json
+
   shard:
-    name: ${{ matrix.leg }} r${{ matrix.round }}
+    name: shard ${{ matrix.shard }}
+    needs: plan
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix:
-        leg: [node, embed, terminal, wb-serial, wb-par2, wb-par4]
-        round: [1, 2, 3, 4, 5, 6]
-        exclude:
-          - {leg: node, round: 4}
-          - {leg: node, round: 5}
-          - {leg: node, round: 6}
-          - {leg: wb-serial, round: 4}
-          - {leg: wb-serial, round: 5}
-          - {leg: wb-serial, round: 6}
+      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -40,54 +55,46 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-      # No turbo cache on purpose: every leg measures a fully cold shard.
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        if: matrix.leg != 'node'
+        if: matrix.chromium
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
       - run: pnpm i --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
-        if: matrix.leg != 'node' && steps.playwright-cache.outputs.cache-hit != 'true'
+        if: matrix.chromium && steps.playwright-cache.outputs.cache-hit != 'true'
       - run: pnpm exec playwright install-deps chromium
-        if: matrix.leg != 'node' && steps.playwright-cache.outputs.cache-hit == 'true'
-      - name: Unserialize whiteboard files
-        if: matrix.leg == 'wb-par2' || matrix.leg == 'wb-par4'
-        run: |
-          perl -ni -e 'print unless /fileParallelism/' packages/extensions/whiteboard/vitest.config.ts
-          grep -c fileParallelism packages/extensions/whiteboard/vitest.config.ts && exit 1 || true
-      - name: node shard
-        if: matrix.leg == 'node'
-        run: >-
-          pnpm exec turbo run typecheck lint test
-          --filter='./packages/*' --filter='./packages/extensions/*'
-          --filter='!@conciv/extension-whiteboard' --filter='!@conciv/embed' --filter='!@conciv/page'
-          --filter='!@conciv/extension-terminal' --filter='!@conciv/extension-test-runner'
-          --filter='!@conciv/extension-testkit' --filter='!@conciv/extension-try-it'
-          --filter='!@conciv/react' --filter='!@conciv/preact' --filter='!@conciv/solid'
-          --filter='!@conciv/ui-kit-chat' --filter='!@conciv/ui-kit-chat-tools' --filter='!@conciv/ui-kit-system'
-          --filter='!@conciv/ui-kit-tap' --filter='!@conciv/ui-kit-terminal'
-      - name: node shard bundle-size build
-        if: matrix.leg == 'node'
-        run: pnpm exec turbo run build --filter='./packages/*' --filter='./packages/extensions/*'
-      - name: embed shard
-        if: matrix.leg == 'embed'
-        run: >-
-          pnpm exec turbo run typecheck lint test
-          --filter=@conciv/embed --filter=@conciv/page
-          --filter=@conciv/react --filter=@conciv/preact --filter=@conciv/solid
-          --filter=@conciv/ui-kit-chat --filter=@conciv/ui-kit-chat-tools --filter=@conciv/ui-kit-system
-          --filter=@conciv/ui-kit-tap
-      - name: terminal shard
-        if: matrix.leg == 'terminal'
-        run: >-
-          pnpm exec turbo run typecheck lint test
-          --filter=@conciv/extension-terminal --filter=@conciv/extension-test-runner
-          --filter=@conciv/extension-testkit --filter=@conciv/extension-try-it
-          --filter=@conciv/ui-kit-terminal
-      - name: whiteboard shard
-        if: matrix.leg == 'wb-serial' || matrix.leg == 'wb-par2' || matrix.leg == 'wb-par4'
-        run: pnpm exec turbo run typecheck lint test --filter=@conciv/extension-whiteboard
+        if: matrix.chromium && steps.playwright-cache.outputs.cache-hit == 'true'
+      - run: pnpm exec conciv-ci-shards run
         env:
-          VITEST_MAX_WORKERS: ${{ matrix.leg == 'wb-par2' && '2' || matrix.leg == 'wb-par4' && '4' || '' }}
+          SHARD_PACKAGES: ${{ matrix.packages }}
+      - run: pnpm exec conciv-ci-shards timings --output "test-timings-${SHARD_NAME}.json"
+        env:
+          SHARD_NAME: ${{ matrix.shard }}
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: diag-test-timings-${{ matrix.shard }}
+          path: test-timings-${{ matrix.shard }}.json
+
+  merge:
+    needs: shard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v8.0.1
+        with:
+          pattern: diag-test-timings-*
+          merge-multiple: true
+          path: shard-timings
+      - run: node packages/vitest-config/src/ci-shards.ts merge-timings --output ci-test-timings.json shard-timings/*.json
+      - run: cat ci-test-timings.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: diag-ci-test-timings
+          path: ci-test-timings.json
