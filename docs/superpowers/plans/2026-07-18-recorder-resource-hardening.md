@@ -294,7 +294,7 @@ git commit -m "fix(recorder): cap flush payloads server-side" -- packages/extens
   - `onAppend` aggregates across rings (capture-control's `awaitNextAppend` keeps working).
   - Total-memory note: per-ring `maxBytes` becomes 16MB (Task 4), and idle eviction bounds ring count; worst case N active tabs × 16MB, down from all tabs sharing-and-thrashing one 64MB ring.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```ts
 import {describe, expect, it} from 'vitest'
@@ -324,9 +324,9 @@ describe('per-client rings', () => {
 })
 ```
 
-- [ ] **Step 2: Run — Expected: FAIL.**
+- [x] **Step 2: Run — Expected: FAIL.**
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 import {createEventRing, type EventRing} from './ring.js'
@@ -398,11 +398,11 @@ export function createClientRings(opts: {windowMs: number; maxBytes?: number}): 
 }
 ```
 
-- [ ] **Step 4: Re-point call sites** — `RecorderRuntime.rings: ClientRings` (rename field from `ring`); `server.ts` construct via `createClientRings({windowMs: server.config.windowMinutes * 60_000})`; `flush` → `runtime.rings.append`; `window`/`log`/`recordings.save` → `runtime.rings.window(input)`; `reset` → `runtime.rings.clear()`; `createCaptureControl(rings)` — its `awaitNextAppend` uses `onAppend`, unchanged shape (check `capture-control.ts` constructor param type). `pullWindow` (`runtime.ts` + `tool/server.ts`) reads `runtime.rings.window({fromTs, toTs})`.
+- [x] **Step 4: Re-point call sites** — `RecorderRuntime.rings: ClientRings` (rename field from `ring`); `server.ts` construct via `createClientRings({windowMs: server.config.windowMinutes * 60_000})`; `flush` → `runtime.rings.append`; `window`/`log`/`recordings.save` → `runtime.rings.window(input)`; `reset` → `runtime.rings.clear()`; `createCaptureControl(rings)` — its `awaitNextAppend` uses `onAppend`, unchanged shape (check `capture-control.ts` constructor param type). `pullWindow` (`runtime.ts` + `tool/server.ts`) reads `runtime.rings.window({fromTs, toTs})`.
 
-- [ ] **Step 5: Run — Expected: PASS** across the package (`pnpm turbo run test --filter=@conciv/extension-recorder`) + typecheck.
+- [x] **Step 5: Run — Expected: PASS** across the package (`pnpm turbo run test --filter=@conciv/extension-recorder`) + typecheck.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git commit -m "fix(recorder): per-client event rings with idle eviction" -- packages/extensions/recorder/src/server/rings.ts packages/extensions/recorder/src/server/runtime.ts packages/extensions/recorder/src/server.ts packages/extensions/recorder/src/server/capture-control.ts packages/extensions/recorder/src/tool/server.ts packages/extensions/recorder/test/rings.test.ts

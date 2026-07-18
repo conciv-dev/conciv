@@ -3,7 +3,7 @@ import {eventIterator, os} from '@orpc/server'
 import {z} from 'zod'
 import {defineExtension, subscriptionIterator} from '@conciv/extension'
 import {RECORDER_NAME, RecorderControlSchema, RrwebEventSchema, recorderConfig} from './shared/protocol.js'
-import {createEventRing} from './server/ring.js'
+import {createClientRings} from './server/rings.js'
 import {createRecordingStore} from './server/recordings.js'
 import {createCaptureControl} from './server/capture-control.js'
 import {createChromiumRenderer, type KeyframeRenderer} from './server/render.js'
@@ -30,17 +30,17 @@ export function makeRecorderRouter(runtime: RecorderRuntime) {
       .input(FlushInput)
       .output(z.object({ok: z.literal(true)}))
       .handler(({input}) => {
-        runtime.ring.append(input.clientId, input.events)
+        runtime.rings.append(input.clientId, input.events)
         return {ok: true}
       }),
-    window: recorderOs.input(RangeInput).handler(({input}) => ({events: runtime.ring.window(input)})),
+    window: recorderOs.input(RangeInput).handler(({input}) => ({events: runtime.rings.window(input)})),
     reset: recorderOs.output(z.object({ok: z.literal(true)})).handler(async () => {
-      runtime.ring.clear()
+      runtime.rings.clear()
       runtime.control.emit({snapshot: true, flush: true})
       await runtime.control.awaitNextAppend(1500)
       return {ok: true}
     }),
-    log: recorderOs.input(RangeInput).handler(({input}) => ({entries: distill(runtime.ring.window(input))})),
+    log: recorderOs.input(RangeInput).handler(({input}) => ({entries: distill(runtime.rings.window(input))})),
     recordings: recorderOs.router({
       save: recorderOs
         .input(RangeInput)
@@ -48,7 +48,7 @@ export function makeRecorderRouter(runtime: RecorderRuntime) {
           z.union([z.object({recordingId: z.string()}), z.object({error: z.enum(['too-large', 'empty', 'io-error'])})]),
         )
         .handler(async ({input}) => {
-          const saved = await runtime.recordings.save(runtime.ring.window(input))
+          const saved = await runtime.recordings.save(runtime.rings.window(input))
           return saved.ok ? {recordingId: saved.recordingId} : {error: saved.reason}
         }),
       get: recorderOs.input(z.object({recordingId: z.string()})).handler(async ({input}) => {
@@ -70,8 +70,8 @@ export default defineExtension({
   tools: [startTool, stopTool, pullTool],
   attachments: [recordingAttachment],
 }).server((server) => {
-  const ring = createEventRing({windowMs: server.config.windowMinutes * 60_000})
-  const control = createCaptureControl(ring)
+  const rings = createClientRings({windowMs: server.config.windowMinutes * 60_000})
+  const control = createCaptureControl(rings)
   const rendererState: {value?: Promise<KeyframeRenderer | null>} = {}
   const renderer = (): Promise<KeyframeRenderer | null> => {
     rendererState.value ??= createChromiumRenderer()
@@ -79,7 +79,7 @@ export default defineExtension({
   }
   const recordings = createRecordingStore(join(server.cwd, '.conciv', 'recorder', 'recordings'))
   void recordings.sweep()
-  const runtime: RecorderRuntime = {ring, control, config: server.config, renderer, recordings}
+  const runtime: RecorderRuntime = {rings, control, config: server.config, renderer, recordings}
   return {
     context: {recorder: runtime},
     router: makeRecorderRouter(runtime),

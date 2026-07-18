@@ -6,7 +6,7 @@ import {runtimeFixture} from './helpers/runtime-fixture.js'
 describe('recordings router', () => {
   it('saves the ring window and round-trips events by id', async () => {
     const runtime = runtimeFixture()
-    runtime.ring.append('c', [
+    runtime.rings.append('c', [
       {type: 2, data: {node: {}}, timestamp: 1},
       {type: 3, data: {source: 2, type: 2, id: 1}, timestamp: 2},
     ])

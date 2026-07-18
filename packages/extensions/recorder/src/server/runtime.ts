@@ -1,6 +1,6 @@
 import type {ContentPart} from '@conciv/extension'
 import type {Keyframe, RecorderConfig, RrwebEvent} from '../shared/protocol.js'
-import type {EventRing} from './ring.js'
+import type {ClientRings} from './rings.js'
 import type {CaptureControl} from './capture-control.js'
 import type {KeyframeRenderer} from './render.js'
 import type {RecordingStore} from './recordings.js'
@@ -8,7 +8,7 @@ import {distill} from './distill.js'
 import {pickKeyframeTimestamps, recordingParts} from './format.js'
 
 export type RecorderRuntime = {
-  ring: EventRing
+  rings: ClientRings
   control: CaptureControl
   config: RecorderConfig
   renderer: () => Promise<KeyframeRenderer | null>
@@ -31,7 +31,7 @@ export async function pullWindow(
   toTs: number,
   keyframeCount: number,
 ): Promise<unknown> {
-  const events = runtime.ring.window({fromTs, toTs})
+  const events = runtime.rings.window({fromTs, toTs})
   const log = distill(events).filter((entry) => entry.ts >= fromTs)
   const frames = await renderFrames(runtime, events, log, keyframeCount)
   return recordingParts(log, frames, keyframeCount > 0)
@@ -39,7 +39,7 @@ export async function pullWindow(
 
 async function renderFrames(
   runtime: RecorderRuntime,
-  events: ReturnType<EventRing['window']>,
+  events: RrwebEvent[],
   log: ReturnType<typeof distill>,
   keyframeCount: number,
 ): Promise<Keyframe[]> {
