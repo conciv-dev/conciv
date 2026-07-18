@@ -1,6 +1,6 @@
 {
   "name": "@conciv/extension-testkit",
-  "version": "0.0.11",
+  "version": "0.0.13",
   "private": true,
   "description": "Dev-only test harness: getExtensionTestApi(extension) mounts any conciv extension in a real browser against a real spawned server through its real contract.",
   "homepage": "https://conciv.dev",
@@ -12,7 +12,9 @@
   },
   "type": "module",
   "exports": {
-    ".": "./src/get-extension-test-api.ts"
+    ".": "./src/get-extension-test-api.ts",
+    "./core-kit": "./src/core-kit.ts",
+    "./widget-suite": "./src/widget-suite.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -30,17 +32,19 @@
     "@conciv/ui-kit-chat": "workspace:^",
     "@conciv/ui-kit-system": "workspace:^",
     "@playwright/test": "^1.61.1",
+    "@vitest/coverage-v8": "^4.1.8",
     "get-port": "^7.2.0",
     "playwright": "^1.61.1",
     "solid-js": "^1.9.13",
     "vite": "^8.0.16",
     "vite-plugin-solid": "^2.11.12",
+    "vitest": "^4.1.8",
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@conciv/vitest-config": "workspace:*",
     "@types/node": "^22.19.21",
-    "typescript": "^6.0.3",
-    "vitest": "^4.1.8"
+    "typescript": "^6.0.3"
   },
   "peerDependencies": {
     "solid-js": "^1.9.13"

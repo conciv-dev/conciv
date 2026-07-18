@@ -6,6 +6,7 @@ import type {AnyAttachmentBuilder} from './define-attachment.js'
 import type {
   ClientFactoryResult,
   ConfigOf,
+  ConnectGate,
   ExtensionCommand,
   ExtensionView,
   RequiredContext,
@@ -32,6 +33,7 @@ export type ExtensionMeta<
   Surface?: Component
   systemPrompt?: string
   theme?: ThemeTokens
+  connectGate?: ConnectGate
 }
 
 export type ExtensionBuilder<
@@ -47,6 +49,7 @@ export type ExtensionBuilder<
   Surface?: Component
   systemPrompt?: string
   theme?: ThemeTokens
+  connectGate?: ConnectGate
   tools?: Tools
   attachments?: Attachments
   commands?: readonly ExtensionCommand[]
@@ -104,6 +107,7 @@ export function defineExtension<
     Surface: meta.Surface,
     systemPrompt: meta.systemPrompt,
     theme: meta.theme,
+    connectGate: meta.connectGate,
     tools: meta.tools,
     attachments: meta.attachments,
     commands: meta.commands,

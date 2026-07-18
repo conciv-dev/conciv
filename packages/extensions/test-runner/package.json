@@ -1,6 +1,6 @@
 {
   "name": "@conciv/extension-test-runner",
-  "version": "0.0.11",
+  "version": "0.0.13",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). The test-runner built-in extension: runner-agnostic adapters (vitest today; jest/node-test/playwright via the ChildRunnerSpec seam) exposed through the @conciv/extension contract — server routes, a test tool, and the live results card.",
   "keywords": [
     "conciv",
@@ -73,10 +73,12 @@
     "@conciv/core": "workspace:^",
     "@conciv/protocol": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
+    "@conciv/vitest-config": "workspace:*",
     "@playwright/test": "^1.61.1",
     "@tanstack/ai-mcp": "^0.2.3",
     "@types/node": "^22.19.21",
     "@vitest/browser-playwright": "4.1.10",
+    "@vitest/coverage-v8": "^4.1.8",
     "solid-js": "^1.9.13",
     "tsdown": "^0.22.4",
     "tsx": "^4.22.4",

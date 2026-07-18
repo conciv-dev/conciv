@@ -1,6 +1,6 @@
 {
   "name": "@conciv/harness",
-  "version": "0.0.11",
+  "version": "0.0.13",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). Harness adapters (claude, codex, + stubs) behind the @conciv/protocol HarnessAdapter contract.",
   "keywords": [
     "ai",
@@ -71,7 +71,9 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@conciv/vitest-config": "workspace:*",
     "@types/node": "^22.19.21",
+    "@vitest/coverage-v8": "^4.1.8",
     "tsdown": "^0.22.4",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",

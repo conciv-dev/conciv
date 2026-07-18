@@ -1,5 +1,21 @@
 # nextjs-app
 
+## 0.1.13
+
+### Patch Changes
+
+- Updated dependencies [[`5db2ac5`](https://github.com/conciv-dev/conciv/commit/5db2ac5a8e7d49f2966cbbaf6718483f5837f759)]:
+  - @conciv/embed@0.0.13
+  - @conciv/it@0.0.13
+
+## 0.1.12
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/embed@0.0.12
+  - @conciv/it@0.0.12
+
 ## 0.1.11
 
 ### Patch Changes

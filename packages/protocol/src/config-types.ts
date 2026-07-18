@@ -14,6 +14,10 @@ export interface WidgetConfig {
   quickTerminal?: boolean | QuickTerminalConfig
 }
 
+export interface ConcivSettingsInit extends WidgetConfig {
+  defaultOpen?: boolean
+}
+
 export interface ExtensionConfigRegistry {}
 
 export interface ConcivConfig {
@@ -22,7 +26,7 @@ export interface ConcivConfig {
   extensions?: {[Name in keyof ExtensionConfigRegistry]?: ExtensionConfigRegistry[Name]}
   widgetUrl?: string
 
-  widget?: WidgetConfig
+  widget?: WidgetConfig | false
   stateRoot?: string
   harness?: string
   harnessBin?: string

@@ -124,6 +124,12 @@ function CostFooter(props: {totalCostUsd?: number; numTurns?: number}): JSX.Elem
   )
 }
 
+function billingTokens(usage: UsageSnapshot): number {
+  return (
+    (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0) + (usage.cacheReadTokens ?? 0) + (usage.cacheWriteTokens ?? 0)
+  )
+}
+
 export function ContextTracker(props: {usage: UsageSnapshot | null}): JSX.Element {
   const used = () => (props.usage ? contextUsedTokens(props.usage) : undefined)
   const maxTokens = () => props.usage?.contextWindow
@@ -132,20 +138,21 @@ export function ContextTracker(props: {usage: UsageSnapshot | null}): JSX.Elemen
     const m = maxTokens()
     return u !== undefined && m ? u / m : undefined
   }
-  const hasData = () => used() !== undefined || props.usage?.outputTokens !== undefined
+  const hasData = () => used() !== undefined || (props.usage ? billingTokens(props.usage) > 0 : false)
 
   return (
     <Show when={props.usage && hasData()}>
       <HoverCard
         label="Model context usage"
         triggerClass="text-pw-text-2 px-1.5 py-0.5 rounded-pw-sm inline-flex gap-1.5 cursor-pointer items-center hover:text-pw-text-hi hover:bg-pw-fill-soft"
-        trigger={<TrackerBadge percent={percent()} fallbackTokens={used() ?? props.usage?.outputTokens ?? 0} />}
+        trigger={<TrackerBadge percent={percent()} fallbackTokens={props.usage ? billingTokens(props.usage) : 0} />}
       >
         <ContextMeter percent={percent()} used={used() ?? 0} max={maxTokens() ?? 0} />
         <div class="p-3 flex flex-col gap-1.5">
           <UsageRow label="Input" tokens={props.usage?.inputTokens} />
           <UsageRow label="Output" tokens={props.usage?.outputTokens} />
-          <UsageRow label="Cache" tokens={props.usage?.cacheReadTokens} />
+          <UsageRow label="Cache read" tokens={props.usage?.cacheReadTokens} />
+          <UsageRow label="Cache write" tokens={props.usage?.cacheWriteTokens} />
           <UsageRow label="Reasoning" tokens={props.usage?.reasoningTokens} />
         </div>
         <CostFooter totalCostUsd={props.usage?.totalCostUsd} numTurns={props.usage?.numTurns} />

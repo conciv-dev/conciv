@@ -35,16 +35,13 @@ export function registerWind4Properties(doc: Document = document): void {
   doc.head.appendChild(style)
 }
 
-export function createShadowRoot(): {host: HTMLElement; root: ShadowRoot} {
+export function createShadowRoot(host: HTMLElement): {host: HTMLElement; root: ShadowRoot} {
   registerWind4Properties()
   registerFonts()
-  const host = document.createElement('div')
-  host.setAttribute('data-conciv-root', '')
   host.style.position = 'fixed'
   host.style.inset = '0'
   host.style.pointerEvents = 'none'
   host.style.zIndex = '2147483000'
-  document.body.appendChild(host)
   const root = host.attachShadow({mode: 'open'})
   const style = document.createElement('style')
   style.textContent = styles

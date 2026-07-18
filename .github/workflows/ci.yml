@@ -17,6 +17,9 @@ jobs:
   build:
     name: build + test
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read # download the bundle-size baseline artifact from the latest main run
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -69,6 +72,30 @@ jobs:
       - run: pnpm exec turbo run typecheck lint test --filter='./packages/*' --filter='./packages/extensions/*' --concurrency=3
         env:
           VITEST_MAX_WORKERS: '1'
+      # One job-summary table for all package suites, built from the per-package
+      # test-results.json files (vitest emits them only in CI; turbo caches them so
+      # cache-hit packages still report). Inline failure annotations come from vitest's
+      # own github-actions reporter; ciReporters() disables its noisy per-run summary.
+      - run: pnpm exec conciv-ci-summary packages
+        if: always()
+      # Bundle size: measure published dists, diff against the baseline saved by the
+      # latest main run. PRs read the baseline; pushes to main publish a fresh one.
+      - name: Fetch bundle-size baseline
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          url=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=bundle-size-baseline&per_page=1" --jq '.artifacts[0].archive_download_url') || true
+          if [ -n "$url" ] && [ "$url" != "null" ]; then
+            curl -sL -H "Authorization: Bearer ${GH_TOKEN}" -o bundle-size-baseline.zip "$url"
+            unzip -p bundle-size-baseline.zip bundle-size.json > bundle-size-baseline.json || true
+          fi
+      - run: pnpm exec conciv-bundle-size --output bundle-size.json --baseline bundle-size-baseline.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: github.event_name == 'push'
+        with:
+          name: bundle-size-baseline
+          path: bundle-size.json
       # Enforce the no-comments rule everywhere (incl. apps/), without pulling the private apps into the build/test gate.
       - run: pnpm exec oxlint -A all -D conciv/no-comments
       - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -111,8 +138,11 @@ jobs:
       - run: pnpm exec playwright install-deps chromium
         if: steps.playwright-cache.outputs.cache-hit == 'true'
       # Alone on its own runner: nothing else competes for chromium/vite/cpu, so the merged suite's
-      # maxWorkers:2 is safe and the heavy solid-streamdown cold-load has headroom.
+      # maxWorkers:2 is safe and the heavy solid-streamdown cold-load has headroom. Dependency
+      # builds are capped so a cold turbo cache (lockfile change) can't OOM chrome mid-run.
       - run: pnpm exec turbo run typecheck lint test --filter='./apps/storybook'
+      - run: pnpm exec conciv-ci-summary apps/storybook
+        if: always()
       - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         if: always()
         with:
@@ -154,6 +184,10 @@ jobs:
           firewall-version: 1.13.1 # pinned: 'latest' does a GitHub Releases lookup that flakes CI
       - run: sfw pnpm i --frozen-lockfile # Socket Firewall blocks known-malicious packages at install
       - run: pnpm exec playwright install --with-deps chromium
+      # Real harness CLIs for the e2e/harnesses turn matrix: unauthenticated turns must
+      # surface a visible error (proving spawn + stream + error plumbing), never hang or
+      # vanish. pi is a stub harness and never spawns its binary.
+      - run: sfw npm install -g @anthropic-ai/claude-code@2.1.212 @openai/codex@0.144.5 @google/gemini-cli@0.51.0 opencode-ai@1.18.3
       # Consumer-shape suites: dist widget in 8 CLI-scaffolded apps (root e2e/).
       # test:e2e is cache:false in turbo.json, so every run exercises the real servers.
       - run: pnpm e2e

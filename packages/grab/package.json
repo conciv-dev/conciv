@@ -1,6 +1,6 @@
 {
   "name": "@conciv/grab",
-  "version": "0.0.11",
+  "version": "0.0.13",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). The conciv element-grab contract: the grab data types (Grab/StagedGrab/ElementSnapshot/ElementSource) and the GrabApi capability surface shared by the widget and the extension contract.",
   "keywords": [
     "conciv",
@@ -36,6 +36,7 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "devDependencies": {
+    "@conciv/vitest-config": "workspace:*",
     "tsdown": "^0.22.4",
     "typescript": "^6.0.3"
   }

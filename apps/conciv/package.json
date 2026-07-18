@@ -1,6 +1,6 @@
 {
   "name": "conciv",
-  "version": "0.0.11",
+  "version": "0.0.13",
   "private": true,
   "description": "The conciv app: a TanStack Solid Router UI over the @conciv/contract rpc surface. Inlined by @conciv/embed; runs standalone against a core dev server.",
   "type": "module",
@@ -47,12 +47,14 @@
   "devDependencies": {
     "@conciv/storage-history": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
+    "@conciv/vitest-config": "workspace:*",
     "@tanstack/router-cli": "^1.167.18",
     "@tanstack/router-plugin": "^1.168.19",
     "@types/node": "^26.1.0",
     "@unocss/postcss": "^66.7.2",
     "@unocss/reset": "^66.7.2",
     "@vitest/browser-playwright": "4.1.10",
+    "@vitest/coverage-v8": "^4.1.8",
     "typescript": "^6.0.3",
     "unocss": "^66.7.2",
     "vite": "^8.0.16",

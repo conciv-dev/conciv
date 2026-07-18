@@ -1,9 +1,11 @@
 import {defineConfig} from 'vitest/config'
 import {playwright} from '@vitest/browser-playwright'
 import solidPlugin from 'vite-plugin-solid'
+import {ciTest} from '@conciv/vitest-config'
 
 export default defineConfig({
   test: {
+    ...ciTest(),
     projects: [
       {
         test: {

@@ -23,6 +23,7 @@ export type ChatDeps = {
   attachmentExpanders: AttachmentExpanders
   onRunStart?: (sessionId: string) => void
   onRunEnd?: (sessionId: string) => Promise<void>
+  firstChunkTimeoutMs?: number
 }
 
 export type ChatEnv = {Variables: {chat: ChatDeps}}

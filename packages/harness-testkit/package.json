@@ -1,6 +1,6 @@
 {
   "name": "@conciv/harness-testkit",
-  "version": "0.0.11",
+  "version": "0.0.13",
   "private": true,
   "homepage": "https://conciv.dev",
   "repository": {
@@ -28,7 +28,9 @@
   },
   "devDependencies": {
     "@conciv/harness": "workspace:^",
+    "@conciv/vitest-config": "workspace:*",
     "@types/node": "^22.19.21",
+    "@vitest/coverage-v8": "^4.1.8",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"
   }

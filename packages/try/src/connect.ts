@@ -11,13 +11,19 @@ import {CONNECT_SYSTEM_PROMPT} from './system-prompt.js'
 
 const DEFAULT_ORIGIN = 'https://conciv.dev'
 
+export type ConnectEvent =
+  | {type: 'seeded'; seeded: boolean}
+  | {type: 'started'; port: number; harness: string}
+  | {type: 'client-connected'}
+
 export type ConnectOpts = {
   token: string
   harness?: string
   workspace?: string
   origin?: string
   harnessAdapter?: HarnessAdapter
-  log?: (line: string) => void
+  onEvent?: (event: ConnectEvent) => void
+  onShutdown?: () => void
 }
 
 function resolveWorkspace(workspace: string | undefined): string {
@@ -42,10 +48,10 @@ function resolveAdapter(opts: ConnectOpts): HarnessAdapter {
 export async function runConnect(opts: ConnectOpts): Promise<Engine> {
   const adapter = resolveAdapter(opts)
   const root = resolveWorkspace(opts.workspace)
-  const log = opts.log ?? (() => {})
+  const onEvent = opts.onEvent ?? (() => {})
   if (opts.workspace === undefined) {
     const seeded = await seedWorkspace(opts.origin ?? DEFAULT_ORIGIN, root)
-    log(seeded ? 'workspace seeded with the landing-page source' : 'no source manifest found — continuing unseeded')
+    onEvent({type: 'seeded', seeded})
   }
   let lastError: unknown
   for (let port = CONNECT_FIRST_PORT; port <= CONNECT_LAST_PORT; port += 1) {
@@ -59,9 +65,10 @@ export async function runConnect(opts: ConnectOpts): Promise<Engine> {
         extensions: [terminal],
         accessToken: opts.token,
         allowedOrigins: [opts.origin ?? DEFAULT_ORIGIN],
+        onClientRequest: () => onEvent({type: 'client-connected'}),
+        onShutdown: opts.onShutdown,
       })
-      log(`connected: conciv core on 127.0.0.1:${engine.port} (harness: ${adapter.id})`)
-      log('return to your browser tab — keep this command running')
+      onEvent({type: 'started', port: engine.port, harness: adapter.id})
       return engine
     } catch (error) {
       if (!isAddressInUse(error)) throw error

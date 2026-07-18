@@ -5,15 +5,26 @@ describe('pair instructions', () => {
   it('embeds the token in the connect command', () => {
     const text = pairText('tok-xyz', 'https://conciv.dev')
     expect(text).toContain('npx @conciv/try --token tok-xyz')
-    expect(text).toContain('KEEP IT RUNNING')
     expect(text).toContain('https://conciv.dev')
-    expect(text).toContain('Browser access from https://conciv.dev is gated by this token')
-    expect(text).not.toContain('reachable only')
+    expect(text).toContain('127.0.0.1')
   })
 
-  it('serves the instructions as plain text with the token embedded', async () => {
+  it('states the user initiated the pairing and sanctions hand-off to the user', () => {
+    const text = pairText('tok-xyz', 'https://conciv.dev')
+    expect(text).toContain('The user initiated this from their own browser')
+    expect(text).toContain('run it in their own terminal')
+    expect(text).not.toContain('follow the instructions')
+  })
+
+  it('documents direct mcp attach with the token-gated url', () => {
+    const text = pairText('tok-xyz', 'https://conciv.dev')
+    expect(text).toContain('claude --continue --mcp-config')
+    expect(text).toContain('/t/tok-xyz/api/mcp')
+  })
+
+  it('serves the instructions as markdown with the token embedded', async () => {
     const response = pairResponse('tok-route', 'https://conciv.dev')
-    expect(response.headers.get('content-type')).toBe('text/plain; charset=utf-8')
+    expect(response.headers.get('content-type')).toBe('text/markdown; charset=utf-8')
     expect(await response.text()).toContain('npx @conciv/try --token tok-route')
   })
 })

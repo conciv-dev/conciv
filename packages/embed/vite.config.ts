@@ -15,7 +15,7 @@ export default defineConfig({
   define: {'define.amd': 'false'},
   build: {
     lib: {
-      entry: fileURLToPath(new URL('src/mount.tsx', import.meta.url)),
+      entry: fileURLToPath(new URL('src/mount.ts', import.meta.url)),
       formats: ['es'],
       fileName: () => 'mount.js',
     },

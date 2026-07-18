@@ -1,6 +1,6 @@
 {
   "name": "@conciv/try",
-  "version": "0.0.11",
+  "version": "0.0.13",
   "description": "Try conciv live on conciv.dev with the agent already on your machine: `npx @conciv/try --token <token>` boots a token-gated, loopback-only conciv core powered by your own agent.",
   "keywords": [
     "ai-agent",
@@ -40,6 +40,7 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@clack/prompts": "^1.7.0",
     "@conciv/core": "workspace:^",
     "@conciv/extension-terminal": "workspace:^",
     "@conciv/harness": "workspace:^",
@@ -49,7 +50,9 @@
   "devDependencies": {
     "@conciv/extension": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
+    "@conciv/vitest-config": "workspace:*",
     "@types/node": "^22.19.21",
+    "@vitest/coverage-v8": "^4.1.8",
     "tsdown": "^0.22.4",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"

@@ -1,8 +1,11 @@
-import {readFileSync} from 'node:fs'
+import {readdirSync, readFileSync} from 'node:fs'
 import {fileURLToPath} from 'node:url'
 import {describe, expect, it} from 'vitest'
 
-const mount = readFileSync(fileURLToPath(new URL('../dist/mount.js', import.meta.url)), 'utf8')
+const distDir = fileURLToPath(new URL('../dist/', import.meta.url))
+const chunkName = readdirSync(distDir).find((name) => /^mount-impl.*\.js$/.test(name)) ?? ''
+const mount = chunkName ? readFileSync(distDir + chunkName, 'utf8') : ''
+const entry = readFileSync(distDir + 'mount.js', 'utf8')
 
 const externalized = (specifier: string) => new RegExp(`from\\s*["']${specifier.replace('/', '\\/')}`).test(mount)
 
@@ -26,5 +29,13 @@ describe('embed mount build shares one Ark environment instance with extensions'
   it('inlines the private conciv app and @conciv/page', () => {
     expect(externalized('conciv/router')).toBe(false)
     expect(externalized('@conciv/page')).toBe(false)
+  })
+
+  it('emits the app graph as a mount-impl chunk', () => {
+    expect(chunkName).not.toBe('')
+  })
+
+  it('keeps the mount entry free of static runtime imports (SSR-safe)', () => {
+    expect(/^import\s/m.test(entry)).toBe(false)
   })
 })

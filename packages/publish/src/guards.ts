@@ -39,6 +39,9 @@ const PUBLIC_PACKAGES = [
   '@conciv/extension-recorder',
   '@conciv/mascot',
   '@conciv/embed',
+  '@conciv/react',
+  '@conciv/preact',
+  '@conciv/solid',
 ]
 
 type Manifest = {name?: string; version?: string; private?: boolean}

@@ -1,5 +1,29 @@
 # site
 
+## 0.0.13
+
+### Patch Changes
+
+- Updated dependencies [[`73c451e`](https://github.com/conciv-dev/conciv/commit/73c451e8d4175732a0e3f421300bda19b8dcf45c), [`5db2ac5`](https://github.com/conciv-dev/conciv/commit/5db2ac5a8e7d49f2966cbbaf6718483f5837f759)]:
+  - @conciv/protocol@0.0.13
+  - @conciv/embed@0.0.13
+  - @conciv/extension-terminal@0.0.13
+  - @conciv/extension-try-it@0.0.13
+  - @conciv/it@0.0.13
+  - @conciv/mascot@0.0.13
+
+## 0.0.12
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/embed@0.0.12
+  - @conciv/extension-terminal@0.0.12
+  - @conciv/extension-try-it@0.0.12
+  - @conciv/it@0.0.12
+  - @conciv/mascot@0.0.12
+  - @conciv/protocol@0.0.12
+
 ## 0.0.11
 
 ### Patch Changes

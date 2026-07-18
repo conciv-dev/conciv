@@ -12,17 +12,23 @@ function escapeAttr(value: string): string {
 
 export type HtmlTag = {tag: string; attrs: Record<string, string | boolean>; injectTo: 'head'}
 
-export function htmlTags(corePort: number, opts: {widget?: WidgetConfig}): HtmlTag[] {
-  return [
+export function htmlTags(corePort: number, opts: {widget?: WidgetConfig | false}): HtmlTag[] {
+  const base: HtmlTag[] = [
     {tag: 'meta', attrs: {name: 'pw-api-base', content: `http://127.0.0.1:${corePort}`}, injectTo: 'head'},
+  ]
+  if (opts.widget === false) return base
+  return [
+    ...base,
     {tag: 'meta', attrs: {name: 'pw-widget', content: JSON.stringify(opts.widget ?? {})}, injectTo: 'head'},
     {tag: 'script', attrs: {type: 'module', src: EXTENSIONS_ROUTE}, injectTo: 'head'},
   ]
 }
 
-export function widgetTags(apiBase: string, widgetConfig?: WidgetConfig): string {
+export function widgetTags(apiBase: string, widgetConfig?: WidgetConfig | false): string {
+  const base = `<meta name="pw-api-base" content="${escapeAttr(apiBase)}">`
+  if (widgetConfig === false) return base
   return (
-    `<meta name="pw-api-base" content="${escapeAttr(apiBase)}">` +
+    base +
     `<meta name="pw-widget" content="${escapeAttr(JSON.stringify(widgetConfig ?? {}))}">` +
     `<script type="module" src="${escapeAttr(EXTENSIONS_ROUTE)}"></script>`
   )
@@ -77,7 +83,7 @@ function trailingCallback(args: ReadonlyArray<unknown>): (() => void) | undefine
 
 const NESTED_FETCH_DESTS = new Set(['iframe', 'frame', 'embed', 'object'])
 
-export function makeWidgetInject(apiBase: string, widgetConfig?: WidgetConfig): Middleware {
+export function makeWidgetInject(apiBase: string, widgetConfig?: WidgetConfig | false): Middleware {
   const tags = widgetTags(apiBase, widgetConfig)
   return (req, res, next) => {
     const fetchDest = req.headers['sec-fetch-dest']

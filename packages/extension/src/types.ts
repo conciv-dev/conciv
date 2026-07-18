@@ -6,7 +6,9 @@ import type {ToolCardProps} from '@conciv/protocol/tool-view-types'
 import type {TtyCommand, TtyCommandOpts} from '@conciv/protocol/terminal-types'
 import type {UIMessage} from '@conciv/protocol/chat-types'
 
-export type ExtensionSlot = 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget' | 'surface'
+export type ExtensionSlot = 'header' | 'footer' | 'composer' | 'empty' | 'status' | 'widget' | 'surface' | 'connect'
+
+export type ConnectGate = {preflight: () => Promise<string | null>}
 
 export type ExtensionView = {
   id: string

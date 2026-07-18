@@ -15,5 +15,6 @@ export default defineConfig({
     cssCodeSplit: false,
     emptyOutDir: false,
     sourcemap: true,
+    rollupOptions: {output: {codeSplitting: false}},
   },
 })

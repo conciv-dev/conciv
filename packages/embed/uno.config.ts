@@ -14,6 +14,7 @@ export default defineConfig({
       '../extensions/terminal/src/**/*.{ts,tsx}',
       '../extensions/whiteboard/src/**/*.{ts,tsx}',
       '../extensions/recorder/src/**/*.{ts,tsx}',
+      '../extensions/try-it/src/**/*.{ts,tsx}',
     ],
   },
 

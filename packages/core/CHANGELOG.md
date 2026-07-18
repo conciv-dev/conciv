@@ -1,5 +1,35 @@
 # @conciv/core
 
+## 0.0.13
+
+### Patch Changes
+
+- [#80](https://github.com/conciv-dev/conciv/pull/80) [`73c451e`](https://github.com/conciv-dev/conciv/commit/73c451e8d4175732a0e3f421300bda19b8dcf45c) Thanks [@omridevk](https://github.com/omridevk)! - Fix the context meter reading cumulative turn usage as context occupancy (issue [#78](https://github.com/conciv-dev/conciv/issues/78), e.g. 386% / 773K of 200K). `@tanstack/ai`'s `RUN_FINISHED` usage is a billing aggregate, not the live context size — each adapter feeds it differently (Claude sums every tool-loop request). Context occupancy is now a distinct `UsageSnapshot.contextTokens` field populated per-harness through a new optional `HarnessHistory.contextTokens(raw)` seam. The Claude harness derives it from the last non-sidechain assistant message's usage in the transcript (`input + cache_read + cache_creation`). The meter's ring/percent/bar render only when a harness reports real occupancy; otherwise the tracker shows honest turn billing totals with no percent-of-window framing.
+
+- Updated dependencies [[`73c451e`](https://github.com/conciv-dev/conciv/commit/73c451e8d4175732a0e3f421300bda19b8dcf45c)]:
+  - @conciv/protocol@0.0.13
+  - @conciv/harness@0.0.13
+  - @conciv/contract@0.0.13
+  - @conciv/db@0.0.13
+  - @conciv/extension@0.0.13
+  - @conciv/tools@0.0.13
+  - @conciv/serve@0.0.13
+
+## 0.0.12
+
+### Patch Changes
+
+- [#66](https://github.com/conciv-dev/conciv/pull/66) [`450fc46`](https://github.com/conciv-dev/conciv/commit/450fc463b7bce804ac1c75e3c6a398d1b9f9491e) Thanks [@omridevk](https://github.com/omridevk)! - Adapter streams that emit a RUN_ERROR chunk (stub harnesses, acp adapters) now settle the run with a visible error instead of finishing silently with an empty message. Runs whose harness produces no output at all (missing binary, unauthenticated CLI stuck on an interactive prompt) are now bounded by a first-chunk deadline: after 30s of silence the child is killed and the run settles with a visible "produced no output" error instead of spinning forever.
+
+- Updated dependencies []:
+  - @conciv/contract@0.0.12
+  - @conciv/db@0.0.12
+  - @conciv/extension@0.0.12
+  - @conciv/harness@0.0.12
+  - @conciv/protocol@0.0.12
+  - @conciv/serve@0.0.12
+  - @conciv/tools@0.0.12
+
 ## 0.0.11
 
 ### Patch Changes

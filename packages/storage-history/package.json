@@ -1,6 +1,6 @@
 {
   "name": "@conciv/storage-history",
-  "version": "0.0.11",
+  "version": "0.0.13",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). Web-Storage-persisted @tanstack/history for the conciv embed: entries/index round-trip with corrupted-storage fallback.",
   "keywords": [
     "conciv",
@@ -40,6 +40,8 @@
     "@tanstack/history": "^1.162.0"
   },
   "devDependencies": {
+    "@conciv/vitest-config": "workspace:*",
+    "@vitest/coverage-v8": "^4.1.8",
     "tsdown": "^0.22.4",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"

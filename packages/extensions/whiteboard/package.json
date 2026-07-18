@@ -1,6 +1,6 @@
 {
   "name": "@conciv/extension-whiteboard",
-  "version": "0.0.11",
+  "version": "0.0.13",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). The whiteboard built-in extension: an Excalidraw canvas the user and the AI share over the dev app, with source-anchored comments and pins, running on a local drizzle/libSQL db with an SSE-fed TanStack DB client on the @conciv/extension contract.",
   "keywords": [
     "ai",
@@ -71,11 +71,13 @@
     "@conciv/extension-testkit": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/uno-preset": "workspace:*",
+    "@conciv/vitest-config": "workspace:*",
     "@playwright/test": "^1.61.1",
     "@types/node": "^22.19.21",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitest/browser-playwright": "4.1.10",
+    "@vitest/coverage-v8": "^4.1.8",
     "drizzle-kit": "^0.31.10",
     "playwright": "^1.61.1",
     "tsdown": "^0.22.4",

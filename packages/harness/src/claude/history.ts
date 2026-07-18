@@ -120,6 +120,50 @@ export function parseHistory(jsonl: string): UIMessage[] {
   return out
 }
 
+const AssistantUsageRecordSchema = z
+  .object({
+    type: z.literal('assistant'),
+    isSidechain: z.boolean().optional(),
+    message: z
+      .object({
+        usage: z
+          .object({
+            input_tokens: z.number().optional(),
+            cache_read_input_tokens: z.number().optional(),
+            cache_creation_input_tokens: z.number().optional(),
+          })
+          .loose()
+          .optional(),
+      })
+      .loose()
+      .optional(),
+  })
+  .loose()
+
+function parseJson(line: string): unknown {
+  try {
+    return JSON.parse(line)
+  } catch {
+    return null
+  }
+}
+
+type AssistantUsage = NonNullable<NonNullable<z.infer<typeof AssistantUsageRecordSchema>['message']>['usage']>
+
+function lastAssistantUsage(jsonl: string): AssistantUsage | undefined {
+  return jsonl.split('\n').reduceRight<AssistantUsage | undefined>((found, line) => {
+    if (found) return found
+    const rec = AssistantUsageRecordSchema.safeParse(parseJson(line))
+    return rec.success && !rec.data.isSidechain && rec.data.message?.usage ? rec.data.message.usage : found
+  }, undefined)
+}
+
+export function contextTokensFromTranscript(jsonl: string): number | undefined {
+  const usage = lastAssistantUsage(jsonl)
+  if (!usage) return undefined
+  return (usage.input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0)
+}
+
 const SummaryRecordSchema = z.object({type: z.literal('summary'), summary: z.string()}).loose()
 
 export function nameFromTranscript(jsonl: string): string | null {
@@ -250,5 +294,6 @@ export const claudeHistory: HarnessHistory = {
   transcriptPath,
   parse: parseHistory,
   nameFromTranscript,
+  contextTokens: contextTokensFromTranscript,
   list: listSessions,
 }

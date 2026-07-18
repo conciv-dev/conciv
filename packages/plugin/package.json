@@ -1,6 +1,6 @@
 {
   "name": "@conciv/plugin",
-  "version": "0.0.11",
+  "version": "0.0.13",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). The conciv dev agent as an unplugin: vite (full — viteBridge + widget middleware + boot), webpack/rspack (boot the engine), rollup/esbuild (build-only no-ops). One factory, per-bundler subpath entries.",
   "keywords": [
     "conciv",
@@ -81,7 +81,9 @@
     "unplugin": "^3.0.0"
   },
   "devDependencies": {
+    "@conciv/vitest-config": "workspace:*",
     "@types/node": "^22.19.21",
+    "@vitest/coverage-v8": "^4.1.8",
     "tsdown": "^0.22.4",
     "typescript": "^6.0.3",
     "vite": "^8.0.16",
