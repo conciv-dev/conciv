@@ -19,16 +19,13 @@ export default defineConfig({
           browser: {
             enabled: true,
             headless: true,
-            provider: playwright({}),
-            instances: [
-              {
-                browser: 'chromium',
-                launch: {
-                  channel: 'chrome',
-                  args: ['--disable-dev-shm-usage', '--js-flags=--max-old-space-size=4096', '--enable-logging=stderr'],
-                },
+            provider: playwright({
+              launchOptions: {
+                channel: 'chrome',
+                args: ['--disable-dev-shm-usage', '--js-flags=--max-old-space-size=4096', '--enable-logging=stderr'],
               },
-            ],
+            }),
+            instances: [{browser: 'chromium'}],
           },
         },
       },
