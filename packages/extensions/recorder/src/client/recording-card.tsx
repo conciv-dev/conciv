@@ -38,12 +38,13 @@ function CardBody(): JSX.Element {
   const attachment = useAttachment()
   const host = getHostApi()
   const apiBase = host.useApiBase()
+  const Dialog = host.useDialog()
   const utils = createTanstackQueryUtils(makeExtRpcClient<RecorderRouter>(apiBase, RECORDER_NAME))
   const [ref] = createResource(() => resolveRef(attachment))
-  const [wantsPlay, setWantsPlay] = createSignal(false)
+  const [open, setOpen] = createSignal(false)
   const recording = useQuery(() => ({
     ...utils.recordings.get.queryOptions({input: {recordingId: ref()?.recordingId ?? ''}}),
-    enabled: wantsPlay() && Boolean(ref()),
+    enabled: open() && Boolean(ref()),
   }))
   const events = (): RrwebEvent[] | null => {
     const data = recording.data
@@ -54,33 +55,44 @@ function CardBody(): JSX.Element {
     onCleanup(mountPlayer(container, playable, () => true))
   }
   return (
-    <div class="p-2 border border-pw-line rounded-pw-md bg-pw-fill flex flex-col gap-2 min-w-55 overflow-hidden">
-      <Switch fallback={<RecorderNotice text={ref()?.poster ?? 'Screen recording'} />}>
-        <Match when={!wantsPlay()}>
-          <div class="flex gap-2 items-center">
-            <RecorderNotice text={ref()?.poster ?? 'Screen recording'} />
-            <Button size="sm" disabled={!ref()} onClick={() => setWantsPlay(true)}>
-              Play
-            </Button>
+    <div class="p-2 border border-pw-line rounded-pw-md bg-pw-fill flex gap-2 min-w-55 items-center overflow-hidden">
+      <RecorderNotice text={ref()?.poster ?? 'Screen recording'} />
+      <Button size="sm" disabled={!ref()} onClick={() => setOpen(true)}>
+        Play
+      </Button>
+      <Dialog open={open()} onOpenChange={setOpen} dismissable size="xl" label="Screen recording replay">
+        <Show when={open()}>
+          <div class="flex flex-col gap-2">
+            <div class="flex items-center">
+              <RecorderNotice text={ref()?.poster ?? 'Screen recording'} />
+              <Button class="ml-auto" variant="ghost" size="sm" onClick={() => setOpen(false)}>
+                Close
+              </Button>
+            </div>
+            <Switch>
+              <Match when={recording.isPending}>
+                <RecorderNotice text="Loading recording…" />
+              </Match>
+              <Match when={recording.isError}>
+                <RecorderErrorNotice text="Could not load the recording." retry={() => void recording.refetch()} />
+              </Match>
+              <Match when={expired()}>
+                <RecorderNotice text="Recording expired." />
+              </Match>
+              <Match when={events()} keyed>
+                {(playable) => (
+                  <Show
+                    when={playable.length >= 2}
+                    fallback={<RecorderNotice text="Nothing to replay in this recording." />}
+                  >
+                    <div ref={play(playable)} class="flex h-[70vh] w-full items-start justify-center" />
+                  </Show>
+                )}
+              </Match>
+            </Switch>
           </div>
-        </Match>
-        <Match when={recording.isPending}>
-          <RecorderNotice text="Loading recording…" />
-        </Match>
-        <Match when={recording.isError}>
-          <RecorderErrorNotice text="Could not load the recording." retry={() => void recording.refetch()} />
-        </Match>
-        <Match when={expired()}>
-          <RecorderNotice text="Recording expired." />
-        </Match>
-        <Match when={events()} keyed>
-          {(playable) => (
-            <Show when={playable.length >= 2} fallback={<RecorderNotice text="Nothing to replay in this recording." />}>
-              <div ref={play(playable)} class="min-h-30 w-full" />
-            </Show>
-          )}
-        </Match>
-      </Switch>
+        </Show>
+      </Dialog>
     </div>
   )
 }

@@ -38,21 +38,25 @@ describe('recording card in the testkit host (real chips, real store)', () => {
     const play = api().page.getByRole('button', {name: 'Play'})
     await play.waitFor({state: 'visible', timeout: 15_000})
     await play.click()
+    const modal = api().page.getByRole('alertdialog', {name: 'Screen recording replay'})
+    await modal.waitFor({state: 'visible', timeout: 15_000})
     await expect
-      .poll(
-        () => api().page.evaluate(() => Boolean(document.querySelector('[data-testkit-attachment] .rr-player iframe'))),
-        {timeout: 15_000},
-      )
+      .poll(() => api().page.evaluate(() => Boolean(document.querySelector('.rr-player iframe'))), {timeout: 15_000})
       .toBe(true)
+    await modal.getByRole('button', {name: 'Close'}).click()
+    await modal.waitFor({state: 'hidden', timeout: 15_000})
 
     await attachInPage(
       'dead-rec',
       recordingRefJson({recordingId: 'gone-recording', poster: 'Screen recording · dead-poster'}),
     )
     await api().page.getByText('Screen recording · dead-poster').waitFor({state: 'visible', timeout: 15_000})
-    const deadPlay = api().page.getByRole('button', {name: 'Play'})
+    const deadPlay = api().page.getByRole('button', {name: 'Play'}).last()
     await deadPlay.waitFor({state: 'visible', timeout: 15_000})
     await deadPlay.click()
-    await api().page.getByText('Recording expired.').waitFor({state: 'visible', timeout: 15_000})
+    await api()
+      .page.getByRole('alertdialog', {name: 'Screen recording replay'})
+      .getByText('Recording expired.')
+      .waitFor({state: 'visible', timeout: 15_000})
   }, 120_000)
 })

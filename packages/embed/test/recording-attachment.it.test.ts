@@ -92,6 +92,18 @@ describe('recording attachment end to end in the real widget', () => {
       .first()
       .waitFor({state: 'visible', timeout: 20_000})
     await page.getByRole('log').getByRole('button', {name: 'Play'}).first().waitFor({state: 'visible', timeout: 15_000})
+
+    await page.getByRole('log').getByRole('button', {name: 'Play'}).first().click()
+    const modal = page.getByRole('alertdialog', {name: 'Screen recording replay'})
+    await modal.waitFor({state: 'visible', timeout: 15_000})
+    await expect
+      .poll(() => page.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 5_000})
+      .toBe(true)
+    await modal.getByRole('button', {name: 'Close'}).click()
+    await modal.waitFor({state: 'hidden', timeout: 15_000})
+    await expect
+      .poll(() => page.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 5_000})
+      .toBe(true)
     await page.close()
   }, 120_000)
 })
