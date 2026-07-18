@@ -151,13 +151,19 @@ function fileDuration(file: Record<string, unknown>): number {
   return Math.max(0, asNumber(file.endTime) - asNumber(file.startTime))
 }
 
+function wallTime(files: Record<string, unknown>[]): number {
+  const starts = files.map((file) => asNumber(file.startTime)).filter((start) => start > 0)
+  const ends = files.map((file) => asNumber(file.endTime)).filter((end) => end > 0)
+  if (starts.length === 0 || ends.length === 0) return 0
+  return Math.max(0, Math.max(...ends) - Math.min(...starts))
+}
+
 function summaryOfFiles(name: string, files: Record<string, unknown>[]): PackageSummary {
   const cases = [
     ...files.flatMap((file) => toRecords(file.assertionResults).map(vitestCase)),
     ...files.filter(crashedWithoutAssertions).map(fileCrashCase),
   ]
-  const timeMs = files.reduce((total, file) => total + fileDuration(file), 0)
-  return summaryOfCases(name, cases, timeMs)
+  return summaryOfCases(name, cases, wallTime(files))
 }
 
 function groupBy<Value>(entries: [string, Value][]): Map<string, Value[]> {
