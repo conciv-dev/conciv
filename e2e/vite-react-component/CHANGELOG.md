@@ -1,5 +1,14 @@
 # conciv-e2e-vite-react-component
 
+## 0.0.5
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/extension-terminal@0.0.13
+  - @conciv/it@0.0.13
+  - @conciv/react@0.0.13
+
 ## 0.0.4
 
 ### Patch Changes

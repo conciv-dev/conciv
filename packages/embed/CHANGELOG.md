@@ -1,5 +1,24 @@
 # @conciv/embed
 
+## 0.0.13
+
+### Patch Changes
+
+- [#84](https://github.com/conciv-dev/conciv/pull/84) [`5db2ac5`](https://github.com/conciv-dev/conciv/commit/5db2ac5a8e7d49f2966cbbaf6718483f5837f759) Thanks [@omridevk](https://github.com/omridevk)! - Corrective release: several 0.0.12 artifacts (embed, extension-terminal, react, preact, solid, and others) were published from an unbuilt workspace and are empty or stale; 0.0.13 republishes every package from a clean CI build.
+
+- Updated dependencies [[`73c451e`](https://github.com/conciv-dev/conciv/commit/73c451e8d4175732a0e3f421300bda19b8dcf45c)]:
+  - @conciv/protocol@0.0.13
+  - @conciv/client@0.0.13
+  - @conciv/contract@0.0.13
+  - @conciv/extension@0.0.13
+  - @conciv/ui-kit-chat@0.0.13
+  - @conciv/ui-kit-chat-tools@0.0.13
+  - @conciv/grab@0.0.13
+  - @conciv/mascot@0.0.13
+  - @conciv/solid-streamdown@0.0.13
+  - @conciv/storage-history@0.0.13
+  - @conciv/ui-kit-system@0.0.13
+
 ## 0.0.12
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@conciv/preact",
-  "version": "0.0.12",
+  "version": "0.0.13",
   "description": "Preact component for the conciv widget: render <ConcivWidget /> to mount the conciv dev agent in any Preact app.",
   "keywords": [
     "ai",
