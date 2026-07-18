@@ -249,11 +249,11 @@ git commit -m "fix(recorder): cap, chunk, and back off the client flush queue" -
 
 - Produces: `flush` input rejects `> MAX_FLUSH_EVENTS` (5000) events or `> MAX_FLUSH_BYTES` (8MB) serialized payload with a zod error — a misbehaving/legacy client can no longer land a giant `JSON.parse` on the server.
 
-- [ ] **Step 1: Write the failing test** — call the `flush` handler (same `call` pattern as Plan 2 Task 5) with 5001 tiny events → expect a thrown validation error; with 10 events → ok.
+- [x] **Step 1: Write the failing test** — call the `flush` handler (same `call` pattern as Plan 2 Task 5) with 5001 tiny events → expect a thrown validation error; with 10 events → ok.
 
-- [ ] **Step 2: Run — Expected: FAIL** (currently accepted).
+- [x] **Step 2: Run — Expected: FAIL** (currently accepted).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 const MAX_FLUSH_EVENTS = 5000
@@ -266,8 +266,8 @@ const FlushInput = z
 
 Use `FlushInput` in the `flush` route.
 
-- [ ] **Step 4: Run — Expected: PASS.**
-- [ ] **Step 5: Commit**
+- [x] **Step 4: Run — Expected: PASS.**
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -m "fix(recorder): cap flush payloads server-side" -- packages/extensions/recorder/src/server.ts packages/extensions/recorder/test/flush-caps.test.ts

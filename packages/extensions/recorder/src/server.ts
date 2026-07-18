@@ -16,11 +16,18 @@ const recorderOs = os.$context<{request: Request}>()
 
 const RangeInput = z.object({fromTs: z.number().optional(), toTs: z.number().optional()})
 
+const MAX_FLUSH_EVENTS = 5000
+const MAX_FLUSH_BYTES = 8 * 1024 * 1024
+
+const FlushInput = z
+  .object({clientId: z.string().min(1).max(128), events: z.array(RrwebEventSchema).max(MAX_FLUSH_EVENTS)})
+  .refine((input) => JSON.stringify(input.events).length <= MAX_FLUSH_BYTES)
+
 export function makeRecorderRouter(runtime: RecorderRuntime) {
   return recorderOs.router({
     config: recorderOs.handler(() => runtime.config),
     flush: recorderOs
-      .input(z.object({clientId: z.string(), events: z.array(RrwebEventSchema)}))
+      .input(FlushInput)
       .output(z.object({ok: z.literal(true)}))
       .handler(({input}) => {
         runtime.ring.append(input.clientId, input.events)
