@@ -380,3 +380,15 @@ test('a test title cannot terminate its html block and inject markdown', () => {
   expect(output).not.toContain('</summary></details>')
   expect(output).toContain('&lt;/summary&gt;&lt;/details&gt; ## ALL TESTS PASSED')
 })
+
+test('a package suite is timed by wall clock, not by summing files that ran in parallel', () => {
+  const overlapping = JSON.stringify({
+    testResults: [
+      {name: '/a.test.ts', status: 'passed', startTime: 1_000, endTime: 11_000, assertionResults: []},
+      {name: '/b.test.ts', status: 'passed', startTime: 1_100, endTime: 11_200, assertionResults: []},
+      {name: '/c.test.ts', status: 'passed', startTime: 1_200, endTime: 10_500, assertionResults: []},
+    ],
+  })
+  const [summary] = parseReport('@conciv/parallel', overlapping)
+  expect(summary?.timeMs).toBe(10_200)
+})
