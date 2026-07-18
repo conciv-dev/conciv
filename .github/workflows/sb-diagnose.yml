@@ -49,6 +49,17 @@ jobs:
           s = s.replace(anchor, "ws.on(\"close\", (_c, _r) => {\n\t\t\t\tconsole.error(`[sbdebug] ${Date.now()} ws-close type=${type} rpc=${rpcId} code=${_c} reason=${String(_r)}`);")
           fs.writeFileSync(f, s)
           console.error("PATCH_APPLIED")
+          const viteDirs = fs.readdirSync("node_modules/.pnpm").filter(d => d.startsWith("vite@8.1.3"))
+          for (const d of viteDirs) {
+            const vf = path.join("node_modules/.pnpm", d, "node_modules/vite/dist/node/chunks/node.js")
+            if (!fs.existsSync(vf)) continue
+            let vs = fs.readFileSync(vf, "utf8")
+            const sendAnchor = "const stringified = JSON.stringify(payload);"
+            if (!vs.includes(sendAnchor)) { console.error("VITE ANCHOR NOT FOUND in " + d); continue }
+            vs = vs.replace(sendAnchor, "if (payload.type === \"full-reload\" || payload.type === \"error\") console.error(`[sbdebug] ${Date.now()} hot-send ${payload.type} ${JSON.stringify(payload).slice(0, 200)}`);\n\t\t\t" + sendAnchor)
+            fs.writeFileSync(vf, vs)
+            console.error("VITE_PATCH_APPLIED " + d)
+          }
           '
       - name: memory sampler
         run: |
