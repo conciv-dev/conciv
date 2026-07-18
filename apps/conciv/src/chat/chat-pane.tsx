@@ -3,6 +3,7 @@ import {useBlocker, useRouter} from '@tanstack/solid-router'
 import {useMutation, useQuery} from '@tanstack/solid-query'
 import {useChatSession} from '@conciv/client'
 import {
+  AttachmentByMime,
   ChatProvider,
   Composer,
   ComposerHandlersProvider,
@@ -10,11 +11,10 @@ import {
   NowLine,
   Thread,
   ToolProvider,
-  createSimpleImageAttachmentAdapter,
   guardChat,
   pairResults,
   useComposer,
-  type AttachmentAdapter,
+  useComposerContext,
   type Turn,
 } from '@conciv/ui-kit-chat'
 import {builtinToolCards, nowTitle} from '@conciv/ui-kit-chat-tools'
@@ -24,6 +24,7 @@ import type {ToolCardEntry, ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import type {UiAnswerValue} from '@conciv/protocol/ui-types'
 import type {MarkerRow} from '@conciv/contract'
 import {collectToolRenderers} from '@conciv/extension'
+import {paneAttachments} from './pane-attachments.js'
 import {useAnnounce, useAppData, useInstances, useRpc} from '../app/context.js'
 import {usePane} from '../app/pane-context.js'
 import {makeConcivUiCard} from './conciv-ui-card.js'
@@ -41,12 +42,7 @@ import {SessionModelSelector} from '../composer/model-selector.js'
 import {clearPaneSnapshot, readPaneSnapshot, writePaneSnapshot} from '../lib/ui-snapshot.js'
 
 const GRAB_PREVIEW_MAX_W = 280
-const IMAGE_ATTACHMENT_ADAPTER = createSimpleImageAttachmentAdapter()
-
-function imageAttachmentAdapter(imageInput: unknown): AttachmentAdapter | undefined {
-  if (imageInput !== 'native' && imageInput !== 'fileRef') return undefined
-  return IMAGE_ATTACHMENT_ADAPTER
-}
+const MAX_CONTENT_PARTS = 16
 
 const ERROR = 'flex gap-2 items-center text-pw-danger text-[0.75rem] anim-msg'
 const RECONNECT = 'flex gap-2 items-center text-pw-text-2 text-[0.75rem] anim-msg'
@@ -90,14 +86,17 @@ type ComposerStateApi = {
   append: (text: string) => void
   text: () => string
   setText: (value: string) => void
+  addAttachment: (file: File) => Promise<void>
 }
 
 function ComposerStateBridge(props: {onReady: (api: ComposerStateApi) => void}): JSX.Element {
   const composer = useComposer()
+  const context = useComposerContext()
   const api: ComposerStateApi = {
     append: (text) => composer.setText(composer.text() ? `${composer.text()}\n${text}` : text),
     text: composer.text,
     setText: composer.setText,
+    addAttachment: context.addAttachment,
   }
   onMount(() => props.onReady(api))
   return <></>
@@ -228,6 +227,24 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     composerApi.current?.append(text)
     focusInput()
   }
+  const attach = (file: File) => {
+    const api = composerApi.current
+    if (!api) {
+      pane.attachments.enqueue(file)
+      return
+    }
+    void api.addAttachment(file)
+    focusInput()
+  }
+  const attachments = createMemo(() =>
+    paneAttachments(
+      instances.map((instance) => instance.extension),
+      meta.data?.harness.imageInput,
+    ),
+  )
+  const PaneAttachment = (slotProps: {removable?: boolean}): JSX.Element => (
+    <AttachmentByMime cards={attachments().cards} removable={slotProps.removable} />
+  )
   const stageGrab = (grab: Parameters<typeof pane.grabStore.stage>[0]) => {
     pane.grabStore.stage(grab)
     focusInput()
@@ -338,6 +355,10 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     const text = contentText(content)
     const hasContent = typeof content === 'string' ? text.length > 0 : content.content.length > 0
     if (!hasContent || chat.isLoading() || compacting()) return
+    if (typeof content !== 'string' && content.content.length > MAX_CONTENT_PARTS) {
+      notify('Too many attachments — remove some and send again.')
+      return
+    }
     if (raw.connectionStatus() !== 'connected') return
     void send(typeof content === 'string' ? text : content)
   }
@@ -357,6 +378,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
       sessionId={() => props.sessionId}
       grab={paneGrab}
       insert={insert}
+      attach={attach}
       newSession={() => void newSession()}
     >
       <ChatProvider chat={chat}>
@@ -380,6 +402,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
               >
                 <Thread
                   tools={tools()}
+                  attachmentCards={attachments().cards}
                   components={{ToolFallback: ToolFallbackCard}}
                   turnPrefix={renderTurnPrefix}
                   viewportRef={(el) => {
@@ -439,7 +462,8 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                       <Composer
                         placeholder="Ask a question…"
                         inputLabel="Message the conciv agent"
-                        attachmentAdapter={imageAttachmentAdapter(meta.data?.harness.imageInput)}
+                        attachmentAdapter={attachments().adapter}
+                        AttachmentComponent={PaneAttachment}
                         inputRef={(el) => {
                           inputEl = el
                         }}
@@ -460,6 +484,7 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                           onReady={(api) => {
                             composerApi.current = api
                             maybeRestore()
+                            for (const file of pane.attachments.drain()) void api.addAttachment(file)
                           }}
                         />
                       </Composer>

@@ -11,6 +11,11 @@ export type PaneGrabStore = {
   clear: () => void
 }
 
+export type PendingAttachmentQueue = {
+  enqueue: (file: File) => void
+  drain: () => File[]
+}
+
 export type PaneContextValue = {
   sessionId: Accessor<string>
   running: Accessor<boolean>
@@ -20,6 +25,17 @@ export type PaneContextValue = {
   hydrating: Accessor<boolean>
   resetSlide: () => void
   grabStore: PaneGrabStore
+  attachments: PendingAttachmentQueue
+}
+
+export function makePendingAttachmentQueue(): PendingAttachmentQueue {
+  const files: File[] = []
+  return {
+    enqueue: (file) => {
+      files.push(file)
+    },
+    drain: () => files.splice(0),
+  }
 }
 
 export const PaneContext = createContext<PaneContextValue>()

@@ -9,7 +9,6 @@ Let React and Preact apps render the conciv widget as a framework-native compone
 
 ```tsx
 import {ConcivWidget} from '@conciv/react'
-
 ;<ConcivWidget extensions={[terminal()]} />
 ```
 

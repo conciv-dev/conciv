@@ -1,5 +1,7 @@
 import {mkdirSync} from 'node:fs'
+import {join} from 'node:path'
 import {DatabaseSync} from 'node:sqlite'
+import {concivStateDir} from '@conciv/protocol/state-types'
 import {fileURLToPath} from 'node:url'
 import {ne} from 'drizzle-orm'
 import {drizzle} from 'drizzle-orm/node-sqlite'
@@ -13,7 +15,7 @@ export type ConcivDb = ReturnType<typeof drizzle>
 
 export function openDb(stateRoot: string): ConcivDb {
   mkdirSync(`${stateRoot}/.conciv`, {recursive: true})
-  const client = new DatabaseSync(`${stateRoot}/.conciv/conciv.db`, {timeout: 5000})
+  const client = new DatabaseSync(join(concivStateDir(stateRoot), 'conciv.db'), {timeout: 5000})
   client.exec('PRAGMA journal_mode = WAL')
   const db = drizzle({client})
   migrate(db, {migrationsFolder})

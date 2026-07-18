@@ -2,6 +2,7 @@ import {afterAll, beforeAll, beforeEach, describe, expect, it} from 'vitest'
 import {chromium, type Browser, type Page} from 'playwright'
 import {bootEmbedKit, type EmbedKit} from './helpers/boot.js'
 import {hostPage, serveHost} from './helpers/host.js'
+import {openPanel} from './helpers/panel.js'
 
 const ASSISTANT_TEXT = 'Hello from conciv'
 
@@ -29,13 +30,6 @@ async function openPage(): Promise<Page> {
   const page = await browser.newPage()
   await page.goto(host.base, {waitUntil: 'domcontentloaded'})
   return page
-}
-
-async function openPanel(page: Page): Promise<void> {
-  await page.getByRole('button', {name: 'Open conciv chat'}).click()
-  await expect
-    .poll(() => page.getByRole('textbox', {name: 'Message the conciv agent'}).isVisible(), {timeout: 30_000})
-    .toBe(true)
 }
 
 describe('embed boots the conciv app against a real core', () => {
@@ -209,9 +203,7 @@ describe('embed settings', () => {
     const disabledHost = await serveHost(() => hostPage({apiBase: kit.base, widget: '{"modal": false}'}))
     const page = await browser.newPage()
     await page.goto(disabledHost.base, {waitUntil: 'domcontentloaded'})
-    await page.waitForFunction(() => document.querySelector('[data-conciv-root]') !== null, undefined, {
-      timeout: 15_000,
-    })
+    await page.getByRole('status').waitFor({state: 'attached', timeout: 15_000})
     expect(await page.getByRole('button', {name: 'Open conciv chat'}).count()).toBe(0)
     await page.close()
     await disabledHost.close()

@@ -2,12 +2,12 @@ import {Outlet, createFileRoute, redirect, useMatchRoute, useRouter} from '@tans
 import {useQuery} from '@tanstack/solid-query'
 import {Tabs, TooltipIconButton} from '@conciv/ui-kit-system'
 import {ChevronDown, PictureInPicture2, Unplug} from 'lucide-solid'
-import {For, Show, createEffect, createMemo, createSignal, type JSX} from 'solid-js'
+import {For, Show, createEffect, createMemo, createSignal, on, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
 import type {Grab} from '@conciv/grab'
 import {isSessionId} from '@conciv/protocol/chat-types'
 import {useAnnounce, useAppData, useDisconnect, useInstances, useRpc} from '../app/context.js'
-import {PaneContext, type PaneContextValue, type StagedGrab} from '../app/pane-context.js'
+import {PaneContext, makePendingAttachmentQueue, type PaneContextValue, type StagedGrab} from '../app/pane-context.js'
 import {SessionSelector} from '../composer/session-selector.js'
 import {setShutter} from '../lib/shutter.js'
 import {ContextTracker} from '../chat/context-tracker.js'
@@ -57,12 +57,12 @@ function PanelSession(): JSX.Element {
   const slideClass = () => (slideDir() === 'right' ? 'anim-tab-right' : slideDir() === 'left' ? 'anim-tab-left' : '')
 
   const [hydrating, setHydrating] = createSignal(true)
-  createEffect(() => {
-    params().sessionId
-    activeView()
-    setHydrating(true)
-    requestAnimationFrame(() => requestAnimationFrame(() => setHydrating(false)))
-  })
+  createEffect(
+    on([() => params().sessionId, activeView], () => {
+      setHydrating(true)
+      requestAnimationFrame(() => requestAnimationFrame(() => setHydrating(false)))
+    }),
+  )
 
   const switchView = (next: string) => {
     if (next === activeView()) return
@@ -105,6 +105,7 @@ function PanelSession(): JSX.Element {
     hydrating,
     resetSlide: () => setSlideDir(null),
     grabStore,
+    attachments: makePendingAttachmentQueue(),
   }
 
   return (

@@ -2,19 +2,32 @@ import {existsSync, readFileSync, readdirSync} from 'node:fs'
 import {dirname, join} from 'node:path'
 import {stripVTControlCharacters} from 'node:util'
 
-export type Failure = {test: string; message: string}
+type Failure = {test: string; message: string}
 
 export type Coverage = {covered: number; total: number}
+
+export type CaseStatus = 'passed' | 'failed' | 'flaky' | 'skipped'
+
+export type CaseResult = {
+  title: string
+  status: CaseStatus
+  durationMs: number
+  retries: number
+  message: string
+}
 
 export type PackageSummary = {
   name: string
   passed: number
   failed: number
+  flaky: number
   skipped: number
   timeMs: number
-  failures: Failure[]
+  cases: CaseResult[]
   coverage: Coverage | null
 }
+
+export type RenderOptions = {title: string; details: boolean}
 
 const SKIPPED_DIRS = new Set(['node_modules', 'dist', '.turbo', '.git', 'test', 'src'])
 
@@ -75,9 +88,47 @@ function statusOf(result: Record<string, unknown>): string {
   return asString(result.status)
 }
 
-function assertionFailure(result: Record<string, unknown>): Failure {
+function countOf(cases: CaseResult[], status: CaseStatus): number {
+  return cases.filter((entry) => entry.status === status).length
+}
+
+function summaryOfCases(name: string, cases: CaseResult[], timeMs: number): PackageSummary {
+  return {
+    name,
+    passed: countOf(cases, 'passed'),
+    failed: countOf(cases, 'failed'),
+    flaky: countOf(cases, 'flaky'),
+    skipped: countOf(cases, 'skipped'),
+    timeMs,
+    cases,
+    coverage: null,
+  }
+}
+
+function emptySummary(name: string): PackageSummary {
+  return summaryOfCases(name, [], 0)
+}
+
+function failuresOf(summary: PackageSummary): Failure[] {
+  return summary.cases
+    .filter((entry) => entry.status === 'failed')
+    .map((entry) => ({test: entry.title, message: entry.message}))
+}
+
+function vitestCaseStatus(result: Record<string, unknown>): CaseStatus {
+  if (statusOf(result) === 'failed') return 'failed'
+  return statusOf(result) === 'passed' ? 'passed' : 'skipped'
+}
+
+function vitestCase(result: Record<string, unknown>): CaseResult {
   const messages = Array.isArray(result.failureMessages) ? result.failureMessages.map(asString) : []
-  return {test: asString(result.fullName), message: stripVTControlCharacters(messages.join('\n'))}
+  return {
+    title: asString(result.fullName),
+    status: vitestCaseStatus(result),
+    durationMs: asNumber(result.duration),
+    retries: 0,
+    message: stripVTControlCharacters(messages.join('\n')),
+  }
 }
 
 function crashedWithoutAssertions(file: Record<string, unknown>): boolean {
@@ -86,33 +137,27 @@ function crashedWithoutAssertions(file: Record<string, unknown>): boolean {
   )
 }
 
-function fileFailure(file: Record<string, unknown>): Failure {
-  return {test: asString(file.name), message: stripVTControlCharacters(asString(file.message))}
+function fileCrashCase(file: Record<string, unknown>): CaseResult {
+  return {
+    title: asString(file.name),
+    status: 'failed',
+    durationMs: fileDuration(file),
+    retries: 0,
+    message: stripVTControlCharacters(asString(file.message)),
+  }
 }
 
 function fileDuration(file: Record<string, unknown>): number {
   return Math.max(0, asNumber(file.endTime) - asNumber(file.startTime))
 }
 
-function emptySummary(name: string): PackageSummary {
-  return {name, passed: 0, failed: 0, skipped: 0, timeMs: 0, failures: [], coverage: null}
-}
-
 function summaryOfFiles(name: string, files: Record<string, unknown>[]): PackageSummary {
-  const assertions = files.flatMap((file) => toRecords(file.assertionResults))
-  const failures = [
-    ...assertions.filter((result) => statusOf(result) === 'failed').map(assertionFailure),
-    ...files.filter(crashedWithoutAssertions).map(fileFailure),
+  const cases = [
+    ...files.flatMap((file) => toRecords(file.assertionResults).map(vitestCase)),
+    ...files.filter(crashedWithoutAssertions).map(fileCrashCase),
   ]
-  return {
-    name,
-    passed: assertions.filter((result) => statusOf(result) === 'passed').length,
-    failed: failures.length,
-    skipped: assertions.filter((result) => statusOf(result) !== 'passed' && statusOf(result) !== 'failed').length,
-    timeMs: files.reduce((total, file) => total + fileDuration(file), 0),
-    failures,
-    coverage: null,
-  }
+  const timeMs = files.reduce((total, file) => total + fileDuration(file), 0)
+  return summaryOfCases(name, cases, timeMs)
 }
 
 function groupBy<Value>(entries: [string, Value][]): Map<string, Value[]> {
@@ -121,8 +166,72 @@ function groupBy<Value>(entries: [string, Value][]): Map<string, Value[]> {
   return groups
 }
 
+const PLAYWRIGHT_STATUS: Record<string, CaseStatus> = {
+  expected: 'passed',
+  unexpected: 'failed',
+  flaky: 'flaky',
+  skipped: 'skipped',
+}
+
+type ProjectCase = {project: string; result: CaseResult}
+
+function playwrightCase(titles: string[], spec: Record<string, unknown>, test: Record<string, unknown>): ProjectCase {
+  const results = toRecords(test.results)
+  const messages = results.flatMap((result) => toRecords(result.errors).map((error) => asString(error.message)))
+  return {
+    project: asString(test.projectName),
+    result: {
+      title: [...titles, asString(spec.title)].filter((part) => part !== '').join(' › '),
+      status: PLAYWRIGHT_STATUS[statusOf(test)] ?? 'skipped',
+      durationMs: results.reduce((total, result) => total + asNumber(result.duration), 0),
+      retries: Math.max(0, results.length - 1),
+      message: stripVTControlCharacters(messages.join('\n')),
+    },
+  }
+}
+
+function playwrightCases(suites: Record<string, unknown>[], titles: string[]): ProjectCase[] {
+  return suites.flatMap((suite) => {
+    const path = [...titles, asString(suite.title)]
+    const own = toRecords(suite.specs).flatMap((spec) =>
+      toRecords(spec.tests).map((test) => playwrightCase(path, spec, test)),
+    )
+    return [...own, ...playwrightCases(toRecords(suite.suites), path)]
+  })
+}
+
+function playwrightGlobalCrashes(report: Record<string, unknown>): CaseResult[] {
+  return toRecords(report.errors).map((error) => ({
+    title: 'playwright run',
+    status: 'failed',
+    durationMs: 0,
+    retries: 0,
+    message: stripVTControlCharacters(asString(error.message)),
+  }))
+}
+
+function playwrightTime(cases: CaseResult[]): number {
+  return cases.reduce((total, entry) => total + entry.durationMs, 0)
+}
+
+function parsePlaywrightReport(reportPackage: string, report: Record<string, unknown>): PackageSummary[] {
+  const cases = playwrightCases(toRecords(report.suites), [])
+  const results = cases.map((entry) => entry.result)
+  const byProject = groupBy(cases.map((entry): [string, CaseResult] => [entry.project, entry.result]))
+  const named =
+    byProject.size <= 1
+      ? [summaryOfCases(reportPackage, results, playwrightTime(results))]
+      : [...byProject.entries()].map(([project, grouped]) =>
+          summaryOfCases(`${reportPackage} (${project})`, grouped, playwrightTime(grouped)),
+        )
+  const crashes = playwrightGlobalCrashes(report)
+  if (crashes.length === 0) return named
+  return [...named, summaryOfCases(reportPackage, crashes, 0)]
+}
+
 export function parseReport(reportPackage: string, raw: string): PackageSummary[] {
   const report: unknown = JSON.parse(raw)
+  if (isRecord(report) && Array.isArray(report.suites)) return parsePlaywrightReport(reportPackage, report)
   const files = toRecords(isRecord(report) ? report.testResults : [])
   const byPackage = groupBy(
     files.map((file): [string, Record<string, unknown>] => {
@@ -160,25 +269,36 @@ export function parseCoverage(reportPackage: string, raw: string): Map<string, C
   )
 }
 
-function toFailure(value: unknown): Failure {
-  const record = isRecord(value) ? value : {}
-  return {test: asString(record.test), message: asString(record.message)}
-}
-
 function toCoverage(value: unknown): Coverage | null {
   if (!isRecord(value)) return null
   return {covered: asNumber(value.covered), total: asNumber(value.total)}
 }
 
+function toCaseStatus(value: unknown): CaseStatus {
+  const status = asString(value)
+  if (status === 'passed' || status === 'failed' || status === 'flaky' || status === 'skipped') return status
+  return 'skipped'
+}
+
+function toCaseResult(value: unknown): CaseResult {
+  const record = isRecord(value) ? value : {}
+  return {
+    title: asString(record.title),
+    status: toCaseStatus(record.status),
+    durationMs: asNumber(record.durationMs),
+    retries: asNumber(record.retries),
+    message: asString(record.message),
+  }
+}
+
 export function parseSummaries(raw: string): PackageSummary[] {
   const parsed: unknown = JSON.parse(raw)
   return toRecords(parsed).map((entry) => ({
-    name: asString(entry.name),
-    passed: asNumber(entry.passed),
-    failed: asNumber(entry.failed),
-    skipped: asNumber(entry.skipped),
-    timeMs: asNumber(entry.timeMs),
-    failures: (Array.isArray(entry.failures) ? entry.failures : []).map(toFailure),
+    ...summaryOfCases(
+      asString(entry.name),
+      (Array.isArray(entry.cases) ? entry.cases : []).map(toCaseResult),
+      asNumber(entry.timeMs),
+    ),
     coverage: toCoverage(entry.coverage),
   }))
 }
@@ -188,12 +308,7 @@ export function mergeSummaries(summaries: PackageSummary[]): PackageSummary[] {
   return [...byName.entries()].map(([name, grouped]) =>
     grouped.reduce(
       (merged, entry) => ({
-        name,
-        passed: merged.passed + entry.passed,
-        failed: merged.failed + entry.failed,
-        skipped: merged.skipped + entry.skipped,
-        timeMs: merged.timeMs + entry.timeMs,
-        failures: [...merged.failures, ...entry.failures],
+        ...summaryOfCases(name, [...merged.cases, ...entry.cases], merged.timeMs + entry.timeMs),
         coverage: mergeCoverage(merged.coverage, entry.coverage),
       }),
       emptySummary(name),
@@ -209,12 +324,7 @@ function mergeCoverage(left: Coverage | null, right: Coverage | null): Coverage 
 
 function attachCoverage(summaries: PackageSummary[], coverage: Map<string, Coverage>): PackageSummary[] {
   return summaries.map((summary) => ({
-    name: summary.name,
-    passed: summary.passed,
-    failed: summary.failed,
-    skipped: summary.skipped,
-    timeMs: summary.timeMs,
-    failures: summary.failures,
+    ...summary,
     coverage: mergeCoverage(summary.coverage, coverage.get(summary.name) ?? null),
   }))
 }
@@ -244,11 +354,28 @@ function coveragePct(coverage: Coverage | null): string {
   return `${((coverage.covered / coverage.total) * 100).toFixed(1)}%`
 }
 
+function packageIcon(summary: PackageSummary): string {
+  if (summary.failed > 0) return '❌'
+  return summary.flaky > 0 ? '⚠️' : '✅'
+}
+
+const CASE_ICONS: Record<CaseStatus, string> = {passed: '✅', failed: '❌', flaky: '⚠️', skipped: '⏭️'}
+
+function blankIfZero(count: number): string {
+  return count > 0 ? `${count}` : ''
+}
+
 function row(summary: PackageSummary): string {
-  const icon = summary.failed > 0 ? '❌' : '✅'
-  const failed = summary.failed > 0 ? `${summary.failed}` : ''
-  const skipped = summary.skipped > 0 ? `${summary.skipped}` : ''
-  return `| ${icon} ${summary.name} | ${summary.passed} | ${failed} | ${skipped} | ${coveragePct(summary.coverage)} | ${seconds(summary.timeMs)} |`
+  const cells = [
+    `${packageIcon(summary)} ${summary.name}`,
+    `${summary.passed}`,
+    blankIfZero(summary.failed),
+    blankIfZero(summary.flaky),
+    blankIfZero(summary.skipped),
+    coveragePct(summary.coverage),
+    seconds(summary.timeMs),
+  ]
+  return `| ${cells.join(' | ')} |`
 }
 
 const MAX_FAILURE_CHARS = 8_000
@@ -265,38 +392,73 @@ function failureBody(message: string): string {
 }
 
 function failureSection(summary: PackageSummary): string[] {
-  return summary.failures.map(
+  return failuresOf(summary).map(
     (failure) =>
       `<details>\n<summary>❌ <code>${escapeHtml(summary.name)}</code> ${escapeHtml(failure.test)}</summary>\n\n${fencedBlock(failureBody(failure.message))}\n\n</details>`,
   )
 }
 
-export function renderSummary(packages: PackageSummary[]): string {
-  const sorted = packages.toSorted((a, b) => b.failed - a.failed || a.name.localeCompare(b.name))
-  const totals = sorted.reduce(
+function caseRows(entry: CaseResult): string[] {
+  const cells = [
+    escapeHtml(entry.title),
+    `${CASE_ICONS[entry.status]} ${entry.status}`,
+    seconds(entry.durationMs),
+    blankIfZero(entry.retries),
+  ]
+  const testRow = `<tr><td>${cells.join('</td><td>')}</td></tr>`
+  if (entry.message === '') return [testRow]
+  return [testRow, `<tr><td colspan="4"><pre>${escapeHtml(entry.message)}</pre></td></tr>`]
+}
+
+function detailsLabel(summary: PackageSummary): string {
+  const counts = [
+    `${summary.passed} passed`,
+    ...(summary.failed > 0 ? [`${summary.failed} failed`] : []),
+    ...(summary.flaky > 0 ? [`${summary.flaky} flaky`] : []),
+    ...(summary.skipped > 0 ? [`${summary.skipped} skipped`] : []),
+  ]
+  return `${packageIcon(summary)} <code>${escapeHtml(summary.name)}</code> · ${counts.join(' · ')} · ${seconds(summary.timeMs)}`
+}
+
+function detailsSection(summary: PackageSummary): string {
+  const header = '<tr><th>Test</th><th>Status</th><th>Duration</th><th>Retries</th></tr>'
+  const rows = summary.cases.flatMap(caseRows)
+  const open = summary.failed > 0 ? ' open' : ''
+  return `<details${open}>\n<summary>${detailsLabel(summary)}</summary>\n<table>\n${[header, ...rows].join('\n')}\n</table>\n</details>`
+}
+
+function headline(packages: PackageSummary[]): string {
+  const totals = packages.reduce(
     (sum, entry) => ({
       passed: sum.passed + entry.passed,
       failed: sum.failed + entry.failed,
+      flaky: sum.flaky + entry.flaky,
       timeMs: sum.timeMs + entry.timeMs,
       coverage: mergeCoverage(sum.coverage, entry.coverage),
     }),
-    {passed: 0, failed: 0, timeMs: 0, coverage: null as Coverage | null},
+    {passed: 0, failed: 0, flaky: 0, timeMs: 0, coverage: null as Coverage | null},
   )
+  const flakyNote = totals.flaky > 0 ? ` · ${totals.flaky} flaky` : ''
   const coverageNote = totals.coverage === null ? '' : ` · ${coveragePct(totals.coverage)} line coverage`
-  const headline =
-    totals.failed > 0
-      ? `❌ **${totals.failed} failed** · ${totals.passed} passed · ${seconds(totals.timeMs)}${coverageNote}`
-      : `✅ **${totals.passed} passed** · ${seconds(totals.timeMs)}${coverageNote}`
+  if (totals.failed > 0)
+    return `❌ **${totals.failed} failed** · ${totals.passed} passed${flakyNote} · ${seconds(totals.timeMs)}${coverageNote}`
+  return `✅ **${totals.passed} passed**${flakyNote} · ${seconds(totals.timeMs)}${coverageNote}`
+}
+
+export function renderSummary(packages: PackageSummary[], options?: Partial<RenderOptions>): string {
+  const title = options?.title ?? 'Test results'
+  const sorted = packages.toSorted((a, b) => b.failed - a.failed || a.name.localeCompare(b.name))
+  const sections = options?.details ? sorted.map(detailsSection) : sorted.flatMap(failureSection)
   const lines = [
-    '## Test results',
+    `## ${title}`,
     '',
-    headline,
+    headline(sorted),
     '',
-    '| Package | Passed | Failed | Skipped | Coverage | Time |',
-    '| --- | --- | --- | --- | --- | --- |',
+    '| Package | Passed | Failed | Flaky | Skipped | Coverage | Time |',
+    '| --- | --- | --- | --- | --- | --- | --- |',
     ...sorted.map(row),
     '',
-    ...sorted.flatMap(failureSection),
+    ...sections,
   ]
   return `${lines.join('\n')}\n`
 }

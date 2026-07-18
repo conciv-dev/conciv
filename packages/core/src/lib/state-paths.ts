@@ -1,4 +1,5 @@
 import {join} from 'node:path'
+import {concivStateDir} from '@conciv/protocol/state-types'
 
 export type StatePaths = {
   dir: string
@@ -6,7 +7,7 @@ export type StatePaths = {
 }
 
 export function statePaths(stateRoot: string): StatePaths {
-  const dir = join(stateRoot, '.conciv')
+  const dir = concivStateDir(stateRoot)
   return {
     dir,
     systemPrompt: join(dir, 'chat-system-prompt.txt'),

@@ -1,6 +1,8 @@
 import {describe, expect, it} from 'vitest'
 import {
+  composeAttachmentAdapters,
   createSimpleImageAttachmentAdapter,
+  createTextAttachmentAdapter,
   fileMatchesAccept,
   fileToDataSource,
 } from '../src/primitives/attachment/attachment-adapter.js'
@@ -69,5 +71,55 @@ describe('attachment adapters', () => {
   it('infers an image MIME type from the extension when the browser omits it', async () => {
     const source = await fileToDataSource(new File(['hello'], 'photo.PNG'))
     expect(source).toEqual({type: 'data', value: 'aGVsbG8=', mimeType: 'image/png'})
+  })
+
+  it('converts text files to a named text content part on send', async () => {
+    const adapter = createTextAttachmentAdapter()
+    const file = new File(['line one\nline two'], 'recording.txt', {type: 'text/plain'})
+    const pending = await adapter.add({file})
+    if (Symbol.asyncIterator in pending) throw new Error('Expected a promise attachment')
+    expect(pending).toMatchObject({
+      type: 'document',
+      name: 'recording.txt',
+      contentType: 'text/plain',
+      status: {type: 'requires-action', reason: 'composer-send'},
+    })
+    const complete = await adapter.send(pending)
+    expect(complete.status).toEqual({type: 'complete'})
+    expect(complete.content).toEqual([{type: 'text', content: 'Attachment recording.txt:\nline one\nline two'}])
+  })
+
+  it('marks oversized text files incomplete on add', async () => {
+    const adapter = createTextAttachmentAdapter()
+    const big = new File([new Uint8Array(2 * 1024 * 1024)], 'huge.txt', {type: 'text/plain'})
+    const pending = await adapter.add({file: big})
+    if (Symbol.asyncIterator in pending) throw new Error('Expected a promise attachment')
+    expect(pending.status).toMatchObject({type: 'incomplete', reason: 'error'})
+  })
+
+  it('composes adapters and routes add/send/remove to the adapter matching the file type', async () => {
+    const composed = composeAttachmentAdapters([createSimpleImageAttachmentAdapter(), createTextAttachmentAdapter()])
+    expect(composed.accept).toBe('image/*,text/plain,.txt,.md,.log')
+
+    const textPending = await composed.add({file: new File(['hi'], 'notes.txt', {type: 'text/plain'})})
+    if (Symbol.asyncIterator in textPending) throw new Error('Expected a promise attachment')
+    expect(textPending.type).toBe('document')
+    const textComplete = await composed.send(textPending)
+    expect(textComplete.content).toEqual([{type: 'text', content: 'Attachment notes.txt:\nhi'}])
+
+    const imagePending = await composed.add({file: new File([new Uint8Array([1])], 'dot.png', {type: 'image/png'})})
+    if (Symbol.asyncIterator in imagePending) throw new Error('Expected a promise attachment')
+    expect(imagePending.type).toBe('image')
+    const imageComplete = await composed.send(imagePending)
+    expect(imageComplete.content[0]).toMatchObject({type: 'image'})
+
+    await expect(composed.remove(textPending)).resolves.toBeUndefined()
+  })
+
+  it('rejects files no composed adapter accepts', async () => {
+    const composed = composeAttachmentAdapters([createTextAttachmentAdapter()])
+    await expect(async () => composed.add({file: new File(['x'], 'movie.mp4', {type: 'video/mp4'})})).rejects.toThrow(
+      'No attachment adapter accepts movie.mp4',
+    )
   })
 })

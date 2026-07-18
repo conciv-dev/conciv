@@ -20,6 +20,7 @@ import {Thread as ThreadPrimitive} from '../primitives/thread/thread.js'
 import {Message} from '../primitives/message/message.js'
 import {useMessage} from '../primitives/message/message-context.js'
 import {groupSegments, type Segment, type Turn} from '../store/grouping.js'
+import {AttachmentByMime, type AttachmentCardSlot} from './attachment-dispatch.js'
 import {Markdown} from './markdown.js'
 import {Reasoning} from './reasoning.js'
 import {ToolFallback} from './tool-fallback.js'
@@ -48,6 +49,8 @@ export type ThreadProps = {
   viewportRef?: (element: HTMLElement) => void
 
   overlay?: JSX.Element
+
+  attachmentCards?: readonly AttachmentCardSlot[]
 
   class?: string
 }
@@ -172,9 +175,16 @@ function AssistantTurn(props: {entries: ToolCardEntry[]; fallback: ToolUICompone
 }
 
 function UserTurn(): JSX.Element {
+  const config = useContext(ThreadConfigContext)
+  const DocumentCard = (): JSX.Element => <AttachmentByMime cards={config.attachmentCards()} />
   return (
     <>
       <TurnPrefix />
+      <Message.If hasAttachments>
+        <div class="flex flex-wrap gap-1 self-end">
+          <Message.Attachments components={{Document: DocumentCard}} />
+        </div>
+      </Message.If>
       <Message.Root
         data-pw-msg
         class="px-3 py-1.5 rounded-[var(--chat-radius-md)] max-w-[80%] [background:var(--chat-accent)] [color:var(--chat-on-accent)] [overflow-wrap:anywhere] self-end anim-msg"
@@ -190,6 +200,7 @@ type ThreadConfig = {
   fallback: () => ToolUIComponent
   assistant: () => Component | undefined
   turnPrefix: () => ((turn: Turn) => JSX.Element) | undefined
+  attachmentCards: () => readonly AttachmentCardSlot[]
 }
 
 const ThreadConfigContext = createContext<ThreadConfig>({
@@ -197,6 +208,7 @@ const ThreadConfigContext = createContext<ThreadConfig>({
   fallback: () => ToolFallback,
   assistant: () => undefined,
   turnPrefix: () => undefined,
+  attachmentCards: () => [],
 })
 
 function TurnPrefix(): JSX.Element {
@@ -231,6 +243,7 @@ export function Thread(props: ThreadProps): JSX.Element {
         fallback: () => props.components?.ToolFallback ?? ToolFallback,
         assistant: () => props.components?.AssistantMessage,
         turnPrefix: () => props.turnPrefix,
+        attachmentCards: () => props.attachmentCards ?? [],
       }}
     >
       <div
@@ -252,7 +265,7 @@ export function Thread(props: ThreadProps): JSX.Element {
           {props.overlay}
           <div class="h-0 pointer-events-none self-center bottom-2 sticky z-10 overflow-visible">
             <ThreadPrimitive.ScrollToBottom
-              class={`text-[length:var(--chat-text-xs)] px-2 rounded-[var(--chat-radius-pill)] inline-flex gap-1 min-h-6 cursor-pointer pointer-events-auto [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] [color:var(--chat-accent-link)] [transition:opacity_120ms_var(--chat-ease)] items-center bottom-0 left-1/2 absolute data-[at-bottom]:opacity-0 data-[at-bottom]:invisible data-[at-bottom]:[transition:opacity_120ms_var(--chat-ease),visibility_0s_linear_120ms] -translate-x-1/2 hover:[background:var(--chat-fill-strong)] ${FOCUS}`}
+              class={`text-[length:var(--chat-text-xs)] px-2 rounded-[var(--chat-radius-pill)] inline-flex gap-1 min-h-6 cursor-pointer pointer-events-auto [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] [color:var(--chat-accent-link)] [transition:opacity_120ms_var(--chat-ease)] items-center bottom-0 left-1/2 absolute data-[at-bottom]:opacity-0 data-[at-bottom]:invisible -translate-x-1/2 data-[at-bottom]:[transition:opacity_120ms_var(--chat-ease),visibility_0s_linear_120ms] hover:[background:var(--chat-fill-strong)] ${FOCUS}`}
             >
               <ArrowDown size={12} aria-hidden="true" />
               Latest

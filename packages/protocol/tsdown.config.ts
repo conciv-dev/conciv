@@ -15,6 +15,7 @@ export default defineConfig({
     'src/usage-types.ts',
     'src/tool-view-types.ts',
     'src/connect-ports.ts',
+    'src/state-types.ts',
   ],
   format: 'esm',
   fixedExtension: false,
