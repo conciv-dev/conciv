@@ -1355,66 +1355,72 @@ git commit -m "chore(release): wire @conciv/react + @conciv/preact into publish 
 
 ---
 
-### Task 6: Next.js app-router e2e smoke for the component path
+### Task 6: e2e component-path matrix (per-framework consumer suites)
 
-The plugin-inject path is e2e-covered (`e2e/nextjs`), but `<ConcivWidget/>` — the thing these packages exist for — would otherwise ship with zero SSR/RSC coverage. This validates: server import of a `'use client'` package doesn't break the RSC render, the banner directive is honored, the dynamic mount-impl chunk loads under Next's bundler, and there is no hydration mismatch.
+The plugin-inject path is e2e-covered per framework (`e2e/*`). `<ConcivWidget/>` gets its own matrix: one consumer app per wrapper × representative host, each with its own Playwright suite, all in `CONCIV_E2E=1` dist mode like the existing apps. Matrix:
+
+| App | Wrapper | Covers |
+| --- | --- | --- |
+| `e2e/vite-react-component` | `@conciv/react` | React CSR, vite cold-cache dist consumption |
+| `e2e/nextjs-component` | `@conciv/react` | Next app router: RSC + `'use client'` boundary, Turbopack chunking, hydration |
+| `e2e/vite-preact-component` | `@conciv/preact` | Preact CSR, vite |
 
 **Files:**
-- Create: `e2e/nextjs-component/` (copy of `e2e/nextjs` minus `node_modules`, `.next`, `test-results`)
-- Modify (within the copy): `package.json`, `instrumentation-client.ts`, `app/layout.tsx`
-- Create (within the copy): `app/conciv-widget-client.tsx`
+- Modify: `packages/protocol/src/config-types.ts` (`ConcivConfig.widget` accepts `false`), `packages/plugin/src/core/widget-middleware.ts` + `packages/plugin/src/core/vite.ts` (+ nextjs leg) — `widget: false` keeps the dev server and `pw-api-base` meta but skips the widget mount-script inject
+- Create: `e2e/vite-react-component/`, `e2e/nextjs-component/`, `e2e/vite-preact-component/` (copies of their sibling apps)
+- Modify: `e2e/e2e-utils/src/ports.ts` (three new port entries), `e2e/README.md` (three table rows)
 
 **Interfaces:**
-- Consumes: `ConcivWidget` from `@conciv/react` (Task 3); existing `@conciv/e2e-utils/widget` helpers; the `@conciv/it` nextjs plugin (kept for the dev server + `pw-api-base` meta — only the mount-script inject is replaced by the component).
-- Produces: e2e coverage of the component path; no exports.
+- Consumes: `ConcivWidget` from Tasks 3/4; `@conciv/e2e-utils` (`e2eConfig`, `E2E_PORTS`, `collectFailures`, `expectWidgetBoots`).
+- Produces: `ConcivConfig['widget']: WidgetConfig | false`; ports `'vite-react-component': 4319`, `'nextjs-component': 4320`, `'vite-preact-component': 4321`.
 
-- [ ] **Step 1: Copy the app and rewire the mount**
+- [ ] **Step 1: Plugin `widget: false`**
+
+In `packages/protocol/src/config-types.ts` change the `ConcivConfig` field to `widget?: WidgetConfig | false`. In `packages/plugin/src/core/widget-middleware.ts`, make `htmlTags`/`widgetTags` accept `WidgetConfig | false | undefined` and, when `false`, emit only the `pw-api-base` meta (no `pw-widget` meta, no `EXTENSIONS_ROUTE` script tag). Thread the type through `mountWidget`/`htmlTags` call sites in `packages/plugin/src/core/vite.ts` and the nextjs leg (`packages/plugin/src/core/nextjs.ts` / `nextjs-widget.ts` — follow the compiler errors). The component provides its own `extensions`, so the extensions-route script is not needed when `widget: false`.
+
+Run: `pnpm turbo run build --filter=@conciv/plugin --filter=@conciv/protocol && pnpm typecheck` — green before proceeding.
+
+- [ ] **Step 2: Scaffold the three apps**
+
+For each: copy the sibling app, drop caches, rename, swap the mount from inject to component.
 
 ```bash
+cp -R e2e/vite-react e2e/vite-react-component
 cp -R e2e/nextjs e2e/nextjs-component
-rm -rf e2e/nextjs-component/node_modules e2e/nextjs-component/.next e2e/nextjs-component/test-results
+cp -R e2e/vite-react e2e/vite-preact-component
+rm -rf e2e/{vite-react-component,nextjs-component,vite-preact-component}/{node_modules,.next,test-results,dist}
 ```
 
-In `e2e/nextjs-component/package.json`: change `name` to the `e2e/nextjs` name with a `-component` suffix, and add to `dependencies`:
+Common changes in each copy:
+- `package.json` `name`: sibling name + `-component`; add `"@conciv/react": "workspace:*"` (or `@conciv/preact`) and `"@conciv/extension-terminal": "workspace:*"` to `dependencies`.
+- conciv plugin config gains `widget: false` (vite config for the vite apps, `withConciv` config for next).
+- Render `<ConcivWidget extensions={extensions} />` (with `const extensions = [terminal]` module constant) at the app root: `src/App.tsx` for vite-react-component; a `'use client'` `app/conciv-widget-client.tsx` rendered from `app/layout.tsx` for nextjs-component (and delete the `import '@conciv/it/plugin/nextjs/widget'` from `instrumentation-client.ts`); `src/app.tsx` for vite-preact-component.
+- vite-preact-component additionally swaps react for preact: deps `preact` ^10.29.7 (drop react/react-dom/@types/react*/@vitejs/plugin-react), `@preact/preset-vite` devDep (or plain esbuild `jsxImportSource: 'preact'` config), entry `render(<App/>, container)` from `preact`.
+- `playwright.config.ts`: `e2eConfig('<new-app-port-key>', ...)` with the same command shape as the sibling.
+- Tests stay the sibling's `expectWidgetBoots` spec (it asserts FAB, opens the panel, fails on any page/console error — that catches hydration mismatches and broken client boundaries too).
 
-```json
-    "@conciv/react": "workspace:*",
-    "@conciv/extension-terminal": "workspace:*",
+- [ ] **Step 3: Register ports + README**
+
+Add to `E2E_PORTS` in `e2e/e2e-utils/src/ports.ts`:
+
+```ts
+  'vite-react-component': 4319,
+  'nextjs-component': 4320,
+  'vite-preact-component': 4321,
 ```
 
-In `instrumentation-client.ts`: delete the `import '@conciv/it/plugin/nextjs/widget'` line (delete the file if that was its only content and nothing references it).
+Add the three matrix rows to the `e2e/README.md` apps table, noting they cover the `@conciv/react`/`@conciv/preact` component path with `widget: false`.
 
-Create `app/conciv-widget-client.tsx`:
+- [ ] **Step 4: Run the matrix**
 
-```tsx
-'use client'
+Run: `pnpm install`, then `pnpm turbo run test:e2e --filter=conciv-e2e-vite-react-component --filter=conciv-e2e-nextjs-component --filter=conciv-e2e-vite-preact-component`
+Expected: all three PASS — widget boots from the component render, zero page errors, zero console errors. Also re-run one inject-path suite (`--filter=conciv-e2e-vite-react`) to prove `widget: false` didn't disturb the default inject behavior.
 
-import terminal from '@conciv/extension-terminal/client'
-import {ConcivWidget} from '@conciv/react'
-
-export function ConcivWidgetClient() {
-  return <ConcivWidget extensions={[terminal]} />
-}
-```
-
-In `app/layout.tsx`: render `<ConcivWidgetClient />` as the last child inside `<body>`. No `apiBase` prop — the `withConciv` next plugin still injects the `pw-api-base` meta, so the default resolution exercises the real mixed setup (plugin serves, component mounts).
-
-The Playwright spec stays byte-identical to `e2e/nextjs`'s — `expectWidgetBoots` already asserts the FAB, opens the panel, and fails on any page/console error (which is what would surface a hydration mismatch or broken client boundary).
-
-- [ ] **Step 2: Register the app per e2e conventions**
-
-Read `e2e/README.md` and mirror whatever registration `e2e/nextjs` has (workspace globs, turbo pipeline, CI matrix). Confirm `pnpm install` picks the new package up.
-
-- [ ] **Step 3: Run it**
-
-Run: `pnpm install && pnpm turbo run test:e2e --filter=<new-package-name>`
-Expected: PASS — widget boots from the component render with zero page errors and zero console errors.
-
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add e2e/nextjs-component pnpm-lock.yaml
-git commit -m "test(e2e): nextjs app-router coverage for the ConcivWidget component path" -- e2e/nextjs-component pnpm-lock.yaml
+git add e2e packages/plugin packages/protocol pnpm-lock.yaml e2e/README.md
+git commit -m "test(e2e): component-path consumer matrix for @conciv/react + @conciv/preact" -- e2e packages/plugin packages/protocol pnpm-lock.yaml
 ```
 
 ---
