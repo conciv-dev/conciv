@@ -51,7 +51,7 @@
   - `drain` sends ≤ `MAX_POST_BYTES` (1MB) per POST, looping until empty;
   - a failed send re-queues (still under the cap) and starts exponential backoff (1s doubling to 30s) instead of the fixed interval; a successful send resets cadence.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```ts
 import {describe, expect, it, vi} from 'vitest'
@@ -105,9 +105,9 @@ describe('flusher bounds', () => {
 })
 ```
 
-- [ ] **Step 2: Run — Expected: FAIL** (`pnpm turbo run test --filter=@conciv/extension-recorder`).
+- [x] **Step 2: Run — Expected: FAIL** (`pnpm turbo run test --filter=@conciv/extension-recorder`).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 import type {RrwebEvent} from '../shared/protocol.js'
@@ -228,9 +228,9 @@ export function createFlusher(opts: {
 
 (Note the interval→self-rescheduling-timeout change: backoff needs a variable delay. `dispose` fires one last best-effort drain, as today. The re-queue on failure re-enters through `enqueue`'s cap indirectly — bytes are re-added and the next `push` re-trims; that keeps failure paths capped.)
 
-- [ ] **Step 4: Run — Expected: PASS** (existing flusher tests may need the interval→timeout timing updated — adjust them to `advanceTimersByTimeAsync`, don't loosen assertions).
+- [x] **Step 4: Run — Expected: PASS** (existing flusher tests may need the interval→timeout timing updated — adjust them to `advanceTimersByTimeAsync`, don't loosen assertions).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -m "fix(recorder): cap, chunk, and back off the client flush queue" -- packages/extensions/recorder/src/client/flusher.ts packages/extensions/recorder/test/flusher.test.ts

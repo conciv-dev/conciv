@@ -40,6 +40,57 @@ describe('createFlusher', () => {
     flusher.dispose()
   })
 
+  it('drops oldest events past the byte cap but keeps the newest snapshot onward', async () => {
+    const bigEvent = (timestamp: number, bytes: number, type = 3): RrwebEvent => ({
+      type,
+      data: {blob: 'x'.repeat(bytes)},
+      timestamp,
+    })
+    const sent: unknown[][] = []
+    const flusher = createFlusher({send: async (events) => void sent.push(events)})
+    flusher.push(bigEvent(1, 5 * 1024 * 1024))
+    flusher.push(bigEvent(2, 1024, 2))
+    flusher.push(bigEvent(3, 5 * 1024 * 1024))
+    await flusher.flushNow()
+    const flat = sent.flat()
+    expect(flat.some((entry) => (entry as {timestamp: number}).timestamp === 1)).toBe(false)
+    expect(flat.some((entry) => (entry as {timestamp: number}).timestamp === 2)).toBe(true)
+    expect(flat.some((entry) => (entry as {timestamp: number}).timestamp === 3)).toBe(true)
+    flusher.dispose()
+  })
+
+  it('chunks a large queue into multiple sends', async () => {
+    const bigEvent = (timestamp: number, bytes: number): RrwebEvent => ({
+      type: 3,
+      data: {blob: 'x'.repeat(bytes)},
+      timestamp,
+    })
+    const sizes: number[] = []
+    const flusher = createFlusher({send: async (events) => void sizes.push(events.length)})
+    for (let index = 0; index < 6; index += 1) flusher.push(bigEvent(index, 400 * 1024))
+    await flusher.flushNow()
+    expect(sizes.length).toBeGreaterThan(1)
+    flusher.dispose()
+  })
+
+  it('backs off after a failed send and recovers', async () => {
+    const outcomes = [Promise.reject(new Error('down')), Promise.resolve()]
+    for (const outcome of outcomes) outcome.catch(() => {})
+    const attempts: number[] = []
+    const flusher = createFlusher({
+      send: (events) => {
+        attempts.push(events.length)
+        return outcomes.shift() ?? Promise.resolve()
+      },
+    })
+    flusher.push(event(1))
+    await flusher.flushNow().catch(() => {})
+    expect(attempts.length).toBe(1)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(attempts.length).toBe(2)
+    flusher.dispose()
+  })
+
   it('requeues the batch when send rejects and retries on the next tick', async () => {
     let fail = true
     const sent: RrwebEvent[][] = []
