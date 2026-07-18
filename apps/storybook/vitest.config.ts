@@ -25,7 +25,7 @@ export default defineConfig({
                 browser: 'chromium',
                 launch: {
                   channel: 'chrome',
-                  args: ['--disable-dev-shm-usage', '--js-flags=--max-old-space-size=4096'],
+                  args: ['--disable-dev-shm-usage', '--js-flags=--max-old-space-size=4096', '--enable-logging=stderr'],
                 },
               },
             ],

@@ -75,7 +75,7 @@ jobs:
             let ps = fs.readFileSync(pf, "utf8")
             const pageAnchor = "const page = await context.newPage();"
             if (!ps.includes(pageAnchor)) { console.error("PW ANCHOR NOT FOUND in " + d); continue }
-            ps = ps.replace(pageAnchor, pageAnchor + "\n\t\tpage.on(\"framenavigated\", (fr) => { if (!fr.parentFrame()) console.error(`[sbdebug-pw] ${Date.now()} framenavigated session=${sessionId} url=${fr.url()}`) });\n\t\tpage.on(\"close\", () => console.error(`[sbdebug-pw] ${Date.now()} page-close session=${sessionId}`));\n\t\tpage.on(\"crash\", () => console.error(`[sbdebug-pw] ${Date.now()} page-CRASH session=${sessionId}`));\n\t\tpage.on(\"console\", (m) => { const t = m.text(); if (t.includes(\"sbdebug-client\") || t.includes(\"[vite]\")) console.error(`[sbdebug-pw] ${Date.now()} console session=${sessionId} ${t.slice(0, 160)}`) });")
+            ps = ps.replace(pageAnchor, pageAnchor + "\n\t\tpage.on(\"framenavigated\", (fr) => { if (!fr.parentFrame()) console.error(`[sbdebug-pw] ${Date.now()} framenavigated session=${sessionId} url=${fr.url()}`) });\n\t\tpage.on(\"framedetached\", (fr) => console.error(`[sbdebug-pw] ${Date.now()} framedetached session=${sessionId} url=${fr.url()}`));\n\t\tpage.on(\"close\", () => console.error(`[sbdebug-pw] ${Date.now()} page-close session=${sessionId}`));\n\t\tpage.on(\"crash\", () => console.error(`[sbdebug-pw] ${Date.now()} page-CRASH session=${sessionId}`));\n\t\tpage.on(\"console\", (m) => { const t = m.text(); if (t.includes(\"sbdebug-client\") || t.includes(\"[vite]\")) console.error(`[sbdebug-pw] ${Date.now()} console session=${sessionId} ${t.slice(0, 160)}`) });")
             fs.writeFileSync(pf, ps)
             console.error("PW_PATCH_APPLIED " + d)
           }
@@ -90,6 +90,8 @@ jobs:
           done > /tmp/ps.log 2>&1) &
           echo $! > /tmp/sampler.pid
       - run: pnpm exec turbo run typecheck lint test --filter='./apps/storybook' --concurrency=3 --env-mode=loose
+        env:
+          DEBUG: pw:browser
       - name: post-mortem
         if: always()
         run: |
