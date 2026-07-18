@@ -82,7 +82,7 @@ export function mountLivePlayer(
       events: playerEvents.parse(events),
       autoPlay: false,
       liveMode: true,
-      showController: false,
+      showController: true,
     },
   })
   demoteInjectedStyles(scope, known)

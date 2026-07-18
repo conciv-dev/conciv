@@ -42,11 +42,18 @@ function RecorderPanel(): JSX.Element {
     const clientId = store.clientId()
     return clientId ? {clientId} : {}
   }
+  const hasReplay = (data: {events: RrwebEvent[]} | undefined): boolean => (data?.events?.length ?? 0) >= 2
   const recording = useQuery(() => ({
     ...utils.window.queryOptions({input: pinned()}),
     enabled: presenceReady() === true,
+    refetchInterval: (query: {state: {data?: {events: RrwebEvent[]}}}) =>
+      hasReplay(query.state.data) ? false : 1000,
   }))
-  const log = useQuery(() => utils.log.queryOptions({input: pinned()}))
+  const log = useQuery(() => ({
+    ...utils.log.queryOptions({input: pinned()}),
+    refetchInterval: (query: {state: {data?: {entries: unknown[]}}}) =>
+      (query.state.data?.entries?.length ?? 0) > 0 ? false : 1000,
+  }))
   const reset = useMutation(() =>
     utils.reset.mutationOptions({
       onSuccess: () => queryClient.invalidateQueries(),
