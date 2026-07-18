@@ -1,6 +1,6 @@
 {
   "name": "@conciv/try",
-  "version": "0.0.12",
+  "version": "0.0.13",
   "description": "Try conciv live on conciv.dev with the agent already on your machine: `npx @conciv/try --token <token>` boots a token-gated, loopback-only conciv core powered by your own agent.",
   "keywords": [
     "ai-agent",

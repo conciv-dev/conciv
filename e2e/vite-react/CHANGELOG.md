@@ -1,5 +1,12 @@
 # conciv-e2e-vite-react
 
+## 0.0.5
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/it@0.0.13
+
 ## 0.0.4
 
 ### Patch Changes
