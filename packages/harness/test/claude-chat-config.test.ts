@@ -62,7 +62,7 @@ describe('claudeChatConfig', () => {
     expect(prepared?.at(-1)).toEqual({role: 'user', content: '/compact'})
   })
 
-  it('writes image parts to @path fileRefs under cwd', () => {
+  it('writes image parts to @path fileRefs inside .conciv/tmp, never the workspace root', () => {
     const dir = mkdtempSync(join(tmpdir(), 'claude-chat-'))
     const config = claudeChatConfig(deps({cwd: dir}))
     const pixel = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
@@ -80,9 +80,11 @@ describe('claudeChatConfig', () => {
       last && Array.isArray(last.content)
         ? last.content.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join('\n')
         : ''
-    const written = readdirSync(dir).filter((name) => name.startsWith('.conciv-img-'))
+    expect(readdirSync(dir).filter((name) => name.startsWith('.conciv-img-'))).toHaveLength(0)
+    const tmpDir = join(dir, '.conciv', 'tmp')
+    const written = readdirSync(tmpDir).filter((name) => name.startsWith('img-'))
     expect(written).toHaveLength(1)
-    expect(text).toContain(`@${join(dir, written[0] ?? '')}`)
-    expect(readFileSync(join(dir, written[0] ?? '')).toString('base64')).toBe(pixel)
+    expect(text).toContain(`@${join(tmpDir, written[0] ?? '')}`)
+    expect(readFileSync(join(tmpDir, written[0] ?? '')).toString('base64')).toBe(pixel)
   })
 })

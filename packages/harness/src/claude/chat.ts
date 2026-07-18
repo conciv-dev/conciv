@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto'
-import {writeFileSync} from 'node:fs'
+import {mkdirSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import type {ModelMessage} from '@tanstack/ai'
 import {claudeCodeText} from '@tanstack/ai-claude-code'
@@ -23,10 +23,12 @@ const IMAGE_EXT: Record<string, string> = {
 }
 
 export function imageRefs(images: HarnessImage[], cwd: string): string {
+  const tmpDir = join(cwd, '.conciv', 'tmp')
+  mkdirSync(tmpDir, {recursive: true})
   return images
     .map((img) => {
       const ext = IMAGE_EXT[img.mediaType] ?? 'png'
-      const path = join(cwd, `.conciv-img-${randomUUID()}.${ext}`)
+      const path = join(tmpDir, `img-${randomUUID()}.${ext}`)
       writeFileSync(path, Buffer.from(img.dataBase64, 'base64'))
       return `@${path}`
     })
