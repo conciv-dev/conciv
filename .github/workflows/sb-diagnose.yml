@@ -67,11 +67,61 @@ jobs:
             let ps = fs.readFileSync(pf, "utf8")
             const pageAnchor = "const page = await context.newPage();"
             if (!ps.includes(pageAnchor)) { console.error("PW ANCHOR NOT FOUND in " + d); continue }
-            ps = ps.replace(pageAnchor, pageAnchor + "\n\t\tpage.on(\"framenavigated\", (fr) => { if (!fr.parentFrame()) console.error(`[sbdebug-pw] ${Date.now()} framenavigated session=${sessionId} url=${fr.url()}`) });\n\t\tpage.on(\"framedetached\", (fr) => console.error(`[sbdebug-pw] ${Date.now()} framedetached session=${sessionId} url=${fr.url()}`));\n\t\tpage.on(\"close\", () => console.error(`[sbdebug-pw] ${Date.now()} page-close session=${sessionId}`));\n\t\tpage.on(\"crash\", () => console.error(`[sbdebug-pw] ${Date.now()} page-CRASH session=${sessionId}`));\n\t\tpage.on(\"console\", (m) => { const t = m.text(); if (t.includes(\"sbdebug-client\") || t.includes(\"[vite]\")) console.error(`[sbdebug-pw] ${Date.now()} console session=${sessionId} ${t.slice(0, 160)}`) });")
+            ps = ps.replace(pageAnchor, pageAnchor + "\n\t\tawait page.addInitScript(() => { const log = (e) => console.error(`[sbdebug-doc] ${Date.now()} ${e} ${location.href.slice(0, 120)}`); addEventListener(\"pagehide\", () => log(\"pagehide\")); addEventListener(\"beforeunload\", () => log(\"beforeunload\")) });\n\t\tpage.on(\"framenavigated\", (fr) => { if (!fr.parentFrame()) console.error(`[sbdebug-pw] ${Date.now()} framenavigated session=${sessionId} url=${fr.url()}`) });\n\t\tpage.on(\"framedetached\", (fr) => console.error(`[sbdebug-pw] ${Date.now()} framedetached session=${sessionId} url=${fr.url()}`));\n\t\tpage.on(\"close\", () => console.error(`[sbdebug-pw] ${Date.now()} page-close session=${sessionId}`));\n\t\tpage.on(\"crash\", () => console.error(`[sbdebug-pw] ${Date.now()} page-CRASH session=${sessionId}`));\n\t\tpage.on(\"console\", (m) => { const t = m.text(); if (t.includes(\"sbdebug-\") || t.includes(\"[vite]\")) console.error(`[sbdebug-pw] ${Date.now()} console session=${sessionId} ${t.slice(0, 160)}`) });")
             fs.writeFileSync(pf, ps)
             console.error("PW_PATCH_APPLIED " + d)
           }
           '
+      - name: write node hook
+        run: |
+          cat > /tmp/sbdebug-hook.cjs <<'EOF'
+          const http = require('node:http')
+          const stack = () => new Error('x').stack.split('\n').slice(2, 8).join(' | ')
+          const wrap = (proto, name) => {
+            const orig = proto[name]
+            if (!orig) return
+            proto[name] = function (...args) {
+              console.error(`[sbdebug-srv] ${Date.now()} ${name} called | ${stack()}`)
+              return orig.apply(this, args)
+            }
+          }
+          wrap(http.Server.prototype, 'closeAllConnections')
+          wrap(http.Server.prototype, 'closeIdleConnections')
+          const origClose = http.Server.prototype.close
+          http.Server.prototype.close = function (...args) {
+            console.error(`[sbdebug-srv] ${Date.now()} http-server-close | ${stack()}`)
+            return origClose.apply(this, args)
+          }
+          try {
+            const fs = require('node:fs')
+            const pathMod = require('node:path')
+            let root = process.cwd()
+            while (root !== '/' && !fs.existsSync(pathMod.join(root, 'node_modules/.pnpm'))) root = pathMod.dirname(root)
+            const store = pathMod.join(root, 'node_modules/.pnpm')
+            const wsDir = fs.readdirSync(store).find((d) => d.startsWith('ws@'))
+            const { WebSocket } = require(pathMod.join(store, wsDir, 'node_modules/ws/index.js'))
+            const origWsClose = WebSocket.prototype.close
+            const origWsTerminate = WebSocket.prototype.terminate
+            WebSocket.prototype.close = function (code, reason) {
+              console.error(`[sbdebug-srv] ${Date.now()} ws-server-close code=${code} | ${stack()}`)
+              return origWsClose.call(this, code, reason)
+            }
+            WebSocket.prototype.terminate = function () {
+              console.error(`[sbdebug-srv] ${Date.now()} ws-server-terminate | ${stack()}`)
+              return origWsTerminate.call(this)
+            }
+          } catch (e) {
+            console.error('[sbdebug-srv] ws patch failed: ' + e.message)
+          }
+          let last = Date.now()
+          setInterval(() => {
+            const now = Date.now()
+            const lag = now - last - 1000
+            if (lag > 3000) console.error(`[sbdebug-srv] ${now} EVENT-LOOP-STALL ${lag}ms`)
+            last = now
+          }, 1000).unref()
+          EOF
+          echo hook written
       - name: memory sampler
         run: |
           (while true; do
@@ -84,6 +134,7 @@ jobs:
       - run: pnpm exec turbo run typecheck lint test --filter='./apps/storybook' --concurrency=3 --env-mode=loose
         env:
           DEBUG: pw:browser
+          NODE_OPTIONS: --require /tmp/sbdebug-hook.cjs
       - name: post-mortem
         if: always()
         run: |
