@@ -1,4 +1,5 @@
-import {join} from 'node:path'
+import {dirname, join} from 'node:path'
+import {readdirSync} from 'node:fs'
 import type {Plugin, ViteDevServer} from 'vite'
 import {defineBundlerBridge, type BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {Engine} from '@conciv/core/start'
@@ -74,6 +75,17 @@ async function bootEngine(
   })
 }
 
+function embedChunks(embedEntry: string): string[] {
+  const dir = dirname(embedEntry)
+  try {
+    return readdirSync(dir)
+      .filter((name) => /^mount-impl.*\.js$/.test(name))
+      .map((name) => join(dir, name))
+  } catch {
+    return []
+  }
+}
+
 export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO_BUILTINS): Plugin {
   let engine: Engine | null = null
   let apiBase: string | undefined
@@ -85,11 +97,13 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
     apply: 'serve',
     enforce: 'pre',
     config(userConfig) {
-      const embedFiles = builtins.embedEntry === undefined ? [] : [builtins.embedEntry]
-      return concivSolidConfig({
+      const embedFiles = builtins.embedEntry === undefined ? [] : [builtins.embedEntry, ...embedChunks(builtins.embedEntry)]
+      const base = concivSolidConfig({
         root: userConfig.root ?? process.cwd(),
         warmupFiles: [...embedFiles, ...builtins.clientEntries],
       })
+      base.optimizeDeps.exclude.push('@conciv/embed')
+      return base
     },
     configEnvironment(_name, environmentConfig) {
       dropIncludedFromExcludes(environmentConfig.optimizeDeps)
