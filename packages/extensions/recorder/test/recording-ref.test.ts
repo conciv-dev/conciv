@@ -10,9 +10,9 @@ import {
 const ref = {recordingId: 'r1', poster: 'Screen recording · 2 actions · 42s'}
 
 describe('recording ref', () => {
-  it('round-trips through the framework encoding (File JSON -> base64 document value)', () => {
-    const fileText = recordingRefJson(ref)
-    const documentValue = btoa(fileText)
+  it('round-trips through the framework encoding (File utf-8 bytes -> base64 document value)', () => {
+    const bytes = new TextEncoder().encode(recordingRefJson(ref))
+    const documentValue = btoa(String.fromCharCode(...bytes))
     expect(decodeRecordingRef(documentValue)).toEqual(ref)
   })
   it('parses raw file text for the pending-composer path', () => {

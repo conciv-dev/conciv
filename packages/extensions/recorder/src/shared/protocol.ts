@@ -28,7 +28,7 @@ export type ActionLogEntry = {ts: number; kind: ActionLogKind; detail: string}
 
 export const RECORDER_MIME = 'application/x-conciv-recorder'
 
-export const RecordingRefSchema = z.object({recordingId: z.string().min(1), poster: z.string()})
+const RecordingRefSchema = z.object({recordingId: z.string().min(1), poster: z.string()})
 export type RecordingRef = z.infer<typeof RecordingRefSchema>
 
 export function recordingRefJson(ref: RecordingRef): string {
@@ -46,7 +46,8 @@ export function parseRecordingRefJson(json: string): RecordingRef | null {
 
 export function decodeRecordingRef(value: string): RecordingRef | null {
   try {
-    return parseRecordingRefJson(atob(value))
+    const bytes = Uint8Array.from(atob(value), (char) => char.charCodeAt(0))
+    return parseRecordingRefJson(new TextDecoder().decode(bytes))
   } catch {
     return null
   }

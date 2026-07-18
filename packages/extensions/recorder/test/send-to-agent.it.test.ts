@@ -1,22 +1,7 @@
-import {fileURLToPath} from 'node:url'
-import {afterAll, beforeAll, describe, expect, it} from 'vitest'
-import {getExtensionTestApi, type ExtensionTestApi} from '@conciv/extension-testkit'
-import recorderServer from '../src/server.js'
+import {describe, expect, it} from 'vitest'
+import {useRecorderTestApi} from './helpers/test-api.js'
 
-const clientEntry = fileURLToPath(new URL('../src/client.tsx', import.meta.url))
-
-const ctx: {api?: ExtensionTestApi} = {}
-
-beforeAll(async () => {
-  ctx.api = await getExtensionTestApi({server: recorderServer, clientEntry})
-}, 120_000)
-
-afterAll(async () => ctx.api?.dispose())
-
-function api(): ExtensionTestApi {
-  if (!ctx.api) throw new Error('testkit not booted')
-  return ctx.api
-}
+const api = useRecorderTestApi()
 
 describe('send to agent (real browser, real store)', () => {
   it('saves the recording and attaches the real card chip, not a txt note', async () => {

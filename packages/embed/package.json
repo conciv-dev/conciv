@@ -59,6 +59,7 @@
   },
   "devDependencies": {
     "@conciv/core": "workspace:^",
+    "@conciv/extension-recorder": "workspace:^",
     "@conciv/extension-terminal": "workspace:^",
     "@conciv/harness-testkit": "workspace:^",
     "@conciv/page": "workspace:^",

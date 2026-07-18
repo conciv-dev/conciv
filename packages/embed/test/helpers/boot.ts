@@ -1,9 +1,10 @@
 import {createFakeHarness, createTestkit, type FakeHarness, type Kit} from '@conciv/harness-testkit'
 import {makeApp} from '@conciv/core/app'
+import type {AnyExtension} from '@conciv/extension'
 
 export type EmbedKit = Kit & {harness: FakeHarness}
 
-export async function bootEmbedKit(opts: {text?: string} = {}): Promise<EmbedKit> {
+export async function bootEmbedKit(opts: {text?: string; extensions?: AnyExtension[]} = {}): Promise<EmbedKit> {
   const harness = createFakeHarness({id: 'fake-embed', text: opts.text ?? 'Hello from conciv'})
   const kit = await createTestkit(harness, async (env) => {
     const {app, disposers} = await makeApp({
@@ -20,6 +21,7 @@ export async function bootEmbedKit(opts: {text?: string} = {}): Promise<EmbedKit
       cwd: env.cwd,
       openInEditor: () => {},
       harness: env.harness,
+      extensions: opts.extensions,
     })
     return {
       fetch: app.fetch,

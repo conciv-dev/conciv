@@ -1,24 +1,7 @@
-import {mkdtempSync} from 'node:fs'
-import {tmpdir} from 'node:os'
-import {join} from 'node:path'
 import {describe, expect, it} from 'vitest'
 import {call} from '@orpc/server'
 import {makeRecorderRouter} from '../src/server.js'
-import {createEventRing} from '../src/server/ring.js'
-import {createCaptureControl} from '../src/server/capture-control.js'
-import {createRecordingStore} from '../src/server/recordings.js'
-import type {RecorderRuntime} from '../src/server/runtime.js'
-
-function runtimeFixture(): RecorderRuntime {
-  const ring = createEventRing({windowMs: 60_000})
-  return {
-    ring,
-    control: createCaptureControl(ring),
-    config: {masking: 'none', windowMinutes: 10, console: true},
-    renderer: async () => null,
-    recordings: createRecordingStore(mkdtempSync(join(tmpdir(), 'rec-'))),
-  }
-}
+import {runtimeFixture} from './helpers/runtime-fixture.js'
 
 describe('recordings router', () => {
   it('saves the ring window and round-trips events by id', async () => {

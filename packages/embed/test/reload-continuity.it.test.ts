@@ -1,7 +1,8 @@
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
-import {chromium, type Browser, type Page} from 'playwright'
+import {chromium, type Browser} from 'playwright'
 import {bootEmbedKit, type EmbedKit} from './helpers/boot.js'
 import {hostPage, serveHost} from './helpers/host.js'
+import {openPanel} from './helpers/panel.js'
 
 const ASSISTANT_TEXT = 'Continuity reply'
 
@@ -20,13 +21,6 @@ afterAll(async () => {
   await host.close()
   await kit.cleanup()
 })
-
-async function openPanel(page: Page): Promise<void> {
-  await page.getByRole('button', {name: 'Open conciv chat'}).click()
-  await expect
-    .poll(() => page.getByRole('textbox', {name: 'Message the conciv agent'}).isVisible(), {timeout: 15_000})
-    .toBe(true)
-}
 
 describe('reload continuity through the db-backed navigation row', () => {
   it('restores the open panel route, the transcript, and the draft after a reload', async () => {

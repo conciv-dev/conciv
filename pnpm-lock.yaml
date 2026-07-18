@@ -1179,6 +1179,9 @@ importers:
       '@conciv/core':
         specifier: workspace:^
         version: link:../core
+      '@conciv/extension-recorder':
+        specifier: workspace:^
+        version: link:../extensions/recorder
       '@conciv/extension-terminal':
         specifier: workspace:^
         version: link:../extensions/terminal

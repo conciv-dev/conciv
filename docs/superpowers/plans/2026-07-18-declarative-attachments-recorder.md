@@ -1015,16 +1015,16 @@ git commit -m "feat(recorder): send-to-agent saves + attaches the recording, toa
 
 **Why here:** the extension-testkit host has no composer/thread; the embed IT harness is the real widget (composer + transcript) over a real core (`makeApp`) with a fake harness whose `__turnMessages` captures exactly what the model receives, plus `kit.rpc.navigation.set` deep-linking (`embed.it.test.ts` precedent). The prebuilt global bundle is a self-contained iife (terminal client is bundled the same way — one module graph, no context-split risk), and turbo's `test` → `dependsOn: build` rebuilds it before ITs.
 
-- [ ] **Step 1: Write the failing test** — fixture entry becomes `mountConciv([terminal, recorder])` (recorder client import mirroring how `@conciv/it` imports it); boot `bootEmbedKit({extensions: [recorderServer]})`. With `browser.newPage()` (never `newContext()`; wait on `domcontentloaded`/UI signals, never `networkidle`):
+- [x] **Step 1: Write the failing test** — fixture entry becomes `mountConciv([terminal, recorder])` (recorder client import mirroring how `@conciv/it` imports it); boot `bootEmbedKit({extensions: [recorderServer]})`. With `browser.newPage()` (never `newContext()`; wait on `domcontentloaded`/UI signals, never `networkidle`):
   - interact with the host page body to produce rrweb events;
   - `kit.rpc.navigation.set` → `/panel/<session>/recorder`, open the widget, click **Send to agent**;
   - composer chip shows the recording card (poster text visible), no `recording.txt` chip;
   - send a message; wait for the fake-harness turn; assert `kit.harness.__turnMessages`: user content contains the action-log text and NO document part (keyframe images asserted **tolerantly** — present only when the Chromium renderer is available, `(keyframes skipped…)` note otherwise);
   - transcript shows the card (poster + Play); the log text is NOT visible as user text; no `<img>` from modelOnly keyframes;
   - reload the page → card still in the transcript (durable fold → attach merge).
-- [ ] **Step 2: Run — Expected: FAIL** (`pnpm turbo run test --filter=@conciv/embed`), fix gaps in the owning task's files, re-run to PASS. Existing embed ITs must stay green with recorder now in the bundle.
-- [ ] **Step 3: Gates:** `pnpm typecheck`; `pnpm turbo run test --force`; `pnpm exec fallow audit --changed-since main --format json` — confirm the old `.txt` sendToAgent path, `encodeRecordingRef` (never created — verify no strays), and moved panel helpers have no dead remnants.
-- [ ] **Step 4: Commit**
+- [x] **Step 2: Run — Expected: FAIL** (`pnpm turbo run test --filter=@conciv/embed`), fix gaps in the owning task's files, re-run to PASS. Existing embed ITs must stay green with recorder now in the bundle.
+- [x] **Step 3: Gates:** `pnpm typecheck`; `pnpm turbo run test --force`; `pnpm exec fallow audit --changed-since main --format json` — confirm the old `.txt` sendToAgent path, `encodeRecordingRef` (never created — verify no strays), and moved panel helpers have no dead remnants.
+- [x] **Step 4: Commit**
 
 ```bash
 git commit -m "test(embed): end-to-end recording attachment in the real widget (compose/send/reload)" -- packages/embed/test/fixtures/global-entry.ts packages/embed/package.json packages/embed/test/helpers/boot.ts packages/embed/test/recording-attachment.it.test.ts
