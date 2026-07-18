@@ -2,7 +2,11 @@ import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {createRendererCache} from '../src/server/renderer-cache.js'
 import type {KeyframeRenderer} from '../src/server/render.js'
 
-const fakeRenderer = (): KeyframeRenderer => ({render: async () => [], dispose: async () => {}})
+const fakeRenderer = (): KeyframeRenderer => ({
+  render: async () => [],
+  renderVideo: async () => null,
+  dispose: async () => {},
+})
 
 describe('renderer cache', () => {
   beforeEach(() => vi.useFakeTimers())

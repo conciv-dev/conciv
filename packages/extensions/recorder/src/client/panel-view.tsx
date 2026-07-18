@@ -6,6 +6,7 @@ import {Button} from '@conciv/ui-kit-system'
 import {RECORDER_MIME, RECORDER_NAME, recordingPoster, recordingRefJson, type RrwebEvent} from '../shared/protocol.js'
 import type {RecorderRouter} from '../server.js'
 import {mountStreamPlayer, type StreamPlayerHandle} from './player.js'
+import {saveFileToDisk} from './download.js'
 import {RecorderErrorNotice, RecorderNotice} from './notices.js'
 import {useRecorderContext} from './recorder-context.js'
 
@@ -79,6 +80,21 @@ function RecorderPanel(): JSX.Element {
   }
 
   const save = useMutation(() => utils.recordings.save.mutationOptions())
+  const exportVideo = useMutation(() => utils.recordings.exportVideo.mutationOptions())
+
+  const downloadVideo = async (): Promise<void> => {
+    const saved = await save.mutateAsync(pinned()).catch(() => null)
+    if (!saved || 'error' in saved) {
+      toast('Could not export the recording — try again.')
+      return
+    }
+    const video = await exportVideo.mutateAsync({recordingId: saved.recordingId}).catch(() => null)
+    if (!(video instanceof File)) {
+      toast('Could not export the recording — try again.')
+      return
+    }
+    saveFileToDisk(video)
+  }
 
   const sendToAgent = async (): Promise<void> => {
     const entries = log.data?.entries ?? []
@@ -112,6 +128,14 @@ function RecorderPanel(): JSX.Element {
                       onClick={() => reset.mutate(undefined)}
                     >
                       New recording
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={exportVideo.isPending || save.isPending}
+                      onClick={() => void downloadVideo()}
+                    >
+                      {exportVideo.isPending ? 'Exporting…' : 'Export video'}
                     </Button>
                     <div class="ml-auto flex gap-2 items-center">
                       <Show

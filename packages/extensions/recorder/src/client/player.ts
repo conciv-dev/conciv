@@ -1,4 +1,3 @@
-import {type Accessor} from 'solid-js'
 import {z} from 'zod'
 import type {eventWithTime} from '@rrweb/types'
 import playerCss from 'rrweb-player/dist/style.css?inline'
@@ -6,7 +5,6 @@ import rrwebCss from 'rrweb/dist/style.css?inline'
 import themeCss from './player-theme.css?inline'
 import Player from 'rrweb-player'
 import {RrwebEventSchema, type RrwebEvent} from '../shared/protocol.js'
-import {computeIdleSpans, idleSpanAt} from './inactivity.js'
 
 const playerEvent = z.custom<eventWithTime>()
 const playerEvents = z.array(playerEvent)
@@ -16,7 +14,6 @@ function detachEvents(events: RrwebEvent[]): RrwebEvent[] {
 }
 const metaSize = z.object({width: z.number(), height: z.number()})
 const controllerTime = z.object({payload: z.number()})
-const controllerState = z.object({payload: z.string()})
 
 const FALLBACK_WIDTH = 620
 const FALLBACK_ASPECT = 0.62
@@ -35,23 +32,6 @@ function playerSize(container: HTMLDivElement, aspect: number): {width: number; 
   const frameBudget = Math.max(availableHeight - PLAYER_CONTROLLER_HEIGHT, MIN_FRAME_HEIGHT)
   const width = Math.min(availableWidth, Math.round(frameBudget / aspect))
   return {width, height: Math.round(width * aspect)}
-}
-
-function skipIdlePlayback(player: Player, events: RrwebEvent[], skipIdle: Accessor<boolean>): void {
-  const spans = computeIdleSpans(events)
-  if (!spans.length) return
-  let playing = false
-  player.addEventListener('ui-update-player-state', (payload) => {
-    const parsed = controllerState.safeParse(payload)
-    playing = parsed.success && parsed.data.payload === 'playing'
-  })
-  player.addEventListener('ui-update-current-time', (payload) => {
-    if (!playing || !skipIdle()) return
-    const parsed = controllerTime.safeParse(payload)
-    if (!parsed.success) return
-    const span = idleSpanAt(spans, parsed.data.payload)
-    if (span) player.goto(span.endMs, true)
-  })
 }
 
 function styleScope(container: HTMLDivElement): Document | ShadowRoot {
@@ -240,7 +220,7 @@ export function mountStreamPlayer(
   }
 }
 
-export function mountPlayer(container: HTMLDivElement, events: RrwebEvent[], skipIdle: Accessor<boolean>): () => void {
+export function mountPlayer(container: HTMLDivElement, events: RrwebEvent[]): () => void {
   const {scope, known} = injectPlayerStyles(container)
   const detached = detachEvents(events)
   const aspect = recordedAspect(detached)
@@ -250,7 +230,6 @@ export function mountPlayer(container: HTMLDivElement, events: RrwebEvent[], ski
   })
   demoteInjectedStyles(scope, known)
   enhanceControllerAccess(container, player)
-  skipIdlePlayback(player, detached, skipIdle)
   const stopResize = observeContainerSize(
     container,
     (size) => {

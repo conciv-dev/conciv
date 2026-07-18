@@ -1,5 +1,5 @@
 import {Match, Show, Switch, createResource, createSignal, onCleanup, type JSX} from 'solid-js'
-import {QueryClient, QueryClientProvider, useQuery} from '@tanstack/solid-query'
+import {QueryClient, QueryClientProvider, useMutation, useQuery} from '@tanstack/solid-query'
 import {createTanstackQueryUtils} from '@orpc/tanstack-query'
 import {getHostApi, makeExtRpcClient} from '@conciv/extension'
 import {useAttachment} from '@conciv/ui-kit-chat'
@@ -13,6 +13,7 @@ import {
 } from '../shared/protocol.js'
 import type {RecorderRouter} from '../server.js'
 import {mountPlayer} from './player.js'
+import {saveFileToDisk} from './download.js'
 import {RecorderErrorNotice, RecorderNotice} from './notices.js'
 
 type AttachmentState = ReturnType<typeof useAttachment>
@@ -38,6 +39,7 @@ function CardBody(): JSX.Element {
   const attachment = useAttachment()
   const host = getHostApi()
   const apiBase = host.useApiBase()
+  const toast = host.useToast()
   const Dialog = host.useDialog()
   const utils = createTanstackQueryUtils(makeExtRpcClient<RecorderRouter>(apiBase, RECORDER_NAME))
   const [ref] = createResource(() => resolveRef(attachment))
@@ -52,7 +54,18 @@ function CardBody(): JSX.Element {
   }
   const expired = (): boolean => Boolean(recording.data && 'expired' in recording.data)
   const play = (playable: RrwebEvent[]) => (container: HTMLDivElement) => {
-    onCleanup(mountPlayer(container, playable, () => true))
+    onCleanup(mountPlayer(container, playable))
+  }
+  const exportVideo = useMutation(() => utils.recordings.exportVideo.mutationOptions())
+  const downloadVideo = async (): Promise<void> => {
+    const recordingId = ref()?.recordingId
+    if (!recordingId) return
+    const video = await exportVideo.mutateAsync({recordingId}).catch(() => null)
+    if (!(video instanceof File)) {
+      toast('Could not export the recording — try again.')
+      return
+    }
+    saveFileToDisk(video)
   }
   return (
     <div class="p-2 border border-pw-line rounded-pw-md bg-pw-fill flex gap-2 min-w-55 items-center overflow-hidden">
@@ -63,9 +76,18 @@ function CardBody(): JSX.Element {
       <Dialog open={open()} onOpenChange={setOpen} dismissable size="xl" layer="inline" label="Screen recording replay">
         <Show when={open()}>
           <div class="flex flex-col gap-2">
-            <div class="flex items-center">
+            <div class="flex gap-2 items-center">
               <RecorderNotice text={ref()?.poster ?? 'Screen recording'} />
-              <Button class="ml-auto" variant="ghost" size="sm" onClick={() => setOpen(false)}>
+              <Button
+                class="ml-auto"
+                variant="ghost"
+                size="sm"
+                disabled={exportVideo.isPending}
+                onClick={() => void downloadVideo()}
+              >
+                {exportVideo.isPending ? 'Exporting…' : 'Export video'}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
                 Close
               </Button>
             </div>

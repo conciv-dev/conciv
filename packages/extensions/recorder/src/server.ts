@@ -71,6 +71,17 @@ export function makeRecorderRouter(runtime: RecorderRuntime) {
         const events = await runtime.recordings.get(input.recordingId)
         return events ? {events} : {expired: true as const}
       }),
+      exportVideo: recorderOs
+        .input(z.object({recordingId: z.string()}))
+        .output(z.union([z.instanceof(File), z.object({error: z.enum(['expired', 'render-failed'])})]))
+        .handler(async ({input}) => {
+          const events = await runtime.recordings.get(input.recordingId)
+          if (!events) return {error: 'expired'}
+          const renderer = await runtime.renderer().catch(() => null)
+          const video = renderer ? await renderer.renderVideo(events).catch(() => null) : null
+          if (!video) return {error: 'render-failed'}
+          return new File([new Uint8Array(video)], 'recording.webm', {type: 'video/webm'})
+        }),
     }),
     control: recorderOs.output(eventIterator(RecorderControlSchema)).handler(async function* ({signal}) {
       yield* subscriptionIterator((emit) => runtime.control.subscribe(emit), signal)
