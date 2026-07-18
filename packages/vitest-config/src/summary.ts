@@ -287,7 +287,7 @@ function toCaseResult(value: unknown): CaseResult {
     status: toCaseStatus(record.status),
     durationMs: asNumber(record.durationMs),
     retries: asNumber(record.retries),
-    message: asString(record.message),
+    message: stripVTControlCharacters(asString(record.message)),
   }
 }
 
@@ -345,6 +345,10 @@ function escapeHtml(text: string): string {
   return text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
 }
 
+function inlineText(text: string): string {
+  return escapeHtml(text).replaceAll(/\s+/gu, ' ').trim()
+}
+
 function seconds(timeMs: number): string {
   return `${(timeMs / 1000).toFixed(1)}s`
 }
@@ -394,13 +398,13 @@ function failureBody(message: string): string {
 function failureSection(summary: PackageSummary): string[] {
   return failuresOf(summary).map(
     (failure) =>
-      `<details>\n<summary>❌ <code>${escapeHtml(summary.name)}</code> ${escapeHtml(failure.test)}</summary>\n\n${fencedBlock(failureBody(failure.message))}\n\n</details>`,
+      `<details>\n<summary>❌ <code>${inlineText(summary.name)}</code> ${inlineText(failure.test)}</summary>\n\n${fencedBlock(failureBody(failure.message))}\n\n</details>`,
   )
 }
 
 function caseRows(entry: CaseResult): string[] {
   const cells = [
-    escapeHtml(entry.title),
+    inlineText(entry.title),
     `${CASE_ICONS[entry.status]} ${entry.status}`,
     seconds(entry.durationMs),
     blankIfZero(entry.retries),
@@ -417,7 +421,7 @@ function detailsLabel(summary: PackageSummary): string {
     ...(summary.flaky > 0 ? [`${summary.flaky} flaky`] : []),
     ...(summary.skipped > 0 ? [`${summary.skipped} skipped`] : []),
   ]
-  return `${packageIcon(summary)} <code>${escapeHtml(summary.name)}</code> · ${counts.join(' · ')} · ${seconds(summary.timeMs)}`
+  return `${packageIcon(summary)} <code>${inlineText(summary.name)}</code> · ${counts.join(' · ')} · ${seconds(summary.timeMs)}`
 }
 
 function detailsSection(summary: PackageSummary): string {

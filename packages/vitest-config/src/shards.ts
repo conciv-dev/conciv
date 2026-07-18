@@ -36,7 +36,8 @@ function readPackage(dir: string): WorkspacePackage | null {
   const manifestPath = join(dir, 'package.json')
   if (!existsSync(manifestPath)) return null
   const manifest: unknown = JSON.parse(readFileSync(manifestPath, 'utf8'))
-  if (!isRecord(manifest) || typeof manifest.name !== 'string') return null
+  if (!isRecord(manifest) || typeof manifest.name !== 'string')
+    throw new Error(`no usable package name in ${manifestPath}`)
   if (!VALID_PACKAGE_NAME.test(manifest.name))
     throw new Error(`invalid package name in ${manifestPath}: ${manifest.name}`)
   return {name: manifest.name, browser: usesBrowser(manifest)}
@@ -86,6 +87,8 @@ export function parseTimings(raw: string): Record<string, number> {
   const parsed: unknown = JSON.parse(raw)
   if (!isRecord(parsed)) return {}
   return Object.fromEntries(
-    Object.entries(parsed).filter((entry): entry is [string, number] => typeof entry[1] === 'number'),
+    Object.entries(parsed).filter(
+      (entry): entry is [string, number] => typeof entry[1] === 'number' && Number.isFinite(entry[1]) && entry[1] >= 0,
+    ),
   )
 }

@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 import {execFileSync} from 'node:child_process'
-import {appendFileSync, existsSync, readFileSync, writeFileSync} from 'node:fs'
+import {appendFileSync, existsSync, readdirSync, readFileSync, statSync, writeFileSync} from 'node:fs'
+import {join} from 'node:path'
 import {discoverPackages, parseTimings, planShards} from './shards.ts'
-import {loadSummaries, mergeSummaries, parseSummaries, renderSummary} from './summary.ts'
+import {loadSummaries, mergeSummaries, type PackageSummary, parseSummaries, renderSummary} from './summary.ts'
 
 const PACKAGE_GROUPS = ['packages', 'packages/extensions']
 
@@ -43,9 +44,25 @@ function report(args: string[]): void {
   writeFileSync(outputPath, `${JSON.stringify(loadSummaries(['packages']))}\n`)
 }
 
+const MAX_REPORT_BYTES = 20_000_000
+
+function readReports(dir: string): PackageSummary[] {
+  if (!existsSync(dir)) return []
+  return readdirSync(dir)
+    .filter((entry) => entry.endsWith('.json'))
+    .flatMap((entry) => {
+      const path = join(dir, entry)
+      if (statSync(path).size > MAX_REPORT_BYTES) {
+        process.stderr.write(`skipping oversized shard report: ${path}\n`)
+        return []
+      }
+      return parseSummaries(readFileSync(path, 'utf8'))
+    })
+}
+
 function summarize(args: string[]): void {
   const inputs = args.filter((arg, index) => !arg.startsWith('--') && args[index - 1] !== '--timings')
-  const merged = mergeSummaries(inputs.flatMap((path) => parseSummaries(readFileSync(path, 'utf8'))))
+  const merged = mergeSummaries(inputs.flatMap(readReports))
   const summaryPath = process.env.GITHUB_STEP_SUMMARY
   const rendered = renderSummary(merged)
   if (summaryPath === undefined) process.stdout.write(rendered)

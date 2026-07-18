@@ -167,9 +167,9 @@ jobs:
           pattern: test-results-*
           merge-multiple: true
           path: shard-reports
-      - run: node packages/vitest-config/src/ci-shards.ts summarize shard-reports/*.json
+      - run: node packages/vitest-config/src/ci-shards.ts summarize shard-reports
         if: github.event_name == 'pull_request'
-      - run: node packages/vitest-config/src/ci-shards.ts summarize shard-reports/*.json --timings ci-test-timings.json
+      - run: node packages/vitest-config/src/ci-shards.ts summarize shard-reports --timings ci-test-timings.json
         if: github.event_name == 'push'
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: github.event_name == 'push'

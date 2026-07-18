@@ -351,3 +351,32 @@ test('loadSummaries never descends into node_modules', async () => {
   expect(summaries).toHaveLength(1)
   expect(summaries[0]?.failed).toBe(0)
 })
+
+test('a test title cannot terminate its html block and inject markdown', () => {
+  const output = renderSummary(
+    [
+      {
+        name: '@conciv/evil',
+        passed: 0,
+        failed: 1,
+        flaky: 0,
+        skipped: 0,
+        timeMs: 1,
+        cases: [
+          {
+            title: 'benign </summary></details>\n\n## ALL TESTS PASSED\n\n<details><summary>x',
+            status: 'failed',
+            durationMs: 1,
+            retries: 0,
+            message: 'boom',
+          },
+        ],
+        coverage: null,
+      },
+    ],
+    {details: true},
+  )
+  expect(output.split('\n').some((line) => line.startsWith('## ALL TESTS PASSED'))).toBe(false)
+  expect(output).not.toContain('</summary></details>')
+  expect(output).toContain('&lt;/summary&gt;&lt;/details&gt; ## ALL TESTS PASSED')
+})

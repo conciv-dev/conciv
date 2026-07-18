@@ -1,4 +1,4 @@
-import {mkdirSync, mkdtempSync, writeFileSync} from 'node:fs'
+import {existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {expect, test} from 'vitest'
@@ -92,4 +92,21 @@ test('planShards is deterministic', () => {
 test('parseTimings keeps numeric entries and drops everything else', () => {
   expect(parseTimings('{"a": 5, "b": "junk", "c": null}')).toEqual({a: 5})
   expect(parseTimings('[]')).toEqual({})
+})
+
+test('discoverPackages plans every real workspace package that ships a test script', () => {
+  const repoRoot = join(import.meta.dirname, '..', '..', '..')
+  const planned = new Set(discoverPackages(repoRoot, ['packages', 'packages/extensions']).map((entry) => entry.name))
+  const onDisk = ['packages', 'packages/extensions'].flatMap((group) =>
+    readdirSync(join(repoRoot, group), {withFileTypes: true})
+      .filter((entry) => entry.isDirectory() && existsSync(join(repoRoot, group, entry.name, 'package.json')))
+      .map((entry) => JSON.parse(readFileSync(join(repoRoot, group, entry.name, 'package.json'), 'utf8')).name),
+  )
+  expect(onDisk.filter((name) => typeof name === 'string' && !planned.has(name))).toEqual([])
+})
+
+test('a package.json without a usable name fails the plan instead of vanishing from it', () => {
+  const root = mkdtempSync(join(tmpdir(), 'shards-'))
+  writeManifest(root, 'packages/nameless', {version: '1.0.0'})
+  expect(() => discoverPackages(root, ['packages'])).toThrow(/nameless/)
 })
