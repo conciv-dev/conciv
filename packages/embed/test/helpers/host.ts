@@ -17,6 +17,14 @@ export function hostPage(opts: {apiBase: string; widget?: string; body?: string}
   </body></html>`
 }
 
+export function handleHostPage(): string {
+  const handleBundle = fs.readFileSync(path.join(dirname, '../dist/conciv-handle.global.js'), 'utf8')
+  return `<!doctype html><html><head></head><body>
+    <div id="probe">page-bus-ok</div>
+    <script>${handleBundle}</script>
+  </body></html>`
+}
+
 export async function serveHost(html: () => string): Promise<{base: string; close: () => Promise<void>}> {
   const server: Server = createServer((_req, res) => {
     res.writeHead(200, {'content-type': 'text/html; charset=utf-8'})
