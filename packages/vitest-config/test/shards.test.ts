@@ -5,7 +5,6 @@ import {expect, test} from 'vitest'
 import {
   DEFAULT_PACKAGE_MS,
   discoverPackages,
-  mergeTimings,
   parseTimings,
   planShards,
   TARGET_SHARD_MS,
@@ -93,8 +92,4 @@ test('planShards is deterministic', () => {
 test('parseTimings keeps numeric entries and drops everything else', () => {
   expect(parseTimings('{"a": 5, "b": "junk", "c": null}')).toEqual({a: 5})
   expect(parseTimings('[]')).toEqual({})
-})
-
-test('mergeTimings lets later sources win and sorts by name', () => {
-  expect(mergeTimings([{b: 1, a: 2}, {b: 3}])).toEqual({a: 2, b: 3})
 })

@@ -89,9 +89,3 @@ export function parseTimings(raw: string): Record<string, number> {
     Object.entries(parsed).filter((entry): entry is [string, number] => typeof entry[1] === 'number'),
   )
 }
-
-export function mergeTimings(sources: Record<string, number>[]): Record<string, number> {
-  const merged: Record<string, number> = {}
-  for (const source of sources) for (const [name, ms] of Object.entries(source)) merged[name] = ms
-  return Object.fromEntries(Object.entries(merged).toSorted(([a], [b]) => a.localeCompare(b)))
-}

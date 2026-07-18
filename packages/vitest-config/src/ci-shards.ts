@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import {execFileSync} from 'node:child_process'
 import {appendFileSync, existsSync, readFileSync, writeFileSync} from 'node:fs'
-import {discoverPackages, mergeTimings, parseTimings, planShards} from './shards.ts'
+import {discoverPackages, parseTimings, planShards} from './shards.ts'
 import {loadSummaries} from './summary.ts'
 
 const PACKAGE_GROUPS = ['packages', 'packages/extensions']
@@ -48,19 +48,11 @@ function timings(args: string[]): void {
   writeFileSync(outputPath, `${JSON.stringify(measured, null, 2)}\n`)
 }
 
-function mergeTimingFiles(args: string[]): void {
-  const outputPath = argValue(args, '--output') ?? 'ci-test-timings.json'
-  const inputs = args.filter((arg, index) => !arg.startsWith('--') && args[index - 1] !== '--output')
-  const merged = mergeTimings(inputs.map((path) => parseTimings(readFileSync(path, 'utf8'))))
-  writeFileSync(outputPath, `${JSON.stringify(merged, null, 2)}\n`)
-}
-
 const [command, ...rest] = process.argv.slice(2)
 if (command === 'plan') plan(rest)
 if (command === 'run') run()
 if (command === 'timings') timings(rest)
-if (command === 'merge-timings') mergeTimingFiles(rest)
-if (command !== 'plan' && command !== 'run' && command !== 'timings' && command !== 'merge-timings') {
-  process.stderr.write('usage: conciv-ci-shards <plan|run|timings|merge-timings>\n')
+if (command !== 'plan' && command !== 'run' && command !== 'timings') {
+  process.stderr.write('usage: conciv-ci-shards <plan|run|timings>\n')
   process.exitCode = 2
 }
