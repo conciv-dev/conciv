@@ -6,7 +6,8 @@ import {RECORDER_NAME, RecorderControlSchema, RrwebEventSchema, recorderConfig} 
 import {createClientRings} from './server/rings.js'
 import {createRecordingStore} from './server/recordings.js'
 import {createCaptureControl} from './server/capture-control.js'
-import {createChromiumRenderer, type KeyframeRenderer} from './server/render.js'
+import {createChromiumRenderer} from './server/render.js'
+import {createRendererCache} from './server/renderer-cache.js'
 import {distill} from './server/distill.js'
 import type {RecorderRuntime} from './server/runtime.js'
 import {recordingAttachment} from './server/attachment.js'
@@ -72,22 +73,23 @@ export default defineExtension({
 }).server((server) => {
   const rings = createClientRings({windowMs: server.config.windowMinutes * 60_000})
   const control = createCaptureControl(rings)
-  const rendererState: {value?: Promise<KeyframeRenderer | null>} = {}
-  const renderer = (): Promise<KeyframeRenderer | null> => {
-    rendererState.value ??= createChromiumRenderer()
-    return rendererState.value
-  }
+  const rendererCache = createRendererCache(createChromiumRenderer)
   const recordings = createRecordingStore(join(server.cwd, '.conciv', 'recorder', 'recordings'))
   void recordings.sweep()
-  const runtime: RecorderRuntime = {rings, control, config: server.config, renderer, recordings}
+  const runtime: RecorderRuntime = {
+    rings,
+    control,
+    config: server.config,
+    renderer: () => rendererCache.get(),
+    recordings,
+  }
   return {
     context: {recorder: runtime},
     router: makeRecorderRouter(runtime),
     turnEnd: () => control.releaseAllCaptures(),
     dispose: async () => {
       control.dispose()
-      const active = await rendererState.value?.catch(() => null)
-      await active?.dispose()
+      await rendererCache.dispose()
     },
   }
 })

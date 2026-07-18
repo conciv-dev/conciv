@@ -562,7 +562,7 @@ git commit -m "fix(recorder): TTL live captures + release on turn end" -- packag
   - console plugin gains `stringifyOptions: {stringLengthLimit: 5000}` (one looping `console.error(hugeString)` can no longer produce 200 × unbounded events).
   - renderer: after `RENDERER_IDLE_MS = 5min` without a render, the cached browser is disposed and the cache slot cleared (next pull relaunches); a renderer whose launch resolved `null` (crash/missing playwright) is retried on next use instead of caching the dead result forever.
 
-- [ ] **Step 1: Write the failing test** — `test/renderer-cache.test.ts`, fake timers, **injected** factory (no module stubbing):
+- [x] **Step 1: Write the failing test** — `test/renderer-cache.test.ts`, fake timers, **injected** factory (no module stubbing):
 
 ```ts
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
@@ -598,9 +598,9 @@ describe('renderer cache', () => {
 })
 ```
 
-- [ ] **Step 2: Run — Expected: FAIL** (module missing; today `rendererState.value ??=` in `server.ts` caches the null-resolving promise permanently).
+- [x] **Step 2: Run — Expected: FAIL** (module missing; today `rendererState.value ??=` in `server.ts` caches the null-resolving promise permanently).
 
-- [ ] **Step 3: Implement** — `src/server/renderer-cache.ts`:
+- [x] **Step 3: Implement** — `src/server/renderer-cache.ts`:
 
 ```ts
 import type {KeyframeRenderer} from './render.js'
@@ -637,8 +637,8 @@ export function createRendererCache(create: () => Promise<KeyframeRenderer | nul
 
 In `server.ts`: `const rendererCache = createRendererCache(createChromiumRenderer)`; `renderer: () => rendererCache.get()` on the runtime; extension `dispose` awaits `rendererCache.dispose()` (replacing the inline `rendererState` block). In `capture.ts` add `stringifyOptions: {stringLengthLimit: 5000}` to `getRecordConsolePlugin`.
 
-- [ ] **Step 4: Run — Expected: PASS.**
-- [ ] **Step 5: Commit**
+- [x] **Step 4: Run — Expected: PASS.**
+- [x] **Step 5: Commit**
 
 ```bash
 git commit -m "fix(recorder): bound console payloads, renderer idle-dispose + relaunch" -- packages/extensions/recorder/src/client/capture.ts packages/extensions/recorder/src/server.ts packages/extensions/recorder/src/server/renderer-cache.ts packages/extensions/recorder/test/renderer-cache.test.ts

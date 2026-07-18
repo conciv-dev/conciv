@@ -22,7 +22,15 @@ export function startCapture(config: RecorderConfig, emit: (event: RrwebEvent) =
     checkoutEveryNms: CHECKOUT_MS,
     blockSelector: CONCIV_UI_SELECTOR,
     ...maskingOptions(config.masking),
-    plugins: config.console ? [getRecordConsolePlugin({level: ['error'], lengthThreshold: 200})] : [],
+    plugins: config.console
+      ? [
+          getRecordConsolePlugin({
+            level: ['error'],
+            lengthThreshold: 200,
+            stringifyOptions: {stringLengthLimit: 5000, numOfKeysLimit: 50, depthOfLimit: 4},
+          }),
+        ]
+      : [],
   })
   return () => stop?.()
 }
