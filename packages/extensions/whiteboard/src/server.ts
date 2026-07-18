@@ -15,7 +15,7 @@ export default defineExtension({
   tools: [...canvasTools, ...commentTools, ...anchorTools, ...elementTools],
   systemPrompt: WHITEBOARD_PROMPT,
 }).server(async (server) => {
-  const store = await createStore(join(server.cwd, '.conciv', 'whiteboard'))
+  const store = await createStore(join(server.stateDir, 'whiteboard'))
   const stopEnrichment = startCommentEnrichment(store, server.cwd)
   const sessionId = (request: ToolRequest): string => {
     if (!request.sessionId) throw new Error('whiteboard tools require an active session')

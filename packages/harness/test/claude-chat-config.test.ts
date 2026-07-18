@@ -1,6 +1,7 @@
 import {mkdtempSync, readFileSync, readdirSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
+import {concivStateDir} from '@conciv/protocol/state-types'
 import {describe, expect, it} from 'vitest'
 import type {HarnessChatDeps} from '@conciv/protocol/harness-types'
 import {claudeChatConfig, claudeExecutable} from '../src/claude/chat.js'
@@ -81,7 +82,7 @@ describe('claudeChatConfig', () => {
         ? last.content.flatMap((part) => (part.type === 'text' ? [part.content] : [])).join('\n')
         : ''
     expect(readdirSync(dir).filter((name) => name.startsWith('.conciv-img-'))).toHaveLength(0)
-    const tmpDir = join(dir, '.conciv', 'tmp')
+    const tmpDir = join(concivStateDir(dir), 'tmp')
     const written = readdirSync(tmpDir).filter((name) => name.startsWith('img-'))
     expect(written).toHaveLength(1)
     expect(text).toContain(`@${join(tmpDir, written[0] ?? '')}`)

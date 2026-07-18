@@ -72,6 +72,7 @@ export type ServerHarness = {
 export type ServerApi<Config> = {
   config: Config
   cwd: string
+  stateDir: string
   sessions: ServerSessions
   harness: ServerHarness
 }

@@ -1,6 +1,7 @@
 import {join} from 'node:path'
 import {start, type Engine} from '@conciv/core/start'
 import type {ConcivConfig} from '@conciv/protocol/config-types'
+import {concivStateDir} from '@conciv/protocol/state-types'
 import {installConcivBinShim} from './bin-shim.js'
 import {makeOpenInEditor} from './open-editor.js'
 import {type Builtins, loadServerExtensions} from '@conciv/extension-compiler/extensions'
@@ -10,7 +11,7 @@ export function makeEngineBooter(options: ConcivConfig, root: string, builtins: 
   return () => {
     if (booting) return booting
     const stateRoot = options.stateRoot ?? root
-    const agentPath = installConcivBinShim(join(stateRoot, '.conciv'))
+    const agentPath = installConcivBinShim(concivStateDir(stateRoot))
 
     booting = loadServerExtensions(root, builtins.serverExtensions).then((extensions) =>
       start({

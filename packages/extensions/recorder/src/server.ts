@@ -100,7 +100,7 @@ export default defineExtension({
   const rings = createClientRings({windowMs: server.config.windowMinutes * 60_000})
   const control = createCaptureControl(rings)
   const rendererCache = createRendererCache(createChromiumRenderer)
-  const recordings = createRecordingStore(join(server.cwd, '.conciv', 'recorder', 'recordings'))
+  const recordings = createRecordingStore(join(server.stateDir, 'recorder', 'recordings'))
   void recordings.sweep()
   const runtime: RecorderRuntime = {
     rings,

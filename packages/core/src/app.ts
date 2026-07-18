@@ -3,6 +3,7 @@ import {readFile} from 'node:fs/promises'
 import {Hono} from 'hono'
 import {HTTPException} from 'hono/http-exception'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
+import {concivStateDir} from '@conciv/protocol/state-types'
 import type {BundlerBridge} from '@conciv/protocol/bundler-types'
 import type {
   AnyExtension,
@@ -193,6 +194,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       if (seenNames.has(extension.name)) throw new Error(`extension name collision: "${extension.name}"`)
       seenNames.add(extension.name)
       const result = await extension.__server?.({
+        stateDir: concivStateDir(opts.cwd),
         config: extension.parseConfig(opts.extensionConfig?.[extension.name]),
         cwd: opts.cwd,
         sessions: serverSessions,

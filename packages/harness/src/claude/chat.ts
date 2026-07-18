@@ -3,6 +3,7 @@ import {mkdirSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
 import type {ModelMessage} from '@tanstack/ai'
 import {claudeCodeText} from '@tanstack/ai-claude-code'
+import {concivStateDir} from '@conciv/protocol/state-types'
 import {
   FILE_REF_PREFIX,
   type HarnessChatConfig,
@@ -23,7 +24,7 @@ const IMAGE_EXT: Record<string, string> = {
 }
 
 export function imageRefs(images: HarnessImage[], cwd: string): string {
-  const tmpDir = join(cwd, '.conciv', 'tmp')
+  const tmpDir = join(concivStateDir(cwd), 'tmp')
   mkdirSync(tmpDir, {recursive: true})
   return images
     .map((img) => {
