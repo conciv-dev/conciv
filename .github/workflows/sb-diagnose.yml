@@ -1,0 +1,73 @@
+name: sb-diagnose
+on:
+  workflow_dispatch: {}
+  push:
+    branches: [diag/storybook-flake]
+
+permissions:
+  contents: read
+
+jobs:
+  storybook:
+    name: Storybook diagnose ${{ matrix.n }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        n: [1, 2, 3, 4, 5]
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.7.0
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - run: pnpm i --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+      - run: pnpm exec playwright install-deps chromium
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+      - name: instrument ws close
+        run: |
+          node -e '
+          const fs = require("fs")
+          const path = require("path")
+          const dir = fs.readdirSync("node_modules/.pnpm").find(d => d.startsWith("@vitest+browser@4.1.10"))
+          const f = path.join("node_modules/.pnpm", dir, "node_modules/@vitest/browser/dist/index.js")
+          let s = fs.readFileSync(f, "utf8")
+          const anchor = "ws.on(\"close\", () => {"
+          if (!s.includes(anchor)) { console.error("ANCHOR NOT FOUND"); process.exit(1) }
+          s = s.replace(anchor, "ws.on(\"close\", (_c, _r) => {\n\t\t\t\tconsole.error(`[sbdebug] ${Date.now()} ws-close type=${type} rpc=${rpcId} code=${_c} reason=${String(_r)}`);")
+          fs.writeFileSync(f, s)
+          console.error("PATCH_APPLIED")
+          '
+      - name: memory sampler
+        run: |
+          (while true; do
+            echo "--- $(date -u +%H:%M:%S)"
+            ps -eo pid,rss,comm --sort=-rss | head -10
+            free -m | grep Mem
+            sleep 2
+          done > /tmp/ps.log 2>&1) &
+          echo $! > /tmp/sampler.pid
+      - run: pnpm exec turbo run typecheck lint test --filter='./apps/storybook' --concurrency=3 --env-mode=loose
+      - name: post-mortem
+        if: always()
+        run: |
+          kill $(cat /tmp/sampler.pid) 2>/dev/null || true
+          tail -40 /tmp/ps.log || true
+          sudo dmesg 2>/dev/null | grep -iE "oom|killed process" | tail -10 || true
+      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        if: always()
+        with:
+          name: sb-diag-${{ matrix.n }}
+          path: /tmp/ps.log
