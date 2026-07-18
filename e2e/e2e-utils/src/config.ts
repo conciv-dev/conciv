@@ -1,5 +1,10 @@
-import {defineConfig, devices} from '@playwright/test'
+import {defineConfig, devices, type ReporterDescription} from '@playwright/test'
 import {E2E_PORTS, HARNESS_E2E_PORTS, type E2EApp, type HarnessApp} from './ports.js'
+
+function reporters(): ReporterDescription[] {
+  if (!process.env.GITHUB_ACTIONS) return [['line']]
+  return [['line'], ['json', {outputFile: 'test-results.json'}]]
+}
 
 function serverEntry(command: string, port: number) {
   return {
@@ -17,7 +22,7 @@ export function e2eConfig(app: E2EApp, opts: {command: (port: number) => string}
   return defineConfig({
     testDir: './tests',
     workers: 1,
-    reporter: [['line']],
+    reporter: reporters(),
     use: {baseURL: `http://localhost:${port}`},
     webServer: serverEntry(`rm -rf .conciv && ${opts.command(port)}`, port),
     projects: [{name: 'chromium', use: {...devices['Desktop Chrome']}}],
@@ -48,7 +53,7 @@ export function harnessMatrixConfig(opts: {
     testDir: './tests',
     workers: 1,
     timeout: 150_000,
-    reporter: [['line']],
+    reporter: reporters(),
     webServer: entries.map(([harness, port]) =>
       serverEntry(`rm -rf .conciv-${harness} && ${opts.command(harness, port)}`, port),
     ),

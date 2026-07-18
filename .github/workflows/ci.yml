@@ -191,6 +191,8 @@ jobs:
       # Consumer-shape suites: dist widget in 8 CLI-scaffolded apps (root e2e/).
       # test:e2e is cache:false in turbo.json, so every run exercises the real servers.
       - run: pnpm e2e
+      - run: pnpm exec conciv-ci-summary --details --title 'E2e consumer apps' e2e apps/site
+        if: always()
 
   zizmor:
     runs-on: ubuntu-latest

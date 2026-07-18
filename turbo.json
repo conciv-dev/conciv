@@ -40,7 +40,7 @@
     "test:e2e": {
       "dependsOn": ["^build"],
       "cache": false,
-      "env": ["CI", "CONCIV_E2E"]
+      "env": ["CI", "GITHUB_ACTIONS", "CONCIV_E2E"]
     }
   }
 }
