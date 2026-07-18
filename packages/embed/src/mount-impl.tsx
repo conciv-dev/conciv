@@ -1,10 +1,11 @@
 import {render} from 'solid-js/web'
-import {RouterProvider} from '@tanstack/solid-router'
-import {makeRpcClient} from '@conciv/contract'
+import {RouterProvider, createMemoryHistory} from '@tanstack/solid-router'
+import {makeDeferredRpcClient, makeRpcClient} from '@conciv/contract'
 import {createWebStorageHistory} from '@conciv/storage-history'
+import type {AnyExtension} from '@conciv/extension'
 import {installReactBridge, makeDomPageDriver, reactBridge, startPagePlane, type PageDriver} from '@conciv/page'
 import {createConcivRouter} from 'conciv/router'
-import {parseConcivSettings} from 'conciv/settings'
+import {parseConcivSettings, type ConcivSettings} from 'conciv/settings'
 import {createShadowRoot} from 'conciv/shadow'
 import {resolveApiBase} from 'conciv/api-base'
 import {makeNavigationStorage} from './navigation-storage.js'
@@ -21,21 +22,50 @@ function metaContent(name: string): string {
   return document.querySelector<HTMLMetaElement>(`meta[name="${name}"]`)?.content ?? ''
 }
 
-async function boot(root: ShadowRoot, init: ConcivInit): Promise<() => void> {
-  const apiBase = init.apiBase ?? resolveApiBase()
+function connectPath(settings: {defaultOpen: boolean}): string {
+  return settings.defaultOpen ? '/panel/connect?open=true' : '/panel/connect'
+}
+
+function makeDisconnect(getApiBase: () => string | undefined): () => void {
+  return () => {
+    const base = getApiBase()
+    if (base) void fetch(`${base}/api/shutdown`, {method: 'POST'}).catch(() => {})
+    setTimeout(() => window.location.reload(), 150)
+  }
+}
+
+function runDisposers(disposers: Array<() => void>): void {
+  for (const dispose of disposers) {
+    try {
+      dispose()
+    } catch (error) {
+      console.error('[conciv] teardown step failed', error)
+    }
+  }
+}
+
+async function bootNormal(
+  root: ShadowRoot,
+  extensions: AnyExtension[],
+  settings: ConcivSettings,
+  apiBase: string,
+  connectMode = false,
+): Promise<() => void> {
   const rpc = makeRpcClient(apiBase)
   const driver = makeDomPageDriver()
   window.__CONCIV_PAGE_DRIVER__ = driver
 
-  const extensions = typeof init.extensions === 'function' ? await init.extensions() : (init.extensions ?? [])
   const storage = await makeNavigationStorage(rpc)
   const hostRouter = window.__TSR_ROUTER__
   const router = createConcivRouter({
     rpc,
     history: createWebStorageHistory({storage}),
     environment: {rootNode: root, document},
-    settings: parseConcivSettings(init.settings ? JSON.stringify(init.settings) : metaContent('pw-widget')),
+    settings,
     extensions,
+    connected: () => true,
+    connectMode,
+    disconnect: connectMode ? makeDisconnect(() => apiBase) : undefined,
   })
   window.__TSR_ROUTER__ = hostRouter
 
@@ -49,15 +79,57 @@ async function boot(root: ShadowRoot, init: ConcivInit): Promise<() => void> {
     () => router.options.context.queryClient.clear(),
     driver.dispose,
   ]
-  return () => {
-    for (const dispose of disposers) {
-      try {
-        dispose()
-      } catch (error) {
-        console.error('[conciv] teardown step failed', error)
-      }
-    }
+  return () => runDisposers(disposers)
+}
+
+function bootConnect(root: ShadowRoot, extensions: AnyExtension[], settings: ConcivSettings): () => void {
+  const deferred = makeDeferredRpcClient()
+  const driver = makeDomPageDriver()
+  window.__CONCIV_PAGE_DRIVER__ = driver
+
+  let boundApiBase: string | undefined
+  let planeDispose: (() => void) | undefined
+  const bindApiBase = (apiBase: string) => {
+    boundApiBase = apiBase
+    deferred.bind(apiBase)
+    planeDispose = startPagePlane({rpc: deferred.rpc, document, driver}).dispose
   }
+  const hostRouter = window.__TSR_ROUTER__
+  const router = createConcivRouter({
+    rpc: deferred.rpc,
+    history: createMemoryHistory({initialEntries: [connectPath(settings)]}),
+    environment: {rootNode: root, document},
+    settings,
+    extensions,
+    connected: deferred.bound,
+    connectMode: true,
+    bindApiBase,
+    disconnect: makeDisconnect(() => boundApiBase),
+  })
+  window.__TSR_ROUTER__ = hostRouter
+
+  const container = document.createElement('div')
+  root.appendChild(container)
+  const disposeApp = render(() => <RouterProvider router={router} />, container)
+  const disposers = [
+    () => planeDispose?.(),
+    disposeApp,
+    () => router.options.context.queryClient.clear(),
+    driver.dispose,
+  ]
+  return () => runDisposers(disposers)
+}
+
+async function boot(root: ShadowRoot, init: ConcivInit): Promise<() => void> {
+  const extensions = typeof init.extensions === 'function' ? await init.extensions() : (init.extensions ?? [])
+  const settings = parseConcivSettings(init.settings ? JSON.stringify(init.settings) : metaContent('pw-widget'))
+  const apiBase = init.apiBase ?? resolveApiBase()
+  if (apiBase) return bootNormal(root, extensions, settings, apiBase)
+  const gate = extensions.find((extension) => extension.connectGate)
+  if (!gate?.connectGate) return bootNormal(root, extensions, settings, apiBase)
+  const found = await gate.connectGate.preflight()
+  if (found) return bootNormal(root, extensions, settings, found, true)
+  return bootConnect(root, extensions, settings)
 }
 
 export function mountImpl(init: ConcivInit, el: HTMLElement): {ready: Promise<void>; teardown: () => void} {

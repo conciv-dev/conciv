@@ -40,6 +40,7 @@
     "attw": "attw --pack . --profile esm-only"
   },
   "dependencies": {
+    "@clack/prompts": "^1.7.0",
     "@conciv/core": "workspace:^",
     "@conciv/extension-terminal": "workspace:^",
     "@conciv/harness": "workspace:^",

@@ -5,6 +5,7 @@ import type {ToolBuilder} from './define-tool.js'
 import type {
   ClientFactoryResult,
   ConfigOf,
+  ConnectGate,
   ExtensionCommand,
   ExtensionView,
   RequiredContext,
@@ -25,6 +26,7 @@ export type ExtensionMeta<Name extends string, Schema extends z.ZodType, Tools e
   Surface?: Component
   systemPrompt?: string
   theme?: ThemeTokens
+  connectGate?: ConnectGate
 }
 
 export type ExtensionBuilder<
@@ -39,6 +41,7 @@ export type ExtensionBuilder<
   Surface?: Component
   systemPrompt?: string
   theme?: ThemeTokens
+  connectGate?: ConnectGate
   tools?: Tools
   commands?: readonly ExtensionCommand[]
   views?: readonly ExtensionView[]
@@ -86,6 +89,7 @@ export function defineExtension<
     Surface: meta.Surface,
     systemPrompt: meta.systemPrompt,
     theme: meta.theme,
+    connectGate: meta.connectGate,
     tools: meta.tools,
     commands: meta.commands,
     views: meta.views,

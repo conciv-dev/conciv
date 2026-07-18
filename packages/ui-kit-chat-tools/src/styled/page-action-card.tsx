@@ -204,7 +204,8 @@ export function PageActionCard(props: ToolCardProps): JSX.Element {
   }
   const errorMessage = (): string | undefined =>
     props.result?.state === 'error' ? failureText() : asString(asRecord(payload())?.error)
-  const showResult = () => isRead(verb()) && resultText(props.result).length > 0
+  const evalCode = () => (verb() === 'eval' ? input()?.code : undefined)
+  const showResult = () => (isRead(verb()) || verb() === 'eval') && resultText(props.result).length > 0
   const showMirror = () => {
     const value = verb()
     return value !== undefined && mirrorsKind(value)
@@ -220,6 +221,9 @@ export function PageActionCard(props: ToolCardProps): JSX.Element {
                 <Target size={12} aria-hidden="true" />
                 <span class="whitespace-nowrap text-ellipsis overflow-hidden">{targetEl()}</span>
               </span>
+            </Show>
+            <Show when={evalCode()}>
+              <pre class={PAGE_OUT}>{evalCode()}</pre>
             </Show>
             <Show when={showMirror()}>
               <div class="text-[length:var(--chat-text-xs)] flex gap-1.5 [color:var(--chat-accent-link)] items-center">

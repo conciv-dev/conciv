@@ -5,6 +5,7 @@ import type {DialogApi, PopoverApi} from '@conciv/ui-kit-system'
 import type {ExtensionSlot} from './types.js'
 
 export type Toast = (message: string, tone?: 'info' | 'success' | 'error') => void
+export type ConnectHostApi = {origin: string; found: (apiBase: string) => void}
 export type PopoverParts = {
   Root: Component<ComponentProps<PopoverApi['Root']>>
   Positioner: Component<ComponentProps<PopoverApi['Positioner']>>
@@ -26,6 +27,7 @@ export type HostWiring = {
   viewLock: (locked: boolean) => void
   viewLeave: () => void
   slot: ExtensionSlot
+  connect: ConnectHostApi
   value: object
 }
 

@@ -19,6 +19,11 @@ export type AppContextValue = {
   suppressed: () => '' | undefined
   fabPosition: Accessor<TriggerPosition>
   instances: ExtensionInstance[]
+  connected: () => boolean
+  arrivedFromConnect: () => boolean
+  connectBind: (apiBase: string) => Promise<string>
+  connectMode: boolean
+  disconnect?: () => void
 }
 
 export const AppContext = createContext<AppContextValue>()
@@ -63,4 +68,20 @@ export function useFabPosition(): Accessor<TriggerPosition> {
 
 export function useInstances(): ExtensionInstance[] {
   return useAppScope('useInstances', (app) => app.instances)
+}
+
+export function useConnected(): () => boolean {
+  return useAppScope('useConnected', (app) => app.connected)
+}
+
+export function useArrivedFromConnect(): () => boolean {
+  return useAppScope('useArrivedFromConnect', (app) => app.arrivedFromConnect)
+}
+
+export function useConnectBinding(): {bind: (apiBase: string) => Promise<string>} {
+  return useAppScope('useConnectBinding', (app) => ({bind: app.connectBind}))
+}
+
+export function useDisconnect(): {connectMode: boolean; disconnect?: () => void} {
+  return useAppScope('useDisconnect', (app) => ({connectMode: app.connectMode, disconnect: app.disconnect}))
 }
