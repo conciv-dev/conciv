@@ -121,34 +121,33 @@ jobs:
       - run: pnpm exec conciv-ci-shards run
         env:
           SHARD_PACKAGES: ${{ matrix.packages }}
-      # Ship this shard's per-package results (vitest emits test-results.json only
-      # in CI; turbo caches them so cache-hit packages still report) to the
-      # test-summary job, which renders ONE merged table for the whole run.
-      # Inline failure annotations still come from vitest's own github-actions
-      # reporter on this job. The root package.json is included only to anchor the
-      # artifact's common ancestor at the repo root, so downloads restore the
-      # packages/... layout no matter which packages a shard happened to contain.
+      # Collapse this shard's per-package results (vitest emits test-results.json
+      # only in CI; turbo caches them so cache-hit packages still report) into ONE
+      # file, then upload it by literal name. Never glob packages/** here: the
+      # upload action would walk every node_modules in the workspace — minutes of
+      # directory traversal to ship a few KB. Our own walker skips node_modules.
+      # Inline failure annotations still come from vitest's github-actions reporter.
+      - run: pnpm exec conciv-ci-shards report --output "shard-report-${SHARD_NAME}.json"
+        if: always()
+        env:
+          SHARD_NAME: ${{ matrix.shard }}
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: test-results-${{ matrix.shard }}
-          path: |
-            package.json
-            packages/**/test-results.json
-            packages/**/coverage/coverage-summary.json
-          if-no-files-found: ignore
+          path: shard-report-${{ matrix.shard }}.json
       - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         if: always()
         with:
           path: .turbo
           key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.job }}-${{ matrix.shard }}-${{ github.sha }}-${{ github.run_attempt }}
 
-  # One merged test-results table for the whole shard matrix: downloads every
-  # shard's test-results artifact back into the checkout layout and renders a
-  # single job summary. On main pushes it also derives the per-package durations
-  # and publishes the ci-test-timings baseline the next planner run feeds on
-  # (push-only, like the bundle-size baseline: PR-created artifacts never become
-  # the baseline). Runs from source with no install, like the plan job.
+  # One merged test-results table for the whole shard matrix: downloads each
+  # shard's collapsed report and renders a single job summary. On main pushes it
+  # also derives the per-package durations and publishes the ci-test-timings
+  # baseline the next planner run feeds on (push-only, like the bundle-size
+  # baseline: PR-created artifacts never become the baseline). Runs from source
+  # with no install, like the plan job.
   test-summary:
     name: test summary
     needs: build
@@ -167,9 +166,10 @@ jobs:
         with:
           pattern: test-results-*
           merge-multiple: true
-          path: .
-      - run: node packages/vitest-config/src/ci-summary.ts packages
-      - run: node packages/vitest-config/src/ci-shards.ts timings --output ci-test-timings.json
+          path: shard-reports
+      - run: node packages/vitest-config/src/ci-shards.ts summarize shard-reports/*.json
+        if: github.event_name == 'pull_request'
+      - run: node packages/vitest-config/src/ci-shards.ts summarize shard-reports/*.json --timings ci-test-timings.json
         if: github.event_name == 'push'
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: github.event_name == 'push'

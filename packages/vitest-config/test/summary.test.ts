@@ -2,7 +2,14 @@ import {mkdir, mkdtemp, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {afterEach, expect, test} from 'vitest'
-import {loadSummaries, parseReport, renderSummary} from '../src/summary.ts'
+import {
+  loadSummaries,
+  mergeSummaries,
+  type PackageSummary,
+  parseReport,
+  parseSummaries,
+  renderSummary,
+} from '../src/summary.ts'
 
 let root = ''
 
@@ -129,4 +136,88 @@ test('loadSummaries discovers reports, attaches per-package coverage, and render
   expect(output).toContain('| ✅ @conciv/green | 2 |  |  | 50.0% |')
   expect(output).toContain('<summary>❌ <code>@conciv/red</code> formats output</summary>')
   expect(output).toContain('boom')
+})
+
+test('shard reports survive a JSON round trip and merge into one table', () => {
+  const shardOne: PackageSummary[] = [
+    {
+      name: '@conciv/alpha',
+      passed: 2,
+      failed: 0,
+      skipped: 0,
+      timeMs: 1_000,
+      failures: [],
+      coverage: {covered: 5, total: 10},
+    },
+  ]
+  const shardTwo: PackageSummary[] = [
+    {
+      name: '@conciv/beta',
+      passed: 0,
+      failed: 1,
+      skipped: 1,
+      timeMs: 2_000,
+      failures: [{test: 'explodes', message: 'boom'}],
+      coverage: null,
+    },
+  ]
+  const merged = mergeSummaries([shardOne, shardTwo].flatMap((shard) => parseSummaries(JSON.stringify(shard))))
+  expect(merged).toEqual([...shardOne, ...shardTwo])
+  const output = renderSummary(merged)
+  expect(output).toContain('❌ **1 failed** · 2 passed · 3.0s')
+  expect(output).toContain('✅ @conciv/alpha')
+  expect(output).toContain('boom')
+})
+
+test('parseSummaries tolerates a truncated or malformed shard report', () => {
+  expect(parseSummaries('[]')).toEqual([])
+  expect(parseSummaries('{"not": "an array"}')).toEqual([])
+  expect(parseSummaries('[{"name": "@conciv/partial"}]')).toEqual([
+    {name: '@conciv/partial', passed: 0, failed: 0, skipped: 0, timeMs: 0, failures: [], coverage: null},
+  ])
+})
+
+test('a failure message cannot break out of its code fence to inject markdown', () => {
+  const output = renderSummary([
+    {
+      name: '@conciv/x',
+      passed: 0,
+      failed: 1,
+      skipped: 0,
+      timeMs: 1,
+      failures: [{test: 't', message: '```\n## injected heading\n```'}],
+      coverage: null,
+    },
+  ])
+  const body = output.slice(output.indexOf('</summary>'))
+  expect(body).toContain('````\n```\n## injected heading\n```\n````')
+  expect(body.split('\n').some((line) => line.startsWith('## injected'))).toBe(true)
+  expect(output.indexOf('## injected')).toBeGreaterThan(output.indexOf('````'))
+})
+
+test('an enormous failure message is truncated so it cannot blow the job-summary limit', () => {
+  const output = renderSummary([
+    {
+      name: '@conciv/x',
+      passed: 0,
+      failed: 1,
+      skipped: 0,
+      timeMs: 1,
+      failures: [{test: 't', message: 'x'.repeat(20_000)}],
+      coverage: null,
+    },
+  ])
+  expect(output).toContain('… truncated 12000 characters')
+  expect(output.length).toBeLessThan(10_000)
+})
+
+test('loadSummaries never descends into node_modules', async () => {
+  root = await mkdtemp(join(tmpdir(), 'conciv-ci-summary-'))
+  await mkdir(join(root, 'packages/victim/node_modules/malicious'), {recursive: true})
+  await writeFile(join(root, 'packages/victim/package.json'), JSON.stringify({name: '@conciv/victim'}))
+  await writeFile(join(root, 'packages/victim/test-results.json'), report({}))
+  await writeFile(join(root, 'packages/victim/node_modules/malicious/test-results.json'), report({status: 'failed'}))
+  const summaries = loadSummaries([join(root, 'packages')])
+  expect(summaries).toHaveLength(1)
+  expect(summaries[0]?.failed).toBe(0)
 })

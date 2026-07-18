@@ -2,7 +2,7 @@
 import {execFileSync} from 'node:child_process'
 import {appendFileSync, existsSync, readFileSync, writeFileSync} from 'node:fs'
 import {discoverPackages, parseTimings, planShards} from './shards.ts'
-import {loadSummaries} from './summary.ts'
+import {loadSummaries, mergeSummaries, parseSummaries, renderSummary} from './summary.ts'
 
 const PACKAGE_GROUPS = ['packages', 'packages/extensions']
 
@@ -38,21 +38,34 @@ function run(): void {
   execFileSync('pnpm', ['exec', 'turbo', 'run', 'typecheck', 'lint', 'test', ...filters], {stdio: 'inherit'})
 }
 
-function timings(args: string[]): void {
-  const outputPath = argValue(args, '--output') ?? 'test-timings.json'
+function report(args: string[]): void {
+  const outputPath = argValue(args, '--output') ?? 'shard-report.json'
+  writeFileSync(outputPath, `${JSON.stringify(loadSummaries(['packages']))}\n`)
+}
+
+function summarize(args: string[]): void {
+  const inputs = args.filter((arg, index) => !arg.startsWith('--') && args[index - 1] !== '--timings')
+  const merged = mergeSummaries(inputs.flatMap((path) => parseSummaries(readFileSync(path, 'utf8'))))
+  const summaryPath = process.env.GITHUB_STEP_SUMMARY
+  const rendered = renderSummary(merged)
+  if (summaryPath === undefined) process.stdout.write(rendered)
+  if (summaryPath !== undefined) appendFileSync(summaryPath, rendered)
+  const timingsPath = argValue(args, '--timings')
+  if (timingsPath === null) return
   const measured = Object.fromEntries(
-    loadSummaries(['packages'])
+    merged
       .map((summary): [string, number] => [summary.name, Math.round(summary.timeMs)])
       .toSorted(([a], [b]) => a.localeCompare(b)),
   )
-  writeFileSync(outputPath, `${JSON.stringify(measured, null, 2)}\n`)
+  writeFileSync(timingsPath, `${JSON.stringify(measured, null, 2)}\n`)
 }
 
 const [command, ...rest] = process.argv.slice(2)
 if (command === 'plan') plan(rest)
 if (command === 'run') run()
-if (command === 'timings') timings(rest)
-if (command !== 'plan' && command !== 'run' && command !== 'timings') {
-  process.stderr.write('usage: conciv-ci-shards <plan|run|timings>\n')
+if (command === 'report') report(rest)
+if (command === 'summarize') summarize(rest)
+if (command !== 'plan' && command !== 'run' && command !== 'report' && command !== 'summarize') {
+  process.stderr.write('usage: conciv-ci-shards <plan|run|report|summarize>\n')
   process.exitCode = 2
 }

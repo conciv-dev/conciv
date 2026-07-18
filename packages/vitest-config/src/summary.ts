@@ -160,7 +160,30 @@ export function parseCoverage(reportPackage: string, raw: string): Map<string, C
   )
 }
 
-function mergeSummaries(summaries: PackageSummary[]): PackageSummary[] {
+function toFailure(value: unknown): Failure {
+  const record = isRecord(value) ? value : {}
+  return {test: asString(record.test), message: asString(record.message)}
+}
+
+function toCoverage(value: unknown): Coverage | null {
+  if (!isRecord(value)) return null
+  return {covered: asNumber(value.covered), total: asNumber(value.total)}
+}
+
+export function parseSummaries(raw: string): PackageSummary[] {
+  const parsed: unknown = JSON.parse(raw)
+  return toRecords(parsed).map((entry) => ({
+    name: asString(entry.name),
+    passed: asNumber(entry.passed),
+    failed: asNumber(entry.failed),
+    skipped: asNumber(entry.skipped),
+    timeMs: asNumber(entry.timeMs),
+    failures: (Array.isArray(entry.failures) ? entry.failures : []).map(toFailure),
+    coverage: toCoverage(entry.coverage),
+  }))
+}
+
+export function mergeSummaries(summaries: PackageSummary[]): PackageSummary[] {
   const byName = groupBy(summaries.map((summary): [string, PackageSummary] => [summary.name, summary]))
   return [...byName.entries()].map(([name, grouped]) =>
     grouped.reduce(
@@ -228,10 +251,23 @@ function row(summary: PackageSummary): string {
   return `| ${icon} ${summary.name} | ${summary.passed} | ${failed} | ${skipped} | ${coveragePct(summary.coverage)} | ${seconds(summary.timeMs)} |`
 }
 
+const MAX_FAILURE_CHARS = 8_000
+
+function fencedBlock(body: string): string {
+  const longestRun = [...body.matchAll(/`+/g)].reduce((longest, run) => Math.max(longest, run[0].length), 0)
+  const fence = '`'.repeat(Math.max(3, longestRun + 1))
+  return `${fence}\n${body}\n${fence}`
+}
+
+function failureBody(message: string): string {
+  if (message.length <= MAX_FAILURE_CHARS) return message
+  return `${message.slice(0, MAX_FAILURE_CHARS)}\n… truncated ${message.length - MAX_FAILURE_CHARS} characters`
+}
+
 function failureSection(summary: PackageSummary): string[] {
   return summary.failures.map(
     (failure) =>
-      `<details>\n<summary>❌ <code>${escapeHtml(summary.name)}</code> ${escapeHtml(failure.test)}</summary>\n\n\`\`\`\n${failure.message}\n\`\`\`\n\n</details>`,
+      `<details>\n<summary>❌ <code>${escapeHtml(summary.name)}</code> ${escapeHtml(failure.test)}</summary>\n\n${fencedBlock(failureBody(failure.message))}\n\n</details>`,
   )
 }
 
