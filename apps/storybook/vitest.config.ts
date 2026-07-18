@@ -18,20 +18,18 @@ export default defineConfig({
         test: {
           name: 'storybook',
           maxWorkers: 2,
+          isolate: false,
           testTimeout: 60_000,
           browser: {
             enabled: true,
             headless: true,
-            provider: playwright({}),
-            instances: [
-              {
-                browser: 'chromium',
-                launch: {
-                  channel: 'chrome',
-                  args: ['--disable-dev-shm-usage', '--js-flags=--max-old-space-size=4096'],
-                },
+            provider: playwright({
+              launchOptions: {
+                channel: 'chrome',
+                args: ['--disable-dev-shm-usage', '--js-flags=--max-old-space-size=4096'],
               },
-            ],
+            }),
+            instances: [{browser: 'chromium'}],
           },
         },
       },
