@@ -15,6 +15,7 @@ export default defineConfig({
         test: {
           name: 'storybook',
           maxWorkers: 2,
+          isolate: false,
           testTimeout: 60_000,
           browser: {
             enabled: true,
