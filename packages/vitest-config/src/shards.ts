@@ -9,6 +9,7 @@ export const TARGET_SHARD_MS = 150_000
 export const DEFAULT_PACKAGE_MS = 5_000
 const MIN_SHARDS = 2
 const MAX_SHARDS = 8
+const BOOTSTRAP_SHARDS = 4
 
 const BROWSER_DEPENDENCY_PREFIXES = ['playwright', '@playwright/', '@vitest/browser']
 
@@ -58,8 +59,9 @@ export function planShards(packages: WorkspacePackage[], timings: Record<string,
     .map((entry) => ({...entry, weightMs: timings[entry.name] ?? DEFAULT_PACKAGE_MS}))
     .toSorted((a, b) => b.weightMs - a.weightMs || a.name.localeCompare(b.name))
   const totalMs = weighted.reduce((sum, entry) => sum + entry.weightMs, 0)
+  const measuredCount = Math.max(Math.ceil(totalMs / TARGET_SHARD_MS), MIN_SHARDS, 1)
   const shardCount = Math.min(
-    Math.max(Math.ceil(totalMs / TARGET_SHARD_MS), MIN_SHARDS, 1),
+    Object.keys(timings).length === 0 ? Math.max(measuredCount, BOOTSTRAP_SHARDS) : measuredCount,
     MAX_SHARDS,
     packages.length,
   )

@@ -71,7 +71,12 @@ test('planShards scales shard count with total measured time', () => {
   const packages = Array.from({length: 10}, (_, index) => pkg(`p${index}`))
   const timings = Object.fromEntries(packages.map((entry) => [entry.name, TARGET_SHARD_MS]))
   expect(planShards(packages, timings)).toHaveLength(8)
-  expect(planShards(packages, {})).toHaveLength(2)
+})
+
+test('planShards spreads wide without any baseline so the bootstrap run still parallelizes', () => {
+  const packages = Array.from({length: 10}, (_, index) => pkg(`p${index}`))
+  expect(planShards(packages, {})).toHaveLength(4)
+  expect(planShards(packages, {p0: 1_000})).toHaveLength(2)
 })
 
 test('planShards falls back to the default weight for unmeasured packages', () => {
