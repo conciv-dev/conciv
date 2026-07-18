@@ -140,25 +140,28 @@ const AssistantUsageRecordSchema = z
   })
   .loose()
 
-export function contextTokensFromTranscript(jsonl: string): number | undefined {
-  let occupancy: number | undefined
-  for (const line of jsonl.split('\n')) {
-    const t = line.trim()
-    if (!t) continue
-    let obj: unknown
-    try {
-      obj = JSON.parse(t)
-    } catch {
-      continue
-    }
-    const rec = AssistantUsageRecordSchema.safeParse(obj)
-    if (!rec.success || rec.data.isSidechain) continue
-    const usage = rec.data.message?.usage
-    if (!usage) continue
-    occupancy =
-      (usage.input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0)
+function parseJson(line: string): unknown {
+  try {
+    return JSON.parse(line)
+  } catch {
+    return null
   }
-  return occupancy
+}
+
+function lastAssistantUsage(jsonl: string) {
+  return jsonl
+    .split('\n')
+    .flatMap((line) => {
+      const rec = AssistantUsageRecordSchema.safeParse(parseJson(line))
+      return rec.success && !rec.data.isSidechain && rec.data.message?.usage ? [rec.data.message.usage] : []
+    })
+    .at(-1)
+}
+
+export function contextTokensFromTranscript(jsonl: string): number | undefined {
+  const usage = lastAssistantUsage(jsonl)
+  if (!usage) return undefined
+  return (usage.input_tokens ?? 0) + (usage.cache_read_input_tokens ?? 0) + (usage.cache_creation_input_tokens ?? 0)
 }
 
 const SummaryRecordSchema = z.object({type: z.literal('summary'), summary: z.string()}).loose()
