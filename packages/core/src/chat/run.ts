@@ -216,6 +216,21 @@ async function* boundFirstChunk(
   yield* {[Symbol.asyncIterator]: () => iterator}
 }
 
+function seedUserMessage(processor: StreamProcessor, req: RunRequest): void {
+  const lastUser = req.messages.findLast((message) => message.role === 'user')
+  const stored = req.userParts ?? lastUser?.content
+  if (stored != null) processor.addUserMessage(stored)
+}
+
+async function finishRun(deps: ChatDeps, sessionId: string, req: RunRequest, outcome: RunOutcome): Promise<void> {
+  persistRunOutcome(deps, sessionId, req.kind)
+  if (outcome.usage) outcome.usage.contextTokens = await contextOccupancyFor(deps, sessionId).catch(() => undefined)
+  await recordRunEnd(deps, sessionId, outcome.usage).catch(() => {})
+  releaseRun(deps.db, sessionId, outcome.error)
+  deps.changes.notify()
+  if (deps.onRunEnd) await deps.onRunEnd(sessionId).catch(() => {})
+}
+
 export async function startRun(deps: ChatDeps, sessionId: string, req: RunRequest): Promise<void> {
   const abort = new AbortController()
   const processor = new StreamProcessor({
@@ -226,9 +241,7 @@ export async function startRun(deps: ChatDeps, sessionId: string, req: RunReques
       },
     },
   })
-  const lastUser = req.messages.findLast((message) => message.role === 'user')
-  const stored = req.userParts ?? lastUser?.content
-  if (stored != null) processor.addUserMessage(stored)
+  seedUserMessage(processor, req)
   const unwatch = watchForStop(deps, sessionId, abort)
   const outcome: RunOutcome = {error: null, usage: null}
   try {
@@ -243,12 +256,7 @@ export async function startRun(deps: ChatDeps, sessionId: string, req: RunReques
     if (!abort.signal.aborted) outcome.error = error instanceof Error ? error.message : String(error)
   } finally {
     unwatch()
-    persistRunOutcome(deps, sessionId, req.kind)
-    if (outcome.usage) outcome.usage.contextTokens = await contextOccupancyFor(deps, sessionId).catch(() => undefined)
-    await recordRunEnd(deps, sessionId, outcome.usage).catch(() => {})
-    releaseRun(deps.db, sessionId, outcome.error)
-    deps.changes.notify()
-    if (deps.onRunEnd) await deps.onRunEnd(sessionId).catch(() => {})
+    await finishRun(deps, sessionId, req, outcome)
   }
 }
 

@@ -13,10 +13,11 @@ import {
 export type AttachmentCardSlot = {mime: string; render: ValidComponent}
 
 function attachmentMime(attachment: AttachmentState): string | undefined {
-  if ('content' in attachment)
-    for (const part of attachment.content)
-      if (part.type === 'document' && part.source.type === 'data') return part.source.mimeType
-  return attachment.contentType
+  const parts = 'content' in attachment ? attachment.content : []
+  const documentMimes = parts.flatMap((part) =>
+    part.type === 'document' && part.source.type === 'data' ? [part.source.mimeType] : [],
+  )
+  return documentMimes[0] ?? attachment.contentType
 }
 
 export function AttachmentByMime(props: {cards: readonly AttachmentCardSlot[]; removable?: boolean}): JSX.Element {
