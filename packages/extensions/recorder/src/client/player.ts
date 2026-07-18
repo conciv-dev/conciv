@@ -8,7 +8,8 @@ import Player from 'rrweb-player'
 import type {RrwebEvent} from '../shared/protocol.js'
 import {computeIdleSpans, idleSpanAt} from './inactivity.js'
 
-const playerEvents = z.array(z.custom<eventWithTime>())
+const playerEvent = z.custom<eventWithTime>()
+const playerEvents = z.array(playerEvent)
 const metaSize = z.object({width: z.number(), height: z.number()})
 const timePayload = z.number()
 
@@ -57,6 +58,65 @@ function demoteInjectedStyles(scope: Document | ShadowRoot, known: Set<Element>)
     if (known.has(injected)) continue
     injected.textContent = `@layer rrweb {\n${injected.textContent ?? ''}\n}`
     known.add(injected)
+  }
+}
+
+const LIVE_POLL_MS = 1000
+
+export function mountLivePlayer(
+  container: HTMLDivElement,
+  events: RrwebEvent[],
+  pull: (sinceTs: number) => Promise<RrwebEvent[]>,
+): () => void {
+  const scope = styleScope(container)
+  const known = new Set<Element>(scope.querySelectorAll('style'))
+  const style = document.createElement('style')
+  style.textContent = `@layer rrweb {\n${rrwebCss}\n${playerCss}\n}\n${themeCss}`
+  container.appendChild(style)
+  known.add(style)
+  const aspect = recordedAspect(events)
+  const player = new Player({
+    target: container,
+    props: {
+      ...playerSize(container, aspect),
+      events: playerEvents.parse(events),
+      autoPlay: false,
+      liveMode: true,
+      showController: false,
+    },
+  })
+  demoteInjectedStyles(scope, known)
+  let cursor = events.at(-1)?.timestamp ?? 0
+  player.getReplayer().startLive(cursor)
+  let stopped = false
+  let poll: ReturnType<typeof setTimeout> | undefined
+  const tick = async (): Promise<void> => {
+    const fresh = await pull(cursor).catch((): RrwebEvent[] => [])
+    if (stopped) return
+    for (const event of fresh) {
+      player.addEvent(playerEvent.parse(event))
+      cursor = Math.max(cursor, event.timestamp)
+    }
+    poll = setTimeout(() => void tick(), LIVE_POLL_MS)
+  }
+  poll = setTimeout(() => void tick(), LIVE_POLL_MS)
+  let frame = 0
+  const observer = new ResizeObserver(() => {
+    cancelAnimationFrame(frame)
+    frame = requestAnimationFrame(() => {
+      const size = playerSize(container, aspect)
+      if (size.width < 80) return
+      player.$set({width: size.width, height: size.height})
+      player.triggerResize()
+    })
+  })
+  observer.observe(container)
+  return () => {
+    stopped = true
+    if (poll) clearTimeout(poll)
+    cancelAnimationFrame(frame)
+    observer.disconnect()
+    player.$destroy()
   }
 }
 

@@ -47,6 +47,20 @@ describe('createCaptureControl', () => {
     control.dispose()
   })
 
+  it('viewer presence drives live cadence without clobbering captures', () => {
+    const control = createCaptureControl(createEventRing({windowMs: 60_000}), () => 0)
+    const seen: RecorderControl[] = []
+    control.subscribe((message) => seen.push(message))
+    control.setViewerLive(true)
+    expect(seen).toEqual([{live: true}])
+    const {captureId} = control.startCapture()
+    control.setViewerLive(false)
+    expect(seen.at(-1)).toEqual({live: true})
+    control.stopCapture(captureId)
+    expect(seen.at(-1)).toEqual({flush: true, live: false})
+    control.dispose()
+  })
+
   it('awaitCoverage resolves once the ring covers the timestamp', async () => {
     const ring = createEventRing({windowMs: 60_000})
     const control = createCaptureControl(ring, () => 0)

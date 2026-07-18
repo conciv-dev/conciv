@@ -32,21 +32,26 @@ describe('recorder end to end (real browser, real engine)', () => {
     expect(JSON.stringify(stopped)).toContain('During capture')
   }, 120_000)
 
-  it('panel loads a real replay (reconstructed page inside the player) and offers send-to-agent', async () => {
+  it('panel loads a live replay (reconstructed page) and follows new page activity without reopening', async () => {
     await api().page.getByRole('tab', {name: 'Recorder'}).click()
     const send = api().page.getByRole('button', {name: 'Send to agent'})
     await send.waitFor({state: 'visible', timeout: 15_000})
-    const replay = await api().page.evaluate(() => {
-      const iframe = document.querySelector('.rr-player iframe')
-      const body = iframe instanceof HTMLIFrameElement ? iframe.contentDocument?.body : null
-      return {
-        controller: Boolean(document.querySelector('.rr-controller')),
-        reconstructedChildren: body?.childElementCount ?? 0,
-        reconstructedText: body?.textContent ?? '',
-      }
+    const readReplay = () =>
+      api().page.evaluate(() => {
+        const iframe = document.querySelector('.rr-player iframe')
+        const body = iframe instanceof HTMLIFrameElement ? iframe.contentDocument?.body : null
+        return {reconstructedChildren: body?.childElementCount ?? 0, reconstructedText: body?.textContent ?? ''}
+      })
+    await expect.poll(async () => (await readReplay()).reconstructedChildren, {timeout: 15_000}).toBeGreaterThan(0)
+    expect((await readReplay()).reconstructedText).toContain('Comment target')
+    await api().page.evaluate(() => {
+      const marker = document.createElement('button')
+      marker.textContent = 'Live follow marker'
+      marker.id = 'live-marker'
+      document.body.appendChild(marker)
     })
-    expect(replay.controller).toBe(true)
-    expect(replay.reconstructedChildren).toBeGreaterThan(0)
-    expect(replay.reconstructedText).toContain('Comment target')
+    await expect
+      .poll(async () => (await readReplay()).reconstructedText, {timeout: 20_000})
+      .toContain('Live follow marker')
   }, 120_000)
 })

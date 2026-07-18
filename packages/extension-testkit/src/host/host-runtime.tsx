@@ -73,10 +73,11 @@ export function startHost(extension: AnyExtension): void {
       if (Symbol.asyncIterator in pending) return
       const el = document.createElement('div')
       el.setAttribute('data-testkit-attachment', file.name)
+      el.setAttribute('data-conciv-root', '')
       document.body.appendChild(el)
       render(
         () => (
-          <HostApiProvider rpc={rpc} apiBase={apiBase} toast={showToast}>
+          <HostApiProvider rpc={rpc} apiBase={apiBase} toast={showToast} dialog={Dialog} popover={Popover}>
             <AttachmentProvider value={pending}>
               <AttachmentByMime cards={cards} />
             </AttachmentProvider>
@@ -95,6 +96,7 @@ export function startHost(extension: AnyExtension): void {
     attachFile(new File([parsed.data.text], parsed.data.name, {type: parsed.data.type}))
   })
   const mountRoot = document.createElement('div')
+  mountRoot.setAttribute('data-conciv-root', '')
   document.body.appendChild(mountRoot)
   render(
     () => (

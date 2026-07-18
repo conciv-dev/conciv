@@ -35,6 +35,17 @@ export function makeRecorderRouter(runtime: RecorderRuntime) {
         return {ok: true}
       }),
     window: recorderOs.input(RangeInput).handler(({input}) => ({events: runtime.rings.window(input)})),
+    events: recorderOs
+      .input(z.object({sinceTs: z.number()}))
+      .handler(({input}) => ({events: runtime.rings.since(input.sinceTs)})),
+    presence: recorderOs
+      .input(z.object({live: z.boolean()}))
+      .output(z.object({ok: z.literal(true)}))
+      .handler(({input}) => {
+        runtime.control.setViewerLive(input.live)
+        if (input.live) runtime.control.emit({snapshot: true, flush: true})
+        return {ok: true}
+      }),
     reset: recorderOs.output(z.object({ok: z.literal(true)})).handler(async () => {
       runtime.rings.clear()
       runtime.control.emit({snapshot: true, flush: true})

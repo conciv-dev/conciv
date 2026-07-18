@@ -6,6 +6,7 @@ const CLIENT_RING_IDLE_MS = 30 * 60 * 1000
 export type ClientRings = {
   append(clientId: string, events: RrwebEvent[]): void
   window(range?: {fromTs?: number; toTs?: number}, clientId?: string): RrwebEvent[]
+  since(ts: number, clientId?: string): RrwebEvent[]
   lastTs(): number
   clear(): void
   onAppend(listener: (lastTs: number) => void): () => void
@@ -53,6 +54,7 @@ export function createClientRings(opts: {windowMs: number; maxBytes?: number}): 
       sweep()
     },
     window: (range = {}, clientId) => resolve(clientId)?.window(range) ?? [],
+    since: (ts, clientId) => resolve(clientId)?.since(ts) ?? [],
     lastTs: () => resolve()?.lastTs() ?? 0,
     clear() {
       for (const entry of entries.values()) entry.unsubscribe()

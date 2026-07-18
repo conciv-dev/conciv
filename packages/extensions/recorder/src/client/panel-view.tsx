@@ -1,11 +1,11 @@
-import {Show, createSignal, onCleanup, type JSX} from 'solid-js'
+import {Show, createResource, onCleanup, type JSX} from 'solid-js'
 import {QueryClient, QueryClientProvider, useMutation, useQuery, useQueryClient} from '@tanstack/solid-query'
 import {createTanstackQueryUtils} from '@orpc/tanstack-query'
 import {getHostApi, makeExtRpcClient} from '@conciv/extension'
-import {Button, Switch} from '@conciv/ui-kit-system'
+import {Button} from '@conciv/ui-kit-system'
 import {RECORDER_MIME, RECORDER_NAME, recordingPoster, recordingRefJson, type RrwebEvent} from '../shared/protocol.js'
 import type {RecorderRouter} from '../server.js'
-import {mountPlayer} from './player.js'
+import {mountLivePlayer} from './player.js'
 import {RecorderErrorNotice, RecorderNotice} from './notices.js'
 import {useRecorderContext} from './recorder-context.js'
 
@@ -33,7 +33,12 @@ function RecorderPanel(): JSX.Element {
   const rpc = makeExtRpcClient<RecorderRouter>(apiBase, RECORDER_NAME)
   const utils = createTanstackQueryUtils(rpc)
   const queryClient = useQueryClient()
-  const recording = useQuery(() => utils.window.queryOptions({input: {}}))
+  const [presenceReady] = createResource(async () => {
+    await rpc.presence({live: true}).catch(() => {})
+    return true
+  })
+  onCleanup(() => void rpc.presence({live: false}).catch(() => {}))
+  const recording = useQuery(() => ({...utils.window.queryOptions({input: {}}), enabled: presenceReady() === true}))
   const log = useQuery(() => utils.log.queryOptions({input: {}}))
   const reset = useMutation(() =>
     utils.reset.mutationOptions({
@@ -41,13 +46,11 @@ function RecorderPanel(): JSX.Element {
       onError: () => toast('Could not start a new recording — is the page still connected?'),
     }),
   )
-  const [skipIdle, setSkipIdle] = createSignal(true)
-
   const retry = (): void => void queryClient.invalidateQueries()
 
   const replayRef = (events: RrwebEvent[]) => (container: HTMLDivElement) => {
     if (events.length < 2) return
-    onCleanup(mountPlayer(container, events, skipIdle))
+    onCleanup(mountLivePlayer(container, events, (sinceTs) => rpc.events({sinceTs}).then((delta) => delta.events)))
   }
 
   const save = useMutation(() => utils.recordings.save.mutationOptions())
@@ -85,17 +88,9 @@ function RecorderPanel(): JSX.Element {
                     >
                       New recording
                     </Button>
-                    <Switch.Root
-                      class="ml-auto"
-                      checked={skipIdle()}
-                      onCheckedChange={(details) => setSkipIdle(details.checked)}
-                    >
-                      <Switch.Control>
-                        <Switch.Thumb />
-                      </Switch.Control>
-                      <Switch.Label>Skip idle</Switch.Label>
-                      <Switch.HiddenInput />
-                    </Switch.Root>
+                    <div class="ml-auto">
+                      <RecorderNotice text="Live" />
+                    </div>
                   </div>
                 </>
               )}

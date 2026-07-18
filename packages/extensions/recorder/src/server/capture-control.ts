@@ -15,6 +15,7 @@ export type CaptureControl = {
   startCapture(): {captureId: string; startTs: number}
   stopCapture(captureId: string): {startTs: number; stopTs: number} | null
   releaseAllCaptures(): void
+  setViewerLive(live: boolean): void
   awaitCoverage(ts: number, timeoutMs: number): Promise<boolean>
   awaitNextAppend(timeoutMs: number): Promise<boolean>
   dispose(): void
@@ -23,6 +24,7 @@ export type CaptureControl = {
 export function createCaptureControl(ring: AppendSource, now: () => number = Date.now): CaptureControl {
   const listeners = new Set<(control: RecorderControl) => void>()
   const captures = new Map<string, {startTs: number; expiresAt: number}>()
+  let viewers = 0
 
   const emit = (control: RecorderControl): void => {
     for (const listener of listeners) listener(control)
@@ -65,7 +67,12 @@ export function createCaptureControl(ring: AppendSource, now: () => number = Dat
     releaseAllCaptures() {
       if (captures.size === 0) return
       captures.clear()
-      emit({live: false})
+      if (viewers === 0) emit({live: false})
+    },
+    setViewerLive(live) {
+      viewers = Math.max(0, viewers + (live ? 1 : -1))
+      if (live && viewers === 1 && captures.size === 0) emit({live: true})
+      if (!live && viewers === 0 && captures.size === 0) emit({live: false})
     },
     awaitNextAppend(timeoutMs) {
       return new Promise((resolve) => {
