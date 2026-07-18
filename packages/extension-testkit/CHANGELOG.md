@@ -1,5 +1,19 @@
 # @conciv/extension-testkit
 
+## 0.0.12
+
+### Patch Changes
+
+- Updated dependencies [[`450fc46`](https://github.com/conciv-dev/conciv/commit/450fc463b7bce804ac1c75e3c6a398d1b9f9491e)]:
+  - @conciv/core@0.0.12
+  - @conciv/contract@0.0.12
+  - @conciv/extension@0.0.12
+  - @conciv/extension-compiler@0.0.12
+  - @conciv/grab@0.0.12
+  - @conciv/harness-testkit@0.0.12
+  - @conciv/protocol@0.0.12
+  - @conciv/ui-kit-system@0.0.12
+
 ## 0.0.11
 
 ### Patch Changes

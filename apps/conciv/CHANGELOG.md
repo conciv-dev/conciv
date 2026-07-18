@@ -1,5 +1,22 @@
 # conciv
 
+## 0.0.12
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @conciv/client@0.0.12
+  - @conciv/contract@0.0.12
+  - @conciv/extension@0.0.12
+  - @conciv/grab@0.0.12
+  - @conciv/mascot@0.0.12
+  - @conciv/page@0.0.12
+  - @conciv/protocol@0.0.12
+  - @conciv/solid-streamdown@0.0.12
+  - @conciv/ui-kit-chat@0.0.12
+  - @conciv/ui-kit-chat-tools@0.0.12
+  - @conciv/ui-kit-system@0.0.12
+
 ## 0.0.11
 
 ### Patch Changes
