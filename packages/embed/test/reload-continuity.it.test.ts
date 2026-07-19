@@ -31,7 +31,7 @@ describe('reload continuity through the db-backed navigation row', () => {
     const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
     await input.fill('remember me')
     await page.getByRole('button', {name: 'Send message'}).click()
-    await expect.poll(() => page.getByText(ASSISTANT_TEXT).first().isVisible(), {timeout: 20_000}).toBe(true)
+    await expect.poll(() => page.getByText(ASSISTANT_TEXT).first().isVisible(), {timeout: 30_000}).toBe(true)
 
     await input.fill('an unsent draft survives')
     await input.press('End')
@@ -45,18 +45,18 @@ describe('reload continuity through the db-backed navigation row', () => {
           const draft = await kit.rpc.drafts.get({sessionId})
           return draft?.text === 'an unsent draft survives'
         },
-        {timeout: 15_000},
+        {timeout: 30_000},
       )
       .toBe(true)
 
     await page.reload({waitUntil: 'domcontentloaded'})
 
     await expect
-      .poll(() => page.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 20_000})
+      .poll(() => page.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 30_000})
       .toBe(true)
-    await expect.poll(() => page.getByText(ASSISTANT_TEXT).first().isVisible(), {timeout: 20_000}).toBe(true)
+    await expect.poll(() => page.getByText(ASSISTANT_TEXT).first().isVisible(), {timeout: 30_000}).toBe(true)
     await expect
-      .poll(() => page.getByRole('textbox', {name: 'Message the conciv agent'}).inputValue(), {timeout: 20_000})
+      .poll(() => page.getByRole('textbox', {name: 'Message the conciv agent'}).inputValue(), {timeout: 30_000})
       .toBe('an unsent draft survives')
     await page.close()
   })

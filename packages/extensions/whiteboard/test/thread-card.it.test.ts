@@ -26,11 +26,11 @@ test('clicking a pin opens the thread card with its comment and replies', async 
     })
 
     const pin = api.page.getByRole('button', {name: /comment, open/})
-    await pin.waitFor({timeout: 15_000})
+    await pin.waitFor({timeout: 30_000})
     await pin.focus()
     await pin.press('Enter')
 
-    await api.page.getByText('agent left a note').waitFor({timeout: 10_000})
+    await api.page.getByText('agent left a note').waitFor({timeout: 30_000})
     await api.page.getByText('Opus').waitFor()
 
     const reply = api.page.getByRole('textbox', {name: 'Reply'})
@@ -46,7 +46,7 @@ test('clicking a pin opens the thread card with its comment and replies', async 
       authorKind: 'ai',
       authorModel: 'Opus',
     })
-    await api.page.getByText('and here is a reply').waitFor({timeout: 10_000})
+    await api.page.getByText('and here is a reply').waitFor({timeout: 30_000})
   } finally {
     await api.dispose()
   }

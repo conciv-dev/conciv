@@ -24,6 +24,9 @@ test('CI runs collect v8 line coverage into a json summary', () => {
   vi.stubEnv('GITHUB_ACTIONS', 'true')
   expect(ciTest()).toEqual({
     reporters: ciReporters(),
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
+    teardownTimeout: 30_000,
     coverage: {enabled: true, provider: 'v8', reporter: ['json-summary'], reportsDirectory: 'coverage'},
   })
 })

@@ -10,9 +10,13 @@ import {saveFileToDisk} from './download.js'
 import {RecorderErrorNotice, RecorderNotice} from './notices.js'
 import {useRecorderContext} from './recorder-context.js'
 
-function recordingWithEnoughEvents(recording: {events: RrwebEvent[]} | undefined): RrwebEvent[] | undefined {
-  const events = recording?.events ?? []
-  return events.length >= 2 ? events : undefined
+const VIEWER_RENEW_MS = 7000
+
+type ReplaySource = {events: RrwebEvent[]; cursor: number}
+
+function recordingWithEnoughEvents(recording: ReplaySource | undefined): ReplaySource | undefined {
+  if (!recording || recording.events.length < 2) return undefined
+  return recording
 }
 
 export function RecorderPanelView(): JSX.Element {
@@ -34,11 +38,16 @@ function RecorderPanel(): JSX.Element {
   const rpc = makeExtRpcClient<RecorderRouter>(apiBase, RECORDER_NAME)
   const utils = createTanstackQueryUtils(rpc)
   const queryClient = useQueryClient()
+  const viewerId = crypto.randomUUID()
   const [presenceReady] = createResource(async () => {
-    await rpc.presence({live: true}).catch(() => {})
+    await rpc.presence({viewerId, live: true}).catch(() => {})
     return true
   })
-  onCleanup(() => void rpc.presence({live: false}).catch(() => {}))
+  const renewTimer = setInterval(() => void rpc.presence({viewerId, live: true}).catch(() => {}), VIEWER_RENEW_MS)
+  onCleanup(() => {
+    clearInterval(renewTimer)
+    void rpc.presence({viewerId, live: false}).catch(() => {})
+  })
   const pinned = (): {clientId?: string} => {
     const clientId = store.clientId()
     return clientId ? {clientId} : {}
@@ -66,10 +75,10 @@ function RecorderPanel(): JSX.Element {
 
   const [live, setLive] = createSignal(true)
   let playerHandle: StreamPlayerHandle | undefined
-  const replayRef = (events: RrwebEvent[]) => (container: HTMLDivElement) => {
-    if (events.length < 2) return
-    const mounted = mountStreamPlayer(container, events, {
-      pull: (sinceTs) => rpc.events({sinceTs, ...pinned()}).then((delta) => delta.events),
+  const replayRef = (source: ReplaySource) => (container: HTMLDivElement) => {
+    if (source.events.length < 2) return
+    const mounted = mountStreamPlayer(container, source, {
+      pull: (cursor) => rpc.events({cursor, ...pinned()}),
       onLive: setLive,
     })
     playerHandle = mounted
@@ -97,12 +106,13 @@ function RecorderPanel(): JSX.Element {
   }
 
   const sendToAgent = async (): Promise<void> => {
-    const entries = log.data?.entries ?? []
     const saved = await save.mutateAsync(pinned()).catch(() => null)
     if (!saved || 'error' in saved) {
       toast('Could not save the recording — try again.')
       return
     }
+    const fresh = await log.refetch().catch(() => null)
+    const entries = fresh?.data?.entries ?? log.data?.entries ?? []
     const ref = recordingRefJson({recordingId: saved.recordingId, poster: recordingPoster(entries)})
     attach(new File([ref], 'Screen recording', {type: RECORDER_MIME}))
     leaveView()
@@ -114,9 +124,9 @@ function RecorderPanel(): JSX.Element {
         <Show when={!recording.isError && !log.isError} fallback={<RecorderErrorNotice retry={retry} />}>
           <Show when={!recording.isPending} fallback={<RecorderNotice text="Loading recording…" />}>
             <Show keyed when={recordingWithEnoughEvents(recording.data)} fallback={<RecorderEmptyNotice />}>
-              {(events) => (
+              {(source) => (
                 <>
-                  <div ref={replayRef(events)} class="flex flex-1 min-h-0 w-full items-start justify-center" />
+                  <div ref={replayRef(source)} class="flex flex-1 min-h-0 w-full items-start justify-center" />
                   <div class="flex gap-2 items-center">
                     <Button size="sm" disabled={!log.isSuccess} onClick={() => void sendToAgent()}>
                       Send to agent

@@ -14,6 +14,14 @@ export type RrwebEvent = {type: number; data: unknown; timestamp: number}
 
 export const RrwebEventSchema = z.object({type: z.number(), data: z.unknown(), timestamp: z.number()})
 
+export const MAX_FLUSH_BYTES = 8 * 1024 * 1024
+
+const encoder = new TextEncoder()
+
+export function jsonByteLength(value: unknown): number {
+  return encoder.encode(JSON.stringify(value)).length
+}
+
 export const RecorderControlSchema = z.object({
   live: z.boolean().optional(),
   flush: z.boolean().optional(),

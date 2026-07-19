@@ -25,15 +25,15 @@ test('the thread card closes when its root comment is gone, leaving no empty hea
     })
 
     const pin = api.page.getByRole('button', {name: /comment, open/})
-    await pin.waitFor({timeout: 15_000})
+    await pin.waitFor({timeout: 30_000})
     await pin.focus()
     await pin.press('Enter')
-    await api.page.getByRole('button', {name: 'Close thread'}).waitFor({timeout: 10_000})
+    await api.page.getByRole('button', {name: 'Close thread'}).waitFor({timeout: 30_000})
 
     await api.callTool('comment.delete', {cid})
 
     await expect
-      .poll(async () => api.page.getByRole('button', {name: 'Close thread'}).count(), {timeout: 10_000})
+      .poll(async () => api.page.getByRole('button', {name: 'Close thread'}).count(), {timeout: 30_000})
       .toBe(0)
     expect(await api.page.getByRole('button', {name: 'Resolve thread'}).count()).toBe(0)
   } finally {

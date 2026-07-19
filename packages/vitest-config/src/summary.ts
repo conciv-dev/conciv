@@ -151,13 +151,19 @@ function fileDuration(file: Record<string, unknown>): number {
   return Math.max(0, asNumber(file.endTime) - asNumber(file.startTime))
 }
 
+function wallTime(files: Record<string, unknown>[]): number {
+  const starts = files.map((file) => asNumber(file.startTime)).filter((start) => start > 0)
+  const ends = files.map((file) => asNumber(file.endTime)).filter((end) => end > 0)
+  if (starts.length === 0 || ends.length === 0) return 0
+  return Math.max(0, Math.max(...ends) - Math.min(...starts))
+}
+
 function summaryOfFiles(name: string, files: Record<string, unknown>[]): PackageSummary {
   const cases = [
     ...files.flatMap((file) => toRecords(file.assertionResults).map(vitestCase)),
     ...files.filter(crashedWithoutAssertions).map(fileCrashCase),
   ]
-  const timeMs = files.reduce((total, file) => total + fileDuration(file), 0)
-  return summaryOfCases(name, cases, timeMs)
+  return summaryOfCases(name, cases, wallTime(files))
 }
 
 function groupBy<Value>(entries: [string, Value][]): Map<string, Value[]> {
@@ -269,7 +275,41 @@ export function parseCoverage(reportPackage: string, raw: string): Map<string, C
   )
 }
 
-function mergeSummaries(summaries: PackageSummary[]): PackageSummary[] {
+function toCoverage(value: unknown): Coverage | null {
+  if (!isRecord(value)) return null
+  return {covered: asNumber(value.covered), total: asNumber(value.total)}
+}
+
+function toCaseStatus(value: unknown): CaseStatus {
+  const status = asString(value)
+  if (status === 'passed' || status === 'failed' || status === 'flaky' || status === 'skipped') return status
+  return 'skipped'
+}
+
+function toCaseResult(value: unknown): CaseResult {
+  const record = isRecord(value) ? value : {}
+  return {
+    title: asString(record.title),
+    status: toCaseStatus(record.status),
+    durationMs: asNumber(record.durationMs),
+    retries: asNumber(record.retries),
+    message: stripVTControlCharacters(asString(record.message)),
+  }
+}
+
+export function parseSummaries(raw: string): PackageSummary[] {
+  const parsed: unknown = JSON.parse(raw)
+  return toRecords(parsed).map((entry) => ({
+    ...summaryOfCases(
+      asString(entry.name),
+      (Array.isArray(entry.cases) ? entry.cases : []).map(toCaseResult),
+      asNumber(entry.timeMs),
+    ),
+    coverage: toCoverage(entry.coverage),
+  }))
+}
+
+export function mergeSummaries(summaries: PackageSummary[]): PackageSummary[] {
   const byName = groupBy(summaries.map((summary): [string, PackageSummary] => [summary.name, summary]))
   return [...byName.entries()].map(([name, grouped]) =>
     grouped.reduce(
@@ -311,6 +351,10 @@ function escapeHtml(text: string): string {
   return text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
 }
 
+function inlineText(text: string): string {
+  return escapeHtml(text).replaceAll(/\s+/gu, ' ').trim()
+}
+
 function seconds(timeMs: number): string {
   return `${(timeMs / 1000).toFixed(1)}s`
 }
@@ -344,16 +388,29 @@ function row(summary: PackageSummary): string {
   return `| ${cells.join(' | ')} |`
 }
 
+const MAX_FAILURE_CHARS = 8_000
+
+function fencedBlock(body: string): string {
+  const longestRun = [...body.matchAll(/`+/g)].reduce((longest, run) => Math.max(longest, run[0].length), 0)
+  const fence = '`'.repeat(Math.max(3, longestRun + 1))
+  return `${fence}\n${body}\n${fence}`
+}
+
+function failureBody(message: string): string {
+  if (message.length <= MAX_FAILURE_CHARS) return message
+  return `${message.slice(0, MAX_FAILURE_CHARS)}\n… truncated ${message.length - MAX_FAILURE_CHARS} characters`
+}
+
 function failureSection(summary: PackageSummary): string[] {
   return failuresOf(summary).map(
     (failure) =>
-      `<details>\n<summary>❌ <code>${escapeHtml(summary.name)}</code> ${escapeHtml(failure.test)}</summary>\n\n\`\`\`\n${failure.message}\n\`\`\`\n\n</details>`,
+      `<details>\n<summary>❌ <code>${inlineText(summary.name)}</code> ${inlineText(failure.test)}</summary>\n\n${fencedBlock(failureBody(failure.message))}\n\n</details>`,
   )
 }
 
 function caseRows(entry: CaseResult): string[] {
   const cells = [
-    escapeHtml(entry.title),
+    inlineText(entry.title),
     `${CASE_ICONS[entry.status]} ${entry.status}`,
     seconds(entry.durationMs),
     blankIfZero(entry.retries),
@@ -370,7 +427,7 @@ function detailsLabel(summary: PackageSummary): string {
     ...(summary.flaky > 0 ? [`${summary.flaky} flaky`] : []),
     ...(summary.skipped > 0 ? [`${summary.skipped} skipped`] : []),
   ]
-  return `${packageIcon(summary)} <code>${escapeHtml(summary.name)}</code> · ${counts.join(' · ')} · ${seconds(summary.timeMs)}`
+  return `${packageIcon(summary)} <code>${inlineText(summary.name)}</code> · ${counts.join(' · ')} · ${seconds(summary.timeMs)}`
 }
 
 function detailsSection(summary: PackageSummary): string {

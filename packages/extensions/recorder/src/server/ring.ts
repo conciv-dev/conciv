@@ -1,22 +1,34 @@
-import type {RrwebEvent} from '../shared/protocol.js'
+import {jsonByteLength, type RrwebEvent} from '../shared/protocol.js'
 
 export type EventRing = {
   append(clientId: string, events: RrwebEvent[]): void
   window(opts?: {fromTs?: number; toTs?: number}): RrwebEvent[]
-  since(ts: number): RrwebEvent[]
+  since(cursor: number): RrwebEvent[]
+  head(): number
+  bytes(): number
   lastTs(): number
   clear(): void
   onAppend(listener: (lastTs: number) => void): () => void
 }
 
-type Stored = {event: RrwebEvent; bytes: number}
+type Stored = {event: RrwebEvent; bytes: number; seq: number}
 
 const DEFAULT_MAX_BYTES = 16 * 1024 * 1024
 
-export function createEventRing(opts: {windowMs: number; maxBytes?: number}): EventRing {
+export function createSequence(): () => number {
+  let seq = 0
+  return () => {
+    seq += 1
+    return seq
+  }
+}
+
+export function createEventRing(opts: {windowMs: number; maxBytes?: number; sequence?: () => number}): EventRing {
   const maxBytes = opts.maxBytes ?? DEFAULT_MAX_BYTES
+  const sequence = opts.sequence ?? createSequence()
   let stored: Stored[] = []
   let totalBytes = 0
+  let head = 0
   const listeners = new Set<(lastTs: number) => void>()
 
   const evict = (): void => {
@@ -40,12 +52,15 @@ export function createEventRing(opts: {windowMs: number; maxBytes?: number}): Ev
     append(_clientId, events) {
       if (!events.length) return
       const incoming = events
-        .map((event) => ({event, bytes: JSON.stringify(event).length}))
-        .toSorted((a, b) => a.event.timestamp - b.event.timestamp)
+        .toSorted((a, b) => a.timestamp - b.timestamp)
+        .map((event) => {
+          head = sequence()
+          return {event, bytes: jsonByteLength(event), seq: head}
+        })
       const tailAppend = (incoming[0]?.event.timestamp ?? 0) >= (stored.at(-1)?.event.timestamp ?? 0)
       stored = tailAppend
         ? [...stored, ...incoming]
-        : [...stored, ...incoming].toSorted((a, b) => a.event.timestamp - b.event.timestamp)
+        : [...stored, ...incoming].toSorted((a, b) => a.event.timestamp - b.event.timestamp || a.seq - b.seq)
       totalBytes += incoming.reduce((sum, item) => sum + item.bytes, 0)
       evict()
       const last = stored.at(-1)?.event.timestamp ?? 0
@@ -61,7 +76,9 @@ export function createEventRing(opts: {windowMs: number; maxBytes?: number}): Ev
       const next = inTail.findIndex((item) => item.event.type === 2 && item.event.timestamp > fromTs)
       return next >= 0 ? inTail.slice(withMeta(next)).map((item) => item.event) : []
     },
-    since: (ts) => stored.filter((item) => item.event.timestamp > ts).map((item) => item.event),
+    since: (cursor) => stored.filter((item) => item.seq > cursor).map((item) => item.event),
+    head: () => head,
+    bytes: () => totalBytes,
     lastTs: () => stored.at(-1)?.event.timestamp ?? 0,
     clear() {
       stored = []

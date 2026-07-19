@@ -1,6 +1,6 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {createFlusher} from '../src/client/flusher.js'
-import type {RrwebEvent} from '../src/shared/protocol.js'
+import {MAX_FLUSH_BYTES, jsonByteLength, type RrwebEvent} from '../src/shared/protocol.js'
 
 const event = (ts: number): RrwebEvent => ({type: 3, data: {}, timestamp: ts})
 
@@ -16,6 +16,31 @@ describe('createFlusher', () => {
     expect(sent).toHaveLength(0)
     await vi.advanceTimersByTimeAsync(5000)
     expect(sent).toEqual([[event(1), event(2)]])
+    flusher.dispose()
+  })
+
+  it('discards an event no single-event request could carry, so it cannot block the queue', async () => {
+    const padding = MAX_FLUSH_BYTES - jsonByteLength({type: 3, data: {blob: ''}, timestamp: 1})
+    const atCap: RrwebEvent = {type: 3, data: {blob: 'x'.repeat(padding)}, timestamp: 1}
+    expect(jsonByteLength(atCap)).toBe(MAX_FLUSH_BYTES)
+    expect(jsonByteLength([atCap])).toBeGreaterThan(MAX_FLUSH_BYTES)
+    const attempted: number[] = []
+    const sent: RrwebEvent[][] = []
+    const flusher = createFlusher({
+      send: async (events) => {
+        attempted.push(jsonByteLength(events))
+        if (jsonByteLength(events) > MAX_FLUSH_BYTES) throw new Error('payload too large')
+        sent.push(events)
+      },
+      idleMs: 5000,
+      liveMs: 200,
+    })
+    flusher.push(atCap)
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(attempted).toEqual([])
+    flusher.push(event(2))
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(sent).toEqual([[event(2)]])
     flusher.dispose()
   })
 

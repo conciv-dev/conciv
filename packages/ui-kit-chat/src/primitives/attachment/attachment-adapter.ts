@@ -184,9 +184,14 @@ export function isCompleteAttachment(attachment: Attachment): attachment is Comp
 
 const MAX_TEXT_BYTES = 1_048_576
 
+function textFileError(file: Pick<File, 'name' | 'size'>): string | undefined {
+  if (file.size > MAX_TEXT_BYTES) return `${file.name} exceeds the 1MB text limit`
+  return undefined
+}
+
 function pendingTextStatus(file: Pick<File, 'name' | 'size'>): PendingAttachmentStatus {
-  if (file.size > MAX_TEXT_BYTES)
-    return {type: 'incomplete', reason: 'error', message: `${file.name} exceeds the 1MB text limit`}
+  const error = textFileError(file)
+  if (error) return {type: 'incomplete', reason: 'error', message: error}
   return {type: 'requires-action', reason: 'composer-send'}
 }
 
@@ -202,11 +207,15 @@ export function createTextAttachmentAdapter(): AttachmentAdapter {
       status: pendingTextStatus(file),
     }),
     remove: async () => {},
-    send: async (attachment) => ({
-      ...attachment,
-      status: {type: 'complete'},
-      content: [{type: 'text', content: `Attachment ${attachment.name}:\n${await attachment.file.text()}`}],
-    }),
+    send: async (attachment) => {
+      const error = textFileError(attachment.file)
+      if (error) throw new Error(error)
+      return {
+        ...attachment,
+        status: {type: 'complete'},
+        content: [{type: 'text', content: `Attachment ${attachment.name}:\n${await attachment.file.text()}`}],
+      }
+    },
   }
 }
 

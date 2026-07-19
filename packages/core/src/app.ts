@@ -194,7 +194,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
       if (seenNames.has(extension.name)) throw new Error(`extension name collision: "${extension.name}"`)
       seenNames.add(extension.name)
       const result = await extension.__server?.({
-        stateDir: concivStateDir(opts.cwd),
+        stateDir: concivStateDir(opts.cfg.stateRoot),
         config: extension.parseConfig(opts.extensionConfig?.[extension.name]),
         cwd: opts.cwd,
         sessions: serverSessions,

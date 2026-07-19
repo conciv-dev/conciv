@@ -14,8 +14,174 @@ permissions:
   contents: read
 
 jobs:
+  # Package suites are sharded across runners so the big whiteboard IT suite and
+  # the real-browser suites stop starving each other on one 4-vCPU runner, with
+  # every shard fully uncapped (no --concurrency, no VITEST_MAX_WORKERS). The
+  # planner derives the matrix instead of a hand-maintained package list: it
+  # enumerates workspace packages, weighs each by its measured suite duration
+  # from the ci-test-timings artifact (published by the last main push; unknown
+  # packages get a small default), and LPT-bin-packs into as many shards as the
+  # total time warrants. New packages are picked up automatically; the split
+  # re-balances itself as timings drift. Node 22 strips types natively, so the
+  # planner runs from source with no install. First run ever (no timings
+  # artifact yet) packs everything into two default-weight shards — one slow
+  # bootstrap run on main, then it self-heals.
+  plan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read # download the ci-test-timings artifact from the latest main run
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+      # Baseline artifacts are NOT ref-scoped like caches: any PR run can upload an
+      # artifact under any name, and a repo-wide latest-by-name lookup would let a
+      # fork PR poison the baseline. Resolve from the latest successful main-push
+      # run of this workflow instead, and bound the download (scheduling data only,
+      # a few KB).
+      - name: Fetch shard timings baseline
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=main&event=push&status=success&per_page=1" --jq '.workflow_runs[0].id') || true
+          url=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts?name=ci-test-timings" --jq '.artifacts[0].archive_download_url') || true
+          if [ -n "$url" ] && [ "$url" != "null" ]; then
+            curl -sL --max-filesize 1048576 -H "Authorization: Bearer ${GH_TOKEN}" -o ci-test-timings.zip "$url"
+            unzip -p ci-test-timings.zip ci-test-timings.json > ci-test-timings.json || true
+          fi
+      - id: plan
+        run: node packages/vitest-config/src/ci-shards.ts plan --timings ci-test-timings.json
+
   build:
-    name: build + test
+    name: build + test (${{ matrix.shard }})
+    needs: plan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.7.0 # keep in sync with packageManager in package.json
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+      # CI-gate caches. Safe ONLY while no workflow runs untrusted code on a trusted
+      # ref (no pull_request_target): GitHub scopes cache writes per-ref, so fork PRs
+      # cannot poison main's cache, and the publish job (release.yml) stays cache-free.
+      # NOTE this ref-scoping is a CACHE property only — artifacts are repo-wide, which
+      # is why the baseline fetches above pin to a main-push run instead of latest-by-name.
+      # Playwright Chromium: exact lockfile-hash key, NO restore-keys — a broad prefix
+      # would let a poisoned browser binary launder forward across lockfile changes.
+      # The chromium shards save the same immutable key: first save wins, the
+      # rejected later saves are identical content, harmless.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: matrix.chromium
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+      # Turbo cache: scoped within a lockfile generation, so a dependency change
+      # discards prior cache instead of carrying (and laundering) it forward.
+      # Restore/save are split so artifacts of tasks that passed persist even when
+      # the job fails (turbo only caches successful tasks) — the common red→green
+      # PR loop keeps its warm cache. github.job + matrix.shard in the key stop the
+      # three shards, and this job vs the fallow job, racing to save the same sha
+      # (immutable keys: first save wins, second is rejected); run_attempt lets
+      # re-runs save too. The restore prefix is unchanged, so every job still
+      # shares every other job's saves.
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.job }}-${{ matrix.shard }}-${{ github.sha }}-${{ github.run_attempt }}
+          restore-keys: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
+      - uses: SocketDev/action@ba6de6cc0565af1f42295590380973573297e31f # v1.3.2
+        with:
+          mode: firewall-free
+          firewall-version: 1.13.1 # pinned: 'latest' does a GitHub Releases lookup that flakes CI
+      - run: sfw pnpm i --frozen-lockfile # Socket Firewall blocks known-malicious packages at install
+      # Real-browser vitest tests; playwright is a root devDep. On a cache hit the
+      # browser binary is already in place, so only the OS deps (not cached) install.
+      - run: pnpm exec playwright install --with-deps chromium
+        if: matrix.chromium && steps.playwright-cache.outputs.cache-hit != 'true'
+      - run: pnpm exec playwright install-deps chromium
+        if: matrix.chromium && steps.playwright-cache.outputs.cache-hit == 'true'
+      - run: pnpm exec conciv-ci-shards run
+        env:
+          SHARD_PACKAGES: ${{ matrix.packages }}
+      # Collapse this shard's per-package results (vitest emits test-results.json
+      # only in CI; turbo caches them so cache-hit packages still report) into ONE
+      # file, then upload it by literal name. Never glob packages/** here: the
+      # upload action would walk every node_modules in the workspace — minutes of
+      # directory traversal to ship a few KB. Our own walker skips node_modules.
+      # Inline failure annotations still come from vitest's github-actions reporter.
+      - run: pnpm exec conciv-ci-shards report --output "shard-report-${SHARD_NAME}.json"
+        if: always()
+        env:
+          SHARD_NAME: ${{ matrix.shard }}
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: test-results-${{ matrix.shard }}
+          path: shard-report-${{ matrix.shard }}.json
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: always()
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.job }}-${{ matrix.shard }}-${{ github.sha }}-${{ github.run_attempt }}
+
+  # One merged test-results table for the whole shard matrix: downloads each
+  # shard's collapsed report and renders a single job summary. On main pushes it
+  # also derives the per-package durations and publishes the ci-test-timings
+  # baseline the next planner run feeds on (push-only, like the bundle-size
+  # baseline: PR-created artifacts never become the baseline). Runs from source
+  # with no install, like the plan job.
+  test-summary:
+    name: test summary
+    needs: build
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: test-results-*
+          merge-multiple: true
+          path: shard-reports
+      - run: node packages/vitest-config/src/ci-shards.ts summarize shard-reports
+        if: github.event_name == 'pull_request'
+      - run: node packages/vitest-config/src/ci-shards.ts summarize shard-reports --timings ci-test-timings.json
+        if: github.event_name == 'push'
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: github.event_name == 'push'
+        with:
+          name: ci-test-timings
+          path: ci-test-timings.json
+
+  # Whole-repo gates that don't belong to any one shard. Bundle size measures
+  # every published dist, so it builds the full package graph itself (warm turbo
+  # cache makes this cheap); the no-comments oxlint pass covers apps/ too.
+  repo-checks:
+    name: repo checks
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -31,24 +197,6 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-      # CI-gate caches. Safe ONLY while no workflow runs untrusted code on a trusted
-      # ref (no pull_request_target): GitHub scopes cache writes per-ref, so fork PRs
-      # cannot poison main's cache, and the publish job (release.yml) stays cache-free.
-      # Playwright Chromium: exact lockfile-hash key, NO restore-keys — a broad prefix
-      # would let a poisoned browser binary launder forward across lockfile changes.
-      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        id: playwright-cache
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-      # Turbo cache: scoped within a lockfile generation, so a dependency change
-      # discards prior cache instead of carrying (and laundering) it forward.
-      # Restore/save are split so artifacts of tasks that passed persist even when
-      # the job fails (turbo only caches successful tasks) — the common red→green
-      # PR loop keeps its warm cache. github.job in the key stops this job and the
-      # fallow job racing to save the same sha (immutable keys: first save wins,
-      # second is rejected); run_attempt lets re-runs save too. The restore prefix
-      # is unchanged, so every job still shares every other job's saves.
       - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .turbo
@@ -59,35 +207,20 @@ jobs:
           mode: firewall-free
           firewall-version: 1.13.1 # pinned: 'latest' does a GitHub Releases lookup that flakes CI
       - run: sfw pnpm i --frozen-lockfile # Socket Firewall blocks known-malicious packages at install
-      # Real-browser vitest tests; playwright is a root devDep. On a cache hit the
-      # browser binary is already in place, so only the OS deps (not cached) install.
-      - run: pnpm exec playwright install --with-deps chromium
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-      - run: pnpm exec playwright install-deps chromium
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
-      # The consolidated storybook suite runs in its own job (below), off the shared runner: its
-      # maxWorkers:2 chromium would otherwise starve the page/terminal/test-runner/ui-kit browser
-      # suites here and flake the terminal reload-replay spawn-size test. --concurrency=3 +
-      # VITEST_MAX_WORKERS=1 keep those remaining suites from starving each other.
-      - run: pnpm exec turbo run typecheck lint test --filter='./packages/*' --filter='./packages/extensions/*' --concurrency=3
-        env:
-          VITEST_MAX_WORKERS: '1'
-      # One job-summary table for all package suites, built from the per-package
-      # test-results.json files (vitest emits them only in CI; turbo caches them so
-      # cache-hit packages still report). Inline failure annotations come from vitest's
-      # own github-actions reporter; ciReporters() disables its noisy per-run summary.
-      - run: pnpm exec conciv-ci-summary packages
-        if: always()
+      - run: pnpm exec turbo run build --filter='./packages/*' --filter='./packages/extensions/*'
       # Bundle size: measure published dists, diff against the baseline saved by the
       # latest main run. PRs read the baseline; pushes to main publish a fresh one.
+      # Pinned to a main-push run for the same artifact-poisoning reason as the
+      # planner's timings fetch.
       - name: Fetch bundle-size baseline
         if: github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          url=$(gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts?name=bundle-size-baseline&per_page=1" --jq '.artifacts[0].archive_download_url') || true
+          run_id=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/ci.yml/runs?branch=main&event=push&status=success&per_page=1" --jq '.workflow_runs[0].id') || true
+          url=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/artifacts?name=bundle-size-baseline" --jq '.artifacts[0].archive_download_url') || true
           if [ -n "$url" ] && [ "$url" != "null" ]; then
-            curl -sL -H "Authorization: Bearer ${GH_TOKEN}" -o bundle-size-baseline.zip "$url"
+            curl -sL --max-filesize 10485760 -H "Authorization: Bearer ${GH_TOKEN}" -o bundle-size-baseline.zip "$url"
             unzip -p bundle-size-baseline.zip bundle-size.json > bundle-size-baseline.json || true
           fi
       - run: pnpm exec conciv-bundle-size --output bundle-size.json --baseline bundle-size-baseline.json
@@ -103,6 +236,20 @@ jobs:
         with:
           path: .turbo
           key: turbo-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.job }}-${{ github.sha }}-${{ github.run_attempt }}
+
+  # The branch ruleset requires the exact context "build + test"; this gate keeps
+  # that context alive over the planner + shard matrix + repo checks. always() so
+  # a failed or cancelled dependency fails the gate instead of skipping it.
+  build-gate:
+    name: build + test
+    needs: [plan, build, repo-checks]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          test "${{ needs.plan.result }}" = "success"
+          test "${{ needs.build.result }}" = "success"
+          test "${{ needs.repo-checks.result }}" = "success"
 
   storybook:
     name: Storybook browser tests

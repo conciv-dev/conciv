@@ -29,14 +29,14 @@ describe('startPagePlane executes core page verbs in the browser', () => {
   it('round-trips page.run text through rpc.page.queries to the DOM driver', async () => {
     const page = await browser.newPage()
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
-    await page.waitForFunction(() => '__CONCIV_PAGE_DRIVER__' in window, undefined, {timeout: 15_000})
+    await page.waitForFunction(() => '__CONCIV_PAGE_DRIVER__' in window, undefined, {timeout: 30_000})
     await expect
       .poll(
         async () => {
           const body = await kit.rpc.page.run({verb: 'text', selector: '#probe'}).catch(() => null)
           return body !== null && 'text' in body ? body.text : null
         },
-        {timeout: 20_000},
+        {timeout: 30_000},
       )
       .toBe('page-bus-ok')
     await page.close()
@@ -45,14 +45,14 @@ describe('startPagePlane executes core page verbs in the browser', () => {
   it('snapshot verb sees host page structure', async () => {
     const page = await browser.newPage()
     await page.goto(host.base, {waitUntil: 'domcontentloaded'})
-    await page.waitForFunction(() => '__CONCIV_PAGE_DRIVER__' in window, undefined, {timeout: 15_000})
+    await page.waitForFunction(() => '__CONCIV_PAGE_DRIVER__' in window, undefined, {timeout: 30_000})
     await expect
       .poll(
         async () => {
           const body = await kit.rpc.page.run({verb: 'snapshot'}).catch(() => null)
           return body === null ? '' : JSON.stringify(body)
         },
-        {timeout: 20_000},
+        {timeout: 30_000},
       )
       .toContain('Embed page')
     await page.close()

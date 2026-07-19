@@ -11,7 +11,7 @@ export type RecorderRuntime = {
   rings: ClientRings
   control: CaptureControl
   config: RecorderConfig
-  renderer: () => Promise<KeyframeRenderer | null>
+  useRenderer: <Result>(work: (renderer: KeyframeRenderer) => Promise<Result>) => Promise<Result | null>
   recordings: RecordingStore
 }
 
@@ -44,8 +44,9 @@ async function renderFrames(
   keyframeCount: number,
 ): Promise<Keyframe[]> {
   if (!keyframeCount || events.length < 2) return []
-  const renderer = await runtime.renderer().catch(() => null)
-  if (!renderer) return []
   const lastTs = events.at(-1)?.timestamp ?? 0
-  return renderer.render(events, pickKeyframeTimestamps(log, lastTs, keyframeCount)).catch(() => [])
+  const frames = await runtime
+    .useRenderer((renderer) => renderer.render(events, pickKeyframeTimestamps(log, lastTs, keyframeCount)))
+    .catch(() => null)
+  return frames ?? []
 }

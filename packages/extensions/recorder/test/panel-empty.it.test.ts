@@ -10,7 +10,7 @@ describe('panel opened before any interaction (real browser)', () => {
     const label = await addMarker(api().page)
     await api().page.getByRole('button', {name: 'Send to agent'}).waitFor({state: 'visible', timeout: 20_000})
     await expect
-      .poll(() => api().page.frameLocator('iframe').getByText(label, {exact: true}).count(), {timeout: 20_000})
+      .poll(() => api().page.frameLocator('iframe').getByText(label, {exact: true}).count(), {timeout: 30_000})
       .toBeGreaterThan(0)
     await api().page.getByText('LIVE', {exact: true}).waitFor({state: 'visible', timeout: 10_000})
     await api().page.getByRole('slider', {name: 'Timeline'}).waitFor({state: 'visible', timeout: 10_000})

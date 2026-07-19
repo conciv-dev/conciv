@@ -1,5 +1,6 @@
-import {createEffect, onMount, Show, splitProps, type JSX} from 'solid-js'
+import {createEffect, mergeProps, onCleanup, onMount, Show, splitProps, type JSX} from 'solid-js'
 import {Field} from '@ark-ui/solid/field'
+import {applyAutosize, observeAutosize} from './autosize.js'
 
 const ROOT = 'flex flex-col gap-1'
 const LABEL = 'text-[0.75rem] text-pw-text-2 font-pw'
@@ -31,19 +32,8 @@ export type TextAreaProps = Omit<JSX.TextareaHTMLAttributes<HTMLTextAreaElement>
   unstyled?: boolean
 }
 
-function rowsToPx(el: HTMLTextAreaElement, rows: number): number {
-  const styles = getComputedStyle(el)
-  const lineHeight = Number.parseFloat(styles.lineHeight) || 20
-  const vertical =
-    Number.parseFloat(styles.paddingTop) +
-    Number.parseFloat(styles.paddingBottom) +
-    Number.parseFloat(styles.borderTopWidth) +
-    Number.parseFloat(styles.borderBottomWidth)
-  return rows * lineHeight + vertical
-}
-
 export function TextArea(props: TextAreaProps): JSX.Element {
-  const [local, rest] = splitProps(props, [
+  const [local, rest] = splitProps(mergeProps({minRows: 1, maxRows: 5}, props), [
     'class',
     'minRows',
     'maxRows',
@@ -54,17 +44,18 @@ export function TextArea(props: TextAreaProps): JSX.Element {
     'unstyled',
   ])
   let el: HTMLTextAreaElement | undefined
+  let lastHeight = 0
   const grow = () => {
     if (!el) return
-    const max = rowsToPx(el, local.maxRows ?? 5)
-    const min = rowsToPx(el, local.minRows ?? 1)
-    el.style.height = 'auto'
-    const next = Math.max(min, Math.min(el.scrollHeight, max))
-    el.style.height = `${next}px`
-    el.style.overflowY = el.scrollHeight > max ? 'auto' : 'hidden'
-    local.onHeightChange?.(next)
+    const height = applyAutosize(el, local.minRows, local.maxRows)
+    if (height === lastHeight) return
+    lastHeight = height
+    local.onHeightChange?.(height)
   }
-  onMount(grow)
+  onMount(() => {
+    grow()
+    if (el) onCleanup(observeAutosize(el, grow))
+  })
   createEffect(() => {
     void local.value
     grow()
@@ -76,7 +67,7 @@ export function TextArea(props: TextAreaProps): JSX.Element {
         el = node
         if (typeof forwardRef === 'function') forwardRef(node)
       }}
-      rows={local.minRows ?? 1}
+      rows={local.minRows}
       class={`${local.unstyled ? TEXTAREA_BARE : TEXTAREA}  ${local.class ?? ''}`}
       value={local.value}
       onInput={(event) => {

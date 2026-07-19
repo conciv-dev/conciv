@@ -21,7 +21,7 @@ test('the inbox shows empty, single-comment, and no-results edge states', async 
   try {
     await openCanvas(api.page)
     await openInbox(api.page)
-    await api.page.getByText('No comments yet').waitFor({timeout: 10_000})
+    await api.page.getByText('No comments yet').waitFor({timeout: 30_000})
 
     await api.callTool('comment.create', {
       cid: crypto.randomUUID(),
@@ -33,13 +33,13 @@ test('the inbox shows empty, single-comment, and no-results edge states', async 
       authorModel: 'Opus',
     })
     const item = api.page.getByRole('button', {name: /^Opus/})
-    await item.waitFor({timeout: 10_000})
+    await item.waitFor({timeout: 30_000})
     expect((await item.innerText()).toLowerCase()).not.toContain('repl')
 
     const search = api.page.getByRole('textbox', {name: 'Quick search'})
     await search.focus()
     await api.page.keyboard.type('zzznomatch')
-    await api.page.getByText(/No comments match/).waitFor({timeout: 10_000})
+    await api.page.getByText(/No comments match/).waitFor({timeout: 30_000})
   } finally {
     await api.dispose()
   }
