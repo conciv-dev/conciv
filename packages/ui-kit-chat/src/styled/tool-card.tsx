@@ -48,7 +48,7 @@ export function ToolCard(props: {
               </span>
             )}
           </Show>
-          <span class={`rounded-[var(--chat-radius-pill)] shrink-0 size-2 ${DOT[status()]}`} aria-hidden="true" />
+          <span class={`rounded-[var(--chat-radius-pill)] shrink-0 size-2 ${DOT[status()]}`} aria-label={status()} />
         </>
       }
     >

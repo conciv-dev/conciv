@@ -46,6 +46,7 @@ export const Running: Story = {
     await expect(c.getAllByText('drawn').length).toBeGreaterThan(0)
     await expect(c.queryByText('console')).toBeNull()
     await expect(c.queryByText(/SyntaxError/)).toBeNull()
+    await expect(c.getByLabelText('running')).toBeInTheDocument()
   },
 }
 
@@ -57,6 +58,8 @@ export const Success: Story = {
     await waitFor(() => expect(c.getByText('committed ["el_9f2"]')).toBeVisible())
     await expect(c.getByText('["el_9f2"]')).toBeVisible()
     await expect(c.queryByText(/SyntaxError/)).toBeNull()
+    await expect(c.queryByLabelText('error')).toBeNull()
+    await expect(c.getByLabelText('complete')).toBeInTheDocument()
   },
 }
 
@@ -69,6 +72,7 @@ export const Failure: Story = {
     await expect(c.getByText(/line 2/)).toBeVisible()
     await expect(c.queryByText('["el_9f2"]')).toBeNull()
     await expect(c.queryByText('console')).toBeNull()
+    await expect(c.getByLabelText('error')).toBeInTheDocument()
   },
 }
 
