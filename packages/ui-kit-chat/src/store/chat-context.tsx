@@ -95,7 +95,7 @@ export function useComposer(): {
   const isRunning = createMemo(() => chatBusy(chat))
   const text = () => chat.view.draft
   const isEmpty = () => chat.view.draft.trim().length === 0
-  const canSend = () => !isEmpty() && !isRunning()
+  const canSend = () => !isEmpty()
   const canCancel = () => isRunning()
   const send = () => {
     if (!canSend()) return

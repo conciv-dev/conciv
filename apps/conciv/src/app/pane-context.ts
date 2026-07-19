@@ -22,7 +22,6 @@ export type PaneContextValue = {
   viewLocked: Accessor<boolean>
   setLockedFor: (id: string) => (locked: boolean) => void
   slideClass: Accessor<string>
-  hydrating: Accessor<boolean>
   resetSlide: () => void
   grabStore: PaneGrabStore
   attachments: PendingAttachmentQueue

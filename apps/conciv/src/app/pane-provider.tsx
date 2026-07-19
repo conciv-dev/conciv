@@ -16,7 +16,6 @@ export function PaneProvider(props: {sessionId: string; children: JSX.Element}):
     viewLocked: () => false,
     setLockedFor: () => () => {},
     slideClass: () => '',
-    hydrating: () => false,
     resetSlide: () => {},
     grabStore: {
       grabs,

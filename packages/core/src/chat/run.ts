@@ -28,7 +28,7 @@ import {
 } from '@conciv/db'
 import type {ChatDeps} from './runtime.js'
 import {createSession, sessionById, toModelMessages} from './session.js'
-import {mergedMessages, transcriptMessages} from './attach.js'
+import {mergedMessages, runIdFor, transcriptMessages} from './attach.js'
 import {makeRunGate, withConcivGate, withConcivSandbox} from './gate.js'
 import {harnessDebug, logError} from '../lib/debug.js'
 
@@ -359,9 +359,10 @@ async function historyFor(deps: ChatDeps, sessionId: string): Promise<ChatMessag
   return (await mergedMessages(deps, sessionId)).map((message) => ChatMessageSchema.parse(message))
 }
 
-export function makeSend(deps: ChatDeps): (sessionId: string, content: UserContent) => Promise<void> {
+export function makeSend(deps: ChatDeps): (sessionId: string, content: UserContent) => Promise<string> {
   return async (sessionId, content) => {
-    if (!claimRun(deps.db, sessionId, 'chat')) throw new Error(SESSION_BUSY)
+    const epoch = claimRun(deps.db, sessionId, 'chat')
+    if (epoch === null) throw new Error(SESSION_BUSY)
     deps.changes.notify()
     try {
       deps.onRunStart?.(sessionId)
@@ -374,6 +375,7 @@ export function makeSend(deps: ChatDeps): (sessionId: string, content: UserConte
       void startRun(deps, sessionId, {messages, model, kind: 'chat', userParts: expanded})
       await deps.db.delete(drafts).where(eq(drafts.sessionId, sessionId))
       deps.changes.notify()
+      return runIdFor(sessionId, epoch)
     } catch (error) {
       releaseRun(deps.db, sessionId, null)
       deps.changes.notify()
@@ -390,7 +392,7 @@ async function addCompactMarker(db: ConcivDb, sessionId: string, afterTurn: numb
 
 export function makeCompactor(deps: ChatDeps): Compactor {
   async function run(sessionId: string): Promise<void> {
-    if (!claimRun(deps.db, sessionId, 'compact')) throw new Error(SESSION_BUSY)
+    if (claimRun(deps.db, sessionId, 'compact') === null) throw new Error(SESSION_BUSY)
     deps.changes.notify()
     try {
       deps.onRunStart?.(sessionId)

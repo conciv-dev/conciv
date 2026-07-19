@@ -12,12 +12,12 @@ export function chatRouter(deps: RpcDeps) {
     }),
     send: os.chat.send.handler(async ({input, errors}) => {
       try {
-        await deps.send(input.sessionId, input.content ?? input.text ?? '')
+        const runId = await deps.send(input.sessionId, input.content ?? input.text ?? '')
+        return {ok: true as const, runId}
       } catch (error) {
         if (error instanceof Error && error.message === SESSION_BUSY) throw errors.BUSY()
         throw error
       }
-      return {ok: true as const}
     }),
     permissionDecision: os.chat.permissionDecision.handler(({input}) => {
       const sessionId = sessionForApproval(chat.db, input.approvalId)

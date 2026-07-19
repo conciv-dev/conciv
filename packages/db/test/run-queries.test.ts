@@ -10,7 +10,7 @@ import {
   foldRunMessagesIntoImageHistory,
   hasRichPart,
   imageHistoryFor,
-  lastErrorOf,
+  lastErrorForEpoch,
   modelOf,
   releaseRun,
   replyFor,
@@ -31,15 +31,15 @@ describe('run lifecycle queries', () => {
     setRunMessages(db, 's1', [{id: 'stale'}])
     writeReply(db, 's1', 'stale-key', true)
     expect(runEpochOf(db, 's1')).toBe(0)
-    expect(claimRun(db, 's1', 'chat')).toBe(true)
-    expect(claimRun(db, 's1', 'chat')).toBe(false)
+    expect(claimRun(db, 's1', 'chat')).toBe(1)
+    expect(claimRun(db, 's1', 'chat')).toBeNull()
     expect(statusOf(db, 's1')).toBe('running')
     expect(runEpochOf(db, 's1')).toBe(1)
     expect(runMessagesFor(db, 's1')).toBeNull()
     expect(replyFor(db, 's1', 'stale-key')).toBeNull()
     releaseRun(db, 's1', null)
     expect(statusOf(db, 's1')).toBe('idle')
-    expect(claimRun(db, 's1', 'compact')).toBe(true)
+    expect(claimRun(db, 's1', 'compact')).toBe(2)
     expect(statusOf(db, 's1')).toBe('compacting')
   })
 
@@ -87,13 +87,17 @@ describe('run lifecycle queries', () => {
     expect(runMessagesFor(db, 's9')?.messages).toEqual([{id: 'live'}])
   })
 
-  it('releaseRun records lastError; the next claim clears it', () => {
+  it('releaseRun keys lastError to its epoch and it survives the next claim', () => {
     const db = fresh()
     claimRun(db, 's2', 'chat')
     releaseRun(db, 's2', 'boom')
-    expect(lastErrorOf(db, 's2')).toBe('boom')
+    expect(lastErrorForEpoch(db, 's2', 1)).toBe('boom')
     claimRun(db, 's2', 'chat')
-    expect(lastErrorOf(db, 's2')).toBeNull()
+    expect(lastErrorForEpoch(db, 's2', 1)).toBe('boom')
+    expect(lastErrorForEpoch(db, 's2', 2)).toBeNull()
+    releaseRun(db, 's2', null)
+    expect(lastErrorForEpoch(db, 's2', 1)).toBeNull()
+    expect(lastErrorForEpoch(db, 's2', 2)).toBeNull()
   })
 
   it('requestStop only flips a live run', () => {
@@ -111,7 +115,7 @@ describe('run lifecycle queries', () => {
     const db = fresh()
     expect(statusOf(db, 'missing')).toBe('idle')
     expect(runEpochOf(db, 'missing')).toBe(0)
-    expect(lastErrorOf(db, 'missing')).toBeNull()
+    expect(lastErrorForEpoch(db, 'missing', 1)).toBeNull()
     expect(modelOf(db, 'missing')).toBeNull()
     expect(runMessagesFor(db, 'missing')).toBeNull()
     expect(replyFor(db, 'missing', 'k')).toBeNull()

@@ -8,6 +8,7 @@ export const runs = sqliteTable('runs', {
   status: text('status', {enum: RUN_STATUSES}).notNull().default('idle'),
   runEpoch: integer('run_epoch').notNull().default(0),
   lastError: text('last_error'),
+  lastErrorEpoch: integer('last_error_epoch'),
   updatedAt: integer('updated_at').notNull(),
 })
 

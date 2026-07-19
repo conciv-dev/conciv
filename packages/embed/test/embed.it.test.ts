@@ -157,7 +157,7 @@ describe('embed boots the conciv app against a real core', () => {
   it('shows Stop instead of Send while a run is streaming; typing stays enabled', async () => {
     const page = await openPage()
     await openPanel(page)
-    kit.harness.__scripted.hold()
+    kit.harness.script.hold()
     const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
     await input.fill('long question')
     await page.getByRole('button', {name: 'Send message'}).click()
@@ -166,7 +166,7 @@ describe('embed boots the conciv app against a real core', () => {
       .toBe(true)
     await input.fill('still typing while it runs')
     expect(await input.inputValue()).toBe('still typing while it runs')
-    kit.harness.__scripted.release()
+    kit.harness.script.release()
     await expect
       .poll(() => page.getByRole('button', {name: 'Stop generating'}).isVisible(), {timeout: 30_000})
       .toBe(false)
@@ -187,7 +187,7 @@ describe('embed boots the conciv app against a real core', () => {
   it('renders the conciv_ui blocking card from the tool part and answers via uiReply', async () => {
     const page = await openPage()
     await openPanel(page)
-    kit.harness.__scripted.scriptToolCall('conciv_ui', {kind: 'confirm', question: 'Proceed with the change?'})
+    kit.harness.script.scriptToolCall('conciv_ui', {kind: 'confirm', question: 'Proceed with the change?'})
     const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
     await input.fill('ask me something')
     await page.getByRole('button', {name: 'Send message'}).click()

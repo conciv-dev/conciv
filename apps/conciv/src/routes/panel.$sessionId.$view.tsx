@@ -62,7 +62,6 @@ function PanelView(): JSX.Element {
           }
         >
           <div
-            data-pw-hydrating={pane.hydrating() ? '' : undefined}
             onAnimationEnd={(event) => {
               if (event.target === event.currentTarget) pane.resetSlide()
             }}

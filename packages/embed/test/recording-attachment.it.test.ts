@@ -57,10 +57,17 @@ describe('recording attachment end to end in the real widget', () => {
     await page.getByRole('button', {name: 'Send message'}).click()
     await expect.poll(() => page.getByText('Recording received').first().isVisible(), {timeout: 30_000}).toBe(true)
 
-    await expect.poll(() => kit.harness.__turnMessages.length, {timeout: 30_000}).toBeGreaterThanOrEqual(1)
-    const turn = JSON.stringify(kit.harness.__turnMessages.at(-1))
-    expect(turn).toContain('[click]')
-    expect(turn).not.toContain('"type":"document"')
+    const sessions = await kit.rpc.sessions.list()
+    const chatSession = sessions[0]?.id
+    if (!chatSession) throw new Error('widget session not found')
+    const attachAbort = new AbortController()
+    const stream = await kit.attach(chatSession, {signal: attachAbort.signal})
+    const snapshot = await stream.waitFor(
+      (chunk) => chunk.type === 'MESSAGES_SNAPSHOT' && JSON.stringify(chunk).includes('[click]'),
+      {hangGuardMs: 30_000},
+    )
+    expect(JSON.stringify(snapshot)).toContain('"modelOnly":true')
+    attachAbort.abort()
 
     const transcript = page.getByRole('log')
     await transcript

@@ -1,10 +1,11 @@
 import {Show, type Component, type JSX} from 'solid-js'
 import {Dynamic} from 'solid-js/web'
-import {ArrowUp, Paperclip, Square} from 'lucide-solid'
+import {ArrowUp, Clock, Paperclip, Square} from 'lucide-solid'
 import {Composer as ComposerPrimitive} from '../primitives/composer/composer.js'
 import type {AttachmentAdapter} from '../primitives/attachment/attachment-adapter.js'
-import {useComposer} from '../store/chat-context.js'
 import {AttachmentUI} from './attachment-ui.js'
+import {QueueItem} from '../primitives/queue-item/queue-item.js'
+import {FOCUS} from './classes.js'
 
 export type ComposerProps = {
   placeholder?: string
@@ -24,19 +25,17 @@ const SEND = `${BTN} [background:var(--chat-accent)] text-[color:var(--chat-on-a
 const CANCEL = `${BTN} [background:var(--chat-text-3)] [color:var(--chat-on-accent)]`
 const INPUT =
   'block max-h-30 px-2 pb-1 pt-2 [color:var(--chat-text)] text-[length:var(--chat-text-md)] leading-[1.45] placeholder:[color:var(--chat-text-3)]'
+const QUEUE_ACTION = `${FOCUS} shrink-0 px-2 py-1 rounded-[var(--chat-radius-sm)] bg-transparent [border:none] cursor-pointer font-medium text-[length:var(--chat-text-md)] leading-[1.45] [transition:background-color_120ms_var(--chat-ease),color_120ms_var(--chat-ease),transform_100ms_var(--chat-ease)] hover:[background:var(--chat-fill-strong)] [&:active]:scale-[0.96]`
 
 function TrailingControls(): JSX.Element {
-  const composer = useComposer()
   return (
     <>
       <ComposerPrimitive.Cancel class={CANCEL} aria-label="Stop generating">
         <Square size={14} fill="currentColor" aria-hidden="true" />
       </ComposerPrimitive.Cancel>
-      <Show when={!composer.canCancel()}>
-        <ComposerPrimitive.Send class={SEND} aria-label="Send message">
-          <ArrowUp size={18} aria-hidden="true" />
-        </ComposerPrimitive.Send>
-      </Show>
+      <ComposerPrimitive.Send class={SEND} aria-label="Send message">
+        <ArrowUp size={18} aria-hidden="true" />
+      </ComposerPrimitive.Send>
     </>
   )
 }
@@ -45,6 +44,20 @@ export function Composer(props: ComposerProps): JSX.Element {
   return (
     <ComposerPrimitive.Root attachmentAdapter={props.attachmentAdapter} class="flex flex-col gap-1.5 relative">
       {props.popover}
+      <div class="rounded-[var(--chat-radius-md)] flex flex-col [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] empty:hidden">
+        <ComposerPrimitive.Queue>
+          {() => (
+            <div class="text-[length:var(--chat-text-md)] py-1.5 pl-3 pr-1.5 flex gap-2 [color:var(--chat-text-2)] items-center [&:not(:first-child)]:[border-top:1px_solid_var(--chat-line-soft)]">
+              <Clock size={14} class="shrink-0 [color:var(--chat-text-3)]" aria-hidden="true" />
+              <QueueItem.Text class="flex-1 min-w-0 truncate" />
+              <QueueItem.Steer class={`${QUEUE_ACTION} [color:var(--chat-accent)]`}>Steer</QueueItem.Steer>
+              <QueueItem.Remove class={`${QUEUE_ACTION} [color:var(--chat-text-3)] hover:[color:var(--chat-text)]`}>
+                Remove
+              </QueueItem.Remove>
+            </div>
+          )}
+        </ComposerPrimitive.Queue>
+      </div>
       <div class="flex flex-wrap gap-1 empty:hidden">
         <ComposerPrimitive.Attachments
           component={() => (

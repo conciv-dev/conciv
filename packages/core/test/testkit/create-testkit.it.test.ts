@@ -33,7 +33,7 @@ describe('createTestkit (real server)', () => {
           const sessionId = await kit.session()
           const stream = await kit.attach(sessionId)
           if (mode.name === 'fake') {
-            mode.harness.__scripted.scriptToolCall('conciv_ui', {kind: 'confirm', question: 'Proceed?'})
+            mode.harness.script.scriptToolCall('conciv_ui', {kind: 'confirm', question: 'Proceed?'})
             await kit.chat('go', sessionId)
           }
           if (mode.name === 'real') {

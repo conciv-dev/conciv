@@ -1,0 +1,1 @@
+ALTER TABLE `runs` ADD `last_error_epoch` integer;

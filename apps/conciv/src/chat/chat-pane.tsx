@@ -11,7 +11,6 @@ import {
   NowLine,
   Thread,
   ToolProvider,
-  guardChat,
   pairResults,
   useComposer,
   useComposerContext,
@@ -55,8 +54,6 @@ function resetSlideOnSelf(reset: () => void) {
     if (event.target === event.currentTarget) reset()
   }
 }
-
-const hydratingAttr = (on: boolean): string | undefined => (on ? '' : undefined)
 
 function callSettled(part: ToolCallPart, result: ToolResultPart | undefined): boolean {
   return result?.state === 'complete' || result?.state === 'error' || part.output !== undefined
@@ -109,13 +106,12 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   const instances = useInstances()
   const pane = usePane()
   const router = useRouter()
-  const raw = useChatSession({rpc, sessionId: props.sessionId})
-  const chat = guardChat(raw)
+  const chat = useChatSession({rpc, sessionId: props.sessionId})
 
   const isThinking = () => chat.status() === 'submitted'
   const isStreaming = () => chat.status() === 'streaming'
   const working = () => isThinking() || isStreaming()
-  const disconnected = () => raw.connectionStatus() !== 'connected'
+  const disconnected = () => chat.connectionStatus() !== 'connected'
 
   let inputEl: HTMLTextAreaElement | undefined
   let viewportEl: HTMLElement | undefined
@@ -335,11 +331,11 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   })
 
   const send = async (content: string | MultimodalContent) => {
-    const text = contentText(content)
+    const sending = chat.sendMessage(content)
     await rpc.drafts
       .set({
         sessionId: props.sessionId,
-        text,
+        text: '',
         selectionStart: 0,
         selectionEnd: 0,
         grabs: pane.grabStore.grabs().map((grab) => grab.text),
@@ -347,19 +343,19 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
       .catch(() => {})
     persistDraft.cancel()
     pane.grabStore.clear()
-    await chat.sendMessage(content)
+    await sending
     clearPaneSnapshot(props.sessionId)
     void draftQuery.refetch()
   }
   const onSend = (content: string | MultimodalContent) => {
     const text = contentText(content)
     const hasContent = typeof content === 'string' ? text.length > 0 : content.content.length > 0
-    if (!hasContent || chat.isLoading() || compacting()) return
+    if (!hasContent || compacting()) return
     if (typeof content !== 'string' && content.content.length > MAX_CONTENT_PARTS) {
       notify('Too many attachments — remove some and send again.')
       return
     }
-    if (raw.connectionStatus() !== 'connected') return
+    if (chat.connectionStatus() !== 'connected') return
     void send(typeof content === 'string' ? text : content)
   }
 
@@ -390,13 +386,14 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                 chat.stop()
                 void rpc.sessions.stop({sessionId: props.sessionId}).catch(() => {})
               },
+              onSteer: () => rpc.sessions.stop({sessionId: props.sessionId}),
+              onSteerError: () => notify('Steering failed — the message is still queued. Try again.'),
             }}
           >
             <ComposerPrimitive.TriggerPopoverRoot>
               <ExtensionSurface name="header" instances={instances} />
               <ExtensionSurface name="widget" instances={instances} />
               <div
-                data-pw-hydrating={hydratingAttr(pane.hydrating())}
                 onAnimationEnd={resetSlideOnSelf(pane.resetSlide)}
                 class={`flex flex-1 flex-col min-h-0 ${pane.slideClass()}`}
               >

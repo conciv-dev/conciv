@@ -40,7 +40,7 @@
     "@conciv/protocol": "workspace:^",
     "@orpc/client": "^1.14.7",
     "@orpc/contract": "^1.14.7",
-    "@tanstack/ai": "^0.40.0",
+    "@tanstack/ai": "^0.41.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

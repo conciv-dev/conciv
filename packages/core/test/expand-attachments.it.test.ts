@@ -4,8 +4,10 @@ import {join} from 'node:path'
 import {afterAll, describe, expect, it, vi} from 'vitest'
 import {createFakeHarness} from '@conciv/harness-testkit'
 import {defineAttachment, defineExtension} from '@conciv/extension'
-import {imageHistoryFor, openDb, statusOf} from '@conciv/db'
+import {imageHistoryFor, openDb} from '@conciv/db'
+import {ChatMessageSchema} from '@conciv/protocol/chat-types'
 import {makeApp, type MadeApp} from '../src/app.js'
+import {toModelMessages} from '../src/chat/session.js'
 
 const FIXTURE_MIME = 'application/x-conciv-fixture'
 const sessionId = 'conciv_expand_e2e'
@@ -65,21 +67,32 @@ describe('attachment expand end-to-end (real send path, scripted harness)', () =
     })
     expect(response.status).toBe(200)
 
-    const db = openDb(stateRoot)
+    const sessionRunning = async (): Promise<boolean> => {
+      const list = await made.app.request('/rpc/sessions/list', {
+        method: 'POST',
+        headers: {'content-type': 'application/json'},
+        body: JSON.stringify({json: null}),
+      })
+      const payload: unknown = await list.json()
+      const rows =
+        typeof payload === 'object' && payload !== null && 'json' in payload && Array.isArray(payload.json)
+          ? payload.json
+          : []
+      const row = rows.find(
+        (entry): entry is {id: string; running: boolean} =>
+          typeof entry === 'object' && entry !== null && 'id' in entry && entry.id === sessionId,
+      )
+      if (!row) throw new Error('session not listed yet')
+      return row.running
+    }
     await vi.waitFor(
-      () => {
-        expect(fake.__turnMessages.length).toBeGreaterThan(0)
-        expect(statusOf(db, sessionId)).toBe('idle')
+      async () => {
+        expect(await sessionRunning()).toBe(false)
       },
       {timeout: 30_000},
     )
 
-    const harnessUser = fake.__turnMessages[0]?.findLast((message) => message.role === 'user')
-    const harnessContent = harnessUser?.content
-    if (!Array.isArray(harnessContent)) throw new Error('expected rich harness user content')
-    expect(harnessContent.map((part) => part.type)).not.toContain('document')
-    expect(harnessContent.some((part) => part.type === 'text' && part.content.includes('fixture-expanded'))).toBe(true)
-
+    const db = openDb(stateRoot)
     const stored = imageHistoryFor(db, sessionId)
     if (!stored) throw new Error('expected durable rich history')
     const messages: StoredMessage[] = stored.messages.filter(
@@ -93,5 +106,12 @@ describe('attachment expand end-to-end (real send path, scripted harness)', () =
         (part) => part.type === 'text' && part.content === 'fixture-expanded' && part.metadata?.modelOnly === true,
       ),
     ).toBe(true)
+
+    const richHistory = stored.messages.map((message) => ChatMessageSchema.parse(message))
+    const modelUser = toModelMessages(richHistory).findLast((message) => message.role === 'user')
+    if (!modelUser) throw new Error('expected a model user message')
+    const modelView = typeof modelUser.content === 'string' ? modelUser.content : JSON.stringify(modelUser.content)
+    expect(modelView).toContain('fixture-expanded')
+    expect(modelView).not.toContain('document')
   }, 30_000)
 })

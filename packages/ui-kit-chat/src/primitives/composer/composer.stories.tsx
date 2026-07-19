@@ -1,4 +1,4 @@
-import {createSignal, type JSX} from 'solid-js'
+import {onMount, type JSX} from 'solid-js'
 import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, fn, within, userEvent, waitFor} from 'storybook/test'
 import {useChat} from '@tanstack/ai-solid'
@@ -7,7 +7,7 @@ import {ChatProvider} from '../../store/chat-context.js'
 import {storyConnection, createTextChunks} from '../../store/story-connection.js'
 import {Thread} from '../thread/thread.js'
 import {Message} from '../message/message.js'
-import {QueueItem, type QueuedMessage} from '../queue-item/queue-item.js'
+import {QueueItem} from '../queue-item/queue-item.js'
 import {Attachment} from '../attachment/attachment.js'
 import {createSimpleImageAttachmentAdapter, type AttachmentAdapter} from '../attachment/attachment-adapter.js'
 import {ComposerHandlersProvider} from './composer-handlers.js'
@@ -123,18 +123,17 @@ export const EscapeRoutesThroughHandler: Story = {
 }
 
 function QueueApp(): JSX.Element {
-  const [queue, setQueue] = createSignal<QueuedMessage[]>([
-    {id: 'q1', text: 'also add a test'},
-    {id: 'q2', text: 'and update the docs'},
-  ])
+  const chat = useChat({
+    connection: storyConnection({chunks: createTextChunks('Working.'), chunkDelay: 2000}),
+    queue: {whenBusy: 'queue', drain: 'fifo'},
+  })
+  onMount(() => {
+    void chat.sendMessage('active request')
+    void chat.sendMessage('also add a test')
+    void chat.sendMessage('and update the docs')
+  })
   return (
-    <ComposerHandlersProvider
-      value={{
-        queue,
-        removeQueued: (id) => setQueue((prev) => prev.filter((item) => item.id !== id)),
-        steerQueued: () => {},
-      }}
-    >
+    <ChatProvider chat={chat}>
       <div class="flex flex-col gap-1">
         <Composer.Queue>
           {() => (
@@ -145,7 +144,7 @@ function QueueApp(): JSX.Element {
           )}
         </Composer.Queue>
       </div>
-    </ComposerHandlersProvider>
+    </ChatProvider>
   )
 }
 

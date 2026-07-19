@@ -60,7 +60,7 @@ describe('detached turns (IT)', () => {
     const kit = await setupSlow(releaseFile)
     const id = await kit.session()
     const stream = await kit.attach(id)
-    expect(await kit.rpc.chat.send({sessionId: id, text: 'hi'})).toEqual({ok: true})
+    expect(await kit.rpc.chat.send({sessionId: id, text: 'hi'})).toEqual({ok: true, runId: `${id}:1`})
     writeFileSync(releaseFile, '')
     const events = await stream.done()
     expect(events.runs()).toBe(1)

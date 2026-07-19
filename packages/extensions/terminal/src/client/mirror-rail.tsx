@@ -1,4 +1,4 @@
-import {createEffect, createSignal, createUniqueId, Match, onCleanup, onMount, Show, Switch, type JSX} from 'solid-js'
+import {createSignal, createUniqueId, Match, onCleanup, onMount, Show, Switch, type JSX} from 'solid-js'
 import type {UIMessage} from '@conciv/protocol/chat-types'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
 import type {ToolCallPart} from '@tanstack/ai-client'
@@ -140,12 +140,6 @@ export function MirrorRail(props: {
   })
   const [messages, setMessages] = createSignal<UIMessage[]>([])
   const [status, setStatus] = createSignal<MirrorStatus>('connecting')
-  const [hydrating, setHydrating] = createSignal(true)
-  createEffect(() => {
-    if (!open()) return
-    setHydrating(true)
-    requestAnimationFrame(() => requestAnimationFrame(() => setHydrating(false)))
-  })
   onMount(() => {
     const stop = connectMirror(props.apiBase, props.sessionId(), setMessages, setStatus)
     onCleanup(stop)
@@ -159,7 +153,6 @@ export function MirrorRail(props: {
   const logId = createUniqueId()
   return (
     <div
-      data-pw-hydrating={hydrating() ? '' : undefined}
       class="flex flex-1 shrink-0 flex-col max-w-[60vw] min-h-0 min-w-0 relative"
       classList={{'[border-left:1px_solid_var(--chat-line)]': open()}}
       style={{width: open() ? `${resize.size()}px` : undefined}}

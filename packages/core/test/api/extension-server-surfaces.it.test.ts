@@ -29,10 +29,10 @@ test('extension server api exposes sessions + harness surfaces backed by the rea
     expect(await server.sessions.resumeToken(fresh)).toBe('tok-fresh')
 
     expect(server.sessions.chatBusy(sessionId)).toBe(false)
-    harness.__scripted.hold()
+    harness.script.hold()
     await kit.rpc.chat.send({sessionId, text: 'busy probe'})
     expect(server.sessions.chatBusy(sessionId)).toBe(true)
-    harness.__scripted.release()
+    harness.script.release()
     await until(() => !server.sessions.chatBusy(sessionId), {hangGuardMs: 5000})
 
     expect(server.harness.id).toBe('claude')
