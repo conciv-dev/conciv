@@ -12,7 +12,7 @@ function serverEntry(command: string, port: number) {
     url: `http://localhost:${port}`,
     reuseExistingServer: !process.env.CI,
     stdout: 'pipe' as const,
-    timeout: 120_000,
+    timeout: 180_000,
     env: {CONCIV_E2E: '1'},
   }
 }
