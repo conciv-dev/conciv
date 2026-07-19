@@ -5,5 +5,12 @@
   "bracketSpacing": false,
   "printWidth": 120,
   "trailingComma": "all",
-  "ignorePatterns": ["dist", "build", ".turbo", "**/*.gen.ts", "**/test-results"]
+  "ignorePatterns": [
+    "dist",
+    "build",
+    ".turbo",
+    "**/*.gen.ts",
+    "**/test-results",
+    "packages/ui-kit-system/src/tokens.css"
+  ]
 }
