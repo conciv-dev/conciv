@@ -12,26 +12,26 @@ where:
    (after send). A recording shows a replayable player, not a grey file chip.
 2. New attachment **types** are extensible; the recorder adds `recording`, and later **grab**
    becomes just another type.
-3. The client stays **dumb** — it only *displays* a type. The **backend** owns what an attachment
-   *means* to the model: how it transforms into something the harness reads (text, keyframe images,
+3. The client stays **dumb** — it only _displays_ a type. The **backend** owns what an attachment
+   _means_ to the model: how it transforms into something the harness reads (text, keyframe images,
    whatever). An extension that adds a type ships that transform.
 
 ## What already exists (reuse, do not reinvent)
 
 This design is mostly **wiring existing pieces together**. Verified in the codebase:
 
-| Capability | Where it lives today |
-| --- | --- |
-| Composer attachment lifecycle `add/remove/send` → content parts | `AttachmentAdapter`, `composeAttachmentAdapters`, `createTextAttachmentAdapter` (`ui-kit-chat/.../attachment-adapter.ts`) |
-| Attach a File to the composer from an extension | `host.attach(file: File)` + pane queue (`chat-pane.tsx`) — **unchanged** |
+| Capability                                                             | Where it lives today                                                                                                                   |
+| ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Composer attachment lifecycle `add/remove/send` → content parts        | `AttachmentAdapter`, `composeAttachmentAdapters`, `createTextAttachmentAdapter` (`ui-kit-chat/.../attachment-adapter.ts`)              |
+| Attach a File to the composer from an extension                        | `host.attach(file: File)` + pane queue (`chat-pane.tsx`) — **unchanged**                                                               |
 | Thread renders `document`/`image` attachment parts via slot components | `Message.Attachments` + `attachmentComponent(part.type)` (`primitives/message/message.tsx`); `useMessagePartFile()` for document parts |
-| Composer renders pending attachments via one component | `Composer.Attachments component={RemovableAttachment}` → `AttachmentUI` (`styled/composer.tsx`, `styled/attachment-ui.tsx`) |
-| Collect per-extension client renderers | `collectToolRenderers(instances)` (`extension/collect-client.ts`) |
-| Close each extension's server context over its callables at mount | `buildExtensionTools(extension, context)` (`core/app.ts`) |
-| Transform a part into harness-native form before send | `prepareMessages` → `withImageRefs` (`harness/claude/chat.ts`) — **unchanged**; keyframes ride it |
-| Model view already ignores non-`text`/`image` parts | `modelContent` (`core/chat/session.ts`), `lastUserModelText`/`lastUserImages` (`harness/_shared/text-adapter.ts`) |
-| Durable user-message parts across restart | `foldRunMessagesIntoImageHistory` / `imageHistoryFor` (`db/run-queries.ts`) |
-| Recorder ring / keyframe renderer / distill | `server/ring.ts`, `server/render.ts`, `server/distill.ts` |
+| Composer renders pending attachments via one component                 | `Composer.Attachments component={RemovableAttachment}` → `AttachmentUI` (`styled/composer.tsx`, `styled/attachment-ui.tsx`)            |
+| Collect per-extension client renderers                                 | `collectToolRenderers(instances)` (`extension/collect-client.ts`)                                                                      |
+| Close each extension's server context over its callables at mount      | `buildExtensionTools(extension, context)` (`core/app.ts`)                                                                              |
+| Transform a part into harness-native form before send                  | `prepareMessages` → `withImageRefs` (`harness/claude/chat.ts`) — **unchanged**; keyframes ride it                                      |
+| Model view already ignores non-`text`/`image` parts                    | `modelContent` (`core/chat/session.ts`), `lastUserModelText`/`lastUserImages` (`harness/_shared/text-adapter.ts`)                      |
+| Durable user-message parts across restart                              | `foldRunMessagesIntoImageHistory` / `imageHistoryFor` (`db/run-queries.ts`)                                                            |
+| Recorder ring / keyframe renderer / distill                            | `server/ring.ts`, `server/render.ts`, `server/distill.ts`                                                                              |
 
 **A recording attachment is a `document` part** — `{type:'document', source:{type:'data',
 mimeType:'application/x-conciv-recorder', value: base64(JSON{recordingId, poster})}}`. No new part
@@ -50,7 +50,7 @@ else falls back to the existing file tile.
 - Composer: `RemovableAttachment` dispatches on the pending attachment's `contentType` → matching
   Card, else `AttachmentUI`.
 - Thread: widget's `UserTurn` gains `<Message.Attachments components={{Document: DispatchByMime,
-  Image: AttachmentUI}}>`; `DispatchByMime` picks the Card by `part.source.mimeType`, else the file
+Image: AttachmentUI}}>`; `DispatchByMime` picks the Card by `part.source.mimeType`, else the file
   tile. (Currently `UserTurn` renders only `<Message.Parts/>`, so document parts render nothing —
   this is the gap.)
 - Cards mount under `HostApiProvider(clientValue)` (like `MountedView`) so a card can `useApiBase`
@@ -114,19 +114,20 @@ modules, matched by name). New `meta.attachments`:
 
 ```ts
 // shared def
-export const recordingAttachment = defineAttachment({ mime: 'application/x-conciv-recorder' })
+export const recordingAttachment = defineAttachment({mime: 'application/x-conciv-recorder'})
 
 // client module — the Card
-recordingAttachment.card(RecordingCard)              // sets __card
+recordingAttachment.card(RecordingCard) // sets __card
 
 // server module — the Expand, same ctx signature as a tool's execute
-recordingAttachment.server((part, ctx) => {          // sets __expand
-  const { recordingId } = decode(part)
-  const { log, keyframes } = renderRecording(ctx.recorder, recordingId)
-  return [ {type:'text', content: log}, ...keyframes.map(pngImagePart) ]
+recordingAttachment.server((part, ctx) => {
+  // sets __expand
+  const {recordingId} = decode(part)
+  const {log, keyframes} = renderRecording(ctx.recorder, recordingId)
+  return [{type: 'text', content: log}, ...keyframes.map(pngImagePart)]
 })
 
-defineExtension({ name:'recorder', attachments:[recordingAttachment], /* tools, views, Surface */ })
+defineExtension({name: 'recorder', attachments: [recordingAttachment] /* tools, views, Surface */})
 ```
 
 - Client build reads `__card` (via `collectAttachmentCards`); server build reads `__expand` (via
@@ -185,7 +186,7 @@ Built general enough now that grab slots in with no rework; the migration is its
 ## Out of scope
 
 - Grab migration (separate plan).
-- Per-type Expand *timing* — always once-at-send.
+- Per-type Expand _timing_ — always once-at-send.
 - Audio/video model modalities — Expand emits only `text`/`image` for now.
 
 ## Decisions locked
