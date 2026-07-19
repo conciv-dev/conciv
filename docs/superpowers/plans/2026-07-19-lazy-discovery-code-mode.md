@@ -334,6 +334,7 @@ user prefers — record the decision either way.
 
 - Consumes: `ExtensionServerTool.approval` + enriched descriptions (Task 2); the spike findings doc.
 - Produces: MCP `tools/list` initially excludes lazy extension tools; a `conciv_discover_tools` MCP tool (input `{names: string[]}`) returns full description + JSON schema per name and triggers `tools/list_changed` so discovered tools become callable. Exact mechanics MUST follow the spike findings — if the MCP SDK in use (`McpServer`) supports dynamic tool registration, use `server.tool(...)` at discovery time; the findings doc names the API.
+- SECURITY INVARIANTS (from review): (a) discovered tools register on the SAME `McpServer` instance built in `buildServer` — never a second server, never a renamed tool, so the client-side `mcp__conciv__<name>` form keeps matching `riskyMatches` (Task 6b); (b) `conciv_discover_tools` returns metadata only and never invokes `tool.execute`; (c) add a test asserting a discovered `approval: 'ask'` tool still triggers the permission callback when subsequently called.
 
 - [ ] **Step 1: Write the failing test** — assert `tools/list` on a fresh MCP session contains conciv core tools and `conciv_discover_tools` but not `ext_tool`; after calling `conciv_discover_tools` with `{names: ['ext_tool']}`, `tools/list` contains `ext_tool` and calling it executes. Build the test against the same in-process Hono app the existing MCP tests use (see `packages/core/test/` for the MCP test harness pattern; follow it exactly).
 - [ ] **Step 2: Run it, expect FAIL.**
@@ -408,6 +409,8 @@ const risky = new Set(
 ```
 
 - [ ] **Step 4: Run the full core suite** — `pnpm turbo run test --filter=@conciv/core`, expect PASS (update any test pinning the old prefixed-set behavior deliberately, noting each).
+- [ ] **Step 4b: Approval-flag audit** — list every `defineTool` across `packages/extensions/*` and `packages/tools` with its `approval` value (`grep -rn "defineTool\|approval" packages/extensions/*/src packages/tools/src`). For each tool that mutates state (writes files, deletes records, drives the browser, spawns processes) but lacks `approval: 'ask'`, either add the flag or record in the findings doc WHY it is safe unguarded. Deliverable: an "Approval audit" section appended to `docs/superpowers/plans/2026-07-19-lazy-spike-findings.md` naming every tool and its classification.
+- [ ] **Step 4c: Gate-firing proof on the scripted path** — extend Task 1's `lazy-extension-tools.it.test.ts`: register an `approval: 'ask'` extension tool, script a call to it, assert the run pauses on an approval request (wire `approval-requested` event or gate decision), not silent execution.
 - [ ] **Step 5: Commit**
 
 ```bash
