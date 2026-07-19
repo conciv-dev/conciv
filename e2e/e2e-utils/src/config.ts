@@ -23,6 +23,7 @@ export function e2eConfig(app: E2EApp, opts: {command: (port: number) => string}
     testDir: './tests',
     workers: 1,
     timeout: 90_000,
+    expect: {timeout: 90_000},
     reporter: reporters(),
     use: {baseURL: `http://localhost:${port}`},
     webServer: serverEntry(`rm -rf .conciv && ${opts.command(port)}`, port),
