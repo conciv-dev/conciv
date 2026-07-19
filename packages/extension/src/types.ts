@@ -24,6 +24,7 @@ export type ExtensionServerTool = {
   name: string
   description: string
   inputSchema: z.ZodObject<z.ZodRawShape>
+  approval?: 'ask'
   execute: (input: unknown, request: ToolRequest) => Promise<unknown>
 }
 

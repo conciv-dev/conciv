@@ -9,6 +9,7 @@ import type {
   AnyExtension,
   AttachmentDocumentPart,
   ContentPart,
+  ExtensionServerTool,
   ServerHarness,
   ServerSessions,
   ToolRequest,
@@ -98,15 +99,19 @@ function buildAttachmentExpanders(
   return entries
 }
 
-function buildExtensionTools(extension: AnyExtension, context: unknown) {
+export function buildExtensionTools(extension: AnyExtension, context: unknown): ExtensionServerTool[] {
   return (extension.tools ?? []).flatMap((tool) => {
     const run = tool.__execute
     if (!run) return []
+    const description = [tool.description, tool.promptSnippet, ...(tool.promptGuidelines ?? [])]
+      .filter(Boolean)
+      .join('\n\n')
     return [
       {
         name: tool.name,
-        description: tool.description,
+        description,
         inputSchema: tool.inputSchema,
+        approval: tool.approval,
         execute: (input: unknown, request: ToolRequest) => run(input, context, request),
       },
     ]
