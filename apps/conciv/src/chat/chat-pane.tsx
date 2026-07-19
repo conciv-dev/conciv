@@ -331,12 +331,11 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
   })
 
   const send = async (content: string | MultimodalContent) => {
-    const text = contentText(content)
     const sending = chat.sendMessage(content)
     await rpc.drafts
       .set({
         sessionId: props.sessionId,
-        text,
+        text: '',
         selectionStart: 0,
         selectionEnd: 0,
         grabs: pane.grabStore.grabs().map((grab) => grab.text),
