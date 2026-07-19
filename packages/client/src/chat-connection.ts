@@ -118,7 +118,8 @@ function sessionBridge(): SessionBridge {
       sink = nextSink
     },
     sendPending: () => {
-      if (mode === 'idle') mode = 'pending'
+      mode = 'pending'
+      ownRunId = undefined
     },
     sendAccepted: (runId) => {
       mode = 'accepted'

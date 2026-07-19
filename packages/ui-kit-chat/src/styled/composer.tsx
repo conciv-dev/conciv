@@ -47,7 +47,7 @@ export function Composer(props: ComposerProps): JSX.Element {
       <div class="rounded-[var(--chat-radius-md)] flex flex-col [background:var(--chat-fill)] [border:1px_solid_var(--chat-line)] empty:hidden">
         <ComposerPrimitive.Queue>
           {() => (
-            <div class="text-[length:var(--chat-text-md)] py-1.5 pl-3 pr-1.5 flex gap-2 [color:var(--chat-text-2)] items-center anim-msg [&:not(:first-child)]:[border-top:1px_solid_var(--chat-line-soft)]">
+            <div class="text-[length:var(--chat-text-md)] py-1.5 pl-3 pr-1.5 flex gap-2 [color:var(--chat-text-2)] items-center [&:not(:first-child)]:[border-top:1px_solid_var(--chat-line-soft)]">
               <Clock size={14} class="shrink-0 [color:var(--chat-text-3)]" aria-hidden="true" />
               <QueueItem.Text class="flex-1 min-w-0 truncate" />
               <QueueItem.Steer class={`${QUEUE_ACTION} [color:var(--chat-accent)]`}>Steer</QueueItem.Steer>
