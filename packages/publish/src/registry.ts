@@ -4,7 +4,9 @@ export type RegistryState = 'missing' | 'trusted' | 'untrusted'
 
 const registryDocumentSchema = z.object({
   'dist-tags': z.object({latest: z.string().optional()}).optional(),
-  versions: z.record(z.string(), z.object({_npmUser: z.object({trustedPublisher: z.unknown()}).optional()})).optional(),
+  versions: z
+    .record(z.string(), z.object({_npmUser: z.object({trustedPublisher: z.unknown().optional()}).optional()}))
+    .optional(),
 })
 
 type RegistryDocument = z.infer<typeof registryDocumentSchema>
