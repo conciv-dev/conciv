@@ -65,7 +65,6 @@
   },
   "dependencies": {
     "@conciv/embed": "workspace:^",
-    "@conciv/extension-recorder": "workspace:^",
     "@conciv/extension-terminal": "workspace:^",
     "@conciv/extension-test-runner": "workspace:^",
     "@conciv/extension-whiteboard": "workspace:^",
