@@ -3,7 +3,7 @@ import type {Meta, StoryObj} from 'storybook-solidjs-vite'
 import {expect, within} from 'storybook/test'
 import type {ToolCallPart, ToolResultPart} from '@tanstack/ai-client'
 import type {ToolViewCtx} from '@conciv/protocol/tool-view-types'
-import {EditInline, GrepInline, ReadInline, ToolCallInline} from './inline-tool.js'
+import {EditInline, ExtensionsInline, GrepInline, ReadInline, ToolCallInline} from './inline-tool.js'
 
 const meta: Meta = {title: 'ui-kit-chat-tools/styled/tools/InlineTool'}
 export default meta
@@ -51,6 +51,33 @@ export const Rows: Story = {
     await expect(c.getByText('styled/thread.tsx')).toBeVisible()
     await expect(c.getByText('model-selector.tsx')).toBeVisible()
     await expect(c.getByText('useChat')).toBeVisible()
+  },
+}
+
+export const Extensions: Story = {
+  render: () =>
+    frame(
+      'chat-theme-dark',
+      <>
+        <ExtensionsInline part={part('conciv_extensions', {verb: 'catalog'})} result={done} ctx={ctx} />
+        <ExtensionsInline
+          part={part('conciv_extensions', {verb: 'scaffold', kind: 'tool-renderer', name: 'weather'})}
+          result={done}
+          ctx={ctx}
+        />
+        <ExtensionsInline
+          part={part('conciv_extensions', {verb: 'validate', source: 'export default defineExtension({})'})}
+          result={done}
+          ctx={ctx}
+        />
+      </>,
+    ),
+  play: async ({canvasElement}) => {
+    const c = within(canvasElement)
+    await expect(c.getByText('Extension catalog')).toBeVisible()
+    await expect(c.getByText('Extension scaffold')).toBeVisible()
+    await expect(c.getByText('tool-renderer weather')).toBeVisible()
+    await expect(c.getByText('Extension check')).toBeVisible()
   },
 }
 

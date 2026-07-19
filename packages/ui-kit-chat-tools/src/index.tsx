@@ -41,6 +41,8 @@ export {
   WebSearchInline,
   WebFetchInline,
   ToolCallInline,
+  ExtensionsInline,
+  extensionsTool,
 } from './styled/tools/inline-tool.js'
 
 export {builtinToolCards} from './styled/tools/builtin-tool-cards.js'

@@ -32,6 +32,15 @@ async function openPage(): Promise<Page> {
   return page
 }
 
+async function sendAndRevealThought(page: Page, message: string): Promise<void> {
+  await page.getByRole('textbox', {name: 'Message the conciv agent'}).fill(message)
+  await page.getByRole('button', {name: 'Send message'}).click()
+  await expect
+    .poll(() => page.getByRole('button', {name: 'Stop generating'}).isVisible(), {timeout: 30_000})
+    .toBe(false)
+  await page.getByText('Chain of Thought').last().click()
+}
+
 describe('embed boots the conciv app against a real core', () => {
   it('canonicalizes a restored panel route that carries a raw harness session id', async () => {
     const rawHarnessId = '43548fd1-0000-4220-acf0-014b10b5815f'
@@ -206,6 +215,32 @@ describe('embed boots the conciv app against a real core', () => {
     await input.fill('discover and run some tools')
     await page.getByRole('button', {name: 'Send message'}).click()
     await expect.poll(() => page.getByText(ASSISTANT_TEXT).first().isVisible(), {timeout: 30_000}).toBe(true)
+    const announced = await page.getByRole('alert').allTextContents()
+    expect(announced.every((text) => text.trim() === '')).toBe(true)
+    await page.close()
+  })
+
+  it('renders the new tool cards for results that do not match their payload schema', async () => {
+    const page = await openPage()
+    await openPanel(page)
+    kit.harness.script.scriptToolCall('execute_typescript', {typescriptCode: 'return 1'}, {blocking: false})
+    kit.harness.script.scriptToolCall('__lazy__tool__discovery__', {query: 'weather'}, {blocking: false})
+    const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
+    await sendAndRevealThought(page, 'run some code')
+    await expect.poll(() => page.getByText('run code').isVisible(), {timeout: 30_000}).toBe(true)
+    await expect.poll(() => page.getByText('return 1').first().isVisible(), {timeout: 30_000}).toBe(true)
+    await sendAndRevealThought(page, 'now load some tools')
+    await expect
+      .poll(
+        () =>
+          page
+            .getByText(/Loaded \d+ tools?/)
+            .last()
+            .isVisible(),
+        {timeout: 30_000},
+      )
+      .toBe(true)
+    expect(await input.inputValue()).toBe('')
     const announced = await page.getByRole('alert').allTextContents()
     expect(announced.every((text) => text.trim() === '')).toBe(true)
     await page.close()

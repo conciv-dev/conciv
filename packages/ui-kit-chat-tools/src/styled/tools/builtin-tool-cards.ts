@@ -3,6 +3,7 @@ import {BashCard} from './bash-card.js'
 import {ApplyPatchDiff} from './apply-patch-diff.js'
 import {codeRunTool} from './code-run-card.js'
 import {discoveredApisTool} from './discovered-apis-card.js'
+import {extensionsTool} from './inline-tool.js'
 import {fileEditTool} from './file-edit-card.js'
 import {loadedToolsTool} from './loaded-tools-card.js'
 import {fileReadTool} from './file-read-card.js'
@@ -17,6 +18,7 @@ export const builtinToolCards: ToolCardEntry[] = [
   {names: ['apply_patch'], render: ApplyPatchDiff},
   codeRunTool,
   discoveredApisTool,
+  extensionsTool,
   fileEditTool,
   fileReadTool,
   loadedToolsTool,
