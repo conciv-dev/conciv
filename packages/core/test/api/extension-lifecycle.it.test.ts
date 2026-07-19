@@ -24,6 +24,7 @@ test('two extensions mount isolated namespaces; both routes serve and both tools
     expect(((await (await fetch(`${base}/api/ext/alpha/where`)).json()) as {who: string}).who).toBe('alpha')
     expect(((await (await fetch(`${base}/api/ext/beta/where`)).json()) as {who: string}).who).toBe('beta')
     const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
+    await mcp.callTool('conciv_discover_tools', {names: ['alpha_do', 'beta_do']})
     const names = (await mcp.tools()).map((candidate) => candidate.name)
     expect(names).toEqual(expect.arrayContaining(['alpha_do', 'beta_do']))
     await mcp.close()

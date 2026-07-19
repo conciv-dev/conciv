@@ -56,6 +56,7 @@ describe('test-runner extension booted in the real engine (IT)', () => {
     const {base, engine} = await boot()
     try {
       const mcp = await createMCPClient({transport: {type: 'http', url: `${base}/api/mcp`}})
+      await mcp.callTool('conciv_discover_tools', {names: ['test_runner']})
       const tool = (await mcp.tools()).find((candidate) => candidate.name === 'test_runner')
       if (!tool?.execute) throw new Error('test_runner not registered')
 

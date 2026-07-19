@@ -347,3 +347,46 @@ actually shipped in `packages/core/src/chat/code-mode.ts`:
 - `toChatTool`'s return type was widened from `AnyTool` to `ServerTool` so the bindings carry the
   `__toolSide: 'server'` brand `createCodeMode` requires (`ServerTool` is still assignable to
   `AnyTool`, so all existing callers are unaffected).
+
+---
+
+## Task 5 implementation notes (`/api/mcp` lazy projection)
+
+The `/api/mcp` route now mirrors the chat-path lazy split: `tools/list` initially exposes only the
+conciv core tools plus `conciv_discover_tools`; every extension tool is hidden until discovered.
+`conciv_discover_tools` takes `{names: string[]}` (zod-validated via the SDK `registerTool`
+`inputSchema` shape), returns `{discovered: [{name, description, inputSchema}], unknown: [...]}` per
+requested name (JSON Schema via `z.toJSONSchema`, zod 4.4.3), and never calls `tool.execute` — pure
+metadata. Discovered names are additive to the session's set; the newly discovered tools appear in
+`tools/list` and become callable on the NEXT request in the same conciv session.
+
+- **Stateless-server adaptation.** `buildServer` builds a FRESH `McpServer` per POST
+  (`sessionIdGenerator: undefined`, `enableJsonResponse: true`), so there is no long-lived server and
+  `sendToolListChanged`/dynamic live registration is meaningless. The correct mechanic is a
+  per-session discovered-names store consulted at build time: each POST registers core tools +
+  `conciv_discover_tools` (registered whenever any extension tool exists) + only the extension tools
+  whose names are in the session's discovered set. Discovery mutates the set; the following POST's
+  freshly built server reflects it. No second server, no renamed tools — invariant (a) holds.
+- **Store seam: owned by `McpVars`, not module scope.** `McpVars.mcp` gained
+  `discovered: Map<string, Set<string>>`, created in `makeApp` (`new Map()`). This ties the store's
+  lifetime to the app instance. A module-scoped Map would leak discovered state across independent
+  `makeApp` instances in one process (the testkit boots many), so the app-owned seam is both cleaner
+  and correct for isolation. Keyed by `sessionIdFromHeaders(...) ?? ''`.
+- **Anonymous-bucket caveat.** External agents may omit `conciv-session-id`; those requests share the
+  `''` bucket, so one anonymous caller's discoveries are visible to another anonymous caller. Accepted
+  for v1 — the server binds `127.0.0.1` only and interactive/external agents are trusted local
+  processes. Real conciv sessions (chat, claude tty/launch/sdk) always carry a branded session id and
+  get isolated buckets.
+- **Client-side gating unchanged (invariant c).** The `/api/mcp` execute path has NO server-side
+  approval gate today — gating for this surface is the CLI's own permission callback fed by the risky
+  set. This task does not change that. What holds server-side, and what the test asserts: a discovered
+  `approval: 'ask'` tool registers under its UNCHANGED bare name (`acme_delete`, surfaced client-side
+  as `mcp__conciv__acme_delete`), and `riskyMatches` (Task 6b) strips the `mcp__conciv__` prefix and
+  matches the bare-name risky set — so `riskyMatches(risky, 'mcp__conciv__acme_delete')` is true.
+  Lazy discovery does not rename or un-risk the tool.
+- **Downstream fallout (contract change, v0).** Extension tools are no longer eagerly listed on
+  `/api/mcp`, so the shared testkit seam `makeCallTool` (`packages/harness-testkit/src/call-tool.ts`)
+  now discovers a tool before calling it (only when it is not already listed, so core tools and
+  extension-free apps are unaffected) — this is the real client flow. Direct-client ITs that asserted
+  eager extension listing (`packages/core/test/api/**`, recorder + test-runner extension ITs) were
+  updated to `callTool('conciv_discover_tools', {names})` before listing/executing.

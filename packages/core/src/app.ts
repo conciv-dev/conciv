@@ -299,7 +299,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     {
       cors: {allowedOrigins: opts.allowedOrigins ?? []},
       chat: chatDeps,
-      mcp: {makeCtx: makeToolCtx, extensionTools, sessionModel},
+      mcp: {makeCtx: makeToolCtx, extensionTools, sessionModel, discovered: new Map()},
     },
     rpc,
     opts.onShutdown,
