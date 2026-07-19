@@ -5,6 +5,7 @@ export type ComposerHandlers = {
   onSend?: (content: string | MultimodalContent) => void
   onCancel?: () => void
   onSteer?: () => void | Promise<unknown>
+  onSteerError?: (error: unknown) => void
   onStartDictation?: () => void
   onStopDictation?: () => void
   transcript?: Accessor<string>

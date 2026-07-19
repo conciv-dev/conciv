@@ -44,13 +44,21 @@ const Steer = createActionButton('Steer', () => {
   const item = useQueueItem()
   const chat = useChatContext()
   const handlers = useComposerHandlers()
+  const resend = async () => {
+    chat.cancelQueued(item.id)
+    try {
+      await chat.sendMessage(item.content, {whenBusy: 'interrupt'})
+    } catch (error) {
+      await chat.sendMessage(item.content).catch(() => {})
+      throw error
+    }
+  }
   const steer = async () => {
     await handlers.onSteer?.()
-    chat.cancelQueued(item.id)
-    await chat.sendMessage(item.content, {whenBusy: 'interrupt'})
+    await resend()
   }
   return (): ActionButtonState => ({
-    run: () => void steer().catch(() => {}),
+    run: () => void steer().catch((error) => handlers.onSteerError?.(error)),
   })
 })
 

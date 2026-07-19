@@ -40,6 +40,7 @@ import {SessionModelSelector} from '../composer/model-selector.js'
 import {clearPaneSnapshot, readPaneSnapshot, writePaneSnapshot} from '../lib/ui-snapshot.js'
 
 const GRAB_PREVIEW_MAX_W = 280
+const MAX_CONTENT_PARTS = 16
 const IMAGE_ATTACHMENT_ADAPTER = createSimpleImageAttachmentAdapter()
 
 function imageAttachmentAdapter(imageInput: unknown): AttachmentAdapter | undefined {
@@ -58,8 +59,6 @@ function resetSlideOnSelf(reset: () => void) {
     if (event.target === event.currentTarget) reset()
   }
 }
-
-const hydratingAttr = (on: boolean): string | undefined => (on ? '' : undefined)
 
 function callSettled(part: ToolCallPart, result: ToolResultPart | undefined): boolean {
   return result?.state === 'complete' || result?.state === 'error' || part.output !== undefined
@@ -337,6 +336,10 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
     const text = contentText(content)
     const hasContent = typeof content === 'string' ? text.length > 0 : content.content.length > 0
     if (!hasContent || compacting()) return
+    if (typeof content !== 'string' && content.content.length > MAX_CONTENT_PARTS) {
+      notify('Too many attachments — remove some and send again.')
+      return
+    }
     if (chat.connectionStatus() !== 'connected') return
     void send(typeof content === 'string' ? text : content)
   }
@@ -368,13 +371,13 @@ export function ChatPane(props: {sessionId: string}): JSX.Element {
                 void rpc.sessions.stop({sessionId: props.sessionId}).catch(() => {})
               },
               onSteer: () => rpc.sessions.stop({sessionId: props.sessionId}),
+              onSteerError: () => notify('Steering failed — the message is still queued. Try again.'),
             }}
           >
             <ComposerPrimitive.TriggerPopoverRoot>
               <ExtensionSurface name="header" instances={instances} />
               <ExtensionSurface name="widget" instances={instances} />
               <div
-                data-pw-hydrating={hydratingAttr(pane.hydrating())}
                 onAnimationEnd={resetSlideOnSelf(pane.resetSlide)}
                 class={`flex flex-1 flex-col min-h-0 ${pane.slideClass()}`}
               >

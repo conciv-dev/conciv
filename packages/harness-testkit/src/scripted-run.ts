@@ -6,11 +6,13 @@ export type ScriptedRun = {
   hold: () => void
   release: () => void
   scriptToolCall: (name: string, input: unknown) => void
+  scriptError: (message: string) => void
 }
 
 export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
   const gate = {held: false, release: () => {}}
   const queuedToolCalls: Array<{name: string; input: unknown}> = []
+  const queuedErrors: string[] = []
   const hold = () => {
     gate.held = true
   }
@@ -20,6 +22,9 @@ export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
   }
   const scriptToolCall = (name: string, input: unknown) => {
     queuedToolCalls.push({name, input})
+  }
+  const scriptError = (message: string) => {
+    queuedErrors.push(message)
   }
   const chatStream = async function* (deps: HarnessChatDeps): AsyncGenerator<StreamChunk> {
     yield {type: EventType.RUN_STARTED, threadId: 'scripted', runId: 'scripted'}
@@ -41,7 +46,9 @@ export function makeScriptedRun(opts: {text?: string} = {}): ScriptedRun {
     }
     yield {type: EventType.TEXT_MESSAGE_CONTENT, messageId: 'scripted', delta: opts.text ?? 'ok'}
     if (gate.held) await new Promise<void>((resolve) => (gate.release = resolve))
+    const failure = queuedErrors.shift()
+    if (failure) throw new Error(failure)
     yield {type: EventType.RUN_FINISHED, threadId: 'scripted', runId: 'scripted'}
   }
-  return {chatStream, hold, release, scriptToolCall}
+  return {chatStream, hold, release, scriptToolCall, scriptError}
 }

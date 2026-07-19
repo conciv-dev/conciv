@@ -10,7 +10,7 @@ import {makeRpcClient, type RpcClient} from './session.js'
 import type {TestHarness} from './create-test-harness.js'
 
 function isTestHarness(harness: HarnessAdapter): harness is TestHarness {
-  return '__scripted' in harness
+  return 'script' in harness
 }
 
 export type BootEnv = {
@@ -119,10 +119,10 @@ export function createTestkit(harness: HarnessAdapter, boot: BootApp): Testkit {
         invokeTool: async (name, input, opts, session) => {
           const id = await sessionFor(session)
           if (isTestHarness(harness)) {
-            harness.__scripted.hold()
+            harness.script.hold()
             await sendChat('go', id)
             await callTool(name, input, id)
-            harness.__scripted.release()
+            harness.script.release()
           } else {
             await sendChat(opts.instruction, id)
           }

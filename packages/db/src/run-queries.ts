@@ -5,28 +5,33 @@ import {imageHistory, replies, runMessages, runs, type RunStatus} from './run-sc
 
 export type {RunStatus} from './run-schema.js'
 
-export function claimRun(db: ConcivDb, id: string, kind: 'chat' | 'compact'): boolean {
+export function claimRun(db: ConcivDb, id: string, kind: 'chat' | 'compact'): number | null {
   db.insert(runs).values({sessionId: id, updatedAt: Date.now()}).onConflictDoNothing().run()
   const claimed = db
     .update(runs)
     .set({
       status: kind === 'chat' ? 'running' : 'compacting',
-      lastError: null,
       runEpoch: sql`${runs.runEpoch} + 1`,
       updatedAt: Date.now(),
     })
     .where(and(eq(runs.sessionId, id), eq(runs.status, 'idle')))
-    .returning({sessionId: runs.sessionId})
+    .returning({runEpoch: runs.runEpoch})
     .all()
-  if (claimed.length !== 1) return false
+  const epoch = claimed.length === 1 ? claimed[0]?.runEpoch : undefined
+  if (epoch === undefined) return null
   db.delete(runMessages).where(eq(runMessages.sessionId, id)).run()
   db.delete(replies).where(eq(replies.sessionId, id)).run()
-  return true
+  return epoch
 }
 
 export function releaseRun(db: ConcivDb, id: string, error?: string | null): void {
   db.update(runs)
-    .set({status: 'idle', lastError: error ?? null, updatedAt: Date.now()})
+    .set({
+      status: 'idle',
+      lastError: error ?? null,
+      lastErrorEpoch: error == null ? null : sql`${runs.runEpoch}`,
+      updatedAt: Date.now(),
+    })
     .where(eq(runs.sessionId, id))
     .run()
 }
@@ -46,9 +51,15 @@ export function statusOf(db: ConcivDb, id: string): RunStatus {
   return rows[0]?.status ?? 'idle'
 }
 
-export function lastErrorOf(db: ConcivDb, id: string): string | null {
-  const rows = db.select({lastError: runs.lastError}).from(runs).where(eq(runs.sessionId, id)).all()
-  return rows[0]?.lastError ?? null
+export function lastErrorForEpoch(db: ConcivDb, id: string, epoch: number): string | null {
+  const rows = db
+    .select({lastError: runs.lastError, lastErrorEpoch: runs.lastErrorEpoch})
+    .from(runs)
+    .where(eq(runs.sessionId, id))
+    .all()
+  const row = rows[0]
+  if (!row || row.lastErrorEpoch !== epoch) return null
+  return row.lastError
 }
 
 export function runEpochOf(db: ConcivDb, id: string): number {

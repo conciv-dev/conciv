@@ -100,11 +100,6 @@
     filter: drop-shadow(0 0 5px var(--pw-accent));
   }
 }
-/* Suppress per-row entrance while a switched thread hydrates (only the container crossfades). */
-[data-pw-hydrating] [data-pw-msg] {
-  animation: none;
-}
-
 /* While the element picker is active OR an extension holds a foreground overlay, the open surface
    (and FAB) become invisible AND click-through, so the page / overlay underneath is fully reachable.
    Compound selectors keep specificity at parity with .pw-chat-open and win by source order. */

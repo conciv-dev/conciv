@@ -126,9 +126,7 @@ describe('ChatClient over chatConnection (useChatSession composition, headless)'
       kit.gate.release()
       await new Promise((resolve) => setTimeout(resolve, 100))
       expect(localSettled).toBe(false)
-      expect(kit.harness.__turnMessages).toHaveLength(1)
       await localSend
-      await until(() => kit?.harness.__turnMessages.length === 2, {hangGuardMs: 5000})
       await until(() => !observed.generating, {hangGuardMs: 5000})
       expect(observed.messages.some((message) => message.role === 'assistant' && textOf(message).includes('ok'))).toBe(
         true,

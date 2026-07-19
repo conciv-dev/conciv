@@ -17,7 +17,7 @@ export type RpcDeps = {
   chat: ChatDeps
   tools: ChatTool[]
   compactor: Compactor
-  send: (sessionId: string, content: UserContent) => Promise<void>
+  send: (sessionId: string, content: UserContent) => Promise<string>
   openInEditor: OpenInEditor
   openFromFrames: (frames: OpenSourceFrames) => Promise<OpenSourceStatus>
   page: PageEnv

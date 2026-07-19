@@ -8,11 +8,11 @@ describe('compactor', () => {
   it('runs a compact run, writes marker, status is compacting during the run', async () => {
     const {chat, db, sessionId, harness} = await makeChatFixture()
     const compactor = makeCompactor(chat)
-    harness.__scripted.hold()
+    harness.script.hold()
     const run = compactor.run(sessionId)
     await new Promise((resolve) => setTimeout(resolve, 25))
     expect(statusOf(db, sessionId)).toBe('compacting')
-    harness.__scripted.release()
+    harness.script.release()
     await run
     expect(statusOf(db, sessionId)).toBe('idle')
     const kinds = (
@@ -24,10 +24,10 @@ describe('compactor', () => {
   it('rejects a concurrent run as busy', async () => {
     const {chat, sessionId, harness} = await makeChatFixture()
     const compactor = makeCompactor(chat)
-    harness.__scripted.hold()
+    harness.script.hold()
     const run = compactor.run(sessionId)
     await expect(compactor.run(sessionId)).rejects.toThrow(/busy/)
-    harness.__scripted.release()
+    harness.script.release()
     await run
   })
 })

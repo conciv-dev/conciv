@@ -1200,6 +1200,9 @@ importers:
       '@tanstack/ai-solid':
         specifier: ^0.15.0
         version: 0.15.0(@opentelemetry/api@1.9.1)(@tanstack/ai@0.41.0(@opentelemetry/api@1.9.1))(solid-js@1.9.14)
+      '@tanstack/pacer':
+        specifier: ^0.21.1
+        version: 0.21.1
       '@tanstack/query-core':
         specifier: ^5.80.2
         version: 5.101.2
@@ -1210,9 +1213,6 @@ importers:
       '@conciv/core':
         specifier: workspace:^
         version: link:../core
-      '@conciv/harness':
-        specifier: workspace:^
-        version: link:../harness
       '@conciv/harness-testkit':
         specifier: workspace:^
         version: link:../harness-testkit

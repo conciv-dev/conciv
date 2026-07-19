@@ -28,5 +28,5 @@ export async function bootClientKit(): Promise<ClientKit> {
       },
     }
   }).setup()
-  return {...kit, harness, gate: {hold: harness.__scripted.hold, release: harness.__scripted.release}}
+  return {...kit, harness, gate: {hold: harness.script.hold, release: harness.script.release}}
 }

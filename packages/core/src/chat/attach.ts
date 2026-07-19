@@ -2,7 +2,7 @@ import {EventEmitter} from 'node:events'
 import {EventType, type StreamChunk} from '@tanstack/ai'
 import {ChatHistorySchema, type ChatHistory} from '@conciv/protocol/chat-types'
 import {aguiSnapshotFor} from '@conciv/protocol/ui-types'
-import {imageHistoryFor, lastErrorOf, runEpochOf, runMessagesFor, statusOf, type RunStatus} from '@conciv/db'
+import {imageHistoryFor, lastErrorForEpoch, runEpochOf, runMessagesFor, statusOf, type RunStatus} from '@conciv/db'
 import type {ChatDeps} from './runtime.js'
 import {readFileOrEmpty} from '../lib/fs.js'
 import {sessionById, settledMessages, userText} from './session.js'
@@ -105,31 +105,36 @@ async function snapshotKey(deps: ChatDeps, sessionId: string): Promise<string> {
   return `${row?.updatedAt ?? 0}:${imageRow?.updatedAt ?? 0}:${record?.updatedAt ?? 0}:${record?.harnessSessionId ?? ''}`
 }
 
+export function runIdFor(sessionId: string, epoch: number): string {
+  return `${sessionId}:${epoch}`
+}
+
 function runStarted(sessionId: string, epoch: number): StreamChunk {
-  return {type: EventType.RUN_STARTED, threadId: sessionId, runId: `${sessionId}:${epoch}`}
+  return {type: EventType.RUN_STARTED, threadId: sessionId, runId: runIdFor(sessionId, epoch)}
 }
 
 function runFinished(sessionId: string, epoch: number): StreamChunk {
-  return {type: EventType.RUN_FINISHED, threadId: sessionId, runId: `${sessionId}:${epoch}`, finishReason: 'stop'}
+  return {type: EventType.RUN_FINISHED, threadId: sessionId, runId: runIdFor(sessionId, epoch), finishReason: 'stop'}
 }
 
 function runErrored(sessionId: string, epoch: number, message: string): StreamChunk {
-  return {type: EventType.RUN_ERROR, threadId: sessionId, runId: `${sessionId}:${epoch}`, message}
+  return {type: EventType.RUN_ERROR, threadId: sessionId, runId: runIdFor(sessionId, epoch), message}
 }
 
 function endOfRun(deps: ChatDeps, sessionId: string, epoch: number): StreamChunk {
-  const lastError = lastErrorOf(deps.db, sessionId)
+  const lastError = lastErrorForEpoch(deps.db, sessionId, epoch)
   return lastError === null ? runFinished(sessionId, epoch) : runErrored(sessionId, epoch, lastError)
 }
 
 function lifecycleBefore(
+  deps: ChatDeps,
   sessionId: string,
   seen: {epoch: number; live: boolean},
   epoch: number,
   live: boolean,
 ): StreamChunk[] {
   if (epoch > seen.epoch) {
-    const closed = seen.live ? [runFinished(sessionId, seen.epoch)] : []
+    const closed = seen.live ? [endOfRun(deps, sessionId, seen.epoch)] : []
     return [...closed, runStarted(sessionId, epoch)]
   }
   return !seen.live && live ? [runStarted(sessionId, epoch)] : []
@@ -164,7 +169,7 @@ export async function* attachLive(deps: ChatDeps, sessionId: string, signal: Abo
       if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait))
       const epoch = runEpochOf(deps.db, sessionId)
       const live = isLive(statusOf(deps.db, sessionId))
-      yield* lifecycleBefore(sessionId, seen, epoch, live)
+      yield* lifecycleBefore(deps, sessionId, seen, epoch, live)
       const key = await snapshotKey(deps, sessionId)
       if (key !== seen.key) {
         yield await buildSnapshot(deps, sessionId)
