@@ -15,7 +15,7 @@
 - Build via turbo only. Widget ITs load PREBUILT bundles — rebuild embed (`pnpm turbo run build --filter=@conciv/embed`) before running them.
 - Solid vitest configs pin `test: {environment: 'node'}`.
 - Widget UI tested in a REAL browser (Playwright/Chromium), never jsdom. `browser.newPage()`, `domcontentloaded` waits only (live widget SSE keeps networkidle busy forever).
-- Commit with pathspec, never push. Run every command from the worktree root `/Users/omrikatz/Public/web/aidx/.claude/worktrees/try-connect-polish`.
+- Commit with pathspec, never push. Run every command from the worktree root `/Users/dev/Public/web/aidx/.claude/worktrees/try-connect-polish`.
 - `packages/extensions/try-it` is `"private": true` — NOT added to `PUBLIC_PACKAGES`.
 - After route file changes in `apps/conciv`: `pnpm --filter conciv run generate-routes` regenerates `routeTree.gen.ts`.
 - Copy strings must match the spec exactly (steps, headline, hints, privacy line).

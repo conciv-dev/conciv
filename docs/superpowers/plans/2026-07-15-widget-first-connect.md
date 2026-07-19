@@ -18,7 +18,7 @@
 - Motion rules: transitions not keyframes for open/close (interruptible), transform+opacity only, exits faster than entries, hover gated `@media (hover:hover) and (pointer:fine)`, `prefers-reduced-motion` = opacity-only.
 - Widget ITs: `browser.newPage()`, `domcontentloaded` waits (never `networkidle`), prebuilt embed bundle.
 - During UI tasks (4, 5, 7) load skills: `emil-design-eng`, `impeccable:animate`, `frontend-design`; task 7 ends with `impeccable:polish`.
-- All commands run from the worktree root: `/Users/omrikatz/Public/web/aidx/.claude/worktrees/live-widget-connect`.
+- All commands run from the worktree root: `/Users/dev/Public/web/aidx/.claude/worktrees/live-widget-connect`.
 - Commit with pathspec: `git commit -- <paths>`.
 
 ---

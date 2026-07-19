@@ -8,7 +8,7 @@
 
 **Tech Stack:** Solid, Ark-free primitives, zod v4, h3, @anthropic-ai/claude-agent-sdk, Storybook play tests, vitest (node project), Playwright widget ITs.
 
-**Spec:** `docs/superpowers/specs/2026-07-03-composer-trigger-popover-design.md`. Reference source: `/Users/omrikatz/Public/web/assistant-ui/packages/react/src/primitives/composer/trigger/`.
+**Spec:** `docs/superpowers/specs/2026-07-03-composer-trigger-popover-design.md`. Reference source: `/Users/dev/Public/web/assistant-ui/packages/react/src/primitives/composer/trigger/`.
 
 ## Global Constraints
 
@@ -18,7 +18,7 @@
 - Tests: native assertions (getByRole/getByText/toBeVisible/aria), no `data-testid`, no jsdom, no mocks/stubs — real browser, real HTTP servers.
 - Never add an npm dependency (nothing new is needed; everything used already exists in the workspace).
 - Build/typecheck via turbo from repo root: `pnpm turbo typecheck --filter <pkg>`; widget ITs need `@conciv/core` + widget dist rebuilt first.
-- Commit with pathspec always: `git commit -m "…" -- <paths>` (parallel sessions share this worktree). Run from `/Users/omrikatz/Public/web/aidx`.
+- Commit with pathspec always: `git commit -m "…" -- <paths>` (parallel sessions share this worktree). Run from `/Users/dev/Public/web/aidx`.
 - Do not run Storybook vitest tests while a `storybook dev` process is running (shared cache corruption). Check `pgrep -f "storybook dev"` first.
 - v0: break APIs freely, update all call sites, no back-compat shims.
 
