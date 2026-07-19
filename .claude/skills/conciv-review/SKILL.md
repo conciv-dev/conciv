@@ -38,14 +38,14 @@ Turbo caches test results; a cached green is a claim about old inputs, not curre
 
 ## Step 1: mixture of experts (parallel fan-out)
 
-Launch ALL applicable experts concurrently (one message, multiple Agent calls). Models are tiered per hat: deep-reasoning hats run `opus`, mechanical checklist hats run `sonnet`; never let a subagent silently inherit the session model. Every expert is read-only: it reads the full changed files (not just hunks) plus whatever context it needs, and returns structured findings only; it fixes nothing. Each expert prompt contains: the changed-file list, its single hat description and checklist from this skill, and the required output shape: `{file, line, severity, claim, evidence, failure_scenario}` per finding, where `severity` is `'blocking' | 'minor'`.
+Launch ALL applicable experts concurrently (one message, multiple Agent calls). Models are tiered per hat: the architect (whole-system reasoning across package boundaries) runs `fable`, other deep-reasoning hats run `opus`, mechanical checklist hats run `sonnet`; never let a subagent silently inherit the session model. Every expert is read-only: it reads the full changed files (not just hunks) plus whatever context it needs, and returns structured findings only; it fixes nothing. Each expert prompt contains: the changed-file list, its single hat description and checklist from this skill, and the required output shape: `{file, line, severity, claim, evidence, failure_scenario}` per finding, where `severity` is `'blocking' | 'minor'`.
 
 | Hat              | Model  | Mission                                                                                                                                                       |
 | ---------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | bug-hunter       | opus   | Correctness only: logic errors, edge cases, races, broken invariants. Every finding needs a concrete failure scenario (inputs/state leading to wrong output). |
 | style-enforcer   | sonnet | The "Hard style rules" checklist, nothing else. Every violation is blocking.                                                                                  |
 | test-engineer    | sonnet | The "Test review" checklist plus coverage: does the diff change behavior that no test exercises?                                                              |
-| architect        | opus   | The "Architecture landmines" checklist plus package-boundary and dependency-direction violations.                                                             |
+| architect        | fable  | The "Architecture landmines" checklist plus package-boundary and dependency-direction violations.                                                             |
 | security-auditor | opus   | The "Security" checklist: permission-gate conservatism, localhost binding, secrets, zod at HTTP boundaries, injection surfaces.                               |
 | simplifier       | sonnet | Fallow findings (INTRODUCED dead code, unused exports/deps, duplication, complexity, circular deps) plus needless abstraction the diff adds.                  |
 
