@@ -90,7 +90,7 @@ function RailHeader(props: {
     return !props.open && activity.live() && call ? activity.label(call) : null
   }
   return (
-    <div class="flex items-center min-w-0 shrink-0">
+    <div class="flex shrink-0 min-w-0 items-center">
       <Button
         variant="ghost"
         size="sm"
@@ -110,7 +110,7 @@ function RailHeader(props: {
           <span class="text-pw-text-3 tabular-nums">{props.count}</span>
         </Show>
         <Show when={collapsedTitle()}>
-          {(title) => <span class={`min-w-0 truncate text-pw-text-3 ${SHIMMER}`}>{title()}</span>}
+          {(title) => <span class={`text-pw-text-3 min-w-0 truncate ${SHIMMER}`}>{title()}</span>}
         </Show>
       </Button>
     </div>
@@ -160,7 +160,7 @@ export function MirrorRail(props: {
   return (
     <div
       data-pw-hydrating={hydrating() ? '' : undefined}
-      class="relative flex flex-1 flex-col min-h-0 min-w-0 shrink-0 max-w-[60vw]"
+      class="flex flex-1 shrink-0 flex-col max-w-[60vw] min-h-0 min-w-0 relative"
       classList={{'[border-left:1px_solid_var(--chat-line)]': open()}}
       style={{width: open() ? `${resize.size()}px` : undefined}}
     >
@@ -171,7 +171,7 @@ export function MirrorRail(props: {
           aria-label="Resize activity panel"
           aria-valuenow={Math.round(resize.size())}
           tabIndex={0}
-          class="absolute left-0 top-0 bottom-0 w-1.5 -translate-x-1/2 cursor-ew-resize z-10 rounded-full trans-bg hover:bg-pw-fill-strong"
+          class="rounded-full w-1.5 cursor-ew-resize trans-bg bottom-0 left-0 top-0 absolute z-10 hover:bg-pw-fill-strong -translate-x-1/2"
           classList={{'bg-pw-fill-strong': resize.isResizing()}}
           onPointerDown={resize.onPointerDown}
           onKeyDown={resize.onKeyDown}

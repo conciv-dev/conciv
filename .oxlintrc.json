@@ -15,6 +15,7 @@
     "unicorn/consistent-function-scoping": "off",
     "unicorn/require-module-specifiers": "off",
     "react/react-in-jsx-scope": "off",
+    "react/no-unstable-nested-components": "off",
     "no-underscore-dangle": [
       "warn",
       {
@@ -32,6 +33,14 @@
           "__server",
           "__render",
           "__execute",
+          "__card",
+          "__expand",
+          "__ctx",
+          "__scripted",
+          "__turnMessages",
+          "__TSR_ROUTER__",
+          "__TSR_index",
+          "_rbsplitInstance",
           "_debugHookTypes",
           "_debugStack",
           "_context",
@@ -86,6 +95,12 @@
       ],
       "rules": {
         "no-control-regex": "off"
+      }
+    },
+    {
+      "files": ["**/*.worker.ts", "apps/site/src/components/landing/demo/use-local-model.ts"],
+      "rules": {
+        "unicorn/require-post-message-target-origin": "off"
       }
     },
     {

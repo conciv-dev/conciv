@@ -30,7 +30,6 @@ export type TerminalModel = {
   inject(text: string): void
   paste(text: string): void
   sendInput(data: string): void
-  __testReceiveControl(frame: TtyServerControl): void
 }
 
 export function translateBuffer(terminal: Xterm): string {
@@ -193,7 +192,6 @@ export function createTerminalModel(opts: TerminalModelOpts): TerminalModel {
     sendInput: (data) => {
       if (state.socket?.readyState === WebSocket.OPEN) state.socket.send(data)
     },
-    __testReceiveControl: receiveControl,
   }
 }
 
