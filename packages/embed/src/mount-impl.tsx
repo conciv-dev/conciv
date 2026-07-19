@@ -3,7 +3,7 @@ import {RouterProvider, createMemoryHistory} from '@tanstack/solid-router'
 import {makeDeferredRpcClient, makeRpcClient} from '@conciv/contract'
 import {createWebStorageHistory} from '@conciv/storage-history'
 import type {AnyExtension} from '@conciv/extension'
-import {makeDomPageDriver, reactBridge, startPagePlane, type PageDriver} from '@conciv/page'
+import {installReactBridge, makeDomPageDriver, reactBridge, startPagePlane, type PageDriver} from '@conciv/page'
 import {createConcivRouter} from 'conciv/router'
 import {parseConcivSettings, type ConcivSettings} from 'conciv/settings'
 import {createShadowRoot} from 'conciv/shadow'
@@ -133,6 +133,7 @@ async function boot(root: ShadowRoot, init: ConcivInit): Promise<() => void> {
 }
 
 export function mountImpl(init: ConcivInit, el: HTMLElement): {ready: Promise<void>; teardown: () => void} {
+  installReactBridge()
   window.__CONCIV_REACT_BRIDGE__ = reactBridge
   const hostRouter = window.__TSR_ROUTER__
   const inner = document.createElement('div')

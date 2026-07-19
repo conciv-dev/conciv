@@ -1512,8 +1512,8 @@ importers:
         specifier: ^1.170.17
         version: 1.170.17(solid-js@1.9.14)
       bippy:
-        specifier: 0.5.30
-        version: 0.5.30(@types/react@19.2.17)(react@19.2.7)
+        specifier: 0.5.41
+        version: 0.5.41(react@19.2.7)
       react-grab:
         specifier: ^0.1.44
         version: 0.1.48(react@19.2.7)
@@ -2350,8 +2350,8 @@ importers:
         specifier: workspace:^
         version: link:../protocol
       bippy:
-        specifier: 0.5.30
-        version: 0.5.30(@types/react@19.2.17)(react@19.2.7)
+        specifier: 0.5.41
+        version: 0.5.41(react@19.2.7)
       react-grab:
         specifier: ^0.1.44
         version: 0.1.48(react@19.2.7)
@@ -9002,11 +9002,6 @@ packages:
     peerDependencies:
       '@types/react': ^19.2.0
 
-  '@types/react-reconciler@0.28.9':
-    resolution: {integrity: sha512-HHM3nxyUZ3zAylX8ZEyrDNd2XZOnQ0D5XfunJF5FLQnZbHHYq4UWvW1QfelQNXv1ICNkwYhfxjwfnqivYB6bFg==}
-    peerDependencies:
-      '@types/react': '*'
-
   '@types/react@19.2.17':
     resolution: {integrity: sha512-MXfmqaVPEVgkBT/aY0aGCkRWWtByiYQXo3xdQ8r5RzuFrPiRn8Gar2tQdXSUQ2GKV3bkXckek89V8wQBY2Q/Aw==}
 
@@ -10106,8 +10101,8 @@ packages:
   bindings@1.5.0:
     resolution: {integrity: sha512-p2q/t/mhvuOj/UeLlV6566GD/guowlr0hHxClI0W9m7MWYkL1F0hLo+0Aexs9HSPCtR1SXQ0TD3MMKrXZajbiQ==}
 
-  bippy@0.5.30:
-    resolution: {integrity: sha512-8CFmJAHD3gmTLDOCDHuWhjm1nxHSFZdlGoWtak9r53Uxn36ynOjxBLyxXHh/7h/XiKLyPvfdXa0gXWcD9o9lLQ==}
+  bippy@0.5.41:
+    resolution: {integrity: sha512-jCP2pXXLhXqPrAN+iSEFZmLI4uUM4fjSqajh0K+TmM062VehfDT3ZJNkrTGyN701Z5XMejs9qAudSqkMGhSMKg==}
     peerDependencies:
       react: '>=17.0.1'
 
@@ -21889,10 +21884,6 @@ snapshots:
     dependencies:
       '@types/react': 19.2.17
 
-  '@types/react-reconciler@0.28.9(@types/react@19.2.17)':
-    dependencies:
-      '@types/react': 19.2.17
-
   '@types/react@19.2.17':
     dependencies:
       csstype: 3.2.3
@@ -23622,12 +23613,9 @@ snapshots:
     dependencies:
       file-uri-to-path: 1.0.0
 
-  bippy@0.5.30(@types/react@19.2.17)(react@19.2.7):
+  bippy@0.5.41(react@19.2.7):
     dependencies:
-      '@types/react-reconciler': 0.28.9(@types/react@19.2.17)
       react: 19.2.7
-    transitivePeerDependencies:
-      - '@types/react'
 
   bippy@0.5.43(react@19.2.7):
     dependencies:

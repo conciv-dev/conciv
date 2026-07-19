@@ -8,7 +8,7 @@ import {
   getRDTHook,
   traverseFiber,
   _fiberRoots,
-} from 'bippy/core'
+} from 'bippy'
 import {parseStack, hasDebugStack, getFallbackOwnerStack, formatOwnerStack} from 'bippy/source'
 import {installTracker} from './render-tracker.js'
 import {addRef, type Refs} from './page-snapshot.js'
@@ -259,7 +259,6 @@ export async function override(
   value: unknown,
   hookId?: number,
 ): Promise<OverrideResult> {
-  installReactBridge()
   const found = await fiberForEl(el)
   if (!found) return {error: 'no React fiber for element'}
   const composite = composedFiber(getLatestFiber(found))

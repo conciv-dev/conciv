@@ -1,4 +1,4 @@
-import {instrument, traverseRenderedFibers, getFiberId, getDisplayName, isCompositeFiber, getTimings} from 'bippy/core'
+import {instrument, traverseRenderedFibers, getFiberId, getDisplayName, isCompositeFiber, getTimings} from 'bippy'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- bippy fibers are untyped internals
 type Fiber = any
@@ -78,7 +78,6 @@ export function installTracker(): void {
 }
 
 export function startTracking(): void {
-  installTracker()
   state.stats.clear()
   state.tracking = true
 }
