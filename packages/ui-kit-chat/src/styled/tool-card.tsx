@@ -21,9 +21,10 @@ export function ToolCard(props: {
   meta?: string
   durationMs?: number
   defaultOpen?: boolean
+  status?: ToolStatus
   children?: JSX.Element
 }): JSX.Element {
-  const status = () => toolStatus(props.part, props.result)
+  const status = () => props.status ?? toolStatus(props.part, props.result)
   const ambientDuration = useToolCallDuration()
   const duration = () => formatDuration(props.durationMs ?? ambientDuration())
   return (

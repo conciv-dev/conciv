@@ -45,7 +45,7 @@ export const Running: Story = {
     await waitFor(() => expect(c.getAllByText('external_canvas_draw').length).toBeGreaterThan(0))
     await expect(c.getAllByText('drawn').length).toBeGreaterThan(0)
     await expect(c.queryByText('console')).toBeNull()
-    await expect(c.queryByText('failed')).toBeNull()
+    await expect(c.queryByText(/SyntaxError/)).toBeNull()
   },
 }
 
@@ -53,10 +53,10 @@ export const Success: Story = {
   render: () => frame('chat-theme-dark', <CodeRunCard part={part()} result={okResult} ctx={ctx} />),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    await expect(c.queryByText('failed')).toBeNull()
     await userEvent.click(c.getByRole('button'))
     await waitFor(() => expect(c.getByText('committed ["el_9f2"]')).toBeVisible())
     await expect(c.getByText('["el_9f2"]')).toBeVisible()
+    await expect(c.queryByText(/SyntaxError/)).toBeNull()
   },
 }
 
@@ -64,10 +64,11 @@ export const Failure: Story = {
   render: () => frame('chat-theme-dark', <CodeRunCard part={part()} result={failResult} ctx={ctx} />),
   play: async ({canvasElement}) => {
     const c = within(canvasElement)
-    await expect(c.getByText('failed')).toBeVisible()
     await userEvent.click(c.getByRole('button'))
     await waitFor(() => expect(c.getByText(/SyntaxError/)).toBeVisible())
     await expect(c.getByText(/line 2/)).toBeVisible()
+    await expect(c.queryByText('["el_9f2"]')).toBeNull()
+    await expect(c.queryByText('console')).toBeNull()
   },
 }
 
