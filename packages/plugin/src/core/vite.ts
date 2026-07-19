@@ -93,6 +93,7 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
   let root = process.cwd()
 
   let deferToTsd = false
+  let managedExcludes: string[] = []
   return {
     name: 'conciv',
     apply: 'serve',
@@ -105,10 +106,11 @@ export function makeViteHook(options: ConcivConfig = {}, builtins: Builtins = NO
         warmupFiles: [...embedFiles, ...builtins.clientEntries],
       })
       base.optimizeDeps.exclude.push('@conciv/embed')
+      managedExcludes = [...base.optimizeDeps.exclude]
       return base
     },
     configEnvironment(_name, environmentConfig) {
-      dropIncludedFromExcludes(environmentConfig.optimizeDeps)
+      dropIncludedFromExcludes(environmentConfig.optimizeDeps, managedExcludes)
     },
     configResolved(config) {
       root = config.root
