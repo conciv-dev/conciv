@@ -36,11 +36,11 @@ export function createEventRing(opts: {windowMs: number; maxBytes?: number; sequ
     let dropTo = 0
     let bytes = totalBytes
     while (dropTo < stored.length - 1) {
-      const head = stored[dropTo]
-      if (!head) break
-      const tooOld = newest - head.event.timestamp > opts.windowMs
+      const oldest = stored[dropTo]
+      if (!oldest) break
+      const tooOld = newest - oldest.event.timestamp > opts.windowMs
       if (!tooOld && bytes <= maxBytes) break
-      bytes -= head.bytes
+      bytes -= oldest.bytes
       dropTo += 1
     }
     if (dropTo === 0) return
