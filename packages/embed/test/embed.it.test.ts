@@ -196,6 +196,20 @@ describe('embed boots the conciv app against a real core', () => {
     await expect.poll(() => page.getByText('Answered.').isVisible(), {timeout: 30_000}).toBe(true)
     await page.close()
   })
+
+  it('renders lazy-discovery and code-mode parts without blanking the transcript', async () => {
+    const page = await openPage()
+    await openPanel(page)
+    kit.harness.script.scriptToolCall('__lazy__tool__discovery__', {query: 'weather'}, {blocking: false})
+    kit.harness.script.scriptCustomEvent('code_mode:console', {stream: 'stdout', text: 'hello from code mode'})
+    const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
+    await input.fill('discover and run some tools')
+    await page.getByRole('button', {name: 'Send message'}).click()
+    await expect.poll(() => page.getByText(ASSISTANT_TEXT).first().isVisible(), {timeout: 30_000}).toBe(true)
+    const announced = await page.getByRole('alert').allTextContents()
+    expect(announced.every((text) => text.trim() === '')).toBe(true)
+    await page.close()
+  })
 })
 
 describe('embed settings', () => {
