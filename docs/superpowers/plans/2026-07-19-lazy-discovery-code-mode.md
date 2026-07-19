@@ -6,7 +6,9 @@
 
 **Architecture:** Extension tools are already converted to native `toolDefinition(...)` at `packages/core/src/chat/runtime.ts:36` and passed to `chat()` at `packages/core/src/chat/run.ts:124`. We mark them `lazy: true` there, fold per-tool prompt prose into descriptions (revealed only on discovery), stop concatenating `promptSnippet` into the standing prompt in `packages/core/src/start.ts`, and add a Code Mode execute tool built from the non-approval subset. Plan is spec section 6 of `docs/superpowers/specs/2026-07-19-framework-inspection-extensions-design.md`.
 
-**Tech Stack:** `@tanstack/ai` 0.41.0 (installed), `@tanstack/ai-code-mode@0.3.7` + `@tanstack/ai-isolate-node@0.1.46` (NEW DEPS — flagged for user approval before Task 6), vitest, `@conciv/harness-testkit`.
+**Tech Stack:** `@tanstack/ai` 0.41.0 (installed), `@tanstack/ai-code-mode@0.3.7` + `@tanstack/ai-isolate-node@0.1.46` (installed + committed, Task 6 done), vitest, `@conciv/harness-testkit`.
+
+**Review status:** validated by 4 independent opus reviews (lazy API, code-mode API, conciv integration, security) + a tool-path spike (`2026-07-19-lazy-spike-findings.md`). All blockers folded in: Task 1 rescoped to the two remaining empirical questions, Task 5 re-scoped (chat path never uses `/api/mcp`), Task 6b added (approval-gate name normalization — pre-existing security hole), Task 7 rebuilt (opt-in `codeMode` flag, real sessionId, probe-gated driver singleton, non-lazy bindings, `codeMode.tools` wiring).
 
 ## Global Constraints
 
@@ -20,39 +22,39 @@
 
 ---
 
-### Task 1: Spike — trace the tool path per harness and prove lazy discovery engages
+### Task 1: Spike — RESOLVED (see findings doc); two empirical questions remain
 
-The one open architectural question (spec research task 5). Extension tools reach agents two ways: `chat({tools})` (`packages/core/src/chat/run.ts:129`) and the MCP server (`packages/core/src/api/mcp.ts:57`, tools named `mcp__conciv__<name>`, see risky-set construction at `packages/core/src/app.ts:155`). Lazy discovery lives in `chat()` — if a CLI harness consumes tools from the MCP server instead, chat-level lazy filtering may not reduce what the CLI sees.
+Static analysis is done: `docs/superpowers/plans/2026-07-19-lazy-spike-findings.md`. Summary:
+chat turns never touch conciv's `/api/mcp` — `chat()` lazy-filters the active tool set BEFORE the
+adapter sees it, and the claude adapter provisions exactly that set into its own in-process
+bridge (`@tanstack/ai-claude-code/dist/esm/adapters/text.js:164-188`, written once at spawn as
+`.tanstack-mcp-bridge-<runId>.json`). So `lazy: true` genuinely shrinks what the CLI's model
+sees. The bridge is static per provision (no `tools/list_changed` in `@tanstack/ai-sandbox`), so
+mid-turn discovery→callability and cross-turn discovery persistence are the open questions.
 
 **Files:**
 
-- Read: `packages/core/src/chat/run.ts`, `packages/core/src/api/mcp.ts`, `packages/harness/src/` (each adapter's `chatConfig`), `packages/core/test/claude-tanstack.it.test.ts`, `packages/core/test/extension-tool-session.it.test.ts`
-- Create: `docs/superpowers/plans/2026-07-19-lazy-spike-findings.md`
+- Modify: `docs/superpowers/plans/2026-07-19-lazy-spike-findings.md` (append empirical results)
+- Test (committed, unlike the original throwaway idea): `packages/core/test/chat/lazy-extension-tools.it.test.ts`
 
 **Interfaces:**
 
-- Produces: a findings doc answering (a) which harnesses consume `chat({tools})` directly vs the MCP projection; (b) whether `lazy: true` tools disappear from the initial tool list each harness sees; (c) whether a tool discovered mid-run is callable (MCP `tools/list_changed` or equivalent); (d) GO/ADAPT decision for Task 5.
+- Produces: empirical answers appended to the findings doc for (a) is a tool discovered mid-run
+  callable within the same turn through the claude bridge (expected: NO — static bridge; confirm
+  and file an upstream issue on `@tanstack/ai-sandbox` for re-provisioning); (b) do the synthetic
+  `__lazy__tool__discovery__` call + `role: 'tool'` result messages survive conciv's persisted
+  history across turns for a `transcriptHistory: true` harness (claude merges history from the
+  CLI transcript by msgid — synthetic chat()-layer messages may be dropped). If (b) fails, Task 4
+  gains a precondition: persist those synthetic messages in the session/attach layer.
 
-- [ ] **Step 1: Trace how each harness adapter receives the `tools` array**
-
-Read `packages/harness/src/` adapter implementations. For each adapter answer: does `config.adapter` forward `chat()`'s `tools` to the CLI (e.g. as `--mcp-config` / MCP session), or do CLIs list tools from conciv's MCP endpoint in `packages/core/src/api/mcp.ts`? Record exact file:line evidence per harness in the findings doc.
-
-- [ ] **Step 2: Empirically verify with the testkit**
-
-Write a throwaway test (do not commit) patterned on `packages/core/test/extension-tool-session.it.test.ts`: register two extension tools, one converted with `lazy: true` (hand-edit `toChatTool` locally for the spike), script a turn via `@conciv/harness-testkit`, and assert on the wire which tool names the harness was offered. Record the observed tool lists for at least the claude harness in the findings doc.
-
-- [ ] **Step 3: Write the GO/ADAPT decision**
-
-In `docs/superpowers/plans/2026-07-19-lazy-spike-findings.md`, conclude one of:
-
-- GO: `chat()`-level lazy filtering reaches every harness — Task 5 becomes a no-op (delete it when executing).
-- ADAPT: name the harnesses that read the MCP projection; Task 5 must apply the same lazy split there.
-
-- [ ] **Step 4: Commit the findings doc**
+- [ ] **Step 1: Write the committed lazy-path test** — using `@conciv/harness-testkit` (scripted harness, no real CLI): register an extension with one eager and one lazy tool, run a scripted turn, assert the harness was offered the eager tool + `__lazy__tool__discovery__` and NOT the lazy tool; script a discovery call and assert the discovery result contains the lazy tool's schema; run a second turn on the same session and assert (via the manager's behavior) whether the lazy tool is offered without re-discovery.
+- [ ] **Step 2: Run it against the claude harness locally too** (the real-CLI ITs are `it.skipIf(!runReal)`-gated and CI-skipped — run with the local claude binary once, record results in the findings doc).
+- [ ] **Step 3: Append results + final GO/ADAPT refinement to the findings doc; file the upstream issue if mid-turn callability fails.**
+- [ ] **Step 4: Commit**
 
 ```bash
-git add docs/superpowers/plans/2026-07-19-lazy-spike-findings.md
-git commit -m "docs: lazy discovery tool-path spike findings" -- docs/superpowers/plans/2026-07-19-lazy-spike-findings.md
+git add docs/superpowers/plans/2026-07-19-lazy-spike-findings.md packages/core/test/chat/lazy-extension-tools.it.test.ts
+git commit -m "test(core): committed lazy extension-tool path coverage + spike results" -- docs/superpowers/plans/2026-07-19-lazy-spike-findings.md packages/core/test/chat/lazy-extension-tools.it.test.ts
 ```
 
 ---
@@ -111,7 +113,7 @@ Note: `buildExtensionTools` is currently module-private in `app.ts` — export i
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm vitest run packages/core/test/chat/extension-tool-description.test.ts`
+Run: `pnpm --filter @conciv/core test test/chat/extension-tool-description.test.ts`
 Expected: FAIL (`buildExtensionTools` not exported).
 
 - [ ] **Step 3: Implement**
@@ -155,7 +157,7 @@ Add the `ExtensionServerTool` import to `app.ts` if missing.
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `pnpm vitest run packages/core/test/chat/extension-tool-description.test.ts`
+Run: `pnpm --filter @conciv/core test test/chat/extension-tool-description.test.ts`
 Expected: PASS. Also run `pnpm --filter @conciv/core typecheck` (or `pnpm typecheck`).
 
 - [ ] **Step 5: Commit**
@@ -201,7 +203,7 @@ test('standing prompt contains extension systemPrompt but never tool prose', () 
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm vitest run packages/core/test/system-prompt.test.ts`
+Run: `pnpm --filter @conciv/core test test/system-prompt.test.ts`
 Expected: FAIL (`composeSystemPrompt` not exported — prompt assembly is inline in `start()` today).
 
 - [ ] **Step 3: Extract and fix**
@@ -222,7 +224,7 @@ const systemPrompt = composeSystemPrompt(cfg.systemPrompt, opts.extensions ?? []
 
 - [ ] **Step 4: Run tests**
 
-Run: `pnpm vitest run packages/core/test/system-prompt.test.ts` then `pnpm turbo run test --filter=@conciv/core`
+Run: `pnpm --filter @conciv/core test test/system-prompt.test.ts` then `pnpm turbo run test --filter=@conciv/core`
 Expected: PASS; no other core test regressions.
 
 - [ ] **Step 5: Commit**
@@ -269,7 +271,7 @@ test('extension tools are lazy, conciv tools are eager', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `pnpm vitest run packages/core/test/chat/chat-tools.test.ts`
+Run: `pnpm --filter @conciv/core test test/chat/chat-tools.test.ts` (deps must be built once first: `pnpm turbo run build --filter=@conciv/core^...`)
 Expected: FAIL (`lazy` undefined on extension tool).
 
 - [ ] **Step 3: Implement**
@@ -302,7 +304,7 @@ lazyToolsConfig: {includeDescription: 'first-sentence'},
 - [ ] **Step 4: Run tests**
 
 Run: `pnpm turbo run test --filter=@conciv/core`
-Expected: PASS, including the harness ITs (`claude-tanstack.it`, `opencode-tanstack.it`, `gemini-tanstack.it`) — these are the first real-path proof that lazy tools still execute end to end.
+Expected: PASS. NOTE: the real-CLI harness ITs (`claude/opencode/gemini-tanstack.it`) are `it.skipIf`-gated, CI-skipped, and register NO tools — they prove nothing about lazy. The committed proof is Task 1's `lazy-extension-tools.it.test.ts`; it must be green here.
 
 - [ ] **Step 5: Commit**
 
@@ -313,9 +315,15 @@ git commit -m "feat(core): extension tools ride native lazy discovery" -- packag
 
 ---
 
-### Task 5: MCP projection parity (conditional on Task 1 = ADAPT)
+### Task 5: `/api/mcp` lazy parity — RE-SCOPED, chat path does NOT need it
 
-If the spike shows some harnesses list tools from `packages/core/src/api/mcp.ts` rather than through `chat()`, the MCP server must present the same reduced surface: eager tools plus a discovery affordance, not the full catalog. If Task 1 concluded GO, delete this task and record that in the plan checklist.
+Spike verdict: chat turns never consume `/api/mcp` — it serves claude tty/launch/sdk modes,
+slash-command listing, and external agents. Chat-level lazy (Task 4) already reaches every
+chat-path harness through the adapter bridge. This task is therefore NOT about the chat goal:
+apply the same lazy split to `/api/mcp` so interactive-terminal and external-agent surfaces stay
+lean. The official MCP SDK supports dynamic registration + `sendToolListChanged`, unlike the
+sandbox bridge. Deprioritize to last; skipping it entirely is acceptable for this PR if the
+user prefers — record the decision either way.
 
 **Files:**
 
@@ -335,31 +343,76 @@ If the spike shows some harnesses list tools from `packages/core/src/api/mcp.ts`
 
 ---
 
-### Task 6: Add Code Mode dependencies (USER APPROVAL GATE)
+### Task 6: Add Code Mode dependencies — DONE
 
-Repo rule: ask before installing. Present to the user before running: adds `@tanstack/ai-code-mode@0.3.7` (peer-pinned to the installed `@tanstack/ai@0.41.0`, dep: sucrase) and `@tanstack/ai-isolate-node@0.1.46` (isolated-vm driver) to `packages/core`.
+User approved; installed and committed on this branch (`chore(core): add tanstack code-mode +
+node isolate driver`): `@tanstack/ai-code-mode@0.3.7` + `@tanstack/ai-isolate-node@0.1.46` in
+`packages/core`, `isolated-vm@6.1.2` build approved via `pnpm approve-builds isolated-vm` and
+smoke-tested (both packages import; exports confirmed: `createCodeMode`,
+`createNodeIsolateDriver`, `probeIsolatedVm`).
+
+- [x] Installed, built, committed.
+
+---
+
+### Task 6b: Approval-gate name normalization + per-harness gate-firing proof (SECURITY, do before Task 7)
+
+Security review found a pre-existing hole the plan must not build on top of: the risky set holds
+`mcp__conciv__<name>` (`packages/core/src/app.ts:155-159`) but (a) the chat-middleware path
+compares BARE names (`packages/core/src/chat/gate.ts` `gatedTools` → `gate.decide(tool.name, ...)`),
+and (b) bridge-visible names are `mcp__tanstack__<name>`. Result: in-process/no-callback
+harnesses (codex: `permissionGate: 'none'`) execute `approval: 'ask'` extension tools UNGATED
+today.
 
 **Files:**
 
-- Modify: `packages/core/package.json`, `pnpm-lock.yaml`
+- Modify: `packages/core/src/chat/gate.ts` (name matching), `packages/core/src/app.ts:155` (risky set contents)
+- Test: `packages/core/test/chat/permission-gate.test.ts` (extend)
 
-- [ ] **Step 1: Get user approval for the two new deps.**
-- [ ] **Step 2: Install**
+**Interfaces:**
 
-```bash
-pnpm --filter @conciv/core add @tanstack/ai-code-mode@0.3.7 @tanstack/ai-isolate-node@0.1.46
+- Consumes: `ExtensionServerTool.approval` (Task 2).
+- Produces: `riskyMatches(risky: ReadonlySet<string>, toolName: string): boolean` in `gate.ts` —
+  strips a leading `mcp__<server>__` prefix (any server) and matches the bare name against a
+  bare-name risky set; `app.ts` risky set switches to bare names. Every `risky.has(...)` call
+  site in `gate.ts` switches to `riskyMatches`. Task 7's Code Mode exclusion and capability
+  enablement depend on this landing first.
+
+- [ ] **Step 1: Write failing tests** — extend `permission-gate.test.ts`: `decide('canvas.delete')`, `decide('mcp__conciv__canvas.delete')`, and `decide('mcp__tanstack__canvas.delete')` must ALL deny for an `approval: 'ask'` tool named `canvas.delete`; a non-risky name in all three forms must allow. (This intentionally changes the existing assertion at `permission-gate.test.ts:34` that bare `canvas.delete` allows — that assertion documents the bug.)
+- [ ] **Step 2: Run, expect the new assertions to FAIL.**
+
+Run: `pnpm --filter @conciv/core test test/chat/permission-gate.test.ts`
+
+- [ ] **Step 3: Implement**
+
+`packages/core/src/chat/gate.ts`:
+
+```ts
+const MCP_PREFIX = /^mcp__[a-z0-9-]+__/i
+
+export function riskyMatches(risky: ReadonlySet<string>, toolName: string): boolean {
+  return risky.has(toolName.replace(MCP_PREFIX, ''))
+}
 ```
 
-- [ ] **Step 3: Verify build**
+Replace every `risky.has(name)` in `gate.ts` with `riskyMatches(risky, name)`. In
+`packages/core/src/app.ts`, drop the prefix from the risky set:
 
-Run: `pnpm turbo run build --filter=@conciv/core`
-Expected: clean build (isolated-vm is a native module — if postinstall fails on this machine, STOP and surface to the user; do not swap drivers silently).
+```ts
+const risky = new Set(
+  (opts.extensions ?? [])
+    .flatMap((extension) => extension.tools ?? [])
+    .filter((tool) => tool.approval === 'ask')
+    .map((tool) => tool.name),
+)
+```
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 4: Run the full core suite** — `pnpm turbo run test --filter=@conciv/core`, expect PASS (update any test pinning the old prefixed-set behavior deliberately, noting each).
+- [ ] **Step 5: Commit**
 
 ```bash
-git add packages/core/package.json pnpm-lock.yaml
-git commit -m "chore(core): add tanstack code-mode + node isolate driver" -- packages/core/package.json pnpm-lock.yaml
+git add packages/core/src/chat/gate.ts packages/core/src/app.ts packages/core/test/chat/permission-gate.test.ts
+git commit -m "fix(core): approval gate matches tool names across mcp prefixes" -- packages/core/src/chat/gate.ts packages/core/src/app.ts packages/core/test/chat/permission-gate.test.ts
 ```
 
 ---
@@ -402,29 +455,59 @@ test('code mode excludes approval-gated tools', () => {
 
 - [ ] **Step 2: Run it, expect FAIL (module missing).**
 
-Run: `pnpm vitest run packages/core/test/chat/code-mode.test.ts`
+Run: `pnpm --filter @conciv/core test test/chat/code-mode.test.ts`
 
 - [ ] **Step 3: Implement `packages/core/src/chat/code-mode.ts`**
 
+Reviewer-verified constraints baked in: (1) code-mode bindings are NOT marked lazy — an all-lazy
+set moves every binding into the `discover_tools` catalog, and dropping the companion
+`discoveryTool` (as the earlier draft did) makes them unreachable; the safe subset is small, so
+document it eagerly in the generated prompt. (2) Real `sessionId`/`model` must thread into
+`tool.execute` — an empty sessionId breaks per-session scoping and can cross sessions. (3) The
+driver is a `probeIsolatedVm`-gated module singleton returning null (fail closed, no mid-run
+throw — isolated-vm on an incompatible Node can crash the whole 127.0.0.1 server). (4) Only
+tools opted in via a new `codeMode: true` flag on `defineTool` are bound — opt-IN, not
+opt-out-by-approval, so a future side-effectful tool is safe by default; `approval: 'ask'` tools
+are excluded even if flagged (sandbox `external_*` calls bypass every gate — verified: bindings
+call `tool.execute` directly).
+
 ```ts
 import {createCodeMode} from '@tanstack/ai-code-mode'
+import type {IsolateDriver} from '@tanstack/ai-code-mode'
+import {createNodeIsolateDriver, probeIsolatedVm} from '@tanstack/ai-isolate-node'
 import type {AnyTool} from '@tanstack/ai'
-import type {ExtensionServerTool} from '@conciv/extension'
+import type {ExtensionServerTool, ToolRequest} from '@conciv/extension'
 import {toChatTool} from './runtime.js'
 
 const CODE_MODE_TIMEOUT_MS = 30_000
 
-export function makeCodeMode(extensionTools: ExtensionServerTool[]): {tool: AnyTool; systemPrompt: string} | null {
-  const safe = extensionTools.filter((tool) => tool.approval !== 'ask')
-  if (safe.length === 0) return null
-  const tools = safe.map((tool) =>
-    toChatTool(tool, (args) => tool.execute(args, {sessionId: '', model: null}), {lazy: true}),
-  )
-  return createCodeMode({driver: makeDriver(), tools, timeout: CODE_MODE_TIMEOUT_MS})
+let cachedDriver: IsolateDriver | null = null
+
+function getDriver(): IsolateDriver | null {
+  if (cachedDriver) return cachedDriver
+  if (!probeIsolatedVm().compatible) return null
+  cachedDriver = createNodeIsolateDriver()
+  return cachedDriver
+}
+
+export function makeCodeMode(
+  extensionTools: ExtensionServerTool[],
+  request: ToolRequest,
+): {tools: AnyTool[]; systemPrompt: string} | null {
+  const driver = getDriver()
+  if (driver === null) return null
+  const bound = extensionTools.filter((tool) => tool.codeMode === true && tool.approval !== 'ask')
+  if (bound.length === 0) return null
+  const tools = bound.map((tool) => toChatTool(tool, (args) => tool.execute(args, request)))
+  const codeMode = createCodeMode({driver, tools, timeout: CODE_MODE_TIMEOUT_MS})
+  return {tools: codeMode.tools, systemPrompt: codeMode.systemPrompt}
 }
 ```
 
-IMPLEMENTATION NOTE (not a comment in code): the `ToolRequest` passed above is a placeholder — thread the real `sessionId`/`model` through by building code mode inside `buildChatTools`' session closure instead if the signature above proves too dry; the test in Step 1 pins only exclusion behavior, adjust construction freely. Resolve `makeDriver()` to the actual `@tanstack/ai-isolate-node` factory export (read its `index.d.ts`); pass `lazyToolsConfig` through if `createCodeMode` accepts it (docs say it does).
+Type prerequisites: `ExtensionTool` and `ExtensionServerTool` (`packages/extension/src/types.ts`)
+gain `codeMode?: boolean`; `defineTool` passes it through; `buildExtensionTools` (Task 2)
+copies it. `probeIsolatedVm().compatible` — verify the exact result field name against
+`packages/core/node_modules/@tanstack/ai-isolate-node/dist/esm/index.d.ts` when implementing.
 
 Add to `packages/protocol/src/harness-types.ts` capabilities:
 
@@ -432,29 +515,53 @@ Add to `packages/protocol/src/harness-types.ts` capabilities:
 codeMode?: boolean
 ```
 
-In `packages/core/src/chat/run.ts` `buildRunStream`, after `config` is built:
+In `packages/core/src/chat/run.ts` `buildRunStream` (real session threading, matching how
+`buildChatTools` builds `ToolRequest` at `runtime.ts:46`):
 
 ```ts
-const codeMode = deps.harness.capabilities.codeMode ? makeCodeMode(deps.extensionServerTools(sessionId)) : null
+const codeMode = deps.harness.capabilities.codeMode
+  ? makeCodeMode(deps.extensionServerTools(), {sessionId, model: req.model ?? null})
+  : null
 ```
 
 and in the `chat()` call:
 
 ```ts
 systemPrompts: [deps.systemText, codeMode?.systemPrompt].filter((text): text is string => Boolean(text)),
-tools: [...deps.tools(sessionId), ...(codeMode ? [codeMode.tool] : [])],
+tools: [...deps.tools(sessionId), ...(codeMode?.tools ?? [])],
 ```
 
-`ChatDeps` gains `extensionServerTools: (sessionId: string) => ExtensionServerTool[]` wired from `makeApp` where `buildExtensionTools` output already exists.
+`ChatDeps` gains `extensionServerTools: () => ExtensionServerTool[]` wired from `makeApp`
+(app.ts already holds `extensionTools` at line ~222 and hands it to `buildChatTools` and the MCP
+vars — reuse the same array).
+
+Update the Step 1 test to the two-arg signature and opt-in flag:
+
+```ts
+const request = {sessionId: 's1', model: null}
+test('code mode binds only opted-in, non-approval tools', () => {
+  const result = makeCodeMode(
+    [{...ext('safe_tool'), codeMode: true}, {...ext('risky_tool', 'ask'), codeMode: true}, ext('unflagged_tool')],
+    request,
+  )
+  expect(result).not.toBeNull()
+  expect(result?.systemPrompt).toContain('safe_tool')
+  expect(result?.systemPrompt).not.toContain('risky_tool')
+  expect(result?.systemPrompt).not.toContain('unflagged_tool')
+})
+```
 
 - [ ] **Step 4: Run tests + typecheck**
 
-Run: `pnpm vitest run packages/core/test/chat/code-mode.test.ts && pnpm typecheck`
+Run: `pnpm --filter @conciv/core test test/chat/code-mode.test.ts && pnpm typecheck`
 Expected: PASS.
 
 - [ ] **Step 5: Enable capability on one harness and run its IT**
 
-Set `codeMode: true` only on the harness the Task 1 spike proved compatible (likely claude). Run: `pnpm turbo run test --filter=@conciv/core`
+Set `codeMode: true` only on the claude harness (spike: Code Mode is the least bridge-sensitive
+surface — one eager `execute_typescript` tool; its `code_mode:*` events flow through the
+bridge's `emitCustomEvent`, explicitly supported per `tool-bridge.d.ts`). Precondition: Task 6b
+merged. Run: `pnpm turbo run test --filter=@conciv/core`
 Expected: PASS.
 
 - [ ] **Step 6: Commit**
@@ -477,7 +584,7 @@ No custom cards in this plan (framework-extension cards land with the framework 
 **Interfaces:**
 
 - Consumes: prebuilt embed bundle; harness-testkit scripted turn.
-- Produces: an IT scripting a turn whose wire stream includes a `__lazy__tool__discovery__` tool call part and a code-mode custom event, asserting the transcript still renders the assistant text (native assertions: `getByText`), no error boundary.
+- Produces: an IT scripting a turn whose wire stream includes a `__lazy__tool__discovery__` tool call part and a code-mode custom event, asserting the transcript still renders the assistant text (native assertions: `getByText`), no error boundary. Reviewer note: `code_mode:*` events arrive as CUSTOM-type chunks whose `name` is the raw string (e.g. `code_mode:console`) — script/assert that chunk shape, not a bespoke event type.
 
 - [ ] **Step 1: Rebuild embed:** `pnpm turbo run build --filter=@conciv/embed`
 - [ ] **Step 2: Write the IT** following the neighboring widget IT file's pattern (scripted harness turn emitting a discovery tool call, then assistant text; assert text visible via `getByText`, assert no `role='alert'` error surface).
