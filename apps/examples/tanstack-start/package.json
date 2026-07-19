@@ -13,7 +13,7 @@
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p conciv/extensions/tsconfig.json --noEmit",
     "lint": "oxlint",
-    "test:e2e": "vitest run"
+    "test": "vitest run"
   },
   "dependencies": {
     "@conciv/cli": "workspace:*",
