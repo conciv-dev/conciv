@@ -58,9 +58,7 @@ README.md; this file is the non-obvious operational rules.
   stale code.
 - In widget ITs use `browser.newPage()`, not `newContext()` (contexts leak and spike CPU/memory).
 - Never add tests under `apps/examples/*` — example apps are demos; verify behavior via the owning
-  package's tests, `@conciv/extension-testkit`, or an `e2e/` consumer app. Enforced by
-  `packages/vitest-config/test/example-apps.test.ts`, which fails on test dirs, `*.test.*`/`*.spec.*`
-  files, runner configs, `test*` scripts, and runner deps in any example app.
+  package's tests, `@conciv/extension-testkit`, or an `e2e/` consumer app.
 - Every Solid package's `vitest.config.ts` must pin `test: {environment: 'node'}` —
   `vite-plugin-solid` otherwise injects a jsdom environment and the run exits 1 even with all tests
   passing.
