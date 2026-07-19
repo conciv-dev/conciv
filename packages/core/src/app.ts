@@ -161,7 +161,7 @@ export async function makeApp(opts: MakeAppOpts): Promise<MadeApp> {
     (opts.extensions ?? [])
       .flatMap((extension) => extension.tools ?? [])
       .filter((tool) => tool.approval === 'ask')
-      .map((tool) => `mcp__conciv__${tool.name}`),
+      .map((tool) => tool.name),
   )
 
   const runStartListeners: ((sessionId: string) => void)[] = []

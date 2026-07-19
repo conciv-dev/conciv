@@ -202,3 +202,96 @@ lazyToolsConfig: {includeDescription: 'first-sentence'}})`; prompt the model to 
 > unsupported for single-spawn CLI adapters and have the adapter provision the full (non-lazy)
 > tool set so discovered tools are at least callable. Today `lazy` silently produces
 > discoverable-but-uncallable tools on these adapters.
+
+## Approval audit (Task 6b step 4b)
+
+Every `defineTool`/tool-def across `packages/extensions/*` and `packages/tools` classified. Rule
+applied: a tool that **destroys or removes** user content, or executes/spawns outside the draft,
+gets `approval: 'ask'`; additive/draft-only/read-only tools stay unguarded. Bias is conservative —
+only tools already flagged were flagged; no new flags were added because none of the unguarded
+tools are clearly destructive (see judgment calls below).
+
+### Whiteboard — canvas (`packages/extensions/whiteboard/src/tool/canvas/def.ts`)
+
+| Tool           | approval | Classification                                                                        |
+| -------------- | -------- | ------------------------------------------------------------------------------------- |
+| canvas.read    | —        | Read-only.                                                                            |
+| canvas.svg     | —        | Writes to the **hidden draft** only; reversible via canvas.discard; commit publishes. |
+| canvas.draw    | —        | Draft only, reversible.                                                               |
+| canvas.diagram | —        | Draft only, reversible.                                                               |
+| canvas.connect | —        | Additive (draws a binding arrow); non-destructive.                                    |
+| canvas.update  | —        | Edits an existing element in place; non-destructive, reversible on the shared canvas. |
+| canvas.delete  | **ask**  | Destructive — removes an element. Guarded. ✓                                          |
+| canvas.clear   | **ask**  | Destructive — wipes every element. Guarded. ✓                                         |
+| canvas.export  | —        | Read-only export (json/png).                                                          |
+| canvas.commit  | —        | Publishes the agent's own draft; additive, non-destructive.                           |
+| canvas.discard | —        | Discards only the agent's uncommitted draft, never published/user content.            |
+| canvas.preview | —        | Read-only PNG of the draft.                                                           |
+
+### Whiteboard — comment (`packages/extensions/whiteboard/src/tool/comment/def.ts`)
+
+| Tool            | approval | Classification                                               |
+| --------------- | -------- | ------------------------------------------------------------ |
+| comment.create  | —        | Additive (pins a note).                                      |
+| comment.reply   | —        | Additive (threaded reply).                                   |
+| comment.read    | —        | Read-only.                                                   |
+| comment.list    | —        | Read-only.                                                   |
+| comment.resolve | **ask**  | State change on user content. Guarded. ✓                     |
+| comment.delete  | **ask**  | Destructive — removes a comment/thread + its pin. Guarded. ✓ |
+| comment.move    | —        | Repositions a pin; non-destructive, reversible.              |
+| pin.setState    | —        | Sets pin lock/offset; non-destructive.                       |
+
+### Whiteboard — element / anchor
+
+| Tool              | approval | Classification              |
+| ----------------- | -------- | --------------------------- |
+| element.reference | —        | Read-only component lookup. |
+| anchor.resolve    | —        | Read-only drift check.      |
+
+### Recorder (`packages/extensions/recorder/src/tool/def.ts`)
+
+| Tool            | approval | Classification                                                 |
+| --------------- | -------- | -------------------------------------------------------------- |
+| recording_start | —        | Starts observing the user's own page; non-destructive.         |
+| recording_stop  | —        | Stops + returns an action log/keyframes; observation only.     |
+| recording_pull  | —        | Reads the last N seconds of the always-on recorder; read-only. |
+
+### Test runner (`packages/extensions/test-runner/src/tool/def.ts`)
+
+| Tool        | approval | Classification                                                                     |
+| ----------- | -------- | ---------------------------------------------------------------------------------- |
+| test_runner | —        | list/status are read-only; `run` spawns the **configured** test runner. See below. |
+
+### conciv built-in tools (`packages/tools/src`)
+
+`ConcivServerTool` (`packages/tools/src/types.ts`) has **no `approval` field**, and these tools are
+not part of `opts.extensions`, so the extension risky set in `app.ts` never covers them. They are
+therefore outside the approval-gate mechanism this task hardens (the chat-middleware Bash gate and
+the extension `approval: 'ask'` path).
+
+| Tool              | mutates? | Classification                                                                             |
+| ----------------- | -------- | ------------------------------------------------------------------------------------------ |
+| conciv_ui         | no       | Asks the user a question; the user answers. Non-mutating.                                  |
+| conciv_page       | **yes**  | Reads and **drives** the user's live dev-page DOM (click/fill/submit/override). See below. |
+| conciv_open       | no       | Opens a file in the editor; does not write.                                                |
+| conciv_extensions | no       | catalog/scaffold/validate return code strings; the model writes files, not this tool.      |
+
+### Judgment calls (unguarded but reviewed)
+
+- **test_runner.run** — spawns the project's configured test runner (bounded to list/run/status with
+  a pattern, not arbitrary shell). Developer-initiated dev action on their own project; not
+  destructive in the delete-records/write-files sense. Left unguarded, consistent with the
+  command-policy philosophy where non-destructive dev commands run freely. Flag candidate only if
+  product decides test execution warrants a prompt.
+- **conciv_page** — drives the user's own local dev page in their own browser (the product's core
+  inspect-and-drive loop). Mutating, but scoped to the user's app, developer-initiated, and gating
+  every DOM action would break the loop. The `ConcivServerTool` contract has no `approval` field and
+  this path is not covered by the extension risky set, so guarding it would be a separate design
+  change, not a fix to the hole this task closes. Documented decision, not a defect.
+
+### Net change
+
+No `approval` flags were added or removed. The two destructive canvas tools (delete, clear) and two
+destructive comment tools (resolve, delete) were already flagged and remain the only guarded
+extension tools; the fix in this task is what makes those four flags actually fire on the scripted
+in-process path (previously bypassed by the prefix mismatch).
