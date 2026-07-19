@@ -1,0 +1,14 @@
+# Keep the SHA-pinned actions fresh so pins don't rot into unpatched versions.
+# cooldown mirrors the pnpm minimumReleaseAge posture: a just-published action
+# release (the tj-actions/changed-files attack shape) sits a week before a bump
+# PR is opened, giving the ecosystem time to yank a compromised release.
+# npm deps stay manual on purpose: resolution is gated by pnpm's
+# minimumReleaseAge + reviewed lockfile + Socket Firewall in CI.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
