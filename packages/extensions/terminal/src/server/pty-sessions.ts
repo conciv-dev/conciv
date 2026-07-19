@@ -1,4 +1,4 @@
-import {spawn, type IPty} from 'node-pty'
+import {spawn, type IPty} from '@lydell/node-pty'
 import type {TtyCommand, TtyServerControl} from '@conciv/protocol/terminal-types'
 import {createOscBusyTracker, type OscBusyTracker} from './osc-busy.js'
 import {createFrameInjector, type FrameInjector} from './frame-injector.js'
