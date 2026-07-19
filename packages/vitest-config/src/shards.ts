@@ -5,6 +5,10 @@ export type WorkspacePackage = {name: string; browser: boolean}
 
 export type ShardPlan = {shard: string; chromium: boolean; packages: string[]}
 
+export const PACKAGE_GROUPS = ['packages', 'packages/extensions', 'apps']
+
+export const PACKAGES_WITH_DEDICATED_JOBS = ['conciv-storybook']
+
 export const TARGET_SHARD_MS = 150_000
 export const DEFAULT_PACKAGE_MS = 5_000
 const MIN_SHARDS = 2
@@ -52,6 +56,10 @@ export function discoverPackages(rootDir: string, groupDirs: string[]): Workspac
       .flatMap((entry) => readPackage(join(groupPath, entry.name)) ?? [])
   })
   return found.toSorted((a, b) => a.name.localeCompare(b.name))
+}
+
+export function plannedPackages(rootDir: string): WorkspacePackage[] {
+  return discoverPackages(rootDir, PACKAGE_GROUPS).filter((entry) => !PACKAGES_WITH_DEDICATED_JOBS.includes(entry.name))
 }
 
 export function planShards(packages: WorkspacePackage[], timings: Record<string, number>): ShardPlan[] {

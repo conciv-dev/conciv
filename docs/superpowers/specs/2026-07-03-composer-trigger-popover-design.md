@@ -2,7 +2,7 @@
 
 Port assistant-ui's `Unstable_TriggerPopover` architecture to `@conciv/ui-kit-chat` (Solid), headless by default, and wire it end to end: a `/` slash-command menu fed by the harness's real command list and an `@` mention menu fed by the registered tool list.
 
-Reference implementation: `/Users/omrikatz/Public/web/assistant-ui` — `packages/react/src/primitives/composer/trigger/*`, `packages/react/src/unstable/useSlashCommandAdapter.ts`, `useMentionAdapter.ts`, `packages/core/src/types/trigger.ts`, `directive.ts`, `adapters/directive-formatter.ts`.
+Reference implementation: `/Users/dev/Public/web/assistant-ui` — `packages/react/src/primitives/composer/trigger/*`, `packages/react/src/unstable/useSlashCommandAdapter.ts`, `useMentionAdapter.ts`, `packages/core/src/types/trigger.ts`, `directive.ts`, `adapters/directive-formatter.ts`.
 
 ## Goals
 

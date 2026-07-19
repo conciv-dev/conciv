@@ -18,7 +18,7 @@
 - Every package's `vitest.config.ts` pins `test: {environment: 'node'}`.
 - No mocks/stubs: real server, real MCP client, real harness adapter. The fake harness is a real `HarnessAdapter` with deterministic seams.
 - Commit with explicit pathspec (`git commit -- <paths>`); parallel sessions share this machine.
-- Work from the worktree `/Users/omrikatz/Public/web/aidx/.claude/worktrees/tty-terminal-mode`; verify `pwd` when it matters.
+- Work from the worktree `/Users/dev/Public/web/aidx/.claude/worktrees/tty-terminal-mode`; verify `pwd` when it matters.
 
 ---
 

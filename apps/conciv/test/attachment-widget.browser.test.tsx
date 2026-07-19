@@ -21,8 +21,8 @@ afterEach(() => {
 function fixtureExtension() {
   const attachment = defineAttachment({mime: 'application/x-fixture'})
   attachment.card((props) => (
-    <div data-testid="fixture-card">
-      player
+    <div>
+      <span>fixture player</span>
       {props.remove}
     </div>
   ))
@@ -59,6 +59,6 @@ test('composer chip area renders the fixture card with a remove affordance', asy
     dispose()
     host.remove()
   })
-  await expect.poll(() => host.querySelector('[data-testid="fixture-card"]')).not.toBeNull()
-  expect(host.querySelector('[aria-label="Remove fixture.bin"]')).not.toBeNull()
+  await expect.poll(() => host.textContent).toContain('fixture player')
+  expect(host.querySelector('button[aria-label="Remove fixture.bin"]')).not.toBeNull()
 })
