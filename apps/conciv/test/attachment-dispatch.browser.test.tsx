@@ -29,13 +29,13 @@ const complete: CompleteAttachment = {
 }
 
 test('renders the matching card for a document mime', () => {
-  const Card = (): JSX.Element => <div data-testid="card">player</div>
+  const Card = (): JSX.Element => <span>test document player</span>
   const host = mount(() => (
     <AttachmentProvider value={complete}>
       <AttachmentByMime cards={[{mime: 'application/x-test', render: Card}]} />
     </AttachmentProvider>
   ))
-  expect(host.querySelector('[data-testid="card"]')).not.toBeNull()
+  expect(host.textContent).toContain('test document player')
 })
 
 test('falls back to the generic tile for an unknown mime', () => {

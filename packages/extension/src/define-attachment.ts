@@ -1,11 +1,11 @@
 import type {Component} from 'solid-js'
 import type {ContentPart} from '@tanstack/ai'
-import type {AttachmentDocumentPart, AttachmentExpand, ExtensionAttachment} from './types.js'
+import type {AttachmentCardProps, AttachmentDocumentPart, AttachmentExpand, ExtensionAttachment} from './types.js'
 
 export type AttachmentBuilder<Ctx = unknown> = ExtensionAttachment & {
   __ctx?: Ctx
   __expand?: AttachmentExpand<Ctx>
-  card: (component: Component) => AttachmentBuilder<Ctx>
+  card: (component: Component<AttachmentCardProps>) => AttachmentBuilder<Ctx>
   server: (expand: AttachmentExpand<Ctx>) => AttachmentBuilder<Ctx>
 }
 
