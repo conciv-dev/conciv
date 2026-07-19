@@ -1,3 +1,4 @@
+import {rm} from 'node:fs/promises'
 import type {Page} from 'playwright'
 import type {AnyExtension} from '@conciv/extension'
 import type {HarnessAdapter} from '@conciv/protocol/harness-types'
@@ -49,6 +50,7 @@ export async function getExtensionTestApi(extension: ExtensionUnderTest): Promis
       await close()
       await host.close()
       await stop()
+      await rm(outDir, {recursive: true, force: true}).catch(() => {})
     },
   }
 }

@@ -11,6 +11,7 @@
     "directory": "packages/vitest-config"
   },
   "bin": {
+    "conciv-ci-shards": "./src/ci-shards.ts",
     "conciv-ci-summary": "./src/ci-summary.ts"
   },
   "type": "module",

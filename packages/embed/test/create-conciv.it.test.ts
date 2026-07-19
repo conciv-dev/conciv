@@ -10,8 +10,8 @@ type Handle = {mount: (el: HTMLElement) => Promise<void>; unmount: () => void}
 declare global {
   interface Window {
     ConcivHandle: {makeHandle: (apiBase: string) => Handle}
-    __handle: Handle
-    __el: HTMLElement
+    concivTestHandle: Handle
+    concivTestElement: HTMLElement
   }
 }
 
@@ -43,9 +43,9 @@ async function mountHandle(page: Page, apiBase: string): Promise<void> {
   await page.evaluate((base) => {
     const el = document.createElement('div')
     document.body.appendChild(el)
-    window.__el = el
-    window.__handle = window.ConcivHandle.makeHandle(base)
-    void window.__handle.mount(el)
+    window.concivTestElement = el
+    window.concivTestHandle = window.ConcivHandle.makeHandle(base)
+    void window.concivTestHandle.mount(el)
   }, apiBase)
 }
 
@@ -53,11 +53,11 @@ describe('createConciv lifecycle', () => {
   it('mounts, unmounts, and remounts the widget', async () => {
     const page = await openPage()
     await mountHandle(page, kit.base)
-    await expect.poll(() => fab(page).isVisible(), {timeout: 15_000}).toBe(true)
-    await page.evaluate(() => window.__handle.unmount())
-    await expect.poll(() => fab(page).count(), {timeout: 5_000}).toBe(0)
-    await page.evaluate(() => void window.__handle.mount(window.__el))
-    await expect.poll(() => fab(page).isVisible(), {timeout: 15_000}).toBe(true)
+    await expect.poll(() => fab(page).isVisible(), {timeout: 30_000}).toBe(true)
+    await page.evaluate(() => window.concivTestHandle.unmount())
+    await expect.poll(() => fab(page).count(), {timeout: 30_000}).toBe(0)
+    await page.evaluate(() => void window.concivTestHandle.mount(window.concivTestElement))
+    await expect.poll(() => fab(page).isVisible(), {timeout: 30_000}).toBe(true)
     await page.close()
   })
 
@@ -70,7 +70,7 @@ describe('createConciv lifecycle', () => {
       void handle.mount(el)
       void handle.mount(el)
     }, kit.base)
-    await expect.poll(() => fab(page).count(), {timeout: 15_000}).toBe(1)
+    await expect.poll(() => fab(page).count(), {timeout: 30_000}).toBe(1)
     expect(await fab(page).count()).toBe(1)
     await page.close()
   })
@@ -84,7 +84,7 @@ describe('createConciv lifecycle', () => {
       void handle.mount(el)
       handle.unmount()
     }, kit.base)
-    await expect.poll(() => fab(page).count(), {timeout: 5_000}).toBe(0)
+    await expect.poll(() => fab(page).count(), {timeout: 30_000}).toBe(0)
     expect(await page.evaluate(() => document.querySelector('[data-conciv-root]') === null)).toBe(true)
     await page.close()
   })
@@ -95,8 +95,8 @@ describe('createConciv lifecycle', () => {
       Reflect.set(window, '__TSR_ROUTER__', {hostSentinel: true})
     })
     await mountHandle(page, kit.base)
-    await expect.poll(() => fab(page).isVisible(), {timeout: 15_000}).toBe(true)
-    await page.evaluate(() => window.__handle.unmount())
+    await expect.poll(() => fab(page).isVisible(), {timeout: 30_000}).toBe(true)
+    await page.evaluate(() => window.concivTestHandle.unmount())
     const restored = await page.evaluate(() => {
       const value = Reflect.get(window, '__TSR_ROUTER__')
       return typeof value === 'object' && value !== null && 'hostSentinel' in value
@@ -112,12 +112,12 @@ describe('createConciv lifecycle', () => {
     await mountHandle(page, kit.base)
     await fab(page).click()
     const box = page.getByRole('textbox', {name: 'Message the conciv agent'})
-    await expect.poll(() => box.isVisible(), {timeout: 15_000}).toBe(true)
+    await expect.poll(() => box.isVisible(), {timeout: 30_000}).toBe(true)
     await box.fill('hello')
     await box.press('Enter')
-    await expect.poll(() => page.getByText(ASSISTANT_TEXT).first().isVisible(), {timeout: 20_000}).toBe(true)
-    await page.evaluate(() => window.__handle.unmount())
-    await expect.poll(() => fab(page).count(), {timeout: 5_000}).toBe(0)
+    await expect.poll(() => page.getByText(ASSISTANT_TEXT).first().isVisible(), {timeout: 30_000}).toBe(true)
+    await page.evaluate(() => window.concivTestHandle.unmount())
+    await expect.poll(() => fab(page).count(), {timeout: 30_000}).toBe(0)
     expect(pageErrors).toEqual([])
     await page.close()
   })

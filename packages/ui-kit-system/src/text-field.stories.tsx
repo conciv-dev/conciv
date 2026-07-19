@@ -7,6 +7,34 @@ const meta: Meta = {title: 'ui-kit-system/TextArea'}
 export default meta
 type Story = StoryObj
 
+const WRAPPING_TEXT =
+  'the quick brown fox jumps over the lazy dog and keeps running far beyond the edge of the visible composer area'
+
+export const RefitsWhenWidthShrinks: Story = {
+  render: () => {
+    const [width, setWidth] = createSignal(600)
+    return (
+      <div>
+        <button type="button" onClick={() => setWidth(240)}>
+          narrow
+        </button>
+        <div style={{width: `${width()}px`}}>
+          <TextArea placeholder="Ask anything…" minRows={1} maxRows={12} value={WRAPPING_TEXT} />
+        </div>
+      </div>
+    )
+  },
+  play: async ({canvasElement}) => {
+    const c = within(canvasElement)
+    const area = c.getByPlaceholderText('Ask anything…')
+    await waitFor(() => expect(area.scrollHeight).toBeLessThanOrEqual(area.clientHeight))
+
+    await userEvent.click(c.getByText('narrow'))
+
+    await waitFor(() => expect(area.scrollHeight).toBeLessThanOrEqual(area.clientHeight))
+  },
+}
+
 export const Autosize: Story = {
   render: () => {
     const [value, setValue] = createSignal('')

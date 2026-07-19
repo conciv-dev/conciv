@@ -1,6 +1,6 @@
 import {createContext, onCleanup, onMount, Show, useContext, type JSX} from 'solid-js'
 import xtermCss from '@xterm/xterm/css/xterm.css?inline'
-import {translateBuffer, type TerminalModel} from '../model.js'
+import type {TerminalModel} from '../model.js'
 
 const TerminalContext = createContext<TerminalModel>()
 
@@ -8,14 +8,6 @@ export function useTerminal(): TerminalModel {
   const model = useContext(TerminalContext)
   if (!model) throw new Error('useTerminal outside <TerminalPrimitive.Root>')
   return model
-}
-
-type BufferReader = {buffer(): string}
-
-declare global {
-  interface HTMLDivElement {
-    __concivTerminal?: BufferReader
-  }
 }
 
 function Root(props: {model: TerminalModel; class?: string; children: JSX.Element}): JSX.Element {
@@ -44,7 +36,6 @@ function Screen(props: {class?: string}): JSX.Element {
     if (!element) return
     const screen = element
     model.terminal.open(screen)
-    screen.__concivTerminal = {buffer: () => translateBuffer(model.terminal)}
     let started = false
     const start = (): void => {
       if (started || screen.clientWidth === 0) return

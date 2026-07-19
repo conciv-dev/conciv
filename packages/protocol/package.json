@@ -72,6 +72,10 @@
     "./connect-ports": {
       "types": "./dist/connect-ports.d.ts",
       "import": "./dist/connect-ports.js"
+    },
+    "./state-types": {
+      "types": "./dist/state-types.d.ts",
+      "import": "./dist/state-types.js"
     }
   },
   "publishConfig": {

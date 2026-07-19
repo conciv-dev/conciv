@@ -2,6 +2,7 @@ import {Hono} from 'hono'
 import {cors} from 'hono/cors'
 import {RPCHandler} from '@orpc/server/fetch'
 import type {AnyRouter} from '@orpc/server'
+import {concivStateDir} from '@conciv/protocol/state-types'
 import {serveApp} from '@conciv/harness-testkit'
 import {makeExtRpcClient, type ServerApi, type ServerHarness, type ServerSessions} from '@conciv/extension'
 import type {TtyCommandOpts} from '@conciv/protocol/terminal-types'
@@ -86,7 +87,13 @@ export async function startTerminalServer(harness: ServerHarness = bashHarness):
   const app = new Hono()
   app.use(cors())
   const sessions = fakeSessions()
-  const api: ServerApi<Record<never, never>> = {config: {}, cwd: process.cwd(), sessions, harness}
+  const api: ServerApi<Record<never, never>> = {
+    config: {},
+    cwd: process.cwd(),
+    stateDir: concivStateDir(process.cwd()),
+    sessions,
+    harness,
+  }
   const result = await terminalExtension.__server?.(api)
   if (!(result?.app instanceof Hono)) throw new Error('terminal extension returned no hono app')
   if (!isRouter(result.router)) throw new Error('terminal extension returned no router')

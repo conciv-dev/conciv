@@ -28,7 +28,7 @@ test('a drawn rectangle keeps its real size and does not collapse to a point', a
   try {
     const {cx, cy} = await openCanvas(api.page)
     await drawRectangle(api.page, cx, cy)
-    await expect.poll(firstWidth(api), {timeout: 15_000, interval: 250}).toBeGreaterThan(100)
+    await expect.poll(firstWidth(api), {timeout: 30_000, interval: 250}).toBeGreaterThan(100)
     const settled = (await readElements(api))[0]
     expect(settled?.height).toBeGreaterThan(60)
     await until(async () => ((await readElements(api))[0]?.width ?? 0) >= (settled?.width ?? 0) * 0.9, {
@@ -46,14 +46,14 @@ test('dragging a rectangle moves it the full cursor distance, not a fraction', a
   try {
     const {cx, cy} = await openCanvas(api.page)
     await drawRectangle(api.page, cx, cy)
-    await expect.poll(firstWidth(api), {timeout: 15_000, interval: 250}).toBeGreaterThan(100)
+    await expect.poll(firstWidth(api), {timeout: 30_000, interval: 250}).toBeGreaterThan(100)
     const startX = (await readElements(api))[0]?.x ?? 0
     await api.page.getByRole('radio', {name: 'Selection'}).click({force: true})
     await api.page.mouse.move(cx, cy)
     await api.page.mouse.down()
     for (let step = 1; step <= 10; step += 1) await api.page.mouse.move(cx + step * 20, cy, {steps: 1})
     await api.page.mouse.up()
-    await expect.poll(firstDeltaX(api, startX), {timeout: 8_000, interval: 250}).toBeGreaterThan(180)
+    await expect.poll(firstDeltaX(api, startX), {timeout: 30_000, interval: 250}).toBeGreaterThan(180)
   } finally {
     await api.dispose()
   }

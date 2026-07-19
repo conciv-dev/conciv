@@ -104,16 +104,16 @@ export function clearImageHistory(db: ConcivDb, id: string): void {
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
 
-function hasImagePart(message: unknown): boolean {
+export function hasRichPart(message: unknown): boolean {
   if (!isRecord(message) || !Array.isArray(message.parts)) return false
-  return message.parts.some((part) => isRecord(part) && part.type === 'image')
+  return message.parts.some((part) => isRecord(part) && (part.type === 'image' || part.type === 'document'))
 }
 
 export function foldRunMessagesIntoImageHistory(db: ConcivDb, id: string): void {
   const row = runMessagesFor(db, id)
   if (!row || row.messages.length === 0) return
   const existing = imageHistoryFor(db, id)?.messages ?? []
-  if (existing.length === 0 && !row.messages.some(hasImagePart)) return
+  if (existing.length === 0 && !row.messages.some(hasRichPart)) return
   const folded = {sessionId: id, messages: [...existing, ...row.messages], updatedAt: Date.now()}
   db.insert(imageHistory)
     .values(folded)

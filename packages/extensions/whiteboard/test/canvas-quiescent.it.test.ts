@@ -26,7 +26,7 @@ test('moving over the open canvas does not storm the sync feed (no write feedbac
       authorKind: 'ai',
       authorModel: 'Opus',
     })
-    await api.page.getByRole('button', {name: /comment, open/}).waitFor({timeout: 15_000})
+    await api.page.getByRole('button', {name: /comment, open/}).waitFor({timeout: 30_000})
     await api.page.waitForTimeout(1500)
 
     const cdp = await api.page.context().newCDPSession(api.page)

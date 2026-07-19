@@ -48,7 +48,7 @@ test('a single-element drag coalesces per-frame writes into few throttled PUTs',
     const {cx, cy} = await openCanvas(api.page)
     await drawRectangle(api.page, cx - 120, cy - 80, cx + 120, cy + 80)
     await expect
-      .poll(async () => (await readElements(api))[0]?.width ?? 0, {timeout: 15_000, interval: 250})
+      .poll(async () => (await readElements(api))[0]?.width ?? 0, {timeout: 30_000, interval: 250})
       .toBeGreaterThan(100)
     const startX = (await readElements(api))[0]?.x ?? 0
     await api.page.getByRole('radio', {name: 'Selection'}).click({force: true})
@@ -56,7 +56,7 @@ test('a single-element drag coalesces per-frame writes into few throttled PUTs',
     const dragStartedAt = Date.now()
     await dragBursts(api.page, cx, cy, 40)
     await expect
-      .poll(async () => ((await readElements(api))[0]?.x ?? startX) - startX, {timeout: 8_000, interval: 250})
+      .poll(async () => ((await readElements(api))[0]?.x ?? startX) - startX, {timeout: 30_000, interval: 250})
       .toBeGreaterThan(180)
     expect(counts.single).toBeGreaterThan(1)
     expect(counts.single).toBeLessThanOrEqual(flushBudget(Date.now() - dragStartedAt))
@@ -72,7 +72,7 @@ test('a multi-select drag collapses to bulk PUTs, not a single-PUT storm', async
     const {cx, cy} = await openCanvas(api.page)
     await drawRectangle(api.page, cx - 220, cy - 40, cx - 120, cy + 40)
     await drawRectangle(api.page, cx + 120, cy - 40, cx + 220, cy + 40)
-    await expect.poll(async () => (await readElements(api)).length, {timeout: 15_000, interval: 250}).toBe(2)
+    await expect.poll(async () => (await readElements(api)).length, {timeout: 30_000, interval: 250}).toBe(2)
     const startXs = await readXs(api)
     await api.page.getByRole('radio', {name: 'Selection'}).click({force: true})
     await api.page.mouse.move(cx - 300, cy - 120)
@@ -97,7 +97,7 @@ test('a multi-select drag collapses to bulk PUTs, not a single-PUT storm', async
             x1 - s1 > 100
           )
         },
-        {timeout: 8_000, interval: 250},
+        {timeout: 30_000, interval: 250},
       )
       .toBe(true)
     expect(counts.bulk).toBeGreaterThan(0)

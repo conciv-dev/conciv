@@ -8,17 +8,24 @@ export type {
 } from './define-extension.js'
 export {defineTool} from './define-tool.js'
 export type {ToolBuilder} from './define-tool.js'
+export {defineAttachment} from './define-attachment.js'
+export type {AnyAttachmentBuilder, AttachmentBuilder} from './define-attachment.js'
 export {imageResult} from './image-result.js'
 export type {ContentPart} from '@tanstack/ai'
-export {collectToolRenderers} from './collect-client.js'
+export {collectAttachmentCards, collectToolRenderers} from './collect-client.js'
 export {getExtensionApi} from './extension-api.js'
 export type {ExtensionApi, ExtensionId, Register} from './extension-api.js'
 export {getHostApi, HostApiProvider} from './hooks.js'
 export type {ConnectHostApi, HostWiring} from './host-context.js'
 export type {
+  AttachmentCardEntry,
+  AttachmentCardProps,
+  AttachmentDocumentPart,
+  AttachmentExpand,
   ClientFactoryResult,
   ConfigOf,
   ConnectGate,
+  ExtensionAttachment,
   ExtensionCommand,
   ExtensionServerTool,
   ExtensionSlot,

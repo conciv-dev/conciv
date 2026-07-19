@@ -35,12 +35,20 @@ function imageSource(source: unknown): ImageContentPart['source'] | undefined {
   return {type: 'data', value: source.value, mimeType: source.mimeType}
 }
 
-function partContent(part: unknown): ChatContentPart[] {
+function partMetadata(part: Record<string, unknown>): {metadata?: Record<string, unknown>} {
+  const metadata = part.metadata
+  return typeof metadata === 'object' && metadata !== null ? {metadata: {...metadata}} : {}
+}
+
+export function partContent(part: unknown): ChatContentPart[] {
   if (!isRecord(part)) return []
-  if (part.type === 'text' && typeof part.content === 'string') return [{type: 'text', content: part.content}]
-  if (part.type !== 'image') return []
+  if (part.type === 'text' && typeof part.content === 'string')
+    return [{type: 'text', content: part.content, ...partMetadata(part)}]
+  if (part.type !== 'image' && part.type !== 'document') return []
   const source = imageSource(part.source)
-  return source ? [{type: 'image', source}] : []
+  if (!source) return []
+  if (part.type === 'image') return [{type: 'image', source, ...partMetadata(part)}]
+  return [{type: 'document', source, ...partMetadata(part)}]
 }
 
 function contentFromParts(parts: ChatContentPart[], fallback: string): string | ChatContentPart[] {

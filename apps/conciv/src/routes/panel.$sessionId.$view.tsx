@@ -54,6 +54,7 @@ function PanelView(): JSX.Element {
           sessionId={() => params().sessionId}
           grab={makePaneGrabApi(pane.grabStore)}
           insert={(text) => void appendDraft(text).catch(() => {})}
+          attach={(file) => pane.attachments.enqueue(file)}
           newSession={newSession}
           viewLock={pane.setLockedFor(params().view)}
           viewLeave={() =>

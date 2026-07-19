@@ -5,21 +5,39 @@ export type {StreamChunk, UIMessage, MessagePart} from '@tanstack/ai'
 
 export const CONCIV_SESSION_HEADER = 'conciv-session-id'
 
-const MAX_IMAGE_BASE64_LENGTH = 27_962_028
-const Base64Image = z
-  .string()
-  .min(1)
-  .max(MAX_IMAGE_BASE64_LENGTH)
-  .regex(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/)
+const MAX_ATTACHMENT_BASE64_LENGTH = 27_962_028
+const BASE64_ALPHABET = /^[A-Za-z0-9+/]*={0,2}$/
+
+function isBase64(value: string): boolean {
+  return value.length % 4 === 0 && BASE64_ALPHABET.test(value)
+}
+
+const Base64Payload = z.string().min(1).max(MAX_ATTACHMENT_BASE64_LENGTH).refine(isBase64)
+
+const PartMetadata = z.object({modelOnly: z.boolean().optional()}).loose().optional()
 
 export const ChatContentPartSchema = z.discriminatedUnion('type', [
-  z.object({type: z.literal('text'), content: z.string()}).loose(),
+  z.object({type: z.literal('text'), content: z.string(), metadata: PartMetadata}).loose(),
   z
     .object({
       type: z.literal('image'),
       source: z
-        .object({type: z.literal('data'), mimeType: z.string().regex(/^image\/[A-Za-z0-9.+-]+$/), value: Base64Image})
+        .object({type: z.literal('data'), mimeType: z.string().regex(/^image\/[A-Za-z0-9.+-]+$/), value: Base64Payload})
         .loose(),
+      metadata: PartMetadata,
+    })
+    .loose(),
+  z
+    .object({
+      type: z.literal('document'),
+      source: z
+        .object({
+          type: z.literal('data'),
+          mimeType: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9.+-]*\/[A-Za-z0-9.+-]+$/),
+          value: Base64Payload,
+        })
+        .loose(),
+      metadata: PartMetadata,
     })
     .loose(),
 ])

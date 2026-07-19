@@ -1,0 +1,29 @@
+import type {Component} from 'solid-js'
+import type {ContentPart} from '@tanstack/ai'
+import type {AttachmentCardProps, AttachmentDocumentPart, AttachmentExpand, ExtensionAttachment} from './types.js'
+
+export type AttachmentBuilder<Ctx = unknown> = ExtensionAttachment & {
+  __ctx?: Ctx
+  __expand?: AttachmentExpand<Ctx>
+  card: (component: Component<AttachmentCardProps>) => AttachmentBuilder<Ctx>
+  server: (expand: AttachmentExpand<Ctx>) => AttachmentBuilder<Ctx>
+}
+
+export type AnyAttachmentBuilder = ExtensionAttachment & {
+  __expand?(part: AttachmentDocumentPart, ctx: unknown): Promise<readonly ContentPart[]> | readonly ContentPart[]
+}
+
+export function defineAttachment<Ctx = unknown>(def: {mime: string}): AttachmentBuilder<Ctx> {
+  const builder: AttachmentBuilder<Ctx> = {
+    mime: def.mime,
+    card(component) {
+      builder.__card = component
+      return builder
+    },
+    server(expand) {
+      builder.__expand = expand
+      return builder
+    },
+  }
+  return builder
+}

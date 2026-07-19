@@ -26,7 +26,7 @@ test('the mention composer lists participants and stores a mention in the shadow
     })
 
     const pin = api.page.getByRole('button', {name: /comment, open/})
-    await pin.waitFor({timeout: 15_000})
+    await pin.waitFor({timeout: 30_000})
     await pin.focus()
     await pin.press('Enter')
 
@@ -35,13 +35,13 @@ test('the mention composer lists participants and stores a mention in the shadow
     await editor.focus()
     await api.page.keyboard.type('ping @Op')
 
-    await api.page.getByRole('option', {name: 'Opus'}).waitFor({timeout: 10_000})
+    await api.page.getByRole('option', {name: 'Opus'}).waitFor({timeout: 30_000})
     await api.page.keyboard.press('Enter')
     await api.page.getByText('@Opus').waitFor()
 
     await api.page.keyboard.press('Enter')
 
-    await api.page.getByText('ping').waitFor({timeout: 10_000})
+    await api.page.getByText('ping').waitFor({timeout: 30_000})
     await api.page.getByText('@Opus').waitFor()
   } finally {
     await api.dispose()

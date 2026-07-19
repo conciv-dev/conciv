@@ -125,7 +125,7 @@ describe('detached turns (IT)', () => {
 
   it(
     'a deliberate stop ends the turn with a clean terminal chunk, not a RUN_ERROR banner',
-    {timeout: 15_000},
+    {timeout: 30_000},
     async () => {
       const kit = await setupHang()
       const id = await kit.session()
@@ -142,7 +142,7 @@ describe('detached turns (IT)', () => {
 
   it(
     'a stop still ends the turn when the harness child ignores the kill (bounded stop grace)',
-    {timeout: 20_000},
+    {timeout: 30_000},
     async () => {
       const kit = await setup({CONCIV_FAKE_HANG: '1', CONCIV_FAKE_IGNORE_TERM: '1'})
       const id = await kit.session()

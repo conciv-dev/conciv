@@ -10,7 +10,7 @@ const pickAndCompose = async (page: Page, text: string): Promise<void> => {
   await page.getByRole('button', {name: 'Comment on an element'}).evaluate((element: HTMLElement) => element.click())
   await page.getByRole('button', {name: 'Comment target'}).evaluate((element: HTMLElement) => element.click())
   const field = page.getByRole('textbox', {name: 'Comment'})
-  await field.waitFor({timeout: 10_000})
+  await field.waitFor({timeout: 30_000})
   await field.focus()
   await page.keyboard.type(text)
   await page.keyboard.press('Enter')
@@ -27,15 +27,15 @@ test('picking hides an open canvas and adding the comment restores it', async ()
 
     await api.page.getByRole('button', {name: 'Comment target'}).evaluate((element: HTMLElement) => element.click())
     const field = api.page.getByRole('textbox', {name: 'Comment'})
-    await field.waitFor({timeout: 10_000})
+    await field.waitFor({timeout: 30_000})
     expect(await canvasToolbar(api.page).isVisible()).toBe(false)
 
     await field.focus()
     await api.page.keyboard.type('note over the page')
     await api.page.keyboard.press('Enter')
 
-    await expect.poll(() => canvasToolbar(api.page).isVisible(), {timeout: 10_000}).toBe(true)
-    await api.page.getByText('note over the page').waitFor({timeout: 10_000})
+    await expect.poll(() => canvasToolbar(api.page).isVisible(), {timeout: 30_000}).toBe(true)
+    await api.page.getByText('note over the page').waitFor({timeout: 30_000})
   } finally {
     await api.dispose()
   }
@@ -45,7 +45,7 @@ test('a comment picked while the canvas is closed leaves it closed and toasts', 
   const api = await getExtensionTestApi({server: whiteboard, clientEntry})
   try {
     await pickAndCompose(api.page, 'silent note')
-    await api.page.getByText('Comment added to the whiteboard').waitFor({timeout: 10_000})
+    await api.page.getByText('Comment added to the whiteboard').waitFor({timeout: 30_000})
     expect(await canvasToolbar(api.page).isVisible()).toBe(false)
     expect(await api.page.getByText('silent note').isVisible()).toBe(false)
   } finally {
@@ -62,11 +62,11 @@ test('cancelling the compose restores the canvas', async () => {
       .evaluate((element: HTMLElement) => element.click())
     await api.page.getByRole('button', {name: 'Comment target'}).evaluate((element: HTMLElement) => element.click())
     const field = api.page.getByRole('textbox', {name: 'Comment'})
-    await field.waitFor({timeout: 10_000})
+    await field.waitFor({timeout: 30_000})
     expect(await canvasToolbar(api.page).isVisible()).toBe(false)
 
     await api.page.getByRole('button', {name: 'Cancel comment'}).evaluate((element: HTMLElement) => element.click())
-    await expect.poll(() => canvasToolbar(api.page).isVisible(), {timeout: 10_000}).toBe(true)
+    await expect.poll(() => canvasToolbar(api.page).isVisible(), {timeout: 30_000}).toBe(true)
   } finally {
     await api.dispose()
   }

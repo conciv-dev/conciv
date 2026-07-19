@@ -2,7 +2,14 @@ import {mkdir, mkdtemp, rm, writeFile} from 'node:fs/promises'
 import {tmpdir} from 'node:os'
 import {join} from 'node:path'
 import {afterEach, expect, test} from 'vitest'
-import {loadSummaries, parseReport, renderSummary} from '../src/summary.ts'
+import {
+  loadSummaries,
+  mergeSummaries,
+  type PackageSummary,
+  parseReport,
+  parseSummaries,
+  renderSummary,
+} from '../src/summary.ts'
 
 let root = ''
 
@@ -234,4 +241,154 @@ test('loadSummaries discovers reports, attaches per-package coverage, and render
   expect(output).toContain('| ✅ @conciv/green | 2 |  |  |  | 50.0% |')
   expect(output).toContain('<summary>❌ <code>@conciv/red</code> formats output</summary>')
   expect(output).toContain('boom')
+})
+
+test('shard reports survive a JSON round trip and merge into one table', () => {
+  const shardOne: PackageSummary[] = [
+    {
+      name: '@conciv/alpha',
+      passed: 1,
+      failed: 0,
+      flaky: 1,
+      skipped: 0,
+      timeMs: 1_000,
+      cases: [
+        {title: 'a', status: 'passed', durationMs: 5, retries: 0, message: ''},
+        {title: 'b', status: 'flaky', durationMs: 7, retries: 1, message: ''},
+      ],
+      coverage: {covered: 5, total: 10},
+    },
+  ]
+  const shardTwo: PackageSummary[] = [
+    {
+      name: '@conciv/beta',
+      passed: 0,
+      failed: 1,
+      flaky: 0,
+      skipped: 1,
+      timeMs: 2_000,
+      cases: [
+        {title: 'explodes', status: 'failed', durationMs: 9, retries: 0, message: 'boom'},
+        {title: 'ignored', status: 'skipped', durationMs: 0, retries: 0, message: ''},
+      ],
+      coverage: null,
+    },
+  ]
+  const merged = mergeSummaries([shardOne, shardTwo].flatMap((shard) => parseSummaries(JSON.stringify(shard))))
+  expect(merged).toEqual([...shardOne, ...shardTwo])
+  const output = renderSummary(merged)
+  expect(output).toContain('@conciv/alpha')
+  expect(output).toContain('boom')
+})
+
+test('parseSummaries recomputes counts instead of trusting a shard report', () => {
+  const [summary] = parseSummaries(
+    JSON.stringify([
+      {
+        name: '@conciv/liar',
+        passed: 9_999,
+        failed: 0,
+        flaky: 0,
+        skipped: 0,
+        timeMs: 1,
+        cases: [{title: 't', status: 'failed', durationMs: 1, retries: 0, message: 'boom'}],
+        coverage: null,
+      },
+    ]),
+  )
+  expect(summary?.passed).toBe(0)
+  expect(summary?.failed).toBe(1)
+})
+
+test('parseSummaries tolerates a truncated or malformed shard report', () => {
+  expect(parseSummaries('[]')).toEqual([])
+  expect(parseSummaries('{"not": "an array"}')).toEqual([])
+  expect(parseSummaries('[{"name": "@conciv/partial"}]')).toEqual([
+    {name: '@conciv/partial', passed: 0, failed: 0, flaky: 0, skipped: 0, timeMs: 0, cases: [], coverage: null},
+  ])
+})
+
+test('a failure message cannot break out of its code fence to inject markdown', () => {
+  const output = renderSummary([
+    {
+      name: '@conciv/x',
+      passed: 0,
+      failed: 1,
+      flaky: 0,
+      skipped: 0,
+      timeMs: 1,
+      cases: [{title: 't', status: 'failed', durationMs: 1, retries: 0, message: '```\n## injected heading\n```'}],
+      coverage: null,
+    },
+  ])
+  const body = output.slice(output.indexOf('</summary>'))
+  expect(body).toContain('````\n```\n## injected heading\n```\n````')
+})
+
+test('an enormous failure message is truncated so it cannot blow the job-summary limit', () => {
+  const output = renderSummary([
+    {
+      name: '@conciv/x',
+      passed: 0,
+      failed: 1,
+      flaky: 0,
+      skipped: 0,
+      timeMs: 1,
+      cases: [{title: 't', status: 'failed', durationMs: 1, retries: 0, message: 'x'.repeat(20_000)}],
+      coverage: null,
+    },
+  ])
+  expect(output).toContain('… truncated 12000 characters')
+})
+
+test('loadSummaries never descends into node_modules', async () => {
+  root = await mkdtemp(join(tmpdir(), 'conciv-ci-summary-'))
+  await mkdir(join(root, 'packages/victim/node_modules/malicious'), {recursive: true})
+  await writeFile(join(root, 'packages/victim/package.json'), JSON.stringify({name: '@conciv/victim'}))
+  await writeFile(join(root, 'packages/victim/test-results.json'), report({}))
+  await writeFile(join(root, 'packages/victim/node_modules/malicious/test-results.json'), report({status: 'failed'}))
+  const summaries = loadSummaries([join(root, 'packages')])
+  expect(summaries).toHaveLength(1)
+  expect(summaries[0]?.failed).toBe(0)
+})
+
+test('a test title cannot terminate its html block and inject markdown', () => {
+  const output = renderSummary(
+    [
+      {
+        name: '@conciv/evil',
+        passed: 0,
+        failed: 1,
+        flaky: 0,
+        skipped: 0,
+        timeMs: 1,
+        cases: [
+          {
+            title: 'benign </summary></details>\n\n## ALL TESTS PASSED\n\n<details><summary>x',
+            status: 'failed',
+            durationMs: 1,
+            retries: 0,
+            message: 'boom',
+          },
+        ],
+        coverage: null,
+      },
+    ],
+    {details: true},
+  )
+  expect(output.split('\n').some((line) => line.startsWith('## ALL TESTS PASSED'))).toBe(false)
+  expect(output).not.toContain('</summary></details>')
+  expect(output).toContain('&lt;/summary&gt;&lt;/details&gt; ## ALL TESTS PASSED')
+})
+
+test('a package suite is timed by wall clock, not by summing files that ran in parallel', () => {
+  const overlapping = JSON.stringify({
+    testResults: [
+      {name: '/a.test.ts', status: 'passed', startTime: 1_000, endTime: 11_000, assertionResults: []},
+      {name: '/b.test.ts', status: 'passed', startTime: 1_100, endTime: 11_200, assertionResults: []},
+      {name: '/c.test.ts', status: 'passed', startTime: 1_200, endTime: 10_500, assertionResults: []},
+    ],
+  })
+  const [summary] = parseReport('@conciv/parallel', overlapping)
+  expect(summary?.timeMs).toBe(10_200)
 })

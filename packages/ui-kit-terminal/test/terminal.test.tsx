@@ -1,8 +1,9 @@
-import {describe, expect, it} from 'vitest'
+import {describe, expect, inject, it} from 'vitest'
 import {render} from 'solid-js/web'
 import type {JSX} from 'solid-js'
 import {until} from '@conciv/harness-testkit/until'
-import {createTerminalModel, translateBuffer} from '../src/model.js'
+import type {TtyServerControl} from '@conciv/protocol/terminal-types'
+import {createTerminalModel, translateBuffer, type TerminalModel} from '../src/model.js'
 import {TerminalPrimitive} from '../src/primitives/terminal.js'
 
 function mount(ui: () => JSX.Element): {host: HTMLElement; dispose: () => void} {
@@ -12,6 +13,16 @@ function mount(ui: () => JSX.Element): {host: HTMLElement; dispose: () => void} 
   document.body.appendChild(host)
   const dispose = render(ui, host)
   return {host, dispose}
+}
+
+function controlModel(): TerminalModel {
+  const base = inject('controlBase')
+  return createTerminalModel({url: () => base})
+}
+
+async function emit(model: TerminalModel, frame: TtyServerControl): Promise<void> {
+  await until(() => model.status() === 'open')
+  model.sendInput(JSON.stringify({emit: frame}))
 }
 
 describe('terminal primitives', () => {
@@ -121,7 +132,7 @@ describe('terminal primitives', () => {
   })
 
   it('shows the banner only after exit', async () => {
-    const model = createTerminalModel({url: () => 'ws://127.0.0.1:1/never'})
+    const model = controlModel()
     const {host, dispose} = mount(() => (
       <TerminalPrimitive.Root model={model}>
         <TerminalPrimitive.Screen />
@@ -130,13 +141,13 @@ describe('terminal primitives', () => {
     ))
     await until(() => model.terminal.element != null)
     expect(host.textContent ?? '').not.toContain('ended with')
-    model.__testReceiveControl({type: 'exit', code: 0})
+    await emit(model, {type: 'exit', code: 0})
     await until(() => (host.textContent ?? '').includes('ended with 0'))
     dispose()
   })
 
   it('surfaces error frames as error status', async () => {
-    const model = createTerminalModel({url: () => 'ws://127.0.0.1:1/never'})
+    const model = controlModel()
     const {host, dispose} = mount(() => (
       <TerminalPrimitive.Root model={model}>
         <TerminalPrimitive.Screen />
@@ -144,18 +155,20 @@ describe('terminal primitives', () => {
       </TerminalPrimitive.Root>
     ))
     await until(() => model.terminal.element != null)
-    model.__testReceiveControl({type: 'error', message: 'spawn failed'})
+    await emit(model, {type: 'error', message: 'spawn failed'})
     await until(() => (host.textContent ?? '').includes('failed: spawn failed'))
     expect(model.status()).toBe('error')
     dispose()
   })
 
   it('tracks busy frames', async () => {
-    const model = createTerminalModel({url: () => 'ws://127.0.0.1:1/never'})
+    const model = controlModel()
     expect(model.busy()).toBe(false)
-    model.__testReceiveControl({type: 'busy', busy: true})
-    expect(model.busy()).toBe(true)
-    model.__testReceiveControl({type: 'busy', busy: false})
-    expect(model.busy()).toBe(false)
+    model.connect()
+    await emit(model, {type: 'busy', busy: true})
+    await until(() => model.busy())
+    await emit(model, {type: 'busy', busy: false})
+    await until(() => !model.busy())
+    model.disconnect()
   })
 })

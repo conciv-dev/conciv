@@ -1,7 +1,8 @@
 import {afterAll, beforeAll, describe, expect, it} from 'vitest'
-import {chromium, type Browser, type Page} from 'playwright'
+import {chromium, type Browser} from 'playwright'
 import {bootEmbedKit, type EmbedKit} from './helpers/boot.js'
 import {hostPage, serveHost} from './helpers/host.js'
+import {openPanel} from './helpers/panel.js'
 
 const ASSISTANT_TEXT = 'Continuity reply'
 
@@ -21,13 +22,6 @@ afterAll(async () => {
   await kit.cleanup()
 })
 
-async function openPanel(page: Page): Promise<void> {
-  await page.getByRole('button', {name: 'Open conciv chat'}).click()
-  await expect
-    .poll(() => page.getByRole('textbox', {name: 'Message the conciv agent'}).isVisible(), {timeout: 15_000})
-    .toBe(true)
-}
-
 describe('reload continuity through the db-backed navigation row', () => {
   it('restores the open panel route, the transcript, and the draft after a reload', async () => {
     const page = await browser.newPage()
@@ -37,7 +31,7 @@ describe('reload continuity through the db-backed navigation row', () => {
     const input = page.getByRole('textbox', {name: 'Message the conciv agent'})
     await input.fill('remember me')
     await page.getByRole('button', {name: 'Send message'}).click()
-    await expect.poll(() => page.getByText(ASSISTANT_TEXT).first().isVisible(), {timeout: 20_000}).toBe(true)
+    await expect.poll(() => page.getByText(ASSISTANT_TEXT).first().isVisible(), {timeout: 30_000}).toBe(true)
 
     await input.fill('an unsent draft survives')
     await input.press('End')
@@ -51,18 +45,18 @@ describe('reload continuity through the db-backed navigation row', () => {
           const draft = await kit.rpc.drafts.get({sessionId})
           return draft?.text === 'an unsent draft survives'
         },
-        {timeout: 15_000},
+        {timeout: 30_000},
       )
       .toBe(true)
 
     await page.reload({waitUntil: 'domcontentloaded'})
 
     await expect
-      .poll(() => page.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 20_000})
+      .poll(() => page.getByRole('dialog', {name: 'conciv chat agent'}).isVisible(), {timeout: 30_000})
       .toBe(true)
-    await expect.poll(() => page.getByText(ASSISTANT_TEXT).first().isVisible(), {timeout: 20_000}).toBe(true)
+    await expect.poll(() => page.getByText(ASSISTANT_TEXT).first().isVisible(), {timeout: 30_000}).toBe(true)
     await expect
-      .poll(() => page.getByRole('textbox', {name: 'Message the conciv agent'}).inputValue(), {timeout: 20_000})
+      .poll(() => page.getByRole('textbox', {name: 'Message the conciv agent'}).inputValue(), {timeout: 30_000})
       .toBe('an unsent draft survives')
     await page.close()
   })

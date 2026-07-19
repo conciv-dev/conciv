@@ -9,6 +9,7 @@ import {useToolCtx} from '../../store/tool-context.js'
 import {groupSegments, type Segment} from '../../store/grouping.js'
 import type {CompleteAttachment} from '../attachment/attachment-adapter.js'
 import {AttachmentProvider} from '../attachment/attachment.js'
+import {partIsModelOnly} from '../message-part/part-visibility.js'
 import {PartProvider, useMessage} from './message-context.js'
 
 type DivProps = JSX.HTMLAttributes<HTMLDivElement> & Slottable<JSX.HTMLAttributes<HTMLDivElement>>
@@ -105,7 +106,7 @@ function DispatchPart(props: {
     return value.type === 'tool-call' ? value : null
   }
   return (
-    <Show when={!isHiddenResult()} fallback={null}>
+    <Show when={!partIsModelOnly(part()) && !isHiddenResult()} fallback={null}>
       <Show when={asText()} keyed>
         {(text) => (components.Text ? <Dynamic component={components.Text} part={text} /> : <MessagePart.Text />)}
       </Show>
@@ -266,7 +267,7 @@ function Attachments(props: {components: AttachmentsComponents}): JSX.Element {
   const attachments = createMemo(() =>
     message
       .message()
-      .parts.filter(isAttachmentPart)
+      .parts.filter((part): part is AttachmentPart => isAttachmentPart(part) && !partIsModelOnly(part))
       .map((part, index) => partToEntry(part, index)),
   )
   return (
@@ -287,7 +288,9 @@ function Attachments(props: {components: AttachmentsComponents}): JSX.Element {
 function AttachmentByIndex(props: {index: number; components: AttachmentsComponents}): JSX.Element {
   const message = useMessage()
   const entry = () => {
-    const parts = message.message().parts.filter(isAttachmentPart)
+    const parts = message
+      .message()
+      .parts.filter((part): part is AttachmentPart => isAttachmentPart(part) && !partIsModelOnly(part))
     const part = parts[props.index]
     return part ? partToEntry(part, props.index) : undefined
   }

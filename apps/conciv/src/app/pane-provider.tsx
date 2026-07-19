@@ -2,7 +2,7 @@ import {createSignal, type JSX} from 'solid-js'
 import {useQuery} from '@tanstack/solid-query'
 import type {Grab} from '@conciv/grab'
 import {useAppData} from './context.js'
-import {PaneContext, type PaneContextValue, type StagedGrab} from './pane-context.js'
+import {PaneContext, makePendingAttachmentQueue, type PaneContextValue, type StagedGrab} from './pane-context.js'
 
 export function PaneProvider(props: {sessionId: string; children: JSX.Element}): JSX.Element {
   const appData = useAppData()
@@ -24,6 +24,7 @@ export function PaneProvider(props: {sessionId: string; children: JSX.Element}):
       remove: (grab: StagedGrab) => setGrabs((prev) => prev.filter((entry) => entry !== grab)),
       clear: () => setGrabs([]),
     },
+    attachments: makePendingAttachmentQueue(),
   }
 
   return <PaneContext.Provider value={value}>{props.children}</PaneContext.Provider>
