@@ -2,10 +2,10 @@
 import {execFileSync} from 'node:child_process'
 import {appendFileSync, existsSync, readdirSync, readFileSync, statSync, writeFileSync} from 'node:fs'
 import {join} from 'node:path'
-import {discoverPackages, parseTimings, planShards} from './shards.ts'
+import {parseTimings, planShards, plannedPackages} from './shards.ts'
 import {loadSummaries, mergeSummaries, type PackageSummary, parseSummaries, renderSummary} from './summary.ts'
 
-const PACKAGE_GROUPS = ['packages', 'packages/extensions']
+const SUMMARY_ROOTS = ['packages', 'apps']
 
 function argValue(args: string[], flag: string): string | null {
   const index = args.indexOf(flag)
@@ -24,7 +24,7 @@ function readBoundedTimings(path: string | null): Record<string, number> {
 
 function plan(args: string[]): void {
   const baseline = readBoundedTimings(argValue(args, '--timings'))
-  const shards = planShards(discoverPackages(process.cwd(), PACKAGE_GROUPS), baseline)
+  const shards = planShards(plannedPackages(process.cwd()), baseline)
   const include = shards.map((shard) => ({...shard, packages: shard.packages.join(' ')}))
   const matrix = JSON.stringify({include})
   const outputPath = process.env.GITHUB_OUTPUT
@@ -41,7 +41,7 @@ function run(): void {
 
 function report(args: string[]): void {
   const outputPath = argValue(args, '--output') ?? 'shard-report.json'
-  writeFileSync(outputPath, `${JSON.stringify(loadSummaries(['packages']))}\n`)
+  writeFileSync(outputPath, `${JSON.stringify(loadSummaries(SUMMARY_ROOTS))}\n`)
 }
 
 const MAX_REPORT_BYTES = 20_000_000

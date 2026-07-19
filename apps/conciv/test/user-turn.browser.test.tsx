@@ -45,10 +45,10 @@ function ThreadApp(props: {cards: readonly AttachmentCardSlot[]}): JSX.Element {
 }
 
 test('renders the matching card, hides modelOnly parts', async () => {
-  const Card = (): JSX.Element => <div data-testid="card">player</div>
+  const Card = (): JSX.Element => <span>test document player</span>
   const host = mountThread([{mime: 'application/x-test', render: Card}])
   await expect.poll(() => host.textContent).toContain('why?')
-  expect(host.querySelector('[data-testid="card"]')).not.toBeNull()
+  expect(host.textContent).toContain('test document player')
   expect(host.textContent).not.toContain('clicked save')
   expect(host.querySelector('img')).toBeNull()
 })

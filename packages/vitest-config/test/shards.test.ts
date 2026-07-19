@@ -5,8 +5,11 @@ import {expect, test} from 'vitest'
 import {
   DEFAULT_PACKAGE_MS,
   discoverPackages,
+  PACKAGE_GROUPS,
+  PACKAGES_WITH_DEDICATED_JOBS,
   parseTimings,
   planShards,
+  plannedPackages,
   TARGET_SHARD_MS,
   type WorkspacePackage,
 } from '../src/shards.ts'
@@ -94,15 +97,31 @@ test('parseTimings keeps numeric entries and drops everything else', () => {
   expect(parseTimings('[]')).toEqual({})
 })
 
-test('discoverPackages plans every real workspace package that ships a test script', () => {
+test('every real workspace package lands in a shard unless it owns a dedicated CI job', () => {
   const repoRoot = join(import.meta.dirname, '..', '..', '..')
-  const planned = new Set(discoverPackages(repoRoot, ['packages', 'packages/extensions']).map((entry) => entry.name))
-  const onDisk = ['packages', 'packages/extensions'].flatMap((group) =>
+  const planned = new Set(plannedPackages(repoRoot).map((entry) => entry.name))
+  const onDisk = PACKAGE_GROUPS.flatMap((group) =>
     readdirSync(join(repoRoot, group), {withFileTypes: true})
       .filter((entry) => entry.isDirectory() && existsSync(join(repoRoot, group, entry.name, 'package.json')))
       .map((entry) => JSON.parse(readFileSync(join(repoRoot, group, entry.name, 'package.json'), 'utf8')).name),
   )
-  expect(onDisk.filter((name) => typeof name === 'string' && !planned.has(name))).toEqual([])
+  const unplanned = onDisk.filter(
+    (name) => typeof name === 'string' && !planned.has(name) && !PACKAGES_WITH_DEDICATED_JOBS.includes(name),
+  )
+  expect(unplanned).toEqual([])
+})
+
+test('the workspace apps are sharded alongside the packages', () => {
+  const planned = plannedPackages(join(import.meta.dirname, '..', '..', '..')).map((entry) => entry.name)
+  expect(planned).toContain('conciv')
+  expect(planned).toContain('site')
+})
+
+test('a package with a dedicated CI job is kept out of the shard matrix', () => {
+  const root = mkdtempSync(join(tmpdir(), 'shards-'))
+  writeManifest(root, 'apps/storybook', {name: 'conciv-storybook', version: '1.0.0'})
+  writeManifest(root, 'apps/conciv', {name: 'conciv', version: '1.0.0'})
+  expect(plannedPackages(root).map((entry) => entry.name)).toEqual(['conciv'])
 })
 
 test('a package.json without a usable name fails the plan instead of vanishing from it', () => {
