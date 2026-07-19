@@ -19,6 +19,7 @@ export {inlineValue, shortenPath, basename, truncate, SUMMARY_KEYS} from './prim
 
 export {BashCard} from './styled/tools/bash-card.js'
 export {ApplyPatchDiff} from './styled/tools/apply-patch-diff.js'
+export {CodeRunCard, codeRunTool} from './styled/tools/code-run-card.js'
 export {FileReadCard, fileReadTool} from './styled/tools/file-read-card.js'
 export {FileEditCard, fileEditTool} from './styled/tools/file-edit-card.js'
 export {SearchCard, searchTool} from './styled/tools/search-card.js'
