@@ -9,8 +9,8 @@ Give agents first-class visibility into the running host app's framework interna
 data each framework's devtools read — plus the actions to act on it and verify fixes. Two
 extensions now (`nextjs`, `tanstack`), a shared adapter contract so Vue, Solid, SolidStart, and
 Astro land later as thin adapter packages. Alongside this, replace per-tool prompt registration
-with a two-meta-tool discovery surface so the standing context stays near zero no matter how many
-tools extensions ship.
+with library-native lazy tool discovery (plus Code Mode) so the standing context stays near zero
+no matter how many tools extensions ship.
 
 ## Decisions (settled during brainstorm)
 
@@ -22,12 +22,11 @@ tools extensions ship.
    the unplugin for vite/TanStack), so no new integration point is needed.
 4. Agent tools only — no human-facing devtools panels. Rich tool render cards in chat.
 5. Pull tools plus push: build/runtime/server errors and HMR events stream into agent context.
-6. Exactly two tools registered with the harness: `query_tools` and `run_tool`. Everything else
-   is virtual, discovered via fuzzy search. No list-all escape hatch.
+6. Discovery is library-native, not hand-rolled: all extension tools are `lazy: true` in
+   `@tanstack/ai` — lazy discovery as the baseline, Code Mode on top where the harness path
+   supports it. (Supersedes the earlier custom `query_tools`/`run_tool` + MiniSearch draft.)
 7. No injected registrar modules. The TanStack router instance is read from the React fiber tree
    (`RouterProvider` props) via the existing `packages/page` react-bridge.
-8. Search engine: MiniSearch. Top-5 result cap, min-score cutoff, query required (>= 3 chars).
-9. `keywords` becomes an optional field on `defineTool` (curated for all framework tools).
 
 ## 1. Shared adapter contract
 
@@ -139,51 +138,56 @@ Unified `FrameworkEvent` (`buildError`, `runtimeError`, `serverError`, `hmrUpdat
 `requestTrace`) flowing into a server-side ring buffer. Build/runtime/server errors auto-surface
 to the agent: digest at turn start plus live delivery while a run is active (exact plumbing —
 likely the existing server-stream — is a plan-phase decision). Deduped, throttled, category
-opt-outs so the context never floods. Push events are not tools and are unaffected by the
-two-tool discovery surface.
+opt-outs so the context never floods. Push events are not tools and are unaffected by the lazy
+discovery surface.
 
-## 6. Discovery surface: two tools, everything else virtual
+Reuse note: `@tanstack/devtools-vite` already ships console piping (client <-> server via
+`/__tsd/console-pipe` endpoints) and a ServerEventBus, and `@tanstack/devtools-event-client`
+provides the typed, pluginId-namespaced bus API (emit/on, queuing, retry lifecycle). For the
+TanStack adapter, prefer subscribing to these over reinventing transport; evaluate at plan phase
+how much carries over to the Next adapter.
+
+## 6. Discovery surface: library-native lazy discovery + Code Mode
 
 Today `packages/core/src/start.ts` concatenates every tool's `promptSnippet` and every
 extension's `systemPrompt` into one always-loaded system prompt. This PR replaces that.
 
-Registered with the harness, always and only:
+An earlier draft of this design hand-rolled a two-tool surface (`query_tools` backed by
+MiniSearch plus a `run_tool` dispatcher). That is superseded: the installed `@tanstack/ai`
+(0.41.0, the library conciv turns already run through) ships both halves natively, and
+hand-rolling would have broken render-by-part-name, native approval gating, and typed args.
 
-1. `query_tools` — input: an intent string. Returns up to 5 matches: name, one-liner, full input
-   JSON schema, guidelines. The agent can execute immediately; no second discovery hop.
-2. `run_tool` — input `{name, args}`. Dispatches through the extension tool registry: zod-parses
-   args against the inner schema, preserves the inner tool's `approval: 'ask'` gate, executes,
-   streams as today.
+Two composing mechanisms, both driven by marking extension tools `lazy: true`:
 
-The standing system prompt shrinks to one short snippet describing these two tools. Per-tool
-`promptSnippet`/`promptGuidelines` become the `query_tools` result payload. All existing
-extensions (recorder, terminal, test-runner, try-it, whiteboard) migrate onto the same surface.
+1. **Lazy tool discovery** (classic tool calls). The LLM sees a synthetic
+   `__lazy__tool__discovery__` tool plus a names-only catalog of lazy tools
+   (`lazyToolsConfig: {includeDescription: 'first-sentence'}` adds a one-liner each). It
+   discovers full schemas on demand; a discovered tool becomes a real tool call — approval flow,
+   arg typing, and widget render-by-part-name all unchanged. The discovery tool auto-removes
+   once everything is discovered.
+2. **Code Mode** (the Cloudflare-pioneered execute-code pattern, native in `@tanstack/ai`).
+   Tools are projected as a typed TypeScript API; the agent writes code against it, executed in
+   the conciv sandbox; chained inspect -> act -> verify runs without an LLM round-trip per step.
+   Lazy tools stay out of the system prompt and surface via `discover_tools`. Code Mode emits
+   dedicated events (`CodeModeExecutionStarted`, `CodeModeConsole`, `CodeModeExternalCall`, ...)
+   the widget can render.
 
-Render cards: the widget renders tool parts by name; `run_tool` parts dispatch the renderer by
-`args.name` so each inner tool's card renders unchanged.
+Both are configuration of the same tool definitions, not separate architectures. Ship with lazy
+discovery as the guaranteed baseline and Code Mode enabled where the harness path supports it
+(verification task below).
 
-### Search engine
+Context posture:
 
-- **MiniSearch** (~7 kB minzip, zero deps, TypeScript, actively maintained). Token-based
-  field-boosted search fits intent queries ("invalidate query cache"); fuzzy 0.2 covers typos;
-  prefix search covers partial tool names. Evaluated against uFuzzy (label-matching oriented),
-  FlexSearch (speed we do not need, memory we do not want), Fuse.js (weaker result ordering).
-- Catalog built once at engine boot from loaded extensions, immutable after (rebuilt on
-  extension reload). Corpus is small (tens to low hundreds of tools) so index cost is negligible;
-  the design still avoids waste on principle.
-- Index holds only searchable text (name boosted x3, keywords x2, description x1) keyed by
-  integer id. Zod schemas are never indexed or duplicated: a side `Map<name, tool>` points at the
-  already-loaded tool builders, and JSON schema is serialized lazily per returned result and
-  cached after first serialization.
-
-### No escape hatch
-
-- Query is required, minimum 3 characters; wildcard and stopword-only queries are rejected with
-  guidance to state the intended action.
-- Hard cap of 5 results with a min-score cutoff. No pagination, no list mode, no input value that
-  reaches an all-tools dump.
-- Zero results return a capped `autoSuggest` nearest-terms hint so the agent refines rather than
-  broadens.
+- The standing system prompt keeps one short snippet describing discovery; per-tool
+  `promptSnippet`/`promptGuidelines` become discovery payload, returned only when a tool is
+  discovered.
+- All existing extensions (recorder, terminal, test-runner, try-it, whiteboard) migrate onto the
+  same lazy surface.
+- Accepted trade-off: the pre-discovery catalog lists all lazy tool names (plus first sentence).
+  That is a few hundred tokens; the pollution this design eliminates is the schemas, snippets,
+  and guidelines. No custom search index is needed — MiniSearch is dropped; if name-based
+  discovery recall proves weak in practice, revisit with an upstream `lazyToolsConfig`
+  contribution rather than a parallel mechanism.
 
 ## 7. Testing
 
@@ -191,8 +195,12 @@ Render cards: the widget renders tool parts by name; `run_tool` parts dispatch t
   via the existing e2e consumer apps (`nextjs-app`, `tanstack-start`).
 - Widget integration tests: prebuilt embed bundle, real Chromium, `browser.newPage()`, no jsdom,
   no framework mocks — real apps only. Never wait on `networkidle` with the live widget.
-- Discovery surface: unit tests for ranking quality (intent phrase to expected tool), rejection
-  policy, and schema laziness; an IT proving the agent loop query -> run -> render card.
+- Discovery surface: unit tests that every extension tool is registered lazy, that the standing
+  system prompt contains only the single discovery snippet (anti-pattern grep: no
+  `promptSnippet` concatenation left in `start.ts`), and that discovered tools keep their
+  approval gates; an IT proving the loop discover -> call -> render card; a Code Mode IT
+  proving a chained inspect -> act -> verify script executes in the sandbox and its events
+  render.
 
 ## 8. Future frameworks
 
@@ -214,3 +222,7 @@ Capability flags absorb the mismatches (no query cache in Astro, no RSC outside 
 3. Decide push-event delivery plumbing (server-stream vs turn-start digest attachment) and the
    dedupe window.
 4. Verify fiber-walk router extraction against the TanStack Start example app (React 19).
+5. Verify `lazy: true` and Code Mode pass through each harness adapter's tool path (tools ride
+   MCP to the CLI harnesses); pin which harnesses get Code Mode at launch.
+6. Confirm the exact event names/pluginIds the TanStack router and query devtools plugins emit
+   on the devtools event bus, for the bus-subscription fallback and push events.
