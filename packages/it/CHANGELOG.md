@@ -1,5 +1,17 @@
 # @conciv/it
 
+## 0.0.14
+
+### Patch Changes
+
+- Updated dependencies [[`32deb1c`](https://github.com/conciv-dev/conciv/commit/32deb1c4e25e5a8a8fb8ac1d0b089347433cc483)]:
+  - @conciv/extension-recorder@0.0.14
+  - @conciv/embed@0.0.14
+  - @conciv/extension-terminal@0.0.14
+  - @conciv/extension-test-runner@0.0.14
+  - @conciv/extension-whiteboard@0.0.14
+  - @conciv/plugin@0.0.14
+
 ## 0.0.13
 
 ### Patch Changes

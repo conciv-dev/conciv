@@ -1,5 +1,18 @@
 # @conciv/extension
 
+## 0.0.14
+
+### Patch Changes
+
+- [#97](https://github.com/conciv-dev/conciv/pull/97) [`8370fd9`](https://github.com/conciv-dev/conciv/commit/8370fd9ef1156296236d4a9e22f5453ca817d9f3) Thanks [@omridevk](https://github.com/omridevk)! - `defineAttachment().card()` now types its component as `Component<AttachmentCardProps>` instead of a bare
+  `Component`, so extension authors can read the `remove` element the composer hands the card without
+  re-declaring the prop type by hand.
+- Updated dependencies []:
+  - @conciv/contract@0.0.14
+  - @conciv/grab@0.0.14
+  - @conciv/protocol@0.0.14
+  - @conciv/ui-kit-system@0.0.14
+
 ## 0.0.13
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@conciv/mascot",
-  "version": "0.0.13",
+  "version": "0.0.14",
   "description": "Internal to @conciv/it (installed automatically, do not install directly). The conciv robot mascot: the rigged layer assets and a framework-free GSAP rig (createFabRobotRig) shared by the widget FAB and the site.",
   "keywords": [
     "conciv",
