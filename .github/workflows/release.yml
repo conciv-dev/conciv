@@ -51,11 +51,14 @@ jobs:
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
-      - run: npm i -g npm@latest # OIDC trusted publishing requires npm >= 11.5.1
       - uses: SocketDev/action@ba6de6cc0565af1f42295590380973573297e31f # v1.3.2
         with:
           mode: firewall-free
           firewall-version: 1.13.1 # pinned: 'latest' does a GitHub Releases lookup that flakes CI
+      # OIDC trusted publishing requires npm >= 11.5.1. Pinned exact + fetched through
+      # the firewall: this job holds id-token: write, so an unpinned npm@latest here
+      # would be a registry-compromise straight into the publish path.
+      - run: sfw npm i -g npm@12.0.1
       - run: sfw pnpm i --frozen-lockfile # Socket Firewall blocks known-malicious packages at install
       - uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1
         with:
