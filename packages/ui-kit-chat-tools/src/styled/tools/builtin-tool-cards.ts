@@ -4,6 +4,7 @@ import {ApplyPatchDiff} from './apply-patch-diff.js'
 import {codeRunTool} from './code-run-card.js'
 import {discoveredApisTool} from './discovered-apis-card.js'
 import {fileEditTool} from './file-edit-card.js'
+import {loadedToolsTool} from './loaded-tools-card.js'
 import {fileReadTool} from './file-read-card.js'
 import {searchTool} from './search-card.js'
 import {todoTool} from './todo-card.js'
@@ -18,6 +19,7 @@ export const builtinToolCards: ToolCardEntry[] = [
   discoveredApisTool,
   fileEditTool,
   fileReadTool,
+  loadedToolsTool,
   searchTool,
   todoTool,
   toolLookupTool,
