@@ -20,7 +20,12 @@ afterEach(() => {
 
 function fixtureExtension() {
   const attachment = defineAttachment({mime: 'application/x-fixture'})
-  attachment.card(() => <div data-testid="fixture-card">player</div>)
+  attachment.card((props) => (
+    <div data-testid="fixture-card">
+      player
+      {props.remove}
+    </div>
+  ))
   return defineExtension({name: 'fixture', attachments: [attachment]})
 }
 
