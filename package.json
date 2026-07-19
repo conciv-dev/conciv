@@ -17,7 +17,7 @@
     "storybook": "turbo run storybook --filter=conciv-storybook",
     "build": "turbo run build",
     "test": "turbo run test",
-    "e2e": "turbo run test:e2e --continue",
+    "e2e": "turbo run test:e2e --concurrency=3 --continue",
     "typecheck": "turbo run typecheck",
     "lint": "turbo run lint",
     "format": "oxfmt --write .",
